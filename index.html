@@ -5,13 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SimplePartner - AI 자동화 & 맞춤형 솔루션</title>
     <style>
-        /* 기본 스타일 */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Malgun Gothic', dotum, sans-serif; color: #e0e0e0; line-height: 1.6; background-color: #121212; }
         a { text-decoration: none; color: inherit; }
         li { list-style: none; }
 
-        /* 상단 네비게이션 */
         header { background: #1a1a1a; border-bottom: 1px solid #333; position: fixed; width: 100%; top: 0; z-index: 100; }
         .nav-container { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 20px; }
         .logo { font-size: 24px; font-weight: bold; color: #fff; letter-spacing: 1px; }
@@ -19,23 +17,20 @@
         .nav-links { display: flex; gap: 20px; font-weight: 600; color: #ccc; }
         .nav-links a:hover { color: #fff; }
 
-        /* 메인 히어로 배너 */
         .hero { background: linear-gradient(135deg, #1f1f1f, #0d0d0d); color: #fff; padding: 160px 20px 100px; text-align: center; border-bottom: 1px solid #222; }
-        .hero h1 { font-size: 42px; margin-bottom: 20px; font-weight: bold; letter-spacing: -1px; }
-        .hero p { font-size: 18px; margin-bottom: 30px; color: #aaaaaa; }
-        
-        .btn { display: inline-block; background: linear-gradient(135deg, #ffffff, #cccccc); color: #121212; padding: 14px 35px; border-radius: 4px; font-weight: bold; transition: 0.3s; text-decoration: none; font-size: 16px; box-shadow: 0 4px 15px rgba(255,255,255,0.1); }
+        .hero h1 { font-size: 42px; margin-bottom: 20px; font-weight: bold; }
+        .hero p { font-size: 18px; margin: 0 auto 30px; color: #aaaaaa; max-width: 720px; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #ffffff, #cccccc); color: #121212; padding: 14px 35px; border-radius: 4px; font-weight: bold; transition: 0.3s; font-size: 16px; box-shadow: 0 4px 15px rgba(255,255,255,0.1); }
         .btn:hover { background: #ffffff; transform: translateY(-2px); }
 
-        /* 게임 레이아웃 구역 */
+        section { max-width: 1100px; margin: 0 auto; padding: 80px 20px; text-align: center; }
+        section h2 { font-size: 32px; margin-bottom: 40px; color: #fff; font-weight: bold; }
+        section h2::after { content: ''; display: block; width: 40px; height: 2px; background: #888; margin: 15px auto 0; }
+
         #game-section { background: #1a1a1a; max-width: 1100px; margin: 40px auto; padding: 60px 20px; border-radius: 8px; border: 1px solid #333; text-align: center; }
         .game-container { display: flex; justify-content: center; gap: 40px; margin: 30px 0; flex-wrap: wrap; }
-        
-        /* 마우스 조준선 커서 적용 */
         .art-box { width: 340px; height: 300px; background: #fff; border: 4px solid #444; border-radius: 6px; position: relative; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5); cursor: crosshair; }
         .box-title { margin-bottom: 12px; font-weight: bold; color: #ccc; font-size: 16px; }
-
-        /* CSS 디자인 그래픽 소스 */
         .sky { width: 100%; height: 200px; background: #e3f2fd; position: absolute; top: 0; left: 0; }
         .ground { width: 100%; height: 100px; background: #c8e6c9; position: absolute; bottom: 0; left: 0; }
         .sun { width: 50px; height: 50px; background: #ff9800; border-radius: 50%; position: absolute; top: 30px; left: 40px; }
@@ -43,81 +38,85 @@
         .door { width: 30px; height: 50px; background: #795548; position: absolute; bottom: 0; left: 40px; }
         .tree-trunk { width: 16px; height: 60px; background: #5d4037; position: absolute; bottom: 80px; left: 260px; }
         .tree-leaves { width: 70px; height: 70px; background: #4caf50; border-radius: 50%; position: absolute; bottom: 120px; left: 233px; }
-
-        /* 지붕 및 열매 비주얼 개체 */
         .roof-a { width: 0; height: 0; border-left: 65px solid transparent; border-right: 65px solid transparent; border-bottom: 50px solid #3949ab; position: absolute; bottom: 160px; left: 100px; }
         .roof-b { width: 0; height: 0; border-left: 65px solid transparent; border-right: 65px solid transparent; border-bottom: 50px solid #e53935; position: absolute; bottom: 160px; left: 100px; }
         .berry-a { width: 14px; height: 14px; background: #ff1744; border-radius: 50%; position: absolute; bottom: 145px; left: 261px; }
-
-        /* [★원천적 버그 수정] 정답을 판정할 절대 오작동 없는 히트박스 영역 */
         .hitbox { position: absolute; background: transparent; border: none; outline: none; cursor: crosshair; z-index: 10; }
         #click-roof { width: 130px; height: 60px; left: 100px; bottom: 150px; }
         #click-berry { width: 60px; height: 60px; left: 238px; bottom: 125px; }
-
-        /* 오답을 받아낼 바닥 판넬 감지기 */
         .miss-trigger { width: 100%; height: 100%; position: absolute; top: 0; left: 0; background: transparent; border: none; z-index: 5; }
-
-        /* 정답 시 활성화될 빨간 동그라미 링 마커 */
         .success-circle { display: none; position: absolute; width: 60px; height: 60px; border: 4px solid #ff1744; border-radius: 50%; transform: translate(-50%, -50%); z-index: 20; pointer-events: none; }
-
-        #game-msg { font-size: 22px; font-weight: bold; margin-top: 20px; color: #ffeb3b; min-height: 35px; letter-spacing: -0.5px; }
+        #game-msg { font-size: 22px; font-weight: bold; margin-top: 20px; color: #ffeb3b; min-height: 35px; }
         .reset-btn { background: #333; color: #fff; border: 1px solid #555; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 15px; font-weight: bold; }
         .reset-btn:hover { background: #444; }
-
-        /* 회사 비즈니스 카드 */
-        section { max-width: 1100px; margin: 0 auto; padding: 80px 20px; text-align: center; }
-        section h2 { font-size: 32px; margin-bottom: 40px; color: #fff; font-weight: bold; }
-        section h2::after { content: ''; display: block; width: 40px; height: 2px; background: #888; margin: 15px auto 0; }
 
         .grid { display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; }
         .card { background: #1a1a1a; border: 1px solid #2d2d2d; padding: 40px 20px; border-radius: 6px; flex: 1; min-width: 280px; text-align: left; }
         .card h3 { font-size: 20px; margin-bottom: 15px; color: #ffffff; text-align: center; }
         .card ul li { margin-bottom: 10px; color: #999; font-size: 15px; }
 
-        footer { background: #0d0d0d; color: #aaa; padding: 60px 20px; border-top: 1px solid #222; }
-        .copyright { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #222; font-size: 13px; color: #555; }
+        #contact { background: #181818; border-top: 1px solid #2a2a2a; border-bottom: 1px solid #2a2a2a; }
+        .contact-wrap { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 36px; align-items: start; text-align: left; }
+        .contact-copy h2 { text-align: left; margin-bottom: 22px; }
+        .contact-copy h2::after { margin-left: 0; }
+        .contact-copy p { color: #aaa; margin-bottom: 18px; }
+        .contact-points li { color: #cfcfcf; margin-bottom: 10px; list-style: disc; margin-left: 18px; }
+        .partner-form { background: #101010; border: 1px solid #333; border-radius: 8px; padding: 28px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .field { margin-bottom: 16px; }
+        .field label { display: block; color: #ddd; font-weight: 700; margin-bottom: 8px; font-size: 14px; }
+        .field input,
+        .field select,
+        .field textarea { width: 100%; background: #1b1b1b; color: #fff; border: 1px solid #3b3b3b; border-radius: 4px; padding: 12px 13px; font: inherit; }
+        .field textarea { min-height: 130px; resize: vertical; }
+        .field input:focus,
+        .field select:focus,
+        .field textarea:focus { outline: 2px solid #777; border-color: #aaa; }
+        .submit-btn { width: 100%; border: none; cursor: pointer; margin-top: 6px; }
+        .form-note { margin-top: 12px; color: #777; font-size: 13px; text-align: center; }
+
+        footer { background: #0d0d0d; color: #aaa; padding: 38px 20px; border-top: 1px solid #222; text-align: center; }
+        .copyright { margin-top: 18px; padding-top: 18px; border-top: 1px solid #222; font-size: 13px; color: #555; }
 
         @media (max-width: 768px) {
             .nav-links { display: none; }
             .hero h1 { font-size: 30px; }
-            .grid { flex-direction: column; }
+            .grid, .contact-wrap, .form-row { grid-template-columns: 1fr; flex-direction: column; }
+            .art-box { width: min(340px, 100%); }
+            .partner-form { padding: 22px; }
         }
     </style>
 </head>
 <body>
-
-    <!-- 상단 바 -->
     <header>
         <div class="nav-container">
             <a href="#" class="logo">Simple<span>Partner</span></a>
             <ul class="nav-links">
                 <li><a href="#services">주요 서비스</a></li>
-                <li><a href="#game-section">체감 게임</a></li>
-                <li><a href="#contact">문의하기</a></li>
+                <li><a href="#game-section">체험 게임</a></li>
+                <li><a href="#contact">제휴 문의</a></li>
             </ul>
         </div>
     </header>
 
-    <!-- 대문 -->
     <main>
         <div class="hero">
-            <h1>복잡한 비즈니스 루틴,<br>AI 자동화로 심플하게 바꾸다</h1>
-            <p>SimplePartner는 기업의 워크플로우를 진단하고 비효율을 걷어내는 맞춤형 솔루션을 만듭니다.</p>
-            <a href="#game-section" class="btn">AI 성능 체감 게임 시작하기</a>
+            <h1>복잡한 비즈니스 루틴을<br>AI 자동화로 단순하게</h1>
+            <p>SimplePartner는 기업의 업무 흐름을 진단하고 반복 업무를 줄이는 맞춤형 AI 자동화 솔루션을 만듭니다.</p>
+            <a href="#contact" class="btn">제휴 문의하기</a>
         </div>
     </main>
 
-    <!-- 완벽 개조된 미니게임 구역 -->
     <section id="game-section">
-        <h2>틀린 부분 찾기 챌린지</h2>
-        <p style="color: #aaa; margin-bottom: 15px;">오른쪽(B) 이미지에서 <b>틀린 곳 2가지(지붕, 열매)</b>를 찾아 마우스로 직접 클릭해보세요!</p>
-        
+        <h2>다른 부분 찾기 챌린지</h2>
+        <p style="color: #aaa; margin-bottom: 15px;">오른쪽 이미지에서 <b>다른 곳 2가지, 지붕과 열매</b>를 찾아 클릭해보세요.</p>
+
         <div class="game-container">
-            <!-- 이미지 A (원본) -->
             <div>
                 <div class="box-title">원본 이미지 (A)</div>
                 <div class="art-box">
                     <div class="sky"></div>
+                    <div class="ground"></div>
                     <div class="sun"></div>
                     <div class="roof-a"></div>
                     <div class="house"><div class="door"></div></div>
@@ -127,64 +126,136 @@
                 </div>
             </div>
 
-            <!-- 이미지 B (버튼 히트박스 방식 플레이 필드) -->
             <div>
-                <div class="box-title">수정된 이미지 (B) - 🔍 틀린 곳을 직접 클릭!</div>
+                <div class="box-title">수정된 이미지 (B)</div>
                 <div class="art-box">
-                    <!-- 배경 비주얼 -->
                     <div class="sky"></div>
+                    <div class="ground"></div>
                     <div class="sun"></div>
                     <div class="roof-b"></div>
                     <div class="house"><div class="door"></div></div>
                     <div class="tree-trunk"></div>
                     <div class="tree-leaves"></div>
-
-                    <!-- [정답 감지용 투명 버튼 배치] -->
-                    <button id="click-roof" class="hitbox" onclick="scoreTarget('roof', 165, 110)"></button>
-                    <button id="click-berry" class="hitbox" onclick="scoreTarget('berry', 268, 155)"></button>
-
-                    <!-- [오답 감지용 바탕 판넬] -->
+                    <button id="click-roof" class="hitbox" onclick="scoreTarget('roof')"></button>
+                    <button id="click-berry" class="hitbox" onclick="scoreTarget('berry')"></button>
                     <button class="miss-trigger" onclick="scoreMiss()"></button>
-
-                    <!-- 정답 서클링 마커 유닛 -->
                     <div id="ring-roof" class="success-circle" style="left: 165px; top: 110px;"></div>
                     <div id="ring-berry" class="success-circle" style="left: 268px; top: 155px;"></div>
                 </div>
             </div>
         </div>
 
-        <div id="game-msg">오른쪽(B) 그림판 내부를 클릭하여 틀린 곳을 맞춰보세요!</div>
+        <div id="game-msg">오른쪽 그림에서 다른 곳을 클릭해보세요.</div>
         <button class="reset-btn" onclick="resetGame()">게임 초기화</button>
     </section>
 
-    <!-- 핵심 서비스 소개 -->
     <section id="services">
-        <h2>핵심 비즈니스</h2>
+        <h2>주요 비즈니스</h2>
         <div class="grid">
             <div class="card">
-                <h3>💡 AI 비즈니스 컨설팅</h3>
+                <h3>AI 비즈니스 컨설팅</h3>
                 <ul>
-                    <li>• 업무 프로세스 정밀 진단</li>
-                    <li>• 맞춤형 AI 도입 로드맵 수립</li>
-                    <li>• 비용 대비 효율성(ROI) 분석</li>
+                    <li>업무 프로세스 진단</li>
+                    <li>맞춤형 AI 도입 로드맵 설계</li>
+                    <li>비용 대비 효율과 ROI 분석</li>
                 </ul>
             </div>
             <div class="card">
-                <h3>🛠️ 맞춤형 AI 제품 개발</h3>
+                <h3>맞춤형 AI 제품 개발</h3>
                 <ul>
-                    <li>• LLM 기반 사내 문서 챗봇</li>
-                    <li>• 자동 이메일 및 보고서 작성기</li>
-                    <li>• 데이터 수집 및 시각화 대시보드</li>
+                    <li>LLM 기반 사내 문서 챗봇</li>
+                    <li>자동 이메일 및 보고서 작성 도구</li>
+                    <li>데이터 수집 및 시각화 대시보드</li>
                 </ul>
             </div>
         </div>
     </section>
 
-    <!-- 푸터 -->
-    <footer id="contact">
-        <div class="footer-container">
-            <div>
-                <h3>SimplePartner (심플파트너)</h3>
-                <p style="margin-top: 10px; font-size: 14px; color: #888;">지능형 업무 자동화를 연구하는 전문 기업입니다.</p>
+    <section id="contact">
+        <div class="contact-wrap">
+            <div class="contact-copy">
+                <h2>제휴 문의</h2>
+                <p>AI 자동화, 공동 사업, 솔루션 도입, 기술 협업에 대한 문의를 남겨주세요. 확인 후 연락드리겠습니다.</p>
+                <ul class="contact-points">
+                    <li>기업 업무 자동화 상담</li>
+                    <li>AI 솔루션 공동 개발</li>
+                    <li>제휴 및 파트너십 제안</li>
+                </ul>
             </div>
+
+            <form class="partner-form" action="https://formspree.io/f/xojzpwkg" method="POST">
+                <div class="form-row">
+                    <div class="field">
+                        <label for="name">이름</label>
+                        <input type="text" id="name" name="name" autocomplete="name" required>
+                    </div>
+                    <div class="field">
+                        <label for="email">이메일</label>
+                        <input type="email" id="email" name="email" autocomplete="email" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="field">
+                        <label for="company">회사명</label>
+                        <input type="text" id="company" name="company" autocomplete="organization">
+                    </div>
+                    <div class="field">
+                        <label for="type">문의 유형</label>
+                        <select id="type" name="type" required>
+                            <option value="">선택해주세요</option>
+                            <option value="AI 자동화 상담">AI 자동화 상담</option>
+                            <option value="공동 개발">공동 개발</option>
+                            <option value="제휴 제안">제휴 제안</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="message">문의 내용</label>
+                    <textarea id="message" name="message" placeholder="문의 내용을 간단히 적어주세요." required></textarea>
+                </div>
+
+                <input type="hidden" name="_subject" value="SimplePartner 제휴 문의">
+                <button class="btn submit-btn" type="submit">문의 보내기</button>
+                <p class="form-note">제출된 내용은 Formspree를 통해 전달됩니다.</p>
+            </form>
         </div>
+    </section>
+
+    <footer>
+        <h3>SimplePartner</h3>
+        <p style="margin-top: 10px; font-size: 14px; color: #888;">지능형 업무 자동화를 연구하는 AI 솔루션 파트너</p>
+        <div class="copyright">Copyright 2026 SimplePartner. All rights reserved.</div>
+    </footer>
+
+    <script>
+        const foundTargets = new Set();
+
+        function scoreTarget(target) {
+            if (foundTargets.has(target)) return;
+            foundTargets.add(target);
+            document.getElementById(`ring-${target}`).style.display = 'block';
+
+            const message = document.getElementById('game-msg');
+            if (foundTargets.size === 2) {
+                message.textContent = '정답입니다. 다른 부분 2가지를 모두 찾았습니다.';
+            } else {
+                message.textContent = '좋습니다. 하나 더 찾아보세요.';
+            }
+        }
+
+        function scoreMiss() {
+            document.getElementById('game-msg').textContent = '아쉽습니다. 지붕 색상과 나무 열매를 살펴보세요.';
+        }
+
+        function resetGame() {
+            foundTargets.clear();
+            document.getElementById('ring-roof').style.display = 'none';
+            document.getElementById('ring-berry').style.display = 'none';
+            document.getElementById('game-msg').textContent = '오른쪽 그림에서 다른 곳을 클릭해보세요.';
+        }
+    </script>
+</body>
+</html>
