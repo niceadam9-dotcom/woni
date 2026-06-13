@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimplePartner - AI 자동화 & 맞춤형 솔루션</title>
+    <style>
+        /* 기본 스타일 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', dotum, sans-serif; color: #e0e0e0; line-height: 1.6; background-color: #121212; }
+        a { text-decoration: none; color: inherit; }
+        li { list-style: none; }
+
+        /* 상단 네비게이션 */
+        header { background: #1a1a1a; border-bottom: 1px solid #333; position: fixed; width: 100%; top: 0; z-index: 100; }
+        .nav-container { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 20px; }
+        .logo { font-size: 24px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+        .logo span { color: #aaaaaa; }
+        .nav-links { display: flex; gap: 20px; font-weight: 600; color: #ccc; }
+        .nav-links a:hover { color: #fff; }
+
+        /* 메인 히어로 배너 */
+        .hero { background: linear-gradient(135deg, #1f1f1f, #0d0d0d); color: #fff; padding: 160px 20px 100px; text-align: center; border-bottom: 1px solid #222; }
+        .hero h1 { font-size: 42px; margin-bottom: 20px; font-weight: bold; letter-spacing: -1px; }
+        .hero p { font-size: 18px; margin-bottom: 30px; color: #aaaaaa; }
+        
+        .btn { display: inline-block; background: linear-gradient(135deg, #ffffff, #cccccc); color: #121212; padding: 14px 35px; border-radius: 4px; font-weight: bold; transition: 0.3s; text-decoration: none; font-size: 16px; box-shadow: 0 4px 15px rgba(255,255,255,0.1); }
+        .btn:hover { background: #ffffff; transform: translateY(-2px); }
+
+        /* 게임 레이아웃 구역 */
+        #game-section { background: #1a1a1a; max-width: 1100px; margin: 40px auto; padding: 60px 20px; border-radius: 8px; border: 1px solid #333; text-align: center; }
+        .game-container { display: flex; justify-content: center; gap: 40px; margin: 30px 0; flex-wrap: wrap; }
+        
+        /* 마우스 조준선 커서 적용 */
+        .art-box { width: 340px; height: 300px; background: #fff; border: 4px solid #444; border-radius: 6px; position: relative; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5); cursor: crosshair; }
+        .box-title { margin-bottom: 12px; font-weight: bold; color: #ccc; font-size: 16px; }
+
+        /* CSS 디자인 그래픽 소스 */
+        .sky { width: 100%; height: 200px; background: #e3f2fd; position: absolute; top: 0; left: 0; }
+        .ground { width: 100%; height: 100px; background: #c8e6c9; position: absolute; bottom: 0; left: 0; }
+        .sun { width: 50px; height: 50px; background: #ff9800; border-radius: 50%; position: absolute; top: 30px; left: 40px; }
+        .house { width: 110px; height: 80px; background: #fff9c4; position: absolute; bottom: 80px; left: 110px; border: 1px solid #ddd; }
+        .door { width: 30px; height: 50px; background: #795548; position: absolute; bottom: 0; left: 40px; }
+        .tree-trunk { width: 16px; height: 60px; background: #5d4037; position: absolute; bottom: 80px; left: 260px; }
+        .tree-leaves { width: 70px; height: 70px; background: #4caf50; border-radius: 50%; position: absolute; bottom: 120px; left: 233px; }
+
+        /* 지붕 및 열매 비주얼 개체 */
+        .roof-a { width: 0; height: 0; border-left: 65px solid transparent; border-right: 65px solid transparent; border-bottom: 50px solid #3949ab; position: absolute; bottom: 160px; left: 100px; }
+        .roof-b { width: 0; height: 0; border-left: 65px solid transparent; border-right: 65px solid transparent; border-bottom: 50px solid #e53935; position: absolute; bottom: 160px; left: 100px; }
+        .berry-a { width: 14px; height: 14px; background: #ff1744; border-radius: 50%; position: absolute; bottom: 145px; left: 261px; }
+
+        /* [★원천적 버그 수정] 정답을 판정할 절대 오작동 없는 히트박스 영역 */
+        .hitbox { position: absolute; background: transparent; border: none; outline: none; cursor: crosshair; z-index: 10; }
+        #click-roof { width: 130px; height: 60px; left: 100px; bottom: 150px; }
+        #click-berry { width: 60px; height: 60px; left: 238px; bottom: 125px; }
+
+        /* 오답을 받아낼 바닥 판넬 감지기 */
+        .miss-trigger { width: 100%; height: 100%; position: absolute; top: 0; left: 0; background: transparent; border: none; z-index: 5; }
+
+        /* 정답 시 활성화될 빨간 동그라미 링 마커 */
+        .success-circle { display: none; position: absolute; width: 60px; height: 60px; border: 4px solid #ff1744; border-radius: 50%; transform: translate(-50%, -50%); z-index: 20; pointer-events: none; }
+
+        #game-msg { font-size: 22px; font-weight: bold; margin-top: 20px; color: #ffeb3b; min-height: 35px; letter-spacing: -0.5px; }
+        .reset-btn { background: #333; color: #fff; border: 1px solid #555; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 15px; font-weight: bold; }
+        .reset-btn:hover { background: #444; }
+
+        /* 회사 비즈니스 카드 */
+        section { max-width: 1100px; margin: 0 auto; padding: 80px 20px; text-align: center; }
+        section h2 { font-size: 32px; margin-bottom: 40px; color: #fff; font-weight: bold; }
+        section h2::after { content: ''; display: block; width: 40px; height: 2px; background: #888; margin: 15px auto 0; }
+
+        .grid { display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; }
+        .card { background: #1a1a1a; border: 1px solid #2d2d2d; padding: 40px 20px; border-radius: 6px; flex: 1; min-width: 280px; text-align: left; }
+        .card h3 { font-size: 20px; margin-bottom: 15px; color: #ffffff; text-align: center; }
+        .card ul li { margin-bottom: 10px; color: #999; font-size: 15px; }
+
+        footer { background: #0d0d0d; color: #aaa; padding: 60px 20px; border-top: 1px solid #222; }
+        .copyright { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #222; font-size: 13px; color: #555; }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .hero h1 { font-size: 30px; }
+            .grid { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 상단 바 -->
+    <header>
+        <div class="nav-container">
+            <a href="#" class="logo">Simple<span>Partner</span></a>
+            <ul class="nav-links">
+                <li><a href="#services">주요 서비스</a></li>
+                <li><a href="#game-section">체감 게임</a></li>
+                <li><a href="#contact">문의하기</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <!-- 대문 -->
+    <main>
+        <div class="hero">
+            <h1>복잡한 비즈니스 루틴,<br>AI 자동화로 심플하게 바꾸다</h1>
+            <p>SimplePartner는 기업의 워크플로우를 진단하고 비효율을 걷어내는 맞춤형 솔루션을 만듭니다.</p>
+            <a href="#game-section" class="btn">AI 성능 체감 게임 시작하기</a>
+        </div>
+    </main>
+
+    <!-- 완벽 개조된 미니게임 구역 -->
+    <section id="game-section">
+        <h2>틀린 부분 찾기 챌린지</h2>
+        <p style="color: #aaa; margin-bottom: 15px;">오른쪽(B) 이미지에서 <b>틀린 곳 2가지(지붕, 열매)</b>를 찾아 마우스로 직접 클릭해보세요!</p>
+        
+        <div class="game-container">
+            <!-- 이미지 A (원본) -->
+            <div>
+                <div class="box-title">원본 이미지 (A)</div>
+                <div class="art-box">
+                    <div class="sky"></div>
+                    <div class="sun"></div>
+                    <div class="roof-a"></div>
+                    <div class="house"><div class="door"></div></div>
+                    <div class="tree-trunk"></div>
+                    <div class="tree-leaves"></div>
+                    <div class="berry-a"></div>
+                </div>
+            </div>
+
+            <!-- 이미지 B (버튼 히트박스 방식 플레이 필드) -->
+            <div>
+                <div class="box-title">수정된 이미지 (B) - 🔍 틀린 곳을 직접 클릭!</div>
+                <div class="art-box">
+                    <!-- 배경 비주얼 -->
+                    <div class="sky"></div>
+                    <div class="sun"></div>
+                    <div class="roof-b"></div>
+                    <div class="house"><div class="door"></div></div>
+                    <div class="tree-trunk"></div>
+                    <div class="tree-leaves"></div>
+
+                    <!-- [정답 감지용 투명 버튼 배치] -->
+                    <button id="click-roof" class="hitbox" onclick="scoreTarget('roof', 165, 110)"></button>
+                    <button id="click-berry" class="hitbox" onclick="scoreTarget('berry', 268, 155)"></button>
+
+                    <!-- [오답 감지용 바탕 판넬] -->
+                    <button class="miss-trigger" onclick="scoreMiss()"></button>
+
+                    <!-- 정답 서클링 마커 유닛 -->
+                    <div id="ring-roof" class="success-circle" style="left: 165px; top: 110px;"></div>
+                    <div id="ring-berry" class="success-circle" style="left: 268px; top: 155px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-msg">오른쪽(B) 그림판 내부를 클릭하여 틀린 곳을 맞춰보세요!</div>
+        <button class="reset-btn" onclick="resetGame()">게임 초기화</button>
+    </section>
+
+    <!-- 핵심 서비스 소개 -->
+    <section id="services">
+        <h2>핵심 비즈니스</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>💡 AI 비즈니스 컨설팅</h3>
+                <ul>
+                    <li>• 업무 프로세스 정밀 진단</li>
+                    <li>• 맞춤형 AI 도입 로드맵 수립</li>
+                    <li>• 비용 대비 효율성(ROI) 분석</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>🛠️ 맞춤형 AI 제품 개발</h3>
+                <ul>
+                    <li>• LLM 기반 사내 문서 챗봇</li>
+                    <li>• 자동 이메일 및 보고서 작성기</li>
+                    <li>• 데이터 수집 및 시각화 대시보드</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 푸터 -->
+    <footer id="contact">
+        <div class="footer-container">
+            <div>
+                <h3>SimplePartner (심플파트너)</h3>
+                <p style="margin-top: 10px; font-size: 14px; color: #888;">지능형 업무 자동화를 연구하는 전문 기업입니다.</p>
+            </div>
+        </div>
