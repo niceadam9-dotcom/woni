@@ -4,13 +4,14 @@ import { useState, useTransition, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Calendar, List, Plus,
-  RefreshCw, CheckCircle, Clock, XCircle, Filter,
+  RefreshCw, CheckCircle, Clock, XCircle, Filter, Lightbulb,
 } from 'lucide-react'
 import type { InspectionPlan, InspectionType, PlanItemStatus } from '@/types'
 import { createInspectionPlanAction, autoGeneratePlanAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { PlanItemSlidePanel } from './plan-item-slide-panel'
 import { AddPlanItemModal } from './add-plan-item-modal'
 import { AutoGenerateModal } from './auto-generate-modal'
+import { SmartSuggestModal } from './smart-suggest-modal'
 
 type CustomerOption = { id: string; customer_name: string; inspection_type: InspectionType; assigned_employee_id: string | null }
 
@@ -77,10 +78,11 @@ export function InspectionPlansClient({
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [filterStatus,   setFilterStatus]   = useState<string>('all')
 
-  const [selectedItem, setSelectedItem]   = useState<ItemView | null>(null)
-  const [showAddModal, setShowAddModal]   = useState(false)
-  const [showAutoModal, setShowAutoModal] = useState(false)
-  const [selectedDate, setSelectedDate]   = useState<string | null>(null)
+  const [selectedItem, setSelectedItem]     = useState<ItemView | null>(null)
+  const [showAddModal, setShowAddModal]     = useState(false)
+  const [showAutoModal, setShowAutoModal]   = useState(false)
+  const [showSmartModal, setShowSmartModal] = useState(false)
+  const [selectedDate, setSelectedDate]     = useState<string | null>(null)
 
   const currentPlan = plans.find(p => p.year === viewYear && p.month === viewMonth) ?? null
 
@@ -134,6 +136,12 @@ export function InspectionPlansClient({
               className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[#7b68ee] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
             >
               <RefreshCw className="size-3.5" />자동 생성
+            </button>
+            <button
+              onClick={() => setShowSmartModal(true)}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors"
+            >
+              <Lightbulb className="size-3.5" />일정 제안
             </button>
             {currentPlan ? (
               <button
@@ -287,6 +295,20 @@ export function InspectionPlansClient({
           customers={customers}
           onClose={() => { setShowAddModal(false); setSelectedDate(null) }}
           onSaved={() => { setShowAddModal(false); setSelectedDate(null); startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`)) }}
+        />
+      )}
+
+      {/* 사용승인일 기반 일정 제안 모달 */}
+      {showSmartModal && (
+        <SmartSuggestModal
+          year={viewYear}
+          month={viewMonth}
+          planId={currentPlan?.id ?? null}
+          onClose={() => setShowSmartModal(false)}
+          onAdded={() => {
+            setShowSmartModal(false)
+            startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`))
+          }}
         />
       )}
 

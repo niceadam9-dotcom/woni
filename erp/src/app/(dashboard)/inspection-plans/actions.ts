@@ -320,6 +320,87 @@ export async function autoGeneratePlanAction(input: {
   return { planId: newPlanId, itemCount }
 }
 
+// ── 사용승인일 기반 점검 항목 제안 ──────────────────────────
+export async function getSuggestedItemsAction(
+  year: number,
+  month: number,
+  existingPlanId?: string | null,
+): Promise<{
+  suggestions: Array<{
+    id: string; customer_name: string; customer_code: string
+    inspection_type: InspectionType; use_approval_date: string
+    assigned_employee_id: string | null; sequence_num: 1 | 2; reason: string
+  }>
+}> {
+  await requireRole(['manager', 'admin'])
+  const admin = createAdminClient()
+
+  // 2차 점검 월 = 사용승인일 월 + 6개월
+  const secondMonth = ((month - 1 + 6) % 12) + 1
+
+  // 이미 이달 계획에 등록된 (customer_id, sequence_num) 쌍
+  const existingKeys = new Set<string>()
+  if (existingPlanId) {
+    const { data: existing } = await admin
+      .from('inspection_plan_items')
+      .select('customer_id, sequence_num')
+      .eq('plan_id', existingPlanId)
+      .neq('status', 'cancelled')
+    existing?.forEach(item =>
+      existingKeys.add(`${(item as Record<string, unknown>).customer_id}-${(item as Record<string, unknown>).sequence_num}`)
+    )
+  }
+
+  const { data: customers } = await admin
+    .from('customers')
+    .select('id, customer_name, customer_code, inspection_type, use_approval_date, assigned_employee_id')
+    .eq('is_active', true)
+    .not('use_approval_date', 'is', null)
+    .order('customer_name')
+
+  if (!customers) return { suggestions: [] }
+
+  const suggestions: Array<{
+    id: string; customer_name: string; customer_code: string
+    inspection_type: InspectionType; use_approval_date: string
+    assigned_employee_id: string | null; sequence_num: 1 | 2; reason: string
+  }> = []
+
+  for (const c of customers) {
+    const approvalDate = new Date(c.use_approval_date as string)
+    const approvalMonth = approvalDate.getMonth() + 1
+    const dateLabel = `${approvalDate.getFullYear()}년 ${approvalMonth}월 ${approvalDate.getDate()}일`
+
+    if (approvalMonth === month && !existingKeys.has(`${c.id}-1`)) {
+      suggestions.push({
+        id: c.id as string,
+        customer_name: c.customer_name as string,
+        customer_code: (c.customer_code ?? '') as string,
+        inspection_type: c.inspection_type as InspectionType,
+        use_approval_date: c.use_approval_date as string,
+        assigned_employee_id: (c.assigned_employee_id ?? null) as string | null,
+        sequence_num: 1,
+        reason: `사용승인일 ${dateLabel} → 1차 점검`,
+      })
+    }
+
+    if (approvalMonth === secondMonth && !existingKeys.has(`${c.id}-2`)) {
+      suggestions.push({
+        id: c.id as string,
+        customer_name: c.customer_name as string,
+        customer_code: (c.customer_code ?? '') as string,
+        inspection_type: c.inspection_type as InspectionType,
+        use_approval_date: c.use_approval_date as string,
+        assigned_employee_id: (c.assigned_employee_id ?? null) as string | null,
+        sequence_num: 2,
+        reason: `사용승인일 ${dateLabel} → 2차 점검 (+6개월)`,
+      })
+    }
+  }
+
+  return { suggestions }
+}
+
 // ── 월 계획 + 항목 조회 ──────────────────────────────────────
 export async function getInspectionPlanWithItems(year: number, month: number) {
   const admin = createAdminClient()
