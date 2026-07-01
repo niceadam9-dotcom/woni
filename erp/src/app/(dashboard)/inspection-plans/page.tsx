@@ -62,6 +62,7 @@ export default async function InspectionPlansPage({
 
   return (
     <InspectionPlansClient
+      key={`${year}-${month}`}
       initialPlans={(plans ?? []) as InspectionPlan[]}
       initialItems={items}
       initialYear={year}

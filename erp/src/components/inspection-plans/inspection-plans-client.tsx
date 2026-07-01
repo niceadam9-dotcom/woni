@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useCallback } from 'react'
+import { useState, useTransition, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Calendar, List, Plus,
@@ -70,6 +70,10 @@ export function InspectionPlansClient({
 
   const [items, setItems]     = useState<ItemView[]>(initialItems as ItemView[])
   const [plans, setPlans]     = useState<InspectionPlan[]>(initialPlans)
+
+  // 서버 재렌더링(router.push) 후 props가 바뀌면 로컬 state에 동기화
+  useEffect(() => { setItems(initialItems as ItemView[]) }, [initialItems])
+  useEffect(() => { setPlans(initialPlans) }, [initialPlans])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [filterStatus,   setFilterStatus]   = useState<string>('all')
 
@@ -108,7 +112,7 @@ export function InspectionPlansClient({
   async function handleCreatePlan() {
     const res = await createInspectionPlanAction({ year: viewYear, month: viewMonth })
     if (res.error) { alert(res.error); return }
-    startTransition(() => router.refresh())
+    startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`))
   }
 
   function handleDateClick(dateStr: string) {
@@ -270,7 +274,7 @@ export function InspectionPlansClient({
           employees={employees}
           canManage={canManage}
           onClose={() => setSelectedItem(null)}
-          onSaved={() => { setSelectedItem(null); startTransition(() => router.refresh()) }}
+          onSaved={() => { setSelectedItem(null); startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`)) }}
         />
       )}
 
@@ -282,7 +286,7 @@ export function InspectionPlansClient({
           employees={employees}
           customers={customers}
           onClose={() => { setShowAddModal(false); setSelectedDate(null) }}
-          onSaved={() => { setShowAddModal(false); setSelectedDate(null); startTransition(() => router.refresh()) }}
+          onSaved={() => { setShowAddModal(false); setSelectedDate(null); startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`)) }}
         />
       )}
 
@@ -294,7 +298,7 @@ export function InspectionPlansClient({
           onClose={() => setShowAutoModal(false)}
           onGenerated={(planId) => {
             setShowAutoModal(false)
-            startTransition(() => router.refresh())
+            startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`))
           }}
         />
       )}
