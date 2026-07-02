@@ -24,8 +24,30 @@ interface Props {
   year: number
   month: number
   planId: string | null
+  holidays: string[]
   onClose: () => void
   onAdded: () => void
+}
+
+// 사용승인일 기준, 해당 월의 같은 날짜 다음 영업일 계산
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+function nextWorkingDay(base: Date, holidaySet: Set<string>): Date {
+  const d = new Date(base)
+  d.setDate(d.getDate() + 1)
+  while (true) {
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6 && !holidaySet.has(toDateStr(d))) break
+    d.setDate(d.getDate() + 1)
+  }
+  return d
+}
+function calcScheduledDate(useApprovalDate: string, planYear: number, planMonth: number, holidaySet: Set<string>): string {
+  const approvalDay = new Date(useApprovalDate).getDate()
+  const daysInMonth = new Date(planYear, planMonth, 0).getDate() // planMonth is 1-indexed
+  const base = new Date(planYear, planMonth - 1, Math.min(approvalDay, daysInMonth))
+  return toDateStr(nextWorkingDay(base, holidaySet))
 }
 
 const TYPE_STYLE: Record<InspectionType, string> = {
@@ -38,7 +60,7 @@ function itemKey(item: SuggestedItem) {
   return `${item.id}-${item.sequence_num}`
 }
 
-export function SmartSuggestModal({ year, month, planId, onClose, onAdded }: Props) {
+export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAdded }: Props) {
   const [isPending, startTransition] = useTransition()
   const [loading, setLoading]       = useState(true)
   const [suggestions, setSuggestions] = useState<SuggestedItem[]>([])
@@ -73,6 +95,7 @@ export function SmartSuggestModal({ year, month, planId, onClose, onAdded }: Pro
   function handleAdd() {
     if (selected.size === 0) { setError('추가할 항목을 선택해주세요.'); return }
     setError('')
+    const holidaySet = new Set(holidays)
     startTransition(async () => {
       let currentPlanId = planId
 
@@ -84,12 +107,15 @@ export function SmartSuggestModal({ year, month, planId, onClose, onAdded }: Pro
 
       const toAdd = suggestions.filter(s => selected.has(itemKey(s)))
       for (const item of toAdd) {
+        // 사용승인일 기준: 해당 월 같은 날짜의 다음 영업일 자동 계산
+        const scheduledDate = calcScheduledDate(item.use_approval_date, year, month, holidaySet)
         const res = await addPlanItemAction({
           planId:              currentPlanId,
           customerId:          item.id,
           inspectionType:      item.inspection_type,
           sequenceNum:         item.sequence_num,
           assignedEmployeeId:  item.assigned_employee_id ?? undefined,
+          scheduledDate,
         })
         if (res.error && res.error !== '항목 추가에 실패했습니다.') {
           // UNIQUE 충돌은 무시, 기타 오류는 표시
