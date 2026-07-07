@@ -403,5 +403,42 @@
     "completed": 19,
     "in_progress": 0,
     "pending": 0
+  },
+  "retest_round2": {
+    "date": "2026-07-07",
+    "description": "FIX-1 해소 후 B·I절 재테스트 결과",
+    "passed": [
+      "B-1 최신순 정렬 (created_at desc 정상 — 상단은 사용자 수동 등록 최신건)",
+      "B-2 인라인 수정: 고객명/계약일/점검유형(blur 저장) 변경·복원 검증",
+      "B-3 활성↔비활성 즉시 전환 + 비활성 필터 조회",
+      "B-4 삭제 버튼 (소프트 삭제 is_active=false 방식, 미완료 계획 존재 시 거부 가드)",
+      "B-5 통합 검색: 건물명/도로명 주소/읍·면 검색",
+      "B-7 점검유형·지역(읍/면) 서버사이드 필터",
+      "B-9 페이지 크기(25/50/전체) 및 서버 페이지네이션"
+    ],
+    "new_pending_items": [
+      {
+        "id": "NEW-1",
+        "status": "pending",
+        "title": "고객 통합검색 고도화 미구현 — 담당자 이름 검색 / 자동완성 드롭다운 / 양평군 읍·면 빠른 칩",
+        "detail": "V10 §6 설계 항목. 현재 검색은 customer_name/customer_code/address ilike만 지원(담당자 미지원), 자동완성·칩 UI 없음. 검색창 placeholder의 \"코드\" 문구도 코드 숨김 정책과 불일치",
+        "files": [
+          "erp/src/app/(dashboard)/customers/page.tsx"
+        ],
+        "source": "R-B-5-담당자, R-B-6, R-B-8"
+      },
+      {
+        "id": "NEW-2",
+        "status": "pending",
+        "title": "일반관리 [점검일 등록 +] UI 미구현 — 이벤트성 점검 수동 등록 불가",
+        "detail": "V10 §6-C 설계: 고객관리 일반관리 탭 → 날짜/담당자 등록 → plan_item(event) 생성 → 달력 반영 → 완료 처리. 현재 일반관리 고객은 자동 생성도 없고(정상) 수동 등록 경로도 없어 점검 기록 자체가 불가",
+        "files": [
+          "erp/src/app/(dashboard)/customers/page.tsx",
+          "erp/src/app/(dashboard)/customers/actions.ts",
+          "신규 컴포넌트"
+        ],
+        "source": "R-I-1, R-I-2"
+      }
+    ]
   }
 }
