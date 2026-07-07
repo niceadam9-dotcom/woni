@@ -638,7 +638,10 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
                 const isDueSoon = step.status !== 'completed' && step.due_date !== null &&
                   step.due_date >= today &&
                   step.due_date <= new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
-                const canCompleteThis = canCompleteInspection(selectedInspection) && step.status !== 'completed'
+                // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 완료 버튼 표시
+                const isCurrentStep = step.status !== 'completed'
+                  && selectedInspection.steps.every(s => s.step_num >= step.step_num || s.status === 'completed')
+                const canCompleteThis = canCompleteInspection(selectedInspection) && isCurrentStep
 
                 return (
                   <div

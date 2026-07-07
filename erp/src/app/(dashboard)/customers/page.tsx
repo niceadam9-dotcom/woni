@@ -226,7 +226,7 @@ export default async function CustomersPage({
                     <td className="px-4 py-3">
                       {canCreate ? (
                         <InlineCustomerFieldClient customerId={c.id} field="customer_name" value={c.customer_name}
-                          renderDisplay={v => <span className="font-medium text-[#090c1d]">{v}</span>} />
+                          displayVariant="name" />
                       ) : (
                         <p className="font-medium text-[#090c1d]">{c.customer_name}</p>
                       )}
@@ -262,9 +262,7 @@ export default async function CustomersPage({
                     <td className="px-4 py-3">
                       {canCreate ? (
                         <InlineCustomerFieldClient customerId={c.id} field="inspection_type" value={c.inspection_type}
-                          renderDisplay={v => (
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[v as InspectionType]}`}>{v}</span>
-                          )} />
+                          displayVariant="type-badge" />
                       ) : (
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[c.inspection_type]}`}>{c.inspection_type}</span>
                       )}
@@ -289,11 +287,8 @@ export default async function CustomersPage({
                           field="assigned_employee_id"
                           value={c.assigned_employee_id}
                           employees={employees}
-                          renderDisplay={v => v ? (
-                            <span className="text-xs font-medium text-[#090c1d]">{empMap.get(v) ?? '-'}</span>
-                          ) : (
-                            <span className="text-xs text-red-500 font-medium">미배정</span>
-                          )}
+                          displayVariant="employee"
+                          displayValue={c.assigned_employee_id ? (empMap.get(c.assigned_employee_id) ?? '-') : undefined}
                         />
                       ) : c.assigned_employee_id ? (
                         <span className="text-xs font-medium text-[#090c1d]">{empMap.get(c.assigned_employee_id) ?? '-'}</span>

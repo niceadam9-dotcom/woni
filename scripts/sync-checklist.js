@@ -10,6 +10,8 @@
  *   "[new:FA-04] ..."     → erp_goal/NEW1.JSON (신규 개발 체크리스트)
  *   "[new:MO-01] ..."     → erp_goal/NEW1.JSON
  *   "[new:HOOK] ..."      → erp_goal/NEW1.JSON (meta 항목, 직접 id로 매칭)
+ *   "[fix:FIX-1] ..."     → erp_goal/victory_test_result_fixing.json (테스트 결과 수정 목록)
+ *   "[fix:IMP-2] ..."     → erp_goal/victory_test_result_fixing.json
  *
  * TaskUpdate status 매핑:
  *   in_progress → "partial"   (checklist: "in_progress")
@@ -26,6 +28,7 @@ const FILES = {
   new1: path.join(BASE, 'NEW1.JSON'),
   v8:   path.join(BASE, 'Victory8.json'),
   v10:  path.join(BASE, 'Victory10.json'),
+  fix:  path.join(BASE, 'victory_test_result_fixing.json'),
 };
 
 async function readStdin() {
@@ -246,6 +249,53 @@ function updateVictory10(itemId, newStatus) {
   }
 }
 
+// ── victory_test_result_fixing.json 업데이트 ──
+// itemId: "FIX-1"~"FIX-10" (critical_bugs/functional_bugs), "IMP-1"~"IMP-9" (improvements)
+// newStatus: "in_progress" | "completed"
+function updateFixing(itemId, newStatus) {
+  try {
+    const raw = fs.readFileSync(FILES.fix, 'utf8');
+    const doc = JSON.parse(raw);
+
+    let updated = false;
+    for (const listName of ['critical_bugs', 'functional_bugs', 'improvements']) {
+      for (const item of (doc[listName] || [])) {
+        if (item.id === itemId) {
+          if (item.status !== newStatus) {
+            item.status = newStatus;
+            updated = true;
+          }
+          break;
+        }
+      }
+      if (updated) break;
+    }
+
+    if (updated) {
+      doc.date = new Date().toISOString().split('T')[0];
+      // summary 재계산
+      const all = ['critical_bugs', 'functional_bugs', 'improvements']
+        .flatMap(k => doc[k] || []);
+      doc.summary = {
+        total: all.length,
+        completed:   all.filter(i => i.status === 'completed').length,
+        in_progress: all.filter(i => i.status === 'in_progress').length,
+        pending:     all.filter(i => i.status === 'pending').length,
+      };
+      fs.writeFileSync(FILES.fix, JSON.stringify(doc, null, 2) + '\n', 'utf8');
+      process.stderr.write(
+        `[sync-checklist] victory_test_result_fixing.json :: ${itemId} → ${newStatus}\n`
+      );
+    } else {
+      process.stderr.write(
+        `[sync-checklist] victory_test_result_fixing.json :: ${itemId} — 항목 없음 또는 이미 동일 상태\n`
+      );
+    }
+  } catch (e) {
+    process.stderr.write(`[sync-checklist] victory_test_result_fixing.json error: ${e.message}\n`);
+  }
+}
+
 async function main() {
   const raw = await readStdin();
   if (!raw.trim()) return;
@@ -268,6 +318,15 @@ async function main() {
     input.subject    || input.title    || '';
 
   const newTaskStatus = input.status;
+
+  // ── [fix:FIX-1] / [fix:IMP-2] → victory_test_result_fixing.json ──
+  const fixMatch = subject.match(/^\[fix:((?:FIX|IMP)-\d+)\]/i);
+  if (fixMatch) {
+    const itemId = fixMatch[1].toUpperCase();
+    if (newTaskStatus === 'completed')   updateFixing(itemId, 'completed');
+    if (newTaskStatus === 'in_progress') updateFixing(itemId, 'in_progress');
+    return;
+  }
 
   // ── [v10:P-1] ~ [v10:P-20] → Victory10.json ──
   const v10Match = subject.match(/^\[v10:(P-\d+)\]/i);

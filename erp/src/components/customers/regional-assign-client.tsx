@@ -272,7 +272,6 @@ export function RegionalAssignClient({ customers, employees }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-[#090c1d] truncate">{c.customer_name}</span>
-                      <span className="text-xs text-[#b0acd6] font-mono shrink-0">{c.customer_code}</span>
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                       {c.address && (

@@ -61,6 +61,9 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
               step.due_date >= today && step.due_date <= new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
             const actualStatus: StepStatus = isOverdue ? 'overdue' : step.status as StepStatus
             const cfg = STEP_STATUS_CONFIG[actualStatus]
+            // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 완료 버튼 표시
+            const isCurrent = step.status !== 'completed'
+              && steps.every(s => s.step_num >= step.step_num || s.status === 'completed')
 
             return (
               <div
@@ -117,8 +120,8 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
                   </div>
                 </div>
 
-                {/* 완료 버튼 */}
-                {canComplete && step.status !== 'completed' && (
+                {/* 완료 버튼 — 현재 진행 단계에만 표시 */}
+                {canComplete && isCurrent && (
                   <button
                     onClick={() => handleComplete(step.id)}
                     disabled={completing === step.id}

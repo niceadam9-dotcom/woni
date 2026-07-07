@@ -182,9 +182,19 @@ const NAV_GROUPS: NavGroup[] = [
 // ── 컴포넌트 ─────────────────────────────────────────────────────────────────
 interface SidebarProps {
   role: UserRole
+  /** 점검 달력 뱃지 — 지연/D-Day 건수 */
+  redCount?: number
+  /** 점검현황 모니터링 뱃지 — D-3 이내 건수 */
+  orangeCount?: number
 }
 
-export function Sidebar({ role }: SidebarProps) {
+// href → 뱃지 매핑 (Victory10 §6 사이드바 카운터)
+const BADGE_HREFS: Record<string, 'red' | 'orange'> = {
+  '/inspections/calendar': 'red',
+  '/inspection-plans/monitor': 'orange',
+}
+
+export function Sidebar({ role, redCount = 0, orangeCount = 0 }: SidebarProps) {
   const pathname = usePathname()
 
   // 현재 경로가 속한 그룹 key 계산
@@ -298,7 +308,17 @@ export function Sidebar({ role }: SidebarProps) {
                         )}
                       >
                         <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-[#7b68ee]' : 'text-[#8b87b8]')} />
-                        {item.label}
+                        <span className="flex-1">{item.label}</span>
+                        {BADGE_HREFS[item.href] === 'red' && redCount > 0 && (
+                          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {redCount > 99 ? '99+' : redCount}
+                          </span>
+                        )}
+                        {BADGE_HREFS[item.href] === 'orange' && orangeCount > 0 && (
+                          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-400 text-white text-[10px] font-bold flex items-center justify-center">
+                            {orangeCount > 99 ? '99+' : orangeCount}
+                          </span>
+                        )}
                       </Link>
                     )
                   })}

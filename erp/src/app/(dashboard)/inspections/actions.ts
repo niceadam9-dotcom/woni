@@ -103,6 +103,26 @@ export async function completeStepAction(
     return { error: '담당 직원만 단계를 완료할 수 있습니다.' }
   }
 
+  // 완료 순서 강제: 이전 단계가 모두 완료되어야 현재 단계 완료 가능
+  const { data: targetStep } = await admin
+    .from('inspection_steps')
+    .select('step_num')
+    .eq('id', stepId)
+    .single()
+  const targetNum = (targetStep as { step_num: number } | null)?.step_num
+  if (targetNum && targetNum > 1) {
+    const { data: prevSteps } = await admin
+      .from('inspection_steps')
+      .select('step_num, status')
+      .eq('inspection_id', inspectionId)
+      .lt('step_num', targetNum)
+    const incomplete = (prevSteps ?? []).filter(s => (s as { status: string }).status !== 'completed')
+    if (incomplete.length > 0) {
+      const nums = incomplete.map(s => (s as { step_num: number }).step_num).sort().join(', ')
+      return { error: `이전 단계(${nums}단계)를 먼저 완료해주세요.` }
+    }
+  }
+
   const now = new Date().toISOString()
   const { error } = await admin
     .from('inspection_steps')

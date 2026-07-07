@@ -13,13 +13,20 @@ interface Props {
   value: string | null
   displayValue?: string
   employees?: Array<{ id: string; name: string }>
-  renderDisplay?: (v: string | null) => React.ReactNode
+  /** RSC 직렬화를 위해 렌더 함수 대신 변형 이름으로 표시 방식 지정 */
+  displayVariant?: 'name' | 'type-badge' | 'employee'
 }
 
 const INSPECTION_TYPES: InspectionType[] = ['종합', '작동', '일반관리']
 
+const TYPE_BADGE_COLORS: Record<string, string> = {
+  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '작동':   'bg-blue-50 text-blue-600',
+  '일반관리': 'bg-gray-100 text-gray-600',
+}
+
 export function InlineCustomerFieldClient({
-  customerId, field, value, displayValue, employees, renderDisplay,
+  customerId, field, value, displayValue, employees, displayVariant,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ?? '')
@@ -59,6 +66,26 @@ export function InlineCustomerFieldClient({
     if (e.key === 'Escape') { setEditing(false) }
   }
 
+  function renderValue(): React.ReactNode {
+    if (displayVariant === 'employee') {
+      return value
+        ? <span className="text-xs font-medium text-[#090c1d]">{displayValue ?? '-'}</span>
+        : <span className="text-xs text-red-500 font-medium">미배정</span>
+    }
+    if (value == null) return <span className="text-[#b0acd6] italic text-xs">—</span>
+    if (displayVariant === 'name') {
+      return <span className="font-medium text-[#090c1d]">{value}</span>
+    }
+    if (displayVariant === 'type-badge') {
+      return (
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_BADGE_COLORS[value] ?? 'bg-gray-100 text-gray-600'}`}>
+          {value}
+        </span>
+      )
+    }
+    return displayValue ?? value
+  }
+
   if (!editing) {
     return (
       <div
@@ -66,7 +93,7 @@ export function InlineCustomerFieldClient({
         onClick={handleEdit}
         title="클릭하여 수정"
       >
-        <span>{renderDisplay ? renderDisplay(value) : (displayValue ?? value ?? <span className="text-[#b0acd6] italic text-xs">—</span>)}</span>
+        <span>{renderValue()}</span>
         <Pencil className="size-3 text-[#b0acd6] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
       </div>
     )

@@ -306,6 +306,8 @@ export function PlanItemSlidePanel({ item, employees, canManage, canEditOwnItem 
                   {steps.map(step => {
                     const done = step.status === 'completed'
                     const overdue = !done && step.due_date && step.due_date < new Date().toISOString().split('T')[0]
+                    // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 완료 버튼 표시
+                    const isCurrent = !done && steps.every(s => s.step_num >= step.step_num || s.status === 'completed')
                     return (
                       <div
                         key={step.id}
@@ -333,7 +335,7 @@ export function PlanItemSlidePanel({ item, employees, canManage, canEditOwnItem 
                               </p>
                             )}
                           </div>
-                          {!done && (
+                          {isCurrent && (
                             <button
                               onClick={() => handleCompleteStep(step.id)}
                               className="shrink-0 text-[10px] px-2 py-1 rounded-md bg-[#7b68ee] text-white hover:bg-[#6a5acd] transition-colors"

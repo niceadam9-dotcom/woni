@@ -1,0 +1,407 @@
+{
+  "version": "victory_test_result_fixing",
+  "date": "2026-07-07",
+  "description": "Victory_test_result.md 기반 수정 대상 목록 — FAIL(버그) + WARN(개선필요). 수정 완료 시 status를 completed로 갱신",
+  "source_document": "erp_goal/Victory_test_result.md",
+  "test_evidence": "F:/AI/ERP/victory_test/ (results.jsonl, shots/*.png)",
+  "critical_bugs": [
+    {
+      "id": "FIX-1",
+      "priority_rank": 1,
+      "priority": "critical",
+      "status": "completed",
+      "test_ids": [
+        "CUSTOMERS-500",
+        "B-ALL",
+        "I-ALL"
+      ],
+      "title": "고객관리 목록(/customers) 500 서버 에러 — 페이지 완전 다운",
+      "symptom": "로그인 상태에서 /customers 접근 시 'A server error occurred' (digest 3739023768, 1730750776)",
+      "cause": "서버 컴포넌트 customers/page.tsx 229/265/292행이 클라이언트 컴포넌트 InlineCustomerFieldClient에 renderDisplay 함수를 prop으로 전달 → Next.js RSC 직렬화 불가. 빌드/타입체크는 통과하는 런타임 전용 버그",
+      "fix_direction": "renderDisplay 함수 prop 제거 — 직렬화 가능한 값(displayVariant 등)으로 대체하거나 표시용 JSX를 children으로 전달",
+      "files": [
+        "erp/src/app/(dashboard)/customers/page.tsx (229, 265, 292행)",
+        "erp/src/components/customers/inline-customer-field-client.tsx"
+      ],
+      "impact": "고객관리 목록 의존 기능 전체 사용 불가: B-1~B-9(통합검색/인라인수정/필터칩/비활성전환/삭제), I-1~I-2(일반관리 점검일 등록), J-1(인라인 담당자 변경)",
+      "retest_after_fix": [
+        "B-1~B-9",
+        "I-1~I-2",
+        "J-1",
+        "F-6",
+        "F-8"
+      ],
+      "resolution": "수정 완료 — renderDisplay 함수 prop을 displayVariant(name/type-badge/employee) 직렬화 값으로 교체. /customers 정상 렌더 + 인라인 수정 동작 검증 (fix1_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-2",
+      "priority_rank": 2,
+      "priority": "critical",
+      "status": "completed",
+      "test_ids": [
+        "HOLIDAY-BUG"
+      ],
+      "title": "공휴일 데이터 오류 — 제헌절(7/17)이 공휴일로 등록되어 법정 마감일 하루 지연 산출",
+      "symptom": "holidays 테이블에 2026-07-17 제헌절(is_national=true) 존재. 제헌절은 2008년부터 법정공휴일 아님",
+      "cause": "sync-holidays cron이 공공데이터 API 응답에서 '국경일'과 '공휴일'을 구분하지 않고 저장",
+      "fix_direction": "cron에서 국경일/공휴일 구분 필터 추가 + holidays 테이블의 잘못된 기존 행 삭제 (제헌절 등)",
+      "files": [
+        "erp/src/app/api/cron/sync-holidays/route.ts",
+        "holidays 테이블 (데이터 정리)"
+      ],
+      "impact": "영업일 계산에서 7/17 제외 → 2·3·4·6단계 마감일이 실제 법정기한보다 하루 늦게 산출 (예: 4단계 07-21 → 07-22). 소방시설법 제출기한 초과 리스크",
+      "resolution": "수정 완료 — lib/holidays.ts에 제헌절 제외 목록 추가(date-holidays 패키지가 public으로 오분류) + DB 행 삭제. cron 재실행 시 재유입 없음, 재확정 시 step4=07-21로 정정 확인 (fix2_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-3",
+      "priority_rank": 3,
+      "priority": "critical",
+      "status": "completed",
+      "test_ids": [
+        "DUAL-STEPS-BUG"
+      ],
+      "title": "6단계 마감일 이원화 — 확정일 변경이 업무체크리스트에 반영 안 됨",
+      "symptom": "inspection_plan_items.step1~6_date(확정일 기준: step1=06-30, step5=08-01)와 inspection_steps(트리거, 사용승인일 기준: step1=07-01, step5=08-02)가 서로 다름. 슬라이드 패널/점검 상세는 트리거 값을 표시",
+      "cause": "Victory9 명세 '기준일 use_approval_date → scheduled_date 변경'이 DB 트리거(migration 019/036)에 미적용",
+      "fix_direction": "점검 시작 시 inspection_steps.due_date를 plan_item의 step1~6_date로 동기화하거나, 트리거 기준일을 scheduled_date로 변경",
+      "files": [
+        "erp/supabase/migrations/ (신규 마이그레이션 — 트리거 함수 수정)",
+        "erp/src/app/(dashboard)/inspection-plans/actions.ts (시작 액션 동기화)"
+      ],
+      "impact": "관리자가 점검일자를 재확정해도 담당자의 업무체크리스트 마감일은 그대로 → 마감 관리 오류",
+      "resolution": "수정 완료 — syncInspectionStepDates 헬퍼 추가: 점검 시작 시 + 재확정 시 inspection_steps.due_date를 plan_item.step1~6_date로 동기화. 양 경로 검증 (fix3_verify)",
+      "resolved_date": "2026-07-07"
+    }
+  ],
+  "functional_bugs": [
+    {
+      "id": "FIX-4",
+      "priority_rank": 4,
+      "priority": "high",
+      "status": "completed",
+      "test_ids": [
+        "D-9"
+      ],
+      "title": "employee 역할 스코핑 실패 — 타인 담당 항목 노출",
+      "symptom": "park.dev(박개발) 로그인 시 점검확정 목록에 타인(강인사 등) 담당 항목까지 표시",
+      "fix_direction": "점검확정 페이지 서버 조회에 assigned_employee_id === profile.id 필터 복구 (Victory10 §3-3 회귀)",
+      "files": [
+        "erp/src/app/(dashboard)/inspection-plans/page.tsx"
+      ],
+      "evidence": "shots/p9b-employee-scope.png",
+      "resolution": "수정 완료 — 화면 목록은 원래 스코핑됨(원 FAIL은 RSC payload를 textContent로 읽은 테스트 아티팩트). 실수정: ① getInspectionPlanWithItems에 인증+employee 필터 추가(무인증 액션이었음) ② customers/overdueItems prop을 employee에게 빈 배열로 전달해 payload 정보노출 제거 (fix4b_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-5",
+      "priority_rank": 5,
+      "priority": "high",
+      "status": "completed",
+      "test_ids": [
+        "G-2",
+        "G-2b"
+      ],
+      "title": "단계 완료 → 점검현황모니터링 자동 업데이트 미동작",
+      "symptom": "1·2단계 완료 처리 후에도 모니터링 날짜 컬럼 전부 '—', inspection_status_log 미갱신 (V9-14 §4 요구)",
+      "fix_direction": "inspection_steps 완료 액션에서 해당 plan_item의 inspection_status_log 날짜 필드(inspection_date/report_submitted_at/sent_at/filed_at 등) 동기 업데이트",
+      "files": [
+        "erp/src/app/(dashboard)/inspections/actions.ts (단계 완료 액션)",
+        "erp/src/app/(dashboard)/inspection-plans/monitor/actions.ts"
+      ],
+      "evidence": "shots/p7c-monitor.png",
+      "resolution": "코드 수정 불필요 — completeStepAction의 status_log 동기화(P-19)는 정상 동작. 원 FAIL은 모니터링에서 현재월(7월 정기) 행을 읽고 날짜 형식(점/대시)을 혼동한 테스트 오판. 3단계 완료→sent_at 기록 + 6월 행 날짜 표시 검증 (fix5_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-6",
+      "priority_rank": 6,
+      "priority": "high",
+      "status": "completed",
+      "test_ids": [
+        "A-6"
+      ],
+      "title": "대표 관계인 없이 고객 등록 성공 (필수 검증 누락)",
+      "symptom": "관계인 미입력 상태로 저장 시 정상 등록됨 — V9 §9 '대표 1명 필수' 위반",
+      "fix_direction": "customer-new-client.tsx handleSubmit에 대표 관계인 이름 필수 검증 추가 + 서버 액션(createCustomerAction)에도 방어 검증",
+      "files": [
+        "erp/src/components/customers/customer-new-client.tsx (handleSubmit, 119행 부근)",
+        "erp/src/app/(dashboard)/customers/actions.ts"
+      ],
+      "resolution": "수정 완료 — 클라이언트 handleSubmit + 서버 createCustomerAction 양쪽에 대표 관계인 필수 검증 추가. 차단/정상등록 검증 (fix6_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-7",
+      "priority_rank": 7,
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "H-2",
+        "STEP-ORDER-BUG"
+      ],
+      "title": "6단계 완료 버튼 전 단계 노출 + 완료 순서 강제 없음",
+      "symptom": "설계('현재 진행 단계만 완료 버튼 표시')와 달리 6단계 모두 완료 버튼 노출. 2~5단계 pending 상태에서 6단계 완료 처리 허용 (실측 재현). 현재 단계 빨강 강조는 정상",
+      "fix_direction": "패널/상세에서 현재 진행 단계(가장 낮은 pending step)에만 완료 버튼 렌더 + 서버 액션에서 이전 단계 미완료 시 완료 거부",
+      "files": [
+        "erp/src/components/inspection-plans/plan-item-slide-panel.tsx",
+        "erp/src/components/inspections/inspection-detail-client.tsx",
+        "erp/src/app/(dashboard)/inspections/actions.ts"
+      ],
+      "evidence": "shots/p6d-step-buttons.png",
+      "resolution": "수정 완료 — 서버: 이전 단계 미완료 시 완료 거부. UI 3곳(슬라이드 패널/점검 상세/달력 패널): 현재 진행 단계에만 완료 버튼. 4→5 순차 완료 검증 (fix7_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-8",
+      "priority_rank": 8,
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "A-4a"
+      ],
+      "title": "고객 등록 폼 기본 지역 pre-fill 미구현",
+      "symptom": "등록 폼 진입 시 시/군/구·읍/면 빈칸 (기대: company_profile 기본값 양평군 + localStorage 최근 읍/면)",
+      "fix_direction": "page.tsx에서 getCompanyProfile()로 기본 지역 로드 → CustomerNewClient 초기값 전달, localStorage lastUsedMyeon 우선 적용",
+      "files": [
+        "erp/src/app/(dashboard)/customers/new/page.tsx",
+        "erp/src/components/customers/customer-new-client.tsx",
+        "erp/src/lib/company-profile.ts"
+      ],
+      "resolution": "수정 완료 — lib/company-profile.ts 신규 + new/page.tsx에서 기본 지역 로드 + localStorage lastUsedMyeon 우선 적용/저장. 3케이스 검증 (fix8_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-9",
+      "priority_rank": 9,
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "F-2"
+      ],
+      "title": "달력 긴박도 색상 1종(red)만 검출 — 색상 체계 재검 필요",
+      "symptom": "6월 달력 DOM에서 red 계열만 검출, orange/yellow/green/purple 미검출. 단, 6월 데이터가 전부 지연 건이라 데이터 특성일 가능성 있음",
+      "fix_direction": "7~8월(D-1~D-14+ 분포) 데이터로 재검 후, 미구현 구간이면 Victory10 §6 긴박도 색상표(지연/D-Day/D-1~2/D-3~6/D-7~13/D-14+) 적용",
+      "files": [
+        "erp/src/components/inspections/inspection-calendar-client.tsx"
+      ],
+      "note": "재검 필요 — 확정 버그 아닐 수 있음",
+      "resolution": "코드 수정 불필요 — urgencyColor() 인라인 스타일로 6종 긴박도 색상 전부 구현·렌더 확인(지연/D-Day/D-1~2/D-3~6/D-7+/완료). 원 FAIL은 Tailwind 클래스 검사로 인한 오판 (fix9_verify)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-10",
+      "priority_rank": 10,
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "F-5"
+      ],
+      "title": "사이드바 6단계 카운터 뱃지 미구현",
+      "symptom": "점검달력 🔴(D-Day/지연 건수), 점검현황모니터링 🟠(D-3 이내 건수) 뱃지가 사이드바에 없음 (Victory10 §6)",
+      "fix_direction": "sidebar.tsx에서 서버 집계(지연/D-Day, D-3 이내 건수) 조회 후 메뉴 항목에 뱃지 렌더",
+      "files": [
+        "erp/src/components/layout/sidebar.tsx"
+      ],
+      "resolution": "수정 완료 — layout.tsx에서 지연·D-Day/D-1~3 건수 집계(employee는 본인 담당만) → Sidebar 뱃지 렌더(빨강/주황). DB 기대값과 일치 검증 (fix10_verify)",
+      "resolved_date": "2026-07-07"
+    }
+  ],
+  "improvements": [
+    {
+      "id": "IMP-1",
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "A-8b",
+        "A-8c",
+        "CODE-EXPOSE"
+      ],
+      "title": "고객코드 노출 3곳 — 등록 폼 / 고객 상세 / 모니터링 행(C104)",
+      "detail": "V9 §6 '고객코드 조회되지 않도록' 위반 소지. 자동생성(최종번호+1)은 정상 동작 확인됨",
+      "fix_direction": "등록 폼 고객코드 필드 숨김(내부 생성만), 상세/모니터링 표시 제거",
+      "files": [
+        "erp/src/components/customers/customer-new-client.tsx",
+        "erp/src/app/(dashboard)/customers/[id]/page.tsx",
+        "erp/src/components/inspection-plans/monitor-client.tsx"
+      ],
+      "resolution": "수정 완료 — 등록 폼 고객코드 필드 제거(내부 자동생성 유지) + 모니터링/보고서제출현황/점검업무 목록·상세/건물관리/지역배정/견적·수주 콤보/세금계산서 등 11곳 표시 제거 (imp_verify IMP1-1)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-2",
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "D-4-note"
+      ],
+      "title": "점검일자확정 미니달력 월 이동 불가",
+      "detail": "계획 월(예: 6월) 밖 날짜(익월 초) 선택 불가 — 월말 계획 건의 실제 점검이 다음달로 밀리는 실무 케이스 처리 불가. Victory10 §5 예시(계획 6월 → 확정 07-01)도 재현 불가",
+      "fix_direction": "InlineDateCell 미니달력에 이전/다음 달 이동 화살표 추가",
+      "files": [
+        "erp/src/components/inspection-plans/inspection-plans-client.tsx (InlineDateCell)"
+      ],
+      "resolution": "수정 완료 — InlineDateCell 미니달력에 이전/다음 달 이동 버튼 추가. 6월 계획 항목을 7월 15일로 확정 검증 — Victory10 §5 시나리오(계획 6월→확정 익월) 재현 가능해짐 (imp_verify IMP2-1)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-3",
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "POPUP-VIEWPORT"
+      ],
+      "title": "미니달력 팝업이 화면 하단 행에서 뷰포트 밖으로 렌더링",
+      "detail": "1080p에서 목록 하단 행 클릭 시 fixed 좌표 팝업이 화면 아래로 벗어나 날짜 클릭 불가 (실측: 클릭 자체가 물리적으로 불가능)",
+      "fix_direction": "팝업 fixed 좌표 계산 시 화면 경계 보정 (아래 공간 부족 시 셀 위쪽으로 표시)",
+      "files": [
+        "erp/src/components/inspection-plans/inspection-plans-client.tsx (InlineDateCell)"
+      ],
+      "resolution": "수정 완료 — 팝업 fixed 좌표에 화면 경계 보정(아래 공간 부족 시 위로, 좌우 클램프). 하단 행에서도 뷰포트 내 표시 검증 (imp_verify IMP3-1)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-4",
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "STEP5-OFFBY1"
+      ],
+      "title": "5단계 절대일 카운팅 기준 불명확 (문서 08-01 vs 트리거 08-02)",
+      "detail": "트리거는 step4+10일(exclusive)로 08-02 산출, Victory9 §10 수정본 정답은 08-01. 포함/제외 카운팅 하루 차이 — 법적 기준 확인 후 한쪽으로 통일 필요",
+      "fix_direction": "소방시설법 기준 확인 → 트리거·confirmPlanItemStageOneAction 카운팅 방식 통일 + Victory 문서 갱신",
+      "files": [
+        "erp/supabase/migrations/ (트리거)",
+        "erp/src/app/(dashboard)/inspection-plans/actions.ts"
+      ],
+      "resolution": "수정 완료 — confirmPlanItemStageOneAction step5 = step4 당일 포함 절대일 10일째(+9일)로 변경, Victory9 §10 검증표(07-23→08-01)와 일치. ※ DB 트리거는 기존 +10 유지되나 FIX-3 동기화로 확정 경로에서는 항상 plan_item 값이 우선 (imp_verify IMP4-1)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-5",
+      "priority": "medium",
+      "status": "completed",
+      "test_ids": [
+        "K-3a",
+        "K-5a"
+      ],
+      "title": "cron 엔드포인트 무인증 실행 허용",
+      "detail": "/api/cron/inspection-deadline-notify, /api/cron/sync-holidays 모두 인증 없이 HTTP 200 — 외부에서 임의 트리거 가능",
+      "fix_direction": "CRON_SECRET 환경변수 + Authorization 헤더 검증 추가 (불일치 시 401)",
+      "files": [
+        "erp/src/app/api/cron/inspection-deadline-notify/route.ts",
+        "erp/src/app/api/cron/sync-holidays/route.ts"
+      ],
+      "resolution": "수정 완료 — middleware PUBLIC_PATHS에 /api/cron 추가(세션 리다이렉트 제거, Vercel Cron 호출 가능) + CRON_SECRET 생성·설정. 무인증 401 / Bearer 200 검증. ※ Vercel 배포 시 환경변수 CRON_SECRET 동일 값 등록 필요 (imp_verify IMP5-1/2)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-6",
+      "priority": "low",
+      "status": "completed",
+      "test_ids": [
+        "P0-4"
+      ],
+      "title": "로그인 실패 시 에러 문구 미표시",
+      "detail": "잘못된 비밀번호 차단 자체는 정상이나 화면에 명확한 실패 안내 문구 미검출",
+      "fix_direction": "로그인 액션 실패 시 '이메일 또는 비밀번호가 올바르지 않습니다' 문구 표시",
+      "files": [
+        "erp/src/app/(auth)/login/page.tsx",
+        "erp/src/app/(auth)/login/actions.ts"
+      ],
+      "resolution": "코드 수정 불필요 — 로그인 실패 문구는 이미 구현·표시됨(\"이메일 또는 비밀번호가 올바르지 않습니다 (n/5회)\" + 5회 잠금). 원 P0-4는 검사 정규식이 해당 문구를 매칭하지 못한 오판 (imp_verify IMP6-1)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-7",
+      "priority": "low",
+      "status": "completed",
+      "test_ids": [
+        "SCHEMA-NOTE"
+      ],
+      "title": "문서/스키마 불일치 — inspections.use_approval_date",
+      "detail": "Victory10.md DB 명세에 있는 컬럼이 실제 테이블에 없음 (기능 영향 없음)",
+      "fix_direction": "Victory10.md/json 명세에서 해당 컬럼 제거 또는 실제 스키마 반영",
+      "files": [
+        "erp_goal/Victory10.md",
+        "erp_goal/Victory10.json"
+      ],
+      "resolution": "수정 완료 — Victory10.md/json에서 inspections.use_approval_date 컬럼 제거(실스키마 반영)",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-8",
+      "priority": "low",
+      "status": "completed",
+      "test_ids": [
+        "D-4b"
+      ],
+      "title": "점검 시작 직후 계획 항목 상태가 '완료'로 표시",
+      "detail": "시작(inspection 생성)만 했는데 plan_item 상태 뱃지가 '완료'(green) — '진행중' 등 중간 상태가 더 적절할 수 있음 (의도 확인 필요)",
+      "fix_direction": "기획 의도 확인 후 상태 라벨/전이 조정",
+      "files": [
+        "erp/src/components/inspection-plans/inspection-plans-client.tsx"
+      ],
+      "resolution": "결정 완료(2026-07-07, 사용자 확인) — 점검 시작 시 계획 항목 '완료' 표시는 의도된 동작으로 유지. 코드 변경 없음.",
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-9",
+      "priority": "low",
+      "status": "completed",
+      "test_ids": [
+        "ENV"
+      ],
+      "title": "시드 admin 계정 비밀번호 문서 불일치 (환경)",
+      "detail": "admin@erp-test.com 비밀번호가 test-accounts.json 문서값과 달랐음 — 테스트 중 서비스롤로 문서값(Admin1234!)으로 재설정 완료",
+      "fix_direction": "계정 비밀번호 변경 시 test-accounts.json 동기 갱신 규칙 유지",
+      "files": [
+        "erp/seed/test-accounts.json"
+      ],
+      "resolution": "조치 완료 — admin@erp-test.com 비밀번호를 test-accounts.json 문서값(Admin1234!)으로 재설정함. 향후 변경 시 문서 동기 갱신 규칙만 유지하면 됨",
+      "resolved_date": "2026-07-07"
+    }
+  ],
+  "blocked_retest": {
+    "description": "FIX-1 수정 후 재테스트 필요 항목",
+    "test_ids": [
+      "B-1~B-9 (통합검색/인라인수정/필터칩/비활성/삭제)",
+      "I-1~I-2 (일반관리 점검일 등록)",
+      "J-1 (담당자 변경 전파)",
+      "F-6 (비활성 취소선)",
+      "F-8 (고객명 변경 연동)"
+    ]
+  },
+  "test_data_cleanup": {
+    "description": "재현용으로 유지 중인 테스트 고객 — 수정 검증 후 삭제 요망",
+    "customers": [
+      {
+        "key": "T1",
+        "name": "테스트종합빌딩",
+        "id": "805b053d-20d1-4f5e-9ed8-59a349cd4068"
+      },
+      {
+        "key": "T2",
+        "name": "테스트작동타워",
+        "id": "052854d1-0a79-4248-8933-4d9ae7e90e44"
+      },
+      {
+        "key": "T3",
+        "name": "테스트일반오피스",
+        "id": "c36080c8-f859-41d5-a3e5-70ebd6921984"
+      },
+      {
+        "key": "T4",
+        "name": "테스트리셋빌딩",
+        "id": "f69ab822-3c82-4f0f-801a-b92fe7060561"
+      }
+    ]
+  },
+  "summary": {
+    "total": 19,
+    "completed": 19,
+    "in_progress": 0,
+    "pending": 0
+  }
+}

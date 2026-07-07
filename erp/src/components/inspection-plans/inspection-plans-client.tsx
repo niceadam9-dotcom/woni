@@ -520,6 +520,8 @@ function InlineDateCell({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 })
+  // 팝업에 표시 중인 연/월 — 계획 월 외 날짜(예: 익월 초 점검)도 확정 가능하도록 이동 지원
+  const [viewYM, setViewYM] = useState({ year: planYear, month: planMonth })
   const triggerRef = useRef<HTMLDivElement>(null)
   const popupRef   = useRef<HTMLDivElement>(null)
 
@@ -543,13 +545,29 @@ function InlineDateCell({
     e.stopPropagation()
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
-      setPopupPos({ top: rect.bottom + 4, left: rect.left })
+      // 뷰포트 경계 보정: 아래 공간 부족 시 셀 위쪽으로, 좌우도 화면 안으로 클램프
+      const POPUP_H = 270
+      const POPUP_W = 208
+      let top = rect.bottom + 4
+      if (top + POPUP_H > window.innerHeight) top = Math.max(8, rect.top - POPUP_H - 4)
+      const left = Math.min(Math.max(8, rect.left), window.innerWidth - POPUP_W - 8)
+      setPopupPos({ top, left })
+      setViewYM({ year: planYear, month: planMonth })
     }
     setOpen(o => !o)
   }
 
+  function moveViewMonth(delta: number) {
+    setViewYM(({ year, month }) => {
+      const m = month + delta
+      if (m < 1)  return { year: year - 1, month: 12 }
+      if (m > 12) return { year: year + 1, month: 1 }
+      return { year, month: m }
+    })
+  }
+
   function handleSelectDay(day: number) {
-    const dateStr = `${planYear}-${String(planMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    const dateStr = `${viewYM.year}-${String(viewYM.month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
     startTransition(async () => {
       const res = await confirmPlanItemStageOneAction(itemId, dateStr)
       if (!res.error) { setOpen(false); onSaved() }
@@ -564,9 +582,9 @@ function InlineDateCell({
     })
   }
 
-  const daysInMonth = new Date(planYear, planMonth, 0).getDate()
-  const firstDay    = new Date(planYear, planMonth - 1, 1).getDay()
-  const planMonthPrefix = `${planYear}-${String(planMonth).padStart(2,'0')}-`
+  const daysInMonth = new Date(viewYM.year, viewYM.month, 0).getDate()
+  const firstDay    = new Date(viewYM.year, viewYM.month - 1, 1).getDay()
+  const planMonthPrefix = `${viewYM.year}-${String(viewYM.month).padStart(2,'0')}-`
   const selectedDay = value?.startsWith(planMonthPrefix)
     ? parseInt(value.slice(-2), 10) : null
 
@@ -601,7 +619,23 @@ function InlineDateCell({
           onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#090c1d]">{planYear}년 {planMonth}월</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => moveViewMonth(-1)}
+                className="p-0.5 rounded hover:bg-[#f5f4ff] text-[#8b87b8] hover:text-[#7b68ee] transition-colors"
+                title="이전 달"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+              <span className="text-xs font-semibold text-[#090c1d] min-w-[68px] text-center">{viewYM.year}년 {viewYM.month}월</span>
+              <button
+                onClick={() => moveViewMonth(1)}
+                className="p-0.5 rounded hover:bg-[#f5f4ff] text-[#8b87b8] hover:text-[#7b68ee] transition-colors"
+                title="다음 달"
+              >
+                <ChevronRight className="size-3.5" />
+              </button>
+            </div>
             {value && (
               <button onClick={handleClear} className="text-[10px] text-[#b0acd6] hover:text-red-500 transition-colors">
                 지우기

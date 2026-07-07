@@ -144,7 +144,6 @@ export default async function BuildingsPage({
                       {b.customers ? (
                         <div>
                           <p className="text-xs font-medium text-[#090c1d]">{b.customers.customer_name}</p>
-                          <p className="text-xs text-[#b0acd6] font-mono">{b.customers.customer_code}</p>
                         </div>
                       ) : (
                         <span className="text-xs text-[#b0acd6]">-</span>

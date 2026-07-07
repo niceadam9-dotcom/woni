@@ -141,8 +141,8 @@ export default async function InspectionPlansPage({
       initialYear={year}
       initialMonth={month}
       employees={(employeesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      customers={(customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>}
-      overdueItems={overdueItems}
+      customers={isEmployee ? [] : (customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>}
+      overdueItems={isEmployee ? [] : overdueItems}
       holidays={holidays}
       canManage={canManage}
       isEmployee={isEmployee}

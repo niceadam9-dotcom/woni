@@ -137,7 +137,6 @@ export default async function InspectionDetailPage({
             </h1>
             <span className="text-sm text-[#514b81]">{inspection.year}년 {inspection.sequence_num}차</span>
           </div>
-          <p className="text-xs text-[#514b81] font-mono mt-0.5">{customer?.customer_code}</p>
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[inspection.inspection_type]}`}>
           {inspection.inspection_type}

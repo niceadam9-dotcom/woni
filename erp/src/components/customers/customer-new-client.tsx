@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, Wand2, Hash, X, Building2 } from 'lucide-react'
+import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, Wand2, X, Building2 } from 'lucide-react'
 import { createCustomerAction, generateCustomerCodeAction, type ContactInput } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { extractRegionFromAddress } from '@/lib/address-parser'
@@ -30,7 +30,7 @@ type Employee = { id: string; name: string; position: string | null }
 type ContactForm = { name: string; phone: string; email: string }
 const emptyContact = (): ContactForm => ({ name: '', phone: '', email: '' })
 
-export function CustomerNewClient({ employees }: { employees: Employee[] }) {
+export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employees: Employee[]; defaultRegionSi?: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -86,6 +86,12 @@ export function CustomerNewClient({ employees }: { employees: Employee[] }) {
 
   useEffect(() => {
     handleGenerateCode()
+    // 기본 지역 pre-fill: 시/군/구 ← 회사 기본 지역, 읍/면 ← 최근 사용값(localStorage)
+    setForm(prev => ({
+      ...prev,
+      region_si: prev.region_si || defaultRegionSi,
+      region_myeon: prev.region_myeon || (localStorage.getItem('lastUsedMyeon') ?? ''),
+    }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -121,6 +127,7 @@ export function CustomerNewClient({ employees }: { employees: Employee[] }) {
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
     if (!form.contract_date) { setError('계약일을 선택해주세요.'); return }
+    if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
 
     const contactInputs: ContactInput[] = (
       Object.entries(contacts) as [keyof typeof contacts, ContactForm][]
@@ -155,6 +162,8 @@ export function CustomerNewClient({ employees }: { employees: Employee[] }) {
         building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
       })
       if (result.error) { setError(result.error); return }
+      // 다음 등록을 위한 최근 읍/면 기억
+      if (form.region_myeon.trim()) localStorage.setItem('lastUsedMyeon', form.region_myeon.trim())
       router.push(`/customers/${result.customerId}`)
       router.refresh()
     })
@@ -241,28 +250,8 @@ export function CustomerNewClient({ employees }: { employees: Employee[] }) {
           </div>
         </div>
 
-        {/* ② 고객코드 + 고객명(건물명) */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="고객코드">
-            <div className="flex gap-1.5">
-              <input
-                value={isGenerating ? '' : form.customer_code}
-                readOnly
-                placeholder={isGenerating ? '생성 중...' : '자동생성'}
-                className={`${readonlyCls} flex-1`}
-              />
-              <button
-                type="button"
-                onClick={handleGenerateCode}
-                disabled={isGenerating}
-                title="코드 재생성"
-                className="h-10 px-3 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5] whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : <Hash className="size-3.5" />}
-                재생성
-              </button>
-            </div>
-          </Field>
+        {/* ② 고객명(건물명) — 고객코드는 내부 자동생성(V9 §6: UI 미노출) */}
+        <div className="grid grid-cols-1 gap-4">
           <Field label="고객명 (건물명)" required>
             <div className="relative">
               <input

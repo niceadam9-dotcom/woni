@@ -209,7 +209,6 @@ export function BuildingNewClient({
                   className="text-xs px-2.5 py-1.5 rounded-lg bg-white border border-[#7b68ee]/30 text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee] transition-colors font-medium"
                 >
                   {c.customer_name}
-                  <span className="ml-1 text-[#b0acd6] font-normal font-mono">({c.customer_code})</span>
                 </button>
               ))}
             </div>

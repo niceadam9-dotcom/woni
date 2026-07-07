@@ -1,7 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/api/auth']
+// /api/cron: 세션 없이 호출되는 Vercel Cron 경로 — 라우트 자체의 CRON_SECRET Bearer 검증으로 보호
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron']
 const ADMIN_PATHS = ['/admin']
 const MANAGER_PATHS = ['/approvals']
 

@@ -372,7 +372,6 @@ export function ReportStatusClient({
                   </td>
                   <td className="border px-2 py-1.5">
                     <div className="font-medium">{row.customers?.customer_name}</div>
-                    <div className="text-gray-400 text-[10px]">{row.customers?.customer_code}</div>
                   </td>
                   <td className="border px-2 py-1.5 text-center">{row.profiles?.name ?? '-'}</td>
                   {/* 점검완료일 */}

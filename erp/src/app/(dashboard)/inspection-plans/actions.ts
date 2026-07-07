@@ -2,8 +2,24 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requirePermission } from '@/lib/auth'
+import { requirePermission, getProfile } from '@/lib/auth'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
+
+// ── 6단계 마감일 동기화: inspection_steps.due_date ← plan_item.step1~6_date ──
+async function syncInspectionStepDates(
+  admin: ReturnType<typeof createAdminClient>,
+  inspectionId: string,
+  stepDates: (string | null)[],
+) {
+  for (let i = 0; i < 6; i++) {
+    if (!stepDates[i]) continue
+    await admin
+      .from('inspection_steps')
+      .update({ due_date: stepDates[i] } as Record<string, unknown>)
+      .eq('inspection_id', inspectionId)
+      .eq('step_num', i + 1)
+  }
+}
 
 // ── 점검 시작 — plan_item → inspections 생성 ────────────────
 export async function startInspectionAction(
@@ -15,7 +31,7 @@ export async function startInspectionAction(
   // plan_item 조회
   const { data: itemRaw } = await admin
     .from('inspection_plan_items')
-    .select('id, customer_id, inspection_type, sequence_num, scheduled_date, assigned_employee_id, contact_id, inspection_id, status')
+    .select('id, customer_id, inspection_type, sequence_num, scheduled_date, assigned_employee_id, contact_id, inspection_id, status, step1_date, step2_date, step3_date, step4_date, step5_date, step6_date')
     .eq('id', itemId)
     .single()
 
@@ -24,6 +40,8 @@ export async function startInspectionAction(
     sequence_num: 1 | 2; scheduled_date: string | null
     assigned_employee_id: string | null; contact_id: string | null
     inspection_id: string | null; status: string
+    step1_date: string | null; step2_date: string | null; step3_date: string | null
+    step4_date: string | null; step5_date: string | null; step6_date: string | null
   } | null
 
   if (!item) return { error: '계획 항목을 찾을 수 없습니다.' }
@@ -55,6 +73,13 @@ export async function startInspectionAction(
     .from('inspection_plan_items')
     .update({ inspection_id: inspectionId, status: 'completed' } as Record<string, unknown>)
     .eq('id', itemId)
+
+  // 6단계 마감일을 확정일 기준(plan_item.step1~6_date)으로 동기화 —
+  // DB 트리거는 use_approval_date 기준으로 due_date를 생성하므로 확정일과 어긋남 (Victory9: 기준일 = 1단계 확정일)
+  await syncInspectionStepDates(admin, inspectionId, [
+    item.step1_date, item.step2_date, item.step3_date,
+    item.step4_date, item.step5_date, item.step6_date,
+  ])
 
   await admin.from('activity_logs').insert({
     actor_id:    profile.id,
@@ -254,8 +279,9 @@ export async function confirmPlanItemStageOneAction(
   const step2 = addWorkingDays(new Date(step1), 5)
   const step3 = addWorkingDays(new Date(step1), 10)
   const step4 = addWorkingDays(new Date(step1), 15)
-  // step5: step4 + 10 절대일 (캘린더일)
-  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 10)
+  // step5: step4 당일을 1일째로 포함한 절대일 10일째 (= +9일)
+  // Victory9 §10 검증표 기준: step4 07-23(목) → step5 08-01(토)
+  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 9)
   const step5 = toDateStr(step4Date)
   const step6 = addWorkingDays(new Date(step5), 10)
 
@@ -274,6 +300,17 @@ export async function confirmPlanItemStageOneAction(
     .eq('id', planItemId)
 
   if (error) return { error: error.message }
+
+  // 이미 점검이 시작된 항목이면 업무체크리스트(inspection_steps) 마감일도 재확정일 기준으로 갱신
+  const { data: linked } = await admin
+    .from('inspection_plan_items')
+    .select('inspection_id')
+    .eq('id', planItemId)
+    .single()
+  const inspectionId = (linked as { inspection_id: string | null } | null)?.inspection_id
+  if (inspectionId) {
+    await syncInspectionStepDates(admin, inspectionId, [step1, step2, step3, step4, step5, step6])
+  }
 
   revalidatePath('/inspection-plans')
   revalidatePath('/inspections')
@@ -620,6 +657,9 @@ export async function resolveOverdueItemsAction(
 
 // ── 월 계획 + 항목 조회 ──────────────────────────────────────
 export async function getInspectionPlanWithItems(year: number, month: number) {
+  const profile = await getProfile()
+  if (!profile) return { plan: null, items: [] }
+
   const admin = createAdminClient()
 
   const { data: plan } = await admin
@@ -631,7 +671,7 @@ export async function getInspectionPlanWithItems(year: number, month: number) {
 
   if (!plan) return { plan: null, items: [] }
 
-  const { data: items } = await admin
+  let query = admin
     .from('inspection_plan_items')
     .select(`
       *,
@@ -639,6 +679,13 @@ export async function getInspectionPlanWithItems(year: number, month: number) {
       profiles:assigned_employee_id ( name )
     `)
     .eq('plan_id', (plan as { id: string }).id)
+
+  // 일반직원: 본인 담당 건만 조회 (SSR 초기 로드와 동일한 스코핑)
+  if (profile.role === 'employee') {
+    query = query.eq('assigned_employee_id', profile.id)
+  }
+
+  const { data: items } = await query
     .order('scheduled_date', { ascending: true, nullsFirst: false })
 
   return { plan, items: items ?? [] }

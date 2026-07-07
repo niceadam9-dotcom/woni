@@ -46,6 +46,10 @@ export async function createCustomerAction(
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
 
+  // 대표 관계인 1명 필수 (V9 §9)
+  const hasRep = (input.contacts ?? []).some(c => c.role === '대표' && c.name?.trim())
+  if (!hasRep) return { error: '대표 관계인 이름을 입력해주세요. (대표 1명 필수)' }
+
   const { data: existing } = await admin
     .from('customers')
     .select('id')

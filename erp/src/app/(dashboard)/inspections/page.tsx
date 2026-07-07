@@ -225,7 +225,6 @@ export default async function InspectionsPage({
                     <tr key={insp.id} className="hover:bg-[#f8f9fa] transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium text-[#090c1d]">{customer?.customer_name ?? '—'}</p>
-                        <p className="text-xs text-[#b0acd6] font-mono mt-0.5">{customer?.customer_code}</p>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">

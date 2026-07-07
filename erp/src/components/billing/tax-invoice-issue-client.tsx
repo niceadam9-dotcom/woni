@@ -206,10 +206,6 @@ export function TaxInvoiceIssueClient({
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">사업장주소</td>
                   <td className="px-2 py-1.5 text-[11px]">{bill.customers?.address ?? '—'}</td>
                 </tr>
-                <tr>
-                  <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">고객코드</td>
-                  <td className="px-2 py-1.5">{bill.customers?.customer_code}</td>
-                </tr>
               </tbody>
             </table>
           </div>

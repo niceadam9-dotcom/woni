@@ -79,7 +79,7 @@ customers (고객/건물)                                                │
   └─▶ inspections (실제 점검)                                     │
         │  id, customer_id, assigned_employee_id ─────────────────┘
         │  inspection_type, sequence_num                           
-        │  inspection_start_date, use_approval_date               
+        │  inspection_start_date               
         │  year, status                                            
         │                                                          
         ├─▶ inspection_steps (6단계: DB 트리거 자동 생성)         
@@ -102,7 +102,7 @@ customers (고객/건물)                                                │
 | buildings | id, customer_id, building_name, address, total_area, floors_above, floors_below, purpose, year_built, is_active |
 | inspection_plans | id, year, month, status(draft/confirmed/cancelled) — UNIQUE(year,month) |
 | inspection_plan_items | id, plan_id, customer_id, inspection_type, sequence_num(1/2), **planned_date**(자동예상일), **scheduled_date**(관리자확정일), assigned_employee_id, status, inspection_id |
-| inspections | id, customer_id, assigned_employee_id, inspection_type, sequence_num, inspection_start_date, use_approval_date, year, status |
+| inspections | id, customer_id, assigned_employee_id, inspection_type, sequence_num, inspection_start_date, year, status |
 | inspection_steps | id, inspection_id, step_num(1-6), name_ko, due_date, status(pending/completed/overdue) |
 | inspection_status_log | id, plan_item_id(1:1), inspection_date, report_submitted_at, sent_at, filed_at, sms_confirmed |
 | inspection_report_status | id, plan_item_id(1:1), inspection_completed_at, notification_due_date(+7일 computed), submission_deadline(+30일 computed) |

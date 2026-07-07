@@ -65,7 +65,6 @@ export default async function BuildingDetailPage({
           {b.customers && (
             <p className="text-sm text-[#514b81] mt-0.5">
               {b.customers.customer_name}
-              <span className="text-[#b0acd6] ml-1 font-mono text-xs">({b.customers.customer_code})</span>
             </p>
           )}
         </div>

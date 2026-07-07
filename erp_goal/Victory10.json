@@ -123,7 +123,6 @@
           "inspection_type",
           "sequence_num",
           "inspection_start_date",
-          "use_approval_date",
           "year",
           "status"
         ]

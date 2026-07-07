@@ -629,7 +629,6 @@ export function MonitorClient({
                   <td className="border px-2 py-1.5">
                     <div className="font-medium">{row.customers?.customer_name}</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-gray-400 text-[10px]">{row.customers?.customer_code}</span>
                       {row.customers?.address && (
                         <button
                           onClick={() => setMapItem(row)}

@@ -163,7 +163,7 @@ function QuoteModal({
               className="w-full border rounded-lg px-3 py-2 text-sm">
               <option value="">선택하세요</option>
               {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.customer_name} ({c.customer_code})</option>
+                <option key={c.id} value={c.id}>{c.customer_name}</option>
               ))}
             </select>
           </div>
