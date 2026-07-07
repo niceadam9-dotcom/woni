@@ -164,11 +164,11 @@ export function RegionalAssignClient({ customers, employees }: Props) {
           <h2 className="text-sm font-semibold text-[#090c1d]">지역 선택</h2>
         </div>
 
-        {/* 퇴사자 재배정: 현재 담당자로 조회 (지역 무관 전체 담당 건) */}
+        {/* 담당자별 조회·재배정: 특정 담당자의 담당 건물을 지역 무관하게 조회 (교체·인수인계·퇴사 공통) */}
         <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1.5">
           <label className="text-xs font-medium text-[#514b81] flex items-center gap-1.5">
             <Users className="size-3.5 text-[#7b68ee]" />
-            현재 담당자로 조회 <span className="text-[#b0acd6] font-normal">— 퇴사·인수인계 시 담당 건물 전체를 지역 무관하게 조회</span>
+            담당자별 조회 · 재배정 <span className="text-[#b0acd6] font-normal">— 담당자 교체·인수인계·퇴사 시 해당 담당 건물을 지역 무관하게 조회</span>
           </label>
           <select
             value={filterCurrentEmp}

@@ -57,9 +57,9 @@ export default async function RegionalAssignPage() {
       <div className="flex items-center gap-3">
         <Users2 className="size-6 text-[#7b68ee]" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">지역별 담당자 일괄 배정</h1>
+          <h1 className="text-xl font-bold text-[#090c1d]">담당자 배정 · 재배정</h1>
           <p className="text-sm text-[#514b81] mt-0.5">
-            시/읍면/리 단위로 지역을 선택하여 담당 직원을 일괄 배정합니다
+            지역별 일괄 배정 또는 담당자별 조회로 담당 직원을 배정·교체·인수인계합니다
           </p>
         </div>
       </div>

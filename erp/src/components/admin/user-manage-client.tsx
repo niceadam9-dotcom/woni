@@ -1,8 +1,8 @@
 ﻿'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, X, Loader2, KeyRound, CalendarDays } from 'lucide-react'
+import { Plus, Pencil, X, Loader2, KeyRound, CalendarDays, ArrowRightLeft } from 'lucide-react'
 import {
   createUserAction, updateUserAction, resetPasswordAction, setLeaveBalanceAction,
   getEmployeeAssignmentCountAction, handoverAssignmentsAction,
@@ -404,6 +404,77 @@ function LeaveBalanceModal({
 
 type UserWithBalance = User & { total_days?: number; used_days?: number }
 
+/** 담당 이관 전용 모달 — 퇴사와 무관하게 재직 중 담당자 교체/재배정에 사용 */
+function HandoverModal({ user, successors, onClose }: { user: User; successors: User[]; onClose: () => void }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [count, setCount] = useState<number | null>(null)
+  const [successorId, setSuccessorId] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    getEmployeeAssignmentCountAction(user.id).then(r => setCount(r.count))
+  }, [user.id])
+
+  function handleHandover() {
+    setError('')
+    if (!successorId) { setError('이관받을 직원을 선택해주세요.'); return }
+    startTransition(async () => {
+      const res = await handoverAssignmentsAction(user.id, successorId)
+      if (res.error) { setError(res.error); return }
+      router.refresh()
+      onClose()
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#c8c4d0]">
+          <h2 className="text-base font-semibold text-[#090c1d]">담당 고객 이관</h2>
+          <button onClick={onClose} className="text-[#514b81] hover:text-[#090c1d]"><X className="size-5" /></button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <p className="text-sm text-[#514b81]">
+            <span className="font-semibold text-[#090c1d]">{user.name}</span> 직원의 담당 고객
+            {count === null ? ' 건수를 조회 중…' : (
+              <> <span className="font-semibold text-[#7b68ee]">{count}건</span>을 다른 직원에게 이관합니다.</>
+            )}
+          </p>
+          {count === 0 ? (
+            <p className="text-sm text-[#b0acd6]">이관할 담당 고객이 없습니다.</p>
+          ) : (
+            <>
+              <Field label="이관받을 직원">
+                <select value={successorId} onChange={e => setSuccessorId(e.target.value)} className={inputCls}>
+                  <option value="">직원 선택</option>
+                  {successors.filter(s => s.id !== user.id).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}{s.position ? ` (${s.position})` : ''}</option>
+                  ))}
+                </select>
+              </Field>
+              <p className="text-xs text-[#b0acd6]">이관 시 월간계획·점검업무·점검이력의 담당자가 함께 변경됩니다.</p>
+            </>
+          )}
+          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </div>
+        <div className="flex gap-3 px-6 py-4 border-t border-[#c8c4d0]">
+          <button onClick={onClose} disabled={isPending}
+            className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+            닫기
+          </button>
+          {(count ?? 0) > 0 && (
+            <button onClick={handleHandover} disabled={isPending}
+              className="flex-1 h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : `${count}건 이관`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function UserManageClient({
   users, depts,
 }: {
@@ -414,6 +485,7 @@ export function UserManageClient({
   const [editUser, setEditUser] = useState<User | null>(null)
   const [resetPwUser, setResetPwUser] = useState<string | null>(null)
   const [leaveUser, setLeaveUser] = useState<UserWithBalance | null>(null)
+  const [handoverUser, setHandoverUser] = useState<User | null>(null)
 
   return (
     <>
@@ -493,6 +565,13 @@ export function UserManageClient({
                           >
                             <CalendarDays className="size-3.5" />
                           </button>
+                          <button
+                            onClick={() => setHandoverUser(u)}
+                            title="담당 고객 이관"
+                            className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81] hover:text-[#7b68ee] transition-colors"
+                          >
+                            <ArrowRightLeft className="size-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -519,6 +598,13 @@ export function UserManageClient({
           userName={leaveUser.name}
           currentDays={leaveUser.total_days ?? 15}
           onClose={() => setLeaveUser(null)}
+        />
+      )}
+      {handoverUser && (
+        <HandoverModal
+          user={handoverUser}
+          successors={users.filter(u => u.is_active && u.id !== handoverUser.id)}
+          onClose={() => setHandoverUser(null)}
         />
       )}
     </>
