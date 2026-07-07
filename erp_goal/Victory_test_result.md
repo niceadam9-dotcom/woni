@@ -239,3 +239,64 @@
 3. **EX-E5(미실행)**: 공휴일 데이터 없는 미래 연도 확정 시 사전 동기화 안내 — cron 선반영 검토
 
 > 이번 라운드 순 결과: **크리티컬 0, 신규 버그 1건(EX-A2, 즉시 수정·검증 완료), 경미 개선 3건.** 예외 상황 전반에서 500/데이터손상 없이 안전하게 처리됨을 확인.
+
+---
+
+## 10. 성능·보안 테스트 결과 (2026-07-07)
+
+> 대상: 프로덕션 빌드(localhost:3000, 단일 인스턴스) + Supabase(무료 플랜)
+> 방식: Node 동시요청 부하 + REST/헤더/RLS 직접 점검. 스크립트: `victory_test/perf_load.mjs`, `sec_test.mjs`, `sec_deep.mjs`, `refresh_sessions.mjs`
+
+### 10-1. 성능 — 50명 동시 사용자
+
+| 지표 | 값 |
+|------|-----|
+| 동시 사용자(VU) | 50 (admin 80% + employee 20% 세션) |
+| 총 요청 | 300 (VU당 6페이지 순회) |
+| **성공률** | **100% (에러 0, 전부 HTTP 200)** |
+| 처리량 | 28.6 req/s |
+| 응답시간 avg / p50 / p95 / p99 / max | 1609 / 1506 / 2740 / 3284 / 3756 ms |
+
+**페이지별 평균(ms)**: /customers 1303 · /calendar 1368 · /inspections 1457 · /계획 1483 · /monitor 1590 · **/dashboard 2454(최대 부하 — KPI 집계 다수)**
+
+- **판정**: 50명 동시 접속에서 **다운·에러 없이 전부 성공 처리** — 안정성 확보.
+- 응답시간은 평균 1.6초, p95 2.7초로 다소 높음. 원인: ① 로컬 **단일** Next 인스턴스(프로덕션 standalone 1개) ② 매 요청 미들웨어의 `auth.getUser()` = Supabase 왕복 ③ 대시보드의 다중 집계 쿼리. Vercel 배포(서버리스 자동 스케일)에서는 인스턴스 병렬화로 개선 전망.
+- 참고: 첫 측정에서 307 90% 발생 → 저장 세션 토큰 만료 임박에 따른 갱신 쿠키 미반영(테스트 아티팩트)로 확인, 신선 세션 재측정에서 100% 200.
+- 개선 권장: 대시보드 집계 쿼리 병합/캐시(revalidate), 미들웨어 getUser 결과 단기 캐시.
+
+### 10-2. 보안 — 항목별 결과
+
+| 그룹 | 결과 | 요약 |
+|------|------|------|
+| SEC-A 인증 | ✅ PASS ×5 | 미인증 시 /dashboard·/customers·/admin·/inspection-plans 모두 /login 307, cron 401 |
+| SEC-B 권한(RBAC) | ✅ PASS ×4 | employee가 /admin·/customers/new·/regional-assign·/approvals 접근 시 전부 리다이렉트 |
+| SEC-D 시크릿 | ✅ PASS | **SERVICE_ROLE_KEY 클라이언트 번들 미노출**(25청크 스캔), .env·config 직접접근 차단, ANON만 사용 |
+| SEC-E 인젝션 | ✅ PASS | SQL(`' OR '1'='1`, DROP, SLEEP) 무해(500·지연 없음), **XSS `<img onerror>`는 React가 `&lt;img&gt;`로 이스케이프**(오탐, 실행 불가) |
+| SEC-G cron | ✅ PASS ×4 | 무인증·잘못된 Bearer 모두 401 |
+| SEC-C RLS | ❌→수정 | **profiles·company_profile이 공개 anon 키로 조회됨**(critical) |
+| SEC-F 헤더 | ❌→수정 | 보안 헤더 전무 → 5종 추가 |
+
+### 🔴 발견한 취약점 2건 + 수정
+
+**SEC-C1 (CRITICAL) — profiles/company_profile anon 노출**
+- **증상**: 공개 `NEXT_PUBLIC_SUPABASE_ANON_KEY`(브라우저에 노출되는 키)로 Supabase REST 직접 호출 시 `profiles`(직원 id·이름·**이메일·역할**·직급·입사일 2행)와 `company_profile`(**사업자번호·전화·주소·이메일** 1행)이 조회됨. 나머지 12개 테이블은 정상 차단.
+- **원인**: SELECT 정책에 롤 미지정 — `profiles` `USING(is_active=TRUE)`, `company_profile` `USING(true)`가 **public(anon 포함)** 에 적용
+- **수정**: migration `039_rls_restrict_anon.sql` — 두 정책을 `TO authenticated`로 재생성. 로그인 사용자(결재자 검색 등)·앱 서버(service role, RLS 우회)는 정상, anon만 차단
+- **INSERT는 원래 차단**(anon 쓰기 불가 확인)
+- ⚠️ **사용자 액션 필요**: Supabase SQL Editor에서 039 실행 (아래) — 실행 전까지 노출 지속
+
+```sql
+DROP POLICY IF EXISTS "Users can view all active profiles" ON profiles;
+CREATE POLICY "Users can view all active profiles"
+  ON profiles FOR SELECT TO authenticated USING (is_active = TRUE);
+DROP POLICY IF EXISTS "company_profile_read_all" ON company_profile;
+CREATE POLICY "company_profile_read_all"
+  ON company_profile FOR SELECT TO authenticated USING (true);
+```
+
+**SEC-F (MEDIUM) — 보안 응답 헤더 부재 → 수정 완료**
+- next.config.ts에 추가·검증(현 빌드 반영): `X-Frame-Options: SAMEORIGIN`(클릭재킹), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `X-Powered-By` 숨김. HSTS는 프로덕션(HTTPS)에서만 적용.
+
+### 종합
+- **성능**: 50 동시 100% 성공(안정). 응답 지연은 단일 인스턴스·인증 왕복이 주원인 — 배포 스케일링·캐시로 개선 여지.
+- **보안**: 인증/권한/주입/시크릿/cron은 **전부 방어 확인**. RLS 정책 롤 누락 1건(critical, 마이그레이션 준비·실행 대기), 보안 헤더 1건(수정 완료).
