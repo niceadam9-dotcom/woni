@@ -206,6 +206,24 @@
       ],
       "resolution": "수정 완료 — layout.tsx에서 지연·D-Day/D-1~3 건수 집계(employee는 본인 담당만) → Sidebar 뱃지 렌더(빨강/주황). DB 기대값과 일치 검증 (fix10_verify)",
       "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-11",
+      "priority_rank": 11,
+      "priority": "high",
+      "status": "completed",
+      "test_ids": [
+        "EX-A2"
+      ],
+      "title": "후반월 사용승인일 종합 고객 연간 계획 13건 생성 (연 12건 위반)",
+      "symptom": "사용승인월 7월 이후 종합 고객 등록 시 2차 특별점검이 익년에 배치되고 monthly는 targetYear 12개월 생성 → 13건",
+      "cause": "_autoCreatePlanItemsForNewCustomer: m2>12 시 targetYear+1 배치, 정기 루프는 targetYear 12칸 고정",
+      "fix_direction": "2차 특별점검 월을 ((approvalMonth-1+6)%12)+1로 targetYear 안에 배치 → 항상 12건",
+      "resolution": "수정 완료 — 2099-12/2027-12/2027-11 모두 12건(특별2) 재확인. 예외 테스트 EX-A2에서 발견",
+      "files": [
+        "erp/src/app/(dashboard)/customers/actions.ts (269-283)"
+      ],
+      "resolved_date": "2026-07-07"
     }
   ],
   "improvements": [
@@ -361,6 +379,20 @@
       ],
       "resolution": "조치 완료 — admin@erp-test.com 비밀번호를 test-accounts.json 문서값(Admin1234!)으로 재설정함. 향후 변경 시 문서 동기 갱신 규칙만 유지하면 됨",
       "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "IMP-10",
+      "priority": "low",
+      "status": "pending",
+      "test_ids": [
+        "EX-A4"
+      ],
+      "title": "건물 숫자 필드 음수/비상식 값 서버 검증",
+      "detail": "연면적 -100 등 음수가 저장 가능. min=0 또는 서버 검증 권장 (경미)",
+      "fix_direction": "building_total_area/floors/year_built 음수·범위 검증",
+      "files": [
+        "erp/src/app/(dashboard)/customers/actions.ts"
+      ]
     }
   ],
   "blocked_retest": {
@@ -399,10 +431,10 @@
     ]
   },
   "summary": {
-    "total": 19,
-    "completed": 19,
+    "total": 21,
+    "completed": 20,
     "in_progress": 0,
-    "pending": 0
+    "pending": 1
   },
   "retest_round2": {
     "date": "2026-07-07",

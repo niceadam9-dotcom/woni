@@ -266,16 +266,15 @@ async function _autoCreatePlanItemsForNewCustomer(
     planType: inspection_type === '종합' ? 'special_종합' : 'special_작동',
   })
 
-  // 종합: +6개월 2차 특별점검
+  // 종합: +6개월 2차 특별점검 — 연도를 넘겨도 targetYear 월로 배치하여 연 12건 유지
+  // (12개월 회전 기준. 사용승인월 후반이면 2차가 이론상 익년이지만, 연간 계획은 targetYear 12칸으로 고정)
   if (inspection_type === '종합') {
-    const m2 = approvalMonth + 6
-    const y2 = m2 > 12 ? targetYear + 1 : targetYear
-    const mo2 = m2 > 12 ? m2 - 12 : m2
-    specialKey.add(`${y2}-${mo2}`)
-    toCreate.push({ year: y2, month: mo2, sequence_num: 2, planType: 'special_종합' })
+    const mo2 = ((approvalMonth - 1 + 6) % 12) + 1
+    specialKey.add(`${targetYear}-${mo2}`)
+    toCreate.push({ year: targetYear, month: mo2, sequence_num: 2, planType: 'special_종합' })
   }
 
-  // targetYear 나머지 월: 모두 monthly 정기점검
+  // targetYear 나머지 월: 모두 monthly 정기점검 → 항상 연 12건
   for (let m = 1; m <= 12; m++) {
     if (!specialKey.has(`${targetYear}-${m}`)) {
       toCreate.push({ year: targetYear, month: m, sequence_num: 1, planType: 'monthly' })
