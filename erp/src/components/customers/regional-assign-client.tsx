@@ -184,61 +184,64 @@ export function RegionalAssignClient({ customers, employees }: Props) {
           </select>
         </div>
 
-        <div className="flex flex-wrap gap-3 items-end" style={filterCurrentEmp ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>
-          {/* 시/군/구 */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[#514b81]">시/군/구 *</label>
-            <select value={selectedSi} onChange={e => handleSiChange(e.target.value)} className={inputCls}>
-              <option value="">선택</option>
-              {siOptions.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
+        <div className="flex flex-wrap gap-3 items-end">
+          {/* 지역 필터 그룹 — 담당자별 조회 시에만 비활성 (배정 직원·버튼은 아래에서 항상 활성) */}
+          <div className="flex flex-wrap gap-3 items-end" style={filterCurrentEmp ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>
+            {/* 시/군/구 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[#514b81]">시/군/구 *</label>
+              <select value={selectedSi} onChange={e => handleSiChange(e.target.value)} className={inputCls}>
+                <option value="">선택</option>
+                {siOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
 
-          {/* 읍/면/동 */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[#514b81]">읍/면/동</label>
-            <select
-              value={selectedMyeon}
-              onChange={e => handleMyeonChange(e.target.value)}
-              disabled={!selectedSi || myeonOptions.length === 0}
-              className={inputCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}
-            >
-              <option value="">전체</option>
-              {myeonOptions.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
+            {/* 읍/면/동 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[#514b81]">읍/면/동</label>
+              <select
+                value={selectedMyeon}
+                onChange={e => handleMyeonChange(e.target.value)}
+                disabled={!selectedSi || myeonOptions.length === 0}
+                className={inputCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}
+              >
+                <option value="">전체</option>
+                {myeonOptions.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
 
-          {/* 리/동 */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[#514b81]">리/동</label>
-            <select
-              value={selectedRi}
-              onChange={e => handleRiChange(e.target.value)}
-              disabled={!selectedMyeon || riOptions.length === 0}
-              className={inputCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}
-            >
-              <option value="">전체</option>
-              {riOptions.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
+            {/* 리/동 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[#514b81]">리/동</label>
+              <select
+                value={selectedRi}
+                onChange={e => handleRiChange(e.target.value)}
+                disabled={!selectedMyeon || riOptions.length === 0}
+                className={inputCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}
+              >
+                <option value="">전체</option>
+                {riOptions.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
 
-          {/* ADD-13: 배정 상태 필터 */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[#514b81]">배정 상태</label>
-            <select
-              value={assignFilter}
-              onChange={e => { setAssignFilter(e.target.value as 'all' | 'unassigned' | 'assigned'); setCheckedIds(new Set()) }}
-              className={inputCls}
-            >
-              <option value="all">전체</option>
-              <option value="unassigned">미배정</option>
-              <option value="assigned">배정</option>
-            </select>
+            {/* ADD-13: 배정 상태 필터 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[#514b81]">배정 상태</label>
+              <select
+                value={assignFilter}
+                onChange={e => { setAssignFilter(e.target.value as 'all' | 'unassigned' | 'assigned'); setCheckedIds(new Set()) }}
+                className={inputCls}
+              >
+                <option value="all">전체</option>
+                <option value="unassigned">미배정</option>
+                <option value="assigned">배정</option>
+              </select>
+            </div>
           </div>
 
           <div className="w-px h-8 bg-[#c8c4d0] self-end mb-0.5" />
 
-          {/* 배정 직원 */}
+          {/* 배정 직원 (이관 대상) — 담당자별 조회 시에도 항상 선택 가능 */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-[#514b81]">배정 직원 *</label>
             <div className="flex items-center gap-2">
