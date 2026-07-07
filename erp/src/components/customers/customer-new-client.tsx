@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, AlertTriangle } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, type ContactInput } from '@/app/(dashboard)/customers/actions'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import type { InspectionType } from '@/types'
 
@@ -37,8 +37,13 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   const [isGenerating, setIsGenerating] = useState(false)
   const openPostcode = useDaumPostcode()
   const customerNameRef = useRef<HTMLInputElement>(null)
-  // ADD-2: 주소 중복 등록 감지 팝업
+  // ADD-2: 주소 중복 등록 감지 팝업 (+저장 시점 재검증)
   const [dupInfo, setDupInfo] = useState<{ id: string; customer_name: string; inspection_type: string; employee_name: string | null } | null>(null)
+  const dupAckRef = useRef('')            // '계속 등록'으로 확인 완료된 주소
+  const pendingSubmitRef = useRef(false)  // 저장 시점 중복 확인 후 이어서 제출할지
+  // 건축물대장 소방안전 자료 (높이/주구조/승강기/세대수) — buildings 저장용
+  const ledgerRef = useRef<BuildingLedgerInfo | null>(null)
+  const [ledgerNote, setLedgerNote] = useState('')
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
 
@@ -140,6 +145,35 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           }))
         }
       }).catch(() => null)
+
+      // 건축물대장 API: 신규 주소도 소방안전 관련 건물정보 자동 조회 (키 미설정 시 조용히 건너뜀)
+      setLedgerNote('')
+      if (data.bcode) {
+        fetchBuildingLedgerAction(data.bcode, data.jibunAddress).then(res => {
+          if (res.unavailable || res.error || !res.info) {
+            if (res.error) setLedgerNote(`건축물대장: ${res.error}`)
+            return
+          }
+          const L = res.info
+          ledgerRef.current = L
+          setForm(prev => ({
+            ...prev,
+            building_purpose:      prev.building_purpose      || (L.purpose ?? ''),
+            building_total_area:   prev.building_total_area   || (L.total_area != null ? String(L.total_area) : ''),
+            building_floors_above: prev.building_floors_above || (L.floors_above != null ? String(L.floors_above) : ''),
+            building_floors_below: prev.building_floors_below || (L.floors_below != null ? String(L.floors_below) : ''),
+            building_year_built:   prev.building_year_built   || (L.use_approval_date ? L.use_approval_date.slice(0, 4) : ''),
+            use_approval_date:     prev.use_approval_date     || (L.use_approval_date ?? ''),
+          }))
+          const extras = [
+            L.height != null && `높이 ${L.height}m`,
+            L.main_structure && `구조 ${L.main_structure}`,
+            L.elevator_count != null && `승강기 ${L.elevator_count}대`,
+            L.households != null && `세대 ${L.households}`,
+          ].filter(Boolean).join(' · ')
+          setLedgerNote(`건축물대장 자동 조회 완료${extras ? ` — ${extras}` : ''}`)
+        }).catch(() => null)
+      }
     })
   }
 
@@ -150,6 +184,25 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     if (!form.contract_date) { setError('계약일을 선택해주세요.'); return }
     if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
 
+    // 저장 시점 중복 재검증 (주소 수동 입력 대비) — 이미 확인한 주소는 통과
+    const addr = form.address.trim()
+    if (addr && dupAckRef.current !== addr) {
+      startTransition(async () => {
+        const res = await checkAddressAction(addr)
+        if (res.duplicate) {
+          pendingSubmitRef.current = true
+          setDupInfo(res.duplicate)
+          return
+        }
+        dupAckRef.current = addr
+        doSubmit()
+      })
+      return
+    }
+    doSubmit()
+  }
+
+  function doSubmit() {
     const contactInputs: ContactInput[] = (
       Object.entries(contacts) as [keyof typeof contacts, ContactForm][]
     )
@@ -181,6 +234,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         building_floors_below: form.building_floors_below ? parseInt(form.building_floors_below) : undefined,
         building_total_area:   form.building_total_area   ? parseFloat(form.building_total_area)  : undefined,
         building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
+        // 건축물대장 소방안전 자료 (migration 037)
+        building_height:          ledgerRef.current?.height ?? undefined,
+        building_main_structure:  ledgerRef.current?.main_structure ?? undefined,
+        building_elevator_count:  ledgerRef.current?.elevator_count ?? undefined,
+        building_households:      ledgerRef.current?.households ?? undefined,
       })
       if (result.error) { setError(result.error); return }
       // 다음 등록을 위한 최근 읍/면 기억
@@ -465,6 +523,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           <Building2 className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">건물 기본정보</h2>
           <span className="text-xs text-[#514b81]">(선택)</span>
+          {ledgerNote && (
+            <span className={`text-[11px] ml-auto ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
+              {ledgerNote}
+            </span>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Field label="건물용도">
@@ -569,7 +632,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
               </Link>
               <button
                 type="button"
-                onClick={() => setDupInfo(null)}
+                onClick={() => {
+                  dupAckRef.current = form.address.trim()
+                  setDupInfo(null)
+                  if (pendingSubmitRef.current) { pendingSubmitRef.current = false; doSubmit() }
+                }}
                 className="flex-1 h-9 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
               >
                 계속 등록

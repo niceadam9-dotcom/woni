@@ -6,6 +6,7 @@ export type DaumPostcodeData = {
   zonecode: string      // 우편번호
   roadAddress: string   // 도로명주소
   jibunAddress: string  // 지번주소
+  bcode?: string        // 법정동코드 10자리 (건축물대장 API 조회용)
   sido: string          // 시/도
   sigungu: string       // 시/군/구
   bname: string         // 법정동명

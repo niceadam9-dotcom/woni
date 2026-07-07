@@ -38,6 +38,11 @@ export type CreateCustomerInput = {
   building_floors_above?: number
   building_floors_below?: number
   building_year_built?: number
+  // 건축물대장 소방안전 자료 (migration 037)
+  building_height?: number
+  building_main_structure?: string
+  building_elevator_count?: number
+  building_households?: number
 }
 
 export async function createCustomerAction(
@@ -153,10 +158,23 @@ export async function createCustomerAction(
     if (input.building_floors_below) buildingBase.floors_below = input.building_floors_below
     if (input.building_year_built) buildingBase.year_built   = input.building_year_built
 
+    // 건축물대장 소방안전 자료 (migration 037 — 미적용 DB에서는 42703으로 감지 후 제외 재시도)
+    const ledgerFields: Record<string, unknown> = {}
+    if (input.building_height != null)         ledgerFields.height = input.building_height
+    if (input.building_main_structure)         ledgerFields.main_structure = input.building_main_structure
+    if (input.building_elevator_count != null) ledgerFields.elevator_count = input.building_elevator_count
+    if (input.building_households != null)     ledgerFields.households = input.building_households
+    if (Object.keys(ledgerFields).length > 0)  ledgerFields.ledger_synced_at = new Date().toISOString()
+
     const { error: bErr } = await admin.from('buildings')
-      .insert({ ...buildingBase, zipcode: input.zipcode || null })
-    if (bErr?.message?.includes('zipcode')) {
-      await admin.from('buildings').insert(buildingBase)
+      .insert({ ...buildingBase, ...ledgerFields, zipcode: input.zipcode || null })
+    if (bErr) {
+      if (bErr.code === '42703' || bErr.message?.includes('column')) {
+        // 037 미적용 또는 zipcode 부재 — 기본 필드만 저장
+        await admin.from('buildings').insert(buildingBase)
+      } else if (bErr.message?.includes('zipcode')) {
+        await admin.from('buildings').insert({ ...buildingBase, ...ledgerFields })
+      }
     }
     revalidatePath('/buildings')
   }
@@ -689,7 +707,50 @@ export async function generateCustomerCodeAction(prefix: string = 'C'): Promise<
   return { code }
 }
 
-/** 고객 활성/비활성 즉시 전환 */
+// ── 비활성 전환 시 미완료 계획 자동 취소 / 재활성 시 복원 ──
+// 원상태를 notes 마커(⟦자동취소:상태⟧)로 보존해 재활성화 시 그대로 복원
+const AUTO_CANCEL_MARKER = /⟦자동취소:(planned|confirmed)⟧/
+
+async function _autoCancelPlansForCustomer(admin: ReturnType<typeof createAdminClient>, customerId: string) {
+  const { data } = await admin
+    .from('inspection_plan_items')
+    .select('id, status, notes')
+    .eq('customer_id', customerId)
+    .in('status', ['planned', 'confirmed'])
+  for (const row of (data ?? []) as { id: string; status: string; notes: string | null }[]) {
+    await admin
+      .from('inspection_plan_items')
+      .update({
+        status: 'cancelled',
+        notes: `${row.notes ?? ''}⟦자동취소:${row.status}⟧`,
+      } as Record<string, unknown>)
+      .eq('id', row.id)
+  }
+  return (data ?? []).length
+}
+
+async function _restorePlansForCustomer(admin: ReturnType<typeof createAdminClient>, customerId: string) {
+  const { data } = await admin
+    .from('inspection_plan_items')
+    .select('id, notes')
+    .eq('customer_id', customerId)
+    .eq('status', 'cancelled')
+    .like('notes', '%⟦자동취소:%')
+  for (const row of (data ?? []) as { id: string; notes: string | null }[]) {
+    const m = row.notes?.match(AUTO_CANCEL_MARKER)
+    if (!m) continue
+    await admin
+      .from('inspection_plan_items')
+      .update({
+        status: m[1],
+        notes: (row.notes ?? '').replace(AUTO_CANCEL_MARKER, '') || null,
+      } as Record<string, unknown>)
+      .eq('id', row.id)
+  }
+  return (data ?? []).length
+}
+
+/** 고객 활성/비활성 즉시 전환 — 비활성 시 미완료 계획 자동 취소, 재활성 시 복원 */
 export async function toggleCustomerActiveAction(
   customerId: string,
   isActive: boolean
@@ -703,27 +764,22 @@ export async function toggleCustomerActiveAction(
     .eq('id', customerId)
 
   if (error) return { error: error.message }
+
+  if (isActive) await _restorePlansForCustomer(admin, customerId)
+  else          await _autoCancelPlansForCustomer(admin, customerId)
+
   revalidatePath('/customers')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections/calendar')
   return {}
 }
 
-/** 고객 삭제 (소프트 삭제: is_active = false + deleted_at 기록) */
+/** 고객 삭제 (소프트 삭제) — 미완료 계획은 자동 취소 처리 (재활성화 시 복원) */
 export async function deleteCustomerAction(
   customerId: string
 ): Promise<{ error?: string }> {
   await requirePermission('customer_manage')
   const admin = createAdminClient()
-
-  // 해당 고객의 활성 점검계획 존재 여부 확인
-  const { count } = await admin
-    .from('inspection_plan_items')
-    .select('id', { count: 'exact', head: true })
-    .eq('customer_id', customerId)
-    .in('status', ['planned', 'confirmed'])
-
-  if (count && count > 0) {
-    return { error: `미완료 점검계획이 ${count}건 있어 삭제할 수 없습니다. 먼저 취소 처리해주세요.` }
-  }
 
   const { error } = await admin
     .from('customers')
@@ -731,8 +787,13 @@ export async function deleteCustomerAction(
     .eq('id', customerId)
 
   if (error) return { error: error.message }
+
+  await _autoCancelPlansForCustomer(admin, customerId)
+
   revalidatePath('/customers')
   revalidatePath('/buildings')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections/calendar')
   return {}
 }
 
@@ -857,6 +918,81 @@ export async function checkAddressAction(address: string): Promise<{
       },
     } : {}),
     ...(bld ? { building: bld } : {}),
+  }
+}
+
+/** 국토부 건축물대장 표제부 조회 — 소방안전 관련 항목 한정 (BldRgstHubService/getBrTitleInfo)
+ *  환경변수 BUILDING_LEDGER_API_KEY(공공데이터포털 인증키) 필요. 미설정 시 unavailable 반환 */
+export type BuildingLedgerInfo = {
+  purpose: string | null          // 주용도
+  total_area: number | null       // 연면적(㎡)
+  floors_above: number | null     // 지상층수
+  floors_below: number | null     // 지하층수
+  use_approval_date: string | null // 사용승인일 YYYY-MM-DD
+  height: number | null           // 높이(m) — 고층건축물 판정
+  main_structure: string | null   // 주구조 — 내화구조 여부
+  elevator_count: number | null   // 승용승강기 수 — 피난
+  households: number | null       // 세대수 — 특정소방대상물 분류
+}
+
+export async function fetchBuildingLedgerAction(
+  bcode: string,           // 법정동코드 10자리 (Daum 우편번호 bcode)
+  jibunAddress: string,    // 지번주소 — 번지 파싱용
+): Promise<{ info?: BuildingLedgerInfo; unavailable?: boolean; error?: string }> {
+  const key = process.env.BUILDING_LEDGER_API_KEY
+  if (!key) return { unavailable: true }
+  if (!bcode || bcode.length !== 10) return { error: '법정동코드가 없습니다.' }
+
+  // 지번주소 끝 번지 파싱: "158" / "158-3"
+  const m = jibunAddress.trim().match(/(\d+)(?:-(\d+))?$/)
+  if (!m) return { error: '번지를 추출할 수 없습니다.' }
+  const bun = m[1].padStart(4, '0')
+  const ji  = (m[2] ?? '0').padStart(4, '0')
+
+  const url = new URL('https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo')
+  url.searchParams.set('serviceKey', key)
+  url.searchParams.set('sigunguCd', bcode.slice(0, 5))
+  url.searchParams.set('bjdongCd', bcode.slice(5))
+  url.searchParams.set('bun', bun)
+  url.searchParams.set('ji', ji)
+  url.searchParams.set('numOfRows', '10')
+  url.searchParams.set('_type', 'json')
+
+  try {
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) return { error: `건축물대장 API 오류 (HTTP ${res.status})` }
+    const json = await res.json() as {
+      response?: { header?: { resultCode?: string; resultMsg?: string }; body?: { items?: { item?: unknown } } }
+    }
+    if (json.response?.header?.resultCode !== '00') {
+      return { error: `건축물대장 API: ${json.response?.header?.resultMsg ?? '응답 오류'}` }
+    }
+    const raw = json.response?.body?.items?.item
+    const list = (Array.isArray(raw) ? raw : raw ? [raw] : []) as Record<string, unknown>[]
+    if (list.length === 0) return { error: '해당 지번의 건축물대장이 없습니다.' }
+
+    // 주건축물(연면적 최대) 우선
+    const num = (v: unknown): number | null => {
+      const n = parseFloat(String(v ?? ''))
+      return isNaN(n) || n === 0 ? null : n
+    }
+    const item = list.reduce((a, b) => (num(a.totArea) ?? 0) >= (num(b.totArea) ?? 0) ? a : b)
+    const apr = String(item.useAprDay ?? '')
+    return {
+      info: {
+        purpose: (item.mainPurpsCdNm as string) || null,
+        total_area: num(item.totArea),
+        floors_above: num(item.grndFlrCnt),
+        floors_below: num(item.ugrndFlrCnt),
+        use_approval_date: /^\d{8}$/.test(apr) ? `${apr.slice(0, 4)}-${apr.slice(4, 6)}-${apr.slice(6)}` : null,
+        height: num(item.heit),
+        main_structure: (item.strctCdNm as string) || null,
+        elevator_count: num(item.rideUseElvtCnt),
+        households: num(item.hhldCnt),
+      },
+    }
+  } catch (e) {
+    return { error: `건축물대장 조회 실패: ${e instanceof Error ? e.message : String(e)}` }
   }
 }
 

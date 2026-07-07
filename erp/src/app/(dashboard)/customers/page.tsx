@@ -1,11 +1,8 @@
 ﻿import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Users, Plus, MapPin } from 'lucide-react'
+import { Users, Plus } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { BulkExtractRegionsClient } from '@/components/customers/bulk-extract-regions-client'
-import { RegionEditClient } from '@/components/customers/region-edit-client'
-import { CustomerRegionFilterClient } from '@/components/customers/customer-region-filter-client'
 import { ToggleActiveClient } from '@/components/customers/toggle-active-client'
 import { DeleteCustomerClient } from '@/components/customers/delete-customer-client'
 import { GeneralInspectionRegisterClient } from '@/components/customers/general-inspection-register-client'
@@ -37,10 +34,6 @@ export default async function CustomersPage({
   const q = params.q ?? ''
   const typeFilter = params.type ?? ''
   const activeFilter = params.active ?? 'active'
-  // region_si 미지정 시 양평군 기본값
-  const regionFilter = params.region_si !== undefined ? params.region_si : '양평군'
-  const regionMyeonFilter = params.region_myeon ?? ''
-  const regionRiFilter = params.region_ri ?? ''
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
   const pageSize = Math.max(0, parseInt(params.per_page ?? '25', 10))  // 0 = 전체
 
@@ -89,16 +82,11 @@ export default async function CustomersPage({
   if (typeFilter) custQuery = custQuery.eq('inspection_type', typeFilter)
   if (activeFilter === 'active')   custQuery = custQuery.eq('is_active', true)
   if (activeFilter === 'inactive') custQuery = custQuery.eq('is_active', false)
-  if (regionFilter)      custQuery = custQuery.eq('region_si',    regionFilter)
-  if (regionMyeonFilter) custQuery = custQuery.eq('region_myeon', regionMyeonFilter)
-  if (regionRiFilter)    custQuery = custQuery.eq('region_ri',    regionRiFilter)
+  // 지역 필터/컬럼/칩은 UI에서 전부 제거 (2026-07-07 결정) — region 데이터는 지역별담당배정용으로만 유지
 
-  const [customersRes, profilesRes, regionDataRes, missingRegionRes] = await Promise.all([
+  const [customersRes, profilesRes] = await Promise.all([
     custQuery.range(from, to),
     admin.from('profiles').select('id, name').eq('is_active', true).order('name'),
-    admin.from('customers').select('region_si, region_myeon, region_ri').not('region_si', 'is', null),
-    admin.from('customers').select('id', { count: 'exact', head: true })
-      .eq('is_active', true).not('address', 'is', null).is('region_si', null),
   ])
 
   const customers = (customersRes.data ?? []) as unknown as CustomerRow[]
@@ -107,10 +95,6 @@ export default async function CustomersPage({
   const employees = (profilesRes.data ?? []) as Array<{ id: string; name: string }>
   const empMap = new Map(employees.map(e => [e.id, e.name]))
 
-  type RegionEntry = { region_si: string | null; region_myeon: string | null; region_ri: string | null }
-  const regionData = (regionDataRes.data ?? []) as RegionEntry[]
-  const missingRegionCount = missingRegionRes.count ?? 0
-
   const canCreate = (profile.role as UserRole) !== 'employee'
 
   function buildPageUrl(p: number) {
@@ -118,16 +102,13 @@ export default async function CustomersPage({
     if (q) sp.set('q', q)
     if (typeFilter) sp.set('type', typeFilter)
     if (activeFilter !== 'active') sp.set('active', activeFilter)
-    if (regionFilter) sp.set('region_si', regionFilter)
-    if (regionMyeonFilter) sp.set('region_myeon', regionMyeonFilter)
-    if (regionRiFilter) sp.set('region_ri', regionRiFilter)
     if (pageSize !== 25) sp.set('per_page', String(pageSize))
     if (p > 1) sp.set('page', String(p))
     const qs = sp.toString()
     return `/customers${qs ? `?${qs}` : ''}`
   }
 
-  const isFiltered = !!(q || typeFilter || activeFilter !== 'active' || regionFilter !== '양평군' || regionMyeonFilter || regionRiFilter)
+  const isFiltered = !!(q || typeFilter || activeFilter !== 'active')
 
   return (
     <div className="space-y-6">
@@ -140,9 +121,6 @@ export default async function CustomersPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {canCreate && missingRegionCount > 0 && (
-            <BulkExtractRegionsClient missingCount={missingRegionCount} />
-          )}
           {canCreate && (
             <Link
               href="/customers/new"
@@ -177,12 +155,6 @@ export default async function CustomersPage({
           <option value="active">활성</option>
           <option value="inactive">비활성</option>
         </select>
-        <CustomerRegionFilterClient
-          regionData={regionData}
-          currentSi={regionFilter}
-          currentMyeon={regionMyeonFilter}
-          currentRi={regionRiFilter}
-        />
         <select
           name="per_page"
           defaultValue={String(pageSize)}
@@ -209,44 +181,6 @@ export default async function CustomersPage({
         <span className="text-xs text-[#514b81] ml-auto">총 {totalCount}개사</span>
       </form>
 
-      {/* 양평군 읍/면 빠른 선택 칩 (V10 §6) — 실제 등록 지역 기준 */}
-      {(() => {
-        const myeons = [...new Set(
-          regionData
-            .filter(r => r.region_si === '양평군' && r.region_myeon)
-            .map(r => r.region_myeon as string)
-        )].sort((a, b) => a.localeCompare(b, 'ko'))
-        if (myeons.length === 0) return null
-        return (
-          <div className="flex flex-wrap items-center gap-1.5 -mt-3">
-            <MapPin className="size-3.5 text-[#b0acd6]" />
-            <Link
-              href="/customers"
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                !regionMyeonFilter
-                  ? 'bg-[#7b68ee] text-white border-[#7b68ee] font-medium'
-                  : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee]'
-              }`}
-            >
-              전체
-            </Link>
-            {myeons.map(m => (
-              <Link
-                key={m}
-                href={`/customers?region_myeon=${encodeURIComponent(m)}`}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  regionMyeonFilter === m
-                    ? 'bg-[#7b68ee] text-white border-[#7b68ee] font-medium'
-                    : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee]'
-                }`}
-              >
-                {m}
-              </Link>
-            ))}
-          </div>
-        )
-      })()}
-
       {/* 목록 테이블 */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {customers.length === 0 ? (
@@ -258,7 +192,7 @@ export default async function CustomersPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
-                  {['고객명', '지역', '점검유형', '연간횟수', '계약일', '사용승인일', '담당직원', '상태', ''].map(h => (
+                  {['고객명', '점검유형', '연간횟수', '계약일', '사용승인일', '담당직원', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
                       {h}
                     </th>
@@ -287,22 +221,6 @@ export default async function CustomersPage({
                       ) : c.address ? (
                         <p className="text-[10px] text-amber-500 mt-0.5">건물 정보 없음</p>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {canCreate ? (
-                        <RegionEditClient
-                          customerId={c.id}
-                          customerName={c.customer_name}
-                          address={c.address}
-                          region_si={c.region_si}
-                          region_myeon={c.region_myeon}
-                          region_ri={c.region_ri}
-                        />
-                      ) : (
-                        <span className="text-xs text-[#514b81]">
-                          {[c.region_si, c.region_myeon].filter(Boolean).join(' ') || '-'}
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       {canCreate ? (
