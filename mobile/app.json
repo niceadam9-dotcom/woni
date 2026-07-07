@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "승진소방 현장점검",
+    "slug": "sjfire-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "sjfire",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sjfire.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "불량 시설 사진 촬영에 카메라를 사용합니다.",
+        "NSMicrophoneUsageDescription": "음성으로 불량내역을 입력합니다.",
+        "NSPhotoLibraryUsageDescription": "사진 보관함에서 이미지를 선택합니다."
+      }
+    },
+    "android": {
+      "package": "com.sjfire.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "사진 보관함에서 이미지를 선택합니다.",
+          "cameraPermission": "불량 시설 사진 촬영에 카메라를 사용합니다."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "supabaseUrl": "https://ryuozdhnilfjlahorizh.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5dW96ZGhuaWxmamxhaG9yaXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1ODg2MzEsImV4cCI6MjA5NzE2NDYzMX0.0Icgijy1zMyp8eJjCUSnPSfIIoqR4V1SnFHdReGUosY",
+      "erpUrl": "http://localhost:3000",
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "_note": "양평군 건물 Mock 데이터 50건. customer_code 로 customer_id 매핑. seed-yangpyeong.mjs 로 삽입",
+  "buildings": [
+    {"customer_code":"YP001","building_name":"양평한양아파트 102동","address":"경기도 양평군 양평읍 양평리 500","purpose":"공동주택","total_area":12500,"floors_above":15,"floors_below":2,"year_built":1998,"notes":null},
+    {"customer_code":"YP002","building_name":"양평한솔마트 본점","address":"경기도 양평군 양평읍 창대리 125","purpose":"판매시설","total_area":1850,"floors_above":2,"floors_below":1,"year_built":2018,"notes":null},
+    {"customer_code":"YP003","building_name":"양평중앙병원 본관","address":"경기도 양평군 양평읍 양평리 320","purpose":"의료시설","total_area":3200,"floors_above":6,"floors_below":1,"year_built":2010,"notes":null},
+    {"customer_code":"YP004","building_name":"양평초등학교 교사동","address":"경기도 양평군 양평읍 공흥리 200","purpose":"교육시설","total_area":4500,"floors_above":4,"floors_below":0,"year_built":2005,"notes":null},
+    {"customer_code":"YP005","building_name":"양평종합사회복지관 본관","address":"경기도 양평군 양평읍 회현리 85","purpose":"기타","total_area":1200,"floors_above":3,"floors_below":0,"year_built":2015,"notes":null},
+    {"customer_code":"YP006","building_name":"한강변펜션단지 본채","address":"경기도 양평군 양평읍 오빈리 33","purpose":"숙박시설","total_area":850,"floors_above":3,"floors_below":0,"year_built":2019,"notes":null},
+    {"customer_code":"YP007","building_name":"양평공단물류창고A동","address":"경기도 양평군 양평읍 덕평리 700","purpose":"창고시설","total_area":3600,"floors_above":1,"floors_below":0,"year_built":2023,"notes":null},
+    {"customer_code":"YP008","building_name":"양평삼성수퍼마켓 본점","address":"경기도 양평군 양평읍 백안리 45","purpose":"판매시설","total_area":450,"floors_above":1,"floors_below":0,"year_built":2008,"notes":null},
+    {"customer_code":"YP009","building_name":"양평빌라1단지 가동","address":"경기도 양평군 양평읍 신복리 280","purpose":"공동주택","total_area":4200,"floors_above":5,"floors_below":1,"year_built":2002,"notes":null},
+    {"customer_code":"YP010","building_name":"양평농협하나로마트","address":"경기도 양평군 양평읍 양평리 150","purpose":"판매시설","total_area":2400,"floors_above":2,"floors_below":1,"year_built":2012,"notes":null},
+
+    {"customer_code":"YP011","building_name":"용문산관광호텔 본관","address":"경기도 양평군 용문면 용문리 800","purpose":"숙박시설","total_area":5600,"floors_above":8,"floors_below":1,"year_built":2008,"notes":null},
+    {"customer_code":"YP012","building_name":"용문나눔요양원 A동","address":"경기도 양평군 용문면 화전리 120","purpose":"의료시설","total_area":2100,"floors_above":4,"floors_below":0,"year_built":2016,"notes":null},
+    {"customer_code":"YP013","building_name":"용문시장 상가동","address":"경기도 양평군 용문면 연수리 55","purpose":"근린생활시설","total_area":3500,"floors_above":5,"floors_below":1,"year_built":2000,"notes":null},
+    {"customer_code":"YP014","building_name":"용문공장B동","address":"경기도 양평군 용문면 광탄리 400","purpose":"공장","total_area":6200,"floors_above":3,"floors_below":0,"year_built":2014,"notes":null},
+    {"customer_code":"YP015","building_name":"용문현대아파트 1단지","address":"경기도 양평군 용문면 용문리 350","purpose":"공동주택","total_area":18500,"floors_above":12,"floors_below":1,"year_built":1995,"notes":null},
+    {"customer_code":"YP016","building_name":"용문한방의원 본관","address":"경기도 양평군 용문면 화전리 78","purpose":"의료시설","total_area":680,"floors_above":3,"floors_below":0,"year_built":2022,"notes":null},
+    {"customer_code":"YP017","building_name":"용문면복지센터","address":"경기도 양평군 용문면 연수리 100","purpose":"기타","total_area":750,"floors_above":2,"floors_below":0,"year_built":2018,"notes":null},
+    {"customer_code":"YP018","building_name":"용문주유소 사무동","address":"경기도 양평군 용문면 광탄리 200","purpose":"위험물저장시설","total_area":280,"floors_above":1,"floors_below":0,"year_built":2005,"notes":null},
+
+    {"customer_code":"YP019","building_name":"강상한아름아파트 가동","address":"경기도 양평군 강상면 교평리 300","purpose":"공동주택","total_area":9800,"floors_above":10,"floors_below":1,"year_built":2007,"notes":null},
+    {"customer_code":"YP020","building_name":"강상물류창고A동","address":"경기도 양평군 강상면 화양리 600","purpose":"창고시설","total_area":4800,"floors_above":1,"floors_below":0,"year_built":2023,"notes":null},
+    {"customer_code":"YP021","building_name":"강상면소망교회 예배당","address":"경기도 양평군 강상면 세월리 40","purpose":"기타","total_area":1100,"floors_above":3,"floors_below":0,"year_built":2009,"notes":null},
+    {"customer_code":"YP022","building_name":"강상가구단지 1동","address":"경기도 양평군 강상면 대석리 500","purpose":"판매시설","total_area":2800,"floors_above":4,"floors_below":1,"year_built":2011,"notes":null},
+    {"customer_code":"YP023","building_name":"강상항금농산물창고","address":"경기도 양평군 강상면 항금리 150","purpose":"창고시설","total_area":1500,"floors_above":1,"floors_below":0,"year_built":2017,"notes":null},
+    {"customer_code":"YP024","building_name":"강상로뎀병원 본관","address":"경기도 양평군 강상면 병산리 90","purpose":"의료시설","total_area":3800,"floors_above":5,"floors_below":1,"year_built":2013,"notes":null},
+
+    {"customer_code":"YP025","building_name":"양서한강뷰펜션 본채","address":"경기도 양평군 양서면 복포리 25","purpose":"숙박시설","total_area":620,"floors_above":2,"floors_below":0,"year_built":2021,"notes":null},
+    {"customer_code":"YP026","building_name":"신원초등학교 교사동","address":"경기도 양평군 양서면 신원리 110","purpose":"교육시설","total_area":3200,"floors_above":3,"floors_below":0,"year_built":2008,"notes":null},
+    {"customer_code":"YP027","building_name":"양서면복지관 본관","address":"경기도 양평군 양서면 목왕리 60","purpose":"기타","total_area":980,"floors_above":2,"floors_below":0,"year_built":2019,"notes":null},
+    {"customer_code":"YP028","building_name":"양서용담농산물창고","address":"경기도 양평군 양서면 용담리 320","purpose":"창고시설","total_area":2200,"floors_above":1,"floors_below":0,"year_built":2024,"notes":null},
+    {"customer_code":"YP029","building_name":"양서센트럴아파트 101동","address":"경기도 양평군 양서면 복포리 180","purpose":"공동주택","total_area":16200,"floors_above":14,"floors_below":2,"year_built":2006,"notes":null},
+    {"customer_code":"YP030","building_name":"양서한가람마트","address":"경기도 양평군 양서면 대심리 75","purpose":"판매시설","total_area":1650,"floors_above":2,"floors_below":1,"year_built":2020,"notes":null},
+
+    {"customer_code":"YP031","building_name":"옥천협성아파트 A동","address":"경기도 양평군 옥천면 옥천리 400","purpose":"공동주택","total_area":11400,"floors_above":11,"floors_below":1,"year_built":2004,"notes":null},
+    {"customer_code":"YP032","building_name":"아신요양병원 본관","address":"경기도 양평군 옥천면 아신리 88","purpose":"의료시설","total_area":2650,"floors_above":4,"floors_below":0,"year_built":2017,"notes":null},
+    {"customer_code":"YP033","building_name":"옥천용천창고단지 1동","address":"경기도 양평군 옥천면 용천리 250","purpose":"창고시설","total_area":3400,"floors_above":2,"floors_below":0,"year_built":2024,"notes":null},
+    {"customer_code":"YP034","building_name":"옥천수입리농산물창고","address":"경기도 양평군 옥천면 수입리 175","purpose":"창고시설","total_area":1800,"floors_above":1,"floors_below":0,"year_built":2021,"notes":null},
+    {"customer_code":"YP035","building_name":"옥천한방의원 건물","address":"경기도 양평군 옥천면 인덕리 50","purpose":"의료시설","total_area":520,"floors_above":2,"floors_below":0,"year_built":2015,"notes":null},
+
+    {"customer_code":"YP036","building_name":"서종한강뷰글램핑 관리동","address":"경기도 양평군 서종면 정배리 120","purpose":"숙박시설","total_area":380,"floors_above":1,"floors_below":0,"year_built":2022,"notes":null},
+    {"customer_code":"YP037","building_name":"문호리펜션마을 본채","address":"경기도 양평군 서종면 문호리 60","purpose":"숙박시설","total_area":750,"floors_above":2,"floors_below":0,"year_built":2024,"notes":null},
+    {"customer_code":"YP038","building_name":"서종문화센터 본관","address":"경기도 양평군 서종면 노문리 80","purpose":"기타","total_area":1450,"floors_above":3,"floors_below":0,"year_built":2016,"notes":null},
+    {"customer_code":"YP039","building_name":"서종수입리공장 본동","address":"경기도 양평군 서종면 수입리 350","purpose":"공장","total_area":4500,"floors_above":2,"floors_below":0,"year_built":2010,"notes":null},
+    {"customer_code":"YP040","building_name":"서종달마을전원주택단지 관리동","address":"경기도 양평군 서종면 명달리 95","purpose":"기타","total_area":580,"floors_above":2,"floors_below":0,"year_built":2018,"notes":null},
+
+    {"customer_code":"YP041","building_name":"강하전수리농산물창고","address":"경기도 양평군 강하면 전수리 420","purpose":"창고시설","total_area":2800,"floors_above":1,"floors_below":0,"year_built":2023,"notes":null},
+    {"customer_code":"YP042","building_name":"강하운심아파트 가동","address":"경기도 양평군 강하면 운심리 300","purpose":"공동주택","total_area":7200,"floors_above":8,"floors_below":1,"year_built":2009,"notes":null},
+    {"customer_code":"YP043","building_name":"강하왕창리공장 A동","address":"경기도 양평군 강하면 왕창리 550","purpose":"공장","total_area":5800,"floors_above":3,"floors_below":0,"year_built":2008,"notes":null},
+    {"customer_code":"YP044","building_name":"강하부용리펜션 본채","address":"경기도 양평군 강하면 부용리 35","purpose":"숙박시설","total_area":480,"floors_above":2,"floors_below":0,"year_built":2024,"notes":null},
+
+    {"customer_code":"YP045","building_name":"지평양조장 본관","address":"경기도 양평군 지평면 지평리 150","purpose":"위험물저장시설","total_area":1800,"floors_above":2,"floors_below":0,"year_built":2015,"notes":"위험물 제조시설 포함"},
+    {"customer_code":"YP046","building_name":"지평무왕리공장 A동","address":"경기도 양평군 지평면 무왕리 680","purpose":"공장","total_area":6800,"floors_above":2,"floors_below":0,"year_built":2022,"notes":null},
+    {"customer_code":"YP047","building_name":"지평대평리물류창고 1동","address":"경기도 양평군 지평면 대평리 400","purpose":"창고시설","total_area":4200,"floors_above":1,"floors_below":0,"year_built":2019,"notes":null},
+
+    {"customer_code":"YP048","building_name":"단월봉상농협창고","address":"경기도 양평군 단월면 봉상리 200","purpose":"창고시설","total_area":1200,"floors_above":1,"floors_below":0,"year_built":2023,"notes":null},
+    {"customer_code":"YP049","building_name":"단월복지회관 건물","address":"경기도 양평군 단월면 명금리 30","purpose":"기타","total_area":650,"floors_above":2,"floors_below":0,"year_built":2014,"notes":null},
+
+    {"customer_code":"YP050","building_name":"청운삼성리마을회관","address":"경기도 양평군 청운면 삼성리 15","purpose":"기타","total_area":420,"floors_above":2,"floors_below":0,"year_built":2012,"notes":null}
+  ]
+}

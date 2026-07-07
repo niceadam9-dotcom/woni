@@ -81,20 +81,20 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Flame,
     roles: ['employee', 'manager', 'admin'],
     items: [
-      { label: '고객 관리',        href: '/customers',                  icon: BookUser,      roles: ['employee', 'manager', 'admin'] },
-      { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,        roles: ['manager', 'admin'] },
-      { label: '건물 관리',        href: '/buildings',                  icon: Landmark,      roles: ['employee', 'manager', 'admin'] },
-      { label: '점검계획 등록',    href: '/inspection-plans',           icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
-      { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,     roles: ['employee', 'manager', 'admin'] },
-      { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle, roles: ['employee', 'manager', 'admin'] },
-      { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList, roles: ['employee', 'manager', 'admin'] },
-      { label: '점검 업무',        href: '/inspections',                icon: Flame,         roles: ['employee', 'manager', 'admin'] },
-      { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,  roles: ['employee', 'manager', 'admin'] },
-      { label: '보고서 제출현황',  href: '/inspection-reports/status',  icon: FileCheck2,    roles: ['employee', 'manager', 'admin'] },
-      { label: '이행계획서 등록',  href: '/action-plans',               icon: ClipboardList, roles: ['manager', 'admin'] },
+      { label: '고객 관리',        href: '/customers',                  icon: BookUser,       roles: ['employee', 'manager', 'admin'] },
+      { label: '건물 관리',        href: '/buildings',                  icon: Landmark,       roles: ['employee', 'manager', 'admin'] },
+      { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'] },
+      { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
+      { label: '점검확정',          href: '/inspection-plans',           icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
+      { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
+      { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
+      { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'] },
+      { label: '보고서 제출현황',  href: '/inspection-reports/status',  icon: FileCheck2,     roles: ['employee', 'manager', 'admin'] },
+      { label: '이행계획서 등록',  href: '/action-plans',               icon: ClipboardList,  roles: ['manager', 'admin'] },
       { label: '이행계획 제출현황',href: '/action-plans/status',        icon: ClipboardCheck, roles: ['manager', 'admin'] },
-      { label: '정산현황',         href: '/billing/status',             icon: Wallet,        roles: ['manager', 'admin'] },
-      { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,       roles: ['manager', 'admin'] },
+      { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
+      { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'] },
+      { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'] },
     ],
   },
   // ── 업무관리 ─────────────────────────────────────────────────────────────
@@ -216,15 +216,15 @@ export function Sidebar({ role }: SidebarProps) {
   const isDashboard = pathname === '/dashboard'
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col h-full bg-white border-r border-[#e8e8e8]">
+    <aside className="w-56 shrink-0 flex flex-col h-full bg-white border-r-2 border-[#d4d0f0]">
       {/* 로고 */}
-      <div className="h-14 flex items-center gap-2.5 px-4 border-b border-[#e8e8e8]">
+      <div className="h-14 flex items-center gap-2.5 px-4 border-b-2 border-[#d4d0f0]">
         <div className="size-7 rounded-lg bg-[#7b68ee] flex items-center justify-center shrink-0">
           <svg className="size-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M4 6h16M4 18h16" />
           </svg>
         </div>
-        <span className="font-bold text-[#090c1d] text-[14px]">승진소방 ERP</span>
+        <span className="font-bold text-[#090c1d] text-[14px] tracking-tight">승진소방 ERP</span>
       </div>
 
       {/* 네비게이션 */}
@@ -269,17 +269,17 @@ export function Sidebar({ role }: SidebarProps) {
                     : 'text-[#374151] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
                 )}
               >
-                <group.icon className={cn('size-4 shrink-0', isGroupActive ? 'text-[#7b68ee]' : 'text-[#9ca3af]')} />
+                <group.icon className={cn('size-4 shrink-0', isGroupActive ? 'text-[#7b68ee]' : 'text-[#7c85a0]')} />
                 <span className="flex-1 text-left">{group.label}</span>
                 {isOpen
-                  ? <ChevronDown className="size-3.5 text-[#b0acd6]" />
-                  : <ChevronRight className="size-3.5 text-[#b0acd6]" />
+                  ? <ChevronDown className="size-3.5 text-[#8b87b8]" />
+                  : <ChevronRight className="size-3.5 text-[#8b87b8]" />
                 }
               </button>
 
               {/* 그룹 아이템 */}
               {isOpen && (
-                <div className="ml-3 pl-3 border-l border-[#e8e6f8] mt-0.5 mb-1 space-y-0.5">
+                <div className="ml-3 pl-3 border-l-2 border-[#c4bff5] mt-0.5 mb-1 space-y-0.5">
                   {visibleItems.map(item => {
                     const exactOnly = item.href === '/dashboard' || item.href === '/admin'
                     const isActive =
@@ -297,7 +297,7 @@ export function Sidebar({ role }: SidebarProps) {
                             : 'text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
                         )}
                       >
-                        <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-[#7b68ee]' : 'text-[#c4c0e0]')} />
+                        <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-[#7b68ee]' : 'text-[#8b87b8]')} />
                         {item.label}
                       </Link>
                     )
@@ -310,12 +310,12 @@ export function Sidebar({ role }: SidebarProps) {
       </nav>
 
       {/* 하단 설정 */}
-      <div className="px-2 py-2 border-t border-[#e8e8e8]">
+      <div className="px-2 py-2 border-t-2 border-[#d4d0f0]">
         <Link
           href="/settings"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors"
         >
-          <Settings className="size-4 text-[#b0acd6]" />
+          <Settings className="size-4 text-[#8b87b8]" />
           설정
         </Link>
       </div>

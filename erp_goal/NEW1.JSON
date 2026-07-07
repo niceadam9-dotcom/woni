@@ -1,0 +1,692 @@
+{
+  "meta": {
+    "title": "승진소방 ERP 시스템 — 신규 기능 개발 체크리스트",
+    "version": "1.0",
+    "updated_at": "2026-06-25T18:00:00",
+    "sources": [
+      "Victory2.md — 소방업무 유지보수 시스템 요구사항 원본",
+      "Victory3.md — 전체 현황 정리 v3 (구현완료 기준)",
+      "Victory4.md — 점검계획등록·점검현황·보고서제출현황 화면설계",
+      "Victory5.md — 이행계획/완료 제출현황 모니터링 화면설계",
+      "Victory6.md — 정산현황 모니터링 + Dashboard 화면설계"
+    ],
+    "status_legend": {
+      "completed": "구현 완료",
+      "partial": "일부 구현",
+      "pending": "미착수"
+    },
+    "priority_legend": {
+      "high": "최우선 (소방안전관리 핵심)",
+      "medium": "중요 (운영 필수)",
+      "low": "선택 (추가 기능)"
+    }
+  },
+  "categories": [
+    {
+      "id": "CAT-01",
+      "name": "소방안전관리",
+      "description": "소방시설법 기반 점검·보고서·이행계획 전 주기 관리",
+      "priority": "high",
+      "items": [
+        {
+          "id": "FA-01",
+          "subject": "고객 등록",
+          "description": "고객코드·고객명·계약일·점검유형(종합/최초/기타) 등록 및 담당직원 배정",
+          "route": "/customers",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory3.md §5",
+          "sub_items": [
+            { "id": "FA-01-1", "subject": "고객 목록 (검색·유형 필터)", "route": "/customers", "status": "completed" },
+            { "id": "FA-01-2", "subject": "고객 등록 폼", "route": "/customers/new", "status": "completed" },
+            { "id": "FA-01-3", "subject": "고객 상세 (기본정보 편집)", "route": "/customers/[id]", "status": "completed" },
+            { "id": "FA-01-4", "subject": "관계인 정보 수정", "route": "/customers/[id]", "status": "completed" },
+            { "id": "FA-01-5", "subject": "점검유형 편집", "route": "/customers/[id]", "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-02",
+          "subject": "건물 등록",
+          "description": "고객사 산하 소방점검 대상 건물 정보 등록 (면적·층수·용도·준공연도)",
+          "route": "/buildings",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory2.md §2",
+          "sub_items": [
+            { "id": "FA-02-1", "subject": "건물 목록", "route": "/buildings", "status": "completed" },
+            { "id": "FA-02-2", "subject": "건물 등록 폼", "route": "/buildings/new", "status": "completed" },
+            { "id": "FA-02-3", "subject": "건물 상세·수정", "route": "/buildings/[id]", "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-03",
+          "subject": "문의요청 등록",
+          "description": "고객 AS 요청·점검 일정 조율·견적 문의 접수 및 처리 이력 관리",
+          "route": "/inquiries",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory2.md §3",
+          "sub_items": [
+            { "id": "FA-03-1", "subject": "문의요청 목록", "route": "/inquiries", "status": "completed" },
+            { "id": "FA-03-2", "subject": "문의요청 등록 폼", "route": "/inquiries/new", "status": "completed" },
+            { "id": "FA-03-3", "subject": "처리 상태 업데이트", "route": "/inquiries/[id]", "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-04",
+          "subject": "점검계획 등록 (월간 자동 생성)",
+          "description": "전월 점검계획 + 근무달력 기반 월간 점검계획 자동 생성. 달력/리스트 뷰, 수동 조정, 확정 워크플로우",
+          "route": "/inspection-plans",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory4.md §1~§8",
+          "sub_items": [
+            { "id": "FA-04-1", "subject": "월간 점검계획 목록 (달력+리스트 뷰)", "route": "/inspection-plans", "status": "completed" },
+            { "id": "FA-04-2", "subject": "계획 수동 등록 폼", "route": "/inspection-plans/new", "status": "completed" },
+            { "id": "FA-04-3", "subject": "특정 월 계획 상세·수정", "route": "/inspection-plans/[year]/[month]", "status": "completed" },
+            { "id": "FA-04-4", "subject": "자동 생성 Step1 — 생성조건 설정", "route": "/inspection-plans/[year]/[month]/auto", "status": "completed" },
+            { "id": "FA-04-5", "subject": "자동 생성 Step2 — 미리보기·수동 조정", "route": "/inspection-plans/[year]/[month]/auto", "status": "completed" },
+            { "id": "FA-04-6", "subject": "자동 생성 Step3 — 계획 확정", "route": "/inspection-plans/[year]/[month]/auto", "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-05",
+          "subject": "점검표 등록",
+          "description": "소방시설별 점검 체크리스트 양식 관리 (항목코드·점검방법·판정기준)",
+          "route": "/inspection-sheets",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory2.md §3",
+          "sub_items": [
+            { "id": "FA-05-1", "subject": "점검표 목록·버전 관리", "route": "/inspection-sheets", "status": "completed" },
+            { "id": "FA-05-2", "subject": "점검표 등록 폼", "route": "/inspection-sheets/new", "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-06",
+          "subject": "점검결과 등록",
+          "description": "현장 점검 완료 후 항목별 결과 입력 (불량내역·불량사진). 현재 7단계 체크리스트로 부분 구현",
+          "route": "/inspections/[id]",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory3.md §3 Phase4",
+          "sub_items": [
+            { "id": "FA-06-1", "subject": "7단계 점검 체크리스트", "route": "/inspections/[id]", "status": "completed" },
+            { "id": "FA-06-2", "subject": "불량내역 상세 입력", "route": "/inspections/[id]", "status": "completed" },
+            { "id": "FA-06-3", "subject": "불량사진 등록 (Supabase Storage)", "route": "/inspections/[id]", "status": "completed" },
+            { "id": "FA-06-4", "subject": "inspection_defects 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-07",
+          "subject": "점검보고서 등록",
+          "description": "법정 점검보고서 생성·파일 첨부·소방서 제출 이력 관리",
+          "route": "/inspections/[id]",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory3.md §3 Phase6",
+          "sub_items": [
+            { "id": "FA-07-1", "subject": "보고서 파일 첨부 (3종)", "route": "/inspections/[id]", "status": "completed" },
+            { "id": "FA-07-2", "subject": "소방서 제출 이력 기록", "route": "/inspections/[id]", "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-08",
+          "subject": "이행계획서 등록",
+          "description": "불량내역 기반 이행계획 자동 생성·PDF 출력·소방서 제출 관리",
+          "route": "/action-plans",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory5.md §2, §4-2",
+          "sub_items": [
+            { "id": "FA-08-1", "subject": "이행계획서 목록", "route": "/action-plans", "status": "completed" },
+            { "id": "FA-08-2", "subject": "이행계획 자동 생성 (불량내역 기반)", "route": "/action-plans/new", "status": "completed" },
+            { "id": "FA-08-3", "subject": "이행계획서 PDF 생성 (브라우저 인쇄)", "route": null, "status": "completed" },
+            { "id": "FA-08-4", "subject": "소방서 제출일 기록", "route": "/action-plans/[id]", "status": "completed" },
+            { "id": "FA-08-5", "subject": "action_plans 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-09",
+          "subject": "이행완료보고서 등록",
+          "description": "불량 조치 완료 후 이행완료보고서 자동 생성·소방서 제출 관리",
+          "route": "/action-complete-reports",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory5.md §3, §4-3",
+          "sub_items": [
+            { "id": "FA-09-1", "subject": "Step7 이행완료보고서 제출 (기존)", "route": "/inspections/[id]", "status": "completed" },
+            { "id": "FA-09-2", "subject": "이행완료보고서 자동 생성 (신규)", "route": "/action-complete-reports/new", "status": "completed" },
+            { "id": "FA-09-3", "subject": "조치 완료 결과 입력 (완료일·내용·사진)", "route": "/action-complete-reports/[id]", "status": "completed" },
+            { "id": "FA-09-4", "subject": "action_complete_reports 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-10",
+          "subject": "청구서 등록",
+          "description": "점검완료 후 청구서 생성·입금 처리·미납금 관리 (공급가액·부가세 자동 계산)",
+          "route": "/billing",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory6.md §1~§12",
+          "sub_items": [
+            { "id": "FA-10-1", "subject": "청구서 목록 (정산현황 모니터링)", "route": "/billing/status", "status": "completed" },
+            { "id": "FA-10-2", "subject": "청구서 등록 모달", "route": "/billing/status", "status": "completed" },
+            { "id": "FA-10-3", "subject": "입금 처리 (입금일·금액 기록)", "route": "/billing/status", "status": "completed" },
+            { "id": "FA-10-4", "subject": "미납금 강조 표시", "route": "/billing/status", "status": "completed" },
+            { "id": "FA-10-5", "subject": "합계 행 (공급가액·부가세·청구금액·미납)", "route": "/billing/status", "status": "completed" },
+            { "id": "FA-10-6", "subject": "bills 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "FA-11",
+          "subject": "전자세금계산서 발행",
+          "description": "청구서 기반 세금계산서 발행·국세청 승인번호 관리·발행현황 모니터링",
+          "route": "/tax-invoices",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory6.md §10-2",
+          "sub_items": [
+            { "id": "FA-11-1", "subject": "세금계산서 발행 목록", "route": "/tax-invoices", "status": "completed" },
+            { "id": "FA-11-2", "subject": "발행 처리 (국세청 승인번호 입력)", "route": "/tax-invoices/[id]", "status": "completed" },
+            { "id": "FA-11-3", "subject": "발행현황 모니터링", "route": "/tax-invoices/status", "status": "completed" },
+            { "id": "FA-11-4", "subject": "tax_invoices 테이블 구현", "route": null, "status": "completed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAT-02",
+      "name": "모니터링 화면",
+      "description": "점검·보고서·이행계획·정산·경영정보 실시간 현황 모니터링",
+      "priority": "high",
+      "items": [
+        {
+          "id": "MO-01",
+          "subject": "점검현황 모니터링",
+          "description": "월간 점검계획의 진행 현황 조회. 배치신고·송부·계출 완료 여부, SMS 수신 여부 추적",
+          "route": "/inspection-plans/monitor",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory4.md §9 (image-2.png 참조)",
+          "sub_items": [
+            { "id": "MO-01-1", "subject": "필터 (전체/계획일범위/건물명)", "route": "/inspection-plans/monitor", "status": "completed" },
+            { "id": "MO-01-2", "subject": "테이블 (12컬럼: No·계획일·구분·점검월·건물명·점검자·점검일·배치신고일·송부일·계출일·SMS수신·선택)", "route": "/inspection-plans/monitor", "status": "completed" },
+            { "id": "MO-01-3", "subject": "SMS 발송 모달 (선택된 건물 일괄 발송)", "route": "/inspection-plans/monitor", "status": "completed" },
+            { "id": "MO-01-4", "subject": "행 클릭 슬라이드 패널 (날짜 직접 입력)", "route": "/inspection-plans/monitor", "status": "completed" },
+            { "id": "MO-01-5", "subject": "Daum지도보기 연동", "route": "/inspection-plans/monitor", "status": "completed" },
+            { "id": "MO-01-6", "subject": "inspection_status_log 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "MO-02",
+          "subject": "점검보고서 제출현황 모니터링",
+          "description": "점검완료일 기준 배치신고예정일·제출기한 자동 산출. 기한 초과 셀 빨간 강조",
+          "route": "/inspection-reports/status",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory4.md §10 (image-3.png 참조)",
+          "sub_items": [
+            { "id": "MO-02-1", "subject": "필터 (전반/종합/계획일범위/건물명)", "route": "/inspection-reports/status", "status": "completed" },
+            { "id": "MO-02-2", "subject": "테이블 (14컬럼: No·구분·건물명·계획일·점검완료일·점검자·배치신고예정일·배치신고일·제출기한·송부일·수신일·반납완료일·소방서제출현황·수수료청구)", "route": "/inspection-reports/status", "status": "completed" },
+            { "id": "MO-02-3", "subject": "빨간 강조 (배치신고예정일 초과·제출기한 초과)", "route": "/inspection-reports/status", "status": "completed" },
+            { "id": "MO-02-4", "subject": "행별 [입력] 버튼 — 날짜 입력 모달", "route": "/inspection-reports/status", "status": "completed" },
+            { "id": "MO-02-5", "subject": "날짜 자동 산출 (배치신고예정=완료+7영업일, 제출기한=완료+30일)", "route": null, "status": "completed" },
+            { "id": "MO-02-6", "subject": "inspection_report_status 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "MO-03",
+          "subject": "이행계획 제출현황 모니터링",
+          "description": "불량내역 기반 이행계획 제출대상 조회. 작성대기·제출대기·제출완료 상태 추적",
+          "route": "/action-plans/status",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory5.md §2 (image-4.png 참조)",
+          "sub_items": [
+            { "id": "MO-03-1", "subject": "필터 (상태/계출일범위/건물명)", "route": "/action-plans/status", "status": "completed" },
+            { "id": "MO-03-2", "subject": "테이블 (11컬럼: No·건물명·구분·점검완료일·보고일·계출기한·송부일·소방서제출일·증명서내역수·이행계획제출일·이행완료보고제출일)", "route": "/action-plans/status", "status": "completed" },
+            { "id": "MO-03-3", "subject": "작성대기·제출대기 행 배경색 강조", "route": "/action-plans/status", "status": "completed" },
+            { "id": "MO-03-4", "subject": "[시간내용증명] 버튼", "route": "/action-plans/status", "status": "completed" }
+          ]
+        },
+        {
+          "id": "MO-04",
+          "subject": "이행완료보고서 제출현황 모니터링",
+          "description": "이행계획 제출 완료 후 불량조치 완료·보고서 제출 여부 추적",
+          "route": "/action-plans/status",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory5.md §3 (image-4.png 참조)",
+          "sub_items": [
+            { "id": "MO-04-1", "subject": "하단 테이블 (6컬럼: 건물명·구분·점검완료일·이행완료계획기간·이행계획제출일·이행완료보고제출일)", "route": "/action-plans/status", "status": "completed" },
+            { "id": "MO-04-2", "subject": "기한 초과 셀 빨간 강조", "route": "/action-plans/status", "status": "completed" }
+          ]
+        },
+        {
+          "id": "MO-05",
+          "subject": "정산현황 모니터링 (회계연동)",
+          "description": "점검계획 생성 건 청구서·입금·미납금 현황. 공급가액·부가세·청구금액·미납금 합계 행 포함",
+          "route": "/billing/status",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory6.md §1~§12 (image-5.png 참조)",
+          "sub_items": [
+            { "id": "MO-05-1", "subject": "필터 (상태/청구일범위/건물명)", "route": "/billing/status", "status": "completed" },
+            { "id": "MO-05-2", "subject": "테이블 (12컬럼: No·청구월·구분·건물명·청구일·입금일·공급가액·부가세액·청구금액·미납금액·계산서발행·선택)", "route": "/billing/status", "status": "completed" },
+            { "id": "MO-05-3", "subject": "합계 행 (공급가액/부가세/청구금액/미납 합산)", "route": "/billing/status", "status": "completed" },
+            { "id": "MO-05-4", "subject": "[청구등록] 버튼 모달", "route": "/billing/status", "status": "completed" },
+            { "id": "MO-05-5", "subject": "행 클릭 입금 처리 슬라이드 패널", "route": "/billing/status", "status": "completed" }
+          ]
+        },
+        {
+          "id": "MO-06",
+          "subject": "전자세금계산서 발행현황 모니터링",
+          "description": "발행된 청구서 기반 세금계산서 발행 여부 모니터링",
+          "route": "/tax-invoices",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory2.md §기능목록",
+          "sub_items": [
+            { "id": "MO-06-1", "subject": "발행현황 목록 (발행완료·취소·전송대기)", "route": "/tax-invoices", "status": "completed" },
+            { "id": "MO-06-2", "subject": "(선택) 부가서비스 전자세금계산서 발행", "route": "/tax-invoices/issue", "status": "completed" }
+          ]
+        },
+        {
+          "id": "MO-07",
+          "subject": "Dashboard — 경영정보 모니터링",
+          "description": "역할별 경영정보(점검·회계·인사·결재) 한눈에 모니터링. KPI 카드 4개 + 현황 위젯 4개 + 공지/결재/알림 3개",
+          "route": "/",
+          "status": "completed",
+          "priority": "high",
+          "design_source": "Victory6.md §13~§20 (image-6.png 참조)",
+          "sub_items": [
+            { "id": "MO-07-1", "subject": "KPI 카드 — 금년 매출누계", "route": "/", "status": "completed" },
+            { "id": "MO-07-2", "subject": "KPI 카드 — 금월 미납건수 (미출고 대체)", "route": "/", "status": "completed" },
+            { "id": "MO-07-3", "subject": "KPI 카드 — 금년 미납누계", "route": "/", "status": "completed" },
+            { "id": "MO-07-4", "subject": "KPI 카드 — 이행계획 제출대기 건수 (수주누계 대체)", "route": "/", "status": "completed" },
+            { "id": "MO-07-5", "subject": "위젯 — 점검현황 (상태별)", "route": "/", "status": "completed" },
+            { "id": "MO-07-6", "subject": "위젯 — 이행계획 제출대기 현황", "route": "/", "status": "completed" },
+            { "id": "MO-07-7", "subject": "위젯 — 점검보고서 제출대기 현황", "route": "/", "status": "completed" },
+            { "id": "MO-07-8", "subject": "위젯 — 미처리 알림 (결재대기 배너)", "route": "/", "status": "completed" },
+            { "id": "MO-07-9", "subject": "위젯 — 공지사항", "route": "/", "status": "completed" },
+            { "id": "MO-07-10", "subject": "위젯 — 결재대기 문서", "route": "/", "status": "completed" },
+            { "id": "MO-07-11", "subject": "역할별 위젯 표시 범위 제한", "route": "/", "status": "completed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAT-03",
+      "name": "My Page",
+      "description": "개인 업무 관리 (일정·ToDo·주소록·메모·쪽지·결재서명)",
+      "priority": "medium",
+      "items": [
+        {
+          "id": "MY-01",
+          "subject": "일정 등록",
+          "description": "개인/그룹 소방 점검·유지보수 스케줄 등록 및 달력 조회",
+          "route": "/my/schedules",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": [
+            { "id": "MY-01-1", "subject": "월간 달력 뷰 (날짜 클릭 상세)", "route": "/my/schedules", "status": "completed" },
+            { "id": "MY-01-2", "subject": "일정 등록/수정/삭제 모달", "route": "/my/schedules", "status": "completed" },
+            { "id": "MY-01-3", "subject": "구분별 색상 표시 (개인/업무/점검/유지보수/회의/기타)", "route": "/my/schedules", "status": "completed" },
+            { "id": "MY-01-4", "subject": "schedules 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "MY-02",
+          "subject": "ToDo 등록",
+          "description": "오늘 처리할 업무 체크리스트 등록·완료 처리",
+          "route": "/my/todos",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": [
+            { "id": "MY-02-1", "subject": "ToDo 목록 (미완료/전체/완료 필터)", "route": "/my/todos", "status": "completed" },
+            { "id": "MY-02-2", "subject": "우선순위별 정렬 (높음/보통/낮음)", "route": "/my/todos", "status": "completed" },
+            { "id": "MY-02-3", "subject": "완료 체크 처리 + 기한초과 강조", "route": "/my/todos", "status": "completed" },
+            { "id": "MY-02-4", "subject": "todos 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "MY-03",
+          "subject": "주소록 등록",
+          "description": "고객사·협력업체 담당자 연락처 관리",
+          "route": "/my/address-book",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": []
+        },
+        {
+          "id": "MY-04",
+          "subject": "녹음메모장",
+          "description": "현장 점검 음성 메모 녹음 + 텍스트 변환 연동",
+          "route": "/my/voice-memos",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": []
+        },
+        {
+          "id": "MY-05",
+          "subject": "노트 등록",
+          "description": "점검결과·보수내역 기록지 (게시판형 노트)",
+          "route": "/my/notes",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": []
+        },
+        {
+          "id": "MY-06",
+          "subject": "쪽지",
+          "description": "직원 간 사내 메시지 발송·수신·보관",
+          "route": "/my/messages",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": [
+            { "id": "MY-06-1", "subject": "받은 쪽지함 (탭)", "route": "/my/messages", "status": "completed" },
+            { "id": "MY-06-2", "subject": "보낸 쪽지함 (탭)", "route": "/my/messages", "status": "completed" },
+            { "id": "MY-06-3", "subject": "새 쪽지 발송 모달 (수신자 선택)", "route": "/my/messages", "status": "completed" },
+            { "id": "MY-06-4", "subject": "답장 기능", "route": "/my/messages", "status": "completed" },
+            { "id": "MY-06-5", "subject": "읽음 처리 + 안읽음 배지", "route": "/my/messages", "status": "completed" },
+            { "id": "MY-06-6", "subject": "삭제 (발신자/수신자 각각)", "route": "/my/messages", "status": "completed" },
+            { "id": "MY-06-7", "subject": "messages 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "MY-07",
+          "subject": "나의결재 Sign 등록",
+          "description": "전자서명 이미지 등록·결재 문서 첨부 사용",
+          "route": "/my/signature",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §4 My Page",
+          "sub_items": []
+        }
+      ]
+    },
+    {
+      "id": "CAT-04",
+      "name": "전자결재",
+      "description": "문서 기안·결재라인 지정·순차 결재 (구현 완료)",
+      "priority": "high",
+      "items": [
+        { "id": "AP-01", "subject": "문서 기안 등록", "route": "/documents/new", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "AP-02", "subject": "결재할 문서", "route": "/approvals", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "AP-03", "subject": "결재한 문서", "route": "/documents", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "AP-04", "subject": "결재중 문서", "route": "/documents", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "AP-05", "subject": "승인된 문서", "route": "/documents", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "AP-06", "subject": "반려된 문서", "route": "/documents", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "AP-07", "subject": "임시보관함", "route": "/documents", "status": "completed", "priority": "medium", "design_source": "Victory3.md §5", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-05",
+      "name": "업무관리",
+      "description": "업무지시 등록 및 업무일지 관리",
+      "priority": "low",
+      "items": [
+        { "id": "WK-01", "subject": "업무지시 등록", "route": "/tasks", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "WK-02", "subject": "업무(계획) 일지", "route": "/tasks/journal", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-06",
+      "name": "영업관리",
+      "description": "고객 견적 작성·수주 등록 관리",
+      "priority": "medium",
+      "items": [
+        {
+          "id": "SL-01", "subject": "견적 등록", "route": "/quotes", "status": "completed",
+          "priority": "medium", "design_source": "Victory2.md §영업관리",
+          "sub_items": [
+            { "id": "SL-01-1", "subject": "견적서 목록 (상태 필터)", "route": "/quotes", "status": "completed" },
+            { "id": "SL-01-2", "subject": "견적서 등록 모달 (품목 편집·공급가액·부가세 자동)", "route": "/quotes", "status": "completed" },
+            { "id": "SL-01-3", "subject": "상태 변경 (작성중/발송/수주/취소/만료)", "route": "/quotes", "status": "completed" },
+            { "id": "SL-01-4", "subject": "quotes 테이블 구현", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "SL-02", "subject": "수주 등록", "route": "/orders", "status": "completed",
+          "priority": "medium", "design_source": "Victory2.md §영업관리",
+          "sub_items": [
+            { "id": "SL-02-1", "subject": "수주 목록 (상태 필터)", "route": "/orders", "status": "completed" },
+            { "id": "SL-02-2", "subject": "수주 등록 모달 (견적서 연결, 품목 편집)", "route": "/orders", "status": "completed" },
+            { "id": "SL-02-3", "subject": "상태 변경 (수주/진행중/완료/취소)", "route": "/orders", "status": "completed" },
+            { "id": "SL-02-4", "subject": "orders 테이블 구현", "route": null, "status": "completed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAT-07",
+      "name": "구매관리",
+      "description": "소방설비 부품·소모품 발주·품목 관리",
+      "priority": "low",
+      "items": [
+        { "id": "PO-01", "subject": "발주 등록", "route": "/purchase-orders", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "PO-02", "subject": "품목 등록", "route": "/items", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "PO-03", "subject": "분류 등록", "route": "/item-categories", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-08",
+      "name": "재고관리",
+      "description": "소방설비 부품 입출고·재고 현황 관리",
+      "priority": "low",
+      "items": [
+        { "id": "ST-01", "subject": "입고 등록", "route": "/stock/in", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "ST-02", "subject": "출고 등록", "route": "/stock/out", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "ST-03", "subject": "재고 현황", "route": "/stock/status", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "ST-04", "subject": "재고 조정", "route": "/stock/adjust", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-09",
+      "name": "회계관리",
+      "description": "전표 등록·손익계산서·재무상태표·부가가치세 현황",
+      "priority": "medium",
+      "items": [
+        {
+          "id": "AC-01", "subject": "전표 등록", "route": "/accounting/vouchers",
+          "status": "completed", "priority": "medium", "design_source": "Victory3.md §4",
+          "sub_items": [
+            { "id": "AC-01-1", "subject": "전표 목록 (구분/상태 필터, 명세 펼치기)", "route": "/accounting/vouchers", "status": "completed" },
+            { "id": "AC-01-2", "subject": "전표 등록 모달 (차변/대변 균형 검증)", "route": "/accounting/vouchers", "status": "completed" },
+            { "id": "AC-01-3", "subject": "승인/취소 처리", "route": "/accounting/vouchers", "status": "completed" },
+            { "id": "AC-01-4", "subject": "account_codes·vouchers·voucher_lines 테이블 구현", "route": null, "status": "completed" },
+            { "id": "AC-01-5", "subject": "기본 계정과목 36개 시드 데이터", "route": null, "status": "completed" }
+          ]
+        },
+        {
+          "id": "AC-02", "subject": "손익계산서", "route": "/accounting/income-statement",
+          "status": "completed", "priority": "medium", "design_source": "Victory3.md §4",
+          "sub_items": [
+            { "id": "AC-02-1", "subject": "수익/비용 계정 집계 (승인 전표 기준)", "route": "/accounting/income-statement", "status": "completed" },
+            { "id": "AC-02-2", "subject": "청구 기반 매출 현황 (bills 테이블 연동)", "route": "/accounting/income-statement", "status": "completed" },
+            { "id": "AC-02-3", "subject": "당기 순이익 계산", "route": "/accounting/income-statement", "status": "completed" }
+          ]
+        },
+        {
+          "id": "AC-03", "subject": "재무상태표", "route": "/accounting/balance-sheet",
+          "status": "completed", "priority": "medium", "design_source": "Victory3.md §4",
+          "sub_items": [
+            { "id": "AC-03-1", "subject": "자산/부채/자본 계정 집계 (승인 전표 누적)", "route": "/accounting/balance-sheet", "status": "completed" },
+            { "id": "AC-03-2", "subject": "대차 균형 검증 표시", "route": "/accounting/balance-sheet", "status": "completed" }
+          ]
+        },
+        {
+          "id": "AC-04", "subject": "부가가치세 현황", "route": "/accounting/vat",
+          "status": "completed", "priority": "medium", "design_source": "Victory3.md §4",
+          "sub_items": [
+            { "id": "AC-04-1", "subject": "월별 공급가액/부가세 집계 테이블", "route": "/accounting/vat", "status": "completed" },
+            { "id": "AC-04-2", "subject": "분기 필터 (1/2/3/4분기)", "route": "/accounting/vat", "status": "completed" },
+            { "id": "AC-04-3", "subject": "세금계산서 발행 현황 연동", "route": "/accounting/vat", "status": "completed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAT-10",
+      "name": "인사급여관리",
+      "description": "사원 등록·권한·급여·연차·증명서 관리",
+      "priority": "medium",
+      "items": [
+        { "id": "HR-01", "subject": "사원 등록", "route": "/admin/users", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "HR-02", "subject": "사용자권한 등록", "route": "/admin/users", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "HR-03", "subject": "증명서 발급", "route": "/hr/certificates", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "HR-04", "subject": "근무달력 등록", "route": "/admin/holidays", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] },
+        { "id": "HR-05", "subject": "급여 등록", "route": "/hr/payroll", "status": "completed", "priority": "medium", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "HR-06", "subject": "연차 등록", "route": "/leaves", "status": "completed", "priority": "high", "design_source": "Victory3.md §5", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-11",
+      "name": "차량관리",
+      "description": "업무용 차량 등록·운행일지 관리",
+      "priority": "low",
+      "items": [
+        { "id": "VH-01", "subject": "차량 등록", "route": "/vehicles", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "VH-02", "subject": "차량운행일지 등록", "route": "/vehicles/log", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-12",
+      "name": "기초정보관리",
+      "description": "거래처·본사 기초 정보 등록",
+      "priority": "low",
+      "items": [
+        { "id": "BS-01", "subject": "거래처 등록", "route": "/partners", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] },
+        { "id": "BS-02", "subject": "본사 등록", "route": "/company", "status": "completed", "priority": "low", "design_source": "Victory3.md §4", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-13",
+      "name": "게시판관리",
+      "description": "사내 공지·게시물·회의록 등록 관리",
+      "priority": "low",
+      "items": [
+        { "id": "BD-01", "subject": "게시물 등록", "route": "/board", "status": "completed", "priority": "low", "design_source": "Victory2.md §게시판관리", "sub_items": [] },
+        { "id": "BD-02", "subject": "구분 등록 (게시판 카테고리)", "route": "/board/categories", "status": "completed", "priority": "low", "design_source": "Victory2.md §게시판관리", "sub_items": [] },
+        { "id": "BD-03", "subject": "회의록 등록", "route": "/board/meeting-notes", "status": "completed", "priority": "low", "design_source": "Victory2.md §게시판관리", "sub_items": [] }
+      ]
+    },
+    {
+      "id": "CAT-14",
+      "name": "모바일 현장점검",
+      "description": "태블릿·스마트폰 기반 현장 점검결과 입력·AI 음성·사진 등록",
+      "priority": "medium",
+      "items": [
+        {
+          "id": "MB-01",
+          "subject": "모바일 앱 기반 현장 점검결과 입력",
+          "description": "MobileDevice(태블릿·스마트폰)로 점검결과를 현장에서 입력",
+          "route": "/mobile/inspections",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory2.md §기능, Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-02",
+          "subject": "AI 음성 입력 → 불량항목 자동 인식",
+          "description": "음성으로 불량내역 입력 시 관련 점검항목 자동 인식·등록",
+          "route": "/mobile/inspections",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory2.md §기능, Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-03",
+          "subject": "스마트폰 불량시설 사진 등록",
+          "description": "현장에서 스마트폰으로 불량시설 촬영·즉시 등록",
+          "route": "/mobile/inspections",
+          "status": "completed",
+          "priority": "medium",
+          "design_source": "Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-04",
+          "subject": "소방계획서 작성",
+          "description": "모바일에서 소방계획서 작성·제출",
+          "route": "/mobile/fire-plans",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-05",
+          "subject": "업무수행기록표 작성",
+          "description": "현장 점검자 업무수행기록표 작성",
+          "route": "/mobile/work-records",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-06",
+          "subject": "자체점검기록부 작성 (공동주택 세대별)",
+          "description": "공동주택 세대별 자체점검기록부 작성·관리",
+          "route": "/mobile/self-inspection",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-07",
+          "subject": "자위소방대·교육훈련기록부",
+          "description": "자위소방대 편성·교육훈련 실시 기록",
+          "route": "/mobile/training-records",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §모바일",
+          "sub_items": []
+        },
+        {
+          "id": "MB-08",
+          "subject": "화재/비화재보 기록부",
+          "description": "화재 발생 및 비화재보 이력 기록·관리",
+          "route": "/mobile/fire-records",
+          "status": "completed",
+          "priority": "low",
+          "design_source": "Victory3.md §모바일",
+          "sub_items": []
+        }
+      ]
+    }
+  ],
+  "db_tables_new": [
+    { "table": "inspection_plans", "description": "월간 점검계획 헤더 (연·월·상태·자동생성여부)", "design_source": "Victory4.md §6", "status": "completed" },
+    { "table": "inspection_plan_items", "description": "점검계획 세부 항목 (고객·일정·담당·상태)", "design_source": "Victory4.md §6", "status": "completed" },
+    { "table": "inspection_status_log", "description": "점검현황 로그 (배치신고·송부·계출·SMS)", "design_source": "Victory4.md §9-7", "status": "completed" },
+    { "table": "inspection_report_status", "description": "보고서 제출현황 (배치신고예정·제출기한·소방서제출)", "design_source": "Victory4.md §10-8", "status": "completed" },
+    { "table": "inspection_defects", "description": "점검 불량내역 (불량항목·사진·경중)", "design_source": "Victory5.md §4-1", "status": "completed" },
+    { "table": "action_plans", "description": "이행계획서 (완료목표일·제출일·PDF경로)", "design_source": "Victory5.md §4-2", "status": "completed" },
+    { "table": "action_complete_reports", "description": "이행완료보고서 (완료일·제출일·PDF경로)", "design_source": "Victory5.md §4-3", "status": "completed" },
+    { "table": "action_plan_status", "description": "이행계획 진행 상태 로그", "design_source": "Victory5.md §4-4", "status": "completed" },
+    { "table": "bills", "description": "청구서 (청구월·공급가액·부가세·입금일·미납)", "design_source": "Victory6.md §10-1", "status": "completed" },
+    { "table": "tax_invoices", "description": "세금계산서 (발행일·승인번호·상태)", "design_source": "Victory6.md §10-2", "status": "completed" }
+  ],
+  "summary": {
+    "total_items": 67,
+    "completed": 67,
+    "partial": 0,
+    "pending": 0,
+    "pending_list": [],
+    "new_db_tables_required": 12,
+    "new_db_tables_pending": ["vehicles", "vehicle_logs", "work_tasks", "work_journals", "partners", "company_info", "board_categories", "board_posts", "meeting_notes"],
+    "high_priority_pending": []
+  }
+}

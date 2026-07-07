@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { ClipboardList } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -105,7 +105,7 @@ export default async function ActivityLogsPage({
           <select
             name="actor"
             defaultValue={actorFilter}
-            className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition"
+            className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition"
           >
             <option value="">전체 직원</option>
             {allProfiles.map(p => (
@@ -115,7 +115,7 @@ export default async function ActivityLogsPage({
           <select
             name="per_page"
             defaultValue={String(pageSize)}
-            className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+            className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
           >
             <option value="25">25건</option>
             <option value="50">50건</option>
@@ -130,7 +130,7 @@ export default async function ActivityLogsPage({
           {actorFilter && (
             <a
               href="/admin/logs"
-              className="h-9 px-4 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+              className="h-9 px-4 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
             >
               초기화
             </a>
@@ -142,7 +142,7 @@ export default async function ActivityLogsPage({
       </div>
 
       {/* 로그 테이블 */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px,rgba(18,43,165,0.04)_0px_6px_6px_-3px,rgba(18,43,165,0.04)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {logs.length === 0 ? (
           <div className="py-16 text-center">
             <ClipboardList className="size-10 text-[#c4bff5] mx-auto mb-3" />
@@ -152,7 +152,7 @@ export default async function ActivityLogsPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e8e8e8] bg-[#f8f9fa]">
+                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-[#514b81] w-40">시각</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] w-28">직원</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] w-32">액션</th>
@@ -160,7 +160,7 @@ export default async function ActivityLogsPage({
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] w-32 hidden md:table-cell">IP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e8e8e8]">
+              <tbody className="divide-y divide-[#c8c4d0]">
                 {logs.map(log => {
                   const actionColor = ACTION_COLOR[log.action] ?? 'bg-[#f5f4ff] text-[#514b81]'
                   const actorName = log.actor_id ? (profileMap.get(log.actor_id) ?? '탈퇴 직원') : '시스템'
@@ -209,7 +209,7 @@ export default async function ActivityLogsPage({
           {page > 1 && (
             <a
               href={buildUrl(page - 1, actorFilter)}
-              className="h-8 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
             >
               이전
             </a>
@@ -220,7 +220,7 @@ export default async function ActivityLogsPage({
           {page < totalPages && (
             <a
               href={buildUrl(page + 1, actorFilter)}
-              className="h-8 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
             >
               다음
             </a>

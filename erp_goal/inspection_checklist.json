@@ -1,0 +1,443 @@
+{
+  "project": "승진소방 점검 업무 관리 모듈",
+  "version": "1.1.0",
+  "last_updated": "2026-06-24",
+  "phase_completed": "Phase 1·2·3·4·5·6·7·8 완료",
+  "checklist": [
+    {
+      "id": 1,
+      "phase": "Phase 1",
+      "category": "DB 마이그레이션",
+      "priority": 1,
+      "items": [
+        {
+          "id": "1-1",
+          "task": "holidays 테이블 생성 (date PK, name, is_national) — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-2",
+          "task": "customers 테이블 생성 (고객코드 UNIQUE, 고객명, 계약일, 점검유형, 주소, assigned_employee_id) — 002_fire_safety.sql + 003_customer_assignee.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-3",
+          "task": "customer_contacts 테이블 생성 (고객당 대표·직원1·직원2, 이름·연락처·이메일) — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-4",
+          "task": "inspections 테이블 생성 (고객·담당직원 FK, 점검시작일, 점검차수) — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-5",
+          "task": "inspection_steps 테이블 생성 (점검 FK, 단계번호, 업무명, 마감일, 완료여부·완료일시·완료자) — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-6",
+          "task": "inspection_reports 테이블 생성 (점검 FK, 보고서유형, 파일URL, 제출일시·제출자, 고객 스냅샷) — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-7",
+          "task": "add_working_days(date, n) 함수 구현 — holidays 테이블 기반 작업일 계산 — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-8",
+          "task": "create_inspection_steps() 트리거 구현 — 점검 INSERT 시 7단계 자동 생성 및 마감일 계산 — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-9",
+          "task": "check_inspection_sequence() 트리거 구현 — 종합 외 고객에게 2차 점검 생성 방지 — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-10",
+          "task": "RLS 정책 설정 — 배정 직원: 본인 담당 점검·단계만 조회/수정, manager/admin: 전체 권한 — 002_fire_safety.sql",
+          "status": "done"
+        },
+        {
+          "id": "1-11",
+          "task": "customers.assigned_employee_id 컬럼 추가 (담당직원 배정 ★) — 003_customer_assignee.sql",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "phase": "Phase 2",
+      "category": "TypeScript 타입 정의",
+      "priority": 1,
+      "items": [
+        {
+          "id": "2-1",
+          "task": "Holiday, Customer(assigned_employee_id 포함), CustomerContact 타입 정의",
+          "status": "done"
+        },
+        {
+          "id": "2-2",
+          "task": "Inspection, InspectionStep, InspectionReport 타입 정의",
+          "status": "done"
+        },
+        {
+          "id": "2-3",
+          "task": "점검유형(InspectionType), 단계상태(StepStatus), 보고서유형(ReportType) enum/union 타입 정의",
+          "status": "done"
+        },
+        {
+          "id": "2-4",
+          "task": "Supabase Database 제네릭 타입에 신규 테이블 6개 추가 (customers Insert/Update에 assigned_employee_id 포함)",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "phase": "Phase 3",
+      "category": "고객 관리 페이지",
+      "priority": 2,
+      "items": [
+        {
+          "id": "3-1",
+          "task": "/customers — 고객 목록 페이지 (고객명·고객코드 검색, 점검유형 필터)",
+          "status": "done"
+        },
+        {
+          "id": "3-2",
+          "task": "/customers — 목록에 담당직원 표시·미배정 빨간 경고 표시",
+          "status": "done"
+        },
+        {
+          "id": "3-3",
+          "task": "/customers/new — 고객 등록 폼 (고객코드·고객명·계약일·점검유형·주소)",
+          "status": "done"
+        },
+        {
+          "id": "3-4",
+          "task": "/customers/new — 관계인 등록 폼 (대표·직원1·직원2, 이름·연락처·이메일, 최대 3명)",
+          "status": "done"
+        },
+        {
+          "id": "3-5",
+          "task": "/customers/new — 점검유형별 연간 점검 횟수 안내 표시 (종합 2회 / 최초·기타 1회)",
+          "status": "done"
+        },
+        {
+          "id": "3-6",
+          "task": "/customers/new — 고객 등록 시 담당직원 배정 드롭다운 (manager/admin, 배정 시 알림 발송)",
+          "status": "done"
+        },
+        {
+          "id": "3-7",
+          "task": "/customers/[id] — 고객 상세 페이지 (기본정보·관계인 목록·담당직원 강조 카드)",
+          "status": "done"
+        },
+        {
+          "id": "3-8",
+          "task": "/customers/[id] — 담당직원 변경 모달 (manager/admin, 변경 시 알림 발송, 활동 로그 기록)",
+          "status": "done"
+        },
+        {
+          "id": "3-9",
+          "task": "/customers/[id] — 해당 고객의 점검 이력 목록 표시",
+          "status": "done"
+        },
+        {
+          "id": "3-10",
+          "task": "/customers/[id] — 관계인 정보 수정 기능 (manager/admin)",
+          "status": "done"
+        },
+        {
+          "id": "3-11",
+          "task": "고객 관리 Server Actions 구현 (생성·수정·담당자배정·관계인 upsert)",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "phase": "Phase 4",
+      "category": "점검 업무 페이지",
+      "priority": 2,
+      "items": [
+        {
+          "id": "4-1",
+          "task": "/inspections — 점검 목록 페이지 (연도·상태·담당자 필터)",
+          "status": "done"
+        },
+        {
+          "id": "4-2",
+          "task": "/inspections — 목록에 고객명·담당자·진행 단계·마감임박 여부 표시",
+          "status": "done"
+        },
+        {
+          "id": "4-3",
+          "task": "/inspections/new — 점검 배정 폼 (고객·관계인·담당직원·점검시작일 선택)",
+          "status": "done"
+        },
+        {
+          "id": "4-4",
+          "task": "/inspections/new — 점검 생성 후 7단계 자동 계산 결과 미리보기",
+          "status": "done"
+        },
+        {
+          "id": "4-5",
+          "task": "/inspections/[id] — 점검 상세 페이지 (기본정보·고객·담당자 표시)",
+          "status": "done"
+        },
+        {
+          "id": "4-6",
+          "task": "/inspections/[id] — 7단계 체크리스트 UI (단계명·마감일·상태배지·완료 체크 버튼)",
+          "status": "done"
+        },
+        {
+          "id": "4-7",
+          "task": "/inspections/[id] — 단계 완료 처리 기능 (완료일시·완료자 기록, 본인 담당 점검만 활성)",
+          "status": "done"
+        },
+        {
+          "id": "4-8",
+          "task": "/inspections/[id] — 7단계 전체 진행률 바(Progress Bar) 표시",
+          "status": "done"
+        },
+        {
+          "id": "4-9",
+          "task": "/inspections/[id] — 기한 초과 단계 빨간 테두리·경고 표시",
+          "status": "done"
+        },
+        {
+          "id": "4-10",
+          "task": "점검 업무 Server Actions 구현 (생성·단계완료·삭제·조회)",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "phase": "Phase 5",
+      "category": "Outlook 달력 계획표 (/inspections/calendar)",
+      "priority": 1,
+      "items": [
+        {
+          "id": "5-1",
+          "task": "react-big-calendar 기반 달력 페이지 기본 레이아웃 구현",
+          "status": "done"
+        },
+        {
+          "id": "5-2",
+          "task": "뷰 전환 버튼 구현: 월간(Month) / 주간(Week) / 목록(Agenda)",
+          "status": "done"
+        },
+        {
+          "id": "5-3",
+          "task": "왼쪽 필터 패널(Outlook 사이드바 스타일) 구현",
+          "status": "done"
+        },
+        {
+          "id": "5-4",
+          "task": "필터 패널 — 뷰 토글: 담당자 뷰 ↔ 고객 뷰 전환",
+          "status": "done"
+        },
+        {
+          "id": "5-5",
+          "task": "필터 패널 — 직원 선택 (색상 스와치 + 체크박스, 최대 10색)",
+          "status": "done"
+        },
+        {
+          "id": "5-6",
+          "task": "필터 패널 — 고객 검색 + 체크박스 필터",
+          "status": "done"
+        },
+        {
+          "id": "5-7",
+          "task": "필터 패널 — 점검유형 필터 (종합 / 최초 / 기타)",
+          "status": "done"
+        },
+        {
+          "id": "5-8",
+          "task": "필터 패널 — 상태 필터 (미완료 / 완료 / 기한초과)",
+          "status": "done"
+        },
+        {
+          "id": "5-9",
+          "task": "담당자 뷰 — 직원별 단계 마감일을 달력 이벤트로 표시",
+          "status": "done"
+        },
+        {
+          "id": "5-10",
+          "task": "담당자 뷰 — 직원별 색상 구분 (기존 팀 휴가 달력 10색 패턴 재사용)",
+          "status": "done"
+        },
+        {
+          "id": "5-11",
+          "task": "고객 뷰 — 고객별 색상으로 이벤트 표시",
+          "status": "done"
+        },
+        {
+          "id": "5-12",
+          "task": "고객 뷰 — 고객 수신·처리 단계 강조 (1차 통보 수신, 2차 협의)",
+          "status": "done"
+        },
+        {
+          "id": "5-13",
+          "task": "이벤트 스타일 — 완료된 단계: 반투명 + 체크 배지",
+          "status": "done"
+        },
+        {
+          "id": "5-14",
+          "task": "이벤트 스타일 — 기한 초과 단계: 빨간 테두리 강조",
+          "status": "done"
+        },
+        {
+          "id": "5-15",
+          "task": "이벤트 클릭 시 점검 상세 슬라이드 패널 오픈 (고객명·담당자·점검유형·시작일)",
+          "status": "done"
+        },
+        {
+          "id": "5-16",
+          "task": "상세 패널 — 7단계 진행률 바 + 각 단계 마감일·상태배지·완료 체크 버튼",
+          "status": "done"
+        },
+        {
+          "id": "5-17",
+          "task": "상세 패널 — 본인 담당 점검의 단계만 완료 체크 버튼 활성화",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "phase": "Phase 6",
+      "category": "보고서 첨부 기능",
+      "priority": 3,
+      "items": [
+        {
+          "id": "6-1",
+          "task": "소방서 제출용 보고서(fire_station) 파일 업로드 기능 (Supabase Storage)",
+          "status": "done"
+        },
+        {
+          "id": "6-2",
+          "task": "이해관계자 보고서(stakeholder) 파일 업로드 기능",
+          "status": "done"
+        },
+        {
+          "id": "6-3",
+          "task": "이행완료 보고서(completion) 파일 업로드 기능",
+          "status": "done"
+        },
+        {
+          "id": "6-4",
+          "task": "보고서 제출 시 고객코드·고객명 스냅샷 저장 (이후 고객정보 변경과 독립)",
+          "status": "done"
+        },
+        {
+          "id": "6-5",
+          "task": "보고서 제출일시·제출자 자동 기록",
+          "status": "done"
+        },
+        {
+          "id": "6-6",
+          "task": "/inspections/[id] 상세 페이지에 보고서 3종 업로드·다운로드 UI 구현",
+          "status": "done"
+        },
+        {
+          "id": "6-7",
+          "task": "보고서 Server Actions 구현 (업로드·다운로드·목록 조회)",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "phase": "Phase 7",
+      "category": "대시보드 위젯 통합",
+      "priority": 3,
+      "items": [
+        {
+          "id": "7-1",
+          "task": "대시보드에 '이번 주 마감 임박' 위젯 추가 (7일 내 마감 미완료 단계 목록)",
+          "status": "done"
+        },
+        {
+          "id": "7-2",
+          "task": "대시보드에 '기한 초과 건수' 위젯 추가 (내 담당 중 초과된 단계 카운트, 빨간 배지)",
+          "status": "done"
+        },
+        {
+          "id": "7-3",
+          "task": "대시보드에 '나의 점검 현황' 위젯 추가 (진행중·완료·예정 건수 요약)",
+          "status": "done"
+        },
+        {
+          "id": "7-4",
+          "task": "대시보드 위젯 데이터 Server Actions 구현 (마감임박·초과 집계 쿼리)",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "phase": "Phase 8",
+      "category": "공휴일 관리 (/admin/holidays)",
+      "priority": 2,
+      "items": [
+        {
+          "id": "8-1",
+          "task": "/admin/holidays — 공휴일 관리 페이지 기본 레이아웃 구현",
+          "status": "done"
+        },
+        {
+          "id": "8-2",
+          "task": "국가공휴일 자동 동기화 카드 — 연도 선택 드롭다운 (전년도·당해·내년 3개년)",
+          "status": "done"
+        },
+        {
+          "id": "8-3",
+          "task": "국가공휴일 자동 동기화 카드 — '동기화' 버튼 1회 클릭으로 date-holidays('KR') fetch 및 UPSERT",
+          "status": "done"
+        },
+        {
+          "id": "8-4",
+          "task": "국가공휴일 동기화 결과 메시지 표시 (추가·갱신·건너뜀 건수)",
+          "status": "done"
+        },
+        {
+          "id": "8-5",
+          "task": "회사 자체 휴무일 추가 카드 — 날짜 input + 이름 input + 추가 버튼 구현",
+          "status": "done"
+        },
+        {
+          "id": "8-6",
+          "task": "자체 휴무일 is_national = false 로 국가공휴일과 구분 저장",
+          "status": "done"
+        },
+        {
+          "id": "8-7",
+          "task": "등록 공휴일 목록 표시 — 날짜·요일·이름·유형배지(국가/자체) 표시",
+          "status": "done"
+        },
+        {
+          "id": "8-8",
+          "task": "등록 공휴일 목록 — 개별 삭제 버튼 기능 구현",
+          "status": "done"
+        },
+        {
+          "id": "8-9",
+          "task": "공휴일 관리 Server Actions 구현 (동기화·추가·삭제·목록 조회)",
+          "status": "done"
+        }
+      ]
+    }
+  ],
+  "status_legend": {
+    "todo": "미착수",
+    "in_progress": "진행중",
+    "done": "완료",
+    "backlog": "향후 예정"
+  }
+}

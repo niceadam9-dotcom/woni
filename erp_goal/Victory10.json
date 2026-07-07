@@ -1,0 +1,1441 @@
+{
+  "version": "Victory10",
+  "date": "2026-07-06",
+  "description": "ERP 소방안전관리 시스템 현황 및 신규 요구사항 통합 문서",
+  "source_documents": [
+    "Victory8.md",
+    "Victory9.md"
+  ],
+  "db_schema": {
+    "tables": [
+      {
+        "name": "profiles",
+        "description": "직원/사용자 계정",
+        "key_columns": [
+          "id",
+          "employee_id",
+          "name",
+          "role",
+          "department_id",
+          "is_active"
+        ]
+      },
+      {
+        "name": "customers",
+        "description": "고객(건물) 정보",
+        "key_columns": [
+          "id",
+          "customer_code",
+          "customer_name",
+          "inspection_type",
+          "inspection_category",
+          "inspection_sub_type",
+          "use_approval_date",
+          "contract_date",
+          "address",
+          "zipcode",
+          "region_si",
+          "region_myeon",
+          "region_ri",
+          "assigned_employee_id",
+          "is_active"
+        ]
+      },
+      {
+        "name": "customer_contacts",
+        "description": "고객 관계인 (대표/직원)",
+        "key_columns": [
+          "id",
+          "customer_id",
+          "role",
+          "name",
+          "phone",
+          "email"
+        ]
+      },
+      {
+        "name": "buildings",
+        "description": "건물 상세 정보",
+        "key_columns": [
+          "id",
+          "customer_id",
+          "building_name",
+          "address",
+          "zipcode",
+          "total_area",
+          "floors_above",
+          "floors_below",
+          "purpose",
+          "year_built",
+          "is_active"
+        ]
+      },
+      {
+        "name": "inspection_plans",
+        "description": "월간 점검계획 헤더",
+        "key_columns": [
+          "id",
+          "year",
+          "month",
+          "status"
+        ],
+        "constraints": [
+          "UNIQUE(year, month)"
+        ]
+      },
+      {
+        "name": "inspection_plan_items",
+        "description": "점검계획 개별 항목 (고객×월)",
+        "key_columns": [
+          "id",
+          "plan_id",
+          "customer_id",
+          "inspection_type",
+          "inspection_category",
+          "inspection_sub_type",
+          "sequence_num",
+          "scheduled_date",
+          "planned_date",
+          "step1_date",
+          "step2_date",
+          "step3_date",
+          "step4_date",
+          "step5_date",
+          "step6_date",
+          "plan_type",
+          "assigned_employee_id",
+          "status",
+          "inspection_id"
+        ],
+        "column_notes": {
+          "planned_date": "사용승인일 기준 자동계산 예상일 — 변경 불가, 달력에 점선(░)으로 표시",
+          "scheduled_date": "관리자가 달력팝업에서 선택한 확정일 — NULL이면 미확정, 달력에 실선(■)으로 표시",
+          "plan_type": "special_종합 | special_작동 | monthly | event"
+        }
+      },
+      {
+        "name": "inspections",
+        "description": "실제 점검 레코드",
+        "key_columns": [
+          "id",
+          "customer_id",
+          "assigned_employee_id",
+          "inspection_type",
+          "sequence_num",
+          "inspection_start_date",
+          "use_approval_date",
+          "year",
+          "status"
+        ]
+      },
+      {
+        "name": "inspection_steps",
+        "description": "6단계 업무체크리스트 (DB 트리거 자동 생성)",
+        "key_columns": [
+          "id",
+          "inspection_id",
+          "step_num",
+          "name_ko",
+          "due_date",
+          "status"
+        ]
+      },
+      {
+        "name": "inspection_status_log",
+        "description": "점검현황 모니터링 (plan_item 1:1)",
+        "key_columns": [
+          "id",
+          "plan_item_id",
+          "inspection_date",
+          "report_submitted_at",
+          "sent_at",
+          "filed_at",
+          "sms_confirmed",
+          "sms_sent_at",
+          "sms_recipients"
+        ]
+      },
+      {
+        "name": "inspection_report_status",
+        "description": "보고서 제출현황 (plan_item 1:1)",
+        "key_columns": [
+          "id",
+          "plan_item_id",
+          "inspection_completed_at",
+          "notification_due_date",
+          "submission_deadline"
+        ]
+      }
+    ],
+    "migrations": [
+      {
+        "id": "001",
+        "name": "initial",
+        "description": "HR 기본 (profiles, departments, documents, leaves)",
+        "status": "done"
+      },
+      {
+        "id": "002",
+        "name": "fire_safety",
+        "description": "소방안전관리 기본 (customers, inspections, 7단계 trigger)",
+        "status": "done"
+      },
+      {
+        "id": "003",
+        "name": "assigned_employee",
+        "description": "customers.assigned_employee_id",
+        "status": "done"
+      },
+      {
+        "id": "005",
+        "name": "inspection_plans",
+        "description": "월간 점검계획 (inspection_plans, inspection_plan_items)",
+        "status": "done"
+      },
+      {
+        "id": "006",
+        "name": "inspection_status_log",
+        "description": "점검현황 모니터링",
+        "status": "done"
+      },
+      {
+        "id": "007",
+        "name": "inspection_report_status",
+        "description": "보고서 제출현황 (computed deadline)",
+        "status": "done"
+      },
+      {
+        "id": "017",
+        "name": "use_approval_date",
+        "description": "customers.use_approval_date 추가",
+        "status": "done"
+      },
+      {
+        "id": "018",
+        "name": "region",
+        "description": "customers.region_si/myeon/ri 추가",
+        "status": "done"
+      },
+      {
+        "id": "019",
+        "name": "update_inspection_steps_trigger",
+        "description": "7단계→6단계, 기준일 use_approval_date로 전환",
+        "status": "done"
+      },
+      {
+        "id": "020",
+        "name": "buildings",
+        "description": "buildings 테이블",
+        "status": "done"
+      },
+      {
+        "id": "021",
+        "name": "zipcode",
+        "description": "customers.address/zipcode",
+        "status": "done"
+      },
+      {
+        "id": "022",
+        "name": "building_zipcode",
+        "description": "buildings.zipcode",
+        "status": "done"
+      },
+      {
+        "id": "023",
+        "name": "report_types",
+        "description": "inspection_reports.report_type step1~6",
+        "status": "done"
+      },
+      {
+        "id": "024",
+        "name": "inspection_sheets",
+        "description": "점검표 체크리스트 템플릿",
+        "status": "done"
+      },
+      {
+        "id": "029",
+        "name": "sms_recipients",
+        "description": "inspection_status_log.sms_sender_phone, sms_recipients(JSONB)",
+        "status": "done"
+      },
+      {
+        "id": "030",
+        "name": "inspection_type_category",
+        "description": "customers.inspection_category, inspection_sub_type 추가",
+        "status": "done"
+      },
+      {
+        "id": "031",
+        "name": "plan_item_stage_dates",
+        "description": "inspection_plan_items.planned_date(자동예상일), step1~6_date, plan_type 추가",
+        "status": "done"
+      },
+      {
+        "id": "032",
+        "name": "company_profile",
+        "description": "company_profile 테이블 — 업체명(승진소방ENG), 로고/마크 URL, 대표 정보, 기본 지역(경기도/양평군) 통합 관리. Supabase Storage: company-assets 버킷",
+        "status": "done"
+      },
+      {
+        "id": "036",
+        "name": "step1_name_change",
+        "description": "inspection_steps.name_ko 1단계 '점검 완료' → '점검일자확정' 변경 + 트리거 함수 업데이트",
+        "status": "done"
+      }
+    ]
+  },
+  "six_stage_workflow": {
+    "base_date_field": "customers.use_approval_date",
+    "trigger_date_field": "inspection_plan_items.scheduled_date (1단계 확정일)",
+    "note": "Victory9: 기준일이 use_approval_date → scheduled_date (1단계 점검일자확정일)로 변경",
+    "stages": [
+      {
+        "step_num": 1,
+        "name_ko": "1단계: 점검일자확정",
+        "base": "use_approval_date",
+        "offset_value": 1,
+        "is_working_days": true,
+        "sidebar_link": "점검업무"
+      },
+      {
+        "step_num": 2,
+        "name_ko": "2단계: 배치확인서 보고서 작성",
+        "base": "step1_due",
+        "offset_value": 5,
+        "is_working_days": true,
+        "sidebar_link": null
+      },
+      {
+        "step_num": 3,
+        "name_ko": "3단계: 관계인 보고서 제출",
+        "base": "step1_due",
+        "offset_value": 10,
+        "is_working_days": true,
+        "sidebar_link": "보고서제출현황"
+      },
+      {
+        "step_num": 4,
+        "name_ko": "4단계: 소방서 보고서 제출 및 이행계획서 등록",
+        "base": "step1_due",
+        "offset_value": 15,
+        "is_working_days": true,
+        "sidebar_link": "이행계획서등록"
+      },
+      {
+        "step_num": 5,
+        "name_ko": "5단계: 소방보수 완료",
+        "base": "step4_due",
+        "offset_value": 10,
+        "is_working_days": false,
+        "note": "절대일 (주말/공휴일 포함 카운트)",
+        "sidebar_link": null
+      },
+      {
+        "step_num": 6,
+        "name_ko": "6단계: 이행완료보고서 제출",
+        "base": "step5_due",
+        "offset_value": 10,
+        "is_working_days": true,
+        "sidebar_link": "이행계획제출현황"
+      }
+    ],
+    "verification_example": {
+      "use_approval_date": "2026-06-30",
+      "steps": [
+        {
+          "step_num": 1,
+          "due_date": "2026-07-01",
+          "day_of_week": "수",
+          "note": "사용승인일 + 영업일 1일"
+        },
+        {
+          "step_num": 2,
+          "due_date": "2026-07-08",
+          "day_of_week": "수",
+          "note": "1단계 후 영업일 +5일"
+        },
+        {
+          "step_num": 3,
+          "due_date": "2026-07-15",
+          "day_of_week": "수",
+          "note": "1단계 후 영업일 +10일"
+        },
+        {
+          "step_num": 4,
+          "due_date": "2026-07-23",
+          "day_of_week": "목",
+          "note": "1단계 후 영업일 +15일"
+        },
+        {
+          "step_num": 5,
+          "due_date": "2026-08-01",
+          "day_of_week": "토",
+          "note": "4단계 후 절대일 +10일 (Victory9.md 수정: 기존 08-02 오타)"
+        },
+        {
+          "step_num": 6,
+          "due_date": "2026-08-14",
+          "day_of_week": "금",
+          "note": "5단계 후 영업일 +10일"
+        }
+      ]
+    }
+  },
+  "inspection_types": {
+    "common_principle": "소방안전관리(종합/작동): use_approval_date(사용승인일) 기준으로 매월 inspection_plan_items(1단계점검계획) 자동 생성. 일반관리: 고객 요청 시 수동으로 plan_item 생성 (연 1~2회 이벤트성, 자동 생성 아님).",
+    "types": {
+      "소방안전관리_종합": {
+        "inspection_category": "소방안전관리",
+        "inspection_sub_type": "종합",
+        "special_inspections_per_year": 2,
+        "special_plan_type": "special_종합",
+        "special_months": "사용승인월 + 6개월 후",
+        "monthly_plan_type": "monthly",
+        "monthly_inspections_per_year": 10,
+        "total_per_year": 12,
+        "special_process": "6단계 전체 진행 (step1~6_date 자동계산)",
+        "monthly_process": "1단계만 (실제점검일 scheduled_date 업데이트)"
+      },
+      "소방안전관리_작동": {
+        "inspection_category": "소방안전관리",
+        "inspection_sub_type": "작동",
+        "legacy_types": [
+          "최초",
+          "기타"
+        ],
+        "special_inspections_per_year": 1,
+        "special_plan_type": "special_작동",
+        "special_months": "사용승인월",
+        "monthly_plan_type": "monthly",
+        "monthly_inspections_per_year": 11,
+        "total_per_year": 12,
+        "special_process": "6단계 전체 진행 (step1~6_date 자동계산)",
+        "monthly_process": "1단계만 (실제점검일 scheduled_date 업데이트)"
+      },
+      "일반관리": {
+        "inspection_category": "일반관리",
+        "inspection_sub_type": null,
+        "auto_plan_generation": false,
+        "plan_creation_method": "고객관리 페이지 일반관리 탭 → [점검일 등록 +] 버튼으로 날짜 직접 등록",
+        "registration_flow": [
+          "고객관리 > 일반관리 탭 > [점검일 등록 +] 클릭",
+          "달력 팝업에서 점검 예정일 선택",
+          "담당자 선택",
+          "등록 → inspection_plan_items INSERT (plan_type='event', planned_date=선택일, status='planned')",
+          "점검달력 즉시 반영 (연회색 점선)",
+          "담당자가 점검완료 처리 → scheduled_date 저장, status='completed'",
+          "고객관리 점검이력 자동 업데이트"
+        ],
+        "inspections_per_year": "1~2회 (이벤트성)",
+        "special_inspections_per_year": 0,
+        "plan_type": "event",
+        "special_process": null,
+        "process": "1단계만 (점검완료 처리 → scheduled_date 업데이트, 6단계 없음)",
+        "calendar_display": "연회색 점선(미확정) → 연회색 실선(확정) → 회색 취소선(완료)"
+      }
+    }
+  },
+  "stage_one_confirmation_design": {
+    "title": "1단계 점검확정 → 6단계 자동 재계산 설계",
+    "db_solution": "방안A: inspection_plan_items에 step1~6_date 컬럼 추가",
+    "new_server_actions": [
+      {
+        "name": "confirmPlanItemStageOneAction",
+        "params": [
+          "planItemId: string",
+          "confirmedDate: Date"
+        ],
+        "steps": [
+          "inspection_plan_items.scheduled_date = confirmedDate, status = 'confirmed'",
+          "6단계 날짜 계산: step1~4(영업일), step5(절대일+10), step6(영업일)",
+          "step1~6_date 컬럼 UPDATE",
+          "점검이력 INSERT (1단계 점검일자 확정 기록)",
+          "revalidatePath /inspection-plans, /inspections/calendar"
+        ]
+      },
+      {
+        "name": "resetPlanItemsOnUseApprovalDateChange",
+        "params": [
+          "customerId: string",
+          "newUseApprovalDate: Date"
+        ],
+        "steps": [
+          "customers.use_approval_date 업데이트",
+          "해당 고객 plan_items WHERE status IN ('planned','confirmed') 조회",
+          "각 plan_item: step1~6_date = NULL, scheduled_date 재계산, status = 'planned'",
+          "점검이력 INSERT (사용승인일 변경 + 리셋 기록)",
+          "revalidatePath 다수"
+        ]
+      }
+    ],
+    "recalculation_triggers": [
+      {
+        "event": "1단계 점검일자 최초 확정",
+        "action": "step1~6_date 전체 계산 저장"
+      },
+      {
+        "event": "1단계 점검일자 변경(재확정)",
+        "action": "step1~6_date 전체 재계산"
+      },
+      {
+        "event": "사용승인일 변경",
+        "action": "plan_items → planned 리셋, step1~6 초기화"
+      },
+      {
+        "event": "1단계 확정 취소",
+        "action": "plan_items → planned 리셋, step1~6 초기화"
+      }
+    ]
+  },
+  "company_info": {
+    "name": "승진소방ENG",
+    "default_region": {
+      "si": "경기도",
+      "myeon": "양평군"
+    },
+    "yangpyeong_eup_myeon": [
+      "양평읍",
+      "강상면",
+      "강하면",
+      "양서면",
+      "옥천면",
+      "서종면",
+      "봉미면",
+      "용문면",
+      "지평면",
+      "단월면",
+      "청운면"
+    ]
+  },
+  "company_profile_design": {
+    "title": "업체 프로필 DB 설계 (migration 032)",
+    "table": "company_profile",
+    "description": "업체명(승진소방ENG), 로고/마크 이미지, 대표 정보, 기본 지역 설정을 통합 관리",
+    "columns": [
+      {
+        "name": "id",
+        "type": "UUID",
+        "note": "PRIMARY KEY DEFAULT gen_random_uuid()"
+      },
+      {
+        "name": "company_name",
+        "type": "TEXT NOT NULL",
+        "note": "업체명 (승진소방ENG)"
+      },
+      {
+        "name": "representative",
+        "type": "TEXT",
+        "note": "대표자 이름"
+      },
+      {
+        "name": "business_number",
+        "type": "TEXT",
+        "note": "사업자등록번호"
+      },
+      {
+        "name": "phone",
+        "type": "TEXT",
+        "note": "대표전화"
+      },
+      {
+        "name": "email",
+        "type": "TEXT",
+        "note": "대표 이메일"
+      },
+      {
+        "name": "address",
+        "type": "TEXT",
+        "note": "업체 주소"
+      },
+      {
+        "name": "logo_url",
+        "type": "TEXT",
+        "note": "로고 이미지 URL (Supabase Storage: company-assets/logo/)"
+      },
+      {
+        "name": "mark_url",
+        "type": "TEXT",
+        "note": "마크/심볼 URL (Supabase Storage: company-assets/mark/)"
+      },
+      {
+        "name": "default_region_si",
+        "type": "TEXT",
+        "note": "기본 시/도 (경기도)",
+        "default": "경기도"
+      },
+      {
+        "name": "default_region_myeon",
+        "type": "TEXT",
+        "note": "기본 시/군/구 (양평군)",
+        "default": "양평군"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMPTZ",
+        "note": "DEFAULT NOW()"
+      },
+      {
+        "name": "updated_by",
+        "type": "UUID",
+        "note": "REFERENCES profiles(id)"
+      }
+    ],
+    "initial_data": {
+      "company_name": "승진소방ENG",
+      "default_region_si": "경기도",
+      "default_region_myeon": "양평군"
+    },
+    "storage": {
+      "bucket": "company-assets",
+      "access": "public",
+      "paths": {
+        "logo": "company-assets/logo/logo.png",
+        "mark": "company-assets/mark/mark.png"
+      },
+      "constraints": "PNG/JPG, 2MB 이하, 200×200px 이하 권장",
+      "upload_flow": [
+        "관리자 파일 선택 → 미리보기 표시",
+        "Supabase Storage upload → public URL 반환",
+        "company_profile.logo_url / mark_url UPDATE",
+        "revalidatePath → 사이드바/헤더 즉시 반영"
+      ]
+    },
+    "logo_usage": [
+      "사이드바 상단 로고",
+      "로그인 페이지 로고",
+      "보고서 PDF 헤더",
+      "SMS 발송 서명",
+      "대시보드 헤더"
+    ],
+    "admin_ui": {
+      "page": "관리자 > 시스템 설정 > 회사 정보",
+      "fields_layout": [
+        "로고/마크 이미지 업로드 (drag-and-drop + 미리보기 + [변경][삭제] 버튼)",
+        "업체명 * (필수)",
+        "대표자",
+        "사업자등록번호",
+        "대표전화",
+        "이메일",
+        "주소",
+        "기본 지역 — 시/도, 읍면동 드롭다운",
+        "[저장] 버튼"
+      ]
+    },
+    "files_to_implement": [
+      "erp/src/app/(dashboard)/admin/settings/page.tsx (신규)",
+      "erp/src/app/(dashboard)/admin/settings/company-profile-client.tsx (신규)",
+      "erp/src/app/(dashboard)/admin/settings/actions.ts (신규)",
+      "erp/src/lib/company-profile.ts (getCompanyProfile 헬퍼)",
+      "erp/seed/032_company_profile.sql (migration)"
+    ]
+  },
+  "default_region_design": {
+    "title": "기본 지역 설정 — 양평군 특화",
+    "strategy": [
+      "1단계: company_settings DB에 기본 시/도·읍면 저장",
+      "2단계: 고객 등록 폼 로드 시 기본 지역 자동 pre-fill (읍/면만 선택하면 완료)",
+      "3단계: 검색 결과에서 양평군 결과 상단 우선 표시",
+      "4단계: 검색창에 양평군 11개 읍/면 빠른 선택 칩",
+      "5단계: localStorage에 최근 사용 읍/면 기억"
+    ],
+    "prefill_priority": [
+      "localStorage 최근 읍/면",
+      "company_settings 기본 지역",
+      "빈칸"
+    ],
+    "required_migration": "032_company_settings.sql",
+    "files": [
+      "admin/settings/page.tsx",
+      "customers/page.tsx",
+      "customers/customer-new-client.tsx",
+      "lib/company-settings.ts"
+    ]
+  },
+  "customer_search_design": {
+    "title": "고객관리 통합 검색",
+    "principle": "단일 검색창 + 스마트 자동감지 — 건물명/주소/담당자를 구분 없이 한 번에 검색",
+    "smart_detection_rules": [
+      {
+        "pattern": "빌딩, 타워, 센터 등",
+        "target": "customer_name ILIKE"
+      },
+      {
+        "pattern": "서울, 경기, 인천 등 광역시도",
+        "target": "region_si ILIKE"
+      },
+      {
+        "pattern": "양평동, 역삼동 등 동/리",
+        "target": "region_myeon ILIKE"
+      },
+      {
+        "pattern": "숫자 포함 도로명 (양평로 92)",
+        "target": "address ILIKE"
+      },
+      {
+        "pattern": "사람 이름 (김철수)",
+        "target": "profiles.name ILIKE"
+      },
+      {
+        "pattern": "혼합 (서울 홍길동빌딩)",
+        "target": "region_si AND customer_name AND"
+      }
+    ],
+    "ui_components": [
+      "통합 검색창 1개 (placeholder: 건물명, 주소, 담당자 이름으로 검색...)",
+      "빠른 필터 칩: [전체][종합][작동][일반관리] 원클릭 토글",
+      "담당자 드롭다운: 직원 목록",
+      "지역 계층 드릴다운: 시/도 → 읍/면/동 단계별 선택 (건수 표시)",
+      "자동완성 드롭다운: 주소/건물명/담당자 섹션 분리, 건수 표시",
+      "검색 결과 키워드 하이라이트 (매칭 부분 bold)"
+    ],
+    "supabase_query": ".or('customer_name.ilike.%q%,address.ilike.%q%,region_si.ilike.%q%,region_myeon.ilike.%q%')",
+    "files_to_implement": [
+      "customers/page.tsx",
+      "customers/CustomerSearchBar.tsx (신규 컴포넌트)"
+    ]
+  },
+  "calendar_six_stage_priority_design": {
+    "principle": "6단계 마감일이 달력에서 최우선 표시. 정기점검(monthly)은 단순완료 처리이므로 최소화하여 6단계 표시를 방해하지 않음.",
+    "visual_priority": [
+      {
+        "rank": 1,
+        "type": "6단계 마감일 (step1~6_date)",
+        "style": "크고 진하게, 긴박도 배지 필수"
+      },
+      {
+        "rank": 2,
+        "type": "특별점검 확정일 (scheduled_date)",
+        "style": "중간 크기"
+      },
+      {
+        "rank": 3,
+        "type": "정기점검 (monthly)",
+        "style": "text-xs opacity-60, 점(·) 또는 체크마크만"
+      },
+      {
+        "rank": 4,
+        "type": "일반관리 이벤트",
+        "style": "최소 표시"
+      }
+    ],
+    "urgency_colors": [
+      {
+        "level": "지연",
+        "condition": "마감일 초과",
+        "bg": "bg-red-600",
+        "text": "text-white font-bold",
+        "note": "완료 전까지 유지, 취소선 없음"
+      },
+      {
+        "level": "D-Day",
+        "condition": "오늘 마감",
+        "bg": "bg-red-500",
+        "text": "text-white font-bold",
+        "badge": "🔔 오늘마감"
+      },
+      {
+        "level": "D-1~2",
+        "condition": "1~2일 남음",
+        "bg": "bg-orange-400",
+        "text": "text-white font-bold",
+        "note": "굵은 테두리"
+      },
+      {
+        "level": "D-3~6",
+        "condition": "3~6일 남음",
+        "bg": "bg-yellow-300",
+        "text": "text-gray-800 font-semibold"
+      },
+      {
+        "level": "D-7~13",
+        "condition": "1주 남음",
+        "bg": "bg-green-200",
+        "text": "text-green-800"
+      },
+      {
+        "level": "D-14+",
+        "condition": "여유",
+        "bg": "bg-purple-100",
+        "text": "text-purple-700 text-sm"
+      },
+      {
+        "level": "정기 미확정",
+        "condition": "monthly planned",
+        "bg": "bg-purple-50 opacity-60",
+        "text": "text-purple-400 text-xs",
+        "note": "점(·) 최소 표시"
+      },
+      {
+        "level": "정기 확정",
+        "condition": "monthly confirmed",
+        "bg": "bg-purple-50",
+        "text": "text-purple-500 text-xs",
+        "note": "체크마크만"
+      }
+    ],
+    "calendar_ui_components": {
+      "summary_card": "달력 상단: 🔴지연/🟠D-3이내/🟡이번달/✅완료 건수 카드 — 클릭 시 필터링",
+      "alert_banner": "D-3 이내 6단계 건만 달력 상단에 항상 고정 표시 (건물명 + 단계 + D-Day + 바로가기)",
+      "sidebar_badge": "점검달력 메뉴: 🔴(D-Day/지연 건수), 점검현황모니터링: 🟠(D-3 이내 건수)",
+      "slide_panel": "현재 진행 단계만 완료처리 버튼 표시, 해당 단계 빨강 강조"
+    }
+  },
+  "implemented": [
+    {
+      "id": "3-1",
+      "title": "권한 시스템: requireRole → requirePermission",
+      "status": "completed",
+      "files": [
+        "erp/src/app/(dashboard)/inspection-plans/actions.ts"
+      ],
+      "details": "모든 Server Action 권한 방식 전환. employee는 자신 항목만, assigned_employee_id 변경 불가"
+    },
+    {
+      "id": "3-2",
+      "title": "스마트 제안 버그 수정 (최초·기타 2차 제안 제거)",
+      "status": "completed",
+      "files": [
+        "actions.ts",
+        "smart-suggest-modal.tsx"
+      ],
+      "details": "종합만 2차 제안. 최초·기타 뱃지: orange '1차' → emerald '연1회'. Victory8 §14 완료"
+    },
+    {
+      "id": "3-3",
+      "title": "점검계획 데이터 병렬 처리 최적화",
+      "status": "completed",
+      "files": [
+        "erp/src/app/(dashboard)/inspection-plans/page.tsx"
+      ],
+      "details": "Wave1: plans+currentPlan+employees+customers+yearPlans+holidays. Wave2: currentPlanItems+yearPlanItems. Employee 서버사이드 필터링"
+    },
+    {
+      "id": "3-4",
+      "title": "점검계획 UI — 년/월 빠른 선택 팝업",
+      "status": "completed",
+      "files": [
+        "erp/src/components/inspection-plans/inspection-plans-client.tsx"
+      ],
+      "details": "년월 텍스트 클릭 → 팝업(년도 화살표 + 12개월 그리드) → 즉시 router.push. Victory8 §16 완료"
+    },
+    {
+      "id": "3-5",
+      "title": "InlineDateCell 커스텀 미니 달력 팝업",
+      "status": "completed",
+      "files": [
+        "erp/src/components/inspection-plans/inspection-plans-client.tsx"
+      ],
+      "details": "fixed 포지셔닝, 날짜 클릭 즉시 저장, 공휴일/일요일/토요일/오늘/선택일 색상 강조. Victory8 §15 완료"
+    },
+    {
+      "id": "3-6",
+      "title": "사이드바 메뉴 순서 재정렬",
+      "status": "completed",
+      "files": [
+        "erp/src/components/layout/sidebar.tsx"
+      ],
+      "details": "고객관리→건물관리→지역별담당배정→점검표관리→점검계획등록→점검업무→점검달력→점검현황모니터링→보고서제출현황→이행계획서등록→이행계획제출현황→문의요청→정산현황→세금계산서발행"
+    },
+    {
+      "id": "3-7",
+      "title": "건물관리 서버사이드 필터링/페이지네이션",
+      "status": "completed",
+      "files": [
+        "erp/src/app/(dashboard)/buildings/page.tsx"
+      ],
+      "details": "JS 인메모리 필터 → Supabase .ilike/.eq/.range(), count:'exact'. BuildingsFilterBar 클라이언트 컴포넌트 분리(Suspense)"
+    },
+    {
+      "id": "3-8",
+      "title": "고객관리 마이그레이션 가드 제거",
+      "status": "completed",
+      "files": [
+        "erp/src/app/(dashboard)/customers/page.tsx"
+      ],
+      "details": "hasRegionCols 런타임 프로브 제거. missingRegionRes → Promise.all 병렬. RegionEditClient 조건 단순화"
+    },
+    {
+      "id": "3-9",
+      "title": "점검업무 직원 역할 스코핑 + 쿼리 최적화",
+      "status": "completed",
+      "files": [
+        "erp/src/app/(dashboard)/inspections/page.tsx"
+      ],
+      "details": "Employee: DB 레벨 .eq('assigned_employee_id', profile.id). 별도 customersRes 제거 → JOIN"
+    },
+    {
+      "id": "3-10",
+      "title": "전체 UI 시각적 일관성 개선",
+      "status": "completed",
+      "files": [
+        "admin/documents, admin/leaves, admin/logs, buildings, customers, inspection-plans, inspections pages"
+      ],
+      "details": "테두리 #c8c4d0, 그림자 0.08, 진행바 #e0ddf5"
+    }
+  ],
+  "victory8_status": [
+    {
+      "section": "3. DB 트리거 6단계 + use_approval_date",
+      "status": "completed",
+      "migration": "019"
+    },
+    {
+      "section": "4. 점검달력 D-Day 배지/색상/퀵필터/슬라이드 패널",
+      "status": "completed",
+      "note": "P-4로 구현 (inspection-calendar-client.tsx)"
+    },
+    {
+      "section": "5. 대시보드 KPI 카드 + 마감임박 위젯",
+      "status": "completed",
+      "note": "P-14로 구현 (dashboard/page.tsx)"
+    },
+    {
+      "section": "6. My Page 일정관리 점검 마감일 오버레이",
+      "status": "completed",
+      "note": "P-15로 구현 (my/schedules/page.tsx)"
+    },
+    {
+      "section": "7. 자동 알림 cron (D-3/D-1/D-Day)",
+      "status": "completed",
+      "note": "P-16로 구현 (/api/cron/inspection-deadline-notify)"
+    },
+    {
+      "section": "9. 지역별 담당 배정 DB+Actions",
+      "status": "completed",
+      "note": "migration 018 + bulkAssignEmployeeAction"
+    },
+    {
+      "section": "9. 고객등록/수정 시읍면리 입력 필드 UI",
+      "status": "completed",
+      "note": "customer-new-client.tsx region_si/myeon/ri 입력 구현"
+    },
+    {
+      "section": "9. 지역별 일괄 배정 페이지/컴포넌트",
+      "status": "completed",
+      "note": "P-12로 구현 (customers/regional-assign/page.tsx + regional-assign-client.tsx)"
+    },
+    {
+      "section": "11-1. 점검항목추가 주소 검색 콤보박스",
+      "status": "completed"
+    },
+    {
+      "section": "11-2. 달력·목록 사용승인일 표시",
+      "status": "completed"
+    },
+    {
+      "section": "11-3. 미점검 초과 경보 OverduePanel",
+      "status": "completed"
+    },
+    {
+      "section": "11-4. 미점검 초과 자동 해결 모달",
+      "status": "completed"
+    },
+    {
+      "section": "11-5. 계획 상태 직접 확정 UI",
+      "status": "completed"
+    },
+    {
+      "section": "11-6. 점검 시작 버튼",
+      "status": "completed"
+    },
+    {
+      "section": "12. 공휴일 자동 동기화 Cron",
+      "status": "completed"
+    },
+    {
+      "section": "14. 스마트 제안 최초·기타 2차 제외",
+      "status": "completed"
+    },
+    {
+      "section": "15. InlineDateCell 미니 달력 팝업",
+      "status": "completed"
+    },
+    {
+      "section": "16. 연/월 빠른 선택 팝업",
+      "status": "completed"
+    },
+    {
+      "section": "17. SMS 발신번호 설정 + 수신번호 자동 조회",
+      "status": "completed"
+    },
+    {
+      "section": "17. 실제 SMS API 연동 (솔라피)",
+      "status": "completed",
+      "note": "P-17로 구현 (monitor/actions.ts 솔라피 연동)"
+    }
+  ],
+  "victory9_requirements": [
+    {
+      "id": "V9-1",
+      "category": "점검유형재편",
+      "title": "점검유형 체계 재편 + 사용승인일 기준 매월 1단계점검계획 자동 생성",
+      "status": "completed",
+      "priority": "high",
+      "details": {
+        "대분류": [
+          "소방안전관리",
+          "일반관리"
+        ],
+        "중분류_소방": [
+          "종합",
+          "작동"
+        ],
+        "기존_변경": {
+          "최초": "작동",
+          "기타": "작동"
+        },
+        "monthly_plan_rule": "모든 유형: use_approval_date 기준 매월 inspection_plan_items 자동 생성, 실제 점검 후 scheduled_date 업데이트",
+        "종합_연간": "특별 2회(special_종합) + 정기 10회(monthly) = 12회",
+        "작동_연간": "특별 1회(special_작동) + 정기 11회(monthly) = 12회",
+        "일반관리_연간": "연 1~2회 이벤트성 (고객 요청 시 수동 생성, 매월 자동 아님)"
+      },
+      "required_migrations": [
+        "030_inspection_type_category",
+        "031_plan_item_stage_dates"
+      ]
+    },
+    {
+      "id": "V9-2",
+      "category": "고객관리",
+      "title": "고객명 = 건물명 통일, 고객코드 UI 숨김",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-3",
+      "category": "고객관리",
+      "title": "고객관리 + 건물관리 통합 (한 페이지, 주소 자동 공유)",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-4",
+      "category": "고객관리",
+      "title": "고객관리 인라인 빠른 수정 (고객명/점검유형/계약일/사용승인일/담당직원/상태)",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "V9-5",
+      "category": "점검계획",
+      "title": "사용승인일 변경 → 6단계 자동 재계산 + 1단계 리셋",
+      "status": "completed",
+      "priority": "high",
+      "details": "1단계점검확정 취소 → planned 리셋, step1~6 초기화, 점검이력 기록"
+    },
+    {
+      "id": "V9-6",
+      "category": "고객등록",
+      "title": "주소검색 → 건물명 자동추출 + 즉시 인라인 수정",
+      "status": "completed",
+      "priority": "medium",
+      "extraction_logic": "fullAddress.match(/\\(([^)]+)\\)$/) → 괄호 안 텍스트 추출",
+      "examples": [
+        {
+          "input": "경기 양평군 양평읍 양평로 92 (양평동우체국)",
+          "building_name": "양평동우체국"
+        },
+        {
+          "input": "서울 강남구 테헤란로 152 (강남파이낸스센터)",
+          "building_name": "강남파이낸스센터"
+        },
+        {
+          "input": "경기 양평군 용문면 연수리 12",
+          "building_name": ""
+        }
+      ],
+      "ux_rules": {
+        "괄호_있음": "자동 추출 입력 + [×] 지우기 버튼 표시 + 즉시 편집 가능",
+        "괄호_없음": "빈 입력창 자동 포커스 + 커서 위치 → 바로 타이핑 가능",
+        "사용자_수정": "수정값 우선 저장 (자동추출값 덮어쓰기)"
+      }
+    },
+    {
+      "id": "V9-7",
+      "category": "고객등록",
+      "title": "점검이력 자동 기록 (고객명/계약일/사용승인일/점검유형/주소/담당직원/관계인 변경 시)",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-8",
+      "category": "고객등록",
+      "title": "건물목록 정보 자동 동기화 (건물등록 → 고객등록 화면 동일 값)",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-9",
+      "category": "월간점검계획",
+      "title": "월간점검계획 자동화 (일정제안/항목추가 버튼 제거, 사용승인일 등록 시 자동 생성)",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "V9-10",
+      "category": "점검계획",
+      "title": "1단계 '점검완료' → '점검일자확정' 문구 변경 + 달력 팝업 확정 + SMS + 이력",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "V9-11",
+      "category": "UI",
+      "title": "점검보기 → 오른쪽 슬라이드 패널 (6단계업무체크리스트 조회/입력)",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "V9-12",
+      "category": "UI",
+      "title": "월간점검계획 + 점검업무 한 페이지 통합",
+      "status": "completed",
+      "priority": "low"
+    },
+    {
+      "id": "V9-13",
+      "category": "점검달력",
+      "title": "점검달력 개선 (지연 색상 진하게, 6단계 날짜 실시간 반영, 비활성 표시)",
+      "status": "completed",
+      "priority": "high",
+      "details": "bg-red-200 사용, 고객명/단계/담당자 표시, 비활성/삭제건 회색 취소선"
+    },
+    {
+      "id": "V9-14",
+      "category": "점검현황모니터링",
+      "title": "점검현황모니터링 6단계 명칭 수정 + 선택 컬럼 제거 + 단계완료 자동 업데이트",
+      "status": "completed",
+      "priority": "medium",
+      "column_changes": [
+        {
+          "현재": "점검일",
+          "변경후": "점검일 (1단계)",
+          "step_num": 1
+        },
+        {
+          "현재": "배치신고일",
+          "변경후": "배치신고일 (2단계)",
+          "step_num": 2
+        },
+        {
+          "현재": "송부일",
+          "변경후": "송부일 (3단계)",
+          "step_num": 3
+        },
+        {
+          "현재": "계출일",
+          "변경후": "계출일 (4단계)",
+          "step_num": 4
+        },
+        {
+          "현재": "(없음)",
+          "변경후": "소방보수완료 (5단계)",
+          "step_num": 5
+        },
+        {
+          "현재": "(없음)",
+          "변경후": "이행완료보고서 (6단계)",
+          "step_num": 6
+        }
+      ]
+    },
+    {
+      "id": "V9-15",
+      "category": "지역별담당배정",
+      "title": "지역별 담당 배정 — 직원 조회 필드 + 변경 시 점검이력 업데이트",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-16",
+      "category": "UI",
+      "title": "메뉴 명칭 변경 (점검계획등록→점검확정, 월간점검계획→월간점검계획확정)",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-17",
+      "category": "점검달력",
+      "title": "점검달력 ↔ 점검계획등록 양방향 연동",
+      "status": "completed",
+      "priority": "low"
+    },
+    {
+      "id": "V9-18",
+      "category": "고객관리UX",
+      "title": "고객관리 UX 개선 (최신순, 비활성전환, 코드숨김, 엔터저장, 삭제버튼 등)",
+      "status": "completed",
+      "priority": "medium",
+      "items": [
+        "최신 등록 고객 목록 최상단",
+        "비활성 버튼: 목록에서 즉시 전환",
+        "고객코드 숨김 (내부 코드)",
+        "고객코드 자동생성 (최종번호+1)",
+        "관계인: 대표 1명 필수 + 추가 가능",
+        "엔터키로 저장",
+        "저장/수정 단일 폼 통합",
+        "삭제 버튼 추가",
+        "스크롤 없이 전체 표시"
+      ]
+    },
+    {
+      "id": "V9-19",
+      "category": "점검업무",
+      "title": "점검업무 — 점검배정 버튼 삭제",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-20",
+      "category": "담당자연동",
+      "title": "담당자 변경 시 월간계획/점검업무/달력/지역배정 전체 연동",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "V9-21",
+      "category": "점검유형별화면",
+      "title": "점검유형별 각각의 화면 구성 (점검계획/달력/모니터링/지역배정)",
+      "status": "completed",
+      "priority": "medium"
+    }
+  ],
+  "pending_all": [
+    {
+      "priority_rank": 1,
+      "priority": "high",
+      "id": "P-1",
+      "status": "completed",
+      "title": "점검유형 재편 + 사용승인일 기준 매월 1단계점검계획 자동 생성",
+      "description": "종합/작동/일반관리 분류, plan_type 필드. 소방안전관리: 매월 plan_item 자동생성. 일반관리: 고객 요청 시 수동 생성(연 1~2회 이벤트성)",
+      "files": [
+        "migration 030/031",
+        "customers DB+UI",
+        "inspection_plan_items",
+        "모든 화면"
+      ],
+      "source": "V9-1"
+    },
+    {
+      "priority_rank": 2,
+      "priority": "high",
+      "id": "P-2",
+      "status": "completed",
+      "title": "1단계 점검일자확정 + 달력팝업 → step1~6 자동계산 + SMS + 전체 연동",
+      "description": "confirmPlanItemStageOneAction 구현, 모든 화면 문구 '점검일자확정'으로 변경",
+      "files": [
+        "migration 031",
+        "actions.ts",
+        "inspection-plans-client.tsx",
+        "calendar"
+      ],
+      "source": "V9-5, V9-10"
+    },
+    {
+      "priority_rank": 3,
+      "priority": "high",
+      "id": "P-3",
+      "status": "completed",
+      "title": "사용승인일 변경 → 1단계 리셋 + 6단계 재계산 + 이력 기록",
+      "description": "resetPlanItemsOnUseApprovalDateChange 구현",
+      "files": [
+        "customers/actions.ts",
+        "inspection_plan_items"
+      ],
+      "source": "V9-5"
+    },
+    {
+      "priority_rank": 4,
+      "priority": "high",
+      "id": "P-4",
+      "status": "completed",
+      "title": "점검달력 개선: D-Day 배지/긴박도 색상/유형별 색상/퀵필터/슬라이드 패널",
+      "description": "Victory8 §4 + Victory9 §13 통합 구현",
+      "files": [
+        "inspection-calendar-client.tsx"
+      ],
+      "source": "V8 §4, V9-13"
+    },
+    {
+      "priority_rank": 5,
+      "priority": "high",
+      "id": "P-5",
+      "status": "completed",
+      "title": "고객관리 인라인 빠른 수정 (고객명/점검유형/계약일/사용승인일/담당직원/상태)",
+      "files": [
+        "customers/page.tsx"
+      ],
+      "source": "V9-4"
+    },
+    {
+      "priority_rank": 6,
+      "priority": "medium",
+      "id": "P-6",
+      "status": "completed",
+      "title": "고객관리 + 건물관리 통합 (한 페이지, 주소 자동 공유)",
+      "files": [
+        "customers/page.tsx",
+        "buildings"
+      ],
+      "source": "V9-3"
+    },
+    {
+      "priority_rank": 7,
+      "priority": "medium",
+      "id": "P-7",
+      "status": "completed",
+      "title": "고객등록: 주소→건물명 자동완성 + 주소검색 최상단",
+      "files": [
+        "customer-new-client.tsx"
+      ],
+      "source": "V9-6"
+    },
+    {
+      "priority_rank": 8,
+      "priority": "medium",
+      "id": "P-8",
+      "status": "completed",
+      "title": "고객등록: 점검이력 자동 기록 (변경 필드 전체)",
+      "files": [
+        "customers/actions.ts",
+        "customer_history table"
+      ],
+      "source": "V9-7"
+    },
+    {
+      "priority_rank": 9,
+      "priority": "medium",
+      "id": "P-9",
+      "status": "completed",
+      "title": "담당자 변경 시 월간계획/점검업무/달력/지역배정 전체 연동",
+      "files": [
+        "customers/actions.ts"
+      ],
+      "source": "V9-20"
+    },
+    {
+      "priority_rank": 10,
+      "priority": "medium",
+      "id": "P-10",
+      "status": "completed",
+      "title": "점검현황모니터링 6단계 명칭 수정 + 선택 컬럼 제거 + 단계완료 자동 업데이트",
+      "files": [
+        "monitor-client.tsx"
+      ],
+      "source": "V9-14"
+    },
+    {
+      "priority_rank": 11,
+      "priority": "medium",
+      "id": "P-11",
+      "status": "completed",
+      "title": "메뉴명 변경: 점검계획등록→점검확정, 월간점검계획→월간점검계획확정",
+      "files": [
+        "sidebar.tsx",
+        "페이지 헤더"
+      ],
+      "source": "V9-16"
+    },
+    {
+      "priority_rank": 12,
+      "priority": "medium",
+      "id": "P-12",
+      "status": "completed",
+      "title": "지역별 담당 배정 UI + 직원 조회",
+      "files": [
+        "regional-assign/page.tsx"
+      ],
+      "source": "V8 §9, V9-15"
+    },
+    {
+      "priority_rank": 13,
+      "priority": "medium",
+      "id": "P-13",
+      "status": "completed",
+      "title": "고객관리 UX: 최신순/비활성전환/코드숨김/엔터저장/삭제버튼",
+      "files": [
+        "customers/ 컴포넌트"
+      ],
+      "source": "V9-18"
+    },
+    {
+      "priority_rank": 14,
+      "priority": "medium",
+      "id": "P-14",
+      "status": "completed",
+      "title": "대시보드 KPI 카드 + 마감임박 위젯",
+      "files": [
+        "dashboard/page.tsx"
+      ],
+      "source": "V8 §5"
+    },
+    {
+      "priority_rank": 15,
+      "priority": "low",
+      "id": "P-15",
+      "status": "completed",
+      "title": "My Page 일정관리 점검 마감일 오버레이",
+      "files": [
+        "my/schedules/page.tsx"
+      ],
+      "source": "V8 §6"
+    },
+    {
+      "priority_rank": 16,
+      "priority": "low",
+      "id": "P-16",
+      "status": "completed",
+      "title": "자동 알림 cron (D-3/D-1/D-Day)",
+      "files": [
+        "/api/cron/inspection-deadline-notify"
+      ],
+      "source": "V8 §7"
+    },
+    {
+      "priority_rank": 17,
+      "priority": "low",
+      "id": "P-17",
+      "status": "completed",
+      "title": "실제 SMS API 연동 (솔라피 CoolSMS)",
+      "files": [
+        "saveSmsAction"
+      ],
+      "source": "V8 §17"
+    },
+    {
+      "priority_rank": 18,
+      "priority": "low",
+      "id": "P-18",
+      "status": "completed",
+      "title": "월간점검계획 + 점검업무 한 페이지 통합",
+      "files": [
+        "erp/src/components/inspection-plans/plan-item-slide-panel.tsx",
+        "erp/src/app/(dashboard)/inspection-plans/actions.ts"
+      ],
+      "source": "V9-12"
+    },
+    {
+      "priority_rank": 19,
+      "priority": "low",
+      "id": "P-19",
+      "status": "completed",
+      "title": "점검달력 ↔ 점검계획등록 양방향 연동",
+      "files": [
+        "calendar-client.tsx",
+        "plan actions"
+      ],
+      "source": "V9-17"
+    },
+    {
+      "priority_rank": 20,
+      "priority": "low",
+      "id": "P-20",
+      "status": "completed",
+      "title": "고객코드 자동생성 시스템 (최종번호+1)",
+      "files": [
+        "customers/actions.ts"
+      ],
+      "source": "V9-18"
+    }
+  ]
+}

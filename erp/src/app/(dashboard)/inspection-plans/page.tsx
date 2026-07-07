@@ -30,64 +30,54 @@ export default async function InspectionPlansPage({
 
   const admin = createAdminClient()
 
-  // 최근 24개월 계획 목록
-  const { data: plans } = await admin
-    .from('inspection_plans')
-    .select('*')
-    .order('year', { ascending: false })
-    .order('month', { ascending: false })
-    .limit(24)
-
-  // 선택 달 계획 항목
-  const { data: currentPlan } = await admin
-    .from('inspection_plans')
-    .select('id')
-    .eq('year', year)
-    .eq('month', month)
-    .single()
-
-  let items: Record<string, unknown>[] = []
-  if (currentPlan) {
-    const { data } = await admin
-      .from('inspection_plan_items')
-      .select(`
-        *,
-        customers:customer_id ( customer_name, customer_code ),
-        profiles:assigned_employee_id ( name )
-      `)
-      .eq('plan_id', (currentPlan as { id: string }).id)
-      .order('scheduled_date', { ascending: true, nullsFirst: false })
-    items = (data ?? []) as Record<string, unknown>[]
-  }
-
-  // 직원·고객·올해 계획 목록 병렬 조회
-  const [employeesRes, customersRes, yearPlansRes] = await Promise.all([
+  // ── Wave 1: 모든 독립적인 쿼리 병렬 실행 ─────────────────────
+  const [
+    plansRes, currentPlanRes,
+    employeesRes, customersRes, yearPlansRes, holidayRes,
+  ] = await Promise.all([
+    admin.from('inspection_plans').select('*')
+      .order('year', { ascending: false }).order('month', { ascending: false }).limit(24),
+    admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).maybeSingle(),
     admin.from('profiles').select('id, name, position').eq('is_active', true).order('name'),
     admin.from('customers')
       .select('id, customer_name, inspection_type, assigned_employee_id, address, use_approval_date')
-      .eq('is_active', true)
-      .order('customer_name'),
+      .eq('is_active', true).order('customer_name'),
     admin.from('inspection_plans').select('id, month').eq('year', year),
+    admin.from('holidays').select('date')
+      .gte('date', `${year}-01-01`).lte('date', `${year + 1}-12-31`),
   ])
 
-  // ── 초과 점검 대상 계산 ──────────────────────────────────────
-  // 올해 계획에 등록된 항목 (취소 제외) → "customer_id-sequence_num-plan_month" 키 집합
+  const plans       = plansRes.data ?? []
+  const currentPlan = currentPlanRes.data as { id: string } | null
+  const holidays    = ((holidayRes.data ?? []) as { date: string }[]).map(h => h.date)
+
+  // yearPlanIds는 wave2 의존성
   const planMonthMap: Record<string, number> = {}
   for (const p of (yearPlansRes.data ?? [])) {
     planMonthMap[(p as { id: string; month: number }).id] = (p as { id: string; month: number }).month
   }
   const yearPlanIds = Object.keys(planMonthMap)
 
-  let yearPlanItems: { customer_id: string; sequence_num: number; plan_id: string }[] = []
-  if (yearPlanIds.length > 0) {
-    const { data } = await admin
-      .from('inspection_plan_items')
-      .select('customer_id, sequence_num, plan_id')
-      .in('plan_id', yearPlanIds)
-      .neq('status', 'cancelled')
-    yearPlanItems = (data ?? []) as typeof yearPlanItems
-  }
+  // ── Wave 2: wave1 결과에 의존하는 쿼리 병렬 실행 ─────────────
+  const [currentItemsRes, yearPlanItemsRes] = await Promise.all([
+    currentPlan
+      ? admin.from('inspection_plan_items')
+          .select(`*, customers:customer_id (customer_name, customer_code), profiles:assigned_employee_id (name)`)
+          .eq('plan_id', currentPlan.id)
+          .order('scheduled_date', { ascending: true, nullsFirst: false })
+      : Promise.resolve({ data: [] }),
+    yearPlanIds.length > 0
+      ? admin.from('inspection_plan_items')
+          .select('customer_id, sequence_num, plan_id')
+          .in('plan_id', yearPlanIds)
+          .neq('status', 'cancelled')
+      : Promise.resolve({ data: [] }),
+  ])
 
+  let items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
+  const yearPlanItems = (yearPlanItemsRes.data ?? []) as { customer_id: string; sequence_num: number; plan_id: string }[]
+
+  // ── 초과 점검 대상 계산 ──────────────────────────────────────
   const handledKey = new Set(
     yearPlanItems.map(i => `${i.customer_id}-${i.sequence_num}-${planMonthMap[i.plan_id]}`)
   )
@@ -107,10 +97,9 @@ export default async function InspectionPlansPage({
 
     const approvalMonth = new Date(cust.use_approval_date).getMonth() + 1
     const secondMonth   = ((approvalMonth - 1 + 6) % 12) + 1
-    const wraps         = secondMonth < approvalMonth   // 2차가 내년으로 넘어가는 경우
+    const wraps         = secondMonth < approvalMonth
     const empName       = cust.assigned_employee_id ? (employeeNameMap[cust.assigned_employee_id] ?? null) : null
 
-    // 1차: 사용승인월이 현재 보기 월 이전이고 계획에 없음
     if (approvalMonth < month && !handledKey.has(`${cust.id}-1-${approvalMonth}`)) {
       overdueItems.push({
         customer_id: cust.id, customer_name: cust.customer_name,
@@ -122,7 +111,6 @@ export default async function InspectionPlansPage({
       })
     }
 
-    // 2차: 같은 해 안에서 secondMonth가 현재 월 이전이고 계획에 없음 (내년 넘김은 제외)
     if (!wraps && secondMonth < month && !handledKey.has(`${cust.id}-2-${secondMonth}`)) {
       overdueItems.push({
         customer_id: cust.id, customer_name: cust.customer_name,
@@ -135,15 +123,15 @@ export default async function InspectionPlansPage({
     }
   }
 
-  // 공휴일: 해당 연도 + 다음 연도(연말 경계 처리)
-  const { data: holidayData } = await admin
-    .from('holidays')
-    .select('date')
-    .gte('date', `${year}-01-01`)
-    .lte('date', `${year + 1}-12-31`)
-  const holidays: string[] = (holidayData ?? []).map((h: { date: string }) => h.date)
+  const isEmployee = (profile.role as UserRole) === 'employee'
+  const canManage = !isEmployee
 
-  const canManage = (profile.role as UserRole) !== 'employee'
+  // 일반직원: 본인 담당 건만 표시
+  if (isEmployee) {
+    items = items.filter(
+      item => (item as Record<string, unknown>).assigned_employee_id === profile.id
+    )
+  }
 
   return (
     <InspectionPlansClient
@@ -157,6 +145,7 @@ export default async function InspectionPlansPage({
       overdueItems={overdueItems}
       holidays={holidays}
       canManage={canManage}
+      isEmployee={isEmployee}
     />
   )
 }

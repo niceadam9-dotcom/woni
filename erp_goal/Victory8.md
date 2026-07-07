@@ -659,3 +659,229 @@ IF NEW.sequence_num = 2 AND NEW.inspection_type <> '종합' THEN
 - 점검계획등록 항목 추가 모달: 종합일 때만 차수 선택 `[1차 ▼ / 2차]` 활성화, 최초·기타는 1차 고정
 - 미점검 초과 경보(`OverduePanel`): 1차·2차 각각 독립적으로 초과 판정
 - `Victory4.md:280` — "종합 고객 연 2회 | 1차·2차 모두 같은 월 배치 불가 (최소 30일 간격 권장)"
+
+---
+
+## 14. 스마트 일정 제안 UX 개선 (2026-07)
+
+### 14-1. 버그 수정 — 최초·기타의 2차 제안 제외 ✅ 완료
+
+**파일**: `inspection-plans/actions.ts` (`getSuggestedItemsAction`)
+
+**문제**: 2차 제안 조건에 inspection_type 구분이 없어 최초·기타 고객도 2차로 제안됨.
+DB 트리거는 최초·기타의 sequence_num=2 삽입을 막지만, UI에서 잘못된 항목이 표시되었음.
+
+**수정**:
+```typescript
+// Before
+if (approvalMonth === secondMonth && !existingKeys.has(`${c.id}-2`)) { ... }
+
+// After
+if (c.inspection_type === '종합' && approvalMonth === secondMonth && !existingKeys.has(`${c.id}-2`)) { ... }
+```
+
+reason 텍스트도 유형에 따라 구분:
+- 종합: `→ 1차 점검`
+- 최초·기타: `→ 연 1회 점검`
+
+### 14-2. UI 표현 개선 ✅ 완료
+
+**파일**: `smart-suggest-modal.tsx`
+
+| 항목 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| 서브타이틀 | 사용승인일 기준 1차·2차 점검 대상 | 사용승인일 기준 점검 일정 자동 제안 |
+| 1차 그룹 헤더 | 1차 점검 — 사용승인일 N월 고객 | 사용승인월 N월 고객 — 종합 1차 / 최초·기타 연1회 |
+| 차수 뱃지 (종합) | "1차" / "2차" (주황) | "1차" / "2차" (주황) — 유지 |
+| 차수 뱃지 (최초·기타) | "1차" (주황) — 오인 가능 | **"연1회"** (초록 `bg-emerald-50`) |
+| 통계 라벨 | 1차 N건 / 2차 N건 | 이번달 N건 / 종합 2차 N건 |
+
+---
+
+## 15. 점검예정일 미니 달력 팝업 (2026-07)
+
+**파일**: `inspection-plans-client.tsx` (`InlineDateCell` 컴포넌트 전체 교체)
+
+### 15-1. 문제
+
+- `<input type="date">` 네이티브 달력: 브라우저가 현재 월을 기준으로 열려 계획 월로 이동해야 함
+- 날짜 미설정 항목의 기본값이 `today`라 계획 월(미래)과 다를 경우 틀린 월이 표시됨
+
+### 15-2. 해결 — 미니 달력 팝업 ✅ 완료
+
+날짜 셀 클릭 → **해당 계획 월만 표시하는 커스텀 달력 팝업** 표시.
+
+**새 동작**:
+- 날짜 클릭 1번 → 즉시 저장 (저장 버튼 없음)
+- 주말: 일요일 빨강, 토요일 파랑
+- 공휴일: 빨강 표시 (`holidays[]` prop 활용)
+- 오늘 날짜: 보라 테두리 강조
+- 현재 선택된 날짜: 보라 배경 강조
+- "지우기" 버튼으로 날짜 삭제
+- 팝업 외부 클릭 시 닫힘 (`mousedown` 이벤트)
+
+**Props 체인 추가**:
+
+```
+InspectionPlansClient (viewYear, viewMonth, holidays)
+  └─ ListView (planYear, planMonth, holidays) ← 신규 추가
+       └─ InlineDateCell (planYear, planMonth, holidays) ← 신규 추가
+```
+
+---
+
+## 16. 연/월 빠른 선택 팝업 (2026-07)
+
+### 16-1. 문제
+
+월 네비게이션(`< 2026년 7월 >`)이 화살표만 있어 먼 달(예: 현재 7월 → 2027년 1월)까지 6번 클릭 필요.
+
+### 16-2. 해결 ✅ 완료
+
+**연도·월 텍스트를 클릭 가능한 버튼**으로 교체. 클릭 시 연/월 선택 팝업 표시.
+
+**팝업 구조**:
+```
+[ < ]  2026년  [ > ]      ← 연도 이동
+ 1월  2월  3월  4월
+ 5월  6월  7월  8월       ← 현재 월 보라색 강조
+ 9월 10월 11월 12월
+```
+
+---
+
+## 17. SMS 발송 — 발신번호 설정 및 수신번호 자동 조회 (2026-07)
+
+### 17-1. 현황 분석
+
+기존 `saveSmsAction`은 DB에 발송 의도만 기록하고 **실제 SMS를 전송하지 않음**.
+- 외부 SMS API 미연동
+- 발신번호 없음
+- 수신번호(`customer_contacts.phone`) 쿼리 미포함
+
+### 17-2. 구현 내용 ✅ 완료
+
+#### 발신번호 설정
+
+`.env.local`에 환경변수 추가:
+```
+NEXT_PUBLIC_SMS_SENDER_PHONE=010-0000-0000
+```
+- 실제 발신번호로 변경 필요 (SMS 제공업체에 사전 등록 필요)
+- 클라이언트에서 `process.env.NEXT_PUBLIC_SMS_SENDER_PHONE`으로 읽음
+
+#### 수신번호 자동 조회 (`customer_contacts` 조인)
+
+`getMonitorItemsAction` 및 `monitor/page.tsx` 초기 쿼리에 중첩 조인 추가:
+```ts
+customers:customer_id (
+  customer_name, customer_code, address,
+  customer_contacts ( role, name, phone )   // ← 추가
+),
+contacts:contact_id ( role, name, phone ),  // 계획항목 지정 관계인
+```
+
+수신번호 우선순위 (`pickContact` 함수):
+```
+1순위: plan_item.contact_id (점검계획 지정 관계인)
+2순위: customer_contacts[role='대표']
+3순위: customer_contacts[role='직원1']
+4순위: customer_contacts[role='직원2']
+```
+
+#### SMS 모달 개선
+
+| 항목 | 변경 전 | 변경 후 |
+|---|---|---|
+| 발신번호 | 표시 없음 | 보라색 배지로 상단 표시 |
+| 수신자 목록 | 고객명만 표시 | 고객명 + 관계인 역할 + 전화번호 + 이름 |
+| 연락처 없는 경우 | 구분 없음 | 빨간 배경 강조 + 건수 표시 |
+| 발송 버튼 | "발송" | "발송 기록 저장 (N건)" — 실제 전송 건수 명시 |
+
+#### DB 마이그레이션 (029_sms_recipients.sql)
+
+`inspection_status_log` 테이블에 컬럼 추가:
+```sql
+ALTER TABLE inspection_status_log
+  ADD COLUMN IF NOT EXISTS sms_sender_phone TEXT,
+  ADD COLUMN IF NOT EXISTS sms_recipients   JSONB;  -- [{role, name, phone}]
+```
+
+### 17-3. 실제 SMS 전송을 위한 추가 작업 (미구현)
+
+실제 문자 전송은 SMS API 제공업체 연동이 필요:
+- 추천: **솔라피(CoolSMS)** — Node.js SDK 제공, 건당 ~8~20원
+- 필요한 것: API Key / API Secret (솔라피 가입 후 발급)
+- 연동 시 `saveSmsAction`에서 솔라피 SDK 호출 → 수신번호로 전송 → 결과 DB 저장
+- 월 클릭 → 즉시 해당 월로 이동
+- 팝업 외부 클릭 시 닫힘
+
+**적용 파일 4개**:
+
+| 파일 | 화면 | 상태 특이사항 |
+|------|------|-------------|
+| `inspection-plans-client.tsx` | 월간 점검계획 | `viewYear`/`viewMonth` + `router.push` |
+| `monitor-client.tsx` | 점검현황 모니터링 | `yearMonth` 문자열 (`"2026-07"`) |
+| `report-status-client.tsx` | 점검보고서 제출현황 | `yearMonth` 문자열 (`"2026-07"`) |
+| `schedules-client.tsx` | My 일정 캘린더 | `month` 0-indexed, 팝업 가운데 정렬 |
+
+---
+
+## 17. 취소(cancelled) 상태 및 슬라이드 패널
+
+### 17-1. 슬라이드 패널 위치 및 열기
+
+**파일**: `plan-item-slide-panel.tsx`
+
+```css
+.panel { fixed right-0 top-0 h-full w-80 /* 320px */ z-50 }
+.overlay { fixed inset-0 bg-black/20 z-40 }
+```
+
+| 동작 | 방법 |
+|------|------|
+| 열기 | 목록 행(row) 아무 곳 클릭 (체크박스·점검 시작 버튼 제외) |
+| 닫기 | 패널 바깥 어두운 오버레이 클릭 |
+
+**슬라이드 패널에서 가능한 작업**:
+- 점검예정일 변경
+- 담당직원 변경
+- 상태 변경 (계획중 → 확정 → 취소 등)
+- 메모 입력
+- 점검 시작 (조건 충족 시)
+
+### 17-2. 취소(cancelled) 상태 사용 시점
+
+**취소 상태로 변경 조건**:
+- `canManage` (manager/admin) 권한 필요
+- 슬라이드 패널 > 상태 드롭다운에서 변경
+
+**취소 가능 상태**:
+
+| 현재 상태 | 취소 가능 여부 |
+|-----------|--------------|
+| 계획 (planned) | ✅ 가능 |
+| 확정 (confirmed) | ✅ 가능 |
+| 완료 (completed) | ✅ UI상 가능 |
+| 취소 (cancelled) | — 이미 취소됨 |
+
+**실무 사용 케이스**:
+
+| 상황 | 설명 |
+|------|------|
+| 고객이 점검 거부 | 건물주가 이번 달 점검 불가 통보 |
+| 점검 일정 연기 | 다음 달로 미루면서 이번 달 항목 취소 |
+| 잘못 등록된 항목 | 삭제 대신 취소 처리 |
+| 폐업·계약 종료 | 해당 월 점검 불필요 |
+
+> ⚠️ `inspection_id`가 연결된 항목(점검이 시작된 항목)을 취소해도 `inspections` 레코드는 별도로 유지됨. 계획 항목 상태만 변경됨.
+
+**취소 항목의 효과**:
+
+| 항목 | 효과 |
+|------|------|
+| 일괄 확정 체크박스 | 비활성 (선택 불가) |
+| 점검 시작 버튼 | 숨김 |
+| 미점검 초과 경보 | 집계에서 제외 |
+| 스마트 일정 제안 | 취소 항목은 "등록됨"으로 보지 않음 → 재제안 가능 |
+| 취소 탭 필터 | 목록 상단 [취소] 탭에서 이번 달 취소 항목 일괄 확인 |

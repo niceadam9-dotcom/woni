@@ -1,0 +1,529 @@
+﻿'use client'
+
+import { useState, useTransition, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, Wand2, Hash, X, Building2 } from 'lucide-react'
+import { createCustomerAction, generateCustomerCodeAction, type ContactInput } from '@/app/(dashboard)/customers/actions'
+import { useDaumPostcode } from '@/hooks/use-daum-postcode'
+import { extractRegionFromAddress } from '@/lib/address-parser'
+import type { InspectionType } from '@/types'
+
+function extractBuildingName(fullAddress: string): string {
+  const match = fullAddress.match(/\(([^)]+)\)$/)
+  return match ? match[1].trim() : ''
+}
+
+const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const readonlyCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-[#f8f9fa] px-3 text-sm text-[#514b81] outline-none cursor-default'
+const labelCls = 'text-xs font-medium text-[#514b81]'
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className={labelCls}>{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+      {children}
+    </div>
+  )
+}
+
+type Employee = { id: string; name: string; position: string | null }
+type ContactForm = { name: string; phone: string; email: string }
+const emptyContact = (): ContactForm => ({ name: '', phone: '', email: '' })
+
+export function CustomerNewClient({ employees }: { employees: Employee[] }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const openPostcode = useDaumPostcode()
+  const customerNameRef = useRef<HTMLInputElement>(null)
+
+  const [form, setForm] = useState({
+    customer_code: '',
+    customer_name: '',
+    contract_date: '',
+    use_approval_date: '',
+    inspection_type: '종합' as InspectionType,
+    zipcode: '',
+    address: '',
+    region_si: '',
+    region_myeon: '',
+    region_ri: '',
+    notes: '',
+    assigned_employee_id: '',
+    // 건물 기본정보 (V9-3)
+    building_purpose: '',
+    building_floors_above: '',
+    building_floors_below: '',
+    building_total_area: '',
+    building_year_built: '',
+  })
+  const [addrJibun, setAddrJibun] = useState('')
+
+  const [contacts, setContacts] = useState({
+    대표: emptyContact(),
+    직원1: emptyContact(),
+    직원2: emptyContact(),
+  })
+
+  function setField(key: keyof typeof form, value: string) {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function setContact(role: keyof typeof contacts, key: keyof ContactForm, value: string) {
+    setContacts(prev => ({
+      ...prev,
+      [role]: { ...prev[role], [key]: value },
+    }))
+  }
+
+  async function handleGenerateCode() {
+    setIsGenerating(true)
+    const result = await generateCustomerCodeAction('C')
+    setIsGenerating(false)
+    if (result.code) setField('customer_code', result.code)
+  }
+
+  useEffect(() => {
+    handleGenerateCode()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleAddressSearch() {
+    openPostcode(data => {
+      setAddrJibun(data.jibunAddress)
+      setForm(prev => ({
+        ...prev,
+        zipcode: data.zonecode,
+        address: data.roadAddress,
+        region_si: data.sigungu,
+        region_myeon: data.bname1 || data.bname,
+        region_ri: data.bname2 || '',
+      }))
+
+      // 주소 끝 괄호 안 건물명 자동추출
+      const building = extractBuildingName(data.roadAddress)
+      if (building) {
+        setForm(prev => ({ ...prev, customer_name: building }))
+        setTimeout(() => {
+          customerNameRef.current?.select()  // 전체 선택 → 바로 덮어쓰기 가능
+        }, 50)
+      } else {
+        setTimeout(() => {
+          customerNameRef.current?.focus()   // 빈 칸 자동 포커스 → 바로 타이핑
+        }, 50)
+      }
+    })
+  }
+
+  function handleSubmit() {
+    setError('')
+    if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
+    if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
+    if (!form.contract_date) { setError('계약일을 선택해주세요.'); return }
+
+    const contactInputs: ContactInput[] = (
+      Object.entries(contacts) as [keyof typeof contacts, ContactForm][]
+    )
+      .filter(([, c]) => c.name.trim())
+      .map(([role, c]) => ({
+        role,
+        name: c.name.trim(),
+        phone: c.phone.trim() || undefined,
+        email: c.email.trim() || undefined,
+      }))
+
+    startTransition(async () => {
+      const result = await createCustomerAction({
+        customer_code: form.customer_code.trim(),
+        customer_name: form.customer_name.trim(),
+        contract_date: form.contract_date,
+        use_approval_date: form.use_approval_date || undefined,
+        inspection_type: form.inspection_type,
+        zipcode: form.zipcode.trim() || undefined,
+        address: form.address.trim() || undefined,
+        region_si: form.region_si.trim() || undefined,
+        region_myeon: form.region_myeon.trim() || undefined,
+        region_ri: form.region_ri.trim() || undefined,
+        notes: form.notes.trim() || undefined,
+        assigned_employee_id: form.assigned_employee_id || undefined,
+        contacts: contactInputs,
+        building_purpose:      form.building_purpose.trim() || undefined,
+        building_floors_above: form.building_floors_above ? parseInt(form.building_floors_above) : undefined,
+        building_floors_below: form.building_floors_below ? parseInt(form.building_floors_below) : undefined,
+        building_total_area:   form.building_total_area   ? parseFloat(form.building_total_area)  : undefined,
+        building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
+      })
+      if (result.error) { setError(result.error); return }
+      router.push(`/customers/${result.customerId}`)
+      router.refresh()
+    })
+  }
+
+  const INSPECTION_ANNUAL: Record<InspectionType, string> = {
+    '종합':     '연 12회 자동 생성 (종합특별 2회 + 정기 10회)',
+    '작동':     '연 12회 자동 생성 (작동특별 1회 + 정기 11회)',
+    '일반관리': '수동 등록 (자동 생성 없음)',
+  }
+
+  return (
+    <form className="max-w-2xl space-y-6" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
+      {/* 기본 정보 */}
+      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-[#090c1d]">고객 기본정보</h2>
+
+        {/* ① 주소 검색 섹션 — 최상단 배치 */}
+        <div className="space-y-3 pb-4 border-b border-[#e8e6f5]">
+          <div className="flex items-center justify-between">
+            <label className={`${labelCls} flex items-center gap-1`}>
+              <MapPin className="size-3.5 text-[#7b68ee]" />
+              주소 검색
+              <span className="text-xs text-[#b0acd6] font-normal ml-1">— 검색 후 건물명 자동입력</span>
+            </label>
+            <button
+              type="button"
+              onClick={handleAddressSearch}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6a59d9] text-white text-xs font-medium transition-colors"
+            >
+              <Search className="size-3.5" />
+              주소 검색
+            </button>
+          </div>
+
+          {/* 우편번호 + 지번주소 */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="space-y-1">
+              <p className="text-xs text-[#b0acd6]">우편번호</p>
+              <input value={form.zipcode} readOnly placeholder="자동입력" className={readonlyCls} />
+            </div>
+            <div className="col-span-3 space-y-1">
+              <p className="text-xs text-[#b0acd6]">지번주소 (참고)</p>
+              <input value={addrJibun} readOnly placeholder="자동입력" className={readonlyCls} />
+            </div>
+          </div>
+
+          {/* 도로명주소 */}
+          <div className="space-y-1">
+            <p className="text-xs text-[#b0acd6]">도로명주소 (상세주소 직접 입력 가능)</p>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <input
+                value={form.address}
+                onChange={e => setField('address', e.target.value)}
+                placeholder="주소 검색 후 동/호수 등 추가 입력"
+                className={`${inputCls} pl-8`}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className={labelCls}>시/군/구 · 읍/면/동 · 리/동</label>
+              {form.address && !form.region_si && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const extracted = extractRegionFromAddress(form.address)
+                    if (extracted.region_si) setForm(prev => ({ ...prev, ...extracted }))
+                  }}
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-[11px] font-medium transition-colors border border-[#d0ccf5]"
+                >
+                  <Wand2 className="size-3" />
+                  주소에서 추출
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <input value={form.region_si}    onChange={e => setField('region_si', e.target.value)}    placeholder="예: 양평군" className={inputCls} />
+              <input value={form.region_myeon} onChange={e => setField('region_myeon', e.target.value)} placeholder="예: 양평읍" className={inputCls} />
+              <input value={form.region_ri}    onChange={e => setField('region_ri', e.target.value)}    placeholder="예: 시민로" className={inputCls} />
+            </div>
+          </div>
+        </div>
+
+        {/* ② 고객코드 + 고객명(건물명) */}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="고객코드">
+            <div className="flex gap-1.5">
+              <input
+                value={isGenerating ? '' : form.customer_code}
+                readOnly
+                placeholder={isGenerating ? '생성 중...' : '자동생성'}
+                className={`${readonlyCls} flex-1`}
+              />
+              <button
+                type="button"
+                onClick={handleGenerateCode}
+                disabled={isGenerating}
+                title="코드 재생성"
+                className="h-10 px-3 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5] whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : <Hash className="size-3.5" />}
+                재생성
+              </button>
+            </div>
+          </Field>
+          <Field label="고객명 (건물명)" required>
+            <div className="relative">
+              <input
+                ref={customerNameRef}
+                value={form.customer_name}
+                onChange={e => setField('customer_name', e.target.value)}
+                placeholder="주소 검색 시 자동입력 또는 직접 입력"
+                className={inputCls}
+              />
+              {form.customer_name && (
+                <button
+                  type="button"
+                  onClick={() => { setField('customer_name', ''); customerNameRef.current?.focus() }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#b0acd6] hover:text-[#514b81]"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="계약일" required>
+            <input
+              type="date"
+              value={form.contract_date}
+              onChange={e => setField('contract_date', e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+          <Field label="사용승인일">
+            <input
+              type="date"
+              value={form.use_approval_date}
+              onChange={e => setField('use_approval_date', e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+        </div>
+
+        <Field label="점검유형" required>
+          <div className="flex gap-6">
+            {(['소방안전관리', '일반관리'] as const).map(cat => (
+              <label key={cat} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="inspection_category"
+                  checked={cat === '일반관리' ? form.inspection_type === '일반관리' : form.inspection_type !== '일반관리'}
+                  onChange={() => setField('inspection_type', cat === '일반관리' ? '일반관리' : '종합')}
+                  className="accent-[#7b68ee]"
+                />
+                <span className="text-sm font-medium text-[#090c1d]">{cat}</span>
+              </label>
+            ))}
+          </div>
+          {form.inspection_type !== '일반관리' && (
+            <div className="flex gap-6 mt-2 pl-3 border-l-2 border-[#e0ddf5]">
+              {(['종합', '작동'] as const).map(sub => (
+                <label key={sub} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="inspection_sub_type"
+                    checked={form.inspection_type === sub}
+                    onChange={() => setField('inspection_type', sub)}
+                    className="accent-[#7b68ee]"
+                  />
+                  <span className="text-sm text-[#090c1d]">
+                    {sub} <span className="text-xs text-[#7b7b8d]">({sub === '종합' ? '연2회' : '연1회'})</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </Field>
+
+        {form.inspection_type && (
+          <p className="text-xs text-[#7b68ee] bg-[#f5f4ff] rounded-lg px-3 py-2">
+            {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : '일반관리'}: {INSPECTION_ANNUAL[form.inspection_type]}
+          </p>
+        )}
+
+        <Field label="비고">
+          <textarea
+            value={form.notes}
+            onChange={e => setField('notes', e.target.value)}
+            placeholder="특이사항 메모"
+            rows={2}
+            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+          />
+        </Field>
+      </section>
+
+      {/* 담당직원 배정 */}
+      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <UserCheck className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">담당직원 배정</h2>
+          <span className="text-xs text-[#514b81]">(나중에 변경 가능)</span>
+        </div>
+
+        <Field label="담당직원">
+          <select
+            value={form.assigned_employee_id}
+            onChange={e => setField('assigned_employee_id', e.target.value)}
+            className={inputCls}
+          >
+            <option value="">배정 안함</option>
+            {employees.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name}{e.position ? ` (${e.position})` : ''}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        {form.assigned_employee_id && (
+          <p className="text-xs text-[#514b81] bg-[#f8f9fa] rounded-lg px-3 py-2">
+            배정 즉시 해당 직원에게 알림이 발송됩니다.
+          </p>
+        )}
+      </section>
+
+      {/* 관계인 정보 */}
+      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <Users className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">관계인 정보</h2>
+          <span className="text-xs text-[#514b81]">(선택, 최대 3명)</span>
+        </div>
+
+        {(['대표', '직원1', '직원2'] as const).map(role => {
+          const roleLabel = role === '직원1' ? '담당자' : role
+          return (
+          <div key={role} className="space-y-3">
+            <label
+              htmlFor={`contact-${role}-name`}
+              className="text-xs font-semibold text-[#514b81] border-b border-[#c8c4d0] pb-1.5 flex cursor-pointer hover:text-[#7b68ee] transition-colors"
+            >
+              {roleLabel}
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="이름">
+                <input
+                  id={`contact-${role}-name`}
+                  value={contacts[role].name}
+                  onChange={e => setContact(role, 'name', e.target.value)}
+                  placeholder={`${roleLabel} 이름`}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="연락처">
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
+                  <input
+                    value={contacts[role].phone}
+                    onChange={e => setContact(role, 'phone', e.target.value)}
+                    placeholder="010-0000-0000"
+                    className={`${inputCls} pl-7`}
+                  />
+                </div>
+              </Field>
+              <Field label="이메일">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
+                  <input
+                    type="email"
+                    value={contacts[role].email}
+                    onChange={e => setContact(role, 'email', e.target.value)}
+                    placeholder="example@email.com"
+                    className={`${inputCls} pl-7`}
+                  />
+                </div>
+              </Field>
+            </div>
+          </div>
+          )
+        })}
+      </section>
+
+      {/* 건물 기본정보 (V9-3) */}
+      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <Building2 className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">건물 기본정보</h2>
+          <span className="text-xs text-[#514b81]">(선택)</span>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="건물용도">
+            <input
+              value={form.building_purpose}
+              onChange={e => setField('building_purpose', e.target.value)}
+              placeholder="예: 업무시설, 근린생활시설"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="연면적 (㎡)">
+            <input
+              type="number"
+              value={form.building_total_area}
+              onChange={e => setField('building_total_area', e.target.value)}
+              placeholder="예: 1500.5"
+              min="0"
+              step="0.01"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="지상층수">
+            <input
+              type="number"
+              value={form.building_floors_above}
+              onChange={e => setField('building_floors_above', e.target.value)}
+              placeholder="예: 5"
+              min="0"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="지하층수">
+            <input
+              type="number"
+              value={form.building_floors_below}
+              onChange={e => setField('building_floors_below', e.target.value)}
+              placeholder="예: 1"
+              min="0"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="준공연도">
+            <input
+              type="number"
+              value={form.building_year_built}
+              onChange={e => setField('building_year_built', e.target.value)}
+              placeholder="예: 2005"
+              min="1900"
+              max={new Date().getFullYear()}
+              className={inputCls}
+            />
+          </Field>
+        </div>
+      </section>
+
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>
+      )}
+
+      <div className="flex gap-3 pb-8">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="flex-1 h-11 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+        >
+          취소
+        </button>
+        <button
+          type="submit"
+          disabled={isPending}
+          className="flex-1 h-11 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
+        >
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : '고객 등록'}
+        </button>
+      </div>
+    </form>
+  )
+}

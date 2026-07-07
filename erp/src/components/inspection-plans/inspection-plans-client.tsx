@@ -1,10 +1,10 @@
-'use client'
+﻿'use client'
 
 import { useState, useTransition, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Calendar, List, Plus,
-  Filter, Lightbulb, AlertTriangle, ChevronDown,
+  Filter, AlertTriangle, ChevronDown,
   PlayCircle, ExternalLink, Pencil, AlertCircle, Check,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -13,10 +13,10 @@ import type { OverdueItem } from '@/app/(dashboard)/inspection-plans/page'
 import {
   createInspectionPlanAction,
   startInspectionAction, updatePlanItemAction,
+  confirmPlanItemStageOneAction,
 } from '@/app/(dashboard)/inspection-plans/actions'
 import { PlanItemSlidePanel } from './plan-item-slide-panel'
 import { AddPlanItemModal } from './add-plan-item-modal'
-import { SmartSuggestModal } from './smart-suggest-modal'
 import { OverdueResolveModal } from './overdue-resolve-modal'
 
 type CustomerOption = { id: string; customer_name: string; inspection_type: InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }
@@ -33,13 +33,31 @@ const STATUS_LABEL: Record<PlanItemStatus, string> = {
   planned: '계획', confirmed: '확정', completed: '완료', cancelled: '취소',
 }
 
+const PLAN_TYPE_STYLE: Record<string, string> = {
+  special_종합: 'bg-purple-100 text-purple-700',
+  special_작동: 'bg-blue-100 text-blue-700',
+  monthly:      'bg-gray-100 text-gray-500',
+  event:        'bg-orange-50 text-orange-600',
+}
+const PLAN_TYPE_LABEL: Record<string, string> = {
+  special_종합: '종합특별',
+  special_작동: '작동특별',
+  monthly:      '정기',
+  event:        '일반관리',
+}
+
 type Employee = { id: string; name: string; position: string | null }
+type PlanType = 'special_종합' | 'special_작동' | 'monthly' | 'event' | null
 type ItemView = Record<string, unknown> & {
   id: string
   customer_id: string
   inspection_type: InspectionType
+  inspection_category: string | null
+  inspection_sub_type: string | null
+  plan_type: PlanType
   sequence_num: 1 | 2
   scheduled_date: string | null
+  planned_date: string | null
   status: PlanItemStatus
   notes: string | null
   inspection_id: string | null
@@ -58,6 +76,7 @@ interface Props {
   overdueItems: OverdueItem[]
   holidays: string[]
   canManage: boolean
+  isEmployee?: boolean
 }
 
 export function InspectionPlansClient({
@@ -70,6 +89,7 @@ export function InspectionPlansClient({
   overdueItems,
   holidays,
   canManage,
+  isEmployee = false,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -86,18 +106,22 @@ export function InspectionPlansClient({
   useEffect(() => { setPlans(initialPlans) }, [initialPlans])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [filterStatus,   setFilterStatus]   = useState<string>('planned')
+  const [filterPlanType, setFilterPlanType] = useState<string>('all')
 
   const [selectedItem, setSelectedItem]     = useState<ItemView | null>(null)
-  const [showAddModal, setShowAddModal]     = useState(false)
-  const [showSmartModal, setShowSmartModal] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
   const [selectedDate, setSelectedDate]     = useState<string | null>(null)
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const [pickerYear, setPickerYear]           = useState(initialYear)
+  const monthPickerRef = useRef<HTMLDivElement>(null)
 
   const currentPlan = plans.find(p => p.year === viewYear && p.month === viewMonth) ?? null
 
-  // 목록 뷰 필터 (상태 + 담당자 모두 적용)
+  // 목록 뷰 필터 (상태 + 담당자 + 점검유형 모두 적용)
   const filteredItems = items.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
     if (filterStatus   !== 'all' && item.status !== filterStatus)                 return false
+    if (filterPlanType !== 'all' && (item.plan_type ?? 'monthly') !== filterPlanType) return false
     return true
   })
 
@@ -152,6 +176,16 @@ export function InspectionPlansClient({
     startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`))
   }, [router, viewYear, viewMonth])
 
+  useEffect(() => {
+    if (!showMonthPicker) return
+    function onDown(e: MouseEvent) {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node))
+        setShowMonthPicker(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [showMonthPicker])
+
   const todayStr = new Date().toISOString().split('T')[0]
 
   return (
@@ -160,47 +194,79 @@ export function InspectionPlansClient({
       <div className="flex items-center justify-between gap-3 flex-wrap">
         {/* 왼쪽: 제목 + 월 네비 + 상태 */}
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-[#090c1d]">월간 점검계획</h1>
+          <h1 className="text-xl font-bold text-[#090c1d]">월간 점검계획 확정</h1>
 
           {/* 월 네비게이션 */}
-          <div className="flex items-center gap-0.5 bg-white border border-[#e8e8e8] rounded-lg px-1 py-1 shadow-sm">
+          <div className="relative flex items-center gap-0.5 bg-white border border-[#c8c4d0] rounded-lg px-1 py-1 shadow-sm" ref={monthPickerRef}>
             <button
               onClick={() => navigateMonth(-1)}
               className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+              title="이전 달"
             >
               <ChevronLeft className="size-4 text-[#514b81]" />
             </button>
-            <span className="text-sm font-semibold text-[#090c1d] min-w-[80px] text-center px-1">
+            <button
+              onClick={() => { setPickerYear(viewYear); setShowMonthPicker(o => !o) }}
+              className="text-sm font-semibold text-[#090c1d] min-w-[88px] text-center px-1 py-0.5 rounded hover:bg-[#f5f4ff] transition-colors"
+              title="연/월 바로가기"
+            >
               {viewYear}년 {viewMonth}월
-            </span>
+            </button>
             <button
               onClick={() => navigateMonth(1)}
               className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+              title="다음 달"
             >
               <ChevronRight className="size-4 text-[#514b81]" />
             </button>
+
+            {/* 연/월 빠른 선택 팝업 */}
+            {showMonthPicker && (
+              <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-[#d0ccf5] rounded-xl shadow-xl p-3 w-56">
+                {/* 연도 선택 */}
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={() => setPickerYear(y => y - 1)}
+                    className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+                  >
+                    <ChevronLeft className="size-3.5 text-[#514b81]" />
+                  </button>
+                  <span className="text-sm font-semibold text-[#090c1d]">{pickerYear}년</span>
+                  <button
+                    onClick={() => setPickerYear(y => y + 1)}
+                    className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+                  >
+                    <ChevronRight className="size-3.5 text-[#514b81]" />
+                  </button>
+                </div>
+                {/* 월 그리드 */}
+                <div className="grid grid-cols-4 gap-1">
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                    const isActive = m === viewMonth && pickerYear === viewYear
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setShowMonthPicker(false)
+                          router.push(`/inspection-plans?year=${pickerYear}&month=${m}`)
+                        }}
+                        className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-[#7b68ee] text-white'
+                            : 'hover:bg-[#f5f4ff] text-[#090c1d]'
+                        }`}
+                      >
+                        {m}월
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
         </div>
 
-        {/* 오른쪽: 액션 버튼 */}
-        {canManage && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSmartModal(true)}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors"
-            >
-              <Lightbulb className="size-3.5" />일정 제안
-            </button>
-            <button
-              onClick={() => handleOpenAddModal(null)}
-              disabled={isPending}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-[#7b68ee] text-white hover:bg-[#6a5acd] transition-colors disabled:opacity-50"
-            >
-              <Plus className="size-3.5" />항목 추가
-            </button>
-          </div>
-        )}
       </div>
 
       {/* 초과 점검 경보 */}
@@ -233,21 +299,24 @@ export function InspectionPlansClient({
           ))}
         </div>
 
-        <div className="w-px h-5 bg-[#e8e8e8]" />
+        <div className="w-px h-5 bg-[#c8c4d0]" />
 
-        {/* 담당자 필터 */}
-        <select
-          value={filterEmployee}
-          onChange={e => setFilterEmployee(e.target.value)}
-          className="text-xs border border-[#e8e8e8] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee] text-[#514b81]"
-        >
-          <option value="all">담당자 전체</option>
-          {employees.map(e => (
-            <option key={e.id} value={e.id}>{e.name}</option>
-          ))}
-        </select>
-
-        <div className="w-px h-5 bg-[#e8e8e8]" />
+        {/* 담당자 필터 — 관리자/매니저만 표시 */}
+        {!isEmployee && (
+          <>
+            <select
+              value={filterEmployee}
+              onChange={e => setFilterEmployee(e.target.value)}
+              className="text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee] text-[#514b81]"
+            >
+              <option value="all">담당자 전체</option>
+              {employees.map(e => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+            <div className="w-px h-5 bg-[#c8c4d0]" />
+          </>
+        )}
 
         {/* 상태 필터 */}
         <div className="flex items-center gap-1">
@@ -259,6 +328,27 @@ export function InspectionPlansClient({
                 filterStatus === val
                   ? 'bg-[#7b68ee] text-white'
                   : 'text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* 점검유형 필터 */}
+        <div className="flex items-center gap-1">
+          {([['all','전체'],['special_종합','종합특별'],['special_작동','작동특별'],['monthly','정기'],['event','일반관리']] as [string, string][]).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setFilterPlanType(val)}
+              className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium border ${
+                filterPlanType === val
+                  ? val === 'special_종합' ? 'bg-purple-100 text-purple-700 border-purple-200'
+                    : val === 'special_작동' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                    : val === 'monthly' ? 'bg-gray-100 text-gray-600 border-gray-200'
+                    : val === 'event' ? 'bg-orange-50 text-orange-600 border-orange-200'
+                    : 'bg-[#7b68ee] text-white border-[#7b68ee]'
+                  : 'text-[#514b81] border-transparent hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
               }`}
             >
               {label}
@@ -287,10 +377,14 @@ export function InspectionPlansClient({
             items={filteredItems}
             customers={customers}
             canManage={canManage}
+            isEmployee={isEmployee}
             isPending={isPending}
             onItemClick={setSelectedItem}
             onStart={handleStartItem}
             onRefresh={refresh}
+            planYear={viewYear}
+            planMonth={viewMonth}
+            holidays={holidays}
           />
         )}
       </div>
@@ -301,6 +395,7 @@ export function InspectionPlansClient({
           item={selectedItem}
           employees={employees}
           canManage={canManage}
+          canEditOwnItem={isEmployee}
           onClose={() => setSelectedItem(null)}
           onSaved={() => { setSelectedItem(null); refresh() }}
         />
@@ -321,16 +416,6 @@ export function InspectionPlansClient({
       )}
 
       {/* 사용승인일 기반 일정 제안 모달 */}
-      {showSmartModal && (
-        <SmartSuggestModal
-          year={viewYear}
-          month={viewMonth}
-          planId={currentPlan?.id ?? null}
-          holidays={holidays}
-          onClose={() => setShowSmartModal(false)}
-          onAdded={() => { setShowSmartModal(false); refresh() }}
-        />
-      )}
 
     </div>
   )
@@ -355,8 +440,8 @@ function CalendarView({
   while (cells.length % 7 !== 0) cells.push(null)
 
   return (
-    <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px] overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-[#f0eff8]">
+    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+      <div className="grid grid-cols-7 border-b border-[#e0ddf5]">
         {WEEKDAYS.map((d, i) => (
           <div key={d} className={`text-center text-xs font-medium py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-[#514b81]'}`}>
             {d}
@@ -378,7 +463,7 @@ function CalendarView({
           return (
             <div
               key={idx}
-              className={`h-28 border-b border-r border-[#f0eff8] p-1 cursor-pointer hover:bg-[#fafafa] transition-colors ${
+              className={`h-28 border-b border-r border-[#e0ddf5] p-1 cursor-pointer hover:bg-[#fafafa] transition-colors ${
                 isToday ? 'bg-[#f5f4ff]' : hasOverdue ? 'bg-red-50/50' : ''
               }`}
               onClick={() => canManage && onDateClick(dateStr)}
@@ -424,89 +509,157 @@ function CalendarView({
   )
 }
 
-// ── 인라인 날짜 셀 ────────────────────────────────────────────
+// ── 인라인 날짜 셀 (미니 달력 팝업) ─────────────────────────
 function InlineDateCell({
-  itemId, value, canManage, status, onSaved,
+  itemId, value, canManage, status, onSaved, planYear, planMonth, holidays,
 }: {
   itemId: string; value: string | null; canManage: boolean; status: string; onSaved: () => void
+  planYear: number; planMonth: number; holidays: string[]
 }) {
   const todayStr = new Date().toISOString().split('T')[0]
-  const [editing, setEditing] = useState(false)
-  const [date, setDate] = useState(value ?? todayStr)
+  const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (!editing) return
-    inputRef.current?.focus({ preventScroll: true })
-    inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [editing])
+  const [popupPos, setPopupPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const popupRef   = useRef<HTMLDivElement>(null)
 
   const isOverdue = !!value && value < todayStr && status !== 'completed' && status !== 'cancelled'
+  const holidaySet = new Set(holidays)
 
-  function handleSave() {
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) {
+      if (
+        popupRef.current  && !popupRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  function handleToggle(e: React.MouseEvent) {
+    if (!canManage || isPending) return
+    e.stopPropagation()
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPopupPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    setOpen(o => !o)
+  }
+
+  function handleSelectDay(day: number) {
+    const dateStr = `${planYear}-${String(planMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`
     startTransition(async () => {
-      const res = await updatePlanItemAction({ itemId, scheduledDate: date || null })
-      if (!res.error) { setEditing(false); onSaved() }
+      const res = await confirmPlanItemStageOneAction(itemId, dateStr)
+      if (!res.error) { setOpen(false); onSaved() }
     })
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); handleSave() }
-    if (e.key === 'Escape') { setDate(value ?? ''); setEditing(false) }
+  function handleClear(e: React.MouseEvent) {
+    e.stopPropagation()
+    startTransition(async () => {
+      const res = await updatePlanItemAction({ itemId, scheduledDate: null })
+      if (!res.error) { setOpen(false); onSaved() }
+    })
   }
 
-  if (!canManage || !editing) {
-    return (
+  const daysInMonth = new Date(planYear, planMonth, 0).getDate()
+  const firstDay    = new Date(planYear, planMonth - 1, 1).getDay()
+  const planMonthPrefix = `${planYear}-${String(planMonth).padStart(2,'0')}-`
+  const selectedDay = value?.startsWith(planMonthPrefix)
+    ? parseInt(value.slice(-2), 10) : null
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      {/* 표시 영역 */}
       <div
-        className="flex items-center gap-1 group"
-        onClick={e => { if (canManage) { e.stopPropagation(); setEditing(true) } }}
+        className={`flex items-center gap-1 group ${canManage ? 'cursor-pointer' : ''}`}
+        onClick={handleToggle}
       >
         {isOverdue ? (
-          <span
-            className={`flex items-center gap-1 text-red-500 font-semibold ${canManage ? 'cursor-pointer' : ''}`}
-            title="점검 예정일이 지났습니다"
-          >
+          <span className="flex items-center gap-1 text-red-500 font-semibold" title="점검 예정일이 지났습니다">
             <AlertCircle className="size-3.5 shrink-0" />
             {value}
           </span>
         ) : value ? (
-          <span className={canManage ? 'cursor-pointer' : ''}>{value}</span>
+          <span>{value}</span>
         ) : (
-          <span className={`text-[#b0acd6] italic text-xs ${canManage ? 'cursor-pointer' : ''}`}>
-            클릭하여 날짜 입력
-          </span>
+          <span className="text-[#b0acd6] italic text-xs">점검일자확정</span>
         )}
         {canManage && (
           <Pencil className="size-3 text-[#b0acd6] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
         )}
       </div>
-    )
-  }
 
-  return (
-    <div onClick={e => e.stopPropagation()} className="flex items-center gap-1">
-      <input
-        ref={inputRef}
-        type="date"
-        value={date}
-        onChange={e => setDate(e.target.value)}
-        onBlur={handleSave}
-        onKeyDown={handleKeyDown}
-        disabled={isPending}
-        className="text-xs border border-[#7b68ee] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"
-      />
+      {/* 미니 달력 팝업 — fixed 위치로 overflow 클리핑 없음 */}
+      {open && (
+        <div
+          ref={popupRef}
+          style={{ position: 'fixed', top: popupPos.top, left: popupPos.left }}
+          className="z-[9999] bg-white rounded-xl border border-[#d0ccf5] shadow-xl p-3 w-52"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-[#090c1d]">{planYear}년 {planMonth}월</span>
+            {value && (
+              <button onClick={handleClear} className="text-[10px] text-[#b0acd6] hover:text-red-500 transition-colors">
+                지우기
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-7 mb-1">
+            {['일','월','화','수','목','금','토'].map((d, i) => (
+              <div key={d} className={`text-center text-[10px] font-medium py-0.5 ${
+                i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-[#b0acd6]'
+              }`}>{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-y-0.5">
+            {Array(firstDay).fill(null).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+              const dateStr = `${planMonthPrefix}${String(day).padStart(2,'0')}`
+              const dow = (firstDay + day - 1) % 7
+              const isHoliday = holidaySet.has(dateStr)
+              const isSel   = selectedDay === day
+              const isToday = dateStr === todayStr
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleSelectDay(day)}
+                  disabled={isPending}
+                  className={`h-6 w-6 mx-auto text-[11px] rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${
+                    isSel    ? 'bg-[#7b68ee] text-white font-semibold' :
+                    isToday  ? 'ring-1 ring-[#7b68ee] text-[#7b68ee] font-semibold' :
+                    isHoliday || dow === 0 ? 'text-red-400 hover:bg-red-50' :
+                    dow === 6  ? 'text-blue-400 hover:bg-blue-50' :
+                                 'text-[#090c1d] hover:bg-[#f5f4ff]'
+                  }`}
+                >
+                  {day}
+                </button>
+              )
+            })}
+          </div>
+          {isPending && (
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <div className="animate-spin rounded-full h-3 w-3 border border-[#7b68ee] border-t-transparent" />
+              <span className="text-[10px] text-[#514b81]">저장 중…</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── 목록 뷰 ──────────────────────────────────────────────────
 function ListView({
-  items, customers, canManage, isPending, onItemClick, onStart, onRefresh,
+  items, customers, canManage, isEmployee, isPending, onItemClick, onStart, onRefresh, planYear, planMonth, holidays,
 }: {
-  items: ItemView[]; customers: CustomerOption[]; canManage: boolean; isPending: boolean
+  items: ItemView[]; customers: CustomerOption[]; canManage: boolean; isEmployee: boolean; isPending: boolean
   onItemClick: (item: ItemView) => void; onStart: (item: ItemView) => void
-  onRefresh: () => void
+  onRefresh: () => void; planYear: number; planMonth: number; holidays: string[]
 }) {
   const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set())
   const [bulkPending, startBulkTransition]  = useTransition()
@@ -543,7 +696,7 @@ function ListView({
 
   if (items.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px] p-12 text-center">
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-12 text-center">
         <Calendar className="size-8 text-[#b0acd6] mx-auto mb-3" />
         <p className="text-sm text-[#514b81]">이 달의 점검 계획이 없습니다.</p>
       </div>
@@ -551,7 +704,7 @@ function ListView({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px] overflow-hidden">
+    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
       {/* 일괄 액션 바 */}
       {someSelected && canManage && (
         <div className="flex items-center justify-between px-4 py-2.5 bg-[#f5f4ff] border-b border-[#dddaf8]">
@@ -593,7 +746,7 @@ function ListView({
           <col className="w-24" />{/* 액션 */}
         </colgroup>
         <thead>
-          <tr className="border-b border-[#f0eff8] bg-[#fafafa]">
+          <tr className="border-b border-[#e0ddf5] bg-[#fafafa]">
             {canManage && (
               <th className="px-3 py-3">
                 <input
@@ -605,7 +758,7 @@ function ListView({
                 />
               </th>
             )}
-            <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검예정일</th>
+            <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검일자 확정</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">건물명</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">사용승인일</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검유형</th>
@@ -661,8 +814,11 @@ function ListView({
                     itemId={item.id}
                     value={item.scheduled_date}
                     status={item.status}
-                    canManage={canManage}
+                    canManage={canManage || isEmployee}
                     onSaved={onRefresh}
+                    planYear={planYear}
+                    planMonth={planMonth}
+                    holidays={holidays}
                   />
                 </td>
                 <td className="px-3 py-2.5 font-medium text-[#090c1d] truncate">
@@ -673,12 +829,14 @@ function ListView({
                 </td>
                 <td className="px-3 py-2.5">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    item.inspection_type === '종합' ? 'bg-[#f5f4ff] text-[#7b68ee]' :
-                    item.inspection_type === '최초' ? 'bg-blue-50 text-blue-600' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>{item.inspection_type}</span>
+                    PLAN_TYPE_STYLE[item.plan_type ?? 'monthly']
+                  }`}>{PLAN_TYPE_LABEL[item.plan_type ?? 'monthly'] ?? item.inspection_type}</span>
                 </td>
-                <td className="px-3 py-2.5 text-[#514b81] text-center">{item.sequence_num}차</td>
+                <td className="px-3 py-2.5 text-[#514b81] text-center">
+                  {item.plan_type === 'monthly' || item.plan_type === 'event'
+                    ? <span className="text-xs text-gray-400">정기</span>
+                    : `${item.sequence_num}차`}
+                </td>
                 <td className="px-3 py-2.5 text-[#514b81] truncate">
                   {(item.profiles as { name: string } | null)?.name ?? <span className="text-[#b0acd6]">미배정</span>}
                 </td>
@@ -784,7 +942,7 @@ function OverduePanel({
                       </span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
                         item.inspection_type === '종합' ? 'bg-[#f5f4ff] text-[#7b68ee]' :
-                        item.inspection_type === '최초' ? 'bg-blue-50 text-blue-600' :
+                        item.inspection_type === '작동' ? 'bg-blue-50 text-blue-600' :
                         'bg-gray-100 text-gray-600'
                       }`}>{item.inspection_type}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">

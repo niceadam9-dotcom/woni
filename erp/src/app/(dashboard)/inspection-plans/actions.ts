@@ -2,14 +2,14 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireRole } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
 
 // ── 점검 시작 — plan_item → inspections 생성 ────────────────
 export async function startInspectionAction(
   itemId: string
 ): Promise<{ error?: string; inspectionId?: string }> {
-  const profile = await requireRole(['manager', 'admin'])
+  const profile = await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
   // plan_item 조회
@@ -75,7 +75,7 @@ export async function createInspectionPlanAction(input: {
   month: number
   notes?: string
 }): Promise<{ error?: string; planId?: string }> {
-  const profile = await requireRole(['manager', 'admin'])
+  const profile = await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
   const { data: existing } = await admin
@@ -129,7 +129,7 @@ export async function addPlanItemAction(input: {
   contactId?: string
   notes?: string
 }): Promise<{ error?: string; itemId?: string }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
   const { data, error } = await admin
@@ -176,14 +176,35 @@ export async function updatePlanItemAction(input: {
   status?: PlanItemStatus
   notes?: string | null
 }): Promise<{ error?: string }> {
-  await requireRole(['manager', 'admin'])
+  const profile = await requirePermission('inspection_plan_item_update')
   const admin = createAdminClient()
+  const isEmployee = profile.role === 'employee'
+
+  // 일반직원: 본인 담당 건인지 확인
+  if (isEmployee) {
+    const { data: item } = await admin
+      .from('inspection_plan_items')
+      .select('assigned_employee_id')
+      .eq('id', input.itemId)
+      .single()
+    if (!item || (item as { assigned_employee_id: string }).assigned_employee_id !== profile.id) {
+      return { error: '본인 담당 항목만 수정할 수 있습니다.' }
+    }
+  }
 
   const patch: Record<string, unknown> = {}
-  if (input.scheduledDate !== undefined)       patch.scheduled_date        = input.scheduledDate
-  if (input.assignedEmployeeId !== undefined)  patch.assigned_employee_id  = input.assignedEmployeeId
-  if (input.status !== undefined)              patch.status                = input.status
-  if (input.notes !== undefined)               patch.notes                 = input.notes
+  if (input.scheduledDate !== undefined)      patch.scheduled_date       = input.scheduledDate
+  // 날짜 삭제 시 6단계 일정 및 확정 상태 초기화
+  if (input.scheduledDate === null) {
+    patch.status    = 'planned'
+    patch.step1_date = null; patch.step2_date = null; patch.step3_date = null
+    patch.step4_date = null; patch.step5_date = null; patch.step6_date = null
+  }
+  // 담당직원 변경은 관리자/매니저만
+  if (!isEmployee && input.assignedEmployeeId !== undefined)
+                                              patch.assigned_employee_id = input.assignedEmployeeId
+  if (input.status !== undefined)             patch.status               = input.status
+  if (input.notes !== undefined)              patch.notes                = input.notes
 
   const { error } = await admin
     .from('inspection_plan_items')
@@ -195,9 +216,73 @@ export async function updatePlanItemAction(input: {
   return {}
 }
 
+// ── 1단계 점검일자 확정 + step1~6 자동계산 ─────────────────────
+export async function confirmPlanItemStageOneAction(
+  planItemId: string,
+  confirmedDate: string,
+): Promise<{ error?: string }> {
+  await requirePermission('inspection_plan_manage')
+  const admin = createAdminClient()
+
+  // 공휴일 조회 — 확정일 기준 ±7개월 범위
+  const base  = new Date(confirmedDate)
+  const rangeStart = new Date(base); rangeStart.setMonth(rangeStart.getMonth() - 1)
+  const rangeEnd   = new Date(base); rangeEnd.setMonth(rangeEnd.getMonth() + 7)
+  const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01`
+  const endStr   = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-31`
+
+  const { data: holidayData } = await admin
+    .from('holidays').select('date')
+    .gte('date', startStr).lte('date', endStr)
+  const holidaySet = new Set((holidayData ?? []).map(h => (h as Record<string, unknown>).date as string))
+
+  function toDateStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  }
+  function addWorkingDays(from: Date, n: number): string {
+    const d = new Date(from)
+    let count = 0
+    while (count < n) {
+      d.setDate(d.getDate() + 1)
+      const dow = d.getDay()
+      if (dow !== 0 && dow !== 6 && !holidaySet.has(toDateStr(d))) count++
+    }
+    return toDateStr(d)
+  }
+
+  const step1 = confirmedDate
+  const step2 = addWorkingDays(new Date(step1), 5)
+  const step3 = addWorkingDays(new Date(step1), 10)
+  const step4 = addWorkingDays(new Date(step1), 15)
+  // step5: step4 + 10 절대일 (캘린더일)
+  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 10)
+  const step5 = toDateStr(step4Date)
+  const step6 = addWorkingDays(new Date(step5), 10)
+
+  const { error } = await admin
+    .from('inspection_plan_items')
+    .update({
+      scheduled_date: confirmedDate,
+      status: 'confirmed',
+      step1_date: step1,
+      step2_date: step2,
+      step3_date: step3,
+      step4_date: step4,
+      step5_date: step5,
+      step6_date: step6,
+    } as Record<string, unknown>)
+    .eq('id', planItemId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections')
+  return {}
+}
+
 // ── 계획 항목 삭제 ───────────────────────────────────────────
 export async function deletePlanItemAction(itemId: string): Promise<{ error?: string }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
   const { error } = await admin.from('inspection_plan_items').delete().eq('id', itemId)
   if (error) return { error: '항목 삭제에 실패했습니다.' }
@@ -210,7 +295,7 @@ export async function updatePlanStatusAction(
   planId: string,
   status: PlanStatus
 ): Promise<{ error?: string }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
   const patch: Record<string, unknown> = { status }
@@ -232,7 +317,7 @@ export async function autoGeneratePlanAction(input: {
   month: number
   refPlanId?: string
 }): Promise<{ error?: string; planId?: string; itemCount?: number }> {
-  const profile = await requireRole(['manager', 'admin'])
+  const profile = await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
   // 중복 확인
@@ -331,7 +416,12 @@ export async function autoGeneratePlanAction(input: {
         const approvalDay = new Date(useApprovalDate).getDate()
         const daysInMonth = new Date(input.year, input.month, 0).getDate()
         const base = new Date(input.year, input.month - 1, Math.min(approvalDay, daysInMonth))
-        return _toDateStr(_nextWorkday(base))
+        // 당일이 영업일이면 그대로, 주말/공휴일이면 다음 영업일
+        const dow = base.getDay()
+        if (dow === 0 || dow === 6 || holidaySet.has(_toDateStr(base))) {
+          return _toDateStr(_nextWorkday(base))
+        }
+        return _toDateStr(base)
       }
 
       const newItems = refItems.map((item) => {
@@ -344,7 +434,8 @@ export async function autoGeneratePlanAction(input: {
           sequence_num: (item as Record<string, unknown>).sequence_num,
           assigned_employee_id: (item as Record<string, unknown>).assigned_employee_id,
           contact_id: (item as Record<string, unknown>).contact_id,
-          scheduled_date: useApprovalDate ? _calcDate(useApprovalDate) : null,
+          planned_date: useApprovalDate ? _calcDate(useApprovalDate) : null,
+          scheduled_date: null,   // 관리자 점검일자확정 전까지 NULL
           status: 'planned',
         }
       })
@@ -373,7 +464,7 @@ export async function getSuggestedItemsAction(
     assigned_employee_id: string | null; sequence_num: 1 | 2; reason: string
   }>
 }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
   // 2차 점검 월 = 사용승인일 월 + 6개월
@@ -421,11 +512,15 @@ export async function getSuggestedItemsAction(
         use_approval_date: c.use_approval_date as string,
         assigned_employee_id: (c.assigned_employee_id ?? null) as string | null,
         sequence_num: 1,
-        reason: `사용승인일 ${dateLabel} → 1차 점검`,
+        reason: `사용승인일 ${dateLabel} → ${c.inspection_type === '종합' ? '1차 점검' : '연 1회 점검'}`,
       })
     }
 
-    if (approvalMonth === secondMonth && !existingKeys.has(`${c.id}-2`)) {
+    if (
+      c.inspection_type === '종합' &&
+      approvalMonth === secondMonth &&
+      !existingKeys.has(`${c.id}-2`)
+    ) {
       suggestions.push({
         id: c.id as string,
         customer_name: c.customer_name as string,
@@ -453,7 +548,7 @@ export async function resolveOverdueItemsAction(
     assigned_employee_id: string | null
   }>
 ): Promise<{ results: Array<{ month: number; added: number; error?: string }> }> {
-  const profile = await requireRole(['manager', 'admin'])
+  const profile = await requirePermission('inspection_plan_manage')
   const admin   = createAdminClient()
 
   // 월별 그룹화
@@ -547,4 +642,18 @@ export async function getInspectionPlanWithItems(year: number, month: number) {
     .order('scheduled_date', { ascending: true, nullsFirst: false })
 
   return { plan, items: items ?? [] }
+}
+
+// P-18: 슬라이드 패널에서 점검 단계 조회 (점검계획 + 점검업무 통합)
+export async function getInspectionStepsForItemAction(inspectionId: string) {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('inspection_steps')
+    .select('id, step_num, name_ko, due_date, status, completed_at')
+    .eq('inspection_id', inspectionId)
+    .order('step_num')
+  return { steps: (data ?? []) as Array<{
+    id: string; step_num: number; name_ko: string
+    due_date: string | null; status: string; completed_at: string | null
+  }> }
 }

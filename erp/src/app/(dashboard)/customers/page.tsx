@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Users, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
@@ -6,18 +6,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { BulkExtractRegionsClient } from '@/components/customers/bulk-extract-regions-client'
 import { RegionEditClient } from '@/components/customers/region-edit-client'
 import { CustomerRegionFilterClient } from '@/components/customers/customer-region-filter-client'
+import { ToggleActiveClient } from '@/components/customers/toggle-active-client'
+import { DeleteCustomerClient } from '@/components/customers/delete-customer-client'
+import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import type { InspectionType, UserRole } from '@/types'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
-  '종합': 'bg-[#f5f4ff] text-[#7b68ee]',
-  '최초': 'bg-blue-50 text-blue-600',
-  '기타': 'bg-gray-100 text-gray-600',
+  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '작동':   'bg-blue-50 text-blue-600',
+  '일반관리': 'bg-gray-100 text-gray-600',
 }
 
 const TYPE_ANNUAL: Record<InspectionType, string> = {
-  '종합': '연 2회',
-  '최초': '연 1회',
-  '기타': '연 1회',
+  '종합':   '연 2회',
+  '작동':   '연 1회',
+  '일반관리': '연 1회',
 }
 
 export default async function CustomersPage({
@@ -44,19 +47,23 @@ export default async function CustomersPage({
   const from = pageSize > 0 ? (page - 1) * pageSize : 0
   const to = pageSize > 0 ? from + pageSize - 1 : 99999
 
+  type BuildingSummary = {
+    id: string; building_name: string
+    total_area: number | null; floors_above: number | null; floors_below: number | null
+    purpose: string | null
+  }
   type CustomerRow = {
     id: string; customer_code: string; customer_name: string; contract_date: string
     use_approval_date: string | null; inspection_type: InspectionType; address: string | null
     region_si: string | null; region_myeon: string | null; region_ri: string | null
     is_active: boolean; assigned_employee_id: string | null; created_at: string
+    buildings: BuildingSummary[]
   }
 
-  // region 컬럼 존재 여부 확인 (018_region 마이그레이션 적용 여부)
-  const { error: regionColErr } = await admin.from('customers').select('region_si').limit(1)
-  const hasRegionCols = !regionColErr
-
-  const baseCols = 'id, customer_code, customer_name, contract_date, use_approval_date, inspection_type, address, is_active, assigned_employee_id, created_at'
-  const selectCols = hasRegionCols ? `${baseCols}, region_si, region_myeon, region_ri` : baseCols
+  const selectCols = `id, customer_code, customer_name, contract_date, use_approval_date,
+    inspection_type, address, is_active, assigned_employee_id, created_at,
+    region_si, region_myeon, region_ri,
+    buildings(id, building_name, total_area, floors_above, floors_below, purpose)`
 
   let custQuery = admin
     .from('customers')
@@ -65,20 +72,18 @@ export default async function CustomersPage({
 
   if (q) custQuery = custQuery.or(`customer_name.ilike.%${q}%,customer_code.ilike.%${q}%,address.ilike.%${q}%`)
   if (typeFilter) custQuery = custQuery.eq('inspection_type', typeFilter)
-  if (activeFilter === 'active') custQuery = custQuery.eq('is_active', true)
+  if (activeFilter === 'active')   custQuery = custQuery.eq('is_active', true)
   if (activeFilter === 'inactive') custQuery = custQuery.eq('is_active', false)
-  if (hasRegionCols) {
-    if (regionFilter) custQuery = custQuery.eq('region_si', regionFilter)
-    if (regionMyeonFilter) custQuery = custQuery.eq('region_myeon', regionMyeonFilter)
-    if (regionRiFilter) custQuery = custQuery.eq('region_ri', regionRiFilter)
-  }
+  if (regionFilter)      custQuery = custQuery.eq('region_si',    regionFilter)
+  if (regionMyeonFilter) custQuery = custQuery.eq('region_myeon', regionMyeonFilter)
+  if (regionRiFilter)    custQuery = custQuery.eq('region_ri',    regionRiFilter)
 
-  const [customersRes, profilesRes, regionDataRes] = await Promise.all([
+  const [customersRes, profilesRes, regionDataRes, missingRegionRes] = await Promise.all([
     custQuery.range(from, to),
     admin.from('profiles').select('id, name').eq('is_active', true).order('name'),
-    hasRegionCols
-      ? admin.from('customers').select('region_si, region_myeon, region_ri').not('region_si', 'is', null)
-      : Promise.resolve({ data: [] }),
+    admin.from('customers').select('region_si, region_myeon, region_ri').not('region_si', 'is', null),
+    admin.from('customers').select('id', { count: 'exact', head: true })
+      .eq('is_active', true).not('address', 'is', null).is('region_si', null),
   ])
 
   const customers = (customersRes.data ?? []) as unknown as CustomerRow[]
@@ -88,18 +93,8 @@ export default async function CustomersPage({
   const empMap = new Map(employees.map(e => [e.id, e.name]))
 
   type RegionEntry = { region_si: string | null; region_myeon: string | null; region_ri: string | null }
-  const regionData = hasRegionCols ? ((regionDataRes.data ?? []) as RegionEntry[]) : []
-
-  // 주소는 있지만 지역 미입력 건수 (일괄 추출 버튼 표시용)
-  const missingRegionCount = hasRegionCols
-    ? await admin
-        .from('customers')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true)
-        .not('address', 'is', null)
-        .is('region_si', null)
-        .then(r => r.count ?? 0)
-    : 0
+  const regionData = (regionDataRes.data ?? []) as RegionEntry[]
+  const missingRegionCount = missingRegionRes.count ?? 0
 
   const canCreate = (profile.role as UserRole) !== 'employee'
 
@@ -153,23 +148,23 @@ export default async function CustomersPage({
             name="q"
             defaultValue={q}
             placeholder="고객명·코드·주소 검색"
-            className="h-9 pl-8 pr-3 rounded-lg border border-[#e5e3f8] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
+            className="h-9 pl-8 pr-3 rounded-lg border border-[#d0ccf5] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
           />
         </div>
         <select
           name="type"
           defaultValue={typeFilter}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="">전체 점검유형</option>
           <option value="종합">종합</option>
-          <option value="최초">최초</option>
-          <option value="기타">기타</option>
+          <option value="작동">작동</option>
+          <option value="일반관리">일반관리</option>
         </select>
         <select
           name="active"
           defaultValue={activeFilter}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="all">전체 상태</option>
           <option value="active">활성</option>
@@ -184,7 +179,7 @@ export default async function CustomersPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -199,7 +194,7 @@ export default async function CustomersPage({
         {isFiltered && (
           <a
             href="/customers"
-            className="h-9 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+            className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
           >
             초기화
           </a>
@@ -208,7 +203,7 @@ export default async function CustomersPage({
       </form>
 
       {/* 목록 테이블 */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px,rgba(18,43,165,0.04)_0px_6px_6px_-3px,rgba(18,43,165,0.04)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {customers.length === 0 ? (
           <div className="py-16 text-center text-sm text-[#514b81]">
             검색된 고객이 없습니다
@@ -217,24 +212,39 @@ export default async function CustomersPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e8e8e8] bg-[#f8f9fa]">
-                  {['고객코드', '고객명', '지역', '점검유형', '연간횟수', '계약일', '사용승인일', '담당직원', '상태', ''].map(h => (
+                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                  {['고객명', '지역', '점검유형', '연간횟수', '계약일', '사용승인일', '담당직원', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e8e8e8]">
+              <tbody className="divide-y divide-[#c8c4d0]">
                 {customers.map(c => (
                   <tr key={c.id} className="hover:bg-[#f8f9fa] transition-colors">
-                    <td className="px-4 py-3 text-xs text-[#514b81] font-mono">{c.customer_code}</td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-[#090c1d]">{c.customer_name}</p>
+                      {canCreate ? (
+                        <InlineCustomerFieldClient customerId={c.id} field="customer_name" value={c.customer_name}
+                          renderDisplay={v => <span className="font-medium text-[#090c1d]">{v}</span>} />
+                      ) : (
+                        <p className="font-medium text-[#090c1d]">{c.customer_name}</p>
+                      )}
                       {c.address && <p className="text-xs text-[#b0acd6] mt-0.5 truncate max-w-[180px]">{c.address}</p>}
+                      {c.buildings && c.buildings.length > 0 ? (
+                        <p className="text-[10px] text-[#7b68ee] mt-0.5 truncate max-w-[180px]">
+                          🏢 {[
+                            c.buildings[0].purpose,
+                            c.buildings[0].total_area != null && `${c.buildings[0].total_area}㎡`,
+                            c.buildings[0].floors_above != null && `지상${c.buildings[0].floors_above}층`,
+                          ].filter(Boolean).join(' · ') || c.buildings[0].building_name}
+                        </p>
+                      ) : c.address ? (
+                        <p className="text-[10px] text-amber-500 mt-0.5">건물 정보 없음</p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {hasRegionCols && canCreate ? (
+                      {canCreate ? (
                         <RegionEditClient
                           customerId={c.id}
                           customerName={c.customer_name}
@@ -250,40 +260,68 @@ export default async function CustomersPage({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[c.inspection_type]}`}>
-                        {c.inspection_type}
-                      </span>
+                      {canCreate ? (
+                        <InlineCustomerFieldClient customerId={c.id} field="inspection_type" value={c.inspection_type}
+                          renderDisplay={v => (
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[v as InspectionType]}`}>{v}</span>
+                          )} />
+                      ) : (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[c.inspection_type]}`}>{c.inspection_type}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">
                       {TYPE_ANNUAL[c.inspection_type]}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#292d34]">
-                      {c.contract_date}
+                      {canCreate ? (
+                        <InlineCustomerFieldClient customerId={c.id} field="contract_date" value={c.contract_date} />
+                      ) : c.contract_date}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">
-                      {c.use_approval_date ?? '-'}
+                      {canCreate ? (
+                        <InlineCustomerFieldClient customerId={c.id} field="use_approval_date" value={c.use_approval_date} />
+                      ) : (c.use_approval_date ?? '-')}
                     </td>
                     <td className="px-4 py-3">
-                      {c.assigned_employee_id ? (
-                        <span className="text-xs font-medium text-[#090c1d]">
-                          {empMap.get(c.assigned_employee_id) ?? '-'}
-                        </span>
+                      {canCreate ? (
+                        <InlineCustomerFieldClient
+                          customerId={c.id}
+                          field="assigned_employee_id"
+                          value={c.assigned_employee_id}
+                          employees={employees}
+                          renderDisplay={v => v ? (
+                            <span className="text-xs font-medium text-[#090c1d]">{empMap.get(v) ?? '-'}</span>
+                          ) : (
+                            <span className="text-xs text-red-500 font-medium">미배정</span>
+                          )}
+                        />
+                      ) : c.assigned_employee_id ? (
+                        <span className="text-xs font-medium text-[#090c1d]">{empMap.get(c.assigned_employee_id) ?? '-'}</span>
                       ) : (
                         <span className="text-xs text-red-500 font-medium">미배정</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {c.is_active ? '활성' : '비활성'}
-                      </span>
+                      {canCreate ? (
+                        <ToggleActiveClient customerId={c.id} isActive={c.is_active} />
+                      ) : (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {c.is_active ? '활성' : '비활성'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/customers/${c.id}`}
-                        className="text-xs text-[#7b68ee] hover:underline font-medium"
-                      >
-                        상세보기
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/customers/${c.id}`}
+                          className="text-xs text-[#7b68ee] hover:underline font-medium"
+                        >
+                          상세보기
+                        </Link>
+                        {canCreate && (
+                          <DeleteCustomerClient customerId={c.id} customerName={c.customer_name} />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -297,14 +335,14 @@ export default async function CustomersPage({
         <div className="flex items-center justify-center gap-2 pt-2">
           {page > 1 && (
             <a href={buildPageUrl(page - 1)}
-              className="h-8 px-3 rounded-lg border border-[#e5e3f8] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
               이전
             </a>
           )}
           <span className="text-sm text-[#514b81]">{page} / {totalPages}</span>
           {page < totalPages && (
             <a href={buildPageUrl(page + 1)}
-              className="h-8 px-3 rounded-lg border border-[#e5e3f8] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
               다음
             </a>
           )}

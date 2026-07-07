@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { FileText } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
@@ -95,12 +95,12 @@ export default async function AdminDocumentsPage({
           name="q"
           defaultValue={q}
           placeholder="제목 검색"
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
         />
         <select
           name="status"
           defaultValue={statusFilter}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="">전체 상태</option>
           {Object.entries(STATUS_MAP).map(([v, { label }]) => (
@@ -110,7 +110,7 @@ export default async function AdminDocumentsPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -120,7 +120,7 @@ export default async function AdminDocumentsPage({
           검색
         </button>
         {(q || statusFilter) && (
-          <a href="/admin/documents" className="h-9 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+          <a href="/admin/documents" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
             초기화
           </a>
         )}
@@ -128,7 +128,7 @@ export default async function AdminDocumentsPage({
       </form>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px,rgba(18,43,165,0.04)_0px_6px_6px_-3px,rgba(18,43,165,0.04)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {docs.length === 0 ? (
           <div className="py-16 text-center">
             <FileText className="size-10 text-[#c4bff5] mx-auto mb-3" />
@@ -138,13 +138,13 @@ export default async function AdminDocumentsPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e8e8e8] bg-[#f8f9fa]">
+                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   {['제목', '양식', '기안자', '상태', '상신일'].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-[#514b81]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e8e8e8]">
+              <tbody className="divide-y divide-[#c8c4d0]">
                 {docs.map(doc => {
                   const s = STATUS_MAP[doc.status] ?? { label: doc.status, className: '' }
                   return (
@@ -186,13 +186,13 @@ export default async function AdminDocumentsPage({
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           {page > 1 && (
-            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
               이전
             </a>
           )}
           <span className="text-sm text-[#514b81] px-2">{page} / {totalPages}</span>
           {page < totalPages && (
-            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
               다음
             </a>
           )}

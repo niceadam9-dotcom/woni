@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -113,12 +113,12 @@ export default async function AdminLeavesPage({
           name="q"
           defaultValue={q}
           placeholder="직원 이름 검색"
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-44"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-44"
         />
         <select
           name="status"
           defaultValue={statusFilter}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="">전체 상태</option>
           {Object.entries(STATUS_MAP).map(([v, { label }]) => (
@@ -128,7 +128,7 @@ export default async function AdminLeavesPage({
         <select
           name="leave_type"
           defaultValue={typeFilter}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="">전체 유형</option>
           {Object.entries(LEAVE_LABELS).map(([v, label]) => (
@@ -138,7 +138,7 @@ export default async function AdminLeavesPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#e5e3f8] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -148,7 +148,7 @@ export default async function AdminLeavesPage({
           검색
         </button>
         {(q || statusFilter || typeFilter) && (
-          <a href="/admin/leaves" className="h-9 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+          <a href="/admin/leaves" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
             초기화
           </a>
         )}
@@ -156,7 +156,7 @@ export default async function AdminLeavesPage({
       </form>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-[rgba(18,43,165,0.04)_0px_1px_1px_-0.5px,rgba(18,43,165,0.04)_0px_3px_3px_-1.5px,rgba(18,43,165,0.04)_0px_6px_6px_-3px,rgba(18,43,165,0.04)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {leaves.length === 0 ? (
           <div className="py-16 text-center">
             <CalendarDays className="size-10 text-[#c4bff5] mx-auto mb-3" />
@@ -166,13 +166,13 @@ export default async function AdminLeavesPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e8e8e8] bg-[#f8f9fa]">
+                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   {['직원', '부서', '유형', '기간', '일수', '상태', '신청일'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e8e8e8]">
+              <tbody className="divide-y divide-[#c8c4d0]">
                 {leaves.map(l => {
                   const s = STATUS_MAP[l.status] ?? { label: l.status, className: '' }
                   const emp = empMap.get(l.employee_id)
@@ -212,13 +212,13 @@ export default async function AdminLeavesPage({
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           {page > 1 && (
-            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
               이전
             </a>
           )}
           <span className="text-sm text-[#514b81] px-2">{page} / {totalPages}</span>
           {page < totalPages && (
-            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-[#e8e8e8] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
               다음
             </a>
           )}

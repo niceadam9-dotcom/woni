@@ -1,0 +1,64 @@
+{
+  "_note": "양평군 한정 고객 Mock 데이터 50건. seed-yangpyeong.mjs 로 삽입",
+  "customers": [
+    {"customer_code":"YP001","customer_name":"양평한양아파트","contract_date":"2022-03-10","inspection_type":"종합","address":"경기도 양평군 양평읍 양평리 500","region_si":"양평군","region_myeon":"양평읍","region_ri":"양평리","notes":null,"is_active":true},
+    {"customer_code":"YP002","customer_name":"양평한솔마트","contract_date":"2023-01-15","inspection_type":"최초","address":"경기도 양평군 양평읍 창대리 125","region_si":"양평군","region_myeon":"양평읍","region_ri":"창대리","notes":null,"is_active":true},
+    {"customer_code":"YP003","customer_name":"양평중앙병원","contract_date":"2021-06-20","inspection_type":"종합","address":"경기도 양평군 양평읍 양평리 320","region_si":"양평군","region_myeon":"양평읍","region_ri":"양평리","notes":"6층 의료시설","is_active":true},
+    {"customer_code":"YP004","customer_name":"양평초등학교","contract_date":"2020-09-01","inspection_type":"종합","address":"경기도 양평군 양평읍 공흥리 200","region_si":"양평군","region_myeon":"양평읍","region_ri":"공흥리","notes":null,"is_active":true},
+    {"customer_code":"YP005","customer_name":"양평종합사회복지관","contract_date":"2022-07-01","inspection_type":"기타","address":"경기도 양평군 양평읍 회현리 85","region_si":"양평군","region_myeon":"양평읍","region_ri":"회현리","notes":null,"is_active":true},
+    {"customer_code":"YP006","customer_name":"한강변펜션단지","contract_date":"2023-04-10","inspection_type":"종합","address":"경기도 양평군 양평읍 오빈리 33","region_si":"양평군","region_myeon":"양평읍","region_ri":"오빈리","notes":"별관 포함","is_active":true},
+    {"customer_code":"YP007","customer_name":"양평공단물류창고A동","contract_date":"2024-01-20","inspection_type":"최초","address":"경기도 양평군 양평읍 덕평리 700","region_si":"양평군","region_myeon":"양평읍","region_ri":"덕평리","notes":null,"is_active":true},
+    {"customer_code":"YP008","customer_name":"양평삼성수퍼마켓","contract_date":"2021-11-05","inspection_type":"기타","address":"경기도 양평군 양평읍 백안리 45","region_si":"양평군","region_myeon":"양평읍","region_ri":"백안리","notes":null,"is_active":true},
+    {"customer_code":"YP009","customer_name":"양평빌라1단지","contract_date":"2020-05-12","inspection_type":"종합","address":"경기도 양평군 양평읍 신복리 280","region_si":"양평군","region_myeon":"양평읍","region_ri":"신복리","notes":null,"is_active":true},
+    {"customer_code":"YP010","customer_name":"양평농협하나로마트","contract_date":"2022-10-25","inspection_type":"종합","address":"경기도 양평군 양평읍 양평리 150","region_si":"양평군","region_myeon":"양평읍","region_ri":"양평리","notes":null,"is_active":true},
+
+    {"customer_code":"YP011","customer_name":"용문산관광호텔","contract_date":"2021-03-15","inspection_type":"종합","address":"경기도 양평군 용문면 용문리 800","region_si":"양평군","region_myeon":"용문면","region_ri":"용문리","notes":"지하 1층 포함","is_active":true},
+    {"customer_code":"YP012","customer_name":"용문나눔요양원","contract_date":"2022-08-01","inspection_type":"종합","address":"경기도 양평군 용문면 화전리 120","region_si":"양평군","region_myeon":"용문면","region_ri":"화전리","notes":null,"is_active":true},
+    {"customer_code":"YP013","customer_name":"용문시장상가동","contract_date":"2023-06-10","inspection_type":"최초","address":"경기도 양평군 용문면 연수리 55","region_si":"양평군","region_myeon":"용문면","region_ri":"연수리","notes":null,"is_active":true},
+    {"customer_code":"YP014","customer_name":"용문공장B동","contract_date":"2021-09-20","inspection_type":"종합","address":"경기도 양평군 용문면 광탄리 400","region_si":"양평군","region_myeon":"용문면","region_ri":"광탄리","notes":null,"is_active":true},
+    {"customer_code":"YP015","customer_name":"용문현대아파트","contract_date":"2020-04-15","inspection_type":"종합","address":"경기도 양평군 용문면 용문리 350","region_si":"양평군","region_myeon":"용문면","region_ri":"용문리","notes":null,"is_active":true},
+    {"customer_code":"YP016","customer_name":"용문한방의원","contract_date":"2023-11-01","inspection_type":"최초","address":"경기도 양평군 용문면 화전리 78","region_si":"양평군","region_myeon":"용문면","region_ri":"화전리","notes":null,"is_active":true},
+    {"customer_code":"YP017","customer_name":"용문면복지센터","contract_date":"2022-05-20","inspection_type":"기타","address":"경기도 양평군 용문면 연수리 100","region_si":"양평군","region_myeon":"용문면","region_ri":"연수리","notes":null,"is_active":true},
+    {"customer_code":"YP018","customer_name":"용문주유소","contract_date":"2024-02-28","inspection_type":"종합","address":"경기도 양평군 용문면 광탄리 200","region_si":"양평군","region_myeon":"용문면","region_ri":"광탄리","notes":null,"is_active":true},
+
+    {"customer_code":"YP019","customer_name":"강상한아름아파트","contract_date":"2021-07-10","inspection_type":"종합","address":"경기도 양평군 강상면 교평리 300","region_si":"양평군","region_myeon":"강상면","region_ri":"교평리","notes":null,"is_active":true},
+    {"customer_code":"YP020","customer_name":"강상물류창고A동","contract_date":"2024-05-01","inspection_type":"최초","address":"경기도 양평군 강상면 화양리 600","region_si":"양평군","region_myeon":"강상면","region_ri":"화양리","notes":null,"is_active":true},
+    {"customer_code":"YP021","customer_name":"강상면소망교회","contract_date":"2022-12-01","inspection_type":"기타","address":"경기도 양평군 강상면 세월리 40","region_si":"양평군","region_myeon":"강상면","region_ri":"세월리","notes":null,"is_active":true},
+    {"customer_code":"YP022","customer_name":"강상가구단지1동","contract_date":"2023-03-15","inspection_type":"종합","address":"경기도 양평군 강상면 대석리 500","region_si":"양평군","region_myeon":"강상면","region_ri":"대석리","notes":null,"is_active":true},
+    {"customer_code":"YP023","customer_name":"강상항금농산물창고","contract_date":"2021-10-05","inspection_type":"최초","address":"경기도 양평군 강상면 항금리 150","region_si":"양평군","region_myeon":"강상면","region_ri":"항금리","notes":null,"is_active":true},
+    {"customer_code":"YP024","customer_name":"강상로뎀병원","contract_date":"2022-04-20","inspection_type":"종합","address":"경기도 양평군 강상면 병산리 90","region_si":"양평군","region_myeon":"강상면","region_ri":"병산리","notes":"요양병원","is_active":true},
+
+    {"customer_code":"YP025","customer_name":"양서한강뷰펜션","contract_date":"2023-07-01","inspection_type":"종합","address":"경기도 양평군 양서면 복포리 25","region_si":"양평군","region_myeon":"양서면","region_ri":"복포리","notes":null,"is_active":true},
+    {"customer_code":"YP026","customer_name":"신원초등학교","contract_date":"2020-03-02","inspection_type":"종합","address":"경기도 양평군 양서면 신원리 110","region_si":"양평군","region_myeon":"양서면","region_ri":"신원리","notes":null,"is_active":true},
+    {"customer_code":"YP027","customer_name":"양서면복지관","contract_date":"2022-09-10","inspection_type":"기타","address":"경기도 양평군 양서면 목왕리 60","region_si":"양평군","region_myeon":"양서면","region_ri":"목왕리","notes":null,"is_active":true},
+    {"customer_code":"YP028","customer_name":"양서용담농산물창고","contract_date":"2024-03-15","inspection_type":"최초","address":"경기도 양평군 양서면 용담리 320","region_si":"양평군","region_myeon":"양서면","region_ri":"용담리","notes":null,"is_active":true},
+    {"customer_code":"YP029","customer_name":"양서센트럴아파트","contract_date":"2021-08-20","inspection_type":"종합","address":"경기도 양평군 양서면 복포리 180","region_si":"양평군","region_myeon":"양서면","region_ri":"복포리","notes":null,"is_active":true},
+    {"customer_code":"YP030","customer_name":"양서한가람마트","contract_date":"2023-02-14","inspection_type":"최초","address":"경기도 양평군 양서면 대심리 75","region_si":"양평군","region_myeon":"양서면","region_ri":"대심리","notes":null,"is_active":true},
+
+    {"customer_code":"YP031","customer_name":"옥천협성아파트","contract_date":"2021-05-25","inspection_type":"종합","address":"경기도 양평군 옥천면 옥천리 400","region_si":"양평군","region_myeon":"옥천면","region_ri":"옥천리","notes":null,"is_active":true},
+    {"customer_code":"YP032","customer_name":"아신요양병원","contract_date":"2022-11-10","inspection_type":"종합","address":"경기도 양평군 옥천면 아신리 88","region_si":"양평군","region_myeon":"옥천면","region_ri":"아신리","notes":null,"is_active":true},
+    {"customer_code":"YP033","customer_name":"옥천용천창고단지","contract_date":"2024-04-01","inspection_type":"최초","address":"경기도 양평군 옥천면 용천리 250","region_si":"양평군","region_myeon":"옥천면","region_ri":"용천리","notes":null,"is_active":true},
+    {"customer_code":"YP034","customer_name":"옥천수입리농산물창고","contract_date":"2023-08-15","inspection_type":"종합","address":"경기도 양평군 옥천면 수입리 175","region_si":"양평군","region_myeon":"옥천면","region_ri":"수입리","notes":null,"is_active":true},
+    {"customer_code":"YP035","customer_name":"옥천한방의원","contract_date":"2022-06-30","inspection_type":"기타","address":"경기도 양평군 옥천면 인덕리 50","region_si":"양평군","region_myeon":"옥천면","region_ri":"인덕리","notes":null,"is_active":true},
+
+    {"customer_code":"YP036","customer_name":"서종한강뷰글램핑","contract_date":"2023-05-20","inspection_type":"종합","address":"경기도 양평군 서종면 정배리 120","region_si":"양평군","region_myeon":"서종면","region_ri":"정배리","notes":null,"is_active":true},
+    {"customer_code":"YP037","customer_name":"문호리펜션마을","contract_date":"2024-06-15","inspection_type":"최초","address":"경기도 양평군 서종면 문호리 60","region_si":"양평군","region_myeon":"서종면","region_ri":"문호리","notes":null,"is_active":true},
+    {"customer_code":"YP038","customer_name":"서종문화센터","contract_date":"2021-12-01","inspection_type":"기타","address":"경기도 양평군 서종면 노문리 80","region_si":"양평군","region_myeon":"서종면","region_ri":"노문리","notes":null,"is_active":true},
+    {"customer_code":"YP039","customer_name":"서종수입리공장","contract_date":"2022-03-25","inspection_type":"종합","address":"경기도 양평군 서종면 수입리 350","region_si":"양평군","region_myeon":"서종면","region_ri":"수입리","notes":null,"is_active":true},
+    {"customer_code":"YP040","customer_name":"서종달마을전원주택단지","contract_date":"2020-10-12","inspection_type":"종합","address":"경기도 양평군 서종면 명달리 95","region_si":"양평군","region_myeon":"서종면","region_ri":"명달리","notes":null,"is_active":true},
+
+    {"customer_code":"YP041","customer_name":"강하전수리농산물창고","contract_date":"2023-09-20","inspection_type":"최초","address":"경기도 양평군 강하면 전수리 420","region_si":"양평군","region_myeon":"강하면","region_ri":"전수리","notes":null,"is_active":true},
+    {"customer_code":"YP042","customer_name":"강하운심아파트","contract_date":"2021-02-10","inspection_type":"종합","address":"경기도 양평군 강하면 운심리 300","region_si":"양평군","region_myeon":"강하면","region_ri":"운심리","notes":null,"is_active":true},
+    {"customer_code":"YP043","customer_name":"강하왕창리공장","contract_date":"2022-07-20","inspection_type":"종합","address":"경기도 양평군 강하면 왕창리 550","region_si":"양평군","region_myeon":"강하면","region_ri":"왕창리","notes":null,"is_active":true},
+    {"customer_code":"YP044","customer_name":"강하부용리펜션","contract_date":"2024-07-01","inspection_type":"기타","address":"경기도 양평군 강하면 부용리 35","region_si":"양평군","region_myeon":"강하면","region_ri":"부용리","notes":null,"is_active":true},
+
+    {"customer_code":"YP045","customer_name":"지평양조장","contract_date":"2020-08-15","inspection_type":"종합","address":"경기도 양평군 지평면 지평리 150","region_si":"양평군","region_myeon":"지평면","region_ri":"지평리","notes":"위험물취급시설 포함","is_active":true},
+    {"customer_code":"YP046","customer_name":"지평무왕리공장","contract_date":"2023-10-10","inspection_type":"최초","address":"경기도 양평군 지평면 무왕리 680","region_si":"양평군","region_myeon":"지평면","region_ri":"무왕리","notes":null,"is_active":true},
+    {"customer_code":"YP047","customer_name":"지평대평리물류창고","contract_date":"2022-01-25","inspection_type":"종합","address":"경기도 양평군 지평면 대평리 400","region_si":"양평군","region_myeon":"지평면","region_ri":"대평리","notes":null,"is_active":true},
+
+    {"customer_code":"YP048","customer_name":"단월봉상농협창고","contract_date":"2023-12-05","inspection_type":"최초","address":"경기도 양평군 단월면 봉상리 200","region_si":"양평군","region_myeon":"단월면","region_ri":"봉상리","notes":null,"is_active":true},
+    {"customer_code":"YP049","customer_name":"단월복지회관","contract_date":"2021-04-08","inspection_type":"기타","address":"경기도 양평군 단월면 명금리 30","region_si":"양평군","region_myeon":"단월면","region_ri":"명금리","notes":null,"is_active":true},
+
+    {"customer_code":"YP050","customer_name":"청운삼성리마을회관","contract_date":"2022-09-15","inspection_type":"기타","address":"경기도 양평군 청운면 삼성리 15","region_si":"양평군","region_myeon":"청운면","region_ri":"삼성리","notes":null,"is_active":true}
+  ]
+}

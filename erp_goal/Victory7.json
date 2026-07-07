@@ -1,0 +1,97 @@
+{
+  "title": "소방 점검 고객 관리 — 단계별 마감일 규칙",
+  "baseDate": {
+    "label": "사용승인일",
+    "date": "2026-06-30",
+    "dayOfWeek": "화"
+  },
+  "stages": [
+    {
+      "stage": 1,
+      "name": "점검작업 완료",
+      "basedOn": "사용승인일",
+      "withinDays": 1,
+      "calculationType": "영업일",
+      "excludeWeekends": true,
+      "excludeHolidays": true,
+      "exampleDeadline": "2026-07-01",
+      "exampleDayOfWeek": "수"
+    },
+    {
+      "stage": 2,
+      "name": "배치확인서 작성",
+      "basedOn": "점검작업 완료일",
+      "withinDays": 5,
+      "calculationType": "영업일",
+      "excludeWeekends": true,
+      "excludeHolidays": true,
+      "exampleDeadline": "2026-07-08",
+      "exampleDayOfWeek": "수"
+    },
+    {
+      "stage": 3,
+      "name": "관계인 보고서 전달",
+      "basedOn": "점검작업 완료일",
+      "withinDays": 10,
+      "calculationType": "영업일",
+      "excludeWeekends": true,
+      "excludeHolidays": true,
+      "exampleDeadline": "2026-07-15",
+      "exampleDayOfWeek": "수"
+    },
+    {
+      "stage": 4,
+      "name": "소방서 보고서 제출 및 이행계획보고서 제출",
+      "basedOn": "점검작업 완료일",
+      "withinDays": 15,
+      "calculationType": "영업일",
+      "excludeWeekends": true,
+      "excludeHolidays": true,
+      "exampleDeadline": "2026-07-23",
+      "exampleDayOfWeek": "목"
+    },
+    {
+      "stage": 5,
+      "name": "소방보수 완료",
+      "basedOn": "이행계획보고서 제출일",
+      "withinDays": 10,
+      "calculationType": "절대일",
+      "excludeWeekends": false,
+      "excludeHolidays": false,
+      "exampleDeadline": "2026-08-02",
+      "exampleDayOfWeek": "일"
+    },
+    {
+      "stage": 6,
+      "name": "이행완료보고서 소방서 제출",
+      "basedOn": "소방보수 완료일",
+      "withinDays": 10,
+      "calculationType": "영업일",
+      "excludeWeekends": true,
+      "excludeHolidays": true,
+      "exampleDeadline": "2026-08-14",
+      "exampleDayOfWeek": "금"
+    }
+  ],
+  "calendarSystemRequirements": {
+    "description": "달력에 사용승인일을 시작으로 고객명과 현재 진행 현황이 조회되어야 한다.",
+    "calculationRules": {
+      "workdayLogic": {
+        "appliedStages": [1, 2, 3, 4, 6],
+        "description": "토요일·일요일·법정공휴일을 건너뛰는 WORKDAY 함수 형태의 로직을 소스코드에 반영"
+      },
+      "absoluteDayLogic": {
+        "appliedStages": [5],
+        "description": "소방보수 완료일은 주말·공휴일과 관계없이 이행계획보고서 제출일로부터 단순 +10일"
+      }
+    },
+    "displayRequirements": {
+      "customerName": "달력의 각 일정 블록 또는 타임라인에 고객사 이름 상시 노출",
+      "currentStageStatus": "현재 날짜 기준으로 진행 중인 단계(1~6단계)를 색상 또는 단계명으로 표시",
+      "deadlineAlarm": {
+        "description": "단계 마감일에는 시각적 알람 표시, 담당자와 관리자가 마감일을 놓치지 않도록 화면에 명확하게 표시",
+        "color": "red"
+      }
+    }
+  }
+}

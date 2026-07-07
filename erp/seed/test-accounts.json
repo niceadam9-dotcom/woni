@@ -1,0 +1,100 @@
+{
+  "_comment": "ERP 테스트용 가상 인사 데이터. seed.js로 Supabase에 투입합니다.",
+  "departments": [
+    { "key": "dev",   "name": "개발팀" },
+    { "key": "sales", "name": "영업팀" },
+    { "key": "hr",    "name": "인사팀" }
+  ],
+  "users": [
+    {
+      "employee_id": "ADM-001",
+      "name": "최관리",
+      "email": "admin@erp-test.com",
+      "password": "Admin1234!",
+      "role": "admin",
+      "department": "hr",
+      "position": "인사팀장",
+      "hire_date": "2018-03-02",
+      "leave_total": 20
+    },
+    {
+      "employee_id": "MGR-001",
+      "name": "김팀장",
+      "email": "dev.manager@erp-test.com",
+      "password": "Manager1!",
+      "role": "manager",
+      "department": "dev",
+      "position": "개발팀장",
+      "hire_date": "2019-05-01",
+      "leave_total": 18,
+      "is_dept_manager": true
+    },
+    {
+      "employee_id": "MGR-002",
+      "name": "이팀장",
+      "email": "sales.manager@erp-test.com",
+      "password": "Manager2!",
+      "role": "manager",
+      "department": "sales",
+      "position": "영업팀장",
+      "hire_date": "2020-01-15",
+      "leave_total": 17,
+      "is_dept_manager": true
+    },
+    {
+      "employee_id": "EMP-001",
+      "name": "박개발",
+      "email": "park.dev@erp-test.com",
+      "password": "Employee1!",
+      "role": "employee",
+      "department": "dev",
+      "position": "선임개발자",
+      "hire_date": "2021-03-08",
+      "leave_total": 15
+    },
+    {
+      "employee_id": "EMP-002",
+      "name": "정개발",
+      "email": "jung.dev@erp-test.com",
+      "password": "Employee2!",
+      "role": "employee",
+      "department": "dev",
+      "position": "개발자",
+      "hire_date": "2022-07-04",
+      "leave_total": 15
+    },
+    {
+      "employee_id": "EMP-003",
+      "name": "한영업",
+      "email": "han.sales@erp-test.com",
+      "password": "Employee3!",
+      "role": "employee",
+      "department": "sales",
+      "position": "영업담당",
+      "hire_date": "2021-09-01",
+      "leave_total": 15
+    },
+    {
+      "employee_id": "EMP-004",
+      "name": "윤영업",
+      "email": "yoon.sales@erp-test.com",
+      "password": "Employee4!",
+      "role": "employee",
+      "department": "sales",
+      "position": "영업담당",
+      "hire_date": "2023-02-13",
+      "leave_total": 12
+    },
+    {
+      "employee_id": "EMP-005",
+      "name": "강인사",
+      "email": "kang.hr@erp-test.com",
+      "password": "Employee5!",
+      "role": "employee",
+      "department": "hr",
+      "position": "인사담당",
+      "hire_date": "2022-04-11",
+      "leave_total": 15
+    }
+  ]
+}

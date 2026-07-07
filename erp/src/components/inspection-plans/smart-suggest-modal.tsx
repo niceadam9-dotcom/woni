@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useTransition } from 'react'
 import { X, Lightbulb, AlertCircle } from 'lucide-react'
@@ -51,9 +51,9 @@ function calcScheduledDate(useApprovalDate: string, planYear: number, planMonth:
 }
 
 const TYPE_STYLE: Record<InspectionType, string> = {
-  종합: 'bg-[#f5f4ff] text-[#7b68ee]',
-  최초: 'bg-blue-50 text-blue-600',
-  기타: 'bg-gray-100 text-gray-600',
+  종합:   'bg-[#f5f4ff] text-[#7b68ee]',
+  작동:   'bg-blue-50 text-blue-600',
+  일반관리: 'bg-gray-100 text-gray-600',
 }
 
 function itemKey(item: SuggestedItem) {
@@ -135,12 +135,12 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0eff8] shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e0ddf5] shrink-0">
           <div className="flex items-center gap-2">
             <Lightbulb className="size-4 text-[#7b68ee]" />
             <div>
               <p className="text-sm font-semibold text-[#090c1d]">{year}년 {month}월 — 일정 자동 제안</p>
-              <p className="text-xs text-[#b0acd6] mt-0.5">사용승인일 기준 1차·2차 점검 대상</p>
+              <p className="text-xs text-[#b0acd6] mt-0.5">사용승인일 기준 점검 일정 자동 제안</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-[#f5f4ff] rounded-lg transition-colors">
@@ -171,12 +171,12 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
                   <span>
                     총 <span className="font-semibold text-[#090c1d]">{suggestions.length}건</span> 제안
                   </span>
-                  <span className="text-[#e8e8e8]">|</span>
+                  <span className="text-[#c8c4d0]">|</span>
                   <span>
-                    1차 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 1).length}건</span>
+                    이번달 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 1).length}건</span>
                   </span>
                   <span>
-                    2차 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 2).length}건</span>
+                    종합 2차 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 2).length}건</span>
                   </span>
                 </div>
                 <button
@@ -191,7 +191,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
               {suggestions.some(s => s.sequence_num === 1) && (
                 <div>
                   <p className="text-xs font-semibold text-[#514b81] mb-1.5 mt-3">
-                    1차 점검 — 사용승인일 {month}월 고객
+                    사용승인월 {month}월 고객 — 종합 1차 / 작동·일반관리 연1회
                   </p>
                   <div className="space-y-1.5">
                     {suggestions.filter(s => s.sequence_num === 1).map(item => (
@@ -237,10 +237,10 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
 
         {/* 푸터 */}
         {!loading && suggestions.length > 0 && (
-          <div className="px-6 py-4 border-t border-[#f0eff8] flex gap-2 shrink-0">
+          <div className="px-6 py-4 border-t border-[#e0ddf5] flex gap-2 shrink-0">
             <button
               onClick={onClose}
-              className="flex-1 py-2.5 text-sm border border-[#e8e8e8] rounded-lg text-[#514b81] hover:bg-[#fafafa] transition-colors"
+              className="flex-1 py-2.5 text-sm border border-[#c8c4d0] rounded-lg text-[#514b81] hover:bg-[#fafafa] transition-colors"
             >
               취소
             </button>
@@ -270,7 +270,7 @@ function SuggestRow({
       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
         checked
           ? 'border-[#7b68ee] bg-[#f5f4ff]'
-          : 'border-[#e8e8e8] hover:bg-[#fafafa]'
+          : 'border-[#c8c4d0] hover:bg-[#fafafa]'
       }`}
     >
       <input
@@ -285,9 +285,15 @@ function SuggestRow({
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${TYPE_STYLE[item.inspection_type]}`}>
             {item.inspection_type}
           </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium shrink-0">
-            {item.sequence_num}차
-          </span>
+          {item.inspection_type === '종합' ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium shrink-0">
+              {item.sequence_num}차
+            </span>
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium shrink-0">
+              연1회
+            </span>
+          )}
         </div>
         <p className="text-[11px] text-[#b0acd6] mt-0.5">{item.reason}</p>
       </div>

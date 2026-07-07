@@ -1,0 +1,688 @@
+{
+  "title": "사용승인일 기반 — 소방안전관리 전체 프로세스 및 변경 명세",
+  "description": "customers.use_approval_date(사용승인일) 도입에 따른 점검계획등록·소방안전관리·대시보드·My Page 연계 프로세스 및 변경 명세",
+  "processFlow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "고객 등록",
+        "table": "customers",
+        "action": "사용승인일 입력 (use_approval_date)",
+        "status": "구현됨"
+      },
+      {
+        "order": 2,
+        "name": "점검계획등록",
+        "path": "/inspection-plans",
+        "actions": [
+          "월간 계획 수립 → inspection_plans(헤더) 생성",
+          "고객별 날짜·담당자 배정 → inspection_plan_items 생성",
+          "계획 확정 (status: draft → confirmed)"
+        ],
+        "status": "구현됨"
+      },
+      {
+        "order": 3,
+        "name": "점검 시작 버튼",
+        "description": "plan_item.scheduled_date 도래 시 manager/admin이 클릭 → plan_items.inspection_id 연결",
+        "status": "미구현",
+        "reference": "Victory4.md 설계"
+      },
+      {
+        "order": 4,
+        "name": "점검 생성",
+        "table": "inspections",
+        "fields": {
+          "inspection_start_date": "실제 점검 시작일",
+          "use_approval_date": "customers에서 가져와야 함 (연결 필요)"
+        },
+        "status": "연결 필요"
+      },
+      {
+        "order": 5,
+        "name": "DB 트리거 자동 발동",
+        "trigger": "trg_create_inspection_steps",
+        "current": "inspection_start_date 기준 7단계 생성",
+        "target": "use_approval_date 기준 6단계 생성으로 전환 필요",
+        "status": "변경 필요"
+      },
+      {
+        "order": 6,
+        "name": "단계 관리",
+        "table": "inspection_steps",
+        "description": "6단계 단계별 due_date 자동 계산 (영업일/절대일)",
+        "displays": [
+          {
+            "path": "/inspections/calendar",
+            "label": "소방안전관리 > 점검달력"
+          },
+          {
+            "path": "/dashboard",
+            "label": "대시보드 — 마감 임박 위젯"
+          },
+          {
+            "path": "/my/schedules",
+            "label": "My Page > 일정관리 — 점검 마감 오버레이"
+          }
+        ]
+      }
+    ]
+  },
+  "inspectionPlanRelationship": {
+    "planRegistrationSteps": [
+      {
+        "step": "월간 계획 초안 생성",
+        "action": "고객 선택 + 날짜 배분",
+        "tables": [
+          "inspection_plans",
+          "inspection_plan_items"
+        ],
+        "status": "구현됨"
+      },
+      {
+        "step": "계획 확정",
+        "action": "status: confirmed",
+        "tables": [
+          "inspection_plans"
+        ],
+        "status": "구현됨"
+      },
+      {
+        "step": "점검 시작",
+        "action": "plan_item → inspections 생성",
+        "tables": [
+          "inspections",
+          "inspection_plan_items"
+        ],
+        "status": "미구현"
+      }
+    ],
+    "dateRoles": [
+      {
+        "field": "inspection_start_date",
+        "meaning": "실제 점검(방문) 시작일",
+        "inputAt": "점검 배정(/inspections/new) 또는 점검 시작 버튼"
+      },
+      {
+        "field": "use_approval_date",
+        "meaning": "사용승인일 — 6단계 마감 기산점",
+        "inputAt": "고객 등록/수정 (/customers)"
+      }
+    ]
+  },
+  "inspectionSteps": {
+    "current": {
+      "description": "현재 DB 트리거 (create_inspection_steps) — 7단계",
+      "basedOn": "inspections.inspection_start_date",
+      "steps": [
+        {
+          "stepNum": 1,
+          "name": "관계인 통보 1차",
+          "basedOn": "inspection_start_date",
+          "days": 3,
+          "isWorkingDays": true
+        },
+        {
+          "stepNum": 2,
+          "name": "관계인 협의 2차",
+          "basedOn": "inspection_start_date",
+          "days": 4,
+          "isWorkingDays": true
+        },
+        {
+          "stepNum": 3,
+          "name": "보고서 작성",
+          "basedOn": "inspection_start_date",
+          "days": 9,
+          "isWorkingDays": true
+        },
+        {
+          "stepNum": 4,
+          "name": "소방서 제출",
+          "basedOn": "step3_due_date",
+          "days": 1,
+          "isWorkingDays": true
+        },
+        {
+          "stepNum": 5,
+          "name": "공사완료",
+          "basedOn": "inspection_start_date",
+          "days": 10,
+          "isWorkingDays": false
+        },
+        {
+          "stepNum": 6,
+          "name": "이해관계자 보고서",
+          "basedOn": null,
+          "days": null,
+          "isWorkingDays": null
+        },
+        {
+          "stepNum": 7,
+          "name": "이행완료 보고서 제출",
+          "basedOn": null,
+          "days": null,
+          "isWorkingDays": null
+        }
+      ]
+    },
+    "target": {
+      "description": "목표 — 6단계 (image-9.png 기준 용어 적용)",
+      "basedOn": "customers.use_approval_date",
+      "steps": [
+        {
+          "stepNum": 1,
+          "name": "1단계: 점검 완료",
+          "sidebarMenu": "점검 업무",
+          "basedOn": "use_approval_date",
+          "days": 1,
+          "isWorkingDays": true,
+          "calculationType": "영업일",
+          "exampleDeadline": "2026-07-01",
+          "exampleDayOfWeek": "수"
+        },
+        {
+          "stepNum": 2,
+          "name": "2단계: 배치확인서 보고서 작성",
+          "sidebarMenu": null,
+          "basedOn": "step1_due_date",
+          "days": 5,
+          "isWorkingDays": true,
+          "calculationType": "영업일",
+          "exampleDeadline": "2026-07-08",
+          "exampleDayOfWeek": "수"
+        },
+        {
+          "stepNum": 3,
+          "name": "3단계: 관계인 보고서 제출",
+          "sidebarMenu": "보고서 제출현황",
+          "basedOn": "step1_due_date",
+          "days": 10,
+          "isWorkingDays": true,
+          "calculationType": "영업일",
+          "exampleDeadline": "2026-07-15",
+          "exampleDayOfWeek": "수"
+        },
+        {
+          "stepNum": 4,
+          "name": "4단계: 소방서 보고서 제출 및 이행계획서 등록",
+          "sidebarMenu": "이행계획서 등록",
+          "basedOn": "step1_due_date",
+          "days": 15,
+          "isWorkingDays": true,
+          "calculationType": "영업일",
+          "exampleDeadline": "2026-07-23",
+          "exampleDayOfWeek": "목"
+        },
+        {
+          "stepNum": 5,
+          "name": "5단계: 소방보수 완료",
+          "sidebarMenu": null,
+          "basedOn": "step4_due_date",
+          "days": 10,
+          "isWorkingDays": false,
+          "calculationType": "절대일",
+          "exampleDeadline": "2026-08-02",
+          "exampleDayOfWeek": "일"
+        },
+        {
+          "stepNum": 6,
+          "name": "6단계: 이행완료보고서 제출",
+          "sidebarMenu": "이행계획 제출현황",
+          "basedOn": "step5_due_date",
+          "days": 10,
+          "isWorkingDays": true,
+          "calculationType": "영업일",
+          "exampleDeadline": "2026-08-14",
+          "exampleDayOfWeek": "금"
+        }
+      ]
+    },
+    "migrationNeeded": "019_update_inspection_steps_trigger.sql"
+  },
+  "calendarChanges": {
+    "path": "/inspections/calendar",
+    "component": "InspectionCalendarClient",
+    "eventBlock": {
+      "current": {
+        "text": "점검명",
+        "badge": null,
+        "color": "단일색",
+        "onClick": null
+      },
+      "target": {
+        "text": "고객명 + · + 단계명 (예: 홍길동빌딩 · 3단계)",
+        "badge": [
+          "D-7",
+          "D-3",
+          "D-Day",
+          "D+N(지연)"
+        ],
+        "color": "긴박도 5단계",
+        "onClick": "6단계 Progress Bar 슬라이드 패널"
+      }
+    },
+    "urgencyColors": [
+      {
+        "remaining": "7일 이상",
+        "color": "초록",
+        "tailwind": "bg-green-100 text-green-700"
+      },
+      {
+        "remaining": "3~6일",
+        "color": "노랑",
+        "tailwind": "bg-yellow-100 text-yellow-700"
+      },
+      {
+        "remaining": "1~2일",
+        "color": "주황",
+        "tailwind": "bg-orange-100 text-orange-700"
+      },
+      {
+        "remaining": "당일(D-Day)",
+        "color": "빨강",
+        "tailwind": "bg-red-100 text-red-700 font-bold"
+      },
+      {
+        "remaining": "초과(지연)",
+        "color": "회색+취소선",
+        "tailwind": "bg-gray-100 text-gray-400 line-through"
+      }
+    ],
+    "quickFilters": [
+      "오늘 마감",
+      "지연",
+      "이번 주",
+      "전체"
+    ],
+    "slidePanel": {
+      "fields": [
+        "고객명",
+        "사용승인일"
+      ],
+      "steps": [
+        {
+          "stepNum": 1,
+          "name": "점검 완료",
+          "exampleDate": "2026-07-01"
+        },
+        {
+          "stepNum": 2,
+          "name": "배치확인서 보고서 작성",
+          "exampleDate": "2026-07-08"
+        },
+        {
+          "stepNum": 3,
+          "name": "관계인 보고서 제출",
+          "exampleDate": "2026-07-15"
+        },
+        {
+          "stepNum": 4,
+          "name": "소방서 보고서 제출 및 이행계획서 등록",
+          "exampleDate": "2026-07-23"
+        },
+        {
+          "stepNum": 5,
+          "name": "소방보수 완료",
+          "exampleDate": "2026-08-02"
+        },
+        {
+          "stepNum": 6,
+          "name": "이행완료보고서 제출",
+          "exampleDate": "2026-08-14"
+        }
+      ],
+      "action": "점검 상세 보기 링크"
+    }
+  },
+  "dashboardChanges": {
+    "path": "/dashboard",
+    "newKpiCards": [
+      {
+        "label": "오늘 마감 N건",
+        "dataSource": "inspection_steps WHERE due_date = today AND status != 'completed'",
+        "clickTarget": "/inspections/calendar?filter=today",
+        "roles": [
+          "manager",
+          "admin"
+        ]
+      },
+      {
+        "label": "지연 N건",
+        "dataSource": "inspection_steps WHERE due_date < today AND status != 'completed'",
+        "clickTarget": "/inspections/calendar?filter=overdue",
+        "roles": [
+          "manager",
+          "admin"
+        ]
+      }
+    ],
+    "deadlineWidget": {
+      "label": "마감 임박",
+      "range": "D-7 ~ D-Day",
+      "maxItems": 7,
+      "roleScope": {
+        "employee": "본인 담당 고객만",
+        "manager": "팀 전체",
+        "admin": "전체"
+      }
+    }
+  },
+  "myPageChanges": {
+    "path": "/my/schedules",
+    "component": "SchedulesClient",
+    "overlay": {
+      "description": "기존 개인 일정 위에 담당 고객의 inspection_steps.due_date를 오버레이",
+      "dataQuery": {
+        "table": "inspections",
+        "filter": "assigned_employee_id = profile.id",
+        "join": [
+          "inspection_steps (status != completed)",
+          "customers (customer_name, use_approval_date)"
+        ],
+        "dateRange": "현재 기준 ±2개월"
+      }
+    },
+    "eventColors": [
+      {
+        "type": "개인 일정",
+        "color": "보라",
+        "hex": "#7b68ee"
+      },
+      {
+        "type": "점검 마감 (7일 이상)",
+        "color": "초록"
+      },
+      {
+        "type": "점검 마감 (1~6일 임박)",
+        "color": "주황"
+      },
+      {
+        "type": "점검 마감 (당일)",
+        "color": "빨강"
+      },
+      {
+        "type": "점검 마감 (지연)",
+        "color": "회색"
+      }
+    ],
+    "clickActions": {
+      "inspectionEvent": "/inspections/{inspection_id}",
+      "personalEvent": "기존 편집 모달 유지"
+    }
+  },
+  "notifications": {
+    "existingTypes": [
+      "inspection_step_due",
+      "inspection_step_overdue"
+    ],
+    "rules": [
+      {
+        "timing": "D-3 오전 9시",
+        "recipients": [
+          "담당자",
+          "관리자"
+        ],
+        "template": "[D-3] {고객명} {단계명} 마감 3일 전"
+      },
+      {
+        "timing": "D-1 오전 9시",
+        "recipients": [
+          "담당자",
+          "관리자"
+        ],
+        "template": "[D-1] {고객명} {단계명} 내일 마감"
+      },
+      {
+        "timing": "D-Day 오전 9시",
+        "recipients": [
+          "담당자",
+          "관리자"
+        ],
+        "template": "[오늘 마감] {고객명} {단계명}"
+      },
+      {
+        "timing": "마감 다음날",
+        "recipients": [
+          "담당자",
+          "관리자",
+          "admin"
+        ],
+        "template": "[지연] {고객명} {단계명} 기한 초과"
+      }
+    ],
+    "cronApi": "src/app/api/cron/inspection-deadline-notify/route.ts"
+  },
+  "implementationRoadmap": [
+    {
+      "id": "V8-R01",
+      "order": 1,
+      "task": "DB 트리거 수정 — 7단계→6단계, 기준일 use_approval_date로 전환",
+      "file": "supabase/migrations/019_update_inspection_steps_trigger.sql",
+      "status": "완료"
+    },
+    {
+      "id": "V8-R02",
+      "order": 2,
+      "task": "점검 시작 버튼 구현 — plan_item → inspections 연결",
+      "file": "src/app/(dashboard)/inspection-plans/actions.ts",
+      "status": "완료"
+    },
+    {
+      "id": "V8-R03",
+      "order": 3,
+      "task": "점검달력 — D-Day 배지·색상·퀵필터·슬라이드 패널",
+      "file": "src/components/inspections/inspection-calendar-client.tsx",
+      "status": "완료"
+    },
+    {
+      "id": "V8-R04",
+      "order": 4,
+      "task": "대시보드 — 오늘 마감/지연 KPI 카드, 마감 임박 위젯 강화",
+      "file": "src/app/(dashboard)/dashboard/page.tsx",
+      "status": "완료"
+    },
+    {
+      "id": "V8-R05",
+      "order": 5,
+      "task": "My Page 일정관리 — 점검 마감일 오버레이",
+      "file": "src/app/(dashboard)/my/schedules/page.tsx",
+      "status": "완료"
+    },
+    {
+      "id": "V8-R06",
+      "order": 6,
+      "task": "자동 알림 cron API",
+      "file": "src/app/api/cron/inspection-deadline-notify/route.ts",
+      "status": "완료"
+    }
+  ],
+  "regionalAssignment": {
+    "background": "현재 담당자 배정은 고객 상세 페이지에서 1건씩만 가능. 관리자가 시/읍면/리 단위로 지역을 구분하여 일괄 배정하는 기능 추가.",
+    "dbChanges": {
+      "migration": "supabase/migrations/018_region.sql",
+      "status": "완료",
+      "columns": [
+        {
+          "name": "region_si",
+          "type": "TEXT",
+          "description": "시/군/구",
+          "example": "광주시"
+        },
+        {
+          "name": "region_myeon",
+          "type": "TEXT",
+          "description": "읍/면/동",
+          "example": "오포읍"
+        },
+        {
+          "name": "region_ri",
+          "type": "TEXT",
+          "description": "리/동",
+          "example": "신현리"
+        }
+      ]
+    },
+    "cascadingDropdown": {
+      "description": "시/군/구 선택 → 읍/면/동 연동 → 리/동 연동 (3단계 계층)",
+      "levels": [
+        {
+          "level": 1,
+          "label": "시/군/구",
+          "column": "region_si",
+          "required": true
+        },
+        {
+          "level": 2,
+          "label": "읍/면/동",
+          "column": "region_myeon",
+          "required": false
+        },
+        {
+          "level": 3,
+          "label": "리/동",
+          "column": "region_ri",
+          "required": false
+        }
+      ],
+      "note": "시/군/구만 선택해도 배정 가능. 읍/면/동, 리/동은 선택사항"
+    },
+    "bulkAssignAction": {
+      "functionName": "bulkAssignEmployeeAction",
+      "file": "src/app/(dashboard)/customers/actions.ts",
+      "status": "완료",
+      "description": "customerIds[] IN 쿼리로 일괄 UPDATE + notifications 배치 INSERT + activity_logs 기록"
+    },
+    "files": [
+      {
+        "id": "V8-A01",
+        "file": "supabase/migrations/018_region.sql",
+        "description": "region_si/myeon/ri 컬럼 추가",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A02",
+        "file": "src/types/index.ts",
+        "description": "Customer 인터페이스에 3단계 지역 필드 추가",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A03",
+        "file": "src/app/(dashboard)/customers/actions.ts",
+        "description": "INSERT/UPDATE 반영, bulkAssignEmployeeAction 추가",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A04",
+        "file": "src/components/customers/customer-new-client.tsx",
+        "description": "시/읍면/리 입력 필드 추가",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A05",
+        "file": "src/components/customers/edit-customer-info-client.tsx",
+        "description": "시/읍면/리 입력 필드 추가",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A06",
+        "file": "src/app/(dashboard)/customers/page.tsx",
+        "description": "지역 필터 드롭다운 추가",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A07",
+        "file": "src/app/(dashboard)/customers/regional-assign/page.tsx",
+        "description": "신규 — 지역별 일괄 배정 페이지",
+        "status": "완료"
+      },
+      {
+        "id": "V8-A08",
+        "file": "src/components/customers/regional-assign-client.tsx",
+        "description": "신규 — 일괄 배정 UI",
+        "status": "완료"
+      }
+    ]
+  },
+  "taxInvoice": {
+    "description": "청구서(bills) 기반 전자세금계산서 발행·수정·취소 관리 기능",
+    "status": "구현됨",
+    "accessControl": "manager / admin 전용 (employee 접근 불가)",
+    "paths": {
+      "list": "/tax-invoices",
+      "issue": "/tax-invoices/issue?billId={id}"
+    },
+    "components": {
+      "listPage": "src/app/(dashboard)/tax-invoices/page.tsx",
+      "issuePage": "src/app/(dashboard)/tax-invoices/issue/page.tsx",
+      "listClient": "src/components/billing/tax-invoice-list-client.tsx",
+      "issueClient": "src/components/billing/tax-invoice-issue-client.tsx",
+      "actions": "src/app/(dashboard)/tax-invoices/actions.ts"
+    },
+    "dbTable": "tax_invoices",
+    "dbFields": [
+      "id (UUID PK)",
+      "bill_id (FK → bills, UNIQUE)",
+      "issue_date (DATE)",
+      "approval_num (TEXT)",
+      "invoice_status (TEXT: 발행완료|취소)",
+      "issued (BOOLEAN)"
+    ],
+    "workflow": [
+      "1. 청구서(bills) 등록 선행 필요 (/billing/status에서 등록)",
+      "2. /tax-invoices 목록 → 미발행 건 확인",
+      "3. '발행' 클릭 → /tax-invoices/issue?billId=... 이동",
+      "4. 홈택스에서 전자세금계산서 실제 발행 (수동)",
+      "5. 발행일 입력 + 홈택스 승인번호 입력",
+      "6. '발행 완료 처리' 클릭 → invoice_status='발행완료' 저장",
+      "7. 수정: 발행완료 건 '수정' 클릭 → upsert(onConflict: bill_id)",
+      "8. 취소: 발행완료 건 '취소' 클릭 → invoice_status='취소'"
+    ],
+    "summaryCards": ["전체 청구", "발행완료", "미발행", "취소"],
+    "filters": ["전체", "미발행", "발행완료", "취소"],
+    "printSupport": true,
+    "hometaxLink": "https://www.hometax.go.kr",
+    "note": "홈택스 직접 연동 없음. 수동 발행 후 승인번호를 ERP에 기록하는 방식"
+  },
+  "verification": {
+    "baseDate": "2026-06-30",
+    "steps": [
+      {
+        "step": "1단계",
+        "exampleDeadline": "2026-07-01",
+        "dayOfWeek": "수",
+        "rule": "다음 영업일 1일"
+      },
+      {
+        "step": "2단계",
+        "exampleDeadline": "2026-07-08",
+        "dayOfWeek": "수",
+        "rule": "1단계 후 영업일 5일"
+      },
+      {
+        "step": "3단계",
+        "exampleDeadline": "2026-07-15",
+        "dayOfWeek": "수",
+        "rule": "1단계 후 영업일 10일"
+      },
+      {
+        "step": "4단계",
+        "exampleDeadline": "2026-07-23",
+        "dayOfWeek": "목",
+        "rule": "1단계 후 영업일 15일"
+      },
+      {
+        "step": "5단계",
+        "exampleDeadline": "2026-08-02",
+        "dayOfWeek": "일",
+        "rule": "4단계 후 절대일 +10"
+      },
+      {
+        "step": "6단계",
+        "exampleDeadline": "2026-08-14",
+        "dayOfWeek": "금",
+        "rule": "5단계 후 영업일 10일"
+      }
+    ]
+  }
+}
