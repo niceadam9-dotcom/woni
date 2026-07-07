@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, MapPin, Search, Sparkles } from 'lucide-react'
 import { createBuildingAction } from '@/app/(dashboard)/buildings/actions'
@@ -62,6 +62,22 @@ export function BuildingNewClient({
   function setField(key: keyof typeof form, value: string) {
     setForm(prev => ({ ...prev, [key]: value }))
   }
+
+  // ADD-7: 고객이 선택되어 있으면 고객 주소/건물명을 자동 인계 (주소 재검색 불필요)
+  function prefillFromCustomer(customerId: string) {
+    const c = customers.find(x => x.id === customerId)
+    if (!c) return
+    setForm(prev => ({
+      ...prev,
+      customer_id: customerId,
+      building_name: prev.building_name || c.customer_name,
+      address: prev.address || (c.address ?? ''),
+    }))
+  }
+  useEffect(() => {
+    if (defaultCustomerId) prefillFromCustomer(defaultCustomerId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleAddressSearch() {
     openPostcode(data => {
@@ -220,7 +236,7 @@ export function BuildingNewClient({
           <CustomerCombobox
             customers={customers}
             value={form.customer_id}
-            onChange={id => { setField('customer_id', id); setSuggestedCustomers([]) }}
+            onChange={id => { prefillFromCustomer(id); setSuggestedCustomers([]) }}
           />
         </Field>
 

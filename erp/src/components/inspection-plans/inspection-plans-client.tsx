@@ -61,7 +61,7 @@ type ItemView = Record<string, unknown> & {
   status: PlanItemStatus
   notes: string | null
   inspection_id: string | null
-  customers: { customer_name: string; customer_code: string } | null
+  customers: { customer_name: string; customer_code: string; is_active?: boolean } | null
   profiles: { name: string } | null
   assigned_employee_id: string | null
 }
@@ -120,7 +120,13 @@ export function InspectionPlansClient({
   // 목록 뷰 필터 (상태 + 담당자 + 점검유형 모두 적용)
   const filteredItems = items.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
-    if (filterStatus   !== 'all' && item.status !== filterStatus)                 return false
+    // ADD-9: '취소' 필터 = 항목 취소 + 고객 비활성/삭제 건 포함
+    const isCancelledLike = item.status === 'cancelled' || item.customers?.is_active === false
+    if (filterStatus === 'cancelled') {
+      if (!isCancelledLike) return false
+    } else if (filterStatus !== 'all') {
+      if (item.status !== filterStatus || item.customers?.is_active === false) return false
+    }
     if (filterPlanType !== 'all' && (item.plan_type ?? 'monthly') !== filterPlanType) return false
     return true
   })
@@ -487,7 +493,7 @@ function CalendarView({
                         itemOverdue ? 'bg-red-100 text-red-600 border border-red-200' : STATUS_STYLE[item.status]
                       }`}
                     >
-                      <div className="truncate font-medium flex items-center gap-0.5">
+                      <div className={`truncate font-medium flex items-center gap-0.5 ${item.customers?.is_active === false ? 'line-through opacity-60' : ''}`}>
                         {itemOverdue && <AlertCircle className="size-2.5 shrink-0" />}
                         {(item.customers as { customer_name: string } | null)?.customer_name ?? '—'}
                       </div>
@@ -855,8 +861,11 @@ function ListView({
                     holidays={holidays}
                   />
                 </td>
-                <td className="px-3 py-2.5 font-medium text-[#090c1d] truncate">
+                <td className={`px-3 py-2.5 font-medium truncate ${item.customers?.is_active === false ? 'text-gray-400 line-through' : 'text-[#090c1d]'}`}>
                   {(item.customers as { customer_name: string } | null)?.customer_name ?? '—'}
+                  {item.customers?.is_active === false && (
+                    <span className="ml-1.5 text-[9px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500 inline-block align-middle">비활성/삭제</span>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 text-[#514b81] whitespace-nowrap">
                   {approvalLabel ?? <span className="text-[#b0acd6]">—</span>}

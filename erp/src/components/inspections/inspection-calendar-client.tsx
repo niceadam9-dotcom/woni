@@ -29,6 +29,7 @@ export type CalendarInspection = {
   customer_id: string
   customer_name: string
   customer_code: string
+  customer_inactive?: boolean
   inspection_type: InspectionType
   year: number
   sequence_num: 1 | 2
@@ -55,6 +56,7 @@ type CalEventResource = {
   isOverdue: boolean
   isReceiveStep: boolean
   color: string
+  customerInactive?: boolean
 }
 
 type CalEvent = {
@@ -258,6 +260,7 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
               isOverdue,
               isReceiveStep: false,
               color: uc.bg,
+              customerInactive: (insp as { customer_inactive?: boolean }).customer_inactive === true,
             } satisfies CalEventResource,
           }]
         })
@@ -556,6 +559,19 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
               const r = e.resource
               const isDone = r.stepStatus === 'completed'
               const isOverdue = r.isOverdue
+              // ADD-11: 비활성/삭제 고객 건은 완료처럼 회색 취소선
+              if (r.customerInactive) {
+                return {
+                  style: {
+                    backgroundColor: '#e5e7eb',
+                    color: '#9ca3af',
+                    border: 'none',
+                    opacity: 0.8,
+                    textDecoration: 'line-through',
+                    fontWeight: 'normal',
+                  },
+                }
+              }
               return {
                 style: {
                   backgroundColor: r.color,

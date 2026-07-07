@@ -33,6 +33,7 @@ type MonitorRow = {
     customer_name: string
     customer_code: string
     address: string | null
+    is_active?: boolean
     customer_contacts: ContactInfo[]
   } | null
   contacts: ContactInfo | null
@@ -425,7 +426,13 @@ export function MonitorClient({
         const name = (r.customers?.customer_name ?? '').toLowerCase()
         if (!name.includes(nameFilter.toLowerCase())) return false
       }
-      if (statusFilter !== 'all' && r.status !== statusFilter) return false
+      // ADD-12: '취소(비활성/삭제)' = plan_item 취소 또는 고객 비활성
+      const isCancelled = r.status === 'cancelled' || r.customers?.is_active === false
+      if (statusFilter === 'cancelled') {
+        if (!isCancelled) return false
+      } else if (statusFilter !== 'all') {
+        if (r.status !== statusFilter || isCancelled) return false
+      }
       // yearMonth 필터
       if (yearMonth) {
         const [y, m] = yearMonth.split('-').map(Number)
@@ -558,6 +565,7 @@ export function MonitorClient({
           <option value="planned">계획</option>
           <option value="confirmed">확정</option>
           <option value="completed">완료</option>
+          <option value="cancelled">취소 (비활성/삭제)</option>
         </select>
 
         <span className="ml-auto text-xs text-gray-400">{loadingRows ? '조회 중…' : `${filtered.length}건`}</span>
@@ -627,7 +635,12 @@ export function MonitorClient({
                     {row.inspection_plans ? `${row.inspection_plans.year}.${String(row.inspection_plans.month).padStart(2, '0')}` : ''}
                   </td>
                   <td className="border px-2 py-1.5">
-                    <div className="font-medium">{row.customers?.customer_name}</div>
+                    <div className={`font-medium ${row.customers?.is_active === false ? 'text-gray-400 line-through' : ''}`}>
+                      {row.customers?.customer_name}
+                      {row.customers?.is_active === false && (
+                        <span className="ml-1 text-[9px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500 inline-block align-middle">비활성/삭제</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {row.customers?.address && (
                         <button

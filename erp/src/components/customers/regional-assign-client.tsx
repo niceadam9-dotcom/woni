@@ -35,6 +35,8 @@ export function RegionalAssignClient({ customers, employees }: Props) {
   const [selectedRi, setSelectedRi] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  // ADD-13: 배정 상태 필터 (전체/미배정/배정)
+  const [assignFilter, setAssignFilter] = useState<'all' | 'unassigned' | 'assigned'>('all')
 
   // 시/군/구 목록 (distinct)
   const siOptions = useMemo(() => [
@@ -74,9 +76,12 @@ export function RegionalAssignClient({ customers, employees }: Props) {
       if (c.region_si !== selectedSi) return false
       if (selectedMyeon && c.region_myeon !== selectedMyeon) return false
       if (selectedRi && c.region_ri !== selectedRi) return false
+      // ADD-13: 배정 상태 필터
+      if (assignFilter === 'unassigned' && c.assigned_employee_id) return false
+      if (assignFilter === 'assigned' && !c.assigned_employee_id) return false
       return true
     })
-  }, [customers, selectedSi, selectedMyeon, selectedRi])
+  }, [customers, selectedSi, selectedMyeon, selectedRi, assignFilter])
 
   function handleSiChange(val: string) {
     setSelectedSi(val)
@@ -178,6 +183,20 @@ export function RegionalAssignClient({ customers, employees }: Props) {
             >
               <option value="">전체</option>
               {riOptions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          {/* ADD-13: 배정 상태 필터 */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[#514b81]">배정 상태</label>
+            <select
+              value={assignFilter}
+              onChange={e => { setAssignFilter(e.target.value as 'all' | 'unassigned' | 'assigned'); setCheckedIds(new Set()) }}
+              className={inputCls}
+            >
+              <option value="all">전체</option>
+              <option value="unassigned">미배정</option>
+              <option value="assigned">배정</option>
             </select>
           </div>
 

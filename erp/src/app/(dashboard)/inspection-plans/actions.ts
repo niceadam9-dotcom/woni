@@ -690,7 +690,7 @@ export async function getInspectionPlanWithItems(year: number, month: number) {
     .from('inspection_plan_items')
     .select(`
       *,
-      customers:customer_id ( customer_name, customer_code ),
+      customers:customer_id ( customer_name, customer_code, is_active ),
       profiles:assigned_employee_id ( name )
     `)
     .eq('plan_id', (plan as { id: string }).id)

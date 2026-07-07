@@ -149,14 +149,14 @@ export async function getMonitorItemsAction(filters: {
     .select(`
       id, plan_id, customer_id, inspection_type, sequence_num,
       scheduled_date, assigned_employee_id, status,
-      customers:customer_id ( customer_name, customer_code, address, customer_contacts ( role, name, phone ) ),
+      customers:customer_id ( customer_name, customer_code, address, is_active, customer_contacts ( role, name, phone ) ),
       contacts:customer_contacts!contact_id ( role, name, phone ),
       profiles:assigned_employee_id ( name ),
       inspection_plans:plan_id ( year, month ),
       inspection_status_log ( inspection_date, report_submitted_at, sent_at, filed_at, step5_completed_at, step6_completed_at, sms_confirmed, sms_sent_at, sms_content )
     `)
-    .neq('status', 'cancelled')
-    .order('scheduled_date', { ascending: true, nullsFirst: false })
+    // ADD-12: 취소/비활성 건 포함 조회 — 클라이언트 필터에서 구분. ADD-14: 최신 등록 최상위
+    .order('created_at', { ascending: false })
 
   if (planIds !== null) {
     if (planIds.length === 0) return { items: [] }
@@ -165,7 +165,8 @@ export async function getMonitorItemsAction(filters: {
   if (filters.employeeId) {
     query = query.eq('assigned_employee_id', filters.employeeId) as typeof query
   }
-  if (filters.status && filters.status !== 'all') {
+  // 'cancelled'는 고객 비활성 포함 개념이므로 클라이언트 필터에서 처리
+  if (filters.status && filters.status !== 'all' && filters.status !== 'cancelled') {
     query = query.eq('status', filters.status) as typeof query
   }
 

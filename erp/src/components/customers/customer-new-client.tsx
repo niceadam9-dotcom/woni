@@ -2,10 +2,10 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, Wand2, X, Building2 } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, type ContactInput } from '@/app/(dashboard)/customers/actions'
+import Link from 'next/link'
+import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, AlertTriangle } from 'lucide-react'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, type ContactInput } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
-import { extractRegionFromAddress } from '@/lib/address-parser'
 import type { InspectionType } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
@@ -37,6 +37,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   const [isGenerating, setIsGenerating] = useState(false)
   const openPostcode = useDaumPostcode()
   const customerNameRef = useRef<HTMLInputElement>(null)
+  // ADD-2: 주소 중복 등록 감지 팝업
+  const [dupInfo, setDupInfo] = useState<{ id: string; customer_name: string; inspection_type: string; employee_name: string | null } | null>(null)
+  // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
+  const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
 
   const [form, setForm] = useState({
     customer_code: '',
@@ -98,6 +102,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   function handleAddressSearch() {
     openPostcode(data => {
       setAddrJibun(data.jibunAddress)
+      // ADD-1: 지역 필드는 UI에서 제거됐지만 지역배정/필터/검색이 사용하므로 백그라운드 자동 저장 유지
       setForm(prev => ({
         ...prev,
         zipcode: data.zonecode,
@@ -119,6 +124,22 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           customerNameRef.current?.focus()   // 빈 칸 자동 포커스 → 바로 타이핑
         }, 50)
       }
+
+      // ADD-2/ADD-4: 중복 고객 확인 + 기존 건물정보 자동 로드
+      checkAddressAction(data.roadAddress).then(res => {
+        if (res.duplicate) setDupInfo(res.duplicate)
+        if (res.building) {
+          const b = res.building
+          setForm(prev => ({
+            ...prev,
+            building_purpose:      prev.building_purpose      || (b.purpose ?? ''),
+            building_total_area:   prev.building_total_area   || (b.total_area != null ? String(b.total_area) : ''),
+            building_floors_above: prev.building_floors_above || (b.floors_above != null ? String(b.floors_above) : ''),
+            building_floors_below: prev.building_floors_below || (b.floors_below != null ? String(b.floors_below) : ''),
+            building_year_built:   prev.building_year_built   || (b.year_built != null ? String(b.year_built) : ''),
+          }))
+        }
+      }).catch(() => null)
     })
   }
 
@@ -225,29 +246,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className={labelCls}>시/군/구 · 읍/면/동 · 리/동</label>
-              {form.address && !form.region_si && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const extracted = extractRegionFromAddress(form.address)
-                    if (extracted.region_si) setForm(prev => ({ ...prev, ...extracted }))
-                  }}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-[11px] font-medium transition-colors border border-[#d0ccf5]"
-                >
-                  <Wand2 className="size-3" />
-                  주소에서 추출
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <input value={form.region_si}    onChange={e => setField('region_si', e.target.value)}    placeholder="예: 양평군" className={inputCls} />
-              <input value={form.region_myeon} onChange={e => setField('region_myeon', e.target.value)} placeholder="예: 양평읍" className={inputCls} />
-              <input value={form.region_ri}    onChange={e => setField('region_ri', e.target.value)}    placeholder="예: 시민로" className={inputCls} />
-            </div>
-          </div>
+          {/* ADD-1: 지역 입력 UI 제거 — 주소검색 시 region_si/myeon/ri는 백그라운드 자동 저장 (지역배정·필터·검색에서 사용) */}
         </div>
 
         {/* ② 고객명(건물명) — 고객코드는 내부 자동생성(V9 §6: UI 미노출) */}
@@ -380,19 +379,47 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         <div className="flex items-center gap-2">
           <Users className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">관계인 정보</h2>
-          <span className="text-xs text-[#514b81]">(선택, 최대 3명)</span>
+          <span className="text-xs text-[#514b81]">(대표 필수)</span>
+          {/* ADD-3: 대표만 기본 표시 — 필요 시 [추가]로 최대 2명 더 */}
+          {visibleContactRoles.length < 3 && (
+            <button
+              type="button"
+              onClick={() => setVisibleContactRoles(prev =>
+                prev.length === 1 ? [...prev, '직원1'] : [...prev, '직원2']
+              )}
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5]"
+            >
+              <Plus className="size-3" />
+              관계인 추가
+            </button>
+          )}
         </div>
 
-        {(['대표', '직원1', '직원2'] as const).map(role => {
-          const roleLabel = role === '직원1' ? '담당자' : role
+        {visibleContactRoles.map(role => {
+          const roleLabel = role === '대표' ? '대표' : '추가 관계인'
           return (
           <div key={role} className="space-y-3">
-            <label
-              htmlFor={`contact-${role}-name`}
-              className="text-xs font-semibold text-[#514b81] border-b border-[#c8c4d0] pb-1.5 flex cursor-pointer hover:text-[#7b68ee] transition-colors"
-            >
-              {roleLabel}
-            </label>
+            <div className="flex items-center justify-between border-b border-[#c8c4d0] pb-1.5">
+              <label
+                htmlFor={`contact-${role}-name`}
+                className="text-xs font-semibold text-[#514b81] cursor-pointer hover:text-[#7b68ee] transition-colors"
+              >
+                {roleLabel}
+              </label>
+              {role !== '대표' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
+                    setVisibleContactRoles(prev => prev.filter(r => r !== role))
+                  }}
+                  className="text-[#b0acd6] hover:text-red-500 transition-colors"
+                  title="관계인 제거"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <Field label="이름">
                 <input
@@ -513,6 +540,44 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           {isPending ? <Loader2 className="size-4 animate-spin" /> : '고객 등록'}
         </button>
       </div>
+
+      {/* ADD-2: 주소 중복 등록 안내 팝업 — 확인 후 등록 진행 가능 */}
+      {dupInfo && (
+        <div
+          className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setDupInfo(null)}
+        >
+          <div
+            className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-sm p-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="size-4 text-amber-500" />
+              <h3 className="text-sm font-bold text-[#090c1d]">이미 등록된 주소입니다</h3>
+            </div>
+            <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1 text-sm">
+              <p className="font-medium text-[#090c1d]">{dupInfo.customer_name}</p>
+              <p className="text-xs text-[#514b81]">점검유형: {dupInfo.inspection_type} · 담당: {dupInfo.employee_name ?? '미배정'}</p>
+            </div>
+            <p className="text-xs text-[#514b81] mt-3">같은 주소의 고객이 이미 있습니다. 기존 고객 정보를 확인하거나, 별도 고객이 맞으면 계속 등록할 수 있습니다.</p>
+            <div className="flex gap-2 mt-4">
+              <Link
+                href={`/customers/${dupInfo.id}`}
+                className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center"
+              >
+                기존 고객 보기
+              </Link>
+              <button
+                type="button"
+                onClick={() => setDupInfo(null)}
+                className="flex-1 h-9 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+              >
+                계속 등록
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }

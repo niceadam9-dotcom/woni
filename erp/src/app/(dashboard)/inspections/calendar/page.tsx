@@ -63,7 +63,7 @@ export default async function InspectionCalendarPage({
         .select('id, inspection_id, step_num, name_ko, due_date, status, completed_at')
         .in('inspection_id', inspIds)
         .order('step_num'),
-      admin.from('customers').select('id, customer_name, customer_code').in('id', custIds),
+      admin.from('customers').select('id, customer_name, customer_code, is_active').in('id', custIds),
     ])
 
     type StepRow = {
@@ -78,7 +78,7 @@ export default async function InspectionCalendarPage({
     }
 
     const customerMap = new Map(
-      ((customersRes.data ?? []) as Array<{ id: string; customer_name: string; customer_code: string }>)
+      ((customersRes.data ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean }>)
         .map(c => [c.id, c])
     )
 
@@ -97,6 +97,7 @@ export default async function InspectionCalendarPage({
         status: insp.status as InspectionStatus,
         assigned_employee_id: insp.assigned_employee_id,
         assigned_employee_name: emp?.name ?? '미배정',
+        customer_inactive: cust ? cust.is_active === false : false,
         steps: (stepsMap.get(insp.id) ?? []).map(s => ({
           id: s.id,
           step_num: s.step_num,

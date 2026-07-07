@@ -62,7 +62,7 @@ export default async function InspectionPlansPage({
   const [currentItemsRes, yearPlanItemsRes] = await Promise.all([
     currentPlan
       ? admin.from('inspection_plan_items')
-          .select(`*, customers:customer_id (customer_name, customer_code), profiles:assigned_employee_id (name)`)
+          .select(`*, customers:customer_id (customer_name, customer_code, is_active), profiles:assigned_employee_id (name)`)
           .eq('plan_id', currentPlan.id)
           .order('scheduled_date', { ascending: true, nullsFirst: false })
       : Promise.resolve({ data: [] }),

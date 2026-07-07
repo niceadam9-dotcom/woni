@@ -107,13 +107,14 @@ export async function createCustomerAction(
     )
   }
 
+  let assignedEmpName: string | null = null
   if (input.assigned_employee_id) {
     const { data: empRaw } = await admin
       .from('profiles')
       .select('name')
       .eq('id', input.assigned_employee_id)
       .single()
-    const empName = (empRaw as { name: string } | null)?.name ?? '담당자'
+    assignedEmpName = (empRaw as { name: string } | null)?.name ?? '담당자'
 
     await admin.from('notifications').insert({
       recipient_id: input.assigned_employee_id,
@@ -123,14 +124,7 @@ export async function createCustomerAction(
       reference_id: customerId,
       reference_type: 'inspection',
     } as Record<string, unknown>)
-
-    await admin.from('activity_logs').insert({
-      actor_id: profile.id,
-      action: 'customer_employee_assigned',
-      entity_type: 'customer',
-      entity_id: customerId,
-      metadata: { employee_id: input.assigned_employee_id, employee_name: empName },
-    } as Record<string, unknown>)
+    // ADD-6: 등록 시점의 담당자 배정은 별도 이력을 남기지 않음 (등록 이력에 포함) — 등록 시 이력 2건 중복 방지
   }
 
   await admin.from('activity_logs').insert({
@@ -138,7 +132,11 @@ export async function createCustomerAction(
     action: 'customer_created',
     entity_type: 'customer',
     entity_id: customerId,
-    metadata: { customer_code: input.customer_code, customer_name: input.customer_name },
+    metadata: {
+      customer_code: input.customer_code,
+      customer_name: input.customer_name,
+      ...(assignedEmpName ? { employee_name: assignedEmpName } : {}),
+    },
   } as Record<string, unknown>)
 
   // buildings 테이블에 자동 생성 (V9-3: 건물 기본정보 포함)
@@ -324,14 +322,16 @@ export async function assignEmployeeAction(
     .eq('id', customerId)
   if (error) return { error: '담당자 변경에 실패했습니다.' }
 
-  if (employeeId) {
-    const { data: empRaw } = await admin
-      .from('profiles')
-      .select('name')
-      .eq('id', employeeId)
-      .single()
-    const empName = (empRaw as { name: string } | null)?.name ?? '담당자'
+  // ADD-5: 변경 전/후 담당자 이름으로 changes 형식 이력 기록 (상세 점검이력에 내용 표시)
+  const prevEmpId = customer.assigned_employee_id
+  async function empNameOf(id: string | null): Promise<string | null> {
+    if (!id) return null
+    const { data } = await admin.from('profiles').select('name').eq('id', id).single()
+    return (data as { name: string } | null)?.name ?? null
+  }
+  const [oldName, newName] = await Promise.all([empNameOf(prevEmpId), empNameOf(employeeId)])
 
+  if (employeeId) {
     await admin.from('notifications').insert({
       recipient_id: employeeId,
       title: '고객 담당자 배정',
@@ -340,22 +340,17 @@ export async function assignEmployeeAction(
       reference_id: customerId,
       reference_type: 'inspection',
     } as Record<string, unknown>)
-
-    await admin.from('activity_logs').insert({
-      actor_id: profile.id,
-      action: 'customer_employee_assigned',
-      entity_type: 'customer',
-      entity_id: customerId,
-      metadata: { employee_id: employeeId, employee_name: empName },
-    } as Record<string, unknown>)
-  } else {
-    await admin.from('activity_logs').insert({
-      actor_id: profile.id,
-      action: 'customer_employee_unassigned',
-      entity_type: 'customer',
-      entity_id: customerId,
-    } as Record<string, unknown>)
   }
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'customer_field_changed',
+    entity_type: 'customer',
+    entity_id: customerId,
+    metadata: {
+      changes: [{ field: 'assigned_employee_id', field_label: '담당직원', old_value: oldName, new_value: newName }],
+    },
+  } as Record<string, unknown>)
 
   await _syncEmployeeToRelated(admin, customerId, employeeId)
 
@@ -606,17 +601,30 @@ export async function bulkAssignEmployeeAction(
       })) as Record<string, unknown>[]
     )
 
-    await admin.from('activity_logs').insert({
-      actor_id: profile.id,
-      action: 'customer_bulk_employee_assigned',
-      entity_type: 'customer',
-      entity_id: null,
-      metadata: { customer_ids: customerIds, employee_id: employeeId, employee_name: empName, count: customerIds.length },
-    } as Record<string, unknown>)
+    // ADD-5: 고객별 개별 이력 기록 (entity_id=고객ID — 고객 상세 점검이력에 표시되도록)
+    await admin.from('activity_logs').insert(
+      customerIds.map(cid => ({
+        actor_id: profile.id,
+        action: 'customer_field_changed',
+        entity_type: 'customer',
+        entity_id: cid,
+        metadata: {
+          changes: [{ field: 'assigned_employee_id', field_label: '담당직원', old_value: null, new_value: empName }],
+          source: '지역별 일괄 배정',
+        },
+      })) as Record<string, unknown>[]
+    )
+  }
+
+  // ADD-5/V9-20: 담당자 변경 전파 — 미완료 계획/진행중 점검에 동기화
+  for (const cid of customerIds) {
+    await _syncEmployeeToRelated(admin, cid, employeeId)
   }
 
   revalidatePath('/customers')
   revalidatePath('/customers/regional-assign')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections')
   return { updatedCount: count ?? customerIds.length }
 }
 
@@ -810,6 +818,46 @@ export async function registerGeneralInspectionAction(input: {
   revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return {}
+}
+
+/** ADD-2/ADD-4: 주소 선택 시 중복 고객 확인 + 기존 건물정보 자동 로드 */
+export async function checkAddressAction(address: string): Promise<{
+  duplicate?: { id: string; customer_name: string; inspection_type: string; employee_name: string | null }
+  building?: { purpose: string | null; total_area: number | null; floors_above: number | null; floors_below: number | null; year_built: number | null }
+}> {
+  const addr = address.trim()
+  if (!addr) return {}
+  const admin = createAdminClient()
+
+  const [custRes, bldRes] = await Promise.all([
+    admin.from('customers')
+      .select('id, customer_name, inspection_type, assigned_employee_id, profiles:assigned_employee_id(name)')
+      .eq('address', addr).eq('is_active', true).limit(1).maybeSingle(),
+    admin.from('buildings')
+      .select('purpose, total_area, floors_above, floors_below, year_built')
+      .eq('address', addr).eq('is_active', true).limit(1).maybeSingle(),
+  ])
+
+  const cust = custRes.data as {
+    id: string; customer_name: string; inspection_type: string
+    profiles: { name: string } | null
+  } | null
+  const bld = bldRes.data as {
+    purpose: string | null; total_area: number | null
+    floors_above: number | null; floors_below: number | null; year_built: number | null
+  } | null
+
+  return {
+    ...(cust ? {
+      duplicate: {
+        id: cust.id,
+        customer_name: cust.customer_name,
+        inspection_type: cust.inspection_type,
+        employee_name: cust.profiles?.name ?? null,
+      },
+    } : {}),
+    ...(bld ? { building: bld } : {}),
+  }
 }
 
 /** 통합검색 자동완성 제안 (건물명/주소/담당자) */

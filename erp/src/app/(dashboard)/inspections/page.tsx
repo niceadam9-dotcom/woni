@@ -51,9 +51,11 @@ export default async function InspectionsPage({
   const isEmployee = (profile.role as UserRole) === 'employee'
 
   // 검색 쿼리 구성 — 필터는 DB에서, 페이지 단위로만 가져옴
+  // ADD-15: '취소(비활성/삭제)' 필터는 고객 is_active 기준 → inner join 필요
+  const custJoin = statusFilter === 'cancelled' ? 'customers:customer_id!inner' : 'customers:customer_id'
   let query = admin.from('inspections').select(
     `id, year, sequence_num, inspection_type, inspection_start_date, status, assigned_employee_id, customer_id,
-     customers:customer_id (id, customer_name, customer_code)`,
+     ${custJoin} (id, customer_name, customer_code, is_active)`,
     { count: 'exact' }
   )
   // employee 역할: 본인 담당 점검만 조회
@@ -63,10 +65,18 @@ export default async function InspectionsPage({
     if (employeeFilter) query = query.eq('assigned_employee_id', employeeFilter) as typeof query
   }
   if (yearFilter) query = query.eq('year', parseInt(yearFilter)) as typeof query
-  if (statusFilter) query = query.eq('status', statusFilter) as typeof query
+  // ADD-15: 비완료/완료/취소(비활성·삭제) 구분 필터
+  if (statusFilter === 'incomplete') {
+    query = query.in('status', ['scheduled', 'in_progress', 'overdue']) as typeof query
+  } else if (statusFilter === 'cancelled') {
+    query = query.eq('customers.is_active', false) as typeof query
+  } else if (statusFilter) {
+    query = query.eq('status', statusFilter) as typeof query
+  }
 
   const [inspRes, profilesRes] = await Promise.all([
-    query.order('year', { ascending: false }).order('inspection_start_date', { ascending: false }).range(from, to),
+    // ADD-14: 최신 등록 건 최상위
+    query.order('created_at', { ascending: false }).range(from, to),
     // employee 역할: 본인 프로필만 조회 (담당자 표시용)
     isEmployee
       ? admin.from('profiles').select('id, name, position').eq('id', profile.id)
@@ -77,7 +87,7 @@ export default async function InspectionsPage({
     id: string; year: number; sequence_num: number; inspection_type: InspectionType
     inspection_start_date: string; status: InspectionStatus
     assigned_employee_id: string; customer_id: string
-    customers: { id: string; customer_name: string; customer_code: string } | null
+    customers: { id: string; customer_name: string; customer_code: string; is_active: boolean } | null
   }
 
   const inspections = (inspRes.data ?? []) as unknown as InspRow[]
@@ -153,9 +163,11 @@ export default async function InspectionsPage({
           className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
         >
           <option value="">전체 상태</option>
+          <option value="incomplete">비완료 (예정·진행중)</option>
+          <option value="completed">완료</option>
+          <option value="cancelled">취소 (비활성/삭제)</option>
           <option value="scheduled">예정</option>
           <option value="in_progress">진행중</option>
-          <option value="completed">완료</option>
           <option value="overdue">기한초과</option>
         </select>
         {!isEmployee && (
@@ -224,7 +236,12 @@ export default async function InspectionsPage({
                   return (
                     <tr key={insp.id} className="hover:bg-[#f8f9fa] transition-colors">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-[#090c1d]">{customer?.customer_name ?? '—'}</p>
+                        <p className={`font-medium ${customer && !customer.is_active ? 'text-gray-400 line-through' : 'text-[#090c1d]'}`}>
+                          {customer?.customer_name ?? '—'}
+                          {customer && !customer.is_active && (
+                            <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 no-underline inline-block align-middle">비활성/삭제</span>
+                          )}
+                        </p>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
