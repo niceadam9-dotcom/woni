@@ -1,6 +1,6 @@
 ﻿import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Users, Plus, Search } from 'lucide-react'
+import { Users, Plus, MapPin } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BulkExtractRegionsClient } from '@/components/customers/bulk-extract-regions-client'
@@ -8,6 +8,8 @@ import { RegionEditClient } from '@/components/customers/region-edit-client'
 import { CustomerRegionFilterClient } from '@/components/customers/customer-region-filter-client'
 import { ToggleActiveClient } from '@/components/customers/toggle-active-client'
 import { DeleteCustomerClient } from '@/components/customers/delete-customer-client'
+import { GeneralInspectionRegisterClient } from '@/components/customers/general-inspection-register-client'
+import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import type { InspectionType, UserRole } from '@/types'
 
@@ -70,7 +72,20 @@ export default async function CustomersPage({
     .select(selectCols, { count: 'exact' })
     .order('created_at', { ascending: false })
 
-  if (q) custQuery = custQuery.or(`customer_name.ilike.%${q}%,customer_code.ilike.%${q}%,address.ilike.%${q}%`)
+  // 통합 검색 (V10 §6 스마트 감지): 건물명·주소·읍면·리 + 담당자 이름 (고객코드는 UI 숨김 정책으로 제외)
+  if (q) {
+    const { data: matchedEmps } = await admin
+      .from('profiles').select('id').ilike('name', `%${q}%`)
+    const empIds = ((matchedEmps ?? []) as { id: string }[]).map(e => e.id)
+    const ors = [
+      `customer_name.ilike.%${q}%`,
+      `address.ilike.%${q}%`,
+      `region_myeon.ilike.%${q}%`,
+      `region_ri.ilike.%${q}%`,
+    ]
+    if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
+    custQuery = custQuery.or(ors.join(','))
+  }
   if (typeFilter) custQuery = custQuery.eq('inspection_type', typeFilter)
   if (activeFilter === 'active')   custQuery = custQuery.eq('is_active', true)
   if (activeFilter === 'inactive') custQuery = custQuery.eq('is_active', false)
@@ -142,15 +157,7 @@ export default async function CustomersPage({
 
       {/* 검색/필터 */}
       <form method="GET" action="/customers" className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="고객명·코드·주소 검색"
-            className="h-9 pl-8 pr-3 rounded-lg border border-[#d0ccf5] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
-          />
-        </div>
+        <CustomerSearchBox defaultValue={q} />
         <select
           name="type"
           defaultValue={typeFilter}
@@ -201,6 +208,44 @@ export default async function CustomersPage({
         )}
         <span className="text-xs text-[#514b81] ml-auto">총 {totalCount}개사</span>
       </form>
+
+      {/* 양평군 읍/면 빠른 선택 칩 (V10 §6) — 실제 등록 지역 기준 */}
+      {(() => {
+        const myeons = [...new Set(
+          regionData
+            .filter(r => r.region_si === '양평군' && r.region_myeon)
+            .map(r => r.region_myeon as string)
+        )].sort((a, b) => a.localeCompare(b, 'ko'))
+        if (myeons.length === 0) return null
+        return (
+          <div className="flex flex-wrap items-center gap-1.5 -mt-3">
+            <MapPin className="size-3.5 text-[#b0acd6]" />
+            <Link
+              href="/customers"
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                !regionMyeonFilter
+                  ? 'bg-[#7b68ee] text-white border-[#7b68ee] font-medium'
+                  : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee]'
+              }`}
+            >
+              전체
+            </Link>
+            {myeons.map(m => (
+              <Link
+                key={m}
+                href={`/customers?region_myeon=${encodeURIComponent(m)}`}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  regionMyeonFilter === m
+                    ? 'bg-[#7b68ee] text-white border-[#7b68ee] font-medium'
+                    : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee]'
+                }`}
+              >
+                {m}
+              </Link>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* 목록 테이블 */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
@@ -313,6 +358,14 @@ export default async function CustomersPage({
                         >
                           상세보기
                         </Link>
+                        {canCreate && c.inspection_type === '일반관리' && (
+                          <GeneralInspectionRegisterClient
+                            customerId={c.id}
+                            customerName={c.customer_name}
+                            employees={employees}
+                            defaultEmployeeId={c.assigned_employee_id}
+                          />
+                        )}
                         {canCreate && (
                           <DeleteCustomerClient customerId={c.id} customerName={c.customer_name} />
                         )}

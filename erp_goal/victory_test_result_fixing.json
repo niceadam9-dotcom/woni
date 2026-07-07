@@ -419,17 +419,19 @@
     "new_pending_items": [
       {
         "id": "NEW-1",
-        "status": "pending",
+        "status": "completed",
         "title": "고객 통합검색 고도화 미구현 — 담당자 이름 검색 / 자동완성 드롭다운 / 양평군 읍·면 빠른 칩",
         "detail": "V10 §6 설계 항목. 현재 검색은 customer_name/customer_code/address ilike만 지원(담당자 미지원), 자동완성·칩 UI 없음. 검색창 placeholder의 \"코드\" 문구도 코드 숨김 정책과 불일치",
         "files": [
           "erp/src/app/(dashboard)/customers/page.tsx"
         ],
-        "source": "R-B-5-담당자, R-B-6, R-B-8"
+        "source": "R-B-5-담당자, R-B-6, R-B-8",
+        "resolved_date": "2026-07-07",
+        "resolution": "구현 완료 — ① 서버 검색 확장: 담당자 이름/읍면/리 포함, 고객코드 검색 제거(숨김 정책) ② CustomerSearchBox 자동완성(건물명/주소/담당자 섹션+건수, 250ms 디바운스, 선택 시 즉시 검색) ③ 양평군 읍/면 빠른 칩(실등록 지역 기반 10개+전체, 활성 하이라이트). 전 항목 런타임 검증 (new_verify NEW1-a~f)"
       },
       {
         "id": "NEW-2",
-        "status": "pending",
+        "status": "completed",
         "title": "일반관리 [점검일 등록 +] UI 미구현 — 이벤트성 점검 수동 등록 불가",
         "detail": "V10 §6-C 설계: 고객관리 일반관리 탭 → 날짜/담당자 등록 → plan_item(event) 생성 → 달력 반영 → 완료 처리. 현재 일반관리 고객은 자동 생성도 없고(정상) 수동 등록 경로도 없어 점검 기록 자체가 불가",
         "files": [
@@ -437,8 +439,14 @@
           "erp/src/app/(dashboard)/customers/actions.ts",
           "신규 컴포넌트"
         ],
-        "source": "R-I-1, R-I-2"
+        "source": "R-I-1, R-I-2",
+        "resolved_date": "2026-07-07",
+        "resolution": "구현 완료 — registerGeneralInspectionAction(월계획 자동 확보 + plan_item event 생성 + 이력 기록) + GeneralInspectionRegisterClient(날짜/담당자/메모 팝업, 일반관리 행에만 노출). 등록→점검확정 달력뷰 표시→확정(scheduled 저장, 6단계 미생성 가드) 전 흐름 검증 (new2_verify, NEW2-a~d). 부가 발견: 점검달력 메뉴는 시작된 점검만 표시(CALENDAR-SCOPE, 기획 판단 필요)"
       }
+    ],
+    "notes": [
+      "CALENDAR-SCOPE: 점검 달력 메뉴는 inspections(시작된 점검)만 표시 — 계획/확정 plan_item은 점검확정 페이지 달력 뷰가 담당. V10 설계(계획 점선/확정 실선)와 화면 분담이 다름. 통합 여부 기획 결정 필요",
+      "일반관리 이벤트 확정 시 6단계 미생성 가드 추가 (confirmPlanItemStageOneAction)"
     ]
   }
 }

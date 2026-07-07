@@ -249,6 +249,27 @@ export async function confirmPlanItemStageOneAction(
   await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
+  // 일반관리(이벤트) 항목은 6단계 없이 확정일만 저장 (V10 §6-C)
+  const { data: itemInfoRaw } = await admin
+    .from('inspection_plan_items')
+    .select('plan_type, inspection_type, inspection_id')
+    .eq('id', planItemId)
+    .single()
+  const itemInfo = itemInfoRaw as { plan_type: string | null; inspection_type: string; inspection_id: string | null } | null
+  if (!itemInfo) return { error: '계획 항목을 찾을 수 없습니다.' }
+  const isEvent = itemInfo.plan_type === 'event' || itemInfo.inspection_type === '일반관리'
+  if (isEvent) {
+    const { error } = await admin
+      .from('inspection_plan_items')
+      .update({ scheduled_date: confirmedDate, status: 'confirmed' } as Record<string, unknown>)
+      .eq('id', planItemId)
+    if (error) return { error: error.message }
+    revalidatePath('/inspection-plans')
+    revalidatePath('/inspections')
+    revalidatePath('/customers')
+    return {}
+  }
+
   // 공휴일 조회 — 확정일 기준 ±7개월 범위
   const base  = new Date(confirmedDate)
   const rangeStart = new Date(base); rangeStart.setMonth(rangeStart.getMonth() - 1)
@@ -302,14 +323,8 @@ export async function confirmPlanItemStageOneAction(
   if (error) return { error: error.message }
 
   // 이미 점검이 시작된 항목이면 업무체크리스트(inspection_steps) 마감일도 재확정일 기준으로 갱신
-  const { data: linked } = await admin
-    .from('inspection_plan_items')
-    .select('inspection_id')
-    .eq('id', planItemId)
-    .single()
-  const inspectionId = (linked as { inspection_id: string | null } | null)?.inspection_id
-  if (inspectionId) {
-    await syncInspectionStepDates(admin, inspectionId, [step1, step2, step3, step4, step5, step6])
+  if (itemInfo.inspection_id) {
+    await syncInspectionStepDates(admin, itemInfo.inspection_id, [step1, step2, step3, step4, step5, step6])
   }
 
   revalidatePath('/inspection-plans')

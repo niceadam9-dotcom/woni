@@ -728,6 +728,124 @@ export async function deleteCustomerAction(
   return {}
 }
 
+/** 일반관리 고객 점검일 수동 등록 (V10 §6-C) — plan_item(event) 생성 → 점검달력 반영 */
+export async function registerGeneralInspectionAction(input: {
+  customerId: string
+  plannedDate: string          // YYYY-MM-DD
+  assignedEmployeeId?: string
+  memo?: string
+}): Promise<{ error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  const { data: custRaw } = await admin
+    .from('customers')
+    .select('inspection_type, customer_name')
+    .eq('id', input.customerId)
+    .single()
+  const cust = custRaw as { inspection_type: string; customer_name: string } | null
+  if (!cust) return { error: '고객을 찾을 수 없습니다.' }
+  if (cust.inspection_type !== '일반관리') {
+    return { error: '일반관리 고객만 점검일을 직접 등록할 수 있습니다. (소방안전관리는 사용승인일 기준 자동 생성)' }
+  }
+
+  const d = new Date(input.plannedDate)
+  if (isNaN(d.getTime())) return { error: '점검 예정일이 올바르지 않습니다.' }
+  const year = d.getFullYear()
+  const month = d.getMonth() + 1
+
+  // 해당 년/월 계획 헤더 확보 (없으면 생성 — UNIQUE(year,month) 충돌 시 기존 행 사용)
+  let planId: string | null = null
+  const { data: plan } = await admin
+    .from('inspection_plans')
+    .select('id')
+    .eq('year', year)
+    .eq('month', month)
+    .maybeSingle()
+  if (plan) {
+    planId = (plan as { id: string }).id
+  } else {
+    const { data: created, error: planErr } = await admin
+      .from('inspection_plans')
+      .insert({ year, month, status: 'draft', auto_generated: false, created_by: profile.id } as Record<string, unknown>)
+      .select('id')
+      .single()
+    if (planErr?.code === '23505') {
+      const { data: dup } = await admin
+        .from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
+      planId = (dup as { id: string } | null)?.id ?? null
+    } else if (created) {
+      planId = (created as { id: string }).id
+    }
+  }
+  if (!planId) return { error: '월간 계획 생성에 실패했습니다.' }
+
+  const { error } = await admin
+    .from('inspection_plan_items')
+    .insert({
+      plan_id: planId,
+      customer_id: input.customerId,
+      inspection_type: '일반관리',
+      inspection_category: '일반관리',
+      sequence_num: 1,
+      plan_type: 'event',
+      planned_date: input.plannedDate,
+      scheduled_date: null,
+      status: 'planned',
+      assigned_employee_id: input.assignedEmployeeId || null,
+      notes: input.memo?.trim() || null,
+    } as Record<string, unknown>)
+  if (error) return { error: `점검일 등록 실패: ${error.message}` }
+
+  // 점검이력 기록
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'general_inspection_registered',
+    entity_type: 'customer',
+    entity_id: input.customerId,
+    metadata: { planned_date: input.plannedDate, memo: input.memo ?? null },
+  } as Record<string, unknown>)
+
+  revalidatePath('/customers')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections/calendar')
+  return {}
+}
+
+/** 통합검색 자동완성 제안 (건물명/주소/담당자) */
+export async function searchSuggestionsAction(q: string): Promise<{
+  buildings: string[]
+  addresses: string[]
+  employees: { name: string; count: number }[]
+}> {
+  const empty = { buildings: [], addresses: [], employees: [] }
+  const query = q.trim()
+  if (query.length < 1) return empty
+  const admin = createAdminClient()
+
+  const [byName, byAddr, empRes] = await Promise.all([
+    admin.from('customers').select('customer_name').ilike('customer_name', `%${query}%`).eq('is_active', true).limit(5),
+    admin.from('customers').select('address').ilike('address', `%${query}%`).eq('is_active', true).limit(5),
+    admin.from('profiles').select('id, name').ilike('name', `%${query}%`).eq('is_active', true).limit(3),
+  ])
+
+  const employees: { name: string; count: number }[] = []
+  for (const e of (empRes.data ?? []) as { id: string; name: string }[]) {
+    const { count } = await admin
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .eq('assigned_employee_id', e.id)
+      .eq('is_active', true)
+    employees.push({ name: e.name, count: count ?? 0 })
+  }
+
+  return {
+    buildings: [...new Set(((byName.data ?? []) as { customer_name: string }[]).map(r => r.customer_name))],
+    addresses: [...new Set(((byAddr.data ?? []) as { address: string | null }[]).map(r => r.address).filter(Boolean) as string[])],
+    employees,
+  }
+}
+
 /** 고객 단일 필드 인라인 수정 */
 export async function patchCustomerFieldAction(
   customerId: string,

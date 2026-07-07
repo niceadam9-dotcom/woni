@@ -320,7 +320,7 @@ async function main() {
   const newTaskStatus = input.status;
 
   // ── [fix:FIX-1] / [fix:IMP-2] → victory_test_result_fixing.json ──
-  const fixMatch = subject.match(/^\[fix:((?:FIX|IMP)-\d+)\]/i);
+  const fixMatch = subject.match(/^\[fix:((?:FIX|IMP|NEW)-\d+)\]/i);
   if (fixMatch) {
     const itemId = fixMatch[1].toUpperCase();
     if (newTaskStatus === 'completed')   updateFixing(itemId, 'completed');
