@@ -105,7 +105,7 @@ export function InspectionPlansClient({
   useEffect(() => { setItems(initialItems as ItemView[]) }, [initialItems])
   useEffect(() => { setPlans(initialPlans) }, [initialPlans])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
-  const [filterStatus,   setFilterStatus]   = useState<string>('all')
+  const [filterStatus,   setFilterStatus]   = useState<string>('planned')
   const [filterPlanType, setFilterPlanType] = useState<string>('all')
 
   const [selectedItem, setSelectedItem]     = useState<ItemView | null>(null)
