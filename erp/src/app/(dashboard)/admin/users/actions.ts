@@ -102,6 +102,48 @@ export async function updateUserAction(
   return {}
 }
 
+/** 특정 직원이 담당한 활성 고객 수 (퇴사 인수인계 안내용) */
+export async function getEmployeeAssignmentCountAction(
+  employeeId: string
+): Promise<{ count: number }> {
+  await requirePermission('user_manage')
+  const admin = createAdminClient()
+  const { count } = await admin
+    .from('customers')
+    .select('id', { count: 'exact', head: true })
+    .eq('assigned_employee_id', employeeId)
+    .eq('is_active', true)
+  return { count: count ?? 0 }
+}
+
+/** 담당 인수인계 — fromEmployee의 모든 담당 고객을 toEmployee로 이관 (담당자 변경 전파·이력 포함) */
+export async function handoverAssignmentsAction(
+  fromEmployeeId: string,
+  toEmployeeId: string,
+): Promise<{ error?: string; movedCount?: number }> {
+  await requirePermission('user_manage')
+  if (fromEmployeeId === toEmployeeId) return { error: '같은 직원으로는 인수인계할 수 없습니다.' }
+  const admin = createAdminClient()
+
+  const { data: rows } = await admin
+    .from('customers')
+    .select('id')
+    .eq('assigned_employee_id', fromEmployeeId)
+    .eq('is_active', true)
+  const ids = ((rows ?? []) as { id: string }[]).map(r => r.id)
+  if (ids.length === 0) return { movedCount: 0 }
+
+  // 고객관리 액션 재사용 — 이력 기록 + 계획/점검 담당자 전파 포함
+  const { bulkAssignEmployeeAction } = await import('@/app/(dashboard)/customers/actions')
+  const res = await bulkAssignEmployeeAction(ids, toEmployeeId)
+  if (res.error) return { error: res.error }
+
+  revalidatePath('/admin/users')
+  revalidatePath('/customers')
+  revalidatePath('/customers/regional-assign')
+  return { movedCount: res.updatedCount ?? ids.length }
+}
+
 export async function resetPasswordAction(
   userId: string,
   newPassword: string

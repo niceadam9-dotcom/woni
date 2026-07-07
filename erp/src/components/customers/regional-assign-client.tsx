@@ -15,7 +15,7 @@ type Customer = {
   assigned_employee_id: string | null
 }
 
-type Employee = { id: string; name: string; position: string | null }
+type Employee = { id: string; name: string; position: string | null; is_active?: boolean }
 
 type Props = {
   customers: Customer[]
@@ -37,6 +37,8 @@ export function RegionalAssignClient({ customers, employees }: Props) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   // ADD-13: 배정 상태 필터 (전체/미배정/배정)
   const [assignFilter, setAssignFilter] = useState<'all' | 'unassigned' | 'assigned'>('all')
+  // 퇴사자 재배정: 현재 담당자 기준 필터 (선택 시 지역 무관 전체 담당 건 조회)
+  const [filterCurrentEmp, setFilterCurrentEmp] = useState('')
 
   // 시/군/구 목록 (distinct)
   const siOptions = useMemo(() => [
@@ -72,16 +74,30 @@ export function RegionalAssignClient({ customers, employees }: Props) {
   // 필터된 고객 목록
   const filtered = useMemo(() => {
     return customers.filter(c => {
-      if (!selectedSi) return false
-      if (c.region_si !== selectedSi) return false
-      if (selectedMyeon && c.region_myeon !== selectedMyeon) return false
-      if (selectedRi && c.region_ri !== selectedRi) return false
-      // ADD-13: 배정 상태 필터
-      if (assignFilter === 'unassigned' && c.assigned_employee_id) return false
-      if (assignFilter === 'assigned' && !c.assigned_employee_id) return false
+      // 현재 담당자 필터가 있으면 지역 무관 전체 담당 건 조회 (퇴사자 재배정 경로)
+      if (filterCurrentEmp) {
+        if (c.assigned_employee_id !== filterCurrentEmp) return false
+      } else {
+        if (!selectedSi) return false
+        if (c.region_si !== selectedSi) return false
+        if (selectedMyeon && c.region_myeon !== selectedMyeon) return false
+        if (selectedRi && c.region_ri !== selectedRi) return false
+      }
+      // ADD-13: 배정 상태 필터 (담당자 필터 사용 시엔 의미 없으므로 무시)
+      if (!filterCurrentEmp) {
+        if (assignFilter === 'unassigned' && c.assigned_employee_id) return false
+        if (assignFilter === 'assigned' && !c.assigned_employee_id) return false
+      }
       return true
     })
-  }, [customers, selectedSi, selectedMyeon, selectedRi, assignFilter])
+  }, [customers, selectedSi, selectedMyeon, selectedRi, assignFilter, filterCurrentEmp])
+
+  // 담당자별 담당 건수 (드롭다운 표시 + 퇴사자 식별용)
+  const empCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of customers) if (c.assigned_employee_id) m.set(c.assigned_employee_id, (m.get(c.assigned_employee_id) ?? 0) + 1)
+    return m
+  }, [customers])
 
   function handleSiChange(val: string) {
     setSelectedSi(val)
@@ -148,7 +164,27 @@ export function RegionalAssignClient({ customers, employees }: Props) {
           <h2 className="text-sm font-semibold text-[#090c1d]">지역 선택</h2>
         </div>
 
-        <div className="flex flex-wrap gap-3 items-end">
+        {/* 퇴사자 재배정: 현재 담당자로 조회 (지역 무관 전체 담당 건) */}
+        <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1.5">
+          <label className="text-xs font-medium text-[#514b81] flex items-center gap-1.5">
+            <Users className="size-3.5 text-[#7b68ee]" />
+            현재 담당자로 조회 <span className="text-[#b0acd6] font-normal">— 퇴사·인수인계 시 담당 건물 전체를 지역 무관하게 조회</span>
+          </label>
+          <select
+            value={filterCurrentEmp}
+            onChange={e => { setFilterCurrentEmp(e.target.value); setCheckedIds(new Set()); setMessage(null) }}
+            className={inputCls + ' min-w-[220px]'}
+          >
+            <option value="">(지역 기준 조회)</option>
+            {employees.filter(e => empCounts.get(e.id)).map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name}{e.position ? ` (${e.position})` : ''}{e.is_active === false ? ' [퇴사]' : ''} — {empCounts.get(e.id)}건
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-end" style={filterCurrentEmp ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>
           {/* 시/군/구 */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-[#514b81]">시/군/구 *</label>
@@ -207,9 +243,10 @@ export function RegionalAssignClient({ customers, employees }: Props) {
             <label className="text-xs font-medium text-[#514b81]">배정 직원 *</label>
             <div className="flex items-center gap-2">
               <UserCheck className="size-4 text-[#7b68ee]" />
+              {/* 후임(배정 대상)은 재직 중인 직원만 */}
               <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} className={inputCls + ' min-w-[160px]'}>
                 <option value="">직원 선택</option>
-                {employees.map(e => (
+                {employees.filter(e => e.is_active !== false).map(e => (
                   <option key={e.id} value={e.id}>
                     {e.name}{e.position ? ` (${e.position})` : ''}
                   </option>
@@ -236,10 +273,10 @@ export function RegionalAssignClient({ customers, employees }: Props) {
       </div>
 
       {/* 고객 목록 */}
-      {!selectedSi ? (
+      {!selectedSi && !filterCurrentEmp ? (
         <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center text-sm text-[#514b81]">
           <MapPin className="size-8 mx-auto mb-3 text-[#b0acd6]" />
-          시/군/구를 선택하면 해당 지역 고객 목록이 표시됩니다
+          시/군/구를 선택하거나 상단에서 현재 담당자를 선택하면 목록이 표시됩니다
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center text-sm text-[#514b81]">

@@ -25,7 +25,7 @@ export default async function RegionalAssignPage() {
     assigned_employee_id: string | null
   }
 
-  type EmployeeRow = { id: string; name: string; position: string | null }
+  type EmployeeRow = { id: string; name: string; position: string | null; is_active: boolean }
 
   // region 컬럼 존재 여부 확인 (018_region 마이그레이션 적용 여부)
   const { error: regionColErr } = await admin.from('customers').select('region_si').limit(1)
@@ -42,10 +42,10 @@ export default async function RegionalAssignPage() {
           .order('region_myeon')
           .order('customer_name')
       : Promise.resolve({ data: [] }),
+    // 퇴사자(비활성)도 '현재 담당자'로 조회되어야 하므로 전체 로드 (후임 배정 드롭다운은 클라이언트에서 활성만 필터)
     admin
       .from('profiles')
-      .select('id, name, position')
-      .eq('is_active', true)
+      .select('id, name, position, is_active')
       .order('name'),
   ])
 

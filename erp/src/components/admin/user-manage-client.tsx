@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Pencil, X, Loader2, KeyRound, CalendarDays } from 'lucide-react'
 import {
   createUserAction, updateUserAction, resetPasswordAction, setLeaveBalanceAction,
+  getEmployeeAssignmentCountAction, handoverAssignmentsAction,
   type CreateUserInput, type UpdateUserInput,
 } from '@/app/(dashboard)/admin/users/actions'
 
@@ -44,13 +45,17 @@ type UserModalProps = {
   mode: 'create' | 'edit'
   user?: User | null
   depts: Dept[]
+  successors?: User[]  // 인수인계 후보 (활성 직원)
   onClose: () => void
 }
 
-function UserModal({ mode, user, depts, onClose }: UserModalProps) {
+function UserModal({ mode, user, depts, successors = [], onClose }: UserModalProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
+  // 퇴사(비활성 전환) 인수인계 단계
+  const [handover, setHandover] = useState<{ count: number } | null>(null)
+  const [successorId, setSuccessorId] = useState('')
 
   const [form, setForm] = useState({
     email: user?.email ?? '',
@@ -86,12 +91,71 @@ function UserModal({ mode, user, depts, onClose }: UserModalProps) {
         result = await updateUserAction(user!.id, form as UpdateUserInput)
       }
       if (result.error) { setError(result.error); return }
+
+      // 퇴사(활성→비활성) 전환 시 담당 고객이 있으면 인수인계 단계로
+      if (mode === 'edit' && user && user.is_active && !form.is_active) {
+        const { count } = await getEmployeeAssignmentCountAction(user.id)
+        if (count > 0) { setHandover({ count }); return }  // 모달 유지, 인수인계 UI 표시
+      }
+      router.refresh()
+      onClose()
+    })
+  }
+
+  function handleHandover(skip: boolean) {
+    setError('')
+    startTransition(async () => {
+      if (!skip) {
+        if (!successorId) { setError('인수인계할 후임 직원을 선택해주세요.'); return }
+        const res = await handoverAssignmentsAction(user!.id, successorId)
+        if (res.error) { setError(res.error); return }
+      }
       router.refresh()
       onClose()
     })
   }
 
   const title = mode === 'create' ? '직원 추가' : '직원 정보 수정'
+
+  // 퇴사 인수인계 단계 화면
+  if (handover) {
+    return (
+      <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-md">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[#c8c4d0]">
+            <h2 className="text-base font-semibold text-[#090c1d]">담당 고객 인수인계</h2>
+            <button onClick={() => handleHandover(true)} className="text-[#514b81] hover:text-[#090c1d]"><X className="size-5" /></button>
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            <p className="text-sm text-[#514b81]">
+              <span className="font-semibold text-[#090c1d]">{user?.name}</span> 직원이 비활성(퇴사) 처리되었습니다.
+              현재 담당 중인 고객 <span className="font-semibold text-red-600">{handover.count}건</span>을 후임 직원에게 인수인계할 수 있습니다.
+            </p>
+            <Field label="후임 직원">
+              <select value={successorId} onChange={e => setSuccessorId(e.target.value)} className={inputCls}>
+                <option value="">직원 선택</option>
+                {successors.filter(s => s.id !== user?.id).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}{s.position ? ` (${s.position})` : ''}</option>
+                ))}
+              </select>
+            </Field>
+            <p className="text-xs text-[#b0acd6]">인수인계 시 월간계획·점검업무·점검이력의 담당자가 함께 변경됩니다.</p>
+            {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-[#c8c4d0]">
+            <button onClick={() => handleHandover(true)} disabled={isPending}
+              className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+              나중에 (건너뛰기)
+            </button>
+            <button onClick={() => handleHandover(false)} disabled={isPending}
+              className="flex-1 h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : `${handover.count}건 인수인계`}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -444,7 +508,7 @@ export function UserManageClient({
         <UserModal mode="create" depts={depts} onClose={() => setShowCreate(false)} />
       )}
       {editUser && (
-        <UserModal mode="edit" user={editUser} depts={depts} onClose={() => setEditUser(null)} />
+        <UserModal mode="edit" user={editUser} depts={depts} successors={users.filter(u => u.is_active)} onClose={() => setEditUser(null)} />
       )}
       {resetPwUser && (
         <ResetPasswordModal userId={resetPwUser} onClose={() => setResetPwUser(null)} />
