@@ -179,8 +179,9 @@ ALTER TABLE buildings
 - **UI 문구 범용화(방안 A)**: 화면 제목 "담당자 배정 · 재배정", 필터 라벨 "담당자별 조회 · 재배정 (담당자 교체·인수인계·퇴사 공통)"
 - **퇴사자 처리**: 지역별 배정의 담당자 드롭다운은 비활성 직원도 담당 건 있으면 `[퇴사]` 태그로 표시(전체 profiles 로드), 후임 배정 드롭다운은 **재직 중 직원만**
 - **주의**: [담당 이관] 버튼은 해당 직원 담당 **전체**를 넘김 — 일부만 옮기려면 지역별 배정 필터에서 선택 배정
-- **검증**: 지역 무관 조회, 일괄 재배정 2/2, 퇴사 시 인수인계 모달 표시, 재직 중 이관(계정 유지), 재배정 이력 기록 — 전부 PASS
-- **파일**: `regional-assign-client.tsx`(담당자 필터), `customers/regional-assign/page.tsx`(전체 profiles 로드·제목), `admin/users/actions.ts`(2개 신규 액션), `admin/user-manage-client.tsx`(HandoverModal + 상시 버튼 + 퇴사 시 자동 유도)
+- **버그 수정(2026-07-07)**: 담당자별 조회 선택 시 지역 필터를 `pointerEvents:none`으로 비활성화했는데, 그 영역에 **이관 대상(배정 직원) 드롭다운·배정 버튼까지 포함**되어 마우스로 후임 선택·배정이 불가하던 문제 발견·수정. 비활성 범위를 지역 필터 4개(시/군/구·읍면동·리동·배정상태)로 한정하고 이관 대상 드롭다운·버튼은 항상 활성. (원인: 자동 검증이 pointerEvents 우회 클릭으로 통과해 미검출 → 실제 마우스 클릭 재검증으로 확인)
+- **검증**: 지역 무관 조회, 일괄 재배정 2/2, 퇴사 시 인수인계 모달 표시, 재직 중 이관(계정 유지), 재배정 이력 기록, **담당자 선택 후 마우스로 이관 대상 선택→배정 2/2(force 없이)** — 전부 PASS. 예외 EX-H(빈 대상·미선택·자기이관·비활성 후임·동시성·전체 이관·잘못된 id) PASS 9/INFO 1
+- **파일**: `regional-assign-client.tsx`(담당자 필터 + pointerEvents 범위 수정), `customers/regional-assign/page.tsx`(전체 profiles 로드·제목), `admin/users/actions.ts`(2개 신규 액션), `admin/user-manage-client.tsx`(HandoverModal + 상시 버튼 + 퇴사 시 자동 유도)
 
 ---
 

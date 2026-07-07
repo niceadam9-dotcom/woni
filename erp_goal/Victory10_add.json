@@ -258,7 +258,7 @@
       "type": "신규",
       "status": "completed",
       "title": "담당자 재배정 · 인수인계 (퇴사·교체·지역재편 공통)",
-      "resolution": "방법1(지역별 배정에 담당자별 조회 필터 — 지역 무관 담당 건 조회 후 후임 배정) + 방법2(사용자관리 상시 [담당 이관] 버튼 + 퇴사(비활성) 시 자동 인수인계 모달). getEmployeeAssignmentCountAction/handoverAssignmentsAction 신규(bulkAssign 재사용 → 이력+계획/점검 전파). 문구 범용화(방안 A) + 상시 이관(방안 B). 퇴사자는 [퇴사] 태그로 표시, 후임은 재직자만. 검증: 지역무관 조회·일괄 재배정 2/2·퇴사 인수인계 모달·재직 중 이관(계정 유지)·이력 기록 전부 PASS",
+      "resolution": "방법1(지역별 배정에 담당자별 조회 필터 — 지역 무관 담당 건 조회 후 후임 배정) + 방법2(사용자관리 상시 [담당 이관] 버튼 + 퇴사(비활성) 시 자동 인수인계 모달). getEmployeeAssignmentCountAction/handoverAssignmentsAction 신규(bulkAssign 재사용 → 이력+계획/점검 전파). 문구 범용화(방안 A) + 상시 이관(방안 B). 퇴사자는 [퇴사] 태그로 표시, 후임은 재직자만. 검증: 지역무관 조회·일괄 재배정 2/2·퇴사 인수인계 모달·재직 중 이관(계정 유지)·이력 기록 전부 PASS [버그수정 2026-07-07: 담당자별 조회 시 pointerEvents:none가 이관 대상 드롭다운·배정 버튼까지 비활성화하던 문제 → 비활성 범위를 지역 필터로 한정, 이관 대상은 항상 활성. 마우스 클릭 재검증 PASS. 예외 EX-H PASS 9/INFO 1]",
       "files": [
         "erp/src/components/customers/regional-assign-client.tsx",
         "erp/src/app/(dashboard)/customers/regional-assign/page.tsx",
