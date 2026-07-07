@@ -68,9 +68,9 @@ export default async function InspectionPlansPage({
       : Promise.resolve({ data: [] }),
     yearPlanIds.length > 0
       ? admin.from('inspection_plan_items')
+          // 취소 항목도 '계획이 이미 존재(처리됨)'로 간주 — 미점검 초과 재판정 방지 (ADD-20)
           .select('customer_id, sequence_num, plan_id')
           .in('plan_id', yearPlanIds)
-          .neq('status', 'cancelled')
       : Promise.resolve({ data: [] }),
   ])
 
