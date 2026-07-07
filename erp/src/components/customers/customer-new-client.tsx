@@ -156,6 +156,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           }
           const L = res.info
           ledgerRef.current = L
+          // 건물 물리정보(용도/연면적/층수/준공연도)만 자동 채움.
+          // ★ 사용승인일은 6단계 점검계획의 기산점이라 자동 입력하지 않음 — 사용자가 직접 판단해 입력 (참고값은 안내로만 표시)
           setForm(prev => ({
             ...prev,
             building_purpose:      prev.building_purpose      || (L.purpose ?? ''),
@@ -163,9 +165,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             building_floors_above: prev.building_floors_above || (L.floors_above != null ? String(L.floors_above) : ''),
             building_floors_below: prev.building_floors_below || (L.floors_below != null ? String(L.floors_below) : ''),
             building_year_built:   prev.building_year_built   || (L.use_approval_date ? L.use_approval_date.slice(0, 4) : ''),
-            use_approval_date:     prev.use_approval_date     || (L.use_approval_date ?? ''),
           }))
           const extras = [
+            L.use_approval_date && `대장상 사용승인일 ${L.use_approval_date}(참고)`,
             L.height != null && `높이 ${L.height}m`,
             L.main_structure && `구조 ${L.main_structure}`,
             L.elevator_count != null && `승강기 ${L.elevator_count}대`,
@@ -355,6 +357,15 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
               onChange={e => setField('use_approval_date', e.target.value)}
               className={inputCls}
             />
+            {ledgerRef.current?.use_approval_date && !form.use_approval_date && (
+              <button
+                type="button"
+                onClick={() => setField('use_approval_date', ledgerRef.current!.use_approval_date!)}
+                className="mt-1 text-[11px] text-[#7b68ee] hover:underline"
+              >
+                건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
+              </button>
+            )}
           </Field>
         </div>
 
