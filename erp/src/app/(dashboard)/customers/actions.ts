@@ -51,6 +51,22 @@ export type CreateCustomerInput = {
   building_seismic_design?: string
 }
 
+/** 건물 숫자 필드 유효성 (IMP-10) — 음수·비상식 값 차단. 문제 시 에러 문구, 정상 시 null */
+function validateBuildingNumbers(
+  b: { total_area?: number; floors_above?: number; floors_below?: number; year_built?: number },
+  nowYear: number,
+): string | null {
+  if (b.total_area != null && (isNaN(b.total_area) || b.total_area < 0))
+    return '연면적은 0 이상의 숫자여야 합니다.'
+  if (b.floors_above != null && (isNaN(b.floors_above) || b.floors_above < 0 || b.floors_above > 200))
+    return '지상층수는 0~200 사이여야 합니다.'
+  if (b.floors_below != null && (isNaN(b.floors_below) || b.floors_below < 0 || b.floors_below > 20))
+    return '지하층수는 0~20 사이여야 합니다.'
+  if (b.year_built != null && (isNaN(b.year_built) || b.year_built < 1900 || b.year_built > nowYear))
+    return `준공연도는 1900~${nowYear} 사이여야 합니다.`
+  return null
+}
+
 export async function createCustomerAction(
   input: CreateCustomerInput
 ): Promise<{ error?: string; customerId?: string }> {
@@ -60,6 +76,16 @@ export async function createCustomerAction(
   // 대표 관계인 1명 필수 (V9 §9)
   const hasRep = (input.contacts ?? []).some(c => c.role === '대표' && c.name?.trim())
   if (!hasRep) return { error: '대표 관계인 이름을 입력해주세요. (대표 1명 필수)' }
+
+  // 건물 숫자 필드 검증 (IMP-10) — 음수/비상식 값 차단
+  const nowYear = new Date().getFullYear()
+  const numErr = validateBuildingNumbers({
+    total_area: input.building_total_area,
+    floors_above: input.building_floors_above,
+    floors_below: input.building_floors_below,
+    year_built: input.building_year_built,
+  }, nowYear)
+  if (numErr) return { error: numErr }
 
   const { data: existing } = await admin
     .from('customers')

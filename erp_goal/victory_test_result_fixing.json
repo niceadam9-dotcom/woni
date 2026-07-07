@@ -383,7 +383,7 @@
     {
       "id": "IMP-10",
       "priority": "low",
-      "status": "pending",
+      "status": "completed",
       "test_ids": [
         "EX-A4"
       ],
@@ -392,7 +392,9 @@
       "fix_direction": "building_total_area/floors/year_built 음수·범위 검증",
       "files": [
         "erp/src/app/(dashboard)/customers/actions.ts"
-      ]
+      ],
+      "resolved_date": "2026-07-07",
+      "resolution": "구현 완료 — validateBuildingNumbers를 createCustomerAction + createBuildingAction + updateBuildingAction 3곳에 추가. 연면적<0, 지상층수 0~200, 지하층수 0~20, 준공연도 1900~올해 범위 검증. 클라이언트 min/max(HTML5 1차) + 서버 검증(2차) 이중. HTML5 우회 테스트로 서버 문구 4/4 확인 (imp10_verify)"
     }
   ],
   "blocked_retest": {
@@ -432,9 +434,9 @@
   },
   "summary": {
     "total": 21,
-    "completed": 20,
+    "completed": 21,
     "in_progress": 0,
-    "pending": 1
+    "pending": 0
   },
   "retest_round2": {
     "date": "2026-07-07",

@@ -4,6 +4,22 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 
+/** 건물 숫자 필드 유효성 (IMP-10) — 음수·비상식 값 차단 */
+function validateBuildingNumbers(
+  b: { total_area?: number; floors_above?: number; floors_below?: number; year_built?: number },
+): string | null {
+  const y = new Date().getFullYear()
+  if (b.total_area != null && (isNaN(b.total_area) || b.total_area < 0))
+    return '연면적은 0 이상의 숫자여야 합니다.'
+  if (b.floors_above != null && (isNaN(b.floors_above) || b.floors_above < 0 || b.floors_above > 200))
+    return '지상층수는 0~200 사이여야 합니다.'
+  if (b.floors_below != null && (isNaN(b.floors_below) || b.floors_below < 0 || b.floors_below > 20))
+    return '지하층수는 0~20 사이여야 합니다.'
+  if (b.year_built != null && (isNaN(b.year_built) || b.year_built < 1900 || b.year_built > y))
+    return `준공연도는 1900~${y} 사이여야 합니다.`
+  return null
+}
+
 export type CreateBuildingInput = {
   customer_id: string
   building_name: string
@@ -22,6 +38,9 @@ export async function createBuildingAction(
 ): Promise<{ error?: string; buildingId?: string }> {
   const profile = await requirePermission('building_manage')
   const admin = createAdminClient()
+
+  const vErr = validateBuildingNumbers(input)
+  if (vErr) return { error: vErr }
 
   const baseFields = {
     customer_id: input.customer_id,
@@ -78,6 +97,9 @@ export async function updateBuildingAction(
 ): Promise<{ error?: string }> {
   await requirePermission('building_manage')
   const admin = createAdminClient()
+
+  const vErr = validateBuildingNumbers(input)
+  if (vErr) return { error: vErr }
 
   const updateFields: Record<string, unknown> = {
     building_name: input.building_name,
