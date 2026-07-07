@@ -38,11 +38,17 @@ export type CreateCustomerInput = {
   building_floors_above?: number
   building_floors_below?: number
   building_year_built?: number
-  // 건축물대장 소방안전 자료 (migration 037)
+  // 건축물대장 소방안전 자료 (migration 037/038)
   building_height?: number
   building_main_structure?: string
   building_elevator_count?: number
   building_households?: number
+  building_emergency_elevator_count?: number
+  building_roof_structure?: string
+  building_etc_purpose?: string
+  building_ho_count?: number
+  building_attached_count?: number
+  building_seismic_design?: string
 }
 
 export async function createCustomerAction(
@@ -158,23 +164,35 @@ export async function createCustomerAction(
     if (input.building_floors_below) buildingBase.floors_below = input.building_floors_below
     if (input.building_year_built) buildingBase.year_built   = input.building_year_built
 
-    // 건축물대장 소방안전 자료 (migration 037 — 미적용 DB에서는 42703으로 감지 후 제외 재시도)
+    // 건축물대장 소방안전 자료 (migration 037/038 — 미적용 DB에서는 42703으로 감지 후 제외 재시도)
     const ledgerFields: Record<string, unknown> = {}
     if (input.building_height != null)         ledgerFields.height = input.building_height
     if (input.building_main_structure)         ledgerFields.main_structure = input.building_main_structure
     if (input.building_elevator_count != null) ledgerFields.elevator_count = input.building_elevator_count
     if (input.building_households != null)     ledgerFields.households = input.building_households
+    if (input.building_emergency_elevator_count != null) ledgerFields.emergency_elevator_count = input.building_emergency_elevator_count
+    if (input.building_roof_structure)         ledgerFields.roof_structure = input.building_roof_structure
+    if (input.building_etc_purpose)            ledgerFields.etc_purpose = input.building_etc_purpose
+    if (input.building_ho_count != null)       ledgerFields.ho_count = input.building_ho_count
+    if (input.building_attached_count != null) ledgerFields.attached_building_count = input.building_attached_count
+    if (input.building_seismic_design)         ledgerFields.seismic_design = input.building_seismic_design
     if (Object.keys(ledgerFields).length > 0)  ledgerFields.ledger_synced_at = new Date().toISOString()
 
-    const { error: bErr } = await admin.from('buildings')
-      .insert({ ...buildingBase, ...ledgerFields, zipcode: input.zipcode || null })
-    if (bErr) {
-      if (bErr.code === '42703' || bErr.message?.includes('column')) {
-        // 037 미적용 또는 zipcode 부재 — 기본 필드만 저장
-        await admin.from('buildings').insert(buildingBase)
-      } else if (bErr.message?.includes('zipcode')) {
-        await admin.from('buildings').insert({ ...buildingBase, ...ledgerFields })
-      }
+    // 단계적 폴백: 전체 → 037 필드만(038 미적용) → 기본 필드만(037 미적용)
+    const FIELDS_037 = ['height', 'main_structure', 'elevator_count', 'households', 'ledger_synced_at']
+    const ledger037: Record<string, unknown> = Object.fromEntries(
+      Object.entries(ledgerFields).filter(([k]) => FIELDS_037.includes(k))
+    )
+    const attempts: Record<string, unknown>[] = [
+      { ...buildingBase, ...ledgerFields, zipcode: input.zipcode || null },
+      { ...buildingBase, ...ledger037, zipcode: input.zipcode || null },
+      { ...buildingBase, zipcode: input.zipcode || null },
+      buildingBase,
+    ]
+    for (const payload of attempts) {
+      const { error: bErr } = await admin.from('buildings').insert(payload)
+      if (!bErr) break
+      if (bErr.code !== '42703' && !bErr.message?.includes('column') && !bErr.message?.includes('zipcode')) break
     }
     revalidatePath('/buildings')
   }
@@ -933,6 +951,13 @@ export type BuildingLedgerInfo = {
   main_structure: string | null   // 주구조 — 내화구조 여부
   elevator_count: number | null   // 승용승강기 수 — 피난
   households: number | null       // 세대수 — 특정소방대상물 분류
+  // 038 확장 — 소방안전 자료
+  emergency_elevator_count: number | null // 비상용승강기 수 — 소방활동
+  roof_structure: string | null   // 지붕 구조 — 화재 확산
+  etc_purpose: string | null      // 기타 용도 상세
+  ho_count: number | null         // 호수 — 수용인원
+  attached_building_count: number | null // 부속건축물 수
+  seismic_design: string | null   // 내진설계 적용 여부
 }
 
 export async function fetchBuildingLedgerAction(
@@ -989,6 +1014,12 @@ export async function fetchBuildingLedgerAction(
         main_structure: (item.strctCdNm as string) || null,
         elevator_count: num(item.rideUseElvtCnt),
         households: num(item.hhldCnt),
+        emergency_elevator_count: num(item.emgenUseElvtCnt),
+        roof_structure: (item.roofCdNm as string) || null,
+        etc_purpose: (item.etcPurps as string) || null,
+        ho_count: num(item.hoCnt),
+        attached_building_count: num(item.atchBldCnt),
+        seismic_design: (item.rserthqkDsgnApplyYn as string) || null,
       },
     }
   } catch (e) {

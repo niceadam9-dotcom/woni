@@ -169,7 +169,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             L.height != null && `높이 ${L.height}m`,
             L.main_structure && `구조 ${L.main_structure}`,
             L.elevator_count != null && `승강기 ${L.elevator_count}대`,
+            L.emergency_elevator_count != null && `비상용 ${L.emergency_elevator_count}대`,
             L.households != null && `세대 ${L.households}`,
+            L.seismic_design && `내진설계 ${L.seismic_design === '1' || L.seismic_design === 'Y' ? '적용' : '미적용'}`,
           ].filter(Boolean).join(' · ')
           setLedgerNote(`건축물대장 자동 조회 완료${extras ? ` — ${extras}` : ''}`)
         }).catch(() => null)
@@ -234,11 +236,17 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         building_floors_below: form.building_floors_below ? parseInt(form.building_floors_below) : undefined,
         building_total_area:   form.building_total_area   ? parseFloat(form.building_total_area)  : undefined,
         building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
-        // 건축물대장 소방안전 자료 (migration 037)
+        // 건축물대장 소방안전 자료 (migration 037/038)
         building_height:          ledgerRef.current?.height ?? undefined,
         building_main_structure:  ledgerRef.current?.main_structure ?? undefined,
         building_elevator_count:  ledgerRef.current?.elevator_count ?? undefined,
         building_households:      ledgerRef.current?.households ?? undefined,
+        building_emergency_elevator_count: ledgerRef.current?.emergency_elevator_count ?? undefined,
+        building_roof_structure:  ledgerRef.current?.roof_structure ?? undefined,
+        building_etc_purpose:     ledgerRef.current?.etc_purpose ?? undefined,
+        building_ho_count:        ledgerRef.current?.ho_count ?? undefined,
+        building_attached_count:  ledgerRef.current?.attached_building_count ?? undefined,
+        building_seismic_design:  ledgerRef.current?.seismic_design ?? undefined,
       })
       if (result.error) { setError(result.error); return }
       // 다음 등록을 위한 최근 읍/면 기억
