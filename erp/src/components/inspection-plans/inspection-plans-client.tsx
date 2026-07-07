@@ -117,19 +117,31 @@ export function InspectionPlansClient({
 
   const currentPlan = plans.find(p => p.year === viewYear && p.month === viewMonth) ?? null
 
-  // 목록 뷰 필터 (상태 + 담당자 + 점검유형 모두 적용)
-  const filteredItems = items.filter(item => {
-    if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
-    // ADD-9: '취소' 필터 = 항목 취소 + 고객 비활성/삭제 건 포함
+  // 상태 매칭 (ADD-9: '취소' = 항목 취소 + 고객 비활성/삭제 포함)
+  function matchStatus(item: ItemView, status: string) {
     const isCancelledLike = item.status === 'cancelled' || item.customers?.is_active === false
-    if (filterStatus === 'cancelled') {
-      if (!isCancelledLike) return false
-    } else if (filterStatus !== 'all') {
-      if (item.status !== filterStatus || item.customers?.is_active === false) return false
-    }
+    if (status === 'all') return true
+    if (status === 'cancelled') return isCancelledLike
+    return item.status === status && item.customers?.is_active !== false
+  }
+
+  // 담당자 + 점검유형까지만 적용한 기준 집합 (상태별 현황 카운트는 이 위에서 계산)
+  const baseItems = items.filter(item => {
+    if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
     if (filterPlanType !== 'all' && (item.plan_type ?? 'monthly') !== filterPlanType) return false
     return true
   })
+
+  const statusCounts: Record<string, number> = {
+    all:       baseItems.length,
+    planned:   baseItems.filter(i => matchStatus(i, 'planned')).length,
+    confirmed: baseItems.filter(i => matchStatus(i, 'confirmed')).length,
+    completed: baseItems.filter(i => matchStatus(i, 'completed')).length,
+    cancelled: baseItems.filter(i => matchStatus(i, 'cancelled')).length,
+  }
+
+  // 목록 뷰 최종 필터 (상태까지 적용)
+  const filteredItems = baseItems.filter(item => matchStatus(item, filterStatus))
 
   // 달력 뷰 필터 (담당자만 적용, 상태 필터 무시 — 달력은 전체 일정을 보여줌)
   const calendarItems = items.filter(item =>
@@ -273,21 +285,7 @@ export function InspectionPlansClient({
 
         </div>
 
-      </div>
-
-      {/* 초과 점검 경보 */}
-      {overdueItems.length > 0 && (
-        <OverduePanel
-          items={overdueItems}
-          year={viewYear}
-          month={viewMonth}
-          onResolved={refresh}
-        />
-      )}
-
-      {/* 필터 툴바 */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* 뷰 모드 토글 */}
+        {/* 오른쪽: 뷰 모드 토글 */}
         <div className="flex items-center bg-[#f5f4ff] rounded-lg p-0.5">
           {(['calendar', 'list'] as const).map(mode => (
             <button
@@ -305,61 +303,82 @@ export function InspectionPlansClient({
           ))}
         </div>
 
-        <div className="w-px h-5 bg-[#c8c4d0]" />
+      </div>
 
-        {/* 담당자 필터 — 관리자/매니저만 표시 */}
-        {!isEmployee && (
-          <>
-            <select
-              value={filterEmployee}
-              onChange={e => setFilterEmployee(e.target.value)}
-              className="text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee] text-[#514b81]"
-            >
-              <option value="all">담당자 전체</option>
-              {employees.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-            <div className="w-px h-5 bg-[#c8c4d0]" />
-          </>
-        )}
+      {/* 초과 점검 경보 */}
+      {overdueItems.length > 0 && (
+        <OverduePanel
+          items={overdueItems}
+          year={viewYear}
+          month={viewMonth}
+          onResolved={refresh}
+        />
+      )}
 
-        {/* 상태 필터 */}
-        <div className="flex items-center gap-1">
-          {[['planned','계획 중'],['confirmed','확정'],['completed','완료'],['cancelled','취소'],['all','전체']].map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setFilterStatus(val)}
-              className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium ${
-                filterStatus === val
-                  ? 'bg-[#7b68ee] text-white'
-                  : 'text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* 현황 요약 + 필터 카드 */}
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+        {/* 상태별 현황 칩 — 클릭 = 상태 필터 */}
+        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#eeecfa] flex-wrap">
+          <span className="text-xs font-semibold text-[#8b87b8] mr-1.5">현황</span>
+          {([['all','전체'],['planned','계획 중'],['confirmed','확정'],['completed','완료'],['cancelled','취소']] as [string, string][]).map(([val, label]) => {
+            const active = filterStatus === val
+            return (
+              <button
+                key={val}
+                onClick={() => setFilterStatus(val)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  active ? 'bg-[#7b68ee] text-white' : 'text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+                }`}
+              >
+                {label}
+                <span className={`text-[11px] font-bold px-1.5 py-px rounded-full min-w-[20px] text-center ${
+                  active ? 'bg-white/25 text-white' : 'bg-[#f0eefc] text-[#7b68ee]'
+                }`}>{statusCounts[val]}</span>
+              </button>
+            )
+          })}
         </div>
 
-        {/* 점검유형 필터 */}
-        <div className="flex items-center gap-1">
-          {([['all','전체'],['special_종합','종합특별'],['special_작동','작동특별'],['monthly','정기'],['event','일반관리']] as [string, string][]).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setFilterPlanType(val)}
-              className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium border ${
-                filterPlanType === val
-                  ? val === 'special_종합' ? 'bg-purple-100 text-purple-700 border-purple-200'
-                    : val === 'special_작동' ? 'bg-blue-100 text-blue-700 border-blue-200'
-                    : val === 'monthly' ? 'bg-gray-100 text-gray-600 border-gray-200'
-                    : val === 'event' ? 'bg-orange-50 text-orange-600 border-orange-200'
-                    : 'bg-[#7b68ee] text-white border-[#7b68ee]'
-                  : 'text-[#514b81] border-transparent hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* 담당자 + 점검유형 필터 */}
+        <div className="flex items-center gap-2 px-4 py-2 flex-wrap">
+          {/* 담당자 필터 — 관리자/매니저만 표시 */}
+          {!isEmployee && (
+            <>
+              <select
+                value={filterEmployee}
+                onChange={e => setFilterEmployee(e.target.value)}
+                className="text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee] text-[#514b81]"
+              >
+                <option value="all">담당자 전체</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+              <div className="w-px h-5 bg-[#e0ddf5]" />
+            </>
+          )}
+
+          {/* 점검유형 필터 */}
+          <span className="text-xs font-semibold text-[#8b87b8]">유형</span>
+          <div className="flex items-center gap-1 flex-wrap">
+            {([['all','전체'],['special_종합','종합특별'],['special_작동','작동특별'],['monthly','정기'],['event','일반관리']] as [string, string][]).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFilterPlanType(val)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium border ${
+                  filterPlanType === val
+                    ? val === 'special_종합' ? 'bg-purple-100 text-purple-700 border-purple-200'
+                      : val === 'special_작동' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                      : val === 'monthly' ? 'bg-gray-100 text-gray-600 border-gray-200'
+                      : val === 'event' ? 'bg-orange-50 text-orange-600 border-orange-200'
+                      : 'bg-[#7b68ee] text-white border-[#7b68ee]'
+                    : 'text-[#514b81] border-transparent hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -706,7 +725,8 @@ function ListView({
   const customerMap = Object.fromEntries(customers.map(c => [c.id, c]))
   const todayStr = new Date().toISOString().split('T')[0]
 
-  const selectableItems     = items.filter(i => i.status !== 'cancelled')
+  // 확정 가능한 '계획 중' 항목만 선택 대상 — 완료/확정/취소 선택 시 막다른 길 방지
+  const selectableItems     = items.filter(i => i.status === 'planned')
   const confirmableSelected = items.filter(i => selectedIds.has(i.id) && i.status === 'planned')
   const allSelected = selectableItems.length > 0 && selectableItems.every(i => selectedIds.has(i.id))
   const someSelected = selectedIds.size > 0
@@ -744,35 +764,8 @@ function ListView({
   }
 
   return (
+    <>
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-      {/* 일괄 액션 바 */}
-      {someSelected && canManage && (
-        <div className="flex items-center justify-between px-4 py-2.5 bg-[#f5f4ff] border-b border-[#dddaf8]">
-          <span className="text-sm text-[#514b81]">
-            <span className="font-semibold text-[#7b68ee]">{selectedIds.size}건</span> 선택됨
-            {confirmableSelected.length > 0 && (
-              <span className="text-xs text-[#b0acd6] ml-2">확정 가능 {confirmableSelected.length}건</span>
-            )}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="text-xs text-[#514b81] hover:text-[#7b68ee] transition-colors px-2 py-1"
-            >
-              선택 해제
-            </button>
-            <button
-              onClick={handleBulkConfirm}
-              disabled={bulkPending || confirmableSelected.length === 0}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-[#7b68ee] text-white rounded-lg font-medium hover:bg-[#6a5acd] transition-colors disabled:opacity-50"
-            >
-              <Check className="size-3" />
-              {bulkPending ? '처리 중…' : `${confirmableSelected.length}건 확정`}
-            </button>
-          </div>
-        </div>
-      )}
-
       <table className="w-full text-sm table-fixed">
         <colgroup>
           {canManage && <col className="w-10" />}
@@ -827,7 +820,7 @@ function ListView({
               && item.status !== 'completed'
               && item.status !== 'cancelled'
             const isSelected   = selectedIds.has(item.id)
-            const isSelectable = item.status !== 'cancelled'
+            const isSelectable = item.status === 'planned'
             return (
               <tr
                 key={item.id}
@@ -912,6 +905,40 @@ function ListView({
         </tbody>
       </table>
     </div>
+
+    {/* 하단 고정 확정 바 — 선택 시 화면 하단에 고정 노출 */}
+    {someSelected && canManage && (
+      <>
+        <div className="h-20" />
+        <div className="fixed bottom-0 left-56 right-0 z-30 border-t border-[#c8c4d0] bg-white/95 backdrop-blur shadow-[0_-4px_12px_rgba(18,43,165,0.08)]">
+          <div className="flex items-center justify-between px-6 py-3">
+            <span className="text-sm text-[#514b81]">
+              <span className="font-semibold text-[#7b68ee]">{selectedIds.size}건</span> 선택됨
+              {confirmableSelected.length > 0 && (
+                <span className="text-xs text-[#b0acd6] ml-2">확정 가능 {confirmableSelected.length}건</span>
+              )}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs text-[#514b81] hover:text-[#7b68ee] transition-colors px-3 py-1.5"
+              >
+                선택 해제
+              </button>
+              <button
+                onClick={handleBulkConfirm}
+                disabled={bulkPending || confirmableSelected.length === 0}
+                className="flex items-center gap-1.5 text-sm px-4 py-2 bg-[#7b68ee] text-white rounded-lg font-medium hover:bg-[#6a5acd] transition-colors disabled:opacity-50"
+              >
+                <Check className="size-3.5" />
+                {bulkPending ? '처리 중…' : `${confirmableSelected.length}건 확정`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    )}
+    </>
   )
 }
 
