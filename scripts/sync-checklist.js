@@ -29,6 +29,7 @@ const FILES = {
   v8:   path.join(BASE, 'Victory8.json'),
   v10:  path.join(BASE, 'Victory10.json'),
   fix:  path.join(BASE, 'victory_test_result_fixing.json'),
+  add:  path.join(BASE, 'Victory10_add.json'),
 };
 
 async function readStdin() {
@@ -296,6 +297,47 @@ function updateFixing(itemId, newStatus) {
   }
 }
 
+// ── Victory10_add.json 업데이트 ──
+// itemId: "ADD-1" ~ (items + follow_up 배열)
+function updateAdd(itemId, newStatus) {
+  try {
+    const raw = fs.readFileSync(FILES.add, 'utf8');
+    const doc = JSON.parse(raw);
+
+    let updated = false;
+    for (const listName of ['items', 'follow_up']) {
+      for (const item of (doc[listName] || [])) {
+        if (item.id === itemId) {
+          if (item.status !== newStatus) {
+            item.status = newStatus;
+            if (newStatus === 'completed') item.resolved_date = new Date().toISOString().split('T')[0];
+            updated = true;
+          }
+          break;
+        }
+      }
+      if (updated) break;
+    }
+
+    if (updated) {
+      const all = ['items', 'follow_up'].flatMap(k => doc[k] || []);
+      doc.summary = {
+        total: all.length,
+        completed:   all.filter(i => i.status === 'completed').length,
+        in_progress: all.filter(i => i.status === 'in_progress').length,
+        pending:     all.filter(i => i.status === 'pending').length,
+      };
+      doc.date = new Date().toISOString().split('T')[0];
+      fs.writeFileSync(FILES.add, JSON.stringify(doc, null, 2) + '\n', 'utf8');
+      process.stderr.write(`[sync-checklist] Victory10_add.json :: ${itemId} → ${newStatus}\n`);
+    } else {
+      process.stderr.write(`[sync-checklist] Victory10_add.json :: ${itemId} — 항목 없음 또는 이미 동일 상태\n`);
+    }
+  } catch (e) {
+    process.stderr.write(`[sync-checklist] Victory10_add.json error: ${e.message}\n`);
+  }
+}
+
 async function main() {
   const raw = await readStdin();
   if (!raw.trim()) return;
@@ -318,6 +360,15 @@ async function main() {
     input.subject    || input.title    || '';
 
   const newTaskStatus = input.status;
+
+  // ── [add:ADD-1] → Victory10_add.json ──
+  const addMatch = subject.match(/^\[add:(ADD-\d+)\]/i);
+  if (addMatch) {
+    const itemId = addMatch[1].toUpperCase();
+    if (newTaskStatus === 'completed')   updateAdd(itemId, 'completed');
+    if (newTaskStatus === 'in_progress') updateAdd(itemId, 'in_progress');
+    return;
+  }
 
   // ── [fix:FIX-1] / [fix:IMP-2] → victory_test_result_fixing.json ──
   const fixMatch = subject.match(/^\[fix:((?:FIX|IMP|NEW)-\d+)\]/i);

@@ -1,0 +1,269 @@
+{
+  "version": "Victory10_add",
+  "date": "2026-07-07",
+  "description": "Victory10 추가 요구사항 (Victory10_add.md → Victory10_add_AI.md 정리) — Task subject [add:ADD-n] 형식으로 자동 동기화",
+  "source_documents": [
+    "Victory10_add.md",
+    "Victory10_add_AI.md"
+  ],
+  "decisions": [
+    {
+      "id": "D-1",
+      "question": "ADD-1 지역 삭제 범위",
+      "decision": "(a) 화면만 숨기고 주소검색 시 백그라운드 자동 저장 유지 → 이후 추가 결정: 고객관리 목록의 지역 컬럼·필터·칩도 전부 제거",
+      "decided_at": "2026-07-07"
+    },
+    {
+      "id": "D-2",
+      "question": "ADD-2 중복 주소 처리",
+      "decision": "(a) 경고 팝업(기존 고객 정보+상세 링크) 후 등록 진행 허용",
+      "decided_at": "2026-07-07"
+    },
+    {
+      "id": "D-3",
+      "question": "ADD-4 건물정보 자동 로드 범위",
+      "decision": "국토부 건축물대장 API 연동 — 신규 주소도 자동 조회. 테이블 필드는 소방안전 관련에 한정",
+      "decided_at": "2026-07-07"
+    },
+    {
+      "id": "D-4",
+      "question": "ADD-14 정렬 기준",
+      "decision": "created_at 내림차순 유지 (별도 응답 없음)",
+      "decided_at": "2026-07-07"
+    }
+  ],
+  "items": [
+    {
+      "id": "ADD-1",
+      "category": "고객등록",
+      "type": "기능변경",
+      "status": "completed",
+      "title": "지역 필드 제거 — 등록 폼 + 고객관리 목록(컬럼/필터/칩) 전부",
+      "resolution": "등록 폼 지역 입력 3종 제거(주소검색 시 region_si/myeon/ri 백그라운드 자동 저장 유지) + 목록의 지역 컬럼·지역 드롭다운 필터·읍/면 빠른 칩·양평군 기본 필터 전부 제거. region 데이터는 지역별담당배정·통합검색용 유지",
+      "files": [
+        "customer-new-client.tsx",
+        "customers/page.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-2",
+      "category": "고객등록",
+      "type": "신규",
+      "status": "completed",
+      "title": "주소 중복 등록 감지 팝업 + 기존 고객 조회",
+      "resolution": "checkAddressAction — 주소검색 시점 + 저장 시점(수동 입력 대비) 이중 검증. 팝업에 기존 고객명/유형/담당자 + [기존 고객 보기] 링크, [계속 등록] 시 제출 진행",
+      "files": [
+        "customers/actions.ts",
+        "customer-new-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-3",
+      "category": "고객등록",
+      "type": "UX",
+      "status": "completed",
+      "title": "관계인: 대표만 기본 표시 + [관계인 추가] 버튼",
+      "resolution": "대표 1명 기본, [관계인 추가]로 최대 2명 추가/개별 제거 가능",
+      "files": [
+        "customer-new-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-4",
+      "category": "고객등록",
+      "type": "버그",
+      "status": "completed",
+      "title": "주소검색 후 건물기본정보 자동 업데이트",
+      "resolution": "① 동일 주소 기존 건물정보 자동 로드(checkAddressAction) ② 국토부 건축물대장 API 연동(fetchBuildingLedgerAction) — 신규 주소도 용도/연면적/층수/사용승인일 자동 입력. 실주소(옛 서울시청) 검증: 업무시설/9453.87㎡/지상7층/사용승인 1926-09-05 정확 일치",
+      "files": [
+        "customers/actions.ts",
+        "customer-new-client.tsx",
+        "use-daum-postcode.ts"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-5",
+      "category": "점검이력",
+      "type": "버그",
+      "status": "completed",
+      "title": "담당자 변경 시 변경이력 미기록 (사례: 강상로뎀병원)",
+      "resolution": "원인 2건 수정: ① 상세 '담당자 변경'이 changes 형식 없이 기록되어 내용 미표시 → 변경 전/후 담당자명 기록 ② 지역별 일괄배정이 entity_id=null 단일 로그 + 계획/점검 전파 누락 → 고객별 개별 이력 + _syncEmployeeToRelated 전파 추가",
+      "files": [
+        "customers/actions.ts (assignEmployeeAction, bulkAssignEmployeeAction)"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-6",
+      "category": "점검이력",
+      "type": "버그",
+      "status": "completed",
+      "title": "고객 등록 시 이력 2건 중복 기록",
+      "resolution": "등록 시 담당자 배정 로그를 별도 기록하지 않고 등록 이력 1건에 통합 (배정 알림은 유지)",
+      "files": [
+        "customers/actions.ts (createCustomerAction)"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-7",
+      "category": "고객등록→건물등록",
+      "type": "신규",
+      "status": "completed",
+      "title": "건물등록 진입 시 고객 주소·건물명 자동 인계",
+      "resolution": "customer_id 파라미터 진입/고객 선택 시 prefillFromCustomer — 주소·건물명 자동 입력 (주소 재검색 불필요)",
+      "files": [
+        "building-new-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-8",
+      "category": "고객등록",
+      "type": "UX",
+      "status": "completed",
+      "title": "등록 화면 한 페이지 표시 (스크롤 제거)",
+      "resolution": "고객코드 필드·지역 블록 제거 + 관계인 축소로 단축 — 1080p·768p 모두 스크롤 없음 실측",
+      "files": [
+        "customer-new-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-9",
+      "category": "월간점검계획확정",
+      "type": "기능변경",
+      "status": "completed",
+      "title": "비활성/삭제 고객 건 → '취소' 필터 조회 + 상태 표시",
+      "resolution": "customers.is_active JOIN — '취소' 필터에 비활성 건 포함, 행에 취소선+'비활성/삭제' 뱃지",
+      "files": [
+        "inspection-plans/page.tsx",
+        "inspection-plans/actions.ts",
+        "inspection-plans-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-10",
+      "category": "점검업무",
+      "type": "기능변경",
+      "status": "completed",
+      "title": "비활성/삭제 고객 건 상태 표시",
+      "resolution": "고객명 취소선 + '비활성/삭제' 뱃지",
+      "files": [
+        "inspections/page.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-11",
+      "category": "점검달력",
+      "type": "기능변경",
+      "status": "completed",
+      "title": "비활성/삭제 건 회색 취소선 표시",
+      "resolution": "customer_inactive 플래그 → 달력 이벤트 회색(#e5e7eb) 취소선 스타일",
+      "files": [
+        "inspections/calendar/page.tsx",
+        "inspection-calendar-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-12",
+      "category": "점검현황모니터링",
+      "type": "기능변경",
+      "status": "completed",
+      "title": "상태 필터에 '취소 (비활성/삭제)' 추가",
+      "resolution": "서버 조회에서 취소 건 포함 + 클라이언트 필터 옵션 추가, 고객명 취소선+뱃지",
+      "files": [
+        "monitor/page.tsx",
+        "monitor/actions.ts",
+        "monitor-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-13",
+      "category": "지역별담당배정",
+      "type": "신규",
+      "status": "completed",
+      "title": "배정 상태 필터 (전체/미배정/배정)",
+      "resolution": "assigned_employee_id 유무 기준 선택 조회",
+      "files": [
+        "regional-assign-client.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-14",
+      "category": "모니터링·점검업무",
+      "type": "UX",
+      "status": "completed",
+      "title": "최신 등록 건 최상위 정렬",
+      "resolution": "두 화면 모두 created_at 내림차순 (D-4 결정)",
+      "files": [
+        "monitor/page.tsx",
+        "monitor/actions.ts",
+        "inspections/page.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-15",
+      "category": "점검업무",
+      "type": "신규",
+      "status": "completed",
+      "title": "상태 필터: 비완료/완료/취소(비활성·삭제)",
+      "resolution": "비완료(예정·진행중·기한초과 묶음)/완료/취소(비활성 고객 inner join) + 기존 세분 상태 유지",
+      "files": [
+        "inspections/page.tsx"
+      ],
+      "resolved_date": "2026-07-07"
+    }
+  ],
+  "follow_up": [
+    {
+      "id": "ADD-16",
+      "category": "고객관리",
+      "type": "자동화",
+      "status": "completed",
+      "title": "비활성/삭제 전환 시 미완료 계획 자동 취소 + 재활성 시 복원 (제안 1)",
+      "resolution": "notes 마커(⟦자동취소:원상태⟧)로 원상태 보존 → 재활성화 시 원상태로 자동 복원. 삭제 시 '미완료 계획 거부' 가드는 자동취소로 대체. T3 실측: planned→cancelled→planned 복원 확인",
+      "files": [
+        "customers/actions.ts (toggleCustomerActiveAction, deleteCustomerAction)"
+      ],
+      "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "ADD-17",
+      "category": "건축물대장",
+      "type": "신규",
+      "status": "completed",
+      "title": "소방안전 건축물 자료 필드 (migration 037/038) + 실데이터 검증",
+      "resolution": "037: 높이/주구조/승용승강기/세대수/동기화시각. 038: 비상용승강기/지붕구조/기타용도/호수/부속건물수/내진설계. 두 migration 모두 사용자 실행 완료. 실주소 검증: 지붕 슬레이트·기타용도 사무실·내진 미적용 등 실데이터 저장 확인. 코드에는 미적용 DB 폴백(전체→037만→기본) 내장",
+      "files": [
+        "migrations/037_building_ledger_fire_safety.sql",
+        "migrations/038_building_ledger_more_fire_safety.sql",
+        "customers/actions.ts"
+      ],
+      "resolved_date": "2026-07-07"
+    }
+  ],
+  "environment": {
+    "BUILDING_LEDGER_API_KEY": "설정 완료 (공공데이터포털 '건축HUB 건축물대장정보 서비스', 활성화 확인 2026-07-07). Vercel 배포 시 환경변수 동일 등록 필요",
+    "migrations_applied": [
+      "037",
+      "038"
+    ]
+  },
+  "summary": {
+    "total": 17,
+    "completed": 17,
+    "in_progress": 0,
+    "pending": 0
+  }
+}
