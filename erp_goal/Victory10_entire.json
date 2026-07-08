@@ -173,22 +173,25 @@
       "id": "DOC-1",
       "category": "전자결재",
       "title": "기안 → 승인 풀사이클 (알림·서명)",
-      "status": "partial",
-      "note": "기안(제목·내용·결재선 검색 지정)→pending 생성·결재자 기록까지 검증. 승인 버튼 상호작용 자동화 실패 — 결재함 승인·서명·알림은 수동"
+      "status": "passed",
+      "note": "FIX-16(RLS 재귀) 수정 후 — 기안(pending)→결재 상세 승인/반려 버튼 표시→승인(approved)+기안자 알림(기안서 최종 승인) 전 과정 실측",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "DOC-2",
       "category": "전자결재",
       "title": "반려(사유 필수) → 재기안",
-      "status": "partial",
-      "note": "기안·pending 생성 검증. 반려 버튼 상호작용 자동화 실패 — 사유 필수·반려 상태는 수동"
+      "status": "passed",
+      "note": "사유 없이 반려 차단 → 사유 입력 후 rejected + 결재자 코멘트 기록",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "DOC-3",
       "category": "전자결재",
       "title": "회수 (결재 전만 가능)",
-      "status": "partial",
-      "note": "pending 문서 생성 검증. 회수 버튼 상호작용 자동화 실패 — 수동"
+      "status": "passed",
+      "note": "결재 전 회수(2단 확인 버튼) → recalled. 승인 문서에는 회수 버튼 미노출",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "DOC-4",
@@ -202,8 +205,9 @@
       "id": "HR-1",
       "category": "인사휴가",
       "title": "휴가 신청→승인→연차 차감·캘린더",
-      "status": "partial",
-      "note": "신청→매니저 승인 클릭까지 자동화 성공(FIX-14 후). 승인 플로우가 2단계(pending→manager_approved→approved, 팀장 1차+관리자 2차) 설계로 확인 — 최종 승인·차감은 수동 확인 필요"
+      "status": "passed",
+      "note": "2단계 승인 풀사이클 실측 — 신청(pending)→팀장 승인(manager_approved+관리자 알림)→관리자 최종 승인(approved+연차 차감+신청자 알림)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "HR-2",
@@ -647,8 +651,9 @@
       "id": "E2E-F5",
       "category": "크로스모듈E2E",
       "title": "기안→결재→알림→보관 (문서의 흐름)",
-      "status": "partial",
-      "note": "기안→결재선→pending까지 검증(DOC-1). 승인·알림·보관 사슬은 수동"
+      "status": "passed",
+      "note": "기안→결재함→승인→알림→문서함 표시 전 사슬 실측 (FIX-16 수정 후). 활동 로그는 문서 액션마다 기록됨(코드 확인)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "E2E-F6",
@@ -943,13 +948,15 @@
       "id": "M2",
       "category": "상태매트릭스",
       "title": "문서 상태 × 행위 5×5",
-      "status": "pending"
+      "status": "partial",
+      "note": "pending 상태의 승인/반려/회수 + 승인 문서 편집·회수 잠금 + 제3자 열람 차단 실측. draft 수정·반려 후 재기안 조합만 수동 확인 남음"
     },
     {
       "id": "M3",
       "category": "상태매트릭스",
       "title": "휴가 상태 × 연차·캘린더",
-      "status": "pending"
+      "status": "partial",
+      "note": "대기=미차감·최종 승인=차감(+1)·알림 실측. 반려 미차감·캘린더 표시는 이전 라운드 부분 확인 — 잔여 수동"
     },
     {
       "id": "M4",
@@ -1045,13 +1052,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 70,
+    "passed": 75,
     "failed": 0,
-    "partial": 22,
+    "partial": 19,
     "blocked": 0,
     "skipped": 0,
     "known_issue": 1,
     "in_progress": 0,
-    "pending": 49
+    "pending": 47
   }
 }
