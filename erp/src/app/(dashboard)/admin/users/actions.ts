@@ -43,19 +43,21 @@ export async function createUserAction(input: CreateUserInput): Promise<{ error?
 
   const userId = authData.user.id
 
-  // 트리거가 profile 행을 생성하므로 업데이트
+  // upsert — profiles 자동 생성 트리거 유무와 무관하게 행을 보장
+  // (update만 하면 트리거 미동작 시 0행 매치로 조용히 실패해 목록에 안 보임)
   const { error: profileError } = await admin
     .from('profiles')
-    .update({
-      employee_id: input.employee_id,
-      name: input.name,
+    .upsert({
+      id: userId,
+      email: input.email.trim(),
+      employee_id: input.employee_id.trim(),
+      name: input.name.trim(),
       role: input.role,
       department_id: input.department_id || null,
       position: input.position || null,
       hire_date: input.hire_date || null,
       is_active: true,
-    } as Record<string, unknown>)
-    .eq('id', userId)
+    } as Record<string, unknown>, { onConflict: 'id' })
 
   if (profileError) {
     // 생성된 auth user 정리
