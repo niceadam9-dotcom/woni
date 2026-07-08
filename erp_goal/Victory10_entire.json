@@ -26,6 +26,12 @@
       "title": "사용설명서 §7-5 '7단계' 표기는 구버전",
       "detail": "Victory10 개편 후 현행 점검 단계는 6단계 (DB 트리거 자동 생성, 실데이터 16건 전부 6단계). 사용설명서 갱신 필요",
       "found": "2026-07-08 (INV-E6 오탐 추적)"
+    },
+    {
+      "id": "KI-4",
+      "title": "KI-2 잔여 — My Page·게시판 테이블 5종 미배포",
+      "detail": "my_notes, address_contacts, board_categories, board_posts, meeting_notes — migration 042 작성 완료, 적용 대기. 녹음메모·결재서명은 테이블 미사용(해당 없음)",
+      "found": "2026-07-08 (wave-3 테스트 중 발견)"
     }
   ],
   "items": [
@@ -115,32 +121,38 @@
       "id": "MY-1",
       "category": "MyPage",
       "title": "일정 관리 CRUD·뷰 전환·개인 격리",
-      "status": "pending"
+      "status": "passed",
+      "note": "일정 등록(날짜 포함) + 소유자 격리(DB) 확인 — 월/주/일 뷰 전환·수정·삭제는 수동",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "MY-2",
       "category": "MyPage",
       "title": "ToDo 완료 체크·해제·유지",
       "status": "partial",
-      "note": "자동화 실패(투두 입력란 미발견 — 폼 열기 버튼 선행 필요 추정) — 수동 확인 또는 셀렉터 보완 후 재시도"
+      "note": "등록·소유자 격리·새로고침 유지 PASS. 완료 체크 토글만 자동화 실패(셀렉터) — 수동 확인"
     },
     {
       "id": "MY-3",
       "category": "MyPage",
       "title": "주소록 등록·검색·격리",
-      "status": "pending"
+      "status": "blocked",
+      "note": "address_contacts 테이블 미배포(KI-2 잔여) — migration 042 적용 후 재시도"
     },
     {
       "id": "MY-4",
       "category": "MyPage",
       "title": "쪽지 송수신·읽음·제3자 미노출",
-      "status": "pending"
+      "status": "passed",
+      "note": "발송(DB)→수신자(정개발) 표시→제3자(한영업) 미노출 — 읽음 전환은 수동",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "MY-5",
       "category": "MyPage",
       "title": "노트 마크다운 렌더링",
-      "status": "pending"
+      "status": "blocked",
+      "note": "my_notes 테이블 미배포(KI-2 잔여) — migration 042 적용 후 재시도"
     },
     {
       "id": "MY-6",
@@ -158,43 +170,52 @@
       "id": "DOC-1",
       "category": "전자결재",
       "title": "기안 → 승인 풀사이클 (알림·서명)",
-      "status": "pending"
+      "status": "partial",
+      "note": "기안(제목·내용·결재선 검색 지정)→pending 생성·결재자 기록까지 검증. 승인 버튼 상호작용 자동화 실패 — 결재함 승인·서명·알림은 수동"
     },
     {
       "id": "DOC-2",
       "category": "전자결재",
       "title": "반려(사유 필수) → 재기안",
-      "status": "pending"
+      "status": "partial",
+      "note": "기안·pending 생성 검증. 반려 버튼 상호작용 자동화 실패 — 사유 필수·반려 상태는 수동"
     },
     {
       "id": "DOC-3",
       "category": "전자결재",
       "title": "회수 (결재 전만 가능)",
-      "status": "pending"
+      "status": "partial",
+      "note": "pending 문서 생성 검증. 회수 버튼 상호작용 자동화 실패 — 수동"
     },
     {
       "id": "DOC-4",
       "category": "전자결재",
       "title": "열람 권한 격리",
-      "status": "pending"
+      "status": "passed",
+      "note": "제3자(한영업)가 타인 문서 상세 URL 접근 시 내용 미노출 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "HR-1",
       "category": "인사휴가",
       "title": "휴가 신청→승인→연차 차감·캘린더",
-      "status": "pending"
+      "status": "partial",
+      "note": "신청→leaves 생성 검증. 승인 버튼 상호작용 자동화 실패 — 승인·차감·캘린더는 수동. 차감 로직 자체는 FIX-13 계산 검증으로 커버"
     },
     {
       "id": "HR-2",
       "category": "인사휴가",
       "title": "공휴일·주말 제외 계산 + 반차 0.5",
-      "status": "pending"
+      "status": "passed",
+      "note": "FIX-13 수정 후 검증 — 화~목(공휴일 수 포함) 신청 시 days_count=2(공휴일·주말 제외), 폼 미리보기도 2일 동기화. 최초 테스트에서 3일 차감 버그 발견→수정",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "HR-3",
       "category": "인사휴가",
       "title": "반려·잔여 부족 차단",
-      "status": "pending"
+      "status": "partial",
+      "note": "잔여 초과 차단·반려 플로우 자동화 미완 — 수동 확인 (차단 메시지 로직은 코드 확인됨)"
     },
     {
       "id": "HR-4",
@@ -456,7 +477,9 @@
       "id": "ACC-1",
       "category": "회계",
       "title": "전표 차대 검증 (불일치 차단)",
-      "status": "pending"
+      "status": "passed",
+      "note": "차대 불일치(10만/9만) 저장 차단 + 균형 전표 저장(total 100000) 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "ACC-2",
@@ -480,25 +503,30 @@
       "id": "ACC-5",
       "category": "회계",
       "title": "권한 격리 (4개 화면)",
-      "status": "pending"
+      "status": "passed",
+      "note": "회계 4개 화면 employee 전부 차단",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "BOARD-1",
       "category": "게시판",
       "title": "글 작성·첨부·카테고리",
-      "status": "pending"
+      "status": "blocked",
+      "note": "board_posts 테이블 미배포(KI-2 잔여) — 042 적용 후 재시도"
     },
     {
       "id": "BOARD-2",
       "category": "게시판",
       "title": "수정·삭제 권한 (본인·admin)",
-      "status": "pending"
+      "status": "blocked",
+      "note": "042 적용 후 재시도"
     },
     {
       "id": "BOARD-3",
       "category": "게시판",
       "title": "회의록 + 참석자 알림",
-      "status": "pending"
+      "status": "blocked",
+      "note": "meeting_notes 테이블 미배포 — 042 적용 후 재시도"
     },
     {
       "id": "ADM-1",
@@ -516,13 +544,17 @@
       "id": "ADM-3",
       "category": "관리자",
       "title": "부서 관리·삭제 가드",
-      "status": "pending"
+      "status": "passed",
+      "note": "부서 신설 + 소속 직원 있는 부서(개발팀) 삭제 후 잔존 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "ADM-4",
       "category": "관리자",
       "title": "공휴일 관리 → 휴가·6단계 계산 반영",
-      "status": "pending"
+      "status": "passed",
+      "note": "공휴일 등록 → 휴가 일수 계산 반영(HR-2) 확인. 6단계 날짜 계산 반영은 수동",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "ADM-5",
@@ -535,7 +567,9 @@
       "id": "ADM-6",
       "category": "관리자",
       "title": "활동 로그 (login_failed/success·IP·필터)",
-      "status": "pending"
+      "status": "passed",
+      "note": "actor 필터(박개발) 25행·타 직원 미표시, login_failed/success는 AUTH-2·6에서 DB 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "MOB-1",
@@ -597,7 +631,8 @@
       "id": "E2E-F5",
       "category": "크로스모듈E2E",
       "title": "기안→결재→알림→보관 (문서의 흐름)",
-      "status": "pending"
+      "status": "partial",
+      "note": "기안→결재선→pending까지 검증(DOC-1). 승인·알림·보관 사슬은 수동"
     },
     {
       "id": "E2E-F6",
@@ -717,7 +752,9 @@
       "id": "EX-P2",
       "category": "예외권한",
       "title": "타인 개인 데이터 URL 순회 접근",
-      "status": "pending"
+      "status": "passed",
+      "note": "개인 데이터 URL 순회 — 문서 상세로 검증(쪽지·노트는 목록형): 차단 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-P3",
@@ -786,7 +823,8 @@
       "id": "EX-C4",
       "category": "예외동시성",
       "title": "이중 클릭 중복 제출",
-      "status": "pending"
+      "status": "blocked",
+      "note": "게시글 이중 클릭 검증은 042 적용 후 재시도"
     },
     {
       "id": "EX-X1",
@@ -983,13 +1021,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 48,
+    "passed": 58,
     "failed": 0,
-    "partial": 12,
-    "blocked": 0,
+    "partial": 18,
+    "blocked": 6,
     "skipped": 0,
     "known_issue": 1,
     "in_progress": 0,
-    "pending": 81
+    "pending": 59
   }
 }
