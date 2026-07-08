@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireRole, getSessionUser } from '@/lib/auth'
+import { requirePermission, getSessionUser } from '@/lib/auth'
 
 // 보고서 제출현황 upsert
 export async function upsertReportStatusAction(input: {
@@ -17,7 +17,7 @@ export async function upsertReportStatusAction(input: {
 }): Promise<{ error?: string }> {
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
-  await requireRole(['manager', 'admin'])
+  await requirePermission('report_status_manage')
   const admin = createAdminClient()
 
   const payload: Record<string, unknown> = {

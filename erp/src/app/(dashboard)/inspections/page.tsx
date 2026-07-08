@@ -34,9 +34,11 @@ export default async function InspectionsPage({
   if (!profile) redirect('/login')
 
   const params = await searchParams
+  const isEmployee = (profile.role as UserRole) === 'employee'
   const yearFilter = params.year ?? ''
   const statusFilter = params.status ?? ''
-  const employeeFilter = params.employee ?? ''
+  // B안: 일반직원도 전체 조회 가능 — 첫 진입 기본값만 본인 담당
+  const employeeFilter = params.employee ?? (isEmployee ? profile.id : '')
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
   const pageSize = Math.max(0, parseInt(params.per_page ?? '25', 10))  // 0 = 전체
 
@@ -48,8 +50,6 @@ export default async function InspectionsPage({
   const from = pageSize > 0 ? (page - 1) * pageSize : 0
   const to = pageSize > 0 ? from + pageSize - 1 : 99999
 
-  const isEmployee = (profile.role as UserRole) === 'employee'
-
   // 검색 쿼리 구성 — 필터는 DB에서, 페이지 단위로만 가져옴
   // ADD-15: '취소(비활성/삭제)' 필터는 고객 is_active 기준 → inner join 필요
   const custJoin = statusFilter === 'cancelled' ? 'customers:customer_id!inner' : 'customers:customer_id'
@@ -58,12 +58,7 @@ export default async function InspectionsPage({
      ${custJoin} (id, customer_name, customer_code, is_active)`,
     { count: 'exact' }
   )
-  // employee 역할: 본인 담당 점검만 조회
-  if (isEmployee) {
-    query = query.eq('assigned_employee_id', profile.id) as typeof query
-  } else {
-    if (employeeFilter) query = query.eq('assigned_employee_id', employeeFilter) as typeof query
-  }
+  if (employeeFilter) query = query.eq('assigned_employee_id', employeeFilter) as typeof query
   if (yearFilter) query = query.eq('year', parseInt(yearFilter)) as typeof query
   // ADD-15: 비완료/완료/취소(비활성·삭제) 구분 필터
   if (statusFilter === 'incomplete') {
@@ -77,10 +72,7 @@ export default async function InspectionsPage({
   const [inspRes, profilesRes] = await Promise.all([
     // ADD-14: 최신 등록 건 최상위
     query.order('created_at', { ascending: false }).range(from, to),
-    // employee 역할: 본인 프로필만 조회 (담당자 표시용)
-    isEmployee
-      ? admin.from('profiles').select('id, name, position').eq('id', profile.id)
-      : admin.from('profiles').select('id, name, position').eq('is_active', true).order('name'),
+    admin.from('profiles').select('id, name, position').eq('is_active', true).order('name'),
   ])
 
   type InspRow = {
@@ -119,7 +111,6 @@ export default async function InspectionsPage({
     }
   }
 
-  const canCreate = (profile.role as UserRole) !== 'employee'
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   function buildPageUrl(p: number) {
@@ -170,18 +161,16 @@ export default async function InspectionsPage({
           <option value="in_progress">진행중</option>
           <option value="overdue">기한초과</option>
         </select>
-        {!isEmployee && (
-          <select
-            name="employee"
-            defaultValue={employeeFilter}
-            className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
-          >
-            <option value="">전체 담당자</option>
-            {employees.map(e => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </select>
-        )}
+        <select
+          name="employee"
+          defaultValue={employeeFilter}
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+        >
+          <option value="">전체 담당자</option>
+          {employees.map(e => (
+            <option key={e.id} value={e.id}>{e.name}</option>
+          ))}
+        </select>
         <select
           name="per_page"
           defaultValue={String(pageSize)}

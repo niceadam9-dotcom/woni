@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ActionPlanStatusClient } from '@/components/action-plans/action-plan-status-client'
 import type { UserRole } from '@/types'
@@ -74,7 +74,7 @@ export default async function ActionPlanStatusPage() {
     return defects.length > 0 && !existingInspectionIds.has(i.id as string)
   })
 
-  const canManage = (profile.role as UserRole) !== 'employee'
+  const canManage = can(profile.role as UserRole, 'action_plan_manage')
 
   return (
     <ActionPlanStatusClient

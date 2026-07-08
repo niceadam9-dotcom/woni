@@ -2,12 +2,10 @@ import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ActionPlansListClient } from '@/components/action-plans/action-plans-list-client'
-import type { UserRole } from '@/types'
 
 export default async function ActionPlansPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if ((profile.role as UserRole) === 'employee') redirect('/dashboard')
 
   const admin = createAdminClient()
 

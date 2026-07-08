@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ReportStatusClient } from '@/components/inspection-reports/report-status-client'
 import type { UserRole } from '@/types'
@@ -39,7 +39,7 @@ export default async function InspectionReportStatusPage() {
     .eq('is_active', true)
     .order('name')
 
-  const canManage = (profile.role as UserRole) !== 'employee'
+  const canManage = can(profile.role as UserRole, 'report_status_manage')
 
   return (
     <ReportStatusClient

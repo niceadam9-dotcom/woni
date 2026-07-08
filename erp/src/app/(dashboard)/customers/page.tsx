@@ -1,7 +1,7 @@
 ﻿import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Users, Plus } from 'lucide-react'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ToggleActiveClient } from '@/components/customers/toggle-active-client'
 import { DeleteCustomerClient } from '@/components/customers/delete-customer-client'
@@ -95,7 +95,10 @@ export default async function CustomersPage({
   const employees = (profilesRes.data ?? []) as Array<{ id: string; name: string }>
   const empMap = new Map(employees.map(e => [e.id, e.name]))
 
-  const canCreate = (profile.role as UserRole) !== 'employee'
+  // B안: 등록·수정은 전 직원, 담당 배정·삭제는 매니저 이상
+  const canCreate = can(profile.role as UserRole, 'customer_manage')
+  const canAssign = can(profile.role as UserRole, 'customer_assign')
+  const canDelete = can(profile.role as UserRole, 'customer_delete')
 
   function buildPageUrl(p: number) {
     const sp = new URLSearchParams()
@@ -244,7 +247,7 @@ export default async function CustomersPage({
                       ) : (c.use_approval_date ?? '-')}
                     </td>
                     <td className="px-4 py-3">
-                      {canCreate ? (
+                      {canAssign ? (
                         <InlineCustomerFieldClient
                           customerId={c.id}
                           field="assigned_employee_id"
@@ -284,7 +287,7 @@ export default async function CustomersPage({
                             defaultEmployeeId={c.assigned_employee_id}
                           />
                         )}
-                        {canCreate && (
+                        {canDelete && (
                           <DeleteCustomerClient customerId={c.id} customerName={c.customer_name} />
                         )}
                       </div>

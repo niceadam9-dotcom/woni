@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, ClipboardList } from 'lucide-react'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ActionPlanDetailClient } from '@/components/action-plans/action-plan-detail-client'
 import type { UserRole } from '@/types'
@@ -14,7 +14,6 @@ export default async function ActionPlanDetailPage({
   const { id } = await params
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if ((profile.role as UserRole) === 'employee') redirect('/dashboard')
 
   const admin = createAdminClient()
 
@@ -44,7 +43,7 @@ export default async function ActionPlanDetailPage({
     .eq('inspection_id', inspectionId)
     .order('created_at')
 
-  const canManage = (profile.role as UserRole) !== 'employee'
+  const canManage = can(profile.role as UserRole, 'action_plan_manage')
 
   return (
     <div className="space-y-4 max-w-2xl">

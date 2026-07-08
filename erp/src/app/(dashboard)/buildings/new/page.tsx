@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Building2, ChevronRight } from 'lucide-react'
-import { requireRole } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BuildingNewClient } from '@/components/buildings/building-new-client'
 
@@ -10,7 +10,7 @@ export default async function BuildingNewPage({
 }: {
   searchParams: Promise<{ customer_id?: string }>
 }) {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('building_manage')
 
   const params = await searchParams
   const admin = createAdminClient()

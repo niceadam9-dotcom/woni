@@ -8,7 +8,6 @@ import { getCompanyProfile } from '@/lib/company-profile'
 export default async function CustomersNewPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role === 'employee') redirect('/customers')
 
   const admin = createAdminClient()
   const [{ data: employeesRaw }, company] = await Promise.all([

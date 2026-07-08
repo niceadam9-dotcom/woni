@@ -162,8 +162,9 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
 
   // Filter state
   const [viewMode, setViewMode] = useState<'employee' | 'customer'>('employee')
+  // B안: 일반직원은 본인 담당만 기본 체크 (체크박스로 전체 확장 가능)
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(
-    () => new Set(employees.map(e => e.id))
+    () => currentUserRole === 'employee' ? new Set([currentUserId]) : new Set(employees.map(e => e.id))
   )
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
@@ -362,8 +363,8 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
             </div>
           </div>
 
-          {/* 직원 목록 (담당자 뷰) — manager/admin만 표시 */}
-          {viewMode === 'employee' && currentUserRole !== 'employee' && (
+          {/* 직원 목록 (담당자 뷰) — B안: 전 직원 표시 (일반직원은 본인만 기본 체크) */}
+          {viewMode === 'employee' && (
             <div className="px-4 py-3 border-b border-[#e0ddf5]">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider">직원</p>

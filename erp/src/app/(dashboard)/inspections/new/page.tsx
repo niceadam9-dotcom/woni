@@ -4,12 +4,10 @@ import { ChevronLeft, ClipboardList } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionNewClient } from '@/components/inspections/inspection-new-client'
-import type { UserRole } from '@/types'
 
 export default async function InspectionNewPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if ((profile.role as UserRole) === 'employee') redirect('/inspections')
 
   const admin = createAdminClient()
   const currentYear = new Date().getFullYear()

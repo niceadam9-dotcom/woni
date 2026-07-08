@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireRole, getSessionUser } from '@/lib/auth'
+import { requirePermission, getSessionUser } from '@/lib/auth'
 import type { InspectionType } from '@/types'
 
 export type CreateInspectionInput = {
@@ -18,7 +18,7 @@ export type CreateInspectionInput = {
 export async function createInspectionAction(
   input: CreateInspectionInput
 ): Promise<{ error?: string; inspectionId?: string }> {
-  const profile = await requireRole(['manager', 'admin'])
+  const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
   // 같은 고객·연도·차수 중복 방지
@@ -217,7 +217,7 @@ export async function completeStepAction(
 export async function deleteInspectionAction(
   inspectionId: string
 ): Promise<{ error?: string }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('inspection_delete')
   const admin = createAdminClient()
 
   const { error } = await admin

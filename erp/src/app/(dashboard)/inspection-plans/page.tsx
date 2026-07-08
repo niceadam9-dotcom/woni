@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionPlansClient } from '@/components/inspection-plans/inspection-plans-client'
 import type { InspectionPlan, UserRole } from '@/types'
@@ -74,7 +74,7 @@ export default async function InspectionPlansPage({
       : Promise.resolve({ data: [] }),
   ])
 
-  let items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
+  const items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
   const yearPlanItems = (yearPlanItemsRes.data ?? []) as { customer_id: string; sequence_num: number; plan_id: string }[]
 
   // ── 초과 점검 대상 계산 ──────────────────────────────────────
@@ -123,15 +123,10 @@ export default async function InspectionPlansPage({
     }
   }
 
+  // B안(2026-07-08): 일반직원도 계획 관리 전체 개방 — 전체 항목·고객·경보 표시.
+  // isEmployee는 담당직원 변경(배정) UI 제한에만 사용
   const isEmployee = (profile.role as UserRole) === 'employee'
-  const canManage = !isEmployee
-
-  // 일반직원: 본인 담당 건만 표시
-  if (isEmployee) {
-    items = items.filter(
-      item => (item as Record<string, unknown>).assigned_employee_id === profile.id
-    )
-  }
+  const canManage = can(profile.role as UserRole, 'inspection_plan_manage')
 
   return (
     <InspectionPlansClient
@@ -141,8 +136,8 @@ export default async function InspectionPlansPage({
       initialYear={year}
       initialMonth={month}
       employees={(employeesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      customers={isEmployee ? [] : (customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>}
-      overdueItems={isEmployee ? [] : overdueItems}
+      customers={(customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>}
+      overdueItems={overdueItems}
       holidays={holidays}
       canManage={canManage}
       isEmployee={isEmployee}

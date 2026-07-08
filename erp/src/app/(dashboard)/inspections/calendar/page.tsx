@@ -21,23 +21,15 @@ export default async function InspectionCalendarPage({
   const admin = createAdminClient()
   const currentYear = new Date().getFullYear()
 
-  const isEmployee = profile.role === 'employee'
-
-  let inspQuery = admin
+  // B안: 일반직원도 전체 조회 가능 — 기본 표시는 클라이언트에서 본인 담당만 체크
+  const inspQuery = admin
     .from('inspections')
     .select('id, customer_id, inspection_type, year, sequence_num, inspection_start_date, status, assigned_employee_id')
     .gte('year', currentYear - 1)
     .lte('year', currentYear + 1)
     .order('inspection_start_date')
 
-  if (isEmployee) {
-    inspQuery = inspQuery.eq('assigned_employee_id', profile.id) as typeof inspQuery
-  }
-
-  let profilesQuery = admin.from('profiles').select('id, name, position').eq('is_active', true).order('name')
-  if (isEmployee) {
-    profilesQuery = profilesQuery.eq('id', profile.id) as typeof profilesQuery
-  }
+  const profilesQuery = admin.from('profiles').select('id, name, position').eq('is_active', true).order('name')
 
   const [inspRes, profilesRes] = await Promise.all([inspQuery, profilesQuery])
 

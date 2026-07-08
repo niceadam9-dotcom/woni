@@ -203,19 +203,8 @@ export async function updatePlanItemAction(input: {
 }): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_plan_item_update')
   const admin = createAdminClient()
+  // B안(2026-07-08): 일반직원도 전체 계획 항목 수정 가능 — 담당직원 변경만 매니저 이상
   const isEmployee = profile.role === 'employee'
-
-  // 일반직원: 본인 담당 건인지 확인
-  if (isEmployee) {
-    const { data: item } = await admin
-      .from('inspection_plan_items')
-      .select('assigned_employee_id')
-      .eq('id', input.itemId)
-      .single()
-    if (!item || (item as { assigned_employee_id: string }).assigned_employee_id !== profile.id) {
-      return { error: '본인 담당 항목만 수정할 수 있습니다.' }
-    }
-  }
 
   const patch: Record<string, unknown> = {}
   if (input.scheduledDate !== undefined)      patch.scheduled_date       = input.scheduledDate
@@ -686,7 +675,7 @@ export async function getInspectionPlanWithItems(year: number, month: number) {
 
   if (!plan) return { plan: null, items: [] }
 
-  let query = admin
+  const query = admin
     .from('inspection_plan_items')
     .select(`
       *,
@@ -695,11 +684,7 @@ export async function getInspectionPlanWithItems(year: number, month: number) {
     `)
     .eq('plan_id', (plan as { id: string }).id)
 
-  // 일반직원: 본인 담당 건만 조회 (SSR 초기 로드와 동일한 스코핑)
-  if (profile.role === 'employee') {
-    query = query.eq('assigned_employee_id', profile.id)
-  }
-
+  // B안(2026-07-08): 일반직원도 전체 계획 항목 조회
   const { data: items } = await query
     .order('scheduled_date', { ascending: true, nullsFirst: false })
 

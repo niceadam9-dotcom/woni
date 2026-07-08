@@ -34,12 +34,14 @@ interface Props {
   item: ItemView
   employees: Employee[]
   canManage: boolean
+  /** 담당직원 변경 권한 — B안: 매니저 이상만 (미지정 시 canManage 따름) */
+  canAssign?: boolean
   canEditOwnItem?: boolean
   onClose: () => void
   onSaved: () => void
 }
 
-export function PlanItemSlidePanel({ item, employees, canManage, canEditOwnItem = false, onClose, onSaved }: Props) {
+export function PlanItemSlidePanel({ item, employees, canManage, canAssign = canManage, canEditOwnItem = false, onClose, onSaved }: Props) {
   const canEdit = canManage || canEditOwnItem
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -186,7 +188,7 @@ export function PlanItemSlidePanel({ item, employees, canManage, canEditOwnItem 
                 <select
                   value={assignedEmployeeId}
                   onChange={e => setAssignedEmployeeId(e.target.value)}
-                  disabled={!canManage}
+                  disabled={!canAssign}
                   className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
                 >
                   <option value="">미배정</option>

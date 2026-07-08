@@ -33,15 +33,20 @@ export const PERMISSIONS = {
   purchase_order_manage: ['manager', 'admin'], // 발주 등록 · 관리
 
   // ── 소방안전관리 (사이드바 순서) ──────────────────────────────────────────
-  customer_manage:             ['manager', 'admin'],            // 고객 등록 · 수정 · 담당자 배정
-  building_manage:             ['manager', 'admin'],            // 건물 등록 · 수정
-  inspection_sheet_manage:     ['manager', 'admin'],            // 점검표 양식 등록 · 수정
-  inspection_plan_manage:      ['manager', 'admin'],            // 점검계획 생성 · 확정 · 삭제
+  // 2026-07-08 B안: 업무 수행 권한은 전 직원 개방, 돈(정산·세금계산서)·삭제·담당 배정은 매니저 유지
+  customer_manage:             ['employee', 'manager', 'admin'], // 고객 등록 · 수정 (전 직원)
+  customer_assign:             ['manager', 'admin'],            // 담당자 배정 · 이관 (지역별 배정 포함)
+  customer_delete:             ['manager', 'admin'],            // 고객 삭제
+  building_manage:             ['employee', 'manager', 'admin'], // 건물 등록 · 수정 (전 직원)
+  inspection_sheet_manage:     ['employee', 'manager', 'admin'], // 점검표 양식 등록 · 수정 (전 직원)
+  inspection_plan_manage:      ['employee', 'manager', 'admin'], // 점검계획 생성 · 확정 · 삭제 (전 직원)
+  inspection_register:         ['employee', 'manager', 'admin'], // 점검 수동 등록 (전 직원)
+  inspection_delete:           ['manager', 'admin'],            // 점검 삭제
   inspection_plan_item_update: ['employee', 'manager', 'admin'], // 점검 업무 상태 변경 (전 직원)
   inspection_status_edit:      ['employee', 'manager', 'admin'], // 점검현황 날짜 입력 (전 직원)
   inspection_sms_send:         ['employee', 'manager', 'admin'], // 점검 SMS 발송 기록 (전 직원)
-  report_status_manage:        ['manager', 'admin'],            // 보고서 제출현황 관리
-  action_plan_manage:          ['manager', 'admin'],            // 이행계획서 등록 · 제출현황
+  report_status_manage:        ['employee', 'manager', 'admin'], // 보고서 제출현황 관리 (전 직원)
+  action_plan_manage:          ['employee', 'manager', 'admin'], // 이행계획서 등록 · 제출현황 (전 직원)
   billing_manage:              ['manager', 'admin'],            // 정산현황 관리
 
   // ── 업무관리 ──────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 ﻿import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, UserCheck, MapPin, Calendar, Tag, AlertCircle, ClipboardList, Building2, Plus, History } from 'lucide-react'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AssignEmployeeClient } from '@/components/customers/assign-employee-client'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
@@ -115,7 +115,9 @@ export default async function CustomerDetailPage({
     ? employees.find(e => e.id === customer.assigned_employee_id)
     : null
 
-  const canManage = (profile.role as UserRole) !== 'employee'
+  // B안: 고객 정보 수정은 전 직원, 담당 배정만 매니저 이상
+  const canManage = can(profile.role as UserRole, 'customer_manage')
+  const canAssign = can(profile.role as UserRole, 'customer_assign')
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -160,7 +162,7 @@ export default async function CustomerDetailPage({
                 )}
               </div>
             </div>
-            {canManage && (
+            {canAssign && (
               <AssignEmployeeClient
                 customerId={customer.id}
                 customerName={customer.customer_name}

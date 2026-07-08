@@ -341,22 +341,18 @@ export function InspectionPlansClient({
 
         {/* 담당자 + 점검유형 필터 */}
         <div className="flex items-center gap-2 px-4 py-2 flex-wrap">
-          {/* 담당자 필터 — 관리자/매니저만 표시 */}
-          {!isEmployee && (
-            <>
-              <select
-                value={filterEmployee}
-                onChange={e => setFilterEmployee(e.target.value)}
-                className="text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee] text-[#514b81]"
-              >
-                <option value="all">담당자 전체</option>
-                {employees.map(e => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
-              </select>
-              <div className="w-px h-5 bg-[#e0ddf5]" />
-            </>
-          )}
+          {/* 담당자 필터 — B안: 전 직원 표시 */}
+          <select
+            value={filterEmployee}
+            onChange={e => setFilterEmployee(e.target.value)}
+            className="text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee] text-[#514b81]"
+          >
+            <option value="all">담당자 전체</option>
+            {employees.map(e => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
+          <div className="w-px h-5 bg-[#e0ddf5]" />
 
           {/* 점검유형 필터 */}
           <span className="text-xs font-semibold text-[#8b87b8]">유형</span>
@@ -420,6 +416,7 @@ export function InspectionPlansClient({
           item={selectedItem}
           employees={employees}
           canManage={canManage}
+          canAssign={!isEmployee}
           canEditOwnItem={isEmployee}
           onClose={() => setSelectedItem(null)}
           onSaved={() => { setSelectedItem(null); refresh() }}

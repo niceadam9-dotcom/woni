@@ -366,7 +366,7 @@ export async function assignEmployeeAction(
   customerId: string,
   employeeId: string | null
 ): Promise<{ error?: string }> {
-  const profile = await requirePermission('customer_manage')
+  const profile = await requirePermission('customer_assign')
   const admin = createAdminClient()
 
   const { data: customerRaw } = await admin
@@ -631,7 +631,7 @@ export async function bulkAssignEmployeeAction(
   customerIds: string[],
   employeeId: string | null
 ): Promise<{ error?: string; updatedCount?: number }> {
-  const profile = await requirePermission('customer_manage')
+  const profile = await requirePermission('customer_assign')
   const admin = createAdminClient()
 
   if (customerIds.length === 0) return { updatedCount: 0 }
@@ -821,7 +821,7 @@ export async function toggleCustomerActiveAction(
 export async function deleteCustomerAction(
   customerId: string
 ): Promise<{ error?: string }> {
-  await requirePermission('customer_manage')
+  await requirePermission('customer_delete')
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -1092,7 +1092,10 @@ export async function patchCustomerFieldAction(
   field: 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'assigned_employee_id',
   value: string | null
 ): Promise<{ error?: string }> {
-  const profile = await requirePermission('customer_manage')
+  // 담당자 필드는 배정 권한(매니저 이상), 그 외 필드는 고객 수정 권한
+  const profile = field === 'assigned_employee_id'
+    ? await requirePermission('customer_assign')
+    : await requirePermission('customer_manage')
   const admin = createAdminClient()
 
   // 이전 값 조회 (변경 감지 + 이력 기록용)

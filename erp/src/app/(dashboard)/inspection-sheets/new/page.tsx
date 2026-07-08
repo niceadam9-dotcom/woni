@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ClipboardList, ChevronRight } from 'lucide-react'
-import { requireRole } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 import { SheetNewClient } from '@/components/inspection-sheets/sheet-new-client'
 
 export default async function InspectionSheetNewPage() {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('inspection_sheet_manage')
 
   return (
     <div className="space-y-6">
