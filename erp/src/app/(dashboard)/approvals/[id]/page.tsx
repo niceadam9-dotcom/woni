@@ -22,6 +22,8 @@ export default async function ApprovalDetailPage({ params }: Props) {
   const { id } = await params
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  // 이중 방어: proxy(구 미들웨어) role 체크와 별개로 페이지 자체에서도 차단
+  if (!['manager', 'admin'].includes(profile.role)) redirect('/dashboard')
 
   const supabase = await createClient()
 

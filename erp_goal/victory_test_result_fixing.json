@@ -1,6 +1,6 @@
 {
   "version": "victory_test_result_fixing",
-  "date": "2026-07-07",
+  "date": "2026-07-08",
   "description": "Victory_test_result.md 기반 수정 대상 목록 — FAIL(버그) + WARN(개선필요). 수정 완료 시 status를 completed로 갱신",
   "source_document": "erp_goal/Victory_test_result.md",
   "test_evidence": "F:/AI/ERP/victory_test/ (results.jsonl, shots/*.png)",
@@ -73,6 +73,23 @@
       "impact": "관리자가 점검일자를 재확정해도 담당자의 업무체크리스트 마감일은 그대로 → 마감 관리 오류",
       "resolution": "수정 완료 — syncInspectionStepDates 헬퍼 추가: 점검 시작 시 + 재확정 시 inspection_steps.due_date를 plan_item.step1~6_date로 동기화. 양 경로 검증 (fix3_verify)",
       "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-12",
+      "title": "미들웨어(인증·권한 프록시) 전체 미실행 — Next 16 middleware.ts deprecated + src 폴더 위치 규칙",
+      "severity": "critical",
+      "status": "completed",
+      "symptom": "employee가 /approvals(결재함) URL 직접 접근 가능 (전체 시스템 테스트 AUTH-5에서 발견). 인증 리다이렉트가 전부 페이지 가드 단일 방어 상태였음",
+      "cause": "① Next.js 16에서 middleware.ts 규약이 deprecated되어 proxy.ts로 대체됨 ② src/ 폴더 구조 사용 시 proxy는 src/ 안에 있어야 하는데 루트에 위치 — 두 조건이 겹쳐 미들웨어가 아예 로드되지 않았음",
+      "fix": "erp/middleware.ts → erp/src/proxy.ts 이동 + export function proxy()로 개명. /approvals 페이지(목록·상세)에 role 가드 추가(이중 방어). .next 캐시 삭제 후 정상 (stale 캐시 시 adapterFn is not a function 오류)",
+      "verification": "무세션 유령 URL 307→/login(프록시 실행 증거), employee /approvals·/admin 차단, manager /approvals 정상, 회귀 3건 PASS (2026-07-08)",
+      "files": [
+        "erp/src/proxy.ts",
+        "approvals/page.tsx",
+        "approvals/[id]/page.tsx"
+      ],
+      "found_date": "2026-07-08",
+      "resolved_date": "2026-07-08"
     }
   ],
   "functional_bugs": [
@@ -433,8 +450,8 @@
     ]
   },
   "summary": {
-    "total": 21,
-    "completed": 21,
+    "total": 22,
+    "completed": 22,
     "in_progress": 0,
     "pending": 0
   },

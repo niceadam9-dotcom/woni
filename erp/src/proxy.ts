@@ -6,7 +6,9 @@ const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron']
 const ADMIN_PATHS = ['/admin']
 const MANAGER_PATHS = ['/approvals']
 
-export async function middleware(request: NextRequest) {
+// Next.js 16: middleware.ts는 deprecated로 실행되지 않아 proxy.ts로 마이그레이션 (2026-07-08 — 미실행 상태로
+// employee가 /approvals에 진입 가능하던 버그의 원인). 런타임은 nodejs 고정 (edge 미지원).
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public paths — pass through
