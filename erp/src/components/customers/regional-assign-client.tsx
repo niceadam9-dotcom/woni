@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import { Loader2, UserCheck, MapPin, CheckSquare, Square, Users } from 'lucide-react'
 import { bulkAssignEmployeeAction } from '@/app/(dashboard)/customers/actions'
+import { TableScroll } from '@/components/ui/table-scroll'
 
 type Customer = {
   id: string
@@ -272,6 +273,8 @@ export function RegionalAssignClient({ customers, employees }: Props) {
             </button>
           </div>
 
+          {/* 고객 목록 — 상단 필터 고정 / 목록만 스크롤 / 하단 배정 바 고정 3단 구성 */}
+          <TableScroll offset={430}>
           <div className="divide-y divide-[#c8c4d0]">
             {filtered.map(c => {
               const checked = checkedIds.has(c.id)
@@ -297,6 +300,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
               )
             })}
           </div>
+          </TableScroll>
         </div>
       )}
 

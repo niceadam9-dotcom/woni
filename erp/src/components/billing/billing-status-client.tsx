@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { Search, X, Plus, Check } from 'lucide-react'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
+import { TableScroll } from '@/components/ui/table-scroll'
 import {
   createBillAction,
   updateBillPaymentAction,
@@ -423,10 +424,10 @@ export function BillingStatusClient({
         <span className="ml-auto text-xs text-gray-400">{filtered.length}건</span>
       </div>
 
-      {/* 테이블 */}
-      <div className="flex-1 overflow-auto">
+      {/* 테이블 — 헤더 고정 + 레코드 스크롤 */}
+      <TableScroll offset={280}>
         <table className="w-full text-xs border-collapse min-w-[1000px]">
-          <thead className="bg-gray-100 sticky top-0">
+          <thead className="bg-gray-100 sticky top-0 z-10 shadow-[0_1px_0_0_#c8c4d0]">
             <tr>
               <th className="border px-2 py-2 w-8">No</th>
               <th className="border px-2 py-2">청구월</th>
@@ -501,7 +502,7 @@ export function BillingStatusClient({
             </tfoot>
           )}
         </table>
-      </div>
+      </TableScroll>
 
       {/* 청구등록 모달 */}
       {showCreate && (

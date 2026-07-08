@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { CheckCircle, Clock, XCircle } from 'lucide-react'
 import { cancelTaxInvoiceAction } from '@/app/(dashboard)/tax-invoices/actions'
+import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 
 type TaxInvoice = {
   id: string
@@ -168,11 +169,11 @@ export function TaxInvoiceListClient({
         />
       </div>
 
-      {/* 테이블 */}
+      {/* 테이블 — 헤더 고정 + 레코드 스크롤 */}
       <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="overflow-x-auto">
+        <TableScroll offset={280}>
           <table className="w-full text-sm">
-            <thead>
+            <thead className={STICKY_THEAD}>
               <tr className="border-b bg-gray-50">
                 {['No', '건물명', '청구월', '구분', '청구일', '공급가액', '부가세', '청구금액', '발행상태', '발행일', '승인번호', canManage ? '처리' : ''].filter(Boolean).map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">{h}</th>
@@ -244,7 +245,7 @@ export function TaxInvoiceListClient({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       </div>
 
     </>

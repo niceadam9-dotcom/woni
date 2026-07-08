@@ -16,6 +16,7 @@ import {
   confirmPlanItemStageOneAction,
 } from '@/app/(dashboard)/inspection-plans/actions'
 import { PlanItemSlidePanel } from './plan-item-slide-panel'
+import { TableScroll } from '@/components/ui/table-scroll'
 import { AddPlanItemModal } from './add-plan-item-modal'
 import { OverdueResolveModal } from './overdue-resolve-modal'
 
@@ -763,6 +764,7 @@ function ListView({
   return (
     <>
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+      <TableScroll offset={360}>
       <table className="w-full text-sm table-fixed">
         <colgroup>
           {canManage && <col className="w-10" />}
@@ -775,7 +777,7 @@ function ListView({
           <col className="w-20" />{/* 상태 */}
           <col className="w-24" />{/* 액션 */}
         </colgroup>
-        <thead>
+        <thead className="sticky top-0 z-10 bg-[#fafafa] shadow-[0_1px_0_0_#e0ddf5]">
           <tr className="border-b border-[#e0ddf5] bg-[#fafafa]">
             {canManage && (
               <th className="px-3 py-3">
@@ -901,6 +903,7 @@ function ListView({
           })}
         </tbody>
       </table>
+      </TableScroll>
     </div>
 
     {/* 하단 고정 확정 바 — 선택 시 화면 하단에 고정 노출 */}

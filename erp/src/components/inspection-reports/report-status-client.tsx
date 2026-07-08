@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Search, X, Check } from 'lucide-react'
 import { upsertReportStatusAction } from '@/app/(dashboard)/inspection-reports/status/actions'
+import { TableScroll } from '@/components/ui/table-scroll'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmt(d: string | null | undefined) {
@@ -323,10 +324,10 @@ export function ReportStatusClient({
         <span className="ml-auto text-xs text-gray-400">{filtered.length}건</span>
       </div>
 
-      {/* 테이블 */}
-      <div className="flex-1 overflow-auto">
+      {/* 테이블 — 헤더 고정 + 레코드 스크롤 */}
+      <TableScroll offset={280}>
         <table className="w-full text-xs border-collapse min-w-[1100px]">
-          <thead className="bg-gray-100 sticky top-0">
+          <thead className="bg-gray-100 sticky top-0 z-10 shadow-[0_1px_0_0_#c8c4d0]">
             <tr>
               <th className="border px-2 py-2 text-center w-8">No</th>
               <th className="border px-2 py-2 text-center">점검월</th>
@@ -430,7 +431,7 @@ export function ReportStatusClient({
             })}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
 
       {/* 입력 모달 */}
       {modalItem && (

@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
 import { MessageSquare, ChevronLeft, ChevronRight, X, Check, Search, MapPin, ExternalLink } from 'lucide-react'
 import { upsertStatusLogAction, saveSmsAction, getMonitorItemsAction } from '@/app/(dashboard)/inspection-plans/monitor/actions'
+import { TableScroll } from '@/components/ui/table-scroll'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmt(d: string | null | undefined) {
@@ -571,10 +572,10 @@ export function MonitorClient({
         <span className="ml-auto text-xs text-gray-400">{loadingRows ? '조회 중…' : `${filtered.length}건`}</span>
       </div>
 
-      {/* 테이블 */}
-      <div className="flex-1 overflow-auto">
+      {/* 테이블 — 헤더 고정 + 레코드 스크롤 */}
+      <TableScroll offset={280}>
         <table className="w-full text-xs border-collapse min-w-[1100px]">
-          <thead className="bg-gray-100 sticky top-0">
+          <thead className="bg-gray-100 sticky top-0 z-10 shadow-[0_1px_0_0_#c8c4d0]">
             <tr>
               <th className="border px-2 py-2 text-center w-8">No</th>
               <th className="border px-2 py-2 text-center">계획일</th>
@@ -692,7 +693,7 @@ export function MonitorClient({
             })}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
 
       {/* SMS 모달 */}
       {showSms && (
