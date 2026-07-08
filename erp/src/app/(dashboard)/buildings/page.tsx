@@ -6,6 +6,7 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { UserRole } from '@/types'
 import { BuildingsFilterBar } from '@/components/buildings/buildings-filter-bar'
+import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 
 export default async function BuildingsPage({
   searchParams,
@@ -123,9 +124,9 @@ export default async function BuildingsPage({
             등록된 건물이 없습니다
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll offset={300}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   {['건물명', '고객사', '주소', '용도', '연면적', '층수', '준공연도', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
@@ -189,7 +190,7 @@ export default async function BuildingsPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </div>
 

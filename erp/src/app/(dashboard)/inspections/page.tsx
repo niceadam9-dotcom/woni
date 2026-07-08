@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ClipboardList, Plus, AlertTriangle } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import type { InspectionStatus, InspectionType, UserRole } from '@/types'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
@@ -204,9 +205,9 @@ export default async function InspectionsPage({
             검색된 점검 업무가 없습니다
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll offset={300}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
@@ -288,7 +289,7 @@ export default async function InspectionsPage({
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </div>
 

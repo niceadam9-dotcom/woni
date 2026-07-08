@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { MessageCircle, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: '접수대기',
@@ -145,9 +146,9 @@ export default async function InquiriesPage({
         {rows.length === 0 ? (
           <div className="py-16 text-center text-sm text-[#514b81]">문의요청이 없습니다</div>
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll offset={300}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   {['유형', '제목', '고객사', '담당 연락처', '등록자', '접수일', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">{h}</th>
@@ -194,7 +195,7 @@ export default async function InquiriesPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </div>
     </div>

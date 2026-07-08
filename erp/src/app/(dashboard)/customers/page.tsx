@@ -8,6 +8,7 @@ import { DeleteCustomerClient } from '@/components/customers/delete-customer-cli
 import { GeneralInspectionRegisterClient } from '@/components/customers/general-inspection-register-client'
 import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
+import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import type { InspectionType, UserRole } from '@/types'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
@@ -35,7 +36,7 @@ export default async function CustomersPage({
   const typeFilter = params.type ?? ''
   const activeFilter = params.active ?? 'active'
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
-  const pageSize = Math.max(0, parseInt(params.per_page ?? '25', 10))  // 0 = 전체
+  const pageSize = Math.max(0, parseInt(params.per_page ?? '50', 10))  // 0 = 전체, 기본 50 (헤더 고정 스크롤과 조합)
 
   const admin = createAdminClient()
 
@@ -105,7 +106,7 @@ export default async function CustomersPage({
     if (q) sp.set('q', q)
     if (typeFilter) sp.set('type', typeFilter)
     if (activeFilter !== 'active') sp.set('active', activeFilter)
-    if (pageSize !== 25) sp.set('per_page', String(pageSize))
+    if (pageSize !== 50) sp.set('per_page', String(pageSize))
     if (p > 1) sp.set('page', String(p))
     const qs = sp.toString()
     return `/customers${qs ? `?${qs}` : ''}`
@@ -191,9 +192,9 @@ export default async function CustomersPage({
             검색된 고객이 없습니다
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll offset={300}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
                   {['고객명', '점검유형', '연간횟수', '계약일', '사용승인일', '담당직원', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
@@ -296,7 +297,7 @@ export default async function CustomersPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </div>
 
