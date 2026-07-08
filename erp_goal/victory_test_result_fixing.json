@@ -90,6 +90,20 @@
       ],
       "found_date": "2026-07-08",
       "resolved_date": "2026-07-08"
+    },
+    {
+      "id": "FIX-16",
+      "title": "전자결재 RLS 무한 재귀 — 문서함·결재함·결재 상세·회수 전면 마비",
+      "severity": "critical",
+      "status": "in_progress",
+      "symptom": "수동 테스트(DOC-1)에서 발견 — 결재 상세가 404, 결재함·문서함이 항상 빈 목록, 회수 액션 항상 [회수할 수 없는 문서]. user 세션의 documents/document_approvers 조회가 전부 42P17 infinite recursion",
+      "cause": "001의 RLS 정책 순환 — documents(Approvers can view)가 document_approvers를 참조하고, document_approvers(View approvers)가 다시 documents를 참조",
+      "fix": "migration 044 — documents 쪽 정책의 approvers 참조를 SECURITY DEFINER 함수(is_document_approver)로 교체해 순환 절단. 앱 코드는 원설계(user 세션+RLS) 유지",
+      "verification": "044 적용 후 결재 풀사이클(기안→승인/반려/회수) 재검 예정",
+      "files": [
+        "supabase/migrations/044_fix_document_rls_recursion.sql"
+      ],
+      "found_date": "2026-07-08"
     }
   ],
   "functional_bugs": [
@@ -497,9 +511,9 @@
     ]
   },
   "summary": {
-    "total": 25,
+    "total": 26,
     "completed": 25,
-    "in_progress": 0,
+    "in_progress": 1,
     "pending": 0
   },
   "retest_round2": {
