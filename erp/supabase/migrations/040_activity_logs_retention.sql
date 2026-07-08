@@ -47,3 +47,7 @@ $$ LANGUAGE plpgsql;
 REVOKE ALL ON FUNCTION purge_activity_logs(uuid[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION purge_activity_logs(uuid[]) FROM anon;
 REVOKE ALL ON FUNCTION purge_activity_logs(uuid[]) FROM authenticated;
+GRANT EXECUTE ON FUNCTION purge_activity_logs(uuid[]) TO service_role;
+
+-- PostgREST 스키마 캐시 갱신 — 새 RPC를 즉시 인식하도록
+NOTIFY pgrst, 'reload schema';
