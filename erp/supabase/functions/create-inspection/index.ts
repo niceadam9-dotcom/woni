@@ -43,6 +43,13 @@ Deno.serve(async (req) => {
       sequence_num,
     } = await req.json()
 
+    if (!plan_item_id || !customer_id || !assigned_employee_id) {
+      return new Response(
+        JSON.stringify({ error: 'plan_item_id, customer_id, assigned_employee_id는 필수입니다.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // 이미 해당 plan_item에 연결된 inspection이 있으면 반환
     const { data: existing } = await supabase
       .from('inspection_plan_items')
@@ -88,8 +95,9 @@ Deno.serve(async (req) => {
     )
   } catch (err) {
     console.error('[create-inspection]', err)
+    const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err)
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: msg }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
