@@ -95,8 +95,9 @@
       "id": "DASH-1",
       "category": "대시보드",
       "title": "KPI 카드 정합성",
-      "status": "partial",
-      "note": "자동 대조 실패는 테스트 전제 오류(KPI 산식이 전체 활성 고객 수와 다름) — 4개 KPI 원천 대조는 수동 수행 필요"
+      "status": "passed",
+      "note": "점검 KPI 실측 대조 — DB(예정 1/진행 13/완료 2) = 화면 표기. 기한초과 카운트는 단계 재계산식으로 화면 스크린샷 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "DASH-2",
@@ -132,7 +133,7 @@
       "category": "MyPage",
       "title": "ToDo 완료 체크·해제·유지",
       "status": "partial",
-      "note": "등록·소유자 격리·새로고침 유지 PASS. 완료 체크 토글만 자동화 실패(셀렉터) — 수동 확인"
+      "note": "등록·격리·유지·완료 토글(true) 기검증. 해제 토글만 셀렉터 미착 — 수동 확인 1건"
     },
     {
       "id": "MY-3",
@@ -221,8 +222,9 @@
       "id": "HR-3",
       "category": "인사휴가",
       "title": "반려·잔여 부족 차단",
-      "status": "partial",
-      "note": "잔여 초과 차단·반려 플로우 자동화 미완 — 수동 확인 (차단 메시지 로직은 코드 확인됨)"
+      "status": "passed",
+      "note": "잔여 초과 신청 차단(잔여 연차 부족+미저장) + 사유 없이 반려 차단 + 사유 입력 반려(rejected+코멘트) + 반려분 미차감 — 전 항목 실측",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "HR-4",
@@ -270,7 +272,9 @@
       "id": "FIRE-S5",
       "category": "소방스모크",
       "title": "미점검 초과 경보 — 취소 건 재포착 없음 (ADD-20 회귀)",
-      "status": "pending"
+      "status": "passed",
+      "note": "취소-전용 계획 보유 고객 7명 전원 미점검 경보 미노출 (ADD-20 회귀 무결)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "FIRE-S6",
@@ -672,8 +676,9 @@
       "id": "NF-SEC-2",
       "category": "비기능보안",
       "title": "account_codes anon 노출",
-      "status": "known_issue",
-      "note": "KI-1 — migration 043 작성 완료, 적용 대기. 적용 후 anon 차단 재검 필요"
+      "status": "passed",
+      "note": "043 v2(정책 전수 재구성) 적용 후 anon 조회 [] — KI-1 해소. 인증 사용자 정상 조회",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "NF-SEC-3",
@@ -727,7 +732,8 @@
       "id": "EX-V1",
       "category": "예외입력",
       "title": "회계 금액 경계 (음수·문자·10억 초과)",
-      "status": "pending"
+      "status": "partial",
+      "note": "음수 금액 전표(−10만/−10만)가 저장됨 — 금액 부호 검증 부재(개선 후보 IMP). 문자 입력은 number input이 차단, 차대 불일치 차단은 ACC-1에서 확인"
     },
     {
       "id": "EX-V2",
@@ -749,7 +755,9 @@
       "id": "EX-V4",
       "category": "예외입력",
       "title": "견적·급여 계산 필드 경계",
-      "status": "pending"
+      "status": "passed",
+      "note": "견적 수량 0·음수 단가 → 음수 합계 저장 없음",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-V5",
@@ -801,8 +809,9 @@
       "id": "EX-S2",
       "category": "예외상태",
       "title": "휴가 이중 처리",
-      "status": "partial",
-      "note": "이중 승인은 2단계 승인 설계상 단계별 1회 — 각 단계 멱등성은 수동 확인"
+      "status": "passed",
+      "note": "2단계 승인 멱등 실측 — 팀장 승인 후 재승인 버튼 소멸, 최종 승인 차감 정확히 1회, 승인 후 대기 목록 소멸",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-S3",
@@ -823,8 +832,9 @@
       "id": "EX-S5",
       "category": "예외상태",
       "title": "업무지시 완료 후 재전이",
-      "status": "pending",
-      "note": "041 적용으로 테스트 가능해짐 — 완료 업무 재전이 동작 수동 확인"
+      "status": "passed",
+      "note": "완료 업무 재전이 허용(완료→진행중, 차단 없음) — 현행 동작 기록, 전이 이력 미기록은 개선 후보 INFO",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-C1",
@@ -836,7 +846,9 @@
       "id": "EX-C2",
       "category": "예외동시성",
       "title": "동일 휴가 이중 승인 (연차 1회만 차감)",
-      "status": "pending"
+      "status": "passed",
+      "note": "동일 휴가 이중 승인 불가 — 단계별 버튼 소멸 + 차감 1회 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-C3",
@@ -857,7 +869,8 @@
       "id": "EX-X1",
       "category": "예외외부연동",
       "title": "SMS(Solapi) 자격증명 부재",
-      "status": "pending"
+      "status": "partial",
+      "note": "모니터링 SMS 발송 버튼 조건부 노출(대상 선택 필요)로 자동 진입 실패 — 수동 확인. SOLAPI 키 미설정 상태 확인됨"
     },
     {
       "id": "EX-X2",
@@ -955,8 +968,9 @@
       "id": "M3",
       "category": "상태매트릭스",
       "title": "휴가 상태 × 연차·캘린더",
-      "status": "partial",
-      "note": "대기=미차감·최종 승인=차감(+1)·알림 실측. 반려 미차감·캘린더 표시는 이전 라운드 부분 확인 — 잔여 수동"
+      "status": "passed",
+      "note": "휴가 상태×연차 매트릭스 전 행 실측 — 대기:미차감 / 최종승인:차감·알림·캘린더 / 반려:미차감·사유 기록",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "M4",
@@ -1052,13 +1066,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 75,
+    "passed": 84,
     "failed": 0,
-    "partial": 19,
+    "partial": 17,
     "blocked": 0,
     "skipped": 0,
-    "known_issue": 1,
+    "known_issue": 0,
     "in_progress": 0,
-    "pending": 47
+    "pending": 41
   }
 }
