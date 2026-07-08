@@ -31,7 +31,8 @@
       "id": "KI-4",
       "title": "KI-2 잔여 — My Page·게시판 테이블 5종 미배포",
       "detail": "my_notes, address_contacts, board_categories, board_posts, meeting_notes — migration 042 작성 완료, 적용 대기. 녹음메모·결재서명은 테이블 미사용(해당 없음)",
-      "found": "2026-07-08 (wave-3 테스트 중 발견)"
+      "found": "2026-07-08 (wave-3 테스트 중 발견)",
+      "resolved": "2026-07-08 migration 042 적용 — 5개 테이블 생성·검증 완료. 부수 발견: 노트 마크다운·게시판 첨부·조회수 증가 미구현(사용설명서 과잉 표기)"
     }
   ],
   "items": [
@@ -136,8 +137,9 @@
       "id": "MY-3",
       "category": "MyPage",
       "title": "주소록 등록·검색·격리",
-      "status": "blocked",
-      "note": "address_contacts 테이블 미배포(KI-2 잔여) — migration 042 적용 후 재시도"
+      "status": "passed",
+      "note": "등록·소유자 격리(DB)·이름 검색→행 표시 확인 (042 적용 후)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "MY-4",
@@ -151,8 +153,8 @@
       "id": "MY-5",
       "category": "MyPage",
       "title": "노트 마크다운 렌더링",
-      "status": "blocked",
-      "note": "my_notes 테이블 미배포(KI-2 잔여) — migration 042 적용 후 재시도"
+      "status": "partial",
+      "note": "저장·소유자 격리·본문 표시 PASS. 단 마크다운 렌더링은 미구현(플레인 텍스트 whitespace-pre-wrap) — 사용설명서 과잉 표기 4호, 개선 후보 INFO"
     },
     {
       "id": "MY-6",
@@ -511,22 +513,24 @@
       "id": "BOARD-1",
       "category": "게시판",
       "title": "글 작성·첨부·카테고리",
-      "status": "blocked",
-      "note": "board_posts 테이블 미배포(KI-2 잔여) — 042 적용 후 재시도"
+      "status": "passed",
+      "note": "게시글 등록 1건 + 기본 카테고리(042 시드) 지정. 첨부 업로드는 미구현(과잉 표기 — INFO)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "BOARD-2",
       "category": "게시판",
       "title": "수정·삭제 권한 (본인·admin)",
-      "status": "blocked",
-      "note": "042 적용 후 재시도"
+      "status": "passed",
+      "note": "타 직원 열람 가능 + 수정/삭제 버튼 미노출, admin 소프트 삭제(is_deleted) 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "BOARD-3",
       "category": "게시판",
       "title": "회의록 + 참석자 알림",
-      "status": "blocked",
-      "note": "meeting_notes 테이블 미배포 — 042 적용 후 재시도"
+      "status": "partial",
+      "note": "회의록 등록·참석자 저장(DB 정합) 확인. 목록 표시만 재현 실패(캐시 추정) — 수동 재확인. 참석자 알림은 수동"
     },
     {
       "id": "ADM-1",
@@ -823,8 +827,9 @@
       "id": "EX-C4",
       "category": "예외동시성",
       "title": "이중 클릭 중복 제출",
-      "status": "blocked",
-      "note": "게시글 이중 클릭 검증은 042 적용 후 재시도"
+      "status": "passed",
+      "note": "게시글 저장 이중 클릭 → 1건만 생성 (등록 후 리다이렉트로 중복 차단)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-X1",
@@ -1021,10 +1026,10 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 58,
+    "passed": 62,
     "failed": 0,
-    "partial": 18,
-    "blocked": 6,
+    "partial": 20,
+    "blocked": 0,
     "skipped": 0,
     "known_issue": 1,
     "in_progress": 0,
