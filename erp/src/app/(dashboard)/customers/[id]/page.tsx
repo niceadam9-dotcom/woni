@@ -95,6 +95,20 @@ export default async function CustomerDetailPage({
   >
   const activityLogs = (activityLogsRes.data ?? []) as ActivityLog[]
 
+  // 변경 이력 표시 화이트리스트 — 필수 고객관리 사항만 (기록 자체는 전부 보존, 전체는 관리자>활동로그)
+  const ESSENTIAL_FIELDS = new Set(['assigned_employee_id', 'inspection_type', 'use_approval_date', 'contract_date', 'is_active'])
+  const ACTION_LABELS: Record<string, string> = {
+    customer_created: '고객 등록',
+    general_inspection_registered: '일반관리 점검 등록',
+  }
+  const essentialLogs = activityLogs
+    .map(log => ({
+      log,
+      actionLabel: ACTION_LABELS[log.action],
+      changes: (log.metadata?.changes ?? []).filter(c => ESSENTIAL_FIELDS.has(c.field)),
+    }))
+    .filter(x => x.actionLabel || x.changes.length > 0)
+
   // 점검별 단계 진행 카운트
   const stepCounts: Record<string, { total: number; completed: number }> = {}
   if (inspections.length > 0) {
@@ -336,10 +350,10 @@ export default async function CustomerDetailPage({
         <div className="flex items-center gap-2 mb-4">
           <ClipboardList className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">점검 이력</h2>
-          <span className="text-xs text-[#b0acd6] ml-auto">{inspections.length}건 점검 · {activityLogs.length}건 변경</span>
+          <span className="text-xs text-[#b0acd6] ml-auto">{inspections.length}건 점검 · {essentialLogs.length}건 변경</span>
         </div>
 
-        {inspections.length === 0 && activityLogs.length === 0 ? (
+        {inspections.length === 0 && essentialLogs.length === 0 ? (
           <p className="text-sm text-[#514b81] py-6 text-center">등록된 이력이 없습니다</p>
         ) : (
           <div className="space-y-1">
@@ -405,17 +419,16 @@ export default async function CustomerDetailPage({
               </div>
             )}
 
-            {/* 변경 이력 */}
-            {activityLogs.length > 0 && (
+            {/* 변경 이력 — 필수 고객관리 사항만 (담당직원·점검유형·사용승인일·계약일·활성상태·등록) */}
+            {essentialLogs.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3 pt-2 border-t border-[#e0ddf5]">
                   <History className="size-3.5 text-[#b0acd6]" />
                   <span className="text-xs font-medium text-[#514b81]">변경 이력</span>
                 </div>
                 <div className="space-y-2">
-                  {activityLogs.map(log => {
+                  {essentialLogs.map(({ log, actionLabel, changes }) => {
                     const actor = employees.find(e => e.id === log.actor_id)
-                    const changes = log.metadata?.changes ?? []
                     const dateStr = new Date(log.created_at).toLocaleString('ko-KR', {
                       year: 'numeric', month: '2-digit', day: '2-digit',
                       hour: '2-digit', minute: '2-digit',
@@ -442,8 +455,8 @@ export default async function CustomerDetailPage({
                                 <span className="text-[#7b68ee]">{c.new_value ?? '없음'}</span>
                               </div>
                             ))}
-                            {changes.length === 0 && (
-                              <span className="text-xs text-[#b0acd6]">정보 업데이트</span>
+                            {changes.length === 0 && actionLabel && (
+                              <span className="text-xs text-[#7b68ee] font-medium">{actionLabel}</span>
                             )}
                           </div>
                         </div>

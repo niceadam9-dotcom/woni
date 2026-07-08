@@ -798,7 +798,7 @@ export async function toggleCustomerActiveAction(
   customerId: string,
   isActive: boolean
 ): Promise<{ error?: string }> {
-  await requirePermission('customer_manage')
+  const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -810,6 +810,21 @@ export async function toggleCustomerActiveAction(
 
   if (isActive) await _restorePlansForCustomer(admin, customerId)
   else          await _autoCancelPlansForCustomer(admin, customerId)
+
+  // 활성/비활성 전환은 계획 자동취소·복원을 유발하는 핵심 이벤트 — 변경 이력에 기록
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'customer_field_changed',
+    entity_type: 'customer',
+    entity_id: customerId,
+    metadata: {
+      changes: [{
+        field: 'is_active', field_label: '상태',
+        old_value: isActive ? '비활성' : '활성',
+        new_value: isActive ? '활성' : '비활성',
+      }],
+    },
+  } as Record<string, unknown>)
 
   revalidatePath('/customers')
   revalidatePath('/inspection-plans')
