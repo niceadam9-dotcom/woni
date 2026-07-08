@@ -35,6 +35,11 @@ CREATE POLICY "Approvers can view documents assigned to them"
 
 NOTIFY pgrst, 'reload schema';
 
--- 적용 확인용 — 아래 두 조회가 모두 에러 없이 실행되면 재귀 해소
-SELECT count(*) AS documents_ok FROM documents;
-SELECT count(*) AS approvers_ok FROM document_approvers;
+-- 적용 확인 — authenticated 롤로 전환해 실제 RLS 경로로 조회
+-- (postgres 롤은 RLS를 우회하므로 롤 전환 없이는 재귀 검증이 안 됨)
+-- 기대: 두 조회 모두 에러 없이 count 반환(auth.uid()가 없어 0이 정상).
+-- 재귀가 남아 있으면 "infinite recursion detected"(42P17) 에러가 난다.
+SET ROLE authenticated;
+SELECT count(*) AS documents_rls_ok FROM documents;
+SELECT count(*) AS approvers_rls_ok FROM document_approvers;
+RESET ROLE;

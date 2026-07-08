@@ -135,11 +135,17 @@ interface Props {
   currentUserId: string
   currentUserRole: UserRole
   initialFilter?: QuickFilter
+  /** 주말·공휴일 표시용 (YYYY-MM-DD + 이름) */
+  holidays?: Array<{ date: string; name: string }>
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, employees, currentUserId, currentUserRole, initialFilter = 'all' }: Props) {
+export function InspectionCalendarClient({ inspections, employees, currentUserId, currentUserRole, initialFilter = 'all', holidays = [] }: Props) {
   const router = useRouter()
+
+  // 공휴일 맵 + 날짜 클릭 안내 상태
+  const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h.name])), [holidays])
+  const [holidayInfo, setHolidayInfo] = useState<{ date: string; name: string } | null>(null)
 
   // Calendar view state
   const [calView, setCalView] = useState<View>(initialFilter === 'overdue' ? Views.AGENDA : Views.MONTH)
@@ -329,6 +335,34 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
       return next
     })
   }
+
+  // 월 뷰 날짜 헤더 — 토(파랑)/일·공휴일(빨강) + 공휴일명 표시
+  // 클릭 충돌 방지: 날짜 숫자 클릭 = 기존 이동(드릴다운) 유지, 공휴일 라벨 클릭 = 안내 배너 (전파 차단)
+  const MonthDateHeader = useCallback(({ date, label, onDrillDown }: {
+    date: Date; label: string; onDrillDown?: React.MouseEventHandler
+  }) => {
+    const iso = format(date, 'yyyy-MM-dd')
+    const holiday = holidayMap.get(iso)
+    const dow = date.getDay()
+    const color = holiday || dow === 0 ? '#dc2626' : dow === 6 ? '#2563eb' : undefined
+    return (
+      <div className="flex items-center justify-between gap-1 min-w-0">
+        {holiday ? (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); e.preventDefault(); setHolidayInfo({ date: iso, name: holiday }) }}
+            title={`${holiday} (공휴일)`}
+            className="text-[10px] text-red-500 truncate leading-tight hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
+          >
+            {holiday}
+          </button>
+        ) : <span />}
+        <button type="button" onClick={onDrillDown} className="rbc-button-link" style={{ color }}>
+          {label}
+        </button>
+      </div>
+    )
+  }, [holidayMap])
 
   return (
     <div className="space-y-4">
@@ -521,9 +555,24 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
             </div>
           </div>
           <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+          {/* 공휴일 클릭 안내 배너 */}
+          {holidayInfo && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              <CalendarDays className="size-4 shrink-0" />
+              <span>
+                <strong>{format(new Date(holidayInfo.date + 'T00:00:00'), 'M월 d일 (EEE)', { locale: ko })}</strong>
+                {' — '}{holidayInfo.name} (공휴일)
+              </span>
+              <button onClick={() => setHolidayInfo(null)} className="ml-auto text-red-400 hover:text-red-600">
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
           <style>{`
             .rbc-calendar { font-family: inherit; }
             .rbc-header { background:#f8f9fa; border-color:#c8c4d0; padding:8px 4px; font-size:12px; font-weight:600; color:#514b81; }
+            .rbc-header:nth-child(6) { color:#2563eb; } /* 토 */
+            .rbc-header:nth-child(7) { color:#dc2626; } /* 일 */
             .rbc-day-bg { border-color:#c8c4d0; }
             .rbc-month-view,.rbc-time-view,.rbc-agenda-view { border-color:#c8c4d0; }
             .rbc-today { background:#f5f4ff; }
@@ -549,6 +598,11 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
             onSelectEvent={handleSelectEvent}
             style={{ height: 640 }}
             views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
+            components={{ month: { dateHeader: MonthDateHeader } }}
+            dayPropGetter={(date: Date) => {
+              const iso = format(date, 'yyyy-MM-dd')
+              return holidayMap.has(iso) ? { style: { backgroundColor: '#fef2f2' } } : {}
+            }}
             messages={{
               month: '월', week: '주', day: '일', agenda: '목록',
               today: '오늘', previous: '‹', next: '›',

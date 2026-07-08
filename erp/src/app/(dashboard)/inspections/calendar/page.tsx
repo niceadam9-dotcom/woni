@@ -31,7 +31,14 @@ export default async function InspectionCalendarPage({
 
   const profilesQuery = admin.from('profiles').select('id, name, position').eq('is_active', true).order('name')
 
-  const [inspRes, profilesRes] = await Promise.all([inspQuery, profilesQuery])
+  // 주말·공휴일 표시용 (전년~익년)
+  const holidaysQuery = admin
+    .from('holidays')
+    .select('date, name')
+    .gte('date', `${currentYear - 1}-01-01`)
+    .lte('date', `${currentYear + 1}-12-31`)
+
+  const [inspRes, profilesRes, holidaysRes] = await Promise.all([inspQuery, profilesQuery, holidaysQuery])
 
   type InspRow = {
     id: string; customer_id: string; inspection_type: string; year: number
@@ -102,6 +109,8 @@ export default async function InspectionCalendarPage({
     })
   }
 
+  const holidays = ((holidaysRes.data ?? []) as Array<{ date: string; name: string }>)
+
   return (
     <InspectionCalendarClient
       inspections={calendarData}
@@ -109,6 +118,7 @@ export default async function InspectionCalendarPage({
       currentUserId={profile.id}
       currentUserRole={profile.role as UserRole}
       initialFilter={initialFilter}
+      holidays={holidays}
     />
   )
 }
