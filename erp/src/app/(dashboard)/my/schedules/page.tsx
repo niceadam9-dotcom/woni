@@ -31,6 +31,14 @@ export default async function SchedulesPage() {
     .lte('start_date', rangeEnd)
     .order('start_date')
 
+  // 주말·공휴일 표시용 (관리자>공휴일 관리 데이터, 전년~익년)
+  const { data: holidaysRaw } = await admin
+    .from('holidays')
+    .select('date, name')
+    .gte('date', `${today.getFullYear() - 1}-01-01`)
+    .lte('date', `${today.getFullYear() + 1}-12-31`)
+  const holidays = (holidaysRaw ?? []) as Array<{ date: string; name: string }>
+
   // 내 담당 점검 마감일 오버레이
   let inspectionDeadlines: InspectionDeadline[] = []
 
@@ -96,6 +104,7 @@ export default async function SchedulesPage() {
         initialSchedules={(schedules ?? []) as Record<string, unknown>[]}
         today={todayStr}
         inspectionDeadlines={inspectionDeadlines}
+        holidays={holidays}
       />
     </div>
   )

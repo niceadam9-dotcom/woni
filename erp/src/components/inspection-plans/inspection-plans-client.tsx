@@ -76,6 +76,8 @@ interface Props {
   customers: CustomerOption[]
   overdueItems: OverdueItem[]
   holidays: string[]
+  /** 공휴일 이름 표시용 (관리자>공휴일 관리) */
+  holidayInfos?: Array<{ date: string; name: string }>
   canManage: boolean
   isEmployee?: boolean
 }
@@ -89,11 +91,13 @@ export function InspectionPlansClient({
   customers,
   overdueItems,
   holidays,
+  holidayInfos = [],
   canManage,
   isEmployee = false,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const holidayMap = new Map(holidayInfos.map(h => [h.date, h.name]))
 
   const [viewYear,  setViewYear]  = useState(initialYear)
   const [viewMonth, setViewMonth] = useState(initialMonth)
@@ -391,6 +395,7 @@ export function InspectionPlansClient({
             todayStr={todayStr}
             canManage={canManage}
             customers={customers}
+            holidayMap={holidayMap}
             onDateClick={handleDateClick}
             onItemClick={setSelectedItem}
           />
@@ -446,11 +451,12 @@ export function InspectionPlansClient({
 
 // ── 달력 뷰 ──────────────────────────────────────────────────
 function CalendarView({
-  year, month, firstDay, daysInMonth, itemsByDate, todayStr, canManage, customers, onDateClick, onItemClick,
+  year, month, firstDay, daysInMonth, itemsByDate, todayStr, canManage, customers, holidayMap, onDateClick, onItemClick,
 }: {
   year: number; month: number; firstDay: number; daysInMonth: number
   itemsByDate: Record<string, ItemView[]>; todayStr: string; canManage: boolean
   customers: CustomerOption[]
+  holidayMap?: Map<string, string>
   onDateClick: (d: string) => void; onItemClick: (item: ItemView) => void
 }) {
   const customerMap = Object.fromEntries(customers.map(c => [c.id, c]))
@@ -479,6 +485,7 @@ function CalendarView({
           const isToday = dateStr === todayStr
           const isPast  = dateStr < todayStr
           const dow = idx % 7
+          const holiday = holidayMap?.get(dateStr)
           const hasOverdue = isPast && dayItems.some(
             i => i.status !== 'completed' && i.status !== 'cancelled'
           )
@@ -490,11 +497,15 @@ function CalendarView({
                 isToday ? 'bg-[#f5f4ff]' : hasOverdue ? 'bg-red-50/50' : ''
               }`}
               onClick={() => canManage && onDateClick(dateStr)}
+              title={holiday ? `${holiday} (공휴일)` : undefined}
             >
-              <span className={`text-xs font-medium ${
-                isToday ? 'bg-[#7b68ee] text-white rounded-full w-5 h-5 flex items-center justify-center' :
-                dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-[#090c1d]'
-              }`}>{day}</span>
+              <span className="flex items-center gap-1 min-w-0">
+                <span className={`text-xs font-medium shrink-0 ${
+                  isToday ? 'bg-[#7b68ee] text-white rounded-full w-5 h-5 flex items-center justify-center' :
+                  holiday || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-[#090c1d]'
+                }`}>{day}</span>
+                {holiday && <span className="text-[9px] text-red-500 truncate">{holiday}</span>}
+              </span>
               <div className="mt-0.5 space-y-0.5 overflow-hidden">
                 {dayItems.slice(0, 2).map(item => {
                   const approvalDate = customerMap[item.customer_id]?.use_approval_date

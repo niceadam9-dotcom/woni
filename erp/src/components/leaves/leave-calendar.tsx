@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ko } from 'date-fns/locale/ko'
@@ -46,11 +46,32 @@ export type CalendarLeave = {
 
 interface LeaveCalendarProps {
   leaves: CalendarLeave[]
+  /** 주말·공휴일 표시용 (관리자>공휴일 관리) */
+  holidays?: Array<{ date: string; name: string }>
 }
 
-export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
+export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
   const [view, setView] = useState<(typeof Views)[keyof typeof Views]>(Views.MONTH)
   const [date, setDate] = useState(new Date())
+  const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h.name])), [holidays])
+
+  // 월 뷰 날짜 헤더 — 토(파랑)/일·공휴일(빨강) + 공휴일명 (숫자 클릭은 기존 동작 유지)
+  const MonthDateHeader = useCallback(({ date: d, label, onDrillDown }: {
+    date: Date; label: string; onDrillDown?: React.MouseEventHandler
+  }) => {
+    const iso = format(d, 'yyyy-MM-dd')
+    const holiday = holidayMap.get(iso)
+    const dow = d.getDay()
+    const color = holiday || dow === 0 ? '#dc2626' : dow === 6 ? '#2563eb' : undefined
+    return (
+      <div className="flex items-center justify-between gap-1 min-w-0" title={holiday ? `${holiday} (공휴일)` : undefined}>
+        {holiday ? <span className="text-[10px] text-red-500 truncate leading-tight">{holiday}</span> : <span />}
+        <button type="button" onClick={onDrillDown} className="rbc-button-link" style={{ color }}>
+          {label}
+        </button>
+      </div>
+    )
+  }, [holidayMap])
 
   const events = useMemo(() =>
     leaves.map(l => {
@@ -71,6 +92,8 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
       <style>{`
         .rbc-calendar { font-family: inherit; }
         .rbc-header { background: #f8f9fa; border-color: #c8c4d0; padding: 8px 4px; font-size: 12px; font-weight: 600; color: #514b81; }
+        .rbc-header:nth-child(6) { color: #2563eb; } /* 토 */
+        .rbc-header:nth-child(7) { color: #dc2626; } /* 일 */
         .rbc-day-bg { border-color: #c8c4d0; }
         .rbc-month-view, .rbc-time-view, .rbc-agenda-view { border-color: #c8c4d0; }
         .rbc-today { background: #f5f4ff; }
@@ -94,6 +117,11 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
         onNavigate={setDate}
         style={{ height: 600 }}
         views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
+        components={{ month: { dateHeader: MonthDateHeader } }}
+        dayPropGetter={(d: Date) => {
+          const iso = format(d, 'yyyy-MM-dd')
+          return holidayMap.has(iso) ? { style: { backgroundColor: '#fef2f2' } } : {}
+        }}
         messages={{
           month: '월', week: '주', day: '일', agenda: '목록',
           today: '오늘', previous: '‹', next: '›',

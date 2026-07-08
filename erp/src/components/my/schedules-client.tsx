@@ -189,12 +189,16 @@ export function SchedulesClient({
   initialSchedules,
   today,
   inspectionDeadlines = [],
+  holidays = [],
 }: {
   initialSchedules: Record<string, unknown>[]
   today: string
   inspectionDeadlines?: InspectionDeadline[]
+  /** 공휴일 표시용 (관리자>공휴일 관리) */
+  holidays?: Array<{ date: string; name: string }>
 }) {
   const schedules = initialSchedules as unknown as Schedule[]
+  const holidayMap = new Map(holidays.map(h => [h.date, h.name]))
 
   const todayDate = new Date(today)
   const [year,  setYear]  = useState(todayDate.getFullYear())
@@ -349,16 +353,21 @@ export function SchedulesClient({
               const isToday = ds === today
               const isSelected = ds === selectedDate
               const dow = idx % 7
+              const holiday = holidayMap.get(ds)
 
               return (
                 <div
                   key={idx}
                   onClick={() => setSelectedDate(ds === selectedDate ? null : ds)}
                   className={`bg-white min-h-[72px] p-1 cursor-pointer transition-colors hover:bg-[#f5f4ff] ${isSelected ? 'bg-[#f0eeff]' : ''}`}
+                  title={holiday ? `${holiday} (공휴일)` : undefined}
                 >
-                  <div className={`text-xs font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full
-                    ${isToday ? 'bg-[#7b68ee] text-white' : dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-gray-700'}`}>
-                    {d}
+                  <div className="flex items-center gap-1 mb-0.5 min-w-0">
+                    <div className={`text-xs font-medium w-6 h-6 shrink-0 flex items-center justify-center rounded-full
+                      ${isToday ? 'bg-[#7b68ee] text-white' : holiday || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700'}`}>
+                      {d}
+                    </div>
+                    {holiday && <span className="text-[9px] text-red-500 truncate">{holiday}</span>}
                   </div>
                   <div className="space-y-0.5">
                     {showDl.map(dl => (

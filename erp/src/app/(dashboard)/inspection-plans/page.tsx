@@ -43,13 +43,14 @@ export default async function InspectionPlansPage({
       .select('id, customer_name, inspection_type, assigned_employee_id, address, use_approval_date')
       .eq('is_active', true).order('customer_name'),
     admin.from('inspection_plans').select('id, month').eq('year', year),
-    admin.from('holidays').select('date')
+    admin.from('holidays').select('date, name')
       .gte('date', `${year}-01-01`).lte('date', `${year + 1}-12-31`),
   ])
 
   const plans       = plansRes.data ?? []
   const currentPlan = currentPlanRes.data as { id: string } | null
-  const holidays    = ((holidayRes.data ?? []) as { date: string }[]).map(h => h.date)
+  const holidayInfos = (holidayRes.data ?? []) as { date: string; name: string }[]
+  const holidays     = holidayInfos.map(h => h.date)
 
   // yearPlanIds는 wave2 의존성
   const planMonthMap: Record<string, number> = {}
@@ -139,6 +140,7 @@ export default async function InspectionPlansPage({
       customers={(customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>}
       overdueItems={overdueItems}
       holidays={holidays}
+      holidayInfos={holidayInfos}
       canManage={canManage}
       isEmployee={isEmployee}
     />

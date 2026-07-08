@@ -34,6 +34,15 @@ export default async function LeaveCalendarPage() {
     employee_name: nameMap.get(l.employee_id) ?? '알 수 없음',
   }))
 
+  // 주말·공휴일 표시용 (관리자>공휴일 관리 데이터, 전년~익년)
+  const year = new Date().getFullYear()
+  const { data: holidaysRaw } = await supabase
+    .from('holidays')
+    .select('date, name')
+    .gte('date', `${year - 1}-01-01`)
+    .lte('date', `${year + 1}-12-31`)
+  const holidays = (holidaysRaw ?? []) as Array<{ date: string; name: string }>
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -44,7 +53,7 @@ export default async function LeaveCalendarPage() {
         </div>
       </div>
 
-      <LeaveCalendar leaves={calendarLeaves} />
+      <LeaveCalendar leaves={calendarLeaves} holidays={holidays} />
     </div>
   )
 }
