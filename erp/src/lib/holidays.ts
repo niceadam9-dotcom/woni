@@ -6,10 +6,14 @@
  * 2. 설날 라이브러리 버그 보정: date-holidays가 설날을 당일(1/1)부터 3일로
  *    계산하지만 한국법은 전날(12/30)부터 3일이므로 하루 앞당김
  * 3. 공휴일이 토·일요일에 해당하면 대체공휴일(다음 평일)을 자동 생성
- * 4. date-holidays가 'public'으로 잘못 분류하는 비공휴일 국경일(제헌절, 2008년부터
- *    공휴일 아님)은 제외 — 포함 시 영업일 계산이 밀려 법정 제출기한을 초과할 수 있음
+ * 4. 제헌절은 2008~2025년에는 공휴일이 아니었으나(비공휴일 국경일),
+ *    공휴일에 관한 법률 개정(법률 제21338호, 2026-05-11 시행)으로 2026년부터 재지정됨.
+ *    해당 기간(2008~2025)에 한해 제외 — 비공휴일을 포함하면 영업일 계산이 밀려
+ *    법정 제출기한을 초과할 수 있음
  */
-const NON_PUBLIC_NATIONAL_DAYS = ['제헌절']
+function isExcludedForYear(name: string, year: number): boolean {
+  return name === '제헌절' && year >= 2008 && year <= 2025
+}
 
 export async function getKoreanHolidays(year: number): Promise<{ date: string; name: string }[]> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -25,7 +29,7 @@ export async function getKoreanHolidays(year: number): Promise<{ date: string; n
   const DAY = 24 * 60 * 60 * 1000
   const dateMap = new Map<string, string>()
 
-  for (const h of raw.filter(r => r.type === 'public' && !NON_PUBLIC_NATIONAL_DAYS.includes(r.name))) {
+  for (const h of raw.filter(r => r.type === 'public' && !isExcludedForYear(r.name, year))) {
     let startMs = new Date(h.start).getTime() + KST
     let endMs   = new Date(h.end).getTime()   + KST
 
