@@ -14,12 +14,12 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 type Item = { id: string; item_code: string; item_name: string; unit: string | null; standard_price: number | null }
-type Partner = { id: string; company_name: string }
+type Partner = { id: string; partner_name: string }
 type POLine = { id: string; quantity: number; unit_price: number; subtotal: number; item: { item_name: string; item_code: string; unit: string | null } | null }
 type PO = {
   id: string; order_date: string; expected_date: string | null; status: string
   total_amount: number; notes: string | null
-  partner: { company_name: string } | null; creator: { name: string } | null
+  partner: { partner_name: string } | null; creator: { name: string } | null
   purchase_order_lines: POLine[]
 }
 
@@ -101,7 +101,7 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
               <label className="text-xs text-[#514b81]">거래처</label>
               <select value={form.partner_id} onChange={e => setForm(p => ({ ...p, partner_id: e.target.value }))} className={inputCls}>
                 <option value="">선택</option>
-                {partners.map(p => <option key={p.id} value={p.id}>{p.company_name}</option>)}
+                {partners.map(p => <option key={p.id} value={p.id}>{p.partner_name}</option>)}
               </select>
             </div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">발주일 *</label><input type="date" value={form.order_date} onChange={e => setForm(p => ({ ...p, order_date: e.target.value }))} className={inputCls} /></div>
@@ -153,7 +153,7 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
             <div className="px-5 py-4 flex items-center gap-4">
               <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>{STATUS_LABELS[po.status]}</span>
               <span className="text-sm font-medium text-[#090c1d]">{po.order_date}</span>
-              <span className="text-xs text-[#514b81]">{po.partner?.company_name ?? '거래처없음'}</span>
+              <span className="text-xs text-[#514b81]">{po.partner?.partner_name ?? '거래처없음'}</span>
               <span className="text-xs text-[#b0acd6]">{po.purchase_order_lines.length}개 품목</span>
               <span className="text-sm font-semibold text-[#090c1d] ml-auto">{po.total_amount.toLocaleString()}원</span>
               <select value={po.status} onChange={e => handleStatusChange(po.id, e.target.value)} disabled={isPending}

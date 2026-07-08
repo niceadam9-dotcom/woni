@@ -12,10 +12,10 @@ export default async function PurchaseOrdersPage() {
   const [{ data: pos }, { data: items }, { data: partners }] = await Promise.all([
     admin
       .from('purchase_orders')
-      .select(`*, partner:partner_id (company_name), creator:created_by (name), purchase_order_lines (id, quantity, unit_price, subtotal, item:item_id (item_name, item_code, unit))`)
+      .select(`*, partner:partner_id (partner_name), creator:created_by (name), purchase_order_lines (id, quantity, unit_price, subtotal, item:item_id (item_name, item_code, unit))`)
       .order('order_date', { ascending: false }),
     admin.from('inventory_items').select('id, item_code, item_name, unit, standard_price').eq('is_active', true).order('item_code'),
-    admin.from('partners').select('id, company_name').order('company_name'),
+    admin.from('partners').select('id, partner_name').order('partner_name'),
   ])
 
   return (
@@ -30,7 +30,7 @@ export default async function PurchaseOrdersPage() {
       <PurchaseOrdersClient
         orders={(pos ?? []) as Record<string, unknown>[]}
         items={(items ?? []) as { id: string; item_code: string; item_name: string; unit: string | null; standard_price: number | null }[]}
-        partners={(partners ?? []) as { id: string; company_name: string }[]}
+        partners={(partners ?? []) as { id: string; partner_name: string }[]}
       />
     </div>
   )
