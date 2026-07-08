@@ -1,0 +1,936 @@
+{
+  "version": "Victory10_entire",
+  "date": "2026-07-08",
+  "description": "전체 시스템 테스트 시나리오 체크리스트 (Victory10_entire.md 기반) — 결과 기록: pending(미수행) / passed / failed / partial(일부 검증) / blocked(선행 조건 미충족) / skipped / known_issue",
+  "source_documents": [
+    "Victory10_entire.md",
+    "Victory_test.md (소방 심층 — 별도 수행)",
+    "사용설명서.md"
+  ],
+  "known_issues": [
+    {
+      "id": "KI-1",
+      "title": "account_codes 테이블 anon 키 노출",
+      "detail": "SELECT 정책에 TO authenticated 없음 (migration 039 범위 밖). 040 마이그레이션 적용 전까지 NF-SEC-2는 '열려 있음'이 현재 상태",
+      "found": "2026-07-08"
+    },
+    {
+      "id": "KI-2",
+      "title": "5개 모듈 테이블 스키마 미배포 — 화면·코드는 존재하나 DB에 테이블 없음",
+      "detail": "inventory_items, stock_movements, purchase_orders, partners, vehicles, vehicle_logs, work_tasks, work_journals 미존재 (quotes·orders는 존재). 구매/재고·업무관리·거래처 테스트 전부 BLOCKED — 스키마 마이그레이션 작성·배포 필요",
+      "found": "2026-07-08 (불변식 검사 중 발견)"
+    },
+    {
+      "id": "KI-3",
+      "title": "사용설명서 §7-5 '7단계' 표기는 구버전",
+      "detail": "Victory10 개편 후 현행 점검 단계는 6단계 (DB 트리거 자동 생성, 실데이터 16건 전부 6단계). 사용설명서 갱신 필요",
+      "found": "2026-07-08 (INV-E6 오탐 추적)"
+    }
+  ],
+  "items": [
+    {
+      "id": "AUTH-1",
+      "category": "인증",
+      "title": "정상 로그인·로그아웃",
+      "status": "pending"
+    },
+    {
+      "id": "AUTH-2",
+      "category": "인증",
+      "title": "로그인 실패 잠금 (5회/30분)",
+      "status": "pending"
+    },
+    {
+      "id": "AUTH-3",
+      "category": "인증",
+      "title": "비활성 계정 차단",
+      "status": "pending"
+    },
+    {
+      "id": "AUTH-4",
+      "category": "인증",
+      "title": "미인증 접근 차단 (미들웨어)",
+      "status": "pending"
+    },
+    {
+      "id": "AUTH-5",
+      "category": "인증",
+      "title": "역할 승격 차단 + B안 개방 진입 확인",
+      "status": "partial",
+      "note": "2026-07-08 자동검증: employee의 /customers/new·/action-plans 진입, 지역별배정·정산 차단 PASS. /admin·/approvals·회계 차단은 미수행"
+    },
+    {
+      "id": "AUTH-6",
+      "category": "인증",
+      "title": "로그인 성공 시 실패 카운터 리셋",
+      "status": "pending"
+    },
+    {
+      "id": "AUTH-7",
+      "category": "인증",
+      "title": "서버 액션 권한 재검증 (B안 경계 — 배정/삭제 직접 호출 거부)",
+      "status": "pending"
+    },
+    {
+      "id": "DASH-1",
+      "category": "대시보드",
+      "title": "KPI 카드 정합성",
+      "status": "pending"
+    },
+    {
+      "id": "DASH-2",
+      "category": "대시보드",
+      "title": "역할별 대시보드 범위 (employee=내 담당)",
+      "status": "pending"
+    },
+    {
+      "id": "DASH-3",
+      "category": "대시보드",
+      "title": "D-Day 색상 규칙 + 사이드바 뱃지",
+      "status": "pending"
+    },
+    {
+      "id": "DASH-4",
+      "category": "대시보드",
+      "title": "사이드바 회사 브랜딩 (company_profile 연동)",
+      "status": "passed",
+      "note": "2026-07-08 구현·브라우저 검증 — 업체명 '승진소방ENG' 표시 확인"
+    },
+    {
+      "id": "MY-1",
+      "category": "MyPage",
+      "title": "일정 관리 CRUD·뷰 전환·개인 격리",
+      "status": "pending"
+    },
+    {
+      "id": "MY-2",
+      "category": "MyPage",
+      "title": "ToDo 완료 체크·해제·유지",
+      "status": "pending"
+    },
+    {
+      "id": "MY-3",
+      "category": "MyPage",
+      "title": "주소록 등록·검색·격리",
+      "status": "pending"
+    },
+    {
+      "id": "MY-4",
+      "category": "MyPage",
+      "title": "쪽지 송수신·읽음·제3자 미노출",
+      "status": "pending"
+    },
+    {
+      "id": "MY-5",
+      "category": "MyPage",
+      "title": "노트 마크다운 렌더링",
+      "status": "pending"
+    },
+    {
+      "id": "MY-6",
+      "category": "MyPage",
+      "title": "녹음 메모 저장·재생·권한 거부 처리",
+      "status": "pending"
+    },
+    {
+      "id": "MY-7",
+      "category": "MyPage",
+      "title": "결재서명 등록·교체",
+      "status": "pending"
+    },
+    {
+      "id": "DOC-1",
+      "category": "전자결재",
+      "title": "기안 → 승인 풀사이클 (알림·서명)",
+      "status": "pending"
+    },
+    {
+      "id": "DOC-2",
+      "category": "전자결재",
+      "title": "반려(사유 필수) → 재기안",
+      "status": "pending"
+    },
+    {
+      "id": "DOC-3",
+      "category": "전자결재",
+      "title": "회수 (결재 전만 가능)",
+      "status": "pending"
+    },
+    {
+      "id": "DOC-4",
+      "category": "전자결재",
+      "title": "열람 권한 격리",
+      "status": "pending"
+    },
+    {
+      "id": "HR-1",
+      "category": "인사휴가",
+      "title": "휴가 신청→승인→연차 차감·캘린더",
+      "status": "pending"
+    },
+    {
+      "id": "HR-2",
+      "category": "인사휴가",
+      "title": "공휴일·주말 제외 계산 + 반차 0.5",
+      "status": "pending"
+    },
+    {
+      "id": "HR-3",
+      "category": "인사휴가",
+      "title": "반려·잔여 부족 차단",
+      "status": "pending"
+    },
+    {
+      "id": "HR-4",
+      "category": "인사휴가",
+      "title": "승인 권한 격리 (매니저 부서 범위 INFO)",
+      "status": "pending"
+    },
+    {
+      "id": "HR-5",
+      "category": "인사휴가",
+      "title": "급여 등록·합계 계산",
+      "status": "pending"
+    },
+    {
+      "id": "HR-6",
+      "category": "인사휴가",
+      "title": "증명서 발급 (회사명 하드코딩 여부 기록)",
+      "status": "pending"
+    },
+    {
+      "id": "FIRE-S1",
+      "category": "소방스모크",
+      "title": "고객 등록 → 연간 계획 자동 생성",
+      "status": "pending"
+    },
+    {
+      "id": "FIRE-S2",
+      "category": "소방스모크",
+      "title": "계획 확정 → 6단계 자동 계산 → 점검업무 생성",
+      "status": "pending"
+    },
+    {
+      "id": "FIRE-S3",
+      "category": "소방스모크",
+      "title": "단계 완료 → 모니터링·달력 반영",
+      "status": "pending"
+    },
+    {
+      "id": "FIRE-S4",
+      "category": "소방스모크",
+      "title": "비활성 자동취소 → 재활성 복원 (ADD-16)",
+      "status": "pending"
+    },
+    {
+      "id": "FIRE-S5",
+      "category": "소방스모크",
+      "title": "미점검 초과 경보 — 취소 건 재포착 없음 (ADD-20 회귀)",
+      "status": "pending"
+    },
+    {
+      "id": "FIRE-S6",
+      "category": "소방스모크",
+      "title": "B안 권한 경계 (개방 4 + 차단 3)",
+      "status": "partial",
+      "note": "2026-07-08 자동검증 12건 PASS (UI 노출·리다이렉트·기본필터). 고객/계획 실제 저장, 슬라이드 패널 드롭다운 비활성은 미수행"
+    },
+    {
+      "id": "PERM-1",
+      "category": "권한B안",
+      "title": "고객 등록 (버튼·진입·저장)",
+      "status": "partial",
+      "note": "버튼 노출·페이지 진입 자동검증 PASS. 실제 저장 플로우 미수행"
+    },
+    {
+      "id": "PERM-2",
+      "category": "권한B안",
+      "title": "고객 수정 — 인라인·상세·토글 (담당자 칸 제외)",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-3",
+      "category": "권한B안",
+      "title": "건물 등록·수정",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-4",
+      "category": "권한B안",
+      "title": "점검표 양식 등록·수정",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-5",
+      "category": "권한B안",
+      "title": "점검계획 생성·확정 — 전체 범위(타 직원 항목·경보 포함)",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-6",
+      "category": "권한B안",
+      "title": "슬라이드 패널 수정 (날짜·상태·메모 O / 담당 드롭다운 비활성)",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-7",
+      "category": "권한B안",
+      "title": "점검 수동 등록 (/inspections/new)",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-8",
+      "category": "권한B안",
+      "title": "보고서 제출현황 갱신",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-9",
+      "category": "권한B안",
+      "title": "이행계획 등록·현황·상세 (메뉴 노출 포함)",
+      "status": "partial",
+      "note": "메뉴 노출·/action-plans 진입 자동검증 PASS. 등록·갱신 미수행"
+    },
+    {
+      "id": "PERM-10",
+      "category": "권한B안",
+      "title": "점검업무·달력 전체 조회 + '내 담당' 기본 필터",
+      "status": "partial",
+      "note": "점검업무 기본값=박개발·전체/타직원 옵션 자동검증 PASS. 달력 체크박스 동작 미수행"
+    },
+    {
+      "id": "PERM-11",
+      "category": "권한B안",
+      "title": "담당 배정 3경로 차단 (화면·버튼·인라인·서버 액션)",
+      "status": "partial",
+      "note": "지역별배정 리다이렉트·인라인 미노출 자동검증 PASS. 상세 [배정] 버튼·서버 액션 직접 호출 미수행"
+    },
+    {
+      "id": "PERM-12",
+      "category": "권한B안",
+      "title": "고객·점검 삭제 차단 (버튼 미노출 + 서버 거부)",
+      "status": "partial",
+      "note": "삭제 버튼 미노출 자동검증 PASS. 서버 액션 직접 호출 미수행"
+    },
+    {
+      "id": "PERM-13",
+      "category": "권한B안",
+      "title": "정산·세금계산서 차단 (메뉴+URL)",
+      "status": "passed",
+      "note": "2026-07-08 자동검증 — 메뉴 숨김 + /billing/status 리다이렉트 PASS"
+    },
+    {
+      "id": "PERM-14",
+      "category": "권한B안",
+      "title": "단계 완료는 담당자 본인만 (변경 없음 확인)",
+      "status": "pending"
+    },
+    {
+      "id": "PERM-15",
+      "category": "권한B안",
+      "title": "매니저/관리자 회귀 (배정·삭제·인수인계 퇴행 없음)",
+      "status": "pending"
+    },
+    {
+      "id": "TASK-1",
+      "category": "업무관리",
+      "title": "업무지시 생성 → 상태 전이",
+      "status": "blocked",
+      "note": "KI-2: work_tasks 테이블 미존재"
+    },
+    {
+      "id": "TASK-2",
+      "category": "업무관리",
+      "title": "업무일지 작성·조회",
+      "status": "blocked",
+      "note": "KI-2: work_journals 테이블 미존재"
+    },
+    {
+      "id": "TASK-3",
+      "category": "업무관리",
+      "title": "차량 등록",
+      "status": "blocked",
+      "note": "KI-2: vehicles 테이블 미존재"
+    },
+    {
+      "id": "TASK-4",
+      "category": "업무관리",
+      "title": "운행일지 + 월간 합계",
+      "status": "blocked",
+      "note": "KI-2: vehicle_logs 테이블 미존재"
+    },
+    {
+      "id": "SALES-1",
+      "category": "영업",
+      "title": "견적 작성 → 합계 → PDF",
+      "status": "pending"
+    },
+    {
+      "id": "SALES-2",
+      "category": "영업",
+      "title": "견적 → 수주 전환",
+      "status": "pending"
+    },
+    {
+      "id": "SALES-3",
+      "category": "영업",
+      "title": "거래처 등록·이력",
+      "status": "blocked",
+      "note": "KI-2: partners 테이블 미존재"
+    },
+    {
+      "id": "SALES-4",
+      "category": "영업",
+      "title": "권한 격리 (/orders·/partners)",
+      "status": "pending"
+    },
+    {
+      "id": "STOCK-1",
+      "category": "구매재고",
+      "title": "품목·분류 → 발주 → 입고",
+      "status": "blocked",
+      "note": "KI-2: inventory_items·purchase_orders 미존재"
+    },
+    {
+      "id": "STOCK-2",
+      "category": "구매재고",
+      "title": "출고 → 차감 → 최소재고 경고",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "STOCK-3",
+      "category": "구매재고",
+      "title": "재고 조정·이력",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "STOCK-4",
+      "category": "구매재고",
+      "title": "재고 경계·동시성",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "ACC-1",
+      "category": "회계",
+      "title": "전표 차대 검증 (불일치 차단)",
+      "status": "pending"
+    },
+    {
+      "id": "ACC-2",
+      "category": "회계",
+      "title": "손익계산서 집계·기간 전환",
+      "status": "pending"
+    },
+    {
+      "id": "ACC-3",
+      "category": "회계",
+      "title": "재무상태표 항등식",
+      "status": "pending"
+    },
+    {
+      "id": "ACC-4",
+      "category": "회계",
+      "title": "부가가치세 집계",
+      "status": "pending"
+    },
+    {
+      "id": "ACC-5",
+      "category": "회계",
+      "title": "권한 격리 (4개 화면)",
+      "status": "pending"
+    },
+    {
+      "id": "BOARD-1",
+      "category": "게시판",
+      "title": "글 작성·첨부·카테고리",
+      "status": "pending"
+    },
+    {
+      "id": "BOARD-2",
+      "category": "게시판",
+      "title": "수정·삭제 권한 (본인·admin)",
+      "status": "pending"
+    },
+    {
+      "id": "BOARD-3",
+      "category": "게시판",
+      "title": "회의록 + 참석자 알림",
+      "status": "pending"
+    },
+    {
+      "id": "ADM-1",
+      "category": "관리자",
+      "title": "직원 등록 → 로그인 → 권한 변경",
+      "status": "pending"
+    },
+    {
+      "id": "ADM-2",
+      "category": "관리자",
+      "title": "직원 비활성 — 자동 인수인계 (ADD-18)",
+      "status": "pending"
+    },
+    {
+      "id": "ADM-3",
+      "category": "관리자",
+      "title": "부서 관리·삭제 가드",
+      "status": "pending"
+    },
+    {
+      "id": "ADM-4",
+      "category": "관리자",
+      "title": "공휴일 관리 → 휴가·6단계 계산 반영",
+      "status": "pending"
+    },
+    {
+      "id": "ADM-5",
+      "category": "관리자",
+      "title": "본사 정보 수정 → 사이드바·PDF 반영",
+      "status": "partial",
+      "note": "사이드바 반영은 DASH-4에서 검증됨. 견적 PDF·기본 지역 반영 미수행"
+    },
+    {
+      "id": "ADM-6",
+      "category": "관리자",
+      "title": "활동 로그 (login_failed/success·IP·필터)",
+      "status": "pending"
+    },
+    {
+      "id": "MOB-1",
+      "category": "모바일",
+      "title": "로그인·담당 목록",
+      "status": "pending"
+    },
+    {
+      "id": "MOB-2",
+      "category": "모바일",
+      "title": "점검 시작 → 6단계 생성 → 웹 동기",
+      "status": "pending"
+    },
+    {
+      "id": "MOB-3",
+      "category": "모바일",
+      "title": "불량 등록 + AI 분류 + 사진",
+      "status": "pending"
+    },
+    {
+      "id": "MOB-4",
+      "category": "모바일",
+      "title": "단계 완료 → 웹 동기",
+      "status": "pending"
+    },
+    {
+      "id": "MOB-5",
+      "category": "모바일",
+      "title": "현장 서류 5종 작성",
+      "status": "pending"
+    },
+    {
+      "id": "E2E-F1",
+      "category": "크로스모듈E2E",
+      "title": "계약→점검→정산→세금계산서→회계 (돈의 흐름) ★",
+      "status": "pending"
+    },
+    {
+      "id": "E2E-F2",
+      "category": "크로스모듈E2E",
+      "title": "입사→배정→수행→인수인계 (사람의 흐름)",
+      "status": "pending"
+    },
+    {
+      "id": "E2E-F3",
+      "category": "크로스모듈E2E",
+      "title": "발주→입고→출고→점검 사용 (물건의 흐름)",
+      "status": "blocked",
+      "note": "KI-2: 재고·발주 스키마 미배포"
+    },
+    {
+      "id": "E2E-F4",
+      "category": "크로스모듈E2E",
+      "title": "휴가→캘린더→배정 충돌 (일정의 흐름)",
+      "status": "pending"
+    },
+    {
+      "id": "E2E-F5",
+      "category": "크로스모듈E2E",
+      "title": "기안→결재→알림→보관 (문서의 흐름)",
+      "status": "pending"
+    },
+    {
+      "id": "E2E-F6",
+      "category": "크로스모듈E2E",
+      "title": "B안 — 일반직원 단독 풀사이클",
+      "status": "pending"
+    },
+    {
+      "id": "NF-SEC-1",
+      "category": "비기능보안",
+      "title": "RLS anon 차단 (migration 039 회귀)",
+      "status": "passed",
+      "note": "2026-07-08 적용·검증 — profiles/company_profile anon 조회 [] 반환, authenticated 정상"
+    },
+    {
+      "id": "NF-SEC-2",
+      "category": "비기능보안",
+      "title": "account_codes anon 노출",
+      "status": "known_issue",
+      "note": "KI-1 — 040 적용 후 차단 기대로 재검"
+    },
+    {
+      "id": "NF-SEC-3",
+      "category": "비기능보안",
+      "title": "보안 헤더 (X-Frame-Options 등)",
+      "status": "pending"
+    },
+    {
+      "id": "NF-SEC-4",
+      "category": "비기능보안",
+      "title": "서버 액션 권한 재검증 (AUTH-7 연계)",
+      "status": "pending"
+    },
+    {
+      "id": "NF-SEC-5",
+      "category": "비기능보안",
+      "title": "크론 라우트 보호 (CRON_SECRET)",
+      "status": "pending"
+    },
+    {
+      "id": "NF-PERF-1",
+      "category": "비기능성능",
+      "title": "대량 목록 응답 (3초 이내)",
+      "status": "pending"
+    },
+    {
+      "id": "NF-PERF-2",
+      "category": "비기능성능",
+      "title": "동시 수정 — 데이터 파손 없음",
+      "status": "pending"
+    },
+    {
+      "id": "NF-RES-1",
+      "category": "비기능복원력",
+      "title": "외부 API 장애 대응 (대장·AI)",
+      "status": "pending"
+    },
+    {
+      "id": "NF-RES-2",
+      "category": "비기능복원력",
+      "title": "세션 만료 처리",
+      "status": "pending"
+    },
+    {
+      "id": "EX-V1",
+      "category": "예외입력",
+      "title": "회계 금액 경계 (음수·문자·10억 초과)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-V2",
+      "category": "예외입력",
+      "title": "휴가 날짜 역전·과거·중복 기간",
+      "status": "pending"
+    },
+    {
+      "id": "EX-V3",
+      "category": "예외입력",
+      "title": "재고·수량 경계",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "EX-V4",
+      "category": "예외입력",
+      "title": "견적·급여 계산 필드 경계",
+      "status": "pending"
+    },
+    {
+      "id": "EX-V5",
+      "category": "예외입력",
+      "title": "텍스트 경계·저장형 XSS",
+      "status": "pending"
+    },
+    {
+      "id": "EX-V6",
+      "category": "예외입력",
+      "title": "파일 첨부 경계 (대용량·실행파일·파일명)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-P1",
+      "category": "예외권한",
+      "title": "세션 만료 중 폼 제출",
+      "status": "pending"
+    },
+    {
+      "id": "EX-P2",
+      "category": "예외권한",
+      "title": "타인 개인 데이터 URL 순회 접근",
+      "status": "pending"
+    },
+    {
+      "id": "EX-P3",
+      "category": "예외권한",
+      "title": "권한 변경 후 기존 세션 (30초 캐시 한계)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-P4",
+      "category": "예외권한",
+      "title": "B안 경계 액션 직접 호출 (AUTH-7·PERM-11·12 교차)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-S1",
+      "category": "예외상태",
+      "title": "전자결재 상태 강제 전이",
+      "status": "pending"
+    },
+    {
+      "id": "EX-S2",
+      "category": "예외상태",
+      "title": "휴가 이중 처리",
+      "status": "pending"
+    },
+    {
+      "id": "EX-S3",
+      "category": "예외상태",
+      "title": "견적→수주 후 원본 변경",
+      "status": "pending"
+    },
+    {
+      "id": "EX-S4",
+      "category": "예외상태",
+      "title": "발주·입고 이중 처리",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "EX-S5",
+      "category": "예외상태",
+      "title": "업무지시 완료 후 재전이",
+      "status": "blocked",
+      "note": "KI-2: work_tasks 미존재"
+    },
+    {
+      "id": "EX-C1",
+      "category": "예외동시성",
+      "title": "결재 동시 승인/반려",
+      "status": "pending"
+    },
+    {
+      "id": "EX-C2",
+      "category": "예외동시성",
+      "title": "동일 휴가 이중 승인 (연차 1회만 차감)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-C3",
+      "category": "예외동시성",
+      "title": "재고 동시 출고",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "EX-C4",
+      "category": "예외동시성",
+      "title": "이중 클릭 중복 제출",
+      "status": "pending"
+    },
+    {
+      "id": "EX-X1",
+      "category": "예외외부연동",
+      "title": "SMS(Solapi) 자격증명 부재",
+      "status": "pending"
+    },
+    {
+      "id": "EX-X2",
+      "category": "예외외부연동",
+      "title": "AI 분류·건축물대장 장애 (NF-RES-1 연계)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-X3",
+      "category": "예외외부연동",
+      "title": "Storage 업로드 실패 (오프라인)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-B1",
+      "category": "예외경계",
+      "title": "빈 목록·0건 검색",
+      "status": "pending"
+    },
+    {
+      "id": "EX-B2",
+      "category": "예외경계",
+      "title": "페이지네이션 경계 (마지막 페이지·page=999)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-B3",
+      "category": "예외경계",
+      "title": "연도 경계 (익년 계획·연말 휴가·4분기 부가세)",
+      "status": "pending"
+    },
+    {
+      "id": "EX-B4",
+      "category": "예외경계",
+      "title": "삭제된 리소스 URL 재방문",
+      "status": "pending"
+    },
+    {
+      "id": "EX-R1",
+      "category": "예외무결성",
+      "title": "거래처 삭제 — 발주 존재 시",
+      "status": "blocked",
+      "note": "KI-2: partners·purchase_orders 미존재"
+    },
+    {
+      "id": "EX-R2",
+      "category": "예외무결성",
+      "title": "품목 삭제 — 이력 존재 시",
+      "status": "blocked",
+      "note": "KI-2"
+    },
+    {
+      "id": "EX-R3",
+      "category": "예외무결성",
+      "title": "부서 삭제 — 소속 직원 존재 시",
+      "status": "pending"
+    },
+    {
+      "id": "EX-R4",
+      "category": "예외무결성",
+      "title": "직원 비활성 — 결재라인·업무지시 잔존",
+      "status": "pending",
+      "note": "업무지시 부분은 KI-2로 결재라인만 검증 가능"
+    },
+    {
+      "id": "EX-R5",
+      "category": "예외무결성",
+      "title": "계정과목 삭제 — 전표 참조 시",
+      "status": "pending"
+    },
+    {
+      "id": "M1",
+      "category": "상태매트릭스",
+      "title": "직원 활성 × 담당·세션·결재 (인수인계 완료/건너뜀)",
+      "status": "pending"
+    },
+    {
+      "id": "M2",
+      "category": "상태매트릭스",
+      "title": "문서 상태 × 행위 5×5",
+      "status": "pending"
+    },
+    {
+      "id": "M3",
+      "category": "상태매트릭스",
+      "title": "휴가 상태 × 연차·캘린더",
+      "status": "pending"
+    },
+    {
+      "id": "M4",
+      "category": "상태매트릭스",
+      "title": "견적·수주·발주·재고 사슬",
+      "status": "blocked",
+      "note": "발주·재고 부분은 KI-2 — 견적·수주 부분만 검증 가능"
+    },
+    {
+      "id": "M5",
+      "category": "상태매트릭스",
+      "title": "고객 활성 × 정산·세금계산서",
+      "status": "pending"
+    },
+    {
+      "id": "INV-E1",
+      "category": "불변식",
+      "title": "전표 차변 합계 = 대변 합계",
+      "status": "passed",
+      "note": "2026-07-08 실행 — 위반 0 (전표 0건이라 공허 통과, 데이터 생성 후 재실행 필요)"
+    },
+    {
+      "id": "INV-E2",
+      "category": "불변식",
+      "title": "재고 수지식 (replay = current_stock, 음수 없음)",
+      "status": "skipped",
+      "note": "KI-2: 재고 테이블 미존재 — 스키마 배포 후 재실행"
+    },
+    {
+      "id": "INV-E3",
+      "category": "불변식",
+      "title": "연차 수지 (used_days = 승인 휴가 합)",
+      "status": "passed",
+      "note": "2026-07-08 — 연차 8·휴가 1건 위반 없음"
+    },
+    {
+      "id": "INV-E4",
+      "category": "불변식",
+      "title": "승인 문서 = 전 결재자 approved / 반려 사유 존재",
+      "status": "passed",
+      "note": "2026-07-08 — 문서 8건 위반 없음"
+    },
+    {
+      "id": "INV-E5",
+      "category": "불변식",
+      "title": "비활성 직원의 미완료 담당 잔존 금지",
+      "status": "passed",
+      "note": "2026-07-08 — 위반 없음"
+    },
+    {
+      "id": "INV-E6",
+      "category": "불변식",
+      "title": "모든 점검 6단계 보유 / 완료 점검 전 단계 완료",
+      "status": "passed",
+      "note": "2026-07-08 — 점검 16건 전부 6단계. 최초 7단계 기준 오탐 → KI-3"
+    },
+    {
+      "id": "INV-E7",
+      "category": "불변식",
+      "title": "계획-점검 링크 존재·고객 일치",
+      "status": "passed",
+      "note": "2026-07-08 — 계획 93건 위반 없음"
+    },
+    {
+      "id": "INV-E8",
+      "category": "불변식",
+      "title": "정산 합계식·과잉수금·세금계산서 FK",
+      "status": "passed",
+      "note": "2026-07-08 — 정산 0건 공허 통과, 데이터 생성 후 재실행 필요"
+    },
+    {
+      "id": "INV-E9",
+      "category": "불변식",
+      "title": "개인 데이터 소유자 정합",
+      "status": "passed",
+      "note": "2026-07-08 — 위반 없음"
+    },
+    {
+      "id": "INV-E10",
+      "category": "불변식",
+      "title": "B안 권한 위반 로그 없음 (employee의 배정/삭제 액션)",
+      "status": "passed",
+      "note": "2026-07-08 — 로그 211건 위반 없음"
+    },
+    {
+      "id": "INV-E11",
+      "category": "불변식",
+      "title": "상태-단계 교차 (전 단계 완료 ↔ status 완료)",
+      "status": "passed",
+      "note": "2026-07-08 — 위반 없음"
+    }
+  ],
+  "summary": {
+    "total": 142,
+    "passed": 13,
+    "failed": 0,
+    "partial": 8,
+    "blocked": 17,
+    "skipped": 1,
+    "known_issue": 1,
+    "in_progress": 0,
+    "pending": 102
+  }
+}

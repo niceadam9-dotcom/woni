@@ -12,6 +12,7 @@
  *   "[new:HOOK] ..."      → erp_goal/NEW1.JSON (meta 항목, 직접 id로 매칭)
  *   "[fix:FIX-1] ..."     → erp_goal/victory_test_result_fixing.json (테스트 결과 수정 목록)
  *   "[fix:IMP-2] ..."     → erp_goal/victory_test_result_fixing.json
+ *   "[ent:AUTH-1] ..."    → erp_goal/Victory10_entire.json (전체 시스템 테스트 — completed→passed)
  *
  * TaskUpdate status 매핑:
  *   in_progress → "partial"   (checklist: "in_progress")
@@ -30,6 +31,7 @@ const FILES = {
   v10:  path.join(BASE, 'Victory10.json'),
   fix:  path.join(BASE, 'victory_test_result_fixing.json'),
   add:  path.join(BASE, 'Victory10_add.json'),
+  ent:  path.join(BASE, 'Victory10_entire.json'),
 };
 
 async function readStdin() {
@@ -338,6 +340,50 @@ function updateAdd(itemId, newStatus) {
   }
 }
 
+// ── Victory10_entire.json 업데이트 ──
+// itemId: "AUTH-1", "PERM-13", "E2E-F1", "INV-E6", "M1", "EX-V5" 등 (items 배열)
+// newStatus: "in_progress" | "passed"
+function updateEntire(itemId, newStatus) {
+  try {
+    const raw = fs.readFileSync(FILES.ent, 'utf8');
+    const doc = JSON.parse(raw);
+
+    let updated = false;
+    for (const item of (doc.items || [])) {
+      if (item.id === itemId) {
+        if (item.status !== newStatus) {
+          item.status = newStatus;
+          if (newStatus === 'passed') item.tested_date = new Date().toISOString().split('T')[0];
+          updated = true;
+        }
+        break;
+      }
+    }
+
+    if (updated) {
+      const all = doc.items || [];
+      doc.summary = {
+        total: all.length,
+        passed:      all.filter(i => i.status === 'passed').length,
+        failed:      all.filter(i => i.status === 'failed').length,
+        partial:     all.filter(i => i.status === 'partial').length,
+        blocked:     all.filter(i => i.status === 'blocked').length,
+        skipped:     all.filter(i => i.status === 'skipped').length,
+        known_issue: all.filter(i => i.status === 'known_issue').length,
+        in_progress: all.filter(i => i.status === 'in_progress').length,
+        pending:     all.filter(i => i.status === 'pending').length,
+      };
+      doc.date = new Date().toISOString().split('T')[0];
+      fs.writeFileSync(FILES.ent, JSON.stringify(doc, null, 2) + '\n', 'utf8');
+      process.stderr.write(`[sync-checklist] Victory10_entire.json :: ${itemId} → ${newStatus}\n`);
+    } else {
+      process.stderr.write(`[sync-checklist] Victory10_entire.json :: ${itemId} — 항목 없음 또는 이미 동일 상태\n`);
+    }
+  } catch (e) {
+    process.stderr.write(`[sync-checklist] Victory10_entire.json error: ${e.message}\n`);
+  }
+}
+
 async function main() {
   const raw = await readStdin();
   if (!raw.trim()) return;
@@ -360,6 +406,15 @@ async function main() {
     input.subject    || input.title    || '';
 
   const newTaskStatus = input.status;
+
+  // ── [ent:AUTH-1] → Victory10_entire.json (테스트 통과 시 completed → passed) ──
+  const entMatch = subject.match(/^\[ent:([A-Z0-9-]+)\]/i);
+  if (entMatch) {
+    const itemId = entMatch[1].toUpperCase();
+    if (newTaskStatus === 'completed')   updateEntire(itemId, 'passed');
+    if (newTaskStatus === 'in_progress') updateEntire(itemId, 'in_progress');
+    return;
+  }
 
   // ── [add:ADD-1] → Victory10_add.json ──
   const addMatch = subject.match(/^\[add:(ADD-\d+)\]/i);
