@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCompanyProfile } from '@/lib/company-profile'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 
@@ -31,11 +32,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
-  const { redCount, orangeCount } = await getStepBadgeCounts(profile.id, profile.role)
+  const [{ redCount, orangeCount }, company] = await Promise.all([
+    getStepBadgeCounts(profile.id, profile.role),
+    getCompanyProfile(),
+  ])
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f9fa]">
-      <Sidebar role={profile.role} redCount={redCount} orangeCount={orangeCount} />
+      <Sidebar
+        role={profile.role}
+        redCount={redCount}
+        orangeCount={orangeCount}
+        companyName={company?.company_name}
+        logoUrl={company?.logo_url}
+      />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header profile={profile} />
         <main className="flex-1 overflow-y-auto p-6">

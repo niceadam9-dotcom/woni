@@ -186,6 +186,10 @@ interface SidebarProps {
   redCount?: number
   /** 점검현황 모니터링 뱃지 — D-3 이내 건수 */
   orangeCount?: number
+  /** 회사 정보(company_profile)의 업체명 — 미설정 시 기본 브랜드명 */
+  companyName?: string
+  /** 회사 정보의 로고 URL — 있으면 기본 아이콘 대신 표시 */
+  logoUrl?: string | null
 }
 
 // href → 뱃지 매핑 (Victory10 §6 사이드바 카운터)
@@ -194,7 +198,7 @@ const BADGE_HREFS: Record<string, 'red' | 'orange'> = {
   '/inspection-plans/monitor': 'orange',
 }
 
-export function Sidebar({ role, redCount = 0, orangeCount = 0 }: SidebarProps) {
+export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '승진소방 ERP', logoUrl }: SidebarProps) {
   const pathname = usePathname()
 
   // 현재 경로가 속한 그룹 key 계산
@@ -229,12 +233,17 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0 }: SidebarProps) {
     <aside className="w-56 shrink-0 flex flex-col h-full bg-white border-r-2 border-[#d4d0f0]">
       {/* 로고 */}
       <div className="h-14 flex items-center gap-2.5 px-4 border-b-2 border-[#d4d0f0]">
-        <div className="size-7 rounded-lg bg-[#7b68ee] flex items-center justify-center shrink-0">
-          <svg className="size-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M4 6h16M4 18h16" />
-          </svg>
-        </div>
-        <span className="font-bold text-[#090c1d] text-[14px] tracking-tight">승진소방 ERP</span>
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt={companyName} className="size-7 rounded-lg object-contain shrink-0" />
+        ) : (
+          <div className="size-7 rounded-lg bg-[#7b68ee] flex items-center justify-center shrink-0">
+            <svg className="size-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M4 6h16M4 18h16" />
+            </svg>
+          </div>
+        )}
+        <span className="font-bold text-[#090c1d] text-[14px] tracking-tight truncate">{companyName}</span>
       </div>
 
       {/* 네비게이션 */}
