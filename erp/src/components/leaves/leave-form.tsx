@@ -38,9 +38,11 @@ type FormValues = z.infer<typeof schema>
 interface LeaveFormProps {
   remaining: number
   totalDays: number
+  /** FIX-13: 미리보기 일수 계산용 공휴일 목록 (YYYY-MM-DD) */
+  holidays?: string[]
 }
 
-export function LeaveForm({ remaining, totalDays }: LeaveFormProps) {
+export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -60,12 +62,21 @@ export function LeaveForm({ remaining, totalDays }: LeaveFormProps) {
     if (isHalf && startDate) setValue('end_date', startDate)
   }, [isHalf, startDate, setValue])
 
-  const daysCount =
-    isHalf
-      ? 0.5
-      : startDate && endDate && endDate >= startDate
-      ? Math.floor((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1
-      : 0
+  // FIX-13: 주말·공휴일 제외 실 근무일 계산 (서버 calcDays와 동일 규칙)
+  const daysCount = (() => {
+    if (isHalf) return 0.5
+    if (!startDate || !endDate || endDate < startDate) return 0
+    const holSet = new Set(holidays)
+    let count = 0
+    const d = new Date(startDate + 'T00:00:00')
+    const endD = new Date(endDate + 'T00:00:00')
+    for (; d <= endD; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay()
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      if (dow !== 0 && dow !== 6 && !holSet.has(iso)) count++
+    }
+    return count
+  })()
 
   const onSubmit = handleSubmit(values => {
     setError('')

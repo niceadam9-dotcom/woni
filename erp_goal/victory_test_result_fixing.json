@@ -241,6 +241,23 @@
         "erp/src/app/(dashboard)/customers/actions.ts (269-283)"
       ],
       "resolved_date": "2026-07-07"
+    },
+    {
+      "id": "FIX-13",
+      "title": "휴가 신청 일수가 주말·공휴일을 차감에 포함 (실 근무일 계산 안 됨)",
+      "severity": "major",
+      "status": "completed",
+      "symptom": "전체 시스템 테스트 HR-2에서 발견 — 화~목 3일 신청 시 공휴일(수) 포함 3일 차감. 금~월 신청 시 주말 2일도 차감됨",
+      "cause": "leaves/actions.ts calcDays가 단순 날짜 차이(+1)만 계산 — 사용설명서 명세(공휴일은 휴가 일수 계산에서 제외)와 불일치. leave-form 미리보기도 동일 방식",
+      "fix": "서버 calcDays를 주말(토·일)+holidays 테이블 조회 제외 방식으로 재작성(+근무일 0일 신청 차단). leaves/new 페이지가 공휴일 목록을 폼에 전달해 미리보기도 동일 규칙 적용",
+      "verification": "wave-3 재검(HR-2): 화~목(공휴일 포함) 신청 days_count=2 확인 예정",
+      "files": [
+        "leaves/actions.ts",
+        "leaves/new/page.tsx",
+        "leave-form.tsx"
+      ],
+      "found_date": "2026-07-08",
+      "resolved_date": "2026-07-08"
     }
   ],
   "improvements": [
@@ -450,8 +467,8 @@
     ]
   },
   "summary": {
-    "total": 22,
-    "completed": 22,
+    "total": 23,
+    "completed": 23,
     "in_progress": 0,
     "pending": 0
   },

@@ -12,12 +12,25 @@ export type LeaveFormInput = {
   reason?: string
 }
 
-function calcDays(type: string, start: string, end: string): number {
+// FIX-13(2026-07-08): 기존 단순 날짜차 계산은 주말·공휴일을 차감에 포함시켰음 —
+// 실 근무일만 계산 (사용설명서 '공휴일은 휴가 일수 계산에서 제외' 명세)
+async function calcDays(
+  admin: ReturnType<typeof createAdminClient>,
+  type: string, start: string, end: string
+): Promise<number> {
   if (type === 'half_am' || type === 'half_pm') return 0.5
-  const diff = Math.floor(
-    (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)
-  ) + 1
-  return Math.max(1, diff)
+  const { data: hols } = await admin
+    .from('holidays').select('date').gte('date', start).lte('date', end)
+  const holidays = new Set((hols ?? []).map(h => (h as { date: string }).date))
+  let count = 0
+  const d = new Date(start + 'T00:00:00')
+  const endD = new Date(end + 'T00:00:00')
+  for (; d <= endD; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay()
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (dow !== 0 && dow !== 6 && !holidays.has(iso)) count++
+  }
+  return count
 }
 
 export async function applyLeaveAction(input: LeaveFormInput): Promise<{ error?: string }> {
@@ -25,7 +38,10 @@ export async function applyLeaveAction(input: LeaveFormInput): Promise<{ error?:
   const admin = createAdminClient()
   const supabase = await createClient()
 
-  const daysCount = calcDays(input.leave_type, input.start_date, input.end_date)
+  const daysCount = await calcDays(admin, input.leave_type, input.start_date, input.end_date)
+  if (daysCount === 0) {
+    return { error: '신청 기간에 근무일이 없습니다. (주말·공휴일 제외)' }
+  }
   const year = new Date(input.start_date).getFullYear()
 
   // 중복 신청 방지
