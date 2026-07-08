@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { loginAction } from './actions'
 import { Button } from '@/components/ui/button'
 
@@ -15,6 +15,8 @@ interface LoginFormProps {
 
 export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState as { error: string } | undefined)
+  // 로그인 실패 시 폼이 리셋돼도 이메일은 유지 (비밀번호만 다시 입력)
+  const [email, setEmail] = useState('')
 
   return (
     <div className="w-full max-w-sm">
@@ -51,6 +53,8 @@ export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
               type="email"
               autoComplete="email"
               required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               placeholder="name@company.com"
               className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] placeholder:text-[#b0acd6] outline-none transition focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20"
             />
