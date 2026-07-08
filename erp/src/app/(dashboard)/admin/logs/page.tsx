@@ -95,7 +95,9 @@ export default async function ActivityLogsPage({
         <ClipboardList className="size-6 text-[#7b68ee]" />
         <div>
           <h1 className="text-xl font-bold text-[#090c1d]">활동 로그</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">전체 직원 활동 내역 조회</p>
+          <p className="text-sm text-[#514b81] mt-0.5">
+            전체 직원 활동 내역 조회 — 접속기록은 감사 무결성을 위해 수정·삭제할 수 없으며, 2년 보관 후 매월 자동 아카이브·파기됩니다
+          </p>
         </div>
       </div>
 
