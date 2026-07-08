@@ -258,6 +258,36 @@
       ],
       "found_date": "2026-07-08",
       "resolved_date": "2026-07-08"
+    },
+    {
+      "id": "FIX-14",
+      "title": "휴가 승인 화면 버튼·모달 텍스트 인코딩 깨짐 (?뱀씤/諛섎젮 표시)",
+      "severity": "major",
+      "status": "completed",
+      "symptom": "전체 시스템 테스트 HR-1/EX-S2 자동화 중 발견 — /leaves/manage의 승인·반려 버튼과 반려 모달 전체 텍스트가 깨진 문자로 화면에 노출",
+      "cause": "manage-actions.tsx 파일이 이중 인코딩(UTF-8 mojibake)으로 저장됨 — 소스 전수 스캔 결과 이 파일 1개만 해당",
+      "fix": "파일 전체 재작성 — 승인/반려/반려 사유 입력/반려하기/취소 등 전체 문자열 정상화",
+      "verification": "수정 후 manage 화면에 승인·반려 정상 표시 + 승인 버튼 자동화 클릭 성공 (2026-07-08)",
+      "files": [
+        "components/leaves/manage-actions.tsx"
+      ],
+      "found_date": "2026-07-08",
+      "resolved_date": "2026-07-08"
+    },
+    {
+      "id": "FIX-15",
+      "title": "재무상태표가 항상 빈 화면 (승인 전표가 있어도 집계 0)",
+      "severity": "major",
+      "status": "completed",
+      "symptom": "전체 시스템 테스트 ACC-3에서 발견 — 승인된 전표가 존재해도 재무상태표가 [승인된 전표 데이터가 없습니다] 표시",
+      "cause": "balance-sheet/page.tsx가 vouchers embed 없이 .eq(vouchers.status, 승인) 필터 → PostgREST 400 → lines가 항상 null",
+      "fix": "select에 vouchers:voucher_id!inner(status) embed 추가",
+      "verification": "수정 후 현금 100,000 자산 반영 + 자산/부채/자본 섹션 렌더 확인 (2026-07-08)",
+      "files": [
+        "accounting/balance-sheet/page.tsx"
+      ],
+      "found_date": "2026-07-08",
+      "resolved_date": "2026-07-08"
     }
   ],
   "improvements": [
@@ -467,8 +497,8 @@
     ]
   },
   "summary": {
-    "total": 23,
-    "completed": 23,
+    "total": 25,
+    "completed": 25,
     "in_progress": 0,
     "pending": 0
   },

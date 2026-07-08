@@ -14,11 +14,14 @@ export default async function BalanceSheetPage() {
   const today = new Date().toISOString().split('T')[0]
 
   // 승인된 전표의 자산/부채/자본 계정 명세 (누적)
+  // FIX-15(2026-07-08): vouchers embed 없이 vouchers.status를 필터해 PostgREST 400 →
+  // lines가 항상 null이라 재무상태표가 빈 화면이던 버그 — !inner embed로 수정
   const { data: lines } = await admin
     .from('voucher_lines')
     .select(`
       debit_amount, credit_amount,
-      account_codes:account_code_id ( code, name, account_type )
+      account_codes:account_code_id ( code, name, account_type ),
+      vouchers:voucher_id!inner ( status )
     `)
     .eq('vouchers.status', '승인')
 

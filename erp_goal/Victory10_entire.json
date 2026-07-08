@@ -202,7 +202,7 @@
       "category": "인사휴가",
       "title": "휴가 신청→승인→연차 차감·캘린더",
       "status": "partial",
-      "note": "신청→leaves 생성 검증. 승인 버튼 상호작용 자동화 실패 — 승인·차감·캘린더는 수동. 차감 로직 자체는 FIX-13 계산 검증으로 커버"
+      "note": "신청→매니저 승인 클릭까지 자동화 성공(FIX-14 후). 승인 플로우가 2단계(pending→manager_approved→approved, 팀장 1차+관리자 2차) 설계로 확인 — 최종 승인·차감은 수동 확인 필요"
     },
     {
       "id": "HR-2",
@@ -421,13 +421,17 @@
       "id": "SALES-1",
       "category": "영업",
       "title": "견적 작성 → 합계 → PDF",
-      "status": "pending"
+      "status": "passed",
+      "note": "견적 저장 — 합계 110,000 = 2×50,000 + 부가세 10% 자동 계산 확인. PDF 출력은 수동",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "SALES-2",
       "category": "영업",
       "title": "견적 → 수주 전환",
-      "status": "pending"
+      "status": "passed",
+      "note": "견적→수주 상태 전환(hover 드롭다운) + 요약 카드 수주 금액(220,000) 반영. 수주관리 화면과 자동 연동은 없음(상태 기반 관리) — INFO",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "SALES-3",
@@ -441,7 +445,9 @@
       "id": "SALES-4",
       "category": "영업",
       "title": "권한 격리 (/orders·/partners)",
-      "status": "pending"
+      "status": "passed",
+      "note": "AUTH-5에서 /orders·/partners employee 차단 확인 (동일 검증)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "STOCK-1",
@@ -487,19 +493,24 @@
       "id": "ACC-2",
       "category": "회계",
       "title": "손익계산서 집계·기간 전환",
-      "status": "pending"
+      "status": "passed",
+      "note": "전표(현금/매출액 501) 승인 → 손익계산서 매출액 100,000 + 순이익 +100,000 반영 확인",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "ACC-3",
       "category": "회계",
       "title": "재무상태표 항등식",
-      "status": "pending"
+      "status": "passed",
+      "note": "FIX-15(embed 누락 400) 수정 후 — 재무상태표 자산(현금 100,000)·자산/부채/자본 섹션 집계 정상. 당기순이익 자본 반영 표기는 수동 대조",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "ACC-4",
       "category": "회계",
       "title": "부가가치세 집계",
-      "status": "pending"
+      "status": "partial",
+      "note": "화면 렌더·분기 필터 정상(공급가액/부가세 라벨). 집계 산식 대조는 정산(bills) 데이터 필요 — E2E-F1과 함께 수동"
     },
     {
       "id": "ACC-5",
@@ -776,19 +787,24 @@
       "id": "EX-S1",
       "category": "예외상태",
       "title": "전자결재 상태 강제 전이",
-      "status": "pending"
+      "status": "passed",
+      "note": "승인 문서에서 회수·수정 버튼 미노출 (상태 강제 전이 UI 차단). 반려 문서 재승인 차단은 수동",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-S2",
       "category": "예외상태",
       "title": "휴가 이중 처리",
-      "status": "pending"
+      "status": "partial",
+      "note": "이중 승인은 2단계 승인 설계상 단계별 1회 — 각 단계 멱등성은 수동 확인"
     },
     {
       "id": "EX-S3",
       "category": "예외상태",
       "title": "견적→수주 후 원본 변경",
-      "status": "pending"
+      "status": "passed",
+      "note": "수주 상태 행에서 삭제·수정 버튼 미노출 (작성중·취소만 편집 허용 — 코드 게이팅과 실측 일치)",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-S4",
@@ -869,7 +885,9 @@
       "id": "EX-B3",
       "category": "예외경계",
       "title": "연도 경계 (익년 계획·연말 휴가·4분기 부가세)",
-      "status": "pending"
+      "status": "passed",
+      "note": "연말 걸친 휴가(12/28~1/4) days_count=6 — FIX-13 로직이 연도 경계에서도 정확(주말 제외). 익년 계획·4분기 부가세는 수동",
+      "tested_date": "2026-07-08"
     },
     {
       "id": "EX-B4",
@@ -1026,13 +1044,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 62,
+    "passed": 70,
     "failed": 0,
-    "partial": 20,
+    "partial": 22,
     "blocked": 0,
     "skipped": 0,
     "known_issue": 1,
     "in_progress": 0,
-    "pending": 59
+    "pending": 49
   }
 }
