@@ -80,6 +80,8 @@ interface Props {
   holidayInfos?: Array<{ date: string; name: string }>
   canManage: boolean
   isEmployee?: boolean
+  /** 월 이동 시 보기 모드 유지 — URL ?view= 에서 복원 (key 리마운트 대응) */
+  initialViewMode?: 'calendar' | 'list'
 }
 
 export function InspectionPlansClient({
@@ -94,6 +96,7 @@ export function InspectionPlansClient({
   holidayInfos = [],
   canManage,
   isEmployee = false,
+  initialViewMode = 'list',
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -101,7 +104,7 @@ export function InspectionPlansClient({
 
   const [viewYear,  setViewYear]  = useState(initialYear)
   const [viewMonth, setViewMonth] = useState(initialMonth)
-  const [viewMode,  setViewMode]  = useState<'calendar' | 'list'>('list')
+  const [viewMode,  setViewMode]  = useState<'calendar' | 'list'>(initialViewMode)
 
   const [items, setItems]     = useState<ItemView[]>(initialItems as ItemView[])
   const [plans, setPlans]     = useState<InspectionPlan[]>(initialPlans)
@@ -166,7 +169,8 @@ export function InspectionPlansClient({
     let y = viewYear, m = viewMonth + delta
     if (m > 12) { y++; m = 1 }
     if (m < 1)  { y--; m = 12 }
-    router.push(`/inspection-plans?year=${y}&month=${m}`)
+    // view 파라미터 유지 — 월 변경 시 key 리마운트로 상태가 초기화되므로 URL로 복원
+    router.push(`/inspection-plans?year=${y}&month=${m}&view=${viewMode}`)
   }
 
   // 항목 추가 모달 열기 — 플랜이 없으면 자동 생성 후 모달 표시
@@ -196,8 +200,8 @@ export function InspectionPlansClient({
   }
 
   const refresh = useCallback(() => {
-    startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`))
-  }, [router, viewYear, viewMonth])
+    startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}&view=${viewMode}`))
+  }, [router, viewYear, viewMonth, viewMode])
 
   useEffect(() => {
     if (!showMonthPicker) return
@@ -271,7 +275,7 @@ export function InspectionPlansClient({
                         key={m}
                         onClick={() => {
                           setShowMonthPicker(false)
-                          router.push(`/inspection-plans?year=${pickerYear}&month=${m}`)
+                          router.push(`/inspection-plans?year=${pickerYear}&month=${m}&view=${viewMode}`)
                         }}
                         className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${
                           isActive
@@ -295,7 +299,13 @@ export function InspectionPlansClient({
           {(['calendar', 'list'] as const).map(mode => (
             <button
               key={mode}
-              onClick={() => setViewMode(mode)}
+              onClick={() => {
+                setViewMode(mode)
+                // 새로고침·월이동 후에도 유지되도록 URL에 기록 (서버 왕복 없이)
+                const sp = new URLSearchParams(window.location.search)
+                sp.set('view', mode)
+                window.history.replaceState(null, '', `?${sp.toString()}`)
+              }}
               className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
                 viewMode === mode
                   ? 'bg-white text-[#7b68ee] shadow-sm'
