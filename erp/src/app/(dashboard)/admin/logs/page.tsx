@@ -176,7 +176,7 @@ export default async function ActivityLogsPage({
                       <td className="px-5 py-3 text-xs text-[#514b81] whitespace-nowrap">
                         {new Date(log.created_at).toLocaleString('ko-KR', {
                           month: '2-digit', day: '2-digit',
-                          hour: '2-digit', minute: '2-digit',
+                          hour: '2-digit', minute: '2-digit', second: '2-digit',
                         })}
                       </td>
                       <td className="px-4 py-3">

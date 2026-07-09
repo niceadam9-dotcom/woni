@@ -636,6 +636,17 @@ export async function bulkAssignEmployeeAction(
 
   if (customerIds.length === 0) return { updatedCount: 0 }
 
+  // 변경 전 담당자 조회 — 실제로 바뀌는 고객만 알림·이력 대상 (재실행 시 같은 내용이 중복 기록되던 문제 방지)
+  const { data: beforeRaw } = await admin
+    .from('customers')
+    .select('id, assigned_employee_id')
+    .in('id', customerIds)
+  const beforeMap = new Map(
+    ((beforeRaw ?? []) as Array<{ id: string; assigned_employee_id: string | null }>)
+      .map(c => [c.id, c.assigned_employee_id])
+  )
+  const changedIds = customerIds.filter(cid => beforeMap.get(cid) !== employeeId)
+
   const { error, count } = await admin
     .from('customers')
     .update({ assigned_employee_id: employeeId } as Record<string, unknown>)
@@ -643,37 +654,52 @@ export async function bulkAssignEmployeeAction(
 
   if (error) return { error: '일괄 배정에 실패했습니다.' }
 
-  if (employeeId) {
-    const { data: empRaw } = await admin
-      .from('profiles')
-      .select('name')
-      .eq('id', employeeId)
-      .single()
-    const empName = (empRaw as { name: string } | null)?.name ?? '담당자'
-
-    await admin.from('notifications').insert(
-      customerIds.map(cid => ({
-        recipient_id: employeeId,
-        title: '고객 담당자 배정',
-        message: `지역별 일괄 배정으로 담당 고객이 추가되었습니다.`,
-        type: 'inspection_assigned',
-        reference_id: cid,
-        reference_type: 'inspection',
-      })) as Record<string, unknown>[]
+  if (changedIds.length > 0) {
+    // 신규·이전 담당자 이름 맵 (old_value에 실제 이전 담당자를 기록)
+    const nameIds = [
+      ...new Set([employeeId, ...changedIds.map(cid => beforeMap.get(cid))].filter(Boolean)),
+    ] as string[]
+    const { data: namesRaw } = nameIds.length
+      ? await admin.from('profiles').select('id, name').in('id', nameIds)
+      : { data: [] }
+    const nameMap = new Map(
+      ((namesRaw ?? []) as Array<{ id: string; name: string }>).map(p => [p.id, p.name])
     )
+    const empName = employeeId ? nameMap.get(employeeId) ?? '담당자' : null
+
+    if (employeeId) {
+      await admin.from('notifications').insert(
+        changedIds.map(cid => ({
+          recipient_id: employeeId,
+          title: '고객 담당자 배정',
+          message: `지역별 일괄 배정으로 담당 고객이 추가되었습니다.`,
+          type: 'inspection_assigned',
+          reference_id: cid,
+          reference_type: 'inspection',
+        })) as Record<string, unknown>[]
+      )
+    }
 
     // ADD-5: 고객별 개별 이력 기록 (entity_id=고객ID — 고객 상세 점검이력에 표시되도록)
     await admin.from('activity_logs').insert(
-      customerIds.map(cid => ({
-        actor_id: profile.id,
-        action: 'customer_field_changed',
-        entity_type: 'customer',
-        entity_id: cid,
-        metadata: {
-          changes: [{ field: 'assigned_employee_id', field_label: '담당직원', old_value: null, new_value: empName }],
-          source: '지역별 일괄 배정',
-        },
-      })) as Record<string, unknown>[]
+      changedIds.map(cid => {
+        const oldId = beforeMap.get(cid)
+        return {
+          actor_id: profile.id,
+          action: 'customer_field_changed',
+          entity_type: 'customer',
+          entity_id: cid,
+          metadata: {
+            changes: [{
+              field: 'assigned_employee_id',
+              field_label: '담당직원',
+              old_value: oldId ? nameMap.get(oldId) ?? '이전 담당자' : null,
+              new_value: empName,
+            }],
+            source: '지역별 일괄 배정',
+          },
+        }
+      }) as Record<string, unknown>[]
     )
   }
 

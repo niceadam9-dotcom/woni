@@ -63,9 +63,18 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
     })
   }
 
+  // ADD-3 신규 화면과 동일 패턴: 등록된 관계인만 표시, 빈 role은 [관계인 추가]로 진입 (미등록 슬롯 나열 안 함)
+  const visibleRoles = ROLES.filter(
+    role => contacts.some(c => c.role === role) || editingRole === role
+  )
+  const firstEmptyRole = ROLES.find(role => !contacts.some(c => c.role === role))
+
   return (
     <div className="grid grid-cols-1 gap-3">
-      {ROLES.map(role => {
+      {visibleRoles.length === 0 && (
+        <p className="text-xs text-[#b0acd6]">등록된 관계인이 없습니다</p>
+      )}
+      {visibleRoles.map(role => {
         const contact = contacts.find(c => c.role === role)
         const isEditing = editingRole === role
 
@@ -130,46 +139,46 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
               <span className="text-xs font-bold text-[#7b68ee]">{ROLE_ABBR[role]}</span>
             </div>
             <div className="flex-1 min-w-0">
-              {contact ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[#514b81]">{contact.role}</span>
-                    <span className="text-sm font-medium text-[#090c1d]">{contact.name}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                    {contact.phone && (
-                      <span className="flex items-center gap-1 text-xs text-[#514b81]">
-                        <Phone className="size-3 text-[#b0acd6]" />
-                        {contact.phone}
-                      </span>
-                    )}
-                    {contact.email && (
-                      <span className="flex items-center gap-1 text-xs text-[#514b81]">
-                        <Mail className="size-3 text-[#b0acd6]" />
-                        {contact.email}
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-[#514b81]">{role}</span>
-                  <span className="text-xs text-[#b0acd6]">— 미등록</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[#514b81]">{contact!.role}</span>
+                <span className="text-sm font-medium text-[#090c1d]">{contact!.name}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                {contact!.phone && (
+                  <span className="flex items-center gap-1 text-xs text-[#514b81]">
+                    <Phone className="size-3 text-[#b0acd6]" />
+                    {contact!.phone}
+                  </span>
+                )}
+                {contact!.email && (
+                  <span className="flex items-center gap-1 text-xs text-[#514b81]">
+                    <Mail className="size-3 text-[#b0acd6]" />
+                    {contact!.email}
+                  </span>
+                )}
+              </div>
             </div>
             {canManage && (
               <button
                 onClick={() => startEdit(role)}
                 className="flex items-center gap-1 text-xs text-[#514b81] hover:text-[#7b68ee] transition-colors shrink-0"
               >
-                {contact ? <Pencil className="size-3" /> : <Plus className="size-3" />}
-                {contact ? '수정' : '추가'}
+                <Pencil className="size-3" />
+                수정
               </button>
             )}
           </div>
         )
       })}
+      {canManage && firstEmptyRole && editingRole === null && (
+        <button
+          onClick={() => startEdit(firstEmptyRole)}
+          className="flex items-center justify-center gap-1 text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] border border-dashed border-[#c3bdf5] rounded-lg py-2.5 transition-colors"
+        >
+          <Plus className="size-3" />
+          관계인 추가
+        </button>
+      )}
     </div>
   )
 }
