@@ -294,8 +294,9 @@ export async function confirmPlanItemStageOneAction(
   const step2 = addWorkingDays(new Date(step1), 5)
   const step3 = addWorkingDays(new Date(step1), 10)
   const step4 = addWorkingDays(new Date(step1), 15)
-  // step5: step4 + 10절대일 (주말·공휴일 포함) — 2026-07-09 확정 규칙, DB 트리거(019/048)와 동일
-  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 10)
+  // step5: step4 당일을 1일째로 포함한 절대일 10일째 (= +9일, 주말·공휴일 포함)
+  // 2026-07-09 사용자 확정: step4 08-18 → step5 08-27. DB 트리거·recalc도 050에서 동일 규칙으로 통일
+  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 9)
   const step5 = toDateStr(step4Date)
   const step6 = addWorkingDays(new Date(step5), 10)
 
