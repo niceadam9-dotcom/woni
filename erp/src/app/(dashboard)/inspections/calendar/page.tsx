@@ -39,15 +39,16 @@ export default async function InspectionCalendarPage({
     .lte('date', `${currentYear + 1}-12-31`)
 
   // 정기(monthly)·일반관리(event) 계획 항목 — 자체점검 6단계와 달리 계획 예정일 1건짜리 일정
+  // 확정 전 항목은 scheduled_date가 없으므로 planned_date(예정일)로도 표시
+  const rangeStart = `${currentYear - 1}-01-01`
+  const rangeEnd   = `${currentYear + 1}-12-31`
   const planItemsQuery = admin
     .from('inspection_plan_items')
-    .select('id, customer_id, plan_type, scheduled_date, status, assigned_employee_id, customers(customer_name, customer_code)')
+    .select('id, customer_id, plan_type, scheduled_date, planned_date, status, assigned_employee_id, customers(customer_name, customer_code)')
     .in('plan_type', ['monthly', 'event'])
-    .not('scheduled_date', 'is', null)
     .neq('status', 'cancelled')
-    .gte('scheduled_date', `${currentYear - 1}-01-01`)
-    .lte('scheduled_date', `${currentYear + 1}-12-31`)
-    .order('scheduled_date')
+    .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
+    .order('planned_date')
 
   const [inspRes, profilesRes, holidaysRes, planItemsRes] = await Promise.all([inspQuery, profilesQuery, holidaysQuery, planItemsQuery])
 
@@ -124,20 +125,25 @@ export default async function InspectionCalendarPage({
 
   type PlanItemRow = {
     id: string; customer_id: string; plan_type: 'monthly' | 'event'
-    scheduled_date: string; status: string; assigned_employee_id: string | null
+    scheduled_date: string | null; planned_date: string | null
+    status: string; assigned_employee_id: string | null
     customers: { customer_name: string; customer_code: string } | null
   }
-  const planItems: CalendarPlanItem[] = ((planItemsRes.data ?? []) as unknown as PlanItemRow[]).map(p => ({
-    id: p.id,
-    customer_id: p.customer_id,
-    customer_name: p.customers?.customer_name ?? '—',
-    customer_code: p.customers?.customer_code ?? '',
-    plan_type: p.plan_type,
-    scheduled_date: p.scheduled_date,
-    status: p.status as CalendarPlanItem['status'],
-    assigned_employee_id: p.assigned_employee_id,
-    assigned_employee_name: p.assigned_employee_id ? (empMap.get(p.assigned_employee_id)?.name ?? '미배정') : '미배정',
-  }))
+  const planItems: CalendarPlanItem[] = ((planItemsRes.data ?? []) as unknown as PlanItemRow[]).flatMap(p => {
+    const date = p.scheduled_date ?? p.planned_date
+    if (!date) return []
+    return [{
+      id: p.id,
+      customer_id: p.customer_id,
+      customer_name: p.customers?.customer_name ?? '—',
+      customer_code: p.customers?.customer_code ?? '',
+      plan_type: p.plan_type,
+      scheduled_date: date,
+      status: p.status as CalendarPlanItem['status'],
+      assigned_employee_id: p.assigned_employee_id,
+      assigned_employee_name: p.assigned_employee_id ? (empMap.get(p.assigned_employee_id)?.name ?? '미배정') : '미배정',
+    }]
+  })
 
   return (
     <InspectionCalendarClient

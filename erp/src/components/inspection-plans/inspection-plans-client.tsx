@@ -49,6 +49,16 @@ const PLAN_TYPE_LABEL: Record<string, string> = {
 
 type Employee = { id: string; name: string; position: string | null }
 type PlanType = 'special_종합' | 'special_작동' | 'monthly' | 'event' | null
+
+// plan_type이 저장되지 않은 레거시 항목(수동 추가·초과 해결 등)은 점검유형으로 유추
+// — 자동 생성된 정기 항목은 항상 plan_type='monthly'가 저장되므로 null = 특별/일반관리
+function effectivePlanType(item: Pick<ItemView, 'plan_type' | 'inspection_type'>): Exclude<PlanType, null> {
+  if (item.plan_type) return item.plan_type
+  if (item.inspection_type === '종합') return 'special_종합'
+  if (item.inspection_type === '작동') return 'special_작동'
+  if (item.inspection_type === '일반관리') return 'event'
+  return 'monthly'
+}
 type ItemView = Record<string, unknown> & {
   id: string
   customer_id: string
@@ -82,6 +92,10 @@ interface Props {
   isEmployee?: boolean
   /** 월 이동 시 보기 모드 유지 — URL ?view= 에서 복원 (key 리마운트 대응) */
   initialViewMode?: 'calendar' | 'list'
+  /** 월 이동 시 필터 유지 — URL ?type=/?status=/?emp= 에서 복원 (key 리마운트 대응) */
+  initialFilterPlanType?: string
+  initialFilterStatus?: string
+  initialFilterEmployee?: string
 }
 
 export function InspectionPlansClient({
@@ -97,6 +111,9 @@ export function InspectionPlansClient({
   canManage,
   isEmployee = false,
   initialViewMode = 'list',
+  initialFilterPlanType = 'all',
+  initialFilterStatus = 'planned',
+  initialFilterEmployee = 'all',
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -112,9 +129,18 @@ export function InspectionPlansClient({
   // 서버 재렌더링(router.push) 후 props가 바뀌면 로컬 state에 동기화
   useEffect(() => { setItems(initialItems as ItemView[]) }, [initialItems])
   useEffect(() => { setPlans(initialPlans) }, [initialPlans])
-  const [filterEmployee, setFilterEmployee] = useState<string>('all')
-  const [filterStatus,   setFilterStatus]   = useState<string>('planned')
-  const [filterPlanType, setFilterPlanType] = useState<string>('all')
+  const [filterEmployee, setFilterEmployee] = useState<string>(initialFilterEmployee)
+  const [filterStatus,   setFilterStatus]   = useState<string>(initialFilterStatus)
+  const [filterPlanType, setFilterPlanType] = useState<string>(initialFilterPlanType)
+
+  // 필터 변경을 URL에 기록 — 월 이동(key 리마운트)·새로고침 후에도 유지
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (filterPlanType === 'all') sp.delete('type'); else sp.set('type', filterPlanType)
+    if (filterStatus === 'planned') sp.delete('status'); else sp.set('status', filterStatus)
+    if (filterEmployee === 'all') sp.delete('emp'); else sp.set('emp', filterEmployee)
+    window.history.replaceState(null, '', `?${sp.toString()}`)
+  }, [filterPlanType, filterStatus, filterEmployee])
 
   const [selectedItem, setSelectedItem]     = useState<ItemView | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -136,7 +162,7 @@ export function InspectionPlansClient({
   // 담당자 + 점검유형까지만 적용한 기준 집합 (상태별 현황 카운트는 이 위에서 계산)
   const baseItems = items.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
-    if (filterPlanType !== 'all' && (item.plan_type ?? 'monthly') !== filterPlanType) return false
+    if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
     return true
   })
 
@@ -151,26 +177,37 @@ export function InspectionPlansClient({
   // 목록 뷰 최종 필터 (상태까지 적용)
   const filteredItems = baseItems.filter(item => matchStatus(item, filterStatus))
 
-  // 달력 뷰 필터 (담당자만 적용, 상태 필터 무시 — 달력은 전체 일정을 보여줌)
-  const calendarItems = items.filter(item =>
-    filterEmployee === 'all' || item.assigned_employee_id === filterEmployee
-  )
+  // 달력 뷰 필터 (담당자 + 점검유형 적용, 상태 필터 무시 — 달력은 전체 일정을 보여줌)
+  const calendarItems = items.filter(item => {
+    if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
+    if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
+    return true
+  })
   const itemsByDate = calendarItems.reduce<Record<string, ItemView[]>>((acc, item) => {
-    const d = item.scheduled_date
+    // 확정 전(정기 등)은 예정일 기준으로 표시 — 확정되면 scheduled_date로 이동
+    const d = item.scheduled_date ?? item.planned_date
     if (d) { acc[d] = [...(acc[d] ?? []), item] }
     return acc
   }, {})
 
-  // 달력 셀 생성
+  // 달력 셀 생성 (일요일 시작)
   const firstDay = new Date(viewYear, viewMonth - 1, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth, 0).getDate()
+
+  // 월 변경 시 key 리마운트로 상태가 초기화되므로 view·필터 파라미터를 URL로 복원
+  const pushMonth = useCallback((y: number, m: number) => {
+    const sp = new URLSearchParams(window.location.search)
+    sp.set('year', String(y))
+    sp.set('month', String(m))
+    sp.set('view', viewMode)
+    router.push(`/inspection-plans?${sp.toString()}`)
+  }, [router, viewMode])
 
   function navigateMonth(delta: number) {
     let y = viewYear, m = viewMonth + delta
     if (m > 12) { y++; m = 1 }
     if (m < 1)  { y--; m = 12 }
-    // view 파라미터 유지 — 월 변경 시 key 리마운트로 상태가 초기화되므로 URL로 복원
-    router.push(`/inspection-plans?year=${y}&month=${m}&view=${viewMode}`)
+    pushMonth(y, m)
   }
 
   // 항목 추가 모달 열기 — 플랜이 없으면 자동 생성 후 모달 표시
@@ -180,7 +217,7 @@ export function InspectionPlansClient({
       const res = await createInspectionPlanAction({ year: viewYear, month: viewMonth })
       if (res.error && !res.planId) { alert(res.error); return }
       setShowAddModal(true)
-      startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}`))
+      startTransition(() => pushMonth(viewYear, viewMonth))
       return
     }
     setShowAddModal(true)
@@ -200,8 +237,8 @@ export function InspectionPlansClient({
   }
 
   const refresh = useCallback(() => {
-    startTransition(() => router.push(`/inspection-plans?year=${viewYear}&month=${viewMonth}&view=${viewMode}`))
-  }, [router, viewYear, viewMonth, viewMode])
+    startTransition(() => pushMonth(viewYear, viewMonth))
+  }, [pushMonth, viewYear, viewMonth])
 
   useEffect(() => {
     if (!showMonthPicker) return
@@ -275,7 +312,7 @@ export function InspectionPlansClient({
                         key={m}
                         onClick={() => {
                           setShowMonthPicker(false)
-                          router.push(`/inspection-plans?year=${pickerYear}&month=${m}&view=${viewMode}`)
+                          pushMonth(pickerYear, m)
                         }}
                         className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${
                           isActive
@@ -534,7 +571,7 @@ function CalendarView({
                     <div
                       key={item.id}
                       onClick={e => { e.stopPropagation(); onItemClick(item) }}
-                      title={`${custName} · ${PLAN_TYPE_LABEL[(item.plan_type ?? 'monthly') as string] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}`}
+                      title={`${custName} · ${PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}`}
                       style={chipStyle(item, itemOverdue)}
                       className="text-[11px] leading-[1.2] px-1.5 py-[2px] rounded-[5px] cursor-pointer hover:opacity-85 truncate"
                     >
@@ -697,7 +734,7 @@ function InlineDateCell({
             )}
           </div>
           <div className="grid grid-cols-7 mb-1">
-            {['일','월','화','수','목','금','토'].map((d, i) => (
+            {WEEKDAYS.map((d, i) => (
               <div key={d} className={`text-center text-[10px] font-medium py-0.5 ${
                 i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-[#b0acd6]'
               }`}>{d}</div>
@@ -895,11 +932,11 @@ function ListView({
                 </td>
                 <td className="px-3 py-2.5">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    PLAN_TYPE_STYLE[item.plan_type ?? 'monthly']
-                  }`}>{PLAN_TYPE_LABEL[item.plan_type ?? 'monthly'] ?? item.inspection_type}</span>
+                    PLAN_TYPE_STYLE[effectivePlanType(item)]
+                  }`}>{PLAN_TYPE_LABEL[effectivePlanType(item)] ?? item.inspection_type}</span>
                 </td>
                 <td className="px-3 py-2.5 text-[#514b81] text-center">
-                  {item.plan_type === 'monthly' || item.plan_type === 'event'
+                  {effectivePlanType(item) === 'monthly' || effectivePlanType(item) === 'event'
                     ? <span className="text-xs text-gray-400">정기</span>
                     : `${item.sequence_num}차`}
                 </td>

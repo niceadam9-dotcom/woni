@@ -169,6 +169,10 @@ export async function addPlanItemAction(input: {
       contact_id: input.contactId || null,
       notes: input.notes || null,
       status: 'planned',
+      // 수동 추가는 특별점검(차수 지정) — 유형 필터가 plan_type 기준이므로 반드시 저장
+      plan_type: input.inspectionType === '종합' ? 'special_종합'
+        : input.inspectionType === '작동' ? 'special_작동'
+        : 'event',
     } as Record<string, unknown>)
     .select('id')
     .single()
@@ -423,7 +427,7 @@ export async function autoGeneratePlanAction(input: {
   if (refPlanId) {
     const { data: refItems } = await admin
       .from('inspection_plan_items')
-      .select('customer_id, inspection_type, sequence_num, assigned_employee_id, contact_id')
+      .select('customer_id, inspection_type, sequence_num, assigned_employee_id, contact_id, plan_type')
       .eq('plan_id', refPlanId)
       .neq('status', 'cancelled')
 
@@ -480,6 +484,7 @@ export async function autoGeneratePlanAction(input: {
           sequence_num: (item as Record<string, unknown>).sequence_num,
           assigned_employee_id: (item as Record<string, unknown>).assigned_employee_id,
           contact_id: (item as Record<string, unknown>).contact_id,
+          plan_type: (item as Record<string, unknown>).plan_type ?? null,
           planned_date: useApprovalDate ? _calcDate(useApprovalDate) : null,
           scheduled_date: null,   // 관리자 점검일자확정 전까지 NULL
           status: 'planned',
@@ -653,6 +658,10 @@ export async function resolveOverdueItemsAction(
           assigned_employee_id: item.assigned_employee_id || null,
           status: 'planned',
           scheduled_date: null,
+          // 초과 해결 항목은 사용승인일 기준 특별점검
+          plan_type: item.inspection_type === '종합' ? 'special_종합'
+            : item.inspection_type === '작동' ? 'special_작동'
+            : 'event',
         } as Record<string, unknown>)
       if (!error || error.code === '23505') added++
     }

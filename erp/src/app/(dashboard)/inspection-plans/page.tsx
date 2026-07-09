@@ -18,7 +18,7 @@ export type OverdueItem = {
 export default async function InspectionPlansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; month?: string; view?: string }>
+  searchParams: Promise<{ year?: string; month?: string; view?: string; type?: string; status?: string; emp?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -27,8 +27,11 @@ export default async function InspectionPlansPage({
   const now = new Date()
   const year  = sp.year  ? parseInt(sp.year,  10) : now.getFullYear()
   const month = sp.month ? parseInt(sp.month, 10) : now.getMonth() + 1
-  // 달력/목록 보기 모드 — 월 이동(key 리마운트) 후에도 URL로 유지
+  // 보기 모드·필터 — 월 이동(key 리마운트) 후에도 URL로 유지
   const viewMode = sp.view === 'calendar' ? 'calendar' as const : 'list' as const
+  const filterPlanType = ['special_종합', 'special_작동', 'monthly', 'event'].includes(sp.type ?? '') ? sp.type! : 'all'
+  const filterStatus   = ['all', 'confirmed', 'completed', 'cancelled'].includes(sp.status ?? '') ? sp.status! : 'planned'
+  const filterEmployee = sp.emp || 'all'
 
   const admin = createAdminClient()
 
@@ -135,6 +138,9 @@ export default async function InspectionPlansPage({
     <InspectionPlansClient
       key={`${year}-${month}`}
       initialViewMode={viewMode}
+      initialFilterPlanType={filterPlanType}
+      initialFilterStatus={filterStatus}
+      initialFilterEmployee={filterEmployee}
       initialPlans={(plans ?? []) as InspectionPlan[]}
       initialItems={items}
       initialYear={year}
