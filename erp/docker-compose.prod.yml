@@ -12,6 +12,8 @@ services:
       - .env.production
     environment:
       - NODE_ENV=production
+      # 서버 렌더링 시각 표시 기준 — 미지정 시 UTC로 렌더되어 9시간 밀림 (활동로그 등)
+      - TZ=Asia/Seoul
     restart: always
 
   caddy:

@@ -15,4 +15,6 @@ services:
       - .env.local
     environment:
       - NODE_ENV=development
+      # 프로덕션(docker-compose.prod.yml)과 동일 — 서버 렌더링 시각 KST 고정
+      - TZ=Asia/Seoul
     restart: unless-stopped
