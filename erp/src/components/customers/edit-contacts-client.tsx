@@ -1,12 +1,11 @@
 ﻿'use client'
 
 import { useState, useTransition } from 'react'
-import { Phone, Mail, Pencil, Plus, Check, X } from 'lucide-react'
+import { Phone, Mail, Pencil, Plus, Check, X, User } from 'lucide-react'
 import { upsertContactAction } from '@/app/(dashboard)/customers/actions'
 import type { CustomerContact, ContactRole } from '@/types'
 
 const ROLES: ContactRole[] = ['대표', '직원1', '직원2']
-const ROLE_ABBR: Record<ContactRole, string> = { '대표': '대', '직원1': '1', '직원2': '2' }
 
 interface Props {
   customerId: string
@@ -83,9 +82,9 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
             <div key={role} className="bg-[#f5f4ff] rounded-lg p-3.5 border border-[#c3bdf5]">
               <div className="flex items-center gap-2 mb-3">
                 <div className="size-8 rounded-lg bg-[#7b68ee] flex items-center justify-center shrink-0">
-                  <span className="text-xs font-bold text-white">{ROLE_ABBR[role]}</span>
+                  <User className="size-4 text-white" />
                 </div>
-                <span className="text-xs font-semibold text-[#7b68ee]">{role}</span>
+                <span className="text-xs font-semibold text-[#7b68ee]">{role === '대표' ? '대표' : '추가 관계인'}</span>
               </div>
               <div className="space-y-2">
                 <input
@@ -136,11 +135,11 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
         return (
           <div key={role} className="flex items-start gap-4 bg-[#f8f9fa] rounded-lg p-3.5">
             <div className="size-8 rounded-lg bg-[#f5f4ff] flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-[#7b68ee]">{ROLE_ABBR[role]}</span>
+              <User className="size-4 text-[#7b68ee]" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#514b81]">{contact!.role}</span>
+                <span className="text-xs font-semibold text-[#514b81]">{contact!.role === '대표' ? '대표' : '추가 관계인'}</span>
                 <span className="text-sm font-medium text-[#090c1d]">{contact!.name}</span>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
