@@ -167,8 +167,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h.name])), [holidays])
   const [holidayInfo, setHolidayInfo] = useState<{ date: string; name: string } | null>(null)
 
-  // 달력 모드: 전체 | 자체점검 6단계 | 정기점검(monthly) | 일반관리(event)
-  const [calMode, setCalMode] = useState<'all' | 'self' | 'regular' | 'event'>('all')
+  // 달력 모드: 전체 | 종합(6단계) | 작동(6단계) | 정기(monthly) | 일반(event)
+  const [calMode, setCalMode] = useState<'all' | 'comp' | 'oper' | 'regular' | 'event'>('all')
   // 정기 칩 클릭 안내 배너
   const [planInfo, setPlanInfo] = useState<CalendarPlanItem | null>(null)
 
@@ -244,14 +244,15 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     return d.toISOString().split('T')[0]
   }, [today])
 
-  // Calendar events — 자체점검 6단계 (정기점검·일반관리 모드에서는 숨김)
+  // Calendar events — 자체점검 6단계 (정기·일반 모드에서는 숨김)
   const events = useMemo<CalEvent[]>(() => {
     if (calMode === 'regular' || calMode === 'event') return []
     return inspections.flatMap(insp => {
       if (viewMode === 'employee' && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(insp.customer_id)) return []
-      // 자체점검(법정) = 종합·작동만 — 일반관리 6단계는 전체 탭에서만 표시
-      if (calMode === 'self' && insp.inspection_type === '일반관리') return []
+      // 종합/작동 탭 = 해당 유형만 — 일반관리 6단계는 전체 탭에서만 표시
+      if (calMode === 'comp' && insp.inspection_type !== '종합') return []
+      if (calMode === 'oper' && insp.inspection_type !== '작동') return []
       if (!typeFilters.has(insp.inspection_type)) return []
 
       return insp.steps
@@ -308,9 +309,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     })
   }, [inspections, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, typeFilters, statusFilters, today, quickFilter, weekEnd])
 
-  // 정기(monthly)·일반관리(event) 계획 이벤트 (자체점검 모드에서는 숨김)
+  // 정기(monthly)·일반(event) 계획 이벤트 (종합/작동 모드에서는 숨김)
   const planEvents = useMemo<CalEvent[]>(() => {
-    if (calMode === 'self') return []
+    if (calMode === 'comp' || calMode === 'oper') return []
     return planItems.flatMap(p => {
       // 모드별 계획 유형 필터 — 정기점검 탭=monthly, 일반관리 탭=event
       if (calMode === 'regular' && p.plan_type !== 'monthly') return []
@@ -634,11 +635,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             </div>
           )}
 
-          {/* 점검유형 필터 */}
+          {/* 점검유형 필터 — 전체 탭에서만 (종합/작동/정기/일반 탭은 자체가 유형 필터) */}
+          {calMode === 'all' && (
           <div className="px-4 py-3 border-b border-[#e0ddf5]">
             <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">점검유형</p>
             <div className="space-y-1">
-              {((calMode === 'self' ? ['종합', '작동'] : ['종합', '작동', '일반관리']) as InspectionType[]).map(type => (
+              {(['종합', '작동', '일반관리'] as InspectionType[]).map(type => (
                 <label key={type} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
                   <input type="checkbox" checked={typeFilters.has(type)} onChange={() => toggleType(type)} className="sr-only" />
                   <span className={`size-3.5 rounded border flex items-center justify-center transition-colors ${typeFilters.has(type) ? 'bg-[#7b68ee] border-[#7b68ee]' : 'border-[#c3bdf5]'}`}>
@@ -649,6 +651,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               ))}
             </div>
           </div>
+          )}
 
           {/* 상태 필터 */}
           <div className="px-4 py-3">
@@ -673,11 +676,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
         {/* ── 달력 ──────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
-          {/* 달력 모드: 전체 | 자체점검(6단계) | 정기점검 | 일반관리 */}
+          {/* 달력 모드: 전체 | 종합(6단계) | 작동(6단계) | 정기 | 일반 */}
           <div className="flex items-center gap-1 bg-white border border-[#c8c4d0] rounded-lg p-1 w-fit">
             {([
               { key: 'all',     label: '전체' },
-              { key: 'self',    label: '자체점검' },
+              { key: 'comp',    label: '종합' },
+              { key: 'oper',    label: '작동' },
               { key: 'regular', label: '정기' },
               { key: 'event',   label: '일반' },
             ] as const).map(({ key, label }) => (
@@ -710,7 +714,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </button>
             ))}
             <div className="ml-auto flex items-center gap-2 text-[10px] text-[#b0acd6]">
-              {(calMode === 'all' || calMode === 'self') && (
+              {(calMode === 'all' || calMode === 'comp' || calMode === 'oper') && (
                 <>
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500" />7일+</span>
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-400" />3~6일</span>
@@ -719,10 +723,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-400" />지연</span>
                 </>
               )}
-              {calMode !== 'self' && calMode !== 'event' && (
+              {(calMode === 'all' || calMode === 'regular') && (
                 <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기</span>
               )}
-              {calMode !== 'self' && calMode !== 'regular' && (
+              {(calMode === 'all' || calMode === 'event') && (
                 <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반</span>
               )}
             </div>
