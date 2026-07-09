@@ -260,15 +260,20 @@ export async function confirmPlanItemStageOneAction(
   }
 
   // 공휴일 조회 — 확정일 기준 ±7개월 범위
+  // 주의: 종료일을 '-31' 하드코딩하면 2·4·6·9·11월에서 무효 날짜(예: 2027-02-31)가 되어
+  //       쿼리가 실패하고 공휴일이 전부 무시됐음 (실증: 2026-07-09, 제헌절 미제외) — 말일을 정확히 계산
   const base  = new Date(confirmedDate)
   const rangeStart = new Date(base); rangeStart.setMonth(rangeStart.getMonth() - 1)
   const rangeEnd   = new Date(base); rangeEnd.setMonth(rangeEnd.getMonth() + 7)
   const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01`
-  const endStr   = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-31`
+  const rangeEndLast = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth() + 1, 0)
+  const endStr = `${rangeEndLast.getFullYear()}-${String(rangeEndLast.getMonth()+1).padStart(2,'0')}-${String(rangeEndLast.getDate()).padStart(2,'0')}`
 
-  const { data: holidayData } = await admin
+  const { data: holidayData, error: holidayErr } = await admin
     .from('holidays').select('date')
     .gte('date', startStr).lte('date', endStr)
+  // 공휴일 없이 계산하면 마감일이 조용히 틀어지므로 조회 실패는 명시적으로 중단
+  if (holidayErr) return { error: '공휴일 조회에 실패했습니다. 잠시 후 다시 시도해주세요.' }
   const holidaySet = new Set((holidayData ?? []).map(h => (h as Record<string, unknown>).date as string))
 
   function toDateStr(d: Date): string {
@@ -289,9 +294,8 @@ export async function confirmPlanItemStageOneAction(
   const step2 = addWorkingDays(new Date(step1), 5)
   const step3 = addWorkingDays(new Date(step1), 10)
   const step4 = addWorkingDays(new Date(step1), 15)
-  // step5: step4 당일을 1일째로 포함한 절대일 10일째 (= +9일)
-  // Victory9 §10 검증표 기준: step4 07-23(목) → step5 08-01(토)
-  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 9)
+  // step5: step4 + 10절대일 (주말·공휴일 포함) — 2026-07-09 확정 규칙, DB 트리거(019/048)와 동일
+  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 10)
   const step5 = toDateStr(step4Date)
   const step6 = addWorkingDays(new Date(step5), 10)
 
