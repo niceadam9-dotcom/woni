@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress } from '@/lib/address-parser'
-import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
+import { generateYearlyPlanItems, loadHolidaySet, loadAnchorDates } from '@/lib/inspection-plan-generator'
 import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
@@ -446,6 +446,9 @@ async function _resetPlanItemsForCustomer(
 
   if (!items || items.length === 0) return
 
+  // 기준일: 최초 점검시작일 우선, 없으면 새 사용승인일 (둘 다 없으면 planned_date null)
+  const anchorDate = (await loadAnchorDates(admin, [{ id: customerId, use_approval_date: newApprovalDate }])).get(customerId) ?? null
+
   // 영업일 계산 헬퍼
   function toDateStr(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -483,10 +486,10 @@ async function _resetPlanItemsForCustomer(
     const plan = (item as Record<string, unknown>).inspection_plans as { year: number; month: number } | null
     if (!plan) continue
 
-    // planned_date 재계산 (새 use_approval_date 기준, 다음 영업일 조정)
+    // planned_date 재계산 (기준일 기준, 다음 영업일 조정)
     let newPlannedDate: string | null = null
-    if (newApprovalDate) {
-      const approvalDay = new Date(newApprovalDate).getDate()
+    if (anchorDate) {
+      const approvalDay = new Date(anchorDate).getDate()
       const daysInMonth = new Date(plan.year, plan.month, 0).getDate()
       const base = new Date(plan.year, plan.month - 1, Math.min(approvalDay, daysInMonth))
       const dow = base.getDay()

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
+import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
 import type { InspectionType } from '@/types'
 
 export type CreateInspectionInput = {
@@ -68,6 +69,28 @@ export async function createInspectionAction(
     entity_id: inspectionId,
     metadata: { year, sequence_num: input.sequence_num, customer_id: input.customer_id },
   } as Record<string, unknown>)
+
+  // 사용승인일 없는 소방안전관리 고객: 방금 등록한 점검시작일을 기준일로
+  // 연간 계획(정기 포함) 자동 생성 — 멱등이라 중복 실행 안전
+  const { data: custRaw } = await admin
+    .from('customers')
+    .select('inspection_type, use_approval_date, assigned_employee_id, is_active')
+    .eq('id', input.customer_id)
+    .single()
+  const cust = custRaw as {
+    inspection_type: InspectionType; use_approval_date: string | null
+    assigned_employee_id: string | null; is_active: boolean
+  } | null
+  if (cust && cust.is_active && cust.inspection_type !== '일반관리' && !cust.use_approval_date) {
+    const targetYear = Math.max(year, new Date().getFullYear())
+    const hdSet = await loadHolidaySet(admin, targetYear)
+    await generateYearlyPlanItems(
+      admin,
+      { id: input.customer_id, inspection_type: cust.inspection_type, use_approval_date: null, assigned_employee_id: cust.assigned_employee_id },
+      targetYear, profile.id, hdSet,
+    )
+    revalidatePath('/inspection-plans')
+  }
 
   revalidatePath('/inspections')
   revalidatePath(`/customers/${input.customer_id}`)

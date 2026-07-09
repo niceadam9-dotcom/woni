@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { loadAnchorDates } from '@/lib/inspection-plan-generator'
 import { InspectionPlansClient } from '@/components/inspection-plans/inspection-plans-client'
 import type { InspectionPlan, UserRole } from '@/types'
 
@@ -65,7 +66,7 @@ export default async function InspectionPlansPage({
   const yearPlanIds = Object.keys(planMonthMap)
 
   // ── Wave 2: wave1 결과에 의존하는 쿼리 병렬 실행 ─────────────
-  const [currentItemsRes, yearPlanItemsRes] = await Promise.all([
+  const [currentItemsRes, yearPlanItemsRes, anchorMap] = await Promise.all([
     currentPlan
       ? admin.from('inspection_plan_items')
           .select(`*, customers:customer_id (customer_name, customer_code, is_active), profiles:assigned_employee_id (name)`)
@@ -78,6 +79,8 @@ export default async function InspectionPlansPage({
           .select('customer_id, sequence_num, plan_id')
           .in('plan_id', yearPlanIds)
       : Promise.resolve({ data: [] }),
+    // 기준일: 최초 점검시작일 우선 → 없으면 사용승인일 (초과 판정도 생성과 동일 기준)
+    loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; use_approval_date: string | null }>),
   ])
 
   const items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
@@ -99,9 +102,12 @@ export default async function InspectionPlansPage({
       id: string; customer_name: string; inspection_type: string
       assigned_employee_id: string | null; use_approval_date: string | null
     }
-    if (!cust.use_approval_date) continue
+    // 소방안전관리(종합/작동)만 초과 판정 — 일반관리는 법정 특별점검 대상 아님
+    if (cust.inspection_type === '일반관리') continue
+    const anchorDate = anchorMap.get(cust.id)
+    if (!anchorDate) continue
 
-    const approvalMonth = new Date(cust.use_approval_date).getMonth() + 1
+    const approvalMonth = new Date(anchorDate).getMonth() + 1
     const secondMonth   = ((approvalMonth - 1 + 6) % 12) + 1
     const wraps         = secondMonth < approvalMonth
     const empName       = cust.assigned_employee_id ? (employeeNameMap[cust.assigned_employee_id] ?? null) : null
@@ -112,7 +118,7 @@ export default async function InspectionPlansPage({
         inspection_type: cust.inspection_type,
         assigned_employee_id: cust.assigned_employee_id,
         assigned_employee_name: empName,
-        use_approval_date: cust.use_approval_date,
+        use_approval_date: anchorDate,
         sequence_num: 1, due_month: approvalMonth,
       })
     }
@@ -123,7 +129,7 @@ export default async function InspectionPlansPage({
         inspection_type: cust.inspection_type,
         assigned_employee_id: cust.assigned_employee_id,
         assigned_employee_name: empName,
-        use_approval_date: cust.use_approval_date,
+        use_approval_date: anchorDate,
         sequence_num: 2, due_month: secondMonth,
       })
     }
