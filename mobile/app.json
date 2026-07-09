@@ -50,7 +50,7 @@
     },
     "extra": {
       "supabaseUrl": "https://ryuozdhnilfjlahorizh.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5dW96ZGhuaWxmamxhaG9yaXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1ODg2MzEsImV4cCI6MjA5NzE2NDYzMX0.0Icgijy1zMyp8eJjCUSnPSfIIoqR4V1SnFHdReGUosY",
+      "supabaseAnonKey": "sb_publishable_bIO7HpHoizaLTx48wG1EKA_5aNQwo5p",
       "erpUrl": "https://sjfire.co.kr",
       "eas": {
         "projectId": ""
