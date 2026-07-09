@@ -9,7 +9,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css'
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 0 }), // 일요일 시작 (일·월·화…)
   getDay,
   locales: { ko },
 })
@@ -92,8 +92,8 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
       <style>{`
         .rbc-calendar { font-family: inherit; }
         .rbc-header { background: #f8f9fa; border-color: #c8c4d0; padding: 8px 4px; font-size: 12px; font-weight: 600; color: #514b81; }
-        .rbc-header:nth-child(6) { color: #2563eb; } /* 토 */
-        .rbc-header:nth-child(7) { color: #dc2626; } /* 일 */
+        .rbc-header:nth-child(1) { color: #dc2626; } /* 일 — 일요일 시작 */
+        .rbc-header:nth-child(7) { color: #2563eb; } /* 토 */
         .rbc-day-bg { border-color: #c8c4d0; }
         .rbc-month-view, .rbc-time-view, .rbc-agenda-view { border-color: #c8c4d0; }
         .rbc-today { background: #f5f4ff; }
@@ -125,6 +125,7 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
         messages={{
           month: '월', week: '주', day: '일', agenda: '목록',
           today: '오늘', previous: '‹', next: '›',
+          date: '날짜', time: '시간', event: '일정',
           noEventsInRange: '이 기간에 휴가가 없습니다.',
           showMore: (total) => `+${total}개 더 보기`,
         }}
@@ -135,6 +136,8 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
           },
         })}
         formats={{
+          weekdayFormat: (date) => ['일', '월', '화', '수', '목', '금', '토'][date.getDay()],
+          dayFormat: (date) => format(date, 'M/d (EEE)', { locale: ko }),
           monthHeaderFormat: (date) => format(date, 'yyyy년 M월', { locale: ko }),
           dayRangeHeaderFormat: ({ start, end }) =>
             `${format(start, 'M월 d일', { locale: ko })} – ${format(end, 'M월 d일', { locale: ko })}`,

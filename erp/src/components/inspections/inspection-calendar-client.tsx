@@ -2,14 +2,14 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Calendar, dateFnsLocalizer, Views, type View } from 'react-big-calendar'
+import { Calendar, dateFnsLocalizer, Views, type View, type ToolbarProps } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ko } from 'date-fns/locale/ko'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import Link from 'next/link'
 import {
   CalendarDays, Check, X, AlertTriangle, Loader2,
-  Users, Building2, ChevronRight,
+  Users, Building2, ChevronRight, ChevronLeft,
 } from 'lucide-react'
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -107,7 +107,7 @@ const STEP_STATUS_CFG: Record<string, { label: string; cls: string }> = {
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 0 }), // 일요일 시작 (일·월·화…)
   getDay,
   locales: { ko },
 })
@@ -166,8 +166,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h.name])), [holidays])
   const [holidayInfo, setHolidayInfo] = useState<{ date: string; name: string } | null>(null)
 
-  // 달력 모드: 전체(자체+정기) | 자체점검 6단계 | 정기점검(정기·일반관리 계획)
-  const [calMode, setCalMode] = useState<'all' | 'self' | 'regular'>('all')
+  // 달력 모드: 전체 | 자체점검 6단계 | 정기점검(monthly) | 일반관리(event)
+  const [calMode, setCalMode] = useState<'all' | 'self' | 'regular' | 'event'>('all')
   // 정기 칩 클릭 안내 배너
   const [planInfo, setPlanInfo] = useState<CalendarPlanItem | null>(null)
 
@@ -243,9 +243,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     return d.toISOString().split('T')[0]
   }, [today])
 
-  // Calendar events — 자체점검 6단계 (정기점검 모드에서는 숨김)
+  // Calendar events — 자체점검 6단계 (정기점검·일반관리 모드에서는 숨김)
   const events = useMemo<CalEvent[]>(() => {
-    if (calMode === 'regular') return []
+    if (calMode === 'regular' || calMode === 'event') return []
     return inspections.flatMap(insp => {
       if (viewMode === 'employee' && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(insp.customer_id)) return []
@@ -308,6 +308,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const planEvents = useMemo<CalEvent[]>(() => {
     if (calMode === 'self') return []
     return planItems.flatMap(p => {
+      // 모드별 계획 유형 필터 — 정기점검 탭=monthly, 일반관리 탭=event
+      if (calMode === 'regular' && p.plan_type !== 'monthly') return []
+      if (calMode === 'event' && p.plan_type !== 'event') return []
       // 담당자 미배정 항목은 담당자 필터와 무관하게 표시
       if (viewMode === 'employee' && p.assigned_employee_id && !selectedEmployeeIds.has(p.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(p.customer_id)) return []
@@ -457,6 +460,48 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       </div>
     )
   }, [holidayMap])
+
+  // 커스텀 툴바 — 월간 점검계획과 동일한 ‹ 2026년 7월 › 네비게이션
+  const CalToolbar = useCallback(({ label, view, onNavigate, onView }: ToolbarProps<CalEvent, object>) => (
+    <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+      <button
+        onClick={() => onNavigate('TODAY')}
+        className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs font-medium text-[#514b81] bg-white hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors"
+      >
+        오늘
+      </button>
+      <div className="flex items-center gap-0.5 bg-white border border-[#c8c4d0] rounded-lg px-1 py-1 shadow-sm">
+        <button
+          onClick={() => onNavigate('PREV')}
+          className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+          title="이전"
+        >
+          <ChevronLeft className="size-4 text-[#514b81]" />
+        </button>
+        <span className="text-sm font-semibold text-[#090c1d] min-w-[88px] text-center px-1">{label}</span>
+        <button
+          onClick={() => onNavigate('NEXT')}
+          className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+          title="다음"
+        >
+          <ChevronRight className="size-4 text-[#514b81]" />
+        </button>
+      </div>
+      <div className="flex items-center bg-[#f5f4ff] rounded-lg p-0.5">
+        {([['month', '월'], ['week', '주'], ['agenda', '목록']] as const).map(([v, l]) => (
+          <button
+            key={v}
+            onClick={() => onView(v as View)}
+            className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+              view === v ? 'bg-white text-[#7b68ee] shadow-sm' : 'text-[#514b81] hover:text-[#7b68ee]'
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+    </div>
+  ), [])
 
   return (
     <div className="space-y-4">
@@ -624,12 +669,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
         {/* ── 달력 ──────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
-          {/* 달력 모드: 전체 | 자체점검(6단계) | 정기점검 */}
+          {/* 달력 모드: 전체 | 자체점검(6단계) | 정기점검 | 일반관리 */}
           <div className="flex items-center gap-1 bg-white border border-[#c8c4d0] rounded-lg p-1 w-fit">
             {([
               { key: 'all',     label: '전체' },
               { key: 'self',    label: '자체점검' },
               { key: 'regular', label: '정기점검' },
+              { key: 'event',   label: '일반관리' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}
@@ -660,7 +706,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </button>
             ))}
             <div className="ml-auto flex items-center gap-2 text-[10px] text-[#b0acd6]">
-              {calMode !== 'regular' && (
+              {(calMode === 'all' || calMode === 'self') && (
                 <>
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500" />7일+</span>
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-400" />3~6일</span>
@@ -669,11 +715,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-400" />지연</span>
                 </>
               )}
-              {calMode !== 'self' && (
-                <>
-                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기점검</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반관리</span>
-                </>
+              {calMode !== 'self' && calMode !== 'event' && (
+                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기점검</span>
+              )}
+              {calMode !== 'self' && calMode !== 'regular' && (
+                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반관리</span>
               )}
             </div>
           </div>
@@ -713,8 +759,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           <style>{`
             .rbc-calendar { font-family: inherit; }
             .rbc-header { background:#f8f9fa; border-color:#c8c4d0; padding:8px 4px; font-size:12px; font-weight:600; color:#514b81; }
-            .rbc-header:nth-child(6) { color:#2563eb; } /* 토 */
-            .rbc-header:nth-child(7) { color:#dc2626; } /* 일 */
+            .rbc-header:nth-child(1) { color:#dc2626; } /* 일 — 일요일 시작 */
+            .rbc-header:nth-child(7) { color:#2563eb; } /* 토 */
             .rbc-day-bg { border-color:#c8c4d0; }
             .rbc-month-view,.rbc-time-view,.rbc-agenda-view { border-color:#c8c4d0; }
             .rbc-today { background:#f5f4ff; }
@@ -740,7 +786,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             onSelectEvent={handleSelectEvent}
             style={{ height: 640 }}
             views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
-            components={{ month: { dateHeader: MonthDateHeader } }}
+            components={{ toolbar: CalToolbar, month: { dateHeader: MonthDateHeader } }}
             dayPropGetter={(date: Date) => {
               const iso = format(date, 'yyyy-MM-dd')
               return holidayMap.has(iso) ? { style: { backgroundColor: '#fef2f2' } } : {}
@@ -748,6 +794,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             messages={{
               month: '월', week: '주', day: '일', agenda: '목록',
               today: '오늘', previous: '‹', next: '›',
+              date: '날짜', time: '시간', event: '일정',
               noEventsInRange: '이 기간에 점검 일정이 없습니다.',
               showMore: (total) => `+${total}개 더 보기`,
             }}
@@ -794,6 +841,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               }
             }}
             formats={{
+              weekdayFormat: d => ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+              dayFormat: d => format(d, 'M/d (EEE)', { locale: ko }),
               monthHeaderFormat: d => format(d, 'yyyy년 M월', { locale: ko }),
               dayRangeHeaderFormat: ({ start, end }) =>
                 `${format(start, 'M월 d일', { locale: ko })} – ${format(end, 'M월 d일', { locale: ko })}`,
