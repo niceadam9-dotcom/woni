@@ -40,7 +40,24 @@ export type CalendarInspection = {
   steps: CalendarStep[]
 }
 
+/** 정기(monthly)·일반관리(event) 계획 항목 — 6단계 없이 예정일 1건짜리 일정 */
+export type CalendarPlanItem = {
+  id: string
+  customer_id: string
+  customer_name: string
+  customer_code: string
+  plan_type: 'monthly' | 'event'
+  scheduled_date: string
+  status: 'planned' | 'confirmed' | 'completed'
+  assigned_employee_id: string | null
+  assigned_employee_name: string
+}
+
 type CalEventResource = {
+  /** 'step'(자체점검 6단계, 기본) | 'plan'(정기·일반관리 계획) */
+  kind?: 'step' | 'plan'
+  planType?: 'monthly' | 'event'
+  planStatus?: 'planned' | 'confirmed' | 'completed'
   inspectionId: string
   stepId: string
   stepNum: number
@@ -131,6 +148,8 @@ type QuickFilter = 'all' | 'today' | 'week' | 'overdue'
 
 interface Props {
   inspections: CalendarInspection[]
+  /** 정기·일반관리 계획 항목 (전체/정기점검 모드에서 표시) */
+  planItems?: CalendarPlanItem[]
   employees: Array<{ id: string; name: string; position: string | null }>
   currentUserId: string
   currentUserRole: UserRole
@@ -140,12 +159,17 @@ interface Props {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, employees, currentUserId, currentUserRole, initialFilter = 'all', holidays = [] }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', holidays = [] }: Props) {
   const router = useRouter()
 
   // 공휴일 맵 + 날짜 클릭 안내 상태
   const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h.name])), [holidays])
   const [holidayInfo, setHolidayInfo] = useState<{ date: string; name: string } | null>(null)
+
+  // 달력 모드: 전체(자체+정기) | 자체점검 6단계 | 정기점검(정기·일반관리 계획)
+  const [calMode, setCalMode] = useState<'all' | 'self' | 'regular'>('all')
+  // 정기 칩 클릭 안내 배너
+  const [planInfo, setPlanInfo] = useState<CalendarPlanItem | null>(null)
 
   // Calendar view state
   const [calView, setCalView] = useState<View>(initialFilter === 'overdue' ? Views.AGENDA : Views.MONTH)
@@ -174,7 +198,7 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
   )
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
-    () => new Set(inspections.map(i => i.customer_id))
+    () => new Set([...inspections.map(i => i.customer_id), ...planItems.map(p => p.customer_id)])
   )
   const [typeFilters, setTypeFilters] = useState<Set<string>>(
     () => new Set(['종합', '작동', '일반관리'])
@@ -190,7 +214,7 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
 
   const today = useMemo(() => new Date().toISOString().split('T')[0], [])
 
-  // Unique customers derived from inspection data
+  // Unique customers derived from inspection + plan item data
   const uniqueCustomers = useMemo(() => {
     const map = new Map<string, { id: string; name: string; code: string }>()
     for (const insp of inspections) {
@@ -198,8 +222,13 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
         map.set(insp.customer_id, { id: insp.customer_id, name: insp.customer_name, code: insp.customer_code })
       }
     }
+    for (const p of planItems) {
+      if (!map.has(p.customer_id)) {
+        map.set(p.customer_id, { id: p.customer_id, name: p.customer_name, code: p.customer_code })
+      }
+    }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-  }, [inspections])
+  }, [inspections, planItems])
 
   const filteredCustomerList = useMemo(() => {
     if (!customerSearch) return uniqueCustomers
@@ -214,8 +243,9 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
     return d.toISOString().split('T')[0]
   }, [today])
 
-  // Calendar events
+  // Calendar events — 자체점검 6단계 (정기점검 모드에서는 숨김)
   const events = useMemo<CalEvent[]>(() => {
+    if (calMode === 'regular') return []
     return inspections.flatMap(insp => {
       if (viewMode === 'employee' && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(insp.customer_id)) return []
@@ -272,7 +302,65 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
           }]
         })
     })
-  }, [inspections, viewMode, selectedEmployeeIds, selectedCustomerIds, typeFilters, statusFilters, today, quickFilter, weekEnd])
+  }, [inspections, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, typeFilters, statusFilters, today, quickFilter, weekEnd])
+
+  // 정기(monthly)·일반관리(event) 계획 이벤트 (자체점검 모드에서는 숨김)
+  const planEvents = useMemo<CalEvent[]>(() => {
+    if (calMode === 'self') return []
+    return planItems.flatMap(p => {
+      // 담당자 미배정 항목은 담당자 필터와 무관하게 표시
+      if (viewMode === 'employee' && p.assigned_employee_id && !selectedEmployeeIds.has(p.assigned_employee_id)) return []
+      if (viewMode === 'customer' && !selectedCustomerIds.has(p.customer_id)) return []
+
+      const isCompleted = p.status === 'completed'
+      const isOverdue = !isCompleted && p.scheduled_date < today
+      const isIncomplete = !isCompleted && !isOverdue
+
+      if (!statusFilters.has('completed') && isCompleted) return []
+      if (!statusFilters.has('overdue') && isOverdue) return []
+      if (!statusFilters.has('incomplete') && isIncomplete) return []
+
+      if (quickFilter === 'today' && p.scheduled_date !== today) return []
+      if (quickFilter === 'overdue' && !isOverdue) return []
+      if (quickFilter === 'week' && (p.scheduled_date < today || p.scheduled_date > weekEnd)) return []
+
+      const typeLabel = p.plan_type === 'monthly' ? '정기점검' : '일반관리'
+      const marker = isCompleted ? ' ✓' : isOverdue ? ' ⚠' : ''
+      const eventDate = new Date(p.scheduled_date + 'T12:00:00')
+
+      return [{
+        id: `plan-${p.id}`,
+        title: viewMode === 'employee'
+          ? `${p.customer_name} · ${typeLabel}${marker}`
+          : `${typeLabel}${marker} — ${p.assigned_employee_name}`,
+        start: eventDate,
+        end: eventDate,
+        allDay: true as const,
+        resource: {
+          kind: 'plan' as const,
+          planType: p.plan_type,
+          planStatus: p.status,
+          inspectionId: p.id, // plan item id (슬라이드 패널 대신 안내 배너에 사용)
+          stepId: p.id,
+          stepNum: 0,
+          stepStatus: p.status,
+          dueDate: p.scheduled_date,
+          completedAt: null,
+          customerName: p.customer_name,
+          inspectionType: '일반관리' as InspectionType,
+          year: parseInt(p.scheduled_date.slice(0, 4), 10),
+          sequenceNum: 1,
+          assignedEmployeeId: p.assigned_employee_id ?? '',
+          assignedEmployeeName: p.assigned_employee_name,
+          isOverdue,
+          isReceiveStep: false,
+          color: p.plan_type === 'monthly' ? '#6b7280' : '#0ea5e9',
+        } satisfies CalEventResource,
+      }]
+    })
+  }, [planItems, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, statusFilters, today, quickFilter, weekEnd])
+
+  const allEvents = useMemo<CalEvent[]>(() => [...events, ...planEvents], [events, planEvents])
 
   const selectedInspection = useMemo(
     () => selectedInspectionId ? (inspections.find(i => i.id === selectedInspectionId) ?? null) : null,
@@ -285,9 +373,15 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
 
   const handleSelectEvent = useCallback((event: object) => {
     const e = event as CalEvent
+    if (e.resource.kind === 'plan') {
+      // 정기·일반관리 칩 → 슬라이드 패널 대신 안내 배너 (상세는 점검계획 화면)
+      const p = planItems.find(x => x.id === e.resource.inspectionId)
+      if (p) setPlanInfo(p)
+      return
+    }
     setSelectedInspectionId(e.resource.inspectionId)
     setStepError(null)
-  }, [])
+  }, [planItems])
 
   async function handleCompleteStep(stepId: string, inspId: string) {
     setCompletingStepId(stepId)
@@ -530,6 +624,25 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
 
         {/* ── 달력 ──────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
+          {/* 달력 모드: 전체 | 자체점검(6단계) | 정기점검 */}
+          <div className="flex items-center gap-1 bg-white border border-[#c8c4d0] rounded-lg p-1 w-fit">
+            {([
+              { key: 'all',     label: '전체' },
+              { key: 'self',    label: '자체점검' },
+              { key: 'regular', label: '정기점검' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setCalMode(key)}
+                className={`h-8 px-4 rounded-md text-sm font-medium transition-colors ${
+                  calMode === key ? 'bg-[#7b68ee] text-white' : 'text-[#514b81] hover:bg-[#f5f4ff]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* 퀵필터 바 */}
           <div className="flex items-center gap-2">
             {([
@@ -547,14 +660,43 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
               </button>
             ))}
             <div className="ml-auto flex items-center gap-2 text-[10px] text-[#b0acd6]">
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500" />7일+</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-400" />3~6일</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-orange-500" />1~2일</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-500" />D-Day</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-400" />지연</span>
+              {calMode !== 'regular' && (
+                <>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500" />7일+</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-400" />3~6일</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-orange-500" />1~2일</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-500" />D-Day</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-400" />지연</span>
+                </>
+              )}
+              {calMode !== 'self' && (
+                <>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기점검</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반관리</span>
+                </>
+              )}
             </div>
           </div>
           <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+          {/* 정기·일반관리 칩 클릭 안내 배너 */}
+          {planInfo && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-[#292d34]">
+              <CalendarDays className="size-4 shrink-0 text-gray-500" />
+              <span className="min-w-0 truncate">
+                <strong>{planInfo.customer_name}</strong>
+                {' — '}{planInfo.plan_type === 'monthly' ? '정기점검' : '일반관리'}
+                {' · 예정일 '}{planInfo.scheduled_date}
+                {' · '}{planInfo.status === 'completed' ? '완료' : planInfo.status === 'confirmed' ? '확정' : '계획'}
+                {' · 담당 '}{planInfo.assigned_employee_name}
+              </span>
+              <Link href="/inspection-plans" className="ml-auto shrink-0 text-xs text-[#7b68ee] hover:underline flex items-center gap-0.5">
+                점검계획에서 관리 <ChevronRight className="size-3" />
+              </Link>
+              <button onClick={() => setPlanInfo(null)} className="shrink-0 text-gray-400 hover:text-gray-600">
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
           {/* 공휴일 클릭 안내 배너 */}
           {holidayInfo && (
             <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
@@ -590,7 +732,7 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
           `}</style>
           <Calendar
             localizer={localizer}
-            events={events}
+            events={allEvents}
             view={calView}
             onView={v => setCalView(v)}
             date={calDate}
@@ -612,6 +754,19 @@ export function InspectionCalendarClient({ inspections, employees, currentUserId
             eventPropGetter={(event: object) => {
               const e = event as CalEvent
               const r = e.resource
+              // 정기·일반관리 계획 칩 — 단색 (회색/하늘), 완료 시 연회색 취소선
+              if (r.kind === 'plan') {
+                const done = r.planStatus === 'completed'
+                return {
+                  style: {
+                    backgroundColor: done ? '#e5e7eb' : r.color,
+                    color: done ? '#6b7280' : '#ffffff',
+                    border: r.isOverdue ? '2px solid #b91c1c' : 'none',
+                    textDecoration: done ? 'line-through' : 'none',
+                    fontWeight: 'normal',
+                  },
+                }
+              }
               const isDone = r.stepStatus === 'completed'
               const isOverdue = r.isOverdue
               // ADD-11: 비활성/삭제 고객 건은 완료처럼 회색 취소선

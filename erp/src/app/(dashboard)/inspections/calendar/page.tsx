@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
-import type { CalendarInspection } from '@/components/inspections/inspection-calendar-client'
+import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 
 export default async function InspectionCalendarPage({
@@ -38,7 +38,18 @@ export default async function InspectionCalendarPage({
     .gte('date', `${currentYear - 1}-01-01`)
     .lte('date', `${currentYear + 1}-12-31`)
 
-  const [inspRes, profilesRes, holidaysRes] = await Promise.all([inspQuery, profilesQuery, holidaysQuery])
+  // 정기(monthly)·일반관리(event) 계획 항목 — 자체점검 6단계와 달리 계획 예정일 1건짜리 일정
+  const planItemsQuery = admin
+    .from('inspection_plan_items')
+    .select('id, customer_id, plan_type, scheduled_date, status, assigned_employee_id, customers(customer_name, customer_code)')
+    .in('plan_type', ['monthly', 'event'])
+    .not('scheduled_date', 'is', null)
+    .neq('status', 'cancelled')
+    .gte('scheduled_date', `${currentYear - 1}-01-01`)
+    .lte('scheduled_date', `${currentYear + 1}-12-31`)
+    .order('scheduled_date')
+
+  const [inspRes, profilesRes, holidaysRes, planItemsRes] = await Promise.all([inspQuery, profilesQuery, holidaysQuery, planItemsQuery])
 
   type InspRow = {
     id: string; customer_id: string; inspection_type: string; year: number
@@ -111,9 +122,27 @@ export default async function InspectionCalendarPage({
 
   const holidays = ((holidaysRes.data ?? []) as Array<{ date: string; name: string }>)
 
+  type PlanItemRow = {
+    id: string; customer_id: string; plan_type: 'monthly' | 'event'
+    scheduled_date: string; status: string; assigned_employee_id: string | null
+    customers: { customer_name: string; customer_code: string } | null
+  }
+  const planItems: CalendarPlanItem[] = ((planItemsRes.data ?? []) as unknown as PlanItemRow[]).map(p => ({
+    id: p.id,
+    customer_id: p.customer_id,
+    customer_name: p.customers?.customer_name ?? '—',
+    customer_code: p.customers?.customer_code ?? '',
+    plan_type: p.plan_type,
+    scheduled_date: p.scheduled_date,
+    status: p.status as CalendarPlanItem['status'],
+    assigned_employee_id: p.assigned_employee_id,
+    assigned_employee_name: p.assigned_employee_id ? (empMap.get(p.assigned_employee_id)?.name ?? '미배정') : '미배정',
+  }))
+
   return (
     <InspectionCalendarClient
       inspections={calendarData}
+      planItems={planItems}
       employees={employees}
       currentUserId={profile.id}
       currentUserRole={profile.role as UserRole}
