@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Pencil, X, Loader2 } from 'lucide-react'
 import { updateCustomerAction } from '@/app/(dashboard)/customers/actions'
 import type { InspectionType } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 const TYPES: InspectionType[] = ['종합', '작동', '일반관리']
 
@@ -60,7 +61,7 @@ export function EditInspectionTypeClient({ customerId, currentType }: Props) {
               <div className="flex items-center gap-2 bg-[#f5f4ff] rounded-lg px-3 py-2.5">
                 <span className="text-xs text-[#514b81]">현재 유형:</span>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[currentType]}`}>
-                  {currentType}
+                  {inspectionTypeLabel(currentType)}
                 </span>
               </div>
 
@@ -83,7 +84,7 @@ export function EditInspectionTypeClient({ customerId, currentType }: Props) {
                       className="accent-[#7b68ee]"
                     />
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[type]}`}>
-                      {type}
+                      {inspectionTypeLabel(type)}
                     </span>
                     {type === '종합' && (
                       <span className="text-xs text-[#514b81] ml-auto">연 2회</span>

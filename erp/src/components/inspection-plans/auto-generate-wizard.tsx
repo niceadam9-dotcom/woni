@@ -10,6 +10,7 @@ import {
   createInspectionPlanAction,
 } from '@/app/(dashboard)/inspection-plans/actions'
 import type { InspectionType, PlanItemStatus } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 type CustomerRow = {
   id: string; customer_name: string; customer_code: string
@@ -242,7 +243,7 @@ export function AutoGenerateWizard({
                   <span className="text-sm text-[#090c1d] flex-1">{c.customer_name}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                     c.inspection_type === '종합' ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'bg-blue-50 text-blue-600'
-                  }`}>{c.inspection_type}</span>
+                  }`}>{inspectionTypeLabel(c.inspection_type)}</span>
                 </label>
               ))}
             </div>
@@ -286,7 +287,7 @@ export function AutoGenerateWizard({
                     <td className="px-4 py-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         item.inspection_type === '종합' ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'bg-blue-50 text-blue-600'
-                      }`}>{item.inspection_type}</span>
+                      }`}>{inspectionTypeLabel(item.inspection_type)}</span>
                     </td>
                     <td className="px-4 py-2 text-[#514b81]">{item.sequence_num}차</td>
                     <td className="px-4 py-2">

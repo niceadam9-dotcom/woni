@@ -7,6 +7,7 @@ import { InspectionDetailClient } from '@/components/inspections/inspection-deta
 import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 import type { ReportType } from '@/app/(dashboard)/inspections/report-constants'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
@@ -139,7 +140,7 @@ export default async function InspectionDetailPage({
           </div>
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[inspection.inspection_type]}`}>
-          {inspection.inspection_type}
+          {inspectionTypeLabel(inspection.inspection_type)}
         </span>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[inspection.status as InspectionStatus]}`}>
           {STATUS_LABELS[inspection.status as InspectionStatus]}

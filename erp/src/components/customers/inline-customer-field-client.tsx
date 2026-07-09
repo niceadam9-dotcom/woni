@@ -4,6 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
 import { patchCustomerFieldAction } from '@/app/(dashboard)/customers/actions'
 import type { InspectionType } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 type Field = 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'assigned_employee_id'
 
@@ -79,7 +80,7 @@ export function InlineCustomerFieldClient({
     if (displayVariant === 'type-badge') {
       return (
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_BADGE_COLORS[value] ?? 'bg-gray-100 text-gray-600'}`}>
-          {value}
+          {inspectionTypeLabel(value)}
         </span>
       )
     }
@@ -110,7 +111,7 @@ export function InlineCustomerFieldClient({
           disabled={isPending}
           className="h-7 px-1 text-xs border border-[#7b68ee] rounded outline-none bg-white"
         >
-          {INSPECTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {INSPECTION_TYPES.map(t => <option key={t} value={t}>{inspectionTypeLabel(t)}</option>)}
         </select>
       </div>
     )

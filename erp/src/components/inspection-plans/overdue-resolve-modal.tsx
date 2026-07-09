@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { X, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import type { OverdueItem } from '@/app/(dashboard)/inspection-plans/page'
 import { resolveOverdueItemsAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { inspectionTypeLabel } from '@/types'
 
 const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -197,7 +198,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                                   item.inspection_type === '종합' ? 'bg-[#f5f4ff] text-[#7b68ee]' :
                                   item.inspection_type === '작동' ? 'bg-blue-50 text-blue-600' :
                                   'bg-gray-100 text-gray-600'
-                                }`}>{item.inspection_type}</span>
+                                }`}>{inspectionTypeLabel(item.inspection_type)}</span>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
                                   {item.sequence_num}차
                                 </span>

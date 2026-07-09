@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type CalendarStep = {
@@ -249,6 +250,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     return inspections.flatMap(insp => {
       if (viewMode === 'employee' && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(insp.customer_id)) return []
+      // 자체점검(법정) = 종합·작동만 — 일반관리 6단계는 전체 탭에서만 표시
+      if (calMode === 'self' && insp.inspection_type === '일반관리') return []
       if (!typeFilters.has(insp.inspection_type)) return []
 
       return insp.steps
@@ -270,14 +273,15 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           const uc = urgencyColor(diff, isCompleted)
           const ddayLabel = isCompleted ? ' ✓' : isOverdue ? ` ⚠${getDDayLabel(diff)}` : ` [${getDDayLabel(diff)}]`
+          const typeTag = `[${inspectionTypeLabel(insp.inspection_type)}] `
           const eventDate = new Date(s.due_date! + 'T12:00:00')
           const endDate = new Date(s.due_date! + 'T12:00:00')
 
           return [{
             id: `${insp.id}-${s.id}`,
             title: viewMode === 'employee'
-              ? `${insp.customer_name} · ${s.name_ko}${ddayLabel}`
-              : `${s.name_ko}${ddayLabel} — ${insp.assigned_employee_name}`,
+              ? `${typeTag}${insp.customer_name} · ${s.name_ko}${ddayLabel}`
+              : `${typeTag}${s.name_ko}${ddayLabel} — ${insp.assigned_employee_name}`,
             start: eventDate,
             end: endDate,
             allDay: true as const,
@@ -327,7 +331,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       if (quickFilter === 'overdue' && !isOverdue) return []
       if (quickFilter === 'week' && (p.scheduled_date < today || p.scheduled_date > weekEnd)) return []
 
-      const typeLabel = p.plan_type === 'monthly' ? '정기점검' : '일반관리'
+      const typeLabel = p.plan_type === 'monthly' ? '정기' : '일반'
       const marker = isCompleted ? ' ✓' : isOverdue ? ' ⚠' : ''
       const eventDate = new Date(p.scheduled_date + 'T12:00:00')
 
@@ -634,13 +638,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           <div className="px-4 py-3 border-b border-[#e0ddf5]">
             <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">점검유형</p>
             <div className="space-y-1">
-              {(['종합', '작동', '일반관리'] as InspectionType[]).map(type => (
+              {((calMode === 'self' ? ['종합', '작동'] : ['종합', '작동', '일반관리']) as InspectionType[]).map(type => (
                 <label key={type} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
                   <input type="checkbox" checked={typeFilters.has(type)} onChange={() => toggleType(type)} className="sr-only" />
                   <span className={`size-3.5 rounded border flex items-center justify-center transition-colors ${typeFilters.has(type) ? 'bg-[#7b68ee] border-[#7b68ee]' : 'border-[#c3bdf5]'}`}>
                     {typeFilters.has(type) && <Check className="size-2.5 text-white" />}
                   </span>
-                  <span className="text-xs text-[#090c1d]">{type}</span>
+                  <span className="text-xs text-[#090c1d]">{inspectionTypeLabel(type)}</span>
                 </label>
               ))}
             </div>
@@ -674,8 +678,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {([
               { key: 'all',     label: '전체' },
               { key: 'self',    label: '자체점검' },
-              { key: 'regular', label: '정기점검' },
-              { key: 'event',   label: '일반관리' },
+              { key: 'regular', label: '정기' },
+              { key: 'event',   label: '일반' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}
@@ -716,10 +720,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 </>
               )}
               {calMode !== 'self' && calMode !== 'event' && (
-                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기점검</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기</span>
               )}
               {calMode !== 'self' && calMode !== 'regular' && (
-                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반관리</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반</span>
               )}
             </div>
           </div>
@@ -730,7 +734,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               <CalendarDays className="size-4 shrink-0 text-gray-500" />
               <span className="min-w-0 truncate">
                 <strong>{planInfo.customer_name}</strong>
-                {' — '}{planInfo.plan_type === 'monthly' ? '정기점검' : '일반관리'}
+                {' — '}{planInfo.plan_type === 'monthly' ? '정기' : '일반'}
                 {' · 예정일 '}{planInfo.scheduled_date}
                 {' · '}{planInfo.status === 'completed' ? '완료' : planInfo.status === 'confirmed' ? '확정' : '계획'}
                 {' · 담당 '}{planInfo.assigned_employee_name}
@@ -874,7 +878,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 <p className="font-semibold text-[#090c1d] truncate">{selectedInspection.customer_name}</p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${TYPE_COLORS[selectedInspection.inspection_type]}`}>
-                    {selectedInspection.inspection_type}
+                    {inspectionTypeLabel(selectedInspection.inspection_type)}
                   </span>
                   <span className="text-xs text-[#514b81]">{selectedInspection.year}년 {selectedInspection.sequence_num}차</span>
                   <ChevronRight className="size-3 text-[#b0acd6]" />

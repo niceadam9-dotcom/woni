@@ -17,6 +17,13 @@ export type InspectionType     = '종합' | '작동' | '일반관리'
 export type InspectionCategory = '소방안전관리' | '일반관리'
 export type InspectionSubType  = '종합' | '작동'
 export type PlanType           = 'special_종합' | 'special_작동' | 'monthly' | 'event'
+
+// 화면 표시 표준 용어 통일: 종합 / 작동 / 정기 / 일반 — DB 저장값은 불변, 표시만 변환
+export const inspectionTypeLabel = (t: string | null | undefined): string =>
+  t === '일반관리' ? '일반' : (t ?? '—')
+export const PLAN_TYPE_LABELS: Record<PlanType, string> = {
+  'special_종합': '종합', 'special_작동': '작동', monthly: '정기', event: '일반',
+}
 export type InspectionStatus   = 'scheduled' | 'in_progress' | 'completed' | 'overdue'
 export type StepStatus         = 'pending' | 'completed' | 'overdue'
 export type ReportType         = 'fire_station' | 'stakeholder' | 'completion'

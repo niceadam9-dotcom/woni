@@ -7,6 +7,7 @@ import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, X, Building2, P
 import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import type { InspectionType } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
   const match = fullAddress.match(/\(([^)]+)\)$/)
@@ -259,8 +260,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   }
 
   const INSPECTION_ANNUAL: Record<InspectionType, string> = {
-    '종합':     '연 12회 자동 생성 (종합특별 2회 + 정기 10회)',
-    '작동':     '연 12회 자동 생성 (작동특별 1회 + 정기 11회)',
+    '종합':     '연 12회 자동 생성 (종합 2회 + 정기 10회)',
+    '작동':     '연 12회 자동 생성 (작동 1회 + 정기 11회)',
     '일반관리': '수동 등록 (자동 생성 없음)',
   }
 
@@ -639,7 +640,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             </div>
             <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1 text-sm">
               <p className="font-medium text-[#090c1d]">{dupInfo.customer_name}</p>
-              <p className="text-xs text-[#514b81]">점검유형: {dupInfo.inspection_type} · 담당: {dupInfo.employee_name ?? '미배정'}</p>
+              <p className="text-xs text-[#514b81]">점검유형: {inspectionTypeLabel(dupInfo.inspection_type)} · 담당: {dupInfo.employee_name ?? '미배정'}</p>
             </div>
             <p className="text-xs text-[#514b81] mt-3">같은 주소의 고객이 이미 있습니다. 기존 고객 정보를 확인하거나, 별도 고객이 맞으면 계속 등록할 수 있습니다.</p>
             <div className="flex gap-2 mt-4">

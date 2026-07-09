@@ -4,6 +4,7 @@ import { ClipboardList, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 const TYPE_COLORS: Record<string, string> = {
   '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
@@ -147,7 +148,7 @@ export default async function InspectionSheetsPage({
                     <td className="px-4 py-3">
                       {r.inspection_type ? (
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[r.inspection_type] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {r.inspection_type}
+                          {inspectionTypeLabel(r.inspection_type)}
                         </span>
                       ) : (
                         <span className="text-xs text-[#b0acd6]">공통</span>

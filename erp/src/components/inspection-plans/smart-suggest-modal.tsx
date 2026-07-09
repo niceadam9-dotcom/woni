@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { X, Lightbulb, AlertCircle } from 'lucide-react'
 import type { InspectionType } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 import {
   getSuggestedItemsAction,
   addPlanItemAction,
@@ -191,7 +192,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
               {suggestions.some(s => s.sequence_num === 1) && (
                 <div>
                   <p className="text-xs font-semibold text-[#514b81] mb-1.5 mt-3">
-                    사용승인월 {month}월 고객 — 종합 1차 / 작동·일반관리 연1회
+                    사용승인월 {month}월 고객 — 종합 1차 / 작동·일반 연1회
                   </p>
                   <div className="space-y-1.5">
                     {suggestions.filter(s => s.sequence_num === 1).map(item => (
@@ -283,7 +284,7 @@ function SuggestRow({
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-medium text-[#090c1d] truncate">{item.customer_name}</span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${TYPE_STYLE[item.inspection_type]}`}>
-            {item.inspection_type}
+            {inspectionTypeLabel(item.inspection_type)}
           </span>
           {item.inspection_type === '종합' ? (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium shrink-0">

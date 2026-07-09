@@ -10,6 +10,7 @@ import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import type { InspectionType, UserRole } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
   '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
@@ -148,7 +149,7 @@ export default async function CustomersPage({
           <option value="">전체 점검유형</option>
           <option value="종합">종합</option>
           <option value="작동">작동</option>
-          <option value="일반관리">일반관리</option>
+          <option value="일반관리">일반</option>
         </select>
         <select
           name="active"
@@ -231,7 +232,7 @@ export default async function CustomersPage({
                         <InlineCustomerFieldClient customerId={c.id} field="inspection_type" value={c.inspection_type}
                           displayVariant="type-badge" />
                       ) : (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[c.inspection_type]}`}>{c.inspection_type}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[c.inspection_type]}`}>{inspectionTypeLabel(c.inspection_type)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">

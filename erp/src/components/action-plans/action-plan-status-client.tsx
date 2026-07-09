@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { Search, X, ChevronDown, ChevronRight, Printer } from 'lucide-react'
 import { updateActionPlanAction, updateCompleteReportAction, upsertActionPlanStatusAction } from '@/app/(dashboard)/action-plans/status/actions'
+import { inspectionTypeLabel } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmt(d: string | null | undefined) {
@@ -216,7 +217,7 @@ function ActionPlanModal({
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div>
             <span className="font-semibold">이행계획 입력</span>
-            <span className="ml-2 text-xs text-gray-400">{cname} ({row.inspections?.inspection_type} {row.inspections?.sequence_num}차)</span>
+            <span className="ml-2 text-xs text-gray-400">{cname} ({inspectionTypeLabel(row.inspections?.inspection_type)} {row.inspections?.sequence_num}차)</span>
           </div>
           <button onClick={onClose}><X size={16} /></button>
         </div>
@@ -386,7 +387,7 @@ export function ActionPlanStatusClient({
                     return (
                       <tr key={p.id} className="bg-yellow-50">
                         <td className="border px-2 py-1.5 font-medium">{p.customers?.customer_name}</td>
-                        <td className="border px-2 py-1.5 text-center">{p.inspection_type} {p.sequence_num}차</td>
+                        <td className="border px-2 py-1.5 text-center">{inspectionTypeLabel(p.inspection_type)} {p.sequence_num}차</td>
                         <td className="border px-2 py-1.5 text-center">{fmt(completedAt)}</td>
                         <td className="border px-2 py-1.5 text-center">{p.inspection_defects.length}</td>
                         <td className={`border px-2 py-1.5 text-center ${isOverdue(deadline, null) ? 'bg-red-100 text-red-700 font-medium' : ''}`}>
@@ -461,7 +462,7 @@ export function ActionPlanStatusClient({
                   <td className="border px-2 py-1.5 text-center text-gray-500">{idx + 1}</td>
                   <td className="border px-2 py-1.5 font-medium">{row.inspections?.customers?.customer_name}</td>
                   <td className="border px-2 py-1.5 text-center">
-                    {row.inspections?.inspection_type} {row.inspections?.sequence_num}차
+                    {inspectionTypeLabel(row.inspections?.inspection_type)} {row.inspections?.sequence_num}차
                   </td>
                   <td className="border px-2 py-1.5 text-center">{fmt(completedAt)}</td>
                   <td className={`border px-2 py-1.5 text-center font-medium ${overdueRow ? 'bg-red-100 text-red-700' : ''}`}>
@@ -557,7 +558,7 @@ export function ActionPlanStatusClient({
                   <td className="border px-2 py-1.5 text-center text-gray-500">{idx + 1}</td>
                   <td className="border px-2 py-1.5 font-medium">{row.inspections?.customers?.customer_name}</td>
                   <td className="border px-2 py-1.5 text-center">
-                    {row.inspections?.inspection_type} {row.inspections?.sequence_num}차
+                    {inspectionTypeLabel(row.inspections?.inspection_type)} {row.inspections?.sequence_num}차
                   </td>
                   <td className="border px-2 py-1.5 text-center">{fmt(completedAt)}</td>
                   <td className={`border px-2 py-1.5 text-center ${overdueTarget ? 'bg-red-100 text-red-700 font-medium' : ''}`}>

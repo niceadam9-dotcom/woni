@@ -4,6 +4,7 @@ import { ClipboardList, ChevronRight } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SheetDetailClient } from '@/components/inspection-sheets/sheet-detail-client'
+import { inspectionTypeLabel } from '@/types'
 
 const TYPE_COLORS: Record<string, string> = {
   '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
@@ -65,7 +66,7 @@ export default async function InspectionSheetDetailPage({
             <span className="text-sm font-mono text-[#514b81] bg-[#f8f9fa] border border-[#c8c4d0] px-2 py-0.5 rounded">v{s.version}</span>
             {s.inspection_type && (
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[s.inspection_type] ?? 'bg-gray-100 text-gray-600'}`}>
-                {s.inspection_type}
+                {inspectionTypeLabel(s.inspection_type)}
               </span>
             )}
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>

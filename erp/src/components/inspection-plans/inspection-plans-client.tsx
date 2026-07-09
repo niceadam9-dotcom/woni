@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import type { InspectionPlan, InspectionType, PlanItemStatus } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 import type { OverdueItem } from '@/app/(dashboard)/inspection-plans/page'
 import {
   createInspectionPlanAction,
@@ -41,10 +42,10 @@ const PLAN_TYPE_STYLE: Record<string, string> = {
   event:        'bg-orange-50 text-orange-600',
 }
 const PLAN_TYPE_LABEL: Record<string, string> = {
-  special_종합: '종합특별',
-  special_작동: '작동특별',
+  special_종합: '종합',
+  special_작동: '작동',
   monthly:      '정기',
-  event:        '일반관리',
+  event:        '일반',
 }
 
 type Employee = { id: string; name: string; position: string | null }
@@ -409,7 +410,7 @@ export function InspectionPlansClient({
           {/* 점검유형 필터 */}
           <span className="text-xs font-semibold text-[#8b87b8]">유형</span>
           <div className="flex items-center gap-1 flex-wrap">
-            {([['all','전체'],['special_종합','종합특별'],['special_작동','작동특별'],['monthly','정기'],['event','일반관리']] as [string, string][]).map(([val, label]) => (
+            {([['all','전체'],['special_종합','종합'],['special_작동','작동'],['monthly','정기'],['event','일반']] as [string, string][]).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setFilterPlanType(val)}
@@ -933,7 +934,7 @@ function ListView({
                 <td className="px-3 py-2.5">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                     PLAN_TYPE_STYLE[effectivePlanType(item)]
-                  }`}>{PLAN_TYPE_LABEL[effectivePlanType(item)] ?? item.inspection_type}</span>
+                  }`}>{PLAN_TYPE_LABEL[effectivePlanType(item)] ?? inspectionTypeLabel(item.inspection_type)}</span>
                 </td>
                 <td className="px-3 py-2.5 text-[#514b81] text-center">
                   {effectivePlanType(item) === 'monthly' || effectivePlanType(item) === 'event'
@@ -1082,7 +1083,7 @@ function OverduePanel({
                         item.inspection_type === '종합' ? 'bg-[#f5f4ff] text-[#7b68ee]' :
                         item.inspection_type === '작동' ? 'bg-blue-50 text-blue-600' :
                         'bg-gray-100 text-gray-600'
-                      }`}>{item.inspection_type}</span>
+                      }`}>{inspectionTypeLabel(item.inspection_type)}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
                         {item.sequence_num}차
                       </span>

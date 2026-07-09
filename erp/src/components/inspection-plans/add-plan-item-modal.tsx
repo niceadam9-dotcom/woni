@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { X, Search, ChevronDown } from 'lucide-react'
 import type { InspectionType } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 import { addPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 
 type Employee = { id: string; name: string; position: string | null }
@@ -191,7 +192,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
           {selectedCustomer && (
             <div className="flex items-center gap-2 text-xs text-[#514b81] bg-[#f5f4ff] rounded-lg px-3 py-2">
               <span>점검유형:</span>
-              <span className="font-medium text-[#7b68ee]">{selectedCustomer.inspection_type}</span>
+              <span className="font-medium text-[#7b68ee]">{inspectionTypeLabel(selectedCustomer.inspection_type)}</span>
               {selectedCustomer.address && (
                 <>
                   <span className="text-[#c8c4d0]">|</span>

@@ -5,6 +5,7 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import type { InspectionStatus, InspectionType, UserRole } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
   '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
@@ -236,7 +237,7 @@ export default async function InspectionsPage({
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[insp.inspection_type]}`}>
-                            {insp.inspection_type}
+                            {inspectionTypeLabel(insp.inspection_type)}
                           </span>
                           <span className="text-xs text-[#514b81]">{insp.sequence_num}차</span>
                         </div>

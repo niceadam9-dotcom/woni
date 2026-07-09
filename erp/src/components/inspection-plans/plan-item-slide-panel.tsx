@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { X, Save, PlayCircle, ExternalLink, CheckCircle2, AlertCircle, Loader2, ClipboardList, CalendarDays } from 'lucide-react'
 import type { InspectionType, PlanItemStatus } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 import { updatePlanItemAction, startInspectionAction, getInspectionStepsForItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 
@@ -125,7 +126,7 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
           <div>
             <p className="text-sm font-semibold text-[#090c1d]">{customerName}</p>
             <p className="text-xs text-[#514b81] mt-0.5">
-              {item.inspection_type} · {item.sequence_num}차
+              {inspectionTypeLabel(item.inspection_type)} · {item.sequence_num}차
             </p>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-[#f5f4ff] rounded-lg transition-colors">

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Search, ChevronRight, Check, Clock, AlertTriangle } from 'lucide-react'
+import { inspectionTypeLabel } from '@/types'
 
 function fmt(d: string | null | undefined) { return d ? d.slice(0, 10) : '' }
 
@@ -127,7 +128,7 @@ export function ActionPlansListClient({ plans }: { plans: Record<string, unknown
                           {insp?.customers?.customer_name ?? '—'}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {insp?.inspection_type} {insp?.year}년 {insp?.sequence_num}차
+                          {inspectionTypeLabel(insp?.inspection_type)} {insp?.year}년 {insp?.sequence_num}차
                         </span>
                         <PlanStatusChip plan={plan} />
                       </div>

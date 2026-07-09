@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Search, X, Check } from 'lucide-react'
 import { upsertReportStatusAction } from '@/app/(dashboard)/inspection-reports/status/actions'
 import { TableScroll } from '@/components/ui/table-scroll'
+import { inspectionTypeLabel } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmt(d: string | null | undefined) {
@@ -87,7 +88,7 @@ function InputModal({
           <div>
             <span className="font-semibold">보고서 제출현황 입력</span>
             <span className="ml-2 text-xs text-gray-400">
-              {item.customers?.customer_name} ({item.inspection_type} {item.sequence_num}차)
+              {item.customers?.customer_name} ({inspectionTypeLabel(item.inspection_type)} {item.sequence_num}차)
             </span>
           </div>
           <button onClick={onClose}><X size={16} /></button>
@@ -367,7 +368,7 @@ export function ReportStatusClient({
                   <td className="border px-2 py-1.5 text-center">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium
                       ${row.inspection_type === '종합' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {row.inspection_type}
+                      {inspectionTypeLabel(row.inspection_type)}
                     </span>
                     <span className="ml-1 text-gray-400">{row.sequence_num}차</span>
                   </td>

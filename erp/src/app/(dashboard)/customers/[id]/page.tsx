@@ -8,6 +8,7 @@ import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
+import { inspectionTypeLabel } from '@/types'
 
 type ActivityLog = {
   id: string
@@ -157,7 +158,7 @@ export default async function CustomerDetailPage({
           <h1 className="text-xl font-bold text-[#090c1d]">{customer.customer_name}</h1>
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
-          {customer.inspection_type}
+          {inspectionTypeLabel(customer.inspection_type)}
         </span>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
           {customer.is_active ? '활성' : '비활성'}
@@ -210,7 +211,7 @@ export default async function CustomerDetailPage({
             value={
               <span className="flex items-center">
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
-                  {customer.inspection_type}
+                  {inspectionTypeLabel(customer.inspection_type)}
                 </span>
                 {canManage && (
                   <EditInspectionTypeClient
@@ -397,7 +398,7 @@ export default async function CustomerDetailPage({
                           </td>
                           <td className="py-3 pr-4">
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[insp.inspection_type]}`}>
-                              {insp.inspection_type}
+                              {inspectionTypeLabel(insp.inspection_type)}
                             </span>
                           </td>
                           <td className="py-3 pr-4 text-[#514b81]">{insp.inspection_start_date}</td>
