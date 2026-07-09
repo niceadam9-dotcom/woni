@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
 import {
   addBuildingPurposeAction,
   deleteBuildingPurposeAction,
+  moveBuildingPurposeAction,
 } from '@/app/(dashboard)/admin/building-purposes/actions'
 
 interface Props {
@@ -43,6 +44,15 @@ export function BuildingPurposesManager({ purposes }: Props) {
     })
   }
 
+  function handleMove(id: string, direction: 'up' | 'down') {
+    setError('')
+    startTransition(async () => {
+      const res = await moveBuildingPurposeAction(id, direction)
+      if (res.error) { setError(res.error); return }
+      router.refresh()
+    })
+  }
+
   return (
     <div className="max-w-xl space-y-4">
       {/* 추가 */}
@@ -75,8 +85,26 @@ export function BuildingPurposesManager({ purposes }: Props) {
           <p className="py-10 text-center text-sm text-[#514b81]">등록된 용도가 없습니다</p>
         ) : (
           <ul className="divide-y divide-[#e0ddf5]">
-            {purposes.map(p => (
+            {purposes.map((p, i) => (
               <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="flex flex-col -my-1">
+                  <button
+                    onClick={() => handleMove(p.id, 'up')}
+                    disabled={isPending || i === 0}
+                    title="위로"
+                    className="p-0.5 rounded text-[#b0acd6] hover:text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                    <ChevronUp className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleMove(p.id, 'down')}
+                    disabled={isPending || i === purposes.length - 1}
+                    title="아래로"
+                    className="p-0.5 rounded text-[#b0acd6] hover:text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                    <ChevronDown className="size-3.5" />
+                  </button>
+                </span>
                 <span className="text-sm text-[#090c1d] flex-1">{p.name}</span>
                 <span className="text-xs text-[#b0acd6]">
                   {p.count > 0 ? `건물 ${p.count}동 사용 중` : '미사용'}

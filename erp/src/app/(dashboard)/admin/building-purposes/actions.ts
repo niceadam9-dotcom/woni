@@ -46,3 +46,33 @@ export async function deleteBuildingPurposeAction(id: string): Promise<{ error?:
   revalidatePath('/admin/building-purposes')
   return {}
 }
+
+/** 위/아래 이동 — 인접 항목과 sort_order 교환 */
+export async function moveBuildingPurposeAction(
+  id: string,
+  direction: 'up' | 'down'
+): Promise<{ error?: string }> {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: listRaw } = await admin
+    .from('building_purposes')
+    .select('id, sort_order')
+    .order('sort_order')
+    .order('name')
+  const list = (listRaw ?? []) as Array<{ id: string; sort_order: number }>
+
+  const idx = list.findIndex(p => p.id === id)
+  if (idx < 0) return { error: '항목을 찾을 수 없습니다.' }
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+  if (swapIdx < 0 || swapIdx >= list.length) return {} // 끝이면 무시
+
+  const a = list[idx], b = list[swapIdx]
+  // 정렬값이 같은 경우(이름순 동률) 교환이 무의미하므로 간격 보정
+  const aOrder = a.sort_order === b.sort_order ? b.sort_order + (direction === 'up' ? -1 : 1) : b.sort_order
+  await admin.from('building_purposes').update({ sort_order: aOrder } as Record<string, unknown>).eq('id', a.id)
+  await admin.from('building_purposes').update({ sort_order: a.sort_order } as Record<string, unknown>).eq('id', b.id)
+
+  revalidatePath('/admin/building-purposes')
+  return {}
+}
