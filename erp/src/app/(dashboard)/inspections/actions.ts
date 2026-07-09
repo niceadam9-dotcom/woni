@@ -135,6 +135,16 @@ export async function completeStepAction(
 
   if (error) return { error: '단계 완료 처리에 실패했습니다.' }
 
+  // 1단계(점검일자확정) 완료 시 확정일 기준으로 미완료 2~6단계 마감일 재계산 (migration 048)
+  // — 법정 기한(소방서 보고서 15일 이내 등)은 실제 점검일 기준으로 기산되기 때문
+  if (targetNum === 1) {
+    const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+    await admin.rpc('recalc_inspection_steps', {
+      p_inspection_id: inspectionId,
+      p_base_date: kstToday,
+    })
+  }
+
   // 모든 단계 완료 시 inspection status → completed
   const { data: steps } = await admin
     .from('inspection_steps')
