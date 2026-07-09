@@ -34,9 +34,10 @@ type Building = {
   is_active: boolean
 }
 
+// DB(building_purposes) 미조회 시 폴백 — 관리자 > 건물 용도 관리에서 편집
 const PURPOSES = ['공동주택', '근린생활시설', '판매시설', '의료시설', '교육시설', '숙박시설', '업무시설', '공장', '창고시설', '위험물저장시설', '기타']
 
-export function BuildingDetailClient({ building }: { building: Building }) {
+export function BuildingDetailClient({ building, purposes = PURPOSES }: { building: Building; purposes?: string[] }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isEditing, setIsEditing] = useState(false)
@@ -260,7 +261,7 @@ export function BuildingDetailClient({ building }: { building: Building }) {
                   className={inputCls}
                 >
                   <option value="">용도 선택</option>
-                  {PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+                  {purposes.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </Field>
               <Field label="준공연도">

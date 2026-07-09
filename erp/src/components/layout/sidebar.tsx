@@ -173,6 +173,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '직원 관리',  href: '/admin/users',        icon: UserPlus,   roles: ['admin'] },
       { label: '부서 관리',  href: '/admin/departments',  icon: Building2,  roles: ['admin'] },
       { label: '공휴일 관리',href: '/admin/holidays',     icon: Umbrella,   roles: ['admin'] },
+      { label: '건물 용도 관리', href: '/admin/building-purposes', icon: Tag, roles: ['admin'] },
       { label: '본사 정보',  href: '/company',            icon: Building2,  roles: ['admin'] },
       { label: '활동 로그',  href: '/admin/logs',         icon: ClipboardList, roles: ['admin'] },
     ],

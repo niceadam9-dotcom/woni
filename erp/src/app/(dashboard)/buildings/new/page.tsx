@@ -23,11 +23,15 @@ export default async function BuildingNewPage({
     ? 'id, customer_name, customer_code, address, region_si, region_myeon'
     : 'id, customer_name, customer_code, address'
 
-  const { data: customersRaw } = await admin
-    .from('customers')
-    .select(selectCols)
-    .eq('is_active', true)
-    .order('customer_name')
+  const [{ data: customersRaw }, { data: purposesRaw }] = await Promise.all([
+    admin
+      .from('customers')
+      .select(selectCols)
+      .eq('is_active', true)
+      .order('customer_name'),
+    admin.from('building_purposes').select('name').order('sort_order').order('name'),
+  ])
+  const purposes = ((purposesRaw ?? []) as Array<{ name: string }>).map(p => p.name)
 
   type CustomerRow = {
     id: string
@@ -60,6 +64,7 @@ export default async function BuildingNewPage({
       <BuildingNewClient
         customers={customers}
         defaultCustomerId={params.customer_id}
+        {...(purposes.length > 0 ? { purposes } : {})}
       />
     </div>
   )

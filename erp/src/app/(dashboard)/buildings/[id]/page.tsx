@@ -16,14 +16,18 @@ export default async function BuildingDetailPage({
   const { id } = await params
   const admin = createAdminClient()
 
-  const { data: building } = await admin
-    .from('buildings')
-    .select(`
-      *,
-      customers:customer_id (id, customer_name, customer_code)
-    `)
-    .eq('id', id)
-    .single()
+  const [{ data: building }, { data: purposesRaw }] = await Promise.all([
+    admin
+      .from('buildings')
+      .select(`
+        *,
+        customers:customer_id (id, customer_name, customer_code)
+      `)
+      .eq('id', id)
+      .single(),
+    admin.from('building_purposes').select('name').order('sort_order').order('name'),
+  ])
+  const purposes = ((purposesRaw ?? []) as Array<{ name: string }>).map(p => p.name)
 
   if (!building) notFound()
 
@@ -94,6 +98,7 @@ export default async function BuildingDetailPage({
             notes: b.notes,
             is_active: b.is_active,
           }}
+          {...(purposes.length > 0 ? { purposes } : {})}
         />
       ) : (
         /* 열람 전용 뷰 */
