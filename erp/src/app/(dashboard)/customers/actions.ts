@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress } from '@/lib/address-parser'
+import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
 import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
@@ -246,100 +247,17 @@ async function _autoCreatePlanItemsForNewCustomer(
   info: { inspection_type: InspectionType; use_approval_date: string; assigned_employee_id: string | null },
   createdBy: string,
 ) {
-  const { inspection_type, use_approval_date, assigned_employee_id } = info
-  if (inspection_type === '일반관리') return
+  if (info.inspection_type === '일반관리') return
 
-  const inspection_category = '소방안전관리'
-  const inspection_sub_type = inspection_type === '종합' ? '종합' : '작동'
-
-  const approvalDate  = new Date(use_approval_date)
-  const approvalMonth = approvalDate.getMonth() + 1
-  const approvalDay   = approvalDate.getDate()
-  const now           = new Date()
-  const targetYear    = approvalDate.getFullYear() >= now.getFullYear()
+  const approvalDate = new Date(info.use_approval_date)
+  const now          = new Date()
+  const targetYear   = approvalDate.getFullYear() >= now.getFullYear()
     ? approvalDate.getFullYear()
     : now.getFullYear()
 
-  // 공휴일 조회
-  const { data: hdData } = await admin.from('holidays').select('date')
-    .gte('date', `${targetYear}-01-01`).lte('date', `${targetYear + 1}-12-31`)
-  const hdSet = new Set((hdData ?? []).map(h => (h as Record<string, unknown>).date as string))
-
-  function toStr(d: Date) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-  }
-  function calcPlanned(year: number, month: number): string {
-    const daysInMo = new Date(year, month, 0).getDate()
-    const base = new Date(year, month - 1, Math.min(approvalDay, daysInMo))
-    const d = base.getDay()
-    if (d === 0 || d === 6 || hdSet.has(toStr(base))) {
-      const next = new Date(base)
-      next.setDate(next.getDate() + 1)
-      while (next.getDay() === 0 || next.getDay() === 6 || hdSet.has(toStr(next))) next.setDate(next.getDate() + 1)
-      return toStr(next)
-    }
-    return toStr(base)
-  }
-
-  // 특별점검 월 정의
-  const specialKey = new Set<string>()
-  const toCreate: Array<{ year: number; month: number; sequence_num: 1 | 2; planType: string }> = []
-
-  // 1차 특별점검 (사용승인월)
-  specialKey.add(`${targetYear}-${approvalMonth}`)
-  toCreate.push({
-    year: targetYear, month: approvalMonth, sequence_num: 1,
-    planType: inspection_type === '종합' ? 'special_종합' : 'special_작동',
-  })
-
-  // 종합: +6개월 2차 특별점검 — 연도를 넘겨도 targetYear 월로 배치하여 연 12건 유지
-  // (12개월 회전 기준. 사용승인월 후반이면 2차가 이론상 익년이지만, 연간 계획은 targetYear 12칸으로 고정)
-  if (inspection_type === '종합') {
-    const mo2 = ((approvalMonth - 1 + 6) % 12) + 1
-    specialKey.add(`${targetYear}-${mo2}`)
-    toCreate.push({ year: targetYear, month: mo2, sequence_num: 2, planType: 'special_종합' })
-  }
-
-  // targetYear 나머지 월: 모두 monthly 정기점검 → 항상 연 12건
-  for (let m = 1; m <= 12; m++) {
-    if (!specialKey.has(`${targetYear}-${m}`)) {
-      toCreate.push({ year: targetYear, month: m, sequence_num: 1, planType: 'monthly' })
-    }
-  }
-
-  for (const { year, month, sequence_num, planType } of toCreate) {
-    let planId: string | null = null
-    const { data: ep } = await admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
-    if (ep) {
-      planId = (ep as { id: string }).id
-    } else {
-      const { data: np } = await admin.from('inspection_plans')
-        .insert({ year, month, status: 'draft', auto_generated: true, created_by: createdBy } as Record<string, unknown>)
-        .select('id').single()
-      if (np) {
-        planId = (np as { id: string }).id
-      } else {
-        const { data: dp } = await admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
-        if (dp) planId = (dp as { id: string }).id
-      }
-    }
-    if (!planId) continue
-
-    await admin.from('inspection_plan_items').insert({
-      plan_id: planId,
-      customer_id: customerId,
-      inspection_type,
-      inspection_category,
-      inspection_sub_type,
-      sequence_num,
-      assigned_employee_id: assigned_employee_id || null,
-      planned_date: calcPlanned(year, month),
-      scheduled_date: null,
-      status: 'planned',
-      plan_type: planType,
-    } as Record<string, unknown>)
-    // 23505 중복 에러는 무시
-  }
+  // 이후 연도는 크론(/api/cron/generate-yearly-plans)이 매년 반복 생성
+  const hdSet = await loadHolidaySet(admin, targetYear)
+  await generateYearlyPlanItems(admin, { id: customerId, ...info }, targetYear, createdBy, hdSet)
 }
 
 /** 담당자 변경 시 미완료 plan_items + 진행중 inspections 일괄 동기화 */
