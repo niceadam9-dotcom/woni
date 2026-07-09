@@ -1,6 +1,6 @@
 {
   "version": "Victory10_entire",
-  "date": "2026-07-08",
+  "date": "2026-07-09",
   "description": "전체 시스템 테스트 시나리오 체크리스트 (Victory10_entire.md 기반) — 결과 기록: pending(미수행) / passed / failed / partial(일부 검증) / blocked(선행 조건 미충족) / skipped / known_issue",
   "source_documents": [
     "Victory10_entire.md",
@@ -248,7 +248,9 @@
       "id": "FIRE-S1",
       "category": "소방스모크",
       "title": "고객 등록 → 연간 계획 자동 생성",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-09",
+      "note": "자동 테스트 13건 통과 (scripts/test-fire-s1.mts): 작동/종합 생성, 점검시작일 폴백·우선, 지난달 정기 생략, 멱등성, 일반관리·무기준 0건"
     },
     {
       "id": "FIRE-S2",
@@ -1066,13 +1068,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 84,
+    "passed": 85,
     "failed": 0,
     "partial": 17,
     "blocked": 0,
     "skipped": 0,
     "known_issue": 0,
     "in_progress": 0,
-    "pending": 41
+    "pending": 40
   }
 }
