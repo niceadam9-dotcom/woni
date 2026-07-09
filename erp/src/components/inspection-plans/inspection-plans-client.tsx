@@ -469,8 +469,6 @@ function CalendarView({
   holidayMap?: Map<string, string>
   onDateClick: (d: string) => void; onItemClick: (item: ItemView) => void
 }) {
-  const customerMap = Object.fromEntries(customers.map(c => [c.id, c]))
-
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
@@ -478,76 +476,88 @@ function CalendarView({
   // 6주 맞추기
   while (cells.length % 7 !== 0) cells.push(null)
 
+  // 점검달력과 동일한 시각 언어 — 상태별 단색 칩 (한 줄, 흰 글자 / 완료·취소는 연회색+취소선)
+  function chipStyle(item: ItemView, itemOverdue: boolean): React.CSSProperties {
+    if (item.customers?.is_active === false || item.status === 'cancelled')
+      return { backgroundColor: '#e5e7eb', color: '#9ca3af', textDecoration: 'line-through' }
+    if (item.status === 'completed')
+      return { backgroundColor: '#d1fae5', color: '#065f46', textDecoration: 'line-through' }
+    if (itemOverdue)
+      return { backgroundColor: '#b91c1c', color: '#fee2e2', fontWeight: 600 }
+    if (item.status === 'confirmed')
+      return { backgroundColor: '#7b68ee', color: '#ffffff' }
+    return { backgroundColor: '#93a5c8', color: '#ffffff' } // planned — 차분한 회청색
+  }
+
   return (
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-[#e0ddf5]">
+      <div className="grid grid-cols-7 border-b border-[#c8c4d0] bg-[#f8f9fa]">
         {WEEKDAYS.map((d, i) => (
-          <div key={d} className={`text-center text-xs font-medium py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-[#514b81]'}`}>
+          <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-red-600' : i === 6 ? 'text-blue-600' : 'text-[#514b81]'}`}>
             {d}
           </div>
         ))}
       </div>
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          if (!day) return <div key={idx} className="h-28 border-b border-r border-[#f8f9fa] bg-[#fafafa]" />
+          if (!day) return <div key={idx} className="h-32 border-b border-r border-[#e0ddf5] bg-[#fafafa]" />
           const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
           const dayItems = itemsByDate[dateStr] ?? []
           const isToday = dateStr === todayStr
           const isPast  = dateStr < todayStr
           const dow = idx % 7
           const holiday = holidayMap?.get(dateStr)
-          const hasOverdue = isPast && dayItems.some(
-            i => i.status !== 'completed' && i.status !== 'cancelled'
-          )
 
           return (
             <div
               key={idx}
-              className={`h-28 border-b border-r border-[#e0ddf5] p-1 cursor-pointer hover:bg-[#fafafa] transition-colors ${
-                isToday ? 'bg-[#f5f4ff]' : hasOverdue ? 'bg-red-50/50' : ''
+              className={`h-32 border-b border-r border-[#e0ddf5] px-1.5 py-1 cursor-pointer transition-colors ${
+                isToday ? 'bg-[#f5f4ff]' : holiday ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-[#fafafa]'
               }`}
               onClick={() => canManage && onDateClick(dateStr)}
               title={holiday ? `${holiday} (공휴일)` : undefined}
             >
-              <span className="flex items-center gap-1 min-w-0">
-                <span className={`text-xs font-medium shrink-0 ${
-                  isToday ? 'bg-[#7b68ee] text-white rounded-full w-5 h-5 flex items-center justify-center' :
-                  holiday || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-[#090c1d]'
+              <div className="flex items-center justify-between gap-1 min-w-0 mb-1">
+                {holiday
+                  ? <span className="text-[10px] text-red-500 truncate leading-tight">{holiday}</span>
+                  : <span />}
+                <span className={`text-xs shrink-0 ${
+                  isToday ? 'bg-[#7b68ee] text-white font-bold rounded-full w-5 h-5 flex items-center justify-center' :
+                  holiday || dow === 0 ? 'text-red-600 font-medium' : dow === 6 ? 'text-blue-600 font-medium' : 'text-[#292d34]'
                 }`}>{day}</span>
-                {holiday && <span className="text-[9px] text-red-500 truncate">{holiday}</span>}
-              </span>
-              <div className="mt-0.5 space-y-0.5 overflow-hidden">
-                {dayItems.slice(0, 2).map(item => {
-                  const approvalDate = customerMap[item.customer_id]?.use_approval_date
-                  const approvalLabel = approvalDate
-                    ? (() => { const d = new Date(approvalDate); return `${d.getMonth()+1}/${d.getDate()} 사용승인` })()
-                    : null
+              </div>
+              <div className="space-y-[3px] overflow-hidden">
+                {dayItems.slice(0, 3).map(item => {
                   const itemOverdue = isPast && item.status !== 'completed' && item.status !== 'cancelled'
+                  const custName = (item.customers as { customer_name: string } | null)?.customer_name ?? '—'
                   return (
                     <div
                       key={item.id}
                       onClick={e => { e.stopPropagation(); onItemClick(item) }}
-                      className={`text-[10px] px-1 py-0.5 rounded cursor-pointer hover:opacity-80 ${
-                        itemOverdue ? 'bg-red-100 text-red-600 border border-red-200' : STATUS_STYLE[item.status]
-                      }`}
+                      title={`${custName} · ${PLAN_TYPE_LABEL[(item.plan_type ?? 'monthly') as string] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}`}
+                      style={chipStyle(item, itemOverdue)}
+                      className="text-[11px] leading-[1.2] px-1.5 py-[2px] rounded-[5px] cursor-pointer hover:opacity-85 truncate"
                     >
-                      <div className={`truncate font-medium flex items-center gap-0.5 ${item.customers?.is_active === false ? 'line-through opacity-60' : ''}`}>
-                        {itemOverdue && <AlertCircle className="size-2.5 shrink-0" />}
-                        {(item.customers as { customer_name: string } | null)?.customer_name ?? '—'}
-                      </div>
-                      {approvalLabel && (
-                        <div className="opacity-70 truncate">{approvalLabel}</div>
-                      )}
+                      {itemOverdue && '⚠ '}{custName}
                     </div>
                   )
                 })}
-                {dayItems.length > 2 && (
-                  <div className="text-[10px] text-[#b0acd6] pl-1">+{dayItems.length - 2}건</div>
+                {dayItems.length > 3 && (
+                  <div className="text-[11px] text-[#7b68ee] pl-1">+{dayItems.length - 3}개 더 보기</div>
                 )}
               </div>
             </div>
           )
         })}
+      </div>
+      {/* 범례 — 점검달력과 동일한 톤 */}
+      <div className="flex items-center gap-3 px-4 py-2 border-t border-[#e0ddf5] text-[10px] text-[#514b81]">
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#93a5c8' }} />계획</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#7b68ee]" />확정</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#d1fae5' }} />완료</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#b91c1c' }} />지연</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300" />취소·비활성</span>
+        {canManage && <span className="ml-auto text-[#b0acd6]">빈 날짜 클릭 = 항목 추가</span>}
       </div>
     </div>
   )
