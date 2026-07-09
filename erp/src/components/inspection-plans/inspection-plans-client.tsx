@@ -451,6 +451,7 @@ export function InspectionPlansClient({
           <ListView
             items={filteredItems}
             customers={customers}
+            employees={employees}
             canManage={canManage}
             isEmployee={isEmployee}
             isPending={isPending}
@@ -781,9 +782,9 @@ function InlineDateCell({
 
 // ── 목록 뷰 ──────────────────────────────────────────────────
 function ListView({
-  items, customers, canManage, isEmployee, isPending, onItemClick, onStart, onRefresh, planYear, planMonth, holidays,
+  items, customers, employees, canManage, isEmployee, isPending, onItemClick, onStart, onRefresh, planYear, planMonth, holidays,
 }: {
-  items: ItemView[]; customers: CustomerOption[]; canManage: boolean; isEmployee: boolean; isPending: boolean
+  items: ItemView[]; customers: CustomerOption[]; employees: Employee[]; canManage: boolean; isEmployee: boolean; isPending: boolean
   onItemClick: (item: ItemView) => void; onStart: (item: ItemView) => void
   onRefresh: () => void; planYear: number; planMonth: number; holidays: string[]
 }) {
@@ -808,6 +809,15 @@ function ListView({
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
+    })
+  }
+
+  // 담당자 재배정 (매니저 이상) — 퇴사자 담당 항목 정리용
+  function handleReassign(itemId: string, employeeId: string | null) {
+    startBulkTransition(async () => {
+      const res = await updatePlanItemAction({ itemId, assignedEmployeeId: employeeId })
+      if (res.error) { alert(res.error); return }
+      onRefresh()
     })
   }
 
@@ -941,8 +951,32 @@ function ListView({
                     ? <span className="text-xs text-gray-400">정기</span>
                     : `${item.sequence_num}차`}
                 </td>
-                <td className="px-3 py-2.5 text-[#514b81] truncate">
-                  {(item.profiles as { name: string } | null)?.name ?? <span className="text-[#b0acd6]">미배정</span>}
+                <td className="px-3 py-2.5 text-[#514b81] truncate" onClick={e => e.stopPropagation()}>
+                  {(() => {
+                    const assigneeId = item.assigned_employee_id as string | null
+                    const assigneeName = (item.profiles as { name: string } | null)?.name ?? null
+                    const isOrphan = !!assigneeId && !employees.some(e2 => e2.id === assigneeId)
+                    if (!canManage) {
+                      return assigneeName
+                        ? <>{assigneeName}{isOrphan && <span className="ml-1 text-[10px] text-red-500">(퇴사)</span>}</>
+                        : <span className="text-[#b0acd6]">미배정</span>
+                    }
+                    return (
+                      <select
+                        value={assigneeId ?? ''}
+                        onChange={e => handleReassign(item.id, e.target.value || null)}
+                        disabled={bulkPending}
+                        className={`h-7 max-w-[110px] px-1 text-xs rounded border bg-transparent cursor-pointer transition-colors ${
+                          isOrphan ? 'border-red-300 text-red-600' : 'border-transparent hover:border-[#c3bdf5] text-[#514b81]'
+                        }`}
+                        title={isOrphan ? '퇴사한 직원 담당 — 재배정이 필요합니다' : '담당자 변경'}
+                      >
+                        <option value="">미배정</option>
+                        {isOrphan && <option value={assigneeId!}>{assigneeName ?? '?'} (퇴사)</option>}
+                        {employees.map(e2 => <option key={e2.id} value={e2.id}>{e2.name}</option>)}
+                      </select>
+                    )
+                  })()}
                 </td>
                 <td className="px-3 py-2.5">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLE[item.status]}`}>

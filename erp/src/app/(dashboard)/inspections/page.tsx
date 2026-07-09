@@ -74,7 +74,8 @@ export default async function InspectionsPage({
   const [inspRes, profilesRes] = await Promise.all([
     // ADD-14: 최신 등록 건 최상위
     query.order('created_at', { ascending: false }).range(from, to),
-    admin.from('profiles').select('id, name, position').eq('is_active', true).order('name'),
+    // 이름 해석은 퇴사자 포함 전체 — 필터 목록만 활성 직원으로 제한
+    admin.from('profiles').select('id, name, position, is_active').order('name'),
   ])
 
   type InspRow = {
@@ -87,8 +88,9 @@ export default async function InspectionsPage({
   const inspections = (inspRes.data ?? []) as unknown as InspRow[]
   const totalCount = inspRes.count ?? 0
   const totalPages = pageSize === 0 ? 1 : Math.ceil(totalCount / pageSize)
-  const employees = (profilesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>
-  const empMap = new Map(employees.map(e => [e.id, e]))
+  const allProfiles = (profilesRes.data ?? []) as Array<{ id: string; name: string; position: string | null; is_active: boolean }>
+  const employees = allProfiles.filter(e => e.is_active)
+  const empMap = new Map(allProfiles.map(e => [e.id, e]))
 
   // 단계 진행률 및 마감임박 정보 로드
   const stepSummary: Record<string, { total: number; completed: number; hasDueSoon: boolean; hasOverdue: boolean }> = {}
@@ -247,7 +249,11 @@ export default async function InspectionsPage({
                       </td>
                       <td className="px-4 py-3 text-xs text-[#090c1d]">
                         {emp ? (
-                          <span>{emp.name}{emp.position ? <span className="text-[#b0acd6] ml-1">({emp.position})</span> : null}</span>
+                          <span>
+                            {emp.name}
+                            {emp.position ? <span className="text-[#b0acd6] ml-1">({emp.position})</span> : null}
+                            {!emp.is_active && <span className="text-red-500 ml-1">(퇴사)</span>}
+                          </span>
                         ) : (
                           <span className="text-red-500">미배정</span>
                         )}

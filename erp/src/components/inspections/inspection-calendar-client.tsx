@@ -215,6 +215,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
   const today = useMemo(() => new Date().toISOString().split('T')[0], [])
 
+  // 사이드바 직원 목록(활성)에 없는 담당(퇴사자 등) 항목은 필터로 숨기지 않고 항상 표시
+  const knownEmployeeIds = useMemo(() => new Set(employees.map(e => e.id)), [employees])
+  const orphanCount = useMemo(() =>
+    inspections.filter(i => i.assigned_employee_id && !knownEmployeeIds.has(i.assigned_employee_id)).length
+    + planItems.filter(p => p.assigned_employee_id && !knownEmployeeIds.has(p.assigned_employee_id)).length,
+  [inspections, planItems, knownEmployeeIds])
+
   // Unique customers derived from inspection + plan item data
   const uniqueCustomers = useMemo(() => {
     const map = new Map<string, { id: string; name: string; code: string }>()
@@ -248,7 +255,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const events = useMemo<CalEvent[]>(() => {
     if (calMode === 'regular' || calMode === 'event') return []
     return inspections.flatMap(insp => {
-      if (viewMode === 'employee' && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
+      if (viewMode === 'employee' && knownEmployeeIds.has(insp.assigned_employee_id) && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(insp.customer_id)) return []
       // 종합/작동 탭 = 해당 유형만 — 일반관리 6단계는 전체 탭에서만 표시
       if (calMode === 'comp' && insp.inspection_type !== '종합') return []
@@ -307,7 +314,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           }]
         })
     })
-  }, [inspections, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, typeFilters, statusFilters, today, quickFilter, weekEnd])
+  }, [inspections, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, typeFilters, statusFilters, today, quickFilter, weekEnd])
 
   // 정기(monthly)·일반(event) 계획 이벤트 (종합/작동 모드에서는 숨김)
   const planEvents = useMemo<CalEvent[]>(() => {
@@ -316,8 +323,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       // 모드별 계획 유형 필터 — 정기점검 탭=monthly, 일반관리 탭=event
       if (calMode === 'regular' && p.plan_type !== 'monthly') return []
       if (calMode === 'event' && p.plan_type !== 'event') return []
-      // 담당자 미배정 항목은 담당자 필터와 무관하게 표시
-      if (viewMode === 'employee' && p.assigned_employee_id && !selectedEmployeeIds.has(p.assigned_employee_id)) return []
+      // 담당자 미배정·퇴사자 담당 항목은 담당자 필터와 무관하게 표시
+      if (viewMode === 'employee' && p.assigned_employee_id && knownEmployeeIds.has(p.assigned_employee_id) && !selectedEmployeeIds.has(p.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(p.customer_id)) return []
 
       const isCompleted = p.status === 'completed'
@@ -366,7 +373,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         } satisfies CalEventResource,
       }]
     })
-  }, [planItems, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, statusFilters, today, quickFilter, weekEnd])
+  }, [planItems, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, statusFilters, today, quickFilter, weekEnd])
 
   const allEvents = useMemo<CalEvent[]>(() => [...events, ...planEvents], [events, planEvents])
 
@@ -676,6 +683,17 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
         {/* ── 달력 ──────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
+          {/* 퇴사자 담당 재배정 안내 */}
+          {orphanCount > 0 && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+              <AlertTriangle className="size-4 shrink-0 text-amber-500" />
+              <span>퇴사(비활성) 직원 담당 일정이 <strong>{orphanCount}건</strong> 있습니다. 달력에는 계속 표시되며, 담당자 재배정이 필요합니다.</span>
+              <Link href="/inspection-plans" className="ml-auto shrink-0 text-xs text-amber-700 font-medium hover:underline flex items-center gap-0.5">
+                점검확정에서 재배정 <ChevronRight className="size-3" />
+              </Link>
+            </div>
+          )}
+
           {/* 달력 모드: 전체 | 종합(6단계) | 작동(6단계) | 정기 | 일반 */}
           <div className="flex items-center gap-1 bg-white border border-[#c8c4d0] rounded-lg p-1 w-fit">
             {([

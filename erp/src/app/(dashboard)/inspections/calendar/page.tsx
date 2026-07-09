@@ -29,7 +29,8 @@ export default async function InspectionCalendarPage({
     .lte('year', currentYear + 1)
     .order('inspection_start_date')
 
-  const profilesQuery = admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name')
+  // 이름 해석은 퇴사자 포함 전체 — 사이드바 직원 목록만 활성·비시스템으로 제한
+  const profilesQuery = admin.from('profiles').select('id, name, position, is_active, is_system').order('name')
 
   // 주말·공휴일 표시용 (전년~익년)
   const holidaysQuery = admin
@@ -59,8 +60,19 @@ export default async function InspectionCalendarPage({
   }
 
   const rawInspections = (inspRes.data ?? []) as InspRow[]
-  const employees = (profilesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>
-  const empMap = new Map(employees.map(e => [e.id, e]))
+  type ProfileRow = { id: string; name: string; position: string | null; is_active: boolean; is_system: boolean }
+  const allProfiles = (profilesRes.data ?? []) as ProfileRow[]
+  const employees = allProfiles
+    .filter(e => e.is_active && !e.is_system)
+    .map(({ id, name, position }) => ({ id, name, position }))
+  const empMap = new Map(allProfiles.map(e => [e.id, e]))
+  // 퇴사(비활성) 직원 담당 항목도 이름 + (퇴사) 표기로 표시
+  const empName = (id: string | null) => {
+    if (!id) return '미배정'
+    const e = empMap.get(id)
+    if (!e) return '미배정'
+    return e.is_active ? e.name : `${e.name} (퇴사)`
+  }
 
   let calendarData: CalendarInspection[] = []
 
@@ -95,7 +107,6 @@ export default async function InspectionCalendarPage({
 
     calendarData = rawInspections.map(insp => {
       const cust = customerMap.get(insp.customer_id)
-      const emp = empMap.get(insp.assigned_employee_id)
       return {
         id: insp.id,
         customer_id: insp.customer_id,
@@ -107,7 +118,7 @@ export default async function InspectionCalendarPage({
         inspection_start_date: insp.inspection_start_date,
         status: insp.status as InspectionStatus,
         assigned_employee_id: insp.assigned_employee_id,
-        assigned_employee_name: emp?.name ?? '미배정',
+        assigned_employee_name: empName(insp.assigned_employee_id),
         customer_inactive: cust ? cust.is_active === false : false,
         steps: (stepsMap.get(insp.id) ?? []).map(s => ({
           id: s.id,
@@ -141,7 +152,7 @@ export default async function InspectionCalendarPage({
       scheduled_date: date,
       status: p.status as CalendarPlanItem['status'],
       assigned_employee_id: p.assigned_employee_id,
-      assigned_employee_name: p.assigned_employee_id ? (empMap.get(p.assigned_employee_id)?.name ?? '미배정') : '미배정',
+      assigned_employee_name: empName(p.assigned_employee_id),
     }]
   })
 
