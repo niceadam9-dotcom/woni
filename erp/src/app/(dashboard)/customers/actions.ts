@@ -1175,15 +1175,26 @@ export async function patchCustomerFieldAction(
     }
   }
 
-  // activity_logs 변경 이력 기록
+  // activity_logs 변경 이력 기록 — 담당직원은 UUID가 아닌 이름으로 기록
   if (value !== oldValue) {
+    let logOld: string | null = oldValue
+    let logNew: string | null = value
+    if (field === 'assigned_employee_id') {
+      const ids = [oldValue, value].filter(Boolean) as string[]
+      const { data: namesRaw } = ids.length
+        ? await admin.from('profiles').select('id, name').in('id', ids)
+        : { data: [] }
+      const nameMap = new Map(((namesRaw ?? []) as Array<{ id: string; name: string }>).map(p => [p.id, p.name]))
+      logOld = oldValue ? nameMap.get(oldValue) ?? oldValue : null
+      logNew = value ? nameMap.get(value) ?? value : null
+    }
     await admin.from('activity_logs').insert({
       actor_id: profile.id,
       action: 'customer_field_changed',
       entity_type: 'customer',
       entity_id: customerId,
       metadata: {
-        changes: [{ field, field_label: CUSTOMER_FIELD_LABELS[field] ?? field, old_value: oldValue, new_value: value }],
+        changes: [{ field, field_label: CUSTOMER_FIELD_LABELS[field] ?? field, old_value: logOld, new_value: logNew }],
       },
     } as Record<string, unknown>)
   }

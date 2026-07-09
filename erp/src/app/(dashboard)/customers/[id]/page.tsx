@@ -59,10 +59,12 @@ export default async function CustomerDetailPage({
 
   const admin = createAdminClient()
 
-  const [customerRes, contactsRes, employeesRes, inspectionsRes, buildingsRes, activityLogsRes] = await Promise.all([
+  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes] = await Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
+    // 변경 이력의 담당직원 UUID → 이름 변환용 (퇴사·시스템 계정 포함 전체)
+    admin.from('profiles').select('id, name'),
     admin.from('inspections')
       .select('id, year, sequence_num, inspection_type, inspection_start_date, status, assigned_employee_id')
       .eq('customer_id', id)
@@ -94,6 +96,17 @@ export default async function CustomerDetailPage({
     Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
   >
   const activityLogs = (activityLogsRes.data ?? []) as ActivityLog[]
+  const profileNameMap = new Map(
+    ((allProfilesRes.data ?? []) as Array<{ id: string; name: string }>).map(p => [p.id, p.name])
+  )
+  // 과거 이력에 담당직원이 UUID로 저장된 행 표시 보정 (감사 로그 원본은 불변 — 표시 시점에만 변환)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  function displayChangeValue(field: string, v: string | null): string | null {
+    if (v && field === 'assigned_employee_id' && UUID_RE.test(v)) {
+      return profileNameMap.get(v) ?? '(삭제된 계정)'
+    }
+    return v
+  }
 
   // 변경 이력 표시 화이트리스트 — 필수 고객관리 사항만 (기록 자체는 전부 보존, 전체는 관리자>활동로그)
   const ESSENTIAL_FIELDS = new Set(['assigned_employee_id', 'inspection_type', 'use_approval_date', 'contract_date', 'is_active'])
@@ -450,9 +463,9 @@ export default async function CustomerDetailPage({
                               <div key={i} className="text-xs text-[#514b81]">
                                 <span className="font-medium text-[#090c1d]">{c.field_label}</span>
                                 {' '}
-                                <span className="text-[#b0acd6] line-through">{c.old_value ?? '없음'}</span>
+                                <span className="text-[#b0acd6] line-through">{displayChangeValue(c.field, c.old_value) ?? '없음'}</span>
                                 {' → '}
-                                <span className="text-[#7b68ee]">{c.new_value ?? '없음'}</span>
+                                <span className="text-[#7b68ee]">{displayChangeValue(c.field, c.new_value) ?? '없음'}</span>
                               </div>
                             ))}
                             {changes.length === 0 && actionLabel && (
