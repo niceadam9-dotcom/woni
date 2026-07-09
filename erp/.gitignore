@@ -42,3 +42,6 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 테스트 데이터 정리 백업 (개인정보 포함 — 커밋 금지)
+scripts/backup/

@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminClient()
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  // 컨테이너 TZ가 UTC라 00:05 KST 발화 시 toISOString()이 전날이 됨 — +9h 시프트로 KST 날짜 고정
+  const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   function shiftDate(base: string, days: number): string {
     const d = new Date(base)
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
       .select('reference_id')
       .in('reference_id', stepIds)
       .eq('type', rule.type)
-      .gte('created_at', `${todayStr}T00:00:00`)
+      .gte('created_at', `${todayStr}T00:00:00+09:00`)
 
     const alreadyNotified = new Set(
       ((existingRaw ?? []) as Array<{ reference_id: string | null }>)

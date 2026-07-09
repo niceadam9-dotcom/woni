@@ -14,8 +14,10 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth() + 1 // 1-indexed
+  // 컨테이너 TZ가 UTC라 1/1 00:10 KST 발화 시 전년도로 잡힘 — +9h 시프트 후 UTC 게터로 KST 연·월 추출
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const currentYear = kstNow.getUTCFullYear()
+  const currentMonth = kstNow.getUTCMonth() + 1 // 1-indexed
 
   // 수동 year 파라미터가 있으면 해당 연도만, 없으면 자동 결정
   const paramYear = req.nextUrl.searchParams.get('year')

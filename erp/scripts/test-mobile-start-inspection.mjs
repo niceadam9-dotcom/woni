@@ -2,9 +2,7 @@
 // 모바일과 동일하게 anon key + employee 계정으로 실행 (RLS 검증 포함)
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = 'https://ryuozdhnilfjlahorizh.supabase.co'
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5dW96ZGhuaWxmamxhaG9yaXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1ODg2MzEsImV4cCI6MjA5NzE2NDYzMX0.0Icgijy1zMyp8eJjCUSnPSfIIoqR4V1SnFHdReGUosY'
-const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5dW96ZGhuaWxmamxhaG9yaXpoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU4ODYzMSwiZXhwIjoyMDk3MTY0NjMxfQ.0HDCXsF-z2GTEhi8n50DAUOmMZrnO22_qFkMmBafunI'
+import { SUPABASE_URL, SERVICE_ROLE_KEY, ANON_KEY } from './_env.mjs'
 
 const supabase = createClient(SUPABASE_URL, ANON_KEY)   // 모바일과 동일
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
