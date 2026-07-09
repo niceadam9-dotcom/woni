@@ -29,7 +29,7 @@ export default async function InspectionCalendarPage({
     .lte('year', currentYear + 1)
     .order('inspection_start_date')
 
-  const profilesQuery = admin.from('profiles').select('id, name, position').eq('is_active', true).order('name')
+  const profilesQuery = admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name')
 
   // 주말·공휴일 표시용 (전년~익년)
   const holidaysQuery = admin

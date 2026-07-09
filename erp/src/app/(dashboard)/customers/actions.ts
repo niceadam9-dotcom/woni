@@ -1081,7 +1081,7 @@ export async function searchSuggestionsAction(q: string): Promise<{
   const [byName, byAddr, empRes] = await Promise.all([
     admin.from('customers').select('customer_name').ilike('customer_name', `%${query}%`).eq('is_active', true).limit(5),
     admin.from('customers').select('address').ilike('address', `%${query}%`).eq('is_active', true).limit(5),
-    admin.from('profiles').select('id, name').ilike('name', `%${query}%`).eq('is_active', true).limit(3),
+    admin.from('profiles').select('id, name').ilike('name', `%${query}%`).eq('is_active', true).eq('is_system', false).limit(3),
   ])
 
   const employees: { name: string; count: number }[] = []

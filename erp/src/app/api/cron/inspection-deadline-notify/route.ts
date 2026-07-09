@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
     .select('id, role')
     .in('role', ['manager', 'admin'])
     .eq('is_active', true)
+    .eq('is_system', false)
 
   const managerIds = ((managersRaw ?? []) as Array<{ id: string; role: string }>).map(p => p.id)
 

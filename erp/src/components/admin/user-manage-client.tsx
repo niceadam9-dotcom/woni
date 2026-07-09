@@ -19,6 +19,7 @@ type User = {
   position: string | null
   hire_date: string | null
   is_active: boolean
+  is_system?: boolean // 시스템(개발·운영지원) 계정 — 업무 화면 직원 목록에서 제외됨
 }
 
 type Dept = { id: string; name: string }
@@ -521,7 +522,14 @@ export function UserManageClient({
                     <tr key={u.id} className="hover:bg-[#f8f9fa] transition-colors">
                       <td className="px-4 py-3 text-xs text-[#514b81] font-mono">{u.employee_id}</td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-[#090c1d]">{u.name}</p>
+                        <p className="font-medium text-[#090c1d] flex items-center gap-1.5">
+                          {u.name}
+                          {u.is_system && (
+                            <span title="업무 화면(달력·담당자 선택·통계)에는 표시되지 않는 계정입니다" className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                              시스템
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-[#b0acd6]">{u.email}</p>
                       </td>
                       <td className="px-4 py-3">

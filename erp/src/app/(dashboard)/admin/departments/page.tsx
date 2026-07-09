@@ -13,7 +13,7 @@ export default async function AdminDepartmentsPage() {
 
   const [deptsRes, profilesRes] = await Promise.all([
     admin.from('departments').select('id, name, manager_id').order('name'),
-    admin.from('profiles').select('id, name, department_id').eq('is_active', true),
+    admin.from('profiles').select('id, name, department_id').eq('is_active', true).eq('is_system', false),
   ])
 
   type DeptRow = { id: string; name: string; manager_id: string | null }
@@ -49,6 +49,7 @@ export default async function AdminDepartmentsPage() {
     .select('id, name')
     .in('role', ['manager', 'admin'])
     .eq('is_active', true)
+    .eq('is_system', false)
     .order('name')
 
   const managerList = (managersRaw ?? []) as Array<{ id: string; name: string }>

@@ -15,6 +15,7 @@ export default async function CustomersNewPage() {
       .from('profiles')
       .select('id, name, position')
       .eq('is_active', true)
+      .eq('is_system', false)
       .order('name'),
     getCompanyProfile(),
   ])

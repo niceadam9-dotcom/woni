@@ -38,7 +38,7 @@ export default async function AdminPage() {
   ] = await Promise.all([
     admin.from('documents').select('id', { count: 'exact', head: true }),
     admin.from('documents').select('status'),
-    admin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    admin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('is_system', false),
     admin.from('leaves').select('employee_id, leave_type, days_count, status'),
     admin.from('departments').select('id, name'),
     admin.from('documents')
@@ -64,6 +64,7 @@ export default async function AdminPage() {
     .from('profiles')
     .select('id, name, department_id')
     .eq('is_active', true)
+    .eq('is_system', false)
   const profiles = (profilesRaw ?? []) as Array<{ id: string; name: string; department_id: string | null }>
   const empDeptMap = new Map(profiles.map(p => [p.id, p.department_id]))
 

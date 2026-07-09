@@ -30,6 +30,7 @@ export interface Profile {
   id: string; employee_id: string; name: string; email: string
   role: UserRole; department_id: string | null; position: string | null
   hire_date: string | null; is_active: boolean; failed_logins: number
+  is_system: boolean // 시스템(개발·운영지원) 계정 — 업무 화면 직원 목록에서 제외 (047)
   locked_until: string | null; created_at: string; updated_at: string
 }
 export interface Department {

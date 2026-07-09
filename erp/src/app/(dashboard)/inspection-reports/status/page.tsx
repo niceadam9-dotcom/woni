@@ -37,6 +37,7 @@ export default async function InspectionReportStatusPage() {
     .from('profiles')
     .select('id, name, position')
     .eq('is_active', true)
+    .eq('is_system', false)
     .order('name')
 
   const canManage = can(profile.role as UserRole, 'report_status_manage')

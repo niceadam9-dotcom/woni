@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile, UserRole } from '@/types'
 import { can, type PermissionKey } from '@/lib/permissions'
 
-const PROFILE_COLS = 'id, employee_id, name, email, role, department_id, position, hire_date, is_active, failed_logins, locked_until'
+const PROFILE_COLS = 'id, employee_id, name, email, role, department_id, position, hire_date, is_active, is_system, failed_logins, locked_until'
 
 // cache()는 동일 요청 내에서 중복 호출을 한 번으로 합칩니다
 // (layout + page 모두 getProfile을 호출해도 DB 쿼리는 1회)

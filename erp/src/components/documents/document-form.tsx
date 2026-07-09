@@ -75,6 +75,7 @@ export function DocumentForm({
       .from('profiles')
       .select('id, name, email, position')
       .eq('is_active', true)
+      .eq('is_system', false)
       .neq('id', profile.id)
       .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
       .limit(6)

@@ -87,7 +87,7 @@ export default async function CustomersPage({
 
   const [customersRes, profilesRes] = await Promise.all([
     custQuery.range(from, to),
-    admin.from('profiles').select('id, name').eq('is_active', true).order('name'),
+    admin.from('profiles').select('id, name').eq('is_active', true).eq('is_system', false).order('name'),
   ])
 
   const customers = (customersRes.data ?? []) as unknown as CustomerRow[]

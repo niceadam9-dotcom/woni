@@ -46,6 +46,7 @@ export default async function RegionalAssignPage() {
     admin
       .from('profiles')
       .select('id, name, position, is_active')
+      .eq('is_system', false)
       .order('name'),
   ])
 

@@ -176,7 +176,7 @@ export default async function DashboardPage() {
     const [totalDocsRes, pendingDocsRes, employeesRes, pendingLeavesRes] = await Promise.all([
       admin.from('documents').select('id', { count: 'exact', head: true }),
       admin.from('documents').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      admin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      admin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('is_system', false),
       admin.from('leaves').select('id', { count: 'exact', head: true }).in('status', ['pending', 'manager_approved']),
     ])
     adminStats = {

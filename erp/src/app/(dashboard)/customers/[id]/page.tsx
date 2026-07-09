@@ -62,7 +62,7 @@ export default async function CustomerDetailPage({
   const [customerRes, contactsRes, employeesRes, inspectionsRes, buildingsRes, activityLogsRes] = await Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
-    admin.from('profiles').select('id, name, position').eq('is_active', true).order('name'),
+    admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
     admin.from('inspections')
       .select('id, year, sequence_num, inspection_type, inspection_start_date, status, assigned_employee_id')
       .eq('customer_id', id)
