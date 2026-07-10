@@ -1,0 +1,89 @@
+{
+  "_comment": "변경전파 exception 테스트 추적 (상세는 변경전파_exception_testing_시나리오.md). status: passed(가드가 테스트·실측으로 검증됨) | guarded(코드 가드 확인, 전용 테스트 없음) | pending(가드 유무 미확인 — 테스트 필요)",
+  "updated": "2026-07-10",
+  "groups": [
+    { "id": "EX-1", "target": "고객 등록", "cases": [
+      { "id": "EX-1a", "title": "기준일 없는 고객 → 계획 0건", "status": "passed" },
+      { "id": "EX-1b", "title": "일반관리 → 자동 생성 없음", "status": "passed" },
+      { "id": "EX-1c", "title": "재생성 멱등(신규 0건)", "status": "passed" },
+      { "id": "EX-1d", "title": "같은 해 2차 역행 방지", "status": "passed" },
+      { "id": "EX-1e", "title": "필수 입력 누락 폼 거부", "status": "pending" }
+    ]},
+    { "id": "EX-2", "target": "담당자 변경", "cases": [
+      { "id": "EX-2a", "title": "본인→본인 인수인계 거부", "status": "guarded" },
+      { "id": "EX-2b", "title": "비활성 직원에게 배정 시도 (서버 가드 없음 — 관찰)", "status": "pending" },
+      { "id": "EX-2c", "title": "담당 0건 인수인계 → 동작 없음 안내", "status": "guarded" },
+      { "id": "EX-2d", "title": "동시 담당 변경 → 최종값 일관(INV-P6)", "status": "pending" },
+      { "id": "EX-2e", "title": "없는 고객 id → 오류 반환", "status": "guarded" }
+    ]},
+    { "id": "EX-3", "target": "비활성↔재활성·삭제", "cases": [
+      { "id": "EX-3a", "title": "2회차 사이클 마커 중복 없음", "status": "passed" },
+      { "id": "EX-3b", "title": "수동취소 미복원", "status": "passed" },
+      { "id": "EX-3c", "title": "마커 훼손 시 복원 불가(INV-P3 검출)", "status": "guarded" },
+      { "id": "EX-3d", "title": "취소 항목 시작 버튼 미노출", "status": "guarded" },
+      { "id": "EX-3e", "title": "토글 연타 방지·실패 롤백", "status": "guarded" }
+    ]},
+    { "id": "EX-4", "target": "점검일자 확정", "cases": [
+      { "id": "EX-4a", "title": "시작 후 재확정 → 완료 단계 유지", "status": "passed" },
+      { "id": "EX-4b", "title": "일반관리 항목 → 6단계 없이 확정일만", "status": "guarded" },
+      { "id": "EX-4c", "title": "액션 실패 시 무반응(수용된 한계)", "status": "guarded" },
+      { "id": "EX-4d", "title": "과거 날짜 확정 허용 여부(정책 확인)", "status": "pending" }
+    ]},
+    { "id": "EX-5", "target": "점검 시작", "cases": [
+      { "id": "EX-5a", "title": "이미 시작된 항목 재시작 거부", "status": "guarded" },
+      { "id": "EX-5b", "title": "예정일 없음 거부", "status": "guarded" },
+      { "id": "EX-5c", "title": "미배정 → confirm 후 자동배정", "status": "passed" },
+      { "id": "EX-5d", "title": "동시 시작 레이스 → 점검 중복 생성 없어야", "status": "pending" },
+      { "id": "EX-5e", "title": "시작 직후 새로고침 상태 일관", "status": "pending" }
+    ]},
+    { "id": "EX-6", "target": "단계 완료", "cases": [
+      { "id": "EX-6a", "title": "순서 건너뛰기 거부(UI+서버)", "status": "passed" },
+      { "id": "EX-6b", "title": "employee 타인 점검 완료 거부", "status": "guarded" },
+      { "id": "EX-6c", "title": "이중 완료 멱등", "status": "pending" },
+      { "id": "EX-6d", "title": "삭제된 점검 완료 호출 거부", "status": "guarded" }
+    ]},
+    { "id": "EX-7", "target": "점검 삭제", "cases": [
+      { "id": "EX-7a", "title": "권한 검사 거부", "status": "guarded" },
+      { "id": "EX-7b", "title": "삭제 후 계획 항목 참조 정합", "status": "pending" },
+      { "id": "EX-7c", "title": "이력 있는 점검 삭제 정리 범위", "status": "pending" }
+    ]},
+    { "id": "EX-8", "target": "미점검 초과 해결", "cases": [
+      { "id": "EX-8a", "title": "취소 건 경보 재포착 없음(ADD-20)", "status": "passed" },
+      { "id": "EX-8b", "title": "이중 해결 실행 중복 생성 없음", "status": "pending" },
+      { "id": "EX-8c", "title": "일반관리 경보 제외", "status": "guarded" }
+    ]},
+    { "id": "EX-9", "target": "결재", "cases": [
+      { "id": "EX-9a", "title": "이중 상신 거부", "status": "guarded" },
+      { "id": "EX-9b", "title": "결재 순서 무시 거부", "status": "pending" },
+      { "id": "EX-9c", "title": "반려 문서 승인 시도 거부", "status": "pending" },
+      { "id": "EX-9d", "title": "퇴사자 결재선 정체 감지", "status": "pending" },
+      { "id": "EX-9e", "title": "알림 꺼도 데이터 전파 정상", "status": "passed" }
+    ]},
+    { "id": "EX-10", "target": "휴가", "cases": [
+      { "id": "EX-10a", "title": "잔여 초과 신청 차단", "status": "pending" },
+      { "id": "EX-10b", "title": "동일 기간 중복 신청 차단", "status": "pending" },
+      { "id": "EX-10c", "title": "승인된 휴가 재처리 거부", "status": "pending" },
+      { "id": "EX-10d", "title": "반려 시 연차 불변", "status": "pending" }
+    ]},
+    { "id": "EX-11", "target": "직원 퇴사·삭제·로그인", "cases": [
+      { "id": "EX-11a", "title": "인수인계 건너뛰기 → INV-P4·P5 검출", "status": "passed" },
+      { "id": "EX-11b", "title": "이력 있는 계정 삭제 가드(서버 재검사)", "status": "passed" },
+      { "id": "EX-11c", "title": "본인 삭제 차단", "status": "guarded" },
+      { "id": "EX-11d", "title": "시스템 계정 삭제 차단", "status": "guarded" },
+      { "id": "EX-11e", "title": "비활성 로그인 차단", "status": "guarded" },
+      { "id": "EX-11f", "title": "연속 실패 잠금(failed_logins)", "status": "pending" }
+    ]},
+    { "id": "EX-12", "target": "설정·알림", "cases": [
+      { "id": "EX-12a", "title": "현재 비밀번호 오입력 거부", "status": "passed" },
+      { "id": "EX-12b", "title": "불일치·길이·동일 비밀번호 거부", "status": "passed" },
+      { "id": "EX-12c", "title": "알림 설정 임의 키 주입 차단(화이트리스트)", "status": "guarded" },
+      { "id": "EX-12d", "title": "필수 알림 끄기 우회 불가(설계 분리)", "status": "guarded" }
+    ]},
+    { "id": "EX-13", "target": "크론", "cases": [
+      { "id": "EX-13a", "title": "무단 호출 401", "status": "guarded" },
+      { "id": "EX-13b", "title": "잘못된 year 400", "status": "guarded" },
+      { "id": "EX-13c", "title": "이중 실행 멱등·중복 발송 방지", "status": "passed" },
+      { "id": "EX-13d", "title": "전원 수신 거부 시 발송 0건 무오류", "status": "pending" }
+    ]}
+  ]
+}
