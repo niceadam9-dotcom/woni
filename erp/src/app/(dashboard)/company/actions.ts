@@ -21,11 +21,11 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
   await requirePermission('company_manage')
   const admin = createAdminClient()
 
-  const { data: existing } = await admin.from('company_info').select('id').limit(1).single()
+  const { data: existing } = await admin.from('company_profile').select('id').limit(1).single()
 
   if (existing) {
     const { error } = await admin
-      .from('company_info')
+      .from('company_profile')
       .update({
         company_name: input.company_name,
         business_number: input.business_number || null,
@@ -43,7 +43,7 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
     if (error) return { error: error.message }
   } else {
     const { error } = await admin
-      .from('company_info')
+      .from('company_profile')
       .insert({
         company_name: input.company_name,
         business_number: input.business_number || null,

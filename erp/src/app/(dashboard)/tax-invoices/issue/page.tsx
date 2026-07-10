@@ -32,7 +32,7 @@ export default async function TaxInvoiceIssuePage({ searchParams }: Props) {
   if (!bill) notFound()
 
   const { data: company } = await admin
-    .from('company_info')
+    .from('company_profile')
     .select('company_name, business_number, representative, address, phone')
     .limit(1)
     .single()

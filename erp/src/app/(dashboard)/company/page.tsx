@@ -8,7 +8,7 @@ export default async function CompanyPage() {
   await requireRole(['admin'])
 
   const admin = createAdminClient()
-  const { data: company } = await admin.from('company_info').select('*').limit(1).single()
+  const { data: company } = await admin.from('company_profile').select('*').limit(1).single()
 
   type CompanyRow = {
     company_name: string; business_number: string | null; representative: string | null
