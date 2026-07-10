@@ -6,6 +6,7 @@
 // INV-P3: ⟦자동취소⟧ 마커 보유 항목은 반드시 cancelled — ADD-16 복원 마커 정합
 // INV-P4: 비활성(퇴사) 직원 담당의 미완료 계획·점검 0건 — 달력 재배정 배너의 원인 (완료·취소는 이력이라 허용)
 // INV-P5: 활성 고객의 담당직원은 활성이어야 함 — 위반 시 연간계획 생성마다 비활성 담당 항목이 재생산됨
+// INV-P6: 진행중 점검에 연결된 계획 항목의 담당 = 점검 담당 — 불일치 시 모니터링·점검확정에 옛 담당이 표시됨
 import { createClient } from '@supabase/supabase-js'
 import { SUPABASE_URL, SERVICE_ROLE_KEY } from './_env.mjs'
 
@@ -96,6 +97,18 @@ const { data: activeCust } = await admin.from('customers')
 const p5Active = (activeCust ?? []).filter(c => c.assigned_employee_id && inactiveIds.includes(c.assigned_employee_id))
 report('INV-P5 활성 고객의 비활성 담당', p5Active,
   r => `${r.customer_name} — 담당: ${inactiveName.get(r.assigned_employee_id)} (비활성) → 고객 담당 변경 필요`)
+
+// ── INV-P6: 진행중 점검 ↔ 연결 계획 항목 담당 일치 ──
+const { data: linkedItems } = await admin.from('inspection_plan_items')
+  .select('id, assigned_employee_id, customers(customer_name), inspections:inspection_id(status, assigned_employee_id)')
+  .not('inspection_id', 'is', null)
+const p6 = (linkedItems ?? []).filter(r => {
+  const insp = r.inspections
+  return insp && !['completed', 'cancelled'].includes(insp.status)
+    && r.assigned_employee_id !== insp.assigned_employee_id
+})
+report('INV-P6 진행중 점검·항목 담당 일치', p6,
+  r => `${r.customers?.customer_name} — 항목 담당 ≠ 점검 담당 (점검 ${r.inspections.status})`)
 
 console.log(violations === 0 ? '\n🎉 불변식 전부 성립' : `\n⚠ 총 ${violations}건 위반`)
 process.exit(violations > 0 ? 1 : 0)

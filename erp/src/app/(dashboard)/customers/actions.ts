@@ -276,8 +276,25 @@ async function _syncEmployeeToRelated(
       .eq('customer_id', customerId)
       .not('status', 'in', '("completed","cancelled")'),
   ])
+
+  // 점검이 시작된 항목은 status가 completed로 바뀌어 위 동기화에서 빠지지만,
+  // 점검이 아직 진행 중이면 모니터링·점검확정이 이 항목의 담당을 계속 표시함 —
+  // 진행중 점검에 연결된 항목도 함께 동기화 (수정사항리스트 10번: 탑텐 담당 불일치)
+  const { data: activeInsp } = await admin
+    .from('inspections').select('id')
+    .eq('customer_id', customerId)
+    .not('status', 'in', '("completed","cancelled")')
+  const activeIds = ((activeInsp ?? []) as { id: string }[]).map(r => r.id)
+  if (activeIds.length > 0) {
+    await admin.from('inspection_plan_items')
+      .update({ assigned_employee_id: employeeId } as Record<string, unknown>)
+      .in('inspection_id', activeIds)
+  }
+
   revalidatePath('/inspection-plans')
+  revalidatePath('/inspection-plans/monitor')
   revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
 }
 
 export async function assignEmployeeAction(
