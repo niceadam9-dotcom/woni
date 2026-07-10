@@ -805,6 +805,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             .rbc-date-cell { padding:4px 6px; font-size:12px; color:#292d34; }
             .rbc-date-cell.rbc-now { font-weight:700; color:#7b68ee; }
             .rbc-agenda-date-cell,.rbc-agenda-time-cell,.rbc-agenda-event-cell { font-size:12px; padding:6px 8px; border-color:#e0ddf5; }
+            .rbc-overlay { border:1px solid #d0ccf5; border-radius:12px; box-shadow:0 8px 24px rgba(18,43,165,0.14); padding:8px; }
+            .rbc-overlay-header { border-bottom:1px solid #e0ddf5; font-size:12px; font-weight:600; color:#514b81; padding:4px 6px 8px; margin:-2px -2px 6px; }
+            .rbc-overlay .rbc-event { font-size:11px; border-radius:5px; padding:2px 6px; margin-bottom:3px; cursor:pointer; }
           `}</style>
           <Calendar
             localizer={localizer}
@@ -814,6 +817,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             date={calDate}
             onNavigate={d => setCalDate(d)}
             onSelectEvent={handleSelectEvent}
+            popup // "+N개 더 보기" 클릭 시 해당 날짜 전체 일정 오버레이 표시 (day 뷰가 없어 popup 필수)
             style={{ height: 640 }}
             views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
             components={{ toolbar: CalToolbar, month: { dateHeader: MonthDateHeader } }}
