@@ -351,6 +351,7 @@ export async function assignEmployeeAction(
 
   revalidatePath(`/customers/${customerId}`)
   revalidatePath('/customers')
+  revalidatePath('/customers/regional-assign')
   return {}
 }
 
@@ -649,6 +650,7 @@ export async function bulkAssignEmployeeAction(
   revalidatePath('/customers/regional-assign')
   revalidatePath('/inspection-plans')
   revalidatePath('/inspections')
+  for (const cid of customerIds) revalidatePath(`/customers/${cid}`)
   return { updatedCount: count ?? customerIds.length }
 }
 
