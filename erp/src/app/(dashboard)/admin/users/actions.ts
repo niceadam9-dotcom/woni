@@ -146,6 +146,72 @@ export async function handoverAssignmentsAction(
   return { movedCount: res.updatedCount ?? ids.length }
 }
 
+// ── 계정 삭제 (수정사항리스트 5번·4-1) ─────────────────────────
+// 원칙: 퇴사 = 비활성 처리. 완전 삭제는 담당 고객·작성 이력이 전혀 없는
+// 오등록 계정에만 허용 — 이력이 있는 직원을 지우면 결재·점검·휴가 기록이 파괴됨.
+
+/** 삭제 가능 여부 검사 — 참조가 하나라도 있으면 사유 목록 반환 */
+export async function getEmployeeDeleteEligibilityAction(
+  userId: string
+): Promise<{ deletable: boolean; reasons: string[] }> {
+  await requirePermission('user_manage')
+  const admin = createAdminClient()
+
+  const cnt = async (table: string, col: string) => {
+    const { count } = await admin.from(table)
+      .select('id', { count: 'exact', head: true }).eq(col, userId)
+    return count ?? 0
+  }
+  const checks: Array<[string, number]> = [
+    ['담당 고객',        await cnt('customers', 'assigned_employee_id')],
+    ['고객 등록 이력',   await cnt('customers', 'created_by')],
+    ['기안서 작성',      await cnt('documents', 'author_id')],
+    ['휴가 신청',        await cnt('leaves', 'user_id')],
+    ['점검 담당',        await cnt('inspections', 'assigned_employee_id')],
+    ['점검 등록 이력',   await cnt('inspections', 'created_by')],
+    ['점검계획 담당',    await cnt('inspection_plan_items', 'assigned_employee_id')],
+    ['활동 이력',        await cnt('activity_logs', 'actor_id')],
+  ]
+  const reasons = checks.filter(([, n]) => n > 0).map(([label, n]) => `${label} ${n}건`)
+  return { deletable: reasons.length === 0, reasons }
+}
+
+/** 계정 완전 삭제 — 업무 이력 0건 계정 한정 (auth + 프로필 제거, 관리자 이력 기록) */
+export async function deleteEmployeeAction(userId: string): Promise<{ error?: string }> {
+  const actor = await requirePermission('user_manage')
+  if (actor.id === userId) return { error: '본인 계정은 삭제할 수 없습니다.' }
+  const admin = createAdminClient()
+
+  const { data: targetRaw } = await admin
+    .from('profiles').select('name, email, employee_id, is_system').eq('id', userId).single()
+  const target = targetRaw as { name: string; email: string; employee_id: string; is_system: boolean } | null
+  if (!target) return { error: '직원을 찾을 수 없습니다.' }
+  if (target.is_system) return { error: '시스템 계정은 삭제할 수 없습니다.' }
+
+  // 서버 측 가드 재검사 — 담당 고객·작성 이력이 있으면 삭제 불가 (비활성 처리 안내)
+  const { deletable, reasons } = await getEmployeeDeleteEligibilityAction(userId)
+  if (!deletable) {
+    return { error: `업무 이력이 있어 삭제할 수 없습니다 (${reasons.join(', ')}). 퇴사(비활성) 처리를 사용하세요.` }
+  }
+
+  // 삭제 이력을 먼저 기록 (삭제 대상 정보 보존)
+  await admin.from('activity_logs').insert({
+    actor_id: actor.id,
+    action: 'employee_deleted',
+    entity_type: 'profile',
+    entity_id: userId,
+    metadata: { name: target.name, email: target.email, employee_id: target.employee_id },
+  } as Record<string, unknown>)
+
+  const { error: pErr } = await admin.from('profiles').delete().eq('id', userId)
+  if (pErr) return { error: `프로필 삭제에 실패했습니다: ${pErr.message}` }
+  const { error: aErr } = await admin.auth.admin.deleteUser(userId)
+  if (aErr) return { error: `로그인 계정 삭제에 실패했습니다: ${aErr.message}` }
+
+  revalidatePath('/admin/users')
+  return {}
+}
+
 export async function resetPasswordAction(
   userId: string,
   newPassword: string

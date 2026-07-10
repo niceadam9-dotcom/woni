@@ -2,10 +2,11 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, X, Loader2, KeyRound, CalendarDays, ArrowRightLeft } from 'lucide-react'
+import { Plus, Pencil, X, Loader2, KeyRound, CalendarDays, ArrowRightLeft, Trash2 } from 'lucide-react'
 import {
   createUserAction, updateUserAction, resetPasswordAction, setLeaveBalanceAction,
   getEmployeeAssignmentCountAction, handoverAssignmentsAction,
+  getEmployeeDeleteEligibilityAction, deleteEmployeeAction,
   type CreateUserInput, type UpdateUserInput,
 } from '@/app/(dashboard)/admin/users/actions'
 
@@ -57,6 +58,26 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
   // 퇴사(비활성 전환) 인수인계 단계
   const [handover, setHandover] = useState<{ count: number } | null>(null)
   const [successorId, setSuccessorId] = useState('')
+  // 계정 삭제 — 담당 고객·작성 이력이 전혀 없는 오등록 계정만 (수정사항리스트 5번·4-1)
+  const [eligibility, setEligibility] = useState<{ deletable: boolean; reasons: string[] } | null>(null)
+
+  useEffect(() => {
+    if (mode === 'edit' && user && !user.is_system) {
+      getEmployeeDeleteEligibilityAction(user.id).then(setEligibility)
+    }
+  }, [mode, user])
+
+  function handleDelete() {
+    if (!user) return
+    if (!confirm(`${user.name}(${user.employee_id}) 계정을 완전히 삭제합니다.\n로그인 계정과 프로필이 제거되며 되돌릴 수 없습니다. 계속할까요?`)) return
+    setError('')
+    startTransition(async () => {
+      const res = await deleteEmployeeAction(user.id)
+      if (res.error) { setError(res.error); return }
+      router.refresh()
+      onClose()
+    })
+  }
 
   const [form, setForm] = useState({
     email: user?.email ?? '',
@@ -268,6 +289,31 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               <label htmlFor="is_active" className="text-sm text-[#292d34]">
                 계정 활성화
               </label>
+            </div>
+          )}
+
+          {/* 계정 삭제 — 업무 이력이 전혀 없는 오등록 계정 한정 */}
+          {mode === 'edit' && user && !user.is_system && eligibility && (
+            <div className="rounded-lg border border-red-100 bg-red-50/40 px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-red-700">계정 삭제</p>
+                  <p className="text-[11px] text-[#514b81] mt-0.5">
+                    {eligibility.deletable
+                      ? '업무 이력이 없는 계정입니다. 잘못 등록된 계정만 삭제하세요 — 퇴사는 비활성 처리를 사용합니다.'
+                      : `업무 이력이 있어 삭제할 수 없습니다 (${eligibility.reasons.join(', ')}). 퇴사(비활성) 처리를 사용하세요.`}
+                  </p>
+                </div>
+                <button
+                  onClick={handleDelete}
+                  disabled={!eligibility.deletable || isPending}
+                  title={eligibility.deletable ? '계정 완전 삭제' : '업무 이력이 있어 삭제 불가'}
+                  className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="size-3.5" />
+                  삭제
+                </button>
+              </div>
             </div>
           )}
 
