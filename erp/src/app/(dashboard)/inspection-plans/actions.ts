@@ -47,15 +47,18 @@ export async function startInspectionAction(
 
   if (!item) return { error: '계획 항목을 찾을 수 없습니다.' }
   if (item.inspection_id) return { error: '이미 점검이 시작된 항목입니다.' }
-  if (!item.assigned_employee_id) return { error: '담당직원을 배정 후 점검을 시작해주세요.' }
   if (!item.scheduled_date) return { error: '점검 예정일을 입력 후 점검을 시작해주세요.' }
+
+  // 담당 미배정 항목은 점검을 시작한 직원을 담당으로 자동 배정 (모바일 점검시작과 동일 규칙)
+  const autoAssigned = !item.assigned_employee_id
+  const assigneeId = item.assigned_employee_id ?? profile.id
 
   // inspections 레코드 생성 (DB 트리거가 inspection_steps 6단계 자동 생성)
   const { data: inspRaw, error: inspErr } = await admin
     .from('inspections')
     .insert({
       customer_id:          item.customer_id,
-      assigned_employee_id: item.assigned_employee_id,
+      assigned_employee_id: assigneeId,
       contact_id:           item.contact_id,
       inspection_type:      item.inspection_type,
       sequence_num:         item.sequence_num,
@@ -69,10 +72,14 @@ export async function startInspectionAction(
   if (inspErr || !inspRaw) return { error: '점검 생성에 실패했습니다.' }
   const inspectionId = (inspRaw as { id: string }).id
 
-  // plan_item에 inspection_id 연결, status → completed
+  // plan_item에 inspection_id 연결, status → completed (자동 배정 시 담당도 함께 기록)
   await admin
     .from('inspection_plan_items')
-    .update({ inspection_id: inspectionId, status: 'completed' } as Record<string, unknown>)
+    .update({
+      inspection_id: inspectionId,
+      status: 'completed',
+      ...(autoAssigned ? { assigned_employee_id: assigneeId } : {}),
+    } as Record<string, unknown>)
     .eq('id', itemId)
 
   // 6단계 마감일을 확정일 기준(plan_item.step1~6_date)으로 동기화 —
@@ -87,7 +94,7 @@ export async function startInspectionAction(
     action:      'inspection_started',
     entity_type: 'inspection',
     entity_id:   inspectionId,
-    metadata:    { plan_item_id: itemId, customer_id: item.customer_id },
+    metadata:    { plan_item_id: itemId, customer_id: item.customer_id, ...(autoAssigned ? { auto_assigned_to: assigneeId } : {}) },
   } as Record<string, unknown>)
 
   revalidatePath('/inspection-plans')

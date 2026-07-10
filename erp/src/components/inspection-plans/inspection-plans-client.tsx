@@ -226,6 +226,8 @@ export function InspectionPlansClient({
 
   // 목록 뷰에서 직접 점검 시작
   function handleStartItem(item: ItemView) {
+    if (!item.assigned_employee_id
+      && !confirm('담당자가 미배정입니다. 점검을 시작하면 본인이 담당자로 배정됩니다. 계속할까요?')) return
     startTransition(async () => {
       const res = await startInspectionAction(item.id)
       if (res.error) { alert(res.error); return }
@@ -888,10 +890,10 @@ function ListView({
                   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
                 })()
               : null
+            // 담당 미배정이어도 시작 가능 — 시작한 직원이 담당으로 자동 배정됨 (수정사항리스트 2번 A안)
             const canStart = canManage
               && !item.inspection_id
               && item.status !== 'cancelled'
-              && !!item.assigned_employee_id
               && !!item.scheduled_date
             const isRowOverdue = !!item.scheduled_date
               && item.scheduled_date < todayStr

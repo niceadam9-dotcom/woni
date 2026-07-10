@@ -80,13 +80,15 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
     onSaved()
   }
 
+  // 담당 미배정이어도 시작 가능 — 시작한 직원이 담당으로 자동 배정됨 (수정사항리스트 2번 A안)
   const canStart = canManage
     && !item.inspection_id
     && item.status !== 'cancelled'
-    && !!item.assigned_employee_id
     && !!item.scheduled_date
 
   function handleStart() {
+    if (!item.assigned_employee_id
+      && !confirm('담당자가 미배정입니다. 점검을 시작하면 본인이 담당자로 배정됩니다. 계속할까요?')) return
     setError('')
     startTransition(async () => {
       const res = await startInspectionAction(item.id)
