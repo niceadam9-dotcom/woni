@@ -1,0 +1,36 @@
+{
+  "_comment": "상태 조합 매트릭스·불변식 검사 추적 (상세는 상태조합매트릭스_불변식_시나리오.md). status: passed(검증됨) | pending(미실행)",
+  "updated": "2026-07-10",
+  "matrix": [
+    { "id": "MTX-1",  "combo": "활성/계획없음/승인월 과거",                    "expect": "미점검 초과 경보 표시",                        "status": "passed" },
+    { "id": "MTX-2",  "combo": "활성/planned/미래",                            "expect": "계획중·계획 칩, 경보 미표시",                  "status": "passed" },
+    { "id": "MTX-3",  "combo": "활성/planned/예정일 과거",                     "expect": "지연⚠ 표시, 정기는 경보 미대상",               "status": "passed" },
+    { "id": "MTX-4",  "combo": "활성/confirmed",                               "expect": "확정+6단계, 확정 칩",                          "status": "passed" },
+    { "id": "MTX-5",  "combo": "활성/completed항목/점검 in_progress",          "expect": "점검 보기·단계 칩·모니터링 행",                "status": "passed" },
+    { "id": "MTX-6",  "combo": "활성/completed항목/점검 completed",            "expect": "완료·취소선·완료 행",                          "status": "pending", "note": "6단계 전체 완료 플로우 미실행" },
+    { "id": "MTX-7",  "combo": "활성/자동취소(마커)",                          "expect": "취소 표시, 경보 미표시, 재활성 시 복원 대상",  "status": "passed" },
+    { "id": "MTX-8",  "combo": "활성/수동취소/과거",                           "expect": "취소 표시, 경보 재포착 없음(ADD-20), 미복원",  "status": "passed" },
+    { "id": "MTX-9",  "combo": "비활성/임의",                                  "expect": "회색 취소선+비활성 배지, 경보 제외",           "status": "passed" },
+    { "id": "MTX-10", "combo": "활성/confirmed/담당 미배정",                   "expect": "시작 버튼 활성(자동배정), 달력 항상 표시",     "status": "passed" },
+    { "id": "MTX-11", "combo": "활성/미완료/담당 퇴사자",                      "expect": "(퇴사) 라벨 + 달력 배너 포함 — INV-P4로 0건 유지", "status": "passed" },
+    { "id": "MTX-12", "combo": "완료 이력/담당 퇴사자",                        "expect": "이력 유지, 배너 미포함",                       "status": "passed" },
+    { "id": "MTX-13", "combo": "진행중 점검 담당 ≠ 항목 담당",                 "expect": "⛔ 존재 금지 — INV-P6",                        "status": "passed" },
+    { "id": "MTX-14", "combo": "지난 달 planned 정기",                         "expect": "⛔ 존재 금지 — INV-P1",                        "status": "passed" },
+    { "id": "MTX-15", "combo": "기준일 이전 예정일",                           "expect": "⛔ 존재 금지 — INV-P2",                        "status": "passed" }
+  ],
+  "invariant_runs": [
+    { "script": "erp/scripts/check-plan-invariants.mjs", "invariants": "INV-P1~P6", "last_run": "2026-07-10", "result": "전부 PASS" },
+    { "script": "victory_test/invariant_check.mjs", "invariants": "INV-1~5", "last_run": "2026-07-10", "result": "전부 PASS (고객 3·계획 42·점검 3 — 7/7 위반 42건은 데이터 정리로 소멸)" }
+  ],
+  "detection_tests": [
+    { "id": "DET-1", "target": "INV-P1", "title": "지난 달 정기 주입 검출",            "status": "pending" },
+    { "id": "DET-2", "target": "INV-P2", "title": "기준일 이전 예정일 주입 검출",      "status": "pending" },
+    { "id": "DET-3", "target": "INV-P3", "title": "마커·상태 불일치 주입 검출",        "status": "pending" },
+    { "id": "DET-4", "target": "INV-P4·P5", "title": "비활성 담당 구성 검출",          "status": "passed", "note": "조중민 실사례 17+1건 검출 실증" },
+    { "id": "DET-5", "target": "INV-P6", "title": "점검·항목 담당 불일치 검출",        "status": "passed", "note": "탑텐 실사례 검출 실증" },
+    { "id": "DET-6", "target": "INV-1",  "title": "비활성 고객 미취소 계획 검출",      "status": "pending" },
+    { "id": "DET-7", "target": "INV-3",  "title": "completed 항목 점검 연결 해제 검출", "status": "pending" },
+    { "id": "DET-8", "target": "INV-4",  "title": "confirmed step 누락 검출",          "status": "pending" },
+    { "id": "DET-9", "target": "INV-5",  "title": "cancelled step 잔재 검출",          "status": "pending" }
+  ]
+}
