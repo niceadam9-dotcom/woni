@@ -2,11 +2,12 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   Settings, User, KeyRound, PenLine, Building2, Users, Network,
-  CalendarDays, Warehouse, ScrollText, ChevronRight,
+  CalendarDays, Warehouse, ScrollText, ChevronRight, Bell,
 } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PasswordChangeClient } from '@/components/settings/password-change-client'
+import { NotificationSettingsClient } from '@/components/settings/notification-settings-client'
 
 const ROLE_LABELS: Record<string, string> = { employee: '일반직원', manager: '팀장', admin: '관리자' }
 
@@ -24,13 +25,20 @@ export default async function SettingsPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
+  const admin = createAdminClient()
+
   // 부서명 해석
   let deptName: string | null = null
   if (profile.department_id) {
-    const admin = createAdminClient()
     const { data } = await admin.from('departments').select('name').eq('id', profile.department_id).single()
     deptName = (data as { name: string } | null)?.name ?? null
   }
+
+  // 알림 수신 설정 (notification_prefs는 프로필 캐시 컬럼에 없어 직접 조회)
+  const { data: prefsRaw } = await admin
+    .from('profiles').select('notification_prefs').eq('id', profile.id).single()
+  const notificationPrefs = ((prefsRaw as { notification_prefs: Record<string, boolean> | null } | null)
+    ?.notification_prefs ?? {}) as Record<string, boolean>
 
   const infoRows: Array<[string, string]> = [
     ['이름', profile.name],
@@ -76,6 +84,18 @@ export default async function SettingsPage() {
         </div>
         <div className="px-5 py-4">
           <PasswordChangeClient />
+        </div>
+      </section>
+
+      {/* 알림 수신 설정 */}
+      <section className={cardCls}>
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-[#e0ddf5]">
+          <Bell className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">알림 설정</h2>
+          <span className="ml-auto text-[11px] text-[#b0acd6]">끈 항목은 상단 종 알림이 오지 않습니다</span>
+        </div>
+        <div className="px-5 py-2">
+          <NotificationSettingsClient initialPrefs={notificationPrefs} />
         </div>
       </section>
 

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
+import { notifyIfEnabled } from '@/lib/notify'
 
 export type LeaveFormInput = {
   leave_type: 'annual' | 'half_am' | 'half_pm' | 'sick' | 'special'
@@ -220,15 +221,14 @@ export async function approveLeaveAction(leaveId: string): Promise<{ error?: str
       }
     }
 
-    // 신청자에게 알림
-    await admin.from('notifications').insert({
-      recipient_id: leave.employee_id,
+    // 신청자에게 알림 (수신 설정 존중)
+    await notifyIfEnabled(admin, leave.employee_id, 'leave_result', {
       title: '휴가 승인',
       message: '휴가 신청이 최종 승인되었습니다.',
       type: 'leave_approved',
       reference_id: leaveId,
       reference_type: 'leave',
-    } as Record<string, unknown>)
+    })
   }
 
   await admin.from('activity_logs').insert({
@@ -282,14 +282,13 @@ export async function rejectLeaveAction(leaveId: string, comment: string): Promi
 
   await admin.from('leaves').update(updates).eq('id', leaveId)
 
-  await admin.from('notifications').insert({
-    recipient_id: leave.employee_id,
+  await notifyIfEnabled(admin, leave.employee_id, 'leave_result', {
     title: '휴가 반려',
     message: `휴가 신청이 반려되었습니다. 사유: ${comment}`,
     type: 'leave_rejected',
     reference_id: leaveId,
     reference_type: 'leave',
-  } as Record<string, unknown>)
+  })
 
   await admin.from('activity_logs').insert({
     actor_id: user.id,

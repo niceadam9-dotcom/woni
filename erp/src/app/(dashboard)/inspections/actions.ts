@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
+import { notifyIfEnabled } from '@/lib/notify'
 import type { InspectionType } from '@/types'
 
 export type CreateInspectionInput = {
@@ -52,15 +53,14 @@ export async function createInspectionAction(
   if (error || !raw) return { error: '점검 생성에 실패했습니다.' }
   const inspectionId = (raw as { id: string }).id
 
-  // 담당직원에게 알림
-  await admin.from('notifications').insert({
-    recipient_id: input.assigned_employee_id,
+  // 담당직원에게 알림 (수신 설정 존중)
+  await notifyIfEnabled(admin, input.assigned_employee_id, 'assignment', {
     title: '점검 업무 배정',
     message: `새 점검 업무가 배정되었습니다. (${year}년 ${input.sequence_num}차)`,
     type: 'inspection_assigned',
     reference_id: inspectionId,
     reference_type: 'inspection',
-  } as Record<string, unknown>)
+  })
 
   await admin.from('activity_logs').insert({
     actor_id: profile.id,

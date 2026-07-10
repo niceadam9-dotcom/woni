@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress } from '@/lib/address-parser'
 import { generateYearlyPlanItems, loadHolidaySet, loadAnchorDates } from '@/lib/inspection-plan-generator'
+import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
@@ -154,14 +155,13 @@ export async function createCustomerAction(
       .single()
     assignedEmpName = (empRaw as { name: string } | null)?.name ?? '담당자'
 
-    await admin.from('notifications').insert({
-      recipient_id: input.assigned_employee_id,
+    await notifyIfEnabled(admin, input.assigned_employee_id, 'assignment', {
       title: '고객 담당자 배정',
       message: `"${input.customer_name}" 고객의 담당자로 배정되었습니다.`,
       type: 'inspection_assigned',
       reference_id: customerId,
       reference_type: 'inspection',
-    } as Record<string, unknown>)
+    })
     // ADD-6: 등록 시점의 담당자 배정은 별도 이력을 남기지 않음 (등록 이력에 포함) — 등록 시 이력 2건 중복 방지
   }
 
@@ -311,14 +311,13 @@ export async function assignEmployeeAction(
   const [oldName, newName] = await Promise.all([empNameOf(prevEmpId), empNameOf(employeeId)])
 
   if (employeeId) {
-    await admin.from('notifications').insert({
-      recipient_id: employeeId,
+    await notifyIfEnabled(admin, employeeId, 'assignment', {
       title: '고객 담당자 배정',
       message: `"${customer.customer_name}" 고객의 담당자로 배정되었습니다.`,
       type: 'inspection_assigned',
       reference_id: customerId,
       reference_type: 'inspection',
-    } as Record<string, unknown>)
+    })
   }
 
   await admin.from('activity_logs').insert({
@@ -588,7 +587,7 @@ export async function bulkAssignEmployeeAction(
     )
     const empName = employeeId ? nameMap.get(employeeId) ?? '담당자' : null
 
-    if (employeeId) {
+    if (employeeId && await allowsNotification(admin, employeeId, 'assignment')) {
       await admin.from('notifications').insert(
         changedIds.map(cid => ({
           recipient_id: employeeId,

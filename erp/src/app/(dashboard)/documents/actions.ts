@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAuth, getSessionUser } from '@/lib/auth'
+import { notifyIfEnabled } from '@/lib/notify'
 
 export type SaveDraftInput = {
   document_id?: string
@@ -200,14 +201,13 @@ export async function approveDocumentAction(documentId: string): Promise<{ error
     } as Record<string, unknown>)
   } else {
     await admin.from('documents').update({ status: 'approved' } as Record<string, unknown>).eq('id', documentId)
-    await admin.from('notifications').insert({
-      recipient_id: doc.author_id,
+    await notifyIfEnabled(admin, doc.author_id, 'approval_result', {
       title: '기안서 최종 승인',
       message: `"${doc.title}" 문서가 최종 승인되었습니다.`,
       type: 'approved',
       reference_id: documentId,
       reference_type: 'document',
-    } as Record<string, unknown>)
+    })
   }
 
   await admin.from('activity_logs').insert({
@@ -252,14 +252,13 @@ export async function rejectDocumentAction(documentId: string, comment: string):
 
   await admin.from('documents').update({ status: 'rejected' } as Record<string, unknown>).eq('id', documentId)
 
-  await admin.from('notifications').insert({
-    recipient_id: doc.author_id,
+  await notifyIfEnabled(admin, doc.author_id, 'approval_result', {
     title: '기안서 반려',
     message: `"${doc.title}" 문서가 반려되었습니다. 사유: ${comment}`,
     type: 'rejected',
     reference_id: documentId,
     reference_type: 'document',
-  } as Record<string, unknown>)
+  })
 
   await admin.from('activity_logs').insert({
     actor_id: user.id,

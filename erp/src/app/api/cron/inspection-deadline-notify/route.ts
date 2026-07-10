@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { filterNotifiableRecipients } from '@/lib/notify'
 
 // Vercel Cron 또는 외부 스케줄러에서 매일 09:00 호출
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
@@ -105,6 +106,13 @@ export async function GET(req: NextRequest) {
 
     const batch: Record<string, unknown>[] = []
 
+    // 마감 임박 알림을 끈 수신자 제외 (수신 설정 — 제안.md 2단계)
+    const candidateIds = [
+      ...managerIds,
+      ...steps.map(s => s.inspection?.assigned_employee_id).filter(Boolean) as string[],
+    ]
+    const notifiable = await filterNotifiableRecipients(admin, candidateIds, 'deadline')
+
     for (const step of steps) {
       if (alreadyNotified.has(step.id)) continue
       const insp = step.inspection
@@ -114,11 +122,12 @@ export async function GET(req: NextRequest) {
       const title = rule.titleFn(customerName, step.name_ko)
       const message = rule.messageFn(customerName, step.name_ko)
 
-      // 담당자 + manager/admin 모두에게 발송
+      // 담당자 + manager/admin 모두에게 발송 (deadline 알림을 끈 사람 제외)
       const recipients = new Set<string>(managerIds)
       if (insp.assigned_employee_id) recipients.add(insp.assigned_employee_id)
 
       for (const recipientId of recipients) {
+        if (!notifiable.has(recipientId)) continue
         batch.push({
           recipient_id: recipientId,
           title,

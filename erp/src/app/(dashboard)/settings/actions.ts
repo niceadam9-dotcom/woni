@@ -3,6 +3,31 @@
 import { getSessionUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createVerifierClient } from '@supabase/supabase-js'
+import type { NotifyCategory } from '@/lib/notify'
+
+const PREF_KEYS: NotifyCategory[] = ['approval_result', 'leave_result', 'assignment', 'deadline']
+
+/** 알림 수신 설정 저장 (제안.md 2단계) — false인 카테고리만 발송 생략 */
+export async function updateNotificationPrefsAction(
+  prefs: Record<string, boolean>
+): Promise<{ error?: string }> {
+  const user = await getSessionUser()
+  if (!user) return { error: '인증이 필요합니다.' }
+
+  // 허용된 키만 저장 (임의 키 주입 방지)
+  const clean: Record<string, boolean> = {}
+  for (const key of PREF_KEYS) {
+    if (typeof prefs[key] === 'boolean') clean[key] = prefs[key]
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ notification_prefs: clean } as Record<string, unknown>)
+    .eq('id', user.id)
+  if (error) return { error: '알림 설정 저장에 실패했습니다.' }
+  return {}
+}
 
 /** 본인 비밀번호 변경 — 현재 비밀번호 재검증 후 변경 (제안.md 1단계-2) */
 export async function changePasswordAction(
