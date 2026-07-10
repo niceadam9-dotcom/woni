@@ -259,8 +259,9 @@
         {
           "id": "EX-9d",
           "title": "퇴사자 결재선 정체 감지",
-          "status": "pending",
-          "note": "⚠ 가드 없음 확인 — 결재 액션에 결재자 is_active 검사 없음. 퇴사자가 결재선에 있으면 문서 정체 가능(잠재 개선 항목)"
+          "status": "passed",
+          "note": "수정 완료: submitDocumentAction에 결재자 is_active 검사 추가 — 결재선에 퇴사자 포함 시 상신 차단(안내 표시). UI 검색도 활성만 노출",
+          "automated": "scripts/_ex-9d.mjs"
         },
         {
           "id": "EX-9e",

@@ -101,6 +101,17 @@ export async function submitDocumentAction(documentId: string): Promise<{ error?
   const approvers = (approversRaw ?? []) as Array<{ approver_id: string; order_num: number }>
   if (approvers.length === 0) return { error: '결재자를 1명 이상 지정해야 합니다.' }
 
+  // 결재선에 퇴사(비활성) 직원이 있으면 상신 차단 — 진행 중 문서 정체 방지 (EX-9d)
+  const { data: inactiveRaw } = await admin
+    .from('profiles')
+    .select('name')
+    .in('id', approvers.map(a => a.approver_id))
+    .eq('is_active', false)
+  const inactive = (inactiveRaw ?? []) as Array<{ name: string }>
+  if (inactive.length > 0) {
+    return { error: `퇴사(비활성) 직원이 결재선에 포함되어 있습니다: ${inactive.map(p => p.name).join(', ')}. 결재자를 변경해주세요.` }
+  }
+
   // status = 'draft' 조건을 WHERE에 포함해 원자적으로 업데이트 (Race Condition 방지)
   const { data: updated } = await admin
     .from('documents')
