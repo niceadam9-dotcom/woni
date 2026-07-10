@@ -2,10 +2,9 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Search, Wand2, MapPin } from 'lucide-react'
+import { Loader2, Search, MapPin } from 'lucide-react'
 import { updateCustomerAction } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
-import { extractRegionFromAddress } from '@/lib/address-parser'
 import type { Customer } from '@/types'
 
 type Props = {
@@ -170,30 +169,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
         </div>
       </div>
 
-      {/* 지역 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className={labelCls}>시/군/구 · 읍/면/동 · 리/동</label>
-          {form.address && (
-            <button
-              type="button"
-              onClick={() => {
-                const extracted = extractRegionFromAddress(form.address)
-                if (extracted.region_si) setForm(s => ({ ...s, ...extracted }))
-              }}
-              className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-[11px] font-medium transition-colors border border-[#d0ccf5]"
-            >
-              <Wand2 className="size-3" />
-              주소에서 추출
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <input type="text" value={form.region_si} onChange={e => set('region_si', e.target.value)} placeholder="광주시" className={inputCls} />
-          <input type="text" value={form.region_myeon} onChange={e => set('region_myeon', e.target.value)} placeholder="오포읍" className={inputCls} />
-          <input type="text" value={form.region_ri} onChange={e => set('region_ri', e.target.value)} placeholder="신현리" className={inputCls} />
-        </div>
-      </div>
+      {/* 지역 필드는 화면에서 숨김 (ADD-1 방식) — 주소검색 시 자동 세팅되는 form.region_* 값이 저장 시 그대로 반영됨 */}
 
       {/* 비고 */}
       <div className="space-y-1">
