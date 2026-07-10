@@ -45,3 +45,6 @@ next-env.d.ts
 
 # 테스트 데이터 정리 백업 (개인정보 포함 — 커밋 금지)
 scripts/backup/
+
+# 브라우저 테스트 스크린샷 (로컬 검증용)
+.test-shots/

@@ -256,13 +256,17 @@
       "id": "FIRE-S2",
       "category": "소방스모크",
       "title": "계획 확정 → 6단계 자동 계산 → 점검업무 생성",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-10",
+      "note": "브라우저 자동 테스트 통과 (scripts/test-fire-s2-s3.mts, Playwright): 목록에서 점검일자확정(07-15) → step1~6 자동계산(07-15→08-31, 오름차순) → 점검 시작 → /inspections/{id} 6단계 체크리스트 마감일 표시"
     },
     {
       "id": "FIRE-S3",
       "category": "소방스모크",
       "title": "단계 완료 → 모니터링·달력 반영",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-10",
+      "note": "브라우저 자동 테스트 통과 (scripts/test-fire-s2-s3.mts): 1단계 완료 → 모니터링 1단계 점검일 반영, 점검달력 표시, 완료 버튼 순서 강제(1개만 노출), 재확정 시 완료 단계 유지+미완료 마감일 재계산 확인"
     },
     {
       "id": "FIRE-S4",
