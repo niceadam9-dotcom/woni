@@ -272,7 +272,9 @@
       "id": "FIRE-S4",
       "category": "소방스모크",
       "title": "비활성 자동취소 → 재활성 복원 (ADD-16)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-10",
+      "note": "브라우저 자동 테스트 12건 통과 (scripts/test-fire-s4.mts, Playwright): 비활성 시 planned/confirmed→cancelled+마커, completed·수동취소 불변, 재활성 시 원상태 복원(scheduled_date 유지·마커 제거), 수동취소 미복원, 2회차 사이클 마커 중복 없음"
     },
     {
       "id": "FIRE-S5",
