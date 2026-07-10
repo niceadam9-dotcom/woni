@@ -217,10 +217,14 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
   // 사이드바 직원 목록(활성)에 없는 담당(퇴사자 등) 항목은 필터로 숨기지 않고 항상 표시
   const knownEmployeeIds = useMemo(() => new Set(employees.map(e => e.id)), [employees])
-  const orphanCount = useMemo(() =>
-    inspections.filter(i => i.assigned_employee_id && !knownEmployeeIds.has(i.assigned_employee_id)).length
-    + planItems.filter(p => p.assigned_employee_id && !knownEmployeeIds.has(p.assigned_employee_id)).length,
-  [inspections, planItems, knownEmployeeIds])
+  // 재배정 배너 카운트 — 완료·취소 항목은 이력이므로 재배정 대상에서 제외
+  const orphanCount = useMemo(() => {
+    const needsReassign = (status: string, employeeId: string | null) =>
+      status !== 'completed' && status !== 'cancelled'
+      && !!employeeId && !knownEmployeeIds.has(employeeId)
+    return inspections.filter(i => needsReassign(i.status, i.assigned_employee_id)).length
+      + planItems.filter(p => needsReassign(p.status, p.assigned_employee_id)).length
+  }, [inspections, planItems, knownEmployeeIds])
 
   // Unique customers derived from inspection + plan item data
   const uniqueCustomers = useMemo(() => {

@@ -4,6 +4,8 @@
 // INV-P1: 과거월 미처리 정기 0건 — "지난달 정기 생성 생략" 규칙 (e2569a6, 2026-07-10 잔재 12건 정리)
 // INV-P2: 기준일(최초 점검시작일→사용승인일) 이전 planned_date 항목 0건 — 2차 역행 방지 (4090ee5)
 // INV-P3: ⟦자동취소⟧ 마커 보유 항목은 반드시 cancelled — ADD-16 복원 마커 정합
+// INV-P4: 비활성(퇴사) 직원 담당의 미완료 계획·점검 0건 — 달력 재배정 배너의 원인 (완료·취소는 이력이라 허용)
+// INV-P5: 활성 고객의 담당직원은 활성이어야 함 — 위반 시 연간계획 생성마다 비활성 담당 항목이 재생산됨
 import { createClient } from '@supabase/supabase-js'
 import { SUPABASE_URL, SERVICE_ROLE_KEY } from './_env.mjs'
 
@@ -64,6 +66,36 @@ const { data: p3 } = await admin.from('inspection_plan_items')
   .like('notes', '%⟦자동취소:%').neq('status', 'cancelled')
 report('INV-P3 자동취소 마커 정합', p3 ?? [],
   r => `${r.customers?.customer_name} status=${r.status} notes=${r.notes}`)
+
+// ── INV-P4: 비활성 직원 담당의 미완료 계획·점검 ──
+const { data: inactiveProfiles } = await admin.from('profiles')
+  .select('id, name').eq('is_active', false)
+const inactiveIds = (inactiveProfiles ?? []).map(p => p.id)
+const inactiveName = new Map((inactiveProfiles ?? []).map(p => [p.id, p.name]))
+let p4 = []
+if (inactiveIds.length > 0) {
+  const [{ data: p4Items }, { data: p4Insp }] = await Promise.all([
+    admin.from('inspection_plan_items')
+      .select('id, assigned_employee_id, plan_type, planned_date, status, customers(customer_name)')
+      .in('assigned_employee_id', inactiveIds).in('status', ['planned', 'confirmed']),
+    admin.from('inspections')
+      .select('id, assigned_employee_id, inspection_type, inspection_start_date, status, customers(customer_name)')
+      .in('assigned_employee_id', inactiveIds).not('status', 'in', '("completed","cancelled")'),
+  ])
+  p4 = [
+    ...(p4Items ?? []).map(r => ({ ...r, kind: '계획', when: r.planned_date, what: r.plan_type })),
+    ...(p4Insp ?? []).map(r => ({ ...r, kind: '점검', when: r.inspection_start_date, what: r.inspection_type })),
+  ]
+}
+report('INV-P4 비활성 직원 담당 미완료 항목', p4,
+  r => `[${r.kind}] ${r.customers?.customer_name} ${r.what} ${r.when} (${r.status}) — 담당: ${inactiveName.get(r.assigned_employee_id)}`)
+
+// ── INV-P5: 활성 고객의 담당직원은 활성 ──
+const { data: activeCust } = await admin.from('customers')
+  .select('id, customer_name, assigned_employee_id').eq('is_active', true)
+const p5Active = (activeCust ?? []).filter(c => c.assigned_employee_id && inactiveIds.includes(c.assigned_employee_id))
+report('INV-P5 활성 고객의 비활성 담당', p5Active,
+  r => `${r.customer_name} — 담당: ${inactiveName.get(r.assigned_employee_id)} (비활성) → 고객 담당 변경 필요`)
 
 console.log(violations === 0 ? '\n🎉 불변식 전부 성립' : `\n⚠ 총 ${violations}건 위반`)
 process.exit(violations > 0 ? 1 : 0)
