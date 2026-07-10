@@ -131,8 +131,17 @@ export async function generateYearlyPlanItems(
     // 기준일 이전 항목은 생성하지 않음 — 최초 점검 전에는 이행 의무가 없다.
     // 기준일이 올해 안(최초 점검시작일)일 때 2차(+6개월)가 같은 해 과거 1월로 감겨
     // 1차보다 앞선 유령 지연 항목이 생기는 것 방지 (과거 앵커는 전부 기준일 이후라 영향 없음)
-    const planned = calcPlanned(year, month)
+    let planned = calcPlanned(year, month)
     if (planned < anchorDate) continue
+
+    // 당월 항목의 예정일이 생성 시점에 이미 지났으면 오늘 이후 첫 영업일로 보정 —
+    // 승인일의 '일'이 등록일보다 앞설 때 등록 직후부터 지연⚠로 뜨는 것 방지 (수정사항리스트 4-1)
+    const kstTodayStr = toStr(new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()))
+    if (year === curYear && month === curMonth && planned < kstTodayStr) {
+      const d = new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate())
+      while (d.getDay() === 0 || d.getDay() === 6 || hdSet.has(toStr(d))) d.setDate(d.getDate() + 1)
+      planned = toStr(d)
+    }
 
     const { error } = await admin.from('inspection_plan_items').insert({
       plan_id: planId,

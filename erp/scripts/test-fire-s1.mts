@@ -143,6 +143,11 @@ try {
   check('2차(+6개월=같은 해 1월, 기준일 이전) 생성 안 됨', seq2_8.length === 0, JSON.stringify(seq2_8))
   check(`정기는 기준일 이후만 (${expMonthly8.length}건)`, JSON.stringify(monthly8) === JSON.stringify(expMonthly8), `실제: ${JSON.stringify(monthly8)}`)
   check('모든 항목 planned_date ≥ 기준일', i8.every(i => i.planned_date >= anchor8), JSON.stringify(i8.map(i => i.planned_date)))
+  // 4-1: 당월 항목 예정일이 생성 시점에 과거면 오늘 이후 첫 영업일로 보정
+  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const curMonthItems8 = i8.filter(i => i.inspection_plans.year === curYear && i.inspection_plans.month === curMonth)
+  check('4-1: 당월 항목 예정일은 오늘 이후로 보정', curMonthItems8.every(i => i.planned_date >= kstToday),
+    JSON.stringify(curMonthItems8.map(i => i.planned_date)))
   // 과도 억제 방지: 다음 해 생성 시 2차는 1월(기준일 이후)로 정상 생성되어야 함
   const hdSetNext = await loadHolidaySet(admin, curYear + 1)
   await generateYearlyPlanItems(admin, { id: c8, inspection_type: '종합', use_approval_date: null, assigned_employee_id: null }, curYear + 1, createdBy, hdSetNext)
