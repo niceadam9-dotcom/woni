@@ -517,6 +517,9 @@ function CalendarView({
   // 6주 맞추기
   while (cells.length % 7 !== 0) cells.push(null)
 
+  // "+N개 더 보기" 클릭 시 해당 날짜 전체 항목 팝업
+  const [moreDay, setMoreDay] = useState<string | null>(null)
+
   // 점검달력과 동일한 시각 언어 — 상태별 단색 칩 (한 줄, 흰 글자 / 완료·취소는 연회색+취소선)
   function chipStyle(item: ItemView, itemOverdue: boolean): React.CSSProperties {
     if (item.customers?.is_active === false || item.status === 'cancelled')
@@ -584,13 +587,52 @@ function CalendarView({
                   )
                 })}
                 {dayItems.length > 3 && (
-                  <div className="text-[11px] text-[#7b68ee] pl-1">+{dayItems.length - 3}개 더 보기</div>
+                  <button
+                    onClick={e => { e.stopPropagation(); setMoreDay(dateStr) }}
+                    className="text-[11px] text-[#7b68ee] pl-1 hover:underline cursor-pointer"
+                  >
+                    +{dayItems.length - 3}개 더 보기
+                  </button>
                 )}
               </div>
             </div>
           )
         })}
       </div>
+      {/* "+N개 더 보기" 팝업 — 해당 날짜 전체 항목 */}
+      {moreDay && (
+        <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4" onClick={() => setMoreDay(null)}>
+          <div
+            className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-xs max-h-[70vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e0ddf5]">
+              <p className="text-xs font-semibold text-[#514b81]">
+                {moreDay.slice(5, 7).replace(/^0/, '')}월 {moreDay.slice(8, 10).replace(/^0/, '')}일 전체 일정 ({(itemsByDate[moreDay] ?? []).length}건)
+              </p>
+              <button onClick={() => setMoreDay(null)} className="text-[#b0acd6] hover:text-[#514b81] text-sm leading-none">✕</button>
+            </div>
+            <div className="p-3 space-y-1">
+              {(itemsByDate[moreDay] ?? []).map(item => {
+                const itemOverdue = moreDay < todayStr && item.status !== 'completed' && item.status !== 'cancelled'
+                const custName = (item.customers as { customer_name: string } | null)?.customer_name ?? '—'
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => { setMoreDay(null); onItemClick(item) }}
+                    title={`${custName} · ${PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}`}
+                    style={chipStyle(item, itemOverdue)}
+                    className="text-[11px] leading-[1.3] px-2 py-1 rounded-[5px] cursor-pointer hover:opacity-85 truncate"
+                  >
+                    {itemOverdue && '⚠ '}{custName} · {PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 범례 — 점검달력과 동일한 톤 */}
       <div className="flex items-center gap-3 px-4 py-2 border-t border-[#e0ddf5] text-[10px] text-[#514b81]">
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#93a5c8' }} />계획</span>

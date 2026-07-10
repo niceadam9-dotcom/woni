@@ -101,6 +101,9 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
         .rbc-event { border-radius: 6px; border: none; padding: 2px 6px; font-size: 11px; }
         .rbc-event:focus { outline: none; }
         .rbc-show-more { color: #7b68ee; font-size: 11px; }
+        .rbc-overlay { border: 1px solid #d0ccf5; border-radius: 12px; box-shadow: 0 8px 24px rgba(18,43,165,0.14); padding: 8px; }
+        .rbc-overlay-header { border-bottom: 1px solid #e0ddf5; font-size: 12px; font-weight: 600; color: #514b81; padding: 4px 6px 8px; margin: -2px -2px 6px; }
+        .rbc-overlay .rbc-event { font-size: 11px; border-radius: 5px; padding: 2px 6px; margin-bottom: 3px; }
         .rbc-toolbar button { color: #514b81; border-color: #c8c4d0; border-radius: 8px; font-size: 13px; }
         .rbc-toolbar button:hover { background: #f5f4ff; color: #7b68ee; }
         .rbc-toolbar button.rbc-active { background: #7b68ee; color: white; border-color: #7b68ee; }
@@ -115,6 +118,7 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
         onView={setView}
         date={date}
         onNavigate={setDate}
+        popup // "+N개 더 보기" 클릭 시 해당 날짜 전체 일정 오버레이 표시 (day 뷰가 없어 popup 필수)
         style={{ height: 600 }}
         views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
         components={{ month: { dateHeader: MonthDateHeader } }}
