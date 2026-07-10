@@ -124,6 +124,31 @@ try {
   const c7 = await createCustomer({ customer_name: 'TEST-FIRE-S1-무기준', inspection_type: '작동', inspection_category: '소방안전관리', inspection_sub_type: '작동', use_approval_date: null })
   const n7 = await generateYearlyPlanItems(admin, { id: c7, inspection_type: '작동', use_approval_date: null, assigned_employee_id: null }, curYear, createdBy, hdSet)
   check('기준일 없으면 0건', n7 === 0)
+
+  // ── 케이스 8: 올해 안 기준일(종합, 최초 점검 7월) — 2차가 같은 해 과거 1월로 역행하지 않음 (2026-07-10 버그 수정 회귀)
+  console.log('\n[케이스 8] 종합 고객, 사용승인일 없음 + 점검시작일 7월 — 기준일 이전 항목 생성 금지')
+  const anchor8 = `${curYear}-07-06`
+  const c8 = await createCustomer({ customer_name: 'TEST-FIRE-S1-역행2차', inspection_type: '종합', inspection_category: '소방안전관리', inspection_sub_type: '종합', use_approval_date: null })
+  await raw.from('inspections').insert({
+    customer_id: c8, inspection_type: '종합', sequence_num: 1,
+    inspection_start_date: anchor8, status: 'scheduled', assigned_employee_id: createdBy, created_by: createdBy,
+  })
+  await generateYearlyPlanItems(admin, { id: c8, inspection_type: '종합', use_approval_date: null, assigned_employee_id: null }, curYear, createdBy, hdSet)
+  const i8 = await getItems(c8)
+  const special8 = i8.filter(i => i.plan_type === 'special_종합')
+  const seq2_8 = special8.filter(i => i.sequence_num === 2)
+  const monthly8 = i8.filter(i => i.plan_type === 'monthly').map(i => i.inspection_plans.month).sort((a, b) => a - b)
+  const expMonthly8 = Array.from({ length: 12 }, (_, k) => k + 1).filter(m => m >= Math.max(curMonth, 8) && m !== 1 && m !== 7)
+  check('특별(종합) 1차 1건 — 점검시작월(7월)', special8.filter(i => i.sequence_num === 1).length === 1 && special8[0].inspection_plans.month === 7, JSON.stringify(special8))
+  check('2차(+6개월=같은 해 1월, 기준일 이전) 생성 안 됨', seq2_8.length === 0, JSON.stringify(seq2_8))
+  check(`정기는 기준일 이후만 (${expMonthly8.length}건)`, JSON.stringify(monthly8) === JSON.stringify(expMonthly8), `실제: ${JSON.stringify(monthly8)}`)
+  check('모든 항목 planned_date ≥ 기준일', i8.every(i => i.planned_date >= anchor8), JSON.stringify(i8.map(i => i.planned_date)))
+  // 과도 억제 방지: 다음 해 생성 시 2차는 1월(기준일 이후)로 정상 생성되어야 함
+  const hdSetNext = await loadHolidaySet(admin, curYear + 1)
+  await generateYearlyPlanItems(admin, { id: c8, inspection_type: '종합', use_approval_date: null, assigned_employee_id: null }, curYear + 1, createdBy, hdSetNext)
+  const i8next = (await getItems(c8)).filter(i => i.inspection_plans.year === curYear + 1)
+  const seq2next = i8next.filter(i => i.plan_type === 'special_종합' && i.sequence_num === 2)
+  check(`다음 해(${curYear + 1}) 2차는 1월에 정상 생성`, seq2next.length === 1 && seq2next[0].inspection_plans.month === 1, JSON.stringify(seq2next))
 } finally {
   // ── 정리: 테스트 데이터 삭제 (plan_items → inspections → customers)
   console.log('\n[정리] 테스트 데이터 삭제')

@@ -423,7 +423,7 @@ export async function autoGeneratePlanAction(input: {
   if (!newPlan) return { error: '계획 생성에 실패했습니다.' }
   const newPlanId = (newPlan as { id: string }).id
 
-  // 전월 항목 복사 (사용승인일 기준 영업일 자동 계산)
+  // 전월 항목 복사 (기준일 기준 영업일 자동 계산)
   let itemCount = 0
   if (refPlanId) {
     const { data: refItems } = await admin
@@ -433,7 +433,7 @@ export async function autoGeneratePlanAction(input: {
       .neq('status', 'cancelled')
 
     if (refItems && refItems.length > 0) {
-      // 고객 기준일 조회 (사용승인일 → 없으면 최초 점검시작일)
+      // 고객 기준일 조회 (최초 점검시작일 우선 → 없으면 사용승인일)
       const customerIds = [...new Set(refItems.map(i => (i as Record<string, unknown>).customer_id as string))]
       const { data: custData } = await admin
         .from('customers').select('id, use_approval_date').in('id', customerIds)

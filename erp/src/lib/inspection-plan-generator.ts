@@ -40,6 +40,7 @@ export async function loadAnchorDates(
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
  *  - 종합: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치)
  *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응)
+ *  - 기준일 이전 날짜의 항목은 생성 안 함 (최초 점검 전 이행 의무 없음 — 올해 안 기준일의 2차 역행 방지)
  *  이미 존재하는 (plan, customer, sequence) 항목은 UNIQUE 충돌로 건너뜀 — 매년 재실행해도 안전(멱등)
  *  @returns 새로 생성된 항목 수 */
 export async function generateYearlyPlanItems(
@@ -127,6 +128,12 @@ export async function generateYearlyPlanItems(
     }
     if (!planId) continue
 
+    // 기준일 이전 항목은 생성하지 않음 — 최초 점검 전에는 이행 의무가 없다.
+    // 기준일이 올해 안(최초 점검시작일)일 때 2차(+6개월)가 같은 해 과거 1월로 감겨
+    // 1차보다 앞선 유령 지연 항목이 생기는 것 방지 (과거 앵커는 전부 기준일 이후라 영향 없음)
+    const planned = calcPlanned(year, month)
+    if (planned < anchorDate) continue
+
     const { error } = await admin.from('inspection_plan_items').insert({
       plan_id: planId,
       customer_id: customer.id,
@@ -135,7 +142,7 @@ export async function generateYearlyPlanItems(
       inspection_sub_type,
       sequence_num,
       assigned_employee_id: assigned_employee_id || null,
-      planned_date: calcPlanned(year, month),
+      planned_date: planned,
       scheduled_date: null,
       status: 'planned',
       plan_type: planType,
