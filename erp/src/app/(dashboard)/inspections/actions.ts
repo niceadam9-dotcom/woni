@@ -93,6 +93,8 @@ export async function createInspectionAction(
   }
 
   revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspection-plans/monitor')
   revalidatePath(`/customers/${input.customer_id}`)
   return { inspectionId }
 }
@@ -242,6 +244,7 @@ export async function completeStepAction(
 
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
   revalidatePath('/inspection-plans/monitor')
   revalidatePath('/inspection-plans')
   return {}
@@ -261,6 +264,9 @@ export async function deleteInspectionAction(
   if (error) return { error: '점검 삭제에 실패했습니다.' }
 
   revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspection-plans/monitor')
   return {}
 }
 

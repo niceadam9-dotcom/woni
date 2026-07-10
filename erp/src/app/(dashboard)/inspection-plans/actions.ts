@@ -99,6 +99,8 @@ export async function startInspectionAction(
 
   revalidatePath('/inspection-plans')
   revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspection-plans/monitor')
   return { inspectionId }
 }
 
