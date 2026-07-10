@@ -10,100 +10,202 @@
           "id": "PROP-1",
           "action": "고객 등록",
           "where": "고객관리 > 신규 등록",
-          "changes": ["연간 점검계획 자동 생성 (특별+정기 12건/년, 기준일=최초 점검시작일→사용승인일)", "건물 자동 등록", "담당 지정 시 배정 알림"],
-          "screens": ["점검확정", "점검달력", "건물관리"],
+          "changes": [
+            "연간 점검계획 자동 생성 (특별+정기 12건/년, 기준일=최초 점검시작일→사용승인일)",
+            "건물 자동 등록",
+            "담당 지정 시 배정 알림"
+          ],
+          "screens": [
+            "점검확정",
+            "점검달력",
+            "건물관리"
+          ],
           "implementation": "customers/actions.ts createCustomerAction → _autoCreatePlanItemsForNewCustomer",
           "status": "verified",
-          "verified_by": "scripts/test-fire-s1.mts (19체크 — 생성 규칙·기준일·과거월 생략·당월 보정)"
+          "verified_by": "scripts/test-fire-s1.mts (19체크 — 생성 규칙·기준일·과거월 생략·당월 보정)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-2",
           "action": "담당자 변경",
           "where": "고객관리 상세 / 지역별 담당 배정 / 직원관리 인수인계",
-          "changes": ["고객 담당", "미완료 계획 항목", "진행중 점검", "진행중 점검에 연결된 항목", "새 담당자 알림(수신 설정 존중)", "활동 로그"],
-          "screens": ["고객관리(목록·상세)", "지역별 담당 배정", "점검확정", "점검현황 모니터링", "점검업무", "점검달력"],
+          "changes": [
+            "고객 담당",
+            "미완료 계획 항목",
+            "진행중 점검",
+            "진행중 점검에 연결된 항목",
+            "새 담당자 알림(수신 설정 존중)",
+            "활동 로그"
+          ],
+          "screens": [
+            "고객관리(목록·상세)",
+            "지역별 담당 배정",
+            "점검확정",
+            "점검현황 모니터링",
+            "점검업무",
+            "점검달력"
+          ],
           "implementation": "assignEmployeeAction / bulkAssignEmployeeAction → _syncEmployeeToRelated",
           "status": "verified",
-          "verified_by": "scripts/_verify-notify-prefs.mjs (인수인계 E2E) + 10번 브라우저 확인 (모니터링·점검확정)"
+          "verified_by": "scripts/_verify-notify-prefs.mjs (인수인계 E2E) + 10번 브라우저 확인 (모니터링·점검확정)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-3",
           "action": "고객 비활성 ↔ 재활성",
           "where": "고객관리 목록 토글",
-          "changes": ["미완료 계획 자동취소(⟦자동취소:원상태⟧ 마커) ↔ 원상태 복원", "완료·수동취소 항목 불변"],
-          "screens": ["고객관리", "점검확정(취소 칩)", "점검달력(취소선·비활성 배지)", "미점검 초과 경보"],
+          "changes": [
+            "미완료 계획 자동취소(⟦자동취소:원상태⟧ 마커) ↔ 원상태 복원",
+            "완료·수동취소 항목 불변"
+          ],
+          "screens": [
+            "고객관리",
+            "점검확정(취소 칩)",
+            "점검달력(취소선·비활성 배지)",
+            "미점검 초과 경보"
+          ],
           "implementation": "toggleCustomerActiveAction → _autoCancelPlansForCustomer / _restorePlansForCustomer (ADD-16)",
           "status": "verified",
-          "verified_by": "scripts/test-fire-s4.mts (12체크 — 마커·복원·2회차 사이클)"
+          "verified_by": "scripts/test-fire-s4.mts (12체크 — 마커·복원·2회차 사이클)",
+          "audit_result": "gap",
+          "audit_note": "GAP-1: 재활성 복원 시 담당 미동기화 — audit.gaps_found 참조"
         },
         {
           "id": "PROP-4",
           "action": "고객 삭제(소프트)",
           "where": "고객관리",
-          "changes": ["비활성 전환", "미완료 계획 자동취소 (PROP-3과 동일 메커니즘)"],
-          "screens": ["고객관리", "건물관리", "점검확정", "점검달력"],
+          "changes": [
+            "비활성 전환",
+            "미완료 계획 자동취소 (PROP-3과 동일 메커니즘)"
+          ],
+          "screens": [
+            "고객관리",
+            "건물관리",
+            "점검확정",
+            "점검달력"
+          ],
           "implementation": "deleteCustomerAction",
           "status": "implemented",
-          "note": "자동취소 메커니즘은 PROP-3 테스트로 검증됨, 삭제 진입 경로 자체는 개별 검증 없음"
+          "note": "자동취소 메커니즘은 PROP-3 테스트로 검증됨, 삭제 진입 경로 자체는 개별 검증 없음",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-5",
           "action": "사용승인일 변경/삭제",
           "where": "고객 수정",
-          "changes": ["미완료 계획 예정일 재계산 (기준일 규칙)", "확정 상태·6단계 일정 초기화"],
-          "screens": ["점검확정", "점검달력", "고객 상세"],
+          "changes": [
+            "미완료 계획 예정일 재계산 (기준일 규칙)",
+            "확정 상태·6단계 일정 초기화"
+          ],
+          "screens": [
+            "점검확정",
+            "점검달력",
+            "고객 상세"
+          ],
           "implementation": "updateCustomerAction → _resetPlanItemsForCustomer",
-          "status": "implemented"
+          "status": "implemented",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-6",
           "action": "점검일자 확정/재확정",
           "where": "점검확정 목록 날짜 셀",
-          "changes": ["항목 확정", "6단계 일정 자동계산(공휴일 회피)", "재확정 시 완료 단계 유지 + 미완료 단계 재계산", "시작된 항목이면 업무 체크리스트 마감일 갱신"],
-          "screens": ["점검확정", "점검달력", "점검 상세 체크리스트(시작된 경우)"],
+          "changes": [
+            "항목 확정",
+            "6단계 일정 자동계산(공휴일 회피)",
+            "재확정 시 완료 단계 유지 + 미완료 단계 재계산",
+            "시작된 항목이면 업무 체크리스트 마감일 갱신"
+          ],
+          "screens": [
+            "점검확정",
+            "점검달력",
+            "점검 상세 체크리스트(시작된 경우)"
+          ],
           "implementation": "inspection-plans/actions.ts confirmPlanItemStageOneAction",
           "status": "verified",
-          "verified_by": "scripts/test-fire-s2-s3.mts (확정→6단계 계산, 재확정 재계산 프로브)"
+          "verified_by": "scripts/test-fire-s2-s3.mts (확정→6단계 계산, 재확정 재계산 프로브)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-7",
           "action": "점검 시작",
           "where": "점검확정 목록 / 슬라이드 패널",
-          "changes": ["점검 생성 + DB 트리거 6단계 생성", "마감일 확정일 기준 동기화", "항목 완료 전환", "미배정이면 시작 직원 자동 배정"],
-          "screens": ["점검확정", "점검업무", "점검 상세", "점검달력", "점검현황 모니터링"],
+          "changes": [
+            "점검 생성 + DB 트리거 6단계 생성",
+            "마감일 확정일 기준 동기화",
+            "항목 완료 전환",
+            "미배정이면 시작 직원 자동 배정"
+          ],
+          "screens": [
+            "점검확정",
+            "점검업무",
+            "점검 상세",
+            "점검달력",
+            "점검현황 모니터링"
+          ],
           "implementation": "startInspectionAction",
           "status": "verified",
-          "verified_by": "scripts/test-fire-s2-s3.mts + scripts/_verify-auto-assign.mts (자동배정)"
+          "verified_by": "scripts/test-fire-s2-s3.mts + scripts/_verify-auto-assign.mts (자동배정)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-8",
           "action": "단계 완료",
           "where": "점검 상세 / 점검달력 / 점검확정 패널",
-          "changes": ["단계 완료", "1단계 완료 시 실제 점검일 기준 미완료 단계 마감 재계산(048)", "전체 완료 시 점검 완료 전환", "상태로그·계획 항목 동기화(P-19)"],
-          "screens": ["점검 상세", "점검업무", "점검현황 모니터링", "점검확정", "점검달력", "보고서 제출현황"],
+          "changes": [
+            "단계 완료",
+            "1단계 완료 시 실제 점검일 기준 미완료 단계 마감 재계산(048)",
+            "전체 완료 시 점검 완료 전환",
+            "상태로그·계획 항목 동기화(P-19)"
+          ],
+          "screens": [
+            "점검 상세",
+            "점검업무",
+            "점검현황 모니터링",
+            "점검확정",
+            "점검달력",
+            "보고서 제출현황"
+          ],
           "implementation": "inspections/actions.ts completeStepAction",
           "status": "verified",
-          "verified_by": "scripts/test-fire-s2-s3.mts (FIRE-S3 — 모니터링·달력 반영)"
+          "verified_by": "scripts/test-fire-s2-s3.mts (FIRE-S3 — 모니터링·달력 반영)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-9",
           "action": "점검 삭제",
           "where": "점검 상세",
-          "changes": ["점검·단계 삭제"],
-          "screens": ["점검업무", "점검달력", "점검확정", "점검현황 모니터링"],
+          "changes": [
+            "점검·단계 삭제"
+          ],
+          "screens": [
+            "점검업무",
+            "점검달력",
+            "점검확정",
+            "점검현황 모니터링"
+          ],
           "implementation": "deleteInspectionAction",
           "status": "implemented",
-          "note": "화면 갱신 범위는 2026-07-10 보강(수정사항리스트 3번)"
+          "note": "화면 갱신 범위는 2026-07-10 보강(수정사항리스트 3번)",
+          "audit_result": "gap",
+          "audit_note": "GAP-2: 삭제 시 연결 항목이 완료+무점검 모순 상태로 남음 — audit.gaps_found 참조"
         },
         {
           "id": "PROP-10",
           "action": "미점검 초과 해결",
           "where": "점검확정 상단 경보",
-          "changes": ["지난 특별점검 월의 계획·항목 일괄 생성", "취소 건 재포착 없음(ADD-20)"],
-          "screens": ["점검확정", "점검달력"],
+          "changes": [
+            "지난 특별점검 월의 계획·항목 일괄 생성",
+            "취소 건 재포착 없음(ADD-20)"
+          ],
+          "screens": [
+            "점검확정",
+            "점검달력"
+          ],
           "implementation": "resolveOverdueItemsAction",
           "status": "implemented",
-          "note": "취소 건 재포착 없음 회귀는 FIRE-S5로 검증됨, 해결 플로우 자체는 개별 자동 테스트 없음"
+          "note": "취소 건 재포착 없음 회귀는 FIRE-S5로 검증됨, 해결 플로우 자체는 개별 자동 테스트 없음",
+          "audit_result": "ok"
         }
       ]
     },
@@ -114,20 +216,40 @@
           "id": "PROP-11",
           "action": "결재 상신/승인/반려",
           "where": "전자결재",
-          "changes": ["문서 상태", "다음 결재자 지정(순차)", "요청 알림(필수 발송)", "승인·반려 결과 알림(수신 설정 존중)"],
-          "screens": ["문서함", "결재함", "관리자 문서관리"],
+          "changes": [
+            "문서 상태",
+            "다음 결재자 지정(순차)",
+            "요청 알림(필수 발송)",
+            "승인·반려 결과 알림(수신 설정 존중)"
+          ],
+          "screens": [
+            "문서함",
+            "결재함",
+            "관리자 문서관리"
+          ],
           "implementation": "documents/actions.ts submitDocumentAction / approveDocumentAction / rejectDocumentAction",
           "status": "implemented",
-          "note": "결과 알림의 수신 설정 경로는 2026-07-10 notify 헬퍼로 교체 (코드 검토 검증)"
+          "note": "결과 알림의 수신 설정 경로는 2026-07-10 notify 헬퍼로 교체 (코드 검토 검증)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-12",
           "action": "휴가 신청/승인/반려",
           "where": "인사·휴가",
-          "changes": ["휴가 상태", "승인 시 연차 잔여 차감", "신청 알림(승인자, 필수)", "결과 알림(수신 설정 존중)"],
-          "screens": ["휴가 신청 목록", "휴가 달력", "연차 잔여(직원관리·설정 내 정보)"],
+          "changes": [
+            "휴가 상태",
+            "승인 시 연차 잔여 차감",
+            "신청 알림(승인자, 필수)",
+            "결과 알림(수신 설정 존중)"
+          ],
+          "screens": [
+            "휴가 신청 목록",
+            "휴가 달력",
+            "연차 잔여(직원관리·설정 내 정보)"
+          ],
           "implementation": "leaves/actions.ts applyLeaveAction / approveLeaveAction / rejectLeaveAction",
-          "status": "implemented"
+          "status": "implemented",
+          "audit_result": "ok"
         }
       ]
     },
@@ -138,41 +260,71 @@
           "id": "PROP-13",
           "action": "직원 비활성(퇴사)",
           "where": "관리자 > 직원 관리",
-          "changes": ["로그인 차단", "담당 고객 있으면 인수인계 모달 → PROP-2 전파 전체 실행"],
-          "screens": ["직원관리", "점검달력(퇴사자 배너·(퇴사) 라벨)", "담당자 선택 목록 제외"],
+          "changes": [
+            "로그인 차단",
+            "담당 고객 있으면 인수인계 모달 → PROP-2 전파 전체 실행"
+          ],
+          "screens": [
+            "직원관리",
+            "점검달력(퇴사자 배너·(퇴사) 라벨)",
+            "담당자 선택 목록 제외"
+          ],
           "implementation": "admin/users updateUserAction + handoverAssignmentsAction",
-          "invariants": ["INV-P4 비활성 담당 미완료 0건", "INV-P5 활성 고객의 담당은 활성"],
+          "invariants": [
+            "INV-P4 비활성 담당 미완료 0건",
+            "INV-P5 활성 고객의 담당은 활성"
+          ],
           "status": "verified",
-          "verified_by": "scripts/_verify-notify-prefs.mjs (이관 E2E) + 로그인 차단은 login/actions is_active 검사"
+          "verified_by": "scripts/_verify-notify-prefs.mjs (이관 E2E) + 로그인 차단은 login/actions is_active 검사",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-14",
           "action": "직원 계정 삭제 (업무 이력 0건 한정)",
           "where": "관리자 > 직원 관리 > 수정 모달",
-          "changes": ["auth 계정+프로필 삭제", "employee_deleted 이력 기록", "이력 있으면 8종 참조 가드로 차단"],
-          "screens": ["직원관리"],
+          "changes": [
+            "auth 계정+프로필 삭제",
+            "employee_deleted 이력 기록",
+            "이력 있으면 8종 참조 가드로 차단"
+          ],
+          "screens": [
+            "직원관리"
+          ],
           "implementation": "deleteEmployeeAction + getEmployeeDeleteEligibilityAction",
           "status": "verified",
-          "verified_by": "scripts/_verify-employee-delete.mjs (6체크 — 가드·삭제·이력)"
+          "verified_by": "scripts/_verify-employee-delete.mjs (6체크 — 가드·삭제·이력)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-15",
           "action": "회사 정보 변경",
           "where": "관리자 > 회사 정보",
-          "changes": ["업체명·로고"],
-          "screens": ["로그인 화면", "사이드바 브랜드"],
+          "changes": [
+            "업체명·로고"
+          ],
+          "screens": [
+            "로그인 화면",
+            "사이드바 브랜드"
+          ],
           "implementation": "company-profile",
-          "status": "implemented"
+          "status": "implemented",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-16",
           "action": "공휴일 등록/삭제",
           "where": "관리자 > 공휴일 관리",
-          "changes": ["이후 생성·계산되는 계획 예정일·6단계 일정의 영업일 회피 (기존 일정 불변)"],
-          "screens": ["점검확정·점검달력의 신규 일정", "달력 공휴일 표시"],
+          "changes": [
+            "이후 생성·계산되는 계획 예정일·6단계 일정의 영업일 회피 (기존 일정 불변)"
+          ],
+          "screens": [
+            "점검확정·점검달력의 신규 일정",
+            "달력 공휴일 표시"
+          ],
           "implementation": "holidays 테이블 + loadHolidaySet/calcPlanned",
           "status": "implemented",
-          "note": "영업일 회피 계산 자체는 test-fire-s1의 예정일 계산에 포함되어 검증됨"
+          "note": "영업일 회피 계산 자체는 test-fire-s1의 예정일 계산에 포함되어 검증됨",
+          "audit_result": "ok"
         }
       ]
     },
@@ -183,43 +335,95 @@
           "id": "PROP-17",
           "action": "연간계획 반복 생성",
           "where": "크론 12/1·1/1 00:20 KST",
-          "changes": ["활성 종합/작동 고객의 이듬해 계획 생성 (멱등)"],
-          "screens": ["점검확정", "점검달력"],
+          "changes": [
+            "활성 종합/작동 고객의 이듬해 계획 생성 (멱등)"
+          ],
+          "screens": [
+            "점검확정",
+            "점검달력"
+          ],
           "implementation": "api/cron/generate-yearly-plans",
           "status": "verified",
-          "verified_by": "2026-07-10 수동 발화 실측 (created:0 멱등 확인, 역행 가드 포함)"
+          "verified_by": "2026-07-10 수동 발화 실측 (created:0 멱등 확인, 역행 가드 포함)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-18",
           "action": "점검 마감 임박 알림",
           "where": "크론 매일 00:05 KST",
-          "changes": ["마감 임박 단계 → 담당+관리자 알림 (deadline 수신 설정 존중, 중복 발송 방지)"],
-          "screens": ["알림(종)"],
+          "changes": [
+            "마감 임박 단계 → 담당+관리자 알림 (deadline 수신 설정 존중, 중복 발송 방지)"
+          ],
+          "screens": [
+            "알림(종)"
+          ],
           "implementation": "api/cron/inspection-deadline-notify",
           "status": "verified",
-          "verified_by": "2026-07-09 00:05 자동 발화 실측. 수신 설정 필터는 2026-07-10 추가 (코드 검토 검증)"
+          "verified_by": "2026-07-09 00:05 자동 발화 실측. 수신 설정 필터는 2026-07-10 추가 (코드 검토 검증)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-19",
           "action": "공휴일 동기화",
           "where": "크론 1/1·12/1 00:10 KST",
-          "changes": ["공휴일 테이블 갱신 → PROP-16과 동일 영향"],
-          "screens": ["점검확정·점검달력 신규 일정"],
+          "changes": [
+            "공휴일 테이블 갱신 → PROP-16과 동일 영향"
+          ],
+          "screens": [
+            "점검확정·점검달력 신규 일정"
+          ],
           "implementation": "api/cron/sync-holidays",
           "status": "verified",
-          "verified_by": "2026-07-09 수동 발화 스모크 (UTC→KST 날짜 버그 수정 포함)"
+          "verified_by": "2026-07-09 수동 발화 스모크 (UTC→KST 날짜 버그 수정 포함)",
+          "audit_result": "ok"
         },
         {
           "id": "PROP-20",
           "action": "활동로그 아카이브·정리",
           "where": "크론 매월 1일 03:00 KST",
-          "changes": ["오래된 활동로그 아카이브·정리"],
-          "screens": ["활동 로그"],
+          "changes": [
+            "오래된 활동로그 아카이브·정리"
+          ],
+          "screens": [
+            "활동 로그"
+          ],
           "implementation": "api/cron/purge-activity-logs",
           "status": "verified",
-          "verified_by": "2026-07-09 수동 발화 스모크"
+          "verified_by": "2026-07-09 수동 발화 스모크",
+          "audit_result": "ok"
         }
       ]
     }
-  ]
+  ],
+  "audit": {
+    "date": "2026-07-10",
+    "trigger": "수정사항리스트 10번(탑텐 담당 불일치)과 동일 유형의 동기화 누락 전수 점검",
+    "method": "각 전파 항목의 동기화 로직·FK 규칙·화면 데이터 소스 코드 확인 + 불변식 2종 실행(전부 PASS)",
+    "gaps_found": [
+      {
+        "id": "GAP-1",
+        "prop": "PROP-3",
+        "title": "재활성 복원 시 담당 미동기화",
+        "detail": "_restorePlansForCustomer는 status·notes만 복원. 고객이 비활성인 동안 담당을 변경하면(고객 상세에서 가능) 취소 상태 항목은 동기화 대상(planned/confirmed)이 아니어서 옛 담당으로 남고, 재활성 복원 후 고객 담당과 불일치 — 탑텐 건과 동일 증상 재발 경로",
+        "proposed_fix": "복원 시 항목 담당을 고객의 현재 담당으로 덮어쓰기 (또는 복원 후 _syncEmployeeToRelated 호출)",
+        "status": "open"
+      },
+      {
+        "id": "GAP-2",
+        "prop": "PROP-9",
+        "title": "점검 삭제 시 연결 항목 미처리",
+        "detail": "inspection_plan_items.inspection_id는 ON DELETE SET NULL — 점검 삭제 시 항목이 status=completed인 채 점검 연결만 끊겨 \"완료인데 점검 없음\" 모순 상태(INV-3 위반 조합)가 됨. 시작 버튼은 다시 활성화되지만 목록 상태 칩은 완료로 표시",
+        "proposed_fix": "deleteInspectionAction에서 연결 항목을 confirmed(확정 유지) 또는 planned로 되돌리기 + INV-3을 check-plan-invariants에 편입",
+        "status": "open"
+      }
+    ],
+    "confirmed_ok": [
+      "PROP-2: 담당 변경 동기화 — 미완료+진행중 점검+시작된 항목까지 커버 (10번 수정 반영)",
+      "PROP-2: 인수인계·지역별 일괄 배정 모두 동일 _syncEmployeeToRelated 공유 — 경로 간 차이 없음",
+      "PROP-5: 사용승인일 변경 — 점검 이력 있는 고객은 기준일이 점검시작일 우선이라 영향 없음 (loadAnchorDates)",
+      "PROP-8: 보고서 제출현황·모니터링 — inspections.assigned_employee_id 직접 조회, PROP-2 동기화 범위 안",
+      "updateCustomerAction: 입력 타입에서 assigned_employee_id 제외 — 담당 변경은 전용 액션으로만 가능(동기화 우회 불가)",
+      "변경 이력 \"없음→김흥준\"은 7/9 최초 배정 기록으로 정상"
+    ]
+  }
 }
