@@ -7,6 +7,7 @@
 // INV-P4: 비활성(퇴사) 직원 담당의 미완료 계획·점검 0건 — 달력 재배정 배너의 원인 (완료·취소는 이력이라 허용)
 // INV-P5: 활성 고객의 담당직원은 활성이어야 함 — 위반 시 연간계획 생성마다 비활성 담당 항목이 재생산됨
 // INV-P6: 진행중 점검에 연결된 계획 항목의 담당 = 점검 담당 — 불일치 시 모니터링·점검확정에 옛 담당이 표시됨
+// INV-P7: completed 계획 항목은 반드시 점검에 연결 — 점검 삭제 시 되돌리기 누락(GAP-2) 검출 (구 INV-3 편입)
 import { createClient } from '@supabase/supabase-js'
 import { SUPABASE_URL, SERVICE_ROLE_KEY } from './_env.mjs'
 
@@ -109,6 +110,13 @@ const p6 = (linkedItems ?? []).filter(r => {
 })
 report('INV-P6 진행중 점검·항목 담당 일치', p6,
   r => `${r.customers?.customer_name} — 항목 담당 ≠ 점검 담당 (점검 ${r.inspections.status})`)
+
+// ── INV-P7: completed 항목은 점검 연결 필수 (구 INV-3) ──
+const { data: p7 } = await admin.from('inspection_plan_items')
+  .select('id, planned_date, customers(customer_name)')
+  .eq('status', 'completed').is('inspection_id', null)
+report('INV-P7 완료 항목의 점검 연결', p7 ?? [],
+  r => `${r.customers?.customer_name} ${r.planned_date} — 완료 상태인데 연결 점검 없음`)
 
 console.log(violations === 0 ? '\n🎉 불변식 전부 성립' : `\n⚠ 총 ${violations}건 위반`)
 process.exit(violations > 0 ? 1 : 0)

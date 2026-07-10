@@ -1,7 +1,7 @@
 {
   "_comment": "변경 전파 맵 — 한 곳 변경 → 여러 화면 반영 전수 목록 (변경전파맵.md의 JSON판). status: verified(자동 테스트·실측으로 검증됨) | implemented(구현 확인, 개별 검증 없음)",
   "updated": "2026-07-10",
-  "invariant_check": "node scripts/check-plan-invariants.mjs (INV-P1~P6)",
+  "invariant_check": "node scripts/check-plan-invariants.mjs (INV-P1~P7)",
   "categories": [
     {
       "category": "소방안전관리",
@@ -67,8 +67,8 @@
           "implementation": "toggleCustomerActiveAction → _autoCancelPlansForCustomer / _restorePlansForCustomer (ADD-16)",
           "status": "verified",
           "verified_by": "scripts/test-fire-s4.mts (12체크 — 마커·복원·2회차 사이클)",
-          "audit_result": "gap",
-          "audit_note": "GAP-1: 재활성 복원 시 담당 미동기화 — audit.gaps_found 참조"
+          "audit_result": "gap-fixed",
+          "audit_note": "GAP-1: 재활성 복원 시 담당 미동기화 — 2026-07-10 수정 완료 (audit.gaps_found 참조)"
         },
         {
           "id": "PROP-4",
@@ -187,8 +187,8 @@
           "implementation": "deleteInspectionAction",
           "status": "implemented",
           "note": "화면 갱신 범위는 2026-07-10 보강(수정사항리스트 3번)",
-          "audit_result": "gap",
-          "audit_note": "GAP-2: 삭제 시 연결 항목이 완료+무점검 모순 상태로 남음 — audit.gaps_found 참조"
+          "audit_result": "gap-fixed",
+          "audit_note": "GAP-2: 삭제 시 연결 항목이 완료+무점검 모순 상태로 남음 — 2026-07-10 수정 완료 (audit.gaps_found 참조)"
         },
         {
           "id": "PROP-10",
@@ -406,7 +406,10 @@
         "title": "재활성 복원 시 담당 미동기화",
         "detail": "_restorePlansForCustomer는 status·notes만 복원. 고객이 비활성인 동안 담당을 변경하면(고객 상세에서 가능) 취소 상태 항목은 동기화 대상(planned/confirmed)이 아니어서 옛 담당으로 남고, 재활성 복원 후 고객 담당과 불일치 — 탑텐 건과 동일 증상 재발 경로",
         "proposed_fix": "복원 시 항목 담당을 고객의 현재 담당으로 덮어쓰기 (또는 복원 후 _syncEmployeeToRelated 호출)",
-        "status": "open"
+        "status": "fixed",
+        "fixed_at": "2026-07-10",
+        "fix": "복원 시 항목 담당을 고객 현재 담당으로 동기화 (_restorePlansForCustomer)",
+        "verified_by": "scripts/_verify-gap-fixes.mjs (5체크) + test-fire-s4.mts 회귀 12체크"
       },
       {
         "id": "GAP-2",
@@ -414,7 +417,10 @@
         "title": "점검 삭제 시 연결 항목 미처리",
         "detail": "inspection_plan_items.inspection_id는 ON DELETE SET NULL — 점검 삭제 시 항목이 status=completed인 채 점검 연결만 끊겨 \"완료인데 점검 없음\" 모순 상태(INV-3 위반 조합)가 됨. 시작 버튼은 다시 활성화되지만 목록 상태 칩은 완료로 표시",
         "proposed_fix": "deleteInspectionAction에서 연결 항목을 confirmed(확정 유지) 또는 planned로 되돌리기 + INV-3을 check-plan-invariants에 편입",
-        "status": "open"
+        "status": "fixed",
+        "fixed_at": "2026-07-10",
+        "fix": "삭제 전 연결 항목을 confirmed/planned로 복귀 (deleteInspectionAction) + INV-P7 신설(구 INV-3 편입)",
+        "verified_by": "scripts/_verify-gap-fixes.mjs (5체크) + test-fire-s4.mts 회귀 12체크"
       }
     ],
     "confirmed_ok": [

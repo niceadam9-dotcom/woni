@@ -744,6 +744,13 @@ async function _restorePlansForCustomer(admin: ReturnType<typeof createAdminClie
     .eq('customer_id', customerId)
     .eq('status', 'cancelled')
     .like('notes', '%⟦자동취소:%')
+
+  // GAP-1: 비활성 기간에 담당이 바뀌었으면 취소 항목은 담당 동기화에서 빠져 있으므로
+  // 복원 시 고객의 현재 담당으로 맞춰준다 (미배정이면 미배정으로)
+  const { data: custRaw } = await admin
+    .from('customers').select('assigned_employee_id').eq('id', customerId).single()
+  const currentAssignee = (custRaw as { assigned_employee_id: string | null } | null)?.assigned_employee_id ?? null
+
   for (const row of (data ?? []) as { id: string; notes: string | null }[]) {
     const m = row.notes?.match(AUTO_CANCEL_MARKER)
     if (!m) continue
@@ -752,6 +759,7 @@ async function _restorePlansForCustomer(admin: ReturnType<typeof createAdminClie
       .update({
         status: m[1],
         notes: (row.notes ?? '').replace(AUTO_CANCEL_MARKER, '') || null,
+        assigned_employee_id: currentAssignee,
       } as Record<string, unknown>)
       .eq('id', row.id)
   }
