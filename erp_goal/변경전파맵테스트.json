@@ -1,0 +1,26 @@
+{
+  "_comment": "변경 전파 테스트 시나리오 추적 (상세 단계는 변경전파테스트시나리오.md). status: passed(자동 테스트·실측 커버) | pending(미검증 — 시나리오만 작성됨)",
+  "updated": "2026-07-10",
+  "scenarios": [
+    { "id": "TS-PROP-1",  "prop": "PROP-1",  "title": "고객 등록 → 계획·건물 자동 생성",            "status": "passed",  "automated": "scripts/test-fire-s1.mts" },
+    { "id": "TS-PROP-2",  "prop": "PROP-2",  "title": "담당자 변경 → 6개 화면 동기화",              "status": "passed",  "automated": "scripts/_verify-notify-prefs.mjs + INV-P6" },
+    { "id": "TS-PROP-3",  "prop": "PROP-3",  "title": "비활성↔재활성 → 자동취소·복원",              "status": "passed",  "automated": "scripts/test-fire-s4.mts" },
+    { "id": "TS-PROP-4",  "prop": "PROP-4",  "title": "고객 삭제 → 자동취소",                       "status": "pending", "automated": null, "note": "test-fire-s4 패턴 복제로 자동화 가능" },
+    { "id": "TS-PROP-5",  "prop": "PROP-5",  "title": "사용승인일 변경 → 예정일 재계산·확정 초기화", "status": "pending", "automated": null, "note": "점검시작일 우선 규칙 프로브 포함" },
+    { "id": "TS-PROP-6",  "prop": "PROP-6",  "title": "점검일자 확정/재확정 → 6단계 계산",           "status": "passed",  "automated": "scripts/test-fire-s2-s3.mts" },
+    { "id": "TS-PROP-7",  "prop": "PROP-7",  "title": "점검 시작 → 점검·단계 생성 + 자동배정",       "status": "passed",  "automated": "scripts/test-fire-s2-s3.mts + scripts/_verify-auto-assign.mts" },
+    { "id": "TS-PROP-8",  "prop": "PROP-8",  "title": "단계 완료 → 모니터링·달력·보고서 반영",       "status": "passed",  "automated": "scripts/test-fire-s2-s3.mts" },
+    { "id": "TS-PROP-9",  "prop": "PROP-9",  "title": "점검 삭제 → 4개 화면 반영",                   "status": "pending", "automated": null, "note": "연결 항목 inspection_id 해제 여부 관찰" },
+    { "id": "TS-PROP-10", "prop": "PROP-10", "title": "미점검 초과 해결 → 과거월 계획 생성",         "status": "pending", "automated": null, "note": "ADD-20(취소 재포착 없음) 회귀는 FIRE-S5로 기검증" },
+    { "id": "TS-PROP-11", "prop": "PROP-11", "title": "결재 상신→승인/반려 전파 (3계정)",            "status": "pending", "automated": null, "note": "자동화 우선순위 1 — 업무 핵심 플로우" },
+    { "id": "TS-PROP-12", "prop": "PROP-12", "title": "휴가 신청→승인 → 연차 차감·달력",             "status": "pending", "automated": null, "note": "자동화 우선순위 1 — 업무 핵심 플로우" },
+    { "id": "TS-PROP-13", "prop": "PROP-13", "title": "직원 퇴사 → 인수인계·로그인 차단·배너",       "status": "passed",  "automated": "scripts/_verify-notify-prefs.mjs (이관) — 로그인 차단·배너는 수동" },
+    { "id": "TS-PROP-14", "prop": "PROP-14", "title": "직원 계정 삭제 (이력 0건 가드)",              "status": "passed",  "automated": "scripts/_verify-employee-delete.mjs" },
+    { "id": "TS-PROP-15", "prop": "PROP-15", "title": "회사 정보 변경 → 로그인·사이드바",            "status": "pending", "automated": null, "note": "운영 값 원복 필수" },
+    { "id": "TS-PROP-16", "prop": "PROP-16", "title": "공휴일 등록 → 신규 예정일 영업일 회피",       "status": "pending", "automated": null, "note": "기존 일정 불변 확인이 핵심 관찰" },
+    { "id": "TS-PROP-17", "prop": "PROP-17", "title": "크론: 연간계획 반복 생성 (멱등)",             "status": "passed",  "automated": "수동 발화 실측 2026-07-10 (created:0) + INV-P2·P4·P5" },
+    { "id": "TS-PROP-18", "prop": "PROP-18", "title": "크론: 마감 임박 알림 (수신 설정 필터)",       "status": "passed",  "automated": "00:05 자동 발화 실측 2026-07-09 — 수신 필터는 추가 실측 권장" },
+    { "id": "TS-PROP-19", "prop": "PROP-19", "title": "크론: 공휴일 동기화",                         "status": "passed",  "automated": "수동 발화 스모크 2026-07-09" },
+    { "id": "TS-PROP-20", "prop": "PROP-20", "title": "크론: 활동로그 아카이브",                     "status": "passed",  "automated": "수동 발화 스모크 2026-07-09" }
+  ]
+}
