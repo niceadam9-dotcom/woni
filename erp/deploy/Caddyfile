@@ -15,3 +15,15 @@ sjfire.co.kr {
 www.sjfire.co.kr {
 	redir https://sjfire.co.kr{uri} permanent
 }
+
+# 스테이징 — 별도 체크아웃(/home/ubuntu/woni-staging, staging 브랜치) 컨테이너로 프록시
+# DNS A 레코드(staging.sjfire.co.kr → 이 서버 IP) 추가 후 인증서 자동 발급됨.
+# 검색엔진 노출 차단 헤더 포함. 스테이징 컨테이너가 내려가 있으면 502.
+staging.sjfire.co.kr {
+	reverse_proxy erp-staging-app:3000
+	encode gzip
+
+	header {
+		X-Robots-Tag "noindex, nofollow"
+	}
+}

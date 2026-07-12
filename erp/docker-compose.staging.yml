@@ -1,0 +1,29 @@
+# 스테이징 구성 — staging.sjfire.co.kr (프로덕션 Caddy를 공유, 별도 체크아웃에서 실행)
+# 위치: /home/ubuntu/woni-staging/erp (staging 브랜치 체크아웃)
+# 실행: sudo docker compose -f docker-compose.staging.yml up -d --build
+# 주의: 프로덕션 배포 빌드와 동시에 돌리지 말 것 (4GB 램 — 메모리 스파이크)
+name: erp-staging
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: erp-staging-app
+    expose:
+      - "3000"          # 외부 직접 노출 없음 — 프로덕션 Caddy 경유만
+    env_file:
+      - .env.staging    # 스테이징 Supabase(nwflnzugwylhpdyodyog) 키 — 서버에만 존재, 커밋 금지
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Seoul
+    restart: always
+    networks:
+      - prod_net
+
+networks:
+  # 프로덕션 compose(erp_default)의 네트워크에 합류 — Caddy가 erp-staging-app:3000으로 프록시
+  prod_net:
+    external: true
+    name: erp_default
