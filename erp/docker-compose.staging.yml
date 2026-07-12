@@ -15,6 +15,8 @@ services:
       - "3000"          # 외부 직접 노출 없음 — 프로덕션 Caddy 경유만
     env_file:
       - .env.staging    # 스테이징 Supabase(nwflnzugwylhpdyodyog) 키 — 서버에만 존재, 커밋 금지
+      # 주의: Next 빌드는 .env.production을 읽으므로 이 체크아웃에는
+      #       .env.staging을 .env.production으로도 복사해둬야 함 (cp .env.staging .env.production)
     environment:
       - NODE_ENV=production
       - TZ=Asia/Seoul
