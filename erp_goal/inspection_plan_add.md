@@ -9,15 +9,14 @@
 |---|------|------|
 | 1 | 기준일 우선순위 | **점검계획일(수동) → 최초 점검시작일 → 사용승인일** (수동 최우선) |
 | 2 | 날짜 변경 시 소급 범위 | **미확정(planned) 항목만 재계산.** 확정(confirmed)·완료·취소 항목은 재계획하지 않음 |
-| 3 | 신규 등록 | 점검계획일 **필수** (클라이언트 + 서버 양쪽 검증) |
+| 3 | 신규 등록 | 점검계획일이 **유일한 필수 날짜** (클라이언트 + 서버 양쪽 검증). 계약일·사용승인일은 선택 입력 (2026-07-12 확정, migration 054로 contract_date NOT NULL 해제) |
 | 4 | 기존 고객 | DB 컬럼은 NULL 허용 — 미입력 고객은 기존 폴백 체인(점검시작일 → 사용승인일)으로 동작, 기존 데이터 영향 없음 |
 | 5 | 수정 화면 | 점검계획일 수정·삭제 가능(레거시 고객 대응). 지우면 폴백 체인으로 복귀 |
 
 ## 2. DB
 
-- **마이그레이션**: `supabase/migrations/053_plan_anchor_date.sql`
-  - `customers.plan_anchor_date DATE NULL` 추가
-  - ⚠️ **Supabase SQL Editor에서 수동 실행 필요** (기존 마이그레이션 적용 방식과 동일)
+- **마이그레이션**: `supabase/migrations/053_plan_anchor_date.sql` — `customers.plan_anchor_date DATE NULL` 추가 (2026-07-12 사용자 적용 완료)
+- **마이그레이션**: `supabase/migrations/054_contract_date_nullable.sql` — `contract_date` NOT NULL 해제 (2026-07-12 Management API로 적용 완료)
 
 ## 3. 동작 방식
 

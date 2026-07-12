@@ -231,10 +231,12 @@ export default async function CustomerDetailPage({
               <InfoRow
                 label="계약일"
                 value={
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="size-3.5 text-[#b0acd6]" />
-                    {customer.contract_date}
-                  </span>
+                  customer.contract_date ? (
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-[#b0acd6]" />
+                      {customer.contract_date}
+                    </span>
+                  ) : null
                 }
               />
               <InfoRow

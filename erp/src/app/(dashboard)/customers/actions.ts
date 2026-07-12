@@ -23,9 +23,9 @@ export type ContactInput = {
 export type CreateCustomerInput = {
   customer_code: string
   customer_name: string
-  contract_date: string
+  contract_date?: string
   use_approval_date?: string
-  plan_anchor_date: string // 점검계획일 — 계획 기산점(필수)
+  plan_anchor_date: string // 점검계획일 — 계획 기산점(유일한 필수 날짜)
   zipcode?: string
   region_si?: string
   region_myeon?: string
@@ -103,7 +103,7 @@ export async function createCustomerAction(
   const baseFields = {
     customer_code: input.customer_code,
     customer_name: input.customer_name,
-    contract_date: input.contract_date,
+    contract_date: input.contract_date || null,
     use_approval_date: input.use_approval_date || null,
     plan_anchor_date: input.plan_anchor_date,
     region_si: input.region_si || null,
@@ -376,7 +376,7 @@ export async function updateCustomerAction(
     .select('customer_name, inspection_type, contract_date, use_approval_date, plan_anchor_date, address')
     .eq('id', customerId).single()
   const prev = prevCustomer as {
-    customer_name: string; inspection_type: string; contract_date: string
+    customer_name: string; inspection_type: string; contract_date: string | null
     use_approval_date: string | null; plan_anchor_date: string | null; address: string | null
   } | null
   const prevApprovalDate = prev?.use_approval_date ?? null
@@ -384,7 +384,7 @@ export async function updateCustomerAction(
 
   const updateFields: Record<string, unknown> = {
     customer_name: input.customer_name,
-    contract_date: input.contract_date,
+    contract_date: input.contract_date ?? null,
     use_approval_date: input.use_approval_date ?? null,
     plan_anchor_date: input.plan_anchor_date ?? null,
     region_si: input.region_si ?? null,

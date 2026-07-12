@@ -50,7 +50,7 @@ export default async function CustomersPage({
     purpose: string | null
   }
   type CustomerRow = {
-    id: string; customer_code: string; customer_name: string; contract_date: string
+    id: string; customer_code: string; customer_name: string; contract_date: string | null
     use_approval_date: string | null; plan_anchor_date: string | null; inspection_type: InspectionType; address: string | null
     region_si: string | null; region_myeon: string | null; region_ri: string | null
     is_active: boolean; assigned_employee_id: string | null; created_at: string
@@ -241,7 +241,7 @@ export default async function CustomersPage({
                     <td className="px-4 py-3 text-xs text-[#292d34]">
                       {canCreate ? (
                         <InlineCustomerFieldClient customerId={c.id} field="contract_date" value={c.contract_date} />
-                      ) : c.contract_date}
+                      ) : (c.contract_date ?? '-')}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">
                       {canCreate ? (

@@ -188,8 +188,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     setError('')
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
-    if (!form.contract_date) { setError('계약일을 선택해주세요.'); return }
-    if (!form.plan_anchor_date) { setError('점검계획일을 선택해주세요.'); return }
+    if (!form.plan_anchor_date) { setError('점검계획일을 입력해주세요.'); return }
     for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
@@ -229,7 +228,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
       const result = await createCustomerAction({
         customer_code: form.customer_code.trim(),
         customer_name: form.customer_name.trim(),
-        contract_date: form.contract_date,
+        contract_date: form.contract_date || undefined,
         use_approval_date: form.use_approval_date || undefined,
         plan_anchor_date: form.plan_anchor_date,
         inspection_type: form.inspection_type,
@@ -350,7 +349,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="계약일" required>
+          <Field label="계약일">
             <DateInput
               value={form.contract_date}
               onChange={e => setField('contract_date', e.target.value)}

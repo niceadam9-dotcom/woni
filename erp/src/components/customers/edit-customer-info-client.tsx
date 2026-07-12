@@ -19,7 +19,7 @@ const labelCls = 'text-xs font-medium text-[#514b81]'
 function makeInitial(c: Props['customer']) {
   return {
     customer_name: c.customer_name,
-    contract_date: c.contract_date,
+    contract_date: c.contract_date ?? '',
     use_approval_date: c.use_approval_date ?? '',
     plan_anchor_date: c.plan_anchor_date ?? '',
     zipcode: c.zipcode ?? '',
@@ -77,7 +77,6 @@ export function EditCustomerInfoClient({ customer }: Props) {
 
   function handleSave() {
     if (!form.customer_name.trim()) { setError('고객명은 필수입니다'); return }
-    if (!form.contract_date) { setError('계약일은 필수입니다'); return }
     for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
@@ -85,7 +84,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
     startTransition(async () => {
       const result = await updateCustomerAction(customer.id, {
         customer_name: form.customer_name.trim(),
-        contract_date: form.contract_date,
+        contract_date: form.contract_date || undefined,
         use_approval_date: form.use_approval_date || undefined,
         plan_anchor_date: form.plan_anchor_date || undefined,
         zipcode: form.zipcode.trim() || undefined,
@@ -116,7 +115,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
       {/* 계약일 + 사용승인일 */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className={labelCls}>계약일 <span className="text-red-500">*</span></label>
+          <label className={labelCls}>계약일</label>
           <DateInput
             value={form.contract_date}
             onChange={e => set('contract_date', e.target.value)}
