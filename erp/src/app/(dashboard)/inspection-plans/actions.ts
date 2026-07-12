@@ -244,7 +244,7 @@ export async function updatePlanItemAction(input: {
   return {}
 }
 
-// ── 1단계 점검일자 확정 + step1~6 자동계산 ─────────────────────
+// ── 1단계 점검일 확정 + step1~6 자동계산 ─────────────────────
 export async function confirmPlanItemStageOneAction(
   planItemId: string,
   confirmedDate: string,
@@ -493,7 +493,7 @@ export async function autoGeneratePlanAction(input: {
           contact_id: (item as Record<string, unknown>).contact_id,
           plan_type: (item as Record<string, unknown>).plan_type ?? null,
           planned_date: useApprovalDate ? _calcDate(useApprovalDate) : null,
-          scheduled_date: null,   // 관리자 점검일자확정 전까지 NULL
+          scheduled_date: null,   // 관리자 점검일 확정 전까지 NULL
           status: 'planned',
         }
       })

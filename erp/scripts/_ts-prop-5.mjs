@@ -64,7 +64,7 @@ try {
   await page.getByRole('button', { name: /^전체/ }).first().click()
   const planRow = page.locator('tr', { has: page.getByText(NAME) }).first()
   await planRow.waitFor()
-  check('점검확정: 확정 해제되어 "점검일자확정" 표시', await planRow.getByText('점검일자확정').isVisible())
+  check('점검확정: 확정 해제되어 "점검일 확정" 표시', await planRow.getByText('점검일 확정').isVisible())
 
   // 🔍 프로브: 점검 이력 고객 — 승인일 변경해도 예정일 불변 (기준일=점검시작일)
   await page.goto(`${BASE}/customers/${cust2Id}`)

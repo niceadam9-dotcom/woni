@@ -96,7 +96,7 @@ try {
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 })
   check('로그인 성공 (admin)', true)
 
-  // ── FIRE-S2 ①: 목록에서 점검일자 확정 ────────────────────────
+  // ── FIRE-S2 ①: 목록에서 점검일 확정 ────────────────────────
   await page.goto(`${BASE}/inspection-plans?year=${YEAR}&month=7&view=list`)
   await page.getByText(CUSTOMER_NAME).first().waitFor()
   // 목록 뷰가 아니면 토글
@@ -106,9 +106,9 @@ try {
     await row().waitFor()
   }
   await shot(page, '01-list-before-confirm')
-  check('목록: 미확정 상태 "점검일자확정" 표시', await row().getByText('점검일자확정').isVisible())
+  check('목록: 미확정 상태 "점검일 확정" 표시', await row().getByText('점검일 확정').isVisible())
 
-  await row().getByText('점검일자확정').click()
+  await row().getByText('점검일 확정').click()
   const popup = page.locator('div.w-52')
   await popup.waitFor()
   await popup.locator('button', { hasText: /^15$/ }).click()

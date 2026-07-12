@@ -33,7 +33,7 @@ interface Props {
 }
 
 const STEP_DEFS = [
-  { step_num: 1, name_ko: '점검일자확정',                            days: 0  },
+  { step_num: 1, name_ko: '점검일',                                  days: 0  },
   { step_num: 2, name_ko: '배치확인서 보고서 작성',                  days: 7  },
   { step_num: 3, name_ko: '관계인 보고서 제출',                      days: 14 },
   { step_num: 4, name_ko: '소방서 보고서 제출 및 이행계획서 등록',   days: 21 },

@@ -160,7 +160,7 @@ export async function completeStepAction(
 
   if (error) return { error: '단계 완료 처리에 실패했습니다.' }
 
-  // 1단계(점검일자확정) 완료 시 확정일 기준으로 미완료 2~6단계 마감일 재계산 (migration 048)
+  // 1단계(점검일) 완료 시 확정일 기준으로 미완료 2~6단계 마감일 재계산 (migration 048)
   // — 법정 기한(소방서 보고서 15일 이내 등)은 실제 점검일 기준으로 기산되기 때문
   if (targetNum === 1) {
     const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -305,7 +305,7 @@ export async function previewStepDates(
   startDate: string
 ): Promise<{ error?: string; steps?: Array<{ step_num: number; name_ko: string; due_date: string | null }> }> {
   const STEP_DEFS = [
-    { step_num: 1, name_ko: '점검일자확정',                            days: 0  },
+    { step_num: 1, name_ko: '점검일',                                  days: 0  },
     { step_num: 2, name_ko: '배치확인서 보고서 작성',                  days: 7  },
     { step_num: 3, name_ko: '관계인 보고서 제출',                      days: 14 },
     { step_num: 4, name_ko: '소방서 보고서 제출 및 이행계획서 등록',   days: 21 },

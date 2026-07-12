@@ -73,7 +73,7 @@ try {
   await page.getByRole('button', { name: /^전체/ }).first().click()
   const row7 = page.locator('tr', { has: page.getByText(NAME) }).first()
   await row7.waitFor()
-  await row7.getByText('점검일자확정').click()
+  await row7.getByText('점검일 확정').click()
   const popup = page.locator('div.w-52')
   await popup.waitFor()
   await popup.locator('button', { hasText: /^2$/ }).click() // 7/2 — 과거

@@ -740,7 +740,7 @@ function InlineDateCell({
         ) : value ? (
           <span>{value}</span>
         ) : (
-          <span className="text-[#b0acd6] italic text-xs">점검일자확정</span>
+          <span className="text-[#b0acd6] italic text-xs">점검일 확정</span>
         )}
         {canManage && (
           <Pencil className="size-3 text-[#b0acd6] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -913,7 +913,7 @@ function ListView({
                 />
               </th>
             )}
-            <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검일자 확정</th>
+            <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검일</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">건물명</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">사용승인일</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검유형</th>
