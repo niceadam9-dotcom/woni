@@ -1,17 +1,20 @@
 ﻿'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Calendar, dateFnsLocalizer, Views, type View, type ToolbarProps } from 'react-big-calendar'
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { ko } from 'date-fns/locale/ko'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 import Link from 'next/link'
 import {
   CalendarDays, Check, X, AlertTriangle, Loader2,
   Users, Building2, ChevronRight, ChevronLeft,
 } from 'lucide-react'
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
+import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -105,6 +108,9 @@ const STEP_STATUS_CFG: Record<string, { label: string; cls: string }> = {
   overdue:   { label: '기한초과', cls: 'bg-red-100 text-red-700 font-semibold' },
 }
 
+// 정기 칩 드래그 이동용 DnD 달력 (react-big-calendar 내장 애드온 — 추가 의존성 없음)
+const DnDCalendar = withDragAndDrop(Calendar)
+
 const localizer = dateFnsLocalizer({
   format,
   parse,
@@ -157,10 +163,12 @@ interface Props {
   initialFilter?: QuickFilter
   /** 주말·공휴일 표시용 (YYYY-MM-DD + 이름) */
   holidays?: Array<{ date: string; name: string }>
+  /** 정기 칩 드래그 이동 권한 (inspection_plan_manage) */
+  canMovePlan?: boolean
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', holidays = [] }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', holidays = [], canMovePlan = false }: Props) {
   const router = useRouter()
 
   // 공휴일 맵 + 날짜 클릭 안내 상태
@@ -389,6 +397,39 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const panelCompletedCount = selectedInspection?.steps.filter(s => s.status === 'completed').length ?? 0
   const panelTotalCount = selectedInspection?.steps.length ?? 0
   const panelProgressPct = panelTotalCount > 0 ? Math.round((panelCompletedCount / panelTotalCount) * 100) : 0
+
+  // ── 정기 칩 드래그 이동 (드롭=즉시 확정, 같은 달 한정, 2026-07-13 확정 설계) ──
+  const [moveConfirm, setMoveConfirm] = useState<{ planItemId: string; customerName: string; from: string; to: string } | null>(null)
+  const [isMoving, startMoving] = useTransition()
+
+  const draggableAccessor = useCallback((event: object) => {
+    const e = event as CalEvent
+    return canMovePlan
+      && e.resource.kind === 'plan'
+      && e.resource.planType === 'monthly'
+      && (e.resource.planStatus === 'planned' || e.resource.planStatus === 'confirmed')
+  }, [canMovePlan])
+
+  const handleEventDrop = useCallback((args: { event: object; start: Date | string }) => {
+    const e = args.event as CalEvent
+    const r = e.resource
+    if (!draggableAccessor(e)) return
+    const from = r.dueDate
+    const to = format(new Date(args.start), 'yyyy-MM-dd')
+    if (to === from) return
+    if (to.slice(0, 7) !== from.slice(0, 7)) { alert('같은 달 안에서만 이동할 수 있습니다.'); return }
+    setMoveConfirm({ planItemId: r.inspectionId, customerName: r.customerName, from, to })
+  }, [draggableAccessor])
+
+  function handleMoveConfirm() {
+    if (!moveConfirm) return
+    startMoving(async () => {
+      const res = await moveMonthlyPlanItemAction(moveConfirm.planItemId, moveConfirm.to)
+      setMoveConfirm(null)
+      if (res.error) { alert(res.error); return }
+      router.refresh()
+    })
+  }
 
   const handleSelectEvent = useCallback((event: object) => {
     const e = event as CalEvent
@@ -809,7 +850,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             .rbc-overlay-header { border-bottom:1px solid #e0ddf5; font-size:12px; font-weight:600; color:#514b81; padding:4px 6px 8px; margin:-2px -2px 6px; }
             .rbc-overlay .rbc-event { font-size:11px; border-radius:5px; padding:2px 6px; margin-bottom:3px; cursor:pointer; }
           `}</style>
-          <Calendar
+          <DnDCalendar
             localizer={localizer}
             events={allEvents}
             view={calView}
@@ -817,6 +858,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             date={calDate}
             onNavigate={d => setCalDate(d)}
             onSelectEvent={handleSelectEvent}
+            // 정기(monthly) 칩만 드래그 이동 — 드롭하면 확인 팝업 후 즉시 확정
+            draggableAccessor={draggableAccessor}
+            resizableAccessor={() => false}
+            resizable={false}
+            onEventDrop={handleEventDrop}
             popup // "+N개 더 보기" 클릭 시 해당 날짜 전체 일정 오버레이 표시 (day 뷰가 없어 popup 필수)
             style={{ height: 640 }}
             views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
@@ -887,6 +933,48 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           </div>
         </div>
       </div>
+
+      {/* ── 정기 칩 드래그 이동 확인 팝업 ─────────────────────── */}
+      {moveConfirm && (() => {
+        const toDate = new Date(moveConfirm.to + 'T12:00:00')
+        const toDow = toDate.getDay()
+        const toHoliday = holidayMap.get(moveConfirm.to)
+        const warnings = [
+          toHoliday ? `${format(toDate, 'M월 d일', { locale: ko })}은 ${toHoliday}(공휴일)입니다.` : null,
+          !toHoliday && (toDow === 0 || toDow === 6) ? '주말 날짜입니다.' : null,
+          moveConfirm.to < today ? '오늘 이전 날짜라 이동 시 지연⚠으로 표시됩니다.' : null,
+        ].filter(Boolean) as string[]
+        return (
+          <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4" onClick={() => !isMoving && setMoveConfirm(null)}>
+            <div className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
+              <p className="text-sm font-semibold text-[#090c1d] mb-1">정기점검 일자 이동</p>
+              <p className="text-xs text-[#514b81]">
+                {moveConfirm.customerName} · {moveConfirm.from} → <span className="font-semibold text-[#7b68ee]">{moveConfirm.to}</span>
+              </p>
+              <p className="text-[11px] text-[#b0acd6] mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
+              {warnings.map(w => (
+                <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
+              ))}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => setMoveConfirm(null)}
+                  disabled={isMoving}
+                  className="flex-1 h-8 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleMoveConfirm}
+                  disabled={isMoving}
+                  className="flex-1 h-8 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors flex items-center justify-center disabled:opacity-50"
+                >
+                  {isMoving ? <Loader2 className="size-3.5 animate-spin" /> : '이동 확정'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── 슬라이드 패널 backdrop ────────────────────────────── */}
       {selectedInspectionId && (

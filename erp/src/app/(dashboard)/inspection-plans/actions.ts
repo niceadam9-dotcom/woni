@@ -268,7 +268,9 @@ export async function confirmPlanItemStageOneAction(
       .eq('id', planItemId)
     if (error) return { error: error.message }
     revalidatePath('/inspection-plans')
+    revalidatePath('/inspection-plans/monitor')
     revalidatePath('/inspections')
+    revalidatePath('/inspections/calendar')
     revalidatePath('/customers')
     return {}
   }
@@ -336,7 +338,57 @@ export async function confirmPlanItemStageOneAction(
   }
 
   revalidatePath('/inspection-plans')
+  revalidatePath('/inspection-plans/monitor')
   revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  return {}
+}
+
+// ── 정기점검 드래그 이동: 같은 달 내 재확정 ─────────────────────
+/** 달력(점검확정·점검달력)에서 정기(monthly) 칩 드래그 이동 시 호출 (2026-07-13 확정 설계)
+ *  - 드롭 = 즉시 확정 (planned도 confirmed로 전환, 1~6단계 마감일 재계산)
+ *  - 같은 달 안에서만, 횟수 제한 없이 반복 이동 가능
+ *  - 특별·일반관리 항목, 점검 시작·완료·취소 항목은 거부 */
+export async function moveMonthlyPlanItemAction(
+  planItemId: string,
+  newDate: string,
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_plan_manage')
+  const admin = createAdminClient()
+
+  const { data: raw } = await admin
+    .from('inspection_plan_items')
+    .select('plan_type, status, inspection_id, customer_id, scheduled_date, planned_date, inspection_plans!inner(year, month)')
+    .eq('id', planItemId)
+    .single()
+  const item = raw as {
+    plan_type: string | null; status: string; inspection_id: string | null
+    customer_id: string; scheduled_date: string | null; planned_date: string | null
+    inspection_plans: { year: number; month: number }
+  } | null
+  if (!item) return { error: '계획 항목을 찾을 수 없습니다.' }
+  if (item.plan_type !== 'monthly') return { error: '정기점검 항목만 이동할 수 있습니다.' }
+  if (item.inspection_id) return { error: '이미 점검이 시작된 항목은 이동할 수 없습니다.' }
+  if (item.status !== 'planned' && item.status !== 'confirmed') return { error: '완료·취소된 항목은 이동할 수 없습니다.' }
+
+  const { year, month } = item.inspection_plans
+  if (!newDate.startsWith(`${year}-${String(month).padStart(2, '0')}-`)) {
+    return { error: '같은 달 안에서만 이동할 수 있습니다.' }
+  }
+
+  const fromDate = item.scheduled_date ?? item.planned_date
+  const res = await confirmPlanItemStageOneAction(planItemId, newDate)
+  if (res.error) return res
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'plan_item_moved',
+    entity_type: 'inspection_plan_item',
+    entity_id: planItemId,
+    metadata: { customer_id: item.customer_id, from: fromDate, to: newDate },
+  } as Record<string, unknown>)
+
+  revalidatePath(`/customers/${item.customer_id}`)
   return {}
 }
 

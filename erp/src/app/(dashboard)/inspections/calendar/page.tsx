@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
@@ -165,6 +165,7 @@ export default async function InspectionCalendarPage({
       currentUserRole={profile.role as UserRole}
       initialFilter={initialFilter}
       holidays={holidays}
+      canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
     />
   )
 }

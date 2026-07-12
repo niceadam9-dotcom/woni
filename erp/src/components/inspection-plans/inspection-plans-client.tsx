@@ -14,7 +14,7 @@ import type { OverdueItem } from '@/app/(dashboard)/inspection-plans/page'
 import {
   createInspectionPlanAction,
   startInspectionAction, updatePlanItemAction,
-  confirmPlanItemStageOneAction,
+  confirmPlanItemStageOneAction, moveMonthlyPlanItemAction,
 } from '@/app/(dashboard)/inspection-plans/actions'
 import { PlanItemSlidePanel } from './plan-item-slide-panel'
 import { TableScroll } from '@/components/ui/table-scroll'
@@ -60,6 +60,15 @@ function effectivePlanType(item: Pick<ItemView, 'plan_type' | 'inspection_type'>
   if (item.inspection_type === '일반관리') return 'event'
   return 'monthly'
 }
+/** 달력 드래그 이동 가능 여부 — 정기(monthly)·미시작·계획/확정 상태·활성 고객만 (2026-07-13) */
+function canDragItem(item: ItemView, canManage: boolean): boolean {
+  return canManage
+    && effectivePlanType(item) === 'monthly'
+    && !item.inspection_id
+    && (item.status === 'planned' || item.status === 'confirmed')
+    && item.customers?.is_active !== false
+}
+
 type ItemView = Record<string, unknown> & {
   id: string
   customer_id: string
@@ -151,6 +160,19 @@ export function InspectionPlansClient({
   const monthPickerRef = useRef<HTMLDivElement>(null)
 
   const currentPlan = plans.find(p => p.year === viewYear && p.month === viewMonth) ?? null
+
+  // 달력 드래그 이동 — 드롭 = 즉시 확정 (같은 달 내 반복 이동 가능, 2026-07-13 확정 설계)
+  function handleMoveItem(item: ItemView, toDate: string) {
+    startTransition(async () => {
+      const res = await moveMonthlyPlanItemAction(item.id, toDate)
+      if (res.error) { alert(res.error); return }
+      // 낙관 반영 후 서버 재검증 — 점검달력·모니터링 등 관련 페이지는 액션의 revalidate로 동기화
+      setItems(prev => prev.map(i =>
+        i.id === item.id ? { ...i, scheduled_date: toDate, status: 'confirmed' as PlanItemStatus } : i
+      ))
+      router.refresh()
+    })
+  }
 
   // 상태 매칭 (ADD-9: '취소' = 항목 취소 + 고객 비활성/삭제 포함)
   function matchStatus(item: ItemView, status: string) {
@@ -448,6 +470,7 @@ export function InspectionPlansClient({
             holidayMap={holidayMap}
             onDateClick={handleDateClick}
             onItemClick={setSelectedItem}
+            onMoveItem={handleMoveItem}
           />
         ) : (
           <ListView
@@ -502,13 +525,14 @@ export function InspectionPlansClient({
 
 // ── 달력 뷰 ──────────────────────────────────────────────────
 function CalendarView({
-  year, month, firstDay, daysInMonth, itemsByDate, todayStr, canManage, customers, holidayMap, onDateClick, onItemClick,
+  year, month, firstDay, daysInMonth, itemsByDate, todayStr, canManage, customers, holidayMap, onDateClick, onItemClick, onMoveItem,
 }: {
   year: number; month: number; firstDay: number; daysInMonth: number
   itemsByDate: Record<string, ItemView[]>; todayStr: string; canManage: boolean
   customers: CustomerOption[]
   holidayMap?: Map<string, string>
   onDateClick: (d: string) => void; onItemClick: (item: ItemView) => void
+  onMoveItem: (item: ItemView, toDate: string) => void
 }) {
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
@@ -519,6 +543,11 @@ function CalendarView({
 
   // "+N개 더 보기" 클릭 시 해당 날짜 전체 항목 팝업
   const [moreDay, setMoreDay] = useState<string | null>(null)
+
+  // 정기 칩 드래그 이동 — 드래그 중 항목 + 드롭 확인 팝업 상태
+  const [dragItem, setDragItem] = useState<ItemView | null>(null)
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
+  const [moveConfirm, setMoveConfirm] = useState<{ item: ItemView; from: string; to: string } | null>(null)
 
   // 점검달력과 동일한 시각 언어 — 상태별 단색 칩 (한 줄, 흰 글자 / 완료·취소는 연회색+취소선)
   function chipStyle(item: ItemView, itemOverdue: boolean): React.CSSProperties {
@@ -556,9 +585,24 @@ function CalendarView({
             <div
               key={idx}
               className={`h-32 border-b border-r border-[#e0ddf5] px-1.5 py-1 cursor-pointer transition-colors ${
+                dragOverDay === dateStr ? 'bg-[#ebe8ff] ring-2 ring-inset ring-[#7b68ee]' :
                 isToday ? 'bg-[#f5f4ff]' : holiday ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-[#fafafa]'
               }`}
               onClick={() => canManage && onDateClick(dateStr)}
+              onDragOver={e => {
+                if (!dragItem) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                if (dragOverDay !== dateStr) setDragOverDay(dateStr)
+              }}
+              onDrop={e => {
+                e.preventDefault()
+                setDragOverDay(null)
+                if (!dragItem) return
+                const from = (dragItem.scheduled_date ?? dragItem.planned_date ?? '') as string
+                if (dateStr !== from) setMoveConfirm({ item: dragItem, from, to: dateStr })
+                setDragItem(null)
+              }}
               title={holiday ? `${holiday} (공휴일)` : undefined}
             >
               <div className="flex items-center justify-between gap-1 min-w-0 mb-1">
@@ -574,13 +618,24 @@ function CalendarView({
                 {dayItems.slice(0, 3).map(item => {
                   const itemOverdue = isPast && item.status !== 'completed' && item.status !== 'cancelled'
                   const custName = (item.customers as { customer_name: string } | null)?.customer_name ?? '—'
+                  const draggable = canDragItem(item, canManage)
                   return (
                     <div
                       key={item.id}
                       onClick={e => { e.stopPropagation(); onItemClick(item) }}
-                      title={`${custName} · ${PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}`}
+                      draggable={draggable}
+                      onDragStart={e => {
+                        e.stopPropagation()
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', item.id)
+                        setDragItem(item)
+                      }}
+                      onDragEnd={() => { setDragItem(null); setDragOverDay(null) }}
+                      title={`${custName} · ${PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}${draggable ? ' — 드래그로 일자 이동' : ''}`}
                       style={chipStyle(item, itemOverdue)}
-                      className="text-[11px] leading-[1.2] px-1.5 py-[2px] rounded-[5px] cursor-pointer hover:opacity-85 truncate"
+                      className={`text-[11px] leading-[1.2] px-1.5 py-[2px] rounded-[5px] hover:opacity-85 truncate ${
+                        draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                      } ${dragItem?.id === item.id ? 'opacity-40' : ''}`}
                     >
                       {itemOverdue && '⚠ '}{custName}
                     </div>
@@ -633,6 +688,47 @@ function CalendarView({
         </div>
       )}
 
+      {/* 정기 칩 드래그 이동 확인 팝업 */}
+      {moveConfirm && (() => {
+        const custName = (moveConfirm.item.customers as { customer_name: string } | null)?.customer_name ?? '—'
+        const toDate = new Date(moveConfirm.to + 'T12:00:00')
+        const toDow = toDate.getDay()
+        const toHoliday = holidayMap?.get(moveConfirm.to)
+        const warnings = [
+          toHoliday ? `${moveConfirm.to.slice(5).replace('-', '/')}은 ${toHoliday}(공휴일)입니다.` : null,
+          !toHoliday && (toDow === 0 || toDow === 6) ? '주말 날짜입니다.' : null,
+          moveConfirm.to < todayStr ? '오늘 이전 날짜라 이동 시 지연⚠으로 표시됩니다.' : null,
+        ].filter(Boolean) as string[]
+        return (
+          <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4" onClick={() => setMoveConfirm(null)}>
+            <div className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
+              <p className="text-sm font-semibold text-[#090c1d] mb-1">정기점검 일자 이동</p>
+              <p className="text-xs text-[#514b81]">
+                {custName} · {moveConfirm.from || '미정'} → <span className="font-semibold text-[#7b68ee]">{moveConfirm.to}</span>
+              </p>
+              <p className="text-[11px] text-[#b0acd6] mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
+              {warnings.map(w => (
+                <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
+              ))}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => setMoveConfirm(null)}
+                  className="flex-1 h-8 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => { onMoveItem(moveConfirm.item, moveConfirm.to); setMoveConfirm(null) }}
+                  className="flex-1 h-8 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors"
+                >
+                  이동 확정
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* 범례 — 점검달력과 동일한 톤 */}
       <div className="flex items-center gap-3 px-4 py-2 border-t border-[#e0ddf5] text-[10px] text-[#514b81]">
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#93a5c8' }} />계획</span>
@@ -640,7 +736,7 @@ function CalendarView({
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#d1fae5' }} />완료</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#b91c1c' }} />지연</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300" />취소·비활성</span>
-        {canManage && <span className="ml-auto text-[#b0acd6]">빈 날짜 클릭 = 항목 추가</span>}
+        {canManage && <span className="ml-auto text-[#b0acd6]">빈 날짜 클릭 = 항목 추가 · 정기 칩 드래그 = 일자 이동(확정)</span>}
       </div>
     </div>
   )
