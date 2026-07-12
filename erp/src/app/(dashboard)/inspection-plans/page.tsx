@@ -46,7 +46,7 @@ export default async function InspectionPlansPage({
     admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).maybeSingle(),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
     admin.from('customers')
-      .select('id, customer_name, inspection_type, assigned_employee_id, address, use_approval_date')
+      .select('id, customer_name, inspection_type, assigned_employee_id, address, use_approval_date, plan_anchor_date')
       .eq('is_active', true).order('customer_name'),
     admin.from('inspection_plans').select('id, month').eq('year', year),
     admin.from('holidays').select('date, name')
@@ -79,8 +79,8 @@ export default async function InspectionPlansPage({
           .select('customer_id, sequence_num, plan_id')
           .in('plan_id', yearPlanIds)
       : Promise.resolve({ data: [] }),
-    // 기준일: 최초 점검시작일 우선 → 없으면 사용승인일 (초과 판정도 생성과 동일 기준)
-    loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; use_approval_date: string | null }>),
+    // 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 (초과 판정도 생성과 동일 기준)
+    loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; use_approval_date: string | null; plan_anchor_date: string | null }>),
   ])
 
   const items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
@@ -152,7 +152,9 @@ export default async function InspectionPlansPage({
       initialYear={year}
       initialMonth={month}
       employees={(employeesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      customers={(customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>}
+      customers={((customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>)
+        // 클라이언트 날짜 제안·표시는 기준일(점검계획일→점검시작일→사용승인일)로 통일
+        .map(c => ({ ...c, use_approval_date: anchorMap.get(c.id) ?? c.use_approval_date }))}
       overdueItems={overdueItems}
       holidays={holidays}
       holidayInfos={holidayInfos}

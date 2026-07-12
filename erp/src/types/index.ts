@@ -82,6 +82,7 @@ export interface Holiday {
 export interface Customer {
   id: string; customer_code: string; customer_name: string; contract_date: string
   use_approval_date: string | null
+  plan_anchor_date: string | null // 점검계획일 — 계획 기산점 수동 지정(최우선)
   zipcode: string | null
   region_si: string | null; region_myeon: string | null; region_ri: string | null
   inspection_type: InspectionType
@@ -329,13 +330,14 @@ export type Database = {
         Insert: {
           customer_code: string; customer_name: string; contract_date: string
           inspection_type: string; created_by: string
-          id?: string; use_approval_date?: string | null
+          id?: string; use_approval_date?: string | null; plan_anchor_date?: string | null
           region_si?: string | null; region_myeon?: string | null; region_ri?: string | null
           address?: string | null; notes?: string | null; is_active?: boolean
           assigned_employee_id?: string | null; created_at?: string; updated_at?: string
         }
         Update: Partial<{
           customer_name: string; contract_date: string; use_approval_date: string | null
+          plan_anchor_date: string | null
           region_si: string | null; region_myeon: string | null; region_ri: string | null
           inspection_type: string; address: string | null; notes: string | null; is_active: boolean
           assigned_employee_id: string | null; updated_at: string

@@ -10,7 +10,7 @@ import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
   customer_name: '고객명', inspection_type: '점검유형', contract_date: '계약일',
-  use_approval_date: '사용승인일', address: '주소', assigned_employee_id: '담당직원',
+  use_approval_date: '사용승인일', plan_anchor_date: '점검계획일', address: '주소', assigned_employee_id: '담당직원',
 }
 
 export type ContactInput = {
@@ -25,6 +25,7 @@ export type CreateCustomerInput = {
   customer_name: string
   contract_date: string
   use_approval_date?: string
+  plan_anchor_date: string // 점검계획일 — 계획 기산점(필수)
   zipcode?: string
   region_si?: string
   region_myeon?: string
@@ -79,6 +80,9 @@ export async function createCustomerAction(
   const hasRep = (input.contacts ?? []).some(c => c.role === '대표' && c.name?.trim())
   if (!hasRep) return { error: '대표 관계인 이름을 입력해주세요. (대표 1명 필수)' }
 
+  // 점검계획일 필수 — 연간 점검계획의 기산점 (수동 최우선)
+  if (!input.plan_anchor_date) return { error: '점검계획일을 입력해주세요.' }
+
   // 건물 숫자 필드 검증 (IMP-10) — 음수/비상식 값 차단
   const nowYear = new Date().getFullYear()
   const numErr = validateBuildingNumbers({
@@ -101,6 +105,7 @@ export async function createCustomerAction(
     customer_name: input.customer_name,
     contract_date: input.contract_date,
     use_approval_date: input.use_approval_date || null,
+    plan_anchor_date: input.plan_anchor_date,
     region_si: input.region_si || null,
     region_myeon: input.region_myeon || null,
     region_ri: input.region_ri || null,
@@ -224,35 +229,38 @@ export async function createCustomerAction(
     revalidatePath('/buildings')
   }
 
-  // 사용승인일이 있으면 해당 연/월 점검계획 항목 자동 생성 (V9-9)
-  if (input.use_approval_date) {
-    await _autoCreatePlanItemsForNewCustomer(
-      admin, customerId,
-      { inspection_type: input.inspection_type, use_approval_date: input.use_approval_date, assigned_employee_id: input.assigned_employee_id || null },
-      profile.id,
-    )
-  }
+  // 점검계획일(필수) 기준 연/월 점검계획 항목 자동 생성 (V9-9)
+  await _autoCreatePlanItemsForNewCustomer(
+    admin, customerId,
+    {
+      inspection_type: input.inspection_type,
+      use_approval_date: input.use_approval_date || null,
+      plan_anchor_date: input.plan_anchor_date,
+      assigned_employee_id: input.assigned_employee_id || null,
+    },
+    profile.id,
+  )
 
   revalidatePath('/customers')
   revalidatePath('/inspection-plans')
   return { customerId }
 }
 
-/** V9-1/V9-9: 신규 고객 등록 시 사용승인일 기반 연간 점검계획 항목 자동 생성
+/** V9-1/V9-9: 신규 고객 등록 시 점검계획일(수동 최우선) 기반 연간 점검계획 항목 자동 생성
  *  - 소방안전관리: 특별점검달(special_종합/special_작동) + 나머지 11/10개월(monthly) = 12회/년
  *  - 일반관리: 수동 생성이므로 자동 생성 없음 */
 async function _autoCreatePlanItemsForNewCustomer(
   admin: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
   customerId: string,
-  info: { inspection_type: InspectionType; use_approval_date: string; assigned_employee_id: string | null },
+  info: { inspection_type: InspectionType; use_approval_date: string | null; plan_anchor_date: string; assigned_employee_id: string | null },
   createdBy: string,
 ) {
   if (info.inspection_type === '일반관리') return
 
-  const approvalDate = new Date(info.use_approval_date)
-  const now          = new Date()
-  const targetYear   = approvalDate.getFullYear() >= now.getFullYear()
-    ? approvalDate.getFullYear()
+  const anchorDate = new Date(info.plan_anchor_date)
+  const now        = new Date()
+  const targetYear = anchorDate.getFullYear() >= now.getFullYear()
+    ? anchorDate.getFullYear()
     : now.getFullYear()
 
   // 이후 연도는 크론(/api/cron/generate-yearly-plans)이 매년 반복 생성
@@ -365,18 +373,20 @@ export async function updateCustomerAction(
   // 변경 감지를 위해 이전 값 조회
   const { data: prevCustomer } = await admin
     .from('customers')
-    .select('customer_name, inspection_type, contract_date, use_approval_date, address')
+    .select('customer_name, inspection_type, contract_date, use_approval_date, plan_anchor_date, address')
     .eq('id', customerId).single()
   const prev = prevCustomer as {
     customer_name: string; inspection_type: string; contract_date: string
-    use_approval_date: string | null; address: string | null
+    use_approval_date: string | null; plan_anchor_date: string | null; address: string | null
   } | null
   const prevApprovalDate = prev?.use_approval_date ?? null
+  const prevAnchorDate   = prev?.plan_anchor_date ?? null
 
   const updateFields: Record<string, unknown> = {
     customer_name: input.customer_name,
     contract_date: input.contract_date,
     use_approval_date: input.use_approval_date ?? null,
+    plan_anchor_date: input.plan_anchor_date ?? null,
     region_si: input.region_si ?? null,
     region_myeon: input.region_myeon ?? null,
     region_ri: input.region_ri ?? null,
@@ -405,10 +415,18 @@ export async function updateCustomerAction(
 
   if (error) return { error: '고객 정보 수정에 실패했습니다.' }
 
-  // 사용승인일이 변경된 경우: 미확정 plan_items 리셋 + scheduled_date 재계산
+  // 기준일(점검계획일/사용승인일)이 변경된 경우: 미확정(planned) plan_items 재계산
+  // 확정(confirmed) 항목은 재계획하지 않음 (2026-07-12 결정)
   const newApprovalDate = input.use_approval_date ?? null
-  if (input.use_approval_date !== undefined && newApprovalDate !== prevApprovalDate) {
-    await _resetPlanItemsForCustomer(admin, customerId, newApprovalDate)
+  const newAnchorDate   = input.plan_anchor_date ?? null
+  const approvalChanged = input.use_approval_date !== undefined && newApprovalDate !== prevApprovalDate
+  // 점검계획일은 폼에서 지우면 undefined로 오지만 DB에는 null이 기록되므로, 기록값 기준으로 변경 판정
+  const anchorChanged   = newAnchorDate !== prevAnchorDate
+  if (approvalChanged || anchorChanged) {
+    await _resetPlanItemsForCustomer(admin, customerId, {
+      use_approval_date: approvalChanged ? newApprovalDate : prevApprovalDate,
+      plan_anchor_date:  anchorChanged ? newAnchorDate : prevAnchorDate,
+    })
   }
 
   // 건물명/주소 변경 시 연결된 buildings 레코드 1건 동기화
@@ -426,7 +444,7 @@ export async function updateCustomerAction(
   }
 
   // 변경된 필드 activity_logs 기록
-  const trackedFields = ['customer_name', 'inspection_type', 'contract_date', 'use_approval_date', 'address'] as const
+  const trackedFields = ['customer_name', 'inspection_type', 'contract_date', 'use_approval_date', 'plan_anchor_date', 'address'] as const
   const changes: Array<{ field: string; field_label: string; old_value: string | null; new_value: string | null }> = []
   for (const f of trackedFields) {
     const newVal = (updateFields[f] as string | null | undefined) ?? null
@@ -452,19 +470,19 @@ export async function updateCustomerAction(
 async function _resetPlanItemsForCustomer(
   admin: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
   customerId: string,
-  newApprovalDate: string | null,
+  newDates: { use_approval_date: string | null; plan_anchor_date: string | null },
 ) {
-  // 완료/취소 제외한 활성 plan_items + 소속 plan의 year/month 조회
+  // 미확정(planned) plan_items만 재계산 — 확정(confirmed)·완료·취소 항목은 재계획하지 않음 (2026-07-12 결정)
   const { data: items } = await admin
     .from('inspection_plan_items')
     .select('id, inspection_plans!inner(year, month)')
     .eq('customer_id', customerId)
-    .in('status', ['planned', 'confirmed'])
+    .eq('status', 'planned')
 
   if (!items || items.length === 0) return
 
-  // 기준일: 최초 점검시작일 우선, 없으면 새 사용승인일 (둘 다 없으면 planned_date null)
-  const anchorDate = (await loadAnchorDates(admin, [{ id: customerId, use_approval_date: newApprovalDate }])).get(customerId) ?? null
+  // 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 (모두 없으면 planned_date null)
+  const anchorDate = (await loadAnchorDates(admin, [{ id: customerId, ...newDates }])).get(customerId) ?? null
 
   // 영업일 계산 헬퍼
   function toDateStr(d: Date): string {
@@ -1077,7 +1095,7 @@ export async function searchSuggestionsAction(q: string): Promise<{
 /** 고객 단일 필드 인라인 수정 */
 export async function patchCustomerFieldAction(
   customerId: string,
-  field: 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'assigned_employee_id',
+  field: 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id',
   value: string | null
 ): Promise<{ error?: string }> {
   // 담당자 필드는 배정 권한(매니저 이상), 그 외 필드는 고객 수정 권한
@@ -1089,9 +1107,10 @@ export async function patchCustomerFieldAction(
   // 이전 값 조회 (변경 감지 + 이력 기록용)
   const { data: prevData } = await admin
     .from('customers')
-    .select('customer_name, inspection_type, contract_date, use_approval_date, assigned_employee_id')
+    .select('customer_name, inspection_type, contract_date, use_approval_date, plan_anchor_date, assigned_employee_id')
     .eq('id', customerId).single()
-  const oldValue = (prevData as Record<string, string | null> | null)?.[field] ?? null
+  const prevRow = prevData as Record<string, string | null> | null
+  const oldValue = prevRow?.[field] ?? null
 
   const { error } = await admin
     .from('customers')
@@ -1100,8 +1119,12 @@ export async function patchCustomerFieldAction(
 
   if (error) return { error: '수정에 실패했습니다.' }
 
-  if (field === 'use_approval_date' && value !== oldValue) {
-    await _resetPlanItemsForCustomer(admin, customerId, value)
+  // 기준일 관련 필드 변경 시 미확정(planned) 항목 재계산 — 변경 안 된 쪽은 기존 값 유지
+  if ((field === 'use_approval_date' || field === 'plan_anchor_date') && value !== oldValue) {
+    await _resetPlanItemsForCustomer(admin, customerId, {
+      use_approval_date: field === 'use_approval_date' ? (value || null) : (prevRow?.use_approval_date ?? null),
+      plan_anchor_date:  field === 'plan_anchor_date'  ? (value || null) : (prevRow?.plan_anchor_date ?? null),
+    })
   }
 
   // 담당자 변경 시 미완료 plan_items + 진행중 inspections 동기화
@@ -1148,7 +1171,7 @@ export async function patchCustomerFieldAction(
 
   revalidatePath('/customers')
   revalidatePath(`/customers/${customerId}`)
-  if (field === 'use_approval_date') revalidatePath('/inspection-plans')
+  if (field === 'use_approval_date' || field === 'plan_anchor_date') revalidatePath('/inspection-plans')
   return {}
 }
 

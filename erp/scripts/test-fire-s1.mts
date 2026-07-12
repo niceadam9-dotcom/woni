@@ -154,6 +154,22 @@ try {
   const i8next = (await getItems(c8)).filter(i => i.inspection_plans.year === curYear + 1)
   const seq2next = i8next.filter(i => i.plan_type === 'special_종합' && i.sequence_num === 2)
   check(`다음 해(${curYear + 1}) 2차는 1월에 정상 생성`, seq2next.length === 1 && seq2next[0].inspection_plans.month === 1, JSON.stringify(seq2next))
+
+  // ── 케이스 9: 점검계획일(수동) 최우선 — 점검시작일·사용승인일보다 우선 (2026-07-12 추가)
+  console.log('\n[케이스 9] 셋 다 있음 — 점검계획일(6월) > 점검시작일(4월) > 사용승인일(9월)')
+  const anchor9 = `${curYear}-06-15`
+  const c9 = await createCustomer({ customer_name: 'TEST-FIRE-S1-계획일우선', inspection_type: '작동', inspection_category: '소방안전관리', inspection_sub_type: '작동', use_approval_date: '2019-09-01', plan_anchor_date: anchor9 })
+  await raw.from('inspections').insert({
+    customer_id: c9, inspection_type: '작동', sequence_num: 1,
+    inspection_start_date: `${curYear}-04-10`, status: 'scheduled', assigned_employee_id: createdBy, created_by: createdBy,
+  })
+  const anchorRes9 = (await loadAnchorDates(admin, [{ id: c9, use_approval_date: '2019-09-01', plan_anchor_date: anchor9 }])).get(c9)
+  check(`기준일 = 점검계획일 (${anchor9})`, anchorRes9 === anchor9, `실제: ${anchorRes9}`)
+  await generateYearlyPlanItems(admin, { id: c9, inspection_type: '작동', use_approval_date: '2019-09-01', plan_anchor_date: anchor9, assigned_employee_id: null }, curYear, createdBy, hdSet)
+  const i9 = await getItems(c9)
+  const special9 = i9.filter(i => i.plan_type === 'special_작동')
+  check('특별월 = 6월 (점검계획일 월, 4월·9월 아님)', special9.length === 1 && special9[0].inspection_plans.month === 6, JSON.stringify(special9.map(s => s.inspection_plans.month)))
+  check('모든 항목 planned_date ≥ 점검계획일', i9.every(i => i.planned_date >= anchor9), JSON.stringify(i9.map(i => i.planned_date)))
 } finally {
   // ── 정리: 테스트 데이터 삭제 (plan_items → inspections → customers)
   console.log('\n[정리] 테스트 데이터 삭제')

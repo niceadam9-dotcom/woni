@@ -10,15 +10,19 @@ export async function loadHolidaySet(admin: Admin, year: number): Promise<Set<st
   return new Set((data ?? []).map(h => (h as Record<string, unknown>).date as string))
 }
 
-/** 계획 기산점(기준일) 일괄 결정: 최초 점검시작일 → 없으면 사용승인일
- *  실제 점검 이력이 있으면 그 주기를 우선하고, 점검 이력이 없는 고객만 사용승인일로 계산.
- *  둘 다 없는 고객은 맵에서 제외(계획 생성 없음) */
+/** 계획 기산점(기준일) 일괄 결정: 점검계획일(수동) → 최초 점검시작일 → 사용승인일
+ *  점검계획일(plan_anchor_date)이 입력된 고객은 무조건 그 날짜를 기준으로 하고,
+ *  없으면 실제 점검 이력의 최초 시작일, 그것도 없으면 사용승인일로 계산.
+ *  셋 다 없는 고객은 맵에서 제외(계획 생성 없음) */
 export async function loadAnchorDates(
   admin: Admin,
-  customers: Array<{ id: string; use_approval_date: string | null }>,
+  customers: Array<{ id: string; use_approval_date: string | null; plan_anchor_date?: string | null }>,
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>()
-  const ids = customers.map(c => c.id)
+  for (const c of customers) {
+    if (c.plan_anchor_date) map.set(c.id, c.plan_anchor_date)
+  }
+  const ids = customers.filter(c => !map.has(c.id)).map(c => c.id)
   if (ids.length > 0) {
     const { data } = await admin
       .from('inspections')
@@ -36,7 +40,7 @@ export async function loadAnchorDates(
 }
 
 /** 소방안전관리 고객의 연간 점검계획 항목 생성 — 연 12건 (첫해는 지난 달 정기 제외)
- *  - 기준일: 최초 점검시작일 우선, 없으면 사용승인일(loadAnchorDates) — 둘 다 없으면 생성 없음
+ *  - 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일(loadAnchorDates) — 모두 없으면 생성 없음
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
  *  - 종합: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치)
  *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응)
@@ -45,7 +49,7 @@ export async function loadAnchorDates(
  *  @returns 새로 생성된 항목 수 */
 export async function generateYearlyPlanItems(
   admin: Admin,
-  customer: { id: string; inspection_type: InspectionType; use_approval_date: string | null; assigned_employee_id: string | null },
+  customer: { id: string; inspection_type: InspectionType; use_approval_date: string | null; plan_anchor_date?: string | null; assigned_employee_id: string | null },
   targetYear: number,
   createdBy: string,
   hdSet: Set<string>,

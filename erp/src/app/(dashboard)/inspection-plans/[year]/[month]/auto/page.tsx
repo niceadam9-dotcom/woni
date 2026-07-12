@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AutoGenerateWizard } from '@/components/inspection-plans/auto-generate-wizard'
+import { loadAnchorDates } from '@/lib/inspection-plan-generator'
 import type { UserRole } from '@/types'
 
 export default async function AutoGeneratePage({
@@ -42,9 +43,15 @@ export default async function AutoGeneratePage({
   // 활성 고객 목록
   const { data: customers } = await admin
     .from('customers')
-    .select('id, customer_name, customer_code, inspection_type, assigned_employee_id, use_approval_date')
+    .select('id, customer_name, customer_code, inspection_type, assigned_employee_id, use_approval_date, plan_anchor_date')
     .eq('is_active', true)
     .order('customer_name')
+
+  // 위저드의 날짜 자동 배분은 기준일(점검계획일→점검시작일→사용승인일) 기준
+  const anchorMap = await loadAnchorDates(
+    admin,
+    (customers ?? []) as Array<{ id: string; use_approval_date: string | null; plan_anchor_date: string | null }>,
+  )
 
   // 직원 목록
   const { data: employees } = await admin
@@ -66,10 +73,10 @@ export default async function AutoGeneratePage({
       existingPlanId={existing ? (existing as { id: string }).id : null}
       existingPlanStatus={existing ? (existing as { id: string; status: string }).status : null}
       prevPlan={prevPlan as { id: string; year: number; month: number } | null}
-      customers={(customers ?? []) as Array<{
+      customers={((customers ?? []) as Array<{
         id: string; customer_name: string; customer_code: string
         inspection_type: string; assigned_employee_id: string | null; use_approval_date: string | null
-      }>}
+      }>).map(c => ({ ...c, use_approval_date: anchorMap.get(c.id) ?? c.use_approval_date }))}
       employees={(employees ?? []) as Array<{ id: string; name: string; position: string | null }>}
       holidays={((holidays ?? []) as Array<{ date: string }>).map(h => h.date)}
     />

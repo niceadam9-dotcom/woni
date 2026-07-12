@@ -53,6 +53,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     customer_name: '',
     contract_date: '',
     use_approval_date: '',
+    plan_anchor_date: '',
     inspection_type: '종합' as InspectionType,
     zipcode: '',
     address: '',
@@ -187,6 +188,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
     if (!form.contract_date) { setError('계약일을 선택해주세요.'); return }
+    if (!form.plan_anchor_date) { setError('점검계획일을 선택해주세요.'); return }
     if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
 
     // 저장 시점 중복 재검증 (주소 수동 입력 대비) — 이미 확인한 주소는 통과
@@ -225,6 +227,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         customer_name: form.customer_name.trim(),
         contract_date: form.contract_date,
         use_approval_date: form.use_approval_date || undefined,
+        plan_anchor_date: form.plan_anchor_date,
         inspection_type: form.inspection_type,
         zipcode: form.zipcode.trim() || undefined,
         address: form.address.trim() || undefined,
@@ -367,6 +370,15 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
                 건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
               </button>
             )}
+          </Field>
+          <Field label="점검계획일" required>
+            <input
+              type="date"
+              value={form.plan_anchor_date}
+              onChange={e => setField('plan_anchor_date', e.target.value)}
+              className={inputCls}
+            />
+            <p className="text-[11px] text-[#b0acd6]">연간 점검계획의 기산일 — 이 날짜의 월·일 기준으로 계획이 생성됩니다</p>
           </Field>
         </div>
 

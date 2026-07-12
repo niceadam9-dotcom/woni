@@ -110,7 +110,7 @@ export default async function CustomerDetailPage({
   }
 
   // 변경 이력 표시 화이트리스트 — 필수 고객관리 사항만 (기록 자체는 전부 보존, 전체는 관리자>활동로그)
-  const ESSENTIAL_FIELDS = new Set(['assigned_employee_id', 'inspection_type', 'use_approval_date', 'contract_date', 'is_active'])
+  const ESSENTIAL_FIELDS = new Set(['assigned_employee_id', 'inspection_type', 'use_approval_date', 'plan_anchor_date', 'contract_date', 'is_active'])
   const ACTION_LABELS: Record<string, string> = {
     customer_created: '고객 등록',
     general_inspection_registered: '일반관리 점검 등록',
@@ -244,6 +244,17 @@ export default async function CustomerDetailPage({
                     <span className="flex items-center gap-1.5">
                       <Calendar className="size-3.5 text-[#b0acd6]" />
                       {customer.use_approval_date}
+                    </span>
+                  ) : null
+                }
+              />
+              <InfoRow
+                label="점검계획일"
+                value={
+                  customer.plan_anchor_date ? (
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-[#b0acd6]" />
+                      {customer.plan_anchor_date}
                     </span>
                   ) : null
                 }

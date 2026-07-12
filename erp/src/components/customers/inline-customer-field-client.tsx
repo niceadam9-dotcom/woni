@@ -6,7 +6,7 @@ import { patchCustomerFieldAction } from '@/app/(dashboard)/customers/actions'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
-type Field = 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'assigned_employee_id'
+type Field = 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id'
 
 interface Props {
   customerId: string
@@ -137,7 +137,7 @@ export function InlineCustomerFieldClient({
 
   // text / date inputs
   const inputType =
-    field === 'contract_date' || field === 'use_approval_date' ? 'date' : 'text'
+    field === 'contract_date' || field === 'use_approval_date' || field === 'plan_anchor_date' ? 'date' : 'text'
 
   return (
     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>

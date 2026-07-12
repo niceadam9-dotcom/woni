@@ -8,7 +8,7 @@ import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import type { Customer } from '@/types'
 
 type Props = {
-  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes'>
+  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes'>
 }
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
@@ -20,6 +20,7 @@ function makeInitial(c: Props['customer']) {
     customer_name: c.customer_name,
     contract_date: c.contract_date,
     use_approval_date: c.use_approval_date ?? '',
+    plan_anchor_date: c.plan_anchor_date ?? '',
     zipcode: c.zipcode ?? '',
     address: c.address ?? '',
     region_si: c.region_si ?? '',
@@ -38,7 +39,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
   const [isPending, startTransition] = useTransition()
 
   // customer props가 갱신(router.refresh)되면 form 초기화
-  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.address, customer.notes].join('|')
+  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes].join('|')
   useEffect(() => {
     setForm(makeInitial(customer))
     setAddrJibun('')
@@ -82,6 +83,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
         customer_name: form.customer_name.trim(),
         contract_date: form.contract_date,
         use_approval_date: form.use_approval_date || undefined,
+        plan_anchor_date: form.plan_anchor_date || undefined,
         zipcode: form.zipcode.trim() || undefined,
         address: form.address.trim() || undefined,
         region_si: form.region_si.trim() || undefined,
@@ -124,6 +126,15 @@ export function EditCustomerInfoClient({ customer }: Props) {
             type="date"
             value={form.use_approval_date}
             onChange={e => set('use_approval_date', e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={labelCls}>점검계획일 <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
+          <input
+            type="date"
+            value={form.plan_anchor_date}
+            onChange={e => set('plan_anchor_date', e.target.value)}
             className={inputCls}
           />
         </div>

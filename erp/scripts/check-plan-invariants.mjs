@@ -40,10 +40,12 @@ report('INV-P1 과거월 미처리 정기', [...(p1a ?? []), ...(p1b ?? [])],
   r => `${r.customers?.customer_name} ${r.inspection_plans.year}-${r.inspection_plans.month}월 ${r.planned_date} (${r.status})`)
 
 // ── INV-P2: 기준일 이전 planned_date ──
-const { data: customers } = await admin.from('customers').select('id, customer_name, use_approval_date')
-// 기준일: 최초 점검시작일 우선 → 사용승인일 (loadAnchorDates와 동일 규칙)
+const { data: customers } = await admin.from('customers').select('id, customer_name, use_approval_date, plan_anchor_date')
+// 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 (loadAnchorDates와 동일 규칙)
 const anchorMap = new Map()
 {
+  for (const c of customers ?? [])
+    if (c.plan_anchor_date) anchorMap.set(c.id, c.plan_anchor_date)
   const { data: insp } = await admin.from('inspections')
     .select('customer_id, inspection_start_date').order('inspection_start_date', { ascending: true })
   for (const r of insp ?? [])

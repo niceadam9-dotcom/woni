@@ -51,13 +51,13 @@ export default async function CustomersPage({
   }
   type CustomerRow = {
     id: string; customer_code: string; customer_name: string; contract_date: string
-    use_approval_date: string | null; inspection_type: InspectionType; address: string | null
+    use_approval_date: string | null; plan_anchor_date: string | null; inspection_type: InspectionType; address: string | null
     region_si: string | null; region_myeon: string | null; region_ri: string | null
     is_active: boolean; assigned_employee_id: string | null; created_at: string
     buildings: BuildingSummary[]
   }
 
-  const selectCols = `id, customer_code, customer_name, contract_date, use_approval_date,
+  const selectCols = `id, customer_code, customer_name, contract_date, use_approval_date, plan_anchor_date,
     inspection_type, address, is_active, assigned_employee_id, created_at,
     region_si, region_myeon, region_ri,
     buildings(id, building_name, total_area, floors_above, floors_below, purpose)`
@@ -197,7 +197,7 @@ export default async function CustomersPage({
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
-                  {['고객명', '점검유형', '연간횟수', '계약일', '사용승인일', '담당직원', '상태', ''].map(h => (
+                  {['고객명', '점검유형', '연간횟수', '계약일', '사용승인일', '점검계획일', '담당직원', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
                       {h}
                     </th>
@@ -247,6 +247,11 @@ export default async function CustomersPage({
                       {canCreate ? (
                         <InlineCustomerFieldClient customerId={c.id} field="use_approval_date" value={c.use_approval_date} />
                       ) : (c.use_approval_date ?? '-')}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[#514b81]">
+                      {canCreate ? (
+                        <InlineCustomerFieldClient customerId={c.id} field="plan_anchor_date" value={c.plan_anchor_date} />
+                      ) : (c.plan_anchor_date ?? '-')}
                     </td>
                     <td className="px-4 py-3">
                       {canAssign ? (
