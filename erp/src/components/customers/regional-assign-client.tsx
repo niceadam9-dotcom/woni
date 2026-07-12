@@ -188,7 +188,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
         {queryMode === 'region' ? (
           <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">시/군/구 *</label>
+              <label className="text-xs font-medium text-[#514b81]">시/군/구<span className="text-red-500 ml-0.5">*</span></label>
               <select value={selectedSi} onChange={e => handleSiChange(e.target.value)} className={inputCls}>
                 <option value="">선택</option>
                 {siOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -312,7 +312,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
               <span className="text-[#7b68ee]">{checkedIds.size}건</span> 선택됨
             </span>
             <div className="w-px h-6 bg-[#c8c4d0]" />
-            <label className="text-xs font-medium text-[#514b81] shrink-0">배정 대상</label>
+            <label className="text-xs font-medium text-[#514b81] shrink-0">배정 대상<span className="text-red-500 ml-0.5">*</span></label>
             <div className="flex items-center gap-2">
               <UserCheck className="size-4 text-[#7b68ee]" />
               <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} className={inputCls + ' min-w-[180px]'}>

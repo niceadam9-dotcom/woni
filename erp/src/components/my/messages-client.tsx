@@ -69,7 +69,7 @@ function ComposeModal({
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">받는 사람 *</label>
+            <label className="block text-xs text-gray-500 mb-1">받는 사람<span className="text-red-500 ml-0.5">*</span></label>
             <select
               value={recipientId} onChange={e => setRecipientId(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -84,7 +84,7 @@ function ComposeModal({
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 mb-1">제목 *</label>
+            <label className="block text-xs text-gray-500 mb-1">제목<span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="text" value={subject} onChange={e => setSubject(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -93,7 +93,7 @@ function ComposeModal({
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 mb-1">내용 *</label>
+            <label className="block text-xs text-gray-500 mb-1">내용<span className="text-red-500 ml-0.5">*</span></label>
             <textarea
               value={body} onChange={e => setBody(e.target.value)} rows={6}
               className="w-full border rounded-lg px-3 py-2 text-sm resize-none"

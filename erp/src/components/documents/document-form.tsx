@@ -156,7 +156,7 @@ export function DocumentForm({
 
       {/* Title */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-[#292d34]">제목 *</label>
+        <label className="text-sm font-medium text-[#292d34]">제목<span className="text-red-500 ml-0.5">*</span></label>
         <input
           {...register('title')}
           placeholder="기안서 제목을 입력하세요"
@@ -167,7 +167,7 @@ export function DocumentForm({
 
       {/* Content */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-[#292d34]">내용 *</label>
+        <label className="text-sm font-medium text-[#292d34]">내용<span className="text-red-500 ml-0.5">*</span></label>
         <textarea
           {...register('content')}
           rows={12}
@@ -180,7 +180,7 @@ export function DocumentForm({
       {/* Approvers */}
       <div className="space-y-2">
         <div>
-          <label className="text-sm font-medium text-[#292d34]">결재자 *</label>
+          <label className="text-sm font-medium text-[#292d34]">결재자<span className="text-red-500 ml-0.5">*</span></label>
           <p className="text-xs text-[#514b81] mt-0.5">순서대로 추가하세요 (최대 5명)</p>
         </div>
 

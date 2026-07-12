@@ -150,7 +150,7 @@ function PayrollModal({
           {/* 직원·기간 */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">직원 *</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">직원<span className="text-red-500 ml-0.5">*</span></label>
               <select
                 value={form.employee_id}
                 onChange={e => set('employee_id', e.target.value)}

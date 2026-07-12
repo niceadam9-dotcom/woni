@@ -82,11 +82,11 @@ export function VehicleFormClient({ vehicle }: { vehicle?: Vehicle }) {
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5 max-w-2xl">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">차량번호 *</label>
+          <label className="text-xs font-medium text-[#514b81]">차량번호<span className="text-red-500 ml-0.5">*</span></label>
           <input value={form.vehicle_number} onChange={set('vehicle_number')} placeholder="예: 12가 3456" className={inputCls} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">차량명 *</label>
+          <label className="text-xs font-medium text-[#514b81]">차량명<span className="text-red-500 ml-0.5">*</span></label>
           <input value={form.vehicle_name} onChange={set('vehicle_name')} placeholder="예: 소나타" className={inputCls} />
         </div>
       </div>

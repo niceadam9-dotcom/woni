@@ -31,18 +31,18 @@ export function PasswordChangeClient() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-[#514b81] mb-1 block">현재 비밀번호</label>
+        <label className="text-xs font-medium text-[#514b81] mb-1 block">현재 비밀번호<span className="text-red-500 ml-0.5">*</span></label>
         <input type="password" autoComplete="current-password" value={current}
           onChange={e => setCurrent(e.target.value)} className={inputCls} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-[#514b81] mb-1 block">새 비밀번호 (6자 이상)</label>
+          <label className="text-xs font-medium text-[#514b81] mb-1 block">새 비밀번호 (6자 이상)<span className="text-red-500 ml-0.5">*</span></label>
           <input type="password" autoComplete="new-password" value={next}
             onChange={e => setNext(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="text-xs font-medium text-[#514b81] mb-1 block">새 비밀번호 확인</label>
+          <label className="text-xs font-medium text-[#514b81] mb-1 block">새 비밀번호 확인<span className="text-red-500 ml-0.5">*</span></label>
           <input type="password" autoComplete="new-password" value={confirm}
             onChange={e => setConfirm(e.target.value)} className={inputCls} />
         </div>

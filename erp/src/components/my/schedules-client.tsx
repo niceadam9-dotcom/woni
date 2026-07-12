@@ -99,7 +99,7 @@ function ScheduleModal({
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">제목 *</label>
+            <label className="block text-xs text-gray-500 mb-1">제목<span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="text" value={title} onChange={e => setTitle(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -126,12 +126,12 @@ function ScheduleModal({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">시작일 *</label>
+              <label className="block text-xs text-gray-500 mb-1">시작일<span className="text-red-500 ml-0.5">*</span></label>
               <DateInput value={startDate} onChange={e => { setStartDate(e.target.value); if (!endDate) setEndDate(e.target.value) }}
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">종료일 *</label>
+              <label className="block text-xs text-gray-500 mb-1">종료일<span className="text-red-500 ml-0.5">*</span></label>
               <DateInput value={endDate} onChange={e => setEndDate(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>

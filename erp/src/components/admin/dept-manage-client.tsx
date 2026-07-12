@@ -50,7 +50,7 @@ function DeptModal({ mode, dept, managers, onClose }: DeptModalProps) {
         </div>
         <div className="px-6 py-5 space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#514b81]">부서명 *</label>
+            <label className="text-xs font-medium text-[#514b81]">부서명<span className="text-red-500 ml-0.5">*</span></label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}

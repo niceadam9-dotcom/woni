@@ -10,10 +10,10 @@ const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 t
 const readonlyCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-[#f8f9fa] px-3 text-sm text-[#514b81] outline-none cursor-default'
 const labelCls = 'text-xs font-medium text-[#514b81]'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className={labelCls}>{label}</label>
+      <label className={labelCls}>{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
       {children}
     </div>
   )
@@ -143,7 +143,7 @@ export function BuildingDetailClient({ building, purposes = PURPOSES }: { buildi
 
         {isEditing ? (
           <div className="space-y-4">
-            <Field label="건물명">
+            <Field label="건물명" required>
               <input
                 value={form.building_name}
                 onChange={e => setField('building_name', e.target.value)}

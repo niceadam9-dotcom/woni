@@ -13,10 +13,10 @@ import {
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 const labelCls = 'text-xs font-medium text-[#514b81]'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className={labelCls}>{label}</label>
+      <label className={labelCls}>{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
       {children}
     </div>
   )
@@ -238,14 +238,14 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
                 {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </Field>
-            <Field label="제목">
+            <Field label="제목" required>
               <input
                 value={form.title}
                 onChange={e => setField('title', e.target.value)}
                 className={inputCls}
               />
             </Field>
-            <Field label="내용">
+            <Field label="내용" required>
               <textarea
                 value={form.content}
                 onChange={e => setField('content', e.target.value)}

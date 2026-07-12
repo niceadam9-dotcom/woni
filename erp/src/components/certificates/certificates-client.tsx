@@ -99,14 +99,14 @@ export function CertificatesClient({
           <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs text-[#514b81]">직원 *</label>
+                <label className="text-xs text-[#514b81]">직원<span className="text-red-500 ml-0.5">*</span></label>
                 <select value={form.employee_id} onChange={e => setForm(p => ({ ...p, employee_id: e.target.value }))} className={inputCls}>
                   <option value="">직원 선택</option>
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.employee_id})</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-[#514b81]">증명서 종류 *</label>
+                <label className="text-xs text-[#514b81]">증명서 종류<span className="text-red-500 ml-0.5">*</span></label>
                 <select value={form.cert_type} onChange={e => setForm(p => ({ ...p, cert_type: e.target.value as CertificateType }))} className={inputCls}>
                   {Object.entries(CERT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>

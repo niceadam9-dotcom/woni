@@ -107,7 +107,7 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
 
       {/* 휴가 종류 */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-[#292d34]">휴가 종류 *</label>
+        <label className="text-sm font-medium text-[#292d34]">휴가 종류<span className="text-red-500 ml-0.5">*</span></label>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {LEAVE_TYPES.map(t => (
             <label key={t.value} className="cursor-pointer">
@@ -123,7 +123,7 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
       {/* 날짜 */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-[#292d34]">시작일 *</label>
+          <label className="text-sm font-medium text-[#292d34]">시작일<span className="text-red-500 ml-0.5">*</span></label>
           <DateInput
             {...register('start_date')}
             className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20 transition"
@@ -131,7 +131,7 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
           {errors.start_date && <p className="text-xs text-red-500">{errors.start_date.message}</p>}
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-[#292d34]">종료일 *</label>
+          <label className="text-sm font-medium text-[#292d34]">종료일<span className="text-red-500 ml-0.5">*</span></label>
           <DateInput
             {...register('end_date')}
             disabled={isHalf}

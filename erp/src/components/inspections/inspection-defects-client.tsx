@@ -139,7 +139,7 @@ function AddDefectForm({
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">경중 *</label>
+          <label className="block text-xs text-gray-500 mb-1">경중<span className="text-red-500 ml-0.5">*</span></label>
           <select
             value={severity}
             onChange={e => setSeverity(e.target.value as DefectSeverity)}
@@ -152,7 +152,7 @@ function AddDefectForm({
         </div>
       </div>
       <div>
-        <label className="block text-xs text-gray-500 mb-1">불량 설비명 *</label>
+        <label className="block text-xs text-gray-500 mb-1">불량 설비명<span className="text-red-500 ml-0.5">*</span></label>
         <input
           value={defectName}
           onChange={e => setDefectName(e.target.value)}

@@ -159,7 +159,7 @@ function QuoteModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="block text-xs text-gray-500 mb-1">고객 *</label>
+            <label className="block text-xs text-gray-500 mb-1">고객<span className="text-red-500 ml-0.5">*</span></label>
             <select value={customerId} onChange={e => setCustomerId(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm">
               <option value="">선택하세요</option>
@@ -169,7 +169,7 @@ function QuoteModal({
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">견적일 *</label>
+            <label className="block text-xs text-gray-500 mb-1">견적일<span className="text-red-500 ml-0.5">*</span></label>
             <DateInput value={quoteDate} onChange={e => setQuoteDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
@@ -181,7 +181,7 @@ function QuoteModal({
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-2">견적 항목</label>
+          <label className="block text-xs text-gray-500 mb-2">견적 항목<span className="text-red-500 ml-0.5">*</span></label>
           <ItemsEditor items={items} onChange={setItems} />
         </div>
 

@@ -64,7 +64,7 @@ function TodoModal({
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">제목 *</label>
+            <label className="block text-xs text-gray-500 mb-1">제목<span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="text" value={title} onChange={e => setTitle(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"

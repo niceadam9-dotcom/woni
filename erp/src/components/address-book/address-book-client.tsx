@@ -103,7 +103,7 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
       {isFormOpen && (
         <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">이름 *</label><input value={form.name} onChange={set('name')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">이름<span className="text-red-500 ml-0.5">*</span></label><input value={form.name} onChange={set('name')} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">회사</label><input value={form.company} onChange={set('company')} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">그룹</label><input value={form.group_name} onChange={set('group_name')} placeholder="고객사, 협력사 등" className={inputCls} /></div>
           </div>

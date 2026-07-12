@@ -143,7 +143,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* 건물명 / 주소 검색 combobox */}
           <div>
-            <label className="text-xs font-medium text-[#514b81] mb-1 block">건물명 / 주소 검색 *</label>
+            <label className="text-xs font-medium text-[#514b81] mb-1 block">건물명 / 주소 검색<span className="text-red-500 ml-0.5">*</span></label>
             <div ref={comboRef} className="relative">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />

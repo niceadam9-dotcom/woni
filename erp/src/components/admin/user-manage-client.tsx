@@ -35,10 +35,10 @@ const ROLE_COLORS = {
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-[#514b81]">{label}</label>
+      <label className="text-xs font-medium text-[#514b81]">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
       {children}
     </div>
   )
@@ -154,7 +154,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               <span className="font-semibold text-[#090c1d]">{user?.name}</span> 직원이 비활성(퇴사) 처리되었습니다.
               현재 담당 중인 고객 <span className="font-semibold text-red-600">{handover.count}건</span>을 후임 직원에게 인수인계할 수 있습니다.
             </p>
-            <Field label="후임 직원">
+            <Field label="후임 직원" required>
               <select value={successorId} onChange={e => setSuccessorId(e.target.value)} className={inputCls}>
                 <option value="">직원 선택</option>
                 {successors.filter(s => s.id !== user?.id).map(s => (
@@ -193,7 +193,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
         <div className="px-6 py-5 space-y-4">
           {mode === 'create' && (
             <div className="grid grid-cols-2 gap-4">
-              <Field label="이메일 *">
+              <Field label="이메일" required>
                 <input
                   type="email"
                   value={form.email}
@@ -202,7 +202,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
                   className={inputCls}
                 />
               </Field>
-              <Field label="초기 비밀번호 *">
+              <Field label="초기 비밀번호" required>
                 <input
                   type="password"
                   value={form.password}
@@ -215,7 +215,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="이름 *">
+            <Field label="이름" required>
               <input
                 value={form.name}
                 onChange={e => set('name', e.target.value)}
@@ -223,7 +223,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
                 className={inputCls}
               />
             </Field>
-            <Field label="사번 *">
+            <Field label="사번" required>
               <input
                 value={form.employee_id}
                 onChange={e => set('employee_id', e.target.value)}
@@ -234,7 +234,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="역할 *">
+            <Field label="역할" required>
               <select
                 value={form.role}
                 onChange={e => set('role', e.target.value)}
@@ -429,7 +429,7 @@ function LeaveBalanceModal({
           <Field label="연도">
             <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputCls} />
           </Field>
-          <Field label="총 연차 일수">
+          <Field label="총 연차 일수" required>
             <input type="number" min={0} value={days} onChange={e => setDays(e.target.value)} className={inputCls} />
           </Field>
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -492,7 +492,7 @@ function HandoverModal({ user, successors, onClose }: { user: User; successors: 
             <p className="text-sm text-[#b0acd6]">이관할 담당 고객이 없습니다.</p>
           ) : (
             <>
-              <Field label="이관받을 직원">
+              <Field label="이관받을 직원" required>
                 <select value={successorId} onChange={e => setSuccessorId(e.target.value)} className={inputCls}>
                   <option value="">직원 선택</option>
                   {successors.filter(s => s.id !== user.id).map(s => (

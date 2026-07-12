@@ -78,7 +78,7 @@ export function SheetDetailClient({ sheet, items }: { sheet: Sheet; items: Sheet
         {isEditing ? (
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#514b81]">점검표명</label>
+              <label className="text-xs font-medium text-[#514b81]">점검표명<span className="text-red-500 ml-0.5">*</span></label>
               <input value={form.sheet_name} onChange={e => setForm(p => ({ ...p, sheet_name: e.target.value }))} className={inputCls} />
             </div>
             <div className="space-y-1.5">

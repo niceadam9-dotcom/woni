@@ -511,7 +511,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
               )}
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <Field label="이름">
+              <Field label="이름" required={role === '대표'}>
                 <input
                   id={`contact-${role}-name`}
                   value={contacts[role].name}

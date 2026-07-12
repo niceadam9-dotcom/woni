@@ -151,7 +151,7 @@ function VoucherModal({
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">전표일자 *</label>
+            <label className="block text-xs text-gray-500 mb-1">전표일자<span className="text-red-500 ml-0.5">*</span></label>
             <DateInput value={voucherDate} onChange={e => setVoucherDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
@@ -167,7 +167,7 @@ function VoucherModal({
             </div>
           </div>
           <div className="col-span-3">
-            <label className="block text-xs text-gray-500 mb-1">적요 *</label>
+            <label className="block text-xs text-gray-500 mb-1">적요<span className="text-red-500 ml-0.5">*</span></label>
             <input type="text" value={description} onChange={e => setDescription(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="전표 내용 요약" />
           </div>

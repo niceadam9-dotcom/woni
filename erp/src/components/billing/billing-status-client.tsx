@@ -96,7 +96,7 @@ function CreateBillModal({
         </div>
         <div className="p-5 space-y-3">
           <div className="flex items-center gap-3">
-            <label className="w-24 text-xs text-gray-600 shrink-0">건물명 *</label>
+            <label className="w-24 text-xs text-gray-600 shrink-0">건물명<span className="text-red-500 ml-0.5">*</span></label>
             <CustomerCombobox
               customers={customers}
               value={customerId}
@@ -106,7 +106,7 @@ function CreateBillModal({
             />
           </div>
           <div className="flex items-center gap-3">
-            <label className="w-24 text-xs text-gray-600 shrink-0">청구월 *</label>
+            <label className="w-24 text-xs text-gray-600 shrink-0">청구월<span className="text-red-500 ml-0.5">*</span></label>
             <input
               value={billingMonth}
               onChange={e => setBillingMonth(e.target.value)}
@@ -115,7 +115,7 @@ function CreateBillModal({
             />
           </div>
           <div className="flex items-center gap-3">
-            <label className="w-24 text-xs text-gray-600 shrink-0">구분 *</label>
+            <label className="w-24 text-xs text-gray-600 shrink-0">구분<span className="text-red-500 ml-0.5">*</span></label>
             <select
               value={billType}
               onChange={e => setBillType(e.target.value)}
@@ -127,7 +127,7 @@ function CreateBillModal({
             </select>
           </div>
           <div className="flex items-center gap-3">
-            <label className="w-24 text-xs text-gray-600 shrink-0">청구일 *</label>
+            <label className="w-24 text-xs text-gray-600 shrink-0">청구일<span className="text-red-500 ml-0.5">*</span></label>
             <DateInput
               value={billDate}
               onChange={e => setBillDate(e.target.value)}
@@ -135,7 +135,7 @@ function CreateBillModal({
             />
           </div>
           <div className="flex items-center gap-3">
-            <label className="w-24 text-xs text-gray-600 shrink-0">공급가액 *</label>
+            <label className="w-24 text-xs text-gray-600 shrink-0">공급가액<span className="text-red-500 ml-0.5">*</span></label>
             <input
               value={supplyValue}
               onChange={e => setSupplyValue(e.target.value)}
@@ -242,7 +242,7 @@ function PaymentSlidePanel({
             <span className="font-bold">{fmtNum(bill.total_amount)}원</span>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">입금일 *</label>
+            <label className="block text-xs text-gray-600 mb-1">입금일<span className="text-red-500 ml-0.5">*</span></label>
             <DateInput
               value={paidAt}
               onChange={e => setPaidAt(e.target.value)}
@@ -250,7 +250,7 @@ function PaymentSlidePanel({
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">입금액 *</label>
+            <label className="block text-xs text-gray-600 mb-1">입금액<span className="text-red-500 ml-0.5">*</span></label>
             <input
               value={paidAmount}
               onChange={e => setPaidAmount(e.target.value)}

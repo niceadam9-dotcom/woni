@@ -81,7 +81,7 @@ export function ItemsClient({ items, categories }: { items: Record<string, unkno
         <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-4 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">품목코드 *</label>
+              <label className="text-xs text-[#514b81]">품목코드<span className="text-red-500 ml-0.5">*</span></label>
               <div className="flex gap-1">
                 <input value={form.item_code} onChange={e => setForm(p => ({ ...p, item_code: e.target.value.toUpperCase() }))} className={`${inputCls} flex-1`} placeholder="접두어 후 자동생성" />
                 <button type="button" onClick={handleGenerateItemCode} disabled={isGenerating} title="다음 품목코드 자동 생성" className="h-9 px-2 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] border border-[#d0ccf5] flex items-center gap-1 text-xs font-medium disabled:opacity-50 whitespace-nowrap">
@@ -89,7 +89,7 @@ export function ItemsClient({ items, categories }: { items: Record<string, unkno
                 </button>
               </div>
             </div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">품목명 *</label><input value={form.item_name} onChange={set('item_name', 'form')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">품목명<span className="text-red-500 ml-0.5">*</span></label><input value={form.item_name} onChange={set('item_name', 'form')} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">분류</label>
               <select value={form.category_id} onChange={set('category_id', 'form')} className={inputCls}>
                 <option value="">선택</option>

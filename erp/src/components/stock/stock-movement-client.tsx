@@ -59,7 +59,7 @@ export function StockMovementClient({
         <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-4 gap-3">
             <div className="space-y-1 col-span-2">
-              <label className="text-xs text-[#514b81]">품목 *</label>
+              <label className="text-xs text-[#514b81]">품목<span className="text-red-500 ml-0.5">*</span></label>
               <select value={form.item_id} onChange={e => {
                 const item = items.find(i => i.id === e.target.value)
                 setForm(p => ({ ...p, item_id: e.target.value, unit_price: item?.standard_price?.toString() ?? '' }))
@@ -69,7 +69,7 @@ export function StockMovementClient({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">수량 * {selectedItem?.unit ? `(${selectedItem.unit})` : ''}</label>
+              <label className="text-xs text-[#514b81]">수량<span className="text-red-500 ml-0.5">*</span> {selectedItem?.unit ? `(${selectedItem.unit})` : ''}</label>
               <input type="number" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} className={inputCls} />
             </div>
             <div className="space-y-1">

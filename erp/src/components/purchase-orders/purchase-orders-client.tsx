@@ -105,7 +105,7 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
                 {partners.map(p => <option key={p.id} value={p.id}>{p.partner_name}</option>)}
               </select>
             </div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">발주일 *</label><DateInput value={form.order_date} onChange={e => setForm(p => ({ ...p, order_date: e.target.value }))} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">발주일<span className="text-red-500 ml-0.5">*</span></label><DateInput value={form.order_date} onChange={e => setForm(p => ({ ...p, order_date: e.target.value }))} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">입고예정일</label><DateInput value={form.expected_date} onChange={e => setForm(p => ({ ...p, expected_date: e.target.value }))} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">메모</label><input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} /></div>
           </div>
