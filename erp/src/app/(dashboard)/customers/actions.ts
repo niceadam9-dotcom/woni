@@ -447,7 +447,10 @@ export async function updateCustomerAction(
   const trackedFields = ['customer_name', 'inspection_type', 'contract_date', 'use_approval_date', 'plan_anchor_date', 'address'] as const
   const changes: Array<{ field: string; field_label: string; old_value: string | null; new_value: string | null }> = []
   for (const f of trackedFields) {
-    const newVal = (updateFields[f] as string | null | undefined) ?? null
+    // 폼이 보내지 않은 필드(undefined)는 직렬화 시 제외되어 DB도 그대로 — 변경으로 기록하면 허위 이력
+    // (예: 수정 폼은 점검유형을 안 보내는데 "종합→null"로 남던 버그, 2026-07-13)
+    if (updateFields[f] === undefined) continue
+    const newVal = (updateFields[f] as string | null) ?? null
     const oldVal = (prev?.[f] as string | null | undefined) ?? null
     if (newVal !== oldVal) changes.push({ field: f, field_label: CUSTOMER_FIELD_LABELS[f], old_value: oldVal, new_value: newVal })
   }
