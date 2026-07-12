@@ -7,6 +7,7 @@ import {
   addCustomHolidayAction,
   deleteHolidayAction,
 } from '@/app/(dashboard)/admin/holidays/actions'
+import { DateInput } from '@/components/ui/date-input'
 import type { Holiday } from '@/types'
 
 interface Props {
@@ -111,8 +112,7 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
       <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
         <h2 className="text-sm font-semibold text-[#090c1d] mb-4">회사 자체 휴무일 추가</h2>
         <form onSubmit={handleAdd} className="flex items-start gap-3">
-          <input
-            type="date"
+          <DateInput
             value={addDate}
             onChange={e => setAddDate(e.target.value)}
             required

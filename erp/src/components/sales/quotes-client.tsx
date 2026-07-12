@@ -8,6 +8,7 @@ import {
   deleteQuoteAction,
   type QuoteItem,
 } from '@/app/(dashboard)/quotes/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type Customer = { id: string; customer_name: string; customer_code: string }
 type Quote = {
@@ -169,12 +170,12 @@ function QuoteModal({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">견적일 *</label>
-            <input type="date" value={quoteDate} onChange={e => setQuoteDate(e.target.value)}
+            <DateInput value={quoteDate} onChange={e => setQuoteDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">유효기간</label>
-            <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)}
+            <DateInput value={validUntil} onChange={e => setValidUntil(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>

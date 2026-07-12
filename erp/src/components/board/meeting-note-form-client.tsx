@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, MapPin, Users } from 'lucide-react'
 import { createMeetingNoteAction, updateMeetingNoteAction } from '@/app/(dashboard)/board/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -65,7 +66,7 @@ export function MeetingNoteFormClient({ existing }: { existing?: Note }) {
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[#514b81]">회의일 <span className="text-red-500">*</span></label>
-            <input type="date" value={form.meeting_date} onChange={e => setField('meeting_date', e.target.value)} className={inputCls} />
+            <DateInput value={form.meeting_date} onChange={e => setField('meeting_date', e.target.value)} className={inputCls} />
           </div>
         </div>
 

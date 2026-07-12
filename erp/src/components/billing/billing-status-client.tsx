@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { Search, X, Plus, Check } from 'lucide-react'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
+import { DateInput } from '@/components/ui/date-input'
 import { TableScroll } from '@/components/ui/table-scroll'
 import {
   createBillAction,
@@ -127,8 +128,7 @@ function CreateBillModal({
           </div>
           <div className="flex items-center gap-3">
             <label className="w-24 text-xs text-gray-600 shrink-0">청구일 *</label>
-            <input
-              type="date"
+            <DateInput
               value={billDate}
               onChange={e => setBillDate(e.target.value)}
               className="flex-1 border rounded px-2 py-1.5 text-sm"
@@ -243,8 +243,7 @@ function PaymentSlidePanel({
           </div>
           <div>
             <label className="block text-xs text-gray-600 mb-1">입금일 *</label>
-            <input
-              type="date"
+            <DateInput
               value={paidAt}
               onChange={e => setPaidAt(e.target.value)}
               className="w-full border rounded px-2 py-1.5 text-sm"
@@ -302,7 +301,7 @@ function PaymentSlidePanel({
                     <div className="mt-2 space-y-2">
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">발행일자</label>
-                        <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
+                        <DateInput value={issueDate} onChange={e => setIssueDate(e.target.value)}
                           className="w-full border rounded px-2 py-1.5 text-sm" />
                       </div>
                       <div>

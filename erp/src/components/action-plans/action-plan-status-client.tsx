@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { Search, X, ChevronDown, ChevronRight, Printer } from 'lucide-react'
 import { updateActionPlanAction, updateCompleteReportAction, upsertActionPlanStatusAction } from '@/app/(dashboard)/action-plans/status/actions'
+import { DateInput } from '@/components/ui/date-input'
 import { inspectionTypeLabel } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -231,8 +232,7 @@ function ActionPlanModal({
           ].map(f => (
             <div key={f.label} className="flex items-center gap-3">
               <label className="w-28 text-xs text-gray-600 shrink-0">{f.label}</label>
-              <input
-                type="date"
+              <DateInput
                 value={f.value}
                 onChange={e => f.set(e.target.value)}
                 disabled={!canManage}
@@ -261,8 +261,7 @@ function ActionPlanModal({
               ].map(f => (
                 <div key={f.label} className="flex items-center gap-3">
                   <label className="w-28 text-xs text-gray-600 shrink-0">{f.label}</label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={f.value}
                     onChange={e => f.set(e.target.value)}
                     disabled={!canManage}

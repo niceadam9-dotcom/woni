@@ -5,6 +5,7 @@ import { X, Search, ChevronDown } from 'lucide-react'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 import { addPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type Employee = { id: string; name: string; position: string | null }
 type CustomerOption = {
@@ -230,8 +231,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
                 </span>
               )}
             </div>
-            <input
-              type="date"
+            <DateInput
               value={scheduledDate}
               onChange={e => { setScheduledDate(e.target.value); setAutoFilled(false) }}
               className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"

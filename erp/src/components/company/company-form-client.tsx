@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, MapPin, Phone, Mail, User, Building, Hash, Printer } from 'lucide-react'
 import { upsertCompanyAction } from '@/app/(dashboard)/company/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -124,7 +125,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
             </div>
           </Field>
           <Field label="설립일">
-            <input type="date" value={form.established_date} onChange={e => setField('established_date', e.target.value)} className={inputCls} />
+            <DateInput value={form.established_date} onChange={e => setField('established_date', e.target.value)} className={inputCls} />
           </Field>
         </div>
 

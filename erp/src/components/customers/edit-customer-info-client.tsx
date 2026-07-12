@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Search, MapPin } from 'lucide-react'
 import { updateCustomerAction } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { Customer } from '@/types'
 
 type Props = {
@@ -77,6 +78,9 @@ export function EditCustomerInfoClient({ customer }: Props) {
   function handleSave() {
     if (!form.customer_name.trim()) { setError('고객명은 필수입니다'); return }
     if (!form.contract_date) { setError('계약일은 필수입니다'); return }
+    for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
+      if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
+    }
     setError('')
     startTransition(async () => {
       const result = await updateCustomerAction(customer.id, {
@@ -113,8 +117,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className={labelCls}>계약일 <span className="text-red-500">*</span></label>
-          <input
-            type="date"
+          <DateInput
             value={form.contract_date}
             onChange={e => set('contract_date', e.target.value)}
             className={inputCls}
@@ -122,8 +125,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
         </div>
         <div className="space-y-1">
           <label className={labelCls}>사용승인일</label>
-          <input
-            type="date"
+          <DateInput
             value={form.use_approval_date}
             onChange={e => set('use_approval_date', e.target.value)}
             className={inputCls}
@@ -131,8 +133,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
         </div>
         <div className="space-y-1">
           <label className={labelCls}>점검계획일 <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
-          <input
-            type="date"
+          <DateInput
             value={form.plan_anchor_date}
             onChange={e => set('plan_anchor_date', e.target.value)}
             className={inputCls}

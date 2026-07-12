@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X } from 'lucide-react'
 import { createVehicleLogAction } from '@/app/(dashboard)/vehicles/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -91,7 +92,7 @@ export function VehicleLogClient({
               <option value="">차량 선택 *</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.vehicle_number} {v.vehicle_name}</option>)}
             </select>
-            <input type="date" value={form.log_date} onChange={set('log_date')} className={inputCls} />
+            <DateInput value={form.log_date} onChange={set('log_date')} className={inputCls} />
             <input value={form.purpose} onChange={set('purpose')} placeholder="운행 목적" className={inputCls} />
           </div>
           <div className="grid grid-cols-4 gap-3">

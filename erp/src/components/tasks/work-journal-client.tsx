@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { createWorkJournalAction } from '@/app/(dashboard)/tasks/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -54,7 +55,7 @@ export function WorkJournalClient({
       {showNew ? (
         <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            <input type="date" value={newForm.work_date} onChange={e => setNewForm(p => ({ ...p, work_date: e.target.value }))} className={inputCls} />
+            <DateInput value={newForm.work_date} onChange={e => setNewForm(p => ({ ...p, work_date: e.target.value }))} className={inputCls} />
             <div className="col-span-2">
               <input value={newForm.title} onChange={e => setNewForm(p => ({ ...p, title: e.target.value }))}
                 placeholder="제목 *" className={inputCls} />

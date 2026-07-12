@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
 import { MessageSquare, ChevronLeft, ChevronRight, X, Check, Search, MapPin, ExternalLink } from 'lucide-react'
 import { upsertStatusLogAction, saveSmsAction, getMonitorItemsAction } from '@/app/(dashboard)/inspection-plans/monitor/actions'
 import { TableScroll } from '@/components/ui/table-scroll'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { inspectionTypeLabel } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -104,6 +105,8 @@ function DateCell({
   function save(val: string) {
     const newVal = val || null
     if (newVal === (value ?? null)) { setEditing(false); return }
+    // 부분 입력된 날짜는 저장하지 않고 편집 종료 (원래 값 유지)
+    if (newVal && !isCompleteDate(newVal)) { setEditing(false); return }
     startTransition(async () => {
       await upsertStatusLogAction({ planItemId, [stepKey]: newVal })
       setEditing(false)
@@ -113,9 +116,8 @@ function DateCell({
 
   if (editing) {
     return (
-      <input
+      <DateInput
         ref={inputRef}
-        type="date"
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={e => save(e.target.value)}

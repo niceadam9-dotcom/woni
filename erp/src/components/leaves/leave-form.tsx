@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2, CalendarDays } from 'lucide-react'
 import { applyLeaveAction } from '@/app/(dashboard)/leaves/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const LEAVE_TYPES = [
   { value: 'annual',   label: '연차' },
@@ -123,8 +124,7 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[#292d34]">시작일 *</label>
-          <input
-            type="date"
+          <DateInput
             {...register('start_date')}
             className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20 transition"
           />
@@ -132,8 +132,7 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[#292d34]">종료일 *</label>
-          <input
-            type="date"
+          <DateInput
             {...register('end_date')}
             disabled={isHalf}
             min={startDate || undefined}

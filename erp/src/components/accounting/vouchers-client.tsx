@@ -8,6 +8,7 @@ import {
   cancelVoucherAction,
   type VoucherLine,
 } from '@/app/(dashboard)/accounting/vouchers/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type AccountCode = { id: string; code: string; name: string; account_type: string }
 type VoucherLineRow = {
@@ -151,7 +152,7 @@ function VoucherModal({
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">전표일자 *</label>
-            <input type="date" value={voucherDate} onChange={e => setVoucherDate(e.target.value)}
+            <DateInput value={voucherDate} onChange={e => setVoucherDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
           <div>

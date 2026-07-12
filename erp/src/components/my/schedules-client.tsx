@@ -8,6 +8,7 @@ import {
   updateScheduleAction,
   deleteScheduleAction,
 } from '@/app/(dashboard)/my/schedules/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type Schedule = {
   id: string
@@ -126,12 +127,12 @@ function ScheduleModal({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs text-gray-500 mb-1">시작일 *</label>
-              <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); if (!endDate) setEndDate(e.target.value) }}
+              <DateInput value={startDate} onChange={e => { setStartDate(e.target.value); if (!endDate) setEndDate(e.target.value) }}
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">종료일 *</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+              <DateInput value={endDate} onChange={e => setEndDate(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>

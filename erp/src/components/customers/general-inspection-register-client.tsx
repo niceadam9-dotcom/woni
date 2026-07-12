@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarPlus, Loader2, X } from 'lucide-react'
 import { registerGeneralInspectionAction } from '@/app/(dashboard)/customers/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 interface Props {
   customerId: string
@@ -69,8 +70,7 @@ export function GeneralInspectionRegisterClient({ customerId, customerName, empl
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#514b81]">점검 예정일 <span className="text-red-500">*</span></label>
-                <input
-                  type="date"
+                <DateInput
                   value={date}
                   onChange={e => setDate(e.target.value)}
                   className="w-full h-9 rounded-lg border border-[#d0ccf5] px-3 text-sm outline-none focus:border-[#7b68ee]"

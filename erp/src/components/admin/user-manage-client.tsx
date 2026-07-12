@@ -9,6 +9,7 @@ import {
   getEmployeeDeleteEligibilityAction, deleteEmployeeAction,
   type CreateUserInput, type UpdateUserInput,
 } from '@/app/(dashboard)/admin/users/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type User = {
   id: string
@@ -268,8 +269,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               />
             </Field>
             <Field label="입사일">
-              <input
-                type="date"
+              <DateInput
                 value={form.hire_date}
                 onChange={e => set('hire_date', e.target.value)}
                 className={inputCls}

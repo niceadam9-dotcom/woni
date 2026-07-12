@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { createVehicleAction, updateVehicleAction } from '@/app/(dashboard)/vehicles/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -122,11 +123,11 @@ export function VehicleFormClient({ vehicle }: { vehicle?: Vehicle }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-[#514b81]">보험 만료일</label>
-          <input type="date" value={form.insurance_expiry} onChange={set('insurance_expiry')} className={inputCls} />
+          <DateInput value={form.insurance_expiry} onChange={set('insurance_expiry')} className={inputCls} />
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-[#514b81]">자동차 검사 만료일</label>
-          <input type="date" value={form.inspection_expiry} onChange={set('inspection_expiry')} className={inputCls} />
+          <DateInput value={form.inspection_expiry} onChange={set('inspection_expiry')} className={inputCls} />
         </div>
       </div>
       <div className="space-y-1.5">

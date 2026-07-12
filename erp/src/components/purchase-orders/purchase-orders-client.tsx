@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { createPurchaseOrderAction, updatePOStatusAction, type POStatus } from '@/app/(dashboard)/purchase-orders/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition'
 
@@ -104,8 +105,8 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
                 {partners.map(p => <option key={p.id} value={p.id}>{p.partner_name}</option>)}
               </select>
             </div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">발주일 *</label><input type="date" value={form.order_date} onChange={e => setForm(p => ({ ...p, order_date: e.target.value }))} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">입고예정일</label><input type="date" value={form.expected_date} onChange={e => setForm(p => ({ ...p, expected_date: e.target.value }))} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">발주일 *</label><DateInput value={form.order_date} onChange={e => setForm(p => ({ ...p, order_date: e.target.value }))} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">입고예정일</label><DateInput value={form.expected_date} onChange={e => setForm(p => ({ ...p, expected_date: e.target.value }))} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">메모</label><input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} /></div>
           </div>
           <div className="space-y-2">

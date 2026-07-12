@@ -8,6 +8,7 @@ import {
   updateTodoAction,
   deleteTodoAction,
 } from '@/app/(dashboard)/my/todos/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type Todo = {
   id: string
@@ -90,8 +91,8 @@ function TodoModal({
 
           <div>
             <label className="block text-xs text-gray-500 mb-1">마감일</label>
-            <input
-              type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+            <DateInput
+              value={dueDate} onChange={e => setDueDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"
             />
           </div>

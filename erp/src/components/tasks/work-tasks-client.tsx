@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check } from 'lucide-react'
 import { createWorkTaskAction, updateWorkTaskStatusAction, type WorkTaskPriority } from '@/app/(dashboard)/tasks/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -93,7 +94,7 @@ export function WorkTasksClient({
               <option value="">담당자 선택</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
-            <input type="date" value={newForm.due_date} onChange={e => setNewForm(p => ({ ...p, due_date: e.target.value }))} className={inputCls} />
+            <DateInput value={newForm.due_date} onChange={e => setNewForm(p => ({ ...p, due_date: e.target.value }))} className={inputCls} />
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">

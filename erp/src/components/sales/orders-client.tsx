@@ -8,6 +8,7 @@ import {
   deleteOrderAction,
   type OrderItem,
 } from '@/app/(dashboard)/orders/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type Customer = { id: string; customer_name: string; customer_code: string }
 type QuoteRef  = { id: string; quote_number: string; total_amount: number; customer_id: string }
@@ -161,12 +162,12 @@ function OrderModal({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">수주일 *</label>
-            <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
+            <DateInput value={orderDate} onChange={e => setOrderDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">납기일</label>
-            <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
+            <DateInput value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>

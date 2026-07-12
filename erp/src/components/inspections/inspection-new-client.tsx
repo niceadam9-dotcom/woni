@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Calendar, ChevronRight } from 'lucide-react'
 import { createInspectionAction } from '@/app/(dashboard)/inspections/actions'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType } from '@/types'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
@@ -81,6 +82,8 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
     if (!customerId) { setError('고객을 선택해주세요.'); return }
     if (!assignedEmployeeId) { setError('담당직원을 선택해주세요.'); return }
     if (!startDate) { setError('점검 시작일을 입력해주세요.'); return }
+    if (!isCompleteDate(startDate)) { setError('점검 시작일을 YYYY-MM-DD 형식으로 입력해주세요.'); return }
+    if (startDate < today) { setError('점검 시작일은 오늘 이후 날짜여야 합니다.'); return }
 
     startTransition(async () => {
       const result = await createInspectionAction({
@@ -140,10 +143,8 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
           <Field label="점검 시작일" required>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-              <input
-                type="date"
+              <DateInput
                 value={startDate}
-                min={today}
                 onChange={e => setStartDate(e.target.value)}
                 className={`${inputCls} pl-8`}
               />

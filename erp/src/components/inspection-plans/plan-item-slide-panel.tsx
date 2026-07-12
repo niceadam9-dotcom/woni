@@ -8,6 +8,7 @@ import type { InspectionType, PlanItemStatus } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 import { updatePlanItemAction, startInspectionAction, getInspectionStepsForItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type StepInfo = {
   id: string; step_num: number; name_ko: string
@@ -177,8 +178,7 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
                     </span>
                   )}
                 </div>
-                <input
-                  type="date"
+                <DateInput
                   value={scheduledDate}
                   onChange={e => setScheduledDate(e.target.value)}
                   disabled={!canEdit}

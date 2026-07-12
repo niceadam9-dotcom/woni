@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
 import { patchCustomerFieldAction } from '@/app/(dashboard)/customers/actions'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -46,10 +47,14 @@ export function InlineCustomerFieldClient({
     setEditing(true)
   }
 
+  const isDateField = field === 'contract_date' || field === 'use_approval_date' || field === 'plan_anchor_date'
+
   function handleSave(e?: React.MouseEvent) {
     e?.stopPropagation()
     const trimmed = draft.trim() || null
     if (trimmed === (value ?? null)) { setEditing(false); return }
+    // 부분 입력된 날짜("2026-07")는 저장하지 않고 편집 종료 (원래 값 유지)
+    if (isDateField && trimmed && !isCompleteDate(trimmed)) { setEditing(false); return }
     startTransition(async () => {
       const res = await patchCustomerFieldAction(customerId, field, trimmed)
       if (res.error) alert(res.error)
@@ -136,14 +141,13 @@ export function InlineCustomerFieldClient({
   }
 
   // text / date inputs
-  const inputType =
-    field === 'contract_date' || field === 'use_approval_date' || field === 'plan_anchor_date' ? 'date' : 'text'
+  const InputComp = isDateField ? DateInput : 'input'
 
   return (
     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-      <input
+      <InputComp
         ref={inputRef as React.RefObject<HTMLInputElement>}
-        type={inputType}
+        {...(isDateField ? {} : { type: 'text' })}
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}

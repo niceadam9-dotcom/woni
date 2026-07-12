@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, AlertTriangle } from 'lucide-react'
 import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -189,6 +190,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
     if (!form.contract_date) { setError('계약일을 선택해주세요.'); return }
     if (!form.plan_anchor_date) { setError('점검계획일을 선택해주세요.'); return }
+    for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
+      if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
+    }
     if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
 
     // 저장 시점 중복 재검증 (주소 수동 입력 대비) — 이미 확인한 주소는 통과
@@ -347,16 +351,14 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="계약일" required>
-            <input
-              type="date"
+            <DateInput
               value={form.contract_date}
               onChange={e => setField('contract_date', e.target.value)}
               className={inputCls}
             />
           </Field>
           <Field label="사용승인일">
-            <input
-              type="date"
+            <DateInput
               value={form.use_approval_date}
               onChange={e => setField('use_approval_date', e.target.value)}
               className={inputCls}
@@ -372,8 +374,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             )}
           </Field>
           <Field label="점검계획일" required>
-            <input
-              type="date"
+            <DateInput
               value={form.plan_anchor_date}
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={inputCls}

@@ -7,6 +7,7 @@ import {
   updatePayrollStatusAction,
   deletePayrollAction,
 } from '@/app/(dashboard)/hr/payroll/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type Employee = { id: string; full_name: string; department: string | null }
 
@@ -255,8 +256,7 @@ function PayrollModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">지급일</label>
-              <input
-                type="date"
+              <DateInput
                 value={form.pay_date}
                 onChange={e => set('pay_date', e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none"

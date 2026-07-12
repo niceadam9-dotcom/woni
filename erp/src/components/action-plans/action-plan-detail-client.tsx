@@ -8,6 +8,7 @@ import {
   upsertPlanStatusAction,
   upsertCompleteReportAction,
 } from '@/app/(dashboard)/action-plans/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 function fmt(d: string | null | undefined) { return d ? d.slice(0, 10) : '' }
 
@@ -140,8 +141,7 @@ export function ActionPlanDetailClient({
           ].map(f => (
             <div key={f.label}>
               <label className="block text-xs text-gray-500 mb-1">{f.label}</label>
-              <input
-                type="date"
+              <DateInput
                 value={f.value}
                 onChange={e => f.set(e.target.value)}
                 disabled={!canManage}
@@ -172,8 +172,7 @@ export function ActionPlanDetailClient({
             ].map(f => (
               <div key={f.label}>
                 <label className="block text-xs text-gray-500 mb-1">{f.label}</label>
-                <input
-                  type="date"
+                <DateInput
                   value={f.value}
                   onChange={e => f.set(e.target.value)}
                   disabled={!canManage}

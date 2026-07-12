@@ -11,6 +11,7 @@ import {
 } from '@/app/(dashboard)/inspection-plans/actions'
 import type { InspectionType, PlanItemStatus } from '@/types'
 import { inspectionTypeLabel } from '@/types'
+import { DateInput } from '@/components/ui/date-input'
 
 type CustomerRow = {
   id: string; customer_name: string; customer_code: string
@@ -291,8 +292,7 @@ export function AutoGenerateWizard({
                     </td>
                     <td className="px-4 py-2 text-[#514b81]">{item.sequence_num}차</td>
                     <td className="px-4 py-2">
-                      <input
-                        type="date"
+                      <DateInput
                         value={item.scheduled_date}
                         onChange={e => updateDraftItem(idx, { scheduled_date: e.target.value })}
                         className="text-xs border border-[#c8c4d0] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"

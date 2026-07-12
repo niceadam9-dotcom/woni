@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Printer, ExternalLink, ArrowLeft, CheckCircle } from 'lucide-react'
 import { issueTaxInvoiceAction } from '@/app/(dashboard)/tax-invoices/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 type TaxInvoice = {
   id: string
@@ -305,8 +306,7 @@ export function TaxInvoiceIssueClient({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">발행일 *</label>
-            <input
-              type="date"
+            <DateInput
               value={issueDate}
               onChange={e => setIssueDate(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"
