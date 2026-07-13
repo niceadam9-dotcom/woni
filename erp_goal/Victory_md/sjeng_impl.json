@@ -235,13 +235,13 @@
       "id": "P1A-3",
       "phase": "P1-A",
       "title": "시설현황 이관",
-      "detail": "과거 작동보고서 현황시트 → fire_facilities(건물단위), 없으면 수동보완",
+      "detail": "migrate-facilities-from-reports.mjs — 과거 작동보고서 현황 시트 [√] 역파싱(FACILITY_CHECKBOX 역맵)→설치설비 추출, 개요 B14/B12·파일명으로 고객 매칭, fire_facilities 삽입(멱등: 기존 있으면 skip). 스테이징 실행: 경복빌딩·곤빌딩 각 4설비 이관, 강순기(DB 미존재)는 수동보완 표시. dry-run/--execute.",
       "section": "§2-1",
       "migration": "067",
       "depends_on": [
         "P33-1"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P1A-4",
@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 35,
+    "completed": 36,
     "in_progress": 0,
-    "pending": 2,
+    "pending": 1,
     "deferred": 1,
     "blocked": 0
   }
