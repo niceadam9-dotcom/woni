@@ -9,6 +9,7 @@ import { ReportGenerateClient } from '@/components/inspections/report-generate-c
 import { InspectionSheetClient } from '@/components/inspections/inspection-sheet-client'
 import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
+import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 import type { ReportType } from '@/app/(dashboard)/inspections/report-constants'
@@ -282,6 +283,9 @@ export default async function InspectionDetailPage({
 
       {/* 작동점검 보고서 생성 (P32) */}
       <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />
+
+      {/* 음성 불량 기록 (VN-1) — 말로 보고 → AI 정리 → 불량 추가 */}
+      <InspectionVoiceDefectClient inspectionId={id} canManage={canEdit} />
 
       {/* 불량내역 — 전체 너비 */}
       <InspectionDefectsClient

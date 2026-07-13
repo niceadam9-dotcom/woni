@@ -616,20 +616,20 @@
       "id": "VN-1",
       "phase": "부가",
       "title": "작동점검 음성 문서화",
-      "detail": "녹음→STT 받아쓰기→AI 구조화→불량 후보→확정",
+      "detail": "classifyDefectsFromTranscriptAction(Claude opus-4-8 구조화) + InspectionVoiceDefectClient(Web Speech STT 마이크 ko-KR + 텍스트 → AI 불량 분석 → 후보 리스트 → [추가]로 addDefect) 점검상세 배치. STT는 클라이언트(오디오 저장·077 불필요). 타입체크 통과. 동작에 ANTHROPIC_API_KEY 필요.",
       "section": "§9",
-      "migration": "077",
+      "migration": "-",
       "depends_on": [
         "P2-1"
       ],
-      "status": "pending"
+      "status": "completed"
     }
   ],
   "summary": {
     "total": 38,
-    "completed": 31,
+    "completed": 32,
     "in_progress": 2,
-    "pending": 4,
+    "pending": 3,
     "deferred": 1,
     "blocked": 0
   }
