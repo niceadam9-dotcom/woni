@@ -159,10 +159,12 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           }
           const L = res.info
           ledgerRef.current = L
-          // 건물 물리정보(용도/연면적/층수/준공연도)만 자동 채움.
-          // ★ 사용승인일은 6단계 점검계획의 기산점이라 자동 입력하지 않음 — 사용자가 직접 판단해 입력 (참고값은 안내로만 표시)
+          // 건물 물리정보(용도/연면적/층수/준공연도) + 사용승인일 자동 채움.
+          // 사용승인일 자동 적용: 계획 기산점이 점검계획일(필수 수동 입력)로 바뀌어 자동 입력해도 안전 (2026-07-13).
+          // 이미 입력된 값은 덮어쓰지 않고, 채워진 뒤에도 자유롭게 편집·삭제 가능.
           setForm(prev => ({
             ...prev,
+            use_approval_date:     prev.use_approval_date     || (L.use_approval_date ?? ''),
             building_purpose:      prev.building_purpose      || (L.purpose ?? ''),
             building_total_area:   prev.building_total_area   || (L.total_area != null ? String(L.total_area) : ''),
             building_floors_above: prev.building_floors_above || (L.floors_above != null ? String(L.floors_above) : ''),
@@ -170,7 +172,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             building_year_built:   prev.building_year_built   || (L.use_approval_date ? L.use_approval_date.slice(0, 4) : ''),
           }))
           const extras = [
-            L.use_approval_date && `대장상 사용승인일 ${L.use_approval_date}(참고)`,
+            L.use_approval_date && `사용승인일 ${L.use_approval_date} 자동 적용`,
             L.height != null && `높이 ${L.height}m`,
             L.main_structure && `구조 ${L.main_structure}`,
             L.elevator_count != null && `승강기 ${L.elevator_count}대`,
