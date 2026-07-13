@@ -309,11 +309,11 @@
       "id": "P32-1",
       "phase": "P3-2",
       "title": "converter(Gotenberg) 컨테이너",
-      "detail": "VPS docker-compose에 xlsx→pdf 변환 서비스 추가",
+      "detail": "docker-compose.staging.yml에 gotenberg-staging(gotenberg/gotenberg:8, LibreOffice) 추가 + lib/pdf.ts(convertXlsxToPdf/gotenbergHealthy, GOTENBERG_URL). 스테이징 배포·검증 통과(health 200, CSV/xlsx→PDF magic %PDF- 확인). 별칭 고유(app 충돌 없음). 운영 Gotenberg는 미배포(운영 배포 금지 지시).",
       "section": "§3-3",
       "migration": "-",
       "depends_on": [],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P32-2",
@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 27,
+    "completed": 28,
     "in_progress": 3,
-    "pending": 7,
+    "pending": 6,
     "deferred": 1,
     "blocked": 0
   }
