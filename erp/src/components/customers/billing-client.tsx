@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Receipt, Landmark, Save, Eye, Loader2, ShieldCheck } from 'lucide-react'
+import { Receipt, Landmark, Save, Eye, Loader2, ShieldCheck, Users } from 'lucide-react'
 import {
   saveBillingProfileAction, saveAutopayAction, revealAccountAction,
   type BillingProfileInput, type AutopayInput,
 } from '@/app/(dashboard)/customers/billing-actions'
+import { createOwnerAction, assignOwnerAction, type OwnerOption } from '@/app/(dashboard)/customers/owner-actions'
 
 export type BillingProfile = {
   business_no: string | null; company_name: string | null; rep_name: string | null
@@ -21,16 +22,44 @@ export type Autopay = {
 const field = 'h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee] w-full'
 const label = 'text-[11px] text-[#514b81] mb-1 block'
 
-export function BillingClient({ customerId, profile, autopay, canManage }: {
+export function BillingClient({ customerId, profile, autopay, owners, ownerId, canManage }: {
   customerId: string
   profile: BillingProfile | null
   autopay: Autopay | null
+  owners: OwnerOption[]
+  ownerId: string | null
   canManage: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
+
+  // 소유자 그룹 (P4-4)
+  const [ownerList, setOwnerList] = useState<OwnerOption[]>(owners)
+  const [curOwner, setCurOwner] = useState<string>(ownerId ?? '')
+  const [newOwner, setNewOwner] = useState('')
+  const [addingOwner, setAddingOwner] = useState(false)
+
+  function assignOwner(id: string) {
+    setErr(''); setMsg(''); setCurOwner(id)
+    startTransition(async () => {
+      const res = await assignOwnerAction(customerId, id || null)
+      if (res.error) { setErr(res.error) } else { setMsg('소유자 그룹을 저장했습니다.'); router.refresh() }
+    })
+  }
+  function addOwner() {
+    const name = newOwner.trim()
+    if (!name) return
+    setErr(''); setMsg('')
+    startTransition(async () => {
+      const res = await createOwnerAction({ name })
+      if (res.error || !res.owner) { setErr(res.error ?? '소유자 생성 실패'); return }
+      setOwnerList(l => [...l, res.owner!].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewOwner(''); setAddingOwner(false)
+      assignOwner(res.owner.id)
+    })
+  }
 
   // 사업자정보 폼
   const [bp, setBp] = useState<BillingProfileInput>({
@@ -70,6 +99,32 @@ export function BillingClient({ customerId, profile, autopay, canManage }: {
 
   return (
     <div className="space-y-4">
+      {/* 소유자 그룹 (선택적, P4-4) */}
+      <div className={cardCls}>
+        <div className="flex items-center gap-2 mb-3">
+          <Users className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">소유자 그룹 <span className="text-xs font-normal text-[#b0acd6]">통합청구·입금배분</span></h2>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select disabled={!canManage || isPending} value={curOwner} onChange={e => assignOwner(e.target.value)}
+            className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee] min-w-[200px]">
+            <option value="">개별 관리 (그룹 없음)</option>
+            {ownerList.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          {canManage && !addingOwner && (
+            <button onClick={() => setAddingOwner(true)} className="h-9 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#7b68ee] hover:bg-[#f5f4ff]">+ 새 소유자</button>
+          )}
+          {canManage && addingOwner && (
+            <div className="flex items-center gap-1.5">
+              <input value={newOwner} onChange={e => setNewOwner(e.target.value)} placeholder="소유자명"
+                className="h-9 rounded-lg border border-[#d0ccf5] px-3 text-sm outline-none focus:border-[#7b68ee]" autoFocus />
+              <button onClick={addOwner} disabled={isPending} className="h-9 px-3 rounded-lg bg-[#7b68ee] text-white text-sm disabled:opacity-50">추가</button>
+              <button onClick={() => { setAddingOwner(false); setNewOwner('') }} className="h-9 px-2 text-sm text-[#514b81]">취소</button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 사업자정보 (세금계산서) */}
       <div className={cardCls}>
         <div className="flex items-center gap-2 mb-4">

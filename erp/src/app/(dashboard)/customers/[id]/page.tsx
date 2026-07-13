@@ -63,7 +63,7 @@ export default async function CustomerDetailPage({
 
   const admin = createAdminClient()
 
-  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes] = await Promise.all([
+  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes] = await Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
@@ -95,6 +95,7 @@ export default async function CustomerDetailPage({
     admin.from('billing_autopay')
       .select('bank_name, account_holder, account_no_last4, withdraw_day, note')
       .eq('customer_id', id).maybeSingle(),
+    admin.from('owners').select('id, name, contact').order('name'),
   ])
 
   if (!customerRes.data) notFound()
@@ -431,6 +432,8 @@ export default async function CustomerDetailPage({
         customerId={customer.id}
         profile={(billingProfileRes.data ?? null) as BillingProfile | null}
         autopay={(autopayRes.data ?? null) as Autopay | null}
+        owners={(ownersRes.data ?? []) as Array<{ id: string; name: string; contact: string | null }>}
+        ownerId={(customer as { owner_id?: string | null }).owner_id ?? null}
         canManage={canManage}
       />
 

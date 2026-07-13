@@ -545,13 +545,13 @@
       "id": "P4-4",
       "phase": "P4",
       "title": "선택적 소유자 그룹",
-      "detail": "owners + customers.owner_id + 통합청구/입금배분/[소유자별 보기]",
+      "detail": "owners(083)+customers.owner_id + owner-actions(create/assign/list) + 고객상세 [소유자 그룹] 지정 UI(개별관리/그룹선택/새 소유자). 스테이징 적용·타입체크 통과. 통합청구·입금배분·[소유자별 보기] 집계는 후속.",
       "section": "§1-0",
-      "migration": "075",
+      "migration": "083",
       "depends_on": [
         "P4-3"
       ],
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "id": "P4-5",
