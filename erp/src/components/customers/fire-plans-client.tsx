@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Printer, Download, Trash2, Plus, Loader2, FileText } from 'lucide-react'
-import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus } from 'lucide-react'
+import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { DateInput } from '@/components/ui/date-input'
 
+export type FirePlanAttachment = { id: string; kind: string; file_name: string }
 export type FirePlanRow = {
   id: string
   year: number
@@ -12,6 +14,10 @@ export type FirePlanRow = {
   pdf_name: string
   hwp_name: string | null
   note: string | null
+  revision: number
+  submitted_at: string | null
+  fire_station: string | null
+  attachments: FirePlanAttachment[]
   created_at: string
   uploader_name: string | null
 }
@@ -26,6 +32,42 @@ export function FirePlansClient({ customerId, plans, canManage }: {
   const [isPending, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [subDraft, setSubDraft] = useState<{ submittedAt: string; fireStation: string }>({ submittedAt: '', fireStation: '' })
+
+  function openDetail(p: FirePlanRow) {
+    if (expanded === p.id) { setExpanded(null); return }
+    setExpanded(p.id)
+    setSubDraft({ submittedAt: p.submitted_at ?? '', fireStation: p.fire_station ?? '' })
+  }
+  function saveSubmission(planId: string) {
+    startTransition(async () => {
+      const res = await updateFirePlanSubmissionAction(planId, subDraft)
+      if (res.error) { setError(res.error); return }
+      router.refresh()
+    })
+  }
+  function uploadAttachment(planId: string, e: React.ChangeEvent<HTMLInputElement>, kind: string) {
+    const file = e.target.files?.[0]; if (!file) return
+    const fd = new FormData(); fd.append('planId', planId); fd.append('kind', kind); fd.append('file', file)
+    startTransition(async () => {
+      const res = await uploadFirePlanAttachmentAction(fd)
+      if (res.error) { setError(res.error); return }
+      router.refresh()
+    })
+    e.target.value = ''
+  }
+  function removeAttachment(attId: string) {
+    startTransition(async () => { await deleteFirePlanAttachmentAction(attId); router.refresh() })
+  }
+  function issueNext(planId: string) {
+    startTransition(async () => {
+      const res = await issueNextYearPlanAction(planId)
+      if (res.error) { alert(res.error); return }
+      alert(`${res.year}년 소방계획서로 연차발행했습니다.`)
+      router.refresh()
+    })
+  }
 
   function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -83,20 +125,33 @@ export function FirePlansClient({ customerId, plans, canManage }: {
             </thead>
             <tbody>
               {plans.map(p => (
-                <tr key={p.id} className="border-b border-[#f8f9fa] last:border-0 hover:bg-[#fafafa] transition-colors">
-                  <td className="py-3 pr-4 font-medium text-[#090c1d]">{p.year}년</td>
+                <Fragment key={p.id}>
+                <tr className="border-b border-[#f8f9fa] last:border-0 hover:bg-[#fafafa] transition-colors">
+                  <td className="py-3 pr-4 font-medium text-[#090c1d]">
+                    <button onClick={() => openDetail(p)} className="inline-flex items-center gap-1 hover:text-[#7b68ee]">
+                      {expanded === p.id ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                      {p.year}년{p.revision > 1 ? <span className="text-[10px] text-[#7b68ee] ml-1">개정{p.revision}</span> : ''}
+                    </button>
+                  </td>
                   <td className="py-3 pr-4 text-[#090c1d]">
                     {p.title ?? `${p.year}년 소방계획서`}
                     {p.note && <p className="text-xs text-[#b0acd6] mt-0.5">{p.note}</p>}
                   </td>
                   <td className="py-3 pr-4 text-xs text-[#514b81]">
-                    PDF{p.hwp_name ? ' · HWP' : ''}
+                    PDF{p.hwp_name ? ' · HWP' : ''}{p.attachments.length > 0 ? ` · 부속${p.attachments.length}` : ''}
+                    {p.submitted_at && <span className="ml-1 text-[10px] text-green-600">제출{p.submitted_at.slice(5)}</span>}
                   </td>
                   <td className="py-3 pr-4 text-xs text-[#514b81]">
                     {p.created_at.slice(0, 10)}{p.uploader_name ? ` · ${p.uploader_name}` : ''}
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-1.5 justify-end">
+                      {canManage && (
+                        <button onClick={() => issueNext(p.id)} disabled={isPending} title="다음 연도로 연차발행 (파일 복제)"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                          <CalendarPlus className="size-3" /> 연차
+                        </button>
+                      )}
                       <button
                         onClick={() => window.open(`/fire-plans/${p.id}/print`, '_blank')}
                         title="표준양식 PDF 인쇄 — 열리면 인쇄 대화상자가 자동으로 뜹니다"
@@ -133,6 +188,44 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                     </div>
                   </td>
                 </tr>
+                {expanded === p.id && (
+                  <tr className="bg-[#fafaff]">
+                    <td colSpan={5} className="px-4 py-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-[#514b81] mb-1.5 flex items-center gap-1"><Send className="size-3.5" /> 제출 추적</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <DateInput value={subDraft.submittedAt} onChange={e => setSubDraft(s => ({ ...s, submittedAt: e.target.value }))} disabled={!canManage} className="text-sm h-8" />
+                            <input value={subDraft.fireStation} onChange={e => setSubDraft(s => ({ ...s, fireStation: e.target.value }))} placeholder="관할 소방서" disabled={!canManage}
+                              className="h-8 rounded-lg border border-[#d0ccf5] px-2 text-sm outline-none focus:border-[#7b68ee]" />
+                            {canManage && <button onClick={() => saveSubmission(p.id)} disabled={isPending} className="h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs disabled:opacity-50">저장</button>}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-[#514b81] mb-1.5 flex items-center gap-1"><Paperclip className="size-3.5" /> 부속자료 (지도·사진)</p>
+                          <div className="space-y-1">
+                            {p.attachments.map(a => (
+                              <div key={a.id} className="flex items-center gap-2 text-xs">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f5f4ff] text-[#7b68ee]">{a.kind}</span>
+                                <span className="text-[#090c1d] truncate flex-1">{a.file_name}</span>
+                                {canManage && <button onClick={() => removeAttachment(a.id)} className="text-[#b0acd6] hover:text-red-500"><Trash2 className="size-3" /></button>}
+                              </div>
+                            ))}
+                            {p.attachments.length === 0 && <p className="text-[11px] text-[#b0acd6]">등록된 부속자료 없음</p>}
+                          </div>
+                          {canManage && (
+                            <div className="flex gap-3 mt-1.5">
+                              <label className="text-[11px] text-[#7b68ee] cursor-pointer hover:underline">+ 지도<input type="file" className="hidden" onChange={e => uploadAttachment(p.id, e, '지도')} /></label>
+                              <label className="text-[11px] text-[#7b68ee] cursor-pointer hover:underline">+ 사진<input type="file" accept="image/*" className="hidden" onChange={e => uploadAttachment(p.id, e, '사진')} /></label>
+                              <label className="text-[11px] text-[#7b68ee] cursor-pointer hover:underline">+ 기타<input type="file" className="hidden" onChange={e => uploadAttachment(p.id, e, '기타')} /></label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

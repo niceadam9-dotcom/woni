@@ -110,6 +110,95 @@ export async function deleteFirePlanAction(planId: string): Promise<{ error?: st
   return {}
 }
 
+/** 제출추적 저장 (FP-2) — 관할 소방서 제출일·관할서 */
+export async function updateFirePlanSubmissionAction(
+  planId: string, input: { submittedAt: string | null; fireStation: string }
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { data: plan } = await admin.from('fire_plans').select('customer_id').eq('id', planId).single()
+  if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
+  const { error } = await admin.from('fire_plans')
+    .update({ submitted_at: input.submittedAt || null, fire_station: input.fireStation.trim() || null } as Record<string, unknown>)
+    .eq('id', planId)
+  if (error) return { error: `제출정보 저장 실패: ${error.message}` }
+  revalidatePath(`/customers/${(plan as { customer_id: string }).customer_id}`)
+  return {}
+}
+
+/** 부속자료(지도·사진) 업로드 (FP-2) */
+export async function uploadFirePlanAttachmentAction(formData: FormData): Promise<{ error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const planId = String(formData.get('planId') ?? '')
+  const kind = String(formData.get('kind') ?? '기타')
+  const file = formData.get('file') as File | null
+  if (!planId || !file || file.size === 0) return { error: '파일을 선택해주세요.' }
+  if (file.size > MAX_SIZE) return { error: '파일은 30MB 이하여야 합니다.' }
+
+  const { data: plan } = await admin.from('fire_plans').select('customer_id').eq('id', planId).single()
+  if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
+
+  const ext = file.name.split('.').pop() ?? 'bin'
+  const path = `att/${planId}/${Date.now()}.${ext}`
+  const { error: upErr } = await admin.storage.from(BUCKET)
+    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type || 'application/octet-stream', upsert: false })
+  if (upErr) return { error: `업로드 실패: ${upErr.message}` }
+
+  const { error: insErr } = await admin.from('fire_plan_attachments').insert({
+    fire_plan_id: planId, kind: ['지도', '사진', '기타'].includes(kind) ? kind : '기타',
+    file_name: file.name, file_path: path, uploaded_by: profile.id,
+  } as Record<string, unknown>)
+  if (insErr) { await admin.storage.from(BUCKET).remove([path]); return { error: `저장 실패: ${insErr.message}` } }
+  revalidatePath(`/customers/${(plan as { customer_id: string }).customer_id}`)
+  return {}
+}
+
+export async function deleteFirePlanAttachmentAction(attId: string): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { data: att } = await admin.from('fire_plan_attachments')
+    .select('file_path, fire_plan_id, fire_plans(customer_id)').eq('id', attId).single()
+  if (!att) return { error: '부속자료를 찾을 수 없습니다.' }
+  const a = att as { file_path: string; fire_plans: { customer_id: string } | { customer_id: string }[] | null }
+  await admin.storage.from(BUCKET).remove([a.file_path])
+  const { error } = await admin.from('fire_plan_attachments').delete().eq('id', attId)
+  if (error) return { error: '삭제에 실패했습니다.' }
+  const cust = Array.isArray(a.fire_plans) ? a.fire_plans[0] : a.fire_plans
+  if (cust) revalidatePath(`/customers/${cust.customer_id}`)
+  return {}
+}
+
+/** 연차발행 (FP-2) — 현재 계획서를 다음 연도로 복제(파일 복사, 개정차수 1로 리셋) */
+export async function issueNextYearPlanAction(planId: string): Promise<{ error?: string; year?: number }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { data: plan } = await admin.from('fire_plans')
+    .select('customer_id, year, title, pdf_name, pdf_path, hwp_name, hwp_path').eq('id', planId).single()
+  if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
+  const p = plan as { customer_id: string; year: number; title: string | null; pdf_name: string; pdf_path: string; hwp_name: string | null; hwp_path: string | null }
+  const newYear = p.year + 1
+
+  const stamp = Date.now()
+  const newPdfPath = `${p.customer_id}/${newYear}/${stamp}.pdf`
+  const { error: cpErr } = await admin.storage.from(BUCKET).copy(p.pdf_path, newPdfPath)
+  if (cpErr) return { error: `파일 복사 실패: ${cpErr.message}` }
+  let newHwpPath: string | null = null
+  if (p.hwp_path) {
+    newHwpPath = `${p.customer_id}/${newYear}/${stamp}.${p.hwp_path.endsWith('hwpx') ? 'hwpx' : 'hwp'}`
+    await admin.storage.from(BUCKET).copy(p.hwp_path, newHwpPath).catch(() => { newHwpPath = null })
+  }
+
+  const { error: insErr } = await admin.from('fire_plans').insert({
+    customer_id: p.customer_id, year: newYear, title: `${newYear}년 소방계획서`,
+    pdf_name: p.pdf_name, pdf_path: newPdfPath, hwp_name: p.hwp_name, hwp_path: newHwpPath,
+    revision: 1, note: `${p.year}년 계획서에서 연차발행`, uploaded_by: profile.id,
+  } as Record<string, unknown>)
+  if (insErr) { await admin.storage.from(BUCKET).remove([newPdfPath, ...(newHwpPath ? [newHwpPath] : [])]); return { error: `발행 실패: ${insErr.message}` } }
+  revalidatePath(`/customers/${p.customer_id}`)
+  return { year: newYear }
+}
+
 /** 다운로드/인쇄용 서명 URL (5분 유효) */
 export async function getFirePlanFileUrlAction(
   planId: string,

@@ -604,13 +604,13 @@
       "id": "FP-2",
       "phase": "부가",
       "title": "소방계획서 개정이력·부속자료·제출추적",
-      "detail": "revision + attachments(지도/사진) + 제출일/관할서 + 병합인쇄 + 연차발행",
+      "detail": "fire_plans 확장(086: revision/submitted_at/fire_station) + fire_plan_attachments(지도/사진/기타) + 액션(updateFirePlanSubmission 제출추적·uploadFirePlanAttachment·issueNextYearPlan 연차발행=파일복사 복제) + FirePlansClient 펼침 상세(제출일/관할서 저장·부속자료 업로드/목록·연차 버튼·개정차수 표시). 스테이징 적용·타입체크 통과. 병합인쇄(계획서+부속 PDF 병합)는 Gotenberg 기반 후속.",
       "section": "§8-1~8-3",
-      "migration": "076",
+      "migration": "086",
       "depends_on": [
         "FP-1"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "VN-1",
@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 32,
+    "completed": 33,
     "in_progress": 2,
-    "pending": 3,
+    "pending": 2,
     "deferred": 1,
     "blocked": 0
   }
