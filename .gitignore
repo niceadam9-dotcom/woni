@@ -4,6 +4,15 @@ victory_test/
 # Supabase CLI 로컬 링크 상태
 supabase/.temp/
 
+# 조립된 보고서 템플릿 산출물 (Storage에 업로드됨, 재생성 가능한 바이너리)
+erp/scripts/dist_*.xlsx
+
+# 업무용 원본 문서 (실고객 데이터·보고서·점검리스트·계획서 포함) — 공개 저장소 커밋 금지, 로컬 전용
+# 보고서 템플릿 조립·시딩은 로컬 파일로만 수행 (erp/ 루트 한정, scripts/*.mjs·src 영향 없음)
+erp/*.xls
+erp/*.xlsx
+erp/*.hwp
+
 # 관계도 PDF (바이너리 — 로컬 생성물)
 erp_goal/*.pdf
 
