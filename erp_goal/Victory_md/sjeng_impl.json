@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 17,
-    "in_progress": 0,
-    "pending": 20,
+    "completed": 25,
+    "in_progress": 2,
+    "pending": 10,
     "deferred": 1,
     "blocked": 0
   }
