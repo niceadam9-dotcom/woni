@@ -5,6 +5,7 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionDetailClient } from '@/components/inspections/inspection-detail-client'
 import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
+import { InspectionMultidayClient } from '@/components/inspections/inspection-multiday-client'
 import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
 import { InspectionSheetClient } from '@/components/inspections/inspection-sheet-client'
 import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
@@ -224,6 +225,15 @@ export default async function InspectionDetailPage({
           )}
         </div>
       </div>
+
+      {/* 다일 점검 기간 (P32-9) */}
+      <InspectionMultidayClient
+        inspectionId={id}
+        startDate={inspection.inspection_start_date}
+        endDate={(inspection as { inspection_end_date?: string | null }).inspection_end_date ?? null}
+        days={(inspection as { inspection_days?: number }).inspection_days ?? 1}
+        canManage={canEdit}
+      />
 
       {/* 진행률 바 */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">

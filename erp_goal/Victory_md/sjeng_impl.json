@@ -403,11 +403,11 @@
       "id": "P32-9",
       "phase": "P3-2",
       "title": "다일 점검(2~3일)",
-      "detail": "inspection_end_date/inspection_days(079) 컬럼 스테이징 적용. 6단계 기산점=종료일 트리거 변경·개요 점검기간 주입은 후속(스텝 트리거 위험 분리).",
+      "detail": "inspection_end_date/inspection_days(079) + updateInspectionMultidayAction(종료일/일수 저장 + 종료일 기준 미완료단계 recalc RPC) + completeStepAction이 종료일을 6단계 기산점으로 사용(없으면 당일). 기존 recalc_inspection_steps RPC 재사용으로 트리거 변경 없이 안전. 점검상세 [점검 기간] UI(종료일·일수). 타입체크 통과. 개요 점검일자(B12)는 시작일 표기.",
       "section": "§3-7",
       "migration": "079",
       "depends_on": [],
-      "status": "in_progress"
+      "status": "completed"
     },
     {
       "id": "P33-1",
@@ -486,14 +486,14 @@
       "id": "P34-4",
       "phase": "P3-4",
       "title": "이행계획서·완료보고서",
-      "detail": "inspection_defects 확장(084: action_taken/action_completed_at/after_photo_url) + updateDefectActionAction + 불량카드 조치완료 섹션(조치내용·완료일·조치후 사진 업로드). 스테이징 적용·타입체크 통과. 계획서는 개요 허브 수식으로 헤더 자동완성(injectReport 반영됨). 미완: 완료보고서 문서의 불량 조치목록 시트(현5/완료보고서) 주입은 후속.",
+      "detail": "inspection_defects 확장(084: action_taken/action_completed_at/after_photo_url) + updateDefectActionAction + 불량카드 조치완료 섹션(조치내용·완료일·조치후 사진). 계획서는 개요 허브 수식 자동완성. injectCompletionReport로 완료보고서 이행조치 내용(B20)·완료일(I20) 주입(불량 조치내용 집계·최종 완료일). e2e 검증. 스테이징 적용·타입체크 통과.",
       "section": "§3-6",
       "migration": "084",
       "depends_on": [
         "P34-3",
         "P32-3"
       ],
-      "status": "in_progress"
+      "status": "completed"
     },
     {
       "id": "P34-5",
@@ -627,8 +627,8 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 33,
-    "in_progress": 2,
+    "completed": 35,
+    "in_progress": 0,
     "pending": 2,
     "deferred": 1,
     "blocked": 0

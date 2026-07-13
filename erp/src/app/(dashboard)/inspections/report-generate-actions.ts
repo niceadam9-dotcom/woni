@@ -84,7 +84,18 @@ async function buildOperationalReportBytes(inspectionId: string): Promise<Report
     floors_above: b.floors_above, floors_below: b.floors_below,
     height_m: b.height_m, unit_count: b.unit_count, structure: b.structure, roof: b.roof,
   }))
-  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses, installedFacilities, buildingInfos)
+
+  // 완료보고서 이행조치 (P34-4): 불량 조치내용·완료일 집계
+  const { data: defRows } = await admin.from('inspection_defects')
+    .select('defect_name, action_taken, action_completed_at').eq('inspection_id', inspectionId)
+  const defs = (defRows ?? []) as Array<{ defect_name: string; action_taken: string | null; action_completed_at: string | null }>
+  const actionLines = defs.filter(d => d.action_taken).map(d => `${d.defect_name}: ${d.action_taken}`)
+  const completedDates = defs.map(d => d.action_completed_at).filter((d): d is string => !!d).sort()
+  const completion = actionLines.length > 0 || completedDates.length > 0
+    ? { actionContent: actionLines.join('\n') || null, completedDate: completedDates[completedDates.length - 1] ?? null }
+    : undefined
+
+  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses, installedFacilities, buildingInfos, completion)
 
   const baseName = `${cust?.customer_name ?? 'report'}_작동점검보고서_${today}`
   return { bytes, baseName, missing, customerId: insp.customer_id, snap: snap ?? [] }

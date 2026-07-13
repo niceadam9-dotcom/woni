@@ -135,6 +135,32 @@ export async function createInspectionAction(
   return { inspectionId }
 }
 
+/** 다일 점검 기간 설정 (P32-9) — 종료일/일수 저장 + 미완료 2~6단계를 종료일 기준 재계산 */
+export async function updateInspectionMultidayAction(
+  inspectionId: string,
+  input: { endDate: string | null; days: number }
+): Promise<{ error?: string }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { data: insp } = await admin.from('inspections').select('inspection_start_date').eq('id', inspectionId).single()
+  if (!insp) return { error: '점검을 찾을 수 없습니다.' }
+  const start = (insp as { inspection_start_date: string }).inspection_start_date
+  if (input.endDate && input.endDate < start) return { error: '종료일은 시작일 이후여야 합니다.' }
+  const days = Number.isFinite(input.days) && input.days >= 1 && input.days <= 5 ? input.days : 1
+
+  const { error } = await admin.from('inspections')
+    .update({ inspection_end_date: input.endDate || null, inspection_days: days } as Record<string, unknown>)
+    .eq('id', inspectionId)
+  if (error) return { error: `저장 실패: ${error.message}` }
+
+  // 종료일 지정 시 미완료 단계를 종료일 기준으로 재기산 (RPC는 미완료만 갱신)
+  if (input.endDate) {
+    await admin.rpc('recalc_inspection_steps', { p_inspection_id: inspectionId, p_base_date: input.endDate })
+  }
+  revalidatePath(`/inspections/${inspectionId}`)
+  return {}
+}
+
 export async function completeStepAction(
   stepId: string,
   inspectionId: string
@@ -146,7 +172,7 @@ export async function completeStepAction(
   // 본인 담당 점검 또는 manager/admin만 처리 가능
   const { data: insp } = await admin
     .from('inspections')
-    .select('assigned_employee_id, status, customer_id')
+    .select('assigned_employee_id, status, customer_id, inspection_end_date')
     .eq('id', inspectionId)
     .single()
 
@@ -197,12 +223,14 @@ export async function completeStepAction(
   if (error) return { error: '단계 완료 처리에 실패했습니다.' }
 
   // 1단계(점검일) 완료 시 확정일 기준으로 미완료 2~6단계 마감일 재계산 (migration 048)
-  // — 법정 기한(소방서 보고서 15일 이내 등)은 실제 점검일 기준으로 기산되기 때문
+  // — 법정 기한(소방서 보고서 15일 이내 등)은 실제 점검일 기준으로 기산됨.
+  // 다일 점검(P32-9): 기산점 = 종료일(inspection_end_date). 없으면 당일.
   if (targetNum === 1) {
     const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const endDate = (insp as { inspection_end_date: string | null }).inspection_end_date
     await admin.rpc('recalc_inspection_steps', {
       p_inspection_id: inspectionId,
-      p_base_date: kstToday,
+      p_base_date: endDate || kstToday,
     })
   }
 

@@ -61,4 +61,4 @@ function dumpHyeonhwang(wb, label) {
 
 dumpHyeonhwang(gapji, '갑지 템플릿(blank)')
 
-for (const s of ['다수동일때', '다수동']) dumpSheet(gapji, s, 80)
+for (const s of ['완료보고서', '현5']) dumpSheet(filled, s, 80)

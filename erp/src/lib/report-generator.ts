@@ -212,6 +212,19 @@ export function injectMultiBuilding(
   return { injected: Math.min(buildings.length, MAX), overflow: Math.max(0, buildings.length - MAX) }
 }
 
+// ── 완료보고서 이행조치 주입 (P34-4) ─────────────────────────────────────────
+export type CompletionInfo = { actionContent: string | null; completedDate: string | null }
+
+/** '완료보고서' 시트에 이행조치 내용(B20)·완료일(I20) 주입 */
+export function injectCompletionReport(wb: XLSX.WorkBook, c: CompletionInfo): boolean {
+  const ws = wb.Sheets['완료보고서']
+  if (!ws) return false
+  if (c.actionContent) ws['B20'] = { t: 's', v: c.actionContent } as XLSX.CellObject
+  const s = serial(c.completedDate)
+  if (s != null) ws['I20'] = { t: 'n', v: s, z: 'yyyy-mm-dd' } as XLSX.CellObject
+  return true
+}
+
 /** 개요 허브 + 설비별 점검표면 + 현황면을 한 워크북에 함께 주입 → xlsx 바이트 (P32-3 + P34-5 + P33-3) */
 export function injectReport(
   templateBuf: ArrayBuffer,
@@ -219,6 +232,7 @@ export function injectReport(
   responses: Record<string, 'O' | 'X' | 'N'>,
   installedFacilities: string[] = [],
   buildings: BuildingInfo[] = [],
+  completion?: CompletionInfo,
 ): {
   bytes: Uint8Array
   sheetResult: { injected: number; unmatched: string[] }
@@ -233,6 +247,7 @@ export function injectReport(
   const facilityResult = injectFacilityStatus(wb, installedFacilities)
   // 다수동(2동 이상)일 때만 '다수동일때' 시트 주입
   const buildingResult = buildings.length > 1 ? injectMultiBuilding(wb, buildings) : { injected: 0, overflow: 0 }
+  if (completion) injectCompletionReport(wb, completion)
   const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array
   return { bytes, sheetResult, facilityResult, buildingResult }
 }
