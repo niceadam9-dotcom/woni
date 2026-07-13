@@ -117,17 +117,79 @@ export function injectSheetResults(
   return { injected, unmatched }
 }
 
-/** 개요 허브 + 설비별 점검표면을 한 워크북에 함께 주입 → xlsx 바이트 (P32-3 + P34-5) */
+// ── 소방시설 현황면 주입 (P33-3) ─────────────────────────────────────────────
+// facility_code(fire_facilities) → 현황 시트 체크박스 셀. 결과열(S/AO)은
+// =IF(체크="[  ]","/","○") 수식이라 체크박스만 넣으면 양호/해당없음 자동 산출.
+// 좌측 블록 체크=C/D열, 우측 블록 체크=Y/Z열. (셀 좌표는 실제 갑지 현황 시트 검증값)
+const FACILITY_CHECKBOX: Record<string, string[]> = {
+  '소화기구': ['D7'],
+  '옥내소화전': ['C12'],
+  '스프링클러': ['C13'],
+  '간이스프링클러': ['C14'],
+  '물분무등소화설비': ['C16'],
+  '옥외소화전': ['C25'],
+  '자동화재탐지설비': ['C28'],
+  '비상경보설비': ['C27'],
+  '비상방송설비': ['C29'],
+  '자동화재속보설비': ['C31'],
+  '가스누설경보기': ['C33'],
+  '피난기구': ['Z7'],
+  '인명구조기구': ['Y12'],
+  '유도등·유도표지': ['Y13'],
+  '비상조명등': ['Y16'],
+  '상수도소화용수설비': ['Y18'],
+  '소화수조·저수조': ['Y19'],
+  '제연설비': ['Y20'],
+  '연결송수관설비': ['Y22'],
+  '연결살수설비': ['Y23'],
+  '비상콘센트설비': ['Y24'],
+  '무선통신보조설비': ['Y25'],
+}
+const CHECKED = '[√]', UNCHECKED = '[  ]'
+
+/**
+ * 현황 시트의 설비 체크박스를 fire_facilities 설치여부로 주입 (P33-3).
+ * 매핑된 모든 셀을 우선 [  ]로 초기화 후, 설치된 설비만 [√]로 표시.
+ * @returns 체크된 설비 수 + 매핑에 없는 설치 설비 코드
+ */
+export function injectFacilityStatus(
+  wb: XLSX.WorkBook,
+  installedCodes: string[],
+): { checked: number; unmapped: string[] } {
+  const ws = wb.Sheets['현황']
+  if (!ws) return { checked: 0, unmapped: installedCodes }
+  const installed = new Set(installedCodes)
+  // 매핑된 모든 체크박스 초기화
+  for (const cells of Object.values(FACILITY_CHECKBOX))
+    for (const addr of cells) ws[addr] = { t: 's', v: UNCHECKED } as XLSX.CellObject
+  let checked = 0
+  for (const code of installed) {
+    const cells = FACILITY_CHECKBOX[code]
+    if (!cells) continue
+    for (const addr of cells) ws[addr] = { t: 's', v: CHECKED } as XLSX.CellObject
+    checked++
+  }
+  const unmapped = installedCodes.filter(c => !FACILITY_CHECKBOX[c])
+  return { checked, unmapped }
+}
+
+/** 개요 허브 + 설비별 점검표면 + 현황면을 한 워크북에 함께 주입 → xlsx 바이트 (P32-3 + P34-5 + P33-3) */
 export function injectReport(
   templateBuf: ArrayBuffer,
   cells: Record<string, Cell>,
   responses: Record<string, 'O' | 'X' | 'N'>,
-): { bytes: Uint8Array; sheetResult: { injected: number; unmatched: string[] } } {
+  installedFacilities: string[] = [],
+): {
+  bytes: Uint8Array
+  sheetResult: { injected: number; unmatched: string[] }
+  facilityResult: { checked: number; unmapped: string[] }
+} {
   const wb = XLSX.read(templateBuf, { type: 'array', cellFormula: true, cellStyles: true })
   const ov = wb.Sheets['개요']
   if (!ov) throw new Error('템플릿에 개요 시트가 없습니다')
   for (const [addr, cell] of Object.entries(cells)) ov[addr] = cell as XLSX.CellObject
   const sheetResult = injectSheetResults(wb, responses)
+  const facilityResult = injectFacilityStatus(wb, installedFacilities)
   const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array
-  return { bytes, sheetResult }
+  return { bytes, sheetResult, facilityResult }
 }

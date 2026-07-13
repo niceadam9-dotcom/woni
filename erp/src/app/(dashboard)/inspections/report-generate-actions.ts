@@ -65,15 +65,17 @@ export async function generateOperationalReportAction(
   for (const r of (respRows ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N' }>)
     responses[r.item_code] = r.result
 
-  // 템플릿 로드 → 개요 + 설비 점검표면 주입
-  const { data: tpl, error: tplErr } = await admin.storage.from('reports').download(TEMPLATE_PATH)
-  if (tplErr || !tpl) return { error: '보고서 템플릿을 불러오지 못했습니다. 템플릿 업로드를 확인하세요.', missing }
-  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses)
-
-  // 시설현황 스냅샷
+  // 소방시설 현황 로드 (현황면 체크박스 주입 + 스냅샷, P33-3)
   const { data: snap } = bld
     ? await admin.from('fire_facilities').select('facility_code, installed, detail').eq('building_id', bld.id)
     : { data: [] }
+  const installedFacilities = ((snap ?? []) as Array<{ facility_code: string; installed: boolean }>)
+    .filter(f => f.installed).map(f => f.facility_code)
+
+  // 템플릿 로드 → 개요 + 설비 점검표면 + 현황면 주입
+  const { data: tpl, error: tplErr } = await admin.storage.from('reports').download(TEMPLATE_PATH)
+  if (tplErr || !tpl) return { error: '보고서 템플릿을 불러오지 못했습니다. 템플릿 업로드를 확인하세요.', missing }
+  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses, installedFacilities)
 
   const stamp = Date.now()
   const fileName = `${cust?.customer_name ?? 'report'}_작동점검보고서_${today}.xlsx`

@@ -435,14 +435,14 @@
       "id": "P33-3",
       "phase": "P3-3",
       "title": "보고서 현황면 + 스냅샷",
-      "detail": "현황·현1~5·세1~5 동별 주입 + 생성시점 현황 스냅샷 보관",
+      "detail": "injectFacilityStatus — fire_facilities 설치여부→현황 시트 체크박스(FACILITY_CHECKBOX 21종 셀맵, 좌C/D·우Y/Z열) 주입, 결과열 =IF(체크,'/','○') 수식 자동산출. 스냅샷은 generated_reports.facilities_snapshot 보관(기존). e2e 검증(강순기 실보고서 D7/C28/Y13 재현). 타입체크 통과. 미완: 세부현황 현1~5(층별 수량=fire_facility_floors) 주입은 후속. 매핑 주의: 유도등·유도표지→Y13, 피난기구→Z7(대표셀).",
       "section": "§3-3,§4-2",
       "migration": "-",
       "depends_on": [
         "P33-1",
         "P32-2"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P34-1",
@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 25,
+    "completed": 27,
     "in_progress": 2,
-    "pending": 10,
+    "pending": 8,
     "deferred": 1,
     "blocked": 0
   }
