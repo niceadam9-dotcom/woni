@@ -9,6 +9,7 @@ import { EditInspectionTypeClient } from '@/components/customers/edit-inspection
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import { FacilitiesClient } from '@/components/customers/facilities-client'
+import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -62,7 +63,7 @@ export default async function CustomerDetailPage({
 
   const admin = createAdminClient()
 
-  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes] = await Promise.all([
+  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes] = await Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
@@ -88,6 +89,12 @@ export default async function CustomerDetailPage({
       .eq('customer_id', id)
       .order('year', { ascending: false })
       .order('created_at', { ascending: false }),
+    admin.from('billing_profiles')
+      .select('business_no, company_name, rep_name, address, business_type, business_item, tax_email, note')
+      .eq('customer_id', id).maybeSingle(),
+    admin.from('billing_autopay')
+      .select('bank_name, account_holder, account_no_last4, withdraw_day, note')
+      .eq('customer_id', id).maybeSingle(),
   ])
 
   if (!customerRes.data) notFound()
@@ -418,6 +425,14 @@ export default async function CustomerDetailPage({
         </div>
         <FacilitiesClient customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />
       </div>
+
+      {/* 사업자정보 + 자동이체 — 세금계산서·수금 (doc02 §4-7, §1-5, P4-1/P4-2) */}
+      <BillingClient
+        customerId={customer.id}
+        profile={(billingProfileRes.data ?? null) as BillingProfile | null}
+        autopay={(autopayRes.data ?? null) as Autopay | null}
+        canManage={canManage}
+      />
 
       {/* 소방계획서 보관함 — 표준양식 PDF 업로드·자동 인쇄 (doc02 §8) */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">

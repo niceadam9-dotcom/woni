@@ -59,6 +59,16 @@ export async function createInspectionAction(
     .single()
   if (dup) return { error: `${year}년 ${input.sequence_num}차 점검이 이미 존재합니다.` }
 
+  // 최초점검 자동판정 (P32-8): 종합 유형이고 이전 종합점검 이력이 전무하면 최초점검
+  let isInitial = false
+  if (input.inspection_type === '종합') {
+    const { count } = await admin.from('inspections')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', input.customer_id)
+      .eq('inspection_type', '종합')
+    isInitial = (count ?? 0) === 0
+  }
+
   const { data: raw, error } = await admin
     .from('inspections')
     .insert({
@@ -68,6 +78,7 @@ export async function createInspectionAction(
       inspection_type: input.inspection_type,
       inspection_start_date: input.inspection_start_date,
       sequence_num: input.sequence_num,
+      is_initial: isInitial,
       notes: input.notes || null,
       status: 'scheduled',
       created_by: profile.id,

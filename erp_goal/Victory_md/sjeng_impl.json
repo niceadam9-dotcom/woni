@@ -392,21 +392,21 @@
       "id": "P32-8",
       "phase": "P3-2",
       "title": "최초점검 자동판정",
-      "detail": "inspections.is_initial 자동(종합이력 전무 시) → 갑지 [√]최초 분기",
+      "detail": "inspections.is_initial(079) 컬럼 + 점검 생성 시 자동판정(종합 유형·이전 종합이력 전무 시 true). 스테이징 적용·타입체크 통과. 갑지 [√]최초 체크박스 셀 주입은 보고서 면주입(P34-5)에서 처리.",
       "section": "§3-5f",
-      "migration": "069",
+      "migration": "079",
       "depends_on": [],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P32-9",
       "phase": "P3-2",
       "title": "다일 점검(2~3일)",
-      "detail": "inspection_end_date/days, 6단계 기산점=종료일, 개요 점검기간 자동",
+      "detail": "inspection_end_date/inspection_days(079) 컬럼 스테이징 적용. 6단계 기산점=종료일 트리거 변경·개요 점검기간 주입은 후속(스텝 트리거 위험 분리).",
       "section": "§3-7",
-      "migration": "069",
+      "migration": "079",
       "depends_on": [],
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "id": "P33-1",
@@ -511,21 +511,21 @@
       "id": "P4-1",
       "phase": "P4",
       "title": "사업자정보(billing_profiles)",
-      "detail": "세금계산서용 사업자번호·대표자·주소·업종·이메일",
+      "detail": "billing_profiles(080) 고객1:1 + 고객상세 사업자정보 카드(사업자번호·상호·대표자·주소·업태/종목·계산서 이메일) 저장. 스테이징 적용·타입체크 통과.",
       "section": "§4-7",
-      "migration": "072",
+      "migration": "080",
       "depends_on": [],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P4-2",
       "phase": "P4",
       "title": "자동이체(암호화)",
-      "detail": "billing_autopay + AES-256-GCM 계좌 암호화 유틸 + 열람로그",
+      "detail": "billing_autopay+account_access_log(081) + lib/crypto.ts AES-256-GCM(ACCOUNT_ENC_KEY) 계좌 암호화 + 열람/수정 로그 + 자동이체 카드(뒤4자리 마스킹·[열람] 복호화). 스테이징 적용·왕복검증·타입체크 통과. 서버 배포 시 ACCOUNT_ENC_KEY 주입 필요.",
       "section": "§1-5",
-      "migration": "073",
+      "migration": "081",
       "depends_on": [],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P4-3",
