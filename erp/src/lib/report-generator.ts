@@ -79,3 +79,55 @@ export function injectOverview(templateBuf: ArrayBuffer, cells: Record<string, C
   for (const [addr, cell] of Object.entries(cells)) ws[addr] = cell as XLSX.CellObject
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array
 }
+
+// ── 설비별 점검표면 O/X 주입 (P34-5) ─────────────────────────────────────────
+// 각 설비 점검표 시트: A열=item_code(예: 1-A-001), C열=점검결과. 결과 심볼 매핑.
+const RESULT_SYMBOL: Record<string, string> = { O: '○', X: 'X', N: '/' }
+const ITEM_CODE_RE = /^\s*\d{1,2}-[A-Z]-\d{3}\s*$/   // 1-A-001, 15-B-001, 21-A-001
+
+/**
+ * 워크북의 모든 설비 점검표 시트를 훑어, A열 item_code에 해당하는 응답을
+ * C열(점검결과)에 ○/X/／로 주입. 개요/현황 등 코드가 없는 시트는 자동 skip.
+ * @returns 주입된 셀 수 + 응답은 있으나 시트에서 못 찾은 item_code 목록
+ */
+export function injectSheetResults(
+  wb: XLSX.WorkBook,
+  responses: Record<string, 'O' | 'X' | 'N'>,
+): { injected: number; unmatched: string[] } {
+  const seen = new Set<string>()
+  let injected = 0
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name]
+    if (!ws || !ws['!ref']) continue
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const aAddr = XLSX.utils.encode_cell({ r, c: 0 })      // A열
+      const a = ws[aAddr]
+      if (!a || typeof a.v !== 'string' || !ITEM_CODE_RE.test(a.v)) continue
+      const code = a.v.trim()
+      const res = responses[code]
+      if (!res) continue
+      const cAddr = XLSX.utils.encode_cell({ r, c: 2 })      // C열 = 점검결과
+      ws[cAddr] = { t: 's', v: RESULT_SYMBOL[res] ?? '/' } as XLSX.CellObject
+      injected++
+      seen.add(code)
+    }
+  }
+  const unmatched = Object.keys(responses).filter(c => !seen.has(c))
+  return { injected, unmatched }
+}
+
+/** 개요 허브 + 설비별 점검표면을 한 워크북에 함께 주입 → xlsx 바이트 (P32-3 + P34-5) */
+export function injectReport(
+  templateBuf: ArrayBuffer,
+  cells: Record<string, Cell>,
+  responses: Record<string, 'O' | 'X' | 'N'>,
+): { bytes: Uint8Array; sheetResult: { injected: number; unmatched: string[] } } {
+  const wb = XLSX.read(templateBuf, { type: 'array', cellFormula: true, cellStyles: true })
+  const ov = wb.Sheets['개요']
+  if (!ov) throw new Error('템플릿에 개요 시트가 없습니다')
+  for (const [addr, cell] of Object.entries(cells)) ov[addr] = cell as XLSX.CellObject
+  const sheetResult = injectSheetResults(wb, responses)
+  const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array
+  return { bytes, sheetResult }
+}

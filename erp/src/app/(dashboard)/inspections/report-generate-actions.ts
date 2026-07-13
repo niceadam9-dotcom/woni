@@ -3,9 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { buildOverview, injectOverview, type OverviewData } from '@/lib/report-generator'
+import { buildOverview, injectReport, type OverviewData } from '@/lib/report-generator'
 
-const TEMPLATE_PATH = 'templates/operational_v2025.xlsx'
+const TEMPLATE_PATH = 'templates/operational_v2026.xlsx'   // 개요 허브 + 설비 점검표 37시트 결합 (P34-5)
 
 /** 작동점검 보고서 생성 (P32-3) — 개요 주입 → 엑셀 생성 → Storage + 이력.
  *  엑셀을 열면 수식으로 갑지·정보·위임장 등이 자동 완성됨(§3-0). PDF 자동인쇄는 Gotenberg 도입 후(P32-1/4). */
@@ -58,10 +58,17 @@ export async function generateOperationalReportAction(
 
   const { cells, missing } = buildOverview(data)
 
-  // 템플릿 로드 → 주입
+  // 점검표 응답 로드 (설비별 점검표면 O/X 주입용, P34-5)
+  const { data: respRows } = await admin.from('inspection_sheet_responses')
+    .select('item_code, result').eq('inspection_id', inspectionId)
+  const responses: Record<string, 'O' | 'X' | 'N'> = {}
+  for (const r of (respRows ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N' }>)
+    responses[r.item_code] = r.result
+
+  // 템플릿 로드 → 개요 + 설비 점검표면 주입
   const { data: tpl, error: tplErr } = await admin.storage.from('reports').download(TEMPLATE_PATH)
   if (tplErr || !tpl) return { error: '보고서 템플릿을 불러오지 못했습니다. 템플릿 업로드를 확인하세요.', missing }
-  const bytes = injectOverview(await tpl.arrayBuffer(), cells)
+  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses)
 
   // 시설현황 스냅샷
   const { data: snap } = bld
@@ -76,7 +83,7 @@ export async function generateOperationalReportAction(
   if (upErr) return { error: `저장 실패: ${upErr.message}`, missing }
 
   await admin.from('generated_reports').insert({
-    inspection_id: inspectionId, report_kind: '작동', template_version: '작동_v2025',
+    inspection_id: inspectionId, report_kind: '작동', template_version: '작동_v2026',
     file_name: fileName, xlsx_path: path, facilities_snapshot: snap ?? [], generated_by: profile.id,
   } as Record<string, unknown>)
 

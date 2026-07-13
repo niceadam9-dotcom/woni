@@ -499,14 +499,14 @@
       "id": "P34-5",
       "phase": "P3-4",
       "title": "보고서 설비별 점검표면 주입",
-      "detail": "소화기구·자탐·유도등 등 점검결과 ○/X 주입",
+      "detail": "injectSheetResults(A열 item_code→C열 ○/X/／) + injectReport(개요+설비 결합) + 보고서생성액션 연결. 셀맵 자기검증 88건 완전재현·불일치0. 결합 템플릿 operational_v2026.xlsx 조립(갑지+전체 설비 37시트/720코드, 개요 허브 수식 보존)·스테이징 Storage 업로드·e2e 주입 검증. TEMPLATE_PATH v2026 전환. 타입체크 통과.",
       "section": "§3-4",
       "migration": "-",
       "depends_on": [
         "P34-1",
         "P32-2"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P4-1",
