@@ -27,6 +27,18 @@ services:
     networks:
       - prod_net
 
+  # xlsx→PDF 변환 (P32-1) — LibreOffice 기반. 앱이 http://gotenberg-staging:3000 으로 호출.
+  # ⚠️ 고유 이름 유지 — 운영에도 gotenberg 추가 시 별칭 충돌 방지(2026-07-13 인시던트 교훈).
+  gotenberg-staging:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg-staging
+    command:
+      - gotenberg
+      - --api-timeout=120s
+    restart: always
+    networks:
+      - prod_net
+
 networks:
   # 프로덕션 compose(erp_default)의 네트워크에 합류 — Caddy가 erp-staging-app:3000으로 프록시
   prod_net:
