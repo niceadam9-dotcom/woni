@@ -4,15 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { buildOverview, injectReport, type OverviewData } from '@/lib/report-generator'
+import { convertXlsxToPdf } from '@/lib/pdf'
 
 const TEMPLATE_PATH = 'templates/operational_v2026.xlsx'   // 개요 허브 + 설비 점검표 37시트 결합 (P34-5)
 
-/** 작동점검 보고서 생성 (P32-3) — 개요 주입 → 엑셀 생성 → Storage + 이력.
- *  엑셀을 열면 수식으로 갑지·정보·위임장 등이 자동 완성됨(§3-0). PDF 자동인쇄는 Gotenberg 도입 후(P32-1/4). */
-export async function generateOperationalReportAction(
-  inspectionId: string
-): Promise<{ error?: string; url?: string; fileName?: string; missing?: string[] }> {
-  const profile = await requirePermission('inspection_register')
+type ReportBuild = { error?: string; bytes?: Uint8Array; baseName?: string; missing?: string[]; customerId?: string; snap?: unknown[] }
+
+/** 작동점검 보고서 바이트 생성 (공통 헬퍼) — 개요+설비 점검표면+현황면 주입까지. */
+async function buildOperationalReportBytes(inspectionId: string): Promise<ReportBuild> {
   const admin = createAdminClient()
 
   const { data: inspRaw } = await admin.from('inspections')
@@ -77,21 +76,49 @@ export async function generateOperationalReportAction(
   if (tplErr || !tpl) return { error: '보고서 템플릿을 불러오지 못했습니다. 템플릿 업로드를 확인하세요.', missing }
   const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses, installedFacilities)
 
+  const baseName = `${cust?.customer_name ?? 'report'}_작동점검보고서_${today}`
+  return { bytes, baseName, missing, customerId: insp.customer_id, snap: snap ?? [] }
+}
+
+/** 작동점검 보고서 xlsx 생성 (P32-3) → Storage + 이력. 엑셀 열면 수식으로 갑지 등 자동완성. */
+export async function generateOperationalReportAction(
+  inspectionId: string
+): Promise<{ error?: string; url?: string; fileName?: string; missing?: string[] }> {
+  const profile = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const b = await buildOperationalReportBytes(inspectionId)
+  if (b.error || !b.bytes) return { error: b.error ?? '보고서 생성에 실패했습니다.', missing: b.missing }
+
   const stamp = Date.now()
-  const fileName = `${cust?.customer_name ?? 'report'}_작동점검보고서_${today}.xlsx`
-  const path = `${insp.customer_id}/${inspectionId}/op_${stamp}.xlsx`
+  const fileName = `${b.baseName}.xlsx`
+  const path = `${b.customerId}/${inspectionId}/op_${stamp}.xlsx`
   const { error: upErr } = await admin.storage.from('reports')
-    .upload(path, Buffer.from(bytes), { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: false })
-  if (upErr) return { error: `저장 실패: ${upErr.message}`, missing }
+    .upload(path, Buffer.from(b.bytes), { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: false })
+  if (upErr) return { error: `저장 실패: ${upErr.message}`, missing: b.missing }
 
   await admin.from('generated_reports').insert({
     inspection_id: inspectionId, report_kind: '작동', template_version: '작동_v2026',
-    file_name: fileName, xlsx_path: path, facilities_snapshot: snap ?? [], generated_by: profile.id,
+    file_name: fileName, xlsx_path: path, facilities_snapshot: b.snap ?? [], generated_by: profile.id,
   } as Record<string, unknown>)
 
   const { data: signed } = await admin.storage.from('reports').createSignedUrl(path, 300)
   revalidatePath(`/inspections/${inspectionId}`)
-  return { url: signed?.signedUrl, fileName, missing }
+  return { url: signed?.signedUrl, fileName, missing: b.missing }
+}
+
+/** 작동점검 보고서 PDF 생성 (P32-4) — xlsx→Gotenberg 변환 → base64 반환(브라우저 blob 자동인쇄용) */
+export async function printOperationalReportAction(
+  inspectionId: string
+): Promise<{ error?: string; pdfBase64?: string; fileName?: string; missing?: string[] }> {
+  await requirePermission('inspection_register')
+  const b = await buildOperationalReportBytes(inspectionId)
+  if (b.error || !b.bytes) return { error: b.error ?? '보고서 생성에 실패했습니다.', missing: b.missing }
+  try {
+    const pdf = await convertXlsxToPdf(b.bytes, `${b.baseName}.xlsx`)
+    return { pdfBase64: Buffer.from(pdf).toString('base64'), fileName: `${b.baseName}.pdf`, missing: b.missing }
+  } catch (e) {
+    return { error: `PDF 변환 실패: ${(e as Error).message}`, missing: b.missing }
+  }
 }
 
 /** 생성 이력 파일 재다운로드 URL */

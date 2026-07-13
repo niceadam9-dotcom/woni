@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileSpreadsheet, Download, AlertTriangle, Loader2 } from 'lucide-react'
-import { generateOperationalReportAction, getGeneratedReportUrlAction } from '@/app/(dashboard)/inspections/report-generate-actions'
+import { FileSpreadsheet, Download, AlertTriangle, Loader2, Printer } from 'lucide-react'
+import { generateOperationalReportAction, getGeneratedReportUrlAction, printOperationalReportAction } from '@/app/(dashboard)/inspections/report-generate-actions'
 
 export type GenReportRow = { id: string; report_kind: string; file_name: string; generated_at: string; by_name: string | null }
 
@@ -26,6 +26,28 @@ export function ReportGenerateClient({ inspectionId, history, canManage }: {
       router.refresh()
     })
   }
+  function printPdf() {
+    setError(''); setMissing(null)
+    startTransition(async () => {
+      const res = await printOperationalReportAction(inspectionId)
+      if (res.error) { setError(res.error); if (res.missing?.length) setMissing(res.missing); return }
+      if (res.missing?.length) setMissing(res.missing)
+      if (!res.pdfBase64) return
+      const bin = atob(res.pdfBase64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+      iframe.src = url
+      iframe.onload = () => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print() }
+        catch { window.open(url, '_blank') }
+      }
+      document.body.appendChild(iframe)
+      setTimeout(() => { URL.revokeObjectURL(url); iframe.remove() }, 60000)
+    })
+  }
   function redownload(id: string) {
     startTransition(async () => {
       const res = await getGeneratedReportUrlAction(id)
@@ -40,14 +62,20 @@ export function ReportGenerateClient({ inspectionId, history, canManage }: {
         <FileSpreadsheet className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">작동점검 보고서</h2>
         {canManage && (
-          <button onClick={generate} disabled={isPending}
-            className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} 보고서 생성
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button onClick={printPdf} disabled={isPending}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-xs font-medium transition-colors disabled:opacity-50">
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Printer className="size-3.5" />} PDF 인쇄
+            </button>
+            <button onClick={generate} disabled={isPending}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} 엑셀 생성
+            </button>
+          </div>
         )}
       </div>
 
-      <p className="text-[11px] text-[#b0acd6] mb-2">엑셀을 열면 개요 데이터로 갑지·정보·위임장·계약서가 자동 완성됩니다. (PDF 자동인쇄는 도입 예정)</p>
+      <p className="text-[11px] text-[#b0acd6] mb-2">[엑셀 생성]은 개요 데이터로 갑지·정보·위임장·계약서가 수식 자동완성됩니다. [PDF 인쇄]는 Gotenberg로 PDF 변환 후 인쇄 대화상자를 엽니다.</p>
 
       {missing && missing.length > 0 && (
         <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 p-3">

@@ -345,13 +345,13 @@
       "id": "P32-4",
       "phase": "P3-2",
       "title": "PDF 자동 인쇄 페이지",
-      "detail": "/print-preview blob iframe → 인쇄 대화상자 자동",
+      "detail": "printOperationalReportAction(xlsx→Gotenberg→base64) + 보고서카드 [PDF 인쇄] 버튼 → base64를 blob으로 만들어 숨김 iframe에 로드 후 contentWindow.print() 자동 호출(실패 시 새 탭 폴백). 보고서 바이트 생성은 buildOperationalReportBytes 공통 헬퍼로 추출. 타입체크 통과. 스테이징 배포(운영은 Gotenberg 미배포라 미동작).",
       "section": "§3-2",
       "migration": "-",
       "depends_on": [
         "P32-3"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P32-5",
@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 28,
+    "completed": 29,
     "in_progress": 3,
-    "pending": 6,
+    "pending": 5,
     "deferred": 1,
     "blocked": 0
   }
