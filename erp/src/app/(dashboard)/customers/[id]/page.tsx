@@ -7,6 +7,7 @@ import { AssignEmployeeClient } from '@/components/customers/assign-employee-cli
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
+import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -60,7 +61,7 @@ export default async function CustomerDetailPage({
 
   const admin = createAdminClient()
 
-  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes] = await Promise.all([
+  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes] = await Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
@@ -81,6 +82,11 @@ export default async function CustomerDetailPage({
       .eq('entity_id', id)
       .order('created_at', { ascending: false })
       .limit(50),
+    admin.from('fire_plans')
+      .select('id, year, title, pdf_name, hwp_name, note, created_at, uploaded_by')
+      .eq('customer_id', id)
+      .order('year', { ascending: false })
+      .order('created_at', { ascending: false }),
   ])
 
   if (!customerRes.data) notFound()
@@ -138,6 +144,15 @@ export default async function CustomerDetailPage({
       if (r.status === 'completed') stepCounts[r.inspection_id].completed++
     }
   }
+
+  const firePlans: FirePlanRow[] = ((firePlansRes.data ?? []) as Array<{
+    id: string; year: number; title: string | null; pdf_name: string
+    hwp_name: string | null; note: string | null; created_at: string; uploaded_by: string | null
+  }>).map(p => ({
+    id: p.id, year: p.year, title: p.title, pdf_name: p.pdf_name,
+    hwp_name: p.hwp_name, note: p.note, created_at: p.created_at,
+    uploader_name: p.uploaded_by ? (profileNameMap.get(p.uploaded_by) ?? null) : null,
+  }))
 
   const assignedEmployee = customer.assigned_employee_id
     ? employees.find(e => e.id === customer.assigned_employee_id)
@@ -370,6 +385,16 @@ export default async function CustomerDetailPage({
             </table>
           </div>
         )}
+      </div>
+
+      {/* 소방계획서 보관함 — 표준양식 PDF 업로드·자동 인쇄 (doc02 §8) */}
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <History className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">소방계획서</h2>
+          <span className="text-xs text-[#b0acd6] ml-auto">{firePlans.length}건</span>
+        </div>
+        <FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />
       </div>
 
       {/* 점검 이력 + 변경 이력 통합 타임라인 */}
