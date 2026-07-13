@@ -557,13 +557,13 @@
       "id": "P4-5",
       "phase": "P4",
       "title": "입금 문자 파싱·매칭",
-      "detail": "은행 알림문자 붙여넣기 → 정규식+AI 파싱 → 청구 매칭/배분",
+      "detail": "parseAndMatchDepositAction — 정규식(금액·입금자명) 우선 + Claude(claude-opus-4-8) 폴백 → 미납 청구 후보 점수매칭(금액·이름) → 정산현황 [입금 문자] 모달에서 후보 확인·[입금 확정](updateBillPayment). 자동 적용 안 함. 타입체크 통과.",
       "section": "§4-6-1",
       "migration": "-",
       "depends_on": [
         "P4-3"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P5-1",

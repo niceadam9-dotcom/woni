@@ -10,6 +10,8 @@ import {
   updateBillPaymentAction,
   issueTaxInvoiceAction,
   generateMonthlyFixedBillsAction,
+  parseAndMatchDepositAction,
+  type DepositMatch,
 } from '@/app/(dashboard)/billing/status/actions'
 import { useRouter } from 'next/navigation'
 
@@ -339,6 +341,79 @@ function PaymentSlidePanel({
   )
 }
 
+// ── 입금 문자 파싱·매칭 모달 (P4-5) ──────────────────────────────────────────
+function DepositMatchModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  const [text, setText] = useState('')
+  const [pending, startTransition] = useTransition()
+  const [parsed, setParsed] = useState<{ amount: number | null; name: string | null } | null>(null)
+  const [matches, setMatches] = useState<DepositMatch[]>([])
+  const [err, setErr] = useState('')
+  const [done, setDone] = useState<string | null>(null)
+
+  function parse() {
+    setErr(''); setDone(null)
+    startTransition(async () => {
+      const res = await parseAndMatchDepositAction(text)
+      if (res.error) { setErr(res.error); return }
+      setParsed(res.parsed ? { amount: res.parsed.amount, name: res.parsed.name } : null)
+      setMatches(res.matches ?? [])
+    })
+  }
+  function confirm(m: DepositMatch) {
+    setErr('')
+    const today = new Date()
+    const paidAt = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    startTransition(async () => {
+      const res = await updateBillPaymentAction({ id: m.billId, paidAt, paidAmount: m.total, paymentMethod: '계좌이체' })
+      if (res.error) { setErr(res.error); return }
+      setDone(m.billId); setMatches(prev => prev.filter(x => x.billId !== m.billId))
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-lg p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-[#090c1d]">입금 문자 매칭</h3>
+          <button onClick={onClose}><X size={16} /></button>
+        </div>
+        <textarea value={text} onChange={e => setText(e.target.value)} rows={4}
+          placeholder="은행 입금 알림 문자를 붙여넣으세요 (예: [Web발신] 홍길동님 100,000원 입금)"
+          className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#7b68ee] resize-none" />
+        <button onClick={parse} disabled={pending || !text.trim()}
+          className="mt-2 w-full bg-[#7b68ee] text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+          {pending ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} 파싱·매칭
+        </button>
+        {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
+        {parsed && (
+          <p className="text-xs text-[#514b81] mt-3">
+            추출: 금액 <b>{parsed.amount != null ? fmtNum(parsed.amount) : '?'}</b>원 · 입금자 <b>{parsed.name ?? '?'}</b>
+          </p>
+        )}
+        {matches.length > 0 && (
+          <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto">
+            {matches.map(m => (
+              <div key={m.billId} className="flex items-center gap-2 border rounded-lg px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[#090c1d] truncate">{m.customerName}</div>
+                  <div className="text-xs text-gray-400">{m.billingMonth} · 미납 {fmtNum(m.unpaid)}원 / 청구 {fmtNum(m.total)}원</div>
+                </div>
+                {m.score >= 4 && <span className="text-[10px] text-green-600 shrink-0">유력</span>}
+                <button onClick={() => confirm(m)} disabled={pending}
+                  className="shrink-0 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">입금 확정</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {parsed && matches.length === 0 && !done && <p className="text-xs text-gray-400 mt-2">일치하는 미납 청구가 없습니다.</p>}
+        {done && <p className="text-xs text-green-600 mt-2">입금 처리되었습니다.</p>}
+      </div>
+    </div>
+  )
+}
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
 export function BillingStatusClient({
   initialBills,
@@ -355,6 +430,7 @@ export function BillingStatusClient({
   const [statusFilter,  setStatusFilter]  = useState('all')
   const [nameFilter,    setNameFilter]    = useState('')
   const [showCreate,    setShowCreate]    = useState(false)
+  const [showDeposit,   setShowDeposit]   = useState(false)
   const [slideItem,     setSlideItem]     = useState<BillRow | null>(null)
   const [genPending, startGen] = useTransition()
   const [genMsg, setGenMsg] = useState('')
@@ -405,6 +481,13 @@ export function BillingStatusClient({
           <p className="text-xs text-gray-400 mt-0.5">청구서 생성·입금·미납금 현황</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDeposit(true)}
+            title="은행 입금 알림 문자로 미납 청구 매칭"
+            className="flex items-center gap-2 border border-[#d0ccf5] text-[#514b81] px-3 py-2 rounded-lg text-sm hover:bg-[#f5f4ff]"
+          >
+            <Search size={14} /> 입금 문자
+          </button>
           <button
             onClick={generateFixed}
             disabled={genPending}
@@ -541,6 +624,9 @@ export function BillingStatusClient({
           onClose={() => setShowCreate(false)}
         />
       )}
+
+      {/* 입금 문자 매칭 모달 (P4-5) */}
+      {showDeposit && <DepositMatchModal onClose={() => setShowDeposit(false)} />}
 
       {/* 입금처리 슬라이드 패널 */}
       {slideItem && (

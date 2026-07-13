@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 
@@ -94,6 +95,83 @@ export async function generateMonthlyFixedBillsAction(input: {
   }
   revalidatePath('/billing/status')
   return { created, skipped }
+}
+
+// ── 입금 문자 파싱·매칭 (P4-5, §4-6-1) ───────────────────────────────────────
+type ParsedDeposit = { amount: number | null; name: string | null; raw: string }
+
+/** 은행 알림문자에서 금액·입금자명 추출 — 정규식 우선, 실패 시 AI 폴백 */
+function regexParseDeposit(text: string): ParsedDeposit {
+  const t = text.replace(/\s+/g, ' ').trim()
+  // 금액: '입금' 근처 또는 '원' 앞의 콤마 그룹 숫자 (가장 큰 값 = 잔액과 혼동 방지 위해 '입금' 우선)
+  let amount: number | null = null
+  const depMatch = t.match(/입금\D{0,6}([\d,]{2,})/) || t.match(/([\d,]{2,})\s*원/)
+  if (depMatch) { const n = parseInt(depMatch[1].replace(/,/g, ''), 10); if (Number.isFinite(n)) amount = n }
+  // 입금자명: '님' 앞의 한글 2~4자, 또는 '입금' 뒤 한글 이름
+  let name: string | null = null
+  const nameMatch = t.match(/([가-힣]{2,4})\s*님/) || t.match(/입금\s*([가-힣]{2,4})/)
+  if (nameMatch) name = nameMatch[1]
+  return { amount, name, raw: text }
+}
+
+async function aiParseDeposit(text: string): Promise<ParsedDeposit> {
+  if (!process.env.ANTHROPIC_API_KEY) return { amount: null, name: null, raw: text }
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const res = await client.messages.create({
+      model: 'claude-opus-4-8', max_tokens: 300,
+      system: '은행 입금 알림 문자에서 입금 금액(원)과 입금자명을 추출한다. 반드시 JSON만 반환: {"amount": 숫자|null, "name": "이름"|null}. 잔액은 무시하고 이번 입금액만.',
+      messages: [{ role: 'user', content: text }],
+    })
+    const blk = res.content.find(b => b.type === 'text')
+    if (!blk || blk.type !== 'text') return { amount: null, name: null, raw: text }
+    const m = blk.text.match(/\{[\s\S]*\}/)
+    if (!m) return { amount: null, name: null, raw: text }
+    const j = JSON.parse(m[0]) as { amount: number | null; name: string | null }
+    return { amount: typeof j.amount === 'number' ? j.amount : null, name: j.name ?? null, raw: text }
+  } catch { return { amount: null, name: null, raw: text } }
+}
+
+export type DepositMatch = {
+  billId: string; customerName: string; billingMonth: string
+  total: number; unpaid: number; score: number
+}
+
+/** 입금 문자 붙여넣기 → 파싱 → 미납 청구 후보 매칭 (자동 적용 안 함, 확인 후 updateBillPayment) */
+export async function parseAndMatchDepositAction(
+  text: string
+): Promise<{ error?: string; parsed?: ParsedDeposit; matches?: DepositMatch[] }> {
+  await requirePermission('billing_manage')
+  if (!text?.trim()) return { error: '문자 내용이 비어 있습니다.' }
+
+  let parsed = regexParseDeposit(text)
+  if (parsed.amount == null || parsed.name == null) {
+    const ai = await aiParseDeposit(text)
+    parsed = { amount: parsed.amount ?? ai.amount, name: parsed.name ?? ai.name, raw: text }
+  }
+
+  const admin = createAdminClient()
+  const { data } = await admin.from('bills')
+    .select('id, billing_month, total_amount, paid_amount, customers(customer_name)')
+    .order('bill_date', { ascending: false }).limit(500)
+  type Row = { id: string; billing_month: string; total_amount: number; paid_amount: number; customers: { customer_name: string } | { customer_name: string }[] | null }
+  const rows = (data ?? []) as unknown as Row[]
+
+  const matches: DepositMatch[] = []
+  for (const r of rows) {
+    const unpaid = r.total_amount - r.paid_amount
+    if (unpaid <= 0) continue
+    const cust = Array.isArray(r.customers) ? r.customers[0] : r.customers
+    const cname = cust?.customer_name ?? ''
+    let score = 0
+    if (parsed.amount != null && unpaid === parsed.amount) score += 3
+    else if (parsed.amount != null && r.total_amount === parsed.amount) score += 2
+    if (parsed.name && cname.includes(parsed.name)) score += 2
+    if (score === 0) continue
+    matches.push({ billId: r.id, customerName: cname, billingMonth: r.billing_month, total: r.total_amount, unpaid, score })
+  }
+  matches.sort((a, b) => b.score - a.score)
+  return { parsed, matches: matches.slice(0, 10) }
 }
 
 // 입금 처리
