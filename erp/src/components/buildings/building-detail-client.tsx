@@ -26,8 +26,13 @@ type Building = {
   zipcode: string | null
   address: string | null
   total_area: number | null
+  building_area: number | null
   floors_above: number | null
   floors_below: number | null
+  height_m: number | null
+  unit_count: number | null
+  structure: string | null
+  roof: string | null
   purpose: string | null
   year_built: number | null
   notes: string | null
@@ -36,6 +41,8 @@ type Building = {
 
 // DB(building_purposes) 미조회 시 폴백 — 관리자 > 건물 용도 관리에서 편집
 const PURPOSES = ['공동주택', '근린생활시설', '판매시설', '의료시설', '교육시설', '숙박시설', '업무시설', '공장', '창고시설', '위험물저장시설', '기타']
+const STRUCTURES = ['콘크리트구조', '철골구조', '조적조', '목구조', '기타']
+const ROOFS = ['슬라브', '기와', '슬레이트', '기타']
 
 export function BuildingDetailClient({ building, purposes = PURPOSES }: { building: Building; purposes?: string[] }) {
   const router = useRouter()
@@ -50,8 +57,13 @@ export function BuildingDetailClient({ building, purposes = PURPOSES }: { buildi
     zipcode: building.zipcode ?? '',
     address: building.address ?? '',
     total_area: building.total_area?.toString() ?? '',
+    building_area: building.building_area?.toString() ?? '',
     floors_above: building.floors_above?.toString() ?? '',
     floors_below: building.floors_below?.toString() ?? '',
+    height_m: building.height_m?.toString() ?? '',
+    unit_count: building.unit_count?.toString() ?? '',
+    structure: building.structure ?? '',
+    roof: building.roof ?? '',
     purpose: building.purpose ?? '',
     year_built: building.year_built?.toString() ?? '',
     notes: building.notes ?? '',
@@ -85,8 +97,13 @@ export function BuildingDetailClient({ building, purposes = PURPOSES }: { buildi
         zipcode: form.zipcode.trim() || undefined,
         address: form.address.trim() || undefined,
         total_area: form.total_area ? parseFloat(form.total_area) : undefined,
+        building_area: form.building_area ? parseFloat(form.building_area) : undefined,
         floors_above: form.floors_above ? parseInt(form.floors_above) : undefined,
         floors_below: form.floors_below ? parseInt(form.floors_below) : undefined,
+        height_m: form.height_m ? parseFloat(form.height_m) : undefined,
+        unit_count: form.unit_count ? parseInt(form.unit_count) : undefined,
+        structure: form.structure || undefined,
+        roof: form.roof || undefined,
         purpose: form.purpose || undefined,
         year_built: form.year_built ? parseInt(form.year_built) : undefined,
         notes: form.notes.trim() || undefined,
@@ -309,6 +326,32 @@ export function BuildingDetailClient({ building, purposes = PURPOSES }: { buildi
                 />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="건축물구조">
+                <select value={form.structure} onChange={e => setField('structure', e.target.value)} className={inputCls}>
+                  <option value="">선택</option>
+                  {STRUCTURES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="지붕구조">
+                <select value={form.roof} onChange={e => setField('roof', e.target.value)} className={inputCls}>
+                  <option value="">선택</option>
+                  {ROOFS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="건축면적 (㎡)">
+                <input type="number" value={form.building_area} onChange={e => setField('building_area', e.target.value)} min={0} step={0.01} className={inputCls} />
+              </Field>
+              <Field label="높이 (m)">
+                <input type="number" value={form.height_m} onChange={e => setField('height_m', e.target.value)} min={0} step={0.01} className={inputCls} />
+              </Field>
+              <Field label="세대수">
+                <input type="number" value={form.unit_count} onChange={e => setField('unit_count', e.target.value)} min={0} className={inputCls} />
+              </Field>
+            </div>
+            <p className="text-[11px] text-[#b0acd6]">건축물구조·지붕·건축면적·높이·세대수는 다수동 보고서(다수동일때 시트)에 사용됩니다.</p>
             <Field label="비고">
               <textarea
                 value={form.notes}

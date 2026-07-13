@@ -38,8 +38,13 @@ export default async function BuildingDetailPage({
     zipcode: string | null
     address: string | null
     total_area: number | null
+    building_area: number | null
     floors_above: number | null
     floors_below: number | null
+    height_m: number | null
+    unit_count: number | null
+    structure: string | null
+    roof: string | null
     purpose: string | null
     year_built: number | null
     notes: string | null
@@ -91,8 +96,13 @@ export default async function BuildingDetailPage({
             zipcode: b.zipcode,
             address: b.address,
             total_area: b.total_area,
+            building_area: b.building_area,
             floors_above: b.floors_above,
             floors_below: b.floors_below,
+            height_m: b.height_m,
+            unit_count: b.unit_count,
+            structure: b.structure,
+            roof: b.roof,
             purpose: b.purpose,
             year_built: b.year_built,
             notes: b.notes,

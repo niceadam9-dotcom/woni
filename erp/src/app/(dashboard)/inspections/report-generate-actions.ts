@@ -22,8 +22,8 @@ async function buildOperationalReportBytes(inspectionId: string): Promise<Report
 
   const [custRes, bldRes, mainRes, auxRes, stepsRes, contactRes] = await Promise.all([
     admin.from('customers').select('customer_name, address, fire_station').eq('id', insp.customer_id).single(),
-    admin.from('buildings').select('id, purpose, total_area, floors_above, floors_below, use_approval_date')
-      .eq('customer_id', insp.customer_id).eq('is_active', true).order('building_name').limit(1).maybeSingle(),
+    admin.from('buildings').select('id, purpose, total_area, building_area, floors_above, floors_below, height_m, unit_count, structure, roof, use_approval_date')
+      .eq('customer_id', insp.customer_id).eq('is_active', true).order('building_name'),
     insp.assigned_employee_id
       ? admin.from('profiles').select('name, license_no').eq('id', insp.assigned_employee_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -35,7 +35,12 @@ async function buildOperationalReportBytes(inspectionId: string): Promise<Report
   ])
 
   const cust = custRes.data as { customer_name: string; address: string | null; fire_station: string | null } | null
-  const bld = bldRes.data as { id: string; purpose: string | null; total_area: number | null; floors_above: number | null; floors_below: number | null; use_approval_date: string | null } | null
+  const buildings = (bldRes.data ?? []) as Array<{
+    id: string; purpose: string | null; total_area: number | null; building_area: number | null
+    floors_above: number | null; floors_below: number | null; height_m: number | null; unit_count: number | null
+    structure: string | null; roof: string | null; use_approval_date: string | null
+  }>
+  const bld = buildings[0] ?? null
   const main = mainRes.data as { name: string; license_no: string | null } | null
   const aux = ((auxRes.data ?? []) as unknown as Array<{ profiles: { name: string; license_no: string | null } | null }>)
     .map(a => ({ name: a.profiles?.name ?? '', license_no: a.profiles?.license_no ?? null })).filter(a => a.name)
@@ -48,7 +53,7 @@ async function buildOperationalReportBytes(inspectionId: string): Promise<Report
     inspectionDate: insp.inspection_start_date,
     contact, fireStation: cust?.fire_station ?? null,
     customerName: cust?.customer_name ?? '', purpose: bld?.purpose ?? null,
-    buildingCount: 1, address: cust?.address ?? null,
+    buildingCount: buildings.length || 1, address: cust?.address ?? null,
     totalArea: bld?.total_area ?? null, floorsAbove: bld?.floors_above ?? null, floorsBelow: bld?.floors_below ?? null,
     useApprovalDate: bld?.use_approval_date ?? null,
     step5Date: steps.find(s => s.step_num === 5)?.due_date ?? null,
@@ -74,7 +79,12 @@ async function buildOperationalReportBytes(inspectionId: string): Promise<Report
   // 템플릿 로드 → 개요 + 설비 점검표면 + 현황면 주입
   const { data: tpl, error: tplErr } = await admin.storage.from('reports').download(TEMPLATE_PATH)
   if (tplErr || !tpl) return { error: '보고서 템플릿을 불러오지 못했습니다. 템플릿 업로드를 확인하세요.', missing }
-  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses, installedFacilities)
+  const buildingInfos = buildings.map(b => ({
+    total_area: b.total_area, building_area: b.building_area,
+    floors_above: b.floors_above, floors_below: b.floors_below,
+    height_m: b.height_m, unit_count: b.unit_count, structure: b.structure, roof: b.roof,
+  }))
+  const { bytes } = injectReport(await tpl.arrayBuffer(), cells, responses, installedFacilities, buildingInfos)
 
   const baseName = `${cust?.customer_name ?? 'report'}_작동점검보고서_${today}`
   return { bytes, baseName, missing, customerId: insp.customer_id, snap: snap ?? [] }

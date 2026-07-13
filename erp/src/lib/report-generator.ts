@@ -173,16 +173,57 @@ export function injectFacilityStatus(
   return { checked, unmapped }
 }
 
+// ── 다수동 처리 (P32-7) ──────────────────────────────────────────────────────
+// '다수동일때' 시트: 동별 블록(10행 간격, 최대 3동). 건축물구조·지붕구조는 체크박스 문자열.
+export type BuildingInfo = {
+  total_area: number | null; building_area: number | null
+  floors_above: number | null; floors_below: number | null
+  height_m: number | null; unit_count: number | null
+  structure: string | null; roof: string | null
+}
+const STRUCTURE_OPTS = ['콘크리트구조', '철골구조', '조적조', '목구조']
+const ROOF_OPTS = ['슬라브', '기와', '슬레이트', '기타']
+const checkboxLine = (opts: string[], sel: string | null, trailingComma = false) =>
+  ' ' + opts.map(o => `[${o === sel ? '√' : '  '}]${o}`).join(', ') + (trailingComma ? ', ' : '')
+
+/**
+ * '다수동일때' 시트에 동별 건축물 정보 주입 (P32-7). 최대 3동(시트 블록 수).
+ * @returns 주입된 동 수 + 초과로 누락된 동 수
+ */
+export function injectMultiBuilding(
+  wb: XLSX.WorkBook,
+  buildings: BuildingInfo[],
+): { injected: number; overflow: number } {
+  const ws = wb.Sheets['다수동일때']
+  if (!ws) return { injected: 0, overflow: buildings.length }
+  const S = (a: string, v: string | number | null | undefined) => { if (v !== null && v !== undefined && v !== '') ws[a] = { t: typeof v === 'number' ? 'n' : 's', v } as XLSX.CellObject }
+  const MAX = 3
+  buildings.slice(0, MAX).forEach((b, i) => {
+    const base = 4 + i * 10
+    S(`B${base}`, b.total_area)                 // 연면적
+    S(`E${base}`, b.building_area)              // 건축면적
+    S(`J${base}`, b.unit_count)                 // 세대수
+    S(`C${base + 1}`, b.floors_above)           // 지상 층수
+    S(`E${base + 1}`, b.floors_below)           // 지하 층수
+    S(`H${base + 1}`, b.height_m)               // 높이
+    ws[`B${base + 2}`] = { t: 's', v: checkboxLine(STRUCTURE_OPTS, b.structure, true) } as XLSX.CellObject   // 건축물구조
+    ws[`B${base + 3}`] = { t: 's', v: checkboxLine(ROOF_OPTS, b.roof) } as XLSX.CellObject                   // 지붕구조
+  })
+  return { injected: Math.min(buildings.length, MAX), overflow: Math.max(0, buildings.length - MAX) }
+}
+
 /** 개요 허브 + 설비별 점검표면 + 현황면을 한 워크북에 함께 주입 → xlsx 바이트 (P32-3 + P34-5 + P33-3) */
 export function injectReport(
   templateBuf: ArrayBuffer,
   cells: Record<string, Cell>,
   responses: Record<string, 'O' | 'X' | 'N'>,
   installedFacilities: string[] = [],
+  buildings: BuildingInfo[] = [],
 ): {
   bytes: Uint8Array
   sheetResult: { injected: number; unmatched: string[] }
   facilityResult: { checked: number; unmapped: string[] }
+  buildingResult: { injected: number; overflow: number }
 } {
   const wb = XLSX.read(templateBuf, { type: 'array', cellFormula: true, cellStyles: true })
   const ov = wb.Sheets['개요']
@@ -190,6 +231,8 @@ export function injectReport(
   for (const [addr, cell] of Object.entries(cells)) ov[addr] = cell as XLSX.CellObject
   const sheetResult = injectSheetResults(wb, responses)
   const facilityResult = injectFacilityStatus(wb, installedFacilities)
+  // 다수동(2동 이상)일 때만 '다수동일때' 시트 주입
+  const buildingResult = buildings.length > 1 ? injectMultiBuilding(wb, buildings) : { injected: 0, overflow: 0 }
   const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array
-  return { bytes, sheetResult, facilityResult }
+  return { bytes, sheetResult, facilityResult, buildingResult }
 }

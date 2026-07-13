@@ -381,13 +381,13 @@
       "id": "P32-7",
       "phase": "P3-2",
       "title": "다수동 처리",
-      "detail": "buildings 필드확장 + 전 동 자동수집 + 다수동일때 블록 주입 + 구조/지붕 매핑",
+      "detail": "buildings 확장(085: structure/roof/building_area/height_m/unit_count) + 건물폼 구조/지붕 셀렉트·건축면적/높이/세대수 입력 + injectMultiBuilding('다수동일때' 동별 블록 10행간격 최대3동, 구조/지붕 체크박스 문자열 렌더) + 보고서 액션 전 동 수집·buildingCount 반영. e2e 검증(동1 철골/기와·동2 콘크리트/기타). 스테이징 적용·타입체크 통과.",
       "section": "§3-5",
-      "migration": "070",
+      "migration": "085",
       "depends_on": [
         "P32-2"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P32-8",
@@ -627,9 +627,9 @@
   ],
   "summary": {
     "total": 38,
-    "completed": 29,
+    "completed": 30,
     "in_progress": 3,
-    "pending": 5,
+    "pending": 4,
     "deferred": 1,
     "blocked": 0
   }

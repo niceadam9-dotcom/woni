@@ -84,8 +84,13 @@ export type UpdateBuildingInput = {
   zipcode?: string
   address?: string
   total_area?: number
+  building_area?: number
   floors_above?: number
   floors_below?: number
+  height_m?: number
+  unit_count?: number
+  structure?: string
+  roof?: string
   purpose?: string
   year_built?: number
   notes?: string
@@ -106,8 +111,13 @@ export async function updateBuildingAction(
     zipcode: input.zipcode || null,
     address: input.address || null,
     total_area: input.total_area ?? null,
+    building_area: input.building_area ?? null,
     floors_above: input.floors_above ?? null,
     floors_below: input.floors_below ?? null,
+    height_m: input.height_m ?? null,
+    unit_count: input.unit_count ?? null,
+    structure: input.structure || null,
+    roof: input.roof || null,
     purpose: input.purpose || null,
     year_built: input.year_built ?? null,
     notes: input.notes || null,
