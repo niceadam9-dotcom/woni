@@ -44,11 +44,12 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
   const defectId     = formData.get('defectId')     as string | null
   const inspectionId = formData.get('inspectionId') as string | null
   const file         = formData.get('file')         as File | null
+  const field        = (formData.get('field') as string | null) === 'after' ? 'after_photo_url' : 'photo_url'
 
   if (!defectId || !inspectionId || !file) return { error: '파일 정보가 없습니다.' }
 
   const ext  = file.name.split('.').pop() ?? 'jpg'
-  const path = `${inspectionId}/${defectId}/${Date.now()}.${ext}`
+  const path = `${inspectionId}/${defectId}/${field === 'after_photo_url' ? 'after_' : ''}${Date.now()}.${ext}`
 
   const buffer = await file.arrayBuffer()
   const { error: uploadErr } = await admin.storage
@@ -57,7 +58,6 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
 
   if (uploadErr) return { error: '사진 업로드에 실패했습니다.' }
 
-  // photo_url 업데이트
   const { data: urlData } = admin.storage
     .from('inspection-defects')
     .getPublicUrl(path)
@@ -66,11 +66,33 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
 
   await admin
     .from('inspection_defects')
-    .update({ photo_url: photoUrl })
+    .update({ [field]: photoUrl } as Record<string, unknown>)
     .eq('id', defectId)
 
   revalidatePath(`/inspections/${inspectionId}`)
   return { url: photoUrl }
+}
+
+// 불량 조치완료 저장 (P34-4) — 조치내용·완료일 (완료보고서용)
+export async function updateDefectActionAction(input: {
+  defectId: string
+  inspectionId: string
+  actionTaken?: string | null
+  actionCompletedAt?: string | null
+}): Promise<{ error?: string }> {
+  const user = await getSessionUser()
+  if (!user) return { error: '인증이 필요합니다.' }
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('inspection_defects')
+    .update({
+      action_taken: input.actionTaken?.trim() || null,
+      action_completed_at: input.actionCompletedAt || null,
+    } as Record<string, unknown>)
+    .eq('id', input.defectId)
+  if (error) return { error: '조치 내용 저장에 실패했습니다.' }
+  revalidatePath(`/inspections/${input.inspectionId}`)
+  return {}
 }
 
 // 불량내역 삭제

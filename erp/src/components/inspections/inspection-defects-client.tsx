@@ -1,14 +1,16 @@
 ﻿'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { Plus, Trash2, Camera, AlertTriangle, X, Upload } from 'lucide-react'
+import { Plus, Trash2, Camera, AlertTriangle, X, Upload, Wrench, Check } from 'lucide-react'
 import {
   addDefectAction,
   uploadDefectPhotoAction,
   deleteDefectAction,
+  updateDefectActionAction,
   type DefectSeverity,
 } from '@/app/(dashboard)/inspections/defect-actions'
 import { createActionPlanAction } from '@/app/(dashboard)/action-plans/actions'
+import { DateInput } from '@/components/ui/date-input'
 
 // ── types ──────────────────────────────────────────────────────────────────
 type Defect = {
@@ -17,6 +19,9 @@ type Defect = {
   defect_name: string
   defect_detail: string | null
   photo_url: string | null
+  after_photo_url: string | null
+  action_taken: string | null
+  action_completed_at: string | null
   severity: DefectSeverity
   created_at: string
 }
@@ -33,11 +38,15 @@ function PhotoUploadButton({
   inspectionId,
   currentUrl,
   disabled,
+  field = 'before',
+  label,
 }: {
   defectId: string
   inspectionId: string
   currentUrl: string | null
   disabled?: boolean
+  field?: 'before' | 'after'
+  label?: string
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, startTransition] = useTransition()
@@ -54,6 +63,7 @@ function PhotoUploadButton({
       fd.append('defectId',     defectId)
       fd.append('inspectionId', inspectionId)
       fd.append('file',         file)
+      fd.append('field',        field)
       const res = await uploadDefectPhotoAction(fd)
       if (res.error) { setErr(res.error); setPreview(currentUrl) }
     })
@@ -88,6 +98,64 @@ function PhotoUploadButton({
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
       {err && <p className="text-[10px] text-red-500 mt-0.5">{err}</p>}
+    </div>
+  )
+}
+
+// ── 조치완료 섹션 (P34-4, 완료보고서용) ───────────────────────────────────
+function DefectActionSection({ defect, inspectionId, canEdit }: {
+  defect: Defect
+  inspectionId: string
+  canEdit: boolean
+}) {
+  const [open, setOpen] = useState(!!(defect.action_taken || defect.action_completed_at))
+  const [taken, setTaken] = useState(defect.action_taken ?? '')
+  const [date, setDate] = useState(defect.action_completed_at ?? '')
+  const [pending, startTransition] = useTransition()
+  const [msg, setMsg] = useState('')
+
+  function save() {
+    setMsg('')
+    startTransition(async () => {
+      const res = await updateDefectActionAction({
+        defectId: defect.id, inspectionId,
+        actionTaken: taken, actionCompletedAt: date || null,
+      })
+      setMsg(res.error ?? '조치 내용을 저장했습니다.')
+    })
+  }
+
+  const done = !!defect.action_completed_at
+  return (
+    <div className="mt-2 pt-2 border-t border-dashed">
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 text-xs text-[#7b68ee] font-medium">
+        <Wrench size={12} /> 조치 완료 {done && <Check size={12} className="text-green-600" />}
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-start">
+          <div className="space-y-2">
+            <textarea rows={2} value={taken} onChange={e => setTaken(e.target.value)} disabled={!canEdit}
+              placeholder="조치 내용" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 shrink-0">조치완료일</span>
+              <DateInput value={date} onChange={e => setDate(e.target.value)} disabled={!canEdit} className="text-sm" />
+              {canEdit && (
+                <button onClick={save} disabled={pending}
+                  className="ml-auto text-xs bg-[#7b68ee] text-white px-3 py-1.5 rounded disabled:opacity-50">
+                  {pending ? '저장…' : '저장'}
+                </button>
+              )}
+            </div>
+            {msg && <p className="text-[11px] text-green-600">{msg}</p>}
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-[10px] text-gray-400">조치 후</span>
+            <PhotoUploadButton defectId={defect.id} inspectionId={inspectionId}
+              currentUrl={defect.after_photo_url} disabled={!canEdit} field="after" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -352,6 +420,8 @@ export function InspectionDefectsClient({
                   </div>
                 )}
               </div>
+
+              <DefectActionSection defect={defect} inspectionId={inspectionId} canEdit={canEdit} />
             </div>
           )
         })}

@@ -486,14 +486,14 @@
       "id": "P34-4",
       "phase": "P3-4",
       "title": "이행계획서·완료보고서",
-      "detail": "action_plans 확장(조치완료일/내용)+조치후 사진 → 계획서/완료보고서 생성",
+      "detail": "inspection_defects 확장(084: action_taken/action_completed_at/after_photo_url) + updateDefectActionAction + 불량카드 조치완료 섹션(조치내용·완료일·조치후 사진 업로드). 스테이징 적용·타입체크 통과. 계획서는 개요 허브 수식으로 헤더 자동완성(injectReport 반영됨). 미완: 완료보고서 문서의 불량 조치목록 시트(현5/완료보고서) 주입은 후속.",
       "section": "§3-6",
-      "migration": "071",
+      "migration": "084",
       "depends_on": [
         "P34-3",
         "P32-3"
       ],
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "id": "P34-5",
@@ -628,8 +628,8 @@
   "summary": {
     "total": 38,
     "completed": 27,
-    "in_progress": 2,
-    "pending": 8,
+    "in_progress": 3,
+    "pending": 7,
     "deferred": 1,
     "blocked": 0
   }

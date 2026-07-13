@@ -76,7 +76,7 @@ export default async function InspectionDetailPage({
       .eq('inspection_id', id)
       .order('submitted_at'),
     admin.from('inspection_defects')
-      .select('id, defect_code, defect_name, defect_detail, photo_url, severity, created_at')
+      .select('id, defect_code, defect_name, defect_detail, photo_url, after_photo_url, action_taken, action_completed_at, severity, created_at')
       .eq('inspection_id', id)
       .order('created_at'),
     admin.from('action_plans').select('id').eq('inspection_id', id).single(),
@@ -122,6 +122,7 @@ export default async function InspectionDetailPage({
   type DefectRow = {
     id: string; defect_code: string | null; defect_name: string
     defect_detail: string | null; photo_url: string | null
+    after_photo_url: string | null; action_taken: string | null; action_completed_at: string | null
     severity: '경미' | '보통' | '중대'; created_at: string
   }
   const defects = (defectsRes.data ?? []) as DefectRow[]
