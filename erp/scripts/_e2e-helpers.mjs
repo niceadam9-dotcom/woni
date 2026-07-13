@@ -4,7 +4,7 @@ import { chromium } from 'playwright'
 import { SUPABASE_URL, SERVICE_ROLE_KEY } from './_env.mjs'
 
 export const raw = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
-export const BASE = 'http://localhost:3000'
+export const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000'
 
 let _pass = 0, _fail = 0
 export function check(name, cond, detail = '') {

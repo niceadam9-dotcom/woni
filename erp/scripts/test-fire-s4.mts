@@ -15,7 +15,7 @@ const env = Object.fromEntries(
 const raw = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!)
 const admin = raw as never as Parameters<typeof generateYearlyPlanItems>[0]
 
-const BASE = 'http://localhost:3000'
+const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000'
 const SHOTS = new URL('../.test-shots/fire-s4/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 mkdirSync(SHOTS, { recursive: true })
 
