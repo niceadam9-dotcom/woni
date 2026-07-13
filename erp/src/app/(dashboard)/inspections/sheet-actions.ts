@@ -36,3 +36,40 @@ export async function saveSheetResponsesAction(
   revalidatePath(`/inspections/${inspectionId}`)
   return {}
 }
+
+/** X(불량) 응답 → 불량내역 자동 등록 (P34-3) — defect_catalog 표준 문구, 중복 코드 제외 */
+export async function createDefectsFromXAction(
+  inspectionId: string
+): Promise<{ error?: string; added?: number }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  const { data: xs } = await admin.from('inspection_sheet_responses')
+    .select('item_code, memo').eq('inspection_id', inspectionId).eq('result', 'X')
+  const xRows = (xs ?? []) as Array<{ item_code: string; memo: string | null }>
+  if (xRows.length === 0) return { added: 0 }
+
+  const codes = xRows.map(r => r.item_code)
+  const [{ data: cat }, { data: existing }] = await Promise.all([
+    admin.from('defect_catalog').select('code, equipment, description').in('code', codes),
+    admin.from('inspection_defects').select('defect_code').eq('inspection_id', inspectionId),
+  ])
+  const catMap = new Map(((cat ?? []) as Array<{ code: string; equipment: string; description: string }>).map(c => [c.code, c]))
+  const have = new Set(((existing ?? []) as Array<{ defect_code: string | null }>).map(e => e.defect_code).filter(Boolean))
+
+  const toInsert = xRows.filter(r => !have.has(r.item_code)).map(r => {
+    const c = catMap.get(r.item_code)
+    return {
+      inspection_id: inspectionId,
+      defect_code: r.item_code,
+      defect_name: c?.description ?? r.item_code,
+      defect_detail: r.memo ?? null,
+      severity: '보통',
+    }
+  })
+  if (toInsert.length === 0) return { added: 0 }
+  const { error } = await admin.from('inspection_defects').insert(toInsert as Record<string, unknown>[])
+  if (error) return { error: `불량 등록 실패: ${error.message}` }
+  revalidatePath(`/inspections/${inspectionId}`)
+  return { added: toInsert.length }
+}

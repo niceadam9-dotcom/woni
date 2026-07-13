@@ -3,3 +3,10 @@ victory_test/
 
 # Supabase CLI 로컬 링크 상태
 supabase/.temp/
+
+# 관계도 PDF (바이너리 — 로컬 생성물)
+erp_goal/*.pdf
+
+# 실데이터 문서 (고객 연락처·계좌번호·주민번호 포함 — 공개 저장소 커밋 절대 금지)
+erp_goal/_Data/
+erp_goal/_doc01/

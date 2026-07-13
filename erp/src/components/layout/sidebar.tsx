@@ -89,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
       { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
       { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'] },
+      { label: '점검 대장',        href: '/inspection-ledger',          icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
       { label: '보고서 제출현황',  href: '/inspection-reports/status',  icon: FileCheck2,     roles: ['employee', 'manager', 'admin'] },
       { label: '이행계획서 등록',  href: '/action-plans',               icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
       { label: '이행계획 제출현황',href: '/action-plans/status',        icon: ClipboardCheck, roles: ['employee', 'manager', 'admin'] },

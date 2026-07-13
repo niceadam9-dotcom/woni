@@ -101,6 +101,7 @@ export default async function InspectionDetailPage({
     const num = String(parseInt(r.item_code.split('-')[0], 10))
     respondedCounts[num] = (respondedCounts[num] ?? 0) + 1
   }
+  const xCount = respRows.filter(r => r.result === 'X').length
 
   const auxParticipants = ((participantsRes.data ?? []) as unknown as Array<{
     id: string; employee_id: string | null
@@ -274,6 +275,7 @@ export default async function InspectionDetailPage({
         sheets={sheets}
         responses={responses}
         respondedCounts={respondedCounts}
+        xCount={xCount}
         canManage={canEdit}
       />
 

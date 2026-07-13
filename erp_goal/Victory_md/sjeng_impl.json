@@ -479,7 +479,7 @@
         "P2-1",
         "P34-2"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P34-4",
@@ -574,7 +574,7 @@
       "depends_on": [
         "P4-3"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P6-1",

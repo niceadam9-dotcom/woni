@@ -2,20 +2,21 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClipboardCheck, Check, Loader2, CircleCheck } from 'lucide-react'
-import { loadSheetItemsAction, saveSheetResponsesAction } from '@/app/(dashboard)/inspections/sheet-actions'
+import { ClipboardCheck, Check, Loader2, CircleCheck, AlertTriangle } from 'lucide-react'
+import { loadSheetItemsAction, saveSheetResponsesAction, createDefectsFromXAction } from '@/app/(dashboard)/inspections/sheet-actions'
 
 type Sheet = { id: string; sheet_code: string; sheet_name: string }
 type Item = { item_code: string; item_name: string; comprehensive_only: boolean; group: string }
 type Result = 'O' | 'X' | 'N'
 
 /** 점검표 입력 (P34-2) — 설비 선택 → 항목별 ○/X/／. 작동점검이면 종합전용(●) 항목 숨김. */
-export function InspectionSheetClient({ inspectionId, inspectionType, sheets, responses, respondedCounts, canManage }: {
+export function InspectionSheetClient({ inspectionId, inspectionType, sheets, responses, respondedCounts, xCount, canManage }: {
   inspectionId: string
   inspectionType: string
   sheets: Sheet[]
   responses: Record<string, { result: Result; memo: string | null }>
   respondedCounts: Record<string, number>  // sheet_code prefix(설비번호) → 응답 수
+  xCount: number
   canManage: boolean
 }) {
   const router = useRouter()
@@ -24,6 +25,17 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
   const [items, setItems] = useState<Item[]>([])
   const [local, setLocal] = useState<Record<string, Result>>({})
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  function registerDefects() {
+    setError(''); setNotice('')
+    startTransition(async () => {
+      const res = await createDefectsFromXAction(inspectionId)
+      if (res.error) { setError(res.error); return }
+      setNotice(res.added ? `${res.added}건의 불량을 등록했습니다.` : '새로 등록할 불량이 없습니다.')
+      router.refresh()
+    })
+  }
 
   const isOperational = inspectionType === '작동'
 
@@ -59,6 +71,18 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
         <h2 className="text-sm font-semibold text-[#090c1d]">점검표 입력</h2>
         <span className="text-xs text-[#b0acd6] ml-auto">{isOperational ? '작동점검 (○항목)' : '종합점검 (전체)'}</span>
       </div>
+
+      {!sel && canManage && xCount > 0 && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+          <AlertTriangle className="size-3.5 text-red-500 shrink-0" />
+          <span className="text-xs text-red-700">불량(X) {xCount}건 — 표준 문구로 불량내역에 등록</span>
+          <button onClick={registerDefects} disabled={isPending}
+            className="ml-auto h-7 px-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium disabled:opacity-50">
+            불량 등록
+          </button>
+        </div>
+      )}
+      {!sel && notice && <p className="text-xs text-green-600 mb-2">{notice}</p>}
 
       {!sel ? (
         <>
@@ -121,7 +145,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
               </button>
             </div>
           )}
-          <p className="text-[11px] text-[#b0acd6] mt-2">X(불량) 항목은 아래 불량내역에 별도 등록하세요. (자동 연동은 다음 단계)</p>
+          <p className="text-[11px] text-[#b0acd6] mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
         </div>
       )}
     </div>
