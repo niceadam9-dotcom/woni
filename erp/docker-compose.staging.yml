@@ -4,8 +4,11 @@
 # 주의: 프로덕션 배포 빌드와 동시에 돌리지 말 것 (4GB 램 — 메모리 스파이크)
 name: erp-staging
 
+# ⚠️ 서비스명은 반드시 'app'이 아닌 'staging' 유지 — 프로덕션 compose도 서비스명 'app'이라,
+#    같은 외부 네트워크(erp_default)에 'app' 별칭이 중복되면 Caddy의 sjfire.co.kr(app:3000)이
+#    스테이징 컨테이너로도 라운드로빈되어 운영에 스테이징 데이터가 새는 사고 발생(2026-07-13).
 services:
-  app:
+  staging:
     build:
       context: .
       dockerfile: Dockerfile
