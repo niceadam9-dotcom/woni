@@ -16,9 +16,9 @@ export default async function AnnualCollectionPage({
   const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : String(new Date().getFullYear())
 
   const admin = createAdminClient()
-  const [custRes, billRes, bpRes, apRes, stationRes] = await Promise.all([
+  const [custRes, billRes, bpRes, apRes, stationRes, ownerRes] = await Promise.all([
     admin.from('customers')
-      .select('id, customer_name, inspection_type, region_si, region_myeon, fire_station, monthly_fee_taxed, fee_taxed')
+      .select('id, customer_name, inspection_type, region_si, region_myeon, fire_station, monthly_fee_taxed, fee_taxed, owner_id')
       .eq('is_active', true).order('customer_name'),
     admin.from('bills')
       .select('customer_id, billing_month, total_amount, paid_amount, fee_type')
@@ -26,7 +26,9 @@ export default async function AnnualCollectionPage({
     admin.from('billing_profiles').select('customer_id, business_no, company_name, tax_email'),
     admin.from('billing_autopay').select('customer_id, bank_name, account_holder, account_no_last4, withdraw_day'),
     admin.from('region_fire_stations').select('region, fire_station, region_si').order('region'),
+    admin.from('owners').select('id, name'),
   ])
+  const ownerMap = new Map(((ownerRes.data ?? []) as Array<{ id: string; name: string }>).map(o => [o.id, o.name]))
 
   type Bill = { customer_id: string; billing_month: string; total_amount: number; paid_amount: number; fee_type: string }
   const bills = (billRes.data ?? []) as Bill[]
@@ -45,7 +47,7 @@ export default async function AnnualCollectionPage({
   const rows: CollectionRow[] = ((custRes.data ?? []) as Array<{
     id: string; customer_name: string; inspection_type: string
     region_si: string | null; region_myeon: string | null; fire_station: string | null
-    monthly_fee_taxed: number | null; fee_taxed: number | null
+    monthly_fee_taxed: number | null; fee_taxed: number | null; owner_id: string | null
   }>).map(c => {
     const bp = bpMap.get(c.id)
     const ap = apMap.get(c.id)
@@ -59,6 +61,7 @@ export default async function AnnualCollectionPage({
       bizNo: bp?.business_no ?? '', bizName: bp?.company_name ?? '', taxEmail: bp?.tax_email ?? '',
       bank: ap?.bank_name ?? '', holder: ap?.account_holder ?? '', last4: ap?.account_no_last4 ?? '',
       withdrawDay: ap?.withdraw_day ?? null,
+      ownerId: c.owner_id, ownerName: c.owner_id ? (ownerMap.get(c.owner_id) ?? '') : '',
     }
   })
 

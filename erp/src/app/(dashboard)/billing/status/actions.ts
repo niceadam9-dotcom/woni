@@ -174,6 +174,46 @@ export async function parseAndMatchDepositAction(
   return { parsed, matches: matches.slice(0, 10) }
 }
 
+/**
+ * 소유자 통합 입금 배분 (P4-4) — 소유자 소속 고객들의 미납 청구에 오래된 순으로 배분.
+ * @returns 배분된 건수·잔액
+ */
+export async function allocateOwnerPaymentAction(input: {
+  ownerId: string; amount: number; paidAt: string
+}): Promise<{ error?: string; allocated?: number; remainder?: number }> {
+  const user = await getSessionUser()
+  if (!user) return { error: '인증이 필요합니다.' }
+  await requirePermission('billing_manage')
+  const admin = createAdminClient()
+  if (!(input.amount > 0)) return { error: '배분 금액이 올바르지 않습니다.' }
+
+  const { data: custs } = await admin.from('customers').select('id').eq('owner_id', input.ownerId)
+  const custIds = ((custs ?? []) as Array<{ id: string }>).map(c => c.id)
+  if (custIds.length === 0) return { error: '소유자에 연결된 고객이 없습니다.' }
+
+  const { data: billRows } = await admin.from('bills')
+    .select('id, total_amount, paid_amount')
+    .in('customer_id', custIds).order('bill_date', { ascending: true })
+  const bills = ((billRows ?? []) as Array<{ id: string; total_amount: number; paid_amount: number }>)
+    .filter(b => b.total_amount - b.paid_amount > 0)
+
+  let remaining = input.amount, allocated = 0
+  for (const b of bills) {
+    if (remaining <= 0) break
+    const due = b.total_amount - b.paid_amount
+    const pay = Math.min(due, remaining)
+    const newPaid = b.paid_amount + pay
+    const { error } = await admin.from('bills')
+      .update({ paid_amount: newPaid, paid_at: newPaid >= b.total_amount ? input.paidAt : null, payment_method: '통합입금' } as Record<string, unknown>)
+      .eq('id', b.id)
+    if (error) return { error: `배분 실패: ${error.message}` }
+    remaining -= pay; allocated++
+  }
+  revalidatePath('/billing/status')
+  revalidatePath('/billing/annual')
+  return { allocated, remainder: remaining }
+}
+
 // 입금 처리
 export async function updateBillPaymentAction(input: {
   id: string

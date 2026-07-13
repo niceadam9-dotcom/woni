@@ -12,6 +12,7 @@ export type CollectionRow = {
   billed: number[]; paid: number[]
   bizNo: string; bizName: string; taxEmail: string
   bank: string; holder: string; last4: string; withdrawDay: number | null
+  ownerId: string | null; ownerName: string
 }
 export type StationRow = { region: string; fireStation: string; regionSi: string }
 
@@ -33,10 +34,27 @@ export function AnnualCollectionClient({ year, rows, stations }: {
   const [tab, setTab] = useState<Tab>('board')
   const [q, setQ] = useState('')
   const [kind, setKind] = useState('')
+  const [byOwner, setByOwner] = useState(false)
 
   const filtered = useMemo(() => rows.filter(r =>
     (!q || r.name.includes(q)) && (!kind || r.feeKind === kind)
   ), [rows, q, kind])
+
+  // 소유자별 그룹 (통합청구/소유자별 보기, P4-4). 소유자 없는 고객은 '개별' 그룹.
+  const ownerGroups = useMemo(() => {
+    const map = new Map<string, { name: string; rows: CollectionRow[] }>()
+    for (const r of filtered) {
+      const key = r.ownerId ?? '__none__'
+      if (!map.has(key)) map.set(key, { name: r.ownerId ? (r.ownerName || '(소유자)') : '개별 관리', rows: [] })
+      map.get(key)!.rows.push(r)
+    }
+    return [...map.entries()]
+      .sort((a, b) => (a[0] === '__none__' ? 1 : b[0] === '__none__' ? -1 : a[1].name.localeCompare(b[1].name)))
+      .map(([key, g]) => {
+        const unpaid = g.rows.reduce((s, r) => s + r.billed.reduce((a, b) => a + b, 0) - r.paid.reduce((a, b) => a + b, 0), 0)
+        return { key, name: g.name, rows: g.rows, count: g.rows.length, unpaid }
+      })
+  }, [filtered])
 
   const totals = useMemo(() => {
     const billed = Array(12).fill(0), paid = Array(12).fill(0)
@@ -71,6 +89,27 @@ export function AnnualCollectionClient({ year, rows, stations }: {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, `안전관리_${year}`)
     XLSX.writeFile(wb, `안전관리대장_${year}_${tab}.xlsx`)
+  }
+
+  function custRow(r: CollectionRow) {
+    const unpaid = r.billed.reduce((a, b) => a + b, 0) - r.paid.reduce((a, b) => a + b, 0)
+    return (
+      <tr key={r.id} className="hover:bg-[#fafafa]">
+        <td className="px-2 py-1.5 sticky left-0 bg-white">
+          <Link href={`/customers/${r.id}`} className="font-medium text-[#090c1d] hover:text-[#7b68ee]">{r.name}</Link>
+        </td>
+        <td className="px-1.5 py-1.5 text-center"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${r.feeKind === '정액' ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'bg-gray-100 text-gray-600'}`}>{r.feeKind}</span></td>
+        {MONTHS.map(m => {
+          const b = r.billed[m - 1], p = r.paid[m - 1]
+          return (
+            <td key={m} className="px-1.5 py-1.5 text-right">
+              {b > 0 ? <span className={p >= b ? 'text-green-600' : p > 0 ? 'text-amber-600' : 'text-red-500'}>{won(b)}</span> : <span className="text-[#e0ddf5]">·</span>}
+            </td>
+          )
+        })}
+        <td className={`px-2 py-1.5 text-right font-semibold ${unpaid > 0 ? 'text-red-500' : 'text-[#b0acd6]'}`}>{unpaid > 0 ? won(unpaid) : '-'}</td>
+      </tr>
+    )
   }
 
   return (
@@ -115,7 +154,13 @@ export function AnnualCollectionClient({ year, rows, stations }: {
             <option value="정액">정액</option>
             <option value="건별">건별</option>
           </select>
-          <span className="text-xs text-[#b0acd6] ml-auto">{filtered.length}곳</span>
+          {tab === 'board' && (
+            <button onClick={() => setByOwner(v => !v)}
+              className={`h-9 px-3 rounded-lg border text-sm transition-colors ${byOwner ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] font-medium' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+              소유자별 보기
+            </button>
+          )}
+          <span className="text-xs text-[#b0acd6] ml-auto">{filtered.length}곳{byOwner ? ` · ${ownerGroups.length}그룹` : ''}</span>
         </div>
       )}
 
@@ -132,26 +177,16 @@ export function AnnualCollectionClient({ year, rows, stations }: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f0eefb]">
-                {filtered.map(r => {
-                  const unpaid = r.billed.reduce((a, b) => a + b, 0) - r.paid.reduce((a, b) => a + b, 0)
-                  return (
-                    <tr key={r.id} className="hover:bg-[#fafafa]">
-                      <td className="px-2 py-1.5 sticky left-0 bg-white">
-                        <Link href={`/customers/${r.id}`} className="font-medium text-[#090c1d] hover:text-[#7b68ee]">{r.name}</Link>
-                      </td>
-                      <td className="px-1.5 py-1.5 text-center"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${r.feeKind === '정액' ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'bg-gray-100 text-gray-600'}`}>{r.feeKind}</span></td>
-                      {MONTHS.map(m => {
-                        const b = r.billed[m - 1], p = r.paid[m - 1]
-                        return (
-                          <td key={m} className="px-1.5 py-1.5 text-right">
-                            {b > 0 ? <span className={p >= b ? 'text-green-600' : p > 0 ? 'text-amber-600' : 'text-red-500'}>{won(b)}</span> : <span className="text-[#e0ddf5]">·</span>}
-                          </td>
-                        )
-                      })}
-                      <td className={`px-2 py-1.5 text-right font-semibold ${unpaid > 0 ? 'text-red-500' : 'text-[#b0acd6]'}`}>{unpaid > 0 ? won(unpaid) : '-'}</td>
-                    </tr>
-                  )
-                })}
+                {byOwner
+                  ? ownerGroups.flatMap(g => [
+                      <tr key={`h-${g.key}`} className="bg-[#f5f4ff]">
+                        <td className="px-2 py-1.5 sticky left-0 bg-[#f5f4ff] font-semibold text-[#7b68ee]">▸ {g.name} <span className="text-[10px] text-[#b0acd6]">{g.count}곳</span></td>
+                        <td colSpan={13}></td>
+                        <td className={`px-2 py-1.5 text-right font-bold ${g.unpaid > 0 ? 'text-red-500' : 'text-[#b0acd6]'}`}>{g.unpaid > 0 ? `통합 ${won(g.unpaid)}` : '-'}</td>
+                      </tr>,
+                      ...g.rows.map(r => custRow(r)),
+                    ])
+                  : filtered.map(r => custRow(r))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-[#c8c4d0] bg-[#f8f9fa] font-semibold text-[#090c1d]">
