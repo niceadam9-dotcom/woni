@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { Search, X, Plus, Check } from 'lucide-react'
+import { Search, X, Plus, Check, CalendarClock, Loader2 } from 'lucide-react'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DateInput } from '@/components/ui/date-input'
 import { TableScroll } from '@/components/ui/table-scroll'
@@ -9,7 +9,9 @@ import {
   createBillAction,
   updateBillPaymentAction,
   issueTaxInvoiceAction,
+  generateMonthlyFixedBillsAction,
 } from '@/app/(dashboard)/billing/status/actions'
+import { useRouter } from 'next/navigation'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmt(d: string | null | undefined) { return d ? d.slice(0, 10) : '' }
@@ -354,6 +356,23 @@ export function BillingStatusClient({
   const [nameFilter,    setNameFilter]    = useState('')
   const [showCreate,    setShowCreate]    = useState(false)
   const [slideItem,     setSlideItem]     = useState<BillRow | null>(null)
+  const [genPending, startGen] = useTransition()
+  const [genMsg, setGenMsg] = useState('')
+  const router = useRouter()
+
+  function generateFixed() {
+    const month = monthFilter?.trim()
+    if (!month || !/^\d{4}\.\d{2}$/.test(month)) { setGenMsg('월 필터를 YYYY.MM 형식으로 지정하세요.'); return }
+    setGenMsg('')
+    const today = new Date()
+    const billDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    startGen(async () => {
+      const res = await generateMonthlyFixedBillsAction({ billingMonth: month, billDate })
+      if (res.error) { setGenMsg(res.error); return }
+      setGenMsg(`${month} 월정액 청구 ${res.created ?? 0}건 생성 (건너뜀 ${res.skipped ?? 0}건)`)
+      router.refresh()
+    })
+  }
 
   const filtered = useMemo(() => {
     return bills.filter(b => {
@@ -385,13 +404,24 @@ export function BillingStatusClient({
           <h1 className="text-xl font-bold">정산현황 모니터링</h1>
           <p className="text-xs text-gray-400 mt-0.5">청구서 생성·입금·미납금 현황</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-[#7b68ee] text-white px-4 py-2 rounded-lg text-sm"
-        >
-          <Plus size={14} /> 청구등록
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={generateFixed}
+            disabled={genPending}
+            title="월 필터의 종합·작동 고객 월정액을 일괄 청구"
+            className="flex items-center gap-2 border border-[#7b68ee] text-[#7b68ee] px-3 py-2 rounded-lg text-sm hover:bg-[#f5f4ff] disabled:opacity-50"
+          >
+            {genPending ? <Loader2 size={14} className="animate-spin" /> : <CalendarClock size={14} />} 월정액 일괄청구
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-[#7b68ee] text-white px-4 py-2 rounded-lg text-sm"
+          >
+            <Plus size={14} /> 청구등록
+          </button>
+        </div>
       </div>
+      {genMsg && <div className="px-6 py-1.5 text-xs text-[#514b81] bg-[#f5f4ff] border-b">{genMsg}</div>}
 
       {/* 필터 */}
       <div className="flex items-center gap-3 px-6 py-3 bg-gray-50 border-b flex-wrap">

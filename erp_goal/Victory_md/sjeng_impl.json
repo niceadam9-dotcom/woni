@@ -99,8 +99,9 @@
     },
     {
       "id": "OQ-2",
-      "text": "기존 청구 모듈의 월별·fee_type 구조 확인 필요",
-      "owner": "개발"
+      "text": "[해소] 기존 청구 모듈 = bills(009_billing): billing_month 'YYYY.MM'·supply/tax/total/paid_amount·bill_type(기본 '일괄점검'). fee_type 컬럼 없음 → inspection_type에서 정액/건별 파생. UI는 /billing/status(정산현황)·/tax-invoices. P4-3은 bills 확장(fee_type 082)으로 진행.",
+      "owner": "개발",
+      "resolved": true
     }
   ],
   "migrations": [
@@ -531,14 +532,14 @@
       "id": "P4-3",
       "phase": "P4",
       "title": "이원 과금 청구",
-      "detail": "청구 fee_type(정액/건별) + 월정액 자동청구 반복잡",
+      "detail": "기존 bills 확장(082 fee_type 정액/건별) + createBillAction fee_type + generateMonthlyFixedBillsAction(멱등) + 정산현황 [월정액 일괄청구] 버튼 + /api/cron/generate-monthly-bills(매월1일, CRON_SECRET). 스테이징 적용·타입체크 통과. VPS crontab 등록은 배포 액션.",
       "section": "§4-7",
-      "migration": "074",
+      "migration": "082",
       "depends_on": [
         "P31-4",
         "OQ-2"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P4-4",
