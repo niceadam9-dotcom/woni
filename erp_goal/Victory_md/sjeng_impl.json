@@ -1,0 +1,635 @@
+{
+  "version": "SJENG-doc02",
+  "title": "승진소방ENG 실무 연결 — 구현 상태 관리",
+  "source": "erp_goal/Victory_md/doc02_승진소방_실무연결_상세설계.md",
+  "date": "2026-07-13",
+  "task_subject_format": "[sj:ID] 설명   (예: [sj:P2-1] defect_catalog 시딩)",
+  "status_values": [
+    "pending",
+    "in_progress",
+    "completed",
+    "deferred",
+    "blocked"
+  ],
+  "hook": {
+    "script": "scripts/sync-checklist.js",
+    "route": "[sj:<ID>] → sjeng_impl.json items[].status",
+    "mapping": {
+      "in_progress": "in_progress",
+      "completed": "completed"
+    }
+  },
+  "decisions": [
+    {
+      "n": 1,
+      "text": "이관 범위 = 2026년 시트(현재 계약 고객), 과거이력 보류",
+      "ref": "§1-2,§6"
+    },
+    {
+      "n": 2,
+      "text": "점검계획일 = 최근 점검일의 월·일 승계",
+      "ref": "§6"
+    },
+    {
+      "n": 3,
+      "text": "PDF 변환 = Gotenberg 컨테이너(자동 인쇄)",
+      "ref": "§3-3"
+    },
+    {
+      "n": 4,
+      "text": "보고서 우선 = 작동점검 먼저 → 종합 확장",
+      "ref": "§6"
+    },
+    {
+      "n": 5,
+      "text": "자동이체 = 계좌 AES-256 암호화, 주민번호는 생년월일 6자리만",
+      "ref": "§1-5"
+    },
+    {
+      "n": 6,
+      "text": "점검표 = 웹 우선(현장+사무실) → 안정화 후 모바일",
+      "ref": "§4-5"
+    },
+    {
+      "n": 7,
+      "text": "청구 = 기존 청구 모듈, 대장은 조회+인라인 편집",
+      "ref": "§4-6"
+    },
+    {
+      "n": 8,
+      "text": "입금 확인 = 은행 알림문자 붙여넣기 파싱(AI 폴백), 계좌API 후순위",
+      "ref": "§4-6-1"
+    },
+    {
+      "n": 9,
+      "text": "과금 = 점검유형 파생(종합/작동=월정액, 일반=건별)",
+      "ref": "§4-7"
+    },
+    {
+      "n": 10,
+      "text": "시설현황 = 건물(동) 단위, 초기=과거보고서 자동이관+수동보완",
+      "ref": "§1-3"
+    },
+    {
+      "n": 11,
+      "text": "이관 = 2026년만, legacy 보류",
+      "ref": "§1-2"
+    },
+    {
+      "n": 12,
+      "text": "관할소방서 = 지역→소방서 매핑 자동",
+      "ref": "§1-1a"
+    },
+    {
+      "n": 13,
+      "text": "보고서 = 개요 시트 수식참조(개요만 주입→자동완성) 확인",
+      "ref": "§3-0"
+    },
+    {
+      "n": 14,
+      "text": "청구 층위 = 선택적 소유자 그룹(owners+owner_id nullable), 기본 A / 통합 B 겸용",
+      "ref": "§1-0"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-1",
+      "text": "점검표 응답 저장을 기존 inspection_sheets로 가능한지 코드 확인 필요",
+      "owner": "개발"
+    },
+    {
+      "id": "OQ-2",
+      "text": "기존 청구 모듈의 월별·fee_type 구조 확인 필요",
+      "owner": "개발"
+    }
+  ],
+  "migrations": [
+    {
+      "no": "063",
+      "name": "report_base_fields",
+      "desc": "profiles.license_no/grade, contacts.position/birth_date, customers.monthly_fee_*/fire_station/fee_note"
+    },
+    {
+      "no": "064",
+      "name": "inspection_participants",
+      "desc": "주된1+보조N 점검 참여자"
+    },
+    {
+      "no": "065",
+      "name": "region_fire_stations",
+      "desc": "지역→관할 소방서 매핑"
+    },
+    {
+      "no": "066",
+      "name": "defect_catalog",
+      "desc": "불량 표준 사전 93행"
+    },
+    {
+      "no": "067",
+      "name": "fire_facilities",
+      "desc": "fire_facilities + fire_facility_floors (building_id 단위) + verified_at"
+    },
+    {
+      "no": "068",
+      "name": "generated_reports",
+      "desc": "보고서 생성 이력 + 현황 스냅샷"
+    },
+    {
+      "no": "069",
+      "name": "inspection_period_initial",
+      "desc": "inspections.is_initial, inspection_end_date, inspection_days"
+    },
+    {
+      "no": "070",
+      "name": "buildings_ledger_ext",
+      "desc": "permit_date, building_area, use_approval_date(동별), stairs, parking"
+    },
+    {
+      "no": "071",
+      "name": "action_plans_ext",
+      "desc": "이행 조치완료일·조치내용 + 조치후 사진 kind"
+    },
+    {
+      "no": "072",
+      "name": "billing_profiles",
+      "desc": "세금계산서용 사업자정보"
+    },
+    {
+      "no": "073",
+      "name": "billing_autopay",
+      "desc": "자동이체 계좌 암호화"
+    },
+    {
+      "no": "074",
+      "name": "billing_records_feetype",
+      "desc": "청구 레코드 fee_type(monthly/inspection) + 월별"
+    },
+    {
+      "no": "075",
+      "name": "owners",
+      "desc": "owners + customers.owner_id (nullable, 선택적 소유자 그룹)"
+    },
+    {
+      "no": "076",
+      "name": "fire_plans_revision",
+      "desc": "소방계획서 개정이력·부속자료·제출추적 (§8)"
+    },
+    {
+      "no": "077",
+      "name": "inspection_voice_notes",
+      "desc": "작동점검 음성 문서화 (§9)"
+    },
+    {
+      "no": "078",
+      "name": "sheet_item_scope",
+      "desc": "inspection_sheet_items.comprehensive_only (작동○/종합●) — P2-2 적용됨(스테이징)"
+    }
+  ],
+  "items": [
+    {
+      "id": "P2-1",
+      "phase": "P2",
+      "title": "불량 표준 사전 시딩",
+      "detail": "defect_catalog 테이블(066) + 1.전체.xlsx 시딩 90건 — 스테이징 완료",
+      "section": "§1-4",
+      "migration": "066",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P2-2",
+      "phase": "P2",
+      "title": "점검표 표준항목 시딩 (실측 23종/690항목)",
+      "detail": "전체보고서.xls → inspection_sheets 23종 + inspection_sheet_items 690항목(작동○/종합● = comprehensive_only). migration 078(scope 컬럼). 스테이징 완료. ※원본 표준세트는 43종이 아니라 23설비",
+      "section": "§4-5",
+      "migration": "078",
+      "depends_on": [
+        "OQ-1"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P1A-1",
+      "phase": "P1-A",
+      "title": "지역→관할소방서 매핑",
+      "detail": "region_fire_stations 매핑표(065, 22지역) + customers.fire_station 자동. 고객필드(063)도 적용. 스테이징 완료",
+      "section": "§1-1a",
+      "migration": "065",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P1A-2",
+      "phase": "P1-A",
+      "title": "고객 일괄 이관 스크립트",
+      "detail": "migrate-customers.mjs — 2026시트 → customers 293곳 + 관계인 271 + 건물 277, 과금유형/관할서 자동. 스테이징 완료(안전 2건 일반관리 플래그)",
+      "section": "§2-1",
+      "migration": "-",
+      "depends_on": [
+        "P1A-1"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P1A-3",
+      "phase": "P1-A",
+      "title": "시설현황 이관",
+      "detail": "과거 작동보고서 현황시트 → fire_facilities(건물단위), 없으면 수동보완",
+      "section": "§2-1",
+      "migration": "067",
+      "depends_on": [
+        "P33-1"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P1A-4",
+      "phase": "P1-A",
+      "title": "이관 검수 + 연간계획 발화",
+      "detail": "스테이징 2026 연간계획 생성 완료 — plan_items 2029건(291곳), 불변식 INV-P1~P7 전부 성립",
+      "section": "§2-3",
+      "migration": "-",
+      "depends_on": [
+        "P1A-2"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P1B-1",
+      "phase": "P1-B",
+      "title": "과거 이력(legacy) 이관",
+      "detail": "legacy_inspections + 과거이력 탭 — 2026만 이관 결정으로 보류",
+      "section": "§1-2",
+      "migration": "-",
+      "depends_on": [],
+      "status": "deferred"
+    },
+    {
+      "id": "P31-1",
+      "phase": "P3-1",
+      "title": "직원 경력수첩번호 필드",
+      "detail": "profiles.license_no/grade(063) + 직원관리 입력 UI. 타입체크 통과",
+      "section": "§1-1,§4-3",
+      "migration": "063",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P31-2",
+      "phase": "P3-1",
+      "title": "점검 참여자(주된/보조)",
+      "detail": "inspection_participants(064) + 점검상세 참여자 UI(주된=담당, 보조 추가/삭제). 스테이징 스키마 적용, 타입체크 통과",
+      "section": "§1-1,§3-0",
+      "migration": "064",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P31-3",
+      "phase": "P3-1",
+      "title": "관계인 직위·생년월일",
+      "detail": "customer_contacts.position/birth_date(063) + 관계인 편집 UI(직위·생년월일). 타입체크 통과",
+      "section": "§1-1",
+      "migration": "063",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P31-4",
+      "phase": "P3-1",
+      "title": "고객 과금·관할서 필드",
+      "detail": "customers 필드(063) + 고객수정 폼에 관할소방서 편집·점검료 표시. 과금 편집은 P4. 타입체크 통과",
+      "section": "§1-1",
+      "migration": "063",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P32-1",
+      "phase": "P3-2",
+      "title": "converter(Gotenberg) 컨테이너",
+      "detail": "VPS docker-compose에 xlsx→pdf 변환 서비스 추가",
+      "section": "§3-3",
+      "migration": "-",
+      "depends_on": [],
+      "status": "pending"
+    },
+    {
+      "id": "P32-2",
+      "phase": "P3-2",
+      "title": "보고서 템플릿 + 개요 허브 주입",
+      "detail": "갑지.xls→xlsx 변환(SheetJS 수식보존 검증) → 스테이징 Storage(reports/templates/operational_v2025.xlsx) + lib/report-generator.ts 개요 셀맵 주입. 주입 후 보고서!C4=개요!B14 수식 보존 확인",
+      "section": "§3-0,§3-4",
+      "migration": "-",
+      "depends_on": [
+        "P31-1",
+        "P31-2",
+        "P31-3"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P32-3",
+      "phase": "P3-2",
+      "title": "generateReportAction + 누락검증",
+      "detail": "generateOperationalReportAction — 데이터 수집(고객·건물·관계인·인력·단계·시설현황) → 누락 경고 → 개요 주입 → Storage 업로드 → 엑셀 다운로드. 타입체크·빌드 통과. (PDF 자동인쇄는 P32-1/4)",
+      "section": "§3-1",
+      "migration": "068",
+      "depends_on": [
+        "P32-2"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P32-4",
+      "phase": "P3-2",
+      "title": "PDF 자동 인쇄 페이지",
+      "detail": "/print-preview blob iframe → 인쇄 대화상자 자동",
+      "section": "§3-2",
+      "migration": "-",
+      "depends_on": [
+        "P32-3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P32-5",
+      "phase": "P3-2",
+      "title": "생성 이력·재다운로드",
+      "detail": "generated_reports(068) + reports 버킷 + 점검상세 [보고서 생성] 버튼·누락 경고 패널·이력·재다운로드. 타입체크·빌드 통과",
+      "section": "§1-6",
+      "migration": "068",
+      "depends_on": [
+        "P32-3"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P32-6",
+      "phase": "P3-2",
+      "title": "직인·대표자 도장 자동 날인",
+      "detail": "mark_url(직인)+rep_seal_url(대표) 투명PNG 앵커, 문서별 on/off, 사용로그",
+      "section": "§3-8",
+      "migration": "-",
+      "depends_on": [
+        "P32-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P32-7",
+      "phase": "P3-2",
+      "title": "다수동 처리",
+      "detail": "buildings 필드확장 + 전 동 자동수집 + 다수동일때 블록 주입 + 구조/지붕 매핑",
+      "section": "§3-5",
+      "migration": "070",
+      "depends_on": [
+        "P32-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P32-8",
+      "phase": "P3-2",
+      "title": "최초점검 자동판정",
+      "detail": "inspections.is_initial 자동(종합이력 전무 시) → 갑지 [√]최초 분기",
+      "section": "§3-5f",
+      "migration": "069",
+      "depends_on": [],
+      "status": "pending"
+    },
+    {
+      "id": "P32-9",
+      "phase": "P3-2",
+      "title": "다일 점검(2~3일)",
+      "detail": "inspection_end_date/days, 6단계 기산점=종료일, 개요 점검기간 자동",
+      "section": "§3-7",
+      "migration": "069",
+      "depends_on": [],
+      "status": "pending"
+    },
+    {
+      "id": "P33-1",
+      "phase": "P3-3",
+      "title": "소방시설 현황 모델",
+      "detail": "fire_facilities + fire_facility_floors(building_id) + buildings.facilities_verified_at/by(067). 스테이징 적용",
+      "section": "§1-3",
+      "migration": "067",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "P33-2",
+      "phase": "P3-3",
+      "title": "시설현황 입력 화면",
+      "detail": "고객상세 소방시설 현황 카드 — 동 선택+설비 체크리스트(5분류)+층별 수량 그리드+변경없음 확인. 타입체크 통과. (전년복사는 P33-3 후)",
+      "section": "§4-2",
+      "migration": "-",
+      "depends_on": [
+        "P33-1"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P33-3",
+      "phase": "P3-3",
+      "title": "보고서 현황면 + 스냅샷",
+      "detail": "현황·현1~5·세1~5 동별 주입 + 생성시점 현황 스냅샷 보관",
+      "section": "§3-3,§4-2",
+      "migration": "-",
+      "depends_on": [
+        "P33-1",
+        "P32-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P34-1",
+      "phase": "P3-4",
+      "title": "점검표 응답 저장 구조",
+      "detail": "inspection_sheet_responses(069) — 점검 건별 item_code×result(O/X/N)+memo. 스테이징 적용",
+      "section": "§4-5",
+      "migration": "069",
+      "depends_on": [
+        "P2-2",
+        "OQ-1"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P34-2",
+      "phase": "P3-4",
+      "title": "점검표 입력 화면(웹)",
+      "detail": "점검상세 [점검표 입력] — 설비 선택(응답수 표시)→항목 그룹별 ○/X/／(작동=종합전용 숨김)+전체정상+저장. 지연로드. 타입체크 통과. (X→불량 자동연동은 P34-3)",
+      "section": "§4-5",
+      "migration": "-",
+      "depends_on": [
+        "P34-1"
+      ],
+      "status": "completed"
+    },
+    {
+      "id": "P34-3",
+      "phase": "P3-4",
+      "title": "X→불량 자동 연결",
+      "detail": "X 터치 시 defect_catalog 점검번호·표준문구 자동완성 → 불량 등록",
+      "section": "§4-4,§4-5",
+      "migration": "-",
+      "depends_on": [
+        "P2-1",
+        "P34-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P34-4",
+      "phase": "P3-4",
+      "title": "이행계획서·완료보고서",
+      "detail": "action_plans 확장(조치완료일/내용)+조치후 사진 → 계획서/완료보고서 생성",
+      "section": "§3-6",
+      "migration": "071",
+      "depends_on": [
+        "P34-3",
+        "P32-3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P34-5",
+      "phase": "P3-4",
+      "title": "보고서 설비별 점검표면 주입",
+      "detail": "소화기구·자탐·유도등 등 점검결과 ○/X 주입",
+      "section": "§3-4",
+      "migration": "-",
+      "depends_on": [
+        "P34-1",
+        "P32-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P4-1",
+      "phase": "P4",
+      "title": "사업자정보(billing_profiles)",
+      "detail": "세금계산서용 사업자번호·대표자·주소·업종·이메일",
+      "section": "§4-7",
+      "migration": "072",
+      "depends_on": [],
+      "status": "pending"
+    },
+    {
+      "id": "P4-2",
+      "phase": "P4",
+      "title": "자동이체(암호화)",
+      "detail": "billing_autopay + AES-256-GCM 계좌 암호화 유틸 + 열람로그",
+      "section": "§1-5",
+      "migration": "073",
+      "depends_on": [],
+      "status": "pending"
+    },
+    {
+      "id": "P4-3",
+      "phase": "P4",
+      "title": "이원 과금 청구",
+      "detail": "청구 fee_type(정액/건별) + 월정액 자동청구 반복잡",
+      "section": "§4-7",
+      "migration": "074",
+      "depends_on": [
+        "P31-4",
+        "OQ-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P4-4",
+      "phase": "P4",
+      "title": "선택적 소유자 그룹",
+      "detail": "owners + customers.owner_id + 통합청구/입금배분/[소유자별 보기]",
+      "section": "§1-0",
+      "migration": "075",
+      "depends_on": [
+        "P4-3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P4-5",
+      "phase": "P4",
+      "title": "입금 문자 파싱·매칭",
+      "detail": "은행 알림문자 붙여넣기 → 정규식+AI 파싱 → 청구 매칭/배분",
+      "section": "§4-6-1",
+      "migration": "-",
+      "depends_on": [
+        "P4-3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P5-1",
+      "phase": "P5",
+      "title": "소방점검리스트 페이지",
+      "detail": "연간 점검 실적·수금 대장(고객×점검 건별) + 엑셀 내보내기",
+      "section": "§4-6",
+      "migration": "-",
+      "depends_on": [
+        "P4-3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "P6-1",
+      "phase": "P6",
+      "title": "안전관리 페이지",
+      "detail": "월별 수금 현황판(고객×12월, 정액/건별) + 탭4(현황판/사업자/자동이체/기관) + 엑셀",
+      "section": "§4-7",
+      "migration": "-",
+      "depends_on": [
+        "P4-3",
+        "P4-5"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "FP-1",
+      "phase": "부가",
+      "title": "소방계획서 업로드·자동인쇄(기본)",
+      "detail": "fire_plans 056 — 구현·배포 완료",
+      "section": "§8",
+      "migration": "056",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "FP-2",
+      "phase": "부가",
+      "title": "소방계획서 개정이력·부속자료·제출추적",
+      "detail": "revision + attachments(지도/사진) + 제출일/관할서 + 병합인쇄 + 연차발행",
+      "section": "§8-1~8-3",
+      "migration": "076",
+      "depends_on": [
+        "FP-1"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "VN-1",
+      "phase": "부가",
+      "title": "작동점검 음성 문서화",
+      "detail": "녹음→STT 받아쓰기→AI 구조화→불량 후보→확정",
+      "section": "§9",
+      "migration": "077",
+      "depends_on": [
+        "P2-1"
+      ],
+      "status": "pending"
+    }
+  ],
+  "summary": {
+    "total": 38,
+    "completed": 17,
+    "in_progress": 0,
+    "pending": 20,
+    "deferred": 1,
+    "blocked": 0
+  }
+}

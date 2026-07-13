@@ -9,7 +9,7 @@ import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { Customer } from '@/types'
 
 type Props = {
-  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes'>
+  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed'>
 }
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
@@ -28,6 +28,7 @@ function makeInitial(c: Props['customer']) {
     region_myeon: c.region_myeon ?? '',
     region_ri: c.region_ri ?? '',
     notes: c.notes ?? '',
+    fire_station: c.fire_station ?? '',
   }
 }
 
@@ -50,6 +51,11 @@ export function EditCustomerInfoClient({ customer }: Props) {
 
   const initial = makeInitial(customer)
   const isDirty = (Object.keys(initial) as (keyof typeof initial)[]).some(k => form[k] !== initial[k])
+
+  // 점검료: 종합/작동=월정액, 일반관리=건별 (읽기전용 표시 — 편집은 청구 화면 P4)
+  const isMonthlyFee = customer.inspection_type !== '일반관리'
+  const feeTaxed = isMonthlyFee ? customer.monthly_fee_taxed : customer.fee_taxed
+  const feeStr = feeTaxed != null ? `${feeTaxed.toLocaleString()}원${isMonthlyFee ? '/월' : ''}` : '-'
 
   function set(key: keyof typeof form, value: string) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -93,6 +99,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
         region_myeon: form.region_myeon.trim() || undefined,
         region_ri: form.region_ri.trim() || undefined,
         notes: form.notes.trim() || undefined,
+        fire_station: form.fire_station.trim() || undefined,
       })
       if (result.error) { setError(result.error); return }
       router.refresh()
@@ -137,6 +144,24 @@ export function EditCustomerInfoClient({ customer }: Props) {
             onChange={e => set('plan_anchor_date', e.target.value)}
             className={inputCls}
           />
+        </div>
+      </div>
+
+      {/* 관할 소방서 + 점검료 */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className={labelCls}>관할 소방서 <span className="text-xs text-[#b0acd6] font-normal">(보고서)</span></label>
+          <input
+            type="text"
+            value={form.fire_station}
+            onChange={e => set('fire_station', e.target.value)}
+            placeholder="예: 양평소방서"
+            className={inputCls}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={labelCls}>점검료 <span className="text-xs text-[#b0acd6] font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></label>
+          <input readOnly value={feeStr} className={readonlyCls} title="편집은 청구·수금 화면에서" />
         </div>
       </div>
 

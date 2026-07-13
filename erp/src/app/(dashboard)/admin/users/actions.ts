@@ -13,6 +13,8 @@ export type CreateUserInput = {
   department_id?: string
   position?: string
   hire_date?: string
+  license_no?: string     // 점검자 경력수첩 번호 (보고서 개요)
+  license_grade?: string
 }
 
 export type UpdateUserInput = {
@@ -22,6 +24,8 @@ export type UpdateUserInput = {
   department_id?: string
   position?: string
   hire_date?: string
+  license_no?: string
+  license_grade?: string
   is_active: boolean
 }
 
@@ -56,6 +60,8 @@ export async function createUserAction(input: CreateUserInput): Promise<{ error?
       department_id: input.department_id || null,
       position: input.position || null,
       hire_date: input.hire_date || null,
+      license_no: input.license_no || null,
+      license_grade: input.license_grade || null,
       is_active: true,
     } as Record<string, unknown>, { onConflict: 'id' })
 
@@ -94,6 +100,8 @@ export async function updateUserAction(
       department_id: input.department_id || null,
       position: input.position || null,
       hire_date: input.hire_date || null,
+      license_no: input.license_no || null,
+      license_grade: input.license_grade || null,
       is_active: input.is_active,
     } as Record<string, unknown>)
     .eq('id', userId)

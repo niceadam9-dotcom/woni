@@ -20,6 +20,8 @@ type User = {
   department_id: string | null
   position: string | null
   hire_date: string | null
+  license_no?: string | null
+  license_grade?: string | null
   is_active: boolean
   is_system?: boolean // 시스템(개발·운영지원) 계정 — 업무 화면 직원 목록에서 제외됨
 }
@@ -89,6 +91,8 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
     department_id: user?.department_id ?? '',
     position: user?.position ?? '',
     hire_date: user?.hire_date ?? '',
+    license_no: user?.license_no ?? '',
+    license_grade: user?.license_grade ?? '',
     is_active: user?.is_active ?? true,
   })
 
@@ -272,6 +276,25 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               <DateInput
                 value={form.hire_date}
                 onChange={e => set('hire_date', e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="경력수첩번호">
+              <input
+                value={form.license_no}
+                onChange={e => set('license_no', e.target.value)}
+                placeholder="예: 2024-01-09098E (보고서 인쇄용)"
+                className={inputCls}
+              />
+            </Field>
+            <Field label="자격 구분">
+              <input
+                value={form.license_grade}
+                onChange={e => set('license_grade', e.target.value)}
+                placeholder="소방시설관리사 / 보조인력 등"
                 className={inputCls}
               />
             </Field>

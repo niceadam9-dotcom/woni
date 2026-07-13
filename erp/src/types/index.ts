@@ -90,6 +90,10 @@ export interface Customer {
   inspection_category: InspectionCategory | null
   inspection_sub_type: InspectionSubType | null
   address: string | null; notes: string | null
+  fire_station: string | null            // 관할 소방서 (보고서 개요·공문)
+  fee_untaxed: number | null; fee_taxed: number | null                 // 일반관리 건별
+  monthly_fee_untaxed: number | null; monthly_fee_taxed: number | null // 종합/작동 월정액
+  fee_note: string | null
   is_active: boolean; assigned_employee_id: string | null
   created_by: string; created_at: string; updated_at: string
 }
@@ -111,7 +115,9 @@ export interface CompanyProfile {
 }
 export interface CustomerContact {
   id: string; customer_id: string; role: ContactRole; name: string
-  phone: string | null; email: string | null; created_at: string; updated_at: string
+  phone: string | null; email: string | null
+  position: string | null; birth_date: string | null
+  created_at: string; updated_at: string
 }
 export interface Building {
   id: string; customer_id: string; building_name: string; zipcode: string | null; address: string | null

@@ -8,6 +8,7 @@ import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
+import { FacilitiesClient } from '@/components/customers/facilities-client'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -73,7 +74,7 @@ export default async function CustomerDetailPage({
       .order('year', { ascending: false })
       .order('sequence_num'),
     admin.from('buildings')
-      .select('id, building_name, address, total_area, floors_above, floors_below, purpose, year_built, is_active')
+      .select('id, building_name, address, total_area, floors_above, floors_below, purpose, year_built, is_active, facilities_verified_at')
       .eq('customer_id', id)
       .order('building_name'),
     admin.from('activity_logs')
@@ -98,7 +99,29 @@ export default async function CustomerDetailPage({
     id: string; building_name: string; address: string | null
     total_area: number | null; floors_above: number | null; floors_below: number | null
     purpose: string | null; year_built: number | null; is_active: boolean
+    facilities_verified_at: string | null
   }>
+
+  // 소방시설 현황 (건물별) — P33
+  const buildingIds = buildings.map(b => b.id)
+  const [facRes, floorRes] = buildingIds.length > 0 ? await Promise.all([
+    admin.from('fire_facilities').select('building_id, facility_code, installed, detail').in('building_id', buildingIds),
+    admin.from('fire_facility_floors').select('building_id, floor_label, counts').in('building_id', buildingIds).order('sort_order'),
+  ]) : [{ data: [] }, { data: [] }]
+  const facByBuilding = new Map<string, Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>>()
+  for (const f of (facRes.data ?? []) as Array<{ building_id: string; facility_code: string; installed: boolean; detail: { note?: string } | null }>) {
+    if (!facByBuilding.has(f.building_id)) facByBuilding.set(f.building_id, [])
+    facByBuilding.get(f.building_id)!.push({ facility_code: f.facility_code, installed: f.installed, detail: f.detail })
+  }
+  const floorByBuilding = new Map<string, Array<{ floor_label: string; counts: Record<string, number> }>>()
+  for (const fl of (floorRes.data ?? []) as Array<{ building_id: string; floor_label: string; counts: Record<string, number> }>) {
+    if (!floorByBuilding.has(fl.building_id)) floorByBuilding.set(fl.building_id, [])
+    floorByBuilding.get(fl.building_id)!.push({ floor_label: fl.floor_label, counts: fl.counts ?? {} })
+  }
+  const facilityBuildings = buildings.filter(b => b.is_active).map(b => ({
+    id: b.id, building_name: b.building_name, verified_at: b.facilities_verified_at,
+    facilities: facByBuilding.get(b.id) ?? [], floors: floorByBuilding.get(b.id) ?? [],
+  }))
   const inspections = (inspectionsRes.data ?? []) as Array<
     Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
   >
@@ -385,6 +408,15 @@ export default async function CustomerDetailPage({
             </table>
           </div>
         )}
+      </div>
+
+      {/* 소방시설 현황 — 건물(동) 단위, 보고서 현황면 소스 (doc02 §1-3, P33) */}
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 className="size-4 text-[#7b68ee]" />
+          <h2 className="text-sm font-semibold text-[#090c1d]">소방시설 현황</h2>
+        </div>
+        <FacilitiesClient customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />
       </div>
 
       {/* 소방계획서 보관함 — 표준양식 PDF 업로드·자동 인쇄 (doc02 §8) */}

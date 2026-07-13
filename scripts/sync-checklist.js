@@ -32,6 +32,7 @@ const FILES = {
   fix:  path.join(BASE, 'victory_test_result_fixing.json'),
   add:  path.join(BASE, 'Victory10_add.json'),
   ent:  path.join(BASE, 'Victory10_entire.json'),
+  sj:   path.join(BASE, 'Victory_md', 'sjeng_impl.json'),
 };
 
 async function readStdin() {
@@ -384,6 +385,46 @@ function updateEntire(itemId, newStatus) {
   }
 }
 
+// ── sjeng_impl.json 업데이트 (doc02 승진소방 실무연결) ──
+// itemId: "P2-1", "P32-3", "P4-5", "FP-2" 등 (items 배열)
+// newStatus: "in_progress" | "completed"
+function updateSjeng(itemId, newStatus) {
+  try {
+    const raw = fs.readFileSync(FILES.sj, 'utf8');
+    const doc = JSON.parse(raw);
+
+    let updated = false;
+    for (const item of (doc.items || [])) {
+      if (item.id === itemId) {
+        if (item.status !== newStatus) {
+          item.status = newStatus;
+          updated = true;
+        }
+        break;
+      }
+    }
+
+    if (updated) {
+      const all = doc.items || [];
+      doc.summary = {
+        total:       all.length,
+        completed:   all.filter(i => i.status === 'completed').length,
+        in_progress: all.filter(i => i.status === 'in_progress').length,
+        pending:     all.filter(i => i.status === 'pending').length,
+        deferred:    all.filter(i => i.status === 'deferred').length,
+        blocked:     all.filter(i => i.status === 'blocked').length,
+      };
+      doc.date = new Date().toISOString().split('T')[0];
+      fs.writeFileSync(FILES.sj, JSON.stringify(doc, null, 2) + '\n', 'utf8');
+      process.stderr.write(`[sync-checklist] sjeng_impl.json :: ${itemId} → ${newStatus}\n`);
+    } else {
+      process.stderr.write(`[sync-checklist] sjeng_impl.json :: ${itemId} — 항목 없음 또는 이미 동일 상태\n`);
+    }
+  } catch (e) {
+    process.stderr.write(`[sync-checklist] sjeng_impl.json error: ${e.message}\n`);
+  }
+}
+
 async function main() {
   const raw = await readStdin();
   if (!raw.trim()) return;
@@ -413,6 +454,15 @@ async function main() {
     const itemId = entMatch[1].toUpperCase();
     if (newTaskStatus === 'completed')   updateEntire(itemId, 'passed');
     if (newTaskStatus === 'in_progress') updateEntire(itemId, 'in_progress');
+    return;
+  }
+
+  // ── [sj:P2-1] / [sj:P32-3] / [sj:FP-2] → sjeng_impl.json (doc02) ──
+  const sjMatch = subject.match(/^\[sj:([A-Z0-9-]+)\]/i);
+  if (sjMatch) {
+    const itemId = sjMatch[1].toUpperCase();
+    if (newTaskStatus === 'completed')   updateSjeng(itemId, 'completed');
+    if (newTaskStatus === 'in_progress') updateSjeng(itemId, 'in_progress');
     return;
   }
 

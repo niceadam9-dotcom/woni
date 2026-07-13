@@ -7,6 +7,31 @@ import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-g
 import { notifyIfEnabled } from '@/lib/notify'
 import type { InspectionType } from '@/types'
 
+// ── 점검 보조 참여자 관리 (P31-2) — 보고서 개요의 보조 인력 ──
+export async function addAuxParticipantAction(
+  inspectionId: string, employeeId: string
+): Promise<{ error?: string }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { error } = await admin.from('inspection_participants').insert({
+    inspection_id: inspectionId, employee_id: employeeId, role: '보조',
+  } as Record<string, unknown>)
+  if (error) return { error: error.message.includes('duplicate') ? '이미 추가된 인력입니다.' : '추가에 실패했습니다.' }
+  revalidatePath(`/inspections/${inspectionId}`)
+  return {}
+}
+
+export async function removeParticipantAction(
+  participantId: string, inspectionId: string
+): Promise<{ error?: string }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { error } = await admin.from('inspection_participants').delete().eq('id', participantId)
+  if (error) return { error: '삭제에 실패했습니다.' }
+  revalidatePath(`/inspections/${inspectionId}`)
+  return {}
+}
+
 export type CreateInspectionInput = {
   customer_id: string
   contact_id?: string

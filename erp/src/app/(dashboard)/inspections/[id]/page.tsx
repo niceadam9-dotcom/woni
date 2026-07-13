@@ -4,6 +4,9 @@ import { ChevronLeft, ClipboardList, User, Calendar, Building2, AlertCircle } fr
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionDetailClient } from '@/components/inspections/inspection-detail-client'
+import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
+import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
+import { InspectionSheetClient } from '@/components/inspections/inspection-sheet-client'
 import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -62,12 +65,12 @@ export default async function InspectionDetailPage({
   const steps = (stepsRes.data ?? []) as InspectionStep[]
 
   // 고객, 관계인, 담당직원, 보고서 병렬 조회
-  const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes] = await Promise.all([
+  const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
     admin.from('customers').select('id, customer_name, customer_code, inspection_type, address').eq('id', inspection.customer_id).single(),
     inspection.contact_id
       ? admin.from('customer_contacts').select('id, role, name, phone, email').eq('id', inspection.contact_id).single()
       : Promise.resolve({ data: null }),
-    admin.from('profiles').select('id, name, position').eq('id', inspection.assigned_employee_id).single(),
+    admin.from('profiles').select('id, name, position, license_no').eq('id', inspection.assigned_employee_id).single(),
     admin.from('inspection_reports')
       .select('id, report_type, file_name, file_size, submitted_at, submitted_by')
       .eq('inspection_id', id)
@@ -77,11 +80,43 @@ export default async function InspectionDetailPage({
       .eq('inspection_id', id)
       .order('created_at'),
     admin.from('action_plans').select('id').eq('inspection_id', id).single(),
+    admin.from('inspection_participants')
+      .select('id, employee_id, role, sort_order, profiles:employee_id (name, license_no)')
+      .eq('inspection_id', id).eq('role', '보조').order('sort_order'),
+    admin.from('profiles').select('id, name, position, license_no')
+      .eq('is_active', true).eq('is_system', false).order('name'),
+    admin.from('generated_reports')
+      .select('id, report_kind, file_name, generated_at, generated_by')
+      .eq('inspection_id', id).order('generated_at', { ascending: false }),
+    admin.from('inspection_sheets').select('id, sheet_code, sheet_name').eq('version', 'v2025').order('sheet_code'),
+    admin.from('inspection_sheet_responses').select('item_code, result, memo').eq('inspection_id', id),
   ])
+
+  const sheets = (sheetsRes.data ?? []) as Array<{ id: string; sheet_code: string; sheet_name: string }>
+  const respRows = (responsesRes.data ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>
+  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
+  const respondedCounts: Record<string, number> = {}
+  for (const r of respRows) {
+    responses[r.item_code] = { result: r.result, memo: r.memo }
+    const num = String(parseInt(r.item_code.split('-')[0], 10))
+    respondedCounts[num] = (respondedCounts[num] ?? 0) + 1
+  }
+
+  const auxParticipants = ((participantsRes.data ?? []) as unknown as Array<{
+    id: string; employee_id: string | null
+    profiles: { name: string; license_no: string | null } | null
+  }>).map(p => ({
+    id: p.id, employee_id: p.employee_id,
+    name: p.profiles?.name ?? '(삭제된 직원)', license_no: p.profiles?.license_no ?? null,
+  }))
+  const allEmployees = (allEmpRes.data ?? []) as Array<{ id: string; name: string; position: string | null; license_no: string | null }>
+  const empNameMap = new Map(allEmployees.map(e => [e.id, e.name]))
+  const genHistory = ((genReportsRes.data ?? []) as Array<{ id: string; report_kind: string; file_name: string; generated_at: string; generated_by: string | null }>)
+    .map(g => ({ id: g.id, report_kind: g.report_kind, file_name: g.file_name, generated_at: g.generated_at, by_name: g.generated_by ? (empNameMap.get(g.generated_by) ?? null) : null }))
 
   const customer = customerRes.data as { id: string; customer_name: string; customer_code: string; inspection_type: InspectionType; address: string | null } | null
   const contact = contactRes.data as { id: string; role: string; name: string; phone: string | null; email: string | null } | null
-  const employee = employeeRes.data as { id: string; name: string; position: string | null } | null
+  const employee = employeeRes.data as { id: string; name: string; position: string | null; license_no: string | null } | null
 
   type DefectRow = {
     id: string; defect_code: string | null; defect_name: string
@@ -222,6 +257,28 @@ export default async function InspectionDetailPage({
           canDelete={canDelete}
         />
       </div>
+
+      {/* 점검 참여자 (주된/보조) — 보고서 개요 */}
+      <InspectionParticipantsClient
+        inspectionId={id}
+        mainEmployee={employee ? { name: employee.name, license_no: employee.license_no } : null}
+        aux={auxParticipants}
+        employees={allEmployees}
+        canManage={canEdit}
+      />
+
+      {/* 점검표 입력 (P34) */}
+      <InspectionSheetClient
+        inspectionId={id}
+        inspectionType={customer?.inspection_type ?? ''}
+        sheets={sheets}
+        responses={responses}
+        respondedCounts={respondedCounts}
+        canManage={canEdit}
+      />
+
+      {/* 작동점검 보고서 생성 (P32) */}
+      <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />
 
       {/* 불량내역 — 전체 너비 */}
       <InspectionDefectsClient

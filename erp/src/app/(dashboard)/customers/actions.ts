@@ -18,6 +18,8 @@ export type ContactInput = {
   name: string
   phone?: string
   email?: string
+  position?: string    // 직위 (보고서 공문·위임장)
+  birth_date?: string  // 생년월일 (위임장)
 }
 
 export type CreateCustomerInput = {
@@ -33,6 +35,7 @@ export type CreateCustomerInput = {
   inspection_type: InspectionType
   address?: string
   notes?: string
+  fire_station?: string   // 관할 소방서 (보고서 개요·공문)
   assigned_employee_id?: string
   contacts: ContactInput[]
   // 건물 기본정보 (V9-3)
@@ -394,6 +397,7 @@ export async function updateCustomerAction(
     address: input.address ?? null,
     notes: input.notes ?? null,
   }
+  if (input.fire_station !== undefined) updateFields.fire_station = input.fire_station || null
   if (input.inspection_type !== undefined) {
     updateFields.inspection_category = input.inspection_type === '일반관리' ? '일반관리' : '소방안전관리'
     updateFields.inspection_sub_type = input.inspection_type === '종합' ? '종합' : input.inspection_type === '작동' ? '작동' : null
@@ -566,6 +570,8 @@ export async function upsertContactAction(
         name: contact.name.trim(),
         phone: contact.phone?.trim() || null,
         email: contact.email?.trim() || null,
+        position: contact.position?.trim() || null,
+        birth_date: contact.birth_date || null,
       } as Record<string, unknown>)
       .eq('id', (existing as { id: string }).id)
     if (error) return { error: '관계인 정보 수정에 실패했습니다.' }
@@ -578,6 +584,8 @@ export async function upsertContactAction(
         name: contact.name.trim(),
         phone: contact.phone?.trim() || null,
         email: contact.email?.trim() || null,
+        position: contact.position?.trim() || null,
+        birth_date: contact.birth_date || null,
       } as Record<string, unknown>)
     if (error) return { error: '관계인 등록에 실패했습니다.' }
   }

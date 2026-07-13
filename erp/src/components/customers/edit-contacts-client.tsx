@@ -1,8 +1,9 @@
 ﻿'use client'
 
 import { useState, useTransition } from 'react'
-import { Phone, Mail, Pencil, Plus, Check, X, User } from 'lucide-react'
+import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase } from 'lucide-react'
 import { upsertContactAction } from '@/app/(dashboard)/customers/actions'
+import { DateInput } from '@/components/ui/date-input'
 import type { CustomerContact, ContactRole } from '@/types'
 
 const ROLES: ContactRole[] = ['대표', '직원1', '직원2']
@@ -17,11 +18,13 @@ interface FormState {
   name: string
   phone: string
   email: string
+  position: string
+  birth_date: string
 }
 
 export function EditContactsClient({ customerId, contacts, canManage }: Props) {
   const [editingRole, setEditingRole] = useState<ContactRole | null>(null)
-  const [form, setForm] = useState<FormState>({ name: '', phone: '', email: '' })
+  const [form, setForm] = useState<FormState>({ name: '', phone: '', email: '', position: '', birth_date: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -31,6 +34,8 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
       name: existing?.name ?? '',
       phone: existing?.phone ?? '',
       email: existing?.email ?? '',
+      position: existing?.position ?? '',
+      birth_date: existing?.birth_date ?? '',
     })
     setError(null)
     setEditingRole(role)
@@ -52,6 +57,8 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
         name: form.name.trim(),
         phone: form.phone.trim() || undefined,
         email: form.email.trim() || undefined,
+        position: form.position.trim() || undefined,
+        birth_date: form.birth_date || undefined,
       })
       if (result.error) {
         setError(result.error)
@@ -108,6 +115,22 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
                   onChange={e => setForm(s => ({ ...s, email: e.target.value }))}
                   className="w-full text-sm px-3 py-2 border border-[#c8c4d0] rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"
                 />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="직위 (예: 소방안전관리자)"
+                    value={form.position}
+                    onChange={e => setForm(s => ({ ...s, position: e.target.value }))}
+                    className="w-full text-sm px-3 py-2 border border-[#c8c4d0] rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"
+                  />
+                  <DateInput
+                    placeholder="생년월일"
+                    value={form.birth_date}
+                    onChange={e => setForm(s => ({ ...s, birth_date: e.target.value }))}
+                    className="w-full text-sm px-3 py-2 border border-[#c8c4d0] rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"
+                  />
+                </div>
+                <p className="text-[11px] text-[#b0acd6]">직위·생년월일은 보고서 공문·위임장에 사용됩니다</p>
                 {error && <p className="text-xs text-red-500">{error}</p>}
               </div>
               <div className="flex gap-2 mt-3">
@@ -141,6 +164,11 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[#514b81]">{contact!.role === '대표' ? '대표' : '추가 관계인'}</span>
                 <span className="text-sm font-medium text-[#090c1d]">{contact!.name}</span>
+                {contact!.position && (
+                  <span className="flex items-center gap-1 text-xs text-[#7b68ee]">
+                    <Briefcase className="size-3" />{contact!.position}
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                 {contact!.phone && (
