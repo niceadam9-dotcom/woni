@@ -237,7 +237,6 @@ export async function createCustomerAction(
     admin, customerId,
     {
       inspection_type: input.inspection_type,
-      use_approval_date: input.use_approval_date || null,
       plan_anchor_date: input.plan_anchor_date,
       assigned_employee_id: input.assigned_employee_id || null,
     },
@@ -255,7 +254,7 @@ export async function createCustomerAction(
 async function _autoCreatePlanItemsForNewCustomer(
   admin: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
   customerId: string,
-  info: { inspection_type: InspectionType; use_approval_date: string | null; plan_anchor_date: string; assigned_employee_id: string | null },
+  info: { inspection_type: InspectionType; plan_anchor_date: string; assigned_employee_id: string | null },
   createdBy: string,
 ) {
   if (info.inspection_type === '일반관리') return
@@ -457,10 +456,10 @@ async function _syncInspectionTypeToPlanItems(
   // 누락 항목 보충 생성 — 일반관리→소방 전환의 연간 생성, 작동→종합의 2차 특별점검 포함.
   // 기존 (plan, customer, sequence) 항목은 UNIQUE 충돌로 건너뜀(멱등)
   const { data: custRaw } = await admin.from('customers')
-    .select('use_approval_date, plan_anchor_date, assigned_employee_id')
+    .select('plan_anchor_date, assigned_employee_id')
     .eq('id', customerId).single()
   if (custRaw) {
-    const cust = custRaw as { use_approval_date: string | null; plan_anchor_date: string | null; assigned_employee_id: string | null }
+    const cust = custRaw as { plan_anchor_date: string | null; assigned_employee_id: string | null }
     const targetYear = new Date().getFullYear()
     const hdSet = await loadHolidaySet(admin, targetYear)
     await generateYearlyPlanItems(admin, { id: customerId, inspection_type: newType, ...cust }, targetYear, actorId, hdSet)
@@ -489,8 +488,7 @@ export async function updateCustomerAction(
     customer_name: string; inspection_type: string; contract_date: string | null
     use_approval_date: string | null; plan_anchor_date: string | null; address: string | null
   } | null
-  const prevApprovalDate = prev?.use_approval_date ?? null
-  const prevAnchorDate   = prev?.plan_anchor_date ?? null
+  const prevAnchorDate = prev?.plan_anchor_date ?? null
 
   // 보내진 필드만 갱신 — 안 보낸 필드(undefined)를 null로 쓰면 부분 호출(예: 점검유형 변경 모달)에서
   // 날짜·주소가 통째로 지워진다 (2026-07-14 수정). 비우기는 명시적 null/빈 문자열로만.
@@ -513,15 +511,13 @@ export async function updateCustomerAction(
   }
   if (Object.keys(updateFields).length === 0) return {}
 
-  // 기준일(점검계획일/사용승인일) 변경 판정 — 보내진 필드만 변경 후보
-  const newApprovalDate = input.use_approval_date !== undefined ? (input.use_approval_date || null) : prevApprovalDate
-  const newAnchorDate   = input.plan_anchor_date  !== undefined ? input.plan_anchor_date : prevAnchorDate
-  const approvalChanged = newApprovalDate !== prevApprovalDate
-  const anchorChanged   = newAnchorDate !== prevAnchorDate
+  // 기준일(점검계획일) 변경 판정 — 사용승인일은 기준일이 아니므로 계획 재계산과 무관 (2026-07-14 폴백 제거)
+  const newAnchorDate = input.plan_anchor_date !== undefined ? input.plan_anchor_date : prevAnchorDate
+  const anchorChanged = newAnchorDate !== prevAnchorDate
 
   // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 아무것도 저장하지 않고 목록 반환
   let confirmedItems: ConfirmedPlanItemInfo[] = []
-  if (approvalChanged || anchorChanged) {
+  if (anchorChanged) {
     confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
     if (confirmedItems.length > 0 && !opts?.confirmedDecision) {
       return { requiresConfirmedDecision: true, confirmedItems }
@@ -545,16 +541,13 @@ export async function updateCustomerAction(
 
   // 기준일이 변경된 경우: 미확정(planned) plan_items 재계산.
   // 확정(confirmed)은 기본 유지 — 사용자가 '확정해지 후 재계산'을 선택한 경우만 planned로 복귀시켜 포함
-  if (approvalChanged || anchorChanged) {
+  if (anchorChanged) {
     if (opts?.confirmedDecision === 'unconfirm' && confirmedItems.length > 0) {
       await admin.from('inspection_plan_items')
         .update({ status: 'planned' } as Record<string, unknown>)
         .in('id', confirmedItems.map(i => i.id))
     }
-    await _resetPlanItemsForCustomer(admin, customerId, {
-      use_approval_date: newApprovalDate,
-      plan_anchor_date:  newAnchorDate,
-    })
+    await _resetPlanItemsForCustomer(admin, customerId, { plan_anchor_date: newAnchorDate })
   }
 
   // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
@@ -607,7 +600,7 @@ export async function updateCustomerAction(
 async function _resetPlanItemsForCustomer(
   admin: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
   customerId: string,
-  newDates: { use_approval_date: string | null; plan_anchor_date: string | null },
+  newDates: { plan_anchor_date: string | null },
 ) {
   // 미확정(planned) plan_items만 재계산 — 확정(confirmed)·완료·취소 항목은 재계획하지 않음 (2026-07-12 결정)
   const { data: items } = await admin
@@ -618,7 +611,7 @@ async function _resetPlanItemsForCustomer(
 
   if (!items || items.length === 0) return
 
-  // 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 (모두 없으면 planned_date null)
+  // 기준일: 점검계획일(수동) → 최초 점검시작일 (모두 없으면 planned_date null)
   const anchorDate = (await loadAnchorDates(admin, [{ id: customerId, ...newDates }])).get(customerId) ?? null
 
   // 영업일 계산 헬퍼
@@ -1260,7 +1253,8 @@ export async function patchCustomerFieldAction(
   const oldValue = prevRow?.[field] ?? null
 
   // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 저장하지 않고 목록 반환
-  const isAnchorField = field === 'use_approval_date' || field === 'plan_anchor_date'
+  // 사용승인일은 기준일이 아니므로 재계산 트리거 아님 (2026-07-14 폴백 제거)
+  const isAnchorField = field === 'plan_anchor_date'
   let confirmedItems: ConfirmedPlanItemInfo[] = []
   if (isAnchorField && (value || null) !== oldValue) {
     confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
@@ -1290,8 +1284,7 @@ export async function patchCustomerFieldAction(
         .in('id', confirmedItems.map(i => i.id))
     }
     await _resetPlanItemsForCustomer(admin, customerId, {
-      use_approval_date: field === 'use_approval_date' ? (value || null) : (prevRow?.use_approval_date ?? null),
-      plan_anchor_date:  field === 'plan_anchor_date'  ? (value || null) : (prevRow?.plan_anchor_date ?? null),
+      plan_anchor_date: field === 'plan_anchor_date' ? (value || null) : (prevRow?.plan_anchor_date ?? null),
     })
   }
 
@@ -1346,7 +1339,7 @@ export async function patchCustomerFieldAction(
 
   revalidatePath('/customers')
   revalidatePath(`/customers/${customerId}`)
-  if (field === 'use_approval_date' || field === 'plan_anchor_date') revalidatePath('/inspection-plans')
+  if (field === 'plan_anchor_date') revalidatePath('/inspection-plans')
   return {}
 }
 

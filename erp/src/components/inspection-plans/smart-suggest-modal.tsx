@@ -15,7 +15,7 @@ type SuggestedItem = {
   customer_name: string
   customer_code: string
   inspection_type: InspectionType
-  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 */
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 */
   anchor_date: string
   assigned_employee_id: string | null
   sequence_num: 1 | 2

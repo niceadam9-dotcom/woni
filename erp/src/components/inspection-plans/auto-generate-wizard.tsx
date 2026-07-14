@@ -16,7 +16,7 @@ import { DateInput } from '@/components/ui/date-input'
 type CustomerRow = {
   id: string; customer_name: string; customer_code: string
   inspection_type: string; assigned_employee_id: string | null
-  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 — 날짜 자동 배분용 */
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 — 날짜 자동 배분용 */
   anchor_date: string | null
 }
 

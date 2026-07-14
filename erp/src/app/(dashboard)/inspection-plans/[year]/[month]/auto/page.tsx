@@ -43,14 +43,14 @@ export default async function AutoGeneratePage({
   // 활성 고객 목록
   const { data: customers } = await admin
     .from('customers')
-    .select('id, customer_name, customer_code, inspection_type, assigned_employee_id, use_approval_date, plan_anchor_date')
+    .select('id, customer_name, customer_code, inspection_type, assigned_employee_id, plan_anchor_date')
     .eq('is_active', true)
     .order('customer_name')
 
-  // 위저드의 날짜 자동 배분은 기준일(점검계획일→점검시작일→사용승인일) 기준
+  // 위저드의 날짜 자동 배분은 기준일(점검계획일→점검시작일) 기준
   const anchorMap = await loadAnchorDates(
     admin,
-    (customers ?? []) as Array<{ id: string; use_approval_date: string | null; plan_anchor_date: string | null }>,
+    (customers ?? []) as Array<{ id: string; plan_anchor_date: string | null }>,
   )
 
   // 직원 목록
@@ -75,7 +75,7 @@ export default async function AutoGeneratePage({
       prevPlan={prevPlan as { id: string; year: number; month: number } | null}
       customers={((customers ?? []) as Array<{
         id: string; customer_name: string; customer_code: string
-        inspection_type: string; assigned_employee_id: string | null; use_approval_date: string | null
+        inspection_type: string; assigned_employee_id: string | null
       }>).map(c => ({ ...c, anchor_date: anchorMap.get(c.id) ?? null }))}
       employees={(employees ?? []) as Array<{ id: string; name: string; position: string | null }>}
       holidays={((holidays ?? []) as Array<{ date: string }>).map(h => h.date)}

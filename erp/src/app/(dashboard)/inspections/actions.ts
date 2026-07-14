@@ -106,25 +106,25 @@ export async function createInspectionAction(
     metadata: { year, sequence_num: input.sequence_num, customer_id: input.customer_id },
   } as Record<string, unknown>)
 
-  // 점검계획일·사용승인일이 모두 없는 소방안전관리 고객: 방금 등록한 점검시작일을 기준일로
+  // 점검계획일이 없는 소방안전관리 고객: 방금 등록한 점검시작일(최초 점검)을 기준일로
   // 연간 계획(정기 포함) 자동 생성 — 멱등이라 중복 실행 안전.
   // 점검계획일이 있는 고객은 등록 시 이미 생성됨 — 여기서 점검시작일 기준으로 재생성하면
   // 2차 특별점검이 다른 달에 중복 생성되므로 제외 (기준일 규칙: 점검계획일 최우선)
   const { data: custRaw } = await admin
     .from('customers')
-    .select('inspection_type, use_approval_date, plan_anchor_date, assigned_employee_id, is_active')
+    .select('inspection_type, plan_anchor_date, assigned_employee_id, is_active')
     .eq('id', input.customer_id)
     .single()
   const cust = custRaw as {
-    inspection_type: InspectionType; use_approval_date: string | null; plan_anchor_date: string | null
+    inspection_type: InspectionType; plan_anchor_date: string | null
     assigned_employee_id: string | null; is_active: boolean
   } | null
-  if (cust && cust.is_active && cust.inspection_type !== '일반관리' && !cust.use_approval_date && !cust.plan_anchor_date) {
+  if (cust && cust.is_active && cust.inspection_type !== '일반관리' && !cust.plan_anchor_date) {
     const targetYear = Math.max(year, new Date().getFullYear())
     const hdSet = await loadHolidaySet(admin, targetYear)
     await generateYearlyPlanItems(
       admin,
-      { id: input.customer_id, inspection_type: cust.inspection_type, use_approval_date: null, plan_anchor_date: null, assigned_employee_id: cust.assigned_employee_id },
+      { id: input.customer_id, inspection_type: cust.inspection_type, plan_anchor_date: null, assigned_employee_id: cust.assigned_employee_id },
       targetYear, profile.id, hdSet,
     )
     revalidatePath('/inspection-plans')

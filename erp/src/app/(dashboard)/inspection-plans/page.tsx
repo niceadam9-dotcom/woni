@@ -11,7 +11,7 @@ export type OverdueItem = {
   inspection_type: string
   assigned_employee_id: string | null
   assigned_employee_name: string | null
-  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 */
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 */
   anchor_date: string
   sequence_num: 1 | 2
   due_month: number
@@ -47,7 +47,7 @@ export default async function InspectionPlansPage({
     admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).maybeSingle(),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
     admin.from('customers')
-      .select('id, customer_name, inspection_type, assigned_employee_id, address, use_approval_date, plan_anchor_date')
+      .select('id, customer_name, inspection_type, assigned_employee_id, address, plan_anchor_date')
       .eq('is_active', true).order('customer_name'),
     admin.from('inspection_plans').select('id, month').eq('year', year),
     admin.from('holidays').select('date, name')
@@ -80,8 +80,8 @@ export default async function InspectionPlansPage({
           .select('customer_id, sequence_num, plan_id')
           .in('plan_id', yearPlanIds)
       : Promise.resolve({ data: [] }),
-    // 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 (초과 판정도 생성과 동일 기준)
-    loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; use_approval_date: string | null; plan_anchor_date: string | null }>),
+    // 기준일: 점검계획일(수동) → 최초 점검시작일 (초과 판정도 생성과 동일 기준)
+    loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; plan_anchor_date: string | null }>),
   ])
 
   const items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
@@ -101,7 +101,7 @@ export default async function InspectionPlansPage({
   for (const c of (customersRes.data ?? [])) {
     const cust = c as {
       id: string; customer_name: string; inspection_type: string
-      assigned_employee_id: string | null; use_approval_date: string | null
+      assigned_employee_id: string | null
     }
     // 소방안전관리(종합/작동)만 초과 판정 — 일반관리는 법정 특별점검 대상 아님
     if (cust.inspection_type === '일반관리') continue
@@ -153,7 +153,7 @@ export default async function InspectionPlansPage({
       initialYear={year}
       initialMonth={month}
       employees={(employeesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      customers={((customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null; plan_anchor_date: string | null }>)
+      customers={((customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; plan_anchor_date: string | null }>)
         // 표시는 점검계획일 원본(미입력이면 입력 유도), 날짜 제안·자동 계산은 기준일(anchor_date)
         .map(c => ({ ...c, anchor_date: anchorMap.get(c.id) ?? null }))}
       overdueItems={overdueItems}

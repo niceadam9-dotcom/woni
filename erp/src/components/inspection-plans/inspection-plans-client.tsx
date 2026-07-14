@@ -27,7 +27,7 @@ type CustomerOption = {
   assigned_employee_id: string | null; address: string | null
   /** 점검계획일 원본 — 표시·입력 유도용 (미입력이면 null) */
   plan_anchor_date: string | null
-  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 — 날짜 제안·자동 계산용 */
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 — 날짜 제안·자동 계산용 */
   anchor_date: string | null
 }
 

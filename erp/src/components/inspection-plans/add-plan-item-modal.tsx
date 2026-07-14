@@ -12,7 +12,7 @@ type CustomerOption = {
   id: string; customer_name: string; inspection_type: InspectionType
   assigned_employee_id: string | null; address: string | null
   plan_anchor_date: string | null
-  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 — 예정일 자동 계산용 */
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 — 예정일 자동 계산용 */
   anchor_date: string | null
 }
 

@@ -53,10 +53,10 @@ export async function GET(req: NextRequest) {
   }
 
   // 활성 소방안전관리 고객 (일반관리는 수동 생성이므로 제외)
-  // 기준일은 생성기가 결정(점검계획일 → 최초 점검시작일 → 사용승인일) — 모두 없으면 0건
+  // 기준일은 생성기가 결정(점검계획일 → 최초 점검시작일) — 모두 없으면 0건
   const { data: customers, error: custErr } = await admin
     .from('customers')
-    .select('id, customer_name, inspection_type, use_approval_date, plan_anchor_date, assigned_employee_id')
+    .select('id, customer_name, inspection_type, plan_anchor_date, assigned_employee_id')
     .eq('is_active', true)
     .in('inspection_type', ['종합', '작동'])
 
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   type CustRow = {
     id: string; customer_name: string; inspection_type: InspectionType
-    use_approval_date: string | null; plan_anchor_date: string | null; assigned_employee_id: string | null
+    plan_anchor_date: string | null; assigned_employee_id: string | null
   }
   const custList = (customers ?? []) as unknown as CustRow[]
 
