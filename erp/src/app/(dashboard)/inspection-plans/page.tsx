@@ -5,6 +5,22 @@ import { loadAnchorDates } from '@/lib/inspection-plan-generator'
 import { InspectionPlansClient } from '@/components/inspection-plans/inspection-plans-client'
 import type { InspectionPlan, UserRole } from '@/types'
 
+/** Supabase 기본 응답 한도(1,000행)를 넘는 목록 전량 조회 — 연간 항목이 한도를 넘으면
+ *  나중에 삽입된 항목이 잘려 초과 판정에서 미처리로 재등장했음 (승인 무한 반복, 2026-07-14) */
+async function fetchAllRows<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: unknown }>,
+): Promise<T[]> {
+  const pageSize = 1000
+  const rows: T[] = []
+  for (let from = 0; ; from += pageSize) {
+    const { data } = await build(from, from + pageSize - 1)
+    const page = (data ?? []) as T[]
+    rows.push(...page)
+    if (page.length < pageSize) break
+  }
+  return rows
+}
+
 export type OverdueItem = {
   customer_id: string
   customer_name: string
@@ -67,25 +83,28 @@ export default async function InspectionPlansPage({
   const yearPlanIds = Object.keys(planMonthMap)
 
   // ── Wave 2: wave1 결과에 의존하는 쿼리 병렬 실행 ─────────────
-  const [currentItemsRes, yearPlanItemsRes, anchorMap] = await Promise.all([
+  const [items, yearPlanItems, anchorMap] = await Promise.all([
     currentPlan
-      ? admin.from('inspection_plan_items')
-          .select(`*, customers:customer_id (customer_name, customer_code, is_active), profiles:assigned_employee_id (name)`)
-          .eq('plan_id', currentPlan.id)
-          .order('scheduled_date', { ascending: true, nullsFirst: false })
-      : Promise.resolve({ data: [] }),
+      ? fetchAllRows<Record<string, unknown>>((from, to) =>
+          admin.from('inspection_plan_items')
+            .select(`*, customers:customer_id (customer_name, customer_code, is_active), profiles:assigned_employee_id (name)`)
+            .eq('plan_id', currentPlan.id)
+            .order('scheduled_date', { ascending: true, nullsFirst: false })
+            .order('id')
+            .range(from, to))
+      : Promise.resolve([] as Record<string, unknown>[]),
     yearPlanIds.length > 0
-      ? admin.from('inspection_plan_items')
-          // 취소 항목도 '계획이 이미 존재(처리됨)'로 간주 — 미점검 초과 재판정 방지 (ADD-20)
-          .select('customer_id, sequence_num, plan_id')
-          .in('plan_id', yearPlanIds)
-      : Promise.resolve({ data: [] }),
+      ? fetchAllRows<{ customer_id: string; sequence_num: number; plan_id: string }>((from, to) =>
+          admin.from('inspection_plan_items')
+            // 취소 항목도 '계획이 이미 존재(처리됨)'로 간주 — 미점검 초과 재판정 방지 (ADD-20)
+            .select('customer_id, sequence_num, plan_id')
+            .in('plan_id', yearPlanIds)
+            .order('id')
+            .range(from, to))
+      : Promise.resolve([] as { customer_id: string; sequence_num: number; plan_id: string }[]),
     // 기준일: 점검계획일(수동) → 최초 점검시작일 (초과 판정도 생성과 동일 기준)
     loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; plan_anchor_date: string | null }>),
   ])
-
-  const items = (currentItemsRes.data ?? []) as Record<string, unknown>[]
-  const yearPlanItems = (yearPlanItemsRes.data ?? []) as { customer_id: string; sequence_num: number; plan_id: string }[]
 
   // ── 초과 점검 대상 계산 ──────────────────────────────────────
   const handledKey = new Set(
