@@ -15,7 +15,8 @@ type SuggestedItem = {
   customer_name: string
   customer_code: string
   inspection_type: InspectionType
-  use_approval_date: string
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 */
+  anchor_date: string
   assigned_employee_id: string | null
   sequence_num: 1 | 2
   reason: string
@@ -30,7 +31,7 @@ interface Props {
   onAdded: () => void
 }
 
-// 사용승인일 기준, 해당 월의 같은 날짜 다음 영업일 계산
+// 점검계획일(기준일) 기준, 해당 월의 같은 날짜 다음 영업일 계산
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
@@ -44,8 +45,8 @@ function nextWorkingDay(base: Date, holidaySet: Set<string>): Date {
   }
   return d
 }
-function calcScheduledDate(useApprovalDate: string, planYear: number, planMonth: number, holidaySet: Set<string>): string {
-  const approvalDay = new Date(useApprovalDate).getDate()
+function calcScheduledDate(anchorDate: string, planYear: number, planMonth: number, holidaySet: Set<string>): string {
+  const approvalDay = new Date(anchorDate).getDate()
   const daysInMonth = new Date(planYear, planMonth, 0).getDate() // planMonth is 1-indexed
   const base = new Date(planYear, planMonth - 1, Math.min(approvalDay, daysInMonth))
   return toDateStr(nextWorkingDay(base, holidaySet))
@@ -108,8 +109,8 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
 
       const toAdd = suggestions.filter(s => selected.has(itemKey(s)))
       for (const item of toAdd) {
-        // 사용승인일 기준: 해당 월 같은 날짜의 다음 영업일 자동 계산
-        const scheduledDate = calcScheduledDate(item.use_approval_date, year, month, holidaySet)
+        // 점검계획일(기준일) 기준: 해당 월 같은 날짜의 다음 영업일 자동 계산
+        const scheduledDate = calcScheduledDate(item.anchor_date, year, month, holidaySet)
         const res = await addPlanItemAction({
           planId:              currentPlanId,
           customerId:          item.id,
@@ -141,7 +142,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
             <Lightbulb className="size-4 text-[#7b68ee]" />
             <div>
               <p className="text-sm font-semibold text-[#090c1d]">{year}년 {month}월 — 일정 자동 제안</p>
-              <p className="text-xs text-[#b0acd6] mt-0.5">사용승인일 기준 점검 일정 자동 제안</p>
+              <p className="text-xs text-[#b0acd6] mt-0.5">점검계획일(기준일) 기준 점검 일정 자동 제안</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-[#f5f4ff] rounded-lg transition-colors">
@@ -161,7 +162,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
               <Lightbulb className="size-8 text-[#b0acd6] mx-auto" />
               <p className="text-sm font-medium text-[#514b81]">제안할 고객이 없습니다</p>
               <p className="text-xs text-[#b0acd6]">
-                사용승인일이 {month}월 또는 {((month - 1 + 6) % 12) + 1}월인 고객 없음
+                점검계획일(기준일)이 {month}월 또는 {((month - 1 + 6) % 12) + 1}월인 고객 없음
               </p>
             </div>
           ) : (
@@ -192,7 +193,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
               {suggestions.some(s => s.sequence_num === 1) && (
                 <div>
                   <p className="text-xs font-semibold text-[#514b81] mb-1.5 mt-3">
-                    사용승인월 {month}월 고객 — 종합 1차 / 작동·일반 연1회
+                    점검계획월 {month}월 고객 — 종합 1차 / 작동·일반 연1회
                   </p>
                   <div className="space-y-1.5">
                     {suggestions.filter(s => s.sequence_num === 1).map(item => (
@@ -211,7 +212,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
               {suggestions.some(s => s.sequence_num === 2) && (
                 <div>
                   <p className="text-xs font-semibold text-[#514b81] mb-1.5 mt-3">
-                    2차 점검 — 사용승인일 {((month - 1 + 6) % 12) + 1}월 고객 (+6개월)
+                    2차 점검 — 점검계획월 {((month - 1 + 6) % 12) + 1}월 고객 (+6개월)
                   </p>
                   <div className="space-y-1.5">
                     {suggestions.filter(s => s.sequence_num === 2).map(item => (

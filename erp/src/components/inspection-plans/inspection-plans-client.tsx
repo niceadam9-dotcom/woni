@@ -20,8 +20,16 @@ import { PlanItemSlidePanel } from './plan-item-slide-panel'
 import { TableScroll } from '@/components/ui/table-scroll'
 import { AddPlanItemModal } from './add-plan-item-modal'
 import { OverdueResolveModal } from './overdue-resolve-modal'
+import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 
-type CustomerOption = { id: string; customer_name: string; inspection_type: InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }
+type CustomerOption = {
+  id: string; customer_name: string; inspection_type: InspectionType
+  assigned_employee_id: string | null; address: string | null
+  /** 점검계획일 원본 — 표시·입력 유도용 (미입력이면 null) */
+  plan_anchor_date: string | null
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 — 날짜 제안·자동 계산용 */
+  anchor_date: string | null
+}
 
 const WEEKDAYS = ['일','월','화','수','목','금','토']
 
@@ -498,6 +506,7 @@ export function InspectionPlansClient({
           canManage={canManage}
           canAssign={!isEmployee}
           canEditOwnItem={isEmployee}
+          planAnchorDate={customers.find(c => c.id === selectedItem.customer_id)?.plan_anchor_date ?? null}
           onClose={() => setSelectedItem(null)}
           onSaved={() => { setSelectedItem(null); refresh() }}
         />
@@ -517,7 +526,7 @@ export function InspectionPlansClient({
         />
       )}
 
-      {/* 사용승인일 기반 일정 제안 모달 */}
+      {/* 점검계획일(기준일) 기반 일정 제안 모달 */}
 
     </div>
   )
@@ -989,7 +998,7 @@ function ListView({
           {canManage && <col className="w-10" />}
           <col className="w-36" />{/* 점검예정일 */}
           <col />{/* 건물명 — 나머지 공간 차지 */}
-          <col className="w-28" />{/* 사용승인일 */}
+          <col className="w-28" />{/* 점검계획일 */}
           <col className="w-20" />{/* 점검유형 */}
           <col className="w-12" />{/* 차수 */}
           <col className="w-24" />{/* 담당직원 */}
@@ -1011,7 +1020,7 @@ function ListView({
             )}
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검일</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">건물명</th>
-            <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">사용승인일</th>
+            <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검계획일</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">점검유형</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">차수</th>
             <th className="text-left text-xs font-medium text-[#514b81] px-3 py-3">담당직원</th>
@@ -1021,13 +1030,9 @@ function ListView({
         </thead>
         <tbody>
           {items.map(item => {
-            const approvalRaw = customerMap[item.customer_id]?.use_approval_date
-            const approvalLabel = approvalRaw
-              ? (() => {
-                  const d = new Date(approvalRaw)
-                  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
-                })()
-              : null
+            // 점검계획일 원본 표시 — 미입력(필수화 이전 등록 고객)은 인라인 입력 유도
+            const planAnchorRaw = customerMap[item.customer_id]?.plan_anchor_date ?? null
+            const isKnownCustomer = !!customerMap[item.customer_id]
             // 담당 미배정이어도 시작 가능 — 시작한 직원이 담당으로 자동 배정됨 (수정사항리스트 2번 A안)
             const canStart = canManage
               && !item.inspection_id
@@ -1078,8 +1083,14 @@ function ListView({
                     <span className="ml-1.5 text-[9px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500 inline-block align-middle">비활성/삭제</span>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-[#514b81] whitespace-nowrap">
-                  {approvalLabel ?? <span className="text-[#b0acd6]">—</span>}
+                <td className="px-3 py-2.5 text-[#514b81] whitespace-nowrap text-xs" onClick={e => e.stopPropagation()}>
+                  {canManage && isKnownCustomer
+                    ? <InlineCustomerFieldClient customerId={item.customer_id} field="plan_anchor_date" value={planAnchorRaw} emptyLabel="미입력" />
+                    : planAnchorRaw
+                      ? planAnchorRaw
+                      : isKnownCustomer
+                        ? <span className="text-red-500 font-medium">미입력</span>
+                        : <span className="text-[#b0acd6]">—</span>}
                 </td>
                 <td className="px-3 py-2.5">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -1265,7 +1276,7 @@ function OverduePanel({
                         {item.due_month}월 예정
                       </span>
                       <span className="text-[11px] text-[#b0acd6] shrink-0">
-                        사용승인 {(() => { const d = new Date(item.use_approval_date); return `${d.getMonth()+1}/${d.getDate()}` })()}
+                        점검계획일 {(() => { const d = new Date(item.anchor_date); return `${d.getMonth()+1}/${d.getDate()}` })()}
                       </span>
                     </div>
                   ))}

@@ -366,12 +366,119 @@ export async function assignEmployeeAction(
   return {}
 }
 
+/** 기준일 변경 팝업(B안)에서 사용자에게 보여줄 확정(confirmed) 항목 요약 */
+export type ConfirmedPlanItemInfo = {
+  id: string; year: number; month: number
+  scheduled_date: string | null; sequence_num: number; plan_type: string | null
+}
+
+export type UpdateCustomerInput = {
+  customer_name?: string
+  inspection_type?: InspectionType
+  contract_date?: string | null
+  use_approval_date?: string | null
+  plan_anchor_date?: string   // 필수값 — 비우기(null) 불허
+  zipcode?: string | null
+  region_si?: string | null
+  region_myeon?: string | null
+  region_ri?: string | null
+  address?: string | null
+  notes?: string | null
+  fire_station?: string | null
+}
+
+export type UpdateCustomerResult = {
+  error?: string
+  /** 기준일 변경 대상 고객에 확정 일정이 있음 — confirmedDecision과 함께 재호출 필요 (아무것도 저장 안 됨) */
+  requiresConfirmedDecision?: boolean
+  confirmedItems?: ConfirmedPlanItemInfo[]
+}
+
+/** 기준일 변경 시 재계산에서 제외되는 확정(confirmed) 항목 조회 — 점검 미시작(미연결) 건만 해지 대상 */
+async function _getUnconfirmablePlanItems(
+  admin: ReturnType<typeof createAdminClient>,
+  customerId: string,
+): Promise<ConfirmedPlanItemInfo[]> {
+  const { data } = await admin
+    .from('inspection_plan_items')
+    .select('id, scheduled_date, sequence_num, plan_type, inspection_plans!inner(year, month)')
+    .eq('customer_id', customerId)
+    .eq('status', 'confirmed')
+    .is('inspection_id', null)
+  return ((data ?? []) as Array<Record<string, unknown>>)
+    .map(r => {
+      const plan = r.inspection_plans as { year: number; month: number }
+      return {
+        id: r.id as string, year: plan.year, month: plan.month,
+        scheduled_date: (r.scheduled_date as string | null) ?? null,
+        sequence_num: (r.sequence_num as number | null) ?? 1,
+        plan_type: (r.plan_type as string | null) ?? null,
+      }
+    })
+    .sort((a, b) => (a.year - b.year) || (a.month - b.month))
+}
+
+/** 점검유형 변경 시 미확정(planned) 계획 항목 동기화 — 확정·완료·취소는 불변 (변경전파맵 1-11)
+ *  - 종합/작동 간 전환: inspection_type·sub_type·plan_type(special_종합↔special_작동) 갱신
+ *  - 작동 전환: 미확정 2차 특별점검 삭제 (연 1회) / 종합 전환: 연간 항목 보충 생성(멱등, 2차 포함)
+ *  - 일반관리 전환: 소방안전관리 자동 계획(planned) 삭제 */
+async function _syncInspectionTypeToPlanItems(
+  admin: ReturnType<typeof createAdminClient>,
+  customerId: string,
+  newType: InspectionType,
+  actorId: string,
+) {
+  if (newType === '일반관리') {
+    await admin.from('inspection_plan_items').delete()
+      .eq('customer_id', customerId).eq('status', 'planned').eq('inspection_category', '소방안전관리')
+    return
+  }
+  const subType: '종합' | '작동' = newType === '종합' ? '종합' : '작동'
+  const { data: items } = await admin
+    .from('inspection_plan_items')
+    .select('id, plan_type')
+    .eq('customer_id', customerId)
+    .eq('status', 'planned')
+  for (const it of (items ?? []) as Array<{ id: string; plan_type: string | null }>) {
+    const newPlanType = it.plan_type?.startsWith('special_') ? `special_${subType}` : it.plan_type
+    await admin.from('inspection_plan_items')
+      .update({
+        inspection_type: newType,
+        inspection_category: '소방안전관리',
+        inspection_sub_type: subType,
+        plan_type: newPlanType,
+      } as Record<string, unknown>)
+      .eq('id', it.id)
+  }
+  if (newType === '작동') {
+    await admin.from('inspection_plan_items').delete()
+      .eq('customer_id', customerId).eq('status', 'planned').eq('sequence_num', 2)
+  }
+  // 누락 항목 보충 생성 — 일반관리→소방 전환의 연간 생성, 작동→종합의 2차 특별점검 포함.
+  // 기존 (plan, customer, sequence) 항목은 UNIQUE 충돌로 건너뜀(멱등)
+  const { data: custRaw } = await admin.from('customers')
+    .select('use_approval_date, plan_anchor_date, assigned_employee_id')
+    .eq('id', customerId).single()
+  if (custRaw) {
+    const cust = custRaw as { use_approval_date: string | null; plan_anchor_date: string | null; assigned_employee_id: string | null }
+    const targetYear = new Date().getFullYear()
+    const hdSet = await loadHolidaySet(admin, targetYear)
+    await generateYearlyPlanItems(admin, { id: customerId, inspection_type: newType, ...cust }, targetYear, actorId, hdSet)
+  }
+}
+
 export async function updateCustomerAction(
   customerId: string,
-  input: Partial<Omit<CreateCustomerInput, 'contacts' | 'assigned_employee_id'>> & { zipcode?: string }
-): Promise<{ error?: string }> {
+  input: UpdateCustomerInput,
+  opts?: { confirmedDecision?: 'unconfirm' | 'keep' },
+): Promise<UpdateCustomerResult> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
+
+  // 점검계획일은 필수값 — 비우기 불허 (2026-07-14: "지우면 폴백 복귀" 설계 폐기)
+  if (input.plan_anchor_date !== undefined && !input.plan_anchor_date) {
+    return { error: '점검계획일은 필수값입니다 — 비울 수 없습니다.' }
+  }
 
   // 변경 감지를 위해 이전 값 조회
   const { data: prevCustomer } = await admin
@@ -385,24 +492,41 @@ export async function updateCustomerAction(
   const prevApprovalDate = prev?.use_approval_date ?? null
   const prevAnchorDate   = prev?.plan_anchor_date ?? null
 
-  const updateFields: Record<string, unknown> = {
-    customer_name: input.customer_name,
-    contract_date: input.contract_date ?? null,
-    use_approval_date: input.use_approval_date ?? null,
-    plan_anchor_date: input.plan_anchor_date ?? null,
-    region_si: input.region_si ?? null,
-    region_myeon: input.region_myeon ?? null,
-    region_ri: input.region_ri ?? null,
-    inspection_type: input.inspection_type,
-    address: input.address ?? null,
-    notes: input.notes ?? null,
-  }
-  if (input.fire_station !== undefined) updateFields.fire_station = input.fire_station || null
+  // 보내진 필드만 갱신 — 안 보낸 필드(undefined)를 null로 쓰면 부분 호출(예: 점검유형 변경 모달)에서
+  // 날짜·주소가 통째로 지워진다 (2026-07-14 수정). 비우기는 명시적 null/빈 문자열로만.
+  const updateFields: Record<string, unknown> = {}
+  if (input.customer_name !== undefined)     updateFields.customer_name     = input.customer_name
+  if (input.contract_date !== undefined)     updateFields.contract_date     = input.contract_date || null
+  if (input.use_approval_date !== undefined) updateFields.use_approval_date = input.use_approval_date || null
+  if (input.plan_anchor_date !== undefined)  updateFields.plan_anchor_date  = input.plan_anchor_date
+  if (input.region_si !== undefined)         updateFields.region_si         = input.region_si || null
+  if (input.region_myeon !== undefined)      updateFields.region_myeon      = input.region_myeon || null
+  if (input.region_ri !== undefined)         updateFields.region_ri         = input.region_ri || null
+  if (input.address !== undefined)           updateFields.address           = input.address || null
+  if (input.notes !== undefined)             updateFields.notes             = input.notes || null
+  if (input.fire_station !== undefined)      updateFields.fire_station      = input.fire_station || null
+  if (input.zipcode !== undefined)           updateFields.zipcode           = input.zipcode || null
   if (input.inspection_type !== undefined) {
+    updateFields.inspection_type     = input.inspection_type
     updateFields.inspection_category = input.inspection_type === '일반관리' ? '일반관리' : '소방안전관리'
     updateFields.inspection_sub_type = input.inspection_type === '종합' ? '종합' : input.inspection_type === '작동' ? '작동' : null
   }
-  if ('zipcode' in input) updateFields.zipcode = (input as { zipcode?: string }).zipcode ?? null
+  if (Object.keys(updateFields).length === 0) return {}
+
+  // 기준일(점검계획일/사용승인일) 변경 판정 — 보내진 필드만 변경 후보
+  const newApprovalDate = input.use_approval_date !== undefined ? (input.use_approval_date || null) : prevApprovalDate
+  const newAnchorDate   = input.plan_anchor_date  !== undefined ? input.plan_anchor_date : prevAnchorDate
+  const approvalChanged = newApprovalDate !== prevApprovalDate
+  const anchorChanged   = newAnchorDate !== prevAnchorDate
+
+  // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 아무것도 저장하지 않고 목록 반환
+  let confirmedItems: ConfirmedPlanItemInfo[] = []
+  if (approvalChanged || anchorChanged) {
+    confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
+    if (confirmedItems.length > 0 && !opts?.confirmedDecision) {
+      return { requiresConfirmedDecision: true, confirmedItems }
+    }
+  }
 
   let { error } = await admin
     .from('customers')
@@ -419,18 +543,24 @@ export async function updateCustomerAction(
 
   if (error) return { error: '고객 정보 수정에 실패했습니다.' }
 
-  // 기준일(점검계획일/사용승인일)이 변경된 경우: 미확정(planned) plan_items 재계산
-  // 확정(confirmed) 항목은 재계획하지 않음 (2026-07-12 결정)
-  const newApprovalDate = input.use_approval_date ?? null
-  const newAnchorDate   = input.plan_anchor_date ?? null
-  const approvalChanged = input.use_approval_date !== undefined && newApprovalDate !== prevApprovalDate
-  // 점검계획일은 폼에서 지우면 undefined로 오지만 DB에는 null이 기록되므로, 기록값 기준으로 변경 판정
-  const anchorChanged   = newAnchorDate !== prevAnchorDate
+  // 기준일이 변경된 경우: 미확정(planned) plan_items 재계산.
+  // 확정(confirmed)은 기본 유지 — 사용자가 '확정해지 후 재계산'을 선택한 경우만 planned로 복귀시켜 포함
   if (approvalChanged || anchorChanged) {
+    if (opts?.confirmedDecision === 'unconfirm' && confirmedItems.length > 0) {
+      await admin.from('inspection_plan_items')
+        .update({ status: 'planned' } as Record<string, unknown>)
+        .in('id', confirmedItems.map(i => i.id))
+    }
     await _resetPlanItemsForCustomer(admin, customerId, {
-      use_approval_date: approvalChanged ? newApprovalDate : prevApprovalDate,
-      plan_anchor_date:  anchorChanged ? newAnchorDate : prevAnchorDate,
+      use_approval_date: newApprovalDate,
+      plan_anchor_date:  newAnchorDate,
     })
+  }
+
+  // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
+  if (input.inspection_type !== undefined && prev && input.inspection_type !== prev.inspection_type) {
+    await _syncInspectionTypeToPlanItems(admin, customerId, input.inspection_type, profile.id)
+    revalidatePath('/inspections/calendar')
   }
 
   // 건물명/주소 변경 시 연결된 buildings 레코드 1건 동기화
@@ -875,7 +1005,7 @@ export async function registerGeneralInspectionAction(input: {
   const cust = custRaw as { inspection_type: string; customer_name: string } | null
   if (!cust) return { error: '고객을 찾을 수 없습니다.' }
   if (cust.inspection_type !== '일반관리') {
-    return { error: '일반관리 고객만 점검일을 직접 등록할 수 있습니다. (소방안전관리는 사용승인일 기준 자동 생성)' }
+    return { error: '일반관리 고객만 점검일을 직접 등록할 수 있습니다. (소방안전관리는 점검계획일 기준 자동 생성)' }
   }
 
   const d = new Date(input.plannedDate)
@@ -1107,13 +1237,19 @@ export async function searchSuggestionsAction(q: string): Promise<{
 export async function patchCustomerFieldAction(
   customerId: string,
   field: 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id',
-  value: string | null
-): Promise<{ error?: string }> {
+  value: string | null,
+  opts?: { confirmedDecision?: 'unconfirm' | 'keep' },
+): Promise<UpdateCustomerResult> {
   // 담당자 필드는 배정 권한(매니저 이상), 그 외 필드는 고객 수정 권한
   const profile = field === 'assigned_employee_id'
     ? await requirePermission('customer_assign')
     : await requirePermission('customer_manage')
   const admin = createAdminClient()
+
+  // 점검계획일은 필수값 — 비우기 불허 (2026-07-14: "지우면 폴백 복귀" 설계 폐기)
+  if (field === 'plan_anchor_date' && !value) {
+    return { error: '점검계획일은 필수값입니다 — 비울 수 없습니다.' }
+  }
 
   // 이전 값 조회 (변경 감지 + 이력 기록용)
   const { data: prevData } = await admin
@@ -1123,19 +1259,47 @@ export async function patchCustomerFieldAction(
   const prevRow = prevData as Record<string, string | null> | null
   const oldValue = prevRow?.[field] ?? null
 
+  // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 저장하지 않고 목록 반환
+  const isAnchorField = field === 'use_approval_date' || field === 'plan_anchor_date'
+  let confirmedItems: ConfirmedPlanItemInfo[] = []
+  if (isAnchorField && (value || null) !== oldValue) {
+    confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
+    if (confirmedItems.length > 0 && !opts?.confirmedDecision) {
+      return { requiresConfirmedDecision: true, confirmedItems }
+    }
+  }
+
+  const patchFields: Record<string, unknown> = { [field]: value || null, updated_at: new Date().toISOString() }
+  if (field === 'inspection_type' && value) {
+    patchFields.inspection_category = value === '일반관리' ? '일반관리' : '소방안전관리'
+    patchFields.inspection_sub_type = value === '종합' ? '종합' : value === '작동' ? '작동' : null
+  }
   const { error } = await admin
     .from('customers')
-    .update({ [field]: value || null, updated_at: new Date().toISOString() })
+    .update(patchFields)
     .eq('id', customerId)
 
   if (error) return { error: '수정에 실패했습니다.' }
 
-  // 기준일 관련 필드 변경 시 미확정(planned) 항목 재계산 — 변경 안 된 쪽은 기존 값 유지
-  if ((field === 'use_approval_date' || field === 'plan_anchor_date') && value !== oldValue) {
+  // 기준일 관련 필드 변경 시 미확정(planned) 항목 재계산 — 변경 안 된 쪽은 기존 값 유지.
+  // 확정(confirmed)은 기본 유지 — '확정해지 후 재계산' 선택 시만 planned 복귀 후 포함
+  if (isAnchorField && (value || null) !== oldValue) {
+    if (opts?.confirmedDecision === 'unconfirm' && confirmedItems.length > 0) {
+      await admin.from('inspection_plan_items')
+        .update({ status: 'planned' } as Record<string, unknown>)
+        .in('id', confirmedItems.map(i => i.id))
+    }
     await _resetPlanItemsForCustomer(admin, customerId, {
       use_approval_date: field === 'use_approval_date' ? (value || null) : (prevRow?.use_approval_date ?? null),
       plan_anchor_date:  field === 'plan_anchor_date'  ? (value || null) : (prevRow?.plan_anchor_date ?? null),
     })
+  }
+
+  // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
+  if (field === 'inspection_type' && value && value !== oldValue) {
+    await _syncInspectionTypeToPlanItems(admin, customerId, value as InspectionType, profile.id)
+    revalidatePath('/inspection-plans')
+    revalidatePath('/inspections/calendar')
   }
 
   // 담당자 변경 시 미완료 plan_items + 진행중 inspections 동기화

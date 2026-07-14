@@ -78,7 +78,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
             <div>
               <p className="text-sm font-semibold text-[#090c1d]">{year}년 미점검 초과 자동 해결</p>
               <p className="text-xs text-[#b0acd6] mt-0.5">
-                사용승인일 기준 누락 항목을 해당 월 계획에 자동 추가합니다
+                점검계획일(기준일) 기준 누락 항목을 해당 월 계획에 자동 추가합니다
               </p>
             </div>
           </div>
@@ -89,7 +89,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
 
         {/* 연간 달력 */}
         <div className="px-6 py-4 border-b border-[#e0ddf5] shrink-0">
-          <p className="text-[11px] font-medium text-[#514b81] mb-2">{year}년 사용승인일 점검 현황</p>
+          <p className="text-[11px] font-medium text-[#514b81] mb-2">{year}년 점검계획일 기준 점검 현황</p>
           <div className="grid grid-cols-6 gap-1.5">
             {MONTH_NAMES.map((label, i) => {
               const m = i + 1
@@ -175,7 +175,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                       {monthItems.map(item => {
                         const key = itemKey(item)
                         const on  = selected.has(key)
-                        const d   = new Date(item.use_approval_date)
+                        const d   = new Date(item.anchor_date)
                         return (
                           <label
                             key={key}
@@ -206,7 +206,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                               <p className="text-[11px] text-[#b0acd6] mt-0.5">
                                 담당: <span className="font-medium text-[#514b81]">{item.assigned_employee_name ?? '미배정'}</span>
                                 {' · '}
-                                사용승인 {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,'0')}.{String(d.getDate()).padStart(2,'0')}
+                                점검계획일 {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,'0')}.{String(d.getDate()).padStart(2,'0')}
                               </p>
                             </div>
                           </label>

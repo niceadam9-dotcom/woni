@@ -11,7 +11,8 @@ export type OverdueItem = {
   inspection_type: string
   assigned_employee_id: string | null
   assigned_employee_name: string | null
-  use_approval_date: string
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 */
+  anchor_date: string
   sequence_num: 1 | 2
   due_month: number
 }
@@ -118,7 +119,7 @@ export default async function InspectionPlansPage({
         inspection_type: cust.inspection_type,
         assigned_employee_id: cust.assigned_employee_id,
         assigned_employee_name: empName,
-        use_approval_date: anchorDate,
+        anchor_date: anchorDate,
         sequence_num: 1, due_month: approvalMonth,
       })
     }
@@ -129,7 +130,7 @@ export default async function InspectionPlansPage({
         inspection_type: cust.inspection_type,
         assigned_employee_id: cust.assigned_employee_id,
         assigned_employee_name: empName,
-        use_approval_date: anchorDate,
+        anchor_date: anchorDate,
         sequence_num: 2, due_month: secondMonth,
       })
     }
@@ -152,9 +153,9 @@ export default async function InspectionPlansPage({
       initialYear={year}
       initialMonth={month}
       employees={(employeesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      customers={((customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null }>)
-        // 클라이언트 날짜 제안·표시는 기준일(점검계획일→점검시작일→사용승인일)로 통일
-        .map(c => ({ ...c, use_approval_date: anchorMap.get(c.id) ?? c.use_approval_date }))}
+      customers={((customersRes.data ?? []) as Array<{ id: string; customer_name: string; inspection_type: import('@/types').InspectionType; assigned_employee_id: string | null; address: string | null; use_approval_date: string | null; plan_anchor_date: string | null }>)
+        // 표시는 점검계획일 원본(미입력이면 입력 유도), 날짜 제안·자동 계산은 기준일(anchor_date)
+        .map(c => ({ ...c, anchor_date: anchorMap.get(c.id) ?? null }))}
       overdueItems={overdueItems}
       holidays={holidays}
       holidayInfos={holidayInfos}

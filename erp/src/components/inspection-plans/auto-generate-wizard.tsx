@@ -15,7 +15,9 @@ import { DateInput } from '@/components/ui/date-input'
 
 type CustomerRow = {
   id: string; customer_name: string; customer_code: string
-  inspection_type: string; assigned_employee_id: string | null; use_approval_date: string | null
+  inspection_type: string; assigned_employee_id: string | null
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 — 날짜 자동 배분용 */
+  anchor_date: string | null
 }
 
 function _toDateStr(d: Date) {
@@ -31,8 +33,8 @@ function _nextWorkday(base: Date, holidaySet: Set<string>): Date {
   }
   return d
 }
-function _calcDate(useApprovalDate: string, year: number, month: number, holidaySet: Set<string>): string {
-  const approvalDay = new Date(useApprovalDate).getDate()
+function _calcDate(anchorDate: string, year: number, month: number, holidaySet: Set<string>): string {
+  const approvalDay = new Date(anchorDate).getDate()
   const daysInMonth = new Date(year, month, 0).getDate()
   const base = new Date(year, month - 1, Math.min(approvalDay, daysInMonth))
   return _toDateStr(_nextWorkday(base, holidaySet))
@@ -84,7 +86,7 @@ export function AutoGenerateWizard({
   function isHoliday(d: Date) { return holidaySet.has(d.toISOString().split('T')[0]) }
   function isWorkday(d: Date) { return !isWeekend(d) && !isHoliday(d) }
 
-  // 사용승인일 기준 영업일 자동 배분
+  // 점검계획일(기준일) 기준 영업일 자동 배분
   function assignDates(items: Omit<DraftItem, 'scheduled_date'>[]): DraftItem[] {
     // 첫 영업일 fallback용
     const daysInMonth = new Date(year, month, 0).getDate()
@@ -96,9 +98,9 @@ export function AutoGenerateWizard({
 
     return items.map(item => {
       const customer = customers.find(c => c.id === item.customer_id)
-      const useApprovalDate = customer?.use_approval_date
-      const scheduled_date = useApprovalDate
-        ? _calcDate(useApprovalDate, year, month, holidaySet)
+      const anchorDate = customer?.anchor_date
+      const scheduled_date = anchorDate
+        ? _calcDate(anchorDate, year, month, holidaySet)
         : firstWorkday
       return { ...item, scheduled_date }
     })

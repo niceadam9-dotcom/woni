@@ -9,6 +9,7 @@ import { inspectionTypeLabel } from '@/types'
 import { updatePlanItemAction, startInspectionAction, getInspectionStepsForItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 
 type StepInfo = {
   id: string; step_num: number; name_ko: string
@@ -39,11 +40,13 @@ interface Props {
   /** 담당직원 변경 권한 — B안: 매니저 이상만 (미지정 시 canManage 따름) */
   canAssign?: boolean
   canEditOwnItem?: boolean
+  /** 고객의 점검계획일 원본(customers.plan_anchor_date) — 고객관리와 단일 소스로 동기화, 편집 시 기준일 변경 플로우(B안 팝업) 적용 */
+  planAnchorDate?: string | null
   onClose: () => void
   onSaved: () => void
 }
 
-export function PlanItemSlidePanel({ item, employees, canManage, canAssign = canManage, canEditOwnItem = false, onClose, onSaved }: Props) {
+export function PlanItemSlidePanel({ item, employees, canManage, canAssign = canManage, canEditOwnItem = false, planAnchorDate = null, onClose, onSaved }: Props) {
   const canEdit = canManage || canEditOwnItem
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -169,6 +172,27 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
         {activeTab === 'plan' && (
           <>
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* 고객 단위 필드 — 고객관리 > 점검계획일과 단일 소스 동기화 */}
+              <div>
+                <label className="text-xs font-medium text-[#514b81] mb-1 block">
+                  점검계획일 <span className="text-[10px] text-[#b0acd6] font-normal">(계획 기산일 · 고객관리와 동기화)</span>
+                </label>
+                <div className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 bg-[#fafafa]">
+                  {canManage ? (
+                    <InlineCustomerFieldClient
+                      customerId={item.customer_id}
+                      field="plan_anchor_date"
+                      value={planAnchorDate}
+                      emptyLabel="미입력"
+                    />
+                  ) : planAnchorDate ? (
+                    <span className="text-[#090c1d]">{planAnchorDate}</span>
+                  ) : (
+                    <span className="text-red-500 font-medium text-xs">미입력</span>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-[#514b81]">점검 예정일</label>

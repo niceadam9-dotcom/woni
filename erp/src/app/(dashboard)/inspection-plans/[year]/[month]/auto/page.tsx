@@ -76,7 +76,7 @@ export default async function AutoGeneratePage({
       customers={((customers ?? []) as Array<{
         id: string; customer_name: string; customer_code: string
         inspection_type: string; assigned_employee_id: string | null; use_approval_date: string | null
-      }>).map(c => ({ ...c, use_approval_date: anchorMap.get(c.id) ?? c.use_approval_date }))}
+      }>).map(c => ({ ...c, anchor_date: anchorMap.get(c.id) ?? null }))}
       employees={(employees ?? []) as Array<{ id: string; name: string; position: string | null }>}
       holidays={((holidays ?? []) as Array<{ date: string }>).map(h => h.date)}
     />

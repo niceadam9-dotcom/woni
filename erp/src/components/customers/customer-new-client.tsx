@@ -380,7 +380,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={inputCls}
             />
-            <p className="text-[11px] text-[#b0acd6]">연간 점검계획의 기산일 — 이 날짜의 월·일 기준으로 계획이 생성됩니다</p>
+            <p className="text-[11px] text-[#b0acd6]">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 특별·정기점검이 배치됩니다 (통상 사용승인일 또는 첫 점검일)</p>
           </Field>
         </div>
 

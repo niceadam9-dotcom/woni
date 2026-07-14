@@ -11,7 +11,9 @@ type Employee = { id: string; name: string; position: string | null }
 type CustomerOption = {
   id: string; customer_name: string; inspection_type: InspectionType
   assigned_employee_id: string | null; address: string | null
-  use_approval_date: string | null
+  plan_anchor_date: string | null
+  /** 기준일: 점검계획일(수동) → 최초 점검시작일 → 사용승인일 — 예정일 자동 계산용 */
+  anchor_date: string | null
 }
 
 interface Props {
@@ -97,9 +99,9 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
     setQuery(c.customer_name)
     setOpen(false)
     if (c.assigned_employee_id) setAssignedEmployeeId(c.assigned_employee_id)
-    // 사용승인일 다음 영업일(토·일·공휴일·대체공휴일 제외) 자동 설정 (오늘 날짜 기본값보다 우선)
-    if (c.use_approval_date) {
-      setScheduledDate(suggestScheduledDate(c.use_approval_date, planYear, holidaySet))
+    // 점검계획일(기준일) 다음 영업일(토·일·공휴일·대체공휴일 제외) 자동 설정 (오늘 날짜 기본값보다 우선)
+    if (c.anchor_date) {
+      setScheduledDate(suggestScheduledDate(c.anchor_date, planYear, holidaySet))
       setAutoFilled(true)
     }
   }
@@ -227,7 +229,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
               <label className="text-xs font-medium text-[#514b81]">점검 예정일</label>
               {autoFilled && (
                 <span className="text-[10px] text-[#7b68ee] bg-[#f5f4ff] px-1.5 py-0.5 rounded-full font-medium">
-                  {customerId ? '자동 — 사용승인일 다음 영업일' : '자동 — 오늘 날짜'}
+                  {customerId ? '자동 — 점검계획일 다음 영업일' : '자동 — 오늘 날짜'}
                 </span>
               )}
             </div>

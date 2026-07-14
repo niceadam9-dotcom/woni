@@ -562,7 +562,7 @@ export async function autoGeneratePlanAction(input: {
   return { planId: newPlanId, itemCount }
 }
 
-// ── 기준일(점검시작일→사용승인일) 기반 점검 항목 제안 ──────────
+// ── 기준일(점검계획일→점검시작일→사용승인일) 기반 점검 항목 제안 ──────────
 export async function getSuggestedItemsAction(
   year: number,
   month: number,
@@ -570,14 +570,14 @@ export async function getSuggestedItemsAction(
 ): Promise<{
   suggestions: Array<{
     id: string; customer_name: string; customer_code: string
-    inspection_type: InspectionType; use_approval_date: string
+    inspection_type: InspectionType; anchor_date: string
     assigned_employee_id: string | null; sequence_num: 1 | 2; reason: string
   }>
 }> {
   await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
-  // 2차 점검 월 = 사용승인일 월 + 6개월
+  // 2차 점검 월 = 기준일 월 + 6개월
   const secondMonth = ((month - 1 + 6) % 12) + 1
 
   // 이미 이달 계획에 등록된 (customer_id, sequence_num) 쌍
@@ -607,7 +607,7 @@ export async function getSuggestedItemsAction(
 
   const suggestions: Array<{
     id: string; customer_name: string; customer_code: string
-    inspection_type: InspectionType; use_approval_date: string
+    inspection_type: InspectionType; anchor_date: string
     assigned_employee_id: string | null; sequence_num: 1 | 2; reason: string
   }> = []
 
@@ -626,7 +626,7 @@ export async function getSuggestedItemsAction(
         customer_name: c.customer_name as string,
         customer_code: (c.customer_code ?? '') as string,
         inspection_type: c.inspection_type as InspectionType,
-        use_approval_date: anchor,
+        anchor_date: anchor,
         assigned_employee_id: (c.assigned_employee_id ?? null) as string | null,
         sequence_num: 1,
         reason: `${anchorLabel} ${dateLabel} → ${c.inspection_type === '종합' ? '1차 점검' : '연 1회 점검'}`,
@@ -643,7 +643,7 @@ export async function getSuggestedItemsAction(
         customer_name: c.customer_name as string,
         customer_code: (c.customer_code ?? '') as string,
         inspection_type: c.inspection_type as InspectionType,
-        use_approval_date: anchor,
+        anchor_date: anchor,
         assigned_employee_id: (c.assigned_employee_id ?? null) as string | null,
         sequence_num: 2,
         reason: `${anchorLabel} ${dateLabel} → 2차 점검 (+6개월)`,
@@ -724,7 +724,7 @@ export async function resolveOverdueItemsAction(
           assigned_employee_id: item.assigned_employee_id || null,
           status: 'planned',
           scheduled_date: null,
-          // 초과 해결 항목은 사용승인일 기준 특별점검
+          // 초과 해결 항목은 점검계획일(기준일) 기준 특별점검
           plan_type: item.inspection_type === '종합' ? 'special_종합'
             : item.inspection_type === '작동' ? 'special_작동'
             : 'event',

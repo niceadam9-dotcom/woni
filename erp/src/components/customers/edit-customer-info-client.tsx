@@ -3,9 +3,10 @@
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search, MapPin } from 'lucide-react'
-import { updateCustomerAction } from '@/app/(dashboard)/customers/actions'
+import { updateCustomerAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
+import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
 import type { Customer } from '@/types'
 
 type Props = {
@@ -39,6 +40,8 @@ export function EditCustomerInfoClient({ customer }: Props) {
   const [addrJibun, setAddrJibun] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
+  const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
 
   // customer props가 갱신(router.refresh)되면 form 초기화
   const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes].join('|')
@@ -81,27 +84,39 @@ export function EditCustomerInfoClient({ customer }: Props) {
     setError('')
   }
 
-  function handleSave() {
+  function buildInput(): UpdateCustomerInput {
+    // 비우기는 명시적 null로 전달 — undefined는 "변경 없음"으로 처리됨 (부분 업데이트 안전화, 2026-07-14)
+    return {
+      customer_name: form.customer_name.trim(),
+      contract_date: form.contract_date || null,
+      use_approval_date: form.use_approval_date || null,
+      plan_anchor_date: form.plan_anchor_date,
+      zipcode: form.zipcode.trim() || null,
+      address: form.address.trim() || null,
+      region_si: form.region_si.trim() || null,
+      region_myeon: form.region_myeon.trim() || null,
+      region_ri: form.region_ri.trim() || null,
+      notes: form.notes.trim() || null,
+      fire_station: form.fire_station.trim() || null,
+    }
+  }
+
+  function handleSave(confirmedDecision?: 'unconfirm' | 'keep') {
     if (!form.customer_name.trim()) { setError('고객명은 필수입니다'); return }
+    if (!form.plan_anchor_date) { setError('점검계획일은 필수입니다 — 연간 점검계획의 기산일을 입력해주세요.'); return }
     for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
     setError('')
     startTransition(async () => {
-      const result = await updateCustomerAction(customer.id, {
-        customer_name: form.customer_name.trim(),
-        contract_date: form.contract_date || undefined,
-        use_approval_date: form.use_approval_date || undefined,
-        plan_anchor_date: form.plan_anchor_date || undefined,
-        zipcode: form.zipcode.trim() || undefined,
-        address: form.address.trim() || undefined,
-        region_si: form.region_si.trim() || undefined,
-        region_myeon: form.region_myeon.trim() || undefined,
-        region_ri: form.region_ri.trim() || undefined,
-        notes: form.notes.trim() || undefined,
-        fire_station: form.fire_station.trim() || undefined,
-      })
+      const result = await updateCustomerAction(customer.id, buildInput(), confirmedDecision ? { confirmedDecision } : undefined)
+      // 확정 일정 보유 고객의 기준일 변경 — 아직 저장 안 됨, 사용자 선택 팝업 표시
+      if (result.requiresConfirmedDecision && result.confirmedItems) {
+        setConfirmedDlg(result.confirmedItems)
+        return
+      }
       if (result.error) { setError(result.error); return }
+      setConfirmedDlg(null)
       router.refresh()
     })
   }
@@ -138,12 +153,13 @@ export function EditCustomerInfoClient({ customer }: Props) {
           />
         </div>
         <div className="space-y-1">
-          <label className={labelCls}>점검계획일 <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
+          <label className={labelCls}>점검계획일 <span className="text-red-500">*</span> <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
           <DateInput
             value={form.plan_anchor_date}
             onChange={e => set('plan_anchor_date', e.target.value)}
             className={inputCls}
           />
+          <p className="text-[11px] text-[#b0acd6]">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 특별·정기점검이 배치됩니다</p>
         </div>
       </div>
 
@@ -241,6 +257,15 @@ export function EditCustomerInfoClient({ customer }: Props) {
             {isPending ? <Loader2 className="size-4 animate-spin" /> : '저장'}
           </button>
         </div>
+      )}
+
+      {confirmedDlg && (
+        <ConfirmedDecisionDialog
+          items={confirmedDlg}
+          isPending={isPending}
+          onDecide={d => handleSave(d)}
+          onCancel={() => setConfirmedDlg(null)}
+        />
       )}
     </form>
   )

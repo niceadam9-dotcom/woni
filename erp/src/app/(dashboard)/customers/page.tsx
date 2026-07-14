@@ -250,7 +250,7 @@ export default async function CustomersPage({
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">
                       {canCreate ? (
-                        <InlineCustomerFieldClient customerId={c.id} field="plan_anchor_date" value={c.plan_anchor_date} />
+                        <InlineCustomerFieldClient customerId={c.id} field="plan_anchor_date" value={c.plan_anchor_date} emptyLabel="미입력" />
                       ) : (c.plan_anchor_date ?? '-')}
                     </td>
                     <td className="px-4 py-3">

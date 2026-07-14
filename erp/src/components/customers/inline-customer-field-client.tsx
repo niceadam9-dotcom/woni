@@ -2,8 +2,9 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
-import { patchCustomerFieldAction } from '@/app/(dashboard)/customers/actions'
+import { patchCustomerFieldAction, type ConfirmedPlanItemInfo } from '@/app/(dashboard)/customers/actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
+import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -17,6 +18,8 @@ interface Props {
   employees?: Array<{ id: string; name: string }>
   /** RSC 직렬화를 위해 렌더 함수 대신 변형 이름으로 표시 방식 지정 */
   displayVariant?: 'name' | 'type-badge' | 'employee'
+  /** 값이 없을 때 '—' 대신 표시할 입력 유도 라벨 (빨간색 강조, 예: "미입력") */
+  emptyLabel?: string
 }
 
 const INSPECTION_TYPES: InspectionType[] = ['종합', '작동', '일반관리']
@@ -28,12 +31,15 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
 }
 
 export function InlineCustomerFieldClient({
-  customerId, field, value, displayValue, employees, displayVariant,
+  customerId, field, value, displayValue, employees, displayVariant, emptyLabel,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ?? '')
   const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null)
+  // 기준일 변경 시 확정 일정 처리 선택 팝업(B안) — 저장 보류된 값과 확정 항목 목록
+  const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
+  const pendingValueRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (editing) {
@@ -57,7 +63,22 @@ export function InlineCustomerFieldClient({
     if (isDateField && trimmed && !isCompleteDate(trimmed)) { setEditing(false); return }
     startTransition(async () => {
       const res = await patchCustomerFieldAction(customerId, field, trimmed)
+      // 확정 일정 보유 고객의 기준일 변경 — 아직 저장 안 됨, 사용자 선택 팝업 표시
+      if (res.requiresConfirmedDecision && res.confirmedItems) {
+        pendingValueRef.current = trimmed
+        setConfirmedDlg(res.confirmedItems)
+        return
+      }
       if (res.error) alert(res.error)
+      setEditing(false)
+    })
+  }
+
+  function handleConfirmedDecision(decision: 'unconfirm' | 'keep') {
+    startTransition(async () => {
+      const res = await patchCustomerFieldAction(customerId, field, pendingValueRef.current, { confirmedDecision: decision })
+      if (res.error) alert(res.error)
+      setConfirmedDlg(null)
       setEditing(false)
     })
   }
@@ -78,7 +99,11 @@ export function InlineCustomerFieldClient({
         ? <span className="text-xs font-medium text-[#090c1d]">{displayValue ?? '-'}</span>
         : <span className="text-xs text-red-500 font-medium">미배정</span>
     }
-    if (value == null) return <span className="text-[#b0acd6] italic text-xs">—</span>
+    if (value == null) {
+      return emptyLabel
+        ? <span className="text-xs text-red-500 font-medium">{emptyLabel}</span>
+        : <span className="text-[#b0acd6] italic text-xs">—</span>
+    }
     if (displayVariant === 'name') {
       return <span className="font-medium text-[#090c1d]">{value}</span>
     }
@@ -168,6 +193,14 @@ export function InlineCustomerFieldClient({
       >
         <X className="size-3.5" />
       </button>
+      {confirmedDlg && (
+        <ConfirmedDecisionDialog
+          items={confirmedDlg}
+          isPending={isPending}
+          onDecide={handleConfirmedDecision}
+          onCancel={() => { setConfirmedDlg(null); setEditing(false) }}
+        />
+      )}
     </div>
   )
 }
