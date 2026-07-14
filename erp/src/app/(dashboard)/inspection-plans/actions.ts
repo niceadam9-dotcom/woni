@@ -32,7 +32,7 @@ export async function startInspectionAction(
   // plan_item 조회
   const { data: itemRaw } = await admin
     .from('inspection_plan_items')
-    .select('id, customer_id, inspection_type, sequence_num, scheduled_date, assigned_employee_id, contact_id, inspection_id, status, step1_date, step2_date, step3_date, step4_date, step5_date, step6_date')
+    .select('id, customer_id, inspection_type, sequence_num, scheduled_date, assigned_employee_id, contact_id, inspection_id, status, plan_type, step1_date, step2_date, step3_date, step4_date, step5_date, step6_date')
     .eq('id', itemId)
     .single()
 
@@ -40,7 +40,7 @@ export async function startInspectionAction(
     id: string; customer_id: string; inspection_type: InspectionType
     sequence_num: 1 | 2; scheduled_date: string | null
     assigned_employee_id: string | null; contact_id: string | null
-    inspection_id: string | null; status: string
+    inspection_id: string | null; status: string; plan_type: string | null
     step1_date: string | null; step2_date: string | null; step3_date: string | null
     step4_date: string | null; step5_date: string | null; step6_date: string | null
   } | null
@@ -53,7 +53,8 @@ export async function startInspectionAction(
   const autoAssigned = !item.assigned_employee_id
   const assigneeId = item.assigned_employee_id ?? profile.id
 
-  // inspections 레코드 생성 (DB 트리거가 inspection_steps 6단계 자동 생성)
+  // inspections 레코드 생성 — DB 트리거가 체크리스트 자동 생성
+  // (특별점검 6단계 / 정기·일반관리 1단계 — plan_type으로 분기, migration 088)
   const { data: inspRaw, error: inspErr } = await admin
     .from('inspections')
     .insert({
@@ -65,6 +66,7 @@ export async function startInspectionAction(
       inspection_start_date: item.scheduled_date,
       status:               'in_progress',
       created_by:           profile.id,
+      plan_type:            item.plan_type ?? null,
     } as Record<string, unknown>)
     .select('id')
     .single()

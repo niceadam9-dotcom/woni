@@ -48,15 +48,16 @@ export async function createInspectionAction(
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
-  // 같은 고객·연도·차수 중복 방지
+  // 같은 고객·연도·차수 중복 방지 — 특별점검만 판정 (정기·일반 이벤트는 차수 개념이 없어 제외, 088)
   const year = new Date(input.inspection_start_date).getFullYear()
-  const { data: dup } = await admin
+  const { data: dupRows } = await admin
     .from('inspections')
-    .select('id')
+    .select('id, plan_type')
     .eq('customer_id', input.customer_id)
     .eq('year', year)
     .eq('sequence_num', input.sequence_num)
-    .single()
+  const dup = ((dupRows ?? []) as { id: string; plan_type: string | null }[])
+    .find(r => !['monthly', 'event'].includes(r.plan_type ?? ''))
   if (dup) return { error: `${year}년 ${input.sequence_num}차 점검이 이미 존재합니다.` }
 
   // 최초점검 자동판정 (P32-8): 종합 유형이고 이전 종합점검 이력이 전무하면 최초점검
