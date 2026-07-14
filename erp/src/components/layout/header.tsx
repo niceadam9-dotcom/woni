@@ -1,5 +1,6 @@
 ﻿import { LogOut, User } from 'lucide-react'
 import { NotificationBell } from './notification-bell'
+import { HeaderTitle } from './header-title'
 import { logoutAction } from '@/app/(dashboard)/actions'
 import type { Profile } from '@/types'
 
@@ -9,9 +10,9 @@ interface HeaderProps {
 
 export function Header({ profile }: HeaderProps) {
   return (
-    <header className="h-16 shrink-0 flex items-center justify-between px-6 bg-white border-b border-[#c8c4d0]">
-      {/* 페이지 타이틀 영역 (각 page.tsx에서 처리) */}
-      <div />
+    <header className="h-16 shrink-0 flex items-center justify-between gap-4 px-6 bg-white border-b border-[#c8c4d0]">
+      {/* 좌: 현재 페이지 브레드크럼 (2026-07-14 상단 공백 활용 A안) */}
+      <HeaderTitle />
 
       <div className="flex items-center gap-2">
         <NotificationBell userId={profile.id} />

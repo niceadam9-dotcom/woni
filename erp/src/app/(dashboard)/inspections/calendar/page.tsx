@@ -45,7 +45,7 @@ export default async function InspectionCalendarPage({
   const rangeEnd   = `${currentYear + 1}-12-31`
   const planItemsQuery = admin
     .from('inspection_plan_items')
-    .select('id, customer_id, plan_type, scheduled_date, planned_date, status, assigned_employee_id, customers(customer_name, customer_code)')
+    .select('id, customer_id, plan_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code)')
     .in('plan_type', ['monthly', 'event'])
     .neq('status', 'cancelled')
     .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
@@ -137,7 +137,7 @@ export default async function InspectionCalendarPage({
   type PlanItemRow = {
     id: string; customer_id: string; plan_type: 'monthly' | 'event'
     scheduled_date: string | null; planned_date: string | null
-    status: string; assigned_employee_id: string | null
+    status: string; assigned_employee_id: string | null; inspection_id: string | null
     customers: { customer_name: string; customer_code: string } | null
   }
   const planItems: CalendarPlanItem[] = ((planItemsRes.data ?? []) as unknown as PlanItemRow[]).flatMap(p => {
@@ -153,6 +153,7 @@ export default async function InspectionCalendarPage({
       status: p.status as CalendarPlanItem['status'],
       assigned_employee_id: p.assigned_employee_id,
       assigned_employee_name: empName(p.assigned_employee_id),
+      inspection_id: p.inspection_id,
     }]
   })
 

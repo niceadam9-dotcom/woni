@@ -32,7 +32,8 @@ type NavGroup = {
   items: NavItem[]
 }
 
-const NAV_GROUPS: NavGroup[] = [
+// 헤더 브레드크럼(header-title.tsx)이 경로→메뉴명 매칭에 재사용
+export const NAV_GROUPS: NavGroup[] = [
   // ── My Page ─────────────────────────────────────────────────────────────
   {
     key: 'mypage',
