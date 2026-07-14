@@ -926,20 +926,29 @@ export async function generateCustomerCodeAction(prefix: string = 'C'): Promise<
   const cleanPrefix = prefix.trim().toUpperCase()
   if (!cleanPrefix) return { error: '접두어를 입력해주세요.' }
 
-  const { data, error } = await admin
-    .from('customers')
-    .select('customer_code')
-    .ilike('customer_code', `${cleanPrefix}%`)
-    .limit(200)
+  // 접두어 일치 코드 전량 조회 — 정렬 없는 limit(200)은 200건 초과 시 최대값을 놓쳐
+  // 이미 쓰는 코드를 다시 제안했음 (C223 중복 사건, 2026-07-14).
+  // 혼합 패딩(C223/C0319) 탓에 문자열 정렬로는 숫자 최대값을 못 구하므로 페이지 순회로 전부 읽는다
+  const pageSize = 1000
+  const codes: string[] = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await admin
+      .from('customers')
+      .select('customer_code')
+      .ilike('customer_code', `${cleanPrefix}%`)
+      .range(from, from + pageSize - 1)
+    if (error) return { error: '코드 조회에 실패했습니다.' }
+    const rows = (data ?? []) as { customer_code: string }[]
+    codes.push(...rows.map(r => r.customer_code))
+    if (rows.length < pageSize) break
+  }
 
-  if (error) return { error: '코드 조회에 실패했습니다.' }
-
-  // 접두어 뒤에 숫자만 오는 패턴에서 최대값 추출
+  // 접두어 뒤에 숫자만 오는 패턴에서 최대값 추출 (비활성 고객 포함 — 코드는 재사용하지 않음)
   const escapedPrefix = cleanPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const pattern = new RegExp(`^${escapedPrefix}(\\d+)$`, 'i')
   let maxNum = 0
-  for (const row of (data ?? []) as { customer_code: string }[]) {
-    const match = row.customer_code.match(pattern)
+  for (const code of codes) {
+    const match = code.match(pattern)
     if (match) {
       const num = parseInt(match[1], 10)
       if (num > maxNum) maxNum = num
