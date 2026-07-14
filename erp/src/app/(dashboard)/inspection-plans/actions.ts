@@ -568,11 +568,16 @@ export async function autoGeneratePlanAction(input: {
   // 전월 항목 복사 (기준일 기준 영업일 자동 계산)
   let itemCount = 0
   if (refPlanId) {
-    const { data: refItems } = await admin
+    const { data: refItemsRaw } = await admin
       .from('inspection_plan_items')
       .select('customer_id, inspection_type, sequence_num, assigned_employee_id, contact_id, plan_type')
       .eq('plan_id', refPlanId)
       .neq('status', 'cancelled')
+
+    // 일반관리 event는 점검계획일 당일 1회성 — 다음 달로 복제하지 않음
+    const refItems = (refItemsRaw ?? []).filter(
+      i => (i as Record<string, unknown>).plan_type !== 'event'
+    )
 
     if (refItems && refItems.length > 0) {
       // 고객 기준일 조회 (점검계획일 → 최초 점검시작일)

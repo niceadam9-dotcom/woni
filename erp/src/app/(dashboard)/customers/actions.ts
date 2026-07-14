@@ -248,16 +248,19 @@ export async function createCustomerAction(
   return { customerId }
 }
 
-/** V9-1/V9-9: 신규 고객 등록 시 점검계획일(수동 최우선) 기반 연간 점검계획 항목 자동 생성
+/** V9-1/V9-9: 신규 고객 등록 시 점검계획일(수동 최우선) 기반 점검계획 항목 자동 생성
  *  - 소방안전관리: 특별점검달(special_종합/special_작동) + 나머지 11/10개월(monthly) = 12회/년
- *  - 일반관리: 수동 생성이므로 자동 생성 없음 */
+ *  - 일반관리: 점검계획일 당일 1회성 event 1건, 등록 즉시 자동 확정 (연간 반복·크론 무관) */
 async function _autoCreatePlanItemsForNewCustomer(
   admin: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
   customerId: string,
   info: { inspection_type: InspectionType; plan_anchor_date: string; assigned_employee_id: string | null },
   createdBy: string,
 ) {
-  if (info.inspection_type === '일반관리') return
+  if (info.inspection_type === '일반관리') {
+    await _createGeneralEventItem(admin, customerId, info.plan_anchor_date, info.assigned_employee_id, createdBy)
+    return
+  }
 
   const anchorDate = new Date(info.plan_anchor_date)
   const now        = new Date()
@@ -268,6 +271,57 @@ async function _autoCreatePlanItemsForNewCustomer(
   // 이후 연도는 크론(/api/cron/generate-yearly-plans)이 매년 반복 생성
   const hdSet = await loadHolidaySet(admin, targetYear)
   await generateYearlyPlanItems(admin, { id: customerId, ...info }, targetYear, createdBy, hdSet)
+}
+
+/** 일반관리 고객 event 계획항목 1건 생성 — planned_date·scheduled_date는 점검계획일 그대로(영업일 보정·'일' 재계산 없음).
+ *  점검계획일 = 사용자가 직접 고른 방문일이므로 등록 즉시 자동 확정(confirmed) — 별도 확정 단계 없음 (B안, 2026-07-14)
+ *  해당 년/월 계획 헤더가 없으면 생성. 동일 (plan, customer, sequence) 항목이 있으면 UNIQUE 충돌로 건너뜀(멱등) */
+async function _createGeneralEventItem(
+  admin: ReturnType<typeof createAdminClient>,
+  customerId: string,
+  plannedDate: string,
+  assignedEmployeeId: string | null,
+  createdBy: string,
+) {
+  const d = new Date(plannedDate)
+  if (isNaN(d.getTime())) return
+  const year  = d.getFullYear()
+  const month = d.getMonth() + 1
+
+  let planId: string | null = null
+  const { data: plan } = await admin
+    .from('inspection_plans').select('id').eq('year', year).eq('month', month).maybeSingle()
+  if (plan) {
+    planId = (plan as { id: string }).id
+  } else {
+    const { data: created, error: planErr } = await admin
+      .from('inspection_plans')
+      .insert({ year, month, status: 'draft', auto_generated: true, created_by: createdBy } as Record<string, unknown>)
+      .select('id').single()
+    if (planErr?.code === '23505') {
+      const { data: dup } = await admin
+        .from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
+      planId = (dup as { id: string } | null)?.id ?? null
+    } else if (created) {
+      planId = (created as { id: string }).id
+    }
+  }
+  if (!planId) return
+
+  // 23505(중복)는 무시 — 유형·점검계획일 동시 변경 등 중복 호출에도 안전
+  await admin.from('inspection_plan_items').insert({
+    plan_id: planId,
+    customer_id: customerId,
+    inspection_type: '일반관리',
+    inspection_category: '일반관리',
+    inspection_sub_type: null,
+    sequence_num: 1,
+    plan_type: 'event',
+    planned_date: plannedDate,
+    scheduled_date: plannedDate,
+    status: 'confirmed',
+    assigned_employee_id: assignedEmployeeId,
+  } as Record<string, unknown>)
 }
 
 /** 담당자 변경 시 미완료 plan_items + 진행중 inspections 일괄 동기화 */
@@ -393,7 +447,9 @@ export type UpdateCustomerResult = {
   confirmedItems?: ConfirmedPlanItemInfo[]
 }
 
-/** 기준일 변경 시 재계산에서 제외되는 확정(confirmed) 항목 조회 — 점검 미시작(미연결) 건만 해지 대상 */
+/** 기준일 변경 시 재계산에서 제외되는 확정(confirmed) 항목 조회 — 점검 미시작(미연결) 건만 해지 대상
+ *  일반관리 event는 제외 — 점검계획일 자체가 확정일(자동 확정)이라 계획일 변경 = 확정일 변경이며,
+ *  삭제·재생성으로 즉시 따라가므로 확정보호 팝업 대상이 아님 (B안, 2026-07-14) */
 async function _getUnconfirmablePlanItems(
   admin: ReturnType<typeof createAdminClient>,
   customerId: string,
@@ -405,6 +461,8 @@ async function _getUnconfirmablePlanItems(
     .eq('status', 'confirmed')
     .is('inspection_id', null)
   return ((data ?? []) as Array<Record<string, unknown>>)
+    // legacy 항목의 plan_type null은 소방 — neq 쿼리는 null까지 걸러내므로 JS에서 event만 제외
+    .filter(r => (r.plan_type as string | null) !== 'event')
     .map(r => {
       const plan = r.inspection_plans as { year: number; month: number }
       return {
@@ -420,7 +478,8 @@ async function _getUnconfirmablePlanItems(
 /** 점검유형 변경 시 미확정(planned) 계획 항목 동기화 — 확정·완료·취소는 불변 (변경전파맵 1-11)
  *  - 종합/작동 간 전환: inspection_type·sub_type·plan_type(special_종합↔special_작동) 갱신
  *  - 작동 전환: 미확정 2차 특별점검 삭제 (연 1회) / 종합 전환: 연간 항목 보충 생성(멱등, 2차 포함)
- *  - 일반관리 전환: 소방안전관리 자동 계획(planned) 삭제 */
+ *  - 일반관리 전환: 소방안전관리 자동 계획(planned) 삭제 + 점검계획일 event 1건 생성(자동 확정)
+ *  - 일반관리 → 소방 전환: event(자동 확정 포함, 미시작) 삭제 후 연간 생성으로 대체 */
 async function _syncInspectionTypeToPlanItems(
   admin: ReturnType<typeof createAdminClient>,
   customerId: string,
@@ -430,8 +489,18 @@ async function _syncInspectionTypeToPlanItems(
   if (newType === '일반관리') {
     await admin.from('inspection_plan_items').delete()
       .eq('customer_id', customerId).eq('status', 'planned').eq('inspection_category', '소방안전관리')
+    const { data: genRaw } = await admin.from('customers')
+      .select('plan_anchor_date, assigned_employee_id').eq('id', customerId).single()
+    const gen = genRaw as { plan_anchor_date: string | null; assigned_employee_id: string | null } | null
+    if (gen?.plan_anchor_date) {
+      await _createGeneralEventItem(admin, customerId, gen.plan_anchor_date, gen.assigned_employee_id, actorId)
+    }
     return
   }
+  // 일반관리 → 소방 전환: 1회성 event(자동 확정 포함)는 소방 계획 체계와 무관 — 삭제 후 아래 연간 생성으로 대체
+  await admin.from('inspection_plan_items').delete()
+    .eq('customer_id', customerId).in('status', ['planned', 'confirmed'])
+    .eq('plan_type', 'event').is('inspection_id', null)
   const subType: '종합' | '작동' = newType === '종합' ? '종합' : '작동'
   const { data: items } = await admin
     .from('inspection_plan_items')
@@ -547,7 +616,22 @@ export async function updateCustomerAction(
         .update({ status: 'planned' } as Record<string, unknown>)
         .in('id', confirmedItems.map(i => i.id))
     }
-    await _resetPlanItemsForCustomer(admin, customerId, { plan_anchor_date: newAnchorDate })
+    const effectiveType = input.inspection_type ?? prev?.inspection_type
+    if (effectiveType === '일반관리') {
+      // 일반관리: 1회성 event를 새 점검계획일로 삭제 후 재생성(자동 확정) — 달이 바뀌어도 해당 월 계획으로 정확히 이동
+      // 자동 확정 상태(confirmed)도 계획일이 곧 확정일이므로 함께 교체 — 점검 시작된 항목만 불변
+      await admin.from('inspection_plan_items').delete()
+        .eq('customer_id', customerId).in('status', ['planned', 'confirmed'])
+        .eq('plan_type', 'event').is('inspection_id', null)
+      if (newAnchorDate) {
+        const { data: empRaw } = await admin.from('customers')
+          .select('assigned_employee_id').eq('id', customerId).single()
+        const emp = empRaw as { assigned_employee_id: string | null } | null
+        await _createGeneralEventItem(admin, customerId, newAnchorDate, emp?.assigned_employee_id ?? null, profile.id)
+      }
+    } else {
+      await _resetPlanItemsForCustomer(admin, customerId, { plan_anchor_date: newAnchorDate })
+    }
   }
 
   // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
@@ -980,90 +1064,6 @@ export async function deleteCustomerAction(
   return {}
 }
 
-/** 일반관리 고객 점검일 수동 등록 (V10 §6-C) — plan_item(event) 생성 → 점검달력 반영 */
-export async function registerGeneralInspectionAction(input: {
-  customerId: string
-  plannedDate: string          // YYYY-MM-DD
-  assignedEmployeeId?: string
-  memo?: string
-}): Promise<{ error?: string }> {
-  const profile = await requirePermission('customer_manage')
-  const admin = createAdminClient()
-
-  const { data: custRaw } = await admin
-    .from('customers')
-    .select('inspection_type, customer_name')
-    .eq('id', input.customerId)
-    .single()
-  const cust = custRaw as { inspection_type: string; customer_name: string } | null
-  if (!cust) return { error: '고객을 찾을 수 없습니다.' }
-  if (cust.inspection_type !== '일반관리') {
-    return { error: '일반관리 고객만 점검일을 직접 등록할 수 있습니다. (소방안전관리는 점검계획일 기준 자동 생성)' }
-  }
-
-  const d = new Date(input.plannedDate)
-  if (isNaN(d.getTime())) return { error: '점검 예정일이 올바르지 않습니다.' }
-  const year = d.getFullYear()
-  const month = d.getMonth() + 1
-
-  // 해당 년/월 계획 헤더 확보 (없으면 생성 — UNIQUE(year,month) 충돌 시 기존 행 사용)
-  let planId: string | null = null
-  const { data: plan } = await admin
-    .from('inspection_plans')
-    .select('id')
-    .eq('year', year)
-    .eq('month', month)
-    .maybeSingle()
-  if (plan) {
-    planId = (plan as { id: string }).id
-  } else {
-    const { data: created, error: planErr } = await admin
-      .from('inspection_plans')
-      .insert({ year, month, status: 'draft', auto_generated: false, created_by: profile.id } as Record<string, unknown>)
-      .select('id')
-      .single()
-    if (planErr?.code === '23505') {
-      const { data: dup } = await admin
-        .from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
-      planId = (dup as { id: string } | null)?.id ?? null
-    } else if (created) {
-      planId = (created as { id: string }).id
-    }
-  }
-  if (!planId) return { error: '월간 계획 생성에 실패했습니다.' }
-
-  const { error } = await admin
-    .from('inspection_plan_items')
-    .insert({
-      plan_id: planId,
-      customer_id: input.customerId,
-      inspection_type: '일반관리',
-      inspection_category: '일반관리',
-      sequence_num: 1,
-      plan_type: 'event',
-      planned_date: input.plannedDate,
-      scheduled_date: null,
-      status: 'planned',
-      assigned_employee_id: input.assignedEmployeeId || null,
-      notes: input.memo?.trim() || null,
-    } as Record<string, unknown>)
-  if (error) return { error: `점검일 등록 실패: ${error.message}` }
-
-  // 점검이력 기록
-  await admin.from('activity_logs').insert({
-    actor_id: profile.id,
-    action: 'general_inspection_registered',
-    entity_type: 'customer',
-    entity_id: input.customerId,
-    metadata: { planned_date: input.plannedDate, memo: input.memo ?? null },
-  } as Record<string, unknown>)
-
-  revalidatePath('/customers')
-  revalidatePath('/inspection-plans')
-  revalidatePath('/inspections/calendar')
-  return {}
-}
-
 /** ADD-2/ADD-4: 주소 선택 시 중복 고객 확인 + 기존 건물정보 자동 로드 */
 export async function checkAddressAction(address: string): Promise<{
   duplicate?: { id: string; customer_name: string; inspection_type: string; employee_name: string | null }
@@ -1283,9 +1283,20 @@ export async function patchCustomerFieldAction(
         .update({ status: 'planned' } as Record<string, unknown>)
         .in('id', confirmedItems.map(i => i.id))
     }
-    await _resetPlanItemsForCustomer(admin, customerId, {
-      plan_anchor_date: field === 'plan_anchor_date' ? (value || null) : (prevRow?.plan_anchor_date ?? null),
-    })
+    if (prevRow?.inspection_type === '일반관리') {
+      // 일반관리: 1회성 event를 새 점검계획일로 삭제 후 재생성(자동 확정) — 달이 바뀌어도 해당 월 계획으로 정확히 이동
+      // 자동 확정 상태(confirmed)도 계획일이 곧 확정일이므로 함께 교체 — 점검 시작된 항목만 불변
+      await admin.from('inspection_plan_items').delete()
+        .eq('customer_id', customerId).in('status', ['planned', 'confirmed'])
+        .eq('plan_type', 'event').is('inspection_id', null)
+      if (value) {
+        await _createGeneralEventItem(admin, customerId, value, prevRow?.assigned_employee_id ?? null, profile.id)
+      }
+    } else {
+      await _resetPlanItemsForCustomer(admin, customerId, {
+        plan_anchor_date: field === 'plan_anchor_date' ? (value || null) : (prevRow?.plan_anchor_date ?? null),
+      })
+    }
   }
 
   // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)

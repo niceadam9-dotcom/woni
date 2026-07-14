@@ -5,7 +5,6 @@ import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ToggleActiveClient } from '@/components/customers/toggle-active-client'
 import { DeleteCustomerClient } from '@/components/customers/delete-customer-client'
-import { GeneralInspectionRegisterClient } from '@/components/customers/general-inspection-register-client'
 import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
@@ -286,14 +285,6 @@ export default async function CustomersPage({
                         >
                           상세보기
                         </Link>
-                        {canCreate && c.inspection_type === '일반관리' && (
-                          <GeneralInspectionRegisterClient
-                            customerId={c.id}
-                            customerName={c.customer_name}
-                            employees={employees}
-                            defaultEmployeeId={c.assigned_employee_id}
-                          />
-                        )}
                         {canDelete && (
                           <DeleteCustomerClient customerId={c.id} customerName={c.customer_name} />
                         )}

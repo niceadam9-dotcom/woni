@@ -103,8 +103,7 @@ export default async function InspectionPlansPage({
       id: string; customer_name: string; inspection_type: string
       assigned_employee_id: string | null
     }
-    // 소방안전관리(종합/작동)만 초과 판정 — 일반관리는 법정 특별점검 대상 아님
-    if (cust.inspection_type === '일반관리') continue
+    // 초과 판정: 종합/작동 1·2차 + 일반관리 1차(점검계획일 달) — 일반관리도 event 자동 생성과 일관되게 관리
     const anchorDate = anchorMap.get(cust.id)
     if (!anchorDate) continue
 
@@ -124,7 +123,8 @@ export default async function InspectionPlansPage({
       })
     }
 
-    if (!wraps && secondMonth < month && !handledKey.has(`${cust.id}-2-${secondMonth}`)) {
+    // 2차(+6개월)는 종합만 — 작동은 연 1회(2차 없음), 일반관리는 1회성 event라 2차 판정 제외
+    if (cust.inspection_type === '종합' && !wraps && secondMonth < month && !handledKey.has(`${cust.id}-2-${secondMonth}`)) {
       overdueItems.push({
         customer_id: cust.id, customer_name: cust.customer_name,
         inspection_type: cust.inspection_type,
