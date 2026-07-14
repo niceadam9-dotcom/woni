@@ -1,13 +1,15 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { LedgerClient, type LedgerRow } from '@/components/inspection-ledger/ledger-client'
 import type { UserRole } from '@/types'
 
-/** 점검 대장 (소방점검리스트, doc02 §4-6) — 연간 점검 실적·계약 대장 */
+/** 점검 대장 (소방점검리스트, doc02 §4-6) — 연간 점검 실적·계약 대장
+ *  접근은 전 직원, 계약료(금액)는 billing_manage(매니저 이상)만 — 돈은 매니저 이상 정책(B안) */
 export default async function InspectionLedgerPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  const canViewFee = can(profile.role as UserRole, 'billing_manage')
 
   const admin = createAdminClient()
   const [custRes, contactRes, bldRes] = await Promise.all([
@@ -40,9 +42,10 @@ export default async function InspectionLedgerPage() {
     contact: contactMap.get(c.id)?.name ?? '',
     phone: contactMap.get(c.id)?.phone ?? '',
     fireStation: c.fire_station ?? '',
-    fee: c.inspection_type === '일반관리' ? c.fee_taxed : c.monthly_fee_taxed,
+    // 금액은 서버에서 차단 — 직원에게는 데이터 자체를 보내지 않음 (화면 숨김이 아닌 미전송)
+    fee: canViewFee ? (c.inspection_type === '일반관리' ? c.fee_taxed : c.monthly_fee_taxed) : null,
     feeKind: c.inspection_type === '일반관리' ? '건별' : '월정액',
   }))
 
-  return <LedgerClient rows={rows} canManage={['manager', 'admin'].includes(profile.role as UserRole)} />
+  return <LedgerClient rows={rows} canViewFee={canViewFee} />
 }

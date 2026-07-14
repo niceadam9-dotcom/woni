@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BillingStatusClient } from '@/components/billing/billing-status-client'
 import type { UserRole } from '@/types'
@@ -8,8 +8,8 @@ export default async function BillingStatusPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
-  // manager / admin 전용
-  if ((profile.role as UserRole) === 'employee') redirect('/dashboard')
+  // 정산 권한(매니저 이상) — 역할 목록은 permissions.ts 한 곳에서 관리
+  if (!can(profile.role as UserRole, 'billing_manage')) redirect('/dashboard')
 
   const admin = createAdminClient()
   const now   = new Date()

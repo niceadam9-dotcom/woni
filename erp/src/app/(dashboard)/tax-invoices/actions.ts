@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireRole } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 
 // 세금계산서 발행 처리
 export async function issueTaxInvoiceAction(input: {
@@ -10,7 +10,7 @@ export async function issueTaxInvoiceAction(input: {
   issueDate: string
   approvalNum?: string | null
 }): Promise<{ error?: string }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('tax_invoice_manage')
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -31,7 +31,7 @@ export async function issueTaxInvoiceAction(input: {
 
 // 세금계산서 취소
 export async function cancelTaxInvoiceAction(billId: string): Promise<{ error?: string }> {
-  await requireRole(['manager', 'admin'])
+  await requirePermission('tax_invoice_manage')
   const admin = createAdminClient()
 
   const { error } = await admin

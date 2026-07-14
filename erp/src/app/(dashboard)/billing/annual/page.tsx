@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AnnualCollectionClient, type CollectionRow, type StationRow } from '@/components/billing/annual-collection-client'
 import type { UserRole } from '@/types'
@@ -10,7 +10,8 @@ export default async function AnnualCollectionPage({
 }: { searchParams: Promise<{ year?: string }> }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (!['manager', 'admin'].includes(profile.role as UserRole)) redirect('/dashboard')
+  // 정산 권한(매니저 이상) — 역할 목록은 permissions.ts 한 곳에서 관리
+  if (!can(profile.role as UserRole, 'billing_manage')) redirect('/dashboard')
 
   const sp = await searchParams
   const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : String(new Date().getFullYear())

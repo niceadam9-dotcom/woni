@@ -16,7 +16,7 @@ const TYPE_STYLE: Record<string, string> = {
   '종합': 'bg-[#f5f4ff] text-[#7b68ee]', '작동': 'bg-blue-50 text-blue-600', '일반관리': 'bg-gray-100 text-gray-600',
 }
 
-export function LedgerClient({ rows, canManage }: { rows: LedgerRow[]; canManage: boolean }) {
+export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewFee: boolean }) {
   const [q, setQ] = useState('')
   const [region, setRegion] = useState('')
   const [type, setType] = useState('')
@@ -35,7 +35,7 @@ export function LedgerClient({ rows, canManage }: { rows: LedgerRow[]; canManage
       번호: i + 1, 대상물: r.name, 구분: r.type, 점검계획일: r.planDate ?? '',
       지역: r.region, 연면적: r.area ?? '', 사용승인일: r.useApproval ?? '',
       관계인: r.contact, 연락처: r.phone, 관할소방서: r.fireStation,
-      계약료: r.fee ?? '', 과금: r.feeKind,
+      ...(canViewFee ? { 계약료: r.fee ?? '', 과금: r.feeKind } : {}),
     }))
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -51,7 +51,7 @@ export function LedgerClient({ rows, canManage }: { rows: LedgerRow[]; canManage
         <BookText className="size-6 text-[#7b68ee]" />
         <div className="flex-1">
           <h1 className="text-xl font-bold text-[#090c1d]">점검 대장 <span className="text-sm font-normal text-[#514b81]">2026</span></h1>
-          <p className="text-xs text-[#b0acd6]">연간 점검 실적·계약 대장 ({filtered.length}곳 · 계약료 합계 {totalFee.toLocaleString()}원)</p>
+          <p className="text-xs text-[#b0acd6]">연간 점검 실적·계약 대장 ({filtered.length}곳{canViewFee ? ` · 계약료 합계 ${totalFee.toLocaleString()}원` : ''})</p>
         </div>
         <button onClick={exportXlsx} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors">
           <Download className="size-4" /> 엑셀
@@ -79,7 +79,7 @@ export function LedgerClient({ rows, canManage }: { rows: LedgerRow[]; canManage
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa] text-xs text-[#514b81]">
-                {['#', '대상물', '구분', '점검계획일', '지역', '연면적', '사용승인일', '관계인', '연락처', '관할서', '계약료'].map(h => (
+                {['#', '대상물', '구분', '점검계획일', '지역', '연면적', '사용승인일', '관계인', '연락처', '관할서', ...(canViewFee ? ['계약료'] : [])].map(h => (
                   <th key={h} className="text-left px-3 py-2.5 font-semibold">{h}</th>
                 ))}
               </tr>
@@ -99,7 +99,9 @@ export function LedgerClient({ rows, canManage }: { rows: LedgerRow[]; canManage
                   <td className="px-3 py-2 text-xs text-[#292d34]">{r.contact || '-'}</td>
                   <td className="px-3 py-2 text-xs text-[#514b81]">{r.phone || '-'}</td>
                   <td className="px-3 py-2 text-xs text-[#514b81]">{r.fireStation || '-'}</td>
-                  <td className="px-3 py-2 text-xs text-[#292d34]">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-[10px] text-[#b0acd6] ml-1">{r.feeKind}</span></td>
+                  {canViewFee && (
+                    <td className="px-3 py-2 text-xs text-[#292d34]">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-[10px] text-[#b0acd6] ml-1">{r.feeKind}</span></td>
+                  )}
                 </tr>
               ))}
             </tbody>
