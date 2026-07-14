@@ -26,12 +26,14 @@ type ItemView = Record<string, unknown> & {
   profiles: { name: string } | null
 }
 
+// 완료·취소는 수동 변경 불가 — 완료는 점검 6단계 완료 시 자동 전환(P-19), 취소는 전용 플로우
 const STATUS_OPTIONS: { value: PlanItemStatus; label: string }[] = [
   { value: 'planned',   label: '계획' },
   { value: 'confirmed', label: '확정' },
-  { value: 'completed', label: '완료' },
-  { value: 'cancelled', label: '취소' },
 ]
+const STATUS_READONLY_LABEL: Partial<Record<PlanItemStatus, string>> = {
+  completed: '완료', cancelled: '취소',
+}
 
 interface Props {
   item: ItemView
@@ -48,6 +50,8 @@ interface Props {
 
 export function PlanItemSlidePanel({ item, employees, canManage, canAssign = canManage, canEditOwnItem = false, planAnchorDate = null, onClose, onSaved }: Props) {
   const canEdit = canManage || canEditOwnItem
+  // 완료·취소 항목은 일정·상태 잠금 (담당·메모 정리만 허용)
+  const statusEditable = item.status === 'planned' || item.status === 'confirmed'
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const todayStr = new Date().toISOString().split('T')[0]
@@ -108,9 +112,9 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
     startTransition(async () => {
       const res = await updatePlanItemAction({
         itemId: item.id,
-        scheduledDate:      scheduledDate || null,
+        // 완료·취소 항목은 일정·상태를 보내지 않음 (담당·메모만 수정)
+        ...(statusEditable ? { scheduledDate: scheduledDate || null, status } : {}),
         assignedEmployeeId: assignedEmployeeId || null,
-        status,
         notes:              notes || null,
       })
       if (res.error) { setError(res.error); return }
@@ -205,9 +209,14 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
                 <DateInput
                   value={scheduledDate}
                   onChange={e => setScheduledDate(e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !statusEditable}
                   className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
                 />
+                {canEdit && statusEditable && (
+                  <p className="text-[11px] text-[#b0acd6] mt-1">
+                    예정일 저장 시 자동으로 <b className="text-[#7b68ee]">확정</b>되고 1~6단계 일정이 재계산됩니다
+                  </p>
+                )}
               </div>
 
               <div>
@@ -227,16 +236,44 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
 
               <div>
                 <label className="text-xs font-medium text-[#514b81] mb-1 block">상태</label>
-                <select
-                  value={status}
-                  onChange={e => setStatus(e.target.value as PlanItemStatus)}
-                  disabled={!canEdit}
-                  className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
-                >
-                  {STATUS_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                {statusEditable ? (
+                  <>
+                    <select
+                      value={status}
+                      onChange={e => setStatus(e.target.value as PlanItemStatus)}
+                      disabled={!canEdit}
+                      className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
+                    >
+                      {STATUS_OPTIONS.map(o => (
+                        // 점검이 시작된 항목은 계획으로 되돌릴 수 없음
+                        <option key={o.value} value={o.value} disabled={o.value === 'planned' && !!item.inspection_id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {item.inspection_id ? (
+                      <p className="text-[11px] text-[#b0acd6] mt-1">
+                        점검이 시작된 항목은 <b>계획</b>으로 되돌릴 수 없습니다
+                      </p>
+                    ) : item.status === 'confirmed' && status === 'planned' ? (
+                      <p className="text-[11px] text-orange-500 mt-1 flex items-center gap-1">
+                        <AlertCircle className="size-3 shrink-0" />
+                        저장 시 확정이 해제되고 1~6단계 일정이 초기화됩니다
+                      </p>
+                    ) : item.status === 'confirmed' ? (
+                      <p className="text-[11px] text-[#b0acd6] mt-1">
+                        점검 시작 전에는 <b>계획</b>으로 되돌릴 수 있습니다 (해제 시 1~6단계 일정 초기화)
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 bg-[#fafafa] flex items-center justify-between">
+                    <span className="text-[#090c1d]">{STATUS_READONLY_LABEL[item.status]}</span>
+                    <span className="text-[10px] text-[#b0acd6]">
+                      {item.status === 'completed' ? '점검 완료 시 자동 전환' : '수동 변경 불가'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
