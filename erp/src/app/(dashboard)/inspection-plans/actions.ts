@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
 import { loadAnchorDates } from '@/lib/inspection-plan-generator'
-import { notifyIfEnabled } from '@/lib/notify'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
 
 // ── 6단계 마감일 동기화: inspection_steps.due_date ← plan_item.step1~6_date ──
@@ -214,19 +213,16 @@ export async function addPlanItemAction(input: {
  *    자동 확정 + 6단계 재계산 + (시작된 점검) 체크리스트 마감·시작일 동기화.
  *    1단계(점검일) 완료된 점검은 날짜 변경 불가 (사실 기록 — 점검 상세에서만)
  *  - 상태: 계획↔확정만. 완료는 점검 6단계 완료 시 자동(P-19), 취소는 전용 플로우
- *  - 담당 변경: 진행중 점검 동기화 + 배정 알림 (고객관리 1-2와 동일 수준)
+ *  - 담당직원은 여기서 수정 불가(2026-07-14 편집 제거) — 고객관리에서만 변경(1-2 전파)
  *  - 활동 로그 + 점검확정·모니터링·점검업무·점검달력 갱신 */
 export async function updatePlanItemAction(input: {
   itemId: string
   scheduledDate?: string | null
-  assignedEmployeeId?: string | null
   status?: PlanItemStatus
   notes?: string | null
 }): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_plan_item_update')
   const admin = createAdminClient()
-  // B안(2026-07-08): 일반직원도 전체 계획 항목 수정 가능 — 담당직원 변경만 매니저 이상
-  const isEmployee = profile.role === 'employee'
 
   // 완료·취소는 직접 변경 불가 — 실제 점검 상태와 어긋난 유령 완료/취소 방지
   if (input.status === 'completed' || input.status === 'cancelled') {
@@ -236,19 +232,16 @@ export async function updatePlanItemAction(input: {
   // 변경 감지·전파 판단용 현재 값 조회
   const { data: curRaw } = await admin
     .from('inspection_plan_items')
-    .select('customer_id, scheduled_date, status, assigned_employee_id, inspection_id, customers:customer_id (customer_name)')
+    .select('customer_id, scheduled_date, status, inspection_id')
     .eq('id', input.itemId)
     .single()
   const cur = curRaw as {
     customer_id: string; scheduled_date: string | null; status: PlanItemStatus
-    assigned_employee_id: string | null; inspection_id: string | null
-    customers: { customer_name: string } | null
+    inspection_id: string | null
   } | null
   if (!cur) return { error: '계획 항목을 찾을 수 없습니다.' }
 
   const dateChanged   = input.scheduledDate !== undefined && input.scheduledDate !== cur.scheduled_date
-  const assignChanged = !isEmployee && input.assignedEmployeeId !== undefined
-    && input.assignedEmployeeId !== cur.assigned_employee_id
   const statusChanged = input.status !== undefined && input.status !== cur.status
 
   // 완료·취소 항목은 일정 변경 불가 (메모·담당 정리는 허용)
@@ -258,7 +251,7 @@ export async function updatePlanItemAction(input: {
 
   // 시작된 점검의 날짜 변경 가드 — 1단계(점검일) 완료 후는 사실 기록이라 계획에서 변경 불가
   if (cur.inspection_id && dateChanged) {
-    if (input.scheduledDate === null) return { error: '점검이 시작된 항목은 예정일을 비울 수 없습니다.' }
+    if (input.scheduledDate === null) return { error: '점검이 시작된 항목은 점검일을 비울 수 없습니다.' }
     const { data: s1 } = await admin.from('inspection_steps')
       .select('status').eq('inspection_id', cur.inspection_id).eq('step_num', 1).single()
     if ((s1 as { status: string } | null)?.status === 'completed') {
@@ -271,7 +264,7 @@ export async function updatePlanItemAction(input: {
     || (input.status === 'confirmed' && cur.status === 'planned')
   if (wantConfirm) {
     const confirmDate = dateChanged ? input.scheduledDate! : cur.scheduled_date
-    if (!confirmDate) return { error: '확정하려면 점검 예정일을 입력해주세요.' }
+    if (!confirmDate) return { error: '확정하려면 점검일을 입력해주세요.' }
     const res = await confirmPlanItemStageOneAction(input.itemId, confirmDate)
     if (res.error) return res
 
@@ -301,7 +294,6 @@ export async function updatePlanItemAction(input: {
     patch.step1_date = null; patch.step2_date = null; patch.step3_date = null
     patch.step4_date = null; patch.step5_date = null; patch.step6_date = null
   }
-  if (assignChanged)                patch.assigned_employee_id = input.assignedEmployeeId
   if (input.notes !== undefined)    patch.notes                = input.notes
 
   if (Object.keys(patch).length > 0) {
@@ -312,30 +304,10 @@ export async function updatePlanItemAction(input: {
     if (error) return { error: '항목 수정에 실패했습니다.' }
   }
 
-  // ── 담당 변경 전파: 진행중 점검 동기화 + 배정 알림 (1-2와 동일 수준)
-  if (assignChanged) {
-    if (cur.inspection_id) {
-      await admin.from('inspections')
-        .update({ assigned_employee_id: input.assignedEmployeeId } as Record<string, unknown>)
-        .eq('id', cur.inspection_id)
-        .not('status', 'in', '("completed","cancelled")')
-    }
-    if (input.assignedEmployeeId) {
-      await notifyIfEnabled(admin, input.assignedEmployeeId, 'assignment', {
-        title: '점검 담당자 배정',
-        message: `"${cur.customers?.customer_name ?? '고객'}" 점검 항목의 담당자로 배정되었습니다.`,
-        type: 'inspection_assigned',
-        reference_id: input.itemId,
-        reference_type: 'inspection',
-      })
-    }
-  }
-
   // ── 활동 로그 (실변경만)
-  if (dateChanged || assignChanged || statusChanged) {
+  if (dateChanged || statusChanged) {
     const changes: Array<{ field: string; old_value: string | null; new_value: string | null }> = []
     if (dateChanged)   changes.push({ field: 'scheduled_date', old_value: cur.scheduled_date, new_value: input.scheduledDate ?? null })
-    if (assignChanged) changes.push({ field: 'assigned_employee_id', old_value: cur.assigned_employee_id, new_value: input.assignedEmployeeId ?? null })
     if (statusChanged) changes.push({ field: 'status', old_value: cur.status, new_value: input.status ?? null })
     await admin.from('activity_logs').insert({
       actor_id: profile.id,

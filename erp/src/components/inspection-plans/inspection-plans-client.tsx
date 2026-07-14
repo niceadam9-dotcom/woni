@@ -502,9 +502,7 @@ export function InspectionPlansClient({
       {selectedItem && (
         <PlanItemSlidePanel
           item={selectedItem}
-          employees={employees}
           canManage={canManage}
-          canAssign={!isEmployee}
           canEditOwnItem={isEmployee}
           planAnchorDate={customers.find(c => c.id === selectedItem.customer_id)?.plan_anchor_date ?? null}
           onClose={() => setSelectedItem(null)}
@@ -961,15 +959,6 @@ function ListView({
     })
   }
 
-  // 담당자 재배정 (매니저 이상) — 퇴사자 담당 항목 정리용
-  function handleReassign(itemId: string, employeeId: string | null) {
-    startBulkTransition(async () => {
-      const res = await updatePlanItemAction({ itemId, assignedEmployeeId: employeeId })
-      if (res.error) { alert(res.error); return }
-      onRefresh()
-    })
-  }
-
   function handleBulkConfirm() {
     startBulkTransition(async () => {
       for (const item of confirmableSelected) {
@@ -1102,31 +1091,15 @@ function ListView({
                     ? <span className="text-xs text-gray-400">정기</span>
                     : `${item.sequence_num}차`}
                 </td>
-                <td className="px-3 py-2.5 text-[#514b81] truncate" onClick={e => e.stopPropagation()}>
+                {/* 담당은 고객관리와 단일 소스 — 인라인 재배정 드롭다운 제거(2026-07-14), 변경은 고객관리에서 (1-2 전파) */}
+                <td className="px-3 py-2.5 text-[#514b81] truncate">
                   {(() => {
                     const assigneeId = item.assigned_employee_id as string | null
                     const assigneeName = (item.profiles as { name: string } | null)?.name ?? null
                     const isOrphan = !!assigneeId && !employees.some(e2 => e2.id === assigneeId)
-                    if (!canManage) {
-                      return assigneeName
-                        ? <>{assigneeName}{isOrphan && <span className="ml-1 text-[10px] text-red-500">(퇴사)</span>}</>
-                        : <span className="text-[#b0acd6]">미배정</span>
-                    }
-                    return (
-                      <select
-                        value={assigneeId ?? ''}
-                        onChange={e => handleReassign(item.id, e.target.value || null)}
-                        disabled={bulkPending}
-                        className={`h-7 max-w-[110px] px-1 text-xs rounded border bg-transparent cursor-pointer transition-colors ${
-                          isOrphan ? 'border-red-300 text-red-600' : 'border-transparent hover:border-[#c3bdf5] text-[#514b81]'
-                        }`}
-                        title={isOrphan ? '퇴사한 직원 담당 — 재배정이 필요합니다' : '담당자 변경'}
-                      >
-                        <option value="">미배정</option>
-                        {isOrphan && <option value={assigneeId!}>{assigneeName ?? '?'} (퇴사)</option>}
-                        {employees.map(e2 => <option key={e2.id} value={e2.id}>{e2.name}</option>)}
-                      </select>
-                    )
+                    return assigneeName
+                      ? <>{assigneeName}{isOrphan && <span className="ml-1 text-[10px] text-red-500" title="퇴사한 직원 담당 — 고객관리에서 재배정이 필요합니다">(퇴사)</span>}</>
+                      : <span className="text-[#b0acd6]">미배정</span>
                   })()}
                 </td>
                 <td className="px-3 py-2.5">

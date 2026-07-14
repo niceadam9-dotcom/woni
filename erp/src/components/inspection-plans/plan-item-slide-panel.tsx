@@ -16,7 +16,6 @@ type StepInfo = {
   due_date: string | null; status: string; completed_at: string | null
 }
 
-type Employee = { id: string; name: string; position: string | null }
 type ItemView = Record<string, unknown> & {
   id: string; customer_id: string; inspection_type: InspectionType
   sequence_num: 1 | 2; scheduled_date: string | null; status: PlanItemStatus
@@ -37,10 +36,7 @@ const STATUS_READONLY_LABEL: Partial<Record<PlanItemStatus, string>> = {
 
 interface Props {
   item: ItemView
-  employees: Employee[]
   canManage: boolean
-  /** 담당직원 변경 권한 — B안: 매니저 이상만 (미지정 시 canManage 따름) */
-  canAssign?: boolean
   canEditOwnItem?: boolean
   /** 고객의 점검계획일 원본(customers.plan_anchor_date) — 고객관리와 단일 소스로 동기화, 편집 시 기준일 변경 플로우(B안 팝업) 적용 */
   planAnchorDate?: string | null
@@ -48,7 +44,7 @@ interface Props {
   onSaved: () => void
 }
 
-export function PlanItemSlidePanel({ item, employees, canManage, canAssign = canManage, canEditOwnItem = false, planAnchorDate = null, onClose, onSaved }: Props) {
+export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, planAnchorDate = null, onClose, onSaved }: Props) {
   const canEdit = canManage || canEditOwnItem
   // 완료·취소 항목은 일정·상태 잠금 (담당·메모 정리만 허용)
   const statusEditable = item.status === 'planned' || item.status === 'confirmed'
@@ -56,7 +52,6 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
   const [isPending, startTransition] = useTransition()
   const todayStr = new Date().toISOString().split('T')[0]
   const [scheduledDate,       setScheduledDate]       = useState(item.scheduled_date ?? todayStr)
-  const [assignedEmployeeId,  setAssignedEmployeeId]  = useState(item.assigned_employee_id ?? '')
   const [status,              setStatus]              = useState<PlanItemStatus>(item.status)
   const [notes,               setNotes]               = useState(item.notes ?? '')
   const [error,               setError]               = useState('')
@@ -112,10 +107,9 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
     startTransition(async () => {
       const res = await updatePlanItemAction({
         itemId: item.id,
-        // 완료·취소 항목은 일정·상태를 보내지 않음 (담당·메모만 수정)
+        // 완료·취소 항목은 일정·상태를 보내지 않음 (메모만 수정)
         ...(statusEditable ? { scheduledDate: scheduledDate || null, status } : {}),
-        assignedEmployeeId: assignedEmployeeId || null,
-        notes:              notes || null,
+        notes: notes || null,
       })
       if (res.error) { setError(res.error); return }
       onSaved()
@@ -199,7 +193,7 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-[#514b81]">점검 예정일</label>
+                  <label className="text-xs font-medium text-[#514b81]">점검일</label>
                   {!item.scheduled_date && canEdit && (
                     <span className="text-[10px] text-[#7b68ee] bg-[#f5f4ff] px-1.5 py-0.5 rounded-full font-medium">
                       자동 — 오늘 날짜
@@ -214,24 +208,20 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
                 />
                 {canEdit && statusEditable && (
                   <p className="text-[11px] text-[#b0acd6] mt-1">
-                    예정일 저장 시 자동으로 <b className="text-[#7b68ee]">확정</b>되고 1~6단계 일정이 재계산됩니다
+                    점검일 저장 시 자동으로 <b className="text-[#7b68ee]">확정</b>되고 1~6단계 일정이 재계산됩니다
                   </p>
                 )}
               </div>
 
+              {/* 담당은 고객관리와 단일 소스 — 여기서 바꾸면 고객관리로 전파되지 않아 편집 제거 (2026-07-14) */}
               <div>
                 <label className="text-xs font-medium text-[#514b81] mb-1 block">담당직원</label>
-                <select
-                  value={assignedEmployeeId}
-                  onChange={e => setAssignedEmployeeId(e.target.value)}
-                  disabled={!canAssign}
-                  className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
-                >
-                  <option value="">미배정</option>
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
+                <div className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 bg-[#fafafa] flex items-center justify-between">
+                  <span className="text-[#090c1d]">
+                    {(item.profiles as { name: string } | null)?.name ?? <span className="text-[#b0acd6]">미배정</span>}
+                  </span>
+                  <span className="text-[10px] text-[#b0acd6]">고객관리에서 변경</span>
+                </div>
               </div>
 
               <div>
@@ -327,7 +317,7 @@ export function PlanItemSlidePanel({ item, employees, canManage, canAssign = can
                           ? <CheckCircle2 className="size-3 shrink-0" />
                           : <AlertCircle className="size-3 shrink-0" />
                         }
-                        점검 예정일 {item.scheduled_date ? '설정됨' : '설정 필요'}
+                        점검일 {item.scheduled_date ? '설정됨' : '설정 필요'}
                       </div>
                     </div>
                   )}
