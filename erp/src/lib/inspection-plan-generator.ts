@@ -41,6 +41,8 @@ export async function loadAnchorDates(
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
  *  - 종합: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치)
  *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응)
+ *  - 정기(monthly)는 생성 즉시 자동 확정(confirmed, scheduled=planned) — 기준일 규칙으로 날짜가
+ *    이미 결정되는 루틴 방문이라 수동 확정 불필요 (2026-07-14 결정). 특별점검만 planned(수동 확정)
  *  - 기준일 이전 날짜의 항목은 생성 안 함 (최초 점검 전 이행 의무 없음 — 올해 안 기준일의 2차 역행 방지)
  *  이미 존재하는 (plan, customer, sequence) 항목은 UNIQUE 충돌로 건너뜀 — 매년 재실행해도 안전(멱등)
  *  @returns 새로 생성된 항목 수 */
@@ -144,6 +146,7 @@ export async function generateYearlyPlanItems(
       planned = toStr(d)
     }
 
+    const isMonthly = planType === 'monthly'
     const { error } = await admin.from('inspection_plan_items').insert({
       plan_id: planId,
       customer_id: customer.id,
@@ -153,8 +156,8 @@ export async function generateYearlyPlanItems(
       sequence_num,
       assigned_employee_id: assigned_employee_id || null,
       planned_date: planned,
-      scheduled_date: null,
-      status: 'planned',
+      scheduled_date: isMonthly ? planned : null,
+      status: isMonthly ? 'confirmed' : 'planned',
       plan_type: planType,
     } as Record<string, unknown>)
     // 23505 중복 에러는 무시 (멱등)

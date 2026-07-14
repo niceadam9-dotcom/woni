@@ -448,8 +448,8 @@ export type UpdateCustomerResult = {
 }
 
 /** 기준일 변경 시 재계산에서 제외되는 확정(confirmed) 항목 조회 — 점검 미시작(미연결) 건만 해지 대상
- *  일반관리 event는 제외 — 점검계획일 자체가 확정일(자동 확정)이라 계획일 변경 = 확정일 변경이며,
- *  삭제·재생성으로 즉시 따라가므로 확정보호 팝업 대상이 아님 (B안, 2026-07-14) */
+ *  일반관리 event·정기(monthly)는 제외 — 자동 확정 항목이라 기준일 변경 시 재생성/재계산으로
+ *  즉시 따라가며 확정보호 팝업 대상이 아님 (B안 + 정기 자동확정, 2026-07-14) */
 async function _getUnconfirmablePlanItems(
   admin: ReturnType<typeof createAdminClient>,
   customerId: string,
@@ -461,8 +461,8 @@ async function _getUnconfirmablePlanItems(
     .eq('status', 'confirmed')
     .is('inspection_id', null)
   return ((data ?? []) as Array<Record<string, unknown>>)
-    // legacy 항목의 plan_type null은 소방 — neq 쿼리는 null까지 걸러내므로 JS에서 event만 제외
-    .filter(r => (r.plan_type as string | null) !== 'event')
+    // legacy 항목의 plan_type null은 소방 특별 — neq 쿼리는 null까지 걸러내므로 JS에서 제외
+    .filter(r => !['event', 'monthly'].includes((r.plan_type as string | null) ?? ''))
     .map(r => {
       const plan = r.inspection_plans as { year: number; month: number }
       return {
@@ -475,10 +475,11 @@ async function _getUnconfirmablePlanItems(
     .sort((a, b) => (a.year - b.year) || (a.month - b.month))
 }
 
-/** 점검유형 변경 시 미확정(planned) 계획 항목 동기화 — 확정·완료·취소는 불변 (변경전파맵 1-11)
+/** 점검유형 변경 시 계획 항목 동기화 — 대상: planned + 자동 확정 정기(confirmed monthly, 미시작).
+ *  사람이 확정한 특별점검(confirmed special)·완료·취소는 불변 (변경전파맵 1-11)
  *  - 종합/작동 간 전환: inspection_type·sub_type·plan_type(special_종합↔special_작동) 갱신
  *  - 작동 전환: 미확정 2차 특별점검 삭제 (연 1회) / 종합 전환: 연간 항목 보충 생성(멱등, 2차 포함)
- *  - 일반관리 전환: 소방안전관리 자동 계획(planned) 삭제 + 점검계획일 event 1건 생성(자동 확정)
+ *  - 일반관리 전환: 소방 계획(planned + 자동 확정 정기) 삭제 + 점검계획일 event 1건 생성(자동 확정)
  *  - 일반관리 → 소방 전환: event(자동 확정 포함, 미시작) 삭제 후 연간 생성으로 대체 */
 async function _syncInspectionTypeToPlanItems(
   admin: ReturnType<typeof createAdminClient>,
@@ -486,9 +487,12 @@ async function _syncInspectionTypeToPlanItems(
   newType: InspectionType,
   actorId: string,
 ) {
+  // 자동 확정 정기 포함 미시작 항목 필터 (planned 전체 + confirmed monthly)
+  const UNSTARTED_OR = 'status.eq.planned,and(status.eq.confirmed,plan_type.eq.monthly)'
   if (newType === '일반관리') {
     await admin.from('inspection_plan_items').delete()
-      .eq('customer_id', customerId).eq('status', 'planned').eq('inspection_category', '소방안전관리')
+      .eq('customer_id', customerId).eq('inspection_category', '소방안전관리')
+      .is('inspection_id', null).or(UNSTARTED_OR)
     const { data: genRaw } = await admin.from('customers')
       .select('plan_anchor_date, assigned_employee_id').eq('id', customerId).single()
     const gen = genRaw as { plan_anchor_date: string | null; assigned_employee_id: string | null } | null
@@ -506,7 +510,8 @@ async function _syncInspectionTypeToPlanItems(
     .from('inspection_plan_items')
     .select('id, plan_type')
     .eq('customer_id', customerId)
-    .eq('status', 'planned')
+    .is('inspection_id', null)
+    .or(UNSTARTED_OR)
   for (const it of (items ?? []) as Array<{ id: string; plan_type: string | null }>) {
     const newPlanType = it.plan_type?.startsWith('special_') ? `special_${subType}` : it.plan_type
     await admin.from('inspection_plan_items')
@@ -686,12 +691,14 @@ async function _resetPlanItemsForCustomer(
   customerId: string,
   newDates: { plan_anchor_date: string | null },
 ) {
-  // 미확정(planned) plan_items만 재계산 — 확정(confirmed)·완료·취소 항목은 재계획하지 않음 (2026-07-12 결정)
+  // 재계산 대상: 미확정(planned) + 자동 확정 정기(confirmed monthly, 미시작 — 2026-07-14 자동 확정 도입).
+  // 사람이 확정한 특별점검(confirmed special)·완료·취소 항목은 재계획하지 않음 (2026-07-12 결정)
   const { data: items } = await admin
     .from('inspection_plan_items')
-    .select('id, inspection_plans!inner(year, month)')
+    .select('id, status, plan_type, inspection_plans!inner(year, month)')
     .eq('customer_id', customerId)
-    .eq('status', 'planned')
+    .is('inspection_id', null)
+    .or('status.eq.planned,and(status.eq.confirmed,plan_type.eq.monthly)')
 
   if (!items || items.length === 0) return
 
@@ -724,11 +731,15 @@ async function _resetPlanItemsForCustomer(
     return toDateStr(d)
   }
 
-  const resetFields: Record<string, unknown> = {
-    status: 'planned',
-    scheduled_date: null,       // 관리자 재확정 필요
+  const stepResetFields = {
     step1_date: null, step2_date: null, step3_date: null,
     step4_date: null, step5_date: null, step6_date: null,
+  }
+  // 특별점검(planned): 관리자 재확정 필요 — 확정일 초기화
+  const resetFields: Record<string, unknown> = {
+    status: 'planned',
+    scheduled_date: null,
+    ...stepResetFields,
   }
 
   for (const item of items) {
@@ -749,9 +760,16 @@ async function _resetPlanItemsForCustomer(
       }
     }
 
+    // 자동 확정 정기: 확정 유지 + 확정일도 새 기준일로 동행 (수동 재확정 불필요)
+    const it = item as Record<string, unknown>
+    const isAutoMonthly = it.plan_type === 'monthly' && it.status === 'confirmed'
+    const patch: Record<string, unknown> = isAutoMonthly
+      ? { status: 'confirmed', scheduled_date: newPlannedDate, ...stepResetFields }
+      : resetFields
+
     await admin
       .from('inspection_plan_items')
-      .update({ ...resetFields, planned_date: newPlannedDate } as Record<string, unknown>)
+      .update({ ...patch, planned_date: newPlannedDate } as Record<string, unknown>)
       .eq('id', (item as Record<string, unknown>).id as string)
   }
 }

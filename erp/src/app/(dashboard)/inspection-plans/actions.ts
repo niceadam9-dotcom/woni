@@ -335,7 +335,8 @@ export async function confirmPlanItemStageOneAction(
   await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
-  // 일반관리(이벤트) 항목은 6단계 없이 확정일만 저장 (V10 §6-C)
+  // 일반관리(이벤트)·정기(monthly) 항목은 6단계 없이 확정일만 저장 —
+  // 법정 6단계는 특별점검 전용, 정기·일반 점검 체크리스트는 1단계뿐 (V10 §6-C, migration 088)
   const { data: itemInfoRaw } = await admin
     .from('inspection_plan_items')
     .select('plan_type, inspection_type, inspection_id')
@@ -344,6 +345,7 @@ export async function confirmPlanItemStageOneAction(
   const itemInfo = itemInfoRaw as { plan_type: string | null; inspection_type: string; inspection_id: string | null } | null
   if (!itemInfo) return { error: '계획 항목을 찾을 수 없습니다.' }
   const isEvent = itemInfo.plan_type === 'event' || itemInfo.inspection_type === '일반관리'
+    || itemInfo.plan_type === 'monthly'
   if (isEvent) {
     const { error } = await admin
       .from('inspection_plan_items')
@@ -624,6 +626,10 @@ export async function autoGeneratePlanAction(input: {
       const newItems = refItems.map((item) => {
         const custId = (item as Record<string, unknown>).customer_id as string
         const useApprovalDate = anchorMap.get(custId)
+        const planType = ((item as Record<string, unknown>).plan_type ?? null) as string | null
+        const planned = useApprovalDate ? _calcDate(useApprovalDate) : null
+        // 정기(monthly)는 자동 확정 (2026-07-14) — 특별점검만 관리자 확정 대기
+        const autoConfirm = planType === 'monthly' && !!planned
         return {
           plan_id: newPlanId,
           customer_id: custId,
@@ -631,10 +637,10 @@ export async function autoGeneratePlanAction(input: {
           sequence_num: (item as Record<string, unknown>).sequence_num,
           assigned_employee_id: (item as Record<string, unknown>).assigned_employee_id,
           contact_id: (item as Record<string, unknown>).contact_id,
-          plan_type: (item as Record<string, unknown>).plan_type ?? null,
-          planned_date: useApprovalDate ? _calcDate(useApprovalDate) : null,
-          scheduled_date: null,   // 관리자 점검일 확정 전까지 NULL
-          status: 'planned',
+          plan_type: planType,
+          planned_date: planned,
+          scheduled_date: autoConfirm ? planned : null,
+          status: autoConfirm ? 'confirmed' : 'planned',
         }
       })
 

@@ -130,6 +130,11 @@ export function InlineCustomerFieldClient({
     )
   }
 
+  // 드롭다운도 텍스트 입력과 동일하게 Escape = 편집 취소 (저장 없이 종료)
+  function handleSelectKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false) }
+  }
+
   if (field === 'inspection_type') {
     return (
       <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
@@ -137,6 +142,7 @@ export function InlineCustomerFieldClient({
           ref={inputRef as React.RefObject<HTMLSelectElement>}
           value={draft}
           onChange={e => { setDraft(e.target.value); }}
+          onKeyDown={handleSelectKeyDown}
           onBlur={() => handleSave()}
           disabled={isPending}
           className="h-7 px-1 text-xs border border-[#7b68ee] rounded outline-none bg-white"
@@ -154,6 +160,7 @@ export function InlineCustomerFieldClient({
           ref={inputRef as React.RefObject<HTMLSelectElement>}
           value={draft}
           onChange={e => setDraft(e.target.value)}
+          onKeyDown={handleSelectKeyDown}
           onBlur={() => handleSave()}
           disabled={isPending}
           className="h-7 px-1 text-xs border border-[#7b68ee] rounded outline-none bg-white max-w-[120px]"
