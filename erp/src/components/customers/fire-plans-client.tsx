@@ -2,8 +2,10 @@
 
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus } from 'lucide-react'
-import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine } from 'lucide-react'
+import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction, getFirePlanGenDefaultsAction, getFirePlanFormAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { FirePlanGenerateModal } from './fire-plan-generate-modal'
+import type { FirePlanGenData } from '@/lib/fire-plan-template'
 import { DateInput } from '@/components/ui/date-input'
 
 export type FirePlanAttachment = { id: string; kind: string; file_name: string }
@@ -20,6 +22,8 @@ export type FirePlanRow = {
   attachments: FirePlanAttachment[]
   created_at: string
   uploader_name: string | null
+  /** 표준양식 자동 생성분 (pdf_path 규약: generated_*) — [편집·재생성] 노출 */
+  generated: boolean
 }
 
 /** 소방계획서 보관함 (doc02 §8) — 표준양식 PDF 업로드 → ERP에서 자동 인쇄. HWP 원본은 선택 보관 */
@@ -34,6 +38,18 @@ export function FirePlansClient({ customerId, plans, canManage }: {
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [subDraft, setSubDraft] = useState<{ submittedAt: string; fireStation: string }>({ submittedAt: '', fireStation: '' })
+  const [genData, setGenData] = useState<FirePlanGenData | null>(null)
+
+  /** 표준양식 생성 — 신규(기본값 자동 채움) 또는 기존 생성분 재편집 */
+  function openGenerate(planId?: string) {
+    startTransition(async () => {
+      const res = planId
+        ? await getFirePlanFormAction(planId)
+        : await getFirePlanGenDefaultsAction(customerId)
+      if (res.error || !res.data) { alert(res.error ?? '양식 데이터를 불러오지 못했습니다.'); return }
+      setGenData(res.data)
+    })
+  }
 
   function openDetail(p: FirePlanRow) {
     if (expanded === p.id) { setExpanded(null); return }
@@ -146,6 +162,12 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-1.5 justify-end">
+                      {canManage && p.generated && (
+                        <button onClick={() => openGenerate(p.id)} disabled={isPending} title="저장된 양식 데이터를 불러와 수정 후 재생성 (새 개정판)"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                          <PencilLine className="size-3" /> 편집
+                        </button>
+                      )}
                       {canManage && (
                         <button onClick={() => issueNext(p.id)} disabled={isPending} title="다음 연도로 연차발행 (파일 복제)"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
@@ -233,12 +255,31 @@ export function FirePlansClient({ customerId, plans, canManage }: {
       )}
 
       {canManage && !showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          className="mt-3 inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
-        >
-          <Plus className="size-3.5" /> 소방계획서 업로드
-        </button>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => openGenerate()}
+            disabled={isPending}
+            title="고객·건물·시설 데이터로 표준양식 PDF를 생성해 보관함에 저장합니다"
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
+          >
+            <FileOutput className="size-3.5" /> 표준양식 생성
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+          >
+            <Plus className="size-3.5" /> 소방계획서 업로드
+          </button>
+        </div>
+      )}
+
+      {genData && (
+        <FirePlanGenerateModal
+          customerId={customerId}
+          initial={genData}
+          onClose={() => setGenData(null)}
+          onDone={() => { setGenData(null); router.refresh() }}
+        />
       )}
 
       {canManage && showForm && (

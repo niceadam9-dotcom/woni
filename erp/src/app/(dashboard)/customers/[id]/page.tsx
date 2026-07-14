@@ -85,7 +85,7 @@ export default async function CustomerDetailPage({
       .order('created_at', { ascending: false })
       .limit(50),
     admin.from('fire_plans')
-      .select('id, year, title, pdf_name, hwp_name, note, revision, submitted_at, fire_station, created_at, uploaded_by, fire_plan_attachments(id, kind, file_name)')
+      .select('id, year, title, pdf_name, pdf_path, hwp_name, note, revision, submitted_at, fire_station, created_at, uploaded_by, fire_plan_attachments(id, kind, file_name)')
       .eq('customer_id', id)
       .order('year', { ascending: false })
       .order('created_at', { ascending: false }),
@@ -177,7 +177,7 @@ export default async function CustomerDetailPage({
   }
 
   const firePlans: FirePlanRow[] = ((firePlansRes.data ?? []) as Array<{
-    id: string; year: number; title: string | null; pdf_name: string
+    id: string; year: number; title: string | null; pdf_name: string; pdf_path: string
     hwp_name: string | null; note: string | null; revision: number | null
     submitted_at: string | null; fire_station: string | null; created_at: string; uploaded_by: string | null
     fire_plan_attachments: Array<{ id: string; kind: string; file_name: string }> | null
@@ -187,6 +187,7 @@ export default async function CustomerDetailPage({
     revision: p.revision ?? 1, submitted_at: p.submitted_at, fire_station: p.fire_station,
     attachments: p.fire_plan_attachments ?? [],
     uploader_name: p.uploaded_by ? (profileNameMap.get(p.uploaded_by) ?? null) : null,
+    generated: p.pdf_path.includes('generated_'),
   }))
 
   const assignedEmployee = customer.assigned_employee_id
