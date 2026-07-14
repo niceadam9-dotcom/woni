@@ -270,7 +270,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   const INSPECTION_ANNUAL: Record<InspectionType, string> = {
     '종합':     '연 12회 자동 생성 (종합 2회 + 정기 10회)',
     '작동':     '연 12회 자동 생성 (작동 1회 + 정기 11회)',
-    '일반관리': '수동 등록 (자동 생성 없음)',
+    '일반관리': '점검계획일 당일 1건 자동 생성·확정',
   }
 
   return (

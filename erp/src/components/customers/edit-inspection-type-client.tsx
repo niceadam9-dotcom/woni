@@ -86,12 +86,9 @@ export function EditInspectionTypeClient({ customerId, currentType }: Props) {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[type]}`}>
                       {inspectionTypeLabel(type)}
                     </span>
-                    {type === '종합' && (
-                      <span className="text-xs text-[#514b81] ml-auto">연 2회</span>
-                    )}
-                    {type !== '종합' && (
-                      <span className="text-xs text-[#514b81] ml-auto">연 1회</span>
-                    )}
+                    <span className="text-xs text-[#514b81] ml-auto">
+                      {type === '종합' ? '연 2회' : type === '작동' ? '연 1회' : '1회 (점검계획일)'}
+                    </span>
                   </label>
                 ))}
               </div>

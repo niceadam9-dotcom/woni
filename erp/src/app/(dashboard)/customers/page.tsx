@@ -17,10 +17,11 @@ const TYPE_COLORS: Record<InspectionType, string> = {
   '일반관리': 'bg-gray-100 text-gray-600',
 }
 
+// 법정 특별점검 횟수 표시 — 점검유형 파생 라벨 (일반관리는 점검계획일 당일 1회성 event)
 const TYPE_ANNUAL: Record<InspectionType, string> = {
   '종합':   '연 2회',
   '작동':   '연 1회',
-  '일반관리': '연 1회',
+  '일반관리': '1회 (점검계획일)',
 }
 
 export default async function CustomersPage({
@@ -196,7 +197,7 @@ export default async function CustomersPage({
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
-                  {['고객명', '점검유형', '연간횟수', '계약일', '사용승인일', '점검계획일', '담당직원', '상태', ''].map(h => (
+                  {['고객명', '점검유형', '점검횟수', '계약일', '사용승인일', '점검계획일', '담당직원', '상태', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
                       {h}
                     </th>
