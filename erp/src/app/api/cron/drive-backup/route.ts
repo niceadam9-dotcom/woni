@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
       .list(prefix, { limit: 1000, sortBy: { column: 'name', order: 'asc' } })
     if (error) throw new Error(`${bucket}/${prefix} 목록 실패: ${error.message}`)
     for (const item of (data ?? []) as StorageEntry[]) {
+      // 워커 큐·결과(_queue/_results 등 밑줄 시작)는 운영 데이터가 아니므로 백업 제외
+      if (!prefix && item.name.startsWith('_')) continue
       const path = prefix ? `${prefix}/${item.name}` : item.name
       if (item.id === null) await walk(bucket, path, out)  // 폴더
       else out.push(path)
