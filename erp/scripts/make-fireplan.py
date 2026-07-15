@@ -77,8 +77,8 @@ def sdk_app():
 def _xml_escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-def inject_after_label(xml: str, label: str, value: str, nth: int = 1) -> tuple[str, bool]:
-    """서식 표에서 `>label</hp:t>` 라벨 셀 바로 다음 <hp:tc>(값 셀)의 빈 런에 value 주입 (첫 번째만)"""
+def inject_after_label(xml: str, label: str, value: str, nth: int = 1, cell_offset: int = 1) -> tuple[str, bool]:
+    """서식 표에서 nth번째 `>label</hp:t>` 라벨 뒤 cell_offset번째 <hp:tc>(값 셀)의 빈 런에 value 주입"""
     if not value:
         return xml, False
     anchor = -1
@@ -86,9 +86,11 @@ def inject_after_label(xml: str, label: str, value: str, nth: int = 1) -> tuple[
         anchor = xml.find(f">{label}</hp:t>", anchor + 1)
         if anchor < 0:
             return xml, False
-    tc_start = xml.find("<hp:tc ", anchor)
-    if tc_start < 0:
-        return xml, False
+    tc_start = anchor
+    for _ in range(cell_offset):
+        tc_start = xml.find("<hp:tc ", tc_start + 1)
+        if tc_start < 0:
+            return xml, False
     tc_end = xml.find("</hp:tc>", tc_start)
     cell = xml[tc_start:tc_end]
     m = re.search(r'<hp:run charPrIDRef="(\d+)"/>', cell)
@@ -96,32 +98,48 @@ def inject_after_label(xml: str, label: str, value: str, nth: int = 1) -> tuple[
         new_cell = cell.replace(m.group(0),
             f'<hp:run charPrIDRef="{m.group(1)}"><hp:t>{_xml_escape(value)}</hp:t></hp:run>', 1)
         return xml[:tc_start] + new_cell + xml[tc_end:], True
-    # 폴백: 단위만 있는 값 셀 (예: 연면적 칸의 "㎡") — 값으로 대체
-    if "<hp:t>㎡</hp:t>" in cell:
-        new_cell = cell.replace("<hp:t>㎡</hp:t>", f"<hp:t>{_xml_escape(value)}</hp:t>", 1)
-        return xml[:tc_start] + new_cell + xml[tc_end:], True
+    # 폴백: 단위만 있는 값 셀 (㎡/m/원) — 값으로 대체
+    for unit in ("㎡", "m", "원"):
+        token = f"<hp:t>{unit}</hp:t>"
+        if token in cell:
+            new_cell = cell.replace(token, f"<hp:t>{_xml_escape(value)}</hp:t>", 1)
+            return xml[:tc_start] + new_cell + xml[tc_end:], True
     return xml, False
 
-def build_extras(cust: dict, building: dict | None, owner: dict | None = None) -> list[tuple[str, str, int]]:
-    """서식 1.1 빈 칸 주입 목록: (라벨, 값, n번째 라벨)"""
-    extras: list[tuple[str, str, int]] = [
-        ("명칭", cust["customer_name"], 1),
-        ("도로명주소", cust.get("address") or "", 1),
-        ("사용승인일", kdate(cust.get("use_approval_date")), 1),
+def build_extras(cust: dict, building: dict | None, owner: dict | None = None) -> list[tuple[str, str, int, int]]:
+    """빈 칸 주입 목록: (라벨, 값, n번째 라벨, 셀 오프셋)"""
+    extras: list[tuple[str, str, int, int]] = [
+        ("명칭", cust["customer_name"], 1, 1),
+        ("도로명주소", cust.get("address") or "", 1, 1),
+        ("사용승인일", kdate(cust.get("use_approval_date")), 1, 1),
     ]
     if building:
-        extras.append(("주용도", building.get("purpose") or "", 1))
+        extras.append(("주용도", building.get("purpose") or "", 1, 1))
         if building.get("total_area") is not None:
-            extras.append(("연면적", f"{building['total_area']} ㎡", 1))
+            extras.append(("연면적", f"{building['total_area']} ㎡", 1, 1))
         fa, fb = building.get("floors_above"), building.get("floors_below")
         if fa is not None or fb is not None:
-            extras.append(("층수", f"지하 {fb or 0}층 / 지상 {fa or 0}층", 1))
+            extras.append(("층수", f"지하 {fb or 0}층 / 지상 {fa or 0}층", 1, 1))
+        # 5차: 수신기위치(서식1.1 + 1.3), 구조·지붕(037/038 기존 컬럼), 높이(m 단위셀 폴백)
+        rc = building.get("receiver_location") or ""
+        extras += [("수신기위치", rc, 1, 1), ("수신기 위치", rc, 1, 1)]
+        extras.append(("구조", building.get("main_structure") or "", 1, 1))
+        extras.append(("지붕", building.get("roof_structure") or "", 1, 1))
+        if building.get("height") is not None:
+            extras.append(("높이", f"{building['height']} m", 1, 1))
+    # 6차 — 화재보험 값 (서식 1.1: '가입금액' 라벨 뒤 빈 셀 2개 = 보험사·기간, 대인/대물은 '원' 단위셀)
+    extras += [("가입금액", cust.get("insurance_company") or "", 1, 1),
+               ("가입금액", cust.get("insurance_period") or "", 1, 2),
+               ("대인", cust.get("insurance_amount_person") or "", 1, 1),
+               ("대물", cust.get("insurance_amount_property") or "", 1, 1)]
     if owner:
         name, phone = owner.get("name") or "", owner.get("phone") or ""
-        # 서식 1.1 연락처 행: 대표자(책임자)·소방안전관리자 이름 + 2·3번째 "연락처" 칸
-        extras += [("대표자(책임자)", name, 1), ("소방안전관리자", name, 1),
-                   ("연락처", phone, 2), ("연락처", phone, 3)]
-    return [(la, v, n) for la, v, n in extras if v]
+        extras += [("대표자(책임자)", name, 1, 1), ("소방안전관리자", name, 1, 1),
+                   ("연락처", phone, 2, 1), ("연락처", phone, 3, 1)]
+        # 서식 1.7 선임현황 행: 성명(offset2)·선임일자(offset3) — 라벨 2번째 '소방안전관리자' (소속 셀은 구조 상이로 제외)
+        extras += [("소방안전관리자", name, 2, 2),
+                   ("소방안전관리자", kdate(cust.get("manager_selected_at")), 2, 3)]
+    return [(la, v, n, off) for la, v, n, off in extras if v]
 
 # ── 2차 연계: 서식 1.4 시설 체크 + 서식 1.10 자체점검 시기 ──
 FACILITY_ITEMS = [
@@ -149,6 +167,25 @@ def build_stage2(cust: dict, year: int, codes: list[str]) -> dict[str, str]:
     for item in FACILITY_ITEMS:
         if any(code and (code in item or item in code) for code in codes):
             rep[f"□ {item}"] = f"■ {item}"
+    # 6차 — 급수 체크 (서식 1.8·2.1): 양식 예시(■ 3급) 정규화 후 해당 급 마킹
+    grade = cust.get("building_grade")
+    if grade:
+        for g in ("특급", "1급", "2급", "3급"):
+            rep[f"■ {g}"] = f"□ {g}"
+        # 정규화 뒤 적용되도록 별도 키 (replace 순서: dict 순서 유지)
+        rep[f"□ {grade}"] = f"■ {grade}"
+    # 6차 — 화재보험 체크 (서식 1.1)
+    if cust.get("insurance_joined") is True:
+        rep["☐ 가입"] = "■ 가입"
+    elif cust.get("insurance_joined") is False:
+        rep["☐ 미가입"] = "■ 미가입"
+    # 6차 — 운영시간 체크 + 최대수용인원 (양식 예시 "100명")
+    if cust.get("op_hours_weekday"):
+        rep["☐ 평일"] = f"■ 평일({cust['op_hours_weekday']})"
+    if cust.get("op_hours_holiday"):
+        rep["☐ 휴일"] = f"■ 휴일({cust['op_hours_holiday']})"
+    if cust.get("headcount_max"):
+        rep["100명"] = f"{cust['headcount_max']}명"
     return rep
 
 # ── 4차: 서식 1.2.1 구역별 세부현황 행 채우기 ─────────────────
@@ -223,10 +260,10 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                 for old, new in replacements.items():
                     xml = xml.replace(old, new)
                 if item.filename == "Contents/section0.xml":
-                    for label, value, nth in (extras or []):
-                        xml, ok = inject_after_label(xml, label, value, nth)
+                    for label, value, nth, off in (extras or []):
+                        xml, ok = inject_after_label(xml, label, value, nth, off)
                         if not ok:
-                            print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}({nth})")
+                            print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}({nth},{off})")
                     if zone_rows:
                         xml, n = fill_zone_rows(xml, zone_rows)
                         print(f"  구역별(1.2.1) 셀 {n}개 주입")
@@ -275,7 +312,9 @@ def main() -> None:
 
     q = urllib.parse.quote(f"*{args.customer}*")
     custs = sb_get(env, f"customers?customer_name=ilike.{q}&is_active=eq.true"
-                        "&select=id,customer_name,address,use_approval_date,fire_station,inspection_type,plan_anchor_date,contract_date")
+                        "&select=id,customer_name,address,use_approval_date,fire_station,inspection_type,plan_anchor_date,contract_date,"
+                        "manager_selected_at,building_grade,insurance_joined,insurance_company,insurance_period,"
+                        "insurance_amount_person,insurance_amount_property,op_hours_weekday,op_hours_holiday,headcount_max")
     if not custs:
         print(f"❌ 고객 '{args.customer}' 을(를) 찾을 수 없습니다 ({'운영' if args.prod else '스테이징'} DB)")
         sys.exit(1)
@@ -294,9 +333,9 @@ def main() -> None:
         print(f"관계인(참고): {owner['name']} / {owner.get('phone') or '-'} — 양식에 앵커가 없어 미병합 (한글에서 확인)")
 
     buildings = sb_get(env, f"buildings?customer_id=eq.{cust['id']}&is_active=eq.true"
-                            "&select=id,purpose,total_area,floors_above,floors_below&order=created_at&limit=1")
+                            "&select=id,purpose,total_area,floors_above,floors_below,receiver_location,main_structure,roof_structure,height&order=created_at&limit=1")
     extras = build_extras(cust, buildings[0] if buildings else None, owner)
-    print("빈 칸 주입:", ", ".join(f"{la}={v}" for la, v, _ in extras) or "(없음)")
+    print("빈 칸 주입:", ", ".join(f"{la}={v}" for la, v, _, _ in extras) or "(없음)")
 
     codes: list[str] = []
     if buildings:

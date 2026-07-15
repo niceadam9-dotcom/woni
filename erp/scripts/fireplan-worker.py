@@ -73,13 +73,15 @@ def process(req_name: str) -> None:
     print(f"[{now_iso()}] 생성 시작: {req.get('customerName')} ({year})")
 
     rows = db_get(f"customers?id=eq.{cust_id}"
-                  "&select=id,customer_name,address,use_approval_date,fire_station,inspection_type,plan_anchor_date,contract_date")
+                  "&select=id,customer_name,address,use_approval_date,fire_station,inspection_type,plan_anchor_date,contract_date,"
+                  "manager_selected_at,building_grade,insurance_joined,insurance_company,insurance_period,"
+                  "insurance_amount_person,insurance_amount_property,op_hours_weekday,op_hours_holiday,headcount_max")
     if not rows:
         raise RuntimeError("고객을 찾을 수 없습니다")
     cust = rows[0]
 
     buildings = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true"
-                       "&select=id,purpose,total_area,floors_above,floors_below&order=created_at&limit=1")
+                       "&select=id,purpose,total_area,floors_above,floors_below,receiver_location,main_structure,roof_structure,height&order=created_at&limit=1")
     contacts = db_get(f"customer_contacts?customer_id=eq.{cust_id}&select=role,name,phone")
     owner = next((c for c in contacts if c["role"] == "대표"), contacts[0] if contacts else None)
     extras = mf.build_extras(cust, buildings[0] if buildings else None, owner)

@@ -8,6 +8,7 @@ import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
+import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { FacilitiesClient } from '@/components/customers/facilities-client'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -63,7 +64,7 @@ export default async function CustomerDetailPage({
 
   const admin = createAdminClient()
 
-  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes] = await Promise.all([
+  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes, brigadeRes] = await Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
@@ -75,7 +76,7 @@ export default async function CustomerDetailPage({
       .order('year', { ascending: false })
       .order('sequence_num'),
     admin.from('buildings')
-      .select('id, building_name, address, total_area, floors_above, floors_below, purpose, year_built, is_active, facilities_verified_at')
+      .select('id, building_name, address, total_area, floors_above, floors_below, purpose, year_built, is_active, facilities_verified_at, receiver_location, main_structure, roof_structure, height, created_at')
       .eq('customer_id', id)
       .order('building_name'),
     admin.from('activity_logs')
@@ -96,6 +97,8 @@ export default async function CustomerDetailPage({
       .select('bank_name, account_holder, account_no_last4, withdraw_day, note')
       .eq('customer_id', id).maybeSingle(),
     admin.from('owners').select('id, name, contact').order('name'),
+    admin.from('fire_brigade_members')
+      .select('team, name, duty, phone').eq('customer_id', id).order('sort_order'),
   ])
 
   if (!customerRes.data) notFound()
@@ -449,6 +452,38 @@ export default async function CustomerDetailPage({
           <h2 className="text-sm font-semibold text-[#090c1d]">소방계획서</h2>
           <span className="text-xs text-[#b0acd6] ml-auto">{firePlans.length}건</span>
         </div>
+        {(() => {
+          const c = customer as unknown as Record<string, unknown>
+          const firstBld = buildings.filter(b => b.is_active)
+            .sort((a, b) => String((a as Record<string, unknown>).created_at ?? '').localeCompare(String((b as Record<string, unknown>).created_at ?? '')))[0] as Record<string, unknown> | undefined
+          const s = (v: unknown) => (v == null ? '' : String(v))
+          const planInfoInitial = {
+            receiverLocation: s(firstBld?.receiver_location),
+            structure: s(firstBld?.main_structure),
+            roof: s(firstBld?.roof_structure),
+            height: s(firstBld?.height),
+            hasBuilding: !!firstBld,
+            managerSelectedAt: s(c.manager_selected_at),
+            grade: s(c.building_grade),
+            insuranceJoined: (c.insurance_joined as boolean | null) ?? null,
+            insuranceCompany: s(c.insurance_company),
+            insurancePeriod: s(c.insurance_period),
+            insuranceAmountPerson: s(c.insurance_amount_person),
+            insuranceAmountProperty: s(c.insurance_amount_property),
+            opHoursWeekday: s(c.op_hours_weekday),
+            opHoursHoliday: s(c.op_hours_holiday),
+            headcountWorker: s(c.headcount_worker),
+            headcountResident: s(c.headcount_resident),
+            headcountMax: s(c.headcount_max),
+            brigade: ((brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>)
+              .map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' })),
+          }
+          const people = [
+            ...contacts.map(ct => ({ name: ct.name, phone: ct.phone ?? '', kind: `관계인·${ct.role}` })),
+            ...employees.map(e => ({ name: e.name, phone: '', kind: `직원${e.position ? `·${e.position}` : ''}` })),
+          ]
+          return <FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={people} />
+        })()}
         <FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />
       </div>
 
