@@ -73,6 +73,46 @@ def sdk_app():
     _sdk = hwpsdk
     return _sdk
 
+# ── 빈 칸 주입 (A안 자동화): 라벨 셀 다음 셀의 빈 런에 값 삽입 ──
+def _xml_escape(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def inject_after_label(xml: str, label: str, value: str) -> tuple[str, bool]:
+    """서식 표에서 `>label</hp:t>` 라벨 셀 바로 다음 <hp:tc>(값 셀)의 빈 런에 value 주입 (첫 번째만)"""
+    if not value:
+        return xml, False
+    anchor = xml.find(f">{label}</hp:t>")
+    if anchor < 0:
+        return xml, False
+    tc_start = xml.find("<hp:tc ", anchor)
+    if tc_start < 0:
+        return xml, False
+    tc_end = xml.find("</hp:tc>", tc_start)
+    cell = xml[tc_start:tc_end]
+    m = re.search(r'<hp:run charPrIDRef="(\d+)"/>', cell)
+    if m:
+        new_cell = cell.replace(m.group(0),
+            f'<hp:run charPrIDRef="{m.group(1)}"><hp:t>{_xml_escape(value)}</hp:t></hp:run>', 1)
+        return xml[:tc_start] + new_cell + xml[tc_end:], True
+    # 폴백: 단위만 있는 값 셀 (예: 연면적 칸의 "㎡") — 값으로 대체
+    if "<hp:t>㎡</hp:t>" in cell:
+        new_cell = cell.replace("<hp:t>㎡</hp:t>", f"<hp:t>{_xml_escape(value)}</hp:t>", 1)
+        return xml[:tc_start] + new_cell + xml[tc_end:], True
+    return xml, False
+
+def build_extras(cust: dict, building: dict | None) -> dict[str, str]:
+    """서식 1.1 빈 칸 주입 목록: 라벨 → 값"""
+    extras = {
+        "명칭": cust["customer_name"],
+        "도로명주소": cust.get("address") or "",
+        "사용승인일": kdate(cust.get("use_approval_date")),
+    }
+    if building:
+        extras["주용도"] = building.get("purpose") or ""
+        if building.get("total_area") is not None:
+            extras["연면적"] = f"{building['total_area']} ㎡"
+    return {k: v for k, v in extras.items() if v}
+
 # ── 생성 파이프라인 ───────────────────────────────────────────
 def build_replacements(cust: dict) -> dict[str, str]:
     """표준양식의 예시값 → 고객 데이터 치환 맵"""
@@ -83,7 +123,8 @@ def build_replacements(cust: dict) -> dict[str, str]:
         rep["양평 소방서"] = cust["fire_station"]
     return rep
 
-def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str = OUT_DIR) -> tuple[str, str]:
+def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str = OUT_DIR,
+                 extras: dict[str, str] | None = None) -> tuple[str, str]:
     """표준양식 병합 → (hwp_path, odt_path). SDK는 프로세스당 1회 초기화."""
     hwpsdk = sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -106,6 +147,11 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                 xml = data.decode("utf-8")
                 for old, new in replacements.items():
                     xml = xml.replace(old, new)
+                if item.filename == "Contents/section0.xml":
+                    for label, value in (extras or {}).items():
+                        xml, ok = inject_after_label(xml, label, value)
+                        if not ok:
+                            print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}")
                 data = xml.encode("utf-8")
             zout.writestr(item, data)
 
@@ -169,8 +215,13 @@ def main() -> None:
     if owner:
         print(f"관계인(참고): {owner['name']} / {owner.get('phone') or '-'} — 양식에 앵커가 없어 미병합 (한글에서 확인)")
 
+    buildings = sb_get(env, f"buildings?customer_id=eq.{cust['id']}&is_active=eq.true"
+                            "&select=purpose,total_area&order=created_at&limit=1")
+    extras = build_extras(cust, buildings[0] if buildings else None)
+    print("빈 칸 주입:", ", ".join(f"{k}={v}" for k, v in extras.items()) or "(없음)")
+
     photo = os.path.abspath(args.photo) if args.photo else None
-    out_hwp, out_odt = generate_hwp(cust, year, photo)
+    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras)
     print(f"✅ HWP: {out_hwp}")
 
     if args.pdf:

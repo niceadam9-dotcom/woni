@@ -78,7 +78,10 @@ def process(req_name: str) -> None:
         raise RuntimeError("고객을 찾을 수 없습니다")
     cust = rows[0]
 
-    out_hwp, out_odt = mf.generate_hwp(cust, year)
+    buildings = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true"
+                       "&select=purpose,total_area&order=created_at&limit=1")
+    extras = mf.build_extras(cust, buildings[0] if buildings else None)
+    out_hwp, out_odt = mf.generate_hwp(cust, year, extras=extras)
     out_pdf = out_hwp[:-4] + ".pdf"
     mf.convert_pdf(out_odt, out_pdf)
 
