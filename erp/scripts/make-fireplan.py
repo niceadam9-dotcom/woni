@@ -151,6 +151,42 @@ def build_stage2(cust: dict, year: int, codes: list[str]) -> dict[str, str]:
             rep[f"□ {item}"] = f"■ {item}"
     return rep
 
+# ── 4차: 서식 1.2.1 구역별 세부현황 행 채우기 ─────────────────
+def fill_zone_rows(xml: str, zone_rows: list[dict[int, str]]) -> tuple[str, int]:
+    """1.2.1 표의 데이터 행(rowAddr 6~)에 값 주입. zone_rows = [{colAddr: 값}]"""
+    start = xml.find(">1.2.1")
+    end = xml.find(">1.2.2", start)
+    if start < 0 or end < 0:
+        return xml, 0
+    seg = xml[start:end]
+    parts = seg.split("<hp:tc ")
+    filled = 0
+    for idx, row in enumerate(zone_rows[:8]):
+        r = 6 + idx
+        for col, val in row.items():
+            if not val:
+                continue
+            for pi in range(1, len(parts)):
+                if f'colAddr="{col}" rowAddr="{r}"' not in parts[pi]:
+                    continue
+                m = re.search(r'<hp:run charPrIDRef="(\d+)"/>', parts[pi])
+                if m:
+                    parts[pi] = parts[pi].replace(
+                        m.group(0),
+                        f'<hp:run charPrIDRef="{m.group(1)}"><hp:t>{_xml_escape(val)}</hp:t></hp:run>', 1)
+                    filled += 1
+                break
+    return xml[:start] + "<hp:tc ".join(parts) + xml[end:], filled
+
+def build_zone_rows(building: dict | None, floors: list[dict], owner: dict | None) -> list[dict[int, str]]:
+    """fire_facility_floors 층별 데이터 → 구역별 행. 없으면 '전층' 1행 폴백"""
+    contact = (owner or {}).get("phone") or ""
+    purpose = (building or {}).get("purpose") or ""
+    if floors:
+        return [{1: f.get("floor_label") or "", 2: purpose, 10: contact} for f in floors]
+    area = f"{building['total_area']} ㎡" if building and building.get("total_area") is not None else ""
+    return [{1: "전층", 2: purpose, 3: area, 10: contact}]
+
 # ── 생성 파이프라인 ───────────────────────────────────────────
 def build_replacements(cust: dict) -> dict[str, str]:
     """표준양식의 예시값 → 고객 데이터 치환 맵"""
@@ -162,7 +198,8 @@ def build_replacements(cust: dict) -> dict[str, str]:
     return rep
 
 def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str = OUT_DIR,
-                 extras: list | None = None, extra_replacements: dict[str, str] | None = None) -> tuple[str, str]:
+                 extras: list | None = None, extra_replacements: dict[str, str] | None = None,
+                 zone_rows: list[dict[int, str]] | None = None) -> tuple[str, str]:
     """표준양식 병합 → (hwp_path, odt_path). SDK는 프로세스당 1회 초기화."""
     hwpsdk = sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -190,6 +227,9 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                         xml, ok = inject_after_label(xml, label, value, nth)
                         if not ok:
                             print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}({nth})")
+                    if zone_rows:
+                        xml, n = fill_zone_rows(xml, zone_rows)
+                        print(f"  구역별(1.2.1) 셀 {n}개 주입")
                 data = xml.encode("utf-8")
             zout.writestr(item, data)
 
@@ -266,7 +306,9 @@ def main() -> None:
     print(f"2차 연계: 시설 체크 {sum(1 for k in stage2 if k.startswith('□'))}개, 점검시기 {'년        월' in stage2}")
 
     photo = os.path.abspath(args.photo) if args.photo else None
-    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2)
+    floors = sb_get(env, f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
+    zone_rows = build_zone_rows(buildings[0] if buildings else None, floors, owner)
+    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows)
     print(f"✅ HWP: {out_hwp}")
 
     if args.pdf:

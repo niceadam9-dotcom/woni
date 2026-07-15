@@ -102,7 +102,10 @@ def process(req_name: str) -> None:
     except Exception as pe:  # noqa: BLE001
         print(f"[{now_iso()}] 사진 연계 건너뜀: {pe}")
 
-    out_hwp, out_odt = mf.generate_hwp(cust, year, photo=photo_path, extras=extras, extra_replacements=stage2)
+    floors = db_get(f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
+    zone_rows = mf.build_zone_rows(buildings[0] if buildings else None, floors, owner)
+    out_hwp, out_odt = mf.generate_hwp(cust, year, photo=photo_path, extras=extras,
+                                       extra_replacements=stage2, zone_rows=zone_rows)
     out_pdf = out_hwp[:-4] + ".pdf"
     mf.convert_pdf(out_odt, out_pdf)
 
