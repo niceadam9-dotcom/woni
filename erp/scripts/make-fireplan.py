@@ -123,6 +123,34 @@ def build_extras(cust: dict, building: dict | None, owner: dict | None = None) -
                    ("연락처", phone, 2), ("연락처", phone, 3)]
     return [(la, v, n) for la, v, n in extras if v]
 
+# ── 2차 연계: 서식 1.4 시설 체크 + 서식 1.10 자체점검 시기 ──
+FACILITY_ITEMS = [
+    "소화기구 및 자동소화장치", "옥내소화전설비", "옥외소화전설비", "스프링클러설비", "간이스프링클러설비",
+    "화재조기진압용 스프링클러설비", "물분무소화설비", "미분무소화설비", "포소화설비", "이산화탄소소화설비",
+    "할론소화설비", "할로겐화합물 및 불활성기체소화설비", "분말소화설비", "강화액소화설비", "고체에어로졸소화설비",
+    "단독경보형감지기", "비상경보설비", "자동화재탐지설비 및 시각경보기", "화재알림설비", "비상방송설비",
+    "통합감시시설", "자동화재속보설비", "누전경보기", "가스누설경보기",
+    "피난기구", "인명구조기구", "피난유도선", "유도등", "비상조명등", "유도표지", "휴대용비상조명등",
+    "상수도소화용수설비", "소화수조 및 저수조",
+    "거실제연설비", "부속실 등 제연설비", "비상콘센트설비", "연결송수관설비", "무선통신보조설비",
+    "연결살수설비", "연소방지설비",
+]
+
+def build_stage2(cust: dict, year: int, codes: list[str]) -> dict[str, str]:
+    rep: dict[str, str] = {}
+    # 서식 1.10: 작동점검 시기 ("년        월" 자리) + 건축물 사용승인일
+    if cust.get("plan_anchor_date"):
+        am = int(cust["plan_anchor_date"].split("-")[1])
+        op = ((am - 1 + 6) % 12) + 1 if cust.get("inspection_type") == "종합" else am
+        rep["년        월"] = f"{year}년 {op}월"
+    if cust.get("use_approval_date"):
+        rep["건축물 사용승인일 :"] = f"건축물 사용승인일 : {kdate(cust['use_approval_date'])}"
+    # 서식 1.4: 설치 시설 체크 (□ → ■)
+    for item in FACILITY_ITEMS:
+        if any(code and (code in item or item in code) for code in codes):
+            rep[f"□ {item}"] = f"■ {item}"
+    return rep
+
 # ── 생성 파이프라인 ───────────────────────────────────────────
 def build_replacements(cust: dict) -> dict[str, str]:
     """표준양식의 예시값 → 고객 데이터 치환 맵"""
@@ -134,7 +162,7 @@ def build_replacements(cust: dict) -> dict[str, str]:
     return rep
 
 def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str = OUT_DIR,
-                 extras: dict[str, str] | None = None) -> tuple[str, str]:
+                 extras: list | None = None, extra_replacements: dict[str, str] | None = None) -> tuple[str, str]:
     """표준양식 병합 → (hwp_path, odt_path). SDK는 프로세스당 1회 초기화."""
     hwpsdk = sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -149,7 +177,7 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
 
     safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
     merged_hwpx = os.path.join(out_dir, f"_{safe}_merged.hwpx")
-    replacements = build_replacements(cust)
+    replacements = {**build_replacements(cust), **(extra_replacements or {})}
     with zipfile.ZipFile(clean_hwpx, "r") as zin, zipfile.ZipFile(merged_hwpx, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
             data = zin.read(item.filename)
@@ -226,12 +254,19 @@ def main() -> None:
         print(f"관계인(참고): {owner['name']} / {owner.get('phone') or '-'} — 양식에 앵커가 없어 미병합 (한글에서 확인)")
 
     buildings = sb_get(env, f"buildings?customer_id=eq.{cust['id']}&is_active=eq.true"
-                            "&select=purpose,total_area,floors_above,floors_below&order=created_at&limit=1")
+                            "&select=id,purpose,total_area,floors_above,floors_below&order=created_at&limit=1")
     extras = build_extras(cust, buildings[0] if buildings else None, owner)
     print("빈 칸 주입:", ", ".join(f"{la}={v}" for la, v, _ in extras) or "(없음)")
 
+    codes: list[str] = []
+    if buildings:
+        facs = sb_get(env, f"fire_facilities?building_id=eq.{buildings[0]['id']}&installed=eq.true&select=facility_code")
+        codes = [f["facility_code"] for f in facs]
+    stage2 = build_stage2(cust, year, codes)
+    print(f"2차 연계: 시설 체크 {sum(1 for k in stage2 if k.startswith('□'))}개, 점검시기 {'년        월' in stage2}")
+
     photo = os.path.abspath(args.photo) if args.photo else None
-    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras)
+    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2)
     print(f"✅ HWP: {out_hwp}")
 
     if args.pdf:
