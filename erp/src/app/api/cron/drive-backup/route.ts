@@ -58,6 +58,41 @@ export async function GET(req: NextRequest) {
     return parent!
   }
 
+  // ── 사람이 읽을 수 있는 이름으로 변환 (2026-07-15) ─────────
+  // 폴더: 고객 UUID → 고객명, 파일: generated_*.pdf → "{제목}_개정N.pdf" (fire_plans 매핑)
+  const sanitize = (s: string) => s.replace(/[\\/:*?"<>|]/g, '_').trim()
+
+  const customerName = new Map<string, string>()
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin.from('customers').select('id, customer_name').range(from, from + 999)
+    const rows = (data ?? []) as Array<{ id: string; customer_name: string }>
+    rows.forEach(r => customerName.set(r.id, sanitize(r.customer_name)))
+    if (rows.length < 1000) break
+  }
+
+  const planFileName = new Map<string, string>()
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin.from('fire_plans')
+      .select('year, title, revision, pdf_path, pdf_name, hwp_path, hwp_name').range(from, from + 999)
+    const rows = (data ?? []) as Array<{ year: number; title: string | null; revision: number | null; pdf_path: string; pdf_name: string; hwp_path: string | null; hwp_name: string | null }>
+    for (const p of rows) {
+      const base = sanitize(p.title ?? `${p.year}년 소방계획서`) + (p.revision && p.revision > 1 ? `_개정${p.revision}` : '')
+      planFileName.set(p.pdf_path, `${base}.pdf`)
+      if (p.hwp_path) planFileName.set(p.hwp_path, `${base}.hwp`)
+    }
+    if (rows.length < 1000) break
+  }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  function drivePathOf(bucket: string, path: string): { segments: string[]; fileName: string } {
+    const segments = path.split('/')
+    let fileName = segments.pop()!
+    const mapped = segments.map(seg =>
+      UUID_RE.test(seg) ? (customerName.get(seg) ?? seg) : seg)
+    if (bucket === 'fire-plans') fileName = planFileName.get(path) ?? fileName
+    return { segments: mapped, fileName }
+  }
+
   const results: Array<{ bucket: string; total: number; uploaded: number; skipped: number; errors: string[] }> = []
   let budget = MAX_FILES
 
@@ -75,8 +110,7 @@ export async function GET(req: NextRequest) {
 
     for (const path of files) {
       if (budget <= 0) break
-      const segments = path.split('/')
-      const fileName = segments.pop()!
+      const { segments, fileName } = drivePathOf(bucket, path)
       try {
         const folderId = await ensurePath(['ERP백업', bucket, ...segments])
         if (await driveFileExists(fileName, folderId)) { skipped++; continue }
