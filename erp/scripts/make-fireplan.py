@@ -77,13 +77,15 @@ def sdk_app():
 def _xml_escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-def inject_after_label(xml: str, label: str, value: str) -> tuple[str, bool]:
+def inject_after_label(xml: str, label: str, value: str, nth: int = 1) -> tuple[str, bool]:
     """서식 표에서 `>label</hp:t>` 라벨 셀 바로 다음 <hp:tc>(값 셀)의 빈 런에 value 주입 (첫 번째만)"""
     if not value:
         return xml, False
-    anchor = xml.find(f">{label}</hp:t>")
-    if anchor < 0:
-        return xml, False
+    anchor = -1
+    for _ in range(nth):
+        anchor = xml.find(f">{label}</hp:t>", anchor + 1)
+        if anchor < 0:
+            return xml, False
     tc_start = xml.find("<hp:tc ", anchor)
     if tc_start < 0:
         return xml, False
@@ -100,18 +102,26 @@ def inject_after_label(xml: str, label: str, value: str) -> tuple[str, bool]:
         return xml[:tc_start] + new_cell + xml[tc_end:], True
     return xml, False
 
-def build_extras(cust: dict, building: dict | None) -> dict[str, str]:
-    """서식 1.1 빈 칸 주입 목록: 라벨 → 값"""
-    extras = {
-        "명칭": cust["customer_name"],
-        "도로명주소": cust.get("address") or "",
-        "사용승인일": kdate(cust.get("use_approval_date")),
-    }
+def build_extras(cust: dict, building: dict | None, owner: dict | None = None) -> list[tuple[str, str, int]]:
+    """서식 1.1 빈 칸 주입 목록: (라벨, 값, n번째 라벨)"""
+    extras: list[tuple[str, str, int]] = [
+        ("명칭", cust["customer_name"], 1),
+        ("도로명주소", cust.get("address") or "", 1),
+        ("사용승인일", kdate(cust.get("use_approval_date")), 1),
+    ]
     if building:
-        extras["주용도"] = building.get("purpose") or ""
+        extras.append(("주용도", building.get("purpose") or "", 1))
         if building.get("total_area") is not None:
-            extras["연면적"] = f"{building['total_area']} ㎡"
-    return {k: v for k, v in extras.items() if v}
+            extras.append(("연면적", f"{building['total_area']} ㎡", 1))
+        fa, fb = building.get("floors_above"), building.get("floors_below")
+        if fa is not None or fb is not None:
+            extras.append(("층수", f"지하 {fb or 0}층 / 지상 {fa or 0}층", 1))
+    if owner:
+        name, phone = owner.get("name") or "", owner.get("phone") or ""
+        # 서식 1.1 연락처 행: 대표자(책임자)·소방안전관리자 이름 + 2·3번째 "연락처" 칸
+        extras += [("대표자(책임자)", name, 1), ("소방안전관리자", name, 1),
+                   ("연락처", phone, 2), ("연락처", phone, 3)]
+    return [(la, v, n) for la, v, n in extras if v]
 
 # ── 생성 파이프라인 ───────────────────────────────────────────
 def build_replacements(cust: dict) -> dict[str, str]:
@@ -148,10 +158,10 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                 for old, new in replacements.items():
                     xml = xml.replace(old, new)
                 if item.filename == "Contents/section0.xml":
-                    for label, value in (extras or {}).items():
-                        xml, ok = inject_after_label(xml, label, value)
+                    for label, value, nth in (extras or []):
+                        xml, ok = inject_after_label(xml, label, value, nth)
                         if not ok:
-                            print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}")
+                            print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}({nth})")
                 data = xml.encode("utf-8")
             zout.writestr(item, data)
 
@@ -216,9 +226,9 @@ def main() -> None:
         print(f"관계인(참고): {owner['name']} / {owner.get('phone') or '-'} — 양식에 앵커가 없어 미병합 (한글에서 확인)")
 
     buildings = sb_get(env, f"buildings?customer_id=eq.{cust['id']}&is_active=eq.true"
-                            "&select=purpose,total_area&order=created_at&limit=1")
-    extras = build_extras(cust, buildings[0] if buildings else None)
-    print("빈 칸 주입:", ", ".join(f"{k}={v}" for k, v in extras.items()) or "(없음)")
+                            "&select=purpose,total_area,floors_above,floors_below&order=created_at&limit=1")
+    extras = build_extras(cust, buildings[0] if buildings else None, owner)
+    print("빈 칸 주입:", ", ".join(f"{la}={v}" for la, v, _ in extras) or "(없음)")
 
     photo = os.path.abspath(args.photo) if args.photo else None
     out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras)

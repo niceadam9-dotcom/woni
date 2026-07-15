@@ -79,8 +79,10 @@ def process(req_name: str) -> None:
     cust = rows[0]
 
     buildings = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true"
-                       "&select=purpose,total_area&order=created_at&limit=1")
-    extras = mf.build_extras(cust, buildings[0] if buildings else None)
+                       "&select=purpose,total_area,floors_above,floors_below&order=created_at&limit=1")
+    contacts = db_get(f"customer_contacts?customer_id=eq.{cust_id}&select=role,name,phone")
+    owner = next((c for c in contacts if c["role"] == "대표"), contacts[0] if contacts else None)
+    extras = mf.build_extras(cust, buildings[0] if buildings else None, owner)
     out_hwp, out_odt = mf.generate_hwp(cust, year, extras=extras)
     out_pdf = out_hwp[:-4] + ".pdf"
     mf.convert_pdf(out_odt, out_pdf)
