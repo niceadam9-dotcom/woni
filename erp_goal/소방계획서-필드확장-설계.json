@@ -1,0 +1,39 @@
+{
+  "version": "fireplan-expansion-structure-v1",
+  "title": "소방계획서 ERP 연계 설계 — 차수별 검토 + 5·6·7차 계획 (구조 JSON)",
+  "source": "erp_goal/소방계획서-필드확장-설계.md",
+  "generated": "2026-07-15",
+  "note": "문서 구조·상태 색인 (doc02 구조 JSON과 동일 규약). 1~7차 전체 구현 완료 — 상세 구현 기록은 doc02 §8 참조",
+  "status_legend": { "confirmed": "확정", "implemented": "구현됨", "pending_order": "미구현·지시 대기", "deferred": "보류", "proposal": "제안" },
+  "stages": [
+    { "id": "1차", "title": "대상물명·관할서·계약기간 + 서식1.1 기본 정보", "status": "implemented", "technique": "치환 + inject_after_label" },
+    { "id": "2차", "title": "서식1.4 시설 체크(□→■ 40항목) + 서식1.10 점검시기·사용승인일", "status": "implemented", "technique": "체크 치환 + 공백 앵커" },
+    { "id": "3차", "title": "누락 필드 안내(→고객 상세 링크) + 표지 사진 자동 삽입", "status": "implemented", "technique": "워커 missing[] → 결과 JSON" },
+    { "id": "4차", "title": "서식1.2.1 구역별 행(층별/전층)", "status": "implemented", "technique": "fill_zone_rows(셀 주소)" },
+    { "id": "5차", "title": "수신기위치·구조·지붕·높이·관리자 선임일 (migration 090)", "status": "implemented", "migration": "090" },
+    { "id": "6차", "title": "급수·화재보험·운영시간/인원·자위소방대 편성 (migration 091, fire_brigade_members)", "status": "implemented", "migration": "091" },
+    { "id": "7차", "title": "공통 수기 프리셋 (건물 유형별: 주택형/상가형/공장형)", "status": "implemented", "date": "2026-07-15", "note": "_presets/{house|retail|factory}.json (스토리지 한글 키 불가로 ASCII 매핑, src/lib/fire-plan-presets.ts PRESET_FILE_KEYS) · 양식 예시 수기 문구 앵커 12종 단순 치환(긴 문구 우선) · 우선순위 고객 필드>프리셋>양식 기본값 · 생성 페이지 프리셋 자동 추천+관리 UI+다중 선택 일괄 생성(최대 30건) · CLI --preset · 케이엔몰 상가형 E2E 검증" }
+  ],
+  "sections": [
+    { "id": "1", "line": 3, "title": "목적", "status": "confirmed" },
+    { "id": "2", "line": 8, "title": "차수별 연계 검토 (1~4차 완료)", "status": "implemented" },
+    { "id": "3", "line": 19, "title": "신규 필드 (5·6차 통합 정의)", "status": "implemented", "migration": "090·091", "note": "090: buildings.receiver_location + customers.manager_selected_at / 091: 급수·보험·운영/인원 + fire_brigade_members 테이블" },
+    { "id": "4", "line": 42, "title": "입력 UX 설계 — 그룹화 (계획서 정보 아코디언 패널)", "status": "implemented", "note": "고객 상세 소방계획서 카드 — 드롭다운 프리셋·세그먼트 버튼·관계인/직원 가져오기·일괄 저장" },
+    { "id": "5", "line": 65, "title": "확인 UX 설계 — 준비율 게이지·누락 칩", "status": "implemented", "note": "고객 목록 뱃지는 범위 제외 확정(2026-07-15) — 노출은 고객 상세 + 생성 페이지까지" },
+    { "id": "6", "line": 73, "title": "파이프라인 주입 매핑", "status": "implemented", "note": "inject_after_label(nth)·체크박스 치환·셀 주소 주입(fill_zone_rows/fill_brigade)·fail-soft" },
+    { "id": "7", "line": 82, "title": "7차 — 공통 수기 프리셋 (건물 유형별)", "status": "implemented", "date": "2026-07-15", "note": "구현 상세는 stages[7차].note 및 doc02 §8 ⑥ 참조" },
+    { "id": "8", "line": 96, "title": "적용 순서 (2026-07-15 사용자 확정)", "status": "implemented", "note": "①설계 승인 ②5+6차 통합(완료) ③7차 프리셋(완료) — 남은 항목: 고객 목록 준비율 뱃지(선택)·보험 만기 알림(파생, 미착수)" },
+    { "id": "9", "line": 104, "title": "리스크", "status": "confirmed" }
+  ],
+  "related": {
+    "impl_detail": "erp_goal/Victory_md/01_flow/doc02_승진소방_실무연결_상세설계.md §8 (JSON: 같은 폴더 doc02_승진소방_실무연결_상세설계.json id 8)",
+    "code": [
+      "erp/src/lib/fire-plan-presets.ts (프리셋 유형·앵커·기본 문구·자동 추천)",
+      "erp/src/app/(dashboard)/fire-plans/generate/actions.ts (프리셋 조회/저장·일괄 요청·시딩)",
+      "erp/src/components/fire-plans/generate-request-client.tsx (다중 선택·프리셋 선택)",
+      "erp/src/components/fire-plans/fire-plan-preset-manager.tsx (프리셋 관리 UI)",
+      "erp/scripts/make-fireplan.py (load_preset_pairs·generate_hwp preset_pairs·--preset)",
+      "erp/scripts/fireplan-worker.py (presetType 처리·결과 preset 표기)"
+    ]
+  }
+}

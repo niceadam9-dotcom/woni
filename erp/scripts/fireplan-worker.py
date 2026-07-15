@@ -70,7 +70,8 @@ def process(req_name: str) -> None:
     raw = st_download(f"_queue/{req_name}")
     req = json.loads(raw.decode())
     cust_id, year = req["customerId"], int(req["year"])
-    print(f"[{now_iso()}] 생성 시작: {req.get('customerName')} ({year})")
+    preset_type = (req.get("presetType") or "").strip()
+    print(f"[{now_iso()}] 생성 시작: {req.get('customerName')} ({year}{', ' + preset_type if preset_type else ''})")
 
     rows = db_get(f"customers?id=eq.{cust_id}"
                   "&select=id,customer_name,address,use_approval_date,fire_station,inspection_type,plan_anchor_date,contract_date,"
@@ -104,11 +105,17 @@ def process(req_name: str) -> None:
     except Exception as pe:  # noqa: BLE001
         print(f"[{now_iso()}] 사진 연계 건너뜀: {pe}")
 
+    # 7차: 공통 수기 프리셋 — 요청에 유형이 있으면 _presets/{유형}.json 문구 치환 (없으면 양식 기본값 유지)
+    preset_pairs = mf.load_preset_pairs(ENV, preset_type) if preset_type else []
+    if preset_type:
+        print(f"[{now_iso()}] 프리셋({preset_type}): 문구 {len(preset_pairs)}개 치환 예정")
+
     floors = db_get(f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
     zone_rows = mf.build_zone_rows(buildings[0] if buildings else None, floors, owner)
     brigade = db_get(f"fire_brigade_members?customer_id=eq.{cust_id}&select=team,name,duty,phone&order=sort_order")
     out_hwp, out_odt = mf.generate_hwp(cust, year, photo=photo_path, extras=extras,
-                                       extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade)
+                                       extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade,
+                                       preset_pairs=preset_pairs)
     out_pdf = out_hwp[:-4] + ".pdf"
     mf.convert_pdf(out_odt, out_pdf)
 
@@ -130,7 +137,7 @@ def process(req_name: str) -> None:
         "hwp_name": f"{year}년 소방계획서.hwp",
         "hwp_path": hwp_path,
         "revision": len(existing) + 1,
-        "note": "HWP 자동 생성 (표준양식)",
+        "note": f"HWP 자동 생성 (표준양식{', ' + preset_type + ' 프리셋' if preset_type else ''})",
         "uploaded_by": req.get("requestedBy"),
     })
     # 누락 필드 안내 — 페이지에서 고객 상세 바로가기와 함께 표시
@@ -145,7 +152,8 @@ def process(req_name: str) -> None:
         ("층수", (b.get("floors_above") is not None or b.get("floors_below") is not None) or None),
         ("시설현황", codes or None),
     ] if not has]
-    write_result(req_name, {"ok": True, "customerName": cust["customer_name"], "year": year, "missing": missing})
+    write_result(req_name, {"ok": True, "customerName": cust["customer_name"], "year": year,
+                            "preset": preset_type or None, "missing": missing})
     print(f"[{now_iso()}] ✅ 완료: {cust['customer_name']} → 보관함 등록 (누락 {len(missing)}개)")
 
 print(f"소방계획서 생성 워커 시작 — {SB_URL} / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")

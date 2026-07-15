@@ -50,13 +50,13 @@
       { "id": "7-1", "line": 799, "title": "단계별 상세 — 입력/처리/출력", "status": "confirmed" },
       { "id": "7-2", "line": 857, "title": "보고서 데이터 흐름도", "status": "confirmed" }
     ]},
-    { "id": "8", "line": 879, "title": "소방계획서(HWP) 처리 방침", "status": "implemented", "note": "056 fire_plans + 보관함 구현. 이후 확장(2026-07-15): 표준양식 ERP 생성(PDF)·HWP 생성 워커(/fire-plans/generate)·ERP 연계 1~6차 완료(migration 090·091, 계획서 정보 패널+준비율 게이지+자위소방대 편성)·Drive 야간 백업. 7차(공통 수기 프리셋) 미착수 (설계: erp_goal/소방계획서-필드확장-설계.md)", "children": [
-      { "id": "8-0", "line": 896, "title": "소방계획서 관련 ERP 용어 통일", "status": "confirmed", "date": "2026-07-15", "note": "표준 용어 9종: 소방계획서 보관함/표준양식 생성/HWP 생성/계획서 정보/준비율/자위소방대 편성/연차발행/개정판/생성 워커" },
-      { "id": "8-1", "line": 927, "title": "연차 발행 + 개정이력", "status": "implemented", "migration": "086" },
-      { "id": "8-2", "line": 956, "title": "지도·사진 부속자료", "status": "implemented", "note": "부속자료 업로드 + 생성 본문 사진 삽입" },
-      { "id": "8-3", "line": 1006, "title": "연차 제출 방안 — 변경분 자동 주입 발행", "status": "confirmed", "note": "HWP 생성 페이지·연차발행으로 실현 중" }
+    { "id": "8", "line": 879, "title": "소방계획서(HWP) 처리 방침", "status": "implemented", "note": "056 fire_plans + 보관함 구현. 이후 확장(2026-07-15): 표준양식 ERP 생성(PDF)·HWP 생성 워커(/fire-plans/generate)·ERP 연계 1~7차 완료(migration 090·091, 계획서 정보 패널+준비율 게이지+자위소방대 편성)·Drive 야간 백업. 7차 공통 수기 프리셋(2026-07-15 구현): 건물 유형별(주택형/상가형/공장형) 수기 문구 치환 — _presets/{house|retail|factory}.json(스토리지 한글 키 불가로 ASCII 매핑), 생성 페이지 프리셋 자동 추천+관리 UI+고객 다중 선택 일괄 생성(최대 30건), 우선순위 고객 필드>프리셋>양식 기본값, CLI --preset, 케이엔몰 상가형 E2E 검증 (설계: erp_goal/소방계획서-필드확장-설계.md)", "children": [
+      { "id": "8-0", "line": 900, "title": "소방계획서 관련 ERP 용어 통일", "status": "confirmed", "date": "2026-07-15", "note": "표준 용어 9종: 소방계획서 보관함/표준양식 생성/HWP 생성/계획서 정보/준비율/자위소방대 편성/연차발행/개정판/생성 워커" },
+      { "id": "8-1", "line": 931, "title": "연차 발행 + 개정이력", "status": "implemented", "migration": "086" },
+      { "id": "8-2", "line": 960, "title": "지도·사진 부속자료", "status": "implemented", "note": "부속자료 업로드 + 생성 본문 사진 삽입" },
+      { "id": "8-3", "line": 1010, "title": "연차 제출 방안 — 변경분 자동 주입 발행", "status": "confirmed", "note": "HWP 생성 페이지·연차발행으로 실현 중" }
     ]},
-    { "id": "9", "line": 1044, "title": "작동점검결과 음성 문서화", "status": "proposal", "note": "미구현·지시 대기" }
+    { "id": "9", "line": 1048, "title": "작동점검결과 음성 문서화", "status": "proposal", "note": "미구현·지시 대기" }
   ],
   "related": {
     "impl_tracking": "erp_goal/Victory_md/sjeng_impl.json (훅: [sj:ID])",

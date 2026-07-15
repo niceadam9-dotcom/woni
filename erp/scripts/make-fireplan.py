@@ -49,6 +49,33 @@ def sb_get(env: dict, path: str):
     with urllib.request.urlopen(req) as res:
         return json.loads(res.read().decode("utf-8"))
 
+# ── 7차: 공통 수기 프리셋 (fire-plans 버킷 _presets/*.json) ──
+# 스토리지가 한글 키를 거부(InvalidKey)해 ASCII 매핑 사용 — src/lib/fire-plan-presets.ts PRESET_FILE_KEYS와 동일
+PRESET_FILE_KEYS = {"주택형": "house", "상가형": "retail", "공장형": "factory"}
+
+def load_preset_pairs(env: dict, preset_type: str) -> list[tuple[str, str]]:
+    """프리셋 JSON → (양식 기본값, 프리셋 문구) 목록. 없거나 손상 시 [] (양식 기본값 유지, fail-soft).
+    긴 문구부터 치환해 짧은 앵커('1층 주차장' 등)가 긴 문구를 먼저 깨뜨리지 않게 한다."""
+    key = PRESET_FILE_KEYS.get(preset_type)
+    if not key:
+        print(f"  ⚠️ 알 수 없는 프리셋 유형(양식 기본값 유지): {preset_type}")
+        return []
+    url = f"{env['NEXT_PUBLIC_SUPABASE_URL']}/storage/v1/object/fire-plans/_presets/{key}.json"
+    try:
+        req = urllib.request.Request(url, headers={
+            "apikey": env["SUPABASE_SERVICE_ROLE_KEY"],
+            "Authorization": f"Bearer {env['SUPABASE_SERVICE_ROLE_KEY']}",
+            "User-Agent": "curl/8.4.0",
+        })
+        with urllib.request.urlopen(req) as res:
+            data = json.loads(res.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠️ 프리셋 '{preset_type}' 로드 실패(양식 기본값 유지): {e}")
+        return []
+    pairs = [(e.get("find") or "", e.get("value") or "") for e in data.get("entries", [])]
+    pairs = [(f, v) for f, v in pairs if f and v and f != v]
+    return sorted(pairs, key=lambda p: -len(p[0]))
+
 def kdate(iso: str | None) -> str:
     if not iso:
         return ""
@@ -269,7 +296,8 @@ def build_replacements(cust: dict) -> dict[str, str]:
 def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str = OUT_DIR,
                  extras: list | None = None, extra_replacements: dict[str, str] | None = None,
                  zone_rows: list[dict[int, str]] | None = None,
-                 brigade: list[dict] | None = None) -> tuple[str, str]:
+                 brigade: list[dict] | None = None,
+                 preset_pairs: list[tuple[str, str]] | None = None) -> tuple[str, str]:
     """표준양식 병합 → (hwp_path, odt_path). SDK는 프로세스당 1회 초기화."""
     hwpsdk = sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -284,7 +312,8 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
 
     safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
     merged_hwpx = os.path.join(out_dir, f"_{safe}_merged.hwpx")
-    replacements = {**build_replacements(cust), **(extra_replacements or {})}
+    # 7차 프리셋은 최저 우선순위: 같은 키가 있으면 고객 데이터 치환이 덮어씀 (고객 필드 > 프리셋 > 양식 기본값)
+    replacements = {**dict(preset_pairs or []), **build_replacements(cust), **(extra_replacements or {})}
     with zipfile.ZipFile(clean_hwpx, "r") as zin, zipfile.ZipFile(merged_hwpx, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
             data = zin.read(item.filename)
@@ -340,6 +369,8 @@ def main() -> None:
     ap.add_argument("--year", type=int, default=None)
     ap.add_argument("--photo", default=None, help="표지 삽입 사진 (jpg/png)")
     ap.add_argument("--pdf", action="store_true", help="Gotenberg PDF 변환까지 (VPS 경유)")
+    ap.add_argument("--preset", default=None, choices=["주택형", "상가형", "공장형"],
+                    help="7차 공통 수기 프리셋 (_presets/{유형}.json — ERP 프리셋 관리에서 편집)")
     ap.add_argument("--prod", action="store_true", help="운영 DB 조회 (기본: 스테이징)")
     args = ap.parse_args()
 
@@ -380,11 +411,16 @@ def main() -> None:
     stage2 = build_stage2(cust, year, codes)
     print(f"2차 연계: 시설 체크 {sum(1 for k in stage2 if k.startswith('□'))}개, 점검시기 {'년        월' in stage2}")
 
+    preset_pairs = load_preset_pairs(env, args.preset) if args.preset else []
+    if args.preset:
+        print(f"7차 프리셋({args.preset}): 문구 {len(preset_pairs)}개 치환 예정")
+
     photo = os.path.abspath(args.photo) if args.photo else None
     floors = sb_get(env, f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
     zone_rows = build_zone_rows(buildings[0] if buildings else None, floors, owner)
     brigade = sb_get(env, f"fire_brigade_members?customer_id=eq.{cust['id']}&select=team,name,duty,phone&order=sort_order")
-    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade)
+    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade,
+                                    preset_pairs=preset_pairs)
     print(f"✅ HWP: {out_hwp}")
 
     if args.pdf:
