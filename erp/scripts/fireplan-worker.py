@@ -106,8 +106,9 @@ def process(req_name: str) -> None:
 
     floors = db_get(f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
     zone_rows = mf.build_zone_rows(buildings[0] if buildings else None, floors, owner)
+    brigade = db_get(f"fire_brigade_members?customer_id=eq.{cust_id}&select=team,name,duty,phone&order=sort_order")
     out_hwp, out_odt = mf.generate_hwp(cust, year, photo=photo_path, extras=extras,
-                                       extra_replacements=stage2, zone_rows=zone_rows)
+                                       extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade)
     out_pdf = out_hwp[:-4] + ".pdf"
     mf.convert_pdf(out_odt, out_pdf)
 

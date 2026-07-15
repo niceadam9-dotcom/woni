@@ -224,6 +224,38 @@ def build_zone_rows(building: dict | None, floors: list[dict], owner: dict | Non
     area = f"{building['total_area']} ㎡" if building and building.get("total_area") is not None else ""
     return [{1: "전층", 2: purpose, 3: area, 10: contact}]
 
+# ── 6차: 서식 2.2.3 자위소방대 편성표 — 대장/부대장 행 주입 ──
+def fill_brigade(xml: str, cust_name: str, members: list[dict]) -> tuple[str, int]:
+    """편성표(Type-Ⅲ): r3=대장, r4=부대장 행의 소속(c2)/성명(c3)/임무(c5)/개인연락(c7)"""
+    anchor = xml.find("대    장")
+    if anchor < 0 or not members:
+        return xml, 0
+    start, end = max(0, anchor - 4000), min(len(xml), anchor + 16000)
+    seg = xml[start:end]
+    leader = next((m for m in members if m.get("team") == "자위소방대장"), members[0])
+    deputy = next((m for m in members if m.get("team") == "부대장"), None)
+    targets: list[tuple[int, int, str]] = []
+    for row, m in ((3, leader), (4, deputy)):
+        if not m:
+            continue
+        targets += [(2, row, cust_name), (3, row, m.get("name") or ""),
+                    (5, row, m.get("duty") or ""), (7, row, m.get("phone") or "")]
+    parts = seg.split("<hp:tc ")
+    filled = 0
+    for col, row, val in targets:
+        if not val:
+            continue
+        for pi in range(1, len(parts)):
+            if f'colAddr="{col}" rowAddr="{row}"' not in parts[pi]:
+                continue
+            m2 = re.search(r'<hp:run charPrIDRef="(\d+)"/>', parts[pi])
+            if m2:
+                parts[pi] = parts[pi].replace(m2.group(0),
+                    f'<hp:run charPrIDRef="{m2.group(1)}"><hp:t>{_xml_escape(val)}</hp:t></hp:run>', 1)
+                filled += 1
+            break
+    return xml[:start] + "<hp:tc ".join(parts) + xml[end:], filled
+
 # ── 생성 파이프라인 ───────────────────────────────────────────
 def build_replacements(cust: dict) -> dict[str, str]:
     """표준양식의 예시값 → 고객 데이터 치환 맵"""
@@ -236,7 +268,8 @@ def build_replacements(cust: dict) -> dict[str, str]:
 
 def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str = OUT_DIR,
                  extras: list | None = None, extra_replacements: dict[str, str] | None = None,
-                 zone_rows: list[dict[int, str]] | None = None) -> tuple[str, str]:
+                 zone_rows: list[dict[int, str]] | None = None,
+                 brigade: list[dict] | None = None) -> tuple[str, str]:
     """표준양식 병합 → (hwp_path, odt_path). SDK는 프로세스당 1회 초기화."""
     hwpsdk = sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -267,6 +300,9 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                     if zone_rows:
                         xml, n = fill_zone_rows(xml, zone_rows)
                         print(f"  구역별(1.2.1) 셀 {n}개 주입")
+                    if brigade:
+                        xml, n = fill_brigade(xml, cust["customer_name"], brigade)
+                        print(f"  자위소방대(2.2) 셀 {n}개 주입")
                 data = xml.encode("utf-8")
             zout.writestr(item, data)
 
@@ -347,7 +383,8 @@ def main() -> None:
     photo = os.path.abspath(args.photo) if args.photo else None
     floors = sb_get(env, f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
     zone_rows = build_zone_rows(buildings[0] if buildings else None, floors, owner)
-    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows)
+    brigade = sb_get(env, f"fire_brigade_members?customer_id=eq.{cust['id']}&select=team,name,duty,phone&order=sort_order")
+    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade)
     print(f"✅ HWP: {out_hwp}")
 
     if args.pdf:
