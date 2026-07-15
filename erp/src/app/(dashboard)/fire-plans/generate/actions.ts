@@ -55,7 +55,7 @@ export async function requestFirePlanHwpAction(customerId: string, year: number)
 export type GenStatus = {
   workerOnline: boolean
   pending: Array<{ name: string; customerName: string; year: number; requestedByName: string; requestedAt: string }>
-  results: Array<{ name: string; ok: boolean; error?: string; customerName?: string; year?: number; customerId?: string; finishedAt?: string }>
+  results: Array<{ name: string; ok: boolean; error?: string; customerName?: string; year?: number; customerId?: string; finishedAt?: string; missing?: string[] }>
 }
 
 export async function getFirePlanGenStatusAction(): Promise<GenStatus> {
@@ -95,7 +95,7 @@ export async function getFirePlanGenStatusAction(): Promise<GenStatus> {
     const { data: file } = await admin.storage.from(BUCKET).download(`_results/${item.name}`)
     if (!file) continue
     try {
-      const r = JSON.parse(await file.text()) as { ok: boolean; error?: string; customerName?: string; year?: number; finishedAt?: string }
+      const r = JSON.parse(await file.text()) as { ok: boolean; error?: string; customerName?: string; year?: number; finishedAt?: string; missing?: string[] }
       // 요청 파일명 규약 {ts}_{customerId}.json → 고객 상세 링크용
       const customerId = item.name.replace(/^\d+_/, '').replace(/\.json$/, '')
       results.push({ name: item.name, customerId, ...r })

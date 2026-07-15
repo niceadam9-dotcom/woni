@@ -149,8 +149,18 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
                   : <XCircle className="size-4 text-red-500 shrink-0" />}
                 <span className="font-medium text-[#090c1d]">{r.customerName ?? '(알 수 없음)'}</span>
                 <span className="text-xs text-[#b0acd6]">{r.year ? `${r.year}년` : ''} {r.finishedAt ? `· ${r.finishedAt.slice(5, 16).replace('T', ' ')}` : ''}</span>
+                {r.ok && (r.missing?.length ?? 0) > 0 && (
+                  <span className="text-[11px] text-amber-600 truncate">
+                    누락: {r.missing!.join(', ')}
+                    {r.customerId && (
+                      <Link href={`/customers/${r.customerId}`} className="text-[#7b68ee] hover:underline ml-1">
+                        → 고객 정보 입력
+                      </Link>
+                    )}
+                  </span>
+                )}
                 {r.ok && r.customerId && (
-                  <Link href={`/customers/${r.customerId}`} className="text-xs text-[#7b68ee] hover:underline ml-auto">
+                  <Link href={`/customers/${r.customerId}`} className="text-xs text-[#7b68ee] hover:underline ml-auto shrink-0">
                     보관함에서 열기 →
                   </Link>
                 )}

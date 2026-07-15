@@ -88,7 +88,21 @@ def process(req_name: str) -> None:
         codes = [f["facility_code"] for f in db_get(
             f"fire_facilities?building_id=eq.{buildings[0]['id']}&installed=eq.true&select=facility_code")]
     stage2 = mf.build_stage2(cust, year, codes)
-    out_hwp, out_odt = mf.generate_hwp(cust, year, extras=extras, extra_replacements=stage2)
+
+    # 사진 연계: 고객 gen-assets(웹 PDF 생성 시 업로드)의 최신 이미지 1장을 표지에 삽입
+    photo_path = None
+    try:
+        assets = st_list(f"{cust_id}/gen-assets/")
+        imgs = sorted([a["name"] for a in assets if a.get("name", "").lower().endswith((".jpg", ".jpeg", ".png", ".webp"))])
+        if imgs:
+            photo_path = os.path.join(mf.OUT_DIR, f"_photo_{cust_id}{os.path.splitext(imgs[-1])[1]}")
+            with open(photo_path, "wb") as f:
+                f.write(st_download(f"{cust_id}/gen-assets/{imgs[-1]}"))
+            print(f"[{now_iso()}] 사진 연계: {imgs[-1]}")
+    except Exception as pe:  # noqa: BLE001
+        print(f"[{now_iso()}] 사진 연계 건너뜀: {pe}")
+
+    out_hwp, out_odt = mf.generate_hwp(cust, year, photo=photo_path, extras=extras, extra_replacements=stage2)
     out_pdf = out_hwp[:-4] + ".pdf"
     mf.convert_pdf(out_odt, out_pdf)
 
@@ -113,8 +127,20 @@ def process(req_name: str) -> None:
         "note": "HWP 자동 생성 (표준양식)",
         "uploaded_by": req.get("requestedBy"),
     })
-    write_result(req_name, {"ok": True, "customerName": cust["customer_name"], "year": year})
-    print(f"[{now_iso()}] ✅ 완료: {cust['customer_name']} → 보관함 등록")
+    # 누락 필드 안내 — 페이지에서 고객 상세 바로가기와 함께 표시
+    b = buildings[0] if buildings else {}
+    missing = [label for label, has in [
+        ("주소", cust.get("address")),
+        ("사용승인일", cust.get("use_approval_date")),
+        ("계약일", cust.get("contract_date")),
+        ("관계인", owner),
+        ("건물 용도", b.get("purpose")),
+        ("연면적", b.get("total_area") is not None or None),
+        ("층수", (b.get("floors_above") is not None or b.get("floors_below") is not None) or None),
+        ("시설현황", codes or None),
+    ] if not has]
+    write_result(req_name, {"ok": True, "customerName": cust["customer_name"], "year": year, "missing": missing})
+    print(f"[{now_iso()}] ✅ 완료: {cust['customer_name']} → 보관함 등록 (누락 {len(missing)}개)")
 
 print(f"소방계획서 생성 워커 시작 — {SB_URL} / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")
 mf.sdk_app()  # 라이선스 선검증
