@@ -34,13 +34,20 @@ export async function convertXlsxToPdf(
 /**
  * HTML → PDF 변환 (소방계획서 표준양식 생성 등).
  * Gotenberg Chromium 라우트 사용 — A4 세로, 배경 인쇄 포함.
+ * assets: HTML에서 상대경로(파일명)로 참조하는 이미지 등 부속 파일 (멀티파트 첨부)
  */
-export async function convertHtmlToPdf(html: string): Promise<Uint8Array> {
+export async function convertHtmlToPdf(
+  html: string,
+  assets: Array<{ name: string; data: Uint8Array; mime: string }> = [],
+): Promise<Uint8Array> {
   const base = process.env.GOTENBERG_URL
   if (!base) throw new Error('GOTENBERG_URL 미설정 — PDF 변환 서비스가 구성되지 않았습니다.')
 
   const form = new FormData()
   form.append('files', new Blob([html], { type: 'text/html' }), 'index.html')
+  for (const a of assets) {
+    form.append('files', new Blob([a.data as BlobPart], { type: a.mime }), a.name)
+  }
   form.append('paperWidth', '8.27')    // A4 (inch)
   form.append('paperHeight', '11.69')
   form.append('marginTop', '0.6')

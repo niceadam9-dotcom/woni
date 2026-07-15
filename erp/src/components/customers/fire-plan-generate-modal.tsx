@@ -1,10 +1,18 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { X, Loader2, FileOutput } from 'lucide-react'
-import { generateFirePlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { X, Loader2, FileOutput, ImagePlus } from 'lucide-react'
+import { generateFirePlanAction, uploadFirePlanGenImageAction, deleteFirePlanGenImageAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { DateInput } from '@/components/ui/date-input'
-import type { FirePlanGenData, BrigadeRow, EvacRow } from '@/lib/fire-plan-template'
+import type { FirePlanGenData, BrigadeRow, EvacRow, ZoneRow, HazardRow, PlanPhoto } from '@/lib/fire-plan-template'
+
+const HAZARD_FACTORS = ['전기적 요인', '기계적 요인', '화학적 요인', '가스누출(폭발)', '부주의', '자연재해']
+const PHOTO_KINDS: Array<{ value: PlanPhoto['kind']; label: string }> = [
+  { value: 'building', label: '건물 전경' },
+  { value: 'map', label: '위치도(지도)' },
+  { value: 'evacuation', label: '피난경로도' },
+  { value: 'etc', label: '기타' },
+]
 
 /** 서식 1.4 시설 목록 — 서버 템플릿과 동일 구성 (클라이언트 표시용 복제) */
 const FACILITY_GROUPS: Array<{ category: string; items: string[] }> = [
@@ -47,6 +55,49 @@ export function FirePlanGenerateModal({ customerId, initial, onClose, onDone }: 
   }
   function setEvac(i: number, k: keyof EvacRow, val: string) {
     setD(prev => { const rows = [...prev.evacRoutes]; rows[i] = { ...rows[i], [k]: val }; return { ...prev, evacRoutes: rows } })
+  }
+  function setZone(i: number, k: keyof ZoneRow, val: string) {
+    setD(prev => { const rows = [...prev.zones]; rows[i] = { ...rows[i], [k]: val }; return { ...prev, zones: rows } })
+  }
+  function setHazard(i: number, k: 'place' | 'location', val: string) {
+    setD(prev => { const rows = [...prev.hazards]; rows[i] = { ...rows[i], [k]: val }; return { ...prev, hazards: rows } })
+  }
+  function toggleHazardFactor(i: number, factor: string) {
+    setD(prev => {
+      const rows = [...prev.hazards]
+      const on = rows[i].factors.includes(factor)
+      rows[i] = { ...rows[i], factors: on ? rows[i].factors.filter(f => f !== factor) : [...rows[i].factors, factor] }
+      return { ...prev, hazards: rows }
+    })
+  }
+
+  const [photoKind, setPhotoKind] = useState<PlanPhoto['kind']>('building')
+  // 이번 세션에서 올린 파일만 삭제 시 스토리지 정리 — 과거 개정판이 참조하는 파일은 보존
+  const [sessionUploads] = useState<Set<string>>(() => new Set())
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fd = new FormData()
+    fd.append('file', file)
+    const kind = photoKind
+    startTransition(async () => {
+      const res = await uploadFirePlanGenImageAction(customerId, fd)
+      if (res.error || !res.path) { setError(res.error ?? '업로드 실패'); return }
+      sessionUploads.add(res.path)
+      setD(prev => ({ ...prev, photos: [...prev.photos, { path: res.path!, kind, caption: file.name.replace(/\.[^.]+$/, '') }] }))
+    })
+    e.target.value = ''
+  }
+  function removePhoto(i: number) {
+    const photo = d.photos[i]
+    setD(prev => ({ ...prev, photos: prev.photos.filter((_, j) => j !== i) }))
+    if (sessionUploads.has(photo.path)) {
+      deleteFirePlanGenImageAction(customerId, photo.path).catch(() => {})
+      sessionUploads.delete(photo.path)
+    }
+  }
+  function setPhotoCaption(i: number, caption: string) {
+    setD(prev => { const rows = [...prev.photos]; rows[i] = { ...rows[i], caption }; return { ...prev, photos: rows } })
   }
 
   function handleGenerate() {
@@ -106,6 +157,74 @@ export function FirePlanGenerateModal({ customerId, initial, onClose, onDone }: 
               <F label="소방안전관리자"><input value={d.managerName} onChange={e => set('managerName', e.target.value)} className={inputCls} /></F>
               <F label="관리자 연락처"><input value={d.managerPhone} onChange={e => set('managerPhone', e.target.value)} className={inputCls} /></F>
               <F label="관리자 선임일자"><DateInput value={d.managerSelectedAt} onChange={e => set('managerSelectedAt', e.target.value)} className={inputCls} /></F>
+            </div>
+          </section>
+
+          {/* 서식 1.2 */}
+          <section>
+            <p className="text-xs font-bold text-[#7b68ee] mb-2">서식 1.2 — 건축물 세부현황</p>
+            <p className="text-[11px] font-semibold text-[#514b81] mb-1">1.2.1 구역별 세부현황</p>
+            <div className="space-y-1.5 mb-3">
+              {d.zones.map((z, i) => (
+                <div key={i} className="grid grid-cols-[70px_1fr_70px_80px_80px_90px_100px_24px] gap-1.5 items-center">
+                  <input value={z.zone} onChange={e => setZone(i, 'zone', e.target.value)} placeholder="동/층" className={inputCls} />
+                  <input value={z.name} onChange={e => setZone(i, 'name', e.target.value)} placeholder="명칭/용도" className={inputCls} />
+                  <input value={z.area} onChange={e => setZone(i, 'area', e.target.value)} placeholder="면적㎡" className={inputCls} />
+                  <input value={z.weekday} onChange={e => setZone(i, 'weekday', e.target.value)} placeholder="평일 인원" className={inputCls} />
+                  <input value={z.holiday} onChange={e => setZone(i, 'holiday', e.target.value)} placeholder="휴일 인원" className={inputCls} />
+                  <input value={z.managerCo} onChange={e => setZone(i, 'managerCo', e.target.value)} placeholder="관리주체" className={inputCls} />
+                  <input value={z.contact} onChange={e => setZone(i, 'contact', e.target.value)} placeholder="담당(연락처)" className={inputCls} />
+                  <button onClick={() => set('zones', d.zones.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500 text-xs">✕</button>
+                </div>
+              ))}
+              <button onClick={() => set('zones', [...d.zones, { zone: '', name: '', area: '', weekday: '', holiday: '', managerCo: '', contact: '' }])}
+                className="text-[11px] text-[#7b68ee] hover:underline">+ 행 추가</button>
+            </div>
+            <p className="text-[11px] font-semibold text-[#514b81] mb-1">1.2.2 화재취약장소</p>
+            <div className="space-y-2">
+              {d.hazards.map((h, i) => (
+                <div key={i} className="rounded-lg border border-[#e0ddf5] p-2 space-y-1">
+                  <div className="grid grid-cols-[110px_1fr_24px] gap-1.5 items-center">
+                    <input value={h.place} onChange={e => setHazard(i, 'place', e.target.value)} placeholder="장소 (예: 보일러실)" className={inputCls} />
+                    <input value={h.location} onChange={e => setHazard(i, 'location', e.target.value)} placeholder="위치 (예: 지하1층)" className={inputCls} />
+                    <button onClick={() => set('hazards', d.hazards.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500 text-xs">✕</button>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {HAZARD_FACTORS.map(f => (
+                      <label key={f} className="flex items-center gap-1 text-[11px] text-[#292d34] cursor-pointer">
+                        <input type="checkbox" checked={h.factors.includes(f)} onChange={() => toggleHazardFactor(i, f)} className="accent-[#7b68ee]" />
+                        {f}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button onClick={() => set('hazards', [...d.hazards, { place: '', location: '', factors: [] }])}
+                className="text-[11px] text-[#7b68ee] hover:underline">+ 행 추가</button>
+            </div>
+          </section>
+
+          {/* 사진 삽입 */}
+          <section>
+            <p className="text-xs font-bold text-[#7b68ee] mb-2">사진 삽입 <span className="text-[10px] text-[#b0acd6] font-normal">— 위치도·건물 전경은 서식 1.3에, 피난경로도는 서식 3.4에, 기타는 부속 페이지로 들어갑니다</span></p>
+            <div className="flex items-center gap-2 mb-2">
+              <select value={photoKind} onChange={e => setPhotoKind(e.target.value as PlanPhoto['kind'])} className="h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]">
+                {PHOTO_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </select>
+              <label className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] cursor-pointer">
+                <ImagePlus className="size-3.5" /> 사진 추가
+                <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={handlePhotoUpload} disabled={isPending} />
+              </label>
+            </div>
+            <div className="space-y-1">
+              {d.photos.map((p, i) => (
+                <div key={p.path} className="grid grid-cols-[100px_1fr_24px] gap-1.5 items-center">
+                  <span className="text-[11px] px-1.5 py-1 rounded bg-[#f5f4ff] text-[#7b68ee] text-center">{PHOTO_KINDS.find(k => k.value === p.kind)?.label ?? p.kind}</span>
+                  <input value={p.caption} onChange={e => setPhotoCaption(i, e.target.value)} placeholder="사진 설명 (캡션)" className={inputCls} />
+                  <button onClick={() => removePhoto(i)} className="text-[#b0acd6] hover:text-red-500 text-xs">✕</button>
+                </div>
+              ))}
+              {d.photos.length === 0 && <p className="text-[11px] text-[#b0acd6]">추가된 사진 없음</p>}
             </div>
           </section>
 

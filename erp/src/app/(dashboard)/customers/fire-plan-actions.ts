@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
-import { buildFirePlanHtml, FACILITY_FORM, type FirePlanGenData } from '@/lib/fire-plan-template'
+import { buildFirePlanHtml, buildDataSheetHtml, FACILITY_FORM, type FirePlanGenData } from '@/lib/fire-plan-template'
 import { convertHtmlToPdf } from '@/lib/pdf'
 
 const BUCKET = 'fire-plans'
@@ -303,7 +303,70 @@ export async function getFirePlanGenDefaultsAction(
       evacRoutes: [{ floor: '전층', route: '각 출입구 앞 직통계단 이용', guide: '', equip: '' }],
       assembly: '1층 주차장',
       evacNote: '피난유도자 지시에 따라 최단 경로로 피난 실시, 피난 늦은 인원은 옥상 대피',
+      zones: [{
+        zone: '전층', name: b?.purpose ?? '', area: b?.total_area != null ? String(b.total_area) : '',
+        weekday: '', holiday: '', managerCo: '', contact: owner?.phone ?? '',
+      }],
+      // 원본 양식 예시 프리셋 (보일러실·주방·전기실)
+      hazards: [
+        { place: '보일러실', location: '', factors: ['전기적 요인', '가스누출(폭발)'] },
+        { place: '주방', location: '', factors: ['부주의', '가스누출(폭발)'] },
+        { place: '전기실', location: '', factors: ['전기적 요인'] },
+      ],
+      photos: [],
     },
+  }
+}
+
+const IMAGE_EXTS: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
+
+/** 표준양식 삽입용 사진 업로드 — fire-plans 버킷 gen-assets 경로 (마이그레이션 없음) */
+export async function uploadFirePlanGenImageAction(
+  customerId: string,
+  formData: FormData,
+): Promise<{ error?: string; path?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { error: '이미지 파일을 선택해주세요.' }
+  if (file.size > 10 * 1024 * 1024) return { error: '이미지는 10MB 이하여야 합니다.' }
+  const ext = (file.name.split('.').pop() ?? '').toLowerCase()
+  const mime = IMAGE_EXTS[ext]
+  if (!mime) return { error: 'JPG/PNG/WEBP 이미지만 업로드할 수 있습니다.' }
+
+  const path = `${customerId}/gen-assets/${Date.now()}.${ext}`
+  const { error } = await admin.storage.from(BUCKET)
+    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: mime, upsert: false })
+  if (error) return { error: `업로드 실패: ${error.message}` }
+  return { path }
+}
+
+/** 표준양식 삽입용 사진 삭제 (폼에서 제거 시) — gen-assets 경로만 허용 */
+export async function deleteFirePlanGenImageAction(
+  customerId: string,
+  path: string,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  if (!path.startsWith(`${customerId}/gen-assets/`)) return { error: '잘못된 경로입니다.' }
+  const admin = createAdminClient()
+  await admin.storage.from(BUCKET).remove([path])
+  return {}
+}
+
+/** 계획서 데이터 시트 PDF — 한컴독스(한글) 수동 편집 시 참조용 1장 요약 (doc02 §8 ④안) */
+export async function downloadFirePlanDataSheetAction(
+  customerId: string,
+): Promise<{ error?: string; base64?: string; fileName?: string }> {
+  const res = await getFirePlanGenDefaultsAction(customerId)
+  if (res.error || !res.data) return { error: res.error ?? '데이터를 불러오지 못했습니다.' }
+  try {
+    const pdf = await convertHtmlToPdf(buildDataSheetHtml(res.data))
+    return {
+      base64: Buffer.from(pdf).toString('base64'),
+      fileName: `${res.data.buildingName}_계획서데이터시트_${res.data.year}.pdf`,
+    }
+  } catch (e) {
+    return { error: `PDF 생성 실패: ${(e as Error).message}` }
   }
 }
 
@@ -318,9 +381,21 @@ export async function generateFirePlanAction(
   if (!data.year || data.year < 2000 || data.year > 2100) return { error: '연도를 확인해주세요.' }
   if (!data.buildingName.trim()) return { error: '대상물 명칭을 입력해주세요.' }
 
+  // 삽입 사진: 스토리지에서 읽어 Gotenberg 멀티파트 파일로 첨부 (파일명 img{i}.{ext})
+  const assets: Array<{ name: string; data: Uint8Array; mime: string }> = []
+  const images: Array<{ file: string; kind: string; caption: string }> = []
+  for (const [i, photo] of (data.photos ?? []).entries()) {
+    const { data: file, error } = await admin.storage.from(BUCKET).download(photo.path)
+    if (error || !file) return { error: `사진을 불러오지 못했습니다: ${photo.caption || photo.path}` }
+    const ext = (photo.path.split('.').pop() ?? 'jpg').toLowerCase()
+    const name = `img${i}.${ext}`
+    assets.push({ name, data: new Uint8Array(await file.arrayBuffer()), mime: IMAGE_EXTS[ext] ?? 'image/jpeg' })
+    images.push({ file: name, kind: photo.kind, caption: photo.caption })
+  }
+
   let pdf: Uint8Array
   try {
-    pdf = await convertHtmlToPdf(buildFirePlanHtml(data))
+    pdf = await convertHtmlToPdf(buildFirePlanHtml(data, images), assets)
   } catch (e) {
     return { error: `PDF 생성 실패: ${(e as Error).message}` }
   }
@@ -388,7 +463,9 @@ export async function getFirePlanFormAction(
     .download(pdfPath.replace(/\.pdf$/, '.form.json'))
   if (error || !file) return { error: '양식 데이터를 찾을 수 없습니다.' }
   try {
-    return { data: JSON.parse(await file.text()) as FirePlanGenData }
+    // 구버전 form.json(서식 1.2·사진 도입 전) 정규화 — 누락 필드만 기본값 보충
+    const parsed = JSON.parse(await file.text()) as Partial<FirePlanGenData>
+    return { data: { zones: [], hazards: [], photos: [], ...parsed } as FirePlanGenData }
   } catch {
     return { error: '양식 데이터 형식이 올바르지 않습니다.' }
   }

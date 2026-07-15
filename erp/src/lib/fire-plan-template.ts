@@ -7,6 +7,20 @@ import 'server-only'
 
 export type BrigadeRow = { team: string; name: string; duty: string; phone: string }
 export type EvacRow = { floor: string; route: string; guide: string; equip: string }
+/** 서식 1.2.1 구역별 세부현황 */
+export type ZoneRow = { zone: string; name: string; area: string; weekday: string; holiday: string; managerCo: string; contact: string }
+/** 서식 1.2.2 화재취약장소 */
+export type HazardRow = { place: string; location: string; factors: string[] }
+/** 본문 삽입 사진 — path는 스토리지 경로, 생성 시 멀티파트 파일로 첨부 */
+export type PlanPhoto = { path: string; kind: 'building' | 'map' | 'evacuation' | 'etc'; caption: string }
+
+export const HAZARD_FACTORS = ['전기적 요인', '기계적 요인', '화학적 요인', '가스누출(폭발)', '부주의', '자연재해'] as const
+export const PHOTO_KINDS: Array<{ value: PlanPhoto['kind']; label: string }> = [
+  { value: 'building', label: '건물 전경' },
+  { value: 'map', label: '위치도(지도)' },
+  { value: 'evacuation', label: '피난경로도' },
+  { value: 'etc', label: '기타' },
+]
 
 export type FirePlanGenData = {
   year: number
@@ -53,6 +67,11 @@ export type FirePlanGenData = {
   evacRoutes: EvacRow[]
   assembly: string              // 집결지
   evacNote: string              // 피난유도 방법 서술
+  // 서식 1.2 건축물 세부현황
+  zones: ZoneRow[]
+  hazards: HazardRow[]
+  // 본문 삽입 사진
+  photos: PlanPhoto[]
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -70,9 +89,27 @@ export const FACILITY_FORM: Array<{ category: string; items: string[] }> = [
 
 const GRADES = ['특급', '1급', '2급', '3급']
 
-export function buildFirePlanHtml(d: FirePlanGenData): string {
+/** images: 생성 시 Gotenberg 멀티파트로 첨부되는 파일명 목록 (d.photos와 순서 일치) */
+export function buildFirePlanHtml(
+  d: FirePlanGenData,
+  images: Array<{ file: string; kind: string; caption: string }> = [],
+): string {
   const facSet = new Set(d.facilities)
   const months = Array.from({ length: 12 }, (_, i) => i + 1)
+
+  const imgsOf = (kind: string) => images.filter(i => i.kind === kind)
+  const imgBlock = (list: Array<{ file: string; caption: string }>, maxH = 300) =>
+    list.map(i => `<figure style="margin:6px 0;text-align:center;page-break-inside:avoid">
+      <img src="${i.file}" style="max-width:100%;max-height:${maxH}px" />
+      ${i.caption ? `<figcaption class="small" style="margin-top:2px">${esc(i.caption)}</figcaption>` : ''}
+    </figure>`).join('')
+
+  const zoneRows = (d.zones.length ? d.zones : [{ zone: '', name: '', area: '', weekday: '', holiday: '', managerCo: '', contact: '' }])
+    .map(z => `<tr><td>${v(z.zone)}</td><td class="l">${v(z.name)}</td><td>${v(z.area)}</td><td>${v(z.weekday)}</td><td>${v(z.holiday)}</td><td>${v(z.managerCo)}</td><td>${v(z.contact)}</td></tr>`).join('')
+
+  const hazardRows = (d.hazards.length ? d.hazards : [{ place: '', location: '', factors: [] as string[] }])
+    .map(h => `<tr><td>${v(h.place)}</td><td class="l">${v(h.location)}</td>
+      <td class="l"><div class="ckgrid">${HAZARD_FACTORS.map(f => ck(h.factors.includes(f), f)).join('')}</div></td></tr>`).join('')
 
   const facilityRows = FACILITY_FORM.map(g => `
     <tr><th class="cat">${esc(g.category)}</th><td><div class="ckgrid">${
@@ -160,6 +197,31 @@ export function buildFirePlanHtml(d: FirePlanGenData): string {
         <th>주차장진입<br>가능여부</th><td></td></tr>
     <tr><th>소방차 진입경로</th><td class="l" colspan="5">&nbsp;</td></tr>
   </table>
+  ${imgsOf('map').length ? `<h3>건축물 위치도</h3>${imgBlock(imgsOf('map'), 340)}` : ''}
+  ${imgsOf('building').length ? `<h3>건물 전경</h3>${imgBlock(imgsOf('building'), 340)}` : ''}
+</div>
+
+<!-- 서식 1.2 건축물 세부현황 -->
+<div class="page">
+  <p class="formno">서식 1.2</p><h3 style="display:inline;margin-left:8px">건축물 세부현황</h3>
+  <h3>1.2.1 구역별 세부현황</h3>
+  <table class="small">
+    <tr><th style="width:70px">구역별<br>(동/층)</th><th>명칭/용도</th><th style="width:70px">(바닥)면적</th>
+        <th style="width:80px">인원 평일<br>(주간/야간)</th><th style="width:80px">인원 휴일<br>(주간/야간)</th>
+        <th style="width:90px">관리주체<br>(입주사)</th><th style="width:100px">담당자<br>(연락처)</th></tr>
+    ${zoneRows}
+  </table>
+  <p class="note">※ 비고 1. 소방안전관리자는 구역별 인원현황 및 운영현황을 주기적으로 확인해야 한다.
+    2. 근무자·거주자 인원현황은 상시 근무·거주 인원을 파악하여 작성한다.</p>
+
+  <h3>1.2.2 화재취약장소/인명피해우려장소 현황</h3>
+  <p class="note">※ □에는 해당되는 곳에 √표를 합니다.</p>
+  <table class="small">
+    <tr><th style="width:90px">화재취약장소</th><th style="width:110px">위치</th><th>화재위험요소</th></tr>
+    ${hazardRows}
+  </table>
+  <p class="note">※ 비고. 소방안전관리자는 대상물의 구역별(동별, 층별) 화재취약장소 및 인명피해우려장소에 대한 현황을 파악하고,
+    이에 대한 화재예방대책, 자위소방대 운영계획 및 피난계획을 수립해야 한다.</p>
 </div>
 
 <!-- 서식 1.4 소방시설 현황 -->
@@ -268,8 +330,50 @@ export function buildFirePlanHtml(d: FirePlanGenData): string {
   <table>
     <tr><th style="width:90px">장소</th><td class="l">${v(d.assembly)}</td></tr>
   </table>
+  ${imgsOf('evacuation').length ? `<h3>피난경로도</h3>${imgBlock(imgsOf('evacuation'), 340)}` : ''}
   <p class="note">※ 비고. 소방안전관리자는 대상물의 구역별 화재취약장소 및 인명피해우려장소 현황을 파악하고, 이에 대한 피난계획을 수립해야 한다.</p>
 </div>
 
+${imgsOf('etc').length ? `<!-- 부속 사진 -->
+<div class="page">
+  <h2>부속 사진</h2>
+  ${imgBlock(imgsOf('etc'), 420)}
+</div>` : ''}
+
+</body></html>`
+}
+
+/** 계획서 데이터 시트 — 한컴독스(한글) 수동 편집 시 옆에 두고 옮겨 적는 1장 요약 (doc02 §8 ④안) */
+export function buildDataSheetHtml(d: FirePlanGenData): string {
+  const row = (label: string, value: string) =>
+    `<tr><th style="width:130px">${esc(label)}</th><td class="l">${v(value)}</td></tr>`
+  return `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+  body { font-family: 'Malgun Gothic', sans-serif; font-size: 11px; color: #111; margin: 0; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { font-size: 10px; color: #555; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  th, td { border: 1px solid #555; padding: 4px 8px; text-align: center; }
+  th { background: #efefef; }
+  td.l { text-align: left; }
+</style></head><body>
+<h1>소방계획서 데이터 시트 — ${esc(d.buildingName)}</h1>
+<p class="sub">${d.year}년 · 한글(한컴독스)에서 표준양식 편집 시 참조용 · 생성일 ${esc(d.revisionDate)}</p>
+<table>
+  ${row('명칭', d.buildingName)}${row('도로명주소', d.address)}
+  ${row('대상물 급수', d.grade)}${row('주용도', d.purpose)}
+  ${row('사용승인일', d.useApprovalDate)}${row('연면적(㎡)', d.totalArea)}
+  ${row('층수', d.floors)}${row('구조', d.structure)}
+  ${row('대표자(책임자)', `${d.ownerName} / ${d.ownerPhone}`)}
+  ${row('소방안전관리자', `${d.managerName} / ${d.managerPhone}`)}
+  ${row('관할소방서', d.fireStation)}
+  ${row('설치 소방시설', d.facilities.join(', '))}
+  ${row('업무대행 업체', `${d.companyName} / ${d.companyPhone}`)}
+  ${row('업체 주소', d.companyAddress)}
+  ${row('계약기간', `${d.contractStart} ~`)}${row('점검주기', d.inspectionCycle)}
+  ${row('작동점검 시기', d.operationMonth)}
+  ${d.comprehensiveMonth ? row('종합점검 시기', d.comprehensiveMonth) : ''}
+</table>
 </body></html>`
 }
