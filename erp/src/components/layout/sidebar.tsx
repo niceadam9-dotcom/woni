@@ -11,7 +11,7 @@ import {
   FileSpreadsheet, ShoppingCart, BookOpen, TrendingUp, Scale, ReceiptText,
   Banknote, Handshake, LayoutList, BookMarked, NotebookPen, Car, Route,
   StickyNote, Award, Users2, PackagePlus, PackageMinus, BarChart3, RefreshCw,
-  Tag, Package, PenLine, Mic, ChevronDown, ChevronRight,
+  Tag, Package, PenLine, Mic, ChevronDown, ChevronRight, Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
@@ -45,6 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'ToDo 목록',   href: '/my/todos',        icon: ListTodo,      roles: ['employee', 'manager', 'admin'] },
       { label: '주소록',      href: '/my/address-book', icon: Users2,        roles: ['employee', 'manager', 'admin'] },
       { label: '쪽지함',      href: '/my/messages',     icon: MessageSquare, roles: ['employee', 'manager', 'admin'] },
+      { label: '회사 메일',   href: '/mail',            icon: Mail,          roles: ['employee', 'manager', 'admin'] },
       { label: '노트',        href: '/my/notes',        icon: StickyNote,    roles: ['employee', 'manager', 'admin'] },
       { label: '녹음메모장',  href: '/my/voice-memos',  icon: Mic,           roles: ['employee', 'manager', 'admin'] },
       { label: '결재서명',    href: '/my/signature',    icon: PenLine,       roles: ['employee', 'manager', 'admin'] },
