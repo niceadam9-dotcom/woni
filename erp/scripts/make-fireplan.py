@@ -100,7 +100,41 @@ def sdk_app():
     _sdk = hwpsdk
     return _sdk
 
-# ── 빈 칸 주입 (A안 자동화): 라벨 셀 다음 셀의 빈 런에 값 삽입 ──
+# ── A안: placeholder 템플릿 — 양식에 {{key}}를 1회 심어두고(seed-fireplan-placeholders.py) 런타임은 단순 치환 ──
+# 파일이 있으면 자동으로 placeholder 모드, 없으면 종전 라벨-앵커 주입 모드로 동작한다.
+TEMPLATE_PH = os.path.join(DATA, "양식-placeholder.hwpx")
+
+# (라벨, nth, cell_offset) → placeholder key. 심기 스크립트와 런타임이 공유하는 단일 기준표.
+# build_extras가 내놓는 앵커와 반드시 1:1 — 새 앵커를 추가하면 여기와 심기 재실행 둘 다 필요.
+ANCHOR_KEYS: dict[tuple[str, int, int], str] = {
+    ("명칭", 1, 1): "customer_name",
+    ("도로명주소", 1, 1): "address",
+    ("사용승인일", 1, 1): "use_approval_date",
+    ("주용도", 1, 1): "purpose",
+    ("연면적", 1, 1): "total_area",
+    ("층수", 1, 1): "floors",
+    ("수신기위치", 1, 1): "receiver_location",
+    ("수신기 위치", 1, 1): "receiver_location",
+    ("구조", 1, 1): "main_structure",
+    ("지붕", 1, 1): "roof_structure",
+    ("높이", 1, 1): "height",
+    ("가입금액", 1, 1): "insurance_company",
+    ("가입금액", 1, 2): "insurance_period",
+    ("대인", 1, 1): "insurance_amount_person",
+    ("대물", 1, 1): "insurance_amount_property",
+    ("대표자(책임자)", 1, 1): "owner_name",
+    ("소방안전관리자", 1, 1): "manager_name",
+    ("연락처", 2, 1): "owner_phone",
+    ("연락처", 3, 1): "owner_phone",
+    ("소방안전관리자", 2, 2): "manager_name",
+    ("소방안전관리자", 2, 3): "manager_selected_date",
+}
+# 양식 예시값 → placeholder key (심기 시 전역 치환. 종전에는 값 없으면 예시값이 그대로 남았지만, ph 모드는 빈 칸이 된다)
+GLOBAL_PH = {"리젠시빌": "customer_name", "2017년 4월 24일": "contract_date", "양평 소방서": "fire_station"}
+ZONE_COLS = (1, 2, 3, 10)   # 서식 1.2.1 데이터 열 (build_zone_rows와 동일)
+PH_RE = re.compile(r"\{\{([a-z0-9_]+)\}\}")
+
+# ── 빈 칸 주입 (라벨-앵커 모드): 라벨 셀 다음 셀의 빈 런에 값 삽입 ──
 def _xml_escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -303,17 +337,53 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
     obj = hwpsdk.Application.GetHwpObject()
     os.makedirs(out_dir, exist_ok=True)
 
-    clean_hwpx = os.path.join(out_dir, "_template.hwpx")
-    if not os.path.isfile(clean_hwpx) or os.path.getmtime(clean_hwpx) < os.path.getmtime(TEMPLATE):
-        doc = obj.CreateDocument()
-        assert doc.Open(TEMPLATE, "", ""), "양식 열기 실패"
-        assert doc.SaveAs(clean_hwpx, "HWPX", ""), "HWPX 변환 실패"
-        obj.ReleaseDocument(doc)
+    use_ph = os.path.isfile(TEMPLATE_PH)
+    if use_ph:
+        clean_hwpx = TEMPLATE_PH   # placeholder 템플릿은 이미 HWPX — SDK 변환 불필요
+    else:
+        clean_hwpx = os.path.join(out_dir, "_template.hwpx")
+        if not os.path.isfile(clean_hwpx) or os.path.getmtime(clean_hwpx) < os.path.getmtime(TEMPLATE):
+            doc = obj.CreateDocument()
+            assert doc.Open(TEMPLATE, "", ""), "양식 열기 실패"
+            assert doc.SaveAs(clean_hwpx, "HWPX", ""), "HWPX 변환 실패"
+            obj.ReleaseDocument(doc)
 
     safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
     merged_hwpx = os.path.join(out_dir, f"_{safe}_merged.hwpx")
+
     # 7차 프리셋은 최저 우선순위: 같은 키가 있으면 고객 데이터 치환이 덮어씀 (고객 필드 > 프리셋 > 양식 기본값)
-    replacements = {**dict(preset_pairs or []), **build_replacements(cust), **(extra_replacements or {})}
+    replacements = {**dict(preset_pairs or []), **(extra_replacements or {})}
+    legacy_extras = list(extras or [])
+    if use_ph:
+        # ph 모드: 앵커 주입 대신 {{key}} 토큰 치환. 기준표 밖 앵커만 legacy 주입으로 남긴다.
+        ph: dict[str, str] = {"customer_name": cust["customer_name"]}
+        if cust.get("contract_date"):
+            ph["contract_date"] = kdate(cust["contract_date"])
+        if cust.get("fire_station"):
+            ph["fire_station"] = cust["fire_station"]
+        legacy_extras = []
+        for label, value, nth, off in (extras or []):
+            key = ANCHOR_KEYS.get((label, nth, off))
+            if key:
+                ph.setdefault(key, value)
+            else:
+                legacy_extras.append((label, value, nth, off))
+        for idx, row in enumerate((zone_rows or [])[:8]):
+            for col, val in row.items():
+                if val:
+                    ph[f"zone_r{idx}_c{col}"] = val
+        if brigade:
+            leader = next((m for m in brigade if m.get("team") == "자위소방대장"), brigade[0])
+            deputy = next((m for m in brigade if m.get("team") == "부대장"), None)
+            for tag, m in (("l", leader), ("d", deputy)):
+                if m:
+                    ph[f"brig_{tag}_name"] = m.get("name") or ""
+                    ph[f"brig_{tag}_duty"] = m.get("duty") or ""
+                    ph[f"brig_{tag}_phone"] = m.get("phone") or ""
+        replacements.update({f"{{{{{k}}}}}": v for k, v in ph.items() if v})
+    else:
+        replacements = {**dict(preset_pairs or []), **build_replacements(cust), **(extra_replacements or {})}
+
     with zipfile.ZipFile(clean_hwpx, "r") as zin, zipfile.ZipFile(merged_hwpx, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
             data = zin.read(item.filename)
@@ -322,16 +392,22 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                 for old, new in replacements.items():
                     xml = xml.replace(old, new)
                 if item.filename == "Contents/section0.xml":
-                    for label, value, nth, off in (extras or []):
+                    for label, value, nth, off in legacy_extras:
                         xml, ok = inject_after_label(xml, label, value, nth, off)
                         if not ok:
                             print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}({nth},{off})")
-                    if zone_rows:
-                        xml, n = fill_zone_rows(xml, zone_rows)
-                        print(f"  구역별(1.2.1) 셀 {n}개 주입")
-                    if brigade:
-                        xml, n = fill_brigade(xml, cust["customer_name"], brigade)
-                        print(f"  자위소방대(2.2) 셀 {n}개 주입")
+                    if not use_ph:
+                        if zone_rows:
+                            xml, n = fill_zone_rows(xml, zone_rows)
+                            print(f"  구역별(1.2.1) 셀 {n}개 주입")
+                        if brigade:
+                            xml, n = fill_brigade(xml, cust["customer_name"], brigade)
+                            print(f"  자위소방대(2.2) 셀 {n}개 주입")
+                if use_ph:
+                    leftover = sorted(set(PH_RE.findall(xml)))
+                    if leftover and item.filename == "Contents/section0.xml":
+                        print(f"  미채움 placeholder {len(leftover)}개 → 빈 칸 처리: {', '.join(leftover)}")
+                    xml = PH_RE.sub("", xml)
                 data = xml.encode("utf-8")
             zout.writestr(item, data)
 
