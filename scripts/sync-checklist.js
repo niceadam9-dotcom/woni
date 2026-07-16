@@ -23,15 +23,16 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE = 'f:/AI/ERP/erp_goal';
+// 2026-07-16: erp_goal 정리로 체크리스트가 Victory_md/·Testing/ 하위로 이동됨 — 경로 추적 갱신
 const FILES = {
-  erp:  path.join(BASE, 'checklist.json'),
-  fire: path.join(BASE, 'inspection_checklist.json'),
-  new1: path.join(BASE, 'NEW1.JSON'),
-  v8:   path.join(BASE, 'Victory8.json'),
-  v10:  path.join(BASE, 'Victory10.json'),
-  fix:  path.join(BASE, 'victory_test_result_fixing.json'),
-  add:  path.join(BASE, 'Victory10_add.json'),
-  ent:  path.join(BASE, 'Victory10_entire.json'),
+  erp:  path.join(BASE, 'Victory_md', 'checklist.json'),
+  fire: path.join(BASE, 'Victory_md', 'inspection_checklist.json'),
+  new1: path.join(BASE, 'Victory_md', 'NEW1.JSON'),
+  v8:   path.join(BASE, 'Victory_md', 'Victory8.json'),
+  v10:  path.join(BASE, 'Victory_md', 'Victory10.json'),
+  fix:  path.join(BASE, 'Testing', 'victory_test_result_fixing.json'),
+  add:  path.join(BASE, 'Victory_md', 'Victory10_add.json'),
+  ent:  path.join(BASE, 'Victory_md', 'Victory10_entire.json'),
   sj:   path.join(BASE, 'Victory_md', 'sjeng_impl.json'),
 };
 
