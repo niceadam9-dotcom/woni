@@ -175,6 +175,10 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       const f = newForm()
       setForm(p => ({ ...p, zipcode: f.zipcode, address: f.address, address_jibun: f.address_jibun, bcode: f.bcode }))
       if (f.bcode && f.address_jibun) fetchLedger(f.bcode, f.address_jibun)
+    } else {
+      // 해제 = 다른 주소의 건물 등록 의도 — 상속값을 남기면 주소 검색을 잊었을 때 엉뚱한 bcode로 저장됨
+      setForm(p => ({ ...p, zipcode: '', address: '', address_jibun: '', bcode: '' }))
+      setLedgerNote('')
     }
   }
 

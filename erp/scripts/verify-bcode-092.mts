@@ -164,6 +164,8 @@ try {
   const b3 = after3.find(b => b.building_name === 'TEST-BCODE-무주소건물')
   console.log('  DB row3:', JSON.stringify(b3))
   check('무주소 건물 저장 성공', !!b3)
+  check('상속 해제 시 주소·bcode 클리어 저장', !!b3 && !b3.bcode && !b3.address && !b3.address_jibun,
+    JSON.stringify({ bcode: b3?.bcode, address: b3?.address, jibun: b3?.address_jibun }))
 
   await page.screenshot({ path: `${SHOT_DIR}/final-list.png` })
 } catch (e) {
