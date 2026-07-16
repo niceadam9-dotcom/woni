@@ -25,6 +25,8 @@ export type CreateBuildingInput = {
   building_name: string
   zipcode?: string
   address?: string
+  address_jibun?: string   // 092: 지번주소 (건축물대장 번지 파싱)
+  bcode?: string           // 092: 법정동코드 10자리
   total_area?: number
   floors_above?: number
   floors_below?: number
@@ -55,26 +57,26 @@ export async function createBuildingAction(
     created_by: profile.id,
   }
 
-  let { data, error } = await admin
-    .from('buildings')
-    .insert({ ...baseFields, zipcode: input.zipcode || null } as Record<string, unknown>)
-    .select('id')
-    .single()
-
-  // zipcode 컬럼 미적용 시 재시도
-  if (error?.message?.includes('zipcode')) {
-    const retry = await admin
-      .from('buildings')
-      .insert(baseFields as Record<string, unknown>)
-      .select('id')
-      .single()
-    data = retry.data
-    error = retry.error
+  // 단계적 폴백: 092(bcode·지번)+zipcode → zipcode만(092 미적용) → 기본(022 미적용)
+  const attempts: Record<string, unknown>[] = [
+    { ...baseFields, zipcode: input.zipcode || null, bcode: input.bcode || null, address_jibun: input.address_jibun || null },
+    { ...baseFields, zipcode: input.zipcode || null },
+    baseFields,
+  ]
+  let data: { id: string } | null = null
+  let error: { code?: string; message?: string } | null = null
+  for (const payload of attempts) {
+    const res = await admin.from('buildings').insert(payload).select('id').single()
+    data = res.data as { id: string } | null
+    error = res.error
+    if (!error) break
+    if (error.code !== '42703' && !error.message?.includes('column') && !error.message?.includes('zipcode')) break
   }
 
-  if (error) return { error: error.message }
+  if (error) return { error: error.message ?? '건물 등록 실패' }
 
   revalidatePath('/buildings')
+  revalidatePath(`/customers/${input.customer_id}`)
   return { buildingId: (data as { id: string }).id }
 }
 
@@ -83,6 +85,8 @@ export type UpdateBuildingInput = {
   building_name: string
   zipcode?: string
   address?: string
+  address_jibun?: string   // 092
+  bcode?: string           // 092
   total_area?: number
   building_area?: number
   floors_above?: number
@@ -125,20 +129,24 @@ export async function updateBuildingAction(
     updated_at: new Date().toISOString(),
   }
 
-  let { error } = await admin
-    .from('buildings')
-    .update(updateFields)
-    .eq('id', input.id)
+  // 092 필드는 값이 있을 때만 포함 (주소 검색을 안 했으면 기존 값 유지)
+  const with092: Record<string, unknown> = { ...updateFields }
+  if (input.bcode) with092.bcode = input.bcode
+  if (input.address_jibun) with092.address_jibun = input.address_jibun
 
-  // zipcode 컬럼 미적용 시 재시도
-  if (error?.message?.includes('zipcode')) {
-    const { zipcode: _z, ...withoutZipcode } = updateFields
-    void _z
-    const retry = await admin.from('buildings').update(withoutZipcode).eq('id', input.id)
-    error = retry.error
+  // 단계적 폴백: 092 포함 → 092 제외(미적용) → zipcode 제외(022 미적용)
+  const { zipcode: _z, ...withoutZipcode } = updateFields
+  void _z
+  const attempts: Record<string, unknown>[] = [with092, updateFields, withoutZipcode]
+  let error: { code?: string; message?: string } | null = null
+  for (const payload of attempts) {
+    const res = await admin.from('buildings').update(payload).eq('id', input.id)
+    error = res.error
+    if (!error) break
+    if (error.code !== '42703' && !error.message?.includes('column') && !error.message?.includes('zipcode')) break
   }
 
-  if (error) return { error: error.message }
+  if (error) return { error: error.message ?? '건물 수정 실패' }
 
   revalidatePath('/buildings')
   revalidatePath(`/buildings/${input.id}`)

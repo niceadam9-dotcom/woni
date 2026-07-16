@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search, MapPin } from 'lucide-react'
 import { updateCustomerAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
@@ -11,6 +11,11 @@ import type { Customer } from '@/types'
 
 type Props = {
   customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed'>
+  /** §11: 요약 모드용 — 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
+  typeSlot?: React.ReactNode
+  annualLabel?: string
+  lastChangeText?: string | null
+  canManage?: boolean
 }
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
@@ -33,9 +38,11 @@ function makeInitial(c: Props['customer']) {
   }
 }
 
-export function EditCustomerInfoClient({ customer }: Props) {
+export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true }: Props) {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
+  // §11-1: 기본은 읽기 요약 — 편집 폼은 [편집] 또는 요약 값 클릭 시에만
+  const [mode, setMode] = useState<'summary' | 'edit'>('summary')
   const [form, setForm] = useState(() => makeInitial(customer))
   const [addrJibun, setAddrJibun] = useState('')
   const [error, setError] = useState('')
@@ -43,14 +50,15 @@ export function EditCustomerInfoClient({ customer }: Props) {
   // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
   const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
 
-  // customer props가 갱신(router.refresh)되면 form 초기화
+  // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
   const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes].join('|')
-  useEffect(() => {
+  const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
+  if (prevSyncKey !== syncKey) {
+    setPrevSyncKey(syncKey)
     setForm(makeInitial(customer))
     setAddrJibun('')
     setError('')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncKey])
+  }
 
   const initial = makeInitial(customer)
   const isDirty = (Object.keys(initial) as (keyof typeof initial)[]).some(k => form[k] !== initial[k])
@@ -117,12 +125,77 @@ export function EditCustomerInfoClient({ customer }: Props) {
       }
       if (result.error) { setError(result.error); return }
       setConfirmedDlg(null)
+      setMode('summary')
       router.refresh()
     })
   }
 
+  // §11-4: 요약 값 클릭 → 편집 모드 + 해당 입력칸 포커스
+  function openEdit(focusId?: string) {
+    if (!canManage) return
+    setMode('edit')
+    if (focusId) {
+      setTimeout(() => {
+        const el = document.getElementById(focusId)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        ;(el as HTMLElement | null)?.focus({ preventScroll: true })
+      }, 80)
+    }
+  }
+
+  // §11-1: 읽기 요약 모드 — 3열 그리드, 누락 앰버 '미입력', 값 클릭 시 편집+포커스
+  if (mode === 'summary') {
+    const item = (label: string, value: string | null, focusId?: string, opts?: { wide?: boolean; title?: string }) => (
+      <div key={label} className={`flex items-baseline gap-2 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
+        <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">{label}</span>
+        <span
+          onClick={focusId && canManage ? () => openEdit(focusId) : undefined}
+          title={opts?.title ?? (focusId && canManage ? '클릭하여 수정' : undefined)}
+          className={`text-sm truncate ${focusId && canManage ? 'cursor-pointer hover:text-[#7b68ee]' : ''} ${value ? 'text-[#090c1d]' : 'text-amber-600 text-xs'}`}
+        >
+          {value || '미입력'}
+        </span>
+      </div>
+    )
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">점검유형</span>
+            <span className="flex items-center gap-1.5">
+              {typeSlot}
+              {annualLabel && <span className="text-[10px] text-[#b0acd6]">{annualLabel}</span>}
+            </span>
+          </div>
+          {item('점검계획일', customer.plan_anchor_date, 'cf-plan')}
+          {item('계약일', customer.contract_date, 'cf-contract')}
+          {item('사용승인일', customer.use_approval_date, 'cf-approval')}
+          {item('관할소방서', customer.fire_station, 'cf-station')}
+          {item('점검료', feeStr === '-' ? null : feeStr, undefined, { title: '편집은 청구·수금 화면에서' })}
+          {item('주소', customer.address, 'cf-address', { wide: true })}
+          {item('비고', customer.notes, 'cf-notes', { wide: true })}
+        </div>
+        <div className="flex items-center gap-3 pt-1 border-t border-[#f0eefb]">
+          {canManage && (
+            <button onClick={() => openEdit()}
+              className="h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium">
+              편집
+            </button>
+          )}
+          {lastChangeText && <span className="text-[11px] text-[#b0acd6] truncate">최근 변경: {lastChangeText}</span>}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (!isPending && isDirty) handleSave() }}>
+      <div className="flex justify-end">
+        <button type="button" onClick={() => { handleReset(); setMode('summary') }}
+          className="h-7 px-3 rounded-lg border border-[#c8c4d0] text-[11px] text-[#514b81] hover:bg-[#f8f9fa]">
+          요약 보기
+        </button>
+      </div>
       {/* 고객명 */}
       <div className="space-y-1">
         <label className={labelCls}>고객명 <span className="text-red-500">*</span></label>
@@ -134,11 +207,24 @@ export function EditCustomerInfoClient({ customer }: Props) {
         />
       </div>
 
+      {/* §6-E: 필수 우선 배치 — 점검계획일(필수)을 상단에, 계약일·사용승인일은 아래 */}
+      <div className="space-y-1">
+        <label className={labelCls}>점검계획일 <span className="text-red-500">*</span> <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
+        <DateInput
+          id="cf-plan"
+          value={form.plan_anchor_date}
+          onChange={e => set('plan_anchor_date', e.target.value)}
+          className={inputCls}
+        />
+        <p className="text-[11px] text-[#b0acd6]">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 특별·정기점검이 배치됩니다</p>
+      </div>
+
       {/* 계약일 + 사용승인일 */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className={labelCls}>계약일</label>
           <DateInput
+            id="cf-contract"
             value={form.contract_date}
             onChange={e => set('contract_date', e.target.value)}
             className={inputCls}
@@ -147,19 +233,11 @@ export function EditCustomerInfoClient({ customer }: Props) {
         <div className="space-y-1">
           <label className={labelCls}>사용승인일</label>
           <DateInput
+            id="cf-approval"
             value={form.use_approval_date}
             onChange={e => set('use_approval_date', e.target.value)}
             className={inputCls}
           />
-        </div>
-        <div className="space-y-1">
-          <label className={labelCls}>점검계획일 <span className="text-red-500">*</span> <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
-          <DateInput
-            value={form.plan_anchor_date}
-            onChange={e => set('plan_anchor_date', e.target.value)}
-            className={inputCls}
-          />
-          <p className="text-[11px] text-[#b0acd6]">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 특별·정기점검이 배치됩니다</p>
         </div>
       </div>
 
@@ -168,6 +246,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
         <div className="space-y-1">
           <label className={labelCls}>관할 소방서 <span className="text-xs text-[#b0acd6] font-normal">(보고서)</span></label>
           <input
+            id="cf-station"
             type="text"
             value={form.fire_station}
             onChange={e => set('fire_station', e.target.value)}
@@ -211,6 +290,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
             <input
+              id="cf-address"
               type="text"
               value={form.address}
               onChange={e => set('address', e.target.value)}
@@ -227,6 +307,7 @@ export function EditCustomerInfoClient({ customer }: Props) {
       <div className="space-y-1">
         <label className={labelCls}>비고</label>
         <textarea
+          id="cf-notes"
           value={form.notes}
           onChange={e => set('notes', e.target.value)}
           placeholder="특이사항 메모"

@@ -1,39 +1,159 @@
 {
-  "version": "fireplan-expansion-structure-v1",
+  "version": "fireplan-expansion-structure-v3",
   "title": "소방계획서 ERP 연계 설계 — 차수별 검토 + 5·6·7차 계획 (구조 JSON)",
   "source": "erp_goal/소방계획서-필드확장-설계.md",
-  "generated": "2026-07-15",
-  "note": "문서 구조·상태 색인 (doc02 구조 JSON과 동일 규약). 1~7차 전체 구현 완료 — 상세 구현 기록은 doc02 §8 참조",
-  "status_legend": { "confirmed": "확정", "implemented": "구현됨", "pending_order": "미구현·지시 대기", "deferred": "보류", "proposal": "제안" },
+  "generated": "2026-07-16",
+  "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(파일:라인 증거) 필수",
+  "note": "2026-07-16 UX 갭 4건(대장 재가져오기 버튼·누락 칩 클릭 포커스·생성 페이지 사전 체크·워커 missing[] 5·6차) 구현 + 독립 검증 패스 통과 → 설계 확정 범위 전체 implemented. 잔여: 커밋·origin 푸시·운영 배포(사용자 승인 대기) + §8-4 이후 항목",
+  "status_legend": {
+    "confirmed": "확정",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "implemented": "독립 검증 통과 — verified(date·commit·evidence·method) 필수",
+    "partial": "부분 구현 — criteria 참조",
+    "pending_order": "미구현·지시 대기",
+    "deferred": "보류",
+    "proposal": "제안"
+  },
   "stages": [
-    { "id": "1차", "title": "대상물명·관할서·계약기간 + 서식1.1 기본 정보", "status": "implemented", "technique": "치환 + inject_after_label" },
-    { "id": "2차", "title": "서식1.4 시설 체크(□→■ 40항목) + 서식1.10 점검시기·사용승인일", "status": "implemented", "technique": "체크 치환 + 공백 앵커" },
-    { "id": "3차", "title": "누락 필드 안내(→고객 상세 링크) + 표지 사진 자동 삽입", "status": "implemented", "technique": "워커 missing[] → 결과 JSON" },
-    { "id": "4차", "title": "서식1.2.1 구역별 행(층별/전층)", "status": "implemented", "technique": "fill_zone_rows(셀 주소)" },
-    { "id": "5차", "title": "수신기위치·구조·지붕·높이·관리자 선임일 (migration 090)", "status": "implemented", "migration": "090" },
-    { "id": "6차", "title": "급수·화재보험·운영시간/인원·자위소방대 편성 (migration 091, fire_brigade_members)", "status": "implemented", "migration": "091" },
-    { "id": "7차", "title": "공통 수기 프리셋 (건물 유형별: 주택형/상가형/공장형)", "status": "implemented", "date": "2026-07-15", "note": "_presets/{house|retail|factory}.json (스토리지 한글 키 불가로 ASCII 매핑, src/lib/fire-plan-presets.ts PRESET_FILE_KEYS) · 양식 예시 수기 문구 앵커 12종 단순 치환(긴 문구 우선) · 우선순위 고객 필드>프리셋>양식 기본값 · 생성 페이지 프리셋 자동 추천+관리 UI+다중 선택 일괄 생성(최대 30건) · CLI --preset · 케이엔몰 상가형 E2E 검증" }
+    {
+      "id": "1차", "title": "대상물명·관할서·계약기간 + 서식1.1 기본 정보", "status": "implemented", "technique": "치환 + inject_after_label",
+      "verified": { "date": "2026-07-16", "commit": "55dbe01·f9beeaf", "evidence": ["erp/scripts/make-fireplan.py build_extras"], "method": "코드 대조 (2026-07-16 독립 검증 패스)" }
+    },
+    {
+      "id": "2차", "title": "서식1.4 시설 체크(□→■ 40항목) + 서식1.10 점검시기·사용승인일", "status": "implemented", "technique": "체크 치환 + 공백 앵커",
+      "verified": { "date": "2026-07-16", "commit": "d5ff51e", "evidence": ["erp/scripts/make-fireplan.py build_stage2"], "method": "코드 대조" }
+    },
+    {
+      "id": "3차", "title": "누락 필드 안내(→고객 상세 링크) + 표지 사진 자동 삽입", "status": "implemented", "technique": "워커 missing[] → 결과 JSON",
+      "verified": { "date": "2026-07-16", "commit": "3d0f52f", "evidence": ["erp/scripts/fireplan-worker.py:143-156 missing[] 산출·write_result"], "method": "코드 대조" },
+      "note": "단, missing[]은 기존 8필드만 추적 — 5·6차 신규 필드 미포함(갭, sections[6] criteria 6-4 참조)"
+    },
+    {
+      "id": "4차", "title": "서식1.2.1 구역별 행(층별/전층)", "status": "implemented", "technique": "fill_zone_rows(셀 주소)",
+      "verified": { "date": "2026-07-16", "commit": "a0343cd", "evidence": ["erp/scripts/make-fireplan.py fill_zone_rows"], "method": "코드 대조" }
+    },
+    {
+      "id": "5차", "title": "수신기위치·구조·지붕·높이·관리자 선임일 (migration 090)", "status": "implemented", "migration": "090",
+      "criteria": [
+        { "id": "5차-a", "desc": "090 컬럼(buildings.receiver_location, customers.manager_selected_at) + 구조·지붕·높이 기존 037/038 재사용", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["erp/supabase/migrations/090_fire_plan_fields.sql", "스테이징(nwflnzugwylhpdyodyog)·운영(ryuozdhnilfjlahorizh) DB REST 조회로 컬럼 존재 확인"], "method": "코드 대조 + DB 읽기 조회" } },
+        { "id": "5차-b", "desc": "선임일 서식1.7 셀 주입 + 수신기위치·구조·지붕 inject_after_label", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["erp/scripts/make-fireplan.py:136-169 build_extras (선임일 166-168)"], "method": "코드 대조" } },
+        { "id": "5차-c", "desc": "[건축물대장에서 다시 가져오기] 버튼 — 기존 고객 구조·지붕·높이 갱신 (설계 §3 note)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "(미커밋 — 2026-07-16 워킹 트리)", "evidence": ["fire-plan-info-panel.tsx:160-164 버튼·refetchLedger", "fire-plan-info-actions.ts:103-151 refreshLedgerAction (대장값 있는 항목만 갱신·ledger_synced_at·activity_logs)"], "method": "코드 대조 (2026-07-16 독립 검증 패스, 구현자≠판정자)" },
+          "note": "bcode가 DB에 미저장이라 순수 원클릭 대신 Daum 주소창 1회 확인 후 갱신 — 설계 의도(기존 고객 대장값 갱신) 충족" }
+      ]
+    },
+    {
+      "id": "6차", "title": "급수·화재보험·운영시간/인원·자위소방대 편성 (migration 091, fire_brigade_members)", "status": "implemented", "migration": "091",
+      "verified": { "date": "2026-07-16", "commit": "79e1a9d·6527dd4", "evidence": ["erp/supabase/migrations/091_fire_plan_fields2.sql (customers 11컬럼 + fire_brigade_members 테이블+RLS)", "스테이징·운영 DB REST 조회로 존재 확인", "erp/scripts/make-fireplan.py:197-216 체크박스 치환, 255-284 fill_brigade 편성표 셀 주입"], "method": "코드 대조 + DB 읽기 조회" }
+    },
+    {
+      "id": "7차", "title": "공통 수기 프리셋 (건물 유형별: 주택형/상가형/공장형)", "status": "implemented", "date": "2026-07-15",
+      "verified": { "date": "2026-07-15", "commit": "85cbe23", "evidence": ["erp/src/lib/fire-plan-presets.ts PRESET_FILE_KEYS·recommendPresetType", "erp/scripts/make-fireplan.py load_preset_pairs·--preset", "케이엔몰(상가형) CLI E2E — 문구 13회 치환·양식 기본값 잔존 0·고객 필드 우선 확인"], "method": "CLI E2E + tsc/eslint/py_compile" },
+      "note": "_presets/{house|retail|factory}.json (스토리지 한글 키 불가로 ASCII 매핑) · 앵커 12종 단순 치환(긴 문구 우선) · 우선순위 고객 필드>프리셋>양식 기본값 · 프리셋 자동 추천+관리 UI+다중 선택 일괄 생성(최대 30건). ⚠ 커밋 85cbe23은 로컬 staging에만 존재 — origin 미푸시 (2026-07-16 기준)"
+    }
   ],
   "sections": [
     { "id": "1", "line": 3, "title": "목적", "status": "confirmed" },
-    { "id": "2", "line": 8, "title": "차수별 연계 검토 (1~4차 완료)", "status": "implemented" },
-    { "id": "3", "line": 19, "title": "신규 필드 (5·6차 통합 정의)", "status": "implemented", "migration": "090·091", "note": "090: buildings.receiver_location + customers.manager_selected_at / 091: 급수·보험·운영/인원 + fire_brigade_members 테이블" },
-    { "id": "4", "line": 42, "title": "입력 UX 설계 — 그룹화 (계획서 정보 아코디언 패널)", "status": "implemented", "note": "고객 상세 소방계획서 카드 — 드롭다운 프리셋·세그먼트 버튼·관계인/직원 가져오기·일괄 저장" },
-    { "id": "5", "line": 65, "title": "확인 UX 설계 — 준비율 게이지·누락 칩", "status": "implemented", "note": "고객 목록 뱃지는 범위 제외 확정(2026-07-15) — 노출은 고객 상세 + 생성 페이지까지" },
-    { "id": "6", "line": 73, "title": "파이프라인 주입 매핑", "status": "implemented", "note": "inject_after_label(nth)·체크박스 치환·셀 주소 주입(fill_zone_rows/fill_brigade)·fail-soft" },
-    { "id": "7", "line": 82, "title": "7차 — 공통 수기 프리셋 (건물 유형별)", "status": "implemented", "date": "2026-07-15", "note": "구현 상세는 stages[7차].note 및 doc02 §8 ⑥ 참조" },
-    { "id": "8", "line": 96, "title": "적용 순서 (2026-07-15 사용자 확정)", "status": "implemented", "note": "①설계 승인 ②5+6차 통합(완료) ③7차 프리셋(완료) — 남은 항목: 고객 목록 준비율 뱃지(선택)·보험 만기 알림(파생, 미착수)" },
-    { "id": "9", "line": 104, "title": "리스크", "status": "confirmed" }
+    {
+      "id": "2", "line": 8, "title": "차수별 연계 검토 (1~4차 완료)", "status": "implemented",
+      "verified": { "date": "2026-07-16", "commit": "0f0a1f8 시점", "evidence": ["stages 1차~4차 verified 참조"], "method": "코드 대조" }
+    },
+    {
+      "id": "3", "line": 19, "title": "신규 필드 (5·6차 통합 정의)", "status": "implemented", "migration": "090·091",
+      "criteria": [
+        { "id": "3-1", "desc": "090·091 마이그레이션 — 설계 표와 컬럼·테이블 일치, 스테이징·운영 DB 적용", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["090_fire_plan_fields.sql", "091_fire_plan_fields2.sql", "스테이징·운영 DB REST 조회 OK"], "method": "코드 대조 + DB 읽기 조회" } },
+        { "id": "3-2", "desc": "건축물대장 재가져오기 버튼 (기존 고객 대장값 갱신)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "(미커밋 — 2026-07-16 워킹 트리)", "evidence": ["stages 5차-c verified 참조"], "method": "코드 대조 (독립 검증 패스)" } }
+      ]
+    },
+    {
+      "id": "4", "line": 42, "title": "입력 UX 설계 — 그룹화 (계획서 정보 아코디언 패널)", "status": "implemented",
+      "criteria": [
+        { "id": "4-1", "desc": "고객 상세 소방계획서 카드 내 '계획서 정보' 아코디언 패널 (새 화면 없음)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["erp/src/components/customers/fire-plan-info-panel.tsx:71-84", "erp/src/app/(dashboard)/customers/[id]/page.tsx:460-486 연결"], "method": "코드 대조" } },
+        { "id": "4-2", "desc": "그룹 4개(건물 개요/화재보험/운영·인원/자위소방대) 시각 구분", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["fire-plan-info-panel.tsx:88-184"], "method": "코드 대조" } },
+        { "id": "4-3", "desc": "구조·지붕 드롭다운 프리셋(5·4종) + 직접입력, 운영시간 프리셋(24시간/09~18시/주간만/미운영/직접입력)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["fire-plan-info-panel.tsx:11-14 상수, 93-99 datalist, 138-142 운영시간"], "method": "코드 대조" } },
+        { "id": "4-4", "desc": "급수 세그먼트 버튼(특급/1급/2급/3급), 보험 가입 토글 + '미가입' 시 입력칸 숨김", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["fire-plan-info-panel.tsx:102-108 급수, 119-130 보험(125 조건부 렌더)"], "method": "코드 대조" } },
+        { "id": "4-5", "desc": "자위소방대 행 편집(구분/성명/임무 자동/연락처/+행) + [가져오기] 관계인·직원 통합 후보", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["fire-plan-info-panel.tsx:149-184 (TEAM_DUTY 자동 16-19, 가져오기 167-181)", "[id]/page.tsx:481-484 contacts+profiles 병합"], "method": "코드 대조" } },
+        { "id": "4-6", "desc": "패널 하단 [저장] 한 번에 전체 저장", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["fire-plan-info-panel.tsx:186-192", "fire-plan-info-actions.ts:37-98 saveFirePlanInfoAction"], "method": "코드 대조" } }
+      ],
+      "note": "대장 재가져오기 버튼(criteria 3-2)도 2026-07-16 패널에 추가되어 §4 전체 구현 완료"
+    },
+    {
+      "id": "5", "line": 65, "title": "확인 UX 설계 — 준비율 게이지·누락 칩", "status": "implemented",
+      "criteria": [
+        { "id": "5-1a", "desc": "준비율 게이지 + 누락 항목 표시 (고객 상세)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["fire-plan-info-panel.tsx 준비율 computeFirePlanReadiness 9항목 (공용화: src/lib/fire-plan-readiness.ts)"], "method": "코드 대조" },
+          "note": "게이지는 5·6차 9항목만 계산 — 설계 목업 '14/18'(1~4차 포함 시사)과 해석 차이" },
+        { "id": "5-1b", "desc": "누락 칩 클릭 시 해당 입력칸으로 스크롤·포커스", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "(미커밋 — 2026-07-16 워킹 트리)", "evidence": ["fire-plan-info-panel.tsx:56-65 focusMissing(패널 자동 열기+scrollIntoView+focus), 108-129 클릭 가능 칩(버튼 중첩 없음)", "fire-plan-readiness.ts:19-23 READINESS_TARGET_IDS 9개 앵커 id — 패널 요소와 전부 일치 확인"], "method": "코드 대조 (독립 검증 패스)" },
+          "note": "'인원' 칩은 근무 입력칸으로 포커스 (거주·최대 칸은 같은 행이라 함께 화면 중앙 노출)" },
+        { "id": "5-2", "desc": "생성 페이지 사전 체크 — 고객 선택 시 준비율·누락 칩 표시 → '이대로 생성/입력 후 생성'", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "(미커밋 — 2026-07-16 워킹 트리)", "evidence": ["generate/actions.ts getFirePlanReadinessAction (권한·30건 제한·첫 활성 건물 로직 패널과 동일)", "generate-request-client.tsx 선택 시 useEffect 조회, 칩 done/total 표시, 누락 안내 블록 + '→ 입력 후 생성' 링크, 생성 버튼은 누락과 무관하게 활성(fail-soft)"], "method": "코드 대조 (독립 검증 패스)" } },
+        { "id": "5-3", "desc": "생성 후 체크 — 결과에 누락 목록 + 고객 상세 링크 (기존 3차 기능)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "3d0f52f", "evidence": ["generate-request-client.tsx:198-206", "fireplan-worker.py:143-156"], "method": "코드 대조" } },
+        { "id": "5-4", "desc": "고객 목록 뱃지", "status": "deferred", "note": "이번 범위 제외 확정(2026-07-15) — 노출은 고객 상세 + 생성 페이지까지" }
+      ]
+    },
+    {
+      "id": "6", "line": 73, "title": "파이프라인 주입 매핑", "status": "implemented",
+      "criteria": [
+        { "id": "6-1", "desc": "수신기위치·구조·지붕·보험사·기간·금액 → inject_after_label (nth 지원)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["make-fireplan.py:136-169 build_extras (nth 파라미터 지원)"], "method": "코드 대조" } },
+        { "id": "6-2", "desc": "급수·보험 가입·운영시간 체크박스 치환 (서식 1.1·1.8·2.1)", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d", "evidence": ["make-fireplan.py:197-216 build_stage2"], "method": "코드 대조" } },
+        { "id": "6-3", "desc": "관리자 선임일(서식1.7)·자위소방대 편성표(서식2.2) 셀 주소 주입", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "79e1a9d·6527dd4", "evidence": ["make-fireplan.py:164-168 선임일, 255-284 fill_brigade(대장/부대장 행)"], "method": "코드 대조" } },
+        { "id": "6-4", "desc": "누락 시 fail-soft + 누락 안내(missing[])에 5·6차 신규 필드 포함", "status": "implemented",
+          "verified": { "date": "2026-07-16", "commit": "(미커밋 — 2026-07-16 워킹 트리)", "evidence": ["fireplan-worker.py:76-80 select에 headcount_worker/resident 추가, 147-165 missing[]에 수신기위치·구조·지붕·선임일·급수·화재보험·운영시간·인원·자위소방대 9항목 추가 (insurance_joined=False 미가입도 입력됨 처리, 라벨은 fire-plan-readiness.ts 어휘와 일치)"], "method": "코드 대조 (독립 검증 패스) + py_compile" } }
+      ]
+    },
+    {
+      "id": "7", "line": 82, "title": "7차 — 공통 수기 프리셋 (건물 유형별)", "status": "implemented", "date": "2026-07-15",
+      "verified": { "date": "2026-07-15", "commit": "85cbe23", "evidence": ["stages 7차 verified 참조 — 케이엔몰 상가형 CLI E2E"], "method": "CLI E2E + tsc/eslint/py_compile" },
+      "note": "구현 상세는 stages[7차].note 및 doc02 §8 ⑥ 참조"
+    },
+    {
+      "id": "8", "line": 96, "title": "적용 순서 (2026-07-15 사용자 확정)", "status": "partial",
+      "criteria": [
+        { "id": "8-1", "desc": "설계 승인", "status": "confirmed" },
+        { "id": "8-2", "desc": "5+6차 통합 구현 (090+091 → 패널 UI + 준비율 + 주입 → 검증 → 운영 적용)", "status": "partial",
+          "note": "DB 스테이징·운영 적용 완료, 기능 구현·검증 완료(UX 갭 ①~④ 2026-07-16 해소). 잔여: 갭 4건 변경분 커밋 + 7차 커밋(85cbe23) origin 푸시 + 운영 배포 — 사용자 승인 대기" },
+        { "id": "8-3", "desc": "7차 프리셋", "status": "implemented", "verified": { "date": "2026-07-15", "commit": "85cbe23", "evidence": ["sections[7] 참조"], "method": "CLI E2E" } },
+        { "id": "8-4", "desc": "이후: 고객 목록 준비율 뱃지(선택)·보험 만기 알림(파생)", "status": "pending_order", "note": "미착수 — 지시 대기" }
+      ]
+    },
+    { "id": "9", "line": 104, "title": "리스크", "status": "confirmed" },
+    { "id": "10", "line": 110, "title": "고객 등록 신속화 — 필수 우선 + 실시간 등록 요약 (2026-07-16 사용자 확정)", "status": "confirmed",
+      "note": "설계 확정 기록 — 구현·status 추적은 고객관리-탭개편-설계.json §10(T9). 필수 5개(주소검색·고객명·유형·계획일·대표) + 선택 아코디언 + 우측 실시간 요약(필수 체크·대장 자동 뱃지·sticky 등록 버튼) + 등록 후 상세 탭 보완 동선" }
+  ],
+  "verification_log": [
+    { "date": "2026-07-15", "method": "케이엔몰(상가형) CLI E2E + tsc/eslint/py_compile", "scope": "7차 프리셋" },
+    { "date": "2026-07-16", "method": "독립 검증 패스 — 설계 §3~§6 14개 항목 코드 대조(파일:라인) + tsc/py_compile/eslint(소방계획서 6파일 0건) + 스테이징·운영 DB 읽기 조회", "scope": "1~7차 전체", "result": "10개 완전 구현, 갭 4건 발견: ①대장 재가져오기 버튼(3-2) ②누락 칩 클릭 포커스(5-1b) ③생성 페이지 사전 체크(5-2) ④워커 missing[] 5·6차 미포함(6-4)" },
+    { "date": "2026-07-16", "method": "갭 4건 구현 후 2차 독립 검증 패스(구현자≠판정자, Explore 에이전트 파일:라인 대조) + tsc/py_compile/eslint(변경 5파일 0건)", "scope": "갭 ①~④", "result": "4건 전부 충족 판정 — 경미 1건('인원' 칩은 근무 입력칸 포커스, 같은 행이라 실사용 문제 없음) note로 기록. 준비율 로직은 src/lib/fire-plan-readiness.ts로 공용화(패널·생성 페이지·워커 어휘 통일)" }
   ],
   "related": {
+    "rule": "erp_goal/Json_Rule.md",
     "impl_detail": "erp_goal/Victory_md/01_flow/doc02_승진소방_실무연결_상세설계.md §8 (JSON: 같은 폴더 doc02_승진소방_실무연결_상세설계.json id 8)",
     "code": [
+      "erp/src/components/customers/fire-plan-info-panel.tsx (계획서 정보 패널·준비율 게이지·누락 칩 포커스·대장 재가져오기)",
+      "erp/src/app/(dashboard)/customers/fire-plan-info-actions.ts (저장·refreshLedgerAction)",
+      "erp/src/lib/fire-plan-readiness.ts (준비율 공용 계산·누락 칩 앵커 id — 패널·생성 페이지·워커 어휘 통일)",
       "erp/src/lib/fire-plan-presets.ts (프리셋 유형·앵커·기본 문구·자동 추천)",
       "erp/src/app/(dashboard)/fire-plans/generate/actions.ts (프리셋 조회/저장·일괄 요청·시딩)",
       "erp/src/components/fire-plans/generate-request-client.tsx (다중 선택·프리셋 선택)",
       "erp/src/components/fire-plans/fire-plan-preset-manager.tsx (프리셋 관리 UI)",
-      "erp/scripts/make-fireplan.py (load_preset_pairs·generate_hwp preset_pairs·--preset)",
-      "erp/scripts/fireplan-worker.py (presetType 처리·결과 preset 표기)"
+      "erp/scripts/make-fireplan.py (build_extras·build_stage2·fill_brigade·load_preset_pairs·--preset)",
+      "erp/scripts/fireplan-worker.py (presetType 처리·missing[] 산출)",
+      "erp/supabase/migrations/090_fire_plan_fields.sql · 091_fire_plan_fields2.sql"
     ]
   }
 }

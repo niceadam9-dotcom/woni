@@ -76,7 +76,8 @@ def process(req_name: str) -> None:
     rows = db_get(f"customers?id=eq.{cust_id}"
                   "&select=id,customer_name,address,use_approval_date,fire_station,inspection_type,plan_anchor_date,contract_date,"
                   "manager_selected_at,building_grade,insurance_joined,insurance_company,insurance_period,"
-                  "insurance_amount_person,insurance_amount_property,op_hours_weekday,op_hours_holiday,headcount_max")
+                  "insurance_amount_person,insurance_amount_property,op_hours_weekday,op_hours_holiday,"
+                  "headcount_worker,headcount_resident,headcount_max")
     if not rows:
         raise RuntimeError("고객을 찾을 수 없습니다")
     cust = rows[0]
@@ -141,6 +142,7 @@ def process(req_name: str) -> None:
         "uploaded_by": req.get("requestedBy"),
     })
     # 누락 필드 안내 — 페이지에서 고객 상세 바로가기와 함께 표시
+    # 5·6차 필드 포함 — 라벨은 준비율 어휘와 동일 (src/lib/fire-plan-readiness.ts, 설계 §6)
     b = buildings[0] if buildings else {}
     missing = [label for label, has in [
         ("주소", cust.get("address")),
@@ -151,6 +153,15 @@ def process(req_name: str) -> None:
         ("연면적", b.get("total_area") is not None or None),
         ("층수", (b.get("floors_above") is not None or b.get("floors_below") is not None) or None),
         ("시설현황", codes or None),
+        ("수신기위치", b.get("receiver_location")),
+        ("구조", b.get("main_structure")),
+        ("지붕", b.get("roof_structure")),
+        ("선임일", cust.get("manager_selected_at")),
+        ("급수", cust.get("building_grade")),
+        ("화재보험", cust.get("insurance_joined") is not None or None),
+        ("운영시간", cust.get("op_hours_weekday")),
+        ("인원", any(cust.get(k) is not None for k in ("headcount_worker", "headcount_resident", "headcount_max")) or None),
+        ("자위소방대", brigade or None),
     ] if not has]
     write_result(req_name, {"ok": True, "customerName": cust["customer_name"], "year": year,
                             "preset": preset_type or None, "missing": missing})

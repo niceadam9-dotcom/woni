@@ -1,9 +1,9 @@
 ﻿import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, UserCheck, MapPin, Calendar, Tag, AlertCircle, ClipboardList, Building2, Plus, History } from 'lucide-react'
+import { ChevronLeft, UserCheck, ClipboardList, Building2, History } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { AssignEmployeeClient } from '@/components/customers/assign-employee-client'
+import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
@@ -11,6 +11,13 @@ import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-p
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { FacilitiesClient } from '@/components/customers/facilities-client'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
+import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
+import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
+import { CustomerSummaryPanel } from '@/components/customers/customer-summary-panel'
+import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
+import { RecommendAssignClient } from '@/components/customers/recommend-assign-client'
+import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
+import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -44,21 +51,15 @@ const STATUS_COLORS: Record<InspectionStatus, string> = {
   overdue: 'bg-red-50 text-red-600',
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3 py-3 border-b border-[#e0ddf5] last:border-0">
-      <span className="text-xs text-[#514b81] w-24 shrink-0 pt-0.5">{label}</span>
-      <span className="text-sm text-[#090c1d] flex-1">{value ?? '-'}</span>
-    </div>
-  )
-}
-
 export default async function CustomerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string }>
 }) {
   const { id } = await params
+  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created } = await searchParams
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
@@ -76,7 +77,7 @@ export default async function CustomerDetailPage({
       .order('year', { ascending: false })
       .order('sequence_num'),
     admin.from('buildings')
-      .select('id, building_name, address, total_area, floors_above, floors_below, purpose, year_built, is_active, facilities_verified_at, receiver_location, main_structure, roof_structure, height, created_at')
+      .select('*')  // 092(bcode·address_jibun) 적용 전에도 안전 — 존재하는 컬럼만 반환
       .eq('customer_id', id)
       .order('building_name'),
     admin.from('activity_logs')
@@ -132,6 +133,8 @@ export default async function CustomerDetailPage({
   const facilityBuildings = buildings.filter(b => b.is_active).map(b => ({
     id: b.id, building_name: b.building_name, verified_at: b.facilities_verified_at,
     facilities: facByBuilding.get(b.id) ?? [], floors: floorByBuilding.get(b.id) ?? [],
+    // §6-E: 층 자동 생성·기본 세트용
+    purpose: b.purpose, floorsAbove: b.floors_above, floorsBelow: b.floors_below,
   }))
   const inspections = (inspectionsRes.data ?? []) as Array<
     Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
@@ -201,230 +204,219 @@ export default async function CustomerDetailPage({
   const canManage = can(profile.role as UserRole, 'customer_manage')
   const canAssign = can(profile.role as UserRole, 'customer_assign')
 
-  return (
-    <div className="space-y-6 max-w-3xl">
-      {/* 뒤로가기 + 헤더 */}
-      <div className="flex items-center gap-3">
-        <Link href="/customers" className="text-[#514b81] hover:text-[#7b68ee] transition-colors">
-          <ChevronLeft className="size-5" />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-[#090c1d]">{customer.customer_name}</h1>
+  // ── 계획서 정보 패널 데이터 — 탭 뱃지 준비율 계산에도 사용 (설계 §4) ──
+  const cRec = customer as unknown as Record<string, unknown>
+  const firstBld = buildings.filter(b => b.is_active)
+    .sort((a, b) => String((a as Record<string, unknown>).created_at ?? '').localeCompare(String((b as Record<string, unknown>).created_at ?? '')))[0] as Record<string, unknown> | undefined
+  const s = (v: unknown) => (v == null ? '' : String(v))
+  const planInfoInitial = {
+    receiverLocation: s(firstBld?.receiver_location),
+    structure: s(firstBld?.main_structure),
+    roof: s(firstBld?.roof_structure),
+    height: s(firstBld?.height),
+    hasBuilding: !!firstBld,
+    managerSelectedAt: s(cRec.manager_selected_at),
+    grade: s(cRec.building_grade),
+    insuranceJoined: (cRec.insurance_joined as boolean | null) ?? null,
+    insuranceCompany: s(cRec.insurance_company),
+    insurancePeriod: s(cRec.insurance_period),
+    insuranceAmountPerson: s(cRec.insurance_amount_person),
+    insuranceAmountProperty: s(cRec.insurance_amount_property),
+    opHoursWeekday: s(cRec.op_hours_weekday),
+    opHoursHoliday: s(cRec.op_hours_holiday),
+    headcountWorker: s(cRec.headcount_worker),
+    headcountResident: s(cRec.headcount_resident),
+    headcountMax: s(cRec.headcount_max),
+    brigade: ((brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>)
+      .map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' })),
+    // §6-D-1 추천값 판정용 (급수 규칙·운영시간 프리셋)
+    purpose: (firstBld?.purpose as string | null) ?? null,
+    totalArea: (firstBld?.total_area as number | null) ?? null,
+    floorsAbove: (firstBld?.floors_above as number | null) ?? null,
+    floorsBelow: (firstBld?.floors_below as number | null) ?? null,
+    facilityCodes: firstBld
+      ? (facByBuilding.get(firstBld.id as string) ?? []).filter(f => f.installed).map(f => f.facility_code)
+      : [],
+  }
+  const planPeople = [
+    ...contacts.map(ct => ({ name: ct.name, phone: ct.phone ?? '', kind: `관계인·${ct.role}` })),
+    ...employees.map(e => ({ name: e.name, phone: '', kind: `직원${e.position ? `·${e.position}` : ''}` })),
+  ]
+  const readiness = computeFirePlanReadiness({
+    receiverLocation: planInfoInitial.receiverLocation, structure: planInfoInitial.structure, roof: planInfoInitial.roof,
+    managerSelectedAt: planInfoInitial.managerSelectedAt, grade: planInfoInitial.grade,
+    insuranceJoined: planInfoInitial.insuranceJoined, opHoursWeekday: planInfoInitial.opHoursWeekday,
+    hasHeadcount: !!(planInfoInitial.headcountWorker || planInfoInitial.headcountResident || planInfoInitial.headcountMax),
+    hasBrigade: planInfoInitial.brigade.length > 0,
+  })
+
+  // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
+  const activeBlds = buildings.filter(b => b.is_active)
+  const hasRep = contacts.some(ct => ct.role === '대표')
+  const inspDates = inspections.map(i => i.inspection_start_date).filter(Boolean).sort()
+  const lastInspectionDate = inspDates.length > 0 ? inspDates[inspDates.length - 1] : null
+  const repContact = contacts.find(ct => ct.role === '대표') ?? null
+  const tabDefs: CustomerTabDef[] = [
+    { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
+    { key: 'buildings', label: '건물·시설', warn: !(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null)) },
+    { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !hasRep },
+    { key: 'plan', label: '소방계획서', badge: `${readiness.done}/${readiness.total}`, warn: readiness.done < readiness.total },
+    { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
+    { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
+  ]
+
+  // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만) ──
+  let regionRecommend: { employeeId: string; name: string; regionLabel: string } | null = null
+  const regionSi = (customer as unknown as Record<string, unknown>).region_si as string | null
+  const regionMyeon = (customer as unknown as Record<string, unknown>).region_myeon as string | null
+  if (!customer.assigned_employee_id && regionSi) {
+    let rq = admin.from('customers').select('assigned_employee_id')
+      .eq('is_active', true).eq('region_si', regionSi).not('assigned_employee_id', 'is', null).neq('id', id)
+    if (regionMyeon) rq = rq.eq('region_myeon', regionMyeon)
+    const { data: regionRows } = await rq
+    const counts = new Map<string, number>()
+    for (const r of (regionRows ?? []) as Array<{ assigned_employee_id: string }>) {
+      counts.set(r.assigned_employee_id, (counts.get(r.assigned_employee_id) ?? 0) + 1)
+    }
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+    if (top) {
+      const emp = employees.find(e => e.id === top[0])
+      if (emp) regionRecommend = { employeeId: emp.id, name: emp.name, regionLabel: [regionSi, regionMyeon].filter(Boolean).join(' ') }
+    }
+  }
+
+  // ── §6-E: 이력 탭 필터 (URL hy=올해/작년, hk=점검/변경) + 다음 점검 예정 ──
+  const nowYear = new Date().getFullYear()
+  const histYear = hy === 'this' ? nowYear : hy === 'last' ? nowYear - 1 : null
+  const inspFiltered = inspections.filter(i => (histYear === null || i.year === histYear) && hk !== 'log')
+  const logsFiltered = essentialLogs.filter(x =>
+    (histYear === null || new Date(x.log.created_at).getFullYear() === histYear) && hk !== 'insp')
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const nextInspection = inspections
+    .filter(i => i.status === 'scheduled' && i.inspection_start_date && i.inspection_start_date >= todayStr)
+    .sort((a, b) => (a.inspection_start_date ?? '').localeCompare(b.inspection_start_date ?? ''))[0] ?? null
+  const histChip = (label: string, key: 'hy' | 'hk', value: string, current: string | undefined) => {
+    const sp = new URLSearchParams()
+    sp.set('tab', 'history')
+    if (lq) sp.set('lq', lq)
+    const hyv = key === 'hy' ? value : (hy ?? '')
+    const hkv = key === 'hk' ? value : (hk ?? '')
+    if (hyv) sp.set('hy', hyv)
+    if (hkv) sp.set('hk', hkv)
+    const active = (current ?? '') === value
+    return (
+      <Link key={`${key}-${value || 'all'}`} href={`/customers/${id}?${sp.toString()}`} scroll={false}
+        className={`h-6 px-2.5 rounded-full text-[11px] inline-flex items-center border transition-colors ${
+          active ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+        {label}
+      </Link>
+    )
+  }
+
+  // ── [◀ 이전|다음 ▶] 네비 (§6-C-3) — 목록 필터 컨텍스트(lq) 그대로 같은 순서로 이동 ──
+  const navFilter = parseListFilter(Object.fromEntries(new URLSearchParams(lq ?? '')) as Record<string, string | undefined>)
+  const navList = await fetchCustomerList(admin, navFilter)
+  const navIdx = navList.findIndex(c => c.id === id)
+  const prevId = navIdx > 0 ? navList[navIdx - 1].id : null
+  const nextId = navIdx >= 0 && navIdx < navList.length - 1 ? navList[navIdx + 1].id : null
+  const navPosition = navIdx >= 0 ? `${navIdx + 1} / ${navList.length}` : `– / ${navList.length}`
+
+  // ── T1 탭 패널 — 기존 카드 로직 무변경, 배치만 이동 (설계 §2) ──
+  // §11-2: 최근 변경 1줄 텍스트 (요약 모드에 전달)
+  const lastChangeText = essentialLogs[0]
+    ? `${essentialLogs[0].changes[0]
+      ? `${essentialLogs[0].changes[0].field_label} ${displayChangeValue(essentialLogs[0].changes[0].field, essentialLogs[0].changes[0].old_value) ?? '없음'} → ${displayChangeValue(essentialLogs[0].changes[0].field, essentialLogs[0].changes[0].new_value) ?? '없음'}`
+      : essentialLogs[0].actionLabel} · ${essentialLogs[0].log.created_at.slice(0, 10)} ${employees.find(e => e.id === essentialLogs[0].log.actor_id)?.name ?? '시스템'}`
+    : null
+
+  // §11: 기본정보 탭 = 단일 카드 (담당 인라인 배정 + 요약 모드 기본정보 — 스크롤 없이 한눈 조회)
+  const infoTab = (
+    <div className={`bg-white rounded-xl border shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4 ${!customer.assigned_employee_id ? 'border-red-200' : 'border-[#c8c4d0]'}`}>
+      {/* §11-3: 담당 — 인라인 배정 (모달 폐지) + 지역 추천 병행 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className={`size-9 rounded-lg flex items-center justify-center shrink-0 ${customer.assigned_employee_id ? 'bg-[#f5f4ff]' : 'bg-red-50'}`}>
+          <UserCheck className={`size-4 ${customer.assigned_employee_id ? 'text-[#7b68ee]' : 'text-red-400'}`} />
         </div>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
-          {inspectionTypeLabel(customer.inspection_type)}
-        </span>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-          {customer.is_active ? '활성' : '비활성'}
-        </span>
+        <div>
+          <p className="text-xs text-[#514b81] font-medium mb-0.5">담당직원</p>
+          <AssignEmployeeInline
+            customerId={customer.id}
+            currentEmployeeId={customer.assigned_employee_id}
+            employees={employees}
+            canAssign={canAssign}
+          />
+        </div>
+        {canAssign && regionRecommend && (
+          <RecommendAssignClient customerId={customer.id}
+            employeeId={regionRecommend.employeeId}
+            employeeName={regionRecommend.name}
+            regionLabel={regionRecommend.regionLabel} />
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {/* 담당직원 배정 카드 */}
-        <div className={`col-span-3 bg-white rounded-xl border shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 ${!customer.assigned_employee_id ? 'border-red-200' : 'border-[#c8c4d0]'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`size-9 rounded-lg flex items-center justify-center ${customer.assigned_employee_id ? 'bg-[#f5f4ff]' : 'bg-red-50'}`}>
-                <UserCheck className={`size-4 ${customer.assigned_employee_id ? 'text-[#7b68ee]' : 'text-red-400'}`} />
-              </div>
-              <div>
-                <p className="text-xs text-[#514b81] font-medium">담당직원</p>
-                {assignedEmployee ? (
-                  <p className="text-sm font-semibold text-[#090c1d] mt-0.5">
-                    {assignedEmployee.name}
-                    {assignedEmployee.position && (
-                      <span className="text-xs text-[#b0acd6] font-normal ml-1.5">({assignedEmployee.position})</span>
-                    )}
-                  </p>
-                ) : (
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <AlertCircle className="size-3.5 text-red-400" />
-                    <p className="text-sm font-semibold text-red-500">미배정</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            {canAssign && (
-              <AssignEmployeeClient
+      <div className="border-t border-[#e0ddf5]" />
+
+      {/* §11-1·2·4: 기본정보 요약 모드 (연간 횟수는 유형 옆 병기, 값 클릭 = 편집+포커스) */}
+      <EditCustomerInfoClient
+        customer={customer}
+        canManage={canManage}
+        annualLabel={customer.inspection_type === '종합' ? '연 2회 (1차·2차)' : customer.inspection_type === '작동' ? '연 1회' : '1회 (점검계획일)'}
+        typeSlot={
+          <span className="flex items-center">
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
+              {inspectionTypeLabel(customer.inspection_type)}
+            </span>
+            {canManage && (
+              <EditInspectionTypeClient
                 customerId={customer.id}
-                customerName={customer.customer_name}
-                currentEmployeeId={customer.assigned_employee_id}
-                employees={employees}
+                currentType={customer.inspection_type}
               />
             )}
-          </div>
-        </div>
+          </span>
+        }
+        lastChangeText={lastChangeText}
+      />
+    </div>
+  )
 
-        {/* 고객 기본정보 */}
-        <div className="col-span-2 bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-[#090c1d]">기본정보</h2>
-          </div>
-          <InfoRow
-            label="점검유형"
-            value={
-              <span className="flex items-center">
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
-                  {inspectionTypeLabel(customer.inspection_type)}
-                </span>
-                {canManage && (
-                  <EditInspectionTypeClient
-                    customerId={customer.id}
-                    currentType={customer.inspection_type}
-                  />
-                )}
-              </span>
-            }
-          />
-          {canManage ? (
-            <div className="pt-2">
-              <EditCustomerInfoClient customer={customer} />
-            </div>
-          ) : (
-            <>
-              <InfoRow
-                label="계약일"
-                value={
-                  customer.contract_date ? (
-                    <span className="flex items-center gap-1.5">
-                      <Calendar className="size-3.5 text-[#b0acd6]" />
-                      {customer.contract_date}
-                    </span>
-                  ) : null
-                }
-              />
-              <InfoRow
-                label="사용승인일"
-                value={
-                  customer.use_approval_date ? (
-                    <span className="flex items-center gap-1.5">
-                      <Calendar className="size-3.5 text-[#b0acd6]" />
-                      {customer.use_approval_date}
-                    </span>
-                  ) : null
-                }
-              />
-              <InfoRow
-                label="점검계획일"
-                value={
-                  customer.plan_anchor_date ? (
-                    <span className="flex items-center gap-1.5">
-                      <Calendar className="size-3.5 text-[#b0acd6]" />
-                      {customer.plan_anchor_date}
-                    </span>
-                  ) : null
-                }
-              />
-              <InfoRow
-                label="주소"
-                value={
-                  customer.address ? (
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="size-3.5 text-[#b0acd6] shrink-0 mt-0.5" />
-                      {customer.address}
-                    </span>
-                  ) : null
-                }
-              />
-              <InfoRow label="비고" value={customer.notes} />
-            </>
-          )}
-        </div>
-
-        {/* 연간 점검 횟수 */}
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 flex flex-col justify-center items-center gap-2">
-          <Tag className="size-5 text-[#7b68ee]" />
-          <p className="text-xs text-[#514b81]">연간 점검 횟수</p>
-          <p className="text-2xl font-bold text-[#090c1d]">
-            {customer.inspection_type === '종합' ? '2' : '1'}
-            <span className="text-sm font-normal text-[#514b81] ml-0.5">회</span>
-          </p>
-          <p className="text-xs text-[#b0acd6]">{customer.inspection_type === '종합' ? '(1차·2차)' : ''}</p>
-        </div>
-      </div>
-
-      {/* 관계인 정보 (수정 가능) */}
+  // 관계인 정보 (수정 가능)
+  const contactsTab = (
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
         <h2 className="text-sm font-semibold text-[#090c1d] mb-4">관계인 정보</h2>
         <EditContactsClient
           customerId={customer.id}
           contacts={contacts}
           canManage={canManage}
+          brigadeByName={Object.fromEntries(planInfoInitial.brigade.map(m => [m.name, m.team]))}
         />
       </div>
+  )
 
-      {/* 건물 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">건물 목록</h2>
-          <span className="text-xs text-[#b0acd6] ml-auto">{buildings.length}개</span>
-          {canManage && (
-            <Link
-              href={`/buildings/new?customer_id=${customer.id}`}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
-            >
-              <Plus className="size-3" />
-              건물 등록
-            </Link>
-          )}
-        </div>
+  const panelBuildings: BuildingPanelRow[] = buildings.map(b => {
+    const r = b as unknown as Record<string, unknown>
+    return {
+      id: b.id, building_name: b.building_name, address: b.address,
+      zipcode: (r.zipcode as string | null) ?? null,
+      address_jibun: (r.address_jibun as string | null) ?? null,
+      bcode: (r.bcode as string | null) ?? null,
+      total_area: b.total_area, floors_above: b.floors_above, floors_below: b.floors_below,
+      purpose: b.purpose, year_built: b.year_built,
+      notes: (r.notes as string | null) ?? null, is_active: b.is_active,
+    }
+  })
 
-        {buildings.length === 0 ? (
-          <p className="text-sm text-[#514b81] py-6 text-center">등록된 건물이 없습니다</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[#e0ddf5]">
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">건물명</th>
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">주소</th>
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">용도</th>
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">연면적</th>
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">층수</th>
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">준공</th>
-                  <th className="text-left text-xs font-medium text-[#514b81] pb-2">상태</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {buildings.map(b => (
-                  <tr key={b.id} className="border-b border-[#f8f9fa] last:border-0 hover:bg-[#fafafa] transition-colors">
-                    <td className="py-3 pr-4 font-medium text-[#090c1d]">{b.building_name}</td>
-                    <td className="py-3 pr-4 text-xs text-[#514b81] max-w-[140px] truncate">{b.address ?? '-'}</td>
-                    <td className="py-3 pr-4">
-                      {b.purpose ? (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">{b.purpose}</span>
-                      ) : (
-                        <span className="text-xs text-[#b0acd6]">-</span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 text-xs text-[#514b81]">
-                      {b.total_area != null ? `${b.total_area.toLocaleString()}㎡` : '-'}
-                    </td>
-                    <td className="py-3 pr-4 text-xs text-[#514b81]">
-                      {b.floors_above != null
-                        ? `지상 ${b.floors_above}층${b.floors_below ? ` / 지하 ${b.floors_below}층` : ''}`
-                        : '-'}
-                    </td>
-                    <td className="py-3 pr-4 text-xs text-[#514b81]">{b.year_built ?? '-'}</td>
-                    <td className="py-3 pr-4">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${b.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {b.is_active ? '활성' : '비활성'}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <Link href={`/buildings/${b.id}`} className="text-xs text-[#7b68ee] hover:underline font-medium">
-                        상세보기
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+  const buildingsTab = (
+    <>
+      {/* 건물 목록 + 인라인 등록·수정 패널 (설계 §5·§5-A — /buildings 페이지 이동 대체) */}
+      <BuildingListPanel
+        customerId={customer.id}
+        customerName={customer.customer_name}
+        customerAddress={customer.address}
+        buildings={panelBuildings}
+        canManage={canManage}
+        initialOpenId={initialBuildingId}
+        initialNew={initialNewBuilding === '1'}
+      />
 
       {/* 소방시설 현황 — 건물(동) 단위, 보고서 현황면 소스 (doc02 §1-3, P33) */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
@@ -434,8 +426,11 @@ export default async function CustomerDetailPage({
         </div>
         <FacilitiesClient customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />
       </div>
+    </>
+  )
 
-      {/* 사업자정보 + 자동이체 — 세금계산서·수금 (doc02 §4-7, §1-5, P4-1/P4-2) */}
+  // 사업자정보 + 자동이체 — 세금계산서·수금 (doc02 §4-7, §1-5, P4-1/P4-2)
+  const billingTab = (
       <BillingClient
         customerId={customer.id}
         profile={(billingProfileRes.data ?? null) as BillingProfile | null}
@@ -443,64 +438,67 @@ export default async function CustomerDetailPage({
         owners={(ownersRes.data ?? []) as Array<{ id: string; name: string; contact: string | null }>}
         ownerId={(customer as { owner_id?: string | null }).owner_id ?? null}
         canManage={canManage}
+        customerName={customer.customer_name}
+        repName={repContact?.name ?? null}
+        customerAddress={customer.address}
       />
+  )
 
-      {/* 소방계획서 보관함 — 표준양식 PDF 업로드·자동 인쇄 (doc02 §8) */}
+  // 소방계획서 보관함 — 표준양식 PDF 업로드·자동 인쇄 (doc02 §8)
+  const planTab = (
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
         <div className="flex items-center gap-2 mb-4">
           <History className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">소방계획서</h2>
           <span className="text-xs text-[#b0acd6] ml-auto">{firePlans.length}건</span>
         </div>
-        {(() => {
-          const c = customer as unknown as Record<string, unknown>
-          const firstBld = buildings.filter(b => b.is_active)
-            .sort((a, b) => String((a as Record<string, unknown>).created_at ?? '').localeCompare(String((b as Record<string, unknown>).created_at ?? '')))[0] as Record<string, unknown> | undefined
-          const s = (v: unknown) => (v == null ? '' : String(v))
-          const planInfoInitial = {
-            receiverLocation: s(firstBld?.receiver_location),
-            structure: s(firstBld?.main_structure),
-            roof: s(firstBld?.roof_structure),
-            height: s(firstBld?.height),
-            hasBuilding: !!firstBld,
-            managerSelectedAt: s(c.manager_selected_at),
-            grade: s(c.building_grade),
-            insuranceJoined: (c.insurance_joined as boolean | null) ?? null,
-            insuranceCompany: s(c.insurance_company),
-            insurancePeriod: s(c.insurance_period),
-            insuranceAmountPerson: s(c.insurance_amount_person),
-            insuranceAmountProperty: s(c.insurance_amount_property),
-            opHoursWeekday: s(c.op_hours_weekday),
-            opHoursHoliday: s(c.op_hours_holiday),
-            headcountWorker: s(c.headcount_worker),
-            headcountResident: s(c.headcount_resident),
-            headcountMax: s(c.headcount_max),
-            brigade: ((brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>)
-              .map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' })),
-          }
-          const people = [
-            ...contacts.map(ct => ({ name: ct.name, phone: ct.phone ?? '', kind: `관계인·${ct.role}` })),
-            ...employees.map(e => ({ name: e.name, phone: '', kind: `직원${e.position ? `·${e.position}` : ''}` })),
-          ]
-          return <FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={people} />
-        })()}
+        <FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />
         <FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />
       </div>
+  )
 
-      {/* 점검 이력 + 변경 이력 통합 타임라인 */}
+  // 점검 이력 + 변경 이력 통합 타임라인
+  const historyTab = (
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-3">
           <ClipboardList className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">점검 이력</h2>
           <span className="text-xs text-[#b0acd6] ml-auto">{inspections.length}건 점검 · {essentialLogs.length}건 변경</span>
         </div>
 
-        {inspections.length === 0 && essentialLogs.length === 0 ? (
-          <p className="text-sm text-[#514b81] py-6 text-center">등록된 이력이 없습니다</p>
+        {/* §6-E: 다음 점검 예정 + 기간·종류 필터 칩 + 딥링크 */}
+        <div className="mb-3 space-y-2">
+          <p className="text-xs">
+            <span className="text-[#514b81]">다음 점검: </span>
+            {nextInspection ? (
+              <Link href={`/inspections/${nextInspection.id}`} className="font-medium text-[#7b68ee] hover:underline">
+                {nextInspection.inspection_start_date} {inspectionTypeLabel(nextInspection.inspection_type)} ({nextInspection.year}년 {nextInspection.sequence_num}차)
+              </Link>
+            ) : (
+              <span className="text-[#b0acd6]">예정 없음</span>
+            )}
+          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {histChip('전체', 'hy', '', hy)}
+            {histChip('올해', 'hy', 'this', hy)}
+            {histChip('작년', 'hy', 'last', hy)}
+            <span className="text-[#e0ddf5]">|</span>
+            {histChip('점검+변경', 'hk', '', hk)}
+            {histChip('점검만', 'hk', 'insp', hk)}
+            {histChip('변경만', 'hk', 'log', hk)}
+            <span className="ml-auto flex items-center gap-3">
+              <Link href="/inspection-reports/status" className="text-[11px] text-[#7b68ee] hover:underline">보고서 제출현황 →</Link>
+              <Link href="/action-plans/status" className="text-[11px] text-[#7b68ee] hover:underline">이행계획 제출현황 →</Link>
+            </span>
+          </div>
+        </div>
+
+        {inspFiltered.length === 0 && logsFiltered.length === 0 ? (
+          <p className="text-sm text-[#514b81] py-6 text-center">조건에 맞는 이력이 없습니다</p>
         ) : (
           <div className="space-y-1">
             {/* 점검 이력 테이블 */}
-            {inspections.length > 0 && (
+            {inspFiltered.length > 0 && (
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm">
                   <thead>
@@ -514,7 +512,7 @@ export default async function CustomerDetailPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {inspections.map(insp => {
+                    {inspFiltered.map(insp => {
                       const emp = employees.find(e => e.id === insp.assigned_employee_id)
                       const steps = stepCounts[insp.id] ?? { total: 0, completed: 0 }
                       return (
@@ -562,14 +560,14 @@ export default async function CustomerDetailPage({
             )}
 
             {/* 변경 이력 — 필수 고객관리 사항만 (담당직원·점검유형·사용승인일·계약일·활성상태·등록) */}
-            {essentialLogs.length > 0 && (
+            {logsFiltered.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3 pt-2 border-t border-[#e0ddf5]">
                   <History className="size-3.5 text-[#b0acd6]" />
                   <span className="text-xs font-medium text-[#514b81]">변경 이력</span>
                 </div>
                 <div className="space-y-2">
-                  {essentialLogs.map(({ log, actionLabel, changes }) => {
+                  {logsFiltered.map(({ log, actionLabel, changes }) => {
                     const actor = employees.find(e => e.id === log.actor_id)
                     const dateStr = new Date(log.created_at).toLocaleString('ko-KR', {
                       year: 'numeric', month: '2-digit', day: '2-digit',
@@ -610,6 +608,54 @@ export default async function CustomerDetailPage({
             )}
           </div>
         )}
+      </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* 뒤로가기 + 헤더 */}
+      <div className="flex items-center gap-3 max-w-3xl xl:max-w-none">
+        <Link href="/customers" className="text-[#514b81] hover:text-[#7b68ee] transition-colors">
+          <ChevronLeft className="size-5" />
+        </Link>
+        <div className="flex-1 flex items-center gap-3">
+          <h1 className="text-xl font-bold text-[#090c1d]">{customer.customer_name}</h1>
+          <CustomerPrevNext prevId={prevId} nextId={nextId} position={navPosition} />
+        </div>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
+          {inspectionTypeLabel(customer.inspection_type)}
+        </span>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+          {customer.is_active ? '활성' : '비활성'}
+        </span>
+      </div>
+
+      {/* §10-3: 등록 직후 보완 안내 1줄 */}
+      {created === '1' && (
+        <div className="max-w-3xl rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-xs text-green-800">
+          고객 등록 완료 — {tabDefs.some(t => t.warn)
+            ? `보완할 항목: ${tabDefs.filter(t => t.warn).map(t => t.label).join(' · ')} (탭의 ⚠를 따라 입력하세요)`
+            : '필수 정보가 모두 입력됐습니다.'}
+        </div>
+      )}
+
+      {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) */}
+      <div className="flex gap-6 items-start">
+        <div className="flex-1 min-w-0 max-w-3xl">
+          <CustomerTabs
+            initialTab={initialTab ?? 'info'}
+            tabs={tabDefs}
+            panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, billing: billingTab, history: historyTab }}
+          />
+        </div>
+        <CustomerSummaryPanel
+          address={customer.address}
+          repName={repContact?.name ?? null}
+          repPhone={repContact?.phone ?? null}
+          employeeName={assignedEmployee?.name ?? null}
+          planDate={customer.plan_anchor_date}
+          lastInspectionDate={lastInspectionDate}
+        />
       </div>
     </div>
   )

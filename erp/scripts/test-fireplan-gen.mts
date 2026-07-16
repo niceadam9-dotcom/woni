@@ -55,8 +55,8 @@ try {
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 })
   check('로그인 성공', true)
 
-  // ── 생성 모달 열기 (자동 채움 확인) ──
-  await page.goto(`${BASE}/customers/${customerId}`)
+  // ── 생성 모달 열기 (자동 채움 확인) — 탭 개편: 소방계획서 카드는 plan 탭 (2026-07-16) ──
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
   await page.getByRole('button', { name: '표준양식 생성' }).click()
   await page.getByText('소방계획서 표준양식 생성').waitFor()
   check('생성 모달 표시', true)
@@ -72,7 +72,14 @@ try {
 
   // ── PDF 생성 (Gotenberg 변환 포함 — 여유 대기) ──
   await page.getByRole('button', { name: /PDF 생성/ }).click()
-  await page.getByText('소방계획서 표준양식 생성').waitFor({ state: 'hidden', timeout: 60000 })
+  try {
+    await page.getByText('소방계획서 표준양식 생성').waitFor({ state: 'hidden', timeout: 60000 })
+  } catch (waitErr) {
+    // 진단: 모달이 안 닫히면 화면의 오류 문구를 출력 (Gotenberg 미기동 등 환경 원인 식별)
+    const errText = await page.locator('.text-red-500, .text-red-600, [class*="text-red"]').allInnerTexts().catch(() => [])
+    console.log(`  ⚠ 모달 미닫힘 — 화면 오류: ${JSON.stringify(errText)}`)
+    throw waitErr
+  }
   check('생성 완료 (모달 닫힘)', true)
 
   // ── DB·스토리지 검증 ──
@@ -96,7 +103,7 @@ try {
   }
 
   // ── 편집 버튼 → 데이터 재로드 → 재생성 = 개정 2 ──
-  await page.goto(`${BASE}/customers/${customerId}`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
   await page.getByRole('button', { name: '편집' }).first().click()
   await page.getByText('소방계획서 표준양식 생성').waitFor()
   const nameInput2 = page.locator('section', { hasText: '서식 1.1' }).locator('input').first()
@@ -109,7 +116,7 @@ try {
   check('재생성 = 개정 차수 2', ((plans2 ?? [])[0] as { revision: number } | undefined)?.revision === 2, JSON.stringify(plans2))
 
   // ── 데이터 시트 다운로드 ──
-  await page.goto(`${BASE}/customers/${customerId}`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 60000 }),
     page.getByRole('button', { name: '데이터 시트' }).click(),

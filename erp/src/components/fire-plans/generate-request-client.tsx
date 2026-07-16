@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { FileOutput, Search, Loader2, CheckCircle2, XCircle, Clock, Wifi, WifiOff, X } from 'lucide-react'
 import {
   searchCustomersForPlanAction, requestFirePlanHwpAction, getFirePlanGenStatusAction,
-  type GenStatus,
+  getFirePlanReadinessAction, type GenStatus,
 } from '@/app/(dashboard)/fire-plans/generate/actions'
+import type { FirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { PRESET_TYPES, recommendPresetType, type PresetType } from '@/lib/fire-plan-presets'
 import { FirePlanPresetManager } from '@/components/fire-plans/fire-plan-preset-manager'
 
@@ -24,7 +25,18 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
   const [status, setStatus] = useState<GenStatus>(initialStatus)
   const [isPending, startTransition] = useTransition()
   const [message, setMessage] = useState('')
+  const [readiness, setReadiness] = useState<Record<string, FirePlanReadiness>>({})
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 사전 체크(설계 §5-2): 고객 선택 시 준비율·누락 항목 조회 — 누락이 있어도 생성 가능(빈 칸 허용)
+  useEffect(() => {
+    const need = selected.filter(c => !(c.id in readiness)).map(c => c.id)
+    if (need.length === 0) return
+    getFirePlanReadinessAction(need)
+      .then(r => setReadiness(prev => ({ ...prev, ...Object.fromEntries(r.readiness.map(x => [x.id, x])) })))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected])
 
   // 고객 검색 (300ms 디바운스, 빈 검색어는 즉시 비움)
   useEffect(() => {
@@ -137,16 +149,42 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
         </div>
         {selected.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            {selected.map(c => (
-              <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-[#f5f4ff] border border-[#d0ccf5] pl-3 pr-1.5 py-1 text-xs text-[#090c1d]">
-                {c.name}
-                {c.purpose && <span className="text-[#b0acd6]">({c.purpose})</span>}
-                <button onClick={() => setSelected(prev => prev.filter(s => s.id !== c.id))}
-                  className="rounded-full p-0.5 hover:bg-[#e8e5fb] text-[#514b81]">
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
+            {selected.map(c => {
+              const r = readiness[c.id]
+              return (
+                <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-[#f5f4ff] border border-[#d0ccf5] pl-3 pr-1.5 py-1 text-xs text-[#090c1d]">
+                  {c.name}
+                  {c.purpose && <span className="text-[#b0acd6]">({c.purpose})</span>}
+                  {r && (
+                    <span className={`text-[10px] ${r.missing.length > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                      {r.done}/{r.total}
+                    </span>
+                  )}
+                  <button onClick={() => setSelected(prev => prev.filter(s => s.id !== c.id))}
+                    className="rounded-full p-0.5 hover:bg-[#e8e5fb] text-[#514b81]">
+                    <X className="size-3" />
+                  </button>
+                </span>
+              )
+            })}
+          </div>
+        )}
+        {/* 사전 체크: 누락 항목 안내 — '이대로 생성'(빈 칸 허용) 또는 고객 상세에서 입력 후 생성 (설계 §5-2) */}
+        {selected.some(c => (readiness[c.id]?.missing.length ?? 0) > 0) && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 space-y-1">
+            {selected.filter(c => (readiness[c.id]?.missing.length ?? 0) > 0).map(c => {
+              const r = readiness[c.id]!
+              return (
+                <p key={c.id} className="text-[11px] text-amber-800">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="ml-1.5">준비율 {r.done}/{r.total} · 누락: {r.missing.join(', ')}</span>
+                  <Link href={`/customers/${c.id}?tab=plan`} className="text-[#7b68ee] hover:underline ml-1.5">
+                    → 입력 후 생성
+                  </Link>
+                </p>
+              )
+            })}
+            <p className="text-[10px] text-amber-600">누락이 있어도 생성할 수 있습니다 — 해당 항목은 빈 칸으로 출력되고 완료 후 누락 안내에 표시됩니다.</p>
           </div>
         )}
         {message && <p className="text-sm text-[#514b81]">{message}</p>}
@@ -199,14 +237,14 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
                   <span className="text-[11px] text-amber-600 truncate">
                     누락: {r.missing!.join(', ')}
                     {r.customerId && (
-                      <Link href={`/customers/${r.customerId}`} className="text-[#7b68ee] hover:underline ml-1">
+                      <Link href={`/customers/${r.customerId}?tab=plan`} className="text-[#7b68ee] hover:underline ml-1">
                         → 고객 정보 입력
                       </Link>
                     )}
                   </span>
                 )}
                 {r.ok && r.customerId && (
-                  <Link href={`/customers/${r.customerId}`} className="text-xs text-[#7b68ee] hover:underline ml-auto shrink-0">
+                  <Link href={`/customers/${r.customerId}?tab=plan`} className="text-xs text-[#7b68ee] hover:underline ml-auto shrink-0">
                     보관함에서 열기 →
                   </Link>
                 )}

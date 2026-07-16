@@ -1,17 +1,21 @@
 ﻿'use client'
 
 import { useState, useTransition } from 'react'
-import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase } from 'lucide-react'
-import { upsertContactAction } from '@/app/(dashboard)/customers/actions'
+import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame } from 'lucide-react'
+import { upsertContactAction, getMyAddressContactsAction } from '@/app/(dashboard)/customers/actions'
 import { DateInput } from '@/components/ui/date-input'
 import type { CustomerContact, ContactRole } from '@/types'
 
 const ROLES: ContactRole[] = ['대표', '직원1', '직원2']
 
+type AddressEntry = { name: string; phone: string; email: string; position: string }
+
 interface Props {
   customerId: string
   contacts: CustomerContact[]
   canManage: boolean
+  /** §6-E: 자위소방대 편성 교차 표시 — 이름 → 구분(자위소방대장 등) */
+  brigadeByName?: Record<string, string>
 }
 
 interface FormState {
@@ -22,11 +26,32 @@ interface FormState {
   birth_date: string
 }
 
-export function EditContactsClient({ customerId, contacts, canManage }: Props) {
+export function EditContactsClient({ customerId, contacts, canManage, brigadeByName = {} }: Props) {
   const [editingRole, setEditingRole] = useState<ContactRole | null>(null)
   const [form, setForm] = useState<FormState>({ name: '', phone: '', email: '', position: '', birth_date: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  // §6-E: [주소록에서 가져오기]
+  const [book, setBook] = useState<AddressEntry[] | null>(null)
+  const [showBook, setShowBook] = useState(false)
+  const [copied, setCopied] = useState('')
+
+  function openBook() {
+    setShowBook(v => !v)
+    if (book === null) {
+      getMyAddressContactsAction().then(r => setBook(r.contacts)).catch(() => setBook([]))
+    }
+  }
+  function applyBookEntry(e: AddressEntry) {
+    setForm(s => ({ ...s, name: e.name, phone: e.phone || s.phone, email: e.email || s.email, position: e.position || s.position }))
+    setShowBook(false)
+  }
+  function copyPhone(phone: string) {
+    navigator.clipboard?.writeText(phone).then(() => {
+      setCopied(phone)
+      setTimeout(() => setCopied(''), 1500)
+    }).catch(() => null)
+  }
 
   function startEdit(role: ContactRole) {
     const existing = contacts.find(c => c.role === role)
@@ -92,7 +117,26 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
                   <User className="size-4 text-white" />
                 </div>
                 <span className="text-xs font-semibold text-[#7b68ee]">{role === '대표' ? '대표' : '추가 관계인'}</span>
+                <button onClick={openBook}
+                  className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
+                  <BookUser className="size-3" /> 주소록에서 가져오기
+                </button>
               </div>
+              {showBook && (
+                <div className="mb-2 rounded-lg border border-[#d0ccf5] bg-white shadow-lg max-h-40 overflow-y-auto">
+                  {book === null ? (
+                    <p className="px-3 py-2 text-[11px] text-[#b0acd6]">불러오는 중…</p>
+                  ) : book.length === 0 ? (
+                    <p className="px-3 py-2 text-[11px] text-[#b0acd6]">주소록이 비어 있습니다 (마이페이지 &gt; 주소록)</p>
+                  ) : book.map((e, i) => (
+                    <button key={i} onClick={() => applyBookEntry(e)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff] flex justify-between gap-2">
+                      <span>{e.name}{e.position && <span className="text-[#b0acd6]"> · {e.position}</span>}</span>
+                      <span className="text-[#b0acd6]">{e.phone}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="space-y-2">
                 <input
                   type="text"
@@ -169,12 +213,23 @@ export function EditContactsClient({ customerId, contacts, canManage }: Props) {
                     <Briefcase className="size-3" />{contact!.position}
                   </span>
                 )}
+                {brigadeByName[contact!.name] && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600"
+                    title="자위소방대 편성됨 (소방계획서 탭)">
+                    <Flame className="size-2.5" /> {brigadeByName[contact!.name]}
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                 {contact!.phone && (
                   <span className="flex items-center gap-1 text-xs text-[#514b81]">
                     <Phone className="size-3 text-[#b0acd6]" />
-                    {contact!.phone}
+                    <a href={`tel:${contact!.phone}`} className="hover:text-[#7b68ee] hover:underline">{contact!.phone}</a>
+                    <button onClick={() => copyPhone(contact!.phone!)} title="복사"
+                      className="p-0.5 text-[#b0acd6] hover:text-[#7b68ee]">
+                      <Copy className="size-3" />
+                    </button>
+                    {copied === contact!.phone && <span className="text-[10px] text-green-600">복사됨</span>}
                   </span>
                 )}
                 {contact!.email && (

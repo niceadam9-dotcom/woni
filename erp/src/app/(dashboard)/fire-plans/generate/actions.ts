@@ -6,6 +6,7 @@ import {
   PRESET_TYPES, PRESET_FILE_KEYS, defaultPreset,
   type FirePlanPreset, type PresetType,
 } from '@/lib/fire-plan-presets'
+import { computeFirePlanReadiness, type FirePlanReadiness } from '@/lib/fire-plan-readiness'
 
 /** 소방계획서 HWP 생성 요청 큐 (doc02 §8 확장, 2026-07-15)
  *  큐 = fire-plans 버킷 _queue/*.json — Windows 워커(scripts/fireplan-worker.py)가 폴링·처리.
@@ -37,6 +38,57 @@ export async function searchCustomersForPlanAction(q: string): Promise<{
       type: c.inspection_type,
       purpose: (c.buildings ?? []).find(b => b.is_active)?.purpose ?? null,
     })),
+  }
+}
+
+/** 생성 페이지 사전 체크 — 선택 고객별 계획서 준비율·누락 항목 (설계 §5-2)
+ *  누락이 있어도 생성은 허용(fail-soft) — '이대로 생성' 또는 고객 상세에서 '입력 후 생성' 선택 */
+export async function getFirePlanReadinessAction(customerIds: string[]): Promise<{
+  readiness: Array<{ id: string } & FirePlanReadiness>
+}> {
+  await requirePermission('customer_manage')
+  const ids = [...new Set(customerIds)].filter(Boolean).slice(0, 30)
+  if (ids.length === 0) return { readiness: [] }
+  const admin = createAdminClient()
+
+  const [{ data: custs }, { data: blds }, { data: brigade }] = await Promise.all([
+    admin.from('customers')
+      .select('id, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max')
+      .in('id', ids),
+    admin.from('buildings')
+      .select('customer_id, receiver_location, main_structure, roof_structure, created_at')
+      .in('customer_id', ids).eq('is_active', true).order('created_at', { ascending: true }),
+    admin.from('fire_brigade_members').select('customer_id').in('customer_id', ids),
+  ])
+
+  const firstBld = new Map<string, { receiver_location: string | null; main_structure: string | null; roof_structure: string | null }>()
+  for (const b of (blds ?? []) as Array<{ customer_id: string; receiver_location: string | null; main_structure: string | null; roof_structure: string | null }>) {
+    if (!firstBld.has(b.customer_id)) firstBld.set(b.customer_id, b)
+  }
+  const brigadeIds = new Set(((brigade ?? []) as Array<{ customer_id: string }>).map(m => m.customer_id))
+
+  return {
+    readiness: ((custs ?? []) as Array<{
+      id: string; manager_selected_at: string | null; building_grade: string | null
+      insurance_joined: boolean | null; op_hours_weekday: string | null
+      headcount_worker: number | null; headcount_resident: number | null; headcount_max: number | null
+    }>).map(c => {
+      const b = firstBld.get(c.id)
+      return {
+        id: c.id,
+        ...computeFirePlanReadiness({
+          receiverLocation: b?.receiver_location ?? '',
+          structure: b?.main_structure ?? '',
+          roof: b?.roof_structure ?? '',
+          managerSelectedAt: c.manager_selected_at ?? '',
+          grade: c.building_grade ?? '',
+          insuranceJoined: c.insurance_joined,
+          opHoursWeekday: c.op_hours_weekday ?? '',
+          hasHeadcount: c.headcount_worker != null || c.headcount_resident != null || c.headcount_max != null,
+          hasBrigade: brigadeIds.has(c.id),
+        }),
+      }
+    }),
   }
 }
 

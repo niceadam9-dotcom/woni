@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Receipt, Landmark, Save, Eye, Loader2, ShieldCheck, Users } from 'lucide-react'
+import Link from 'next/link'
+import { Receipt, Landmark, Save, Eye, Loader2, ShieldCheck, Users, Download, ExternalLink } from 'lucide-react'
 import {
   saveBillingProfileAction, saveAutopayAction, revealAccountAction,
   type BillingProfileInput, type AutopayInput,
@@ -22,13 +23,39 @@ export type Autopay = {
 const field = 'h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee] w-full'
 const label = 'text-[11px] text-[#514b81] mb-1 block'
 
-export function BillingClient({ customerId, profile, autopay, owners, ownerId, canManage }: {
+// §6-E: 은행 프리셋 (datalist — 직접 입력도 허용)
+const BANKS = ['국민은행', '신한은행', '우리은행', '하나은행', '농협', 'IBK기업은행', 'SC제일은행', '카카오뱅크', '토스뱅크', '새마을금고', '신협', '우체국', '수협', '대구은행', '부산은행']
+
+/** 사업자등록번호 자동 하이픈 (000-00-00000) */
+export function formatBizNo(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 10)
+  if (d.length <= 3) return d
+  if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`
+  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`
+}
+
+/** 사업자등록번호 체크섬 검증 (국세청 10자리 알고리즘) — 10자리 완성 시에만 판정 */
+export function isValidBizNo(v: string): boolean | null {
+  const d = v.replace(/\D/g, '')
+  if (d.length !== 10) return null
+  const w = [1, 3, 7, 1, 3, 7, 1, 3, 5]
+  let sum = 0
+  for (let i = 0; i < 9; i++) sum += parseInt(d[i], 10) * w[i]
+  sum += Math.floor((parseInt(d[8], 10) * 5) / 10)
+  return (10 - (sum % 10)) % 10 === parseInt(d[9], 10)
+}
+
+export function BillingClient({ customerId, profile, autopay, owners, ownerId, canManage, customerName, repName, customerAddress }: {
   customerId: string
   profile: BillingProfile | null
   autopay: Autopay | null
   owners: OwnerOption[]
   ownerId: string | null
   canManage: boolean
+  /** §6-E: [고객 정보에서 가져오기] — 상호=고객명, 대표자=대표 관계인, 주소=고객 주소 */
+  customerName?: string
+  repName?: string | null
+  customerAddress?: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -130,9 +157,30 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
         <div className="flex items-center gap-2 mb-4">
           <Receipt className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">사업자정보 <span className="text-xs font-normal text-[#b0acd6]">세금계산서</span></h2>
+          {canManage && (customerName || repName || customerAddress) && (
+            <button type="button"
+              onClick={() => setBp(p => ({
+                ...p,
+                company_name: p.company_name || (customerName ?? ''),
+                rep_name: p.rep_name || (repName ?? ''),
+                address: p.address || (customerAddress ?? ''),
+              }))}
+              className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
+              <Download className="size-3" /> 고객 정보에서 가져오기
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div><span className={label}>사업자등록번호</span><input disabled={!canManage} value={bp.business_no} onChange={e => setBp({ ...bp, business_no: e.target.value })} placeholder="000-00-00000" className={field} /></div>
+          <div>
+            <span className={label}>사업자등록번호</span>
+            <input disabled={!canManage} value={bp.business_no}
+              onChange={e => setBp({ ...bp, business_no: formatBizNo(e.target.value) })}
+              placeholder="000-00-00000"
+              className={`${field}${isValidBizNo(bp.business_no) === false ? ' !border-red-400' : ''}`} />
+            {isValidBizNo(bp.business_no) === false && (
+              <p className="text-[10px] text-red-500 mt-0.5">사업자번호 검증 실패 — 번호를 확인해주세요</p>
+            )}
+          </div>
           <div><span className={label}>상호(법인명)</span><input disabled={!canManage} value={bp.company_name} onChange={e => setBp({ ...bp, company_name: e.target.value })} className={field} /></div>
           <div><span className={label}>대표자</span><input disabled={!canManage} value={bp.rep_name} onChange={e => setBp({ ...bp, rep_name: e.target.value })} className={field} /></div>
           <div><span className={label}>계산서 이메일</span><input disabled={!canManage} value={bp.tax_email} onChange={e => setBp({ ...bp, tax_email: e.target.value })} className={field} /></div>
@@ -155,7 +203,12 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
           <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-green-600"><ShieldCheck className="size-3.5" /> AES-256 암호화</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div><span className={label}>은행</span><input disabled={!canManage} value={ap.bank_name} onChange={e => setAp({ ...ap, bank_name: e.target.value })} className={field} /></div>
+          <div>
+            <span className={label}>은행</span>
+            <input disabled={!canManage} value={ap.bank_name} onChange={e => setAp({ ...ap, bank_name: e.target.value })}
+              list="bank-presets" placeholder="선택/입력" className={field} />
+            <datalist id="bank-presets">{BANKS.map(b => <option key={b} value={b} />)}</datalist>
+          </div>
           <div><span className={label}>예금주</span><input disabled={!canManage} value={ap.account_holder} onChange={e => setAp({ ...ap, account_holder: e.target.value })} className={field} /></div>
           <div className="col-span-2">
             <span className={label}>계좌번호 {autopay?.account_no_last4 && !revealed && <span className="text-[#b0acd6]">(등록됨 ****{autopay.account_no_last4})</span>}</span>
@@ -170,13 +223,29 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
             </div>
             {revealed && <p className="mt-1 text-sm font-mono text-[#090c1d] bg-[#f5f4ff] rounded px-2 py-1 inline-block">{revealed}</p>}
           </div>
-          <div><span className={label}>자동이체일</span><input disabled={!canManage} value={ap.withdraw_day} onChange={e => setAp({ ...ap, withdraw_day: e.target.value.replace(/\D/g, '') })} placeholder="1~31" className={field} /></div>
+          <div>
+            <span className={label}>자동이체일</span>
+            <select disabled={!canManage} value={ap.withdraw_day} onChange={e => setAp({ ...ap, withdraw_day: e.target.value })} className={field}>
+              <option value="">선택</option>
+              {Array.from({ length: 31 }, (_, i) => String(i + 1)).map(d => <option key={d} value={d}>{d}일</option>)}
+            </select>
+          </div>
         </div>
         {canManage && (
           <button onClick={saveAutopay} disabled={isPending} className="mt-4 inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} 저장
           </button>
         )}
+      </div>
+
+      {/* §6-E: 청구 업무 딥링크 */}
+      <div className="flex items-center gap-3">
+        <Link href="/tax-invoices" className="inline-flex items-center gap-1 text-xs text-[#7b68ee] hover:underline">
+          <ExternalLink className="size-3" /> 세금계산서 발행 →
+        </Link>
+        <Link href="/billing/status" className="inline-flex items-center gap-1 text-xs text-[#7b68ee] hover:underline">
+          <ExternalLink className="size-3" /> 정산현황 →
+        </Link>
       </div>
 
       {msg && <p className="text-xs text-green-600">{msg}</p>}

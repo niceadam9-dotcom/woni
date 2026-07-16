@@ -1,17 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search, Building2, MapPin, User } from 'lucide-react'
 import { searchSuggestionsAction } from '@/app/(dashboard)/customers/actions'
 
 type Suggestions = {
+  customers: { id: string; name: string }[]
   buildings: string[]
   addresses: string[]
   employees: { name: string; count: number }[]
 }
 
-/** 통합 검색창 + 자동완성 드롭다운 (V10 §6) — 건물명/주소/담당자 섹션 분리 */
+/** 통합 검색창 + 자동완성 드롭다운 (V10 §6) — 고객(상세 직행, §6-B-B4)/주소/담당자 섹션 분리 */
 export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
+  const router = useRouter()
   const [value, setValue] = useState(defaultValue)
   const [sug, setSug] = useState<Suggestions | null>(null)
   const [open, setOpen] = useState(false)
@@ -34,7 +37,7 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
     timerRef.current = setTimeout(async () => {
       const res = await searchSuggestionsAction(v)
       setSug(res)
-      setOpen(res.buildings.length + res.addresses.length + res.employees.length > 0)
+      setOpen(res.customers.length + res.addresses.length + res.employees.length > 0)
     }, 250)
   }
 
@@ -45,7 +48,7 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
     requestAnimationFrame(() => inputRef.current?.form?.requestSubmit())
   }
 
-  const hasAny = sug && (sug.buildings.length + sug.addresses.length + sug.employees.length > 0)
+  const hasAny = sug && (sug.customers.length + sug.addresses.length + sug.employees.length > 0)
 
   return (
     <div className="relative" ref={boxRef}>
@@ -63,19 +66,20 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
 
       {open && hasAny && (
         <div className="absolute top-10 left-0 z-40 w-80 bg-white rounded-xl border border-[#d0ccf5] shadow-xl py-2 max-h-80 overflow-y-auto">
-          {sug!.buildings.length > 0 && (
+          {sug!.customers.length > 0 && (
             <div>
               <p className="px-3 py-1 text-[10px] font-semibold text-[#b0acd6] uppercase flex items-center gap-1">
-                <Building2 className="size-3" /> 건물명
+                <Building2 className="size-3" /> 고객 (선택 시 상세로 이동)
               </p>
-              {sug!.buildings.map(b => (
+              {sug!.customers.map(c => (
                 <button
-                  key={b}
+                  key={c.id}
                   type="button"
-                  onClick={() => applyAndSubmit(b)}
-                  className="w-full text-left px-3 py-1.5 text-sm text-[#090c1d] hover:bg-[#f5f4ff] transition-colors truncate"
+                  onClick={() => { setOpen(false); router.push(`/customers/${c.id}`) }}
+                  className="w-full text-left px-3 py-1.5 text-sm text-[#090c1d] hover:bg-[#f5f4ff] transition-colors truncate flex items-center justify-between gap-2"
                 >
-                  {b}
+                  <span className="truncate">{c.name}</span>
+                  <span className="text-[10px] text-[#7b68ee] shrink-0">상세 →</span>
                 </button>
               ))}
             </div>

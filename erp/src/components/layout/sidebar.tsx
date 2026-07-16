@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, FileText, CheckSquare, CalendarDays, Palmtree, ShieldCheck,
-  Users, UserPlus, Building2, Landmark, ClipboardList, Settings, Umbrella,
+  Users, UserPlus, Building2, ClipboardList, Settings, Umbrella,
   Flame, BookUser, TableProperties, BarChart2, FileCheck2, ClipboardCheck,
   Wallet, Receipt, CalendarCheck, ListTodo, MessageSquare, MessageCircle,
   FileSpreadsheet, ShoppingCart, BookOpen, TrendingUp, Scale, ReceiptText,
@@ -84,7 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ['employee', 'manager', 'admin'],
     items: [
       { label: '고객 관리',        href: '/customers',                  icon: BookUser,       roles: ['employee', 'manager', 'admin'] },
-      { label: '건물 관리',        href: '/buildings',                  icon: Landmark,       roles: ['employee', 'manager', 'admin'] },
+      // 건물 관리 메뉴 삭제 (2026-07-16 A안 확정) — 건물 조회·등록·수정은 고객 상세 > 건물·시설 탭
       { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'] },
       { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
       { label: '점검확정',          href: '/inspection-plans',           icon: TableProperties, roles: ['employee', 'manager', 'admin'] },

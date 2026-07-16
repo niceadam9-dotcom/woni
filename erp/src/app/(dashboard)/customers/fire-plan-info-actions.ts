@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { fetchBuildingLedgerAction } from './actions'
 
 /** 소방계획서 정보(5+6차 필드) 저장 — 고객 상세 계획서 정보 패널 (설계: 소방계획서-필드확장-설계.md §4) */
 
@@ -95,4 +96,141 @@ export async function saveFirePlanInfoAction(
 
   revalidatePath(`/customers/${customerId}`)
   return {}
+}
+
+/** [다른 고객에서 복사] 후보 (설계 §6-D-4) — 같은 용도 고객의 계획서 정보 값(읽기 전용).
+ *  적용은 클라이언트가 빈 칸에만 채우고 저장은 사용자가 직접 — DB 변경 없음. */
+export type CopySourceCandidate = {
+  id: string
+  name: string
+  purpose: string | null
+  values: {
+    receiverLocation: string
+    structure: string
+    roof: string
+    grade: string
+    opHoursWeekday: string
+    opHoursHoliday: string
+    insuranceCompany: string
+  }
+}
+
+export async function getFirePlanCopyCandidatesAction(
+  customerId: string,
+): Promise<{ candidates: CopySourceCandidate[]; error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  // 이 고객의 첫 활성 건물 용도
+  const { data: myBld } = await admin.from('buildings')
+    .select('purpose').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  const myPurpose = (myBld as { purpose: string | null } | null)?.purpose ?? null
+
+  // 같은 용도(없으면 전체)의 다른 활성 건물 → 소속 고객
+  let bldQuery = admin.from('buildings')
+    .select('customer_id, purpose, receiver_location, main_structure, roof_structure')
+    .eq('is_active', true).neq('customer_id', customerId).limit(30)
+  if (myPurpose) bldQuery = bldQuery.eq('purpose', myPurpose)
+  const { data: blds } = await bldQuery
+  const bldRows = (blds ?? []) as Array<{ customer_id: string; purpose: string | null; receiver_location: string | null; main_structure: string | null; roof_structure: string | null }>
+  const ids = [...new Set(bldRows.map(b => b.customer_id))]
+  if (ids.length === 0) return { candidates: [] }
+
+  const { data: custs } = await admin.from('customers')
+    .select('id, customer_name, building_grade, op_hours_weekday, op_hours_holiday, insurance_company')
+    .in('id', ids).eq('is_active', true)
+
+  const bldByCustomer = new Map(bldRows.map(b => [b.customer_id, b]))
+  const s = (v: unknown) => (v == null ? '' : String(v))
+  const candidates = ((custs ?? []) as Array<Record<string, unknown>>).map(c => {
+    const b = bldByCustomer.get(c.id as string)
+    return {
+      id: c.id as string,
+      name: c.customer_name as string,
+      purpose: b?.purpose ?? null,
+      values: {
+        receiverLocation: s(b?.receiver_location),
+        structure: s(b?.main_structure),
+        roof: s(b?.roof_structure),
+        grade: s(c.building_grade),
+        opHoursWeekday: s(c.op_hours_weekday),
+        opHoursHoliday: s(c.op_hours_holiday),
+        insuranceCompany: s(c.insurance_company),
+      },
+    }
+  })
+    // 복사할 값이 하나라도 있는 고객만
+    .filter(c => Object.values(c.values).some(v => v !== ''))
+    .slice(0, 10)
+
+  return { candidates }
+}
+
+/** [건축물대장에서 다시 가져오기] — 기존 고객의 구조·지붕·높이 등 대장값 갱신 (설계 §3 note)
+ *  §5-A-3(탭개편): 건물에 저장된 bcode·지번(092) 우선 사용 → 주소창 없이 원클릭.
+ *  저장값이 없으면 needAddress를 반환 — 클라이언트가 Daum 주소창으로 1회 확보해 재호출하면 백필 저장. */
+export async function refreshLedgerAction(
+  customerId: string,
+  bcode?: string,
+  jibunAddress?: string,
+): Promise<{ structure?: string; roof?: string; height?: string; needAddress?: boolean; error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  const { data: bld } = await admin.from('buildings')
+    .select('*').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  if (!bld) return { error: '등록된 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.' }
+  const stored = bld as Record<string, unknown>
+
+  const useBcode = bcode || (stored.bcode as string | null) || ''
+  const useJibun = jibunAddress || (stored.address_jibun as string | null) || ''
+  if (!useBcode || !useJibun) return { needAddress: true }
+
+  const res = await fetchBuildingLedgerAction(useBcode, useJibun)
+  if (res.unavailable) return { error: '건축물대장 API 키가 설정되지 않았습니다.' }
+  if (res.error || !res.info) return { error: res.error ?? '건축물대장을 조회할 수 없습니다.' }
+  const L = res.info
+
+  // 대장에 값이 있는 항목만 갱신 (없는 항목은 기존 수동 입력 유지)
+  const patch: Record<string, unknown> = { ledger_synced_at: new Date().toISOString() }
+  // 주소창으로 새로 받은 bcode·지번은 백필 저장 → 다음부터 원클릭 (092 미적용 시 아래 폴백에서 제외)
+  if (bcode) { patch.bcode = bcode; patch.address_jibun = jibunAddress || null }
+  if (L.main_structure != null) patch.main_structure = L.main_structure
+  if (L.roof_structure != null) patch.roof_structure = L.roof_structure
+  if (L.height != null) patch.height = L.height
+  if (L.elevator_count != null) patch.elevator_count = L.elevator_count
+  if (L.emergency_elevator_count != null) patch.emergency_elevator_count = L.emergency_elevator_count
+  if (L.households != null) patch.households = L.households
+  if (L.ho_count != null) patch.ho_count = L.ho_count
+  if (L.attached_building_count != null) patch.attached_building_count = L.attached_building_count
+  if (L.seismic_design != null) patch.seismic_design = L.seismic_design
+
+  // 092 미적용 DB 폴백: bcode·address_jibun 제외 후 재시도
+  const { bcode: _b, address_jibun: _j, ...without092 } = patch
+  void _b; void _j
+  let bErr: { code?: string; message?: string } | null = null
+  for (const payload of [patch, without092]) {
+    const res2 = await admin.from('buildings').update(payload).eq('id', (bld as { id: string }).id)
+    bErr = res2.error
+    if (!bErr) break
+    if (bErr.code !== '42703' && !bErr.message?.includes('column')) break
+  }
+  if (bErr) return { error: `건물 정보 갱신 실패: ${bErr.message}` }
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'building_ledger_refreshed',
+    entity_type: 'customer',
+    entity_id: customerId,
+    metadata: { structure: L.main_structure, roof: L.roof_structure, height: L.height },
+  } as Record<string, unknown>)
+
+  revalidatePath(`/customers/${customerId}`)
+  return {
+    structure: L.main_structure ?? undefined,
+    roof: L.roof_structure ?? undefined,
+    height: L.height != null ? String(L.height) : undefined,
+  }
 }

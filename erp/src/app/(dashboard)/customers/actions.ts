@@ -44,6 +44,9 @@ export type CreateCustomerInput = {
   building_floors_above?: number
   building_floors_below?: number
   building_year_built?: number
+  // 092: 법정동코드·지번주소 (건축물대장 재조회 원클릭화 — 탭개편 설계 §5-A-5)
+  building_bcode?: string
+  building_address_jibun?: string
   // 건축물대장 소방안전 자료 (migration 037/038)
   building_height?: number
   building_main_structure?: string
@@ -213,12 +216,18 @@ export async function createCustomerAction(
     if (input.building_seismic_design)         ledgerFields.seismic_design = input.building_seismic_design
     if (Object.keys(ledgerFields).length > 0)  ledgerFields.ledger_synced_at = new Date().toISOString()
 
-    // 단계적 폴백: 전체 → 037 필드만(038 미적용) → 기본 필드만(037 미적용)
+    // 092: bcode·지번주소 (있을 때만)
+    const fields092: Record<string, unknown> = {}
+    if (input.building_bcode) fields092.bcode = input.building_bcode
+    if (input.building_address_jibun) fields092.address_jibun = input.building_address_jibun
+
+    // 단계적 폴백: 전체(092 포함) → 092 제외 → 037 필드만(038 미적용) → 기본 필드만(037 미적용)
     const FIELDS_037 = ['height', 'main_structure', 'elevator_count', 'households', 'ledger_synced_at']
     const ledger037: Record<string, unknown> = Object.fromEntries(
       Object.entries(ledgerFields).filter(([k]) => FIELDS_037.includes(k))
     )
     const attempts: Record<string, unknown>[] = [
+      { ...buildingBase, ...ledgerFields, ...fields092, zipcode: input.zipcode || null },
       { ...buildingBase, ...ledgerFields, zipcode: input.zipcode || null },
       { ...buildingBase, ...ledger037, zipcode: input.zipcode || null },
       { ...buildingBase, zipcode: input.zipcode || null },
@@ -1219,19 +1228,21 @@ export async function fetchBuildingLedgerAction(
   }
 }
 
-/** 통합검색 자동완성 제안 (건물명/주소/담당자) */
+/** 통합검색 자동완성 제안 (고객 바로가기/주소/담당자) —
+ *  §6-B-B4: 고객명 제안은 id를 포함해 선택 시 상세로 직행 */
 export async function searchSuggestionsAction(q: string): Promise<{
+  customers: { id: string; name: string }[]
   buildings: string[]
   addresses: string[]
   employees: { name: string; count: number }[]
 }> {
-  const empty = { buildings: [], addresses: [], employees: [] }
+  const empty = { customers: [], buildings: [], addresses: [], employees: [] }
   const query = q.trim()
   if (query.length < 1) return empty
   const admin = createAdminClient()
 
   const [byName, byAddr, empRes] = await Promise.all([
-    admin.from('customers').select('customer_name').ilike('customer_name', `%${query}%`).eq('is_active', true).limit(5),
+    admin.from('customers').select('id, customer_name').ilike('customer_name', `%${query}%`).eq('is_active', true).limit(5),
     admin.from('customers').select('address').ilike('address', `%${query}%`).eq('is_active', true).limit(5),
     admin.from('profiles').select('id, name').ilike('name', `%${query}%`).eq('is_active', true).eq('is_system', false).limit(3),
   ])
@@ -1246,10 +1257,30 @@ export async function searchSuggestionsAction(q: string): Promise<{
     employees.push({ name: e.name, count: count ?? 0 })
   }
 
+  const custRows = (byName.data ?? []) as { id: string; customer_name: string }[]
   return {
-    buildings: [...new Set(((byName.data ?? []) as { customer_name: string }[]).map(r => r.customer_name))],
+    customers: custRows.map(r => ({ id: r.id, name: r.customer_name })),
+    buildings: [...new Set(custRows.map(r => r.customer_name))],
     addresses: [...new Set(((byAddr.data ?? []) as { address: string | null }[]).map(r => r.address).filter(Boolean) as string[])],
     employees,
+  }
+}
+
+/** 내 주소록 연락처 (§6-E 관계인 [주소록에서 가져오기]) — 읽기 전용 */
+export async function getMyAddressContactsAction(): Promise<{
+  contacts: Array<{ name: string; phone: string; email: string; position: string }>
+}> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { data } = await admin.from('address_contacts')
+    .select('name, phone, email, position')
+    .eq('owner_id', profile.id)
+    .order('name').limit(50)
+  const s = (v: unknown) => (v == null ? '' : String(v))
+  return {
+    contacts: ((data ?? []) as Array<Record<string, unknown>>).map(c => ({
+      name: s(c.name), phone: s(c.phone), email: s(c.email), position: s(c.position),
+    })),
   }
 }
 

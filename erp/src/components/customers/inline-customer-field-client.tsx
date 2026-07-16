@@ -16,8 +16,9 @@ interface Props {
   value: string | null
   displayValue?: string
   employees?: Array<{ id: string; name: string }>
-  /** RSC 직렬화를 위해 렌더 함수 대신 변형 이름으로 표시 방식 지정 */
-  displayVariant?: 'name' | 'type-badge' | 'employee'
+  /** RSC 직렬화를 위해 렌더 함수 대신 변형 이름으로 표시 방식 지정.
+   *  'pencil-only': 값 표시 없이 연필 아이콘만 (고객명은 Link로 별도 표시 — §6-B-B2) */
+  displayVariant?: 'name' | 'type-badge' | 'employee' | 'pencil-only'
   /** 값이 없을 때 '—' 대신 표시할 입력 유도 라벨 (빨간색 강조, 예: "미입력") */
   emptyLabel?: string
 }
@@ -118,6 +119,17 @@ export function InlineCustomerFieldClient({
   }
 
   if (!editing) {
+    if (displayVariant === 'pencil-only') {
+      return (
+        <button
+          onClick={handleEdit}
+          title="수정"
+          className="p-0.5 text-[#b0acd6] opacity-0 group-hover:opacity-100 hover:text-[#7b68ee] transition-opacity shrink-0"
+        >
+          <Pencil className="size-3" />
+        </button>
+      )
+    }
     return (
       <div
         className="flex items-center gap-1 group cursor-pointer"

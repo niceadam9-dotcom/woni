@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, UserCheck, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, AlertTriangle } from 'lucide-react'
+import { Loader2, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, AlertTriangle, ChevronDown, ChevronRight, Check } from 'lucide-react'
 import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
@@ -36,7 +36,6 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
   const openPostcode = useDaumPostcode()
   const customerNameRef = useRef<HTMLInputElement>(null)
   // ADD-2: 주소 중복 등록 감지 팝업 (+저장 시점 재검증)
@@ -45,11 +44,15 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   const pendingSubmitRef = useRef(false)  // 저장 시점 중복 확인 후 이어서 제출할지
   // 건축물대장 소방안전 자료 (높이/주구조/승강기/세대수) — buildings 저장용
   const ledgerRef = useRef<BuildingLedgerInfo | null>(null)
+  const bcodeRef = useRef<{ bcode: string; jibun: string } | null>(null)  // 092: 건물에 저장 → 대장 재조회 원클릭화
   const [ledgerNote, setLedgerNote] = useState('')
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
+  // §10(T9): 선택 항목 아코디언 — 필수 5개 외에는 접힘
+  const [showOptional, setShowOptional] = useState(false)
 
-  const [form, setForm] = useState({
+  // 기본 지역 pre-fill: 시/군/구 ← 회사 기본, 읍/면 ← 최근 사용값(localStorage, 클라이언트에서만) — effect 대신 lazy 초기값
+  const [form, setForm] = useState(() => ({
     customer_code: '',
     customer_name: '',
     contract_date: '',
@@ -58,8 +61,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     inspection_type: '종합' as InspectionType,
     zipcode: '',
     address: '',
-    region_si: '',
-    region_myeon: '',
+    region_si: defaultRegionSi,
+    region_myeon: typeof window !== 'undefined' ? (localStorage.getItem('lastUsedMyeon') ?? '') : '',
     region_ri: '',
     notes: '',
     assigned_employee_id: '',
@@ -69,7 +72,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     building_floors_below: '',
     building_total_area: '',
     building_year_built: '',
-  })
+  }))
   const [addrJibun, setAddrJibun] = useState('')
 
   const [contacts, setContacts] = useState({
@@ -89,22 +92,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     }))
   }
 
-  async function handleGenerateCode() {
-    setIsGenerating(true)
-    const result = await generateCustomerCodeAction('C')
-    setIsGenerating(false)
-    if (result.code) setField('customer_code', result.code)
-  }
-
+  // 고객코드 자동 생성 — 서버 액션 호출(외부 시스템), setState는 응답 콜백에서만
   useEffect(() => {
-    handleGenerateCode()
-    // 기본 지역 pre-fill: 시/군/구 ← 회사 기본 지역, 읍/면 ← 최근 사용값(localStorage)
-    setForm(prev => ({
-      ...prev,
-      region_si: prev.region_si || defaultRegionSi,
-      region_myeon: prev.region_myeon || (localStorage.getItem('lastUsedMyeon') ?? ''),
-    }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    generateCustomerCodeAction('C').then(result => {
+      if (result.code) setForm(prev => ({ ...prev, customer_code: result.code! }))
+    }).catch(() => null)
   }, [])
 
   function handleAddressSearch() {
@@ -151,6 +143,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
 
       // 건축물대장 API: 신규 주소도 소방안전 관련 건물정보 자동 조회 (키 미설정 시 조용히 건너뜀)
       setLedgerNote('')
+      bcodeRef.current = data.bcode ? { bcode: data.bcode, jibun: data.jibunAddress } : null
       if (data.bcode) {
         fetchBuildingLedgerAction(data.bcode, data.jibunAddress).then(res => {
           if (res.unavailable || res.error || !res.info) {
@@ -248,6 +241,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         building_total_area:   form.building_total_area   ? parseFloat(form.building_total_area)  : undefined,
         building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
         // 건축물대장 소방안전 자료 (migration 037/038)
+        building_bcode:           bcodeRef.current?.bcode ?? undefined,
+        building_address_jibun:   bcodeRef.current?.jibun ?? undefined,
         building_height:          ledgerRef.current?.height ?? undefined,
         building_main_structure:  ledgerRef.current?.main_structure ?? undefined,
         building_elevator_count:  ledgerRef.current?.elevator_count ?? undefined,
@@ -262,7 +257,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
       if (result.error) { setError(result.error); return }
       // 다음 등록을 위한 최근 읍/면 기억
       if (form.region_myeon.trim()) localStorage.setItem('lastUsedMyeon', form.region_myeon.trim())
-      router.push(`/customers/${result.customerId}`)
+      // §10-3: 등록 직후 상세(탭)로 — created=1이면 보완 안내 배너 표시
+      router.push(`/customers/${result.customerId}?created=1`)
       router.refresh()
     })
   }
@@ -273,11 +269,25 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     '일반관리': '점검계획일 당일 1건 자동 생성·확정',
   }
 
+  // §10-2(T9): 필수 충족 체크 — 요약 패널 체크리스트·[등록] 활성화
+  const requiredChecks: Array<[string, boolean]> = [
+    ['주소', !!form.address.trim()],
+    ['고객명', !!form.customer_name.trim()],
+    ['점검유형', !!form.inspection_type],
+    ['점검계획일', isCompleteDate(form.plan_anchor_date)],
+    ['대표 관계인', !!contacts['대표'].name.trim()],
+  ]
+  const allFieldsOk = requiredChecks.every(c => c[1])
+  const requiredOk = allFieldsOk && !!form.customer_code.trim()  // 고객코드 자동 생성 완료까지 등록 보류
+  const typeLabel = form.inspection_type !== '일반관리' ? `${form.inspection_type} (${form.inspection_type === '종합' ? '연 2회' : '연 1회'})` : '일반관리 (1회)'
+  const assignedName = employees.find(e => e.id === form.assigned_employee_id)?.name
+
   return (
-    <form className="max-w-2xl space-y-6" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
-      {/* 기본 정보 */}
+    <form className="flex flex-col lg:flex-row gap-6 items-start" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
+    <div className="flex-1 w-full max-w-2xl space-y-6 min-w-0">
+      {/* §10-1: 필수 정보 — 주소 검색·고객명·점검유형·점검계획일·대표 관계인 */}
       <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#090c1d]">고객 기본정보</h2>
+        <h2 className="text-sm font-semibold text-[#090c1d]">필수 정보 <span className="text-xs font-normal text-[#b0acd6]">— 주소 검색 한 번이면 대부분 자동으로 채워집니다</span></h2>
 
         {/* ① 주소 검색 섹션 — 최상단 배치 */}
         <div className="space-y-3 pb-4 border-b border-[#e8e6f5]">
@@ -351,29 +361,6 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="계약일">
-            <DateInput
-              value={form.contract_date}
-              onChange={e => setField('contract_date', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="사용승인일">
-            <DateInput
-              value={form.use_approval_date}
-              onChange={e => setField('use_approval_date', e.target.value)}
-              className={inputCls}
-            />
-            {ledgerRef.current?.use_approval_date && !form.use_approval_date && (
-              <button
-                type="button"
-                onClick={() => setField('use_approval_date', ledgerRef.current!.use_approval_date!)}
-                className="mt-1 text-[11px] text-[#7b68ee] hover:underline"
-              >
-                건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
-              </button>
-            )}
-          </Field>
           <Field label="점검계획일" required>
             <DateInput
               value={form.plan_anchor_date}
@@ -425,145 +412,174 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
           </p>
         )}
 
-        <Field label="비고">
-          <textarea
-            value={form.notes}
-            onChange={e => setField('notes', e.target.value)}
-            placeholder="특이사항 메모"
-            rows={2}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
-          />
-        </Field>
+        {/* §10-1: 대표 관계인 — 필수 */}
+        <div className="space-y-1.5">
+          <label htmlFor="contact-대표-name" className={labelCls}>대표 관계인 <span className="text-red-500 ml-0.5">*</span></label>
+          <div className="grid grid-cols-3 gap-3">
+            <input
+              id="contact-대표-name"
+              value={contacts['대표'].name}
+              onChange={e => setContact('대표', 'name', e.target.value)}
+              placeholder="대표 이름 *"
+              className={inputCls}
+            />
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
+              <input
+                value={contacts['대표'].phone}
+                onChange={e => setContact('대표', 'phone', e.target.value)}
+                placeholder="010-0000-0000"
+                className={`${inputCls} pl-7`}
+              />
+            </div>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
+              <input
+                type="email"
+                value={contacts['대표'].email}
+                onChange={e => setContact('대표', 'email', e.target.value)}
+                placeholder="example@email.com"
+                className={`${inputCls} pl-7`}
+              />
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* 담당직원 배정 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <UserCheck className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">담당직원 배정</h2>
-          <span className="text-xs text-[#514b81]">(나중에 변경 가능)</span>
-        </div>
+      {/* §10-1: 선택 항목 — 접힘 (담당 배정·추가 관계인·계약일·사용승인일·건물 정보·비고) */}
+      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+        <button type="button" onClick={() => setShowOptional(v => !v)} className="w-full flex items-center gap-2 px-6 py-4">
+          {showOptional ? <ChevronDown className="size-4 text-[#7b68ee]" /> : <ChevronRight className="size-4 text-[#7b68ee]" />}
+          <span className="text-sm font-semibold text-[#090c1d]">선택 항목</span>
+          <span className="text-xs text-[#b0acd6]">담당 배정 · 추가 관계인 · 계약일 · 사용승인일 · 건물 정보 · 비고 — 등록 후 상세에서도 입력 가능</span>
+        </button>
 
-        <Field label="담당직원">
-          <select
-            value={form.assigned_employee_id}
-            onChange={e => setField('assigned_employee_id', e.target.value)}
-            className={inputCls}
-          >
-            <option value="">배정 안함</option>
-            {employees.map(e => (
-              <option key={e.id} value={e.id}>
-                {e.name}{e.position ? ` (${e.position})` : ''}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {form.assigned_employee_id && (
-          <p className="text-xs text-[#514b81] bg-[#f8f9fa] rounded-lg px-3 py-2">
-            배정 즉시 해당 직원에게 알림이 발송됩니다.
-          </p>
-        )}
-      </section>
-
-      {/* 관계인 정보 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <Users className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">관계인 정보</h2>
-          <span className="text-xs text-[#514b81]">(대표 필수)</span>
-          {/* ADD-3: 대표만 기본 표시 — 필요 시 [추가]로 최대 2명 더 */}
-          {visibleContactRoles.length < 3 && (
-            <button
-              type="button"
-              onClick={() => setVisibleContactRoles(prev =>
-                prev.length === 1 ? [...prev, '직원1'] : [...prev, '직원2']
-              )}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5]"
-            >
-              <Plus className="size-3" />
-              관계인 추가
-            </button>
-          )}
-        </div>
-
-        {visibleContactRoles.map(role => {
-          const roleLabel = role === '대표' ? '대표' : '추가 관계인'
-          return (
-          <div key={role} className="space-y-3">
-            <div className="flex items-center justify-between border-b border-[#c8c4d0] pb-1.5">
-              <label
-                htmlFor={`contact-${role}-name`}
-                className="text-xs font-semibold text-[#514b81] cursor-pointer hover:text-[#7b68ee] transition-colors"
+        {showOptional && (
+        <div className="px-6 pb-6 space-y-5">
+          {/* 담당직원 배정 */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="담당직원 (나중에 변경 가능)">
+              <select
+                value={form.assigned_employee_id}
+                onChange={e => setField('assigned_employee_id', e.target.value)}
+                className={inputCls}
               >
-                {roleLabel}
-              </label>
-              {role !== '대표' && (
+                <option value="">배정 안함</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}{e.position ? ` (${e.position})` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="계약일">
+              <DateInput
+                value={form.contract_date}
+                onChange={e => setField('contract_date', e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="사용승인일">
+              <DateInput
+                value={form.use_approval_date}
+                onChange={e => setField('use_approval_date', e.target.value)}
+                className={inputCls}
+              />
+              {ledgerRef.current?.use_approval_date && !form.use_approval_date && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
-                    setVisibleContactRoles(prev => prev.filter(r => r !== role))
-                  }}
-                  className="text-[#b0acd6] hover:text-red-500 transition-colors"
-                  title="관계인 제거"
+                  onClick={() => setField('use_approval_date', ledgerRef.current!.use_approval_date!)}
+                  className="mt-1 text-[11px] text-[#7b68ee] hover:underline"
                 >
-                  <X className="size-3.5" />
+                  건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
+                </button>
+              )}
+            </Field>
+          </div>
+          {form.assigned_employee_id && (
+            <p className="text-xs text-[#514b81] bg-[#f8f9fa] rounded-lg px-3 py-2">
+              배정 즉시 해당 직원에게 알림이 발송됩니다.
+            </p>
+          )}
+
+          {/* 추가 관계인 (ADD-3: 최대 2명) */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Users className="size-4 text-[#7b68ee]" />
+              <span className="text-xs font-semibold text-[#514b81]">추가 관계인</span>
+              {visibleContactRoles.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleContactRoles(prev =>
+                    prev.length === 1 ? [...prev, '직원1'] : [...prev, '직원2']
+                  )}
+                  className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5]"
+                >
+                  <Plus className="size-3" />
+                  관계인 추가
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="이름" required={role === '대표'}>
-                <input
-                  id={`contact-${role}-name`}
-                  value={contacts[role].name}
-                  onChange={e => setContact(role, 'name', e.target.value)}
-                  placeholder={`${roleLabel} 이름`}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="연락처">
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
+            {visibleContactRoles.filter(r => r !== '대표').length === 0 && (
+              <p className="text-[11px] text-[#b0acd6]">추가 관계인 없음 — 필요 시 [관계인 추가]</p>
+            )}
+            {visibleContactRoles.filter(r => r !== '대표').map(role => (
+              <div key={role} className="grid grid-cols-3 gap-3 items-end">
+                <Field label={`추가 관계인 이름`}>
+                  <input
+                    id={`contact-${role}-name`}
+                    value={contacts[role].name}
+                    onChange={e => setContact(role, 'name', e.target.value)}
+                    placeholder="이름"
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="연락처">
                   <input
                     value={contacts[role].phone}
                     onChange={e => setContact(role, 'phone', e.target.value)}
                     placeholder="010-0000-0000"
-                    className={`${inputCls} pl-7`}
+                    className={inputCls}
                   />
+                </Field>
+                <div className="flex gap-2 items-center">
+                  <Field label="이메일">
+                    <input
+                      type="email"
+                      value={contacts[role].email}
+                      onChange={e => setContact(role, 'email', e.target.value)}
+                      placeholder="example@email.com"
+                      className={inputCls}
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
+                      setVisibleContactRoles(prev => prev.filter(r => r !== role))
+                    }}
+                    className="text-[#b0acd6] hover:text-red-500 transition-colors mt-5"
+                    title="관계인 제거"
+                  >
+                    <X className="size-3.5" />
+                  </button>
                 </div>
-              </Field>
-              <Field label="이메일">
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
-                  <input
-                    type="email"
-                    value={contacts[role].email}
-                    onChange={e => setContact(role, 'email', e.target.value)}
-                    placeholder="example@email.com"
-                    className={`${inputCls} pl-7`}
-                  />
-                </div>
-              </Field>
-            </div>
+              </div>
+            ))}
           </div>
-          )
-        })}
-      </section>
 
-      {/* 건물 기본정보 (V9-3) */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <Building2 className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">건물 기본정보</h2>
-          <span className="text-xs text-[#514b81]">(선택)</span>
-          {ledgerNote && (
-            <span className={`text-[11px] ml-auto ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
-              {ledgerNote}
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-4">
+          {/* 건물 기본정보 (V9-3) — 대장 자동값 확인·보정 */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="size-4 text-[#7b68ee]" />
+              <span className="text-xs font-semibold text-[#514b81]">건물 기본정보</span>
+              {ledgerNote && (
+                <span className={`text-[11px] ml-auto ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
+                  {ledgerNote}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
           <Field label="건물용도">
             <input
               value={form.building_purpose}
@@ -614,7 +630,21 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
               className={inputCls}
             />
           </Field>
+            </div>
+          </div>
+
+          {/* 비고 */}
+          <Field label="비고">
+            <textarea
+              value={form.notes}
+              onChange={e => setField('notes', e.target.value)}
+              placeholder="특이사항 메모"
+              rows={2}
+              className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+            />
+          </Field>
         </div>
+        )}
       </section>
 
       {error && (
@@ -631,12 +661,78 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         </button>
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || !requiredOk}
           className="flex-1 h-11 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
         >
           {isPending ? <Loader2 className="size-4 animate-spin" /> : '고객 등록'}
         </button>
       </div>
+    </div>
+
+    {/* §10-2: 우측 실시간 등록 요약 — 입력 즉시 등록될 내용·필수 체크 반영, sticky [등록] */}
+    <aside className="w-full lg:w-72 shrink-0 lg:sticky lg:top-6">
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4 space-y-3">
+        <p className="text-xs font-semibold text-[#514b81]">등록 요약</p>
+        <div className="space-y-1.5 text-xs">
+          {[
+            ['고객명', form.customer_name.trim() || null],
+            ['주소', form.address.trim() || null],
+            ['점검유형', typeLabel],
+            ['점검계획일', form.plan_anchor_date || null],
+            ['대표', contacts['대표'].name.trim() ? `${contacts['대표'].name.trim()}${contacts['대표'].phone ? ` ${contacts['대표'].phone}` : ''}` : null],
+            ['담당', assignedName ?? null],
+          ].map(([label, val]) => (
+            <div key={label as string} className="flex items-baseline gap-2 min-w-0">
+              <span className="text-[10px] text-[#b0acd6] w-14 shrink-0">{label}</span>
+              {val
+                ? <span className="text-[#090c1d] truncate">{val}</span>
+                : <span className="text-amber-600 text-[11px]">미입력</span>}
+            </div>
+          ))}
+        </div>
+
+        {(form.building_purpose || form.building_total_area || ledgerRef.current) && (
+          <div className="pt-2 border-t border-[#f0eefb] space-y-1">
+            <p className="text-[10px] text-[#b0acd6]">
+              건물 {ledgerRef.current && <span className="ml-1 px-1.5 py-px rounded-full bg-green-50 text-green-600">대장 자동</span>}
+            </p>
+            <p className="text-xs text-[#090c1d]">
+              {[form.building_purpose,
+                form.building_total_area && `${form.building_total_area}㎡`,
+                form.building_floors_above && `지상${form.building_floors_above}층`,
+                form.building_floors_below && `지하${form.building_floors_below}층`,
+                ledgerRef.current?.main_structure && `구조 ${ledgerRef.current.main_structure}`,
+                ledgerRef.current?.height != null && `높이 ${ledgerRef.current.height}m`,
+              ].filter(Boolean).join(' · ') || '—'}
+            </p>
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-[#f0eefb]">
+          <p className="text-[10px] text-[#b0acd6] mb-1.5">필수 체크</p>
+          <div className="flex flex-wrap gap-1">
+            {requiredChecks.map(([label, ok]) => (
+              <span key={label as string}
+                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                {ok && <Check className="size-2.5" />}{label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={!requiredOk || isPending}
+          className="w-full h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-40"
+        >
+          {isPending ? <Loader2 className="size-4 animate-spin" />
+            : requiredOk ? '등록'
+            : allFieldsOk ? '고객코드 생성 중…'
+            : '필수 항목을 채워주세요'}
+        </button>
+        <p className="text-[10px] text-[#b0acd6]">등록 후 고객 상세에서 나머지 항목(건물·시설·계획서 등)을 이어서 입력합니다</p>
+      </div>
+    </aside>
 
       {/* ADD-2: 주소 중복 등록 안내 팝업 — 확인 후 등록 진행 가능 */}
       {dupInfo && (
