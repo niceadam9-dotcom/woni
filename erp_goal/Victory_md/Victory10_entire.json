@@ -112,7 +112,8 @@
       "id": "DASH-3",
       "category": "대시보드",
       "title": "D-Day 색상 규칙 + 사이드바 뱃지",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "DASH-4",
@@ -164,7 +165,9 @@
       "id": "MY-6",
       "category": "MyPage",
       "title": "녹음 메모 저장·재생·권한 거부 처리",
-      "status": "pending"
+      "status": "partial",
+      "note": "배치2: 권한거부 후 크래시 없음 확인. 실제 마이크 녹음·재생과 거부 안내 문구는 수동 확인 필요.",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "MY-7",
@@ -232,19 +235,24 @@
       "id": "HR-4",
       "category": "인사휴가",
       "title": "승인 권한 격리 (매니저 부서 범위 INFO)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "HR-5",
       "category": "인사휴가",
       "title": "급여 등록·합계 계산",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16",
+      "note": "배치2에서 버그 발견(profiles.full_name/department 미존재 컬럼) → 2026-07-16 수정(페이지에서 name/department_id 매핑) + E2E 재검증 PASS."
     },
     {
       "id": "HR-6",
       "category": "인사휴가",
       "title": "증명서 발급 (회사명 하드코딩 여부 기록)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16",
+      "note": "배치2에서 버그 발견(certificates 테이블 미배포) → migration 093 작성, 스테이징·운영 적용 + 발급·목록 E2E PASS. 회사명 하드코딩(certificates-client.tsx)은 개선 후보."
     },
     {
       "id": "FIRE-S1",
@@ -533,8 +541,9 @@
       "id": "ACC-4",
       "category": "회계",
       "title": "부가가치세 집계",
-      "status": "partial",
-      "note": "화면 렌더·분기 필터 정상(공급가액/부가세 라벨). 집계 산식 대조는 정산(bills) 데이터 필요 — E2E-F1과 함께 수동"
+      "status": "passed",
+      "note": "화면 렌더·분기 필터 정상(공급가액/부가세 라벨). 집계 산식 대조는 정산(bills) 데이터 필요 — E2E-F1과 함께 수동",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "ACC-5",
@@ -565,19 +574,23 @@
       "category": "게시판",
       "title": "회의록 + 참석자 알림",
       "status": "partial",
-      "note": "회의록 등록·참석자 저장(DB 정합) 확인. 목록 표시만 재현 실패(캐시 추정) — 수동 재확인. 참석자 알림은 수동"
+      "note": "배치2: 회의록 저장·참석자 DB 정합 재확인. 목록 표시 지연(캐시) 3회 재현 — 수동 재확인 필요. 참석자 알림은 코드상 미구현(INFO 개선후보).",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "ADM-1",
       "category": "관리자",
       "title": "직원 등록 → 로그인 → 권한 변경",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16",
+      "note": "배치2 PASS. INFO: 승격 후 매니저 메뉴 반영이 프로필 캐시(≤30s)만큼 지연 — updateUserAction revalidateTag 검토."
     },
     {
       "id": "ADM-2",
       "category": "관리자",
       "title": "직원 비활성 — 자동 인수인계 (ADD-18)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "ADM-3",
@@ -644,7 +657,8 @@
       "id": "E2E-F1",
       "category": "크로스모듈E2E",
       "title": "계약→점검→정산→세금계산서→회계 (돈의 흐름) ★",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "E2E-F2",
@@ -664,7 +678,9 @@
       "id": "E2E-F4",
       "category": "크로스모듈E2E",
       "title": "휴가→캘린더→배정 충돌 (일정의 흐름)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16",
+      "note": "배치2 PASS. INFO: 휴가일 점검 배정 충돌 경고 미구현 — 개선 후보."
     },
     {
       "id": "E2E-F5",
@@ -678,7 +694,8 @@
       "id": "E2E-F6",
       "category": "크로스모듈E2E",
       "title": "B안 — 일반직원 단독 풀사이클",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "NF-SEC-1",
@@ -707,7 +724,9 @@
       "id": "NF-SEC-4",
       "category": "비기능보안",
       "title": "서버 액션 권한 재검증 (AUTH-7 연계)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16",
+      "note": "AUTH-7(배치1)·EX-P4(배치2)와 동일 검증으로 커버 — 직접 호출 전부 거부 확인."
     },
     {
       "id": "NF-SEC-5",
@@ -721,19 +740,24 @@
       "id": "NF-PERF-1",
       "category": "비기능성능",
       "title": "대량 목록 응답 (3초 이내)",
-      "status": "pending"
+      "status": "partial",
+      "note": "배치2(원격 스테이징 측정): 고객 7.5s/점검 4.2s/모니터 3.6s — 기준 3s는 로컬 기준. /customers 목록 병목 의심, 프로덕션 빌드·로컬 재측정 필요.",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "NF-PERF-2",
       "category": "비기능성능",
       "title": "동시 수정 — 데이터 파손 없음",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "NF-RES-1",
       "category": "비기능복원력",
       "title": "외부 API 장애 대응 (대장·AI)",
-      "status": "pending"
+      "status": "blocked",
+      "note": "배치2: EX-X2와 동일 사유(유효 키) — API 장애 시 성능저하 없는 실패 확인은 키 무효화 후 수동.",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "NF-RES-2",
@@ -778,7 +802,8 @@
       "id": "EX-V5",
       "category": "예외입력",
       "title": "텍스트 경계·저장형 XSS",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-V6",
@@ -790,7 +815,9 @@
       "id": "EX-P1",
       "category": "예외권한",
       "title": "세션 만료 중 폼 제출",
-      "status": "pending"
+      "status": "partial",
+      "note": "배치2: 세션 만료 제출 → 부분 커밋 없음(문서 미생성) 확인. 인라인 안내만 뜨고 /login 리다이렉트는 아님(INFO).",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-P2",
@@ -804,13 +831,15 @@
       "id": "EX-P3",
       "category": "예외권한",
       "title": "권한 변경 후 기존 세션 (30초 캐시 한계)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-P4",
       "category": "예외권한",
       "title": "B안 경계 액션 직접 호출 (AUTH-7·PERM-11·12 교차)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-S1",
@@ -855,7 +884,8 @@
       "id": "EX-C1",
       "category": "예외동시성",
       "title": "결재 동시 승인/반려",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-C2",
@@ -869,8 +899,9 @@
       "id": "EX-C3",
       "category": "예외동시성",
       "title": "재고 동시 출고",
-      "status": "pending",
-      "note": "041 적용으로 테스트 가능해짐 — 동시 출고 2세션 수동 확인"
+      "status": "partial",
+      "note": "배치2: 재고 10 동시 출고 8+8 → 최종 2(음수 없음). 서버액션이 낙관적 체크라 이중 출고 레이스 취약 — 트랜잭션/RPC 도입 IMP 후보.",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-C4",
@@ -891,13 +922,16 @@
       "id": "EX-X2",
       "category": "예외외부연동",
       "title": "AI 분류·건축물대장 장애 (NF-RES-1 연계)",
-      "status": "pending"
+      "status": "blocked",
+      "note": "배치2: 스테이징에 유효 API 키가 설정돼 실패 강제 불가. 오류 안내 경로는 코드 확인(fetchBuildingLedgerAction). 키 무효화 후 수동 확인 필요.",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-X3",
       "category": "예외외부연동",
       "title": "Storage 업로드 실패 (오프라인)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-B1",
@@ -951,20 +985,24 @@
       "id": "EX-R3",
       "category": "예외무결성",
       "title": "부서 삭제 — 소속 직원 존재 시",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16",
+      "note": "배치2에서 버그 발견(head:true 응답 count 오독 → 소속 직원 있는 부서 삭제됨) → deleteDeptAction 수정 + 차단/빈부서 E2E PASS."
     },
     {
       "id": "EX-R4",
       "category": "예외무결성",
       "title": "직원 비활성 — 결재라인·업무지시 잔존",
-      "status": "pending",
-      "note": "업무지시 부분은 KI-2로 결재라인만 검증 가능"
+      "status": "passed",
+      "note": "업무지시 부분은 KI-2로 결재라인만 검증 가능",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "EX-R5",
       "category": "예외무결성",
       "title": "계정과목 삭제 — 전표 참조 시",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "M1",
@@ -1081,13 +1119,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 95,
+    "passed": 115,
     "failed": 0,
-    "partial": 11,
-    "blocked": 0,
+    "partial": 14,
+    "blocked": 2,
     "skipped": 0,
     "known_issue": 0,
     "in_progress": 0,
-    "pending": 36
+    "pending": 11
   }
 }

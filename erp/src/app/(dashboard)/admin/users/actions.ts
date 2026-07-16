@@ -309,13 +309,14 @@ export async function deleteDeptAction(deptId: string): Promise<{ error?: string
   await requirePermission('user_manage')
   const admin = createAdminClient()
 
-  const { data: membersRaw } = await admin
+  // head:true 응답의 data는 null — 건수는 응답의 count 필드로 온다 (EX-R3: data.count 오독으로 가드가 무력화됐던 버그)
+  const { count: memberCount } = await admin
     .from('profiles')
     .select('id', { count: 'exact', head: true })
     .eq('department_id', deptId)
     .eq('is_active', true)
 
-  if (((membersRaw as unknown as { count: number }) ?? { count: 0 }).count > 0) {
+  if ((memberCount ?? 0) > 0) {
     return { error: '소속 직원이 있는 부서는 삭제할 수 없습니다.' }
   }
 
