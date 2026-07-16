@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { SheetDeleteButton } from '@/components/inspection-sheets/sheet-delete-button'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -165,9 +166,12 @@ export default async function InspectionSheetsPage({
                     </td>
                     <td className="px-4 py-3 text-xs text-[#292d34]">{r.created_at.slice(0, 10)}</td>
                     <td className="px-4 py-3">
-                      <Link href={`/inspection-sheets/${r.id}`} className="text-xs text-[#7b68ee] hover:underline font-medium">
-                        상세보기
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link href={`/inspection-sheets/${r.id}`} className="text-xs text-[#7b68ee] hover:underline font-medium">
+                          상세보기
+                        </Link>
+                        {canCreate && <SheetDeleteButton sheetId={r.id} sheetName={r.sheet_name} />}
+                      </div>
                     </td>
                   </tr>
                 ))}

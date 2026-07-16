@@ -106,6 +106,36 @@ export async function generateSheetCodeAction(prefix: string = 'CHK'): Promise<{
   return { code }
 }
 
+/** 점검표 삭제 — 점검 응답이 이 점검표의 항목코드를 참조 중이면 차단(비활성화 안내). 항목은 FK CASCADE로 함께 삭제. */
+export async function deleteSheetAction(id: string): Promise<{ error?: string }> {
+  await requirePermission('inspection_sheet_manage')
+  const admin = createAdminClient()
+
+  const { data: items, error: itemErr } = await admin
+    .from('inspection_sheet_items')
+    .select('item_code')
+    .eq('sheet_id', id)
+  if (itemErr) return { error: itemErr.message }
+
+  const codes = (items ?? []).map(i => (i as { item_code: string }).item_code)
+  if (codes.length > 0) {
+    const { count, error: respErr } = await admin
+      .from('inspection_sheet_responses')
+      .select('id', { count: 'exact', head: true })
+      .in('item_code', codes)
+    if (respErr) return { error: respErr.message }
+    if ((count ?? 0) > 0) {
+      return { error: `점검 응답 ${count}건이 이 점검표 항목을 참조하고 있어 삭제할 수 없습니다. 대신 비활성화하세요.` }
+    }
+  }
+
+  const { error } = await admin.from('inspection_sheets').delete().eq('id', id)
+  if (error) return { error: error.message }
+
+  revalidatePath('/inspection-sheets')
+  return {}
+}
+
 export async function updateSheetAction(input: {
   id: string
   sheet_name: string
