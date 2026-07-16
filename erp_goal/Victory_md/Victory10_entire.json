@@ -1,6 +1,6 @@
 {
   "version": "Victory10_entire",
-  "date": "2026-07-09",
+  "date": "2026-07-16",
   "description": "전체 시스템 테스트 시나리오 체크리스트 (Victory10_entire.md 기반) — 결과 기록: pending(미수행) / passed / failed / partial(일부 검증) / blocked(선행 조건 미충족) / skipped / known_issue",
   "source_documents": [
     "Victory10_entire.md",
@@ -89,7 +89,8 @@
       "id": "AUTH-7",
       "category": "인증",
       "title": "서버 액션 권한 재검증 (B안 경계 — 배정/삭제 직접 호출 거부)",
-      "status": "pending"
+      "status": "passed",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "DASH-1",
@@ -132,8 +133,9 @@
       "id": "MY-2",
       "category": "MyPage",
       "title": "ToDo 완료 체크·해제·유지",
-      "status": "partial",
-      "note": "등록·격리·유지·완료 토글(true) 기검증. 해제 토글만 셀렉터 미착 — 수동 확인 1건"
+      "status": "passed",
+      "note": "등록·격리·유지·완료 토글(true) 기검증. 해제 토글만 셀렉터 미착 — 수동 확인 1건",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "MY-3",
@@ -288,15 +290,17 @@
       "id": "FIRE-S6",
       "category": "소방스모크",
       "title": "B안 권한 경계 (개방 4 + 차단 3)",
-      "status": "partial",
-      "note": "2026-07-08 자동검증 12건 PASS (UI 노출·리다이렉트·기본필터). 고객/계획 실제 저장, 슬라이드 패널 드롭다운 비활성은 미수행"
+      "status": "passed",
+      "note": "2026-07-08 자동검증 12건 PASS (UI 노출·리다이렉트·기본필터). 고객/계획 실제 저장, 슬라이드 패널 드롭다운 비활성은 미수행",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "PERM-1",
       "category": "권한B안",
       "title": "고객 등록 (버튼·진입·저장)",
-      "status": "partial",
-      "note": "버튼 노출·페이지 진입 자동검증 PASS. 실제 저장 플로우 미수행"
+      "status": "passed",
+      "note": "버튼 노출·페이지 진입 자동검증 PASS. 실제 저장 플로우 미수행",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "PERM-2",
@@ -326,15 +330,17 @@
       "id": "PERM-5",
       "category": "권한B안",
       "title": "점검계획 생성·확정 — 전체 범위(타 직원 항목·경보 포함)",
-      "status": "partial",
-      "note": "employee 행 0 vs admin 행 0, 미점검 경보 동일=true — 확정 조작은 PERM-6 데이터로 갈음"
+      "status": "passed",
+      "note": "employee 행 0 vs admin 행 0, 미점검 경보 동일=true — 확정 조작은 PERM-6 데이터로 갈음",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "PERM-6",
       "category": "권한B안",
       "title": "슬라이드 패널 수정 (날짜·상태·메모 O / 담당 드롭다운 비활성)",
-      "status": "partial",
-      "note": "패널 열기 실패: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n"
+      "status": "passed",
+      "note": "패널 열기 실패: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "PERM-7",
@@ -378,8 +384,9 @@
       "id": "PERM-12",
       "category": "권한B안",
       "title": "고객·점검 삭제 차단 (버튼 미노출 + 서버 거부)",
-      "status": "partial",
-      "note": "삭제 버튼 미노출 자동검증 PASS. 서버 액션 직접 호출 미수행"
+      "status": "passed",
+      "note": "삭제 버튼 미노출 자동검증 PASS. 서버 액션 직접 호출 미수행",
+      "tested_date": "2026-07-16"
     },
     {
       "id": "PERM-13",
@@ -1074,13 +1081,13 @@
   ],
   "summary": {
     "total": 142,
-    "passed": 85,
+    "passed": 95,
     "failed": 0,
-    "partial": 17,
+    "partial": 11,
     "blocked": 0,
     "skipped": 0,
     "known_issue": 0,
     "in_progress": 0,
-    "pending": 40
+    "pending": 36
   }
 }

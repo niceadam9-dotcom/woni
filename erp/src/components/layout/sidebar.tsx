@@ -51,45 +51,19 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '결재서명',    href: '/my/signature',    icon: PenLine,       roles: ['employee', 'manager', 'admin'] },
     ],
   },
-  // ── 전자결재 ─────────────────────────────────────────────────────────────
-  {
-    key: 'approval',
-    label: '전자결재',
-    icon: CheckSquare,
-    roles: ['employee', 'manager', 'admin'],
-    items: [
-      { label: '문서함',   href: '/documents', icon: FileText,    roles: ['employee', 'manager', 'admin'] },
-      { label: '결재함',   href: '/approvals', icon: CheckSquare, roles: ['manager', 'admin'] },
-    ],
-  },
-  // ── 인사/휴가 ────────────────────────────────────────────────────────────
-  {
-    key: 'hr',
-    label: '인사 / 휴가',
-    icon: Palmtree,
-    roles: ['employee', 'manager', 'admin'],
-    items: [
-      { label: '휴가 신청',       href: '/leaves',          icon: Palmtree,   roles: ['employee', 'manager', 'admin'] },
-      { label: '팀 휴가 캘린더',  href: '/leaves/calendar', icon: CalendarDays, roles: ['employee', 'manager', 'admin'] },
-      { label: '휴가 승인',       href: '/leaves/manage',   icon: ShieldCheck, roles: ['manager', 'admin'] },
-      { label: '급여 등록',       href: '/hr/payroll',      icon: Banknote,   roles: ['manager', 'admin'] },
-      { label: '증명서 발급',     href: '/hr/certificates', icon: Award,      roles: ['manager', 'admin'] },
-    ],
-  },
   // ── 소방안전관리 ─────────────────────────────────────────────────────────
   {
     key: 'fire',
     label: '소방안전관리',
     icon: Flame,
     roles: ['employee', 'manager', 'admin'],
+    // 순서 규칙(2026-07-16 사용자 확정): 일상 점검 흐름순 → 정산(매니저↑) → 마스터데이터(점검표·지역배정)는 맨 아래
     items: [
       { label: '고객 관리',        href: '/customers',                  icon: BookUser,       roles: ['employee', 'manager', 'admin'] },
       // 건물 관리 메뉴 삭제 (2026-07-16 A안 확정) — 건물 조회·등록·수정은 고객 상세 > 건물·시설 탭
-      { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'] },
-      { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
       { label: '점검확정',          href: '/inspection-plans',           icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
-      { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
       { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
+      { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
       { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'] },
       { label: '점검 대장',        href: '/inspection-ledger',          icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
       { label: '보고서 제출현황',  href: '/inspection-reports/status',  icon: FileCheck2,     roles: ['employee', 'manager', 'admin'] },
@@ -100,6 +74,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'] },
       { label: '안전관리 대장',    href: '/billing/annual',             icon: ShieldCheck,    roles: ['manager', 'admin'] },
       { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'] },
+      { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
+      { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'] },
     ],
   },
   // ── 업무관리 ─────────────────────────────────────────────────────────────
@@ -165,6 +141,31 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: '게시판', href: '/board',               icon: LayoutList,  roles: ['employee', 'manager', 'admin'] },
       { label: '회의록', href: '/board/meeting-notes', icon: BookMarked,  roles: ['employee', 'manager', 'admin'] },
+    ],
+  },
+  // ── 전자결재 ───────────────────────────────────────────────── (2026-07-16 사용자 지시: 관리자 바로 위로)
+  {
+    key: 'approval',
+    label: '전자결재',
+    icon: CheckSquare,
+    roles: ['employee', 'manager', 'admin'],
+    items: [
+      { label: '문서함',   href: '/documents', icon: FileText,    roles: ['employee', 'manager', 'admin'] },
+      { label: '결재함',   href: '/approvals', icon: CheckSquare, roles: ['manager', 'admin'] },
+    ],
+  },
+  // ── 인사/휴가 ────────────────────────────────────────────────────────────
+  {
+    key: 'hr',
+    label: '인사 / 휴가',
+    icon: Palmtree,
+    roles: ['employee', 'manager', 'admin'],
+    items: [
+      { label: '휴가 신청',       href: '/leaves',          icon: Palmtree,   roles: ['employee', 'manager', 'admin'] },
+      { label: '팀 휴가 캘린더',  href: '/leaves/calendar', icon: CalendarDays, roles: ['employee', 'manager', 'admin'] },
+      { label: '휴가 승인',       href: '/leaves/manage',   icon: ShieldCheck, roles: ['manager', 'admin'] },
+      { label: '급여 등록',       href: '/hr/payroll',      icon: Banknote,   roles: ['manager', 'admin'] },
+      { label: '증명서 발급',     href: '/hr/certificates', icon: Award,      roles: ['manager', 'admin'] },
     ],
   },
   // ── 관리자 ───────────────────────────────────────────────────────────────
