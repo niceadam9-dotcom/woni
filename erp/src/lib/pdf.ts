@@ -67,6 +67,28 @@ export async function convertHtmlToPdf(
   return new Uint8Array(await res.arrayBuffer())
 }
 
+/**
+ * ODT → PDF 변환 (소방계획서 HWP 워커 2단계 폴백 — 워커 로컬 LibreOffice 실패 시 크론이 호출).
+ * Gotenberg LibreOffice 라우트 사용.
+ */
+export async function convertOdtToPdf(odt: Uint8Array, fileName = 'doc.odt'): Promise<Uint8Array> {
+  const base = process.env.GOTENBERG_URL
+  if (!base) throw new Error('GOTENBERG_URL 미설정 — PDF 변환 서비스가 구성되지 않았습니다.')
+
+  const form = new FormData()
+  form.append('files', new Blob([odt as BlobPart], { type: 'application/vnd.oasis.opendocument.text' }), fileName)
+
+  const res = await fetch(`${base.replace(/\/$/, '')}/forms/libreoffice/convert`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`Gotenberg ODT 변환 실패 (${res.status}): ${detail.slice(0, 200)}`)
+  }
+  return new Uint8Array(await res.arrayBuffer())
+}
+
 /** Gotenberg 헬스체크 */
 export async function gotenbergHealthy(): Promise<boolean> {
   const base = process.env.GOTENBERG_URL

@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/generate-yearly-plans",
       "schedule": "0 0 1 1 *"
+    },
+    {
+      "path": "/api/cron/convert-fireplan-pdf",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

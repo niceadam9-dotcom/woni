@@ -87,7 +87,7 @@ export default async function CustomerDetailPage({
       .order('created_at', { ascending: false })
       .limit(50),
     admin.from('fire_plans')
-      .select('id, year, title, pdf_name, pdf_path, hwp_name, note, revision, submitted_at, fire_station, created_at, uploaded_by, fire_plan_attachments(id, kind, file_name)')
+      .select('id, year, title, pdf_name, pdf_path, pdf_status, html_path, hwp_name, hwp_path, note, revision, submitted_at, fire_station, created_at, uploaded_by, fire_plan_attachments(id, kind, file_name)')
       .eq('customer_id', id)
       .order('year', { ascending: false })
       .order('created_at', { ascending: false }),
@@ -183,17 +183,19 @@ export default async function CustomerDetailPage({
   }
 
   const firePlans: FirePlanRow[] = ((firePlansRes.data ?? []) as Array<{
-    id: string; year: number; title: string | null; pdf_name: string; pdf_path: string
-    hwp_name: string | null; note: string | null; revision: number | null
+    id: string; year: number; title: string | null; pdf_name: string | null; pdf_path: string | null
+    pdf_status: string; html_path: string | null
+    hwp_name: string | null; hwp_path: string | null; note: string | null; revision: number | null
     submitted_at: string | null; fire_station: string | null; created_at: string; uploaded_by: string | null
     fire_plan_attachments: Array<{ id: string; kind: string; file_name: string }> | null
   }>).map(p => ({
     id: p.id, year: p.year, title: p.title, pdf_name: p.pdf_name,
+    pdf_status: p.pdf_status, has_html: !!p.html_path,
     hwp_name: p.hwp_name, note: p.note, created_at: p.created_at,
     revision: p.revision ?? 1, submitted_at: p.submitted_at, fire_station: p.fire_station,
     attachments: p.fire_plan_attachments ?? [],
     uploader_name: p.uploaded_by ? (profileNameMap.get(p.uploaded_by) ?? null) : null,
-    generated: p.pdf_path.includes('generated_'),
+    generated: (p.pdf_path ?? p.hwp_path ?? '').includes('generated_'),
   }))
 
   const assignedEmployee = customer.assigned_employee_id

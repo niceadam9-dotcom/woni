@@ -9,8 +9,9 @@ import {
 import { computeFirePlanReadiness, type FirePlanReadiness } from '@/lib/fire-plan-readiness'
 
 /** 소방계획서 HWP 생성 요청 큐 (doc02 §8 확장, 2026-07-15)
- *  큐 = fire-plans 버킷 _queue/*.json — Windows 워커(scripts/fireplan-worker.py)가 폴링·처리.
- *  마이그레이션 없이 스토리지로 상태 관리. 하트비트로 워커 온라인 표시.
+ *  큐 = fire_plan_gen_jobs 테이블(094) — Windows 워커(scripts/fireplan-worker.py)가 폴링·처리.
+ *  상태: pending → processing → done/failed. 하트비트는 fire_plan_worker_status(단일 행).
+ *  같은 고객·연도의 대기/처리 중 요청은 유니크 인덱스로 차단(중복 생성 방지).
  *  7차: 공통 수기 프리셋(_presets/{유형}.json) — 요청에 presetType 포함, 다중 선택 일괄 요청. */
 
 const BUCKET = 'fire-plans'
@@ -123,24 +124,29 @@ export async function requestFirePlanHwpAction(
 
   if (preset) await ensurePresetFile(admin, preset as PresetType)
 
-  const base = Date.now()
-  for (let i = 0; i < ids.length; i++) {
-    const payload = {
-      customerId: ids[i],
-      customerName: nameById.get(ids[i]),
+  let requested = 0
+  const dup: string[] = []
+  for (const id of ids) {
+    const { error } = await admin.from('fire_plan_gen_jobs').insert({
+      customer_id: id,
+      customer_name: nameById.get(id),
       year,
-      presetType: preset || undefined,
-      requestedBy: profile.id,
-      requestedByName: profile.name,
-      requestedAt: new Date().toISOString(),
-    }
-    const { error } = await admin.storage.from(BUCKET).upload(
-      `_queue/${base + i}_${ids[i]}.json`,
-      Buffer.from(JSON.stringify(payload), 'utf8'),
-      { contentType: 'application/json', upsert: false })
-    if (error) return { requested: i, error: `요청 등록 실패(${i + 1}/${ids.length}번째): ${error.message}` }
+      preset_type: preset || null,
+      requested_by: profile.id,
+      requested_by_name: profile.name,
+    })
+    if (!error) { requested++; continue }
+    if (error.code === '23505') { dup.push(nameById.get(id) ?? id); continue }
+    return { requested, error: `요청 등록 실패(${nameById.get(id)}): ${error.message}` }
   }
-  return { requested: ids.length }
+  if (dup.length > 0) {
+    return {
+      requested,
+      error: `${dup.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있어 건너뛰었습니다`
+        + (requested > 0 ? ` (나머지 ${requested}건은 등록됨)` : ''),
+    }
+  }
+  return { requested }
 }
 
 // ── 7차: 프리셋 조회·저장 ─────────────────────────────────────
@@ -192,55 +198,68 @@ export async function saveFirePlanPresetAction(preset: FirePlanPreset): Promise<
   return {}
 }
 
+type QueueItem = { name: string; customerId: string; customerName: string; year: number; presetType?: string; requestedByName: string; requestedAt: string }
+
 export type GenStatus = {
   workerOnline: boolean
-  pending: Array<{ name: string; customerName: string; year: number; presetType?: string; requestedByName: string; requestedAt: string }>
+  processing: QueueItem[]
+  pending: QueueItem[]
   results: Array<{ name: string; ok: boolean; error?: string; customerName?: string; year?: number; preset?: string; customerId?: string; finishedAt?: string; missing?: string[] }>
 }
+
+type JobRow = {
+  id: string; customer_id: string; customer_name: string; year: number
+  preset_type: string | null; status: string; error: string | null; missing: string[] | null
+  requested_by_name: string | null; created_at: string; finished_at: string | null
+}
+
+const toQueueItem = (j: JobRow): QueueItem => ({
+  name: j.id,
+  customerId: j.customer_id,
+  customerName: j.customer_name,
+  year: j.year,
+  presetType: j.preset_type ?? undefined,
+  requestedByName: j.requested_by_name ?? '',
+  requestedAt: j.created_at,
+})
 
 export async function getFirePlanGenStatusAction(): Promise<GenStatus> {
   await requirePermission('customer_manage')
   const admin = createAdminClient()
 
-  // 하트비트 (30초 내 = 온라인)
+  // 하트비트 (90초 내 = 온라인 — HWP 생성·PDF 변환이 건당 수십 초라 여유 있게)
   let workerOnline = false
-  const { data: hb } = await admin.storage.from(BUCKET).download('_queue/_heartbeat.json')
-  if (hb) {
-    try {
-      const { at } = JSON.parse(await hb.text()) as { at: string }
-      workerOnline = Date.now() - new Date(at).getTime() < 30_000
-    } catch { /* 무시 */ }
-  }
+  const { data: ws } = await admin.from('fire_plan_worker_status')
+    .select('last_seen_at').eq('id', 1).maybeSingle()
+  if (ws?.last_seen_at) workerOnline = Date.now() - new Date(ws.last_seen_at as string).getTime() < 90_000
 
-  // 대기 중 요청
-  const pending: GenStatus['pending'] = []
-  const { data: queue } = await admin.storage.from(BUCKET)
-    .list('_queue', { limit: 50, sortBy: { column: 'name', order: 'asc' } })
-  for (const item of (queue ?? []) as Array<{ name: string }>) {
-    if (!item.name.endsWith('.json') || item.name === '_heartbeat.json') continue
-    const { data: file } = await admin.storage.from(BUCKET).download(`_queue/${item.name}`)
-    if (!file) continue
-    try {
-      const p = JSON.parse(await file.text()) as { customerName: string; year: number; presetType?: string; requestedByName: string; requestedAt: string }
-      pending.push({ name: item.name, ...p })
-    } catch { /* 무시 */ }
-  }
+  const [{ data: active }, { data: finished }] = await Promise.all([
+    admin.from('fire_plan_gen_jobs')
+      .select('id, customer_id, customer_name, year, preset_type, status, error, missing, requested_by_name, created_at, finished_at')
+      .in('status', ['pending', 'processing'])
+      .order('created_at', { ascending: true }),
+    admin.from('fire_plan_gen_jobs')
+      .select('id, customer_id, customer_name, year, preset_type, status, error, missing, requested_by_name, created_at, finished_at')
+      .in('status', ['done', 'failed'])
+      .order('finished_at', { ascending: false })
+      .limit(10),
+  ])
 
-  // 최근 결과 (최신 10)
-  const results: GenStatus['results'] = []
-  const { data: done } = await admin.storage.from(BUCKET)
-    .list('_results', { limit: 10, sortBy: { column: 'name', order: 'desc' } })
-  for (const item of (done ?? []) as Array<{ name: string }>) {
-    if (!item.name.endsWith('.json')) continue
-    const { data: file } = await admin.storage.from(BUCKET).download(`_results/${item.name}`)
-    if (!file) continue
-    try {
-      const r = JSON.parse(await file.text()) as { ok: boolean; error?: string; customerName?: string; year?: number; preset?: string; finishedAt?: string; missing?: string[] }
-      // 요청 파일명 규약 {ts}_{customerId}.json → 고객 상세 링크용
-      const customerId = item.name.replace(/^\d+_/, '').replace(/\.json$/, '')
-      results.push({ name: item.name, customerId, ...r })
-    } catch { /* 무시 */ }
+  const jobs = (active ?? []) as JobRow[]
+  return {
+    workerOnline,
+    processing: jobs.filter(j => j.status === 'processing').map(toQueueItem),
+    pending: jobs.filter(j => j.status === 'pending').map(toQueueItem),
+    results: ((finished ?? []) as JobRow[]).map(j => ({
+      name: j.id,
+      ok: j.status === 'done',
+      error: j.error ?? undefined,
+      customerName: j.customer_name,
+      year: j.year,
+      preset: j.preset_type ?? undefined,
+      customerId: j.customer_id,
+      finishedAt: j.finished_at ?? undefined,
+      missing: j.missing ?? undefined,
+    })),
   }
-
-  return { workerOnline, pending, results }
 }

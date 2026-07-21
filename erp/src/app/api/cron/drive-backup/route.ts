@@ -74,10 +74,10 @@ export async function GET(req: NextRequest) {
   for (let from = 0; ; from += 1000) {
     const { data } = await admin.from('fire_plans')
       .select('year, title, revision, pdf_path, pdf_name, hwp_path, hwp_name').range(from, from + 999)
-    const rows = (data ?? []) as Array<{ year: number; title: string | null; revision: number | null; pdf_path: string; pdf_name: string; hwp_path: string | null; hwp_name: string | null }>
+    const rows = (data ?? []) as Array<{ year: number; title: string | null; revision: number | null; pdf_path: string | null; pdf_name: string | null; hwp_path: string | null; hwp_name: string | null }>
     for (const p of rows) {
       const base = sanitize(p.title ?? `${p.year}년 소방계획서`) + (p.revision && p.revision > 1 ? `_개정${p.revision}` : '')
-      planFileName.set(p.pdf_path, `${base}.pdf`)
+      if (p.pdf_path) planFileName.set(p.pdf_path, `${base}.pdf`) // 095: PDF 변환 중이면 아직 없음
       if (p.hwp_path) planFileName.set(p.hwp_path, `${base}.hwp`)
     }
     if (rows.length < 1000) break

@@ -66,11 +66,29 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
 
   function request() {
     if (selected.length === 0) return
+    // 중복 가드: 같은 고객·연도의 대기/처리 중 요청이 있으면 확인 창 (서버 유니크 인덱스가 최종 차단)
+    const active = [...status.processing, ...status.pending]
+    const dupNames = selected
+      .filter(c => active.some(a => a.customerId === c.id && a.year === year))
+      .map(c => c.name)
+    if (dupNames.length > 0 && dupNames.length === selected.length) {
+      setMessage(`❌ ${dupNames.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있습니다 — 완료 후 다시 요청해주세요`)
+      return
+    }
+    if (dupNames.length > 0
+      && !confirm(`${dupNames.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있어 제외됩니다.\n나머지 ${selected.length - dupNames.length}건만 요청할까요?`)) return
+    // 오프라인 가드: 접수는 되지만 워커가 켜질 때까지 생성되지 않음을 한 번 더 확인
+    if (!status.workerOnline
+      && !confirm('생성기(사무실 PC의 워커)가 오프라인입니다.\n요청은 접수되지만 워커가 켜질 때까지 생성되지 않습니다. 그래도 접수할까요?')) return
     setMessage('')
     startTransition(async () => {
       const res = await requestFirePlanHwpAction(selected.map(s => s.id), year, preset)
-      if (res.error) { setMessage(`❌ ${res.error}`); return }
-      setMessage(`✅ ${selected.length}건 생성 요청됨 (${year}년${preset ? ` · ${preset} 프리셋` : ''}) — 아래 상태에서 진행을 확인하세요`)
+      if (res.error) {
+        setMessage(`${(res.requested ?? 0) > 0 ? '⚠️' : '❌'} ${res.error}`)
+        if (!res.requested) return
+      } else {
+        setMessage(`✅ ${res.requested}건 생성 요청됨 (${year}년${preset ? ` · ${preset} 프리셋` : ''}) — 아래 상태에서 진행을 확인하세요`)
+      }
       setSelected([])
       const s = await getFirePlanGenStatusAction()
       setStatus(s)
@@ -190,23 +208,36 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
         {message && <p className="text-sm text-[#514b81]">{message}</p>}
         <p className="text-[11px] text-[#b0acd6]">
           자동 병합: 대상물명 · 관할소방서 · 계약기간 + 계획서 정보(고객 상세) — 프리셋 선택 시 훈련 시나리오·피난 절차 등 수기 문구도 유형별로 채워집니다.
-          우선순위는 고객 데이터 &gt; 프리셋 &gt; 양식 기본값이며, 완료 시 고객 상세의 소방계획서 보관함에 HWP+PDF가 자동 등록됩니다.
+          우선순위는 고객 데이터 &gt; 프리셋 &gt; 양식 기본값이며, 완료 시 보관함에 HWP·웹 미리보기가 즉시 등록되고 인쇄용 PDF는 몇 초 뒤 자동으로 채워집니다.
         </p>
       </div>
 
       {/* 7차: 프리셋 관리 */}
       <FirePlanPresetManager />
 
-      {/* 대기 중 */}
-      {status.pending.length > 0 && (
+      {/* 처리 중 · 대기 */}
+      {(status.processing.length > 0 || status.pending.length > 0) && (
         <div className="bg-white rounded-xl border border-[#c8c4d0] p-5">
           <p className="text-xs font-semibold text-[#514b81] mb-2 flex items-center gap-1">
-            <Clock className="size-3.5" /> 처리 대기 {status.pending.length}건
+            <Clock className="size-3.5" />
+            {status.processing.length > 0
+              ? `처리 중 ${status.processing.length}건 · 대기 ${status.pending.length}건`
+              : `처리 대기 ${status.pending.length}건`}
           </p>
           <div className="space-y-1">
-            {status.pending.map(p => (
+            {status.processing.map(p => (
               <div key={p.name} className="flex items-center gap-3 text-sm">
                 <Loader2 className="size-3.5 animate-spin text-[#7b68ee]" />
+                <span className="font-medium text-[#090c1d]">{p.customerName}</span>
+                <span className="text-[10px] font-medium text-[#7b68ee] bg-[#f5f4ff] rounded-full px-2 py-0.5">생성 중</span>
+                <span className="text-xs text-[#b0acd6]">
+                  {p.year}년 {p.presetType ? `· ${p.presetType} ` : ''}· {p.requestedByName} · {p.requestedAt.slice(11, 16)}
+                </span>
+              </div>
+            ))}
+            {status.pending.map(p => (
+              <div key={p.name} className="flex items-center gap-3 text-sm">
+                <Clock className="size-3.5 text-[#b0acd6]" />
                 <span className="font-medium text-[#090c1d]">{p.customerName}</span>
                 <span className="text-xs text-[#b0acd6]">
                   {p.year}년 {p.presetType ? `· ${p.presetType} ` : ''}· {p.requestedByName} · {p.requestedAt.slice(11, 16)}

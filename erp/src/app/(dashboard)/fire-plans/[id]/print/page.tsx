@@ -22,9 +22,10 @@ export default async function FirePlanPrintPage({
   if (!plan) notFound()
 
   const p = plan as unknown as {
-    title: string | null; year: number; pdf_path: string; pdf_name: string
+    title: string | null; year: number; pdf_path: string | null; pdf_name: string | null
     customers: { customer_name: string } | null
   }
+  if (!p.pdf_path) notFound() // 2단계 등록(095): PDF 변환 완료 전에는 인쇄 불가 — 목록에서 버튼 숨김
 
   const { data: signed, error } = await admin.storage
     .from('fire-plans')
@@ -32,5 +33,5 @@ export default async function FirePlanPrintPage({
   if (error || !signed?.signedUrl) notFound()
 
   const title = `${p.customers?.customer_name ?? ''} — ${p.title ?? `${p.year}년 소방계획서`}`
-  return <PrintPdfClient url={signed.signedUrl} title={title} fileName={p.pdf_name} />
+  return <PrintPdfClient url={signed.signedUrl} title={title} fileName={p.pdf_name ?? `${p.year}년 소방계획서.pdf`} />
 }

@@ -28,6 +28,12 @@ TEMPLATE = os.path.join(DATA, "25년 이후 소방계획서 양식.hwp")
 OUT_DIR = os.path.join(DATA, "fireplan-out")
 SSH_KEY = r"C:\Users\dwhwang\.ssh\sjfire-erp-key.pem"
 VPS = "ubuntu@121.78.123.230"
+# 로컬 LibreOffice — 있으면 PDF 변환을 SSH(VPS Gotenberg) 없이 로컬에서 수행 (2026-07-21)
+SOFFICE = next((p for p in (
+    os.environ.get("SOFFICE_PATH", ""),
+    r"C:\Program Files\LibreOffice\program\soffice.exe",
+    r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+) if p and os.path.isfile(p)), None)
 
 # ── env / Supabase REST ──────────────────────────────────────
 def load_env(prod: bool = False) -> dict:
@@ -419,14 +425,72 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
 
     out_hwp = os.path.join(out_dir, f"{safe}_소방계획서_{year}.hwp")
     out_odt = os.path.join(out_dir, f"{safe}_소방계획서_{year}.odt")
+    out_html = os.path.join(out_dir, f"{safe}_소방계획서_{year}.html")
     assert doc.SaveAs(out_hwp, "HWP", ""), "HWP 저장 실패"
     assert doc.SaveAs(out_odt, "ODT", ""), "ODT 저장 실패"
+    # 웹 미리보기용 HTML — SDK가 이미지를 PIC*.png 별도 파일 + 로컬 절대경로로 내보내므로 base64 인라인 필수
+    assert doc.SaveAs(out_html, "HTML", ""), "HTML 저장 실패"
     obj.ReleaseDocument(doc)
+    inline_html_images(out_html)
     os.remove(merged_hwpx)
-    return out_hwp, out_odt
+    return out_hwp, out_odt, out_html
+
+_IMG_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp"}
+
+def inline_html_images(html_path: str) -> None:
+    """SDK HTML 내보내기의 로컬 이미지 참조(.\\PIC*.png, file:///…)를 base64 data URI로 인라인하고 원본 파일 삭제"""
+    import base64
+    base_dir = os.path.dirname(html_path)
+    with open(html_path, encoding="utf-8", errors="ignore") as f:
+        html = f.read()
+    used: set[str] = set()
+
+    def repl(m: "re.Match[str]") -> str:
+        src = m.group(1)
+        p = urllib.parse.unquote(src)
+        if p.startswith("file:///"):
+            p = p[len("file:///"):].replace("/", os.sep)
+        elif not os.path.isabs(p):
+            p = os.path.join(base_dir, p.lstrip(".\\/"))
+        ext = os.path.splitext(p)[1].lower()
+        if ext not in _IMG_MIME or not os.path.isfile(p):
+            return m.group(0)
+        with open(p, "rb") as imgf:
+            b64 = base64.b64encode(imgf.read()).decode()
+        used.add(p)
+        return f'src="data:{_IMG_MIME[ext]};base64,{b64}"'
+
+    html = re.sub(r'src="([^"]+)"', repl, html)
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    for p in used:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+def convert_pdf_local(odt_path: str, pdf_path: str) -> None:
+    """ODT → PDF (로컬 LibreOffice) — SSH 왕복 없는 기본 경로. SOFFICE 미설치 시 호출 금지"""
+    if not SOFFICE:
+        raise RuntimeError("LibreOffice 미설치 (SOFFICE_PATH 확인)")
+    out_dir = os.path.dirname(pdf_path) or "."
+    subprocess.run([SOFFICE, "--headless", "--convert-to", "pdf", "--outdir", out_dir, odt_path],
+                   check=True, capture_output=True, timeout=180)
+    produced = os.path.join(out_dir, os.path.splitext(os.path.basename(odt_path))[0] + ".pdf")
+    if os.path.abspath(produced) != os.path.abspath(pdf_path):
+        os.replace(produced, pdf_path)
+    if not os.path.isfile(pdf_path) or os.path.getsize(pdf_path) < 1000:
+        raise RuntimeError("LibreOffice PDF 변환 결과가 비정상입니다")
 
 def convert_pdf(odt_path: str, pdf_path: str) -> None:
-    """ODT → PDF (VPS의 Gotenberg 경유)"""
+    """ODT → PDF — 로컬 LibreOffice 우선, 없으면 VPS Gotenberg(SSH 경유) 폴백"""
+    if SOFFICE:
+        convert_pdf_local(odt_path, pdf_path)
+        return
+    convert_pdf_remote(odt_path, pdf_path)
+
+def convert_pdf_remote(odt_path: str, pdf_path: str) -> None:
+    """ODT → PDF (VPS의 Gotenberg 경유) — 레거시 폴백, SSH 왕복 4회로 느림"""
     def run(*cmd: str) -> None:
         subprocess.run(cmd, check=True, capture_output=True)
     run("scp", "-i", SSH_KEY, odt_path, f"{VPS}:/tmp/mkfp.odt")
@@ -495,13 +559,14 @@ def main() -> None:
     floors = sb_get(env, f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
     zone_rows = build_zone_rows(buildings[0] if buildings else None, floors, owner)
     brigade = sb_get(env, f"fire_brigade_members?customer_id=eq.{cust['id']}&select=team,name,duty,phone&order=sort_order")
-    out_hwp, out_odt = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade,
-                                    preset_pairs=preset_pairs)
+    out_hwp, out_odt, out_html = generate_hwp(cust, year, photo, extras=extras, extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade,
+                                              preset_pairs=preset_pairs)
     print(f"✅ HWP: {out_hwp}")
+    print(f"✅ HTML(미리보기): {out_html}")
 
     if args.pdf:
         out_pdf = out_hwp[:-4] + ".pdf"
-        print("PDF 변환 중 (Gotenberg)…")
+        print(f"PDF 변환 중 ({'로컬 LibreOffice' if SOFFICE else 'VPS Gotenberg'})…")
         convert_pdf(out_odt, out_pdf)
         print(f"✅ PDF: {out_pdf}")
 

@@ -91,16 +91,18 @@ export async function deleteFirePlanAction(planId: string): Promise<{ error?: st
 
   const { data: plan } = await admin
     .from('fire_plans')
-    .select('customer_id, year, title, pdf_path, hwp_path')
+    .select('customer_id, year, title, pdf_path, hwp_path, html_path, odt_path')
     .eq('id', planId).single()
   if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
-  const p = plan as { customer_id: string; year: number; title: string | null; pdf_path: string; hwp_path: string | null }
+  const p = plan as { customer_id: string; year: number; title: string | null; pdf_path: string | null; hwp_path: string | null; html_path: string | null; odt_path: string | null }
 
   await admin.storage.from(BUCKET).remove([
-    p.pdf_path,
+    ...(p.pdf_path ? [p.pdf_path] : []),
     ...(p.hwp_path ? [p.hwp_path] : []),
+    ...(p.html_path ? [p.html_path] : []),
+    ...(p.odt_path ? [p.odt_path] : []),
     // 표준양식 생성분의 폼 데이터(.form.json)도 함께 정리 — 없으면 무시됨
-    ...(p.pdf_path.includes('generated_') ? [p.pdf_path.replace(/\.pdf$/, '.form.json')] : []),
+    ...(p.pdf_path?.includes('generated_') ? [p.pdf_path.replace(/\.pdf$/, '.form.json')] : []),
   ])
   const { error } = await admin.from('fire_plans').delete().eq('id', planId)
   if (error) return { error: '삭제에 실패했습니다.' }
@@ -181,9 +183,10 @@ export async function issueNextYearPlanAction(planId: string): Promise<{ error?:
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
   const { data: plan } = await admin.from('fire_plans')
-    .select('customer_id, year, title, pdf_name, pdf_path, hwp_name, hwp_path').eq('id', planId).single()
+    .select('customer_id, year, title, pdf_name, pdf_path, hwp_name, hwp_path, pdf_status').eq('id', planId).single()
   if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
-  const p = plan as { customer_id: string; year: number; title: string | null; pdf_name: string; pdf_path: string; hwp_name: string | null; hwp_path: string | null }
+  const p = plan as { customer_id: string; year: number; title: string | null; pdf_name: string | null; pdf_path: string | null; hwp_name: string | null; hwp_path: string | null; pdf_status: string }
+  if (!p.pdf_path || p.pdf_status !== 'ready') return { error: 'PDF 변환이 완료된 뒤 연차발행할 수 있습니다.' }
   const newYear = p.year + 1
 
   const stamp = Date.now()
@@ -471,10 +474,10 @@ export async function getFirePlanFormAction(
   }
 }
 
-/** 다운로드/인쇄용 서명 URL (5분 유효) */
+/** 다운로드/인쇄/미리보기용 서명 URL (5분 유효) — html = HWP 생성분 웹 미리보기(레이아웃 참고) */
 export async function getFirePlanFileUrlAction(
   planId: string,
-  kind: 'pdf' | 'hwp'
+  kind: 'pdf' | 'hwp' | 'html'
 ): Promise<{ error?: string; url?: string; fileName?: string }> {
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
@@ -482,14 +485,20 @@ export async function getFirePlanFileUrlAction(
 
   const { data: plan } = await admin
     .from('fire_plans')
-    .select('pdf_path, pdf_name, hwp_path, hwp_name')
+    .select('pdf_path, pdf_name, hwp_path, hwp_name, html_path')
     .eq('id', planId).single()
   if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
-  const p = plan as { pdf_path: string; pdf_name: string; hwp_path: string | null; hwp_name: string | null }
+  const p = plan as { pdf_path: string | null; pdf_name: string | null; hwp_path: string | null; hwp_name: string | null; html_path: string | null }
 
-  const path = kind === 'pdf' ? p.pdf_path : p.hwp_path
-  const name = kind === 'pdf' ? p.pdf_name : p.hwp_name
-  if (!path) return { error: 'HWP 원본이 등록되지 않았습니다.' }
+  const path = kind === 'pdf' ? p.pdf_path : kind === 'hwp' ? p.hwp_path : p.html_path
+  const name = kind === 'pdf' ? p.pdf_name : kind === 'hwp' ? p.hwp_name : '미리보기.html'
+  if (!path) {
+    return {
+      error: kind === 'pdf' ? 'PDF가 아직 준비되지 않았습니다. (변환 중)'
+        : kind === 'hwp' ? 'HWP 원본이 등록되지 않았습니다.'
+        : '웹 미리보기가 없는 계획서입니다. (HWP 자동 생성분만 제공)',
+    }
+  }
 
   const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, 300)
   if (error || !data?.signedUrl) return { error: 'URL 생성에 실패했습니다.' }

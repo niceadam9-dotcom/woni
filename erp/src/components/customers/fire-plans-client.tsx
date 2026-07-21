@@ -2,7 +2,7 @@
 
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine } from 'lucide-react'
+import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine, Eye } from 'lucide-react'
 import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction, getFirePlanGenDefaultsAction, getFirePlanFormAction, downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { FirePlanGenerateModal } from './fire-plan-generate-modal'
 import type { FirePlanGenData } from '@/lib/fire-plan-template'
@@ -13,7 +13,11 @@ export type FirePlanRow = {
   id: string
   year: number
   title: string | null
-  pdf_name: string
+  pdf_name: string | null
+  /** PDF 상태 (095 2단계 등록) — ready / converting(HWP 먼저 등록, PDF 뒤따라 변환) / failed */
+  pdf_status: string
+  /** HWP 생성분 웹 미리보기(HTML) 보유 여부 */
+  has_html: boolean
   hwp_name: string | null
   note: string | null
   revision: number
@@ -123,7 +127,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
     })
   }
 
-  function handleDownload(planId: string, kind: 'pdf' | 'hwp') {
+  function handleDownload(planId: string, kind: 'pdf' | 'hwp' | 'html') {
     startTransition(async () => {
       const res = await getFirePlanFileUrlAction(planId, kind)
       if (res.error || !res.url) { alert(res.error ?? '다운로드에 실패했습니다.'); return }
@@ -169,7 +173,10 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                     {p.note && <p className="text-xs text-[#b0acd6] mt-0.5">{p.note}</p>}
                   </td>
                   <td className="py-3 pr-4 text-xs text-[#514b81]">
-                    PDF{p.hwp_name ? ' · HWP' : ''}{p.attachments.length > 0 ? ` · 부속${p.attachments.length}` : ''}
+                    {p.pdf_status === 'ready' ? 'PDF' : p.pdf_status === 'converting'
+                      ? <span className="text-amber-600 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" />PDF 변환 중</span>
+                      : <span className="text-red-500">PDF 실패</span>}
+                    {p.hwp_name ? ' · HWP' : ''}{p.has_html ? ' · 미리보기' : ''}{p.attachments.length > 0 ? ` · 부속${p.attachments.length}` : ''}
                     {p.submitted_at && <span className="ml-1 text-[10px] text-green-600">제출{p.submitted_at.slice(5)}</span>}
                   </td>
                   <td className="py-3 pr-4 text-xs text-[#514b81]">
@@ -189,20 +196,33 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                           <CalendarPlus className="size-3" /> 연차
                         </button>
                       )}
-                      <button
-                        onClick={() => window.open(`/fire-plans/${p.id}/print`, '_blank')}
-                        title="표준양식 PDF 인쇄 — 열리면 인쇄 대화상자가 자동으로 뜹니다"
-                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors"
-                      >
-                        <Printer className="size-3" /> 인쇄
-                      </button>
-                      <button
-                        onClick={() => handleDownload(p.id, 'pdf')}
-                        title="PDF 다운로드"
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
-                      >
-                        <Download className="size-3" /> PDF
-                      </button>
+                      {p.has_html && (
+                        <button
+                          onClick={() => handleDownload(p.id, 'html')}
+                          title="웹 미리보기 (레이아웃 참고용 — 제출·인쇄는 PDF 사용)"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors"
+                        >
+                          <Eye className="size-3" /> 미리보기
+                        </button>
+                      )}
+                      {p.pdf_status === 'ready' && (
+                        <button
+                          onClick={() => window.open(`/fire-plans/${p.id}/print`, '_blank')}
+                          title="표준양식 PDF 인쇄 — 열리면 인쇄 대화상자가 자동으로 뜹니다"
+                          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors"
+                        >
+                          <Printer className="size-3" /> 인쇄
+                        </button>
+                      )}
+                      {p.pdf_status === 'ready' && (
+                        <button
+                          onClick={() => handleDownload(p.id, 'pdf')}
+                          title="PDF 다운로드"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+                        >
+                          <Download className="size-3" /> PDF
+                        </button>
+                      )}
                       {p.hwp_name && (
                         <button
                           onClick={() => handleDownload(p.id, 'hwp')}
