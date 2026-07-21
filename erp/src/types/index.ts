@@ -11,6 +11,7 @@ export type NotificationType =
   | 'leave_request' | 'leave_approved' | 'leave_rejected'
   | 'inspection_assigned' | 'inspection_step_due'
   | 'inspection_step_overdue' | 'inspection_completed'
+  | 'insurance_expiry_due' | 'insurance_expiry_overdue'
 
 // Fire Safety Inspection types
 export type InspectionType     = '종합' | '작동' | '일반관리'
@@ -72,7 +73,7 @@ export interface LeaveBalance {
 export interface Notification {
   id: string; recipient_id: string; title: string; message: string
   type: NotificationType; reference_id: string | null
-  reference_type: 'document' | 'leave' | 'inspection' | null; is_read: boolean; created_at: string
+  reference_type: 'document' | 'leave' | 'inspection' | 'customer' | null; is_read: boolean; created_at: string
 }
 
 // Fire Safety Inspection interfaces

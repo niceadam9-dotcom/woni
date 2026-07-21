@@ -13,7 +13,7 @@ const OPTIONAL_ROWS: Array<{ key: string; label: string; desc: string }> = [
   { key: 'approval_result', label: '결재 결과', desc: '내가 올린 기안서의 승인·반려' },
   { key: 'leave_result',    label: '휴가 결과', desc: '내 휴가 신청의 승인·반려' },
   { key: 'assignment',      label: '담당 배정', desc: '고객·점검 담당 배정, 인수인계' },
-  { key: 'deadline',        label: '점검 마감 임박', desc: '점검 단계 마감 임박 (매일 자동 발송)' },
+  { key: 'deadline',        label: '기한 임박', desc: '점검 단계 마감·화재보험 만기 임박 (매일 자동 발송)' },
 ]
 
 export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Record<string, boolean> }) {
