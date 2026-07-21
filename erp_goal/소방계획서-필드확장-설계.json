@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서-필드확장-설계.md",
   "generated": "2026-07-16",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(파일:라인 증거) 필수",
-  "note": "2026-07-16 UX 갭 4건(대장 재가져오기 버튼·누락 칩 클릭 포커스·생성 페이지 사전 체크·워커 missing[] 5·6차) 구현 + 독립 검증 패스 통과 → 설계 확정 범위 전체 implemented. 잔여: 커밋·origin 푸시·운영 배포(사용자 승인 대기) + §8-4 이후 항목",
+  "note": "2026-07-16 UX 갭 4건(대장 재가져오기 버튼·누락 칩 클릭 포커스·생성 페이지 사전 체크·워커 missing[] 5·6차) 구현 + 독립 검증 패스 통과 → 설계 확정 범위 전체 implemented. 2026-07-22 잔여 전부 종결: §8-2 잔여(갭 4건은 5a6a1ae에 포함 커밋·origin 푸시·운영 배포 2026-07-16) + §8-4(고객 목록 준비율 뱃지 = 5a6a1ae, 보험 만기 알림 = 7e50f68 신규 구현) — 스테이징·운영 배포 및 DB(094·095·097) 적용 완료, VPS 크론 등록. 이 설계 문서의 전 항목 종결.",
   "status_legend": {
     "confirmed": "확정",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -100,7 +100,9 @@
           "verified": { "date": "2026-07-16", "commit": "(미커밋 — 2026-07-16 워킹 트리)", "evidence": ["generate/actions.ts getFirePlanReadinessAction (권한·30건 제한·첫 활성 건물 로직 패널과 동일)", "generate-request-client.tsx 선택 시 useEffect 조회, 칩 done/total 표시, 누락 안내 블록 + '→ 입력 후 생성' 링크, 생성 버튼은 누락과 무관하게 활성(fail-soft)"], "method": "코드 대조 (독립 검증 패스)" } },
         { "id": "5-3", "desc": "생성 후 체크 — 결과에 누락 목록 + 고객 상세 링크 (기존 3차 기능)", "status": "implemented",
           "verified": { "date": "2026-07-16", "commit": "3d0f52f", "evidence": ["generate-request-client.tsx:198-206", "fireplan-worker.py:143-156"], "method": "코드 대조" } },
-        { "id": "5-4", "desc": "고객 목록 뱃지", "status": "deferred", "note": "이번 범위 제외 확정(2026-07-15) — 노출은 고객 상세 + 생성 페이지까지" }
+        { "id": "5-4", "desc": "고객 목록 뱃지", "status": "implemented",
+          "verified": { "date": "2026-07-22", "commit": "5a6a1ae", "evidence": ["erp/src/lib/customer-list.ts:101-111 목록 조회 시 고객별 computeFirePlanReadiness 계산(9항목 입력 전부 select·전달), :135-138 inc=plan 필터", "erp/src/app/(dashboard)/customers/page.tsx:256-277 소방계획서 탭 링크 아이콘 + 미완료 앰버 도트 + 툴팁 '준비율 n/m', :121-127 '계획서 미완료' 필터 옵션"], "method": "코드 대조 (2026-07-22 독립 검증 패스 — Explore 에이전트, 구현자≠판정자)" },
+          "note": "2026-07-15 범위 제외 확정이었으나 §8-4 후속 지시(2026-07-22)로 구현 확인 — 형태는 목록 아이콘 앰버 도트 + 툴팁 준비율 n/m + 미완료 필터(행 단위 준비율 칩은 아님, 충분 판정)" }
       ]
     },
     {
@@ -122,13 +124,21 @@
       "note": "구현 상세는 stages[7차].note 및 doc02 §8 ⑥ 참조"
     },
     {
-      "id": "8", "line": 96, "title": "적용 순서 (2026-07-15 사용자 확정)", "status": "partial",
+      "id": "8", "line": 96, "title": "적용 순서 (2026-07-15 사용자 확정)", "status": "implemented",
       "criteria": [
         { "id": "8-1", "desc": "설계 승인", "status": "confirmed" },
-        { "id": "8-2", "desc": "5+6차 통합 구현 (090+091 → 패널 UI + 준비율 + 주입 → 검증 → 운영 적용)", "status": "partial",
-          "note": "DB 스테이징·운영 적용 완료, 기능 구현·검증 완료(UX 갭 ①~④ 2026-07-16 해소). 잔여: 갭 4건 변경분 커밋 + 7차 커밋(85cbe23) origin 푸시 + 운영 배포 — 사용자 승인 대기" },
+        { "id": "8-2", "desc": "5+6차 통합 구현 (090+091 → 패널 UI + 준비율 + 주입 → 검증 → 운영 적용)", "status": "implemented",
+          "verified": { "date": "2026-07-22", "commit": "5a6a1ae·85cbe23", "evidence": ["갭 4건 변경분(fire-plan-info-panel.tsx·fire-plan-readiness.ts 등)은 5a6a1ae에 포함 커밋 — git log 파일 이력으로 확인", "origin/staging·origin/main 푸시 및 운영 배포 완료(2026-07-16, 5a6a1ae)"], "method": "git 이력 대조 + 배포 기록 확인" },
+          "note": "2026-07-16 '사용자 승인 대기'였던 커밋·푸시·운영 배포가 이미 5a6a1ae로 완료됐음을 2026-07-22 확인 — 잔여 없음" },
         { "id": "8-3", "desc": "7차 프리셋", "status": "implemented", "verified": { "date": "2026-07-15", "commit": "85cbe23", "evidence": ["sections[7] 참조"], "method": "CLI E2E" } },
-        { "id": "8-4", "desc": "이후: 고객 목록 준비율 뱃지(선택)·보험 만기 알림(파생)", "status": "pending_order", "note": "미착수 — 지시 대기" }
+        { "id": "8-4", "desc": "이후: 고객 목록 준비율 뱃지(선택)·보험 만기 알림(파생)", "status": "implemented",
+          "criteria": [
+            { "id": "8-4a", "desc": "고객 목록 준비율 뱃지", "status": "implemented",
+              "verified": { "date": "2026-07-22", "commit": "5a6a1ae", "evidence": ["sections[5] criteria 5-4 verified 참조 (customer-list.ts:101-111·135-138, customers/page.tsx:256-277·121-127)"], "method": "코드 대조 (독립 검증 패스 — Explore 에이전트, 구현자≠판정자)" } },
+            { "id": "8-4b", "desc": "화재보험 만기 알림 (파생) — 매일 크론, D-30/D-7/당일/만기경과", "status": "implemented",
+              "verified": { "date": "2026-07-22", "commit": "7e50f68", "evidence": ["erp/src/app/api/cron/insurance-expiry-notify/route.ts (CRON_SECRET 인증·KST 날짜·insurance_period 자유텍스트 만기일 파싱(마지막 날짜 토큰)·전량 페이지 순회(.range)·같은 날 중복 발송 방지·수신자 manager/admin+담당자·notification_prefs deadline 필터·insert 에러 처리)", "erp/supabase/migrations/097_notification_insurance_expiry.sql (notifications type CHECK에 insurance_expiry_due/overdue, reference_type에 customer 추가 — 스테이징·운영 DB 적용 확인)", "erp/src/lib/notify.ts:13 + notification-settings-client.tsx:16 라벨 '기한 임박(점검·보험 만기)'", "erp/src/types/index.ts:9-15·75 유니언 확장"], "method": "코드 대조 (독립 검증 패스 — Explore, 구현자≠판정자) + 스테이징 DB E2E(D-30 4건 발송·같은 날 재발화 0건·만기경과 4건·무인증 401·테스트 데이터 원복) + 스테이징/운영 서버 크론 스모크 200 ok" },
+              "note": "VPS 크론 매일 00:15 KST 등록(/etc/cron.d/sjfire-erp). 수신 설정은 기존 deadline 카테고리 재사용(라벨만 확장). 만기일 파싱 불가 건은 unparsed 카운트로 응답에 노출" }
+          ] }
       ]
     },
     { "id": "9", "line": 104, "title": "리스크", "status": "confirmed" },
@@ -138,7 +148,8 @@
   "verification_log": [
     { "date": "2026-07-15", "method": "케이엔몰(상가형) CLI E2E + tsc/eslint/py_compile", "scope": "7차 프리셋" },
     { "date": "2026-07-16", "method": "독립 검증 패스 — 설계 §3~§6 14개 항목 코드 대조(파일:라인) + tsc/py_compile/eslint(소방계획서 6파일 0건) + 스테이징·운영 DB 읽기 조회", "scope": "1~7차 전체", "result": "10개 완전 구현, 갭 4건 발견: ①대장 재가져오기 버튼(3-2) ②누락 칩 클릭 포커스(5-1b) ③생성 페이지 사전 체크(5-2) ④워커 missing[] 5·6차 미포함(6-4)" },
-    { "date": "2026-07-16", "method": "갭 4건 구현 후 2차 독립 검증 패스(구현자≠판정자, Explore 에이전트 파일:라인 대조) + tsc/py_compile/eslint(변경 5파일 0건)", "scope": "갭 ①~④", "result": "4건 전부 충족 판정 — 경미 1건('인원' 칩은 근무 입력칸 포커스, 같은 행이라 실사용 문제 없음) note로 기록. 준비율 로직은 src/lib/fire-plan-readiness.ts로 공용화(패널·생성 페이지·워커 어휘 통일)" }
+    { "date": "2026-07-16", "method": "갭 4건 구현 후 2차 독립 검증 패스(구현자≠판정자, Explore 에이전트 파일:라인 대조) + tsc/py_compile/eslint(변경 5파일 0건)", "scope": "갭 ①~④", "result": "4건 전부 충족 판정 — 경미 1건('인원' 칩은 근무 입력칸 포커스, 같은 행이라 실사용 문제 없음) note로 기록. 준비율 로직은 src/lib/fire-plan-readiness.ts로 공용화(패널·생성 페이지·워커 어휘 통일)" },
+    { "date": "2026-07-22", "method": "독립 검증 패스(Explore 에이전트, 구현자≠판정자) 파일:라인 대조 + tsc/eslint 0건 + 스테이징 DB E2E(로컬 크론 발화 — D-30 4건 발송·같은 날 재발화 0건·만기경과 4건·무인증 401·테스트 데이터 원복) + 스테이징·운영 서버 스모크(https 200, 크론 동일 명령 200 ok)", "scope": "§8-2 잔여 종결 + §8-4 (고객 목록 준비율 뱃지·보험 만기 알림)", "result": "전부 구현 판정. 검증 중 경미 2건(설정 화면 deadline 라벨에 보험 만기 미언급·shiftDate 주석 부재) 즉시 반영. 운영 DB에 094·095·097 적용(스키마 스테이징 동일 확인), 운영 배포 7e50f68(main), VPS 크론 00:15 KST 등록. 최초 로컬 E2E에서 notifications type CHECK 위반으로 insert 조용히 실패하는 갭 발견 → 097 마이그레이션 + insert 에러 처리 추가로 해소" }
   ],
   "related": {
     "rule": "erp_goal/Json_Rule.md",
@@ -153,7 +164,9 @@
       "erp/src/components/fire-plans/fire-plan-preset-manager.tsx (프리셋 관리 UI)",
       "erp/scripts/make-fireplan.py (build_extras·build_stage2·fill_brigade·load_preset_pairs·--preset)",
       "erp/scripts/fireplan-worker.py (presetType 처리·missing[] 산출)",
-      "erp/supabase/migrations/090_fire_plan_fields.sql · 091_fire_plan_fields2.sql"
+      "erp/src/lib/customer-list.ts (고객 목록 준비율 계산·미완료 필터 — §8-4a)",
+      "erp/src/app/api/cron/insurance-expiry-notify/route.ts (보험 만기 알림 크론 — §8-4b)",
+      "erp/supabase/migrations/090_fire_plan_fields.sql · 091_fire_plan_fields2.sql · 097_notification_insurance_expiry.sql"
     ]
   }
 }
