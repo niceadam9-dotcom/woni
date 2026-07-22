@@ -44,8 +44,11 @@ export async function saveFirePlanRevisionAction(
   return res
 }
 
-/** 서식 섹션 일반 저장 (P4 — 1.2 zones·hazards / 1.3 location·fireAccess / 1.5 evacFire·evacMaps / 1.6 etcFacility / 1.7 managers) */
-const FORM_SECTION_KEYS = new Set(['zones', 'hazards', 'location', 'fireAccess', 'evacFire', 'evacMaps', 'etcFacility', 'managers'])
+/** 서식 섹션 일반 저장 (P4 — 1.2~1.7 + 1.10 inspection·multiUse·fireHistory + 1.11 training + 2장 brigadeGeneral·brigadeTeams) */
+const FORM_SECTION_KEYS = new Set([
+  'zones', 'hazards', 'location', 'fireAccess', 'evacFire', 'evacMaps', 'etcFacility', 'managers',
+  'inspection', 'multiUse', 'fireHistory', 'training', 'brigadeGeneral', 'brigadeTeams',
+])
 
 export async function saveFirePlanSectionsAction(
   customerId: string,
@@ -65,6 +68,31 @@ export async function saveFirePlanSectionsAction(
     updated_by: profile.id,
   } as Record<string, unknown>)
   if (error) return { error: `저장 실패: ${error.message}` }
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
+/** 자위소방대 편성 저장 (서식 2.2 — 1.1 계획서 정보 패널과 같은 fire_brigade_members, replace 방식) */
+export type BrigadeRowInput = { team: string; name: string; duty: string; phone: string }
+
+export async function saveBrigadeAction(
+  customerId: string,
+  rows: BrigadeRowInput[],
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  await admin.from('fire_brigade_members').delete().eq('customer_id', customerId)
+  const inserts = rows
+    .filter(m => m.name.trim())
+    .map((m, i) => ({
+      customer_id: customerId, team: m.team.trim() || '반원',
+      name: m.name.trim(), duty: m.duty.trim() || null,
+      phone: m.phone.trim() || null, sort_order: i,
+    }))
+  if (inserts.length > 0) {
+    const { error } = await admin.from('fire_brigade_members').insert(inserts as Record<string, unknown>[])
+    if (error) return { error: `편성 저장 실패: ${error.message}` }
+  }
   revalidatePath(`/customers/${customerId}`)
   return {}
 }

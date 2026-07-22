@@ -76,6 +76,16 @@ export function requiredFields(c: CustomerDocProfile): RequiredFieldDef[] {
   return isGeneralManagement(c) ? [] : QUICK_REQUIRED_FIELDS
 }
 
+/** 다중이용업소 업종 — 별지 9호 2쪽 선택형 (§9-6④, 상수 1곳). 서식 1.10.3 입력과 별지 9호 병합이 공유 */
+export const MULTI_USE_CATEGORIES: string[] = [
+  '휴게음식점영업', '제과점영업', '일반음식점영업', '단란주점영업', '유흥주점영업',
+  '영화상영관', '비디오물감상실업', '비디오물소극장업', '복합영상물제공업',
+  '학원', '독서실', '목욕장업', '찜질방업', '게임제공업', '복합유통게임제공업',
+  '인터넷컴퓨터게임시설제공업', '노래연습장업', '산후조리업', '고시원업',
+  '가상체험 체육시설업', '안마시술소', '전화방업', '화상대화방업',
+  '수면방업', '콜라텍업', '권총사격장',
+]
+
 /** 빠른 입력 필수 완성도 — 값 존재 여부 맵으로 done/missing 산출 (준비율 이원화의 '필수' 게이지) */
 export function computeQuickReadiness(
   c: CustomerDocProfile,

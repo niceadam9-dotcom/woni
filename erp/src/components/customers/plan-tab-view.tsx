@@ -22,7 +22,7 @@ export type QuickReadiness = { done: number; total: number; missing: string[] }
 const CHAPTERS = [
   { key: 'archive', label: '개정이력·보관', icon: History },
   { key: 'ch1', label: '1장 소방안전관리계획', icon: BookOpen },
-  { key: 'ch2', label: '2장 자위소방대', icon: Users, disabled: true },
+  { key: 'ch2', label: '2장 자위소방대', icon: Users },
   { key: 'ch3', label: '3장 피난계획', icon: DoorOpen, disabled: true },
 ] as const
 
@@ -35,13 +35,13 @@ const CH1_FORMS = [
   { key: '1.5', label: '1.5 피난·방화', active: true },
   { key: '1.6', label: '1.6 기타시설', active: true },
   { key: '1.7', label: '1.7 선임현황', active: true },
-  { key: '1.10', label: '1.10 자체점검' },
-  { key: '1.11', label: '1.11 훈련·교육' },
+  { key: '1.10', label: '1.10 자체점검', active: true },
+  { key: '1.11', label: '1.11 훈련·교육', active: true },
 ]
 
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive,
-  form11, form12, form13, form14, form15, form16, form17,
+  form11, form12, form13, form14, form15, form16, form17, form110, form111, ch2,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
@@ -59,6 +59,9 @@ export function PlanTabView({
   form15: ReactNode
   form16: ReactNode
   form17: ReactNode
+  form110: ReactNode
+  form111: ReactNode
+  ch2: ReactNode
   isGeneral: boolean
   docs: DocChip[]
   quick: QuickReadiness
@@ -412,8 +415,13 @@ export function PlanTabView({
           {form === '1.5' && form15}
           {form === '1.6' && form16}
           {form === '1.7' && form17}
+          {form === '1.10' && form110}
+          {form === '1.11' && form111}
         </div>
       )}
+
+      {/* ── 2장 자위소방대 운영계획 ── */}
+      {chapter === 'ch2' && ch2}
       </>)}
     </div>
   )

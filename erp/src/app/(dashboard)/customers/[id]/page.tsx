@@ -16,6 +16,10 @@ import { PlanForm14 } from '@/components/customers/plan-form14'
 import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } from '@/components/customers/plan-form15'
 import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/components/customers/plan-form16'
 import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
+import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow } from '@/components/customers/plan-form110'
+import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
+import { PlanCh2 } from '@/components/customers/plan-ch2'
+import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
@@ -489,7 +493,15 @@ export default async function CustomerDetailPage({
     revision?: { revisionDate?: string; revisionNote?: string }
     zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
     evacFire?: EvacFireSection; evacMaps?: EvacMapRow[]; etcFacility?: EtcFacilitySection; managers?: ManagerRow[]
+    inspection?: InspectionPlanSection; multiUse?: MultiUseSection; fireHistory?: FireHistoryRow[]
+    training?: TrainingSection; brigadeGeneral?: { type?: string }; brigadeTeams?: Record<string, string>
   } } | null)?.sections) ?? {}
+  // 1.10.1 자동 시기 — 점검계획일 기준 (종합 고객: 종합=기준월·작동=+6개월 / 작동 고객: 작동=기준월)
+  const planYear = new Date().getFullYear()
+  const anchorM = customer.plan_anchor_date ? new Date(customer.plan_anchor_date).getMonth() + 1 : null
+  const isComprehensive = customer.inspection_type === '종합'
+  const autoOpMonth = anchorM ? `${planYear}년 ${isComprehensive ? ((anchorM - 1 + 6) % 12) + 1 : anchorM}월` : ''
+  const autoCompMonth = anchorM && isComprehensive ? `${planYear}년 ${anchorM}월` : ''
   const revSection = fpSections.revision ?? null
   const revisionRows: RevisionRow[] = [...firePlans]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -522,6 +534,16 @@ export default async function CustomerDetailPage({
       form17={<PlanForm17 customerId={customer.id} canManage={canManage}
         initialRows={fpSections.managers ?? []}
         autoRow={{ name: repContact?.name ?? '', selectedAt: planInfoInitial.managerSelectedAt }} />}
+      form110={<PlanForm110 customerId={customer.id} canManage={canManage}
+        isComprehensive={isComprehensive} autoOpMonth={autoOpMonth} autoCompMonth={autoCompMonth}
+        useApprovalDate={s(cRec.use_approval_date)} fireStation={s(cRec.fire_station)}
+        initialInspection={fpSections.inspection ?? null} initialMultiUse={fpSections.multiUse ?? null}
+        initialHistory={fpSections.fireHistory ?? []} />}
+      form111={<PlanForm111 customerId={customer.id} canManage={canManage}
+        initial={fpSections.training ?? null} presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}
+      ch2={<PlanCh2 customerId={customer.id} canManage={canManage}
+        initialType={fpSections.brigadeGeneral?.type ?? ''} initialTeams={fpSections.brigadeTeams ?? {}}
+        initialBrigade={planInfoInitial.brigade} people={planPeople} />}
       isGeneral={isGeneral}
       docs={docChips}
       quick={quickReadiness}

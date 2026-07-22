@@ -58,7 +58,7 @@ try {
   await page.click('button:has-text("서식 전체")')
   await page.waitForSelector('text=개정이력')
   check('고급 모드 — 개정이력·보관 기본 표시', await page.isVisible('text=개정이력'))
-  check('고급 모드 — 2장 비활성(준비 중)', await page.isVisible('button:disabled:has-text("2장 자위소방대")'))
+  check('고급 모드 — 3장 비활성(준비 중)', await page.isVisible('button:disabled:has-text("3장 피난계획")'))
 
   // 개정이력 입력 저장 → fire_plan_forms(096)
   await page.fill('input[placeholder*="소방계획서 작성"]', '개정 E2E 검증')
@@ -129,7 +129,42 @@ try {
   const mgrs = (f17?.sections as { managers?: Array<{ role: string; affiliation: string; name: string }> } | null)?.managers
   check('DB sections.managers 저장', mgrs?.[0]?.role === '관리자' && mgrs?.[0]?.affiliation === '승진소방' && mgrs?.[0]?.name === '홍관리', JSON.stringify(mgrs))
 
+  // ── 4.65) 서식 1.10·1.11 + 2장 (P4-④) ──
+  await page.click('button:has-text("1.10 자체점검")')
+  await page.waitForSelector('text=1.10.1 연간 자체점검 계획')
+  check('1.10 — 작동 고객은 종합점검 블록 미노출(§9-8 조건부)', !(await page.isVisible('text=종합 년월')))
+  await page.fill('input[placeholder*="2026년 9월"]', '2026년 10월')
+  await page.click('button:has-text("서식 1.10 저장")')
+  await page.waitForSelector('text=서식 1.10 저장됨')
+  const { data: f110 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const inspSec = (f110?.sections as { inspection?: { opMonth: string }; multiUse?: { applicable: boolean } } | null)
+  check('DB sections.inspection 저장', inspSec?.inspection?.opMonth === '2026년 10월' && inspSec?.multiUse?.applicable === false, JSON.stringify(inspSec?.inspection))
+
+  await page.click('button:has-text("1.11 훈련·교육")')
+  await page.waitForSelector('text=1.11.1 연간 훈련·교육 계획')
+  await page.click('button:has-text("표준 패턴")')
+  await page.click('button:has-text("상가형")')
+  await page.click('button:has-text("서식 1.11 저장")')
+  await page.waitForSelector('text=서식 1.11 저장됨')
+  const { data: f111 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const tr = (f111?.sections as { training?: { eduMonths: number[]; scenarioType: string; scenario: string } } | null)?.training
+  check('DB sections.training 저장 (표준 패턴 5·11월 + 상가형 시나리오)',
+    JSON.stringify(tr?.eduMonths) === '[5,11]' && tr?.scenarioType === '상가형' && (tr?.scenario ?? '').includes('비상방송'), JSON.stringify({ e: tr?.eduMonths, t: tr?.scenarioType }))
+
+  await page.click('button:has-text("2장 자위소방대")')
+  await page.waitForSelector('text=2.1 자위소방대 및 초기대응체계 일반현황')
+  await page.click('button:has-text("Type Ⅲ")')
+  await page.locator('input[placeholder="성명"]').first().fill('김대장')
+  await page.click('button:has-text("2장 저장")')
+  await page.waitForSelector('text=2장 저장됨')
+  const { data: f2 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const bg = (f2?.sections as { brigadeGeneral?: { type: string } } | null)?.brigadeGeneral
+  const { data: brigRows } = await raw.from('fire_brigade_members').select('team, name').eq('customer_id', customerId)
+  check('DB brigadeGeneral(Type Ⅲ) + fire_brigade_members 저장',
+    bg?.type === 'III' && (brigRows ?? []).some((r: { name: string }) => r.name === '김대장'), JSON.stringify({ bg, brigRows }))
+
   // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
+  await page.click('button:has-text("1장 소방안전관리계획")')
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))
@@ -166,6 +201,7 @@ try {
   for (const id of [customerId, generalId]) {
     if (!id) continue
     await raw.from('fire_plan_forms').delete().eq('customer_id', id)
+    await raw.from('fire_brigade_members').delete().eq('customer_id', id)
     const { data: blds } = await raw.from('buildings').select('id').eq('customer_id', id)
     for (const bd of (blds ?? []) as Array<{ id: string }>) {
       await raw.from('fire_facilities').delete().eq('building_id', bd.id)
