@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~⑤(1~3장 전 서식 화면 + 어댑터 7-3a + 웹 개정이력 다행 — 최신 d51f0ac, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여 주요: 신규 서식 HWP placeholder 확장(7-4)·음성 입력 V-1(§9-4)·P5(보고서 센터·별지 10·11호)·자격정보 정비. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~⑤ + 7-4a HWP 병합 1단계(최신 899c9e8 — 계단·전기·다중이용·피난약자 체크와 3.4 문구까지 HWP 반영, 병합 검증 14/14). 잔여 주요: 7-4b(표 행 단위 HWP 병합·HWP 개정이력 다행)·음성 입력 V-1(§9-4)·P5(보고서 센터·별지 10·11호)·자격정보 정비. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -152,7 +152,12 @@
               "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — sections.zones→1.2.1(형태 매핑), hazards→1.2.2, evacPlan→3.4(절차·경로·집결지), fire_brigade_members→2.2, training 훈련월, 과거 개정이력 다행(revisions)", "fireplan-worker.py — sections.zones 우선 zone_rows(HWP 1.2.1 placeholder 재사용)", ".form.json 스냅샷은 기존 유지"], "method": "코드 대조 + E2E(섹션 저장 경로)" } },
             { "id": "7-3b", "desc": "최초 진입 1회 임포트 배너", "status": "pending_order", "note": "빠른 입력 모드가 기본 진입이 되면서 필요성 재검토" }
           ] },
-        { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "pending_order" },
+        { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "partial",
+          "criteria": [
+            { "id": "7-4a", "desc": "체크·라벨·문구 계열 — 1.5 계단/기타(1.1·3.1 동일 치환), 1.6 전기(kW·kVA 단위 셀), 1.10.3 다중이용(라벨 주입 6필드), 3.5 피난약자 유형 체크, 3.4 경로·집결지 + 초기소화 임무(프리셋 앵커 재사용)", "status": "implemented",
+              "verified": { "date": "2026-07-23", "commit": "899c9e8", "evidence": ["make-fireplan.py build_form_pairs(체크 페어 + 라벨 주입 extras) + inject_after_label 단위 폴백 확장(kW·kVA·명)", "fireplan-worker.py — fire_plan_forms.sections 1회 조회 → stage2 병합(고객 입력>프리셋>양식 기본값)", "zip 수준 병합 검증(scripts/_test-form-pairs.py) 14/14·주입 9/9 — 재심기 불필요(기존 템플릿 대상 런타임 병합)"], "method": "코드 대조 + 템플릿 병합 검증" } },
+            { "id": "7-4b", "desc": "표 행 단위 병합 — 1.10.4 이력·1.11.2 세부계획·1.11.4 기록부·3.2/3.7 행·시나리오 5앵커 분할·HWP 개정이력 다행", "status": "pending_order", "note": "fill_zone_rows류 셀 주소 주입 신규 필요 — 서식별 순차" }
+          ] },
         { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "pending_order", "note": "채택 결정 확정(2026-07-21) — 실행은 중기, 수정 지점 4곳→3곳" },
         { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "pending_order" }
       ]
