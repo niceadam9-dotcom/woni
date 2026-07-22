@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~⑤ + 7-4a·b HWP 병합(최신 bc3da57 — 체크·라벨·문구 + 표 행 단위: 개정이력 다행·1.10.4·3.2·3.7, 병합 검증 24/24). 7-4 잔여는 구조 불일치 3종(1.11.2·1.11.4·시나리오 — 프리셋 경로 유지)뿐. 다음: 음성 입력 V-1(§9-4) 또는 P5(보고서 센터·별지 10·11호·외관점검표). 자격정보 정비(운영 2명)는 사용자 입력 대기. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4 완료 + 7-4a·b HWP 병합 + V-1 음성 점검표(최신 964f608 — 구현·배포 완료, ⚠ AI E2E는 Anthropic 크레딧 소진 블로커·충전 후 test-voice-sheet.mts). 다음: P5(보고서 센터 /reports·별지 10·11호·외관점검표). 사용자 액션 대기: Anthropic 크레딧 충전(V-1·VN-1 공용)·자격정보 입력(운영 2명)·§12 미결 3건. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -219,7 +219,8 @@
       "id": "9-4", "line": 374, "title": "점검결과 음성 입력 — Plaud 녹음 + AI 구조화 (방향 확정)", "status": "pending_order",
       "note": "Plaud 장비 확정·무검수 자동확정 금지(점검자 확정 필수)·1차 경로=Plaud 앱 전사 텍스트(추가 STT 비용 0) — 방향은 confirmed",
       "criteria": [
-        { "id": "9-4a", "desc": "V-1 전사 붙여넣기 + Claude API 구조화(점검표 시트·item_code 컨텍스트, 저장 타깃=inspection_sheet_responses) + 누락 감지 + 점검표 화면 앰버 하이라이트 확인 UX + 전사 원문 로그", "status": "pending_order", "note": "P3 세부" },
+        { "id": "9-4a", "desc": "V-1 전사 붙여넣기 + Claude API 구조화(점검표 시트·item_code 컨텍스트, 저장 타깃=inspection_sheet_responses) + 누락 감지 + 점검표 화면 앰버 하이라이트 확인 UX + 전사 원문 로그", "status": "partial",
+          "note": "구현·배포 완료(964f608 — voice-sheet-actions.ts: 시트·690항목 컨텍스트 구조화(일괄 양호→시트 전체 O·불량→항목 X+메모·추측 금지), 설치 시설 기반 누락 감지, 확인 UX(제안 목록·기존값 충돌 앰버·항목별 체크·[확정 저장] — 무검수 자동확정 금지), activity_logs 전사 원문, X→불량 자동 등록(createDefectsFromX) 연동. 배선 스모크 2/2). ⚠ AI 통과 E2E는 Anthropic API 크레딧 소진으로 차단(외부 블로커) — 충전 후 scripts/test-voice-sheet.mts 실행하면 implemented 승격" },
         { "id": "9-4b", "desc": "V-2 오디오 파일 업로드 → 서버 STT(Whisper/CLOVA — 신규 키 필요)", "status": "pending_order" },
         { "id": "9-4c", "desc": "V-3 별지 9호 3쪽 병합 연동", "status": "pending_order" }
       ]
