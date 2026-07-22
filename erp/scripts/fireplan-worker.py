@@ -176,9 +176,21 @@ def process(job: dict) -> tuple[list[str], dict | None]:
         floors = db_get(f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
         zone_rows = mf.build_zone_rows(buildings[0] if buildings else None, floors, owner)
     brigade = db_get(f"fire_brigade_members?customer_id=eq.{cust_id}&select=team,name,duty,phone&order=sort_order")
+    # 7-4b: 개정이력 다행 — 보관함(fire_plans) 과거 행 + 이번 작성 행
+    plans = db_get(f"fire_plans?customer_id=eq.{cust_id}&select=year,revision,note,created_at&order=created_at")
+    revisions = [{"date": (p.get("created_at") or "")[:10],
+                  "note": p.get("note") or f"{p['year']}년 소방계획서" + (f" (개정{p['revision']})" if (p.get("revision") or 1) > 1 else " 작성"),
+                  "author": ""} for p in plans]
+    rev_input = form_sections.get("revision") or {}
+    revisions.append({
+        "date": (rev_input.get("revisionDate") or time.strftime("%Y-%m-%d"))[:10],
+        "note": rev_input.get("revisionNote") or f"{year}년 소방계획서 작성",
+        "author": "",
+    })
     out_hwp, out_odt, out_html = mf.generate_hwp(cust, year, photo=photo_path, extras=extras,
                                                  extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade,
-                                                 preset_pairs=preset_pairs)
+                                                 preset_pairs=preset_pairs,
+                                                 form_sections=form_sections, revisions=revisions)
     heartbeat(f"{label} — 업로드")
 
     # 1단계: HWP·HTML(미리보기)·ODT(변환 소스) 업로드 → 보관함 즉시 등록 (PDF는 attach_pdf가 뒤따라 채움)

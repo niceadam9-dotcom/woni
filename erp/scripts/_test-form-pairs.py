@@ -35,8 +35,24 @@ for label, value, nth, off in extras:
         fails.append(label)
 print(f"주입 {ok_cnt}/{len(extras)}" + (f" ⚠실패 {fails}" if fails else ""))
 
+# 7-4b 표 병합 — 개정이력 다행·1.10.4·3.2·3.7
+sections_tables = {
+    "fireHistory": [{"kind": "비화재보", "at": "2026-05-01", "place": "지하 1층", "cause": "감지기 오작동", "action": "감지기 교체"}],
+    "evacDetail": [{"facility": "완강기E2E", "location": "3층 복도", "status": "양호"}],
+    "evacEquip": [{"name": "피난사다리E2E", "location": "2층 베란다", "qty": "1"}],
+}
+revisions = [
+    {"date": "2025-01-14", "note": "2025년 소방계획서 작성", "author": "홍길동"},
+    {"date": "2026-07-23", "note": "2026년 소방계획서 작성", "author": "김직원"},
+]
+xml, tn = mf.apply_form_tables(xml, sections_tables, revisions)
+print(f"표 병합 셀 {tn}개")
+
 texts = " | ".join(re.findall(r"<hp:t[^>]*>([^<]*)</hp:t>", xml))
 expects = [
+    "2025-01-14", "2026-07-23", "김직원",
+    "비화재보", "감지기 오작동", "감지기 교체",
+    "완강기E2E", "3층 복도", "피난사다리E2E", "2층 베란다",
     "■ 피난계단", "■ 옥외계단", "■ 대피공간",
     "150 kW", "200 kVA", "50kW 지하1층",
     "행복노래방", "노래연습장업(2)", "김영업", "010-1111-2222",

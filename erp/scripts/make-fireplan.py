@@ -299,6 +299,70 @@ def build_form_pairs(sections: dict) -> tuple[dict[str, str], list[tuple[str, st
         rep["소화기를 이용하여 초기 진압 실시"] = str(teams["extinguish"])
     return rep, extras
 
+# ── 7-4b: 범용 표 행 채우기 — 앵커 텍스트 뒤 표의 (rowAddr,colAddr) 셀에 값 주입 ──
+def _set_tc_text(tc: str, value: str) -> str:
+    """셀 텍스트 설정 — 빈 런이면 주입, 예시 텍스트가 있으면 첫 런 내용 교체"""
+    m = re.search(r'<hp:run charPrIDRef="(\d+)"/>', tc)
+    if m:
+        return tc.replace(m.group(0),
+            f'<hp:run charPrIDRef="{m.group(1)}"><hp:t>{_xml_escape(value)}</hp:t></hp:run>', 1)
+    m2 = re.search(r"(<hp:t[^>]*>)([^<]*)(</hp:t>)", tc)
+    if m2:
+        return tc[:m2.start()] + m2.group(1) + _xml_escape(value) + m2.group(3) + tc[m2.end():]
+    return tc
+
+def fill_table(xml: str, anchor: str, row_start: int, col_map: dict[int, str],
+               rows: list[dict], span: int = 30000) -> tuple[str, int]:
+    """anchor 이후 span 범위의 표에서 데이터 행(row_start+i)의 col_map 셀에 rows[i][key] 주입 (fail-soft)"""
+    start = xml.find(anchor)
+    if start < 0 or not rows:
+        return xml, 0
+    end = min(len(xml), start + span)
+    filled = 0
+
+    def repl(m: re.Match) -> str:
+        nonlocal filled
+        tc = m.group(0)
+        addr = re.search(r'cellAddr colAddr="(\d+)" rowAddr="(\d+)"', tc)
+        if not addr:
+            return tc
+        c, r = int(addr.group(1)), int(addr.group(2))
+        ri = r - row_start
+        if ri < 0 or ri >= len(rows) or c not in col_map:
+            return tc
+        val = str(rows[ri].get(col_map[c]) or "")
+        if not val.strip():
+            return tc
+        filled += 1
+        return _set_tc_text(tc, val)
+
+    seg = re.sub(r"<hp:tc .*?</hp:tc>", repl, xml[start:end], flags=re.S)
+    return xml[:start] + seg + xml[end:], filled
+
+def apply_form_tables(xml: str, sections: dict | None, revisions: list[dict] | None) -> tuple[str, int]:
+    """7-4b 표 병합: 개정이력 다행·1.10.4 이력·3.2 세부현황·3.7 기구·장비.
+    1.11.2(차수 블록)·1.11.4(별지 28호 고정 양식)·시나리오(5앵커 분할)는 구조 불일치로 제외 — 프리셋 경로 유지."""
+    n = 0
+    if revisions:
+        xml, k = fill_table(xml, "소방계획서 개정이력", 1, {1: "date", 2: "note", 3: "author"}, revisions)
+        n += k
+    s = sections or {}
+    hist = s.get("fireHistory") or []
+    if hist:
+        xml, k = fill_table(xml, "1.10.4 화재/비화재보 이력", 2,
+                            {0: "kind", 1: "at", 2: "place", 3: "cause", 5: "action"}, hist)
+        n += k
+    det = s.get("evacDetail") or []
+    if det:
+        xml, k = fill_table(xml, "피난시설 및 기타시설 세부현황", 1,
+                            {4: "facility", 5: "location", 6: "status"}, det)
+        n += k
+    equip = s.get("evacEquip") or []
+    if equip:
+        xml, k = fill_table(xml, "유도장비", 16, {0: "name", 3: "location", 5: "qty"}, equip)
+        n += k
+    return xml, n
+
 # ── 4차: 서식 1.2.1 구역별 세부현황 행 채우기 ─────────────────
 def fill_zone_rows(xml: str, zone_rows: list[dict[int, str]]) -> tuple[str, int]:
     """1.2.1 표의 데이터 행(rowAddr 6~)에 값 주입. zone_rows = [{colAddr: 값}]"""
@@ -381,7 +445,9 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                  extras: list | None = None, extra_replacements: dict[str, str] | None = None,
                  zone_rows: list[dict[int, str]] | None = None,
                  brigade: list[dict] | None = None,
-                 preset_pairs: list[tuple[str, str]] | None = None) -> tuple[str, str]:
+                 preset_pairs: list[tuple[str, str]] | None = None,
+                 form_sections: dict | None = None,
+                 revisions: list[dict] | None = None) -> tuple[str, str]:
     """표준양식 병합 → (hwp_path, odt_path). SDK는 프로세스당 1회 초기화."""
     hwpsdk = sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -446,6 +512,9 @@ def generate_hwp(cust: dict, year: int, photo: str | None = None, out_dir: str =
                         xml, ok = inject_after_label(xml, label, value, nth, off)
                         if not ok:
                             print(f"  ⚠️ 빈 칸 주입 실패(수동 보완 필요): {label}({nth},{off})")
+                    if form_sections or revisions:
+                        xml, tn = apply_form_tables(xml, form_sections, revisions)
+                        print(f"  서식 표 병합(7-4b): 셀 {tn}개")
                     if not use_ph:
                         if zone_rows:
                             xml, n = fill_zone_rows(xml, zone_rows)
