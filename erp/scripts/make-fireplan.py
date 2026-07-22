@@ -165,8 +165,8 @@ def inject_after_label(xml: str, label: str, value: str, nth: int = 1, cell_offs
         new_cell = cell.replace(m.group(0),
             f'<hp:run charPrIDRef="{m.group(1)}"><hp:t>{_xml_escape(value)}</hp:t></hp:run>', 1)
         return xml[:tc_start] + new_cell + xml[tc_end:], True
-    # 폴백: 단위만 있는 값 셀 (㎡/m/원) — 값으로 대체
-    for unit in ("㎡", "m", "원"):
+    # 폴백: 단위만 있는 값 셀 (㎡/m/원/kW/kVA/명) — 값으로 대체 (대상 셀 안에서만 치환)
+    for unit in ("㎡", " kW", "kW", " kVA", "kVA", "m", "원", "명"):
         token = f"<hp:t>{unit}</hp:t>"
         if token in cell:
             new_cell = cell.replace(token, f"<hp:t>{_xml_escape(value)}</hp:t>", 1)
@@ -254,6 +254,50 @@ def build_stage2(cust: dict, year: int, codes: list[str]) -> dict[str, str]:
     if cust.get("headcount_max"):
         rep["100명"] = f"{cust['headcount_max']}명"
     return rep
+
+# ── 7-4: 서식 입력(fire_plan_forms.sections) → HWP 병합 (P4-⑤ 1단계) ──
+def build_form_pairs(sections: dict) -> tuple[dict[str, str], list[tuple[str, str, int, int]]]:
+    """섹션 입력 → (체크·문구 치환 쌍, 라벨 주입 extras). 고객 입력 > 프리셋 > 양식 기본값 우선순위 유지."""
+    rep: dict[str, str] = {}
+    extras: list[tuple[str, str, int, int]] = []
+    # 1.5 계단·기타 피난시설 — 1.1·1.5·3.1 동일 데이터 (양식이 □/☐ 혼용이라 둘 다 치환)
+    ef = sections.get("evacFire") or {}
+    for name in list(ef.get("stairs") or {}) + list(ef.get("etc") or []):
+        for box in ("□", "☐"):
+            rep[f"{box} {name}"] = f"■ {name}"
+    # 1.6 전기 — 라벨 뒤 단위 셀(kW/kVA) 주입
+    elec = (sections.get("etcFacility") or {}).get("electric") or {}
+    if elec.get("kw"):
+        extras.append(("수전용량 ", f"{elec['kw']} kW", 1, 1))
+    if elec.get("kva"):
+        extras.append(("변압기용량", f"{elec['kva']} kVA", 1, 1))
+    if elec.get("generator") and elec.get("generatorNote"):
+        extras.append(("비상발전기", str(elec["generatorNote"]), 1, 1))
+    # 1.10.3 다중이용업소 — 라벨 뒤 빈 셀 주입 (해당 시에만)
+    mu = sections.get("multiUse") or {}
+    if mu.get("applicable"):
+        cats = ", ".join(f"{k}({v})" for k, v in (mu.get("categories") or {}).items())
+        for label, val in (("사업장명", mu.get("bizName")), ("업    종", cats), ("위    치", mu.get("location")),
+                           ("영 업 주", mu.get("owner")), ("연 락 처", mu.get("phone")), ("수용인원", mu.get("capacity"))):
+            if val:
+                extras.append((label, str(val), 1, 1))
+    # 3.5 피난약자 유형 체크 (명수 입력된 유형)
+    vul = sections.get("vulnerable") or {}
+    if not vul.get("none"):
+        for tp, c in (vul.get("counts") or {}).items():
+            if (c or {}).get("work") or (c or {}).get("use"):
+                rep[f"☐ {tp}"] = f"■ {tp}"
+    # 3.4 절차·경로·집결지 + 2장 초기소화 임무 — 7차 프리셋 앵커 재사용 (고객 입력 최우선)
+    ep = sections.get("evacPlan") or {}
+    routes = ep.get("routes") or []
+    if routes and (routes[0] or {}).get("route"):
+        rep["각 세대 출입구 앞 직통계단 이용"] = routes[0]["route"]
+    if ep.get("assembly"):
+        rep["1층 주차장"] = str(ep["assembly"])
+    teams = sections.get("brigadeTeams") or {}
+    if teams.get("extinguish"):
+        rep["소화기를 이용하여 초기 진압 실시"] = str(teams["extinguish"])
+    return rep, extras
 
 # ── 4차: 서식 1.2.1 구역별 세부현황 행 채우기 ─────────────────
 def fill_zone_rows(xml: str, zone_rows: list[dict[int, str]]) -> tuple[str, int]:

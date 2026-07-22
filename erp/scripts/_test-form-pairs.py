@@ -1,0 +1,53 @@
+# build_form_pairs 병합 검증 (SDK 불필요 — zip 수준 치환·주입 확인)
+import importlib.util
+import os
+import re
+import sys
+import zipfile
+
+sys.stdout.reconfigure(encoding="utf-8")
+HERE = os.path.dirname(os.path.abspath(__file__))
+spec = importlib.util.spec_from_file_location("make_fireplan", os.path.join(HERE, "make-fireplan.py"))
+mf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mf)
+
+sections = {
+    "evacFire": {"stairs": {"피난계단": "2", "옥외계단": "1"}, "etc": ["대피공간"]},
+    "etcFacility": {"electric": {"kw": "150", "kva": "200", "generator": True, "generatorNote": "50kW 지하1층"}},
+    "multiUse": {"applicable": True, "categories": {"노래연습장업": "2"}, "bizName": "행복노래방",
+                 "location": "지하 1층", "owner": "김영업", "phone": "010-1111-2222", "capacity": "40"},
+    "vulnerable": {"none": False, "counts": {"노인": {"work": "3", "use": ""}}},
+    "evacPlan": {"assembly": "정문 앞 공터", "routes": [{"route": "복도 끝 피난계단 이용"}]},
+    "brigadeTeams": {"extinguish": "소화기·옥내소화전으로 초기 진화 후 대피"},
+}
+rep, extras = mf.build_form_pairs(sections)
+print(f"pairs {len(rep)}건, extras {len(extras)}건")
+
+with zipfile.ZipFile(mf.TEMPLATE_PH) as z:
+    xml = z.read("Contents/section0.xml").decode("utf-8")
+for old, new in rep.items():
+    xml = xml.replace(old, new)
+ok_cnt, fails = 0, []
+for label, value, nth, off in extras:
+    xml, ok = mf.inject_after_label(xml, label, value, nth, off)
+    ok_cnt += 1 if ok else 0
+    if not ok:
+        fails.append(label)
+print(f"주입 {ok_cnt}/{len(extras)}" + (f" ⚠실패 {fails}" if fails else ""))
+
+texts = " | ".join(re.findall(r"<hp:t[^>]*>([^<]*)</hp:t>", xml))
+expects = [
+    "■ 피난계단", "■ 옥외계단", "■ 대피공간",
+    "150 kW", "200 kVA", "50kW 지하1층",
+    "행복노래방", "노래연습장업(2)", "김영업", "010-1111-2222",
+    "■ 노인", "정문 앞 공터", "복도 끝 피난계단 이용", "소화기·옥내소화전으로 초기 진화 후 대피",
+]
+missing = [e for e in expects if e not in texts]
+print(f"병합 검증: {len(expects) - len(missing)}/{len(expects)} 통과")
+if missing:
+    print("❌ 미확인:", missing)
+    # 실패 항목 주변 문맥
+    for m in missing[:3]:
+        key = m.replace("■ ", "")
+        i = texts.find(key)
+        print(f"  '{key}' 주변: …{texts[max(0, i - 80):i + 120]}…" if i >= 0 else f"  '{key}' 미존재")

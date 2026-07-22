@@ -142,6 +142,12 @@ def process(job: dict) -> tuple[list[str], dict | None]:
         codes = [f["facility_code"] for f in db_get(
             f"fire_facilities?building_id=eq.{buildings[0]['id']}&installed=eq.true&select=facility_code")]
     stage2 = mf.build_stage2(cust, year, codes)
+    # 7-4: 서식 입력(fire_plan_forms.sections) → 체크·문구·라벨 병합 (고객 입력 > 프리셋 > 양식 기본값)
+    form_rows = db_get(f"fire_plan_forms?customer_id=eq.{cust_id}&select=sections")
+    form_sections = (form_rows[0].get("sections") or {}) if form_rows else {}
+    form_pairs, form_extras = mf.build_form_pairs(form_sections)
+    stage2.update(form_pairs)
+    extras.extend(form_extras)
 
     # 사진 연계: 고객 gen-assets(웹 PDF 생성 시 업로드)의 최신 이미지 1장을 표지에 삽입
     photo_path = None
@@ -162,8 +168,7 @@ def process(job: dict) -> tuple[list[str], dict | None]:
         print(f"[{now_iso()}] 프리셋({preset_type}): 문구 {len(preset_pairs)}개 치환 예정")
 
     # 어댑터 §7-3: 서식 1.2.1 입력값(fire_plan_forms.sections.zones) 우선 — 없으면 층별 데이터 폴백
-    form_rows = db_get(f"fire_plan_forms?customer_id=eq.{cust_id}&select=sections")
-    form_zones = ((form_rows[0].get("sections") or {}).get("zones") or []) if form_rows else []
+    form_zones = form_sections.get("zones") or []
     if form_zones:
         zone_rows = [{1: z.get("zone") or "", 2: z.get("name") or "",
                       3: z.get("area") or "", 10: z.get("phone") or ""} for z in form_zones]
