@@ -216,28 +216,36 @@ export async function getFirePlanGenDefaultsAction(
   await requirePermission('customer_manage')
   const admin = createAdminClient()
 
-  const [custRes, contactRes, bldRes, companyRes] = await Promise.all([
+  const [custRes, contactRes, bldRes, companyRes, formRes] = await Promise.all([
     admin.from('customers')
-      .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date')
+      .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date, building_grade, manager_selected_at')
       .eq('id', customerId).single(),
     admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
     admin.from('buildings')
-      .select('id, purpose, total_area, floors_above, floors_below')
+      .select('id, purpose, total_area, floors_above, floors_below, height, receiver_location, main_structure, roof_structure')
       .eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }),
     admin.from('company_profile').select('company_name, address, phone').limit(1).maybeSingle(),
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
   ])
   const cust = custRes.data as {
     customer_name: string; address: string | null; use_approval_date: string | null
     fire_station: string | null; inspection_type: string; plan_anchor_date: string | null; contract_date: string | null
+    building_grade: string | null; manager_selected_at: string | null
   } | null
   if (!cust) return { error: '고객을 찾을 수 없습니다.' }
 
   const contacts = (contactRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0]
-  const buildings = (bldRes.data ?? []) as Array<{ id: string; purpose: string | null; total_area: number | null; floors_above: number | null; floors_below: number | null }>
+  const buildings = (bldRes.data ?? []) as Array<{
+    id: string; purpose: string | null; total_area: number | null; floors_above: number | null; floors_below: number | null
+    height: number | string | null; receiver_location: string | null; main_structure: string | null; roof_structure: string | null
+  }>
   const b = buildings[0]
   const company = companyRes.data as { company_name: string; address: string | null; phone: string | null } | null
+  // 개정이력 입력(096 fire_plan_forms.sections.revision) — 있으면 작성일·개정내용 기본값으로 사용
+  const revision = ((formRes.data as { sections?: { revision?: { revisionDate?: string; revisionNote?: string } } } | null)
+    ?.sections?.revision) ?? null
 
   // 설치 시설 → 서식 1.4 항목명 매칭 (코드·항목명 상호 포함으로 판정)
   let facilities: string[] = []
@@ -265,25 +273,26 @@ export async function getFirePlanGenDefaultsAction(
   return {
     data: {
       year,
-      revisionDate: kstToday,
-      revisionNote: `${year}년 소방계획서 작성`,
+      revisionDate: revision?.revisionDate || kstToday,
+      revisionNote: revision?.revisionNote || `${year}년 소방계획서 작성`,
       buildingName: cust.customer_name,
       address: cust.address ?? '',
-      grade: '3급',
+      // 고객·건물 데이터 연동 (2026-07-21, 소방계획서_2.md 요구 3·4·5 — 종전 하드코딩 제거)
+      grade: cust.building_grade ?? '',
       purpose: b?.purpose ?? '',
       useApprovalDate: cust.use_approval_date ?? '',
       totalArea: b?.total_area != null ? String(b.total_area) : '',
       buildingArea: '',
       floors,
-      height: '',
-      structure: '',
-      roof: '',
-      receiverLocation: '',
+      height: b?.height != null && String(b.height).trim() !== '' ? String(b.height) : '',
+      structure: b?.main_structure ?? '',
+      roof: b?.roof_structure ?? '',
+      receiverLocation: b?.receiver_location ?? '',
       ownerName: owner?.name ?? '',
       ownerPhone: owner?.phone ?? '',
       managerName: owner?.name ?? '',
       managerPhone: owner?.phone ?? '',
-      managerSelectedAt: '',
+      managerSelectedAt: cust.manager_selected_at ?? '',
       fireStation: cust.fire_station ?? '',
       stationDistance: '',
       stationEta: '',

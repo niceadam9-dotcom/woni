@@ -9,6 +9,7 @@ import { EditInspectionTypeClient } from '@/components/customers/edit-inspection
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
+import { PlanTabView, type RevisionRow } from '@/components/customers/plan-tab-view'
 import { FacilitiesClient } from '@/components/customers/facilities-client'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
@@ -56,10 +57,10 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string }>
+  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string }>
 }) {
   const { id } = await params
-  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created } = await searchParams
+  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub } = await searchParams
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
@@ -446,17 +447,29 @@ export default async function CustomerDetailPage({
       />
   )
 
-  // 소방계획서 보관함 — 표준양식 PDF 업로드·자동 인쇄 (doc02 §8)
+  // 소방계획서 탭 — 장(章) 서브탭 골격 (소방계획서_4.md 4-1): 생성 바 + 개정이력·보관 + 1장>1.1
+  const { data: fpForm } = await admin.from('fire_plan_forms')
+    .select('sections').eq('customer_id', id).maybeSingle()
+  const revSection = ((fpForm as { sections?: { revision?: { revisionDate?: string; revisionNote?: string } } } | null)
+    ?.sections?.revision) ?? null
+  const revisionRows: RevisionRow[] = [...firePlans]
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
   const planTab = (
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <History className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">소방계획서</h2>
-          <span className="text-xs text-[#b0acd6] ml-auto">{firePlans.length}건</span>
-        </div>
-        <FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />
-        <FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />
-      </div>
+    <PlanTabView
+      customerId={customer.id}
+      canManage={canManage}
+      purpose={planInfoInitial.purpose}
+      readiness={{ done: readiness.done, total: readiness.total, missing: readiness.missing }}
+      revisionInitial={{
+        revisionDate: revSection?.revisionDate || '',
+        revisionNote: revSection?.revisionNote || '',
+      }}
+      revisionRows={revisionRows}
+      initialSection={sub}
+      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
+      form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
+    />
   )
 
   // 점검 이력 + 변경 이력 통합 타임라인
