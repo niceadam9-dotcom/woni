@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { buildFirePlanHtml, buildDataSheetHtml, FACILITY_FORM, type FirePlanGenData } from '@/lib/fire-plan-template'
+import { toStandardCodes } from '@/lib/facility-codes'
 import { convertHtmlToPdf } from '@/lib/pdf'
 
 const BUCKET = 'fire-plans'
@@ -247,16 +248,16 @@ export async function getFirePlanGenDefaultsAction(
   const revision = ((formRes.data as { sections?: { revision?: { revisionDate?: string; revisionNote?: string } } } | null)
     ?.sections?.revision) ?? null
 
-  // 설치 시설 → 서식 1.4 항목명 매칭 (코드·항목명 상호 포함으로 판정)
+  // 설치 시설 → 서식 1.4 항목 — 표준 코드(100) 정확 일치, 레거시 잔존분은 toStandardCodes로 정규화
   let facilities: string[] = []
   if (buildings.length > 0) {
     const { data: facRaw } = await admin.from('fire_facilities')
       .select('facility_code, installed')
       .in('building_id', buildings.map(x => x.id))
       .eq('installed', true)
-    const codes = ((facRaw ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
-    const allItems = FACILITY_FORM.flatMap(g => g.items)
-    facilities = allItems.filter(item => codes.some(code => item.includes(code) || code.includes(item)))
+    const codes = toStandardCodes(((facRaw ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code))
+    const allItems = new Set(FACILITY_FORM.flatMap(g => g.items))
+    facilities = codes.filter(c => allItems.has(c))
   }
 
   // 자체점검 시기 — 점검계획일 기준: 종합 고객은 종합=기준월·작동=+6개월, 작동 고객은 작동=기준월

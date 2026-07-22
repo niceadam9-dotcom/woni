@@ -78,14 +78,9 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const v = (s: string | null | undefined, unit = '') => s?.trim() ? `${esc(s.trim())}${unit}` : '&nbsp;'
 const ck = (on: boolean, label: string) => `<span class="ck">${on ? '■' : '☐'} ${esc(label)}</span>`
 
-/** 서식 1.4 소방시설 고정 목록 (표준양식 그대로) */
-export const FACILITY_FORM: Array<{ category: string; items: string[] }> = [
-  { category: '소화설비', items: ['소화기구 및 자동소화장치', '옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비', '화재조기진압용 스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비', '이산화탄소소화설비', '할론소화설비', '할로겐화합물 및 불활성기체소화설비', '분말소화설비', '강화액소화설비', '고체에어로졸소화설비'] },
-  { category: '경보설비', items: ['단독경보형감지기', '비상경보설비', '자동화재탐지설비 및 시각경보기', '화재알림설비', '비상방송설비', '통합감시시설', '자동화재속보설비', '누전경보기', '가스누설경보기'] },
-  { category: '피난구조설비', items: ['피난기구', '인명구조기구', '피난유도선', '유도등', '비상조명등', '유도표지', '휴대용비상조명등'] },
-  { category: '소화용수설비', items: ['상수도소화용수설비', '소화수조 및 저수조'] },
-  { category: '소화활동설비', items: ['거실제연설비', '부속실 등 제연설비', '비상콘센트설비', '연결송수관설비', '무선통신보조설비', '연결살수설비', '연소방지설비'] },
-]
+/** 서식 1.4 소방시설 고정 목록 — 표준 코드 상수 재수출 (마이그레이션 100 이후 DB 코드와 동일) */
+import { FACILITY_STANDARD } from './facility-codes'
+export const FACILITY_FORM = FACILITY_STANDARD
 
 const GRADES = ['특급', '1급', '2급', '3급']
 

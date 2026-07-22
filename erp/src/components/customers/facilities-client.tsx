@@ -6,14 +6,9 @@ import { Check, Plus, X, Loader2, ShieldCheck, Sparkles, Copy, Layers } from 'lu
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { suggestFacilitySet, DETAIL_TYPE_PRESETS, parseDetailChips, serializeDetailChips, type DetailChip } from '@/lib/facility-presets'
 
-// 표준 소방시설 분류 (보고서 '현황' 대응)
-const CATALOG: Array<{ category: string; items: string[] }> = [
-  { category: '소화설비', items: ['소화기구', '옥내소화전', '스프링클러', '간이스프링클러', '물분무등소화설비', '옥외소화전'] },
-  { category: '경보설비', items: ['자동화재탐지설비', '비상경보설비', '비상방송설비', '자동화재속보설비', '가스누설경보기'] },
-  { category: '피난구조설비', items: ['피난기구', '인명구조기구', '유도등·유도표지', '비상조명등'] },
-  { category: '소화용수설비', items: ['상수도소화용수설비', '소화수조·저수조'] },
-  { category: '소화활동설비', items: ['제연설비', '연결송수관설비', '연결살수설비', '비상콘센트설비', '무선통신보조설비'] },
-]
+// 표준 소방시설 분류 — 서식 1.4 정식 명칭 42종 (마이그레이션 100, src/lib/facility-codes.ts 단일 기준)
+import { FACILITY_STANDARD } from '@/lib/facility-codes'
+const CATALOG = FACILITY_STANDARD
 const FLOOR_COLS = ['소화기', '차동식', '연기식', '정온식', '유도등', '비상조명']
 
 type Building = {
