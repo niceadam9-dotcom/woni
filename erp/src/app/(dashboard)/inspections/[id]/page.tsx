@@ -11,6 +11,7 @@ import { InspectionSheetClient } from '@/components/inspections/inspection-sheet
 import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
+import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-voice-sheet-client'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
 import { computeQuickReadiness } from '@/lib/doc-requirements'
@@ -360,6 +361,9 @@ export default async function InspectionDetailPage({
         xCount={xCount}
         canManage={canEdit}
       />
+
+      {/* 음성 점검표 입력 V-1 (§9-4) — 전사 → AI 구조화 → 확인 후 점검표 반영 */}
+      <InspectionVoiceSheetClient inspectionId={id} canManage={canEdit} />
 
       {/* 실시결과 보고서 별지 9호 (P3 §9-6⑦) — 일반관리 점검은 미표시(§9-8) */}
       {report9Checks && (
