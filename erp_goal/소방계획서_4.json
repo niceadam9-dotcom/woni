@@ -88,7 +88,7 @@
           "verified": { "date": "2026-07-23", "commit": "e357311", "evidence": ["plan-form16.tsx — 전기(수전 kW·변압기 kVA·위치·수량·비상발전기·비고)·가스(종류·위치·용도·정압기·차단기구+위치, [LPG 프리셋] §11-3)·위험물([해당없음] 원클릭)", "E2E: LPG 프리셋 저장→DB sections.etcFacility 확인"], "method": "코드 대조 + E2E" } },
         { "id": "3-1.7", "desc": "서식 1.7 선임현황 — managers (1행 고객 데이터 자동)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "e357311", "evidence": ["plan-form17.tsx — 구분(관리자/보조자)/소속/성명/선임일자(DateInput)/실무교육 수료일/담당업무 행 편집, 1행 자동(대표 관계인+manager_selected_at)", "E2E: 저장→DB sections.managers 확인"], "method": "코드 대조 + E2E" } },
-        { "id": "3-1.8", "desc": "서식 1.8 업무대행 현황 — company_profile·계약·등급 자동 읽기 전용", "status": "pending_order" },
+        { "id": "3-1.8", "desc": "서식 1.8 업무대행 현황 — company_profile·계약·등급 자동 읽기 전용", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3125226", "evidence": ["plan-form18.tsx — 대행업체(company_profile 5필드)+계약일·등급·점검구분·관계인·선임일 자동 읽기 전용(수정은 원천 화면 안내)", "plan-tab-view CH1_FORMS 1.8 칩 + 렌더 배선"], "method": "E2E scripts/test-form18.mts 7/7 — 칩·렌더·업체명·계약일·등급·관계인 자동 표시" } },
         { "id": "3-1.10", "desc": "서식 1.10 자체점검·업무수행 — 연간 점검 계획(inspection)/다중이용업소(multiUse)/화재·비화재보 이력(fireHistory)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-form110.tsx — 1.10.1(작동·종합 시기 점검계획일 자동+수정, 점검자 자체/외주, 최초점검·종합2차, 사용승인일·제출처 자동, 종합 블록은 종합 고객만 §9-8), 1.10.3(해당 토글 + 업종 MULTI_USE_CATEGORIES 26종 선택형+개소 §9-6④ + 사업장 정보), 1.10.4(화재/비화재보 행)", "E2E 35/35: 작동 고객 종합 블록 미노출·저장→DB sections.inspection 확인"], "method": "코드 대조 + E2E" },
           "note": "1.10.2 업무수행 기록은 §12-1 미결로 제외 유지" },
