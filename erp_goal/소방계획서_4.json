@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4 완료 + 7-4a·b HWP 병합 + V-1 음성 점검표(최신 964f608 — 구현·배포 완료, ⚠ AI E2E는 Anthropic 크레딧 소진 블로커·충전 후 test-voice-sheet.mts). 다음: P5(보고서 센터 /reports·별지 10·11호·외관점검표). 사용자 액션 대기: Anthropic 크레딧 충전(V-1·VN-1 공용)·자격정보 입력(운영 2명)·§12 미결 3건. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1~P4 완료 + HWP 병합(7-4a·b) + V-1(⚠ AI E2E는 크레딧 블로커) + P5 R-1·R-2 보고서 센터(최신 6643dab — /reports 카탈로그·생성 페이지 흡수·별지 9호 점검 건 선택, 스모크 9/9). 잔여: R-3(별지 10·11호+법제처 개정 감지 크론)·외관점검표(§9-8)·§9-9 타임라인. 사용자 액션 대기: Anthropic 크레딧 충전·자격정보 입력(운영 2명)·§12 미결 3건. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -294,8 +294,11 @@
       "id": "10", "line": 626, "title": "보고서 페이지 (보고서 센터) — /reports 신설", "status": "pending_order",
       "note": "역할 분담 확정: 고객 탭=입력+개별 생성 / 보고서 페이지=전 고객 선택·일괄 생성+현황+이력+서식 관리. 고객 탭 [HWP/PDF 생성]은 유지",
       "criteria": [
-        { "id": "10-R1", "desc": "R-1 — /reports 신설 + 소방계획서·데이터시트 카드 + /fire-plans/generate 흡수(리다이렉트·사이드바 메뉴명 변경) + 서식 관리 접기(프리셋 이동)", "status": "pending_order" },
-        { "id": "10-R2", "desc": "R-2 — 큐 fire_plan_gen_jobs에 report_type 컬럼 확장(워커 유형별 병합 분기) + 별지 9호·배치확인서 카드(점검 건 선택 UI) + 점검 완료 화면 바로가기", "status": "pending_order" },
+        { "id": "10-R1", "desc": "R-1 — /reports 신설 + 소방계획서·데이터시트 카드 + /fire-plans/generate 흡수(리다이렉트·사이드바 메뉴명 변경) + 서식 관리 접기(프리셋 이동)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["reports/page.tsx — 서식 카탈로그 4카드(버전 표시·비활성 흐림) + 소방계획서 카드=기존 FirePlanGenerateRequestClient 통째 흡수(고객 다중·프리셋·큐 현황·프리셋 관리 접기 포함)", "fire-plans/generate → redirect('/reports'), 사이드바 '소방계획서 생성'→'보고서'", "스모크 9/9 (카드·흡수·리다이렉트·검색)"], "method": "코드 대조 + UI 스모크" } },
+        { "id": "10-R2", "desc": "R-2 — 큐 fire_plan_gen_jobs에 report_type 컬럼 확장(워커 유형별 병합 분기) + 별지 9호·배치확인서 카드(점검 건 선택 UI) + 점검 완료 화면 바로가기", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["큐 report_type·워커 분기는 P3(099·48a28ea) 선구현", "별지 9호 카드 — 점검 건 선택(자체점검만·고객명 검색·생성 이력 수) → 점검 상세 준비 화면으로 이동(§9-6⑦ 진입점 2개·화면 1개)", "배치확인서 카드 — 업로드 문서 안내(예정 표시)"], "method": "코드 대조 + UI 스모크" },
+          "note": "배치확인서는 협회 발급 업로드 문서(§9-9 ②)라 생성 카드 아님 — 점검 상세 업로드 슬롯은 §9-9 타임라인에서" },
         { "id": "10-R3", "desc": "R-3 — 별지 10·11호 카드 + 법제처 개정 감지 크론·서식 버전(개정일)·'새 개정판' 뱃지", "status": "pending_order" }
       ]
     },
