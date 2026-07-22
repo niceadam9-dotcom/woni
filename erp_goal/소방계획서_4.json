@@ -204,7 +204,7 @@
       "note": "구현은 3-1.1(신규 필드)·4-3(코드 표준화)·9-6③(자동 판정) criteria에 귀속"
     },
     {
-      "id": "9-3", "line": 364, "title": "별지 9호 자동 생성 — MVP (P3)", "status": "pending_order",
+      "id": "9-3", "line": 364, "title": "별지 9호 자동 생성 — MVP (P3)", "status": "partial",
       "criteria": [
         { "id": "9-3a", "desc": "MVP 범위 확정 — 1~3쪽만 자동 병합, 4~8쪽 설비 세부 스펙은 빈 서식 포함 출력(수기 관행 유지)", "status": "confirmed", "note": "2026-07-21 채택, §12-6 결정 완료" },
         { "id": "9-3b", "desc": "별지 9호 placeholder 심기 + 매핑 규칙 + 워커 HWP 출력 + 점검 완료 화면 생성 버튼", "status": "implemented",
@@ -216,7 +216,7 @@
       ]
     },
     {
-      "id": "9-4", "line": 374, "title": "점검결과 음성 입력 — Plaud 녹음 + AI 구조화 (방향 확정)", "status": "pending_order",
+      "id": "9-4", "line": 374, "title": "점검결과 음성 입력 — Plaud 녹음 + AI 구조화 (방향 확정)", "status": "partial",
       "note": "Plaud 장비 확정·무검수 자동확정 금지(점검자 확정 필수)·1차 경로=Plaud 앱 전사 텍스트(추가 STT 비용 0) — 방향은 confirmed",
       "criteria": [
         { "id": "9-4a", "desc": "V-1 전사 붙여넣기 + Claude API 구조화(점검표 시트·item_code 컨텍스트, 저장 타깃=inspection_sheet_responses) + 누락 감지 + 점검표 화면 앰버 하이라이트 확인 UX + 전사 원문 로그", "status": "partial",
@@ -226,7 +226,7 @@
       ]
     },
     {
-      "id": "9-5", "line": 401, "title": "법제처 Open API — 최신 서식 자동 다운로드", "status": "pending_order",
+      "id": "9-5", "line": 401, "title": "법제처 Open API — 최신 서식 자동 다운로드", "status": "partial",
       "criteria": [
         { "id": "9-5a", "desc": "PoC — target=licbyl 검색(별지 9호 정확 매칭·공포일자 20260701) + flDownload HWP 수신 + SDK 열기·HWPX 변환·구조 동일 확인", "status": "confirmed", "note": "2026-07-21 성공. 파일: _form/별지9호_법제처API_20260701.hwp" },
         { "id": "9-5b", "desc": "OC 계정 검증 — 호출 서버 IP 등록(VPS 121.78.123.230 권장)", "status": "pending_order", "note": "도메인만 등록된 상태로는 실패 — 미해결" },
@@ -234,7 +234,7 @@
       ]
     },
     {
-      "id": "9-6", "line": 409, "title": "별지 9호 작성 상세 매핑 — 구현 전 확정 사항", "status": "pending_order",
+      "id": "9-6", "line": 409, "title": "별지 9호 작성 상세 매핑 — 구현 전 확정 사항", "status": "partial",
       "criteria": [
         { "id": "9-6a", "desc": "① 1쪽 필드 매핑 정의 — 점검 구분·대상물·점검기간·점검자(항상 관리업자 체크)·제출처 자동", "status": "confirmed" },
         { "id": "9-6b", "desc": "① 고객 필드 신설 — email_delivery_consent(동의/미동의) + report_email", "status": "implemented",
@@ -266,7 +266,7 @@
       ]
     },
     {
-      "id": "9-8", "line": 525, "title": "문서 요구 매트릭스 — 고객 유형별 필요 문서", "status": "pending_order",
+      "id": "9-8", "line": 525, "title": "문서 요구 매트릭스 — 고객 유형별 필요 문서", "status": "partial",
       "criteria": [
         { "id": "9-8a", "desc": "매트릭스·법적 근거 확정 — 종합/작동=계획서+점검표+9호(15일 보고)+10·11호(불량 시), 일반관리=외관점검표만(2년 보관·보고 없음)", "status": "confirmed", "note": "실무 확인 완료 2026-07-21. 두 점검표는 별개 문서" },
         { "id": "9-8b", "desc": "doc-requirements.ts 상수 — requiredDocs(customer)(문서·기한) + requiredFields(customer)(빠른 입력 필수·준비율 분모), 유형 분기 하드코딩 금지", "status": "implemented",
@@ -294,7 +294,7 @@
       ]
     },
     {
-      "id": "10", "line": 626, "title": "보고서 페이지 (보고서 센터) — /reports 신설", "status": "pending_order",
+      "id": "10", "line": 626, "title": "보고서 페이지 (보고서 센터) — /reports 신설", "status": "partial",
       "note": "역할 분담 확정: 고객 탭=입력+개별 생성 / 보고서 페이지=전 고객 선택·일괄 생성+현황+이력+서식 관리. 고객 탭 [HWP/PDF 생성]은 유지",
       "criteria": [
         { "id": "10-R1", "desc": "R-1 — /reports 신설 + 소방계획서·데이터시트 카드 + /fire-plans/generate 흡수(리다이렉트·사이드바 메뉴명 변경) + 서식 관리 접기(프리셋 이동)", "status": "implemented",
@@ -307,7 +307,7 @@
       ]
     },
     {
-      "id": "11", "line": 680, "title": "입력 편의 장치 — 필요한 값을 쉽게 입력", "status": "pending_order",
+      "id": "11", "line": 680, "title": "입력 편의 장치 — 필요한 값을 쉽게 입력", "status": "partial",
       "criteria": [
         { "id": "11-1", "desc": "건축물대장 자동 채움 확대 ★최우선 — refreshLedgerAction을 1.1 신규 필드(건축허가일·세대수·동수·높이·구조·지붕·승강기·주차장 등)로 확대, 불러온 값 앰버 하이라이트→저장 확정", "status": "partial",
           "criteria": [
