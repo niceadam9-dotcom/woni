@@ -94,7 +94,9 @@ export default async function InspectionDetailPage({
     admin.from('generated_reports')
       .select('id, report_kind, file_name, generated_at, generated_by')
       .eq('inspection_id', id).order('generated_at', { ascending: false }),
-    admin.from('inspection_sheets').select('id, sheet_code, sheet_name').eq('version', 'v2025').order('sheet_code'),
+    // 일반관리 = 외관점검표 시트(EXT, 별지 6호 v2022 — §9-8d) / 그 외 = 소방시설등점검표(STD v2025)
+    admin.from('inspection_sheets').select('id, sheet_code, sheet_name')
+      .eq('version', inspection.inspection_type === '일반관리' ? 'v2022' : 'v2025').order('sheet_code'),
     admin.from('inspection_sheet_responses').select('item_code, result, memo').eq('inspection_id', id),
   ])
 
@@ -104,7 +106,9 @@ export default async function InspectionDetailPage({
   const respondedCounts: Record<string, number> = {}
   for (const r of respRows) {
     responses[r.item_code] = { result: r.result, memo: r.memo }
-    const num = String(parseInt(r.item_code.split('-')[0], 10))
+    // 설비번호 키: STD '1-A-001' → '1' / 외관 'X1-01' → 'X1'
+    const first = r.item_code.split('-')[0]
+    const num = first.startsWith('X') ? first : String(parseInt(first, 10))
     respondedCounts[num] = (respondedCounts[num] ?? 0) + 1
   }
   const xCount = respRows.filter(r => r.result === 'X').length
@@ -167,10 +171,42 @@ export default async function InspectionDetailPage({
   const completedCount = steps.filter(s => s.status === 'completed').length
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0
 
-  // ── 실시결과 보고서(별지 9호) 준비 섹션 (P3 §9-6⑦) — 일반관리 점검은 해당없음(§9-8) ──
+  // ── 실시결과 보고서(별지 9호) 준비 섹션 (P3 §9-6⑦) — 일반관리는 외관점검표(§9-8d) ──
   let report9Checks: Report9CheckRow[] | null = null
   let report9Job: Report9Job | null = null
   let report9Files: Report9File[] = []
+  let exteriorChecks: Report9CheckRow[] | null = null
+  if (inspection.inspection_type === '일반관리' && customer) {
+    const [ownerRes, jobResExt, filesResExt] = await Promise.all([
+      admin.from('customer_contacts').select('id').eq('customer_id', inspection.customer_id).limit(1),
+      admin.from('fire_plan_gen_jobs')
+        .select('id, status, missing, error, created_at')
+        .eq('inspection_id', id).eq('report_type', 'exterior')
+        .order('created_at', { ascending: false }).limit(1),
+      admin.storage.from('fire-plans').list(`${inspection.customer_id}/inspections/${id}`, { limit: 50, sortBy: { column: 'name', order: 'desc' } }),
+    ])
+    exteriorChecks = [
+      {
+        label: '① 외관점검 응답', ok: respRows.length > 0,
+        detail: respRows.length > 0
+          ? `응답 ${respRows.length}건 · 불량 ${xCount}건 (해당 월 결과란 자동 병합)`
+          : '응답 없음 — 위 점검표(별지 6호 시트)를 입력해주세요',
+      },
+      {
+        label: '② 점검자 배정', ok: !!employee,
+        detail: employee ? `점검자 ${employee.name} (표지 해당 월 행 기재)` : '담당 미배정 — 점검자란 공란 출력',
+      },
+      {
+        label: '③ 관계인 등록', ok: (ownerRes.data ?? []).length > 0,
+        detail: (ownerRes.data ?? []).length > 0 ? '소방안전관리자란에 대표 관계인 기재' : '관계인 미등록 — 관리자란 공란 출력',
+        href: `/customers/${inspection.customer_id}`, hrefLabel: '고객 관리 →',
+      },
+    ]
+    report9Job = (jobResExt.data?.[0] as Report9Job | undefined) ?? null
+    report9Files = (filesResExt.data ?? [])
+      .filter(o => /^exterior_/.test(o.name))
+      .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
+  }
   if (inspection.inspection_type !== '일반관리' && customer) {
     const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9] = await Promise.all([
       admin.from('customers')
@@ -365,6 +401,19 @@ export default async function InspectionDetailPage({
 
       {/* 음성 점검표 입력 V-1 (§9-4) — 전사 → AI 구조화 → 확인 후 점검표 반영 */}
       <InspectionVoiceSheetClient inspectionId={id} canManage={canEdit} />
+
+      {/* 외관점검표 (§9-8d) — 일반관리 점검 전용, 별지 9호 준비 UI 재사용 */}
+      {exteriorChecks && (
+        <InspectionReport9Client
+          inspectionId={id}
+          canManage={canEdit}
+          checks={exteriorChecks}
+          initialJob={report9Job}
+          initialFiles={report9Files}
+          defectsInfo={{ total: 0, planned: 0, done: 0 }}
+          variant="exterior"
+        />
+      )}
 
       {/* 실시결과 보고서 별지 9호 (P3 §9-6⑦) — 일반관리 점검은 미표시(§9-8) */}
       {report9Checks && (

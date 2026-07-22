@@ -16,8 +16,27 @@ import traceback
 import urllib.error
 import urllib.request
 
-sys.stdout.reconfigure(encoding="utf-8")
-sys.stderr.reconfigure(encoding="utf-8")
+# --log <파일>: 콘솔 없는 상시 실행(pythonw) — stdout/stderr를 로그 파일로 (10MB 초과 시 .old 교체)
+# 배경: 작업 스케줄러 hidden console이 외부 Ctrl+C성 신호로 랜덤 종료되는 문제(2026-07-22) → 콘솔 제거로 차단
+if "--log" in sys.argv:
+    _log_path = sys.argv[sys.argv.index("--log") + 1]
+    if os.path.isfile(_log_path) and os.path.getsize(_log_path) > 10 * 1024 * 1024:
+        os.replace(_log_path, _log_path + ".old")
+    _log_f = open(_log_path, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 — 프로세스 수명 동안 유지
+    sys.stdout = sys.stderr = _log_f
+else:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
+# 단일 인스턴스 락 — 고정 포트 바인드 (중복 기동 시 즉시 종료; 래퍼 감시 루프의 재시도와 공존)
+import socket  # noqa: E402
+
+_lock_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    _lock_sock.bind(("127.0.0.1", 48762))
+except OSError:
+    print("이미 실행 중인 워커가 있어 종료합니다 (포트 48762 락)")
+    sys.exit(0)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("make_fireplan", os.path.join(HERE, "make-fireplan.py"))
@@ -29,6 +48,9 @@ spec9.loader.exec_module(mr9)
 spec1011 = importlib.util.spec_from_file_location("make_report1011", os.path.join(HERE, "make-report1011.py"))
 m1011 = importlib.util.module_from_spec(spec1011)
 spec1011.loader.exec_module(m1011)
+specext = importlib.util.spec_from_file_location("make_exterior", os.path.join(HERE, "make-exterior.py"))
+mext = importlib.util.module_from_spec(specext)
+specext.loader.exec_module(mext)
 
 ENV = mf.load_env(prod=False)  # 스테이징 (운영 전환 시 prod=True + 보관함 마이그레이션 선행)
 SB_URL = ENV["NEXT_PUBLIC_SUPABASE_URL"]
@@ -552,6 +574,81 @@ def process_report1011(job: dict) -> list[str]:
     print(f"[{now_iso()}] ✅ {label} 완료 (누락 {len(missing)}개)")
     return missing
 
+def process_exterior(job: dict) -> list[str]:
+    """외관점검표(별지 6호) 병합 생성 (§9-8d — 일반관리, 데이터 = 외관점검 시트 응답 X{섹션}-{행})"""
+    cust_id, year = job["customer_id"], int(job["year"])
+    insp_id = job.get("inspection_id")
+    if not insp_id:
+        raise RuntimeError("점검 건(inspection_id)이 없습니다")
+    label = f"{job.get('customer_name')} 외관점검표 ({year})"
+    print(f"[{now_iso()}] 외관점검표 생성 시작: {label}")
+
+    insp = db_get(f"inspections?id=eq.{insp_id}&select=inspection_start_date,assigned_employee_id")
+    if not insp:
+        raise RuntimeError("점검 건을 찾을 수 없습니다")
+    insp = insp[0]
+    cust = db_get(f"customers?id=eq.{cust_id}&select=customer_name,address")[0]
+    blds = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true&select=purpose&order=created_at&limit=1")
+    contacts = db_get(f"customer_contacts?customer_id=eq.{cust_id}&select=role,name,phone")
+    owner = next((c for c in contacts if c["role"] == "대표"), contacts[0] if contacts else None)
+    inspector = ""
+    if insp.get("assigned_employee_id"):
+        prof = db_get(f"profiles?id=eq.{insp['assigned_employee_id']}&select=name")
+        inspector = prof[0]["name"] if prof else ""
+
+    start = insp.get("inspection_start_date") or time.strftime("%Y-%m-%d")
+    month, day = int(start[5:7]), int(start[8:10])
+
+    # 외관점검 시트 응답(X{섹션}-{행}) → 해당 월 결과란 ○/×//
+    responses = db_get_all(f"inspection_sheet_responses?inspection_id=eq.{insp_id}&item_code=like.X*&select=item_code,result")
+    marks = {"O": "○", "X": "×", "N": "/"}
+    ph: dict[str, str] = {
+        "customer_name": cust["customer_name"], "purpose": (blds[0].get("purpose") if blds else "") or "",
+        "address": cust.get("address") or "", "yr": str(year),
+        "mgr_name": (owner or {}).get("name") or "", "mgr_phone": (owner or {}).get("phone") or "",
+        # 표지 — 해당 월 행: 점검월일·양호/불량(불량 1건이라도 있으면 불량)·점검자
+        f"d{month}_md": f"  {month}월 {day}일", f"d{month}_nm": inspector,
+    }
+    any_x = any(r["result"] == "X" for r in responses)
+    if responses:
+        ph[f"d{month}_g"] = "[  ]" if any_x else "[√]"
+        ph[f"d{month}_b"] = "[√]" if any_x else "[  ]"
+    n_marks = 0
+    for r in responses:
+        m = re.match(r"^X(\d{1,2})-(\d{1,3})$", r["item_code"])
+        if m and r["result"] in marks:
+            ph[f"x{int(m.group(1))}_{int(m.group(2))}_{month}"] = marks[r["result"]]
+            n_marks += 1
+
+    safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
+    out_hwp, out_odt, out_html = mext.generate_exterior(ph, mf.OUT_DIR, f"{safe}_외관점검표_{year}")
+    heartbeat(f"{label} — 업로드")
+    stamp = int(time.time() * 1000)
+    base = f"{cust_id}/inspections/{insp_id}/exterior_{stamp}"
+    with open(out_hwp, "rb") as f:
+        st_upload(f"{base}.hwp", f.read(), "application/octet-stream")
+    with open(out_html, "rb") as f:
+        st_upload(f"{base}.html", f.read(), "text/html; charset=utf-8")
+    missing: list[str] = []
+    if mf.SOFFICE:
+        try:
+            out_pdf = out_odt[:-4] + ".pdf"
+            mf.convert_pdf_local(out_odt, out_pdf)
+            with open(out_pdf, "rb") as f:
+                st_upload(f"{base}.pdf", f.read(), "application/pdf")
+        except Exception as pe:  # noqa: BLE001
+            missing.append(f"PDF 변환 실패({pe})")
+    else:
+        missing.append("LibreOffice 미설치 — HWP만 등록")
+    if not responses:
+        missing.append("외관점검 시트 응답 없음 — 결과란 공란")
+    if not inspector:
+        missing.append("점검자(담당) 미배정")
+    if not (owner or {}).get("name"):
+        missing.append("소방안전관리자(대표 관계인) 미등록")
+    print(f"[{now_iso()}] ✅ 외관점검표 완료: {label} ({month}월 결과 {n_marks}건, 누락 {len(missing)}개)")
+    return missing
+
 print(f"소방계획서 생성 워커 시작 — {SB_URL} / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")
 mf.sdk_app()  # 라이선스 선검증
 print("SDK 초기화 OK")
@@ -583,6 +680,10 @@ while True:
                              {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
                 elif rtype in ("report10", "report11"):
                     missing = process_report1011(job)
+                    db_patch(f"{JOBS}?id=eq.{job['id']}",
+                             {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
+                elif rtype == "exterior":
+                    missing = process_exterior(job)
                     db_patch(f"{JOBS}?id=eq.{job['id']}",
                              {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
                 else:

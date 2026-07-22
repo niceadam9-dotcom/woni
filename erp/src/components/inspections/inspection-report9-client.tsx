@@ -16,7 +16,7 @@ export type Report9CheckRow = { label: string; ok: boolean; detail: string; href
 export type DefectsInfo = { total: number; planned: number; done: number }
 
 export function InspectionReport9Client({
-  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo,
+  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9',
 }: {
   inspectionId: string
   canManage: boolean
@@ -24,6 +24,7 @@ export function InspectionReport9Client({
   initialJob: Report9Job | null
   initialFiles: Report9File[]
   defectsInfo: DefectsInfo
+  variant?: 'report9' | 'exterior' // exterior = 외관점검표(일반관리, §9-8d)
 }) {
   const [job, setJob] = useState(initialJob)
   const [files, setFiles] = useState(initialFiles)
@@ -41,7 +42,7 @@ export function InspectionReport9Client({
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate(reportType: 'report9' | 'report10' | 'report11' = 'report9') {
+  function generate(reportType: 'report9' | 'report10' | 'report11' | 'exterior' = 'report9') {
     setMsg('')
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, reportType)
@@ -64,8 +65,12 @@ export function InspectionReport9Client({
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-3">
         <FileText className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">실시결과 보고서 (별지 9호)</h2>
-        <span className="text-[11px] text-[#b0acd6]">1~3쪽 자동 병합 · 4~8쪽 빈 서식 포함</span>
+        <h2 className="text-sm font-semibold text-[#090c1d]">
+          {variant === 'exterior' ? '외관점검표 (일반용)' : '실시결과 보고서 (별지 9호)'}
+        </h2>
+        <span className="text-[11px] text-[#b0acd6]">
+          {variant === 'exterior' ? '해당 월 결과 자동 병합 · 작성 후 2년 보관 (보고 없음)' : '1~3쪽 자동 병합 · 4~8쪽 빈 서식 포함'}
+        </span>
       </div>
 
       {/* 준비 체크리스트 — 각 행은 읽기 전용 상태 + 입력처 딥링크 (§9-6⑦) */}
@@ -86,10 +91,12 @@ export function InspectionReport9Client({
 
       {canManage && (
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => generate('report9')} disabled={isPending || busy}
+          <button onClick={() => generate(variant === 'exterior' ? 'exterior' : 'report9')} disabled={isPending || busy}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
             {busy || isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
-            {busy ? '생성 중 — 워커 처리 대기' : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (HWP+PDF)'}
+            {busy ? '생성 중 — 워커 처리 대기'
+              : variant === 'exterior' ? '외관점검표 생성 (HWP+PDF)'
+              : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (HWP+PDF)'}
           </button>
           {checks.some(c => !c.ok) && (
             <span className="text-[11px] text-amber-600">미비 항목은 빈 칸으로 출력됩니다 (fail-soft)</span>
@@ -97,8 +104,8 @@ export function InspectionReport9Client({
         </div>
       )}
 
-      {/* ⑤⑥ 불량 생애주기 — 불량 있을 때만 표시 (§9-7, 별지 10·11호) */}
-      {canManage && defectsInfo.total > 0 && (
+      {/* ⑤⑥ 불량 생애주기 — 불량 있을 때만 표시 (§9-7, 별지 10·11호). 일반관리(외관)는 해당없음(§9-8) */}
+      {canManage && variant !== 'exterior' && defectsInfo.total > 0 && (
         <div className="mt-3 pt-3 border-t border-dashed border-[#e0ddf5] space-y-1.5">
           <div className="flex items-center gap-2 text-xs">
             {defectsInfo.planned >= defectsInfo.total

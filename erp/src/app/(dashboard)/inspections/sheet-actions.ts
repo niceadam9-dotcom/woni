@@ -11,10 +11,14 @@ export async function loadSheetItemsAction(sheetId: string): Promise<{
   await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data } = await admin.from('inspection_sheet_items')
-    .select('item_code, item_name, comprehensive_only')
+    .select('item_code, item_name, comprehensive_only, facility_type')
     .eq('sheet_id', sheetId).order('order_num')
-  const items = ((data ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean }>)
-    .map(i => ({ ...i, group: i.item_code.replace(/-\d+$/, '') })) // 1-A-001 → 1-A
+  const items = ((data ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; facility_type: string | null }>)
+    // 그룹: 표준(STD) = 코드 접두(1-A-001 → 1-A) / 외관(X코드) = 서식의 구분란(facility_type)
+    .map(({ facility_type, ...i }) => ({
+      ...i,
+      group: i.item_code.startsWith('X') ? (facility_type ?? i.item_code.replace(/-\d+$/, '')) : i.item_code.replace(/-\d+$/, ''),
+    }))
   return { items }
 }
 

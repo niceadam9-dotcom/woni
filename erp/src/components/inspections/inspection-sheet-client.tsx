@@ -69,7 +69,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
       <div className="flex items-center gap-2 mb-3">
         <ClipboardCheck className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">점검표 입력</h2>
-        <span className="text-xs text-[#b0acd6] ml-auto">{isOperational ? '작동점검 (○항목)' : '종합점검 (전체)'}</span>
+        <span className="text-xs text-[#b0acd6] ml-auto">
+          {inspectionType === '일반관리' ? '외관점검 (별지 6호)' : isOperational ? '작동점검 (○항목)' : '종합점검 (전체)'}
+        </span>
       </div>
 
       {!sel && canManage && xCount > 0 && (
@@ -89,7 +91,10 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
           <p className="text-[11px] text-[#b0acd6] mb-2">설비를 선택해 항목별 ○(정상)/X(불량)/／(해당없음)을 입력합니다.</p>
           <div className="grid grid-cols-2 gap-1.5">
             {sheets.map(s => {
-              const num = s.sheet_code.replace('STD-', '').replace(/^0/, '')
+              // 응답수 키: STD-05 → '5' / EXT-05 → 'X5' (item_code 접두와 일치)
+              const num = s.sheet_code.startsWith('EXT-')
+                ? `X${parseInt(s.sheet_code.slice(4), 10)}`
+                : s.sheet_code.replace('STD-', '').replace(/^0/, '')
               const done = respondedCounts[num] ?? 0
               return (
                 <button key={s.id} onClick={() => canManage && open(s)} disabled={!canManage || isPending}

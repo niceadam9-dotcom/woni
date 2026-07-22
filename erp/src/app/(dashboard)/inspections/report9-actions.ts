@@ -14,8 +14,8 @@ export type Report9Job = {
 }
 export type Report9File = { name: string; path: string; createdAt: string | null }
 
-/** 생성 요청 — fire_plan_gen_jobs 큐 등록 (워커가 처리, 별지 9·10·11호 공용 — 101) */
-const ANNEX_TYPES = ['report9', 'report10', 'report11'] as const
+/** 생성 요청 — fire_plan_gen_jobs 큐 등록 (워커가 처리, 별지 9·10·11호·외관점검표 공용 — 101·102) */
+const ANNEX_TYPES = ['report9', 'report10', 'report11', 'exterior'] as const
 export type AnnexType = typeof ANNEX_TYPES[number]
 
 export async function requestReport9Action(
@@ -63,13 +63,13 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')
-    .eq('inspection_id', inspectionId).in('report_type', ['report9', 'report10', 'report11'])
+    .eq('inspection_id', inspectionId).in('report_type', ['report9', 'report10', 'report11', 'exterior'])
     .order('created_at', { ascending: false }).limit(1)
 
   const prefix = `${customerId}/inspections/${inspectionId}`
   const { data: objects } = await admin.storage.from(BUCKET).list(prefix, { limit: 60, sortBy: { column: 'name', order: 'desc' } })
   const files: Report9File[] = (objects ?? [])
-    .filter(o => /^report(9|10|11)_/.test(o.name))
+    .filter(o => /^(report(9|10|11)|exterior)_/.test(o.name))
     .map(o => ({ name: o.name, path: `${prefix}/${o.name}`, createdAt: o.created_at ?? null }))
 
   return { job: (jobs?.[0] as Report9Job | undefined) ?? null, files }
