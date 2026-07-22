@@ -26,11 +26,11 @@ const CHAPTERS = [
   { key: 'ch3', label: '3장 피난계획', icon: DoorOpen, disabled: true },
 ] as const
 
-/** 1장 서식 탭 — 4-1은 1.1만 활성 (소방계획서_4.md §3 순서) */
+/** 1장 서식 탭 — 활성: 1.1(4-1) + 1.2·1.3(P4-①) (소방계획서_4.md §3 순서) */
 const CH1_FORMS = [
   { key: '1.1', label: '1.1 일반현황', active: true },
-  { key: '1.2', label: '1.2 세부현황' },
-  { key: '1.3', label: '1.3 위치·소방차진입' },
+  { key: '1.2', label: '1.2 세부현황', active: true },
+  { key: '1.3', label: '1.3 위치·소방차진입', active: true },
   { key: '1.4', label: '1.4 소방시설' },
   { key: '1.5', label: '1.5 피난·방화' },
   { key: '1.6', label: '1.6 기타시설' },
@@ -40,7 +40,7 @@ const CH1_FORMS = [
 ]
 
 export function PlanTabView({
-  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive, form11,
+  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive, form11, form12, form13,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
@@ -52,6 +52,8 @@ export function PlanTabView({
   initialSection?: string
   archive: ReactNode
   form11: ReactNode
+  form12: ReactNode
+  form13: ReactNode
   isGeneral: boolean
   docs: DocChip[]
   quick: QuickReadiness
@@ -63,6 +65,7 @@ export function PlanTabView({
   const [mode, setMode] = useState<'quick' | 'full'>(initialSection ? 'full' : 'quick')
   const [chapter, setChapter] = useState<string>(
     CHAPTERS.some(c => c.key === initialSection && !('disabled' in c && c.disabled)) ? initialSection! : 'archive')
+  const [form, setForm] = useState<string>('1.1')
   const [year, setYear] = useState(new Date().getFullYear())
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
@@ -381,16 +384,25 @@ export function PlanTabView({
         <div>
           <div className="flex items-center gap-1 flex-wrap mb-3">
             {CH1_FORMS.map(f => (
-              <span key={f.key}
-                title={f.active ? undefined : '후속 단계에서 제공됩니다 (소방계획서_4.md 4-2~4-4)'}
-                className={`inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium ${
-                  f.active ? 'bg-[#f5f4ff] text-[#7b68ee] border border-[#d0ccf5]' : 'text-[#b0acd6] border border-[#eceafd]'
-                }`}>
-                {f.label}{!f.active && <span className="ml-1 text-[9px]">예정</span>}
-              </span>
+              f.active ? (
+                <button key={f.key} onClick={() => setForm(f.key)}
+                  className={`inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border transition-colors ${
+                    form === f.key ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5] hover:bg-[#eceafd]'
+                  }`}>
+                  {f.label}
+                </button>
+              ) : (
+                <span key={f.key}
+                  title="후속 단계에서 제공됩니다 (소방계획서_4.md 4-3~4-4)"
+                  className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium text-[#b0acd6] border border-[#eceafd]">
+                  {f.label}<span className="ml-1 text-[9px]">예정</span>
+                </span>
+              )
             ))}
           </div>
-          {form11}
+          {form === '1.1' && form11}
+          {form === '1.2' && form12}
+          {form === '1.3' && form13}
         </div>
       )}
       </>)}

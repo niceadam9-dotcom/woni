@@ -71,6 +71,28 @@ try {
   await page.waitForSelector('text=1.1 일반현황')
   check('딥링크 sub=ch1 → 고급 모드 1장 직행', await page.isVisible('text=1.1 일반현황'))
 
+  // ── 4.5) 서식 1.2·1.3 (P4-①) — 프리셋·저장·DB 반영 ──
+  await page.click('button:has-text("1.2 세부현황")')
+  await page.waitForSelector('text=1.2.2 화재취약장소')
+  check('서식 1.2 — 구역별·화재취약 카드', await page.isVisible('text=1.2.1 구역별 세부현황'))
+  await page.click('button:has-text("+ 보일러실")')
+  await page.click('button:has-text("서식 1.2 저장")')
+  await page.waitForSelector('text=서식 1.2 저장됨')
+  const { data: f12 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const hz = (f12?.sections as { hazards?: Array<{ place: string; risks: string[] }> } | null)?.hazards
+  check('DB sections.hazards 저장 (보일러실 프리셋)', hz?.[0]?.place === '보일러실' && (hz?.[0]?.risks ?? []).includes('가스누출'), JSON.stringify(hz))
+
+  await page.click('button:has-text("1.3 위치·소방차진입")')
+  await page.waitForSelector('text=소방차 세부진입 계획')
+  await page.fill('textarea[placeholder*="인접 건물"]', '주변현황 E2E')
+  await page.fill('input[placeholder*="정문 앞 도로"]', '정문 앞')
+  await page.click('button:has-text("서식 1.3 저장")')
+  await page.waitForSelector('text=서식 1.3 저장됨')
+  const { data: f13 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const sec13 = f13?.sections as { location?: { surroundings: string }; fireAccess?: { entryPoint: string } } | null
+  check('DB sections.location 저장', sec13?.location?.surroundings === '주변현황 E2E', JSON.stringify(sec13?.location))
+  check('DB sections.fireAccess 저장', sec13?.fireAccess?.entryPoint === '정문 앞', JSON.stringify(sec13?.fireAccess))
+
   // ── 5) 일반관리 고객 — 배너 + 입력 미노출 + 탭 뱃지 억제 (§9-8) ──
   await page.goto(`${BASE}/customers/${generalId}?tab=plan`)
   await page.waitForSelector('text=소방계획서 작성 대상이 아닙니다')

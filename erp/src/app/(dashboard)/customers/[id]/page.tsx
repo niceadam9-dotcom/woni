@@ -10,6 +10,8 @@ import { EditCustomerInfoClient } from '@/components/customers/edit-customer-inf
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type RevisionRow } from '@/components/customers/plan-tab-view'
+import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
+import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
 import { FacilitiesClient } from '@/components/customers/facilities-client'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
@@ -484,8 +486,11 @@ export default async function CustomerDetailPage({
   // 소방계획서 탭 — 장(章) 서브탭 골격 (소방계획서_4.md 4-1): 생성 바 + 개정이력·보관 + 1장>1.1
   const { data: fpForm } = await admin.from('fire_plan_forms')
     .select('sections').eq('customer_id', id).maybeSingle()
-  const revSection = ((fpForm as { sections?: { revision?: { revisionDate?: string; revisionNote?: string } } } | null)
-    ?.sections?.revision) ?? null
+  const fpSections = ((fpForm as { sections?: {
+    revision?: { revisionDate?: string; revisionNote?: string }
+    zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
+  } } | null)?.sections) ?? {}
+  const revSection = fpSections.revision ?? null
   const revisionRows: RevisionRow[] = [...firePlans]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
@@ -503,6 +508,12 @@ export default async function CustomerDetailPage({
       initialSection={sub}
       archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
+      form12={<PlanForm12 customerId={customer.id} canManage={canManage}
+        initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}
+        floorsAbove={planInfoInitial.floorsAbove} floorsBelow={planInfoInitial.floorsBelow} />}
+      form13={<PlanForm13 customerId={customer.id} canManage={canManage}
+        initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
+        initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }} />}
       isGeneral={isGeneral}
       docs={docChips}
       quick={quickReadiness}

@@ -44,6 +44,70 @@ export async function saveFirePlanRevisionAction(
   return res
 }
 
+/** 서식 섹션 일반 저장 (P4 — 1.2 zones·hazards / 1.3 location·fireAccess) */
+const FORM_SECTION_KEYS = new Set(['zones', 'hazards', 'location', 'fireAccess'])
+
+export async function saveFirePlanSectionsAction(
+  customerId: string,
+  patch: Record<string, unknown>,
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  const keys = Object.keys(patch)
+  if (keys.length === 0 || keys.some(k => !FORM_SECTION_KEYS.has(k))) return { error: '저장할 수 없는 섹션입니다.' }
+  const admin = createAdminClient()
+  const { data: existing } = await admin.from('fire_plan_forms')
+    .select('sections').eq('customer_id', customerId).maybeSingle()
+  const sections = { ...((existing as { sections?: Record<string, unknown> } | null)?.sections ?? {}), ...patch }
+  const { error } = await admin.from('fire_plan_forms').upsert({
+    customer_id: customerId,
+    sections,
+    updated_at: new Date().toISOString(),
+    updated_by: profile.id,
+  } as Record<string, unknown>)
+  if (error) return { error: `저장 실패: ${error.message}` }
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
+/** 서식 첨부 이미지(위치도·경로도 등) 업로드 — fire-plans 버킷 plan-assets 경로 (§3 서식 1.3) */
+const PLAN_IMAGE_EXTS: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
+
+export async function uploadPlanAssetAction(
+  customerId: string,
+  formData: FormData,
+): Promise<{ error?: string; path?: string }> {
+  await requirePermission('customer_manage')
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { error: '이미지 파일을 선택해주세요.' }
+  if (file.size > 10 * 1024 * 1024) return { error: '이미지는 10MB 이하여야 합니다.' }
+  const ext = (file.name.split('.').pop() ?? '').toLowerCase()
+  const mime = PLAN_IMAGE_EXTS[ext]
+  if (!mime) return { error: 'JPG/PNG/WEBP 이미지만 업로드할 수 있습니다.' }
+  const admin = createAdminClient()
+  const path = `${customerId}/plan-assets/${Date.now()}.${ext}`
+  const { error } = await admin.storage.from(BUCKET)
+    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: mime, upsert: false })
+  if (error) return { error: `업로드 실패: ${error.message}` }
+  return { path }
+}
+
+export async function deletePlanAssetAction(customerId: string, path: string): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  if (!path.startsWith(`${customerId}/plan-assets/`)) return { error: '잘못된 경로입니다.' }
+  const admin = createAdminClient()
+  await admin.storage.from(BUCKET).remove([path])
+  return {}
+}
+
+export async function getPlanAssetUrlAction(customerId: string, path: string): Promise<{ url?: string; error?: string }> {
+  await requirePermission('customer_manage')
+  if (!path.startsWith(`${customerId}/plan-assets/`)) return { error: '잘못된 경로입니다.' }
+  const admin = createAdminClient()
+  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, 300)
+  if (error || !data) return { error: 'URL 생성 실패' }
+  return { url: data.signedUrl }
+}
+
 /** 전자우편 송달 동의 저장 (098, 별지 9호 1쪽 — 소방계획서_4.md §9-6①) */
 export async function saveEmailConsentAction(
   customerId: string,
