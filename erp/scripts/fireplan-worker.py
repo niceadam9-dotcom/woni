@@ -161,8 +161,15 @@ def process(job: dict) -> tuple[list[str], dict | None]:
     if preset_type:
         print(f"[{now_iso()}] 프리셋({preset_type}): 문구 {len(preset_pairs)}개 치환 예정")
 
-    floors = db_get(f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
-    zone_rows = mf.build_zone_rows(buildings[0] if buildings else None, floors, owner)
+    # 어댑터 §7-3: 서식 1.2.1 입력값(fire_plan_forms.sections.zones) 우선 — 없으면 층별 데이터 폴백
+    form_rows = db_get(f"fire_plan_forms?customer_id=eq.{cust_id}&select=sections")
+    form_zones = ((form_rows[0].get("sections") or {}).get("zones") or []) if form_rows else []
+    if form_zones:
+        zone_rows = [{1: z.get("zone") or "", 2: z.get("name") or "",
+                      3: z.get("area") or "", 10: z.get("phone") or ""} for z in form_zones]
+    else:
+        floors = db_get(f"fire_facility_floors?building_id=eq.{buildings[0]['id']}&select=floor_label&order=sort_order") if buildings else []
+        zone_rows = mf.build_zone_rows(buildings[0] if buildings else None, floors, owner)
     brigade = db_get(f"fire_brigade_members?customer_id=eq.{cust_id}&select=team,name,duty,phone&order=sort_order")
     out_hwp, out_odt, out_html = mf.generate_hwp(cust, year, photo=photo_path, extras=extras,
                                                  extra_replacements=stage2, zone_rows=zone_rows, brigade=brigade,

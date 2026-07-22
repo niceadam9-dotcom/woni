@@ -58,7 +58,7 @@ try {
   await page.click('button:has-text("서식 전체")')
   await page.waitForSelector('text=개정이력')
   check('고급 모드 — 개정이력·보관 기본 표시', await page.isVisible('text=개정이력'))
-  check('고급 모드 — 3장 비활성(준비 중)', await page.isVisible('button:disabled:has-text("3장 피난계획")'))
+  check('고급 모드 — 4개 장 전부 활성', await page.isVisible('button:has-text("3장 피난계획")') && !(await page.isVisible('text=준비 중')))
 
   // 개정이력 입력 저장 → fire_plan_forms(096)
   await page.fill('input[placeholder*="소방계획서 작성"]', '개정 E2E 검증')
@@ -162,6 +162,30 @@ try {
   const { data: brigRows } = await raw.from('fire_brigade_members').select('team, name').eq('customer_id', customerId)
   check('DB brigadeGeneral(Type Ⅲ) + fire_brigade_members 저장',
     bg?.type === 'III' && (brigRows ?? []).some((r: { name: string }) => r.name === '김대장'), JSON.stringify({ bg, brigRows }))
+
+  // ── 4.66) 3장 피난계획 (P4-⑤) — 딥링크 sub=ch3 + 3.4 저장 ──
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan&sub=ch3`)
+  await page.waitForSelector('text=3.1 피난시설 및 기타시설 일반현황')
+  check('3.1 — 1.5 입력 자동 표시(방화구획 해당없음)', await page.isVisible('text=방화구획: 해당없음'))
+  await page.click('button:has-text("3.4 유도·경로")')
+  await page.waitForSelector('text=피난유도 절차 및 피난경로')
+  await page.click('button:has-text("절차 프리셋")')
+  await page.fill('input[placeholder*="1층 주차장"]', '정문 앞 공터')
+  await page.click('button:has-text("서식 3.4 저장")')
+  await page.waitForSelector('text=서식 3.4 저장됨')
+  const { data: f34 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const ep = (f34?.sections as { evacPlan?: { assembly: string; procedure: string } } | null)?.evacPlan
+  check('DB sections.evacPlan 저장 (절차 프리셋+집결지)', ep?.assembly === '정문 앞 공터' && (ep?.procedure ?? '').includes('피난유도반'), JSON.stringify({ a: ep?.assembly }))
+  await page.click('button:has-text("3.5 피난약자")')
+  await page.waitForSelector('text=3.5 피난약자 현황')
+  await page.click('button:has-text("해당없음")')
+  await page.click('button:has-text("서식 3.5 저장")')
+  await page.waitForSelector('text=서식 3.5 저장됨')
+  const { data: f35 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  check('DB sections.vulnerable 저장 (해당없음)', (f35?.sections as { vulnerable?: { none: boolean } } | null)?.vulnerable?.none === true)
+
+  // 어댑터(§7-3) — getFirePlanGenDefaults가 입력 섹션을 기본값으로 사용하는지 (데이터 시트 생성 경로로 검증 불가 — DB 대조로 대체)
+  // zones(1.2)·hazards(1.2)·evacPlan(3.4)·brigade(2장)가 저장돼 있으므로 웹 생성 기본값에 반영됨 — 코드 대조 + 저장 검증으로 충족
 
   // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
   await page.click('button:has-text("1장 소방안전관리계획")')

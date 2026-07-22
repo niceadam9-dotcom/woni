@@ -217,7 +217,7 @@ export async function getFirePlanGenDefaultsAction(
   await requirePermission('customer_manage')
   const admin = createAdminClient()
 
-  const [custRes, contactRes, bldRes, companyRes, formRes] = await Promise.all([
+  const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, plansRes] = await Promise.all([
     admin.from('customers')
       .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date, building_grade, manager_selected_at')
       .eq('id', customerId).single(),
@@ -228,6 +228,8 @@ export async function getFirePlanGenDefaultsAction(
       .order('created_at', { ascending: true }),
     admin.from('company_profile').select('company_name, address, phone').limit(1).maybeSingle(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
+    admin.from('fire_brigade_members').select('team, name, duty, phone').eq('customer_id', customerId).order('sort_order'),
+    admin.from('fire_plans').select('year, revision, note, created_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
   ])
   const cust = custRes.data as {
     customer_name: string; address: string | null; use_approval_date: string | null
@@ -244,9 +246,23 @@ export async function getFirePlanGenDefaultsAction(
   }>
   const b = buildings[0]
   const company = companyRes.data as { company_name: string; address: string | null; phone: string | null } | null
-  // 개정이력 입력(096 fire_plan_forms.sections.revision) — 있으면 작성일·개정내용 기본값으로 사용
-  const revision = ((formRes.data as { sections?: { revision?: { revisionDate?: string; revisionNote?: string } } } | null)
-    ?.sections?.revision) ?? null
+  // 서식 입력(096 fire_plan_forms.sections) — 어댑터 §7-3: 입력값이 있으면 생성 기본값으로 사용
+  const sections = ((formRes.data as { sections?: {
+    revision?: { revisionDate?: string; revisionNote?: string }
+    zones?: Array<{ zone: string; name: string; area: string; workersWeekday: string; workersHoliday: string; company: string; phone: string }>
+    hazards?: Array<{ place: string; loc: string; risks: string[] }>
+    evacPlan?: { procedure?: string; routes?: Array<{ floor: string; route: string; guide: string; equip: string }>; assembly?: string }
+    training?: { drillMonths?: number[]; eduMonths?: number[] }
+  } } | null)?.sections) ?? {}
+  const revision = sections.revision ?? null
+  // 과거 개정이력 다행 — 보관함(fire_plans) 기반, 이번 작성분은 마지막 행으로 이어짐 (§8-1i)
+  const revisions = ((plansRes.data ?? []) as Array<{ year: number; revision: number; note: string | null; created_at: string }>)
+    .map(p => ({
+      date: p.created_at.slice(0, 10),
+      note: p.note ?? `${p.year}년 소방계획서${p.revision > 1 ? ` (개정${p.revision})` : ' 작성'}`,
+      author: '',
+    }))
+  const brigadeRows = (brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>
 
   // 설치 시설 → 서식 1.4 항목 — 표준 코드(100) 정확 일치, 레거시 잔존분은 toStandardCodes로 정규화
   let facilities: string[] = []
@@ -305,27 +321,40 @@ export async function getFirePlanGenDefaultsAction(
       inspectionCycle: '매월 1회',
       operationMonth,
       comprehensiveMonth,
-      trainingMonth: 11,
-      brigade: [
-        { team: '자위소방대장', name: '', duty: '관리구역 상황통제', phone: '' },
-        { team: '부대장', name: '', duty: '대장 부재시 수행', phone: '' },
-        { team: '비상연락', name: '', duty: '119신고 및 상황전파', phone: '' },
-        { team: '초기소화', name: '', duty: '소화기 이용 초기소화', phone: '' },
-        { team: '피난유도', name: '', duty: '피난층 또는 옥상으로 피난유도', phone: '' },
-      ],
-      evacRoutes: [{ floor: '전층', route: '각 출입구 앞 직통계단 이용', guide: '', equip: '' }],
-      assembly: '1층 주차장',
-      evacNote: '피난유도자 지시에 따라 최단 경로로 피난 실시, 피난 늦은 인원은 옥상 대피',
-      zones: [{
-        zone: '전층', name: b?.purpose ?? '', area: b?.total_area != null ? String(b.total_area) : '',
-        weekday: '', holiday: '', managerCo: '', contact: owner?.phone ?? '',
-      }],
-      // 원본 양식 예시 프리셋 (보일러실·주방·전기실)
-      hazards: [
-        { place: '보일러실', location: '', factors: ['전기적 요인', '가스누출(폭발)'] },
-        { place: '주방', location: '', factors: ['부주의', '가스누출(폭발)'] },
-        { place: '전기실', location: '', factors: ['전기적 요인'] },
-      ],
+      trainingMonth: sections.training?.drillMonths?.[0] ?? sections.training?.eduMonths?.[0] ?? 11,
+      // 어댑터 §7-3: 자위소방대·1.2·3.4 입력값이 있으면 우선, 없으면 종전 기본값
+      brigade: brigadeRows.length > 0
+        ? brigadeRows.map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' }))
+        : [
+          { team: '자위소방대장', name: '', duty: '관리구역 상황통제', phone: '' },
+          { team: '부대장', name: '', duty: '대장 부재시 수행', phone: '' },
+          { team: '비상연락', name: '', duty: '119신고 및 상황전파', phone: '' },
+          { team: '초기소화', name: '', duty: '소화기 이용 초기소화', phone: '' },
+          { team: '피난유도', name: '', duty: '피난층 또는 옥상으로 피난유도', phone: '' },
+        ],
+      evacRoutes: (sections.evacPlan?.routes?.length ?? 0) > 0
+        ? sections.evacPlan!.routes!
+        : [{ floor: '전층', route: '각 출입구 앞 직통계단 이용', guide: '', equip: '' }],
+      assembly: sections.evacPlan?.assembly || '1층 주차장',
+      evacNote: sections.evacPlan?.procedure || '피난유도자 지시에 따라 최단 경로로 피난 실시, 피난 늦은 인원은 옥상 대피',
+      zones: (sections.zones?.length ?? 0) > 0
+        ? sections.zones!.map(z => ({
+          zone: z.zone, name: z.name, area: z.area,
+          weekday: z.workersWeekday, holiday: z.workersHoliday, managerCo: z.company, contact: z.phone,
+        }))
+        : [{
+          zone: '전층', name: b?.purpose ?? '', area: b?.total_area != null ? String(b.total_area) : '',
+          weekday: '', holiday: '', managerCo: '', contact: owner?.phone ?? '',
+        }],
+      hazards: (sections.hazards?.length ?? 0) > 0
+        ? sections.hazards!.map(h => ({ place: h.place, location: h.loc, factors: h.risks }))
+        // 원본 양식 예시 프리셋 (보일러실·주방·전기실)
+        : [
+          { place: '보일러실', location: '', factors: ['전기적 요인', '가스누출(폭발)'] },
+          { place: '주방', location: '', factors: ['부주의', '가스누출(폭발)'] },
+          { place: '전기실', location: '', factors: ['전기적 요인'] },
+        ],
+      revisions,
       photos: [],
     },
   }

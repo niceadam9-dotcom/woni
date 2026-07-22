@@ -19,6 +19,7 @@ import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
 import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow } from '@/components/customers/plan-form110'
 import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
 import { PlanCh2 } from '@/components/customers/plan-ch2'
+import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSection, type EvacEquipRow } from '@/components/customers/plan-ch3'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
@@ -495,6 +496,8 @@ export default async function CustomerDetailPage({
     evacFire?: EvacFireSection; evacMaps?: EvacMapRow[]; etcFacility?: EtcFacilitySection; managers?: ManagerRow[]
     inspection?: InspectionPlanSection; multiUse?: MultiUseSection; fireHistory?: FireHistoryRow[]
     training?: TrainingSection; brigadeGeneral?: { type?: string }; brigadeTeams?: Record<string, string>
+    evacDetail?: EvacDetailRow[]; evacHeadcount?: { note?: string }; evacPlan?: EvacPlanSection
+    vulnerable?: VulnerableSection; vulnerableMethods?: Record<string, string>; evacEquip?: EvacEquipRow[]
   } } | null)?.sections) ?? {}
   // 1.10.1 자동 시기 — 점검계획일 기준 (종합 고객: 종합=기준월·작동=+6개월 / 작동 고객: 작동=기준월)
   const planYear = new Date().getFullYear()
@@ -544,6 +547,15 @@ export default async function CustomerDetailPage({
       ch2={<PlanCh2 customerId={customer.id} canManage={canManage}
         initialType={fpSections.brigadeGeneral?.type ?? ''} initialTeams={fpSections.brigadeTeams ?? {}}
         initialBrigade={planInfoInitial.brigade} people={planPeople} />}
+      ch3={<PlanCh3 customerId={customer.id} canManage={canManage}
+        evacFire={fpSections.evacFire ?? null}
+        headcount={{ worker: planInfoInitial.headcountWorker, resident: planInfoInitial.headcountResident, max: planInfoInitial.headcountMax }}
+        initialDetail={fpSections.evacDetail ?? []}
+        initialHeadcountNote={fpSections.evacHeadcount?.note ?? ''}
+        initialPlan={fpSections.evacPlan ?? null}
+        initialVulnerable={fpSections.vulnerable ?? null}
+        initialMethods={fpSections.vulnerableMethods ?? {}}
+        initialEquip={fpSections.evacEquip ?? []} />}
       isGeneral={isGeneral}
       docs={docChips}
       quick={quickReadiness}

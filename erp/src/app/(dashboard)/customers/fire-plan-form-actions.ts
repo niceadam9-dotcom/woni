@@ -48,6 +48,7 @@ export async function saveFirePlanRevisionAction(
 const FORM_SECTION_KEYS = new Set([
   'zones', 'hazards', 'location', 'fireAccess', 'evacFire', 'evacMaps', 'etcFacility', 'managers',
   'inspection', 'multiUse', 'fireHistory', 'training', 'brigadeGeneral', 'brigadeTeams',
+  'evacDetail', 'evacHeadcount', 'evacPlan', 'vulnerable', 'vulnerableMethods', 'evacEquip',
 ])
 
 export async function saveFirePlanSectionsAction(

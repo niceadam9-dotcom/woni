@@ -24,8 +24,9 @@ export const PHOTO_KINDS: Array<{ value: PlanPhoto['kind']; label: string }> = [
 
 export type FirePlanGenData = {
   year: number
-  revisionDate: string          // 작성일 (개정이력 1행)
+  revisionDate: string          // 이번 작성일 (개정이력 마지막 행)
   revisionNote: string          // 개정 내용 (예: "2026년 소방계획서 작성")
+  revisions?: Array<{ date: string; note: string; author: string }>  // 과거 개정이력 (보관함 기반 다행 — §8-1i)
   // 서식 1.1 건축물 일반현황
   buildingName: string
   address: string
@@ -160,7 +161,8 @@ export function buildFirePlanHtml(
   <h2>소방계획서 개정이력</h2>
   <table>
     <tr><th style="width:36px">순번</th><th style="width:70px">일자</th><th>주요 개정내용</th><th style="width:70px">작성자</th><th style="width:56px">검토</th><th style="width:56px">승인</th></tr>
-    <tr><td>1</td><td>${v(d.revisionDate)}</td><td class="l">${v(d.revisionNote)}</td><td>${v(d.managerName)}</td><td></td><td></td></tr>
+    ${(d.revisions ?? []).map((r, i) => `<tr><td>${i + 1}</td><td>${v(r.date)}</td><td class="l">${v(r.note)}</td><td>${v(r.author)}</td><td></td><td></td></tr>`).join('')}
+    <tr><td>${(d.revisions?.length ?? 0) + 1}</td><td>${v(d.revisionDate)}</td><td class="l">${v(d.revisionNote)}</td><td>${v(d.managerName)}</td><td></td><td></td></tr>
     ${Array.from({ length: 7 }, (_, i) => `<tr><td>${i + 2}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('')}
   </table>
 

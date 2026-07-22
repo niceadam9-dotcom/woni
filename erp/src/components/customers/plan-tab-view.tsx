@@ -23,7 +23,7 @@ const CHAPTERS = [
   { key: 'archive', label: '개정이력·보관', icon: History },
   { key: 'ch1', label: '1장 소방안전관리계획', icon: BookOpen },
   { key: 'ch2', label: '2장 자위소방대', icon: Users },
-  { key: 'ch3', label: '3장 피난계획', icon: DoorOpen, disabled: true },
+  { key: 'ch3', label: '3장 피난계획', icon: DoorOpen },
 ] as const
 
 /** 1장 서식 탭 — 활성: 1.1(4-1) + 1.2·1.3(P4-①) (소방계획서_4.md §3 순서) */
@@ -41,7 +41,7 @@ const CH1_FORMS = [
 
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive,
-  form11, form12, form13, form14, form15, form16, form17, form110, form111, ch2,
+  form11, form12, form13, form14, form15, form16, form17, form110, form111, ch2, ch3,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
@@ -62,6 +62,7 @@ export function PlanTabView({
   form110: ReactNode
   form111: ReactNode
   ch2: ReactNode
+  ch3: ReactNode
   isGeneral: boolean
   docs: DocChip[]
   quick: QuickReadiness
@@ -72,7 +73,7 @@ export function PlanTabView({
   // 기본 진입 = 빠른 입력 (§1-1 확정). 딥링크(sub=)로 들어오면 해당 서브탭의 고급 모드
   const [mode, setMode] = useState<'quick' | 'full'>(initialSection ? 'full' : 'quick')
   const [chapter, setChapter] = useState<string>(
-    CHAPTERS.some(c => c.key === initialSection && !('disabled' in c && c.disabled)) ? initialSection! : 'archive')
+    CHAPTERS.some(c => c.key === initialSection) ? initialSection! : 'archive')
   const [form, setForm] = useState<string>('1.1')
   const [year, setYear] = useState(new Date().getFullYear())
   const [isPending, startTransition] = useTransition()
@@ -310,22 +311,14 @@ export function PlanTabView({
       {/* 서브탭 (장 단위) */}
       <div className="flex items-center gap-1 flex-wrap mb-4">
         {CHAPTERS.map(c => {
-          const disabled = 'disabled' in c && c.disabled
           const Icon = c.icon
           return (
             <button key={c.key}
-              onClick={() => !disabled && setChapter(c.key)}
-              disabled={disabled}
-              title={disabled ? '후속 단계에서 제공됩니다 (소방계획서_4.md 4-4·4-5)' : undefined}
+              onClick={() => setChapter(c.key)}
               className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
-                chapter === c.key
-                  ? 'bg-[#7b68ee] text-white'
-                  : disabled
-                    ? 'text-[#b0acd6] cursor-not-allowed'
-                    : 'text-[#514b81] hover:bg-[#f5f4ff]'
+                chapter === c.key ? 'bg-[#7b68ee] text-white' : 'text-[#514b81] hover:bg-[#f5f4ff]'
               }`}>
               <Icon className="size-3.5" /> {c.label}
-              {disabled && <span className="text-[9px]">준비 중</span>}
             </button>
           )
         })}
@@ -422,6 +415,9 @@ export function PlanTabView({
 
       {/* ── 2장 자위소방대 운영계획 ── */}
       {chapter === 'ch2' && ch2}
+
+      {/* ── 3장 피난계획 ── */}
+      {chapter === 'ch3' && ch3}
       </>)}
     </div>
   )
