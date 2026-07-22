@@ -2,19 +2,22 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Printer, Download, Loader2, History, BookOpen, Users, DoorOpen, Save } from 'lucide-react'
+import { FileOutput, Printer, Download, Loader2, History, BookOpen, Users, DoorOpen, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
 import {
-  generateFirePlanPdfNowAction, requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction,
+  generateFirePlanPdfNowAction, requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { refreshLedgerAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 
-/** 소방계획서 탭 골격 (4-1, 소방계획서_4.md §1·§2)
- *  구조: 생성 바(항상 고정) + 서브탭(장 단위) + 서식 탭(1장 내부).
- *  4-1 활성 범위: [개정이력·보관] + [1장 > 1.1]. 2·3장과 1.2~1.15는 예약(후속 단계). */
+/** 소방계획서 탭 (4-1 골격 + P2 빠른 입력 모드 — 소방계획서_4.md §1·§1-1·§2·§9-8)
+ *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
+ *  [서식 전체] 토글 = 고급 모드(장 서브탭 골격). 일반관리 고객 = 안내 배너 + 보관함만. */
 
 export type RevisionRow = { year: number; revision: number; date: string; note: string | null; uploader: string | null }
+export type DocChip = { doc: string; label: string; need: boolean; note?: string; have?: boolean }
+export type QuickReadiness = { done: number; total: number; missing: string[] }
 
 const CHAPTERS = [
   { key: 'archive', label: '개정이력·보관', icon: History },
@@ -38,6 +41,7 @@ const CH1_FORMS = [
 
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive, form11,
+  isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
   canManage: boolean
@@ -48,8 +52,15 @@ export function PlanTabView({
   initialSection?: string
   archive: ReactNode
   form11: ReactNode
+  isGeneral: boolean
+  docs: DocChip[]
+  quick: QuickReadiness
+  consentInitial: { consent: boolean | null; email: string }
+  latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
 }) {
   const router = useRouter()
+  // 기본 진입 = 빠른 입력 (§1-1 확정). 딥링크(sub=)로 들어오면 해당 서브탭의 고급 모드
+  const [mode, setMode] = useState<'quick' | 'full'>(initialSection ? 'full' : 'quick')
   const [chapter, setChapter] = useState<string>(
     CHAPTERS.some(c => c.key === initialSection && !('disabled' in c && c.disabled)) ? initialSection! : 'archive')
   const [year, setYear] = useState(new Date().getFullYear())
@@ -58,6 +69,31 @@ export function PlanTabView({
   const [rev, setRev] = useState(revisionInitial)
   const [revDirty, setRevDirty] = useState(false)
   const [isRevPending, startRevTransition] = useTransition()
+  const [consent, setConsent] = useState(consentInitial)
+  const [consentDirty, setConsentDirty] = useState(false)
+  const [isConsentPending, startConsentTransition] = useTransition()
+  const [isLedgerPending, startLedgerTransition] = useTransition()
+
+  function refreshLedger() {
+    setMsg('')
+    startLedgerTransition(async () => {
+      const res = await refreshLedgerAction(customerId)
+      if (res.needAddress) { setMsg('⚠ 건물에 저장된 지번 정보가 없습니다 — 서식 전체 모드의 계획서 정보 패널에서 [건축물대장에서 다시 가져오기]로 주소를 1회 확인해주세요.'); return }
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setMsg('✅ 건축물대장 값을 가져왔습니다 — 아래 필수 완성도에 반영됐습니다.')
+      router.refresh()
+    })
+  }
+
+  function saveConsent() {
+    startConsentTransition(async () => {
+      const res = await saveEmailConsentAction(customerId, { consent: consent.consent, email: consent.email })
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setConsentDirty(false)
+      setMsg('✅ 송달 동의 저장됨')
+      router.refresh()
+    })
+  }
 
   function generateHwp() {
     setMsg('')
@@ -102,6 +138,23 @@ export function PlanTabView({
   }
 
   const pct = readiness.total > 0 ? Math.round((readiness.done / readiness.total) * 100) : 0
+  const quickPct = quick.total > 0 ? Math.round((quick.done / quick.total) * 100) : 0
+
+  // 일반관리 고객 — 소방계획서 작성 대상 아님 (§9-8: 입력 화면 미노출, 안내 배너 + 보관함만)
+  if (isGeneral) {
+    return (
+      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+        <div className="flex items-start gap-2 rounded-xl border border-[#d0e3f7] bg-[#f4f9ff] px-4 py-3 mb-4">
+          <Info className="size-4 text-[#3b82c4] shrink-0 mt-0.5" />
+          <div className="text-xs text-[#2d5a87]">
+            <p className="font-semibold">일반관리 유형 — 소방계획서 작성 대상이 아닙니다</p>
+            <p className="mt-0.5">필요 문서: 외관점검표(일반용) — 작성 후 2년 보관, 소방서 보고 없음. 외부에서 작성한 문서는 아래 보관함에 보관할 수 있습니다.</p>
+          </div>
+        </div>
+        {archive}
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
@@ -138,11 +191,111 @@ export function PlanTabView({
               className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
               <Download className="size-3.5" /> 데이터 시트
             </button>
+            <button onClick={() => setMode(m => m === 'quick' ? 'full' : 'quick')}
+              title={mode === 'quick' ? '서식 전체 모드 — 장·서식별 세부 입력' : '빠른 입력 모드 — 필수 공통값만'}
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors">
+              {mode === 'quick' ? <LayoutList className="size-3.5" /> : <Zap className="size-3.5" />}
+              {mode === 'quick' ? '서식 전체' : '빠른 입력'}
+            </button>
           </div>
         )}
       </div>
       {msg && <p className="text-xs text-[#514b81] mb-3">{msg}</p>}
 
+      {/* ══ 빠른 입력 모드 (기본 진입 — §1-1) ══ */}
+      {mode === 'quick' && (
+        <div className="space-y-4">
+          {/* 필요 문서 칩 (§9-8 매트릭스) */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-medium text-[#514b81]">필요 문서</span>
+            {docs.map(d => (
+              <span key={d.doc} title={d.note}
+                className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] border ${
+                  !d.need ? 'text-[#b0acd6] border-[#eceafd]'
+                    : d.have ? 'bg-green-50 text-green-700 border-green-200'
+                      : 'bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5]'
+                }`}>
+                {d.label}{!d.need ? ' — 해당없음' : d.have ? ' ✓' : ''}
+              </span>
+            ))}
+          </div>
+
+          {/* 필수 완성도 (준비율 이원화 — 생성 가능 여부 기준) */}
+          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-semibold text-[#514b81]">필수 완성도 <span className="font-normal text-[#b0acd6]">(소방계획서 + 별지 9호 공통값)</span></p>
+              <div className="h-1.5 w-24 rounded-full bg-[#eceafd] overflow-hidden">
+                <div className={`h-full rounded-full ${quick.done < quick.total ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${quickPct}%` }} />
+              </div>
+              <span className="text-[11px] text-[#514b81]">{quick.done}/{quick.total}</span>
+              {canManage && (
+                <button onClick={refreshLedger} disabled={isLedgerPending}
+                  title="건축물대장에서 건축허가일·면적·세대수·동수·승강기·주차장·구조·지붕·높이 자동 채움"
+                  className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                  {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />} 건축물대장 불러오기
+                </button>
+              )}
+            </div>
+            {quick.missing.length > 0 ? (
+              <>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[11px] text-amber-600">누락:</span>
+                  {quick.missing.map(m2 => (
+                    <span key={m2} className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-[10px] border border-amber-200">{m2}</span>
+                  ))}
+                </div>
+                <button onClick={() => { setMode('full'); setChapter('ch1') }}
+                  className="mt-2 text-[11px] text-[#7b68ee] hover:underline">→ 서식 전체 모드에서 입력하기</button>
+              </>
+            ) : (
+              <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>
+            )}
+          </div>
+
+          {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) */}
+          {canManage && (
+            <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+              <p className="text-xs font-semibold text-[#514b81] mb-2">자체점검 보고서 전자우편 송달 동의 <span className="font-normal text-[#b0acd6]">(별지 9호 1쪽)</span></p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {([[true, '동의'], [false, '미동의']] as Array<[boolean, string]>).map(([v, label]) => (
+                  <button key={label}
+                    onClick={() => { setConsent(p => ({ ...p, consent: p.consent === v ? null : v })); setConsentDirty(true) }}
+                    className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
+                      consent.consent === v ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+                <input value={consent.email} type="email" placeholder="송달 이메일"
+                  onChange={e => { setConsent(p => ({ ...p, email: e.target.value })); setConsentDirty(true) }}
+                  className="h-8 w-56 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
+                <button onClick={saveConsent} disabled={!consentDirty || isConsentPending}
+                  className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+                  {isConsentPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 최근 보관함 1줄 요약 */}
+          <div className="flex items-center gap-2 rounded-xl border border-[#e0ddf5] px-4 py-2.5">
+            <History className="size-3.5 text-[#b0acd6]" />
+            {latestPlan ? (
+              <span className="text-xs text-[#514b81]">
+                최근 보관함: <span className="font-medium text-[#090c1d]">{latestPlan.year}년 {latestPlan.title}</span>
+                {latestPlan.revision > 1 ? ` (개정${latestPlan.revision})` : ''} · PDF {latestPlan.pdfStatus === 'ready' ? '완료' : latestPlan.pdfStatus === 'converting' ? '변환 중' : '실패'}
+              </span>
+            ) : (
+              <span className="text-xs text-[#b0acd6]">보관함이 비어 있습니다 — 첫 생성 시 자동 등록됩니다.</span>
+            )}
+            <button onClick={() => { setMode('full'); setChapter('archive') }}
+              className="ml-auto text-[11px] text-[#7b68ee] hover:underline">보관함 열기 →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ 서식 전체 모드 (고급 — 4-1 골격) ══ */}
+      {mode === 'full' && (<>
       {/* 서브탭 (장 단위) */}
       <div className="flex items-center gap-1 flex-wrap mb-4">
         {CHAPTERS.map(c => {
@@ -240,6 +393,7 @@ export function PlanTabView({
           {form11}
         </div>
       )}
+      </>)}
     </div>
   )
 }

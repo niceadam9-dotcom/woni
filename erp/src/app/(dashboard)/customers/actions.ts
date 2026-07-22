@@ -1159,6 +1159,11 @@ export type BuildingLedgerInfo = {
   ho_count: number | null         // 호수 — 수용인원
   attached_building_count: number | null // 부속건축물 수
   seismic_design: string | null   // 내진설계 적용 여부
+  // 098 확장 — 별지 9호 2쪽 잔여 항목 (소방계획서_4.md §11-1)
+  permit_date: string | null      // 건축허가일 YYYY-MM-DD
+  building_area: number | null    // 건축면적(㎡)
+  building_count: number | null   // 건물 동수 — 같은 지번 표제부 행 수
+  parking_summary: string | null  // 주차장 요약 (옥내/옥외 기계식·자주식 대수)
 }
 
 export async function fetchBuildingLedgerAction(
@@ -1204,6 +1209,16 @@ export async function fetchBuildingLedgerAction(
     }
     const item = list.reduce((a, b) => (num(a.totArea) ?? 0) >= (num(b.totArea) ?? 0) ? a : b)
     const apr = String(item.useAprDay ?? '')
+    const pms = String(item.pmsDay ?? '')
+    const day8 = (v: string) => (/^\d{8}$/.test(v) ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6)}` : null)
+    // 주차장 요약 — 옥내/옥외 × 기계식/자주식 대수 중 값이 있는 것만 합성
+    const parking = ([
+      ['옥내 기계식', num(item.indrMechUtcnt)], ['옥외 기계식', num(item.oudrMechUtcnt)],
+      ['옥내 자주식', num(item.indrAutoUtcnt)], ['옥외 자주식', num(item.oudrAutoUtcnt)],
+    ] as Array<[string, number | null]>)
+      .filter(([, n]) => n != null && n > 0)
+      .map(([label, n]) => `${label} ${n}대`)
+      .join(' · ')
     return {
       info: {
         purpose: (item.mainPurpsCdNm as string) || null,
@@ -1221,6 +1236,10 @@ export async function fetchBuildingLedgerAction(
         ho_count: num(item.hoCnt),
         attached_building_count: num(item.atchBldCnt),
         seismic_design: (item.rserthqkDsgnApplyYn as string) || null,
+        permit_date: day8(pms),
+        building_area: num(item.archArea),
+        building_count: list.length,
+        parking_summary: parking || null,
       },
     }
   } catch (e) {

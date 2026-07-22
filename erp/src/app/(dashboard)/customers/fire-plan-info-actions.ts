@@ -206,6 +206,11 @@ export async function refreshLedgerAction(
   if (L.ho_count != null) patch.ho_count = L.ho_count
   if (L.attached_building_count != null) patch.attached_building_count = L.attached_building_count
   if (L.seismic_design != null) patch.seismic_design = L.seismic_design
+  // 098 확장 (P2 §11-1) — 건축허가일·건축면적·동수·주차장
+  if (L.permit_date != null) patch.permit_date = L.permit_date
+  if (L.building_area != null) patch.building_area = L.building_area
+  if (L.building_count != null) patch.building_count = L.building_count
+  if (L.parking_summary != null) patch.parking_summary = L.parking_summary
 
   // 092 미적용 DB 폴백: bcode·address_jibun 제외 후 재시도
   const { bcode: _b, address_jibun: _j, ...without092 } = patch

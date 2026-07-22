@@ -18,6 +18,7 @@ import { CustomerSummaryPanel } from '@/components/customers/customer-summary-pa
 import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
 import { RecommendAssignClient } from '@/components/customers/recommend-assign-client'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
+import { requiredDocs, isGeneralManagement, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
@@ -253,6 +254,38 @@ export default async function CustomerDetailPage({
     hasBrigade: planInfoInitial.brigade.length > 0,
   })
 
+  // ── P2: 문서 요구 매트릭스 + 빠른 입력 필수 완성도 (소방계획서_4.md §1-1·§9-8) ──
+  const docProfile = { inspection_type: customer.inspection_type }
+  const isGeneral = isGeneralManagement(docProfile)
+  const quickReadiness = computeQuickReadiness(docProfile, {
+    address: !!customer.address,
+    purpose: !!firstBld?.purpose,
+    useApprovalDate: !!customer.use_approval_date,
+    permitDate: firstBld?.permit_date != null,
+    totalArea: firstBld?.total_area != null,
+    buildingArea: firstBld?.building_area != null,
+    floors: firstBld?.floors_above != null || firstBld?.floors_below != null,
+    height: !!planInfoInitial.height,
+    households: firstBld?.households != null,
+    buildingCount: firstBld?.building_count != null,
+    elevator: firstBld?.elevator_count != null || firstBld?.emergency_elevator_count != null,
+    parking: firstBld?.parking_summary != null,
+    receiverLocation: !!planInfoInitial.receiverLocation,
+    structure: !!planInfoInitial.structure,
+    roof: !!planInfoInitial.roof,
+    managerSelectedAt: !!planInfoInitial.managerSelectedAt,
+    grade: !!planInfoInitial.grade,
+    insurance: planInfoInitial.insuranceJoined !== null,
+    opHours: !!planInfoInitial.opHoursWeekday,
+    headcount: !!(planInfoInitial.headcountWorker || planInfoInitial.headcountResident || planInfoInitial.headcountMax),
+    brigade: planInfoInitial.brigade.length > 0,
+    emailConsent: (cRec.email_delivery_consent as boolean | null) != null,
+  })
+  const docChips = requiredDocs(docProfile).map(d => ({
+    ...d,
+    have: d.doc === 'fire_plan' ? firePlans.length > 0 : undefined,
+  }))
+
   // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
   const activeBlds = buildings.filter(b => b.is_active)
   const hasRep = contacts.some(ct => ct.role === '대표')
@@ -263,7 +296,8 @@ export default async function CustomerDetailPage({
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
     { key: 'buildings', label: '건물·시설', warn: !(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null)) },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !hasRep },
-    { key: 'plan', label: '소방계획서', badge: `${readiness.done}/${readiness.total}`, warn: readiness.done < readiness.total },
+    // 일반관리 = 소방계획서 작성 대상 아님 → 뱃지·⚠ 억제 (§9-8)
+    { key: 'plan', label: '소방계획서', badge: isGeneral ? undefined : `${readiness.done}/${readiness.total}`, warn: isGeneral ? false : readiness.done < readiness.total },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
@@ -469,6 +503,17 @@ export default async function CustomerDetailPage({
       initialSection={sub}
       archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
+      isGeneral={isGeneral}
+      docs={docChips}
+      quick={quickReadiness}
+      consentInitial={{
+        consent: (cRec.email_delivery_consent as boolean | null) ?? null,
+        email: s(cRec.report_email),
+      }}
+      latestPlan={firePlans[0] ? {
+        year: firePlans[0].year, title: firePlans[0].title ?? '소방계획서',
+        pdfStatus: firePlans[0].pdf_status ?? 'ready', revision: firePlans[0].revision,
+      } : null}
     />
   )
 

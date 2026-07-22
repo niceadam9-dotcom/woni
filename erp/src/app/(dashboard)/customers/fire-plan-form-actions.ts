@@ -44,6 +44,25 @@ export async function saveFirePlanRevisionAction(
   return res
 }
 
+/** 전자우편 송달 동의 저장 (098, 별지 9호 1쪽 — 소방계획서_4.md §9-6①) */
+export async function saveEmailConsentAction(
+  customerId: string,
+  input: { consent: boolean | null; email: string },
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const email = input.email.trim()
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: '이메일 형식을 확인해주세요.' }
+  if (input.consent === true && !email) return { error: '동의 시 송달 이메일을 입력해주세요.' }
+  const admin = createAdminClient()
+  const { error } = await admin.from('customers').update({
+    email_delivery_consent: input.consent,
+    report_email: email || null,
+  } as Record<string, unknown>).eq('id', customerId)
+  if (error) return { error: `저장 실패: ${error.message}` }
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
 /** PDF 즉시 생성 (생성 바 직결 — 모달 없이 저장된 데이터로)
  *  기준 데이터: 최신 웹 생성분의 .form.json(있으면) > 자동 기본값. 개정이력 입력은 항상 최우선 반영. */
 export async function generateFirePlanPdfNowAction(customerId: string): Promise<{ error?: string }> {

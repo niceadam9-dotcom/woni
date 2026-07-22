@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
+import { isGeneralManagement } from '@/lib/doc-requirements'
 import type { InspectionType } from '@/types'
 
 /** 고객 목록 공용 조회 (서버 전용) — 목록 페이지와 상세 [◀ 이전|다음 ▶] 네비가 같은 필터·정렬을 공유한다.
@@ -109,11 +110,13 @@ export async function fetchCustomerList(
       hasHeadcount: r.headcount_worker != null || r.headcount_resident != null || r.headcount_max != null,
       hasBrigade: brigadeIds.has(r.id as string),
     })
+    // 일반관리 = 소방계획서 작성 대상 아님 (§9-8 doc-requirements) — 준비율·계획서 미완료 판정 억제
+    const general = isGeneralManagement({ inspection_type: r.inspection_type as string })
     const incompleteAreas: string[] = []
     if (!r.plan_anchor_date || !r.assigned_employee_id) incompleteAreas.push('기본정보')
     if (!(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null))) incompleteAreas.push('건물')
     if (!repIds.has(r.id as string)) incompleteAreas.push('관계인')
-    if (readiness.done < readiness.total) incompleteAreas.push('계획서')
+    if (!general && readiness.done < readiness.total) incompleteAreas.push('계획서')
     if (!billingIds.has(r.id as string)) incompleteAreas.push('청구')
 
     return {
@@ -127,7 +130,7 @@ export async function fetchCustomerList(
       assigned_employee_id: (r.assigned_employee_id as string | null) ?? null,
       created_at: r.created_at as string,
       buildings,
-      planDone: readiness.done, planTotal: readiness.total,
+      planDone: general ? 0 : readiness.done, planTotal: general ? 0 : readiness.total,
       incompleteAreas,
     }
   })
