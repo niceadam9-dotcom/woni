@@ -19,12 +19,12 @@
       "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["4-1 골격: sections[8-1] verified 참조 (096 양쪽 DB·E2E 15/15·스테이징/운영 배포)", "워커 상시화: 작업 스케줄러 'SJFire FirePlan Worker'(로그온 자동·전원 예외·중복 방지·실패 재시작 10회, 래퍼 C:/Users/dwhwang/Tools/fireplan-worker.cmd + 로그 10MB 로테이션) + AC 절전 해제(powercfg standby/hibernate-timeout-ac 0)", "무인 E2E: 잡 등록→45초 내 done(attempts 1)→HWP+HTML+PDF(ready) 2단계 등록·missing[] fail-soft 확인 후 산출물 정리"], "method": "실작업 E2E + 스케줄러 상태 확인" },
       "note": "워커는 스테이징 DB 대상(load_env prod=False) — 운영 전환은 워커 prod=True + 보관함 마이그레이션 선행 필요(별도 결정)" },
     { "id": "P2", "title": "대장 자동 채움 확대 + 빠른 입력 모드 + 송달 동의 필드 + 문서 요구 매트릭스 상수", "status": "partial",
-      "note": "핵심 종결(2026-07-23, 커밋 268d86f — 098 양쪽 DB·E2E 20/20·스테이징/운영 배포): 빠른 입력 모드(§1-1)·송달 동의(§9-6①)·매트릭스 상수+일반관리 구별(§9-8)·대장 파싱 확대(§11-1). 잔여: ① 대장값 앰버 하이라이트 확정 UX(현재는 기존 직접 저장 방식) ② 종합/작동 필드 조건부는 P4 서식(1.10.1) 구현 시 ③ 직원 자격정보 데이터 정비(§9-6② — 운영 2명 전원 미입력, 사용자 입력 필요)" },
+      "note": "핵심 종결(2026-07-23, 커밋 268d86f — 098 양쪽 DB·E2E 20/20·스테이징/운영 배포): 빠른 입력 모드(§1-1)·송달 동의(§9-6①)·매트릭스 상수+일반관리 구별(§9-8)·대장 파싱 확대(§11-1). 잔여 ①앰버 확정 UX·②1.10.1 조건부는 완료(0c8e095·3338b5c) — 남은 것: ③ 직원 자격정보 데이터 정비(§9-6② — 운영 2명 전원 미입력, 사용자 입력 필요)" },
     { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 48a28ea — placeholder 심기·1~3쪽 병합·롤업·워커 분기·준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). defects 조치 계획 필드(action_plan/start/end) 선반영 완료(§9-7a). 잔여: 음성 입력 V-1(§9-4)·자격정보 데이터 정비(9-3d)·다중이용 28종(9-6e)" },
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "partial",
       "note": "P4-①~⑤ 완료(최신 d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a(섹션→웹 PDF/HWP zones 연결) + 웹 개정이력 다행, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여(정직 기록): 신규 서식들의 HWP placeholder 확장(7-4 — 1.5·1.6·1.10·1.11·2장 임무·3장 세부의 HWP 병합은 웹 PDF만 반영, HWP 양식 심기는 서식별 순차)·HWP 개정이력 다행·임포트 배너(7-3b)" },
-    { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "partial", "note": "R-1·R-2·별지 10·11호·외관점검표(977efa8) 완료 — 잔여: 개정 감지 크론(OC IP 블로커)·기한 임박 알림·연차 갱신 자동화" },
+    { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "partial", "note": "R-1·R-2·별지 10·11호·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095) 완료 — 잔여: 개정 감지 크론(OC IP 블로커, 사용자 액션 대기)" },
     { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
   ],
   "sections": [
@@ -146,11 +146,11 @@
         { "id": "7-1", "desc": "마이그레이션 096 — fire_plan_forms(customer_id PK + sections JSONB, 키 19종)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["096_fire_plan_forms.sql (RLS on·정책 없음 — 서버 액션 전용)", "스테이징(nwflnzugwylhpdyodyog)·운영(ryuozdhnilfjlahorizh) DB 적용 — Management API to_regclass 조회 true"], "method": "코드 대조 + DB 읽기 조회" } },
         { "id": "7-2", "desc": "정규 테이블 보유 데이터(고객·건물·시설·자위대)는 JSONB 중복 저장 금지 — 화면만 서식 관점", "status": "confirmed" },
-        { "id": "7-3", "desc": "assembleFirePlanGenData() 어댑터 → 기존 파이프라인 공용 + .form.json 스냅샷 + 최초 진입 1회 임포트 배너", "status": "partial",
+        { "id": "7-3", "desc": "assembleFirePlanGenData() 어댑터 → 기존 파이프라인 공용 + .form.json 스냅샷 + 최초 진입 1회 임포트 배너", "status": "implemented",
           "criteria": [
             { "id": "7-3a", "desc": "입력 섹션 → 생성 기본값 연결 (웹 PDF·데이터시트·PDF 직결·HWP)", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — sections.zones→1.2.1(형태 매핑), hazards→1.2.2, evacPlan→3.4(절차·경로·집결지), fire_brigade_members→2.2, training 훈련월, 과거 개정이력 다행(revisions)", "fireplan-worker.py — sections.zones 우선 zone_rows(HWP 1.2.1 placeholder 재사용)", ".form.json 스냅샷은 기존 유지"], "method": "코드 대조 + E2E(섹션 저장 경로)" } },
-            { "id": "7-3b", "desc": "최초 진입 1회 임포트 배너", "status": "pending_order", "note": "빠른 입력 모드가 기본 진입이 되면서 필요성 재검토" }
+            { "id": "7-3b", "desc": "최초 진입 1회 임포트 배너", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire-plan-form-actions.ts importLegacyFormAction — 최신 .form.json → sections 역매핑(zones·hazards·evacPlan·revision, §7-3a 어댑터 역방향), 서식 입력 존재 시 거부(최초 1회 원칙)", "plan-tab-view.tsx 빠른 입력 배너([가져오기]/[닫기]) + page.tsx importCandidate(서식 없음 && generated_ 웹 생성분 존재)"], "method": "E2E scripts/test-import-deeplink.mts 11/11 — 배너→가져오기→4개 섹션 역매핑 DB 검증→재진입 배너 미노출" } }
           ] },
         { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "partial",
           "criteria": [
@@ -251,7 +251,7 @@
       ]
     },
     {
-      "id": "9-7", "line": 487, "title": "별지 10·11호 — 불량 생애주기 관리", "status": "partial",
+      "id": "9-7", "line": 487, "title": "별지 10·11호 — 불량 생애주기 관리", "status": "implemented",
       "note": "설계 채택(2026-07-21): 별도 테이블·화면 없이 기존 inspection_defects(점검표 X→자동 등록) 확장",
       "criteria": [
         { "id": "9-7a", "desc": "inspection_defects 조치 필드 확장 — action_plan/start/end(10호 계획 행) + action_done_at/note/photo_before·after(11호 완료 행)", "status": "implemented",
@@ -262,7 +262,7 @@
         { "id": "9-7c", "desc": "준비 화면 단계 추가 — ⑤ 이행조치 계획(불량 시만)·[9호+10호 세트 생성] / ⑥ 이행완료 처리·[11호 생성]", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1cd2a10", "evidence": ["inspection-report9-client.tsx — 불량 있을 때만 ⑤(계획 n/m + [별지 10호 생성])·⑥(완료 m/n + [별지 11호 생성]) 표시, 생성물 목록 report9/10/11 통합", "불량내역 [이행계획·조치 완료] — 계획 내용·이행 기간(시작~종료) 입력 추가(updateDefectActionAction 확장)", "UI 스모크 6/6"], "method": "코드 대조 + UI 스모크" },
           "note": "[9호+10호 세트 생성]은 개별 버튼 2개로 구현(중복 잡 방지 — 순차 요청)" },
-        { "id": "9-7d", "desc": "기한 관리 — 이행 필요기간 종료일 임박 알림(기존 inspection-deadline-notify 크론 패턴, 과태료 방어)", "status": "pending_order", "note": "action_end 데이터는 준비됨 — 크론 확장은 후속" }
+        { "id": "9-7d", "desc": "기한 관리 — 이행 필요기간 종료일 임박 알림(기존 inspection-deadline-notify 크론 패턴, 과태료 방어)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["api/cron/defect-action-notify — action_end D-7/D-3/당일/경과(과태료 문구) × 미완료(action_completed_at null), 점검 건 단위 그룹 알림(담당+manager/admin), 일 단위 중복 방지", "103_notification_defect_action.sql — defect_action_due/overdue 타입(스테이징·운영 적용)", "VPS /etc/cron.d/sjfire-erp 매일 00:35 KST 등록"], "method": "E2E scripts/test-defect-notify.mts 7/7 — D-3 2건 그룹·완료건 제외·경과 문구·재발화 멱등" } }
       ]
     },
     {
@@ -309,18 +309,18 @@
     {
       "id": "11", "line": 680, "title": "입력 편의 장치 — 필요한 값을 쉽게 입력", "status": "partial",
       "criteria": [
-        { "id": "11-1", "desc": "건축물대장 자동 채움 확대 ★최우선 — refreshLedgerAction을 1.1 신규 필드(건축허가일·세대수·동수·높이·구조·지붕·승강기·주차장 등)로 확대, 불러온 값 앰버 하이라이트→저장 확정", "status": "partial",
+        { "id": "11-1", "desc": "건축물대장 자동 채움 확대 ★최우선 — refreshLedgerAction을 1.1 신규 필드(건축허가일·세대수·동수·높이·구조·지붕·승강기·주차장 등)로 확대, 불러온 값 앰버 하이라이트→저장 확정", "status": "implemented",
           "criteria": [
             { "id": "11-1a", "desc": "대장 파싱·저장 확대 — 건축허가일(pmsDay)·건축면적(archArea)·건물동수(표제부 행 수)·주차장 요약(옥내/옥외 기계식·자주식) + 기존 세대수·승강기·구조·지붕·높이", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["customers/actions.ts fetchBuildingLedgerAction — permit_date·building_area·building_count·parking_summary 파싱(0/빈값 fail-soft)", "fire-plan-info-actions.ts refreshLedgerAction patch 4필드 추가", "098 buildings 3컬럼(building_area는 기존 085)", "실 API 검증: getBrTitleInfo 응답에 pmsDay·archArea·indr/oudr*Utcnt 필드 존재 확인(서울시청 지번)"], "method": "코드 대조 + 실 API 호출 검증" } },
             { "id": "11-1b", "desc": "빠른 입력 화면 [건축물대장 불러오기] 버튼 1번 채움 + 필수 완성도 즉시 반영", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["plan-tab-view.tsx refreshLedger(needAddress·에러 fail-soft, router.refresh)", "E2E: 건물 없음 fail-soft 안내 확인"], "method": "코드 대조 + E2E" } },
-            { "id": "11-1c", "desc": "불러온 값 앰버 하이라이트 표시 → 저장 시 확정", "status": "pending_order", "note": "현재는 기존 refreshLedgerAction 방식(대장값 있는 항목만 즉시 저장) 유지 — 확인 단계 UX는 추후" }
+            { "id": "11-1c", "desc": "불러온 값 앰버 하이라이트 표시 → 저장 시 확정", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire-plan-info-actions.ts previewLedgerAction(조회만·저장 없음, 13필드 현재값 비교) + applyLedgerValuesAction(화이트리스트 확정 저장·활동로그)", "plan-tab-view.tsx — 변경분 앰버 하이라이트(기존값 취소선→새값)·[확정 저장]/[취소] 패널"], "method": "E2E scripts/test-ledger-preview.mts 8/8 — 실 대장 API, 미리보기 단계 DB 미변경→확정 저장 반영→취소 경로" } }
           ] },
-        { "id": "11-2", "desc": "전년도 이어받기 — 연차발행 시 fire_plan_forms 섹션 전체 복사 + 개정이력 '연차 갱신' 자동 기록", "status": "pending_order", "note": "P5 확장(방향 합의)" },
+        { "id": "11-2", "desc": "전년도 이어받기 — 연차발행 시 fire_plan_forms 섹션 전체 복사 + 개정이력 '연차 갱신' 자동 기록", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire_plan_forms는 고객당 1행 — 섹션은 설계상 자동 승계. issueNextYearPlanAction이 sections.revision을 '{연도}년 연차 갱신 (전년도 이어받기)'로 갱신(전년 개정 문구 딸림 방지)", "발행 행 note=연차발행 → 개정이력 다행 자동 반영(기존)"], "method": "E2E scripts/test-annual-carryover.mts 7/7 — 발행→2026행·파일 복제·revision 자동 기록·타 섹션(zones) 승계·화면 반영" } },
         { "id": "11-3", "desc": "섹션별 원클릭 채우기·해당없음 — 1.5 용도 기반 기본값, 1.6 LPG 프리셋, 1.11 표준 패턴, 2장 표준 문구, 3.5 해당없음 등", "status": "pending_order" },
         { "id": "11-4", "desc": "입력 컴포넌트 공통 규칙 — 단위 표시·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신", "status": "pending_order" },
-        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "pending_order", "note": "URL 구조는 4-1 골격에 반영됨(code_present)" },
+        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "partial", "note": "칩→입력처 딥링크 구현(0c8e095, E2E 4케이스 — test-import-deeplink.mts): 건물값→건물·시설 탭, 주소·사용승인일→기본정보 탭, 1.1 필드→서식 전체 1.1, 자위소방대→2장, 송달 동의→화면 내 스크롤. 잔여(정직 기록): 필드 단위 포커스 미구현 — 해당 서식 도착까지만" },
         { "id": "11-6", "desc": "다른 고객 복사 확대 — getFirePlanCopyCandidatesAction을 섹션 단위 복사(1.5/1.6/1.11 유사 고객)로 확장", "status": "pending_order" }
       ]
     },
