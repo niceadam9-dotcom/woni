@@ -426,6 +426,14 @@ export async function confirmPlanItemStageOneAction(
   revalidatePath('/inspection-plans/monitor')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
+
+  // 점검일 입력(확정) = 점검 시작과 동일 효과 (2026-07-23 사용자 확정) —
+  // 특별점검은 확정 즉시 inspections 자동 생성 → 점검달력·점검 업무·보고서(별지 9호 준비 화면) 반영.
+  // 정기(monthly)·일반관리(event)는 위 isEvent 분기에서 기존 규칙(확정만) 유지.
+  if (!itemInfo.inspection_id) {
+    const started = await startInspectionAction(planItemId)
+    if (started.error) return { error: `점검일은 확정됐지만 점검 자동 시작에 실패했습니다: ${started.error}` }
+  }
   return {}
 }
 
