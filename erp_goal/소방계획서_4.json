@@ -1,0 +1,244 @@
+{
+  "version": "fireplan-tab-design-v4r2",
+  "title": "소방계획서 탭 상세 설계 (4차·개정2) — 장(章) 기반 다단계 탭 구조 (구조 JSON)",
+  "source": "erp_goal/소방계획서_4.md",
+  "generated": "2026-07-21",
+  "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
+  "note": "2026-07-21 설계 개정2 시점 생성. implemented 항목 0건 — §8-1의 로컬 완료분은 미커밋·미배포·독립 검증 전이므로 전부 code_present(자기 신고)로 기록. implemented 승격은 커밋 후 독립 검증 패스(규칙 3)에서만 수행한다.",
+  "status_legend": {
+    "confirmed": "확정 (설계 결정·PoC 검증 사실)",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "implemented": "독립 검증 통과 — verified(date·commit·evidence·method) 필수",
+    "partial": "부분 구현 — criteria 참조",
+    "pending_order": "미구현·지시 대기",
+    "deferred": "보류·후순위",
+    "proposal": "제안·미결 질문"
+  },
+  "roadmap": [
+    { "id": "P1", "title": "4-1 마무리 + 워커 상시화 (096 적용→검증→커밋·배포, 작업 스케줄러 절전 예외)", "status": "partial", "note": "4-1 골격 코드는 code_present(§8-1), 096 DB 적용·검증·배포·워커 상시화는 미착수" },
+    { "id": "P2", "title": "대장 자동 채움 확대 + 빠른 입력 모드 + 송달 동의 필드 + 문서 요구 매트릭스 상수", "status": "pending_order" },
+    { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "pending_order" },
+    { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "pending_order" },
+    { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "pending_order" },
+    { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
+  ],
+  "sections": [
+    {
+      "id": "0", "line": 8, "title": "최종 목적 — 두 문서 자동 출력 (소방계획서 + 별지 9호 자체점검 실시결과 보고서)", "status": "confirmed",
+      "note": "탭 구조(공통 필수값 1회 입력)·시설 코드 표준화(§4-3)·한글 SDK 파이프라인 공용 엔진·보고서 페이지(§10) 진입점 — 설계 전체가 이 목적에 종속"
+    },
+    {
+      "id": "1", "line": 24, "title": "전체 탭 계층 — 탭 > 좌측 목차 트리 > 서식 화면(섹션 카드) 3단계 (2026-07-21 개정)", "status": "pending_order",
+      "criteria": [
+        { "id": "1-1", "desc": "좌측 목차 트리 — 장 접기/펼치기·현재 위치·완성도(✓/n/m/⚠) 상시 표시, 모바일 상단 드롭다운 폴백", "status": "pending_order" },
+        { "id": "1-2", "desc": "섹션 카드 — 서식 화면 내 탭 없이 세로 스크롤 + 카드 앵커 점프, 저장 버튼 서식당 1개 + 미저장 이동 확인", "status": "pending_order" },
+        { "id": "1-3", "desc": "URL 딥링크 /customers/{id}?tab=plan&form=1.1(+#카드앵커)", "status": "pending_order", "note": "구 골격은 ?tab=plan&sub= 형식으로 code_present(§8-1) — 개정 구조(form=)로 전환 필요" },
+        { "id": "1-4", "desc": "목차 항목별 완성도 뱃지 → 합산이 상위 소방계획서 탭 뱃지", "status": "pending_order" },
+        { "id": "1-5", "desc": "기본 진입 = 빠른 입력 화면(§1-1), 개정이력·보관은 고급 모드 목차 첫 항목 (종전 규정 폐기)", "status": "pending_order", "note": "결정 자체는 확정(2026-07-21, §12-4)" }
+      ]
+    },
+    {
+      "id": "1-1", "line": 61, "title": "빠른 입력 모드(기본) ↔ 서식 전체 모드(고급)", "status": "pending_order",
+      "criteria": [
+        { "id": "1-1a", "desc": "빠른 입력 화면 — 두 문서 공통 필수값만 단일 스크롤 + 최근 보관함 1줄 요약, 동선: 대장 불러오기→빠진 필드→생성", "status": "pending_order" },
+        { "id": "1-1b", "desc": "고급 모드 전환 토글 (좌측 목차 트리 + 서식 섹션 카드)", "status": "pending_order" },
+        { "id": "1-1c", "desc": "준비율 게이지 이원화 — 필수 완성도(생성 가능 여부) / 전체 완성도 분리 표시", "status": "pending_order" },
+        { "id": "1-1d", "desc": "필수 필드 정의 = 별지 9호 1~3쪽 ∪ fire-plan-readiness 어휘 — 상수 1곳 관리", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "2", "line": 73, "title": "서브탭 ① 개정이력·보관", "status": "partial",
+      "criteria": [
+        { "id": "2-1", "desc": "개정이력 — fire_plans 기반 자동 목록 + 이번 작성일·개정내용 입력(sections.revision 저장)", "status": "code_present", "note": "MD §8-1 자기 신고(2026-07-21, tsc·eslint 통과·미커밋). 저장은 096 DB 적용 전까지 실패" },
+        { "id": "2-2", "desc": "보관함 — 현행 fire-plans-client 이동(2단계 등록 표시 포함)", "status": "code_present", "note": "MD §8-1 '보관함 배치' 자기 신고" },
+        { "id": "2-3", "desc": "HWP 개정이력 표 다행 병합 — 과거 이력 행 순번대로 병합 출력 (현재 1행만)", "status": "pending_order", "note": "P4(구 4-5) 범위" },
+        { "id": "2-4", "desc": "외부 작성 HWP/PDF 직접 업로드 (첨부 저장)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "3", "line": 95, "title": "서브탭 ② 1장 소방안전관리계획 — 서식별 화면", "status": "partial",
+      "criteria": [
+        { "id": "3-0", "desc": "웹 하드코딩 버그 해소(요구 3·4·5) — 수신기위치·급수·높이·구조·지붕·선임일 customers/buildings 연동 (getFirePlanGenDefaultsAction)", "status": "code_present", "note": "MD §8-1 자기 신고 — 웹 모달·데이터시트·PDF 직결 생성 모두 해소 주장, 검증 전" },
+        { "id": "3-1.1", "desc": "서식 1.1 건축물 일반현황 — 섹션 카드 3개(시설현황/운영현황/화재보험) 분할 + 별지 9호 연계 신규 필드(건축허가일·세대수·건물동수·경사로·계단·승강기·주차장·대표자 구분·관리자 자격구분·최근 교육이수일 → buildings/customers 확장)", "status": "pending_order", "note": "현재는 기존 아코디언 패널 그대로 배치(§8-1) — 분할·신규 필드는 P4(구 4-2)" },
+        { "id": "3-1.2", "desc": "서식 1.2 세부현황 — 구역별(zones, 층 자동 생성) + 화재취약장소(hazards, 프리셋)", "status": "pending_order" },
+        { "id": "3-1.3", "desc": "서식 1.3 위치·소방차진입 — location(지도 이미지·관할 소방서 자동완성) + fireAccess(경로도)", "status": "pending_order" },
+        { "id": "3-1.4", "desc": "서식 1.4 소방시설 현황 — §4 참조", "status": "pending_order", "note": "상세 criteria는 섹션 4" },
+        { "id": "3-1.5", "desc": "서식 1.5 피난·방화·제연·방염 — evacFire + 구획 현황도(plan-assets)", "status": "pending_order" },
+        { "id": "3-1.6", "desc": "서식 1.6 기타시설(전기·가스·위험물) — etcFacility", "status": "pending_order" },
+        { "id": "3-1.7", "desc": "서식 1.7 선임현황 — managers (1행 고객 데이터 자동)", "status": "pending_order" },
+        { "id": "3-1.8", "desc": "서식 1.8 업무대행 현황 — company_profile·계약·등급 자동 읽기 전용", "status": "pending_order" },
+        { "id": "3-1.10", "desc": "서식 1.10 자체점검·업무수행 — 연간 점검 계획(inspection)/다중이용업소(multiUse)/화재·비화재보 이력(fireHistory)", "status": "pending_order", "note": "1.10.2 업무수행 기록 포함 여부는 §12-1 미결" },
+        { "id": "3-1.11", "desc": "서식 1.11 소방훈련·교육 — 연간계획 체크 그리드/세부계획/시나리오 프리셋/결과 기록부(별지 28호) → sections.training", "status": "pending_order" },
+        { "id": "3-1.12", "desc": "서식 1.12~1.15 (화기취급·공사기록·홍보·피해복구) — v1은 탭 예약만(빈 상태 + 인쇄 후 수기 안내)", "status": "deferred", "note": "수요 확인 후 입력화 결정 (§12-3)" }
+      ]
+    },
+    {
+      "id": "4", "line": 164, "title": "서식 1.4 소방시설 현황 — image-1.png 양식 재현 입력 화면", "status": "pending_order",
+      "criteria": [
+        { "id": "4-1", "desc": "양식 배치 재현 화면 — 표 괘선·좌측 분류 세로 병합(rowspan)·대상명(활성 건물) 드롭다운·타이틀 블록", "status": "pending_order" },
+        { "id": "4-2", "desc": "상호작용 — 셀 전체 클릭 토글·체크 시 굵게·피난기구 하위 8종 연동 활성화·항목별 비고(detail.note)·층별 수량 접기 패널(fire_facility_floors)·시설 확인 완료(verified_at)", "status": "pending_order" },
+        { "id": "4-3a", "desc": "시설 코드 표준화 — 서식 1.4 정식 명칭 42종+피난기구 하위 8종을 새 표준 코드로 채택 (1:1/1:N/1:2 매핑표)", "status": "confirmed", "note": "해법 확정 — 별지 9호 3쪽과 동일 체계(§9-2)가 추가 근거" },
+        { "id": "4-3b", "desc": "마이그레이션 097 — facility_code 매핑 UPDATE + 1:N 이관 행 detail.note='코드 이관 — 세부 확인 필요' + 재확인 뱃지", "status": "pending_order" },
+        { "id": "4-3c", "desc": "표준 코드 상수 1곳 공유 — FACILITY_FORM(웹 PDF)·build_stage2(HWP)·입력 화면 일치 + 기존 축약 코드 사용처 grep 일괄 수정", "status": "pending_order" },
+        { "id": "4-4", "desc": "저장 구조 — fire_facilities(building_id+facility_code+installed+detail) 기존 테이블·saveFacilitiesAction 확장 재사용, 체크 목록→서식 1.4 표 자동 반영", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "5", "line": 263, "title": "서브탭 ③ 2장 자위소방대 운영계획", "status": "pending_order",
+      "criteria": [
+        { "id": "5-1", "desc": "2.1 일반현황 — Type Ⅰ/Ⅱ/Ⅲ 선택 + 작성 대상 서식 안내 (sections.brigadeGeneral)", "status": "pending_order" },
+        { "id": "5-2", "desc": "2.2 편성표 — 기존 fire_brigade_members 편집 UI 이관 + 관계인·직원 가져오기 + 비상연락체계", "status": "pending_order" },
+        { "id": "5-3", "desc": "팀별 임무(2.5~2.13) — 고정 문구 + 프리셋 편집(대상명 자동), v1은 프리셋 문구만 (sections.brigadeTeams)", "status": "pending_order" },
+        { "id": "5-4", "desc": "2.14 교육·훈련 결과 기록부 — 1.11.4와 데이터 공유 여부 확정 필요", "status": "proposal", "note": "§12-2 미결" }
+      ]
+    },
+    {
+      "id": "6", "line": 278, "title": "서브탭 ④ 3장 피난계획", "status": "pending_order",
+      "criteria": [
+        { "id": "6-1", "desc": "3.1 피난시설 일반현황 — 1.5 입력값(evacFire) 자동 표시 + 보완", "status": "pending_order" },
+        { "id": "6-2", "desc": "3.2 세부현황(evacDetail) · 3.3 피난인원(1.1 자동+evacHeadcount) · 3.4 피난유도·경로(evacPlan, 경로도 이미지)", "status": "pending_order" },
+        { "id": "6-3", "desc": "3.5 피난약자 현황·계획(vulnerable) · 3.6 유형별 방법 프리셋(vulnerableMethods) · 3.7 기구·장비(evacEquip)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "7", "line": 296, "title": "데이터 모델·공통 규칙", "status": "partial",
+      "criteria": [
+        { "id": "7-1", "desc": "마이그레이션 096 — fire_plan_forms(customer_id PK + sections JSONB, 키 19종)", "status": "code_present", "note": "파일 작성 완료(§8-1 자기 신고) — 스테이징 DB 미적용" },
+        { "id": "7-2", "desc": "정규 테이블 보유 데이터(고객·건물·시설·자위대)는 JSONB 중복 저장 금지 — 화면만 서식 관점", "status": "confirmed" },
+        { "id": "7-3", "desc": "assembleFirePlanGenData() 어댑터 → 기존 파이프라인 공용 + .form.json 스냅샷 + 최초 진입 1회 임포트 배너", "status": "pending_order" },
+        { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "pending_order" },
+        { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "pending_order", "note": "채택 결정 확정(2026-07-21) — 실행은 중기, 수정 지점 4곳→3곳" },
+        { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "8", "line": 309, "title": "구현 로드맵 (2026-07-21 확정 — 별지 9호 우선 배열)", "status": "confirmed",
+      "note": "P1~P5+중기 배열 확정 — 상단 roadmap 배열 참조. 별지 9호(점검마다 제출·최고 빈도)를 서식 확장보다 앞에 둠"
+    },
+    {
+      "id": "8-1", "line": 323, "title": "4-1 골격 구현 진행 현황 (2026-07-21 사용자 지시로 중단 — 미커밋·미배포)", "status": "partial",
+      "note": "code_present 항목은 전부 MD §8-1 자기 신고(tsc·eslint 통과, 로컬 워킹 트리) — implemented 승격은 커밋 후 독립 검증 패스에서. 개정 전 구조(장 서브탭) 기준 골격이므로 §1 개정 구조(목차 트리) 전환 시 재작업 여지 있음",
+      "criteria": [
+        { "id": "8-1a", "desc": "요구 3·4·5 버그 수정 — getFirePlanGenDefaultsAction 하드코딩 제거(수신기위치·급수·높이·구조·지붕·선임일 연동)", "status": "code_present" },
+        { "id": "8-1b", "desc": "마이그레이션 096 파일 작성 (fire_plan_forms)", "status": "code_present", "note": "스테이징 DB 미적용" },
+        { "id": "8-1c", "desc": "plan-tab-view.tsx 탭 골격 — 생성 바(준비율·연도·HWP/PDF/데이터시트) + 장 서브탭 + 1장 서식 칩(1.1 활성)", "status": "code_present" },
+        { "id": "8-1d", "desc": "개정이력·보관 서브탭 (자동 목록 + sections.revision 저장 + 보관함 배치)", "status": "code_present" },
+        { "id": "8-1e", "desc": "fire-plan-form-actions.ts — 개정이력 저장 / PDF 즉시 생성(생성 바 직결) / HWP 큐 래퍼", "status": "code_present" },
+        { "id": "8-1f", "desc": "page.tsx — plan 탭 PlanTabView 교체(?tab=plan&sub= 딥링크), 1.1에 기존 계획서 정보 패널 배치", "status": "code_present" },
+        { "id": "8-1g", "desc": "096 스테이징 DB 적용 (미적용 시 개정이력 저장만 실패)", "status": "pending_order" },
+        { "id": "8-1h", "desc": "실동작 검증(로컬 dev) → 커밋 → 스테이징 배포", "status": "pending_order" },
+        { "id": "8-1i", "desc": "개정이력 다행 병합 (HWP placeholder·웹 템플릿 과거 이력 행)", "status": "pending_order", "note": "P4(구 4-5)" },
+        { "id": "8-1j", "desc": "1.1 세부 3탭(시설현황/운영현황/화재보험) 분할", "status": "pending_order", "note": "P4(구 4-2)" },
+        { "id": "8-1k", "desc": "표준양식 생성 모달 폐지 (1.2·사진 입력 수단 이관 후)", "status": "pending_order", "note": "P4(구 4-2)" }
+      ]
+    },
+    {
+      "id": "9-1", "line": 350, "title": "별지 9호 구조 추출 (8쪽 — 표지/대상물 정보/점검 결과 체크/설비 세부)", "status": "confirmed",
+      "note": "_form/ 법정 서식 3종 SDK 읽기·HWPX 변환 성공 확인(2026-07-21) — placeholder 자동 생성 방식 적용 가능"
+    },
+    {
+      "id": "9-2", "line": 357, "title": "소방계획서 탭 설계 반영 사항 (1.1 신규 필드·다중이용업소 재사용·코드 표준화 근거·자동 체크)", "status": "confirmed",
+      "note": "구현은 3-1.1(신규 필드)·4-3(코드 표준화)·9-6③(자동 판정) criteria에 귀속"
+    },
+    {
+      "id": "9-3", "line": 364, "title": "별지 9호 자동 생성 — MVP (P3)", "status": "pending_order",
+      "criteria": [
+        { "id": "9-3a", "desc": "MVP 범위 확정 — 1~3쪽만 자동 병합, 4~8쪽 설비 세부 스펙은 빈 서식 포함 출력(수기 관행 유지)", "status": "confirmed", "note": "2026-07-21 채택, §12-6 결정 완료" },
+        { "id": "9-3b", "desc": "별지 9호 placeholder 심기 + 매핑 규칙 + 워커 HWP 출력 + 점검 완료 화면 생성 버튼", "status": "pending_order" },
+        { "id": "9-3c", "desc": "3쪽 양호/불량 = inspection_sheet_responses(P34-2) 시트별 X 유무 자동 롤업", "status": "pending_order", "note": "기존 점검표 입력으로 충족 확인(2026-07-21) — 신규 입력 UI 불필요" },
+        { "id": "9-3d", "desc": "직원 자격정보(license_no·grade) 미입력 직원 채우기 — 데이터 정비", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "9-4", "line": 374, "title": "점검결과 음성 입력 — Plaud 녹음 + AI 구조화 (방향 확정)", "status": "pending_order",
+      "note": "Plaud 장비 확정·무검수 자동확정 금지(점검자 확정 필수)·1차 경로=Plaud 앱 전사 텍스트(추가 STT 비용 0) — 방향은 confirmed",
+      "criteria": [
+        { "id": "9-4a", "desc": "V-1 전사 붙여넣기 + Claude API 구조화(점검표 시트·item_code 컨텍스트, 저장 타깃=inspection_sheet_responses) + 누락 감지 + 점검표 화면 앰버 하이라이트 확인 UX + 전사 원문 로그", "status": "pending_order", "note": "P3 세부" },
+        { "id": "9-4b", "desc": "V-2 오디오 파일 업로드 → 서버 STT(Whisper/CLOVA — 신규 키 필요)", "status": "pending_order" },
+        { "id": "9-4c", "desc": "V-3 별지 9호 3쪽 병합 연동", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "9-5", "line": 401, "title": "법제처 Open API — 최신 서식 자동 다운로드", "status": "pending_order",
+      "criteria": [
+        { "id": "9-5a", "desc": "PoC — target=licbyl 검색(별지 9호 정확 매칭·공포일자 20260701) + flDownload HWP 수신 + SDK 열기·HWPX 변환·구조 동일 확인", "status": "confirmed", "note": "2026-07-21 성공. 파일: _form/별지9호_법제처API_20260701.hwp" },
+        { "id": "9-5b", "desc": "OC 계정 검증 — 호출 서버 IP 등록(VPS 121.78.123.230 권장)", "status": "pending_order", "note": "도메인만 등록된 상태로는 실패 — 미해결" },
+        { "id": "9-5c", "desc": "개정 감지 크론(VPS 실행) + 개정 수신 시 재심기 알림", "status": "pending_order", "note": "R-3 범위" }
+      ]
+    },
+    {
+      "id": "9-6", "line": 409, "title": "별지 9호 작성 상세 매핑 — 구현 전 확정 사항", "status": "pending_order",
+      "criteria": [
+        { "id": "9-6a", "desc": "① 1쪽 필드 매핑 정의 — 점검 구분·대상물·점검기간·점검자(항상 관리업자 체크)·제출처 자동", "status": "confirmed" },
+        { "id": "9-6b", "desc": "① 고객 필드 신설 — email_delivery_consent(동의/미동의) + report_email", "status": "pending_order", "note": "P2 범위" },
+        { "id": "9-6c", "desc": "② 점검인력 표 — inspection_participants(064)·profiles.license_no/grade(063) 기존 구현 그대로 조회, 참여기간=점검기간 전체(MVP)", "status": "confirmed", "note": "신설 불필요 확인(2026-07-21). 남은 작업은 9-3d 데이터 정비뿐" },
+        { "id": "9-6d", "desc": "③ 2쪽 자동 판정 — 소방계획서 작성/보관(fire_plans 파일 존재)·전년도 자체점검(완료 건 존재)·교육훈련(sections.training 유무)", "status": "pending_order", "note": "판정 규칙은 확정 — 구현 미착수" },
+        { "id": "9-6e", "desc": "④ 다중이용업소 업종 28종 선택형(+개소) 상수 1곳 + inspection_sheets에 '안전시설등(다중이용업소)' 시트 추가", "status": "pending_order" },
+        { "id": "9-6f", "desc": "⑤ 보관 규약 — fire-plans/{customerId}/inspections/{inspectionId}/report9_{stamp} + 점검 상세 문서 목록(제출추적 포함) + 큐 report_type='report9'", "status": "pending_order", "note": "규약 확정 — 구현 미착수" },
+        { "id": "9-6g", "desc": "⑥ 템플릿 기준본 = _form/별지9호_법제처API_20260701.hwp (개정 감지와 연결)", "status": "confirmed" },
+        { "id": "9-6h", "desc": "⑦ 별지 9호 전용 입력 페이지 없음 — '공통값은 고객에, 점검값은 점검에, 생성은 준비 화면에서' (준비 화면은 §9-9 타임라인 ④단계로 흡수)", "status": "confirmed" }
+      ]
+    },
+    {
+      "id": "9-7", "line": 487, "title": "별지 10·11호 — 불량 생애주기 관리", "status": "pending_order",
+      "note": "설계 채택(2026-07-21): 별도 테이블·화면 없이 기존 inspection_defects(점검표 X→자동 등록) 확장",
+      "criteria": [
+        { "id": "9-7a", "desc": "inspection_defects 조치 필드 확장 — action_plan/start/end(10호 계획 행) + action_done_at/note/photo_before·after(11호 완료 행)", "status": "pending_order", "note": "P3에서 선반영" },
+        { "id": "9-7b", "desc": "생성 파이프라인 — placeholder 동일, 큐 report_type='report10'/'report11', 저장 규약 9-6f 동일, 대상물 정보=9호 재사용·공사업체=company_profile 자동", "status": "pending_order" },
+        { "id": "9-7c", "desc": "준비 화면 단계 추가 — ⑤ 이행조치 계획(불량 시만)·[9호+10호 세트 생성] / ⑥ 이행완료 처리·[11호 생성]", "status": "pending_order", "note": "P5 — 새 페이지 없음" },
+        { "id": "9-7d", "desc": "기한 관리 — 이행 필요기간 종료일 임박 알림(기존 inspection-deadline-notify 크론 패턴, 과태료 방어)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "9-8", "line": 525, "title": "문서 요구 매트릭스 — 고객 유형별 필요 문서", "status": "pending_order",
+      "criteria": [
+        { "id": "9-8a", "desc": "매트릭스·법적 근거 확정 — 종합/작동=계획서+점검표+9호(15일 보고)+10·11호(불량 시), 일반관리=외관점검표만(2년 보관·보고 없음)", "status": "confirmed", "note": "실무 확인 완료 2026-07-21. 두 점검표는 별개 문서" },
+        { "id": "9-8b", "desc": "doc-requirements.ts 상수 — requiredDocs(customer)(문서·기한) + requiredFields(customer)(빠른 입력 필수·준비율 분모), 유형 분기 하드코딩 금지", "status": "pending_order", "note": "P2 범위" },
+        { "id": "9-8c", "desc": "화면 반영 — 소방계획서 탭 필요 문서 칩 + 일반관리 '대상 아님' 배너·⚠ 뱃지 숨김 / 종합·작동 필드 단위 조건부(1.10.1 종합 블록) / 준비 화면 유형별 버튼 / 보고서 페이지 카드 흐림+툴팁", "status": "pending_order" },
+        { "id": "9-8d", "desc": "외관점검표(일반용) 생성 — 실물 양식 확보 후 placeholder 심기 + inspection_sheets '외관점검' 시트 추가(기존 P34-2 UI 재사용, 새 화면 0개) + report_type='exterior' 귀속 저장", "status": "pending_order", "note": "P4~P5 사이 — 일반관리 비중에 따라 순서 조정" },
+        { "id": "9-8e", "desc": "기한 규칙 연계 — deadline을 알림 크론과 연결('이번 주 제출할 문서' 소스)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "9-9", "line": 582, "title": "문서 타임라인 — 단계별 보고서·준비 화면·업로드 통합", "status": "pending_order",
+      "criteria": [
+        { "id": "9-9a", "desc": "단계 구성 확정 — stepDocs(inspection) 상수(고객 유형×점검 유형×불량 유무)로 기존 088 분기 흡수: 자체점검 불량無=①~④ / 불량有=①~⑥ / 정기·일반=① 외관점검표 하나만(②~⑥ 미표시·기한 없음)", "status": "confirmed", "note": "2026-07-21 확정 — 특별점검용 코드·데이터는 유지, 조건부 표시로만 숨김" },
+        { "id": "9-9b", "desc": "타임라인 UI(점검 상세) — 단계별 상태·D-day 뱃지·딥링크, §9-6⑦ 준비 체크가 ④ 전제조건으로 흡수", "status": "pending_order" },
+        { "id": "9-9c", "desc": "업로드 슬롯 3종만 — ② 배치확인서(협회 발급) / ⑤ 불량 항목별 전·후 사진 쌍 + 공사 계약서 (별도 업로드 화면 없음)", "status": "pending_order" },
+        { "id": "9-9d", "desc": "③ 관계인 보고서 — 생성 + 송달 동의 이메일 자동 발송 + 발송 이력 기록(보고 증빙)", "status": "pending_order" },
+        { "id": "9-9e", "desc": "④⑥ 제출 패키지(9호+점검표+배치확인서+10호 병합 PDF/ZIP, 11호+⑤ 첨부 자동 재사용) + 제출일 기록 필드(기한 알림 소멸 조건)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "10", "line": 626, "title": "보고서 페이지 (보고서 센터) — /reports 신설", "status": "pending_order",
+      "note": "역할 분담 확정: 고객 탭=입력+개별 생성 / 보고서 페이지=전 고객 선택·일괄 생성+현황+이력+서식 관리. 고객 탭 [HWP/PDF 생성]은 유지",
+      "criteria": [
+        { "id": "10-R1", "desc": "R-1 — /reports 신설 + 소방계획서·데이터시트 카드 + /fire-plans/generate 흡수(리다이렉트·사이드바 메뉴명 변경) + 서식 관리 접기(프리셋 이동)", "status": "pending_order" },
+        { "id": "10-R2", "desc": "R-2 — 큐 fire_plan_gen_jobs에 report_type 컬럼 확장(워커 유형별 병합 분기) + 별지 9호·배치확인서 카드(점검 건 선택 UI) + 점검 완료 화면 바로가기", "status": "pending_order" },
+        { "id": "10-R3", "desc": "R-3 — 별지 10·11호 카드 + 법제처 개정 감지 크론·서식 버전(개정일)·'새 개정판' 뱃지", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "11", "line": 680, "title": "입력 편의 장치 — 필요한 값을 쉽게 입력", "status": "pending_order",
+      "criteria": [
+        { "id": "11-1", "desc": "건축물대장 자동 채움 확대 ★최우선 — refreshLedgerAction을 1.1 신규 필드(건축허가일·세대수·동수·높이·구조·지붕·승강기·주차장 등)로 확대, 불러온 값 앰버 하이라이트→저장 확정", "status": "pending_order", "note": "P2 범위" },
+        { "id": "11-2", "desc": "전년도 이어받기 — 연차발행 시 fire_plan_forms 섹션 전체 복사 + 개정이력 '연차 갱신' 자동 기록", "status": "pending_order", "note": "P5 확장(방향 합의)" },
+        { "id": "11-3", "desc": "섹션별 원클릭 채우기·해당없음 — 1.5 용도 기반 기본값, 1.6 LPG 프리셋, 1.11 표준 패턴, 2장 표준 문구, 3.5 해당없음 등", "status": "pending_order" },
+        { "id": "11-4", "desc": "입력 컴포넌트 공통 규칙 — 단위 표시·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신", "status": "pending_order" },
+        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "pending_order", "note": "URL 구조는 4-1 골격에 반영됨(code_present)" },
+        { "id": "11-6", "desc": "다른 고객 복사 확대 — getFirePlanCopyCandidatesAction을 섹션 단위 복사(1.5/1.6/1.11 유사 고객)로 확장", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "12", "line": 729, "title": "확인 필요 (미결 질문)", "status": "proposal",
+      "criteria": [
+        { "id": "12-1", "desc": "1.10.2 업무수행 기록 — 입력 관리 vs 인쇄 후 수기?", "status": "proposal" },
+        { "id": "12-2", "desc": "2.14와 1.11.4(훈련 결과 기록부) 통합 관리 여부?", "status": "proposal" },
+        { "id": "12-3", "desc": "1.12~1.15 v1 제외(탭 예약만) 동의 여부?", "status": "proposal" },
+        { "id": "12-4", "desc": "기본 진입 — 결정 완료(2026-07-21): 빠른 입력 화면, 개정이력·보관은 고급 모드 목차 첫 항목", "status": "confirmed" },
+        { "id": "12-5", "desc": "별지 9호 자동 생성 우선순위 — 소방계획서 탭 완성 후 vs 병행?", "status": "proposal", "note": "§8 로드맵은 별지 9호 우선(P3) 배열로 확정 — 잔여 쟁점은 점검 도메인 연계 시점" },
+        { "id": "12-6", "desc": "별지 9호 4~8쪽 설비 세부 스펙 — 결정 완료(2026-07-21): MVP는 빈 서식 포함 출력, 데이터화는 수요 확인 후 별도 단계", "status": "confirmed" }
+      ]
+    }
+  ]
+}
