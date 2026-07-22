@@ -99,6 +99,36 @@ try {
   check('DB sections.location 저장', sec13?.location?.surroundings === '주변현황 E2E', JSON.stringify(sec13?.location))
   check('DB sections.fireAccess 저장', sec13?.fireAccess?.entryPoint === '정문 앞', JSON.stringify(sec13?.fireAccess))
 
+  // ── 4.6) 서식 1.5·1.6·1.7 (P4-③) — 저장·DB 반영 ──
+  await page.click('button:has-text("1.5 피난·방화")')
+  await page.waitForSelector('text=1.5.1 피난·방화시설 일반현황')
+  await page.click('button:has-text("직통계단")')
+  await page.click('button:has-text("해당없음")') // 방화구획 해당없음 원클릭
+  await page.click('button:has-text("서식 1.5 저장")')
+  await page.waitForSelector('text=서식 1.5 저장됨')
+  const { data: f15 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const ef = (f15?.sections as { evacFire?: { stairs: Record<string, string>; compartment: string } } | null)?.evacFire
+  check('DB sections.evacFire 저장 (직통계단·방화구획 해당없음)', ef?.stairs?.['직통계단'] !== undefined && ef?.compartment === 'none', JSON.stringify(ef))
+
+  await page.click('button:has-text("1.6 기타시설")')
+  await page.waitForSelector('text=가스 시설')
+  await page.click('button:has-text("+ LPG 프리셋")')
+  await page.click('button:has-text("서식 1.6 저장")')
+  await page.waitForSelector('text=서식 1.6 저장됨')
+  const { data: f16 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const etc = (f16?.sections as { etcFacility?: { gas: { kind: string; shutoff: boolean } } } | null)?.etcFacility
+  check('DB sections.etcFacility 저장 (LPG 프리셋)', etc?.gas?.kind === 'LPG' && etc?.gas?.shutoff === true, JSON.stringify(etc?.gas))
+
+  await page.click('button:has-text("1.7 선임현황")')
+  await page.waitForSelector('text=1.7.1 소방안전관리(보조)자 선임현황')
+  await page.locator('td input').nth(0).fill('승진소방') // 소속
+  await page.locator('td input').nth(1).fill('홍관리')   // 성명 (테스트 고객은 관계인 없음 — 자동값 빈칸)
+  await page.click('button:has-text("서식 1.7 저장")')
+  await page.waitForSelector('text=서식 1.7 저장됨')
+  const { data: f17 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
+  const mgrs = (f17?.sections as { managers?: Array<{ role: string; affiliation: string; name: string }> } | null)?.managers
+  check('DB sections.managers 저장', mgrs?.[0]?.role === '관리자' && mgrs?.[0]?.affiliation === '승진소방' && mgrs?.[0]?.name === '홍관리', JSON.stringify(mgrs))
+
   // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')

@@ -13,6 +13,9 @@ import { PlanTabView, type RevisionRow } from '@/components/customers/plan-tab-v
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
 import { PlanForm14 } from '@/components/customers/plan-form14'
+import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } from '@/components/customers/plan-form15'
+import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/components/customers/plan-form16'
+import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
@@ -485,6 +488,7 @@ export default async function CustomerDetailPage({
   const fpSections = ((fpForm as { sections?: {
     revision?: { revisionDate?: string; revisionNote?: string }
     zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
+    evacFire?: EvacFireSection; evacMaps?: EvacMapRow[]; etcFacility?: EtcFacilitySection; managers?: ManagerRow[]
   } } | null)?.sections) ?? {}
   const revSection = fpSections.revision ?? null
   const revisionRows: RevisionRow[] = [...firePlans]
@@ -511,6 +515,13 @@ export default async function CustomerDetailPage({
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />}
+      form15={<PlanForm15 customerId={customer.id} canManage={canManage}
+        initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []} />}
+      form16={<PlanForm16 customerId={customer.id} canManage={canManage}
+        initial={fpSections.etcFacility ?? EMPTY_ETC_FACILITY} />}
+      form17={<PlanForm17 customerId={customer.id} canManage={canManage}
+        initialRows={fpSections.managers ?? []}
+        autoRow={{ name: repContact?.name ?? '', selectedAt: planInfoInitial.managerSelectedAt }} />}
       isGeneral={isGeneral}
       docs={docChips}
       quick={quickReadiness}

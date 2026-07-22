@@ -32,15 +32,16 @@ const CH1_FORMS = [
   { key: '1.2', label: '1.2 세부현황', active: true },
   { key: '1.3', label: '1.3 위치·소방차진입', active: true },
   { key: '1.4', label: '1.4 소방시설', active: true },
-  { key: '1.5', label: '1.5 피난·방화' },
-  { key: '1.6', label: '1.6 기타시설' },
-  { key: '1.7', label: '1.7 선임현황' },
+  { key: '1.5', label: '1.5 피난·방화', active: true },
+  { key: '1.6', label: '1.6 기타시설', active: true },
+  { key: '1.7', label: '1.7 선임현황', active: true },
   { key: '1.10', label: '1.10 자체점검' },
   { key: '1.11', label: '1.11 훈련·교육' },
 ]
 
 export function PlanTabView({
-  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive, form11, form12, form13, form14,
+  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive,
+  form11, form12, form13, form14, form15, form16, form17,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
@@ -55,6 +56,9 @@ export function PlanTabView({
   form12: ReactNode
   form13: ReactNode
   form14: ReactNode
+  form15: ReactNode
+  form16: ReactNode
+  form17: ReactNode
   isGeneral: boolean
   docs: DocChip[]
   quick: QuickReadiness
@@ -405,6 +409,9 @@ export function PlanTabView({
           {form === '1.2' && form12}
           {form === '1.3' && form13}
           {form === '1.4' && form14}
+          {form === '1.5' && form15}
+          {form === '1.6' && form16}
+          {form === '1.7' && form17}
         </div>
       )}
       </>)}

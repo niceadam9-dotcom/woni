@@ -44,8 +44,8 @@ export async function saveFirePlanRevisionAction(
   return res
 }
 
-/** 서식 섹션 일반 저장 (P4 — 1.2 zones·hazards / 1.3 location·fireAccess) */
-const FORM_SECTION_KEYS = new Set(['zones', 'hazards', 'location', 'fireAccess'])
+/** 서식 섹션 일반 저장 (P4 — 1.2 zones·hazards / 1.3 location·fireAccess / 1.5 evacFire·evacMaps / 1.6 etcFacility / 1.7 managers) */
+const FORM_SECTION_KEYS = new Set(['zones', 'hazards', 'location', 'fireAccess', 'evacFire', 'evacMaps', 'etcFacility', 'managers'])
 
 export async function saveFirePlanSectionsAction(
   customerId: string,

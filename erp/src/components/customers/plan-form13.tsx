@@ -13,7 +13,7 @@ import {
 export type LocationSection = { mapImage: string | null; surroundings: string; fireStation: string; distance: string; eta: string; operation: string }
 export type FireAccessSection = { routeDesc: string; routeImage: string | null; entryPoint: string; nearbyFacilities: string }
 
-function ImageSlot({ customerId, canManage, path, onChange, label }: {
+export function ImageSlot({ customerId, canManage, path, onChange, label }: {
   customerId: string
   canManage: boolean
   path: string | null
