@@ -22,6 +22,9 @@ type Defect = {
   after_photo_url: string | null
   action_taken: string | null
   action_completed_at: string | null
+  action_plan?: string | null
+  action_start?: string | null
+  action_end?: string | null
   severity: DefectSeverity
   created_at: string
 }
@@ -108,9 +111,12 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
   inspectionId: string
   canEdit: boolean
 }) {
-  const [open, setOpen] = useState(!!(defect.action_taken || defect.action_completed_at))
+  const [open, setOpen] = useState(!!(defect.action_taken || defect.action_completed_at || defect.action_plan))
   const [taken, setTaken] = useState(defect.action_taken ?? '')
   const [date, setDate] = useState(defect.action_completed_at ?? '')
+  const [plan, setPlan] = useState(defect.action_plan ?? '')
+  const [planStart, setPlanStart] = useState(defect.action_start ?? '')
+  const [planEnd, setPlanEnd] = useState(defect.action_end ?? '')
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
 
@@ -120,21 +126,32 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
       const res = await updateDefectActionAction({
         defectId: defect.id, inspectionId,
         actionTaken: taken, actionCompletedAt: date || null,
+        actionPlan: plan, actionStart: planStart || null, actionEnd: planEnd || null,
       })
       setMsg(res.error ?? '조치 내용을 저장했습니다.')
     })
   }
 
   const done = !!defect.action_completed_at
+  const planned = !!(defect.action_plan || defect.action_start)
   return (
     <div className="mt-2 pt-2 border-t border-dashed">
       <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 text-xs text-[#7b68ee] font-medium">
-        <Wrench size={12} /> 조치 완료 {done && <Check size={12} className="text-green-600" />}
+        <Wrench size={12} /> 이행계획·조치 완료 {planned && <span className="text-[10px] text-amber-600">계획</span>} {done && <Check size={12} className="text-green-600" />}
         <span className="text-gray-400">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-start">
           <div className="space-y-2">
+            {/* 이행계획 (별지 10호 — §9-7) */}
+            <textarea rows={1} value={plan} onChange={e => setPlan(e.target.value)} disabled={!canEdit}
+              placeholder="이행조치 계획 (별지 10호 — 예: 유도등 램프 교체)" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 shrink-0">이행 기간</span>
+              <DateInput value={planStart} onChange={e => setPlanStart(e.target.value)} disabled={!canEdit} className="text-sm w-32" />
+              <span className="text-xs text-gray-400">~</span>
+              <DateInput value={planEnd} onChange={e => setPlanEnd(e.target.value)} disabled={!canEdit} className="text-sm w-32" />
+            </div>
             <textarea rows={2} value={taken} onChange={e => setTaken(e.target.value)} disabled={!canEdit}
               placeholder="조치 내용" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
             <div className="flex items-center gap-2">

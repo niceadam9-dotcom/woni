@@ -73,22 +73,29 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
   return { url: photoUrl }
 }
 
-// 불량 조치완료 저장 (P34-4) — 조치내용·완료일 (완료보고서용)
+// 불량 조치 저장 (P34-4 + R-3 §9-7) — 이행계획(별지 10호: 계획·기간) + 조치완료(별지 11호: 내용·완료일)
 export async function updateDefectActionAction(input: {
   defectId: string
   inspectionId: string
   actionTaken?: string | null
   actionCompletedAt?: string | null
+  actionPlan?: string | null
+  actionStart?: string | null
+  actionEnd?: string | null
 }): Promise<{ error?: string }> {
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
   const admin = createAdminClient()
+  const patch: Record<string, unknown> = {
+    action_taken: input.actionTaken?.trim() || null,
+    action_completed_at: input.actionCompletedAt || null,
+  }
+  if (input.actionPlan !== undefined) patch.action_plan = input.actionPlan?.trim() || null
+  if (input.actionStart !== undefined) patch.action_start = input.actionStart || null
+  if (input.actionEnd !== undefined) patch.action_end = input.actionEnd || null
   const { error } = await admin
     .from('inspection_defects')
-    .update({
-      action_taken: input.actionTaken?.trim() || null,
-      action_completed_at: input.actionCompletedAt || null,
-    } as Record<string, unknown>)
+    .update(patch)
     .eq('id', input.defectId)
   if (error) return { error: '조치 내용 저장에 실패했습니다.' }
   revalidatePath(`/inspections/${input.inspectionId}`)

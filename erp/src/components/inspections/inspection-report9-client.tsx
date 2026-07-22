@@ -13,14 +13,17 @@ import {
 
 export type Report9CheckRow = { label: string; ok: boolean; detail: string; href?: string; hrefLabel?: string }
 
+export type DefectsInfo = { total: number; planned: number; done: number }
+
 export function InspectionReport9Client({
-  inspectionId, canManage, checks, initialJob, initialFiles,
+  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo,
 }: {
   inspectionId: string
   canManage: boolean
   checks: Report9CheckRow[]
   initialJob: Report9Job | null
   initialFiles: Report9File[]
+  defectsInfo: DefectsInfo
 }) {
   const [job, setJob] = useState(initialJob)
   const [files, setFiles] = useState(initialFiles)
@@ -38,10 +41,10 @@ export function InspectionReport9Client({
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate() {
+  function generate(reportType: 'report9' | 'report10' | 'report11' = 'report9') {
     setMsg('')
     startTransition(async () => {
-      const res = await requestReport9Action(inspectionId)
+      const res = await requestReport9Action(inspectionId, reportType)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       const st = await getReport9StatusAction(inspectionId)
       if (!st.error) { setJob(st.job); setFiles(st.files) }
@@ -83,14 +86,47 @@ export function InspectionReport9Client({
 
       {canManage && (
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={generate} disabled={isPending || busy}
+          <button onClick={() => generate('report9')} disabled={isPending || busy}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
             {busy || isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
-            {busy ? '생성 중 — 워커 처리 대기' : '보고서 생성 (HWP+PDF)'}
+            {busy ? '생성 중 — 워커 처리 대기' : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (HWP+PDF)'}
           </button>
           {checks.some(c => !c.ok) && (
             <span className="text-[11px] text-amber-600">미비 항목은 빈 칸으로 출력됩니다 (fail-soft)</span>
           )}
+        </div>
+      )}
+
+      {/* ⑤⑥ 불량 생애주기 — 불량 있을 때만 표시 (§9-7, 별지 10·11호) */}
+      {canManage && defectsInfo.total > 0 && (
+        <div className="mt-3 pt-3 border-t border-dashed border-[#e0ddf5] space-y-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            {defectsInfo.planned >= defectsInfo.total
+              ? <CheckCircle2 className="size-3.5 text-green-600 shrink-0" />
+              : <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />}
+            <span className="text-[#090c1d] font-medium w-28">⑤ 이행조치 계획</span>
+            <span className={defectsInfo.planned >= defectsInfo.total ? 'text-[#514b81]' : 'text-amber-600'}>
+              불량 {defectsInfo.total}건 중 {defectsInfo.planned}건 계획 입력
+            </span>
+            <button onClick={() => generate('report10')} disabled={isPending || busy}
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+              별지 10호 생성
+            </button>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            {defectsInfo.done >= defectsInfo.total
+              ? <CheckCircle2 className="size-3.5 text-green-600 shrink-0" />
+              : <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />}
+            <span className="text-[#090c1d] font-medium w-28">⑥ 이행완료 처리</span>
+            <span className={defectsInfo.done >= defectsInfo.total ? 'text-[#514b81]' : 'text-amber-600'}>
+              {defectsInfo.done}/{defectsInfo.total} 완료
+            </span>
+            <button onClick={() => generate('report11')} disabled={isPending || busy}
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+              별지 11호 생성
+            </button>
+          </div>
+          <p className="text-[10px] text-[#b0acd6]">계획·완료 입력은 아래 불량내역의 [이행계획·조치 완료]에서 — 10호는 9호의 법정 첨부, 11호 첨부(전후 사진·계약서)는 불량내역 사진 슬롯 활용</p>
         </div>
       )}
       {msg && <p className="text-xs text-[#514b81] mt-2">{msg}</p>}

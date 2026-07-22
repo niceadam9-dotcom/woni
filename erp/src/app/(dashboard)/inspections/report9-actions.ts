@@ -14,9 +14,16 @@ export type Report9Job = {
 }
 export type Report9File = { name: string; path: string; createdAt: string | null }
 
-/** 생성 요청 — fire_plan_gen_jobs 큐 등록 (워커가 처리, report_type='report9') */
-export async function requestReport9Action(inspectionId: string): Promise<{ error?: string }> {
+/** 생성 요청 — fire_plan_gen_jobs 큐 등록 (워커가 처리, 별지 9·10·11호 공용 — 101) */
+const ANNEX_TYPES = ['report9', 'report10', 'report11'] as const
+export type AnnexType = typeof ANNEX_TYPES[number]
+
+export async function requestReport9Action(
+  inspectionId: string,
+  reportType: AnnexType = 'report9',
+): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_register')
+  if (!ANNEX_TYPES.includes(reportType)) return { error: '지원하지 않는 서식입니다.' }
   const admin = createAdminClient()
 
   const { data: insp } = await admin.from('inspections')
@@ -30,7 +37,7 @@ export async function requestReport9Action(inspectionId: string): Promise<{ erro
   if (waiting && waiting.length > 0) return { error: '이미 생성 대기·진행 중입니다 — 잠시 후 새로고침해주세요.' }
 
   const { error } = await admin.from('fire_plan_gen_jobs').insert({
-    report_type: 'report9',
+    report_type: reportType,
     inspection_id: inspectionId,
     customer_id: i.customer_id,
     customer_name: i.customer?.customer_name ?? '—',
@@ -56,13 +63,13 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')
-    .eq('inspection_id', inspectionId).eq('report_type', 'report9')
+    .eq('inspection_id', inspectionId).in('report_type', ['report9', 'report10', 'report11'])
     .order('created_at', { ascending: false }).limit(1)
 
   const prefix = `${customerId}/inspections/${inspectionId}`
-  const { data: objects } = await admin.storage.from(BUCKET).list(prefix, { limit: 50, sortBy: { column: 'name', order: 'desc' } })
+  const { data: objects } = await admin.storage.from(BUCKET).list(prefix, { limit: 60, sortBy: { column: 'name', order: 'desc' } })
   const files: Report9File[] = (objects ?? [])
-    .filter(o => o.name.startsWith('report9_'))
+    .filter(o => /^report(9|10|11)_/.test(o.name))
     .map(o => ({ name: o.name, path: `${prefix}/${o.name}`, createdAt: o.created_at ?? null }))
 
   return { job: (jobs?.[0] as Report9Job | undefined) ?? null, files }

@@ -26,6 +26,9 @@ spec.loader.exec_module(mf)
 spec9 = importlib.util.spec_from_file_location("make_report9", os.path.join(HERE, "make-report9.py"))
 mr9 = importlib.util.module_from_spec(spec9)
 spec9.loader.exec_module(mr9)
+spec1011 = importlib.util.spec_from_file_location("make_report1011", os.path.join(HERE, "make-report1011.py"))
+m1011 = importlib.util.module_from_spec(spec1011)
+spec1011.loader.exec_module(m1011)
 
 ENV = mf.load_env(prod=False)  # 스테이징 (운영 전환 시 prod=True + 보관함 마이그레이션 선행)
 SB_URL = ENV["NEXT_PUBLIC_SUPABASE_URL"]
@@ -469,6 +472,86 @@ def process_report9(job: dict) -> list[str]:
     print(f"[{now_iso()}] ✅ 별지9호 완료: {label} (누락 {len(missing)}개)")
     return missing
 
+def process_report1011(job: dict) -> list[str]:
+    """별지 10호(이행계획)·11호(이행완료) 병합 생성 (R-3 — §9-7, 데이터 = inspection_defects 생애주기)"""
+    kind = job["report_type"]  # report10 | report11
+    cust_id, year = job["customer_id"], int(job["year"])
+    insp_id = job.get("inspection_id")
+    if not insp_id:
+        raise RuntimeError("점검 건(inspection_id)이 없습니다")
+    label = f"{job.get('customer_name')} 별지{'10' if kind == 'report10' else '11'}호"
+    print(f"[{now_iso()}] {label} 생성 시작")
+
+    cust = db_get(f"customers?id=eq.{cust_id}&select=customer_name,address,fire_station")[0]
+    blds = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true&select=purpose&order=created_at&limit=1")
+    contacts = db_get(f"customer_contacts?customer_id=eq.{cust_id}&select=role,name,phone")
+    owner = next((c for c in contacts if c["role"] == "대표"), contacts[0] if contacts else None)
+    defects = db_get(f"inspection_defects?inspection_id=eq.{insp_id}"
+                     "&select=defect_name,action_plan,action_start,action_end,action_taken,action_completed_at&order=created_at")
+
+    ph: dict[str, str] = {
+        "customer_name": cust["customer_name"], "purpose": (blds[0].get("purpose") if blds else "") or "",
+        "address": cust.get("address") or "",
+        "owner_name": (owner or {}).get("name") or "", "owner_phone": (owner or {}).get("phone") or "",
+        "mgr_name": (owner or {}).get("name") or "", "mgr_phone": (owner or {}).get("phone") or "",
+        "report_date": mf.kdate(time.strftime("%Y-%m-%d")),
+        "submit_to": f"{cust['fire_station']}장" if cust.get("fire_station") else "관할 소방서장",
+    }
+    rows: list[dict] = []
+    missing: list[str] = []
+    if kind == "report10":
+        planned = [d for d in defects if d.get("action_plan") or d.get("action_start")]
+        rows = [{"content": d.get("action_plan") or d.get("defect_name") or "",
+                 "period": f"{d.get('action_start') or ''} ~ {d.get('action_end') or ''}".strip(" ~")} for d in planned]
+        starts = sorted(d["action_start"] for d in planned if d.get("action_start"))
+        ends = sorted(d["action_end"] for d in planned if d.get("action_end"))
+        if starts and ends:
+            days = (int(time.mktime(time.strptime(ends[-1], "%Y-%m-%d"))) - int(time.mktime(time.strptime(starts[0], "%Y-%m-%d")))) // 86400 + 1
+            ph["total_period"] = f"{mf.kdate(starts[0])} ~ {mf.kdate(ends[-1])}"
+            ph["total_days"] = str(days)
+        if not planned:
+            missing.append("이행조치 계획 미입력")
+        if len(planned) > 4:
+            missing.append(f"계획 {len(planned)}건 중 4건만 표기(서식 행 한도)")
+    else:
+        done = [d for d in defects if d.get("action_completed_at")]
+        rows = [{"content": d.get("action_taken") or d.get("defect_name") or "",
+                 "period": d.get("action_completed_at") or ""} for d in done]
+        company_rows = db_get("company_profile?select=company_name,business_number,representative,phone,address&limit=1")
+        company = company_rows[0] if company_rows else {}
+        ph.update({
+            "company_name": company.get("company_name") or "", "company_bizno": company.get("business_number") or "",
+            "company_rep": company.get("representative") or "", "company_phone": company.get("phone") or "",
+            "company_address": company.get("address") or "",
+        })
+        if not done:
+            missing.append("이행완료 항목 없음")
+        if len(done) > 4:
+            missing.append(f"완료 {len(done)}건 중 4건만 표기(서식 행 한도)")
+
+    safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
+    tag = "10" if kind == "report10" else "11"
+    out_hwp, out_odt, out_html = m1011.generate_annex(kind, ph, rows, mf.OUT_DIR, f"{safe}_별지{tag}호_{year}")
+    heartbeat(f"{label} — 업로드")
+    stamp = int(time.time() * 1000)
+    base = f"{cust_id}/inspections/{insp_id}/{kind}_{stamp}"
+    with open(out_hwp, "rb") as f:
+        st_upload(f"{base}.hwp", f.read(), "application/octet-stream")
+    with open(out_html, "rb") as f:
+        st_upload(f"{base}.html", f.read(), "text/html; charset=utf-8")
+    if mf.SOFFICE:
+        try:
+            out_pdf = out_odt[:-4] + ".pdf"
+            mf.convert_pdf_local(out_odt, out_pdf)
+            with open(out_pdf, "rb") as f:
+                st_upload(f"{base}.pdf", f.read(), "application/pdf")
+        except Exception as pe:  # noqa: BLE001
+            missing.append(f"PDF 변환 실패({pe})")
+    else:
+        missing.append("LibreOffice 미설치 — HWP만 등록")
+    print(f"[{now_iso()}] ✅ {label} 완료 (누락 {len(missing)}개)")
+    return missing
+
 print(f"소방계획서 생성 워커 시작 — {SB_URL} / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")
 mf.sdk_app()  # 라이선스 선검증
 print("SDK 초기화 OK")
@@ -493,8 +576,13 @@ while True:
                 continue
             heartbeat(f"{job.get('customer_name')} ({job.get('year')}년)")
             try:
-                if (job.get("report_type") or "fire_plan") == "report9":
+                rtype = job.get("report_type") or "fire_plan"
+                if rtype == "report9":
                     missing = process_report9(job)
+                    db_patch(f"{JOBS}?id=eq.{job['id']}",
+                             {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
+                elif rtype in ("report10", "report11"):
+                    missing = process_report1011(job)
                     db_patch(f"{JOBS}?id=eq.{job['id']}",
                              {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
                 else:

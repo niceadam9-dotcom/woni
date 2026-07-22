@@ -82,7 +82,7 @@ export default async function InspectionDetailPage({
       .eq('inspection_id', id)
       .order('submitted_at'),
     admin.from('inspection_defects')
-      .select('id, defect_code, defect_name, defect_detail, photo_url, after_photo_url, action_taken, action_completed_at, severity, created_at')
+      .select('id, defect_code, defect_name, defect_detail, photo_url, after_photo_url, action_taken, action_completed_at, action_plan, action_start, action_end, severity, created_at')
       .eq('inspection_id', id)
       .order('created_at'),
     admin.from('action_plans').select('id').eq('inspection_id', id).single(),
@@ -129,6 +129,7 @@ export default async function InspectionDetailPage({
     id: string; defect_code: string | null; defect_name: string
     defect_detail: string | null; photo_url: string | null
     after_photo_url: string | null; action_taken: string | null; action_completed_at: string | null
+    action_plan: string | null; action_start: string | null; action_end: string | null
     severity: '경미' | '보통' | '중대'; created_at: string
   }
   const defects = (defectsRes.data ?? []) as DefectRow[]
@@ -229,7 +230,7 @@ export default async function InspectionDetailPage({
     ]
     report9Job = (jobRes9.data?.[0] as Report9Job | undefined) ?? null
     report9Files = (filesRes9.data ?? [])
-      .filter(o => o.name.startsWith('report9_'))
+      .filter(o => /^report(9|10|11)_/.test(o.name))
       .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
   }
 
@@ -373,6 +374,11 @@ export default async function InspectionDetailPage({
           checks={report9Checks}
           initialJob={report9Job}
           initialFiles={report9Files}
+          defectsInfo={{
+            total: defects.length,
+            planned: defects.filter(d => d.action_plan || d.action_start).length,
+            done: defects.filter(d => d.action_completed_at).length,
+          }}
         />
       )}
 
