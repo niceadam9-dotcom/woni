@@ -27,6 +27,12 @@ export const FACILITY_STANDARD: Array<{ category: string; items: string[] }> = [
 
 export const ALL_STANDARD_CODES: string[] = FACILITY_STANDARD.flatMap(g => g.items)
 
+/** 피난기구 하위 8종 (서식 1.4 — 피난기구 체크 시 세부 선택, fire_facilities에 개별 행으로 저장) */
+export const EVAC_SUB_ITEMS: string[] = [
+  '공기안전매트', '피난사다리', '(간이)완강기', '미끄럼대', '구조대', '다수인피난장비',
+  '승강식피난기', '하향식피난구용내림식사다리',
+]
+
 /** 축약 22종 → 표준 코드 매핑 (§4-3 표 — 마이그레이션 100과 동일 기준)
  *  1:N 이관(물분무등→물분무, 제연→거실제연)은 대표 코드로 옮기고 재확인 노트를 남긴다.
  *  유도등·유도표지는 1:2 분리(둘 다 체크). */

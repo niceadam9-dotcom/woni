@@ -16,6 +16,12 @@ try {
     customer_name: '플랜탭E2E일반', address: '경기 양평군 테스트로 2', created_by: userId,
     inspection_type: '일반관리', inspection_category: '일반관리', inspection_sub_type: null,
   })
+  // 1.4 검증용 건물 (지번 미보유 — 대장 불러오기는 needAddress 경로)
+  const { error: bErr } = await raw.from('buildings').insert({
+    customer_id: customerId, building_name: '본관', is_active: true, created_by: userId,
+    floors_above: 3, floors_below: 1,
+  })
+  if (bErr) throw new Error(`건물 생성 실패: ${bErr.message}`)
 
   const l = await launch()
   browser = l.browser
@@ -34,10 +40,10 @@ try {
   check('빠른 입력 — 보관함 요약(빈 상태)', await page.isVisible('text=보관함이 비어 있습니다'))
   check('생성 바 — [HWP 생성] 버튼', await page.isVisible('button:has-text("HWP 생성")'))
 
-  // ── 2) 대장 불러오기 — bcode 미보유 고객은 needAddress 안내 (fail-soft 경로) ──
+  // ── 2) 대장 불러오기 — 지번 미보유 건물은 needAddress 안내 (fail-soft 경로) ──
   await page.click('button:has-text("건축물대장 불러오기")')
-  await page.waitForSelector('text=건물·시설 탭에서 먼저 등록')
-  check('대장 불러오기 — 건물 없음 fail-soft 안내', true)
+  await page.waitForSelector('text=지번 정보가 없습니다')
+  check('대장 불러오기 — 지번 없음 fail-soft 안내', true)
 
   // ── 3) 송달 동의 저장 (098 §9-6①) ──
   await page.click('button:has-text("동의")')
@@ -93,6 +99,27 @@ try {
   check('DB sections.location 저장', sec13?.location?.surroundings === '주변현황 E2E', JSON.stringify(sec13?.location))
   check('DB sections.fireAccess 저장', sec13?.fireAccess?.entryPoint === '정문 앞', JSON.stringify(sec13?.fireAccess))
 
+  // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
+  await page.click('button:has-text("1.4 소방시설")')
+  await page.waitForSelector('text=서식 1.4 소방시설 현황')
+  check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))
+  await page.click('text=소화기구 및 자동소화장치')
+  await page.click('button:has-text("피난사다리")')
+  check('하위 체크 → 피난기구 자동 체크', await page.locator('div[role="button"]:has-text("피난기구")').first().textContent().then(t => t?.includes('☑') ?? false))
+  await page.click('button:has-text("저장")')
+  await page.waitForSelector('text=서식 1.4 저장됨')
+  const { data: facRows } = await raw.from('fire_facilities')
+    .select('facility_code, installed').eq('installed', true)
+    .in('facility_code', ['소화기구 및 자동소화장치', '피난기구', '피난사다리'])
+  const facCodes = new Set((facRows ?? []).map((r: { facility_code: string }) => r.facility_code))
+  check('DB fire_facilities 저장 (표준 코드 + 하위 8종)',
+    facCodes.has('소화기구 및 자동소화장치') && facCodes.has('피난기구') && facCodes.has('피난사다리'), JSON.stringify([...facCodes]))
+
+  // 건물·시설 탭 — 패널 이동 안내
+  await page.goto(`${BASE}/customers/${customerId}?tab=buildings`)
+  await page.waitForSelector('text=1.4 소방시설')
+  check('건물 탭 — 시설현황 이동 안내', await page.isVisible('text=소방계획서 탭'))
+
   // ── 5) 일반관리 고객 — 배너 + 입력 미노출 + 탭 뱃지 억제 (§9-8) ──
   await page.goto(`${BASE}/customers/${generalId}?tab=plan`)
   await page.waitForSelector('text=소방계획서 작성 대상이 아닙니다')
@@ -109,6 +136,12 @@ try {
   for (const id of [customerId, generalId]) {
     if (!id) continue
     await raw.from('fire_plan_forms').delete().eq('customer_id', id)
+    const { data: blds } = await raw.from('buildings').select('id').eq('customer_id', id)
+    for (const bd of (blds ?? []) as Array<{ id: string }>) {
+      await raw.from('fire_facilities').delete().eq('building_id', bd.id)
+      await raw.from('fire_facility_floors').delete().eq('building_id', bd.id)
+    }
+    await raw.from('buildings').delete().eq('customer_id', id)
     await cleanupCustomer(id)
   }
   if (userId) await delUser(userId)

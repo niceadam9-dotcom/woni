@@ -1,6 +1,6 @@
 ﻿import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, UserCheck, ClipboardList, Building2, History } from 'lucide-react'
+import { ChevronLeft, UserCheck, ClipboardList, History } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
@@ -12,7 +12,7 @@ import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type RevisionRow } from '@/components/customers/plan-tab-view'
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
-import { FacilitiesClient } from '@/components/customers/facilities-client'
+import { PlanForm14 } from '@/components/customers/plan-form14'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
@@ -457,13 +457,9 @@ export default async function CustomerDetailPage({
         initialNew={initialNewBuilding === '1'}
       />
 
-      {/* 소방시설 현황 — 건물(동) 단위, 보고서 현황면 소스 (doc02 §1-3, P33) */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">소방시설 현황</h2>
-        </div>
-        <FacilitiesClient customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />
+      {/* 소방시설 현황 패널은 소방계획서 탭 > 1장 > 1.4로 이동 (소방계획서_4.md §4 — 건물목록은 잔류) */}
+      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-3 text-xs text-[#514b81]">
+        소방시설 현황 입력은 <Link href={`/customers/${customer.id}?tab=plan&sub=ch1`} className="text-[#7b68ee] hover:underline">소방계획서 탭 &gt; 1.4 소방시설</Link>로 이동했습니다.
       </div>
     </>
   )
@@ -514,6 +510,7 @@ export default async function CustomerDetailPage({
       form13={<PlanForm13 customerId={customer.id} canManage={canManage}
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }} />}
+      form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />}
       isGeneral={isGeneral}
       docs={docChips}
       quick={quickReadiness}
