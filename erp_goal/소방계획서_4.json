@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 2026-07-23 P1 종결(골격 1aa4c97 + 워커 상시화) → P2 핵심 종결(268d86f — 빠른 입력 모드·doc-requirements 매트릭스·대장 채움 확대·송달 동의, 098 양쪽 DB·E2E 20/20·스테이징/운영 배포). P2 잔여: 앰버 확정 UX(11-1c)·자격정보 데이터 정비(운영 2명 미입력). 다음: P3(별지 9호 자동 생성 MVP).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 2026-07-23 P1 종결(1aa4c97+워커 상시화) → P2 핵심 종결(268d86f) → P3 핵심 종결(48a28ea — 별지 9호 placeholder 심기 58건·1~3쪽 자동 병합·점검표 롤업·워커 report9 분기·점검 상세 준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). 잔여: 음성 입력 V-1(§9-4)·자격정보 정비·앰버 확정 UX(11-1c). 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정). 다음: P4(서식 탭 확장) 또는 V-1.",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -20,7 +20,8 @@
       "note": "워커는 스테이징 DB 대상(load_env prod=False) — 운영 전환은 워커 prod=True + 보관함 마이그레이션 선행 필요(별도 결정)" },
     { "id": "P2", "title": "대장 자동 채움 확대 + 빠른 입력 모드 + 송달 동의 필드 + 문서 요구 매트릭스 상수", "status": "partial",
       "note": "핵심 종결(2026-07-23, 커밋 268d86f — 098 양쪽 DB·E2E 20/20·스테이징/운영 배포): 빠른 입력 모드(§1-1)·송달 동의(§9-6①)·매트릭스 상수+일반관리 구별(§9-8)·대장 파싱 확대(§11-1). 잔여: ① 대장값 앰버 하이라이트 확정 UX(현재는 기존 직접 저장 방식) ② 종합/작동 필드 조건부는 P4 서식(1.10.1) 구현 시 ③ 직원 자격정보 데이터 정비(§9-6② — 운영 2명 전원 미입력, 사용자 입력 필요)" },
-    { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "pending_order" },
+    { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "partial",
+      "note": "핵심 종결(2026-07-23, 48a28ea — placeholder 심기·1~3쪽 병합·롤업·워커 분기·준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). defects 조치 계획 필드(action_plan/start/end) 선반영 완료(§9-7a). 잔여: 음성 입력 V-1(§9-4)·자격정보 데이터 정비(9-3d)·다중이용 28종(9-6e)" },
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "pending_order" },
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "pending_order" },
     { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
@@ -167,8 +168,11 @@
       "id": "9-3", "line": 364, "title": "별지 9호 자동 생성 — MVP (P3)", "status": "pending_order",
       "criteria": [
         { "id": "9-3a", "desc": "MVP 범위 확정 — 1~3쪽만 자동 병합, 4~8쪽 설비 세부 스펙은 빈 서식 포함 출력(수기 관행 유지)", "status": "confirmed", "note": "2026-07-21 채택, §12-6 결정 완료" },
-        { "id": "9-3b", "desc": "별지 9호 placeholder 심기 + 매핑 규칙 + 워커 HWP 출력 + 점검 완료 화면 생성 버튼", "status": "pending_order" },
-        { "id": "9-3c", "desc": "3쪽 양호/불량 = inspection_sheet_responses(P34-2) 시트별 X 유무 자동 롤업", "status": "pending_order", "note": "기존 점검표 입력으로 충족 확인(2026-07-21) — 신규 입력 UI 불필요" },
+        { "id": "9-3b", "desc": "별지 9호 placeholder 심기 + 매핑 규칙 + 워커 HWP 출력 + 점검 완료 화면 생성 버튼", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["scripts/make-report9.py (SEED_RUNS 리터럴 + ANCHOR_KEYS_9 라벨셀 — 심기 58건·placeholder 100종, 1~2쪽 값·체크 병합 + 3쪽 체크/결과 주입)", "scripts/seed-report9-placeholders.py + erp_goal/_form/별지9호-placeholder.hwpx", "scripts/fireplan-worker.py process_report9 (report_type 분기·§9-6 매핑·HWP/HTML/PDF 업로드)", "inspections/[id] 준비 섹션 [보고서 생성] 버튼 + report9-actions.ts 큐 등록"], "method": "템플릿 스모크 37/37 배치 검증 + 스테이징 실데이터 E2E(행복마을아파트 작동점검 — 잡 done·HWP 84KB/HTML/PDF 779KB 업로드·missing fail-soft 4건) + UI E2E 9/9" } },
+        { "id": "9-3c", "desc": "3쪽 양호/불량 = inspection_sheet_responses(P34-2) 시트별 X 유무 자동 롤업", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["fireplan-worker.py — 응답→시트 롤업(X 있으면 ×, 응답만 있으면 ○), 미설치 설비 해당없음 /", "실데이터 검증: X 1건(비상경보설비및단독경보형감지기 시트) → 3쪽 두 항목 결과란 × 정위치, 미설치 39종 / 정위치"], "method": "실데이터 E2E + 산출 HWP 재변환 텍스트 대조" },
+          "note": "결합 시트(비상경보+단독경보)는 두 항목 동일 판정. 시트↔42종 매핑은 공백 제거 포함 매칭 — 코드 표준화(P4 4-3)에서 정밀화" },
         { "id": "9-3d", "desc": "직원 자격정보(license_no·grade) 미입력 직원 채우기 — 데이터 정비", "status": "pending_order" }
       ]
     },
@@ -196,9 +200,11 @@
         { "id": "9-6b", "desc": "① 고객 필드 신설 — email_delivery_consent(동의/미동의) + report_email", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["098_fire_plan_p2.sql customers 2컬럼(스테이징·운영 적용)", "fire-plan-form-actions.ts saveEmailConsentAction(이메일 형식·동의 시 필수 검증)", "빠른 입력 화면 동의/미동의 토글+이메일 입력", "E2E: 저장→DB 반영 확인"], "method": "코드 대조 + E2E + DB 조회" } },
         { "id": "9-6c", "desc": "② 점검인력 표 — inspection_participants(064)·profiles.license_no/grade(063) 기존 구현 그대로 조회, 참여기간=점검기간 전체(MVP)", "status": "confirmed", "note": "신설 불필요 확인(2026-07-21). 남은 작업은 9-3d 데이터 정비뿐" },
-        { "id": "9-6d", "desc": "③ 2쪽 자동 판정 — 소방계획서 작성/보관(fire_plans 파일 존재)·전년도 자체점검(완료 건 존재)·교육훈련(sections.training 유무)", "status": "pending_order", "note": "판정 규칙은 확정 — 구현 미착수" },
+        { "id": "9-6d", "desc": "③ 2쪽 자동 판정 — 소방계획서 작성/보관(fire_plans 파일 존재)·전년도 자체점검(완료 건 존재)·교육훈련(sections.training 유무)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["fireplan-worker.py process_report9 — has_plan→작성·보관 체크, 전년도 completed 유형별 실시 체크, training 유무 체크. 데이터 없으면 공란 유지(미실시 단정 금지 — fail-soft)"], "method": "코드 대조 + 실데이터 E2E" } },
         { "id": "9-6e", "desc": "④ 다중이용업소 업종 28종 선택형(+개소) 상수 1곳 + inspection_sheets에 '안전시설등(다중이용업소)' 시트 추가", "status": "pending_order" },
-        { "id": "9-6f", "desc": "⑤ 보관 규약 — fire-plans/{customerId}/inspections/{inspectionId}/report9_{stamp} + 점검 상세 문서 목록(제출추적 포함) + 큐 report_type='report9'", "status": "pending_order", "note": "규약 확정 — 구현 미착수" },
+        { "id": "9-6f", "desc": "⑤ 보관 규약 — fire-plans/{customerId}/inspections/{inspectionId}/report9_{stamp} + 점검 상세 문서 목록(제출추적 포함) + 큐 report_type='report9'", "status": "partial",
+          "note": "경로 규약·점검 상세 생성물 목록(서명 URL 다운로드)·큐 report_type(099) 구현(48a28ea, E2E 검증) — 제출추적(소방서 제출일 기록) 필드는 미구현, §9-9 타임라인 ④ 제출일 기록에서(P5)" },
         { "id": "9-6g", "desc": "⑥ 템플릿 기준본 = _form/별지9호_법제처API_20260701.hwp (개정 감지와 연결)", "status": "confirmed" },
         { "id": "9-6h", "desc": "⑦ 별지 9호 전용 입력 페이지 없음 — '공통값은 고객에, 점검값은 점검에, 생성은 준비 화면에서' (준비 화면은 §9-9 타임라인 ④단계로 흡수)", "status": "confirmed" }
       ]
@@ -207,7 +213,9 @@
       "id": "9-7", "line": 487, "title": "별지 10·11호 — 불량 생애주기 관리", "status": "pending_order",
       "note": "설계 채택(2026-07-21): 별도 테이블·화면 없이 기존 inspection_defects(점검표 X→자동 등록) 확장",
       "criteria": [
-        { "id": "9-7a", "desc": "inspection_defects 조치 필드 확장 — action_plan/start/end(10호 계획 행) + action_done_at/note/photo_before·after(11호 완료 행)", "status": "pending_order", "note": "P3에서 선반영" },
+        { "id": "9-7a", "desc": "inspection_defects 조치 필드 확장 — action_plan/start/end(10호 계획 행) + action_done_at/note/photo_before·after(11호 완료 행)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["099_report9_queue.sql — action_plan·action_start·action_end 3컬럼(스테이징·운영 적용). 완료 필드는 기존 084(action_taken·action_completed_at·after_photo_url) 확인, photo_before=기존 photo_url"], "method": "코드 대조 + DB 적용 확인" },
+          "note": "입력 UI(준비 화면 ⑤ 단계)는 P5 — 컬럼 선반영만" },
         { "id": "9-7b", "desc": "생성 파이프라인 — placeholder 동일, 큐 report_type='report10'/'report11', 저장 규약 9-6f 동일, 대상물 정보=9호 재사용·공사업체=company_profile 자동", "status": "pending_order" },
         { "id": "9-7c", "desc": "준비 화면 단계 추가 — ⑤ 이행조치 계획(불량 시만)·[9호+10호 세트 생성] / ⑥ 이행완료 처리·[11호 생성]", "status": "pending_order", "note": "P5 — 새 페이지 없음" },
         { "id": "9-7d", "desc": "기한 관리 — 이행 필요기간 종료일 임박 알림(기존 inspection-deadline-notify 크론 패턴, 과태료 방어)", "status": "pending_order" }
@@ -224,7 +232,7 @@
             { "id": "9-8c-1", "desc": "소방계획서 탭 필요 문서 칩 + 일반관리 배너·입력 미노출·탭 ⚠ 뱃지 숨김(상세+목록)", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["plan-tab-view.tsx isGeneral 배너+보관함만·docs 칩", "[id]/page.tsx 탭 뱃지 isGeneral 억제", "customer-list.ts 일반관리 계획서 판정·planTotal 억제", "E2E: 일반관리 5개 항목 통과"], "method": "코드 대조 + E2E" } },
             { "id": "9-8c-2", "desc": "종합·작동 필드 단위 조건부(1.10.1 종합 블록) — 별지 9호(종합) 칩은 구현, 서식 1.10 화면은 P4", "status": "partial", "note": "칩 레벨 구별(종합 고객만 need) 구현 — 1.10.1 필드 조건부는 해당 서식 구현(P4) 시" },
-            { "id": "9-8c-3", "desc": "준비 화면 유형별 버튼(§9-6⑦) / 보고서 페이지 카드 흐림(§10)", "status": "pending_order", "note": "해당 화면 자체가 P3·P5 범위" }
+            { "id": "9-8c-3", "desc": "준비 화면 유형별 버튼(§9-6⑦) / 보고서 페이지 카드 흐림(§10)", "status": "partial", "note": "준비 화면 유형별 구현(48a28ea — 일반관리 점검은 별지 9호 섹션 미노출), 보고서 페이지 카드 흐림은 P5(§10)" }
           ] },
         { "id": "9-8d", "desc": "외관점검표(일반용) 생성 — 실물 양식 확보 후 placeholder 심기 + inspection_sheets '외관점검' 시트 추가(기존 P34-2 UI 재사용, 새 화면 0개) + report_type='exterior' 귀속 저장", "status": "pending_order", "note": "P4~P5 사이 — 일반관리 비중에 따라 순서 조정" },
         { "id": "9-8e", "desc": "기한 규칙 연계 — deadline을 알림 크론과 연결('이번 주 제출할 문서' 소스)", "status": "pending_order" }
