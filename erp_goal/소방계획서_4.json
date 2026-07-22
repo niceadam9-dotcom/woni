@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~③(1.2·1.3·코드 표준화·1.4 재현·1.5~1.7 — 구 4-2·4-3 종결, 최신 e357311, 2026-07-23 스테이징/운영 배포). 잔여 주요: P4-④(1.10·1.11+2장)·P4-⑤(3장+HWP 어댑터+개정이력 다행)·음성 입력 V-1(§9-4)·자격정보 정비·앰버 확정 UX(11-1c). 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~④(서식 1.1~1.11 전부 + 2장 자위소방대 — 최신 3338b5c, E2E 35/35, 2026-07-23 스테이징/운영 배포). 잔여 주요: P4-⑤(3장 피난계획+HWP 병합 어댑터 §7-3+개정이력 다행)·음성 입력 V-1(§9-4)·자격정보 정비·앰버 확정 UX(11-1c). 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -23,7 +23,7 @@
     { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 48a28ea — placeholder 심기·1~3쪽 병합·롤업·워커 분기·준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). defects 조치 계획 필드(action_plan/start/end) 선반영 완료(§9-7a). 잔여: 음성 입력 V-1(§9-4)·자격정보 데이터 정비(9-3d)·다중이용 28종(9-6e)" },
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "partial",
-      "note": "P4-①(ad8a7e4, 1.2·1.3) + P4-②(734107e 코드 표준화 / 8bb5aad 1.4 재현) + P4-③(e357311, 1.5·1.6·1.7, E2E 31/31) 완료 — 구 4-2·4-3 종결. 잔여: P4-④ 1.10·1.11+2장 → P4-⑤ 3장+HWP 병합 확장(어댑터 §7-3)+개정이력 다행" },
+      "note": "P4-①~④ 완료(최신 3338b5c — 1.2·1.3 / 코드 표준화·1.4 재현 / 1.5~1.7 / 1.10·1.11+2장, E2E 35/35, 2026-07-23 스테이징/운영 배포) — 구 4-2·4-3·4-4 종결. 잔여: P4-⑤ 3장 피난계획 + HWP 병합 확장(어댑터 §7-3 — 입력 섹션값의 문서 출력 연결) + 개정이력 다행" },
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "pending_order" },
     { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
   ],
@@ -89,8 +89,11 @@
         { "id": "3-1.7", "desc": "서식 1.7 선임현황 — managers (1행 고객 데이터 자동)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "e357311", "evidence": ["plan-form17.tsx — 구분(관리자/보조자)/소속/성명/선임일자(DateInput)/실무교육 수료일/담당업무 행 편집, 1행 자동(대표 관계인+manager_selected_at)", "E2E: 저장→DB sections.managers 확인"], "method": "코드 대조 + E2E" } },
         { "id": "3-1.8", "desc": "서식 1.8 업무대행 현황 — company_profile·계약·등급 자동 읽기 전용", "status": "pending_order" },
-        { "id": "3-1.10", "desc": "서식 1.10 자체점검·업무수행 — 연간 점검 계획(inspection)/다중이용업소(multiUse)/화재·비화재보 이력(fireHistory)", "status": "pending_order", "note": "1.10.2 업무수행 기록 포함 여부는 §12-1 미결" },
-        { "id": "3-1.11", "desc": "서식 1.11 소방훈련·교육 — 연간계획 체크 그리드/세부계획/시나리오 프리셋/결과 기록부(별지 28호) → sections.training", "status": "pending_order" },
+        { "id": "3-1.10", "desc": "서식 1.10 자체점검·업무수행 — 연간 점검 계획(inspection)/다중이용업소(multiUse)/화재·비화재보 이력(fireHistory)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-form110.tsx — 1.10.1(작동·종합 시기 점검계획일 자동+수정, 점검자 자체/외주, 최초점검·종합2차, 사용승인일·제출처 자동, 종합 블록은 종합 고객만 §9-8), 1.10.3(해당 토글 + 업종 MULTI_USE_CATEGORIES 26종 선택형+개소 §9-6④ + 사업장 정보), 1.10.4(화재/비화재보 행)", "E2E 35/35: 작동 고객 종합 블록 미노출·저장→DB sections.inspection 확인"], "method": "코드 대조 + E2E" },
+          "note": "1.10.2 업무수행 기록은 §12-1 미결로 제외 유지" },
+        { "id": "3-1.11", "desc": "서식 1.11 소방훈련·교육 — 연간계획 체크 그리드/세부계획/시나리오 프리셋/결과 기록부(별지 28호) → sections.training", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-form111.tsx — 1.11.1(대상 인원 3종 + 교육/훈련×12개월 그리드 + [표준 패턴 5·11월] §11-3), 1.11.2(차수별 행: 명칭·일시·장소·대상·이론/실습·자체/합동·교보재·계획), 1.11.3(주택형/상가형/공장형 프리셋 문구+용도 추천★+수정), 1.11.4(실시일·구분·참여인원·내용·평가 행 — 별지 9호 실시 판정·2.14 공용)", "E2E: 표준 패턴+상가형 시나리오 저장→DB 확인"], "method": "코드 대조 + E2E" } },
         { "id": "3-1.12", "desc": "서식 1.12~1.15 (화기취급·공사기록·홍보·피해복구) — v1은 탭 예약만(빈 상태 + 인쇄 후 수기 안내)", "status": "deferred", "note": "수요 확인 후 입력화 결정 (§12-3)" }
       ]
     },
@@ -114,12 +117,16 @@
       ]
     },
     {
-      "id": "5", "line": 263, "title": "서브탭 ③ 2장 자위소방대 운영계획", "status": "pending_order",
+      "id": "5", "line": 263, "title": "서브탭 ③ 2장 자위소방대 운영계획", "status": "partial",
       "criteria": [
-        { "id": "5-1", "desc": "2.1 일반현황 — Type Ⅰ/Ⅱ/Ⅲ 선택 + 작성 대상 서식 안내 (sections.brigadeGeneral)", "status": "pending_order" },
-        { "id": "5-2", "desc": "2.2 편성표 — 기존 fire_brigade_members 편집 UI 이관 + 관계인·직원 가져오기 + 비상연락체계", "status": "pending_order" },
-        { "id": "5-3", "desc": "팀별 임무(2.5~2.13) — 고정 문구 + 프리셋 편집(대상명 자동), v1은 프리셋 문구만 (sections.brigadeTeams)", "status": "pending_order" },
-        { "id": "5-4", "desc": "2.14 교육·훈련 결과 기록부 — 1.11.4와 데이터 공유 여부 확정 필요", "status": "proposal", "note": "§12-2 미결" }
+        { "id": "5-1", "desc": "2.1 일반현황 — Type Ⅰ/Ⅱ/Ⅲ 선택 + 작성 대상 서식 안내 (sections.brigadeGeneral)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-ch2.tsx — Type Ⅰ(특급)/Ⅱ(1급)/Ⅲ(2·3급) 카드 선택 + 설명", "E2E 35/35: Type Ⅲ 선택 저장→DB brigadeGeneral 확인"], "method": "코드 대조 + E2E" } },
+        { "id": "5-2", "desc": "2.2 편성표 — 기존 fire_brigade_members 편집 UI 이관 + 관계인·직원 가져오기 + 비상연락체계", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-ch2.tsx — 팀(8종 선택)/성명/임무/연락처 행 편집 + [관계인·직원 가져오기](planPeople 후보 칩) + saveBrigadeAction(fire_brigade_members replace — 1.1 패널과 동일 데이터·단일 원천)", "E2E: 편성 저장→fire_brigade_members 확인"], "method": "코드 대조 + E2E" },
+          "note": "비상연락체계는 비상연락반 편성+팀별 임무 문구로 표현 — 별도 도표는 HWP 양식이 담당" },
+        { "id": "5-3", "desc": "팀별 임무(2.5~2.13) — 고정 문구 + 프리셋 편집(대상명 자동), v1은 프리셋 문구만 (sections.brigadeTeams)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-ch2.tsx TEAMS 7종(지휘통제·비상연락·초기소화·피난유도·응급구조·방호안전·초기대응체계) 표준 문구 placeholder + 수정 저장(빈 칸=표준 문구 출력)"], "method": "코드 대조" } },
+        { "id": "5-4", "desc": "2.14 교육·훈련 결과 기록부 — 1.11.4와 데이터 공유 여부 확정 필요", "status": "partial", "note": "§12-2 미결 — 잠정으로 1.11.4 공용 처리(2장 화면에 안내 문구), 사용자 확정 시 분리 여부 재검토" }
       ]
     },
     {
@@ -218,7 +225,8 @@
         { "id": "9-6c", "desc": "② 점검인력 표 — inspection_participants(064)·profiles.license_no/grade(063) 기존 구현 그대로 조회, 참여기간=점검기간 전체(MVP)", "status": "confirmed", "note": "신설 불필요 확인(2026-07-21). 남은 작업은 9-3d 데이터 정비뿐" },
         { "id": "9-6d", "desc": "③ 2쪽 자동 판정 — 소방계획서 작성/보관(fire_plans 파일 존재)·전년도 자체점검(완료 건 존재)·교육훈련(sections.training 유무)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["fireplan-worker.py process_report9 — has_plan→작성·보관 체크, 전년도 completed 유형별 실시 체크, training 유무 체크. 데이터 없으면 공란 유지(미실시 단정 금지 — fail-soft)"], "method": "코드 대조 + 실데이터 E2E" } },
-        { "id": "9-6e", "desc": "④ 다중이용업소 업종 28종 선택형(+개소) 상수 1곳 + inspection_sheets에 '안전시설등(다중이용업소)' 시트 추가", "status": "pending_order" },
+        { "id": "9-6e", "desc": "④ 다중이용업소 업종 28종 선택형(+개소) 상수 1곳 + inspection_sheets에 '안전시설등(다중이용업소)' 시트 추가", "status": "partial",
+          "note": "업종 선택형 상수(MULTI_USE_CATEGORIES, doc-requirements.ts) + 1.10.3 입력 구현(3338b5c) — 안전시설등 시트 추가는 별지 9호 3쪽 2절 연동(P5)에서" },
         { "id": "9-6f", "desc": "⑤ 보관 규약 — fire-plans/{customerId}/inspections/{inspectionId}/report9_{stamp} + 점검 상세 문서 목록(제출추적 포함) + 큐 report_type='report9'", "status": "partial",
           "note": "경로 규약·점검 상세 생성물 목록(서명 URL 다운로드)·큐 report_type(099) 구현(48a28ea, E2E 검증) — 제출추적(소방서 제출일 기록) 필드는 미구현, §9-9 타임라인 ④ 제출일 기록에서(P5)" },
         { "id": "9-6g", "desc": "⑥ 템플릿 기준본 = _form/별지9호_법제처API_20260701.hwp (개정 감지와 연결)", "status": "confirmed" },
@@ -247,7 +255,8 @@
           "criteria": [
             { "id": "9-8c-1", "desc": "소방계획서 탭 필요 문서 칩 + 일반관리 배너·입력 미노출·탭 ⚠ 뱃지 숨김(상세+목록)", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["plan-tab-view.tsx isGeneral 배너+보관함만·docs 칩", "[id]/page.tsx 탭 뱃지 isGeneral 억제", "customer-list.ts 일반관리 계획서 판정·planTotal 억제", "E2E: 일반관리 5개 항목 통과"], "method": "코드 대조 + E2E" } },
-            { "id": "9-8c-2", "desc": "종합·작동 필드 단위 조건부(1.10.1 종합 블록) — 별지 9호(종합) 칩은 구현, 서식 1.10 화면은 P4", "status": "partial", "note": "칩 레벨 구별(종합 고객만 need) 구현 — 1.10.1 필드 조건부는 해당 서식 구현(P4) 시" },
+            { "id": "9-8c-2", "desc": "종합·작동 필드 단위 조건부(1.10.1 종합 블록) — 종합 고객만 종합점검 블록 표시", "status": "implemented",
+              "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-form110.tsx isComprehensive 조건부 — 종합 블록(최초·종합·2차) 종합 고객만", "E2E: 작동 고객 종합 블록 미노출 확인"], "method": "코드 대조 + E2E" } },
             { "id": "9-8c-3", "desc": "준비 화면 유형별 버튼(§9-6⑦) / 보고서 페이지 카드 흐림(§10)", "status": "partial", "note": "준비 화면 유형별 구현(48a28ea — 일반관리 점검은 별지 9호 섹션 미노출), 보고서 페이지 카드 흐림은 P5(§10)" }
           ] },
         { "id": "9-8d", "desc": "외관점검표(일반용) 생성 — 실물 양식 확보 후 placeholder 심기 + inspection_sheets '외관점검' 시트 추가(기존 P34-2 UI 재사용, 새 화면 0개) + report_type='exterior' 귀속 저장", "status": "pending_order", "note": "P4~P5 사이 — 일반관리 비중에 따라 순서 조정" },
