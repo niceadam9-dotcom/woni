@@ -15,7 +15,8 @@ export default async function InspectionLedgerPage() {
   const [custRes, contactRes, bldRes] = await Promise.all([
     admin.from('customers')
       .select('id, customer_name, inspection_type, plan_anchor_date, region_si, region_myeon, use_approval_date, fire_station, monthly_fee_taxed, fee_taxed')
-      .eq('is_active', true).order('plan_anchor_date', { nullsFirst: false }),
+      // 최신 입력(등록) 기준 조회 (2026-07-23 사용자 확정 — 종전 점검계획일 오름차순)
+      .eq('is_active', true).order('created_at', { ascending: false }),
     admin.from('customer_contacts').select('customer_id, name, phone').eq('role', '대표'),
     admin.from('buildings').select('customer_id, total_area').eq('is_active', true),
   ])
