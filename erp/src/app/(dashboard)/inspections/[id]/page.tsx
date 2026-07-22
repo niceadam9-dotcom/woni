@@ -11,6 +11,9 @@ import { InspectionSheetClient } from '@/components/inspections/inspection-sheet
 import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
+import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
+import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
+import { computeQuickReadiness } from '@/lib/doc-requirements'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 import type { ReportType } from '@/app/(dashboard)/inspections/report-constants'
@@ -162,6 +165,73 @@ export default async function InspectionDetailPage({
   const completedCount = steps.filter(s => s.status === 'completed').length
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0
 
+  // ── 실시결과 보고서(별지 9호) 준비 섹션 (P3 §9-6⑦) — 일반관리 점검은 해당없음(§9-8) ──
+  let report9Checks: Report9CheckRow[] | null = null
+  let report9Job: Report9Job | null = null
+  let report9Files: Report9File[] = []
+  if (inspection.inspection_type !== '일반관리' && customer) {
+    const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9] = await Promise.all([
+      admin.from('customers')
+        .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent')
+        .eq('id', inspection.customer_id).single(),
+      admin.from('buildings').select('purpose, total_area, building_area, floors_above, floors_below, height, households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, receiver_location, main_structure, roof_structure')
+        .eq('customer_id', inspection.customer_id).eq('is_active', true)
+        .order('created_at', { ascending: true }).limit(1).maybeSingle(),
+      admin.from('fire_brigade_members').select('id').eq('customer_id', inspection.customer_id).limit(1),
+      admin.from('fire_plan_gen_jobs')
+        .select('id, status, missing, error, created_at')
+        .eq('inspection_id', id).eq('report_type', 'report9')
+        .order('created_at', { ascending: false }).limit(1),
+      admin.storage.from('fire-plans').list(`${inspection.customer_id}/inspections/${id}`, { limit: 50, sortBy: { column: 'name', order: 'desc' } }),
+    ])
+    const cf = (custFullRes.data ?? {}) as Record<string, unknown>
+    const b9 = (bldRes9.data ?? null) as Record<string, unknown> | null
+    const quick = computeQuickReadiness({ inspection_type: customer.inspection_type }, {
+      address: !!cf.address, purpose: !!b9?.purpose, useApprovalDate: !!cf.use_approval_date,
+      permitDate: b9?.permit_date != null, totalArea: b9?.total_area != null, buildingArea: b9?.building_area != null,
+      floors: b9?.floors_above != null || b9?.floors_below != null, height: b9?.height != null,
+      households: b9?.households != null, buildingCount: b9?.building_count != null,
+      elevator: b9?.elevator_count != null || b9?.emergency_elevator_count != null, parking: b9?.parking_summary != null,
+      receiverLocation: !!b9?.receiver_location, structure: !!b9?.main_structure, roof: !!b9?.roof_structure,
+      managerSelectedAt: !!cf.manager_selected_at, grade: !!cf.building_grade,
+      insurance: cf.insurance_joined !== null && cf.insurance_joined !== undefined, opHours: !!cf.op_hours_weekday,
+      headcount: cf.headcount_worker != null || cf.headcount_resident != null || cf.headcount_max != null,
+      brigade: (brigadeRes9.data ?? []).length > 0,
+      emailConsent: cf.email_delivery_consent !== null && cf.email_delivery_consent !== undefined,
+    })
+    const missingLicense = [
+      ...(employee && !employee.license_no ? [employee.name] : []),
+      ...auxParticipants.filter(a => !a.license_no).map(a => a.name),
+    ]
+    const consent = cf.email_delivery_consent as boolean | null | undefined
+    report9Checks = [
+      {
+        label: '① 대상물 공통정보', ok: quick.done >= quick.total,
+        detail: `${quick.done}/${quick.total} 입력${quick.missing.length > 0 ? ` — 누락: ${quick.missing.slice(0, 4).join('·')}${quick.missing.length > 4 ? ` 외 ${quick.missing.length - 4}` : ''}` : ''}`,
+        href: `/customers/${inspection.customer_id}?tab=plan`, hrefLabel: '고객 탭에서 입력 →',
+      },
+      {
+        label: '② 점검 인력', ok: !!employee && missingLicense.length === 0,
+        detail: !employee ? '담당(주된 점검인력) 미배정'
+          : missingLicense.length > 0 ? `자격번호 미입력: ${missingLicense.join('·')}` : `주된 1명 + 보조 ${auxParticipants.length}명`,
+        href: '/employees', hrefLabel: '직원 관리 →',
+      },
+      {
+        label: '③ 점검표 응답', ok: respRows.length > 0,
+        detail: respRows.length > 0 ? `응답 ${respRows.length}건 · 불량 ${xCount}건 (3쪽 양호/불량 자동 롤업)` : '응답 없음 — 점검표를 입력해주세요',
+      },
+      {
+        label: '④ 송달 동의', ok: consent !== null && consent !== undefined,
+        detail: consent === true ? '동의' : consent === false ? '미동의' : '미확인',
+        href: `/customers/${inspection.customer_id}?tab=plan`, hrefLabel: '고객 탭에서 입력 →',
+      },
+    ]
+    report9Job = (jobRes9.data?.[0] as Report9Job | undefined) ?? null
+    report9Files = (filesRes9.data ?? [])
+      .filter(o => o.name.startsWith('report9_'))
+      .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
+  }
+
   return (
     <div className="space-y-6 max-w-5xl">
       {/* 헤더 */}
@@ -290,6 +360,17 @@ export default async function InspectionDetailPage({
         xCount={xCount}
         canManage={canEdit}
       />
+
+      {/* 실시결과 보고서 별지 9호 (P3 §9-6⑦) — 일반관리 점검은 미표시(§9-8) */}
+      {report9Checks && (
+        <InspectionReport9Client
+          inspectionId={id}
+          canManage={canEdit}
+          checks={report9Checks}
+          initialJob={report9Job}
+          initialFiles={report9Files}
+        />
+      )}
 
       {/* 작동점검 보고서 생성 (P32) */}
       <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />

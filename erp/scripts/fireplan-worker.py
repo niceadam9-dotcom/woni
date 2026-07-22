@@ -9,6 +9,7 @@
 import importlib.util
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -22,6 +23,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("make_fireplan", os.path.join(HERE, "make-fireplan.py"))
 mf = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mf)
+spec9 = importlib.util.spec_from_file_location("make_report9", os.path.join(HERE, "make-report9.py"))
+mr9 = importlib.util.module_from_spec(spec9)
+spec9.loader.exec_module(mr9)
 
 ENV = mf.load_env(prod=False)  # 스테이징 (운영 전환 시 prod=True + 보관함 마이그레이션 선행)
 SB_URL = ENV["NEXT_PUBLIC_SUPABASE_URL"]
@@ -219,6 +223,228 @@ def process(job: dict) -> tuple[list[str], dict | None]:
     print(f"[{now_iso()}] ✅ 1단계 완료: {cust['customer_name']} → HWP·미리보기 등록 (누락 {len(missing)}개)")
     return missing, pdf_task
 
+def db_get_all(path: str, page: int = 1000) -> list[dict]:
+    """PostgREST 1,000행 한도 대비 offset 페이지 순회"""
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        chunk = db_get(f"{path}&limit={page}&offset={offset}")
+        rows.extend(chunk)
+        if len(chunk) < page:
+            return rows
+        offset += page
+
+def _match(a: str, b: str) -> bool:
+    """설비명 포함 매칭 (공백 제거 후 상호 포함) — build_stage2와 동일 계열"""
+    x, y = a.replace(" ", ""), b.replace(" ", "")
+    return bool(x) and bool(y) and (x in y or y in x)
+
+def process_report9(job: dict) -> list[str]:
+    """별지 9호 실시결과 보고서 1~3쪽 병합 생성 (P3 MVP — 소방계획서_4.md §9-3·§9-6)"""
+    cust_id, year = job["customer_id"], int(job["year"])
+    insp_id = job.get("inspection_id")
+    if not insp_id:
+        raise RuntimeError("점검 건(inspection_id)이 없습니다")
+    label = f"{job.get('customer_name')} 별지9호 ({year})"
+    print(f"[{now_iso()}] 별지9호 생성 시작: {label}")
+
+    insp = db_get(f"inspections?id=eq.{insp_id}"
+                  "&select=inspection_type,is_initial,inspection_start_date,inspection_end_date,inspection_days,status,assigned_employee_id")
+    if not insp:
+        raise RuntimeError("점검 건을 찾을 수 없습니다")
+    insp = insp[0]
+    cust = db_get(f"customers?id=eq.{cust_id}"
+                  "&select=customer_name,address,use_approval_date,fire_station,building_grade,"
+                  "insurance_joined,insurance_company,insurance_period,insurance_amount_person,insurance_amount_property,"
+                  "email_delivery_consent,report_email")[0]
+    blds = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true"
+                  "&select=id,purpose,total_area,building_area,floors_above,floors_below,height,main_structure,roof_structure,"
+                  "households,building_count,permit_date,parking_summary,elevator_count,emergency_elevator_count"
+                  "&order=created_at&limit=1")
+    b = blds[0] if blds else {}
+    contacts = db_get(f"customer_contacts?customer_id=eq.{cust_id}&select=role,name,phone")
+    owner = next((c for c in contacts if c["role"] == "대표"), contacts[0] if contacts else None)
+    company_rows = db_get("company_profile?select=company_name,phone&limit=1")
+    company = company_rows[0] if company_rows else {}
+
+    # 점검인력 — 주된 = 담당 직원(참여자 테이블에 '주된' 행이 있으면 우선), 보조 = inspection_participants(064)
+    # 자격 = profiles.license_no/grade(063), 참여기간 = 점검기간 전체(§9-6② MVP)
+    parts = db_get(f"inspection_participants?inspection_id=eq.{insp_id}&select=employee_id,role,sort_order&order=sort_order")
+    if not any(p["role"] == "주된" for p in parts) and insp.get("assigned_employee_id"):
+        parts = [{"employee_id": insp["assigned_employee_id"], "role": "주된", "sort_order": -1}] + parts
+    prof_map: dict[str, dict] = {}
+    if parts:
+        ids = ",".join(sorted({p["employee_id"] for p in parts if p.get("employee_id")}))
+        if ids:
+            prof_map = {p["id"]: p for p in db_get(f"profiles?id=in.({ids})&select=id,name,license_no,license_grade")}
+
+    # 점검표 응답 롤업(§9-3) — 시트별 X 유무 → 3쪽 양호○/불량×, 미설치 설비는 해당없음 /
+    responses = db_get_all(f"inspection_sheet_responses?inspection_id=eq.{insp_id}&select=item_code,result")
+    items = db_get_all("inspection_sheet_items?select=item_code,sheet_id") if responses else []
+    sheets = db_get("inspection_sheets?select=id,sheet_name") if responses else []
+    sheet_name_by_id = {s["id"]: s["sheet_name"] for s in sheets}
+    sheet_by_item = {i["item_code"]: sheet_name_by_id.get(i["sheet_id"], "") for i in items}
+    sheet_stat: dict[str, dict[str, bool]] = {}
+    for r in responses:
+        name = sheet_by_item.get(r["item_code"], "")
+        if not name:
+            continue
+        st = sheet_stat.setdefault(name, {"any": False, "x": False})
+        st["any"] = True
+        st["x"] = st["x"] or r.get("result") == "X"
+
+    codes = [f["facility_code"] for f in db_get(
+        f"fire_facilities?building_id=eq.{b['id']}&installed=eq.true&select=facility_code")] if b else []
+    facility_checks = [it for it in mr9.FORM3_ITEMS if any(_match(c, it) for c in codes)]
+    result_marks: dict[str, str] = {}
+    for it in mr9.FORM3_ITEMS:
+        st = next((v for name, v in sheet_stat.items() if _match(name, it)), None)
+        if st and st["any"]:
+            result_marks[it] = "×" if st["x"] else "○"
+        elif it not in facility_checks:
+            result_marks[it] = "/"
+
+    # 2쪽 자동 판정(§9-6③) — 데이터가 있을 때만 체크 (없으면 공란 유지, 단정 금지)
+    has_plan = bool(db_get(f"fire_plans?customer_id=eq.{cust_id}&select=id&limit=1"))
+    prev = db_get(f"inspections?customer_id=eq.{cust_id}&year=eq.{year - 1}&status=eq.completed&select=inspection_type")
+    prev_types = {r["inspection_type"] for r in prev}
+    forms = db_get(f"fire_plan_forms?customer_id=eq.{cust_id}&select=sections")
+    has_training = bool(forms and (forms[0].get("sections") or {}).get("training"))
+
+    NO = "[  ]"
+    CK = "[√]"
+    period = ""
+    if insp.get("inspection_start_date"):
+        end = insp.get("inspection_end_date") or insp["inspection_start_date"]
+        period = f"{mf.kdate(insp['inspection_start_date'])} ~ {mf.kdate(end)}"
+    ph: dict[str, str] = {k: NO for k in mr9.CK_KEYS}
+    ph.update({
+        "customer_name": cust["customer_name"], "purpose": b.get("purpose") or "", "address": cust.get("address") or "",
+        "insp_period": period, "insp_days": str(insp.get("inspection_days") or (1 if period else "")),
+        "ck_contractor": CK, "company_name": company.get("company_name") or "", "company_phone": company.get("phone") or "",
+        "report_date": mf.kdate(time.strftime("%Y-%m-%d")),
+        "submit_to": f"관계인ㆍ{cust['fire_station']}장" if cust.get("fire_station") else "관계인ㆍ소방본부장ㆍ소방서장",
+        "owner_name": (owner or {}).get("name") or "", "owner_phone": (owner or {}).get("phone") or "",
+        "mgr_name": (owner or {}).get("name") or "", "mgr_phone": (owner or {}).get("phone") or "",
+        "ins_company": cust.get("insurance_company") or "", "ins_period": cust.get("insurance_period") or "",
+        "ins_person": cust.get("insurance_amount_person") or "", "ins_property": cust.get("insurance_amount_property") or "",
+        "permit_date": mf.kdate(b.get("permit_date")) if b.get("permit_date") else "",
+        "use_approval_date": mf.kdate(cust.get("use_approval_date")) if cust.get("use_approval_date") else "",
+        "total_area": str(b.get("total_area") or ""), "building_area": str(b.get("building_area") or ""),
+        "floors_above": str(b.get("floors_above") or ""), "floors_below": str(b.get("floors_below") or ""),
+        "height_m": str(b.get("height") or ""), "building_count": str(b.get("building_count") or ""),
+        "households": f"{b['households']}세대" if b.get("households") else "",
+        "elv_r": str(b.get("elevator_count") or ""), "elv_e": str(b.get("emergency_elevator_count") or ""),
+    })
+    # 점검 구분 — 작동/종합(최초·그 밖의)
+    itype = insp.get("inspection_type") or ""
+    if itype == "작동":
+        ph["ck_op"] = CK
+    elif itype == "최초" or (itype == "종합" and insp.get("is_initial")):
+        ph["ck_initial"] = CK
+    elif itype == "종합":
+        ph["ck_comp_etc"] = CK
+    # 송달 동의(§9-6① — 098)
+    if cust.get("email_delivery_consent") is True:
+        ph["ck_consent_y"] = CK
+        ph["report_email"] = cust.get("report_email") or ""
+    elif cust.get("email_delivery_consent") is False:
+        ph["ck_consent_n"] = CK
+    # 점검인력
+    mains = [p for p in parts if p["role"] == "주된"]
+    assists = [p for p in parts if p["role"] == "보조"][:5]
+    if mains:
+        pr = prof_map.get(mains[0]["employee_id"], {})
+        ph.update({"m_name": pr.get("name") or "", "m_grade": pr.get("license_grade") or "",
+                   "m_no": pr.get("license_no") or "", "m_period": period})
+    for i, p in enumerate(assists, start=1):
+        pr = prof_map.get(p["employee_id"], {})
+        ph.update({f"a{i}_name": pr.get("name") or "", f"a{i}_grade": pr.get("license_grade") or "",
+                   f"a{i}_no": pr.get("license_no") or "", f"a{i}_period": period})
+    # 2쪽 — 대표자(관계인 대표=소유자로 표기)·관리등급·소방계획서·전년도·교육훈련·화재보험
+    if owner:
+        ph["ck_rep_owner"] = CK
+    grade_key = {"특급": "ck_g0", "1급": "ck_g1", "2급": "ck_g2", "3급": "ck_g3"}.get(cust.get("building_grade") or "")
+    if grade_key:
+        ph[grade_key] = CK
+    if has_plan:
+        ph["ck_plan_y"] = CK
+        ph["ck_plan_keep"] = CK
+    if "작동" in prev_types:
+        ph["ck_prev_op_y"] = CK
+    if prev_types & {"종합", "최초"}:
+        ph["ck_prev_comp_y"] = CK
+    if has_training:
+        ph["ck_edu_y"] = CK
+        ph["ck_drill_y"] = CK
+    if cust.get("insurance_joined") is True:
+        ph["ck_ins_y"] = CK
+    elif cust.get("insurance_joined") is False:
+        ph["ck_ins_n"] = CK
+    # 건축물구조·지붕·승강기·주차장
+    ms = b.get("main_structure") or ""
+    for token, key in (("콘크리트", "ck_st_con"), ("철골", "ck_st_steel"), ("조적", "ck_st_brick"), ("목", "ck_st_wood")):
+        if token in ms:
+            ph[key] = CK
+            break
+    else:
+        if ms:
+            ph["ck_st_etc"] = CK
+    rf = b.get("roof_structure") or ""
+    for token, key in (("슬래브", "ck_rf_slab"), ("슬라브", "ck_rf_slab"), ("기와", "ck_rf_tile"), ("슬레이트", "ck_rf_slate")):
+        if token in rf:
+            ph[key] = CK
+            break
+    else:
+        if rf:
+            ph["ck_rf_etc"] = CK
+    if b.get("elevator_count"):
+        ph["ck_elv_r"] = CK
+    if b.get("emergency_elevator_count"):
+        ph["ck_elv_e"] = CK
+    pk = b.get("parking_summary") or ""
+    for token, key in (("옥내", "ck_pk_in"), ("기계식", "ck_pk_mech"), ("옥외", "ck_pk_out"), ("옥상", "ck_pk_roof")):
+        if token in pk:
+            ph[key] = CK
+
+    safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
+    out_hwp, out_odt, out_html = mr9.generate_report9(ph, facility_checks, result_marks,
+                                                      mf.OUT_DIR, f"{safe}_별지9호_{year}")
+    heartbeat(f"{label} — 업로드")
+    stamp = int(time.time() * 1000)
+    base = f"{cust_id}/inspections/{insp_id}/report9_{stamp}"
+    with open(out_hwp, "rb") as f:
+        st_upload(f"{base}.hwp", f.read(), "application/octet-stream")
+    with open(out_html, "rb") as f:
+        st_upload(f"{base}.html", f.read(), "text/html; charset=utf-8")
+    # PDF — 로컬 LibreOffice 즉시 변환 (실패해도 HWP는 사용 가능)
+    pdf_note = ""
+    if mf.SOFFICE:
+        try:
+            out_pdf = out_odt[:-4] + ".pdf"
+            mf.convert_pdf_local(out_odt, out_pdf)
+            with open(out_pdf, "rb") as f:
+                st_upload(f"{base}.pdf", f.read(), "application/pdf")
+        except Exception as pe:  # noqa: BLE001
+            pdf_note = f"PDF 변환 실패({pe})"
+    else:
+        pdf_note = "LibreOffice 미설치 — HWP만 등록"
+
+    missing = [lb for lb, has in [
+        ("점검기간", period),
+        ("주된 점검인력", mains),
+        ("점검표 응답", responses),
+        ("송달 동의", cust.get("email_delivery_consent") is not None or None),
+        ("자격정보", all(prof_map.get(p["employee_id"], {}).get("license_no") for p in parts) if parts else None),
+        ("주소", cust.get("address")),
+        ("사용승인일", cust.get("use_approval_date")),
+        ("건축허가일", b.get("permit_date")),
+    ] if not has]
+    if pdf_note:
+        missing.append(pdf_note)
+    print(f"[{now_iso()}] ✅ 별지9호 완료: {label} (누락 {len(missing)}개)")
+    return missing
+
 print(f"소방계획서 생성 워커 시작 — {SB_URL} / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")
 mf.sdk_app()  # 라이선스 선검증
 print("SDK 초기화 OK")
@@ -243,11 +469,16 @@ while True:
                 continue
             heartbeat(f"{job.get('customer_name')} ({job.get('year')}년)")
             try:
-                missing, pdf_task = process(job)
-                # HWP 등록 시점에 작업 완료 — 사용자는 즉시 HWP·미리보기 사용 가능, PDF는 뒤따라 첨부
-                db_patch(f"{JOBS}?id=eq.{job['id']}",
-                         {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
-                attach_pdf(**pdf_task)
+                if (job.get("report_type") or "fire_plan") == "report9":
+                    missing = process_report9(job)
+                    db_patch(f"{JOBS}?id=eq.{job['id']}",
+                             {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
+                else:
+                    missing, pdf_task = process(job)
+                    # HWP 등록 시점에 작업 완료 — 사용자는 즉시 HWP·미리보기 사용 가능, PDF는 뒤따라 첨부
+                    db_patch(f"{JOBS}?id=eq.{job['id']}",
+                             {"status": "done", "missing": missing, "error": None, "finished_at": now_iso()})
+                    attach_pdf(**pdf_task)
             except Exception as err:  # noqa: BLE001
                 print(f"[{now_iso()}] ❌ 실패({job.get('customer_name')}): {err}")
                 traceback.print_exc()
