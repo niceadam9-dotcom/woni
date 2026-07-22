@@ -73,6 +73,76 @@ export async function saveFirePlanSectionsAction(
   return {}
 }
 
+/** §11-6: 다른 고객 섹션 단위 복사 — 같은 용도 고객의 서식 입력(1.5/1.6/1.11)을 가져오기 */
+const COPYABLE_SECTION_KEYS = new Set(['evacFire', 'etcFacility', 'training'])
+
+export type SectionCopyCandidate = { id: string; name: string; purpose: string | null; updatedAt: string | null }
+
+export async function getSectionCopyCandidatesAction(
+  customerId: string,
+  sectionKey: string,
+): Promise<{ candidates: SectionCopyCandidate[]; error?: string }> {
+  await requirePermission('customer_manage')
+  if (!COPYABLE_SECTION_KEYS.has(sectionKey)) return { candidates: [], error: '복사할 수 없는 섹션입니다.' }
+  const admin = createAdminClient()
+
+  // 같은 용도 고객 우선 (없으면 전체) — fire-plan-info-actions의 후보 로직과 동일 계열
+  const { data: myBld } = await admin.from('buildings')
+    .select('purpose').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  const myPurpose = (myBld as { purpose: string | null } | null)?.purpose ?? null
+
+  const { data: forms } = await admin.from('fire_plan_forms')
+    .select('customer_id, sections, updated_at')
+    .neq('customer_id', customerId)
+    .order('updated_at', { ascending: false }).limit(200)
+  const withSection = ((forms ?? []) as Array<{ customer_id: string; sections: Record<string, unknown>; updated_at: string | null }>)
+    .filter(f => {
+      const v = f.sections?.[sectionKey]
+      return v != null && (typeof v !== 'object' || Object.keys(v as object).length > 0)
+    })
+  if (withSection.length === 0) return { candidates: [] }
+
+  const ids = withSection.map(f => f.customer_id)
+  const [{ data: custs }, { data: blds }] = await Promise.all([
+    admin.from('customers').select('id, customer_name').in('id', ids).eq('is_active', true),
+    admin.from('buildings').select('customer_id, purpose').in('customer_id', ids).eq('is_active', true),
+  ])
+  const nameById = new Map(((custs ?? []) as Array<{ id: string; customer_name: string }>).map(c => [c.id, c.customer_name]))
+  const purposeById = new Map(((blds ?? []) as Array<{ customer_id: string; purpose: string | null }>).map(b => [b.customer_id, b.purpose]))
+
+  const all = withSection
+    .filter(f => nameById.has(f.customer_id))
+    .map(f => ({
+      id: f.customer_id, name: nameById.get(f.customer_id)!,
+      purpose: purposeById.get(f.customer_id) ?? null, updatedAt: f.updated_at,
+    }))
+  // 같은 용도 우선 정렬
+  const samePurpose = myPurpose ? all.filter(c => c.purpose === myPurpose) : []
+  const rest = all.filter(c => !samePurpose.includes(c))
+  return { candidates: [...samePurpose, ...rest].slice(0, 10) }
+}
+
+export async function copySectionFromCustomerAction(
+  customerId: string,
+  sourceCustomerId: string,
+  sectionKey: string,
+): Promise<{ value?: unknown; error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  if (!COPYABLE_SECTION_KEYS.has(sectionKey)) return { error: '복사할 수 없는 섹션입니다.' }
+  const admin = createAdminClient()
+
+  const { data: src } = await admin.from('fire_plan_forms')
+    .select('sections').eq('customer_id', sourceCustomerId).maybeSingle()
+  const value = ((src as { sections?: Record<string, unknown> } | null)?.sections ?? {})[sectionKey]
+  if (value == null) return { error: '원본 고객에 해당 섹션 입력이 없습니다.' }
+
+  const res = await saveSection(customerId, sectionKey, value, profile.id)
+  if (res.error) return { error: res.error }
+  revalidatePath(`/customers/${customerId}`)
+  return { value }
+}
+
 /** 자위소방대 편성 저장 (서식 2.2 — 1.1 계획서 정보 패널과 같은 fire_brigade_members, replace 방식) */
 export type BrigadeRowInput = { team: string; name: string; duty: string; phone: string }
 

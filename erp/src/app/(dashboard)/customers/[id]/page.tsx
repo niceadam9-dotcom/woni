@@ -536,7 +536,8 @@ export default async function CustomerDetailPage({
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
-        initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []} />}
+        initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
+        presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}
       form16={<PlanForm16 customerId={customer.id} canManage={canManage}
         initial={fpSections.etcFacility ?? EMPTY_ETC_FACILITY} />}
       form17={<PlanForm17 customerId={customer.id} canManage={canManage}

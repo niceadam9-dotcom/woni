@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { SectionCopyButton } from '@/components/customers/section-copy-button'
 
 /** 서식 1.6 기타시설 현황 (1.6.1) — 전기·가스·위험물 (소방계획서_4.md §3, sections.etcFacility)
  *  §11-3: 가스 [LPG 프리셋], 위험물 [해당없음] 원클릭 */
@@ -55,7 +56,15 @@ export function PlanForm16({ customerId, canManage, initial }: {
     <div className="space-y-4">
       {/* 전기 */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
-        <p className="text-xs font-semibold text-[#514b81]">전기 시설</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold text-[#514b81]">전기 시설</p>
+          {canManage && (
+            <span className="ml-auto">
+              <SectionCopyButton customerId={customerId} sectionKey="etcFacility" sectionLabel="1.6 기타시설"
+                onApplied={val => { setV({ ...EMPTY_ETC_FACILITY, ...(val as Partial<EtcFacilitySection>) }); setDirty(false); setMsg('✅ 다른 고객에서 복사됨 (저장 완료)') }} />
+            </span>
+          )}
+        </div>
         <div className="flex items-end gap-2 flex-wrap">
           {field('수전 용량(kW)', <input value={v.electric.kw} disabled={!canManage} inputMode="decimal" onChange={e => pe({ kw: e.target.value })} className={`${inputCls} w-24`} />)}
           {field('변압기(kVA)', <input value={v.electric.kva} disabled={!canManage} inputMode="decimal" onChange={e => pe({ kva: e.target.value })} className={`${inputCls} w-24`} />)}

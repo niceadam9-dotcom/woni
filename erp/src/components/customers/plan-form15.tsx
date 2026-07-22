@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { ImageSlot } from '@/components/customers/plan-form13'
+import { SectionCopyButton } from '@/components/customers/section-copy-button'
 
 /** 서식 1.5 피난·방화시설 및 제연, 방염 관련 현황 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  1.5.1 일반현황(sections.evacFire) + 1.5.2 방화·제연구획 현황도(sections.evacMaps + plan-assets) */
@@ -31,11 +32,28 @@ export const EMPTY_EVAC_FIRE: EvacFireSection = {
   smokeControl: { has: false, note: '' }, flameRetardant: { has: false, note: '' },
 }
 
-export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps }: {
+/** §11-3: 용도 기반 기본값 — 보수적 최소 구성(입력 후 현장 확인·수정 전제) */
+const EVAC_PRESETS: Record<string, Partial<EvacFireSection>> = {
+  '주택형': {
+    stairs: { '직통계단': '1' }, compartment: 'floor',
+    evacFloor: { location: '1층', exits: '1', openMethod: '수동(자유 개방)' }, fireDoor: { has: true, note: '' },
+  },
+  '상가형': {
+    stairs: { '직통계단': '2' }, compartment: 'area',
+    evacFloor: { location: '1층', exits: '2', openMethod: '수동(자유 개방)' }, fireDoor: { has: true, note: '' },
+  },
+  '공장형': {
+    stairs: { '직통계단': '1', '옥외계단': '1' }, compartment: 'area',
+    evacFloor: { location: '1층', exits: '2', openMethod: '수동(자유 개방)' }, fireDoor: { has: true, note: '' },
+  },
+}
+
+export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps, presetType = '' }: {
   customerId: string
   canManage: boolean
   initialEvacFire: EvacFireSection
   initialMaps: EvacMapRow[]
+  presetType?: string // 용도 기반 추천 (주택형/상가형/공장형 — §11-3)
 }) {
   const router = useRouter()
   const [ef, setEf] = useState<EvacFireSection>({ ...EMPTY_EVAC_FIRE, ...initialEvacFire })
@@ -78,7 +96,22 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
     <div className="space-y-4">
       {/* 1.5.1 일반현황 */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">1.5.1 피난·방화시설 일반현황</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold text-[#514b81]">1.5.1 피난·방화시설 일반현황</p>
+          {canManage && presetType && EVAC_PRESETS[presetType] && (
+            <button onClick={() => patch(EVAC_PRESETS[presetType])}
+              title="용도 기반 기본값 — 채운 뒤 현장 기준으로 수정하세요"
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              용도 기본값 ({presetType})
+            </button>
+          )}
+          {canManage && (
+            <span className="ml-auto">
+              <SectionCopyButton customerId={customerId} sectionKey="evacFire" sectionLabel="1.5 피난·방화"
+                onApplied={v => { setEf({ ...EMPTY_EVAC_FIRE, ...(v as Partial<EvacFireSection>) }); setDirty(false); setMsg('✅ 다른 고객에서 복사됨 (저장 완료) — 현황도(1.5.2)는 이미지라 복사 제외') }} />
+            </span>
+          )}
+        </div>
         {/* 계단 */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-medium text-[#514b81] w-14">계단</span>

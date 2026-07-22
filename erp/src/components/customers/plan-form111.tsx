@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Wand2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { SectionCopyButton } from '@/components/customers/section-copy-button'
 
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
  *  1.11.1 연간계획(교육/훈련 × 12개월 그리드 + [표준 패턴] §11-3) · 1.11.2 세부계획 · 1.11.3 시나리오(유형 프리셋) · 1.11.4 결과 기록부(별지 28호, 2년 보관) */
@@ -95,6 +96,12 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
               <Wand2 className="size-3" /> 표준 패턴 (5·11월)
             </button>
+          )}
+          {canManage && (
+            <span className="ml-auto">
+              <SectionCopyButton customerId={customerId} sectionKey="training" sectionLabel="1.11 훈련·교육"
+                onApplied={v => { setT({ ...EMPTY_TRAINING, ...(v as Partial<TrainingSection>) }); setDirty(false); setMsg('✅ 다른 고객에서 복사됨 (저장 완료)') }} />
+            </span>
           )}
         </div>
         <div className="flex items-end gap-2 flex-wrap">

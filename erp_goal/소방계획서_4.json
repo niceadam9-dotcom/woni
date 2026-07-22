@@ -59,14 +59,14 @@
       ]
     },
     {
-      "id": "2", "line": 73, "title": "서브탭 ① 개정이력·보관", "status": "partial",
+      "id": "2", "line": 73, "title": "서브탭 ① 개정이력·보관", "status": "implemented",
       "criteria": [
         { "id": "2-1", "desc": "개정이력 — fire_plans 기반 자동 목록 + 이번 작성일·개정내용 입력(sections.revision 저장)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["plan-tab-view.tsx:170-224 개정이력 표+입력+저장", "fire-plan-form-actions.ts:33-45 saveFirePlanRevisionAction(200자 제한·revalidate)", "E2E: 저장→fire_plan_forms.sections.revision DB 확인·updated_by 기록·재진입 로드 (test-plan-tab.mts 15/15)"], "method": "코드 대조 + E2E (구현 세션 2026-07-21과 별도 세션 판정)" } },
         { "id": "2-2", "desc": "보관함 — 현행 fire-plans-client 이동(2단계 등록 표시 포함)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["customers/[id]/page.tsx:470 archive={<FirePlansClient …>} — 개정이력·보관 서브탭 내 배치", "E2E: 기본 진입 시 개정이력 패널 표시 확인"], "method": "코드 대조 + E2E" } },
-        { "id": "2-3", "desc": "HWP 개정이력 표 다행 병합 — 과거 이력 행 순번대로 병합 출력 (현재 1행만)", "status": "pending_order", "note": "P4(구 4-5) 범위" },
-        { "id": "2-4", "desc": "외부 작성 HWP/PDF 직접 업로드 (첨부 저장)", "status": "pending_order" }
+        { "id": "2-3", "desc": "HWP 개정이력 표 다행 병합 — 과거 이력 행 순번대로 병합 출력 (현재 1행만)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "bc3da57", "evidence": ["make-fireplan.py apply_form_tables — fill_table(소방계획서 개정이력, r1~, {date·note·author}) 다행 병합(보관함 과거+이번 작성), generate_hwp revisions 파라미터", "워커·PDF 직결 경로 모두 revisions 전달"], "method": "scripts/_test-form-pairs.py 24/24 (개정이력 셀 포함) — 7-4b 검증과 동일 세트. 상태 기록 지연분 정정(2026-07-23)" } },
+        { "id": "2-4", "desc": "외부 작성 HWP/PDF 직접 업로드 (첨부 저장)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["fire-plan-actions.ts uploadFirePlanAction — 연도별 PDF(필수)+HWP/HWPX(선택) 업로드·30MB 한도·보관함 등록", "fire-plans-client.tsx 업로드 폼(개정 업로드 포함) — 개정이력·보관 서브탭에서 사용"], "method": "코드 대조 — FP 시리즈 기존 구현이 보관함 이동(1aa4c97)으로 §2에 편입, 상태 기록 지연분 정정(2026-07-23)" } }
       ]
     },
     {
