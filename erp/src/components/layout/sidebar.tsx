@@ -69,7 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '보고서 제출현황',  href: '/inspection-reports/status',  icon: FileCheck2,     roles: ['employee', 'manager', 'admin'] },
       { label: '이행계획서 등록',  href: '/action-plans',               icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
       { label: '이행계획 제출현황',href: '/action-plans/status',        icon: ClipboardCheck, roles: ['employee', 'manager', 'admin'] },
-      { label: '소방계획서 생성',  href: '/fire-plans/generate',        icon: FileOutput,     roles: ['employee', 'manager', 'admin'] },
+      { label: '보고서',           href: '/reports',                    icon: FileOutput,     roles: ['employee', 'manager', 'admin'] },
       { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
       { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'] },
       { label: '안전관리 대장',    href: '/billing/annual',             icon: ShieldCheck,    roles: ['manager', 'admin'] },
