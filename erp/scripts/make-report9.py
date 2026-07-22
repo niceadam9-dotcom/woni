@@ -106,6 +106,49 @@ FORM3_ITEMS: list[str] = [
 # 체크박스 placeholder 키 전체 — 워커가 기본값 '[  ]'를 채우고 해당 항목만 '[√]'로 덮어씀
 CK_KEYS: list[str] = sorted(set(re.findall(r"\{\{(ck_[a-z0-9_]+)\}\}", "".join(n for _, n, _ in SEED_RUNS))))
 
+# ── 3쪽 2절 안전시설등(다중이용업소) — §9-6e. item_code = 시트 MU-001~016(seed-mu-sheet.mjs와 1:1) ──
+# (item_code, 체크 리터럴(런 원문 '[ ]…' — 2절 영역 내 1회 교체), 결과 셀 탐색 키(해당 행 셀 내 고유 문자열))
+MU_ITEMS: list[tuple[str, str, str]] = [
+    ("MU-001", "[ ]소화기 또는 자동확산소화기", "소화기 또는 자동확산소화기"),
+    ("MU-002", "[ ]간이스프링클러설비", "간이스프링클러설비"),
+    ("MU-003", "[ ]비상경보설비 또는", "비상경보설비 또는"),  # 런 분리: '…또는' + '자동화재탐지설비'
+    ("MU-004", "[ ]가스누설경보기", "가스누설경보기"),
+    ("MU-005", "[ ]피난기구", "피난기구"),
+    ("MU-006", "[ ]피난유도선", "피난유도선"),
+    ("MU-007", "[ ]피난안내도, 피난안내영상물", "피난안내도, 피난안내영상물"),
+    ("MU-008", "[ ]유", "도등, 유도표지 또는 비상조명등"),  # 런 분리: '[ ]유' + '도등, …'
+    ("MU-009", "[ ]휴대용비상조명등", "휴대용비상조명등"),
+    ("MU-010", "[ ]창 문", "창 문"),
+    ("MU-011", "[ ]방화문", "방화문"),
+    ("MU-012", "[ ]비상구(비상탈출구)", "비상구(비상탈출구)"),
+    ("MU-013", "[ ]영업장 내부 피난통로", "영업장 내부 피난통로"),
+    ("MU-014", "[ ]영상음향차단장치", "영상음향차단장치"),
+    ("MU-015", "[ ]누전차단기", "누전차단기"),
+    ("MU-016", "[ ]방염대상물품", "방염대상물품"),
+]
+MU_BY_CODE = {c: (ck, anchor) for c, ck, anchor in MU_ITEMS}
+MU_SECTION_START = "2. 안전시설등 점검 결과"
+MU_SECTION_END = "3. 소방시설등의 세부 현황"
+
+
+def _apply_mu(xml: str, mu_results: dict[str, str]) -> tuple[str, int]:
+    """2절 영역 한정 병합 — ○/×는 해당 설비 체크(√)+결과, /는 결과만. 1절의 동명 '[ ]항목'과 충돌 방지."""
+    start = xml.find(MU_SECTION_START)
+    end = xml.find(MU_SECTION_END, start)
+    if start < 0 or end < 0:
+        return xml, 0
+    region = xml[start:end]
+    ok = 0
+    for code, mark in mu_results.items():
+        if code not in MU_BY_CODE or mark not in ("○", "×", "/"):
+            continue
+        ck, anchor = MU_BY_CODE[code]
+        if mark in ("○", "×") and ck in region:
+            region = region.replace(ck, ck.replace("[ ]", "[√]", 1), 1)
+        region, injected = _result_after(region, anchor, mark)
+        ok += 1 if injected else 0
+    return xml[:start] + region + xml[end:], ok
+
 
 def _check_run(xml: str, item: str) -> tuple[str, bool]:
     """3쪽 ` [ ]항목` → ` [√]항목` — 런 분리 케이스는 항목명 직전 `[ ]` 런을 찾아 치환"""
@@ -146,8 +189,9 @@ def _result_after(xml: str, item: str, mark: str) -> tuple[str, bool]:
 
 
 def generate_report9(ph: dict[str, str], facility_checks: list[str], result_marks: dict[str, str],
-                     out_dir: str, out_base: str) -> tuple[str, str, str]:
-    """placeholder 치환 + 3쪽 체크·결과 주입 → (hwp, odt, html) 생성. ph 값 없는 키는 빈 칸 처리."""
+                     out_dir: str, out_base: str,
+                     mu_results: dict[str, str] | None = None) -> tuple[str, str, str]:
+    """placeholder 치환 + 3쪽 체크·결과 주입(1절 + 2절 안전시설등 §9-6e) → (hwp, odt, html) 생성."""
     assert os.path.isfile(TEMPLATE9_PH), "별지9호 placeholder 템플릿 없음 — seed-report9-placeholders.py 먼저 실행"
     hwpsdk = mf.sdk_app()
     obj = hwpsdk.Application.GetHwpObject()
@@ -170,7 +214,11 @@ def generate_report9(ph: dict[str, str], facility_checks: list[str], result_mark
                     for it, mark in result_marks.items():
                         xml, ok = _result_after(xml, it, mark)
                         rs_ok += 1 if ok else 0
+                    mu_ok = 0
+                    if mu_results:
+                        xml, mu_ok = _apply_mu(xml, mu_results)
                     print(f"  3쪽: 체크 {ck_ok}/{len(facility_checks)}, 결과 {rs_ok}/{len(result_marks)}"
+                          + (f", 안전시설등 {mu_ok}/{len(mu_results)}" if mu_results else "")
                           + (f" ⚠미매칭 {ck_fail}" if ck_fail else ""))
                 # 미채움 placeholder → 빈 칸 (체크박스 기본값은 워커가 '[  ]'를 제공)
                 xml = PH_RE.sub("", xml)

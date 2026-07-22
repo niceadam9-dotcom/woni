@@ -106,9 +106,9 @@ export default async function InspectionDetailPage({
   const respondedCounts: Record<string, number> = {}
   for (const r of respRows) {
     responses[r.item_code] = { result: r.result, memo: r.memo }
-    // 설비번호 키: STD '1-A-001' → '1' / 외관 'X1-01' → 'X1'
+    // 설비번호 키: STD '1-A-001' → '1' / 외관 'X1-01' → 'X1' / 안전시설등 'MU-001' → 'MU'
     const first = r.item_code.split('-')[0]
-    const num = first.startsWith('X') ? first : String(parseInt(first, 10))
+    const num = /^\d/.test(first) ? String(parseInt(first, 10)) : first
     respondedCounts[num] = (respondedCounts[num] ?? 0) + 1
   }
   const xCount = respRows.filter(r => r.result === 'X').length

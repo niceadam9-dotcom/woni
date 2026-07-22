@@ -14,10 +14,10 @@ export async function loadSheetItemsAction(sheetId: string): Promise<{
     .select('item_code, item_name, comprehensive_only, facility_type')
     .eq('sheet_id', sheetId).order('order_num')
   const items = ((data ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; facility_type: string | null }>)
-    // 그룹: 표준(STD) = 코드 접두(1-A-001 → 1-A) / 외관(X코드) = 서식의 구분란(facility_type)
+    // 그룹: 표준(STD, 숫자 시작) = 코드 접두(1-A-001 → 1-A) / 외관(X)·안전시설등(MU) = 서식의 구분란(facility_type)
     .map(({ facility_type, ...i }) => ({
       ...i,
-      group: i.item_code.startsWith('X') ? (facility_type ?? i.item_code.replace(/-\d+$/, '')) : i.item_code.replace(/-\d+$/, ''),
+      group: /^[A-Z]/.test(i.item_code) ? (facility_type ?? i.item_code.replace(/-\d+$/, '')) : i.item_code.replace(/-\d+$/, ''),
     }))
   return { items }
 }

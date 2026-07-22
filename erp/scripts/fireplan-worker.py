@@ -353,6 +353,11 @@ def process_report9(job: dict) -> list[str]:
         elif it not in facility_checks:
             result_marks[it] = "/"
 
+    # 3쪽 2절 안전시설등(다중이용업소, §9-6e) — MU 시트 응답 항목 단위 반영
+    mu_marks = {"O": "○", "X": "×", "N": "/"}
+    mu_results = {r["item_code"]: mu_marks[r["result"]]
+                  for r in responses if r["item_code"].startswith("MU-") and r.get("result") in mu_marks}
+
     # 2쪽 자동 판정(§9-6③) — 데이터가 있을 때만 체크 (없으면 공란 유지, 단정 금지)
     has_plan = bool(db_get(f"fire_plans?customer_id=eq.{cust_id}&select=id&limit=1"))
     prev = db_get(f"inspections?customer_id=eq.{cust_id}&year=eq.{year - 1}&status=eq.completed&select=inspection_type")
@@ -458,7 +463,8 @@ def process_report9(job: dict) -> list[str]:
 
     safe = re.sub(r'[\\/:*?"<>|]', "_", cust["customer_name"])
     out_hwp, out_odt, out_html = mr9.generate_report9(ph, facility_checks, result_marks,
-                                                      mf.OUT_DIR, f"{safe}_별지9호_{year}")
+                                                      mf.OUT_DIR, f"{safe}_별지9호_{year}",
+                                                      mu_results=mu_results)
     heartbeat(f"{label} — 업로드")
     stamp = int(time.time() * 1000)
     base = f"{cust_id}/inspections/{insp_id}/report9_{stamp}"
