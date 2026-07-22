@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1~P4 완료 + HWP 병합(7-4a·b) + V-1(⚠ AI E2E는 크레딧 블로커) + P5 R-1·R-2 보고서 센터(최신 6643dab — /reports 카탈로그·생성 페이지 흡수·별지 9호 점검 건 선택, 스모크 9/9). 잔여: R-3(별지 10·11호+법제처 개정 감지 크론)·외관점검표(§9-8)·§9-9 타임라인. 사용자 액션 대기: Anthropic 크레딧 충전·자격정보 입력(운영 2명)·§12 미결 3건. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1~P5 전 단계 핵심 완료(최신 1cd2a10 — 별지 10·11호 생성: 정규식 심기·워커 분기·준비 화면 ⑤⑥·불량 이행계획 입력, 실데이터 E2E·UI 스모크 6/6, 101 양쪽 DB). 잔여: 법제처 개정 감지 크론(OC IP 등록 블로커)·이행기한 알림 크론(9-7d)·외관점검표(§9-8d — 실물 양식 필요)·§9-9 타임라인·V-1 AI E2E(크레딧 블로커). 사용자 액션 대기: Anthropic 크레딧·자격정보 입력·OC IP 등록·외관점검표 양식·§12 미결 3건. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -251,15 +251,18 @@
       ]
     },
     {
-      "id": "9-7", "line": 487, "title": "별지 10·11호 — 불량 생애주기 관리", "status": "pending_order",
+      "id": "9-7", "line": 487, "title": "별지 10·11호 — 불량 생애주기 관리", "status": "partial",
       "note": "설계 채택(2026-07-21): 별도 테이블·화면 없이 기존 inspection_defects(점검표 X→자동 등록) 확장",
       "criteria": [
         { "id": "9-7a", "desc": "inspection_defects 조치 필드 확장 — action_plan/start/end(10호 계획 행) + action_done_at/note/photo_before·after(11호 완료 행)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["099_report9_queue.sql — action_plan·action_start·action_end 3컬럼(스테이징·운영 적용). 완료 필드는 기존 084(action_taken·action_completed_at·after_photo_url) 확인, photo_before=기존 photo_url"], "method": "코드 대조 + DB 적용 확인" },
           "note": "입력 UI(준비 화면 ⑤ 단계)는 P5 — 컬럼 선반영만" },
-        { "id": "9-7b", "desc": "생성 파이프라인 — placeholder 동일, 큐 report_type='report10'/'report11', 저장 규약 9-6f 동일, 대상물 정보=9호 재사용·공사업체=company_profile 자동", "status": "pending_order" },
-        { "id": "9-7c", "desc": "준비 화면 단계 추가 — ⑤ 이행조치 계획(불량 시만)·[9호+10호 세트 생성] / ⑥ 이행완료 처리·[11호 생성]", "status": "pending_order", "note": "P5 — 새 페이지 없음" },
-        { "id": "9-7d", "desc": "기한 관리 — 이행 필요기간 종료일 임박 알림(기존 inspection-deadline-notify 크론 패턴, 과태료 방어)", "status": "pending_order" }
+        { "id": "9-7b", "desc": "생성 파이프라인 — placeholder 동일, 큐 report_type='report10'/'report11', 저장 규약 9-6f 동일, 대상물 정보=9호 재사용·공사업체=company_profile 자동", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "1cd2a10", "evidence": ["make-report1011.py — 정규식 심기(공백 취약성 회피, 10호 11종·11호 14종 실패 0) + 이행 행 셀 주입(_set_cell_full 예시 문구 제거)", "seed-report1011-placeholders.py + 별지10·11호-placeholder.hwpx", "fireplan-worker.py process_report1011 — defects 생애주기(계획→10호 행·필요기간 총일수 / 완료→11호 행·공사업체 company_profile), 101 큐 CHECK 확장(양쪽 DB)", "검증: 템플릿 병합 15/15+예시 제거 확인 + 스테이징 실데이터 E2E(10·11호 done·HWP/HTML/PDF·산출물 4/4·4/4)"], "method": "템플릿 병합 검증 + 실데이터 E2E + 산출 HWP 재변환 대조" } },
+        { "id": "9-7c", "desc": "준비 화면 단계 추가 — ⑤ 이행조치 계획(불량 시만)·[9호+10호 세트 생성] / ⑥ 이행완료 처리·[11호 생성]", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "1cd2a10", "evidence": ["inspection-report9-client.tsx — 불량 있을 때만 ⑤(계획 n/m + [별지 10호 생성])·⑥(완료 m/n + [별지 11호 생성]) 표시, 생성물 목록 report9/10/11 통합", "불량내역 [이행계획·조치 완료] — 계획 내용·이행 기간(시작~종료) 입력 추가(updateDefectActionAction 확장)", "UI 스모크 6/6"], "method": "코드 대조 + UI 스모크" },
+          "note": "[9호+10호 세트 생성]은 개별 버튼 2개로 구현(중복 잡 방지 — 순차 요청)" },
+        { "id": "9-7d", "desc": "기한 관리 — 이행 필요기간 종료일 임박 알림(기존 inspection-deadline-notify 크론 패턴, 과태료 방어)", "status": "pending_order", "note": "action_end 데이터는 준비됨 — 크론 확장은 후속" }
       ]
     },
     {
@@ -299,7 +302,8 @@
         { "id": "10-R2", "desc": "R-2 — 큐 fire_plan_gen_jobs에 report_type 컬럼 확장(워커 유형별 병합 분기) + 별지 9호·배치확인서 카드(점검 건 선택 UI) + 점검 완료 화면 바로가기", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["큐 report_type·워커 분기는 P3(099·48a28ea) 선구현", "별지 9호 카드 — 점검 건 선택(자체점검만·고객명 검색·생성 이력 수) → 점검 상세 준비 화면으로 이동(§9-6⑦ 진입점 2개·화면 1개)", "배치확인서 카드 — 업로드 문서 안내(예정 표시)"], "method": "코드 대조 + UI 스모크" },
           "note": "배치확인서는 협회 발급 업로드 문서(§9-9 ②)라 생성 카드 아님 — 점검 상세 업로드 슬롯은 §9-9 타임라인에서" },
-        { "id": "10-R3", "desc": "R-3 — 별지 10·11호 카드 + 법제처 개정 감지 크론·서식 버전(개정일)·'새 개정판' 뱃지", "status": "pending_order" }
+        { "id": "10-R3", "desc": "R-3 — 별지 10·11호 카드 + 법제처 개정 감지 크론·서식 버전(개정일)·'새 개정판' 뱃지", "status": "partial",
+          "note": "별지 10·11호 생성은 §9-7(1cd2a10)로 구현 — 진입은 준비 화면 ⑤⑥(카드 별도 활성화는 불필요, 카탈로그에 예정 표시 유지). 법제처 개정 감지 크론은 OC 계정 VPS IP 등록(사용자 액션) 블로커로 잔여" }
       ]
     },
     {
