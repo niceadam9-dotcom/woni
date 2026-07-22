@@ -206,6 +206,21 @@ export async function issueNextYearPlanAction(planId: string): Promise<{ error?:
     revision: 1, note: `${p.year}년 계획서에서 연차발행`, uploaded_by: profile.id,
   } as Record<string, unknown>)
   if (insErr) { await admin.storage.from(BUCKET).remove([newPdfPath, ...(newHwpPath ? [newHwpPath] : [])]); return { error: `발행 실패: ${insErr.message}` } }
+
+  // 11-2 전년도 이어받기: 서식 입력(fire_plan_forms)은 고객당 1행이라 자동 승계 —
+  // 개정이력 입력(sections.revision)만 '연차 갱신'으로 갱신해 전년도 개정 문구가 새해에 딸려가지 않게 한다.
+  const { data: formRow } = await admin.from('fire_plan_forms')
+    .select('sections').eq('customer_id', p.customer_id).maybeSingle()
+  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const sections = {
+    ...((formRow as { sections?: Record<string, unknown> } | null)?.sections ?? {}),
+    revision: { revisionDate: kstToday, revisionNote: `${newYear}년 연차 갱신 (전년도 이어받기)` },
+  }
+  await admin.from('fire_plan_forms').upsert({
+    customer_id: p.customer_id, sections,
+    updated_at: new Date().toISOString(), updated_by: profile.id,
+  } as Record<string, unknown>)
+
   revalidatePath(`/customers/${p.customer_id}`)
   return { year: newYear }
 }

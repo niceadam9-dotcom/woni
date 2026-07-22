@@ -239,3 +239,90 @@ export async function refreshLedgerAction(
     height: L.height != null ? String(L.height) : undefined,
   }
 }
+
+/** ── 11-1c: 대장값 미리보기 → 앰버 확인 → 확정 저장 (빠른 입력 화면) ── */
+
+const LEDGER_FIELDS: Array<{ key: string; label: string }> = [
+  { key: 'permit_date', label: '건축허가일' },
+  { key: 'building_area', label: '건축면적(㎡)' },
+  { key: 'building_count', label: '건물동수' },
+  { key: 'parking_summary', label: '주차장' },
+  { key: 'main_structure', label: '구조' },
+  { key: 'roof_structure', label: '지붕' },
+  { key: 'height', label: '높이(m)' },
+  { key: 'elevator_count', label: '승용승강기(대)' },
+  { key: 'emergency_elevator_count', label: '비상용승강기(대)' },
+  { key: 'households', label: '세대수' },
+  { key: 'ho_count', label: '호수' },
+  { key: 'attached_building_count', label: '부속건축물(동)' },
+  { key: 'seismic_design', label: '내진설계' },
+]
+
+export type LedgerPreviewField = { key: string; label: string; current: string; next: string; changed: boolean }
+
+/** 대장 조회만 (저장 없음) — 현재값과 비교한 필드 목록 반환. 확정은 applyLedgerValuesAction */
+export async function previewLedgerAction(customerId: string): Promise<{
+  fields?: LedgerPreviewField[]; needAddress?: boolean; error?: string
+}> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  const { data: bld } = await admin.from('buildings')
+    .select('*').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  if (!bld) return { error: '등록된 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.' }
+  const stored = bld as Record<string, unknown>
+
+  const useBcode = (stored.bcode as string | null) || ''
+  const useJibun = (stored.address_jibun as string | null) || ''
+  if (!useBcode || !useJibun) return { needAddress: true }
+
+  const res = await fetchBuildingLedgerAction(useBcode, useJibun)
+  if (res.unavailable) return { error: '건축물대장 API 키가 설정되지 않았습니다.' }
+  if (res.error || !res.info) return { error: res.error ?? '건축물대장을 조회할 수 없습니다.' }
+  const L = res.info as unknown as Record<string, unknown>
+
+  const fields: LedgerPreviewField[] = []
+  for (const { key, label } of LEDGER_FIELDS) {
+    if (L[key] == null) continue // 대장에 없는 항목은 기존 수동 입력 유지
+    const current = stored[key] == null ? '' : String(stored[key])
+    const next = String(L[key])
+    fields.push({ key, label, current, next, changed: current !== next })
+  }
+  return { fields }
+}
+
+/** 미리보기에서 확인한 값 확정 저장 — LEDGER_FIELDS 화이트리스트만 허용 */
+export async function applyLedgerValuesAction(
+  customerId: string,
+  values: Record<string, string>,
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  const { data: bld } = await admin.from('buildings')
+    .select('id').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  if (!bld) return { error: '등록된 건물이 없습니다.' }
+
+  const allowed = new Set(LEDGER_FIELDS.map(f => f.key))
+  const patch: Record<string, unknown> = { ledger_synced_at: new Date().toISOString() }
+  for (const [k, v] of Object.entries(values)) {
+    if (allowed.has(k)) patch[k] = v === '' ? null : v
+  }
+  if (Object.keys(patch).length === 1) return { error: '저장할 값이 없습니다.' }
+
+  const { error } = await admin.from('buildings').update(patch).eq('id', (bld as { id: string }).id)
+  if (error) return { error: `건물 정보 갱신 실패: ${error.message}` }
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'building_ledger_refreshed',
+    entity_type: 'customer',
+    entity_id: customerId,
+    metadata: { applied: Object.keys(patch).filter(k => k !== 'ledger_synced_at'), confirmed: true },
+  } as Record<string, unknown>)
+
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}

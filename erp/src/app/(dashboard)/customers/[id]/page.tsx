@@ -506,6 +506,10 @@ export default async function CustomerDetailPage({
   const autoOpMonth = anchorM ? `${planYear}년 ${isComprehensive ? ((anchorM - 1 + 6) % 12) + 1 : anchorM}월` : ''
   const autoCompMonth = anchorM && isComprehensive ? `${planYear}년 ${anchorM}월` : ''
   const revSection = fpSections.revision ?? null
+  // §7-3b: 서식 입력이 아직 없고 구 웹 생성분(.form.json 후보)이 있으면 최초 1회 임포트 배너
+  const importCandidate = Object.keys(fpSections).length === 0
+    && ((firePlansRes.data ?? []) as Array<{ pdf_path: string | null }>)
+      .some(p => !!p.pdf_path && p.pdf_path.includes('generated_') && !p.pdf_path.includes('generated_hwp_'))
   const revisionRows: RevisionRow[] = [...firePlans]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
@@ -520,6 +524,7 @@ export default async function CustomerDetailPage({
         revisionNote: revSection?.revisionNote || '',
       }}
       revisionRows={revisionRows}
+      importCandidate={importCandidate}
       initialSection={sub}
       archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}

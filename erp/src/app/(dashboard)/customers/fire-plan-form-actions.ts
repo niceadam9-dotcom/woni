@@ -156,6 +156,63 @@ export async function saveEmailConsentAction(
   return {}
 }
 
+/** 최초 진입 1회 임포트 (§7-3b) — 구 웹 생성분(.form.json)의 수기 편집값을 서식 저장소로 가져오기.
+ *  조건: fire_plan_forms 입력이 아직 없는 고객(최초 1회). 매핑은 어댑터 §7-3a의 역방향. */
+export async function importLegacyFormAction(customerId: string): Promise<{ imported?: string[]; error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  const { data: existing } = await admin.from('fire_plan_forms')
+    .select('sections').eq('customer_id', customerId).maybeSingle()
+  const cur = (existing as { sections?: Record<string, unknown> } | null)?.sections ?? {}
+  if (Object.keys(cur).length > 0) return { error: '이미 서식 입력이 있어 가져오지 않았습니다 (최초 1회 전용).' }
+
+  // 최신 웹 생성분의 .form.json 탐색 (generated_hwp_ 워커 생성분 제외)
+  const { data: plans } = await admin.from('fire_plans')
+    .select('pdf_path').eq('customer_id', customerId)
+    .not('pdf_path', 'is', null)
+    .like('pdf_path', '%generated\\_%')
+    .order('created_at', { ascending: false }).limit(10)
+  let saved: Partial<FirePlanGenData> | null = null
+  for (const p of (plans ?? []) as Array<{ pdf_path: string }>) {
+    if (p.pdf_path.includes('generated_hwp_')) continue
+    const { data: file } = await admin.storage.from(BUCKET)
+      .download(p.pdf_path.replace(/\.pdf$/, '.form.json'))
+    if (!file) continue
+    try { saved = JSON.parse(await file.text()) as Partial<FirePlanGenData>; break } catch { /* 손상 시 다음 후보 */ }
+  }
+  if (!saved) return { error: '가져올 이전 생성 데이터(.form.json)가 없습니다.' }
+
+  // §7-3a 역방향 매핑 — 값이 있는 섹션만
+  const sections: Record<string, unknown> = {}
+  if ((saved.zones?.length ?? 0) > 0) {
+    sections.zones = saved.zones!.map(z => ({
+      zone: z.zone ?? '', name: z.name ?? '', area: z.area ?? '',
+      workersWeekday: z.weekday ?? '', workersHoliday: z.holiday ?? '', company: z.managerCo ?? '', phone: z.contact ?? '',
+    }))
+  }
+  if ((saved.hazards?.length ?? 0) > 0) {
+    sections.hazards = saved.hazards!.map(h => ({ place: h.place ?? '', loc: h.location ?? '', risks: h.factors ?? [] }))
+  }
+  if ((saved.evacRoutes?.length ?? 0) > 0 || saved.assembly || saved.evacNote) {
+    sections.evacPlan = {
+      routes: saved.evacRoutes ?? [], assembly: saved.assembly ?? '', procedure: saved.evacNote ?? '',
+    }
+  }
+  if (saved.revisionDate || saved.revisionNote) {
+    sections.revision = { revisionDate: saved.revisionDate ?? '', revisionNote: saved.revisionNote ?? '' }
+  }
+  if (Object.keys(sections).length === 0) return { error: '이전 생성 데이터에 가져올 서식 값이 없습니다.' }
+
+  const { error } = await admin.from('fire_plan_forms').upsert({
+    customer_id: customerId, sections,
+    updated_at: new Date().toISOString(), updated_by: profile.id,
+  } as Record<string, unknown>)
+  if (error) return { error: `가져오기 실패: ${error.message}` }
+  revalidatePath(`/customers/${customerId}`)
+  return { imported: Object.keys(sections) }
+}
+
 /** PDF 즉시 생성 (생성 바 직결 — 모달 없이 저장된 데이터로)
  *  기준 데이터: 최신 웹 생성분의 .form.json(있으면) > 자동 기본값. 개정이력 입력은 항상 최우선 반영. */
 export async function generateFirePlanPdfNowAction(customerId: string): Promise<{ error?: string }> {

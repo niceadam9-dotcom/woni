@@ -45,10 +45,10 @@ try {
   await page.waitForSelector('text=지번 정보가 없습니다')
   check('대장 불러오기 — 지번 없음 fail-soft 안내', true)
 
-  // ── 3) 송달 동의 저장 (098 §9-6①) ──
-  await page.click('button:has-text("동의")')
+  // ── 3) 송달 동의 저장 (098 §9-6①) — 11-5 누락 칩(버튼)과 충돌하지 않게 섹션 한정
+  await page.click('#consent-section button:has-text("동의")')
   await page.fill('input[placeholder="송달 이메일"]', 'owner@example.com')
-  await page.click('button:has-text("저장")')
+  await page.click('#consent-section button:has-text("저장")')
   await page.waitForSelector('text=송달 동의 저장됨')
   const { data: cRow } = await raw.from('customers')
     .select('email_delivery_consent, report_email').eq('id', customerId).single()

@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { FileOutput, Printer, Download, Loader2, History, BookOpen, Users, DoorOpen, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
 import {
   generateFirePlanPdfNowAction, requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
+  importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
-import { refreshLedgerAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
+import { previewLedgerAction, applyLedgerValuesAction, type LedgerPreviewField } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 
@@ -18,6 +19,20 @@ import { DateInput } from '@/components/ui/date-input'
 export type RevisionRow = { year: number; revision: number; date: string; note: string | null; uploader: string | null }
 export type DocChip = { doc: string; label: string; need: boolean; note?: string; have?: boolean }
 export type QuickReadiness = { done: number; total: number; missing: string[] }
+
+/** 11-5: 누락 칩 → 입력처 딥링크 (필수 완성도 라벨 기준) */
+const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'consent'> = {
+  '주소': 'info', '사용승인일': 'info',
+  '건물 용도': 'buildings', '건축허가일': 'buildings', '연면적': 'buildings', '건축면적': 'buildings',
+  '층수': 'buildings', '높이': 'buildings', '세대수': 'buildings', '건물동수': 'buildings',
+  '승강기': 'buildings', '주차장': 'buildings',
+  '수신기위치': 'form11', '구조': 'form11', '지붕': 'form11', '선임일': 'form11', '급수': 'form11',
+  '화재보험': 'form11', '운영시간': 'form11', '인원': 'form11',
+  '자위소방대': 'ch2', '송달 동의': 'consent',
+}
+const CHIP_TARGET_LABEL: Record<string, string> = {
+  buildings: '건물·시설 탭', info: '기본정보 탭', form11: '1장 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '아래 송달 동의',
+}
 
 const CHAPTERS = [
   { key: 'archive', label: '개정이력·보관', icon: History },
@@ -40,7 +55,7 @@ const CH1_FORMS = [
 ]
 
 export function PlanTabView({
-  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, initialSection, archive,
+  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, archive,
   form11, form12, form13, form14, form15, form16, form17, form110, form111, ch2, ch3,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
@@ -50,6 +65,7 @@ export function PlanTabView({
   readiness: { done: number; total: number; missing: string[] }
   revisionInitial: { revisionDate: string; revisionNote: string }
   revisionRows: RevisionRow[]
+  importCandidate?: boolean
   initialSection?: string
   archive: ReactNode
   form11: ReactNode
@@ -85,14 +101,54 @@ export function PlanTabView({
   const [consentDirty, setConsentDirty] = useState(false)
   const [isConsentPending, startConsentTransition] = useTransition()
   const [isLedgerPending, startLedgerTransition] = useTransition()
+  const [ledgerPreview, setLedgerPreview] = useState<LedgerPreviewField[] | null>(null)
 
+  // 11-1c: 불러오기 = 미리보기(저장 없음) → 변경분 앰버 확인 → [확정 저장]
   function refreshLedger() {
     setMsg('')
     startLedgerTransition(async () => {
-      const res = await refreshLedgerAction(customerId)
+      const res = await previewLedgerAction(customerId)
       if (res.needAddress) { setMsg('⚠ 건물에 저장된 지번 정보가 없습니다 — 서식 전체 모드의 계획서 정보 패널에서 [건축물대장에서 다시 가져오기]로 주소를 1회 확인해주세요.'); return }
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg('✅ 건축물대장 값을 가져왔습니다 — 아래 필수 완성도에 반영됐습니다.')
+      if (!res.fields || res.fields.length === 0) { setMsg('건축물대장에서 가져올 값이 없습니다.'); return }
+      setLedgerPreview(res.fields)
+    })
+  }
+
+  function applyLedger() {
+    if (!ledgerPreview) return
+    setMsg('')
+    startLedgerTransition(async () => {
+      const values = Object.fromEntries(ledgerPreview.map(f => [f.key, f.next]))
+      const res = await applyLedgerValuesAction(customerId, values)
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setLedgerPreview(null)
+      setMsg('✅ 건축물대장 값이 확정 저장됐습니다 — 필수 완성도에 반영됩니다.')
+      router.refresh()
+    })
+  }
+
+  // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 (탭 이동 / 서식 전환 / 화면 내 스크롤)
+  function gotoMissing(label: string) {
+    const t = CHIP_TARGET[label]
+    if (!t) { setMode('full'); setChapter('ch1'); setForm('1.1'); return }
+    if (t === 'buildings' || t === 'info') { router.push(`/customers/${customerId}?tab=${t}`); return }
+    if (t === 'consent') { document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+    setMode('full')
+    setChapter(t === 'ch2' ? 'ch2' : 'ch1')
+    if (t === 'form11') setForm('1.1')
+  }
+
+  // §7-3b: 구 웹 생성분(.form.json) → 서식 저장소 최초 1회 가져오기
+  const [importHidden, setImportHidden] = useState(false)
+  const [isImportPending, startImportTransition] = useTransition()
+  function importLegacy() {
+    setMsg('')
+    startImportTransition(async () => {
+      const res = await importLegacyFormAction(customerId)
+      if (res.error) { setMsg(`❌ ${res.error}`); setImportHidden(true); return }
+      setMsg(`✅ 이전 생성 데이터에서 가져왔습니다 (${(res.imported ?? []).length}개 섹션) — 서식 전체 모드에서 확인해주세요.`)
+      setImportHidden(true)
       router.refresh()
     })
   }
@@ -217,6 +273,21 @@ export function PlanTabView({
       {/* ══ 빠른 입력 모드 (기본 진입 — §1-1) ══ */}
       {mode === 'quick' && (
         <div className="space-y-4">
+          {/* §7-3b: 최초 진입 1회 임포트 배너 — 서식 입력이 없고 구 생성 데이터가 있을 때 */}
+          {importCandidate && canManage && !importHidden && (
+            <div className="flex items-center gap-2 rounded-xl border border-[#c3bdf5] bg-[#f5f4ff] px-4 py-2.5">
+              <Info className="size-4 text-[#7b68ee] shrink-0" />
+              <span className="text-xs text-[#514b81]">
+                이전에 생성한 소방계획서의 수기 편집값(구역·취약장소·피난계획·개정이력)을 서식 입력으로 가져올 수 있습니다. (최초 1회)
+              </span>
+              <button onClick={importLegacy} disabled={isImportPending}
+                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium shrink-0 disabled:opacity-50">
+                {isImportPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 가져오기
+              </button>
+              <button onClick={() => setImportHidden(true)} className="h-7 px-2 rounded-lg text-[11px] text-[#b0acd6] hover:text-[#514b81] shrink-0">닫기</button>
+            </div>
+          )}
+
           {/* 필요 문서 칩 (§9-8 매트릭스) */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-medium text-[#514b81]">필요 문서</span>
@@ -248,16 +319,45 @@ export function PlanTabView({
                 </button>
               )}
             </div>
+            {/* 11-1c: 대장값 미리보기 — 변경분 앰버 하이라이트, [확정 저장]으로만 반영 */}
+            {ledgerPreview && (
+              <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50/60 p-3">
+                <p className="text-[11px] font-medium text-amber-800 mb-1.5">
+                  건축물대장 조회 결과 — <span className="font-semibold">앰버 표시</span>가 변경되는 값입니다. 확인 후 확정 저장해주세요. (아직 저장 전)
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mb-2">
+                  {ledgerPreview.map(f => (
+                    <div key={f.key} className={`flex items-baseline gap-1.5 text-[11px] rounded px-1.5 py-0.5 ${f.changed ? 'bg-amber-100 text-amber-900' : 'text-[#514b81]'}`}>
+                      <span className="w-24 shrink-0 text-[10px] text-[#847ba8]">{f.label}</span>
+                      {f.changed && f.current !== '' && <span className="line-through text-amber-500">{f.current}</span>}
+                      <span className={f.changed ? 'font-semibold' : ''}>{f.next}</span>
+                      {!f.changed && <span className="text-[10px] text-[#b0acd6]">(동일)</span>}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={applyLedger} disabled={isLedgerPending}
+                    className="inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-medium disabled:opacity-50">
+                    {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 확정 저장
+                  </button>
+                  <button onClick={() => setLedgerPreview(null)} disabled={isLedgerPending}
+                    className="h-7 px-3 rounded-lg border border-amber-300 text-[11px] text-amber-700 hover:bg-amber-100 disabled:opacity-50">취소</button>
+                </div>
+              </div>
+            )}
             {quick.missing.length > 0 ? (
               <>
                 <div className="flex items-center gap-1 flex-wrap">
                   <span className="text-[11px] text-amber-600">누락:</span>
                   {quick.missing.map(m2 => (
-                    <span key={m2} className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-[10px] border border-amber-200">{m2}</span>
+                    <button key={m2} onClick={() => gotoMissing(m2)}
+                      title={`클릭 → ${CHIP_TARGET_LABEL[CHIP_TARGET[m2] ?? 'form11']}에서 입력`}
+                      className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-[10px] border border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer transition-colors">
+                      {m2} ↗
+                    </button>
                   ))}
                 </div>
-                <button onClick={() => { setMode('full'); setChapter('ch1') }}
-                  className="mt-2 text-[11px] text-[#7b68ee] hover:underline">→ 서식 전체 모드에서 입력하기</button>
+                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 건물 값은 위 [건축물대장 불러오기]로도 채울 수 있습니다.</p>
               </>
             ) : (
               <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>
@@ -266,7 +366,7 @@ export function PlanTabView({
 
           {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) */}
           {canManage && (
-            <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+            <div id="consent-section" className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
               <p className="text-xs font-semibold text-[#514b81] mb-2">자체점검 보고서 전자우편 송달 동의 <span className="font-normal text-[#b0acd6]">(별지 9호 1쪽)</span></p>
               <div className="flex items-center gap-2 flex-wrap">
                 {([[true, '동의'], [false, '미동의']] as Array<[boolean, string]>).map(([v, label]) => (
