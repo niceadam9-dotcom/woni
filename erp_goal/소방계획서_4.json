@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_4.md",
   "generated": "2026-07-21",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~④(서식 1.1~1.11 전부 + 2장 자위소방대 — 최신 3338b5c, E2E 35/35, 2026-07-23 스테이징/운영 배포). 잔여 주요: P4-⑤(3장 피난계획+HWP 병합 어댑터 §7-3+개정이력 다행)·음성 입력 V-1(§9-4)·자격정보 정비·앰버 확정 UX(11-1c). 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
+  "note": "2026-07-21 설계 개정2 시점 생성. 진행: P1 종결 → P2·P3 핵심 → P4-①~⑤(1~3장 전 서식 화면 + 어댑터 7-3a + 웹 개정이력 다행 — 최신 d51f0ac, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여 주요: 신규 서식 HWP placeholder 확장(7-4)·음성 입력 V-1(§9-4)·P5(보고서 센터·별지 10·11호)·자격정보 정비. 참고: 워커는 스테이징 DB 대상 — 운영 생성 버튼은 큐 대기(운영 전환 별도 결정).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·PoC 검증 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -23,7 +23,7 @@
     { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 48a28ea — placeholder 심기·1~3쪽 병합·롤업·워커 분기·준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). defects 조치 계획 필드(action_plan/start/end) 선반영 완료(§9-7a). 잔여: 음성 입력 V-1(§9-4)·자격정보 데이터 정비(9-3d)·다중이용 28종(9-6e)" },
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "partial",
-      "note": "P4-①~④ 완료(최신 3338b5c — 1.2·1.3 / 코드 표준화·1.4 재현 / 1.5~1.7 / 1.10·1.11+2장, E2E 35/35, 2026-07-23 스테이징/운영 배포) — 구 4-2·4-3·4-4 종결. 잔여: P4-⑤ 3장 피난계획 + HWP 병합 확장(어댑터 §7-3 — 입력 섹션값의 문서 출력 연결) + 개정이력 다행" },
+      "note": "P4-①~⑤ 완료(최신 d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a(섹션→웹 PDF/HWP zones 연결) + 웹 개정이력 다행, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여(정직 기록): 신규 서식들의 HWP placeholder 확장(7-4 — 1.5·1.6·1.10·1.11·2장 임무·3장 세부의 HWP 병합은 웹 PDF만 반영, HWP 양식 심기는 서식별 순차)·HWP 개정이력 다행·임포트 배너(7-3b)" },
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "pending_order" },
     { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
   ],
@@ -130,11 +130,14 @@
       ]
     },
     {
-      "id": "6", "line": 278, "title": "서브탭 ④ 3장 피난계획", "status": "pending_order",
+      "id": "6", "line": 278, "title": "서브탭 ④ 3장 피난계획", "status": "implemented",
       "criteria": [
-        { "id": "6-1", "desc": "3.1 피난시설 일반현황 — 1.5 입력값(evacFire) 자동 표시 + 보완", "status": "pending_order" },
-        { "id": "6-2", "desc": "3.2 세부현황(evacDetail) · 3.3 피난인원(1.1 자동+evacHeadcount) · 3.4 피난유도·경로(evacPlan, 경로도 이미지)", "status": "pending_order" },
-        { "id": "6-3", "desc": "3.5 피난약자 현황·계획(vulnerable) · 3.6 유형별 방법 프리셋(vulnerableMethods) · 3.7 기구·장비(evacEquip)", "status": "pending_order" }
+        { "id": "6-1", "desc": "3.1 피난시설 일반현황 — 1.5 입력값(evacFire) 자동 표시 + 보완", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["plan-ch3.tsx 3.1 — evacFire 요약(계단·기타·피난층·방화구획) 읽기 전용 + '수정은 1.5에서' 안내(§9-6⑦ 단일 입력처)", "E2E 38/38: 방화구획 해당없음 자동 표시 확인(딥링크 sub=ch3)"], "method": "코드 대조 + E2E" } },
+        { "id": "6-2", "desc": "3.2 세부현황(evacDetail) · 3.3 피난인원(1.1 자동+evacHeadcount) · 3.4 피난유도·경로(evacPlan, 경로도 이미지)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["plan-ch3.tsx — 3.2 행(시설·위치·상태), 3.3 인원 자동 표시+보완 note, 3.4 절차 프리셋+경로 행(층·경로·유도자·장비)+집결지+경로도 ImageSlot", "E2E: 절차 프리셋+집결지 저장→DB sections.evacPlan 확인"], "method": "코드 대조 + E2E" } },
+        { "id": "6-3", "desc": "3.5 피난약자 현황·계획(vulnerable) · 3.6 유형별 방법 프리셋(vulnerableMethods) · 3.7 기구·장비(evacEquip)", "status": "implemented",
+          "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["plan-ch3.tsx — 3.5 유형 6종×(근무·거주/이용) 명수+피난계획 행+[해당없음] 원클릭(§11-3), 3.6 유형별 표준 문구 placeholder+수정, 3.7 행(장비·위치·수량)", "E2E: 해당없음 저장→DB sections.vulnerable 확인"], "method": "코드 대조 + E2E" } }
       ]
     },
     {
@@ -143,7 +146,12 @@
         { "id": "7-1", "desc": "마이그레이션 096 — fire_plan_forms(customer_id PK + sections JSONB, 키 19종)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["096_fire_plan_forms.sql (RLS on·정책 없음 — 서버 액션 전용)", "스테이징(nwflnzugwylhpdyodyog)·운영(ryuozdhnilfjlahorizh) DB 적용 — Management API to_regclass 조회 true"], "method": "코드 대조 + DB 읽기 조회" } },
         { "id": "7-2", "desc": "정규 테이블 보유 데이터(고객·건물·시설·자위대)는 JSONB 중복 저장 금지 — 화면만 서식 관점", "status": "confirmed" },
-        { "id": "7-3", "desc": "assembleFirePlanGenData() 어댑터 → 기존 파이프라인 공용 + .form.json 스냅샷 + 최초 진입 1회 임포트 배너", "status": "pending_order" },
+        { "id": "7-3", "desc": "assembleFirePlanGenData() 어댑터 → 기존 파이프라인 공용 + .form.json 스냅샷 + 최초 진입 1회 임포트 배너", "status": "partial",
+          "criteria": [
+            { "id": "7-3a", "desc": "입력 섹션 → 생성 기본값 연결 (웹 PDF·데이터시트·PDF 직결·HWP)", "status": "implemented",
+              "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — sections.zones→1.2.1(형태 매핑), hazards→1.2.2, evacPlan→3.4(절차·경로·집결지), fire_brigade_members→2.2, training 훈련월, 과거 개정이력 다행(revisions)", "fireplan-worker.py — sections.zones 우선 zone_rows(HWP 1.2.1 placeholder 재사용)", ".form.json 스냅샷은 기존 유지"], "method": "코드 대조 + E2E(섹션 저장 경로)" } },
+            { "id": "7-3b", "desc": "최초 진입 1회 임포트 배너", "status": "pending_order", "note": "빠른 입력 모드가 기본 진입이 되면서 필요성 재검토" }
+          ] },
         { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "pending_order" },
         { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "pending_order", "note": "채택 결정 확정(2026-07-21) — 실행은 중기, 수정 지점 4곳→3곳" },
         { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "pending_order" }
@@ -174,7 +182,8 @@
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["스테이징·운영 DB to_regclass('fire_plan_forms') true — Management API 조회"], "method": "DB 읽기 조회" } },
         { "id": "8-1h", "desc": "실동작 검증(로컬 dev) → 커밋 → 스테이징 배포", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["E2E 15/15 (scripts/test-plan-tab.mts, 로컬 dev+스테이징 DB)", "스테이징(staging.sjfire.co.kr)·운영(sjfire.co.kr) 배포 후 200 확인 — 서버 HEAD 1aa4c97"], "method": "E2E + 배포 스모크" } },
-        { "id": "8-1i", "desc": "개정이력 다행 병합 (HWP placeholder·웹 템플릿 과거 이력 행)", "status": "pending_order", "note": "P4(구 4-5)" },
+        { "id": "8-1i", "desc": "개정이력 다행 병합 (HWP placeholder·웹 템플릿 과거 이력 행)", "status": "partial",
+          "note": "웹 템플릿 다행 구현(d51f0ac — FirePlanGenData.revisions, 보관함 기반 과거 행+이번 작성 행) — HWP placeholder 표는 여전히 1행(이번 작성분), 다행 셀 주입은 HWP 확장(7-4)과 함께" },
         { "id": "8-1j", "desc": "1.1 세부 3탭(시설현황/운영현황/화재보험) 분할", "status": "pending_order", "note": "P4(구 4-2)" },
         { "id": "8-1k", "desc": "표준양식 생성 모달 폐지 (1.2·사진 입력 수단 이관 후)", "status": "pending_order", "note": "P4(구 4-2)" }
       ]
