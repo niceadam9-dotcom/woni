@@ -50,13 +50,14 @@ const CH1_FORMS = [
   { key: '1.5', label: '1.5 피난·방화', active: true },
   { key: '1.6', label: '1.6 기타시설', active: true },
   { key: '1.7', label: '1.7 선임현황', active: true },
+  { key: '1.8', label: '1.8 업무대행', active: true },
   { key: '1.10', label: '1.10 자체점검', active: true },
   { key: '1.11', label: '1.11 훈련·교육', active: true },
 ]
 
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, archive,
-  form11, form12, form13, form14, form15, form16, form17, form110, form111, ch2, ch3,
+  form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, ch2, ch3,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
@@ -75,6 +76,7 @@ export function PlanTabView({
   form15: ReactNode
   form16: ReactNode
   form17: ReactNode
+  form18: ReactNode
   form110: ReactNode
   form111: ReactNode
   ch2: ReactNode
@@ -508,6 +510,7 @@ export function PlanTabView({
           {form === '1.5' && form15}
           {form === '1.6' && form16}
           {form === '1.7' && form17}
+          {form === '1.8' && form18}
           {form === '1.10' && form110}
           {form === '1.11' && form111}
         </div>

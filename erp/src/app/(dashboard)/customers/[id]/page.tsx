@@ -16,6 +16,7 @@ import { PlanForm14 } from '@/components/customers/plan-form14'
 import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } from '@/components/customers/plan-form15'
 import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/components/customers/plan-form16'
 import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
+import { PlanForm18 } from '@/components/customers/plan-form18'
 import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow } from '@/components/customers/plan-form110'
 import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
 import { PlanCh2 } from '@/components/customers/plan-ch2'
@@ -488,8 +489,10 @@ export default async function CustomerDetailPage({
   )
 
   // 소방계획서 탭 — 장(章) 서브탭 골격 (소방계획서_4.md 4-1): 생성 바 + 개정이력·보관 + 1장>1.1
-  const { data: fpForm } = await admin.from('fire_plan_forms')
-    .select('sections').eq('customer_id', id).maybeSingle()
+  const [{ data: fpForm }, { data: companyRow }] = await Promise.all([
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
+    admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
+  ])
   const fpSections = ((fpForm as { sections?: {
     revision?: { revisionDate?: string; revisionNote?: string }
     zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
@@ -543,6 +546,20 @@ export default async function CustomerDetailPage({
       form17={<PlanForm17 customerId={customer.id} canManage={canManage}
         initialRows={fpSections.managers ?? []}
         autoRow={{ name: repContact?.name ?? '', selectedAt: planInfoInitial.managerSelectedAt }} />}
+      form18={<PlanForm18 data={{
+        company: companyRow ? {
+          name: s((companyRow as Record<string, unknown>).company_name),
+          representative: s((companyRow as Record<string, unknown>).representative),
+          bizNo: s((companyRow as Record<string, unknown>).business_number),
+          address: s((companyRow as Record<string, unknown>).address),
+          phone: s((companyRow as Record<string, unknown>).phone),
+        } : null,
+        contractDate: s(cRec.contract_date) || null,
+        grade: s(cRec.building_grade) || null,
+        inspectionType: customer.inspection_type,
+        managerName: repContact?.name ?? null,
+        managerSelectedAt: planInfoInitial.managerSelectedAt || null,
+      }} />}
       form110={<PlanForm110 customerId={customer.id} canManage={canManage}
         isComprehensive={isComprehensive} autoOpMonth={autoOpMonth} autoCompMonth={autoCompMonth}
         useApprovalDate={s(cRec.use_approval_date)} fireStation={s(cRec.fire_station)}
