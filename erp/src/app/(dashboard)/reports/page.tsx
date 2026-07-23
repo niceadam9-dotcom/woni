@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { FileOutput, FileText, ClipboardCheck, FileStack, Search, ChevronRight, AlertTriangle } from 'lucide-react'
+import { FileOutput, FileText, ClipboardCheck, FileStack, Search, AlertTriangle } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FirePlanGenerateRequestClient } from '@/components/fire-plans/generate-request-client'
 import { getFirePlanGenStatusAction } from '@/app/(dashboard)/fire-plans/generate/actions'
 import { ReportCenterHome } from '@/components/reports/report-center-home'
+import { ReportGenList, type GenRow } from '@/components/reports/report-gen-list'
 import { getCustomerDocsAction, getRecentDocsAction, getDocTodoAction, type CustomerDocs, type RecentDoc } from './docs-actions'
 import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
 import type { UserRole } from '@/types'
@@ -20,9 +21,9 @@ export const dynamic = 'force-dynamic'
 
 const FORMS = [
   { key: 'fire_plan', label: '소방계획서', desc: 'HWP+PDF · 고객 다중 선택', icon: FileOutput, active: true, blKeys: [] as string[], fallbackVersion: '소방청 표준양식 (25년 이후)' },
-  { key: 'report9', label: '자체점검 실시결과 (별지 9호)', desc: '점검 건 선택 → 준비 화면', icon: ClipboardCheck, active: true, blKeys: ['report9'], fallbackVersion: '2026-07-01 공포 (법제처)' },
+  { key: 'report9', label: '자체점검 실시결과 (별지 9호)', desc: '점검 건 선택 → 바로 생성', icon: ClipboardCheck, active: true, blKeys: ['report9'], fallbackVersion: '2026-07-01 공포 (법제처)' },
   { key: 'placement', label: '점검인력 배치확인서', desc: '협회 발급 — 점검 상세에 업로드', icon: FileText, active: false, blKeys: [] as string[], fallbackVersion: '' },
-  { key: 'report10', label: '이행계획·완료 (별지 10·11호)', desc: '불량 생애주기 — 타임라인 ④⑥에서 생성', icon: FileStack, active: false, blKeys: ['report10', 'report11'], fallbackVersion: '' },
+  { key: 'report10', label: '이행계획·완료 (별지 10·11호)', desc: '불량 보유 건 — 바로 생성', icon: FileStack, active: true, blKeys: ['report10', 'report11'], fallbackVersion: '2026-07-01 공포 (법제처)' },
 ]
 
 type Baseline = { key: string; form_name: string; announce_date: string; seed_date: string | null }
@@ -34,8 +35,8 @@ export default async function ReportsPage({ searchParams }: {
   const profile = await getProfile()
   if (!profile) redirect('/login')
   const { form: formRaw, q, cust } = await searchParams
-  // 랜딩(docs) + 서식별 흐름(fire_plan·report9). 기본은 ⓪ 첫 화면(검색·오늘 할 일)
-  const VALID_FORMS = ['docs', 'fire_plan', 'report9']
+  // 랜딩(docs) + 서식별 흐름(fire_plan·report9·report10). 기본은 ⓪ 첫 화면(검색·오늘 할 일)
+  const VALID_FORMS = ['docs', 'fire_plan', 'report9', 'report10']
   const form = VALID_FORMS.includes(formRaw ?? '') ? formRaw! : 'docs'
 
   // 보고서 센터 첫 화면 데이터 (소방계획서_5 S2) — 권한 있는 직원만 SSR 페치 (없으면 빈 값, 상호작용 시 액션이 재차 가드)
@@ -62,43 +63,70 @@ export default async function ReportsPage({ searchParams }: {
   const revisedList = [...baselines.values()].filter(b => isRevised(b))
   const canAck = ['admin', 'manager'].includes(profile.role)
 
-  // 별지 9호 — 점검 건 선택 목록 (자체점검만 — R9: plan_type special_*·null 한정, 정기(monthly)·일반 이벤트 제외)
-  let inspections: Array<{
-    id: string; year: number; sequence_num: number; inspection_type: string; status: string
-    inspection_start_date: string | null; customer_name: string; report9_count: number
-  }> = []
-  if (form === 'report9') {
+  // ②③ 바로 생성 목록 (소방계획서_5 R3·R4) — 자체점검만(정기·일반 제외), 최근 완료 우선.
+  // report9 = 전 자체점검 / report10 = 불량 보유 건. 생성 이력·불량 수·9호 기한 D-day 동봉.
+  let genRows: GenRow[] = []
+  if (form === 'report9' || form === 'report10') {
     const admin = createAdminClient()
     let query = admin.from('inspections')
-      .select('id, year, sequence_num, inspection_type, status, inspection_start_date, customer:customers(customer_name)')
+      .select('id, customer_id, year, sequence_num, inspection_type, status, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
       .neq('inspection_type', '일반관리')
       .or('plan_type.is.null,plan_type.like.special_*')
+      .order('status', { ascending: true })  // completed 우선 근사 — 클라이언트 필터/정렬 병행
       .order('inspection_start_date', { ascending: false, nullsFirst: false })
-      .limit(30)
+      .limit(40)
     if (q?.trim()) {
       const { data: custIds } = await admin.from('customers').select('id').ilike('customer_name', `%${q.trim()}%`).limit(50)
       query = query.in('customer_id', ((custIds ?? []) as Array<{ id: string }>).map(c => c.id))
     }
     const { data: inspRaw } = await query
     const rows = (inspRaw ?? []) as unknown as Array<{
-      id: string; year: number; sequence_num: number; inspection_type: string; status: string
-      inspection_start_date: string | null; customer: { customer_name: string } | null
+      id: string; customer_id: string; year: number; sequence_num: number; inspection_type: string; status: string
+      inspection_start_date: string | null; inspection_end_date: string | null; report9_submitted_at: string | null
+      customer: { customer_name: string } | null
     }>
-    // 생성 이력 수 (report9 잡 done 기준)
     const ids = rows.map(r => r.id)
-    const countMap = new Map<string, number>()
+    const gen: Record<string, { report9: number; report10: number; report11: number }> = {}
+    const def: Record<string, { total: number; done: number }> = {}
     if (ids.length > 0) {
-      const { data: jobs } = await admin.from('fire_plan_gen_jobs')
-        .select('inspection_id').eq('report_type', 'report9').eq('status', 'done').in('inspection_id', ids)
-      for (const j of (jobs ?? []) as Array<{ inspection_id: string }>) {
-        countMap.set(j.inspection_id, (countMap.get(j.inspection_id) ?? 0) + 1)
+      const [jobsRes, defRes] = await Promise.all([
+        admin.from('fire_plan_gen_jobs').select('inspection_id, report_type').eq('status', 'done').in('inspection_id', ids),
+        admin.from('inspection_defects').select('inspection_id, action_completed_at').in('inspection_id', ids),
+      ])
+      for (const j of (jobsRes.data ?? []) as Array<{ inspection_id: string; report_type: string | null }>) {
+        const g = gen[j.inspection_id] ??= { report9: 0, report10: 0, report11: 0 }
+        if (j.report_type === 'report9') g.report9 += 1
+        else if (j.report_type === 'report10') g.report10 += 1
+        else if (j.report_type === 'report11') g.report11 += 1
+      }
+      for (const d of (defRes.data ?? []) as Array<{ inspection_id: string; action_completed_at: string | null }>) {
+        const c = def[d.inspection_id] ??= { total: 0, done: 0 }
+        c.total += 1; if (d.action_completed_at) c.done += 1
       }
     }
-    inspections = rows.map(r => ({
-      id: r.id, year: r.year, sequence_num: r.sequence_num, inspection_type: r.inspection_type,
-      status: r.status, inspection_start_date: r.inspection_start_date,
-      customer_name: r.customer?.customer_name ?? '—', report9_count: countMap.get(r.id) ?? 0,
-    }))
+    const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
+    const dueDday = (end: string | null, submitted: string | null): number | null => {
+      if (!end || submitted) return null
+      const due = new Date(end); due.setDate(due.getDate() + 15)
+      return Math.round((due.getTime() - new Date(todayKst).getTime()) / 86400000)
+    }
+    genRows = rows.map(r => {
+      const g = gen[r.id] ?? { report9: 0, report10: 0, report11: 0 }
+      const d = def[r.id] ?? { total: 0, done: 0 }
+      return {
+        id: r.id, customerId: r.customer_id, customerName: r.customer?.customer_name ?? '—',
+        year: r.year, sequenceNum: r.sequence_num, inspectionType: r.inspection_type, status: r.status,
+        startDate: r.inspection_start_date,
+        gen9: g.report9, gen10: g.report10, gen11: g.report11,
+        defectsTotal: d.total, defectsDone: d.done,
+        due9Dday: dueDday(r.inspection_end_date, r.report9_submitted_at),
+      } satisfies GenRow
+    })
+    // 최근 완료 우선 (R3-d): 완료 → 그 외, 내부는 최신 시작일
+    genRows.sort((a, b) =>
+      (a.status === 'completed' ? 0 : 1) - (b.status === 'completed' ? 0 : 1)
+      || (b.startDate ?? '').localeCompare(a.startDate ?? ''))
+    if (form === 'report10') genRows = genRows.filter(r => r.defectsTotal > 0)
   }
 
   const status = form === 'fire_plan' ? await getFirePlanGenStatusAction() : null
@@ -171,19 +199,20 @@ export default async function ReportsPage({ searchParams }: {
       {/* 소방계획서 — 기존 생성 화면 흡수 (고객 다중 선택·프리셋·큐 현황·프리셋 관리 포함) */}
       {form === 'fire_plan' && status && <FirePlanGenerateRequestClient initialStatus={status} />}
 
-      {/* 별지 9호 — 점검 건 선택 → 준비 화면 (§9-6⑦ 진입점 2개·화면 1개) */}
-      {form === 'report9' && (
+      {/* ②③ 바로 생성 — 별지 9호 / 이행계획·완료 10·11호 (R3·R4) */}
+      {(form === 'report9' || form === 'report10') && (
         <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-          <p className="text-xs text-[#514b81] mb-3">
-            점검 건을 선택하면 <span className="font-medium text-[#090c1d]">점검 상세의 실시결과 보고서 준비 화면</span>으로 이동합니다 —
-            공통정보·인력·점검표·송달 동의 체크 후 생성하세요.
+          <p className="text-xs text-[#514b81] mb-1">
+            {form === 'report9'
+              ? '점검 건에서 바로 별지 9호를 생성합니다 — HWP/PDF 받기는 고객 문서 현황에서, 발송·제출 기록은 타임라인에서.'
+              : '불량 보유 자체점검 건입니다 — 이행계획서(10호)·이행완료 보고서(11호)를 바로 생성합니다.'}
           </p>
           {/* R9-b: 필터 결과가 왜 이런지 화면이 설명 (4-0-5) */}
           <p className="text-[11px] text-[#b0acd6] mb-3">
-            자체점검(작동·종합) 건만 표시됩니다 — 정기·일반관리는 별지 9호 대상이 아닙니다
+            자체점검(작동·종합) 건만 표시됩니다 — 정기·일반관리는 대상이 아닙니다
           </p>
           <form action="/reports" className="flex items-center gap-2 mb-3">
-            <input type="hidden" name="form" value="report9" />
+            <input type="hidden" name="form" value={form} />
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
               <input name="q" defaultValue={q ?? ''} placeholder="고객명 검색"
@@ -191,26 +220,7 @@ export default async function ReportsPage({ searchParams }: {
             </div>
             <button type="submit" className="h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium">검색</button>
           </form>
-          {inspections.length === 0 ? (
-            <p className="text-sm text-[#b0acd6] py-6 text-center">자체점검 건이 없습니다{q ? ` — '${q}' 검색 결과 없음` : ''}</p>
-          ) : (
-            <div className="divide-y divide-[#eceafd]">
-              {inspections.map(i => (
-                <Link key={i.id} href={`/inspections/${i.id}`}
-                  className="flex items-center gap-2 py-2 px-1 text-xs hover:bg-[#f8f9fa] rounded transition-colors">
-                  <span className="font-medium text-[#090c1d] w-44 truncate">{i.customer_name}</span>
-                  <span className="text-[#514b81]">{i.year}년 {i.sequence_num}차 · {i.inspection_type}</span>
-                  <span className="text-[#b0acd6]">{i.inspection_start_date ?? '일정 미정'}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                    i.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {i.status === 'completed' ? '완료' : i.status === 'in_progress' ? '진행중' : '예정'}
-                  </span>
-                  {i.report9_count > 0 && <span className="text-[10px] text-[#7b68ee]">9호 생성 {i.report9_count}회</span>}
-                  <ChevronRight className="size-3.5 text-[#b0acd6] ml-auto" />
-                </Link>
-              ))}
-            </div>
-          )}
+          <ReportGenList mode={form === 'report9' ? 'report9' : 'report1011'} rows={genRows} />
         </div>
       )}
       </ReportCenterHome>

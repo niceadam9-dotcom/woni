@@ -1,16 +1,19 @@
 ﻿'use client'
 
-import { useState, useRef, useTransition } from 'react'
-import { Plus, Trash2, Camera, AlertTriangle, X, Upload, Wrench, Check } from 'lucide-react'
+import { useState, useRef, useEffect, useTransition } from 'react'
+import { Plus, Trash2, Camera, AlertTriangle, X, Upload, Wrench, Check, Images } from 'lucide-react'
 import {
   addDefectAction,
   uploadDefectPhotoAction,
   deleteDefectAction,
   updateDefectActionAction,
+  getDefectSuggestionsAction,
   type DefectSeverity,
 } from '@/app/(dashboard)/inspections/defect-actions'
 import { createActionPlanAction } from '@/app/(dashboard)/action-plans/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { PhotoGalleryModal } from '@/components/inspections/photo-gallery-modal'
+import { useRouter } from 'next/navigation'
 
 // ── types ──────────────────────────────────────────────────────────────────
 type Defect = {
@@ -92,14 +95,15 @@ function PhotoUploadButton({
           <button
             onClick={() => fileRef.current?.click()}
             disabled={pending}
-            className="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center gap-1 hover:border-[#7b68ee] transition-colors"
+            className={`w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center gap-1 transition-colors ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-gray-300 hover:border-[#7b68ee]'}`}
           >
-            {pending ? <Upload size={14} className="animate-pulse text-gray-400" /> : <Camera size={14} className="text-gray-400" />}
-            <span className="text-[10px] text-gray-400">사진 추가</span>
+            {pending ? <Upload size={14} className="animate-pulse text-gray-400" /> : <Camera size={14} className={field === 'after' ? 'text-amber-500' : 'text-gray-400'} />}
+            <span className={`text-[10px] leading-tight text-center ${field === 'after' ? 'text-amber-600' : 'text-gray-400'}`}>{label ?? (field === 'after' ? '후(조치) 사진' : '전(불량) 사진')}</span>
           </button>
         )
       )}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {/* R6-d: 모바일에서 슬롯 탭 시 카메라 바로 실행(capture) */}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
       {err && <p className="text-[10px] text-red-500 mt-0.5">{err}</p>}
     </div>
   )
@@ -177,34 +181,92 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
   )
 }
 
-// ── 불량 추가 폼 ──────────────────────────────────────────────────────────
+// ── 불량 메모 최근 문구 (R13-e) — localStorage 최근 5개 ──
+const MEMO_KEY = 'defectRecentMemos'
+function loadRecentMemos(): string[] {
+  try { return JSON.parse(localStorage.getItem(MEMO_KEY) ?? '[]') as string[] } catch { return [] }
+}
+function pushRecentMemo(m: string) {
+  const t = m.trim()
+  if (!t) return
+  const cur = loadRecentMemos().filter(x => x !== t)
+  localStorage.setItem(MEMO_KEY, JSON.stringify([t, ...cur].slice(0, 5)))
+}
+
+// ── 불량 추가 폼 (소방계획서_5 ⑫ — 단골 칩·연속 입력·사진 즉시·메모 자동완성) ─────────
 function AddDefectForm({
   inspectionId,
+  suggestions,
   onClose,
+  onAdded,
 }: {
   inspectionId: string
+  suggestions: { chips: string[]; standard: string[] }
   onClose: () => void
+  onAdded: (name: string) => void
 }) {
   const [defectCode,   setDefectCode]   = useState('')
   const [defectName,   setDefectName]   = useState('')
   const [defectDetail, setDefectDetail] = useState('')
   const [severity,     setSeverity]     = useState<DefectSeverity>('보통')
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [keepOpen, setKeepOpen] = useState(true)   // R13-b: 연속 입력 모드 기본 ON
+  const [recentMemos, setRecentMemos] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
+  const [chipBusy, setChipBusy] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  const nameRef = useRef<HTMLInputElement>(null)
+  const photoRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setRecentMemos(loadRecentMemos()) }, [])
+
+  function reset() {
+    setDefectCode(''); setDefectName(''); setDefectDetail(''); setSeverity('보통')
+    setPhoto(null); setPhotoPreview(null); setErr('')
+    nameRef.current?.focus()
+  }
+
+  // 사진까지 한 번에 저장 (R13-c) — 등록 후 반환 id로 before 슬롯 업로드
+  async function persist(name: string, detail: string | null, sev: DefectSeverity, file: File | null): Promise<string | null> {
+    const res = await addDefectAction({ inspectionId, defectCode: defectCode || null, defectName: name, defectDetail: detail, severity: sev })
+    if (res.error || !res.id) { setErr(res.error ?? '저장에 실패했습니다.'); return null }
+    if (file) {
+      const fd = new FormData()
+      fd.append('defectId', res.id); fd.append('inspectionId', inspectionId)
+      fd.append('file', file); fd.append('field', 'before')
+      await uploadDefectPhotoAction(fd)
+    }
+    if (detail) { pushRecentMemo(detail); setRecentMemos(loadRecentMemos()) }
+    return res.id
+  }
 
   function save() {
     if (!defectName.trim()) { setErr('불량 설비명을 입력해 주세요.'); return }
     startTransition(async () => {
-      const res = await addDefectAction({
-        inspectionId,
-        defectCode:   defectCode   || null,
-        defectName:   defectName.trim(),
-        defectDetail: defectDetail || null,
-        severity,
-      })
-      if (res.error) { setErr(res.error); return }
-      onClose()
+      const id = await persist(defectName.trim(), defectDetail || null, severity, photo)
+      if (!id) return
+      onAdded(defectName.trim())
+      if (keepOpen) reset()
+      else onClose()
     })
+  }
+
+  // R13-a: 단골 칩 1탭 → 표준 문구로 즉시 등록 (메모·사진은 이후 선택 입력)
+  function quickAdd(name: string) {
+    setChipBusy(name)
+    startTransition(async () => {
+      const id = await persist(name, null, '보통', null)
+      setChipBusy(null)
+      if (id) onAdded(name)
+    })
+  }
+
+  function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPhoto(file); setPhotoPreview(URL.createObjectURL(file))
   }
 
   return (
@@ -213,6 +275,22 @@ function AddDefectForm({
         <span className="text-sm font-semibold">불량내역 추가</span>
         <button onClick={onClose}><X size={14} /></button>
       </div>
+
+      {/* R13-a 단골 불량 원터치 칩 — 검색 없이 1탭 등록 */}
+      {suggestions.chips.length > 0 && (
+        <div>
+          <p className="text-[11px] text-gray-500 mb-1">단골 불량 — 1탭 등록</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.chips.map(c => (
+              <button key={c} onClick={() => quickAdd(c)} disabled={pending}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-[#d0ccf5] text-[11px] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee] disabled:opacity-50">
+                {chipBusy === c ? <Upload size={10} className="animate-pulse" /> : <Plus size={10} />} {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1">불량코드 (선택)</label>
@@ -239,6 +317,7 @@ function AddDefectForm({
       <div>
         <label className="block text-xs text-gray-500 mb-1">불량 설비명<span className="text-red-500 ml-0.5">*</span></label>
         <input
+          ref={nameRef}
           value={defectName}
           onChange={e => setDefectName(e.target.value)}
           placeholder="예: 소화기 압력 부족"
@@ -254,17 +333,52 @@ function AddDefectForm({
           placeholder="불량 내용을 상세히 입력해 주세요"
           className="w-full border rounded px-2 py-1.5 text-sm resize-none"
         />
+        {/* R13-e 메모 자동완성 — 최근 문구 + 표준 문구 칩 */}
+        {(recentMemos.length > 0 || suggestions.standard.length > 0) && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {[...recentMemos, ...suggestions.standard.filter(s => !recentMemos.includes(s))].slice(0, 8).map(m => (
+              <button key={m} onClick={() => setDefectDetail(m)}
+                className="px-1.5 py-0.5 rounded border border-gray-200 text-[10px] text-gray-500 hover:border-[#7b68ee] hover:text-[#7b68ee] max-w-[12rem] truncate">
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* R13-c 사진 즉시 첨부 — 저장 시 photo_url까지 한 번에 */}
+      <div className="flex items-center gap-2">
+        <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickPhoto} />
+        {photoPreview ? (
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoPreview} alt="전 사진" className="w-14 h-14 object-cover rounded border" />
+            <button onClick={() => { setPhoto(null); setPhotoPreview(null) }} className="text-[11px] text-gray-400 hover:text-red-500">사진 제거</button>
+          </div>
+        ) : (
+          <button onClick={() => photoRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-[#7b68ee] hover:text-[#7b68ee]">
+            <Camera size={13} /> 전(불량) 사진
+          </button>
+        )}
+      </div>
+
       {err && <p className="text-xs text-red-500">{err}</p>}
-      <div className="flex justify-end gap-2">
-        <button onClick={onClose} className="px-3 py-1.5 text-sm border rounded">취소</button>
-        <button
-          onClick={save}
-          disabled={pending}
-          className="px-3 py-1.5 text-sm bg-[#7b68ee] text-white rounded disabled:opacity-50"
-        >
-          {pending ? '저장 중…' : '저장'}
-        </button>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
+          <input type="checkbox" checked={keepOpen} onChange={e => setKeepOpen(e.target.checked)} className="accent-[#7b68ee]" />
+          저장 후 계속 입력
+        </label>
+        <div className="ml-auto flex gap-2">
+          <button onClick={onClose} className="px-3 py-1.5 text-sm border rounded">닫기</button>
+          <button
+            onClick={save}
+            disabled={pending}
+            className="px-3 py-1.5 text-sm bg-[#7b68ee] text-white rounded disabled:opacity-50"
+          >
+            {pending ? '저장 중…' : '저장'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -291,6 +405,28 @@ export function InspectionDefectsClient({
   const [planCreating, startPlanTransition] = useTransition()
   const [planMsg, setPlanMsg]     = useState('')
   const [planCreated, setPlanCreated] = useState(hasActionPlan)
+  const [suggestions, setSuggestions] = useState<{ chips: string[]; standard: string[] }>({ chips: [], standard: [] })
+  const [addedCount, setAddedCount] = useState(0)   // R13-b: 이번 세션 연속 등록 수
+  const [showGallery, setShowGallery] = useState(false)   // R6: 전/후 사진 갤러리
+  const router = useRouter()
+
+  // 단골 칩·표준 문구는 폼을 처음 열 때 한 번 로드 (R13-a·R13-e)
+  useEffect(() => {
+    if (!showForm || suggestions.chips.length > 0) return
+    getDefectSuggestionsAction().then(setSuggestions).catch(() => {})
+  }, [showForm, suggestions.chips.length])
+
+  // R6-b: #photos 딥링크 진입 — 타임라인 ⑤·문서 현황 [사진 보기]에서 갤러리 바로 열기 (마운트 + 같은 페이지 hashchange)
+  useEffect(() => {
+    const openIfHash = () => {
+      if (window.location.hash === '#photos' && initialDefects.length > 0) setShowGallery(true)
+    }
+    openIfHash()
+    window.addEventListener('hashchange', openIfHash)
+    return () => window.removeEventListener('hashchange', openIfHash)
+  }, [initialDefects.length])
+
+  const photoPairs = initialDefects.filter(d => d.photo_url && d.after_photo_url).length
 
   function handleCreatePlan() {
     startPlanTransition(async () => {
@@ -323,22 +459,49 @@ export function InspectionDefectsClient({
             </span>
           )}
         </div>
-        {canEdit && !showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 text-xs bg-[#7b68ee] text-white px-3 py-1.5 rounded-lg"
-          >
-            <Plus size={12} /> 불량내역 추가
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* R6-b 진입점 ⓐ — 불량내역 헤더 [전/후 사진 모아보기] */}
+          {initialDefects.length > 0 && (
+            <button
+              onClick={() => setShowGallery(true)}
+              className="flex items-center gap-1.5 text-xs border border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee] px-3 py-1.5 rounded-lg"
+            >
+              <Images size={13} /> 전/후 사진 모아보기 ({photoPairs}/{initialDefects.length}쌍)
+            </button>
+          )}
+          {canEdit && !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 text-xs bg-[#7b68ee] text-white px-3 py-1.5 rounded-lg"
+            >
+              <Plus size={12} /> 불량내역 추가
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* R6 전/후 사진 갤러리 모달 */}
+      {showGallery && (
+        <PhotoGalleryModal
+          inspectionId={inspectionId}
+          defects={initialDefects}
+          canEdit={canEdit}
+          onClose={() => setShowGallery(false)}
+          onChanged={() => router.refresh()}
+        />
+      )}
 
       {/* 추가 폼 */}
       {showForm && (
         <div className="mb-4">
+          {addedCount > 0 && (
+            <p className="text-[11px] text-green-600 mb-1.5 font-medium">이번 점검 등록 {addedCount}건 — 아래 목록에서 확인·삭제할 수 있습니다</p>
+          )}
           <AddDefectForm
             inspectionId={inspectionId}
+            suggestions={suggestions}
             onClose={() => setShowForm(false)}
+            onAdded={() => setAddedCount(c => c + 1)}
           />
         </div>
       )}

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import JSZip from 'jszip'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
@@ -24,6 +25,70 @@ async function inspectionPrefix(inspectionId: string): Promise<{ prefix?: string
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const customerId = (insp as { customer_id: string }).customer_id
   return { prefix: `${customerId}/inspections/${inspectionId}`, customerId }
+}
+
+/** ⑥ 배치신고 도우미 (소방계획서_5 R7) — 협회 점검인력 배치신고에 필요한 값을 신고 순서 텍스트로 구성.
+ *  대상물·소재지·점검기간·점검인력(성명/자격/자격번호)·점검업체. 빈 값은 앰버 + 입력처 딥링크로 안내. */
+export type PlacementField = { label: string; value: string; missing: boolean; href?: string; hrefLabel?: string }
+
+export async function getPlacementInfoAction(inspectionId: string): Promise<{
+  fields?: PlacementField[]; text?: string; error?: string
+}> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { data: insp } = await admin.from('inspections')
+    .select('id, customer_id, inspection_start_date, inspection_end_date')
+    .eq('id', inspectionId).single()
+  if (!insp) return { error: '점검을 찾을 수 없습니다.' }
+  const i = insp as { customer_id: string; inspection_start_date: string | null; inspection_end_date: string | null }
+
+  const [custRes, partRes, company] = await Promise.all([
+    admin.from('customers').select('customer_name, address').eq('id', i.customer_id).single(),
+    admin.from('inspection_participants')
+      .select('role, sort_order, employee:profiles(name, license_grade, license_no)')
+      .eq('inspection_id', inspectionId).order('role', { ascending: true }).order('sort_order', { ascending: true }),
+    getCompanyProfile(),
+  ])
+  const cust = custRes.data as { customer_name: string; address: string | null } | null
+  type PartRow = { role: string; employee: { name: string | null; license_grade: string | null; license_no: string | null } | null }
+  const parts = ((partRes.data ?? []) as unknown as PartRow[])
+    // 주된 먼저 (한글 '주된' < '보조' 정렬이 역이므로 명시 정렬)
+    .sort((a, b) => (a.role === '주된' ? -1 : 1) - (b.role === '주된' ? -1 : 1))
+
+  const custHref = `/customers/${i.customer_id}`
+  const period = i.inspection_start_date
+    ? `${i.inspection_start_date}${i.inspection_end_date && i.inspection_end_date !== i.inspection_start_date ? ` ~ ${i.inspection_end_date}` : ''}`
+    : ''
+  const personnelText = parts.length > 0
+    ? parts.map(p => {
+        const e = p.employee
+        const bits = [e?.name ?? '(성명 미입력)', e?.license_grade ?? '(자격 미입력)', e?.license_no ?? '(자격번호 미입력)']
+        return ` - (${p.role}) ${bits.join(' / ')}`
+      }).join('\n')
+    : ''
+  const companyText = company
+    ? `${company.company_name}${company.representative ? ` (대표 ${company.representative}` : ''}${company.business_number ? `, 사업자 ${company.business_number}` : ''}${company.phone ? `, 연락처 ${company.phone}` : ''}${company.representative || company.business_number || company.phone ? ')' : ''}`
+    : ''
+
+  const fields: PlacementField[] = [
+    { label: '대상물명', value: cust?.customer_name ?? '', missing: !cust?.customer_name, href: custHref, hrefLabel: '고객 정보' },
+    { label: '소재지', value: cust?.address ?? '', missing: !cust?.address, href: custHref, hrefLabel: '고객 정보' },
+    { label: '점검기간', value: period, missing: !period, href: `/inspections/${inspectionId}`, hrefLabel: '점검 상세' },
+    { label: '점검인력', value: personnelText.trim(), missing: parts.length === 0 || parts.some(p => !p.employee?.license_no), href: `/inspections/${inspectionId}`, hrefLabel: '점검 인력' },
+    { label: '점검업체', value: companyText, missing: !company?.company_name, href: '/admin', hrefLabel: '회사 정보' },
+  ]
+
+  const text = [
+    '[점검인력 배치신고 정보]',
+    `대상물명: ${cust?.customer_name ?? ''}`,
+    `소재지: ${cust?.address ?? ''}`,
+    `점검기간: ${period}`,
+    '점검인력:',
+    personnelText || ' - (미입력)',
+    `점검업체: ${companyText}`,
+  ].join('\n')
+
+  return { fields, text }
 }
 
 /** ②배치확인서 / ⑤공사 계약서 업로드 — 타임라인 행 슬롯 (별도 화면 없음).

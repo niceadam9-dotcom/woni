@@ -16,6 +16,7 @@ import {
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
+import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 
 /** 문서 타임라인 (§9-9 / P7) — 단계별 상태·D-day·업로드 슬롯·생성·발송·제출 패키지.
  *  단계 구성은 stepDocs(§9-9a): 자체점검 ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림).
@@ -218,6 +219,8 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
             {data.certFile ? `업로드됨: ${data.certFile.name}` : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
           </span>
           <span className="ml-auto flex items-center gap-1.5 shrink-0">
+            {/* R7 배치신고 도우미 — 신고값 협회 순서 텍스트로 복사 */}
+            {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
             <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-0.5">
               협회 <ExternalLink className="size-2.5" />
             </a>
@@ -299,12 +302,14 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
           {stepIcon(done5, done4)}
           <span className={label} title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
           <span className={`text-xs ${done5 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-            불량 {data.defects.total}건 · 계획 {data.defects.planned} · 완료 {data.defects.done} · 전후 사진 {data.defects.photoPairs}/{data.defects.total}쌍
+            불량 {data.defects.total}건 · 계획 {data.defects.planned} · 완료 {data.defects.done} ·{' '}
+            {/* R6-b ⓑ: 전후 사진 쌍 수 클릭 → 갤러리 모달 */}
+            <a href="#photos" className="text-[#7b68ee] hover:underline">전후 사진 {data.defects.photoPairs}/{data.defects.total}쌍</a>
             <span className="text-[#b0acd6]" title="수리 계약서·전/후 사진은 선택 증빙 — ⑤ 완료 조건은 불량 전건 조치 완료"> (사진·계약서는 선택)</span>
             {data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
           </span>
           <span className="ml-auto flex items-center gap-1.5 shrink-0">
-            <a href="#defects" className="text-[10px] text-[#7b68ee] hover:underline">사진은 아래 불량내역 슬롯 ↓</a>
+            <a href="#photos" className="text-[10px] text-[#7b68ee] hover:underline">전/후 사진 모아보기 ↓</a>
             {data.contractFile && (
               <button onClick={() => download(data.contractFile!.path)} className={btn}><Download className="size-3" /> 계약서</button>
             )}

@@ -261,7 +261,7 @@ function InspectionDocRows({ i, isGeneral, customerName, isPending, open, genera
               <span className={i.defects.photoPairs >= i.defects.total ? 'text-[#514b81]' : 'text-amber-600'}>
                 {i.defects.photoPairs}/{i.defects.total}쌍
               </span>
-              <Link href={`/inspections/${i.inspectionId}#defects`} className={`ml-auto ${subBtn}`}>
+              <Link href={`/inspections/${i.inspectionId}#photos`} className={`ml-auto ${subBtn}`}>
                 <Camera className="size-3" /> 사진 보기
               </Link>
             </>)}

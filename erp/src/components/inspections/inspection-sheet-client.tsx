@@ -35,6 +35,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
   const [picked, setPicked] = useState<{ item_code: string; item_name: string; sheet_name: string } | null>(null)
   const [quickMemo, setQuickMemo] = useState('')
   const quickDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // R13-d: 시트 X 클릭 시 행 아래 인라인 메모+[등록]
+  const [inlineX, setInlineX] = useState<string | null>(null)
+  const [inlineMemo, setInlineMemo] = useState('')
 
   useEffect(() => {
     if (quickDebounce.current) clearTimeout(quickDebounce.current)
@@ -77,6 +80,18 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
       if (res.error) { setError(res.error); return }
       setNotice(res.added ? `${res.added}건의 불량을 등록했습니다.` : '새로 등록할 불량이 없습니다.')
       router.refresh()
+    })
+  }
+
+  // R13-d: 시트 X 항목 그 자리에서 즉시 등록 (X 저장 + 불량내역 자동 등록)
+  function registerInlineX(itemCode: string) {
+    setError(''); setNotice('')
+    startTransition(async () => {
+      const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo: inlineMemo }])
+      if (res.error) { setError(res.error); return }
+      const reg = await createDefectsFromXAction(inspectionId)
+      setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
+      setInlineX(null); setInlineMemo(''); router.refresh()
     })
   }
 
@@ -220,19 +235,39 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
                 <div key={g}>
                   <p className="text-[11px] font-semibold text-[#7b68ee] sticky top-0 bg-white py-0.5">{g}</p>
                   {its.map(it => (
-                    <div key={it.item_code} className="flex items-center gap-2 py-1 border-b border-[#f8f9fa]">
-                      <span className="text-[10px] text-[#b0acd6] w-14 shrink-0">{it.item_code}</span>
-                      <span className="text-xs text-[#090c1d] flex-1 min-w-0">{it.item_name}</span>
-                      <div className="flex gap-0.5 shrink-0">
-                        {(['O', 'X', 'N'] as Result[]).map(r => (
-                          <button key={r} onClick={() => canManage && setLocal(s => ({ ...s, [it.item_code]: r }))}
-                            className={`w-7 h-7 rounded text-xs font-bold transition-colors ${local[it.item_code] === r
-                              ? (r === 'O' ? 'bg-green-500 text-white' : r === 'X' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white')
-                              : 'bg-[#f5f4ff] text-[#b0acd6] hover:bg-[#ebe9ff]'}`}>
-                            {r === 'O' ? '○' : r === 'X' ? '✕' : '／'}
-                          </button>
-                        ))}
+                    <div key={it.item_code} className="border-b border-[#f8f9fa]">
+                      <div className="flex items-center gap-2 py-1">
+                        <span className="text-[10px] text-[#b0acd6] w-14 shrink-0">{it.item_code}</span>
+                        <span className="text-xs text-[#090c1d] flex-1 min-w-0">{it.item_name}</span>
+                        <div className="flex gap-0.5 shrink-0">
+                          {(['O', 'X', 'N'] as Result[]).map(r => (
+                            <button key={r} onClick={() => {
+                              if (!canManage) return
+                              setLocal(s => ({ ...s, [it.item_code]: r }))
+                              // R13-d: X 선택 시 그 자리 인라인 등록 노출, 그 외엔 닫기
+                              if (r === 'X') { setInlineX(it.item_code); setInlineMemo('') }
+                              else if (inlineX === it.item_code) setInlineX(null)
+                            }}
+                              className={`w-7 h-7 rounded text-xs font-bold transition-colors ${local[it.item_code] === r
+                                ? (r === 'O' ? 'bg-green-500 text-white' : r === 'X' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white')
+                                : 'bg-[#f5f4ff] text-[#b0acd6] hover:bg-[#ebe9ff]'}`}>
+                              {r === 'O' ? '○' : r === 'X' ? '✕' : '／'}
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                      {/* R13-d: X 인라인 메모+[등록] — 상단 [불량 등록] 왕복 없이 그 자리에서 */}
+                      {inlineX === it.item_code && (
+                        <div className="flex items-center gap-2 pb-1.5 pl-14">
+                          <input value={inlineMemo} onChange={e => setInlineMemo(e.target.value)}
+                            placeholder="불량 메모 (선택)" className="h-7 flex-1 min-w-40 rounded border border-red-200 bg-white px-2 text-[11px] outline-none focus:border-red-400" />
+                          <button onClick={() => registerInlineX(it.item_code)} disabled={isPending}
+                            className="h-7 px-2.5 rounded bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium disabled:opacity-50">
+                            {isPending ? <Loader2 className="size-3 animate-spin" /> : '등록'}
+                          </button>
+                          <button onClick={() => setInlineX(null)} className="h-7 px-2 rounded border border-[#c8c4d0] text-[11px] text-[#514b81]">닫기</button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
