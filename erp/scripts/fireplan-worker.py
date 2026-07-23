@@ -52,15 +52,35 @@ specext = importlib.util.spec_from_file_location("make_exterior", os.path.join(H
 mext = importlib.util.module_from_spec(specext)
 specext.loader.exec_module(mext)
 
-ENV = mf.load_env(prod=False)  # 스테이징 (운영 전환 시 prod=True + 보관함 마이그레이션 선행)
-SB_URL = ENV["NEXT_PUBLIC_SUPABASE_URL"]
-SB_KEY = ENV["SUPABASE_SERVICE_ROLE_KEY"]
+# ── 7-5 출력 엔진 단일화(2026-07-23): 스테이징+운영 이중 폴링 — 단일 워커가 두 DB 큐를 순회 처리 ──
+def _mk_target(name: str, prod: bool, erp_base: str) -> dict:
+    env = mf.load_env(prod=prod)
+    return {"name": name, "env": env,
+            "url": env["NEXT_PUBLIC_SUPABASE_URL"], "key": env["SUPABASE_SERVICE_ROLE_KEY"],
+            "erp_base": erp_base, "cron_secret": env.get("CRON_SECRET", "")}
+
+TARGETS = [
+    _mk_target("staging", False, "https://staging.sjfire.co.kr"),
+    _mk_target("prod", True, "https://sjfire.co.kr"),
+]
+if not TARGETS[1]["cron_secret"]:
+    TARGETS[1]["cron_secret"] = TARGETS[0]["cron_secret"]  # 운영 백업 env에 CRON_SECRET 없으면 공용 사용
+
+# 전역 = 현재 처리 중 대상 (단일 스레드 — use_target으로 전환)
+ENV = TARGETS[0]["env"]
+SB_URL = TARGETS[0]["url"]
+SB_KEY = TARGETS[0]["key"]
+ERP_BASE = TARGETS[0]["erp_base"]
+CRON_SECRET = TARGETS[0]["cron_secret"]
 BUCKET = "fire-plans"
 JOBS = "fire_plan_gen_jobs"
 POLL_SEC = 10
 MAX_ATTEMPTS = 3  # 워커 중단으로 processing에 남은 작업의 재시도 한도
-ERP_BASE = "https://staging.sjfire.co.kr"  # 로컬 PDF 변환 실패 시 크론 변환 트리거용
-CRON_SECRET = ENV.get("CRON_SECRET", "")
+
+
+def use_target(t: dict) -> None:
+    global ENV, SB_URL, SB_KEY, ERP_BASE, CRON_SECRET
+    ENV, SB_URL, SB_KEY, ERP_BASE, CRON_SECRET = t["env"], t["url"], t["key"], t["erp_base"], t["cron_secret"]
 
 def _req(method: str, url: str, body: bytes | None = None, headers: dict | None = None):
     h = {"apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}", "User-Agent": "curl/8.4.0"}
@@ -174,16 +194,25 @@ def process(job: dict) -> tuple[list[str], dict | None]:
     stage2.update(form_pairs)
     extras.extend(form_extras)
 
-    # 사진 연계: 고객 gen-assets(웹 PDF 생성 시 업로드)의 최신 이미지 1장을 표지에 삽입
+    # 사진 연계 (7-5): 서식 1.3 '생성 문서 삽입 사진'(sections.photos — 건물 전경 우선) > 구 gen-assets 최신 1장
     photo_path = None
     try:
-        assets = st_list(f"{cust_id}/gen-assets/")
-        imgs = sorted([a["name"] for a in assets if a.get("name", "").lower().endswith((".jpg", ".jpeg", ".png", ".webp"))])
-        if imgs:
-            photo_path = os.path.join(mf.OUT_DIR, f"_photo_{cust_id}{os.path.splitext(imgs[-1])[1]}")
+        form_photos = [p for p in (form_sections.get("photos") or []) if p.get("path")]
+        pick = next((p["path"] for p in form_photos if p.get("kind") == "building"),
+                    form_photos[0]["path"] if form_photos else None)
+        if pick:
+            photo_path = os.path.join(mf.OUT_DIR, f"_photo_{cust_id}{os.path.splitext(pick)[1] or '.jpg'}")
             with open(photo_path, "wb") as f:
-                f.write(st_download(f"{cust_id}/gen-assets/{imgs[-1]}"))
-            print(f"[{now_iso()}] 사진 연계: {imgs[-1]}")
+                f.write(st_download(pick))
+            print(f"[{now_iso()}] 사진 연계(서식 1.3): {pick.rsplit('/', 1)[-1]}")
+        else:
+            assets = st_list(f"{cust_id}/gen-assets/")
+            imgs = sorted([a["name"] for a in assets if a.get("name", "").lower().endswith((".jpg", ".jpeg", ".png", ".webp"))])
+            if imgs:
+                photo_path = os.path.join(mf.OUT_DIR, f"_photo_{cust_id}{os.path.splitext(imgs[-1])[1]}")
+                with open(photo_path, "wb") as f:
+                    f.write(st_download(f"{cust_id}/gen-assets/{imgs[-1]}"))
+                print(f"[{now_iso()}] 사진 연계(gen-assets): {imgs[-1]}")
     except Exception as pe:  # noqa: BLE001
         print(f"[{now_iso()}] 사진 연계 건너뜀: {pe}")
 
@@ -663,19 +692,23 @@ def process_exterior(job: dict) -> list[str]:
     print(f"[{now_iso()}] ✅ 외관점검표 완료: {label} ({month}월 결과 {n_marks}건, 누락 {len(missing)}개)")
     return missing
 
-print(f"소방계획서 생성 워커 시작 — {SB_URL} / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")
+print(f"소방계획서 생성 워커 시작 — 대상 {len(TARGETS)}개({', '.join(t['name'] for t in TARGETS)}) / 폴링 {POLL_SEC}초 (종료: Ctrl+C)")
 mf.sdk_app()  # 라이선스 선검증
 print("SDK 초기화 OK")
 
-# 중단 복구: 이전 실행이 processing으로 남긴 작업 → 한도 내 재시도(pending), 초과 시 failed
-db_patch(f"{JOBS}?status=eq.processing&attempts=gte.{MAX_ATTEMPTS}",
-         {"status": "failed", "error": "워커 중단 — 재시도 한도 초과", "finished_at": now_iso()})
-recovered = db_patch(f"{JOBS}?status=eq.processing", {"status": "pending"})
-if recovered:
-    print(f"[{now_iso()}] 중단 복구: {len(recovered)}건 재대기 전환")
+# 중단 복구 (대상별): 이전 실행이 processing으로 남긴 작업 → 한도 내 재시도(pending), 초과 시 failed
+for _t in TARGETS:
+    use_target(_t)
+    db_patch(f"{JOBS}?status=eq.processing&attempts=gte.{MAX_ATTEMPTS}",
+             {"status": "failed", "error": "워커 중단 — 재시도 한도 초과", "finished_at": now_iso()})
+    recovered = db_patch(f"{JOBS}?status=eq.processing", {"status": "pending"})
+    if recovered:
+        print(f"[{now_iso()}] [{_t['name']}] 중단 복구: {len(recovered)}건 재대기 전환")
 
 while True:
     try:
+      for _t in TARGETS:
+        use_target(_t)
         heartbeat()
         jobs = db_get(f"{JOBS}?status=eq.pending&select=*&order=created_at&limit=10")
         for job in jobs:

@@ -2,9 +2,9 @@
 
 import { useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Printer, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
+import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
 import {
-  generateFirePlanPdfNowAction, requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
+  requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
@@ -189,16 +189,6 @@ export function PlanTabView({
     })
   }
 
-  function generatePdf() {
-    setMsg('')
-    startTransition(async () => {
-      const res = await generateFirePlanPdfNowAction(customerId)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg('✅ PDF 생성 완료 — 보관함에 등록됐습니다')
-      router.refresh()
-    })
-  }
-
   function downloadDataSheet() {
     startTransition(async () => {
       const res = await downloadFirePlanDataSheetAction(customerId)
@@ -262,14 +252,9 @@ export function PlanTabView({
             <input type="number" value={year} onChange={e => setYear(parseInt(e.target.value || '0', 10))}
               className="h-8 w-20 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
             <button onClick={generateHwp} disabled={isPending}
-              title="한글 원본 생성 — 워커(한글 SDK) 큐로 요청, 완료 시 보관함 등록"
+              title="소방계획서 생성 (§7-5 HWP 단일 경로) — 워커(한글 SDK)가 HWP+웹 미리보기+PDF를 보관함에 등록"
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileOutput className="size-3.5" />} HWP 생성
-            </button>
-            <button onClick={generatePdf} disabled={isPending}
-              title="표준양식 PDF 즉시 생성 — 저장된 양식 데이터(없으면 자동 기본값)로 생성"
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
-              <Printer className="size-3.5" /> PDF 생성
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileOutput className="size-3.5" />} 계획서 생성 (HWP+PDF)
             </button>
             <button onClick={downloadDataSheet} disabled={isPending}
               title="한글 수동 편집용 데이터 요약 1장"

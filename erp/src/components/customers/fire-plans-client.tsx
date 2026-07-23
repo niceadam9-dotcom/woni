@@ -4,7 +4,7 @@ import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine, Eye } from 'lucide-react'
 import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction, downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
-import { generateFirePlanPdfNowAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { requestFirePlanHwpFromTabAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { DateInput } from '@/components/ui/date-input'
 
 export type FirePlanAttachment = { id: string; kind: string; file_name: string }
@@ -30,10 +30,11 @@ export type FirePlanRow = {
 }
 
 /** 소방계획서 보관함 (doc02 §8) — 표준양식 PDF 업로드 → ERP에서 자동 인쇄. HWP 원본은 선택 보관 */
-export function FirePlansClient({ customerId, plans, canManage }: {
+export function FirePlansClient({ customerId, plans, canManage, isGeneral = false }: {
   customerId: string
   plans: FirePlanRow[]
   canManage: boolean
+  isGeneral?: boolean // 일반관리 — 소방계획서 작성 대상 아님(§9-8): 생성 버튼 숨김(외부 문서 업로드 보관만)
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -57,12 +58,12 @@ export function FirePlansClient({ customerId, plans, canManage }: {
     })
   }
 
-  /** 표준양식 PDF 생성 — §8-1k: 모달 폐지, 서식 입력(소방계획서 탭)+저장 양식 기준 즉시 생성 */
+  /** 계획서 생성 — §7-5 HWP 단일 경로: 워커 큐 요청(HWP+미리보기+PDF 등록). 값 수정은 소방계획서 탭 서식에서 */
   function generateNow() {
     startTransition(async () => {
-      const res = await generateFirePlanPdfNowAction(customerId)
+      const res = await requestFirePlanHwpFromTabAction(customerId, new Date().getFullYear())
       if (res.error) { alert(res.error); return }
-      alert('표준양식 PDF가 생성되어 보관함에 등록됐습니다. 값 수정은 소방계획서 탭 서식 화면에서 하세요.')
+      alert('생성 요청됐습니다 — 워커가 처리하면 HWP·미리보기·PDF가 보관함에 등록됩니다 (수십 초 소요).')
       router.refresh()
     })
   }
@@ -182,7 +183,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                   <td className="py-3">
                     <div className="flex items-center gap-1.5 justify-end">
                       {canManage && p.generated && (
-                        <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판) — 값 수정은 소방계획서 탭 서식 화면에서"
+                        <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판, HWP 워커) — 값 수정은 소방계획서 탭 서식 화면에서"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
                           <PencilLine className="size-3" /> 재생성
                         </button>
@@ -288,14 +289,16 @@ export function FirePlansClient({ customerId, plans, canManage }: {
 
       {canManage && !showForm && (
         <div className="mt-3 flex gap-2">
-          <button
-            onClick={generateNow}
-            disabled={isPending}
-            title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 표준양식 PDF를 즉시 생성해 보관함에 저장합니다 (§8-1k 모달 폐지)"
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
-          >
-            <FileOutput className="size-3.5" /> 표준양식 생성
-          </button>
+          {!isGeneral && (
+            <button
+              onClick={generateNow}
+              disabled={isPending}
+              title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 생성 — 워커가 HWP·미리보기·PDF를 보관함에 등록 (§7-5 HWP 단일 경로)"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
+            >
+              <FileOutput className="size-3.5" /> 계획서 생성 (HWP+PDF)
+            </button>
+          )}
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"

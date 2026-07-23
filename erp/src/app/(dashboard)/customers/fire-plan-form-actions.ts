@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import type { FirePlanGenData } from '@/lib/fire-plan-template'
-import { getFirePlanGenDefaultsAction, generateFirePlanAction } from './fire-plan-actions'
 import { requestFirePlanHwpAction } from '@/app/(dashboard)/fire-plans/generate/actions'
 import type { PresetType } from '@/lib/fire-plan-presets'
 
@@ -284,43 +283,8 @@ export async function importLegacyFormAction(customerId: string): Promise<{ impo
   return { imported: Object.keys(sections) }
 }
 
-/** PDF 즉시 생성 (생성 바 직결 — 모달 없이 저장된 데이터로)
- *  기준 데이터: 최신 웹 생성분의 .form.json(있으면) > 자동 기본값. 개정이력 입력은 항상 최우선 반영. */
-export async function generateFirePlanPdfNowAction(customerId: string): Promise<{ error?: string }> {
-  await requirePermission('customer_manage')
-  const admin = createAdminClient()
-
-  const def = await getFirePlanGenDefaultsAction(customerId)
-  if (def.error || !def.data) return { error: def.error ?? '기본값을 불러오지 못했습니다.' }
-
-  // 최신 웹 생성분(.form.json 보유 — 워커 생성분 generated_hwp_는 제외)의 저장 양식을 기준으로 사용
-  let data: FirePlanGenData = def.data
-  const { data: plans } = await admin.from('fire_plans')
-    .select('pdf_path').eq('customer_id', customerId)
-    .not('pdf_path', 'is', null)
-    .like('pdf_path', '%generated\\_%')
-    .order('created_at', { ascending: false }).limit(10)
-  for (const p of (plans ?? []) as Array<{ pdf_path: string }>) {
-    if (p.pdf_path.includes('generated_hwp_')) continue
-    const { data: file } = await admin.storage.from(BUCKET)
-      .download(p.pdf_path.replace(/\.pdf$/, '.form.json'))
-    if (!file) continue
-    try {
-      const saved = JSON.parse(await file.text()) as Partial<FirePlanGenData>
-      data = {
-        ...def.data,
-        ...saved,
-        // 개정이력 입력·연도는 현재 값 우선 (요구 1·2 — 탭의 작성일·개정내용이 항상 반영)
-        year: def.data.year,
-        revisionDate: def.data.revisionDate,
-        revisionNote: def.data.revisionNote,
-      } as FirePlanGenData
-      break
-    } catch { /* 손상 시 다음 후보 */ }
-  }
-
-  return generateFirePlanAction(customerId, data)
-}
+// §7-5 출력 엔진 단일화(2026-07-23): 웹 템플릿 PDF 즉시 생성(generateFirePlanPdfNowAction) 폐기 —
+// 계획서 생성은 HWP 워커 단일 경로(아래 requestFirePlanHwpFromTabAction, HWP+미리보기+PDF 등록).
 
 /** HWP 생성 요청 (생성 바 직결 — 큐 등록, 워커가 처리) */
 export async function requestFirePlanHwpFromTabAction(

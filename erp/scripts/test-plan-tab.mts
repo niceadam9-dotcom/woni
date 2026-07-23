@@ -38,7 +38,8 @@ try {
   check('빠른 입력 — 건축물대장 불러오기 버튼', await page.isVisible('button:has-text("건축물대장 불러오기")'))
   check('빠른 입력 — 송달 동의 블록', await page.isVisible('text=전자우편 송달 동의'))
   check('빠른 입력 — 보관함 요약(빈 상태)', await page.isVisible('text=보관함이 비어 있습니다'))
-  check('생성 바 — [HWP 생성] 버튼', await page.isVisible('button:has-text("HWP 생성")'))
+  check('생성 바 — [계획서 생성] 버튼 (§7-5 HWP 단일)', await page.isVisible('button:has-text("계획서 생성 (HWP+PDF)")'))
+  check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
 
   // ── 2) 대장 불러오기 — 지번 미보유 건물은 needAddress 안내 (fail-soft 경로) ──
   await page.click('button:has-text("건축물대장 불러오기")')
@@ -250,7 +251,7 @@ try {
   await page.waitForSelector('text=소방계획서 작성 대상이 아닙니다')
   check('일반관리 — 대상 아님 배너', true)
   check('일반관리 — 외관점검표 안내', await page.isVisible('text=외관점검표'))
-  check('일반관리 — 생성 바 미노출', !(await page.isVisible('button:has-text("HWP 생성")')))
+  check('일반관리 — 생성 바 미노출', !(await page.isVisible('button:has-text("계획서 생성")')))
   check('일반관리 — 필수 완성도 미노출', !(await page.isVisible('text=필수 완성도')))
   const planTabBadge = await page.locator('a:has-text("소방계획서"), button:has-text("소방계획서")').first().textContent()
   check('일반관리 — 탭 준비율 뱃지 억제(n/n 없음)', !/\d+\/\d+/.test(planTabBadge ?? ''), `tab="${planTabBadge}"`)

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
-import { buildFirePlanHtml, buildDataSheetHtml, FACILITY_FORM, type FirePlanGenData } from '@/lib/fire-plan-template'
+import { buildDataSheetHtml, FACILITY_FORM, type FirePlanGenData } from '@/lib/fire-plan-template'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { convertHtmlToPdf } from '@/lib/pdf'
 
@@ -429,106 +429,9 @@ export async function downloadFirePlanDataSheetAction(
   }
 }
 
-/** 표준양식 생성 — HTML 템플릿 → Gotenberg PDF → 보관함 저장. 폼 입력은 .form.json으로 함께 보관(재편집용) */
-export async function generateFirePlanAction(
-  customerId: string,
-  data: FirePlanGenData,
-): Promise<{ error?: string }> {
-  const profile = await requirePermission('customer_manage')
-  const admin = createAdminClient()
-
-  if (!data.year || data.year < 2000 || data.year > 2100) return { error: '연도를 확인해주세요.' }
-  if (!data.buildingName.trim()) return { error: '대상물 명칭을 입력해주세요.' }
-
-  // 삽입 사진: 스토리지에서 읽어 Gotenberg 멀티파트 파일로 첨부 (파일명 img{i}.{ext})
-  const assets: Array<{ name: string; data: Uint8Array; mime: string }> = []
-  const images: Array<{ file: string; kind: string; caption: string }> = []
-  for (const [i, photo] of (data.photos ?? []).entries()) {
-    const { data: file, error } = await admin.storage.from(BUCKET).download(photo.path)
-    if (error || !file) return { error: `사진을 불러오지 못했습니다: ${photo.caption || photo.path}` }
-    const ext = (photo.path.split('.').pop() ?? 'jpg').toLowerCase()
-    const name = `img${i}.${ext}`
-    assets.push({ name, data: new Uint8Array(await file.arrayBuffer()), mime: IMAGE_EXTS[ext] ?? 'image/jpeg' })
-    images.push({ file: name, kind: photo.kind, caption: photo.caption })
-  }
-
-  let pdf: Uint8Array
-  try {
-    pdf = await convertHtmlToPdf(buildFirePlanHtml(data, images), assets)
-  } catch (e) {
-    return { error: `PDF 생성 실패: ${(e as Error).message}` }
-  }
-
-  const stamp = Date.now()
-  const pdfPath = `${customerId}/${data.year}/generated_${stamp}.pdf`
-  const jsonPath = `${customerId}/${data.year}/generated_${stamp}.form.json`
-  const pdfName = `${data.year}년 소방계획서(표준양식).pdf`
-
-  const { error: pdfErr } = await admin.storage.from(BUCKET)
-    .upload(pdfPath, Buffer.from(pdf), { contentType: 'application/pdf', upsert: false })
-  if (pdfErr) return { error: `PDF 저장 실패: ${pdfErr.message}` }
-  const { error: jsonErr } = await admin.storage.from(BUCKET)
-    .upload(jsonPath, Buffer.from(JSON.stringify(data), 'utf8'), { contentType: 'application/json', upsert: false })
-  if (jsonErr) {
-    await admin.storage.from(BUCKET).remove([pdfPath])
-    return { error: `양식 데이터 저장 실패: ${jsonErr.message}` }
-  }
-
-  // 같은 연도 기존 건수 +1 = 개정 차수
-  const { count } = await admin.from('fire_plans')
-    .select('id', { count: 'exact', head: true })
-    .eq('customer_id', customerId).eq('year', data.year)
-  const revision = (count ?? 0) + 1
-
-  const { error: insErr } = await admin.from('fire_plans').insert({
-    customer_id: customerId,
-    year: data.year,
-    title: `${data.year}년 소방계획서`,
-    pdf_name: pdfName,
-    pdf_path: pdfPath,
-    revision,
-    revision_note: revision > 1 ? data.revisionNote : null,
-    note: '표준양식 자동 생성',
-    uploaded_by: profile.id,
-  } as Record<string, unknown>)
-  if (insErr) {
-    await admin.storage.from(BUCKET).remove([pdfPath, jsonPath])
-    return { error: `저장 실패: ${insErr.message}` }
-  }
-
-  await admin.from('activity_logs').insert({
-    actor_id: profile.id,
-    action: 'fire_plan_generated',
-    entity_type: 'customer',
-    entity_id: customerId,
-    metadata: { year: data.year, revision },
-  } as Record<string, unknown>)
-
-  revalidatePath(`/customers/${customerId}`)
-  return {}
-}
-
-/** 생성된 계획서의 폼 데이터 로드 — [편집·재생성]용 */
-export async function getFirePlanFormAction(
-  planId: string,
-): Promise<{ error?: string; data?: FirePlanGenData }> {
-  await requirePermission('customer_manage')
-  const admin = createAdminClient()
-  const { data: plan } = await admin.from('fire_plans').select('pdf_path').eq('id', planId).single()
-  if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
-  const pdfPath = (plan as { pdf_path: string }).pdf_path
-  if (!pdfPath.includes('generated_')) return { error: '업로드된 계획서는 재편집할 수 없습니다.' }
-  const { data: file, error } = await admin.storage.from(BUCKET)
-    .download(pdfPath.replace(/\.pdf$/, '.form.json'))
-  if (error || !file) return { error: '양식 데이터를 찾을 수 없습니다.' }
-  try {
-    // 구버전 form.json(서식 1.2·사진 도입 전) 정규화 — 누락 필드만 기본값 보충
-    const parsed = JSON.parse(await file.text()) as Partial<FirePlanGenData>
-    return { data: { zones: [], hazards: [], photos: [], ...parsed } as FirePlanGenData }
-  } catch {
-    return { error: '양식 데이터 형식이 올바르지 않습니다.' }
-  }
-}
+// §7-5 출력 엔진 단일화(2026-07-23): 웹 계획서 템플릿 폐기 — generateFirePlanAction(HTML→Gotenberg PDF)과
+// getFirePlanFormAction(.form.json 재편집)을 제거. 계획서 생성 = HWP 워커 단일 경로(HWP+미리보기+PDF).
+// 경량 문서(데이터시트)만 Gotenberg HTML 경로 유지. 과거 .form.json은 임포트(7-3b)에서 읽기 전용으로만 사용.
 
 /** 다운로드/인쇄/미리보기용 서명 URL (5분 유효) — html = HWP 생성분 웹 미리보기(레이아웃 참고) */
 export async function getFirePlanFileUrlAction(
