@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_5.md",
   "generated": "2026-07-26",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). S4 구현 완료(f129da4, code_present) — 제출 현황판(타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 월별 대장 탭. 독립 검증·implemented 승격은 별도 세션. 다음: S5(P-3 생성 품질 검증·P-1 연차 일괄 발행·P-2 주간 브리핑).",
+  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). S4 구현 완료(f129da4, code_present) — 제출 현황판(타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 월별 대장 탭. S5 구현 완료(9918dc3, code_present) — P-3 생성 품질 게이트·P-1 연차 일괄 발행·P-2 주간 브리핑. **S1~S5 전 세션 구현 완료(code_present)** — 남은 것: 독립 검증(구현자≠판정자)→implemented 승격, 운영(main) 배포, 마이그레이션 107 적용·워커 재배포, 후순위 항목(R3-a·R4-c·R14-f·R15-c·P-4·P-5).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·검토 완료 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -31,7 +31,7 @@
     { "id": "S2", "title": "보고서 센터 신설 — ⓪(첫 화면 IA·행동 자동완성) + ①(고객 문서 현황) + ④⑦(최근 문서·누락 경고) + 대시보드 문서 할 일 위젯", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 59ac477) — reports/page.tsx에 ReportCenterHome 연결(?form=docs&cust=), docs-actions(통합 조회)·doc-status(판정 1곳)·hangul(초성)·doc-action-search·customer-docs·doc-todo-widget·command-palette 신설. E2E test-report-center 20/20, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·law-revision 7/7, tsc 통과. 독립 검증 대기" },
     { "id": "S3", "title": "바로 생성·현장 편의 — ②③(9호·10·11호 바로 생성) + ⑤⑥(갤러리·신고 도우미) + ⑫(불량 입력 편의 4종)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 067f1b5) — report-gen-list(②③ 인라인 생성)·photo-gallery-modal(⑤)·placement-report-helper(⑥ getPlacementInfoAction)·defects/sheet 클라이언트(⑫ getDefectSuggestionsAction). next build 통과, E2E test-report-s3 17/17, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·report-center 20/20·law-revision 7/7. R3-a(준비 n/4 팝오버)만 미구현(준비 화면 딥링크 유지). 독립 검증 대기" },
     { "id": "S4", "title": "화면·메뉴 통합 — §7-A(제출 현황판·구 3화면 흡수) + §7-B(안전관리 대장 탭 흡수·사이드바 12개)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 f129da4) — 제출 현황판(getSubmissionBoardAction·submission-board, 타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 [월별 대장] 탭. next build 통과, E2E test-report-s4 12/12, 회귀 report-center 20/20·report-s3 17/17·law-revision 7/7. R14-f(엑셀)·R15-c 딥링크 일부 후순위. 독립 검증 대기" },
-    { "id": "S5", "title": "채택 제안 구현 — P-3(워커 생성 품질 자동 검증) + P-1(연차 일괄 발행 마법사) + P-2(주간 문서 브리핑 크론)", "status": "pending_order", "note": "2026-07-26 사용자 채택(D-10). P-3 우선" }
+    { "id": "S5", "title": "채택 제안 구현 — P-3(워커 생성 품질 자동 검증) + P-1(연차 일괄 발행 마법사) + P-2(주간 문서 브리핑 크론)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 9918dc3) — P-3 워커 verify_merge(생성물 병합 검증)·P-1 annual-issue-wizard+bulkAnnualIssueAction·P-2 weekly-doc-briefing 크론(마이그레이션 107). next build 통과, E2E test-report-s5 9/9, P-3 Python 검증. 마이그레이션 107·워커 재배포는 운영 반영 시 필요. 독립 검증 대기" }
   ],
   "sections": [
     {
@@ -191,9 +191,9 @@
       "id": "R17", "title": "§8 추가 제안 — 채택 3건(S5) + 보류 2건", "status": "partial",
       "note": "2026-07-26 사용자 선택(D-10): P-1·P-2·P-3 채택 → S5, P-4·P-5 보류",
       "criteria": [
-        { "id": "R17-P1", "desc": "P-1 연차 일괄 발행 마법사 — 연초 전 고객 전년도 이어받기+발행+생성 1클릭", "status": "pending_order" },
-        { "id": "R17-P2", "desc": "P-2 주간 문서 브리핑 — 월요일 요약 알림+메일 자동 발송(모니터링 0층)", "status": "pending_order" },
-        { "id": "R17-P3", "desc": "P-3 생성 품질 자동 검증 게이트 — 워커가 PDF 텍스트 핵심 값 병합 자동 검사(missing에 기록)", "status": "pending_order", "note": "채택 1순위 — 빈 문서 제출 사고 예방" },
+        { "id": "R17-P1", "desc": "P-1 연차 일괄 발행 마법사 — 연초 전 고객 전년도 이어받기+발행+생성 1클릭", "status": "code_present", "note": "2026-07-26 커밋 9918dc3 — 보고서 센터 form=annual, getAnnualTargetsAction(대상·발행·대기·미발행 집계) + bulkAnnualIssueAction(미발행 최대 500 일괄 큐잉, 발행·대기 제외). 워커가 최신 고객 데이터로 생성(이어받기). E2E 마법사·집계 검증" },
+        { "id": "R17-P2", "desc": "P-2 주간 문서 브리핑 — 월요일 요약 알림+메일 자동 발송(모니터링 0층)", "status": "code_present", "note": "2026-07-26 커밋 9918dc3 — /api/cron/weekly-doc-briefing(자체점검 완료·9호 기한 임박·배치확인서 누락, findDueReport9·findMissingCerts 공유). manager/admin 알림 + 회사 메일(gmailSendMail, best-effort). 알림은 마이그레이션 107(type CHECK) 적용 후 활성. E2E ok·요약·인증가드 검증" },
+        { "id": "R17-P3", "desc": "P-3 생성 품질 자동 검증 게이트 — 워커가 PDF 텍스트 핵심 값 병합 자동 검사(missing에 기록)", "status": "code_present", "note": "2026-07-26 커밋 9918dc3 — fireplan-worker verify_merge(생성물 HTML 텍스트에 고객명·주소 실제 병합 확인, 실패 시 '병합 확인 실패: X'를 missing에 기록). fire_plan·9호·10·11호·외관 전부 적용. Python 문법·로직 검증(워커 재배포 시 운영 반영). 채택 1순위 — 빈 문서 제출 사고 예방" },
         { "id": "R17-P4", "desc": "P-4 '내 담당만' 개인화 필터 — 현황판·위젯(직원 기본 ON)", "status": "deferred", "note": "2026-07-26 보류 — 요청 시 재개" },
         { "id": "R17-P5", "desc": "P-5 제출 현황판 엑셀 내보내기", "status": "deferred", "note": "2026-07-26 보류 — 요청 시 재개" }
       ]
