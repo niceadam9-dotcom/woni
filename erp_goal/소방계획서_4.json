@@ -25,8 +25,8 @@
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "implemented",
       "note": "종결(2026-07-23): P4-①~⑤ 완료(d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a + 웹 개정이력 다행, E2E 38/38) + 구 잔여도 전부 종결: HWP placeholder 확장 7-4a(899c9e8)·표 병합 7-4b+기록부 4종(bc3da57·580c088)·HWP 개정이력 다행(bc3da57)·임포트 배너 7-3b(완료). 구조 불일치 제외 목록은 7-4b note 참조" },
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "b5e6caa", "evidence": ["R-1·R-2(6643dab)·별지 10·11호(1cd2a10)·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095)·개정 감지 크론(b5e6caa) — 각 항목 verified 참조"], "method": "항목별 E2E 누적 (10-R3 뱃지 소소 잔여는 §10 partial에 기록)" }, "note": "LAW_OC=woni_key(사용자 계정) 전환 완료 — 2026-07-23 운영 검증" },
-    { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "partial",
-      "note": "핵심 종결(2026-07-23, 3827ecc — 104 양쪽 DB·E2E 46/46+회귀 7종·스테이징/운영 배포): 목차 트리(완성도·합산 뱃지)·form= 딥링크·1.1 3분할+신규 6필드·생성 모달 폐지(사진→1.3 이관)·모바일 드롭다운. 잔여(정직 기록): 카드 앵커 점프·1.10/3장 내부 서브탭 세로화(1-2)·표 카드형 폴백(7-6→P8)·미저장 감지의 버튼 토글 미포함" },
+    { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "implemented",
+      "note": "종결(2026-07-25): 핵심(3827ecc — 목차 트리·form= 딥링크·1.1 3분할·모바일 드롭다운) + 구 잔여도 마감: 카드 앵커 점프·3장 세로화(9e0c17a, 1-2 종결). 설계 조정 정직 기록: 표 카드형 폴백은 가로 스크롤 채택(7-6), 미저장 감지는 버튼 토글 미포함 한계 유지" },
     { "id": "P7", "title": "문서 타임라인 — §9-9b~e + 9-6f 제출추적 + 9-8e 기한 연계 흡수 (§8-2②)", "status": "implemented",
       "note": "전체 종결(2026-07-23): 타임라인·슬롯·패키지·제출일·15일 크론(415fb1b) + 관계인 보고 실발송 검증(gmail.send 재발급, test-owner-send.mts 8/8)" },
     { "id": "P8", "title": "입력 컴포넌트 공통 규칙 — §11-4 공통 Field 컴포넌트화 후 전 서식 치환 (§8-2③)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["§11-4 참조 — ui/fields.tsx 5종 컴포넌트/훅 + 서식 10개 적용"], "method": "E2E scripts/test-field-rules.mts 10/10(숫자 필터·단위·inputMode·month 저장/역파싱·전화 하이픈 2종·표 래퍼) + plan-tab 46/46·section-copy 11/11 회귀" } },
@@ -38,10 +38,11 @@
       "note": "탭 구조(공통 필수값 1회 입력)·시설 코드 표준화(§4-3)·한글 SDK 파이프라인 공용 엔진·보고서 페이지(§10) 진입점 — 설계 전체가 이 목적에 종속"
     },
     {
-      "id": "1", "line": 24, "title": "전체 탭 계층 — 탭 > 좌측 목차 트리 > 서식 화면(섹션 카드) 3단계 (2026-07-21 개정)", "status": "partial",
+      "id": "1", "line": 24, "title": "전체 탭 계층 — 탭 > 좌측 목차 트리 > 서식 화면(섹션 카드) 3단계 (2026-07-21 개정)", "status": "implemented",
+      "note": "롤업 종결(2026-07-25): 1-1~1-5 전부 implemented (1-2 카드 앵커·3장 세로 전환 9e0c17a로 마감)",
       "criteria": [
         { "id": "1-1", "desc": "좌측 목차 트리 — 장 접기/펼치기·현재 위치·완성도(✓/n/m/⚠) 상시 표시, 모바일 상단 드롭다운 폴백", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["plan-tab-view.tsx — 좌측 목차(개정이력·보관 / 1장 서식 10종+합산 n/10 / 2장 / 3장), 항목별 완성도(✓/○, 1.1은 n/m 게이지 — page.tsx formStatus), 현재 위치 하이라이트, 모바일 md 미만 드롭다운 폴백(7-6)"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" }, "note": "장 접기/펼치기는 1장 상시 펼침으로 대체(서식 10종 규모에서 접기 불필요 판단) — 정직 기록" },
-        { "id": "1-2", "desc": "섹션 카드 — 서식 화면 내 탭 없이 세로 스크롤 + 카드 앵커 점프, 저장 버튼 서식당 1개 + 미저장 이동 확인", "status": "partial", "note": "구현(3827ecc): 서식별 세로 스크롤 카드(1.1 ①②③ 분할 포함)·저장 버튼 서식당 1개·미저장 이동 확인(입력 캡처 휴리스틱 — 텍스트 입력만 감지, 버튼 토글 변경은 미감지·정직 기록). 잔여: 카드 앵커 점프(#앵커)와 1.10·3장의 내부 서브탭 세로 전환" },
+        { "id": "1-2", "desc": "섹션 카드 — 서식 화면 내 탭 없이 세로 스크롤 + 카드 앵커 점프, 저장 버튼 서식당 1개 + 미저장 이동 확인", "status": "implemented", "verified": { "date": "2026-07-25", "commit": "9e0c17a", "evidence": ["카드 앵커 점프: CardAnchorBar(fields.tsx) — 1.1 ①②③·1.10 4카드·1.12~1.15·3장 3.1~3.7, 클릭 시 스크롤+#c-… 해시 동기화 + 해시 딥링크 진입 스크롤(plan-tab-view)", "3장 내부 서브탭 폐기 → 세로 스크롤 카드 + 저장 버튼 1개(전 섹션 일괄 저장). 1.10은 기왕 세로 카드(종전 note의 1.10 잔여 표기는 과기록)", "미저장 이동 확인은 기왕 구현(입력 캡처 휴리스틱 — 버튼 토글 미감지 한계는 유지·정직 기록)"], "method": "E2E scripts/test-cd-ui.mts 10/10(앵커 바·해시) + test-plan-tab.mts 49/49(3장 세로·단일 저장 반영)" } },
         { "id": "1-3", "desc": "URL 딥링크 /customers/{id}?tab=plan&form=1.1(+#카드앵커)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["?tab=plan&form=<key> 진입 + 선택 시 history.replaceState 동기화(서버 왕복 없음), 구 sub= 딥링크 호환(ch1→1.1 매핑)"], "method": "E2E — form=1.6 직행·URL 동기화·sub=ch1 호환 3케이스" }, "note": "#카드앵커는 1-2 잔여와 함께" },
         { "id": "1-4", "desc": "목차 항목별 완성도 뱃지 → 합산이 상위 소방계획서 탭 뱃지", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["page.tsx formStatus(13항목: 1.1 게이지+입력 존재 12종) → formFilled/formTotal이 소방계획서 탭 뱃지, 1장 헤더 합산 n/10"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" } },
         { "id": "1-5", "desc": "기본 진입 = 빠른 입력 화면(§1-1), 개정이력·보관은 고급 모드 목차 첫 항목 (종전 규정 폐기)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["기본 진입=빠른 입력(기존 P2 유지), 서식 전체 모드 목차 첫 항목=개정이력·보관(기본 선택 archive)"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" } }
@@ -226,12 +227,12 @@
     },
     {
       "id": "9-4", "line": 374, "title": "점검결과 음성 입력 — Plaud 녹음 + AI 구조화 (방향 확정)", "status": "partial",
-      "note": "Plaud 장비 확정·무검수 자동확정 금지(점검자 확정 필수)·1차 경로=Plaud 앱 전사 텍스트(추가 STT 비용 0) — 방향은 confirmed",
+      "note": "방향 변경(2026-07-25 사용자 결정): 녹음장비 미보유 — 음성(V-2/V-3)은 장비 확보 후 재개(deferred), 당분간 점검표 직접 입력 기반으로 진행(시트별 '전체 정상 ○' 기왕 구현 + 불량 빠른 입력 개선안 제안 중). V-1(텍스트 붙여넣기→AI 구조화)은 타이핑 메모에도 쓸 수 있어 유지 — Anthropic 크레딧 충전 시 검증. 무검수 자동확정 금지 원칙 유지",
       "criteria": [
         { "id": "9-4a", "desc": "V-1 전사 붙여넣기 + Claude API 구조화(점검표 시트·item_code 컨텍스트, 저장 타깃=inspection_sheet_responses) + 누락 감지 + 점검표 화면 앰버 하이라이트 확인 UX + 전사 원문 로그", "status": "partial",
           "note": "구현·배포 완료(964f608 — voice-sheet-actions.ts: 시트·690항목 컨텍스트 구조화(일괄 양호→시트 전체 O·불량→항목 X+메모·추측 금지), 설치 시설 기반 누락 감지, 확인 UX(제안 목록·기존값 충돌 앰버·항목별 체크·[확정 저장] — 무검수 자동확정 금지), activity_logs 전사 원문, X→불량 자동 등록(createDefectsFromX) 연동. 배선 스모크 2/2). ⚠ AI 통과 E2E는 Anthropic API 크레딧 소진으로 차단(외부 블로커) — 충전 후 scripts/test-voice-sheet.mts 실행하면 implemented 승격" },
-        { "id": "9-4b", "desc": "V-2 오디오 파일 업로드 → 서버 STT(Whisper/CLOVA — 신규 키 필요)", "status": "pending_order" },
-        { "id": "9-4c", "desc": "V-3 별지 9호 3쪽 병합 연동", "status": "pending_order" }
+        { "id": "9-4b", "desc": "V-2 오디오 파일 업로드 → 서버 STT(Whisper/CLOVA — 신규 키 필요)", "status": "deferred", "note": "사용자 결정(2026-07-25): 녹음장비(Plaud) 미보유 — 음성(STT) 경로는 장비 확보 후 재개, 당분간 입력 기반으로 진행(9-4 note 참조)" },
+        { "id": "9-4c", "desc": "V-3 별지 9호 3쪽 병합 연동", "status": "deferred", "note": "음성 경로 연동분만 보류 — 점검표 시트 입력→별지 9호 3쪽 롤업 병합은 P3에서 기왕 구현(입력 기반 경로는 이미 연결됨)" }
       ]
     },
     {
@@ -275,18 +276,20 @@
       ]
     },
     {
-      "id": "9-8", "line": 525, "title": "문서 요구 매트릭스 — 고객 유형별 필요 문서", "status": "partial",
+      "id": "9-8", "line": 525, "title": "문서 요구 매트릭스 — 고객 유형별 필요 문서", "status": "implemented",
+      "note": "롤업 종결(2026-07-25): 9-8a~e 전부 implemented/confirmed",
       "criteria": [
         { "id": "9-8a", "desc": "매트릭스·법적 근거 확정 — 종합/작동=계획서+점검표+9호(15일 보고)+10·11호(불량 시), 일반관리=외관점검표만(2년 보관·보고 없음)", "status": "confirmed", "note": "실무 확인 완료 2026-07-21. 두 점검표는 별개 문서" },
         { "id": "9-8b", "desc": "doc-requirements.ts 상수 — requiredDocs(customer)(문서·기한) + requiredFields(customer)(빠른 입력 필수·준비율 분모), 유형 분기 하드코딩 금지", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["src/lib/doc-requirements.ts — 매트릭스 주석·requiredDocs/requiredFields/isGeneralManagement/computeQuickReadiness, 소비처(plan-tab-view·[id]/page·customer-list)는 상수만 참조"], "method": "코드 대조" } },
-        { "id": "9-8c", "desc": "화면 반영 — 소방계획서 탭 필요 문서 칩 + 일반관리 '대상 아님' 배너·⚠ 뱃지 숨김 / 종합·작동 필드 단위 조건부(1.10.1 종합 블록) / 준비 화면 유형별 버튼 / 보고서 페이지 카드 흐림+툴팁", "status": "partial",
+        { "id": "9-8c", "desc": "화면 반영 — 소방계획서 탭 필요 문서 칩 + 일반관리 '대상 아님' 배너·⚠ 뱃지 숨김 / 종합·작동 필드 단위 조건부(1.10.1 종합 블록) / 준비 화면 유형별 버튼 / 보고서 페이지 카드 흐림+툴팁", "status": "implemented",
+          "note": "롤업 종결(2026-07-25): 9-8c-1~3 전부 implemented",
           "criteria": [
             { "id": "9-8c-1", "desc": "소방계획서 탭 필요 문서 칩 + 일반관리 배너·입력 미노출·탭 ⚠ 뱃지 숨김(상세+목록)", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "268d86f", "evidence": ["plan-tab-view.tsx isGeneral 배너+보관함만·docs 칩", "[id]/page.tsx 탭 뱃지 isGeneral 억제", "customer-list.ts 일반관리 계획서 판정·planTotal 억제", "E2E: 일반관리 5개 항목 통과"], "method": "코드 대조 + E2E" } },
             { "id": "9-8c-2", "desc": "종합·작동 필드 단위 조건부(1.10.1 종합 블록) — 종합 고객만 종합점검 블록 표시", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-form110.tsx isComprehensive 조건부 — 종합 블록(최초·종합·2차) 종합 고객만", "E2E: 작동 고객 종합 블록 미노출 확인"], "method": "코드 대조 + E2E" } },
-            { "id": "9-8c-3", "desc": "준비 화면 유형별 버튼(§9-6⑦) / 보고서 페이지 카드 흐림(§10)", "status": "partial", "note": "준비 화면 유형별 구현(48a28ea — 일반관리 점검은 별지 9호 섹션 미노출), 보고서 페이지 카드 흐림은 P5(§10)" }
+            { "id": "9-8c-3", "desc": "준비 화면 유형별 버튼(§9-6⑦) / 보고서 페이지 카드 흐림(§10)", "status": "implemented", "verified": { "date": "2026-07-25", "commit": "9e0c17a", "evidence": ["준비 화면 유형별(48a28ea — 일반관리 점검은 별지 9호 섹션 미노출)", "보고서 페이지 흐림: 소방계획서 생성 고객 검색에서 일반관리 후보 흐림(opacity)·선택 불가·'대상 아님' 라벨(§9-8 매트릭스) + requestFirePlanHwpAction 서버 최종 가드. 별지 9호 목록은 기왕 일반관리 제외"], "method": "E2E scripts/test-cd-ui.mts — 일반관리 후보 disabled 검증" } }
           ] },
         { "id": "9-8d", "desc": "외관점검표(일반용) 생성 — 실물 양식 확보 후 placeholder 심기 + inspection_sheets '외관점검' 시트 추가(기존 P34-2 UI 재사용, 새 화면 0개) + report_type='exterior' 귀속 저장", "status": "implemented", "verified": { "date": "2026-07-22", "commit": "977efa8", "evidence": "scripts/make-exterior.py·seed-exterior-placeholders.py(124항목×12월 심기)·seed-exterior-sheet.mjs(EXT-01~14 v2022 양쪽 DB)·supabase/migrations/102(exterior 큐)·scripts/fireplan-worker.py process_exterior·inspections/[id]/page.tsx 일반관리 분기", "method": "양식 = 법제처 flDownload 자동 수신(고시 2022-71 별지6호, OC 불필요). 병합 E2E scripts/_test-exterior.py 12/12 + 전체 E2E scripts/test-exterior-ui.mts 18/18(EXT 시트 입력→생성→워커 병합→HWP/PDF 업로드→다운로드, 스테이징 DB 실동작)" }, "note": "월별 기록지 구조 — 점검 건의 해당 월 열에 ○/×// 병합, 표지 해당 월 행(점검월일·양호/불량·점검자) 기재. 워커 상시화 개선 동반: pythonw+포트락+감시 래퍼(hidden console 랜덤 종료 차단)" },
         { "id": "9-8e", "desc": "기한 규칙 연계 — deadline을 알림 크론과 연결('이번 주 제출할 문서' 소스)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["defect-action-notify 크론 확장 — 별지 9호 15일 보고 기한 D-7/D-3/당일/경과(과태료 문구) 알림(특별점검만·제출일 기록 시 소멸, 105 report_submit_due/overdue), 기존 이행기한(9-7d)과 단일 크론(00:35 KST)"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7) — D-3 발송·제출 기록 건 제외·멱등" } }
@@ -303,7 +306,7 @@
       ]
     },
     {
-      "id": "10", "line": 626, "title": "보고서 페이지 (보고서 센터) — /reports 신설", "status": "partial",
+      "id": "10", "line": 626, "title": "보고서 페이지 (보고서 센터) — /reports 신설", "status": "implemented",
       "note": "역할 분담 확정: 고객 탭=입력+개별 생성 / 보고서 페이지=전 고객 선택·일괄 생성+현황+이력+서식 관리. 고객 탭 [HWP/PDF 생성]은 유지",
       "criteria": [
         { "id": "10-R1", "desc": "R-1 — /reports 신설 + 소방계획서·데이터시트 카드 + /fire-plans/generate 흡수(리다이렉트·사이드바 메뉴명 변경) + 서식 관리 접기(프리셋 이동)", "status": "implemented",
@@ -311,12 +314,13 @@
         { "id": "10-R2", "desc": "R-2 — 큐 fire_plan_gen_jobs에 report_type 컬럼 확장(워커 유형별 병합 분기) + 별지 9호·배치확인서 카드(점검 건 선택 UI) + 점검 완료 화면 바로가기", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["큐 report_type·워커 분기는 P3(099·48a28ea) 선구현", "별지 9호 카드 — 점검 건 선택(자체점검만·고객명 검색·생성 이력 수) → 점검 상세 준비 화면으로 이동(§9-6⑦ 진입점 2개·화면 1개)", "배치확인서 카드 — 업로드 문서 안내(예정 표시)"], "method": "코드 대조 + UI 스모크" },
           "note": "배치확인서는 협회 발급 업로드 문서(§9-9 ②)라 생성 카드 아님 — 점검 상세 업로드 슬롯은 §9-9 타임라인에서" },
-        { "id": "10-R3", "desc": "R-3 — 별지 10·11호 카드 + 법제처 개정 감지 크론·서식 버전(개정일)·'새 개정판' 뱃지", "status": "partial",
-          "note": "별지 10·11호 생성은 §9-7(1cd2a10) — 진입은 타임라인 ④⑥(카드 별도 활성화 불필요). 개정 감지 크론 완료(b5e6caa — §9-5c, 주간 VPS·관리자 알림). 잔여: 보고서 페이지 서식 버전 표시를 law_form_baselines 연동으로 갱신 + '새 개정판' 뱃지(현재는 알림으로 갈음 — 소소)" }
+        { "id": "10-R3", "desc": "R-3 — 별지 10·11호 카드 + 법제처 개정 감지 크론·서식 버전(개정일)·'새 개정판' 뱃지", "status": "implemented",
+          "verified": { "date": "2026-07-25", "commit": "9e0c17a", "evidence": ["서식 버전 = law_form_baselines 연동(별지 9호·10/11호 카드 — 공포일 표시), 108 seed_date(심어진 서식 기준) 양쪽 DB 적용", "개정 감지(announce>seed) 시 카드 '새 개정판' 뱃지 + 상단 재심기 배너 + 관리자 [재심기 반영 완료] 버튼(ackLawRevisionAction — seed_date 갱신·뱃지 해제)", "별지 10·11호 생성 진입은 타임라인 ④⑥(1cd2a10 — 카드 별도 활성화 불필요), 개정 감지 크론은 b5e6caa"], "method": "E2E scripts/test-cd-ui.mts — 개정 시뮬레이션(announce 20270101)→배너·뱃지→반영 완료→DB seed_date 검증·원복" } }
       ]
     },
     {
-      "id": "11", "line": 680, "title": "입력 편의 장치 — 필요한 값을 쉽게 입력", "status": "partial",
+      "id": "11", "line": 680, "title": "입력 편의 장치 — 필요한 값을 쉽게 입력", "status": "implemented",
+      "note": "롤업 종결(2026-07-25): 11-1~11-6 전부 implemented (11-5 필드 포커스 9e0c17a로 마감)",
       "criteria": [
         { "id": "11-1", "desc": "건축물대장 자동 채움 확대 ★최우선 — refreshLedgerAction을 1.1 신규 필드(건축허가일·세대수·동수·높이·구조·지붕·승강기·주차장 등)로 확대, 불러온 값 앰버 하이라이트→저장 확정", "status": "implemented",
           "criteria": [
@@ -329,7 +333,7 @@
         { "id": "11-2", "desc": "전년도 이어받기 — 연차발행 시 fire_plan_forms 섹션 전체 복사 + 개정이력 '연차 갱신' 자동 기록", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire_plan_forms는 고객당 1행 — 섹션은 설계상 자동 승계. issueNextYearPlanAction이 sections.revision을 '{연도}년 연차 갱신 (전년도 이어받기)'로 갱신(전년 개정 문구 딸림 방지)", "발행 행 note=연차발행 → 개정이력 다행 자동 반영(기존)"], "method": "E2E scripts/test-annual-carryover.mts 7/7 — 발행→2026행·파일 복제·revision 자동 기록·타 섹션(zones) 승계·화면 반영" } },
         { "id": "11-3", "desc": "섹션별 원클릭 채우기·해당없음 — 1.5 용도 기반 기본값, 1.6 LPG 프리셋, 1.11 표준 패턴, 2장 표준 문구, 3.5 해당없음 등", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6c27468", "evidence": ["1.5 용도 기본값(EVAC_PRESETS × recommendPresetType — plan-form15, 6c27468 신규)", "기존 구현 확인: 1.6 LPG 프리셋(plan-form16 lpgPreset)·1.11 표준 패턴+시나리오 프리셋(plan-form111)·2장 팀별 임무 표준 문구(plan-ch2)·3.5 해당없음 원클릭(plan-ch3)"], "method": "E2E scripts/test-section-copy.mts — 1.5 기본값 클릭→저장→DB(compartment=area·직통계단 2) + 기존 4종 코드 대조" } },
         { "id": "11-4", "desc": "입력 컴포넌트 공통 규칙 — 단위 표시·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["ui/fields.tsx — NumField(숫자만+단위 서픽스+numeric/decimal 키패드)·PhoneField(02 포함 자동 하이픈)·MonthField(네이티브 month picker ↔ 'YYYY년 M월' 저장 형식)·TableWrap·useUnsavedWarning(beforeunload)", "적용: 1.1(계단·경사로·승강기·인원·편성 전화)·1.3(km/분)·1.6(kW/kVA/개)·1.10(연월 3곳)·2장(전화) + 이탈 경고 훅 전 서식(12/13/15/16/17/110/111/ch2/ch3), 표 래퍼 1.2·1.7·개정이력"], "method": "E2E scripts/test-field-rules.mts 10/10(숫자 필터·단위·inputMode·month 저장/역파싱·전화 하이픈 2종·표 래퍼) + plan-tab 46/46·section-copy 11/11 회귀" }, "note": "설계 대비 채택 조정(정직 기록): 모바일 표는 카드형 대신 가로 스크롤 래퍼(열 구조 보존 판단), 준비율 즉시 갱신은 1.1 패널=입력 즉시(기왕)·목차/탭 뱃지=저장 시 갱신" },
-        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "partial", "note": "칩→입력처 딥링크 구현(0c8e095, E2E 4케이스 — test-import-deeplink.mts): 건물값→건물·시설 탭, 주소·사용승인일→기본정보 탭, 1.1 필드→서식 전체 1.1, 자위소방대→2장, 송달 동의→화면 내 스크롤. 버그 수정(2026-07-23, 580c088 — 사용자 보고): 마운트 후 클라이언트 내비에서 탭 무반응(CustomerTabs active가 1회 초기화 state) → ?tab= 프롭 동기화+goTab 사용, E2E test-chip-nav.mts 7/7. 잔여(정직 기록): 필드 단위 포커스 미구현 — 해당 서식 도착까지만" },
+        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "implemented", "verified": { "date": "2026-07-25", "commit": "9e0c17a", "evidence": ["필드 단위 포커스 완성: 1.1 칩(수신기위치·구조·지붕·급수·선임일·화재보험·운영시간·인원)=fire-plan-info-panel focusMissing 위임(erp:focus-missing 이벤트 — 요약→편집 전환+fp-* 포커스), 주소·사용승인일=기본정보 편집 전환+cf-* 포커스, 자위소방대=2장 편성표(c-2.2) 첫 입력 포커스", "건물값 칩(높이·세대수·승강기 등)=건물 패널 스크롤+앰버 강조 — 해당 값들은 건축물대장 연동 값이라 수기 입력칸이 없음(정직 기록: 필드 포커스 대신 패널 강조가 설계상 최선)", "이전분: 딥링크(0c8e095)·마운트 후 내비 무반응 수정(580c088)"], "method": "E2E scripts/test-cd-ui.mts 10/10(fp-receiver·cf-approval activeElement 검증) + test-chip-nav.mts 7/7" } },
         { "id": "11-6", "desc": "다른 고객 복사 확대 — getFirePlanCopyCandidatesAction을 섹션 단위 복사(1.5/1.6/1.11 유사 고객)로 확장", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6c27468", "evidence": ["fire-plan-form-actions.ts getSectionCopyCandidatesAction(섹션 보유 고객, 같은 용도 우선)·copySectionFromCustomerAction(화이트리스트 evacFire/etcFacility/training, 즉시 저장)", "section-copy-button.tsx — 1.5/1.6/1.11 서식에 [다른 고객에서 복사] 드롭다운, onApplied로 화면 즉시 반영"], "method": "E2E scripts/test-section-copy.mts 11/11 — 1.6·1.11 복사→화면·DB 검증, 타 섹션 보존" } }
       ]
     },
