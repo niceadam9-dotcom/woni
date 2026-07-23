@@ -25,8 +25,8 @@
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "partial",
       "note": "P4-①~⑤ 완료(최신 d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a(섹션→웹 PDF/HWP zones 연결) + 웹 개정이력 다행, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여(정직 기록): 신규 서식들의 HWP placeholder 확장(7-4 — 1.5·1.6·1.10·1.11·2장 임무·3장 세부의 HWP 병합은 웹 PDF만 반영, HWP 양식 심기는 서식별 순차)·HWP 개정이력 다행·임포트 배너(7-3b)" },
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "partial", "note": "R-1·R-2·별지 10·11호·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095) 완료 — 잔여: 개정 감지 크론(OC IP 블로커, 사용자 액션 대기)" },
-    { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "pending_order",
-      "note": "2026-07-23 세션 계획 확정. 범위: 좌측 목차 트리(완성도 뱃지)·섹션 카드 세로 스크롤·URL 딥링크 form=·1.1 3분할+별지9 연계 신규 필드(buildings/customers 마이그레이션)·생성 모달 폐지·모바일 폴백. ⚠ plan-tab 골격 전면 재작성 — E2E 38케이스 재작성, 부분 배포 불가(한 호흡 완주)" },
+    { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "partial",
+      "note": "핵심 종결(2026-07-23, 3827ecc — 104 양쪽 DB·E2E 46/46+회귀 7종·스테이징/운영 배포): 목차 트리(완성도·합산 뱃지)·form= 딥링크·1.1 3분할+신규 6필드·생성 모달 폐지(사진→1.3 이관)·모바일 드롭다운. 잔여(정직 기록): 카드 앵커 점프·1.10/3장 내부 서브탭 세로화(1-2)·표 카드형 폴백(7-6→P8)·미저장 감지의 버튼 토글 미포함" },
     { "id": "P7", "title": "문서 타임라인 — §9-9b~e + 9-6f 제출추적 + 9-8e 기한 연계 흡수 (§8-2②)", "status": "pending_order",
       "note": "2026-07-23 세션 계획 확정. 범위: 타임라인 UI(D-day·딥링크)·업로드 슬롯 3종·관계인 보고서+송달 이메일 자동 발송+발송 이력·제출 패키지(병합 PDF/ZIP)+제출일 기록(기한 알림 소멸 조건). ⚠ 선결: 이메일 발송 채널 결정(Gmail 공용계정 API 재사용 권장 vs SMTP)" },
     { "id": "P8", "title": "입력 컴포넌트 공통 규칙 — §11-4 공통 Field 컴포넌트화 후 전 서식 치환 (§8-2③)", "status": "pending_order",
@@ -39,13 +39,13 @@
       "note": "탭 구조(공통 필수값 1회 입력)·시설 코드 표준화(§4-3)·한글 SDK 파이프라인 공용 엔진·보고서 페이지(§10) 진입점 — 설계 전체가 이 목적에 종속"
     },
     {
-      "id": "1", "line": 24, "title": "전체 탭 계층 — 탭 > 좌측 목차 트리 > 서식 화면(섹션 카드) 3단계 (2026-07-21 개정)", "status": "pending_order",
+      "id": "1", "line": 24, "title": "전체 탭 계층 — 탭 > 좌측 목차 트리 > 서식 화면(섹션 카드) 3단계 (2026-07-21 개정)", "status": "partial",
       "criteria": [
-        { "id": "1-1", "desc": "좌측 목차 트리 — 장 접기/펼치기·현재 위치·완성도(✓/n/m/⚠) 상시 표시, 모바일 상단 드롭다운 폴백", "status": "pending_order" },
-        { "id": "1-2", "desc": "섹션 카드 — 서식 화면 내 탭 없이 세로 스크롤 + 카드 앵커 점프, 저장 버튼 서식당 1개 + 미저장 이동 확인", "status": "pending_order" },
-        { "id": "1-3", "desc": "URL 딥링크 /customers/{id}?tab=plan&form=1.1(+#카드앵커)", "status": "pending_order", "note": "구 골격은 ?tab=plan&sub= 형식으로 code_present(§8-1) — 개정 구조(form=)로 전환 필요" },
-        { "id": "1-4", "desc": "목차 항목별 완성도 뱃지 → 합산이 상위 소방계획서 탭 뱃지", "status": "pending_order" },
-        { "id": "1-5", "desc": "기본 진입 = 빠른 입력 화면(§1-1), 개정이력·보관은 고급 모드 목차 첫 항목 (종전 규정 폐기)", "status": "pending_order", "note": "결정 자체는 확정(2026-07-21, §12-4)" }
+        { "id": "1-1", "desc": "좌측 목차 트리 — 장 접기/펼치기·현재 위치·완성도(✓/n/m/⚠) 상시 표시, 모바일 상단 드롭다운 폴백", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["plan-tab-view.tsx — 좌측 목차(개정이력·보관 / 1장 서식 10종+합산 n/10 / 2장 / 3장), 항목별 완성도(✓/○, 1.1은 n/m 게이지 — page.tsx formStatus), 현재 위치 하이라이트, 모바일 md 미만 드롭다운 폴백(7-6)"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" }, "note": "장 접기/펼치기는 1장 상시 펼침으로 대체(서식 10종 규모에서 접기 불필요 판단) — 정직 기록" },
+        { "id": "1-2", "desc": "섹션 카드 — 서식 화면 내 탭 없이 세로 스크롤 + 카드 앵커 점프, 저장 버튼 서식당 1개 + 미저장 이동 확인", "status": "partial", "note": "구현(3827ecc): 서식별 세로 스크롤 카드(1.1 ①②③ 분할 포함)·저장 버튼 서식당 1개·미저장 이동 확인(입력 캡처 휴리스틱 — 텍스트 입력만 감지, 버튼 토글 변경은 미감지·정직 기록). 잔여: 카드 앵커 점프(#앵커)와 1.10·3장의 내부 서브탭 세로 전환" },
+        { "id": "1-3", "desc": "URL 딥링크 /customers/{id}?tab=plan&form=1.1(+#카드앵커)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["?tab=plan&form=<key> 진입 + 선택 시 history.replaceState 동기화(서버 왕복 없음), 구 sub= 딥링크 호환(ch1→1.1 매핑)"], "method": "E2E — form=1.6 직행·URL 동기화·sub=ch1 호환 3케이스" }, "note": "#카드앵커는 1-2 잔여와 함께" },
+        { "id": "1-4", "desc": "목차 항목별 완성도 뱃지 → 합산이 상위 소방계획서 탭 뱃지", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["page.tsx formStatus(13항목: 1.1 게이지+입력 존재 12종) → formFilled/formTotal이 소방계획서 탭 뱃지, 1장 헤더 합산 n/10"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" } },
+        { "id": "1-5", "desc": "기본 진입 = 빠른 입력 화면(§1-1), 개정이력·보관은 고급 모드 목차 첫 항목 (종전 규정 폐기)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["기본 진입=빠른 입력(기존 P2 유지), 서식 전체 모드 목차 첫 항목=개정이력·보관(기본 선택 archive)"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" } }
       ]
     },
     {
@@ -80,7 +80,7 @@
       "criteria": [
         { "id": "3-0", "desc": "웹 하드코딩 버그 해소(요구 3·4·5) — 수신기위치·급수·높이·구조·지붕·선임일 customers/buildings 연동 (getFirePlanGenDefaultsAction)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — select에 building_grade·manager_selected_at·height·receiver_location·main_structure·roof_structure 추가, grade:'3급' 등 하드코딩 제거(diff 대조)"], "method": "코드 대조 (diff 검토, 구현 세션과 별도 세션 판정)" } },
-        { "id": "3-1.1", "desc": "서식 1.1 건축물 일반현황 — 섹션 카드 3개(시설현황/운영현황/화재보험) 분할 + 별지 9호 연계 신규 필드(건축허가일·세대수·건물동수·경사로·계단·승강기·주차장·대표자 구분·관리자 자격구분·최근 교육이수일 → buildings/customers 확장)", "status": "pending_order", "note": "현재는 기존 아코디언 패널 그대로 배치(§8-1) — 분할·신규 필드는 P4(구 4-2)" },
+        { "id": "3-1.1", "desc": "서식 1.1 건축물 일반현황 — 섹션 카드 3개(시설현황/운영현황/화재보험) 분할 + 별지 9호 연계 신규 필드(건축허가일·세대수·건물동수·경사로·계단·승강기·주차장·대표자 구분·관리자 자격구분·최근 교육이수일 → buildings/customers 확장)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["104_form11_fields.sql — buildings(계단·경사로·피난용승강기)+customers(대표자 구분·자격구분·최근 교육이수일), 양쪽 DB 적용", "fire-plan-info-panel.tsx — ①시설현황/②운영현황/③화재보험 섹션 카드 + 신규 6필드 입력·요약 (건축허가일·세대수·동수·주차장은 기존 098+대장 파싱으로 기왕 충족)", "별지 9호 연계: 피난용승강기 placeholder 재심기·rep_role 체크·자격구분 우선·mgr_edu_date 병합(fireplan-worker.py)"], "method": "E2E — 신규 필드 저장→buildings/customers DB 검증 + 별지9호 병합 회귀 37/37" } },
         { "id": "3-1.2", "desc": "서식 1.2 세부현황 — 구역별(zones, 층 자동 생성) + 화재취약장소(hazards, 프리셋)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "ad8a7e4", "evidence": ["plan-form12.tsx — 구역별 행 편집(구역·명칭·면적·평일/휴일 인원·관리업체·연락처)+[층 자동 생성](건물 층수 기반)+행 추가/삭제, 화재취약 행(장소·위치·위험요인 6종 다중 체크)+프리셋(보일러실·주방·전기실), 서식당 저장 1개", "fire-plan-form-actions.ts saveFirePlanSectionsAction(키 화이트리스트·sections 병합 upsert)", "E2E: 프리셋→저장→DB sections.hazards 확인 (24/24)"], "method": "코드 대조 + E2E" },
           "note": "저장은 fire_plan_forms.sections — 생성(HWP) 병합 연동은 4-5 어댑터(§7-3)에서" },
@@ -167,7 +167,7 @@
               "note": "제외(구조 불일치 — 정직 기록): 1.11.2(차수 블록 고정 양식)·1.11.4(별지 28호 별도 양식)·시나리오(단일 텍스트↔5앵커 분할 불일치, 프리셋 경로 유지)" }
           ] },
         { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "pending_order", "note": "채택 결정 확정(2026-07-21) — 실행은 중기, 수정 지점 4곳→3곳" },
-        { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "pending_order" }
+        { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "partial", "note": "목차 모바일 드롭다운 폴백 구현(3827ecc — 개정 구조에서 탭 줄 가로 스크롤을 대체). 잔여: 서식 내 표(1.4·편성표 등) 카드형 폴백 — §11-4 공통 규칙(P8)에서" }
       ]
     },
     {
@@ -197,8 +197,8 @@
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["E2E 15/15 (scripts/test-plan-tab.mts, 로컬 dev+스테이징 DB)", "스테이징(staging.sjfire.co.kr)·운영(sjfire.co.kr) 배포 후 200 확인 — 서버 HEAD 1aa4c97"], "method": "E2E + 배포 스모크" } },
         { "id": "8-1i", "desc": "개정이력 다행 병합 (HWP placeholder·웹 템플릿 과거 이력 행)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "d51f0ac·bc3da57", "evidence": ["웹: fire-plan-template.ts FirePlanGenData.revisions 다행 렌더(d51f0ac)", "HWP: fill_table('소방계획서 개정이력') — 보관함 과거 행+이번 작성 행 셀 주입, 병합 검증 통과(bc3da57)"], "method": "코드 대조 + 템플릿 병합 검증" } },
-        { "id": "8-1j", "desc": "1.1 세부 3탭(시설현황/운영현황/화재보험) 분할", "status": "pending_order", "note": "P4(구 4-2)" },
-        { "id": "8-1k", "desc": "표준양식 생성 모달 폐지 (1.2·사진 입력 수단 이관 후)", "status": "pending_order", "note": "P4(구 4-2)" }
+        { "id": "8-1j", "desc": "1.1 세부 3탭(시설현황/운영현황/화재보험) 분할", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["3-1.1과 동일 — 탭 대신 섹션 카드 3개(§1-2 개정 구조 반영)"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" } },
+        { "id": "8-1k", "desc": "표준양식 생성 모달 폐지 (1.2·사진 입력 수단 이관 후)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "3827ecc", "evidence": ["fire-plan-generate-modal.tsx 삭제 — 보관함 [표준양식 생성]/[재생성]=generateFirePlanPdfNowAction 직결(서식 입력 기준)", "선행 이관: 1.2=서식 화면(기왕), 사진=서식 1.3 '생성 문서 삽입 사진' 카드(sections.photos→생성 photos 어댑터+FORM_SECTION_KEYS)"], "method": "scripts/test-plan-tab.mts 46/46 재작성 + plan 계열 회귀 7종 전부 통과" } }
       ]
     },
     {
