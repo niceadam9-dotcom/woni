@@ -29,8 +29,7 @@
       "note": "핵심 종결(2026-07-23, 3827ecc — 104 양쪽 DB·E2E 46/46+회귀 7종·스테이징/운영 배포): 목차 트리(완성도·합산 뱃지)·form= 딥링크·1.1 3분할+신규 6필드·생성 모달 폐지(사진→1.3 이관)·모바일 드롭다운. 잔여(정직 기록): 카드 앵커 점프·1.10/3장 내부 서브탭 세로화(1-2)·표 카드형 폴백(7-6→P8)·미저장 감지의 버튼 토글 미포함" },
     { "id": "P7", "title": "문서 타임라인 — §9-9b~e + 9-6f 제출추적 + 9-8e 기한 연계 흡수 (§8-2②)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 415fb1b — 105 양쪽 DB·E2E 25/25·회귀 그린): 타임라인 UI(§9-6⑦ 흡수·D-day·정기=EXT 체계 전환)·슬롯 3종·제출 패키지 ZIP·제출일 기록·15일 기한 크론(9-8e). 잔여: ③ 관계인 보고 실발송 — gmail.send 스코프 재발급(사용자 액션, google-oauth-setup.mjs 재실행) 후 검증하면 9-9d 승격" },
-    { "id": "P8", "title": "입력 컴포넌트 공통 규칙 — §11-4 공통 Field 컴포넌트화 후 전 서식 치환 (§8-2③)", "status": "pending_order",
-      "note": "2026-07-23 세션 계획 확정. 단위·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신. P6의 새 골격 위에서 마지막에(순서 고정)" },
+    { "id": "P8", "title": "입력 컴포넌트 공통 규칙 — §11-4 공통 Field 컴포넌트화 후 전 서식 치환 (§8-2③)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["§11-4 참조 — ui/fields.tsx 5종 컴포넌트/훅 + 서식 10개 적용"], "method": "E2E scripts/test-field-rules.mts 10/10(숫자 필터·단위·inputMode·month 저장/역파싱·전화 하이픈 2종·표 래퍼) + plan-tab 46/46·section-copy 11/11 회귀" } },
     { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
   ],
   "sections": [
@@ -167,7 +166,7 @@
               "note": "제외(구조 불일치 — 정직 기록): 1.11.2(차수 블록 고정 양식)·1.11.4(별지 28호 별도 양식)·시나리오(단일 텍스트↔5앵커 분할 불일치, 프리셋 경로 유지)" }
           ] },
         { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "pending_order", "note": "채택 결정 확정(2026-07-21) — 실행은 중기, 수정 지점 4곳→3곳" },
-        { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "partial", "note": "목차 모바일 드롭다운 폴백 구현(3827ecc — 개정 구조에서 탭 줄 가로 스크롤을 대체). 잔여: 서식 내 표(1.4·편성표 등) 카드형 폴백 — §11-4 공통 규칙(P8)에서" }
+        { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["목차 모바일 드롭다운(3827ecc — 탭 줄 대체)", "표 = TableWrap 가로 스크롤 래퍼(31e165f — 1.2·1.7·개정이력, 카드형 대신 채택: 열 구조 보존)"], "method": "E2E scripts/test-field-rules.mts 10/10 + plan-tab 46/46 회귀" }, "note": "카드형 폴백 대신 가로 스크롤 채택 — 설계 조정 정직 기록" }
       ]
     },
     {
@@ -324,7 +323,7 @@
           ] },
         { "id": "11-2", "desc": "전년도 이어받기 — 연차발행 시 fire_plan_forms 섹션 전체 복사 + 개정이력 '연차 갱신' 자동 기록", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire_plan_forms는 고객당 1행 — 섹션은 설계상 자동 승계. issueNextYearPlanAction이 sections.revision을 '{연도}년 연차 갱신 (전년도 이어받기)'로 갱신(전년 개정 문구 딸림 방지)", "발행 행 note=연차발행 → 개정이력 다행 자동 반영(기존)"], "method": "E2E scripts/test-annual-carryover.mts 7/7 — 발행→2026행·파일 복제·revision 자동 기록·타 섹션(zones) 승계·화면 반영" } },
         { "id": "11-3", "desc": "섹션별 원클릭 채우기·해당없음 — 1.5 용도 기반 기본값, 1.6 LPG 프리셋, 1.11 표준 패턴, 2장 표준 문구, 3.5 해당없음 등", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6c27468", "evidence": ["1.5 용도 기본값(EVAC_PRESETS × recommendPresetType — plan-form15, 6c27468 신규)", "기존 구현 확인: 1.6 LPG 프리셋(plan-form16 lpgPreset)·1.11 표준 패턴+시나리오 프리셋(plan-form111)·2장 팀별 임무 표준 문구(plan-ch2)·3.5 해당없음 원클릭(plan-ch3)"], "method": "E2E scripts/test-section-copy.mts — 1.5 기본값 클릭→저장→DB(compartment=area·직통계단 2) + 기존 4종 코드 대조" } },
-        { "id": "11-4", "desc": "입력 컴포넌트 공통 규칙 — 단위 표시·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신", "status": "pending_order" },
+        { "id": "11-4", "desc": "입력 컴포넌트 공통 규칙 — 단위 표시·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["ui/fields.tsx — NumField(숫자만+단위 서픽스+numeric/decimal 키패드)·PhoneField(02 포함 자동 하이픈)·MonthField(네이티브 month picker ↔ 'YYYY년 M월' 저장 형식)·TableWrap·useUnsavedWarning(beforeunload)", "적용: 1.1(계단·경사로·승강기·인원·편성 전화)·1.3(km/분)·1.6(kW/kVA/개)·1.10(연월 3곳)·2장(전화) + 이탈 경고 훅 전 서식(12/13/15/16/17/110/111/ch2/ch3), 표 래퍼 1.2·1.7·개정이력"], "method": "E2E scripts/test-field-rules.mts 10/10(숫자 필터·단위·inputMode·month 저장/역파싱·전화 하이픈 2종·표 래퍼) + plan-tab 46/46·section-copy 11/11 회귀" }, "note": "설계 대비 채택 조정(정직 기록): 모바일 표는 카드형 대신 가로 스크롤 래퍼(열 구조 보존 판단), 준비율 즉시 갱신은 1.1 패널=입력 즉시(기왕)·목차/탭 뱃지=저장 시 갱신" },
         { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "partial", "note": "칩→입력처 딥링크 구현(0c8e095, E2E 4케이스 — test-import-deeplink.mts): 건물값→건물·시설 탭, 주소·사용승인일→기본정보 탭, 1.1 필드→서식 전체 1.1, 자위소방대→2장, 송달 동의→화면 내 스크롤. 잔여(정직 기록): 필드 단위 포커스 미구현 — 해당 서식 도착까지만" },
         { "id": "11-6", "desc": "다른 고객 복사 확대 — getFirePlanCopyCandidatesAction을 섹션 단위 복사(1.5/1.6/1.11 유사 고객)로 확장", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6c27468", "evidence": ["fire-plan-form-actions.ts getSectionCopyCandidatesAction(섹션 보유 고객, 같은 용도 우선)·copySectionFromCustomerAction(화이트리스트 evacFire/etcFacility/training, 즉시 저장)", "section-copy-button.tsx — 1.5/1.6/1.11 서식에 [다른 고객에서 복사] 드롭다운, onApplied로 화면 즉시 반영"], "method": "E2E scripts/test-section-copy.mts 11/11 — 1.6·1.11 복사→화면·DB 검증, 타 섹션 보존" } }
       ]
