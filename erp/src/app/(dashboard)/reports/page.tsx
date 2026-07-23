@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { FileOutput, FileText, ClipboardCheck, FileStack, Search, AlertTriangle, TableProperties } from 'lucide-react'
+import { FileOutput, FileText, ClipboardCheck, FileStack, Search, AlertTriangle, TableProperties, CalendarPlus } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FirePlanGenerateRequestClient } from '@/components/fire-plans/generate-request-client'
@@ -8,6 +8,7 @@ import { getFirePlanGenStatusAction } from '@/app/(dashboard)/fire-plans/generat
 import { ReportCenterHome } from '@/components/reports/report-center-home'
 import { ReportGenList, type GenRow } from '@/components/reports/report-gen-list'
 import { SubmissionBoard } from '@/components/reports/submission-board'
+import { AnnualIssueWizard } from '@/components/reports/annual-issue-wizard'
 import { getCustomerDocsAction, getRecentDocsAction, getDocTodoAction, getSubmissionBoardAction, type CustomerDocs, type RecentDoc, type SubmissionRow, type SubmissionSummary } from './docs-actions'
 import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
 import type { UserRole } from '@/types'
@@ -26,6 +27,7 @@ const FORMS = [
   { key: 'placement', label: '점검인력 배치확인서', desc: '협회 발급 — 점검 상세에 업로드', icon: FileText, active: false, blKeys: [] as string[], fallbackVersion: '' },
   { key: 'report10', label: '이행계획·완료 (별지 10·11호)', desc: '불량 보유 건 — 바로 생성', icon: FileStack, active: true, blKeys: ['report10', 'report11'], fallbackVersion: '2026-07-01 공포 (법제처)' },
   { key: 'submissions', label: '제출 현황', desc: '9호·배치확인서·10·11호 한눈에', icon: TableProperties, active: true, blKeys: [] as string[], fallbackVersion: '타임라인 단일 소스 · 수기 입력 없음' },
+  { key: 'annual', label: '연차 일괄 발행', desc: '전 고객 소방계획서 연초 갱신', icon: CalendarPlus, active: true, blKeys: [] as string[], fallbackVersion: '연초 수백 클릭 → 1클릭' },
 ]
 
 type Baseline = { key: string; form_name: string; announce_date: string; seed_date: string | null }
@@ -38,7 +40,7 @@ export default async function ReportsPage({ searchParams }: {
   if (!profile) redirect('/login')
   const { form: formRaw, q, cust } = await searchParams
   // 랜딩(docs) + 서식별 흐름(fire_plan·report9·report10). 기본은 ⓪ 첫 화면(검색·오늘 할 일)
-  const VALID_FORMS = ['docs', 'fire_plan', 'report9', 'report10', 'submissions']
+  const VALID_FORMS = ['docs', 'fire_plan', 'report9', 'report10', 'submissions', 'annual']
   const form = VALID_FORMS.includes(formRaw ?? '') ? formRaw! : 'docs'
 
   // 보고서 센터 첫 화면 데이터 (소방계획서_5 S2) — 권한 있는 직원만 SSR 페치 (없으면 빈 값, 상호작용 시 액션이 재차 가드)
@@ -232,6 +234,9 @@ export default async function ReportsPage({ searchParams }: {
 
       {/* §7-A 제출 현황판 (R14) */}
       {form === 'submissions' && board && <SubmissionBoard rows={board.rows} summary={board.summary} />}
+
+      {/* P-1 연차 일괄 발행 마법사 (S5) */}
+      {form === 'annual' && <AnnualIssueWizard defaultYear={new Date().getFullYear() + 1} />}
       </ReportCenterHome>
     </div>
   )

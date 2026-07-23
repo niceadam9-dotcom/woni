@@ -161,6 +161,30 @@ def attach_pdf(plan_id: str, odt_local: str, odt_storage: str, pdf_storage: str,
         print(f"[{now_iso()}] 로컬 PDF 변환 실패 → 크론 폴백: {e}")
         trigger_cron_convert()
 
+# ── P-3 생성 품질 자동 검증 게이트 (소방계획서_5 §8 P-3) ──
+# 데이터에 값이 있는데 생성물(HTML 미리보기) 텍스트에 없으면 '병합 확인 실패'로 missing에 기록.
+# 빈 문서를 소방서에 제출하는 사고 예방 — 2026-07-25 실전 통주행 검증법의 시스템화.
+def _text_of_html(path: str) -> str:
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            html = f.read()
+        return re.sub(r"<[^>]+>", " ", html)
+    except Exception:  # noqa: BLE001
+        return ""
+
+def verify_merge(html_local: str, checks: list[tuple[str, str]]) -> list[str]:
+    """checks = [(라벨, 기대값)] — 기대값이 비어있지 않은데 생성물 텍스트에 없으면 실패 라벨 반환."""
+    text = _text_of_html(html_local)
+    if not text:
+        return []  # 텍스트 추출 실패 시 게이트 건너뜀(오탐 방지)
+    fails = []
+    for label, value in checks:
+        v = (value or "").strip()
+        if v and v not in text:
+            fails.append(f"병합 확인 실패: {label}")
+    return fails
+
+
 def process(job: dict) -> tuple[list[str], dict | None]:
     """작업 1건 생성·업로드(1단계: HWP·HTML 즉시 등록). 반환 = (누락 라벨, PDF 후속 변환 작업)"""
     cust_id, year = job["customer_id"], int(job["year"])
@@ -298,6 +322,7 @@ def process(job: dict) -> tuple[list[str], dict | None]:
         ("인원", any(cust.get(k) is not None for k in ("headcount_worker", "headcount_resident", "headcount_max")) or None),
         ("자위소방대", brigade or None),
     ] if not has]
+    missing += verify_merge(out_html, [("고객명", cust["customer_name"]), ("주소", cust.get("address") or "")])
     print(f"[{now_iso()}] ✅ 1단계 완료: {cust['customer_name']} → HWP·미리보기 등록 (누락 {len(missing)}개)")
     return missing, pdf_task
 
@@ -534,6 +559,7 @@ def process_report9(job: dict) -> list[str]:
     ] if not has]
     if pdf_note:
         missing.append(pdf_note)
+    missing += verify_merge(out_html, [("고객명", cust["customer_name"]), ("주소", cust.get("address") or "")])
     print(f"[{now_iso()}] ✅ 별지9호 완료: {label} (누락 {len(missing)}개)")
     return missing
 
@@ -614,6 +640,7 @@ def process_report1011(job: dict) -> list[str]:
             missing.append(f"PDF 변환 실패({pe})")
     else:
         missing.append("LibreOffice 미설치 — HWP만 등록")
+    missing += verify_merge(out_html, [("고객명", cust["customer_name"]), ("주소", cust.get("address") or "")])
     print(f"[{now_iso()}] ✅ {label} 완료 (누락 {len(missing)}개)")
     return missing
 
@@ -689,6 +716,7 @@ def process_exterior(job: dict) -> list[str]:
         missing.append("점검자(담당) 미배정")
     if not (owner or {}).get("name"):
         missing.append("소방안전관리자(대표 관계인) 미등록")
+    missing += verify_merge(out_html, [("고객명", cust["customer_name"]), ("주소", cust.get("address") or "")])
     print(f"[{now_iso()}] ✅ 외관점검표 완료: {label} ({month}월 결과 {n_marks}건, 누락 {len(missing)}개)")
     return missing
 

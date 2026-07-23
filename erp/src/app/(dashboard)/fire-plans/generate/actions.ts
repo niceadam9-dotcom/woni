@@ -152,6 +152,60 @@ export async function requestFirePlanHwpAction(
   return { requested }
 }
 
+/* ── P-1 연차 일괄 발행 마법사 (소방계획서_5 §8 P-1) ── */
+
+export type AnnualTargets = {
+  year: number
+  total: number       // 소방계획서 대상(활성·일반관리 제외) 고객 수
+  issued: number      // 해당 연도 계획서 보유 고객 수
+  pending: number     // 해당 연도 생성 대기/진행 중
+  remaining: number   // 아직 발행 안 됨 (일괄 발행 대상)
+}
+
+/** 소방계획서 대상 고객 중 해당 연도 미발행 집계 — 마법사 현황 */
+export async function getAnnualTargetsAction(year: number): Promise<{ targets?: AnnualTargets; error?: string }> {
+  await requirePermission('customer_manage')
+  if (!year || year < 2000 || year > 2100) return { error: '연도를 확인해주세요.' }
+  const admin = createAdminClient()
+  const [custRes, planRes, jobRes] = await Promise.all([
+    admin.from('customers').select('id').eq('is_active', true).neq('inspection_type', '일반관리'),
+    admin.from('fire_plans').select('customer_id').eq('year', year),
+    admin.from('fire_plan_gen_jobs').select('customer_id').eq('year', year).in('status', ['pending', 'processing']),
+  ])
+  const targets = new Set(((custRes.data ?? []) as Array<{ id: string }>).map(c => c.id))
+  const issued = new Set(((planRes.data ?? []) as Array<{ customer_id: string }>).map(p => p.customer_id).filter(id => targets.has(id)))
+  const pending = new Set(((jobRes.data ?? []) as Array<{ customer_id: string }>).map(j => j.customer_id).filter(id => targets.has(id)))
+  const remaining = [...targets].filter(id => !issued.has(id) && !pending.has(id)).length
+  return { targets: { year, total: targets.size, issued: issued.size, pending: pending.size, remaining } }
+}
+
+/** 해당 연도 미발행 대상 전체(또는 상한)를 생성 큐에 일괄 등록 — 연초 수백 클릭을 1클릭으로 */
+export async function bulkAnnualIssueAction(year: number, opts: { limit?: number } = {}): Promise<{ requested?: number; error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  if (!year || year < 2000 || year > 2100) return { error: '연도를 확인해주세요.' }
+  const admin = createAdminClient()
+  const cap = Math.min(opts.limit ?? 500, 500)
+
+  const [custRes, planRes, jobRes] = await Promise.all([
+    admin.from('customers').select('id, customer_name').eq('is_active', true).neq('inspection_type', '일반관리').order('customer_name'),
+    admin.from('fire_plans').select('customer_id').eq('year', year),
+    admin.from('fire_plan_gen_jobs').select('customer_id').eq('year', year).in('status', ['pending', 'processing']),
+  ])
+  const issued = new Set(((planRes.data ?? []) as Array<{ customer_id: string }>).map(p => p.customer_id))
+  const pending = new Set(((jobRes.data ?? []) as Array<{ customer_id: string }>).map(j => j.customer_id))
+  const toIssue = ((custRes.data ?? []) as Array<{ id: string; customer_name: string }>)
+    .filter(c => !issued.has(c.id) && !pending.has(c.id)).slice(0, cap)
+  if (toIssue.length === 0) return { requested: 0 }
+
+  const rows = toIssue.map(c => ({
+    customer_id: c.id, customer_name: c.customer_name, year,
+    preset_type: null, requested_by: profile.id, requested_by_name: profile.name,
+  }))
+  const { error, data } = await admin.from('fire_plan_gen_jobs').insert(rows).select('id')
+  if (error) return { error: `일괄 등록 실패: ${error.message}` }
+  return { requested: (data ?? []).length }
+}
+
 // ── 7차: 프리셋 조회·저장 ─────────────────────────────────────
 
 export async function getFirePlanPresetsAction(): Promise<{ presets: FirePlanPreset[] }> {
