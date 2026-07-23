@@ -223,7 +223,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div id="buildings-panel" className="scroll-mt-4 bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">건물 목록</h2>

@@ -117,10 +117,13 @@ export async function requestFirePlanHwpAction(
   const preset = presetType && (PRESET_TYPES as readonly string[]).includes(presetType) ? presetType : ''
 
   const { data: custs } = await admin.from('customers')
-    .select('id, customer_name').in('id', ids)
-  const nameById = new Map(((custs ?? []) as Array<{ id: string; customer_name: string }>)
-    .map(c => [c.id, c.customer_name]))
+    .select('id, customer_name, inspection_type').in('id', ids)
+  const rows = (custs ?? []) as Array<{ id: string; customer_name: string; inspection_type: string }>
+  const nameById = new Map(rows.map(c => [c.id, c.customer_name]))
   if (nameById.size !== ids.length) return { error: '고객을 찾을 수 없습니다.' }
+  // §9-8 매트릭스 — 일반관리 고객은 소방계획서 작성 대상 아님 (서버 최종 가드)
+  const general = rows.filter(c => c.inspection_type === '일반관리').map(c => c.customer_name)
+  if (general.length > 0) return { error: `일반관리 고객은 소방계획서 작성 대상이 아닙니다: ${general.join(', ')}` }
 
   if (preset) await ensurePresetFile(admin, preset as PresetType)
 

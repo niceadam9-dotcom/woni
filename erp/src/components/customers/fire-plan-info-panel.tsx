@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy, Pencil } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, getFirePlanCopyCandidatesAction, type FirePlanInfoInput, type BrigadeMemberInput, type CopySourceCandidate } from '@/app/(dashboard)/customers/fire-plan-info-actions'
@@ -9,7 +9,7 @@ import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-readiness'
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
-import { NumField, PhoneField } from '@/components/ui/fields'
+import { CardAnchorBar, NumField, PhoneField } from '@/components/ui/fields'
 
 /** 소방계획서 정보 패널 (5+6차) — 아코디언 4그룹 + 준비율 게이지 + 가져오기 (설계 §4·§5) */
 
@@ -72,6 +72,17 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     hasHeadcount: !!(d.headcountWorker || d.headcountResident || d.headcountMax),
     hasBrigade: d.brigade.some(m => m.name.trim()),
   })
+
+  // §11-5: 빠른 입력 화면 누락 칩(plan-tab-view) → 이 패널 열고 필드 포커스 — 커스텀 이벤트 수신
+  useEffect(() => {
+    const onFocusReq = (e: Event) => {
+      const label = (e as CustomEvent<{ label?: string }>).detail?.label
+      if (label && READINESS_TARGET_IDS[label]) focusMissing(label)
+    }
+    window.addEventListener('erp:focus-missing', onFocusReq)
+    return () => window.removeEventListener('erp:focus-missing', onFocusReq)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 누락 칩 클릭 → 패널 열고(편집 모드) 해당 입력칸으로 스크롤·포커스 (설계 §5-1)
   function focusMissing(label: string) {
@@ -347,8 +358,13 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             </div>
           )}
 
+          {/* §1-2 카드 앵커 점프 */}
+          <CardAnchorBar items={[
+            { id: 'c-1.1.1', label: '① 시설현황' }, { id: 'c-1.1.2', label: '② 운영현황' }, { id: 'c-1.1.3', label: '③ 화재보험' },
+          ]} />
+
           {/* ① 시설현황 (섹션 카드 — §3-1.1) */}
-          <section className="rounded-xl border border-[#e0ddf5] bg-white p-3">
+          <section id="c-1.1.1" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
             <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> ① 시설현황 {!initial.hasBuilding && (
               <span className="text-amber-600 font-normal">
                 (건물 미등록 —{' '}
@@ -387,7 +403,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
           </section>
 
           {/* ② 운영현황 (섹션 카드 — §3-1.1: 급수·선임·대표자·자격·교육 + 운영·인원 + 자위소방대) */}
-          <section className="rounded-xl border border-[#e0ddf5] bg-white p-3 space-y-3">
+          <section id="c-1.1.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3 space-y-3">
             <p className="text-[11px] font-bold text-[#7b68ee] flex items-center gap-1"><Clock className="size-3" /> ② 운영현황</p>
             <div className="flex flex-wrap gap-2 items-end">
               <div><label className={labelCls}>급수(대상물 등급)</label><br />
@@ -471,7 +487,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
           </section>
 
           {/* ③ 화재보험 (섹션 카드 — §3-1.1) */}
-          <section className="rounded-xl border border-[#e0ddf5] bg-white p-3">
+          <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
             <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
             <div className="flex flex-wrap gap-2 items-end">
               <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">

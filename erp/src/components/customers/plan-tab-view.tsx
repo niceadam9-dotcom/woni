@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
 import {
@@ -34,6 +34,10 @@ const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'con
 }
 const CHIP_TARGET_LABEL: Record<string, string> = {
   buildings: '건물·시설 탭', info: '기본정보 탭', form11: '1장 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '아래 송달 동의',
+}
+/** 11-5 필드 단위 포커스 — 기본정보 탭 칩 라벨 → 편집 폼 입력 id (1.1 칩은 fire-plan-info-panel focusMissing에 위임) */
+const CHIP_FIELD_ID: Record<string, string> = {
+  '주소': 'cf-address', '사용승인일': 'cf-approval',
 }
 
 /** 1장 서식 목차 (소방계획서_4.md §3 순서) */
@@ -122,6 +126,13 @@ export function PlanTabView({
     url.searchParams.delete('sub')
     window.history.replaceState(null, '', url.toString())
   }
+  // §1-2·1-3 카드 앵커 딥링크 — ?form=…#c-카드 진입/서식 전환 시 해당 카드로 스크롤
+  useEffect(() => {
+    const h = window.location.hash
+    if (!h.startsWith('#c-')) return
+    const t = setTimeout(() => document.getElementById(decodeURIComponent(h.slice(1)))?.scrollIntoView({ block: 'start' }), 200)
+    return () => clearTimeout(t)
+  }, [sel])
   const [year, setYear] = useState(new Date().getFullYear())
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
@@ -159,19 +170,49 @@ export function PlanTabView({
     })
   }
 
-  // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 (탭 이동 / 서식 전환 / 화면 내 스크롤)
+  // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 + 필드 단위 포커스(스크롤·포커스·앰버 펄스)
   // 탭 이동은 탭 셸 컨텍스트 goTab 우선(미저장 confirm 존중) — 셸 밖 단독 렌더 시 router.push 폴백
+  function focusField(id: string, delay = 300) {
+    // 대상 패널이 이제 막 마운트되는 경우가 있어 폴링 (최대 8회 × 300ms)
+    let tries = 0
+    const tick = () => {
+      const el = document.getElementById(id)
+      if (!el) {
+        if (++tries < 8) setTimeout(tick, 300)
+        return
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const input = el.matches('input,select,textarea') ? (el as HTMLElement) : el.querySelector<HTMLElement>('input,select,textarea')
+      if (input && !(input as HTMLInputElement).disabled) input.focus({ preventScroll: true })
+      el.classList.add('ring-2', 'ring-amber-400', 'rounded-lg')
+      setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400', 'rounded-lg'), 2500)
+    }
+    setTimeout(tick, delay)
+  }
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
+    const fieldId = CHIP_FIELD_ID[label]
     if (!t) { setMode('full'); select('1.1'); return }
     if (t === 'buildings' || t === 'info') {
       if (tabsShell) tabsShell.goTab(t)
       else router.push(`/customers/${customerId}?tab=${t}`)
+      if (t === 'info' && fieldId) {
+        // 기본정보는 요약 모드 → 편집 전환+포커스가 필요해 컴포넌트에 위임 (erp:focus-missing)
+        setTimeout(() => window.dispatchEvent(new CustomEvent('erp:focus-missing', { detail: { id: fieldId } })), 350)
+      } else if (t === 'buildings') {
+        // 건물값(높이·세대수·승강기 등)은 대장 연동 값 — 건물 패널로 스크롤·강조
+        focusField('buildings-panel')
+      }
       return
     }
     if (t === 'consent') { document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
     setMode('full')
     select(t === 'ch2' ? 'ch2' : '1.1')
+    if (t === 'ch2') { focusField('c-2.2'); return }
+    // 1.1 칩 — 요약→편집 전환이 필요하므로 fire-plan-info-panel의 focusMissing에 위임 (마운트 대기 재시도)
+    for (const ms of [300, 800, 1500]) {
+      setTimeout(() => window.dispatchEvent(new CustomEvent('erp:focus-missing', { detail: { label } })), ms)
+    }
   }
 
   // §7-3b: 구 웹 생성분(.form.json) → 서식 저장소 최초 1회 가져오기

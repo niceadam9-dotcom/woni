@@ -44,9 +44,9 @@ try {
   const infoChip = page.locator('button:has-text("사용승인일 ↗")').first()
   if (await infoChip.count() > 0) {
     await infoChip.click()
-    await page.waitForTimeout(1500)
-    const infoSelected = await page.locator('[role=tab][aria-selected="true"]:has-text("기본정보")').count()
-    check('사용승인일 칩 → 기본정보 탭 전환', infoSelected === 1)
+    const infoSelected = await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("기본정보")', { timeout: 15000 })
+      .then(() => true).catch(() => false)
+    check('사용승인일 칩 → 기본정보 탭 전환', infoSelected)
   } else {
     check('사용승인일 칩 → 기본정보 탭 전환 (칩 없음 — 스킵 아님 실패)', false)
   }
@@ -62,8 +62,9 @@ try {
       .then(() => true).catch(() => false)
     const activeLabel = await page.locator('[role=tab][aria-selected="true"]').first().textContent()
     check('페이지 내 Link(?tab=plan&form=1.4) → 탭 전환', planSel, `url=${page.url()} active=${activeLabel}`)
-    check('form=1.4 서식 화면 표시(plan 패널 내)',
-      await page.locator('[role=tabpanel]:not([hidden]) button:has-text("1.4 소방시설")').first().isVisible().catch(() => false))
+    const form14 = await page.waitForSelector('[role=tabpanel]:not([hidden]) button:has-text("1.4 소방시설")', { timeout: 15000 })
+      .then(() => true).catch(() => false)
+    check('form=1.4 서식 화면 표시(plan 패널 내)', form14)
   } else {
     check('페이지 내 Link 존재(1.4 안내)', false, 'a[href*=form=1.4] 미발견')
   }

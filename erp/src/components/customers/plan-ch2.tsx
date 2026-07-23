@@ -83,7 +83,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
       </div>
 
       {/* 2.2 편성표 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div id="c-2.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
         <div className="flex items-center gap-2 mb-2">
           <p className="text-xs font-semibold text-[#514b81]">2.2 편성표
             <span className="font-normal text-[#b0acd6] ml-2">1.1 계획서 정보 패널의 자위소방대와 동일 데이터</span>

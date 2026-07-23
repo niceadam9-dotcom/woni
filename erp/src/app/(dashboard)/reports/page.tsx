@@ -1,23 +1,28 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { FileOutput, FileText, ClipboardCheck, FileStack, Search, ChevronRight } from 'lucide-react'
+import { FileOutput, FileText, ClipboardCheck, FileStack, Search, ChevronRight, AlertTriangle } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FirePlanGenerateRequestClient } from '@/components/fire-plans/generate-request-client'
 import { getFirePlanGenStatusAction } from '@/app/(dashboard)/fire-plans/generate/actions'
+import { ackLawRevisionAction } from './actions'
 
 export const dynamic = 'force-dynamic'
 
-/** 보고서 센터 (소방계획서_4.md §10, R-1·R-2) — 전 고객 대상 서식 선택·일괄 생성 + 처리 현황 + 서식 관리.
+/** 보고서 센터 (소방계획서_4.md §10, R-1·R-2·R-3) — 전 고객 대상 서식 선택·일괄 생성 + 처리 현황 + 서식 관리.
  *  역할 분담: 고객 탭 = 데이터 입력 + 개별 생성 / 이 페이지 = 서식 카탈로그·일괄 생성·현황.
- *  별지 9호는 준비 화면(점검 상세 §9-6⑦)이 단일 생성 지점 — 여기서는 점검 건 선택 → 준비 화면으로 이동. */
+ *  별지 9호는 준비 화면(점검 상세 §9-6⑦)이 단일 생성 지점 — 여기서는 점검 건 선택 → 준비 화면으로 이동.
+ *  서식 버전은 law_form_baselines(106·108) 연동 — 개정 감지(announce>seed) 시 '새 개정판' 뱃지 + 재심기 배너 */
 
 const FORMS = [
-  { key: 'fire_plan', label: '소방계획서', desc: 'HWP+PDF · 고객 다중 선택', icon: FileOutput, active: true, version: '소방청 표준양식 (25년 이후)' },
-  { key: 'report9', label: '자체점검 실시결과 (별지 9호)', desc: '점검 건 선택 → 준비 화면', icon: ClipboardCheck, active: true, version: '2026-07-01 공포 (법제처)' },
-  { key: 'placement', label: '점검인력 배치확인서', desc: '협회 발급 — 점검 상세에 업로드', icon: FileText, active: false, version: '' },
-  { key: 'report10', label: '이행계획·완료 (별지 10·11호)', desc: '불량 생애주기 — R-3 예정', icon: FileStack, active: false, version: '' },
+  { key: 'fire_plan', label: '소방계획서', desc: 'HWP+PDF · 고객 다중 선택', icon: FileOutput, active: true, blKeys: [] as string[], fallbackVersion: '소방청 표준양식 (25년 이후)' },
+  { key: 'report9', label: '자체점검 실시결과 (별지 9호)', desc: '점검 건 선택 → 준비 화면', icon: ClipboardCheck, active: true, blKeys: ['report9'], fallbackVersion: '2026-07-01 공포 (법제처)' },
+  { key: 'placement', label: '점검인력 배치확인서', desc: '협회 발급 — 점검 상세에 업로드', icon: FileText, active: false, blKeys: [] as string[], fallbackVersion: '' },
+  { key: 'report10', label: '이행계획·완료 (별지 10·11호)', desc: '불량 생애주기 — 타임라인 ④⑥에서 생성', icon: FileStack, active: false, blKeys: ['report10', 'report11'], fallbackVersion: '' },
 ]
+
+type Baseline = { key: string; form_name: string; announce_date: string; seed_date: string | null }
+const fmtYmd = (d: string) => (d?.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d)
 
 export default async function ReportsPage({ searchParams }: {
   searchParams: Promise<{ form?: string; q?: string }>
@@ -26,6 +31,14 @@ export default async function ReportsPage({ searchParams }: {
   if (!profile) redirect('/login')
   const { form: formRaw, q } = await searchParams
   const form = FORMS.some(f => f.key === formRaw && f.active) ? formRaw! : 'fire_plan'
+
+  // §10-R3: 서식 버전(law_form_baselines) — 개정 감지 크론(§9-5c)이 announce_date를 갱신
+  const adminBl = createAdminClient()
+  const { data: blRaw } = await adminBl.from('law_form_baselines').select('key, form_name, announce_date, seed_date')
+  const baselines = new Map(((blRaw ?? []) as Baseline[]).map(b => [b.key, b]))
+  const isRevised = (b?: Baseline) => !!b && !!b.seed_date && b.announce_date > b.seed_date
+  const revisedList = [...baselines.values()].filter(b => isRevised(b))
+  const canAck = ['admin', 'manager'].includes(profile.role)
 
   // 별지 9호 — 점검 건 선택 목록 (자체점검만 §9-8, 일반관리는 대상 아님)
   let inspections: Array<{
@@ -71,11 +84,36 @@ export default async function ReportsPage({ searchParams }: {
     <div className="space-y-4 max-w-5xl">
       <h1 className="text-xl font-bold text-[#090c1d]">보고서 센터</h1>
 
-      {/* 서식 카탈로그 (§10-2) — 해당 없는 서식은 흐림 */}
+      {/* §10-R3: 서식 개정 감지 배너 — 재심기 후 [반영 완료]로 뱃지 해제 */}
+      {revisedList.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1.5">
+          <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+            <AlertTriangle className="size-3.5" /> 법제처 서식 개정이 감지됐습니다 — 새 서식 수신 후 재심기(개발 PC)가 필요합니다
+          </p>
+          {revisedList.map(b => (
+            <div key={b.key} className="flex items-center gap-2 text-[11px] text-amber-700">
+              <span>{b.form_name}: 심어진 서식 {fmtYmd(b.seed_date!)} → 최신 공포 {fmtYmd(b.announce_date)}</span>
+              {canAck && (
+                <form action={ackLawRevisionAction}>
+                  <input type="hidden" name="key" value={b.key} />
+                  <button type="submit" title="재심기(placeholder 재실행)를 마친 뒤에만 눌러주세요"
+                    className="h-5 px-2 rounded border border-amber-300 text-[10px] text-amber-800 hover:bg-amber-100">재심기 반영 완료</button>
+                </form>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 서식 카탈로그 (§10-2) — 해당 없는 서식은 흐림, 버전은 law_form_baselines 연동(R-3) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {FORMS.map(f => {
           const Icon = f.icon
           const selected = form === f.key
+          const bls = f.blKeys.map(k => baselines.get(k)).filter(Boolean) as Baseline[]
+          const latest = bls.length > 0 ? bls.reduce((a, b) => (a.announce_date >= b.announce_date ? a : b)) : null
+          const version = latest ? `${fmtYmd(latest.announce_date)} 공포 (법제처)` : f.fallbackVersion
+          const revised = bls.some(b => isRevised(b))
           const card = (
             <div className={`rounded-xl border p-3 h-full transition-colors ${
               !f.active ? 'border-[#eceafd] opacity-50'
@@ -83,9 +121,13 @@ export default async function ReportsPage({ searchParams }: {
               <div className="flex items-center gap-1.5">
                 <Icon className={`size-4 ${selected ? 'text-[#7b68ee]' : 'text-[#514b81]'}`} />
                 <span className={`text-xs font-semibold ${selected ? 'text-[#7b68ee]' : 'text-[#090c1d]'}`}>{f.label}</span>
+                {revised && (
+                  <span title="법제처 개정 감지 — 재심기 필요"
+                    className="ml-auto shrink-0 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">새 개정판</span>
+                )}
               </div>
               <p className="text-[11px] text-[#514b81] mt-1">{f.desc}</p>
-              {f.version && <p className="text-[10px] text-[#b0acd6] mt-0.5">{f.version}</p>}
+              {version && <p className="text-[10px] text-[#b0acd6] mt-0.5">{version}</p>}
               {!f.active && <p className="text-[10px] text-[#b0acd6] mt-0.5">예정</p>}
             </div>
           )

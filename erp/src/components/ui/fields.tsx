@@ -90,6 +90,26 @@ export function TableWrap({ children, className = '' }: { children: ReactNode; c
   return <div className={`overflow-x-auto -mx-1 px-1 ${className}`}>{children}</div>
 }
 
+/** §1-2 카드 앵커 점프 바 — 다카드 서식 상단 칩. 클릭 시 해당 카드로 스크롤 + URL 해시(#c-…) 동기화(딥링크 공유용) */
+export function CardAnchorBar({ items }: { items: Array<{ id: string; label: string }> }) {
+  return (
+    <div className="flex items-center gap-1 flex-wrap mb-3">
+      {items.map(it => (
+        <button key={it.id} type="button"
+          onClick={() => {
+            document.getElementById(it.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            const url = new URL(window.location.href)
+            url.hash = it.id
+            window.history.replaceState(null, '', url.toString())
+          }}
+          className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5] hover:bg-[#eceafd] transition-colors">
+          {it.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** 미저장 브라우저 이탈 경고 — dirty 동안 beforeunload (탭 내 이동 확인은 plan-tab-view가 담당) */
 export function useUnsavedWarning(dirty: boolean) {
   useEffect(() => {

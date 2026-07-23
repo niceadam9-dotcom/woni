@@ -210,26 +210,26 @@ try {
   check('DB brigadeGeneral(Type Ⅲ) + fire_brigade_members 저장',
     bg?.type === 'III' && (brigRows ?? []).some((r: { name: string }) => r.name === '김대장'), JSON.stringify({ bg, brigRows }))
 
-  // ── 4.66) 3장 피난계획 (P4-⑤) — 딥링크 sub=ch3 + 3.4 저장 ──
+  // ── 4.66) 3장 피난계획 (P4-⑤ + §1-2 세로 카드·앵커·단일 저장) — 딥링크 sub=ch3 ──
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&sub=ch3`)
   await page.waitForSelector('text=3.1 피난시설 및 기타시설 일반현황')
   check('3.1 — 1.5 입력 자동 표시(방화구획 해당없음)', await page.isVisible('text=방화구획: 해당없음'))
+  // §1-2: 내부 서브탭 폐기 — 3.2·3.4·3.7이 클릭 없이 동시 표시(세로 스크롤)
+  check('3장 세로 카드 — 3.4·3.7 동시 표시', await page.isVisible('text=피난유도 절차 및 피난경로')
+    && await page.isVisible('text=3.7 피난 기구·유도장비 세부현황'))
+  // 앵커 점프 칩 → URL 해시 동기화
   await page.click('button:has-text("3.4 유도·경로")')
-  await page.waitForSelector('text=피난유도 절차 및 피난경로')
+  await page.waitForTimeout(400)
+  check('앵커 칩 → URL #c-3.4', page.url().includes('#c-3.4'))
   await page.click('button:has-text("절차 프리셋")')
   await page.fill('input[placeholder*="1층 주차장"]', '정문 앞 공터')
-  await page.click('button:has-text("서식 3.4 저장")')
-  await page.waitForSelector('text=서식 3.4 저장됨')
+  await page.click('button:has-text("해당없음")') // 3.5 피난약자 (같은 화면)
+  await page.click('button:has-text("3장 저장")')
+  await page.waitForSelector('text=3장 저장됨')
   const { data: f34 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
-  const ep = (f34?.sections as { evacPlan?: { assembly: string; procedure: string } } | null)?.evacPlan
-  check('DB sections.evacPlan 저장 (절차 프리셋+집결지)', ep?.assembly === '정문 앞 공터' && (ep?.procedure ?? '').includes('피난유도반'), JSON.stringify({ a: ep?.assembly }))
-  await page.click('button:has-text("3.5 피난약자")')
-  await page.waitForSelector('text=3.5 피난약자 현황')
-  await page.click('button:has-text("해당없음")')
-  await page.click('button:has-text("서식 3.5 저장")')
-  await page.waitForSelector('text=서식 3.5 저장됨')
-  const { data: f35 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
-  check('DB sections.vulnerable 저장 (해당없음)', (f35?.sections as { vulnerable?: { none: boolean } } | null)?.vulnerable?.none === true)
+  const s3 = f34?.sections as { evacPlan?: { assembly: string; procedure: string }; vulnerable?: { none: boolean } } | null
+  check('DB sections.evacPlan 저장 (절차 프리셋+집결지, 단일 저장)', s3?.evacPlan?.assembly === '정문 앞 공터' && (s3?.evacPlan?.procedure ?? '').includes('피난유도반'), JSON.stringify({ a: s3?.evacPlan?.assembly }))
+  check('DB sections.vulnerable 저장 (해당없음, 단일 저장)', s3?.vulnerable?.none === true)
 
   // 어댑터(§7-3) — getFirePlanGenDefaults가 입력 섹션을 기본값으로 사용하는지 (데이터 시트 생성 경로로 검증 불가 — DB 대조로 대체)
   // zones(1.2)·hazards(1.2)·evacPlan(3.4)·brigade(2장)가 저장돼 있으므로 웹 생성 기본값에 반영됨 — 코드 대조 + 저장 검증으로 충족

@@ -132,16 +132,21 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
             </div>
             {candidates.length > 0 && (
               <div className="absolute z-10 mt-1 w-full bg-white border border-[#d0ccf5] rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                {candidates.map(c => (
-                  <button key={c.id}
-                    onClick={() => addCustomer(c)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-[#f5f4ff] flex items-center justify-between gap-2">
-                    <span className="text-[#090c1d]">{c.name}</span>
-                    <span className="text-xs text-[#b0acd6] shrink-0">
-                      {c.purpose ? `${c.purpose} · ` : ''}{c.type} · 추천 {recommendPresetType(c.purpose)}
-                    </span>
-                  </button>
-                ))}
+                {candidates.map(c => {
+                  const general = c.type === '일반관리' // §9-8 매트릭스 — 소방계획서 작성 대상 아님(카드 흐림)
+                  return (
+                    <button key={c.id} disabled={general}
+                      onClick={() => addCustomer(c)}
+                      title={general ? '일반관리 고객 — 소방계획서 작성 대상이 아닙니다 (외관점검표 2년 보관만)' : undefined}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 ${
+                        general ? 'opacity-45 cursor-not-allowed' : 'hover:bg-[#f5f4ff]'}`}>
+                      <span className="text-[#090c1d]">{c.name}</span>
+                      <span className="text-xs text-[#b0acd6] shrink-0">
+                        {general ? '일반관리 — 대상 아님' : `${c.purpose ? `${c.purpose} · ` : ''}${c.type} · 추천 ${recommendPresetType(c.purpose)}`}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>

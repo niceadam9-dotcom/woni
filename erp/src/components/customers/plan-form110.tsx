@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
-import { MonthField, useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, MonthField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 4개 (소방계획서_4.md §3)
  *  1.10.1 연간 점검 계획(sections.inspection — 종합 블록은 종합 고객만, §9-8 필드 조건부)
@@ -89,8 +89,13 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
 
   return (
     <div className="space-y-4">
+      {/* §1-2 카드 앵커 점프 */}
+      <CardAnchorBar items={[
+        { id: 'c-1.10.1', label: '1.10.1 연간 계획' }, { id: 'c-1.10.2', label: '1.10.2 업무수행 기록' },
+        { id: 'c-1.10.3', label: '1.10.3 다중이용업소' }, { id: 'c-1.10.4', label: '1.10.4 화재 이력' },
+      ]} />
       {/* 1.10.1 연간 점검 계획 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div id="c-1.10.1" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
         <p className="text-xs font-semibold text-[#514b81]">1.10.1 연간 자체점검 계획
           <span className="font-normal text-[#b0acd6] ml-2">시기는 점검계획일 기준 자동 — 수정 가능</span>
         </p>
@@ -122,7 +127,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       </div>
 
       {/* 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리) */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div id="c-1.10.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
         <div className="flex items-center gap-2 mb-2">
           <p className="text-xs font-semibold text-[#514b81]">1.10.2 소방안전관리자 업무수행 기록</p>
           {canManage && (
@@ -153,7 +158,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       </div>
 
       {/* 1.10.3 다중이용업소 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div id="c-1.10.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
         <div className="flex items-center gap-2">
           <p className="text-xs font-semibold text-[#514b81]">1.10.3 다중이용업소 현황</p>
           <button disabled={!canManage} className={chip(mu.applicable)} onClick={() => pm({ applicable: !mu.applicable })}>
@@ -199,7 +204,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       </div>
 
       {/* 1.10.4 화재/비화재보 이력 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div id="c-1.10.4" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
         <div className="flex items-center gap-2 mb-2">
           <p className="text-xs font-semibold text-[#514b81]">1.10.4 화재·비화재보 발생 이력</p>
           {canManage && (

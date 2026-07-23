@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.12~1.15 기록부 4종 (소방계획서_4.md §3 — §12-3 결정 2026-07-23: v1 포함)
  *  1.12 화기취급 감독 · 1.13 소방시설 공사/정비 기록 · 1.14 화재예방 및 홍보 · 1.15 피해 복구
@@ -88,8 +88,10 @@ export function PlanForm1215({ customerId, canManage, initial }: {
 
   return (
     <div className="space-y-4">
+      {/* §1-2 카드 앵커 점프 */}
+      <CardAnchorBar items={CARDS.map(c => ({ id: `c-${c.title.split(' ')[0]}`, label: c.title }))} />
       {CARDS.map(card => (
-        <div key={card.key} className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+        <div key={card.key} id={`c-${card.title.split(' ')[0]}`} className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
           <div className="flex items-center gap-2 mb-2">
             <p className="text-xs font-semibold text-[#514b81]">{card.title}</p>
             {canManage && (

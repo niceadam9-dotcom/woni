@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
 import { ImageSlot } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
 
@@ -51,7 +51,6 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   initialEquip: EvacEquipRow[]
 }) {
   const router = useRouter()
-  const [f3, setF3] = useState('3.1')
   const [detail, setDetail] = useState<EvacDetailRow[]>(initialDetail)
   const [hcNote, setHcNote] = useState(initialHeadcountNote)
   const [plan, setPlan] = useState<EvacPlanSection>(initialPlan ?? { procedure: '', routes: [], assembly: '', mapImage: null })
@@ -87,20 +86,12 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   )
 
   return (
-    <div>
-      <div className="flex items-center gap-1 flex-wrap mb-3">
-        {CH3_FORMS.map(f => (
-          <button key={f.key} onClick={() => { setF3(f.key); setMsg('') }}
-            className={`inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border transition-colors ${
-              f3 === f.key ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5] hover:bg-[#eceafd]'}`}>
-            {f.label}
-          </button>
-        ))}
-      </div>
+    <div className="space-y-4">
+      {/* §1-2 세로 스크롤 카드 + 앵커 점프 (내부 서브탭 폐기) */}
+      <CardAnchorBar items={CH3_FORMS.map(f => ({ id: `c-${f.key}`, label: f.label }))} />
 
       {/* 3.1 — 1.5 입력 자동 표시 (수정은 1.5에서, §9-6⑦ 단일 입력처) */}
-      {f3 === '3.1' && (
-        <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-1.5">
+      <div id="c-3.1" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-1.5">
           <p className="text-xs font-semibold text-[#514b81]">3.1 피난시설 및 기타시설 일반현황
             <span className="font-normal text-[#b0acd6] ml-2">서식 1.5 입력값 자동 표시 — 수정은 1장 &gt; 1.5에서</span>
           </p>
@@ -114,13 +105,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
           ) : (
             <p className="text-[11px] text-[#b0acd6]">1장 &gt; 1.5 피난·방화를 먼저 입력하세요.</p>
           )}
-        </div>
-      )}
+      </div>
 
       {/* 3.2 세부현황 */}
-      {f3 === '3.2' && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div id="c-3.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
             <div className="flex items-center gap-2 mb-2">
               <p className="text-xs font-semibold text-[#514b81]">3.2 피난시설 및 기타시설 세부현황</p>
               {canManage && (
@@ -144,15 +132,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 </div>
               ))}
             </div>
-          </div>
-          {saveBtn({ evacDetail: detail.filter(r => r.facility.trim()) }, '서식 3.2')}
-        </div>
-      )}
+      </div>
 
       {/* 3.3 피난인원 */}
-      {f3 === '3.3' && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div id="c-3.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
             <p className="text-xs font-semibold text-[#514b81]">3.3 피난인원 현황
               <span className="font-normal text-[#b0acd6] ml-2">인원은 1.1 운영현황 자동 — 수정은 1.1에서</span>
             </p>
@@ -160,15 +143,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
             <textarea value={hcNote} disabled={!canManage} rows={2} placeholder="보완 사항 (시간대별 변동, 방문객 등)"
               onChange={e => { setHcNote(e.target.value); setDirty(true) }}
               className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y" />
-          </div>
-          {saveBtn({ evacHeadcount: { note: hcNote } }, '서식 3.3')}
-        </div>
-      )}
+      </div>
 
       {/* 3.4 피난유도 절차·경로 — 생성 문서(3장)에 반영(§7-3) */}
-      {f3 === '3.4' && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div id="c-3.4" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
             <div className="flex items-center gap-2">
               <p className="text-xs font-semibold text-[#514b81]">3.4 피난유도 절차 및 피난경로 <span className="font-normal text-[#b0acd6]">생성 문서에 반영됨</span></p>
               {canManage && (
@@ -205,15 +183,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
             </div>
             <ImageSlot customerId={customerId} canManage={canManage} path={plan.mapImage}
               onChange={p => { setPlan(prev => ({ ...prev, mapImage: p })); setDirty(true) }} label="피난경로도 (이미지)" />
-          </div>
-          {saveBtn({ evacPlan: plan }, '서식 3.4')}
-        </div>
-      )}
+      </div>
 
       {/* 3.5 피난약자 */}
-      {f3 === '3.5' && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div id="c-3.5" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
             <div className="flex items-center gap-2">
               <p className="text-xs font-semibold text-[#514b81]">3.5 피난약자 현황 및 피난계획</p>
               <button disabled={!canManage} className={chip(vul.none)}
@@ -257,15 +230,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 ))}
               </>
             )}
-          </div>
-          {saveBtn({ vulnerable: vul }, '서식 3.5')}
-        </div>
-      )}
+      </div>
 
       {/* 3.6 유형별 방법 */}
-      {f3 === '3.6' && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div id="c-3.6" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
             <p className="text-xs font-semibold text-[#514b81]">3.6 피난약자 유형별 피난방법
               <span className="font-normal text-[#b0acd6] ml-2">표준 문구 기본 — 빈 칸이면 표준 문구로 출력</span>
             </p>
@@ -277,15 +245,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                   className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1 text-xs outline-none focus:border-[#7b68ee] resize-y" />
               </div>
             ))}
-          </div>
-          {saveBtn({ vulnerableMethods: methods }, '서식 3.6')}
-        </div>
-      )}
+      </div>
 
       {/* 3.7 기구·장비 */}
-      {f3 === '3.7' && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div id="c-3.7" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
             <div className="flex items-center gap-2 mb-2">
               <p className="text-xs font-semibold text-[#514b81]">3.7 피난 기구·유도장비 세부현황</p>
               {canManage && (
@@ -307,10 +270,17 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 </div>
               ))}
             </div>
-          </div>
-          {saveBtn({ evacEquip: equip.filter(r => r.name.trim()) }, '서식 3.7')}
-        </div>
-      )}
+      </div>
+
+      {/* §1-2 저장 버튼 서식당 1개 — 3장 전체 일괄 저장 */}
+      {saveBtn({
+        evacDetail: detail.filter(r => r.facility.trim()),
+        evacHeadcount: { note: hcNote },
+        evacPlan: plan,
+        vulnerable: vul,
+        vulnerableMethods: methods,
+        evacEquip: equip.filter(r => r.name.trim()),
+      }, '3장')}
     </div>
   )
 }

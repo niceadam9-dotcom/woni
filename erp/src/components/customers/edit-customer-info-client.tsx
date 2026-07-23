@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search, MapPin } from 'lucide-react'
 import { updateCustomerAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
@@ -129,6 +129,17 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       router.refresh()
     })
   }
+
+  // §11-5: 누락 칩(소방계획서 탭) → 기본정보 필드 포커스 — plan-tab-view가 쏘는 커스텀 이벤트 수신
+  useEffect(() => {
+    const onFocusReq = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id
+      if (id?.startsWith('cf-')) openEdit(id)
+    }
+    window.addEventListener('erp:focus-missing', onFocusReq)
+    return () => window.removeEventListener('erp:focus-missing', onFocusReq)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage])
 
   // §11-4: 요약 값 클릭 → 편집 모드 + 해당 입력칸 포커스
   function openEdit(focusId?: string) {
