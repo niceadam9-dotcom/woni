@@ -41,6 +41,100 @@ export async function saveSheetResponsesAction(
   return {}
 }
 
+/** §9-4 A안: 설치 설비 전체 양호 — 설치 시설(fire_facilities)과 매칭되는 시트의 '미입력' 항목만 ○로 일괄 채움.
+ *  기존 응답(O/X/N)은 절대 덮어쓰지 않는다 — 불량 먼저 태깅 후 눌러도, 누른 뒤 태깅해도 안전. */
+export async function bulkAllGoodAction(inspectionId: string): Promise<{
+  error?: string; filled?: number; sheetCount?: number; kept?: number
+}> {
+  const profile = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  const { data: insp } = await admin.from('inspections')
+    .select('customer_id, customer:customers(inspection_type)').eq('id', inspectionId).maybeSingle()
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+  const inspectionType = ((insp as unknown as { customer: { inspection_type: string } | null }).customer)?.inspection_type ?? ''
+  const isSpecial = inspectionType === '종합' || inspectionType === '작동'
+
+  // 설치 시설 코드 (V-1 누락 감지와 동일 매칭 — 공백 제거 양방향 includes)
+  const { data: blds } = await admin.from('buildings').select('id')
+    .eq('customer_id', (insp as { customer_id: string }).customer_id).eq('is_active', true)
+  const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
+  const { data: facs } = bldIds.length > 0
+    ? await admin.from('fire_facilities').select('facility_code').in('building_id', bldIds).eq('installed', true)
+    : { data: [] }
+  const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code.replace(/ /g, ''))
+  if (codes.length === 0) return { error: '설치 시설 정보가 없습니다 — 소방계획서 탭 > 1.4 소방시설에서 설치 시설을 먼저 등록해주세요.' }
+
+  const { data: sheetRaw } = await admin.from('inspection_sheets')
+    .select('id, sheet_name').eq('version', isSpecial ? 'v2025' : 'v2022')
+  const sheets = ((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
+    .filter(s => {
+      const sn = s.sheet_name.replace(/ /g, '')
+      return codes.some(c => c.includes(sn) || sn.includes(c))
+    })
+  if (sheets.length === 0) return { error: '설치 시설과 매칭되는 점검표 시트가 없습니다.' }
+
+  const { data: itemRaw } = await admin.from('inspection_sheet_items')
+    .select('item_code, comprehensive_only').in('sheet_id', sheets.map(s => s.id))
+  let items = (itemRaw ?? []) as Array<{ item_code: string; comprehensive_only: boolean }>
+  if (inspectionType === '작동') items = items.filter(i => !i.comprehensive_only)
+
+  const { data: resp } = await admin.from('inspection_sheet_responses')
+    .select('item_code').eq('inspection_id', inspectionId)
+  const have = new Set(((resp ?? []) as Array<{ item_code: string }>).map(r => r.item_code))
+  const payload = items.filter(i => !have.has(i.item_code)).map(i => ({
+    inspection_id: inspectionId, item_code: i.item_code, result: 'O',
+    updated_by: profile.id, updated_at: new Date().toISOString(),
+  }))
+  if (payload.length > 0) {
+    const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
+    if (error) return { error: `일괄 저장 실패: ${error.message}` }
+  }
+  revalidatePath(`/inspections/${inspectionId}`)
+  return { filled: payload.length, sheetCount: sheets.length, kept: items.filter(i => have.has(i.item_code)).length }
+}
+
+/** §9-4 A안: 불량 빠른 태깅용 항목 검색 — 코드·명칭 부분 일치, 점검 유형에 맞는 버전 시트만 (최대 20건) */
+export async function searchQuickItemsAction(inspectionId: string, q: string): Promise<{
+  error?: string
+  items?: Array<{ item_code: string; item_name: string; sheet_name: string; current: 'O' | 'X' | 'N' | null }>
+}> {
+  await requirePermission('inspection_register')
+  const query = q.trim()
+  if (query.length < 2) return { items: [] }
+  const admin = createAdminClient()
+
+  const { data: insp } = await admin.from('inspections')
+    .select('customer:customers(inspection_type)').eq('id', inspectionId).maybeSingle()
+  const inspectionType = ((insp as { customer: { inspection_type: string } | null } | null)?.customer)?.inspection_type ?? ''
+  const isSpecial = inspectionType === '종합' || inspectionType === '작동'
+
+  const { data: sheetRaw } = await admin.from('inspection_sheets')
+    .select('id, sheet_name').eq('version', isSpecial ? 'v2025' : 'v2022')
+  const sheetName = new Map(((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>).map(s => [s.id, s.sheet_name]))
+
+  const { data: itemRaw } = await admin.from('inspection_sheet_items')
+    .select('item_code, item_name, comprehensive_only, sheet_id')
+    .in('sheet_id', [...sheetName.keys()])
+    .or(`item_name.ilike.%${query.replace(/[%,()]/g, '')}%,item_code.ilike.%${query.replace(/[%,()]/g, '')}%`)
+    .order('item_code').limit(20)
+  let items = (itemRaw ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; sheet_id: string }>
+  if (inspectionType === '작동') items = items.filter(i => !i.comprehensive_only)
+
+  const { data: resp } = items.length > 0
+    ? await admin.from('inspection_sheet_responses').select('item_code, result')
+        .eq('inspection_id', inspectionId).in('item_code', items.map(i => i.item_code))
+    : { data: [] }
+  const cur = new Map(((resp ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N' }>).map(r => [r.item_code, r.result]))
+
+  return {
+    items: items.map(i => ({
+      item_code: i.item_code, item_name: i.item_name,
+      sheet_name: sheetName.get(i.sheet_id) ?? '', current: cur.get(i.item_code) ?? null,
+    })),
+  }
+}
+
 /** X(불량) 응답 → 불량내역 자동 등록 (P34-3) — defect_catalog 표준 문구, 중복 코드 제외 */
 export async function createDefectsFromXAction(
   inspectionId: string

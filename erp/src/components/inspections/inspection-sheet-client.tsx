@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClipboardCheck, Check, Loader2, CircleCheck, AlertTriangle } from 'lucide-react'
-import { loadSheetItemsAction, saveSheetResponsesAction, createDefectsFromXAction } from '@/app/(dashboard)/inspections/sheet-actions'
+import { ClipboardCheck, Check, Loader2, CircleCheck, AlertTriangle, Zap, Search } from 'lucide-react'
+import {
+  loadSheetItemsAction, saveSheetResponsesAction, createDefectsFromXAction,
+  bulkAllGoodAction, searchQuickItemsAction,
+} from '@/app/(dashboard)/inspections/sheet-actions'
 
 type Sheet = { id: string; sheet_code: string; sheet_name: string }
 type Item = { item_code: string; item_name: string; comprehensive_only: boolean; group: string }
@@ -26,6 +29,46 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
   const [local, setLocal] = useState<Record<string, Result>>({})
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  // §9-4 A안: 빠른 결과 입력 — 전체 양호 + 불량 검색 태깅
+  const [quickQ, setQuickQ] = useState('')
+  const [quickResults, setQuickResults] = useState<Array<{ item_code: string; item_name: string; sheet_name: string; current: Result | null }>>([])
+  const [picked, setPicked] = useState<{ item_code: string; item_name: string; sheet_name: string } | null>(null)
+  const [quickMemo, setQuickMemo] = useState('')
+  const quickDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (quickDebounce.current) clearTimeout(quickDebounce.current)
+    quickDebounce.current = setTimeout(() => {
+      if (quickQ.trim().length < 2) { setQuickResults([]); return }
+      searchQuickItemsAction(inspectionId, quickQ).then(r => setQuickResults(r.items ?? [])).catch(() => setQuickResults([]))
+    }, 300)
+    return () => { if (quickDebounce.current) clearTimeout(quickDebounce.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickQ])
+
+  function bulkGood() {
+    if (!window.confirm('설치된 설비의 모든 미입력 항목을 ○(정상)으로 채웁니다.\n이미 입력한 항목(○/✕/／)은 그대로 유지됩니다. 진행할까요?')) return
+    setError(''); setNotice('')
+    startTransition(async () => {
+      const res = await bulkAllGoodAction(inspectionId)
+      if (res.error) { setError(res.error); return }
+      setNotice(`✅ 설비 시트 ${res.sheetCount}개 · ${res.filled}개 항목을 ○로 채웠습니다${(res.kept ?? 0) > 0 ? ` (기존 입력 ${res.kept}건 유지)` : ''} — 불량은 아래 검색으로 태깅하세요.`)
+      router.refresh()
+    })
+  }
+
+  function saveQuickDefect() {
+    if (!picked) return
+    setError(''); setNotice('')
+    startTransition(async () => {
+      const res = await saveSheetResponsesAction(inspectionId, [{ item_code: picked.item_code, result: 'X', memo: quickMemo }])
+      if (res.error) { setError(res.error); return }
+      const reg = await createDefectsFromXAction(inspectionId)
+      setNotice(`✅ ${picked.item_code} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
+      setPicked(null); setQuickMemo(''); setQuickQ(''); setQuickResults([])
+      router.refresh()
+    })
+  }
 
   function registerDefects() {
     setError(''); setNotice('')
@@ -85,6 +128,59 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
         </div>
       )}
       {!sel && notice && <p className="text-xs text-green-600 mb-2">{notice}</p>}
+      {!sel && error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+
+      {/* §9-4 A안: 빠른 결과 입력 — 대부분 양호·불량 소수 패턴 (모바일 현장 입력 대응) */}
+      {!sel && canManage && (
+        <div className="mb-3 rounded-lg border border-[#e0ddf5] bg-[#fafaff] p-3 space-y-2">
+          <p className="text-[11px] font-semibold text-[#514b81] flex items-center gap-1">
+            <Zap className="size-3 text-[#7b68ee]" /> 빠른 결과 입력
+            <span className="font-normal text-[#b0acd6]">— ① 전체 양호 후 ② 불량 항목만 검색해 태깅</span>
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={bulkGood} disabled={isPending}
+              className="h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50">
+              설치 설비 전체 양호 ○
+            </button>
+            <div className="relative flex-1 min-w-52">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <input value={quickQ} onChange={e => { setQuickQ(e.target.value); setPicked(null) }}
+                placeholder="불량 항목 검색 (명칭·코드 2자 이상)"
+                className="h-8 w-full rounded-lg border border-[#d0ccf5] bg-white pl-7 pr-2 text-xs outline-none focus:border-[#7b68ee]" />
+            </div>
+          </div>
+          {!picked && quickResults.length > 0 && (
+            <div className="max-h-44 overflow-y-auto rounded-lg border border-[#e0ddf5] bg-white divide-y divide-[#f3f1fb]">
+              {quickResults.map(r => (
+                <button key={r.item_code} onClick={() => { setPicked(r); setQuickMemo('') }}
+                  className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-[#f5f4ff] flex items-center gap-2">
+                  <span className="text-[10px] text-[#b0acd6] w-16 shrink-0">{r.item_code}</span>
+                  <span className="text-[#090c1d] flex-1 min-w-0 truncate">{r.item_name}</span>
+                  <span className="text-[10px] text-[#b0acd6] shrink-0 max-w-24 truncate">{r.sheet_name}</span>
+                  {r.current && <span className={`text-[10px] font-bold shrink-0 ${r.current === 'X' ? 'text-red-500' : r.current === 'O' ? 'text-green-600' : 'text-gray-400'}`}>{r.current === 'O' ? '○' : r.current === 'X' ? '✕' : '／'}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {!picked && quickQ.trim().length >= 2 && quickResults.length === 0 && (
+            <p className="text-[11px] text-[#b0acd6]">검색 결과 없음 — 다른 키워드로 시도해보세요 (예: 수신기, 감지기, 유도등)</p>
+          )}
+          {picked && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-1.5">
+              <p className="text-xs text-red-700"><span className="font-semibold">{picked.item_code}</span> {picked.item_name} <span className="text-[10px] text-red-400">({picked.sheet_name})</span></p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input value={quickMemo} onChange={e => setQuickMemo(e.target.value)} placeholder="불량 메모 (선택 — 불량내역 상세로 들어감)"
+                  className="h-8 flex-1 min-w-48 rounded-lg border border-red-200 bg-white px-2 text-xs outline-none focus:border-red-400" />
+                <button onClick={saveQuickDefect} disabled={isPending}
+                  className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium disabled:opacity-50">
+                  {isPending ? <Loader2 className="size-3.5 animate-spin" /> : '✕ 불량 저장 (자동 등록)'}
+                </button>
+                <button onClick={() => setPicked(null)} className="h-8 px-2 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81]">취소</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {!sel ? (
         <>
