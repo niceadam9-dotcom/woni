@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 
 /** 선택한 설비 점검표의 표준 항목 로드 (P34-2, 지연 로드) */
 export async function loadSheetItemsAction(sheetId: string): Promise<{
@@ -55,23 +56,20 @@ export async function bulkAllGoodAction(inspectionId: string): Promise<{
   const inspectionType = ((insp as unknown as { customer: { inspection_type: string } | null }).customer)?.inspection_type ?? ''
   const isSpecial = inspectionType === '종합' || inspectionType === '작동'
 
-  // 설치 시설 코드 (V-1 누락 감지와 동일 매칭 — 공백 제거 양방향 includes)
+  // 설치 시설 코드 → 시트 매칭 (명시 매핑 — sheet-facility-map.ts, 실전 검증에서 퍼지 매칭 결함 확인)
   const { data: blds } = await admin.from('buildings').select('id')
     .eq('customer_id', (insp as { customer_id: string }).customer_id).eq('is_active', true)
   const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
   const { data: facs } = bldIds.length > 0
     ? await admin.from('fire_facilities').select('facility_code').in('building_id', bldIds).eq('installed', true)
     : { data: [] }
-  const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code.replace(/ /g, ''))
+  const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
   if (codes.length === 0) return { error: '설치 시설 정보가 없습니다 — 소방계획서 탭 > 1.4 소방시설에서 설치 시설을 먼저 등록해주세요.' }
 
   const { data: sheetRaw } = await admin.from('inspection_sheets')
     .select('id, sheet_name').eq('version', isSpecial ? 'v2025' : 'v2022')
   const sheets = ((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
-    .filter(s => {
-      const sn = s.sheet_name.replace(/ /g, '')
-      return codes.some(c => c.includes(sn) || sn.includes(c))
-    })
+    .filter(s => sheetMatchesFacilities(s.sheet_name, codes))
   if (sheets.length === 0) return { error: '설치 시설과 매칭되는 점검표 시트가 없습니다.' }
 
   const { data: itemRaw } = await admin.from('inspection_sheet_items')
@@ -82,7 +80,8 @@ export async function bulkAllGoodAction(inspectionId: string): Promise<{
   const { data: resp } = await admin.from('inspection_sheet_responses')
     .select('item_code').eq('inspection_id', inspectionId)
   const have = new Set(((resp ?? []) as Array<{ item_code: string }>).map(r => r.item_code))
-  const payload = items.filter(i => !have.has(i.item_code)).map(i => ({
+  const seen = new Set<string>() // 시드 중복 방어 — 같은 코드 2행이면 1건만
+  const payload = items.filter(i => !have.has(i.item_code) && !seen.has(i.item_code) && (seen.add(i.item_code), true)).map(i => ({
     inspection_id: inspectionId, item_code: i.item_code, result: 'O',
     updated_by: profile.id, updated_at: new Date().toISOString(),
   }))

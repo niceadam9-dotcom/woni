@@ -62,6 +62,15 @@ try {
   const infoActive = await page.evaluate(() => document.activeElement?.id ?? '')
   check('사용승인일 칩 → 기본정보 편집 + cf-approval 포커스', infoActive === 'cf-approval', `active=${infoActive}`)
 
+  // 대장 전용 칩(높이·세대수·승강기 등) — 탭 이동 없이 이 화면에서 [건축물대장 불러오기] 즉시 실행 (사용자 보고 2026-07-25)
+  await page.goto(`${BASE}/customers/${custId}?tab=plan`)
+  await page.waitForLoadState('networkidle')
+  await page.locator('button:has-text("높이 ↗")').first().click()
+  const ledgerRan = await page.waitForSelector('text=/지번 정보가 없습니다|확정 저장|가져올 값이 없습니다/', { timeout: 15000 })
+    .then(() => true).catch(() => false)
+  check('높이 칩 → 대장 불러오기 실행(미리보기/안내)', ledgerRan)
+  check('높이 칩 — 소방계획서 탭 유지', (await page.locator('[role=tab][aria-selected="true"]:has-text("소방계획서")').count()) === 1)
+
   // ── C-3: 보고서 센터 — 일반관리 고객 흐림·선택 불가 ──
   await page.goto(`${BASE}/reports`)
   await page.waitForSelector('text=소방계획서 HWP 생성')

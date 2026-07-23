@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { saveSheetResponsesAction, createDefectsFromXAction } from './sheet-actions'
+import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 
 /** V-1 음성 점검표 입력 (소방계획서_4.md §9-4) — Plaud 전사 텍스트 → Claude 구조화 → 점검자 확인 후 저장.
  *  저장 타깃 = 기존 inspection_sheet_responses (점검표·별지 9호 3쪽·불량 등록 자동 연동).
@@ -108,6 +109,7 @@ export async function parseVoiceSheetAction(
   }
 
   // 누락 감지 — 설치 시설(fire_facilities) 기준 관련 시트 중 제안·기존 응답이 모두 없는 시트 (§9-4)
+  // 매칭은 명시 매핑(sheet-facility-map.ts — 실전 검증에서 퍼지 매칭 결함 확인, 빠른 입력과 공용)
   const { data: blds } = await admin.from('buildings').select('id')
     .eq('customer_id', (insp as { customer_id: string }).customer_id).eq('is_active', true)
   const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
@@ -115,15 +117,12 @@ export async function parseVoiceSheetAction(
   if (bldIds.length > 0) {
     const { data: facs } = await admin.from('fire_facilities')
       .select('facility_code').in('building_id', bldIds).eq('installed', true)
-    const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code.replace(/ /g, ''))
+    const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
     const respondedSheetIds = new Set([...existing.keys(), ...entries.map(e => e.item_code)]
       .map(c => itemMap.get(c)?.sheet_id).filter(Boolean))
     missingSheets = sheets
       .filter(s => !respondedSheetIds.has(s.id))
-      .filter(s => {
-        const sn = s.sheet_name.replace(/ /g, '')
-        return codes.some(c => c.includes(sn) || sn.includes(c))
-      })
+      .filter(s => sheetMatchesFacilities(s.sheet_name, codes))
       .map(s => s.sheet_name)
   }
 

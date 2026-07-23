@@ -189,10 +189,13 @@ export function PlanTabView({
     }
     setTimeout(tick, delay)
   }
+  // 대장 전용 값 — 수기 입력칸이 어디에도 없음(건축물대장 연동으로만 채움). 칩 = 이 화면에서 대장 미리보기 즉시 실행
+  const LEDGER_ONLY_CHIPS = new Set(['높이', '세대수', '승강기', '건축허가일', '건축면적', '건물동수', '주차장'])
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
     const fieldId = CHIP_FIELD_ID[label]
     if (!t) { setMode('full'); select('1.1'); return }
+    if (t === 'buildings' && LEDGER_ONLY_CHIPS.has(label)) { refreshLedger(); return }
     if (t === 'buildings' || t === 'info') {
       if (tabsShell) tabsShell.goTab(t)
       else router.push(`/customers/${customerId}?tab=${t}`)
@@ -200,7 +203,7 @@ export function PlanTabView({
         // 기본정보는 요약 모드 → 편집 전환+포커스가 필요해 컴포넌트에 위임 (erp:focus-missing)
         setTimeout(() => window.dispatchEvent(new CustomEvent('erp:focus-missing', { detail: { id: fieldId } })), 350)
       } else if (t === 'buildings') {
-        // 건물값(높이·세대수·승강기 등)은 대장 연동 값 — 건물 패널로 스크롤·강조
+        // 용도·연면적·층수 등 수기 폼 보유 값 — 건물 패널로 스크롤·강조
         focusField('buildings-panel')
       }
       return
@@ -418,7 +421,7 @@ export function PlanTabView({
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 건물 값은 위 [건축물대장 불러오기]로도 채울 수 있습니다.</p>
+                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 높이·세대수·승강기 등 대장 값 칩은 [건축물대장 불러오기]를 바로 실행합니다.</p>
               </>
             ) : (
               <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>
