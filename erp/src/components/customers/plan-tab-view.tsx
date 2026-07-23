@@ -11,6 +11,7 @@ import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fir
 import { previewLedgerAction, applyLedgerValuesAction, type LedgerPreviewField } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
+import { TableWrap } from '@/components/ui/fields'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
  *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
@@ -490,7 +491,7 @@ export function PlanTabView({
           <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
             <p className="text-xs font-semibold text-[#514b81] mb-2">개정이력</p>
             {revisionRows.length > 0 ? (
-              <table className="w-full text-xs mb-3">
+              <TableWrap className="mb-3"><table className="w-full text-xs min-w-[480px]">
                 <thead>
                   <tr className="border-b border-[#e0ddf5] text-left text-[11px] text-[#514b81]">
                     <th className="pb-1 pr-3 font-medium w-12">순번</th>
@@ -509,7 +510,7 @@ export function PlanTabView({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></TableWrap>
             ) : (
               <p className="text-[11px] text-[#b0acd6] mb-3">생성 이력이 없습니다 — 첫 생성 시 1행이 기록됩니다</p>
             )}

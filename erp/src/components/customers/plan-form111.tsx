@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Wand2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { useUnsavedWarning } from '@/components/ui/fields'
 import { SectionCopyButton } from '@/components/customers/section-copy-button'
 
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
@@ -41,6 +42,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   const router = useRouter()
   const [t, setT] = useState<TrainingSection>(initial ?? EMPTY_TRAINING)
   const [dirty, setDirty] = useState(false)
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 

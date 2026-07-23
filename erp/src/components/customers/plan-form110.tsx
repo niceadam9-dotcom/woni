@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
+import { MonthField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 3개 (소방계획서_4.md §3)
  *  1.10.1 연간 점검 계획(sections.inspection — 종합 블록은 종합 고객만, §9-8 필드 조건부)
@@ -50,6 +51,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   const [mu, setMu] = useState<MultiUseSection>(initialMultiUse ?? EMPTY_MULTI_USE)
   const [hist, setHist] = useState<FireHistoryRow[]>(initialHistory)
   const [dirty, setDirty] = useState(false)
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -88,8 +90,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-medium text-[#514b81] w-16">작동점검</span>
-          <input value={insp.opMonth} disabled={!canManage} placeholder="예: 2026년 9월"
-            onChange={e => pi({ opMonth: e.target.value })} className={`${inputCls} w-32`} />
+          <MonthField value={insp.opMonth} disabled={!canManage} onChange={opMonth => pi({ opMonth })} className={`${inputCls} w-36`} />
           <span className="text-[11px] text-[#514b81]">점검자</span>
           {inspectorSeg(insp.opInspector, v => pi({ opInspector: v }))}
         </div>
@@ -99,13 +100,13 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <span className="text-[11px] font-medium text-[#514b81] w-16">종합점검</span>
               <button disabled={!canManage} className={chip(insp.isInitial)} onClick={() => pi({ isInitial: !insp.isInitial })}>최초점검</button>
               {insp.isInitial && (
-                <input value={insp.initialMonth} disabled={!canManage} placeholder="최초 년월"
-                  onChange={e => pi({ initialMonth: e.target.value })} className={`${inputCls} w-28`} />
+                <span className="inline-flex items-center gap-1"><span className="text-[10px] text-[#b0acd6]">최초</span>
+                  <MonthField value={insp.initialMonth} disabled={!canManage} onChange={initialMonth => pi({ initialMonth })} className={`${inputCls} w-36`} /></span>
               )}
-              <input value={insp.compMonth} disabled={!canManage} placeholder="종합 년월 (예: 2026년 3월)"
-                onChange={e => pi({ compMonth: e.target.value })} className={`${inputCls} w-40`} />
-              <input value={insp.comp2Month} disabled={!canManage} placeholder="종합 2차 (특급만)"
-                onChange={e => pi({ comp2Month: e.target.value })} className={`${inputCls} w-32`} />
+              <span className="inline-flex items-center gap-1"><span className="text-[10px] text-[#b0acd6]">종합</span>
+                <MonthField value={insp.compMonth} disabled={!canManage} onChange={compMonth => pi({ compMonth })} className={`${inputCls} w-36`} /></span>
+              <span className="inline-flex items-center gap-1"><span className="text-[10px] text-[#b0acd6]">2차(특급)</span>
+                <MonthField value={insp.comp2Month} disabled={!canManage} onChange={comp2Month => pi({ comp2Month })} className={`${inputCls} w-36`} /></span>
               <span className="text-[11px] text-[#514b81]">점검자</span>
               {inspectorSeg(insp.compInspector, v => pi({ compInspector: v }))}
             </div>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { SectionCopyButton } from '@/components/customers/section-copy-button'
+import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.6 기타시설 현황 (1.6.1) — 전기·가스·위험물 (소방계획서_4.md §3, sections.etcFacility)
  *  §11-3: 가스 [LPG 프리셋], 위험물 [해당없음] 원클릭 */
@@ -28,6 +29,7 @@ export function PlanForm16({ customerId, canManage, initial }: {
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
 
   function pe(p: Partial<EtcFacilitySection['electric']>) { setV(x => ({ ...x, electric: { ...x.electric, ...p } })); setDirty(true) }
   function pg(p: Partial<EtcFacilitySection['gas']>) { setV(x => ({ ...x, gas: { ...x.gas, ...p } })); setDirty(true) }
@@ -66,10 +68,10 @@ export function PlanForm16({ customerId, canManage, initial }: {
           )}
         </div>
         <div className="flex items-end gap-2 flex-wrap">
-          {field('수전 용량(kW)', <input value={v.electric.kw} disabled={!canManage} inputMode="decimal" onChange={e => pe({ kw: e.target.value })} className={`${inputCls} w-24`} />)}
-          {field('변압기(kVA)', <input value={v.electric.kva} disabled={!canManage} inputMode="decimal" onChange={e => pe({ kva: e.target.value })} className={`${inputCls} w-24`} />)}
+          {field('수전 용량', <NumField value={v.electric.kw} disabled={!canManage} decimal unit="kW" onChange={kw => pe({ kw })} className="h-7 w-24 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
+          {field('변압기', <NumField value={v.electric.kva} disabled={!canManage} decimal unit="kVA" onChange={kva => pe({ kva })} className="h-7 w-24 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
           {field('위치', <input value={v.electric.location} disabled={!canManage} onChange={e => pe({ location: e.target.value })} className={`${inputCls} w-32`} />)}
-          {field('수량', <input value={v.electric.qty} disabled={!canManage} inputMode="numeric" onChange={e => pe({ qty: e.target.value })} className={`${inputCls} w-16`} />)}
+          {field('수량', <NumField value={v.electric.qty} disabled={!canManage} unit="개" onChange={qty => pe({ qty })} className="h-7 w-16 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-medium text-[#514b81]">비상발전기</span>

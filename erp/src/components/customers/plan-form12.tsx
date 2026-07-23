@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Layers } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { TableWrap, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.2 건축물 세부현황 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  1.2.1 구역별 세부현황(sections.zones) + 1.2.2 화재취약장소(sections.hazards), 저장 버튼은 서식당 1개(§1) */
@@ -31,6 +32,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
   const [zones, setZones] = useState<ZoneRow[]>(initialZones.length > 0 ? initialZones : [{ ...EMPTY_ZONE }])
   const [hazards, setHazards] = useState<HazardRow[]>(initialHazards)
   const [dirty, setDirty] = useState(false)
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -84,7 +86,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
             </button>
           )}
         </div>
-        <table className="w-full text-xs">
+        <TableWrap><table className="w-full text-xs min-w-[560px]">
           <thead>
             <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
               <th className="pb-1 pr-1 w-24 font-medium">구역</th>
@@ -117,7 +119,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></TableWrap>
         {canManage && (
           <button onClick={() => { setZones(p => [...p, { ...EMPTY_ZONE }]); setDirty(true) }}
             className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">

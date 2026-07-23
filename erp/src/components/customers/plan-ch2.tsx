@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Users } from 'lucide-react'
 import { saveFirePlanSectionsAction, saveBrigadeAction, type BrigadeRowInput } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { PhoneField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 2장 자위소방대 운영계획 (소방계획서_4.md §5)
  *  2.1 일반현황(Type Ⅰ/Ⅱ/Ⅲ → sections.brigadeGeneral) · 2.2 편성표(fire_brigade_members — 1.1 패널과 동일 데이터)
@@ -43,6 +44,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
   const [rows, setRows] = useState<BrigadeRowInput[]>(initialBrigade.length > 0 ? initialBrigade : [{ team: '자위소방대장', name: '', duty: '', phone: '' }])
   const [showPeople, setShowPeople] = useState(false)
   const [dirty, setDirty] = useState(false)
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -123,8 +125,8 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
                 onChange={e => { setRows(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-24`} />
               <input value={r.duty} disabled={!canManage} placeholder="임무"
                 onChange={e => { setRows(p => p.map((x, j) => j === i ? { ...x, duty: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-32`} />
-              <input value={r.phone} disabled={!canManage} placeholder="연락처"
-                onChange={e => { setRows(p => p.map((x, j) => j === i ? { ...x, phone: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-32`} />
+              <PhoneField value={r.phone} disabled={!canManage} placeholder="연락처"
+                onChange={v => { setRows(p => p.map((x, j) => j === i ? { ...x, phone: v } : x)); setDirty(true) }} className={`${inputCls} w-32`} />
               {canManage && (
                 <button onClick={() => { setRows(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />

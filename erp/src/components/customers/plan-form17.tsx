@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { TableWrap, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.7 소방안전관리(보조)자 등 일반현황 (1.7.1 선임현황) — sections.managers (소방계획서_4.md §3)
@@ -22,6 +23,7 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
     role: '관리자', affiliation: '', name: autoRow.name, selectedAt: autoRow.selectedAt, eduAt: '', duty: '소방안전관리 업무 총괄',
   }])
   const [dirty, setDirty] = useState(false)
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -48,7 +50,7 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
         <p className="text-xs font-semibold text-[#514b81] mb-2">1.7.1 소방안전관리(보조)자 선임현황
           <span className="font-normal text-[#b0acd6] ml-2">1행은 고객 관리자 정보로 자동 채움</span>
         </p>
-        <table className="w-full text-xs">
+        <TableWrap><table className="w-full text-xs min-w-[560px]">
           <thead>
             <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
               <th className="pb-1 pr-1 w-20 font-medium">구분</th>
@@ -86,7 +88,7 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></TableWrap>
         {canManage && (
           <button onClick={() => { setRows(p => [...p, { role: '보조자', affiliation: '', name: '', selectedAt: '', eduAt: '', duty: '' }]); setDirty(true) }}
             className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">

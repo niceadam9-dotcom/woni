@@ -9,6 +9,7 @@ import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-readiness'
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
+import { NumField, PhoneField } from '@/components/ui/fields'
 
 /** 소방계획서 정보 패널 (5+6차) — 아코디언 4그룹 + 준비율 게이지 + 가져오기 (설계 §4·§5) */
 
@@ -370,10 +371,10 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <datalist id="fp-roofs">{ROOFS.map(s => <option key={s} value={s} />)}</datalist>
               </div>
               {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-xs text-[#514b81]">{initial.height} m</span></div>}
-              {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 */}
-              <div><label className={labelCls}>계단(개소)</label><br /><input value={d.stairsCount} onChange={e => set('stairsCount', e.target.value)} inputMode="numeric" disabled={!initial.hasBuilding} className={`${inputCls} w-20`} /></div>
-              <div><label className={labelCls}>경사로(개소)</label><br /><input value={d.rampCount} onChange={e => set('rampCount', e.target.value)} inputMode="numeric" disabled={!initial.hasBuilding} className={`${inputCls} w-20`} /></div>
-              <div><label className={labelCls}>피난용승강기(대)</label><br /><input value={d.evacElevatorCount} onChange={e => set('evacElevatorCount', e.target.value)} inputMode="numeric" disabled={!initial.hasBuilding} className={`${inputCls} w-24`} /></div>
+              {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 (§11-4 NumField) */}
+              <div><label className={labelCls}>계단</label><br /><NumField value={d.stairsCount} onChange={v => set('stairsCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
+              <div><label className={labelCls}>경사로</label><br /><NumField value={d.rampCount} onChange={v => set('rampCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
+              <div><label className={labelCls}>피난용승강기</label><br /><NumField value={d.evacElevatorCount} onChange={v => set('evacElevatorCount', v)} unit="대" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
             </div>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-[10px] text-[#b0acd6]">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
@@ -423,9 +424,9 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <datalist id="fp-ophours-list">{OP_HOURS.map(s => <option key={s} value={s} />)}</datalist>
               </div>
               <div><label className={labelCls}>휴일</label><br /><input value={d.opHoursHoliday} onChange={e => set('opHoursHoliday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursHoliday')}`} title={sgTitle('opHoursHoliday')} /></div>
-              <div><label className={labelCls}>근무(명)</label><br /><input id="fp-headcount" type="number" value={d.headcountWorker} onChange={e => set('headcountWorker', e.target.value)} className={`${inputCls} w-20`} /></div>
-              <div><label className={labelCls}>거주(명)</label><br /><input type="number" value={d.headcountResident} onChange={e => set('headcountResident', e.target.value)} className={`${inputCls} w-20`} /></div>
-              <div><label className={labelCls}>최대수용(명)</label><br /><input type="number" value={d.headcountMax} onChange={e => set('headcountMax', e.target.value)} className={`${inputCls} w-24`} /></div>
+              <div><label className={labelCls}>근무</label><br /><NumField id="fp-headcount" value={d.headcountWorker} onChange={v => set('headcountWorker', v)} unit="명" className={`${inputCls} w-16`} /></div>
+              <div><label className={labelCls}>거주</label><br /><NumField value={d.headcountResident} onChange={v => set('headcountResident', v)} unit="명" className={`${inputCls} w-16`} /></div>
+              <div><label className={labelCls}>최대수용</label><br /><NumField value={d.headcountMax} onChange={v => set('headcountMax', v)} unit="명" className={`${inputCls} w-16`} /></div>
             </div>
 
             {/* 자위소방대 (운영현황 카드 내) */}
@@ -439,7 +440,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                   </select>
                   <input value={m.name} onChange={e => setBrigade(i, 'name', e.target.value)} placeholder="성명" className={`${inputCls} w-24`} />
                   <input value={m.duty} onChange={e => setBrigade(i, 'duty', e.target.value)} placeholder="개별임무 (자동)" className={`${inputCls} flex-1 min-w-40`} />
-                  <input value={m.phone} onChange={e => setBrigade(i, 'phone', e.target.value)} placeholder="연락처" className={`${inputCls} w-32`} />
+                  <PhoneField value={m.phone} onChange={v => setBrigade(i, 'phone', v)} placeholder="연락처" className={`${inputCls} w-32`} />
                   <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500 text-xs px-1">✕</button>
                 </div>
               ))}

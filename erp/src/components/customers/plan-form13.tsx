@@ -6,6 +6,7 @@ import { Loader2, Save, ImagePlus, Trash2 } from 'lucide-react'
 import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.3 건축물 위치·운영현황 및 소방차 세부진입 계획 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  sections.location(위치도·주변 현황·관할 소방서·거리·도착예상·운영 개요) + sections.fireAccess(진입경로·경로도·진입장소·주변 소방시설) */
@@ -104,6 +105,7 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
 
   function patchLoc(p: Partial<LocationSection>) { setLoc(v => ({ ...v, ...p })); setDirty(true) }
   function patchFa(p: Partial<FireAccessSection>) { setFa(v => ({ ...v, ...p })); setDirty(true) }
@@ -144,12 +146,12 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
             <input value={loc.fireStation} onChange={e => patchLoc({ fireStation: e.target.value })} disabled={!canManage} className={`${inputCls} w-36`} />
           </div>
           <div>
-            <label className="text-[11px] font-medium text-[#514b81] block mb-1">거리(km)</label>
-            <input value={loc.distance} onChange={e => patchLoc({ distance: e.target.value })} disabled={!canManage} inputMode="decimal" className={`${inputCls} w-24`} />
+            <label className="text-[11px] font-medium text-[#514b81] block mb-1">거리</label>
+            <NumField value={loc.distance} onChange={distance => patchLoc({ distance })} disabled={!canManage} decimal unit="km" className={`${inputCls} w-20`} />
           </div>
           <div>
-            <label className="text-[11px] font-medium text-[#514b81] block mb-1">도착 예상(분)</label>
-            <input value={loc.eta} onChange={e => patchLoc({ eta: e.target.value })} disabled={!canManage} inputMode="numeric" className={`${inputCls} w-24`} />
+            <label className="text-[11px] font-medium text-[#514b81] block mb-1">도착 예상</label>
+            <NumField value={loc.eta} onChange={eta => patchLoc({ eta })} disabled={!canManage} unit="분" className={`${inputCls} w-16`} />
           </div>
         </div>
         <div>

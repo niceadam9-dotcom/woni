@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { useUnsavedWarning } from '@/components/ui/fields'
 import { ImageSlot } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
 
@@ -57,6 +58,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   const [vul, setVul] = useState<VulnerableSection>(initialVulnerable ?? { none: false, counts: {}, plans: [] })
   const [methods, setMethods] = useState<Record<string, string>>(initialMethods)
   const [dirty, setDirty] = useState(false)
+  useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
   const [equip, setEquip] = useState<EvacEquipRow[]>(initialEquip)
   const [isPending, startTransition] = useTransition()

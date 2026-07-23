@@ -89,8 +89,8 @@ try {
   await page.click('button:has-text("편집") >> visible=true')
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
-  await page.fill('div:has(> label:has-text("계단(개소)")) input', '2')
-  await page.fill('div:has(> label:has-text("피난용승강기(대)")) input', '1')
+  await page.fill('div:has(> label:text-is("계단")) input', '2')
+  await page.fill('div:has(> label:text-is("피난용승강기")) input', '1')
   await page.click('div:has(> label:has-text("대표자 구분")) button:has-text("소유자")')
   await page.click('div:has(> label:has-text("관리자 자격구분")) button:has-text("2급")')
   await page.click('button:has-text("저장"):not(:has-text("다음"))')
@@ -161,8 +161,15 @@ try {
   // ── 4.65) 서식 1.10·1.11 + 2장 (P4-④) ──
   await page.click('button:has-text("1.10 자체점검")')
   await page.waitForSelector('text=1.10.1 연간 자체점검 계획')
-  check('1.10 — 작동 고객은 종합점검 블록 미노출(§9-8 조건부)', !(await page.isVisible('text=종합 년월')))
-  await page.fill('input[placeholder*="2026년 9월"]', '2026년 10월')
+  check('1.10 — 작동 고객은 종합점검 블록 미노출(§9-8 조건부)', !(await page.isVisible('input[type="month"] >> nth=1')))
+  // §11-4 MonthField — 저장 형식은 '2026년 10월' (React 이벤트 보장 위해 evaluate 주입)
+  await page.waitForLoadState('networkidle')
+  await page.locator('input[type="month"]').first().evaluate((el, v) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+    setter.call(el, v)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  }, '2026-10')
   await page.click('button:has-text("서식 1.10 저장")')
   await page.waitForSelector('text=서식 1.10 저장됨')
   const { data: f110 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
