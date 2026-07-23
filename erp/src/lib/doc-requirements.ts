@@ -39,6 +39,25 @@ export function requiredDocs(c: CustomerDocProfile): DocRequirement[] {
   ]
 }
 
+/** ── §9-9a: 문서 타임라인 단계 구성 — (점검 유형 × 불량 유무)로 결정, 088 분기 흡수 ──
+ *  특별점검(종합/작동, plan_type special_*·null) = ①~④(불량 시 ⑤⑥ 추가) / 정기(monthly)·일반(event·일반관리) = ① 하나만 */
+export type TimelineStepKey = 'checklist' | 'cert' | 'ownerReport' | 'submit9' | 'repair' | 'submit11'
+
+export const TIMELINE_STEP_LABELS: Record<TimelineStepKey, string> = {
+  checklist: '① 점검표',
+  cert: '② 배치확인서',
+  ownerReport: '③ 관계인 보고',
+  submit9: '④ 소방서 제출 (별지 9호)',
+  repair: '⑤ 보수·증빙',
+  submit11: '⑥ 이행완료 (별지 11호)',
+}
+
+export function stepDocs(i: { isSpecial: boolean; hasDefects: boolean }): TimelineStepKey[] {
+  if (!i.isSpecial) return ['checklist'] // 정기·일반 — 보고 의무 없음(작성·2년 보관만, 기한·알림 없음)
+  const base: TimelineStepKey[] = ['checklist', 'cert', 'ownerReport', 'submit9']
+  return i.hasDefects ? [...base, 'repair', 'submit11'] : base
+}
+
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.
  *  일반관리 고객은 빈 배열(입력 화면 미노출 — §9-8).
  *  경사로·계단·피난용승강기 등 컬럼 미비 항목은 P4 서식 확장에서 추가. */

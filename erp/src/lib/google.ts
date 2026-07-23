@@ -189,3 +189,51 @@ export async function driveUpload(name: string, parentId: string, data: Uint8Arr
   if (!res.ok) throw new Error(`Drive 업로드 실패 (${res.status}): ${(await res.text()).slice(0, 200)}`)
   return ((await res.json()) as { id: string }).id
 }
+
+// ── Gmail 발송 (§9-9d 관계인 보고 — 첨부 1개 MIME) ─────────────
+// ⚠ gmail.send 스코프 필요 — 기존 토큰(readonly)이면 403: scripts/google-oauth-setup.mjs 재실행 후 GOOGLE_REFRESH_TOKEN 교체
+function b64url(data: Uint8Array | string): string {
+  const b64 = typeof data === 'string' ? Buffer.from(data).toString('base64') : Buffer.from(data).toString('base64')
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+export async function gmailSendWithAttachment(opts: {
+  to: string
+  subject: string
+  bodyText: string
+  attachment?: { filename: string; mime: string; data: Uint8Array }
+}): Promise<{ messageId: string }> {
+  const boundary = `sjfire_${Math.random().toString(36).slice(2)}`
+  const subjectEnc = `=?UTF-8?B?${Buffer.from(opts.subject).toString('base64')}?=`
+  const lines: string[] = [
+    `To: ${opts.to}`,
+    `Subject: ${subjectEnc}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(opts.bodyText).toString('base64'),
+  ]
+  if (opts.attachment) {
+    const fnEnc = `=?UTF-8?B?${Buffer.from(opts.attachment.filename).toString('base64')}?=`
+    lines.push(
+      `--${boundary}`,
+      `Content-Type: ${opts.attachment.mime}; name="${fnEnc}"`,
+      `Content-Disposition: attachment; filename="${fnEnc}"`,
+      'Content-Transfer-Encoding: base64',
+      '',
+      Buffer.from(opts.attachment.data).toString('base64'),
+    )
+  }
+  lines.push(`--${boundary}--`)
+  const raw = b64url(lines.join('\r\n'))
+  const res = await gapi<{ id: string }>('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw }),
+  })
+  return { messageId: res.id }
+}

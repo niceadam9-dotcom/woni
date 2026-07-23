@@ -39,9 +39,9 @@ try {
   const { data: resp } = await raw.from('inspection_sheet_responses')
     .select('item_code, result').eq('inspection_id', inspId).like('item_code', 'MU-%')
   check('응답 16건 저장(전체 O)', (resp ?? []).length === 16 && (resp ?? []).every(r => r.result === 'O'), String((resp ?? []).length))
-  await page.waitForTimeout(1000)
-  const badge = await page.locator('button:has-text("안전시설등(다중이용업소)") >> text=16').count()
-  check('응답수 뱃지 16 표시(MU 키)', badge > 0)
+  const badgeOk = await page.waitForSelector('button:has-text("안전시설등(다중이용업소)") >> text=16', { timeout: 15000 })
+    .then(() => true).catch(() => false)
+  check('응답수 뱃지 16 표시(MU 키)', badgeOk)
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

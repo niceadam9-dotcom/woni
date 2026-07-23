@@ -13,6 +13,8 @@ import { InspectionDefectsClient } from '@/components/inspections/inspection-def
 import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
 import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-voice-sheet-client'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
+import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
+import { stepDocs } from '@/lib/doc-requirements'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
 import { computeQuickReadiness } from '@/lib/doc-requirements'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -70,6 +72,10 @@ export default async function InspectionDetailPage({
   const inspection = inspRes.data as Inspection
   const steps = (stepsRes.data ?? []) as InspectionStep[]
 
+  // §9-9a: 특별점검 여부 — plan_type(088) 기준 (special_*·null=특별 / monthly·event·일반관리=정기·일반)
+  const inspPlanType = ((inspection as unknown as Record<string, unknown>).plan_type as string | null) ?? null
+  const isSpecial = inspection.inspection_type !== '일반관리' && (!inspPlanType || inspPlanType.startsWith('special'))
+
   // 고객, 관계인, 담당직원, 보고서 병렬 조회
   const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
     admin.from('customers').select('id, customer_name, customer_code, inspection_type, address').eq('id', inspection.customer_id).single(),
@@ -94,9 +100,9 @@ export default async function InspectionDetailPage({
     admin.from('generated_reports')
       .select('id, report_kind, file_name, generated_at, generated_by')
       .eq('inspection_id', id).order('generated_at', { ascending: false }),
-    // 일반관리 = 외관점검표 시트(EXT, 별지 6호 v2022 — §9-8d) / 그 외 = 소방시설등점검표(STD v2025)
+    // 정기·일반 = 외관점검표 시트(EXT, 별지 6호 v2022 — §9-8d·§9-9a) / 특별 = 소방시설등점검표(STD v2025)
     admin.from('inspection_sheets').select('id, sheet_code, sheet_name')
-      .eq('version', inspection.inspection_type === '일반관리' ? 'v2022' : 'v2025').order('sheet_code'),
+      .eq('version', isSpecial ? 'v2025' : 'v2022').order('sheet_code'),
     admin.from('inspection_sheet_responses').select('item_code, result, memo').eq('inspection_id', id),
   ])
 
@@ -171,12 +177,13 @@ export default async function InspectionDetailPage({
   const completedCount = steps.filter(s => s.status === 'completed').length
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0
 
-  // ── 실시결과 보고서(별지 9호) 준비 섹션 (P3 §9-6⑦) — 일반관리는 외관점검표(§9-8d) ──
+  // ── 문서 타임라인 (§9-9 / P7) — 특별점검 ①~④(불량 시 ⑤⑥) / 정기·일반 ①(외관점검표) ──
   let report9Checks: Report9CheckRow[] | null = null
   let report9Job: Report9Job | null = null
   let report9Files: Report9File[] = []
   let exteriorChecks: Report9CheckRow[] | null = null
-  if (inspection.inspection_type === '일반관리' && customer) {
+  let timelineData: TimelineData | null = null
+  if (!isSpecial && customer) {
     const [ownerRes, jobResExt, filesResExt] = await Promise.all([
       admin.from('customer_contacts').select('id').eq('customer_id', inspection.customer_id).limit(1),
       admin.from('fire_plan_gen_jobs')
@@ -207,10 +214,10 @@ export default async function InspectionDetailPage({
       .filter(o => /^exterior_/.test(o.name))
       .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
   }
-  if (inspection.inspection_type !== '일반관리' && customer) {
-    const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9] = await Promise.all([
+  if (isSpecial && customer) {
+    const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9, deliveryRes] = await Promise.all([
       admin.from('customers')
-        .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent')
+        .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email')
         .eq('id', inspection.customer_id).single(),
       admin.from('buildings').select('purpose, total_area, building_area, floors_above, floors_below, height, households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, receiver_location, main_structure, roof_structure')
         .eq('customer_id', inspection.customer_id).eq('is_active', true)
@@ -220,7 +227,10 @@ export default async function InspectionDetailPage({
         .select('id, status, missing, error, created_at')
         .eq('inspection_id', id).eq('report_type', 'report9')
         .order('created_at', { ascending: false }).limit(1),
-      admin.storage.from('fire-plans').list(`${inspection.customer_id}/inspections/${id}`, { limit: 50, sortBy: { column: 'name', order: 'desc' } }),
+      admin.storage.from('fire-plans').list(`${inspection.customer_id}/inspections/${id}`, { limit: 100, sortBy: { column: 'name', order: 'desc' } }),
+      admin.from('report_deliveries').select('recipient_email, sent_at')
+        .eq('inspection_id', id).eq('doc_kind', 'report9_owner')
+        .order('sent_at', { ascending: false }).limit(1),
     ])
     const cf = (custFullRes.data ?? {}) as Record<string, unknown>
     const b9 = (bldRes9.data ?? null) as Record<string, unknown> | null
@@ -265,9 +275,51 @@ export default async function InspectionDetailPage({
       },
     ]
     report9Job = (jobRes9.data?.[0] as Report9Job | undefined) ?? null
-    report9Files = (filesRes9.data ?? [])
+    const storagePrefix = `${inspection.customer_id}/inspections/${id}`
+    const allObjects = (filesRes9.data ?? [])
+    report9Files = allObjects
       .filter(o => /^report(9|10|11)_/.test(o.name))
-      .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
+      .map(o => ({ name: o.name, path: `${storagePrefix}/${o.name}`, createdAt: o.created_at ?? null }))
+
+    // 타임라인 데이터 (§9-9) — 기한: ④ 점검 종료+15일 / ⑥ 이행기간 종료일(max action_end)
+    const certObj = allObjects.find(o => /^cert_\d+\./.test(o.name)) ?? null
+    const contractObj = allObjects.find(o => /^contract_\d+\./.test(o.name)) ?? null
+    const deliveryRow = (deliveryRes.data?.[0] ?? null) as { recipient_email: string; sent_at: string } | null
+    const iRec = inspection as unknown as Record<string, unknown>
+    const endDate = (iRec.inspection_end_date as string | null) ?? (iRec.inspection_start_date as string | null)
+    const addDays = (base: string, days: number) => {
+      const d = new Date(base); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0]
+    }
+    const ddayOf = (due: string | null) => due
+      ? Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000) : null
+    const due9 = endDate ? addDays(endDate, 15) : null
+    const actionEnds = defects.map(d => d.action_end).filter(Boolean).sort() as string[]
+    const due11 = actionEnds.length > 0 ? actionEnds[actionEnds.length - 1] : null
+    const photoPairs = defects.filter(d => d.photo_url && d.after_photo_url).length
+    timelineData = {
+      steps: stepDocs({ isSpecial: true, hasDefects: defects.length > 0 }),
+      isGeneral: false,
+      responded: respRows.length,
+      certFile: certObj ? { name: certObj.name, path: `${storagePrefix}/${certObj.name}` } : null,
+      contractFile: contractObj ? { name: contractObj.name, path: `${storagePrefix}/${contractObj.name}` } : null,
+      delivery: deliveryRow ? { sentTo: deliveryRow.recipient_email, sentAt: deliveryRow.sent_at } : null,
+      submit9: {
+        due: due9, submittedAt: (iRec.report9_submitted_at as string | null) ?? null,
+        dday: (iRec.report9_submitted_at as string | null) ? null : ddayOf(due9),
+      },
+      submit11: {
+        due: due11, submittedAt: (iRec.report11_submitted_at as string | null) ?? null,
+        dday: (iRec.report11_submitted_at as string | null) ? null : ddayOf(due11),
+      },
+      defects: {
+        total: defects.length,
+        planned: defects.filter(d => d.action_plan || d.action_start).length,
+        done: defects.filter(d => d.action_completed_at).length,
+        photoPairs,
+      },
+      prereqs: report9Checks,
+      consentOk: consent === true && !!cf.report_email,
+    }
   }
 
   return (
@@ -415,19 +467,14 @@ export default async function InspectionDetailPage({
         />
       )}
 
-      {/* 실시결과 보고서 별지 9호 (P3 §9-6⑦) — 일반관리 점검은 미표시(§9-8) */}
-      {report9Checks && (
-        <InspectionReport9Client
+      {/* 문서 타임라인 (§9-9 / P7) — 특별점검: 별지 9호 준비 섹션을 ④ 전제로 흡수 */}
+      {timelineData && (
+        <InspectionTimelineClient
           inspectionId={id}
           canManage={canEdit}
-          checks={report9Checks}
+          data={timelineData}
           initialJob={report9Job}
           initialFiles={report9Files}
-          defectsInfo={{
-            total: defects.length,
-            planned: defects.filter(d => d.action_plan || d.action_start).length,
-            done: defects.filter(d => d.action_completed_at).length,
-          }}
         />
       )}
 
@@ -437,7 +484,8 @@ export default async function InspectionDetailPage({
       {/* 음성 불량 기록 (VN-1) — 말로 보고 → AI 정리 → 불량 추가 */}
       <InspectionVoiceDefectClient inspectionId={id} canManage={canEdit} />
 
-      {/* 불량내역 — 전체 너비 */}
+      {/* 불량내역 — 전체 너비 (타임라인 ⑤ 전·후 사진 슬롯 앵커) */}
+      <div id="defects" />
       <InspectionDefectsClient
         inspectionId={id}
         initialDefects={defects}

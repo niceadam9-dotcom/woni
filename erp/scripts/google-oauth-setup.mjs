@@ -14,6 +14,7 @@ const PORT = 8756
 const REDIRECT = `http://localhost:${PORT}/callback`
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.send', // §9-9d 관계인 보고 이메일 발송
   'https://www.googleapis.com/auth/drive.file',
 ].join(' ')
 

@@ -119,5 +119,66 @@ export async function GET(req: NextRequest) {
     breakdown[rule.label] = batch.length
   }
 
+  // ── §9-8e·§9-9④: 별지 9호 15일 보고 기한 임박·경과 (제출일 기록 시 소멸) ──
+  type InspRow = {
+    id: string; customer_id: string; assigned_employee_id: string | null
+    inspection_type: string; plan_type: string | null
+    inspection_start_date: string | null; inspection_end_date: string | null
+    report9_submitted_at: string | null
+    customer: { customer_name: string } | null
+  }
+  const { data: inspRaw } = await admin.from('inspections')
+    .select('id, customer_id, assigned_employee_id, inspection_type, plan_type, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
+    .is('report9_submitted_at', null)
+    .neq('inspection_type', '일반관리')
+    .gte('inspection_start_date', shiftDate(todayStr, -45))
+  const specials = ((inspRaw ?? []) as unknown as InspRow[])
+    .filter(r => !r.plan_type || r.plan_type.startsWith('special')) // 정기·일반은 보고 의무 없음(§9-9a)
+    .map(r => ({ ...r, deadline: r.inspection_end_date ?? r.inspection_start_date }))
+    .filter(r => r.deadline)
+    .map(r => ({ ...r, deadline: shiftDate(r.deadline!, 15) }))
+
+  const submitRules = [
+    { deadline: shiftDate(todayStr, 7), type: 'report_submit_due' as const, label: '[D-7] 별지 9호 보고기한' },
+    { deadline: shiftDate(todayStr, 3), type: 'report_submit_due' as const, label: '[D-3] 별지 9호 보고기한' },
+    { deadline: todayStr, type: 'report_submit_due' as const, label: '[오늘] 별지 9호 보고기한' },
+    { deadline: shiftDate(todayStr, -1), type: 'report_submit_overdue' as const, label: '[경과] 별지 9호 보고기한' },
+  ]
+  for (const rule of submitRules) {
+    const targets = specials.filter(r => r.deadline === rule.deadline)
+    if (targets.length === 0) { breakdown[rule.label] = 0; continue }
+    const { data: existingRaw } = await admin.from('notifications')
+      .select('reference_id').in('reference_id', targets.map(t => t.id))
+      .eq('type', rule.type).gte('created_at', `${todayStr}T00:00:00+09:00`)
+    const already = new Set(((existingRaw ?? []) as Array<{ reference_id: string | null }>)
+      .map(n => n.reference_id).filter(Boolean) as string[])
+    const notifiable = await filterNotifiableRecipients(admin,
+      [...managerIds, ...targets.map(t => t.assigned_employee_id).filter(Boolean) as string[]], 'deadline')
+
+    const batch: Record<string, unknown>[] = []
+    for (const t of targets) {
+      if (already.has(t.id)) continue
+      const name = t.customer?.customer_name ?? '고객'
+      const title = `${rule.label} ${name}`
+      const message = rule.type === 'report_submit_overdue'
+        ? `${name} — 자체점검 결과 보고(별지 9호) 기한(${t.deadline})이 지났습니다(과태료 위험). 제출 후 점검 상세 타임라인에 제출일을 기록해주세요.`
+        : `${name} — 자체점검 결과 보고(별지 9호) 기한이 ${t.deadline}입니다. 점검 상세 타임라인에서 생성·제출해주세요.`
+      const recipients = new Set<string>(managerIds)
+      if (t.assigned_employee_id) recipients.add(t.assigned_employee_id)
+      for (const recipientId of recipients) {
+        if (!notifiable.has(recipientId)) continue
+        batch.push({ recipient_id: recipientId, title, message, type: rule.type, reference_id: t.id, reference_type: 'inspection' })
+      }
+    }
+    if (batch.length > 0) {
+      const { error } = await admin.from('notifications').insert(batch)
+      if (error) {
+        return NextResponse.json({ ok: false, date: todayStr, error: error.message, failedRule: rule.label }, { status: 500 })
+      }
+      totalSent += batch.length
+    }
+    breakdown[rule.label] = batch.length
+  }
+
   return NextResponse.json({ ok: true, date: todayStr, sent: totalSent, breakdown })
 }
