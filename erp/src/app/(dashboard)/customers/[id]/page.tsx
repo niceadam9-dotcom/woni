@@ -17,7 +17,8 @@ import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } fr
 import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/components/customers/plan-form16'
 import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
 import { PlanForm18 } from '@/components/customers/plan-form18'
-import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow } from '@/components/customers/plan-form110'
+import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow, type DutyLogRow } from '@/components/customers/plan-form110'
+import { PlanForm1215, type LogRow } from '@/components/customers/plan-form1215'
 import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
 import { PlanCh2 } from '@/components/customers/plan-ch2'
 import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSection, type EvacEquipRow } from '@/components/customers/plan-ch3'
@@ -317,6 +318,8 @@ export default async function CustomerDetailPage({
     evacDetail?: EvacDetailRow[]; evacHeadcount?: { note?: string }; evacPlan?: EvacPlanSection
     vulnerable?: VulnerableSection; vulnerableMethods?: Record<string, string>; evacEquip?: EvacEquipRow[]
     photos?: Array<{ path: string | null; kind: string; caption: string }>
+    dutyLog?: DutyLogRow[]
+    fireworkLog?: LogRow[]; constructionLog?: LogRow[]; promoLog?: LogRow[]; recoveryLog?: LogRow[]
   } } | null)?.sections) ?? {}
 
   // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
@@ -337,6 +340,8 @@ export default async function CustomerDetailPage({
     '1.8': true, // 자동 읽기 전용 (3-1.8)
     '1.10': !!(fpSections.inspection || fpSections.multiUse || (fpSections.fireHistory?.length ?? 0)),
     '1.11': !!fpSections.training,
+    '1.12': !!((fpSections.fireworkLog?.length ?? 0) || (fpSections.constructionLog?.length ?? 0)
+      || (fpSections.promoLog?.length ?? 0) || (fpSections.recoveryLog?.length ?? 0)),
     'ch2': !!(fpSections.brigadeGeneral?.type || Object.keys(fpSections.brigadeTeams ?? {}).length || planInfoInitial.brigade.length),
     'ch3': !!((fpSections.evacDetail?.length ?? 0) || fpSections.evacPlan || fpSections.vulnerable),
   }
@@ -595,9 +600,14 @@ export default async function CustomerDetailPage({
         isComprehensive={isComprehensive} autoOpMonth={autoOpMonth} autoCompMonth={autoCompMonth}
         useApprovalDate={s(cRec.use_approval_date)} fireStation={s(cRec.fire_station)}
         initialInspection={fpSections.inspection ?? null} initialMultiUse={fpSections.multiUse ?? null}
-        initialHistory={fpSections.fireHistory ?? []} />}
+        initialHistory={fpSections.fireHistory ?? []} initialDutyLog={fpSections.dutyLog ?? []} />}
       form111={<PlanForm111 customerId={customer.id} canManage={canManage}
         initial={fpSections.training ?? null} presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}
+      form1215={<PlanForm1215 customerId={customer.id} canManage={canManage}
+        initial={{
+          fireworkLog: fpSections.fireworkLog ?? [], constructionLog: fpSections.constructionLog ?? [],
+          promoLog: fpSections.promoLog ?? [], recoveryLog: fpSections.recoveryLog ?? [],
+        }} />}
       ch2={<PlanCh2 customerId={customer.id} canManage={canManage}
         initialType={fpSections.brigadeGeneral?.type ?? ''} initialTeams={fpSections.brigadeTeams ?? {}}
         initialBrigade={planInfoInitial.brigade} people={planPeople} />}

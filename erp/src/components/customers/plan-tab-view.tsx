@@ -47,6 +47,7 @@ const CH1_FORMS = [
   { key: '1.8', label: '1.8 업무대행', active: true },
   { key: '1.10', label: '1.10 자체점검', active: true },
   { key: '1.11', label: '1.11 훈련·교육', active: true },
+  { key: '1.12', label: '1.12~1.15 기록부', active: true }, // §12-3 결정(2026-07-23): v1 포함
 ]
 
 /** 목차 완성도 — true=입력 있음(✓), false=비어 있음(○), {done,total}=게이지형(1.1) */
@@ -54,7 +55,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
-  form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, ch2, ch3,
+  form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
@@ -78,6 +79,7 @@ export function PlanTabView({
   form18: ReactNode
   form110: ReactNode
   form111: ReactNode
+  form1215: ReactNode
   ch2: ReactNode
   ch3: ReactNode
   isGeneral: boolean
@@ -537,6 +539,7 @@ export function PlanTabView({
       {sel === '1.8' && form18}
       {sel === '1.10' && form110}
       {sel === '1.11' && form111}
+      {sel === '1.12' && form1215}
 
       {/* ── 2장 자위소방대 운영계획 ── */}
       {sel === 'ch2' && ch2}

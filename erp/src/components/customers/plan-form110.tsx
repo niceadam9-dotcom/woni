@@ -7,10 +7,11 @@ import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-pla
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { MonthField, useUnsavedWarning } from '@/components/ui/fields'
 
-/** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 3개 (소방계획서_4.md §3)
+/** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 4개 (소방계획서_4.md §3)
  *  1.10.1 연간 점검 계획(sections.inspection — 종합 블록은 종합 고객만, §9-8 필드 조건부)
+ *  1.10.2 업무수행 기록(sections.dutyLog — §12-1 결정 2026-07-23: ERP 입력 관리)
  *  1.10.3 다중이용업소(sections.multiUse — 업종은 별지 9호 28종 선택형, §9-6④)
- *  1.10.4 화재/비화재보 이력(sections.fireHistory). 1.10.2 업무수행 기록은 §12-1 미결로 제외 */
+ *  1.10.4 화재/비화재보 이력(sections.fireHistory) */
 
 export type InspectionPlanSection = {
   opMonth: string; opInspector: '자체' | '외주' | ''
@@ -24,6 +25,8 @@ export type MultiUseSection = {
   hours: string; users: string; capacity: string
 }
 export type FireHistoryRow = { kind: '화재' | '비화재보'; at: string; place: string; cause: string; action: string }
+/** 1.10.2 업무수행 기록 행 (§12-1 — ERP 입력 관리) */
+export type DutyLogRow = { date: string; content: string; action: string; note: string }
 
 export const EMPTY_INSPECTION: InspectionPlanSection = {
   opMonth: '', opInspector: '외주', isInitial: false, initialMonth: '', compMonth: '', comp2Month: '', compInspector: '외주',
@@ -32,7 +35,7 @@ export const EMPTY_MULTI_USE: MultiUseSection = {
   applicable: false, categories: {}, bizName: '', location: '', owner: '', phone: '', hours: '', users: '', capacity: '',
 }
 
-export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMonth, autoCompMonth, useApprovalDate, fireStation, initialInspection, initialMultiUse, initialHistory }: {
+export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMonth, autoCompMonth, useApprovalDate, fireStation, initialInspection, initialMultiUse, initialHistory, initialDutyLog = [] }: {
   customerId: string
   canManage: boolean
   isComprehensive: boolean          // 종합 고객만 종합점검 블록 표시 (§9-8)
@@ -43,6 +46,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   initialInspection: InspectionPlanSection | null
   initialMultiUse: MultiUseSection | null
   initialHistory: FireHistoryRow[]
+  initialDutyLog?: DutyLogRow[]
 }) {
   const router = useRouter()
   const [insp, setInsp] = useState<InspectionPlanSection>(initialInspection ?? {
@@ -50,6 +54,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   })
   const [mu, setMu] = useState<MultiUseSection>(initialMultiUse ?? EMPTY_MULTI_USE)
   const [hist, setHist] = useState<FireHistoryRow[]>(initialHistory)
+  const [duty, setDuty] = useState<DutyLogRow[]>(initialDutyLog)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty) // §11-4 이탈 경고
   const [msg, setMsg] = useState('')
@@ -62,6 +67,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       const res = await saveFirePlanSectionsAction(customerId, {
         inspection: insp, multiUse: mu,
         fireHistory: hist.filter(h => h.at.trim() || h.place.trim() || h.cause.trim()),
+        dutyLog: duty.filter(d => d.date.trim() || d.content.trim()),
       })
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setDirty(false)
@@ -113,6 +119,37 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
           </>
         )}
         <p className="text-[11px] text-[#b0acd6]">사용승인일 {useApprovalDate || '—'} · 제출처 {fireStation ? `${fireStation}장` : '관할 소방서장'} (자동)</p>
+      </div>
+
+      {/* 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리) */}
+      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs font-semibold text-[#514b81]">1.10.2 소방안전관리자 업무수행 기록</p>
+          {canManage && (
+            <button onClick={() => { setDuty(p => [...p, { date: '', content: '', action: '', note: '' }]); setDirty(true) }}
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              <Plus className="size-3" /> 기록 추가
+            </button>
+          )}
+        </div>
+        {duty.length === 0 && <p className="text-[11px] text-[#b0acd6]">수행 일자·업무 내용·조치사항을 기록하세요 (생성 문서의 업무수행 기록부에 반영 예정 — HWP 병합은 7-4 확장 시).</p>}
+        <div className="space-y-1.5">
+          {duty.map((d, i) => (
+            <div key={i} className="flex items-center gap-1.5 flex-wrap">
+              <input value={d.date} disabled={!canManage} placeholder="일자 (YYYY-MM-DD)"
+                onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, date: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-32`} />
+              <input value={d.content} disabled={!canManage} placeholder="수행 업무 내용"
+                onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, content: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-48`} />
+              <input value={d.action} disabled={!canManage} placeholder="조치사항"
+                onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, action: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-44`} />
+              <input value={d.note} disabled={!canManage} placeholder="비고"
+                onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, note: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-28`} />
+              {canManage && (
+                <button onClick={() => { setDuty(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 1.10.3 다중이용업소 */}
