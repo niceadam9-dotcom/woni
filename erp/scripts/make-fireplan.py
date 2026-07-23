@@ -300,20 +300,28 @@ def build_form_pairs(sections: dict) -> tuple[dict[str, str], list[tuple[str, st
     return rep, extras
 
 # ── 7-4b: 범용 표 행 채우기 — 앵커 텍스트 뒤 표의 (rowAddr,colAddr) 셀에 값 주입 ──
-def _set_tc_text(tc: str, value: str) -> str:
-    """셀 텍스트 설정 — 빈 런이면 주입, 예시 텍스트가 있으면 첫 런 내용 교체"""
+def _set_tc_text(tc: str, value: str, clear_rest: bool = False) -> str:
+    """셀 텍스트 설정 — 빈 런이면 주입, 예시 텍스트가 있으면 첫 런 내용 교체.
+    clear_rest: 다행 예시 셀(런 2개 이상) — 첫 런 교체 후 나머지 런 텍스트 비움"""
     m = re.search(r'<hp:run charPrIDRef="(\d+)"/>', tc)
     if m:
         return tc.replace(m.group(0),
             f'<hp:run charPrIDRef="{m.group(1)}"><hp:t>{_xml_escape(value)}</hp:t></hp:run>', 1)
     m2 = re.search(r"(<hp:t[^>]*>)([^<]*)(</hp:t>)", tc)
     if m2:
-        return tc[:m2.start()] + m2.group(1) + _xml_escape(value) + m2.group(3) + tc[m2.end():]
+        out = tc[:m2.start()] + m2.group(1) + _xml_escape(value) + m2.group(3) + tc[m2.end():]
+        if clear_rest:
+            head = out[:m2.start() + len(m2.group(1)) + len(_xml_escape(value)) + len(m2.group(3))]
+            tail = re.sub(r"(<hp:t[^>]*>)[^<]*(</hp:t>)", r"\1\2", out[len(head):])
+            out = head + tail
+        return out
     return tc
 
 def fill_table(xml: str, anchor: str, row_start: int, col_map: dict[int, str],
-               rows: list[dict], span: int = 30000) -> tuple[str, int]:
-    """anchor 이후 span 범위의 표에서 데이터 행(row_start+i)의 col_map 셀에 rows[i][key] 주입 (fail-soft)"""
+               rows: list[dict], span: int = 30000, stride: int = 1,
+               clear_rest: bool = False) -> tuple[str, int]:
+    """anchor 이후 span 범위의 표에서 데이터 행(row_start+i*stride)의 col_map 셀에 rows[i][key] 주입 (fail-soft).
+    stride: 논리 1건이 표 N행을 차지하는 블록형 표(1.14.2 등)의 행 간격"""
     start = xml.find(anchor)
     if start < 0 or not rows:
         return xml, 0
@@ -327,21 +335,24 @@ def fill_table(xml: str, anchor: str, row_start: int, col_map: dict[int, str],
         if not addr:
             return tc
         c, r = int(addr.group(1)), int(addr.group(2))
-        ri = r - row_start
+        if (r - row_start) % stride != 0:
+            return tc
+        ri = (r - row_start) // stride
         if ri < 0 or ri >= len(rows) or c not in col_map:
             return tc
         val = str(rows[ri].get(col_map[c]) or "")
         if not val.strip():
             return tc
         filled += 1
-        return _set_tc_text(tc, val)
+        return _set_tc_text(tc, val, clear_rest)
 
     seg = re.sub(r"<hp:tc .*?</hp:tc>", repl, xml[start:end], flags=re.S)
     return xml[:start] + seg + xml[end:], filled
 
 def apply_form_tables(xml: str, sections: dict | None, revisions: list[dict] | None) -> tuple[str, int]:
-    """7-4b 표 병합: 개정이력 다행·1.10.4 이력·3.2 세부현황·3.7 기구·장비.
-    1.11.2(차수 블록)·1.11.4(별지 28호 고정 양식)·시나리오(5앵커 분할)는 구조 불일치로 제외 — 프리셋 경로 유지."""
+    """7-4b 표 병합: 개정이력 다행·1.10.4 이력·3.2 세부현황·3.7 기구·장비 + 기록부(1.12~1.15, 7-4 확장).
+    제외(구조 불일치): 1.11.2(차수 블록)·1.11.4(별지 28호 고정 양식)·시나리오(5앵커 분할)·
+    1.10.2 dutyLog(양식에 기록표 없음 — '별도 파일철' 보관 대상, ERP 기록·보관용 유지)."""
     n = 0
     if revisions:
         xml, k = fill_table(xml, "소방계획서 개정이력", 1, {1: "date", 2: "note", 3: "author"}, revisions)
@@ -360,6 +371,45 @@ def apply_form_tables(xml: str, sections: dict | None, revisions: list[dict] | N
     equip = s.get("evacEquip") or []
     if equip:
         xml, k = fill_table(xml, "유도장비", 16, {0: "name", 3: "location", 5: "qty"}, equip)
+        n += k
+    # 1.12 화기취급 감독(fireworkLog) → 1.12.1 화기취급작업 현황 표 (데이터 행 r3~r15 = 13행, 초과분 미병합)
+    fw = s.get("fireworkLog") or []
+    if fw:
+        rows = [{"date": r.get("date"), "place": r.get("place"), "supervisor": r.get("supervisor"),
+                 "work": " / ".join(x for x in (r.get("work") or "",
+                                                f"안전조치: {r['measure']}" if r.get("measure") else "") if x)}
+                for r in fw[:13]]
+        xml, k = fill_table(xml, "1.12.1 화기취급작업 현황", 3,
+                            {0: "date", 1: "place", 2: "work", 5: "supervisor"}, rows, span=70000)
+        n += k
+    # 1.13 공사·정비 기록(constructionLog) → 작업내용/작업기간/작업책임자/비고 표 (r1~r11 = 11행)
+    con = s.get("constructionLog") or []
+    if con:
+        rows = [{"date": r.get("date"), "company": r.get("company"), "note": r.get("note"),
+                 "content": " — ".join(x for x in (r.get("facility") or "", r.get("content") or "") if x)}
+                for r in con[:11]]
+        xml, k = fill_table(xml, "소방시설 공사/정비 기록", 1,
+                            {0: "content", 1: "date", 2: "company", 5: "note"}, rows, span=60000)
+        n += k
+    # 1.14 홍보 결과(promoLog) → 1.14.2 표 — 1건=2행 블록×2 (사진 셀은 제외, 방법+내용·일시+대상 병합)
+    promo = s.get("promoLog") or []
+    if promo:
+        rows = [{"mtd": " — ".join(x for x in (r.get("method") or "", r.get("content") or "") if x),
+                 "when": " / ".join(x for x in (r.get("date") or "",
+                                                f"대상: {r['target']}" if r.get("target") else "") if x)}
+                for r in promo[:2]]
+        xml, k = fill_table(xml, "1.14.2 화재예방 및 홍보 결과", 1, {1: "mtd", 3: "when"},
+                            rows, span=12000, stride=2, clear_rest=True)
+        n += k
+    # 1.15 피해 복구(recoveryLog) → 화재발생 개요 서식 — 단일 사건 서식이라 첫 행만 (일시·개요=피해 내용·예방대책=복구 조치, 비용 미병합)
+    rec = s.get("recoveryLog") or []
+    if rec:
+        r0 = rec[0]
+        rows = [{} for _ in range(8)]
+        rows[0] = {"dt": r0.get("date")}          # r9  일   시
+        rows[4] = {"dmg": r0.get("damage")}       # r13 발화개요
+        rows[7] = {"rcv": r0.get("recovery")}     # r16 예방대책(복구 조치 서술)
+        xml, k = fill_table(xml, "피해복구", 9, {2: "dt", 3: "dmg", 1: "rcv"}, rows, span=45000)
         n += k
     return xml, n
 

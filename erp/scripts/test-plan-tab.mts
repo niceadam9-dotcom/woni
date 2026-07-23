@@ -190,9 +190,18 @@ try {
 
   await page.click('button:has-text("2장 자위소방대")')
   await page.waitForSelector('text=2.1 자위소방대 및 초기대응체계 일반현황')
-  await page.waitForTimeout(600) // 직전 저장 router.refresh 안착 대기 (remount 경합 플레이크 방지)
+  await page.waitForLoadState('networkidle') // 직전 저장 router.refresh(RSC) 안착 — 고정 600ms로는 부족
+  await page.waitForTimeout(300)
   await page.click('button:has-text("Type Ⅲ")')
   await page.locator('input[placeholder="성명"]').first().fill('김대장')
+  // RSC 늦은 커밋이 controlled input을 되돌리는 경합 방어 — 값 검증 + 최대 3회 재입력(타이핑)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await page.locator('input[placeholder="성명"]').first().inputValue() === '김대장') break
+    const t3cls = await page.locator('button:has-text("Type Ⅲ")').getAttribute('class') ?? ''
+    if (!t3cls.includes('border-[#7b68ee]')) await page.click('button:has-text("Type Ⅲ")') // 토글이라 미선택일 때만
+    await page.locator('input[placeholder="성명"]').first().pressSequentially('김대장', { delay: 40 })
+    await page.waitForTimeout(400)
+  }
   await page.click('button:has-text("2장 저장")')
   await page.waitForSelector('text=2장 저장됨')
   const { data: f2 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()

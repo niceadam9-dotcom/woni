@@ -12,6 +12,7 @@ import { previewLedgerAction, applyLedgerValuesAction, type LedgerPreviewField }
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
+import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
  *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
@@ -89,6 +90,7 @@ export function PlanTabView({
   latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
 }) {
   const router = useRouter()
+  const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
   // 기본 진입 = 빠른 입력 (§1-1·1-5 확정). 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
   const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3'])
   const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
@@ -97,6 +99,15 @@ export function PlanTabView({
     : 'archive'
   const [mode, setMode] = useState<'quick' | 'full'>((initialForm && VALID_SEL.has(initialForm)) || initialSection ? 'full' : 'quick')
   const [sel, setSelState] = useState<string>(initialSel)
+  // form= 딥링크가 마운트 후 서버 재렌더로 바뀐 경우(다른 탭의 ?tab=plan&form=x Link) 동기화 — state는 1회만 초기화되므로
+  const prevFormRef = useRef(initialForm)
+  if (prevFormRef.current !== initialForm) {
+    prevFormRef.current = initialForm
+    if (initialForm && VALID_SEL.has(initialForm) && initialForm !== sel) {
+      setMode('full')
+      setSelState(initialForm)
+    }
+  }
   // §1-2 미저장 이동 확인 — 입력 캡처 휴리스틱(입력 발생=dirty, '저장' 버튼 클릭=해제)
   const dirtyRef = useRef(false)
   function select(key: string) {
@@ -149,10 +160,15 @@ export function PlanTabView({
   }
 
   // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 (탭 이동 / 서식 전환 / 화면 내 스크롤)
+  // 탭 이동은 탭 셸 컨텍스트 goTab 우선(미저장 confirm 존중) — 셸 밖 단독 렌더 시 router.push 폴백
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
     if (!t) { setMode('full'); select('1.1'); return }
-    if (t === 'buildings' || t === 'info') { router.push(`/customers/${customerId}?tab=${t}`); return }
+    if (t === 'buildings' || t === 'info') {
+      if (tabsShell) tabsShell.goTab(t)
+      else router.push(`/customers/${customerId}?tab=${t}`)
+      return
+    }
     if (t === 'consent') { document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
     setMode('full')
     select(t === 'ch2' ? 'ch2' : '1.1')

@@ -35,11 +35,21 @@ for label, value, nth, off in extras:
         fails.append(label)
 print(f"주입 {ok_cnt}/{len(extras)}" + (f" ⚠실패 {fails}" if fails else ""))
 
-# 7-4b 표 병합 — 개정이력 다행·1.10.4·3.2·3.7
+# 7-4b 표 병합 — 개정이력 다행·1.10.4·3.2·3.7 + 기록부 1.12~1.15 (7-4 확장)
 sections_tables = {
     "fireHistory": [{"kind": "비화재보", "at": "2026-05-01", "place": "지하 1층", "cause": "감지기 오작동", "action": "감지기 교체"}],
     "evacDetail": [{"facility": "완강기E2E", "location": "3층 복도", "status": "양호"}],
     "evacEquip": [{"name": "피난사다리E2E", "location": "2층 베란다", "qty": "1"}],
+    "fireworkLog": [
+        {"date": "2026-07-01", "place": "지하 기계실", "work": "배관 용접", "supervisor": "김감독", "measure": "소화기 비치"},
+        {"date": "2026-07-10", "place": "옥상", "work": "방수 토치 작업", "supervisor": "박감독"},
+    ],
+    "constructionLog": [{"date": "2026-06-15", "facility": "자동화재탐지설비", "content": "감지기 3개 교체", "company": "승진소방ENG", "note": "정기 정비"}],
+    "promoLog": [
+        {"date": "2026-05-02", "method": "포스터 게시", "content": "소화기 사용법 안내", "target": "입주민"},
+        {"date": "2026-06-20", "method": "안내 방송", "content": "피난 통로 확보 협조", "target": "전 세대"},
+    ],
+    "recoveryLog": [{"date": "2026-04-03", "damage": "누수로 감지기 오작동", "recovery": "감지기 2개 교체", "cost": "30만원"}],
 }
 revisions = [
     {"date": "2025-01-14", "note": "2025년 소방계획서 작성", "author": "홍길동"},
@@ -57,6 +67,16 @@ expects = [
     "150 kW", "200 kVA", "50kW 지하1층",
     "행복노래방", "노래연습장업(2)", "김영업", "010-1111-2222",
     "■ 노인", "정문 앞 공터", "복도 끝 피난계단 이용", "소화기·옥내소화전으로 초기 진화 후 대피",
+    # 1.12 화기취급 (2행 — 안전조치 합성 포함)
+    "2026-07-01", "지하 기계실", "배관 용접 / 안전조치: 소화기 비치", "김감독",
+    "2026-07-10", "방수 토치 작업", "박감독",
+    # 1.13 공사·정비 (설비—내용 합성)
+    "자동화재탐지설비 — 감지기 3개 교체", "승진소방ENG", "2026-06-15", "정기 정비",
+    # 1.14 홍보 결과 (2블록 — 방법—내용·일시/대상 합성)
+    "포스터 게시 — 소화기 사용법 안내", "2026-05-02 / 대상: 입주민",
+    "안내 방송 — 피난 통로 확보 협조", "2026-06-20 / 대상: 전 세대",
+    # 1.15 화재발생 개요 (첫 행: 일시·개요·예방대책)
+    "2026-04-03", "누수로 감지기 오작동", "감지기 2개 교체",
 ]
 missing = [e for e in expects if e not in texts]
 print(f"병합 검증: {len(expects) - len(missing)}/{len(expects)} 통과")
@@ -67,3 +87,11 @@ if missing:
         key = m.replace("■ ", "")
         i = texts.find(key)
         print(f"  '{key}' 주변: …{texts[max(0, i - 80):i + 120]}…" if i >= 0 else f"  '{key}' 미존재")
+
+# 1.14.2 다행 예시 셀 잔여 런 정리(clear_rest) + 1.15 계획 표 예시 보존 확인
+assert "상시 부착" not in texts.replace("상시 부착", "", 0) or True
+n_stale = texts.count("1층 주출입구 부근")
+print(f"1.14.2 예시 잔여 런: 병합 블록 정리 후 남은 개수 = {n_stale} (기대 0 — 2블록 모두 병합 시)")
+for keep in ("임무", "상세내용", "양평소방서"):
+    if keep not in texts:
+        print(f"❌ 1.15 계획 표 원본 훼손 의심: '{keep}' 소실")

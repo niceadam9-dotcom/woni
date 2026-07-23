@@ -127,7 +127,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
           {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
         </div>
       )}
-      <p className="text-[11px] text-[#b0acd6]">※ 생성 문서(HWP) 병합은 7-4 서식 확장 시 반영 — 현재는 ERP 기록·보관용.</p>
+      <p className="text-[11px] text-[#b0acd6]">※ 기록은 계획서 생성(HWP) 시 해당 서식 표에 병합됩니다 — 1.12는 13행·1.13은 11행·1.14는 2건까지, 1.15는 양식이 단일 사건 서식이라 첫 행(일자·피해 내용·복구 조치)만 반영됩니다.</p>
     </div>
   )
 }

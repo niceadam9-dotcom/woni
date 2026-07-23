@@ -132,7 +132,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             </button>
           )}
         </div>
-        {duty.length === 0 && <p className="text-[11px] text-[#b0acd6]">수행 일자·업무 내용·조치사항을 기록하세요 (생성 문서의 업무수행 기록부에 반영 예정 — HWP 병합은 7-4 확장 시).</p>}
+        {duty.length === 0 && <p className="text-[11px] text-[#b0acd6]">수행 일자·업무 내용·조치사항을 기록하세요 — 업무수행 기록표는 계획서와 별도 보관 서류(2년)라 HWP에는 병합되지 않고 ERP에 기록·보관됩니다.</p>}
         <div className="space-y-1.5">
           {duty.map((d, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">

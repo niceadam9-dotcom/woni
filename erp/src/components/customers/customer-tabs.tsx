@@ -36,7 +36,15 @@ export function CustomerTabs({ initialTab, tabs, panels }: {
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [active, setActive] = useState(tabs.some(t => t.key === initialTab) ? initialTab : tabs[0].key)
+  const validInitial = tabs.some(t => t.key === initialTab) ? initialTab : tabs[0].key
+  const [active, setActive] = useState(validInitial)
+  // ?tab= 변경 동기화(11-5 누락 칩 router.push, 페이지 내 ?tab= Link) — state는 마운트 시 1회만
+  // 초기화되므로 서버 재렌더로 initialTab 프롭이 바뀌면 여기서 반영한다 (렌더 중 상태 조정 패턴)
+  const prevInitialRef = useRef(validInitial)
+  if (prevInitialRef.current !== validInitial) {
+    prevInitialRef.current = validInitial
+    setActive(validInitial)
+  }
   const dirtyRef = useRef<Set<string>>(new Set())
 
   // 미저장 이탈 경고 — 페이지 이탈(새로고침·닫기)
