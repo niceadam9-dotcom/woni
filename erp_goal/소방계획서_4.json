@@ -234,7 +234,7 @@
         { "id": "9-4b", "desc": "V-2 오디오 파일 업로드 → 서버 STT(Whisper/CLOVA — 신규 키 필요)", "status": "deferred", "note": "사용자 결정(2026-07-25): 녹음장비(Plaud) 미보유 — 음성(STT) 경로는 장비 확보 후 재개, 당분간 입력 기반으로 진행(9-4 note 참조)" },
         { "id": "9-4c", "desc": "V-3 별지 9호 3쪽 병합 연동", "status": "deferred", "note": "음성 경로 연동분만 보류 — 점검표 시트 입력→별지 9호 3쪽 롤업 병합은 P3에서 기왕 구현(입력 기반 경로는 이미 연결됨)" },
         { "id": "9-4d", "desc": "입력 기반 빠른 결과 입력(A안, 2026-07-25 사용자 채택) — [설치 설비 전체 양호] 원클릭 + 불량 항목 검색 태깅(X+메모→불량내역 자동 등록) + 모바일 대응", "status": "implemented",
-          "verified": { "date": "2026-07-25", "commit": "fcc2242", "evidence": ["sheet-actions.ts bulkAllGoodAction — 설치 시설 매칭 시트(V-1 누락 감지와 동일 로직)의 미입력 항목만 O 채움·기존 응답 보존·작동은 종합전용 제외·시설 미등록 fail-soft 안내", "searchQuickItemsAction — 명칭·코드 검색(버전별 시트 한정·현재 응답 표시·20건)", "inspection-sheet-client.tsx 빠른 결과 입력 블록 — 검색→X+메모→createDefectsFromX 자동 등록, flex-wrap 모바일 대응"], "method": "E2E scripts/test-quick-defect.mts 7/7 — X 태깅→DB·불량 자동 등록→전체 양호→응답 수=두 시트 작동 항목 전수 일치·기존 X 보존 / mu-sheet 5/5 회귀" } }
+          "verified": { "date": "2026-07-25", "commit": "0290472", "evidence": ["sheet-actions.ts bulkAllGoodAction — 설치 시설 매칭 시트의 미입력 항목만 O 채움·기존 응답 보존·작동은 종합전용 제외·시설 미등록 fail-soft 안내·시드 중복 코드 방어", "시트↔시설 매칭 = 명시 매핑(sheet-facility-map.ts, fcc2242의 퍼지 매칭이 실전 검증에서 결함 2건: 간이스프링클러 오포함·시각경보기/장치 어휘 불일치로 자탐 누락 → 교정, V-1 누락 감지와 공용)", "searchQuickItemsAction — 명칭·코드 검색(버전별 시트 한정·현재 응답 표시·20건)", "inspection-sheet-client.tsx 빠른 결과 입력 블록 — 검색→X+메모→createDefectsFromX 자동 등록, flex-wrap 모바일 대응", "실전 통주행(2026-07-25, 스테이징 실데이터 별그리다): 전체 양호 6시트 137항목+기존 X 보존 → 별지 9호 생성 10쪽 — 3쪽 롤업에 × 반영 확인. 데이터 정비: STD-03 보조수원 3-A-001→3-A-002 재번호(양쪽 DB)"], "method": "E2E scripts/test-quick-defect.mts 7/7 + 실전 통주행(스테이징 실데이터·PDF 텍스트 검증) / mu-sheet 5/5 회귀" } }
       ]
     },
     {
