@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   const batch = managerIds.filter(id => !already.has(id)).map(id => ({
     recipient_id: id, title: summaryTitle, message: bodyText, type: 'weekly_doc_briefing',
   }))
-  // best-effort: 마이그레이션 107(type CHECK 확장) 미적용 환경에서도 이메일·요약은 계속 — 알림만 건너뜀
+  // best-effort: 마이그레이션 109(type CHECK 확장) 미적용 환경에서도 이메일·요약은 계속 — 알림만 건너뜀
   let notified = 0
   let notifyError: string | null = null
   if (batch.length > 0) {
