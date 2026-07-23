@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_5.md",
   "generated": "2026-07-26",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. 독립 검증·implemented 승격은 별도 세션. 다음: S3(②③ 바로 생성·⑤⑥ 갤러리·신고 도우미·⑫ 불량 입력 편의).",
+  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). 독립 검증·implemented 승격은 별도 세션. 다음: S4(§7-A 제출 현황판·구 3화면 흡수 + §7-B 사이드바 12개·안전관리 대장 흡수) 또는 S5(P-3·P-1·P-2).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·검토 완료 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -29,7 +29,7 @@
   "roadmap": [
     { "id": "S1", "title": "기존 화면 정비 — ⑪⑨(용어·뱃지·상시 표시) + ⑧(필터 버그) + ⑩(목록 그룹핑)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 d412ab9) — 회귀 timeline 29/29(상시 표시·진행률 검증 추가)·quick-defect 7/7·mu-sheet 5/5·smoke-reports 11/11(R9 검증 추가)·그룹핑 실데이터 8/8. 독립 검증 대기" },
     { "id": "S2", "title": "보고서 센터 신설 — ⓪(첫 화면 IA·행동 자동완성) + ①(고객 문서 현황) + ④⑦(최근 문서·누락 경고) + 대시보드 문서 할 일 위젯", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 59ac477) — reports/page.tsx에 ReportCenterHome 연결(?form=docs&cust=), docs-actions(통합 조회)·doc-status(판정 1곳)·hangul(초성)·doc-action-search·customer-docs·doc-todo-widget·command-palette 신설. E2E test-report-center 20/20, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·law-revision 7/7, tsc 통과. 독립 검증 대기" },
-    { "id": "S3", "title": "바로 생성·현장 편의 — ②③(9호·10·11호 바로 생성) + ⑤⑥(갤러리·신고 도우미) + ⑫(불량 입력 편의 4종)", "status": "pending_order", "note": "E2E 확장 + 실전 통주행(별그리다 재사용)" },
+    { "id": "S3", "title": "바로 생성·현장 편의 — ②③(9호·10·11호 바로 생성) + ⑤⑥(갤러리·신고 도우미) + ⑫(불량 입력 편의 4종)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 067f1b5) — report-gen-list(②③ 인라인 생성)·photo-gallery-modal(⑤)·placement-report-helper(⑥ getPlacementInfoAction)·defects/sheet 클라이언트(⑫ getDefectSuggestionsAction). next build 통과, E2E test-report-s3 17/17, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·report-center 20/20·law-revision 7/7. R3-a(준비 n/4 팝오버)만 미구현(준비 화면 딥링크 유지). 독립 검증 대기" },
     { "id": "S4", "title": "화면·메뉴 통합 — §7-A(제출 현황판·구 3화면 흡수) + §7-B(안전관리 대장 탭 흡수·사이드바 12개)", "status": "pending_order", "note": "데이터 이관 불필요 확정(구 테이블 4종 0건 — R14-e) — 리다이렉트만" },
     { "id": "S5", "title": "채택 제안 구현 — P-3(워커 생성 품질 자동 검증) + P-1(연차 일괄 발행 마법사) + P-2(주간 문서 브리핑 크론)", "status": "pending_order", "note": "2026-07-26 사용자 채택(D-10). P-3 우선" }
   ],
@@ -70,20 +70,20 @@
       ]
     },
     {
-      "id": "R3", "title": "② 별지 9호 카드 원스톱 (바로 생성)", "status": "pending_order",
+      "id": "R3", "title": "② 별지 9호 카드 원스톱 (바로 생성)", "status": "partial",
       "criteria": [
-        { "id": "R3-a", "desc": "목록 행 '준비 n/4' 칩(④ 전제 축약) — 클릭 시 부족 항목+입력처 딥링크 팝오버", "status": "pending_order" },
-        { "id": "R3-b", "desc": "[바로 생성] 인라인 + 생성 후 같은 행 아래 [HWP][PDF] + '발송·제출은 타임라인에서 →' 안내", "status": "pending_order" },
-        { "id": "R3-c", "desc": "미비 생성 시 fail-soft 확인 1회(세션당) — '송달 동의 없음, 빈 칸으로 생성할까요?'", "status": "pending_order" },
-        { "id": "R3-d", "desc": "상태 필터 칩 [전체|완료|진행중] + 기본 정렬 최근 완료 우선", "status": "pending_order" }
+        { "id": "R3-a", "desc": "목록 행 '준비 n/4' 칩(④ 전제 축약) — 클릭 시 부족 항목+입력처 딥링크 팝오버", "status": "pending_order", "note": "미구현 — 준비 4종(공통정보·인력·점검표·송달 동의) 판정은 점검 상세 준비 화면(§9-6⑦ prereqs)에 집약. 목록 행 [문서]·[타임라인] 딥링크로 대체, 정식 팝오버는 후순위" },
+        { "id": "R3-b", "desc": "[바로 생성] 인라인 + 생성 후 같은 행 아래 [HWP][PDF] + '발송·제출은 타임라인에서 →' 안내", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — report-gen-list [바로 생성](requestReport9Action), 생성 후 행 아래 '발송·제출 기록은 타임라인에서 →' 안내. HWP/PDF 받기는 문서 현황(R2) 연결(단일 큐·보관함 공유). E2E 검증" },
+        { "id": "R3-c", "desc": "미비 생성 시 fail-soft 확인 1회(세션당) — '송달 동의 없음, 빈 칸으로 생성할까요?'", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — 미완료 건 생성 시 confirmedFailSoft 세션 플래그로 1회만 확인" },
+        { "id": "R3-d", "desc": "상태 필터 칩 [전체|완료|진행중] + 기본 정렬 최근 완료 우선", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — STATUS_FILTERS 칩 + 최근 완료 우선 정렬. E2E 완료 칩 검증" }
       ]
     },
     {
-      "id": "R4", "title": "③ 별지 10·11호 카드 활성화", "status": "pending_order",
+      "id": "R4", "title": "③ 별지 10·11호 카드 활성화", "status": "code_present",
       "criteria": [
-        { "id": "R4-a", "desc": "불량 보유 자체점검 건 목록 — '불량 n건 → 이행계획서(10호) 제출 대상' 이유 문구 + D-day 뱃지", "status": "pending_order" },
-        { "id": "R4-b", "desc": "[10호 생성]/[11호 생성] 인라인 — 11호는 조치 미완료 시 흐림+툴팁(fail-soft 확인 후 진행 가능)", "status": "pending_order" },
-        { "id": "R4-c", "desc": "기생성 건 [받기] 우선·[다시 생성] 보조 — 중복 생성 방지", "status": "pending_order" }
+        { "id": "R4-a", "desc": "불량 보유 자체점검 건 목록 — '불량 n건 → 이행계획서(10호) 제출 대상' 이유 문구 + D-day 뱃지", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — report10 카드 활성화, defectsTotal>0 필터, '불량 n건 → 이행계획서(10호) 제출 대상' 이유 + 조치 n/n + 9호 기한 D-day. E2E 검증" },
+        { "id": "R4-b", "desc": "[10호 생성]/[11호 생성] 인라인 — 11호는 조치 미완료 시 흐림+툴팁(fail-soft 확인 후 진행 가능)", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — 10·11호 인라인 생성, 11호는 조치 미완료 시 흐림+툴팁, fail-soft 세션 1회 확인. E2E 검증" },
+        { "id": "R4-c", "desc": "기생성 건 [받기] 우선·[다시 생성] 보조 — 중복 생성 방지", "status": "partial", "note": "2026-07-26 커밋 067f1b5 — 생성 이력 n회 표시 + '다시' 보조 라벨. [받기]는 문서 현황(R2) 연결(파일 경로 해소는 R2가 담당) — 인라인 [받기] 직결은 후순위" }
       ]
     },
     {
@@ -94,19 +94,19 @@
       ]
     },
     {
-      "id": "R6", "title": "⑤ 전/후 사진 갤러리 — 새 페이지 없이 모달, 빈 슬롯 즉시 채움", "status": "pending_order",
+      "id": "R6", "title": "⑤ 전/후 사진 갤러리 — 새 페이지 없이 모달, 빈 슬롯 즉시 채움", "status": "code_present",
       "criteria": [
-        { "id": "R6-a", "desc": "갤러리 모달 — 불량별 전/후 페어 그리드 + 불량명·조치 상태 뱃지 + 확대·스와이프·ESC + #photos 딥링크", "status": "pending_order" },
-        { "id": "R6-b", "desc": "진입점 3곳 — 불량내역 헤더 [전/후 사진 모아보기 (n/n쌍)]·타임라인 ⑤ 쌍 수 클릭·문서 현황 [사진 보기]", "status": "pending_order" },
-        { "id": "R6-c", "desc": "빈 슬롯(후 사진 없음) 앰버 점선 — 갤러리 안에서 탭하여 즉시 업로드(기존 액션 재사용)", "status": "pending_order" },
-        { "id": "R6-d", "desc": "불량내역 슬롯 보강 — 모바일 카메라 즉시 실행(capture) + 라벨 '전(불량) 사진/후(조치) 사진'", "status": "pending_order" }
+        { "id": "R6-a", "desc": "갤러리 모달 — 불량별 전/후 페어 그리드 + 불량명·조치 상태 뱃지 + 확대·스와이프·ESC + #photos 딥링크", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — photo-gallery-modal.tsx(페어 그리드·조치완료/계획/미조치 뱃지·라이트박스 확대 ←→/ESC·#photos hashchange). E2E 쌍 수·불량명·조치완료 뱃지 검증" },
+        { "id": "R6-b", "desc": "진입점 3곳 — 불량내역 헤더 [전/후 사진 모아보기 (n/n쌍)]·타임라인 ⑤ 쌍 수 클릭·문서 현황 [사진 보기]", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — ⓐ 불량내역 헤더 버튼 ⓑ 타임라인 ⑤ 전후 사진 쌍 수 #photos 링크 ⓒ 문서 현황 [사진 보기] #photos. E2E ⓐ·딥링크 검증" },
+        { "id": "R6-c", "desc": "빈 슬롯(후 사진 없음) 앰버 점선 — 갤러리 안에서 탭하여 즉시 업로드(기존 액션 재사용)", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — 빈 슬롯 앰버 점선 + 탭하여 uploadDefectPhotoAction(before/after) 재사용, router.refresh 반영. E2E '후(조치) 추가' 검증" },
+        { "id": "R6-d", "desc": "불량내역 슬롯 보강 — 모바일 카메라 즉시 실행(capture) + 라벨 '전(불량) 사진/후(조치) 사진'", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — PhotoUploadButton input capture=environment + 라벨 전(불량)/후(조치), 후 슬롯 앰버" }
       ]
     },
     {
-      "id": "R7", "title": "⑥ 배치신고 도우미 (타임라인 ②)", "status": "pending_order",
+      "id": "R7", "title": "⑥ 배치신고 도우미 (타임라인 ②)", "status": "code_present",
       "criteria": [
-        { "id": "R7-a", "desc": "[신고 정보 복사] — 대상물·주소·점검기간·점검인력(성명/자격/자격번호)·업체 정보를 협회 신고 순서 텍스트로 구성", "status": "pending_order" },
-        { "id": "R7-b", "desc": "복사 전 미리보기 팝오버 + 빈 값 앰버·입력처 딥링크 + '✓ 복사됨' 피드백 + 협회 링크 병치", "status": "pending_order" }
+        { "id": "R7-a", "desc": "[신고 정보 복사] — 대상물·주소·점검기간·점검인력(성명/자격/자격번호)·업체 정보를 협회 신고 순서 텍스트로 구성", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — getPlacementInfoAction(customers.address + inspection_participants→profiles.license_grade/no + company_profile) 협회 순서 텍스트. E2E 소재지 값 검증" },
+        { "id": "R7-b", "desc": "복사 전 미리보기 팝오버 + 빈 값 앰버·입력처 딥링크 + '✓ 복사됨' 피드백 + 협회 링크 병치", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — placement-report-helper 미리보기 팝오버(필드별 미입력 앰버+딥링크)·[복사] '복사됨' 2초·협회 신고 링크 병치. 타임라인 ② canManage에 마운트. E2E 팝오버·복사 버튼·협회 링크 검증" }
       ]
     },
     {
@@ -151,13 +151,13 @@
       ]
     },
     {
-      "id": "R13", "title": "⑫ 불량 입력 편의 4종", "status": "pending_order",
+      "id": "R13", "title": "⑫ 불량 입력 편의 4종", "status": "code_present",
       "criteria": [
-        { "id": "R13-a", "desc": "단골 불량 원터치 칩 TOP 8(등록 빈도 통계, 초기엔 defect_catalog 프리셋) — 1탭 등록", "status": "pending_order" },
-        { "id": "R13-b", "desc": "연속 입력 모드 — 저장 후 포커스 유지 + '이번 점검 등록 n건' 누적 리스트(즉시 삭제 가능)", "status": "pending_order" },
-        { "id": "R13-c", "desc": "저장 폼 [📷 전(불량) 사진] — 카메라 즉시 실행, 저장 시 photo_url까지 한 번에", "status": "pending_order" },
-        { "id": "R13-d", "desc": "점검표 시트 X 클릭 시 행 아래 메모+[등록] 인라인 (기존 일괄 등록 버튼 유지)", "status": "pending_order" },
-        { "id": "R13-e", "desc": "불량 메모 자동완성 — 최근 사용 문구 5개 칩 + 표준 문구", "status": "pending_order" }
+        { "id": "R13-a", "desc": "단골 불량 원터치 칩 TOP 8(등록 빈도 통계, 초기엔 defect_catalog 프리셋) — 1탭 등록", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — getDefectSuggestionsAction(inspection_defects 빈도 TOP8, 부족분 defect_catalog 백필), 칩 1탭 즉시 등록(quickAdd). E2E 칩 영역 검증" },
+        { "id": "R13-b", "desc": "연속 입력 모드 — 저장 후 포커스 유지 + '이번 점검 등록 n건' 누적 리스트(즉시 삭제 가능)", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — '저장 후 계속 입력' 토글(기본 ON), 저장 후 reset+포커스, '이번 점검 등록 n건' 카운터(목록은 기존 삭제 재사용). E2E 토글 검증" },
+        { "id": "R13-c", "desc": "저장 폼 [📷 전(불량) 사진] — 카메라 즉시 실행, 저장 시 photo_url까지 한 번에", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — 폼 내 [전(불량) 사진] capture 버튼, 저장 시 addDefect→반환 id로 uploadDefectPhotoAction(before) 한 번에. E2E 버튼 검증" },
+        { "id": "R13-d", "desc": "점검표 시트 X 클릭 시 행 아래 메모+[등록] 인라인 (기존 일괄 등록 버튼 유지)", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — inspection-sheet-client X 클릭 시 행 아래 메모+[등록](saveSheetResponses X + createDefectsFromX), 기존 일괄 [불량 등록] 유지" },
+        { "id": "R13-e", "desc": "불량 메모 자동완성 — 최근 사용 문구 5개 칩 + 표준 문구", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — localStorage 최근 문구 5개 + defect_catalog 표준 문구 칩, 클릭 시 상세 채움" }
       ]
     },
     {
