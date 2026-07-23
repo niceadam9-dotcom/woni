@@ -197,17 +197,24 @@ function b64url(data: Uint8Array | string): string {
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-export async function gmailSendWithAttachment(opts: {
-  to: string
+/** 범용 발송 — 다중 수신·CC·다중 첨부·답장 스레드(threadId + In-Reply-To/References) */
+export async function gmailSendMail(opts: {
+  to: string[]
+  cc?: string[]
   subject: string
   bodyText: string
-  attachment?: { filename: string; mime: string; data: Uint8Array }
+  attachments?: Array<{ filename: string; mime: string; data: Uint8Array }>
+  reply?: { threadId: string; messageIdHeader: string | null }  // 답장 시 스레드 유지
 }): Promise<{ messageId: string }> {
   const boundary = `sjfire_${Math.random().toString(36).slice(2)}`
   const subjectEnc = `=?UTF-8?B?${Buffer.from(opts.subject).toString('base64')}?=`
   const lines: string[] = [
-    `To: ${opts.to}`,
+    `To: ${opts.to.join(', ')}`,
+    ...(opts.cc && opts.cc.length ? [`Cc: ${opts.cc.join(', ')}`] : []),
     `Subject: ${subjectEnc}`,
+    ...(opts.reply?.messageIdHeader
+      ? [`In-Reply-To: ${opts.reply.messageIdHeader}`, `References: ${opts.reply.messageIdHeader}`]
+      : []),
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     '',
@@ -217,15 +224,15 @@ export async function gmailSendWithAttachment(opts: {
     '',
     Buffer.from(opts.bodyText).toString('base64'),
   ]
-  if (opts.attachment) {
-    const fnEnc = `=?UTF-8?B?${Buffer.from(opts.attachment.filename).toString('base64')}?=`
+  for (const att of opts.attachments ?? []) {
+    const fnEnc = `=?UTF-8?B?${Buffer.from(att.filename).toString('base64')}?=`
     lines.push(
       `--${boundary}`,
-      `Content-Type: ${opts.attachment.mime}; name="${fnEnc}"`,
+      `Content-Type: ${att.mime}; name="${fnEnc}"`,
       `Content-Disposition: attachment; filename="${fnEnc}"`,
       'Content-Transfer-Encoding: base64',
       '',
-      Buffer.from(opts.attachment.data).toString('base64'),
+      Buffer.from(att.data).toString('base64'),
     )
   }
   lines.push(`--${boundary}--`)
@@ -233,7 +240,27 @@ export async function gmailSendWithAttachment(opts: {
   const res = await gapi<{ id: string }>('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw }),
+    body: JSON.stringify({ raw, ...(opts.reply ? { threadId: opts.reply.threadId } : {}) }),
   })
   return { messageId: res.id }
+}
+
+/** 답장 스레딩용 메타 — threadId + 원본 Message-ID·제목·발신자 */
+export async function gmailGetReplyMeta(id: string): Promise<{ threadId: string; messageIdHeader: string | null; subject: string; from: string }> {
+  const res = await gapi<{ threadId: string; payload?: { headers?: Array<{ name: string; value: string }> } }>(
+    `${GMAIL}/messages/${id}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=Subject&metadataHeaders=From`)
+  const h = (name: string) => res.payload?.headers?.find(x => x.name.toLowerCase() === name.toLowerCase())?.value ?? null
+  return { threadId: res.threadId, messageIdHeader: h('Message-ID'), subject: h('Subject') ?? '', from: h('From') ?? '' }
+}
+
+export async function gmailSendWithAttachment(opts: {
+  to: string
+  subject: string
+  bodyText: string
+  attachment?: { filename: string; mime: string; data: Uint8Array }
+}): Promise<{ messageId: string }> {
+  return gmailSendMail({
+    to: [opts.to], subject: opts.subject, bodyText: opts.bodyText,
+    attachments: opts.attachment ? [opts.attachment] : [],
+  })
 }

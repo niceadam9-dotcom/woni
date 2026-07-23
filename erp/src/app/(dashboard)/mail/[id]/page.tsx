@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Mail } from 'lucide-react'
+import { ChevronLeft, Mail, Reply, Forward } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { isGoogleConfigured, gmailGet } from '@/lib/google'
 import { MailAttachmentList } from '@/components/mail/mail-attachment-list'
@@ -35,11 +35,21 @@ export default async function MailDetailPage({
         <div className="px-6 py-4 border-b border-[#e0ddf5]">
           <div className="flex items-start gap-3">
             <Mail className="size-5 text-[#7b68ee] mt-0.5 shrink-0" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="text-base font-bold text-[#090c1d]">{mail.subject}</h1>
               <p className="text-xs text-[#514b81] mt-1">보낸사람: {mail.from}</p>
               {mail.to && <p className="text-xs text-[#b0acd6]">받는사람: {mail.to}</p>}
               <p className="text-xs text-[#b0acd6]">{dateStr}</p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Link href={`/mail/compose?reply=${mail.id}`}
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors">
+                <Reply className="size-3.5" /> 답장
+              </Link>
+              <Link href={`/mail/compose?fwd=${mail.id}`}
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors">
+                <Forward className="size-3.5" /> 전달
+              </Link>
             </div>
           </div>
         </div>

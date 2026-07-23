@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Mail, Search, Paperclip, ChevronRight } from 'lucide-react'
+import { Mail, Search, Paperclip, ChevronRight, PenSquare } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { isGoogleConfigured, gmailList } from '@/lib/google'
 
@@ -9,12 +9,13 @@ export const dynamic = 'force-dynamic'
 /** 회사 메일 (sjfirekorea@gmail.com) 읽기 전용 조회 — 전 직원 개방 (2026-07-15) */
 export default async function MailPage({
   searchParams,
-}: { searchParams: Promise<{ q?: string; pageToken?: string }> }) {
+}: { searchParams: Promise<{ q?: string; pageToken?: string; box?: string }> }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
   const sp = await searchParams
   const q = sp.q ?? ''
+  const box = sp.box === 'sent' ? 'sent' : 'inbox' // 보낸편지함 탭 (조회 스코프로 in:sent 검색만)
 
   if (!isGoogleConfigured()) {
     return (
@@ -32,7 +33,8 @@ export default async function MailPage({
   let nextPageToken: string | undefined
   let error: string | null = null
   try {
-    const res = await gmailList({ q: q || undefined, pageToken: sp.pageToken })
+    const boxQ = box === 'sent' ? 'in:sent' : 'in:inbox'
+    const res = await gmailList({ q: q ? `${boxQ} ${q}` : boxQ, pageToken: sp.pageToken })
     messages = res.messages
     nextPageToken = res.nextPageToken
   } catch (e) {
@@ -42,6 +44,7 @@ export default async function MailPage({
   function pageUrl(token: string) {
     const p = new URLSearchParams()
     if (q) p.set('q', q)
+    if (box === 'sent') p.set('box', 'sent')
     p.set('pageToken', token)
     return `/mail?${p}`
   }
@@ -50,15 +53,27 @@ export default async function MailPage({
     <div className="space-y-6">
       <Header />
 
-      <form method="GET" action="/mail" className="flex items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-          <input name="q" defaultValue={q} placeholder="검색 (보낸사람, 제목, from:xxx 등 Gmail 문법)"
-            className="h-9 w-80 rounded-lg border border-[#d0ccf5] bg-white pl-8 pr-3 text-sm outline-none focus:border-[#7b68ee]" />
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* 받은/보낸 탭 */}
+        <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+          <Link href="/mail" className={`h-9 px-4 inline-flex items-center text-sm ${box === 'inbox' ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>받은편지함</Link>
+          <Link href="/mail?box=sent" className={`h-9 px-4 inline-flex items-center text-sm ${box === 'sent' ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>보낸편지함</Link>
         </div>
-        <button type="submit" className="h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors">검색</button>
-        {q && <Link href="/mail" className="text-xs text-[#7b68ee] hover:underline">초기화</Link>}
-      </form>
+        <form method="GET" action="/mail" className="flex items-center gap-2">
+          {box === 'sent' && <input type="hidden" name="box" value="sent" />}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+            <input name="q" defaultValue={q} placeholder="검색 (보낸사람, 제목, from:xxx 등 Gmail 문법)"
+              className="h-9 w-80 rounded-lg border border-[#d0ccf5] bg-white pl-8 pr-3 text-sm outline-none focus:border-[#7b68ee]" />
+          </div>
+          <button type="submit" className="h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors">검색</button>
+          {q && <Link href={box === 'sent' ? '/mail?box=sent' : '/mail'} className="text-xs text-[#7b68ee] hover:underline">초기화</Link>}
+        </form>
+        <Link href="/mail/compose"
+          className="ml-auto inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium transition-colors">
+          <PenSquare className="size-4" /> 메일 쓰기
+        </Link>
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
@@ -112,7 +127,7 @@ function Header() {
       <Mail className="size-6 text-[#7b68ee]" />
       <div>
         <h1 className="text-xl font-bold text-[#090c1d]">회사 메일</h1>
-        <p className="text-sm text-[#514b81] mt-0.5">sjfirekorea@gmail.com 받은편지함 (읽기 전용)</p>
+        <p className="text-sm text-[#514b81] mt-0.5">sjfirekorea@gmail.com — 조회·발송 (발송 이력에 작성 직원 기록)</p>
       </div>
     </div>
   )
