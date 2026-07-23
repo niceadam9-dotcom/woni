@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_5.md",
   "generated": "2026-07-26",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). 독립 검증·implemented 승격은 별도 세션. 다음: S4(§7-A 제출 현황판·구 3화면 흡수 + §7-B 사이드바 12개·안전관리 대장 흡수) 또는 S5(P-3·P-1·P-2).",
+  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). S4 구현 완료(f129da4, code_present) — 제출 현황판(타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 월별 대장 탭. 독립 검증·implemented 승격은 별도 세션. 다음: S5(P-3 생성 품질 검증·P-1 연차 일괄 발행·P-2 주간 브리핑).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·검토 완료 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -30,7 +30,7 @@
     { "id": "S1", "title": "기존 화면 정비 — ⑪⑨(용어·뱃지·상시 표시) + ⑧(필터 버그) + ⑩(목록 그룹핑)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 d412ab9) — 회귀 timeline 29/29(상시 표시·진행률 검증 추가)·quick-defect 7/7·mu-sheet 5/5·smoke-reports 11/11(R9 검증 추가)·그룹핑 실데이터 8/8. 독립 검증 대기" },
     { "id": "S2", "title": "보고서 센터 신설 — ⓪(첫 화면 IA·행동 자동완성) + ①(고객 문서 현황) + ④⑦(최근 문서·누락 경고) + 대시보드 문서 할 일 위젯", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 59ac477) — reports/page.tsx에 ReportCenterHome 연결(?form=docs&cust=), docs-actions(통합 조회)·doc-status(판정 1곳)·hangul(초성)·doc-action-search·customer-docs·doc-todo-widget·command-palette 신설. E2E test-report-center 20/20, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·law-revision 7/7, tsc 통과. 독립 검증 대기" },
     { "id": "S3", "title": "바로 생성·현장 편의 — ②③(9호·10·11호 바로 생성) + ⑤⑥(갤러리·신고 도우미) + ⑫(불량 입력 편의 4종)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 067f1b5) — report-gen-list(②③ 인라인 생성)·photo-gallery-modal(⑤)·placement-report-helper(⑥ getPlacementInfoAction)·defects/sheet 클라이언트(⑫ getDefectSuggestionsAction). next build 통과, E2E test-report-s3 17/17, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·report-center 20/20·law-revision 7/7. R3-a(준비 n/4 팝오버)만 미구현(준비 화면 딥링크 유지). 독립 검증 대기" },
-    { "id": "S4", "title": "화면·메뉴 통합 — §7-A(제출 현황판·구 3화면 흡수) + §7-B(안전관리 대장 탭 흡수·사이드바 12개)", "status": "pending_order", "note": "데이터 이관 불필요 확정(구 테이블 4종 0건 — R14-e) — 리다이렉트만" },
+    { "id": "S4", "title": "화면·메뉴 통합 — §7-A(제출 현황판·구 3화면 흡수) + §7-B(안전관리 대장 탭 흡수·사이드바 12개)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 f129da4) — 제출 현황판(getSubmissionBoardAction·submission-board, 타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 [월별 대장] 탭. next build 통과, E2E test-report-s4 12/12, 회귀 report-center 20/20·report-s3 17/17·law-revision 7/7. R14-f(엑셀)·R15-c 딥링크 일부 후순위. 독립 검증 대기" },
     { "id": "S5", "title": "채택 제안 구현 — P-3(워커 생성 품질 자동 검증) + P-1(연차 일괄 발행 마법사) + P-2(주간 문서 브리핑 크론)", "status": "pending_order", "note": "2026-07-26 사용자 채택(D-10). P-3 우선" }
   ],
   "sections": [
@@ -161,22 +161,22 @@
       ]
     },
     {
-      "id": "R14", "title": "§7-A 문서 절차 통합 — 제출 현황판 + 구 화면 흡수", "status": "pending_order",
+      "id": "R14", "title": "§7-A 문서 절차 통합 — 제출 현황판 + 구 화면 흡수", "status": "code_present",
       "criteria": [
-        { "id": "R14-a", "desc": "보고서 센터 '제출 현황' 판 — 고객·차수 | 9호 생성/발송/제출(D-day) | 배치확인서 | 10호 | 11호, 타임라인 필드 단일 소스·수기 입력 없음", "status": "pending_order" },
-        { "id": "R14-b", "desc": "숫자 요약 스트립(이번 달 자체점검·완료·미제출·기한 초과·누락 — 숫자=필터 버튼) + 위험순 기본 정렬", "status": "pending_order" },
-        { "id": "R14-c", "desc": "/inspection-reports/status·/action-plans/status → 제출 현황으로 리다이렉트", "status": "pending_order" },
-        { "id": "R14-d", "desc": "/action-plans(이행계획서 등록) 폐지 — 안내 후 리다이렉트, 타임라인 ⑤⑥이 대체", "status": "pending_order" },
+        { "id": "R14-a", "desc": "보고서 센터 '제출 현황' 판 — 고객·차수 | 9호 생성/발송/제출(D-day) | 배치확인서 | 10호 | 11호, 타임라인 필드 단일 소스·수기 입력 없음", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — submission-board.tsx + getSubmissionBoardAction(gen jobs·report_deliveries·report9/11_submitted_at·cert storage·defects 집계, 수기 입력 없음). E2E 표 헤더·고객 행 검증" },
+        { "id": "R14-b", "desc": "숫자 요약 스트립(이번 달 자체점검·완료·미제출·기한 초과·누락 — 숫자=필터 버튼) + 위험순 기본 정렬", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — 5개 숫자 스트립(클릭=필터) + risk 정렬(초과→임박→누락→정상). E2E 스트립 3종 검증" },
+        { "id": "R14-c", "desc": "/inspection-reports/status·/action-plans/status → 제출 현황으로 리다이렉트", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — 두 페이지 redirect('/reports?form=submissions'). E2E 리다이렉트 2건 검증" },
+        { "id": "R14-d", "desc": "/action-plans(이행계획서 등록) 폐지 — 안내 후 리다이렉트, 타임라인 ⑤⑥이 대체", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — /action-plans redirect('/inspections'). E2E 검증" },
         { "id": "R14-e", "desc": "구 수기 데이터(inspection_report_status·action_plans 3종) 이관 — 조사→사용자 확인→1회 이관, 불가분 읽기 보존", "status": "confirmed", "note": "2026-07-26 조사 완료: 4개 테이블 전부 0건(스테이징·운영) — 실사용 없음 확인, 이관 불필요. 리다이렉트만 수행(R14-c·d)으로 종결" },
         { "id": "R14-f", "desc": "제출 현황판 엑셀 내보내기(P-5)", "status": "deferred", "note": "2026-07-26 보류 — 요청 시 재개" }
       ]
     },
     {
-      "id": "R15", "title": "§7-B 메뉴 정리 — 16개 → 12개", "status": "pending_order",
+      "id": "R15", "title": "§7-B 메뉴 정리 — 16개 → 12개", "status": "code_present",
       "criteria": [
-        { "id": "R15-a", "desc": "사이드바 정리 — 문서 메뉴는 '보고서' 하나로 수렴(구 3메뉴 제거), 흐름순 구획(일정·수행/대장/보고서/정산/마스터)", "status": "pending_order" },
-        { "id": "R15-b", "desc": "'안전관리 대장'(실체=월별 수금 현황판) → 정산현황 [월별 대장] 탭으로 흡수 + 리다이렉트", "status": "pending_order" },
-        { "id": "R15-c", "desc": "점검현황 모니터링·점검대장 소폭 수정 — 용어(⑪)·색 규약·점검 상세/문서 현황 딥링크", "status": "pending_order" }
+        { "id": "R15-a", "desc": "사이드바 정리 — 문서 메뉴는 '보고서' 하나로 수렴(구 3메뉴 제거), 흐름순 구획(일정·수행/대장/보고서/정산/마스터)", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — sidebar.tsx fire 그룹에서 보고서 제출현황·이행계획서 등록·이행계획 제출현황·안전관리 대장 4개 제거(16→12)" },
+        { "id": "R15-b", "desc": "'안전관리 대장'(실체=월별 수금 현황판) → 정산현황 [월별 대장] 탭으로 흡수 + 리다이렉트", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — billing-tabs.tsx([청구·수금 현황 | 월별 대장])를 두 페이지 상단에 병치, /billing/annual은 월별 대장 탭으로 보존(북마크 안전). E2E 탭 병치 검증" },
+        { "id": "R15-c", "desc": "점검현황 모니터링·점검대장 소폭 수정 — 용어(⑪)·색 규약·점검 상세/문서 현황 딥링크", "status": "partial", "note": "2026-07-26 커밋 f129da4 — 대시보드 소방업무 위젯 링크를 제출 현황판으로 재지정. 점검현황 모니터링·점검대장 행의 문서 현황 딥링크는 후순위" }
       ]
     },
     {
