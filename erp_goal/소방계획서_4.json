@@ -22,8 +22,8 @@
       "note": "핵심 종결(2026-07-23, 커밋 268d86f — 098 양쪽 DB·E2E 20/20·스테이징/운영 배포): 빠른 입력 모드(§1-1)·송달 동의(§9-6①)·매트릭스 상수+일반관리 구별(§9-8)·대장 파싱 확대(§11-1). 전체 종결(2026-07-23): ①앰버 확정 UX(0c8e095)·②1.10.1 조건부(3338b5c)·③자격정보 데이터(사용자 제공 — 운영 2명 반영)" },
     { "id": "P3", "title": "별지 9호 자동 생성 MVP (점검표 응답 롤업 + 음성 입력 V-1 + 1~3쪽 병합, defects 조치 필드 선반영)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 48a28ea — placeholder 심기·1~3쪽 병합·롤업·워커 분기·준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). defects 조치 계획 필드(action_plan/start/end) 선반영 완료(§9-7a). 잔여: 음성 입력 V-1 AI 검증(§9-4 — Anthropic 크레딧 대기)뿐. 자격정보(9-3d)·다중이용(9-6e)은 종결" },
-    { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "partial",
-      "note": "P4-①~⑤ 완료(최신 d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a(섹션→웹 PDF/HWP zones 연결) + 웹 개정이력 다행, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여(정직 기록): 신규 서식들의 HWP placeholder 확장(7-4 — 1.5·1.6·1.10·1.11·2장 임무·3장 세부의 HWP 병합은 웹 PDF만 반영, HWP 양식 심기는 서식별 순차)·HWP 개정이력 다행·임포트 배너(7-3b)" },
+    { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "implemented",
+      "note": "종결(2026-07-23): P4-①~⑤ 완료(d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a + 웹 개정이력 다행, E2E 38/38) + 구 잔여도 전부 종결: HWP placeholder 확장 7-4a(899c9e8)·표 병합 7-4b+기록부 4종(bc3da57·580c088)·HWP 개정이력 다행(bc3da57)·임포트 배너 7-3b(완료). 구조 불일치 제외 목록은 7-4b note 참조" },
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "b5e6caa", "evidence": ["R-1·R-2(6643dab)·별지 10·11호(1cd2a10)·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095)·개정 감지 크론(b5e6caa) — 각 항목 verified 참조"], "method": "항목별 E2E 누적 (10-R3 뱃지 소소 잔여는 §10 partial에 기록)" }, "note": "LAW_OC=woni_key(사용자 계정) 전환 완료 — 2026-07-23 운영 검증" },
     { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 3827ecc — 104 양쪽 DB·E2E 46/46+회귀 7종·스테이징/운영 배포): 목차 트리(완성도·합산 뱃지)·form= 딥링크·1.1 3분할+신규 6필드·생성 모달 폐지(사진→1.3 이관)·모바일 드롭다운. 잔여(정직 기록): 카드 앵커 점프·1.10/3장 내부 서브탭 세로화(1-2)·표 카드형 폴백(7-6→P8)·미저장 감지의 버튼 토글 미포함" },
@@ -75,7 +75,8 @@
       ]
     },
     {
-      "id": "3", "line": 95, "title": "서브탭 ② 1장 소방안전관리계획 — 서식별 화면", "status": "partial",
+      "id": "3", "line": 95, "title": "서브탭 ② 1장 소방안전관리계획 — 서식별 화면", "status": "implemented",
+      "note": "롤업 종결(2026-07-23): 하위 3-0~3-1.12 전부 implemented",
       "criteria": [
         { "id": "3-0", "desc": "웹 하드코딩 버그 해소(요구 3·4·5) — 수신기위치·급수·높이·구조·지붕·선임일 customers/buildings 연동 (getFirePlanGenDefaultsAction)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — select에 building_grade·manager_selected_at·height·receiver_location·main_structure·roof_structure 추가, grade:'3급' 등 하드코딩 제거(diff 대조)"], "method": "코드 대조 (diff 검토, 구현 세션과 별도 세션 판정)" } },
@@ -122,7 +123,8 @@
       ]
     },
     {
-      "id": "5", "line": 263, "title": "서브탭 ③ 2장 자위소방대 운영계획", "status": "partial",
+      "id": "5", "line": 263, "title": "서브탭 ③ 2장 자위소방대 운영계획", "status": "implemented",
+      "note": "롤업 종결(2026-07-23): 5-1~5-3 implemented + 5-4 §12-2 확정으로 종결",
       "criteria": [
         { "id": "5-1", "desc": "2.1 일반현황 — Type Ⅰ/Ⅱ/Ⅲ 선택 + 작성 대상 서식 안내 (sections.brigadeGeneral)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-ch2.tsx — Type Ⅰ(특급)/Ⅱ(1급)/Ⅲ(2·3급) 카드 선택 + 설명", "E2E 35/35: Type Ⅲ 선택 저장→DB brigadeGeneral 확인"], "method": "코드 대조 + E2E" } },
@@ -131,7 +133,7 @@
           "note": "비상연락체계는 비상연락반 편성+팀별 임무 문구로 표현 — 별도 도표는 HWP 양식이 담당" },
         { "id": "5-3", "desc": "팀별 임무(2.5~2.13) — 고정 문구 + 프리셋 편집(대상명 자동), v1은 프리셋 문구만 (sections.brigadeTeams)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "3338b5c", "evidence": ["plan-ch2.tsx TEAMS 7종(지휘통제·비상연락·초기소화·피난유도·응급구조·방호안전·초기대응체계) 표준 문구 placeholder + 수정 저장(빈 칸=표준 문구 출력)"], "method": "코드 대조" } },
-        { "id": "5-4", "desc": "2.14 교육·훈련 결과 기록부 — 1.11.4와 데이터 공유 여부 확정 필요", "status": "partial", "note": "§12-2 미결 — 잠정으로 1.11.4 공용 처리(2장 화면에 안내 문구), 사용자 확정 시 분리 여부 재검토" }
+        { "id": "5-4", "desc": "2.14 교육·훈련 결과 기록부 — 1.11.4와 데이터 공유 여부 확정 필요", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "-", "evidence": ["§12-2 사용자 확정(통합 유지) — 기구현 상태(1.11.4 공용 + 2장 화면 안내 문구)가 그대로 확정 설계", "분리 재검토 사유 소멸"], "method": "사용자 결정 확인(§12-2)" } }
       ]
     },
     {
@@ -146,7 +148,8 @@
       ]
     },
     {
-      "id": "7", "line": 296, "title": "데이터 모델·공통 규칙", "status": "partial",
+      "id": "7", "line": 296, "title": "데이터 모델·공통 규칙", "status": "implemented",
+      "note": "롤업 종결(2026-07-23): 7-1~7-6 전부 implemented/confirmed (7-4 기록부 병합 종결로 마감)",
       "criteria": [
         { "id": "7-1", "desc": "마이그레이션 096 — fire_plan_forms(customer_id PK + sections JSONB, 키 19종)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["096_fire_plan_forms.sql (RLS on·정책 없음 — 서버 액션 전용)", "스테이징(nwflnzugwylhpdyodyog)·운영(ryuozdhnilfjlahorizh) DB 적용 — Management API to_regclass 조회 true"], "method": "코드 대조 + DB 읽기 조회" } },
@@ -157,13 +160,14 @@
               "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — sections.zones→1.2.1(형태 매핑), hazards→1.2.2, evacPlan→3.4(절차·경로·집결지), fire_brigade_members→2.2, training 훈련월, 과거 개정이력 다행(revisions)", "fireplan-worker.py — sections.zones 우선 zone_rows(HWP 1.2.1 placeholder 재사용)", ".form.json 스냅샷은 기존 유지"], "method": "코드 대조 + E2E(섹션 저장 경로)" } },
             { "id": "7-3b", "desc": "최초 진입 1회 임포트 배너", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire-plan-form-actions.ts importLegacyFormAction — 최신 .form.json → sections 역매핑(zones·hazards·evacPlan·revision, §7-3a 어댑터 역방향), 서식 입력 존재 시 거부(최초 1회 원칙)", "plan-tab-view.tsx 빠른 입력 배너([가져오기]/[닫기]) + page.tsx importCandidate(서식 없음 && generated_ 웹 생성분 존재)"], "method": "E2E scripts/test-import-deeplink.mts 11/11 — 배너→가져오기→4개 섹션 역매핑 DB 검증→재진입 배너 미노출" } }
           ] },
-        { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "partial",
+        { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "implemented",
+          "note": "종결(2026-07-23, 580c088): 7-4a·7-4b 전부 종결 — 기록부 4종(1.12~1.15) 병합까지 완료. 구조 불일치 제외 목록은 7-4b note 참조(정직 기록)",
           "criteria": [
             { "id": "7-4a", "desc": "체크·라벨·문구 계열 — 1.5 계단/기타(1.1·3.1 동일 치환), 1.6 전기(kW·kVA 단위 셀), 1.10.3 다중이용(라벨 주입 6필드), 3.5 피난약자 유형 체크, 3.4 경로·집결지 + 초기소화 임무(프리셋 앵커 재사용)", "status": "implemented",
               "verified": { "date": "2026-07-23", "commit": "899c9e8", "evidence": ["make-fireplan.py build_form_pairs(체크 페어 + 라벨 주입 extras) + inject_after_label 단위 폴백 확장(kW·kVA·명)", "fireplan-worker.py — fire_plan_forms.sections 1회 조회 → stage2 병합(고객 입력>프리셋>양식 기본값)", "zip 수준 병합 검증(scripts/_test-form-pairs.py) 14/14·주입 9/9 — 재심기 불필요(기존 템플릿 대상 런타임 병합)"], "method": "코드 대조 + 템플릿 병합 검증" } },
-            { "id": "7-4b", "desc": "표 행 단위 병합 — 1.10.4 이력·1.11.2 세부계획·1.11.4 기록부·3.2/3.7 행·시나리오 5앵커 분할·HWP 개정이력 다행", "status": "partial",
-              "verified": { "date": "2026-07-23", "commit": "bc3da57", "evidence": ["make-fireplan.py fill_table(범용 — 앵커+rowAddr/colAddr, 빈 런 주입·예시 텍스트 교체)+apply_form_tables", "병합: HWP 개정이력 다행(보관함 과거 행+이번 작성 행, 8-1i HWP분 해소)·1.10.4 이력(5열)·3.2 세부현황(시설·위치·상태)·3.7 기구·장비(장비명·위치·수량)", "검증: _test-form-pairs.py 24/24·표 병합 17셀(계산 일치)"], "method": "코드 대조 + 템플릿 병합 검증" },
-              "note": "제외(구조 불일치 — 정직 기록): 1.11.2(차수 블록 고정 양식)·1.11.4(별지 28호 별도 양식)·시나리오(단일 텍스트↔5앵커 분할 불일치, 프리셋 경로 유지)" }
+            { "id": "7-4b", "desc": "표 행 단위 병합 — 1.10.4 이력·1.11.2 세부계획·1.11.4 기록부·3.2/3.7 행·시나리오 5앵커 분할·HWP 개정이력 다행", "status": "implemented",
+              "verified": { "date": "2026-07-23", "commit": "580c088", "evidence": ["make-fireplan.py fill_table(범용 — 앵커+rowAddr/colAddr, 빈 런 주입·예시 텍스트 교체) + stride(블록형 표)·clear_rest(다행 예시 런 정리) 확장 + apply_form_tables", "병합: HWP 개정이력 다행(bc3da57)·1.10.4 이력(5열)·3.2 세부현황·3.7 기구·장비 + 기록부 4종(580c088 — 1.12 화기취급 13행·1.13 공사/정비 11행·1.14 홍보 결과 2블록·1.15 화재발생 개요 첫 행: 일시·개요=피해 내용·예방대책=복구 조치)", "검증: _test-form-pairs.py 42/42(표 병합 36셀)·test-hwp-single.mts 5/5(워커 실생성)·1.15 계획 표 원본 보존 확인"], "method": "코드 대조 + 템플릿 병합 검증 + 워커 파이프라인 E2E" },
+              "note": "제외(구조 불일치 — 정직 기록): 1.11.2(차수 블록 고정 양식)·1.11.4(별지 28호 별도 양식)·시나리오(5앵커 분할 불일치, 프리셋 경로 유지)·1.10.2 dutyLog(양식에 기록표 없음 — '별도 파일철' 보관 대상, ERP 기록·보관용). 1.15는 양식이 단일 사건 서식이라 첫 행만·비용 미병합, 1.14는 2블록 한도·안전조치/대상은 인접 열에 합성" }
           ] },
         { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6fe3800", "evidence": ["워커 이중 폴링(TARGETS: 스테이징+운영 — use_target 전환, 대상별 중단 복구·하트비트) = 운영 전환 동시 수행(운영 백로그 0건 상태에서 전환)", "웹 템플릿 폐기: [PDF 생성] 버튼 제거(생성 바=계획서 생성 HWP+PDF 단일), 보관함 생성/재생성=HWP 큐, generateFirePlanAction·getFirePlanFormAction·generateFirePlanPdfNowAction 삭제(데이터시트 HTML 경로만 유지, 구 .form.json은 7-3b 임포트 읽기 전용)", "사진 연계: 서식 1.3 sections.photos(건물 전경 우선)→HWP 표지, gen-assets 폴백", "일반관리 보관함 생성 버튼 억제(§9-8 — 회귀에서 발견·수정)"], "method": "E2E scripts/test-hwp-single.mts 5/5(생성 요청→워커 HWP+미리보기→PDF ready→보관함) + plan-tab 47/47 회귀 + 운영 하트비트·백로그 0건 확인" } },
         { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["목차 모바일 드롭다운(3827ecc — 탭 줄 대체)", "표 = TableWrap 가로 스크롤 래퍼(31e165f — 1.2·1.7·개정이력, 카드형 대신 채택: 열 구조 보존)"], "method": "E2E scripts/test-field-rules.mts 10/10 + plan-tab 46/46 회귀" }, "note": "카드형 폴백 대신 가로 스크롤 채택 — 설계 조정 정직 기록" }
@@ -174,8 +178,8 @@
       "note": "P1~P5+중기 배열 확정 — 상단 roadmap 배열 참조. 별지 9호(점검마다 제출·최고 빈도)를 서식 확장보다 앞에 둠"
     },
     {
-      "id": "8-1", "line": 323, "title": "4-1 골격 구현 진행 현황 (2026-07-23 종결 — 커밋 1aa4c97, 스테이징·운영 배포)", "status": "partial",
-      "note": "8-1a~h 종결(2026-07-23): E2E 15/15(scripts/test-plan-tab.mts — 생성 바·서브탭·개정이력 저장·DB 반영·딥링크·재진입 로드) + 코드 대조, 구현 세션(2026-07-21)과 별도 세션 판정. 잔여 8-1i~k는 P4 범위. 개정 전 구조(장 서브탭) 기준 골격이므로 §1 개정 구조(목차 트리) 전환 시 재작업 여지 있음",
+      "id": "8-1", "line": 323, "title": "4-1 골격 구현 진행 현황 (2026-07-23 종결 — 커밋 1aa4c97, 스테이징·운영 배포)", "status": "implemented",
+      "note": "롤업 종결(2026-07-23): 8-1a~h 종결(E2E 15/15 scripts/test-plan-tab.mts + 코드 대조) + 잔여였던 8-1i~k도 P4·P6에서 implemented — 하위 전부 종결. §1 개정 구조(목차 트리) 전환도 P6에서 완료되어 재작업 여지 해소",
       "criteria": [
         { "id": "8-1a", "desc": "요구 3·4·5 버그 수정 — getFirePlanGenDefaultsAction 하드코딩 제거(수신기위치·급수·높이·구조·지붕·선임일 연동)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["sections[3] criteria 3-0 verified 참조"], "method": "코드 대조" } },
@@ -239,7 +243,8 @@
       ]
     },
     {
-      "id": "9-6", "line": 409, "title": "별지 9호 작성 상세 매핑 — 구현 전 확정 사항", "status": "partial",
+      "id": "9-6", "line": 409, "title": "별지 9호 작성 상세 매핑 — 구현 전 확정 사항", "status": "implemented",
+      "note": "롤업 종결(2026-07-23): 하위 9-6a~h 전부 implemented/confirmed (9-3d 자격정보 종결 포함)",
       "criteria": [
         { "id": "9-6a", "desc": "① 1쪽 필드 매핑 정의 — 점검 구분·대상물·점검기간·점검자(항상 관리업자 체크)·제출처 자동", "status": "confirmed" },
         { "id": "9-6b", "desc": "① 고객 필드 신설 — email_delivery_consent(동의/미동의) + report_email", "status": "implemented",
@@ -324,7 +329,7 @@
         { "id": "11-2", "desc": "전년도 이어받기 — 연차발행 시 fire_plan_forms 섹션 전체 복사 + 개정이력 '연차 갱신' 자동 기록", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire_plan_forms는 고객당 1행 — 섹션은 설계상 자동 승계. issueNextYearPlanAction이 sections.revision을 '{연도}년 연차 갱신 (전년도 이어받기)'로 갱신(전년 개정 문구 딸림 방지)", "발행 행 note=연차발행 → 개정이력 다행 자동 반영(기존)"], "method": "E2E scripts/test-annual-carryover.mts 7/7 — 발행→2026행·파일 복제·revision 자동 기록·타 섹션(zones) 승계·화면 반영" } },
         { "id": "11-3", "desc": "섹션별 원클릭 채우기·해당없음 — 1.5 용도 기반 기본값, 1.6 LPG 프리셋, 1.11 표준 패턴, 2장 표준 문구, 3.5 해당없음 등", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6c27468", "evidence": ["1.5 용도 기본값(EVAC_PRESETS × recommendPresetType — plan-form15, 6c27468 신규)", "기존 구현 확인: 1.6 LPG 프리셋(plan-form16 lpgPreset)·1.11 표준 패턴+시나리오 프리셋(plan-form111)·2장 팀별 임무 표준 문구(plan-ch2)·3.5 해당없음 원클릭(plan-ch3)"], "method": "E2E scripts/test-section-copy.mts — 1.5 기본값 클릭→저장→DB(compartment=area·직통계단 2) + 기존 4종 코드 대조" } },
         { "id": "11-4", "desc": "입력 컴포넌트 공통 규칙 — 단위 표시·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["ui/fields.tsx — NumField(숫자만+단위 서픽스+numeric/decimal 키패드)·PhoneField(02 포함 자동 하이픈)·MonthField(네이티브 month picker ↔ 'YYYY년 M월' 저장 형식)·TableWrap·useUnsavedWarning(beforeunload)", "적용: 1.1(계단·경사로·승강기·인원·편성 전화)·1.3(km/분)·1.6(kW/kVA/개)·1.10(연월 3곳)·2장(전화) + 이탈 경고 훅 전 서식(12/13/15/16/17/110/111/ch2/ch3), 표 래퍼 1.2·1.7·개정이력"], "method": "E2E scripts/test-field-rules.mts 10/10(숫자 필터·단위·inputMode·month 저장/역파싱·전화 하이픈 2종·표 래퍼) + plan-tab 46/46·section-copy 11/11 회귀" }, "note": "설계 대비 채택 조정(정직 기록): 모바일 표는 카드형 대신 가로 스크롤 래퍼(열 구조 보존 판단), 준비율 즉시 갱신은 1.1 패널=입력 즉시(기왕)·목차/탭 뱃지=저장 시 갱신" },
-        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "partial", "note": "칩→입력처 딥링크 구현(0c8e095, E2E 4케이스 — test-import-deeplink.mts): 건물값→건물·시설 탭, 주소·사용승인일→기본정보 탭, 1.1 필드→서식 전체 1.1, 자위소방대→2장, 송달 동의→화면 내 스크롤. 잔여(정직 기록): 필드 단위 포커스 미구현 — 해당 서식 도착까지만" },
+        { "id": "11-5", "desc": "누락 안내 동선 — 누락 칩→해당 서브탭 이동+필드 포커스(서브탭 전체 확장), missing[]→딥링크", "status": "partial", "note": "칩→입력처 딥링크 구현(0c8e095, E2E 4케이스 — test-import-deeplink.mts): 건물값→건물·시설 탭, 주소·사용승인일→기본정보 탭, 1.1 필드→서식 전체 1.1, 자위소방대→2장, 송달 동의→화면 내 스크롤. 버그 수정(2026-07-23, 580c088 — 사용자 보고): 마운트 후 클라이언트 내비에서 탭 무반응(CustomerTabs active가 1회 초기화 state) → ?tab= 프롭 동기화+goTab 사용, E2E test-chip-nav.mts 7/7. 잔여(정직 기록): 필드 단위 포커스 미구현 — 해당 서식 도착까지만" },
         { "id": "11-6", "desc": "다른 고객 복사 확대 — getFirePlanCopyCandidatesAction을 섹션 단위 복사(1.5/1.6/1.11 유사 고객)로 확장", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6c27468", "evidence": ["fire-plan-form-actions.ts getSectionCopyCandidatesAction(섹션 보유 고객, 같은 용도 우선)·copySectionFromCustomerAction(화이트리스트 evacFire/etcFacility/training, 즉시 저장)", "section-copy-button.tsx — 1.5/1.6/1.11 서식에 [다른 고객에서 복사] 드롭다운, onApplied로 화면 즉시 반영"], "method": "E2E scripts/test-section-copy.mts 11/11 — 1.6·1.11 복사→화면·DB 검증, 타 섹션 보존" } }
       ]
     },
