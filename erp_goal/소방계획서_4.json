@@ -27,8 +27,8 @@
     { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "partial", "note": "R-1·R-2·별지 10·11호·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095) 완료 — 잔여: 개정 감지 크론(OC IP 블로커, 사용자 액션 대기)" },
     { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 3827ecc — 104 양쪽 DB·E2E 46/46+회귀 7종·스테이징/운영 배포): 목차 트리(완성도·합산 뱃지)·form= 딥링크·1.1 3분할+신규 6필드·생성 모달 폐지(사진→1.3 이관)·모바일 드롭다운. 잔여(정직 기록): 카드 앵커 점프·1.10/3장 내부 서브탭 세로화(1-2)·표 카드형 폴백(7-6→P8)·미저장 감지의 버튼 토글 미포함" },
-    { "id": "P7", "title": "문서 타임라인 — §9-9b~e + 9-6f 제출추적 + 9-8e 기한 연계 흡수 (§8-2②)", "status": "pending_order",
-      "note": "2026-07-23 세션 계획 확정. 범위: 타임라인 UI(D-day·딥링크)·업로드 슬롯 3종·관계인 보고서+송달 이메일 자동 발송+발송 이력·제출 패키지(병합 PDF/ZIP)+제출일 기록(기한 알림 소멸 조건). ⚠ 선결: 이메일 발송 채널 결정(Gmail 공용계정 API 재사용 권장 vs SMTP)" },
+    { "id": "P7", "title": "문서 타임라인 — §9-9b~e + 9-6f 제출추적 + 9-8e 기한 연계 흡수 (§8-2②)", "status": "partial",
+      "note": "핵심 종결(2026-07-23, 415fb1b — 105 양쪽 DB·E2E 25/25·회귀 그린): 타임라인 UI(§9-6⑦ 흡수·D-day·정기=EXT 체계 전환)·슬롯 3종·제출 패키지 ZIP·제출일 기록·15일 기한 크론(9-8e). 잔여: ③ 관계인 보고 실발송 — gmail.send 스코프 재발급(사용자 액션, google-oauth-setup.mjs 재실행) 후 검증하면 9-9d 승격" },
     { "id": "P8", "title": "입력 컴포넌트 공통 규칙 — §11-4 공통 Field 컴포넌트화 후 전 서식 치환 (§8-2③)", "status": "pending_order",
       "note": "2026-07-23 세션 계획 확정. 단위·숫자 키패드·전화 하이픈·month picker·모바일 카드 폴백·이탈 경고·준비율 즉시 갱신. P6의 새 골격 위에서 마지막에(순서 고정)" },
     { "id": "중기", "title": "출력 엔진 단일화 — 워커 상시화 안정 후 웹 계획서 템플릿 폐기 (HWP 단일 경로)", "status": "pending_order", "note": "채택 결정은 confirmed(2026-07-21), 실행은 중기" }
@@ -250,8 +250,7 @@
           "verified": { "date": "2026-07-23", "commit": "48a28ea", "evidence": ["fireplan-worker.py process_report9 — has_plan→작성·보관 체크, 전년도 completed 유형별 실시 체크, training 유무 체크. 데이터 없으면 공란 유지(미실시 단정 금지 — fail-soft)"], "method": "코드 대조 + 실데이터 E2E" } },
         { "id": "9-6e", "desc": "④ 다중이용업소 업종 28종 선택형(+개소) 상수 1곳 + inspection_sheets에 '안전시설등(다중이용업소)' 시트 추가", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "d236aaa", "evidence": ["업종 선택형 상수(MULTI_USE_CATEGORIES, doc-requirements.ts)+1.10.3 입력(3338b5c, 기왕 구현)", "시트 MU-01 16항목(서식 2절 원천, seed-mu-sheet.mjs — 양쪽 DB), make-report9.py MU_ITEMS+_apply_mu(2절 영역 한정 병합 — 1절 동명 체크 리터럴 오염 방지, 분리 런 2종 처리), 워커 MU-% 응답 롤업"], "method": "병합 scripts/_test-mu.py 11/11(16/16 주입·1절 원형 유지) + UI scripts/test-mu-sheet.mts 5/5(목록·16항목·구분 그룹·저장·응답수 뱃지)" } },
-        { "id": "9-6f", "desc": "⑤ 보관 규약 — fire-plans/{customerId}/inspections/{inspectionId}/report9_{stamp} + 점검 상세 문서 목록(제출추적 포함) + 큐 report_type='report9'", "status": "partial",
-          "note": "경로 규약·점검 상세 생성물 목록(서명 URL 다운로드)·큐 report_type(099) 구현(48a28ea, E2E 검증) — 제출추적(소방서 제출일 기록) 필드는 미구현, §9-9 타임라인 ④ 제출일 기록에서(P5)" },
+        { "id": "9-6f", "desc": "⑤ 보관 규약 — fire-plans/{customerId}/inspections/{inspectionId}/report9_{stamp} + 점검 상세 문서 목록(제출추적 포함) + 큐 report_type='report9'", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["경로 규약·생성물 목록·큐(48a28ea 기왕) + 제출추적 종결: inspections.report9/11_submitted_at(105)+타임라인 제출일 기록·표시"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7)" } },
         { "id": "9-6g", "desc": "⑥ 템플릿 기준본 = _form/별지9호_법제처API_20260701.hwp (개정 감지와 연결)", "status": "confirmed" },
         { "id": "9-6h", "desc": "⑦ 별지 9호 전용 입력 페이지 없음 — '공통값은 고객에, 점검값은 점검에, 생성은 준비 화면에서' (준비 화면은 §9-9 타임라인 ④단계로 흡수)", "status": "confirmed" }
       ]
@@ -286,17 +285,17 @@
             { "id": "9-8c-3", "desc": "준비 화면 유형별 버튼(§9-6⑦) / 보고서 페이지 카드 흐림(§10)", "status": "partial", "note": "준비 화면 유형별 구현(48a28ea — 일반관리 점검은 별지 9호 섹션 미노출), 보고서 페이지 카드 흐림은 P5(§10)" }
           ] },
         { "id": "9-8d", "desc": "외관점검표(일반용) 생성 — 실물 양식 확보 후 placeholder 심기 + inspection_sheets '외관점검' 시트 추가(기존 P34-2 UI 재사용, 새 화면 0개) + report_type='exterior' 귀속 저장", "status": "implemented", "verified": { "date": "2026-07-22", "commit": "977efa8", "evidence": "scripts/make-exterior.py·seed-exterior-placeholders.py(124항목×12월 심기)·seed-exterior-sheet.mjs(EXT-01~14 v2022 양쪽 DB)·supabase/migrations/102(exterior 큐)·scripts/fireplan-worker.py process_exterior·inspections/[id]/page.tsx 일반관리 분기", "method": "양식 = 법제처 flDownload 자동 수신(고시 2022-71 별지6호, OC 불필요). 병합 E2E scripts/_test-exterior.py 12/12 + 전체 E2E scripts/test-exterior-ui.mts 18/18(EXT 시트 입력→생성→워커 병합→HWP/PDF 업로드→다운로드, 스테이징 DB 실동작)" }, "note": "월별 기록지 구조 — 점검 건의 해당 월 열에 ○/×// 병합, 표지 해당 월 행(점검월일·양호/불량·점검자) 기재. 워커 상시화 개선 동반: pythonw+포트락+감시 래퍼(hidden console 랜덤 종료 차단)" },
-        { "id": "9-8e", "desc": "기한 규칙 연계 — deadline을 알림 크론과 연결('이번 주 제출할 문서' 소스)", "status": "pending_order" }
+        { "id": "9-8e", "desc": "기한 규칙 연계 — deadline을 알림 크론과 연결('이번 주 제출할 문서' 소스)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["defect-action-notify 크론 확장 — 별지 9호 15일 보고 기한 D-7/D-3/당일/경과(과태료 문구) 알림(특별점검만·제출일 기록 시 소멸, 105 report_submit_due/overdue), 기존 이행기한(9-7d)과 단일 크론(00:35 KST)"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7) — D-3 발송·제출 기록 건 제외·멱등" } }
       ]
     },
     {
-      "id": "9-9", "line": 582, "title": "문서 타임라인 — 단계별 보고서·준비 화면·업로드 통합", "status": "pending_order",
+      "id": "9-9", "line": 582, "title": "문서 타임라인 — 단계별 보고서·준비 화면·업로드 통합", "status": "partial",
       "criteria": [
-        { "id": "9-9a", "desc": "단계 구성 확정 — stepDocs(inspection) 상수(고객 유형×점검 유형×불량 유무)로 기존 088 분기 흡수: 자체점검 불량無=①~④ / 불량有=①~⑥ / 정기·일반=① 외관점검표 하나만(②~⑥ 미표시·기한 없음)", "status": "confirmed", "note": "2026-07-21 확정 — 특별점검용 코드·데이터는 유지, 조건부 표시로만 숨김" },
-        { "id": "9-9b", "desc": "타임라인 UI(점검 상세) — 단계별 상태·D-day 뱃지·딥링크, §9-6⑦ 준비 체크가 ④ 전제조건으로 흡수", "status": "pending_order" },
-        { "id": "9-9c", "desc": "업로드 슬롯 3종만 — ② 배치확인서(협회 발급) / ⑤ 불량 항목별 전·후 사진 쌍 + 공사 계약서 (별도 업로드 화면 없음)", "status": "pending_order" },
-        { "id": "9-9d", "desc": "③ 관계인 보고서 — 생성 + 송달 동의 이메일 자동 발송 + 발송 이력 기록(보고 증빙)", "status": "pending_order" },
-        { "id": "9-9e", "desc": "④⑥ 제출 패키지(9호+점검표+배치확인서+10호 병합 PDF/ZIP, 11호+⑤ 첨부 자동 재사용) + 제출일 기록 필드(기한 알림 소멸 조건)", "status": "pending_order" }
+        { "id": "9-9a", "desc": "단계 구성 확정 — stepDocs(inspection) 상수(고객 유형×점검 유형×불량 유무)로 기존 088 분기 흡수: 자체점검 불량無=①~④ / 불량有=①~⑥ / 정기·일반=① 외관점검표 하나만(②~⑥ 미표시·기한 없음)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["doc-requirements.ts stepDocs/TIMELINE_STEP_LABELS — isSpecial(plan_type 088 기준)×hasDefects, 정기·일반=checklist 하나(기한·알림 없음)"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7) — 불량 발생 시 ⑤⑥ 등장·정기 단일 단계 검증" }, "note": "2026-07-21 확정 — 특별점검용 코드·데이터는 유지, 조건부 표시로만 숨김" },
+        { "id": "9-9b", "desc": "타임라인 UI(점검 상세) — 단계별 상태·D-day 뱃지·딥링크, §9-6⑦ 준비 체크가 ④ 전제조건으로 흡수", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["inspection-timeline-client.tsx — ①~⑥ 단계 행(stepDocs 조건부), D-day 뱃지(④=점검종료+15일·⑥=이행기간 종료일, 제출일 기록 시 소멸), §9-6⑦ 준비 체크 4행이 ④ 전제로 흡수(구 별지9호 준비 섹션 대체), 정기(monthly)도 EXT 시트+외관점검표 체계로 전환(§9-9a 정기·일반=① 하나만)"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7)" } },
+        { "id": "9-9c", "desc": "업로드 슬롯 3종만 — ② 배치확인서(협회 발급) / ⑤ 불량 항목별 전·후 사진 쌍 + 공사 계약서 (별도 업로드 화면 없음)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["timeline-actions.ts uploadTimelineFileAction — cert_/contract_ (점검 폴더 규약 §9-6f, 20MB·형식 검증), 협회(kfma.kr) 바로가기", "⑤ 전·후 사진 = 기존 불량내역 슬롯 재사용(photo_url/after_photo_url) — 타임라인에 쌍 카운트 n/m + 앵커 딥링크"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7) — cert·contract 업로드→storage 파일 검증" } },
+        { "id": "9-9d", "desc": "③ 관계인 보고서 — 생성 + 송달 동의 이메일 자동 발송 + 발송 이력 기록(보고 증빙)", "status": "partial", "note": "구현(415fb1b): sendOwnerReportAction — 최신 별지9호 생성물(PDF 우선)을 송달 동의 이메일로 발송(gmailSendWithAttachment, MIME 첨부) + report_deliveries 발송 이력(105·message_id 증빙) + 타임라인 ③ 행(동의 없으면 비활성). ⚠ 실발송 검증 블로커: 현재 Google 토큰이 gmail.readonly — gmail.send 스코프 재발급 필요(사용자 액션: scripts/google-oauth-setup.mjs 재실행 → GOOGLE_REFRESH_TOKEN 교체, 스코프는 스크립트에 반영됨). 실패 시 안내 메시지 fail-soft 확인" },
+        { "id": "9-9e", "desc": "④⑥ 제출 패키지(9호+점검표+배치확인서+10호 병합 PDF/ZIP, 11호+⑤ 첨부 자동 재사용) + 제출일 기록 필드(기한 알림 소멸 조건)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "415fb1b", "evidence": ["downloadPackageAction — JSZip: ④=9호+10호+배치확인서 / ⑥=11호+계약서+배치확인서+불량 전·후 사진 자동 재사용(신규 업로드 0), 포함·누락 안내.txt 동봉", "recordSubmissionAction + inspections.report9/11_submitted_at(105) — 기록 시 D-day 뱃지·기한 알림 소멸(크론 필터)"], "method": "E2E scripts/test-timeline.mts 25/25 (스테이징 DB 실동작) + 회귀(외관 18·MU 5·기한크론 7) — 패키지 생성·제출일 DB·뱃지 전환·크론 소멸 검증. 병합 PDF 대신 ZIP 채택(원본 형식 보존)" } }
       ]
     },
     {
