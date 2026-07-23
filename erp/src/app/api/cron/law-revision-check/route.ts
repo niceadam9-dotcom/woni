@@ -35,8 +35,19 @@ export async function GET(req: NextRequest) {
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const oc = process.env.LAW_OC
-  if (!oc) return NextResponse.json({ ok: false, error: 'LAW_OC 미설정 — 법제처 회원 ID(IP 등록 계정)를 env에 추가해주세요.' }, { status: 200 })
+  // OC = 법제처 회원 ID (활용신청에 호출 서버 IP 등록 필요). 주 계정 검증 실패 시 공용 샘플(test) 폴백 —
+  // 등록 반영이 지연돼도 크론이 멈추지 않고, 반영되는 즉시 자동으로 주 계정 사용.
+  const ocPrimary = process.env.LAW_OC
+  if (!ocPrimary) return NextResponse.json({ ok: false, error: 'LAW_OC 미설정 — 법제처 회원 ID(IP 등록 계정)를 env에 추가해주세요.' }, { status: 200 })
+  let oc = ocPrimary
+  let ocNote = ''
+  try {
+    const probe = await fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(ocPrimary)}&target=licbyl&type=XML&query=a`, { cache: 'no-store' })
+    if ((await probe.text()).includes('사용자 정보 검증에 실패')) {
+      oc = 'test'
+      ocNote = `주 계정(${ocPrimary}) 검증 실패 — 공용 샘플(test)로 폴백. 법제처 OPEN API 활용신청의 IP(121.78.123.230) 등록·승인 상태를 확인해주세요.`
+    }
+  } catch { /* probe 실패 시 주 계정으로 진행 — 아래 개별 호출에서 처리 */ }
 
   const admin = createAdminClient()
   const { data: baseRaw } = await admin.from('law_form_baselines').select('key, form_name, announce_date')
@@ -80,5 +91,5 @@ export async function GET(req: NextRequest) {
       results[w.key] = `조회 실패: ${(e as Error).message.slice(0, 100)}`
     }
   }
-  return NextResponse.json({ ok: true, oc, revised, results })
+  return NextResponse.json({ ok: true, oc, ...(ocNote ? { ocNote } : {}), revised, results })
 }
