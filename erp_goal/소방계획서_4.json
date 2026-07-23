@@ -24,7 +24,7 @@
       "note": "핵심 종결(2026-07-23, 48a28ea — placeholder 심기·1~3쪽 병합·롤업·워커 분기·준비 섹션, 099 양쪽 DB·실데이터 E2E·UI 9/9·스테이징/운영 배포). defects 조치 계획 필드(action_plan/start/end) 선반영 완료(§9-7a). 잔여: 음성 입력 V-1(§9-4)·자격정보 데이터 정비(9-3d)·다중이용 28종(9-6e)" },
     { "id": "P4", "title": "서식 탭 확장 (1.2·1.3·1.4+코드 표준화 097 → 1.5~1.7 → 1.10·1.11+2장 → 3장+HWP 확장+개정이력 누적)", "status": "partial",
       "note": "P4-①~⑤ 완료(최신 d51f0ac — 서식 1.1~1.11·2장·3장 전 화면 + 어댑터 7-3a(섹션→웹 PDF/HWP zones 연결) + 웹 개정이력 다행, E2E 38/38, 2026-07-23 스테이징/운영 배포). 잔여(정직 기록): 신규 서식들의 HWP placeholder 확장(7-4 — 1.5·1.6·1.10·1.11·2장 임무·3장 세부의 HWP 병합은 웹 PDF만 반영, HWP 양식 심기는 서식별 순차)·HWP 개정이력 다행·임포트 배너(7-3b)" },
-    { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "b5e6caa", "evidence": ["R-1·R-2(6643dab)·별지 10·11호(1cd2a10)·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095)·개정 감지 크론(b5e6caa) — 각 항목 verified 참조"], "method": "항목별 E2E 누적 (10-R3 뱃지 소소 잔여는 §10 partial에 기록)" }, "note": "LAW_OC는 임시 test 계정 — 사용자 회원 ID 확인 시 교체(9-5b)" },
+    { "id": "P5", "title": "보고서 페이지 R-1~R-3 + 별지 10·11호 + 외관점검표 + 기한 임박 알림 + 연차 갱신 자동화", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "b5e6caa", "evidence": ["R-1·R-2(6643dab)·별지 10·11호(1cd2a10)·외관점검표(977efa8)·기한 임박 알림·연차 갱신(0c8e095)·개정 감지 크론(b5e6caa) — 각 항목 verified 참조"], "method": "항목별 E2E 누적 (10-R3 뱃지 소소 잔여는 §10 partial에 기록)" }, "note": "LAW_OC=woni_key(사용자 계정) 전환 완료 — 2026-07-23 운영 검증" },
     { "id": "P6", "title": "탭 계층 개편 묶음 — §1 개정 구조(목차 트리+섹션 카드, 1-1~1-5) + 7-6 모바일 + 8-1j/k + 3-1.1 (§8-2①)", "status": "partial",
       "note": "핵심 종결(2026-07-23, 3827ecc — 104 양쪽 DB·E2E 46/46+회귀 7종·스테이징/운영 배포): 목차 트리(완성도·합산 뱃지)·form= 딥링크·1.1 3분할+신규 6필드·생성 모달 폐지(사진→1.3 이관)·모바일 드롭다운. 잔여(정직 기록): 카드 앵커 점프·1.10/3장 내부 서브탭 세로화(1-2)·표 카드형 폴백(7-6→P8)·미저장 감지의 버튼 토글 미포함" },
     { "id": "P7", "title": "문서 타임라인 — §9-9b~e + 9-6f 제출추적 + 9-8e 기한 연계 흡수 (§8-2②)", "status": "partial",
@@ -231,10 +231,10 @@
       ]
     },
     {
-      "id": "9-5", "line": 401, "title": "법제처 Open API — 최신 서식 자동 다운로드", "status": "partial",
+      "id": "9-5", "line": 401, "title": "법제처 Open API — 최신 서식 자동 다운로드", "status": "implemented",
       "criteria": [
         { "id": "9-5a", "desc": "PoC — target=licbyl 검색(별지 9호 정확 매칭·공포일자 20260701) + flDownload HWP 수신 + SDK 열기·HWPX 변환·구조 동일 확인", "status": "confirmed", "note": "2026-07-21 성공. 파일: _form/별지9호_법제처API_20260701.hwp" },
-        { "id": "9-5b", "desc": "OC 계정 검증 — 호출 서버 IP 등록(VPS 121.78.123.230 권장)", "status": "partial", "note": "사용자 IP 등록 완료 통보(2026-07-23). 잔여: 회원 ID(OC) 확인 — 후보(niceadam9 등) 검증 실패, 크론은 LAW_OC env로 분리해 임시 test 계정으로 가동(VPS에서 정상 응답 확인). 사용자 ID 확인 시 env 교체 1줄" },
+        { "id": "9-5b", "desc": "OC 계정 검증 — 호출 서버 IP 등록(VPS 121.78.123.230 권장)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "f26d28b", "evidence": ["사용자 활용신청 OC=woni_key + VPS IP 등록 — VPS에서 lawSearch 검증 통과(resultCode 00)", "LAW_OC=woni_key 전 환경(.env.local/.env.staging/.env.production) 반영·컨테이너 재기동, 운영 크론 발화 oc=woni_key·폴백 미사용 확인", "크론에 주 계정 프로브+test 폴백 내장(f26d28b) — 계정 문제 시에도 감지 지속"], "method": "VPS 실호출 검증 + 운영 크론 발화 응답 확인" } },
         { "id": "9-5c", "desc": "개정 감지 크론(VPS 실행) + 개정 수신 시 재심기 알림", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "b5e6caa", "evidence": ["106_law_baselines.sql — 서식 4종 기준 공포/발령일자(9·10·11호=20260701, 외관=20221201) + law_revision 알림 타입(양쪽 DB)", "api/cron/law-revision-check — lawSearch(licbyl/admbyl) 항목 블록 파싱→기준 비교→개정 시 관리자 알림(재심기 스크립트 안내+다운로드 링크)+기준 갱신(1회 원칙), OC 미설정·검증 실패 안내 fail-soft", "VPS 크론 매주 월 00:45 KST 등록 + 운영 수동 발화 ok(전 서식 최신)"], "method": "E2E scripts/test-law-revision.mts 7/7 — 실 API(OC=test): 최신 판정→기준 하향 시뮬→감지·알림·기준 갱신→재알림 없음" } }
       ]
     },
