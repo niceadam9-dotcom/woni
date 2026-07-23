@@ -48,15 +48,16 @@ try {
   const page = l.page
   await login(page, EMAIL)
 
-  // ── 1) 특별점검 — 타임라인 ①~④ (불량 없음 → ⑤⑥ 숨김) ──
+  // ── 1) 자체점검 — 타임라인 ①~⑥ 상시 표시 (D-4: 불량 없음 → ⑤⑥ 해당없음 흐림) ──
   await page.goto(`${BASE}/inspections/${inspA}`)
   await page.waitForSelector('text=문서 타임라인')
-  check('타임라인 렌더(특별)', true)
+  check('타임라인 렌더(자체점검)', true)
   check('① 점검표 행', await page.isVisible('text=① 점검표'))
-  check('② 배치확인서 행', await page.isVisible('text=② 배치확인서'))
-  check('③ 관계인 보고 행', await page.isVisible('text=③ 관계인 보고'))
+  check('② 점검인력 배치확인서 행(용어 통일)', await page.isVisible('text=② 점검인력 배치확인서'))
+  check('③ 관계인 보고서 발급 행(용어 통일)', await page.isVisible('text=③ 관계인 보고서 발급'))
   check('④ 소방서 제출 행 + D-3 뱃지', await page.isVisible('text=D-3'))
-  check('⑤⑥ 숨김(불량 없음)', !(await page.isVisible('text=⑤ 보수·증빙')))
+  check('⑤⑥ 상시 표시 — 해당없음 흐림(불량 0건)', await page.isVisible('text=해당없음 — 불량 0건'))
+  check('진행률 헤더(해당없음 분모 제외 = 0/4)', await page.isVisible('text=0/4 단계 완료'))
   check('④ 전제 체크 흡수(§9-6⑦)', await page.isVisible('text=└ 전제:'))
   check('③ 발송 버튼 비활성(송달 동의 없음)', await page.locator('button:has-text("생성물 이메일 발송")').isDisabled())
 
@@ -88,8 +89,11 @@ try {
   })
   await page.goto(`${BASE}/inspections/${inspA}`)
   await page.waitForSelector('text=⑤ 보수·증빙')
-  check('⑤⑥ 표시(불량 발생)', await page.isVisible('text=⑥ 이행완료 (11호)'))
+  check('⑤⑥ 활성(불량 발생)', await page.isVisible('text=⑥ 이행완료 (별지 11호)'))
+  check('⑤⑥ 해당없음 문구 소멸', !(await page.isVisible('text=해당없음 — 불량 0건')))
+  check('진행률 분모 확장(2/6 단계 완료 — cert·제출 완료 반영)', await page.isVisible('text=2/6 단계 완료'))
   check('⑤ 전후 사진 카운트', await page.isVisible('text=전후 사진 0/1쌍'))
+  check('⑤ 선택 증빙 표기(R10-a)', await page.isVisible('text=(사진·계약서는 선택)'))
   check('⑥ 기한 = 이행기간 종료일', await page.isVisible(`text=기한 ${kstShift(10)}`))
 
   // ⑤ 계약서 업로드 (타임라인 카드 내 두 번째 파일 input)

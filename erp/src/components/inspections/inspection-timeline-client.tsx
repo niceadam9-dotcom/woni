@@ -14,10 +14,11 @@ import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { DateInput } from '@/components/ui/date-input'
-import type { TimelineStepKey } from '@/lib/doc-requirements'
+import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 
 /** 문서 타임라인 (§9-9 / P7) — 단계별 상태·D-day·업로드 슬롯·생성·발송·제출 패키지.
- *  단계 구성은 stepDocs(§9-9a): 특별 ①~④(불량 시 ⑤⑥) / 정기·일반 ① 하나만.
+ *  단계 구성은 stepDocs(§9-9a): 자체점검 ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림).
  *  ④ 전제조건 = 종전 별지 9호 준비 체크(§9-6⑦ 흡수). 값 입력은 각 원천 화면에서. */
 
 export type PrereqRow = { label: string; ok: boolean; detail: string; href?: string; hrefLabel?: string }
@@ -48,12 +49,13 @@ function saveBlob(base64: string, fileName: string) {
   URL.revokeObjectURL(url)
 }
 
-export function InspectionTimelineClient({ inspectionId, canManage, data, initialJob, initialFiles }: {
+export function InspectionTimelineClient({ inspectionId, canManage, data, initialJob, initialFiles, customerName }: {
   inspectionId: string
   canManage: boolean
   data: TimelineData
   initialJob: Report9Job | null
   initialFiles: Report9File[]
+  customerName?: string
 }) {
   const router = useRouter()
   const [job, setJob] = useState(initialJob)
@@ -130,9 +132,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
     })
   }
 
-  function download(path: string) {
+  function download(path: string, saveName?: string) {
     startTransition(async () => {
-      const res = await downloadReport9Action(inspectionId, path)
+      const res = await downloadReport9Action(inspectionId, path, saveName)
       if (res.error || !res.url) { setMsg(`❌ ${res.error ?? '다운로드 실패'}`); return }
       window.open(res.url, '_blank')
     })
@@ -151,12 +153,22 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         : <Circle className="size-4 text-[#d0ccf5] shrink-0" />
 
   const has = (k: TimelineStepKey) => data.steps.includes(k)
+  const hasDefects = data.defects.total > 0
   const done1 = data.responded > 0
   const done2 = !!data.certFile
   const done3 = !!data.delivery
   const done4 = !!data.submit9.submittedAt
-  const done5 = data.defects.total > 0 && data.defects.photoPairs >= data.defects.total && !!data.contractFile
+  // ⑤ 완료 판정 = 불량 전건 조치 완료 (R10-a — 계약서·사진은 선택 증빙이라 완료 조건에서 제외)
+  const done5 = hasDefects && data.defects.done >= data.defects.total
   const done6 = !!data.submit11.submittedAt
+
+  // R10-b: 진행률 — 해당없음(불량 0건의 ⑤⑥)은 분모에서 제외
+  const isSpecialTimeline = data.steps.length > 1
+  const activeDones = isSpecialTimeline
+    ? (hasDefects ? [done1, done2, done3, done4, done5, done6] : [done1, done2, done3, done4])
+    : [done1]
+  const doneCount = activeDones.filter(Boolean).length
+  const progressPct = Math.round((doneCount / activeDones.length) * 100)
 
   const row = 'flex items-start gap-2 py-2 border-b border-[#f3f1fc] last:border-0'
   const label = 'text-xs font-semibold text-[#090c1d] w-44 shrink-0 pt-0.5'
@@ -165,18 +177,30 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
 
   return (
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-1">
         <FileText className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">문서 타임라인</h2>
         <span className="text-[11px] text-[#b0acd6]">
-          {data.steps.length === 1 ? '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)' : `자체점검 보고 절차 ${data.steps.length}단계`}
+          {!isSpecialTimeline ? '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)' : '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시 진행'}
         </span>
+        {isSpecialTimeline && (
+          <span className="ml-auto text-[11px] font-semibold text-[#7b68ee] shrink-0"
+            title="해당없음 단계는 분모에서 제외">{doneCount}/{activeDones.length} 단계 완료</span>
+        )}
       </div>
+      {isSpecialTimeline && (
+        <div className="w-full h-1 bg-[#e0ddf5] rounded-full overflow-hidden mb-2">
+          <div className={`h-full rounded-full transition-all duration-500 ${progressPct === 100 ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
+            style={{ width: `${progressPct}%` }} />
+        </div>
+      )}
 
       {/* ① 점검표 */}
       <div className={row}>
         {stepIcon(done1, true)}
-        <span className={label}>① 점검표{data.isGeneral ? ' (외관점검표)' : ''}</span>
+        <span className={label} title={TIMELINE_STEP_TOOLTIPS.checklist}>
+          {TIMELINE_STEP_LABELS.checklist}{data.isGeneral ? ' (외관점검표)' : ' (소방시설등점검표)'}
+        </span>
         <span className={`text-xs ${done1 ? 'text-[#514b81]' : 'text-amber-600'}`}>
           {done1 ? `응답 ${data.responded}건 입력됨` : '응답 없음 — 위 점검표 입력에서 작성해주세요'}
         </span>
@@ -185,13 +209,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         )}
       </div>
 
-      {/* ② 배치확인서 */}
+      {/* ② 점검인력 배치확인서 — 업로드 직감 규칙(R10-c): ✅초록+파일명 / ⚠앰버+[업로드] */}
       {has('cert') && (
         <div className={row}>
           {stepIcon(done2, done1)}
-          <span className={label}>② 배치확인서</span>
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.cert}>{TIMELINE_STEP_LABELS.cert}</span>
           <span className={`text-xs ${done2 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-            {data.certFile ? `업로드됨: ${data.certFile.name}` : '협회 발급본 업로드 필요'}
+            {data.certFile ? `업로드됨: ${data.certFile.name}` : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
           </span>
           <span className="ml-auto flex items-center gap-1.5 shrink-0">
             <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-0.5">
@@ -208,11 +232,11 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         </div>
       )}
 
-      {/* ③ 관계인 보고 */}
+      {/* ③ 관계인 보고서 발급 */}
       {has('ownerReport') && (
         <div className={row}>
           {stepIcon(done3, done1)}
-          <span className={label}>③ 관계인 보고</span>
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.ownerReport}>{TIMELINE_STEP_LABELS.ownerReport}</span>
           <span className={`text-xs ${done3 ? 'text-[#514b81]' : 'text-amber-600'}`}>
             {data.delivery
               ? `발송됨 → ${data.delivery.sentTo} (${data.delivery.sentAt.slice(0, 10)})`
@@ -232,7 +256,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
       {has('submit9') && (
         <div className={row}>
           {stepIcon(done4, done1)}
-          <span className={label}>④ 소방서 제출 (9호{data.defects.total > 0 ? '+10호' : ''})</span>
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit9}>④ 소방서 제출 (9호{hasDefects ? '+10호' : ''})</span>
           <div className="flex-1 min-w-0 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               {dday(data.submit9.dday, data.submit9.submittedAt)}
@@ -269,13 +293,14 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         </div>
       )}
 
-      {/* ⑤ 보수·증빙 */}
-      {has('repair') && (
+      {/* ⑤ 보수·증빙 — 상시 표시(D-4): 불량 0건이면 해당없음 흐림. 완료 판정 = 불량 전건 조치 완료(R10-a) */}
+      {has('repair') && (hasDefects ? (
         <div className={row}>
           {stepIcon(done5, done4)}
-          <span className={label}>⑤ 보수·증빙</span>
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
           <span className={`text-xs ${done5 ? 'text-[#514b81]' : 'text-amber-600'}`}>
             불량 {data.defects.total}건 · 계획 {data.defects.planned} · 완료 {data.defects.done} · 전후 사진 {data.defects.photoPairs}/{data.defects.total}쌍
+            <span className="text-[#b0acd6]" title="수리 계약서·전/후 사진은 선택 증빙 — ⑤ 완료 조건은 불량 전건 조치 완료"> (사진·계약서는 선택)</span>
             {data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
           </span>
           <span className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -285,17 +310,23 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
             )}
             {canManage && (<>
               <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('contract', e)} />
-              <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn}><Upload className="size-3" /> 계약서 업로드</button>
+              <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn} title="수리 계약서 (선택 증빙)"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
             </>)}
           </span>
         </div>
-      )}
+      ) : (
+        <div className={`${row} opacity-50`}>
+          <Circle className="size-4 text-[#d0ccf5] shrink-0" />
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
+          <span className="text-xs text-[#b0acd6]">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+        </div>
+      ))}
 
-      {/* ⑥ 이행완료 (별지 11호) */}
-      {has('submit11') && (
+      {/* ⑥ 이행완료 (별지 11호) — 상시 표시(D-4) */}
+      {has('submit11') && (hasDefects ? (
         <div className={row}>
           {stepIcon(done6, done5 || data.defects.done > 0)}
-          <span className={label}>⑥ 이행완료 (11호)</span>
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit11}>{TIMELINE_STEP_LABELS.submit11}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               {dday(data.submit11.dday, data.submit11.submittedAt)}
@@ -311,7 +342,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
             </div>
           </div>
         </div>
-      )}
+      ) : (
+        <div className={`${row} opacity-50`}>
+          <Circle className="size-4 text-[#d0ccf5] shrink-0" />
+          <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit11}>{TIMELINE_STEP_LABELS.submit11}</span>
+          <span className="text-xs text-[#b0acd6]">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+        </div>
+      ))}
 
       {msg && <p className="text-xs text-[#514b81] mt-2">{msg}</p>}
       {busy && (
@@ -320,19 +357,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         </p>
       )}
 
-      {/* 생성물 목록 (9·10·11호·외관·업로드 슬롯) */}
+      {/* 생성물 목록 — 문서 단위 1행 그룹핑 (⑩ R11 공용 컴포넌트) */}
       {files.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-[#e0ddf5] space-y-1">
-          {files.map(f => (
-            <div key={f.path} className="flex items-center gap-2 text-xs">
-              <span className="text-[#090c1d] truncate">{f.name}</span>
-              {f.createdAt && <span className="text-[11px] text-[#b0acd6]">{f.createdAt.slice(0, 16).replace('T', ' ')}</span>}
-              <button onClick={() => download(f.path)} disabled={isPending}
-                className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
-                <Download className="size-3" /> 받기
-              </button>
-            </div>
-          ))}
+        <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
+          <GeneratedDocList files={files} onOpen={download} customerName={customerName} disabled={isPending} />
         </div>
       )}
     </div>

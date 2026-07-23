@@ -23,10 +23,13 @@ try {
   await page.goto(`${BASE}/reports?form=report9`)
   await page.waitForSelector('text=준비 화면')
   check('별지 9호 — 점검 건 선택 화면', true)
-  check('별지 9호 — 점검 목록 표시', await page.isVisible('text=행복마을아파트'))
+  check('별지 9호 — 점검 목록 표시(자체점검 건)', await page.isVisible('text=서림사'))
+  // R9 버그 수정: 정기(monthly) 건은 목록에서 제외 — 행복마을아파트는 정기 건만 보유
+  check('별지 9호 — 정기(monthly) 건 제외(R9)', !(await page.isVisible('text=행복마을아파트')))
+  check('별지 9호 — 자체점검만 표시 캡션(R9-b)', await page.isVisible('text=자체점검(작동·종합) 건만 표시됩니다'))
 
-  await page.goto(`${BASE}/reports?form=report9&q=행복`)
-  await page.waitForSelector('text=행복마을아파트')
+  await page.goto(`${BASE}/reports?form=report9&q=서림`)
+  await page.waitForSelector('text=서림사')
   check('고객명 검색 필터', true)
 
   await page.goto(`${BASE}/fire-plans/generate`)

@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { FileText, Loader2, RefreshCw, Download, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, downloadReport9Action,
   type Report9Job, type Report9File,
 } from '@/app/(dashboard)/inspections/report9-actions'
+import { DOC_TERMS } from '@/lib/doc-requirements'
+import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 
 /** 실시결과 보고서(별지 9호) 준비·생성 섹션 — §9-6⑦ 준비 체크리스트 + 생성 버튼 + 생성물 목록.
  *  값 수정은 각 입력처(고객 탭·참여자·점검표)에서 — 이 화면은 상태 표시와 생성만. */
@@ -16,7 +18,7 @@ export type Report9CheckRow = { label: string; ok: boolean; detail: string; href
 export type DefectsInfo = { total: number; planned: number; done: number }
 
 export function InspectionReport9Client({
-  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9',
+  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9', customerName,
 }: {
   inspectionId: string
   canManage: boolean
@@ -25,6 +27,7 @@ export function InspectionReport9Client({
   initialFiles: Report9File[]
   defectsInfo: DefectsInfo
   variant?: 'report9' | 'exterior' // exterior = 외관점검표(일반관리, §9-8d)
+  customerName?: string
 }) {
   const [job, setJob] = useState(initialJob)
   const [files, setFiles] = useState(initialFiles)
@@ -53,9 +56,9 @@ export function InspectionReport9Client({
     })
   }
 
-  function download(path: string) {
+  function download(path: string, saveName?: string) {
     startTransition(async () => {
-      const res = await downloadReport9Action(inspectionId, path)
+      const res = await downloadReport9Action(inspectionId, path, saveName)
       if (res.error || !res.url) { setMsg(`❌ ${res.error ?? '다운로드 실패'}`); return }
       window.open(res.url, '_blank')
     })
@@ -65,13 +68,19 @@ export function InspectionReport9Client({
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-3">
         <FileText className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">
+        <h2 className="text-sm font-semibold text-[#090c1d]" title={variant === 'exterior' ? DOC_TERMS.checklistExterior : DOC_TERMS.report9Full}>
           {variant === 'exterior' ? '외관점검표 (일반용)' : '실시결과 보고서 (별지 9호)'}
         </h2>
         <span className="text-[11px] text-[#b0acd6]">
           {variant === 'exterior' ? '해당 월 결과 자동 병합 · 작성 후 2년 보관 (보고 없음)' : '1~3쪽 자동 병합 · 4~8쪽 빈 서식 포함'}
         </span>
       </div>
+      {/* D-6 (a)안: 정기·일반관리는 보고 단계가 없음 — 이유 안내 1줄 */}
+      {variant === 'exterior' && (
+        <p className="text-[11px] text-[#b0acd6] -mt-1 mb-3">
+          정기·일반관리는 소방서 보고 단계(②~⑥)가 없습니다 — 외관점검표 작성·2년 보관만 진행합니다
+        </p>
+      )}
 
       {/* 준비 체크리스트 — 각 행은 읽기 전용 상태 + 입력처 딥링크 (§9-6⑦) */}
       <div className="space-y-1.5 mb-3">
@@ -144,19 +153,10 @@ export function InspectionReport9Client({
         <p className="text-[11px] text-amber-600 mt-2">누락: {job.missing.join(' · ')}</p>
       )}
 
-      {/* 생성물 목록 */}
+      {/* 생성물 목록 — 문서 단위 1행 그룹핑 (⑩ R11 공용 컴포넌트) */}
       {files.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-[#e0ddf5] space-y-1">
-          {files.map(f => (
-            <div key={f.path} className="flex items-center gap-2 text-xs">
-              <span className="text-[#090c1d] truncate">{f.name}</span>
-              {f.createdAt && <span className="text-[11px] text-[#b0acd6]">{f.createdAt.slice(0, 16).replace('T', ' ')}</span>}
-              <button onClick={() => download(f.path)} disabled={isPending}
-                className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
-                <Download className="size-3" /> 받기
-              </button>
-            </div>
-          ))}
+        <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
+          <GeneratedDocList files={files} onOpen={download} customerName={customerName} disabled={isPending} />
         </div>
       )}
       {busy && (

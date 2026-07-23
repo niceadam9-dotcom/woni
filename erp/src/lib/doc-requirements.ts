@@ -39,23 +39,61 @@ export function requiredDocs(c: CustomerDocProfile): DocRequirement[] {
   ]
 }
 
+/** ── 용어 사전 (소방계획서_5 §3-5, D-3) — 화면 라벨은 반드시 여기서만 가져다 쓴다 ──
+ *  실무·법정 용어 통일: 특별점검→자체점검, 별지 표기는 풀네임(넓은 곳)/축약(좁은 곳)+툴팁 병행 */
+export const DOC_TERMS = {
+  selfInspection: '자체점검',              // 구 '특별점검' (2차는 '자체점검 2차')
+  selfInspection2: '자체점검 2차',
+  monthly: '정기점검',                     // D-7: 월 방문 건 호칭 유지
+  report9Full: '자체점검 실시결과 보고서 (별지 9호)',
+  report9Short: '실시결과 보고서',
+  report10Full: '이행계획서 (별지 10호)',
+  report11Full: '이행완료 보고서 (별지 11호)',
+  checklistStd: '소방시설등점검표',        // 자체점검 점검표
+  checklistExterior: '외관점검표',         // 일반관리 점검표 (2년 보관)
+  certFull: '점검인력 배치확인서',         // 첫 표기 풀네임, 이후 축약 허용
+  certShort: '배치확인서',
+  ownerReport: '관계인 보고서 발급',
+  firePlan: '소방계획서',
+} as const
+
 /** ── §9-9a: 문서 타임라인 단계 구성 — (점검 유형 × 불량 유무)로 결정, 088 분기 흡수 ──
- *  특별점검(종합/작동, plan_type special_*·null) = ①~④(불량 시 ⑤⑥ 추가) / 정기(monthly)·일반(event·일반관리) = ① 하나만 */
+ *  자체점검(종합/작동, plan_type special_*·null) = ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림)
+ *  정기(monthly)·일반(event·일반관리) = ① 하나만 + 안내 1줄 (D-6 (a)안) */
 export type TimelineStepKey = 'checklist' | 'cert' | 'ownerReport' | 'submit9' | 'repair' | 'submit11'
 
 export const TIMELINE_STEP_LABELS: Record<TimelineStepKey, string> = {
   checklist: '① 점검표',
-  cert: '② 배치확인서',
-  ownerReport: '③ 관계인 보고',
+  cert: `② ${DOC_TERMS.certFull}`,
+  ownerReport: `③ ${DOC_TERMS.ownerReport}`,
   submit9: '④ 소방서 제출 (별지 9호)',
   repair: '⑤ 보수·증빙',
   submit11: '⑥ 이행완료 (별지 11호)',
 }
 
-export function stepDocs(i: { isSpecial: boolean; hasDefects: boolean }): TimelineStepKey[] {
+/** 축약 라벨 풀네임·완료 조건 툴팁 (R12-d·R10-a) — hover 시 설명 */
+export const TIMELINE_STEP_TOOLTIPS: Record<TimelineStepKey, string> = {
+  checklist: `${DOC_TERMS.checklistStd}(자체점검) / ${DOC_TERMS.checklistExterior}(일반관리) — 별지 9호 첨부`,
+  cert: `${DOC_TERMS.certFull} — 협회 발급본 업로드 (자체점검 대행 시 필수)`,
+  ownerReport: `${DOC_TERMS.ownerReport} — 점검 후 10일 내`,
+  submit9: `${DOC_TERMS.report9Full} — 점검 후 15일 내 제출`,
+  repair: '⑤ 완료 = 불량 전건 조치 완료 (수리 계약서·전/후 사진은 선택 증빙)',
+  submit11: `${DOC_TERMS.report11Full} — 이행기간 종료까지 제출`,
+}
+
+export function stepDocs(i: { isSpecial: boolean }): TimelineStepKey[] {
   if (!i.isSpecial) return ['checklist'] // 정기·일반 — 보고 의무 없음(작성·2년 보관만, 기한·알림 없음)
-  const base: TimelineStepKey[] = ['checklist', 'cert', 'ownerReport', 'submit9']
-  return i.hasDefects ? [...base, 'repair', 'submit11'] : base
+  // D-4: 불량 0건이어도 ⑤⑥을 숨기지 않는다 — 화면에서 '해당없음' 흐림 처리
+  return ['checklist', 'cert', 'ownerReport', 'submit9', 'repair', 'submit11']
+}
+
+/** 생성물 파일 접두어 → 문서명 (⑩ R11 문서 단위 그룹핑 공용 — 점검 상세·타임라인·보고서 센터) */
+export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }> = {
+  report9: { label: '실시결과 보고서 (별지 9호)', full: DOC_TERMS.report9Full },
+  report10: { label: '이행계획서 (별지 10호)', full: DOC_TERMS.report10Full },
+  report11: { label: '이행완료 보고서 (별지 11호)', full: DOC_TERMS.report11Full },
+  exterior: { label: '외관점검표', full: `${DOC_TERMS.checklistExterior} (별지 6호 — 작성 후 2년 보관)` },
+  fire_plan: { label: '소방계획서', full: DOC_TERMS.firePlan },
 }
 
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.

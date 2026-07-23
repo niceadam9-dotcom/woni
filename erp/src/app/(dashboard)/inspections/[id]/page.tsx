@@ -297,7 +297,7 @@ export default async function InspectionDetailPage({
     const due11 = actionEnds.length > 0 ? actionEnds[actionEnds.length - 1] : null
     const photoPairs = defects.filter(d => d.photo_url && d.after_photo_url).length
     timelineData = {
-      steps: stepDocs({ isSpecial: true, hasDefects: defects.length > 0 }),
+      steps: stepDocs({ isSpecial: true }), // D-4: ①~⑥ 상시 — ⑤⑥ 해당없음 흐림은 클라이언트가 defects로 판정
       isGeneral: false,
       responded: respRows.length,
       certFile: certObj ? { name: certObj.name, path: `${storagePrefix}/${certObj.name}` } : null,
@@ -464,6 +464,7 @@ export default async function InspectionDetailPage({
           initialFiles={report9Files}
           defectsInfo={{ total: 0, planned: 0, done: 0 }}
           variant="exterior"
+          customerName={customer?.customer_name}
         />
       )}
 
@@ -475,10 +476,11 @@ export default async function InspectionDetailPage({
           data={timelineData}
           initialJob={report9Job}
           initialFiles={report9Files}
+          customerName={customer?.customer_name}
         />
       )}
 
-      {/* 작동점검 보고서 생성 (P32) */}
+      {/* 소방시설등점검표(엑셀) 생성 (P32, 7-C #4 개명) */}
       <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />
 
       {/* 음성 불량 기록 (VN-1) — 말로 보고 → AI 정리 → 불량 추가 */}

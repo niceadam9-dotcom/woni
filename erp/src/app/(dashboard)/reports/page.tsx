@@ -40,7 +40,7 @@ export default async function ReportsPage({ searchParams }: {
   const revisedList = [...baselines.values()].filter(b => isRevised(b))
   const canAck = ['admin', 'manager'].includes(profile.role)
 
-  // 별지 9호 — 점검 건 선택 목록 (자체점검만 §9-8, 일반관리는 대상 아님)
+  // 별지 9호 — 점검 건 선택 목록 (자체점검만 — R9: plan_type special_*·null 한정, 정기(monthly)·일반 이벤트 제외)
   let inspections: Array<{
     id: string; year: number; sequence_num: number; inspection_type: string; status: string
     inspection_start_date: string | null; customer_name: string; report9_count: number
@@ -50,6 +50,7 @@ export default async function ReportsPage({ searchParams }: {
     let query = admin.from('inspections')
       .select('id, year, sequence_num, inspection_type, status, inspection_start_date, customer:customers(customer_name)')
       .neq('inspection_type', '일반관리')
+      .or('plan_type.is.null,plan_type.like.special_*')
       .order('inspection_start_date', { ascending: false, nullsFirst: false })
       .limit(30)
     if (q?.trim()) {
@@ -145,7 +146,11 @@ export default async function ReportsPage({ searchParams }: {
         <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
           <p className="text-xs text-[#514b81] mb-3">
             점검 건을 선택하면 <span className="font-medium text-[#090c1d]">점검 상세의 실시결과 보고서 준비 화면</span>으로 이동합니다 —
-            공통정보·인력·점검표·송달 동의 체크 후 생성하세요. (일반관리 점검은 별지 9호 대상이 아닙니다)
+            공통정보·인력·점검표·송달 동의 체크 후 생성하세요.
+          </p>
+          {/* R9-b: 필터 결과가 왜 이런지 화면이 설명 (4-0-5) */}
+          <p className="text-[11px] text-[#b0acd6] mb-3">
+            자체점검(작동·종합) 건만 표시됩니다 — 정기·일반관리는 별지 9호 대상이 아닙니다
           </p>
           <form action="/reports" className="flex items-center gap-2 mb-3">
             <input type="hidden" name="form" value="report9" />

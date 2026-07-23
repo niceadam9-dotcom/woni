@@ -14,7 +14,8 @@ export function ConfirmedDecisionDialog({
   onCancel: () => void
 }) {
   function planTypeLabel(t: string | null, seq: number) {
-    if (t?.startsWith('special_')) return seq === 2 ? '특별점검 2차' : '특별점검'
+    // 용어 통일 (소방계획서_5 §3-5·D-3): 특별점검 → 자체점검
+    if (t?.startsWith('special_')) return seq === 2 ? '자체점검 2차' : '자체점검'
     return '정기점검'
   }
   return (

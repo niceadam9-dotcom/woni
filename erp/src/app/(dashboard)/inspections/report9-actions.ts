@@ -75,15 +75,17 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   return { job: (jobs?.[0] as Report9Job | undefined) ?? null, files }
 }
 
-/** 생성물 다운로드 — 5분 서명 URL (경로는 해당 점검 폴더로 한정) */
-export async function downloadReport9Action(inspectionId: string, path: string): Promise<{ url?: string; error?: string }> {
+/** 생성물 다운로드 — 5분 서명 URL (경로는 해당 점검 폴더로 한정)
+ *  saveName 지정 시 저장명 = 고객명_문서명_YYYY-MM-DD.확장자 (R11-d, content-disposition) */
+export async function downloadReport9Action(inspectionId: string, path: string, saveName?: string): Promise<{ url?: string; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections').select('customer_id').eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const prefix = `${(insp as { customer_id: string }).customer_id}/inspections/${inspectionId}/`
   if (!path.startsWith(prefix)) return { error: '잘못된 경로입니다.' }
-  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, 300)
+  const { data, error } = await admin.storage.from(BUCKET)
+    .createSignedUrl(path, 300, saveName ? { download: saveName } : undefined)
   if (error || !data) return { error: '다운로드 URL 생성 실패' }
   return { url: data.signedUrl }
 }

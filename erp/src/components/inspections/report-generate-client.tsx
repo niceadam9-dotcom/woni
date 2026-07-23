@@ -7,7 +7,8 @@ import { generateOperationalReportAction, getGeneratedReportUrlAction, printOper
 
 export type GenReportRow = { id: string; report_kind: string; file_name: string; generated_at: string; by_name: string | null }
 
-/** 보고서 생성 (P32-5) — 개요 주입 엑셀 생성·다운로드. 엑셀을 열면 수식으로 전 시트 자동완성. */
+/** 소방시설등점검표(엑셀) 생성 (P32-5, 7-C #4 개명) — 개요 주입 엑셀 생성·다운로드. 엑셀을 열면 수식으로 전 시트 자동완성.
+ *  별지 9호의 첨부물(점검표) — 별지 9호 본문 생성은 문서 타임라인 ④에서. */
 export function ReportGenerateClient({ inspectionId, history, canManage }: {
   inspectionId: string; history: GenReportRow[]; canManage: boolean
 }) {
@@ -60,7 +61,8 @@ export function ReportGenerateClient({ inspectionId, history, canManage }: {
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-3">
         <FileSpreadsheet className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">작동점검 보고서</h2>
+        <h2 className="text-sm font-semibold text-[#090c1d]"
+          title="소방시설등점검표 — 별지 9호에 첨부하는 점검표 (구 '작동점검 보고서')">소방시설등점검표 (엑셀) 생성</h2>
         {canManage && (
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={printPdf} disabled={isPending}
