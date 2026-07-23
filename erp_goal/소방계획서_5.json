@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_5.md",
   "generated": "2026-07-26",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present) — 독립 검증·implemented 승격은 별도 세션.",
+  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. 독립 검증·implemented 승격은 별도 세션. 다음: S3(②③ 바로 생성·⑤⑥ 갤러리·신고 도우미·⑫ 불량 입력 편의).",
   "status_legend": {
     "confirmed": "확정 (설계 결정·검토 완료 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -28,7 +28,7 @@
   ],
   "roadmap": [
     { "id": "S1", "title": "기존 화면 정비 — ⑪⑨(용어·뱃지·상시 표시) + ⑧(필터 버그) + ⑩(목록 그룹핑)", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 d412ab9) — 회귀 timeline 29/29(상시 표시·진행률 검증 추가)·quick-defect 7/7·mu-sheet 5/5·smoke-reports 11/11(R9 검증 추가)·그룹핑 실데이터 8/8. 독립 검증 대기" },
-    { "id": "S2", "title": "보고서 센터 신설 — ⓪(첫 화면 IA·행동 자동완성) + ①(고객 문서 현황) + ④⑦(최근 문서·누락 경고) + 대시보드 문서 할 일 위젯", "status": "pending_order", "note": "신규 E2E test-report-center.mts + 클릭 수 목표표 검증" },
+    { "id": "S2", "title": "보고서 센터 신설 — ⓪(첫 화면 IA·행동 자동완성) + ①(고객 문서 현황) + ④⑦(최근 문서·누락 경고) + 대시보드 문서 할 일 위젯", "status": "code_present", "note": "2026-07-26 구현 완료(커밋 59ac477) — reports/page.tsx에 ReportCenterHome 연결(?form=docs&cust=), docs-actions(통합 조회)·doc-status(판정 1곳)·hangul(초성)·doc-action-search·customer-docs·doc-todo-widget·command-palette 신설. E2E test-report-center 20/20, 회귀 timeline 29/29·quick-defect 7/7·mu-sheet 5/5·law-revision 7/7, tsc 통과. 독립 검증 대기" },
     { "id": "S3", "title": "바로 생성·현장 편의 — ②③(9호·10·11호 바로 생성) + ⑤⑥(갤러리·신고 도우미) + ⑫(불량 입력 편의 4종)", "status": "pending_order", "note": "E2E 확장 + 실전 통주행(별그리다 재사용)" },
     { "id": "S4", "title": "화면·메뉴 통합 — §7-A(제출 현황판·구 3화면 흡수) + §7-B(안전관리 대장 탭 흡수·사이드바 12개)", "status": "pending_order", "note": "데이터 이관 불필요 확정(구 테이블 4종 0건 — R14-e) — 리다이렉트만" },
     { "id": "S5", "title": "채택 제안 구현 — P-3(워커 생성 품질 자동 검증) + P-1(연차 일괄 발행 마법사) + P-2(주간 문서 브리핑 크론)", "status": "pending_order", "note": "2026-07-26 사용자 채택(D-10). P-3 우선" }
@@ -38,35 +38,35 @@
       "id": "R0", "title": "4-0 공통 UX 규약 (12개) + 입력 3원칙 + 모니터링 3층 + 클릭 다이어트", "status": "partial",
       "note": "규약 자체는 설계 확정(confirmed) — 구현은 각 항목(R1~R12)에 배어들며, 규약 전용 구현분만 여기 criteria로 관리",
       "criteria": [
-        { "id": "R0-1", "desc": "색 규약 통일 적용 — 초록 보유/앰버 필요/회색 흐림 해당없음/빨강 기한 (신설·수정 화면 전체)", "status": "pending_order" },
-        { "id": "R0-2", "desc": "버튼 문구 동사형 통일([바로 생성][받기][미리보기][업로드][사진 보기][신고 정보 복사]) + 주 행동 버튼 구역당 1개", "status": "pending_order" },
-        { "id": "R0-3", "desc": "행동 자동완성 검색(4-0-13-(1)) — 고객 2자/초성 입력 → 문서·행동 후보 드롭다운에서 즉시 실행(PDF 보기·HWP 받기·업로드·생성)", "status": "pending_order" },
-        { "id": "R0-4", "desc": "Ctrl+K 전역 팔레트 — 어느 화면에서든 같은 행동 자동완성 검색(모바일 헤더 🔍)", "status": "pending_order" },
-        { "id": "R0-5", "desc": "초성 검색 유틸(ㅅㄹㅅ→서림사) — 검색 입력 공용", "status": "pending_order" },
-        { "id": "R0-6", "desc": "드래그&드롭 업로드 — 업로드 행=드롭존 (문서 현황·타임라인 슬롯)", "status": "pending_order" },
-        { "id": "R0-7", "desc": "점검 완료 → 후속 제안 토스트('별지 9호를 바로 생성할까요? [생성]') + 완료 시 자동 생성 설정 토글", "status": "pending_order" },
-        { "id": "R0-8", "desc": "확인 다이얼로그 다이어트 — fail-soft 확인 세션당 1회, 파괴적 행동만 매번", "status": "pending_order" },
-        { "id": "R0-9", "desc": "대시보드 '문서 할 일' 위젯(4-0-10) — 기한 임박·누락 건수, 행 안에 [업로드]/[바로 생성] 내장(4-0-13-(2)), 판정 함수 크론과 공유", "status": "pending_order" },
-        { "id": "R0-10", "desc": "상호 진입점 역링크 — 고객 상세 소방계획서 탭·점검 타임라인에 '보고서 센터에서 보기 →'", "status": "pending_order" },
-        { "id": "R0-11", "desc": "클릭 수 목표표 E2E 검증 — 9호 PDF 확인(타이핑+1클릭)·업로드(0~2)·완료 후 생성(0~1)·불량 입력(1탭)", "status": "pending_order" }
+        { "id": "R0-1", "desc": "색 규약 통일 적용 — 초록 보유/앰버 필요/회색 흐림 해당없음/빨강 기한 (신설·수정 화면 전체)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — customer-docs StatusIcon(초록/앰버/회색)·doc-todo-widget·report-center-home 빨강 D-day 적용. 수정 화면(S4 현황판) 남음" },
+        { "id": "R0-2", "desc": "버튼 문구 동사형 통일([바로 생성][받기][미리보기][업로드][사진 보기][신고 정보 복사]) + 주 행동 버튼 구역당 1개", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — 신설 화면 [바로 생성][받기][업로드][사진 보기] 동사형·주 행동 priBtn 1개. [신고 정보 복사]는 S3(R7)" },
+        { "id": "R0-3", "desc": "행동 자동완성 검색(4-0-13-(1)) — 고객 2자/초성 입력 → 문서·행동 후보 드롭다운에서 즉시 실행(PDF 보기·HWP 받기·업로드·생성)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — doc-action-search.tsx + searchDocCommandsAction(open-docs/open-file/upload-cert/generate-plan). E2E '문서 현황 열기 후보'·'배치확인서 미업로드 후보' 검증" },
+        { "id": "R0-4", "desc": "Ctrl+K 전역 팔레트 — 어느 화면에서든 같은 행동 자동완성 검색(모바일 헤더 🔍)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — command-palette.tsx(헤더 마운트, Ctrl+K 토글·Esc·헤더 트리거). E2E 오픈·검색·Esc·고객 선택 이동 4건 검증" },
+        { "id": "R0-5", "desc": "초성 검색 유틸(ㅅㄹㅅ→서림사) — 검색 입력 공용", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — lib/hangul.ts choseongOf·hangulMatch(전체 초성 질의 시 매칭), searchDocCommandsAction에서 사용" },
+        { "id": "R0-6", "desc": "드래그&드롭 업로드 — 업로드 행=드롭존 (문서 현황·타임라인 슬롯)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — customer-docs.tsx dropProps(cert/contract 드롭존, 앰버 점선 하이라이트). 타임라인 슬롯 드롭존은 S3에서 확대 검토" },
+        { "id": "R0-7", "desc": "점검 완료 → 후속 제안 토스트('별지 9호를 바로 생성할까요? [생성]') + 완료 시 자동 생성 설정 토글", "status": "pending_order", "note": "S3 — 점검 완료 이벤트 훅 계열" },
+        { "id": "R0-8", "desc": "확인 다이얼로그 다이어트 — fail-soft 확인 세션당 1회, 파괴적 행동만 매번", "status": "pending_order", "note": "S3 — ②③ 바로 생성 fail-soft와 함께" },
+        { "id": "R0-9", "desc": "대시보드 '문서 할 일' 위젯(4-0-10) — 기한 임박·누락 건수, 행 안에 [업로드]/[바로 생성] 내장(4-0-13-(2)), 판정 함수 크론과 공유", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — doc-todo-widget.tsx(기한 임박 별지9호 + 배치확인서 누락 인라인 업로드), 대시보드 getDocTodo(lib/doc-status) 공유. E2E 위젯 렌더·보고서 센터 링크 검증" },
+        { "id": "R0-10", "desc": "상호 진입점 역링크 — 고객 상세 소방계획서 탭·점검 타임라인에 '보고서 센터에서 보기 →'", "status": "partial", "note": "2026-07-26 커밋 59ac477 — 문서 현황→고객 소방계획서 탭·타임라인 순방향 링크는 구현. 역방향(고객 상세/타임라인 → 보고서 센터) 미구현 — S3/S4" },
+        { "id": "R0-11", "desc": "클릭 수 목표표 E2E 검증 — 9호 PDF 확인(타이핑+1클릭)·업로드(0~2)·완료 후 생성(0~1)·불량 입력(1탭)", "status": "partial", "note": "2026-07-26 커밋 59ac477 — test-report-center가 검색 타이핑+1클릭(문서 현황/파일 열기) 동선 검증. 정식 클릭 수 측정표는 S3 통주행에서 완결" }
       ]
     },
     {
-      "id": "R1", "title": "⓪ 보고서 센터 첫 화면 IA — 검색이 시작·오늘 할 일 우선", "status": "pending_order",
+      "id": "R1", "title": "⓪ 보고서 센터 첫 화면 IA — 검색이 시작·오늘 할 일 우선", "status": "code_present",
       "criteria": [
-        { "id": "R1-a", "desc": "첫 화면 골격: 검색창 1개(최상단) → 처리 필요 접힌 뱃지 → 서식 카드 → 최근 문서 기본 표시", "status": "pending_order" },
-        { "id": "R1-b", "desc": "최근 조회 고객 3명 칩(localStorage) — 재타이핑 제거", "status": "pending_order" },
-        { "id": "R1-c", "desc": "검색창 화면당 1개 원칙 — ②③ 카드 내 별도 고객 검색 제거(목록은 브라우징+상태 필터로)", "status": "pending_order" }
+        { "id": "R1-a", "desc": "첫 화면 골격: 검색창 1개(최상단) → 처리 필요 접힌 뱃지 → 서식 카드 → 최근 문서 기본 표시", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — report-center-home.tsx(검색→칩→처리필요 뱃지→children 서식카드→문서현황→최근문서). 기본 form=docs 랜딩. E2E 검색창 1개·서식 카드·최근 문서 검증" },
+        { "id": "R1-b", "desc": "최근 조회 고객 3명 칩(localStorage) — 재타이핑 제거", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — loadRecentChips/pushRecentChip(localStorage 3명). E2E '최근 조회 칩 기억' 검증" },
+        { "id": "R1-c", "desc": "검색창 화면당 1개 원칙 — ②③ 카드 내 별도 고객 검색 제거(목록은 브라우징+상태 필터로)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — 랜딩 검색창 1개(report9 폼 검색은 form=report9 하위 흐름 한정). E2E 검색창 count===1 검증" }
       ]
     },
     {
-      "id": "R2", "title": "① 고객 문서 현황 — 생성+업로드 통합 조회 (핵심)", "status": "pending_order",
+      "id": "R2", "title": "① 고객 문서 현황 — 생성+업로드 통합 조회 (핵심)", "status": "code_present",
       "criteria": [
-        { "id": "R2-a", "desc": "문서 요구 매트릭스(requiredDocs) 기반 행 구성 — 소방계획서 → 점검 건별(최신 차수 먼저) 9호→배치확인서→계약서→사진→10·11호 고정 순서, 일반관리 자동 전환", "status": "pending_order" },
-        { "id": "R2-b", "desc": "보유 ✅(최신 일자+[HWP][PDF][받기]) / 미보유 ⚠(생성=[바로 생성], 업로드=[업로드] 그 자리 실행+보조 링크 '타임라인에서 →')", "status": "pending_order" },
-        { "id": "R2-c", "desc": "상단 요약 게이지 '필요 문서 n종 중 m종 보유' + ⚠ 개수", "status": "pending_order" },
-        { "id": "R2-d", "desc": "URL 동기화(?form=docs&cust=…) — 새로고침·공유·즐겨찾기", "status": "pending_order" },
-        { "id": "R2-e", "desc": "데이터 통합 조회 액션 — fire_plans + storage 점검 폴더 + 업로드 슬롯(cert_/contract_) + 사진 쌍 수 (신규 테이블 없음)", "status": "pending_order" }
+        { "id": "R2-a", "desc": "문서 요구 매트릭스(requiredDocs) 기반 행 구성 — 소방계획서 → 점검 건별(최신 차수 먼저) 9호→배치확인서→계약서→사진→10·11호 고정 순서, 일반관리 자동 전환", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — customer-docs.tsx InspectionDocRows 고정 순서, isGeneral 시 외관점검표·소방계획서 해당없음 자동 전환. E2E 자체/일반관리 2케이스 검증" },
+        { "id": "R2-b", "desc": "보유 ✅(최신 일자+[HWP][PDF][받기]) / 미보유 ⚠(생성=[바로 생성], 업로드=[업로드] 그 자리 실행+보조 링크 '타임라인에서 →')", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — genButtons9(HWP/PDF)·받기·바로 생성·업로드 인라인 + 타임라인 링크. E2E 9호 미생성 바로 생성·배치확인서 미업로드 업로드 검증" },
+        { "id": "R2-c", "desc": "상단 요약 게이지 '필요 문서 n종 중 m종 보유' + ⚠ 개수", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — summary{need,have,warns} 게이지. E2E '필요 문서' 표시 검증" },
+        { "id": "R2-d", "desc": "URL 동기화(?form=docs&cust=…) — 새로고침·공유·즐겨찾기", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — openDocs가 history.replaceState + page.tsx SSR cust 페치. E2E URL form=docs&cust= 검증" },
+        { "id": "R2-e", "desc": "데이터 통합 조회 액션 — fire_plans + storage 점검 폴더 + 업로드 슬롯(cert_/contract_) + 사진 쌍 수 (신규 테이블 없음)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — getCustomerDocsAction(fire_plans + storage list + cert_/contract_ + inspection_defects 사진쌍). 신규 테이블 없음" }
       ]
     },
     {
@@ -87,10 +87,10 @@
       ]
     },
     {
-      "id": "R5", "title": "④ 최근 문서 20건 (생성+업로드 통합)", "status": "pending_order",
+      "id": "R5", "title": "④ 최근 문서 20건 (생성+업로드 통합)", "status": "code_present",
       "criteria": [
-        { "id": "R5-a", "desc": "시간순 통합 목록 + [생성]/[업로드] 뱃지 + 날짜 구분선(오늘/어제/이번 주)", "status": "pending_order" },
-        { "id": "R5-b", "desc": "문서 종류 필터 칩 + 고객명 클릭 → 그 고객 문서 현황(R2) 점프", "status": "pending_order" }
+        { "id": "R5-a", "desc": "시간순 통합 목록 + [생성]/[업로드] 뱃지 + 날짜 구분선(오늘/어제/이번 주)", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — getRecentDocsAction(fire_plan_gen_jobs done + activity_logs timeline_upload 통합 20건), dayBucket 날짜 구분선·생성/업로드 뱃지. E2E 최근 문서 섹션 검증" },
+        { "id": "R5-b", "desc": "문서 종류 필터 칩 + 고객명 클릭 → 그 고객 문서 현황(R2) 점프", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — DOC_FILTERS 칩(전체/소방계획서/9호/10·11호/업로드) + 고객명 클릭 openDocs 점프" }
       ]
     },
     {
@@ -110,10 +110,10 @@
       ]
     },
     {
-      "id": "R8", "title": "⑦ 배치확인서 누락 경고", "status": "pending_order",
+      "id": "R8", "title": "⑦ 배치확인서 누락 경고", "status": "code_present",
       "criteria": [
-        { "id": "R8-a", "desc": "접힌 뱃지 '⚠ 배치확인서 누락 n건'(0건 미노출) → 펼침 목록(경과일 정렬)에 [업로드] 그 자리 실행", "status": "pending_order" },
-        { "id": "R8-b", "desc": "판정 함수 1곳(완료 자체점검 & cert 슬롯 없음, 정기·일반관리 제외) — 문서 현황·위젯·크론 공유", "status": "pending_order" }
+        { "id": "R8-a", "desc": "접힌 뱃지 '⚠ 배치확인서 누락 n건'(0건 미노출) → 펼침 목록(경과일 정렬)에 [업로드] 그 자리 실행", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — report-center-home 처리 필요 접힌 뱃지(0건 미노출, 경과일 표시, 인라인 업로드). 대시보드 위젯도 동일" },
+        { "id": "R8-b", "desc": "판정 함수 1곳(완료 자체점검 & cert 슬롯 없음, 정기·일반관리 제외) — 문서 현황·위젯·크론 공유", "status": "code_present", "note": "2026-07-26 커밋 59ac477 — lib/doc-status findMissingCerts(완료·자체점검·cert 없음, 일반관리 제외, 90일·경과일 정렬). 문서현황·보고서센터 뱃지·대시보드 위젯 공유. 크론 연동은 P-2(S5)에서" }
       ]
     },
     {
@@ -128,7 +128,7 @@
       "criteria": [
         { "id": "R10-a", "desc": "⑤ 계약서·사진 '(선택)' 표기+툴팁, ② '자체점검 대행 시 필수' 문구, ⑤ 완료 판정=불량 전건 조치 완료", "status": "code_present", "note": "2026-07-26 커밋 d412ab9 — inspection-timeline-client done5=조치 완료 전건, E2E '(사진·계약서는 선택)' 표기 확인" },
         { "id": "R10-b", "desc": "타임라인 헤더 진행률 'n/6 단계 완료' + 프로그레스 바(해당없음 분모 제외)", "status": "code_present", "note": "2026-07-26 커밋 d412ab9 — E2E 0/4→2/6 분모 전환 검증" },
-        { "id": "R10-c", "desc": "업로드 단계 직감 규칙 — ✅초록+파일명 / ⚠앰버+[업로드], 문서 현황·현황판·진행률 동일 판정", "status": "partial", "note": "2026-07-26 타임라인·진행률 반영(d412ab9) — 문서 현황(S2 R2)·제출 현황판(S4 R14) 신설 시 동일 판정 함수 적용 예정" }
+        { "id": "R10-c", "desc": "업로드 단계 직감 규칙 — ✅초록+파일명 / ⚠앰버+[업로드], 문서 현황·현황판·진행률 동일 판정", "status": "partial", "note": "2026-07-26 타임라인·진행률(d412ab9) + 문서 현황(S2 R2, 59ac477)에 ✅초록/⚠앰버 직감 규칙 반영. 제출 현황판(S4 R14) 신설 시 동일 판정 함수(lib/doc-status hasCertFile) 적용 남음" }
       ]
     },
     {
