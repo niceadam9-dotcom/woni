@@ -6,9 +6,12 @@ import {
   TrendingUp, Banknote, CircleDollarSign, BarChart2,
   FileCheck2, ClipboardCheck, Megaphone, Pin,
 } from 'lucide-react'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getDocTodo } from '@/lib/doc-status'
+import { DocTodoWidget } from '@/components/reports/doc-todo-widget'
+import type { UserRole } from '@/types'
 
 const leaveStatusLabel: Record<string, string> = {
   pending: '대기',
@@ -50,6 +53,11 @@ export default async function DashboardPage() {
   const isManagerOrAdmin = profile.role === 'manager' || profile.role === 'admin'
   const isEmployee = profile.role === 'employee'
   const isAdmin = profile.role === 'admin'
+
+  // 문서 할 일 위젯 (소방계획서_5 R0-9) — 권한 있는 직원만, 판정은 lib/doc-status 1곳 공유
+  const docTodo = can(profile.role as UserRole, 'inspection_register')
+    ? await getDocTodo(admin)
+    : null
 
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
@@ -335,6 +343,9 @@ export default async function DashboardPage() {
           </Link>
         </div>
       )}
+
+      {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점, 보고서 센터로 연결 ── */}
+      {docTodo && <DocTodoWidget dueSoon={docTodo.dueSoon} missingCerts={docTodo.missingCerts} />}
 
       {/* ── 상단 ERP 카드 ─────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

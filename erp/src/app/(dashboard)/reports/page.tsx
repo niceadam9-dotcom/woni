@@ -1,10 +1,14 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { FileOutput, FileText, ClipboardCheck, FileStack, Search, ChevronRight, AlertTriangle } from 'lucide-react'
-import { getProfile } from '@/lib/auth'
+import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FirePlanGenerateRequestClient } from '@/components/fire-plans/generate-request-client'
 import { getFirePlanGenStatusAction } from '@/app/(dashboard)/fire-plans/generate/actions'
+import { ReportCenterHome } from '@/components/reports/report-center-home'
+import { getCustomerDocsAction, getRecentDocsAction, getDocTodoAction, type CustomerDocs, type RecentDoc } from './docs-actions'
+import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
+import type { UserRole } from '@/types'
 import { ackLawRevisionAction } from './actions'
 
 export const dynamic = 'force-dynamic'
@@ -25,12 +29,30 @@ type Baseline = { key: string; form_name: string; announce_date: string; seed_da
 const fmtYmd = (d: string) => (d?.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d)
 
 export default async function ReportsPage({ searchParams }: {
-  searchParams: Promise<{ form?: string; q?: string }>
+  searchParams: Promise<{ form?: string; q?: string; cust?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  const { form: formRaw, q } = await searchParams
-  const form = FORMS.some(f => f.key === formRaw && f.active) ? formRaw! : 'fire_plan'
+  const { form: formRaw, q, cust } = await searchParams
+  // 랜딩(docs) + 서식별 흐름(fire_plan·report9). 기본은 ⓪ 첫 화면(검색·오늘 할 일)
+  const VALID_FORMS = ['docs', 'fire_plan', 'report9']
+  const form = VALID_FORMS.includes(formRaw ?? '') ? formRaw! : 'docs'
+
+  // 보고서 센터 첫 화면 데이터 (소방계획서_5 S2) — 권한 있는 직원만 SSR 페치 (없으면 빈 값, 상호작용 시 액션이 재차 가드)
+  const canReports = can(profile.role as UserRole, 'inspection_register')
+  let todo: { dueSoon: DueReport9Row[]; missingCerts: MissingCertRow[] } = { dueSoon: [], missingCerts: [] }
+  let recentDocs: RecentDoc[] = []
+  let initialDocs: CustomerDocs | null = null
+  if (canReports) {
+    const [t, r, d] = await Promise.all([
+      getDocTodoAction(),
+      getRecentDocsAction(),
+      cust ? getCustomerDocsAction(cust) : Promise.resolve({ docs: null as CustomerDocs | null }),
+    ])
+    todo = t
+    recentDocs = r.docs
+    initialDocs = d.docs ?? null
+  }
 
   // §10-R3: 서식 버전(law_form_baselines) — 개정 감지 크론(§9-5c)이 announce_date를 갱신
   const adminBl = createAdminClient()
@@ -105,6 +127,14 @@ export default async function ReportsPage({ searchParams }: {
           ))}
         </div>
       )}
+
+      {/* ⓪ 보고서 센터 첫 화면 (R1) — 검색·오늘 할 일 우선. 서식 카드·서식별 흐름을 children으로 감싼다 */}
+      <ReportCenterHome
+        initialTodo={todo}
+        initialRecent={recentDocs}
+        initialDocs={initialDocs}
+        initialCustId={cust ?? null}
+      >
 
       {/* 서식 카탈로그 (§10-2) — 해당 없는 서식은 흐림, 버전은 law_form_baselines 연동(R-3) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -183,6 +213,7 @@ export default async function ReportsPage({ searchParams }: {
           )}
         </div>
       )}
+      </ReportCenterHome>
     </div>
   )
 }

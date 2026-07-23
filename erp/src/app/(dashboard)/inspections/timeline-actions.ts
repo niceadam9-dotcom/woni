@@ -26,11 +26,12 @@ async function inspectionPrefix(inspectionId: string): Promise<{ prefix?: string
   return { prefix: `${customerId}/inspections/${inspectionId}`, customerId }
 }
 
-/** ②배치확인서 / ⑤공사 계약서 업로드 — 타임라인 행 슬롯 (별도 화면 없음) */
+/** ②배치확인서 / ⑤공사 계약서 업로드 — 타임라인 행 슬롯 (별도 화면 없음).
+ *  업로드 이력은 activity_logs(timeline_upload)로 남겨 보고서 센터 '최근 문서'(R5)가 통합 조회 */
 export async function uploadTimelineFileAction(
   inspectionId: string, slot: 'cert' | 'contract', formData: FormData,
 ): Promise<{ error?: string }> {
-  await requirePermission('inspection_register')
+  const profile = await requirePermission('inspection_register')
   if (!SLOT_PREFIX[slot]) return { error: '지원하지 않는 슬롯입니다.' }
   const file = formData.get('file') as File | null
   if (!file || file.size === 0) return { error: '파일을 선택해주세요.' }
@@ -38,13 +39,18 @@ export async function uploadTimelineFileAction(
   const ext = (file.name.split('.').pop() ?? '').toLowerCase()
   if (!FILE_EXTS[ext]) return { error: 'PDF/JPG/PNG/HWP 파일만 업로드할 수 있습니다.' }
 
-  const { prefix, error } = await inspectionPrefix(inspectionId)
+  const { prefix, customerId, error } = await inspectionPrefix(inspectionId)
   if (error) return { error }
   const admin = createAdminClient()
   const path = `${prefix}/${SLOT_PREFIX[slot]}_${Date.now()}.${ext}`
   const { error: upErr } = await admin.storage.from(BUCKET)
     .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: FILE_EXTS[ext], upsert: false })
   if (upErr) return { error: `업로드 실패: ${upErr.message}` }
+  const { data: cust } = await admin.from('customers').select('customer_name').eq('id', customerId!).single()
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: 'timeline_upload', entity_type: 'inspection', entity_id: inspectionId,
+    metadata: { slot, customerId, customerName: (cust as { customer_name: string } | null)?.customer_name ?? '—', fileName: file.name },
+  } as Record<string, unknown>)
   revalidatePath(`/inspections/${inspectionId}`)
   return {}
 }

@@ -173,7 +173,7 @@ export default async function InspectionDetailPage({
   const canDelete = userRole === 'manager' || userRole === 'admin'
   const canEdit = isAssigned || userRole === 'manager' || userRole === 'admin'
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]  // KST 기준 — D-day는 doc-status.ts todayKst()와 동일 기산
   const completedCount = steps.filter(s => s.status === 'completed').length
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0
 
