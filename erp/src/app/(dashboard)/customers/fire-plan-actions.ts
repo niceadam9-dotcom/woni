@@ -268,6 +268,7 @@ export async function getFirePlanGenDefaultsAction(
     hazards?: Array<{ place: string; loc: string; risks: string[] }>
     evacPlan?: { procedure?: string; routes?: Array<{ floor: string; route: string; guide: string; equip: string }>; assembly?: string }
     training?: { drillMonths?: number[]; eduMonths?: number[] }
+    photos?: Array<{ path: string; kind: string; caption: string }>
   } } | null)?.sections) ?? {}
   const revision = sections.revision ?? null
   // 과거 개정이력 다행 — 보관함(fire_plans) 기반, 이번 작성분은 마지막 행으로 이어짐 (§8-1i)
@@ -370,7 +371,8 @@ export async function getFirePlanGenDefaultsAction(
           { place: '전기실', location: '', factors: ['전기적 요인'] },
         ],
       revisions,
-      photos: [],
+      // §8-1k: 생성 모달 폐지 — 사진은 서식 1.3 입력(sections.photos)에서
+      photos: (sections.photos ?? []) as FirePlanGenData['photos'],
     },
   }
 }

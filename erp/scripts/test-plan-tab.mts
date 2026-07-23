@@ -69,13 +69,36 @@ try {
   const rev = (form?.sections as { revision?: { revisionNote?: string } } | null)?.revision
   check('DB fire_plan_forms.sections.revision 저장', rev?.revisionNote === '개정 E2E 검증', JSON.stringify(form))
 
-  // 1장 서식 칩 + 딥링크
-  await page.click('button:has-text("1장 소방안전관리계획")')
-  await page.waitForSelector('text=1.1 일반현황')
-  check('고급 모드 — 1.1 = 계획서 정보 패널', await page.isVisible('text=계획서 정보'))
+  // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 ──
+  check('목차 트리 — 1장 헤더+합산 뱃지', await page.isVisible('text=1장 소방안전관리계획'))
+  await page.click('button:has-text("1.1 일반현황")')
+  await page.waitForSelector('text=계획서 정보')
+  check('목차 1.1 클릭 → 계획서 정보 패널', true)
+  check('URL 동기화 form=1.1', page.url().includes('form=1.1'))
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&sub=ch1`)
-  await page.waitForSelector('text=1.1 일반현황')
-  check('딥링크 sub=ch1 → 고급 모드 1장 직행', await page.isVisible('text=1.1 일반현황'))
+  await page.waitForSelector('text=계획서 정보')
+  check('구 딥링크 sub=ch1 → 1.1 호환', true)
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.6`)
+  await page.waitForSelector('text=가스 시설')
+  check('딥링크 form=1.6 직행', true)
+
+  // ── P6-2 §3-1.1: 1.1 신규 필드 (계단·경사로·피난용승강기·대표자 구분·자격구분·교육이수일) ──
+  await page.click('button:has-text("1.1 일반현황")')
+  await page.click('button:has(span:text-is("계획서 정보"))')
+  await page.waitForSelector('button:has-text("추천값 채우기")')
+  await page.click('button:has-text("편집") >> visible=true')
+  await page.waitForSelector('text=① 시설현황')
+  check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
+  await page.fill('div:has(> label:has-text("계단(개소)")) input', '2')
+  await page.fill('div:has(> label:has-text("피난용승강기(대)")) input', '1')
+  await page.click('div:has(> label:has-text("대표자 구분")) button:has-text("소유자")')
+  await page.click('div:has(> label:has-text("관리자 자격구분")) button:has-text("2급")')
+  await page.click('button:has-text("저장"):not(:has-text("다음"))')
+  await page.waitForSelector('text=저장되었습니다')
+  const { data: bldNew } = await raw.from('buildings').select('stairs_count, evac_elevator_count').eq('customer_id', customerId).limit(1).single()
+  const { data: custNew } = await raw.from('customers').select('rep_role, manager_license_grade').eq('id', customerId).single()
+  check('DB 1.1 신규 필드(buildings)', bldNew?.stairs_count === 2 && bldNew?.evac_elevator_count === 1, JSON.stringify(bldNew))
+  check('DB 1.1 신규 필드(customers)', custNew?.rep_role === '소유자' && custNew?.manager_license_grade === '2급', JSON.stringify(custNew))
 
   // ── 4.5) 서식 1.2·1.3 (P4-①) — 프리셋·저장·DB 반영 ──
   await page.click('button:has-text("1.2 세부현황")')
@@ -90,8 +113,14 @@ try {
 
   await page.click('button:has-text("1.3 위치·소방차진입")')
   await page.waitForSelector('text=소방차 세부진입 계획')
+  check('1.3 — 생성 삽입 사진 카드(§8-1k 이관)', await page.isVisible('text=생성 문서 삽입 사진'))
   await page.fill('textarea[placeholder*="인접 건물"]', '주변현황 E2E')
   await page.fill('input[placeholder*="정문 앞 도로"]', '정문 앞')
+  // §1-2 미저장 이동 확인 — 저장 전 목차 이동 시 confirm (취소 → 잔류)
+  page.once('dialog', d => d.dismiss())
+  await page.click('button:has-text("1.5 피난·방화")')
+  await page.waitForTimeout(400)
+  check('미저장 이동 확인 — 취소 시 잔류', await page.isVisible('text=소방차 세부진입 계획'))
   await page.click('button:has-text("서식 1.3 저장")')
   await page.waitForSelector('text=서식 1.3 저장됨')
   const { data: f13 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
@@ -153,6 +182,7 @@ try {
 
   await page.click('button:has-text("2장 자위소방대")')
   await page.waitForSelector('text=2.1 자위소방대 및 초기대응체계 일반현황')
+  await page.waitForTimeout(600) // 직전 저장 router.refresh 안착 대기 (remount 경합 플레이크 방지)
   await page.click('button:has-text("Type Ⅲ")')
   await page.locator('input[placeholder="성명"]').first().fill('김대장')
   await page.click('button:has-text("2장 저장")')
@@ -188,7 +218,6 @@ try {
   // zones(1.2)·hazards(1.2)·evacPlan(3.4)·brigade(2장)가 저장돼 있으므로 웹 생성 기본값에 반영됨 — 코드 대조 + 저장 검증으로 충족
 
   // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
-  await page.click('button:has-text("1장 소방안전관리계획")')
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))

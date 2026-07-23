@@ -14,9 +14,17 @@ export type FirePlanInfoInput = {
   receiverLocation: string
   structure: string
   roof: string
+  // 시설현황 신규 (104, §3-1.1 — 별지 9호 연계)
+  stairsCount: string         // 계단(개소) | ''
+  rampCount: string           // 경사로(개소) | ''
+  evacElevatorCount: string   // 피난용승강기(대) | ''
   // customers
   managerSelectedAt: string   // YYYY-MM-DD | ''
   grade: string               // 특급/1급/2급/3급 | ''
+  // 운영현황 신규 (104, §3-1.1 — 별지 9호 2쪽 연계)
+  repRole: string             // 대표자 구분: 소유자/관리자/점유자 | ''
+  managerLicenseGrade: string // 소방안전관리자 자격구분: 특급/1급/2급/3급 | ''
+  managerEduDate: string      // 최근 교육이수일 YYYY-MM-DD | ''
   insuranceJoined: boolean | null
   insuranceCompany: string
   insurancePeriod: string
@@ -42,10 +50,16 @@ export async function saveFirePlanInfoAction(
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
 
+  if (input.repRole && !['소유자', '관리자', '점유자'].includes(input.repRole)) return { error: '대표자 구분 값을 확인해주세요.' }
+  if (input.managerLicenseGrade && !['특급', '1급', '2급', '3급'].includes(input.managerLicenseGrade)) return { error: '자격구분 값을 확인해주세요.' }
+
   // customers 갱신
   const { error: cErr } = await admin.from('customers').update({
     manager_selected_at: input.managerSelectedAt || null,
     building_grade: input.grade || null,
+    rep_role: input.repRole || null,
+    manager_license_grade: input.managerLicenseGrade || null,
+    manager_edu_date: input.managerEduDate || null,
     insurance_joined: input.insuranceJoined,
     insurance_company: input.insuranceCompany.trim() || null,
     insurance_period: input.insurancePeriod.trim() || null,
@@ -68,6 +82,9 @@ export async function saveFirePlanInfoAction(
       receiver_location: input.receiverLocation.trim() || null,
       main_structure: input.structure.trim() || null,
       roof_structure: input.roof.trim() || null,
+      stairs_count: toInt(input.stairsCount),
+      ramp_count: toInt(input.rampCount),
+      evac_elevator_count: toInt(input.evacElevatorCount),
     } as Record<string, unknown>).eq('id', (bld as { id: string }).id)
     if (bErr) return { error: `건물 정보 저장 실패: ${bErr.message}` }
   }

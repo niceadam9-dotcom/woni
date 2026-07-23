@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, type ReactNode } from 'react'
+import { useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Printer, Download, Loader2, History, BookOpen, Users, DoorOpen, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
+import { FileOutput, Printer, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
 import {
   generateFirePlanPdfNowAction, requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
@@ -12,9 +12,9 @@ import { previewLedgerAction, applyLedgerValuesAction, type LedgerPreviewField }
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 
-/** 소방계획서 탭 (4-1 골격 + P2 빠른 입력 모드 — 소방계획서_4.md §1·§1-1·§2·§9-8)
+/** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
  *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
- *  [서식 전체] 토글 = 고급 모드(장 서브탭 골격). 일반관리 고객 = 안내 배너 + 보관함만. */
+ *  [서식 전체] 토글 = 목차 트리(완성도 뱃지) + 서식 화면, form= 딥링크. 일반관리 고객 = 안내 배너 + 보관함만. */
 
 export type RevisionRow = { year: number; revision: number; date: string; note: string | null; uploader: string | null }
 export type DocChip = { doc: string; label: string; need: boolean; note?: string; have?: boolean }
@@ -34,14 +34,7 @@ const CHIP_TARGET_LABEL: Record<string, string> = {
   buildings: '건물·시설 탭', info: '기본정보 탭', form11: '1장 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '아래 송달 동의',
 }
 
-const CHAPTERS = [
-  { key: 'archive', label: '개정이력·보관', icon: History },
-  { key: 'ch1', label: '1장 소방안전관리계획', icon: BookOpen },
-  { key: 'ch2', label: '2장 자위소방대', icon: Users },
-  { key: 'ch3', label: '3장 피난계획', icon: DoorOpen },
-] as const
-
-/** 1장 서식 탭 — 활성: 1.1(4-1) + 1.2·1.3(P4-①) (소방계획서_4.md §3 순서) */
+/** 1장 서식 목차 (소방계획서_4.md §3 순서) */
 const CH1_FORMS = [
   { key: '1.1', label: '1.1 일반현황', active: true },
   { key: '1.2', label: '1.2 세부현황', active: true },
@@ -55,8 +48,11 @@ const CH1_FORMS = [
   { key: '1.11', label: '1.11 훈련·교육', active: true },
 ]
 
+/** 목차 완성도 — true=입력 있음(✓), false=비어 있음(○), {done,total}=게이지형(1.1) */
+export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
+
 export function PlanTabView({
-  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, archive,
+  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, ch2, ch3,
   isGeneral, docs, quick, consentInitial, latestPlan,
 }: {
@@ -68,6 +64,8 @@ export function PlanTabView({
   revisionRows: RevisionRow[]
   importCandidate?: boolean
   initialSection?: string
+  initialForm?: string          // §1-3 딥링크 ?tab=plan&form=1.1 (sub=보다 우선)
+  formStatus?: FormStatusMap    // §1-1·1-4 목차 완성도
   archive: ReactNode
   form11: ReactNode
   form12: ReactNode
@@ -88,11 +86,28 @@ export function PlanTabView({
   latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
 }) {
   const router = useRouter()
-  // 기본 진입 = 빠른 입력 (§1-1 확정). 딥링크(sub=)로 들어오면 해당 서브탭의 고급 모드
-  const [mode, setMode] = useState<'quick' | 'full'>(initialSection ? 'full' : 'quick')
-  const [chapter, setChapter] = useState<string>(
-    CHAPTERS.some(c => c.key === initialSection) ? initialSection! : 'archive')
-  const [form, setForm] = useState<string>('1.1')
+  // 기본 진입 = 빠른 입력 (§1-1·1-5 확정). 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3'])
+  const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
+    : initialSection === 'ch1' ? '1.1'
+    : initialSection && VALID_SEL.has(initialSection) ? initialSection
+    : 'archive'
+  const [mode, setMode] = useState<'quick' | 'full'>((initialForm && VALID_SEL.has(initialForm)) || initialSection ? 'full' : 'quick')
+  const [sel, setSelState] = useState<string>(initialSel)
+  // §1-2 미저장 이동 확인 — 입력 캡처 휴리스틱(입력 발생=dirty, '저장' 버튼 클릭=해제)
+  const dirtyRef = useRef(false)
+  function select(key: string) {
+    if (key === sel) return
+    if (dirtyRef.current && !window.confirm('저장하지 않은 변경이 있습니다. 이동할까요?')) return
+    dirtyRef.current = false
+    setSelState(key)
+    // §1-3 URL 딥링크 동기화 (서버 왕복 없이)
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', 'plan')
+    url.searchParams.set('form', key)
+    url.searchParams.delete('sub')
+    window.history.replaceState(null, '', url.toString())
+  }
   const [year, setYear] = useState(new Date().getFullYear())
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
@@ -133,12 +148,11 @@ export function PlanTabView({
   // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 (탭 이동 / 서식 전환 / 화면 내 스크롤)
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
-    if (!t) { setMode('full'); setChapter('ch1'); setForm('1.1'); return }
+    if (!t) { setMode('full'); select('1.1'); return }
     if (t === 'buildings' || t === 'info') { router.push(`/customers/${customerId}?tab=${t}`); return }
     if (t === 'consent') { document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
     setMode('full')
-    setChapter(t === 'ch2' ? 'ch2' : 'ch1')
-    if (t === 'form11') setForm('1.1')
+    select(t === 'ch2' ? 'ch2' : '1.1')
   }
 
   // §7-3b: 구 웹 생성분(.form.json) → 서식 저장소 최초 1회 가져오기
@@ -402,32 +416,76 @@ export function PlanTabView({
             ) : (
               <span className="text-xs text-[#b0acd6]">보관함이 비어 있습니다 — 첫 생성 시 자동 등록됩니다.</span>
             )}
-            <button onClick={() => { setMode('full'); setChapter('archive') }}
+            <button onClick={() => { setMode('full'); select('archive') }}
               className="ml-auto text-[11px] text-[#7b68ee] hover:underline">보관함 열기 →</button>
           </div>
         </div>
       )}
 
-      {/* ══ 서식 전체 모드 (고급 — 4-1 골격) ══ */}
-      {mode === 'full' && (<>
-      {/* 서브탭 (장 단위) */}
-      <div className="flex items-center gap-1 flex-wrap mb-4">
-        {CHAPTERS.map(c => {
-          const Icon = c.icon
-          return (
-            <button key={c.key}
-              onClick={() => setChapter(c.key)}
-              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
-                chapter === c.key ? 'bg-[#7b68ee] text-white' : 'text-[#514b81] hover:bg-[#f5f4ff]'
-              }`}>
-              <Icon className="size-3.5" /> {c.label}
-            </button>
-          )
-        })}
-      </div>
+      {/* ══ 서식 전체 모드 — §1 개정 구조: 좌측 목차 트리 + 서식 화면 (P6, 1-1~1-3) ══ */}
+      {mode === 'full' && (() => {
+        // 목차 완성도 표시 (1-1·1-4): ✓=입력 있음 / ○=비어 있음 / n/m=게이지형(1.1)
+        const fs = formStatus ?? {}
+        const dot = (key: string) => {
+          const v = fs[key]
+          if (v === undefined) return null
+          if (typeof v === 'object') {
+            const full = v.done >= v.total
+            return <span className={`ml-auto text-[10px] shrink-0 ${full ? 'text-green-600' : 'text-amber-600'}`}>{full ? '✓' : `${v.done}/${v.total}`}</span>
+          }
+          return <span className={`ml-auto text-[10px] shrink-0 ${v ? 'text-green-600' : 'text-[#c8c4d0]'}`}>{v ? '✓' : '○'}</span>
+        }
+        const navBtn = (key: string, label: string, indent = false) => (
+          <button key={key} onClick={() => select(key)}
+            className={`w-full flex items-center gap-1.5 h-7 rounded-lg text-[11px] text-left transition-colors ${indent ? 'pl-5 pr-2' : 'px-2 font-medium'} ${
+              sel === key ? 'bg-[#7b68ee] text-white [&>span]:!text-white' : 'text-[#514b81] hover:bg-[#f5f4ff]'
+            }`}>
+            <span className="truncate">{label}</span>
+            {dot(key)}
+          </button>
+        )
+        const ch1Filled = CH1_FORMS.filter(f => {
+          const v = fs[f.key]
+          return typeof v === 'object' ? v.done >= v.total : v === true
+        }).length
+        const NAV_ALL = [
+          { key: 'archive', label: '개정이력·보관' },
+          ...CH1_FORMS.map(f => ({ key: f.key, label: `1장 > ${f.label}` })),
+          { key: 'ch2', label: '2장 자위소방대' },
+          { key: 'ch3', label: '3장 피난계획' },
+        ]
+        return (
+        <div className="flex gap-4 items-start">
+          {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
+          <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-0.5 sticky top-2">
+            {navBtn('archive', '개정이력·보관')}
+            <div className="pt-1">
+              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8] flex items-center">1장 소방안전관리계획
+                <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-[#b0acd6]'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
+              </p>
+              {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
+            </div>
+            <div className="pt-1">
+              {navBtn('ch2', '2장 자위소방대')}
+              {navBtn('ch3', '3장 피난계획')}
+            </div>
+          </aside>
+
+          {/* 콘텐츠 — 입력 캡처로 미저장 감지(1-2 휴리스틱: 입력=dirty, '저장' 클릭=해제) */}
+          <div className="flex-1 min-w-0"
+            onInputCapture={() => { dirtyRef.current = true }}
+            onClickCapture={e => {
+              const btn = (e.target as HTMLElement).closest('button')
+              if (btn?.textContent?.includes('저장')) dirtyRef.current = false
+            }}>
+            {/* 모바일 목차 드롭다운 (7-6) */}
+            <select value={sel} onChange={e => select(e.target.value)}
+              className="md:hidden mb-3 h-8 w-full rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none">
+              {NAV_ALL.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
+            </select>
 
       {/* ── 개정이력·보관 ── */}
-      {chapter === 'archive' && (
+      {sel === 'archive' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
             <p className="text-xs font-semibold text-[#514b81] mb-2">개정이력</p>
@@ -482,46 +540,27 @@ export function PlanTabView({
         </div>
       )}
 
-      {/* ── 1장 소방안전관리계획 ── */}
-      {chapter === 'ch1' && (
-        <div>
-          <div className="flex items-center gap-1 flex-wrap mb-3">
-            {CH1_FORMS.map(f => (
-              f.active ? (
-                <button key={f.key} onClick={() => setForm(f.key)}
-                  className={`inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border transition-colors ${
-                    form === f.key ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5] hover:bg-[#eceafd]'
-                  }`}>
-                  {f.label}
-                </button>
-              ) : (
-                <span key={f.key}
-                  title="후속 단계에서 제공됩니다 (소방계획서_4.md 4-3~4-4)"
-                  className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium text-[#b0acd6] border border-[#eceafd]">
-                  {f.label}<span className="ml-1 text-[9px]">예정</span>
-                </span>
-              )
-            ))}
-          </div>
-          {form === '1.1' && form11}
-          {form === '1.2' && form12}
-          {form === '1.3' && form13}
-          {form === '1.4' && form14}
-          {form === '1.5' && form15}
-          {form === '1.6' && form16}
-          {form === '1.7' && form17}
-          {form === '1.8' && form18}
-          {form === '1.10' && form110}
-          {form === '1.11' && form111}
-        </div>
-      )}
+      {/* ── 1장 서식 화면 (목차에서 직접 선택 — 1-2 섹션 카드는 각 서식 내부) ── */}
+      {sel === '1.1' && form11}
+      {sel === '1.2' && form12}
+      {sel === '1.3' && form13}
+      {sel === '1.4' && form14}
+      {sel === '1.5' && form15}
+      {sel === '1.6' && form16}
+      {sel === '1.7' && form17}
+      {sel === '1.8' && form18}
+      {sel === '1.10' && form110}
+      {sel === '1.11' && form111}
 
       {/* ── 2장 자위소방대 운영계획 ── */}
-      {chapter === 'ch2' && ch2}
+      {sel === 'ch2' && ch2}
 
       {/* ── 3장 피난계획 ── */}
-      {chapter === 'ch3' && ch3}
-      </>)}
+      {sel === 'ch3' && ch3}
+          </div>
+        </div>
+        )
+      })()}
     </div>
   )
 }

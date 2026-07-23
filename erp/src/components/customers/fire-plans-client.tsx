@@ -3,9 +3,8 @@
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine, Eye } from 'lucide-react'
-import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction, getFirePlanGenDefaultsAction, getFirePlanFormAction, downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
-import { FirePlanGenerateModal } from './fire-plan-generate-modal'
-import type { FirePlanGenData } from '@/lib/fire-plan-template'
+import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction, downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { generateFirePlanPdfNowAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { DateInput } from '@/components/ui/date-input'
 
 export type FirePlanAttachment = { id: string; kind: string; file_name: string }
@@ -42,7 +41,6 @@ export function FirePlansClient({ customerId, plans, canManage }: {
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [subDraft, setSubDraft] = useState<{ submittedAt: string; fireStation: string }>({ submittedAt: '', fireStation: '' })
-  const [genData, setGenData] = useState<FirePlanGenData | null>(null)
 
   /** 데이터 시트 다운로드 — 한글(한컴독스) 수동 편집 시 참조용 1장 요약 PDF */
   function downloadDataSheet() {
@@ -59,14 +57,13 @@ export function FirePlansClient({ customerId, plans, canManage }: {
     })
   }
 
-  /** 표준양식 생성 — 신규(기본값 자동 채움) 또는 기존 생성분 재편집 */
-  function openGenerate(planId?: string) {
+  /** 표준양식 PDF 생성 — §8-1k: 모달 폐지, 서식 입력(소방계획서 탭)+저장 양식 기준 즉시 생성 */
+  function generateNow() {
     startTransition(async () => {
-      const res = planId
-        ? await getFirePlanFormAction(planId)
-        : await getFirePlanGenDefaultsAction(customerId)
-      if (res.error || !res.data) { alert(res.error ?? '양식 데이터를 불러오지 못했습니다.'); return }
-      setGenData(res.data)
+      const res = await generateFirePlanPdfNowAction(customerId)
+      if (res.error) { alert(res.error); return }
+      alert('표준양식 PDF가 생성되어 보관함에 등록됐습니다. 값 수정은 소방계획서 탭 서식 화면에서 하세요.')
+      router.refresh()
     })
   }
 
@@ -185,9 +182,9 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                   <td className="py-3">
                     <div className="flex items-center gap-1.5 justify-end">
                       {canManage && p.generated && (
-                        <button onClick={() => openGenerate(p.id)} disabled={isPending} title="저장된 양식 데이터를 불러와 수정 후 재생성 (새 개정판)"
+                        <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판) — 값 수정은 소방계획서 탭 서식 화면에서"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
-                          <PencilLine className="size-3" /> 편집
+                          <PencilLine className="size-3" /> 재생성
                         </button>
                       )}
                       {canManage && (
@@ -292,9 +289,9 @@ export function FirePlansClient({ customerId, plans, canManage }: {
       {canManage && !showForm && (
         <div className="mt-3 flex gap-2">
           <button
-            onClick={() => openGenerate()}
+            onClick={generateNow}
             disabled={isPending}
-            title="고객·건물·시설 데이터로 표준양식 PDF를 생성해 보관함에 저장합니다"
+            title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 표준양식 PDF를 즉시 생성해 보관함에 저장합니다 (§8-1k 모달 폐지)"
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
           >
             <FileOutput className="size-3.5" /> 표준양식 생성
@@ -314,15 +311,6 @@ export function FirePlansClient({ customerId, plans, canManage }: {
             <Download className="size-3.5" /> 데이터 시트
           </button>
         </div>
-      )}
-
-      {genData && (
-        <FirePlanGenerateModal
-          customerId={customerId}
-          initial={genData}
-          onClose={() => setGenData(null)}
-          onDone={() => { setGenData(null); router.refresh() }}
-        />
       )}
 
       {canManage && showForm && (

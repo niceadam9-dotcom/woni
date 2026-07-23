@@ -252,8 +252,12 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
           ['구조', d.structure],
           ['지붕', d.roof],
           ['높이(대장)', initial.height ? `${initial.height} m` : ''],
+          ['계단·경사로', (d.stairsCount || d.rampCount) ? `계단 ${d.stairsCount || 0} · 경사로 ${d.rampCount || 0}` : ''],
+          ['피난용승강기', d.evacElevatorCount ? `${d.evacElevatorCount}대` : ''],
           ['급수', d.grade],
           ['선임일', d.managerSelectedAt],
+          ['대표자 구분', d.repRole],
+          ['자격·교육', (d.managerLicenseGrade || d.managerEduDate) ? [d.managerLicenseGrade, d.managerEduDate].filter(Boolean).join(' · ') : ''],
           ['화재보험', d.insuranceJoined === null ? '' : d.insuranceJoined ? [d.insuranceCompany || '가입', d.insurancePeriod].filter(Boolean).join(' · ') : '미가입'],
           ['운영시간', d.opHoursWeekday ? `${d.opHoursWeekday}${d.opHoursHoliday ? ` / 휴일 ${d.opHoursHoliday}` : ''}` : ''],
           ['인원', (d.headcountWorker || d.headcountResident || d.headcountMax) ? `근무 ${d.headcountWorker || 0} · 거주 ${d.headcountResident || 0} · 최대 ${d.headcountMax || 0}` : ''],
@@ -342,9 +346,9 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             </div>
           )}
 
-          {/* 🏢 건물 개요 */}
-          <section>
-            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> 건물 개요 {!initial.hasBuilding && (
+          {/* ① 시설현황 (섹션 카드 — §3-1.1) */}
+          <section className="rounded-xl border border-[#e0ddf5] bg-white p-3">
+            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> ① 시설현황 {!initial.hasBuilding && (
               <span className="text-amber-600 font-normal">
                 (건물 미등록 —{' '}
                 {tabs ? (
@@ -366,15 +370,10 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <datalist id="fp-roofs">{ROOFS.map(s => <option key={s} value={s} />)}</datalist>
               </div>
               {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-xs text-[#514b81]">{initial.height} m</span></div>}
-              <div><label className={labelCls}>급수</label><br />
-                <div id="fp-grade" className={`flex rounded-lg border border-[#d0ccf5] overflow-hidden${sgCls('grade')}`} title={sgTitle('grade')}>
-                  {GRADES.map(g => (
-                    <button key={g} onClick={() => set('grade', d.grade === g ? '' : g)}
-                      className={`px-2.5 h-8 text-xs ${d.grade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label className={labelCls}>관리자 선임일</label><br /><DateInput id="fp-manager-date" value={d.managerSelectedAt} onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-32`} /></div>
+              {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 */}
+              <div><label className={labelCls}>계단(개소)</label><br /><input value={d.stairsCount} onChange={e => set('stairsCount', e.target.value)} inputMode="numeric" disabled={!initial.hasBuilding} className={`${inputCls} w-20`} /></div>
+              <div><label className={labelCls}>경사로(개소)</label><br /><input value={d.rampCount} onChange={e => set('rampCount', e.target.value)} inputMode="numeric" disabled={!initial.hasBuilding} className={`${inputCls} w-20`} /></div>
+              <div><label className={labelCls}>피난용승강기(대)</label><br /><input value={d.evacElevatorCount} onChange={e => set('evacElevatorCount', e.target.value)} inputMode="numeric" disabled={!initial.hasBuilding} className={`${inputCls} w-24`} /></div>
             </div>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-[10px] text-[#b0acd6]">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
@@ -386,28 +385,38 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             </div>
           </section>
 
-          {/* 🛡 화재보험 */}
-          <section>
-            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> 화재보험</p>
+          {/* ② 운영현황 (섹션 카드 — §3-1.1: 급수·선임·대표자·자격·교육 + 운영·인원 + 자위소방대) */}
+          <section className="rounded-xl border border-[#e0ddf5] bg-white p-3 space-y-3">
+            <p className="text-[11px] font-bold text-[#7b68ee] flex items-center gap-1"><Clock className="size-3" /> ② 운영현황</p>
             <div className="flex flex-wrap gap-2 items-end">
-              <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-                {[['가입', true], ['미가입', false]].map(([label, val]) => (
-                  <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
-                    className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
-                ))}
+              <div><label className={labelCls}>급수(대상물 등급)</label><br />
+                <div id="fp-grade" className={`flex rounded-lg border border-[#d0ccf5] overflow-hidden${sgCls('grade')}`} title={sgTitle('grade')}>
+                  {GRADES.map(g => (
+                    <button key={g} onClick={() => set('grade', d.grade === g ? '' : g)}
+                      className={`px-2.5 h-8 text-xs ${d.grade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
+                  ))}
+                </div>
               </div>
-              {d.insuranceJoined === true && (<>
-                <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="보험사" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
-                <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="가입기간" className={`${inputCls} w-44`} />
-                <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="대인 금액" className={`${inputCls} w-28`} />
-                <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="대물 금액" className={`${inputCls} w-28`} />
-              </>)}
+              <div><label className={labelCls}>관리자 선임일</label><br /><DateInput id="fp-manager-date" value={d.managerSelectedAt} onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-32`} /></div>
+              {/* 신규 (104 — 별지 9호 2쪽 연계): 대표자 구분·자격구분·최근 교육이수일 */}
+              <div><label className={labelCls}>대표자 구분</label><br />
+                <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+                  {['소유자', '관리자', '점유자'].map(r => (
+                    <button key={r} onClick={() => set('repRole', d.repRole === r ? '' : r)}
+                      className={`px-2.5 h-8 text-xs ${d.repRole === r ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{r}</button>
+                  ))}
+                </div>
+              </div>
+              <div><label className={labelCls}>관리자 자격구분</label><br />
+                <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+                  {GRADES.map(g => (
+                    <button key={g} onClick={() => set('managerLicenseGrade', d.managerLicenseGrade === g ? '' : g)}
+                      className={`px-2.5 h-8 text-xs ${d.managerLicenseGrade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
+                  ))}
+                </div>
+              </div>
+              <div><label className={labelCls}>최근 교육이수일</label><br /><DateInput value={d.managerEduDate} onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32`} /></div>
             </div>
-          </section>
-
-          {/* ⏰ 운영·인원 */}
-          <section>
-            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Clock className="size-3" /> 운영·인원</p>
             <div className="flex flex-wrap gap-2 items-end">
               <div><label className={labelCls}>평일</label><br />
                 <input id="fp-ophours" value={d.opHoursWeekday} onChange={e => set('opHoursWeekday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursWeekday')}`} title={sgTitle('opHoursWeekday')} />
@@ -418,10 +427,9 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               <div><label className={labelCls}>거주(명)</label><br /><input type="number" value={d.headcountResident} onChange={e => set('headcountResident', e.target.value)} className={`${inputCls} w-20`} /></div>
               <div><label className={labelCls}>최대수용(명)</label><br /><input type="number" value={d.headcountMax} onChange={e => set('headcountMax', e.target.value)} className={`${inputCls} w-24`} /></div>
             </div>
-          </section>
 
-          {/* 🚒 자위소방대 */}
-          <section id="fp-brigade">
+            {/* 자위소방대 (운영현황 카드 내) */}
+            <div id="fp-brigade">
             <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Flame className="size-3" /> 자위소방대 편성</p>
             <div className="space-y-1.5">
               {d.brigade.map((m, i) => (
@@ -457,6 +465,26 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                   </div>
                 )}
               </div>
+            </div>
+            </div>
+          </section>
+
+          {/* ③ 화재보험 (섹션 카드 — §3-1.1) */}
+          <section className="rounded-xl border border-[#e0ddf5] bg-white p-3">
+            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
+            <div className="flex flex-wrap gap-2 items-end">
+              <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+                {[['가입', true], ['미가입', false]].map(([label, val]) => (
+                  <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
+                    className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
+                ))}
+              </div>
+              {d.insuranceJoined === true && (<>
+                <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="보험사" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
+                <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="가입기간" className={`${inputCls} w-44`} />
+                <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="대인 금액" className={`${inputCls} w-28`} />
+                <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="대물 금액" className={`${inputCls} w-28`} />
+              </>)}
             </div>
           </section>
 

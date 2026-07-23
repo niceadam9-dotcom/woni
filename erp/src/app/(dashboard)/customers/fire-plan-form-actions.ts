@@ -49,6 +49,7 @@ const FORM_SECTION_KEYS = new Set([
   'zones', 'hazards', 'location', 'fireAccess', 'evacFire', 'evacMaps', 'etcFacility', 'managers',
   'inspection', 'multiUse', 'fireHistory', 'training', 'brigadeGeneral', 'brigadeTeams',
   'evacDetail', 'evacHeadcount', 'evacPlan', 'vulnerable', 'vulnerableMethods', 'evacEquip',
+  'photos', // 생성 문서 삽입 사진 (§8-1k 모달 폐지 — 1.3으로 이관)
 ])
 
 export async function saveFirePlanSectionsAction(

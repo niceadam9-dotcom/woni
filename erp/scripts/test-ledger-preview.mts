@@ -29,6 +29,7 @@ try {
   await page.waitForSelector('button:has-text("건축물대장 불러오기")')
   check('빠른 입력 화면 진입', true)
 
+  await page.waitForLoadState('networkidle') // 하이드레이션 전 클릭 무시 경합 방지
   await page.click('button:has-text("건축물대장 불러오기")')
   await page.waitForSelector('text=건축물대장 조회 결과', { timeout: 30000 })
   check('미리보기 패널(저장 전)', true)

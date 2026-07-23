@@ -305,10 +305,10 @@ def process_report9(job: dict) -> list[str]:
     cust = db_get(f"customers?id=eq.{cust_id}"
                   "&select=customer_name,address,use_approval_date,fire_station,building_grade,"
                   "insurance_joined,insurance_company,insurance_period,insurance_amount_person,insurance_amount_property,"
-                  "email_delivery_consent,report_email")[0]
+                  "email_delivery_consent,report_email,rep_role,manager_license_grade,manager_edu_date")[0]
     blds = db_get(f"buildings?customer_id=eq.{cust_id}&is_active=eq.true"
                   "&select=id,purpose,total_area,building_area,floors_above,floors_below,height,main_structure,roof_structure,"
-                  "households,building_count,permit_date,parking_summary,elevator_count,emergency_elevator_count"
+                  "households,building_count,permit_date,parking_summary,elevator_count,emergency_elevator_count,evac_elevator_count"
                   "&order=created_at&limit=1")
     b = blds[0] if blds else {}
     contacts = db_get(f"customer_contacts?customer_id=eq.{cust_id}&select=role,name,phone")
@@ -389,6 +389,8 @@ def process_report9(job: dict) -> list[str]:
         "height_m": str(b.get("height") or ""), "building_count": str(b.get("building_count") or ""),
         "households": f"{b['households']}세대" if b.get("households") else "",
         "elv_r": str(b.get("elevator_count") or ""), "elv_e": str(b.get("emergency_elevator_count") or ""),
+        "elv_v": str(b.get("evac_elevator_count") or ""),
+        "mgr_edu_date": mf.kdate(cust.get("manager_edu_date")) if cust.get("manager_edu_date") else "",
     })
     # 점검 구분 — 작동/종합(최초·그 밖의)
     itype = insp.get("inspection_type") or ""
@@ -415,10 +417,14 @@ def process_report9(job: dict) -> list[str]:
         pr = prof_map.get(p["employee_id"], {})
         ph.update({f"a{i}_name": pr.get("name") or "", f"a{i}_grade": pr.get("license_grade") or "",
                    f"a{i}_no": pr.get("license_no") or "", f"a{i}_period": period})
-    # 2쪽 — 대표자(관계인 대표=소유자로 표기)·관리등급·소방계획서·전년도·교육훈련·화재보험
-    if owner:
+    # 2쪽 — 대표자 구분(104 rep_role — 미입력 시 관계인 대표=소유자 폴백)·자격구분(manager_license_grade 우선)
+    rep_key = {"소유자": "ck_rep_owner", "관리자": "ck_rep_manager", "점유자": "ck_rep_occupant"}.get(cust.get("rep_role") or "")
+    if rep_key:
+        ph[rep_key] = CK
+    elif owner:
         ph["ck_rep_owner"] = CK
-    grade_key = {"특급": "ck_g0", "1급": "ck_g1", "2급": "ck_g2", "3급": "ck_g3"}.get(cust.get("building_grade") or "")
+    grade_key = {"특급": "ck_g0", "1급": "ck_g1", "2급": "ck_g2", "3급": "ck_g3"}.get(
+        cust.get("manager_license_grade") or cust.get("building_grade") or "")
     if grade_key:
         ph[grade_key] = CK
     if has_plan:
@@ -456,6 +462,8 @@ def process_report9(job: dict) -> list[str]:
         ph["ck_elv_r"] = CK
     if b.get("emergency_elevator_count"):
         ph["ck_elv_e"] = CK
+    if b.get("evac_elevator_count"):
+        ph["ck_elv_v"] = CK
     pk = b.get("parking_summary") or ""
     for token, key in (("옥내", "ck_pk_in"), ("기계식", "ck_pk_mech"), ("옥외", "ck_pk_out"), ("옥상", "ck_pk_roof")):
         if token in pk:

@@ -9,7 +9,7 @@ import { EditInspectionTypeClient } from '@/components/customers/edit-inspection
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
-import { PlanTabView, type RevisionRow } from '@/components/customers/plan-tab-view'
+import { PlanTabView, type RevisionRow, type FormStatusMap } from '@/components/customers/plan-tab-view'
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
 import { PlanForm14 } from '@/components/customers/plan-form14'
@@ -69,10 +69,10 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string }>
+  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string }>
 }) {
   const { id } = await params
-  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub } = await searchParams
+  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm } = await searchParams
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
@@ -230,8 +230,14 @@ export default async function CustomerDetailPage({
     roof: s(firstBld?.roof_structure),
     height: s(firstBld?.height),
     hasBuilding: !!firstBld,
+    stairsCount: s(firstBld?.stairs_count),
+    rampCount: s(firstBld?.ramp_count),
+    evacElevatorCount: s(firstBld?.evac_elevator_count),
     managerSelectedAt: s(cRec.manager_selected_at),
     grade: s(cRec.building_grade),
+    repRole: s(cRec.rep_role),
+    managerLicenseGrade: s(cRec.manager_license_grade),
+    managerEduDate: s(cRec.manager_edu_date),
     insuranceJoined: (cRec.insurance_joined as boolean | null) ?? null,
     insuranceCompany: s(cRec.insurance_company),
     insurancePeriod: s(cRec.insurance_period),
@@ -297,18 +303,53 @@ export default async function CustomerDetailPage({
     have: d.doc === 'fire_plan' ? firePlans.length > 0 : undefined,
   }))
 
+  // ── 소방계획서 서식 입력 저장소 (096) — 목차 완성도(§1-4)·탭 뱃지 합산에 선행 조회 ──
+  const [{ data: fpForm }, { data: companyRow }] = await Promise.all([
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
+    admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
+  ])
+  const fpSections = ((fpForm as { sections?: {
+    revision?: { revisionDate?: string; revisionNote?: string }
+    zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
+    evacFire?: EvacFireSection; evacMaps?: EvacMapRow[]; etcFacility?: EtcFacilitySection; managers?: ManagerRow[]
+    inspection?: InspectionPlanSection; multiUse?: MultiUseSection; fireHistory?: FireHistoryRow[]
+    training?: TrainingSection; brigadeGeneral?: { type?: string }; brigadeTeams?: Record<string, string>
+    evacDetail?: EvacDetailRow[]; evacHeadcount?: { note?: string }; evacPlan?: EvacPlanSection
+    vulnerable?: VulnerableSection; vulnerableMethods?: Record<string, string>; evacEquip?: EvacEquipRow[]
+    photos?: Array<{ path: string | null; kind: string; caption: string }>
+  } } | null)?.sections) ?? {}
+
   // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
   const activeBlds = buildings.filter(b => b.is_active)
   const hasRep = contacts.some(ct => ct.role === '대표')
   const inspDates = inspections.map(i => i.inspection_start_date).filter(Boolean).sort()
   const lastInspectionDate = inspDates.length > 0 ? inspDates[inspDates.length - 1] : null
   const repContact = contacts.find(ct => ct.role === '대표') ?? null
+  // §1-1·1-4 목차 완성도 — 1.1은 필수 완성도 게이지, 나머지는 입력 존재 여부
+  const formStatus: FormStatusMap = {
+    '1.1': { done: readiness.done, total: readiness.total },
+    '1.2': !!((fpSections.zones?.length ?? 0) || (fpSections.hazards?.length ?? 0)),
+    '1.3': !!(fpSections.location || fpSections.fireAccess),
+    '1.4': planInfoInitial.facilityCodes.length > 0,
+    '1.5': !!(fpSections.evacFire || (fpSections.evacMaps?.length ?? 0)),
+    '1.6': !!fpSections.etcFacility,
+    '1.7': !!((fpSections.managers?.length ?? 0) || repContact),
+    '1.8': true, // 자동 읽기 전용 (3-1.8)
+    '1.10': !!(fpSections.inspection || fpSections.multiUse || (fpSections.fireHistory?.length ?? 0)),
+    '1.11': !!fpSections.training,
+    'ch2': !!(fpSections.brigadeGeneral?.type || Object.keys(fpSections.brigadeTeams ?? {}).length || planInfoInitial.brigade.length),
+    'ch3': !!((fpSections.evacDetail?.length ?? 0) || fpSections.evacPlan || fpSections.vulnerable),
+  }
+  // §1-4: 목차 합산 = 소방계획서 탭 뱃지
+  const formFilled = Object.values(formStatus)
+    .filter(v => (typeof v === 'object' ? v.done >= v.total : v === true)).length
+  const formTotal = Object.keys(formStatus).length
   const tabDefs: CustomerTabDef[] = [
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
     { key: 'buildings', label: '건물·시설', warn: !(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null)) },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !hasRep },
-    // 일반관리 = 소방계획서 작성 대상 아님 → 뱃지·⚠ 억제 (§9-8)
-    { key: 'plan', label: '소방계획서', badge: isGeneral ? undefined : `${readiness.done}/${readiness.total}`, warn: isGeneral ? false : readiness.done < readiness.total },
+    // 일반관리 = 소방계획서 작성 대상 아님 → 뱃지·⚠ 억제 (§9-8). 뱃지 = 목차 완성도 합산(§1-4)
+    { key: 'plan', label: '소방계획서', badge: isGeneral ? undefined : `${formFilled}/${formTotal}`, warn: isGeneral ? false : readiness.done < readiness.total },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
@@ -468,7 +509,7 @@ export default async function CustomerDetailPage({
 
       {/* 소방시설 현황 패널은 소방계획서 탭 > 1장 > 1.4로 이동 (소방계획서_4.md §4 — 건물목록은 잔류) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-3 text-xs text-[#514b81]">
-        소방시설 현황 입력은 <Link href={`/customers/${customer.id}?tab=plan&sub=ch1`} className="text-[#7b68ee] hover:underline">소방계획서 탭 &gt; 1.4 소방시설</Link>로 이동했습니다.
+        소방시설 현황 입력은 <Link href={`/customers/${customer.id}?tab=plan&form=1.4`} className="text-[#7b68ee] hover:underline">소방계획서 탭 &gt; 1.4 소방시설</Link>로 이동했습니다.
       </div>
     </>
   )
@@ -488,20 +529,7 @@ export default async function CustomerDetailPage({
       />
   )
 
-  // 소방계획서 탭 — 장(章) 서브탭 골격 (소방계획서_4.md 4-1): 생성 바 + 개정이력·보관 + 1장>1.1
-  const [{ data: fpForm }, { data: companyRow }] = await Promise.all([
-    admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
-    admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
-  ])
-  const fpSections = ((fpForm as { sections?: {
-    revision?: { revisionDate?: string; revisionNote?: string }
-    zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
-    evacFire?: EvacFireSection; evacMaps?: EvacMapRow[]; etcFacility?: EtcFacilitySection; managers?: ManagerRow[]
-    inspection?: InspectionPlanSection; multiUse?: MultiUseSection; fireHistory?: FireHistoryRow[]
-    training?: TrainingSection; brigadeGeneral?: { type?: string }; brigadeTeams?: Record<string, string>
-    evacDetail?: EvacDetailRow[]; evacHeadcount?: { note?: string }; evacPlan?: EvacPlanSection
-    vulnerable?: VulnerableSection; vulnerableMethods?: Record<string, string>; evacEquip?: EvacEquipRow[]
-  } } | null)?.sections) ?? {}
+  // 소방계획서 탭 (§1 개정 구조 — P6: 목차 트리 + 서식 화면, form= 딥링크)
   // 1.10.1 자동 시기 — 점검계획일 기준 (종합 고객: 종합=기준월·작동=+6개월 / 작동 고객: 작동=기준월)
   const planYear = new Date().getFullYear()
   const anchorM = customer.plan_anchor_date ? new Date(customer.plan_anchor_date).getMonth() + 1 : null
@@ -529,6 +557,8 @@ export default async function CustomerDetailPage({
       revisionRows={revisionRows}
       importCandidate={importCandidate}
       initialSection={sub}
+      initialForm={initialForm}
+      formStatus={formStatus}
       archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
@@ -536,7 +566,8 @@ export default async function CustomerDetailPage({
         floorsAbove={planInfoInitial.floorsAbove} floorsBelow={planInfoInitial.floorsBelow} />}
       form13={<PlanForm13 customerId={customer.id} canManage={canManage}
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
-        initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }} />}
+        initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}
+        initialPhotos={fpSections.photos ?? []} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}

@@ -81,25 +81,42 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
   )
 }
 
-export function PlanForm13({ customerId, canManage, initialLocation, initialFireAccess }: {
+/** 생성 문서 삽입 사진 (§8-1k — 생성 모달 폐지에 따라 1.3으로 이관) */
+export type PlanPhotoRow = { path: string | null; kind: string; caption: string }
+const PHOTO_KIND_OPTIONS = [
+  { value: 'building', label: '건물 전경' },
+  { value: 'map', label: '위치도(지도)' },
+  { value: 'evacuation', label: '피난경로도' },
+  { value: 'etc', label: '기타' },
+]
+
+export function PlanForm13({ customerId, canManage, initialLocation, initialFireAccess, initialPhotos = [] }: {
   customerId: string
   canManage: boolean
   initialLocation: LocationSection
   initialFireAccess: FireAccessSection
+  initialPhotos?: PlanPhotoRow[]
 }) {
   const router = useRouter()
   const [loc, setLoc] = useState(initialLocation)
   const [fa, setFa] = useState(initialFireAccess)
+  const [photos, setPhotos] = useState<PlanPhotoRow[]>(initialPhotos)
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function patchLoc(p: Partial<LocationSection>) { setLoc(v => ({ ...v, ...p })); setDirty(true) }
   function patchFa(p: Partial<FireAccessSection>) { setFa(v => ({ ...v, ...p })); setDirty(true) }
+  function patchPhoto(i: number, p: Partial<PlanPhotoRow>) {
+    setPhotos(rows => rows.map((r, j) => (j === i ? { ...r, ...p } : r))); setDirty(true)
+  }
 
   function save() {
     startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, { location: loc, fireAccess: fa })
+      const res = await saveFirePlanSectionsAction(customerId, {
+        location: loc, fireAccess: fa,
+        photos: photos.filter(p => p.path).map(p => ({ path: p.path, kind: p.kind || 'etc', caption: p.caption })),
+      })
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setDirty(false)
       setMsg('✅ 서식 1.3 저장됨')
@@ -162,6 +179,32 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
           <textarea value={fa.nearbyFacilities} onChange={e => patchFa({ nearbyFacilities: e.target.value })} disabled={!canManage}
             rows={2} placeholder="예: 정문 앞 지상식 소화전 1개소" className={taCls} />
         </div>
+      </div>
+
+      {/* 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}
+      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
+        <p className="text-xs font-semibold text-[#514b81]">생성 문서 삽입 사진 <span className="font-normal text-[#b0acd6]">(건물 전경 등 — PDF·HWP 생성 시 본문에 삽입)</span></p>
+        {photos.map((p, i) => (
+          <div key={i} className="flex items-start gap-2 flex-wrap rounded-lg border border-[#eceafd] bg-white p-2">
+            <select value={p.kind} disabled={!canManage} onChange={e => patchPhoto(i, { kind: e.target.value })} className={`${inputCls} w-32`}>
+              {PHOTO_KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <input value={p.caption} disabled={!canManage} onChange={e => patchPhoto(i, { caption: e.target.value })}
+              placeholder="사진 설명(캡션)" className={`${inputCls} w-52`} />
+            <div className="flex-1 min-w-48">
+              <ImageSlot customerId={customerId} canManage={canManage} path={p.path}
+                onChange={path => patchPhoto(i, { path })} label={`사진 ${i + 1}`} />
+            </div>
+            {canManage && (
+              <button onClick={() => { setPhotos(rows => rows.filter((_, j) => j !== i)); setDirty(true) }}
+                className="text-[#b0acd6] hover:text-red-500 text-xs px-1 mt-1">✕</button>
+            )}
+          </div>
+        ))}
+        {canManage && (
+          <button onClick={() => { setPhotos(rows => [...rows, { path: null, kind: 'building', caption: '' }]); setDirty(true) }}
+            className="text-[11px] text-[#7b68ee] hover:underline">+ 사진 추가</button>
+        )}
       </div>
 
       {canManage && (

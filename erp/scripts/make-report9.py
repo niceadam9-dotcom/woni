@@ -69,7 +69,7 @@ SEED_RUNS: list[tuple[str, str, int]] = [
     (" [  ]슬래브, [  ]기와, [  ]슬레이트, [  ]기타",
      " {{ck_rf_slab}}슬래브, {{ck_rf_tile}}기와, {{ck_rf_slate}}슬레이트, {{ck_rf_etc}}기타", 1),
     (" [  ]승용(    대), [  ]비상용(    대), [  ]피난용(    대)",
-     " {{ck_elv_r}}승용( {{elv_r}} 대), {{ck_elv_e}}비상용( {{elv_e}} 대), [  ]피난용(    대)", 1),
+     " {{ck_elv_r}}승용( {{elv_r}} 대), {{ck_elv_e}}비상용( {{elv_e}} 대), {{ck_elv_v}}피난용( {{elv_v}} 대)", 1),
     (" [  ]옥내([  ]지하 [  ]지상 [  ]필로티 [  ]기계식), [  ]옥상, [  ]옥외",
      " {{ck_pk_in}}옥내({{ck_pk_ug}}지하 {{ck_pk_gr}}지상 {{ck_pk_pl}}필로티 {{ck_pk_mech}}기계식), {{ck_pk_roof}}옥상, {{ck_pk_out}}옥외", 1),
 ]
