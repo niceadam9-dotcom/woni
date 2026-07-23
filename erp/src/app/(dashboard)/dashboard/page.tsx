@@ -427,7 +427,7 @@ export default async function DashboardPage() {
                   {pendingReports.length}건
                 </span>
               </div>
-              <Link href="/inspection-reports/status" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="/reports?form=submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
                 전체보기 <ArrowRight className="size-3" />
               </Link>
             </div>
@@ -473,7 +473,7 @@ export default async function DashboardPage() {
                   {pendingActions.length}건
                 </span>
               </div>
-              <Link href="/action-plans/status" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="/reports?form=submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
                 전체보기 <ArrowRight className="size-3" />
               </Link>
             </div>

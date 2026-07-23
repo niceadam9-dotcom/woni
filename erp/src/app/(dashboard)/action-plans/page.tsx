@@ -1,33 +1,7 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { ActionPlansListClient } from '@/components/action-plans/action-plans-list-client'
 
-export default async function ActionPlansPage() {
-  const profile = await getProfile()
-  if (!profile) redirect('/login')
-
-  const admin = createAdminClient()
-
-  const { data: plans } = await admin
-    .from('action_plans')
-    .select(`
-      id, completion_target_date, submitted_at, sent_at, plan_file_url,
-      created_at, updated_at,
-      inspections:inspection_id (
-        id, inspection_type, sequence_num, year,
-        customers:customer_id ( customer_name, customer_code ),
-        profiles:assigned_employee_id ( name )
-      ),
-      action_plan_status ( sent_at, fire_station_submitted_at, defect_certificate_count ),
-      action_complete_reports ( id, completed_at, submitted_at )
-    `)
-    .order('created_at', { ascending: false })
-    .limit(200)
-
-  return (
-    <ActionPlansListClient
-      plans={(plans ?? []) as Record<string, unknown>[]}
-    />
-  )
+// 소방계획서_5 §7-A R14-d — 이행계획서 등록(수기) 폐지. 신규 건은 점검 타임라인 ⑤⑥ + 불량내역 조치 필드가 대체.
+// 점검 업무 목록으로 리다이렉트.
+export default function ActionPlansRegisterRedirect() {
+  redirect('/inspections')
 }

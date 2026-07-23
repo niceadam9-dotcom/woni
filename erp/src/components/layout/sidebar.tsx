@@ -66,13 +66,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
       { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'] },
       { label: '점검 대장',        href: '/inspection-ledger',          icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
-      { label: '보고서 제출현황',  href: '/inspection-reports/status',  icon: FileCheck2,     roles: ['employee', 'manager', 'admin'] },
-      { label: '이행계획서 등록',  href: '/action-plans',               icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
-      { label: '이행계획 제출현황',href: '/action-plans/status',        icon: ClipboardCheck, roles: ['employee', 'manager', 'admin'] },
+      // 문서는 '보고서' 하나로 수렴 (소방계획서_5 §7-B R15-a) — 구 보고서 제출현황·이행계획서 등록·이행계획 제출현황은 보고서 센터/타임라인으로 흡수(리다이렉트)
       { label: '보고서',           href: '/reports',                    icon: FileOutput,     roles: ['employee', 'manager', 'admin'] },
       { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
+      // '안전관리 대장'(실체=월별 수금 현황)은 정산현황 [월별 대장] 탭으로 흡수 (R15-b)
       { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'] },
-      { label: '안전관리 대장',    href: '/billing/annual',             icon: ShieldCheck,    roles: ['manager', 'admin'] },
       { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'] },
       { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
       { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'] },

@@ -3,7 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { hangulMatch } from '@/lib/hangul'
-import { findMissingCerts, getDocTodo, type MissingCertRow, type DueReport9Row } from '@/lib/doc-status'
+import { findMissingCerts, getDocTodo, hasCertFile, SELF_INSPECTION_OR, type MissingCertRow, type DueReport9Row } from '@/lib/doc-status'
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 
 /** 보고서 센터 데이터 액션 (소방계획서_5 S2) — ① 고객 문서 현황(R2)·④ 최근 문서(R5)·⑦ 누락 경고(R8)·행동 자동완성(R0-3).
@@ -299,4 +299,117 @@ export async function getMissingCertsAction(): Promise<{ rows: MissingCertRow[] 
 export async function getDocTodoAction(): Promise<{ dueSoon: DueReport9Row[]; missingCerts: MissingCertRow[] }> {
   await requirePermission('inspection_register')
   return getDocTodo(createAdminClient())
+}
+
+/* ── §7-A 제출 현황판 (R14-a·R14-b) — 타임라인 필드 단일 소스, 수기 입력 없음 ── */
+
+export type SubmissionRow = {
+  inspectionId: string
+  customerId: string
+  customerName: string
+  year: number
+  sequenceNum: number
+  inspectionType: string
+  status: string
+  endDate: string | null
+  report9Gen: boolean          // 별지 9호 생성됨
+  report9Sent: boolean         // 관계인 발송 이력
+  report9SubmittedAt: string | null
+  due9Dday: number | null      // 미제출 시 종료+15 D-day
+  certUploaded: boolean        // 배치확인서 업로드
+  defectsTotal: number
+  report10Gen: boolean
+  report11Gen: boolean
+  report11SubmittedAt: string | null
+  risk: number                 // 정렬용 위험도 (작을수록 위험)
+}
+
+export type SubmissionSummary = {
+  monthSelf: number       // 이번 달 자체점검
+  completed: number       // 완료
+  r9NotSubmitted: number  // 9호 미제출
+  overdue: number         // 기한 초과
+  certMissing: number     // 배치확인서 누락
+}
+
+const todayKstStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
+const shiftYmd = (base: string, days: number) => { const d = new Date(base); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0] }
+const diffYmd = (a: string, b: string) => Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86400000)
+
+export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}): Promise<{
+  rows: SubmissionRow[]; summary: SubmissionSummary
+}> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const today = todayKstStr()
+  const since = shiftYmd(today, -(opts.sinceDays ?? 90))   // D-9: 기본 최근 90일
+
+  const { data } = await admin.from('inspections')
+    .select('id, customer_id, year, sequence_num, inspection_type, status, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customers(customer_name)')
+    .neq('inspection_type', '일반관리')
+    .or(SELF_INSPECTION_OR)
+    .gte('inspection_start_date', since)
+    .order('inspection_start_date', { ascending: false, nullsFirst: false })
+    .limit(80)
+  type Row = {
+    id: string; customer_id: string; year: number; sequence_num: number; inspection_type: string; status: string
+    inspection_start_date: string | null; inspection_end_date: string | null
+    report9_submitted_at: string | null; report11_submitted_at: string | null
+    customer: { customer_name: string } | null
+  }
+  const insps = (data ?? []) as unknown as Row[]
+  const ids = insps.map(i => i.id)
+
+  const gen: Record<string, { r9: boolean; r10: boolean; r11: boolean }> = {}
+  const sent: Record<string, boolean> = {}
+  const def: Record<string, number> = {}
+  if (ids.length > 0) {
+    const [jobsRes, delRes, defRes] = await Promise.all([
+      admin.from('fire_plan_gen_jobs').select('inspection_id, report_type').eq('status', 'done').in('inspection_id', ids),
+      admin.from('report_deliveries').select('inspection_id').in('inspection_id', ids),
+      admin.from('inspection_defects').select('inspection_id').in('inspection_id', ids),
+    ])
+    for (const j of (jobsRes.data ?? []) as Array<{ inspection_id: string; report_type: string | null }>) {
+      const g = gen[j.inspection_id] ??= { r9: false, r10: false, r11: false }
+      if (j.report_type === 'report9') g.r9 = true
+      else if (j.report_type === 'report10') g.r10 = true
+      else if (j.report_type === 'report11') g.r11 = true
+    }
+    for (const d of (delRes.data ?? []) as Array<{ inspection_id: string }>) sent[d.inspection_id] = true
+    for (const d of (defRes.data ?? []) as Array<{ inspection_id: string }>) def[d.inspection_id] = (def[d.inspection_id] ?? 0) + 1
+  }
+  // 배치확인서(storage) 병렬 확인
+  const certFlags = await Promise.all(insps.map(i => hasCertFile(admin, i.customer_id, i.id)))
+
+  const rows: SubmissionRow[] = insps.map((i, idx) => {
+    const g = gen[i.id] ?? { r9: false, r10: false, r11: false }
+    const submitted = i.report9_submitted_at
+    const due9Dday = !submitted && i.inspection_end_date ? diffYmd(shiftYmd(i.inspection_end_date, 15), today) : null
+    const defectsTotal = def[i.id] ?? 0
+    const certUploaded = certFlags[idx]
+    // 위험도: 기한 초과(음수 dday) < 임박 < 누락 < 정상
+    let risk = 100
+    if (due9Dday !== null && due9Dday < 0) risk = -100 + due9Dday
+    else if (due9Dday !== null && due9Dday <= 7) risk = due9Dday
+    else if (i.status === 'completed' && !certUploaded) risk = 50
+    return {
+      inspectionId: i.id, customerId: i.customer_id, customerName: i.customer?.customer_name ?? '—',
+      year: i.year, sequenceNum: i.sequence_num, inspectionType: i.inspection_type, status: i.status,
+      endDate: i.inspection_end_date,
+      report9Gen: g.r9, report9Sent: !!sent[i.id], report9SubmittedAt: submitted, due9Dday,
+      certUploaded, defectsTotal, report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
+      risk,
+    }
+  })
+  rows.sort((a, b) => a.risk - b.risk)
+
+  const monthPrefix = today.slice(0, 7)
+  const summary: SubmissionSummary = {
+    monthSelf: insps.filter(i => (i.inspection_start_date ?? '').startsWith(monthPrefix)).length,
+    completed: rows.filter(r => r.status === 'completed').length,
+    r9NotSubmitted: rows.filter(r => !r.report9SubmittedAt && r.status === 'completed').length,
+    overdue: rows.filter(r => r.due9Dday !== null && r.due9Dday < 0).length,
+    certMissing: rows.filter(r => r.status === 'completed' && !r.certUploaded).length,
+  }
+  return { rows, summary }
 }

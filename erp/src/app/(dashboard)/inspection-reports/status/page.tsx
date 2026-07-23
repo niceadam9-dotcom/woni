@@ -1,54 +1,7 @@
 import { redirect } from 'next/navigation'
-import { getProfile, can } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { ReportStatusClient } from '@/components/inspection-reports/report-status-client'
-import type { UserRole } from '@/types'
 
-export default async function InspectionReportStatusPage() {
-  const profile = await getProfile()
-  if (!profile) redirect('/login')
-
-  const admin = createAdminClient()
-  const now   = new Date()
-  const year  = now.getFullYear()
-  const month = now.getMonth() + 1
-
-  // plan_items + report_status join
-  const { data: items } = await admin
-    .from('inspection_plan_items')
-    .select(`
-      id, plan_id, customer_id, inspection_type, sequence_num,
-      scheduled_date, assigned_employee_id, status,
-      customers:customer_id ( customer_name, customer_code, address ),
-      profiles:assigned_employee_id ( name ),
-      inspection_plans:plan_id ( year, month ),
-      inspection_report_status (
-        inspection_completed_at, notification_date,
-        notification_due_date, submission_deadline,
-        sent_at, received_at, returned_at,
-        fire_station_submitted, fee_billed
-      )
-    `)
-    .neq('status', 'cancelled')
-    .order('scheduled_date', { ascending: true, nullsFirst: false })
-    .limit(300)
-
-  const { data: employees } = await admin
-    .from('profiles')
-    .select('id, name, position')
-    .eq('is_active', true)
-    .eq('is_system', false)
-    .order('name')
-
-  const canManage = can(profile.role as UserRole, 'report_status_manage')
-
-  return (
-    <ReportStatusClient
-      initialItems={(items ?? []) as Record<string, unknown>[]}
-      employees={(employees ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      canManage={canManage}
-      defaultYear={year}
-      defaultMonth={month}
-    />
-  )
+// 소방계획서_5 §7-A R14-c — 보고서 제출현황(수기)은 보고서 센터 '제출 현황'(타임라인 단일 소스)으로 통합.
+// 즐겨찾기·기존 링크 보호를 위해 리다이렉트만 유지.
+export default function InspectionReportStatusRedirect() {
+  redirect('/reports?form=submissions')
 }

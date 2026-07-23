@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BillingStatusClient } from '@/components/billing/billing-status-client'
+import { BillingTabs } from '@/components/billing/billing-tabs'
 import type { UserRole } from '@/types'
 
 export default async function BillingStatusPage() {
@@ -36,10 +37,13 @@ export default async function BillingStatusPage() {
     .order('customer_name')
 
   return (
-    <BillingStatusClient
-      initialBills={(bills ?? []) as Record<string, unknown>[]}
-      customers={(customers ?? []) as Array<{ id: string; customer_name: string; customer_code: string }>}
-      defaultMonth={defaultMonth}
-    />
+    <div>
+      <BillingTabs />
+      <BillingStatusClient
+        initialBills={(bills ?? []) as Record<string, unknown>[]}
+        customers={(customers ?? []) as Array<{ id: string; customer_name: string; customer_code: string }>}
+        defaultMonth={defaultMonth}
+      />
+    </div>
   )
 }

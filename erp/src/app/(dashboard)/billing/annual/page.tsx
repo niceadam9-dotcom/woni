@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AnnualCollectionClient, type CollectionRow, type StationRow } from '@/components/billing/annual-collection-client'
+import { BillingTabs } from '@/components/billing/billing-tabs'
 import type { UserRole } from '@/types'
 
 /** 안전관리 대장 (doc02 §4-7, P6-1) — 월별 수금 현황판 + 사업자/자동이체/기관 탭 */
@@ -69,5 +70,10 @@ export default async function AnnualCollectionPage({
   const stations: StationRow[] = ((stationRes.data ?? []) as Array<{ region: string; fire_station: string | null; region_si: string | null }>)
     .map(s => ({ region: s.region, fireStation: s.fire_station ?? '', regionSi: s.region_si ?? '' }))
 
-  return <AnnualCollectionClient year={year} rows={rows} stations={stations} />
+  return (
+    <div>
+      <BillingTabs />
+      <AnnualCollectionClient year={year} rows={rows} stations={stations} />
+    </div>
+  )
 }
