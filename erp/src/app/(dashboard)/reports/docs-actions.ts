@@ -322,6 +322,9 @@ export type SubmissionRow = {
   report11Gen: boolean
   report11SubmittedAt: string | null
   risk: number                 // 정렬용 위험도 (작을수록 위험)
+  assigneeId: string | null    // P-4: '내 담당만' 필터용 배정 직원
+  assigneeName: string | null  // 담당자 표시명
+  thisMonth: boolean           // 이번 달 자체점검 여부 (클라이언트 요약 재계산용)
 }
 
 export type SubmissionSummary = {
@@ -345,7 +348,7 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
   const since = shiftYmd(today, -(opts.sinceDays ?? 90))   // D-9: 기본 최근 90일
 
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, sequence_num, inspection_type, status, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customers(customer_name)')
+    .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customers(customer_name)')
     .neq('inspection_type', '일반관리')
     .or(SELF_INSPECTION_OR)
     .gte('inspection_start_date', since)
@@ -353,12 +356,21 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
     .limit(80)
   type Row = {
     id: string; customer_id: string; year: number; sequence_num: number; inspection_type: string; status: string
+    assigned_employee_id: string | null
     inspection_start_date: string | null; inspection_end_date: string | null
     report9_submitted_at: string | null; report11_submitted_at: string | null
     customer: { customer_name: string } | null
   }
   const insps = (data ?? []) as unknown as Row[]
   const ids = insps.map(i => i.id)
+
+  // P-4: 담당자 표시명 — 배정 직원 id 배치 조회
+  const assigneeIds = [...new Set(insps.map(i => i.assigned_employee_id).filter(Boolean) as string[])]
+  const assigneeNames: Record<string, string> = {}
+  if (assigneeIds.length > 0) {
+    const { data: profs } = await admin.from('profiles').select('id, name').in('id', assigneeIds)
+    for (const p of (profs ?? []) as Array<{ id: string; name: string }>) assigneeNames[p.id] = p.name
+  }
 
   const gen: Record<string, { r9: boolean; r10: boolean; r11: boolean }> = {}
   const sent: Record<string, boolean> = {}
@@ -381,6 +393,7 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
   // 배치확인서(storage) 병렬 확인
   const certFlags = await Promise.all(insps.map(i => hasCertFile(admin, i.customer_id, i.id)))
 
+  const monthPrefix = today.slice(0, 7)
   const rows: SubmissionRow[] = insps.map((i, idx) => {
     const g = gen[i.id] ?? { r9: false, r10: false, r11: false }
     const submitted = i.report9_submitted_at
@@ -399,11 +412,13 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
       report9Gen: g.r9, report9Sent: !!sent[i.id], report9SubmittedAt: submitted, due9Dday,
       certUploaded, defectsTotal, report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
       risk,
+      assigneeId: i.assigned_employee_id,
+      assigneeName: i.assigned_employee_id ? assigneeNames[i.assigned_employee_id] ?? null : null,
+      thisMonth: (i.inspection_start_date ?? '').startsWith(monthPrefix),
     }
   })
   rows.sort((a, b) => a.risk - b.risk)
 
-  const monthPrefix = today.slice(0, 7)
   const summary: SubmissionSummary = {
     monthSelf: insps.filter(i => (i.inspection_start_date ?? '').startsWith(monthPrefix)).length,
     completed: rows.filter(r => r.status === 'completed').length,

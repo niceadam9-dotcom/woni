@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ClipboardList, Clock3, FileUp, Upload, ArrowRight, CheckSquare } from 'lucide-react'
+import { ClipboardList, Clock3, FileUp, Upload, ArrowRight, CheckSquare, User } from 'lucide-react'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
 
@@ -12,17 +12,22 @@ import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
 
 const cardShadow = 'shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]'
 
-export function DocTodoWidget({ dueSoon, missingCerts: initialMissing }: {
+export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, myId, defaultMine }: {
   dueSoon: DueReport9Row[]
   missingCerts: MissingCertRow[]
+  myId: string
+  defaultMine: boolean
 }) {
   const [missingCerts, setMissingCerts] = useState(initialMissing)
+  const [mine, setMine] = useState(defaultMine)   // P-4: '내 담당만' — 직원 기본 ON
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const targetRef = useRef<MissingCertRow | null>(null)
 
-  const total = dueSoon.length + missingCerts.length
+  const visibleDue = mine ? dueSoon.filter(r => r.assigneeId === myId) : dueSoon
+  const visibleCerts = mine ? missingCerts.filter(r => r.assigneeId === myId) : missingCerts
+  const total = visibleDue.length + visibleCerts.length
 
   function pick(row: MissingCertRow) {
     targetRef.current = row
@@ -54,9 +59,17 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing }: {
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">{total}건</span>
           )}
         </div>
-        <Link href="/reports" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
-          보고서 센터 <ArrowRight className="size-3" />
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* P-4: '내 담당만' 개인화 필터 — 직원 기본 ON */}
+          <button onClick={() => setMine(v => !v)} title="내가 배정된 점검 건만 봅니다"
+            className={`inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-[11px] font-medium ${
+              mine ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee]'}`}>
+            <User className="size-3" /> 내 담당만
+          </button>
+          <Link href="/reports" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+            보고서 센터 <ArrowRight className="size-3" />
+          </Link>
+        </div>
       </div>
 
       <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={onPicked} />
@@ -73,7 +86,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing }: {
         <div className="divide-y divide-[#f8f9fa]">
           {msg && <p className={`px-5 py-1.5 text-[11px] ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
           {/* 제출 기한 임박 별지 9호 (D-7 이내·초과) */}
-          {dueSoon.map(r => (
+          {visibleDue.map(r => (
             <div key={`due-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
               <Clock3 className="size-3.5 text-red-500 shrink-0" />
               <span className="font-medium text-[#090c1d]">{r.customerName}</span>
@@ -87,7 +100,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing }: {
             </div>
           ))}
           {/* 배치확인서 누락 — 행 안에서 바로 업로드 */}
-          {missingCerts.map(r => (
+          {visibleCerts.map(r => (
             <div key={`cert-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
               <FileUp className="size-3.5 text-amber-600 shrink-0" />
               <span className="font-medium text-[#090c1d]">{r.customerName}</span>

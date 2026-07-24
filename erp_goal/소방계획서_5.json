@@ -168,7 +168,7 @@
         { "id": "R14-c", "desc": "/inspection-reports/status·/action-plans/status → 제출 현황으로 리다이렉트", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — 두 페이지 redirect('/reports?form=submissions'). E2E 리다이렉트 2건 검증" },
         { "id": "R14-d", "desc": "/action-plans(이행계획서 등록) 폐지 — 안내 후 리다이렉트, 타임라인 ⑤⑥이 대체", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — /action-plans redirect('/inspections'). E2E 검증" },
         { "id": "R14-e", "desc": "구 수기 데이터(inspection_report_status·action_plans 3종) 이관 — 조사→사용자 확인→1회 이관, 불가분 읽기 보존", "status": "confirmed", "note": "2026-07-26 조사 완료: 4개 테이블 전부 0건(스테이징·운영) — 실사용 없음 확인, 이관 불필요. 리다이렉트만 수행(R14-c·d)으로 종결" },
-        { "id": "R14-f", "desc": "제출 현황판 엑셀 내보내기(P-5)", "status": "deferred", "note": "2026-07-26 보류 — 요청 시 재개" }
+        { "id": "R14-f", "desc": "제출 현황판 엑셀 내보내기(P-5)", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "미커밋(working tree, 사용자 진행 승인 대기)", "evidence": "submission-board.tsx:124-129([엑셀] 버튼, disabled=exporting||filtered.length===0), :59-83(exportRows: filtered 전달·xlsx 동적 import·컬럼 매핑·writeFile 파일명)", "method": "독립 검증 에이전트(구현자≠판정자) PASS + next build PASS(94/94)" }, "note": "2026-07-24 요청 재개·구현 — exportRows(): xlsx 동적 로드 → json_to_sheet(고객·차수·담당자·상태·9호·발송·제출·배치확인서·10·11호) → writeFile('제출현황_YYYY-MM-DD.xlsx'). [엑셀] 버튼이 현재 화면(필터·내 담당만 반영) 기준. 독립 검증: filtered(전체 아님) 전달·disabled 처리·컬럼 매핑 전부 PASS" }
       ]
     },
     {
@@ -189,13 +189,13 @@
     },
     {
       "id": "R17", "title": "§8 추가 제안 — 채택 3건(S5) + 보류 2건", "status": "partial",
-      "note": "2026-07-26 사용자 선택(D-10): P-1·P-2·P-3 채택 → S5, P-4·P-5 보류",
+      "note": "2026-07-26 사용자 선택(D-10): P-1·P-2·P-3 채택 → S5. P-4·P-5는 2026-07-24 요청 재개·구현·독립 검증(구현자≠판정자) PASS → implemented 승격. 검증서 지적(현황판 요약 스트립 mine 미반영) 후속 수정 완료(effSummary 재계산 + SubmissionRow.thisMonth). 커밋·배포는 사용자 진행 승인 대기",
       "criteria": [
         { "id": "R17-P1", "desc": "P-1 연차 일괄 발행 마법사 — 연초 전 고객 전년도 이어받기+발행+생성 1클릭", "status": "code_present", "note": "2026-07-26 커밋 9918dc3 — 보고서 센터 form=annual, getAnnualTargetsAction(대상·발행·대기·미발행 집계) + bulkAnnualIssueAction(미발행 최대 500 일괄 큐잉, 발행·대기 제외). 워커가 최신 고객 데이터로 생성(이어받기). E2E 마법사·집계 검증" },
         { "id": "R17-P2", "desc": "P-2 주간 문서 브리핑 — 월요일 요약 알림+메일 자동 발송(모니터링 0층)", "status": "code_present", "note": "2026-07-26 커밋 9918dc3 — /api/cron/weekly-doc-briefing(자체점검 완료·9호 기한 임박·배치확인서 누락, findDueReport9·findMissingCerts 공유). manager/admin 알림 + 회사 메일(gmailSendMail, best-effort). 알림은 마이그레이션 109(구 107, type CHECK) 적용 후 활성 — 2026-07-24 스테이징·운영 DB 양쪽 적용 완료(hasWeekly=True). E2E ok·요약·인증가드 검증" },
         { "id": "R17-P3", "desc": "P-3 생성 품질 자동 검증 게이트 — 워커가 PDF 텍스트 핵심 값 병합 자동 검사(missing에 기록)", "status": "code_present", "note": "2026-07-26 커밋 9918dc3 — fireplan-worker verify_merge(생성물 HTML 텍스트에 고객명·주소 실제 병합 확인, 실패 시 '병합 확인 실패: X'를 missing에 기록). fire_plan·9호·10·11호·외관 전부 적용. Python 문법·로직 검증(워커 재배포 시 운영 반영). 채택 1순위 — 빈 문서 제출 사고 예방" },
-        { "id": "R17-P4", "desc": "P-4 '내 담당만' 개인화 필터 — 현황판·위젯(직원 기본 ON)", "status": "deferred", "note": "2026-07-26 보류 — 요청 시 재개" },
-        { "id": "R17-P5", "desc": "P-5 제출 현황판 엑셀 내보내기", "status": "deferred", "note": "2026-07-26 보류 — 요청 시 재개" }
+        { "id": "R17-P4", "desc": "P-4 '내 담당만' 개인화 필터 — 현황판·위젯(직원 기본 ON)", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "미커밋(working tree, 사용자 진행 승인 대기)", "evidence": "submission-board.tsx:94-95·117-123(토글·표 필터)·161·182-184(담당자 열·본인 강조)·104-113(effSummary mine 재계산) · doc-todo-widget.tsx:28-30(visibleDue/Certs·total 반영) · docs-actions.ts:367-372(assignee 배치조회)·414(미배정 null) · doc-status.ts:79,110(assigneeId) · reports/page.tsx:266·dashboard/page.tsx:348(defaultMine=employee)", "method": "독립 검증 에이전트(구현자≠판정자) PASS + next build PASS(94/94)" }, "note": "2026-07-24 요청 재개·구현 — assigned_employee_id 기반. 현황판·위젯 '내 담당만' 토글(직원 기본 ON), 클라이언트 필터, 담당자 열. 독립 검증에서 지적된 '요약 스트립 mine 미반영'은 effSummary 재계산 + SubmissionRow.thisMonth 추가로 수정 완료(표 행수·상단 숫자 일치)" },
+        { "id": "R17-P5", "desc": "P-5 제출 현황판 엑셀 내보내기", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "미커밋(working tree, 사용자 진행 승인 대기)", "evidence": "R14-f 참조 — submission-board.tsx:59-83·124-129", "method": "독립 검증 에이전트(구현자≠판정자) PASS + next build PASS(94/94)" }, "note": "2026-07-24 R14-f와 동일 구현(exportRows, xlsx 동적 로드). 독립 검증 PASS" }
       ]
     }
   ]

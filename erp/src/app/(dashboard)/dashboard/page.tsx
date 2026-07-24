@@ -345,7 +345,7 @@ export default async function DashboardPage() {
       )}
 
       {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점, 보고서 센터로 연결 ── */}
-      {docTodo && <DocTodoWidget dueSoon={docTodo.dueSoon} missingCerts={docTodo.missingCerts} />}
+      {docTodo && <DocTodoWidget dueSoon={docTodo.dueSoon} missingCerts={docTodo.missingCerts} myId={profile.id} defaultMine={isEmployee} />}
 
       {/* ── 상단 ERP 카드 ─────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

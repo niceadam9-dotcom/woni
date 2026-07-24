@@ -18,6 +18,7 @@ export type MissingCertRow = {
   inspectionType: string
   completedDate: string | null   // 종료일(없으면 시작일)
   daysSince: number | null       // 완료 후 경과일 (정렬용 — 오래된 누락부터)
+  assigneeId: string | null      // P-4: '내 담당만' 필터용 배정 직원
 }
 
 export type DueReport9Row = {
@@ -28,11 +29,13 @@ export type DueReport9Row = {
   sequenceNum: number
   due: string          // 점검 종료 + 15일
   dday: number         // 음수 = 기한 초과
+  assigneeId: string | null      // P-4: '내 담당만' 필터용 배정 직원
 }
 
 type InspRow = {
   id: string; customer_id: string; year: number; sequence_num: number
   inspection_type: string; inspection_start_date: string | null; inspection_end_date: string | null
+  assigned_employee_id: string | null
   customer: { customer_name: string } | null
 }
 
@@ -55,7 +58,7 @@ export async function findMissingCerts(
 ): Promise<MissingCertRow[]> {
   const since = addDays(todayKst(), -(opts.sinceDays ?? 90))
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, sequence_num, inspection_type, inspection_start_date, inspection_end_date, customer:customers(customer_name)')
+    .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, customer:customers(customer_name)')
     .eq('status', 'completed')
     .neq('inspection_type', '일반관리')
     .or(SELF_INSPECTION_OR)
@@ -73,6 +76,7 @@ export async function findMissingCerts(
       customerName: i.customer?.customer_name ?? '—',
       year: i.year, sequenceNum: i.sequence_num, inspectionType: i.inspection_type,
       completedDate, daysSince: completedDate ? diffDays(today, completedDate) : null,
+      assigneeId: i.assigned_employee_id,
     } satisfies MissingCertRow
   }))
   // 오래된 누락부터 (경과일 내림차순)
@@ -85,7 +89,7 @@ export async function findDueReport9(
 ): Promise<DueReport9Row[]> {
   const since = addDays(todayKst(), -(opts.sinceDays ?? 90))
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, sequence_num, inspection_type, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
+    .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
     .neq('inspection_type', '일반관리')
     .or(SELF_INSPECTION_OR)
     .is('report9_submitted_at', null)
@@ -103,6 +107,7 @@ export async function findDueReport9(
       inspectionId: i.id, customerId: i.customer_id,
       customerName: i.customer?.customer_name ?? '—',
       year: i.year, sequenceNum: i.sequence_num, due, dday,
+      assigneeId: i.assigned_employee_id,
     })
   }
   // 위험순 — 초과(음수) → 임박

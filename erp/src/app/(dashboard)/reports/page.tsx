@@ -262,7 +262,9 @@ export default async function ReportsPage({ searchParams }: {
       )}
 
       {/* §7-A 제출 현황판 (R14) */}
-      {form === 'submissions' && board && <SubmissionBoard rows={board.rows} summary={board.summary} />}
+      {form === 'submissions' && board && (
+        <SubmissionBoard rows={board.rows} summary={board.summary} myId={profile.id} defaultMine={profile.role === 'employee'} />
+      )}
 
       {/* P-1 연차 일괄 발행 마법사 (S5) */}
       {form === 'annual' && <AnnualIssueWizard defaultYear={new Date().getFullYear() + 1} />}
