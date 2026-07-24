@@ -175,7 +175,7 @@ export async function completeStepAction(
   // 본인 담당 점검 또는 manager/admin만 처리 가능
   const { data: insp } = await admin
     .from('inspections')
-    .select('assigned_employee_id, status, customer_id, inspection_end_date, inspection_type')
+    .select('assigned_employee_id, status, customer_id, inspection_end_date, inspection_type, plan_type')
     .eq('id', inspectionId)
     .single()
 
@@ -246,8 +246,10 @@ export async function completeStepAction(
   const allDone = (steps ?? []).every(s => (s as { status: string }).status === 'completed')
   // R0-7: 점검이 방금 완료로 전이됐는지 (이전 상태가 completed가 아니었을 때만)
   const justCompleted = allDone && (insp as { status: string }).status !== 'completed'
-  // 별지 9호 제출 대상 = 자체점검(작동·종합) — 일반관리는 외관점검표만이라 제외
-  const report9Eligible = (insp as { inspection_type: string }).inspection_type !== '일반관리'
+  // 별지 9호 제출 대상 = 자체점검(특별점검) — 일반관리·정기(monthly/event)는 외관점검표만이라 제외
+  // requestReport9Action·getReport9StatusAction의 isSpecial과 동일 기준으로 정합
+  const _insp = insp as { inspection_type: string; plan_type: string | null }
+  const report9Eligible = _insp.inspection_type !== '일반관리' && (!_insp.plan_type || _insp.plan_type.startsWith('special'))
   if (allDone) {
     await admin
       .from('inspections')

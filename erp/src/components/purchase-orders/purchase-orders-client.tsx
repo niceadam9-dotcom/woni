@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
-import { createPurchaseOrderAction, updatePOStatusAction, type POStatus } from '@/app/(dashboard)/purchase-orders/actions'
+import { createPurchaseOrderAction, updatePOStatusAction, receivePurchaseOrderAction, type POStatus } from '@/app/(dashboard)/purchase-orders/actions'
 import { DateInput } from '@/components/ui/date-input'
 
 const inputCls = 'w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition'
@@ -79,7 +79,11 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
 
   function handleStatusChange(id: string, status: string) {
     startTransition(async () => {
-      await updatePOStatusAction(id, status as POStatus)
+      // EX-S4: '입고완료' 선택 = 발주-입고 연동(미입고분 재고 가산 + 이중입고 방지). 그 외 상태는 단순 변경.
+      const res = status === 'received'
+        ? await receivePurchaseOrderAction(id)
+        : await updatePOStatusAction(id, status as POStatus)
+      if (res.error) { alert(res.error); return }   // 상태 select은 폼 밖이라 alert로 즉시 안내
       router.refresh()
     })
   }

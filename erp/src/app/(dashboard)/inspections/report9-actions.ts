@@ -27,10 +27,20 @@ export async function requestReport9Action(
   const admin = createAdminClient()
 
   const { data: insp } = await admin.from('inspections')
-    .select('id, customer_id, year, customer:customers(customer_name)')
+    .select('id, customer_id, year, inspection_type, plan_type, customer:customers(customer_name)')
     .eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
-  const i = insp as unknown as { id: string; customer_id: string; year: number; customer: { customer_name: string } | null }
+  const i = insp as unknown as { id: string; customer_id: string; year: number; inspection_type: string; plan_type: string | null; customer: { customer_name: string } | null }
+
+  // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(특별점검: 종합·작동)만, 일반·정기는 외관점검표만.
+  // page.tsx isSpecial과 동일 기준: 일반관리 아님 && (plan_type 미상 또는 special_*)
+  const isSpecial = i.inspection_type !== '일반관리' && (!i.plan_type || i.plan_type.startsWith('special'))
+  if (['report9', 'report10', 'report11'].includes(reportType) && !isSpecial) {
+    return { error: '일반·정기 점검은 별지 9·10·11호 대상이 아닙니다 — 외관점검표만 작성합니다.' }
+  }
+  if (reportType === 'exterior' && isSpecial) {
+    return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
+  }
 
   const { data: waiting } = await admin.from('fire_plan_gen_jobs')
     .select('id').eq('inspection_id', inspectionId).in('status', ['pending', 'processing']).limit(1)
@@ -57,19 +67,26 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   await requirePermission('inspection_register')
   const admin = createAdminClient()
 
-  const { data: insp } = await admin.from('inspections').select('customer_id').eq('id', inspectionId).single()
+  const { data: insp } = await admin.from('inspections')
+    .select('customer_id, inspection_type, plan_type').eq('id', inspectionId).single()
   if (!insp) return { job: null, files: [], error: '점검을 찾을 수 없습니다.' }
-  const customerId = (insp as { customer_id: string }).customer_id
+  const ins = insp as { customer_id: string; inspection_type: string; plan_type: string | null }
+  const customerId = ins.customer_id
+
+  // 유형 가드(데이터 계층) — 자체점검은 별지 9/10/11호만, 일반·정기는 외관점검표만 조회 (page.tsx isSpecial과 동일)
+  const isSpecial = ins.inspection_type !== '일반관리' && (!ins.plan_type || ins.plan_type.startsWith('special'))
+  const allowTypes = isSpecial ? ['report9', 'report10', 'report11'] : ['exterior']
+  const filePattern = isSpecial ? /^report(9|10|11)_/ : /^exterior_/
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')
-    .eq('inspection_id', inspectionId).in('report_type', ['report9', 'report10', 'report11', 'exterior'])
+    .eq('inspection_id', inspectionId).in('report_type', allowTypes)
     .order('created_at', { ascending: false }).limit(1)
 
   const prefix = `${customerId}/inspections/${inspectionId}`
   const { data: objects } = await admin.storage.from(BUCKET).list(prefix, { limit: 60, sortBy: { column: 'name', order: 'desc' } })
   const files: Report9File[] = (objects ?? [])
-    .filter(o => /^(report(9|10|11)|exterior)_/.test(o.name))
+    .filter(o => filePattern.test(o.name))
     .map(o => ({ name: o.name, path: `${prefix}/${o.name}`, createdAt: o.created_at ?? null }))
 
   return { job: (jobs?.[0] as Report9Job | undefined) ?? null, files }
