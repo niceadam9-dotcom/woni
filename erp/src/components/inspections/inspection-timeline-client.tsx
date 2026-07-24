@@ -66,6 +66,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
   const [isPending, startTransition] = useTransition()
   const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
   const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
+  const [dragOver, setDragOver] = useState<'cert' | 'contract' | null>(null)   // R0-6 드롭존 하이라이트
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
@@ -90,9 +91,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
     })
   }
 
-  function upload(slot: 'cert' | 'contract', e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function doUpload(slot: 'cert' | 'contract', file: File) {
     const fd = new FormData()
     fd.append('file', file)
     startTransition(async () => {
@@ -101,8 +100,24 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
       setMsg(`✅ ${slot === 'cert' ? '배치확인서' : '계약서'} 업로드됨`)
       router.refresh()
     })
+  }
+
+  function upload(slot: 'cert' | 'contract', e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) doUpload(slot, file)
     e.target.value = ''
   }
+
+  // R0-6: 업로드 슬롯 = 드롭존 (문서 현황 customer-docs와 동일 패턴)
+  const dropProps = (slot: 'cert' | 'contract') => canManage ? {
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOver(slot) },
+    onDragLeave: () => setDragOver(null),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault(); setDragOver(null)
+      const f = e.dataTransfer.files?.[0]
+      if (f) doUpload(slot, f)
+    },
+  } : {}
 
   function sendOwner() {
     setMsg('')
@@ -221,7 +236,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
 
       {/* ② 점검인력 배치확인서 — 업로드 직감 규칙(R10-c): ✅초록+파일명 / ⚠앰버+[업로드] */}
       {has('cert') && (
-        <div className={row}>
+        <div className={`${row} ${dragOver === 'cert' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('cert')}>
           {stepIcon(done2, done1)}
           <span className={label} title={TIMELINE_STEP_TOOLTIPS.cert}>{TIMELINE_STEP_LABELS.cert}</span>
           <span className={`text-xs ${done2 ? 'text-[#514b81]' : 'text-amber-600'}`}>
@@ -238,7 +253,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
             )}
             {canManage && (<>
               <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('cert', e)} />
-              <button onClick={() => certRef.current?.click()} disabled={isPending} className={btn}><Upload className="size-3" /> 업로드</button>
+              <button onClick={() => certRef.current?.click()} disabled={isPending} className={btn} title="클릭 또는 파일을 이 행에 끌어다 놓으세요"><Upload className="size-3" /> 업로드</button>
             </>)}
           </span>
         </div>
@@ -307,7 +322,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
 
       {/* ⑤ 보수·증빙 — 상시 표시(D-4): 불량 0건이면 해당없음 흐림. 완료 판정 = 불량 전건 조치 완료(R10-a) */}
       {has('repair') && (hasDefects ? (
-        <div className={row}>
+        <div className={`${row} ${dragOver === 'contract' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('contract')}>
           {stepIcon(done5, done4)}
           <span className={label} title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
           <span className={`text-xs ${done5 ? 'text-[#514b81]' : 'text-amber-600'}`}>
@@ -324,7 +339,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
             )}
             {canManage && (<>
               <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('contract', e)} />
-              <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn} title="수리 계약서 (선택 증빙)"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
+              <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn} title="수리 계약서 (선택 증빙) — 클릭 또는 파일을 이 행에 끌어다 놓으세요"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
             </>)}
           </span>
         </div>
