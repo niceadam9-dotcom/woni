@@ -740,9 +740,9 @@
       "id": "NF-PERF-1",
       "category": "비기능성능",
       "title": "대량 목록 응답 (3초 이내)",
-      "status": "partial",
-      "note": "배치2(원격 스테이징 측정): 고객 7.5s/점검 4.2s/모니터 3.6s — 기준 3s는 로컬 기준. /customers 목록 병목 의심, 프로덕션 빌드·로컬 재측정 필요.",
-      "tested_date": "2026-07-16"
+      "status": "passed",
+      "note": "2026-07-24 로컬 프로덕션 빌드 재측정(scripts/test-nfperf1-local.mts, median/3): 목록 표시 시각 고객=1368ms·점검=1184ms·모니터=1044ms 전부 3초 이내 PASS. 진단(scripts 일회성)으로 원인 규명: 배치2의 6~7s는 서버 렌더가 아니라 Next.js <Link> 배경 프리페치(행마다 링크 4~5개×50행=RSC 프리페치 200여 건)가 networkidle을 늦춘 것 — 서버/DOM 렌더는 0.8~1.3s. 쿼리는 N+1 아님(메인1+배치3 .in()). 사용자 체감 목록 표시는 기준 충족.",
+      "tested_date": "2026-07-24"
     },
     {
       "id": "NF-PERF-2",
@@ -771,8 +771,9 @@
       "id": "EX-V1",
       "category": "예외입력",
       "title": "회계 금액 경계 (음수·문자·10억 초과)",
-      "status": "partial",
-      "note": "음수 금액 전표(−10만/−10만)가 저장됨 — 금액 부호 검증 부재(개선 후보 IMP). 문자 입력은 number input이 차단, 차대 불일치 차단은 ACC-1에서 확인"
+      "status": "passed",
+      "note": "2026-07-24 수정·라이브검증: createVoucherAction 진입부에 음수 금액 가드 추가(lines.some(debit<0||credit<0)→거부) + 전액 0 전표 거부(totalDebit<=0). 클라 min={0}만으론 뚫렸던 batch2 지적(−10만/−10만 저장)을 서버에서 차단. 검증 scripts/test-ex-v1.mts 2/2 PASS(음수 입력→'음수 금액은 입력할 수 없습니다' 에러 노출 + DB voucher_lines 미저장). 문자=number input 차단, 차대불일치=ACC-1. 단일 쓰기 경로(updateVoucherAction 없음)라 가드로 완결",
+      "tested_date": "2026-07-24"
     },
     {
       "id": "EX-V2",

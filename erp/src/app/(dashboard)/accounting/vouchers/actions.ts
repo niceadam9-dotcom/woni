@@ -21,10 +21,18 @@ export async function createVoucherAction(input: {
   const profile = await getProfile()
   if (!profile) return { error: '인증이 필요합니다.' }
 
+  // EX-V1: 금액 부호 검증 — 음수 금액 차단 (−10만/−10만처럼 합계는 맞아도 부호가 음수면 거부)
+  if (input.lines.some(l => l.debit_amount < 0 || l.credit_amount < 0)) {
+    return { error: '금액은 0 이상이어야 합니다 — 음수 금액은 입력할 수 없습니다.' }
+  }
   const totalDebit  = input.lines.reduce((s, l) => s + l.debit_amount, 0)
   const totalCredit = input.lines.reduce((s, l) => s + l.credit_amount, 0)
   if (Math.round(totalDebit) !== Math.round(totalCredit)) {
     return { error: '차변 합계와 대변 합계가 일치하지 않습니다.' }
+  }
+  // 전액 0 전표 차단 (부호 검증 후 합계가 양수여야 유효 전표)
+  if (Math.round(totalDebit) <= 0) {
+    return { error: '전표 금액이 0보다 커야 합니다.' }
   }
 
   const admin = createAdminClient()
