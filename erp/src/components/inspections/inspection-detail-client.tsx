@@ -85,7 +85,7 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
       {/* 7단계 체크리스트 */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
         <div className="px-5 py-4 border-b border-[#e0ddf5] flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-[#090c1d]">6단계 업무 체크리스트</h2>
+          <h2 className="text-sm font-semibold text-[#090c1d]">{steps.length}단계 업무 체크리스트</h2>
           {/* R0-7: 완료 시 별지 9호 자동 생성 선호 토글 */}
           {canComplete && (
             <label className="inline-flex items-center gap-1.5 text-[11px] text-[#514b81] cursor-pointer select-none"

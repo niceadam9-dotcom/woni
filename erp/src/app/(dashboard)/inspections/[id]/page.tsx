@@ -1,6 +1,6 @@
 ﻿import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ClipboardList, User, Calendar, Building2, AlertCircle } from 'lucide-react'
+import { ChevronLeft, ClipboardList, User, Calendar, Building2, AlertCircle, FileText } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { InspectionDetailClient } from '@/components/inspections/inspection-detail-client'
@@ -423,12 +423,25 @@ export default async function InspectionDetailPage({
           canDelete={canDelete}
           today={today}
         />
-        <InspectionReportsClient
-          inspectionId={id}
-          reports={reports}
-          canEdit={canEdit}
-          canDelete={canDelete}
-        />
+        {isSpecial ? (
+          <InspectionReportsClient
+            inspectionId={id}
+            reports={reports}
+            canEdit={canEdit}
+            canDelete={canDelete}
+          />
+        ) : (
+          // 일반·정기 점검 = 외관점검표 2년 보관만 (소방서 보고 의무 없음) — 단계별 보고서 표면 비노출
+          <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#e0ddf5] flex items-center gap-2">
+              <FileText className="size-4 text-[#7b68ee]" />
+              <h2 className="text-sm font-semibold text-[#090c1d]">단계별 보고서</h2>
+            </div>
+            <p className="px-5 py-6 text-sm text-[#514b81]">
+              일반·정기 점검은 <span className="font-medium text-[#090c1d]">외관점검표 작성·2년 보관</span>만 대상입니다 — 소방서 보고 의무가 없어 단계별 보고서(별지 9~11호)가 없습니다.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 점검 참여자 (주된/보조) — 보고서 개요 */}

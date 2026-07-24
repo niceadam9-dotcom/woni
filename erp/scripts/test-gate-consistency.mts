@@ -51,6 +51,16 @@ try {
   await page.waitForTimeout(800)
   check('정기(monthly) → 별지 9호 생성 미노출(게이트)', !(await page.isVisible('text=별지 9호 생성')))
 
+  // "단계별 보고서" 카드 게이트 — 특별=6슬롯 표시 / 일반·정기=안내 대체(별지 9~11호 없음)
+  await page.goto(`${BASE}/inspections/${inspSpecial}`)
+  await page.waitForSelector('text=단계별 보고서')
+  check('특별점검 → 단계별 보고서 카드(슬롯) 표시', !(await page.isVisible('text=소방서 보고 의무가 없어')))
+  for (const [label, id] of [['일반관리', inspGeneral], ['정기(monthly)', inspMonthly]] as const) {
+    await page.goto(`${BASE}/inspections/${id}`)
+    await page.waitForSelector('text=단계별 보고서')
+    check(`${label} → 단계별 보고서 비노출(안내 대체)`, await page.isVisible('text=소방서 보고 의무가 없어'))
+  }
+
   // 데이터 게이트: 일반/정기 점검엔 report9 생성잡이 생기지 않는지(가드) — 직접 job 없음 확인
   for (const [label, id] of [['일반관리', inspGeneral], ['정기', inspMonthly]] as const) {
     const { data: jobs } = await raw.from('fire_plan_gen_jobs').select('id').eq('inspection_id', id).in('report_type', ['report9', 'report10', 'report11'])
