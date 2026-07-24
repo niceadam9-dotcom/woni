@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info } from 'lucide-react'
+import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info, ExternalLink } from 'lucide-react'
 import {
   requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
@@ -309,8 +310,14 @@ export function PlanTabView({
             누락: {readiness.missing.slice(0, 3).join(' · ')}{readiness.missing.length > 3 ? ` 외 ${readiness.missing.length - 3}` : ''}
           </span>
         )}
+        {/* R0-10: 상호 진입점 역링크 — 보고서 센터 문서 현황으로 */}
+        <Link href={`/reports?form=docs&cust=${customerId}`}
+          title="이 고객의 문서 생성·제출 현황을 보고서 센터에서 봅니다"
+          className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline shrink-0">
+          보고서 센터에서 보기 <ExternalLink className="size-3" />
+        </Link>
         {canManage && (
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex items-center gap-1.5">
             <input type="number" value={year} onChange={e => setYear(parseInt(e.target.value || '0', 10))}
               className="h-8 w-20 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
             <button onClick={generateHwp} disabled={isPending}

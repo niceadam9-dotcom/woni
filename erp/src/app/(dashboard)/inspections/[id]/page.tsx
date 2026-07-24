@@ -477,6 +477,7 @@ export default async function InspectionDetailPage({
           initialJob={report9Job}
           initialFiles={report9Files}
           customerName={customer?.customer_name}
+          customerId={inspection.customer_id}
         />
       )}
 

@@ -50,13 +50,14 @@ function saveBlob(base64: string, fileName: string) {
   URL.revokeObjectURL(url)
 }
 
-export function InspectionTimelineClient({ inspectionId, canManage, data, initialJob, initialFiles, customerName }: {
+export function InspectionTimelineClient({ inspectionId, canManage, data, initialJob, initialFiles, customerName, customerId }: {
   inspectionId: string
   canManage: boolean
   data: TimelineData
   initialJob: Report9Job | null
   initialFiles: Report9File[]
   customerName?: string
+  customerId?: string
 }) {
   const router = useRouter()
   const [job, setJob] = useState(initialJob)
@@ -184,8 +185,16 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         <span className="text-[11px] text-[#b0acd6]">
           {!isSpecialTimeline ? '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)' : '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시 진행'}
         </span>
+        {/* R0-10: 상호 진입점 역링크 — 보고서 센터 문서 현황으로 */}
+        {customerId && (
+          <NextLink href={`/reports?form=docs&cust=${customerId}`}
+            title="이 고객의 문서 생성·제출 현황을 보고서 센터에서 봅니다"
+            className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline shrink-0">
+            보고서 센터에서 보기 <ExternalLink className="size-3" />
+          </NextLink>
+        )}
         {isSpecialTimeline && (
-          <span className="ml-auto text-[11px] font-semibold text-[#7b68ee] shrink-0"
+          <span className={`${customerId ? '' : 'ml-auto'} text-[11px] font-semibold text-[#7b68ee] shrink-0`}
             title="해당없음 단계는 분모에서 제외">{doneCount}/{activeDones.length} 단계 완료</span>
         )}
       </div>

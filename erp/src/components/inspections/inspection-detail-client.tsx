@@ -1,10 +1,13 @@
 ﻿'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, AlertTriangle, Clock, Trash2, Loader2 } from 'lucide-react'
+import { Check, AlertTriangle, Clock, Trash2, Loader2, Sparkles, X } from 'lucide-react'
 import { completeStepAction, deleteInspectionAction } from '@/app/(dashboard)/inspections/actions'
+import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import type { InspectionStep, StepStatus } from '@/types'
+
+const AUTO_GEN9_KEY = 'sjfire:autoGenReport9'   // R0-7: 완료 시 별지 9호 자동 생성 선호(브라우저 저장)
 
 const STEP_STATUS_CONFIG: Record<StepStatus, { label: string; cls: string }> = {
   pending:   { label: '대기',   cls: 'bg-gray-100 text-gray-500' },
@@ -26,13 +29,43 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, startDeleteTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  // R0-7: 점검 완료 → 별지 9호 후속 제안 (배너) + 완료 시 자동 생성 선호
+  const [autoGen9, setAutoGen9] = useState(false)
+  const [suggest9, setSuggest9] = useState(false)
+  const [gen9Msg, setGen9Msg] = useState<string | null>(null)
+  const [gen9Busy, setGen9Busy] = useState(false)
+
+  useEffect(() => {
+    try { setAutoGen9(localStorage.getItem(AUTO_GEN9_KEY) === '1') } catch { /* SSR·차단 환경 무시 */ }
+  }, [])
+
+  function setAutoGen9Pref(on: boolean) {
+    setAutoGen9(on)
+    try { localStorage.setItem(AUTO_GEN9_KEY, on ? '1' : '0') } catch { /* 무시 */ }
+  }
+
+  async function fireReport9() {
+    setGen9Busy(true)
+    setGen9Msg(null)
+    const res = await requestReport9Action(inspectionId, 'report9')
+    setGen9Busy(false)
+    setSuggest9(false)
+    if (res.error) { setGen9Msg(`❌ ${res.error}`); return }
+    setGen9Msg('✅ 별지 9호 생성 요청됨 — 워커 처리 후 아래 타임라인·문서 현황에 등록됩니다')
+    router.refresh()
+  }
 
   async function handleComplete(stepId: string) {
     setCompleting(stepId)
     setError(null)
     const result = await completeStepAction(stepId, inspectionId)
     setCompleting(null)
-    if (result.error) setError(result.error)
+    if (result.error) { setError(result.error); return }
+    // R0-7: 점검이 방금 완료됐고 별지 9호 대상이면 — 자동 생성 켜짐이면 바로, 아니면 제안 배너
+    if (result.justCompleted && result.report9Eligible) {
+      if (autoGen9) void fireReport9()
+      else setSuggest9(true)
+    }
   }
 
   function handleDelete() {
@@ -51,8 +84,17 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
     <div className="space-y-4">
       {/* 7단계 체크리스트 */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#e0ddf5]">
+        <div className="px-5 py-4 border-b border-[#e0ddf5] flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-[#090c1d]">6단계 업무 체크리스트</h2>
+          {/* R0-7: 완료 시 별지 9호 자동 생성 선호 토글 */}
+          {canComplete && (
+            <label className="inline-flex items-center gap-1.5 text-[11px] text-[#514b81] cursor-pointer select-none"
+              title="점검 완료 시 별지 9호 생성을 자동으로 요청합니다 (이 브라우저에만 저장)">
+              <input type="checkbox" checked={autoGen9} onChange={e => setAutoGen9Pref(e.target.checked)}
+                className="size-3.5 accent-[#7b68ee]" />
+              완료 시 9호 자동 생성
+            </label>
+          )}
         </div>
         <div className="divide-y divide-[#e0ddf5]">
           {steps.map((step, idx) => {
@@ -144,6 +186,26 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
           })}
         </div>
       </div>
+
+      {/* R0-7: 점검 완료 후속 제안 — 별지 9호 바로 생성 */}
+      {suggest9 && (
+        <div className="bg-[#f5f4ff] border border-[#c3bdf5] rounded-lg px-4 py-3 flex items-center gap-3">
+          <Sparkles className="size-4 text-[#7b68ee] shrink-0" />
+          <p className="text-sm text-[#514b81] flex-1">점검이 완료됐습니다 — 별지 9호를 바로 생성할까요?</p>
+          <label className="inline-flex items-center gap-1 text-[11px] text-[#514b81] cursor-pointer select-none">
+            <input type="checkbox" checked={autoGen9} onChange={e => setAutoGen9Pref(e.target.checked)} className="size-3 accent-[#7b68ee]" />
+            다음부턴 자동
+          </label>
+          <button onClick={fireReport9} disabled={gen9Busy}
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50">
+            {gen9Busy ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />} 별지 9호 생성
+          </button>
+          <button onClick={() => setSuggest9(false)} className="text-[#b0acd6] hover:text-[#514b81]" title="닫기"><X className="size-4" /></button>
+        </div>
+      )}
+      {gen9Msg && (
+        <p className={`text-sm rounded-lg px-4 py-3 ${gen9Msg.startsWith('✅') ? 'text-green-700 bg-green-50 border border-green-100' : 'text-red-500 bg-red-50 border border-red-100'}`}>{gen9Msg}</p>
+      )}
 
       {error && (
         <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-4 py-3">{error}</p>

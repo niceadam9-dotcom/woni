@@ -167,7 +167,7 @@ export async function updateInspectionMultidayAction(
 export async function completeStepAction(
   stepId: string,
   inspectionId: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; justCompleted?: boolean; report9Eligible?: boolean }> {
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
   const admin = createAdminClient()
@@ -175,7 +175,7 @@ export async function completeStepAction(
   // 본인 담당 점검 또는 manager/admin만 처리 가능
   const { data: insp } = await admin
     .from('inspections')
-    .select('assigned_employee_id, status, customer_id, inspection_end_date')
+    .select('assigned_employee_id, status, customer_id, inspection_end_date, inspection_type')
     .eq('id', inspectionId)
     .single()
 
@@ -244,6 +244,10 @@ export async function completeStepAction(
     .eq('inspection_id', inspectionId)
 
   const allDone = (steps ?? []).every(s => (s as { status: string }).status === 'completed')
+  // R0-7: 점검이 방금 완료로 전이됐는지 (이전 상태가 completed가 아니었을 때만)
+  const justCompleted = allDone && (insp as { status: string }).status !== 'completed'
+  // 별지 9호 제출 대상 = 자체점검(작동·종합) — 일반관리는 외관점검표만이라 제외
+  const report9Eligible = (insp as { inspection_type: string }).inspection_type !== '일반관리'
   if (allDone) {
     await admin
       .from('inspections')
@@ -314,7 +318,7 @@ export async function completeStepAction(
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspection-plans/monitor')
   revalidatePath('/inspection-plans')
-  return {}
+  return { justCompleted, report9Eligible }
 }
 
 export async function deleteInspectionAction(
