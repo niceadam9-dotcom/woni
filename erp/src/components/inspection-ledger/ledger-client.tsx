@@ -90,6 +90,8 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
                   <td className="px-3 py-2 text-xs text-[#b0acd6]">{i + 1}</td>
                   <td className="px-3 py-2">
                     <Link href={`/customers/${r.id}`} className="font-medium text-[#090c1d] hover:text-[#7b68ee]">{r.name}</Link>
+                    {/* R15-c: 문서 현황 딥링크 */}
+                    <Link href={`/reports?form=docs&cust=${r.id}`} title="보고서 센터 · 문서 현황" className="block text-[10px] text-[#7b68ee] hover:underline mt-0.5">문서 현황 →</Link>
                   </td>
                   <td className="px-3 py-2"><span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_STYLE[r.type] ?? ''}`}>{r.type}</span></td>
                   <td className="px-3 py-2 text-xs text-[#292d34]">{mmdd(r.planDate)}</td>

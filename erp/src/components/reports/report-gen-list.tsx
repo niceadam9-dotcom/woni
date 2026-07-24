@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronRight, Sparkles, FolderOpen, Loader2, Clock3 } from 'lucide-react'
-import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
+import { ChevronRight, Sparkles, FolderOpen, Loader2, Clock3, Download } from 'lucide-react'
+import { requestReport9Action, getLatestAnnexUrlAction } from '@/app/(dashboard)/inspections/report9-actions'
 
 /** 보고서 센터 ②③ 바로 생성 목록 (소방계획서_5 R3·R4) —
  *  ② 별지 9호(mode=report9) / ③ 이행계획·완료 10·11호(mode=report1011, 불량 보유 건).
@@ -24,6 +24,8 @@ export type GenRow = {
   defectsTotal: number
   defectsDone: number
   due9Dday: number | null   // 별지 9호 제출 기한 D-day (미제출 시)
+  // R3-a: ④ 전제 준비 n/4 요약 (report9 모드) — 부족 항목·입력처 딥링크
+  prep?: { ready: number; total: number; missing: Array<{ label: string; href?: string; hrefLabel?: string }> }
 }
 
 const STATUS_FILTERS = [
@@ -39,6 +41,7 @@ export function ReportGenList({ mode, rows }: { mode: 'report9' | 'report1011'; 
   const [pending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null)
+  const [openPrep, setOpenPrep] = useState<string | null>(null)  // R3-a 준비 팝오버 열린 행
   // R3-c: fail-soft 확인은 세션당 1회
   const [confirmedFailSoft, setConfirmedFailSoft] = useState(false)
 
@@ -60,6 +63,20 @@ export function ReportGenList({ mode, rows }: { mode: 'report9' | 'report1011'; 
       setBusyId(null)
       if (res.error) { setMsg({ id: row.id, text: `❌ ${res.error}`, ok: false }); return }
       setMsg({ id: row.id, text: '✅ 생성 요청됨 — 워커 처리 후 문서 현황·타임라인에 등록됩니다', ok: true })
+    })
+  }
+
+  // R4-c: 기생성 건 인라인 [받기] — 최신 스탬프 PDF(없으면 HWP)를 새 탭으로 (문서 현황 우회)
+  const DOC_BASE: Record<'report9' | 'report10' | 'report11', string> = {
+    report9: '실시결과 보고서', report10: '이행계획서', report11: '이행완료 보고서',
+  }
+  function receive(row: GenRow, kind: 'report9' | 'report10' | 'report11') {
+    setBusyId(row.id + 'get' + kind)
+    startTransition(async () => {
+      const res = await getLatestAnnexUrlAction(row.id, kind, `${row.customerName}_${DOC_BASE[kind]}`)
+      setBusyId(null)
+      if (res.error || !res.url) { setMsg({ id: row.id, text: `❌ ${res.error ?? '받기 실패'}`, ok: false }); return }
+      window.open(res.url, '_blank', 'noopener')
     })
   }
 
@@ -92,6 +109,34 @@ export function ReportGenList({ mode, rows }: { mode: 'report9' | 'report1011'; 
               <span className="text-[#514b81]">{r.year}년 {r.sequenceNum}차 · {r.inspectionType}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] ${r.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{statusLabel(r.status)}</span>
 
+              {/* R3-a: 준비 n/4 칩 — 클릭 시 부족 항목·입력처 딥링크 팝오버 */}
+              {mode === 'report9' && r.prep && (
+                <span className="relative">
+                  <button onClick={() => setOpenPrep(o => (o === r.id ? null : r.id))}
+                    title="별지 9호 준비 상태 (공통정보·인력·점검표·송달 동의)"
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] border ${r.prep.ready >= r.prep.total ? 'border-green-300 bg-green-50 text-green-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}>
+                    준비 {r.prep.ready}/{r.prep.total}
+                  </button>
+                  {openPrep === r.id && (
+                    <div className="absolute left-0 top-6 z-10 w-60 rounded-lg border border-[#d0ccf5] bg-white shadow-lg p-2.5 text-left">
+                      <p className="text-[10px] font-semibold text-[#514b81] mb-1.5">별지 9호 준비 {r.prep.ready}/{r.prep.total} — ④ 전제</p>
+                      {r.prep.missing.length === 0 ? (
+                        <p className="text-[11px] text-green-600">4종 전부 준비됨 — 바로 생성 가능</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {r.prep.missing.map((m, i) => (
+                            <li key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="text-amber-700">⚠ {m.label}</span>
+                              {m.href && <Link href={m.href} className="text-[#7b68ee] hover:underline shrink-0">{m.hrefLabel ?? '입력 →'}</Link>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </span>
+              )}
+
               {mode === 'report1011' && (
                 <span className="text-amber-600">불량 {r.defectsTotal}건 → 이행계획서(10호) 제출 대상 · 조치 {r.defectsDone}/{r.defectsTotal}</span>
               )}
@@ -105,17 +150,37 @@ export function ReportGenList({ mode, rows }: { mode: 'report9' | 'report1011'; 
               <span className="ml-auto flex items-center gap-1.5 shrink-0">
                 {mode === 'report9' ? (<>
                   {r.gen9 > 0 && <span className="text-[10px] text-[#7b68ee]">생성 {r.gen9}회</span>}
+                  {/* R4-c: 기생성 시 [받기] 우선(purple) · [다시 생성] 보조 */}
+                  {r.gen9 > 0 && (
+                    <button onClick={() => receive(r, 'report9')} disabled={pending}
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                      {busyId === r.id + 'getreport9' ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 받기
+                    </button>
+                  )}
                   <button onClick={() => generate(r, 'report9')} disabled={pending}
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                    className={`inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium disabled:opacity-50 ${r.gen9 > 0 ? 'border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]' : 'bg-[#7b68ee] hover:bg-[#6647f0] text-white'}`}>
                     {busyId === r.id + 'report9' ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
                     {r.gen9 > 0 ? '다시 생성' : '바로 생성'}
                   </button>
                 </>) : (<>
+                  {/* R4-c: 10·11호 기생성 시 [받기] */}
+                  {r.gen10 > 0 && (
+                    <button onClick={() => receive(r, 'report10')} disabled={pending} title="10호 받기"
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                      {busyId === r.id + 'getreport10' ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 10호
+                    </button>
+                  )}
                   <button onClick={() => generate(r, 'report10')} disabled={pending}
                     className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
                     {busyId === r.id + 'report10' ? <Loader2 className="size-3 animate-spin" /> : null}
                     {r.gen10 > 0 ? '10호 다시' : '10호 생성'}
                   </button>
+                  {r.gen11 > 0 && (
+                    <button onClick={() => receive(r, 'report11')} disabled={pending} title="11호 받기"
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                      {busyId === r.id + 'getreport11' ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 11호
+                    </button>
+                  )}
                   <button onClick={() => generate(r, 'report11')} disabled={pending}
                     title={r.defectsDone < r.defectsTotal ? `조치 완료 ${r.defectsDone}/${r.defectsTotal} — 완료 후 생성 권장` : undefined}
                     className={`inline-flex items-center gap-1 h-6 px-2 rounded border text-[11px] disabled:opacity-50 ${r.defectsDone < r.defectsTotal ? 'border-[#eceafd] text-[#b0acd6]' : 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>

@@ -75,6 +75,42 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   return { job: (jobs?.[0] as Report9Job | undefined) ?? null, files }
 }
 
+/** R4-c: 최신 생성물 바로 받기 — 종류별 최신 스탬프의 PDF(없으면 HWP) 서명 URL.
+ *  보고서 센터 ②③ 목록의 인라인 [받기]용(문서 현황 우회, 중복 생성 대신 기생성분 우선). */
+export async function getLatestAnnexUrlAction(
+  inspectionId: string, kind: 'report9' | 'report10' | 'report11', saveBase?: string,
+): Promise<{ url?: string; error?: string }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { data: insp } = await admin.from('inspections').select('customer_id').eq('id', inspectionId).single()
+  if (!insp) return { error: '점검을 찾을 수 없습니다.' }
+  const customerId = (insp as { customer_id: string }).customer_id
+  const prefix = `${customerId}/inspections/${inspectionId}`
+  const { data: objects } = await admin.storage.from(BUCKET)
+    .list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } })
+  const re = new RegExp(`^${kind}_(\\d+)\\.(hwpx?|pdf|html?)$`, 'i')
+  const byStamp: Record<string, { pdf?: string; hwp?: string }> = {}
+  let bestStamp = ''
+  for (const o of objects ?? []) {
+    const m = o.name.match(re)
+    if (!m) continue
+    const stamp = m[1]; const ext = m[2].toLowerCase()
+    const slot = byStamp[stamp] ??= {}
+    if (ext.startsWith('pdf')) slot.pdf = o.name
+    else if (ext.startsWith('hwp')) slot.hwp = o.name
+    if (stamp > bestStamp) bestStamp = stamp
+  }
+  if (!bestStamp) return { error: '생성된 문서가 없습니다 — 먼저 생성해주세요.' }
+  const name = byStamp[bestStamp].pdf ?? byStamp[bestStamp].hwp
+  if (!name) return { error: '내려받을 파일을 찾지 못했습니다.' }
+  const ext = name.split('.').pop()!
+  const saveName = saveBase ? `${saveBase.replace(/[\\/:*?"<>|]/g, '_')}_${(bestStamp || '').slice(0, 8)}.${ext}` : undefined
+  const { data, error } = await admin.storage.from(BUCKET)
+    .createSignedUrl(`${prefix}/${name}`, 300, saveName ? { download: saveName } : undefined)
+  if (error || !data) return { error: '다운로드 URL 생성 실패' }
+  return { url: data.signedUrl }
+}
+
 /** 생성물 다운로드 — 5분 서명 URL (경로는 해당 점검 폴더로 한정)
  *  saveName 지정 시 저장명 = 고객명_문서명_YYYY-MM-DD.확장자 (R11-d, content-disposition) */
 export async function downloadReport9Action(inspectionId: string, path: string, saveName?: string): Promise<{ url?: string; error?: string }> {

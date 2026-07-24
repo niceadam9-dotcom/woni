@@ -1,7 +1,8 @@
 ﻿'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
-import { MessageSquare, ChevronLeft, ChevronRight, X, Check, Search, MapPin, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
+import { MessageSquare, ChevronLeft, ChevronRight, X, Check, Search, MapPin, ExternalLink, FolderOpen } from 'lucide-react'
 import { upsertStatusLogAction, saveSmsAction, getMonitorItemsAction } from '@/app/(dashboard)/inspection-plans/monitor/actions'
 import { TableScroll } from '@/components/ui/table-scroll'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
@@ -27,6 +28,7 @@ type ContactInfo = { role: string; name: string; phone: string | null }
 
 type MonitorRow = {
   id: string
+  customer_id: string
   inspection_type: string
   sequence_num: number
   scheduled_date: string | null
@@ -655,6 +657,14 @@ export function MonitorClient({
                           <MapPin size={10} /> 지도
                         </button>
                       )}
+                      {/* R15-c: 문서 현황 딥링크 */}
+                      <Link
+                        href={`/reports?form=docs&cust=${row.customer_id}`}
+                        className="inline-flex items-center gap-0.5 text-[10px] text-[#7b68ee] hover:underline"
+                        title="보고서 센터 · 문서 현황"
+                      >
+                        <FolderOpen size={10} /> 문서
+                      </Link>
                     </div>
                   </td>
                   <td className="border px-2 py-1.5 text-center">{row.profiles?.name ?? '-'}</td>

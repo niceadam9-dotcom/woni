@@ -73,7 +73,7 @@ export default async function ReportsPage({ searchParams }: {
   if (form === 'report9' || form === 'report10') {
     const admin = createAdminClient()
     let query = admin.from('inspections')
-      .select('id, customer_id, year, sequence_num, inspection_type, status, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
+      .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
       .neq('inspection_type', '일반관리')
       .or('plan_type.is.null,plan_type.like.special_*')
       .order('status', { ascending: true })  // completed 우선 근사 — 클라이언트 필터/정렬 병행
@@ -86,6 +86,7 @@ export default async function ReportsPage({ searchParams }: {
     const { data: inspRaw } = await query
     const rows = (inspRaw ?? []) as unknown as Array<{
       id: string; customer_id: string; year: number; sequence_num: number; inspection_type: string; status: string
+      assigned_employee_id: string | null
       inspection_start_date: string | null; inspection_end_date: string | null; report9_submitted_at: string | null
       customer: { customer_name: string } | null
     }>
@@ -108,6 +109,33 @@ export default async function ReportsPage({ searchParams }: {
         c.total += 1; if (d.action_completed_at) c.done += 1
       }
     }
+    // R3-a: 별지 9호 준비 n/4 (report9 모드만) — ① 공통정보 ② 인력 ③ 점검표 ④ 송달 동의
+    const prepMap: Record<string, GenRow['prep']> = {}
+    if (form === 'report9' && ids.length > 0) {
+      const custIds = [...new Set(rows.map(r => r.customer_id))]
+      const [custRes, bldRes, respRes] = await Promise.all([
+        admin.from('customers').select('id, address, manager_selected_at, email_delivery_consent').in('id', custIds),
+        admin.from('buildings').select('customer_id, purpose').eq('is_active', true).in('customer_id', custIds),
+        admin.from('inspection_sheet_responses').select('inspection_id').in('inspection_id', ids),
+      ])
+      const cMap = new Map(((custRes.data ?? []) as Array<{ id: string; address: string | null; manager_selected_at: string | null; email_delivery_consent: boolean | null }>).map(c => [c.id, c]))
+      const purposeSet = new Set(((bldRes.data ?? []) as Array<{ customer_id: string; purpose: string | null }>).filter(b => b.purpose).map(b => b.customer_id))
+      const respSet = new Set(((respRes.data ?? []) as Array<{ inspection_id: string }>).map(x => x.inspection_id))
+      for (const r of rows) {
+        const c = cMap.get(r.customer_id)
+        const checks = [
+          { label: '① 대상물 공통정보', ok: !!c?.address && purposeSet.has(r.customer_id) && !!c?.manager_selected_at, href: `/customers/${r.customer_id}?tab=plan`, hrefLabel: '고객 탭 →' },
+          { label: '② 점검 인력', ok: !!r.assigned_employee_id, href: `/inspections/${r.id}`, hrefLabel: '점검 상세 →' },
+          { label: '③ 점검표 응답', ok: respSet.has(r.id), href: `/inspections/${r.id}`, hrefLabel: '점검표 →' },
+          { label: '④ 송달 동의', ok: c?.email_delivery_consent !== null && c?.email_delivery_consent !== undefined, href: `/customers/${r.customer_id}?tab=plan`, hrefLabel: '고객 탭 →' },
+        ]
+        prepMap[r.id] = {
+          ready: checks.filter(x => x.ok).length, total: checks.length,
+          missing: checks.filter(x => !x.ok).map(({ label, href, hrefLabel }) => ({ label, href, hrefLabel })),
+        }
+      }
+    }
+
     const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
     const dueDday = (end: string | null, submitted: string | null): number | null => {
       if (!end || submitted) return null
@@ -124,6 +152,7 @@ export default async function ReportsPage({ searchParams }: {
         gen9: g.report9, gen10: g.report10, gen11: g.report11,
         defectsTotal: d.total, defectsDone: d.done,
         due9Dday: dueDday(r.inspection_end_date, r.report9_submitted_at),
+        prep: prepMap[r.id],
       } satisfies GenRow
     })
     // 최근 완료 우선 (R3-d): 완료 → 그 외, 내부는 최신 시작일

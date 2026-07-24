@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useTransition, type ChangeEvent } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, AlertTriangle, Circle, Clock3 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle2, AlertTriangle, Circle, Clock3, UploadCloud, Loader2 } from 'lucide-react'
 import type { SubmissionRow, SubmissionSummary } from '@/app/(dashboard)/reports/docs-actions'
+import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 
 /** §7-A 제출 현황판 (소방계획서_5 R14-a·R14-b) — 타임라인 필드 단일 소스, 수기 입력 없음.
  *  숫자 요약 스트립(숫자=필터 버튼) + 위험순 표. 앰버·빨강만 훑으면 감시 끝(모니터링 2층). */
@@ -16,6 +18,41 @@ function Mark({ ok, na, warn, label }: { ok?: boolean; na?: boolean; warn?: bool
   if (na) return <span className="inline-flex items-center gap-1 text-[#b0acd6]"><Circle className="size-3" /> {label}</span>
   if (ok) return <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="size-3" /> {label}</span>
   return <span className={`inline-flex items-center gap-1 ${warn ? 'text-amber-600' : 'text-[#b0acd6]'}`}><AlertTriangle className="size-3" /> {label}</span>
+}
+
+/** R10-c: 배치확인서 누락 셀 — ✅보유 / ⚠누락+[업로드] 그 자리 실행 (판정=hasCertFile 공유, 업로드=타임라인 액션 재사용) */
+function CertCell({ inspectionId, uploaded, warn }: { inspectionId: string; uploaded: boolean; warn: boolean }) {
+  const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [pending, start] = useTransition()
+  const [err, setErr] = useState<string | null>(null)
+  function onPick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setErr(null)
+    start(async () => {
+      const fd = new FormData(); fd.set('file', file)
+      const res = await uploadTimelineFileAction(inspectionId, 'cert', fd)
+      if (res.error) { setErr(res.error); return }
+      router.refresh()
+    })
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <Mark ok={uploaded} warn={warn} label={uploaded ? '보유' : '누락'} />
+      {!uploaded && (
+        <>
+          <button onClick={() => inputRef.current?.click()} disabled={pending} title="배치확인서 업로드"
+            className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded border border-amber-300 text-[10px] text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+            {pending ? <Loader2 className="size-2.5 animate-spin" /> : <UploadCloud className="size-2.5" />} 업로드
+          </button>
+          <input ref={inputRef} type="file" accept="application/pdf,image/*" hidden onChange={onPick} />
+        </>
+      )}
+      {err && <span className="text-[10px] text-red-600">{err}</span>}
+    </div>
+  )
 }
 
 export function SubmissionBoard({ rows, summary }: { rows: SubmissionRow[]; summary: SubmissionSummary }) {
@@ -98,7 +135,7 @@ export function SubmissionBoard({ rows, summary }: { rows: SubmissionRow[]; summ
                             <Clock3 className="size-3" /> {r.due9Dday === null ? '기한 미정' : overdue ? `초과 ${-r.due9Dday!}일` : `D-${r.due9Dday}`}
                           </span>}
                     </td>
-                    <td className={cell}><Mark ok={r.certUploaded} warn={r.status === 'completed' && !r.certUploaded} label={r.certUploaded ? '보유' : '누락'} /></td>
+                    <td className={cell}><CertCell inspectionId={r.inspectionId} uploaded={r.certUploaded} warn={r.status === 'completed' && !r.certUploaded} /></td>
                     <td className={cell}>{r.defectsTotal === 0 ? <Mark na label="해당없음" /> : <Mark ok={r.report10Gen} warn={!r.report10Gen} label={r.report10Gen ? '생성' : '미생성'} />}</td>
                     <td className={cell}>{r.defectsTotal === 0 ? <Mark na label="해당없음" /> : <Mark ok={!!r.report11SubmittedAt || r.report11Gen} warn={!r.report11Gen} label={r.report11SubmittedAt ? '제출' : r.report11Gen ? '생성' : '미생성'} />}</td>
                   </tr>
