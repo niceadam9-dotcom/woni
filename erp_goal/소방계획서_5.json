@@ -4,7 +4,7 @@
   "source": "erp_goal/소방계획서_5.md",
   "generated": "2026-07-26",
   "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
-  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). S4 구현 완료(f129da4, code_present) — 제출 현황판(타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 월별 대장 탭. S5 구현 완료(9918dc3, code_present) — P-3 생성 품질 게이트·P-1 연차 일괄 발행·P-2 주간 브리핑. **S1~S5 전 세션 구현 완료** → 2026-07-24 독립 검증(구현자≠판정자, next build PASS·파일:라인 대조) 통과·implemented 승격, 마이그레이션 109(구 107, 번호충돌 해소) 스테이징·운영 DB 적용, staging→main 병합·운영(VPS) 무중단 배포, 워커 재배포(verify_merge P-3 반영) 완료. 잔여는 후순위/보류 항목만: R3-a(pending)·R4-c·R10-c·R15-c(partial)·R14-f·P-4·P-5(deferred).",
+  "note": "2026-07-26 사용자 '진행' 지시로 착수(개발완료 시 상태 갱신·중간 질문 없이 완료까지 진행 지시). 결정 완료(D-6 (a)안·D-8 토스트만·D-9 90일·D-10 P-1~3 채택), 구 테이블 0건 확인으로 이관 불필요(R14-e). 세션 S1~S5 순 진행, 세션마다 tsc·E2E·스테이징/운영 배포 후 상태 갱신. 기본값 메모: Ctrl+K v1 범위=문서·고객 행동 중심, 단골 불량 칩=전사 통계. S1 구현 완료(d412ab9, code_present). S2 구현 완료(59ac477, code_present) — 보고서 센터 첫 화면·문서 현황·행동 자동완성·Ctrl+K·최근 문서·누락 경고·대시보드 위젯. 부수로 타임라인 D-day 기산일 KST 통일. S3 구현 완료(067f1b5, code_present) — ②③ 바로 생성·⑤ 사진 갤러리·⑥ 배치신고 도우미·⑫ 불량 입력 편의(R3-a 준비 팝오버만 후순위). S4 구현 완료(f129da4, code_present) — 제출 현황판(타임라인 단일 소스)·구 3화면 리다이렉트·사이드바 16→12·정산현황 월별 대장 탭. S5 구현 완료(9918dc3, code_present) — P-3 생성 품질 게이트·P-1 연차 일괄 발행·P-2 주간 브리핑. **S1~S5 전 세션 구현 완료** → 2026-07-24 독립 검증(구현자≠판정자, next build PASS·파일:라인 대조) 통과·implemented 승격, 마이그레이션 109(구 107, 번호충돌 해소) 스테이징·운영 DB 적용, staging→main 병합·운영(VPS) 무중단 배포, 워커 재배포(verify_merge P-3 반영) 완료. 2026-07-24 2차: 후순위 4건(R3-a 준비 n/4 칩·R4-c 인라인 받기·R10-c 현황판 인라인 업로드·R15-c 대장·모니터링 문서 딥링크) 구현·독립 검증 PASS(커밋 fee8ac2)·운영 배포 완료 → implemented 승격. 잔여는 D-10 보류 3건뿐: R14-f/P-5(엑셀 내보내기)·P-4(내 담당만 필터) — 요청 시만.",
   "status_legend": {
     "confirmed": "확정 (설계 결정·검토 완료 사실)",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
@@ -70,20 +70,20 @@
       ]
     },
     {
-      "id": "R3", "title": "② 별지 9호 카드 원스톱 (바로 생성)", "status": "partial",
+      "id": "R3", "title": "② 별지 9호 카드 원스톱 (바로 생성)", "status": "implemented",
       "criteria": [
-        { "id": "R3-a", "desc": "목록 행 '준비 n/4' 칩(④ 전제 축약) — 클릭 시 부족 항목+입력처 딥링크 팝오버", "status": "pending_order", "note": "미구현 — 준비 4종(공통정보·인력·점검표·송달 동의) 판정은 점검 상세 준비 화면(§9-6⑦ prereqs)에 집약. 목록 행 [문서]·[타임라인] 딥링크로 대체, 정식 팝오버는 후순위" },
+        { "id": "R3-a", "desc": "목록 행 '준비 n/4' 칩(④ 전제 축약) — 클릭 시 부족 항목+입력처 딥링크 팝오버", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "fee8ac2", "evidence": "reports/page.tsx:112-135(prepMap 4체크) · report-gen-list.tsx:44,113-136(칩·팝오버·딥링크)", "method": "독립 검증 에이전트(구현자≠판정자) 파일:라인 + E2E test-report-s5b + next build PASS" }, "note": "2026-07-24 구현 — reports/page.tsx 배치 판정(prepMap: 공통정보·인력·점검표·송달 동의 n/4) + report-gen-list 준비 칩·부족 항목 입력처 딥링크 팝오버. E2E 준비 칩·팝오버·점검표 부족 검증" },
         { "id": "R3-b", "desc": "[바로 생성] 인라인 + 생성 후 같은 행 아래 [HWP][PDF] + '발송·제출은 타임라인에서 →' 안내", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — report-gen-list [바로 생성](requestReport9Action), 생성 후 행 아래 '발송·제출 기록은 타임라인에서 →' 안내. HWP/PDF 받기는 문서 현황(R2) 연결(단일 큐·보관함 공유). E2E 검증" },
         { "id": "R3-c", "desc": "미비 생성 시 fail-soft 확인 1회(세션당) — '송달 동의 없음, 빈 칸으로 생성할까요?'", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — 미완료 건 생성 시 confirmedFailSoft 세션 플래그로 1회만 확인" },
         { "id": "R3-d", "desc": "상태 필터 칩 [전체|완료|진행중] + 기본 정렬 최근 완료 우선", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — STATUS_FILTERS 칩 + 최근 완료 우선 정렬. E2E 완료 칩 검증" }
       ]
     },
     {
-      "id": "R4", "title": "③ 별지 10·11호 카드 활성화", "status": "code_present",
+      "id": "R4", "title": "③ 별지 10·11호 카드 활성화", "status": "implemented",
       "criteria": [
         { "id": "R4-a", "desc": "불량 보유 자체점검 건 목록 — '불량 n건 → 이행계획서(10호) 제출 대상' 이유 문구 + D-day 뱃지", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — report10 카드 활성화, defectsTotal>0 필터, '불량 n건 → 이행계획서(10호) 제출 대상' 이유 + 조치 n/n + 9호 기한 D-day. E2E 검증" },
         { "id": "R4-b", "desc": "[10호 생성]/[11호 생성] 인라인 — 11호는 조치 미완료 시 흐림+툴팁(fail-soft 확인 후 진행 가능)", "status": "code_present", "note": "2026-07-26 커밋 067f1b5 — 10·11호 인라인 생성, 11호는 조치 미완료 시 흐림+툴팁, fail-soft 세션 1회 확인. E2E 검증" },
-        { "id": "R4-c", "desc": "기생성 건 [받기] 우선·[다시 생성] 보조 — 중복 생성 방지", "status": "partial", "note": "2026-07-26 커밋 067f1b5 — 생성 이력 n회 표시 + '다시' 보조 라벨. [받기]는 문서 현황(R2) 연결(파일 경로 해소는 R2가 담당) — 인라인 [받기] 직결은 후순위" }
+        { "id": "R4-c", "desc": "기생성 건 [받기] 우선·[다시 생성] 보조 — 중복 생성 방지", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "fee8ac2", "evidence": "report9-actions.ts:80-112(getLatestAnnexUrlAction 폴더 경로가드·pdf우선) · report-gen-list.tsx:76,154,167,178(받기 버튼 gen>0)", "method": "독립 검증 에이전트(구현자≠판정자) 파일:라인 + next build PASS" }, "note": "2026-07-24 인라인 [받기] 직결 구현 — getLatestAnnexUrlAction(최신 스탬프 PDF 없으면 HWP 서명 URL), 기생성 시 [받기] 우선(purple)·[다시 생성] 보조, 10·11호 각 [받기]. 중복 생성 대신 기생성분 우선" }
       ]
     },
     {
@@ -124,11 +124,11 @@
       ]
     },
     {
-      "id": "R10", "title": "⑨ 필수/선택 뱃지 + 진행률 + 업로드 직감 규칙", "status": "partial",
+      "id": "R10", "title": "⑨ 필수/선택 뱃지 + 진행률 + 업로드 직감 규칙", "status": "implemented",
       "criteria": [
         { "id": "R10-a", "desc": "⑤ 계약서·사진 '(선택)' 표기+툴팁, ② '자체점검 대행 시 필수' 문구, ⑤ 완료 판정=불량 전건 조치 완료", "status": "code_present", "note": "2026-07-26 커밋 d412ab9 — inspection-timeline-client done5=조치 완료 전건, E2E '(사진·계약서는 선택)' 표기 확인" },
         { "id": "R10-b", "desc": "타임라인 헤더 진행률 'n/6 단계 완료' + 프로그레스 바(해당없음 분모 제외)", "status": "code_present", "note": "2026-07-26 커밋 d412ab9 — E2E 0/4→2/6 분모 전환 검증" },
-        { "id": "R10-c", "desc": "업로드 단계 직감 규칙 — ✅초록+파일명 / ⚠앰버+[업로드], 문서 현황·현황판·진행률 동일 판정", "status": "partial", "note": "2026-07-26 타임라인·진행률(d412ab9) + 문서 현황(S2 R2, 59ac477)에 ✅초록/⚠앰버 직감 규칙 반영. 제출 현황판(S4 R14) 신설 시 동일 판정 함수(lib/doc-status hasCertFile) 적용 남음" }
+        { "id": "R10-c", "desc": "업로드 단계 직감 규칙 — ✅초록+파일명 / ⚠앰버+[업로드], 문서 현황·현황판·진행률 동일 판정", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "fee8ac2", "evidence": "submission-board.tsx:24-56(CertCell ✅보유/⚠누락+[업로드]) · docs-actions.ts:382,389(hasCertFile 공유) · lib/doc-status.ts:46", "method": "독립 검증 에이전트(구현자≠판정자) 파일:라인 + E2E test-report-s5b + next build PASS" }, "note": "2026-07-24 제출 현황판 배치확인서 누락 셀에 ⚠앰버+[업로드] 인라인 실행(uploadTimelineFileAction 재사용, router.refresh). 판정=lib/doc-status hasCertFile 단일 함수(문서 현황·현황판·크론 공유). 타임라인·진행률·문서 현황은 기반영(d412ab9·59ac477)" }
       ]
     },
     {
@@ -172,11 +172,11 @@
       ]
     },
     {
-      "id": "R15", "title": "§7-B 메뉴 정리 — 16개 → 12개", "status": "code_present",
+      "id": "R15", "title": "§7-B 메뉴 정리 — 16개 → 12개", "status": "implemented",
       "criteria": [
         { "id": "R15-a", "desc": "사이드바 정리 — 문서 메뉴는 '보고서' 하나로 수렴(구 3메뉴 제거), 흐름순 구획(일정·수행/대장/보고서/정산/마스터)", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — sidebar.tsx fire 그룹에서 보고서 제출현황·이행계획서 등록·이행계획 제출현황·안전관리 대장 4개 제거(16→12)" },
         { "id": "R15-b", "desc": "'안전관리 대장'(실체=월별 수금 현황판) → 정산현황 [월별 대장] 탭으로 흡수 + 리다이렉트", "status": "code_present", "note": "2026-07-26 커밋 f129da4 — billing-tabs.tsx([청구·수금 현황 | 월별 대장])를 두 페이지 상단에 병치, /billing/annual은 월별 대장 탭으로 보존(북마크 안전). E2E 탭 병치 검증" },
-        { "id": "R15-c", "desc": "점검현황 모니터링·점검대장 소폭 수정 — 용어(⑪)·색 규약·점검 상세/문서 현황 딥링크", "status": "partial", "note": "2026-07-26 커밋 f129da4 — 대시보드 소방업무 위젯 링크를 제출 현황판으로 재지정. 점검현황 모니터링·점검대장 행의 문서 현황 딥링크는 후순위" }
+        { "id": "R15-c", "desc": "점검현황 모니터링·점검대장 소폭 수정 — 용어(⑪)·색 규약·점검 상세/문서 현황 딥링크", "status": "implemented", "verified": { "date": "2026-07-24", "commit": "fee8ac2", "evidence": "ledger-client.tsx:94(문서 현황 딥링크) · monitor-client.tsx:31(customer_id 타입),661-662(문서 링크)", "method": "독립 검증 에이전트(구현자≠판정자) 파일:라인 + E2E test-report-s5b(대장) + next build PASS" }, "note": "2026-07-24 점검대장·점검현황 모니터링 행에 '문서 현황 →'(/reports?form=docs&cust=) 딥링크 추가. 대시보드 위젯 재지정은 기반영(f129da4)" }
       ]
     },
     {
