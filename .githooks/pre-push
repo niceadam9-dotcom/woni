@@ -1,13 +1,21 @@
 #!/bin/sh
 # 회귀 게이트(pre-push) — 빌드 실패면 push 차단, 데이터 불변식은 경고.
 # 활성화: git config core.hooksPath .githooks   (저장소당 1회)
-# 긴급 우회는 지양. 전체 테스트는 배포 전 `npm run test:all`.
+# 전체 테스트는 배포 전 `npm run test:all`.
+
+# Windows(MinGit/MSYS)에서는 npm이 bash 런처라 직접 실행이 안 됨 → cmd 경유. 그 외 OS는 sh로.
+run() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) cmd //c "$1" ;;
+    *) sh -c "$1" ;;
+  esac
+}
 
 echo "[pre-push] 빌드(타입체크) 검사…"
-( cd erp && npm run build ) || { echo "❌ [pre-push] 빌드 실패 — push 중단"; exit 1; }
+run "cd erp && npm run build" || { echo "❌ [pre-push] 빌드 실패 — push 중단"; exit 1; }
 
 echo "[pre-push] 데이터 불변식 검사(경고, 비차단)…"
-( cd erp && node scripts/check-data-invariants.mjs ) || echo "⚠ [pre-push] 불변식 위반 감지 — 배포 전 확인 권장(push는 허용)"
+run "cd erp && node scripts/check-data-invariants.mjs" || echo "⚠ [pre-push] 불변식 위반 감지 — 배포 전 확인 권장(push는 허용)"
 
 echo "✅ [pre-push] 게이트 통과"
 exit 0
