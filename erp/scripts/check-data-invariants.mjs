@@ -1,5 +1,6 @@
 // 데이터 계층 불변식 검사 (Tier 1) — UI가 가려도 데이터/액션 계층에 규칙이 없어 새는 버그류를 상시 고정.
-// 실행: node scripts/check-data-invariants.mjs   (위반 시 exit 1). 읽기 전용 — .env.local의 스테이징/운영 DB 대상.
+// 실행: node scripts/check-data-invariants.mjs [envFile]   (위반 시 exit 1). 읽기 전용(SELECT만).
+//   기본 .env.local(스테이징). 운영 진단: node scripts/check-data-invariants.mjs .env.local.prod-backup
 //
 // INV-D1: 유형 게이트 — 일반관리·정기(monthly/event) 점검엔 별지 9/10/11호 생성잡 0건 (자체점검만 대상)
 // INV-D2: 재고 정합 — current_stock >= 0 && 이동내역(in/out/adjust) 재구성값 == current_stock (동시출고 레이스 검출)
@@ -7,7 +8,22 @@
 // INV-D4: 전표 — 음수 금액 라인 0건 && 전표별 차변합 == 대변합
 // INV-D5: 점검 단계수 — 일반관리·정기 = 1단계, 특별점검 = 6단계 (트리거 088 정합)
 import { createClient } from '@supabase/supabase-js'
-import { SUPABASE_URL, SERVICE_ROLE_KEY } from './_env.mjs'
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+// env 파일 선택 (기본 .env.local, 인자로 .env.local.prod-backup 등 지정 가능)
+const envFile = process.argv[2] || '.env.local'
+const root = dirname(dirname(fileURLToPath(import.meta.url)))
+const env = Object.fromEntries(
+  readFileSync(join(root, envFile), 'utf8').split(/\r?\n/)
+    .filter(l => l.includes('=') && !l.startsWith('#'))
+    .map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
+)
+const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL
+const SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) { console.error(`${envFile}에서 URL/SERVICE_ROLE_KEY를 찾지 못했습니다.`); process.exit(1) }
+console.log(`대상 DB: ${SUPABASE_URL} (${envFile})\n`)
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
 

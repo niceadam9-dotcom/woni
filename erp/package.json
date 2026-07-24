@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:all": "tsx scripts/test-all.mts",
+    "test:invariants": "node scripts/check-data-invariants.mjs",
     "seed": "node seed/seed.js",
     "seed:reset": "node seed/seed.js --reset"
   },
