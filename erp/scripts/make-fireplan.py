@@ -101,8 +101,13 @@ def sdk_app():
     os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
     os.chdir(bin_dir)
     import hwpsdk  # noqa: PLC0415
-    if hwpsdk.Application.Initialize() <= 0:
-        raise RuntimeError("SDK 초기화 실패 — 라이선스 확인 (erp_goal/_Data/hwpsdk-라이선스-안내.md)")
+    # 한글 SDK는 프로세스당 Initialize() 1회만 성공(2회째는 실패=라이선스 오탐). 워커는 make-fireplan을
+    # 여러 인스턴스로 로드(mf/mr9/m1011/mext가 각자)하므로 인스턴스별 _sdk로는 재초기화가 발생한다.
+    # → 프로세스 공유 객체인 hwpsdk 모듈에 플래그를 걸어 프로세스 전체에서 Initialize()를 1회로 제한.
+    if not getattr(hwpsdk, "_sjfire_inited", False):
+        if hwpsdk.Application.Initialize() <= 0:
+            raise RuntimeError("SDK 초기화 실패 — 라이선스 확인 (erp_goal/_Data/hwpsdk-라이선스-안내.md)")
+        hwpsdk._sjfire_inited = True
     _sdk = hwpsdk
     return _sdk
 
