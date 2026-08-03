@@ -29,7 +29,7 @@
   "roadmap": [
     { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "code_present", "note": "H-1~H-4 전건 code_present(2026-08-03)" },
     { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "code_present", "note": "2026-08-03 전건 완료 — 4유형 서버 동기 생성 전환, 신구 파리티·스테이징 실주행 검증 PASS" },
-    { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "pending_order" },
+    { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "code_present", "note": "2026-08-03 완료 — E2E 11/11. 템플릿 삽입은 S4(H-12)에서" },
     { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "pending_order" },
     { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "pending_order" },
     { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "pending_order" },
@@ -56,10 +56,10 @@
       ]
     },
     {
-      "id": "S3", "title": "지도·사진 화면 등록", "status": "pending_order",
+      "id": "S3", "title": "지도·사진 화면 등록", "status": "code_present",
       "criteria": [
-        { "id": "H-10", "desc": "자산 슬롯 UI: 표지 사진·위치도·피난안내도(복수) 업로드·교체·삭제 + 썸네일 (§5-1)", "status": "pending_order" },
-        { "id": "H-11", "desc": "업로드 처리: 리사이즈·EXIF 보정·storage 경로 규약", "status": "pending_order" }
+        { "id": "H-10", "desc": "자산 슬롯 UI: 표지 사진·위치도·피난안내도(복수) 업로드·교체·삭제 + 썸네일 (§5-1)", "status": "code_present", "note": "2026-08-03 — customer-assets-client.tsx(3슬롯 카드·드롭존·evac 복수 그리드) + asset-actions.ts(권한·화이트리스트·10MB·경로 검증) + lib/customer-assets.ts(공용 목록·서명 URL), plan-tab-view 빠른 입력에 통합. E2E 11/11(업로드→썸네일→storage 실체→새로고침 유지→삭제). 구현=서브에이전트, 본 세션 tsc 재검증" },
+        { "id": "H-11", "desc": "업로드 처리: 리사이즈·EXIF 보정·storage 경로 규약", "status": "code_present", "note": "2026-08-03 — 클라이언트 createImageBitmap(EXIF from-image)+캔버스 장변 1600px→JPEG q0.85(신규 의존성 없음), 경로 {cust}/assets/cover·map_location(고정 교체)·evac_<ts>(추가형)" }
       ]
     },
     {

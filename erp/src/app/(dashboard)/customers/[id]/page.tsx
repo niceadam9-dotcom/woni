@@ -10,6 +10,7 @@ import { EditCustomerInfoClient } from '@/components/customers/edit-customer-inf
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type RevisionRow, type FormStatusMap } from '@/components/customers/plan-tab-view'
+import { CustomerAssetsClient } from '@/components/customers/customer-assets-client'
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
 import { PlanForm14 } from '@/components/customers/plan-form14'
@@ -30,6 +31,7 @@ import { CustomerSummaryPanel } from '@/components/customers/customer-summary-pa
 import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
 import { RecommendAssignClient } from '@/components/customers/recommend-assign-client'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
+import { listCustomerAssets } from '@/lib/customer-assets'
 import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -554,6 +556,8 @@ export default async function CustomerDetailPage({
   const revisionRows: RevisionRow[] = [...firePlans]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
+  // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
+  const customerAssets = await listCustomerAssets(customer.id)
   const planTab = (
     <PlanTabView
       customerId={customer.id}
@@ -635,6 +639,7 @@ export default async function CustomerDetailPage({
         year: firePlans[0].year, title: firePlans[0].title ?? '소방계획서',
         pdfStatus: firePlans[0].pdf_status ?? 'ready', revision: firePlans[0].revision,
       } : null}
+      assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
     />
   )
 

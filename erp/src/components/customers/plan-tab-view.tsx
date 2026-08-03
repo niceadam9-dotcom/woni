@@ -62,7 +62,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  docs, quick, consentInitial, latestPlan,
+  docs, quick, consentInitial, latestPlan, assets,
 }: {
   customerId: string
   canManage: boolean
@@ -92,6 +92,7 @@ export function PlanTabView({
   quick: QuickReadiness
   consentInitial: { consent: boolean | null; email: string }
   latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
+  assets: ReactNode               // 지도·사진 카드 (소방계획서_7 §5 — H-10, CustomerAssetsClient)
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
@@ -419,6 +420,9 @@ export function PlanTabView({
               <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>
             )}
           </div>
+
+          {/* 지도·사진 (소방계획서_7 §5 — H-10: 표지 사진·위치도·피난안내도 슬롯) */}
+          {assets}
 
           {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) */}
           {canManage && (
