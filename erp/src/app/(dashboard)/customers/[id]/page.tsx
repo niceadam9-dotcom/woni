@@ -30,7 +30,7 @@ import { CustomerSummaryPanel } from '@/components/customers/customer-summary-pa
 import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
 import { RecommendAssignClient } from '@/components/customers/recommend-assign-client'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
-import { requiredDocs, isGeneralManagement, computeQuickReadiness } from '@/lib/doc-requirements'
+import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
@@ -272,9 +272,11 @@ export default async function CustomerDetailPage({
     hasBrigade: planInfoInitial.brigade.length > 0,
   })
 
-  // ── P2: 문서 요구 매트릭스 + 빠른 입력 필수 완성도 (소방계획서_4.md §1-1·§9-8) ──
-  const docProfile = { inspection_type: customer.inspection_type }
-  const isGeneral = isGeneralManagement(docProfile)
+  // ── P2: 문서 요구 매트릭스 + 빠른 입력 필수 완성도 (§1-1) — 일반관리 특례 없음 (소방계획서_6 W-14) ──
+  const docProfile = {
+    inspection_type: customer.inspection_type,
+    inspection_sub_type: (cRec.inspection_sub_type as string | null) ?? null,
+  }
   const quickReadiness = computeQuickReadiness(docProfile, {
     address: !!customer.address,
     purpose: !!firstBld?.purpose,
@@ -353,8 +355,8 @@ export default async function CustomerDetailPage({
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
     { key: 'buildings', label: '건물·시설', warn: !(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null)) },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !hasRep },
-    // 일반관리 = 소방계획서 작성 대상 아님 → 뱃지·⚠ 억제 (§9-8). 뱃지 = 목차 완성도 합산(§1-4)
-    { key: 'plan', label: '소방계획서', badge: isGeneral ? undefined : `${formFilled}/${formTotal}`, warn: isGeneral ? false : readiness.done < readiness.total },
+    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
+    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
@@ -459,11 +461,14 @@ export default async function CustomerDetailPage({
           <span className="flex items-center">
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
               {inspectionTypeLabel(customer.inspection_type)}
+              {/* 일반관리도 자체점검 종류 표기 (소방계획서_6 W-1) — 예: 일반 › 작동 */}
+              {customer.inspection_type === '일반관리' ? ` › ${docProfile.inspection_sub_type === '종합' ? '종합' : '작동'}` : ''}
             </span>
             {canManage && (
               <EditInspectionTypeClient
                 customerId={customer.id}
                 currentType={customer.inspection_type}
+                currentSubType={docProfile.inspection_sub_type === '종합' ? '종합' : '작동'}
               />
             )}
           </span>
@@ -564,7 +569,7 @@ export default async function CustomerDetailPage({
       initialSection={sub}
       initialForm={initialForm}
       formStatus={formStatus}
-      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} isGeneral={isGeneral} />}
+      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}
@@ -620,7 +625,6 @@ export default async function CustomerDetailPage({
         initialVulnerable={fpSections.vulnerable ?? null}
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []} />}
-      isGeneral={isGeneral}
       docs={docChips}
       quick={quickReadiness}
       consentInitial={{

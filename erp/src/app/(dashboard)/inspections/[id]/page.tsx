@@ -72,9 +72,10 @@ export default async function InspectionDetailPage({
   const inspection = inspRes.data as Inspection
   const steps = (stepsRes.data ?? []) as InspectionStep[]
 
-  // §9-9a: 특별점검 여부 — plan_type(088) 기준 (special_*·null=특별 / monthly·event·일반관리=정기·일반)
+  // §9-9a: 자체점검 여부 — plan_type 축 단독 판정 (special_*·null=자체점검 / monthly·레거시 event=정기·일반).
+  // 관리유형 무관 — 일반관리 자체점검도 소방시설등점검표·별지 9호 대상 (소방계획서_6 W-4)
   const inspPlanType = ((inspection as unknown as Record<string, unknown>).plan_type as string | null) ?? null
-  const isSpecial = inspection.inspection_type !== '일반관리' && (!inspPlanType || inspPlanType.startsWith('special'))
+  const isSpecial = !inspPlanType || inspPlanType.startsWith('special')
 
   // 고객, 관계인, 담당직원, 보고서 병렬 조회
   const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
@@ -457,6 +458,7 @@ export default async function InspectionDetailPage({
       <InspectionSheetClient
         inspectionId={id}
         inspectionType={customer?.inspection_type ?? ''}
+        planType={inspPlanType}
         sheets={sheets}
         responses={responses}
         respondedCounts={respondedCounts}

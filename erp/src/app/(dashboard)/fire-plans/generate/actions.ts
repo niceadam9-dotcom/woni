@@ -121,9 +121,7 @@ export async function requestFirePlanHwpAction(
   const rows = (custs ?? []) as Array<{ id: string; customer_name: string; inspection_type: string }>
   const nameById = new Map(rows.map(c => [c.id, c.customer_name]))
   if (nameById.size !== ids.length) return { error: '고객을 찾을 수 없습니다.' }
-  // §9-8 매트릭스 — 일반관리 고객은 소방계획서 작성 대상 아님 (서버 최종 가드)
-  const general = rows.filter(c => c.inspection_type === '일반관리').map(c => c.customer_name)
-  if (general.length > 0) return { error: `일반관리 고객은 소방계획서 작성 대상이 아닙니다: ${general.join(', ')}` }
+  // 일반관리도 소방계획서 대상 (소방계획서_6 W-19·D-6) — 유형 거부 필터 제거
 
   if (preset) await ensurePresetFile(admin, preset as PresetType)
 
@@ -156,7 +154,7 @@ export async function requestFirePlanHwpAction(
 
 export type AnnualTargets = {
   year: number
-  total: number       // 소방계획서 대상(활성·일반관리 제외) 고객 수
+  total: number       // 소방계획서 대상(활성 전체 — 일반관리 포함, 소방계획서_6 W-19) 고객 수
   issued: number      // 해당 연도 계획서 보유 고객 수
   pending: number     // 해당 연도 생성 대기/진행 중
   remaining: number   // 아직 발행 안 됨 (일괄 발행 대상)
@@ -168,7 +166,7 @@ export async function getAnnualTargetsAction(year: number): Promise<{ targets?: 
   if (!year || year < 2000 || year > 2100) return { error: '연도를 확인해주세요.' }
   const admin = createAdminClient()
   const [custRes, planRes, jobRes] = await Promise.all([
-    admin.from('customers').select('id').eq('is_active', true).neq('inspection_type', '일반관리'),
+    admin.from('customers').select('id').eq('is_active', true),
     admin.from('fire_plans').select('customer_id').eq('year', year),
     admin.from('fire_plan_gen_jobs').select('customer_id').eq('year', year).in('status', ['pending', 'processing']),
   ])
@@ -187,7 +185,7 @@ export async function bulkAnnualIssueAction(year: number, opts: { limit?: number
   const cap = Math.min(opts.limit ?? 500, 500)
 
   const [custRes, planRes, jobRes] = await Promise.all([
-    admin.from('customers').select('id, customer_name').eq('is_active', true).neq('inspection_type', '일반관리').order('customer_name'),
+    admin.from('customers').select('id, customer_name').eq('is_active', true).order('customer_name'),
     admin.from('fire_plans').select('customer_id').eq('year', year),
     admin.from('fire_plan_gen_jobs').select('customer_id').eq('year', year).in('status', ['pending', 'processing']),
   ])

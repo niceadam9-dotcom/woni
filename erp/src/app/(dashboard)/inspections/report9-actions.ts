@@ -32,9 +32,9 @@ export async function requestReport9Action(
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const i = insp as unknown as { id: string; customer_id: string; year: number; inspection_type: string; plan_type: string | null; customer: { customer_name: string } | null }
 
-  // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(특별점검: 종합·작동)만, 일반·정기는 외관점검표만.
-  // page.tsx isSpecial과 동일 기준: 일반관리 아님 && (plan_type 미상 또는 special_*)
-  const isSpecial = i.inspection_type !== '일반관리' && (!i.plan_type || i.plan_type.startsWith('special'))
+  // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(special_*·null)만, 정기·레거시 event는 외관점검표만.
+  // 관리유형 무관 — 일반관리 자체점검도 대상 (소방계획서_6 W-15, page.tsx isSpecial과 동일 기준)
+  const isSpecial = !i.plan_type || i.plan_type.startsWith('special')
   if (['report9', 'report10', 'report11'].includes(reportType) && !isSpecial) {
     return { error: '일반·정기 점검은 별지 9·10·11호 대상이 아닙니다 — 외관점검표만 작성합니다.' }
   }
@@ -73,8 +73,8 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   const ins = insp as { customer_id: string; inspection_type: string; plan_type: string | null }
   const customerId = ins.customer_id
 
-  // 유형 가드(데이터 계층) — 자체점검은 별지 9/10/11호만, 일반·정기는 외관점검표만 조회 (page.tsx isSpecial과 동일)
-  const isSpecial = ins.inspection_type !== '일반관리' && (!ins.plan_type || ins.plan_type.startsWith('special'))
+  // 유형 가드(데이터 계층) — 자체점검은 별지 9/10/11호만, 정기·레거시 event는 외관점검표만 조회 (page.tsx isSpecial과 동일)
+  const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
   const allowTypes = isSpecial ? ['report9', 'report10', 'report11'] : ['exterior']
   const filePattern = isSpecial ? /^report(9|10|11)_/ : /^exterior_/
 

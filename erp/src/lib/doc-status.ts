@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const BUCKET = 'fire-plans'
 
-/** 자체점검(작동·종합) 조건 — plan_type special_*·null & 일반관리 제외 (§3-3 매트릭스, R9와 동일 기준) */
+/** 자체점검(작동·종합) 조건 — plan_type special_*·null 단독 판정, 관리유형 무관 (소방계획서_6 W-4·W-17) */
 export const SELF_INSPECTION_OR = 'plan_type.is.null,plan_type.like.special_*'
 
 export type MissingCertRow = {
@@ -52,7 +52,7 @@ export async function hasCertFile(admin: SupabaseClient, customerId: string, ins
   return (data ?? []).some(o => /^cert_\d+\./.test(o.name))
 }
 
-/** R8: 배치확인서 누락 — 완료된 자체점검 & cert 슬롯 없음 (정기·일반관리 제외, 기본 최근 90일 — D-9 정합) */
+/** R8: 배치확인서 누락 — 완료된 자체점검 & cert 슬롯 없음 (정기·레거시 event 제외, 기본 최근 90일 — D-9 정합) */
 export async function findMissingCerts(
   admin: SupabaseClient, opts: { sinceDays?: number; limit?: number } = {},
 ): Promise<MissingCertRow[]> {
@@ -60,7 +60,6 @@ export async function findMissingCerts(
   const { data } = await admin.from('inspections')
     .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, customer:customers(customer_name)')
     .eq('status', 'completed')
-    .neq('inspection_type', '일반관리')
     .or(SELF_INSPECTION_OR)
     .gte('inspection_start_date', since)
     .order('inspection_start_date', { ascending: true })
@@ -90,7 +89,6 @@ export async function findDueReport9(
   const since = addDays(todayKst(), -(opts.sinceDays ?? 90))
   const { data } = await admin.from('inspections')
     .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
-    .neq('inspection_type', '일반관리')
     .or(SELF_INSPECTION_OR)
     .is('report9_submitted_at', null)
     .not('inspection_end_date', 'is', null)

@@ -78,22 +78,31 @@ export async function addPlanItemAction(input: {
   await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
+  // 수동 추가도 자체점검(special_*) — 일반관리 포함 전 유형 공통 (소방계획서_6 W-10, event 특례 삭제).
+  // 종류: 소방안전관리는 inspectionType에서, 일반관리는 고객 sub_type(110 백필로 항상 존재)에서 유도
+  const { data: custSubRaw } = await admin.from('customers')
+    .select('inspection_sub_type').eq('id', input.customerId).single()
+  const custSub = (custSubRaw as { inspection_sub_type: string | null } | null)?.inspection_sub_type
+  const subType: '종합' | '작동' = input.inspectionType === '종합' ? '종합'
+    : input.inspectionType === '작동' ? '작동'
+    : custSub === '종합' ? '종합' : '작동'
+
   const { data, error } = await admin
     .from('inspection_plan_items')
     .insert({
       plan_id: input.planId,
       customer_id: input.customerId,
       inspection_type: input.inspectionType,
+      inspection_category: input.inspectionType === '일반관리' ? '일반관리' : '소방안전관리',
+      inspection_sub_type: subType,
       sequence_num: input.sequenceNum,
       scheduled_date: input.scheduledDate || null,
       assigned_employee_id: input.assignedEmployeeId || null,
       contact_id: input.contactId || null,
       notes: input.notes || null,
       status: 'planned',
-      // 수동 추가는 특별점검(차수 지정) — 유형 필터가 plan_type 기준이므로 반드시 저장
-      plan_type: input.inspectionType === '종합' ? 'special_종합'
-        : input.inspectionType === '작동' ? 'special_작동'
-        : 'event',
+      // 유형 필터가 plan_type 기준이므로 반드시 저장
+      plan_type: `special_${subType}`,
     } as Record<string, unknown>)
     .select('id')
     .single()
@@ -244,8 +253,8 @@ export async function confirmPlanItemStageOneAction(
   const profile = await requirePermission('inspection_plan_manage')
   const admin = createAdminClient()
 
-  // 일반관리(이벤트)·정기(monthly) 항목은 6단계 없이 확정일만 저장 —
-  // 법정 6단계는 특별점검 전용, 정기·일반 점검 체크리스트는 1단계뿐 (V10 §6-C, migration 088)
+  // 정기(monthly)·레거시 event 항목은 6단계 없이 확정일만 저장 —
+  // 법정 6단계는 자체점검(special_*) 전용. 일반관리 자체점검도 6단계 대상 (소방계획서_6 W-10)
   const { data: itemInfoRaw } = await admin
     .from('inspection_plan_items')
     .select('plan_type, inspection_type, inspection_id')
@@ -253,8 +262,7 @@ export async function confirmPlanItemStageOneAction(
     .single()
   const itemInfo = itemInfoRaw as { plan_type: string | null; inspection_type: string; inspection_id: string | null } | null
   if (!itemInfo) return { error: '계획 항목을 찾을 수 없습니다.' }
-  const isEvent = itemInfo.plan_type === 'event' || itemInfo.inspection_type === '일반관리'
-    || itemInfo.plan_type === 'monthly'
+  const isEvent = itemInfo.plan_type === 'event' || itemInfo.plan_type === 'monthly'
   if (isEvent) {
     const { error } = await admin
       .from('inspection_plan_items')
@@ -337,8 +345,8 @@ export async function confirmPlanItemStageOneAction(
   revalidatePath('/inspections/calendar')
 
   // 점검일 입력(확정) = 점검 시작과 동일 효과 (2026-07-23 사용자 확정) —
-  // 특별점검은 확정 즉시 inspections 자동 생성 → 점검달력·점검 업무·보고서(별지 9호 준비 화면) 반영.
-  // 정기(monthly)·일반관리(event)는 생성 시 자동 확정이라 별도 경로: event=생성 즉시 시작, monthly=당일 크론.
+  // 자체점검(special_* — 일반관리 포함)은 확정 즉시 inspections 자동 생성 → 점검달력·점검 업무·보고서 반영.
+  // 정기(monthly)는 생성 시 자동 확정·당일 크론 시작 별도 경로 (event는 소방계획서_6로 폐지).
   if (!itemInfo.inspection_id) {
     const started = await startInspectionCore(admin, profile.id, planItemId)
     if (started.error) return { error: `점검일은 확정됐지만 점검 자동 시작에 실패했습니다: ${started.error}` }
@@ -604,12 +612,12 @@ export async function getSuggestedItemsAction(
     )
   }
 
-  // 기준일: 점검계획일 → 최초 점검시작일 (사용승인일 폴백 제거)
+  // 기준일: 점검계획일 → 최초 점검시작일 (사용승인일 폴백 제거).
+  // 일반관리도 자체점검 제안 대상 (소방계획서_6 W-10 — 종류는 sub_type으로 판정)
   const { data: customers } = await admin
     .from('customers')
-    .select('id, customer_name, customer_code, inspection_type, plan_anchor_date, assigned_employee_id')
+    .select('id, customer_name, customer_code, inspection_type, inspection_sub_type, plan_anchor_date, assigned_employee_id')
     .eq('is_active', true)
-    .neq('inspection_type', '일반관리')
     .order('customer_name')
 
   if (!customers) return { suggestions: [] }
@@ -625,6 +633,8 @@ export async function getSuggestedItemsAction(
   for (const c of customers) {
     const anchor = anchorMap.get(c.id as string)
     if (!anchor) continue
+    // 종합 여부 = 소방안전관리는 inspection_type, 일반관리는 sub_type (W-10)
+    const isComp = c.inspection_type === '종합' || (c as Record<string, unknown>).inspection_sub_type === '종합'
     const anchorLabel = anchor === (c as Record<string, unknown>).plan_anchor_date ? '점검계획일' : '점검시작일'
     const approvalDate = new Date(anchor)
     const approvalMonth = approvalDate.getMonth() + 1
@@ -639,12 +649,12 @@ export async function getSuggestedItemsAction(
         anchor_date: anchor,
         assigned_employee_id: (c.assigned_employee_id ?? null) as string | null,
         sequence_num: 1,
-        reason: `${anchorLabel} ${dateLabel} → ${c.inspection_type === '종합' ? '1차 점검' : '연 1회 점검'}`,
+        reason: `${anchorLabel} ${dateLabel} → ${isComp ? '1차 점검' : '연 1회 점검'}`,
       })
     }
 
     if (
-      c.inspection_type === '종합' &&
+      isComp &&
       approvalMonth === secondMonth &&
       !existingKeys.has(`${c.id}-2`)
     ) {
@@ -677,6 +687,14 @@ export async function resolveOverdueItemsAction(
 ): Promise<{ results: Array<{ month: number; added: number; error?: string }> }> {
   const profile = await requirePermission('inspection_plan_manage')
   const admin   = createAdminClient()
+
+  // 일반관리 고객의 자체점검 종류(sub_type) 일괄 조회 — plan_type special_* 유도용 (소방계획서_6 W-10)
+  const custIds = [...new Set(items.map(i => i.customer_id))]
+  const { data: subRaw } = custIds.length
+    ? await admin.from('customers').select('id, inspection_sub_type').in('id', custIds)
+    : { data: [] }
+  const subById = new Map(((subRaw ?? []) as Array<{ id: string; inspection_sub_type: string | null }>)
+    .map(c => [c.id, c.inspection_sub_type]))
 
   // 월별 그룹화
   const byMonth: Record<number, typeof items> = {}
@@ -724,20 +742,23 @@ export async function resolveOverdueItemsAction(
     // 항목 삽입 (UNIQUE 충돌은 이미 등록된 것으로 처리)
     let added = 0
     for (const item of monthItems) {
+      // 초과 해결 항목도 자체점검(special_*) — 일반관리는 고객 sub_type으로 종류 유도 (W-10, event 특례 삭제)
+      const subType: '종합' | '작동' = item.inspection_type === '종합' ? '종합'
+        : item.inspection_type === '작동' ? '작동'
+        : subById.get(item.customer_id) === '종합' ? '종합' : '작동'
       const { error } = await admin
         .from('inspection_plan_items')
         .insert({
           plan_id: planId,
           customer_id: item.customer_id,
           inspection_type: item.inspection_type,
+          inspection_category: item.inspection_type === '일반관리' ? '일반관리' : '소방안전관리',
+          inspection_sub_type: subType,
           sequence_num: item.sequence_num,
           assigned_employee_id: item.assigned_employee_id || null,
           status: 'planned',
           scheduled_date: null,
-          // 초과 해결 항목은 점검계획일(기준일) 기준 특별점검
-          plan_type: item.inspection_type === '종합' ? 'special_종합'
-            : item.inspection_type === '작동' ? 'special_작동'
-            : 'event',
+          plan_type: `special_${subType}`,
         } as Record<string, unknown>)
       if (!error || error.code === '23505') added++
     }

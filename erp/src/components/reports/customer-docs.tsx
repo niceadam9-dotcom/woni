@@ -88,13 +88,9 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
         </Link>
       </div>
 
-      {/* 소방계획서 행 */}
+      {/* 소방계획서 행 — 일반관리 특례 없음 (소방계획서_6 W-16) */}
       <div className={rowCls}>
-        {docs.isGeneral ? (<>
-          <StatusIcon state="na" />
-          <span className="font-medium text-[#b0acd6] w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
-          <span className="text-[#b0acd6]">해당없음 — 일반관리는 작성 대상 아님</span>
-        </>) : docs.firePlan ? (<>
+        {docs.firePlan ? (<>
           <StatusIcon state="have" />
           <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
           <span className="text-[#514b81]">
@@ -127,18 +123,17 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
         </p>
       )}
 
-      {/* 점검 건별 (최신 차수 먼저) */}
+      {/* 점검 건별 (최신 차수 먼저) — 전부 자체점검 행 (레거시 event 건은 목록 대상 아님, W-16) */}
       {docs.inspections.map(i => (
-        <InspectionDocRows key={i.inspectionId} i={i} isGeneral={docs.isGeneral} customerName={docs.customerName}
+        <InspectionDocRows key={i.inspectionId} i={i} customerName={docs.customerName}
           isPending={isPending} open={open} generate={generate} upload={upload} feedback={feedback} />
       ))}
     </div>
   )
 }
 
-function InspectionDocRows({ i, isGeneral, customerName, isPending, open, generate, upload, feedback }: {
+function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback }: {
   i: InspectionDocs
-  isGeneral: boolean
   customerName: string
   isPending: boolean
   open: (path: string | null | undefined, saveName?: string) => void
@@ -174,22 +169,7 @@ function InspectionDocRows({ i, isGeneral, customerName, isPending, open, genera
         </Link>
       </div>
       <div className="pl-4 border-l border-[#eceafd]">
-        {isGeneral ? (
-          <div className={rowCls}>
-            {i.exterior ? <StatusIcon state="have" /> : <StatusIcon state="warn" />}
-            <span className="font-medium text-[#090c1d] w-44" title={`${DOC_TERMS.checklistExterior} — 작성 후 2년 보관`}>외관점검표</span>
-            {i.exterior ? (<>
-              <span className="text-[#514b81]">✓ {fmtD(i.exterior.at)}</span>
-              <span className="ml-auto flex items-center gap-1">
-                {genButtons9(i.exterior, `${customerName}_외관점검표_${(i.exterior.at ?? '').slice(0, 10)}`, open, isPending)}
-              </span>
-            </>) : (<>
-              <span className="text-amber-600">미생성</span>
-              <button onClick={() => generate(i.inspectionId, 'exterior', k('ext'))} disabled={isPending} className={`ml-auto ${priBtn}`}>바로 생성</button>
-            </>)}
-            {feedback(k('ext'))}
-          </div>
-        ) : (<>
+        <>
           {/* 9호 */}
           <div className={rowCls}>
             <StatusIcon state={i.report9 ? 'have' : 'warn'} />
@@ -303,7 +283,7 @@ function InspectionDocRows({ i, isGeneral, customerName, isPending, open, genera
               {feedback(k('r11'))}
             </div>
           </>)}
-        </>)}
+        </>
       </div>
     </div>
   )

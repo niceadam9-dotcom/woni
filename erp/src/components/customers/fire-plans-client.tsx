@@ -30,11 +30,10 @@ export type FirePlanRow = {
 }
 
 /** 소방계획서 보관함 (doc02 §8) — 표준양식 PDF 업로드 → ERP에서 자동 인쇄. HWP 원본은 선택 보관 */
-export function FirePlansClient({ customerId, plans, canManage, isGeneral = false }: {
+export function FirePlansClient({ customerId, plans, canManage }: {
   customerId: string
   plans: FirePlanRow[]
   canManage: boolean
-  isGeneral?: boolean // 일반관리 — 소방계획서 작성 대상 아님(§9-8): 생성 버튼 숨김(외부 문서 업로드 보관만)
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -289,16 +288,14 @@ export function FirePlansClient({ customerId, plans, canManage, isGeneral = fals
 
       {canManage && !showForm && (
         <div className="mt-3 flex gap-2">
-          {!isGeneral && (
-            <button
-              onClick={generateNow}
-              disabled={isPending}
-              title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 생성 — 워커가 HWP·미리보기·PDF를 보관함에 등록 (§7-5 HWP 단일 경로)"
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
-            >
-              <FileOutput className="size-3.5" /> 계획서 생성 (HWP+PDF)
-            </button>
-          )}
+          <button
+            onClick={generateNow}
+            disabled={isPending}
+            title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 생성 — 워커가 HWP·미리보기·PDF를 보관함에 등록 (§7-5 HWP 단일 경로)"
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
+          >
+            <FileOutput className="size-3.5" /> 계획서 생성 (HWP+PDF)
+          </button>
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"

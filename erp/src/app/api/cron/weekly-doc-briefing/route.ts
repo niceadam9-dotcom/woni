@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     findDueReport9(admin, { withinDays: 7 }),
     findMissingCerts(admin),
     admin.from('inspections').select('id', { count: 'exact', head: true })
-      .eq('status', 'completed').neq('inspection_type', '일반관리').or(SELF_INSPECTION_OR)
+      .eq('status', 'completed').or(SELF_INSPECTION_OR)
       .gte('inspection_end_date', weekAgoStr),
   ])
   const weekDone = weekDoneRes.count ?? 0

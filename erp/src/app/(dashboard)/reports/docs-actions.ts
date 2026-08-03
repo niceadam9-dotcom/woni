@@ -48,7 +48,6 @@ export type CustomerDocs = {
   customerId: string
   customerName: string
   inspectionType: string
-  isGeneral: boolean
   firePlan: {
     id: string; year: number; title: string | null; revision: number | null
     pdfPath: string | null; pdfName: string | null; hwpPath: string | null; hwpName: string | null
@@ -83,7 +82,6 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
     .select('id, customer_name, inspection_type').eq('id', customerId).single()
   if (!cust) return { error: '고객을 찾을 수 없습니다.' }
   const c = cust as { id: string; customer_name: string; inspection_type: string }
-  const isGeneral = c.inspection_type === '일반관리'
 
   const [planRes, inspRes] = await Promise.all([
     admin.from('fire_plans')
@@ -105,9 +103,10 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
     id: string; year: number; sequence_num: number; inspection_type: string; status: string
     plan_type: string | null; inspection_start_date: string | null; inspection_end_date: string | null
   }
-  // 자체점검(작동·종합)만 문서 절차 대상 — 정기(monthly)·일반 event 는 행에서 제외 (§3-3)
+  // 자체점검(special_*·null)만 문서 절차 대상 — 정기(monthly)·레거시 event는 행에서 제외.
+  // 관리유형 무관 (소방계획서_6 W-16) — 일반관리 자체점검도 동일 행 구성
   const inspRows = ((inspRes.data ?? []) as InspRow[]).filter(i =>
-    isGeneral ? i.inspection_type === '일반관리' : (i.inspection_type !== '일반관리' && (!i.plan_type || i.plan_type.startsWith('special'))))
+    !i.plan_type || i.plan_type.startsWith('special'))
 
   const inspections: InspectionDocs[] = await Promise.all(inspRows.map(async i => {
     const prefix = `${customerId}/inspections/${i.id}`
@@ -139,11 +138,11 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
   }))
 
   // 요약 게이지 (R2-c): 필요 문서 n종 중 m종 보유 — 소방계획서 + 점검 건별 (9호·배치확인서 필수 / 10·11호는 불량 시 / 사진·계약서는 선택이라 제외)
+  // 일반관리 특례 없음 (소방계획서_6 W-16) — 전 유형 동일 판정
   let need = 0, have = 0, warns = 0
   const tally = (n: boolean, h: boolean) => { if (!n) return; need += 1; if (h) have += 1; else warns += 1 }
-  if (!isGeneral) tally(true, !!plan)
+  tally(true, !!plan)
   for (const i of inspections) {
-    if (isGeneral) { tally(true, !!i.exterior); continue }
     tally(true, !!i.report9)
     tally(true, !!i.cert)
     tally(i.defects.total > 0, !!i.report10)
@@ -152,7 +151,7 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
 
   return {
     docs: {
-      customerId, customerName: c.customer_name, inspectionType: c.inspection_type, isGeneral,
+      customerId, customerName: c.customer_name, inspectionType: c.inspection_type,
       firePlan: plan ? {
         id: plan.id, year: plan.year, title: plan.title, revision: plan.revision,
         pdfPath: plan.pdf_path, pdfName: plan.pdf_name, hwpPath: plan.hwp_path, hwpName: plan.hwp_name,
@@ -188,20 +187,19 @@ export async function searchDocCommandsAction(q: string): Promise<{
   const customers = matched.map(c => ({ id: c.id, name: c.customer_name, type: c.inspection_type }))
   if (matched.length === 0) return { customers, commands: [] }
 
-  // 최상위 매칭 고객의 문서·행동 후보 (4-0-13-(1)) — 최신 계획서·최신 9호·배치확인서 업로드·생성
+  // 최상위 매칭 고객의 문서·행동 후보 (4-0-13-(1)) — 최신 계획서·최신 9호·배치확인서 업로드·생성.
+  // 일반관리 특례 없음 (소방계획서_6 W-16) — 전 유형 동일 후보
   const top = matched[0]
-  const isGeneral = top.inspection_type === '일반관리'
   const commands: DocCommand[] = [
     { kind: 'open-docs', customerId: top.id, customerName: top.customer_name, label: `${top.customer_name} — 문서 현황 열기` },
   ]
   const [planRes, inspRes] = await Promise.all([
-    isGeneral ? Promise.resolve({ data: [] }) : admin.from('fire_plans')
+    admin.from('fire_plans')
       .select('year, revision, pdf_path, hwp_path')
       .eq('customer_id', top.id).order('year', { ascending: false }).order('revision', { ascending: false }).limit(1),
     admin.from('inspections')
       .select('id, year, sequence_num, inspection_type, plan_type, inspection_start_date')
       .eq('customer_id', top.id)
-      .neq('inspection_type', '일반관리')
       .or('plan_type.is.null,plan_type.like.special_*')
       .order('inspection_start_date', { ascending: false, nullsFirst: false }).limit(1),
   ])
@@ -236,9 +234,7 @@ export async function searchDocCommandsAction(q: string): Promise<{
       })
     }
   }
-  if (!isGeneral) {
-    commands.push({ kind: 'generate-plan', customerId: top.id, customerName: top.customer_name, label: `${top.customer_name} · 소방계획서 생성 요청` })
-  }
+  commands.push({ kind: 'generate-plan', customerId: top.id, customerName: top.customer_name, label: `${top.customer_name} · 소방계획서 생성 요청` })
   return { customers, commands }
 }
 

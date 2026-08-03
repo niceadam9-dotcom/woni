@@ -17,7 +17,7 @@ import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
  *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
- *  [서식 전체] 토글 = 목차 트리(완성도 뱃지) + 서식 화면, form= 딥링크. 일반관리 고객 = 안내 배너 + 보관함만. */
+ *  [서식 전체] 토글 = 목차 트리(완성도 뱃지) + 서식 화면, form= 딥링크. 일반관리도 동일 (소방계획서_6 W-14). */
 
 export type RevisionRow = { year: number; revision: number; date: string; note: string | null; uploader: string | null }
 export type DocChip = { doc: string; label: string; need: boolean; note?: string; have?: boolean }
@@ -62,7 +62,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  isGeneral, docs, quick, consentInitial, latestPlan,
+  docs, quick, consentInitial, latestPlan,
 }: {
   customerId: string
   canManage: boolean
@@ -88,7 +88,6 @@ export function PlanTabView({
   form1215: ReactNode
   ch2: ReactNode
   ch3: ReactNode
-  isGeneral: boolean
   docs: DocChip[]
   quick: QuickReadiness
   consentInitial: { consent: boolean | null; email: string }
@@ -278,21 +277,7 @@ export function PlanTabView({
   const pct = readiness.total > 0 ? Math.round((readiness.done / readiness.total) * 100) : 0
   const quickPct = quick.total > 0 ? Math.round((quick.done / quick.total) * 100) : 0
 
-  // 일반관리 고객 — 소방계획서 작성 대상 아님 (§9-8: 입력 화면 미노출, 안내 배너 + 보관함만)
-  if (isGeneral) {
-    return (
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex items-start gap-2 rounded-xl border border-[#d0e3f7] bg-[#f4f9ff] px-4 py-3 mb-4">
-          <Info className="size-4 text-[#3b82c4] shrink-0 mt-0.5" />
-          <div className="text-xs text-[#2d5a87]">
-            <p className="font-semibold">일반관리 유형 — 소방계획서 작성 대상이 아닙니다</p>
-            <p className="mt-0.5">필요 문서: 외관점검표(일반용) — 작성 후 2년 보관, 소방서 보고 없음. 외부에서 작성한 문서는 아래 보관함에 보관할 수 있습니다.</p>
-          </div>
-        </div>
-        {archive}
-      </div>
-    )
-  }
+  // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
 
   return (
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">

@@ -60,12 +60,13 @@ type Employee = { id: string; name: string; position: string | null }
 type PlanType = 'special_종합' | 'special_작동' | 'monthly' | 'event' | null
 
 // plan_type이 저장되지 않은 레거시 항목(수동 추가·초과 해결 등)은 점검유형으로 유추
-// — 자동 생성된 정기 항목은 항상 plan_type='monthly'가 저장되므로 null = 특별/일반관리
-function effectivePlanType(item: Pick<ItemView, 'plan_type' | 'inspection_type'>): Exclude<PlanType, null> {
+// — 자동 생성된 정기 항목은 항상 plan_type='monthly'가 저장되므로 null = 자체점검(특별).
+//   일반관리도 자체점검 체계 (소방계획서_6 W-13 — 'event' 고정 유추 삭제, sub_type으로 종류 판정)
+function effectivePlanType(item: Pick<ItemView, 'plan_type' | 'inspection_type' | 'inspection_sub_type'>): Exclude<PlanType, null> {
   if (item.plan_type) return item.plan_type
   if (item.inspection_type === '종합') return 'special_종합'
   if (item.inspection_type === '작동') return 'special_작동'
-  if (item.inspection_type === '일반관리') return 'event'
+  if (item.inspection_type === '일반관리') return item.inspection_sub_type === '종합' ? 'special_종합' : 'special_작동'
   return 'monthly'
 }
 /** 달력 드래그 이동 가능 여부 — 정기(monthly)·미시작·계획/확정 상태·활성 고객만 (2026-07-13) */

@@ -1,14 +1,17 @@
-/** 문서 요구 매트릭스 — 고객 유형별 필요 문서·필수 필드 (소방계획서_4.md §9-8, 2026-07-21 실무 확인 매트릭스)
+/** 문서 요구 매트릭스 — 고객 유형별 필요 문서·필수 필드 (소방계획서_6 §1-1, 2026-07-28 확정)
  *
  *  유형 분기를 화면에 하드코딩하지 않는다 — 모든 화면이 이 상수만 읽는다.
- *  | 유형                | 소방계획서 | 점검표                | 별지 9호            | 10·11호 |
- *  | 소방안전관리 · 종합  | 필요      | 소방시설등점검표       | 작동+종합(15일 보고) | 불량 시 |
- *  | 소방안전관리 · 작동  | 필요      | 소방시설등점검표       | 작동(15일 보고)     | 불량 시 |
- *  | 일반관리            | 해당없음   | 외관점검표(2년 보관)   | 해당없음            | 해당없음 |
+ *  일반관리도 소방안전관리와 완전 동일 프로세스(D-1) — 문서 의무는 관리유형이 아니라
+ *  점검 종류(종합/작동)로만 갈린다. 외관점검표는 레거시 event 건 조회 전용(D-4 읽기 보존).
+ *  | 종류  | 소방계획서 | 점검표           | 별지 9호            | 10·11호 |
+ *  | 종합  | 필요      | 소방시설등점검표  | 작동+종합(15일 보고) | 불량 시 |
+ *  | 작동  | 필요      | 소방시설등점검표  | 작동(15일 보고)     | 불량 시 |
  */
 
 export type CustomerDocProfile = {
   inspection_type: string // '종합' | '작동' | '일반관리'
+  /** 일반관리 고객의 점검 종류 — inspection_type이 '일반관리'일 때 종합 판정에 사용 (W-14) */
+  inspection_sub_type?: string | null
 }
 
 export type DocKey = 'fire_plan' | 'checklist' | 'report9_operate' | 'report9_comprehensive' | 'exterior'
@@ -20,22 +23,21 @@ export type DocRequirement = {
   note?: string // 기한·보관 규칙 등 안내
 }
 
-/** 일반관리(외관·기능·일반) 여부 — 소방계획서·별지 9호 작성 대상 아님 */
-export function isGeneralManagement(c: CustomerDocProfile): boolean {
-  return c.inspection_type === '일반관리'
+/** 종합점검 대상 여부 — 소방안전관리는 inspection_type, 일반관리는 sub_type으로 판정 (W-14) */
+function isComprehensive(c: CustomerDocProfile): boolean {
+  return c.inspection_type === '종합' || c.inspection_sub_type === '종합'
 }
 
-/** 고객 유형별 필요 문서 목록 — 칩·카드·준비 화면 공용 */
+/** 고객 유형별 필요 문서 목록 — 칩·카드·준비 화면 공용.
+ *  일반관리 특례 없음(소방계획서_6 W-14) — 자체점검 여부는 plan_type(special_*) 축이 판정하고,
+ *  고객 단위 문서 의무는 전 유형 동일 */
 export function requiredDocs(c: CustomerDocProfile): DocRequirement[] {
-  const general = isGeneralManagement(c)
-  const comprehensive = c.inspection_type === '종합'
+  const comprehensive = isComprehensive(c)
   return [
-    { doc: 'fire_plan', label: '소방계획서', need: !general, note: general ? '일반관리 — 작성 대상 아님' : undefined },
-    general
-      ? { doc: 'exterior', label: '외관점검표', need: true, note: '작성·2년 보관 (보고 없음)' }
-      : { doc: 'checklist', label: '소방시설등점검표', need: true, note: '별지 9호 첨부' },
-    { doc: 'report9_operate', label: '별지 9호(작동)', need: !general, note: general ? undefined : '점검 후 15일 내 보고' },
-    { doc: 'report9_comprehensive', label: '별지 9호(종합)', need: !general && comprehensive, note: comprehensive ? '점검 후 15일 내 보고' : undefined },
+    { doc: 'fire_plan', label: '소방계획서', need: true },
+    { doc: 'checklist', label: '소방시설등점검표', need: true, note: '별지 9호 첨부' },
+    { doc: 'report9_operate', label: '별지 9호(작동)', need: true, note: '점검 후 15일 내 보고' },
+    { doc: 'report9_comprehensive', label: '별지 9호(종합)', need: comprehensive, note: comprehensive ? '점검 후 15일 내 보고' : undefined },
   ]
 }
 
@@ -57,9 +59,10 @@ export const DOC_TERMS = {
   firePlan: '소방계획서',
 } as const
 
-/** ── §9-9a: 문서 타임라인 단계 구성 — (점검 유형 × 불량 유무)로 결정, 088 분기 흡수 ──
- *  자체점검(종합/작동, plan_type special_*·null) = ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림)
- *  정기(monthly)·일반(event·일반관리) = ① 하나만 + 안내 1줄 (D-6 (a)안) */
+/** ── §9-9a: 문서 타임라인 단계 구성 — (점검 종류 × 불량 유무)로 결정, 088 분기 흡수 ──
+ *  자체점검 여부 = plan_type 축 단독 판정(special_*·null=자체점검) — 관리유형 무관 (소방계획서_6 W-4)
+ *  자체점검 = ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림)
+ *  정기(monthly)·레거시 일반 event = ① 하나만 + 안내 1줄 (D-6 (a)안) */
 export type TimelineStepKey = 'checklist' | 'cert' | 'ownerReport' | 'submit9' | 'repair' | 'submit11'
 
 export const TIMELINE_STEP_LABELS: Record<TimelineStepKey, string> = {
@@ -97,7 +100,7 @@ export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }
 }
 
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.
- *  일반관리 고객은 빈 배열(입력 화면 미노출 — §9-8).
+ *  일반관리 포함 전 유형 동일 18개(소방계획서_6 W-14·D-6 — 미입력 노출은 '할 일'로서 정상).
  *  경사로·계단·피난용승강기 등 컬럼 미비 항목은 P4 서식 확장에서 추가. */
 export type RequiredFieldDef = { key: string; label: string }
 
@@ -129,8 +132,8 @@ export const QUICK_REQUIRED_FIELDS: RequiredFieldDef[] = [
   { key: 'emailConsent', label: '송달 동의' },
 ]
 
-export function requiredFields(c: CustomerDocProfile): RequiredFieldDef[] {
-  return isGeneralManagement(c) ? [] : QUICK_REQUIRED_FIELDS
+export function requiredFields(_c: CustomerDocProfile): RequiredFieldDef[] {
+  return QUICK_REQUIRED_FIELDS
 }
 
 /** 다중이용업소 업종 — 별지 9호 2쪽 선택형 (§9-6④, 상수 1곳). 서식 1.10.3 입력과 별지 9호 병합이 공유 */

@@ -12,10 +12,12 @@ type Sheet = { id: string; sheet_code: string; sheet_name: string }
 type Item = { item_code: string; item_name: string; comprehensive_only: boolean; group: string }
 type Result = 'O' | 'X' | 'N'
 
-/** 점검표 입력 (P34-2) — 설비 선택 → 항목별 ○/X/／. 작동점검이면 종합전용(●) 항목 숨김. */
-export function InspectionSheetClient({ inspectionId, inspectionType, sheets, responses, respondedCounts, xCount, canManage }: {
+/** 점검표 입력 (P34-2) — 설비 선택 → 항목별 ○/X/／. 작동점검이면 종합전용(●) 항목 숨김.
+ *  점검 종류 판정은 plan_type 축(소방계획서_6 W-20) — 외관 렌더는 레거시 event·정기 건 전용 */
+export function InspectionSheetClient({ inspectionId, inspectionType, planType, sheets, responses, respondedCounts, xCount, canManage }: {
   inspectionId: string
   inspectionType: string
+  planType: string | null   // special_종합·special_작동·null=자체점검 / monthly·event=외관
   sheets: Sheet[]
   responses: Record<string, { result: Result; memo: string | null }>
   respondedCounts: Record<string, number>  // sheet_code prefix(설비번호) → 응답 수
@@ -95,7 +97,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
     })
   }
 
-  const isOperational = inspectionType === '작동'
+  // 자체점검 여부·종류 = plan_type 우선 (일반관리 자체점검 대응 — W-20). null 레거시는 inspection_type 폴백
+  const isSpecial = !planType || planType.startsWith('special')
+  const isOperational = isSpecial && (planType === 'special_작동' || (!planType && inspectionType === '작동'))
 
   function open(sheet: Sheet) {
     setError(''); setSel(sheet)
@@ -128,7 +132,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, sheets, re
         <ClipboardCheck className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">점검표 입력</h2>
         <span className="text-xs text-[#b0acd6] ml-auto">
-          {inspectionType === '일반관리' ? '외관점검 (별지 6호)' : isOperational ? '작동점검 (○항목)' : '종합점검 (전체)'}
+          {!isSpecial ? '외관점검 (별지 6호)' : isOperational ? '작동점검 (○항목)' : '종합점검 (전체)'}
         </span>
       </div>
 

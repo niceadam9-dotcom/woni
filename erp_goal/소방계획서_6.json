@@ -1,0 +1,85 @@
+{
+  "version": "general-selfinspection-v6",
+  "title": "소방계획서_6 — 점검유형 체계 개편: 일반관리에 종합·작동 도입 (구조 JSON)",
+  "source": "erp_goal/소방계획서_6.md",
+  "generated": "2026-07-28",
+  "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
+  "workflow_rule": "erp_goal/Json_Rule_nostop.md — 사용자 '시작' 지시로 착수한 뒤에는 단계 사이에 '다음으로 갈까요?' 질문 금지, 세션 성공 시 즉시 다음 세션 진행, 에러는 자가 분석·수정 후 재시도. 착수 자체와 운영 배포·운영 DB 변경은 사용자 지시 게이트 유지(feedback_no_auto_proceed)",
+  "note": "2026-08-03 구현 세션: S1~S4 코드 전량 반영(code_present — 구현자 자기 신고, 독립 검증 전). 마이그레이션 110(백필)·111(트리거 개정) 스테이징 적용, W-12 스크립트 스테이징 실행(보존 6·삭제 2·소급 4·이행 간주 6). 빌드·불변식(신규 INV-D6 3건 포함) 전체 통과, E2E 게이트 정합 15/15·통주행 14/14·크론 8/8·클릭예산 7/7·EX-V1 2/2 통과. 잔여: 커밋·스테이징 사이트 배포·독립 검증(implemented 승격)·운영 배포(사용자 게이트) + Q-1.",
+  "status_legend": {
+    "confirmed": "확정 (설계 결정·검토 완료 사실)",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "implemented": "독립 검증 통과 — verified(date·commit·evidence·method) 필수",
+    "partial": "부분 구현 — criteria 참조",
+    "pending_order": "미구현·지시 대기",
+    "deferred": "보류·후순위",
+    "proposal": "제안·미결 질문"
+  },
+  "decisions": [
+    { "id": "D-1", "desc": "일반관리 종합/작동 = 소방안전관리 종합/작동과 완전 동일 프로세스(계획 생성·수동 확정·소방시설등점검표·6단계 ①~⑥·소방계획서 대상). 유일한 차이 = 정기점검(monthly) 미생성", "status": "confirmed", "note": "2026-07-28 사용자 확정 — §1-1 설계 원칙" },
+    { "id": "D-2", "desc": "기존 일반관리 고객 inspection_sub_type = 일괄 '작동' 백필 후 종합 대상만 화면에서 개별 수정", "status": "confirmed", "note": "2026-07-28 권장안 ① 확정 — 종합점검 대상은 법령상 특정 요건이라 일반관리엔 소수. planned 상태가 안전장치" },
+    { "id": "D-3", "desc": "2026년 소급 생성 실행(planned 상태) — 기존 '지난 달 생성 생략' 규칙 재사용, 순서는 event 삭제 → 소급 생성", "status": "confirmed", "note": "2026-07-28 권장안 ② 확정 — 2027부터는 12/1 크론 자동" },
+    { "id": "D-4", "desc": "미시작·진행 중 event 삭제 후 새 체계(special_*)로 대체. 완료 event·외관점검표만 읽기 전용 보존(점검 이력·법정 2년 보관). event 잔재 코드(auto-start event 대상·_syncStartedGeneralEvent)는 소진 대기 없이 본 작업에서 즉시 제거", "status": "confirmed", "note": "2026-07-28 사용자 결정(권장안 ③ 수정 — '이전 것들은 삭제') — §5-3" },
+    { "id": "D-5", "desc": "요금 모델 현행 유지(일반관리 건별 fee_taxed, 무수정). 종합형 일반 고객 연 2회 청구 횟수(회당 vs 연 1식)는 착수 후 별도 결정 — 개편 코드와 독립", "status": "confirmed", "note": "2026-07-28 권장안 ④ 확정 — billing/annual/page.tsx:56 분기는 표시·집계용 확인" },
+    { "id": "D-6", "desc": "소방계획서·필수필드 18개 즉시 전면 적용 — 기존 일반관리 고객의 ⚠ 미보유·미입력 노출은 '할 일'로서 정상(대시보드 위젯·문서 현황이 입력 유도, 건축물대장 자동 채움으로 완화)", "status": "confirmed", "note": "2026-07-28 확정 — '소방안전관리와 동일' 원칙의 귀결" },
+    { "id": "D-7", "desc": "데이터 전제: 현재 DB 데이터는 테스트용이나, 삭제·백필·소급 스크립트는 실데이터 수정 기준의 정식 절차(건수 조사 → 로그 → 삭제 → 대체 생성, 완료 기록 보존)로 작성 — 운영 적용 가능 수준", "status": "confirmed", "note": "2026-07-28 사용자 지시" },
+    { "id": "D-8", "desc": "소방안전관리 쪽은 무변경 — 권장안 4건 전부 일반관리 전용임을 코드로 검증(030 백필 기존재·생성기 멱등·event 경로 일반관리 전용·정액 요금). 무영향 보장 불변식 2건을 S4 검증에 포함", "status": "confirmed", "note": "2026-07-28 검증 — §5-A. INV-D6a/b로 상시 고정, 스테이징 통과 (2026-08-03)" }
+  ],
+  "roadmap": [
+    { "id": "S1", "title": "데이터 모델·판정 축 — sub_type 필수화·백필 + 고객 UI + 판정 축 통일 (W-1~W-5)", "status": "code_present" },
+    { "id": "S2", "title": "계획 생성 엔진 — 생성기·크론·트리거·event 정리·소급 스크립트, 버그 2건 수정 (W-6~W-13)", "status": "code_present" },
+    { "id": "S3", "title": "문서·조회 특례 제거 — doc-requirements·9호 가드·보고서 센터·소방계획서 대상 포함·시트 (W-14~W-21)", "status": "code_present" },
+    { "id": "S4", "title": "테스트·검증·배포 — 게이트 기대값 반전·불변식·E2E 통주행 → 스테이징 → 운영 (W-22~W-26)", "status": "partial", "note": "테스트·스테이징 DB까지 완료 — 커밋·스테이징 사이트 배포·독립 검증·운영 배포 잔여 (W-25)" }
+  ],
+  "sections": [
+    {
+      "id": "S1", "title": "데이터 모델·판정 축 (선행 필수)", "status": "code_present",
+      "criteria": [
+        { "id": "W-1", "desc": "고객 등록/수정 UI에 일반관리 종합/작동 서브 선택 추가 (customer-new-client.tsx 외 수정 화면)", "status": "code_present", "note": "2026-08-03 — 등록: customer-new-client.tsx:397-420. 수정: edit-inspection-type-client.tsx 모달 = 관리유형×종류 4개 조합 카드(소방·종합/소방·작동/일반·종합/일반·작동, 사용자 선택 구조) + 기본정보 뱃지 '일반 › 작동' 표기(customers/[id]/page.tsx typeSlot)" },
+        { "id": "W-2", "desc": "고객 저장 시 일반관리도 sub_type 저장 — null 매핑 제거 (customers/actions.ts:120-121)", "status": "code_present", "note": "2026-08-03 — customers/actions.ts:95-98(필수 검증)·127-131(저장), 인라인 수정 1314-1315" },
+        { "id": "W-3", "desc": "마이그레이션 A: 기존 일반관리 고객 sub_type 일괄 '작동' 백필 (신규 SQL, D-2)", "status": "code_present", "note": "2026-08-03 — 110_general_sub_type_backfill.sql (customers+plan_items, 멱등), 스테이징 적용 완료·INV-D6c 0건" },
+        { "id": "W-4", "desc": "판정 축 통일 — 자체점검 여부 = plan_type(special_*) 기준, isGeneralManagement()는 '문서 의무 없음' 의미에서 해제 (doc-requirements.ts:24-26)", "status": "code_present", "note": "2026-08-03 — isGeneralManagement 삭제, isSpecial 5개소(report9-actions 37·77, inspections/actions 252, inspections/[id]/page 78, docs-actions) plan_type 단독 축으로 통일" },
+        { "id": "W-5", "desc": "불변식 3건 추가: 소방안전관리 sub_type null 0건 / 소방안전관리 event 0건 / 백필 후 일반관리 sub_type null 0건 (check-data-invariants)", "status": "code_present", "note": "2026-08-03 — INV-D6a/b/c 추가, 스테이징 전체 통과" }
+      ]
+    },
+    {
+      "id": "S2", "title": "계획 생성 엔진 (버그 2건 포함)", "status": "code_present",
+      "criteria": [
+        { "id": "W-6", "desc": "생성기 일반관리 조기 return 0 삭제 + monthly 루프만 일반관리 스킵 — 변경 후 유일한 관리유형 분기 (inspection-plan-generator.ts:57, 109-113)", "status": "code_present", "note": "2026-08-03 — inspection-plan-generator.ts:119(isGeneral 정기 스킵만 잔존)" },
+        { "id": "W-7", "desc": "🐞 버그: category='소방안전관리' 하드코딩 + sub_type·plan_type을 inspection_type에서 유도 → 일반관리 전부 '작동' 오판. 고객 category/sub_type 컬럼 기준 유도로 교체 (inspection-plan-generator.ts:62-63, 93, 97)", "status": "code_present", "note": "2026-07-28 검증 발견 → 2026-08-03 수정: generator:66-73 고객 컬럼 우선 유도, E2E에서 종합 sub_type 항목 생성 확인" },
+        { "id": "W-8", "desc": "연간 크론 고객 필터에 일반관리 포함 (generate-yearly-plans/route.ts:61)", "status": "code_present", "note": "2026-08-03 — in('inspection_type', 종합·작동·일반관리) + category/sub_type 컬럼 조회 추가" },
+        { "id": "W-9", "desc": "신규 고객 event 분기 삭제 — 전 유형 yearly plan 경로 통일, _createGeneralEventItem 호출 제거 (customers/actions.ts:270-272)", "status": "code_present", "note": "2026-08-03 — _autoCreatePlanItemsForNewCustomer 전 유형 공통(customers/actions.ts:274-295), 헬퍼 3종 제거" },
+        { "id": "W-10", "desc": "수동 항목 추가 event 특례 삭제 — 일반관리도 special_* + 6단계 (inspection-plans/actions.ts:93-96, 256-257)", "status": "code_present", "note": "2026-08-03 — 수동 추가 special_*(고객 sub_type 유도)+category/sub_type 저장, 확정 isEvent에서 일반관리 제거, 초과 해결·제안(getSuggestedItemsAction) 일반관리 포함" },
+        { "id": "W-11", "desc": "마이그레이션 B: 단계 생성 트리거 개정 — 1단계 대상 monthly·event만, 일반관리 special_*는 6단계 (087/088 개정 신규 SQL)", "status": "code_present", "note": "2026-08-03 — 111_steps_plan_type_axis.sql, 스테이징 적용. E2E: 일반 special=6단계·event=1단계 확인" },
+        { "id": "W-12", "desc": "event 정리 + 소급 생성 스크립트(2026) — 정식 절차: ⓐ 미시작·진행 중 event 건수·목록 조사 ⓑ 로그 남기고 삭제(연결 inspection·단계·시트 응답 정리) ⓒ 소급 생성(멱등) ⓓ 🐞 완료 event UNIQUE(plan_id,customer_id,sequence_num) 충돌 = '이행 간주·1차 생략' 로그 기록 — 조용한 스킵 금지 (D-3·D-4·D-7)", "status": "code_present", "note": "2026-08-03 — scripts/soban6-event-migrate.mjs (dry-run 기본·--apply 게이트). 스테이징 실행: 보존 6·삭제 2·소급 생성 4·이행 간주 명시 로그 6" },
+        { "id": "W-13", "desc": "effectivePlanType 유추에서 일반관리 'event' 고정 삭제 (inspection-plans-client.tsx:68)", "status": "code_present", "note": "2026-08-03 — sub_type 기반 special_* 유추로 교체 (inspection-plans-client.tsx:65-70)" }
+      ]
+    },
+    {
+      "id": "S3", "title": "문서·조회 특례 제거", "status": "code_present",
+      "criteria": [
+        { "id": "W-14", "desc": "requiredDocs/stepDocs/requiredFields 일반관리 특례 제거 — 소방안전관리와 동일 목록·18개 필드 (doc-requirements.ts:29-40, 84-88, 132-134)", "status": "code_present", "note": "2026-08-03 — requiredDocs 전 유형 동일(종합 판정은 sub_type 겸용)·requiredFields 상시 18개·customer-list/customers[id]/plan-tab-view/fire-plans-client 억제 특례 제거" },
+        { "id": "W-15", "desc": "별지 9호 생성 가드에서 '일반관리 아님' 조건 삭제 — special_* 만 판정 (report9-actions.ts:37)", "status": "code_present", "note": "2026-08-03 — report9-actions.ts:37·77 plan_type 단독 축. E2E 게이트 정합 통과" },
+        { "id": "W-16", "desc": "고객 문서 현황 특례 삭제 — 외관·event 전용 분기 (docs-actions.ts:86, 109-110)", "status": "code_present", "note": "2026-08-03 — isGeneral 분기 전삭(getCustomerDocsAction·searchDocCommandsAction·customer-docs.tsx), 행 필터 = special 축" },
+        { "id": "W-17", "desc": "배치확인서 누락·9호 기한 판정의 .neq('일반관리') 삭제 2곳 (doc-status.ts:63, 93)", "status": "code_present", "note": "2026-08-03 — doc-status.ts 2곳 + weekly-doc-briefing:29·defect-action-notify:133 동일 축 정리" },
+        { "id": "W-18", "desc": "보고서 센터 목록 .neq('일반관리') 삭제 (reports/page.tsx:77)", "status": "code_present", "note": "2026-08-03" },
+        { "id": "W-19", "desc": "소방계획서 대상 포함 — 일괄 생성 거부 필터 삭제 + requiredDocs need 수정 (fire-plans/generate/actions.ts:125-126, doc-requirements.ts:33)", "status": "code_present", "note": "2026-08-03 — 서버 가드·연차 일괄 대상 neq 2곳·generate-request-client 카드 흐림 특례 제거" },
+        { "id": "W-20", "desc": "점검표 시트 일반관리→외관 고정 분기 삭제 — 기존 event 건 조회 시에만 외관 렌더 유지 (inspection-sheet-client.tsx:131)", "status": "code_present", "note": "2026-08-03 — planType prop 추가, isSpecial/isOperational plan_type 축. 시트 버전(v2025/v2022)은 isSpecial로 자동 분기" },
+        { "id": "W-21", "desc": "점검 달력에 일반관리 특별 건 표시 확인 — 동일 경로 자동 예상, 검증만 (calendar/page.tsx:42,49)", "status": "code_present", "note": "2026-08-03 확인 — inspections 조회 무필터 + 6단계 events 경로로 전체 탭 표시(inspection-calendar-client.tsx:347 주석 기반), 일반관리 탭은 레거시 event 전용 유지" }
+      ]
+    },
+    {
+      "id": "S4", "title": "테스트·검증·배포", "status": "partial",
+      "criteria": [
+        { "id": "W-22", "desc": "게이트 테스트 기대값 반전 — 일반 종합/작동 → 소방시설등점검표·9호 노출 + 케이스 추가 (test-gate-consistency.mts:13-46)", "status": "code_present", "note": "2026-08-03 — 일반 자체(special_작동)·레거시 event 케이스 분리 + 트리거 단계수 검증 추가, 15/15 통과" },
+        { "id": "W-23", "desc": "불변식 개정(W-5 포함) + event 자동 시작 크론 테스트를 event 폐지에 맞춰 제거·개편 (check-data-invariants, test-auto-start-cron.mts)", "status": "code_present", "note": "2026-08-03 — isSpecial 축 개정·INV-D5 문구·INV-D6 신설 / 크론 테스트 = 정기 2케이스 + event 제외 검증, 8/8 통과" },
+        { "id": "W-24", "desc": "E2E 통주행 신규 — 일반관리 고객 등록→계획 생성(정기 없음 확인)→확정→점검→9호→타임라인 6단계 (신규 .mts)", "status": "code_present", "note": "2026-08-03 — scripts/test-general-selfinspection.mts (test-all 등록), 14/14 통과: 생성(정기 0)·UI 확정→자동 시작·6단계·9호·타임라인 ①~⑥" },
+        { "id": "W-25", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 상태 갱신 (Json_Rule.md 준수)", "status": "partial", "note": "2026-08-03 — 빌드·불변식·E2E 5종(게이트 15·통주행 14·크론 8·클릭예산 7·EX-V1 2) 통과, 스테이징 DB 반영(110·111·W-12). 잔여: 커밋 → 스테이징 사이트 배포·검증 → 사용자 승인 → main → 운영(사용자 게이트)" },
+        { "id": "W-26", "desc": "event 잔재 코드 즉시 제거 — auto-start 크론 event 대상·_syncStartedGeneralEvent (D-4, 소진 대기 불필요, S2·S3에 편입 실행) (auto-start-inspections, customers/actions.ts:351-383)", "status": "code_present", "note": "2026-08-03 — 크론 plan_type='monthly' 단독 + 헬퍼 3종(_ensureMonthPlan·_createGeneralEventItem·_syncStartedGeneralEvent) 삭제. E2E: event 담당 있어도 미시작 유지 확인" }
+      ]
+    }
+  ],
+  "open_items": [
+    { "id": "Q-1", "desc": "종합형 일반 고객의 건별 청구 횟수 정책 — 연 2회 자체점검 시 회당 청구 vs 연 1식", "status": "proposal", "note": "2026-07-28 착수 후 결정으로 확정(D-5) — 개편 코드와 독립, 착수를 막지 않음" }
+  ]
+}

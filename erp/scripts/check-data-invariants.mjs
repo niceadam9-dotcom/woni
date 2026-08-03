@@ -2,11 +2,13 @@
 // 실행: node scripts/check-data-invariants.mjs [envFile]   (위반 시 exit 1). 읽기 전용(SELECT만).
 //   기본 .env.local(스테이징). 운영 진단: node scripts/check-data-invariants.mjs .env.local.prod-backup
 //
-// INV-D1: 유형 게이트 — 일반관리·정기(monthly/event) 점검엔 별지 9/10/11호 생성잡 0건 (자체점검만 대상)
+// INV-D1: 유형 게이트 — 정기(monthly)·레거시 event 점검엔 별지 9/10/11호 생성잡 0건 (자체점검만 대상)
 // INV-D2: 재고 정합 — current_stock >= 0 && 이동내역(in/out/adjust) 재구성값 == current_stock (동시출고 레이스 검출)
 // INV-D3: 발주 입고 — purchase_order_lines.received_quantity <= quantity (이중 입고 검출)
 // INV-D4: 전표 — 음수 금액 라인 0건 && 전표별 차변합 == 대변합
-// INV-D5: 점검 단계수 — 일반관리·정기 = 1단계, 특별점검 = 6단계 (트리거 088 정합)
+// INV-D5: 점검 단계수 — 정기·레거시 event = 1단계, 자체점검(special_*·null) = 6단계 (트리거 111 정합)
+// INV-D6: 소방계획서_6 W-5 — ⓐ 소방안전관리 sub_type null 0건 ⓑ 소방안전관리 event 계획항목 0건
+//         ⓒ 일반관리 sub_type null 0건 (110 백필 후)
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -35,8 +37,8 @@ function report(name, rows, format) {
   for (const r of rows.slice(0, 20)) console.log('   -', format(r))
   if (rows.length > 20) console.log(`   … 외 ${rows.length - 20}건`)
 }
-// page.tsx isSpecial과 동일 기준 (자체점검 = 별지 9호 대상)
-const isSpecial = (type, planType) => type !== '일반관리' && (!planType || planType.startsWith('special'))
+// page.tsx isSpecial과 동일 기준 (자체점검 = 별지 9호 대상) — plan_type 축 단독, 관리유형 무관 (소방계획서_6 W-4)
+const isSpecial = (_type, planType) => !planType || planType.startsWith('special')
 
 // ── INV-D1: 유형 게이트 — 비-자체점검에 별지 9/10/11호 생성잡 ──
 {
@@ -108,8 +110,29 @@ const isSpecial = (type, planType) => type !== '일반관리' && (!planType || p
     const actual = cnt.get(i.id) ?? 0
     if (actual !== expected) bad.push({ id: i.id, type: i.inspection_type, plan: i.plan_type, expected, actual })
   }
-  report('INV-D5 점검 단계수(일반/정기=1, 특별=6)', bad,
+  report('INV-D5 점검 단계수(정기·event=1, 자체점검=6)', bad,
     b => `insp=${b.id} type=${b.type}/${b.plan ?? 'null'} 기대=${b.expected} 실제=${b.actual}`)
+}
+
+// ── INV-D6: 소방계획서_6 W-5 — sub_type·event 정합 ──
+{
+  // ⓐ 소방안전관리 고객 sub_type null 0건 (030 백필 기존재 보증)
+  const { data: d6a } = await admin.from('customers')
+    .select('id, customer_name')
+    .eq('inspection_category', '소방안전관리').is('inspection_sub_type', null)
+  report('INV-D6a 소방안전관리 sub_type null', d6a ?? [], c => `${c.customer_name} (${c.id})`)
+
+  // ⓑ 소방안전관리 event 계획항목 0건 (event 경로는 일반관리 전용이었음 — D-8 무영향 보증)
+  const { data: d6b } = await admin.from('inspection_plan_items')
+    .select('id, customer_id, inspection_category')
+    .eq('plan_type', 'event').eq('inspection_category', '소방안전관리')
+  report('INV-D6b 소방안전관리 event 계획항목', d6b ?? [], i => `item=${i.id} customer=${i.customer_id}`)
+
+  // ⓒ 일반관리 고객 sub_type null 0건 (110 백필 후 — 신규 저장은 W-2가 필수화)
+  const { data: d6c } = await admin.from('customers')
+    .select('id, customer_name')
+    .eq('inspection_category', '일반관리').is('inspection_sub_type', null)
+  report('INV-D6c 일반관리 sub_type null (110 백필 후)', d6c ?? [], c => `${c.customer_name} (${c.id})`)
 }
 
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)

@@ -67,14 +67,14 @@ export default async function ReportsPage({ searchParams }: {
   const revisedList = [...baselines.values()].filter(b => isRevised(b))
   const canAck = ['admin', 'manager'].includes(profile.role)
 
-  // ②③ 바로 생성 목록 (소방계획서_5 R3·R4) — 자체점검만(정기·일반 제외), 최근 완료 우선.
+  // ②③ 바로 생성 목록 (소방계획서_5 R3·R4) — 자체점검만(정기·레거시 event 제외), 최근 완료 우선.
+  // 관리유형 무관 — 일반관리 자체점검도 대상 (소방계획서_6 W-18)
   // report9 = 전 자체점검 / report10 = 불량 보유 건. 생성 이력·불량 수·9호 기한 D-day 동봉.
   let genRows: GenRow[] = []
   if (form === 'report9' || form === 'report10') {
     const admin = createAdminClient()
     let query = admin.from('inspections')
       .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
-      .neq('inspection_type', '일반관리')
       .or('plan_type.is.null,plan_type.like.special_*')
       .order('status', { ascending: true })  // completed 우선 근사 — 클라이언트 필터/정렬 병행
       .order('inspection_start_date', { ascending: false, nullsFirst: false })

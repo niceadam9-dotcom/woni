@@ -36,11 +36,12 @@ export async function loadAnchorDates(
   return map
 }
 
-/** 소방안전관리 고객의 연간 점검계획 항목 생성 — 연 12건 (첫해는 지난 달 정기 제외)
+/** 고객의 연간 점검계획 항목 생성 — 소방안전관리 연 12건 / 일반관리 연 1~2건 (자체점검만, 정기 없음)
  *  - 기준일: 점검계획일(수동) → 최초 점검시작일(loadAnchorDates) — 모두 없으면 생성 없음
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
  *  - 종합: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치)
- *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응)
+ *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응).
+ *    일반관리는 정기 미생성 (소방계획서_6 D-1 — 유일한 관리유형 분기)
  *  - 정기(monthly)는 생성 즉시 자동 확정(confirmed, scheduled=planned) — 기준일 규칙으로 날짜가
  *    이미 결정되는 루틴 방문이라 수동 확정 불필요 (2026-07-14 결정). 특별점검만 planned(수동 확정)
  *  - 기준일 이전 날짜의 항목은 생성 안 함 (최초 점검 전 이행 의무 없음 — 올해 안 기준일의 2차 역행 방지)
@@ -48,19 +49,28 @@ export async function loadAnchorDates(
  *  @returns 새로 생성된 항목 수 */
 export async function generateYearlyPlanItems(
   admin: Admin,
-  customer: { id: string; inspection_type: InspectionType; plan_anchor_date?: string | null; assigned_employee_id: string | null },
+  customer: {
+    id: string; inspection_type: InspectionType
+    inspection_category?: string | null; inspection_sub_type?: string | null
+    plan_anchor_date?: string | null; assigned_employee_id: string | null
+  },
   targetYear: number,
   createdBy: string,
   hdSet: Set<string>,
 ): Promise<number> {
   const { inspection_type, assigned_employee_id } = customer
-  if (inspection_type === '일반관리') return 0
 
   const anchorDate = (await loadAnchorDates(admin, [customer])).get(customer.id)
   if (!anchorDate) return 0
 
-  const inspection_category = '소방안전관리'
-  const inspection_sub_type = inspection_type === '종합' ? '종합' : '작동'
+  // 고객 컬럼(category/sub_type) 기준 유도 — inspection_type 유도식은 일반관리를 전부 '작동'으로
+  // 오판했음 (소방계획서_6 W-7 버그 수정). 컬럼 미보유 레거시만 inspection_type 폴백
+  const inspection_category = customer.inspection_category
+    ?? (inspection_type === '일반관리' ? '일반관리' : '소방안전관리')
+  const inspection_sub_type: '종합' | '작동' = customer.inspection_sub_type === '종합' ? '종합'
+    : customer.inspection_sub_type === '작동' ? '작동'
+    : inspection_type === '종합' ? '종합' : '작동'
+  const isGeneral = inspection_category === '일반관리'
 
   const approvalDate  = new Date(anchorDate)
   const approvalMonth = approvalDate.getMonth() + 1
@@ -90,26 +100,28 @@ export async function generateYearlyPlanItems(
   specialKey.add(`${targetYear}-${approvalMonth}`)
   toCreate.push({
     year: targetYear, month: approvalMonth, sequence_num: 1,
-    planType: inspection_type === '종합' ? 'special_종합' : 'special_작동',
+    planType: `special_${inspection_sub_type}`,
   })
 
   // 종합: +6개월 2차 특별점검
-  if (inspection_type === '종합') {
+  if (inspection_sub_type === '종합') {
     const mo2 = ((approvalMonth - 1 + 6) % 12) + 1
     specialKey.add(`${targetYear}-${mo2}`)
     toCreate.push({ year: targetYear, month: mo2, sequence_num: 2, planType: 'special_종합' })
   }
 
-  // targetYear 나머지 월: monthly 정기점검 (특별월 제외)
+  // targetYear 나머지 월: monthly 정기점검 (특별월 제외) — 일반관리는 정기 미생성(D-1)
   // 단, 이미 지난 달의 정기는 생성 생략 — 중도 등록·올해 보정 시 수행 불가한 과거
   // 유령 항목이 쌓이는 것 방지. 특별점검은 법정 의무라 과거여도 생성(초과 해결 플로우 대상).
   const kstNow   = new Date(Date.now() + 9 * 60 * 60 * 1000)
   const curYear  = kstNow.getUTCFullYear()
   const curMonth = kstNow.getUTCMonth() + 1
-  for (let m = 1; m <= 12; m++) {
-    if (specialKey.has(`${targetYear}-${m}`)) continue
-    if (targetYear < curYear || (targetYear === curYear && m < curMonth)) continue
-    toCreate.push({ year: targetYear, month: m, sequence_num: 1, planType: 'monthly' })
+  if (!isGeneral) {
+    for (let m = 1; m <= 12; m++) {
+      if (specialKey.has(`${targetYear}-${m}`)) continue
+      if (targetYear < curYear || (targetYear === curYear && m < curMonth)) continue
+      toCreate.push({ year: targetYear, month: m, sequence_num: 1, planType: 'monthly' })
+    }
   }
 
   let created = 0

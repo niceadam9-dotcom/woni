@@ -130,7 +130,6 @@ export async function GET(req: NextRequest) {
   const { data: inspRaw } = await admin.from('inspections')
     .select('id, customer_id, assigned_employee_id, inspection_type, plan_type, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
     .is('report9_submitted_at', null)
-    .neq('inspection_type', '일반관리')
     .gte('inspection_start_date', shiftDate(todayStr, -45))
   const specials = ((inspRaw ?? []) as unknown as InspRow[])
     .filter(r => !r.plan_type || r.plan_type.startsWith('special')) // 정기·일반은 보고 의무 없음(§9-9a)

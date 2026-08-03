@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { startInspectionCore } from '@/lib/inspection-start'
 
-// 정기(monthly)·일반관리(event) 당일 자동 시작 (2026-07-23 사용자 확정 — [시작] 클릭 없이 점검업무 반영)
+// 정기(monthly) 당일 자동 시작 (2026-07-23 사용자 확정 — [시작] 클릭 없이 점검업무 반영)
 // 매일 아침 호출: 확정일이 오늘(놓친 날 대비 3일 캐치업)인 미시작 항목을 자동 시작.
 // 담당 미배정 항목은 건너뜀(자동 배정할 주체 없음) — [시작] 버튼 폴백으로 수동 처리.
-// 특별점검은 점검일 확정 시점에 즉시 자동 시작되므로 제외.
+// 자체점검(special_*)은 점검일 확정 시점에 즉시 자동 시작되므로 제외.
+// event는 대상에서 제거 (소방계획서_6 W-26·D-4) — 일반관리도 자체점검 체계, 미시작 event는 W-12가 정리.
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   const { data: itemsRaw } = await admin
     .from('inspection_plan_items')
     .select('id, customer_id, assigned_employee_id, scheduled_date, plan_type')
-    .in('plan_type', ['monthly', 'event'])
+    .eq('plan_type', 'monthly')
     .eq('status', 'confirmed')
     .is('inspection_id', null)
     .gte('scheduled_date', fromStr)

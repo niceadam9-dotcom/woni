@@ -5,7 +5,7 @@ import { CalendarPlus, Loader2, CheckCircle2, RefreshCw } from 'lucide-react'
 import { getAnnualTargetsAction, bulkAnnualIssueAction, type AnnualTargets } from '@/app/(dashboard)/fire-plans/generate/actions'
 
 /** P-1 연차 일괄 발행 마법사 (소방계획서_5 §8 P-1) — 연초 전 고객 소방계획서 갱신을 1클릭으로.
- *  대상(활성·일반관리 제외) 중 해당 연도 미발행 건을 생성 큐에 일괄 등록. 워커가 순차 처리. */
+ *  대상(활성 전체 — 일반관리 포함, 소방계획서_6 W-19) 중 해당 연도 미발행 건을 생성 큐에 일괄 등록. 워커가 순차 처리. */
 export function AnnualIssueWizard({ defaultYear }: { defaultYear: number }) {
   const [year, setYear] = useState(defaultYear)
   const [targets, setTargets] = useState<AnnualTargets | null>(null)

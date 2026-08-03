@@ -107,25 +107,29 @@ export async function createInspectionAction(
     metadata: { year, sequence_num: input.sequence_num, customer_id: input.customer_id },
   } as Record<string, unknown>)
 
-  // 점검계획일이 없는 소방안전관리 고객: 방금 등록한 점검시작일(최초 점검)을 기준일로
-  // 연간 계획(정기 포함) 자동 생성 — 멱등이라 중복 실행 안전.
+  // 점검계획일이 없는 고객: 방금 등록한 점검시작일(최초 점검)을 기준일로
+  // 연간 계획 자동 생성 — 멱등이라 중복 실행 안전. 일반관리도 동일 경로 (소방계획서_6 D-1 — 정기만 미생성).
   // 점검계획일이 있는 고객은 등록 시 이미 생성됨 — 여기서 점검시작일 기준으로 재생성하면
   // 2차 특별점검이 다른 달에 중복 생성되므로 제외 (기준일 규칙: 점검계획일 최우선)
   const { data: custRaw } = await admin
     .from('customers')
-    .select('inspection_type, plan_anchor_date, assigned_employee_id, is_active')
+    .select('inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, assigned_employee_id, is_active')
     .eq('id', input.customer_id)
     .single()
   const cust = custRaw as {
-    inspection_type: InspectionType; plan_anchor_date: string | null
-    assigned_employee_id: string | null; is_active: boolean
+    inspection_type: InspectionType; inspection_category: string | null; inspection_sub_type: string | null
+    plan_anchor_date: string | null; assigned_employee_id: string | null; is_active: boolean
   } | null
-  if (cust && cust.is_active && cust.inspection_type !== '일반관리' && !cust.plan_anchor_date) {
+  if (cust && cust.is_active && !cust.plan_anchor_date) {
     const targetYear = Math.max(year, new Date().getFullYear())
     const hdSet = await loadHolidaySet(admin, targetYear)
     await generateYearlyPlanItems(
       admin,
-      { id: input.customer_id, inspection_type: cust.inspection_type, plan_anchor_date: null, assigned_employee_id: cust.assigned_employee_id },
+      {
+        id: input.customer_id, inspection_type: cust.inspection_type,
+        inspection_category: cust.inspection_category, inspection_sub_type: cust.inspection_sub_type,
+        plan_anchor_date: null, assigned_employee_id: cust.assigned_employee_id,
+      },
       targetYear, profile.id, hdSet,
     )
     revalidatePath('/inspection-plans')
@@ -246,10 +250,10 @@ export async function completeStepAction(
   const allDone = (steps ?? []).every(s => (s as { status: string }).status === 'completed')
   // R0-7: 점검이 방금 완료로 전이됐는지 (이전 상태가 completed가 아니었을 때만)
   const justCompleted = allDone && (insp as { status: string }).status !== 'completed'
-  // 별지 9호 제출 대상 = 자체점검(특별점검) — 일반관리·정기(monthly/event)는 외관점검표만이라 제외
-  // requestReport9Action·getReport9StatusAction의 isSpecial과 동일 기준으로 정합
+  // 별지 9호 제출 대상 = 자체점검(special_*·null) — 정기(monthly)·레거시 event는 외관점검표만이라 제외.
+  // 관리유형 무관(소방계획서_6 W-4) — requestReport9Action·getReport9StatusAction isSpecial과 동일 기준
   const _insp = insp as { inspection_type: string; plan_type: string | null }
-  const report9Eligible = _insp.inspection_type !== '일반관리' && (!_insp.plan_type || _insp.plan_type.startsWith('special'))
+  const report9Eligible = !_insp.plan_type || _insp.plan_type.startsWith('special')
   if (allDone) {
     await admin
       .from('inspections')

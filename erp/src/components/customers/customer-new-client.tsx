@@ -59,6 +59,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     use_approval_date: '',
     plan_anchor_date: '',
     inspection_type: '종합' as InspectionType,
+    // 일반관리 자체점검 종류 (소방계획서_6 W-1) — 일반관리도 종합/작동 선택, 다수 기본값 '작동'(D-2)
+    general_sub_type: '작동' as '종합' | '작동',
     zipcode: '',
     address: '',
     region_si: defaultRegionSi,
@@ -227,6 +229,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
         use_approval_date: form.use_approval_date || undefined,
         plan_anchor_date: form.plan_anchor_date,
         inspection_type: form.inspection_type,
+        inspection_sub_type: form.inspection_type === '일반관리' ? form.general_sub_type : undefined,
         zipcode: form.zipcode.trim() || undefined,
         address: form.address.trim() || undefined,
         region_si: form.region_si.trim() || undefined,
@@ -263,10 +266,13 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
     })
   }
 
+  // 일반관리 = 소방안전관리와 동일 자체점검(종합/작동), 정기점검만 없음 (소방계획서_6 D-1)
   const INSPECTION_ANNUAL: Record<InspectionType, string> = {
     '종합':     '연 12회 자동 생성 (종합 2회 + 정기 10회)',
     '작동':     '연 12회 자동 생성 (작동 1회 + 정기 11회)',
-    '일반관리': '점검계획일 당일 1건 자동 생성·확정',
+    '일반관리': form.general_sub_type === '종합'
+      ? '연 2회 자동 생성 (종합 2회 — 정기 없음)'
+      : '연 1회 자동 생성 (작동 1회 — 정기 없음)',
   }
 
   // §10-2(T9): 필수 충족 체크 — 요약 패널 체크리스트·[등록] 활성화
@@ -279,7 +285,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
   ]
   const allFieldsOk = requiredChecks.every(c => c[1])
   const requiredOk = allFieldsOk && !!form.customer_code.trim()  // 고객코드 자동 생성 완료까지 등록 보류
-  const typeLabel = form.inspection_type !== '일반관리' ? `${form.inspection_type} (${form.inspection_type === '종합' ? '연 2회' : '연 1회'})` : '일반관리 (1회)'
+  const typeLabel = form.inspection_type !== '일반관리'
+    ? `${form.inspection_type} (${form.inspection_type === '종합' ? '연 2회' : '연 1회'})`
+    : `일반 ${form.general_sub_type} (${form.general_sub_type === '종합' ? '연 2회' : '연 1회'})`
   const assignedName = employees.find(e => e.id === form.assigned_employee_id)?.name
 
   return (
@@ -386,29 +394,32 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
               </label>
             ))}
           </div>
-          {form.inspection_type !== '일반관리' && (
-            <div className="flex gap-6 mt-2 pl-3 border-l-2 border-[#e0ddf5]">
-              {(['종합', '작동'] as const).map(sub => (
+          {/* 자체점검 종류 — 소방안전관리·일반관리 공통 종합/작동 선택 (소방계획서_6 W-1) */}
+          <div className="flex gap-6 mt-2 pl-3 border-l-2 border-[#e0ddf5]">
+            {(['종합', '작동'] as const).map(sub => {
+              const isGeneral = form.inspection_type === '일반관리'
+              const checked = isGeneral ? form.general_sub_type === sub : form.inspection_type === sub
+              return (
                 <label key={sub} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
                     name="inspection_sub_type"
-                    checked={form.inspection_type === sub}
-                    onChange={() => setField('inspection_type', sub)}
+                    checked={checked}
+                    onChange={() => isGeneral ? setField('general_sub_type', sub) : setField('inspection_type', sub)}
                     className="accent-[#7b68ee]"
                   />
                   <span className="text-sm text-[#090c1d]">
                     {sub} <span className="text-xs text-[#7b7b8d]">({sub === '종합' ? '연2회' : '연1회'})</span>
                   </span>
                 </label>
-              ))}
-            </div>
-          )}
+              )
+            })}
+          </div>
         </Field>
 
         {form.inspection_type && (
           <p className="text-xs text-[#7b68ee] bg-[#f5f4ff] rounded-lg px-3 py-2">
-            {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : '일반관리'}: {INSPECTION_ANNUAL[form.inspection_type]}
+            {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : `일반관리 › ${form.general_sub_type}`}: {INSPECTION_ANNUAL[form.inspection_type]}
           </p>
         )}
 

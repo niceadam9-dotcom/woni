@@ -21,7 +21,7 @@ export async function syncInspectionStepDates(
 }
 
 /** 점검 시작 코어 — plan_item → inspections 생성 (권한 검사 없음 — 호출자가 보장).
- *  호출처: [시작] 버튼·확정 자동 시작(특별점검)·일반관리 event 생성 즉시 시작·당일 자동 시작 크론(정기). */
+ *  호출처: [시작] 버튼·확정 자동 시작(자체점검 special_* — 일반관리 포함)·당일 자동 시작 크론(정기). */
 export async function startInspectionCore(
   admin: Admin,
   actorId: string,
@@ -51,7 +51,7 @@ export async function startInspectionCore(
   const assigneeId = item.assigned_employee_id ?? actorId
 
   // inspections 레코드 생성 — DB 트리거가 체크리스트 자동 생성
-  // (특별점검 6단계 / 정기·일반관리 1단계 — plan_type으로 분기, migration 088)
+  // (자체점검 special_*·null = 6단계 / 정기·레거시 event = 1단계 — plan_type으로 분기, migration 111)
   const { data: inspRaw, error: inspErr } = await admin
     .from('inspections')
     .insert({
