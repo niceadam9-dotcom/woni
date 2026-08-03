@@ -212,7 +212,7 @@ export default async function InspectionsPage({
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
                 <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
-                  {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태', ''].map(h => (
+                  {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
                       {h}
                     </th>
@@ -229,12 +229,16 @@ export default async function InspectionsPage({
                   return (
                     <tr key={insp.id} className="hover:bg-[#f8f9fa] transition-colors">
                       <td className="px-4 py-3">
-                        <p className={`font-medium ${customer && !customer.is_active ? 'text-gray-400 line-through' : 'text-[#090c1d]'}`}>
+                        {/* 고객명 클릭 = 상세보기와 동일 진입 (2026-08-03 사용자 요청) */}
+                        <Link
+                          href={`/inspections/${insp.id}`}
+                          className={`font-medium hover:underline ${customer && !customer.is_active ? 'text-gray-400 line-through' : 'text-[#090c1d] hover:text-[#7b68ee]'}`}
+                        >
                           {customer?.customer_name ?? '—'}
                           {customer && !customer.is_active && (
                             <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 no-underline inline-block align-middle">비활성/삭제</span>
                           )}
-                        </p>
+                        </Link>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -282,14 +286,6 @@ export default async function InspectionsPage({
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[insp.status]}`}>
                           {STATUS_LABELS[insp.status]}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/inspections/${insp.id}`}
-                          className="text-xs text-[#7b68ee] hover:underline font-medium"
-                        >
-                          상세보기
-                        </Link>
                       </td>
                     </tr>
                   )
