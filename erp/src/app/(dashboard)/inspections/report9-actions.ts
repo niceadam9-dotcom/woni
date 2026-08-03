@@ -9,6 +9,8 @@ import {
   renderReport9, FORM3_ITEMS, form3Group,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
+import { renderReport4, type Report4Data } from '@/lib/doc-templates/report4'
+import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData } from '@/lib/doc-templates/exterior'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
@@ -221,6 +223,17 @@ async function assembleReport9(
     ? (((await admin.from('fire_facilities').select('facility_code').eq('building_id', b.id).eq('installed', true))
       .data ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
     : []
+
+  // 4~7쪽 세부 현황(H-21) — customer_facility_specs 병합: 대표 건물(building_id) 행 우선, 공통(null) 폴백
+  type SpecRow = { section_key: string; spec: Record<string, unknown> | null; building_id: string | null }
+  let specQ = admin.from('customer_facility_specs')
+    .select('section_key, spec, building_id').eq('customer_id', customerId)
+  specQ = b ? specQ.or(`building_id.eq.${b.id},building_id.is.null`) : specQ.is('building_id', null)
+  const specRows = (((await specQ).data ?? []) as SpecRow[])
+  const specs: SpecMap = {}
+  for (const r of specRows.filter(r => r.building_id === null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
+  for (const r of specRows.filter(r => r.building_id !== null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
+
   const facilityChecks = FORM3_ITEMS.filter(it => codes.some(c => nameMatch(c, it)))
   const resultMarks: Record<string, 'O' | 'X' | 'N'> = {}
   for (const it of FORM3_ITEMS) {
@@ -369,6 +382,7 @@ async function assembleReport9(
     facilityChecks,
     resultMarks,
     muResults,
+    specs,
     defectRows,
   }
 
@@ -382,6 +396,31 @@ async function assembleReport9(
   if (!cust.address) missing.push('주소')
   if (!cust.use_approval_date) missing.push('사용승인일')
   if (!b?.permit_date) missing.push('건축허가일')
+  return { data, missing }
+}
+
+/** 별지 4호(소방시설등점검표) 데이터 조립 — H-21. 1·2쪽(대상물·점검결과·MU·인력·기간)은
+ *  별지 9호 조립과 동일 원본이라 assembleReport9를 재사용하고, 3~7쪽 세부 현황은 같은 specs
+ *  (customer_facility_specs 공용 원본 §4-A-1). 별지 4호 서식에 없는 누락 항목만 제외. */
+async function assembleReport4(
+  admin: Admin,
+  customerId: string,
+  inspectionId: string,
+): Promise<{ data: Report4Data; missing: string[] }> {
+  const { data: d9, missing: m9 } = await assembleReport9(admin, customerId, inspectionId)
+  const [inspStart = '', inspEnd = ''] = d9.inspPeriod ? d9.inspPeriod.split(' ~ ') : ['', '']
+  // 송달 동의·사용승인일·건축허가일은 별지 9호 전용(1~2쪽) — 별지 4호 서식에 없음
+  const missing = m9.filter(m => !['송달 동의', '사용승인일', '건축허가일'].includes(m))
+  if (Object.keys(d9.specs ?? {}).length === 0) missing.push('설비 세부현황(설비 대장) 미입력 — 3~7쪽 빈 서식')
+  const data: Report4Data = {
+    ckOp: d9.ckOp, ckInitial: d9.ckInitial, ckCompEtc: d9.ckCompEtc,
+    customerName: d9.customerName, purpose: d9.purpose, address: d9.address,
+    facilityChecks: d9.facilityChecks, resultMarks: d9.resultMarks, muResults: d9.muResults,
+    main: d9.main, assistants: d9.assistants,
+    inspStart, inspEnd, inspDays: d9.inspDays,
+    companyName: d9.companyName,
+    specs: d9.specs ?? {},
+  }
   return { data, missing }
 }
 
@@ -465,8 +504,8 @@ export type Report9Job = {
 }
 export type Report9File = { name: string; path: string; createdAt: string | null }
 
-/** 생성 요청 — 별지 9·10·11호·외관점검표 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7) */
-const ANNEX_TYPES = ['report9', 'report10', 'report11', 'exterior'] as const
+/** 생성 요청 — 별지 4·9·10·11호·외관점검표 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7·H-21) */
+const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior'] as const
 export type AnnexType = typeof ANNEX_TYPES[number]
 
 export async function requestReport9Action(
@@ -486,8 +525,8 @@ export async function requestReport9Action(
   // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(special_*·null)만, 정기·레거시 event는 외관점검표만.
   // 관리유형 무관 — 일반관리 자체점검도 대상 (소방계획서_6 W-15, page.tsx isSpecial과 동일 기준)
   const isSpecial = !i.plan_type || i.plan_type.startsWith('special')
-  if (['report9', 'report10', 'report11'].includes(reportType) && !isSpecial) {
-    return { error: '일반·정기 점검은 별지 9·10·11호 대상이 아닙니다 — 외관점검표만 작성합니다.' }
+  if (['report4', 'report9', 'report10', 'report11'].includes(reportType) && !isSpecial) {
+    return { error: '일반·정기 점검은 별지 4·9·10·11호 대상이 아닙니다 — 외관점검표만 작성합니다.' }
   }
   if (reportType === 'exterior' && isSpecial) {
     return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
@@ -506,6 +545,10 @@ export async function requestReport9Action(
     if (reportType === 'report9') {
       const assembled = await assembleReport9(admin, i.customer_id, inspectionId)
       html = renderReport9(assembled.data)
+      missing = assembled.missing
+    } else if (reportType === 'report4') {
+      const assembled = await assembleReport4(admin, i.customer_id, inspectionId)
+      html = renderReport4(assembled.data)
       missing = assembled.missing
     } else if (reportType === 'exterior') {
       const assembled = await assembleExterior(admin, i.customer_id, inspectionId)
@@ -541,7 +584,7 @@ export async function requestReport9Action(
     return {}
   } catch (e) {
     const label = reportType === 'exterior' ? '외관점검표'
-      : `별지 ${reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'}호`
+      : `별지 ${reportType === 'report4' ? '4' : reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'}호`
     return { error: `${label} 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
   }
 }
@@ -550,7 +593,7 @@ export async function requestReport9Action(
  *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시 */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
-  reportType: 'report9' | 'report10' | 'report11' | 'exterior',
+  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior',
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -558,17 +601,21 @@ export async function getAnnexPreviewHtmlAction(
     .select('id, customer_id, plan_type').eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const ins = insp as { customer_id: string; plan_type: string | null }
-  // 유형 가드 — requestReport9Action과 동일 기준(자체점검=별지 9·10·11호, 정기·레거시 event=외관점검표)
+  // 유형 가드 — requestReport9Action과 동일 기준(자체점검=별지 4·9·10·11호, 정기·레거시 event=외관점검표)
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
   if (reportType === 'exterior') {
     if (isSpecial) return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
   } else if (!isSpecial) {
-    return { error: '자체점검 건만 별지 9·10·11호 대상입니다.' }
+    return { error: '자체점검 건만 별지 4·9·10·11호 대상입니다.' }
   }
   try {
     if (reportType === 'report9') {
       const { data, missing } = await assembleReport9(admin, ins.customer_id, inspectionId)
       return { html: renderReport9(data, { highlight: true }), missing }
+    }
+    if (reportType === 'report4') {
+      const { data, missing } = await assembleReport4(admin, ins.customer_id, inspectionId)
+      return { html: renderReport4(data, { highlight: true }), missing }
     }
     if (reportType === 'exterior') {
       const { data, missing } = await assembleExterior(admin, ins.customer_id, inspectionId)
@@ -597,10 +644,10 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   const ins = insp as { customer_id: string; inspection_type: string; plan_type: string | null }
   const customerId = ins.customer_id
 
-  // 유형 가드(데이터 계층) — 자체점검은 별지 9/10/11호만, 정기·레거시 event는 외관점검표만 조회 (page.tsx isSpecial과 동일)
+  // 유형 가드(데이터 계층) — 자체점검은 별지 4/9/10/11호만, 정기·레거시 event는 외관점검표만 조회 (page.tsx isSpecial과 동일)
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
-  const allowTypes = isSpecial ? ['report9', 'report10', 'report11'] : ['exterior']
-  const filePattern = isSpecial ? /^report(9|10|11)_/ : /^exterior_/
+  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11'] : ['exterior']
+  const filePattern = isSpecial ? /^report(4|9|10|11)_/ : /^exterior_/
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')

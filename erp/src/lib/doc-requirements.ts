@@ -92,6 +92,7 @@ export function stepDocs(i: { isSpecial: boolean }): TimelineStepKey[] {
 
 /** 생성물 파일 접두어 → 문서명 (⑩ R11 문서 단위 그룹핑 공용 — 점검 상세·타임라인·보고서 센터) */
 export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }> = {
+  report4: { label: '소방시설등점검표 (별지 4호)', full: `${DOC_TERMS.checklistStd} (별지 4호 — 자체점검 고시 서식, 작성 후 2년 보관)` },
   report9: { label: '실시결과 보고서 (별지 9호)', full: DOC_TERMS.report9Full },
   report10: { label: '이행계획서 (별지 10호)', full: DOC_TERMS.report10Full },
   report11: { label: '이행완료 보고서 (별지 11호)', full: DOC_TERMS.report11Full },

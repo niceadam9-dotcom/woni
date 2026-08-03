@@ -45,7 +45,7 @@ export function InspectionReport9Client({
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate(reportType: 'report9' | 'report10' | 'report11' | 'exterior' = 'report9') {
+  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' = 'report9') {
     setMsg('')
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, reportType)
@@ -72,7 +72,7 @@ export function InspectionReport9Client({
           {variant === 'exterior' ? '외관점검표 (일반용)' : '실시결과 보고서 (별지 9호)'}
         </h2>
         <span className="text-[11px] text-[#b0acd6]">
-          {variant === 'exterior' ? '해당 월 결과 자동 병합 · 작성 후 2년 보관 (보고 없음)' : '1~3쪽 자동 병합 · 4~8쪽 빈 서식 포함'}
+          {variant === 'exterior' ? '해당 월 결과 자동 병합 · 작성 후 2년 보관 (보고 없음)' : '1~3·8쪽 자동 병합 · 4~7쪽 세부현황(설비 대장) 주입'}
         </span>
       </div>
       {/* D-6 (a)안: 정기·일반관리는 보고 단계가 없음 — 이유 안내 1줄 */}
@@ -107,6 +107,14 @@ export function InspectionReport9Client({
               : variant === 'exterior' ? '외관점검표 생성 (PDF)'
               : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (PDF)'}
           </button>
+          {variant !== 'exterior' && (
+            <button onClick={() => generate('report4')} disabled={isPending || busy}
+              title="소방시설등점검표 (별지 4호) — 1·2쪽·점검결과 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)에서 입력 (H-21)"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+              <FileText className="size-3.5" />
+              별지 4호 생성
+            </button>
+          )}
           {checks.some(c => !c.ok) && (
             <span className="text-[11px] text-amber-600">미비 항목은 빈 칸으로 출력됩니다 (fail-soft)</span>
           )}
