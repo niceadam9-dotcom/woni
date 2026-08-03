@@ -78,7 +78,7 @@
       "id": "S3B", "title": "입력 동선 재편", "status": "pending_order",
       "criteria": [
         { "id": "H-25", "desc": "고객 온보딩 위저드 — 5단계(기본·관계인·설비 대장·지도/사진·완성도), 저장·재개, 필수 최소만 강제, '나중에'→미완성 큐 (§4-D)", "status": "pending_order" },
-        { "id": "H-26", "desc": "미완성 큐 — 원본별 빈칸 통합 판정(기존 완성도 함수 재사용)·딥링크·[다음 빈칸]·기한 우선 정렬, 대시보드+작업대 연동", "status": "pending_order" },
+        { "id": "H-26", "desc": "미완성 큐 — 원본별 빈칸 통합 판정(기존 완성도 함수 재사용)·딥링크·[다음 빈칸]·기한 우선 정렬, 대시보드+작업대 연동", "status": "code_present", "note": "2026-08-03 — customer-list.ts fetchInputTodo(incompleteAreas 재사용·빈칸 많은 순) + doc-todo-widget에 '입력 미완료' 섹션(고객→소방계획서 탭 딥링크). 제출(9호·cert)+입력 단일 큐. tsc 통과. 잔여(경미): 필드 단위 [다음 빈칸] 연속 이동은 후속(현재 고객 단위 딥링크)" },
         { "id": "H-27", "desc": "문서 상태 스트립(§4-B-2) — DB 단일 판정(목록 1쿼리)·고객 목록 문서 컬럼·'문서 미비만' 필터·상세 docChips 교체·작업대 딥링크", "status": "code_present", "note": "2026-08-03 — customer-list.ts docStrip(당해 연도 DB 배치 판정: fire_plans·최신 자체점검·fire_plan_gen_jobs done·불량수, storage 미조회) + 고객 목록 '문서' 컬럼(계·④⑨⑩⑪ 5칸 ✓/⚠/—, 클릭→/reports?form=docs&cust=) + '문서 미비만' 필터. tsc 통과. 잔여(경미): 상세 docChips 교체 후속" },
         { "id": "H-28", "desc": "점검 상세 여정 스텝퍼(§4-E) — 3섹션 통합·다음 할 일 배너·첫 미완료 자동 펼침·단계 내 행동, §4-E-1 문구 개정(③ 보고·협의→10호 연동)·§4-E-2 전/후 갤러리", "status": "pending_order" }
       ]

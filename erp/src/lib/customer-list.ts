@@ -41,6 +41,19 @@ export function parseListFilter(sp: Record<string, string | undefined>): Custome
   return { q: sp.q ?? '', type: sp.type ?? '', active: sp.active ?? 'active', inc: sp.inc ?? '' }
 }
 
+/** 미완성 큐 행 (소방계획서_7 §4-D H-26) — 입력 빈칸 있는 활성 고객 */
+export type InputTodoRow = { id: string; name: string; areas: string[] }
+
+/** 입력 미완료 고객 큐 — 문서 할 일 위젯의 '입력' 차원(§4-D). 판정은 fetchCustomerList incompleteAreas 재사용 */
+export async function fetchInputTodo(admin: SupabaseClient, limit = 12): Promise<InputTodoRow[]> {
+  const items = await fetchCustomerList(admin, { active: 'active', inc: 'any' })
+  // 빈칸 많은 순 우선 (§4-D '나머지' 티어 내 정렬)
+  return items
+    .sort((a, b) => b.incompleteAreas.length - a.incompleteAreas.length)
+    .slice(0, limit)
+    .map(i => ({ id: i.id, name: i.customer_name, areas: i.incompleteAreas }))
+}
+
 export async function fetchCustomerList(
   admin: SupabaseClient,
   f: CustomerListFilter,

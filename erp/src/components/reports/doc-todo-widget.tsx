@@ -2,9 +2,10 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ClipboardList, Clock3, FileUp, Upload, ArrowRight, CheckSquare, User } from 'lucide-react'
+import { ClipboardList, Clock3, FileUp, Upload, ArrowRight, CheckSquare, User, PencilLine } from 'lucide-react'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
+import type { InputTodoRow } from '@/lib/customer-list'
 
 /** 대시보드 '문서 할 일' 위젯 (소방계획서_5 R0-9·4-0-10) —
  *  "오늘 내가 처리할 게 있나?"에 답하는 모니터링 1층. 기한 임박 별지 9호 + 배치확인서 누락.
@@ -12,9 +13,10 @@ import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
 
 const cardShadow = 'shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]'
 
-export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, myId, defaultMine }: {
+export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo = [], myId, defaultMine }: {
   dueSoon: DueReport9Row[]
   missingCerts: MissingCertRow[]
+  inputTodo?: InputTodoRow[]   // 입력 미완료 고객 큐 (§4-D H-26) — 담당 무관(고객 단위)이라 '내 담당만'에 영향 없음
   myId: string
   defaultMine: boolean
 }) {
@@ -27,7 +29,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, myId, def
 
   const visibleDue = mine ? dueSoon.filter(r => r.assigneeId === myId) : dueSoon
   const visibleCerts = mine ? missingCerts.filter(r => r.assigneeId === myId) : missingCerts
-  const total = visibleDue.length + visibleCerts.length
+  const total = visibleDue.length + visibleCerts.length + inputTodo.length
 
   function pick(row: MissingCertRow) {
     targetRef.current = row
@@ -80,7 +82,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, myId, def
             <CheckSquare className="size-6 text-green-500" />
           </div>
           <p className="text-sm font-medium text-green-700">처리할 문서가 없습니다</p>
-          <p className="text-xs text-[#514b81]">제출 기한·배치확인서 모두 정상입니다</p>
+          <p className="text-xs text-[#514b81]">제출 기한·배치확인서·입력 모두 정상입니다</p>
         </div>
       ) : (
         <div className="divide-y divide-[#f8f9fa]">
@@ -110,6 +112,17 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, myId, def
                 className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 text-[11px] text-amber-800 hover:bg-amber-100 disabled:opacity-50 shrink-0">
                 <Upload className="size-3" /> 업로드
               </button>
+            </div>
+          ))}
+          {/* 입력 미완료 (§4-D H-26) — 빈칸 있는 고객 → 소방계획서 탭 딥링크로 바로 보완 */}
+          {inputTodo.map(r => (
+            <div key={`input-${r.id}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
+              <PencilLine className="size-3.5 text-[#7b68ee] shrink-0" />
+              <span className="font-medium text-[#090c1d]">{r.name}</span>
+              <span className="text-[#514b81]">입력 미완료 · {r.areas.join('·')}</span>
+              <Link href={`/customers/${r.id}?tab=plan`} className="ml-auto text-[11px] text-[#7b68ee] hover:underline shrink-0">
+                입력하러 →
+              </Link>
             </div>
           ))}
         </div>

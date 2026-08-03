@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDocTodo } from '@/lib/doc-status'
 import { DocTodoWidget } from '@/components/reports/doc-todo-widget'
+import { fetchInputTodo } from '@/lib/customer-list'
 import type { UserRole } from '@/types'
 
 const leaveStatusLabel: Record<string, string> = {
@@ -55,9 +56,10 @@ export default async function DashboardPage() {
   const isAdmin = profile.role === 'admin'
 
   // 문서 할 일 위젯 (소방계획서_5 R0-9) — 권한 있는 직원만, 판정은 lib/doc-status 1곳 공유
-  const docTodo = can(profile.role as UserRole, 'inspection_register')
-    ? await getDocTodo(admin)
-    : null
+  const canDoc = can(profile.role as UserRole, 'inspection_register')
+  const [docTodo, inputTodo] = canDoc
+    ? await Promise.all([getDocTodo(admin), fetchInputTodo(admin)])   // §4-D H-26 입력 미완료 큐
+    : [null, []]
 
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
@@ -345,7 +347,7 @@ export default async function DashboardPage() {
       )}
 
       {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점, 보고서 센터로 연결 ── */}
-      {docTodo && <DocTodoWidget dueSoon={docTodo.dueSoon} missingCerts={docTodo.missingCerts} myId={profile.id} defaultMine={isEmployee} />}
+      {docTodo && <DocTodoWidget dueSoon={docTodo.dueSoon} missingCerts={docTodo.missingCerts} inputTodo={inputTodo} myId={profile.id} defaultMine={isEmployee} />}
 
       {/* ── 상단 ERP 카드 ─────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
