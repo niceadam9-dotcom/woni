@@ -27,8 +27,8 @@
     { "id": "D-9", "desc": "소방시설등점검표(엑셀) 생성은 별지 4호 PDF로 대체·폐지 — H-21 전환·검증 후 제거", "status": "confirmed", "note": "2026-08-03 사용자 확정 (구 Q-5)" }
   ],
   "roadmap": [
-    { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "partial", "note": "H-1~H-3 code_present(2026-08-03), H-4는 S2 첫 템플릿과 함께" },
-    { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "pending_order" },
+    { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "code_present", "note": "H-1~H-4 전건 code_present(2026-08-03)" },
+    { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "partial", "note": "10·11호 이식·동기 전환 완료(H-6·H-8 부분) — 9호(H-5)·외관(H-7)·병행 검증(H-9) 잔여" },
     { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "pending_order" },
     { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "pending_order" },
     { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "pending_order" },
@@ -37,21 +37,21 @@
   ],
   "sections": [
     {
-      "id": "S1", "title": "공통 렌더 기반", "status": "partial",
+      "id": "S1", "title": "공통 렌더 기반", "status": "code_present",
       "criteria": [
         { "id": "H-1", "desc": "템플릿 렌더 기반: src/lib/doc-templates/ 골격·print CSS 공통·A4 페이지 프레임·폰트 셀프 호스팅", "status": "code_present", "note": "2026-08-03 — src/lib/doc-templates/base.ts: BASE_CSS(@page A4·괘선 표·체크박스·미입력 하이라이트)·renderDocument/pageHeader/Footer·esc/val/ck/resultMark. 폰트=Gotenberg 내장 Noto Serif CJK KR(셀프 호스팅 불필요 — Q-3 해소)" },
         { "id": "H-2", "desc": "Gotenberg Chromium 클라이언트: HTML+assets→PDF, 타임아웃·재시도·에러 로그", "status": "code_present", "note": "2026-08-03 — 신규 파일 대신 기존 src/lib/pdf.ts convertHtmlToPdf 보강(기존 자산 재사용): marginMode 'none'(@page 위임)·AbortSignal 타임아웃 60s·5xx 1회 재시도" },
         { "id": "H-3", "desc": "Gotenberg 컨테이너 폰트 + 변환 스모크 테스트 (VPS)", "status": "code_present", "note": "2026-08-03 확인 — gotenberg-staging fc-list: Noto Serif/Sans CJK KR 내장(설치 불필요), Chromium 한글 HTML→PDF 스모크 200·%PDF(6084B). 운영 gotenberg-prod 동일 이미지" },
-        { "id": "H-4", "desc": "미리보기 경로: 렌더 HTML 화면 표시 — 생성물 HTML과 단일 소스", "status": "pending_order", "note": "S2 첫 템플릿(별지 10·11호)과 함께 구현 예정" }
+        { "id": "H-4", "desc": "미리보기 경로: 렌더 HTML 화면 표시 — 생성물 HTML과 단일 소스", "status": "code_present", "note": "2026-08-03 — getAnnexPreviewHtmlAction(report9-actions.ts): 10·11호 미리보기 HTML(highlight 하이라이트, 생성물과 동일 렌더 함수). UI 연결은 H-23 작성 화면에서, 타 서식은 각 이식 시 확장" }
       ]
     },
     {
-      "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환)", "status": "pending_order",
+      "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환)", "status": "partial",
       "criteria": [
         { "id": "H-5", "desc": "별지 9호 HTML 템플릿(8쪽 전체) + 데이터 이식 — 1~3쪽(make-report9 병합→TS)·8쪽 불량 세부 자동, 4~7쪽 세부현황은 H-18 이후 활성(그 전 빈 서식) (_doc01/별지9호.MD §4)", "status": "pending_order" },
-        { "id": "H-6", "desc": "별지 10·11호 HTML 템플릿 + 이식 — 행 한도 폐지·소방안전관리자 우선·제출일 수기(③) (_doc01/별지10·11호.MD §4)", "status": "pending_order" },
+        { "id": "H-6", "desc": "별지 10·11호 HTML 템플릿 + 이식 — 행 한도 폐지·소방안전관리자 우선·제출일 수기(③) (_doc01/별지10·11호.MD §4)", "status": "code_present", "note": "2026-08-03 — doc-templates/report1011.ts(renderReport10/11 — 원본 hwpx section0.xml 법정 문구 그대로, 행 한도 폐지·4행 패딩) + assembleAnnex1011(report9-actions.ts, 워커 로직 이식). 검증: 렌더 스냅샷 핵심 문구 OK + 실서식 Gotenberg 변환 200·%PDF 2종. 소방안전관리자 우선·제출일 수기(③)는 S3A annex_inputs에서" },
         { "id": "H-7", "desc": "외관점검표 HTML 템플릿 + 이식 — 레거시 event 건 조회 렌더 포함", "status": "pending_order" },
-        { "id": "H-8", "desc": "생성 액션 전환: report9·10·11·exterior 서버 동기 생성 (기존 폴링 UI 호환)", "status": "pending_order" },
+        { "id": "H-8", "desc": "생성 액션 전환: report9·10·11·exterior 서버 동기 생성 (기존 폴링 UI 호환)", "status": "partial", "note": "2026-08-03 — 10·11호 동기 전환 완료(requestReport9Action 분기: 렌더→Gotenberg PDF→storage 업로드→잡 done 기록, 파일 규약 reportNN_<stamp>.pdf/html 유지 — 워커 자연 제외). 9호·외관은 템플릿(H-5·H-7) 후" },
         { "id": "H-9", "desc": "신구 병행 검증(SDK본 vs HTML본 대조) → 워커에서 4개 잡 유형 제외", "status": "pending_order" }
       ]
     },
