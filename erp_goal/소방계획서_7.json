@@ -1,0 +1,110 @@
+{
+  "version": "doc-pipeline-v7",
+  "title": "소방계획서_7 — 한글 SDK 제거·HTML→PDF 단일화 + 입력 체계 재편 (구조 JSON)",
+  "source": "erp_goal/소방계획서_7.md",
+  "generated": "2026-08-03",
+  "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
+  "workflow_rule": "erp_goal/Json_Rule_nostop.md — 착수 후 단계 사이 질문 금지·즉시 다음 세션 진행·에러 자가 수정. 운영 배포·운영 DB 변경만 사용자 게이트",
+  "note": "2026-08-03 착수 (사용자 '1,2,3 이어서 진행' 지시). 설계 커밋 9ee3c66. 서식 기준: _doc01/별지9호·10호·11호.MD + [별지 4] XML. 전 문서 전환 전 워커 공존 — 문서 단위 이식→병행 검증→전환.",
+  "status_legend": {
+    "confirmed": "확정 (설계 결정)",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "implemented": "독립 검증 통과 — verified 필수",
+    "partial": "부분 구현",
+    "pending_order": "미구현·대기",
+    "deferred": "보류·후순위",
+    "proposal": "제안·미결 질문"
+  },
+  "decisions": [
+    { "id": "D-1", "desc": "SDK 미의존·편집은 ERP 화면에서만·지도/사진 화면 등록·한글(HWP/HWPX) 편집 폐지 — PDF 단일 산출, HTML 템플릿→VPS Gotenberg(Chromium)", "status": "confirmed", "note": "2026-08-03 사용자 확정 (한글 SDK 라이선스 구매 불가) — §1" },
+    { "id": "D-2", "desc": "입력 원본 5곳 × 문서 5종 매트릭스 — 빠른 입력·설비 대장(=1.4 통합)·점검표 입력·불량 카드·별지 작성 패널(③ annex_inputs). 같은 값 이중 입력 금지", "status": "confirmed", "note": "2026-08-03 사용자 연쇄 확정 — §4-A-2. 별지 9호 4~7쪽 세부현황 = 별지 4호와 customer_facility_specs 공용 원본" },
+    { "id": "D-3", "desc": "혼동 방지 규약: '데이터는 입력하고 문서는 생성한다' — 입력 화면명에 서식 번호 금지(설비 대장), [자동]/[입력] 배지, 미리보기=최종 확인", "status": "confirmed", "note": "2026-08-03 — §4-A-2c" },
+    { "id": "D-4", "desc": "문서 작업대(보고서 센터 R2 확장 — 보드+슬라이드 패널, 이동 0회) + 고객관리 문서 상태 스트립(DB 단일 판정·당해 연도 기준)", "status": "confirmed", "note": "2026-08-03 — §4-B·§4-B-2" },
+    { "id": "D-5", "desc": "입력 동선 3국면 + 미완성 큐 — 온보딩 5단계 위저드·현장 입력 유지·작업대 제출, 빈칸 딥링크·[다음 빈칸]", "status": "confirmed", "note": "2026-08-03 사용자 허용('전체 순서·화면 변경 가능') — §4-D" },
+    { "id": "D-6", "desc": "점검 상세 여정 스텝퍼 — 3섹션(체크리스트·단계별 보고서·타임라인) 통합, 단계 의미 §4-E-1(③ 관계인 보고·협의→10호 연동, ⑤ 전/후 갤러리 §4-E-2), 데이터 무변경", "status": "confirmed", "note": "2026-08-03 사용자 확인·확정" },
+    { "id": "D-7", "desc": "문서 업로드 폐지 — 생성 가능 문서(소방계획서·별지류)는 업로드 금지, 외부 원본(배치확인서·계약서·사진·도면)만 유지. S4 검증 후 실행", "status": "confirmed", "note": "2026-08-03 사용자 제안·확정 — §6-A" },
+    { "id": "D-8", "desc": "별지 9~11호 소방서 접수 = PDF·출력물로 충분 (한글 요구처 없음)", "status": "confirmed", "note": "2026-08-03 사용자 확인 (구 Q-1)" },
+    { "id": "D-9", "desc": "소방시설등점검표(엑셀) 생성은 별지 4호 PDF로 대체·폐지 — H-21 전환·검증 후 제거", "status": "confirmed", "note": "2026-08-03 사용자 확정 (구 Q-5)" }
+  ],
+  "roadmap": [
+    { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "partial", "note": "H-1~H-3 code_present(2026-08-03), H-4는 S2 첫 템플릿과 함께" },
+    { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "pending_order" },
+    { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "pending_order" },
+    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "pending_order" },
+    { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "pending_order" },
+    { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "pending_order" },
+    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "pending_order" }
+  ],
+  "sections": [
+    {
+      "id": "S1", "title": "공통 렌더 기반", "status": "partial",
+      "criteria": [
+        { "id": "H-1", "desc": "템플릿 렌더 기반: src/lib/doc-templates/ 골격·print CSS 공통·A4 페이지 프레임·폰트 셀프 호스팅", "status": "code_present", "note": "2026-08-03 — src/lib/doc-templates/base.ts: BASE_CSS(@page A4·괘선 표·체크박스·미입력 하이라이트)·renderDocument/pageHeader/Footer·esc/val/ck/resultMark. 폰트=Gotenberg 내장 Noto Serif CJK KR(셀프 호스팅 불필요 — Q-3 해소)" },
+        { "id": "H-2", "desc": "Gotenberg Chromium 클라이언트: HTML+assets→PDF, 타임아웃·재시도·에러 로그", "status": "code_present", "note": "2026-08-03 — 신규 파일 대신 기존 src/lib/pdf.ts convertHtmlToPdf 보강(기존 자산 재사용): marginMode 'none'(@page 위임)·AbortSignal 타임아웃 60s·5xx 1회 재시도" },
+        { "id": "H-3", "desc": "Gotenberg 컨테이너 폰트 + 변환 스모크 테스트 (VPS)", "status": "code_present", "note": "2026-08-03 확인 — gotenberg-staging fc-list: Noto Serif/Sans CJK KR 내장(설치 불필요), Chromium 한글 HTML→PDF 스모크 200·%PDF(6084B). 운영 gotenberg-prod 동일 이미지" },
+        { "id": "H-4", "desc": "미리보기 경로: 렌더 HTML 화면 표시 — 생성물 HTML과 단일 소스", "status": "pending_order", "note": "S2 첫 템플릿(별지 10·11호)과 함께 구현 예정" }
+      ]
+    },
+    {
+      "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환)", "status": "pending_order",
+      "criteria": [
+        { "id": "H-5", "desc": "별지 9호 HTML 템플릿(8쪽 전체) + 데이터 이식 — 1~3쪽(make-report9 병합→TS)·8쪽 불량 세부 자동, 4~7쪽 세부현황은 H-18 이후 활성(그 전 빈 서식) (_doc01/별지9호.MD §4)", "status": "pending_order" },
+        { "id": "H-6", "desc": "별지 10·11호 HTML 템플릿 + 이식 — 행 한도 폐지·소방안전관리자 우선·제출일 수기(③) (_doc01/별지10·11호.MD §4)", "status": "pending_order" },
+        { "id": "H-7", "desc": "외관점검표 HTML 템플릿 + 이식 — 레거시 event 건 조회 렌더 포함", "status": "pending_order" },
+        { "id": "H-8", "desc": "생성 액션 전환: report9·10·11·exterior 서버 동기 생성 (기존 폴링 UI 호환)", "status": "pending_order" },
+        { "id": "H-9", "desc": "신구 병행 검증(SDK본 vs HTML본 대조) → 워커에서 4개 잡 유형 제외", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S3", "title": "지도·사진 화면 등록", "status": "pending_order",
+      "criteria": [
+        { "id": "H-10", "desc": "자산 슬롯 UI: 표지 사진·위치도·피난안내도(복수) 업로드·교체·삭제 + 썸네일 (§5-1)", "status": "pending_order" },
+        { "id": "H-11", "desc": "업로드 처리: 리사이즈·EXIF 보정·storage 경로 규약", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S3A", "title": "별지 작성 센터 (S4보다 선행)", "status": "pending_order",
+      "criteria": [
+        { "id": "H-18", "desc": "저장소 2종: customer_facility_specs(고객·건물, 별지 4호 제원) + annex_inputs(점검 건, 9·10·11호 고유 값) + 저장 액션", "status": "pending_order" },
+        { "id": "H-19", "desc": "설비 대장 — 1.4(PlanForm14) 확장: 행별 [제원 펼침](3~7쪽 섹션·공용 위젯·완성도), 1.4=별지 4호 입력 통합, 기존 필드 자동 연결 (§4-A-2)", "status": "pending_order" },
+        { "id": "H-20", "desc": "소방계획서 탭 재편: 별지 서식 그룹(4호=생성 카드+설비 대장 링크, 9~11호=작성 화면 진입) + 본문에서 별지 4호 항목 이관(선행 조사 대조표 = Q-6)", "status": "pending_order" },
+        { "id": "H-21", "desc": "별지 4호 HTML 템플릿(7쪽) + 생성 액션 — 1·2쪽·점검결과 자동 + 3~7쪽 세부현황, 점검 상세 ① 진입점. 검증 후 엑셀 생성 대체(D-9)", "status": "pending_order" },
+        { "id": "H-22", "desc": "소방계획서 1.4장 렌더를 설비 대장 원본으로 전환 (S4 이식 시 확인)", "status": "pending_order" },
+        { "id": "H-23", "desc": "별지 9·10·11호 작성 화면 3종 — 3단 패턴·[자동]/[입력] 배지·타임라인 진입점 공유·③ 병합 반영", "status": "pending_order" },
+        { "id": "H-24", "desc": "문서 작업대(§4-B) — R2 확장: 고객·점검 건 선택 + 서식 상태 보드 + [작성] 슬라이드 패널, 생성 즉시 갱신", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S3B", "title": "입력 동선 재편", "status": "pending_order",
+      "criteria": [
+        { "id": "H-25", "desc": "고객 온보딩 위저드 — 5단계(기본·관계인·설비 대장·지도/사진·완성도), 저장·재개, 필수 최소만 강제, '나중에'→미완성 큐 (§4-D)", "status": "pending_order" },
+        { "id": "H-26", "desc": "미완성 큐 — 원본별 빈칸 통합 판정(기존 완성도 함수 재사용)·딥링크·[다음 빈칸]·기한 우선 정렬, 대시보드+작업대 연동", "status": "pending_order" },
+        { "id": "H-27", "desc": "문서 상태 스트립(§4-B-2) — DB 단일 판정(목록 1쿼리)·고객 목록 문서 컬럼·'문서 미비만' 필터·상세 docChips 교체·작업대 딥링크", "status": "pending_order" },
+        { "id": "H-28", "desc": "점검 상세 여정 스텝퍼(§4-E) — 3섹션 통합·다음 할 일 배너·첫 미완료 자동 펼침·단계 내 행동, §4-E-1 문구 개정(③ 보고·협의→10호 연동)·§4-E-2 전/후 갤러리", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S4", "title": "소방계획서 이식 (2차 전환)", "status": "pending_order",
+      "criteria": [
+        { "id": "H-12", "desc": "소방계획서 장 단위 HTML 템플릿 이식 — 표지·목차부터 순차, 지도·사진 슬롯 삽입 (make-fireplan 병합→TS)", "status": "pending_order" },
+        { "id": "H-13", "desc": "소방계획서 생성 액션 전환 (단건 동기 + 연차 일괄 VPS 크론 큐) + pdf_status 2단계 단순화", "status": "pending_order" },
+        { "id": "H-14", "desc": "신구 병행 검증(표본 고객 전 장 대조) → 워커에서 소방계획서 잡 제외", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S5", "title": "정리·테스트·배포", "status": "pending_order",
+      "criteria": [
+        { "id": "H-15", "desc": "워커·SDK 잔재 제거: fireplan-worker.py·make-*.py·작업 스케줄러·HWPSDK 참조·HWP 신규 기록 + 점검표 엑셀 생성 제거(D-9)", "status": "pending_order" },
+        { "id": "H-15b", "desc": "소방계획서 업로드 경로 폐지(§6-A) — 보관함 [업로드] 제거, 과거 업로드본 읽기 전용. S4 검증 후", "status": "pending_order" },
+        { "id": "H-16", "desc": "테스트: 렌더 함수 단위(스냅샷)·생성 E2E(9호/4호/외관/소방계획서→PDF·미리보기 200)·INV-D1 회귀", "status": "pending_order" },
+        { "id": "H-17", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 갱신", "status": "pending_order" }
+      ]
+    }
+  ],
+  "open_items": [
+    { "id": "Q-2", "desc": "연차 일괄 발행 최대 동시 건수·허용 소요 시간 — 크론 배치 크기", "status": "proposal", "note": "기본안: 순차, 건당 수 초" },
+    { "id": "Q-3", "desc": "서식 폰트 — KoPub 바탕 vs 나눔명조", "status": "proposal", "note": "기본안: KoPub 바탕" },
+    { "id": "Q-4", "desc": "기존 생성 HWP·ODT 보존 기간", "status": "proposal", "note": "기본안: 전량 보존(읽기 전용)" },
+    { "id": "Q-6", "desc": "소방계획서 본문 중 별지 4호 이관 항목 범위 — 착수 시 대조표 작성 후 사용자 확인", "status": "proposal", "note": "H-20 선행 조사로 확정" }
+  ]
+}
