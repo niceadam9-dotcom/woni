@@ -343,9 +343,9 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
   const today = todayKstStr()
   const since = shiftYmd(today, -(opts.sinceDays ?? 90))   // D-9: 기본 최근 90일
 
+  // 자체점검 = plan_type 축 단독 — 일반관리 자체점검도 제출 현황판 대상 (소방계획서_6 W-16, 독립 검증 지적 수정)
   const { data } = await admin.from('inspections')
     .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customers(customer_name)')
-    .neq('inspection_type', '일반관리')
     .or(SELF_INSPECTION_OR)
     .gte('inspection_start_date', since)
     .order('inspection_start_date', { ascending: false, nullsFirst: false })

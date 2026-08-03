@@ -246,7 +246,7 @@ export default async function ReportsPage({ searchParams }: {
           </p>
           {/* R9-b: 필터 결과가 왜 이런지 화면이 설명 (4-0-5) */}
           <p className="text-[11px] text-[#b0acd6] mb-3">
-            자체점검(작동·종합) 건만 표시됩니다 — 정기·일반관리는 대상이 아닙니다
+            자체점검(종합·작동 — 일반관리 포함) 건만 표시됩니다 — 정기·레거시 일반 건은 대상이 아닙니다
           </p>
           <form action="/reports" className="flex items-center gap-2 mb-3">
             <input type="hidden" name="form" value={form} />
