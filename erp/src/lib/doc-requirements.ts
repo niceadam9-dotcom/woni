@@ -68,9 +68,10 @@ export type TimelineStepKey = 'checklist' | 'cert' | 'ownerReport' | 'submit9' |
 export const TIMELINE_STEP_LABELS: Record<TimelineStepKey, string> = {
   checklist: '① 점검표',
   cert: `② ${DOC_TERMS.certFull}`,
-  ownerReport: `③ ${DOC_TERMS.ownerReport}`,
+  // ③ = 점검 결과를 관계인에게 보고하고 개선·변경을 협의하는 단계 (소방계획서_7 §4-E-1)
+  ownerReport: '③ 관계인 보고·협의',
   submit9: '④ 소방서 제출 (별지 9호)',
-  repair: '⑤ 보수·증빙',
+  repair: '⑤ 보수·증빙 (별지 10호 이행)',
   submit11: '⑥ 이행완료 (별지 11호)',
 }
 

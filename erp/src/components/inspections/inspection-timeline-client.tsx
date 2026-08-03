@@ -190,6 +190,14 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
   const doneCount = activeDones.filter(Boolean).length
   const progressPct = Math.round((doneCount / activeDones.length) * 100)
 
+  // §4-E "다음 할 일" — 활성 단계 중 첫 미완료 (처음 사용자도 바로 알게)
+  const orderedSteps: Array<{ key: TimelineStepKey; done: boolean }> = [
+    { key: 'checklist' as TimelineStepKey, done: done1 }, { key: 'cert' as TimelineStepKey, done: done2 },
+    { key: 'ownerReport' as TimelineStepKey, done: done3 }, { key: 'submit9' as TimelineStepKey, done: done4 },
+    ...(hasDefects ? [{ key: 'repair' as TimelineStepKey, done: done5 }, { key: 'submit11' as TimelineStepKey, done: done6 }] : []),
+  ].filter(s => has(s.key))
+  const nextStep = orderedSteps.find(s => !s.done)
+
   const row = 'flex items-start gap-2 py-2 border-b border-[#f3f1fc] last:border-0'
   const label = 'text-xs font-semibold text-[#090c1d] w-44 shrink-0 pt-0.5'
   const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50'
@@ -221,6 +229,21 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
           <div className={`h-full rounded-full transition-all duration-500 ${progressPct === 100 ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
             style={{ width: `${progressPct}%` }} />
         </div>
+      )}
+      {/* §4-E 다음 할 일 배너 — 지금 무엇을 해야 하는지 화면 상단에 명시 */}
+      {isSpecialTimeline && (
+        nextStep ? (
+          <div className="flex items-center gap-2 mb-3 rounded-lg bg-[#f5f4ff] border border-[#e0ddf5] px-3 py-2">
+            <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
+            <span className="text-xs text-[#514b81]">다음 할 일:</span>
+            <span className="text-xs font-semibold text-[#090c1d]">{TIMELINE_STEP_LABELS[nextStep.key]}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 mb-3 rounded-lg bg-green-50 border border-green-200 px-3 py-2">
+            <CheckCircle2 className="size-3.5 text-green-600 shrink-0" />
+            <span className="text-xs font-medium text-green-700">모든 단계 완료 — 제출까지 마쳤습니다</span>
+          </div>
+        )
       )}
 
       {/* ① 점검표 */}
