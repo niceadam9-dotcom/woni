@@ -29,7 +29,7 @@
     { "id": "S1", "title": "데이터 모델·판정 축 — sub_type 필수화·백필 + 고객 UI + 판정 축 통일 (W-1~W-5)", "status": "implemented" },
     { "id": "S2", "title": "계획 생성 엔진 — 생성기·크론·트리거·event 정리·소급 스크립트, 버그 2건 수정 (W-6~W-13)", "status": "implemented" },
     { "id": "S3", "title": "문서·조회 특례 제거 — doc-requirements·9호 가드·보고서 센터·소방계획서 대상 포함·시트 (W-14~W-21)", "status": "implemented", "note": "W-14~W-21 전건 implemented — W-16 재판정 승격(1664d50, 제출 현황판 neq 삭제·문구 현행화)" },
-    { "id": "S4", "title": "테스트·검증·배포 — 게이트 기대값 반전·불변식·E2E 통주행 → 스테이징 → 운영 (W-22~W-26)", "status": "partial", "note": "W-22~24·26 implemented(독립 검증 2026-08-03) — W-25만 운영 배포 잔여로 partial" }
+    { "id": "S4", "title": "테스트·검증·배포 — 게이트 기대값 반전·불변식·E2E 통주행 → 스테이징 → 운영 (W-22~W-26)", "status": "implemented", "note": "2026-08-03 전건 완료 — 운영 배포·불변식 실측 포함" }
   ],
   "sections": [
     {
@@ -69,12 +69,12 @@
       ]
     },
     {
-      "id": "S4", "title": "테스트·검증·배포", "status": "partial",
+      "id": "S4", "title": "테스트·검증·배포", "status": "implemented",
       "criteria": [
         { "id": "W-22", "desc": "게이트 테스트 기대값 반전 — 일반 종합/작동 → 소방시설등점검표·9호 노출 + 케이스 추가 (test-gate-consistency.mts:13-46)", "status": "implemented", "verified": { "date": "2026-08-03", "commit": "32c2ace", "evidence": ["test-gate-consistency.mts:29-32 소방 자체·일반 자체(special_작동)·레거시 event·정기 4케이스", "test-gate-consistency.mts:38-44 일반 자체 → 9호 노출·외관 미노출 반전", "test-gate-consistency.mts:71-83 데이터 게이트(잡 0건)·트리거 단계수 검증"], "method": "판정자 코드 확인 + 스테이징 15/15 통과 세션 증거" }, "note": "2026-08-03 — 일반 자체(special_작동)·레거시 event 케이스 분리 + 트리거 단계수 검증 추가, 15/15 통과" },
         { "id": "W-23", "desc": "불변식 개정(W-5 포함) + event 자동 시작 크론 테스트를 event 폐지에 맞춰 제거·개편 (check-data-invariants, test-auto-start-cron.mts)", "status": "implemented", "verified": { "date": "2026-08-03", "commit": "32c2ace", "evidence": ["check-data-invariants.mjs:40-41 isSpecial=plan_type 축 + :117-136 INV-D6 신설 — 판정자 재실행 전체 통과", "test-auto-start-cron.mts:11·40-45 레거시 event 담당 있어도 크론 미시작 검증 케이스"], "method": "판정자 코드 확인 + 불변식 직접 재실행 + 크론 8/8 세션 증거" }, "note": "2026-08-03 — isSpecial 축 개정·INV-D5 문구·INV-D6 신설 / 크론 테스트 = 정기 2케이스 + event 제외 검증, 8/8 통과" },
         { "id": "W-24", "desc": "E2E 통주행 신규 — 일반관리 고객 등록→계획 생성(정기 없음 확인)→확정→점검→9호→타임라인 6단계 (신규 .mts)", "status": "implemented", "verified": { "date": "2026-08-03", "commit": "32c2ace", "evidence": ["test-general-selfinspection.mts:80-100 계획 생성(작동 1건·종합 1~2건·정기 0건·sub_type 저장)", "test-general-selfinspection.mts:113-141 UI 확정→자동 시작→6단계→9호 어포던스→타임라인 ①·④·⑥", "test-all.mts:10 스위트 등록"], "method": "판정자 코드 확인 + 스테이징 14/14 통과 세션 증거" }, "note": "2026-08-03 — scripts/test-general-selfinspection.mts (test-all 등록), 14/14 통과: 생성(정기 0)·UI 확정→자동 시작·6단계·9호·타임라인 ①~⑥" },
-        { "id": "W-25", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 상태 갱신 (Json_Rule.md 준수)", "status": "partial", "note": "2026-08-03 — 빌드·불변식·E2E 5종(게이트 15·통주행 14·크론 8·클릭예산 7·EX-V1 2) 통과, 스테이징 DB 반영(110·111·W-12), 커밋 32c2ace(main)·스테이징 사이트 배포·E2E 검증 완료. 독립 검증(2026-08-03): 판정자 불변식 재실행·W-12 dry-run 재확인 통과. 잔여: 사용자 승인 → 운영 배포(사용자 게이트) — 운영 배포 미완으로 partial 유지" },
+        { "id": "W-25", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 상태 갱신 (Json_Rule.md 준수)", "status": "implemented", "verified": { "date": "2026-08-03", "commit": "8d36de3", "evidence": ["운영 DB: 110·111 적용(201·201) + W-12 --apply(미시작 event 1 삭제 → special_작동 1 소급 — 홍천장례식장)", "운영 코드: woni main pull → erp-app-1 재빌드 → sjfire.co.kr /login 200 (staging 200 유지)", "운영 불변식 전체 통과(INV-D1~D6, .env.local.prod-backup 실측)"], "method": "운영 배포 실행·실측 (사용자 승인 '진행해줘' 2026-08-03). 선행 스테이징 검증은 독립 판정자 확인" }, "note": "2026-08-03 배포 완결 — 빌드·E2E 5종·독립 검증(24건+W-16 재판정) → 사용자 승인 → 운영 DB+코드 배포·스모크·불변식 통과" },
         { "id": "W-26", "desc": "event 잔재 코드 즉시 제거 — auto-start 크론 event 대상·_syncStartedGeneralEvent (D-4, 소진 대기 불필요, S2·S3에 편입 실행) (auto-start-inspections, customers/actions.ts:351-383)", "status": "implemented", "verified": { "date": "2026-08-03", "commit": "32c2ace", "evidence": ["auto-start-inspections/route.ts:26 .eq('plan_type','monthly') 단독 — event 대상 제거(주석 :9)", "customers/actions.ts:297-299 헬퍼 3종 삭제 기록 — src 전체 _syncStartedGeneralEvent·_createGeneralEventItem grep 0건"], "method": "판정자 코드 확인 + grep 전수 + 크론 E2E(event 미시작) 8/8 세션 증거" }, "note": "2026-08-03 — 크론 plan_type='monthly' 단독 + 헬퍼 3종(_ensureMonthPlan·_createGeneralEventItem·_syncStartedGeneralEvent) 삭제. E2E: event 담당 있어도 미시작 유지 확인" }
       ]
     }
