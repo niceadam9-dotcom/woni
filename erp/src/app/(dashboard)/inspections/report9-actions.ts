@@ -9,10 +9,12 @@ import {
   renderReport9, FORM3_ITEMS, form3Group,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
+import { renderExterior, type ExteriorData } from '@/lib/doc-templates/exterior'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
- *  별지 9·10·11호는 서버 동기 생성(HTML→Gotenberg PDF — 소방계획서_7 H-5·H-6·H-8, SDK·워커 미경유). */
+ *  별지 9·10·11호·외관점검표(별지 6호)는 서버 동기 생성(HTML→Gotenberg PDF —
+ *  소방계획서_7 H-5·H-6·H-7·H-8, SDK·워커 미경유). 워커에는 소방계획서(기본 유형)만 남는다. */
 
 const BUCKET = 'fire-plans'
 
@@ -383,12 +385,87 @@ async function assembleReport9(
   return { data, missing }
 }
 
+/** 외관점검표(별지 6호) 데이터 조립 — 워커 process_exterior(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-7, 파리티 우선).
+ *  데이터 = 고객·건물·관계인·점검 건 + 외관점검 시트 응답(item_code X{섹션}-{행}, 시트 v2022) → 해당 월 결과란 ○/×// */
+async function assembleExterior(
+  admin: Admin,
+  customerId: string,
+  inspectionId: string,
+): Promise<{ data: ExteriorData; missing: string[] }> {
+  const [inspRes, custRes, bldRes, contactsRes] = await Promise.all([
+    admin.from('inspections').select('inspection_start_date, assigned_employee_id, year')
+      .eq('id', inspectionId).single(),
+    admin.from('customers').select('customer_name, address').eq('id', customerId).single(),
+    admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
+      .order('created_at', { ascending: true }).limit(1),
+    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
+  ])
+  const insp = inspRes.data as {
+    inspection_start_date: string | null; assigned_employee_id: string | null; year: number
+  } | null
+  if (!insp) throw new Error('점검 건을 찾을 수 없습니다')
+  const cust = custRes.data as { customer_name: string; address: string | null } | null
+  if (!cust) throw new Error('고객을 찾을 수 없습니다')
+  const purpose = ((bldRes.data?.[0] as { purpose: string | null } | undefined)?.purpose) ?? ''
+  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
+
+  let inspector = ''
+  if (insp.assigned_employee_id) {
+    const { data: profs } = await admin.from('profiles').select('name').eq('id', insp.assigned_employee_id).limit(1)
+    inspector = ((profs?.[0] as { name: string | null } | undefined)?.name) ?? ''
+  }
+
+  // 점검월일 — 점검시작일(없으면 오늘 KST, 워커 동일)
+  const start = insp.inspection_start_date ?? new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
+  const month = Number(start.slice(5, 7))
+  const day = Number(start.slice(8, 10))
+
+  // 외관점검 시트 응답(X{섹션}-{행}) → 해당 월 결과란 ○/×// (워커: item_code=like.X*)
+  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N' }>((from, to) =>
+    admin.from('inspection_sheet_responses').select('item_code, result')
+      .eq('inspection_id', inspectionId).like('item_code', 'X%').range(from, to))
+  const anyX = responses.some(r => r.result === 'X')
+  const results: Record<string, 'O' | 'X' | 'N'> = {}
+  for (const r of responses) {
+    const m = /^X(\d{1,2})-(\d{1,3})$/.exec(r.item_code)
+    if (m && ['O', 'X', 'N'].includes(r.result)) {
+      // 워커의 정수 정규화와 동일 계열 — 카탈로그 코드(0패딩 2자리)로 통일
+      results[`X${Number(m[1])}-${String(Number(m[2])).padStart(2, '0')}`] = r.result
+    }
+  }
+
+  const data: ExteriorData = {
+    customerName: cust.customer_name,
+    purpose,
+    address: cust.address ?? '',
+    mgrTitle: '', // 직위 별도 데이터 미보유 — 공란 (워커 동일)
+    // 소방안전관리자 별도 데이터 미보유 — 관계인(대표) 폴백 (워커 동일)
+    mgrName: owner?.name ?? '',
+    mgrPhone: owner?.phone ?? '',
+    year: String(insp.year),
+    month,
+    day,
+    inspectorName: inspector,
+    // 표지 해당 월 양호/불량 — 불량 1건이라도 있으면 불량, 응답 없으면 공란 (워커 동일)
+    monthGood: responses.length ? !anyX : null,
+    results,
+  }
+
+  // 누락 항목 — 워커 process_exterior missing과 동일 문구
+  const missing: string[] = []
+  if (!responses.length) missing.push('외관점검 시트 응답 없음 — 결과란 공란')
+  if (!inspector) missing.push('점검자(담당) 미배정')
+  if (!owner?.name) missing.push('소방안전관리자(대표 관계인) 미등록')
+  return { data, missing }
+}
+
 export type Report9Job = {
   id: string; status: string; missing: string[] | null; error: string | null; created_at: string
 }
 export type Report9File = { name: string; path: string; createdAt: string | null }
 
-/** 생성 요청 — fire_plan_gen_jobs 큐 등록 (워커가 처리, 별지 9·10·11호·외관점검표 공용 — 101·102) */
+/** 생성 요청 — 별지 9·10·11호·외관점검표 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7) */
 const ANNEX_TYPES = ['report9', 'report10', 'report11', 'exterior'] as const
 export type AnnexType = typeof ANNEX_TYPES[number]
 
@@ -420,69 +497,60 @@ export async function requestReport9Action(
     .select('id').eq('inspection_id', inspectionId).in('status', ['pending', 'processing']).limit(1)
   if (waiting && waiting.length > 0) return { error: '이미 생성 대기·진행 중입니다 — 잠시 후 새로고침해주세요.' }
 
-  // 소방계획서_7 H-8: 별지 9·10·11호는 서버 동기 생성 — HTML 템플릿 → Gotenberg PDF, 잡은 완료 기록용
-  // (기존 폴링 UI·문서 현황·최근 문서가 잡 테이블·파일 규약을 그대로 읽음. 외관점검표만 아직 워커 경유)
-  if (reportType === 'report9' || reportType === 'report10' || reportType === 'report11') {
-    try {
-      let html: string
-      let missing: string[]
-      if (reportType === 'report9') {
-        const assembled = await assembleReport9(admin, i.customer_id, inspectionId)
-        html = renderReport9(assembled.data)
-        missing = assembled.missing
-      } else {
-        const assembled = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
-        html = reportType === 'report10' ? renderReport10(assembled.data) : renderReport11(assembled.data)
-        missing = assembled.missing
-      }
-      const pdf = await convertHtmlToPdf(html, [], { marginMode: 'none' })
-      const stamp = Date.now()
-      const base = `${i.customer_id}/inspections/${inspectionId}/${reportType}_${stamp}`
-      const upHtml = await admin.storage.from(BUCKET)
-        .upload(`${base}.html`, new TextEncoder().encode(html), { contentType: 'text/html; charset=utf-8' })
-      if (upHtml.error) return { error: `HTML 업로드 실패: ${upHtml.error.message}` }
-      const upPdf = await admin.storage.from(BUCKET)
-        .upload(`${base}.pdf`, pdf, { contentType: 'application/pdf' })
-      if (upPdf.error) return { error: `PDF 업로드 실패: ${upPdf.error.message}` }
-      await admin.from('fire_plan_gen_jobs').insert({
-        report_type: reportType,
-        inspection_id: inspectionId,
-        customer_id: i.customer_id,
-        customer_name: i.customer?.customer_name ?? '—',
-        year: i.year,
-        requested_by: profile.id,
-        requested_by_name: profile.name,
-        status: 'done',
-        missing,
-        finished_at: new Date().toISOString(),
-      } as Record<string, unknown>)
-      revalidatePath(`/inspections/${inspectionId}`)
-      return {}
-    } catch (e) {
-      const label = reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'
-      return { error: `별지 ${label}호 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
+  // 소방계획서_7 H-8·H-7: 별지 9·10·11호·외관점검표(별지 6호) 전부 서버 동기 생성 — HTML 템플릿 → Gotenberg PDF,
+  // 잡은 완료 기록용(기존 폴링 UI·문서 현황·최근 문서가 잡 테이블·파일 규약을 그대로 읽음).
+  // 이로써 fire_plan_gen_jobs 4개 별지 유형 전부 서버 동기 — 워커(fireplan-worker.py)에는 소방계획서(기본 유형)만 남는다.
+  try {
+    let html: string
+    let missing: string[]
+    if (reportType === 'report9') {
+      const assembled = await assembleReport9(admin, i.customer_id, inspectionId)
+      html = renderReport9(assembled.data)
+      missing = assembled.missing
+    } else if (reportType === 'exterior') {
+      const assembled = await assembleExterior(admin, i.customer_id, inspectionId)
+      html = renderExterior(assembled.data)
+      missing = assembled.missing
+    } else {
+      const assembled = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
+      html = reportType === 'report10' ? renderReport10(assembled.data) : renderReport11(assembled.data)
+      missing = assembled.missing
     }
+    const pdf = await convertHtmlToPdf(html, [], { marginMode: 'none' })
+    const stamp = Date.now()
+    const base = `${i.customer_id}/inspections/${inspectionId}/${reportType}_${stamp}`
+    const upHtml = await admin.storage.from(BUCKET)
+      .upload(`${base}.html`, new TextEncoder().encode(html), { contentType: 'text/html; charset=utf-8' })
+    if (upHtml.error) return { error: `HTML 업로드 실패: ${upHtml.error.message}` }
+    const upPdf = await admin.storage.from(BUCKET)
+      .upload(`${base}.pdf`, pdf, { contentType: 'application/pdf' })
+    if (upPdf.error) return { error: `PDF 업로드 실패: ${upPdf.error.message}` }
+    await admin.from('fire_plan_gen_jobs').insert({
+      report_type: reportType,
+      inspection_id: inspectionId,
+      customer_id: i.customer_id,
+      customer_name: i.customer?.customer_name ?? '—',
+      year: i.year,
+      requested_by: profile.id,
+      requested_by_name: profile.name,
+      status: 'done',
+      missing,
+      finished_at: new Date().toISOString(),
+    } as Record<string, unknown>)
+    revalidatePath(`/inspections/${inspectionId}`)
+    return {}
+  } catch (e) {
+    const label = reportType === 'exterior' ? '외관점검표'
+      : `별지 ${reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'}호`
+    return { error: `${label} 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
   }
-
-  const { error } = await admin.from('fire_plan_gen_jobs').insert({
-    report_type: reportType,
-    inspection_id: inspectionId,
-    customer_id: i.customer_id,
-    customer_name: i.customer?.customer_name ?? '—',
-    year: i.year,
-    requested_by: profile.id,
-    requested_by_name: profile.name,
-  } as Record<string, unknown>)
-  if (error) return { error: `요청 실패: ${error.message}` }
-  revalidatePath(`/inspections/${inspectionId}`)
-  return {}
 }
 
-/** 별지 9·10·11호 미리보기 HTML (소방계획서_7 H-4) — 생성물과 동일 렌더 함수 단일 소스,
+/** 별지 9·10·11호·외관점검표 미리보기 HTML (소방계획서_7 H-4·H-7) — 생성물과 동일 렌더 함수 단일 소스,
  *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시 */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
-  reportType: 'report9' | 'report10' | 'report11',
+  reportType: 'report9' | 'report10' | 'report11' | 'exterior',
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -490,13 +558,21 @@ export async function getAnnexPreviewHtmlAction(
     .select('id, customer_id, plan_type').eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const ins = insp as { customer_id: string; plan_type: string | null }
-  if (!(!ins.plan_type || ins.plan_type.startsWith('special'))) {
+  // 유형 가드 — requestReport9Action과 동일 기준(자체점검=별지 9·10·11호, 정기·레거시 event=외관점검표)
+  const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
+  if (reportType === 'exterior') {
+    if (isSpecial) return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
+  } else if (!isSpecial) {
     return { error: '자체점검 건만 별지 9·10·11호 대상입니다.' }
   }
   try {
     if (reportType === 'report9') {
       const { data, missing } = await assembleReport9(admin, ins.customer_id, inspectionId)
       return { html: renderReport9(data, { highlight: true }), missing }
+    }
+    if (reportType === 'exterior') {
+      const { data, missing } = await assembleExterior(admin, ins.customer_id, inspectionId)
+      return { html: renderExterior(data, { highlight: true }), missing }
     }
     const { data, missing } = await assembleAnnex1011(admin, ins.customer_id, inspectionId, reportType)
     const html = reportType === 'report10'

@@ -50,8 +50,8 @@
       "criteria": [
         { "id": "H-5", "desc": "별지 9호 HTML 템플릿(8쪽 전체) + 데이터 이식 — 1~3쪽(make-report9 병합→TS)·8쪽 불량 세부 자동, 4~7쪽 세부현황은 H-18 이후 활성(그 전 빈 서식) (_doc01/별지9호.MD §4)", "status": "code_present", "note": "2026-08-03 — doc-templates/report9.ts(개정 2025.12.1 hwpx 원문 기준 8쪽) + assembleReport9(워커 process_report9 파리티 이식). 개선: 8쪽 불량 세부 자동(X 점검번호+defects 그룹핑)·다중이용업 26종 체크 채움·보조 인력 5명 한도 폐지. 검증: 렌더 8쪽·핵심 문구·[√] 반영 + Gotenberg 변환 200·%PDF(487KB, 8쪽). 구현=서브에이전트, 본 세션 독립 재검증" },
         { "id": "H-6", "desc": "별지 10·11호 HTML 템플릿 + 이식 — 행 한도 폐지·소방안전관리자 우선·제출일 수기(③) (_doc01/별지10·11호.MD §4)", "status": "code_present", "note": "2026-08-03 — doc-templates/report1011.ts(renderReport10/11 — 원본 hwpx section0.xml 법정 문구 그대로, 행 한도 폐지·4행 패딩) + assembleAnnex1011(report9-actions.ts, 워커 로직 이식). 검증: 렌더 스냅샷 핵심 문구 OK + 실서식 Gotenberg 변환 200·%PDF 2종. 소방안전관리자 우선·제출일 수기(③)는 S3A annex_inputs에서" },
-        { "id": "H-7", "desc": "외관점검표 HTML 템플릿 + 이식 — 레거시 event 건 조회 렌더 포함", "status": "pending_order" },
-        { "id": "H-8", "desc": "생성 액션 전환: report9·10·11·exterior 서버 동기 생성 (기존 폴링 UI 호환)", "status": "partial", "note": "2026-08-03 — 9·10·11호 동기 전환 완료(렌더→Gotenberg PDF→storage→잡 done, 파일 규약 유지 — 워커 자연 제외). 미리보기 액션도 9·10·11호 지원. 외관(H-7)만 잔여" },
+        { "id": "H-7", "desc": "외관점검표 HTML 템플릿 + 이식 — 레거시 event 건 조회 렌더 포함", "status": "code_present", "note": "2026-08-03 — doc-templates/exterior.ts(원본 16쪽 구조 재현, EXTERIOR_SECTIONS=manifest v2022 124항목 내장) + assembleExterior(process_exterior 파리티). 검증: 렌더 18체크 PASS·○×/ 카운트 정확 + Gotenberg 200·%PDF(476KB). 구현=서브에이전트, 본 세션 tsc 재검증" },
+        { "id": "H-8", "desc": "생성 액션 전환: report9·10·11·exterior 서버 동기 생성 (기존 폴링 UI 호환)", "status": "code_present", "note": "2026-08-03 완료 — 4개 별지 유형 전부 서버 동기(렌더→Gotenberg PDF→storage→잡 done, 파일 규약 유지). 워커에는 소방계획서(기본 유형)만 잔존. 미리보기 액션 4유형 지원" },
         { "id": "H-9", "desc": "신구 병행 검증(SDK본 vs HTML본 대조) → 워커에서 4개 잡 유형 제외", "status": "pending_order" }
       ]
     },
