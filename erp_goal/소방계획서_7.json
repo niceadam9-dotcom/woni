@@ -30,7 +30,7 @@
     { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "code_present", "note": "H-1~H-4 전건 code_present(2026-08-03)" },
     { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "code_present", "note": "2026-08-03 전건 완료 — 4유형 서버 동기 생성 전환, 신구 파리티·스테이징 실주행 검증 PASS" },
     { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "code_present", "note": "2026-08-03 완료 — E2E 11/11. 템플릿 삽입은 S4(H-12)에서" },
-    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "pending_order" },
+    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "partial", "note": "H-18(저장소·카탈로그)·H-19(설비 대장) 완료 — H-20·21·23·24 잔여" },
     { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "pending_order" },
     { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "pending_order" },
     { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "pending_order" }
@@ -63,10 +63,10 @@
       ]
     },
     {
-      "id": "S3A", "title": "별지 작성 센터 (S4보다 선행)", "status": "pending_order",
+      "id": "S3A", "title": "별지 작성 센터 (S4보다 선행)", "status": "partial",
       "criteria": [
-        { "id": "H-18", "desc": "저장소 2종: customer_facility_specs(고객·건물, 별지 4호 제원) + annex_inputs(점검 건, 9·10·11호 고유 값) + 저장 액션", "status": "pending_order" },
-        { "id": "H-19", "desc": "설비 대장 — 1.4(PlanForm14) 확장: 행별 [제원 펼침](3~7쪽 섹션·공용 위젯·완성도), 1.4=별지 4호 입력 통합, 기존 필드 자동 연결 (§4-A-2)", "status": "pending_order" },
+        { "id": "H-18", "desc": "저장소 2종: customer_facility_specs(고객·건물, 별지 4호 제원) + annex_inputs(점검 건, 9·10·11호 고유 값) + 저장 액션", "status": "code_present", "note": "2026-08-03 — 마이그레이션 112(스테이징 적용) + facility-spec-schema.ts 카탈로그(8섹션·42블록·372필드, facilityHint=시설 √ 연동, 공용 위치 필드 헬퍼) + facility-spec-actions.ts(권한·화이트리스트). 무결성 검증 0오류. 구현=서브에이전트" },
+        { "id": "H-19", "desc": "설비 대장 — 1.4(PlanForm14) 확장: 행별 [제원 펼침](3~7쪽 섹션·공용 위젯·완성도), 1.4=별지 4호 입력 통합, 기존 필드 자동 연결 (§4-A-2)", "status": "code_present", "note": "2026-08-03 — plan-form14-specs.tsx(카탈로그 단일 렌더·미설치 접힘·완성도 게이지·[자동] 수신기 위치 연결·섹션 단위 저장·미입력 하이라이트), 기존 1.4 무손상. E2E 19/19(√ 저장 회귀 포함). 구현=서브에이전트, 본 세션 tsc 재검증" },
         { "id": "H-20", "desc": "소방계획서 탭 재편: 별지 서식 그룹(4호=생성 카드+설비 대장 링크, 9~11호=작성 화면 진입) + 본문에서 별지 4호 항목 이관(선행 조사 대조표 = Q-6)", "status": "pending_order" },
         { "id": "H-21", "desc": "별지 4호 HTML 템플릿(7쪽) + 생성 액션 — 1·2쪽·점검결과 자동 + 3~7쪽 세부현황, 점검 상세 ① 진입점. 검증 후 엑셀 생성 대체(D-9)", "status": "pending_order" },
         { "id": "H-22", "desc": "소방계획서 1.4장 렌더를 설비 대장 원본으로 전환 (S4 이식 시 확인)", "status": "pending_order" },

@@ -132,10 +132,12 @@ export default async function CustomerDetailPage({
 
   // 소방시설 현황 (건물별) — P33
   const buildingIds = buildings.map(b => b.id)
-  const [facRes, floorRes] = buildingIds.length > 0 ? await Promise.all([
+  const [facRes, floorRes, specRes] = buildingIds.length > 0 ? await Promise.all([
     admin.from('fire_facilities').select('building_id, facility_code, installed, detail').in('building_id', buildingIds),
     admin.from('fire_facility_floors').select('building_id, floor_label, counts').in('building_id', buildingIds).order('sort_order'),
-  ]) : [{ data: [] }, { data: [] }]
+    // H-19 설비 대장 — 세부 제원 초기값 (112 customer_facility_specs, building_id NULL = 대표/공통)
+    admin.from('customer_facility_specs').select('building_id, section_key, spec').eq('customer_id', id),
+  ]) : [{ data: [] }, { data: [] }, { data: [] }]
   const facByBuilding = new Map<string, Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>>()
   for (const f of (facRes.data ?? []) as Array<{ building_id: string; facility_code: string; installed: boolean; detail: { note?: string } | null }>) {
     if (!facByBuilding.has(f.building_id)) facByBuilding.set(f.building_id, [])
@@ -151,7 +153,16 @@ export default async function CustomerDetailPage({
     facilities: facByBuilding.get(b.id) ?? [], floors: floorByBuilding.get(b.id) ?? [],
     // §6-E: 층 자동 생성·기본 세트용
     purpose: b.purpose, floorsAbove: b.floors_above, floorsBelow: b.floors_below,
+    // H-19: 기존 필드 자동 연결(§4-A-1) — 수신기 위치 회색 표시용
+    receiverLocation: ((b as unknown as Record<string, unknown>).receiver_location as string | null) ?? null,
   }))
+  // H-19 설비 대장 — 건물별 세부 제원 초기값 ('' = 대표/공통 building_id NULL 폴백)
+  const specsByBuilding: Record<string, Record<string, Record<string, unknown>>> = {}
+  for (const r of ((specRes.data ?? []) as Array<{ building_id: string | null; section_key: string; spec: Record<string, unknown> | null }>)) {
+    const k = r.building_id ?? ''
+    if (!specsByBuilding[k]) specsByBuilding[k] = {}
+    specsByBuilding[k][r.section_key] = (r.spec ?? {}) as Record<string, unknown>
+  }
   const inspections = (inspectionsRes.data ?? []) as Array<
     Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
   >
@@ -582,7 +593,7 @@ export default async function CustomerDetailPage({
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}
         initialPhotos={fpSections.photos ?? []} />}
-      form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} />}
+      form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} specsByBuilding={specsByBuilding} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
         presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}

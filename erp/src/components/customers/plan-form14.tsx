@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, ShieldCheck, Layers, Plus, Trash2, Pencil } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { FACILITY_STANDARD, EVAC_SUB_ITEMS } from '@/lib/facility-codes'
+import { PlanForm14Specs } from '@/components/customers/plan-form14-specs'
 
 /** 서식 1.4 소방시설 현황 — 양식(image-1.png) 재현 입력 화면 (소방계획서_4.md §4)
  *  표 괘선·좌측 분류 세로 병합·셀 전체 클릭 토글·피난기구 하위 8종 연동·항목별 비고(detail.note)·
@@ -59,11 +60,14 @@ type Building = {
   facilities: Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>
   floors: Array<{ floor_label: string; counts: Record<string, number> }>
   floorsAbove?: number | null; floorsBelow?: number | null
+  receiverLocation?: string | null
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
-export function PlanForm14({ customerId, buildings, canManage }: {
+export function PlanForm14({ customerId, buildings, canManage, specsByBuilding = {} }: {
   customerId: string; buildings: Building[]; canManage: boolean
+  /** H-19 설비 대장 — 건물별 세부 제원 초기값 (customer_facility_specs, '' = 대표/공통 폴백) */
+  specsByBuilding?: Record<string, Record<string, Record<string, unknown>>>
 }) {
   const router = useRouter()
   const [bidx, setBidx] = useState(0)
@@ -318,6 +322,13 @@ export function PlanForm14({ customerId, buildings, canManage }: {
         )}
       </div>
       {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
+
+      {/* H-19 설비 대장 — 세부 제원(별지 4호 3~7쪽=9호 4~7쪽) 입력. √ 상태 라이브 연동(설치 블록만 펼침),
+          건물 축은 위 대상명 선택(bidx)과 동일 — key로 건물 전환 시 초기값 재적재 */}
+      <PlanForm14Specs key={b.id} customerId={customerId} buildingId={b.id}
+        installed={Object.fromEntries(allCodes.map(c => [c, fac[c].installed]))}
+        initialSpecs={specsByBuilding[b.id] ?? specsByBuilding[''] ?? {}}
+        receiverLocation={b.receiverLocation} canManage={canManage} />
     </div>
   )
 }
