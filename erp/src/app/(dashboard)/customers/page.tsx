@@ -77,7 +77,7 @@ export default async function CustomersPage({
 
   const baseHeaders = ['고객명', '점검유형']
   const fullHeaders = fullCols ? ['계약일', '사용승인일'] : []
-  const headers = [...baseHeaders, ...fullHeaders, '점검계획일', '담당직원', '상태', '']
+  const headers = [...baseHeaders, ...fullHeaders, '점검계획일', '담당직원', '상태', '문서', '']
 
   return (
     <div className="space-y-6">
@@ -124,6 +124,7 @@ export default async function CustomersPage({
           <option value="">입력상태 전체</option>
           <option value="any">입력 미완료</option>
           <option value="plan">계획서 미완료</option>
+          <option value="doc">문서 미비만</option>
         </select>
         <select name="per_page" defaultValue={String(pageSize)}
           className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition">
@@ -252,6 +253,24 @@ export default async function CustomersPage({
                             {c.is_active ? '활성' : '비활성'}
                           </span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {/* §4-B-2 문서 상태 스트립 — 계·④⑨⑩⑪, 클릭 시 문서 작업대(그 고객) */}
+                        <Link href={`/reports?form=docs&cust=${c.id}`} title="문서 작업대 — 클릭하여 작성·생성" className="inline-flex items-center gap-0.5">
+                          {[
+                            { lbl: '계', st: c.docStrip.plan },
+                            { lbl: '④', st: c.docStrip.a4 },
+                            { lbl: '⑨', st: c.docStrip.a9 },
+                            { lbl: '⑩', st: c.docStrip.a10 },
+                            { lbl: '⑪', st: c.docStrip.a11 },
+                          ].map(({ lbl, st }) => (
+                            <span key={lbl} title={st === 'have' ? '보유' : st === 'warn' ? '필요·미생성' : '해당없음'}
+                              className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-medium border ${
+                                st === 'have' ? 'bg-green-50 text-green-700 border-green-200'
+                                  : st === 'warn' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-gray-50 text-gray-300 border-gray-100'}`}>{lbl}</span>
+                          ))}
+                        </Link>
                       </td>
                       <td className="px-4 py-3">
                         {/* §6-B-B3: 탭 딥링크 바로가기 — 🏢 건물·시설 / 📄 소방계획서(준비율) / › 상세 */}

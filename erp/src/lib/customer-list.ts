@@ -18,6 +18,11 @@ export type CustomerListBuilding = {
   purpose: string | null; is_active: boolean
 }
 
+/** 문서 셀 상태 (소방계획서_7 §4-B-2) — 보유·미비(필요한데 없음)·해당없음 */
+export type DocCell = 'have' | 'warn' | 'na'
+/** 당해 연도 문서 상태 스트립: 계(소방계획서)·④⑨⑩⑪(별지). DB 판정만(storage 미조회) */
+export type CustomerDocStrip = { plan: DocCell; a4: DocCell; a9: DocCell; a10: DocCell; a11: DocCell }
+
 export type CustomerListItem = {
   id: string; customer_code: string; customer_name: string
   contract_date: string | null; use_approval_date: string | null; plan_anchor_date: string | null
@@ -27,6 +32,8 @@ export type CustomerListItem = {
   planDone: number; planTotal: number
   /** 미완료 영역 (탭 뱃지 §4 기준): 기본정보·건물·관계인·계획서·청구 */
   incompleteAreas: string[]
+  /** 당해 연도 문서 보유 현황 (§4-B-2) — 목록 "문서" 컬럼·"문서 미비만" 필터 */
+  docStrip: CustomerDocStrip
 }
 
 /** URL searchParams → 필터 (목록·상세 lq 공용) */
@@ -83,6 +90,49 @@ export async function fetchCustomerList(
   const billingIds = new Set(((billingRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
   const brigadeIds = new Set(((brigadeRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
 
+  // ── 문서 상태 스트립 (§4-B-2) — 당해 연도 기준, DB 배치 판정(storage 미조회, 목록 성능) ──
+  const curYear = new Date(Date.now() + 9 * 3600_000).getFullYear()
+  const [planRes, inspRes] = await Promise.all([
+    admin.from('fire_plans').select('customer_id').in('customer_id', ids).eq('year', curYear),
+    // 당해 연도 자체점검(special_*·null) — 고객별 최신 1건 판정용
+    admin.from('inspections').select('id, customer_id, inspection_start_date')
+      .in('customer_id', ids).eq('year', curYear).or('plan_type.is.null,plan_type.like.special_*'),
+  ])
+  const planHave = new Set(((planRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
+  // 고객별 최신 자체점검(시작일 desc) 1건
+  const latestInsp = new Map<string, string>()  // customer_id → inspection_id
+  const inspOrder = new Map<string, string>()    // inspection_id → start_date(정렬 키)
+  for (const r of ((inspRes.data ?? []) as Array<{ id: string; customer_id: string; inspection_start_date: string | null }>)) {
+    const prev = latestInsp.get(r.customer_id)
+    const cur = r.inspection_start_date ?? ''
+    if (!prev || cur > (inspOrder.get(prev) ?? '')) { latestInsp.set(r.customer_id, r.id); inspOrder.set(r.id, cur) }
+  }
+  const latestInspIds = [...latestInsp.values()]
+  const [jobsRes, defRes] = latestInspIds.length > 0 ? await Promise.all([
+    admin.from('fire_plan_gen_jobs').select('inspection_id, report_type')
+      .in('inspection_id', latestInspIds).eq('status', 'done')
+      .in('report_type', ['report4', 'report9', 'report10', 'report11']),
+    admin.from('inspection_defects').select('inspection_id').in('inspection_id', latestInspIds),
+  ]) : [{ data: [] }, { data: [] }]
+  const jobHave = new Set(((jobsRes.data ?? []) as Array<{ inspection_id: string; report_type: string }>)
+    .map(j => `${j.inspection_id}:${j.report_type}`))
+  const defCount = new Map<string, number>()
+  for (const d of ((defRes.data ?? []) as Array<{ inspection_id: string }>)) {
+    defCount.set(d.inspection_id, (defCount.get(d.inspection_id) ?? 0) + 1)
+  }
+  function docStripOf(customerId: string): CustomerDocStrip {
+    const plan: DocCell = planHave.has(customerId) ? 'have' : 'warn'
+    const insp = latestInsp.get(customerId)
+    if (!insp) return { plan, a4: 'na', a9: 'na', a10: 'na', a11: 'na' }  // 당해 연도 자체점검 없음
+    const has = (t: string): DocCell => (jobHave.has(`${insp}:${t}`) ? 'have' : 'warn')
+    const hasDefect = (defCount.get(insp) ?? 0) > 0
+    return {
+      plan, a4: has('report4'), a9: has('report9'),
+      a10: hasDefect ? has('report10') : 'na',   // 불량 0건이면 해당없음
+      a11: hasDefect ? has('report11') : 'na',
+    }
+  }
+
   const s = (v: unknown) => (v == null ? '' : String(v))
   const items = rows.map(r => {
     const buildings = ((r.buildings ?? []) as Array<Record<string, unknown>>).map(b => ({
@@ -130,11 +180,17 @@ export async function fetchCustomerList(
       buildings,
       planDone: readiness.done, planTotal: readiness.total,
       incompleteAreas,
+      docStrip: docStripOf(r.id as string),
     }
   })
 
   // 미완료 필터 (조회 후 판정 — 대상 규모가 작아 JS 필터로 충분)
   if (f.inc === 'any') return items.filter(i => i.incompleteAreas.length > 0)
   if (f.inc === 'plan') return items.filter(i => i.planDone < i.planTotal)
+  // 문서 미비만 (§4-B-2) — 스트립에 warn 1개 이상
+  if (f.inc === 'doc') return items.filter(i => {
+    const d = i.docStrip
+    return [d.plan, d.a4, d.a9, d.a10, d.a11].includes('warn')
+  })
   return items
 }
