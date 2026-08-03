@@ -52,7 +52,7 @@ export function InspectionReport9Client({
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       const st = await getReport9StatusAction(inspectionId)
       if (!st.error) { setJob(st.job); setFiles(st.files) }
-      setMsg('✅ 생성 요청됨 — 워커가 처리하면 아래 목록에 등록됩니다.')
+      setMsg('✅ 생성 완료 — 아래 목록에서 PDF를 확인하세요.')
     })
   }
 
@@ -103,9 +103,9 @@ export function InspectionReport9Client({
           <button onClick={() => generate(variant === 'exterior' ? 'exterior' : 'report9')} disabled={isPending || busy}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
             {busy || isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
-            {busy ? '생성 중 — 워커 처리 대기'
-              : variant === 'exterior' ? '외관점검표 생성 (HWP+PDF)'
-              : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (HWP+PDF)'}
+            {busy ? '생성 중…'
+              : variant === 'exterior' ? '외관점검표 생성 (PDF)'
+              : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (PDF)'}
           </button>
           {checks.some(c => !c.ok) && (
             <span className="text-[11px] text-amber-600">미비 항목은 빈 칸으로 출력됩니다 (fail-soft)</span>
@@ -161,7 +161,7 @@ export function InspectionReport9Client({
       )}
       {busy && (
         <p className="text-[11px] text-[#b0acd6] mt-2 inline-flex items-center gap-1">
-          <RefreshCw className="size-3 animate-spin" /> 자동 새로고침 중 — 개발 PC 워커가 처리합니다
+          <RefreshCw className="size-3 animate-spin" /> 자동 새로고침 중 — 서버가 생성하고 있습니다
         </p>
       )}
     </div>
