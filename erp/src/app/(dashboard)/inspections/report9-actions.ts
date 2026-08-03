@@ -5,10 +5,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { convertHtmlToPdf } from '@/lib/pdf'
 import { renderReport10, renderReport11, type Annex1011Data } from '@/lib/doc-templates/report1011'
+import {
+  renderReport9, FORM3_ITEMS, form3Group,
+  type Report9Data, type Report9DefectRow, type Report9Person,
+} from '@/lib/doc-templates/report9'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
- *  별지 10·11호는 서버 동기 생성(HTML→Gotenberg PDF — 소방계획서_7 H-6·H-8, SDK·워커 미경유). */
+ *  별지 9·10·11호는 서버 동기 생성(HTML→Gotenberg PDF — 소방계획서_7 H-5·H-6·H-8, SDK·워커 미경유). */
 
 const BUCKET = 'fire-plans'
 
@@ -17,6 +21,27 @@ type Admin = ReturnType<typeof createAdminClient>
 function kdate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   return `${y}년 ${m}월 ${d}일`
+}
+
+/** 설비명 포함 매칭 (공백 제거 후 상호 포함) — 워커 _match와 동일 계열 */
+function nameMatch(a: string, b: string): boolean {
+  const x = a.replace(/ /g, '')
+  const y = b.replace(/ /g, '')
+  return !!x && !!y && (x.includes(y) || y.includes(x))
+}
+
+/** PostgREST 1,000행 한도 대비 offset 페이지 순회 — 워커 db_get_all과 동일 계열 */
+async function pageAll<T>(
+  query: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+  page = 1000,
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await query(offset, offset + page - 1)
+    if (error) throw new Error(error.message)
+    rows.push(...((data ?? []) as T[]))
+    if (!data || data.length < page) return rows
+  }
 }
 
 /** 별지 10·11호 데이터 조립 — 워커 process_report1011과 동일 원본 (fireplan-worker.py 이식).
@@ -97,6 +122,267 @@ async function assembleAnnex1011(
   return { data, missing }
 }
 
+/** 별지 9호 데이터 조립 — 워커 process_report9(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-5, 파리티 우선).
+ *  개선분(별지9호.MD §4 기승인)만 추가: 8쪽 불량 세부 자동, 다중이용업 업종 체크(fire_plan_forms sections.multiUse),
+ *  보조 점검인력 5명 초과 허용. ③ 서식 고유 값(보고일 수기 등)은 annex_inputs 도입 시 병합 예정 */
+async function assembleReport9(
+  admin: Admin,
+  customerId: string,
+  inspectionId: string,
+): Promise<{ data: Report9Data; missing: string[] }> {
+  const [inspRes, custRes, bldRes, contactsRes, companyRes, partsRes, plansRes, formsRes, defectsRes] = await Promise.all([
+    admin.from('inspections')
+      .select('inspection_type, is_initial, inspection_start_date, inspection_end_date, inspection_days, year, assigned_employee_id')
+      .eq('id', inspectionId).single(),
+    admin.from('customers')
+      .select('customer_name, address, use_approval_date, fire_station, building_grade,'
+        + 'insurance_joined, insurance_company, insurance_period, insurance_amount_person, insurance_amount_property,'
+        + 'email_delivery_consent, report_email, rep_role, manager_license_grade, manager_edu_date')
+      .eq('id', customerId).single(),
+    admin.from('buildings')
+      .select('id, purpose, total_area, building_area, floors_above, floors_below, height, main_structure, roof_structure,'
+        + 'households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, evac_elevator_count')
+      .eq('customer_id', customerId).eq('is_active', true).order('created_at', { ascending: true }).limit(1),
+    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
+    admin.from('company_profile').select('company_name, phone').limit(1),
+    admin.from('inspection_participants').select('employee_id, role, sort_order')
+      .eq('inspection_id', inspectionId).order('sort_order'),
+    admin.from('fire_plans').select('id').eq('customer_id', customerId).limit(1),
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
+    admin.from('inspection_defects').select('defect_code, defect_name').eq('inspection_id', inspectionId).order('created_at'),
+  ])
+  type InspRow = {
+    inspection_type: string | null; is_initial: boolean | null
+    inspection_start_date: string | null; inspection_end_date: string | null
+    inspection_days: number | null; year: number; assigned_employee_id: string | null
+  }
+  const insp = inspRes.data as InspRow | null
+  if (!insp) throw new Error('점검 건을 찾을 수 없습니다')
+  type CustRow = {
+    customer_name: string; address: string | null; use_approval_date: string | null; fire_station: string | null
+    building_grade: string | null; insurance_joined: boolean | null; insurance_company: string | null
+    insurance_period: string | null; insurance_amount_person: string | null; insurance_amount_property: string | null
+    email_delivery_consent: boolean | null; report_email: string | null; rep_role: string | null
+    manager_license_grade: string | null; manager_edu_date: string | null
+  }
+  const cust = custRes.data as CustRow | null
+  if (!cust) throw new Error('고객을 찾을 수 없습니다')
+  type BldRow = {
+    id: string; purpose: string | null; total_area: number | null; building_area: number | null
+    floors_above: number | null; floors_below: number | null; height: number | null
+    main_structure: string | null; roof_structure: string | null; households: number | null
+    building_count: number | null; permit_date: string | null; parking_summary: string | null
+    elevator_count: number | null; emergency_elevator_count: number | null; evac_elevator_count: number | null
+  }
+  const b = (bldRes.data?.[0] as BldRow | undefined) ?? null
+  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
+  const company = (companyRes.data?.[0] ?? {}) as { company_name?: string | null; phone?: string | null }
+
+  // 점검인력 — 주된 = 담당 직원(참여자에 '주된' 행이 있으면 우선), 보조 = inspection_participants (워커 동일)
+  let parts = (partsRes.data ?? []) as Array<{ employee_id: string; role: string; sort_order: number }>
+  if (!parts.some(p => p.role === '주된') && insp.assigned_employee_id) {
+    parts = [{ employee_id: insp.assigned_employee_id, role: '주된', sort_order: -1 }, ...parts]
+  }
+  let profMap = new Map<string, { name: string | null; license_no: string | null; license_grade: string | null }>()
+  const ids = [...new Set(parts.map(p => p.employee_id).filter(Boolean))]
+  if (ids.length) {
+    const { data: profs } = await admin.from('profiles').select('id, name, license_no, license_grade').in('id', ids)
+    profMap = new Map(((profs ?? []) as Array<{ id: string; name: string | null; license_no: string | null; license_grade: string | null }>)
+      .map(p => [p.id, p]))
+  }
+
+  // 점검표 응답 롤업(§9-3) — 시트별 X 유무 → 3쪽 양호○/불량×, 미설치 설비는 해당없음 /
+  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N' }>((from, to) =>
+    admin.from('inspection_sheet_responses').select('item_code, result').eq('inspection_id', inspectionId).range(from, to))
+  const items = responses.length
+    ? await pageAll<{ item_code: string; item_name: string; sheet_id: string }>((from, to) =>
+      admin.from('inspection_sheet_items').select('item_code, item_name, sheet_id').range(from, to))
+    : []
+  const sheets = responses.length
+    ? ((await admin.from('inspection_sheets').select('id, sheet_name')).data ?? []) as Array<{ id: string; sheet_name: string }>
+    : []
+  const sheetNameById = new Map(sheets.map(s => [s.id, s.sheet_name]))
+  const sheetByItem = new Map(items.map(i => [i.item_code, sheetNameById.get(i.sheet_id) ?? '']))
+  const itemNameByCode = new Map(items.map(i => [i.item_code, i.item_name]))
+  const sheetStat = new Map<string, { any: boolean; x: boolean }>()
+  for (const r of responses) {
+    const name = sheetByItem.get(r.item_code)
+    if (!name) continue
+    const st = sheetStat.get(name) ?? { any: false, x: false }
+    st.any = true
+    st.x = st.x || r.result === 'X'
+    sheetStat.set(name, st)
+  }
+
+  const codes = b
+    ? (((await admin.from('fire_facilities').select('facility_code').eq('building_id', b.id).eq('installed', true))
+      .data ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
+    : []
+  const facilityChecks = FORM3_ITEMS.filter(it => codes.some(c => nameMatch(c, it)))
+  const resultMarks: Record<string, 'O' | 'X' | 'N'> = {}
+  for (const it of FORM3_ITEMS) {
+    const st = [...sheetStat.entries()].find(([name]) => nameMatch(name, it))?.[1]
+    if (st?.any) resultMarks[it] = st.x ? 'X' : 'O'
+    else if (!facilityChecks.includes(it)) resultMarks[it] = 'N'
+  }
+
+  // 3쪽 2절 안전시설등(다중이용업소, §9-6e) — MU 시트 응답 항목 단위 반영 (다중이용업 아니면 응답 없음 → 공란)
+  const muResults: Record<string, 'O' | 'X' | 'N'> = {}
+  for (const r of responses) {
+    if (r.item_code.startsWith('MU-') && ['O', 'X', 'N'].includes(r.result)) muResults[r.item_code] = r.result
+  }
+
+  // 2쪽 자동 판정(§9-6③) — 데이터가 있을 때만 체크 (없으면 공란 유지, 단정 금지 — 워커 동일)
+  const hasPlan = (plansRes.data ?? []).length > 0
+  const { data: prevRows } = await admin.from('inspections')
+    .select('inspection_type').eq('customer_id', customerId).eq('year', insp.year - 1).eq('status', 'completed')
+  const prevTypes = new Set(((prevRows ?? []) as Array<{ inspection_type: string }>).map(r => r.inspection_type))
+  const sections = ((formsRes.data?.[0] as { sections: Record<string, unknown> | null } | undefined)?.sections) ?? {}
+  const hasTraining = !!sections['training']
+  // 다중이용업소현황 — 서식 1.10.3(sections.multiUse)과 공유 원본 (별지9호.MD §2 MULTI_USE_CATEGORIES)
+  const muSection = (sections['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
+  const multiUseCounts: Record<string, string> = {}
+  if (muSection?.applicable) {
+    for (const [cat, cnt] of Object.entries(muSection.categories ?? {})) {
+      if (String(cnt ?? '').trim()) multiUseCounts[cat] = String(cnt).trim()
+    }
+  }
+
+  let period = ''
+  if (insp.inspection_start_date) {
+    const end = insp.inspection_end_date || insp.inspection_start_date
+    period = `${kdate(insp.inspection_start_date)} ~ ${kdate(end)}`
+  }
+
+  const toPerson = (employeeId: string): Report9Person => {
+    const pr = profMap.get(employeeId)
+    return { name: pr?.name ?? '', grade: pr?.license_grade ?? '', licenseNo: pr?.license_no ?? '', period }
+  }
+  const mains = parts.filter(p => p.role === '주된')
+  const assists = parts.filter(p => p.role === '보조')
+
+  // 점검 구분 — 작동/종합(최초·그 밖의) (워커 동일)
+  const itype = insp.inspection_type ?? ''
+  const ckOp = itype === '작동'
+  const ckInitial = itype === '최초' || (itype === '종합' && !!insp.is_initial)
+  const ckCompEtc = itype === '종합' && !ckInitial
+
+  const ms = b?.main_structure ?? ''
+  const rf = b?.roof_structure ?? ''
+  const pk = b?.parking_summary ?? ''
+  const stCon = ms.includes('콘크리트')
+  const stSteel = !stCon && ms.includes('철골')
+  const stBrick = !stCon && !stSteel && ms.includes('조적')
+  const stWood = !stCon && !stSteel && !stBrick && ms.includes('목')
+  const stEtc = !!ms && !stCon && !stSteel && !stBrick && !stWood
+  const rfSlab = rf.includes('슬래브') || rf.includes('슬라브')
+  const rfTile = !rfSlab && rf.includes('기와')
+  const rfSlate = !rfSlab && !rfTile && rf.includes('슬레이트')
+  const rfEtc = !!rf && !rfSlab && !rfTile && !rfSlate
+
+  // 8쪽 불량 세부 — 시트 X 응답의 점검번호 + defects 불량명 조인, 설비 구분 그룹핑 (MD §4-2)
+  type DefectDbRow = { defect_code: string | null; defect_name: string }
+  const defects = (defectsRes.data ?? []) as DefectDbRow[]
+  const defectByCode = new Map(defects.filter(d => d.defect_code).map(d => [d.defect_code as string, d]))
+  const groupOfCode = (code: string): string => {
+    if (code.startsWith('MU-')) return '안전시설등'
+    const sheetName = sheetByItem.get(code)
+    if (sheetName) {
+      const it = FORM3_ITEMS.find(i => nameMatch(sheetName, i))
+      if (it) return form3Group(it)
+    }
+    return '기타'
+  }
+  const xCodes = responses.filter(r => r.result === 'X').map(r => r.item_code).sort()
+  const defectRows: Report9DefectRow[] = xCodes.map(code => ({
+    group: groupOfCode(code),
+    code,
+    content: defectByCode.get(code)?.defect_name ?? itemNameByCode.get(code) ?? '',
+  }))
+  for (const d of defects) {
+    if (d.defect_code && xCodes.includes(d.defect_code)) continue // X 응답과 조인된 건은 위에서 렌더
+    defectRows.push({
+      group: d.defect_code ? groupOfCode(d.defect_code) : '기타',
+      code: d.defect_code ?? '',
+      content: d.defect_name,
+    })
+  }
+
+  const data: Report9Data = {
+    ckOp, ckInitial, ckCompEtc,
+    customerName: cust.customer_name,
+    purpose: b?.purpose ?? '',
+    address: cust.address ?? '',
+    inspPeriod: period,
+    inspDays: String(insp.inspection_days ?? (period ? 1 : '')),
+    companyName: company.company_name ?? '',
+    companyPhone: company.phone ?? '',
+    consent: cust.email_delivery_consent,
+    reportEmail: cust.email_delivery_consent === true ? (cust.report_email ?? '') : '',
+    main: mains.length ? toPerson(mains[0].employee_id) : null,
+    assistants: assists.map(a => toPerson(a.employee_id)),
+    reportDate: kdate(new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]),
+    submitTo: cust.fire_station ? `관계인ㆍ${cust.fire_station}장` : '관계인ㆍ소방본부장ㆍ소방서장',
+    // 2쪽 — 대표자 구분(104 rep_role — 미입력 시 관계인 대표=소유자 폴백)·자격구분(manager_license_grade 우선)
+    repRole: ['소유자', '관리자', '점유자'].includes(cust.rep_role ?? '') ? (cust.rep_role as string) : (owner ? '소유자' : ''),
+    ownerName: owner?.name ?? '',
+    ownerPhone: owner?.phone ?? '',
+    managerGrade: ['특급', '1급', '2급', '3급'].includes(cust.manager_license_grade || cust.building_grade || '')
+      ? (cust.manager_license_grade || cust.building_grade || '') : '',
+    // 소방안전관리자 별도 데이터 미보유 — 관계인 폴백 (워커 동일, 개선은 별지 MD §4)
+    mgrName: owner?.name ?? '',
+    mgrPhone: owner?.phone ?? '',
+    mgrEduDate: cust.manager_edu_date ? kdate(cust.manager_edu_date) : '',
+    hasFirePlan: hasPlan,
+    prevOpDone: prevTypes.has('작동'),
+    prevCompDone: prevTypes.has('종합') || prevTypes.has('최초'),
+    eduDone: hasTraining,
+    drillDone: hasTraining,
+    insuranceJoined: cust.insurance_joined,
+    insCompany: cust.insurance_company ?? '',
+    insPeriod: cust.insurance_period ?? '',
+    insPerson: cust.insurance_amount_person ?? '',
+    insProperty: cust.insurance_amount_property ?? '',
+    multiUseNone: muSection ? muSection.applicable === false : false,
+    multiUseCounts,
+    permitDate: b?.permit_date ? kdate(b.permit_date) : '',
+    useApprovalDate: cust.use_approval_date ? kdate(cust.use_approval_date) : '',
+    totalArea: String(b?.total_area ?? ''),
+    buildingArea: String(b?.building_area ?? ''),
+    households: b?.households ? `${b.households}세대` : '',
+    floorsAbove: String(b?.floors_above ?? ''),
+    floorsBelow: String(b?.floors_below ?? ''),
+    heightM: String(b?.height ?? ''),
+    buildingCount: String(b?.building_count ?? ''),
+    stCon, stSteel, stBrick, stWood, stEtc,
+    rfSlab, rfTile, rfSlate, rfEtc,
+    elvR: b?.elevator_count ? String(b.elevator_count) : '',
+    elvE: b?.emergency_elevator_count ? String(b.emergency_elevator_count) : '',
+    elvV: b?.evac_elevator_count ? String(b.evac_elevator_count) : '',
+    pkIn: pk.includes('옥내'),
+    pkMech: pk.includes('기계식'),
+    pkRoof: pk.includes('옥상'),
+    pkOut: pk.includes('옥외'),
+    facilityChecks,
+    resultMarks,
+    muResults,
+    defectRows,
+  }
+
+  // 누락 항목 — 워커 process_report9 missing과 동일 문구
+  const missing: string[] = []
+  if (!period) missing.push('점검기간')
+  if (!mains.length) missing.push('주된 점검인력')
+  if (!responses.length) missing.push('점검표 응답')
+  if (cust.email_delivery_consent === null) missing.push('송달 동의')
+  if (!(parts.length && parts.every(p => profMap.get(p.employee_id)?.license_no))) missing.push('자격정보')
+  if (!cust.address) missing.push('주소')
+  if (!cust.use_approval_date) missing.push('사용승인일')
+  if (!b?.permit_date) missing.push('건축허가일')
+  return { data, missing }
+}
+
 export type Report9Job = {
   id: string; status: string; missing: string[] | null; error: string | null; created_at: string
 }
@@ -134,12 +420,21 @@ export async function requestReport9Action(
     .select('id').eq('inspection_id', inspectionId).in('status', ['pending', 'processing']).limit(1)
   if (waiting && waiting.length > 0) return { error: '이미 생성 대기·진행 중입니다 — 잠시 후 새로고침해주세요.' }
 
-  // 소방계획서_7 H-8: 별지 10·11호는 서버 동기 생성 — HTML 템플릿 → Gotenberg PDF, 잡은 완료 기록용
-  // (기존 폴링 UI·문서 현황·최근 문서가 잡 테이블·파일 규약을 그대로 읽음. 9호·외관은 아직 워커 경유)
-  if (reportType === 'report10' || reportType === 'report11') {
+  // 소방계획서_7 H-8: 별지 9·10·11호는 서버 동기 생성 — HTML 템플릿 → Gotenberg PDF, 잡은 완료 기록용
+  // (기존 폴링 UI·문서 현황·최근 문서가 잡 테이블·파일 규약을 그대로 읽음. 외관점검표만 아직 워커 경유)
+  if (reportType === 'report9' || reportType === 'report10' || reportType === 'report11') {
     try {
-      const { data: annexData, missing } = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
-      const html = reportType === 'report10' ? renderReport10(annexData) : renderReport11(annexData)
+      let html: string
+      let missing: string[]
+      if (reportType === 'report9') {
+        const assembled = await assembleReport9(admin, i.customer_id, inspectionId)
+        html = renderReport9(assembled.data)
+        missing = assembled.missing
+      } else {
+        const assembled = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
+        html = reportType === 'report10' ? renderReport10(assembled.data) : renderReport11(assembled.data)
+        missing = assembled.missing
+      }
       const pdf = await convertHtmlToPdf(html, [], { marginMode: 'none' })
       const stamp = Date.now()
       const base = `${i.customer_id}/inspections/${inspectionId}/${reportType}_${stamp}`
@@ -164,7 +459,8 @@ export async function requestReport9Action(
       revalidatePath(`/inspections/${inspectionId}`)
       return {}
     } catch (e) {
-      return { error: `별지 ${reportType === 'report10' ? '10' : '11'}호 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
+      const label = reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'
+      return { error: `별지 ${label}호 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
     }
   }
 
@@ -182,11 +478,11 @@ export async function requestReport9Action(
   return {}
 }
 
-/** 별지 10·11호 미리보기 HTML (소방계획서_7 H-4) — 생성물과 동일 렌더 함수 단일 소스,
+/** 별지 9·10·11호 미리보기 HTML (소방계획서_7 H-4) — 생성물과 동일 렌더 함수 단일 소스,
  *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시 */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
-  reportType: 'report10' | 'report11',
+  reportType: 'report9' | 'report10' | 'report11',
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -195,9 +491,13 @@ export async function getAnnexPreviewHtmlAction(
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const ins = insp as { customer_id: string; plan_type: string | null }
   if (!(!ins.plan_type || ins.plan_type.startsWith('special'))) {
-    return { error: '자체점검 건만 별지 10·11호 대상입니다.' }
+    return { error: '자체점검 건만 별지 9·10·11호 대상입니다.' }
   }
   try {
+    if (reportType === 'report9') {
+      const { data, missing } = await assembleReport9(admin, ins.customer_id, inspectionId)
+      return { html: renderReport9(data, { highlight: true }), missing }
+    }
     const { data, missing } = await assembleAnnex1011(admin, ins.customer_id, inspectionId, reportType)
     const html = reportType === 'report10'
       ? renderReport10(data, { highlight: true })
