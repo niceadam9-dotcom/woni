@@ -2,12 +2,16 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Camera, Loader2 } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Camera, Loader2, Pencil } from 'lucide-react'
 import { getDocUrlAction, type CustomerDocs, type DocGroupRef, type InspectionDocs } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import { getFirePlanFileUrlAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { DOC_TERMS } from '@/lib/doc-requirements'
+import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
+
+/** 별지 작성 진입 버튼 (H-24 문서 작업대 §4-B) — 문서 현황에서 이동 없이 작성 패널 오픈 */
+const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50'
 
 /** ① 고객 문서 현황 (소방계획서_5 R2) — 생성+업로드 통합 조회.
  *  행 정렬 고정: 소방계획서 → 점검 건(최신 차수 먼저) → 9호→배치확인서→계약서→사진→10·11호.
@@ -30,6 +34,8 @@ function StatusIcon({ state }: { state: 'have' | 'warn' | 'na' }) {
 export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onChanged: () => void }) {
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState<{ key: string; text: string; ok: boolean } | null>(null)
+  // H-24 문서 작업대 — 별지 작성 패널(이동 0회). 생성 완료 시 문서 현황 갱신
+  const [compose, setCompose] = useState<{ inspectionId: string; annexNo: ComposeAnnexNo } | null>(null)
 
   function open(path: string | null | undefined, saveName?: string) {
     if (!path) return
@@ -52,7 +58,8 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, kind)
       if (res.error) { setMsg({ key: rowKey, text: `❌ ${res.error}`, ok: false }); return }
-      setMsg({ key: rowKey, text: '✅ 생성 요청됨 — 워커가 처리하면 이 행에 [HWP][PDF]가 생깁니다 (잠시 후 새로고침)', ok: true })
+      setMsg({ key: rowKey, text: '✅ 생성 완료 — 이 행에 [PDF] 링크가 표시됩니다', ok: true })
+      onChanged()
     })
   }
 
@@ -126,13 +133,25 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
       {/* 점검 건별 (최신 차수 먼저) — 전부 자체점검 행 (레거시 event 건은 목록 대상 아님, W-16) */}
       {docs.inspections.map(i => (
         <InspectionDocRows key={i.inspectionId} i={i} customerName={docs.customerName}
-          isPending={isPending} open={open} generate={generate} upload={upload} feedback={feedback} />
+          isPending={isPending} open={open} generate={generate} upload={upload} feedback={feedback}
+          onCompose={(inspectionId, annexNo) => setCompose({ inspectionId, annexNo })} />
       ))}
+
+      {/* H-24 문서 작업대 — 별지 작성 슬라이드 패널 (§4-B, 화면 이동 0회) */}
+      {compose && (
+        <AnnexComposePanel
+          inspectionId={compose.inspectionId}
+          annexNo={compose.annexNo}
+          customerId={docs.customerId}
+          onClose={() => setCompose(null)}
+          onGenerated={onChanged}
+        />
+      )}
     </div>
   )
 }
 
-function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback }: {
+function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback, onCompose }: {
   i: InspectionDocs
   customerName: string
   isPending: boolean
@@ -140,6 +159,7 @@ function InspectionDocRows({ i, customerName, isPending, open, generate, upload,
   generate: (inspectionId: string, kind: 'report9' | 'report10' | 'report11' | 'exterior', rowKey: string) => void
   upload: (inspectionId: string, slot: 'cert' | 'contract', file: File, rowKey: string) => void
   feedback: (key: string) => React.ReactNode
+  onCompose: (inspectionId: string, annexNo: ComposeAnnexNo) => void
 }) {
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
@@ -174,6 +194,8 @@ function InspectionDocRows({ i, customerName, isPending, open, generate, upload,
           <div className={rowCls}>
             <StatusIcon state={i.report9 ? 'have' : 'warn'} />
             <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report9Full}>실시결과 보고서 (9호)</span>
+            <button onClick={() => onCompose(i.inspectionId, 'report9')} disabled={isPending} className={composeBtn}
+              title="작성 — 보고일·비고 입력 후 미리보기·생성 (이동 없이)"><Pencil className="size-3" /> 작성</button>
             {i.report9 ? (<>
               <span className="text-[#514b81]">✓ {fmtD(i.report9.at)}</span>
               <span className="ml-auto flex items-center gap-1">
@@ -257,6 +279,8 @@ function InspectionDocRows({ i, customerName, isPending, open, generate, upload,
             <div className={rowCls}>
               <StatusIcon state={i.report10 ? 'have' : 'warn'} />
               <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report10Full}>이행계획서 (10호)</span>
+              <button onClick={() => onCompose(i.inspectionId, 'report10')} disabled={isPending} className={composeBtn}
+                title="작성 — 제출일·이행기간·계획 요약 입력 후 생성"><Pencil className="size-3" /> 작성</button>
               {i.report10 ? (<>
                 <span className="text-[#514b81]">✓ {fmtD(i.report10.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
@@ -271,6 +295,8 @@ function InspectionDocRows({ i, customerName, isPending, open, generate, upload,
             <div className={rowCls}>
               <StatusIcon state={i.report11 ? 'have' : 'warn'} />
               <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report11Full}>이행완료 보고서 (11호)</span>
+              <button onClick={() => onCompose(i.inspectionId, 'report11')} disabled={isPending} className={composeBtn}
+                title="작성 — 제출일·완료 보고 문구 입력 후 생성"><Pencil className="size-3" /> 작성</button>
               {i.report11 ? (<>
                 <span className="text-[#514b81]">✓ {fmtD(i.report11.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
