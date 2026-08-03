@@ -48,8 +48,25 @@ async function pageAll<T>(
   }
 }
 
+/** ③ 서식 고유 값(annex_inputs) 조회 — H-23 작성 화면(annex-compose-panel) 저장분. 없으면 빈 객체(fail-soft) */
+async function loadAnnexInputs(
+  admin: Admin,
+  inspectionId: string,
+  annexNo: 'report9' | 'report10' | 'report11',
+): Promise<Record<string, unknown>> {
+  const { data } = await admin.from('annex_inputs').select('fields')
+    .eq('inspection_id', inspectionId).eq('annex_no', annexNo).maybeSingle()
+  return (data?.fields ?? {}) as Record<string, unknown>
+}
+
+/** annex_inputs 문자열 필드 안전 추출 (trim, 비문자열은 공백) */
+function fstr(fields: Record<string, unknown>, key: string): string {
+  const v = fields[key]
+  return typeof v === 'string' ? v.trim() : ''
+}
+
 /** 별지 10·11호 데이터 조립 — 워커 process_report1011과 동일 원본 (fireplan-worker.py 이식).
- *  ③ 서식 고유 값(제출일·업체 수기 등)은 S3A annex_inputs 도입 시 병합 예정 */
+ *  ③ 서식 고유 값(annex_inputs — 제출일·총 이행기간 보정·계획 요약·완료 보고 문구)은 말미에 오버레이(H-23) */
 async function assembleAnnex1011(
   admin: Admin,
   customerId: string,
@@ -123,12 +140,28 @@ async function assembleAnnex1011(
     data.companyAddress = company.address ?? ''
     if (done.length === 0) missing.push('이행완료 항목 없음')
   }
+
+  // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 작성 패널 저장분이 자동 계산값보다 우선
+  const fields = await loadAnnexInputs(admin, inspectionId, kind)
+  const fDate = fstr(fields, 'reportDate')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fDate)) data.reportDate = kdate(fDate)
+  if (kind === 'report10') {
+    if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod')
+    if (fstr(fields, 'totalDays')) data.totalDays = fstr(fields, 'totalDays')
+    // 계획 내용 요약 — 렌더 변경 없이 이행조치 사항 표의 첫 행으로 출력
+    const summary = fstr(fields, 'summary')
+    if (summary) data.rows = [{ content: summary, period: '' }, ...data.rows]
+  } else {
+    // 완료 보고 문구 — 있을 때만 서명 블록 위 1줄 (report1011.ts note)
+    const note = fstr(fields, 'note')
+    if (note) data.note = note
+  }
   return { data, missing }
 }
 
 /** 별지 9호 데이터 조립 — 워커 process_report9(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-5, 파리티 우선).
  *  개선분(별지9호.MD §4 기승인)만 추가: 8쪽 불량 세부 자동, 다중이용업 업종 체크(fire_plan_forms sections.multiUse),
- *  보조 점검인력 5명 초과 허용. ③ 서식 고유 값(보고일 수기 등)은 annex_inputs 도입 시 병합 예정 */
+ *  보조 점검인력 5명 초과 허용. ③ 서식 고유 값(annex_inputs — 보고일 수기·비고)은 말미에 오버레이(H-23) */
 async function assembleReport9(
   admin: Admin,
   customerId: string,
@@ -385,6 +418,13 @@ async function assembleReport9(
     specs,
     defectRows,
   }
+
+  // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 보고일 수기 지정·비고 (작성 패널 저장분)
+  const annexFields = await loadAnnexInputs(admin, inspectionId, 'report9')
+  const fReportDate = fstr(annexFields, 'reportDate')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fReportDate)) data.reportDate = kdate(fReportDate)
+  const fNote = fstr(annexFields, 'note')
+  if (fNote) data.note = fNote
 
   // 누락 항목 — 워커 process_report9 missing과 동일 문구
   const missing: string[] = []

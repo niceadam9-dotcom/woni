@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  CheckCircle2, Circle, AlertTriangle, Loader2, FileText, Send, Upload, Download, Package, RefreshCw, ExternalLink,
+  CheckCircle2, Circle, AlertTriangle, Loader2, FileText, Send, Upload, Download, Package, RefreshCw, ExternalLink, PenLine,
 } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, downloadReport9Action,
@@ -17,6 +17,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
+import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
 /** 문서 타임라인 (§9-9 / P7) — 단계별 상태·D-day·업로드 슬롯·생성·발송·제출 패키지.
  *  단계 구성은 stepDocs(§9-9a): 자체점검 ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림).
@@ -67,6 +68,8 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
   const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
   const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
   const [dragOver, setDragOver] = useState<'cert' | 'contract' | null>(null)   // R0-6 드롭존 하이라이트
+  // H-23 작성 패널(별지 9·10·11호 3단 패턴) — [별지 N호 생성] 원클릭은 빠른 경로로 유지, [작성]은 보완·수정 경로(§4-A-2b)
+  const [compose, setCompose] = useState<ComposeAnnexNo | null>(null)
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
@@ -292,9 +295,17 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
                 <button onClick={() => generate('report9')} disabled={isPending || busy} className={btnPri}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
                 </button>
-                {data.defects.total > 0 && (
+                <button onClick={() => setCompose('report9')} disabled={isPending || busy} className={btn}
+                  title="자동 채움 검토 → 고유 값 입력(비고·보고일) → 미리보기·생성 (H-23 작성 패널)">
+                  <PenLine className="size-3" /> 9호 작성
+                </button>
+                {data.defects.total > 0 && (<>
                   <button onClick={() => generate('report10')} disabled={isPending || busy} className={btn}>별지 10호 생성</button>
-                )}
+                  <button onClick={() => setCompose('report10')} disabled={isPending || busy} className={btn}
+                    title="자동 채움 검토 → 고유 값 입력(제출일·기간 보정·요약) → 미리보기·생성 (H-23 작성 패널)">
+                    <PenLine className="size-3" /> 10호 작성
+                  </button>
+                </>)}
                 <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
                 <span className="inline-flex items-center gap-1">
                   <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)} className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
@@ -362,6 +373,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
               {data.submit11.due && !data.submit11.submittedAt && <span className="text-[10px] text-[#b0acd6]">기한 {data.submit11.due} (이행기간 종료)</span>}
               {canManage && (<>
                 <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>별지 11호 생성</button>
+                <button onClick={() => setCompose('report11')} disabled={isPending || busy} className={btn}
+                  title="자동 채움 검토 → 고유 값 입력(제출일·완료 보고 문구) → 미리보기·생성 (H-23 작성 패널)">
+                  <PenLine className="size-3" /> 11호 작성
+                </button>
                 <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지 (⑤ 첨부 자동)</button>
                 <span className="inline-flex items-center gap-1">
                   <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)} className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
@@ -391,6 +406,20 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
           <GeneratedDocList files={files} onOpen={download} customerName={customerName} disabled={isPending} />
         </div>
+      )}
+
+      {/* H-23 작성 패널 — 3단 패턴(자동 채움 검토 → 고유 값 입력 → 미리보기·생성), 별지 카드 진입점과 화면 1개 공유 */}
+      {compose && (
+        <AnnexComposePanel
+          inspectionId={inspectionId}
+          annexNo={compose}
+          customerId={customerId}
+          onClose={() => setCompose(null)}
+          onGenerated={async () => {
+            const st = await getReport9StatusAction(inspectionId)
+            if (!st.error) { setJob(st.job); setFiles(st.files) }
+          }}
+        />
       )}
     </div>
   )

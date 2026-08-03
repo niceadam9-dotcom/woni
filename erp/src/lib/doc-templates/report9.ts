@@ -113,6 +113,8 @@ export type Report9Data = {
   specs?: SpecMap
   // ── 8쪽 ──
   defectRows: Report9DefectRow[]
+  // ── ③ 서식 고유 값 (annex_inputs, H-23) — 비고·보완 문구: 1쪽 유의사항 위 1줄, 없으면 미출력 ──
+  note?: string
 }
 
 export type Report9RenderOpts = { highlight?: boolean } // 미리보기: 미입력 하이라이트 (§4-A-2c ③)
@@ -202,6 +204,7 @@ ${pageHeader('소방시설 설치 및 관리에 관한 법률 시행규칙 [별�
     <td>1. 점검인력 배치확인서(소방시설관리업자가 점검한 경우에만 제출합니다) 1부<br>2. 별지 제10호서식의 소방시설등의 자체점검 결과 이행계획서</td>
   </tr>
 </table>
+${d.note ? `<p class="small" style="margin:2px 4px">비고: ${esc(d.note)}</p>` : ''}
 <table class="form notice" style="margin-top:4px">
   <tr>
     <th style="width:40mm">유의 사항</th>

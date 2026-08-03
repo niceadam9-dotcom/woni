@@ -29,6 +29,8 @@ export type Annex1011Data = {
   companyRep?: string
   companyPhone?: string
   companyAddress?: string
+  // ③ 서식 고유 값 (annex_inputs, H-23) — 11호 완료 보고 문구: 서명 블록 위 1줄, 없으면 미출력
+  note?: string
 }
 
 export type RenderOpts = { highlight?: boolean } // 미리보기: 미입력 하이라이트 (§4-A-2c ③)
@@ -134,6 +136,7 @@ ${pageHeader('소방시설 설치 및 관리에 관한 법률 시행규칙 [별�
 ${headTable(d, h, true)}
 ${companyTable}
 ${rowsTable('이행완료 사항', '이행조치 내용', d.rows)}
+${d.note ? `<p class="law small">비고: ${esc(d.note)}</p>` : ''}
 ${signBlock('「소방시설 설치 및 안전관리에 관한 법률」 제23조제4항 및 같은 법 시행규칙 제23조제6항에 따라 위와 같이 소방시설등의 수리ㆍ교체ㆍ정비에 대한 이행완료 보고서를 제출합니다.', d)}
 ${noticeBox([
   ['첨부서류', '1. 이행계획 건별 이행 전ㆍ후 사진 증명자료 1부<br>2. 소방시설공사 계약서(이행조치 내용과 관련됩니다) 1부'],

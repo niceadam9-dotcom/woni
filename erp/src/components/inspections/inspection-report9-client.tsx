@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { FileText, Loader2, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, CheckCircle2, AlertTriangle, PenLine } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, downloadReport9Action,
   type Report9Job, type Report9File,
 } from '@/app/(dashboard)/inspections/report9-actions'
 import { DOC_TERMS } from '@/lib/doc-requirements'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
+import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
 /** 실시결과 보고서(별지 9호) 준비·생성 섹션 — §9-6⑦ 준비 체크리스트 + 생성 버튼 + 생성물 목록.
  *  값 수정은 각 입력처(고객 탭·참여자·점검표)에서 — 이 화면은 상태 표시와 생성만. */
@@ -18,7 +19,7 @@ export type Report9CheckRow = { label: string; ok: boolean; detail: string; href
 export type DefectsInfo = { total: number; planned: number; done: number }
 
 export function InspectionReport9Client({
-  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9', customerName,
+  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9', customerName, customerId,
 }: {
   inspectionId: string
   canManage: boolean
@@ -28,12 +29,20 @@ export function InspectionReport9Client({
   defectsInfo: DefectsInfo
   variant?: 'report9' | 'exterior' // exterior = 외관점검표(일반관리, §9-8d)
   customerName?: string
+  customerId?: string
 }) {
   const [job, setJob] = useState(initialJob)
   const [files, setFiles] = useState(initialFiles)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // H-23 작성 패널 (별지 9·10·11호 — 3단 패턴) — 외관·별지 4호는 고유 값 없음이라 제외
+  const [compose, setCompose] = useState<ComposeAnnexNo | null>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
+
+  async function refreshStatus() {
+    const st = await getReport9StatusAction(inspectionId)
+    if (!st.error) { setJob(st.job); setFiles(st.files) }
+  }
 
   // 생성 진행 중이면 8초 간격 상태 폴링
   useEffect(() => {
@@ -108,6 +117,14 @@ export function InspectionReport9Client({
               : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (PDF)'}
           </button>
           {variant !== 'exterior' && (
+            <button onClick={() => setCompose('report9')} disabled={isPending || busy}
+              title="자동 채움 검토 → 고유 값 입력(비고·보고일) → 미리보기·생성 (H-23 작성 패널)"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+              <PenLine className="size-3.5" />
+              9호 작성
+            </button>
+          )}
+          {variant !== 'exterior' && (
             <button onClick={() => generate('report4')} disabled={isPending || busy}
               title="소방시설등점검표 (별지 4호) — 1·2쪽·점검결과 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)에서 입력 (H-21)"
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
@@ -132,10 +149,17 @@ export function InspectionReport9Client({
             <span className={defectsInfo.planned >= defectsInfo.total ? 'text-[#514b81]' : 'text-amber-600'}>
               불량 {defectsInfo.total}건 중 {defectsInfo.planned}건 계획 입력
             </span>
-            <button onClick={() => generate('report10')} disabled={isPending || busy}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
-              별지 10호 생성
-            </button>
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <button onClick={() => setCompose('report10')} disabled={isPending || busy}
+                title="자동 채움 검토 → 고유 값 입력(제출일·기간 보정·요약) → 미리보기·생성 (H-23 작성 패널)"
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                <PenLine className="size-3" /> 10호 작성
+              </button>
+              <button onClick={() => generate('report10')} disabled={isPending || busy}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                별지 10호 생성
+              </button>
+            </span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             {defectsInfo.done >= defectsInfo.total
@@ -145,10 +169,17 @@ export function InspectionReport9Client({
             <span className={defectsInfo.done >= defectsInfo.total ? 'text-[#514b81]' : 'text-amber-600'}>
               {defectsInfo.done}/{defectsInfo.total} 완료
             </span>
-            <button onClick={() => generate('report11')} disabled={isPending || busy}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
-              별지 11호 생성
-            </button>
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <button onClick={() => setCompose('report11')} disabled={isPending || busy}
+                title="자동 채움 검토 → 고유 값 입력(제출일·완료 보고 문구) → 미리보기·생성 (H-23 작성 패널)"
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                <PenLine className="size-3" /> 11호 작성
+              </button>
+              <button onClick={() => generate('report11')} disabled={isPending || busy}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                별지 11호 생성
+              </button>
+            </span>
           </div>
           <p className="text-[10px] text-[#b0acd6]">계획·완료 입력은 아래 불량내역의 [이행계획·조치 완료]에서 — 10호는 9호의 법정 첨부, 11호 첨부(전후 사진·계약서)는 불량내역 사진 슬롯 활용</p>
         </div>
@@ -171,6 +202,17 @@ export function InspectionReport9Client({
         <p className="text-[11px] text-[#b0acd6] mt-2 inline-flex items-center gap-1">
           <RefreshCw className="size-3 animate-spin" /> 자동 새로고침 중 — 서버가 생성하고 있습니다
         </p>
+      )}
+
+      {/* H-23 작성 패널 — 3단 패턴(자동 채움 검토 → 고유 값 입력 → 미리보기·생성), 타임라인 진입점과 화면 1개 공유 */}
+      {compose && (
+        <AnnexComposePanel
+          inspectionId={inspectionId}
+          annexNo={compose}
+          customerId={customerId}
+          onClose={() => setCompose(null)}
+          onGenerated={refreshStatus}
+        />
       )}
     </div>
   )
