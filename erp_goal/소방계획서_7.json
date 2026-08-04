@@ -32,8 +32,8 @@
     { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "code_present", "note": "2026-08-03 완료 — E2E 11/11. 템플릿 삽입은 S4(H-12)에서" },
     { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "partial", "note": "H-18·19·21·23·24 완료 — H-20(탭 재편·본문 이관 Q-6)·H-22(1.4장 렌더, S4 연계) 잔여" },
     { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "pending_order" },
-    { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "pending_order" },
-    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "pending_order" }
+    { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "code_present", "note": "2026-08-04 완료 — H-12·13·14 전건, 실주행 검증 PASS. SDK 최종 제거" },
+    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "partial", "note": "H-15 부분(SDK·워커 완전 제거, 엑셀 잔여) — H-15b(업로드 폐지)·H-16(E2E)·H-17(운영 배포) 잔여" }
   ],
   "sections": [
     {
@@ -84,15 +84,15 @@
       ]
     },
     {
-      "id": "S4", "title": "소방계획서 이식 (2차 전환)", "status": "pending_order",
+      "id": "S4", "title": "소방계획서 이식 (2차 전환)", "status": "code_present",
       "criteria": [
         { "id": "H-12", "desc": "소방계획서 장 단위 HTML 템플릿 이식 — 표지·목차부터 순차, 지도·사진 슬롯 삽입 (make-fireplan 병합→TS)", "status": "code_present", "note": "2026-08-04 — 기존 buildFirePlanHtml(v1, SDK 이전 웹 경로) 확장: 전 장(1.1~1.15·2장·3장)+forms 섹션 병합+자산 슬롯(cover·map·evac, 미등록 자리표시)+프리셋 치환(applyPresetPairs). 검증: 스냅샷 50/50·Gotenberg 13쪽 200·실고객(별그리다) 조립→변환 200. 구현=서브에이전트" },
         { "id": "H-13", "desc": "소방계획서 생성 액션 전환 (단건 동기 + 연차 일괄 VPS 크론 큐) + pdf_status 2단계 단순화", "status": "code_present", "note": "2026-08-04 — fire-plan-generate.ts(assembleFirePlan·generateFirePlanNow: 렌더→Gotenberg→{cust}/{year}/generated_web_<stamp>.pdf/html→fire_plans ready·hwp 미기록) + 요청 2액션 서버 동기 전환(잡 done/failed 기록 — 폴링 UI 호환), 연차 일괄=동일 함수 30건/회 순차(크론 큐 대신 — 설계 변경, 잔여분 반복 실행). 일괄 상한 실측 권장" },
-        { "id": "H-14", "desc": "신구 병행 검증(표본 고객 전 장 대조) → 워커에서 소방계획서 잡 제외", "status": "pending_order" }
+        { "id": "H-14", "desc": "신구 병행 검증(표본 고객 전 장 대조) → 워커에서 소방계획서 잡 제외", "status": "code_present", "note": "2026-08-04 검증 에이전트 PASS — 스테이징 사이트 실주행: [계획서 생성]→fire_plans(pdf_status ready·hwp_path null·revision 1)·PDF 518KB·HTML 고객명 포함·잡 done·보관함 PDF 노출. 워커 폐지로 잡 제외는 H-15에서 완료(워커 자체 삭제)" }
       ]
     },
     {
-      "id": "S5", "title": "정리·테스트·배포", "status": "pending_order",
+      "id": "S5", "title": "정리·테스트·배포", "status": "partial",
       "criteria": [
         { "id": "H-15", "desc": "워커·SDK 잔재 제거: fireplan-worker.py·make-*.py·작업 스케줄러·HWPSDK 참조·HWP 신규 기록 + 점검표 엑셀 생성 제거(D-9)", "status": "partial", "note": "2026-08-04 — SDK 완전 제거(사용자 지시): 작업 스케줄러 'SJFire FirePlan Worker' 중지·삭제 + 워커 프로세스 종료 + 파이썬 14파일 git rm(worker·make-*·seed-*-placeholders·_test-*) + HWPSDK 참조 0건(이식 출처 주석만 잔존)·프리셋 주석 현행화. HWP 신규 기록은 H-13에서 이미 중단. 잔여: 점검표 엑셀 제거(D-9 — 엑셀에 갑지·위임장 포함 여부 확인 필요)·convert-fireplan-pdf 크론(레거시 converting 잔여분용 유지)" },
         { "id": "H-15b", "desc": "소방계획서 업로드 경로 폐지(§6-A) — 보관함 [업로드] 제거, 과거 업로드본 읽기 전용. S4 검증 후", "status": "pending_order" },
