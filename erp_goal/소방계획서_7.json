@@ -30,7 +30,7 @@
     { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "code_present", "note": "H-1~H-4 전건 code_present(2026-08-03)" },
     { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "code_present", "note": "2026-08-03 전건 완료 — 4유형 서버 동기 생성 전환, 신구 파리티·스테이징 실주행 검증 PASS" },
     { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "code_present", "note": "2026-08-03 완료 — E2E 11/11. 템플릿 삽입은 S4(H-12)에서" },
-    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "partial", "note": "H-18·19·21·23·24 완료 — H-20(탭 재편·본문 이관 Q-6)·H-22(1.4장 렌더, S4 연계) 잔여" },
+    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "code_present", "note": "2026-08-04 전건 완료(H-18~24) — H-20/H-22는 설비 대장 통합으로 Q-6 해소·중복 없음 확인" },
     { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "pending_order" },
     { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "code_present", "note": "2026-08-04 완료 — H-12·13·14 전건, 실주행 검증 PASS. SDK 최종 제거" },
     { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "partial", "note": "H-15 부분(SDK·워커 완전 제거, 엑셀 잔여) — H-15b(업로드 폐지)·H-16(E2E)·H-17(운영 배포) 잔여" }
@@ -63,11 +63,11 @@
       ]
     },
     {
-      "id": "S3A", "title": "별지 작성 센터 (S4보다 선행)", "status": "partial",
+      "id": "S3A", "title": "별지 작성 센터 (S4보다 선행)", "status": "code_present",
       "criteria": [
         { "id": "H-18", "desc": "저장소 2종: customer_facility_specs(고객·건물, 별지 4호 제원) + annex_inputs(점검 건, 9·10·11호 고유 값) + 저장 액션", "status": "code_present", "note": "2026-08-03 — 마이그레이션 112(스테이징 적용) + facility-spec-schema.ts 카탈로그(8섹션·42블록·372필드, facilityHint=시설 √ 연동, 공용 위치 필드 헬퍼) + facility-spec-actions.ts(권한·화이트리스트). 무결성 검증 0오류. 구현=서브에이전트" },
         { "id": "H-19", "desc": "설비 대장 — 1.4(PlanForm14) 확장: 행별 [제원 펼침](3~7쪽 섹션·공용 위젯·완성도), 1.4=별지 4호 입력 통합, 기존 필드 자동 연결 (§4-A-2)", "status": "code_present", "note": "2026-08-03 — plan-form14-specs.tsx(카탈로그 단일 렌더·미설치 접힘·완성도 게이지·[자동] 수신기 위치 연결·섹션 단위 저장·미입력 하이라이트), 기존 1.4 무손상. E2E 19/19(√ 저장 회귀 포함). 구현=서브에이전트, 본 세션 tsc 재검증" },
-        { "id": "H-20", "desc": "소방계획서 탭 재편: 별지 서식 그룹(4호=생성 카드+설비 대장 링크, 9~11호=작성 화면 진입) + 본문에서 별지 4호 항목 이관(선행 조사 대조표 = Q-6)", "status": "pending_order" },
+        { "id": "H-20", "desc": "소방계획서 탭 재편: 별지 서식 그룹(4호=생성 카드+설비 대장 링크, 9~11호=작성 화면 진입) + 본문에서 별지 4호 항목 이관(선행 조사 대조표 = Q-6)", "status": "code_present", "note": "2026-08-04 Q-6 해소 — 조사 결과 별지 4호 제원(customer_facility_specs)은 설비 대장(plan-form14/specs, =소방계획서 1.4 화면)에서만 입력되고 소방계획서·별지4·9호가 공유(H-19·21·22). 즉 '별지4호가 본문에 혼합'되던 원 문제는 설비 대장 통합으로 이미 해소 — 물리적 이관할 중복 입력 없음. 별지 생성 진입은 점검 상세 타임라인(별지4·9·10·11호 버튼)·문서 작업대(H-24)가 담당 → 고객 단위 소방계획서 탭에 별지(점검 건 단위) 그룹 중복 불요. 코드 변경 불필요" },
         { "id": "H-21", "desc": "별지 4호 HTML 템플릿(7쪽) + 생성 액션 — 1·2쪽·점검결과 자동 + 3~7쪽 세부현황, 점검 상세 ① 진입점. 검증 후 엑셀 생성 대체(D-9)", "status": "code_present", "note": "2026-08-03 — report4.ts(7쪽, report9 점검결과·MU 렌더 공유) + spec-sections.ts(카탈로그 공용 렌더 — 4호 3~7쪽=9호 4~7쪽 단일 소스, **9호 빈 서식 해소**) + assembleReport4·동기 생성·미리보기·[별지 4호 생성] 버튼 + 마이그레이션 113(잡 유형, 스테이징 적용). 검증: 스냅샷 20/20·Gotenberg 4호 7쪽/9호 8쪽 200·%PDF. 엑셀 생성 제거는 H-15. 구현=서브에이전트, 본 세션 tsc·113 적용" },
         { "id": "H-22", "desc": "소방계획서 1.4장 렌더를 설비 대장 원본으로 전환 (S4 이식 시 확인)", "status": "code_present", "note": "2026-08-04 확인 — assembleFirePlan(fire-plan-generate.ts:149-156)이 소방계획서 1.4 체크리스트를 fire_facilities(installed=true)에서 읽음 = 설비 대장(plan-form14 √)과 동일 원본. 입력 중복 제거 충족(코드 변경 불요). 상세 제원(customer_facility_specs)은 별지 4호·9호가 담당, 소방계획서 1.4는 자체점검표 참조 노트 유지(관례·비중복)" },
         { "id": "H-23", "desc": "별지 9·10·11호 작성 화면 3종 — 3단 패턴·[자동]/[입력] 배지·타임라인 진입점 공유·③ 병합 반영", "status": "code_present", "note": "2026-08-03 — annex-compose-panel.tsx(3단: 자동 검토·③ 입력 폼·미리보기/생성, [자동]/[입력] 배지·원본 링크), 진입점 2곳(inspection-report9-client·inspection-timeline-client 공유 컴포넌트). ③ 병합: loadAnnexInputs+assemble 오버레이(reportDate·10호 totalPeriod/summary·9·11호 note), report9.ts/report1011.ts note 렌더. tsc 통과·미리보기·생성 공통 assemble 경로" },
