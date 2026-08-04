@@ -288,24 +288,20 @@ export function FirePlansClient({ customerId, plans, canManage }: {
 
       {canManage && !showForm && (
         <div className="mt-3 flex gap-2">
+          {/* 소방계획서_7 H-15b(§6-A): 생성 단일화 — 업로드 진입 폐지(생성 가능 문서는 만들지, 받지 않는다).
+              과거 업로드본은 아래 목록에서 읽기 전용으로 유지, 예외적 외부 문서는 범용 문서함 사용 */}
           <button
             onClick={generateNow}
             disabled={isPending}
-            title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 생성 — 워커가 HWP·미리보기·PDF를 보관함에 등록 (§7-5 HWP 단일 경로)"
+            title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 서버가 즉시 PDF 생성 — 보관함에 등록 (소방계획서_7 H-13)"
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
           >
-            <FileOutput className="size-3.5" /> 계획서 생성 (HWP+PDF)
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
-          >
-            <Plus className="size-3.5" /> 소방계획서 업로드
+            <FileOutput className="size-3.5" /> 계획서 생성 (PDF)
           </button>
           <button
             onClick={downloadDataSheet}
             disabled={isPending}
-            title="한글(한컴독스)에서 표준양식을 직접 편집할 때 참조할 고객 데이터 1장 요약 PDF"
+            title="고객 데이터 1장 요약 PDF — 참조·검토용"
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50"
           >
             <Download className="size-3.5" /> 데이터 시트
