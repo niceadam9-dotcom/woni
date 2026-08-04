@@ -175,7 +175,28 @@ export async function completeStepAction(
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
   const admin = createAdminClient()
+  const { data: prof0 } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  const role = (prof0 as { role: string } | null)?.role ?? 'employee'
+  const res = await completeStepCore(admin, user.id, role, stepId, inspectionId)
+  if (!res.error) {
+    revalidatePath(`/inspections/${inspectionId}`)
+    revalidatePath('/inspections')
+    revalidatePath('/inspections/calendar')
+    revalidatePath('/inspection-plans/monitor')
+    revalidatePath('/inspection-plans')
+  }
+  return res
+}
 
+/** 단계 완료 코어 — 역할은 호출자가 1회 조회해 전달, revalidate는 호출자 책임 (일괄 완료 성능, 2026-08-04).
+ *  로직은 기존과 동일: 권한·순서 강제·1단계 재계산·점검 완료 전이·계획 동기화. */
+async function completeStepCore(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  role: string,
+  stepId: string,
+  inspectionId: string,
+): Promise<{ error?: string; justCompleted?: boolean; report9Eligible?: boolean }> {
   // 본인 담당 점검 또는 manager/admin만 처리 가능
   const { data: insp } = await admin
     .from('inspections')
@@ -185,14 +206,7 @@ export async function completeStepAction(
 
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
 
-  const { data: prof } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  const role = (prof as { role: string } | null)?.role ?? 'employee'
-  const isAssigned = (insp as { assigned_employee_id: string }).assigned_employee_id === user.id
+  const isAssigned = (insp as { assigned_employee_id: string }).assigned_employee_id === userId
   if (!isAssigned && role === 'employee') {
     return { error: '담당 직원만 단계를 완료할 수 있습니다.' }
   }
@@ -223,7 +237,7 @@ export async function completeStepAction(
     .update({
       status: 'completed',
       completed_at: now,
-      completed_by: user.id,
+      completed_by: userId,
     } as Record<string, unknown>)
     .eq('id', stepId)
 
@@ -267,7 +281,7 @@ export async function completeStepAction(
   }
 
   await admin.from('activity_logs').insert({
-    actor_id: user.id,
+    actor_id: userId,
     action: 'complete_step',
     entity_type: 'inspection_step',
     entity_id: stepId,
@@ -275,14 +289,9 @@ export async function completeStepAction(
   } as Record<string, unknown>)
 
   // P-19: 단계 완료 → inspection_status_log + inspection_plan_items 자동 동기화
-  const { data: stepInfo } = await admin
-    .from('inspection_steps')
-    .select('step_num')
-    .eq('id', stepId)
-    .single()
-
-  if (stepInfo) {
-    const stepNum = (stepInfo as { step_num: number }).step_num
+  // (step_num은 위 targetStep 조회 재사용 — 건별 왕복 1회 절감, 2026-08-04)
+  if (targetNum) {
+    const stepNum = targetNum
     const { data: planItem } = await admin
       .from('inspection_plan_items')
       .select('id, status')
@@ -306,7 +315,7 @@ export async function completeStepAction(
           .upsert({
             plan_item_id: pid,
             [field]: now.split('T')[0],
-            updated_by: user.id,
+            updated_by: userId,
           } as Record<string, unknown>, { onConflict: 'plan_item_id' })
       }
       // 1단계 완료 → plan_item status 'confirmed'으로 업데이트
@@ -319,17 +328,13 @@ export async function completeStepAction(
     }
   }
 
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
-  revalidatePath('/inspections/calendar')
-  revalidatePath('/inspection-plans/monitor')
-  revalidatePath('/inspection-plans')
   return { justCompleted, report9Eligible }
 }
 
-/** 점검달력 데이 패널 — 같은 날 미완료 단계 일괄 완료 (2026-08-04).
- *  completeStepAction을 건별 재사용 → 권한·순서 강제·1단계 재계산·점검 완료 전이·계획 동기화 전부 동일.
- *  실패 건은 라벨과 함께 반환(권한 없음·이전 단계 미완료 등). 최대 100건. */
+/** 점검달력 데이 패널 — 같은 날 미완료 단계 일괄 완료 (2026-08-04, 성능 개선판).
+ *  느렸던 원인: 건별 직렬 실행 + 건마다 역할 조회·revalidate 5회 반복.
+ *  개선: 역할 1회 조회 → 같은 점검은 직렬(순서 강제 보존)·점검 간 병렬(동시 6) → revalidate는 마지막 1회.
+ *  로직은 completeStepCore 재사용 — 권한·순서·재계산·완료 전이·계획 동기화 동일. 최대 100건. */
 export async function bulkCompleteStepsAction(
   items: Array<{ stepId: string; inspectionId: string; label: string }>,
 ): Promise<{ done: number; failed: Array<{ label: string; error: string }>; error?: string }> {
@@ -338,13 +343,41 @@ export async function bulkCompleteStepsAction(
   if (items.length === 0) return { done: 0, failed: [] }
   if (items.length > 100) return { done: 0, failed: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
 
+  const admin = createAdminClient()
+  const { data: prof } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  const role = (prof as { role: string } | null)?.role ?? 'employee'
+
+  // 같은 점검의 단계는 직렬(이전 단계 순서 강제 레이스 방지), 점검 간에는 동시 6개 병렬
+  const groups = new Map<string, Array<{ stepId: string; inspectionId: string; label: string }>>()
+  for (const it of items) {
+    const g = groups.get(it.inspectionId) ?? []
+    g.push(it)
+    groups.set(it.inspectionId, g)
+  }
+
   let done = 0
   const failed: Array<{ label: string; error: string }> = []
-  for (const it of items) {
-    const res = await completeStepAction(it.stepId, it.inspectionId)
-    if (res.error) failed.push({ label: it.label, error: res.error })
-    else done += 1
+  const groupArr = [...groups.values()]
+  const CONC = 6
+  for (let i = 0; i < groupArr.length; i += CONC) {
+    await Promise.all(groupArr.slice(i, i + CONC).map(async group => {
+      for (const it of group) {
+        try {
+          const res = await completeStepCore(admin, user.id, role, it.stepId, it.inspectionId)
+          if (res.error) failed.push({ label: it.label, error: res.error })
+          else done += 1
+        } catch {
+          failed.push({ label: it.label, error: '처리 실패' })
+        }
+      }
+    }))
   }
+
+  // 화면 갱신은 마지막 1회 — 건별 반복이 큰 지연 요인이었음
+  revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspection-plans')
   return { done, failed }
 }
 
