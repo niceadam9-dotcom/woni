@@ -60,6 +60,8 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
       if (res.error || !res.data) { setLoadErr(res.error ?? '조회 실패'); return }
       setLoadErr(null)
       setData(res.data)
+      // 독립 검증 지적(2026-08-04): 재생성·저장 후 미리보기 캐시가 낡음 — reload마다 무효화(재열람 시 재렌더)
+      if (!first) setPreviewCache({})
       if (first && res.data.rounds.length > 0) {
         setExpanded(new Set([roundKey(res.data.rounds[0])]))   // 최신 회차 자동 펼침 (D-4)
         if (res.data.rounds[0].docs) prefetchPreviews(res.data.rounds[0])  // H-5c: 진입 즉시 prefetch → 클릭 0초
@@ -90,8 +92,12 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
     // 캐시 슬롯 예약(중복 요청 방지) 후 각 문서 병렬 렌더
     setPreviewCache(prev => ({ ...prev, [inspectionId]: types }))
     void Promise.all(types.map(async t => {
-      const res = await getAnnexPreviewHtmlAction(inspectionId, t.type)
-      return { ...t, html: res.html, missing: res.missing ?? [], error: res.error }
+      try {
+        const res = await getAnnexPreviewHtmlAction(inspectionId, t.type)
+        return { ...t, html: res.html, missing: res.missing ?? [], error: res.error }
+      } catch {
+        return { ...t, missing: [], error: '미리보기 렌더 실패 — 다시 시도해주세요' }
+      }
     })).then(loaded => setPreviewCache(prev => ({ ...prev, [inspectionId]: loaded })))
   }
 
@@ -137,10 +143,15 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
     if (!startModal) return
     if (!isCompleteDate(startDate)) { setStartErr('점검일을 입력해주세요.'); return }
     startStarting(async () => {
-      const res = await confirmPlanItemStageOneAction(startModal.planItemId, startDate)
-      if (res.error) { setStartErr(res.error); return }
-      setStartModal(null)
-      reload()
+      try {
+        const res = await confirmPlanItemStageOneAction(startModal.planItemId, startDate)
+        if (res.error) { setStartErr(res.error); return }
+        setStartModal(null)
+        reload()
+      } catch {
+        // 권한 없음(requirePermission 리다이렉트) 등 — 모달이 잠긴 채 남지 않게
+        setStartErr('처리하지 못했습니다 — 권한이 없으면 점검계획에서 확정해주세요.')
+      }
     })
   }
 

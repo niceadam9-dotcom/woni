@@ -70,8 +70,11 @@ try {
   const rev = (form?.sections as { revision?: { revisionNote?: string } } | null)?.revision
   check('DB fire_plan_forms.sections.revision 저장', rev?.revisionNote === '개정 E2E 검증', JSON.stringify(form))
 
-  // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 ──
-  check('목차 트리 — 1장 헤더+합산 뱃지', await page.isVisible('text=1장 소방안전관리계획'))
+  // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 (소방계획서_8 D-12: 3그룹 재편) ──
+  check('목차 트리 — 3그룹(본문·별지 서식·보관함)',
+    await page.isVisible('text=소방계획서 본문')
+    && await page.isVisible('text=별지 서식')
+    && await page.isVisible('text=보관함·개정이력'))
   await page.click('button:has-text("1.1 일반현황")')
   await page.waitForSelector('text=계획서 정보')
   check('목차 1.1 클릭 → 계획서 정보 패널', true)
@@ -255,15 +258,12 @@ try {
   await page.waitForSelector('text=1.4 소방시설')
   check('건물 탭 — 시설현황 이동 안내', await page.isVisible('text=소방계획서 탭'))
 
-  // ── 5) 일반관리 고객 — 배너 + 입력 미노출 + 탭 뱃지 억제 (§9-8) ──
+  // ── 5) 일반관리 고객 — 특례 제거(소방계획서_6 W-14·W-19): 소방안전관리와 동일 취급 ──
+  // 구 배너('작성 대상이 아닙니다')는 32c2ace에서 설계상 제거 — 일반관리도 소방계획서·필수 완성도 대상
   await page.goto(`${BASE}/customers/${generalId}?tab=plan`)
-  await page.waitForSelector('text=소방계획서 작성 대상이 아닙니다')
-  check('일반관리 — 대상 아님 배너', true)
-  check('일반관리 — 외관점검표 안내', await page.isVisible('text=외관점검표'))
-  check('일반관리 — 생성 바 미노출', !(await page.isVisible('button:has-text("계획서 생성")')))
-  check('일반관리 — 필수 완성도 미노출', !(await page.isVisible('text=필수 완성도')))
-  const planTabBadge = await page.locator('a:has-text("소방계획서"), button:has-text("소방계획서")').first().textContent()
-  check('일반관리 — 탭 준비율 뱃지 억제(n/n 없음)', !/\d+\/\d+/.test(planTabBadge ?? ''), `tab="${planTabBadge}"`)
+  await page.waitForSelector('text=필수 완성도')
+  check('일반관리 — 특례 배너 없음(작성 대상)', !(await page.isVisible('text=소방계획서 작성 대상이 아닙니다')))
+  check('일반관리 — 필수 완성도 노출(동일 취급)', await page.isVisible('text=필수 완성도'))
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {
