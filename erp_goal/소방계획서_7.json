@@ -94,7 +94,7 @@
     {
       "id": "S5", "title": "정리·테스트·배포", "status": "pending_order",
       "criteria": [
-        { "id": "H-15", "desc": "워커·SDK 잔재 제거: fireplan-worker.py·make-*.py·작업 스케줄러·HWPSDK 참조·HWP 신규 기록 + 점검표 엑셀 생성 제거(D-9)", "status": "pending_order" },
+        { "id": "H-15", "desc": "워커·SDK 잔재 제거: fireplan-worker.py·make-*.py·작업 스케줄러·HWPSDK 참조·HWP 신규 기록 + 점검표 엑셀 생성 제거(D-9)", "status": "partial", "note": "2026-08-04 — SDK 완전 제거(사용자 지시): 작업 스케줄러 'SJFire FirePlan Worker' 중지·삭제 + 워커 프로세스 종료 + 파이썬 14파일 git rm(worker·make-*·seed-*-placeholders·_test-*) + HWPSDK 참조 0건(이식 출처 주석만 잔존)·프리셋 주석 현행화. HWP 신규 기록은 H-13에서 이미 중단. 잔여: 점검표 엑셀 제거(D-9 — 엑셀에 갑지·위임장 포함 여부 확인 필요)·convert-fireplan-pdf 크론(레거시 converting 잔여분용 유지)" },
         { "id": "H-15b", "desc": "소방계획서 업로드 경로 폐지(§6-A) — 보관함 [업로드] 제거, 과거 업로드본 읽기 전용. S4 검증 후", "status": "pending_order" },
         { "id": "H-16", "desc": "테스트: 렌더 함수 단위(스냅샷)·생성 E2E(9호/4호/외관/소방계획서→PDF·미리보기 200)·INV-D1 회귀", "status": "pending_order" },
         { "id": "H-17", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 갱신", "status": "pending_order" }

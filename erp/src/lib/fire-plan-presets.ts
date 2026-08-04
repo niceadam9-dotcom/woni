@@ -1,6 +1,6 @@
 /** 소방계획서 7차 — 공통 수기 프리셋 (건물 유형별, 2026-07-15)
  *  표준양식에 미리 채워진 예시 수기 문구(양식 기본값)를 유형별 문구로 치환한다.
- *  저장: fire-plans 버킷 `_presets/{유형}.json` — 워커(make-fireplan.py)가 생성 시 다운로드·적용.
+ *  저장: fire-plans 버킷 `_presets/{유형}.json` — 서버 생성(fire-plan-generate.ts)이 다운로드·적용 (소방계획서_7 H-13, 구 워커 경로 폐지).
  *  우선순위: 고객 필드 > 프리셋 > 양식 기본값 (value가 비어 있거나 find와 같으면 양식 기본값 유지) */
 
 export const PRESET_TYPES = ['주택형', '상가형', '공장형'] as const
