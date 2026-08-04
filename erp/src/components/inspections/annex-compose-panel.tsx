@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { X, Eye, FileText, Loader2, Save, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react'
-import { getAnnexInputsAction, saveAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getAnnexPreviewHtmlAction, requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import { DateInput } from '@/components/ui/date-input'
 
@@ -96,6 +96,8 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
   const [previewHtml, setPreviewHtml] = useState('')
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // H-5b 전 회차 이어받기 — 첫 작성(기존 입력 없음)일 때만 제안 (덮어쓰기 방지, D-5)
+  const [prevOffer, setPrevOffer] = useState<{ fields: Record<string, string>; fromLabel: string } | null>(null)
 
   // 로드 — ③ 이전 입력 복원(getAnnexInputs) + ①② 누락 목록(preview missing)
   useEffect(() => {
@@ -119,6 +121,20 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
       const err = inp.error || prev.error
       if (err) setMsg(`❌ ${err}`)
       setLoading(false)
+      // H-5b: 첫 작성일 때만 전 회차 서술 입력 이어받기 제안 — 날짜류(type==='date')는 제외
+      setPrevOffer(null)
+      if (Object.values(f).every(v => !v?.trim())) {
+        getPrevAnnexInputsAction(inspectionId, annexNo).then(pv => {
+          if (!alive || !pv.fromLabel) return
+          const copyable: Record<string, string> = {}
+          for (const d of FIELD_DEFS[annexNo]) {
+            if (d.type === 'date') continue
+            const v = pv.fields[d.key]
+            if (typeof v === 'string' && v.trim()) copyable[d.key] = v
+          }
+          if (Object.keys(copyable).length > 0) setPrevOffer({ fields: copyable, fromLabel: pv.fromLabel })
+        })
+      }
     })
     return () => { alive = false }
   }, [inspectionId, annexNo])
@@ -187,6 +203,28 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
             <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 불러오는 중…</p>
           ) : (
             <>
+              {/* ── H-5b 전 회차 이어받기 배너 (D-5) — 서술 입력만 복사, 날짜류 제외 ── */}
+              {prevOffer && (
+                <div className="flex items-center gap-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] px-3 py-2 text-xs text-[#514b81]">
+                  <span>💡 전 회차({prevOffer.fromLabel}) 입력값이 있습니다 — 비고·요약 등 서술만 복사, 날짜는 새로 계산</span>
+                  <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => {
+                        setFields(prev => ({ ...prev, ...prevOffer.fields }))
+                        setDirty(true)
+                        setPrevOffer(null)
+                        setMsg('✅ 전 회차 입력을 이어받았습니다 — 확인 후 저장하세요')
+                      }}
+                      className="h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium">
+                      이어받기
+                    </button>
+                    <button onClick={() => setPrevOffer(null)} className="h-6 px-2 rounded border border-[#d0ccf5] text-[11px] hover:bg-white">
+                      새로 작성
+                    </button>
+                  </span>
+                </div>
+              )}
+
               {/* ── 1단 자동 채움 검토 ([자동] 회색 — §4-A-2c) ── */}
               <section>
                 <div className="flex items-center gap-2 mb-2">

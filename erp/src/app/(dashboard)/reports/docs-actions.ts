@@ -32,10 +32,14 @@ export type InspectionDocs = {
   year: number
   sequenceNum: number
   inspectionType: string
+  planType: string | null            // 자체점검 판정 축 — null·special_* (성격 배지용, 소방계획서_8)
   status: string
   startDate: string | null
   endDate: string | null
+  /** 점검표 응답 수 — 트리 점검표 행 진행 표시용 (소방계획서_8 H-2) */
+  sheetResponses: number
   defects: { total: number; done: number; photoPairs: number }
+  report4: DocGroupRef | null
   report9: DocGroupRef | null
   report10: DocGroupRef | null
   report11: DocGroupRef | null
@@ -75,6 +79,47 @@ function latestGroup(objects: Array<{ name: string; created_at?: string | null }
   return groups.get(stamps[0]) ?? null
 }
 
+type InspRow = {
+  id: string; year: number; sequence_num: number; inspection_type: string; status: string
+  plan_type: string | null; inspection_start_date: string | null; inspection_end_date: string | null
+}
+
+/** 점검 1건의 문서 상태 조립 — getCustomerDocsAction·getCustomerRoundsAction 공용 (소방계획서_8 H-1) */
+async function buildInspectionDocs(
+  admin: ReturnType<typeof createAdminClient>, customerId: string, i: InspRow,
+): Promise<InspectionDocs> {
+  const prefix = `${customerId}/inspections/${i.id}`
+  const [objRes, defRes, respRes] = await Promise.all([
+    admin.storage.from(BUCKET).list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } }),
+    admin.from('inspection_defects')
+      .select('id, photo_url, after_photo_url, action_completed_at').eq('inspection_id', i.id),
+    admin.from('inspection_sheet_responses')
+      .select('id', { count: 'exact', head: true }).eq('inspection_id', i.id),
+  ])
+  const objects = objRes.data ?? []
+  const defects = (defRes.data ?? []) as Array<{ photo_url: string | null; after_photo_url: string | null; action_completed_at: string | null }>
+  const cert = objects.find(o => /^cert_\d+\./.test(o.name))
+  const contract = objects.find(o => /^contract_\d+\./.test(o.name))
+  return {
+    inspectionId: i.id, year: i.year, sequenceNum: i.sequence_num,
+    inspectionType: i.inspection_type, planType: i.plan_type, status: i.status,
+    startDate: i.inspection_start_date, endDate: i.inspection_end_date,
+    sheetResponses: respRes.count ?? 0,
+    defects: {
+      total: defects.length,
+      done: defects.filter(d => d.action_completed_at).length,
+      photoPairs: defects.filter(d => d.photo_url && d.after_photo_url).length,
+    },
+    report4: latestGroup(objects, 'report4', prefix),
+    report9: latestGroup(objects, 'report9', prefix),
+    report10: latestGroup(objects, 'report10', prefix),
+    report11: latestGroup(objects, 'report11', prefix),
+    exterior: latestGroup(objects, 'exterior', prefix),
+    cert: cert ? { path: `${prefix}/${cert.name}`, at: cert.created_at ?? null } : null,
+    contract: contract ? { path: `${prefix}/${contract.name}`, at: contract.created_at ?? null } : null,
+  }
+}
+
 export async function getCustomerDocsAction(customerId: string): Promise<{ docs?: CustomerDocs; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -99,43 +144,13 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
     pdf_path: string | null; pdf_name: string | null; hwp_path: string | null; hwp_name: string | null; created_at: string | null
   } | null
 
-  type InspRow = {
-    id: string; year: number; sequence_num: number; inspection_type: string; status: string
-    plan_type: string | null; inspection_start_date: string | null; inspection_end_date: string | null
-  }
   // 자체점검(special_*·null)만 문서 절차 대상 — 정기(monthly)·레거시 event는 행에서 제외.
   // 관리유형 무관 (소방계획서_6 W-16) — 일반관리 자체점검도 동일 행 구성
   const inspRows = ((inspRes.data ?? []) as InspRow[]).filter(i =>
     !i.plan_type || i.plan_type.startsWith('special'))
 
-  const inspections: InspectionDocs[] = await Promise.all(inspRows.map(async i => {
-    const prefix = `${customerId}/inspections/${i.id}`
-    const [objRes, defRes] = await Promise.all([
-      admin.storage.from(BUCKET).list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } }),
-      admin.from('inspection_defects')
-        .select('id, photo_url, after_photo_url, action_completed_at').eq('inspection_id', i.id),
-    ])
-    const objects = objRes.data ?? []
-    const defects = (defRes.data ?? []) as Array<{ photo_url: string | null; after_photo_url: string | null; action_completed_at: string | null }>
-    const cert = objects.find(o => /^cert_\d+\./.test(o.name))
-    const contract = objects.find(o => /^contract_\d+\./.test(o.name))
-    return {
-      inspectionId: i.id, year: i.year, sequenceNum: i.sequence_num,
-      inspectionType: i.inspection_type, status: i.status,
-      startDate: i.inspection_start_date, endDate: i.inspection_end_date,
-      defects: {
-        total: defects.length,
-        done: defects.filter(d => d.action_completed_at).length,
-        photoPairs: defects.filter(d => d.photo_url && d.after_photo_url).length,
-      },
-      report9: latestGroup(objects, 'report9', prefix),
-      report10: latestGroup(objects, 'report10', prefix),
-      report11: latestGroup(objects, 'report11', prefix),
-      exterior: latestGroup(objects, 'exterior', prefix),
-      cert: cert ? { path: `${prefix}/${cert.name}`, at: cert.created_at ?? null } : null,
-      contract: contract ? { path: `${prefix}/${contract.name}`, at: contract.created_at ?? null } : null,
-    } satisfies InspectionDocs
-  }))
+  const inspections: InspectionDocs[] = await Promise.all(
+    inspRows.map(i => buildInspectionDocs(admin, customerId, i)))
 
   // 요약 게이지 (R2-c): 필요 문서 n종 중 m종 보유 — 소방계획서 + 점검 건별 (9호·배치확인서 필수 / 10·11호는 불량 시 / 사진·계약서는 선택이라 제외)
   // 일반관리 특례 없음 (소방계획서_6 W-16) — 전 유형 동일 판정
@@ -161,6 +176,94 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
       summary: { need, have, warns },
     },
   }
+}
+
+/* ── 별지 서식 트리 회차 로더 (소방계획서_8 H-1) — plan_items∪inspections 자체점검 그룹 ── */
+
+export type CustomerRound = {
+  year: number
+  sequenceNum: number
+  /** special_종합 | special_작동 | null(레거시 자체점검) */
+  planType: string | null
+  /** planned=계획만(미시작) / in_progress·completed 등=inspections.status */
+  state: 'planned' | 'scheduled' | 'in_progress' | 'completed' | 'overdue'
+  /** 미시작 회차의 확정·자동 시작용 (H-3) */
+  planItemId: string | null
+  plannedDate: string | null
+  /** 시작된 회차만 — 문서·불량 상태 */
+  docs: InspectionDocs | null
+}
+
+export type CustomerRounds = {
+  customerId: string
+  customerName: string
+  inspectionType: string
+  rounds: CustomerRound[]
+}
+
+export async function getCustomerRoundsAction(customerId: string): Promise<{ data?: CustomerRounds; error?: string }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { data: cust } = await admin.from('customers')
+    .select('id, customer_name, inspection_type').eq('id', customerId).single()
+  if (!cust) return { error: '고객을 찾을 수 없습니다.' }
+  const c = cust as { customer_name: string; inspection_type: string }
+
+  const [inspRes, itemRes] = await Promise.all([
+    admin.from('inspections')
+      .select('id, year, sequence_num, inspection_type, status, plan_type, inspection_start_date, inspection_end_date')
+      .eq('customer_id', customerId)
+      .or(SELF_INSPECTION_OR)
+      .order('year', { ascending: false }).order('sequence_num', { ascending: false })
+      .limit(24),
+    admin.from('inspection_plan_items')
+      .select('id, sequence_num, plan_type, planned_date, scheduled_date, status, inspection_id, plan:inspection_plans(year)')
+      .eq('customer_id', customerId)
+      .or(SELF_INSPECTION_OR)
+      .neq('status', 'cancelled')
+      .limit(48),
+  ])
+
+  const inspRows = (inspRes.data ?? []) as InspRow[]
+  type ItemRow = {
+    id: string; sequence_num: number; plan_type: string | null
+    planned_date: string | null; scheduled_date: string | null
+    status: string; inspection_id: string | null
+    plan: { year: number } | null
+  }
+  const items = (itemRes.data ?? []) as unknown as ItemRow[]
+
+  // 시작된 점검 = 회차의 정본 (문서 상태 포함)
+  const docsList = await Promise.all(inspRows.map(i => buildInspectionDocs(admin, customerId, i)))
+  const rounds = new Map<string, CustomerRound>()
+  inspRows.forEach((i, idx) => {
+    const key = `${i.year}-${i.sequence_num}`
+    if (rounds.has(key)) return
+    rounds.set(key, {
+      year: i.year, sequenceNum: i.sequence_num, planType: i.plan_type,
+      state: (i.status as CustomerRound['state']) ?? 'in_progress',
+      planItemId: null, plannedDate: i.inspection_start_date,
+      docs: docsList[idx],
+    })
+  })
+
+  // 계획만 있는 회차(미시작) — 같은 연도·차수에 시작된 점검이 없을 때만 추가
+  for (const it of items) {
+    if (it.inspection_id) continue
+    const year = it.plan?.year
+    if (!year) continue
+    const key = `${year}-${it.sequence_num}`
+    if (rounds.has(key)) continue
+    rounds.set(key, {
+      year, sequenceNum: it.sequence_num, planType: it.plan_type,
+      state: 'planned', planItemId: it.id,
+      plannedDate: it.scheduled_date ?? it.planned_date, docs: null,
+    })
+  }
+
+  const sorted = [...rounds.values()].sort((a, b) =>
+    b.year !== a.year ? b.year - a.year : b.sequenceNum - a.sequenceNum)
+  return { data: { customerId, customerName: c.customer_name, inspectionType: c.inspection_type, rounds: sorted } }
 }
 
 /* ── 행동 자동완성 검색 (R0-3·R0-4·R0-5) — 검색 결과가 곧 실행 버튼 ── */

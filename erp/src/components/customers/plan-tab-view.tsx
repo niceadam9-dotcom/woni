@@ -63,7 +63,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  docs, quick, consentInitial, latestPlan, assets, onboardingSteps,
+  docs, quick, consentInitial, latestPlan, assets, onboardingSteps, annex,
 }: {
   customerId: string
   canManage: boolean
@@ -95,11 +95,12 @@ export function PlanTabView({
   latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
   assets: ReactNode               // 지도·사진 카드 (소방계획서_7 §5 — H-10, CustomerAssetsClient)
   onboardingSteps?: OnboardingStep[]  // H-25 온보딩 배너 — ?onboarding=1일 때만 부모가 전달(비면 배너 없음)
+  annex?: ReactNode               // 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4, PlanAnnexSection)
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
   // 기본 진입 = 빠른 입력 (§1-1·1-5 확정). 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3'])
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex'])
   const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
     : initialSection === 'ch1' ? '1.1'
     : initialSection && VALID_SEL.has(initialSection) ? initialSection
@@ -502,26 +503,32 @@ export function PlanTabView({
           const v = fs[f.key]
           return typeof v === 'object' ? v.done >= v.total : v === true
         }).length
+        {/* 소방계획서_8 D-12: 3그룹 재편 — 📘 본문(1~3장) / 📑 별지 서식(회차) / 🗂 보관함·개정이력(맨 아래) */}
         const NAV_ALL = [
-          { key: 'archive', label: '개정이력·보관' },
-          ...CH1_FORMS.map(f => ({ key: f.key, label: `1장 > ${f.label}` })),
-          { key: 'ch2', label: '2장 자위소방대' },
-          { key: 'ch3', label: '3장 피난계획' },
+          ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
+          { key: 'ch2', label: '본문 2장 자위소방대' },
+          { key: 'ch3', label: '본문 3장 피난계획' },
+          { key: 'annex', label: '별지 서식 (회차)' },
+          { key: 'archive', label: '보관함·개정이력' },
         ]
         return (
         <div className="flex gap-4 items-start">
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
           <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-0.5 sticky top-2">
-            {navBtn('archive', '개정이력·보관')}
-            <div className="pt-1">
-              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8] flex items-center">1장 소방안전관리계획
+            <div>
+              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8] flex items-center">📘 소방계획서 본문
                 <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-[#b0acd6]'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
               </p>
               {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
+              {navBtn('ch2', '2장 자위소방대', true)}
+              {navBtn('ch3', '3장 피난계획', true)}
             </div>
             <div className="pt-1">
-              {navBtn('ch2', '2장 자위소방대')}
-              {navBtn('ch3', '3장 피난계획')}
+              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
+              {navBtn('annex', '회차별 작성·조회', true)}
+            </div>
+            <div className="pt-1 border-t border-[#eceafd] mt-1">
+              {navBtn('archive', '🗂 보관함·개정이력')}
             </div>
           </aside>
 
@@ -612,6 +619,9 @@ export function PlanTabView({
 
       {/* ── 3장 피난계획 ── */}
       {sel === 'ch3' && ch3}
+
+      {/* ── 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4) ── */}
+      {sel === 'annex' && (annex ?? <p className="text-xs text-[#b0acd6] py-4">별지 서식을 불러올 수 없습니다.</p>)}
           </div>
         </div>
         )

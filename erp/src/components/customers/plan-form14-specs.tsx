@@ -1,8 +1,10 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { ChevronDown, ChevronRight, Loader2, Save } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, Loader2, Save } from 'lucide-react'
 import { saveFacilitySpecAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
+import { getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
 import { FACILITY_SPEC_SECTIONS, type SpecBlock, type SpecField } from '@/lib/facility-spec-schema'
 
 /** 설비 대장 — 설비 세부 제원 입력 (S3A/H-19, 소방계획서_7.md §4-A-2)
@@ -63,6 +65,34 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   const [msg, setMsg] = useState('')
   const [savingSec, setSavingSec] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  // 소방계획서_8 D-13 스플릿 입력 — 우측에 별지 9호 4~7쪽 실시간 미리보기 (저장 시 재렌더, 데스크톱)
+  const [splitOn, setSplitOn] = useState(false)
+  const [splitInspId, setSplitInspId] = useState<string | null>(null)
+  const [splitHtml, setSplitHtml] = useState('')
+  const [splitLoading, setSplitLoading] = useState(false)
+  const [splitErr, setSplitErr] = useState<string | null>(null)
+
+  function loadSplit(inspId: string) {
+    setSplitLoading(true)
+    void getAnnexPreviewHtmlAction(inspId, 'report9').then(res => {
+      setSplitLoading(false)
+      if (res.error || !res.html) { setSplitErr(res.error ?? '미리보기 렌더 실패'); return }
+      setSplitErr(null)
+      setSplitHtml(res.html)
+    })
+  }
+  function toggleSplit() {
+    if (splitOn) { setSplitOn(false); return }
+    setSplitOn(true)
+    if (splitInspId) { if (!splitHtml) loadSplit(splitInspId); return }
+    setSplitLoading(true)
+    void getCustomerRoundsAction(customerId).then(res => {
+      const started = res.data?.rounds.find(r => r.docs)
+      if (!started?.docs) { setSplitLoading(false); setSplitErr('시작된 자체점검 회차가 없어 미리보기를 만들 수 없습니다.'); return }
+      setSplitInspId(started.docs.inspectionId)
+      loadSplit(started.docs.inspectionId)
+    })
+  }
 
   const enabled = (b: SpecBlock) => !b.facilityHint || hintCodes(b).some(c => installed[c])
 
@@ -116,6 +146,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setDirty(p => ({ ...p, [secKey]: false }))
       setMsg(`✅ ${sec.no} ${sec.label} 제원 저장됨 — 별지 4호(3~7쪽)·9호(4~7쪽) 세부현황에 반영됩니다`)
+      if (splitOn && splitInspId) loadSplit(splitInspId)   // D-13: 저장 즉시 우측 미리보기 재렌더
     })
   }
 
@@ -174,8 +205,8 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   return (
     <details className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
       <summary className="text-xs font-semibold text-[#514b81] cursor-pointer select-none">
-        설비 대장 — 설비 세부 제원
-        <span className="ml-1.5 font-normal text-[#b0acd6]">(별지 4호 3~7쪽·9호 4~7쪽 세부현황)</span>
+        설비 대장 — 별지 3. 소방시설등의 세부현황
+        <span className="ml-1.5 font-normal text-[#b0acd6]">(섹션 3-1~3-8 = 별지 4호 3~7쪽·9호 4~7쪽과 번호 동일)</span>
         <span className="ml-2 font-normal text-[#7b68ee]">
           제원 입력 {gauge.filledAll}/{CATALOG_TOTAL} — 설치 설비 기준 {gauge.filledOn}/{gauge.totalOn}
         </span>
@@ -189,6 +220,22 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           (고객정보·점검표에서 채움). 설치(√)한 설비 블록만 펼쳐 입력합니다.
         </p>
 
+        {/* 소방계획서_8 D-13·D-18: 사용처 칩 + 스플릿 토글 — 이 입력이 어느 문서에 쓰이는지 */}
+        <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+          <span className="text-[#b0acd6] font-medium">사용처:</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-[#eeecf8] text-[#514b81] font-medium">④ 별지 4호 3~7쪽</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-[#eeecf8] text-[#514b81] font-medium">⑨ 별지 9호 4~7쪽</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-[#eeecf8] text-[#514b81] font-medium">📘 계획서 1.4</span>
+          <button type="button" onClick={toggleSplit}
+            className={`hidden md:inline-flex items-center gap-1 ml-auto h-6 px-2 rounded-lg border text-[11px] font-medium transition-colors ${
+              splitOn ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}
+            title="입력하면서 별지 9호 세부현황(4~7쪽)에 어떻게 찍히는지 나란히 확인 — 저장 시 실시간 갱신">
+            <Eye className="size-3" /> {splitOn ? '미리보기 닫기' : '문서 미리보기 나란히'}
+          </button>
+        </div>
+
+        <div className={splitOn ? 'md:flex md:gap-3 md:items-start' : ''}>
+        <div className={`space-y-2 ${splitOn ? 'md:w-1/2' : ''}`}>
         {FACILITY_SPEC_SECTIONS.map(sec => {
           const g = gauge.per[sec.key]
           const secOpen = openSec === sec.key
@@ -270,6 +317,25 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           )
         })}
         {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
+        </div>
+
+        {/* D-13 스플릿 우측 — 별지 9호 세부현황 실시간 미리보기 (저장 시 재렌더, 데스크톱 전용) */}
+        {splitOn && (
+          <div className="hidden md:block md:w-1/2 sticky top-2">
+            <p className="text-[10px] text-[#b0acd6] mb-1">
+              ⑨ 별지 9호 미리보기 — 제원 저장 시 즉시 갱신 · 빈칸은 노란 하이라이트
+              {splitLoading && <Loader2 className="inline size-3 animate-spin ml-1" />}
+            </p>
+            {splitErr ? (
+              <p className="text-[11px] text-amber-600 bg-white rounded-lg border border-[#e0ddf5] p-3">{splitErr}</p>
+            ) : splitHtml ? (
+              <iframe srcDoc={splitHtml} title="별지 9호 미리보기" className="w-full h-[640px] bg-white rounded-lg border border-[#e0ddf5]" />
+            ) : (
+              <div className="h-64 bg-white rounded-lg border border-[#e0ddf5] animate-pulse" />
+            )}
+          </div>
+        )}
+        </div>
       </div>
     </details>
   )

@@ -35,6 +35,7 @@ import { listCustomerAssets } from '@/lib/customer-assets'
 import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
+import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -696,6 +697,7 @@ export default async function CustomerDetailPage({
       } : null}
       assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
       onboardingSteps={onboardingSteps}
+      annex={<PlanAnnexSection customerId={customer.id} />}
     />
   )
 

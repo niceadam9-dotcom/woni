@@ -108,6 +108,44 @@ export async function getAnnexInputsAction(
   return { fields: (data?.fields ?? {}) as Record<string, unknown> }
 }
 
+/** 전 회차 이어받기 (소방계획서_8 H-5b·D-5) — 같은 고객의 직전 자체점검 회차에서 같은 별지의
+ *  입력값을 조회해 반환. 날짜류 제외는 클라이언트(FIELD_DEFS type==='date')가 담당. */
+export async function getPrevAnnexInputsAction(
+  inspectionId: string,
+  annexNo: string,
+): Promise<{ fields: Record<string, unknown>; fromLabel?: string; error?: string }> {
+  await requirePermission('inspection_register')
+  if (!ANNEX_NOS.has(annexNo)) return { fields: {}, error: '알 수 없는 별지 서식입니다.' }
+  const admin = createAdminClient()
+
+  const { data: cur } = await admin.from('inspections')
+    .select('customer_id, inspection_start_date').eq('id', inspectionId).single()
+  if (!cur) return { fields: {}, error: '점검을 찾을 수 없습니다.' }
+  const c = cur as { customer_id: string; inspection_start_date: string | null }
+
+  // 직전 자체점검 회차 — 시작일 기준 바로 이전 (같은 고객·자체점검만)
+  let q = admin.from('inspections')
+    .select('id, year, sequence_num, inspection_start_date')
+    .eq('customer_id', c.customer_id)
+    .neq('id', inspectionId)
+    .or('plan_type.is.null,plan_type.like.special_*')
+    .order('inspection_start_date', { ascending: false, nullsFirst: false })
+    .limit(1)
+  if (c.inspection_start_date) q = q.lt('inspection_start_date', c.inspection_start_date) as typeof q
+  const { data: prevList } = await q
+  const prev = (prevList?.[0] ?? null) as { id: string; year: number; sequence_num: number } | null
+  if (!prev) return { fields: {} }
+
+  const { data } = await admin.from('annex_inputs')
+    .select('fields')
+    .eq('inspection_id', prev.id)
+    .eq('annex_no', annexNo)
+    .maybeSingle()
+  const fields = (data?.fields ?? {}) as Record<string, unknown>
+  if (Object.keys(fields).length === 0) return { fields: {} }
+  return { fields, fromLabel: `${prev.year}년 ${prev.sequence_num}차` }
+}
+
 /** 별지 9·10·11호 고유 값 저장 (upsert) — 재작성 시 이전 입력 유지·갱신(§4-A-2b) */
 export async function saveAnnexInputsAction(
   inspectionId: string,

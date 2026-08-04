@@ -151,7 +151,7 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
   )
 }
 
-function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback, onCompose }: {
+export function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback, onCompose }: {
   i: InspectionDocs
   customerName: string
   isPending: boolean
@@ -315,7 +315,7 @@ function InspectionDocRows({ i, customerName, isPending, open, generate, upload,
   )
 }
 
-function genButtons9(
+export function genButtons9(
   g: DocGroupRef, saveBase: string,
   open: (path: string | null | undefined, saveName?: string) => void, isPending: boolean,
 ) {
