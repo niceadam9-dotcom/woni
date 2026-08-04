@@ -33,7 +33,7 @@
     { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "code_present", "note": "2026-08-04 전건 완료(H-18~24) — H-20/H-22는 설비 대장 통합으로 Q-6 해소·중복 없음 확인" },
     { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "code_present", "note": "2026-08-04 전건 완료(H-25·26·27·28)" },
     { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "code_present", "note": "2026-08-04 완료 — H-12·13·14 전건, 실주행 검증 PASS. SDK 최종 제거" },
-    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "partial", "note": "H-15 부분(SDK·워커 완전 제거, 엑셀 잔여) — H-15b(업로드 폐지)·H-16(E2E)·H-17(운영 배포) 잔여" }
+    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "code_present", "note": "2026-08-04 — H-15(SDK·워커 제거, 엑셀 잔여 경미)·H-15b·H-16·H-17(운영 배포 완결). 잔여: 점검표 엑셀 생성 제거(D-9, 경미)" }
   ],
   "sections": [
     {
@@ -92,12 +92,12 @@
       ]
     },
     {
-      "id": "S5", "title": "정리·테스트·배포", "status": "partial",
+      "id": "S5", "title": "정리·테스트·배포", "status": "code_present",
       "criteria": [
         { "id": "H-15", "desc": "워커·SDK 잔재 제거: fireplan-worker.py·make-*.py·작업 스케줄러·HWPSDK 참조·HWP 신규 기록 + 점검표 엑셀 생성 제거(D-9)", "status": "partial", "note": "2026-08-04 — SDK 완전 제거(사용자 지시): 작업 스케줄러 'SJFire FirePlan Worker' 중지·삭제 + 워커 프로세스 종료 + 파이썬 14파일 git rm(worker·make-*·seed-*-placeholders·_test-*) + HWPSDK 참조 0건(이식 출처 주석만 잔존)·프리셋 주석 현행화. HWP 신규 기록은 H-13에서 이미 중단. 잔여: 점검표 엑셀 제거(D-9 — 엑셀에 갑지·위임장 포함 여부 확인 필요)·convert-fireplan-pdf 크론(레거시 converting 잔여분용 유지)" },
         { "id": "H-15b", "desc": "소방계획서 업로드 경로 폐지(§6-A) — 보관함 [업로드] 제거, 과거 업로드본 읽기 전용. S4 검증 후", "status": "code_present", "note": "2026-08-04 (S4 검증 후) — fire-plans-client.tsx [소방계획서 업로드] 버튼 제거, 생성 버튼 문구 PDF 단일화(HWP+PDF·워커 표현 삭제), 데이터 시트 문구 현행화. 과거 업로드본은 보관함 목록·다운로드 유지. 잔여(경미): 휴면 업로드 폼 코드 정리" },
         { "id": "H-16", "desc": "테스트: 렌더 함수 단위(스냅샷)·생성 E2E(9호/4호/외관/소방계획서→PDF·미리보기 200)·INV-D1 회귀", "status": "code_present", "note": "2026-08-04 — scripts/test-doc-generation.mts(6문서 UI 실주행→잡/plan done·PDF %PDF 검증) + test-all 등록. 스테이징 20/0: 9·10·11호·외관·소방계획서 PASS. **발견 제품 이슈: 별지 4호 [생성] 버튼 미노출** — InspectionReport9Client(report9 variant)에만 있으나 점검 상세는 exterior variant만 렌더, report9 UI는 타임라인이 대체 → report4 트리거 경로가 UI에 없음(생성 경로 자체는 정상). → 2026-08-04 연결 완료: 타임라인 ① 점검표 행에 [별지 4호 생성] 버튼(자체점검), 상태 조회 report4 포함(기존). tsc 통과" },
-        { "id": "H-17", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 갱신", "status": "pending_order" }
+        { "id": "H-17", "desc": "tsc·전체 회귀 → 스테이징 배포·검증 → 사용자 승인 → main 승격 → 운영 배포 → 본 JSON 갱신", "status": "implemented", "verified": { "date": "2026-08-04", "commit": "49eed01", "evidence": ["운영 DB: 마이그레이션 112·113 적용(201·201) + 신규 테이블 annex_inputs·customer_facility_specs 존재 확인", "운영 코드: woni main pull → erp-app-1 재빌드 → sjfire.co.kr /login·/customers 200", "운영 불변식 INV-D1~D6 전체 통과 + gotenberg-prod health 200(생성 경로 의존성)"], "method": "운영 배포 실행·실측 (사용자 명시 승인 '운영 배포 진행' 2026-08-04). 스테이징 전건 검증 선행" }, "note": "2026-08-04 운영 배포 완결 — 소방계획서_7 전건(H-1~H-28) 운영 반영" }
       ]
     }
   ],
