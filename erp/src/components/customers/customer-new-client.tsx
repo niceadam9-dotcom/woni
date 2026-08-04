@@ -260,8 +260,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
       if (result.error) { setError(result.error); return }
       // 다음 등록을 위한 최근 읍/면 기억
       if (form.region_myeon.trim()) localStorage.setItem('lastUsedMyeon', form.region_myeon.trim())
-      // §10-3: 등록 직후 상세(탭)로 — created=1이면 보완 안내 배너 표시
-      router.push(`/customers/${result.customerId}?created=1`)
+      // §10-3: 등록 직후 상세(탭)로 — created=1 보완 안내 + H-25 온보딩(소방계획서 탭 진행 배너)
+      // 필수 최소만 강제된 상태에서 설비 대장·지도/사진·완성도를 이어서 안내(§4-D 국면 1)
+      router.push(`/customers/${result.customerId}?created=1&tab=plan&onboarding=1`)
       router.refresh()
     })
   }

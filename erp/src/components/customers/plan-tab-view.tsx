@@ -14,6 +14,7 @@ import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
+import { PlanOnboardingBanner, type OnboardingStep } from '@/components/customers/plan-onboarding-banner'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
  *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
@@ -62,7 +63,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  docs, quick, consentInitial, latestPlan, assets,
+  docs, quick, consentInitial, latestPlan, assets, onboardingSteps,
 }: {
   customerId: string
   canManage: boolean
@@ -93,6 +94,7 @@ export function PlanTabView({
   consentInitial: { consent: boolean | null; email: string }
   latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
   assets: ReactNode               // 지도·사진 카드 (소방계획서_7 §5 — H-10, CustomerAssetsClient)
+  onboardingSteps?: OnboardingStep[]  // H-25 온보딩 배너 — ?onboarding=1일 때만 부모가 전달(비면 배너 없음)
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
@@ -331,6 +333,13 @@ export function PlanTabView({
       {/* ══ 빠른 입력 모드 (기본 진입 — §1-1) ══ */}
       {mode === 'quick' && (
         <div className="space-y-4">
+          {/* H-25: 고객 온보딩 진행 배너 (?onboarding=1일 때만 부모가 steps 전달) */}
+          {onboardingSteps && onboardingSteps.length > 0 && (
+            <PlanOnboardingBanner
+              steps={onboardingSteps}
+              onGoForm={key => { setMode('full'); select(key) }}
+            />
+          )}
           {/* §7-3b: 최초 진입 1회 임포트 배너 — 서식 입력이 없고 구 생성 데이터가 있을 때 */}
           {importCandidate && canManage && !importHidden && (
             <div className="flex items-center gap-2 rounded-xl border border-[#c3bdf5] bg-[#f5f4ff] px-4 py-2.5">
@@ -423,7 +432,7 @@ export function PlanTabView({
           </div>
 
           {/* 지도·사진 (소방계획서_7 §5 — H-10: 표지 사진·위치도·피난안내도 슬롯) */}
-          {assets}
+          <div id="onboarding-assets-anchor">{assets}</div>
 
           {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) */}
           {canManage && (

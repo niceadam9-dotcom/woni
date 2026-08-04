@@ -72,10 +72,10 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string }>
+  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string; onboarding?: string }>
 }) {
   const { id } = await params
-  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm } = await searchParams
+  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding } = await searchParams
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
@@ -569,6 +569,49 @@ export default async function CustomerDetailPage({
     .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
   // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
   const customerAssets = await listCustomerAssets(customer.id)
+
+  // ── H-25 온보딩 진행 배너 (§4-D 국면 1) — ?onboarding=1일 때만 구성, 이미 조회한 데이터만 사용 ──
+  // ① 기본정보=빠른 입력 준비율 ② 관계인=대표 有無 ③ 설비 대장=설치 √ 개수·제원 입력 여부 ④ 지도·사진=자산 개수
+  const installedFacCount = new Set(
+    Array.from(facByBuilding.values()).flat().filter(f => f.installed).map(f => f.facility_code)
+  ).size
+  const specSectionCount = Object.values(specsByBuilding)
+    .reduce((n, sections) => n + Object.values(sections).filter(sp => sp && Object.keys(sp).length > 0).length, 0)
+  const onboardingSteps = onboarding === '1' ? [
+    {
+      key: 'basic' as const,
+      label: '기본정보 — 문서 공통값 채우기',
+      detail: quickReadiness.done >= quickReadiness.total
+        ? `필수값 ${quickReadiness.total}개 모두 입력됨`
+        : `${quickReadiness.done}/${quickReadiness.total} 준비 · 건축물대장 불러오기로 대부분 자동`,
+      done: quickReadiness.done >= quickReadiness.total,
+      action: 'form:1.1' as const,
+    },
+    {
+      key: 'contacts' as const,
+      label: '관계인 — 대표 확인·추가',
+      detail: hasRep ? `대표 등록됨 (관계인 ${contacts.length}명)` : '대표 관계인이 필요합니다',
+      done: hasRep,
+      action: 'tab:contacts' as const,
+    },
+    {
+      key: 'facilities' as const,
+      label: '설비 대장 — 소방시설·세부 제원',
+      detail: installedFacCount > 0
+        ? `설치 ${installedFacCount}종${specSectionCount > 0 ? ` · 제원 ${specSectionCount}종 입력` : ' · 제원 미입력'}`
+        : '설치 소방시설을 표시해 주세요 (1.4)',
+      done: installedFacCount > 0,
+      action: 'form:1.4' as const,
+    },
+    {
+      key: 'assets' as const,
+      label: '지도·사진 — 표지 사진·위치도·피난안내도',
+      detail: customerAssets.length > 0 ? `자산 ${customerAssets.length}개 등록됨` : '아직 등록된 자산이 없습니다',
+      done: customerAssets.length > 0,
+      action: 'asset' as const,
+    },
+  ] : undefined
+
   const planTab = (
     <PlanTabView
       customerId={customer.id}
@@ -651,6 +694,7 @@ export default async function CustomerDetailPage({
         pdfStatus: firePlans[0].pdf_status ?? 'ready', revision: firePlans[0].revision,
       } : null}
       assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
+      onboardingSteps={onboardingSteps}
     />
   )
 
