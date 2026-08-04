@@ -8,7 +8,7 @@ import { InspectionParticipantsClient } from '@/components/inspections/inspectio
 import { InspectionMultidayClient } from '@/components/inspections/inspection-multiday-client'
 import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
 import { InspectionSheetClient } from '@/components/inspections/inspection-sheet-client'
-import { InspectionReportsClient } from '@/components/inspections/inspection-reports-client'
+import { InspectionDeleteClient } from '@/components/inspections/inspection-delete-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
 import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-voice-sheet-client'
@@ -320,6 +320,14 @@ export default async function InspectionDetailPage({
       },
       prereqs: report9Checks,
       consentOk: consent === true && !!cf.report_email,
+      // §4-E H-28: 여정 스텝퍼 통합 — inspection_steps 마감·완료 흡수, ⑤ 전/후 갤러리, 제출 보고서 파일
+      inspectionSteps: steps,
+      defectRows: defects.map(d => ({
+        id: d.id, defect_name: d.defect_name, severity: d.severity,
+        photo_url: d.photo_url, after_photo_url: d.after_photo_url,
+        action_taken: d.action_taken, action_completed_at: d.action_completed_at,
+      })),
+      reports,
     }
   }
 
@@ -415,24 +423,18 @@ export default async function InspectionDetailPage({
         </div>
       </div>
 
-      {/* 6단계 체크리스트 + 보고서관리 — 2열 나란히 */}
-      <div className="grid grid-cols-2 gap-5 items-start">
-        <InspectionDetailClient
-          steps={steps}
-          inspectionId={id}
-          canComplete={canComplete}
-          canDelete={canDelete}
-          today={today}
-        />
-        {isSpecial ? (
-          <InspectionReportsClient
+      {/* 6단계 체크리스트 + 보고서관리 — 정기·일반(비자체점검)만 현행 2열 유지.
+          자체점검(isSpecial)은 §4-E H-28 여정 스텝퍼(아래 문서 타임라인)가 단계 마감·완료·제출 보고서를 흡수 */}
+      {!isSpecial ? (
+        <div className="grid grid-cols-2 gap-5 items-start">
+          <InspectionDetailClient
+            steps={steps}
             inspectionId={id}
-            reports={reports}
-            canEdit={canEdit}
+            canComplete={canComplete}
             canDelete={canDelete}
+            today={today}
           />
-        ) : (
-          // 일반·정기 점검 = 외관점검표 2년 보관만 (소방서 보고 의무 없음) — 단계별 보고서 표면 비노출
+          {/* 일반·정기 점검 = 외관점검표 2년 보관만 (소방서 보고 의무 없음) — 단계별 보고서 표면 비노출 */}
           <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
             <div className="px-5 py-4 border-b border-[#e0ddf5] flex items-center gap-2">
               <FileText className="size-4 text-[#7b68ee]" />
@@ -442,8 +444,11 @@ export default async function InspectionDetailPage({
               일반·정기 점검은 <span className="font-medium text-[#090c1d]">외관점검표 작성·2년 보관</span>만 대상입니다 — 소방서 보고 의무가 없어 단계별 보고서(별지 9~11호)가 없습니다.
             </p>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        // 자체점검: 삭제 버튼만 별도 노출 (단계 완료·보고서는 타임라인 스텝퍼로 이동)
+        canDelete && <InspectionDeleteClient inspectionId={id} />
+      )}
 
       {/* 점검 참여자 (주된/보조) — 보고서 개요 */}
       <InspectionParticipantsClient
@@ -488,6 +493,8 @@ export default async function InspectionDetailPage({
         <InspectionTimelineClient
           inspectionId={id}
           canManage={canEdit}
+          canComplete={canComplete}
+          today={today}
           data={timelineData}
           initialJob={report9Job}
           initialFiles={report9Files}

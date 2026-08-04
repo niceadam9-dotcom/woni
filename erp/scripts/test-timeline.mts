@@ -54,7 +54,7 @@ try {
   check('타임라인 렌더(자체점검)', true)
   check('① 점검표 행', await page.isVisible('text=① 점검표'))
   check('② 점검인력 배치확인서 행(용어 통일)', await page.isVisible('text=② 점검인력 배치확인서'))
-  check('③ 관계인 보고서 발급 행(용어 통일)', await page.isVisible('text=③ 관계인 보고서 발급'))
+  check('③ 관계인 보고·협의 행(§4-E-1 용어)', await page.isVisible('text=③ 관계인 보고·협의'))
   check('④ 소방서 제출 행 + D-3 뱃지', await page.isVisible('text=D-3'))
   check('⑤⑥ 상시 표시 — 해당없음 흐림(불량 0건)', await page.isVisible('text=해당없음 — 불량 0건'))
   check('진행률 헤더(해당없음 분모 제외 = 0/4)', await page.isVisible('text=0/4 단계 완료'))
@@ -81,7 +81,8 @@ try {
   const { data: subA } = await raw.from('inspections').select('report9_submitted_at').eq('id', inspA).single()
   check('④ DB report9_submitted_at', subA?.report9_submitted_at === kstShift(0), JSON.stringify(subA))
   await page.waitForSelector(`text=제출 ${kstShift(0)}`)
-  check('④ D-day → 제출 표시 전환', !(await page.isVisible('text=D-3')))
+  // 여정 스텝퍼(H-28): ④ 완료 → 접힘 + 접힘 요약에 제출일. 15일 보고기한 D-3 배지는 소멸
+  check('④ 보고기한 배지 소멸(제출 완료)', !(await page.isVisible('text=/기한 초과|D-3 ⚠/')))
 
   // 불량 추가 → ⑤⑥ 표시
   await raw.from('inspection_defects').insert({
@@ -92,13 +93,13 @@ try {
   check('⑤⑥ 활성(불량 발생)', await page.isVisible('text=⑥ 이행완료 (별지 11호)'))
   check('⑤⑥ 해당없음 문구 소멸', !(await page.isVisible('text=해당없음 — 불량 0건')))
   check('진행률 분모 확장(2/6 단계 완료 — cert·제출 완료 반영)', await page.isVisible('text=2/6 단계 완료'))
-  check('⑤ 전후 사진 카운트', await page.isVisible('text=전후 사진 0/1쌍'))
+  check('⑤ 전/후 갤러리 진행률(H-28)', await page.isVisible('text=/전\\/후 사진 0\\/1쌍 완료/'))
   check('⑤ 선택 증빙 표기(R10-a)', await page.isVisible('text=(사진·계약서는 선택)'))
   check('⑥ 기한 = 이행기간 종료일', await page.isVisible(`text=기한 ${kstShift(10)}`))
 
-  // ⑤ 계약서 업로드 (타임라인 카드 내 두 번째 파일 input)
-  const timeline2 = page.locator('div:has(> div > h2:has-text("문서 타임라인"))').first()
-  await timeline2.locator('input[type="file"]').nth(1).setInputFiles(tmpPdf)
+  // ⑤ 계약서 업로드 — hwp 허용 input의 마지막 = 계약서(② cert는 접힘/DOM 앞) (H-28 스텝퍼)
+  await page.waitForSelector('button:has-text("계약서 업로드")')
+  await page.locator('input[type="file"][accept*="hwp"]').last().setInputFiles(tmpPdf)
   await page.waitForSelector('text=계약서 업로드됨')
   const { data: objs2 } = await raw.storage.from('fire-plans').list(`${custA}/inspections/${inspA}`)
   check('⑤ storage contract_ 파일', (objs2 ?? []).some((o: { name: string }) => /^contract_\d+\.pdf$/.test(o.name)))

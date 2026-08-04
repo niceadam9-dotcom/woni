@@ -5,6 +5,7 @@ import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle2, Circle, AlertTriangle, Loader2, FileText, Send, Upload, Download, Package, RefreshCw, ExternalLink, PenLine,
+  Check, ChevronDown, ChevronRight, Camera, Clock,
 } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, downloadReport9Action,
@@ -13,17 +14,42 @@ import {
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
+import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
+import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
+import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
+import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType, type ReportType } from '@/app/(dashboard)/inspections/report-constants'
+import type { InspectionStep } from '@/types'
 
 /** 문서 타임라인 (§9-9 / P7) — 단계별 상태·D-day·업로드 슬롯·생성·발송·제출 패키지.
  *  단계 구성은 stepDocs(§9-9a): 자체점검 ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림).
  *  ④ 전제조건 = 종전 별지 9호 준비 체크(§9-6⑦ 흡수). 값 입력은 각 원천 화면에서. */
 
 export type PrereqRow = { label: string; ok: boolean; detail: string; href?: string; hrefLabel?: string }
+
+/** ⑤ 전/후 갤러리용 불량 행 (§4-E-2) — photo_url·after_photo_url 기존 컬럼 그대로 */
+export type TimelineDefect = {
+  id: string
+  defect_name: string
+  severity: '경미' | '보통' | '중대'
+  photo_url: string | null
+  after_photo_url: string | null
+  action_taken: string | null
+  action_completed_at: string | null
+}
+
+/** 타임라인 하단 접이식 — 제출 보고서 파일 목록 (InspectionReportsClient 흡수) */
+export type TimelineReport = {
+  id: string
+  report_type: ReportType
+  file_name: string
+  submitted_at: string | null
+  submitted_by_name: string | null
+}
 
 export type TimelineData = {
   steps: TimelineStepKey[]
@@ -37,6 +63,10 @@ export type TimelineData = {
   defects: { total: number; planned: number; done: number; photoPairs: number }
   prereqs: PrereqRow[]                  // ④ 전제 체크 (§9-6⑦)
   consentOk: boolean                    // ③ 송달 동의+이메일 보유
+  // §4-E H-28: 여정 스텝퍼 통합 — inspection_steps 마감·완료 흡수, ⑤ 전/후 갤러리, 제출 보고서 파일
+  inspectionSteps: InspectionStep[]     // step_num 1~6 = ①~⑥ (마감일 D-day·완료 처리)
+  defectRows: TimelineDefect[]          // ⑤ 전/후 쌍 카드
+  reports: TimelineReport[]             // 하단 접이식 제출 보고서
 }
 
 function saveBlob(base64: string, fileName: string) {
@@ -51,9 +81,11 @@ function saveBlob(base64: string, fileName: string) {
   URL.revokeObjectURL(url)
 }
 
-export function InspectionTimelineClient({ inspectionId, canManage, data, initialJob, initialFiles, customerName, customerId }: {
+export function InspectionTimelineClient({ inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId }: {
   inspectionId: string
   canManage: boolean
+  canComplete: boolean
+  today: string
   data: TimelineData
   initialJob: Report9Job | null
   initialFiles: Report9File[]
@@ -73,6 +105,14 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
+  // §4-E H-28: 단계 완료 처리 (inspection_steps 흡수) + 완료 단계 자동 접힘
+  const [completing, setCompleting] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Record<TimelineStepKey, boolean>>({} as Record<TimelineStepKey, boolean>)
+  const [reportsOpen, setReportsOpen] = useState(false)  // 하단 제출 보고서 접이식
+  // §4-E-2: ⑤ 전/후 갤러리 후 사진 업로드
+  const afterRef = useRef<HTMLInputElement>(null)
+  const afterTarget = useRef<string | null>(null)
+  const [afterBusy, setAfterBusy] = useState<string | null>(null)
 
   useEffect(() => {
     if (!busy) return
@@ -90,7 +130,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       const st = await getReport9StatusAction(inspectionId)
       if (!st.error) { setJob(st.job); setFiles(st.files) }
-      setMsg('✅ 생성 요청됨 — 워커가 처리하면 목록에 등록됩니다.')
+      setMsg('✅ 생성 완료 — 목록에서 PDF를 확인하세요.')
     })
   }
 
@@ -160,6 +200,51 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
     })
   }
 
+  // §4-E H-28: 단계 완료 처리 — InspectionDetailClient에서 흡수(같은 completeStepAction 재사용)
+  async function completeStep(stepId: string) {
+    setCompleting(stepId)
+    setMsg('')
+    const res = await completeStepAction(stepId, inspectionId)
+    setCompleting(null)
+    if (res.error) { setMsg(`❌ ${res.error}`); return }
+    setMsg('✅ 단계를 완료 처리했습니다.')
+    router.refresh()
+  }
+
+  // 하단 접이식 제출 보고서 다운로드 (InspectionReportsClient 흡수 — 기존 getReportDownloadUrl 재사용)
+  function downloadReport(reportId: string, fileName: string) {
+    startTransition(async () => {
+      const res = await getReportDownloadUrl(reportId)
+      if (res.error || !res.url) { setMsg(`❌ ${res.error ?? '다운로드 실패'}`); return }
+      const a = document.createElement('a')
+      a.href = res.url; a.download = res.fileName ?? fileName; a.target = '_blank'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    })
+  }
+
+  // §4-E-2: ⑤ 후(조치) 사진 업로드 — 기존 uploadDefectPhotoAction 재사용(defect 편집 경로 동일)
+  function pickAfter(defectId: string) {
+    afterTarget.current = defectId
+    afterRef.current?.click()
+  }
+  function onAfterPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const defectId = afterTarget.current
+    e.target.value = ''
+    if (!file || !defectId) return
+    setAfterBusy(defectId)
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.append('defectId', defectId); fd.append('inspectionId', inspectionId)
+      fd.append('file', file); fd.append('field', 'after')
+      const res = await uploadDefectPhotoAction(fd)
+      setAfterBusy(null)
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setMsg('✅ 후(조치) 사진을 등록했습니다.')
+      router.refresh()
+    })
+  }
+
   const dday = (d: number | null, submitted: string | null) => {
     if (submitted) return <span className="text-[10px] text-green-600">제출 {submitted}</span>
     if (d === null) return null
@@ -197,6 +282,69 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
     ...(hasDefects ? [{ key: 'repair' as TimelineStepKey, done: done5 }, { key: 'submit11' as TimelineStepKey, done: done6 }] : []),
   ].filter(s => has(s.key))
   const nextStep = orderedSteps.find(s => !s.done)
+
+  // §4-E H-28: 타임라인 키 → inspection_step (step_num 1~6 = ①~⑥)
+  const STEP_NUM: Record<TimelineStepKey, number> = {
+    checklist: 1, cert: 2, ownerReport: 3, submit9: 4, repair: 5, submit11: 6,
+  }
+  const stepByNum = new Map(data.inspectionSteps.map(s => [s.step_num, s]))
+  const stepOf = (k: TimelineStepKey) => stepByNum.get(STEP_NUM[k]) ?? null
+  // 완료 처리 버튼 = 미완료 중 가장 낮은 step_num (완료 순서 강제 — completeStepAction과 동일 규칙)
+  const firstIncompleteStepNum = data.inspectionSteps
+    .filter(s => s.status !== 'completed').map(s => s.step_num).sort((a, b) => a - b)[0]
+
+  // §4-E 완료 단계 자동 접힘: done → 접힘(사용자 클릭 시 펼침), 첫 미완료(nextStep)는 자동 펼침
+  const doneMap: Record<TimelineStepKey, boolean> = {
+    checklist: done1, cert: done2, ownerReport: done3, submit9: done4, repair: done5, submit11: done6,
+  }
+  const isOpen = (k: TimelineStepKey) => {
+    if (k in expanded) return expanded[k]                 // 사용자 명시적 토글 최우선
+    if (nextStep?.key === k) return true                  // 첫 미완료 자동 펼침
+    return !doneMap[k]                                    // 완료 단계는 접힘, 미완료는 펼침
+  }
+  const toggle = (k: TimelineStepKey) => setExpanded(prev => ({ ...prev, [k]: !isOpen(k) }))
+
+  // 완료 단계 한 줄 요약 헤더 (클릭 시 상세 펼침) — 접힘 상태 공용
+  const stepDday = (k: TimelineStepKey) => {
+    const st = stepOf(k)
+    if (!st || !st.due_date) return null
+    if (st.status === 'completed') {
+      return <span className="text-[10px] text-green-600">완료 {st.completed_at?.split('T')[0] ?? ''}</span>
+    }
+    const d = Math.round((new Date(st.due_date).getTime() - new Date(today).getTime()) / 86400000)
+    if (d < 0) return <span className="text-[10px] font-semibold text-red-600">단계 마감 초과 {-d}일 ⚠</span>
+    return <span className={`text-[10px] font-semibold ${d <= 3 ? 'text-red-600' : d <= 7 ? 'text-amber-600' : 'text-[#b0acd6]'}`}>단계 마감 D-{d}</span>
+  }
+
+  // 접힘/펼침 클릭 헤더 (아이콘 + 라벨 + D-day/완료일 + 완료 처리 버튼) — 렌더 함수(컴포넌트 생성 금지)
+  // collapsedSummary: 접힘 시에도 표면에 남길 업무 상태(제출일 등) — 완료 접힘이 정보를 감추지 않도록
+  const stepHeader = ({ k, done, active, extra, collapsedSummary }: {
+    k: TimelineStepKey; done: boolean; active: boolean; extra?: React.ReactNode; collapsedSummary?: React.ReactNode
+  }) => {
+    const st = stepOf(k)
+    const open = isOpen(k)
+    const canCompleteHere = canComplete && st && st.status !== 'completed' && st.step_num === firstIncompleteStepNum
+    return (
+      <div className="flex items-center gap-2 w-full">
+        <button onClick={() => toggle(k)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+          {open ? <ChevronDown className="size-3.5 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
+          {stepIcon(done, active)}
+          <span className={`text-xs font-semibold shrink-0 ${done ? 'text-[#514b81]' : 'text-[#090c1d]'}`}
+            title={TIMELINE_STEP_TOOLTIPS[k]}>{TIMELINE_STEP_LABELS[k]}</span>
+          {stepDday(k)}
+          {extra}
+          {!open && collapsedSummary}
+        </button>
+        {canCompleteHere && (
+          <button onClick={() => completeStep(st!.id)} disabled={completing === st!.id}
+            className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] text-[#7b68ee] border border-[#c3bdf5] text-[11px] font-medium hover:bg-[#ede9ff] disabled:opacity-50"
+            title="이 단계를 완료 처리합니다 (마감·완료는 여기서 한 곳)">
+            {completing === st!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 단계 완료
+          </button>
+        )}
+      </div>
+    )
+  }
 
   const row = 'flex items-start gap-2 py-2 border-b border-[#f3f1fc] last:border-0'
   const label = 'text-xs font-semibold text-[#090c1d] w-44 shrink-0 pt-0.5'
@@ -246,78 +394,103 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         )
       )}
 
-      {/* ① 점검표 */}
+      {/* ① 점검표 — 여정 스텝퍼(§4-E): 헤더=아이콘·마감·완료처리 / 펼침부=행동 */}
       <div className={row}>
-        {stepIcon(done1, true)}
-        <span className={label} title={TIMELINE_STEP_TOOLTIPS.checklist}>
-          {TIMELINE_STEP_LABELS.checklist}{data.isGeneral ? ' (외관점검표)' : ' (소방시설등점검표)'}
-        </span>
-        <span className={`text-xs ${done1 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-          {done1 ? `응답 ${data.responded}건 입력됨` : '응답 없음 — 위 점검표 입력에서 작성해주세요'}
-        </span>
-        {data.steps.length === 1 && (
-          <span className="ml-auto text-[10px] text-[#b0acd6]">완료 조건 = 점검표 작성 (기한·알림 없음)</span>
-        )}
-        {/* 별지 4호(소방시설등점검표) 생성 — 자체점검 ① 점검표 행 (소방계획서_7 §4-A-2·H-16 발견 연결) */}
-        {isSpecialTimeline && canManage && (
-          <button onClick={() => generate('report4')} disabled={isPending || busy} className={`ml-auto ${btn}`}
-            title="소방시설등점검표(별지 4호) 생성 — 점검결과·인력 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)">
-            {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 4호 생성
-          </button>
-        )}
+        <div className="flex-1 min-w-0">
+          {isSpecialTimeline ? (
+            stepHeader({ k: 'checklist', done: done1, active: true })
+          ) : (
+            <div className="flex items-center gap-2">
+              {stepIcon(done1, true)}
+              <span className="text-xs font-semibold text-[#090c1d]" title={TIMELINE_STEP_TOOLTIPS.checklist}>
+                {TIMELINE_STEP_LABELS.checklist}{data.isGeneral ? ' (외관점검표)' : ' (소방시설등점검표)'}
+              </span>
+            </div>
+          )}
+          {(isSpecialTimeline ? isOpen('checklist') : true) && (
+            <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
+              <span className={`text-xs ${done1 ? 'text-[#514b81]' : 'text-amber-600'}`}>
+                {done1 ? `응답 ${data.responded}건 입력됨` : '응답 없음 — 위 점검표 입력에서 작성해주세요'}
+              </span>
+              {data.steps.length === 1 && (
+                <span className="text-[10px] text-[#b0acd6]">완료 조건 = 점검표 작성 (기한·알림 없음)</span>
+              )}
+              {/* 별지 4호(소방시설등점검표) 생성 — 자체점검 ① 점검표 행 (소방계획서_7 §4-A-2·H-16 발견 연결) */}
+              {isSpecialTimeline && canManage && (
+                <button onClick={() => generate('report4')} disabled={isPending || busy} className={`ml-auto ${btn}`}
+                  title="소방시설등점검표(별지 4호) 생성 — 점검결과·인력 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)">
+                  {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 4호 생성
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ② 점검인력 배치확인서 — 업로드 직감 규칙(R10-c): ✅초록+파일명 / ⚠앰버+[업로드] */}
       {has('cert') && (
         <div className={`${row} ${dragOver === 'cert' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('cert')}>
-          {stepIcon(done2, done1)}
-          <span className={label} title={TIMELINE_STEP_TOOLTIPS.cert}>{TIMELINE_STEP_LABELS.cert}</span>
-          <span className={`text-xs ${done2 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-            {data.certFile ? `업로드됨: ${data.certFile.name}` : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
-          </span>
-          <span className="ml-auto flex items-center gap-1.5 shrink-0">
-            {/* R7 배치신고 도우미 — 신고값 협회 순서 텍스트로 복사 */}
-            {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
-            <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-0.5">
-              협회 <ExternalLink className="size-2.5" />
-            </a>
-            {data.certFile && (
-              <button onClick={() => download(data.certFile!.path)} className={btn}><Download className="size-3" /> 보기</button>
+          <div className="flex-1 min-w-0">
+            {stepHeader({ k: 'cert', done: done2, active: done1 })}
+            {isOpen('cert') && (
+              <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
+                <span className={`text-xs ${done2 ? 'text-[#514b81]' : 'text-amber-600'}`}>
+                  {data.certFile ? `업로드됨: ${data.certFile.name}` : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
+                </span>
+                <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                  {/* R7 배치신고 도우미 — 신고값 협회 순서 텍스트로 복사 */}
+                  {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
+                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-0.5">
+                    협회 <ExternalLink className="size-2.5" />
+                  </a>
+                  {data.certFile && (
+                    <button onClick={() => download(data.certFile!.path)} className={btn}><Download className="size-3" /> 보기</button>
+                  )}
+                  {canManage && (<>
+                    <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('cert', e)} />
+                    <button onClick={() => certRef.current?.click()} disabled={isPending} className={btn} title="클릭 또는 파일을 이 행에 끌어다 놓으세요"><Upload className="size-3" /> 업로드</button>
+                  </>)}
+                </span>
+              </div>
             )}
-            {canManage && (<>
-              <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('cert', e)} />
-              <button onClick={() => certRef.current?.click()} disabled={isPending} className={btn} title="클릭 또는 파일을 이 행에 끌어다 놓으세요"><Upload className="size-3" /> 업로드</button>
-            </>)}
-          </span>
+          </div>
         </div>
       )}
 
-      {/* ③ 관계인 보고서 발급 */}
+      {/* ③ 관계인 보고·협의 (§4-E-1) */}
       {has('ownerReport') && (
         <div className={row}>
-          {stepIcon(done3, done1)}
-          <span className={label} title={TIMELINE_STEP_TOOLTIPS.ownerReport}>{TIMELINE_STEP_LABELS.ownerReport}</span>
-          <span className={`text-xs ${done3 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-            {data.delivery
-              ? `발송됨 → ${data.delivery.sentTo} (${data.delivery.sentAt.slice(0, 10)})`
-              : data.consentOk ? '별지 9호 생성 후 이메일 발송' : '송달 동의·이메일 미입력 — 고객 소방계획서 탭에서 입력'}
-          </span>
-          {canManage && (
-            <span className="ml-auto shrink-0">
-              <button onClick={sendOwner} disabled={isPending || !data.consentOk} className={btnPri}>
-                <Send className="size-3" /> {done3 ? '재발송' : '생성물 이메일 발송'}
-              </button>
-            </span>
-          )}
+          <div className="flex-1 min-w-0">
+            {stepHeader({ k: 'ownerReport', done: done3, active: done1 })}
+            {isOpen('ownerReport') && (
+              <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
+                <span className={`text-xs ${done3 ? 'text-[#514b81]' : 'text-amber-600'}`}>
+                  {data.delivery
+                    ? `발송됨 → ${data.delivery.sentTo} (${data.delivery.sentAt.slice(0, 10)})`
+                    : data.consentOk ? '점검 결과 보고 후 개선·변경 협의 → ④로 (별지 9호 생성 후 이메일 발송)' : '송달 동의·이메일 미입력 — 고객 소방계획서 탭에서 입력'}
+                </span>
+                {canManage && (
+                  <span className="ml-auto shrink-0">
+                    <button onClick={sendOwner} disabled={isPending || !data.consentOk} className={btnPri}>
+                      <Send className="size-3" /> {done3 ? '재발송' : '생성물 이메일 발송'}
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ④ 소방서 제출 (별지 9호) — 전제 = §9-6⑦ 준비 체크 */}
+      {/* ④ 소방서 제출 (별지 9호+10호) — 전제 = §9-6⑦ 준비 체크 */}
       {has('submit9') && (
         <div className={row}>
-          {stepIcon(done4, done1)}
-          <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit9}>④ 소방서 제출 (9호{hasDefects ? '+10호' : ''})</span>
-          <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex-1 min-w-0">
+            {stepHeader({ k: 'submit9', done: done4, active: done1,
+              extra: hasDefects ? <span className="text-[10px] text-[#b0acd6]">(+별지 10호 — 불량 시)</span> : undefined,
+              collapsedSummary: data.submit9.submittedAt ? <span className="text-[10px] text-green-600">제출 {data.submit9.submittedAt}</span> : undefined })}
+          {isOpen('submit9') && (
+          <div className="flex-1 min-w-0 space-y-1.5 mt-1.5 pl-6">
             <div className="flex items-center gap-2 flex-wrap">
               {dday(data.submit9.dday, data.submit9.submittedAt)}
               {data.submit9.due && !data.submit9.submittedAt && <span className="text-[10px] text-[#b0acd6]">기한 {data.submit9.due} (점검 후 15일)</span>}
@@ -358,31 +531,92 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
               <p className="text-[10px] text-amber-600">누락: {job.missing!.join(' · ')}</p>
             )}
           </div>
+          )}
+          </div>
         </div>
       )}
 
-      {/* ⑤ 보수·증빙 — 상시 표시(D-4): 불량 0건이면 해당없음 흐림. 완료 판정 = 불량 전건 조치 완료(R10-a) */}
+      {/* ⑤ 보수·증빙 + 전/후 갤러리 (§4-E-2) — 불량 0건이면 해당없음 흐림. 완료 = 불량 전건 조치(R10-a) */}
       {has('repair') && (hasDefects ? (
         <div className={`${row} ${dragOver === 'contract' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('contract')}>
-          {stepIcon(done5, done4)}
-          <span className={label} title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
-          <span className={`text-xs ${done5 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-            불량 {data.defects.total}건 · 계획 {data.defects.planned} · 완료 {data.defects.done} ·{' '}
-            {/* R6-b ⓑ: 전후 사진 쌍 수 클릭 → 갤러리 모달 */}
-            <a href="#photos" className="text-[#7b68ee] hover:underline">전후 사진 {data.defects.photoPairs}/{data.defects.total}쌍</a>
-            <span className="text-[#b0acd6]" title="수리 계약서·전/후 사진은 선택 증빙 — ⑤ 완료 조건은 불량 전건 조치 완료"> (사진·계약서는 선택)</span>
-            {data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
-          </span>
-          <span className="ml-auto flex items-center gap-1.5 shrink-0">
-            <a href="#photos" className="text-[10px] text-[#7b68ee] hover:underline">전/후 사진 모아보기 ↓</a>
-            {data.contractFile && (
-              <button onClick={() => download(data.contractFile!.path)} className={btn}><Download className="size-3" /> 계약서</button>
+          <div className="flex-1 min-w-0">
+            {stepHeader({ k: 'repair', done: done5, active: done4,
+              extra: <span className="text-[10px] text-[#b0acd6]">불량 {data.defects.done}/{data.defects.total} 조치 · 전후 {data.defects.photoPairs}/{data.defects.total}쌍</span> })}
+            {isOpen('repair') && (
+              <div className="mt-1.5 pl-6 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs ${done5 ? 'text-[#514b81]' : 'text-amber-600'}`}>
+                    불량 {data.defects.total}건 · 계획 {data.defects.planned} · 완료 {data.defects.done}
+                    <span className="text-[#b0acd6]" title="수리 계약서·전/후 사진은 선택 증빙 — ⑤ 완료 조건은 불량 전건 조치 완료"> (사진·계약서는 선택)</span>
+                    {data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
+                  </span>
+                  <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                    {data.contractFile && (
+                      <button onClick={() => download(data.contractFile!.path)} className={btn}><Download className="size-3" /> 계약서</button>
+                    )}
+                    {canManage && (<>
+                      <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('contract', e)} />
+                      <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn} title="수리 계약서 (선택 증빙) — 클릭 또는 파일을 이 행에 끌어다 놓으세요"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
+                    </>)}
+                  </span>
+                </div>
+
+                {/* §4-E-2 전/후 갤러리 — 불량별 [전 사진 ‖ 후 사진] 쌍 카드 */}
+                <div className="w-full h-1 bg-[#e0ddf5] rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${data.defects.photoPairs >= data.defects.total ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
+                    style={{ width: `${data.defects.total > 0 ? Math.round((data.defects.photoPairs / data.defects.total) * 100) : 0}%` }} />
+                </div>
+                <p className="text-[10px] text-[#b0acd6]">전/후 사진 {data.defects.photoPairs}/{data.defects.total}쌍 완료</p>
+                <input ref={afterRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onAfterPicked} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {data.defectRows.map(d => (
+                    <div key={d.id} className="rounded-lg border border-[#eceafd] p-2">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-[11px] font-medium text-[#090c1d] truncate">{d.defect_name}</span>
+                        {d.action_completed_at
+                          ? <span className="text-[9px] px-1 py-0.5 rounded bg-green-50 text-green-700 shrink-0">조치완료</span>
+                          : <span className="text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">미조치</span>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {/* 전(불량) 사진 */}
+                        {d.photo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={d.photo_url} alt="전(불량)" className="w-full aspect-square object-cover rounded border border-[#eceafd]" />
+                        ) : (
+                          <div className="w-full aspect-square rounded border border-dashed border-gray-200 flex flex-col items-center justify-center text-[9px] text-gray-300 gap-0.5">
+                            <Camera size={13} /> 전 사진 없음
+                          </div>
+                        )}
+                        {/* 후(조치) 사진 — 업로드·교체 (기존 uploadDefectPhotoAction 재사용) */}
+                        {d.after_photo_url ? (
+                          canManage ? (
+                            <button onClick={() => pickAfter(d.id)} disabled={afterBusy === d.id} className="relative group w-full aspect-square">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={d.after_photo_url} alt="후(조치)" className="w-full h-full object-cover rounded border border-[#eceafd]" />
+                              <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity">
+                                {afterBusy === d.id ? <Upload size={13} className="text-white animate-pulse" /> : <Camera size={13} className="text-white" />}
+                              </span>
+                            </button>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={d.after_photo_url} alt="후(조치)" className="w-full aspect-square object-cover rounded border border-[#eceafd]" />
+                          )
+                        ) : canManage ? (
+                          <button onClick={() => pickAfter(d.id)} disabled={afterBusy === d.id}
+                            className="w-full aspect-square rounded border-2 border-dashed border-amber-300 hover:border-amber-500 flex flex-col items-center justify-center gap-0.5 text-amber-500 disabled:opacity-50">
+                            {afterBusy === d.id ? <Upload size={13} className="animate-pulse" /> : <Camera size={13} />}
+                            <span className="text-[9px]">후 사진 추가</span>
+                          </button>
+                        ) : (
+                          <div className="w-full aspect-square rounded border border-dashed border-gray-200 flex items-center justify-center text-[9px] text-gray-300">후 사진 없음</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-            {canManage && (<>
-              <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={e => upload('contract', e)} />
-              <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn} title="수리 계약서 (선택 증빙) — 클릭 또는 파일을 이 행에 끌어다 놓으세요"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
-            </>)}
-          </span>
+          </div>
         </div>
       ) : (
         <div className={`${row} opacity-50`}>
@@ -395,25 +629,27 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
       {/* ⑥ 이행완료 (별지 11호) — 상시 표시(D-4) */}
       {has('submit11') && (hasDefects ? (
         <div className={row}>
-          {stepIcon(done6, done5 || data.defects.done > 0)}
-          <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit11}>{TIMELINE_STEP_LABELS.submit11}</span>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              {dday(data.submit11.dday, data.submit11.submittedAt)}
-              {data.submit11.due && !data.submit11.submittedAt && <span className="text-[10px] text-[#b0acd6]">기한 {data.submit11.due} (이행기간 종료)</span>}
-              {canManage && (<>
-                <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>별지 11호 생성</button>
-                <button onClick={() => setCompose('report11')} disabled={isPending || busy} className={btn}
-                  title="자동 채움 검토 → 고유 값 입력(제출일·완료 보고 문구) → 미리보기·생성 (H-23 작성 패널)">
-                  <PenLine className="size-3" /> 11호 작성
-                </button>
-                <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지 (⑤ 첨부 자동)</button>
-                <span className="inline-flex items-center gap-1">
-                  <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)} className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
-                  <button onClick={() => recordSubmit('report11', subDate11)} disabled={isPending} className={btn}>제출일 기록</button>
-                </span>
-              </>)}
-            </div>
+            {stepHeader({ k: 'submit11', done: done6, active: done5 || data.defects.done > 0,
+              collapsedSummary: data.submit11.submittedAt ? <span className="text-[10px] text-green-600">제출 {data.submit11.submittedAt}</span> : undefined })}
+            {isOpen('submit11') && (
+              <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
+                {dday(data.submit11.dday, data.submit11.submittedAt)}
+                {data.submit11.due && !data.submit11.submittedAt && <span className="text-[10px] text-[#b0acd6]">기한 {data.submit11.due} (이행기간 종료)</span>}
+                {canManage && (<>
+                  <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>별지 11호 생성</button>
+                  <button onClick={() => setCompose('report11')} disabled={isPending || busy} className={btn}
+                    title="자동 채움 검토 → 고유 값 입력(제출일·완료 보고 문구) → 미리보기·생성 (H-23 작성 패널)">
+                    <PenLine className="size-3" /> 11호 작성
+                  </button>
+                  <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지 (⑤ 첨부 자동)</button>
+                  <span className="inline-flex items-center gap-1">
+                    <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)} className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                    <button onClick={() => recordSubmit('report11', subDate11)} disabled={isPending} className={btn}>제출일 기록</button>
+                  </span>
+                </>)}
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -435,6 +671,31 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
       {files.length > 0 && (
         <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
           <GeneratedDocList files={files} onOpen={download} customerName={customerName} disabled={isPending} />
+        </div>
+      )}
+
+      {/* §4-E H-28: 제출 보고서 파일 (InspectionReportsClient 흡수) — 타임라인 하단 접이식 보존.
+          단계 행동은 위 스텝퍼에 통합, 업로드된 제출본 파일 목록만 여기서 조회·다운로드 */}
+      {isSpecialTimeline && data.reports.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
+          <button onClick={() => setReportsOpen(o => !o)} className="flex items-center gap-1.5 text-xs font-medium text-[#514b81] hover:text-[#7b68ee]">
+            {reportsOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            <FileText className="size-3.5" /> 제출 보고서 파일 ({data.reports.length}건)
+          </button>
+          {reportsOpen && (
+            <div className="mt-2 space-y-1.5">
+              {data.reports.map(r => (
+                <div key={r.id} className="flex items-center gap-2 text-[11px] rounded-lg border border-[#eceafd] px-2.5 py-1.5">
+                  <span className="font-medium text-[#090c1d] shrink-0">
+                    {STEP_REPORT_TYPES.includes(r.report_type as StepReportType) ? STEP_REPORT_LABELS[r.report_type as StepReportType] : r.report_type}
+                  </span>
+                  <span className="text-[#514b81] truncate flex-1">{r.file_name}</span>
+                  {r.submitted_at && <span className="text-[#b0acd6] shrink-0 inline-flex items-center gap-0.5"><Clock className="size-2.5" />{r.submitted_at.split('T')[0]}{r.submitted_by_name ? ` · ${r.submitted_by_name}` : ''}</span>}
+                  <button onClick={() => downloadReport(r.id, r.file_name)} disabled={isPending} className={`${btn} shrink-0`}><Download className="size-3" /> 다운로드</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
