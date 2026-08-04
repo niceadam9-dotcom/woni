@@ -83,7 +83,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate(reportType: 'report9' | 'report10' | 'report11' | 'exterior') {
+  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior') {
     setMsg('')
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, reportType)
@@ -257,6 +257,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, data, initia
         </span>
         {data.steps.length === 1 && (
           <span className="ml-auto text-[10px] text-[#b0acd6]">완료 조건 = 점검표 작성 (기한·알림 없음)</span>
+        )}
+        {/* 별지 4호(소방시설등점검표) 생성 — 자체점검 ① 점검표 행 (소방계획서_7 §4-A-2·H-16 발견 연결) */}
+        {isSpecialTimeline && canManage && (
+          <button onClick={() => generate('report4')} disabled={isPending || busy} className={`ml-auto ${btn}`}
+            title="소방시설등점검표(별지 4호) 생성 — 점검결과·인력 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)">
+            {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 4호 생성
+          </button>
         )}
       </div>
 
