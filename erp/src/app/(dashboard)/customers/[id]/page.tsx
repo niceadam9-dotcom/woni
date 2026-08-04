@@ -33,7 +33,7 @@ import { RecommendAssignClient } from '@/components/customers/recommend-assign-c
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { listCustomerAssets } from '@/lib/customer-assets'
 import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
-import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
+import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -425,12 +425,13 @@ export default async function CustomerDetailPage({
   }
 
   // ── [◀ 이전|다음 ▶] 네비 (§6-C-3) — 목록 필터 컨텍스트(lq) 그대로 같은 순서로 이동 ──
+  // 2026-08-04 성능: 전체 목록 로직 대신 경량 ID 조회(fetchCustomerNavIds) — 상세 열람·저장 refresh 비용 대폭 절감
   const navFilter = parseListFilter(Object.fromEntries(new URLSearchParams(lq ?? '')) as Record<string, string | undefined>)
-  const navList = await fetchCustomerList(admin, navFilter)
-  const navIdx = navList.findIndex(c => c.id === id)
-  const prevId = navIdx > 0 ? navList[navIdx - 1].id : null
-  const nextId = navIdx >= 0 && navIdx < navList.length - 1 ? navList[navIdx + 1].id : null
-  const navPosition = navIdx >= 0 ? `${navIdx + 1} / ${navList.length}` : `– / ${navList.length}`
+  const navIds = await fetchCustomerNavIds(admin, navFilter)
+  const navIdx = navIds.indexOf(id)
+  const prevId = navIdx > 0 ? navIds[navIdx - 1] : null
+  const nextId = navIdx >= 0 && navIdx < navIds.length - 1 ? navIds[navIdx + 1] : null
+  const navPosition = navIdx >= 0 ? `${navIdx + 1} / ${navIds.length}` : `– / ${navIds.length}`
 
   // ── T1 탭 패널 — 기존 카드 로직 무변경, 배치만 이동 (설계 §2) ──
   // §11-2: 최근 변경 1줄 텍스트 (요약 모드에 전달)

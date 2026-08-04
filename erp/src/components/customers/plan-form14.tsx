@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, ShieldCheck, Layers, Plus, Trash2, Pencil } from 'lucide-react'
+import { Loader2, Save, ShieldCheck, Layers, Plus, Trash2 } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
-import { FACILITY_STANDARD, EVAC_SUB_ITEMS } from '@/lib/facility-codes'
+import { FACILITY_STANDARD, EVAC_SUB_ITEMS, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { PlanForm14Specs } from '@/components/customers/plan-form14-specs'
 
 /** 서식 1.4 소방시설 현황 — 양식(image-1.png) 재현 입력 화면 (소방계획서_4.md §4)
@@ -12,10 +12,10 @@ import { PlanForm14Specs } from '@/components/customers/plan-form14-specs'
  *  층별 수량 접기(fire_facility_floors)·시설 확인 완료(verified_at). 저장 = 기존 saveFacilitiesAction. */
 
 type Cell = string | null
-type GroupRow = { full?: string; evacSub?: boolean; pair?: [Cell, Cell] }
+type GroupRow = { full?: string; evacSub?: boolean; fireSub?: boolean; pair?: [Cell, Cell] }
 const LAYOUT: Array<{ category: string; rows: GroupRow[] }> = [
   { category: '소화설비', rows: [
-    { full: '소화기구 및 자동소화장치' },
+    { fireSub: true },   // 소화기구 및 자동소화장치 + 하위 5종 (별지 서식 3쪽 원문, image-34)
     { pair: ['옥내소화전설비', '옥외소화전설비'] },
     { pair: ['스프링클러설비', '이산화탄소소화설비'] },
     { pair: ['간이스프링클러설비', '할론소화설비'] },
@@ -52,6 +52,8 @@ for (const g of LAYOUT) for (const r of g.rows) {
 }
 CATEGORY_OF['피난기구'] = '피난구조설비'
 for (const s of EVAC_SUB_ITEMS) CATEGORY_OF[s] = '피난구조설비'
+CATEGORY_OF['소화기구 및 자동소화장치'] = '소화설비'
+for (const s of FIRE_SUB_ITEMS) CATEGORY_OF[s] = '소화설비'
 
 const FLOOR_COLS = ['소화기', '차동식', '연기식', '정온식', '유도등', '비상조명']
 
@@ -72,7 +74,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   const router = useRouter()
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
-  const allCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...EVAC_SUB_ITEMS]
+  const allCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...EVAC_SUB_ITEMS, ...FIRE_SUB_ITEMS]
   const initFac = (bld?: Building): FacState => {
     const map: FacState = {}
     for (const code of allCodes) {
@@ -85,19 +87,27 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   const [floors, setFloors] = useState<FloorRow[]>(
     () => (b?.floors ?? []).map((f, i) => ({ floor_label: f.floor_label, sort_order: i, counts: { ...f.counts } })))
   const [dirty, setDirty] = useState(false)
-  const [noteFor, setNoteFor] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  // 2026-08-04: 클릭만으로 저장 완결 — 토글 후 0.8초 디바운스 자동 저장 (별도 [저장] 클릭 불필요, 버튼은 폴백 유지)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveRef = useRef<() => void>(() => {})
+  useEffect(() => () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }, [])
+  function scheduleAutoSave() {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => saveRef.current(), 800)
+  }
 
   function switchBuilding(i: number) {
     setBidx(i)
     setFac(initFac(buildings[i]))
     setFloors((buildings[i]?.floors ?? []).map((f, j) => ({ floor_label: f.floor_label, sort_order: j, counts: { ...f.counts } })))
     setDirty(false)
-    setNoteFor(null)
   }
   function toggle(code: string) {
     if (!canManage) return
+    const turningOn = !fac[code].installed
     setFac(p => {
       const on = !p[code].installed
       const next = { ...p, [code]: { ...p[code], installed: on } }
@@ -107,13 +117,22 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
       if (EVAC_SUB_ITEMS.includes(code) && on) {
         next['피난기구'] = { ...next['피난기구'], installed: true } // 하위 체크 → 피난기구 자동 체크
       }
+      if (code === '소화기구 및 자동소화장치' && !on) {
+        for (const s of FIRE_SUB_ITEMS) next[s] = { ...next[s], installed: false } // 부모 해제 → 하위 해제
+      }
+      if (FIRE_SUB_ITEMS.includes(code) && on) {
+        next['소화기구 및 자동소화장치'] = { ...next['소화기구 및 자동소화장치'], installed: true } // 하위 체크 → 부모 자동 체크
+      }
       return next
     })
     setDirty(true)
-  }
-  function setNote(code: string, note: string) {
-    setFac(p => ({ ...p, [code]: { ...p[code], note } }))
-    setDirty(true)
+    scheduleAutoSave()   // 클릭 = 자동 저장
+    // A안(2026-08-04): 체크(√)하는 순간 아래 설비 대장의 해당 섹션 자동 펼침·스크롤 — "체크했으니 제원 입력" 동선
+    if (turningOn) {
+      const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치'
+        : EVAC_SUB_ITEMS.includes(code) ? '피난기구' : code
+      window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } }))
+    }
   }
   function autoFloors() {
     const fa = b?.floorsAbove ?? 0
@@ -134,10 +153,11 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
       const res = await saveFacilitiesAction(b.id, customerId, rows, floors)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setDirty(false)
-      setMsg('✅ 서식 1.4 저장됨 — 계획서·별지 9호 출력에 반영됩니다')
+      setMsg('✅ 자동 저장됨 — 계획서·별지 4·9호 출력에 반영됩니다')
       router.refresh()
     })
   }
+  saveRef.current = save   // 디바운스가 항상 최신 상태로 저장하도록
   function verifyOnly() {
     startTransition(async () => {
       const res = await verifyFacilitiesAction(b.id, customerId)
@@ -153,7 +173,8 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   const installedCount = allCodes.filter(c => fac[c].installed).length
   const evacOn = fac['피난기구'].installed
 
-  /** 체크 셀 — 셀 전체 클릭, 체크 시 굵게(양식 ■ 느낌), 비고 ✎ */
+  /** 체크 셀 — 순수 체크형(2026-08-04 사용자 확정): 셀 전체 클릭=√ 토글·자동 저장, 편집(✎) 아이콘 없음.
+   *  비고 값이 기존에 있으면 표시만 유지(입력·수정은 폐지 — 상세 제원은 설비 대장에서). */
   const cell = (code: Cell, opts?: { sub?: boolean }) => {
     if (!code) return <td className="border border-[#c8c4d0]" />
     const st = fac[code]
@@ -168,19 +189,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
           <span className="text-sm leading-none">{st.installed ? '☑' : '☐'}</span>
           <span className={`text-xs ${st.installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>{code}</span>
           {st.note && <span className="text-[10px] text-amber-600 truncate max-w-24" title={st.note}>({st.note})</span>}
-          {canManage && st.installed && (
-            <button onClick={e => { e.stopPropagation(); setNoteFor(noteFor === code ? null : code) }}
-              className="ml-auto text-[#b0acd6] hover:text-[#7b68ee]" title="비고 (예: 소화기 12대)" aria-label={`${code} 비고`}>
-              <Pencil className="size-3" />
-            </button>
-          )}
         </div>
-        {noteFor === code && (
-          <div className="px-2 pb-1">
-            <input value={st.note} onChange={e => setNote(code, e.target.value)} placeholder="비고 — 예: 소화기 12대"
-              className="h-6 w-full rounded border border-[#d0ccf5] bg-white px-1.5 text-[11px] outline-none focus:border-[#7b68ee]" />
-          </div>
-        )}
       </td>
     )
   }
@@ -212,6 +221,31 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
               )}
               {r.full && cell(r.full)}
               {r.full && <td className="border border-[#c8c4d0]" />}
+              {r.fireSub && (
+                <td colSpan={2} className="border border-[#c8c4d0] p-0">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
+                    <div role="button" tabIndex={0} onClick={() => toggle('소화기구 및 자동소화장치')}
+                      onKeyDown={e => { if (e.key === 'Enter') toggle('소화기구 및 자동소화장치') }}
+                      className="flex items-center gap-1.5 cursor-pointer select-none hover:bg-[#f5f4ff] rounded px-1">
+                      <span className="text-sm leading-none">{fac['소화기구 및 자동소화장치'].installed ? '☑' : '☐'}</span>
+                      <span className={`text-xs ${fac['소화기구 및 자동소화장치'].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>소화기구 및 자동소화장치</span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
+                      {FIRE_SUB_ITEMS.map(sname => {
+                        const on = fac[sname].installed
+                        const dim = !fac['소화기구 및 자동소화장치'].installed && !on
+                        return (
+                          <button key={sname} onClick={() => canManage && toggle(sname)} disabled={!canManage}
+                            className={`inline-flex items-center gap-1 text-[11px] ${
+                              on ? 'font-bold text-[#090c1d]' : dim ? 'text-[#c8c4d0] hover:text-[#7b68ee]' : 'text-[#514b81] hover:text-[#7b68ee]'}`}>
+                            <span>{on ? '☑' : '☐'}</span>{sname}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </td>
+              )}
               {r.evacSub && (
                 <td colSpan={2} className="border border-[#c8c4d0] p-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">

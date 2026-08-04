@@ -41,6 +41,39 @@ export function parseListFilter(sp: Record<string, string | undefined>): Custome
   return { q: sp.q ?? '', type: sp.type ?? '', active: sp.active ?? 'active', inc: sp.inc ?? '' }
 }
 
+/** 상세 [◀ 이전|다음 ▶] 내비 전용 경량 ID 목록 (2026-08-04 성능 개선) —
+ *  구 구현은 이전/다음 ID 2개를 위해 전체 목록 로직(건물 조인+배치 5쿼리+문서 판정)을 실행해
+ *  상세 열람·저장 refresh마다 큰 비용을 냈다. 계산형 필터(inc)가 없으면 id만 같은 필터·정렬로 조회.
+ *  inc 필터(미완료/문서 미비)는 판정 데이터가 필요하므로 기존 전체 조회로 폴백(동일 순서 보장). */
+export async function fetchCustomerNavIds(
+  admin: SupabaseClient,
+  f: CustomerListFilter,
+): Promise<string[]> {
+  if (f.inc) {
+    const items = await fetchCustomerList(admin, f)
+    return items.map(i => i.id)
+  }
+  let query = admin.from('customers').select('id').order('created_at', { ascending: false })
+  const q = (f.q ?? '').trim()
+  if (q) {
+    const { data: matchedEmps } = await admin.from('profiles').select('id').ilike('name', `%${q}%`)
+    const empIds = ((matchedEmps ?? []) as { id: string }[]).map(e => e.id)
+    const ors = [
+      `customer_name.ilike.%${q}%`,
+      `address.ilike.%${q}%`,
+      `region_myeon.ilike.%${q}%`,
+      `region_ri.ilike.%${q}%`,
+    ]
+    if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
+    query = query.or(ors.join(','))
+  }
+  if (f.type) query = query.eq('inspection_type', f.type)
+  if (f.active === 'active' || !f.active) query = query.eq('is_active', true)
+  if (f.active === 'inactive') query = query.eq('is_active', false)
+  const { data } = await query
+  return ((data ?? []) as Array<{ id: string }>).map(r => r.id)
+}
+
 /** 미완성 큐 행 (소방계획서_7 §4-D H-26) — 입력 빈칸 있는 활성 고객 */
 export type InputTodoRow = { id: string; name: string; areas: string[] }
 

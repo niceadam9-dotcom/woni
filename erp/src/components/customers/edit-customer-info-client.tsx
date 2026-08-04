@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search, MapPin } from 'lucide-react'
-import { updateCustomerAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
+import { updateCustomerAction, quickAddressApplyAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
@@ -49,6 +49,8 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   const [isPending, startTransition] = useTransition()
   // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
   const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
+  // 요약 화면 인라인 퀵 입력 (2026-08-04) — 미입력 클릭 시 그 자리에서 바로 입력·저장
+  const [quick, setQuick] = useState<{ key: 'contract_date' | 'use_approval_date' | 'fire_station' | 'notes'; type: 'date' | 'text'; value: string } | null>(null)
 
   // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
   const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes].join('|')
@@ -154,20 +156,86 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     }
   }
 
-  // §11-1: 읽기 요약 모드 — 3열 그리드, 누락 앰버 '미입력', 값 클릭 시 편집+포커스
+  // §11-1: 읽기 요약 모드 — 3열 그리드, 누락 앰버 '미입력', 값 클릭 시 그 자리에서 바로 입력 (2026-08-04)
+  // 주소 = 클릭 즉시 주소 검색 레이어 → 선택 시 저장 + 전파(건물 주소·관할소방서 자동 매핑, quickAddressApplyAction)
+  function handleQuickAddress() {
+    openPostcode(data => {
+      startTransition(async () => {
+        const result = await quickAddressApplyAction(customer.id, {
+          zonecode: data.zonecode,
+          roadAddress: data.roadAddress,
+          jibunAddress: data.jibunAddress,
+          bcode: data.bcode,
+          sigungu: data.sigungu,
+          bname1: data.bname1,
+          bname2: data.bname2,
+          bname: data.bname,
+        })
+        if (result.error) { alert(result.error); return }
+        const a = result.applied
+        if (a && (a.fireStation || a.buildings > 0)) {
+          const parts = ['주소 저장됨']
+          if (a.fireStation) parts.push(`관할소방서 자동 입력: ${a.fireStation}`)
+          if (a.buildings > 0) parts.push(`건물 주소 ${a.buildings}건 채움`)
+          alert(`✅ ${parts.join(' · ')}`)
+        }
+        router.refresh()
+      })
+    })
+  }
+  // 나머지 미입력 필드 = 그 자리 인라인 입력 → 부분 저장 (undefined=변경 없음 규약 활용)
+  function saveQuick() {
+    if (!quick) return
+    if (quick.type === 'date' && quick.value && !isCompleteDate(quick.value)) { alert('YYYY-MM-DD 형식으로 입력해주세요.'); return }
+    startTransition(async () => {
+      const result = await updateCustomerAction(customer.id, { [quick.key]: quick.value.trim() || null } as unknown as UpdateCustomerInput)
+      if (result.error) { alert(result.error); return }
+      setQuick(null)
+      router.refresh()
+    })
+  }
   if (mode === 'summary') {
-    const item = (label: string, value: string | null, focusId?: string, opts?: { wide?: boolean; title?: string }) => (
+    const item = (label: string, value: string | null, focusId?: string, opts?: {
+      wide?: boolean; title?: string; onClick?: () => void
+      quickKey?: 'contract_date' | 'use_approval_date' | 'fire_station' | 'notes'; quickType?: 'date' | 'text'
+    }) => {
+      // 인라인 퀵 입력 활성 상태 — 그 자리에서 입력·저장
+      if (opts?.quickKey && quick?.key === opts.quickKey) {
+        return (
+          <div key={label} className={`flex items-center gap-2 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
+            <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">{label}</span>
+            {quick.type === 'date' ? (
+              <DateInput value={quick.value} onChange={e => setQuick(q => q && { ...q, value: e.target.value })}
+                className="h-7 w-36 rounded-lg border border-[#7b68ee] px-2 text-xs" />
+            ) : (
+              <input autoFocus value={quick.value} onChange={e => setQuick(q => q && { ...q, value: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter') saveQuick(); if (e.key === 'Escape') setQuick(null) }}
+                className="h-7 flex-1 min-w-0 rounded-lg border border-[#7b68ee] px-2 text-xs outline-none" />
+            )}
+            <button onClick={saveQuick} disabled={isPending}
+              className="h-7 px-2 rounded-lg bg-[#7b68ee] text-white text-[11px] font-medium disabled:opacity-50 shrink-0">
+              {isPending ? <Loader2 className="size-3 animate-spin" /> : '저장'}
+            </button>
+            <button onClick={() => setQuick(null)} className="h-7 px-1.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] shrink-0">✕</button>
+          </div>
+        )
+      }
+      const quickOpen = opts?.quickKey
+        ? () => setQuick({ key: opts.quickKey!, type: opts.quickType ?? 'text', value: value ?? '' })
+        : undefined
+      return (
       <div key={label} className={`flex items-baseline gap-2 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
         <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">{label}</span>
         <span
-          onClick={focusId && canManage ? () => openEdit(focusId) : undefined}
-          title={opts?.title ?? (focusId && canManage ? '클릭하여 수정' : undefined)}
-          className={`text-sm truncate ${focusId && canManage ? 'cursor-pointer hover:text-[#7b68ee]' : ''} ${value ? 'text-[#090c1d]' : 'text-amber-600 text-xs'}`}
+          onClick={canManage ? (opts?.onClick ?? quickOpen ?? (focusId ? () => openEdit(focusId) : undefined)) : undefined}
+          title={opts?.title ?? ((focusId || opts?.quickKey) && canManage ? '클릭하면 바로 입력' : undefined)}
+          className={`text-sm truncate ${(focusId || opts?.onClick || opts?.quickKey) && canManage ? 'cursor-pointer hover:text-[#7b68ee]' : ''} ${value ? 'text-[#090c1d]' : 'text-amber-600 text-xs'}`}
         >
           {value || '미입력'}
         </span>
       </div>
-    )
+      )
+    }
     return (
       <div className="space-y-3">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
@@ -178,13 +246,13 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
               {annualLabel && <span className="text-[10px] text-[#b0acd6]">{annualLabel}</span>}
             </span>
           </div>
-          {item('점검계획일', customer.plan_anchor_date, 'cf-plan')}
-          {item('계약일', customer.contract_date, 'cf-contract')}
-          {item('사용승인일', customer.use_approval_date, 'cf-approval')}
-          {item('관할소방서', customer.fire_station, 'cf-station')}
+          {item('점검계획일', customer.plan_anchor_date, 'cf-plan', { title: '클릭하여 수정 (확정 일정 전파 확인 필요)' })}
+          {item('계약일', customer.contract_date, 'cf-contract', { quickKey: 'contract_date', quickType: 'date' })}
+          {item('사용승인일', customer.use_approval_date, 'cf-approval', { quickKey: 'use_approval_date', quickType: 'date' })}
+          {item('관할소방서', customer.fire_station, 'cf-station', { quickKey: 'fire_station', quickType: 'text' })}
           {item('점검료', feeStr === '-' ? null : feeStr, undefined, { title: '편집은 청구·수금 화면에서' })}
-          {item('주소', customer.address, 'cf-address', { wide: true })}
-          {item('비고', customer.notes, 'cf-notes', { wide: true })}
+          {item('주소', customer.address, 'cf-address', { wide: true, onClick: handleQuickAddress, title: '클릭하면 주소 검색이 바로 열립니다 — 선택 즉시 저장·건물 주소·관할소방서 자동 전파' })}
+          {item('비고', customer.notes, 'cf-notes', { wide: true, quickKey: 'notes', quickType: 'text' })}
         </div>
         <div className="flex items-center gap-3 pt-1 border-t border-[#f0eefb]">
           {canManage && (

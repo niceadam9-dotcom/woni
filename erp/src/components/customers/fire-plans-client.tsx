@@ -145,13 +145,14 @@ export function FirePlansClient({ customerId, plans, canManage }: {
 
       {plans.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          {/* 2026-08-04 화면 정리 — 좁은 목차 영역에서 글자가 세로로 깨지던 문제: 최소 폭 확보(가로 스크롤)·줄바꿈 금지·본문 폰트 확대 */}
+          <table className="w-full min-w-[860px] text-sm">
             <thead>
               <tr className="border-b border-[#e0ddf5]">
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">연도</th>
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">제목</th>
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">파일</th>
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">등록</th>
+                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">연도</th>
+                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">제목</th>
+                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">파일</th>
+                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">등록</th>
                 <th className="pb-2" />
               </tr>
             </thead>
@@ -159,28 +160,28 @@ export function FirePlansClient({ customerId, plans, canManage }: {
               {plans.map(p => (
                 <Fragment key={p.id}>
                 <tr className="border-b border-[#f8f9fa] last:border-0 hover:bg-[#fafafa] transition-colors">
-                  <td className="py-3 pr-4 font-medium text-[#090c1d]">
+                  <td className="py-3 pr-4 font-medium text-[#090c1d] whitespace-nowrap">
                     <button onClick={() => openDetail(p)} className="inline-flex items-center gap-1 hover:text-[#7b68ee]">
                       {expanded === p.id ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                      {p.year}년{p.revision > 1 ? <span className="text-[10px] text-[#7b68ee] ml-1">개정{p.revision}</span> : ''}
+                      {p.year}년{p.revision > 1 ? <span className="text-[11px] text-[#7b68ee] ml-1">개정{p.revision}</span> : ''}
                     </button>
                   </td>
-                  <td className="py-3 pr-4 text-[#090c1d]">
-                    {p.title ?? `${p.year}년 소방계획서`}
-                    {p.note && <p className="text-xs text-[#b0acd6] mt-0.5">{p.note}</p>}
+                  <td className="py-3 pr-4 text-[#090c1d] whitespace-nowrap max-w-[320px]">
+                    <span className="block truncate" title={p.title ?? `${p.year}년 소방계획서`}>{p.title ?? `${p.year}년 소방계획서`}</span>
+                    {p.note && <p className="text-xs text-[#b0acd6] mt-0.5 truncate" title={p.note}>{p.note}</p>}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81]">
+                  <td className="py-3 pr-4 text-xs text-[#514b81] whitespace-nowrap">
                     {p.pdf_status === 'ready' ? 'PDF' : p.pdf_status === 'converting'
                       ? <span className="text-amber-600 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" />PDF 변환 중</span>
                       : <span className="text-red-500">PDF 실패</span>}
                     {p.hwp_name ? ' · HWP' : ''}{p.has_html ? ' · 미리보기' : ''}{p.attachments.length > 0 ? ` · 부속${p.attachments.length}` : ''}
-                    {p.submitted_at && <span className="ml-1 text-[10px] text-green-600">제출{p.submitted_at.slice(5)}</span>}
+                    {p.submitted_at && <span className="ml-1 text-[11px] text-green-600">제출{p.submitted_at.slice(5)}</span>}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81]">
+                  <td className="py-3 pr-4 text-xs text-[#514b81] whitespace-nowrap">
                     {p.created_at.slice(0, 10)}{p.uploader_name ? ` · ${p.uploader_name}` : ''}
                   </td>
                   <td className="py-3">
-                    <div className="flex items-center gap-1.5 justify-end">
+                    <div className="flex items-center gap-1.5 justify-end flex-nowrap whitespace-nowrap">
                       {canManage && p.generated && (
                         <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판, PDF) — 값 수정은 소방계획서 탭 서식 화면에서"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">

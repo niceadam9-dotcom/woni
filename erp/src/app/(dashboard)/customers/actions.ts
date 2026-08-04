@@ -1436,3 +1436,73 @@ export async function bulkExtractRegionsAction(): Promise<{ count?: number; erro
   revalidatePath('/customers/regional-assign')
   return { count: updated }
 }
+
+/** 요약 화면 주소 원클릭 입력 + 전파 (2026-08-04 사용자 요청 — "입력하면 다른 곳에 다 입력되게").
+ *  한 번의 주소 선택으로: ① customers 주소·지역 ② 관할소방서 자동 매핑(비어있을 때만, region_fire_stations)
+ *  ③ 건물(buildings) 주소·지번·법정동코드(비어있는 건물만 — 기존 값 덮어쓰지 않음). */
+export async function quickAddressApplyAction(
+  customerId: string,
+  d: {
+    zonecode: string; roadAddress: string; jibunAddress: string
+    bcode?: string; sigungu: string; bname1?: string; bname2?: string; bname?: string
+  },
+): Promise<{ error?: string; applied?: { fireStation?: string; buildings: number } }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  const regionMyeon = (d.bname1 || d.bname || '').trim()
+  const regionRi = (d.bname2 || '').trim()
+
+  // ② 관할소방서 자동 매핑 — 읍/면/동 접미사 제거 후 region_fire_stations 조회, 고객 값이 비어있을 때만
+  const { data: cur } = await admin.from('customers')
+    .select('fire_station').eq('id', customerId).single()
+  if (!cur) return { error: '고객을 찾을 수 없습니다.' }
+  let fireStation: string | undefined
+  if (!(cur as { fire_station: string | null }).fire_station) {
+    const regionKey = regionMyeon.replace(/(읍|면|동)$/, '')
+    if (regionKey) {
+      const { data: map } = await admin.from('region_fire_stations')
+        .select('fire_station').eq('region_si', d.sigungu).eq('region', regionKey).maybeSingle()
+      fireStation = (map as { fire_station: string } | null)?.fire_station
+    }
+  }
+
+  // ① customers 주소·지역(+매핑된 소방서)
+  const patch: Record<string, unknown> = {
+    zipcode: d.zonecode || null,
+    address: d.roadAddress || null,
+    region_si: d.sigungu || null,
+    region_myeon: regionMyeon || null,
+    region_ri: regionRi || null,
+    updated_at: new Date().toISOString(),
+  }
+  if (fireStation) patch.fire_station = fireStation
+  const { error: custErr } = await admin.from('customers').update(patch).eq('id', customerId)
+  if (custErr) return { error: '주소 저장에 실패했습니다.' }
+
+  // ③ 건물 전파 — 주소가 비어있는 건물만 채움 (기존 입력 보존)
+  const { data: blds } = await admin.from('buildings')
+    .select('id, address').eq('customer_id', customerId)
+  let filled = 0
+  for (const b of (blds ?? []) as Array<{ id: string; address: string | null }>) {
+    if (b.address && b.address.trim()) continue
+    const { error: bErr } = await admin.from('buildings').update({
+      address: d.roadAddress || null,
+      address_jibun: d.jibunAddress || null,
+      bcode: d.bcode || null,
+    } as Record<string, unknown>).eq('id', b.id)
+    if (!bErr) filled += 1
+  }
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'customer_updated',
+    entity_type: 'customer',
+    entity_id: customerId,
+    metadata: { quick_address: true, address: d.roadAddress, fire_station: fireStation ?? null, buildings_filled: filled },
+  } as Record<string, unknown>)
+
+  revalidatePath(`/customers/${customerId}`)
+  revalidatePath('/customers')
+  return { applied: { fireStation, buildings: filled } }
+}

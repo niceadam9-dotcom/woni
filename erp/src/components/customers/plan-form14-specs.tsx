@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { ChevronDown, ChevronRight, Eye, Loader2, Save } from 'lucide-react'
 import { saveFacilitySpecAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
@@ -60,6 +60,28 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   })
   const [openSec, setOpenSec] = useState<string | null>(null)
   const [openBlocks, setOpenBlocks] = useState<Record<string, boolean>>({})
+  const detailsRef = useRef<HTMLDetailsElement | null>(null)
+
+  // A안(2026-08-04): 1.4에서 설비 체크(√) → 해당 제원 섹션 자동 펼침·블록 오픈·스크롤 (erp:open-spec-section)
+  useEffect(() => {
+    function onOpenSection(e: Event) {
+      const code = (e as CustomEvent).detail?.code as string | undefined
+      if (!code) return
+      for (const sec of FACILITY_SPEC_SECTIONS) {
+        const bl = sec.blocks.find(b => (b.facilityHint ?? '').split(',').map(t => t.trim()).includes(code))
+        if (!bl) continue
+        detailsRef.current?.setAttribute('open', '')          // 설비 대장 접힘 해제
+        setOpenSec(sec.key)
+        setOpenBlocks(p => ({ ...p, [`${sec.key}.${bl.key}`]: true }))
+        setTimeout(() => {
+          document.querySelector(`[data-spec-block="${bl.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 120)
+        return
+      }
+    }
+    window.addEventListener('erp:open-spec-section', onOpenSection)
+    return () => window.removeEventListener('erp:open-spec-section', onOpenSection)
+  }, [])
   const [dirty, setDirty] = useState<Record<string, boolean>>({})
   const [notice, setNotice] = useState<string | null>(null) // 미설치 블록 클릭 안내 대상
   const [msg, setMsg] = useState('')
@@ -203,7 +225,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   }
 
   return (
-    <details className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
+    <details ref={detailsRef} className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
       <summary className="text-xs font-semibold text-[#514b81] cursor-pointer select-none">
         설비 대장 — 별지 3. 소방시설등의 세부현황
         <span className="ml-1.5 font-normal text-[#b0acd6]">(섹션 3-1~3-8 = 별지 4호 3~7쪽·9호 4~7쪽과 번호 동일)</span>
