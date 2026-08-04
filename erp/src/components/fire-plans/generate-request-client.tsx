@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
-import { FileOutput, Search, Loader2, CheckCircle2, XCircle, Clock, Wifi, WifiOff, X } from 'lucide-react'
+import { FileOutput, Search, Loader2, CheckCircle2, XCircle, Clock, X } from 'lucide-react'
 import {
   searchCustomersForPlanAction, requestFirePlanHwpAction, getFirePlanGenStatusAction,
   getFirePlanReadinessAction, type GenStatus,
@@ -13,8 +13,8 @@ import { FirePlanPresetManager } from '@/components/fire-plans/fire-plan-preset-
 
 type Candidate = { id: string; name: string; type: string; purpose: string | null }
 
-/** 소방계획서 HWP 생성 요청 화면 — 고객 검색(다중 선택) → 프리셋 선택 → 요청 → 워커 처리 상태 5초 폴링
- *  7차: 공통 수기 프리셋(용도 기반 자동 추천) + 프리셋 공유 고객 일괄 생성 */
+/** 소방계획서 생성 화면 — 고객 검색(다중 선택) → 프리셋 선택 → 서버 동기 생성(소방계획서_7 H-13)
+ *  결과·누락 안내는 잡 테이블(완료 기록) 5초 폴링 재사용. 7차: 공통 수기 프리셋(용도 기반 자동 추천) + 일괄 생성 */
 export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus: GenStatus }) {
   const [q, setQ] = useState('')
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -76,10 +76,7 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
       return
     }
     if (dupNames.length > 0
-      && !confirm(`${dupNames.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있어 제외됩니다.\n나머지 ${selected.length - dupNames.length}건만 요청할까요?`)) return
-    // 오프라인 가드: 접수는 되지만 워커가 켜질 때까지 생성되지 않음을 한 번 더 확인
-    if (!status.workerOnline
-      && !confirm('생성기(사무실 PC의 워커)가 오프라인입니다.\n요청은 접수되지만 워커가 켜질 때까지 생성되지 않습니다. 그래도 접수할까요?')) return
+      && !confirm(`${dupNames.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있어 제외됩니다.\n나머지 ${selected.length - dupNames.length}건만 생성할까요?`)) return
     setMessage('')
     startTransition(async () => {
       const res = await requestFirePlanHwpAction(selected.map(s => s.id), year, preset)
@@ -87,7 +84,7 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
         setMessage(`${(res.requested ?? 0) > 0 ? '⚠️' : '❌'} ${res.error}`)
         if (!res.requested) return
       } else {
-        setMessage(`✅ ${res.requested}건 생성 요청됨 (${year}년${preset ? ` · ${preset} 프리셋` : ''}) — 아래 상태에서 진행을 확인하세요`)
+        setMessage(`✅ ${res.requested}건 생성 완료 (${year}년${preset ? ` · ${preset} 프리셋` : ''}) — 각 고객 보관함에 등록되었습니다`)
       }
       setSelected([])
       const s = await getFirePlanGenStatusAction()
@@ -100,23 +97,10 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
       <div className="flex items-center gap-3">
         <FileOutput className="size-6 text-[#7b68ee]" />
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-[#090c1d]">소방계획서 HWP 생성</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">고객을 선택하면 표준양식(한글 SDK)으로 HWP·PDF를 생성해 보관함에 등록합니다</p>
+          <h1 className="text-xl font-bold text-[#090c1d]">소방계획서 생성</h1>
+          <p className="text-sm text-[#514b81] mt-0.5">고객을 선택하면 표준양식(웹 템플릿)으로 PDF를 즉시 생성해 보관함에 등록합니다</p>
         </div>
-        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
-          status.workerOnline ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-        }`}>
-          {status.workerOnline ? <Wifi className="size-3.5" /> : <WifiOff className="size-3.5" />}
-          생성기 {status.workerOnline ? '온라인' : '오프라인'}
-        </span>
       </div>
-
-      {!status.workerOnline && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          생성기(사무실 PC의 워커)가 꺼져 있습니다 — 요청은 접수되며 워커가 켜지면 순서대로 처리됩니다.
-          <span className="text-xs block mt-1 text-amber-600">워커 실행: 개발 PC에서 <code>python scripts/fireplan-worker.py</code></span>
-        </div>
-      )}
 
       {/* 요청 폼 */}
       <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 space-y-3">
@@ -163,7 +147,7 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
           <button onClick={request} disabled={selected.length === 0 || isPending}
             className="h-9 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-2">
             {isPending ? <Loader2 className="size-4 animate-spin" /> : <FileOutput className="size-4" />}
-            HWP 생성 요청{selected.length > 1 ? ` (${selected.length}건)` : ''}
+            계획서 생성{selected.length > 1 ? ` (${selected.length}건)` : ''}
           </button>
         </div>
         {selected.length > 0 && (
@@ -208,8 +192,8 @@ export function FirePlanGenerateRequestClient({ initialStatus }: { initialStatus
         )}
         {message && <p className="text-sm text-[#514b81]">{message}</p>}
         <p className="text-[11px] text-[#b0acd6]">
-          자동 병합: 대상물명 · 관할소방서 · 계약기간 + 계획서 정보(고객 상세) — 프리셋 선택 시 훈련 시나리오·피난 절차 등 수기 문구도 유형별로 채워집니다.
-          우선순위는 고객 데이터 &gt; 프리셋 &gt; 양식 기본값이며, 완료 시 보관함에 HWP·웹 미리보기가 즉시 등록되고 인쇄용 PDF는 몇 초 뒤 자동으로 채워집니다.
+          자동 병합: 대상물명 · 관할소방서 · 계약기간 + 계획서 정보·서식 입력(고객 상세) — 프리셋 선택 시 훈련 시나리오·피난 절차 등 수기 문구도 유형별로 채워집니다.
+          우선순위는 고객 데이터 &gt; 프리셋 &gt; 양식 기본값이며, 생성 즉시 보관함에 인쇄용 PDF와 웹 미리보기가 등록됩니다.
         </p>
       </div>
 

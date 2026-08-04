@@ -285,10 +285,10 @@ export async function importLegacyFormAction(customerId: string): Promise<{ impo
   return { imported: Object.keys(sections) }
 }
 
-// §7-5 출력 엔진 단일화(2026-07-23): 웹 템플릿 PDF 즉시 생성(generateFirePlanPdfNowAction) 폐기 —
-// 계획서 생성은 HWP 워커 단일 경로(아래 requestFirePlanHwpFromTabAction, HWP+미리보기+PDF 등록).
+// 소방계획서_7 H-13(2026-08-04): 생성 경로 서버 동기 전환 — 워커·SDK 미경유.
+// requestFirePlanHwpAction이 서버에서 즉시 생성(HTML 템플릿 → Gotenberg PDF → 보관함 등록)한다.
 
-/** HWP 생성 요청 (생성 바 직결 — 큐 등록, 워커가 처리) */
+/** 계획서 생성 (생성 바 직결 — 서버 동기 생성, 완료 시 보관함 즉시 등록) */
 export async function requestFirePlanHwpFromTabAction(
   customerId: string, year: number, presetType?: PresetType | '',
 ): Promise<{ requested?: number; error?: string }> {

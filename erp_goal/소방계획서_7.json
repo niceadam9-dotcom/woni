@@ -86,8 +86,8 @@
     {
       "id": "S4", "title": "소방계획서 이식 (2차 전환)", "status": "pending_order",
       "criteria": [
-        { "id": "H-12", "desc": "소방계획서 장 단위 HTML 템플릿 이식 — 표지·목차부터 순차, 지도·사진 슬롯 삽입 (make-fireplan 병합→TS)", "status": "pending_order" },
-        { "id": "H-13", "desc": "소방계획서 생성 액션 전환 (단건 동기 + 연차 일괄 VPS 크론 큐) + pdf_status 2단계 단순화", "status": "pending_order" },
+        { "id": "H-12", "desc": "소방계획서 장 단위 HTML 템플릿 이식 — 표지·목차부터 순차, 지도·사진 슬롯 삽입 (make-fireplan 병합→TS)", "status": "code_present", "note": "2026-08-04 — 기존 buildFirePlanHtml(v1, SDK 이전 웹 경로) 확장: 전 장(1.1~1.15·2장·3장)+forms 섹션 병합+자산 슬롯(cover·map·evac, 미등록 자리표시)+프리셋 치환(applyPresetPairs). 검증: 스냅샷 50/50·Gotenberg 13쪽 200·실고객(별그리다) 조립→변환 200. 구현=서브에이전트" },
+        { "id": "H-13", "desc": "소방계획서 생성 액션 전환 (단건 동기 + 연차 일괄 VPS 크론 큐) + pdf_status 2단계 단순화", "status": "code_present", "note": "2026-08-04 — fire-plan-generate.ts(assembleFirePlan·generateFirePlanNow: 렌더→Gotenberg→{cust}/{year}/generated_web_<stamp>.pdf/html→fire_plans ready·hwp 미기록) + 요청 2액션 서버 동기 전환(잡 done/failed 기록 — 폴링 UI 호환), 연차 일괄=동일 함수 30건/회 순차(크론 큐 대신 — 설계 변경, 잔여분 반복 실행). 일괄 상한 실측 권장" },
         { "id": "H-14", "desc": "신구 병행 검증(표본 고객 전 장 대조) → 워커에서 소방계획서 잡 제외", "status": "pending_order" }
       ]
     },

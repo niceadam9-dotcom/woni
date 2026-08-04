@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import {
@@ -7,11 +8,13 @@ import {
   type FirePlanPreset, type PresetType,
 } from '@/lib/fire-plan-presets'
 import { computeFirePlanReadiness, type FirePlanReadiness } from '@/lib/fire-plan-readiness'
+import { generateFirePlanNow } from '@/lib/fire-plan-generate'
 
-/** 소방계획서 HWP 생성 요청 큐 (doc02 §8 확장, 2026-07-15)
- *  큐 = fire_plan_gen_jobs 테이블(094) — Windows 워커(scripts/fireplan-worker.py)가 폴링·처리.
- *  상태: pending → processing → done/failed. 하트비트는 fire_plan_worker_status(단일 행).
- *  같은 고객·연도의 대기/처리 중 요청은 유니크 인덱스로 차단(중복 생성 방지).
+/** 소방계획서 생성 (소방계획서_7 H-13 — 서버 동기 전환, 2026-08-04)
+ *  종전: fire_plan_gen_jobs 큐 등록 → Windows 워커(한글 SDK)가 폴링·처리.
+ *  현행: 요청 액션이 서버에서 즉시 생성(HTML 템플릿 → Gotenberg PDF → 보관함 등록) — src/lib/fire-plan-generate.ts.
+ *  잡 행은 완료 기록용으로 남김(status 즉시 done/failed) — 기존 폴링 UI(최근 결과·누락 안내)가 그대로 읽는다.
+ *  같은 고객·연도의 대기/처리 중 요청(워커 큐 잔존분)은 유니크 인덱스·사전 체크로 중복 생성 방지.
  *  7차: 공통 수기 프리셋(_presets/{유형}.json) — 요청에 presetType 포함, 다중 선택 일괄 요청. */
 
 const BUCKET = 'fire-plans'
@@ -103,7 +106,8 @@ async function ensurePresetFile(admin: ReturnType<typeof createAdminClient>, typ
     { contentType: 'application/json', upsert: true })
 }
 
-/** 생성 요청 등록 — 다중 고객 일괄 지원 (프리셋 공유 고객 순차 처리, 7차) */
+/** 생성 요청 — 다중 고객 순차 서버 동기 생성 (H-13, 프리셋 공유 고객 일괄 처리 7차)
+ *  건당 수 초(Gotenberg 변환) — 30건 한도 유지. 완료/실패는 잡 행(done/failed)으로 기록해 기존 폴링 UI 호환. */
 export async function requestFirePlanHwpAction(
   customerIds: string[], year: number, presetType?: PresetType | '',
 ): Promise<{ requested?: number; error?: string }> {
@@ -125,27 +129,40 @@ export async function requestFirePlanHwpAction(
 
   if (preset) await ensurePresetFile(admin, preset as PresetType)
 
+  // 대기/처리 중 요청(구 워커 큐 잔존분·동시 요청) 사전 체크 — 같은 고객·연도 중복 생성 방지
+  const { data: activeJobs } = await admin.from('fire_plan_gen_jobs')
+    .select('customer_id').eq('year', year).in('customer_id', ids).in('status', ['pending', 'processing'])
+  const activeIds = new Set(((activeJobs ?? []) as Array<{ customer_id: string }>).map(j => j.customer_id))
+
   let requested = 0
   const dup: string[] = []
+  const failed: string[] = []
   for (const id of ids) {
-    const { error } = await admin.from('fire_plan_gen_jobs').insert({
+    const name = nameById.get(id) ?? id
+    if (activeIds.has(id)) { dup.push(name); continue }
+    const res = await generateFirePlanNow(admin, { customerId: id, year, presetType: preset || undefined, requestedBy: profile.id })
+    // 완료 기록 — 폴링 UI(최근 결과·누락 안내)·문서 현황이 잡 테이블을 그대로 읽는다
+    await admin.from('fire_plan_gen_jobs').insert({
       customer_id: id,
-      customer_name: nameById.get(id),
+      customer_name: name,
       year,
       preset_type: preset || null,
       requested_by: profile.id,
       requested_by_name: profile.name,
-    })
-    if (!error) { requested++; continue }
-    if (error.code === '23505') { dup.push(nameById.get(id) ?? id); continue }
-    return { requested, error: `요청 등록 실패(${nameById.get(id)}): ${error.message}` }
+      status: res.error ? 'failed' : 'done',
+      missing: res.missing ?? null,
+      error: res.error ? res.error.slice(0, 300) : null,
+      finished_at: new Date().toISOString(),
+    } as Record<string, unknown>)
+    if (res.error) { failed.push(`${name}: ${res.error}`); continue }
+    requested++
+    revalidatePath(`/customers/${id}`)
   }
-  if (dup.length > 0) {
-    return {
-      requested,
-      error: `${dup.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있어 건너뛰었습니다`
-        + (requested > 0 ? ` (나머지 ${requested}건은 등록됨)` : ''),
-    }
+  const notes: string[] = []
+  if (dup.length > 0) notes.push(`${dup.join(', ')}: 같은 연도의 대기/처리 중 요청이 이미 있어 건너뛰었습니다`)
+  if (failed.length > 0) notes.push(`생성 실패 — ${failed.join(' / ')}`)
+  if (notes.length > 0) {
+    return { requested, error: notes.join(' · ') + (requested > 0 ? ` (나머지 ${requested}건은 생성 완료)` : '') }
   }
   return { requested }
 }
@@ -177,12 +194,13 @@ export async function getAnnualTargetsAction(year: number): Promise<{ targets?: 
   return { targets: { year, total: targets.size, issued: issued.size, pending: pending.size, remaining } }
 }
 
-/** 해당 연도 미발행 대상 전체(또는 상한)를 생성 큐에 일괄 등록 — 연초 수백 클릭을 1클릭으로 */
+/** 해당 연도 미발행 대상 일괄 생성 — H-13: 서버 동기 순차 생성(건당 수 초).
+ *  한 요청당 30건 한도(요청 액션과 동일) — 남은 대상은 마법사 현황이 갱신되므로 반복 실행으로 이어서 발행. */
 export async function bulkAnnualIssueAction(year: number, opts: { limit?: number } = {}): Promise<{ requested?: number; error?: string }> {
-  const profile = await requirePermission('customer_manage')
+  await requirePermission('customer_manage')
   if (!year || year < 2000 || year > 2100) return { error: '연도를 확인해주세요.' }
   const admin = createAdminClient()
-  const cap = Math.min(opts.limit ?? 500, 500)
+  const cap = Math.min(opts.limit ?? 30, 30)
 
   const [custRes, planRes, jobRes] = await Promise.all([
     admin.from('customers').select('id, customer_name').eq('is_active', true).order('customer_name'),
@@ -195,13 +213,7 @@ export async function bulkAnnualIssueAction(year: number, opts: { limit?: number
     .filter(c => !issued.has(c.id) && !pending.has(c.id)).slice(0, cap)
   if (toIssue.length === 0) return { requested: 0 }
 
-  const rows = toIssue.map(c => ({
-    customer_id: c.id, customer_name: c.customer_name, year,
-    preset_type: null, requested_by: profile.id, requested_by_name: profile.name,
-  }))
-  const { error, data } = await admin.from('fire_plan_gen_jobs').insert(rows).select('id')
-  if (error) return { error: `일괄 등록 실패: ${error.message}` }
-  return { requested: (data ?? []).length }
+  return requestFirePlanHwpAction(toIssue.map(c => c.id), year, '')
 }
 
 // ── 7차: 프리셋 조회·저장 ─────────────────────────────────────

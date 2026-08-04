@@ -5,7 +5,8 @@ import { CalendarPlus, Loader2, CheckCircle2, RefreshCw } from 'lucide-react'
 import { getAnnualTargetsAction, bulkAnnualIssueAction, type AnnualTargets } from '@/app/(dashboard)/fire-plans/generate/actions'
 
 /** P-1 연차 일괄 발행 마법사 (소방계획서_5 §8 P-1) — 연초 전 고객 소방계획서 갱신을 1클릭으로.
- *  대상(활성 전체 — 일반관리 포함, 소방계획서_6 W-19) 중 해당 연도 미발행 건을 생성 큐에 일괄 등록. 워커가 순차 처리. */
+ *  대상(활성 전체 — 일반관리 포함, 소방계획서_6 W-19) 중 해당 연도 미발행 건을 서버가 즉시 순차 생성(소방계획서_7 H-13).
+ *  한 번에 30건씩 처리 — 남은 건은 현황 갱신 후 반복 실행. */
 export function AnnualIssueWizard({ defaultYear }: { defaultYear: number }) {
   const [year, setYear] = useState(defaultYear)
   const [targets, setTargets] = useState<AnnualTargets | null>(null)
@@ -23,12 +24,13 @@ export function AnnualIssueWizard({ defaultYear }: { defaultYear: number }) {
 
   function issue() {
     if (!targets || targets.remaining === 0) return
-    if (!window.confirm(`${year}년 소방계획서 미발행 ${targets.remaining}건을 일괄 생성 요청합니다.\n워커가 순차 처리하며, 완료되면 각 고객 보관함·문서 현황에 등록됩니다. 진행할까요?`)) return
+    const batch = Math.min(targets.remaining, 30)
+    if (!window.confirm(`${year}년 소방계획서 미발행 ${targets.remaining}건 중 ${batch}건을 지금 생성합니다.\n건당 몇 초가 걸리며, 완료되면 각 고객 보관함·문서 현황에 등록됩니다. 진행할까요?`)) return
     setMsg(null)
     startIssue(async () => {
       const res = await bulkAnnualIssueAction(year)
-      if (res.error) { setMsg({ text: `❌ ${res.error}`, ok: false }); return }
-      setMsg({ text: `✅ ${res.requested ?? 0}건 생성 요청됨 — 워커가 처리합니다`, ok: true })
+      if (res.error) { setMsg({ text: `${(res.requested ?? 0) > 0 ? '⚠️' : '❌'} ${res.error}`, ok: false }); refresh(year); return }
+      setMsg({ text: `✅ ${res.requested ?? 0}건 생성 완료 — 남은 미발행 건은 현황 갱신 후 다시 실행하세요`, ok: true })
       refresh(year)
     })
   }
@@ -78,7 +80,7 @@ export function AnnualIssueWizard({ defaultYear }: { defaultYear: number }) {
           {issuing ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
           {targets && targets.remaining > 0 ? `${year}년 미발행 ${targets.remaining}건 일괄 발행` : `${year}년 미발행 없음`}
         </button>
-        <span className="text-[11px] text-[#b0acd6]">이미 발행·대기 중인 건은 자동 제외 (최대 500건/회)</span>
+        <span className="text-[11px] text-[#b0acd6]">이미 발행·대기 중인 건은 자동 제외 (30건씩 즉시 생성)</span>
       </div>
     </div>
   )

@@ -248,7 +248,8 @@ export function PlanTabView({
     startTransition(async () => {
       const res = await requestFirePlanHwpFromTabAction(customerId, year, recommendPresetType(purpose))
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg(`✅ HWP 생성 요청됨 (${year}년) — 워커가 처리하면 보관함에 등록됩니다`)
+      setMsg(`✅ 소방계획서 생성 완료 (${year}년) — 보관함에 등록되었습니다`)
+      router.refresh()
     })
   }
 
