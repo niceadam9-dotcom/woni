@@ -14,7 +14,7 @@ import {
   Users, Building2, ChevronRight, ChevronLeft,
   SlidersHorizontal, Info, Search, PlayCircle, ExternalLink,
 } from 'lucide-react'
-import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
+import { completeStepAction, bulkCompleteStepsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction, startInspectionAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -53,12 +53,19 @@ export type CalendarPlanItem = {
   customer_name: string
   customer_code: string
   plan_type: 'monthly' | 'event'
+  /** 일반관리 세부 유형(종합/작동) — 일반(종합)/일반(작동) 라벨용 (2026-08-04) */
+  sub_type?: '종합' | '작동' | null
   scheduled_date: string
   status: 'planned' | 'confirmed' | 'completed'
   assigned_employee_id: string | null
   assigned_employee_name: string
   /** 점검이 시작된 경우 연결된 inspections.id — 데이 패널 '점검 보기' 링크용 */
   inspection_id?: string | null
+}
+
+/** 일반(event) 계획 라벨 — 일반관리도 종합/작동 구분 병기 (2026-08-04 사용자 확정) */
+export function eventPlanLabel(subType?: '종합' | '작동' | null): string {
+  return subType ? `일반(${subType})` : '일반'
 }
 
 type CalEventResource = {
@@ -241,6 +248,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   // 데이 패널 — 날짜·집계 칩 클릭 시 그날 전체 일정 (기존 "+N개 더 보기" 팝업·안내 배너 대체)
   const [dayPanelDate, setDayPanelDate] = useState<string | null>(null)
   const [daySearch, setDaySearch] = useState('')
+  // 같은 날 일괄 완료 (2026-08-04) — 모달·선택 상태. 기본 체크 = 1단계형(정기·일반), 자체점검 단계는 기본 해제
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkChecked, setBulkChecked] = useState<Set<string>>(new Set())
+  const [isBulkRunning, startBulk] = useTransition()
+  const [bulkResult, setBulkResult] = useState<string | null>(null)
   // 툴바 팝오버 (필터·범례) — 사이드바 제거 후 통합
   const [filterOpen, setFilterOpen] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
@@ -255,23 +267,29 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  // Calendar view state
-  const [calView, setCalView] = useState<View>(initialFilter === 'overdue' ? Views.AGENDA : Views.MONTH)
-  const [calDate, setCalDate] = useState(() => {
-    if (initialFilter === 'overdue') {
-      const todayStr = new Date().toISOString().split('T')[0]
-      let earliest: string | null = null
-      for (const insp of inspections) {
-        for (const s of insp.steps) {
-          if (s.due_date && s.status !== 'completed' && s.due_date < todayStr) {
-            if (!earliest || s.due_date < earliest) earliest = s.due_date
-          }
+  // 기한초과 진입 시 가장 오래된 미완료 초과 마감 — 초기 점프·안내 배너 공용
+  const earliestOverdue = useMemo(() => {
+    if (initialFilter !== 'overdue') return null
+    const todayStr = new Date().toISOString().split('T')[0]
+    let earliest: string | null = null
+    for (const insp of inspections) {
+      for (const s of insp.steps) {
+        if (s.due_date && s.status !== 'completed' && s.due_date < todayStr) {
+          if (!earliest || s.due_date < earliest) earliest = s.due_date
         }
       }
-      if (earliest) return new Date(earliest + 'T12:00:00')
     }
-    return new Date()
-  })
+    return earliest
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Calendar view state
+  const [calView, setCalView] = useState<View>(initialFilter === 'overdue' ? Views.AGENDA : Views.MONTH)
+  const [calDate, setCalDate] = useState(() =>
+    earliestOverdue ? new Date(earliestOverdue + 'T12:00:00') : new Date())
+  // 과거 달로 점프했을 때만 안내 배너 — "8월인데 왜 7월?" 혼동 방지 (2026-08-04)
+  const [overdueJumpNotice, setOverdueJumpNotice] = useState(() =>
+    !!earliestOverdue && earliestOverdue.slice(0, 7) !== new Date().toISOString().slice(0, 7))
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialFilter)
 
   // Filter state
@@ -429,11 +447,50 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     })
   }, [planItems, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, statusFilters, today, quickFilter, weekEnd])
 
-  // 계획 이벤트 — 날짜·유형별 집계 칩 1개 (지연은 ⚠건수로 표시, 지연 있으면 빨간 칩)
-  // (하루 100건+ 정기가 "+N개 더 보기"로 숨겨지던 문제 해소 — 상세·이동·시작은 날짜 클릭 데이 패널)
+  // 계획 이벤트 — 정기(monthly)=날짜별 집계 칩 1개 (하루 100건+ "+N개 더 보기" 방지),
+  // 일반(event)=개별 이벤트 (종합/작동처럼 건별 표시·완료 취소선, 라벨 일반(종합)/일반(작동) — 2026-08-04 사용자 확정)
   const planEvents = useMemo<CalEvent[]>(() => {
+    // 일반(event) — 건별 개별 이벤트 (kind 'plan': 완료=취소선, 클릭=데이 패널, 드래그 제외)
+    const eventItems: CalEvent[] = visiblePlanItems
+      .filter(p => p.plan_type === 'event')
+      .map(p => {
+        const isCompleted = p.status === 'completed'
+        const isOverdue = !isCompleted && p.scheduled_date < today
+        const suffix = isCompleted ? ' ✓' : isOverdue ? ' ⚠' : ''
+        const eventDate = new Date(p.scheduled_date + 'T12:00:00')
+        return {
+          id: `planitem-${p.id}`,
+          title: `[${eventPlanLabel(p.sub_type)}] ${p.customer_name}${suffix}`,
+          start: eventDate,
+          end: eventDate,
+          allDay: true as const,
+          resource: {
+            kind: 'plan' as const,
+            planType: 'event' as const,
+            planStatus: p.status,
+            inspectionId: p.inspection_id ?? p.id,
+            stepId: `plan-${p.id}`,
+            stepNum: 0,
+            stepStatus: p.status,
+            dueDate: p.scheduled_date,
+            completedAt: null,
+            customerName: p.customer_name,
+            inspectionType: '일반관리' as InspectionType,
+            year: parseInt(p.scheduled_date.slice(0, 4), 10),
+            sequenceNum: 1,
+            assignedEmployeeId: p.assigned_employee_id ?? '',
+            assignedEmployeeName: p.assigned_employee_name,
+            isOverdue,
+            isReceiveStep: false,
+            color: '#0ea5e9',
+          } satisfies CalEventResource,
+        }
+      })
+
+    // 정기(monthly) — 기존 날짜별 집계 칩
     const groups = new Map<string, { date: string; planType: 'monthly' | 'event'; count: number; done: number; overdue: number }>()
     for (const p of visiblePlanItems) {
+      if (p.plan_type === 'event') continue
       const isCompleted = p.status === 'completed'
       const isOverdue = !isCompleted && p.scheduled_date < today
       const key = `${p.scheduled_date}|${p.plan_type}`
@@ -444,7 +501,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       groups.set(key, g)
     }
 
-    return Array.from(groups.values()).map(g => {
+    const monthlyChips = Array.from(groups.values()).map(g => {
       const typeLabel = g.planType === 'monthly' ? '정기' : '일반'
       const eventDate = new Date(g.date + 'T12:00:00')
       const allDone = g.done === g.count
@@ -478,6 +535,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         } satisfies CalEventResource,
       }
     })
+
+    return [...eventItems, ...monthlyChips]
   }, [visiblePlanItems, today])
 
   const allEvents = useMemo<CalEvent[]>(() => [...events, ...planEvents], [events, planEvents])
@@ -552,6 +611,42 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         return a.customer_name.localeCompare(b.customer_name, 'ko')
       })
   }, [visiblePlanItems, dayPanelDate, today])
+
+  // 같은 날 일괄 완료 후보 — 그 날짜 마감·미완료 단계 전부 (1단계형=정기·일반은 기본 체크, 자체점검 6단계는 기본 해제)
+  const bulkCandidates = useMemo(() => {
+    if (!dayPanelDate) return []
+    return inspections.flatMap(insp =>
+      insp.steps
+        .filter(s => s.due_date === dayPanelDate && s.status !== 'completed')
+        .map(s => ({
+          stepId: s.id,
+          inspectionId: insp.id,
+          label: `${insp.customer_name} · ${s.name_ko}`,
+          oneStep: insp.steps.length === 1,   // migration 111: 정기·event=1단계, 자체점검=6단계
+        })))
+      .sort((a, b) => (a.oneStep === b.oneStep ? a.label.localeCompare(b.label, 'ko') : a.oneStep ? -1 : 1))
+  }, [inspections, dayPanelDate])
+
+  function openBulkModal() {
+    setBulkChecked(new Set(bulkCandidates.filter(c => c.oneStep).map(c => c.stepId)))
+    setBulkResult(null)
+    setBulkOpen(true)
+  }
+
+  function runBulkComplete() {
+    const items = bulkCandidates.filter(c => bulkChecked.has(c.stepId))
+      .map(({ stepId, inspectionId, label }) => ({ stepId, inspectionId, label }))
+    if (items.length === 0) { setBulkResult('선택된 건이 없습니다.'); return }
+    startBulk(async () => {
+      const res = await bulkCompleteStepsAction(items)
+      if (res.error) { setBulkResult(`❌ ${res.error}`); return }
+      const failTxt = res.failed.length > 0
+        ? ` · 실패 ${res.failed.length}건 — ${res.failed.map(f => `${f.label}(${f.error})`).join(' / ')}`
+        : ''
+      setBulkResult(`✅ ${res.done}건 완료 처리${failTxt}`)
+      router.refresh()
+    })
+  }
 
   // 데이 패널: 날짜 이동 인라인 입력 (정기 항목, 드래그 없는 이동)
   const [movePickId, setMovePickId] = useState<string | null>(null)
@@ -998,6 +1093,26 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
       {/* ── 달력 ──────────────────────────────────────────── */}
       <div className="space-y-3">
+          {/* 기한초과 진입 과거 달 점프 안내 — 오늘 달이 아닌 이유를 설명 (2026-08-04) */}
+          {overdueJumpNotice && earliestOverdue && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              <AlertTriangle className="size-4 shrink-0 text-red-500" />
+              <span>
+                기한초과 항목이 있는 <strong>{earliestOverdue.slice(0, 4)}년 {parseInt(earliestOverdue.slice(5, 7))}월</strong>(가장 오래된 미완료 마감 {earliestOverdue.slice(5, 10).replace('-', '/')})로 이동했습니다.
+              </span>
+              <span className="ml-auto shrink-0 flex items-center gap-2">
+                <button
+                  onClick={() => { setCalDate(new Date()); setOverdueJumpNotice(false) }}
+                  className="text-xs font-medium text-red-700 underline hover:text-red-900">
+                  이번 달 보기
+                </button>
+                <button onClick={() => setOverdueJumpNotice(false)} className="text-red-400 hover:text-red-600" title="닫기">
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            </div>
+          )}
+
           {/* 퇴사자 담당 재배정 안내 */}
           {orphanCount > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
@@ -1168,7 +1283,17 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     <X className="size-5" />
                   </button>
                 </div>
-                <p className="text-xs text-[#514b81] mt-0.5">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-xs text-[#514b81]">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
+                  {bulkCandidates.length > 0 && (
+                    <button
+                      onClick={openBulkModal}
+                      className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
+                      title="이 날짜 마감의 미완료 단계를 한 번에 완료 처리">
+                      <Check className="size-3" /> 이날 전체 완료 ({bulkCandidates.length})
+                    </button>
+                  )}
+                </div>
                 <div className="relative mt-2">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
                   <input
@@ -1214,7 +1339,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                           <div key={p.id}>
                             <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-[#f8f9fa]'}`}>
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${p.plan_type === 'monthly' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
-                                {p.plan_type === 'monthly' ? '정기' : '일반'}
+                                {p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type)}
                               </span>
                               <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-[#b0acd6] line-through' : 'text-[#090c1d]'}`} title={`담당 ${p.assigned_employee_name}`}>
                                 {p.customer_name}
@@ -1282,6 +1407,53 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 </Link>
               </div>
             </div>
+
+            {/* 같은 날 일괄 완료 모달 (2026-08-04) — 기본 체크: 1단계형(정기·일반), 자체점검 단계는 해제 */}
+            {bulkOpen && (
+              <>
+                <div className="fixed inset-0 bg-black/30 z-[60]" onClick={() => !isBulkRunning && setBulkOpen(false)} />
+                <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[80vh] bg-white rounded-2xl shadow-2xl z-[70] flex flex-col">
+                  <div className="px-5 py-4 border-b border-[#e0ddf5]">
+                    <p className="font-semibold text-[#090c1d]">{format(new Date(dayPanelDate + 'T12:00:00'), 'M월 d일 (EEE)', { locale: ko })} 일괄 완료</p>
+                    <p className="text-xs text-[#514b81] mt-0.5">
+                      미완료 {bulkCandidates.length}건 중 <strong>{bulkChecked.size}건</strong> 선택 — 정기·일반은 기본 선택, 자체점검 단계는 확인 후 체크하세요
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-5 py-3 space-y-0.5">
+                    {bulkCandidates.map(c => (
+                      <label key={c.stepId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={bulkChecked.has(c.stepId)}
+                          onChange={e => setBulkChecked(prev => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(c.stepId); else next.delete(c.stepId)
+                            return next
+                          })}
+                          className="accent-[#7b68ee]"
+                        />
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${c.oneStep ? 'bg-gray-100 text-gray-600' : 'bg-[#f5f4ff] text-[#7b68ee]'}`}>
+                          {c.oneStep ? '정기·일반' : '자체점검'}
+                        </span>
+                        <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{c.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {bulkResult && <p className="px-5 pb-1 text-xs text-[#514b81] whitespace-pre-wrap">{bulkResult}</p>}
+                  <div className="px-5 py-3 border-t border-[#e0ddf5] flex items-center justify-end gap-2">
+                    <button onClick={() => setBulkOpen(false)} disabled={isBulkRunning}
+                      className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+                      닫기
+                    </button>
+                    <button onClick={runBulkComplete} disabled={isBulkRunning || bulkChecked.size === 0}
+                      className="h-8 px-3.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1">
+                      {isBulkRunning ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                      {bulkChecked.size}건 완료 처리
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )
       })()}

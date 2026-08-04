@@ -45,7 +45,7 @@ export default async function InspectionCalendarPage({
   const rangeEnd   = `${currentYear + 1}-12-31`
   const planItemsQuery = admin
     .from('inspection_plan_items')
-    .select('id, customer_id, plan_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code)')
+    .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code)')
     .in('plan_type', ['monthly', 'event'])
     .neq('status', 'cancelled')
     .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
@@ -136,6 +136,7 @@ export default async function InspectionCalendarPage({
 
   type PlanItemRow = {
     id: string; customer_id: string; plan_type: 'monthly' | 'event'
+    inspection_sub_type: string | null
     scheduled_date: string | null; planned_date: string | null
     status: string; assigned_employee_id: string | null; inspection_id: string | null
     customers: { customer_name: string; customer_code: string } | null
@@ -149,6 +150,7 @@ export default async function InspectionCalendarPage({
       customer_name: p.customers?.customer_name ?? '—',
       customer_code: p.customers?.customer_code ?? '',
       plan_type: p.plan_type,
+      sub_type: p.inspection_sub_type === '종합' || p.inspection_sub_type === '작동' ? p.inspection_sub_type : null,
       scheduled_date: date,
       status: p.status as CalendarPlanItem['status'],
       assigned_employee_id: p.assigned_employee_id,

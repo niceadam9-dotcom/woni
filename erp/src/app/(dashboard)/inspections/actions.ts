@@ -327,6 +327,27 @@ export async function completeStepAction(
   return { justCompleted, report9Eligible }
 }
 
+/** 점검달력 데이 패널 — 같은 날 미완료 단계 일괄 완료 (2026-08-04).
+ *  completeStepAction을 건별 재사용 → 권한·순서 강제·1단계 재계산·점검 완료 전이·계획 동기화 전부 동일.
+ *  실패 건은 라벨과 함께 반환(권한 없음·이전 단계 미완료 등). 최대 100건. */
+export async function bulkCompleteStepsAction(
+  items: Array<{ stepId: string; inspectionId: string; label: string }>,
+): Promise<{ done: number; failed: Array<{ label: string; error: string }>; error?: string }> {
+  const user = await getSessionUser()
+  if (!user) return { done: 0, failed: [], error: '인증이 필요합니다.' }
+  if (items.length === 0) return { done: 0, failed: [] }
+  if (items.length > 100) return { done: 0, failed: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
+
+  let done = 0
+  const failed: Array<{ label: string; error: string }> = []
+  for (const it of items) {
+    const res = await completeStepAction(it.stepId, it.inspectionId)
+    if (res.error) failed.push({ label: it.label, error: res.error })
+    else done += 1
+  }
+  return { done, failed }
+}
+
 export async function deleteInspectionAction(
   inspectionId: string
 ): Promise<{ error?: string }> {
