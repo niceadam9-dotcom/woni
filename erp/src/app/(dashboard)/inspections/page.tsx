@@ -4,14 +4,8 @@ import { ClipboardList, Plus, AlertTriangle } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
-import type { InspectionStatus, InspectionType, UserRole } from '@/types'
-import { inspectionTypeLabel } from '@/types'
-
-const TYPE_COLORS: Record<InspectionType, string> = {
-  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
-  '작동':   'bg-blue-50 text-blue-600',
-  '일반관리': 'bg-gray-100 text-gray-600',
-}
+import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
+import { inspectionNatureBadge } from '@/lib/inspection-nature'
 
 const STATUS_LABELS: Record<InspectionStatus, string> = {
   scheduled: '예정',
@@ -56,7 +50,7 @@ export default async function InspectionsPage({
   // ADD-15: '취소(비활성/삭제)' 필터는 고객 is_active 기준 → inner join 필요
   const custJoin = statusFilter === 'cancelled' ? 'customers:customer_id!inner' : 'customers:customer_id'
   let query = admin.from('inspections').select(
-    `id, year, sequence_num, inspection_type, inspection_start_date, status, assigned_employee_id, customer_id,
+    `id, year, sequence_num, inspection_type, plan_type, inspection_start_date, status, assigned_employee_id, customer_id,
      ${custJoin} (id, customer_name, customer_code, is_active)`,
     { count: 'exact' }
   )
@@ -80,6 +74,7 @@ export default async function InspectionsPage({
 
   type InspRow = {
     id: string; year: number; sequence_num: number; inspection_type: InspectionType
+    plan_type: PlanType | null
     inspection_start_date: string; status: InspectionStatus
     assigned_employee_id: string; customer_id: string
     customers: { id: string; customer_name: string; customer_code: string; is_active: boolean } | null
@@ -242,9 +237,10 @@ export default async function InspectionsPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[insp.inspection_type]}`}>
-                            {inspectionTypeLabel(insp.inspection_type)}
-                          </span>
+                          {(() => {
+                            const nb = inspectionNatureBadge(insp.inspection_type, insp.plan_type)
+                            return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${nb.className}`}>{nb.label}</span>
+                          })()}
                           <span className="text-xs text-[#514b81]">{insp.sequence_num}차</span>
                         </div>
                       </td>

@@ -130,6 +130,7 @@ export interface Inspection {
   id: string; customer_id: string; contact_id: string | null; assigned_employee_id: string
   inspection_type: InspectionType; inspection_start_date: string; notification_date: string | null
   year: number; sequence_num: 1 | 2; status: InspectionStatus; notes: string | null
+  plan_type: PlanType | null   // 자체점검 판정 축(마이그레이션 111): null·special_*=자체점검, monthly=정기, event=일반
   created_by: string; created_at: string; updated_at: string
 }
 export interface InspectionStep {

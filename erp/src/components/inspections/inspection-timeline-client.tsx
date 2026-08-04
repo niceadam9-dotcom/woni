@@ -663,7 +663,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
       {msg && <p className="text-xs text-[#514b81] mt-2">{msg}</p>}
       {busy && (
         <p className="text-[11px] text-[#b0acd6] mt-2 inline-flex items-center gap-1">
-          <RefreshCw className="size-3 animate-spin" /> 생성 중 — 자동 새로고침 (개발 PC 워커 처리)
+          <RefreshCw className="size-3 animate-spin" /> 생성 중 — 서버에서 PDF 변환 중
         </p>
       )}
 

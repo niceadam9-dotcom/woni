@@ -34,6 +34,7 @@ import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { listCustomerAssets } from '@/lib/customer-assets'
 import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
+import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -88,7 +89,7 @@ export default async function CustomerDetailPage({
     // 변경 이력의 담당직원 UUID → 이름 변환용 (퇴사·시스템 계정 포함 전체)
     admin.from('profiles').select('id, name'),
     admin.from('inspections')
-      .select('id, year, sequence_num, inspection_type, inspection_start_date, status, assigned_employee_id')
+      .select('id, year, sequence_num, inspection_type, plan_type, inspection_start_date, status, assigned_employee_id')
       .eq('customer_id', id)
       .order('year', { ascending: false })
       .order('sequence_num'),
@@ -164,7 +165,7 @@ export default async function CustomerDetailPage({
     specsByBuilding[k][r.section_key] = (r.spec ?? {}) as Record<string, unknown>
   }
   const inspections = (inspectionsRes.data ?? []) as Array<
-    Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
+    Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'plan_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
   >
   const activityLogs = (activityLogsRes.data ?? []) as ActivityLog[]
   const profileNameMap = new Map(
@@ -764,9 +765,10 @@ export default async function CustomerDetailPage({
                             </Link>
                           </td>
                           <td className="py-3 pr-4">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[insp.inspection_type]}`}>
-                              {inspectionTypeLabel(insp.inspection_type)}
-                            </span>
+                            {(() => {
+                              const nb = inspectionNatureBadge(insp.inspection_type, insp.plan_type)
+                              return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${nb.className}`}>{nb.label}</span>
+                            })()}
                           </td>
                           <td className="py-3 pr-4 text-[#514b81]">{insp.inspection_start_date}</td>
                           <td className="py-3 pr-4 text-[#514b81]">

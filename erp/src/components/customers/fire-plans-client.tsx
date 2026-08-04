@@ -57,12 +57,12 @@ export function FirePlansClient({ customerId, plans, canManage }: {
     })
   }
 
-  /** 계획서 생성 — §7-5 HWP 단일 경로: 워커 큐 요청(HWP+미리보기+PDF 등록). 값 수정은 소방계획서 탭 서식에서 */
+  /** 계획서 생성 — PDF 단일 경로: 서버 동기 생성(HTML→Gotenberg→PDF, 보관함 등록). 값 수정은 소방계획서 탭 서식에서 */
   function generateNow() {
     startTransition(async () => {
       const res = await requestFirePlanHwpFromTabAction(customerId, new Date().getFullYear())
       if (res.error) { alert(res.error); return }
-      alert('생성 요청됐습니다 — 워커가 처리하면 HWP·미리보기·PDF가 보관함에 등록됩니다 (수십 초 소요).')
+      alert('생성됐습니다 — 보관함에 PDF가 등록되었습니다.')
       router.refresh()
     })
   }
@@ -182,7 +182,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                   <td className="py-3">
                     <div className="flex items-center gap-1.5 justify-end">
                       {canManage && p.generated && (
-                        <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판, HWP 워커) — 값 수정은 소방계획서 탭 서식 화면에서"
+                        <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판, PDF) — 값 수정은 소방계획서 탭 서식 화면에서"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
                           <PencilLine className="size-3" /> 재생성
                         </button>
