@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info, ExternalLink } from 'lucide-react'
+import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info, ExternalLink, Image as ImageIcon } from 'lucide-react'
 import {
   requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
@@ -100,7 +100,7 @@ export function PlanTabView({
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
   // 기본 진입 = 빠른 입력 (§1-1·1-5 확정). 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex'])
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex', 'assets'])
   const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
     : initialSection === 'ch1' ? '1.1'
     : initialSection && VALID_SEL.has(initialSection) ? initialSection
@@ -432,8 +432,13 @@ export function PlanTabView({
             )}
           </div>
 
-          {/* 지도·사진 (소방계획서_7 §5 — H-10: 표지 사진·위치도·피난안내도 슬롯) */}
-          <div id="onboarding-assets-anchor">{assets}</div>
+          {/* 지도·사진 — 서식 전체 트리의 '지도·사진' 노드로 이동 (2026-08-05 사용자 확정: 서식 재료는 트리에서 관리) */}
+          <div className="flex items-center gap-2 rounded-xl border border-[#e0ddf5] px-4 py-2.5">
+            <ImageIcon className="size-3.5 text-[#b0acd6]" />
+            <span className="text-xs text-[#514b81]">지도·사진 <span className="text-[#b0acd6]">(표지 건물 사진·위치도·피난안내도 — 소방계획서 재료)</span></span>
+            <button onClick={() => { setMode('full'); select('assets') }}
+              className="ml-auto text-[11px] text-[#7b68ee] hover:underline">등록·관리 →</button>
+          </div>
 
           {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) */}
           {canManage && (
@@ -508,6 +513,7 @@ export function PlanTabView({
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
+          { key: 'assets', label: '지도·사진 (표지·위치도·피난안내도)' },
           { key: 'annex', label: '별지 서식 (회차)' },
           { key: 'archive', label: '보관함·개정이력' },
         ]
@@ -522,6 +528,11 @@ export function PlanTabView({
               {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
               {navBtn('ch2', '2장 자위소방대', true)}
               {navBtn('ch3', '3장 피난계획', true)}
+            </div>
+            <div className="pt-1">
+              {/* 지도·사진 — 서식 재료(표지·위치도·피난안내도), 빠른 입력에서 이관 (2026-08-05 사용자 확정) */}
+              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">🖼 지도·사진</p>
+              {navBtn('assets', '표지·위치도·피난안내도', true)}
             </div>
             <div className="pt-1">
               <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
@@ -619,6 +630,9 @@ export function PlanTabView({
 
       {/* ── 3장 피난계획 ── */}
       {sel === 'ch3' && ch3}
+
+      {/* ── 지도·사진 — 표지·위치도·피난안내도 슬롯 (소방계획서_7 §5 H-10, 빠른 입력에서 이관) ── */}
+      {sel === 'assets' && <div id="onboarding-assets-anchor">{assets}</div>}
 
       {/* ── 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4) ── */}
       {sel === 'annex' && (annex ?? <p className="text-xs text-[#b0acd6] py-4">별지 서식을 불러올 수 없습니다.</p>)}

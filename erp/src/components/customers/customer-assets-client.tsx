@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { Upload, Trash2, Loader2, Plus, ImageIcon } from 'lucide-react'
-import { uploadCustomerAssetAction, deleteCustomerAssetAction } from '@/app/(dashboard)/customers/asset-actions'
+import { Upload, Trash2, Loader2, Plus, ImageIcon, ClipboardPaste, MapPin } from 'lucide-react'
+import { uploadCustomerAssetAction, deleteCustomerAssetAction, generateLocationMapAction } from '@/app/(dashboard)/customers/asset-actions'
 import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
 
 /** 지도·사진 카드 (소방계획서_7 §5·§5-1 — H-10) — 소방계획서 탭 빠른 입력 화면 통합.
@@ -85,14 +85,68 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
     })
   }
 
-  // R0-6: 슬롯 카드 = 드롭존
+  // 클립보드 이미지 읽기 — 지도 캡처(Win+Shift+S) 후 [붙여넣기] 버튼용 (2026-08-05 사용자 확정)
+  async function readClipboardImage(): Promise<File | null> {
+    try {
+      if (!navigator.clipboard?.read) return null
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find(t => t.startsWith('image/'))
+        if (type) {
+          const blob = await item.getType(type)
+          const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'
+          return new File([blob], `clipboard.${ext}`, { type })
+        }
+      }
+      return null
+    } catch {
+      return null   // 권한 거부·미지원 브라우저 — 호출부에서 안내
+    }
+  }
+
+  // 위치도 자동 생성 — 고객 주소 → 네이버 정적 지도 (2026-08-05)
+  function generateMap() {
+    setMsg(null)
+    setBusy('map_location')
+    startTransition(async () => {
+      const res = await generateLocationMapAction(customerId)
+      setBusy(null)
+      if (res.unavailable) {
+        setMsg({ key: 'map_location', text: '❌ 네이버 지도 API 키가 설정되지 않았습니다 — NCP_MAPS_CLIENT_ID/SECRET 환경변수를 추가해주세요.', ok: false })
+        return
+      }
+      if (res.error || !res.asset) { setMsg({ key: 'map_location', text: `❌ ${res.error ?? '생성 실패'}`, ok: false }); return }
+      const asset = res.asset
+      setAssets(prev => [...prev.filter(a => a.slot !== 'map_location'), asset])
+      setMsg({ key: 'map_location', text: '✅ 주소 기반 위치도를 생성했습니다 — 문서 생성 시 자동 삽입됩니다', ok: true })
+    })
+  }
+
+  function pasteTo(slot: AssetSlot) {
+    setMsg(null)
+    void (async () => {
+      const f = await readClipboardImage()
+      if (!f) {
+        setMsg({ key: slot, text: '❌ 클립보드에 이미지가 없습니다 — 지도 화면을 캡처(Win+Shift+S)한 뒤 다시 눌러주세요.', ok: false })
+        return
+      }
+      upload(slot, f)
+    })()
+  }
+
+  // R0-6: 슬롯 카드 = 드롭존 + 붙여넣기 대상 (카드 클릭 후 Ctrl+V)
   const dropProps = (slot: AssetSlot) => canManage ? {
+    tabIndex: 0,
     onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOver(slot) },
     onDragLeave: () => setDragOver(null),
     onDrop: (e: React.DragEvent) => {
       e.preventDefault(); setDragOver(null)
       const f = e.dataTransfer.files?.[0]
       if (f) upload(slot, f)
+    },
+    onPaste: (e: React.ClipboardEvent) => {
+      const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+      const f = item?.getAsFile()
+      if (f) { e.preventDefault(); upload(slot, f) }
     },
   } : {}
 
@@ -122,11 +176,11 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
               ) : (
                 <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#d0ccf5] text-[#b0acd6]">
                   <ImageIcon className="size-5" />
-                  <span className="text-[10px]">미등록 — 파일을 끌어다 놓아도 됩니다</span>
+                  <span className="text-[10px]">미등록 — 끌어다 놓기·캡처 후 붙여넣기(Ctrl+V) 가능</span>
                 </div>
               )}
               {canManage && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <input ref={inputRef(slot)} type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden"
                     data-testid={`asset-input-${slot}`}
                     onChange={e => { const f = e.target.files?.[0]; if (f) upload(slot, f); e.target.value = '' }} />
@@ -134,6 +188,18 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
                     className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
                     {spinning(slot) ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />} {asset ? '교체' : '업로드'}
                   </button>
+                  <button onClick={() => pasteTo(slot)} disabled={isPending} data-testid={`asset-paste-${slot}`}
+                    title="지도·화면을 캡처(Win+Shift+S)한 뒤 클릭하면 클립보드 이미지가 등록됩니다"
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                    <ClipboardPaste className="size-3" /> 붙여넣기
+                  </button>
+                  {slot === 'map_location' && (
+                    <button onClick={generateMap} disabled={isPending} data-testid="asset-generate-map"
+                      title="고객 주소로 네이버 지도에서 위치도를 자동 생성합니다"
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                      <MapPin className="size-3" /> 자동 생성
+                    </button>
+                  )}
                   {asset && (
                     <button onClick={() => remove(slot, asset.path)} disabled={isPending} data-testid={`asset-delete-${slot}`}
                       className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-red-200 text-[11px] text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
@@ -179,9 +245,16 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
             )}
           </div>
           {canManage && (
-            <input ref={evacRef} type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden"
-              data-testid="asset-input-evac"
-              onChange={e => { const f = e.target.files?.[0]; if (f) upload('evac', f); e.target.value = '' }} />
+            <>
+              <input ref={evacRef} type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden"
+                data-testid="asset-input-evac"
+                onChange={e => { const f = e.target.files?.[0]; if (f) upload('evac', f); e.target.value = '' }} />
+              <button onClick={() => pasteTo('evac')} disabled={isPending} data-testid="asset-paste-evac"
+                title="지도·화면을 캡처(Win+Shift+S)한 뒤 클릭하면 클립보드 이미지가 추가됩니다"
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                <ClipboardPaste className="size-3" /> 붙여넣기
+              </button>
+            </>
           )}
           {feedback('evac')}
         </div>

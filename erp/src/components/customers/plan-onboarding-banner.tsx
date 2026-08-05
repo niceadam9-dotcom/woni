@@ -55,8 +55,8 @@ export function PlanOnboardingBanner({
       return
     }
     if (step.action === 'asset') {
-      const el = document.getElementById('onboarding-assets-anchor') ?? document.getElementById('consent-section')
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // 지도·사진은 서식 전체 트리의 'assets' 노드로 이관 (2026-08-05) — 모드 전환 포함 위임
+      onGoForm('assets')
       return
     }
     if (step.action === 'tab:contacts' || step.action === 'tab:info') {

@@ -54,6 +54,69 @@ export async function uploadCustomerAssetAction(
   return { asset: { slot, name, path, url: signed.signedUrl } }
 }
 
+/** 위치도 자동 생성 (2026-08-05) — 고객 주소 → NCP Geocoding(좌표) → Static Map PNG → map_location 슬롯 교체 저장.
+ *  네이버 클라우드 Maps API 키 필요: NCP_MAPS_CLIENT_ID / NCP_MAPS_CLIENT_SECRET (미설정 시 unavailable — 건축물대장 API와 동일 패턴).
+ *  Static Map은 이미지 반환이 공식 용도인 REST API(월 300만 건 무료)라 로드뷰 캡처와 달리 약관 리스크 없음 */
+export async function generateLocationMapAction(
+  customerId: string,
+): Promise<{ asset?: CustomerAsset; unavailable?: boolean; error?: string }> {
+  await requirePermission('customer_manage')
+  if (!UUID_RE.test(customerId)) return { error: '잘못된 고객 ID입니다.' }
+  const clientId = process.env.NCP_MAPS_CLIENT_ID
+  const clientSecret = process.env.NCP_MAPS_CLIENT_SECRET
+  if (!clientId || !clientSecret) return { unavailable: true }
+
+  const admin = createAdminClient()
+  const { data: custRaw } = await admin.from('customers').select('address').eq('id', customerId).single()
+  const { data: bldRaw } = await admin.from('buildings')
+    .select('address, address_jibun').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  const bld = bldRaw as { address: string | null; address_jibun: string | null } | null
+  const address = (custRaw as { address: string | null } | null)?.address || bld?.address || bld?.address_jibun
+  if (!address) return { error: '고객 주소가 없습니다 — 기본정보에 주소를 먼저 입력해주세요.' }
+
+  const headers = { 'x-ncp-apigw-api-key-id': clientId, 'x-ncp-apigw-api-key': clientSecret }
+  try {
+    // 1) 지오코딩 — 주소 → 경위도
+    const geoUrl = new URL('https://maps.apigw.ntruss.com/map-geocode/v2/geocode')
+    geoUrl.searchParams.set('query', address)
+    const geoRes = await fetch(geoUrl.toString(), { headers, cache: 'no-store' })
+    if (!geoRes.ok) return { error: `주소 좌표 변환에 실패했습니다 (HTTP ${geoRes.status})` }
+    const geo = await geoRes.json() as { addresses?: Array<{ x: string; y: string }> }
+    const pos = geo.addresses?.[0]
+    if (!pos) return { error: `주소의 좌표를 찾지 못했습니다: ${address}` }
+
+    // 2) 정적 지도 — 마커 1개, 동네 축척(level 16), 2배 해상도 800×600
+    const mapUrl = new URL('https://maps.apigw.ntruss.com/map-static/v2/raster')
+    mapUrl.searchParams.set('center', `${pos.x},${pos.y}`)
+    mapUrl.searchParams.set('level', '16')
+    mapUrl.searchParams.set('w', '800')
+    mapUrl.searchParams.set('h', '600')
+    mapUrl.searchParams.set('scale', '2')
+    mapUrl.searchParams.set('markers', `type:d|size:mid|pos:${pos.x} ${pos.y}`)
+    const mapRes = await fetch(mapUrl.toString(), { headers, cache: 'no-store' })
+    if (!mapRes.ok) return { error: `지도 이미지 생성에 실패했습니다 (HTTP ${mapRes.status})` }
+    const buf = Buffer.from(await mapRes.arrayBuffer())
+
+    // 3) map_location 슬롯 교체 저장 — uploadCustomerAssetAction과 동일 규약(다른 확장자 잔재 삭제 후 업로드)
+    const prefix = `${customerId}/assets`
+    const { data: objects } = await admin.storage.from(ASSET_BUCKET).list(prefix, { limit: 100 })
+    const stale = (objects ?? []).map(o => o.name)
+      .filter(n => n.toLowerCase().startsWith('map_location.'))
+      .map(n => `${prefix}/${n}`)
+    if (stale.length > 0) await admin.storage.from(ASSET_BUCKET).remove(stale)
+    const path = `${prefix}/map_location.png`
+    const { error: upErr } = await admin.storage.from(ASSET_BUCKET)
+      .upload(path, buf, { contentType: 'image/png', upsert: true })
+    if (upErr) return { error: `저장 실패: ${upErr.message}` }
+    const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrl(path, 300)
+    if (!signed?.signedUrl) return { error: '저장은 됐지만 미리보기 URL 생성에 실패했습니다 — 새로고침해주세요.' }
+    return { asset: { slot: 'map_location', name: 'map_location.png', path, url: signed.signedUrl } }
+  } catch {
+    return { error: '지도 API 호출에 실패했습니다 — 잠시 후 다시 시도해주세요.' }
+  }
+}
+
 /** 삭제 — 해당 고객 assets 하위 경로만 허용 */
 export async function deleteCustomerAssetAction(customerId: string, path: string): Promise<{ error?: string }> {
   await requirePermission('customer_manage')

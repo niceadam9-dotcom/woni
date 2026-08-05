@@ -572,6 +572,12 @@ export default async function CustomerDetailPage({
     .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
   // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
   const customerAssets = await listCustomerAssets(customer.id)
+  // 서식 전체 트리 '지도·사진' 노드 완성도 (2026-08-05 이관) — 슬롯 3종 중 등록된 종 수.
+  // formFilled/formTotal(탭 뱃지) 산출 이후에 추가하므로 탭 뱃지 분모는 기존 그대로
+  formStatus['assets'] = {
+    done: (['cover', 'map_location', 'evac'] as const).filter(s => customerAssets.some(a => a.slot === s)).length,
+    total: 3,
+  }
 
   // ── H-25 온보딩 진행 배너 (§4-D 국면 1) — ?onboarding=1일 때만 구성, 이미 조회한 데이터만 사용 ──
   // ① 기본정보=빠른 입력 준비율 ② 관계인=대표 有無 ③ 설비 대장=설치 √ 개수·제원 입력 여부 ④ 지도·사진=자산 개수
