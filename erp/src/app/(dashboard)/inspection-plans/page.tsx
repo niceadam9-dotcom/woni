@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { PackageOpen } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadAnchorDates } from '@/lib/inspection-plan-generator'
@@ -161,6 +163,14 @@ export default async function InspectionPlansPage({
   const canManage = can(profile.role as UserRole, 'inspection_plan_manage')
 
   return (
+    <div className="space-y-2">
+      {/* 배치 발행 진입점 (소방계획서_8 Phase B H-6c) — 구 보고서 센터의 연차 발행·일괄 생성 이전지 */}
+      <div className="flex justify-end">
+        <Link href="/inspection-plans/batch"
+          className="inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
+          <PackageOpen className="size-3.5" /> 배치 발행 — 연차 일괄 발행·소방계획서 일괄 생성 →
+        </Link>
+      </div>
     <InspectionPlansClient
       key={`${year}-${month}`}
       initialViewMode={viewMode}
@@ -181,5 +191,6 @@ export default async function InspectionPlansPage({
       canManage={canManage}
       isEmployee={isEmployee}
     />
+    </div>
   )
 }

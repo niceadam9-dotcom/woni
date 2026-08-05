@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-/** 구 소방계획서 생성 페이지 — 보고서 센터(/reports)로 흡수 (소방계획서_4.md §10-3, R-1) */
+/** 구 소방계획서 생성 페이지 — 배치 발행(/inspection-plans/batch)으로 이전 (소방계획서_8 Phase B H-6c) */
 export default function FirePlanGenerateRedirect() {
-  redirect('/reports')
+  redirect('/inspection-plans/batch')
 }

@@ -48,6 +48,8 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
   type PreviewDoc = { type: 'report9' | 'report4' | 'report10' | 'report11'; label: string; html?: string; missing: string[]; error?: string }
   const [previewCache, setPreviewCache] = useState<Record<string, PreviewDoc[]>>({})
   const [fullPreview, setFullPreview] = useState<{ inspectionId: string; label: string } | null>(null)
+  // D-7 데스크톱 호버 퀵뷰 — 문서 행(data-hover-doc) 위에 머물면 prefetch 캐시로 미니 미리보기 (모바일 제외, D-16 Q-4)
+  const [hoverDoc, setHoverDoc] = useState<{ inspectionId: string; type: PreviewDoc['type']; top: number } | null>(null)
   // H-3: 미시작 회차 점검일 확정 모달
   const [startModal, setStartModal] = useState<{ planItemId: string; label: string } | null>(null)
   const [startDate, setStartDate] = useState('')
@@ -209,7 +211,19 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
             </button>
 
             {isOpen && (
-              <div className="px-4 pb-3">
+              <div className="px-4 pb-3"
+                onMouseOver={e => {
+                  // D-7 호버 퀵뷰 — 데스크톱만, 행 델리게이션(data-hover-doc)
+                  if (!r.docs || window.innerWidth < 768) return
+                  const row = (e.target as HTMLElement).closest('[data-hover-doc]')
+                  if (!row) { setHoverDoc(null); return }
+                  const type = row.getAttribute('data-hover-doc') as PreviewDoc['type']
+                  const top = row.getBoundingClientRect().top
+                  setHoverDoc(prev =>
+                    prev && prev.inspectionId === r.docs!.inspectionId && prev.type === type ? prev
+                      : { inspectionId: r.docs!.inspectionId, type, top })
+                }}
+                onMouseLeave={() => setHoverDoc(null)}>
                 {r.docs ? (
                   <>
                     {/* 📝 점검표 행 (D-11) — [입력] 원천, 점검 상세 딥링크 */}
@@ -223,7 +237,7 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
                       </Link>
                     </div>
                     {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
-                    <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap">
+                    <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap" data-hover-doc="report4">
                       <span className="font-medium text-[#090c1d] w-44 pl-5">별지 4호 점검표</span>
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">자동</span>
                       {r.docs.report4 ? (
@@ -269,6 +283,26 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
         className="text-[11px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-1 disabled:opacity-50">
         <RefreshCw className={`size-3 ${isPending ? 'animate-spin' : ''}`} /> 새로고침
       </button>
+
+      {/* D-7 호버 퀵뷰 팝업 — prefetch 캐시 즉시 표시 (렌더 전이면 준비 안내), 클릭 방해 없게 pointer-events-none */}
+      {hoverDoc && (() => {
+        const doc = (previewCache[hoverDoc.inspectionId] ?? []).find(d => d.type === hoverDoc.type)
+        const top = Math.max(8, Math.min(hoverDoc.top, window.innerHeight - 440))
+        return (
+          <div className="hidden md:block fixed right-4 w-[360px] h-[430px] z-50 pointer-events-none rounded-xl border border-[#d0ccf5] bg-white shadow-2xl overflow-hidden"
+            style={{ top }}>
+            <p className="px-3 py-1.5 text-[10px] text-[#514b81] bg-[#fafaff] border-b border-[#eeecf8]">
+              🔍 {doc?.label ?? '미리보기'} — 퀵뷰 (클릭하면 전체 미리보기)
+              {doc && doc.missing.length > 0 && <span className="text-amber-600 ml-1">⚠ 미입력 {doc.missing.length}곳</span>}
+            </p>
+            {doc?.html ? (
+              <iframe srcDoc={doc.html} title="호버 퀵뷰" className="w-full h-full bg-white" />
+            ) : (
+              <p className="p-4 text-[11px] text-[#b0acd6]">미리보기 준비 중… (렌더가 끝나면 즉시 표시됩니다)</p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 별지 작성 패널 — 문서 작업대와 동일 컴포넌트 (H-24 재사용) */}
       {compose && (

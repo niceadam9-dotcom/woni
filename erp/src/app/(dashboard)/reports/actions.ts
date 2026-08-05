@@ -17,5 +17,5 @@ export async function ackLawRevisionAction(formData: FormData): Promise<void> {
   if (!announce) return
   await admin.from('law_form_baselines')
     .update({ seed_date: announce, updated_at: new Date().toISOString() }).eq('key', key)
-  revalidatePath('/reports')
+  revalidatePath('/inspection-plans/batch')
 }

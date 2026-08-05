@@ -11,7 +11,7 @@ import {
   FileSpreadsheet, ShoppingCart, BookOpen, TrendingUp, Scale, ReceiptText,
   Banknote, Handshake, LayoutList, BookMarked, NotebookPen, Car, Route,
   StickyNote, Award, Users2, PackagePlus, PackageMinus, BarChart3, RefreshCw,
-  Tag, Package, PenLine, Mic, ChevronDown, ChevronRight, Mail, FileOutput,
+  Tag, Package, PenLine, Mic, ChevronDown, ChevronRight, Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
@@ -66,8 +66,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
       { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'] },
       { label: '점검 대장',        href: '/inspection-ledger',          icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
-      // 문서는 '보고서' 하나로 수렴 (소방계획서_5 §7-B R15-a) — 구 보고서 제출현황·이행계획서 등록·이행계획 제출현황은 보고서 센터/타임라인으로 흡수(리다이렉트)
-      { label: '보고서',           href: '/reports',                    icon: FileOutput,     roles: ['employee', 'manager', 'admin'] },
+      // '보고서' 메뉴 소멸 (소방계획서_8 Phase B H-6d·D-8) — 고객별 문서·별지는 고객관리>소방계획서 트리,
+      // 제출 현황은 대시보드 위젯, 연차·일괄 생성은 점검확정>배치 발행. /reports는 새 위치로 리다이렉트.
       { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
       // '안전관리 대장'(실체=월별 수금 현황)은 정산현황 [월별 대장] 탭으로 흡수 (R15-b)
       { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'] },

@@ -256,8 +256,8 @@ export default async function CustomersPage({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {/* §4-B-2 문서 상태 스트립 — 계·④⑨⑩⑪, 클릭 시 문서 작업대(그 고객) */}
-                        <Link href={`/reports?form=docs&cust=${c.id}`} title="문서 작업대 — 클릭하여 작성·생성" className="inline-flex items-center gap-0.5">
+                        {/* §4-B-2 문서 상태 스트립 — 계·④⑨⑩⑪, 클릭 시 소방계획서 트리(소방계획서_8 Phase B) */}
+                        <Link href={`/customers/${c.id}?tab=plan&form=annex`} title="소방계획서 트리 — 클릭하여 회차별 작성·생성" className="inline-flex items-center gap-0.5">
                           {[
                             { lbl: '계', st: c.docStrip.plan },
                             { lbl: '④', st: c.docStrip.a4 },

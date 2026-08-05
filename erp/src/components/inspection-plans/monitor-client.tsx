@@ -657,11 +657,11 @@ export function MonitorClient({
                           <MapPin size={10} /> 지도
                         </button>
                       )}
-                      {/* R15-c: 문서 현황 딥링크 */}
+                      {/* R15-c: 문서 현황 딥링크 → 소방계획서 트리(소방계획서_8 Phase B) */}
                       <Link
-                        href={`/reports?form=docs&cust=${row.customer_id}`}
+                        href={`/customers/${row.customer_id}?tab=plan&form=annex`}
                         className="inline-flex items-center gap-0.5 text-[10px] text-[#7b68ee] hover:underline"
-                        title="보고서 센터 · 문서 현황"
+                        title="소방계획서 트리 · 회차별 문서 현황"
                       >
                         <FolderOpen size={10} /> 문서
                       </Link>

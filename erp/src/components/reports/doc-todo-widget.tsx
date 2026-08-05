@@ -68,8 +68,9 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
               mine ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee]'}`}>
             <User className="size-3" /> 내 담당만
           </button>
-          <Link href="/reports" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
-            보고서 센터 <ArrowRight className="size-3" />
+          {/* 소방계획서_8 Phase B: 보고서 센터 소멸 — 제출 현황 위젯으로 연결 */}
+          <Link href="#submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+            제출 현황 <ArrowRight className="size-3" />
           </Link>
         </div>
       </div>

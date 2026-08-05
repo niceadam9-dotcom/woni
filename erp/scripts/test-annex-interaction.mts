@@ -89,6 +89,12 @@ try {
   await page.waitForTimeout(500)
   check('과거 회차 펼침 — 문서 행 2세트', (await page.locator('text=점검표 입력').count()) === 2)
 
+  // D-7 호버 퀵뷰 — 9호 행 위에 머물면 우측 팝업 (데스크톱)
+  await page.locator('[data-hover-doc="report9"]').first().hover()
+  await page.waitForSelector('text=퀵뷰 (클릭하면 전체 미리보기)')
+  check('호버 퀵뷰 — 9호 행 팝업 표시', true)
+  await page.mouse.move(10, 10)
+
   // ── 2) 전체 미리보기(H-5c) — 요약 바·세로 연결 렌더·⑩⑪ 축약 ──
   await page.locator('text=🔍 전체 미리보기').first().click()
   await page.waitForSelector('text=— 전체 미리보기')
@@ -122,7 +128,8 @@ try {
   const ledgerHref = await p9.locator('a[href*="from=report9"]').first().getAttribute('href')
   check('9호 패널 — 설비 대장 링크에 from=report9&insp=', !!ledgerHref
     && ledgerHref.includes('form=1.4') && ledgerHref.includes(`insp=${curInspId}`), ledgerHref ?? '(없음)')
-  await page.goto(`${BASE}${ledgerHref}`)
+  // 실제 링크 클릭(클라이언트 내비) — plan-tab-view prop-sync 경로 실주행 (goto 풀로드 공백 해소)
+  await p9.locator('a[href*="from=report9"]').first().click()
   await page.waitForSelector('text=설비 대장 — 별지 3. 소방시설등의 세부현황')
   await page.waitForSelector('button:has-text("9호로 돌아가기")')
   check('9호發 — 복귀 버튼 표시', true)

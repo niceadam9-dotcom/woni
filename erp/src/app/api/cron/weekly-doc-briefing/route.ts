@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     ``,
     ...(dueSoon.length > 0 ? ['[제출 기한 임박]', ...dueSoon.slice(0, 10).map(d => ` - ${d.customerName} ${d.year}년 ${d.sequenceNum}차 · ${d.dday < 0 ? `기한 초과 ${-d.dday}일` : `D-${d.dday}`} (기한 ${d.due})`), ''] : []),
     ...(missingCerts.length > 0 ? ['[배치확인서 누락]', ...missingCerts.slice(0, 10).map(c => ` - ${c.customerName} ${c.year}년 ${c.sequenceNum}차${c.daysSince !== null ? ` · 완료 후 ${c.daysSince}일 경과` : ''}`), ''] : []),
-    `보고서 센터 제출 현황: /reports?form=submissions`,
+    `대시보드 제출 현황: /dashboard#submissions`,
   ]
   const bodyText = lines.join('\n')
   const summaryTitle = `주간 문서 브리핑 — 완료 ${weekDone} · 기한 임박 ${dueSoon.length} · 누락 ${missingCerts.length}`

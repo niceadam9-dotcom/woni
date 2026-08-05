@@ -28,7 +28,8 @@ export function CommandPalette() {
 
   function openDocs(customerId: string) {
     setOpen(false)
-    router.push(`/reports?form=docs&cust=${customerId}`)
+    // 소방계획서_8 Phase B: 문서 현황 = 고객 소방계획서 트리(별지 서식)가 단일 허브
+    router.push(`/customers/${customerId}?tab=plan&form=annex`)
   }
 
   return (
@@ -51,7 +52,7 @@ export function CommandPalette() {
               <DocActionSearch onOpenDocs={openDocs} autoFocus
                 placeholder="고객명을 검색하세요 — 문서 확인·생성·업로드 (초성 ㅅㄹㅅ 가능)" />
               <p className="mt-2 px-1 text-[10px] text-[#b0acd6]">
-                Esc 닫기 · 결과에서 바로 PDF 보기·HWP 받기·업로드·생성, 고객명 선택 시 문서 현황으로 이동
+                Esc 닫기 · 결과에서 바로 PDF 보기·HWP 받기·업로드·생성, 고객명 선택 시 소방계획서 트리(별지 서식)로 이동
               </p>
             </div>
           </div>

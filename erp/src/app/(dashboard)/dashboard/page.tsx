@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDocTodo } from '@/lib/doc-status'
 import { DocTodoWidget } from '@/components/reports/doc-todo-widget'
+import { SubmissionWidget } from '@/components/reports/submission-widget'
 import { fetchInputTodo } from '@/lib/customer-list'
 import type { UserRole } from '@/types'
 
@@ -346,8 +347,11 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점, 보고서 센터로 연결 ── */}
+      {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점 ── */}
       {docTodo && <DocTodoWidget dueSoon={docTodo.dueSoon} missingCerts={docTodo.missingCerts} inputTodo={inputTodo} myId={profile.id} defaultMine={isEmployee} />}
+
+      {/* ── 제출 현황 위젯 (소방계획서_8 H-6b·D-16) — 구 보고서 센터 제출 현황판 이전지 ── */}
+      {canDoc && <SubmissionWidget myId={profile.id} defaultMine={isEmployee} />}
 
       {/* ── 상단 ERP 카드 ─────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -429,7 +433,7 @@ export default async function DashboardPage() {
                   {pendingReports.length}건
                 </span>
               </div>
-              <Link href="/reports?form=submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="#submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
                 전체보기 <ArrowRight className="size-3" />
               </Link>
             </div>
@@ -475,7 +479,7 @@ export default async function DashboardPage() {
                   {pendingActions.length}건
                 </span>
               </div>
-              <Link href="/reports?form=submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="#submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
                 전체보기 <ArrowRight className="size-3" />
               </Link>
             </div>

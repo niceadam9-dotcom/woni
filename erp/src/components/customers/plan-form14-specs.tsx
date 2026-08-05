@@ -346,7 +346,12 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         {fromReport9 && (
           <div className="flex items-center gap-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] px-3 py-1.5 text-[11px] text-[#514b81]">
             <span>별지 9호에서 넘어왔습니다 — 세부현황(4~7쪽)은 여기서만 입력하고, 저장하면 9호에 바로 반영됩니다</span>
-            <button type="button" onClick={() => router.back()}
+            <button type="button"
+              onClick={() => {
+                // 새 탭(ctrl-click) 진입은 히스토리가 없어 back이 무동작 — 별지 트리로 폴백 (독립 검증 비차단 후속)
+                if (window.history.length > 1) router.back()
+                else router.push(`/customers/${customerId}?tab=plan&form=annex`)
+              }}
               className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium shrink-0">
               <CornerUpLeft className="size-3" /> ⑨ 9호로 돌아가기
             </button>

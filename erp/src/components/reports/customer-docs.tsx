@@ -118,8 +118,8 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
         </>) : (<>
           <StatusIcon state="warn" />
           <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
-          <span className="text-amber-600">미생성 — 고객 탭 또는 서식 카드에서 생성</span>
-          <Link href={`/reports?form=fire_plan`} className={`ml-auto ${priBtn}`}>바로 생성 →</Link>
+          <span className="text-amber-600">미생성 — 고객 탭 또는 배치 발행에서 생성</span>
+          <Link href="/inspection-plans/batch" className={`ml-auto ${priBtn}`}>바로 생성 →</Link>
         </>)}
         {feedback('plan')}
       </div>
@@ -190,8 +190,8 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
       </div>
       <div className="pl-4 border-l border-[#eceafd]">
         <>
-          {/* 9호 */}
-          <div className={rowCls}>
+          {/* 9호 — data-hover-doc: 트리 호버 퀵뷰(D-7) 델리게이션 앵커 */}
+          <div className={rowCls} data-hover-doc="report9">
             <StatusIcon state={i.report9 ? 'have' : 'warn'} />
             <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report9Full}>실시결과 보고서 (9호)</span>
             <button onClick={() => onCompose(i.inspectionId, 'report9')} disabled={isPending} className={composeBtn}
@@ -276,7 +276,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               <span className="text-[#b0acd6]">해당없음 — 불량 0건</span>
             </div>
           ) : (<>
-            <div className={rowCls}>
+            <div className={rowCls} data-hover-doc="report10">
               <StatusIcon state={i.report10 ? 'have' : 'warn'} />
               <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report10Full}>이행계획서 (10호)</span>
               <button onClick={() => onCompose(i.inspectionId, 'report10')} disabled={isPending} className={composeBtn}
@@ -292,7 +292,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               </>)}
               {feedback(k('r10'))}
             </div>
-            <div className={rowCls}>
+            <div className={rowCls} data-hover-doc="report11">
               <StatusIcon state={i.report11 ? 'have' : 'warn'} />
               <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report11Full}>이행완료 보고서 (11호)</span>
               <button onClick={() => onCompose(i.inspectionId, 'report11')} disabled={isPending} className={composeBtn}
