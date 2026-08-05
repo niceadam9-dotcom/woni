@@ -1248,10 +1248,12 @@ export async function geocodeAddressToBcodeAction(address: string): Promise<{
     if (!juso) return { error: '해당 주소를 찾지 못했습니다.' }
     const admCd = String(juso.admCd ?? '')
     if (admCd.length !== 10) return { error: '법정동코드를 확보하지 못했습니다.' }
-    // 지번주소: jibunAddr 우선(끝 번지 파싱은 fetchBuildingLedgerAction), 없으면 시군구·읍면동·본번-부번 합성
-    const jibun = (juso.jibunAddr || '').trim()
-      || [juso.siNm, juso.sggNm, juso.emdNm].filter(Boolean).join(' ')
-        + ` ${juso.lnbrMnnm ?? ''}${juso.lnbrSlno && juso.lnbrSlno !== '0' ? `-${juso.lnbrSlno}` : ''}`.trimEnd()
+    // 지번주소는 fetchBuildingLedgerAction이 '끝의 번지'를 파싱 → 항상 번지로 끝나도록 구조화 필드로 합성.
+    // (jibunAddr는 "…31 서울특별시청"처럼 건물명이 붙어 번지 파싱이 실패할 수 있어 폴백으로만)
+    const mt = juso.mtYn === '1' ? '산 ' : ''
+    const bunji = `${mt}${juso.lnbrMnnm ?? ''}${juso.lnbrSlno && juso.lnbrSlno !== '0' ? `-${juso.lnbrSlno}` : ''}`.trim()
+    const built = [juso.siNm, juso.sggNm, juso.emdNm, juso.liNm].filter(Boolean).join(' ')
+    const jibun = (bunji && built) ? `${built} ${bunji}` : (juso.jibunAddr || '').trim()
     return { bcode: admCd, jibunAddress: jibun.trim(), roadAddress: juso.roadAddr || undefined }
   } catch (e) {
     return { error: `주소 조회 실패: ${e instanceof Error ? e.message : String(e)}` }
