@@ -48,7 +48,7 @@
   ],
   "roadmap": [
     { "id": "PA", "title": "Phase A — 트리 단일 허브 구축 (H-1~H-5e, H-7) · 보고서 센터 병행 유지", "status": "implemented", "note": "**Phase A 전 criteria implemented(2026-08-05)** — H-1~H-5d(2026-08-04, ed90b22·b935ad3) + H-5e·H-7(2026-08-05, 9d0ff2a) 전건 독립 검증 승격. 잔여는 경미 후속만(호버 퀵뷰·⑩⑪ D-day·[전체 PDF]·새 탭 router.back·클라이언트 내비 E2E). 배포는 별도" },
-    { "id": "PB", "title": "Phase B — 보고서 센터 해체·재배치 (H-6) · 2026-08-05 사용자 승인·구현", "status": "code_present", "note": "2026-08-05 전건 구현 — /reports 리다이렉트 매퍼·배치 발행(/inspection-plans/batch) 신설·대시보드 제출 현황 위젯·사이드바 메뉴 소멸·구 딥링크 전수 교체(12곳)·report-center-home/report-gen-list 삭제. E2E test-phase-b 13/13 + 기존 29/29·46/46 회귀 그린·tsc 클린. **독립 검증 PASS(차단급 0·비차단 3 코스메틱)** — 커밋 시 implemented 승격" }
+    { "id": "PB", "title": "Phase B — 보고서 센터 해체·재배치 (H-6)", "status": "implemented", "note": "**전건 implemented(2026-08-05, b397e7b)** — 독립 검증 PASS(차단급 0·비차단 3 코스메틱)·E2E test-phase-b 13/13+29/29+46/46. 잔여 경미(후순위): ⑩⑪ D-day·[전체 PDF]·로딩 칩 ✓·호버 팝업 극단 엣지 2건·plan-tab-view 역링크 제거분은 병행 작업(지도·사진)과 같은 파일이라 다음 커밋에 동승(구 링크는 리다이렉트가 수용)" }
   ],
   "sections": [
     {
@@ -67,12 +67,12 @@
       ]
     },
     {
-      "id": "PB", "title": "Phase B — 보고서 센터 해체·재배치", "status": "code_present",
+      "id": "PB", "title": "Phase B — 보고서 센터 해체·재배치", "status": "implemented",
       "criteria": [
-        { "id": "H-6a", "desc": "고객별 뷰 제거 — form=docs 문서 현황·form=report9/report10 생성 화면 제거(트리로 흡수 완료 확인 후)", "status": "code_present", "note": "2026-08-05 — reports/page.tsx 리다이렉트 매퍼 교체(cust→트리 form=annex), report-center-home·report-gen-list 삭제(임포트 잔존 0), docs-actions는 트리·위젯 사용으로 존치. 독립 검증 PASS" },
-        { "id": "H-6b", "desc": "제출 현황판 → 대시보드 위젯(요약 스트립+펼침 테이블, D-16) 이전", "status": "code_present", "note": "2026-08-05 — submission-widget.tsx 신규(id=submissions 앵커·요약 스트립 상시·펼침 시 기존 SubmissionBoard), dashboard canDoc 렌더·전체보기 링크 2곳+doc-todo-widget 앵커화, 구 /action-plans/status·/inspection-reports/status → /dashboard#submissions. 독립 검증 PASS" },
-        { "id": "H-6c", "desc": "연차 일괄 발행·소방계획서 일괄 생성 → 점검계획 배치 액션 이전(통합)", "status": "code_present", "note": "2026-08-05 — /inspection-plans/batch 신설(AnnualIssueWizard+FirePlanGenerateRequestClient+법제처 개정 배너 이전, ackLawRevisionAction revalidatePath 정합), 점검확정 페이지 진입 링크, 구 /fire-plans/generate → batch 리다이렉트. 독립 검증 PASS" },
-        { "id": "H-6d", "desc": "사이드바 '보고서' 메뉴 제거 + /reports 리다이렉트", "status": "code_present", "note": "2026-08-05 — 사이드바 항목 소멸, /reports href 참조 전수 0건(모듈 임포트만 존치), 구 딥링크 12곳 새 위치 교체(트리·batch·대시보드 앵커), weekly-doc-briefing 크론 문구 갱신. 독립 검증 PASS" }
+        { "id": "H-6a", "desc": "고객별 뷰 제거 — form=docs 문서 현황·form=report9/report10 생성 화면 제거(트리로 흡수 완료 확인 후)", "status": "implemented", "verified": { "date": "2026-08-05", "commit": "b397e7b", "evidence": ["reports/page.tsx:7-15 리다이렉트 매퍼(cust→/customers/{id}?tab=plan&form=annex)", "report-center-home·report-gen-list 삭제 — ReportCenterHome|ReportGenList grep 0건", "트리 흡수 실체: plan-annex-section.tsx가 InspectionDocRows 재사용·docs-actions 존치"], "method": "독립 검증(판정 서브에이전트) 코드 대조 + E2E test-phase-b 13/13(리다이렉트 실주행)" } },
+        { "id": "H-6b", "desc": "제출 현황판 → 대시보드 위젯(요약 스트립+펼침 테이블, D-16) 이전", "status": "implemented", "verified": { "date": "2026-08-05", "commit": "b397e7b", "evidence": ["submission-widget.tsx:14-64 요약 스트립 상시+펼침 SubmissionBoard·id=submissions·로딩/에러 처리", "dashboard/page.tsx:354 canDoc 렌더(inspection_register — 액션 권한과 동일)·전체보기 앵커 2곳·doc-todo-widget 앵커", "/action-plans/status·/inspection-reports/status → /dashboard#submissions"], "method": "독립 검증 코드 대조(권한·앵커 정합) + E2E 위젯 노출·스트립·펼침 테이블 실주행" } },
+        { "id": "H-6c", "desc": "연차 일괄 발행·소방계획서 일괄 생성 → 점검계획 배치 액션 이전(통합)", "status": "implemented", "verified": { "date": "2026-08-05", "commit": "b397e7b", "evidence": ["inspection-plans/batch/page.tsx — AnnualIssueWizard(:63)+FirePlanGenerateRequestClient(:68)+법제처 개정 배너(:42-60) 이전", "reports/actions.ts:20 revalidatePath('/inspection-plans/batch') 정합·액션 가드 이중(admin/manager+requirePermission)", "inspection-plans/page.tsx:169 진입 링크·/fire-plans/generate → batch 리다이렉트"], "method": "독립 검증 코드 대조 + E2E 배치 페이지·진입 링크·리다이렉트 실주행" } },
+        { "id": "H-6d", "desc": "사이드바 '보고서' 메뉴 제거 + /reports 리다이렉트", "status": "implemented", "verified": { "date": "2026-08-05", "commit": "b397e7b", "evidence": ["sidebar.tsx — 보고서 항목 소멸(주석만)·FileOutput 임포트 정리", "/reports href 참조 erp/src 전수 0건(모듈 임포트·주석만 잔존)", "구 딥링크 교체: command-palette·timeline·ledger·monitor·customers 목록·submission-board(→트리)·customer-docs(→batch)·weekly-doc-briefing 문구"], "method": "독립 검증 grep 전수 + E2E 사이드바 a[href=/reports] 0건·리다이렉트 매핑 실주행" } }
       ]
     }
   ],
