@@ -1,8 +1,9 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { Upload, Trash2, Loader2, Plus, ImageIcon, ClipboardPaste, MapPin } from 'lucide-react'
+import { Upload, Trash2, Loader2, Plus, ImageIcon, ClipboardPaste, MapPin, PencilRuler } from 'lucide-react'
 import { uploadCustomerAssetAction, deleteCustomerAssetAction, generateLocationMapAction } from '@/app/(dashboard)/customers/asset-actions'
+import { EvacMapBuilder } from './evac-map-builder'
 import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
 
 /** 지도·사진 카드 (소방계획서_7 §5·§5-1 — H-10) — 소방계획서 탭 빠른 입력 화면 통합.
@@ -51,6 +52,8 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
   const [busy, setBusy] = useState<AssetSlot | null>(null)
   const [msg, setMsg] = useState<{ key: AssetSlot; text: string; ok: boolean } | null>(null)
   const [dragOver, setDragOver] = useState<AssetSlot | null>(null)
+  // 개략 피난안내도 생성기 (B안, 2026-08-05) — PNG 결과는 기존 evac 업로드 파이프라인으로
+  const [builderOpen, setBuilderOpen] = useState(false)
   const coverRef = useRef<HTMLInputElement>(null)
   const mapRef = useRef<HTMLInputElement>(null)
   const evacRef = useRef<HTMLInputElement>(null)
@@ -103,21 +106,27 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
     }
   }
 
-  // 위치도 자동 생성 — 고객 주소 → 네이버 정적 지도 (2026-08-05)
-  function generateMap() {
+  // 위치도(일반 지도+마커)·표지(위성 항공뷰) 자동 생성 — 고객 주소 → 네이버 정적 지도 (2026-08-05)
+  function generateMap(slot: 'map_location' | 'cover') {
     setMsg(null)
-    setBusy('map_location')
+    setBusy(slot)
     startTransition(async () => {
-      const res = await generateLocationMapAction(customerId)
+      const res = await generateLocationMapAction(customerId, slot)
       setBusy(null)
       if (res.unavailable) {
-        setMsg({ key: 'map_location', text: '❌ 네이버 지도 API 키가 설정되지 않았습니다 — NCP_MAPS_CLIENT_ID/SECRET 환경변수를 추가해주세요.', ok: false })
+        setMsg({ key: slot, text: '❌ 네이버 지도 API 키가 설정되지 않았습니다 — NCP_MAPS_CLIENT_ID/SECRET 환경변수를 추가해주세요.', ok: false })
         return
       }
-      if (res.error || !res.asset) { setMsg({ key: 'map_location', text: `❌ ${res.error ?? '생성 실패'}`, ok: false }); return }
+      if (res.error || !res.asset) { setMsg({ key: slot, text: `❌ ${res.error ?? '생성 실패'}`, ok: false }); return }
       const asset = res.asset
-      setAssets(prev => [...prev.filter(a => a.slot !== 'map_location'), asset])
-      setMsg({ key: 'map_location', text: '✅ 주소 기반 위치도를 생성했습니다 — 문서 생성 시 자동 삽입됩니다', ok: true })
+      setAssets(prev => [...prev.filter(a => a.slot !== slot), asset])
+      setMsg({
+        key: slot,
+        text: slot === 'cover'
+          ? '✅ 위성 항공사진을 생성했습니다 — 정면 사진이 필요하면 현장 촬영본으로 교체하세요'
+          : '✅ 주소 기반 위치도를 생성했습니다 — 문서 생성 시 자동 삽입됩니다',
+        ok: true,
+      })
     })
   }
 
@@ -194,10 +203,17 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
                     <ClipboardPaste className="size-3" /> 붙여넣기
                   </button>
                   {slot === 'map_location' && (
-                    <button onClick={generateMap} disabled={isPending} data-testid="asset-generate-map"
+                    <button onClick={() => generateMap('map_location')} disabled={isPending} data-testid="asset-generate-map"
                       title="고객 주소로 네이버 지도에서 위치도를 자동 생성합니다"
                       className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
                       <MapPin className="size-3" /> 자동 생성
+                    </button>
+                  )}
+                  {slot === 'cover' && (
+                    <button onClick={() => generateMap('cover')} disabled={isPending} data-testid="asset-generate-cover"
+                      title="고객 주소의 위성 항공사진을 자동 생성합니다 (거리 정면 사진은 API 미제공 — 현장 촬영본으로 교체 가능)"
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                      <MapPin className="size-3" /> 위성사진
                     </button>
                   )}
                   {asset && (
@@ -254,11 +270,25 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
                 className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
                 <ClipboardPaste className="size-3" /> 붙여넣기
               </button>
+              <button onClick={() => setBuilderOpen(true)} disabled={isPending} data-testid="asset-builder-evac"
+                title="표준 아이콘으로 개략 피난안내도를 직접 그려 등록합니다"
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                <PencilRuler className="size-3" /> 안내도 그리기
+              </button>
             </>
           )}
           {feedback('evac')}
         </div>
       </div>
+
+      {/* 개략 피난안내도 생성기 모달 — PNG 결과를 evac 슬롯으로 업로드 */}
+      {builderOpen && (
+        <EvacMapBuilder
+          saving={busy === 'evac' && isPending}
+          onClose={() => setBuilderOpen(false)}
+          onSave={file => { upload('evac', file); setBuilderOpen(false) }}
+        />
+      )}
     </div>
   )
 }

@@ -54,14 +54,18 @@ export async function uploadCustomerAssetAction(
   return { asset: { slot, name, path, url: signed.signedUrl } }
 }
 
-/** 위치도 자동 생성 (2026-08-05) — 고객 주소 → NCP Geocoding(좌표) → Static Map PNG → map_location 슬롯 교체 저장.
+/** 위치도·표지 위성사진 자동 생성 (2026-08-05) — 고객 주소 → NCP Geocoding(좌표) → Static Map PNG → 슬롯 교체 저장.
+ *  - map_location: 일반 지도 + 마커 (level 16 — 동네 축척 약도)
+ *  - cover: 위성(satellite) 고배율 (level 18, 마커 없음 — 건물·부지 항공 실사. 로드뷰 정적 API가 없어 정면 사진 자동화는 불가)
  *  네이버 클라우드 Maps API 키 필요: NCP_MAPS_CLIENT_ID / NCP_MAPS_CLIENT_SECRET (미설정 시 unavailable — 건축물대장 API와 동일 패턴).
  *  Static Map은 이미지 반환이 공식 용도인 REST API(월 300만 건 무료)라 로드뷰 캡처와 달리 약관 리스크 없음 */
 export async function generateLocationMapAction(
   customerId: string,
+  slot: 'map_location' | 'cover' = 'map_location',
 ): Promise<{ asset?: CustomerAsset; unavailable?: boolean; error?: string }> {
   await requirePermission('customer_manage')
   if (!UUID_RE.test(customerId)) return { error: '잘못된 고객 ID입니다.' }
+  if (slot !== 'map_location' && slot !== 'cover') return { error: '지원하지 않는 슬롯입니다.' }
   const clientId = process.env.NCP_MAPS_CLIENT_ID
   const clientSecret = process.env.NCP_MAPS_CLIENT_SECRET
   if (!clientId || !clientSecret) return { unavailable: true }
@@ -86,32 +90,33 @@ export async function generateLocationMapAction(
     const pos = geo.addresses?.[0]
     if (!pos) return { error: `주소의 좌표를 찾지 못했습니다: ${address}` }
 
-    // 2) 정적 지도 — 마커 1개, 동네 축척(level 16), 2배 해상도 800×600
+    // 2) 정적 지도 — 위치도: 일반 지도+마커(level 16) / 표지: 위성 고배율(level 18, 마커 없음). 2배 해상도 800×600
     const mapUrl = new URL('https://maps.apigw.ntruss.com/map-static/v2/raster')
     mapUrl.searchParams.set('center', `${pos.x},${pos.y}`)
-    mapUrl.searchParams.set('level', '16')
+    mapUrl.searchParams.set('level', slot === 'cover' ? '18' : '16')
     mapUrl.searchParams.set('w', '800')
     mapUrl.searchParams.set('h', '600')
     mapUrl.searchParams.set('scale', '2')
-    mapUrl.searchParams.set('markers', `type:d|size:mid|pos:${pos.x} ${pos.y}`)
+    if (slot === 'cover') mapUrl.searchParams.set('maptype', 'satellite')
+    else mapUrl.searchParams.set('markers', `type:d|size:mid|pos:${pos.x} ${pos.y}`)
     const mapRes = await fetch(mapUrl.toString(), { headers, cache: 'no-store' })
     if (!mapRes.ok) return { error: `지도 이미지 생성에 실패했습니다 (HTTP ${mapRes.status})` }
     const buf = Buffer.from(await mapRes.arrayBuffer())
 
-    // 3) map_location 슬롯 교체 저장 — uploadCustomerAssetAction과 동일 규약(다른 확장자 잔재 삭제 후 업로드)
+    // 3) 슬롯 교체 저장 — uploadCustomerAssetAction과 동일 규약(다른 확장자 잔재 삭제 후 업로드)
     const prefix = `${customerId}/assets`
     const { data: objects } = await admin.storage.from(ASSET_BUCKET).list(prefix, { limit: 100 })
     const stale = (objects ?? []).map(o => o.name)
-      .filter(n => n.toLowerCase().startsWith('map_location.'))
+      .filter(n => n.toLowerCase().startsWith(`${slot}.`))
       .map(n => `${prefix}/${n}`)
     if (stale.length > 0) await admin.storage.from(ASSET_BUCKET).remove(stale)
-    const path = `${prefix}/map_location.png`
+    const path = `${prefix}/${slot}.png`
     const { error: upErr } = await admin.storage.from(ASSET_BUCKET)
       .upload(path, buf, { contentType: 'image/png', upsert: true })
     if (upErr) return { error: `저장 실패: ${upErr.message}` }
     const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrl(path, 300)
     if (!signed?.signedUrl) return { error: '저장은 됐지만 미리보기 URL 생성에 실패했습니다 — 새로고침해주세요.' }
-    return { asset: { slot: 'map_location', name: 'map_location.png', path, url: signed.signedUrl } }
+    return { asset: { slot, name: `${slot}.png`, path, url: signed.signedUrl } }
   } catch {
     return { error: '지도 API 호출에 실패했습니다 — 잠시 후 다시 시도해주세요.' }
   }
