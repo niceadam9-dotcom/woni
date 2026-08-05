@@ -756,10 +756,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     + (calMode === 'all' && typeFilters.size < 3 ? 1 : 0)
     + (statusFilters.size < 3 ? 1 : 0)
 
-  // 데이 패널: 정기 항목 시작+완료 — 확인 즉시 그 자리에서 완료 처리, 점검업무 이동 없음 (2026-08-05 사용자 확정)
+  // 데이 패널: 정기 항목 시작+완료 — 확인창 없이 클릭 즉시 완료 처리, 점검업무 이동 없음 (2026-08-05 사용자 확정)
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null)
   async function handleStartFromPanel(p: CalendarPlanItem) {
-    if (!confirm(`${p.customer_name} 점검을 시작하고 완료 처리할까요?${p.assigned_employee_id ? '' : '\n담당자가 미배정이라 본인이 담당으로 배정됩니다.'}`)) return
     setStartingPlanId(p.id)
     const res = await bulkStartCompletePlanItemsAction([{ itemId: p.id, label: p.customer_name }])
     setStartingPlanId(null)
