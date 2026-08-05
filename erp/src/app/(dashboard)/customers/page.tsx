@@ -89,17 +89,6 @@ export default async function CustomersPage({
             <p className="text-sm text-[#514b81] mt-0.5">소방 점검 계약 고객을 관리합니다 — 행을 클릭하면 상세로 이동</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {canCreate && (
-            <Link
-              href="/customers/new"
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors"
-            >
-              <Plus className="size-4" />
-              고객 등록
-            </Link>
-          )}
-        </div>
       </div>
 
       {/* 검색/필터 */}
@@ -149,6 +138,16 @@ export default async function CustomersPage({
           {fullCols ? '기본 컬럼' : '전체 컬럼'}
         </Link>
         <span className="text-xs text-[#514b81] ml-auto">총 {totalCount}개사</span>
+        {/* 고객 등록 — 검색줄 맨 오른쪽 배치 + 브랜드 보라 강조 (2026-08-05 사용자 확정: 우측 상단 구석 → 작업 영역 가까이) */}
+        {canCreate && (
+          <Link
+            href="/customers/new"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium transition-colors"
+          >
+            <Plus className="size-4" />
+            고객 등록
+          </Link>
+        )}
       </form>
 
       {/* 목록 테이블 — 기본 6컬럼 (§6-B-A) */}
