@@ -26,6 +26,7 @@ export async function startInspectionCore(
   admin: Admin,
   actorId: string,
   itemId: string,
+  opts?: { skipRevalidate?: boolean },
 ): Promise<{ error?: string; inspectionId?: string }> {
   const { data: itemRaw } = await admin
     .from('inspection_plan_items')
@@ -96,9 +97,12 @@ export async function startInspectionCore(
     metadata:    { plan_item_id: itemId, customer_id: item.customer_id, ...(autoAssigned ? { auto_assigned_to: assigneeId } : {}) },
   } as Record<string, unknown>)
 
-  revalidatePath('/inspection-plans')
-  revalidatePath('/inspections')
-  revalidatePath('/inspections/calendar')
-  revalidatePath('/inspection-plans/monitor')
+  // 일괄 처리에서는 건별 revalidate 반복이 지연 요인 — 호출자가 마지막 1회로 대체
+  if (!opts?.skipRevalidate) {
+    revalidatePath('/inspection-plans')
+    revalidatePath('/inspections')
+    revalidatePath('/inspections/calendar')
+    revalidatePath('/inspection-plans/monitor')
+  }
   return { inspectionId }
 }

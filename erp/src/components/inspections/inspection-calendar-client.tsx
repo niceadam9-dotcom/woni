@@ -14,8 +14,8 @@ import {
   Users, Building2, ChevronRight, ChevronLeft,
   SlidersHorizontal, Info, Search, PlayCircle, ExternalLink,
 } from 'lucide-react'
-import { completeStepAction, bulkCompleteStepsAction } from '@/app/(dashboard)/inspections/actions'
-import { moveMonthlyPlanItemAction, startInspectionAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
+import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
@@ -627,23 +627,66 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       .sort((a, b) => (a.oneStep === b.oneStep ? a.label.localeCompare(b.label, 'ko') : a.oneStep ? -1 : 1))
   }, [inspections, dayPanelDate])
 
+  // 미시작 정기·일반 계획 항목 후보 — 시작+1단계 완료까지 일괄 처리 (권한은 [점검 시작]과 동일, 2026-08-05)
+  const bulkPlanCandidates = useMemo(() => {
+    if (!dayPanelDate || !canMovePlan) return []
+    return planItems
+      .filter(p => p.scheduled_date === dayPanelDate && p.status !== 'completed' && !p.inspection_id)
+      .map(p => ({
+        itemId: p.id,
+        typeLabel: p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type),
+        label: p.customer_name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ko'))
+  }, [planItems, dayPanelDate, canMovePlan])
+
+  const bulkTotal = bulkCandidates.length + bulkPlanCandidates.length
+
+  // 체크 키 — 단계 s:, 계획 항목 p: 접두로 한 Set에서 관리
   function openBulkModal() {
-    setBulkChecked(new Set(bulkCandidates.filter(c => c.oneStep).map(c => c.stepId)))
+    setBulkChecked(new Set([
+      ...bulkPlanCandidates.map(c => `p:${c.itemId}`),
+      ...bulkCandidates.filter(c => c.oneStep).map(c => `s:${c.stepId}`),
+    ]))
     setBulkResult(null)
     setBulkOpen(true)
   }
 
+  function toggleBulkChecked(key: string, checked: boolean) {
+    setBulkChecked(prev => {
+      const next = new Set(prev)
+      if (checked) next.add(key); else next.delete(key)
+      return next
+    })
+  }
+
   function runBulkComplete() {
-    const items = bulkCandidates.filter(c => bulkChecked.has(c.stepId))
+    const stepItems = bulkCandidates.filter(c => bulkChecked.has(`s:${c.stepId}`))
       .map(({ stepId, inspectionId, label }) => ({ stepId, inspectionId, label }))
-    if (items.length === 0) { setBulkResult('선택된 건이 없습니다.'); return }
+    const planSel = bulkPlanCandidates.filter(c => bulkChecked.has(`p:${c.itemId}`))
+      .map(({ itemId, label }) => ({ itemId, label }))
+    if (stepItems.length + planSel.length === 0) { setBulkResult('선택된 건이 없습니다.'); return }
     startBulk(async () => {
-      const res = await bulkCompleteStepsAction(items)
-      if (res.error) { setBulkResult(`❌ ${res.error}`); return }
-      const failTxt = res.failed.length > 0
-        ? ` · 실패 ${res.failed.length}건 — ${res.failed.map(f => `${f.label}(${f.error})`).join(' / ')}`
-        : ''
-      setBulkResult(`✅ ${res.done}건 완료 처리${failTxt}`)
+      let done = 0
+      const failed: Array<{ label: string; error: string }> = []
+      if (planSel.length > 0) {
+        const res = await bulkStartCompletePlanItemsAction(planSel)
+        if (res.error) { setBulkResult(`❌ ${res.error}`); return }
+        done += res.done
+        failed.push(...res.failed)
+      }
+      if (stepItems.length > 0) {
+        const res = await bulkCompleteStepsAction(stepItems)
+        if (res.error) { setBulkResult(`❌ ${res.error}`); return }
+        done += res.done
+        failed.push(...res.failed)
+      }
+      // 전건 성공이면 모달을 바로 닫는다 — 결과 확인용으로 남겨두면 완료 후에도 팝업이 계속 떠 있음 (2026-08-05)
+      if (failed.length === 0) {
+        setBulkOpen(false)
+      } else {
+        setBulkResult(`✅ ${done}건 완료 처리 · 실패 ${failed.length}건 — ${failed.map(f => `${f.label}(${f.error})`).join(' / ')}`)
+      }
       router.refresh()
     })
   }
@@ -667,15 +710,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     + (calMode === 'all' && typeFilters.size < 3 ? 1 : 0)
     + (statusFilters.size < 3 ? 1 : 0)
 
-  // 데이 패널: 정기 항목 점검 시작 (점검확정과 동일 액션)
+  // 데이 패널: 정기 항목 시작+완료 — 확인 즉시 그 자리에서 완료 처리, 점검업무 이동 없음 (2026-08-05 사용자 확정)
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null)
   async function handleStartFromPanel(p: CalendarPlanItem) {
-    if (!confirm(`${p.customer_name} 점검을 시작할까요?${p.assigned_employee_id ? '' : '\n담당자가 미배정이라 본인이 담당으로 배정됩니다.'}`)) return
+    if (!confirm(`${p.customer_name} 점검을 시작하고 완료 처리할까요?${p.assigned_employee_id ? '' : '\n담당자가 미배정이라 본인이 담당으로 배정됩니다.'}`)) return
     setStartingPlanId(p.id)
-    const res = await startInspectionAction(p.id)
+    const res = await bulkStartCompletePlanItemsAction([{ itemId: p.id, label: p.customer_name }])
     setStartingPlanId(null)
     if (res.error) { alert(res.error); return }
-    router.push(`/inspections/${res.inspectionId}`)
+    if (res.failed.length > 0) { alert(res.failed[0].error); return }
+    router.refresh()
   }
 
   async function handleCompleteStep(stepId: string, inspId: string) {
@@ -1285,12 +1329,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
                   <p className="text-xs text-[#514b81]">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
-                  {bulkCandidates.length > 0 && (
+                  {bulkTotal > 0 && (
                     <button
                       onClick={openBulkModal}
                       className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
-                      title="이 날짜 마감의 미완료 단계를 한 번에 완료 처리">
-                      <Check className="size-3" /> 이날 전체 완료 ({bulkCandidates.length})
+                      title="이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리">
+                      <Check className="size-3" /> 이날 전체 완료 ({bulkTotal})
                     </button>
                   )}
                 </div>
@@ -1362,7 +1406,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                     </button>
                                   )}
                                   <button
-                                    title="점검 시작"
+                                    title="점검 시작·완료 처리"
                                     disabled={startingPlanId === p.id}
                                     onClick={() => handleStartFromPanel(p)}
                                     className="p-1 rounded text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50"
@@ -1416,20 +1460,32 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   <div className="px-5 py-4 border-b border-[#e0ddf5]">
                     <p className="font-semibold text-[#090c1d]">{format(new Date(dayPanelDate + 'T12:00:00'), 'M월 d일 (EEE)', { locale: ko })} 일괄 완료</p>
                     <p className="text-xs text-[#514b81] mt-0.5">
-                      미완료 {bulkCandidates.length}건 중 <strong>{bulkChecked.size}건</strong> 선택 — 정기·일반은 기본 선택, 자체점검 단계는 확인 후 체크하세요
+                      미완료 {bulkTotal}건 중 <strong>{bulkChecked.size}건</strong> 선택 — 정기·일반은 기본 선택, 자체점검 단계는 확인 후 체크하세요
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto px-5 py-3 space-y-0.5">
-                    {bulkCandidates.map(c => (
-                      <label key={c.stepId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] cursor-pointer">
+                    {/* 미시작 정기·일반 계획 — 시작+완료까지 한 번에 처리 */}
+                    {bulkPlanCandidates.map(c => (
+                      <label key={`p:${c.itemId}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={bulkChecked.has(c.stepId)}
-                          onChange={e => setBulkChecked(prev => {
-                            const next = new Set(prev)
-                            if (e.target.checked) next.add(c.stepId); else next.delete(c.stepId)
-                            return next
-                          })}
+                          checked={bulkChecked.has(`p:${c.itemId}`)}
+                          onChange={e => toggleBulkChecked(`p:${c.itemId}`, e.target.checked)}
+                          className="accent-[#7b68ee]"
+                        />
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${c.typeLabel === '정기' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
+                          {c.typeLabel}
+                        </span>
+                        <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{c.label}</span>
+                        <span className="text-[10px] text-[#b0acd6] shrink-0" title="점검 시작과 완료 처리를 함께 진행합니다">시작+완료</span>
+                      </label>
+                    ))}
+                    {bulkCandidates.map(c => (
+                      <label key={`s:${c.stepId}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={bulkChecked.has(`s:${c.stepId}`)}
+                          onChange={e => toggleBulkChecked(`s:${c.stepId}`, e.target.checked)}
                           className="accent-[#7b68ee]"
                         />
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${c.oneStep ? 'bg-gray-100 text-gray-600' : 'bg-[#f5f4ff] text-[#7b68ee]'}`}>

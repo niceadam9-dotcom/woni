@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
+import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
 import type { InspectionType } from '@/types'
 
@@ -374,6 +375,69 @@ export async function bulkCompleteStepsAction(
   }
 
   // 화면 갱신은 마지막 1회 — 건별 반복이 큰 지연 요인이었음
+  revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspection-plans')
+  return { done, failed }
+}
+
+/** 점검달력 데이 패널 — 미시작 정기·일반(1단계형) 계획 항목 일괄 완료 (2026-08-05).
+ *  건별로 점검 시작(startInspectionCore, 1단계 생성) → 1단계 완료(completeStepCore)까지 처리 —
+ *  개별 [점검 시작]→점검 상세→완료와 동일 경로라 상태 로그·계획 동기화도 동일하게 남는다.
+ *  자체점검(special_*)은 6단계 법정 절차라 대상 제외 — 시작된 점검의 단계는 bulkCompleteStepsAction 담당. */
+export async function bulkStartCompletePlanItemsAction(
+  items: Array<{ itemId: string; label: string }>,
+): Promise<{ done: number; failed: Array<{ label: string; error: string }>; error?: string }> {
+  const profile = await requirePermission('inspection_plan_manage')
+  if (items.length === 0) return { done: 0, failed: [] }
+  if (items.length > 100) return { done: 0, failed: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
+
+  const admin = createAdminClient()
+  const role = (profile as { role: string }).role
+
+  let done = 0
+  const failed: Array<{ label: string; error: string }> = []
+  const CONC = 6
+  for (let i = 0; i < items.length; i += CONC) {
+    await Promise.all(items.slice(i, i + CONC).map(async it => {
+      try {
+        const { data: itemRaw } = await admin
+          .from('inspection_plan_items')
+          .select('plan_type, inspection_id, status')
+          .eq('id', it.itemId)
+          .single()
+        const item = itemRaw as { plan_type: string | null; inspection_id: string | null; status: string } | null
+        if (!item) { failed.push({ label: it.label, error: '계획 항목을 찾을 수 없습니다.' }); return }
+        if (item.plan_type !== 'monthly' && item.plan_type !== 'event') {
+          failed.push({ label: it.label, error: '정기·일반(1단계형) 항목만 일괄 완료할 수 있습니다.' }); return
+        }
+        if (item.inspection_id) {
+          failed.push({ label: it.label, error: '이미 점검이 시작된 항목입니다 — 단계 완료로 처리해주세요.' }); return
+        }
+
+        const started = await startInspectionCore(admin, profile.id, it.itemId, { skipRevalidate: true })
+        if (started.error || !started.inspectionId) {
+          failed.push({ label: it.label, error: started.error ?? '점검 생성에 실패했습니다.' }); return
+        }
+        // 정기·일반은 1단계뿐 (migration 111) — 트리거가 만든 1단계를 바로 완료
+        const { data: stepRaw } = await admin
+          .from('inspection_steps')
+          .select('id')
+          .eq('inspection_id', started.inspectionId)
+          .eq('step_num', 1)
+          .single()
+        const stepId = (stepRaw as { id: string } | null)?.id
+        if (!stepId) { failed.push({ label: it.label, error: '점검은 시작됐지만 1단계를 찾지 못했습니다.' }); return }
+        const res = await completeStepCore(admin, profile.id, role, stepId, started.inspectionId)
+        if (res.error) { failed.push({ label: it.label, error: `점검은 시작됨 — 완료 실패: ${res.error}` }); return }
+        done += 1
+      } catch {
+        failed.push({ label: it.label, error: '처리 실패' })
+      }
+    }))
+  }
+
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspection-plans/monitor')
