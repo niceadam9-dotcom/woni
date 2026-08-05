@@ -7,6 +7,7 @@ import type { InspectionType } from '@/types'
 
 export type CustomerListFilter = {
   q?: string
+  /** '종합' | '작동' | '일반관리'(레거시 — 일반 전체) | '일반종합' | '일반작동' (2026-08-05 종류 세분화) */
   type?: string
   active?: string   // 'active'(기본) | 'inactive' | 'all'
   inc?: string      // '' | 'any'(입력 미완료) | 'plan'(계획서 미완료, §6-D-5)
@@ -26,7 +27,10 @@ export type CustomerDocStrip = { plan: DocCell; a4: DocCell; a9: DocCell; a10: D
 export type CustomerListItem = {
   id: string; customer_code: string; customer_name: string
   contract_date: string | null; use_approval_date: string | null; plan_anchor_date: string | null
-  inspection_type: InspectionType; address: string | null
+  inspection_type: InspectionType
+  /** 일반관리 자체점검 종류 (110 백필로 일반관리는 항상 존재) — 목록 일반(종합)/일반(작동) 표기용 */
+  inspection_sub_type: '종합' | '작동' | null
+  address: string | null
   is_active: boolean; assigned_employee_id: string | null; created_at: string
   buildings: CustomerListBuilding[]
   planDone: number; planTotal: number
@@ -39,6 +43,16 @@ export type CustomerListItem = {
 /** URL searchParams → 필터 (목록·상세 lq 공용) */
 export function parseListFilter(sp: Record<string, string | undefined>): CustomerListFilter {
   return { q: sp.q ?? '', type: sp.type ?? '', active: sp.active ?? 'active', inc: sp.inc ?? '' }
+}
+
+/** 점검유형 필터 — '일반종합'/'일반작동'은 일반관리 + 종류(sub_type)까지 좁힘 (2026-08-05) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyTypeFilter<Q extends { eq(col: string, v: string): any }>(query: Q, type: string | undefined): Q {
+  if (type === '일반종합' || type === '일반작동') {
+    return query.eq('inspection_type', '일반관리').eq('inspection_sub_type', type === '일반종합' ? '종합' : '작동')
+  }
+  if (type) return query.eq('inspection_type', type)
+  return query
 }
 
 /** 상세 [◀ 이전|다음 ▶] 내비 전용 경량 ID 목록 (2026-08-04 성능 개선) —
@@ -67,7 +81,7 @@ export async function fetchCustomerNavIds(
     if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
     query = query.or(ors.join(','))
   }
-  if (f.type) query = query.eq('inspection_type', f.type)
+  query = applyTypeFilter(query, f.type)
   if (f.active === 'active' || !f.active) query = query.eq('is_active', true)
   if (f.active === 'inactive') query = query.eq('is_active', false)
   const { data } = await query
@@ -94,7 +108,7 @@ export async function fetchCustomerList(
   let query = admin
     .from('customers')
     .select(`id, customer_code, customer_name, contract_date, use_approval_date, plan_anchor_date,
-      inspection_type, address, is_active, assigned_employee_id, created_at,
+      inspection_type, inspection_sub_type, address, is_active, assigned_employee_id, created_at,
       region_si, region_myeon, region_ri,
       manager_selected_at, building_grade, insurance_joined, op_hours_weekday,
       headcount_worker, headcount_resident, headcount_max,
@@ -116,7 +130,7 @@ export async function fetchCustomerList(
     if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
     query = query.or(ors.join(','))
   }
-  if (f.type) query = query.eq('inspection_type', f.type)
+  query = applyTypeFilter(query, f.type)
   if (f.active === 'active' || !f.active) query = query.eq('is_active', true)
   if (f.active === 'inactive') query = query.eq('is_active', false)
 
@@ -219,6 +233,7 @@ export async function fetchCustomerList(
       use_approval_date: (r.use_approval_date as string | null) ?? null,
       plan_anchor_date: (r.plan_anchor_date as string | null) ?? null,
       inspection_type: r.inspection_type as InspectionType,
+      inspection_sub_type: (r.inspection_sub_type as '종합' | '작동' | null) ?? null,
       address: (r.address as string | null) ?? null,
       is_active: r.is_active as boolean,
       assigned_employee_id: (r.assigned_employee_id as string | null) ?? null,

@@ -2,11 +2,10 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
-import { patchCustomerFieldAction, type ConfirmedPlanItemInfo } from '@/app/(dashboard)/customers/actions'
+import { patchCustomerFieldAction, updateCustomerAction, type ConfirmedPlanItemInfo } from '@/app/(dashboard)/customers/actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
 import type { InspectionType } from '@/types'
-import { inspectionTypeLabel } from '@/types'
 
 type Field = 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id'
 
@@ -16,6 +15,8 @@ interface Props {
   value: string | null
   displayValue?: string
   employees?: Array<{ id: string; name: string }>
+  /** 일반관리 자체점검 종류 — 점검유형 필드의 일반(종합)/일반(작동) 표시·편집용 (2026-08-05) */
+  subType?: '종합' | '작동' | null
   /** RSC 직렬화를 위해 렌더 함수 대신 변형 이름으로 표시 방식 지정.
    *  'pencil-only': 값 표시 없이 연필 아이콘만 (고객명은 Link로 별도 표시 — §6-B-B2) */
   displayVariant?: 'name' | 'type-badge' | 'employee' | 'pencil-only'
@@ -23,7 +24,13 @@ interface Props {
   emptyLabel?: string
 }
 
-const INSPECTION_TYPES: InspectionType[] = ['종합', '작동', '일반관리']
+/** 관리유형 × 종류 4개 조합 — 상세 모달(EditInspectionTypeClient)과 동일 구조, 저장은 updateCustomerAction 공용 경로 */
+const TYPE_COMBOS: Array<{ value: string; label: string; type: InspectionType; sub?: '종합' | '작동' }> = [
+  { value: '종합',     label: '종합',       type: '종합' },
+  { value: '작동',     label: '작동',       type: '작동' },
+  { value: '일반종합', label: '일반(종합)', type: '일반관리', sub: '종합' },
+  { value: '일반작동', label: '일반(작동)', type: '일반관리', sub: '작동' },
+]
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
   '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
@@ -32,7 +39,7 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
 }
 
 export function InlineCustomerFieldClient({
-  customerId, field, value, displayValue, employees, displayVariant, emptyLabel,
+  customerId, field, value, displayValue, employees, subType, displayVariant, emptyLabel,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ?? '')
@@ -48,16 +55,34 @@ export function InlineCustomerFieldClient({
     }
   }, [editing])
 
+  // 점검유형의 현재 조합값 — 일반관리는 종류(sub_type)까지 반영 (110 백필 기본 '작동')
+  const typeComboValue = value === '일반관리' ? (subType === '종합' ? '일반종합' : '일반작동') : (value ?? '')
+
   function handleEdit(e: React.MouseEvent) {
     e.stopPropagation()
-    setDraft(value ?? '')
+    setDraft(field === 'inspection_type' ? typeComboValue : (value ?? ''))
     setEditing(true)
   }
 
   const isDateField = field === 'contract_date' || field === 'use_approval_date' || field === 'plan_anchor_date'
 
+  // 점검유형 저장 — 상세 모달과 동일한 updateCustomerAction 경로 (종류 변경 전파 1-11 재사용)
+  function handleSaveType() {
+    const combo = TYPE_COMBOS.find(c => c.value === draft)
+    if (!combo || combo.value === typeComboValue) { setEditing(false); return }
+    startTransition(async () => {
+      const res = await updateCustomerAction(customerId, {
+        inspection_type: combo.type,
+        ...(combo.sub ? { inspection_sub_type: combo.sub } : {}),
+      })
+      if (res.error) alert(res.error)
+      setEditing(false)
+    })
+  }
+
   function handleSave(e?: React.MouseEvent) {
     e?.stopPropagation()
+    if (field === 'inspection_type') { handleSaveType(); return }
     const trimmed = draft.trim() || null
     if (trimmed === (value ?? null)) { setEditing(false); return }
     // 부분 입력된 날짜("2026-07")는 저장하지 않고 편집 종료 (원래 값 유지)
@@ -111,7 +136,7 @@ export function InlineCustomerFieldClient({
     if (displayVariant === 'type-badge') {
       return (
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_BADGE_COLORS[value] ?? 'bg-gray-100 text-gray-600'}`}>
-          {inspectionTypeLabel(value)}
+          {TYPE_COMBOS.find(c => c.value === typeComboValue)?.label ?? value}
         </span>
       )
     }
@@ -144,7 +169,11 @@ export function InlineCustomerFieldClient({
 
   // 드롭다운도 텍스트 입력과 동일하게 Escape = 편집 취소 (저장 없이 종료)
   function handleSelectKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false) }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setDraft(field === 'inspection_type' ? typeComboValue : (value ?? ''))
+      setEditing(false)
+    }
   }
 
   if (field === 'inspection_type') {
@@ -159,7 +188,7 @@ export function InlineCustomerFieldClient({
           disabled={isPending}
           className="h-7 px-1 text-xs border border-[#7b68ee] rounded outline-none bg-white"
         >
-          {INSPECTION_TYPES.map(t => <option key={t} value={t}>{inspectionTypeLabel(t)}</option>)}
+          {TYPE_COMBOS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
       </div>
     )

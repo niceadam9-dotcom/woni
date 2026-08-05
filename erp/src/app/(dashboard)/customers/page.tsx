@@ -12,11 +12,10 @@ import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { InspectionType, UserRole } from '@/types'
 
-// 법정 특별점검 횟수 — 점검유형 파생 라벨 (§6-B: 별도 컬럼 대신 유형 옆 병기)
-const TYPE_ANNUAL: Record<InspectionType, string> = {
-  '종합':   '연 2회',
-  '작동':   '연 1회',
-  '일반관리': '1회',
+// 법정 자체점검 횟수 — 유형·종류 파생 라벨 (§6-B 병기, 일반관리는 종류 따라 연 2회/1회 상이 — 2026-08-05)
+function typeAnnual(type: InspectionType, sub: '종합' | '작동' | null): string {
+  const kind = type === '일반관리' ? (sub ?? '작동') : type
+  return kind === '종합' ? '연 2회' : '연 1회'
 }
 
 export default async function CustomersPage({
@@ -99,7 +98,8 @@ export default async function CustomersPage({
           <option value="">전체 점검유형</option>
           <option value="종합">종합</option>
           <option value="작동">작동</option>
-          <option value="일반관리">일반</option>
+          <option value="일반종합">일반(종합)</option>
+          <option value="일반작동">일반(작동)</option>
         </select>
         <select name="active" defaultValue={filter.active}
           className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition">
@@ -202,11 +202,13 @@ export default async function CustomersPage({
                         <div className="flex items-center gap-1.5">
                           {canCreate ? (
                             <InlineCustomerFieldClient customerId={c.id} field="inspection_type" value={c.inspection_type}
-                              displayVariant="type-badge" />
+                              subType={c.inspection_sub_type} displayVariant="type-badge" />
                           ) : (
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">{c.inspection_type}</span>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">
+                              {c.inspection_type === '일반관리' ? `일반(${c.inspection_sub_type ?? '작동'})` : c.inspection_type}
+                            </span>
                           )}
-                          <span className="text-[10px] text-[#b0acd6] whitespace-nowrap">{TYPE_ANNUAL[c.inspection_type]}</span>
+                          <span className="text-[10px] text-[#b0acd6] whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
                         </div>
                       </td>
                       {fullCols && (
