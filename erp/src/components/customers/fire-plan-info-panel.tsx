@@ -45,7 +45,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
   const tabs = useCustomerTabs()   // 탭 셸 안에서만 non-null (§6-C-4·5)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)   // 기본 펼침(2026-08-05 사용자 확정) — 열자마자 요약·준비율 노출
   const [mode, setMode] = useState<'summary' | 'edit'>('summary')  // §6-D-2: 기본은 읽기 요약
   const [d, setD] = useState<FirePlanInfoInput>(initial)
   const [isPending, startTransition] = useTransition()
