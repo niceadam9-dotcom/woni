@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, ShieldCheck, Layers, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { FACILITY_STANDARD, EVAC_SUB_ITEMS, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { PlanForm14Specs } from '@/components/customers/plan-form14-specs'
@@ -90,20 +90,43 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  // 2026-08-04: 클릭만으로 저장 완결 — 토글 후 0.8초 디바운스 자동 저장 (별도 [저장] 클릭 불필요, 버튼은 폴백 유지)
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveRef = useRef<() => void>(() => {})
-  useEffect(() => () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }, [])
-  function scheduleAutoSave() {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    autoSaveTimer.current = setTimeout(() => saveRef.current(), 800)
+  // 2026-08-05 사용자 확정: 토글마다 자동 저장 폐지 — 최종 [저장] 1회 + 이탈 가드. 제원 입력은 우측 슬라이드 패널
+  const [specsOpen, setSpecsOpen] = useState(false)
+  function markDirty() {
+    setDirty(true)
+    // 서식 트리 이동 가드(PlanTabView select 확인창)와 공유 — 클릭 토글은 input 이벤트가 없어 별도 통지 필요
+    window.dispatchEvent(new CustomEvent('erp:plan-dirty', { detail: true }))
   }
+  function clearDirty() {
+    setDirty(false)
+    window.dispatchEvent(new CustomEvent('erp:plan-dirty', { detail: false }))
+  }
+  // 미저장 상태 새로고침·창 닫기 가드
+  useEffect(() => {
+    if (!dirty) return
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [dirty])
+  // 별지 9호發 진입(?from=report9)은 설비 대장 패널 자동 오픈 (D-17 흐름 유지)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('from') !== 'report9') return
+    const t = setTimeout(() => setSpecsOpen(true), 0)
+    return () => clearTimeout(t)
+  }, [])
+  // 패널 Esc 닫기
+  useEffect(() => {
+    if (!specsOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSpecsOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [specsOpen])
 
   function switchBuilding(i: number) {
     setBidx(i)
     setFac(initFac(buildings[i]))
     setFloors((buildings[i]?.floors ?? []).map((f, j) => ({ floor_label: f.floor_label, sort_order: j, counts: { ...f.counts } })))
-    setDirty(false)
+    clearDirty()
   }
   function toggle(code: string) {
     if (!canManage) return
@@ -125,13 +148,13 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
       }
       return next
     })
-    setDirty(true)
-    scheduleAutoSave()   // 클릭 = 자동 저장
-    // A안(2026-08-04): 체크(√)하는 순간 아래 설비 대장의 해당 섹션 자동 펼침·스크롤 — "체크했으니 제원 입력" 동선
+    markDirty()
+    // 체크(√) 순간 우측 설비 대장 패널 오픈 + 해당 섹션 펼침 (2026-08-05: 본문 스크롤 대신 옆 패널 — 화면이 밀리지 않음)
     if (turningOn) {
       const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치'
         : EVAC_SUB_ITEMS.includes(code) ? '피난기구' : code
-      window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } }))
+      setSpecsOpen(true)
+      setTimeout(() => window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } })), 120)
     }
   }
   function autoFloors() {
@@ -142,7 +165,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     for (let i = fb; i >= 1; i--) rows.push({ floor_label: `지하${i}층`, sort_order: rows.length, counts: {} })
     for (let i = 1; i <= fa; i++) rows.push({ floor_label: `${i}층`, sort_order: rows.length, counts: {} })
     setFloors(rows)
-    setDirty(true)
+    markDirty()
   }
   function save() {
     startTransition(async () => {
@@ -152,12 +175,11 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
       }))
       const res = await saveFacilitiesAction(b.id, customerId, rows, floors)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 자동 저장됨 — 계획서·별지 4·9호 출력에 반영됩니다')
+      clearDirty()
+      setMsg('✅ 저장됨 — 계획서·별지 4·9호 출력에 반영됩니다')
       router.refresh()
     })
   }
-  saveRef.current = save   // 디바운스가 항상 최신 상태로 저장하도록
   function verifyOnly() {
     startTransition(async () => {
       const res = await verifyFacilitiesAction(b.id, customerId)
@@ -289,7 +311,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
               <button onClick={autoFloors} className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
                 <Layers className="size-3" /> 층 자동 생성
               </button>
-              <button onClick={() => { setFloors(p => [...p, { floor_label: '', sort_order: p.length, counts: {} }]); setDirty(true) }}
+              <button onClick={() => { setFloors(p => [...p, { floor_label: '', sort_order: p.length, counts: {} }]); markDirty() }}
                 className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff]">
                 <Plus className="size-3" /> 행 추가
               </button>
@@ -309,7 +331,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
                   <tr key={i}>
                     <td className="py-0.5 pr-1">
                       <input value={fl.floor_label} disabled={!canManage}
-                        onChange={e => { setFloors(p => p.map((x, j) => j === i ? { ...x, floor_label: e.target.value } : x)); setDirty(true) }}
+                        onChange={e => { setFloors(p => p.map((x, j) => j === i ? { ...x, floor_label: e.target.value } : x)); markDirty() }}
                         className="h-6 w-full rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
                     </td>
                     {FLOOR_COLS.map(c => (
@@ -318,14 +340,14 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
                           onChange={e => {
                             const n = parseInt(e.target.value, 10)
                             setFloors(p => p.map((x, j) => j === i ? { ...x, counts: { ...x.counts, [c]: isNaN(n) ? 0 : n } } : x))
-                            setDirty(true)
+                            markDirty()
                           }}
                           className="h-6 w-full rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
                       </td>
                     ))}
                     <td className="py-0.5">
                       {canManage && (
-                        <button onClick={() => { setFloors(p => p.filter((_, j) => j !== i)); setDirty(true) }}
+                        <button onClick={() => { setFloors(p => p.filter((_, j) => j !== i)); markDirty() }}
                           className="text-[#b0acd6] hover:text-red-500" aria-label="층 삭제">
                           <Trash2 className="size-3.5" />
                         </button>
@@ -344,6 +366,10 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
         <span className="text-[11px] text-[#514b81]">설치 {installedCount}종{b.verified_at ? ` · 마지막 확인 ${b.verified_at.slice(5)}` : ''}</span>
         {canManage && (
           <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setSpecsOpen(true)}
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff]">
+              <PanelRightOpen className="size-3.5" /> 설비 대장
+            </button>
             <button onClick={verifyOnly} disabled={isPending}
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50">
               <ShieldCheck className="size-3.5" /> 시설 확인 완료
@@ -357,12 +383,27 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
       </div>
       {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
 
-      {/* H-19 설비 대장 — 세부 제원(별지 4호 3~7쪽=9호 4~7쪽) 입력. √ 상태 라이브 연동(설치 블록만 펼침),
-          건물 축은 위 대상명 선택(bidx)과 동일 — key로 건물 전환 시 초기값 재적재 */}
-      <PlanForm14Specs key={b.id} customerId={customerId} buildingId={b.id}
-        installed={Object.fromEntries(allCodes.map(c => [c, fac[c].installed]))}
-        initialSpecs={specsByBuilding[b.id] ?? specsByBuilding[''] ?? {}}
-        receiverLocation={b.receiverLocation} canManage={canManage} />
+      {/* H-19 설비 대장 — 우측 슬라이드 패널 (2026-08-05 사용자 확정: 본문 하단 인라인 → 옆 패널, 체크해도 화면이 밀리지 않음).
+          항상 마운트 — erp:open-spec-section 수신·입력 상태 유지, 닫힘은 CSS 슬라이드. 건물 축은 대상명 선택(bidx)과 동일(key 재적재) */}
+      <div className={`fixed inset-0 z-40 ${specsOpen ? '' : 'pointer-events-none'}`}>
+        <div className={`absolute inset-0 bg-black/20 transition-opacity ${specsOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => setSpecsOpen(false)} />
+        <div className={`absolute top-0 right-0 bottom-0 w-[min(92vw,640px)] bg-white shadow-2xl flex flex-col transition-transform duration-200 ${specsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e0ddf5] shrink-0">
+            <p className="text-sm font-semibold text-[#090c1d]">설비 대장 — 세부 제원</p>
+            <span className="text-[10px] text-[#b0acd6]">체크(√)한 설비의 섹션이 자동으로 펼쳐집니다</span>
+            <button onClick={() => setSpecsOpen(false)} className="ml-auto text-[#b0acd6] hover:text-[#514b81]" aria-label="닫기">
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <PlanForm14Specs key={b.id} customerId={customerId} buildingId={b.id}
+              installed={Object.fromEntries(allCodes.map(c => [c, fac[c].installed]))}
+              initialSpecs={specsByBuilding[b.id] ?? specsByBuilding[''] ?? {}}
+              receiverLocation={b.receiverLocation} canManage={canManage} />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
