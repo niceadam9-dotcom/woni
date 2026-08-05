@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
-import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -66,6 +65,47 @@ export type CalendarPlanItem = {
 /** 일반(event) 계획 라벨 — 일반관리도 종합/작동 구분 병기 (2026-08-04 사용자 확정) */
 export function eventPlanLabel(subType?: '종합' | '작동' | null): string {
   return subType ? `일반(${subType})` : '일반'
+}
+
+/** 데이 패널 정기 이동 버튼 — 클릭하면 네이티브 달력이 바로 열리고 날짜 선택 즉시 이동
+ *  (2026-08-05 사용자 확정: 클릭 최소화 — 인라인 입력줄·[이동] 버튼 제거). min·max로 같은 달만 선택 가능 */
+function PanelMoveButton({ scheduledDate, moving, onPick }: {
+  scheduledDate: string
+  moving: boolean
+  onPick: (to: string) => void
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null)
+  const ym = scheduledDate.slice(0, 7)
+  const lastDay = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate()
+  return (
+    <span className="relative inline-flex">
+      <button
+        title="날짜 이동 — 달력에서 선택 즉시 이동 (같은 달, 이동=즉시 확정)"
+        disabled={moving}
+        onClick={() => {
+          const p = pickerRef.current
+          if (!p) return
+          p.value = scheduledDate
+          if (typeof p.showPicker === 'function') p.showPicker()
+          else { p.focus(); p.click() }
+        }}
+        className="p-1 rounded text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50"
+      >
+        {moving ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarDays className="size-3.5" />}
+      </button>
+      {/* 달력 팝업 전용 히든 입력 — 선택값만 onPick으로 전달 */}
+      <input
+        ref={pickerRef}
+        type="date"
+        tabIndex={-1}
+        aria-hidden="true"
+        min={`${ym}-01`}
+        max={`${ym}-${String(lastDay).padStart(2, '0')}`}
+        onChange={e => { if (e.target.value) onPick(e.target.value) }}
+        className="absolute right-0 bottom-0 h-0 w-0 p-0 border-0 opacity-0 pointer-events-none"
+      />
+    </span>
+  )
 }
 
 type CalEventResource = {
@@ -691,15 +731,21 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     })
   }
 
-  // 데이 패널: 날짜 이동 인라인 입력 (정기 항목, 드래그 없는 이동)
-  const [movePickId, setMovePickId] = useState<string | null>(null)
-  const [movePickVal, setMovePickVal] = useState('')
-  function handlePanelMove(p: CalendarPlanItem) {
-    if (!isCompleteDate(movePickVal)) { alert('YYYY-MM-DD 형식으로 입력해주세요.'); return }
-    if (movePickVal === p.scheduled_date) { setMovePickId(null); return }
-    if (movePickVal.slice(0, 7) !== p.scheduled_date.slice(0, 7)) { alert('같은 달 안에서만 이동할 수 있습니다.'); return }
-    setMovePickId(null)
-    setMoveConfirm({ planItemId: p.id, customerName: p.customer_name, from: p.scheduled_date, to: movePickVal })
+  // 데이 패널: 정기 이동 — 달력 선택 즉시 이동, 주말·공휴일·과거 날짜만 확인 팝업 (2026-08-05)
+  const [movingPlanId, setMovingPlanId] = useState<string | null>(null)
+  async function handlePanelPick(p: CalendarPlanItem, to: string) {
+    if (to === p.scheduled_date) return
+    if (to.slice(0, 7) !== p.scheduled_date.slice(0, 7)) { alert('같은 달 안에서만 이동할 수 있습니다.'); return }
+    const dow = new Date(to + 'T12:00:00').getDay()
+    if (holidayMap.has(to) || dow === 0 || dow === 6 || to < today) {
+      setMoveConfirm({ planItemId: p.id, customerName: p.customer_name, from: p.scheduled_date, to })
+      return
+    }
+    setMovingPlanId(p.id)
+    const res = await moveMonthlyPlanItemAction(p.id, to)
+    setMovingPlanId(null)
+    if (res.error) { alert(res.error); return }
+    router.refresh()
   }
 
   // 툴바 필터 배지 — 기본값에서 벗어난 필터 수
@@ -1397,13 +1443,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                               ) : canAct ? (
                                 <span className="flex items-center gap-0.5 shrink-0">
                                   {p.plan_type === 'monthly' && (
-                                    <button
-                                      title="날짜 이동 (같은 달, 이동=즉시 확정)"
-                                      onClick={() => { setMovePickId(movePickId === p.id ? null : p.id); setMovePickVal(p.scheduled_date) }}
-                                      className={`p-1 rounded transition-colors ${movePickId === p.id ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'}`}
-                                    >
-                                      <CalendarDays className="size-3.5" />
-                                    </button>
+                                    <PanelMoveButton
+                                      scheduledDate={p.scheduled_date}
+                                      moving={movingPlanId === p.id}
+                                      onPick={to => handlePanelPick(p, to)}
+                                    />
                                   )}
                                   <button
                                     title="점검 시작·완료 처리"
@@ -1416,21 +1460,6 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                 </span>
                               ) : null}
                             </div>
-                            {movePickId === p.id && (
-                              <div className="flex items-center gap-1.5 pl-9 pr-2 pb-1.5">
-                                <DateInput
-                                  value={movePickVal}
-                                  onChange={e => setMovePickVal(e.target.value)}
-                                  className="w-32 h-7 text-xs border border-[#c8c4d0] rounded-lg px-2"
-                                />
-                                <button
-                                  onClick={() => handlePanelMove(p)}
-                                  className="h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium transition-colors"
-                                >
-                                  이동
-                                </button>
-                              </div>
-                            )}
                           </div>
                         )
                       })}
