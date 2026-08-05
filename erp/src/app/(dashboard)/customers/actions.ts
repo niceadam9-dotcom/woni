@@ -1216,6 +1216,48 @@ export async function fetchBuildingLedgerAction(
   }
 }
 
+/** 주소 → 법정동코드(bcode)·지번주소 역산 (B안, 2026-08-05) — 저장된 주소만 있고 bcode가 없는
+ *  구 고객도 Daum 주소창 없이 서버에서 대장 조회가 되도록. Juso.go.kr 도로명주소 API(admCd=법정동코드 10자리·jibunAddr).
+ *  환경변수 JUSO_CONFM_KEY 필요 — 미설정 시 unavailable(조용히 폴백), 매칭 실패 시 error. */
+export async function geocodeAddressToBcodeAction(address: string): Promise<{
+  bcode?: string; jibunAddress?: string; roadAddress?: string; unavailable?: boolean; error?: string
+}> {
+  const key = process.env.JUSO_CONFM_KEY
+  if (!key) return { unavailable: true }
+  const keyword = (address ?? '').trim()
+  if (!keyword) return { error: '주소가 비어 있습니다.' }
+
+  const url = new URL('https://business.juso.go.kr/addrlink/addrLinkApi.do')
+  url.searchParams.set('confmKey', key)
+  url.searchParams.set('currentPage', '1')
+  url.searchParams.set('countPerPage', '1')
+  url.searchParams.set('keyword', keyword)
+  url.searchParams.set('resultType', 'json')
+
+  try {
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) return { error: `주소 API 오류 (HTTP ${res.status})` }
+    const json = await res.json() as {
+      results?: { common?: { errorCode?: string; errorMessage?: string }; juso?: Array<Record<string, string>> }
+    }
+    const common = json.results?.common
+    if (common?.errorCode && common.errorCode !== '0') {
+      return { error: `주소 API: ${common.errorMessage ?? common.errorCode}` }
+    }
+    const juso = json.results?.juso?.[0]
+    if (!juso) return { error: '해당 주소를 찾지 못했습니다.' }
+    const admCd = String(juso.admCd ?? '')
+    if (admCd.length !== 10) return { error: '법정동코드를 확보하지 못했습니다.' }
+    // 지번주소: jibunAddr 우선(끝 번지 파싱은 fetchBuildingLedgerAction), 없으면 시군구·읍면동·본번-부번 합성
+    const jibun = (juso.jibunAddr || '').trim()
+      || [juso.siNm, juso.sggNm, juso.emdNm].filter(Boolean).join(' ')
+        + ` ${juso.lnbrMnnm ?? ''}${juso.lnbrSlno && juso.lnbrSlno !== '0' ? `-${juso.lnbrSlno}` : ''}`.trimEnd()
+    return { bcode: admCd, jibunAddress: jibun.trim(), roadAddress: juso.roadAddr || undefined }
+  } catch (e) {
+    return { error: `주소 조회 실패: ${e instanceof Error ? e.message : String(e)}` }
+  }
+}
+
 /** 통합검색 자동완성 제안 (고객 바로가기/주소/담당자) —
  *  §6-B-B4: 고객명 제안은 id를 포함해 선택 시 상세로 직행 */
 export async function searchSuggestionsAction(q: string): Promise<{

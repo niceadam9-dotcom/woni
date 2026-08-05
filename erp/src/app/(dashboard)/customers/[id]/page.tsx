@@ -131,9 +131,10 @@ export default async function CustomerDetailPage({
     purpose: string | null; year_built: number | null; is_active: boolean
     facilities_verified_at: string | null
   }>
-  // 소방계획서 탭 진입 시 자동 대장 반영 대상: 활성 건물에 주소(bcode·지번) 있는데 아직 미동기화(ledger_synced_at null)
+  // 소방계획서 탭 진입 시 자동 대장 반영 대상: 활성 건물이 아직 미동기화(ledger_synced_at null)이고
+  // 주소가 있으면 — bcode·지번이 있으면 바로, 없으면 B안(서버 지오코딩)으로 bcode 역산해 채운다.
   const ledgerAutoNeeded = ((buildingsRes.data ?? []) as Array<Record<string, unknown>>).some(
-    b => b.is_active && b.bcode && b.address_jibun && !b.ledger_synced_at)
+    b => b.is_active && !b.ledger_synced_at && ((b.bcode && b.address_jibun) || b.address || b.address_jibun))
 
   // 소방시설 현황 (건물별) — P33
   const buildingIds = buildings.map(b => b.id)

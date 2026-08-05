@@ -160,7 +160,7 @@ export function PlanTabView({
     setMsg('')
     startLedgerTransition(async () => {
       const res = await previewLedgerAction(customerId)
-      if (res.needAddress) { setMsg('⚠ 건물에 저장된 지번 정보가 없습니다 — 서식 전체 모드의 계획서 정보 패널에서 [건축물대장에서 다시 가져오기]로 주소를 1회 확인해주세요.'); return }
+      if (res.needAddress) { setMsg('⚠ 건물 주소로 법정동코드를 찾지 못했습니다 — 건물·시설 탭에서 주소를 확인해주세요. (주소가 있으면 자동으로 조회됩니다)'); return }
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       if (!res.fields || res.fields.length === 0) { setMsg('건축물대장에서 가져올 값이 없습니다.'); return }
       setLedgerPreview(res.fields)

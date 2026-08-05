@@ -4,7 +4,31 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
-import { fetchBuildingLedgerAction } from './actions'
+import { fetchBuildingLedgerAction, geocodeAddressToBcodeAction } from './actions'
+
+/** bcode·지번 확보 — 저장값 우선, 없으면 저장된 주소로 Juso 지오코딩 후 buildings에 백필(B안, 2026-08-05).
+ *  반환 null = 확보 실패(주소 없음·키 미설정·매칭 실패 → 호출부는 needAddress로 처리). */
+async function resolveBcodeJibun(
+  admin: ReturnType<typeof createAdminClient>,
+  bld: Record<string, unknown>,
+): Promise<{ bcode: string; jibun: string } | null> {
+  const bcode = (bld.bcode as string | null) || ''
+  const jibun = (bld.address_jibun as string | null) || ''
+  if (bcode && jibun) return { bcode, jibun }
+
+  const addr = (bld.address as string | null) || (bld.address_jibun as string | null) || ''
+  if (!addr) return null
+  const geo = await geocodeAddressToBcodeAction(addr)
+  if (geo.unavailable || !geo.bcode || !geo.jibunAddress) return null
+
+  // 백필 — 다음부터 지오코딩 없이 원클릭 (092 미적용 DB는 컬럼 없음 → 조용히 무시)
+  try {
+    await admin.from('buildings')
+      .update({ bcode: geo.bcode, address_jibun: geo.jibunAddress })
+      .eq('id', bld.id as string)
+  } catch { /* best-effort: 092 미적용 등 */ }
+  return { bcode: geo.bcode, jibun: geo.jibunAddress }
+}
 
 /** 소방계획서 정보(5+6차 필드) 저장 — 고객 상세 계획서 정보 패널 (설계: 소방계획서-필드확장-설계.md §4) */
 
@@ -202,9 +226,14 @@ export async function refreshLedgerAction(
   if (!bld) return { error: '등록된 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.' }
   const stored = bld as Record<string, unknown>
 
-  const useBcode = bcode || (stored.bcode as string | null) || ''
-  const useJibun = jibunAddress || (stored.address_jibun as string | null) || ''
-  if (!useBcode || !useJibun) return { needAddress: true }
+  let useBcode = bcode || (stored.bcode as string | null) || ''
+  let useJibun = jibunAddress || (stored.address_jibun as string | null) || ''
+  if (!useBcode || !useJibun) {
+    // B안: Daum 주소창 인자도 없고 저장값도 없으면 주소로 지오코딩·백필(resolveBcodeJibun) 후 진행
+    const resolved = await resolveBcodeJibun(admin, stored)
+    if (!resolved) return { needAddress: true }
+    useBcode = resolved.bcode; useJibun = resolved.jibun
+  }
 
   const res = await fetchBuildingLedgerAction(useBcode, useJibun)
   if (res.unavailable) return { error: '건축물대장 API 키가 설정되지 않았습니다.' }
@@ -291,9 +320,10 @@ export async function previewLedgerAction(customerId: string): Promise<{
   if (!bld) return { error: '등록된 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.' }
   const stored = bld as Record<string, unknown>
 
-  const useBcode = (stored.bcode as string | null) || ''
-  const useJibun = (stored.address_jibun as string | null) || ''
-  if (!useBcode || !useJibun) return { needAddress: true }
+  // B안: 저장 bcode 없으면 주소로 지오코딩·백필 후 진행 (주소창 1회 확인 불필요)
+  const resolved = await resolveBcodeJibun(admin, stored)
+  if (!resolved) return { needAddress: true }
+  const { bcode: useBcode, jibun: useJibun } = resolved
 
   const res = await fetchBuildingLedgerAction(useBcode, useJibun)
   if (res.unavailable) return { error: '건축물대장 API 키가 설정되지 않았습니다.' }
@@ -360,9 +390,10 @@ export async function autoApplyLedgerEmptyAction(customerId: string): Promise<{
   if (!bld) return { skipped: 'noBuilding' }
   const stored = bld as Record<string, unknown>
 
-  const useBcode = (stored.bcode as string | null) || ''
-  const useJibun = (stored.address_jibun as string | null) || ''
-  if (!useBcode || !useJibun) return { skipped: 'needAddress' }
+  // B안: 저장 bcode 없으면 주소로 지오코딩·백필 후 진행 (구 고객도 주소창 없이 자동)
+  const resolved = await resolveBcodeJibun(admin, stored)
+  if (!resolved) return { skipped: 'needAddress' }
+  const { bcode: useBcode, jibun: useJibun } = resolved
 
   const res = await fetchBuildingLedgerAction(useBcode, useJibun)
   if (res.unavailable) return { skipped: 'unavailable' }

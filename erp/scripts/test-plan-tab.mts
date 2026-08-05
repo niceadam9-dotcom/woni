@@ -41,10 +41,10 @@ try {
   check('생성 바 — [계획서 생성] 버튼 (§7-5 HWP 단일)', await page.isVisible('button:has-text("계획서 생성 (HWP+PDF)")'))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
 
-  // ── 2) 대장 불러오기 — 지번 미보유 건물은 needAddress 안내 (fail-soft 경로) ──
+  // ── 2) 대장 불러오기 — 주소 미보유 건물은 needAddress 안내 (fail-soft 경로, B안 지오코딩도 주소 없으면 스킵) ──
   await page.click('button:has-text("건축물대장 불러오기")')
-  await page.waitForSelector('text=지번 정보가 없습니다')
-  check('대장 불러오기 — 지번 없음 fail-soft 안내', true)
+  await page.waitForSelector('text=법정동코드를 찾지 못했습니다')
+  check('대장 불러오기 — 주소 없음 fail-soft 안내', true)
 
   // ── 3) 송달 동의 저장 (098 §9-6①) — 11-5 누락 칩(버튼)과 충돌하지 않게 섹션 한정
   await page.click('#consent-section button:has-text("동의")')
