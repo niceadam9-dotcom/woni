@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
-import { Upload, Trash2, Loader2, Plus, ImageIcon, ClipboardPaste, MapPin, PencilRuler } from 'lucide-react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { Upload, Trash2, Loader2, Plus, ImageIcon, ClipboardPaste, MapPin, PencilRuler, X } from 'lucide-react'
 import { uploadCustomerAssetAction, deleteCustomerAssetAction, generateLocationMapAction } from '@/app/(dashboard)/customers/asset-actions'
 import { EvacMapBuilder } from './evac-map-builder'
 import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
@@ -54,6 +54,8 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
   const [dragOver, setDragOver] = useState<AssetSlot | null>(null)
   // 개략 피난안내도 생성기 (B안, 2026-08-05) — PNG 결과는 기존 evac 업로드 파이프라인으로
   const [builderOpen, setBuilderOpen] = useState(false)
+  // 썸네일 클릭 → 원본 크게 보기 라이트박스 (2026-08-05)
+  const [preview, setPreview] = useState<{ url: string; label: string } | null>(null)
   const coverRef = useRef<HTMLInputElement>(null)
   const mapRef = useRef<HTMLInputElement>(null)
   const evacRef = useRef<HTMLInputElement>(null)
@@ -130,6 +132,41 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
     })
   }
 
+  // 빈 슬롯 자동 생성·저장 (2026-08-05 사용자 확정) — 진입 시 표지 위성·위치도가 비어 있으면 버튼 없이 자동 생성.
+  // 키 미설정·주소 없음 등 실패는 조용히 넘어감(수동 버튼 경로에서 사유 안내) — 자동 경로에서 에러 팝업 반복 방지
+  const autoTried = useRef(false)
+  useEffect(() => {
+    if (!canManage || autoTried.current) return
+    autoTried.current = true
+    const missing = (['cover', 'map_location'] as const).filter(s => !assets.some(a => a.slot === s))
+    if (missing.length === 0) return
+    startTransition(async () => {
+      for (const slot of missing) {
+        const res = await generateLocationMapAction(customerId, slot)
+        if (res.unavailable) return
+        if (!res.asset) continue
+        const asset = res.asset
+        setAssets(prev => [...prev.filter(a => a.slot !== slot), asset])
+        setMsg({
+          key: slot,
+          text: slot === 'cover'
+            ? '✅ 위성 항공사진이 자동 생성됐습니다 — 정면 사진이 필요하면 현장 촬영본으로 교체하세요'
+            : '✅ 주소 기반 위치도가 자동 생성됐습니다',
+          ok: true,
+        })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 라이트박스 Esc 닫기
+  useEffect(() => {
+    if (!preview) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPreview(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [preview])
+
   function pasteTo(slot: AssetSlot) {
     setMsg(null)
     void (async () => {
@@ -180,8 +217,11 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
               className={`rounded-lg border bg-white p-3 space-y-2 ${dragOver === slot ? 'border-dashed border-[#7b68ee] bg-[#f5f4ff]' : 'border-[#e0ddf5]'}`}>
               <p className="text-[11px] font-medium text-[#514b81]">{label} <span className="font-normal text-[#b0acd6]">— {hint}</span></p>
               {asset ? (
-                <img src={asset.url} alt={label} data-testid={`asset-thumb-${slot}`}
-                  className="h-28 w-full rounded-lg border border-[#eceafd] object-cover" />
+                <button type="button" onClick={() => setPreview({ url: asset.url, label })}
+                  title="클릭하면 크게 봅니다" className="block w-full">
+                  <img src={asset.url} alt={label} data-testid={`asset-thumb-${slot}`}
+                    className="h-28 w-full rounded-lg border border-[#eceafd] object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />
+                </button>
               ) : (
                 <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#d0ccf5] text-[#b0acd6]">
                   <ImageIcon className="size-5" />
@@ -240,10 +280,12 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
             </div>
           )}
           <div className="grid grid-cols-2 gap-1.5">
-            {evacAssets.map(a => (
+            {evacAssets.map((a, idx) => (
               <div key={a.path} className="relative">
                 <img src={a.url} alt="피난안내도" data-testid="asset-thumb-evac"
-                  className="h-[54px] w-full rounded-lg border border-[#eceafd] object-cover" />
+                  onClick={() => setPreview({ url: a.url, label: `피난안내도·평면도 ${idx + 1}` })}
+                  title="클릭하면 크게 봅니다"
+                  className="h-[54px] w-full rounded-lg border border-[#eceafd] object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />
                 {canManage && (
                   <button onClick={() => remove('evac', a.path)} disabled={isPending} title="삭제" data-testid="asset-delete-evac"
                     className="absolute right-1 top-1 inline-flex size-5 items-center justify-center rounded bg-white/90 text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50">
@@ -281,9 +323,27 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
         </div>
       </div>
 
-      {/* 개략 피난안내도 생성기 모달 — PNG 결과를 evac 슬롯으로 업로드 */}
+      {/* 썸네일 클릭 라이트박스 — 원본 크게 보기 (배경·✕·Esc로 닫기) */}
+      {preview && (
+        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-black/80 p-4"
+          onClick={() => setPreview(null)} role="dialog" aria-modal="true" aria-label={`${preview.label} 미리보기`}>
+          <div className="flex w-full max-w-4xl items-center justify-between px-1 pb-2">
+            <span className="text-sm font-medium text-white">{preview.label}</span>
+            <button onClick={() => setPreview(null)} aria-label="닫기"
+              className="inline-flex size-8 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white">
+              <X className="size-5" />
+            </button>
+          </div>
+          <img src={preview.url} alt={preview.label} onClick={e => e.stopPropagation()}
+            className="max-h-[85vh] max-w-4xl rounded-lg object-contain shadow-2xl" />
+          <p className="mt-2 text-[11px] text-white/60">빈 곳·✕·Esc 로 닫기</p>
+        </div>
+      )}
+
+      {/* 개략 피난안내도 생성기 모달 — PNG 결과를 evac 슬롯으로 업로드, 그리던 내용은 고객별 초안 자동 저장 */}
       {builderOpen && (
         <EvacMapBuilder
+          customerId={customerId}
           saving={busy === 'evac' && isPending}
           onClose={() => setBuilderOpen(false)}
           onSave={file => { upload('evac', file); setBuilderOpen(false) }}

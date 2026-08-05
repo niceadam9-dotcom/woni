@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, Loader2, Eraser, MousePointer2, Undo2, Save } from 'lucide-react'
 
 /** 개략 피난안내도 생성기 (B안 — 2026-08-05 사용자 확정)
@@ -65,19 +65,42 @@ function ItemGlyph({ type }: { type: ItemType }) {
   }
 }
 
-export function EvacMapBuilder({ onClose, onSave, saving }: {
+/** 고객별 초안 로드 — 손상·부재 시 빈 캔버스 */
+function loadDraft(customerId: string): { floor: string; items: Item[]; walls: Wall[] } {
+  try {
+    const raw = localStorage.getItem(`evac-map-draft:${customerId}`)
+    if (raw) {
+      const d = JSON.parse(raw) as { floor?: string; items?: Item[]; walls?: Wall[] }
+      return {
+        floor: d.floor ?? '1층',
+        items: Array.isArray(d.items) ? d.items : [],
+        walls: Array.isArray(d.walls) ? d.walls : [],
+      }
+    }
+  } catch { /* 손상된 초안 무시 */ }
+  return { floor: '1층', items: [], walls: [] }
+}
+
+export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
+  customerId: string
   onClose: () => void
   onSave: (file: File) => void   // 호출부가 evac 슬롯 업로드 (customer-assets-client upload)
   saving: boolean
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [floor, setFloor] = useState('1층')
+  // 초안 자동 저장 (2026-08-05 사용자 확정) — 그리던 내용을 고객별로 보존해 닫아도 유실 없이 재편집 가능
+  const [draft] = useState(() => loadDraft(customerId))
+  const [floor, setFloor] = useState(draft.floor)
   const [mode, setMode] = useState<Mode>('move')
-  const [items, setItems] = useState<Item[]>([])
-  const [walls, setWalls] = useState<Wall[]>([])
+  const [items, setItems] = useState<Item[]>(draft.items)
+  const [walls, setWalls] = useState<Wall[]>(draft.walls)
   const [wallStart, setWallStart] = useState<{ x: number; y: number } | null>(null)
   const [dragId, setDragId] = useState<number | null>(null)
-  const nextId = useRef(1)
+  const nextId = useRef(Math.max(0, ...draft.items.map(i => i.id), ...draft.walls.map(w => w.id)) + 1)
+
+  useEffect(() => {
+    try { localStorage.setItem(`evac-map-draft:${customerId}`, JSON.stringify({ floor, items, walls })) } catch { /* 저장 공간 부족 등 — 무시 */ }
+  }, [customerId, floor, items, walls])
 
   function svgPoint(e: React.PointerEvent | React.MouseEvent): { x: number; y: number } {
     const rect = svgRef.current!.getBoundingClientRect()
@@ -230,7 +253,7 @@ export function EvacMapBuilder({ onClose, onSave, saving }: {
 
         <div className="flex items-center gap-2 mt-3">
           <p className="text-[10px] text-[#b0acd6]">
-            팔레트 선택 후 도면을 클릭해 배치 · [이동]에서 드래그, 화살표 더블클릭 = 회전 · [구획선]은 두 점 클릭
+            팔레트 선택 후 도면을 클릭해 배치 · [이동]에서 드래그, 화살표 더블클릭 = 회전 · [구획선]은 두 점 클릭 · 그리던 내용은 자동 저장됩니다
           </p>
           <button onClick={onClose} disabled={saving}
             className="ml-auto h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
