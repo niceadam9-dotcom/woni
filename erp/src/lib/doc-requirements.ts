@@ -104,7 +104,7 @@ export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.
  *  일반관리 포함 전 유형 동일 18개(소방계획서_6 W-14·D-6 — 미입력 노출은 '할 일'로서 정상).
  *  경사로·계단·피난용승강기 등 컬럼 미비 항목은 P4 서식 확장에서 추가. */
-export type RequiredFieldDef = { key: string; label: string }
+export type RequiredFieldDef = { key: string; label: string; optional?: boolean }
 
 export const QUICK_REQUIRED_FIELDS: RequiredFieldDef[] = [
   // 대상물 기본 (별지 9호 1~2쪽)
@@ -115,10 +115,12 @@ export const QUICK_REQUIRED_FIELDS: RequiredFieldDef[] = [
   { key: 'totalArea', label: '연면적' },
   { key: 'buildingArea', label: '건축면적' },
   { key: 'floors', label: '층수' },
-  { key: 'height', label: '높이' },
-  { key: 'households', label: '세대수' },
+  // 높이·세대수·승강기: 건축물대장 전용 값(수기 입력칸 없음) — 대장에 없는 건물은 채울 수단이 없어
+  // 값이 있을 때만 완성도에 포함, 없으면 필수·누락에서 제외 (2026-08-05 사용자 확정)
+  { key: 'height', label: '높이', optional: true },
+  { key: 'households', label: '세대수', optional: true },
   { key: 'buildingCount', label: '건물동수' },
-  { key: 'elevator', label: '승강기' },
+  { key: 'elevator', label: '승강기', optional: true },
   { key: 'parking', label: '주차장' },
   // 소방계획서 준비율 어휘 (fire-plan-readiness 9종)
   { key: 'receiverLocation', label: '수신기위치' },
@@ -148,12 +150,13 @@ export const MULTI_USE_CATEGORIES: string[] = [
   '수면방업', '콜라텍업', '권총사격장',
 ]
 
-/** 빠른 입력 필수 완성도 — 값 존재 여부 맵으로 done/missing 산출 (준비율 이원화의 '필수' 게이지) */
+/** 빠른 입력 필수 완성도 — 값 존재 여부 맵으로 done/missing 산출 (준비율 이원화의 '필수' 게이지).
+ *  optional 필드는 값이 있을 때만 분모·분자에 포함 — 비어 있어도 누락으로 표시하지 않는다 */
 export function computeQuickReadiness(
   c: CustomerDocProfile,
   filled: Record<string, boolean>,
 ): { done: number; total: number; missing: string[] } {
-  const defs = requiredFields(c)
+  const defs = requiredFields(c).filter(d => !d.optional || filled[d.key])
   const missing = defs.filter(d => !filled[d.key]).map(d => d.label)
   return { done: defs.length - missing.length, total: defs.length, missing }
 }

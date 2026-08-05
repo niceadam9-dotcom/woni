@@ -425,7 +425,7 @@ export function PlanTabView({
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 높이·세대수·승강기 등 대장 값 칩은 [건축물대장 불러오기]를 바로 실행합니다.</p>
+                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 건축허가일·건축면적 등 대장 값 칩은 [건축물대장 불러오기]를 바로 실행합니다.</p>
               </>
             ) : (
               <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>
