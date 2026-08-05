@@ -29,10 +29,12 @@ export function useCustomerTabs() {
   return useContext(CustomerTabsContext)
 }
 
-export function CustomerTabs({ initialTab, tabs, panels }: {
+export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys }: {
   initialTab: string
   tabs: CustomerTabDef[]
   panels: Record<string, ReactNode>
+  summary?: ReactNode        // 우측 고객 요약 패널 — fullWidth 탭에서는 접힘(숨김)
+  fullWidthKeys?: string[]    // 전체 폭으로 펼칠 탭 키(예: ['plan']) — max-w-3xl 해제 + 요약 패널 접힘
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -79,34 +81,41 @@ export function CustomerTabs({ initialTab, tabs, panels }: {
     },
   }
 
+  // 전체 폭 탭(예: 소방계획서)에서는 768px 제한을 풀고 우측 요약 패널을 접어 화면 전체를 사용 (2026-08-05)
+  const isFull = fullWidthKeys?.includes(active) ?? false
   return (
     <CustomerTabsContext.Provider value={ctx}>
-      <div role="tablist" className="flex flex-wrap gap-1 border-b border-[#c8c4d0]">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={active === t.key}
-            onClick={() => switchTab(t.key)}
-            className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
-              active === t.key
-                ? 'border-[#7b68ee] text-[#7b68ee] font-semibold bg-[#f5f4ff]'
-                : 'border-transparent text-[#514b81] hover:text-[#090c1d] hover:bg-[#f8f9fa]'
-            }`}
-          >
-            {t.label}
-            {t.badge && (
-              <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-[#b0acd6]'}`}>{t.badge}</span>
-            )}
-            {t.warn && !t.badge && <span className="text-[10px] text-amber-500">⚠</span>}
-          </button>
-        ))}
-      </div>
-      {tabs.map(t => (
-        <div key={t.key} role="tabpanel" hidden={active !== t.key} className="space-y-6 pt-5">
-          {panels[t.key]}
+      <div className="flex gap-6 items-start">
+        <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
+          <div role="tablist" className="flex flex-wrap gap-1 border-b border-[#c8c4d0]">
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={active === t.key}
+                onClick={() => switchTab(t.key)}
+                className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
+                  active === t.key
+                    ? 'border-[#7b68ee] text-[#7b68ee] font-semibold bg-[#f5f4ff]'
+                    : 'border-transparent text-[#514b81] hover:text-[#090c1d] hover:bg-[#f8f9fa]'
+                }`}
+              >
+                {t.label}
+                {t.badge && (
+                  <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-[#b0acd6]'}`}>{t.badge}</span>
+                )}
+                {t.warn && !t.badge && <span className="text-[10px] text-amber-500">⚠</span>}
+              </button>
+            ))}
+          </div>
+          {tabs.map(t => (
+            <div key={t.key} role="tabpanel" hidden={active !== t.key} className="space-y-6 pt-5">
+              {panels[t.key]}
+            </div>
+          ))}
         </div>
-      ))}
+        {summary && !isFull && summary}
+      </div>
     </CustomerTabsContext.Provider>
   )
 }

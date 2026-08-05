@@ -55,11 +55,12 @@ try {
     .select('email_delivery_consent, report_email').eq('id', customerId).single()
   check('DB 송달 동의 저장', cRow?.email_delivery_consent === true && cRow?.report_email === 'owner@example.com', JSON.stringify(cRow))
 
-  // ── 4) [서식 전체] 토글 → 고급 모드 (4-1 골격) ──
-  await page.click('button:has-text("서식 전체")')
+  // ── 4) 트리 통합 — 토글 제거(2026-08-05): 서식 전체가 기본, ⚡빠른입력이 랜딩 노드. 보관함·개정이력 노드 진입 ──
+  check('트리 — ⚡ 빠른 입력 노드 존재(랜딩)', await page.isVisible('button:has-text("⚡ 빠른 입력")'))
+  await page.click('button:has-text("보관함·개정이력")')
   await page.waitForSelector('text=개정이력')
-  check('고급 모드 — 개정이력·보관 기본 표시', await page.isVisible('text=개정이력'))
-  check('고급 모드 — 4개 장 전부 활성', await page.isVisible('button:has-text("3장 피난계획")') && !(await page.isVisible('text=준비 중')))
+  check('트리 — 보관함·개정이력 노드 진입', await page.isVisible('text=개정이력'))
+  check('트리 — 4개 장 전부 활성', await page.isVisible('button:has-text("3장 피난계획")') && !(await page.isVisible('text=준비 중')))
 
   // 개정이력 입력 저장 → fire_plan_forms(096)
   await page.fill('input[placeholder*="소방계획서 작성"]', '개정 E2E 검증')
@@ -87,8 +88,8 @@ try {
   check('딥링크 form=1.6 직행', true)
 
   // ── P6-2 §3-1.1: 1.1 신규 필드 (계단·경사로·피난용승강기·대표자 구분·자격구분·교육이수일) ──
+  // 계획서 정보 패널은 기본 펼침(2026-08-05) — 별도 토글 없이 바로 요약 노출
   await page.click('button:has-text("1.1 일반현황")')
-  await page.click('button:has(span:text-is("계획서 정보"))')
   await page.waitForSelector('button:has-text("추천값 채우기")')
   await page.click('button:has-text("편집") >> visible=true')
   await page.waitForSelector('text=① 시설현황')

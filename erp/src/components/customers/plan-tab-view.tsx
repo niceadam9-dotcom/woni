@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info, Image as ImageIcon } from 'lucide-react'
+import { FileOutput, Download, Loader2, History, Save, RefreshCw, Info, Image as ImageIcon } from 'lucide-react'
 import {
   requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
@@ -100,25 +100,30 @@ export function PlanTabView({
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
-  // 기본 진입 = 빠른 입력 (§1-1·1-5 확정). 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex', 'assets'])
+  // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
+  // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
+  const VALID_SEL = new Set(['quick', 'archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex', 'assets'])
   const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
     : initialSection === 'ch1' ? '1.1'
     : initialSection && VALID_SEL.has(initialSection) ? initialSection
-    : 'archive'
-  const [mode, setMode] = useState<'quick' | 'full'>((initialForm && VALID_SEL.has(initialForm)) || initialSection ? 'full' : 'quick')
+    : 'quick'
   const [sel, setSelState] = useState<string>(initialSel)
   // form= 딥링크가 마운트 후 서버 재렌더로 바뀐 경우(다른 탭의 ?tab=plan&form=x Link) 동기화 — state는 1회만 초기화되므로
   const prevFormRef = useRef(initialForm)
   if (prevFormRef.current !== initialForm) {
     prevFormRef.current = initialForm
     if (initialForm && VALID_SEL.has(initialForm) && initialForm !== sel) {
-      setMode('full')
       setSelState(initialForm)
     }
   }
   // §1-2 미저장 이동 확인 — 입력 캡처 휴리스틱(입력 발생=dirty, '저장' 버튼 클릭=해제)
   const dirtyRef = useRef(false)
+  // 1.4처럼 클릭 토글형 서식은 input 이벤트가 없어 미저장 상태를 이벤트로 공유 (2026-08-05 최종 저장 전환)
+  useEffect(() => {
+    const onDirty = (e: Event) => { dirtyRef.current = !!(e as CustomEvent).detail }
+    window.addEventListener('erp:plan-dirty', onDirty)
+    return () => window.removeEventListener('erp:plan-dirty', onDirty)
+  }, [])
   function select(key: string) {
     if (key === sel) return
     if (dirtyRef.current && !window.confirm('저장하지 않은 변경이 있습니다. 이동할까요?')) return
@@ -215,7 +220,7 @@ export function PlanTabView({
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
     const fieldId = CHIP_FIELD_ID[label]
-    if (!t) { setMode('full'); select('1.1'); return }
+    if (!t) { select('1.1'); return }
     if (t === 'buildings' && LEDGER_ONLY_CHIPS.has(label)) { refreshLedger(); return }
     if (t === 'buildings' || t === 'info') {
       if (tabsShell) tabsShell.goTab(t)
@@ -229,8 +234,7 @@ export function PlanTabView({
       }
       return
     }
-    if (t === 'consent') { document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
-    setMode('full')
+    if (t === 'consent') { select('quick'); setTimeout(() => document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); return }
     select(t === 'ch2' ? 'ch2' : '1.1')
     if (t === 'ch2') { focusField('c-2.2'); return }
     // 1.1 칩 — 요약→편집 전환이 필요하므로 fire-plan-info-panel의 focusMissing에 위임 (마운트 대기 재시도)
@@ -332,25 +336,21 @@ export function PlanTabView({
               className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
               <Download className="size-3.5" /> 데이터 시트
             </button>
-            <button onClick={() => setMode(m => m === 'quick' ? 'full' : 'quick')}
-              title={mode === 'quick' ? '서식 전체 모드 — 장·서식별 세부 입력' : '빠른 입력 모드 — 필수 공통값만'}
-              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors">
-              {mode === 'quick' ? <LayoutList className="size-3.5" /> : <Zap className="size-3.5" />}
-              {mode === 'quick' ? '서식 전체' : '빠른 입력'}
-            </button>
           </div>
         )}
       </div>
       {msg && <p className="text-xs text-[#514b81] mb-3">{msg}</p>}
 
-      {/* ══ 빠른 입력 모드 (기본 진입 — §1-1) ══ */}
-      {mode === 'quick' && (
+      {/* ══ 서식 전체 트리(기본) — ⚡ 빠른 입력을 최상단 노드로 통합. 토글 제거 (2026-08-05) ══ */}
+      {(() => {
+        // quickPanel = 트리 최상단 '⚡ 빠른 입력' 노드의 콘텐츠 (필수 완성도·필요문서·송달동의·보관함 요약을 한 페이지에)
+        const quickPanel = (
         <div className="space-y-4">
           {/* H-25: 고객 온보딩 진행 배너 (?onboarding=1일 때만 부모가 steps 전달) */}
           {onboardingSteps && onboardingSteps.length > 0 && (
             <PlanOnboardingBanner
               steps={onboardingSteps}
-              onGoForm={key => { setMode('full'); select(key) }}
+              onGoForm={key => select(key)}
             />
           )}
           {/* §7-3b: 최초 진입 1회 임포트 배너 — 서식 입력이 없고 구 생성 데이터가 있을 때 */}
@@ -448,7 +448,7 @@ export function PlanTabView({
           <div className="flex items-center gap-2 rounded-xl border border-[#e0ddf5] px-4 py-2.5">
             <ImageIcon className="size-3.5 text-[#b0acd6]" />
             <span className="text-xs text-[#514b81]">지도·사진 <span className="text-[#b0acd6]">(표지 건물 사진·위치도·피난안내도 — 소방계획서 재료)</span></span>
-            <button onClick={() => { setMode('full'); select('assets') }}
+            <button onClick={() => select('assets')}
               className="ml-auto text-[11px] text-[#7b68ee] hover:underline">등록·관리 →</button>
           </div>
 
@@ -488,14 +488,12 @@ export function PlanTabView({
             ) : (
               <span className="text-xs text-[#b0acd6]">보관함이 비어 있습니다 — 첫 생성 시 자동 등록됩니다.</span>
             )}
-            <button onClick={() => { setMode('full'); select('archive') }}
+            <button onClick={() => select('archive')}
               className="ml-auto text-[11px] text-[#7b68ee] hover:underline">보관함 열기 →</button>
           </div>
         </div>
-      )}
-
-      {/* ══ 서식 전체 모드 — §1 개정 구조: 좌측 목차 트리 + 서식 화면 (P6, 1-1~1-3) ══ */}
-      {mode === 'full' && (() => {
+        )
+        // ── 서식 전체 트리 — §1 개정 구조: 좌측 목차 트리 + 서식 화면 (P6) ──
         // 목차 완성도 표시 (1-1·1-4): ✓=입력 있음 / ○=비어 있음 / n/m=게이지형(1.1)
         const fs = formStatus ?? {}
         const dot = (key: string) => {
@@ -522,6 +520,7 @@ export function PlanTabView({
         }).length
         {/* 소방계획서_8 D-12: 3그룹 재편 — 📘 본문(1~3장) / 📑 별지 서식(회차) / 🗂 보관함·개정이력(맨 아래) */}
         const NAV_ALL = [
+          { key: 'quick', label: '⚡ 빠른 입력 (필수·송달동의)' },
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
@@ -533,7 +532,9 @@ export function PlanTabView({
         <div className="flex gap-4 items-start">
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
           <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-0.5 sticky top-2">
-            <div>
+            {/* ⚡ 빠른 입력 — 트리 최상단 랜딩 노드 (필수 완성도·필요문서·송달동의·보관함 요약) */}
+            {navBtn('quick', '⚡ 빠른 입력')}
+            <div className="pt-1 border-t border-[#eceafd] mt-1">
               <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8] flex items-center">📘 소방계획서 본문
                 <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-[#b0acd6]'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
               </p>
@@ -567,6 +568,9 @@ export function PlanTabView({
               className="md:hidden mb-3 h-8 w-full rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none">
               {NAV_ALL.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
             </select>
+
+      {/* ── ⚡ 빠른 입력 (트리 최상단 노드, 한 페이지에 필수·송달동의) ── */}
+      {sel === 'quick' && quickPanel}
 
       {/* ── 개정이력·보관 ── */}
       {sel === 'archive' && (

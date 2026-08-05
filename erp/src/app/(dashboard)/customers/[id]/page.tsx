@@ -895,24 +895,23 @@ export default async function CustomerDetailPage({
         </div>
       )}
 
-      {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) */}
-      <div className="flex gap-6 items-start">
-        <div className="flex-1 min-w-0 max-w-3xl">
-          <CustomerTabs
-            initialTab={initialTab ?? 'info'}
-            tabs={tabDefs}
-            panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, billing: billingTab, history: historyTab }}
+      {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) — 소방계획서 탭은 전체 폭(요약 패널 접힘, 2026-08-05) */}
+      <CustomerTabs
+        initialTab={initialTab ?? 'info'}
+        tabs={tabDefs}
+        panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, billing: billingTab, history: historyTab }}
+        fullWidthKeys={['plan']}
+        summary={
+          <CustomerSummaryPanel
+            address={customer.address}
+            repName={repContact?.name ?? null}
+            repPhone={repContact?.phone ?? null}
+            employeeName={assignedEmployee?.name ?? null}
+            planDate={customer.plan_anchor_date}
+            lastInspectionDate={lastInspectionDate}
           />
-        </div>
-        <CustomerSummaryPanel
-          address={customer.address}
-          repName={repContact?.name ?? null}
-          repPhone={repContact?.phone ?? null}
-          employeeName={assignedEmployee?.name ?? null}
-          planDate={customer.plan_anchor_date}
-          lastInspectionDate={lastInspectionDate}
-        />
-      </div>
+        }
+      />
     </div>
   )
 }
