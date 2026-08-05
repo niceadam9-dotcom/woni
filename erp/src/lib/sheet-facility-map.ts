@@ -40,3 +40,12 @@ export function sheetMatchesFacilities(sheetName: string, facilityCodes: string[
   if (mapped) return mapped.some(f => codes.includes(f))
   return codes.some(c => c.includes(sn) || sn.includes(c))
 }
+
+/** 시트명 → 커버하는 설비 코드 목록 (역방향, 소방계획서_8 H-5e·D-17 교차 검증 칩) —
+ *  후보(candidates) 중 이 시트가 다루는 설비만 반환. 명시 매핑 우선, 미등재 시트는 퍼지 폴백. */
+export function facilitiesForSheet(sheetName: string, candidates: string[]): string[] {
+  const sn = norm(sheetName)
+  const mapped = MAP_BY_NORM.get(sn)
+  if (mapped) return candidates.filter(c => mapped.includes(norm(c)))
+  return candidates.filter(c => { const cn = norm(c); return cn.includes(sn) || sn.includes(cn) })
+}

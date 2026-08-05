@@ -52,9 +52,12 @@ const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
 type AutoRow = { label: string; source: string; href?: string }
 
 /** 1단 [자동] 항목 요약 — ①②계층 원본·수정처 안내 (§4-A-0) */
-function autoRows(annexNo: ComposeAnnexNo, customerId?: string): AutoRow[] {
+function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: string): AutoRow[] {
   const cust = customerId ? `/customers/${customerId}` : undefined
-  const ledger = customerId ? `/customers/${customerId}?tab=plan&form=1.4` : undefined
+  // D-17 9호發 진입 컨텍스트 — 설비 대장이 스플릿 ON·첫 빈칸 포커스·[9호로 돌아가기]를 켜는 신호
+  const ledger = customerId
+    ? `/customers/${customerId}?tab=plan&form=1.4&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
+    : undefined
   if (annexNo === 'report9') {
     return [
       { label: '1~2쪽 대상물·관계인·건축물·보험', source: '고객정보', href: cust },
@@ -234,7 +237,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                   <span className="text-[10px] text-[#b0acd6]">여기서는 못 고칩니다 — 원본 화면에서 수정</span>
                 </div>
                 <div className="space-y-1.5 pl-7">
-                  {autoRows(annexNo, customerId).map(r => (
+                  {autoRows(annexNo, customerId, inspectionId).map(r => (
                     <div key={r.label} className="flex items-center gap-2 text-xs">
                       <span className={badgeAuto}>자동</span>
                       <span className="text-[#090c1d]">{r.label}</span>

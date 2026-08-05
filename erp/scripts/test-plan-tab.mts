@@ -244,8 +244,9 @@ try {
   await page.click('text=소화기구 및 자동소화장치')
   await page.click('button:has-text("피난사다리")')
   check('하위 체크 → 피난기구 자동 체크', await page.locator('div[role="button"]:has-text("피난기구")').first().textContent().then(t => t?.includes('☑') ?? false))
+  // 10bdf2b(1.4 체크형 완결): 클릭 = 0.8초 디바운스 자동 저장, 메시지 '자동 저장됨' — 버튼은 폴백
   await page.click('button:has-text("저장")')
-  await page.waitForSelector('text=서식 1.4 저장됨')
+  await page.waitForSelector('text=자동 저장됨')
   const { data: facRows } = await raw.from('fire_facilities')
     .select('facility_code, installed').eq('installed', true)
     .in('facility_code', ['소화기구 및 자동소화장치', '피난기구', '피난사다리'])

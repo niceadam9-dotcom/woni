@@ -9,6 +9,8 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { FACILITY_SPEC_SECTIONS } from '@/lib/facility-spec-schema'
+import { FACILITY_STANDARD } from '@/lib/facility-codes'
+import { facilitiesForSheet } from '@/lib/sheet-facility-map'
 
 const SECTION_KEYS = new Set(FACILITY_SPEC_SECTIONS.map(s => s.key))
 const ANNEX_NOS = new Set(['report9', 'report10', 'report11'])
@@ -86,6 +88,66 @@ export async function saveFacilitySpecAction(
 
   revalidatePath(`/customers/${customerId}`)
   return {}
+}
+
+/** 교차 검증 (소방계획서_8 H-5e·D-17 ④) — 최근 자체점검 회차에서 점검표 응답(○×)이 있는 설비 코드.
+ *  설비 대장이 "점검은 했는데 제원 미입력" 칩을 띄우는 근거 — 응답이 있는 최신 회차 1건 기준.
+ *  시트→설비 매핑은 SHEET_FACILITY_MAP(명시) 우선, 미등재 시트는 퍼지 폴백. */
+export async function getInspectedFacilityCodesAction(
+  customerId: string,
+): Promise<{ codes: string[]; roundLabel: string | null; error?: string }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  // 최근 자체점검(plan_type null·special_*) 최대 6건 — 응답 있는 최신 회차 채택
+  // (status 필터 없음 — inspection_status enum에 cancelled 값이 없음, getCustomerRoundsAction과 일관)
+  const { data: inspRaw } = await admin.from('inspections')
+    .select('id, year, sequence_num')
+    .eq('customer_id', customerId)
+    .or('plan_type.is.null,plan_type.like.special_*')
+    .order('year', { ascending: false }).order('sequence_num', { ascending: false })
+    .limit(6)
+  const insps = (inspRaw ?? []) as Array<{ id: string; year: number; sequence_num: number }>
+  if (insps.length === 0) return { codes: [], roundLabel: null }
+
+  let target: (typeof insps)[number] | null = null
+  for (const i of insps) {
+    const { count } = await admin.from('inspection_sheet_responses')
+      .select('id', { count: 'exact', head: true }).eq('inspection_id', i.id)
+    if ((count ?? 0) > 0) { target = i; break }
+  }
+  if (!target) return { codes: [], roundLabel: null }
+  const roundLabel = `${target.year}년 ${target.sequence_num}차`
+
+  // 응답 item_code 전량 (PostgREST 1,000행 한도 대비 페이지 순회 — report9 롤업과 동일 계열)
+  const responded = new Set<string>()
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin.from('inspection_sheet_responses')
+      .select('item_code').eq('inspection_id', target.id).range(from, from + 999)
+    const rows = (data ?? []) as Array<{ item_code: string }>
+    for (const r of rows) responded.add(r.item_code)
+    if (rows.length < 1000) break
+  }
+
+  // item_code → 시트 (카탈로그 고정 데이터 전량 순회)
+  const sheetIds = new Set<string>()
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin.from('inspection_sheet_items')
+      .select('item_code, sheet_id').range(from, from + 999)
+    const rows = (data ?? []) as Array<{ item_code: string; sheet_id: string }>
+    for (const r of rows) if (responded.has(r.item_code)) sheetIds.add(r.sheet_id)
+    if (rows.length < 1000) break
+  }
+  if (sheetIds.size === 0) return { codes: [], roundLabel }
+
+  const { data: sheetRaw } = await admin.from('inspection_sheets')
+    .select('id, sheet_name').in('id', [...sheetIds])
+  const allFacilities = FACILITY_STANDARD.flatMap(g => g.items)
+  const codes = new Set<string>()
+  for (const s of (sheetRaw ?? []) as Array<{ sheet_name: string }>) {
+    for (const c of facilitiesForSheet(s.sheet_name, allFacilities)) codes.add(c)
+  }
+  return { codes: [...codes], roundLabel }
 }
 
 // ── 별지 서식 고유 값 (점검 건 단위) ────────────────────────────────────────
