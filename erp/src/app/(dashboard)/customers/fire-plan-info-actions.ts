@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requirePermission } from '@/lib/auth'
+import { requirePermission, getProfile, can } from '@/lib/auth'
+import type { UserRole } from '@/types'
 import { fetchBuildingLedgerAction } from './actions'
 
 /** 소방계획서 정보(5+6차 필드) 저장 — 고객 상세 계획서 정보 패널 (설계: 소방계획서-필드확장-설계.md §4) */
@@ -342,4 +343,55 @@ export async function applyLedgerValuesAction(
 
   revalidatePath(`/customers/${customerId}`)
   return {}
+}
+
+/** 자동 반영 — 주소 확정·소방계획서 진입 시 호출. LEDGER_FIELDS 중 '빈 칸만' 대장 값으로 채움(수동값 미덮어씀).
+ *  best-effort: 권한·주소·키 미비 시 조용히 skip(리다이렉트하지 않음). 재실행 방지용 ledger_synced_at 항상 기록. */
+export async function autoApplyLedgerEmptyAction(customerId: string): Promise<{
+  filled?: number; skipped?: 'noPermission' | 'noBuilding' | 'needAddress' | 'unavailable'; error?: string
+}> {
+  const profile = await getProfile()
+  if (!profile || !can(profile.role as UserRole, 'customer_manage')) return { skipped: 'noPermission' }
+  const admin = createAdminClient()
+
+  const { data: bld } = await admin.from('buildings')
+    .select('*').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  if (!bld) return { skipped: 'noBuilding' }
+  const stored = bld as Record<string, unknown>
+
+  const useBcode = (stored.bcode as string | null) || ''
+  const useJibun = (stored.address_jibun as string | null) || ''
+  if (!useBcode || !useJibun) return { skipped: 'needAddress' }
+
+  const res = await fetchBuildingLedgerAction(useBcode, useJibun)
+  if (res.unavailable) return { skipped: 'unavailable' }
+  if (res.error || !res.info) return { error: res.error ?? '건축물대장을 조회할 수 없습니다.' }
+  const L = res.info as unknown as Record<string, unknown>
+
+  const isEmpty = (v: unknown) => v == null || v === ''
+  const patch: Record<string, unknown> = {}
+  for (const { key } of LEDGER_FIELDS) {
+    if (L[key] == null) continue          // 대장에 값 없음 → 스킵
+    if (!isEmpty(stored[key])) continue   // 기존 수동/기존 값 있음 → 미덮어씀 (빈 칸만)
+    patch[key] = String(L[key])
+  }
+  const filled = Object.keys(patch).length
+  patch.ledger_synced_at = new Date().toISOString()   // 채운 게 없어도 재조회 방지용으로 기록
+
+  const { error } = await admin.from('buildings').update(patch).eq('id', (bld as { id: string }).id)
+  if (error) return { error: `건물 정보 갱신 실패: ${error.message}` }
+
+  if (filled > 0) {
+    await admin.from('activity_logs').insert({
+      actor_id: profile.id,
+      action: 'building_ledger_refreshed',
+      entity_type: 'customer',
+      entity_id: customerId,
+      metadata: { applied: Object.keys(patch).filter(k => k !== 'ledger_synced_at'), auto: true, emptyOnly: true },
+    } as Record<string, unknown>)
+  }
+
+  revalidatePath(`/customers/${customerId}`)
+  return { filled }
 }

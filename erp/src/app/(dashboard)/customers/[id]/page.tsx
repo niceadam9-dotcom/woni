@@ -131,6 +131,9 @@ export default async function CustomerDetailPage({
     purpose: string | null; year_built: number | null; is_active: boolean
     facilities_verified_at: string | null
   }>
+  // 소방계획서 탭 진입 시 자동 대장 반영 대상: 활성 건물에 주소(bcode·지번) 있는데 아직 미동기화(ledger_synced_at null)
+  const ledgerAutoNeeded = ((buildingsRes.data ?? []) as Array<Record<string, unknown>>).some(
+    b => b.is_active && b.bcode && b.address_jibun && !b.ledger_synced_at)
 
   // 소방시설 현황 (건물별) — P33
   const buildingIds = buildings.map(b => b.id)
@@ -625,6 +628,7 @@ export default async function CustomerDetailPage({
     <PlanTabView
       customerId={customer.id}
       canManage={canManage}
+      ledgerAutoNeeded={ledgerAutoNeeded}
       purpose={planInfoInitial.purpose}
       readiness={{ done: readiness.done, total: readiness.total, missing: readiness.missing }}
       revisionInitial={{

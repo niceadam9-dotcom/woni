@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info, ExternalLink, Image as ImageIcon } from 'lucide-react'
+import { FileOutput, Download, Loader2, History, Save, Zap, LayoutList, RefreshCw, Info, Image as ImageIcon } from 'lucide-react'
 import {
   requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
-import { previewLedgerAction, applyLedgerValuesAction, type LedgerPreviewField } from '@/app/(dashboard)/customers/fire-plan-info-actions'
+import { previewLedgerAction, applyLedgerValuesAction, autoApplyLedgerEmptyAction, type LedgerPreviewField } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
@@ -63,10 +63,11 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  docs, quick, consentInitial, latestPlan, assets, onboardingSteps, annex,
+  docs, quick, consentInitial, latestPlan, assets, onboardingSteps, annex, ledgerAutoNeeded,
 }: {
   customerId: string
   canManage: boolean
+  ledgerAutoNeeded?: boolean   // 진입 시 자동 대장 조회 대상: bcode 있고 아직 미동기화(ledger_synced_at null)
   purpose: string | null
   readiness: { done: number; total: number; missing: string[] }
   revisionInitial: { revisionDate: string; revisionNote: string }
@@ -173,6 +174,22 @@ export function PlanTabView({
       router.refresh()
     })
   }
+
+  // 진입 시 자동 대장 반영 — 주소(bcode) 있고 아직 미동기화면 '빈 칸만' 조용히 채움(버튼 클릭 불필요, 수동값 미덮어씀).
+  const autoLedgerRan = useRef(false)
+  useEffect(() => {
+    if (!canManage || !ledgerAutoNeeded || autoLedgerRan.current) return
+    autoLedgerRan.current = true
+    startLedgerTransition(async () => {
+      try {
+        const res = await autoApplyLedgerEmptyAction(customerId)
+        if (res.filled && res.filled > 0) {
+          setMsg(`✅ 건축물대장 값 ${res.filled}개를 자동으로 채웠습니다 (빈 칸만) — 필수 완성도에 반영됩니다.`)
+          router.refresh()
+        }
+      } catch { /* best-effort */ }
+    })
+  }, [canManage, ledgerAutoNeeded, customerId])
 
   // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 + 필드 단위 포커스(스크롤·포커스·앰버 펄스)
   // 탭 이동은 탭 셸 컨텍스트 goTab 우선(미저장 confirm 존중) — 셸 밖 단독 렌더 시 router.push 폴백
@@ -300,14 +317,9 @@ export function PlanTabView({
             누락: {readiness.missing.slice(0, 3).join(' · ')}{readiness.missing.length > 3 ? ` 외 ${readiness.missing.length - 3}` : ''}
           </span>
         )}
-        {/* R0-10: 상호 진입점 역링크 — 보고서 센터 문서 현황으로 */}
-        <Link href={`/reports?form=docs&cust=${customerId}`}
-          title="이 고객의 문서 생성·제출 현황을 보고서 센터에서 봅니다"
-          className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline shrink-0">
-          보고서 센터에서 보기 <ExternalLink className="size-3" />
-        </Link>
+        {/* 구 보고서 센터 역링크 제거 — 이 트리(별지 서식)가 문서 현황의 단일 허브 (소방계획서_8 Phase B) */}
         {canManage && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 ml-auto">
             <input type="number" value={year} onChange={e => setYear(parseInt(e.target.value || '0', 10))}
               className="h-8 w-20 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
             <button onClick={generateHwp} disabled={isPending}

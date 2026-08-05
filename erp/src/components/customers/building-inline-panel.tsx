@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction } from '@/app/(dashboard)/buildings/actions'
 import { fetchBuildingLedgerAction } from '@/app/(dashboard)/customers/actions'
+import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
@@ -206,6 +207,8 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         ? await createBuildingAction({ customer_id: customerId, ...common })
         : await updateBuildingAction({ id: editing!, is_active: form.is_active, ...common })
       if (res.error) { setError(res.error); return }
+      // 주소(bcode) 확정 시 소방계획서용 대장 확장 필드까지 '빈 칸만' 자동 반영 — 소방계획서 탭 버튼 클릭 불필요
+      if (form.bcode) { try { await autoApplyLedgerEmptyAction(customerId) } catch { /* best-effort */ } }
       tabs?.setTabDirty('buildings', false)
       setEditing(null); syncUrl(null)
       router.refresh()
