@@ -137,6 +137,9 @@ export default async function CustomerDetailPage({
   const ledgerAutoNeeded = ((buildingsRes.data ?? []) as Array<Record<string, unknown>>).some(
     b => b.is_active && !b.ledger_synced_at && ((b.bcode && b.address_jibun) || b.address || b.address_jibun))
 
+  // 건물 용도 선택지 (049) — 건물 패널 용도 datalist 제안
+  const buildingPurposes = await listBuildingPurposes()
+
   // 소방시설 현황 (건물별) — P33
   const buildingIds = buildings.map(b => b.id)
   const [facRes, floorRes, specRes] = buildingIds.length > 0 ? await Promise.all([

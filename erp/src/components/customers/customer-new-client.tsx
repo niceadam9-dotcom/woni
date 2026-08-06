@@ -32,7 +32,12 @@ type Employee = { id: string; name: string; position: string | null }
 type ContactForm = { name: string; phone: string; email: string }
 const emptyContact = (): ContactForm => ({ name: '', phone: '', email: '' })
 
-export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employees: Employee[]; defaultRegionSi?: string }) {
+export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = [] }: {
+  employees: Employee[]
+  defaultRegionSi?: string
+  /** 049 building_purposes — 관리자 > 건물 용도 관리 목록. datalist 제안(대장 자동값·신규 용도도 허용) */
+  purposes?: string[]
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -593,12 +598,20 @@ export function CustomerNewClient({ employees, defaultRegionSi = '' }: { employe
             </div>
             <div className="grid grid-cols-2 gap-4">
           <Field label="건물용도">
+            {/* 049 building_purposes 목록 제안 — select가 아닌 datalist: 건축물대장이 목록에 없는 용도를
+                자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT) */}
             <input
               value={form.building_purpose}
               onChange={e => setField('building_purpose', e.target.value)}
-              placeholder="예: 업무시설, 근린생활시설"
+              list="building-purpose-options"
+              placeholder={purposes.length > 0 ? '선택하거나 직접 입력' : '예: 업무시설, 근린생활시설'}
               className={inputCls}
             />
+            {purposes.length > 0 && (
+              <datalist id="building-purpose-options">
+                {purposes.map(p => <option key={p} value={p} />)}
+              </datalist>
+            )}
           </Field>
           <Field label="연면적 (㎡)">
             <input

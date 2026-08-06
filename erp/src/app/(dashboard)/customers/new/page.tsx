@@ -4,13 +4,14 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CustomerNewClient } from '@/components/customers/customer-new-client'
 import { getCompanyProfile } from '@/lib/company-profile'
+import { listBuildingPurposes } from '@/lib/building-purposes'
 
 export default async function CustomersNewPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
   const admin = createAdminClient()
-  const [{ data: employeesRaw }, company] = await Promise.all([
+  const [{ data: employeesRaw }, company, purposes] = await Promise.all([
     admin
       .from('profiles')
       .select('id, name, position')
@@ -18,6 +19,7 @@ export default async function CustomersNewPage() {
       .eq('is_system', false)
       .order('name'),
     getCompanyProfile(),
+    listBuildingPurposes(),
   ])
 
   const employees = (employeesRaw ?? []) as Array<{ id: string; name: string; position: string | null }>
@@ -33,7 +35,7 @@ export default async function CustomersNewPage() {
           <p className="text-sm text-[#514b81] mt-0.5">새 고객과 관계인 정보를 등록합니다</p>
         </div>
       </div>
-      <CustomerNewClient employees={employees} defaultRegionSi={defaultRegionSi} />
+      <CustomerNewClient employees={employees} defaultRegionSi={defaultRegionSi} purposes={purposes} />
     </div>
   )
 }

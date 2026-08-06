@@ -377,9 +377,16 @@ export async function applyLedgerValuesAction(
 
 /** 자동 반영 — 주소 확정·소방계획서 진입 시 호출. LEDGER_FIELDS 중 '빈 칸만' 대장 값으로 채움(수동값 미덮어씀).
  *  best-effort: 권한·주소·키 미비 시 조용히 skip(리다이렉트하지 않음). 재실행 방지용 ledger_synced_at 항상 기록. */
-export async function autoApplyLedgerEmptyAction(customerId: string): Promise<{
+export async function autoApplyLedgerEmptyAction(
+  customerId: string,
+  opts?: { mode?: 'empty' | 'all' },
+): Promise<{
   filled?: number; skipped?: 'noPermission' | 'noBuilding' | 'needAddress' | 'unavailable'; error?: string
 }> {
+  // mode='empty'(기본) = 빈 칸만 — 기존 수기 값 보존. 탭 진입 자동 등 상시 경로.
+  // mode='all' = 전 필드 덮어쓰기 — '주소가 새로 확정된 시점'(건물 저장 직후)에만 사용.
+  //   주소가 바뀌면 이전 값은 다른 건물 데이터이므로 대장이 정답 (2026-08-06 사용자 확정).
+  const mode = opts?.mode ?? 'empty'
   const profile = await getProfile()
   if (!profile || !can(profile.role as UserRole, 'customer_manage')) return { skipped: 'noPermission' }
   const admin = createAdminClient()
@@ -403,9 +410,11 @@ export async function autoApplyLedgerEmptyAction(customerId: string): Promise<{
   const isEmpty = (v: unknown) => v == null || v === ''
   const patch: Record<string, unknown> = {}
   for (const { key } of LEDGER_FIELDS) {
-    if (L[key] == null) continue          // 대장에 값 없음 → 스킵
-    if (!isEmpty(stored[key])) continue   // 기존 수동/기존 값 있음 → 미덮어씀 (빈 칸만)
-    patch[key] = String(L[key])
+    if (L[key] == null) continue                            // 대장에 값 없음 → 스킵
+    if (mode === 'empty' && !isEmpty(stored[key])) continue  // 빈 칸만 모드: 기존 값 미덮어씀
+    const next = String(L[key])
+    if (String(stored[key] ?? '') === next) continue         // 동일값은 제외 — filled 카운트·안내 정확도
+    patch[key] = next
   }
   const filled = Object.keys(patch).length
   patch.ledger_synced_at = new Date().toISOString()   // 채운 게 없어도 재조회 방지용으로 기록
@@ -419,7 +428,7 @@ export async function autoApplyLedgerEmptyAction(customerId: string): Promise<{
       action: 'building_ledger_refreshed',
       entity_type: 'customer',
       entity_id: customerId,
-      metadata: { applied: Object.keys(patch).filter(k => k !== 'ledger_synced_at'), auto: true, emptyOnly: true },
+      metadata: { applied: Object.keys(patch).filter(k => k !== 'ledger_synced_at'), auto: true, emptyOnly: mode === 'empty' },
     } as Record<string, unknown>)
   }
 
