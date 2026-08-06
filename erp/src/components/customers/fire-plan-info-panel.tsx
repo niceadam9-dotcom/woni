@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy, Pencil } from 'lucide-react'
+import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, getFirePlanCopyCandidatesAction, type FirePlanInfoInput, type BrigadeMemberInput, type CopySourceCandidate } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
@@ -11,7 +11,8 @@ import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/f
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { CardAnchorBar, NumField, PhoneField } from '@/components/ui/fields'
 
-/** 소방계획서 정보 패널 (5+6차) — 아코디언 4그룹 + 준비율 게이지 + 가져오기 (설계 §4·§5) */
+/** 소방계획서 정보 패널 (5+6차) — 준비율 게이지 + 항상 편집 폼(①시설 ②운영 ③화재보험) + 가져오기 (설계 §4·§5,
+ *  소방계획서_10 §3-4: 요약/편집 모드·아코디언 폐기, 열자마자 편집 폼 노출) */
 
 const GRADES = ['특급', '1급', '2급', '3급']
 const STRUCTURES = ['철근콘크리트', '철골', '조적', '목구조', '샌드위치판넬']
@@ -45,8 +46,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
   const tabs = useCustomerTabs()   // 탭 셸 안에서만 non-null (§6-C-4·5)
-  const [open, setOpen] = useState(true)   // 기본 펼침(2026-08-05 사용자 확정) — 열자마자 요약·준비율 노출
-  const [mode, setMode] = useState<'summary' | 'edit'>('summary')  // §6-D-2: 기본은 읽기 요약
   const [d, setD] = useState<FirePlanInfoInput>(initial)
   const [isPending, startTransition] = useTransition()
   const [isLedgerPending, startLedgerTransition] = useTransition()
@@ -73,7 +72,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     hasBrigade: d.brigade.some(m => m.name.trim()),
   })
 
-  // §11-5: 빠른 입력 화면 누락 칩(plan-tab-view) → 이 패널 열고 필드 포커스 — 커스텀 이벤트 수신
+  // §11-5: 빠른 입력 화면 누락 칩(plan-tab-view) → 이 패널의 필드 포커스 — 커스텀 이벤트 수신
   useEffect(() => {
     const onFocusReq = (e: Event) => {
       const label = (e as CustomEvent<{ label?: string }>).detail?.label
@@ -81,13 +80,10 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     }
     window.addEventListener('erp:focus-missing', onFocusReq)
     return () => window.removeEventListener('erp:focus-missing', onFocusReq)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 누락 칩 클릭 → 패널 열고(편집 모드) 해당 입력칸으로 스크롤·포커스 (설계 §5-1)
+  // 누락 칩 클릭 → 해당 입력칸으로 스크롤·포커스 (항상 편집이므로 모드 전환 불필요, 소방계획서_10 §3-4)
   function focusMissing(label: string) {
-    setOpen(true)
-    setMode('edit')
     setTimeout(() => {
       const el = document.getElementById(READINESS_TARGET_IDS[label] ?? '')
       if (!el) return
@@ -137,7 +133,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
       if (!res.error) {
         tabs?.setTabDirty('plan', false)
         setSuggested({})
-        setMode('summary')
         router.refresh()
         if (goNext) tabs?.goNextTab()
       }
@@ -153,7 +148,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     }) : null
     const oh = !d.opHoursWeekday ? suggestOpHours(initial.purpose) : null
     if (!g && !oh) {
-      setMode('edit')
       setMsg('💡 추천할 빈 항목이 없습니다 — 구조·지붕·높이는 [건축물대장에서 다시 가져오기]를 사용하세요.')
       return
     }
@@ -168,7 +162,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     if (g) { nextSug.grade = g.reason; filled.push(`급수 ${g.grade}`) }
     if (oh) { nextSug.opHoursWeekday = oh.reason; nextSug.opHoursHoliday = oh.reason; filled.push(`운영시간 ${oh.weekday}`) }
     setSuggested(prev => ({ ...prev, ...nextSug }))
-    setMode('edit')
     setMsg(`💡 추천값 적용(빈 칸만): ${filled.join(' · ')} — 표시된 항목을 확인 후 저장하세요`)
   }
 
@@ -212,7 +205,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
       return next as unknown as FirePlanInfoInput
     })
     setSuggested(prev => ({ ...prev, ...Object.fromEntries(fills.map(([k]) => [k, `'${c.name}'에서 복사`])) }))
-    setMode('edit')
     setMsg(`📋 '${c.name}'에서 복사(빈 칸만): ${fills.map(([k]) => COPY_LABELS[k] ?? k).join(' · ')} — 확인 후 저장하세요`)
   }
 
@@ -231,9 +223,9 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
 
   return (
     <div className="mb-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff]">
+      {/* 헤더 — 준비율 게이지 + 누락 칩 (아코디언·요약 토글 폐기, 항상 편집 폼 노출, 소방계획서_10 §3-4) */}
       <div className="flex items-center gap-2 px-4 py-3">
-        <button onClick={() => setOpen(!open)} className="flex items-center gap-2 shrink-0">
-          {open ? <ChevronDown className="size-4 text-[#7b68ee]" /> : <ChevronRight className="size-4 text-[#7b68ee]" />}
+        <span className="flex items-center gap-2 shrink-0">
           <span className="text-xs font-semibold text-[#090c1d]">계획서 정보</span>
           <span className="ml-2 flex items-center gap-1.5">
             <span className="w-24 h-1.5 rounded-full bg-[#e0ddf5] overflow-hidden">
@@ -241,7 +233,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             </span>
             <span className="text-[11px] text-[#514b81]">준비율 {done}/{total}</span>
           </span>
-        </button>
+        </span>
         {missing.length > 0 && (
           <span className="flex items-center gap-1 flex-wrap ml-auto min-w-0">
             <span className="text-[10px] text-amber-600 shrink-0">누락:</span>
@@ -256,270 +248,198 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         )}
       </div>
 
-      {/* §6-D-2: 읽기 요약 모드 (기본) — 값 스캔·누락 확인 후 필요한 것만 [편집] */}
-      {open && mode === 'summary' && (() => {
-        const brigadeCount = d.brigade.filter(m => m.name.trim()).length
-        const items: Array<[string, string]> = [
-          ['수신기위치', d.receiverLocation],
-          ['구조', d.structure],
-          ['지붕', d.roof],
-          ['높이(대장)', initial.height ? `${initial.height} m` : ''],
-          ['계단·경사로', (d.stairsCount || d.rampCount) ? `계단 ${d.stairsCount || 0} · 경사로 ${d.rampCount || 0}` : ''],
-          ['피난용승강기', d.evacElevatorCount ? `${d.evacElevatorCount}대` : ''],
-          ['급수', d.grade],
-          ['선임일', d.managerSelectedAt],
-          ['대표자 구분', d.repRole],
-          ['자격·교육', (d.managerLicenseGrade || d.managerEduDate) ? [d.managerLicenseGrade, d.managerEduDate].filter(Boolean).join(' · ') : ''],
-          ['화재보험', d.insuranceJoined === null ? '' : d.insuranceJoined ? [d.insuranceCompany || '가입', d.insurancePeriod].filter(Boolean).join(' · ') : '미가입'],
-          ['운영시간', d.opHoursWeekday ? `${d.opHoursWeekday}${d.opHoursHoliday ? ` / 휴일 ${d.opHoursHoliday}` : ''}` : ''],
-          ['인원', (d.headcountWorker || d.headcountResident || d.headcountMax) ? `근무 ${d.headcountWorker || 0} · 거주 ${d.headcountResident || 0} · 최대 ${d.headcountMax || 0}` : ''],
-          ['자위소방대', brigadeCount > 0 ? `${brigadeCount}명 편성` : ''],
-        ]
-        return (
-          <div className="px-4 pb-4 space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1.5">
-              {items.map(([label, val]) => (
-                <div key={label} className="flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-[10px] text-[#b0acd6] shrink-0 w-16">{label}</span>
-                  {val
-                    ? <span className="text-xs text-[#090c1d] truncate">{val}</span>
-                    : <span className="text-xs text-amber-600">미입력</span>}
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={() => setMode('edit')}
-                className="h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium inline-flex items-center gap-1">
-                <Pencil className="size-3" /> 편집
-              </button>
-              <button onClick={applySuggestions}
-                className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
-                <Sparkles className="size-3" /> 추천값 채우기
-              </button>
-              <button onClick={openCopy}
-                className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
-                <Copy className="size-3" /> 다른 고객에서 복사
-              </button>
-              {msg && <span className="text-[11px] text-[#514b81]">{msg}</span>}
-            </div>
-            {showCopy && (
-              <div className="rounded-lg border border-[#d0ccf5] bg-white shadow-lg max-h-48 overflow-y-auto max-w-md">
-                {copyList === null ? (
-                  <p className="px-3 py-2 text-[11px] text-[#b0acd6]">불러오는 중…</p>
-                ) : copyList.length === 0 ? (
-                  <p className="px-3 py-2 text-[11px] text-[#b0acd6]">같은 용도의 복사 후보가 없습니다</p>
-                ) : copyList.map(c => (
-                  <button key={c.id} onClick={() => applyCopy(c)}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff]">
-                    <span className="font-medium text-[#090c1d]">{c.name}</span>
-                    <span className="text-[#b0acd6] ml-1.5">
-                      {[c.purpose, c.values.grade && `급수 ${c.values.grade}`, c.values.opHoursWeekday && `운영 ${c.values.opHoursWeekday}`, c.values.insuranceCompany].filter(Boolean).join(' · ')}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {open && mode === 'edit' && (
-        <div className="px-4 pb-4 space-y-4">
-          {/* §6-D-1·4 도구 모음 */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={applySuggestions}
-              className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
-              <Sparkles className="size-3" /> 추천값 채우기
-            </button>
-            <button onClick={openCopy}
-              className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
-              <Copy className="size-3" /> 다른 고객에서 복사
-            </button>
-            <button onClick={() => setMode('summary')}
-              className="h-7 px-3 rounded-lg border border-[#c8c4d0] text-[#514b81] hover:bg-[#f8f9fa] text-[11px]">
-              요약 보기
-            </button>
-          </div>
-          {showCopy && (
-            <div className="rounded-lg border border-[#d0ccf5] bg-white shadow-lg max-h-48 overflow-y-auto max-w-md">
-              {copyList === null ? (
-                <p className="px-3 py-2 text-[11px] text-[#b0acd6]">불러오는 중…</p>
-              ) : copyList.length === 0 ? (
-                <p className="px-3 py-2 text-[11px] text-[#b0acd6]">같은 용도의 복사 후보가 없습니다</p>
-              ) : copyList.map(c => (
-                <button key={c.id} onClick={() => applyCopy(c)}
-                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff]">
-                  <span className="font-medium text-[#090c1d]">{c.name}</span>
-                  <span className="text-[#b0acd6] ml-1.5">
-                    {[c.purpose, c.values.grade && `급수 ${c.values.grade}`, c.values.opHoursWeekday && `운영 ${c.values.opHoursWeekday}`, c.values.insuranceCompany].filter(Boolean).join(' · ')}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* §1-2 카드 앵커 점프 */}
-          <CardAnchorBar items={[
-            { id: 'c-1.1.1', label: '① 시설현황' }, { id: 'c-1.1.2', label: '② 운영현황' }, { id: 'c-1.1.3', label: '③ 화재보험' },
-          ]} />
-
-          {/* ① 시설현황 (섹션 카드 — §3-1.1) */}
-          <section id="c-1.1.1" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
-            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> ① 시설현황 {!initial.hasBuilding && (
-              <span className="text-amber-600 font-normal">
-                (건물 미등록 —{' '}
-                {tabs ? (
-                  <button onClick={() => tabs.goTab('buildings')} className="underline hover:text-amber-700">건물·시설 탭에서 등록</button>
-                ) : '건물·시설 탭에서 먼저 등록'})
-              </span>
-            )}</p>
-            <div className="flex flex-wrap gap-2 items-end">
-              <div><label className={labelCls}>수신기 위치</label><br />
-                <input id="fp-receiver" value={d.receiverLocation} onChange={e => set('receiverLocation', e.target.value)} list="fp-receiver-list" placeholder="예: 1층 관리실" disabled={!initial.hasBuilding} className={`${inputCls} w-36${sgCls('receiverLocation')}`} title={sgTitle('receiverLocation')} />
-                <datalist id="fp-receiver-list">{RECEIVER_LOCATION_PRESETS.map(s => <option key={s} value={s} />)}</datalist>
-              </div>
-              <div><label className={labelCls}>구조</label><br />
-                <input id="fp-structure" value={d.structure} onChange={e => set('structure', e.target.value)} list="fp-structures" placeholder="선택/입력" disabled={!initial.hasBuilding} className={`${inputCls} w-32${sgCls('structure')}`} title={sgTitle('structure')} />
-                <datalist id="fp-structures">{STRUCTURES.map(s => <option key={s} value={s} />)}</datalist>
-              </div>
-              <div><label className={labelCls}>지붕</label><br />
-                <input id="fp-roof" value={d.roof} onChange={e => set('roof', e.target.value)} list="fp-roofs" placeholder="선택/입력" disabled={!initial.hasBuilding} className={`${inputCls} w-28${sgCls('roof')}`} title={sgTitle('roof')} />
-                <datalist id="fp-roofs">{ROOFS.map(s => <option key={s} value={s} />)}</datalist>
-              </div>
-              {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-xs text-[#514b81]">{initial.height} m</span></div>}
-              {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 (§11-4 NumField) */}
-              <div><label className={labelCls}>계단</label><br /><NumField value={d.stairsCount} onChange={v => set('stairsCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
-              <div><label className={labelCls}>경사로</label><br /><NumField value={d.rampCount} onChange={v => set('rampCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
-              <div><label className={labelCls}>피난용승강기</label><br /><NumField value={d.evacElevatorCount} onChange={v => set('evacElevatorCount', v)} unit="대" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-[10px] text-[#b0acd6]">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
-              <button onClick={refetchLedger} disabled={!initial.hasBuilding || isLedgerPending}
-                className="text-[10px] text-[#7b68ee] hover:underline disabled:opacity-50 inline-flex items-center gap-0.5 shrink-0">
-                {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-                건축물대장에서 다시 가져오기
-              </button>
-            </div>
-          </section>
-
-          {/* ② 운영현황 (섹션 카드 — §3-1.1: 급수·선임·대표자·자격·교육 + 운영·인원 + 자위소방대) */}
-          <section id="c-1.1.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3 space-y-3">
-            <p className="text-[11px] font-bold text-[#7b68ee] flex items-center gap-1"><Clock className="size-3" /> ② 운영현황</p>
-            <div className="flex flex-wrap gap-2 items-end">
-              <div><label className={labelCls}>급수(대상물 등급)</label><br />
-                <div id="fp-grade" className={`flex rounded-lg border border-[#d0ccf5] overflow-hidden${sgCls('grade')}`} title={sgTitle('grade')}>
-                  {GRADES.map(g => (
-                    <button key={g} onClick={() => set('grade', d.grade === g ? '' : g)}
-                      className={`px-2.5 h-8 text-xs ${d.grade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label className={labelCls}>관리자 선임일</label><br /><DateInput id="fp-manager-date" value={d.managerSelectedAt} onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-32`} /></div>
-              {/* 신규 (104 — 별지 9호 2쪽 연계): 대표자 구분·자격구분·최근 교육이수일 */}
-              <div><label className={labelCls}>대표자 구분</label><br />
-                <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-                  {['소유자', '관리자', '점유자'].map(r => (
-                    <button key={r} onClick={() => set('repRole', d.repRole === r ? '' : r)}
-                      className={`px-2.5 h-8 text-xs ${d.repRole === r ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{r}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label className={labelCls}>관리자 자격구분</label><br />
-                <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-                  {GRADES.map(g => (
-                    <button key={g} onClick={() => set('managerLicenseGrade', d.managerLicenseGrade === g ? '' : g)}
-                      className={`px-2.5 h-8 text-xs ${d.managerLicenseGrade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label className={labelCls}>최근 교육이수일</label><br /><DateInput value={d.managerEduDate} onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32`} /></div>
-            </div>
-            <div className="flex flex-wrap gap-2 items-end">
-              <div><label className={labelCls}>평일</label><br />
-                <input id="fp-ophours" value={d.opHoursWeekday} onChange={e => set('opHoursWeekday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursWeekday')}`} title={sgTitle('opHoursWeekday')} />
-                <datalist id="fp-ophours-list">{OP_HOURS.map(s => <option key={s} value={s} />)}</datalist>
-              </div>
-              <div><label className={labelCls}>휴일</label><br /><input value={d.opHoursHoliday} onChange={e => set('opHoursHoliday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursHoliday')}`} title={sgTitle('opHoursHoliday')} /></div>
-              <div><label className={labelCls}>근무</label><br /><NumField id="fp-headcount" value={d.headcountWorker} onChange={v => set('headcountWorker', v)} unit="명" className={`${inputCls} w-16`} /></div>
-              <div><label className={labelCls}>거주</label><br /><NumField value={d.headcountResident} onChange={v => set('headcountResident', v)} unit="명" className={`${inputCls} w-16`} /></div>
-              <div><label className={labelCls}>최대수용</label><br /><NumField value={d.headcountMax} onChange={v => set('headcountMax', v)} unit="명" className={`${inputCls} w-16`} /></div>
-            </div>
-
-            {/* 자위소방대 (운영현황 카드 내) */}
-            <div id="fp-brigade">
-            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Flame className="size-3" /> 자위소방대 편성</p>
-            <div className="space-y-1.5">
-              {d.brigade.map((m, i) => (
-                <div key={i} className="flex gap-1.5 items-center">
-                  <select value={m.team} onChange={e => setBrigade(i, 'team', e.target.value)} className={`${inputCls} w-32`}>
-                    {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <input value={m.name} onChange={e => setBrigade(i, 'name', e.target.value)} placeholder="성명" className={`${inputCls} w-24`} />
-                  <input value={m.duty} onChange={e => setBrigade(i, 'duty', e.target.value)} placeholder="개별임무 (자동)" className={`${inputCls} flex-1 min-w-40`} />
-                  <PhoneField value={m.phone} onChange={v => setBrigade(i, 'phone', v)} placeholder="연락처" className={`${inputCls} w-32`} />
-                  <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500 text-xs px-1">✕</button>
-                </div>
-              ))}
-              <div className="flex gap-2 relative">
-                <button onClick={() => set('brigade', [...d.brigade, { team: TEAMS[Math.min(d.brigade.length, TEAMS.length - 1)], name: '', duty: '', phone: '' }])}
-                  className="text-[11px] text-[#7b68ee] hover:underline">+ 행 추가</button>
-                <button onClick={() => setShowPicker(!showPicker)} className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
-                  <UserPlus className="size-3" /> 가져오기 (관계인·직원)
-                </button>
-                <button onClick={autoAssignBrigade} className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
-                  <Sparkles className="size-3" /> 자동 편성
-                </button>
-                {showPicker && (
-                  <div className="absolute z-10 top-6 left-0 bg-white border border-[#d0ccf5] rounded-lg shadow-lg max-h-56 overflow-y-auto min-w-64">
-                    {people.length === 0 && <p className="text-[11px] text-[#b0acd6] px-3 py-2">후보 없음</p>}
-                    {people.map((p, i) => (
-                      <button key={i} onClick={() => addFromPerson(p)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff] flex justify-between gap-3">
-                        <span>{p.name} <span className="text-[#b0acd6]">({p.kind})</span></span>
-                        <span className="text-[#b0acd6]">{p.phone}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            </div>
-          </section>
-
-          {/* ③ 화재보험 (섹션 카드 — §3-1.1) */}
-          <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
-            <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
-            <div className="flex flex-wrap gap-2 items-end">
-              <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-                {[['가입', true], ['미가입', false]].map(([label, val]) => (
-                  <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
-                    className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
-                ))}
-              </div>
-              {d.insuranceJoined === true && (<>
-                <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="보험사" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
-                <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="가입기간" className={`${inputCls} w-44`} />
-                <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="대인 금액" className={`${inputCls} w-28`} />
-                <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="대물 금액" className={`${inputCls} w-28`} />
-              </>)}
-            </div>
-          </section>
-
-          <div className="flex items-center gap-3">
-            <button onClick={() => save()} disabled={isPending}
-              className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
-              {isPending && <Loader2 className="size-3 animate-spin" />} 저장
-            </button>
-            {tabs && (
-              <button onClick={() => save(true)} disabled={isPending}
-                className="h-8 px-4 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-xs font-medium disabled:opacity-50">
-                저장 후 다음 탭 →
-              </button>
-            )}
-            {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
-          </div>
+      <div className="px-4 pb-4 space-y-4">
+        {/* §6-D-1·4 도구 모음 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={applySuggestions}
+            className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
+            <Sparkles className="size-3" /> 추천값 채우기
+          </button>
+          <button onClick={openCopy}
+            className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
+            <Copy className="size-3" /> 다른 고객에서 복사
+          </button>
+          {msg && <span className="text-[11px] text-[#514b81]">{msg}</span>}
         </div>
-      )}
+        {showCopy && (
+          <div className="rounded-lg border border-[#d0ccf5] bg-white shadow-lg max-h-48 overflow-y-auto max-w-md">
+            {copyList === null ? (
+              <p className="px-3 py-2 text-[11px] text-[#b0acd6]">불러오는 중…</p>
+            ) : copyList.length === 0 ? (
+              <p className="px-3 py-2 text-[11px] text-[#b0acd6]">같은 용도의 복사 후보가 없습니다</p>
+            ) : copyList.map(c => (
+              <button key={c.id} onClick={() => applyCopy(c)}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff]">
+                <span className="font-medium text-[#090c1d]">{c.name}</span>
+                <span className="text-[#b0acd6] ml-1.5">
+                  {[c.purpose, c.values.grade && `급수 ${c.values.grade}`, c.values.opHoursWeekday && `운영 ${c.values.opHoursWeekday}`, c.values.insuranceCompany].filter(Boolean).join(' · ')}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* §1-2 카드 앵커 점프 */}
+        <CardAnchorBar items={[
+          { id: 'c-1.1.1', label: '① 시설현황' }, { id: 'c-1.1.2', label: '② 운영현황' }, { id: 'c-1.1.3', label: '③ 화재보험' },
+        ]} />
+
+        {/* ① 시설현황 (섹션 카드 — §3-1.1) */}
+        <section id="c-1.1.1" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
+          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> ① 시설현황 {!initial.hasBuilding && (
+            <span className="text-amber-600 font-normal">
+              (건물 미등록 —{' '}
+              {tabs ? (
+                <button onClick={() => tabs.goTab('buildings')} className="underline hover:text-amber-700">건물·시설 탭에서 등록</button>
+              ) : '건물·시설 탭에서 먼저 등록'})
+            </span>
+          )}</p>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div><label className={labelCls}>수신기 위치</label><br />
+              <input id="fp-receiver" value={d.receiverLocation} onChange={e => set('receiverLocation', e.target.value)} list="fp-receiver-list" placeholder="예: 1층 관리실" disabled={!initial.hasBuilding} className={`${inputCls} w-36${sgCls('receiverLocation')}`} title={sgTitle('receiverLocation')} />
+              <datalist id="fp-receiver-list">{RECEIVER_LOCATION_PRESETS.map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div><label className={labelCls}>구조</label><br />
+              <input id="fp-structure" value={d.structure} onChange={e => set('structure', e.target.value)} list="fp-structures" placeholder="선택/입력" disabled={!initial.hasBuilding} className={`${inputCls} w-32${sgCls('structure')}`} title={sgTitle('structure')} />
+              <datalist id="fp-structures">{STRUCTURES.map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div><label className={labelCls}>지붕</label><br />
+              <input id="fp-roof" value={d.roof} onChange={e => set('roof', e.target.value)} list="fp-roofs" placeholder="선택/입력" disabled={!initial.hasBuilding} className={`${inputCls} w-28${sgCls('roof')}`} title={sgTitle('roof')} />
+              <datalist id="fp-roofs">{ROOFS.map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-xs text-[#514b81]">{initial.height} m</span></div>}
+            {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 (§11-4 NumField) */}
+            <div><label className={labelCls}>계단</label><br /><NumField value={d.stairsCount} onChange={v => set('stairsCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
+            <div><label className={labelCls}>경사로</label><br /><NumField value={d.rampCount} onChange={v => set('rampCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
+            <div><label className={labelCls}>피난용승강기</label><br /><NumField value={d.evacElevatorCount} onChange={v => set('evacElevatorCount', v)} unit="대" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-[10px] text-[#b0acd6]">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
+            <button onClick={refetchLedger} disabled={!initial.hasBuilding || isLedgerPending}
+              className="text-[10px] text-[#7b68ee] hover:underline disabled:opacity-50 inline-flex items-center gap-0.5 shrink-0">
+              {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+              건축물대장에서 다시 가져오기
+            </button>
+          </div>
+        </section>
+
+        {/* ② 운영현황 (섹션 카드 — §3-1.1: 급수·선임·대표자·자격·교육 + 운영·인원 + 자위소방대) */}
+        <section id="c-1.1.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3 space-y-3">
+          <p className="text-[11px] font-bold text-[#7b68ee] flex items-center gap-1"><Clock className="size-3" /> ② 운영현황</p>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div><label className={labelCls}>급수(대상물 등급)</label><br />
+              <div id="fp-grade" className={`flex rounded-lg border border-[#d0ccf5] overflow-hidden${sgCls('grade')}`} title={sgTitle('grade')}>
+                {GRADES.map(g => (
+                  <button key={g} onClick={() => set('grade', d.grade === g ? '' : g)}
+                    className={`px-2.5 h-8 text-xs ${d.grade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div><label className={labelCls}>관리자 선임일</label><br /><DateInput id="fp-manager-date" value={d.managerSelectedAt} onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-32`} /></div>
+            {/* 신규 (104 — 별지 9호 2쪽 연계): 대표자 구분·자격구분·최근 교육이수일 */}
+            <div><label className={labelCls}>대표자 구분</label><br />
+              <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+                {['소유자', '관리자', '점유자'].map(r => (
+                  <button key={r} onClick={() => set('repRole', d.repRole === r ? '' : r)}
+                    className={`px-2.5 h-8 text-xs ${d.repRole === r ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{r}</button>
+                ))}
+              </div>
+            </div>
+            <div><label className={labelCls}>관리자 자격구분</label><br />
+              <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+                {GRADES.map(g => (
+                  <button key={g} onClick={() => set('managerLicenseGrade', d.managerLicenseGrade === g ? '' : g)}
+                    className={`px-2.5 h-8 text-xs ${d.managerLicenseGrade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div><label className={labelCls}>최근 교육이수일</label><br /><DateInput value={d.managerEduDate} onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32`} /></div>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div><label className={labelCls}>평일</label><br />
+              <input id="fp-ophours" value={d.opHoursWeekday} onChange={e => set('opHoursWeekday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursWeekday')}`} title={sgTitle('opHoursWeekday')} />
+              <datalist id="fp-ophours-list">{OP_HOURS.map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div><label className={labelCls}>휴일</label><br /><input value={d.opHoursHoliday} onChange={e => set('opHoursHoliday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursHoliday')}`} title={sgTitle('opHoursHoliday')} /></div>
+            <div><label className={labelCls}>근무</label><br /><NumField id="fp-headcount" value={d.headcountWorker} onChange={v => set('headcountWorker', v)} unit="명" className={`${inputCls} w-16`} /></div>
+            <div><label className={labelCls}>거주</label><br /><NumField value={d.headcountResident} onChange={v => set('headcountResident', v)} unit="명" className={`${inputCls} w-16`} /></div>
+            <div><label className={labelCls}>최대수용</label><br /><NumField value={d.headcountMax} onChange={v => set('headcountMax', v)} unit="명" className={`${inputCls} w-16`} /></div>
+          </div>
+
+          {/* 자위소방대 (운영현황 카드 내) */}
+          <div id="fp-brigade">
+          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Flame className="size-3" /> 자위소방대 편성</p>
+          <div className="space-y-1.5">
+            {d.brigade.map((m, i) => (
+              <div key={i} className="flex gap-1.5 items-center">
+                <select value={m.team} onChange={e => setBrigade(i, 'team', e.target.value)} className={`${inputCls} w-32`}>
+                  {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input value={m.name} onChange={e => setBrigade(i, 'name', e.target.value)} placeholder="성명" className={`${inputCls} w-24`} />
+                <input value={m.duty} onChange={e => setBrigade(i, 'duty', e.target.value)} placeholder="개별임무 (자동)" className={`${inputCls} flex-1 min-w-40`} />
+                <PhoneField value={m.phone} onChange={v => setBrigade(i, 'phone', v)} placeholder="연락처" className={`${inputCls} w-32`} />
+                <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500 text-xs px-1">✕</button>
+              </div>
+            ))}
+            <div className="flex gap-2 relative">
+              <button onClick={() => set('brigade', [...d.brigade, { team: TEAMS[Math.min(d.brigade.length, TEAMS.length - 1)], name: '', duty: '', phone: '' }])}
+                className="text-[11px] text-[#7b68ee] hover:underline">+ 행 추가</button>
+              <button onClick={() => setShowPicker(!showPicker)} className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
+                <UserPlus className="size-3" /> 가져오기 (관계인·직원)
+              </button>
+              <button onClick={autoAssignBrigade} className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
+                <Sparkles className="size-3" /> 자동 편성
+              </button>
+              {showPicker && (
+                <div className="absolute z-10 top-6 left-0 bg-white border border-[#d0ccf5] rounded-lg shadow-lg max-h-56 overflow-y-auto min-w-64">
+                  {people.length === 0 && <p className="text-[11px] text-[#b0acd6] px-3 py-2">후보 없음</p>}
+                  {people.map((p, i) => (
+                    <button key={i} onClick={() => addFromPerson(p)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff] flex justify-between gap-3">
+                      <span>{p.name} <span className="text-[#b0acd6]">({p.kind})</span></span>
+                      <span className="text-[#b0acd6]">{p.phone}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          </div>
+        </section>
+
+        {/* ③ 화재보험 (섹션 카드 — §3-1.1) */}
+        <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
+          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+              {[['가입', true], ['미가입', false]].map(([label, val]) => (
+                <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
+                  className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
+              ))}
+            </div>
+            {d.insuranceJoined === true && (<>
+              <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="보험사" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
+              <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="가입기간" className={`${inputCls} w-44`} />
+              <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="대인 금액" className={`${inputCls} w-28`} />
+              <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="대물 금액" className={`${inputCls} w-28`} />
+            </>)}
+          </div>
+        </section>
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => save()} disabled={isPending}
+            className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
+            {isPending && <Loader2 className="size-3 animate-spin" />} 저장
+          </button>
+          {tabs && (
+            <button onClick={() => save(true)} disabled={isPending}
+              className="h-8 px-4 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-xs font-medium disabled:opacity-50">
+              저장 후 다음 탭 →
+            </button>
+          )}
+          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+        </div>
+      </div>
     </div>
   )
 }

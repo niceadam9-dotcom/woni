@@ -445,7 +445,7 @@ export default async function CustomerDetailPage({
       : essentialLogs[0].actionLabel} · ${essentialLogs[0].log.created_at.slice(0, 10)} ${employees.find(e => e.id === essentialLogs[0].log.actor_id)?.name ?? '시스템'}`
     : null
 
-  // §11: 기본정보 탭 = 단일 카드 (담당 인라인 배정 + 요약 모드 기본정보 — 스크롤 없이 한눈 조회)
+  // §11: 기본정보 탭 = 단일 카드 (담당 인라인 배정 + 항상 편집 가능한 촘촘 그리드 기본정보, 2026-08-05 모드 통합)
   const infoTab = (
     <div className={`bg-white rounded-xl border shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4 ${!customer.assigned_employee_id ? 'border-red-200' : 'border-[#c8c4d0]'}`}>
       {/* §11-3: 담당 — 인라인 배정 (모달 폐지) + 지역 추천 병행 */}
@@ -472,7 +472,7 @@ export default async function CustomerDetailPage({
 
       <div className="border-t border-[#e0ddf5]" />
 
-      {/* §11-1·2·4: 기본정보 요약 모드 (연간 횟수는 유형 옆 병기, 값 클릭 = 편집+포커스) */}
+      {/* §11-1·2·4: 기본정보 — 항상 편집 가능한 촘촘 그리드 (연간 횟수는 유형 옆 병기, [편집] 버튼 폐기) */}
       <EditCustomerInfoClient
         customer={customer}
         canManage={canManage}

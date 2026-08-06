@@ -1,8 +1,8 @@
-﻿'use client'
+'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Search, MapPin } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 import { updateCustomerAction, quickAddressApplyAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
@@ -11,16 +11,17 @@ import type { Customer } from '@/types'
 
 type Props = {
   customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed'>
-  /** §11: 요약 모드용 — 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
-  typeSlot?: React.ReactNode
+  /** §11: 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
+  typeSlot?: ReactNode
   annualLabel?: string
   lastChangeText?: string | null
   canManage?: boolean
 }
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
-const readonlyCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-[#f8f9fa] px-3 text-sm text-[#514b81] outline-none cursor-default'
-const labelCls = 'text-xs font-medium text-[#514b81]'
+// §11(2026-08-05): 요약/편집 모드 통합 — 모든 필드를 항상 편집 가능한 촘촘한 그리드로 표시([편집] 버튼 폐기)
+const inputCls = 'h-9 w-full rounded-lg border border-[#d0ccf5] bg-white px-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const readonlyCls = 'h-9 w-full rounded-lg border border-[#d0ccf5] bg-[#f8f9fa] px-2.5 text-sm text-[#514b81] outline-none cursor-default'
+const labelCls = 'text-[11px] font-medium text-[#514b81]'
 
 function makeInitial(c: Props['customer']) {
   return {
@@ -41,24 +42,18 @@ function makeInitial(c: Props['customer']) {
 export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true }: Props) {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
-  // §11-1: 기본은 읽기 요약 — 편집 폼은 [편집] 또는 요약 값 클릭 시에만
-  const [mode, setMode] = useState<'summary' | 'edit'>('summary')
   const [form, setForm] = useState(() => makeInitial(customer))
-  const [addrJibun, setAddrJibun] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
   const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
-  // 요약 화면 인라인 퀵 입력 (2026-08-04) — 미입력 클릭 시 그 자리에서 바로 입력·저장
-  const [quick, setQuick] = useState<{ key: 'contract_date' | 'use_approval_date' | 'fire_station' | 'notes'; type: 'date' | 'text'; value: string } | null>(null)
 
   // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
-  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes].join('|')
+  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station].join('|')
   const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
   if (prevSyncKey !== syncKey) {
     setPrevSyncKey(syncKey)
     setForm(makeInitial(customer))
-    setAddrJibun('')
     setError('')
   }
 
@@ -74,23 +69,36 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
+  // 주소 검색 = 선택 즉시 저장 + 전파(관할소방서 자동 매핑·건물 주소·bcode). 도로명 수기 보정은 아래 [저장]으로.
   function handleAddressSearch() {
+    if (!canManage) return
     openPostcode(data => {
-      setAddrJibun(data.jibunAddress)
-      setForm(prev => ({
-        ...prev,
-        zipcode: data.zonecode,
-        address: data.roadAddress,
-        region_si: data.sigungu,
-        region_myeon: data.bname1 || data.bname,
-        region_ri: data.bname2 || '',
-      }))
+      startTransition(async () => {
+        const result = await quickAddressApplyAction(customer.id, {
+          zonecode: data.zonecode,
+          roadAddress: data.roadAddress,
+          jibunAddress: data.jibunAddress,
+          bcode: data.bcode,
+          sigungu: data.sigungu,
+          bname1: data.bname1,
+          bname2: data.bname2,
+          bname: data.bname,
+        })
+        if (result.error) { setError(result.error); return }
+        const a = result.applied
+        if (a && (a.fireStation || a.buildings > 0)) {
+          const parts = ['주소 저장됨']
+          if (a.fireStation) parts.push(`관할소방서 자동 입력: ${a.fireStation}`)
+          if (a.buildings > 0) parts.push(`건물 주소 ${a.buildings}건 채움`)
+          alert(`✅ ${parts.join(' · ')}`)
+        }
+        router.refresh()
+      })
     })
   }
 
   function handleReset() {
     setForm(makeInitial(customer))
-    setAddrJibun('')
     setError('')
   }
 
@@ -127,297 +135,106 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       }
       if (result.error) { setError(result.error); return }
       setConfirmedDlg(null)
-      setMode('summary')
       router.refresh()
     })
   }
 
-  // §11-5: 누락 칩(소방계획서 탭) → 기본정보 필드 포커스 — plan-tab-view가 쏘는 커스텀 이벤트 수신
+  // §11-5: 누락 칩(소방계획서 탭) → 기본정보 필드 포커스 — 항상 편집이므로 해당 입력칸으로 스크롤·포커스만
   useEffect(() => {
     const onFocusReq = (e: Event) => {
       const id = (e as CustomEvent<{ id?: string }>).detail?.id
-      if (id?.startsWith('cf-')) openEdit(id)
+      if (!id?.startsWith('cf-') || !canManage) return
+      const el = document.getElementById(id)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      ;(el as HTMLElement | null)?.focus({ preventScroll: true })
     }
     window.addEventListener('erp:focus-missing', onFocusReq)
     return () => window.removeEventListener('erp:focus-missing', onFocusReq)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage])
 
-  // §11-4: 요약 값 클릭 → 편집 모드 + 해당 입력칸 포커스
-  function openEdit(focusId?: string) {
-    if (!canManage) return
-    setMode('edit')
-    if (focusId) {
-      setTimeout(() => {
-        const el = document.getElementById(focusId)
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        ;(el as HTMLElement | null)?.focus({ preventScroll: true })
-      }, 80)
-    }
-  }
-
-  // §11-1: 읽기 요약 모드 — 3열 그리드, 누락 앰버 '미입력', 값 클릭 시 그 자리에서 바로 입력 (2026-08-04)
-  // 주소 = 클릭 즉시 주소 검색 레이어 → 선택 시 저장 + 전파(건물 주소·관할소방서 자동 매핑, quickAddressApplyAction)
-  function handleQuickAddress() {
-    openPostcode(data => {
-      startTransition(async () => {
-        const result = await quickAddressApplyAction(customer.id, {
-          zonecode: data.zonecode,
-          roadAddress: data.roadAddress,
-          jibunAddress: data.jibunAddress,
-          bcode: data.bcode,
-          sigungu: data.sigungu,
-          bname1: data.bname1,
-          bname2: data.bname2,
-          bname: data.bname,
-        })
-        if (result.error) { alert(result.error); return }
-        const a = result.applied
-        if (a && (a.fireStation || a.buildings > 0)) {
-          const parts = ['주소 저장됨']
-          if (a.fireStation) parts.push(`관할소방서 자동 입력: ${a.fireStation}`)
-          if (a.buildings > 0) parts.push(`건물 주소 ${a.buildings}건 채움`)
-          alert(`✅ ${parts.join(' · ')}`)
-        }
-        router.refresh()
-      })
-    })
-  }
-  // 나머지 미입력 필드 = 그 자리 인라인 입력 → 부분 저장 (undefined=변경 없음 규약 활용)
-  function saveQuick() {
-    if (!quick) return
-    if (quick.type === 'date' && quick.value && !isCompleteDate(quick.value)) { alert('YYYY-MM-DD 형식으로 입력해주세요.'); return }
-    startTransition(async () => {
-      const result = await updateCustomerAction(customer.id, { [quick.key]: quick.value.trim() || null } as unknown as UpdateCustomerInput)
-      if (result.error) { alert(result.error); return }
-      setQuick(null)
-      router.refresh()
-    })
-  }
-  if (mode === 'summary') {
-    const item = (label: string, value: string | null, focusId?: string, opts?: {
-      wide?: boolean; title?: string; onClick?: () => void
-      quickKey?: 'contract_date' | 'use_approval_date' | 'fire_station' | 'notes'; quickType?: 'date' | 'text'
-    }) => {
-      // 인라인 퀵 입력 활성 상태 — 그 자리에서 입력·저장
-      if (opts?.quickKey && quick?.key === opts.quickKey) {
-        return (
-          <div key={label} className={`flex items-center gap-2 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
-            <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">{label}</span>
-            {quick.type === 'date' ? (
-              <DateInput value={quick.value} onChange={e => setQuick(q => q && { ...q, value: e.target.value })}
-                className="h-7 w-36 rounded-lg border border-[#7b68ee] px-2 text-xs" />
-            ) : (
-              <input autoFocus value={quick.value} onChange={e => setQuick(q => q && { ...q, value: e.target.value })}
-                onKeyDown={e => { if (e.key === 'Enter') saveQuick(); if (e.key === 'Escape') setQuick(null) }}
-                className="h-7 flex-1 min-w-0 rounded-lg border border-[#7b68ee] px-2 text-xs outline-none" />
-            )}
-            <button onClick={saveQuick} disabled={isPending}
-              className="h-7 px-2 rounded-lg bg-[#7b68ee] text-white text-[11px] font-medium disabled:opacity-50 shrink-0">
-              {isPending ? <Loader2 className="size-3 animate-spin" /> : '저장'}
-            </button>
-            <button onClick={() => setQuick(null)} className="h-7 px-1.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] shrink-0">✕</button>
-          </div>
-        )
-      }
-      const quickOpen = opts?.quickKey
-        ? () => setQuick({ key: opts.quickKey!, type: opts.quickType ?? 'text', value: value ?? '' })
-        : undefined
-      return (
-      <div key={label} className={`flex items-baseline gap-2 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
-        <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">{label}</span>
-        <span
-          onClick={canManage ? (opts?.onClick ?? quickOpen ?? (focusId ? () => openEdit(focusId) : undefined)) : undefined}
-          title={opts?.title ?? ((focusId || opts?.quickKey) && canManage ? '클릭하면 바로 입력' : undefined)}
-          className={`text-sm truncate ${(focusId || opts?.onClick || opts?.quickKey) && canManage ? 'cursor-pointer hover:text-[#7b68ee]' : ''} ${value ? 'text-[#090c1d]' : 'text-amber-600 text-xs'}`}
-        >
-          {value || '미입력'}
-        </span>
-      </div>
-      )
-    }
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[11px] text-[#b0acd6] shrink-0 w-16">점검유형</span>
-            <span className="flex items-center gap-1.5">
-              {typeSlot}
-              {annualLabel && <span className="text-[10px] text-[#b0acd6]">{annualLabel}</span>}
-            </span>
-          </div>
-          {item('점검계획일', customer.plan_anchor_date, 'cf-plan', { title: '클릭하여 수정 (확정 일정 전파 확인 필요)' })}
-          {item('계약일', customer.contract_date, 'cf-contract', { quickKey: 'contract_date', quickType: 'date' })}
-          {item('사용승인일', customer.use_approval_date, 'cf-approval', { quickKey: 'use_approval_date', quickType: 'date' })}
-          {item('관할소방서', customer.fire_station, 'cf-station', { quickKey: 'fire_station', quickType: 'text' })}
-          {item('점검료', feeStr === '-' ? null : feeStr, undefined, { title: '편집은 청구·수금 화면에서' })}
-          {item('주소', customer.address, 'cf-address', { wide: true, onClick: handleQuickAddress, title: '클릭하면 주소 검색이 바로 열립니다 — 선택 즉시 저장·건물 주소·관할소방서 자동 전파' })}
-          {item('비고', customer.notes, 'cf-notes', { wide: true, quickKey: 'notes', quickType: 'text' })}
-        </div>
-        <div className="flex items-center gap-3 pt-1 border-t border-[#f0eefb]">
-          {canManage && (
-            <button onClick={() => openEdit()}
-              className="h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium">
-              편집
-            </button>
-          )}
-          {lastChangeText && <span className="text-[11px] text-[#b0acd6] truncate">최근 변경: {lastChangeText}</span>}
-        </div>
-      </div>
-    )
-  }
+  // 촘촘 그리드 셀 — 라벨 + 입력 (wide면 전체 폭)
+  const field = (label: ReactNode, node: ReactNode, opts?: { wide?: boolean }) => (
+    <div className={`space-y-1 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
+      <label className={labelCls}>{label}</label>
+      {node}
+    </div>
+  )
+  const req = <span className="text-red-500">*</span>
+  const dis = !canManage
 
   return (
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (!isPending && isDirty) handleSave() }}>
-      <div className="flex justify-end">
-        <button type="button" onClick={() => { handleReset(); setMode('summary') }}
-          className="h-7 px-3 rounded-lg border border-[#c8c4d0] text-[11px] text-[#514b81] hover:bg-[#f8f9fa]">
-          요약 보기
-        </button>
-      </div>
-      {/* 고객명 */}
-      <div className="space-y-1">
-        <label className={labelCls}>고객명 <span className="text-red-500">*</span></label>
-        <input
-          type="text"
-          value={form.customer_name}
-          onChange={e => set('customer_name', e.target.value)}
-          className={inputCls}
-        />
-      </div>
-
-      {/* §6-E: 필수 우선 배치 — 점검계획일(필수)을 상단에, 계약일·사용승인일은 아래 */}
-      <div className="space-y-1">
-        <label className={labelCls}>점검계획일 <span className="text-red-500">*</span> <span className="text-xs text-[#b0acd6] font-normal">(계획 기산일)</span></label>
-        <DateInput
-          id="cf-plan"
-          value={form.plan_anchor_date}
-          onChange={e => set('plan_anchor_date', e.target.value)}
-          className={inputCls}
-        />
-        <p className="text-[11px] text-[#b0acd6]">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검이 배치됩니다</p>
-      </div>
-
-      {/* 계약일 + 사용승인일 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <label className={labelCls}>계약일</label>
-          <DateInput
-            id="cf-contract"
-            value={form.contract_date}
-            onChange={e => set('contract_date', e.target.value)}
-            className={inputCls}
-          />
-        </div>
-        <div className="space-y-1">
-          <label className={labelCls}>사용승인일</label>
-          <DateInput
-            id="cf-approval"
-            value={form.use_approval_date}
-            onChange={e => set('use_approval_date', e.target.value)}
-            className={inputCls}
-          />
-        </div>
-      </div>
-
-      {/* 관할 소방서 + 점검료 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <label className={labelCls}>관할 소방서 <span className="text-xs text-[#b0acd6] font-normal">(보고서)</span></label>
-          <input
-            id="cf-station"
-            type="text"
-            value={form.fire_station}
-            onChange={e => set('fire_station', e.target.value)}
-            placeholder="예: 양평소방서"
-            className={inputCls}
-          />
-        </div>
-        <div className="space-y-1">
-          <label className={labelCls}>점검료 <span className="text-xs text-[#b0acd6] font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></label>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+        {field('점검유형',
+          <div className="flex items-center gap-1.5 h-9">
+            {typeSlot}
+            {annualLabel && <span className="text-[10px] text-[#b0acd6]">{annualLabel}</span>}
+          </div>
+        )}
+        {field(<>점검계획일 {req} <span className="text-[10px] text-[#b0acd6] font-normal">(기산일)</span></>,
+          <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis} className={inputCls} />
+        )}
+        {field(<>고객명 {req}</>,
+          <input id="cf-name" type="text" value={form.customer_name} onChange={e => set('customer_name', e.target.value)} disabled={dis} className={inputCls} />
+        )}
+        {field('계약일',
+          <DateInput id="cf-contract" value={form.contract_date} onChange={e => set('contract_date', e.target.value)} disabled={dis} className={inputCls} />
+        )}
+        {field('사용승인일',
+          <DateInput id="cf-approval" value={form.use_approval_date} onChange={e => set('use_approval_date', e.target.value)} disabled={dis} className={inputCls} />
+        )}
+        {field('관할 소방서',
+          <input id="cf-station" type="text" value={form.fire_station} onChange={e => set('fire_station', e.target.value)} disabled={dis} placeholder="예: 양평소방서" className={inputCls} />
+        )}
+        {field(<>점검료 <span className="text-[10px] text-[#b0acd6] font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,
           <input readOnly value={feeStr} className={readonlyCls} title="편집은 청구·수금 화면에서" />
-        </div>
-      </div>
-
-      {/* 주소 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className={labelCls}>주소</label>
-          <button
-            type="button"
-            onClick={handleAddressSearch}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5]"
-          >
-            <Search className="size-3" />
-            주소 검색
-          </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1">
-            <p className="text-xs text-[#b0acd6]">우편번호</p>
-            <input value={form.zipcode} readOnly placeholder="자동입력" className={readonlyCls} />
+        )}
+        {/* 주소 — 검색은 즉시 저장·전파, 도로명은 수기 보정 가능 */}
+        <div className="col-span-2 md:col-span-3 space-y-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <label className={labelCls}>주소</label>
+            {canManage && (
+              <button type="button" onClick={handleAddressSearch} disabled={isPending}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5] disabled:opacity-50">
+                <Search className="size-3" /> 주소 검색
+              </button>
+            )}
           </div>
-          <div className="col-span-2 space-y-1">
-            <p className="text-xs text-[#b0acd6]">지번주소 (참고)</p>
-            <input value={addrJibun} readOnly placeholder="자동입력" className={readonlyCls} />
+          <div className="grid grid-cols-4 gap-2">
+            <input value={form.zipcode} readOnly placeholder="우편번호" className={readonlyCls} />
+            <input id="cf-address" type="text" value={form.address} onChange={e => set('address', e.target.value)} disabled={dis}
+              placeholder="주소 검색 후 동/호수 추가 가능" className={`${inputCls} col-span-3`} />
           </div>
         </div>
-
-        <div className="space-y-1">
-          <p className="text-xs text-[#b0acd6]">도로명주소</p>
-          <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-            <input
-              id="cf-address"
-              type="text"
-              value={form.address}
-              onChange={e => set('address', e.target.value)}
-              placeholder="주소 검색 후 동/호수 추가 가능"
-              className={`${inputCls} pl-8`}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 지역 필드는 화면에서 숨김 (ADD-1 방식) — 주소검색 시 자동 세팅되는 form.region_* 값이 저장 시 그대로 반영됨 */}
-
-      {/* 비고 */}
-      <div className="space-y-1">
-        <label className={labelCls}>비고</label>
-        <textarea
-          id="cf-notes"
-          value={form.notes}
-          onChange={e => set('notes', e.target.value)}
-          placeholder="특이사항 메모"
-          rows={2}
-          className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
-        />
+        {field('비고',
+          <textarea id="cf-notes" value={form.notes} onChange={e => set('notes', e.target.value)} disabled={dis}
+            placeholder="특이사항 메모" rows={2}
+            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2.5 py-1.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none" />,
+          { wide: true }
+        )}
       </div>
 
       {error && (
         <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
       )}
 
-      {/* 변경 시에만 저장/취소 표시 */}
-      {isDirty && (
-        <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="flex-1 h-9 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
-          >
-            취소
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
-          >
-            {isPending ? <Loader2 className="size-4 animate-spin" /> : '저장'}
-          </button>
-        </div>
-      )}
+      {/* 변경 시에만 저장/취소 노출 */}
+      <div className="flex items-center gap-3 pt-1 border-t border-[#f0eefb]">
+        {isDirty && canManage ? (
+          <>
+            <button type="submit" disabled={isPending}
+              className="h-8 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
+            </button>
+            <button type="button" onClick={handleReset} disabled={isPending}
+              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors">
+              취소
+            </button>
+          </>
+        ) : (
+          lastChangeText && <span className="text-[11px] text-[#b0acd6] truncate">최근 변경: {lastChangeText}</span>
+        )}
+      </div>
 
       {confirmedDlg && (
         <ConfirmedDecisionDialog

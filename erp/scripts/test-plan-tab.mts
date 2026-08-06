@@ -88,10 +88,9 @@ try {
   check('딥링크 form=1.6 직행', true)
 
   // ── P6-2 §3-1.1: 1.1 신규 필드 (계단·경사로·피난용승강기·대표자 구분·자격구분·교육이수일) ──
-  // 계획서 정보 패널은 기본 펼침(2026-08-05) — 별도 토글 없이 바로 요약 노출
+  // 계획서 정보 패널 = 요약/편집 토글·아코디언 폐기(소방계획서_10 §3-4) — 열자마자 편집 폼 바로 노출
   await page.click('button:has-text("1.1 일반현황")')
   await page.waitForSelector('button:has-text("추천값 채우기")')
-  await page.click('button:has-text("편집") >> visible=true')
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
   await page.fill('div:has(> label:text-is("계단")) input', '2')
