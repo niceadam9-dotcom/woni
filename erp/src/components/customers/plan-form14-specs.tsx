@@ -2,11 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, CornerUpLeft, Eye, Loader2, Save } from 'lucide-react'
-import { saveFacilitySpecAction, getInspectedFacilityCodesAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { ChevronDown, ChevronRight, CornerUpLeft, Eye, Loader2, Save, Wand2 } from 'lucide-react'
+import { saveFacilitySpecsBulkAction, getInspectedFacilityCodesAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import { getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
 import { FACILITY_SPEC_SECTIONS, type SpecBlock, type SpecField } from '@/lib/facility-spec-schema'
+import { bumpNumber } from '@/components/ui/fields'
+
+/** ± 스테퍼를 붙일 수량형 단위 (S4-4) — 용량·치수(㎥·㎾·MPa·ℓ·ℓ/min·m·㎜·㎡ 등)는 ±1이 무의미해 제외 */
+const COUNT_UNITS = new Set(['개', '대', '개소', '개층', '구역'])
 
 /** 설비 대장 — 설비 세부 제원 입력 (S3A/H-19, 소방계획서_7.md §4-A-2)
  *  별지 4호 3~7쪽 = 별지 9호 4~7쪽 "소방시설등의 세부 현황" 공용 원본(customer_facility_specs).
@@ -34,7 +38,7 @@ function hintCodes(b: SpecBlock): string[] {
 const CATALOG_TOTAL = FACILITY_SPEC_SECTIONS.reduce(
   (n, s) => n + s.blocks.reduce((m, b) => m + b.fields.length, 0), 0)
 
-export function PlanForm14Specs({ customerId, buildingId, installed, initialSpecs, receiverLocation, canManage }: {
+export function PlanForm14Specs({ customerId, buildingId, installed, initialSpecs, receiverLocation, canManage, buildingName, buildingNames = [], floorsAbove, floorsBelow, extinguisherTotal, onDirtyChange }: {
   customerId: string
   buildingId: string
   /** 1.4 표의 현재 설치(√) 상태 — facility_code → installed (라이브 연동) */
@@ -44,6 +48,15 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   /** 기존 필드 자동 연결(§4-A-1) — 빠른 입력의 수신기 위치(회색 표시, 재입력 금지) */
   receiverLocation?: string | null
   canManage: boolean
+  /** 소방계획서_9 간편 입력 — 기본값 채우기·칩용 건물 데이터 */
+  buildingName?: string
+  buildingNames?: string[]
+  floorsAbove?: number | null
+  floorsBelow?: number | null
+  /** 1.4 층별 수량표 소화기 합계(라이브 state) — s31 수량 기본값 */
+  extinguisherTotal?: number
+  /** 미저장 여부 통지 — 부모(plan-form14)가 이탈 가드에 합류 */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [values, setValues] = useState<Record<string, SectionValues>>(() => {
     const out: Record<string, SectionValues> = {}
@@ -86,8 +99,16 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   const [dirty, setDirty] = useState<Record<string, boolean>>({})
   const [notice, setNotice] = useState<string | null>(null) // 미설치 블록 클릭 안내 대상
   const [msg, setMsg] = useState('')
-  const [savingSec, setSavingSec] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  // 소방계획서_9: 기본값 채우기로 채워진 경로("sec.bl.f") — 보라 링 표시, 수동 수정·저장 시 제거
+  const [autoFilled, setAutoFilled] = useState<Set<string>>(new Set())
   const [, startTransition] = useTransition()
+
+  // 미저장 섹션 수 — sticky [모두 저장] 뱃지 + 부모 이탈 가드 통지 (소방계획서_9)
+  const dirtyCount = useMemo(() => Object.values(dirty).filter(Boolean).length, [dirty])
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  useEffect(() => { onDirtyChangeRef.current = onDirtyChange })
+  useEffect(() => { onDirtyChangeRef.current?.(dirtyCount > 0) }, [dirtyCount])
   const router = useRouter()
   // 소방계획서_8 D-13 스플릿 입력 — 우측에 별지 9호 4~7쪽 실시간 미리보기 (저장 시 재렌더, 데스크톱)
   const [splitOn, setSplitOn] = useState(false)
@@ -166,11 +187,14 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
     if (sp.get('from') !== 'report9') return
-    setFromReport9(true)
-    detailsRef.current?.setAttribute('open', '')
-    fetchInspected()
-    openSplit(sp.get('insp'))
-    focusFirstEmpty()
+    const t = setTimeout(() => {
+      setFromReport9(true)
+      detailsRef.current?.setAttribute('open', '')
+      fetchInspected()
+      openSplit(sp.get('insp'))
+      focusFirstEmpty()
+    }, 0)
+    return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -237,13 +261,16 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   function setField(secKey: string, blKey: string, fKey: string, v: FieldValue) {
     setValues(p => ({ ...p, [secKey]: { ...p[secKey], [blKey]: { ...p[secKey][blKey], [fKey]: v } } }))
     setDirty(p => ({ ...p, [secKey]: true }))
+    // 자동 채움 값을 사용자가 직접 수정하면 보라 링 해제
+    const path = `${secKey}.${blKey}.${fKey}`
+    setAutoFilled(p => { if (!p.has(path)) return p; const n = new Set(p); n.delete(path); return n })
   }
 
-  function saveSection(secKey: string) {
+  /** 섹션 1개 spec JSONB 구성 — 값 있는 필드만(비운 필드는 저장에서 제거), 미설치 블록 기존 값 보존 */
+  function buildSectionSpec(secKey: string): Record<string, Record<string, unknown>> {
     const sec = FACILITY_SPEC_SECTIONS.find(s => s.key === secKey)
-    if (!sec || !canManage) return
-    // 값 있는 필드만 JSONB로 — 비운 필드는 저장에서 제거(값 삭제), 미설치 블록의 기존 값도 보존
     const spec: Record<string, Record<string, unknown>> = {}
+    if (!sec) return spec
     for (const bl of sec.blocks) {
       const out: Record<string, unknown> = {}
       for (const f of bl.fields) {
@@ -256,24 +283,108 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       }
       if (Object.keys(out).length > 0) spec[bl.key] = out
     }
-    setSavingSec(secKey)
+    return spec
+  }
+
+  /** 소방계획서_9: [모두 저장] — 미저장 섹션 전부를 벌크 액션 1회로. 실패 섹션은 dirty 유지(재클릭 = 재시도) */
+  function saveAll() {
+    const keys = FACILITY_SPEC_SECTIONS.map(s => s.key).filter(k => dirty[k])
+    if (!canManage || keys.length === 0) return
+    const payload = Object.fromEntries(keys.map(k => [k, buildSectionSpec(k)]))
+    setSaving(true)
     startTransition(async () => {
-      const res = await saveFacilitySpecAction(customerId, buildingId, secKey, spec)
-      setSavingSec(null)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(p => ({ ...p, [secKey]: false }))
-      setMsg(`✅ ${sec.no} ${sec.label} 제원 저장됨 — 별지 4호(3~7쪽)·9호(4~7쪽) 세부현황에 반영됩니다`)
+      const res = await saveFacilitySpecsBulkAction(customerId, buildingId, payload)
+      setSaving(false)
+      setDirty(p => { const n = { ...p }; for (const k of res.saved) n[k] = false; return n })
+      setAutoFilled(p => {
+        if (p.size === 0) return p
+        return new Set([...p].filter(path => !res.saved.some(k => path.startsWith(`${k}.`))))
+      })
+      const errKeys = Object.keys(res.errors)
+      if (errKeys.length > 0) {
+        const labels = errKeys.map(k => { const s = FACILITY_SPEC_SECTIONS.find(x => x.key === k); return s ? `${s.no} ${s.label}` : k })
+        setMsg(`❌ 일부 섹션 저장 실패: ${labels.join(', ')} — [모두 저장]으로 다시 시도해주세요`)
+      } else {
+        setMsg(`✅ 제원 ${res.saved.length}개 섹션 저장됨 — 별지 4호(3~7쪽)·9호(4~7쪽) 세부현황에 반영됩니다`)
+      }
       if (splitOn && splitInspId) loadSplit(splitInspId)   // D-13: 저장 즉시 우측 미리보기 재렌더
     })
   }
 
-  /** 필드 1개 위젯 — type별 렌더, 미입력은 옅은 주황 하이라이트(§4-A-2) */
+  /** 소방계획서_9: 기본값 유도 — 건물명·층수·1.4 층별 수량표에서 채울 수 있는 필드만 (빈 칸 한정) */
+  function deriveDefault(bl: SpecBlock, f: SpecField): string | null {
+    const below = floorsBelow ?? 0, above = floorsAbove ?? 0
+    if (f.type === 'text') {
+      if ((f.key === 'dong' || f.key.endsWith('_dong')) && buildingName) return buildingName
+      if (f.key === 'from_floor') return below > 0 ? String(below) : above > 0 ? '1' : null
+      if (f.key === 'to_floor') return above > 0 ? String(above) : null
+    }
+    if (f.type === 'select') {
+      if (f.key === 'coverage') return below > 0 || above > 0 ? '전체층' : null
+      if (f.key === 'from_ground') return below > 0 ? '지하' : above > 0 ? '지상' : null
+      if (f.key === 'to_ground') return above > 0 ? '지상' : null
+    }
+    if (f.type === 'number' && bl.key === 'summary' && f.key === 'qty_ext_powder' && (extinguisherTotal ?? 0) > 0) {
+      return String(extinguisherTotal)
+    }
+    return null
+  }
+
+  function fillDefaults() {
+    if (!canManage) return
+    const next = { ...values }
+    const copiedSec = new Set<string>()
+    const copiedBl = new Set<string>()
+    const added: string[] = []
+    for (const sec of FACILITY_SPEC_SECTIONS) {
+      for (const bl of sec.blocks) {
+        if (!enabled(bl)) continue
+        for (const f of bl.fields) {
+          if (isFilled(next[sec.key][bl.key][f.key])) continue
+          const d = deriveDefault(bl, f)
+          if (d == null) continue
+          if (!copiedSec.has(sec.key)) { next[sec.key] = { ...next[sec.key] }; copiedSec.add(sec.key) }
+          const bid = `${sec.key}.${bl.key}`
+          if (!copiedBl.has(bid)) { next[sec.key][bl.key] = { ...next[sec.key][bl.key] }; copiedBl.add(bid) }
+          next[sec.key][bl.key][f.key] = d
+          added.push(`${bid}.${f.key}`)
+        }
+      }
+    }
+    if (added.length === 0) {
+      setMsg('채울 수 있는 빈 칸이 없습니다 — 동명·층 범위·소화기 수량이 이미 입력됐거나, 유도할 건물 데이터(건물명·층수·층별 수량)가 없습니다.')
+      return
+    }
+    setValues(next)
+    setAutoFilled(p => new Set([...p, ...added]))
+    setDirty(p => { const n = { ...p }; for (const s of copiedSec) n[s] = true; return n })
+    setMsg(`✨ ${added.length}칸 자동 입력됨 (동명·층 범위·소화기 수량) — 값 확인 후 [모두 저장]을 눌러주세요`)
+  }
+
+  // 소방계획서_9: 층·동명 칩 — 클릭만으로 입력 (직접 타이핑 병행)
+  const dongChips = useMemo(() => [...new Set(buildingNames.filter(Boolean))], [buildingNames])
+  const floorChips = useMemo(() => {
+    const out: Array<{ label: string; ground: string; floor: string }> = []
+    const below = floorsBelow ?? 0, above = floorsAbove ?? 0
+    for (let i = below; i >= 1; i--) out.push({ label: `지하${i}`, ground: '지하', floor: String(i) })
+    const ups = above <= 6
+      ? Array.from({ length: above }, (_, i) => i + 1)
+      : [1, 2, 3, above]   // 고층 요약: 1~3층 + 최상층
+    for (const i of ups) out.push({ label: `${i}층`, ground: '지상', floor: String(i) })
+    return out
+  }, [floorsAbove, floorsBelow])
+
+  /** 필드 1개 위젯 — type별 렌더, 미입력은 옅은 주황·자동 채움은 보라 링 하이라이트(§4-A-2·소방계획서_9) */
   function fieldWidget(secKey: string, bl: SpecBlock, f: SpecField, blockOn: boolean) {
     const v = values[secKey][bl.key][f.key]
     const empty = !isFilled(v)
     const dis = !canManage || !blockOn
-    const box = `h-7 w-full rounded border px-1.5 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60 ${
-      empty ? 'border-amber-200 bg-amber-50/40' : 'border-[#d0ccf5] bg-white'}`
+    const auto = autoFilled.has(`${secKey}.${bl.key}.${f.key}`)
+    // min-w-0 = 스테퍼(±) 형제와 같은 flex 행에서 입력칸이 정상 축소되도록 (S4-4)
+    const box = `h-7 w-full min-w-0 rounded border px-1.5 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60 ${
+      empty ? 'border-amber-200 bg-amber-50/40'
+        : auto ? 'border-[#7b68ee] bg-[#f5f4ff] ring-1 ring-[#7b68ee]/40'
+        : 'border-[#d0ccf5] bg-white'}`
     if (f.type === 'check') {
       return (
         <button type="button" disabled={dis} onClick={() => setField(secKey, bl.key, f.key, !(v as boolean))}
@@ -309,12 +420,52 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         </select>
       )
     }
+    // 소방계획서_9: 동명·층 텍스트 필드는 칩 클릭만으로 입력 (직접 타이핑 병행)
+    const isDongField = f.type === 'text' && (f.key === 'dong' || f.key.endsWith('_dong'))
+    const isFloorField = f.type === 'text' && (f.key === 'floor' || f.key.endsWith('_floor'))
+    const chipCls = 'h-5 px-1.5 rounded border border-[#d0ccf5] text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors'
+    // S4-4: 수량형 숫자 필드만 ± 스테퍼 — 용량·치수(㎥·㎾·MPa·ℓ·m 등)는 ±1이 무의미해 직접 입력 유지.
+    // 강조 링(box)을 건드리지 않도록 NumField 대신 같은 증감 규칙(bumpNumber)으로 좌우 버튼만 붙인다.
+    const isCountField = f.type === 'number' && !!f.unit && COUNT_UNITS.has(f.unit)
+    const stepBtnCls = 'shrink-0 grid place-items-center size-6 rounded border border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
+    const stepBtn = (dir: 1 | -1) => (
+      <button type="button" disabled={dis} className={stepBtnCls}
+        aria-label={`${f.label} ${dir === 1 ? '1 증가' : '1 감소'}`}
+        onClick={() => {
+          const next = bumpNumber(String(v ?? ''), dir)
+          if (next !== null) setField(secKey, bl.key, f.key, next)
+        }}>{dir === 1 ? '+' : '−'}</button>
+    )
     return (
-      <div className="flex items-center gap-1">
-        <input value={v as string} disabled={dis} aria-label={f.label}
-          inputMode={f.type === 'number' ? 'decimal' : undefined}
-          onChange={e => setField(secKey, bl.key, f.key, e.target.value)} className={box} />
-        {f.unit && <span className="text-[10px] text-[#b0acd6] shrink-0">{f.unit}</span>}
+      <div>
+        <div className="flex items-center gap-1">
+          {isCountField && stepBtn(-1)}
+          <input value={v as string} disabled={dis} aria-label={f.label}
+            inputMode={f.type === 'number' ? 'decimal' : undefined}
+            onChange={e => setField(secKey, bl.key, f.key, e.target.value)} className={box} />
+          {f.unit && <span className="text-[10px] text-[#b0acd6] shrink-0">{f.unit}</span>}
+          {isCountField && stepBtn(1)}
+        </div>
+        {!dis && isDongField && dongChips.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {dongChips.map(nm => (
+              <button key={nm} type="button" onClick={() => setField(secKey, bl.key, f.key, nm)} className={chipCls}>{nm}</button>
+            ))}
+          </div>
+        )}
+        {!dis && isFloorField && floorChips.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {floorChips.map(c => (
+              <button key={c.label} type="button" className={chipCls}
+                title={`클릭 = 층${bl.fields.some(x => x.key === f.key.replace(/floor$/, 'ground')) ? ' + 지상/지하' : ''} 입력`}
+                onClick={() => {
+                  setField(secKey, bl.key, f.key, c.floor)
+                  const groundKey = f.key.replace(/floor$/, 'ground')
+                  if (bl.fields.some(x => x.key === groundKey)) setField(secKey, bl.key, groundKey, c.ground)
+                }}>{c.label}</button>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -371,8 +522,15 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
               ⚠ 점검함·제원 미입력 {crossWarnCount}곳{inspected?.label ? ` (${inspected.label} 점검표 기준)` : ''}
             </span>
           )}
+          {canManage && (
+            <button type="button" onClick={fillDefaults}
+              className="ml-auto md:ml-0 inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[11px] font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+              title="동명(건물명)·층 범위(전체층)·소화기 수량(1.4 층별 표 합계)을 빈 칸에만 자동 입력합니다 — 기존 입력은 건드리지 않음">
+              <Wand2 className="size-3" /> 기본값 채우기
+            </button>
+          )}
           <button type="button" onClick={toggleEmptyOnly}
-            className={`ml-auto md:ml-0 inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-[11px] font-medium transition-colors ${
+            className={`${canManage ? '' : 'ml-auto md:ml-0 '}inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-[11px] font-medium transition-colors ${
               emptySnap ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}
             title="미입력 칸만 모아 보기 — 마무리 단계에서 빠르게 소진 (완성도 게이지 클릭과 동일)">
             {emptySnap ? '전체 보기' : '빈칸만 보기'}
@@ -417,12 +575,6 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                     <span className="text-[10px] text-[#514b81] tabular-nums">{g.total > 0 ? `${g.filled}/${g.total}` : '—'}</span>
                   </span>
                 </button>
-                {canManage && secOpen && (
-                  <button type="button" onClick={() => saveSection(sec.key)} disabled={savingSec === sec.key}
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-[#7b68ee] text-white text-[11px] font-medium disabled:opacity-50 shrink-0">
-                    {savingSec === sec.key ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 제원 저장
-                  </button>
-                )}
               </div>
 
               {secOpen && (
@@ -495,6 +647,21 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           )
         })}
         {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
+
+        {/* 소방계획서_9: sticky [모두 저장] — 섹션별 저장 8개 → 1클릭 (부모 패널 overflow가 스크롤 조상) */}
+        {canManage && (
+          <div className="sticky bottom-0 z-10 flex items-center gap-2 bg-white/95 backdrop-blur border border-[#e0ddf5] rounded-lg px-3 py-2 shadow-[0_-2px_8px_rgba(18,43,165,0.06)]">
+            <span className="text-[11px] text-[#514b81]">
+              {dirtyCount > 0
+                ? <>미저장 <b className="text-amber-600">{dirtyCount}</b>개 섹션</>
+                : '모든 변경이 저장됐습니다'}
+            </span>
+            <button type="button" onClick={saveAll} disabled={dirtyCount === 0 || saving}
+              className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+              {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 모두 저장{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
+            </button>
+          </div>
+        )}
         </div>
 
         {/* D-13 스플릿 우측 — 별지 9호 세부현황 실시간 미리보기 (저장 시 재렌더, 데스크톱 전용) */}

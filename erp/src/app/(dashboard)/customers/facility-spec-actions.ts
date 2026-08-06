@@ -40,33 +40,30 @@ export async function getFacilitySpecsAction(
   return { specs }
 }
 
-/** 세부현황 섹션 단위 저장 (upsert) — sectionKey는 카탈로그(s31~s38) 화이트리스트 검증 */
-export async function saveFacilitySpecAction(
+/** 섹션 1건 upsert 본체 — 단건·벌크 액션 공용. 성공 시 null, 실패 시 에러 메시지 반환.
+ *  UNIQUE가 coalesce 식 인덱스(building_id NULL 대응)라 upsert onConflict를 못 씀 —
+ *  select → update / insert, 경합으로 insert가 중복(23505)이면 update 재시도 */
+async function upsertSpec(
+  admin: ReturnType<typeof createAdminClient>,
   customerId: string,
   buildingId: string | null,
   sectionKey: string,
   spec: Record<string, unknown>,
-): Promise<{ error?: string }> {
-  await requirePermission('customer_manage')
-  if (!SECTION_KEYS.has(sectionKey)) return { error: '알 수 없는 세부현황 섹션입니다.' }
-  const admin = createAdminClient()
-
-  // UNIQUE가 coalesce 식 인덱스(building_id NULL 대응)라 upsert onConflict를 못 씀 —
-  // select → update / insert, 경합으로 insert가 중복(23505)이면 update 재시도
+): Promise<string | null> {
   let sel = admin.from('customer_facility_specs')
     .select('id')
     .eq('customer_id', customerId)
     .eq('section_key', sectionKey)
   sel = buildingId ? sel.eq('building_id', buildingId) : sel.is('building_id', null)
   const { data: existing, error: selError } = await sel.maybeSingle()
-  if (selError) return { error: `세부현황 조회 실패: ${selError.message}` }
+  if (selError) return `세부현황 조회 실패: ${selError.message}`
 
   const now = new Date().toISOString()
   if (existing) {
     const { error } = await admin.from('customer_facility_specs')
       .update({ spec, updated_at: now } as Record<string, unknown>)
       .eq('id', existing.id)
-    if (error) return { error: `세부현황 저장 실패: ${error.message}` }
+    if (error) return `세부현황 저장 실패: ${error.message}`
   } else {
     const { error } = await admin.from('customer_facility_specs')
       .insert({ customer_id: customerId, building_id: buildingId, section_key: sectionKey, spec, updated_at: now } as Record<string, unknown>)
@@ -79,15 +76,50 @@ export async function saveFacilitySpecAction(
           .eq('section_key', sectionKey)
         upd = buildingId ? upd.eq('building_id', buildingId) : upd.is('building_id', null)
         const { error: updError } = await upd
-        if (updError) return { error: `세부현황 저장 실패: ${updError.message}` }
+        if (updError) return `세부현황 저장 실패: ${updError.message}`
       } else {
-        return { error: `세부현황 저장 실패: ${error.message}` }
+        return `세부현황 저장 실패: ${error.message}`
       }
     }
   }
+  return null
+}
 
+/** 세부현황 섹션 단위 저장 (upsert) — sectionKey는 카탈로그(s31~s38) 화이트리스트 검증 */
+export async function saveFacilitySpecAction(
+  customerId: string,
+  buildingId: string | null,
+  sectionKey: string,
+  spec: Record<string, unknown>,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  if (!SECTION_KEYS.has(sectionKey)) return { error: '알 수 없는 세부현황 섹션입니다.' }
+  const admin = createAdminClient()
+  const err = await upsertSpec(admin, customerId, buildingId, sectionKey, spec)
+  if (err) return { error: err }
   revalidatePath(`/customers/${customerId}`)
   return {}
+}
+
+/** 세부현황 벌크 저장 (소방계획서_9 — 2026-08-05) — 미저장 섹션 전부를 [모두 저장] 1클릭으로.
+ *  부분 실패 허용: 실패 섹션은 errors에 수집(호출부가 dirty 유지 → 재클릭 = 재시도), revalidate는 마지막 1회 */
+export async function saveFacilitySpecsBulkAction(
+  customerId: string,
+  buildingId: string | null,
+  specs: Record<string, Record<string, unknown>>,
+): Promise<{ saved: string[]; errors: Record<string, string> }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const saved: string[] = []
+  const errors: Record<string, string> = {}
+  for (const [sectionKey, spec] of Object.entries(specs)) {
+    if (!SECTION_KEYS.has(sectionKey)) { errors[sectionKey] = '알 수 없는 세부현황 섹션입니다.'; continue }
+    const err = await upsertSpec(admin, customerId, buildingId, sectionKey, spec)
+    if (err) errors[sectionKey] = err
+    else saved.push(sectionKey)
+  }
+  if (saved.length > 0) revalidatePath(`/customers/${customerId}`)
+  return { saved, errors }
 }
 
 /** 교차 검증 (소방계획서_8 H-5e·D-17 ④) — 최근 자체점검 회차에서 점검표 응답(○×)이 있는 설비 코드.

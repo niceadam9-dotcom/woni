@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { Fragment, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { FACILITY_STANDARD, EVAC_SUB_ITEMS, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { PlanForm14Specs } from '@/components/customers/plan-form14-specs'
+import { NumField } from '@/components/ui/fields'
 
 /** 서식 1.4 소방시설 현황 — 양식(image-1.png) 재현 입력 화면 (소방계획서_4.md §4)
  *  표 괘선·좌측 분류 세로 병합·셀 전체 클릭 토글·피난기구 하위 8종 연동·항목별 비고(detail.note)·
@@ -89,25 +90,34 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // 층별 수량 — 행 확장 편집(소방계획서_9 S4-3). 표는 6열 밀집이라 셀마다 ± 버튼을 넣으면 폭이 깨지므로,
+  // 행을 펼쳐 넉넉한 [−][값][+] 스테퍼로 입력한다(표 직접 타이핑도 그대로 병행).
+  const [openFloor, setOpenFloor] = useState<number | null>(null)
 
   // 2026-08-05 사용자 확정: 토글마다 자동 저장 폐지 — 최종 [저장] 1회 + 이탈 가드. 제원 입력은 우측 슬라이드 패널
   const [specsOpen, setSpecsOpen] = useState(false)
-  function markDirty() {
-    setDirty(true)
-    // 서식 트리 이동 가드(PlanTabView select 확인창)와 공유 — 클릭 토글은 input 이벤트가 없어 별도 통지 필요
-    window.dispatchEvent(new CustomEvent('erp:plan-dirty', { detail: true }))
+  // 설비 대장(세부 제원)의 미저장 상태 — 자식(PlanForm14Specs)이 통지 (소방계획서_9)
+  const [specsDirty, setSpecsDirty] = useState(false)
+  function markDirty() { setDirty(true) }
+  function clearDirty() { setDirty(false) }
+  /** 층별 수량 1칸 갱신 — 표 셀 입력과 확장 스테퍼 공용 (빈 값은 0으로 저장, 기존 규약 유지) */
+  function setFloorCount(rowIdx: number, col: string, raw: string) {
+    const n = parseInt(raw, 10)
+    setFloors(p => p.map((x, j) => j === rowIdx ? { ...x, counts: { ...x.counts, [col]: isNaN(n) ? 0 : n } } : x))
+    markDirty()
   }
-  function clearDirty() {
-    setDirty(false)
-    window.dispatchEvent(new CustomEvent('erp:plan-dirty', { detail: false }))
-  }
+  // 서식 트리 이동 가드(PlanTabView select 확인창) 공유 — 1.4·설비 대장 미저장의 합집합을 단일 지점에서 통지
+  // (개별 dispatch는 1.4 저장이 설비 대장 미저장 상태를 덮어쓰는 문제가 있어 union으로 통합, 소방계획서_9)
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('erp:plan-dirty', { detail: dirty || specsDirty }))
+  }, [dirty, specsDirty])
   // 미저장 상태 새로고침·창 닫기 가드
   useEffect(() => {
-    if (!dirty) return
+    if (!dirty && !specsDirty) return
     const h = (e: BeforeUnloadEvent) => { e.preventDefault() }
     window.addEventListener('beforeunload', h)
     return () => window.removeEventListener('beforeunload', h)
-  }, [dirty])
+  }, [dirty, specsDirty])
   // 별지 9호發 진입(?from=report9)은 설비 대장 패널 자동 오픈 (D-17 흐름 유지)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('from') !== 'report9') return
@@ -123,10 +133,14 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   }, [specsOpen])
 
   function switchBuilding(i: number) {
+    // 설비 대장은 key 리마운트로 초기화되므로 미저장 편집이 조용히 유실됨 — 전환 전 확인 (소방계획서_9)
+    if ((dirty || specsDirty) && !window.confirm('저장하지 않은 변경이 있습니다. 건물을 전환할까요?')) return
     setBidx(i)
     setFac(initFac(buildings[i]))
     setFloors((buildings[i]?.floors ?? []).map((f, j) => ({ floor_label: f.floor_label, sort_order: j, counts: { ...f.counts } })))
+    setOpenFloor(null)   // 행 목록이 통째로 교체됨 — 인덱스 기준 펼침 상태는 초기화
     clearDirty()
+    setSpecsDirty(false)
   }
   function toggle(code: string) {
     if (!canManage) return
@@ -165,6 +179,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     for (let i = fb; i >= 1; i--) rows.push({ floor_label: `지하${i}층`, sort_order: rows.length, counts: {} })
     for (let i = 1; i <= fa; i++) rows.push({ floor_label: `${i}층`, sort_order: rows.length, counts: {} })
     setFloors(rows)
+    setOpenFloor(null)   // 행 목록 재생성 — 인덱스 기준 펼침 상태는 초기화
     markDirty()
   }
   function save() {
@@ -321,40 +336,77 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
-                  <th className="pb-1 pr-1 w-20 font-medium">층</th>
+                  <th className="pb-1 pr-1 w-24 font-medium">층</th>
                   {FLOOR_COLS.map(c => <th key={c} className="pb-1 pr-1 font-medium">{c}</th>)}
                   <th className="pb-1 w-7" />
                 </tr>
               </thead>
               <tbody>
-                {floors.map((fl, i) => (
-                  <tr key={i}>
+                {floors.map((fl, i) => {
+                  const open = openFloor === i
+                  const rowName = fl.floor_label.trim() || `${i + 1}번째 행`
+                  return (
+                  <Fragment key={i}>
+                  <tr>
                     <td className="py-0.5 pr-1">
-                      <input value={fl.floor_label} disabled={!canManage}
-                        onChange={e => { setFloors(p => p.map((x, j) => j === i ? { ...x, floor_label: e.target.value } : x)); markDirty() }}
-                        className="h-6 w-full rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
+                      <span className="flex items-center gap-0.5">
+                        <button type="button" onClick={() => setOpenFloor(open ? null : i)}
+                          aria-label={`${rowName} 수량 ${open ? '접기' : '펼쳐서 ± 입력'}`} aria-expanded={open}
+                          title="펼쳐서 ± 버튼으로 입력"
+                          className="shrink-0 text-[#b0acd6] hover:text-[#7b68ee]">
+                          {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                        </button>
+                        <input value={fl.floor_label} disabled={!canManage}
+                          onChange={e => { setFloors(p => p.map((x, j) => j === i ? { ...x, floor_label: e.target.value } : x)); markDirty() }}
+                          className="h-6 w-full min-w-0 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
+                      </span>
                     </td>
                     {FLOOR_COLS.map(c => (
                       <td key={c} className="py-0.5 pr-1">
                         <input value={fl.counts[c] || ''} disabled={!canManage} inputMode="numeric"
-                          onChange={e => {
-                            const n = parseInt(e.target.value, 10)
-                            setFloors(p => p.map((x, j) => j === i ? { ...x, counts: { ...x.counts, [c]: isNaN(n) ? 0 : n } } : x))
-                            markDirty()
-                          }}
+                          onChange={e => setFloorCount(i, c, e.target.value)}
                           className="h-6 w-full rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
                       </td>
                     ))}
                     <td className="py-0.5">
                       {canManage && (
-                        <button onClick={() => { setFloors(p => p.filter((_, j) => j !== i)); markDirty() }}
+                        <button onClick={() => {
+                          setFloors(p => p.filter((_, j) => j !== i))
+                          setOpenFloor(null)   // 인덱스 기준이라 삭제 후 잔류하면 다른 행이 열림
+                          markDirty()
+                        }}
                           className="text-[#b0acd6] hover:text-red-500" aria-label="층 삭제">
                           <Trash2 className="size-3.5" />
                         </button>
                       )}
                     </td>
                   </tr>
-                ))}
+                  {/* 행 확장 편집 (S4-3) — 6열 표 폭을 건드리지 않고 넉넉한 ± 스테퍼 제공 */}
+                  {open && (
+                    <tr>
+                      <td colSpan={FLOOR_COLS.length + 2} className="pb-2">
+                        <div className="rounded-lg border border-[#e0ddf5] bg-[#fafaff] p-2.5">
+                          <p className="mb-1.5 text-[11px] font-medium text-[#514b81]">
+                            {rowName} 수량
+                            <span className="ml-1 font-normal text-[#b0acd6]">— ± 버튼으로 입력합니다 (위 표에 직접 입력해도 됩니다)</span>
+                          </p>
+                          <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {FLOOR_COLS.map(c => (
+                              <div key={c} className="flex items-center gap-1.5">
+                                <span className="w-14 shrink-0 text-[11px] text-[#514b81]">{c}</span>
+                                <NumField value={fl.counts[c] ? String(fl.counts[c]) : ''} disabled={!canManage}
+                                  unit="개" className="w-12"
+                                  onChange={v => setFloorCount(i, c, v)} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -400,7 +452,12 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
             <PlanForm14Specs key={b.id} customerId={customerId} buildingId={b.id}
               installed={Object.fromEntries(allCodes.map(c => [c, fac[c].installed]))}
               initialSpecs={specsByBuilding[b.id] ?? specsByBuilding[''] ?? {}}
-              receiverLocation={b.receiverLocation} canManage={canManage} />
+              receiverLocation={b.receiverLocation} canManage={canManage}
+              buildingName={b.building_name}
+              buildingNames={buildings.map(x => x.building_name).filter(Boolean)}
+              floorsAbove={b.floorsAbove} floorsBelow={b.floorsBelow}
+              extinguisherTotal={floors.reduce((n, f) => n + (f.counts['소화기'] || 0), 0)}
+              onDirtyChange={setSpecsDirty} />
           </div>
         </div>
       </div>

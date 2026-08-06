@@ -44,12 +44,12 @@
     },
     {
       "id": "S4", "title": "숫자 +/- 스테퍼 — 공용 NumField 강화 (§2-4)", "status": "partial",
-      "note": "2026-08-05~06 진행: NumField 스테퍼 내장(S4-1) → 1.1 계단·경사로·인원 등 자동 반영(S4-2), tsc·build·lint 그린. S4-3(6열 밀집 표)·S4-4(강조 링 충돌)는 코드 검토 결과 회귀 위험이 커 deferred — 스테퍼 핵심 가치(독립 수량 필드)는 S4-1·S4-2로 전달됨.",
+      "note": "2026-08-05~06 4개 criteria 전건 구현 완료 — S4-1 NumField 스테퍼 내장 → S4-2 1.1 자동 반영 → S4-3 1.4 층별 수량 행 확장 편집(사용자 1안, 표 폭 불변) → S4-4 제원 수량형 필드 ± (bumpNumber 공용 추출로 강조 링 보존). 각 항목 전용 프로브 10/10·tsc·eslint 그린·test-plan-tab 42/1 변경 전과 동일. 남은 것은 독립 검증(구현자≠판정자)뿐이라 전 항목 code_present·섹션 partial — 검증 통과 시 implemented 승격.",
       "criteria": [
         { "id": "S4-1", "desc": "NumField 레이아웃 [−][input][unit][+] + 증감 규칙(±step, min0, 상한 옵션, 빈값 [+]=step·[−]=빈칸 유지) + stepper={false} 옵트아웃", "status": "code_present", "note": "fields.tsx:12-63 NumField — step/min/max/stepper prop 추가·bump()·± 버튼(aria-label·disabled). plan-form13·16 decimal 사용처도 자동 반영(§2-4 '소수도 스텝 정수 1 기본')" },
         { "id": "S4-2", "desc": "1.1 일반현황 적용 — 계단·경사로 개소·피난용승강기·근무/거주/최대 인원(fire-plan-info-panel NumField 사용처 자동 반영)", "status": "code_present", "note": "fire-plan-info-panel.tsx NumField 사용처(계단·경사로·피난용승강기·근무·거주·최대)가 NumField 강화로 자동 스테퍼. 별도 수정 없음" },
-        { "id": "S4-3", "desc": "1.4 층별 수량표 셀 raw input → NumField(stepper) 교체", "status": "deferred", "note": "코드 검토(2026-08-06): FLOOR_COLS 6열(소화기·차동식·연기식·정온식·유도등·비상조명)×N행 밀집 표(plan-form14.tsx:340-350, 가로 스크롤 래퍼 없음). 셀마다 ± 버튼은 표 폭 급증·레이아웃 파손 위험 → 셀 단위 스테퍼 부적합. 보류(대안: 표 전용 컴팩트 스테퍼 별도 설계 시 재개)" },
-        { "id": "S4-4", "desc": "설비 대장 제원 number 분기 → NumField(stepper) 통일(㎥·㎾ 등은 step override 검토)", "status": "deferred", "note": "코드 검토(2026-08-06): 제원 필드는 빈칸=앰버/자동채움=보라 링 강조(plan-form14-specs.tsx:379-382 box). NumField는 내부 inputCls를 항상 앞세워 Tailwind 충돌로 강조 회귀 위험. 깔끔 적용엔 NumField input 클래스 완전 override API 선행 필요 → 보류" }
+        { "id": "S4-3", "desc": "1.4 층별 수량 — 행 확장 편집으로 ± 스테퍼 제공 (표 폭 불변, 사용자 1안 확정 2026-08-06)", "status": "code_present", "note": "2026-08-06 구현 — 셀 직접 교체안은 폐기(6열×N행 밀집·가로 스크롤 래퍼 없음 → 셀당 약 64px·총 약 384px 증가로 레이아웃 파손). 대신 표는 불변으로 두고 층 셀 ▶ 토글(aria-expanded)로 행 아래 패널을 펼쳐 NumField 6개 배치: plan-form14.tsx 층 셀 토글·colSpan 확장 행·setFloorCount(표 셀과 공용)·switchBuilding/autoFloors/행삭제 시 openFloor 초기화. 0=빈칸 기존 규약(counts[c]||'') 유지 → 0에서 [−] 무동작·빈칸 [+]=1. 검증: 전용 프로브 10/10(토글·6항목·[+]3=3·[−]=2·0 하한·빈칸[+]=1·DB counts 저장·표 직접입력 병행), tsc·eslint 그린, test-plan-tab 42/1로 변경 전과 동일(잔여 1건은 병행 세션 설비 대장 슬라이드 패널 오버레이 이슈, 본 변경과 무관)" },
+        { "id": "S4-4", "desc": "설비 대장 제원 — 수량형 단위 필드에 ± 스테퍼(강조 링 보존, 용량·치수형은 제외)", "status": "code_present", "note": "2026-08-06 구현 — NumField 통일안은 폐기(내부 기본 클래스가 앰버/보라 강조 링과 Tailwind 충돌). 대신 증감 규칙만 공용 bumpNumber(fields.tsx, NumField도 이 함수 사용)로 추출·공유하고 마크업은 box 유지한 채 좌우 size-6 버튼만 부착 → 강조 링·h-7 보존, 규칙은 단일 지점. 적용 대상은 단위 조사 후 수량형만 선별(COUNT_UNITS: 개·구역·대·개층·개소 17필드 / 용량·치수형 ℓ·m·MPa·㎥·㎾ 등 30필드 제외 — ±1 무의미). box에 min-w-0 추가(flex 축소). 검증: 전용 프로브 10/10(빈칸 앰버 강조 유지·± 존재·증감·값 입력 시 앰버 해제·0 하한·DB customer_facility_specs 저장·용량 필드 ± 미노출), tsc·eslint 그린, test-plan-tab 42/1로 변경 전과 동일(1.1 NumField 사용처 DB 저장 통과 = 리팩터 회귀 없음)" }
       ]
     },
     {

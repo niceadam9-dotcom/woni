@@ -9,6 +9,21 @@ import { useEffect, type ReactNode } from 'react'
 
 const inputCls = 'h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60'
 
+/** 숫자 증감 계산 — NumField 스테퍼와 호출부 자체 스테퍼(설비 대장 제원 등)가 공유하는 단일 규칙.
+ *  반환 null = 변경 없음(빈 값에서 [−] — 0을 강제로 넣지 않는다). (소방계획서_9 §2-4) */
+export function bumpNumber(
+  value: string,
+  dir: 1 | -1,
+  { step = 1, min = 0, max, decimal = false }: { step?: number; min?: number; max?: number; decimal?: boolean } = {},
+): string | null {
+  const cur = value === '' ? NaN : (decimal ? parseFloat(value) : parseInt(value, 10))
+  if (isNaN(cur)) return dir === 1 ? String(Math.max(min, step)) : null
+  let next = cur + dir * step
+  if (next < min) next = min
+  if (max !== undefined && next > max) next = max
+  return String(next)
+}
+
 /** 숫자 입력 + 단위 서픽스 + ± 스테퍼 — 모바일 숫자 키패드(inputMode), 현장 클릭 증감 (소방계획서_9 §2-4)
  *  레이아웃 [−][input][unit][+]. 클릭=±step(기본 1·정수), 하한 min(기본 0·음수 금지), 상한 max(옵션).
  *  빈 값 [+]=step / [−]=빈칸 유지. stepper={false}로 순수 입력 폴백. */
@@ -28,15 +43,8 @@ export function NumField({ value, onChange, unit, disabled, decimal = false, cla
 }) {
   function bump(dir: 1 | -1) {
     if (disabled) return
-    const cur = value === '' ? NaN : (decimal ? parseFloat(value) : parseInt(value, 10))
-    if (isNaN(cur)) {
-      if (dir === 1) onChange(String(Math.max(min, step)))  // 빈 값 [+] = step (min 존중)
-      return                                                 // 빈 값 [−] = 빈칸 유지 (0 강제 안 함)
-    }
-    let next = cur + dir * step
-    if (next < min) next = min
-    if (max !== undefined && next > max) next = max
-    onChange(String(next))
+    const next = bumpNumber(value, dir, { step, min, max, decimal })
+    if (next !== null) onChange(next)
   }
   const field = (
     <span className="inline-flex items-center gap-1">
