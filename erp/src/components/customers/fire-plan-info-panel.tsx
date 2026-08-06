@@ -83,13 +83,17 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   }, [])
 
   // 누락 칩 클릭 → 해당 입력칸으로 스크롤·포커스 (항상 편집이므로 모드 전환 불필요, 소방계획서_10 §3-4)
+  // 앰버 펄스 필수 — 화재보험·자위소방대처럼 패널 끝에 있는 칸은 이미 스크롤 끝이라 scrollIntoView가
+  // 움직이지 않아 "클릭해도 반응 없음"으로 보였다 (2026-08-06). plan-tab-view focusField와 동일한 피드백.
   function focusMissing(label: string) {
     setTimeout(() => {
       const el = document.getElementById(READINESS_TARGET_IDS[label] ?? '')
       if (!el) return
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      const target = el.matches('input,select,button') ? el : el.querySelector('input,select,button')
+      const target = el.matches('input,select,textarea,button') ? el : el.querySelector('input,select,textarea,button')
       ;(target as HTMLElement | null)?.focus({ preventScroll: true })
+      el.classList.add('ring-2', 'ring-amber-400', 'rounded-lg')
+      setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400', 'rounded-lg'), 2500)
     }, 80)
   }
 
