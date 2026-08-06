@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FileOutput, Download, Loader2, Save, Info } from 'lucide-react'
 import {
-  requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
+  requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction,
   importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
@@ -65,7 +65,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  consentInitial, assets, annex, ledgerAutoNeeded,
+  assets, annex, ledgerAutoNeeded,
 }: {
   customerId: string
   canManage: boolean
@@ -92,7 +92,6 @@ export function PlanTabView({
   form1215: ReactNode
   ch2: ReactNode
   ch3: ReactNode
-  consentInitial: { consent: boolean | null; email: string }
   assets: ReactNode               // 지도·사진 카드 (소방계획서_7 §5 — H-10, CustomerAssetsClient)
   annex?: ReactNode               // 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4, PlanAnnexSection)
 }) {
@@ -148,9 +147,6 @@ export function PlanTabView({
   const [rev, setRev] = useState(revisionInitial)
   const [revDirty, setRevDirty] = useState(false)
   const [isRevPending, startRevTransition] = useTransition()
-  const [consent, setConsent] = useState(consentInitial)
-  const [consentDirty, setConsentDirty] = useState(false)
-  const [isConsentPending, startConsentTransition] = useTransition()
   // 대장 수동 미리보기·확정 저장(구 [건축물대장 불러오기])은 빠른 입력 페이지와 함께 폐기(2026-08-06).
   // 대체 경로: 진입 시 자동 반영(아래) + 1.1 [건축물대장에서 다시 가져오기] + 건물·시설 탭 수기 입력.
   const [, startLedgerTransition] = useTransition()
@@ -226,16 +222,6 @@ export function PlanTabView({
       if (res.error) { setMsg(`❌ ${res.error}`); setImportHidden(true); return }
       setMsg(`✅ 이전 생성 데이터에서 가져왔습니다 (${(res.imported ?? []).length}개 섹션) — 서식 전체 모드에서 확인해주세요.`)
       setImportHidden(true)
-      router.refresh()
-    })
-  }
-
-  function saveConsent() {
-    startConsentTransition(async () => {
-      const res = await saveEmailConsentAction(customerId, { consent: consent.consent, email: consent.email })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setConsentDirty(false)
-      setMsg('✅ 송달 동의 저장됨')
       router.refresh()
     })
   }
@@ -341,31 +327,7 @@ export function PlanTabView({
             </div>
           )}
 
-          {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) — 시스템 내 유일 입력처라 1.1로 이관 존치 */}
-          {canManage && (
-            <div id="consent-section" className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
-              <p className="text-xs font-semibold text-[#514b81] mb-2">자체점검 보고서 전자우편 송달 동의 <span className="font-normal text-[#b0acd6]">(별지 9호 1쪽)</span></p>
-              <div className="flex items-center gap-2 flex-wrap">
-                {([[true, '동의'], [false, '미동의']] as Array<[boolean, string]>).map(([v, label]) => (
-                  <button key={label}
-                    onClick={() => { setConsent(p => ({ ...p, consent: p.consent === v ? null : v })); setConsentDirty(true) }}
-                    className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
-                      consent.consent === v ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'
-                    }`}>
-                    {label}
-                  </button>
-                ))}
-                <input value={consent.email} type="email" placeholder="송달 이메일"
-                  onChange={e => { setConsent(p => ({ ...p, email: e.target.value })); setConsentDirty(true) }}
-                  className="h-8 w-56 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
-                <button onClick={saveConsent} disabled={!consentDirty || isConsentPending}
-                  className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
-                  {isConsentPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
-                </button>
-              </div>
-            </div>
-          )}
-
+          {/* 송달 동의는 1.1 계획서 정보 폼 ④ 섹션으로 흡수 — 저장 버튼 1개로 통합(2026-08-06) */}
         </div>
         )
         // ── 서식 전체 트리 — §1 개정 구조: 좌측 목차 트리 + 서식 화면 (P6) ──

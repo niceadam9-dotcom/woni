@@ -273,6 +273,9 @@ export default async function CustomerDetailPage({
     headcountMax: s(cRec.headcount_max),
     brigade: ((brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>)
       .map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' })),
+    // ④ 송달 동의 — 저장 버튼 통합(2026-08-06)으로 1.1 폼이 함께 저장
+    emailConsent: (cRec.email_delivery_consent as boolean | null) ?? null,
+    reportEmail: s(cRec.report_email),
     // §6-D-1 추천값 판정용 (급수 규칙·운영시간 프리셋)
     purpose: (firstBld?.purpose as string | null) ?? null,
     totalArea: (firstBld?.total_area as number | null) ?? null,
@@ -650,10 +653,6 @@ export default async function CustomerDetailPage({
         initialVulnerable={fpSections.vulnerable ?? null}
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []} />}
-      consentInitial={{
-        consent: (cRec.email_delivery_consent as boolean | null) ?? null,
-        email: s(cRec.report_email),
-      }}
       assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
       annex={<PlanAnnexSection customerId={customer.id} />}
     />

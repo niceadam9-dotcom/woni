@@ -41,17 +41,26 @@ try {
   check('생성 바 — [계획서 생성] 버튼 (§7-5 HWP 단일)', await page.isVisible('button:has-text("계획서 생성 (HWP+PDF)")'))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
 
-  // ── 2) 송달 동의 — 1.1 하단으로 이관(유일 입력처 보존) ──
-  check('1.1 — 송달 동의 블록 이관됨', await page.isVisible('text=전자우편 송달 동의'))
+  // ── 2) 송달 동의 — 1.1 ④ 섹션으로 흡수, 저장 버튼 통합(2026-08-06) ──
+  check('1.1 — ④ 송달 동의 섹션 이관됨', await page.isVisible('text=자체점검 보고서 전자우편 송달 동의'))
+  check('저장 통합 — ④ 섹션에 자체 저장 버튼 없음(폼 [저장]으로 통합)',
+    (await page.locator('#consent-section button:has-text("저장")').count()) === 0)
 
-  // ── 3) 송달 동의 저장 (098 §9-6①) — 11-5 누락 칩(버튼)과 충돌하지 않게 섹션 한정
+  // 화재보험 라벨 — [가입] 선택 시 노출되는 4칸에 항목명·단위가 붙어 있어야 함(placeholder 의존 폐기)
+  await page.click('#fp-insurance button:has-text("가입")')
+  await page.waitForSelector('text=대인 가입금액')
+  check('화재보험 — 라벨 노출(보험사·기간·대인/대물)',
+    await page.isVisible('text=대물 가입금액') && await page.isVisible('text=가입기간'))
+  check('화재보험 — 금액 단위(천만원) 표시', (await page.locator('text=천만원').count()) >= 2)
+
+  // ── 3) 송달 동의 + 화재보험을 1.1 [저장] 하나로 저장 (098 §9-6① · 라벨 복구분) ──
   await page.click('#consent-section button:has-text("동의")')
-  await page.fill('input[placeholder="송달 이메일"]', 'owner@example.com')
-  await page.click('#consent-section button:has-text("저장")')
-  await page.waitForSelector('text=송달 동의 저장됨')
+  await page.fill('input[placeholder="예: owner@example.com"]', 'owner@example.com')
+  await page.click('button:text-is("저장")')
+  await page.waitForSelector('text=저장되었습니다')
   const { data: cRow } = await raw.from('customers')
     .select('email_delivery_consent, report_email').eq('id', customerId).single()
-  check('DB 송달 동의 저장', cRow?.email_delivery_consent === true && cRow?.report_email === 'owner@example.com', JSON.stringify(cRow))
+  check('DB 송달 동의 저장 (통합 저장 경로)', cRow?.email_delivery_consent === true && cRow?.report_email === 'owner@example.com', JSON.stringify(cRow))
 
   // ── 4) 트리 — 보관함·개정이력 노드 진입 ──
   await page.click('button:has-text("보관함·개정이력")')

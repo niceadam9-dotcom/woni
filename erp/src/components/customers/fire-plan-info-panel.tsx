@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy } from 'lucide-react'
+import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy, Mail } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, getFirePlanCopyCandidatesAction, type FirePlanInfoInput, type BrigadeMemberInput, type CopySourceCandidate } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
@@ -286,6 +286,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         {/* §1-2 카드 앵커 점프 */}
         <CardAnchorBar items={[
           { id: 'c-1.1.1', label: '① 시설현황' }, { id: 'c-1.1.2', label: '② 운영현황' }, { id: 'c-1.1.3', label: '③ 화재보험' },
+          { id: 'consent-section', label: '④ 송달 동의' },
         ]} />
 
         {/* ① 시설현황 (섹션 카드 — §3-1.1) */}
@@ -445,6 +446,29 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 </span>
               </div>
             </>)}
+          </div>
+        </section>
+
+        {/* ④ 자체점검 보고서 전자우편 송달 동의 (098, 별지 9호 1쪽) —
+            빠른 입력 폐기로 1.1로 이관된 뒤 저장 버튼이 둘이 되어, 이 폼 상태·[저장]으로 통합(2026-08-06) */}
+        <section id="consent-section" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
+          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1">
+            <Mail className="size-3" /> ④ 자체점검 보고서 전자우편 송달 동의
+            <span className="font-normal text-[#b0acd6]">(별지 9호 1쪽 — 관계인 이메일 발송 조건)</span>
+          </p>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div><label className={labelCls}>동의 여부</label><br />
+              <div id="fp-consent" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden w-fit">
+                {[['동의', true], ['미동의', false]].map(([label, val]) => (
+                  <button key={String(label)} onClick={() => set('emailConsent', d.emailConsent === val ? null : val as boolean)}
+                    className={`px-3 h-8 text-xs ${d.emailConsent === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
+                ))}
+              </div>
+            </div>
+            <div><label className={labelCls}>송달 이메일</label><br />
+              <input value={d.reportEmail} type="email" onChange={e => set('reportEmail', e.target.value)}
+                placeholder="예: owner@example.com" className={`${inputCls} w-56`} />
+            </div>
           </div>
         </section>
 

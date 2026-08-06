@@ -209,24 +209,8 @@ export async function getPlanAssetUrlAction(customerId: string, path: string): P
   return { url: data.signedUrl }
 }
 
-/** 전자우편 송달 동의 저장 (098, 별지 9호 1쪽 — 소방계획서_4.md §9-6①) */
-export async function saveEmailConsentAction(
-  customerId: string,
-  input: { consent: boolean | null; email: string },
-): Promise<{ error?: string }> {
-  await requirePermission('customer_manage')
-  const email = input.email.trim()
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: '이메일 형식을 확인해주세요.' }
-  if (input.consent === true && !email) return { error: '동의 시 송달 이메일을 입력해주세요.' }
-  const admin = createAdminClient()
-  const { error } = await admin.from('customers').update({
-    email_delivery_consent: input.consent,
-    report_email: email || null,
-  } as Record<string, unknown>).eq('id', customerId)
-  if (error) return { error: `저장 실패: ${error.message}` }
-  revalidatePath(`/customers/${customerId}`)
-  return {}
-}
+// 전자우편 송달 동의 저장(구 saveEmailConsentAction)은 saveFirePlanInfoAction으로 흡수 —
+// 1.1 화면에 저장 버튼이 둘이 되어 하나로 통합(2026-08-06). 검증 규칙은 그대로 승계됨.
 
 /** 최초 진입 1회 임포트 (§7-3b) — 구 웹 생성분(.form.json)의 수기 편집값을 서식 저장소로 가져오기.
  *  조건: fire_plan_forms 입력이 아직 없는 고객(최초 1회). 매핑은 어댑터 §7-3a의 역방향. */

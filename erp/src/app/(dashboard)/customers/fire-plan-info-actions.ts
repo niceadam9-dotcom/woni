@@ -61,6 +61,9 @@ export type FirePlanInfoInput = {
   headcountResident: string
   headcountMax: string
   brigade: BrigadeMemberInput[]
+  // ④ 자체점검 보고서 전자우편 송달 동의 (098, 별지 9호 1쪽) — 저장 버튼 통합(2026-08-06)으로 1.1 폼에 흡수
+  emailConsent: boolean | null
+  reportEmail: string
 }
 
 const toInt = (s: string): number | null => {
@@ -77,6 +80,10 @@ export async function saveFirePlanInfoAction(
 
   if (input.repRole && !['소유자', '관리자', '점유자'].includes(input.repRole)) return { error: '대표자 구분 값을 확인해주세요.' }
   if (input.managerLicenseGrade && !['특급', '1급', '2급', '3급'].includes(input.managerLicenseGrade)) return { error: '자격구분 값을 확인해주세요.' }
+  // 송달 동의 검증 — 구 saveEmailConsentAction의 규칙을 그대로 승계(저장 통합, 2026-08-06)
+  const reportEmail = input.reportEmail.trim()
+  if (reportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reportEmail)) return { error: '이메일 형식을 확인해주세요.' }
+  if (input.emailConsent === true && !reportEmail) return { error: '송달 동의 시 이메일을 입력해주세요.' }
 
   // customers 갱신
   const { error: cErr } = await admin.from('customers').update({
@@ -95,6 +102,8 @@ export async function saveFirePlanInfoAction(
     headcount_worker: toInt(input.headcountWorker),
     headcount_resident: toInt(input.headcountResident),
     headcount_max: toInt(input.headcountMax),
+    email_delivery_consent: input.emailConsent,
+    report_email: reportEmail || null,
   } as Record<string, unknown>).eq('id', customerId)
   if (cErr) return { error: `고객 정보 저장 실패: ${cErr.message}` }
 
