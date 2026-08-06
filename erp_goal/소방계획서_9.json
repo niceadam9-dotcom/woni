@@ -1,0 +1,67 @@
+{
+  "project": "소방계획서_9 — 설비 대장(세부 제원) 간편 입력",
+  "design_doc": "erp_goal/소방계획서_9.md",
+  "created": "2026-08-05",
+  "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
+  "note_status": "본 JSON은 소방계획서_9.md의 자기신고(§1~4 v1 구현 완료·미커밋, v2 보류)를 심볼 존재 확인 수준(코드 대조, 구현자≠판정자 독립검증 전)으로 기록. 검증 결과 §2-4 숫자 스테퍼는 실제 미구현이 확인되어 pending_order로 정정함.",
+  "status_legend": {
+    "confirmed": "사용자 확정 설계 결정",
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(심볼 확인) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류"
+  },
+  "decisions": [
+    { "id": "R-1", "desc": "기본값 원클릭 채우기 — 건물 데이터·1.4 층별 수량표에서 유도 가능한 필드 자동 입력(빈 칸만)", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "R-2", "desc": "층·동명 칩 — 반복되는 동명·층 텍스트 필드를 클릭만으로 입력", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "R-3", "desc": "저장 최소화 — 섹션당 [제원 저장] 최대 8회 → [모두 저장] 1클릭(미저장 섹션 일괄)", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "R-4", "desc": "숫자 +/- 스테퍼 — 소방계획서 본문·제원의 숫자 입력칸을 [−][+] 클릭으로 1씩 증감(현장·모바일)", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "R-5", "desc": "v2 확장 범위(승인·구현 보류) — Enter 다음 빈칸·정확성 경고(비차단)·수량 값 칩·1.3 위치도 업로드 중복 해소. 저장 방식은 [모두 저장] 1클릭 현행 유지", "status": "confirmed", "note": "2026-08-05 승인, 사용자 '중단' 지시로 미착수" }
+  ],
+  "sections": [
+    {
+      "id": "S1", "title": "벌크 저장 액션 (§2-1)", "status": "code_present",
+      "criteria": [
+        { "id": "S1-1", "desc": "upsertSpec 헬퍼 추출 — 기존 saveFacilitySpecAction 본체(select→update/insert+23505 재시도)를 비공개 헬퍼로, 단건 액션 시그니처 불변", "status": "code_present", "note": "facility-spec-actions.ts:46 upsertSpec·:98 단건 액션이 헬퍼 호출" },
+        { "id": "S1-2", "desc": "saveFacilitySpecsBulkAction 신설 — 권한 1회 → SECTION_KEYS 화이트리스트(미등재는 errors 수집) → 순차 upsert(최대 8, 부분 실패 허용) → 성공 1건+ 시에만 revalidate 1회", "status": "code_present", "note": "facility-spec-actions.ts:106 saveFacilitySpecsBulkAction·:117 upsertSpec 순회" }
+      ]
+    },
+    {
+      "id": "S2", "title": "PlanForm14Specs 간편 입력 (§2-2)", "status": "code_present",
+      "criteria": [
+        { "id": "S2-1", "desc": "[모두 저장] — buildSectionSpec(secKey) 추출 후 dirty 섹션만 벌크 액션 1회, 성공 섹션만 dirty 해제(실패=재클릭 재시도), 섹션별 저장 버튼 제거 + 좌측 sticky 저장 바(미저장 N개)", "status": "code_present", "note": "plan-form14-specs.tsx:266 buildSectionSpec·:286 saveAll·:302 부분 실패 안내" },
+        { "id": "S2-2", "desc": "[기본값 채우기] — enabled 블록·빈 칸만: dong←건물명, coverage/from·to_ground·floor←층수, s31 소화기 합계←1.4 라이브 state. 채운 경로 autoFilled Set → 보라 링(앰버=빈칸과 구별), 수동수정·저장 시 제거", "status": "code_present", "note": "plan-form14-specs.tsx:99-100 autoFilled·:314 dong←건물명·:357 '✨ N칸 자동 입력됨' 안내" },
+        { "id": "S2-3", "desc": "층·동명 칩 — key 패턴(dong/*_dong, floor/*_floor) 감지 → input 아래 칩. 동명=활성 건물명(중복 제거), 층=지하N…지상N(7층+ 요약), 층 칩 클릭=층+페어 select 동시 입력", "status": "code_present", "note": "plan-form14-specs.tsx:361 dongChips(중복 제거). 층 칩·페어 select 동시입력은 코드 대조 필요(criteria 근거 파일:라인 추가 시 implemented 승격 가능)" }
+      ]
+    },
+    {
+      "id": "S3", "title": "부모 가드 통합 — PlanForm14 (§2-3)", "status": "code_present",
+      "criteria": [
+        { "id": "S3-1", "desc": "specsDirty 상태 + erp:plan-dirty를 단일 union effect(dirty || specsDirty)로 통합 — 1.4 저장이 specs 미저장을 덮어쓰는 문제 차단, beforeunload 가드도 union", "status": "code_present", "note": "plan-form14.tsx:96 specsDirty·:102 union dispatch·:106 beforeunload 조건·:127 switchBuilding confirm 가드" },
+        { "id": "S3-2", "desc": "Specs 호출부 새 props — extinguisherTotal(라이브 floors 합계)·onDirtyChange", "status": "code_present", "note": "plan-form14.tsx:410 extinguisherTotal 합계·:411 onDirtyChange={setSpecsDirty}" }
+      ]
+    },
+    {
+      "id": "S4", "title": "숫자 +/- 스테퍼 — 공용 NumField 강화 (§2-4)", "status": "partial",
+      "note": "2026-08-05~06 진행: NumField 스테퍼 내장(S4-1) → 1.1 계단·경사로·인원 등 자동 반영(S4-2), tsc·build·lint 그린. S4-3(6열 밀집 표)·S4-4(강조 링 충돌)는 코드 검토 결과 회귀 위험이 커 deferred — 스테퍼 핵심 가치(독립 수량 필드)는 S4-1·S4-2로 전달됨.",
+      "criteria": [
+        { "id": "S4-1", "desc": "NumField 레이아웃 [−][input][unit][+] + 증감 규칙(±step, min0, 상한 옵션, 빈값 [+]=step·[−]=빈칸 유지) + stepper={false} 옵트아웃", "status": "code_present", "note": "fields.tsx:12-63 NumField — step/min/max/stepper prop 추가·bump()·± 버튼(aria-label·disabled). plan-form13·16 decimal 사용처도 자동 반영(§2-4 '소수도 스텝 정수 1 기본')" },
+        { "id": "S4-2", "desc": "1.1 일반현황 적용 — 계단·경사로 개소·피난용승강기·근무/거주/최대 인원(fire-plan-info-panel NumField 사용처 자동 반영)", "status": "code_present", "note": "fire-plan-info-panel.tsx NumField 사용처(계단·경사로·피난용승강기·근무·거주·최대)가 NumField 강화로 자동 스테퍼. 별도 수정 없음" },
+        { "id": "S4-3", "desc": "1.4 층별 수량표 셀 raw input → NumField(stepper) 교체", "status": "deferred", "note": "코드 검토(2026-08-06): FLOOR_COLS 6열(소화기·차동식·연기식·정온식·유도등·비상조명)×N행 밀집 표(plan-form14.tsx:340-350, 가로 스크롤 래퍼 없음). 셀마다 ± 버튼은 표 폭 급증·레이아웃 파손 위험 → 셀 단위 스테퍼 부적합. 보류(대안: 표 전용 컴팩트 스테퍼 별도 설계 시 재개)" },
+        { "id": "S4-4", "desc": "설비 대장 제원 number 분기 → NumField(stepper) 통일(㎥·㎾ 등은 step override 검토)", "status": "deferred", "note": "코드 검토(2026-08-06): 제원 필드는 빈칸=앰버/자동채움=보라 링 강조(plan-form14-specs.tsx:379-382 box). NumField는 내부 inputCls를 항상 앞세워 Tailwind 충돌로 강조 회귀 위험. 깔끔 적용엔 NumField input 클래스 완전 override API 선행 필요 → 보류" }
+      ]
+    },
+    {
+      "id": "S5", "title": "v2 확장 (§5) — 승인·구현 보류", "status": "deferred",
+      "note": "사용자 '중단' 지시로 미착수. 재개 시 소방계획서_9.md §5 기준.",
+      "criteria": [
+        { "id": "S5-1", "desc": "Enter = 다음 빈칸 — CATALOG_PATHS 평탄화 + focusPath/findNextEmpty/jumpToNextEmpty, IME 조성 확정 가드, [다음 빈칸 →] 버튼·완료 안내", "status": "deferred" },
+        { "id": "S5-2", "desc": "정확성 검증(경고만, 저장 비차단) — fieldWarning + 블록 층 범위 모순 경고 + sticky '⚠ 확인 필요 N건' 점프", "status": "deferred" },
+        { "id": "S5-3", "desc": "수량 값 칩 [1][2][4][6][10] — 수량류(개/대)만, 용량류(㎥·ℓ/min) 제외", "status": "deferred" },
+        { "id": "S5-4", "desc": "1.3 위치도 업로드 중복 해소 — plan-form13 위치도 ImageSlot 제거·[지도·사진] 링크로, generate는 map_location 자산 우선·레거시 폴백", "status": "deferred", "note": "image-42 발견 이슈" },
+        { "id": "S5-5", "desc": "소방계획서_9.json 체크리스트 생성(본 파일)", "status": "implemented", "verified": { "date": "2026-08-05", "evidence": ["erp_goal/소방계획서_9.json"], "method": "본 파일 생성 — Json_Rule 준수(criteria 단위·code_present/pending 구분)" } }
+      ]
+    }
+  ]
+}

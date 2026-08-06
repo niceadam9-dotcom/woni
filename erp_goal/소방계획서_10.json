@@ -1,0 +1,73 @@
+{
+  "project": "소방계획서_10 — 입력 동선 통합: 모드·토글 폐기 '항상 편집' · 화면 확장 · 건축물대장 자동화",
+  "design_doc": "erp_goal/소방계획서_10.md",
+  "created": "2026-08-05",
+  "rule": "erp_goal/Json_Rule.md — criteria 단위 판정·partial 상태·implemented는 verified(date·commit·파일:라인 evidence·method) 필수·구현자≠판정자(구현 세션은 code_present까지)",
+  "note_status": "본 세션이 구현자 — tsc/build/lint 그린까지 확인했으나 독립 검증(구현자≠판정자)·E2E 실주행 전이므로 code_present 유지. implemented 승격은 별도 검증 패스 후.",
+  "status_legend": {
+    "confirmed": "사용자 확정 설계 결정",
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류"
+  },
+  "decisions": [
+    { "id": "D-1", "desc": "건축물대장은 주소(bcode) 확정 시 자동 반영 — [건축물대장 불러오기] 버튼 미클릭에도 대장 확장 필드 자동 채움", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-2", "desc": "자동 반영은 '빈 칸만' — 수동 입력값 미덮어씀. 강제 덮어쓰기는 기존 [건축물대장 불러오기] 버튼 유지", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-3", "desc": "자동 트리거 = ① 건물·시설 탭 저장 직후 + ② 소방계획서 탭 진입 시 두 지점", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-4", "desc": "서식 전체 트리가 소방계획서 기본 화면 — 빠른입력/서식전체 모드 토글 폐기, 트리 단일화", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-5", "desc": "⚡ 빠른 입력 = 트리 최상단 노드(랜딩 기본) — 필수 완성도·필요문서·건축물대장 불러오기·누락 칩·자체점검 송달 동의·보관함 요약을 한 페이지에 통합", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-6", "desc": "소방계획서 탭만 전체 폭 — max-w-3xl(768px) 해제 + 우측 고객 요약 패널 접힘. 다른 탭은 기존 폭 유지", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-7", "desc": "기본정보 탭 = 항상 편집 가능한 촘촘 그리드 — 요약/편집 모드·[편집]·[요약 보기] 폐기", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-8", "desc": "1.1 계획서 정보 패널 = 항상 편집 — 요약/편집 토글·[편집] + 아코디언(접기)까지 폐기, 열자마자 편집 폼 노출", "status": "confirmed", "note": "2026-08-05" },
+    { "id": "D-9", "desc": "공통 안전장치 보존 — 저장/취소는 isDirty 시에만, 점검계획일 변경 시 확정 일정 전파 팝업, 전체 검증, 주소 검색의 관할소방서·건물 주소·bcode 전파", "status": "confirmed", "note": "2026-08-05" }
+  ],
+  "sections": [
+    {
+      "id": "3-1", "title": "건축물대장 주소 확정 시 자동 반영", "status": "code_present",
+      "commit": "691ff36",
+      "criteria": [
+        { "id": "3-1a", "desc": "autoApplyLedgerEmptyAction 신설 — 활성 건물 bcode·지번(없으면 Juso 지오코딩 백필)으로 대장 조회 → LEDGER_FIELDS 빈 칸만 저장, 리다이렉트 없는 권한 체크(best-effort), ledger_synced_at 항상 기록", "status": "code_present", "note": "fire-plan-info-actions.ts autoApplyLedgerEmptyAction (커밋 691ff36)" },
+        { "id": "3-1b", "desc": "트리거 ① — 건물·시설 탭 저장 직후 bcode 있으면 자동 호출", "status": "code_present", "note": "building-inline-panel.tsx save() 성공 후 autoApplyLedgerEmptyAction" },
+        { "id": "3-1c", "desc": "트리거 ② — 소방계획서 탭 진입 시 ledgerAutoNeeded면 마운트 1회 자동 반영", "status": "code_present", "note": "plan-tab-view.tsx useEffect + page.tsx ledgerAutoNeeded 계산" },
+        { "id": "3-1d", "desc": "기존 [건축물대장 불러오기] 버튼은 강제 재조회·덮어쓰기 미리보기 용도로 유지", "status": "code_present" }
+      ]
+    },
+    {
+      "id": "3-2", "title": "소방계획서 서식 전체 기본화 + 전체 폭", "status": "code_present",
+      "commit": "c181284",
+      "criteria": [
+        { "id": "3-2a", "desc": "plan-tab-view mode(quick/full)·토글 버튼 폐기 — 서식 전체 트리가 항상 기본 화면", "status": "code_present" },
+        { "id": "3-2b", "desc": "트리 최상단 ⚡ 빠른 입력 노드(랜딩) — 필수완성도·필요문서·대장 불러오기·누락 칩·자체점검 송달 동의·보관함 요약을 quickPanel 한 페이지로", "status": "code_present" },
+        { "id": "3-2c", "desc": "customer-tabs summary·fullWidthKeys prop — fullWidthKeys=['plan'] 활성 시 max-w-3xl 해제 + 요약 패널 접힘, page.tsx 요약 패널 summary prop 이관", "status": "code_present" },
+        { "id": "3-2d", "desc": "E2E 갱신 — test-plan-tab(토글→트리 노드), _h25-e2e(빠른입력 복귀→⚡ 노드)", "status": "code_present", "note": "스크립트 갱신·미실행" }
+      ]
+    },
+    {
+      "id": "3-3", "title": "기본정보 탭 — 요약/편집 통합, 항상 편집", "status": "code_present",
+      "commit": "미커밋",
+      "criteria": [
+        { "id": "3-3a", "desc": "edit-customer-info-client 재작성 — mode·[편집]·[요약 보기]·인라인 퀵(quick/saveQuick/openEdit) 폐기, 2~3열 촘촘 그리드에 전 필드 상시 편집", "status": "code_present" },
+        { "id": "3-3b", "desc": "저장/취소는 isDirty 시에만, 점검계획일 확정 일정 전파 팝업·전체 검증 보존", "status": "code_present" },
+        { "id": "3-3c", "desc": "주소 검색 = 선택 즉시 저장+전파(quickAddressApplyAction 관할소방서·건물 주소·bcode), 도로명 수기 보정은 [저장]", "status": "code_present" },
+        { "id": "3-3d", "desc": "누락 칩 cf-* 포커스 연동 — 필드 상시 존재로 스크롤·포커스만(erp:focus-missing)", "status": "code_present" }
+      ]
+    },
+    {
+      "id": "3-4", "title": "1.1 계획서 정보 패널 — 항상 편집, 아코디언 폐기", "status": "code_present",
+      "commit": "미커밋",
+      "criteria": [
+        { "id": "3-4a", "desc": "fire-plan-info-panel 재작성 — mode(summary/edit)·open(아코디언) 상태·[편집]·[요약 보기]·요약 그리드 폐기, 열자마자 ①시설 ②운영 ③화재보험+자위소방대 편집 폼", "status": "code_present" },
+        { "id": "3-4b", "desc": "헤더 준비율 게이지 + 누락 칩 유지 → 값 스캔·누락 확인 역할 보존", "status": "code_present" },
+        { "id": "3-4c", "desc": "도구(추천값 채우기·다른 고객에서 복사) 상단 툴바 유지, focusMissing·추천/복사·save의 setMode 참조 정리", "status": "code_present" },
+        { "id": "3-4d", "desc": "test-plan-tab 갱신 — 1.1 [편집] 클릭 제거(항상 편집)", "status": "code_present", "note": "스크립트 갱신·미실행" }
+      ]
+    }
+  ],
+  "remaining": [
+    "E2E 실주행(test-plan-tab·_h25-e2e·test-cd-ui) + 로컬 화면 육안 검증 → implemented 승격(구현자≠판정자)",
+    "3-3·3-4 커밋 + 두 커밋(691ff36·c181284 포함) push(진행 승인 시 pre-push 게이트)",
+    "후속 검토: 다른 탭(관계인·청구 등)에도 동일 '항상 편집' 통합 적용 여부"
+  ]
+}
