@@ -9,8 +9,10 @@ import { useEffect, type ReactNode } from 'react'
 
 const inputCls = 'h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60'
 
-/** 숫자 입력 + 단위 서픽스 — 모바일 숫자 키패드(inputMode) */
-export function NumField({ value, onChange, unit, disabled, decimal = false, className = 'w-24', placeholder, id }: {
+/** 숫자 입력 + 단위 서픽스 + ± 스테퍼 — 모바일 숫자 키패드(inputMode), 현장 클릭 증감 (소방계획서_9 §2-4)
+ *  레이아웃 [−][input][unit][+]. 클릭=±step(기본 1·정수), 하한 min(기본 0·음수 금지), 상한 max(옵션).
+ *  빈 값 [+]=step / [−]=빈칸 유지. stepper={false}로 순수 입력 폴백. */
+export function NumField({ value, onChange, unit, disabled, decimal = false, className = 'w-24', placeholder, id, step = 1, min = 0, max, stepper = true }: {
   value: string
   onChange: (v: string) => void
   unit?: string          // ㎡ · kW · 명 · 대 · 개소 · km · 분 …
@@ -19,8 +21,24 @@ export function NumField({ value, onChange, unit, disabled, decimal = false, cla
   className?: string
   placeholder?: string
   id?: string
+  step?: number          // 스테퍼 증감 단위 (기본 1·정수) — ㎥·kW 등 큰 단위는 override
+  min?: number           // 하한 (기본 0 — 개소·대·명은 자연수, 음수 금지)
+  max?: number           // 상한 (옵션)
+  stepper?: boolean      // ± 버튼 표시 (기본 true)
 }) {
-  return (
+  function bump(dir: 1 | -1) {
+    if (disabled) return
+    const cur = value === '' ? NaN : (decimal ? parseFloat(value) : parseInt(value, 10))
+    if (isNaN(cur)) {
+      if (dir === 1) onChange(String(Math.max(min, step)))  // 빈 값 [+] = step (min 존중)
+      return                                                 // 빈 값 [−] = 빈칸 유지 (0 강제 안 함)
+    }
+    let next = cur + dir * step
+    if (next < min) next = min
+    if (max !== undefined && next > max) next = max
+    onChange(String(next))
+  }
+  const field = (
     <span className="inline-flex items-center gap-1">
       <input id={id} value={value} disabled={disabled} placeholder={placeholder}
         inputMode={decimal ? 'decimal' : 'numeric'}
@@ -30,6 +48,17 @@ export function NumField({ value, onChange, unit, disabled, decimal = false, cla
         }}
         className={`${inputCls} ${className}`} />
       {unit && <span className="text-[11px] text-[#847ba8] shrink-0">{unit}</span>}
+    </span>
+  )
+  if (!stepper) return field
+  const btnCls = 'shrink-0 grid place-items-center size-7 rounded-lg border border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button type="button" onClick={() => bump(-1)} disabled={disabled}
+        aria-label={`${unit ?? '값'} ${step} 감소`} className={btnCls}>−</button>
+      {field}
+      <button type="button" onClick={() => bump(1)} disabled={disabled}
+        aria-label={`${unit ?? '값'} ${step} 증가`} className={btnCls}>+</button>
     </span>
   )
 }
