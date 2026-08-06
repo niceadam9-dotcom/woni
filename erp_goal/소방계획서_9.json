@@ -32,7 +32,7 @@
       "criteria": [
         { "id": "S2-1", "desc": "[모두 저장] — buildSectionSpec(secKey) 추출 후 dirty 섹션만 벌크 액션 1회, 성공 섹션만 dirty 해제(실패=재클릭 재시도), 섹션별 저장 버튼 제거 + 좌측 sticky 저장 바(미저장 N개)", "status": "code_present", "note": "plan-form14-specs.tsx:266 buildSectionSpec·:286 saveAll·:302 부분 실패 안내" },
         { "id": "S2-2", "desc": "[기본값 채우기] — enabled 블록·빈 칸만: dong←건물명, coverage/from·to_ground·floor←층수, s31 소화기 합계←1.4 라이브 state. 채운 경로 autoFilled Set → 보라 링(앰버=빈칸과 구별), 수동수정·저장 시 제거", "status": "code_present", "note": "plan-form14-specs.tsx:99-100 autoFilled·:314 dong←건물명·:357 '✨ N칸 자동 입력됨' 안내" },
-        { "id": "S2-3", "desc": "층·동명 칩 — key 패턴(dong/*_dong, floor/*_floor) 감지 → input 아래 칩. 동명=활성 건물명(중복 제거), 층=지하N…지상N(7층+ 요약), 층 칩 클릭=층+페어 select 동시 입력", "status": "code_present", "note": "plan-form14-specs.tsx:361 dongChips(중복 제거). 층 칩·페어 select 동시입력은 코드 대조 필요(criteria 근거 파일:라인 추가 시 implemented 승격 가능)" }
+        { "id": "S2-3", "desc": "층·동명 칩 — key 패턴(dong/*_dong, floor/*_floor) 감지 → input 아래 칩. 동명=활성 건물명(중복 제거), 층=지하N…지상N(7층+ 요약), 층 칩 클릭=층+페어 select 동시 입력", "status": "code_present", "note": "2026-08-06 코드 대조 완료(기존 '대조 필요' 메모 해소) — plan-form14-specs.tsx:365 dongChips(Set 중복 제거)·:366-375 floorChips(지하N 역순→지상, above>6이면 [1,2,3,최상층] 요약)·:456-467 층 칩 클릭 시 setField(floor) + 페어 groundKey 존재 시 setField(ground) 동시 입력·:460 title에 페어 여부 반영. 잔여: 브라우저 실동작 검증만" }
       ]
     },
     {

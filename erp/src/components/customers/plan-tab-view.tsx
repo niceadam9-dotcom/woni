@@ -3,26 +3,23 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Download, Loader2, History, Save, RefreshCw, Info, Image as ImageIcon } from 'lucide-react'
+import { FileOutput, Download, Loader2, Save, Info } from 'lucide-react'
 import {
   requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction, saveEmailConsentAction,
   importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
-import { previewLedgerAction, applyLedgerValuesAction, autoApplyLedgerEmptyAction, type LedgerPreviewField } from '@/app/(dashboard)/customers/fire-plan-info-actions'
+import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
-import { PlanOnboardingBanner, type OnboardingStep } from '@/components/customers/plan-onboarding-banner'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
- *  기본 진입 = 빠른 입력(필수 공통값 체크리스트 + 대장 불러오기 + 송달 동의 + 보관함 요약).
- *  [서식 전체] 토글 = 목차 트리(완성도 뱃지) + 서식 화면, form= 딥링크. 일반관리도 동일 (소방계획서_6 W-14). */
+ *  진입 = 1.1 일반현황 입력폼(2026-08-06 사용자 확정 — ⚡ 빠른 입력 요약 페이지 폐기).
+ *  좌측 목차 트리 + 서식 화면, form= 딥링크. 일반관리도 동일 (소방계획서_6 W-14). */
 
 export type RevisionRow = { year: number; revision: number; date: string; note: string | null; uploader: string | null }
-export type DocChip = { doc: string; label: string; need: boolean; note?: string; have?: boolean }
-export type QuickReadiness = { done: number; total: number; missing: string[] }
 
 /** 11-5: 누락 칩 → 입력처 딥링크 (필수 완성도 라벨 기준) */
 const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'consent'> = {
@@ -68,7 +65,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  docs, quick, consentInitial, latestPlan, assets, onboardingSteps, annex, ledgerAutoNeeded,
+  consentInitial, assets, annex, ledgerAutoNeeded,
 }: {
   customerId: string
   canManage: boolean
@@ -95,23 +92,20 @@ export function PlanTabView({
   form1215: ReactNode
   ch2: ReactNode
   ch3: ReactNode
-  docs: DocChip[]
-  quick: QuickReadiness
   consentInitial: { consent: boolean | null; email: string }
-  latestPlan: { year: number; title: string; pdfStatus: string; revision: number } | null
   assets: ReactNode               // 지도·사진 카드 (소방계획서_7 §5 — H-10, CustomerAssetsClient)
-  onboardingSteps?: OnboardingStep[]  // H-25 온보딩 배너 — ?onboarding=1일 때만 부모가 전달(비면 배너 없음)
   annex?: ReactNode               // 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4, PlanAnnexSection)
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
   // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
-  const VALID_SEL = new Set(['quick', 'archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex', 'assets'])
+  // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex', 'assets'])
   const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
     : initialSection === 'ch1' ? '1.1'
     : initialSection && VALID_SEL.has(initialSection) ? initialSection
-    : 'quick'
+    : '1.1'
   const [sel, setSelState] = useState<string>(initialSel)
   // form= 딥링크가 마운트 후 서버 재렌더로 바뀐 경우(다른 탭의 ?tab=plan&form=x Link) 동기화 — state는 1회만 초기화되므로
   const prevFormRef = useRef(initialForm)
@@ -157,33 +151,9 @@ export function PlanTabView({
   const [consent, setConsent] = useState(consentInitial)
   const [consentDirty, setConsentDirty] = useState(false)
   const [isConsentPending, startConsentTransition] = useTransition()
-  const [isLedgerPending, startLedgerTransition] = useTransition()
-  const [ledgerPreview, setLedgerPreview] = useState<LedgerPreviewField[] | null>(null)
-
-  // 11-1c: 불러오기 = 미리보기(저장 없음) → 변경분 앰버 확인 → [확정 저장]
-  function refreshLedger() {
-    setMsg('')
-    startLedgerTransition(async () => {
-      const res = await previewLedgerAction(customerId)
-      if (res.needAddress) { setMsg('⚠ 건물 주소로 법정동코드를 찾지 못했습니다 — 건물·시설 탭에서 주소를 확인해주세요. (주소가 있으면 자동으로 조회됩니다)'); return }
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      if (!res.fields || res.fields.length === 0) { setMsg('건축물대장에서 가져올 값이 없습니다.'); return }
-      setLedgerPreview(res.fields)
-    })
-  }
-
-  function applyLedger() {
-    if (!ledgerPreview) return
-    setMsg('')
-    startLedgerTransition(async () => {
-      const values = Object.fromEntries(ledgerPreview.map(f => [f.key, f.next]))
-      const res = await applyLedgerValuesAction(customerId, values)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setLedgerPreview(null)
-      setMsg('✅ 건축물대장 값이 확정 저장됐습니다 — 필수 완성도에 반영됩니다.')
-      router.refresh()
-    })
-  }
+  // 대장 수동 미리보기·확정 저장(구 [건축물대장 불러오기])은 빠른 입력 페이지와 함께 폐기(2026-08-06).
+  // 대체 경로: 진입 시 자동 반영(아래) + 1.1 [건축물대장에서 다시 가져오기] + 건물·시설 탭 수기 입력.
+  const [, startLedgerTransition] = useTransition()
 
   // 진입 시 자동 대장 반영 — 주소(bcode) 있고 아직 미동기화면 '빈 칸만' 조용히 채움(버튼 클릭 불필요, 수동값 미덮어씀).
   const autoLedgerRan = useRef(false)
@@ -236,7 +206,8 @@ export function PlanTabView({
       }
       return
     }
-    if (t === 'consent') { select('quick'); setTimeout(() => document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); return }
+    // 송달 동의는 빠른 입력 폐기(2026-08-06)로 1.1 일반현황 하단으로 이전
+    if (t === 'consent') { select('1.1'); setTimeout(() => document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300); return }
     select(t === 'ch2' ? 'ch2' : '1.1')
     if (t === 'ch2') { focusField('c-2.2'); return }
     // 1.1 칩 — 요약→편집 전환이 필요하므로 fire-plan-info-panel의 focusMissing에 위임 (마운트 대기 재시도)
@@ -303,8 +274,6 @@ export function PlanTabView({
   }
 
   const pct = readiness.total > 0 ? Math.round((readiness.done / readiness.total) * 100) : 0
-  const quickPct = quick.total > 0 ? Math.round((quick.done / quick.total) * 100) : 0
-
   // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
 
   return (
@@ -318,9 +287,17 @@ export function PlanTabView({
           </div>
           <span className="text-[11px] text-[#514b81]">{readiness.done}/{readiness.total}</span>
         </div>
+        {/* 누락 칩 — 빠른 입력 폐기(2026-08-06)로 완성도 카드가 사라져, 입력처 이동은 이 줄이 담당 */}
         {readiness.missing.length > 0 && (
-          <span className="text-[11px] text-amber-600 truncate max-w-56" title={readiness.missing.join(', ')}>
-            누락: {readiness.missing.slice(0, 3).join(' · ')}{readiness.missing.length > 3 ? ` 외 ${readiness.missing.length - 3}` : ''}
+          <span className="flex items-center gap-1 flex-wrap min-w-0">
+            <span className="text-[11px] text-amber-600 shrink-0">누락:</span>
+            {readiness.missing.map(m2 => (
+              <button key={m2} onClick={() => gotoMissing(m2)}
+                title={`클릭 → ${CHIP_TARGET_LABEL[CHIP_TARGET[m2] ?? 'form11']}에서 입력`}
+                className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-[10px] border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors">
+                {m2} ↗
+              </button>
+            ))}
           </span>
         )}
         {/* 구 보고서 센터 역링크 제거 — 이 트리(별지 서식)가 문서 현황의 단일 허브 (소방계획서_8 Phase B) */}
@@ -345,16 +322,10 @@ export function PlanTabView({
 
       {/* ══ 서식 전체 트리(기본) — ⚡ 빠른 입력을 최상단 노드로 통합. 토글 제거 (2026-08-05) ══ */}
       {(() => {
-        // quickPanel = 트리 최상단 '⚡ 빠른 입력' 노드의 콘텐츠 (필수 완성도·필요문서·송달동의·보관함 요약을 한 페이지에)
-        const quickPanel = (
-        <div className="space-y-4">
-          {/* H-25: 고객 온보딩 진행 배너 (?onboarding=1일 때만 부모가 steps 전달) */}
-          {onboardingSteps && onboardingSteps.length > 0 && (
-            <PlanOnboardingBanner
-              steps={onboardingSteps}
-              onGoForm={key => select(key)}
-            />
-          )}
+        // 빠른 입력 페이지 폐기(2026-08-06 사용자 확정) — 온보딩 배너·필요문서 칩·필수완성도 카드·
+        // 지도사진 링크·보관함 요약은 제거하고, 유일한 입력처였던 송달 동의와 1회성 임포트 배너만 1.1로 이관.
+        const oneOneExtras = (
+        <div className="space-y-4 mt-4">
           {/* §7-3b: 최초 진입 1회 임포트 배너 — 서식 입력이 없고 구 생성 데이터가 있을 때 */}
           {importCandidate && canManage && !importHidden && (
             <div className="flex items-center gap-2 rounded-xl border border-[#c3bdf5] bg-[#f5f4ff] px-4 py-2.5">
@@ -370,91 +341,7 @@ export function PlanTabView({
             </div>
           )}
 
-          {/* 필요 문서 칩 (§9-8 매트릭스) */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-medium text-[#514b81]">필요 문서</span>
-            {docs.map(d => (
-              <span key={d.doc} title={d.note}
-                className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] border ${
-                  !d.need ? 'text-[#b0acd6] border-[#eceafd]'
-                    : d.have ? 'bg-green-50 text-green-700 border-green-200'
-                      : 'bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5]'
-                }`}>
-                {d.label}{!d.need ? ' — 해당없음' : d.have ? ' ✓' : ''}
-              </span>
-            ))}
-          </div>
-
-          {/* 필수 완성도 (준비율 이원화 — 생성 가능 여부 기준) */}
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-xs font-semibold text-[#514b81]">필수 완성도 <span className="font-normal text-[#b0acd6]">(소방계획서 + 별지 9호 공통값)</span></p>
-              <div className="h-1.5 w-24 rounded-full bg-[#eceafd] overflow-hidden">
-                <div className={`h-full rounded-full ${quick.done < quick.total ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${quickPct}%` }} />
-              </div>
-              <span className="text-[11px] text-[#514b81]">{quick.done}/{quick.total}</span>
-              {canManage && (
-                <button onClick={refreshLedger} disabled={isLedgerPending}
-                  title="건축물대장에서 건축허가일·면적·세대수·동수·승강기·주차장·구조·지붕·높이 자동 채움"
-                  className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
-                  {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />} 건축물대장 불러오기
-                </button>
-              )}
-            </div>
-            {/* 11-1c: 대장값 미리보기 — 변경분 앰버 하이라이트, [확정 저장]으로만 반영 */}
-            {ledgerPreview && (
-              <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50/60 p-3">
-                <p className="text-[11px] font-medium text-amber-800 mb-1.5">
-                  건축물대장 조회 결과 — <span className="font-semibold">앰버 표시</span>가 변경되는 값입니다. 확인 후 확정 저장해주세요. (아직 저장 전)
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mb-2">
-                  {ledgerPreview.map(f => (
-                    <div key={f.key} className={`flex items-baseline gap-1.5 text-[11px] rounded px-1.5 py-0.5 ${f.changed ? 'bg-amber-100 text-amber-900' : 'text-[#514b81]'}`}>
-                      <span className="w-24 shrink-0 text-[10px] text-[#847ba8]">{f.label}</span>
-                      {f.changed && f.current !== '' && <span className="line-through text-amber-500">{f.current}</span>}
-                      <span className={f.changed ? 'font-semibold' : ''}>{f.next}</span>
-                      {!f.changed && <span className="text-[10px] text-[#b0acd6]">(동일)</span>}
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={applyLedger} disabled={isLedgerPending}
-                    className="inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-medium disabled:opacity-50">
-                    {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 확정 저장
-                  </button>
-                  <button onClick={() => setLedgerPreview(null)} disabled={isLedgerPending}
-                    className="h-7 px-3 rounded-lg border border-amber-300 text-[11px] text-amber-700 hover:bg-amber-100 disabled:opacity-50">취소</button>
-                </div>
-              </div>
-            )}
-            {quick.missing.length > 0 ? (
-              <>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[11px] text-amber-600">누락:</span>
-                  {quick.missing.map(m2 => (
-                    <button key={m2} onClick={() => gotoMissing(m2)}
-                      title={`클릭 → ${CHIP_TARGET_LABEL[CHIP_TARGET[m2] ?? 'form11']}에서 입력`}
-                      className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-[10px] border border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer transition-colors">
-                      {m2} ↗
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 건축허가일·건축면적 등 건물 항목은 [건축물대장 불러오기]로 한 번에 채울 수도 있습니다.</p>
-              </>
-            ) : (
-              <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>
-            )}
-          </div>
-
-          {/* 지도·사진 — 서식 전체 트리의 '지도·사진' 노드로 이동 (2026-08-05 사용자 확정: 서식 재료는 트리에서 관리) */}
-          <div className="flex items-center gap-2 rounded-xl border border-[#e0ddf5] px-4 py-2.5">
-            <ImageIcon className="size-3.5 text-[#b0acd6]" />
-            <span className="text-xs text-[#514b81]">지도·사진 <span className="text-[#b0acd6]">(표지 건물 사진·위치도·피난안내도 — 소방계획서 재료)</span></span>
-            <button onClick={() => select('assets')}
-              className="ml-auto text-[11px] text-[#7b68ee] hover:underline">등록·관리 →</button>
-          </div>
-
-          {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) */}
+          {/* 전자우편 송달 동의 (098, 별지 9호 1쪽 — §9-6①) — 시스템 내 유일 입력처라 1.1로 이관 존치 */}
           {canManage && (
             <div id="consent-section" className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
               <p className="text-xs font-semibold text-[#514b81] mb-2">자체점검 보고서 전자우편 송달 동의 <span className="font-normal text-[#b0acd6]">(별지 9호 1쪽)</span></p>
@@ -479,20 +366,6 @@ export function PlanTabView({
             </div>
           )}
 
-          {/* 최근 보관함 1줄 요약 */}
-          <div className="flex items-center gap-2 rounded-xl border border-[#e0ddf5] px-4 py-2.5">
-            <History className="size-3.5 text-[#b0acd6]" />
-            {latestPlan ? (
-              <span className="text-xs text-[#514b81]">
-                최근 보관함: <span className="font-medium text-[#090c1d]">{latestPlan.year}년 {latestPlan.title}</span>
-                {latestPlan.revision > 1 ? ` (개정${latestPlan.revision})` : ''} · PDF {latestPlan.pdfStatus === 'ready' ? '완료' : latestPlan.pdfStatus === 'converting' ? '변환 중' : '실패'}
-              </span>
-            ) : (
-              <span className="text-xs text-[#b0acd6]">보관함이 비어 있습니다 — 첫 생성 시 자동 등록됩니다.</span>
-            )}
-            <button onClick={() => select('archive')}
-              className="ml-auto text-[11px] text-[#7b68ee] hover:underline">보관함 열기 →</button>
-          </div>
         </div>
         )
         // ── 서식 전체 트리 — §1 개정 구조: 좌측 목차 트리 + 서식 화면 (P6) ──
@@ -522,7 +395,6 @@ export function PlanTabView({
         }).length
         {/* 소방계획서_8 D-12: 3그룹 재편 — 📘 본문(1~3장) / 📑 별지 서식(회차) / 🗂 보관함·개정이력(맨 아래) */}
         const NAV_ALL = [
-          { key: 'quick', label: '⚡ 빠른 입력 (필수·송달동의)' },
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
@@ -534,9 +406,8 @@ export function PlanTabView({
         <div className="flex gap-4 items-start">
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
           <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-0.5 sticky top-2">
-            {/* ⚡ 빠른 입력 — 트리 최상단 랜딩 노드 (필수 완성도·필요문서·송달동의·보관함 요약) */}
-            {navBtn('quick', '⚡ 빠른 입력')}
-            <div className="pt-1 border-t border-[#eceafd] mt-1">
+            {/* ⚡ 빠른 입력 노드 폐기(2026-08-06) — 랜딩은 1.1 일반현황, 송달 동의는 1.1 하단으로 이관 */}
+            <div>
               <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8] flex items-center">📘 소방계획서 본문
                 <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-[#b0acd6]'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
               </p>
@@ -572,7 +443,6 @@ export function PlanTabView({
             </select>
 
       {/* ── ⚡ 빠른 입력 (트리 최상단 노드, 한 페이지에 필수·송달동의) ── */}
-      {sel === 'quick' && quickPanel}
 
       {/* ── 개정이력·보관 ── */}
       {sel === 'archive' && (
@@ -631,7 +501,7 @@ export function PlanTabView({
       )}
 
       {/* ── 1장 서식 화면 (목차에서 직접 선택 — 1-2 섹션 카드는 각 서식 내부) ── */}
-      {sel === '1.1' && form11}
+      {sel === '1.1' && <>{form11}{oneOneExtras}</>}
       {sel === '1.2' && form12}
       {sel === '1.3' && form13}
       {sel === '1.4' && form14}

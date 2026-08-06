@@ -414,18 +414,36 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         {/* ③ 화재보험 (섹션 카드 — §3-1.1) */}
         <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
           <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
+          {/* 2026-08-06: placeholder만 있어 값 입력 시 항목명이 사라지던 문제 수정 — ①②와 동일하게 라벨 부여.
+              가입금액 단위는 별지 9호 원문이 '천만원'이라(report9.ts page2) 라벨·접미에 명시한다. */}
           <div className="flex flex-wrap gap-2 items-end">
-            <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-              {[['가입', true], ['미가입', false]].map(([label, val]) => (
-                <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
-                  className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
-              ))}
+            <div><label className={labelCls}>가입 여부</label><br />
+              <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden w-fit">
+                {[['가입', true], ['미가입', false]].map(([label, val]) => (
+                  <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
+                    className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
+                ))}
+              </div>
             </div>
             {d.insuranceJoined === true && (<>
-              <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="보험사" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
-              <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="가입기간" className={`${inputCls} w-44`} />
-              <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="대인 금액" className={`${inputCls} w-28`} />
-              <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="대물 금액" className={`${inputCls} w-28`} />
+              <div><label className={labelCls}>보험사</label><br />
+                <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="예: 삼성화재" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
+              </div>
+              <div><label className={labelCls}>가입기간</label><br />
+                <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="예: 2026-01-01 ~ 2027-01-01" className={`${inputCls} w-44`} />
+              </div>
+              <div><label className={labelCls}>대인 가입금액</label><br />
+                <span className="inline-flex items-center gap-1">
+                  <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="예: 10" className={`${inputCls} w-20`} />
+                  <span className="text-[11px] text-[#847ba8] shrink-0">천만원</span>
+                </span>
+              </div>
+              <div><label className={labelCls}>대물 가입금액</label><br />
+                <span className="inline-flex items-center gap-1">
+                  <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="예: 100" className={`${inputCls} w-20`} />
+                  <span className="text-[11px] text-[#847ba8] shrink-0">천만원</span>
+                </span>
+              </div>
             </>)}
           </div>
         </section>

@@ -28,23 +28,21 @@ try {
   const page = l.page
   await login(page, EMAIL)
 
-  // ── 1) 기본 진입 = 빠른 입력 모드 (P2 §1-1) ──
+  // ── 1) 기본 진입 = 1.1 일반현황 입력폼 (2026-08-06: ⚡ 빠른 입력 요약 페이지 폐기) ──
   await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
-  await page.waitForSelector('text=필수 완성도')
-  check('빠른 입력 — 필수 완성도 게이지', await page.isVisible('text=필수 완성도'))
-  check('빠른 입력 — 필요 문서 칩 (소방계획서)', await page.isVisible('text=필요 문서'))
-  check('빠른 입력 — 별지 9호(작동) 칩', await page.isVisible('text=별지 9호(작동)'))
-  check('빠른 입력 — 누락 칩 표시', await page.isVisible('text=누락:'))
-  check('빠른 입력 — 건축물대장 불러오기 버튼', await page.isVisible('button:has-text("건축물대장 불러오기")'))
-  check('빠른 입력 — 송달 동의 블록', await page.isVisible('text=전자우편 송달 동의'))
-  check('빠른 입력 — 보관함 요약(빈 상태)', await page.isVisible('text=보관함이 비어 있습니다'))
+  await page.waitForSelector('text=① 시설현황')
+  check('랜딩 — 1.1 일반현황 입력폼이 첫 화면', await page.isVisible('text=② 운영현황'))
+  check('랜딩 — 빠른 입력 노드 폐기', !(await page.isVisible('button:has-text("⚡ 빠른 입력")')))
+  check('폐기 — 필수 완성도 카드 없음', !(await page.isVisible('text=필수 완성도')))
+  check('폐기 — 필요 문서 칩 없음', !(await page.isVisible('text=필요 문서')))
+  check('폐기 — 보관함 요약 없음', !(await page.isVisible('text=보관함이 비어 있습니다')))
+  check('폐기 — 건축물대장 불러오기 버튼 없음', !(await page.isVisible('button:has-text("건축물대장 불러오기")')))
+  check('생성 바 — 누락 칩(입력처 이동) 유지', await page.isVisible('text=누락:'))
   check('생성 바 — [계획서 생성] 버튼 (§7-5 HWP 단일)', await page.isVisible('button:has-text("계획서 생성 (HWP+PDF)")'))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
 
-  // ── 2) 대장 불러오기 — 주소 미보유 건물은 needAddress 안내 (fail-soft 경로, B안 지오코딩도 주소 없으면 스킵) ──
-  await page.click('button:has-text("건축물대장 불러오기")')
-  await page.waitForSelector('text=법정동코드를 찾지 못했습니다')
-  check('대장 불러오기 — 주소 없음 fail-soft 안내', true)
+  // ── 2) 송달 동의 — 1.1 하단으로 이관(유일 입력처 보존) ──
+  check('1.1 — 송달 동의 블록 이관됨', await page.isVisible('text=전자우편 송달 동의'))
 
   // ── 3) 송달 동의 저장 (098 §9-6①) — 11-5 누락 칩(버튼)과 충돌하지 않게 섹션 한정
   await page.click('#consent-section button:has-text("동의")')
@@ -55,8 +53,7 @@ try {
     .select('email_delivery_consent, report_email').eq('id', customerId).single()
   check('DB 송달 동의 저장', cRow?.email_delivery_consent === true && cRow?.report_email === 'owner@example.com', JSON.stringify(cRow))
 
-  // ── 4) 트리 통합 — 토글 제거(2026-08-05): 서식 전체가 기본, ⚡빠른입력이 랜딩 노드. 보관함·개정이력 노드 진입 ──
-  check('트리 — ⚡ 빠른 입력 노드 존재(랜딩)', await page.isVisible('button:has-text("⚡ 빠른 입력")'))
+  // ── 4) 트리 — 보관함·개정이력 노드 진입 ──
   await page.click('button:has-text("보관함·개정이력")')
   await page.waitForSelector('text=개정이력')
   check('트리 — 보관함·개정이력 노드 진입', await page.isVisible('text=개정이력'))

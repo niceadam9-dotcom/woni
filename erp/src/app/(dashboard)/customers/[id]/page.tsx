@@ -33,7 +33,6 @@ import { RecommendAssignClient } from '@/components/customers/recommend-assign-c
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { listCustomerAssets } from '@/lib/customer-assets'
 import { listBuildingPurposes } from '@/lib/building-purposes'
-import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
@@ -300,34 +299,7 @@ export default async function CustomerDetailPage({
     inspection_type: customer.inspection_type,
     inspection_sub_type: (cRec.inspection_sub_type as string | null) ?? null,
   }
-  const quickReadiness = computeQuickReadiness(docProfile, {
-    address: !!customer.address,
-    purpose: !!firstBld?.purpose,
-    useApprovalDate: !!customer.use_approval_date,
-    permitDate: firstBld?.permit_date != null,
-    totalArea: firstBld?.total_area != null,
-    buildingArea: firstBld?.building_area != null,
-    floors: firstBld?.floors_above != null || firstBld?.floors_below != null,
-    height: !!planInfoInitial.height,
-    households: firstBld?.households != null,
-    buildingCount: firstBld?.building_count != null,
-    elevator: firstBld?.elevator_count != null || firstBld?.emergency_elevator_count != null,
-    parking: firstBld?.parking_summary != null,
-    receiverLocation: !!planInfoInitial.receiverLocation,
-    structure: !!planInfoInitial.structure,
-    roof: !!planInfoInitial.roof,
-    managerSelectedAt: !!planInfoInitial.managerSelectedAt,
-    grade: !!planInfoInitial.grade,
-    insurance: planInfoInitial.insuranceJoined !== null,
-    opHours: !!planInfoInitial.opHoursWeekday,
-    headcount: !!(planInfoInitial.headcountWorker || planInfoInitial.headcountResident || planInfoInitial.headcountMax),
-    brigade: planInfoInitial.brigade.length > 0,
-    emailConsent: (cRec.email_delivery_consent as boolean | null) != null,
-  })
-  const docChips = requiredDocs(docProfile).map(d => ({
-    ...d,
-    have: d.doc === 'fire_plan' ? firePlans.length > 0 : undefined,
-  }))
+  // 필수 완성도(quickReadiness)·필요 문서 칩(docChips)은 빠른 입력 페이지 폐기로 산출 중단 — 2026-08-06
 
   // ── 소방계획서 서식 입력 저장소 (096) — 목차 완성도(§1-4)·탭 뱃지 합산에 선행 조회 ──
   const [{ data: fpForm }, { data: companyRow }] = await Promise.all([
@@ -604,40 +576,7 @@ export default async function CustomerDetailPage({
   ).size
   const specSectionCount = Object.values(specsByBuilding)
     .reduce((n, sections) => n + Object.values(sections).filter(sp => sp && Object.keys(sp).length > 0).length, 0)
-  const onboardingSteps = onboarding === '1' ? [
-    {
-      key: 'basic' as const,
-      label: '기본정보 — 문서 공통값 채우기',
-      detail: quickReadiness.done >= quickReadiness.total
-        ? `필수값 ${quickReadiness.total}개 모두 입력됨`
-        : `${quickReadiness.done}/${quickReadiness.total} 준비 · 건축물대장 불러오기로 대부분 자동`,
-      done: quickReadiness.done >= quickReadiness.total,
-      action: 'form:1.1' as const,
-    },
-    {
-      key: 'contacts' as const,
-      label: '관계인 — 대표 확인·추가',
-      detail: hasRep ? `대표 등록됨 (관계인 ${contacts.length}명)` : '대표 관계인이 필요합니다',
-      done: hasRep,
-      action: 'tab:contacts' as const,
-    },
-    {
-      key: 'facilities' as const,
-      label: '설비 대장 — 소방시설·세부 제원',
-      detail: installedFacCount > 0
-        ? `설치 ${installedFacCount}종${specSectionCount > 0 ? ` · 제원 ${specSectionCount}종 입력` : ' · 제원 미입력'}`
-        : '설치 소방시설을 표시해 주세요 (1.4)',
-      done: installedFacCount > 0,
-      action: 'form:1.4' as const,
-    },
-    {
-      key: 'assets' as const,
-      label: '지도·사진 — 표지 사진·위치도·피난안내도',
-      detail: customerAssets.length > 0 ? `자산 ${customerAssets.length}개 등록됨` : '아직 등록된 자산이 없습니다',
-      done: customerAssets.length > 0,
-      action: 'asset' as const,
-    },
-  ] : undefined
+  // 온보딩 배너(고객 등록 완료 안내)는 빠른 입력 페이지와 함께 폐기 — 2026-08-06 사용자 확정
 
   const planTab = (
     <PlanTabView
@@ -711,18 +650,11 @@ export default async function CustomerDetailPage({
         initialVulnerable={fpSections.vulnerable ?? null}
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []} />}
-      docs={docChips}
-      quick={quickReadiness}
       consentInitial={{
         consent: (cRec.email_delivery_consent as boolean | null) ?? null,
         email: s(cRec.report_email),
       }}
-      latestPlan={firePlans[0] ? {
-        year: firePlans[0].year, title: firePlans[0].title ?? '소방계획서',
-        pdfStatus: firePlans[0].pdf_status ?? 'ready', revision: firePlans[0].revision,
-      } : null}
       assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
-      onboardingSteps={onboardingSteps}
       annex={<PlanAnnexSection customerId={customer.id} />}
     />
   )
