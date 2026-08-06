@@ -601,7 +601,8 @@ export default async function CustomerDetailPage({
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}
-        floorsAbove={planInfoInitial.floorsAbove} floorsBelow={planInfoInitial.floorsBelow} />}
+        floorsAbove={planInfoInitial.floorsAbove} floorsBelow={planInfoInitial.floorsBelow}
+        purpose={planInfoInitial.purpose} />}
       form13={<PlanForm13 customerId={customer.id} canManage={canManage}
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}

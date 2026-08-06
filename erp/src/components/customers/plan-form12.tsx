@@ -20,13 +20,15 @@ const HAZARD_PRESETS: HazardRow[] = [
 ]
 const EMPTY_ZONE: ZoneRow = { zone: '', name: '', area: '', workersWeekday: '', workersHoliday: '', company: '', phone: '' }
 
-export function PlanForm12({ customerId, canManage, initialZones, initialHazards, floorsAbove, floorsBelow }: {
+export function PlanForm12({ customerId, canManage, initialZones, initialHazards, floorsAbove, floorsBelow, purpose }: {
   customerId: string
   canManage: boolean
   initialZones: ZoneRow[]
   initialHazards: HazardRow[]
   floorsAbove: number | null
   floorsBelow: number | null
+  /** 건물 주용도 — [층 자동 생성] 시 명칭/용도 기본값(2026-08-06, 1.2.2 프리셋과 같은 취지) */
+  purpose?: string | null
 }) {
   const router = useRouter()
   const [zones, setZones] = useState<ZoneRow[]>(initialZones.length > 0 ? initialZones : [{ ...EMPTY_ZONE }])
@@ -50,15 +52,24 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
       : r))
     setDirty(true)
   }
+  /** 층 목록 일괄 생성 — 기존 행을 '대체'한다([행 추가]는 빈 행 1개만 덧붙임, 역할이 다름).
+   *  명칭/용도는 건물 주용도로 미리 채워 빈 표가 아니라 고칠 예시가 보이게 한다(2026-08-06). */
   function autoFloors() {
     const fa = floorsAbove ?? 0
     const fb = floorsBelow ?? 0
     if (fa + fb === 0) { setMsg('⚠ 건물 층수가 없습니다 — 건물·시설 탭에서 층수를 먼저 입력해주세요.'); return }
+    // 덮어쓰기 경고 — 입력분이 있는데 경고 없이 날아가던 문제(2026-08-06)
+    const hasInput = zones.some(z => Object.values(z).some(v => String(v).trim()))
+    if (hasInput && !window.confirm('입력한 구역 내용이 새 층 목록으로 모두 대체됩니다. 계속할까요?')) return
+    const name = (purpose ?? '').trim()
     const rows: ZoneRow[] = []
-    for (let i = fb; i >= 1; i--) rows.push({ ...EMPTY_ZONE, zone: `지하 ${i}층` })
-    for (let i = 1; i <= fa; i++) rows.push({ ...EMPTY_ZONE, zone: `지상 ${i}층` })
+    for (let i = fb; i >= 1; i--) rows.push({ ...EMPTY_ZONE, zone: `지하 ${i}층`, name })
+    for (let i = 1; i <= fa; i++) rows.push({ ...EMPTY_ZONE, zone: `지상 ${i}층`, name })
     setZones(rows)
     setDirty(true)
+    setMsg(name
+      ? `✅ ${rows.length}개 층 생성 — 명칭/용도를 건물 용도(${name})로 채웠습니다. 층별로 수정하세요`
+      : `✅ ${rows.length}개 층 생성 — 명칭/용도·인원을 층별로 입력하세요`)
   }
   function save() {
     startTransition(async () => {
@@ -88,27 +99,31 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
         </div>
         <TableWrap><table className="w-full text-xs min-w-[560px]">
           <thead>
+            {/* 머리글은 서식 1.2.1 원문 표기에 맞춤 — 인원은 '주간/야간' 두 값을 한 칸에 적는 서식이다
+                (fire-plan-template.ts: 인원 평일(주간/야간)). 기존 '평일(명)'은 단일 숫자로 오해를 유발했다. */}
             <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
-              <th className="pb-1 pr-1 w-24 font-medium">구역</th>
-              <th className="pb-1 pr-1 font-medium">명칭(용도)</th>
-              <th className="pb-1 pr-1 w-20 font-medium">면적(㎡)</th>
-              <th className="pb-1 pr-1 w-16 font-medium">평일(명)</th>
-              <th className="pb-1 pr-1 w-16 font-medium">휴일(명)</th>
-              <th className="pb-1 pr-1 font-medium">관리업체</th>
-              <th className="pb-1 pr-1 w-28 font-medium">연락처</th>
+              <th className="pb-1 pr-1 w-24 font-medium">구역별(동/층)</th>
+              <th className="pb-1 pr-1 font-medium">명칭/용도</th>
+              <th className="pb-1 pr-1 w-20 font-medium">(바닥)면적</th>
+              <th className="pb-1 pr-1 w-20 font-medium">평일 인원<br /><span className="font-normal text-[#b0acd6]">주간/야간</span></th>
+              <th className="pb-1 pr-1 w-20 font-medium">휴일 인원<br /><span className="font-normal text-[#b0acd6]">주간/야간</span></th>
+              <th className="pb-1 pr-1 font-medium">관리주체(입주사)</th>
+              <th className="pb-1 pr-1 w-32 font-medium">담당자(연락처)</th>
               <th className="pb-1 w-7" />
             </tr>
           </thead>
           <tbody>
             {zones.map((z, i) => (
               <tr key={i}>
-                <td className="py-0.5 pr-1"><input value={z.zone} onChange={e => setZone(i, { zone: e.target.value })} disabled={!canManage} className={inputCls} /></td>
-                <td className="py-0.5 pr-1"><input value={z.name} onChange={e => setZone(i, { name: e.target.value })} disabled={!canManage} className={inputCls} /></td>
-                <td className="py-0.5 pr-1"><input value={z.area} onChange={e => setZone(i, { area: e.target.value })} disabled={!canManage} inputMode="decimal" className={inputCls} /></td>
-                <td className="py-0.5 pr-1"><input value={z.workersWeekday} onChange={e => setZone(i, { workersWeekday: e.target.value })} disabled={!canManage} inputMode="numeric" className={inputCls} /></td>
-                <td className="py-0.5 pr-1"><input value={z.workersHoliday} onChange={e => setZone(i, { workersHoliday: e.target.value })} disabled={!canManage} inputMode="numeric" className={inputCls} /></td>
-                <td className="py-0.5 pr-1"><input value={z.company} onChange={e => setZone(i, { company: e.target.value })} disabled={!canManage} className={inputCls} /></td>
-                <td className="py-0.5 pr-1"><input value={z.phone} onChange={e => setZone(i, { phone: e.target.value })} disabled={!canManage} className={inputCls} /></td>
+                {/* 예시(placeholder) — 1.2.2 화재취약장소와 달리 안내가 전혀 없어 빈 표가 막막했다(2026-08-06).
+                    인원은 서식이 '주간/야간'을 한 칸에 받으므로 숫자 전용 키패드(inputMode)를 걸지 않는다. */}
+                <td className="py-0.5 pr-1"><input value={z.zone} onChange={e => setZone(i, { zone: e.target.value })} disabled={!canManage} placeholder="예: 지상 1층" className={inputCls} /></td>
+                <td className="py-0.5 pr-1"><input value={z.name} onChange={e => setZone(i, { name: e.target.value })} disabled={!canManage} placeholder="예: 사무실" className={inputCls} /></td>
+                <td className="py-0.5 pr-1"><input value={z.area} onChange={e => setZone(i, { area: e.target.value })} disabled={!canManage} inputMode="decimal" placeholder="예: 250" className={inputCls} /></td>
+                <td className="py-0.5 pr-1"><input value={z.workersWeekday} onChange={e => setZone(i, { workersWeekday: e.target.value })} disabled={!canManage} placeholder="예: 10/2" className={inputCls} /></td>
+                <td className="py-0.5 pr-1"><input value={z.workersHoliday} onChange={e => setZone(i, { workersHoliday: e.target.value })} disabled={!canManage} placeholder="예: 0/1" className={inputCls} /></td>
+                <td className="py-0.5 pr-1"><input value={z.company} onChange={e => setZone(i, { company: e.target.value })} disabled={!canManage} placeholder="예: 승진소방" className={inputCls} /></td>
+                <td className="py-0.5 pr-1"><input value={z.phone} onChange={e => setZone(i, { phone: e.target.value })} disabled={!canManage} placeholder="예: 홍길동 031-000-0000" className={inputCls} /></td>
                 <td className="py-0.5">
                   {canManage && (
                     <button onClick={() => { setZones(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
