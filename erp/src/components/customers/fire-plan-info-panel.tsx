@@ -64,7 +64,8 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   }
 
   // 준비율 — 설계 §5: 입력 여부 체크 (생성 페이지·워커와 같은 어휘, fire-plan-readiness.ts)
-  const { done, total, missing } = computeFirePlanReadiness({
+  // missing 목록은 상단 생성 바가 단독 담당(2026-08-06 중복 제거) — 여기선 게이지 수치만 사용
+  const { done, total } = computeFirePlanReadiness({
     receiverLocation: d.receiverLocation, structure: d.structure, roof: d.roof,
     managerSelectedAt: d.managerSelectedAt, grade: d.grade, insuranceJoined: d.insuranceJoined,
     opHoursWeekday: d.opHoursWeekday,
@@ -72,17 +73,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     hasBrigade: d.brigade.some(m => m.name.trim()),
   })
 
-  // §11-5: 빠른 입력 화면 누락 칩(plan-tab-view) → 이 패널의 필드 포커스 — 커스텀 이벤트 수신
-  useEffect(() => {
-    const onFocusReq = (e: Event) => {
-      const label = (e as CustomEvent<{ label?: string }>).detail?.label
-      if (label && READINESS_TARGET_IDS[label]) focusMissing(label)
-    }
-    window.addEventListener('erp:focus-missing', onFocusReq)
-    return () => window.removeEventListener('erp:focus-missing', onFocusReq)
-  }, [])
-
-  // 누락 칩 클릭 → 해당 입력칸으로 스크롤·포커스 (항상 편집이므로 모드 전환 불필요, 소방계획서_10 §3-4)
+  // 상단 생성 바 누락 칩 → 이 패널의 필드로 스크롤·포커스 (erp:focus-missing 수신).
   // 앰버 펄스 필수 — 화재보험·자위소방대처럼 패널 끝에 있는 칸은 이미 스크롤 끝이라 scrollIntoView가
   // 움직이지 않아 "클릭해도 반응 없음"으로 보였다 (2026-08-06). plan-tab-view focusField와 동일한 피드백.
   function focusMissing(label: string) {
@@ -96,6 +87,17 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
       setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400', 'rounded-lg'), 2500)
     }, 80)
   }
+
+  // §11-5: 상단 누락 칩(plan-tab-view) → 이 패널의 필드 포커스 — 커스텀 이벤트 수신
+  useEffect(() => {
+    const onFocusReq = (e: Event) => {
+      const label = (e as CustomEvent<{ label?: string }>).detail?.label
+      if (label && READINESS_TARGET_IDS[label]) focusMissing(label)
+    }
+    window.addEventListener('erp:focus-missing', onFocusReq)
+    return () => window.removeEventListener('erp:focus-missing', onFocusReq)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // [건축물대장에서 다시 가져오기] — §5-A-3: 저장된 bcode(092)로 원클릭, 없으면 주소창 1회 확인 후 백필
   function applyLedgerResult(res: Awaited<ReturnType<typeof refreshLedgerAction>>) {
@@ -227,7 +229,9 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
 
   return (
     <div className="mb-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff]">
-      {/* 헤더 — 준비율 게이지 + 누락 칩 (아코디언·요약 토글 폐기, 항상 편집 폼 노출, 소방계획서_10 §3-4) */}
+      {/* 헤더 — 준비율 게이지(입력 즉시 반영). 누락 칩은 상단 생성 바와 완전 중복이라 제거(2026-08-06):
+          같은 computeFirePlanReadiness 9항목을 두 번 그리고 있었고, 상단 칩은 다른 탭(건물·기본정보 등)까지
+          보낼 수 있어 기능이 더 넓다. focusMissing은 상단 칩이 보내는 erp:focus-missing 수신용으로 존치. */}
       <div className="flex items-center gap-2 px-4 py-3">
         <span className="flex items-center gap-2 shrink-0">
           <span className="text-xs font-semibold text-[#090c1d]">계획서 정보</span>
@@ -238,18 +242,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             <span className="text-[11px] text-[#514b81]">준비율 {done}/{total}</span>
           </span>
         </span>
-        {missing.length > 0 && (
-          <span className="flex items-center gap-1 flex-wrap ml-auto min-w-0">
-            <span className="text-[10px] text-amber-600 shrink-0">누락:</span>
-            {missing.map(label => (
-              <button key={label} onClick={() => focusMissing(label)}
-                title={`${label} 입력칸으로 이동`}
-                className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-px hover:bg-amber-100">
-                {label}
-              </button>
-            ))}
-          </span>
-        )}
       </div>
 
       <div className="px-4 pb-4 space-y-4">
