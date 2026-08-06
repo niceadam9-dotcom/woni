@@ -4,9 +4,39 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 
+/** 별지 9호 2쪽 "건축물 정보" 항목 — 건축물대장 자동 채움 대상이자 수기 입력 대상 (소방계획서_9 B안).
+ *  대장 API가 값을 주지 않는 건물도 서식을 완성할 수 있도록 건물 폼에서 직접 입력한다.
+ *  컬럼은 대장 연동이 쓰는 것과 동일(height/households/… — 레거시 height_m·unit_count와 다름) */
+export type LedgerEditableInput = {
+  permit_date?: string | null          // 건축허가일 YYYY-MM-DD
+  building_area?: number               // 건축면적(㎡)
+  building_count?: number              // 건물 동수
+  parking_summary?: string | null      // 주차장 (옥내/옥외·기계식/자주식 요약)
+  height?: number                      // 높이(m)
+  households?: number                  // 세대수
+  elevator_count?: number              // 승용 승강기(대)
+  emergency_elevator_count?: number    // 비상용 승강기(대)
+}
+
+/** 대장 항목을 update/insert 페이로드로 — undefined(폼 미전송)는 건드리지 않고, 빈 값은 null로 지운다 */
+function ledgerFields(b: LedgerEditableInput): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (b.permit_date !== undefined) out.permit_date = b.permit_date || null
+  if (b.building_area !== undefined) out.building_area = b.building_area ?? null
+  if (b.building_count !== undefined) out.building_count = b.building_count ?? null
+  if (b.parking_summary !== undefined) out.parking_summary = b.parking_summary || null
+  if (b.height !== undefined) out.height = b.height ?? null
+  if (b.households !== undefined) out.households = b.households ?? null
+  if (b.elevator_count !== undefined) out.elevator_count = b.elevator_count ?? null
+  if (b.emergency_elevator_count !== undefined) out.emergency_elevator_count = b.emergency_elevator_count ?? null
+  return out
+}
+
 /** 건물 숫자 필드 유효성 (IMP-10) — 음수·비상식 값 차단 */
 function validateBuildingNumbers(
-  b: { total_area?: number; floors_above?: number; floors_below?: number; year_built?: number },
+  b: {
+    total_area?: number; floors_above?: number; floors_below?: number; year_built?: number
+  } & LedgerEditableInput,
 ): string | null {
   const y = new Date().getFullYear()
   if (b.total_area != null && (isNaN(b.total_area) || b.total_area < 0))
@@ -17,6 +47,16 @@ function validateBuildingNumbers(
     return '지하층수는 0~20 사이여야 합니다.'
   if (b.year_built != null && (isNaN(b.year_built) || b.year_built < 1900 || b.year_built > y))
     return `준공연도는 1900~${y} 사이여야 합니다.`
+  // 별지 9호 항목 (소방계획서_9 B안) — 0 이상만, 상한은 대장 값 그대로 받도록 두지 않음
+  const nonNeg: Array<[number | undefined, string]> = [
+    [b.building_area, '건축면적'], [b.building_count, '건물 동수'], [b.height, '높이'],
+    [b.households, '세대수'], [b.elevator_count, '승용 승강기'], [b.emergency_elevator_count, '비상용 승강기'],
+  ]
+  for (const [v, label] of nonNeg) {
+    if (v != null && (isNaN(v) || v < 0)) return `${label}은(는) 0 이상의 숫자여야 합니다.`
+  }
+  if (b.permit_date && !/^\d{4}-\d{2}-\d{2}$/.test(b.permit_date))
+    return '건축허가일은 YYYY-MM-DD 형식이어야 합니다.'
   return null
 }
 
@@ -33,7 +73,7 @@ export type CreateBuildingInput = {
   purpose?: string
   year_built?: number
   notes?: string
-}
+} & LedgerEditableInput
 
 export async function createBuildingAction(
   input: CreateBuildingInput
@@ -55,6 +95,7 @@ export async function createBuildingAction(
     year_built: input.year_built ?? null,
     notes: input.notes || null,
     created_by: profile.id,
+    ...ledgerFields(input),   // 별지 9호 2쪽 항목 (소방계획서_9 B안)
   }
 
   // 단계적 폴백: 092(bcode·지번)+zipcode → zipcode만(092 미적용) → 기본(022 미적용)
@@ -99,7 +140,7 @@ export type UpdateBuildingInput = {
   year_built?: number
   notes?: string
   is_active: boolean
-}
+} & LedgerEditableInput
 
 export async function updateBuildingAction(
   input: UpdateBuildingInput
@@ -127,6 +168,7 @@ export async function updateBuildingAction(
     notes: input.notes || null,
     is_active: input.is_active,
     updated_at: new Date().toISOString(),
+    ...ledgerFields(input),   // 별지 9호 2쪽 항목 (소방계획서_9 B안)
   }
 
   // 092 필드는 값이 있을 때만 포함 (주소 검색을 안 했으면 기존 값 유지)

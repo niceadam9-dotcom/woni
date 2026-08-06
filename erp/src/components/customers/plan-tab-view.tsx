@@ -37,9 +37,14 @@ const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'con
 const CHIP_TARGET_LABEL: Record<string, string> = {
   buildings: '건물·시설 탭', info: '기본정보 탭', form11: '1장 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '아래 송달 동의',
 }
-/** 11-5 필드 단위 포커스 — 기본정보 탭 칩 라벨 → 편집 폼 입력 id (1.1 칩은 fire-plan-info-panel focusMissing에 위임) */
+/** 11-5 필드 단위 포커스 — 기본정보·건물 탭 칩 라벨 → 편집 폼 입력 id (1.1 칩은 fire-plan-info-panel focusMissing에 위임).
+ *  건물(bf-*) 칩은 소방계획서_9 B안으로 수기 입력칸이 생겨, 대장 조회 대신 해당 입력칸으로 이동한다. */
 const CHIP_FIELD_ID: Record<string, string> = {
   '주소': 'cf-address', '사용승인일': 'cf-approval',
+  '건물 용도': 'bf-purpose', '연면적': 'bf-total-area', '층수': 'bf-floors-above',
+  '건축허가일': 'bf-permit-date', '건축면적': 'bf-building-area', '높이': 'bf-height',
+  '세대수': 'bf-households', '건물동수': 'bf-building-count', '승강기': 'bf-elevator',
+  '주차장': 'bf-parking',
 }
 
 /** 1장 서식 목차 (소방계획서_4.md §3 순서) */
@@ -215,21 +220,18 @@ export function PlanTabView({
     }
     setTimeout(tick, delay)
   }
-  // 대장 전용 값 — 수기 입력칸이 어디에도 없음(건축물대장 연동으로만 채움). 칩 = 이 화면에서 대장 미리보기 즉시 실행
-  const LEDGER_ONLY_CHIPS = new Set(['높이', '세대수', '승강기', '건축허가일', '건축면적', '건물동수', '주차장'])
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
     const fieldId = CHIP_FIELD_ID[label]
     if (!t) { select('1.1'); return }
-    if (t === 'buildings' && LEDGER_ONLY_CHIPS.has(label)) { refreshLedger(); return }
     if (t === 'buildings' || t === 'info') {
       if (tabsShell) tabsShell.goTab(t)
       else router.push(`/customers/${customerId}?tab=${t}`)
-      if (t === 'info' && fieldId) {
-        // 기본정보는 요약 모드 → 편집 전환+포커스가 필요해 컴포넌트에 위임 (erp:focus-missing)
+      if (fieldId) {
+        // 요약 모드→편집 전환·수정 폼 열기가 필요해 각 컴포넌트에 위임 (erp:focus-missing)
+        // 기본정보 = cf-*(edit-customer-info-client), 건물 = bf-*(building-inline-panel, 소방계획서_9 B안)
         setTimeout(() => window.dispatchEvent(new CustomEvent('erp:focus-missing', { detail: { id: fieldId } })), 350)
       } else if (t === 'buildings') {
-        // 용도·연면적·층수 등 수기 폼 보유 값 — 건물 패널로 스크롤·강조
         focusField('buildings-panel')
       }
       return
@@ -437,7 +439,7 @@ export function PlanTabView({
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 건축허가일·건축면적 등 대장 값 칩은 [건축물대장 불러오기]를 바로 실행합니다.</p>
+                <p className="mt-1.5 text-[10px] text-[#b0acd6]">칩을 클릭하면 해당 입력처로 이동합니다 — 건축허가일·건축면적 등 건물 항목은 [건축물대장 불러오기]로 한 번에 채울 수도 있습니다.</p>
               </>
             ) : (
               <p className="text-[11px] text-green-700">필수값이 모두 입력됐습니다 — 두 문서를 생성할 수 있습니다.</p>

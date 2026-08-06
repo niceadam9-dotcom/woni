@@ -178,7 +178,8 @@ async function assembleReport9(
       .eq('id', customerId).single(),
     admin.from('buildings')
       .select('id, purpose, total_area, building_area, floors_above, floors_below, height, main_structure, roof_structure,'
-        + 'households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, evac_elevator_count')
+        + 'households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, evac_elevator_count,'
+        + 'stairs_count, ramp_count')
       .eq('customer_id', customerId).eq('is_active', true).order('created_at', { ascending: true }).limit(1),
     admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
     admin.from('company_profile').select('company_name, phone').limit(1),
@@ -210,6 +211,7 @@ async function assembleReport9(
     main_structure: string | null; roof_structure: string | null; households: number | null
     building_count: number | null; permit_date: string | null; parking_summary: string | null
     elevator_count: number | null; emergency_elevator_count: number | null; evac_elevator_count: number | null
+    stairs_count: number | null; ramp_count: number | null
   }
   const b = (bldRes.data?.[0] as BldRow | undefined) ?? null
   const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
@@ -412,6 +414,9 @@ async function assembleReport9(
     pkMech: pk.includes('기계식'),
     pkRoof: pk.includes('옥상'),
     pkOut: pk.includes('옥외'),
+    // 계단·경사로 — 1.1 일반현황 입력분(그동안 템플릿에 빈칸 하드코딩되어 미반영, 2026-08-06 연결)
+    rampCount: b?.ramp_count ? String(b.ramp_count) : '',
+    stairsCount: b?.stairs_count ? String(b.stairs_count) : '',
     facilityChecks,
     resultMarks,
     muResults,

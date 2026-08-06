@@ -115,12 +115,12 @@ export const QUICK_REQUIRED_FIELDS: RequiredFieldDef[] = [
   { key: 'totalArea', label: '연면적' },
   { key: 'buildingArea', label: '건축면적' },
   { key: 'floors', label: '층수' },
-  // 높이·세대수·승강기: 건축물대장 전용 값(수기 입력칸 없음) — 대장에 없는 건물은 채울 수단이 없어
-  // 값이 있을 때만 완성도에 포함, 없으면 필수·누락에서 제외 (2026-08-05 사용자 확정)
-  { key: 'height', label: '높이', optional: true },
-  { key: 'households', label: '세대수', optional: true },
+  // 높이·세대수·승강기: 별지 9호 2쪽 인쇄 항목 — 건물 폼에 수기 입력칸이 생겨(소방계획서_9 B안, 2026-08-06)
+  // 대장에 값이 없어도 채울 수 있으므로 필수로 환원 (2026-08-05 optional 처리 해제)
+  { key: 'height', label: '높이' },
+  { key: 'households', label: '세대수' },
   { key: 'buildingCount', label: '건물동수' },
-  { key: 'elevator', label: '승강기', optional: true },
+  { key: 'elevator', label: '승강기' },
   { key: 'parking', label: '주차장' },
   // 소방계획서 준비율 어휘 (fire-plan-readiness 9종)
   { key: 'receiverLocation', label: '수신기위치' },

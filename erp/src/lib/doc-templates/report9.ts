@@ -105,6 +105,8 @@ export type Report9Data = {
   rfSlab: boolean; rfTile: boolean; rfSlate: boolean; rfEtc: boolean
   elvR: string; elvE: string; elvV: string  // 승용·비상용·피난용 대수 (체크 = 대수 존재)
   pkIn: boolean; pkMech: boolean; pkRoof: boolean; pkOut: boolean
+  rampCount: string      // 경사로(개소) — 1.1 일반현황 입력 (buildings.ramp_count)
+  stairsCount: string    // 계단(개소) — 직통·피난계단 합계로 표기 (buildings.stairs_count)
   // ── 3쪽 ──
   facilityChecks: string[]                    // 설치 설비(√) — FORM3_ITEMS 명칭
   resultMarks: Record<string, 'O' | 'X' | 'N'>  // 항목 → 점검결과 (○/×//)
@@ -291,11 +293,11 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   <tr>
     <th>지붕구조</th>
     <td colspan="3" class="pre"> ${ck(d.rfSlab)}슬래브, ${ck(d.rfTile)}기와, ${ck(d.rfSlate)}슬레이트, ${ck(d.rfEtc)}기타</td>
-    <th>경사로</th><td class="pre">              개소</td>
+    <th>경사로</th><td class="pre">${val(d.rampCount)}   개소</td>
   </tr>
   <tr>
     <th>계단</th>
-    <td colspan="5" class="pre"> ${ck(false)}직통(또는 피난계단) (    개소), ${ck(false)}특별피난계단 (    개소)</td>
+    <td colspan="5" class="pre"> ${ck(!!d.stairsCount)}직통(또는 피난계단) (${val(d.stairsCount)}  개소), ${ck(false)}특별피난계단 (    개소)</td>
   </tr>
   <tr>
     <th>승강기</th>

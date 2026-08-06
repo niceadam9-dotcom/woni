@@ -32,6 +32,7 @@ import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
 import { RecommendAssignClient } from '@/components/customers/recommend-assign-client'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { listCustomerAssets } from '@/lib/customer-assets'
+import { listBuildingPurposes } from '@/lib/building-purposes'
 import { requiredDocs, computeQuickReadiness } from '@/lib/doc-requirements'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
@@ -521,6 +522,15 @@ export default async function CustomerDetailPage({
       total_area: b.total_area, floors_above: b.floors_above, floors_below: b.floors_below,
       purpose: b.purpose, year_built: b.year_built,
       notes: (r.notes as string | null) ?? null, is_active: b.is_active,
+      // 별지 9호 2쪽 건축물 정보 (소방계획서_9 B안) — 대장 자동 채움 + 수기 입력 공용 컬럼
+      permit_date: (r.permit_date as string | null) ?? null,
+      building_area: (r.building_area as number | null) ?? null,
+      building_count: (r.building_count as number | null) ?? null,
+      parking_summary: (r.parking_summary as string | null) ?? null,
+      height: (r.height as number | null) ?? null,
+      households: (r.households as number | null) ?? null,
+      elevator_count: (r.elevator_count as number | null) ?? null,
+      emergency_elevator_count: (r.emergency_elevator_count as number | null) ?? null,
     }
   })
 
@@ -535,6 +545,7 @@ export default async function CustomerDetailPage({
         canManage={canManage}
         initialOpenId={initialBuildingId}
         initialNew={initialNewBuilding === '1'}
+        purposes={buildingPurposes}
       />
 
       {/* 소방시설 현황 패널은 소방계획서 탭 > 1장 > 1.4로 이동 (소방계획서_4.md §4 — 건물목록은 잔류) */}
