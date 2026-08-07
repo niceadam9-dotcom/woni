@@ -6,7 +6,7 @@
  * K-8b(일련번호식 `사직로8길`의 모도로 미역산)를 잡아냈는데, 순수 함수인데도 테스트가 0건이라
  * 정규식 변경이 그대로 새는 구조였다. 회귀 방지용으로 고정한다.
  */
-import { extractRoadName } from '../src/lib/address-parser.ts'
+import { extractRoadName, extractRegionDetail } from '../src/lib/address-parser.ts'
 import { buildSurroundingsDraft } from '../src/lib/fire-plan-suggest.ts'
 
 let pass = 0
@@ -71,6 +71,25 @@ check('이면도로 — 모도로 분기 문장 포함', d2.includes('사직로�
 const d3 = buildSurroundingsDraft({ road: null, mainRoad: null, tier: null })
 check('도로명 없으면 방위·도로 모두 빈칸', d3.includes('[방위]측') && d3.includes('____'), d3)
 check('차로수는 항상 빈칸(자동 단정 금지)', d1.includes('__차로') && d2.includes('__차로'))
+
+console.log('\n[extractRegionDetail]')
+// C-2: 소방서는 시·군 단위지만 특별시·광역시와 대도시는 자치구 단위로 갈린다 — 구를 잃으면 매핑 불가
+const REGION_CASES: Array<[string, { sido: string; sigun: string; gu: string; emd: string }]> = [
+  ['서울특별시 영등포구 여의대로 24', { sido: '서울특별시', sigun: '', gu: '영등포구', emd: '' }],
+  ['서울 중구 세종대로 110', { sido: '서울특별시', sigun: '', gu: '중구', emd: '' }],
+  ['경기 성남시 분당구 판교로 255', { sido: '경기도', sigun: '성남시', gu: '분당구', emd: '' }],
+  ['경기도 양평군 양평읍 경강로 2047', { sido: '경기도', sigun: '양평군', gu: '', emd: '양평읍' }],
+  ['강원특별자치도 홍천군 홍천읍 공작산로 99', { sido: '강원특별자치도', sigun: '홍천군', gu: '', emd: '홍천읍' }],
+  ['충북 청주시 상당구 1순환로 1000', { sido: '충청북도', sigun: '청주시', gu: '상당구', emd: '' }],
+  ['인천 강화군 강화읍 북문길 41', { sido: '인천광역시', sigun: '강화군', gu: '', emd: '강화읍' }],
+  ['경기 용인시 처인구 명지로 45', { sido: '경기도', sigun: '용인시', gu: '처인구', emd: '' }],
+]
+for (const [addr, exp] of REGION_CASES) {
+  const r = extractRegionDetail(addr)
+  const ok = r.sido === exp.sido && r.sigun === exp.sigun && r.gu === exp.gu && r.emd === exp.emd
+  check(`${addr} → ${[exp.sido, exp.sigun, exp.gu, exp.emd].filter(Boolean).join('/')}`, ok, JSON.stringify(r))
+}
+check('주소가 아니면 빈 값', JSON.stringify(extractRegionDetail('')) === JSON.stringify({ sido: '', sigun: '', gu: '', emd: '' }))
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail > 0 ? 1 : 0)

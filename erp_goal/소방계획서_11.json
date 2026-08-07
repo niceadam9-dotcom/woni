@@ -191,8 +191,8 @@
           "note": "✔ 수정 완료 — 카드 상단 안내와 행별 경고 양쪽 정정" },
         { "id": "C-0", "desc": "조사 — 용문소방서 부존재. 용문면 관할=양평소방서, 용문119안전센터는 산하", "status": "implemented",
           "verified": { "date": "2026-08-07", "evidence": ["119.gg.go.kr/yangpyeong 조직도", "065_region_fire_stations.sql:18"], "method": "웹 조사 + 시드 대조" } },
-        { "id": "C-2", "desc": "공공데이터로 region_fire_stations 확장 시드 → estimate 단계 제거", "status": "pending_order",
-          "note": "독립 검증 결과 우선순위 상승 — region_only·sigungu 오매핑(옥천군→양평소방서, 성남 수정구→분당소방서)이 estimate보다 위험하고 배지 대상도 아니다" }
+        { "id": "C-2", "desc": "관할 소방서 매핑 확장 — 마이그레이션 116(복합 PK+region_type) + extractRegionDetail(시도·시군·구·읍면동 분해) + 해결기 5단계(gu/gu_sido/emd/sigun/estimate) + 시드 22행→112행(서울25·경기39·강원18·인천8)", "status": "code_present",
+          "note": "test-fire-station.mts 23/23 실DB 통과 — 성남 수정구→성남소방서, 서울 중구→중부소방서 확인. ⚠ 의도적 미시드: 평택시(송탄/평택 동 단위)·인천 연수구·남동구·옹진군(동/면 단위) — 확신 없는 매핑을 확정으로 심지 않음. 나머지 시도는 estimate+배지" }
       ]
     },
     {
