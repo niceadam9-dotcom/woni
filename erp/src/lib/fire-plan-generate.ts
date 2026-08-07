@@ -258,7 +258,10 @@ export async function assembleFirePlan(
     refs.push({ path: a.path, kind, caption: '' })
   }
   const fSec = sections
-  if (fSec.location?.mapImage) refs.push({ path: fSec.location.mapImage, kind: 'map', caption: '위치도' })
+  // D-1(소방계획서_11): 위치도 단일 원천 = map_location 슬롯. 서식 1.3의 옛 mapImage는 **슬롯이 없을 때만**
+  // 폴백 인쇄한다 — 둘 다 kind:'map'이라 종전에는 같은 위치도가 2장 인쇄됐다.
+  const hasMapSlot = slotAssets.some(a => a.slot === 'map_location')
+  if (fSec.location?.mapImage && !hasMapSlot) refs.push({ path: fSec.location.mapImage, kind: 'map', caption: '위치도' })
   if (fSec.fireAccess?.routeImage) refs.push({ path: fSec.fireAccess.routeImage, kind: 'route', caption: '소방차 진입경로' })
   for (const m of fSec.evacMaps ?? []) {
     if (m.image) refs.push({ path: m.image, kind: 'evacmap', caption: [m.floor, m.desc].filter(Boolean).join(' — ') })

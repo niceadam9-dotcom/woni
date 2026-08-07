@@ -7,6 +7,39 @@
  * 예) "경기도 양평군 양평읍 어딘가로 123 (도로명 주소)"
  *   → { region_si: "양평군", region_myeon: "양평읍", region_ri: "" }
  */
+export type RoadTier = 'daero' | 'ro' | 'gil'
+
+/**
+ * 도로명주소에서 도로명·위계 추출 (소방계획서_11.md §8-3 — 서식 1.3 주변 현황 자동 초안)
+ *
+ * 도로명주소는 `<도로명>(대로|로|길) <건물번호>` 구조라, **건물번호가 뒤따르는 것**을 필수 조건으로 두어
+ * "경기도"·"양평읍 도로" 같은 오탐을 억제한다. 지번주소에는 도로명이 없으므로 null.
+ *
+ * 자동차 도로(간선) 판정:
+ *   - 대로·로 = 차량 통행 도로 → mainRoad = 자기 자신
+ *   - ○○대로123번길 = 이면도로지만 **모도로가 이름에 인코딩**돼 있음 → mainRoad = '○○대로'
+ *   - ○○길 = 이면도로, 모도로 불명 → mainRoad = null (경로 조회 L3 필요, §9)
+ *
+ * 예) "경기 양평군 양평읍 마유산로 123-4"   → { road:'마유산로', tier:'ro',  mainRoad:'마유산로' }
+ * 예) "서울 중구 중앙대로123번길 45"        → { road:'중앙대로123번길', tier:'gil', mainRoad:'중앙대로' }
+ */
+export function extractRoadName(address: string): {
+  road: string
+  tier: RoadTier
+  mainRoad: string | null
+  bldNo: string
+} | null {
+  if (!address) return null
+  // 문자 클래스에 숫자를 포함시켜 greedy 매칭이 '중앙대로123번길'을 통째로 집도록 한다(부속 도로명 보존)
+  const m = address.trim().match(/([가-힣A-Za-z0-9]+(?:대로|로|길))\s*(\d+(?:-\d+)?)(?![\d-])/)
+  if (!m) return null
+  const road = m[1]
+  const tier: RoadTier = road.endsWith('대로') ? 'daero' : road.endsWith('길') ? 'gil' : 'ro'
+  const branch = tier === 'gil' ? road.match(/^(.+?(?:대로|로))\d+번길$/) : null
+  const mainRoad = tier === 'gil' ? (branch ? branch[1] : null) : road
+  return { road, tier, mainRoad, bldNo: m[2] }
+}
+
 export function extractRegionFromAddress(address: string): {
   region_si: string
   region_myeon: string

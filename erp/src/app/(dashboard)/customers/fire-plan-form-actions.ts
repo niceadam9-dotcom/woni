@@ -6,6 +6,8 @@ import { requirePermission } from '@/lib/auth'
 import type { FirePlanGenData } from '@/lib/fire-plan-template'
 import { requestFirePlanHwpAction } from '@/app/(dashboard)/fire-plans/generate/actions'
 import type { PresetType } from '@/lib/fire-plan-presets'
+import { extractRoadName, type RoadTier } from '@/lib/address-parser'
+import { buildSurroundingsDraft } from '@/lib/fire-plan-suggest'
 
 /** 소방계획서 탭(4-1 골격) 전용 액션 — 소방계획서_4.md §2·§7
  *  서식 입력 저장소 = fire_plan_forms(096, 고객당 1행·섹션 JSONB). */
@@ -73,6 +75,71 @@ export async function saveFirePlanSectionsAction(
   if (error) return { error: `저장 실패: ${error.message}` }
   revalidatePath(`/customers/${customerId}`)
   return {}
+}
+
+/** 서식 1.3 주변 현황 자동 초안 (소방계획서_11.md §8 D-2 — "자동차 도로 기반으로 작성")
+ *
+ *  단계: L1 저장된 도로명주소 파싱(비용 0) → 실패 시 L2 NCP 지오코딩의 정규화 주소 재파싱.
+ *  좌표를 얻어도 저장하지 않는다(현행 generateLocationMapAction과 동일 — 좌표 저장은 §9 B-1 과제).
+ *
+ *  ⚠ 결과는 **초안**이다. 이 액션은 아무것도 저장하지 않으며, 화면이 textarea에 채워주고
+ *     사람이 빈칸(차로수·인접 건물)을 메운 뒤 기존 [서식 1.3 저장]으로 확정한다. */
+export async function suggestSurroundingsAction(
+  customerId: string,
+  bearing?: string,
+): Promise<{
+  road?: string; mainRoad?: string | null; tier?: RoadTier
+  draft?: string; source?: 'address' | 'geocode'; error?: string
+}> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { data: cust } = await admin.from('customers').select('address').eq('id', customerId).maybeSingle()
+  const { data: bld } = await admin.from('buildings')
+    .select('address').eq('customer_id', customerId).eq('is_active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+  const candidates = [
+    (cust as { address: string | null } | null)?.address,
+    (bld as { address: string | null } | null)?.address,
+  ].filter((a): a is string => !!a && !!a.trim())
+
+  // L1 — 저장된 도로명주소에서 직접 (지번주소만 있으면 도로명이 없어 여기서 실패한다)
+  for (const addr of candidates) {
+    const r = extractRoadName(addr)
+    if (r) {
+      return {
+        road: r.road, mainRoad: r.mainRoad, tier: r.tier, source: 'address',
+        draft: buildSurroundingsDraft({ road: r.road, mainRoad: r.mainRoad, tier: r.tier, bearing }),
+      }
+    }
+  }
+
+  // L2 — 지오코딩으로 정규화된 도로명주소를 받아 재파싱 (키 없으면 여기서 종료)
+  const clientId = process.env.NCP_MAPS_CLIENT_ID
+  const clientSecret = process.env.NCP_MAPS_CLIENT_SECRET
+  if (candidates.length > 0 && clientId && clientSecret) {
+    try {
+      const url = new URL('https://maps.apigw.ntruss.com/map-geocode/v2/geocode')
+      url.searchParams.set('query', candidates[0])
+      const res = await fetch(url.toString(), {
+        headers: { 'x-ncp-apigw-api-key-id': clientId, 'x-ncp-apigw-api-key': clientSecret },
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const geo = await res.json() as { addresses?: Array<{ roadAddress?: string }> }
+        const roadAddr = geo.addresses?.[0]?.roadAddress
+        const r = roadAddr ? extractRoadName(roadAddr) : null
+        if (r) {
+          return {
+            road: r.road, mainRoad: r.mainRoad, tier: r.tier, source: 'geocode',
+            draft: buildSurroundingsDraft({ road: r.road, mainRoad: r.mainRoad, tier: r.tier, bearing }),
+          }
+        }
+      }
+    } catch { /* best-effort — 아래 안내로 떨어진다 */ }
+  }
+
+  if (candidates.length === 0) return { error: '고객·건물 주소가 없습니다 — 기본정보에 주소를 먼저 입력해주세요.' }
+  return { error: '주소에서 도로명을 찾지 못했습니다 (지번주소만 저장된 경우) — 직접 입력해주세요.' }
 }
 
 /** §11-6: 다른 고객 섹션 단위 복사 — 같은 용도 고객의 서식 입력(1.5/1.6/1.11)을 가져오기 */

@@ -606,7 +606,9 @@ export default async function CustomerDetailPage({
       form13={<PlanForm13 customerId={customer.id} canManage={canManage}
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}
-        initialPhotos={fpSections.photos ?? []} />}
+        initialPhotos={fpSections.photos ?? []}
+        hasMapAsset={customerAssets.some(a => a.slot === 'map_location')}
+        autoFireStation={s(cRec.fire_station)} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} specsByBuilding={specsByBuilding} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}

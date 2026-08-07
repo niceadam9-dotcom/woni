@@ -124,7 +124,22 @@ try {
   await page.click('button:has-text("1.3 위치·소방차진입")')
   await page.waitForSelector('text=소방차 세부진입 계획')
   check('1.3 — 생성 삽입 사진 카드(§8-1k 이관)', await page.isVisible('text=생성 문서 삽입 사진'))
-  await page.fill('textarea[placeholder*="인접 건물"]', '주변현황 E2E')
+  // 소방계획서_11 D-1 — 위치도는 [지도·사진] 단일 원천: 1.3에는 업로드 버튼이 없고 안내·이동 링크만
+  check('D-1 위치도 단일 원천 — [지도·사진] 이동 버튼',
+    await page.isVisible('[data-testid="form13-goto-assets"]'))
+  check('D-1 위치도 안내 문구(등록/미등록 상태)',
+    (await page.isVisible('text=[지도·사진]에 등록됨')) || (await page.isVisible('text=미등록')))
+  // 소방계획서_11 D-5 — 신규 사진 종류는 '기타'만(건물 전경·위치도·피난경로도 선택지 제거)
+  await page.click('button:has-text("+ 사진 추가")')
+  await page.waitForSelector('[data-testid="form13-photo-kind"]')
+  const kindOpts = await page.$eval('[data-testid="form13-photo-kind"]',
+    (el: HTMLSelectElement) => Array.from(el.options).map(o => o.value))
+  check('D-5 신규 사진 종류 = 기타 단일', kindOpts.length === 1 && kindOpts[0] === 'etc', kindOpts.join(','))
+  await page.click('[data-testid="form13-photo-remove"]')   // 추가한 빈 행 정리
+  // 소방계획서_11 D-2 — 자동차 도로 기반 주변 현황 초안 버튼
+  check('D-2 자동 문장 만들기 버튼',
+    await page.isVisible('[data-testid="form13-suggest-surroundings"]'))
+  await page.fill('[data-testid="form13-surroundings"]', '주변현황 E2E')
   await page.fill('input[placeholder*="정문 앞 도로"]', '정문 앞')
   // §1-2 미저장 이동 확인 — 저장 전 목차 이동 시 confirm (취소 → 잔류)
   page.once('dialog', d => d.dismiss())
@@ -247,12 +262,23 @@ try {
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))
+  // 소방계획서_9(a9e2df3): 설비를 체크할 때마다 '설비 대장' 우측 슬라이드 패널이 열리고,
+  // 그 패널이 본문 클릭을 가로챈다. 본문(1.4 표)을 이어서 조작하려면 매번 닫아야 한다 — 낡은 체크 현행화(2026-08-07).
+  const closeSpecPanel = async () => {
+    await page.click('button[aria-label="닫기"]').catch(() => {})
+    await page.waitForTimeout(300)
+  }
   await page.click('text=소화기구 및 자동소화장치')
+  await closeSpecPanel()
   await page.click('button:has-text("피난사다리")')
   check('하위 체크 → 피난기구 자동 체크', await page.locator('div[role="button"]:has-text("피난기구")').first().textContent().then(t => t?.includes('☑') ?? false))
-  // 10bdf2b(1.4 체크형 완결): 클릭 = 0.8초 디바운스 자동 저장, 메시지 '자동 저장됨' — 버튼은 폴백
-  await page.click('button:has-text("저장")')
-  await page.waitForSelector('text=자동 저장됨')
+  await closeSpecPanel()
+  // 10bdf2b(1.4 체크형 완결): 클릭 = 0.8초 디바운스 자동 저장, 메시지 '자동 저장됨' — 버튼은 폴백.
+  // 패널 개폐 대기(위)로 디바운스가 이미 지나 자동 저장이 끝난 경우 [저장]은 무동작이므로, 메시지를 먼저 기다린다.
+  await page.waitForSelector('text=자동 저장됨', { timeout: 5000 }).catch(async () => {
+    await page.click('button:has-text("저장")').catch(() => {})
+    await page.waitForTimeout(1500)
+  })
   const { data: facRows } = await raw.from('fire_facilities')
     .select('facility_code, installed').eq('installed', true)
     .in('facility_code', ['소화기구 및 자동소화장치', '피난기구', '피난사다리'])
@@ -267,10 +293,12 @@ try {
 
   // ── 5) 일반관리 고객 — 특례 제거(소방계획서_6 W-14·W-19): 소방안전관리와 동일 취급 ──
   // 구 배너('작성 대상이 아닙니다')는 32c2ace에서 설계상 제거 — 일반관리도 소방계획서·필수 완성도 대상
+  // 필수 완성도 카드는 ⚡ 빠른 입력 페이지와 함께 폐기(d05b119) — 위 36행이 부재를 단언한다.
+  // 동일 취급 판정은 '일반관리도 1.1 입력폼으로 똑같이 진입하는가'로 대체한다(2026-08-07 현행화).
   await page.goto(`${BASE}/customers/${generalId}?tab=plan`)
-  await page.waitForSelector('text=필수 완성도')
+  await page.waitForSelector('text=① 시설현황')
   check('일반관리 — 특례 배너 없음(작성 대상)', !(await page.isVisible('text=소방계획서 작성 대상이 아닙니다')))
-  check('일반관리 — 필수 완성도 노출(동일 취급)', await page.isVisible('text=필수 완성도'))
+  check('일반관리 — 1.1 입력폼 동일 진입(특례 없음)', await page.isVisible('text=② 운영현황'))
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

@@ -134,6 +134,17 @@ export function PlanTabView({
     url.searchParams.delete('sub')
     window.history.replaceState(null, '', url.toString())
   }
+  // 서식 안에서 다른 노드로 보내는 요청 수신 (소방계획서_11 D-1/D-5 — 1.3 → [지도·사진] 단일 원천 안내 링크).
+  // select()가 미저장 확인·URL 동기화를 그대로 태우도록 이벤트로 위임한다.
+  // deps 배열을 두지 않는 것은 의도 — select가 sel을 클로저로 잡으므로 매 렌더 최신 핸들러로 갱신한다.
+  useEffect(() => {
+    const onSelect = (e: Event) => {
+      const key = (e as CustomEvent).detail
+      if (typeof key === 'string' && VALID_SEL.has(key)) select(key)
+    }
+    window.addEventListener('erp:plan-select', onSelect)
+    return () => window.removeEventListener('erp:plan-select', onSelect)
+  })
   // §1-2·1-3 카드 앵커 딥링크 — ?form=…#c-카드 진입/서식 전환 시 해당 카드로 스크롤
   useEffect(() => {
     const h = window.location.hash

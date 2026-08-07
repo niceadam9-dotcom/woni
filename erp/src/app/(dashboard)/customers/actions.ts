@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress } from '@/lib/address-parser'
+import { resolveFireStation } from '@/lib/fire-station'
 import { generateYearlyPlanItems, loadHolidaySet, loadAnchorDates } from '@/lib/inspection-plan-generator'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import type { ContactRole, InspectionType } from '@/types'
@@ -537,11 +538,11 @@ export async function updateCustomerAction(
   // 변경 감지를 위해 이전 값 조회
   const { data: prevCustomer } = await admin
     .from('customers')
-    .select('customer_name, inspection_type, inspection_sub_type, contract_date, use_approval_date, plan_anchor_date, address')
+    .select('customer_name, inspection_type, inspection_sub_type, contract_date, use_approval_date, plan_anchor_date, address, fire_station')
     .eq('id', customerId).single()
   const prev = prevCustomer as {
     customer_name: string; inspection_type: string; inspection_sub_type: string | null; contract_date: string | null
-    use_approval_date: string | null; plan_anchor_date: string | null; address: string | null
+    use_approval_date: string | null; plan_anchor_date: string | null; address: string | null; fire_station: string | null
   } | null
   const prevAnchorDate = prev?.plan_anchor_date ?? null
 
@@ -571,6 +572,20 @@ export async function updateCustomerAction(
     updateFields.inspection_sub_type = input.inspection_sub_type
   }
   if (Object.keys(updateFields).length === 0) return {}
+
+  // D-3(2026-08-07): 주소를 저장하는데 관할 소방서가 비어 있으면 자동 지정 — 수기 도로명 보정 등
+  // 주소 원클릭(quickAddressApplyAction)을 거치지 않는 경로에서도 공란이 남지 않게 한다.
+  // 사용자가 명시적으로 보낸 fire_station은 건드리지 않는다(수동 입력 우선).
+  const addrSaved = input.address !== undefined && !!input.address
+  const stationEmpty = input.fire_station !== undefined
+    ? !input.fire_station
+    : !prev?.fire_station
+  if (addrSaved && stationEmpty) {
+    const resolved = await resolveFireStation(admin, {
+      regionMyeon: input.region_myeon, regionSi: input.region_si, address: input.address,
+    })
+    if (resolved) updateFields.fire_station = resolved.station
+  }
 
   // 기준일(점검계획일) 변경 판정 — 사용승인일은 기준일이 아니므로 계획 재계산과 무관 (2026-07-14 폴백 제거)
   const newAnchorDate = input.plan_anchor_date !== undefined ? input.plan_anchor_date : prevAnchorDate
@@ -1503,12 +1518,11 @@ export async function quickAddressApplyAction(
   if (!cur) return { error: '고객을 찾을 수 없습니다.' }
   let fireStation: string | undefined
   if (!(cur as { fire_station: string | null }).fire_station) {
-    const regionKey = regionMyeon.replace(/(읍|면|동)$/, '')
-    if (regionKey) {
-      const { data: map } = await admin.from('region_fire_stations')
-        .select('fire_station').eq('region_si', d.sigungu).eq('region', regionKey).maybeSingle()
-      fireStation = (map as { fire_station: string } | null)?.fire_station
-    }
+    // D-3(2026-08-07): 매핑 실패 시 공란으로 두지 않는다 — 시/군 차용·명명 규칙 추정까지 내려간다
+    const resolved = await resolveFireStation(admin, {
+      regionMyeon, regionSi: d.sigungu, address: d.roadAddress,
+    })
+    fireStation = resolved?.station
   }
 
   // ① customers 주소·지역(+매핑된 소방서)

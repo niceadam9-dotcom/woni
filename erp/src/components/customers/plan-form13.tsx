@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, ImagePlus, Trash2 } from 'lucide-react'
 import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
+  suggestSurroundingsAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 
@@ -82,21 +83,36 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
   )
 }
 
-/** 생성 문서 삽입 사진 (§8-1k — 생성 모달 폐지에 따라 1.3으로 이관) */
+/** 생성 문서 삽입 사진 (§8-1k — 생성 모달 폐지에 따라 1.3으로 이관)
+ *  D-5(소방계획서_11): 건물 전경·위치도·피난경로도는 [지도·사진] 슬롯과 중복 입력 경로였다.
+ *  신규 추가는 '기타'만 허용하고, 기존에 그 종류로 저장된 사진은 그대로 인쇄한다(하위호환). */
 export type PlanPhotoRow = { path: string | null; kind: string; caption: string }
 const PHOTO_KIND_OPTIONS = [
-  { value: 'building', label: '건물 전경' },
-  { value: 'map', label: '위치도(지도)' },
-  { value: 'evacuation', label: '피난경로도' },
-  { value: 'etc', label: '기타' },
+  { value: 'building', label: '건물 전경', legacy: true },
+  { value: 'map', label: '위치도(지도)', legacy: true },
+  { value: 'evacuation', label: '피난경로도', legacy: true },
+  { value: 'etc', label: '기타', legacy: false },
 ]
 
-export function PlanForm13({ customerId, canManage, initialLocation, initialFireAccess, initialPhotos = [] }: {
+/** 방위는 자동 판정이 불가하다(건물 폴리곤 대비 도로 위치가 필요) — 사람이 1클릭으로 지정 */
+const BEARINGS = ['북', '동', '남', '서']
+
+/** 트리 다른 노드로 이동 — plan-tab-view가 수신해 미저장 확인 후 select() */
+function goPlanNode(key: string) {
+  window.dispatchEvent(new CustomEvent('erp:plan-select', { detail: key }))
+}
+
+export function PlanForm13({
+  customerId, canManage, initialLocation, initialFireAccess, initialPhotos = [],
+  hasMapAsset = false, autoFireStation = '',
+}: {
   customerId: string
   canManage: boolean
   initialLocation: LocationSection
   initialFireAccess: FireAccessSection
   initialPhotos?: PlanPhotoRow[]
+  hasMapAsset?: boolean        // [지도·사진] map_location 슬롯 등록 여부 (D-1 단일 원천 판정)
+  autoFireStation?: string     // 고객 정보의 관할 소방서 — 1.3이 비면 이 값이 인쇄된다 (D-3)
 }) {
   const router = useRouter()
   const [loc, setLoc] = useState(initialLocation)
@@ -107,10 +123,42 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
   const [isPending, startTransition] = useTransition()
   useUnsavedWarning(dirty) // §11-4 이탈 경고
 
+  // D-2: 주변 현황 자동 초안 — 자동차 도로(대로·로) 기준 도로명으로 뼈대 문장을 만든다
+  const [bearing, setBearing] = useState('')
+  const [suggested, setSuggested] = useState(false)   // 초안 상태 = 보라 링(미확정 표시)
+  const [suggestMsg, setSuggestMsg] = useState('')
+  const [suggesting, setSuggesting] = useState(false)
+
   function patchLoc(p: Partial<LocationSection>) { setLoc(v => ({ ...v, ...p })); setDirty(true) }
   function patchFa(p: Partial<FireAccessSection>) { setFa(v => ({ ...v, ...p })); setDirty(true) }
   function patchPhoto(i: number, p: Partial<PlanPhotoRow>) {
     setPhotos(rows => rows.map((r, j) => (j === i ? { ...r, ...p } : r))); setDirty(true)
+  }
+
+  async function suggestSurroundings() {
+    if (loc.surroundings.trim() && !window.confirm('이미 입력된 주변 현황을 초안으로 바꿀까요?')) return
+    setSuggesting(true)
+    setSuggestMsg('')
+    const r = await suggestSurroundingsAction(customerId, bearing || undefined)
+    setSuggesting(false)
+    if (!r.draft) { setSuggestMsg(r.error ?? '초안을 만들지 못했습니다.'); return }
+    patchLoc({ surroundings: r.draft })
+    setSuggested(true)
+    const via = r.source === 'geocode' ? '지오코딩' : '저장된 주소'
+    setSuggestMsg(r.tier === 'gil'
+      ? `${r.road}은 이면도로입니다${r.mainRoad ? ` (자동차 도로: ${r.mainRoad})` : ''} — 빈칸(__)을 채워 저장하세요 · ${via}`
+      : `${r.road} 기준 초안입니다 — 빈칸(__)을 채워 저장하세요 · ${via}`)
+  }
+
+  /** D-1 레거시 정리 — 서식에 저장돼 있던 옛 위치도 제거([지도·사진] 슬롯으로 일원화) */
+  function removeLegacyMap() {
+    if (!loc.mapImage) return
+    if (!window.confirm('서식에 저장된 옛 위치도를 삭제할까요? ([지도·사진]의 위치도는 그대로 유지됩니다)')) return
+    const path = loc.mapImage
+    startTransition(async () => {
+      await deletePlanAssetAction(customerId, path)
+      patchLoc({ mapImage: null })
+    })
   }
 
   function save() {
@@ -133,17 +181,61 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
       {/* 위치·운영현황 (2.1+2.2) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
         <p className="text-xs font-semibold text-[#514b81]">건축물 위치·운영현황</p>
-        <ImageSlot customerId={customerId} canManage={canManage} path={loc.mapImage}
-          onChange={p => patchLoc({ mapImage: p })} label="위치도 (지도 이미지)" />
+        {/* D-1: 위치도는 [지도·사진]이 단일 원천 — 여기서는 상태만 보여주고 업로드하지 않는다(중복 입력 제거) */}
+        <div className="rounded-lg border border-[#eceafd] bg-white p-2.5">
+          <p className="text-[11px] font-medium text-[#514b81]">위치도 (지도 이미지)</p>
+          <p className="text-[11px] text-[#7d78a8] mt-0.5">
+            {hasMapAsset
+              ? '✅ [지도·사진]에 등록됨 — 생성 문서에는 이 이미지가 인쇄됩니다.'
+              : '⚠ 미등록 — [지도·사진]에서 주소 기반 자동 생성·붙여넣기로 한 번만 등록하세요.'}
+          </p>
+          <button type="button" onClick={() => goPlanNode('assets')} data-testid="form13-goto-assets"
+            className="mt-1.5 inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+            지도·사진 열기 →
+          </button>
+          {loc.mapImage && (
+            <p className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+              이 서식에 저장된 옛 위치도가 있습니다 — {hasMapAsset
+                ? '문서에는 [지도·사진]의 위치도만 인쇄됩니다(중복 방지).'
+                : '[지도·사진]이 비어 있어 문서에는 이 이미지가 인쇄됩니다.'}
+              {canManage && (
+                <button type="button" onClick={removeLegacyMap} className="ml-1 underline hover:text-red-600">삭제</button>
+              )}
+            </p>
+          )}
+        </div>
+        {/* D-2: 자동차 도로 기반 초안 — 도로명은 자동, 차로수·인접 건물은 사람이 채운다 */}
         <div>
-          <label className="text-[11px] font-medium text-[#514b81] block mb-1">주변 현황</label>
-          <textarea value={loc.surroundings} onChange={e => patchLoc({ surroundings: e.target.value })} disabled={!canManage}
-            rows={2} placeholder="인접 건물·도로 등 주변 현황" className={taCls} />
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <label className="text-[11px] font-medium text-[#514b81]">주변 현황</label>
+            <span className="text-[11px] text-[#b0acd6]">소방차 진입·연소 확대 판단 근거</span>
+            {canManage && (
+              <>
+                <span className="text-[11px] text-[#b0acd6] ml-1">방위</span>
+                {BEARINGS.map(b => (
+                  <button key={b} type="button" onClick={() => setBearing(v => (v === b ? '' : b))}
+                    className={`h-6 px-1.5 rounded-md border text-[11px] ${bearing === b
+                      ? 'border-[#7b68ee] bg-[#7b68ee] text-white'
+                      : 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>{b}</button>
+                ))}
+                <button type="button" onClick={suggestSurroundings} disabled={suggesting} data-testid="form13-suggest-surroundings"
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                  {suggesting ? <Loader2 className="size-3 animate-spin" /> : '✨'} 자동 문장 만들기
+                </button>
+              </>
+            )}
+          </div>
+          <textarea value={loc.surroundings} data-testid="form13-surroundings"
+            onChange={e => { patchLoc({ surroundings: e.target.value }); setSuggested(false) }} disabled={!canManage}
+            rows={2} placeholder="예: 북측 마유산로에 접함(왕복 2차로). 동측 5층 근린생활시설, 서측 공지 인접."
+            className={`${taCls} ${suggested ? 'ring-2 ring-[#a78bfa]' : ''}`} />
+          {suggestMsg && <p className="text-[11px] text-[#7d78a8] mt-0.5">{suggestMsg}</p>}
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           <div>
             <label className="text-[11px] font-medium text-[#514b81] block mb-1">관할 소방서</label>
-            <input value={loc.fireStation} onChange={e => patchLoc({ fireStation: e.target.value })} disabled={!canManage} className={`${inputCls} w-36`} />
+            <input value={loc.fireStation} onChange={e => patchLoc({ fireStation: e.target.value })} disabled={!canManage}
+              placeholder={autoFireStation ? `자동: ${autoFireStation}` : ''} className={`${inputCls} w-36`} />
           </div>
           <div>
             <label className="text-[11px] font-medium text-[#514b81] block mb-1">거리</label>
@@ -154,6 +246,12 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
             <NumField value={loc.eta} onChange={eta => patchLoc({ eta })} disabled={!canManage} unit="분" className={`${inputCls} w-16`} />
           </div>
         </div>
+        {/* D-3: 관할 소방서는 주소 저장 시 고객 정보에 자동 지정된다 — 여기서 또 쓰지 않아도 인쇄된다 */}
+        {autoFireStation && !loc.fireStation.trim() && (
+          <p className="text-[11px] text-[#7d78a8]">
+            비워두면 고객 정보의 관할 소방서(<strong>{autoFireStation}</strong>)가 인쇄됩니다 — 다르면 여기에 직접 입력하세요.
+          </p>
+        )}
         <div>
           <label className="text-[11px] font-medium text-[#514b81] block mb-1">운영 개요</label>
           <textarea value={loc.operation} onChange={e => patchLoc({ operation: e.target.value })} disabled={!canManage}
@@ -185,11 +283,21 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
 
       {/* 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">생성 문서 삽입 사진 <span className="font-normal text-[#b0acd6]">(건물 전경 등 — PDF·HWP 생성 시 본문에 삽입)</span></p>
-        {photos.map((p, i) => (
+        <p className="text-xs font-semibold text-[#514b81]">생성 문서 삽입 사진 <span className="font-normal text-[#b0acd6]">(그 밖의 참고 사진 — PDF·HWP 생성 시 본문에 삽입)</span></p>
+        <p className="text-[11px] text-[#7d78a8]">
+          표지 건물 사진·위치도·피난안내도는 여기가 아니라{' '}
+          <button type="button" onClick={() => goPlanNode('assets')} className="underline text-[#7b68ee]">[지도·사진]</button>
+          에서 관리합니다 — 같은 사진을 두 번 올리면 문서에 두 번 인쇄됩니다.
+        </p>
+        {photos.map((p, i) => {
+          const legacyKind = PHOTO_KIND_OPTIONS.find(o => o.value === p.kind && o.legacy)
+          return (
           <div key={i} className="flex items-start gap-2 flex-wrap rounded-lg border border-[#eceafd] bg-white p-2">
-            <select value={p.kind} disabled={!canManage} onChange={e => patchPhoto(i, { kind: e.target.value })} className={`${inputCls} w-32`}>
-              {PHOTO_KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <select value={p.kind} disabled={!canManage} data-testid="form13-photo-kind"
+              onChange={e => patchPhoto(i, { kind: e.target.value })} className={`${inputCls} w-32`}>
+              {/* 신규 선택지는 '기타'만 — 기존 값은 표시·보존을 위해 자기 항목만 남긴다 (D-5) */}
+              {PHOTO_KIND_OPTIONS.filter(o => !o.legacy || o.value === p.kind)
+                .map(o => <option key={o.value} value={o.value}>{o.legacy ? `${o.label} (구)` : o.label}</option>)}
             </select>
             <input value={p.caption} disabled={!canManage} onChange={e => patchPhoto(i, { caption: e.target.value })}
               placeholder="사진 설명(캡션)" className={`${inputCls} w-52`} />
@@ -199,12 +307,19 @@ export function PlanForm13({ customerId, canManage, initialLocation, initialFire
             </div>
             {canManage && (
               <button onClick={() => { setPhotos(rows => rows.filter((_, j) => j !== i)); setDirty(true) }}
+                data-testid="form13-photo-remove"
                 className="text-[#b0acd6] hover:text-red-500 text-xs px-1 mt-1">✕</button>
             )}
+            {legacyKind && (
+              <p className="w-full text-[11px] text-amber-700">
+                ⚠ ‘{legacyKind.label}’은 [지도·사진]과 중복될 수 있는 구 종류입니다 — 슬롯에도 같은 사진이 있으면 문서에 두 번 인쇄됩니다.
+              </p>
+            )}
           </div>
-        ))}
+          )
+        })}
         {canManage && (
-          <button onClick={() => { setPhotos(rows => [...rows, { path: null, kind: 'building', caption: '' }]); setDirty(true) }}
+          <button onClick={() => { setPhotos(rows => [...rows, { path: null, kind: 'etc', caption: '' }]); setDirty(true) }}
             className="text-[11px] text-[#7b68ee] hover:underline">+ 사진 추가</button>
         )}
       </div>
