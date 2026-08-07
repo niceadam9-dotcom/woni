@@ -7,6 +7,7 @@ import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
   suggestSurroundingsAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { getFireRouteAction, generateRouteImageAction } from '@/app/(dashboard)/customers/fire-route-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.3 건축물 위치·운영현황 및 소방차 세부진입 계획 — 섹션 카드 2개 (소방계획서_4.md §3)
@@ -97,14 +98,17 @@ const PHOTO_KIND_OPTIONS = [
 /** 방위는 자동 판정이 불가하다(건물 폴리곤 대비 도로 위치가 필요) — 사람이 1클릭으로 지정 */
 const BEARINGS = ['북', '동', '남', '서']
 
+/** D-4′ 경로 조회 결과 미리보기 — 화면에서 항목별로 골라 반영한다(일괄 덮어쓰기 금지) */
+type RoutePreview = { km: string; min: string; stationName: string; mainRoad: string | null; desc: string }
+
 /** 트리 다른 노드로 이동 — plan-tab-view가 수신해 미저장 확인 후 select() */
-function goPlanNode(key: string) {
+export function goPlanNode(key: string) {
   window.dispatchEvent(new CustomEvent('erp:plan-select', { detail: key }))
 }
 
 export function PlanForm13({
   customerId, canManage, initialLocation, initialFireAccess, initialPhotos = [],
-  hasMapAsset = false, autoFireStation = '',
+  hasMapAsset = false, autoFireStation = '', fireStationEstimated = false,
 }: {
   customerId: string
   canManage: boolean
@@ -113,6 +117,7 @@ export function PlanForm13({
   initialPhotos?: PlanPhotoRow[]
   hasMapAsset?: boolean        // [지도·사진] map_location 슬롯 등록 여부 (D-1 단일 원천 판정)
   autoFireStation?: string     // 고객 정보의 관할 소방서 — 1.3이 비면 이 값이 인쇄된다 (D-3)
+  fireStationEstimated?: boolean  // 그 값이 '추정'(fire_station_source='estimate')인지 (C-1)
 }) {
   const router = useRouter()
   const [loc, setLoc] = useState(initialLocation)
@@ -148,6 +153,43 @@ export function PlanForm13({
     setSuggestMsg(r.tier === 'gil'
       ? `${r.road}은 이면도로입니다${r.mainRoad ? ` (자동차 도로: ${r.mainRoad})` : ''} — 빈칸(__)을 채워 저장하세요 · ${via}`
       : `${r.road} 기준 초안입니다 — 빈칸(__)을 채워 저장하세요 · ${via}`)
+  }
+
+  // D-4′(§9): 관할 소방서 → 건물 경로 조회. 조회 결과는 캐시되고, 반영은 **항목별로 사용자가 고른다**
+  const [route, setRoute] = useState<RoutePreview | null>(null)
+  const [routeBusy, setRouteBusy] = useState<'' | 'fetch' | 'image'>('')
+  const [routeMsg, setRouteMsg] = useState('')
+
+  async function fetchRoute(refresh = false) {
+    setRouteBusy('fetch')
+    setRouteMsg('')
+    const r = await getFireRouteAction(customerId, { refresh })
+    setRouteBusy('')
+    if (r.unavailable) {
+      setRouteMsg('경로 API가 준비되지 않았습니다 (NCP Directions 미활성 또는 키 없음) — 거리·도착예상은 직접 입력해주세요.')
+      return
+    }
+    if (r.error || !r.meta) { setRouteMsg(`❌ ${r.error ?? '경로를 가져오지 못했습니다.'}`); return }
+    setRoute({
+      km: (r.meta.distanceM / 1000).toFixed(1),
+      min: String(Math.max(1, Math.round(r.meta.durationMs / 60000))),
+      stationName: r.meta.stationName,
+      mainRoad: r.meta.mainRoad,
+      desc: r.meta.routeDesc,
+    })
+    setRouteMsg(r.cached ? '저장된 경로입니다 — [다시 가져오기]로 갱신할 수 있습니다.' : '경로를 가져왔습니다.')
+  }
+
+  async function applyRouteImage() {
+    setRouteBusy('image')
+    setRouteMsg('')
+    const r = await generateRouteImageAction(customerId)
+    setRouteBusy('')
+    if (r.unavailable) { setRouteMsg('경로 API가 준비되지 않아 경로도를 만들 수 없습니다 — 직접 업로드해주세요.'); return }
+    if (r.error || !r.path) { setRouteMsg(`❌ ${r.error ?? '경로도 생성 실패'}`); return }
+    if (fa.routeImage) await deletePlanAssetAction(customerId, fa.routeImage)
+    patchFa({ routeImage: r.path })
+    setRouteMsg('경로도 초안을 넣었습니다 — 진입 지점·정문·장애물은 직접 표시해 교체하세요. [서식 1.3 저장]을 눌러야 확정됩니다.')
   }
 
   /** D-1 레거시 정리 — 서식에 저장돼 있던 옛 위치도 제거([지도·사진] 슬롯으로 일원화) */
@@ -252,6 +294,13 @@ export function PlanForm13({
             비워두면 고객 정보의 관할 소방서(<strong>{autoFireStation}</strong>)가 인쇄됩니다 — 다르면 여기에 직접 입력하세요.
           </p>
         )}
+        {/* C-1: 마지막 폴백은 '시/군명+소방서' 규칙 추정이라 틀릴 수 있다(예: 성남시→성남소방서지만 분당은 분당소방서) */}
+        {fireStationEstimated && !loc.fireStation.trim() && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1"
+            data-testid="form13-station-estimated">
+            ⚠ <strong>{autoFireStation}</strong>은 주소에서 <strong>추정</strong>한 값입니다 — 관할이 맞는지 확인하고, 다르면 위 칸에 직접 입력하세요.
+          </p>
+        )}
         <div>
           <label className="text-[11px] font-medium text-[#514b81] block mb-1">운영 개요</label>
           <textarea value={loc.operation} onChange={e => patchLoc({ operation: e.target.value })} disabled={!canManage}
@@ -262,6 +311,47 @@ export function PlanForm13({
       {/* 소방차 진입 (2.3+2.4) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
         <p className="text-xs font-semibold text-[#514b81]">소방차 세부진입 계획</p>
+        {/* D-4′(§9) — 관할 소방서에서의 실제 주행 경로. 조회 1회로 거리·도착예상·서술·경로도를 채운다 */}
+        {canManage && (
+          <div className="rounded-lg border border-[#eceafd] bg-white p-2.5 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button type="button" onClick={() => fetchRoute(false)} disabled={routeBusy !== ''}
+                data-testid="form13-fetch-route"
+                className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                {routeBusy === 'fetch' ? <Loader2 className="size-3 animate-spin" /> : '🚒'} 소방서에서 경로 가져오기
+              </button>
+              {route && (
+                <button type="button" onClick={() => fetchRoute(true)} disabled={routeBusy !== ''}
+                  className="h-7 px-2 rounded-lg border border-[#e0ddf5] text-[11px] text-[#b0acd6] hover:text-[#7b68ee] disabled:opacity-50">
+                  다시 가져오기
+                </button>
+              )}
+              {autoFireStation && <span className="text-[11px] text-[#b0acd6]">관할: {autoFireStation}</span>}
+            </div>
+            {route && (
+              <div className="rounded-lg bg-[#fafaff] border border-[#eceafd] p-2 space-y-1.5">
+                <p className="text-[11px] text-[#514b81]">
+                  <strong>{route.km}km · {route.min}분</strong>
+                  <span className="text-[#b0acd6]"> ⓘ {route.stationName || '관할 소방서'}(본서)에서 일반 차량 기준</span>
+                </p>
+                {route.mainRoad && <p className="text-[11px] text-[#7d78a8]">진입 도로: {route.mainRoad}</p>}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button type="button" data-testid="form13-apply-distance"
+                    onClick={() => { patchLoc({ distance: route.km, eta: route.min }); setRouteMsg('거리·도착예상을 채웠습니다.') }}
+                    className="h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">거리·시간 채우기</button>
+                  <button type="button"
+                    onClick={() => { patchFa({ routeDesc: route.desc }); setRouteMsg('진입경로 서술 초안을 넣었습니다 — 현장 표현으로 다듬어주세요.') }}
+                    className="h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">서술 초안 넣기</button>
+                  <button type="button" onClick={applyRouteImage} disabled={routeBusy !== ''}
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                    {routeBusy === 'image' ? <Loader2 className="size-3 animate-spin" /> : null} 경로도 초안 만들기
+                  </button>
+                </div>
+              </div>
+            )}
+            {routeMsg && <p data-testid="form13-route-msg" className="text-[11px] text-[#7d78a8]">{routeMsg}</p>}
+          </div>
+        )}
         <div>
           <label className="text-[11px] font-medium text-[#514b81] block mb-1">진입경로 서술</label>
           <textarea value={fa.routeDesc} onChange={e => patchFa({ routeDesc: e.target.value })} disabled={!canManage}

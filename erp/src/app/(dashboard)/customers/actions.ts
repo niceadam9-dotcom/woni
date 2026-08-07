@@ -584,7 +584,13 @@ export async function updateCustomerAction(
     const resolved = await resolveFireStation(admin, {
       regionMyeon: input.region_myeon, regionSi: input.region_si, address: input.address,
     })
-    if (resolved) updateFields.fire_station = resolved.station
+    if (resolved) {
+      updateFields.fire_station = resolved.station
+      updateFields.fire_station_source = resolved.source   // C-1 추정 배지 판정용
+    }
+  } else if (input.fire_station) {
+    // 사용자가 직접 입력한 값은 '추정'이 아니다 — 배지가 남지 않도록 출처를 지운다
+    updateFields.fire_station_source = null
   }
 
   // 기준일(점검계획일) 변경 판정 — 사용승인일은 기준일이 아니므로 계획 재계산과 무관 (2026-07-14 폴백 제거)
@@ -1517,12 +1523,14 @@ export async function quickAddressApplyAction(
     .select('fire_station').eq('id', customerId).single()
   if (!cur) return { error: '고객을 찾을 수 없습니다.' }
   let fireStation: string | undefined
+  let fireStationSource: string | undefined
   if (!(cur as { fire_station: string | null }).fire_station) {
     // D-3(2026-08-07): 매핑 실패 시 공란으로 두지 않는다 — 시/군 차용·명명 규칙 추정까지 내려간다
     const resolved = await resolveFireStation(admin, {
       regionMyeon, regionSi: d.sigungu, address: d.roadAddress,
     })
     fireStation = resolved?.station
+    fireStationSource = resolved?.source   // C-1: estimate면 화면에서 '확인 필요' 배지
   }
 
   // ① customers 주소·지역(+매핑된 소방서)
@@ -1534,7 +1542,10 @@ export async function quickAddressApplyAction(
     region_ri: regionRi || null,
     updated_at: new Date().toISOString(),
   }
-  if (fireStation) patch.fire_station = fireStation
+  if (fireStation) {
+    patch.fire_station = fireStation
+    patch.fire_station_source = fireStationSource ?? null
+  }
   const { error: custErr } = await admin.from('customers').update(patch).eq('id', customerId)
   if (custErr) return { error: '주소 저장에 실패했습니다.' }
 

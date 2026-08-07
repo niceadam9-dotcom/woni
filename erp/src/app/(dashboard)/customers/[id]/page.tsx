@@ -608,7 +608,8 @@ export default async function CustomerDetailPage({
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}
         initialPhotos={fpSections.photos ?? []}
         hasMapAsset={customerAssets.some(a => a.slot === 'map_location')}
-        autoFireStation={s(cRec.fire_station)} />}
+        autoFireStation={s(cRec.fire_station)}
+        fireStationEstimated={s(cRec.fire_station_source) === 'estimate'} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} specsByBuilding={specsByBuilding} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
@@ -655,7 +656,8 @@ export default async function CustomerDetailPage({
         initialPlan={fpSections.evacPlan ?? null}
         initialVulnerable={fpSections.vulnerable ?? null}
         initialMethods={fpSections.vulnerableMethods ?? {}}
-        initialEquip={fpSections.evacEquip ?? []} />}
+        initialEquip={fpSections.evacEquip ?? []}
+        hasEvacAsset={customerAssets.some(a => a.slot === 'evac')} />}
       assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
       annex={<PlanAnnexSection customerId={customer.id} />}
     />

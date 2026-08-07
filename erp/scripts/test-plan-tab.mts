@@ -139,6 +139,15 @@ try {
   // 소방계획서_11 D-2 — 자동차 도로 기반 주변 현황 초안 버튼
   check('D-2 자동 문장 만들기 버튼',
     await page.isVisible('[data-testid="form13-suggest-surroundings"]'))
+  // 소방계획서_11 D-4′ — 소방서 경로 조회 버튼. NCP Directions 미활성(403)이면 unavailable 안내로 떨어져야 한다
+  check('D-4′ 경로 가져오기 버튼', await page.isVisible('[data-testid="form13-fetch-route"]'))
+  await page.click('[data-testid="form13-fetch-route"]')
+  const routeMsg = await page.waitForSelector('[data-testid="form13-route-msg"]', { timeout: 20000 })
+    .then(el => el.textContent()).catch(() => null)
+  // 성공(경로 요약)이든 미가용(unavailable)이든 실패(주소 없음)든 **안내가 뜨고 입력은 계속 가능**해야 한다
+  check('D-4′ 경로 조회 — 결과 안내 노출(입력 차단 없음)',
+    !!routeMsg && routeMsg.trim().length > 0 && await page.isEditable('textarea[placeholder*="정문 방면"]'),
+    String(routeMsg))
   await page.fill('[data-testid="form13-surroundings"]', '주변현황 E2E')
   await page.fill('input[placeholder*="정문 앞 도로"]', '정문 앞')
   // §1-2 미저장 이동 확인 — 저장 전 목차 이동 시 confirm (취소 → 잔류)
@@ -239,6 +248,9 @@ try {
   await page.waitForSelector('text=3.1 피난시설 및 기타시설 일반현황')
   check('3.1 — 1.5 입력 자동 표시(방화구획 해당없음)', await page.isVisible('text=방화구획: 해당없음'))
   // §1-2: 내부 서브탭 폐기 — 3.2·3.4·3.7이 클릭 없이 동시 표시(세로 스크롤)
+  // 소방계획서_11 §13-A — 3.4 피난경로도도 [지도·사진] 슬롯 단일 원천(업로드 슬롯 제거·이동 링크)
+  check('A 3.4 피난경로도 단일 원천 — [지도·사진] 이동 버튼',
+    await page.isVisible('[data-testid="ch3-goto-assets"]'))
   check('3장 세로 카드 — 3.4·3.7 동시 표시', await page.isVisible('text=피난유도 절차 및 피난경로')
     && await page.isVisible('text=3.7 피난 기구·유도장비 세부현황'))
   // 앵커 점프 칩 → URL 해시 동기화

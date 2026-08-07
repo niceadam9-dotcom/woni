@@ -251,24 +251,42 @@ export async function assembleFirePlan(
   }
 
   // ── 이미지 수집 (§5) — 슬롯 자산(cover/map_location/evac_*) + 서식 입력 이미지(plan-assets)·사진(photos) ──
+  // 소방계획서_11 §13-B: 종전에는 출처별로 그냥 쌓기만 해서 같은 용도의 이미지가 두 출처에 있으면
+  // 문서에 2장 인쇄됐다(위치도 = 슬롯 + 서식 1.3, 피난안내도 = 슬롯 + 3.4).
+  // 규칙 ① kind별로 **가장 상위 출처만** 인쇄 ② cover·map은 그 안에서도 1장만.
+  //   우선순위 1 슬롯 자산(자동 생성·붙여넣기를 가진 단일 원천) > 2 서식 입력 > 3 삽입 사진(레거시)
+  const PRIORITY_SLOT = 1
+  const PRIORITY_FORM = 2
+  const PRIORITY_PHOTO = 3
+  const SINGLE_KINDS = new Set(['cover', 'map'])   // 문서에서 자리가 1칸인 용도
+
   const slotAssets = await listCustomerAssets(customerId).catch(() => [])
-  const refs: Array<{ path: string; kind: string; caption: string }> = []
+  const refs: Array<{ path: string; kind: string; caption: string; priority: number }> = []
   for (const a of slotAssets) {
     const kind = a.slot === 'cover' ? 'cover' : a.slot === 'map_location' ? 'map' : 'evacuation'
-    refs.push({ path: a.path, kind, caption: '' })
+    refs.push({ path: a.path, kind, caption: '', priority: PRIORITY_SLOT })
   }
   const fSec = sections
-  // D-1(소방계획서_11): 위치도 단일 원천 = map_location 슬롯. 서식 1.3의 옛 mapImage는 **슬롯이 없을 때만**
-  // 폴백 인쇄한다 — 둘 다 kind:'map'이라 종전에는 같은 위치도가 2장 인쇄됐다.
-  const hasMapSlot = slotAssets.some(a => a.slot === 'map_location')
-  if (fSec.location?.mapImage && !hasMapSlot) refs.push({ path: fSec.location.mapImage, kind: 'map', caption: '위치도' })
-  if (fSec.fireAccess?.routeImage) refs.push({ path: fSec.fireAccess.routeImage, kind: 'route', caption: '소방차 진입경로' })
+  if (fSec.location?.mapImage) refs.push({ path: fSec.location.mapImage, kind: 'map', caption: '위치도', priority: PRIORITY_FORM })
+  if (fSec.fireAccess?.routeImage) refs.push({ path: fSec.fireAccess.routeImage, kind: 'route', caption: '소방차 진입경로', priority: PRIORITY_FORM })
   for (const m of fSec.evacMaps ?? []) {
-    if (m.image) refs.push({ path: m.image, kind: 'evacmap', caption: [m.floor, m.desc].filter(Boolean).join(' — ') })
+    if (m.image) refs.push({ path: m.image, kind: 'evacmap', caption: [m.floor, m.desc].filter(Boolean).join(' — '), priority: PRIORITY_FORM })
   }
-  if (fSec.evacPlan?.mapImage) refs.push({ path: fSec.evacPlan.mapImage, kind: 'evacuation', caption: '피난경로도' })
-  for (const p of photos) refs.push({ path: p.path, kind: p.kind, caption: p.caption })
-  const { images, assets } = await collectImages(admin, refs)
+  if (fSec.evacPlan?.mapImage) refs.push({ path: fSec.evacPlan.mapImage, kind: 'evacuation', caption: '피난경로도', priority: PRIORITY_FORM })
+  for (const p of photos) refs.push({ path: p.path, kind: p.kind, caption: p.caption, priority: PRIORITY_PHOTO })
+
+  const bestPriority = new Map<string, number>()
+  for (const r of refs) bestPriority.set(r.kind, Math.min(bestPriority.get(r.kind) ?? 99, r.priority))
+  const taken = new Set<string>()
+  const dedupedRefs = refs
+    .filter(r => r.priority === bestPriority.get(r.kind))
+    .filter(r => {
+      if (!SINGLE_KINDS.has(r.kind)) return true
+      if (taken.has(r.kind)) return false
+      taken.add(r.kind)
+      return true
+    })
+  const { images, assets } = await collectImages(admin, dedupedRefs)
 
   // ── 누락 안내 — 워커 process() missing과 동일 어휘(fire-plan-readiness 계열) ──
   const missing = ([
