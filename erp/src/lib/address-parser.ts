@@ -30,13 +30,18 @@ export function extractRoadName(address: string): {
   bldNo: string
 } | null {
   if (!address) return null
-  // 문자 클래스에 숫자를 포함시켜 greedy 매칭이 '중앙대로123번길'을 통째로 집도록 한다(부속 도로명 보존)
-  const m = address.trim().match(/([가-힣A-Za-z0-9]+(?:대로|로|길))\s*(\d+(?:-\d+)?)(?![\d-])/)
+  // 문자 클래스에 숫자를 포함시켜 greedy 매칭이 '중앙대로123번길'을 통째로 집도록 한다(부속 도로명 보존).
+  // 부속 도로명은 붙여쓴 형태(`중앙대로123번길`)와 **띄어쓴 형태(`중문관광로 72번길`)가 모두 실제로 쓰인다** —
+  // 후자를 놓치면 `중문관광로` + 건물번호 `72`로 읽혀 **이면도로를 간선도로로 단정**한다(BLK-4, 독립검증 2026-08-07).
+  // 그래서 도로명 뒤에 `<숫자><번?><가?>길`이 이어지면 그것까지 도로명으로 흡수한다.
+  const m = address.trim().match(
+    /([가-힣A-Za-z0-9]+(?:대로|로|길)(?:\s*\d+(?:번)?[가-힣]?길)?)\s*(\d+(?:-\d+)?)(?![\d-])/)
   if (!m) return null
-  const road = m[1]
-  const tier: RoadTier = road.endsWith('대로') ? 'daero' : road.endsWith('길') ? 'gil' : 'ro'
-  const branch = tier === 'gil' ? road.match(/^(.+?(?:대로|로))\d+번길$/) : null
-  const mainRoad = tier === 'gil' ? (branch ? branch[1] : null) : road
+  const road = m[1].replace(/\s+/g, ' ')
+  const tier: RoadTier = road.endsWith('길') ? 'gil' : road.endsWith('대로') ? 'daero' : 'ro'
+  // 모도로 역산 — 기초번호식(`중앙대로123번길`)과 일련번호식(`사직로8길`), `5가길` 변형까지 흡수한다.
+  const branch = tier === 'gil' ? road.match(/^(.+?(?:대로|로))\s*\d+(?:번)?[가-힣]?길$/) : null
+  const mainRoad = tier === 'gil' ? (branch ? branch[1].trim() : null) : road
   return { road, tier, mainRoad, bldNo: m[2] }
 }
 

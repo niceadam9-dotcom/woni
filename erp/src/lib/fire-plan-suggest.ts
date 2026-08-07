@@ -25,7 +25,10 @@ export function buildSurroundingsDraft(i: {
   bearing?: string          // 방위 — 자동 판정 불가(건물 폴리곤 필요)라 사용자가 칩으로 지정
 }): string {
   const b = i.bearing ? `${i.bearing}측` : '[방위]측'
-  const tail = '동측 ____, 서측 ____, 남측 ____ 인접.'
+  // 접도 방위를 뺀 나머지 방위만 인접 항목으로 묻는다 — 종전에는 '동/서/남'이 하드코딩돼 있어
+  // 방위 칩에서 동·남·서를 고르면 같은 방위를 두 번 묻고 북측은 영원히 묻지 않았다(독립검증 2026-08-07).
+  const others = ['북', '동', '남', '서'].filter(d => d !== i.bearing)
+  const tail = `${others.map(d => `${d}측 ____`).join(', ')} 인접.`
   if (!i.road) return `${b} ____에 접함(왕복 __차로). ${tail}`
   if (i.tier === 'gil') {
     // 이면도로 — 자동차 진입은 모도로에서 분기. 모도로가 이름에 없으면(○○길) 빈칸으로 남긴다.

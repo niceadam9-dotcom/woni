@@ -37,6 +37,7 @@ export type FireRouteResult = {
   error?: string
   meta?: Omit<RouteMeta, 'path'> & { pathPoints: number }
   cached?: boolean
+  cacheFailed?: boolean   // 조회는 됐으나 캐시 저장 실패 — 다음 조회가 또 API를 부른다
 }
 
 function downsample(path: LngLat[]): LngLat[] {
@@ -64,18 +65,25 @@ async function resolveBuildingCoords(customerId: string): Promise<
     .select('customer_name, address').eq('id', customerId).maybeSingle()
   const c = cust as { customer_name: string; address: string | null } | null
   const { data: bldRaw } = await admin.from('buildings')
-    .select('id, building_name, address, address_jibun, lat, lng')
+    .select('id, building_name, address, address_jibun, lat, lng, geocoded_at, updated_at')
     .eq('customer_id', customerId).eq('is_active', true)
     .order('created_at', { ascending: true }).limit(1).maybeSingle()
   const b = bldRaw as {
     id: string; building_name: string | null; address: string | null
     address_jibun: string | null; lat: number | null; lng: number | null
+    geocoded_at: string | null; updated_at: string | null
   } | null
 
   const name = b?.building_name || c?.customer_name || '대상 건물'
-  if (b?.lat != null && b?.lng != null) return { coords: [Number(b.lng), Number(b.lat)], name }
+  // BLK-5(독립검증 2026-08-07): 종전엔 좌표가 있으면 무조건 재사용해, **주소를 고쳐도 옛 좌표**로
+  // 경로가 나왔다(refresh로도 못 고침). 건물이 좌표 기록 이후에 수정됐으면 캐시를 버린다.
+  const staleCoords = !!b?.geocoded_at && !!b?.updated_at && b.updated_at > b.geocoded_at
+  if (b?.lat != null && b?.lng != null && !staleCoords) {
+    return { coords: [Number(b.lng), Number(b.lat)], name }
+  }
 
-  const address = c?.address || b?.address || b?.address_jibun
+  // 좌표는 **건물 주소 우선** — 고객(본사) 주소가 건물과 다르면 건물 행에 엉뚱한 좌표가 박힌다(독립검증 지적)
+  const address = b?.address || b?.address_jibun || c?.address
   if (!address) return { error: '고객 주소가 없습니다 — 기본정보에 주소를 먼저 입력해주세요.' }
   const coords = await geocodeToLngLat(address)
   if (!coords) return { error: `주소의 좌표를 찾지 못했습니다: ${address}` }
@@ -164,7 +172,9 @@ export async function getFireRouteAction(
 
   const admin = createAdminClient()
   const profile = await requirePermission('customer_manage')
-  await admin.from('fire_plan_forms').upsert({
+  // 캐시 저장 실패를 삼키면 화면엔 성공으로 보이면서 매 조회마다 Directions를 재호출한다(요금 전제 훼손) —
+  // 독립검증 지적. 조회 결과 자체는 유효하므로 **실패해도 값은 반환**하되 안내로 표면화한다.
+  const { error: cacheErr } = await admin.from('fire_plan_forms').upsert({
     customer_id: customerId,
     sections: { ...sections, routeMeta: meta },
     updated_at: new Date().toISOString(),
@@ -172,7 +182,11 @@ export async function getFireRouteAction(
   } as Record<string, unknown>)
 
   const { path, ...rest } = meta
-  return { meta: { ...rest, pathPoints: path.length }, cached: false }
+  return {
+    meta: { ...rest, pathPoints: path.length },
+    cached: false,
+    cacheFailed: !!cacheErr,
+  }
 }
 
 /** B-3 — 캐시된 경로로 경로도 PNG 생성 → plan-assets 업로드. 화면이 fa.routeImage에 반영한다 */

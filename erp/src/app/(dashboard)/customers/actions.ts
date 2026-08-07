@@ -588,8 +588,11 @@ export async function updateCustomerAction(
       updateFields.fire_station = resolved.station
       updateFields.fire_station_source = resolved.source   // C-1 추정 배지 판정용
     }
-  } else if (input.fire_station) {
-    // 사용자가 직접 입력한 값은 '추정'이 아니다 — 배지가 남지 않도록 출처를 지운다
+  } else if (input.fire_station && input.fire_station !== prev?.fire_station) {
+    // 사용자가 소방서를 **바꿔서** 보낸 경우만 '추정'이 아니게 된다 — 배지가 남지 않도록 출처를 지운다.
+    // BLK-1(독립검증): 종전엔 `input.fire_station`만 보고 판단했는데, 기본정보 폼은 dirty-diff 없이
+    // 전 필드를 항상 전송하므로 **비고만 고쳐 저장해도** 출처가 지워지고(배지 영구 소멸),
+    // 마이그레이션 115 미적용 환경에서는 이 컬럼 때문에 저장 자체가 실패했다.
     updateFields.fire_station_source = null
   }
 
@@ -611,12 +614,17 @@ export async function updateCustomerAction(
     .update(updateFields)
     .eq('id', customerId)
 
-  // zipcode 컬럼 미적용 시 재시도
-  if (error?.message?.includes('zipcode')) {
-    const { zipcode: _z, ...withoutZipcode } = updateFields
-    void _z
-    const retry = await admin.from('customers').update(withoutZipcode).eq('id', customerId)
+  // 미적용 컬럼 재시도 — 마이그레이션이 아직 안 간 환경(운영 선배포 등)에서 저장 전체가 죽지 않게 한다.
+  // BLK-1(독립검증): 종전에는 zipcode만 봐서, 115 미적용 상태에 코드가 먼저 배포되면
+  // fire_station_source 때문에 고객 저장·주소검색이 전면 실패했다.
+  const OPTIONAL_COLUMNS = ['zipcode', 'fire_station_source'] as const
+  for (const col of OPTIONAL_COLUMNS) {
+    if (!error?.message?.includes(col)) continue
+    const { [col]: _drop, ...withoutCol } = updateFields
+    void _drop
+    const retry = await admin.from('customers').update(withoutCol).eq('id', customerId)
     error = retry.error
+    delete updateFields[col]
   }
 
   if (error) return { error: '고객 정보 수정에 실패했습니다.' }
@@ -1546,7 +1554,14 @@ export async function quickAddressApplyAction(
     patch.fire_station = fireStation
     patch.fire_station_source = fireStationSource ?? null
   }
-  const { error: custErr } = await admin.from('customers').update(patch).eq('id', customerId)
+  let { error: custErr } = await admin.from('customers').update(patch).eq('id', customerId)
+  // 115 미적용 환경 폴백(BLK-1) — 소방서명은 살리고 출처 컬럼만 떨어뜨린다
+  if (custErr?.message?.includes('fire_station_source')) {
+    const { fire_station_source: _s, ...withoutSource } = patch
+    void _s
+    const retry = await admin.from('customers').update(withoutSource).eq('id', customerId)
+    custErr = retry.error
+  }
   if (custErr) return { error: '주소 저장에 실패했습니다.' }
 
   // ③ 건물 전파 — 주소가 비어있는 건물만 채움 (기존 입력 보존)

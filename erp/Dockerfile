@@ -18,6 +18,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# 한글 폰트 — 소방차 진입 경로도(static-map-compose.ts)의 SVG 텍스트가 sharp로 래스터화될 때 필요.
+# 없으면 캡션('2.4km · 6분')·소방서명·고객명이 두부(□)로 렌더된다 (BLK-6, 독립검증 2026-08-07).
+RUN apk add --no-cache font-nanum fontconfig && fc-cache -f
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 

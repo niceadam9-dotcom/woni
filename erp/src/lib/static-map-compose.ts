@@ -98,14 +98,14 @@ export async function renderRouteMapPng(input: {
   <polyline points="${poly}" fill="none" stroke="#e03131" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
   <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="16" fill="#1971c2" stroke="#ffffff" stroke-width="5"/>
   <circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="16" fill="#e03131" stroke="#ffffff" stroke-width="5"/>
-  <g font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="bold">
+  <g font-family="Malgun Gothic, NanumGothic, Noto Sans CJK KR, sans-serif" font-size="30" font-weight="bold">
     <text x="${(sx + 24).toFixed(1)}" y="${(sy + 10).toFixed(1)}" fill="#ffffff" stroke="#ffffff" stroke-width="8">${esc(input.startLabel)}</text>
     <text x="${(sx + 24).toFixed(1)}" y="${(sy + 10).toFixed(1)}" fill="#1971c2">${esc(input.startLabel)}</text>
     <text x="${(gx + 24).toFixed(1)}" y="${(gy + 10).toFixed(1)}" fill="#ffffff" stroke="#ffffff" stroke-width="8">${esc(input.goalLabel)}</text>
     <text x="${(gx + 24).toFixed(1)}" y="${(gy + 10).toFixed(1)}" fill="#e03131">${esc(input.goalLabel)}</text>
   </g>
   <rect x="20" y="${ih - 76}" width="${Math.min(iw - 40, 40 + input.caption.length * 20)}" height="56" rx="10" fill="#ffffff" opacity="0.88"/>
-  <text x="40" y="${ih - 38}" font-family="Malgun Gothic, sans-serif" font-size="30" fill="#212529">${esc(input.caption)}</text>
+  <text x="40" y="${ih - 38}" font-family="Malgun Gothic, NanumGothic, Noto Sans CJK KR, sans-serif" font-size="30" fill="#212529">${esc(input.caption)}</text>
 </svg>`
 
   try {

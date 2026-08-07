@@ -177,10 +177,13 @@ export function PlanForm13({
       mainRoad: r.meta.mainRoad,
       desc: r.meta.routeDesc,
     })
-    setRouteMsg(r.cached ? '저장된 경로입니다 — [다시 가져오기]로 갱신할 수 있습니다.' : '경로를 가져왔습니다.')
+    setRouteMsg(r.cacheFailed
+      ? '⚠ 경로는 가져왔지만 저장에 실패했습니다 — 다음에도 다시 조회합니다.'
+      : r.cached ? '저장된 경로입니다 — [다시 가져오기]로 갱신할 수 있습니다.' : '경로를 가져왔습니다.')
   }
 
   async function applyRouteImage() {
+    if (fa.routeImage && !window.confirm('이미 등록된 진입 경로도를 새 초안으로 바꿀까요?')) return
     setRouteBusy('image')
     setRouteMsg('')
     const r = await generateRouteImageAction(customerId)
@@ -294,8 +297,11 @@ export function PlanForm13({
             비워두면 고객 정보의 관할 소방서(<strong>{autoFireStation}</strong>)가 인쇄됩니다 — 다르면 여기에 직접 입력하세요.
           </p>
         )}
-        {/* C-1: 마지막 폴백은 '시/군명+소방서' 규칙 추정이라 틀릴 수 있다(예: 성남시→성남소방서지만 분당은 분당소방서) */}
-        {fireStationEstimated && !loc.fireStation.trim() && (
+        {/* C-1: 마지막 폴백은 '시/군명+소방서' 규칙 추정이라 틀릴 수 있다.
+            BLK-2(독립검증): 표시 조건을 `!loc.fireStation.trim()`으로 뒀더니, page.tsx가 1.3 미저장 고객의
+            fireStation을 **고객 값으로 프리필**해서 조건이 항상 false → 배지가 한 번도 뜨지 않았다.
+            그래서 '1.3 값이 비었거나, 채워진 값이 그 추정값 그대로일 때'로 바꾼다(사용자가 다른 값을 넣었으면 숨김). */}
+        {fireStationEstimated && (!loc.fireStation.trim() || loc.fireStation.trim() === autoFireStation.trim()) && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1"
             data-testid="form13-station-estimated">
             ⚠ <strong>{autoFireStation}</strong>은 주소에서 <strong>추정</strong>한 값입니다 — 관할이 맞는지 확인하고, 다르면 위 칸에 직접 입력하세요.
@@ -336,11 +342,19 @@ export function PlanForm13({
                 </p>
                 {route.mainRoad && <p className="text-[11px] text-[#7d78a8]">진입 도로: {route.mainRoad}</p>}
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* §9-6: 기존 값이 있으면 확인 후 교체 — 조용히 덮어쓰지 않는다(독립검증 지적) */}
                   <button type="button" data-testid="form13-apply-distance"
-                    onClick={() => { patchLoc({ distance: route.km, eta: route.min }); setRouteMsg('거리·도착예상을 채웠습니다.') }}
+                    onClick={() => {
+                      const filled = loc.distance.trim() || loc.eta.trim()
+                      if (filled && !window.confirm('이미 입력된 거리·도착예상을 조회 값으로 바꿀까요?')) return
+                      patchLoc({ distance: route.km, eta: route.min }); setRouteMsg('거리·도착예상을 채웠습니다.')
+                    }}
                     className="h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">거리·시간 채우기</button>
                   <button type="button"
-                    onClick={() => { patchFa({ routeDesc: route.desc }); setRouteMsg('진입경로 서술 초안을 넣었습니다 — 현장 표현으로 다듬어주세요.') }}
+                    onClick={() => {
+                      if (fa.routeDesc.trim() && !window.confirm('이미 입력된 진입경로 서술을 초안으로 바꿀까요?')) return
+                      patchFa({ routeDesc: route.desc }); setRouteMsg('진입경로 서술 초안을 넣었습니다 — 현장 표현으로 다듬어주세요.')
+                    }}
                     className="h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">서술 초안 넣기</button>
                   <button type="button" onClick={applyRouteImage} disabled={routeBusy !== ''}
                     className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
@@ -377,7 +391,7 @@ export function PlanForm13({
         <p className="text-[11px] text-[#7d78a8]">
           표지 건물 사진·위치도·피난안내도는 여기가 아니라{' '}
           <button type="button" onClick={() => goPlanNode('assets')} className="underline text-[#7b68ee]">[지도·사진]</button>
-          에서 관리합니다 — 같은 사진을 두 번 올리면 문서에 두 번 인쇄됩니다.
+          에서 관리합니다 — 같은 용도는 <strong>1장만 인쇄</strong>되며, 슬롯에 등록돼 있으면 여기 사진은 인쇄되지 않습니다.
         </p>
         {photos.map((p, i) => {
           const legacyKind = PHOTO_KIND_OPTIONS.find(o => o.value === p.kind && o.legacy)
@@ -402,7 +416,7 @@ export function PlanForm13({
             )}
             {legacyKind && (
               <p className="w-full text-[11px] text-amber-700">
-                ⚠ ‘{legacyKind.label}’은 [지도·사진]과 중복될 수 있는 구 종류입니다 — 슬롯에도 같은 사진이 있으면 문서에 두 번 인쇄됩니다.
+                ⚠ ‘{legacyKind.label}’은 [지도·사진]과 중복되는 구 종류입니다 — 슬롯에 등록돼 있으면 <strong>이 사진은 인쇄되지 않습니다</strong>. 계속 넣으려면 종류를 ‘기타’로 바꾸세요.
               </p>
             )}
           </div>
