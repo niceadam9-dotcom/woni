@@ -369,6 +369,28 @@ try {
     .select('section_key').eq('customer_id', customerId)
   check('U3 — 1클릭 통합 저장 → DB customer_facility_specs', (specRows ?? []).length >= 1, JSON.stringify(specRows))
 
+  // ── B안(2026-08-08) — 저장 버튼 단일화: 패널을 **연 채로** 저장해도 본문(1.4 표)까지 저장된다 ──
+  // 종전 패널 [모두 저장]은 제원만 저장해 본문이 미저장으로 남았고, 그 결과 별지 9호 3쪽에
+  // '부모 피난기구 빈칸 + 하위 종류 √' 모순이 인쇄될 수 있었다. 이 경로를 E2E가 한 번도 밟지 않아 놓쳤다.
+  check('B안 — 패널 닫힘 상태에선 패널 저장 버튼이 DOM에 없다',
+    (await page.locator('[data-testid="specs-save"]').count()) === 0)
+  await page.click('text=옥내소화전설비')                 // 본문 체크(= 본문만 dirty) → 패널이 함께 열린다
+  await page.waitForSelector('[data-testid="specs-save"]')
+  check('B안 — 패널에 통합 [저장] 단일 버튼', await page.isVisible('[data-testid="specs-save"]'))
+  check('B안 — 구 [모두 저장] 버튼 폐지', (await page.locator('button:has-text("모두 저장")').count()) === 0)
+  check('B안 — 본문만 수정해도 패널 [저장] 활성',
+    await page.locator('[data-testid="specs-save"]').isEnabled())
+  await page.click('[data-testid="specs-save"]')          // 패널을 닫지 않고 저장
+  await page.waitForSelector('text=본문 저장됨')
+  const { data: e2eBld } = await raw.from('buildings').select('id').eq('customer_id', customerId).limit(1).single()
+  const { data: afterPanelSave } = await raw.from('fire_facilities')
+    .select('facility_code').eq('installed', true).eq('building_id', e2eBld.id).eq('facility_code', '옥내소화전설비')
+  check('B안 — 패널에서 저장해도 본문(fire_facilities)이 저장된다',
+    (afterPanelSave ?? []).length === 1, JSON.stringify(afterPanelSave))
+  check('B안 — 저장 후 패널 푸터가 변경 없음으로',
+    await page.locator('[data-testid="specs-footer-status"]').textContent()
+      .then(t => (t ?? '').includes('모든 변경이 저장됐습니다')))
+
   // 건물·시설 탭 — 패널 이동 안내
   await page.goto(`${BASE}/customers/${customerId}?tab=buildings`)
   await page.waitForSelector('text=1.4 소방시설')

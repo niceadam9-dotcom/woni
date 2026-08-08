@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, CornerUpLeft, Eye, Loader2, Save, Wand2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, CornerUpLeft, Eye, Loader2, Wand2 } from 'lucide-react'
 import { saveFacilitySpecsBulkAction, getInspectedFacilityCodesAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import { getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
@@ -41,7 +41,7 @@ function hintCodes(b: SpecBlock): string[] {
 const CATALOG_TOTAL = FACILITY_SPEC_SECTIONS.reduce(
   (n, s) => n + s.blocks.reduce((m, b) => m + b.fields.length, 0), 0)
 
-/** [모두 저장] 결과 — 부모(1.4 통합 [저장], 소방계획서_12 U3)가 메시지 합성에 사용 */
+/** 제원 저장 결과 — 부모(패널 푸터·본문 공용 통합 [저장], 소방계획서_12 U3)가 메시지 합성에 사용 */
 export type SpecsSaveResult = { requested: number; saved: number; failedLabels: string[] }
 
 export function PlanForm14Specs({ customerId, buildingId, installed, initialSpecs, receiverLocation, canManage, buildingName, buildingNames = [], floorsAbove, floorsBelow, extinguisherTotal, onDirtyChange, onRegisterSaveAll, onRegisterMarkDirty, buildingRow, mirrorValues, onMirrorChange }: {
@@ -116,11 +116,10 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   const [dirty, setDirty] = useState<Record<string, boolean>>({})
   const [notice, setNotice] = useState<string | null>(null) // 미설치 블록 클릭 안내 대상
   const [msg, setMsg] = useState('')
-  const [saving, setSaving] = useState(false)
   // 소방계획서_9: 기본값 채우기로 채워진 경로("sec.bl.f") — 보라 링 표시, 수동 수정·저장 시 제거
   const [autoFilled, setAutoFilled] = useState<Set<string>>(new Set())
 
-  // 미저장 섹션 수 — sticky [모두 저장] 뱃지 + 부모 이탈 가드·푸터 배지 통지 (소방계획서_9·12 U1)
+  // 미저장 섹션 수 — 부모 이탈 가드·패널 푸터·본문 배지 통지 (소방계획서_9·12 U1)
   const dirtyCount = useMemo(() => Object.values(dirty).filter(Boolean).length, [dirty])
   const onDirtyChangeRef = useRef(onDirtyChange)
   useEffect(() => { onDirtyChangeRef.current = onDirtyChange })
@@ -347,15 +346,14 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     return spec
   }
 
-  /** 소방계획서_9: [모두 저장] — 미저장 섹션 전부를 벌크 액션 1회로. 실패 섹션은 dirty 유지(재클릭 = 재시도).
+  /** 제원 저장 — 미저장 섹션 전부를 벌크 액션 1회로. 실패 섹션은 dirty 유지(재클릭 = 재시도).
    *  결과를 반환하는 async — 부모(1.4 통합 [저장], 소방계획서_12 U3-4)가 await 해 메시지를 합성한다 */
   async function saveAll(): Promise<SpecsSaveResult> {
     const keys = FACILITY_SPEC_SECTIONS.map(s => s.key).filter(k => dirty[k])
     if (!canManage || keys.length === 0) return { requested: 0, saved: 0, failedLabels: [] }
     const payload = Object.fromEntries(keys.map(k => [k, buildSectionSpec(k)]))
-    setSaving(true)
+    // 진행 표시는 부모 패널 푸터의 통합 [저장]이 담당한다(B안) — 여기서 별도 saving 상태를 두지 않는다
     const res = await saveFacilitySpecsBulkAction(customerId, buildingId, payload)
-    setSaving(false)
     setDirty(p => { const n = { ...p }; for (const k of res.saved) n[k] = false; return n })
     setAutoFilled(p => {
       if (p.size === 0) return p
@@ -363,11 +361,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     })
     const errKeys = Object.keys(res.errors)
     const failedLabels = errKeys.map(k => { const s = FACILITY_SPEC_SECTIONS.find(x => x.key === k); return s ? `${s.no} ${s.label}` : k })
-    if (errKeys.length > 0) {
-      setMsg(`❌ 일부 섹션 저장 실패: ${failedLabels.join(', ')} — [모두 저장]으로 다시 시도해주세요`)
-    } else {
-      setMsg(`✅ 제원 ${res.saved.length}개 섹션 저장됨 — 별지 4호(3~7쪽)·9호(4~7쪽) 세부현황에 반영됩니다`)
-    }
+    // 결과 문구는 부모가 본문 저장분과 합쳐 패널 푸터에 한 줄로 띄운다(B안) — 여기서 또 쓰면 같은 말이 두 번 나온다
     if (splitOn && splitInspId) loadSplit(splitInspId)   // D-13: 저장 즉시 우측 미리보기 재렌더
     return { requested: keys.length, saved: res.saved.length, failedLabels }
   }
@@ -428,7 +422,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     setValues(next)
     setAutoFilled(p => new Set([...p, ...added]))
     setDirty(p => { const n = { ...p }; for (const s of copiedSec) n[s] = true; return n })
-    setMsg(`✨ ${added.length}칸 자동 입력됨 (동명·층 범위·소화기 수량) — 값 확인 후 [모두 저장]을 눌러주세요`)
+    setMsg(`✨ ${added.length}칸 자동 입력됨 (동명·층 범위·소화기 수량) — 값 확인 후 아래 [저장]을 눌러주세요`)
   }
 
   // 소방계획서_9: 층·동명 칩 — 클릭만으로 입력 (직접 타이핑 병행)
@@ -730,21 +724,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           )
         })}
         {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
-
-        {/* 소방계획서_9: sticky [모두 저장] — 섹션별 저장 8개 → 1클릭 (부모 패널 overflow가 스크롤 조상) */}
-        {canManage && (
-          <div className="sticky bottom-0 z-10 flex items-center gap-2 bg-white/95 backdrop-blur border border-[#e0ddf5] rounded-lg px-3 py-2 shadow-[0_-2px_8px_rgba(18,43,165,0.06)]">
-            <span className="text-[11px] text-[#514b81]">
-              {dirtyCount > 0
-                ? <>미저장 <b className="text-amber-600">{dirtyCount}</b>개 섹션</>
-                : '모든 변경이 저장됐습니다'}
-            </span>
-            <button type="button" onClick={() => { void saveAll() }} disabled={dirtyCount === 0 || saving}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
-              {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 모두 저장{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
-            </button>
-          </div>
-        )}
+        {/* 2026-08-08(B안): 여기 있던 sticky [모두 저장]을 폐지했다. 제원만 저장해 본문(1.4 표)이 남는 바람에
+            별지 9호 3쪽에 '부모 피난기구 빈칸 + 하위 종류 √' 같은 모순이 인쇄될 수 있었다(소방계획서_12 K-2의 잔반).
+            저장 버튼은 패널 푸터의 통합 [저장] 하나뿐이고, 소유자는 부모(plan-form14)다. */}
         </div>
 
         {/* D-13 스플릿 우측 — 별지 9호 세부현황 실시간 미리보기 (저장 시 재렌더, 데스크톱 전용) */}

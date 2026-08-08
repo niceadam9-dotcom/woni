@@ -553,6 +553,28 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
               onDirtyChange={setSpecsDirtyCount} onRegisterSaveAll={registerSpecsSave}
               onRegisterMarkDirty={registerSpecsMarkDirty} />
           </div>
+          {/* B안(2026-08-08) — 저장 버튼 단일화. 패널은 화면을 덮는 오버레이라 본문 [저장]에 손이 닿지 않는데,
+              종전 패널 버튼은 제원만 저장해 본문이 미저장으로 남았다(별지 9호 3쪽 부모/하위 모순의 원인).
+              이제 패널에서도 본문·제원을 함께 저장한다 — 본문 [저장]·Ctrl+S와 완전히 같은 경로다. */}
+          {/* 닫혀 있을 때는 아예 렌더하지 않는다 — 패널은 항상 마운트라 그대로 두면 저장 버튼이 화면 밖에 하나 더
+              남아 접근성 트리·테스트에서 '버튼 2개'로 보인다(B안의 취지가 흐려짐). 자식은 계속 마운트된다. */}
+          {canManage && specsOpen && (
+            <div className="shrink-0 flex items-center gap-2 border-t border-[#e0ddf5] bg-white px-4 py-2.5">
+              <span className="text-[11px] text-[#514b81]" data-testid="specs-footer-status">
+                {dirty || specsDirty
+                  ? <>미저장 {dirty && <b className="text-amber-600">본문</b>}{dirty && specsDirty && ' · '}
+                    {specsDirty && <><b className="text-amber-600">제원 {specsDirtyCount}</b>개 섹션</>}</>
+                  : '모든 변경이 저장됐습니다'}
+              </span>
+              <button type="button" data-testid="specs-save" onClick={() => { void save() }}
+                disabled={!(dirty || specsDirty) || saving}
+                title="본문(설비·층별)과 세부 제원을 한 번에 저장합니다 (Ctrl+S)"
+                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
+              </button>
+            </div>
+          )}
+          {specsOpen && msg && <p className="shrink-0 px-4 pb-2 text-[11px] text-[#514b81]">{msg}</p>}
         </div>
       </div>
     </div>
