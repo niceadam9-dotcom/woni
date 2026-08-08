@@ -32,6 +32,8 @@ export type Report4Data = {
   companyName: string                            // 소방시설관리업체 (등록번호는 수기)
   // ── 3~7쪽 ──
   specs: SpecMap                                 // customer_facility_specs 병합본
+  ledgerCodes?: string[]                         // 1.4 설치(√) 코드 전체 — 1쪽 하위 체크칸·세부현황 파생용
+  building?: Record<string, number | string | null | undefined>  // 건물 파생 필드(비상용승강기) 원천
 }
 
 export type Report4RenderOpts = { highlight?: boolean } // 미리보기: 미입력 하이라이트 (§4-A-2c ③)
@@ -144,7 +146,10 @@ ${pageFooter()}`
 /** 별지 4호 — 소방시설등점검표 (7쪽) */
 export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): string {
   const h = !!opts.highlight
-  const secs = renderSpecSections(d.specs ?? {}, { highlight: h, numbering: 'annex4' })
+  const secs = renderSpecSections(d.specs ?? {}, {
+    highlight: h, numbering: 'annex4',
+    derived: { installed: d.ledgerCodes ?? [], building: d.building },
+  })
   return renderDocument({
     title: `${d.customerName} 별지 4호 소방시설등점검표`,
     css: CSS,

@@ -9,6 +9,7 @@
 
 import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from './base'
 import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections'
+import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS } from '../facility-codes'
 
 /** 3쪽 1절 점검 결과 항목 — scripts/make-report9.py FORM3_ITEMS와 1:1 (순서 = 설비 구분 경계) */
 export const FORM3_ITEMS: string[] = [
@@ -111,6 +112,11 @@ export type Report9Data = {
   facilityChecks: string[]                    // 설치 설비(√) — FORM3_ITEMS 명칭
   resultMarks: Record<string, 'O' | 'X' | 'N'>  // 항목 → 점검결과 (○/×//)
   muResults: Record<string, 'O' | 'X' | 'N'>    // MU-001~016 → 결과 (다중이용업 아님이면 공란)
+  /** 1.4 대장의 설치(√) 코드 **전체** — 표준 42종 + 소화기구 하위 5종. 3쪽 하위 체크칸 주입용
+   *  (facilityChecks는 FORM3_ITEMS로 걸러진 목록이라 하위 코드가 들어오지 않는다) */
+  ledgerCodes?: string[]
+  /** 건물 파생 필드(비상용승강기 수) 원천 — buildings 행 */
+  building?: Record<string, number | string | null | undefined>
   // ── 4~7쪽 — 세부 현황(customer_facility_specs, H-21) — 미보유 시 빈 서식 동등 ──
   specs?: SpecMap
   // ── 8쪽 ──
@@ -327,18 +333,28 @@ function p3Table(groups: P3Group[]): string {
 }
 
 /** 1절 소방시설등 점검 결과(설비 √ + ○/×//) 2열 표 — 별지 9호 3쪽 = 별지 4호 1쪽 공용(H-21) */
-export function facilityResultSection(d: Pick<Report9Data, 'facilityChecks' | 'resultMarks'>): string {
+export function facilityResultSection(
+  d: Pick<Report9Data, 'facilityChecks' | 'resultMarks'> & Partial<Pick<Report9Data, 'ledgerCodes' | 'specs'>>,
+): string {
   const f3 = (item: string): P3Item => ({
     html: ` ${ck(d.facilityChecks.includes(item))}${esc(item)}`,
     mark: resultMark(d.resultMarks[item]),
   })
-  // 소화기구·피난기구 하위 항목 — 표시 전용(체크만, make-report9.py와 동일 수준: 데이터 미주입)
+  // 2026-08-08: 소화기구·피난기구 하위 항목은 그동안 ck(false) 하드코딩이라 **입력해도 늘 빈 칸**으로 인쇄됐다.
+  //   소화기구 하위 5종 → 1.4 대장(fire_facilities 개별 행)이 원천
+  //   피난기구 하위     → 세부제원 통합 어휘 11종이 원천. 3쪽 원문은 그 11종을 체크박스 3칸으로 묶는다.
+  const ledger = new Set(d.ledgerCodes ?? [])
+  const evacTypes = new Set(
+    (((d.specs?.['s36_evac'] as Record<string, unknown> | undefined)?.['evac_equipment'] as
+      Record<string, unknown> | undefined)?.['types'] as string[] | undefined) ?? [],
+  )
+  const grp = (i: number) => ck(EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t)))
   const fireExt: P3Item = {
-    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ck(false)}소화기구(소화기, 자확, 간이)<br>   ${ck(false)}주거용주방자동소화장치<br>   ${ck(false)}상업용주방자동소화장치<br>   ${ck(false)}캐비닛형자동소화장치<br>  ${ck(false)}가스ㆍ분말ㆍ고체자동소화장치`,
+    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[0]))}소화기구(소화기, 자확, 간이)<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[1]))}주거용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[2]))}상업용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[3]))}캐비닛형자동소화장치<br>  ${ck(ledger.has(FIRE_SUB_ITEMS[4]))}가스ㆍ분말ㆍ고체자동소화장치`,
     mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
   }
   const escapeEquip: P3Item = {
-    html: ` ${ck(d.facilityChecks.includes('피난기구'))}피난기구<br>   ${ck(false)}공기안전매트ㆍ피난사다리<br>     (간이)완강기ㆍ미끄럼대ㆍ구조대<br>   ${ck(false)}다수인피난장비<br>   ${ck(false)}승강식피난기<br>      하향식피난구용내림식사다리`,
+    html: ` ${ck(d.facilityChecks.includes('피난기구'))}피난기구<br>   ${grp(0)}공기안전매트ㆍ피난사다리<br>     (간이)완강기ㆍ미끄럼대ㆍ구조대<br>   ${grp(1)}다수인피난장비<br>   ${grp(2)}승강식피난기<br>      하향식피난구용내림식사다리`,
     mark: resultMark(d.resultMarks['피난기구']),
   }
   const staticItem = (label: string): P3Item => ({ html: ` ${ck(false)}${esc(label)}`, mark: '' })
@@ -434,7 +450,10 @@ ${pageHeader(null, '(8쪽 중 제8쪽)')}
 /** 별지 9호 — 소방시설등 자체점검 실시결과 보고서 (8쪽) */
 export function renderReport9(d: Report9Data, opts: Report9RenderOpts = {}): string {
   const h = !!opts.highlight
-  const secs = renderSpecSections(d.specs ?? {}, { highlight: h, numbering: 'annex9' })
+  const secs = renderSpecSections(d.specs ?? {}, {
+    highlight: h, numbering: 'annex9',
+    derived: { installed: d.ledgerCodes ?? [], building: d.building },
+  })
   return renderDocument({
     title: `${d.customerName} 별지 9호 자체점검 실시결과 보고서`,
     css: CSS,

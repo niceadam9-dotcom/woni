@@ -6,7 +6,10 @@ import { ChevronDown, ChevronRight, CornerUpLeft, Eye, Loader2, Save, Wand2 } fr
 import { saveFacilitySpecsBulkAction, getInspectedFacilityCodesAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import { getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
-import { FACILITY_SPEC_SECTIONS, type SpecBlock, type SpecField } from '@/lib/facility-spec-schema'
+import {
+  FACILITY_SPEC_SECTIONS, isDerivedField, isFullyDerived, mergeDerivedMulti, derivedBuildingValue,
+  type SpecBlock, type SpecField, type DerivedCtx,
+} from '@/lib/facility-spec-schema'
 import { bumpNumber } from '@/components/ui/fields'
 
 /** ± 스테퍼를 붙일 수량형 단위 (S4-4) — 용량·치수(㎥·㎾·MPa·ℓ·ℓ/min·m·㎜·㎡ 등)는 ±1이 무의미해 제외 */
@@ -41,7 +44,7 @@ const CATALOG_TOTAL = FACILITY_SPEC_SECTIONS.reduce(
 /** [모두 저장] 결과 — 부모(1.4 통합 [저장], 소방계획서_12 U3)가 메시지 합성에 사용 */
 export type SpecsSaveResult = { requested: number; saved: number; failedLabels: string[] }
 
-export function PlanForm14Specs({ customerId, buildingId, installed, initialSpecs, receiverLocation, canManage, buildingName, buildingNames = [], floorsAbove, floorsBelow, extinguisherTotal, onDirtyChange, onRegisterSaveAll }: {
+export function PlanForm14Specs({ customerId, buildingId, installed, initialSpecs, receiverLocation, canManage, buildingName, buildingNames = [], floorsAbove, floorsBelow, extinguisherTotal, onDirtyChange, onRegisterSaveAll, onRegisterMarkDirty, buildingRow, mirrorValues, onMirrorChange }: {
   customerId: string
   buildingId: string
   /** 1.4 표의 현재 설치(√) 상태 — facility_code → installed (라이브 연동) */
@@ -62,6 +65,15 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   onDirtyChange?: (dirtyCount: number) => void
   /** U3 — 부모(1.4 통합 [저장])가 제원 저장을 await 할 수 있게 saveAll을 등록 */
   onRegisterSaveAll?: (fn: () => Promise<SpecsSaveResult>) => void
+  /** 미러 필드를 **1.4 대장 쪽에서** 고쳤을 때 해당 섹션을 미저장으로 표시하기 위한 등록 지점.
+   *  이게 없으면 대장에서 체크한 피난기구 종류가 저장 대상에 들어가지 않는다(2026-08-08 E2E가 잡은 결함). */
+  onRegisterMarkDirty?: (fn: (sectionKey: string) => void) => void
+  /** 건물 파생 필드(비상용승강기 수)의 원천 — buildings 행 (2026-08-08 중복 입력 제거) */
+  buildingRow?: Record<string, number | string | null | undefined>
+  /** mirrorInLedger 필드(피난기구 종류)의 값·갱신 — 저장소는 세부제원이지만 1.4 대장 하위 체크박스도
+   *  같은 값을 읽고 쓴다. 부모(plan-form14)가 상태를 들고 양쪽에 내려준다. */
+  mirrorValues?: Record<string, string[]>
+  onMirrorChange?: (fieldPath: string, next: string[]) => void
 }) {
   const [values, setValues] = useState<Record<string, SectionValues>>(() => {
     const out: Record<string, SectionValues> = {}
@@ -167,12 +179,45 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
 
   const enabled = (b: SpecBlock) => !b.facilityHint || hintCodes(b).some(c => installed[c])
 
+  // ── 중복 입력 제거(2026-08-08) — 원천이 다른 세 갈래를 한 접근자로 흡수 ─────────
+  //   ① 파생: 대장 체크·건물 정보에서 계산 (읽기 전용, 세부제원에 저장하지 않음)
+  //   ② 미러: 저장소는 세부제원이지만 1.4 대장 하위 체크박스와 값을 공유 (피난기구 종류)
+  //   ③ 그 외: 종전대로 이 컴포넌트의 로컬 state
+  // 완성도·빈칸 큐·교차검증도 전부 이 접근자를 거쳐야 한다 — 저장분만 보면 파생 필드가 늘 '미입력'이 된다.
+  const derivedCtx: DerivedCtx = useMemo(
+    () => ({ installed: Object.keys(installed).filter(c => installed[c]), building: buildingRow }),
+    [installed, buildingRow])
+
+  const fieldPath = (secKey: string, blKey: string, fKey: string) => `${secKey}.${blKey}.${fKey}`
+
+  /** 화면에 보일 최종 값 — 파생·미러를 반영한다 */
+  function fieldValue(secKey: string, bl: SpecBlock | string, f: SpecField): FieldValue {
+    const blKey = typeof bl === 'string' ? bl : bl.key
+    const stored = values[secKey]?.[blKey]?.[f.key] ?? (f.type === 'multicheck' ? [] : '')
+    if (f.mirrorInLedger) return mirrorValues?.[fieldPath(secKey, blKey, f.key)] ?? (stored as string[])
+    if (f.derivedFrom) return mergeDerivedMulti(f, stored, derivedCtx)
+    if (f.derivedFromBuilding) return derivedBuildingValue(f, derivedCtx)
+    return stored
+  }
+  const filledAt = (secKey: string, bl: SpecBlock, f: SpecField) => isFilled(fieldValue(secKey, bl, f))
+
+  /** 값 변경 — 미러 필드는 부모 상태로, 나머지는 로컬 state로 */
+  function writeField(secKey: string, bl: SpecBlock, f: SpecField, v: FieldValue) {
+    if (f.mirrorInLedger) {
+      onMirrorChange?.(fieldPath(secKey, bl.key, f.key), v as string[])
+      setDirty(p => ({ ...p, [secKey]: true }))
+      return
+    }
+    setField(secKey, bl.key, f.key, v)
+  }
+
   /** 첫 빈칸 포커스 (D-17 9호發) — 설치 설비 기준 첫 미입력 필드의 섹션·블록을 열고 스크롤·포커스 */
   function focusFirstEmpty() {
     for (const sec of FACILITY_SPEC_SECTIONS) {
       for (const bl of sec.blocks) {
         if (bl.facilityHint && !hintCodes(bl).some(c => installed[c])) continue
-        const f = bl.fields.find(fd => !isFilled(values[sec.key][bl.key][fd.key]))
+        // 파생 필드는 여기서 채울 수 없으니(읽기 전용) 빈칸 후보에서 제외
+        const f = bl.fields.find(fd => !isDerivedField(fd) && !filledAt(sec.key, bl, fd))
         if (!f) continue
         setOpenSec(sec.key)
         setOpenBlocks(p => ({ ...p, [`${sec.key}.${bl.key}`]: true }))
@@ -210,7 +255,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       for (const bl of sec.blocks) {
         if (!enabled(bl)) continue
         for (const f of bl.fields) {
-          if (!isFilled(values[sec.key][bl.key][f.key])) snap.add(`${sec.key}.${bl.key}.${f.key}`)
+          if (!isDerivedField(f) && !filledAt(sec.key, bl, f)) snap.add(`${sec.key}.${bl.key}.${f.key}`)
         }
       }
     }
@@ -221,17 +266,20 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     let n = 0
     for (const path of emptySnap) {
       const [sk, bk, fk] = path.split('.')
-      if (!isFilled(values[sk]?.[bk]?.[fk] ?? '')) n++
+      const bl = FACILITY_SPEC_SECTIONS.find(s => s.key === sk)?.blocks.find(b => b.key === bk)
+      const f = bl?.fields.find(fd => fd.key === fk)
+      if (bl && f && !filledAt(sk, bl, f)) n++
     }
     return n
-  }, [emptySnap, values])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emptySnap, values, mirrorValues, installed, buildingRow])
 
   /** 교차 검증 대상 블록 판정 (D-17) — 점검표 응답 있는 설비 & 제원 전부 빈칸 */
   const crossWarn = (secKey: string, bl: SpecBlock): boolean => {
     if (!inspected || !bl.facilityHint) return false
     if (!enabled(bl)) return false
     if (!hintCodes(bl).some(c => inspected.codes.has(c))) return false
-    return !bl.fields.some(f => isFilled(values[secKey][bl.key][f.key]))
+    return !bl.fields.some(f => filledAt(secKey, bl, f))
   }
   const crossWarnCount = useMemo(() => {
     if (!inspected) return 0
@@ -250,7 +298,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       for (const bl of sec.blocks) {
         const on = enabled(bl)
         for (const fd of bl.fields) {
-          const filled = isFilled(values[sec.key][bl.key][fd.key])
+          const filled = filledAt(sec.key, bl, fd)
           if (filled) filledAll++
           if (on) { t++; if (filled) f++ }
         }
@@ -270,7 +318,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     setAutoFilled(p => { if (!p.has(path)) return p; const n = new Set(p); n.delete(path); return n })
   }
 
-  /** 섹션 1개 spec JSONB 구성 — 값 있는 필드만(비운 필드는 저장에서 제거), 미설치 블록 기존 값 보존 */
+
+  /** 섹션 1개 spec JSONB 구성 — 값 있는 필드만(비운 필드는 저장에서 제거), 미설치 블록 기존 값 보존.
+   *  파생 필드(대장·건물이 원천)는 **저장하지 않는다** — 사본을 남기면 원천이 바뀔 때 낡은 값이 인쇄된다. */
   function buildSectionSpec(secKey: string): Record<string, Record<string, unknown>> {
     const sec = FACILITY_SPEC_SECTIONS.find(s => s.key === secKey)
     const spec: Record<string, Record<string, unknown>> = {}
@@ -278,7 +328,14 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     for (const bl of sec.blocks) {
       const out: Record<string, unknown> = {}
       for (const f of bl.fields) {
-        const v = values[secKey][bl.key][f.key]
+        if (isDerivedField(f)) continue
+        const v = fieldValue(secKey, bl.key, f)
+        // 부분 파생(유도등): 사용자가 고른 비파생 선택지만 저장하고 대장에서 오는 값은 뺀다
+        if (f.derivedFrom && Array.isArray(v)) {
+          const own = v.filter(o => !f.derivedFrom![o])
+          if (own.length) out[f.key] = own
+          continue
+        }
         if (!isFilled(v)) continue
         if (f.type === 'number' && typeof v === 'string') {
           const n = Number(v)
@@ -318,6 +375,10 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   const saveAllRef = useRef(saveAll)
   useEffect(() => { saveAllRef.current = saveAll })
   useEffect(() => { onRegisterSaveAll?.(() => saveAllRef.current()) }, [onRegisterSaveAll])
+  // 1.4 대장 쪽에서 미러 필드를 고쳤을 때 이 컴포넌트의 dirty에 반영 — saveAll 대상에 들어가야 저장된다
+  useEffect(() => {
+    onRegisterMarkDirty?.((sectionKey: string) => setDirty(p => (p[sectionKey] ? p : { ...p, [sectionKey]: true })))
+  }, [onRegisterMarkDirty])
 
   /** 소방계획서_9: 기본값 유도 — 건물명·층수·1.4 층별 수량표에서 채울 수 있는 필드만 (빈 칸 한정) */
   function deriveDefault(bl: SpecBlock, f: SpecField): string | null {
@@ -348,6 +409,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       for (const bl of sec.blocks) {
         if (!enabled(bl)) continue
         for (const f of bl.fields) {
+          if (isDerivedField(f)) continue   // 원천이 대장·건물 — 여기서 기본값을 심으면 안 된다
           if (isFilled(next[sec.key][bl.key][f.key])) continue
           const d = deriveDefault(bl, f)
           if (d == null) continue
@@ -384,9 +446,10 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
 
   /** 필드 1개 위젯 — type별 렌더, 미입력은 옅은 주황·자동 채움은 보라 링 하이라이트(§4-A-2·소방계획서_9) */
   function fieldWidget(secKey: string, bl: SpecBlock, f: SpecField, blockOn: boolean) {
-    const v = values[secKey][bl.key][f.key]
+    const v = fieldValue(secKey, bl, f)
+    const derivedAll = isDerivedField(f)          // 전부 파생 → 읽기 전용 (가스계 종류·비상용승강기)
     const empty = !isFilled(v)
-    const dis = !canManage || !blockOn
+    const dis = !canManage || !blockOn || derivedAll
     const auto = autoFilled.has(`${secKey}.${bl.key}.${f.key}`)
     // min-w-0 = 스테퍼(±) 형제와 같은 flex 행에서 입력칸이 정상 축소되도록 (S4-4)
     const box = `h-7 w-full min-w-0 rounded border px-1.5 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60 ${
@@ -404,15 +467,27 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     }
     if (f.type === 'multicheck') {
       const arr = v as string[]
+      // limitToInstalled: 1.4에서 설치(√)한 설비만 고를 수 있게 — 대장에 없는 자유 항목('기타')은 항상 허용
+      const instSet = new Set(Object.keys(installed).filter(c => installed[c]))
+      const allOpts = f.options ?? []
+      const known = new Set(allOpts.filter(o => instSet.has(o) || !Object.hasOwn(installed, o)))
       return (
         <div className="flex flex-wrap gap-x-2.5 gap-y-1 py-1">
-          {(f.options ?? []).map(o => {
+          {allOpts.map(o => {
             const on = arr.includes(o)
+            // 이 선택지만 대장·건물에서 오는가 (유도등의 유도표지·피난유도선 같은 부분 파생)
+            const optDerived = !!f.derivedFrom?.[o]
+            const blocked = !!f.limitToInstalled && !known.has(o)
+            const lock = dis || optDerived || blocked
+            const title = optDerived ? '1.4 설치 체크에서 자동 반영 — 여기서는 수정하지 않습니다'
+              : blocked ? '1.4에서 설치(√)로 체크한 설비만 고를 수 있습니다' : undefined
             return (
-              <button key={o} type="button" disabled={dis}
-                onClick={() => setField(secKey, bl.key, f.key, on ? arr.filter(x => x !== o) : [...arr, o])}
-                className={`inline-flex items-center gap-1 text-[11px] ${on ? 'font-bold text-[#090c1d]' : 'text-[#514b81] hover:text-[#7b68ee]'} disabled:opacity-60`}>
-                <span>{on ? '☑' : '☐'}</span>{o}
+              <button key={o} type="button" disabled={lock} title={title}
+                onClick={() => writeField(secKey, bl, f, on ? arr.filter(x => x !== o) : [...arr, o])}
+                className={`inline-flex items-center gap-1 text-[11px] ${
+                  on ? 'font-bold text-[#090c1d]' : 'text-[#514b81] hover:text-[#7b68ee]'
+                } ${optDerived ? '!text-[#847ba8] cursor-default' : ''} disabled:opacity-60`}>
+                <span>{on ? '☑' : '☐'}</span>{o}{optDerived && <span className="text-[9px] text-[#b0acd6]">(대장)</span>}
               </button>
             )
           })}
@@ -593,7 +668,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                     // 빈칸만 보기: 스냅샷 필드가 있는 블록만, 강제 펼침
                     if (secSnap && !secSnap.some(k => k.startsWith(`${bid}.`))) return null
                     const blOpen = secSnap ? on : on && !!openBlocks[bid]
-                    const blFilled = bl.fields.filter(f => isFilled(values[sec.key][bl.key][f.key])).length
+                    const blFilled = bl.fields.filter(f => filledAt(sec.key, bl, f)).length
                     const warn = crossWarn(sec.key, bl)
                     return (
                       <div key={bl.key} data-spec-block={bl.key}
@@ -638,7 +713,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                     className={f.type === 'multicheck' ? 'col-span-full' : ''}>
                                     <p className="mb-0.5 text-[10px] text-[#514b81]">
                                       {f.label}{f.unit ? ` (${f.unit})` : ''}
-                                      {secSnap && isFilled(values[sec.key][bl.key][f.key]) && <span className="ml-1 text-green-600">✓</span>}
+                                      {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}
                                     </p>
                                     {fieldWidget(sec.key, bl, f, on)}
                                   </div>

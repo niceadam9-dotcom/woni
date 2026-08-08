@@ -314,8 +314,15 @@ try {
     .select('facility_code, installed').eq('installed', true)
     .in('facility_code', ['소화기구 및 자동소화장치', '피난기구', '피난사다리'])
   const facCodes = new Set((facRows ?? []).map((r: { facility_code: string }) => r.facility_code))
-  check('DB fire_facilities 저장 (표준 코드 + 하위 8종)',
-    facCodes.has('소화기구 및 자동소화장치') && facCodes.has('피난기구') && facCodes.has('피난사다리'), JSON.stringify([...facCodes]))
+  check('DB fire_facilities 저장 (표준 코드)',
+    facCodes.has('소화기구 및 자동소화장치') && facCodes.has('피난기구'), JSON.stringify([...facCodes]))
+  // 2026-08-08 중복 입력 제거 — 피난기구 종류의 저장소는 세부제원 한 곳이다.
+  // 대장 하위 체크는 fire_facilities 행을 만들지 않고 s36_evac.evac_equipment.types를 갱신한다.
+  check('피난기구 종류는 fire_facilities에 행을 만들지 않는다', !facCodes.has('피난사다리'), JSON.stringify([...facCodes]))
+  const { data: evacSpec } = await raw.from('customer_facility_specs')
+    .select('spec').eq('customer_id', customerId).eq('section_key', 's36_evac').limit(1)
+  const evacTypes = (evacSpec?.[0]?.spec?.evac_equipment?.types ?? []) as string[]
+  check('대장에서 체크한 피난기구 종류 → 세부제원 types에 저장', evacTypes.includes('피난사다리'), JSON.stringify(evacTypes))
 
   // ── 소방계획서_12 U3 — 통합 저장: 제원만 수정해도 본문 [저장] 활성, 1클릭으로 제원까지 저장 ──
   check('U1 — 저장 후 변경 없음 배지', await page.isVisible('[data-testid="form14-clean-badge"]'))

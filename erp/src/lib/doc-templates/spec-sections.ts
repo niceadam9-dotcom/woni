@@ -8,7 +8,7 @@
  *  섹션 순서·라벨은 카탈로그(FACILITY_SPEC_SECTIONS) 순회 기준, 필드 key도 카탈로그와 1:1. */
 
 import { esc } from './base'
-import { FACILITY_SPEC_SECTIONS } from '../facility-spec-schema'
+import { FACILITY_SPEC_SECTIONS, applyDerived, type DerivedCtx } from '../facility-spec-schema'
 
 /** customer_facility_specs 병합본 — { sectionKey: { blockKey: { fieldKey: 값 } } } */
 export type SpecMap = Record<string, Record<string, unknown>>
@@ -17,6 +17,9 @@ export type SpecRenderOpts = {
   highlight?: boolean
   /** 섹션 제목 번호 — 별지 9호 '3-1.' / 별지 4호 ' 1.' (서식 원문 표기 차이) */
   numbering?: 'annex9' | 'annex4'
+  /** 파생 필드(가스계 설비 종류·유도표지·피난유도선·비상용승강기)의 원천 —
+   *  세부제원에 저장하지 않고 인쇄 직전에 얹는다(2026-08-08 중복 입력 제거). 미지정이면 저장분 그대로. */
+  derived?: DerivedCtx
 }
 
 type Vals = Record<string, unknown>
@@ -324,6 +327,8 @@ function renderS36(sec: Vals, h: boolean): string {
   ${specRow(`${cb(blockHas(ev))} 피난기구`, [
     `◦ 종류: ${evT('피난사다리')} ${evT('완강기')} ${evT('다수인피난장비')} ${evT('승강식피난기')} ${evT('미끄럼대')}`,
     `${evT('피난교')} ${evT('피난용트랩')} ${evT('구조대')} ${evT('간이완강기')} ${evT('공기안전매트')}`,
+    // 통합 어휘 11종의 마지막 — 종전 1.4 대장에만 있어 세부현황에 인쇄되지 못하던 종류 (2026-08-08)
+    `${evT('하향식피난구용내림식사다리')}`,
     `◦ 설치장소: ${rangeLine(ev, h)}`])}
   ${specRow(`${cb(blockHas(re))} 인명구조기구`, [
     `◦ 종류: ${mc(re['types'], '방열복/방화복')}방열복/ 방화복 ${mc(re['types'], '공기호흡기')}공기호흡기 ${mc(re['types'], '인공소생기')}인공소생기`,
@@ -457,7 +462,9 @@ export function renderSpecSections(specs: SpecMap, opts: SpecRenderOpts = {}): s
   const h = !!opts.highlight
   return FACILITY_SPEC_SECTIONS.map((s, i) => {
     const no = opts.numbering === 'annex4' ? `${i + 1}.` : `${s.no}.`
-    const body = RENDERERS[s.key]?.((specs[s.key] ?? {}) as Vals, h) ?? ''
+    const raw = (specs[s.key] ?? {}) as Vals
+    const vals = opts.derived ? applyDerived(s.key, raw, opts.derived) as Vals : raw
+    const body = RENDERERS[s.key]?.(vals, h) ?? ''
     return `<div class="sec-title"> ${no} ${esc(s.label)}</div>\n${body}`
   })
 }

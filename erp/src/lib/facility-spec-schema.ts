@@ -9,6 +9,8 @@
  *  반복 패턴(동명·지상/지하·층·실명, 층 범위, 송풍기 제원)은 공용 헬퍼로 생성.
  */
 
+import { EVAC_TYPES } from './facility-codes'
+
 export type SpecFieldType = 'text' | 'number' | 'check' | 'select' | 'multicheck'
 
 export type SpecField = {
@@ -17,6 +19,22 @@ export type SpecField = {
   type: SpecFieldType
   unit?: string          // number 필드 단위 (㎥, m, ℓ/min …)
   options?: string[]     // select·multicheck 선택지 (서식 원문 표기 그대로)
+
+  // ── 중복 입력 제거 표시 (2026-08-08) ─────────────────────────────────────
+  // 같은 정보를 1.4 대장·건물 정보와 두 번 받던 필드들을 **원천 한 곳**으로 정리했다.
+  // 판정 규칙: 그 구분이 대장 표준 42종에 이미 있으면 대장이 원천, 하위 세분만 있으면 세부제원이 원천.
+
+  /** multicheck 선택지 → fire_facilities.facility_code. 여기 적힌 선택지는 **대장에서 파생**되는
+   *  읽기 전용이고 세부제원에 저장하지 않는다. 매핑에 없는 선택지는 종전대로 세부제원 고유 입력이다
+   *  (예: 유도등의 피난구·통로·객석유도등은 대장에 없는 세분이라 계속 입력받는다). */
+  derivedFrom?: Record<string, string>
+  /** buildings 테이블 컬럼에서 파생되는 읽기 전용 number 필드 (건물·시설 탭이 원천) */
+  derivedFromBuilding?: string
+  /** 저장소는 세부제원이지만 **1.4 대장 하위 체크박스가 같은 값을 읽고 쓴다**(양방향 창구).
+   *  대장에서 체크해도 fire_facilities가 아니라 이 필드가 갱신된다 — 피난기구 종류가 유일한 사례. */
+  mirrorInLedger?: boolean
+  /** 선택지를 1.4에서 설치(√)된 설비로 제한 — 미설치 설비를 고를 수 없게 해 대장과 어긋나지 않게 한다 */
+  limitToInstalled?: boolean
 }
 
 export type SpecBlock = {
@@ -184,7 +202,8 @@ const S32: SpecSection = {
     {
       key: 'inlet', label: '송수구',
       fields: [
-        { key: 'systems', label: '해당 설비', type: 'multicheck',
+        // 어느 설비용 송수구인지 — 1.4에서 설치(√)한 설비 중에서만 고르게 해 대장과 어긋나지 않게 한다
+        { key: 'systems', label: '해당 설비', type: 'multicheck', limitToInstalled: true,
           options: ['옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비',
             '화재조기진압용스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비'] },
         { key: 'place', label: '설치장소', type: 'text' },
@@ -272,8 +291,18 @@ const S34: SpecSection = {
       key: 'gas_system', label: '가스계 소화설비',
       facilityHint: '이산화탄소소화설비,할론소화설비,할로겐화합물 및 불활성기체소화설비,분말소화설비,강화액소화설비,고체에어로졸소화설비',
       fields: [
+        // 대장 표준 42종에 6종이 그대로 있다 → 대장이 원천, 여기는 읽기 전용 파생.
+        // 종전엔 대장(1.4 표·별지 9호 3쪽)과 여기(별지 9호 5쪽)가 따로 입력돼 한 문서 안에서 어긋날 수 있었다.
         { key: 'system', label: '설비 종류', type: 'multicheck',
-          options: ['이산화탄소', '할론', '할로겐화합물 및 불활성기체', '분말', '강화액', '고체에어로졸'] },
+          options: ['이산화탄소', '할론', '할로겐화합물 및 불활성기체', '분말', '강화액', '고체에어로졸'],
+          derivedFrom: {
+            '이산화탄소': '이산화탄소소화설비',
+            '할론': '할론소화설비',
+            '할로겐화합물 및 불활성기체': '할로겐화합물 및 불활성기체소화설비',
+            '분말': '분말소화설비',
+            '강화액': '강화액소화설비',
+            '고체에어로졸': '고체에어로졸소화설비',
+          } },
         { key: 'discharge', label: '방출 방식', type: 'multicheck', options: ['전역방출', '국소방출', '호스릴'] },
         { key: 'pressure_class', label: '고압/저압', type: 'select', options: ['고압식', '저압식'] },
         { key: 'charge_type', label: '축압/가압', type: 'select', options: ['축압식', '가압식'] },
@@ -383,9 +412,8 @@ const S36: SpecSection = {
     {
       key: 'evac_equipment', label: '피난기구', facilityHint: '피난기구',
       fields: [
-        { key: 'types', label: '종류', type: 'multicheck',
-          options: ['피난사다리', '완강기', '다수인피난장비', '승강식피난기', '미끄럼대',
-            '피난교', '피난용트랩', '구조대', '간이완강기', '공기안전매트'] },
+        // 통합 어휘 11종(EVAC_TYPES)이 단일 저장소 — 1.4 대장 하위 체크박스도 이 값을 읽고 쓴다.
+        { key: 'types', label: '종류', type: 'multicheck', options: EVAC_TYPES, mirrorInLedger: true },
         ...rangeLocFields(),
       ],
     },
@@ -402,8 +430,11 @@ const S36: SpecSection = {
     {
       key: 'guide_light', label: '유도등', facilityHint: '유도등,유도표지,피난유도선',
       fields: [
+        // 유도표지·피난유도선은 대장 표준 42종에 독립 항목으로 있어 대장이 원천(읽기 전용).
+        // 피난구·통로·객석유도등은 '유도등'의 세분이라 대장에 없다 → 계속 여기서 입력한다.
         { key: 'types', label: '종류', type: 'multicheck',
-          options: ['피난구', '통로', '객석유도등', '유도표지', '피난유도선'] },
+          options: ['피난구', '통로', '객석유도등', '유도표지', '피난유도선'],
+          derivedFrom: { '유도표지': '유도표지', '피난유도선': '피난유도선' } },
         ...rangeLocFields(),
       ],
     },
@@ -486,7 +517,9 @@ const S38: SpecSection = {
       fields: [
         { key: 'targets', label: '설치대상 동명(복수 자유 기입)', type: 'text' },
         { key: 'stair_count', label: '특별피난계단', type: 'number', unit: '개소' },
-        { key: 'elevator_count', label: '비상용승강기', type: 'number', unit: '대' },
+        // 건물 정보(건물·시설 탭)에 이미 있는 값 — 원천은 그쪽, 여기는 읽기 전용 파생
+        { key: 'elevator_count', label: '비상용승강기', type: 'number', unit: '대',
+          derivedFromBuilding: 'emergency_elevator_count' },
         { key: 'method', label: '방식', type: 'select',
           options: ['부속실', '계단실 및 부속실', '계단실', '비상용승강기승강장'] },
         { key: 'start_mode', label: '기동방식', type: 'select', options: ['전층', '부분층'] },
@@ -505,7 +538,9 @@ const S38: SpecSection = {
       key: 'riser', label: '연결송수관', facilityHint: '연결송수관설비',
       fields: [
         { key: 'usage', label: '전용/겸용', type: 'select', options: ['전용', '겸용'] },
-        { key: 'shared_with', label: '겸용 설비', type: 'multicheck', options: ['옥내소화전설비', '스프링클러설비', '기타'] },
+        // '기타'는 대장에 없는 자유 항목이라 항상 선택 가능 (limitToInstalled는 대장에 있는 코드만 제한한다)
+        { key: 'shared_with', label: '겸용 설비', type: 'multicheck', limitToInstalled: true,
+          options: ['옥내소화전설비', '스프링클러설비', '기타'] },
         { key: 'shared_etc', label: '겸용 설비 기타 내용', type: 'text' },
         ...rangeLocFields(),
         { key: 'inlet_place', label: '송수구 설치장소', type: 'text' },
@@ -568,4 +603,70 @@ export const FACILITY_SPEC_SECTION_KEYS: string[] = FACILITY_SPEC_SECTIONS.map(s
 
 export function getSpecSection(key: string): SpecSection | undefined {
   return FACILITY_SPEC_SECTIONS.find(s => s.key === key)
+}
+
+// ── 파생 값 계산 (2026-08-08 중복 입력 제거) ─────────────────────────────────
+// 파생 필드는 **세부제원에 저장하지 않는다**. 화면과 문서가 렌더 직전에 이 헬퍼로 값을 얹는다 —
+// 사본을 저장하면 원천(대장·건물)이 바뀌었을 때 낡은 값이 남아 애초의 불일치가 되살아난다.
+
+/** 파생 원천 — 1.4 설치(√) 코드 집합과 건물 정보 */
+export type DerivedCtx = {
+  installed?: Iterable<string>
+  building?: Record<string, number | string | null | undefined>
+}
+
+function installedSet(ctx: DerivedCtx): Set<string> {
+  return ctx.installed instanceof Set ? ctx.installed : new Set(ctx.installed ?? [])
+}
+
+/** 이 필드가 전부 파생인가 — 선택지 전체가 derivedFrom에 있으면 사용자가 건드릴 게 없다(가스계) */
+export function isFullyDerived(f: SpecField): boolean {
+  if (!f.derivedFrom) return false
+  return (f.options ?? []).every(o => f.derivedFrom![o])
+}
+
+/** multicheck 최종 값 = 사용자가 고른 비파생 선택지 + 대장에서 설치된 파생 선택지.
+ *  선택지 정의 순서를 유지해 서식 인쇄 순서와 어긋나지 않게 한다. */
+export function mergeDerivedMulti(f: SpecField, stored: unknown, ctx: DerivedCtx): string[] {
+  const arr = Array.isArray(stored) ? stored.map(String) : []
+  if (!f.derivedFrom) return arr
+  const inst = installedSet(ctx)
+  return (f.options ?? []).filter(o => {
+    const code = f.derivedFrom![o]
+    return code ? inst.has(code) : arr.includes(o)
+  })
+}
+
+/** 건물 파생 number 필드의 표시 값 — 값이 없으면 빈 문자열(서식 빈칸) */
+export function derivedBuildingValue(f: SpecField, ctx: DerivedCtx): string {
+  if (!f.derivedFromBuilding) return ''
+  const v = ctx.building?.[f.derivedFromBuilding]
+  return v == null || v === '' ? '' : String(v)
+}
+
+/** 저장 대상에서 제외할 필드 — 파생 필드는 원천에만 존재해야 한다 */
+export function isDerivedField(f: SpecField): boolean {
+  return !!f.derivedFromBuilding || isFullyDerived(f)
+}
+
+/** 섹션 값 전체에 파생을 반영한 사본 — 문서 렌더러(spec-sections)가 인쇄 직전에 호출한다.
+ *  입력: { [blockKey]: { [fieldKey]: 값 } } */
+export function applyDerived(
+  sectionKey: string,
+  vals: Record<string, unknown>,
+  ctx: DerivedCtx,
+): Record<string, unknown> {
+  const sec = getSpecSection(sectionKey)
+  if (!sec) return vals
+  const out: Record<string, unknown> = { ...vals }
+  for (const bl of sec.blocks) {
+    const blVals = { ...((out[bl.key] ?? {}) as Record<string, unknown>) }
+    let touched = false
+    for (const f of bl.fields) {
+      if (f.derivedFrom) { blVals[f.key] = mergeDerivedMulti(f, blVals[f.key], ctx); touched = true }
+      else if (f.derivedFromBuilding) { blVals[f.key] = derivedBuildingValue(f, ctx); touched = true }
+    }
+    if (touched) out[bl.key] = blVals
+  }
+  return out
 }

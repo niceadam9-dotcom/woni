@@ -419,6 +419,9 @@ async function assembleReport9(
     rampCount: b?.ramp_count ? String(b.ramp_count) : '',
     stairsCount: b?.stairs_count ? String(b.stairs_count) : '',
     facilityChecks,
+    // 3쪽 하위 체크칸(소화기구 5종)·세부현황 파생(가스계·유도표지·피난유도선)의 원천 — 필터 전 전체 코드
+    ledgerCodes: codes,
+    building: (b ?? undefined) as Record<string, number | string | null | undefined> | undefined,
     resultMarks,
     muResults,
     specs,
@@ -462,6 +465,7 @@ async function assembleReport4(
     ckOp: d9.ckOp, ckInitial: d9.ckInitial, ckCompEtc: d9.ckCompEtc,
     customerName: d9.customerName, purpose: d9.purpose, address: d9.address,
     facilityChecks: d9.facilityChecks, resultMarks: d9.resultMarks, muResults: d9.muResults,
+    ledgerCodes: d9.ledgerCodes, building: d9.building,
     main: d9.main, assistants: d9.assistants,
     inspStart, inspEnd, inspDays: d9.inspDays,
     companyName: d9.companyName,

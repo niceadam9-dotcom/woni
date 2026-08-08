@@ -6,6 +6,8 @@ type Step = { name: string; cmd: string; needServer?: boolean }
 const steps: Step[] = [
   { name: '빌드(타입체크)',            cmd: 'npm run build' },
   { name: '데이터 불변식(스테이징)',    cmd: 'node scripts/check-data-invariants.mjs' },
+  // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
+  { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   { name: '게이트 정합성(E2E)',        cmd: 'npx tsx scripts/test-gate-consistency.mts', needServer: true },
   { name: '일반관리 자체점검 통주행(E2E)', cmd: 'npx tsx scripts/test-general-selfinspection.mts', needServer: true },
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },

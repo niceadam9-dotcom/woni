@@ -1,9 +1,9 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
-import { FACILITY_STANDARD, EVAC_SUB_ITEMS, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
+import { FACILITY_STANDARD, EVAC_TYPES, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
 import { NumField } from '@/components/ui/fields'
 
@@ -51,9 +51,12 @@ for (const g of LAYOUT) for (const r of g.rows) {
   if (r.pair) for (const c of r.pair) if (c) CATEGORY_OF[c] = g.category
 }
 CATEGORY_OF['피난기구'] = '피난구조설비'
-for (const s of EVAC_SUB_ITEMS) CATEGORY_OF[s] = '피난구조설비'
 CATEGORY_OF['소화기구 및 자동소화장치'] = '소화설비'
 for (const s of FIRE_SUB_ITEMS) CATEGORY_OF[s] = '소화설비'
+
+/** 피난기구 종류의 단일 저장소 경로 — 세부제원 s36_evac.evac_equipment.types (2026-08-08 통일).
+ *  아래 하위 체크박스는 fire_facilities가 아니라 이 값을 읽고 쓴다. */
+const EVAC_TYPES_PATH = 's36_evac.evac_equipment.types'
 
 const FLOOR_COLS = ['소화기', '차동식', '연기식', '정온식', '유도등', '비상조명']
 
@@ -63,6 +66,7 @@ type Building = {
   floors: Array<{ floor_label: string; counts: Record<string, number> }>
   floorsAbove?: number | null; floorsBelow?: number | null
   receiverLocation?: string | null
+  emergencyElevatorCount?: number | null   // 세부제원 3-8 비상용승강기의 원천(건물·시설 탭)
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
@@ -73,7 +77,8 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
 }) {
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
-  const allCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...EVAC_SUB_ITEMS, ...FIRE_SUB_ITEMS]
+  // 피난기구 하위는 더 이상 fire_facilities 코드가 아니다 — 세부제원 types가 단일 저장소(2026-08-08)
+  const allCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...FIRE_SUB_ITEMS]
   const initFac = (bld?: Building): FacState => {
     const map: FacState = {}
     for (const code of allCodes) {
@@ -104,6 +109,38 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   // U3 — 자식(설비 대장)의 [모두 저장]을 통합 [저장]에서 await 하기 위한 등록 지점
   const specsSaveRef = useRef<(() => Promise<SpecsSaveResult>) | null>(null)
   const registerSpecsSave = useCallback((fn: () => Promise<SpecsSaveResult>) => { specsSaveRef.current = fn }, [])
+  // 대장 쪽 미러 토글을 자식의 dirty에 반영하기 위한 등록 지점 (저장 누락 방지)
+  const specsMarkDirtyRef = useRef<((sectionKey: string) => void) | null>(null)
+  const registerSpecsMarkDirty = useCallback((fn: (sectionKey: string) => void) => { specsMarkDirtyRef.current = fn }, [])
+
+  // 피난기구 종류 — 저장소는 세부제원 한 곳이지만 **1.4 하위 체크박스와 세부제원 화면이 함께 쓴다**.
+  // 두 화면이 같은 값을 보도록 부모가 상태를 들고 양쪽에 내려준다(2026-08-08 중복 입력 제거).
+  const initMirror = (bid?: string): Record<string, string[]> => {
+    const sec = (specsByBuilding[bid ?? ''] ?? specsByBuilding[''] ?? {}) as Record<string, unknown>
+    const raw = ((sec['s36_evac'] as Record<string, unknown> | undefined)?.['evac_equipment'] as
+      Record<string, unknown> | undefined)?.['types']
+    return { [EVAC_TYPES_PATH]: Array.isArray(raw) ? raw.map(String) : [] }
+  }
+  const [mirror, setMirror] = useState<Record<string, string[]>>(() => initMirror(b?.id))
+  const onMirrorChange = useCallback((path: string, next: string[]) => {
+    setMirror(p => ({ ...p, [path]: next }))
+  }, [])
+  const evacTypes = mirror[EVAC_TYPES_PATH] ?? []
+  // 세부제원의 건물 파생 필드 원천 (3-8 비상용승강기) — 매 렌더 새 객체면 자식 useMemo가 헛돈다
+  const buildingRow = useMemo(
+    () => ({ emergency_elevator_count: b?.emergencyElevatorCount ?? null }), [b?.emergencyElevatorCount])
+  /** 하위 종류 토글 — fire_facilities가 아니라 세부제원 types를 갱신하고, 부모 '피난기구'는 자동 체크 */
+  function toggleEvacType(t: string) {
+    if (!canManage) return
+    const on = evacTypes.includes(t)
+    onMirrorChange(EVAC_TYPES_PATH, on ? evacTypes.filter(x => x !== t) : [...evacTypes, t])
+    // 저장 대상은 자식이 dirty 섹션 기준으로 고른다 — 여기서 표시하지 않으면 저장에서 누락된다
+    specsMarkDirtyRef.current?.(EVAC_TYPES_PATH.split('.')[0])
+    if (!on && !fac['피난기구'].installed) {
+      setFac(p => ({ ...p, '피난기구': { ...p['피난기구'], installed: true } }))
+      markDirty()
+    }
+  }
   function markDirty() { setDirty(true) }
   function clearDirty() { setDirty(false) }
   /** 층별 수량 1칸 갱신 — 표 셀 입력과 확장 스테퍼 공용 (빈 값은 0으로 저장, 기존 규약 유지) */
@@ -143,6 +180,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     if ((dirty || specsDirty) && !window.confirm('저장하지 않은 변경이 있습니다. 건물을 전환할까요?')) return
     setBidx(i)
     setFac(initFac(buildings[i]))
+    setMirror(initMirror(buildings[i]?.id))   // 피난기구 종류도 건물 축 — 이전 건물 값이 남으면 안 된다
     setFloors((buildings[i]?.floors ?? []).map((f, j) => ({ floor_label: f.floor_label, sort_order: j, counts: { ...f.counts } })))
     setOpenFloor(null)   // 행 목록이 통째로 교체됨 — 인덱스 기준 펼침 상태는 초기화
     clearDirty()
@@ -155,12 +193,6 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     setFac(p => {
       const on = !p[code].installed
       const next = { ...p, [code]: { ...p[code], installed: on } }
-      if (code === '피난기구' && !on) {
-        for (const s of EVAC_SUB_ITEMS) next[s] = { ...next[s], installed: false } // 부모 해제 → 하위 해제
-      }
-      if (EVAC_SUB_ITEMS.includes(code) && on) {
-        next['피난기구'] = { ...next['피난기구'], installed: true } // 하위 체크 → 피난기구 자동 체크
-      }
       if (code === '소화기구 및 자동소화장치' && !on) {
         for (const s of FIRE_SUB_ITEMS) next[s] = { ...next[s], installed: false } // 부모 해제 → 하위 해제
       }
@@ -172,8 +204,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     markDirty()
     // 체크(√) 순간 우측 설비 대장 패널 오픈 + 해당 섹션 펼침 (2026-08-05: 본문 스크롤 대신 옆 패널 — 화면이 밀리지 않음)
     if (turningOn) {
-      const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치'
-        : EVAC_SUB_ITEMS.includes(code) ? '피난기구' : code
+      const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치' : code
       setSpecsOpen(true)
       setTimeout(() => window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } })), 120)
     }
@@ -342,12 +373,15 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
                       <span className={`text-xs ${fac['피난기구'].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>피난기구</span>
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
-                      {EVAC_SUB_ITEMS.map(sname => {
-                        const on = fac[sname].installed
+                      {/* 통합 어휘 11종 — 저장소는 세부제원 s36_evac.evac_equipment.types 하나다.
+                          여기서 체크하면 그 값이 바뀌고, 세부제원 화면의 '종류'에도 즉시 같은 상태가 보인다. */}
+                      {EVAC_TYPES.map(sname => {
+                        const on = evacTypes.includes(sname)
                         // 피난기구 미체크 시 흐림 표시 — 클릭하면 피난기구가 자동 체크됨 (§4-2)
                         const dim = !evacOn && !on
                         return (
-                          <button key={sname} onClick={() => canManage && toggle(sname)} disabled={!canManage}
+                          <button key={sname} onClick={() => toggleEvacType(sname)} disabled={!canManage}
+                            title="세부제원 3-6 피난기구 '종류'와 같은 값입니다"
                             className={`inline-flex items-center gap-1 text-[11px] ${
                               on ? 'font-bold text-[#090c1d]' : dim ? 'text-[#c8c4d0] hover:text-[#7b68ee]' : 'text-[#514b81] hover:text-[#7b68ee]'}`}>
                             <span>{on ? '☑' : '☐'}</span>{sname}
@@ -514,7 +548,10 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
               buildingNames={buildings.map(x => x.building_name).filter(Boolean)}
               floorsAbove={b.floorsAbove} floorsBelow={b.floorsBelow}
               extinguisherTotal={floors.reduce((n, f) => n + (f.counts['소화기'] || 0), 0)}
-              onDirtyChange={setSpecsDirtyCount} onRegisterSaveAll={registerSpecsSave} />
+              buildingRow={buildingRow}
+              mirrorValues={mirror} onMirrorChange={onMirrorChange}
+              onDirtyChange={setSpecsDirtyCount} onRegisterSaveAll={registerSpecsSave}
+              onRegisterMarkDirty={registerSpecsMarkDirty} />
           </div>
         </div>
       </div>
