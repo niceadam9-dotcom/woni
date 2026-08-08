@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy, Mail } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, getFirePlanCopyCandidatesAction, type FirePlanInfoInput, type BrigadeMemberInput, type CopySourceCandidate } from '@/app/(dashboard)/customers/fire-plan-info-actions'
-import { DateInput } from '@/components/ui/date-input'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-readiness'
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
@@ -61,6 +61,18 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   const setBrigade = (i: number, k: keyof BrigadeMemberInput, v: string) => {
     markDirty()
     setD(p => { const rows = [...p.brigade]; rows[i] = { ...rows[i], [k]: v, ...(k === 'team' && !rows[i].duty ? { duty: TEAM_DUTY[v] ?? '' } : {}) }; return { ...p, brigade: rows } })
+  }
+
+  // 가입기간 — 저장은 기존 "YYYY-MM-DD ~ YYYY-MM-DD" 문자열 그대로(별지 9호·소방계획서 출력 호환), 입력만 시작·종료 달력 2개로 분해
+  const [insStart = '', insEnd = ''] = d.insurancePeriod.split(/\s*~\s*/)
+  const setInsPeriod = (start: string, end: string) => {
+    // 시작일이 완성되고 종료일이 비어 있으면 1년 뒤로 자동 채움 (화재보험 통상 1년 단위 — 수정 가능)
+    if (start && !end && isCompleteDate(start)) {
+      const [y, m, dd] = start.split('-').map(Number)
+      const plus1y = new Date(y + 1, m - 1, dd)   // 윤년 2/29는 Date가 3/1로 보정
+      end = `${plus1y.getFullYear()}-${String(plus1y.getMonth() + 1).padStart(2, '0')}-${String(plus1y.getDate()).padStart(2, '0')}`
+    }
+    set('insurancePeriod', !start && !end ? '' : `${start} ~ ${end}`.trim())
   }
 
   // 준비율 — 설계 §5: 입력 여부 체크 (생성 페이지·워커와 같은 어휘, fire-plan-readiness.ts)
@@ -423,7 +435,11 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="예: 삼성화재" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
               </div>
               <div><label className={labelCls}>가입기간</label><br />
-                <input value={d.insurancePeriod} onChange={e => set('insurancePeriod', e.target.value)} placeholder="예: 2026-01-01 ~ 2027-01-01" className={`${inputCls} w-44`} />
+                <span className="inline-flex items-center gap-1">
+                  <DateInput value={insStart} onChange={e => setInsPeriod(e.target.value, insEnd)} className={`${inputCls} w-32`} />
+                  <span className="text-[11px] text-[#847ba8] shrink-0">~</span>
+                  <DateInput value={insEnd} onChange={e => setInsPeriod(insStart, e.target.value)} className={`${inputCls} w-32`} />
+                </span>
               </div>
               <div><label className={labelCls}>대인 가입금액</label><br />
                 <span className="inline-flex items-center gap-1">
