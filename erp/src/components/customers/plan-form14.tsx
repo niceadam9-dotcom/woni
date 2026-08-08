@@ -1,11 +1,10 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { FACILITY_STANDARD, EVAC_SUB_ITEMS, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
-import { PlanForm14Specs } from '@/components/customers/plan-form14-specs'
+import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
 import { NumField } from '@/components/ui/fields'
 
 /** 서식 1.4 소방시설 현황 — 양식(image-1.png) 재현 입력 화면 (소방계획서_4.md §4)
@@ -72,7 +71,6 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   /** H-19 설비 대장 — 건물별 세부 제원 초기값 (customer_facility_specs, '' = 대표/공통 폴백) */
   specsByBuilding?: Record<string, Record<string, Record<string, unknown>>>
 }) {
-  const router = useRouter()
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
   const allCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...EVAC_SUB_ITEMS, ...FIRE_SUB_ITEMS]
@@ -89,15 +87,23 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     () => (b?.floors ?? []).map((f, i) => ({ floor_label: f.floor_label, sort_order: i, counts: { ...f.counts } })))
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
-  const [isPending, startTransition] = useTransition()
+  // 소방계획서_12 S1 — useTransition 대신 로컬 saving: isPending은 revalidatePath發 RSC 재조회(825줄 페이지)까지
+  // 포함해 true로 남아 저장 후에도 수 초간 버튼이 죽는다. 액션 응답 즉시 재활성이 이번 개선의 목적
+  const [saving, setSaving] = useState(false)
   // 층별 수량 — 행 확장 편집(소방계획서_9 S4-3). 표는 6열 밀집이라 셀마다 ± 버튼을 넣으면 폭이 깨지므로,
   // 행을 펼쳐 넉넉한 [−][값][+] 스테퍼로 입력한다(표 직접 타이핑도 그대로 병행).
   const [openFloor, setOpenFloor] = useState<number | null>(null)
 
   // 2026-08-05 사용자 확정: 토글마다 자동 저장 폐지 — 최종 [저장] 1회 + 이탈 가드. 제원 입력은 우측 슬라이드 패널
   const [specsOpen, setSpecsOpen] = useState(false)
-  // 설비 대장(세부 제원)의 미저장 상태 — 자식(PlanForm14Specs)이 통지 (소방계획서_9)
-  const [specsDirty, setSpecsDirty] = useState(false)
+  // 설비 대장(세부 제원)의 미저장 섹션 수 — 자식(PlanForm14Specs)이 통지 (소방계획서_9·12 U1)
+  const [specsDirtyCount, setSpecsDirtyCount] = useState(0)
+  const specsDirty = specsDirtyCount > 0
+  // S1(소방계획서_12) — 저장 응답의 확인일을 로컬 반영 (router.refresh 제거). 서버 초기값은 b.verified_at
+  const [verifiedAt, setVerifiedAt] = useState<string | null>(null)
+  // U3 — 자식(설비 대장)의 [모두 저장]을 통합 [저장]에서 await 하기 위한 등록 지점
+  const specsSaveRef = useRef<(() => Promise<SpecsSaveResult>) | null>(null)
+  const registerSpecsSave = useCallback((fn: () => Promise<SpecsSaveResult>) => { specsSaveRef.current = fn }, [])
   function markDirty() { setDirty(true) }
   function clearDirty() { setDirty(false) }
   /** 층별 수량 1칸 갱신 — 표 셀 입력과 확장 스테퍼 공용 (빈 값은 0으로 저장, 기존 규약 유지) */
@@ -140,7 +146,8 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     setFloors((buildings[i]?.floors ?? []).map((f, j) => ({ floor_label: f.floor_label, sort_order: j, counts: { ...f.counts } })))
     setOpenFloor(null)   // 행 목록이 통째로 교체됨 — 인덱스 기준 펼침 상태는 초기화
     clearDirty()
-    setSpecsDirty(false)
+    setSpecsDirtyCount(0)
+    setVerifiedAt(null)  // S1-4 — 이전 건물의 확인일이 새 건물 푸터에 잔류하면 안 됨
   }
   function toggle(code: string) {
     if (!canManage) return
@@ -182,26 +189,66 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     setOpenFloor(null)   // 행 목록 재생성 — 인덱스 기준 펼침 상태는 초기화
     markDirty()
   }
-  function save() {
-    startTransition(async () => {
+  /** 통합 [저장] (소방계획서_12 U3) — 본문(설비·층별)과 제원(설비 대장)을 한 번에, dirty인 쪽만 호출.
+   *  두 액션은 서로 독립이라 Promise.all 동시 실행. 실패한 쪽은 dirty가 유지돼 재클릭 = 재시도 (U3-6) */
+  async function save() {
+    if (!canManage || (!dirty && !specsDirty) || saving) return
+    setSaving(true)
+    try {
       const rows: FacilityRow[] = allCodes.map(code => ({
         category: CATEGORY_OF[code] ?? '기타', facility_code: code,
         installed: fac[code].installed, detail: fac[code].note || null,
       }))
-      const res = await saveFacilitiesAction(b.id, customerId, rows, floors)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      clearDirty()
-      setMsg('✅ 저장됨 — 계획서·별지 4·9호 출력에 반영됩니다')
-      router.refresh()
-    })
+      const [mainRes, specsRes] = await Promise.all([
+        dirty ? saveFacilitiesAction(b.id, customerId, rows, floors) : Promise.resolve(null),
+        specsDirty && specsSaveRef.current ? specsSaveRef.current() : Promise.resolve(null),
+      ])
+      const parts: string[] = []
+      let ok = true
+      if (mainRes) {
+        if (mainRes.error) { ok = false; parts.push(`본문 저장 실패: ${mainRes.error}`) }
+        else {
+          clearDirty()
+          if (mainRes.verifiedAt) setVerifiedAt(mainRes.verifiedAt)  // S1 — refresh 없이 푸터 확인일 갱신
+          parts.push('본문 저장됨')
+        }
+      }
+      if (specsRes) {
+        if (specsRes.saved > 0) parts.push(`제원 ${specsRes.saved}개 섹션 저장됨`)
+        if (specsRes.failedLabels.length > 0) { ok = false; parts.push(`제원 저장 실패: ${specsRes.failedLabels.join(', ')}`) }
+      }
+      setMsg(`${ok ? '✅' : '❌'} ${parts.join(' · ')}${ok ? ' — 계획서·별지 4·9호 출력에 반영됩니다' : ''}`)
+    } catch {
+      setMsg('❌ 저장 중 오류가 발생했습니다 — 잠시 후 다시 시도해주세요')
+    } finally {
+      setSaving(false)
+    }
   }
-  function verifyOnly() {
-    startTransition(async () => {
+  async function verifyOnly() {
+    if (saving) return
+    setSaving(true)
+    try {
       const res = await verifyFacilitiesAction(b.id, customerId)
       setMsg(res.error ? `❌ ${res.error}` : '✅ 시설 확인 완료로 기록됨')
-      if (!res.error) router.refresh()
-    })
+      if (!res.error && res.verifiedAt) setVerifiedAt(res.verifiedAt)  // S1 — refresh 없이 로컬 반영
+    } finally {
+      setSaving(false)
+    }
   }
+  // U2 — Ctrl/⌘+S 저장 단축키. preventDefault는 항상(브라우저 저장 대화상자 차단), 저장할 것 없으면 무동작.
+  // save는 렌더마다 새로 정의되므로 ref로 최신 클로저를 호출 (stale fac·floors 방지)
+  const saveRef = useRef(save)
+  useEffect(() => { saveRef.current = save })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void saveRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   if (!b) {
     return <p className="text-sm text-[#514b81] py-6 text-center">등록된 활성 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.</p>
@@ -209,6 +256,8 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
 
   const installedCount = allCodes.filter(c => fac[c].installed).length
   const evacOn = fac['피난기구'].installed
+  // S1-3 — 저장 응답의 확인일이 있으면 우선, 없으면 서버 초기값
+  const shownVerifiedAt = verifiedAt ?? b.verified_at
 
   /** 체크 셀 — 순수 체크형(2026-08-04 사용자 확정): 셀 전체 클릭=√ 토글·자동 저장, 편집(✎) 아이콘 없음.
    *  비고 값이 기존에 있으면 표시만 유지(입력·수정은 폐지 — 상세 제원은 설비 대장에서). */
@@ -413,22 +462,30 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
         </div>
       </details>
 
-      {/* 푸터 — 설치 요약·확인 완료·저장 */}
+      {/* 푸터 — 설치 요약·미저장 배지(U1)·확인 완료·통합 저장(U3) */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] text-[#514b81]">설치 {installedCount}종{b.verified_at ? ` · 마지막 확인 ${b.verified_at.slice(5)}` : ''}</span>
+        <span className="text-[11px] text-[#514b81]">설치 {installedCount}종{shownVerifiedAt ? ` · 마지막 확인 ${shownVerifiedAt.slice(5)}` : ''}</span>
         {canManage && (
           <div className="ml-auto flex items-center gap-2">
+            {dirty || specsDirty ? (
+              <span data-testid="form14-dirty-badge" className="text-[11px] font-medium text-amber-600">
+                ● 미저장 · {[dirty ? '본문' : null, specsDirty ? `제원 ${specsDirtyCount}섹션` : null].filter(Boolean).join(' · ')}
+              </span>
+            ) : (
+              <span data-testid="form14-clean-badge" className="text-[11px] text-[#b0acd6]">변경 없음</span>
+            )}
             <button onClick={() => setSpecsOpen(true)}
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff]">
               <PanelRightOpen className="size-3.5" /> 설비 대장
             </button>
-            <button onClick={verifyOnly} disabled={isPending}
+            <button onClick={() => { void verifyOnly() }} disabled={saving}
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50">
               <ShieldCheck className="size-3.5" /> 시설 확인 완료
             </button>
-            <button onClick={save} disabled={!dirty || isPending}
+            <button data-testid="form14-save" onClick={() => { void save() }} disabled={!(dirty || specsDirty) || saving}
+              title="본문(설비·층별)과 설비 대장 제원을 한 번에 저장합니다 (Ctrl+S)"
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
+              {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
             </button>
           </div>
         )}
@@ -457,7 +514,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
               buildingNames={buildings.map(x => x.building_name).filter(Boolean)}
               floorsAbove={b.floorsAbove} floorsBelow={b.floorsBelow}
               extinguisherTotal={floors.reduce((n, f) => n + (f.counts['소화기'] || 0), 0)}
-              onDirtyChange={setSpecsDirty} />
+              onDirtyChange={setSpecsDirtyCount} onRegisterSaveAll={registerSpecsSave} />
           </div>
         </div>
       </div>

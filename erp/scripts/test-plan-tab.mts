@@ -285,18 +285,33 @@ try {
   await page.click('button:has-text("피난사다리")')
   check('하위 체크 → 피난기구 자동 체크', await page.locator('div[role="button"]:has-text("피난기구")').first().textContent().then(t => t?.includes('☑') ?? false))
   await closeSpecPanel()
-  // 10bdf2b(1.4 체크형 완결): 클릭 = 0.8초 디바운스 자동 저장, 메시지 '자동 저장됨' — 버튼은 폴백.
-  // 패널 개폐 대기(위)로 디바운스가 이미 지나 자동 저장이 끝난 경우 [저장]은 무동작이므로, 메시지를 먼저 기다린다.
-  await page.waitForSelector('text=자동 저장됨', { timeout: 5000 }).catch(async () => {
-    await page.click('button:has-text("저장")').catch(() => {})
-    await page.waitForTimeout(1500)
-  })
+  // 소방계획서_12 — 수동 [저장] 단일 규약(자동 저장 없음). U2: Ctrl+S 경로로 본문 저장
+  check('U1 — 본문 수정 → 푸터 미저장 배지', await page.isVisible('[data-testid="form14-dirty-badge"]'))
+  await page.keyboard.press('Control+s')
+  await page.waitForSelector('text=본문 저장됨')
+  check('U2 — Ctrl+S로 본문 저장', true)
+  check('S1 — 저장 후 푸터 마지막 확인 갱신(router.refresh 없이)', await page.isVisible('text=마지막 확인'))
   const { data: facRows } = await raw.from('fire_facilities')
     .select('facility_code, installed').eq('installed', true)
     .in('facility_code', ['소화기구 및 자동소화장치', '피난기구', '피난사다리'])
   const facCodes = new Set((facRows ?? []).map((r: { facility_code: string }) => r.facility_code))
   check('DB fire_facilities 저장 (표준 코드 + 하위 8종)',
     facCodes.has('소화기구 및 자동소화장치') && facCodes.has('피난기구') && facCodes.has('피난사다리'), JSON.stringify([...facCodes]))
+
+  // ── 소방계획서_12 U3 — 통합 저장: 제원만 수정해도 본문 [저장] 활성, 1클릭으로 제원까지 저장 ──
+  check('U1 — 저장 후 변경 없음 배지', await page.isVisible('[data-testid="form14-clean-badge"]'))
+  await page.click('button:has-text("설비 대장")')       // 푸터 버튼 → 패널 재오픈 (마지막 체크한 설비 섹션이 열려 있음)
+  await page.waitForSelector('div[data-spec-field] input')
+  await page.locator('div[data-spec-field] input').first().fill('E2E제원')
+  await page.click('button[aria-label="닫기"]')
+  await page.waitForTimeout(300)
+  check('U1 — 제원 수정 → 푸터 미저장 배지(제원 N섹션)', await page.isVisible('[data-testid="form14-dirty-badge"]'))
+  check('U3-1 — 제원만 수정해도 본문 [저장] 활성', await page.locator('[data-testid="form14-save"]').isEnabled())
+  await page.click('[data-testid="form14-save"]')
+  await page.waitForSelector('text=제원 1개 섹션 저장됨')
+  const { data: specRows } = await raw.from('customer_facility_specs')
+    .select('section_key').eq('customer_id', customerId)
+  check('U3 — 1클릭 통합 저장 → DB customer_facility_specs', (specRows ?? []).length >= 1, JSON.stringify(specRows))
 
   // 건물·시설 탭 — 패널 이동 안내
   await page.goto(`${BASE}/customers/${customerId}?tab=buildings`)
@@ -319,6 +334,7 @@ try {
     if (!id) continue
     await raw.from('fire_plan_forms').delete().eq('customer_id', id)
     await raw.from('fire_brigade_members').delete().eq('customer_id', id)
+    await raw.from('customer_facility_specs').delete().eq('customer_id', id)
     const { data: blds } = await raw.from('buildings').select('id').eq('customer_id', id)
     for (const bd of (blds ?? []) as Array<{ id: string }>) {
       await raw.from('fire_facilities').delete().eq('building_id', bd.id)
