@@ -1,0 +1,135 @@
+{
+  "doc": "소방계획서_12 — 서식 1.4 저장 편의·속도 개선 (버튼 통합·병렬화·refresh 제거)",
+  "design": "erp_goal/소방계획서_12.md",
+  "created": "2026-08-07",
+  "updated": "2026-08-08",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "scope_note": "2026-08-07 사용자 선택 = S1+S2+U1+U2+U3. S3(RPC)·U4(낙관적 UI)·U5(sticky 바)는 미채택. 2026-08-08 구현 완료 — tsc 클린 · test-plan-tab 63/63(신규 U1·U2·U3·S1 단언 7건 포함)",
+  "impl_note_2026_08_08": "설계 보정 1건: U3-1의 활성 조건에 쓰인 isPending(useTransition)은 revalidatePath發 RSC 재조회(고객 상세 825줄)까지 pending으로 잡아 저장 후에도 수 초간 버튼이 죽는다(E2E에서 실측 확인 — §2-4가 지적한 문제 그 자체). 부모도 자식과 동일한 로컬 saving 플래그로 교체해 액션 응답 즉시 재활성 — 활성 조건은 !(dirty || specsDirty) || saving 로 동일 의미",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류",
+    "confirmed": "설계 결정 확정"
+  },
+
+  "decisions": [
+    { "id": "D-1", "desc": "개선 범위 = S1+S2+U1+U2+U3", "status": "confirmed", "note": "2026-08-07 사용자 선택 '위 + U3 저장 버튼 통합'" },
+    { "id": "D-2", "desc": "저장 후 화면 갱신 = 액션이 확인일(verifiedAt)을 반환하고 클라이언트가 로컬 state에 반영. router.refresh() 완전 제거", "status": "confirmed", "note": "2026-08-07 사용자 선택 '액션이 확인일 반환 → 로컬 반영(권장)'" },
+    { "id": "D-3", "desc": "S3(단일 RPC·트랜잭션) 미채택 — 마이그레이션 동반이라 이번 범위 밖. K-5 리스크는 존치", "status": "deferred" },
+    { "id": "D-4", "desc": "U4(낙관적 UI) 미채택 — S1+S2로 0.6초 달성 시 필요성 낮고 실패 처리 복잡", "status": "deferred" },
+    { "id": "D-5", "desc": "설비 대장 패널의 sticky [모두 저장]은 U3 통합 후에도 유지 — 패널만 보고 있을 때의 경로", "status": "confirmed" }
+  ],
+
+  "diagnosis": [
+    { "id": "K-1", "desc": "[저장] 비활성은 의도된 설계(2026-08-05 '토글마다 자동 저장 폐지'). 버그 아님 — 다만 상태를 화면이 설명하지 않음", "evidence": ["plan-form14.tsx:429 disabled={!dirty || isPending}", "plan-form14.tsx:97 규약 주석", "plan-form14.tsx:418 푸터에 미저장 표시 없음"] },
+    { "id": "K-2", "desc": "한 화면에 저장 버튼 2개(본문 [저장] / 패널 [모두 저장])이고 dirty도 분리. 이탈 가드는 이미 union인데 저장만 분리 — 자기 불일치", "evidence": ["plan-form14.tsx:429", "plan-form14-specs.tsx:651", "plan-form14.tsx:90 dirty", "plan-form14-specs.tsx:108 dirtyCount", "plan-form14.tsx:112 erp:plan-dirty union"] },
+    { "id": "K-3", "desc": "saveFacilitiesAction이 순차 왕복 6회(인증 1 + DB 5). 설비/층별/확인일 세 갈래는 서로 독립", "evidence": ["facilities-actions.ts:21", "facilities-actions.ts:28-31", "facilities-actions.ts:34", "facilities-actions.ts:38-41", "facilities-actions.ts:44-47", "auth.ts:14-18 getUser"] },
+    { "id": "K-4", "desc": "router.refresh()가 고객 상세 페이지(825줄·.from( 19회)를 통째로 재실행. 화면이 서버 값에 의존하는 것은 푸터 verified_at 하나뿐", "evidence": ["plan-form14.tsx:195", "plan-form14.tsx:202", "customers/[id]/page.tsx 825줄·from( 19회", "plan-form14.tsx:418"] },
+    { "id": "K-5", "desc": "⚠ delete-then-insert 데이터 유실 위험 — delete error 미확인 + 트랜잭션 아님. delete 성공 후 insert 실패 시 기존 설비/층별 데이터 전량 소실(복구 불가)", "evidence": ["facilities-actions.ts:21 delete 에러 미확인", "facilities-actions.ts:28-31 insert 실패 시 이미 삭제됨", "facilities-actions.ts:34-41 층별도 동일"], "severity": "high", "note": "이번 범위(S2)로는 완화만 되고 해결되지 않음 — S3 대기" },
+    { "id": "K-6", "desc": "verifyFacilitiesAction도 router.refresh() 경로를 쓰므로 S1 적용 시 함께 정리 필요", "evidence": ["facilities-actions.ts:54-66", "plan-form14.tsx:202"] }
+  ],
+
+  "measurements": {
+    "date": "2026-08-07",
+    "env": "스테이징 Supabase · scripts/_probe-latency.mjs · 5회 중앙값",
+    "single_roundtrip_ms": 200,
+    "sequential_4_ms": 767,
+    "parallel_4_ms": 197,
+    "current_save_estimate_ms": 2000,
+    "note": "액션 DB 구간 ~1.0초 + 인증 ~0.2초 + router.refresh() ~1초 = 체감 약 2초"
+  },
+
+  "items": [
+    { "id": "S1", "title": "router.refresh() 제거 — 확인일만 응답으로 받아 로컬 반영", "status": "implemented", "expected_gain_ms": 1000,
+      "criteria": [
+        { "id": "S1-1", "desc": "saveFacilitiesAction 반환형에 verifiedAt 추가", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["facilities-actions.ts:19 반환형 { error?; verifiedAt? }", "facilities-actions.ts:68 return { verifiedAt }"], "method": "독립 검증(Explore 판정자) 코드 대조 + E2E test-plan-tab 63/63" } },
+        { "id": "S1-2", "desc": "verifyFacilitiesAction 반환형에 verifiedAt 추가 (K-6)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["facilities-actions.ts:74 반환형", "facilities-actions.ts:84 return { verifiedAt }"], "method": "독립 검증 코드 대조" } },
+        { "id": "S1-3", "desc": "클라이언트 verifiedAt state 도입 · 푸터를 verifiedAt ?? b.verified_at 로 표시", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:103 state", "plan-form14.tsx:260 shownVerifiedAt = verifiedAt ?? b.verified_at", "plan-form14.tsx:467 푸터 표시"], "method": "독립 검증 코드 대조 + E2E 'S1 — 저장 후 푸터 마지막 확인 갱신' 통과" } },
+        { "id": "S1-4", "desc": "switchBuilding에서 verifiedAt 리셋 — 건물 전환 시 이전 확인일 잔류 금지", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:150 setVerifiedAt(null)"], "method": "독립 검증 코드 대조" } },
+        { "id": "S1-5", "desc": "router.refresh() 2곳(save·verifyOnly) 삭제 · useRouter 미사용 시 import 제거", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:1-9 useRouter import 없음·router.refresh 0회", "plan-form14-specs.tsx:4 useRouter는 9호 복귀용으로 정상 잔존"], "method": "독립 검증 코드 대조" } },
+        { "id": "S1-6", "desc": "revalidatePath는 유지 — 다음 진입·타 화면 최신성 보장", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["facilities-actions.ts:67", "facilities-actions.ts:83"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "S2", "title": "서버 액션 병렬화 (설비 / 층별 / 확인일 3갈래)", "status": "implemented", "expected_gain_ms": 600,
+      "note": "실측은 probe 기준선(순차4=767ms·병렬4=197ms)으로 갈음 — 액션 단독 재측정은 미실시. E2E상 저장 응답 후 즉시 배지 전환 확인",
+      "criteria": [
+        { "id": "S2-1", "desc": "3갈래를 Promise.all로 동시 실행 · 각 갈래 내부의 delete→insert 순서는 유지", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["facilities-actions.ts:36 Promise.all", "facilities-actions.ts:37-45 설비 delete→insert", "facilities-actions.ts:46-54 층별 delete→insert", "facilities-actions.ts:55-62 확인일 update"], "method": "독립 검증 코드 대조" } },
+        { "id": "S2-2", "desc": "각 갈래가 error를 반환하고 호출부가 첫 에러를 표면화", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["facilities-actions.ts:37·46·55 Promise<string|null>", "facilities-actions.ts:64-65 firstErr = facErr ?? floorErr ?? verifyErr"], "method": "독립 검증 코드 대조" } },
+        { "id": "S2-3", "desc": "delete의 error도 확인 (K-5 완화 — 근본 해결 아님)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["facilities-actions.ts:38-39 설비 delete 에러 확인", "facilities-actions.ts:47-48 층별 동일"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "U1", "title": "미저장 상태 배지", "status": "implemented",
+      "criteria": [
+        { "id": "U1-1", "desc": "푸터 [저장] 옆에 '● 미저장' / '변경 없음' 배지", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:470-476 form14-dirty-badge/form14-clean-badge"], "method": "독립 검증 코드 대조 + E2E 배지 3단언 통과" } },
+        { "id": "U1-2", "desc": "본문·제원 내역 구분 표기(예: '● 미저장 · 제원 3섹션')", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:472 [본문, 제원 N섹션].filter(Boolean).join(' · ')"], "method": "독립 검증 코드 대조" } },
+        { "id": "U1-3", "desc": "PlanForm14Specs 통지를 boolean → 개수로 확대 (onDirtyChange(dirtyCount))", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14-specs.tsx:62 (dirtyCount: number)", "plan-form14-specs.tsx:115 통지", "plan-form14.tsx:100·517 개수 state 수신"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "U2", "title": "Ctrl/⌘+S 단축키", "status": "implemented",
+      "criteria": [
+        { "id": "U2-1", "desc": "keydown 리스너 · preventDefault 후 저장 실행", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:240-251 리스너·cleanup", "plan-form14.tsx:240-241 saveRef로 stale closure 방지"], "method": "독립 검증 코드 대조 + E2E 'U2 — Ctrl+S로 본문 저장' 통과" } },
+        { "id": "U2-2", "desc": "저장할 것이 없으면 무동작(브라우저 저장 대화상자도 뜨지 않게)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:245 preventDefault 항상 실행", "plan-form14.tsx:195 save() 가드 — dirty 없으면 return"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "U3", "title": "저장 버튼 통합 — 본문 [저장]이 제원까지 한 번에", "status": "implemented",
+      "criteria": [
+        { "id": "U3-1", "desc": "활성 조건을 !(dirty || specsDirty) || saving 으로 확대 (설계의 isPending은 saving 로컬 플래그로 대체 — impl_note 참조)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:485 disabled={!(dirty || specsDirty) || saving}", "plan-form14.tsx:90-92 saving 대체 사유 주석"], "method": "독립 검증 코드 대조(대체 사유 타당 판정) + E2E 'U3-1 — 제원만 수정해도 본문 [저장] 활성' 통과" } },
+        { "id": "U3-2", "desc": "본문(설비·층별)과 제원을 Promise.all로 동시 저장", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:202-205 Promise.all([본문, 제원])"], "method": "독립 검증 코드 대조 + E2E DB customer_facility_specs 확인" } },
+        { "id": "U3-3", "desc": "dirty가 아닌 쪽은 호출하지 않음(불필요한 쓰기 금지)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:203 dirty ? 액션 : null", "plan-form14.tsx:204 specsDirty && ref ? 호출 : null"], "method": "독립 검증 코드 대조" } },
+        { "id": "U3-4", "desc": "자식 saveAll을 결과 반환 async 함수로 분리 + 부모 등록(onRegisterSaveAll)해 await 가능하게", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14-specs.tsx:42 SpecsSaveResult", "plan-form14-specs.tsx:295 async saveAll(): Promise<SpecsSaveResult>", "plan-form14-specs.tsx:318-320 등록", "plan-form14.tsx:105-106 수신 ref"], "method": "독립 검증 코드 대조" } },
+        { "id": "U3-5", "desc": "패널 sticky [모두 저장] 유지 (D-5)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14-specs.tsx:660-672 sticky 바·버튼 유지"], "method": "독립 검증 코드 대조" } },
+        { "id": "U3-6", "desc": "부분 성공 시 실패한 쪽 dirty 유지 → 재클릭 = 재시도", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:209 본문 실패 시 clearDirty 미호출", "plan-form14-specs.tsx:302 성공 섹션만 dirty 해제"], "method": "독립 검증 코드 대조" } },
+        { "id": "U3-7", "desc": "두 결과를 합친 메시지 1줄", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "deb8376", "evidence": ["plan-form14.tsx:206-220 parts.join(' · ') 단일 메시지"], "method": "독립 검증 코드 대조 + E2E '제원 1개 섹션 저장됨' 메시지 확인" } }
+      ] }
+  ],
+
+  "not_adopted": [
+    { "id": "S3", "desc": "단일 RPC(Postgres 함수)로 delete+insert+update 트랜잭션 처리 — 왕복 1회 + K-5 근본 해결", "status": "deferred", "note": "마이그레이션 동반. K-5가 현실화되면 최우선 재검토" },
+    { "id": "U4", "desc": "낙관적 UI — 클릭 즉시 성공 표시 후 실패 시 롤백", "status": "deferred" },
+    { "id": "U5", "desc": "sticky 저장 바", "status": "deferred", "note": "U1+U2로 대체 가능" }
+  ],
+
+  "residual_risks": [
+    "K-5(데이터 유실)는 이번 범위로 해결되지 않는다 — S2의 delete 에러 확인을 추가해도 'delete 성공 → insert 실패' 창은 남는다",
+    "U3로 저장 경로가 두 컴포넌트에 걸치므로 부분 성공(한쪽만 저장)이 발생할 수 있다 — U3-6으로 재시도 가능성을 보장한다"
+  ],
+
+  "verification_plan": {
+    "baseline": "test-plan-tab 56/56 (2026-08-07 실행 확인) · tsc --noEmit 클린",
+    "result_2026_08_08": "tsc --noEmit 클린 · test-plan-tab 63/63 (기존 56 + 신규 7: U1 배지 3·U2 Ctrl+S·S1 확인일 갱신·U3-1 활성·U3 통합 저장 DB 확인) · 독립 검증(Explore 판정자) 전 criteria ✅ · 회귀 4관점(facilities-client 호환·건물 전환 리셋·Ctrl+S cleanup·이탈 가드) 이상 없음",
+    "items": [
+      "S1 — 저장 후 푸터 '마지막 확인' 갱신 · 건물 전환 시 리셋 → E2E 단언 + 코드 대조 완료",
+      "S2 — 실측은 probe 기준선으로 갈음(순차4=767ms→병렬4=197ms) — 액션 단독 재측정 미실시",
+      "U1 — 미저장/변경 없음 배지 전환 → E2E 3단언 통과",
+      "U2 — Ctrl+S 저장 → E2E 통과 · 미저장 없을 때 무동작은 코드 대조(save 가드)",
+      "U3 — 제원만 수정 시 본문 [저장] 활성 + 1클릭 양쪽 저장 + DB 확인 → E2E 통과",
+      "회귀 — npx tsx scripts/test-plan-tab.mts 63/63 · tsc --noEmit 클린"
+    ],
+    "e2e_gap": "해소(2026-08-08) — test-plan-tab.mts에 U1·U2·U3·S1 단언 7건 추가, 낡은 '자동 저장됨' 폴백 블록 현행화"
+  }
+}
