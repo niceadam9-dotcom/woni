@@ -23,7 +23,7 @@ const TITLES: Record<ComposeAnnexNo, { title: string; doc: string }> = {
 type FieldDef = {
   key: string
   label: string
-  type: 'date' | 'text' | 'textarea'
+  type: 'date' | 'daterange' | 'text' | 'textarea'
   placeholder?: string
   hint?: string
 }
@@ -36,7 +36,7 @@ const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   ],
   report10: [
     { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
-    { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'text', placeholder: '예: 2026년 8월 1일 ~ 2026년 8월 20일', hint: '미입력 시 불량별 계획 시작·종료일로 자동 산출' },
+    { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'daterange', hint: '미입력 시 불량별 계획 시작·종료일로 자동 산출 — 문서에는 "○년 ○월 ○일" 형식으로 출력' },
     { key: 'totalDays', label: '총 일수 (수동 보정)', type: 'text', placeholder: '예: 20' },
     { key: 'summary', label: '계획 내용 요약', type: 'textarea', hint: '이행조치 사항 표의 첫 행으로 출력' },
     { key: 'contractor', label: '공사업체 메모', type: 'text', hint: '내부 메모 — 문서에는 출력되지 않습니다' },
@@ -81,7 +81,8 @@ function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: s
 const stepNo = 'inline-flex items-center justify-center size-5 rounded-full bg-[#7b68ee] text-white text-[11px] font-bold shrink-0'
 const badgeAuto = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#eeedf3] text-[#514b81]'
 const badgeInput = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#7b68ee] text-white'
-const inputCls = 'w-full text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#7b68ee]'
+const inputBase = 'text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#7b68ee]'
+const inputCls = `w-full ${inputBase}`
 
 export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, onGenerated }: {
   inspectionId: string
@@ -131,7 +132,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
           if (!alive || !pv.fromLabel) return
           const copyable: Record<string, string> = {}
           for (const d of FIELD_DEFS[annexNo]) {
-            if (d.type === 'date') continue
+            if (d.type === 'date' || d.type === 'daterange') continue
             const v = pv.fields[d.key]
             if (typeof v === 'string' && v.trim()) copyable[d.key] = v
           }
@@ -282,6 +283,19 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                       {d.type === 'date' ? (
                         <DateInput value={fields[d.key] ?? ''} aria-label={d.label}
                           onChange={e => setField(d.key, e.target.value)} className={`${inputCls} w-40`} />
+                      ) : d.type === 'daterange' ? (
+                        // 가입기간(1.1 일반현황)과 동일 패턴 — "YYYY-MM-DD ~ YYYY-MM-DD"로 저장, 문서 출력 시 한국어 날짜로 변환(report9-actions)
+                        (() => {
+                          const [ps = '', pe = ''] = (fields[d.key] ?? '').split(/\s*~\s*/)
+                          const join = (s: string, e2: string) => setField(d.key, !s && !e2 ? '' : `${s} ~ ${e2}`.trim())
+                          return (
+                            <span className="inline-flex items-center gap-1.5">
+                              <DateInput value={ps} aria-label={`${d.label} 시작일`} onChange={e => join(e.target.value, pe)} className={`${inputBase} w-36`} />
+                              <span className="text-xs text-[#847ba8] shrink-0">~</span>
+                              <DateInput value={pe} aria-label={`${d.label} 종료일`} onChange={e => join(ps, e.target.value)} className={`${inputBase} w-36`} />
+                            </span>
+                          )
+                        })()
                       ) : d.type === 'textarea' ? (
                         <textarea value={fields[d.key] ?? ''} aria-label={d.label} rows={2}
                           placeholder={d.placeholder} onChange={e => setField(d.key, e.target.value)}

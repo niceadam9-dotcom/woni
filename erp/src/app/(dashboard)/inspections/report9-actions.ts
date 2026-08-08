@@ -146,7 +146,8 @@ async function assembleAnnex1011(
   const fDate = fstr(fields, 'reportDate')
   if (/^\d{4}-\d{2}-\d{2}$/.test(fDate)) data.reportDate = kdate(fDate)
   if (kind === 'report10') {
-    if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod')
+    // 작성 패널 daterange는 "YYYY-MM-DD ~ YYYY-MM-DD"로 저장 — 자동 산출과 같은 한국어 날짜로 변환 (과거 자유 텍스트는 그대로 통과)
+    if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod').replace(/\d{4}-\d{2}-\d{2}/g, m => kdate(m))
     if (fstr(fields, 'totalDays')) data.totalDays = fstr(fields, 'totalDays')
     // 계획 내용 요약 — 렌더 변경 없이 이행조치 사항 표의 첫 행으로 출력
     const summary = fstr(fields, 'summary')
