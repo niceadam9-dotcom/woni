@@ -103,7 +103,7 @@ try {
   await page.fill('div:has(> label:text-is("피난용승강기")) input', '1')
   await page.click('div:has(> label:has-text("대표자 구분")) button:has-text("소유자")')
   await page.click('div:has(> label:has-text("관리자 자격구분")) button:has-text("2급")')
-  await page.click('button:has-text("저장"):not(:has-text("다음"))')
+  await page.click('button:text-is("저장")')   // [저장 후 다음 탭 →] 폐기(2026-08-08) — 1.1 [저장] 단일
   await page.waitForSelector('text=저장되었습니다')
   const { data: bldNew } = await raw.from('buildings').select('stairs_count, evac_elevator_count').eq('customer_id', customerId).limit(1).single()
   const { data: custNew } = await raw.from('customers').select('rep_role, manager_license_grade').eq('id', customerId).single()

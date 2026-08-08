@@ -143,7 +143,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     })
   }
 
-  function save(goNext = false) {
+  function save() {
     setMsg('')
     startTransition(async () => {
       const res = await saveFirePlanInfoAction(customerId, d)
@@ -152,7 +152,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         tabs?.setTabDirty('plan', false)
         setSuggested({})
         router.refresh()
-        if (goNext) tabs?.goNextTab()
       }
     })
   }
@@ -485,12 +484,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
             {isPending && <Loader2 className="size-3 animate-spin" />} 저장
           </button>
-          {tabs && (
-            <button onClick={() => save(true)} disabled={isPending}
-              className="h-8 px-4 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-xs font-medium disabled:opacity-50">
-              저장 후 다음 탭 →
-            </button>
-          )}
           {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
         </div>
       </div>

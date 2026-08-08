@@ -17,8 +17,6 @@ type TabsCtx = {
   activeTab: string
   /** 특정 탭으로 이동 (딥링크 대체 — §3) */
   goTab: (key: string) => void
-  /** 저장 성공 후 다음 탭으로 (§6-C-4) */
-  goNextTab: () => void
   /** 각 탭 폼의 미저장 변경 등록 (§6-C-5) */
   setTabDirty: (key: string, dirty: boolean) => void
 }
@@ -71,10 +69,6 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
   const ctx: TabsCtx = {
     activeTab: active,
     goTab: switchTab,
-    goNextTab: () => {
-      const i = tabs.findIndex(t => t.key === active)
-      if (i >= 0 && i < tabs.length - 1) switchTab(tabs[i + 1].key)
-    },
     setTabDirty: (key, dirty) => {
       if (dirty) dirtyRef.current.add(key)
       else dirtyRef.current.delete(key)
