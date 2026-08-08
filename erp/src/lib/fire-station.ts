@@ -72,3 +72,48 @@ export async function resolveFireStation(
   if (sigun) return { station: `${sigun.replace(/[시군]$/, '')}소방서`, source: 'estimate' }
   return null
 }
+
+/** 1.3 관할 소방서 드롭다운 후보 — 관할은 행정구역 기준이므로 좌표 근접이 아니라 매핑 테이블에서 뽑는다.
+ *  [같은 시/군 소방서] → [같은 시/군 119안전센터·지역대 "본서 (센터)" — 고객 읍면동 일치 우선] →
+ *  [같은 시/도 나머지 소방서] 순. 특별시·광역시는 시/군 토큰이 없어 시/도 전체(구 단위 매핑)가 곧 근접 범위다.
+ *  센터는 fire_station_centers(117)에 시드된 시/군만 나온다 — 전국 수록이 아니다. */
+export async function listFireStationCandidates(
+  admin: SupabaseClient,
+  input: { regionSi?: string | null; regionMyeon?: string | null; address?: string | null },
+): Promise<string[]> {
+  const fromAddr = input.address ? extractRegionDetail(input.address) : null
+  const fromInput = splitSigungu(input.regionSi ?? '')
+  const sido = fromAddr?.sido ?? ''
+  const sigun = fromInput.sigun || fromAddr?.sigun || ''
+  if (!sido && !sigun) return []
+  const emd = (input.regionMyeon || fromAddr?.emd || '').trim().replace(/(읍|면|동)$/, '')
+
+  const conds = [
+    sido && `region_sido.eq.${sido}`,
+    sido && `region_si.eq.${sido}`,      // 특별시·광역시는 region_si에 시/도명이 들어있다 (116)
+    sigun && `region_si.eq.${sigun}`,
+  ].filter(Boolean) as string[]
+  const nearKey = sigun || sido           // 센터는 근접 범위(같은 시/군)만 노출
+  const [stRes, ctRes] = await Promise.all([
+    admin.from('region_fire_stations').select('fire_station, region_si').or(conds.join(',')),
+    admin.from('fire_station_centers').select('center, station, emds').eq('region_si', nearKey),
+  ])
+  const rows = (stRes.data ?? []) as Array<{ fire_station: string; region_si: string }>
+  const centers = (ctRes.data ?? []) as Array<{ center: string; station: string; emds: string[] | null }>
+
+  const near = new Set<string>()
+  const wide = new Set<string>()
+  for (const r of rows) {
+    const isNear = sigun ? r.region_si === sigun : r.region_si === sido
+    ;(isNear ? near : wide).add(r.fire_station)
+  }
+  const ko = (a: string, b: string) => a.localeCompare(b, 'ko')
+  // 고객 읍면동 관할 센터(emds 일치, 폴백: 센터명이 지명으로 시작)를 맨 앞에
+  // 센터명 폴백은 2자 이상만 — 남면/서면/내면의 한 글자 스템('서')이 '서석119안전센터'를 오매칭한다
+  const isMine = (c: { center: string; emds: string[] | null }) =>
+    !!emd && ((c.emds ?? []).includes(emd) || (emd.length >= 2 && c.center.startsWith(emd)))
+  const centerLabels = [...centers]
+    .sort((a, b) => (isMine(b) ? 1 : 0) - (isMine(a) ? 1 : 0) || ko(a.center, b.center))
+    .map(c => `${c.station} (${c.center})`)
+  return [...[...near].sort(ko), ...centerLabels, ...[...wide].filter(st => !near.has(st)).sort(ko)]
+}

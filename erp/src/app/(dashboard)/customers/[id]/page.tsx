@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft, UserCheck, ClipboardList, History } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { listFireStationCandidates } from '@/lib/fire-station'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
@@ -379,6 +380,9 @@ export default async function CustomerDetailPage({
     }
   }
 
+  // 1.3 관할 소방서 드롭다운 후보 — 행정구역 매핑 기반 (관할은 좌표 근접이 아니라 행정 관할)
+  const stationCandidates = await listFireStationCandidates(admin, { regionSi, regionMyeon, address: customer.address })
+
   // ── §6-E: 이력 탭 필터 (URL hy=올해/작년, hk=점검/변경) + 다음 점검 예정 ──
   const nowYear = new Date().getFullYear()
   const histYear = hy === 'this' ? nowYear : hy === 'last' ? nowYear - 1 : null
@@ -609,7 +613,8 @@ export default async function CustomerDetailPage({
         initialPhotos={fpSections.photos ?? []}
         hasMapAsset={customerAssets.some(a => a.slot === 'map_location')}
         autoFireStation={s(cRec.fire_station)}
-        fireStationEstimated={s(cRec.fire_station_source) === 'estimate'} />}
+        fireStationEstimated={s(cRec.fire_station_source) === 'estimate'}
+        stationCandidates={stationCandidates} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} specsByBuilding={specsByBuilding} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}

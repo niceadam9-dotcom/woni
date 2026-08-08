@@ -108,7 +108,7 @@ export function goPlanNode(key: string) {
 
 export function PlanForm13({
   customerId, canManage, initialLocation, initialFireAccess, initialPhotos = [],
-  hasMapAsset = false, autoFireStation = '', fireStationEstimated = false,
+  hasMapAsset = false, autoFireStation = '', fireStationEstimated = false, stationCandidates = [],
 }: {
   customerId: string
   canManage: boolean
@@ -118,6 +118,7 @@ export function PlanForm13({
   hasMapAsset?: boolean        // [지도·사진] map_location 슬롯 등록 여부 (D-1 단일 원천 판정)
   autoFireStation?: string     // 고객 정보의 관할 소방서 — 1.3이 비면 이 값이 인쇄된다 (D-3)
   fireStationEstimated?: boolean  // 그 값이 '추정'(fire_station_source='estimate')인지 (C-1)
+  stationCandidates?: string[] // 행정구역 매핑 드롭다운 후보 — 같은 시/군 → 같은 시/도 순 (listFireStationCandidates)
 }) {
   const router = useRouter()
   const [loc, setLoc] = useState(initialLocation)
@@ -133,6 +134,14 @@ export function PlanForm13({
   const [suggested, setSuggested] = useState(false)   // 초안 상태 = 보라 링(미확정 표시)
   const [suggestMsg, setSuggestMsg] = useState('')
   const [suggesting, setSuggesting] = useState(false)
+
+  // 관할 소방서 드롭다운 — 관할은 행정구역 기준이라 좌표 근접이 아닌 매핑 후보를 쓴다.
+  // 목록에 없는 값(수동 입력·구 명칭)이 저장돼 있으면 직접 입력 모드로 시작한다.
+  const stationOptions = [...new Set([autoFireStation, ...stationCandidates].map(st => st.trim()).filter(Boolean))]
+  const [stationCustom, setStationCustom] = useState(() => {
+    const v = initialLocation.fireStation.trim()
+    return !!v && !stationOptions.includes(v)
+  })
 
   function patchLoc(p: Partial<LocationSection>) { setLoc(v => ({ ...v, ...p })); setDirty(true) }
   function patchFa(p: Partial<FireAccessSection>) { setFa(v => ({ ...v, ...p })); setDirty(true) }
@@ -279,8 +288,24 @@ export function PlanForm13({
         <div className="flex items-end gap-2 flex-wrap">
           <div>
             <label className="text-[11px] font-medium text-[#514b81] block mb-1">관할 소방서</label>
-            <input value={loc.fireStation} onChange={e => patchLoc({ fireStation: e.target.value })} disabled={!canManage}
-              placeholder={autoFireStation ? `자동: ${autoFireStation}` : ''} className={`${inputCls} w-36`} />
+            {stationOptions.length > 0 && !stationCustom ? (
+              <select value={loc.fireStation} disabled={!canManage} data-testid="form13-station-select"
+                onChange={e => { if (e.target.value === '__custom__') setStationCustom(true); else patchLoc({ fireStation: e.target.value }) }}
+                className={`${inputCls} w-44`}>
+                <option value="">{autoFireStation ? `(비움 — 자동 ${autoFireStation} 인쇄)` : '(선택)'}</option>
+                {stationOptions.map(st => <option key={st} value={st}>{st}{st === autoFireStation ? ' (자동 지정)' : ''}</option>)}
+                <option value="__custom__">직접 입력…</option>
+              </select>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <input value={loc.fireStation} onChange={e => patchLoc({ fireStation: e.target.value })} disabled={!canManage}
+                  placeholder={autoFireStation ? `자동: ${autoFireStation}` : ''} className={`${inputCls} w-36`} />
+                {stationOptions.length > 0 && canManage && (
+                  <button type="button" onClick={() => setStationCustom(false)}
+                    className="h-8 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] shrink-0">목록</button>
+                )}
+              </span>
+            )}
           </div>
           <div>
             <label className="text-[11px] font-medium text-[#514b81] block mb-1">거리</label>
