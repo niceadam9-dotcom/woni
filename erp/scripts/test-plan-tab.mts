@@ -124,11 +124,12 @@ try {
   await page.click('button:has-text("1.3 위치·소방차진입")')
   await page.waitForSelector('text=소방차 세부진입 계획')
   check('1.3 — 생성 삽입 사진 카드(§8-1k 이관)', await page.isVisible('text=생성 문서 삽입 사진'))
-  // 소방계획서_11 D-1 — 위치도는 [지도·사진] 단일 원천: 1.3에는 업로드 버튼이 없고 안내·이동 링크만
-  check('D-1 위치도 단일 원천 — [지도·사진] 이동 버튼',
-    await page.isVisible('[data-testid="form13-goto-assets"]'))
-  check('D-1 위치도 안내 문구(등록/미등록 상태)',
-    (await page.isVisible('text=[지도·사진]에 등록됨')) || (await page.isVisible('text=미등록')))
+  // 2026-08-08 — [지도·사진] 전용 노드 폐지: 슬롯 UI(표지·위치도·피난안내도)가 1.3 안에서 바로 보인다
+  check('1.3 안에 [지도·사진] 슬롯 카드 삽입',
+    await page.isVisible('[data-testid="customer-assets"]'))
+  check('1.3 슬롯 3종 라벨',
+    await page.isVisible('text=표지 건물 사진') && await page.isVisible('text=위치도·약도')
+    && await page.isVisible('text=피난안내도·평면도'))
   // 소방계획서_11 D-5 — 신규 사진 종류는 '기타'만(건물 전경·위치도·피난경로도 선택지 제거)
   await page.click('button:has-text("+ 사진 추가")')
   await page.waitForSelector('[data-testid="form13-photo-kind"]')
@@ -139,13 +140,30 @@ try {
   // 소방계획서_11 D-2 — 자동차 도로 기반 주변 현황 초안 버튼
   check('D-2 자동 문장 만들기 버튼',
     await page.isVisible('[data-testid="form13-suggest-surroundings"]'))
-  // 소방계획서_11 D-4′ — 소방서 경로 조회 버튼. NCP Directions 미활성(403)이면 unavailable 안내로 떨어져야 한다
-  check('D-4′ 경로 가져오기 버튼', await page.isVisible('[data-testid="form13-fetch-route"]'))
-  await page.click('[data-testid="form13-fetch-route"]')
-  const routeMsg = await page.waitForSelector('[data-testid="form13-route-msg"]', { timeout: 20000 })
+  // ── 소방계획서_13 — 관할 소방서 선택 시 거리·도착예상 자동완성(A안) + 조회 UI 단일화(C-1) ──
+  // 조회 결과는 성공(값 기입)·미가용(403 안내)·실패(주소 없음) 어느 쪽이든 **안내가 뜨고 입력은 계속 가능**해야 한다
+  const routeOutcome = '[data-testid="form13-route-msg"], [data-testid="form13-route-suggest"]'
+  const stationSel = page.locator('[data-testid="form13-station-select"]')
+  check('A-1 관할 소방서 드롭다운', await stationSel.isVisible())
+  const stOpts = await stationSel.evaluate((el: HTMLSelectElement) =>
+    Array.from(el.options).map(o => o.value).filter(v => v && v !== '__custom__'))
+  check('A-1 소방서 후보 존재(행정구역 매핑)', stOpts.length > 0, stOpts.join(','))
+  await stationSel.selectOption(stOpts[0])
+  const autoMsg = await page.waitForSelector(routeOutcome, { timeout: 20000 })
     .then(el => el.textContent()).catch(() => null)
-  // 성공(경로 요약)이든 미가용(unavailable)이든 실패(주소 없음)든 **안내가 뜨고 입력은 계속 가능**해야 한다
-  check('D-4′ 경로 조회 — 결과 안내 노출(입력 차단 없음)',
+  const kmVal = await page.locator('div:has(> label:text-is("거리")) input').inputValue().catch(() => '')
+  check('A-2 소방서 선택 → 자동 조회 결과 반영(값 기입 또는 안내)',
+    (!!autoMsg && autoMsg.trim().length > 0) || kmVal.trim() !== '', `msg=${autoMsg} km=${kmVal}`)
+  check('A-2 자동 조회가 입력을 막지 않음', await page.isEditable('[data-testid="form13-surroundings"]'))
+  // C-1 중복 정리 — 조회 트리거는 [경로 다시 계산] 하나, 적용 버튼([거리·시간 채우기])은 폐기
+  check('C-1 [거리·시간 채우기] 폐기(적용 경로 단일화)',
+    (await page.locator('[data-testid="form13-apply-distance"]').count()) === 0)
+  check('C-1 구 [소방서에서 경로 가져오기] 폐기', !(await page.isVisible('button:has-text("소방서에서 경로 가져오기")')))
+  check('C-1 조회 트리거 = [경로 다시 계산] 단일', await page.isVisible('[data-testid="form13-fetch-route"]'))
+  await page.click('[data-testid="form13-fetch-route"]')
+  const routeMsg = await page.waitForSelector(routeOutcome, { timeout: 20000 })
+    .then(el => el.textContent()).catch(() => null)
+  check('C-1 재계산 — 결과 안내 노출(입력 차단 없음)',
     !!routeMsg && routeMsg.trim().length > 0 && await page.isEditable('textarea[placeholder*="정문 방면"]'),
     String(routeMsg))
   await page.fill('[data-testid="form13-surroundings"]', '주변현황 E2E')
@@ -248,8 +266,9 @@ try {
   await page.waitForSelector('text=3.1 피난시설 및 기타시설 일반현황')
   check('3.1 — 1.5 입력 자동 표시(방화구획 해당없음)', await page.isVisible('text=방화구획: 해당없음'))
   // §1-2: 내부 서브탭 폐기 — 3.2·3.4·3.7이 클릭 없이 동시 표시(세로 스크롤)
-  // 소방계획서_11 §13-A — 3.4 피난경로도도 [지도·사진] 슬롯 단일 원천(업로드 슬롯 제거·이동 링크)
-  check('A 3.4 피난경로도 단일 원천 — [지도·사진] 이동 버튼',
+  // 소방계획서_11 §13-A — 3.4 피난경로도도 [지도·사진] 슬롯 단일 원천(업로드 슬롯 제거·이동 링크).
+  // 2026-08-08 슬롯 UI가 1.3으로 이관돼 이동 대상이 1.3이 됐다.
+  check('A 3.4 피난경로도 단일 원천 — 1.3 이동 버튼',
     await page.isVisible('[data-testid="ch3-goto-assets"]'))
   check('3장 세로 카드 — 3.4·3.7 동시 표시', await page.isVisible('text=피난유도 절차 및 피난경로')
     && await page.isVisible('text=3.7 피난 기구·유도장비 세부현황'))

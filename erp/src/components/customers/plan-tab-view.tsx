@@ -65,7 +65,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  assets, annex, ledgerAutoNeeded,
+  annex, ledgerAutoNeeded,
 }: {
   customerId: string
   canManage: boolean
@@ -92,7 +92,6 @@ export function PlanTabView({
   form1215: ReactNode
   ch2: ReactNode
   ch3: ReactNode
-  assets: ReactNode               // 지도·사진 카드 (소방계획서_7 §5 — H-10, CustomerAssetsClient)
   annex?: ReactNode               // 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4, PlanAnnexSection)
 }) {
   const router = useRouter()
@@ -100,18 +99,21 @@ export function PlanTabView({
   // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
   // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex', 'assets'])
-  const initialSel = initialForm && VALID_SEL.has(initialForm) ? initialForm
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex'])
+  // 2026-08-08: 지도·사진 노드를 폐지하고 슬롯 UI를 1.3 안으로 옮겼다 — 옛 딥링크(?form=assets)는 1.3으로 보낸다
+  const norm = (key: string | undefined) => (key === 'assets' ? '1.3' : key)
+  const initialSel = norm(initialForm) && VALID_SEL.has(norm(initialForm)!) ? norm(initialForm)!
     : initialSection === 'ch1' ? '1.1'
-    : initialSection && VALID_SEL.has(initialSection) ? initialSection
+    : norm(initialSection) && VALID_SEL.has(norm(initialSection)!) ? norm(initialSection)!
     : '1.1'
   const [sel, setSelState] = useState<string>(initialSel)
   // form= 딥링크가 마운트 후 서버 재렌더로 바뀐 경우(다른 탭의 ?tab=plan&form=x Link) 동기화 — state는 1회만 초기화되므로
   const prevFormRef = useRef(initialForm)
   if (prevFormRef.current !== initialForm) {
     prevFormRef.current = initialForm
-    if (initialForm && VALID_SEL.has(initialForm) && initialForm !== sel) {
-      setSelState(initialForm)
+    const next = norm(initialForm)
+    if (next && VALID_SEL.has(next) && next !== sel) {
+      setSelState(next)
     }
   }
   // §1-2 미저장 이동 확인 — 입력 캡처 휴리스틱(입력 발생=dirty, '저장' 버튼 클릭=해제)
@@ -134,12 +136,12 @@ export function PlanTabView({
     url.searchParams.delete('sub')
     window.history.replaceState(null, '', url.toString())
   }
-  // 서식 안에서 다른 노드로 보내는 요청 수신 (소방계획서_11 D-1/D-5 — 1.3 → [지도·사진] 단일 원천 안내 링크).
+  // 서식 안에서 다른 노드로 보내는 요청 수신 (소방계획서_11 D-5 — 3장 → 1.3 [지도·사진] 단일 원천 안내 링크).
   // select()가 미저장 확인·URL 동기화를 그대로 태우도록 이벤트로 위임한다.
   // deps 배열을 두지 않는 것은 의도 — select가 sel을 클로저로 잡으므로 매 렌더 최신 핸들러로 갱신한다.
   useEffect(() => {
     const onSelect = (e: Event) => {
-      const key = (e as CustomEvent).detail
+      const key = norm((e as CustomEvent).detail)
       if (typeof key === 'string' && VALID_SEL.has(key)) select(key)
     }
     window.addEventListener('erp:plan-select', onSelect)
@@ -371,7 +373,6 @@ export function PlanTabView({
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
-          { key: 'assets', label: '지도·사진 (표지·위치도·피난안내도)' },
           { key: 'annex', label: '별지 서식 (회차)' },
           { key: 'archive', label: '보관함·개정이력' },
         ]
@@ -388,11 +389,7 @@ export function PlanTabView({
               {navBtn('ch2', '2장 자위소방대', true)}
               {navBtn('ch3', '3장 피난계획', true)}
             </div>
-            <div className="pt-1">
-              {/* 지도·사진 — 서식 재료(표지·위치도·피난안내도), 빠른 입력에서 이관 (2026-08-05 사용자 확정) */}
-              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">🖼 지도·사진</p>
-              {navBtn('assets', '표지·위치도·피난안내도', true)}
-            </div>
+            {/* 🖼 지도·사진 노드 폐지(2026-08-08 사용자 확정) — 표지·위치도·피난안내도 슬롯은 1.3 안으로 이관 */}
             <div className="pt-1">
               <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
               {navBtn('annex', '회차별 작성·조회', true)}
@@ -491,9 +488,6 @@ export function PlanTabView({
 
       {/* ── 3장 피난계획 ── */}
       {sel === 'ch3' && ch3}
-
-      {/* ── 지도·사진 — 표지·위치도·피난안내도 슬롯 (소방계획서_7 §5 H-10, 빠른 입력에서 이관) ── */}
-      {sel === 'assets' && <div id="onboarding-assets-anchor">{assets}</div>}
 
       {/* ── 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4) ── */}
       {sel === 'annex' && (annex ?? <p className="text-xs text-[#b0acd6] py-4">별지 서식을 불러올 수 없습니다.</p>)}

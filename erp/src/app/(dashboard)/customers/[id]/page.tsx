@@ -165,6 +165,8 @@ export default async function CustomerDetailPage({
     purpose: b.purpose, floorsAbove: b.floors_above, floorsBelow: b.floors_below,
     // H-19: 기존 필드 자동 연결(§4-A-1) — 수신기 위치 회색 표시용
     receiverLocation: ((b as unknown as Record<string, unknown>).receiver_location as string | null) ?? null,
+    // 세부제원의 건물 파생 필드(3-8 비상용승강기) 원천 — 건물·시설 탭에서 이미 받은 값을 다시 묻지 않는다
+    emergencyElevatorCount: ((b as unknown as Record<string, unknown>).emergency_elevator_count as number | null) ?? null,
   }))
   // H-19 설비 대장 — 건물별 세부 제원 초기값 ('' = 대표/공통 building_id NULL 폴백)
   const specsByBuilding: Record<string, Record<string, Record<string, unknown>>> = {}
@@ -568,13 +570,9 @@ export default async function CustomerDetailPage({
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
   // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
+  // 슬롯 UI는 2026-08-08부터 서식 1.3 안에 삽입된다 — 트리의 전용 'assets' 노드와 그 완성도 항목은 폐지.
+  // 1.3 완성도는 종전대로 서식 입력(location·fireAccess) 유무로만 판정한다(탭 뱃지 분모 불변).
   const customerAssets = await listCustomerAssets(customer.id)
-  // 서식 전체 트리 '지도·사진' 노드 완성도 (2026-08-05 이관) — 슬롯 3종 중 등록된 종 수.
-  // formFilled/formTotal(탭 뱃지) 산출 이후에 추가하므로 탭 뱃지 분모는 기존 그대로
-  formStatus['assets'] = {
-    done: (['cover', 'map_location', 'evac'] as const).filter(s => customerAssets.some(a => a.slot === s)).length,
-    total: 3,
-  }
 
   // ── H-25 온보딩 진행 배너 (§4-D 국면 1) — ?onboarding=1일 때만 구성, 이미 조회한 데이터만 사용 ──
   // ① 기본정보=빠른 입력 준비율 ② 관계인=대표 有無 ③ 설비 대장=설치 √ 개수·제원 입력 여부 ④ 지도·사진=자산 개수
@@ -611,6 +609,7 @@ export default async function CustomerDetailPage({
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}
         initialPhotos={fpSections.photos ?? []}
+        assetsSlot={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} embedded />}
         hasMapAsset={customerAssets.some(a => a.slot === 'map_location')}
         autoFireStation={s(cRec.fire_station)}
         fireStationEstimated={s(cRec.fire_station_source) === 'estimate'}
@@ -663,7 +662,6 @@ export default async function CustomerDetailPage({
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []}
         hasEvacAsset={customerAssets.some(a => a.slot === 'evac')} />}
-      assets={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} />}
       annex={<PlanAnnexSection customerId={customer.id} />}
     />
   )

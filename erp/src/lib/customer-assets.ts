@@ -21,7 +21,12 @@ function slotOf(name: string): AssetSlot | null {
   return null
 }
 
-/** 고객 자산 목록 + 서명 URL(300초) — 페이지 초기 조회와 액션이 공용 */
+/** 서명 URL 유효기간 — 슬롯 UI는 서식 1.3을 열 때 비로소 <img>를 요청하므로,
+ *  페이지 진입 시점에 발급한 URL이 300초면 5분 뒤 여는 순간 만료돼 깨진 이미지가 보였다.
+ *  클라이언트가 마운트마다 재조회하지만(권한 없는 조회자는 재조회 불가) 여유를 둔다. */
+export const ASSET_URL_TTL = 3600
+
+/** 고객 자산 목록 + 서명 URL — 페이지 초기 조회와 액션이 공용 */
 export async function listCustomerAssets(customerId: string): Promise<CustomerAsset[]> {
   const admin = createAdminClient()
   const prefix = `${customerId}/assets`
@@ -32,7 +37,7 @@ export async function listCustomerAssets(customerId: string): Promise<CustomerAs
     .filter((r): r is { name: string; slot: AssetSlot } => r.slot !== null)
   if (rows.length === 0) return []
   const paths = rows.map(r => `${prefix}/${r.name}`)
-  const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrls(paths, 300)
+  const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrls(paths, ASSET_URL_TTL)
   return rows
     .map((r, i) => ({ slot: r.slot, name: r.name, path: paths[i], url: signed?.[i]?.signedUrl ?? '' }))
     .filter(a => a.url !== '')

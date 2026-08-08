@@ -180,7 +180,7 @@ function pad<T>(rows: T[], min: number, empty: T): T[] {
 
 /** 자산 슬롯 자리표시 (§5) — 미등록이어도 생성은 막지 않음, 안내 1줄 */
 function slotPlaceholder(label: string): string {
-  return `<div class="slotbox">${esc(label)} 미등록 — 고객 상세 › 소방계획서 탭의 지도·사진에서 등록하면 이 자리에 삽입됩니다.</div>`
+  return `<div class="slotbox">${esc(label)} 미등록 — 고객 상세 › 소방계획서 탭 › 1.3 위치·소방차진입의 [지도·사진]에서 등록하면 이 자리에 삽입됩니다.</div>`
 }
 
 type ImgRef = { file: string; kind: string; caption: string }

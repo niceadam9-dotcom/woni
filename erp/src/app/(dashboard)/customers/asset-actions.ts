@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { ASSET_BUCKET, ASSET_MAX_SIZE, listCustomerAssets, type AssetSlot, type CustomerAsset } from '@/lib/customer-assets'
+import { ASSET_BUCKET, ASSET_MAX_SIZE, ASSET_URL_TTL, listCustomerAssets, type AssetSlot, type CustomerAsset } from '@/lib/customer-assets'
 
 /** 지도·사진 화면 등록 액션 (소방계획서_7 §5 — H-10·H-11, S3)
  *  슬롯 3종: cover(표지 건물 사진 1장)·map_location(위치도/약도 1장)·evac(피난안내도·평면도 복수).
@@ -14,7 +14,7 @@ const IMG_MIME: Record<string, string> = {
 }
 const UUID_RE = /^[0-9a-f-]{36}$/
 
-/** 슬롯별 자산 목록 + 서명 URL(300초) */
+/** 슬롯별 자산 목록 + 서명 URL — 슬롯 UI가 마운트할 때마다 호출해 만료된 URL을 갈아끼운다 */
 export async function listCustomerAssetsAction(customerId: string): Promise<{ assets?: CustomerAsset[]; error?: string }> {
   await requirePermission('customer_manage')
   if (!UUID_RE.test(customerId)) return { error: '잘못된 고객 ID입니다.' }
@@ -49,7 +49,7 @@ export async function uploadCustomerAssetAction(
   const { error: upErr } = await admin.storage.from(ASSET_BUCKET)
     .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: IMG_MIME[ext], upsert: true })
   if (upErr) return { error: `업로드 실패: ${upErr.message}` }
-  const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrl(path, 300)
+  const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrl(path, ASSET_URL_TTL)
   if (!signed?.signedUrl) return { error: '업로드는 됐지만 미리보기 URL 생성에 실패했습니다 — 새로고침해주세요.' }
   return { asset: { slot, name, path, url: signed.signedUrl } }
 }
@@ -114,7 +114,7 @@ export async function generateLocationMapAction(
     const { error: upErr } = await admin.storage.from(ASSET_BUCKET)
       .upload(path, buf, { contentType: 'image/png', upsert: true })
     if (upErr) return { error: `저장 실패: ${upErr.message}` }
-    const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrl(path, 300)
+    const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrl(path, ASSET_URL_TTL)
     if (!signed?.signedUrl) return { error: '저장은 됐지만 미리보기 URL 생성에 실패했습니다 — 새로고침해주세요.' }
     return { asset: { slot, name: `${slot}.png`, path, url: signed.signedUrl } }
   } catch {

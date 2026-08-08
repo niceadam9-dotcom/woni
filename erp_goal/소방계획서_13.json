@@ -1,0 +1,129 @@
+{
+  "doc": "소방계획서_13 — 1.3 관할 소방서 기반 거리·도착예상 자동완성 (A안)",
+  "design": "erp_goal/소방계획서_13.md",
+  "created": "2026-08-08",
+  "updated": "2026-08-08",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "scope_note": "2026-08-08 사용자 지시 'A안 진행' = 자동완성(A-1~A-5)만. B안(관할 소방서 기준 4카드 재편)·A-4 완전판(센터 좌표 마이그레이션 118)·D-2(고객 정보 역반영)는 미착수·보류",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류",
+    "confirmed": "설계 결정 확정"
+  },
+
+  "decisions": [
+    { "id": "D-1", "desc": "자동 조회 시점 = ⓐ 소방서 선택 즉시(직접 입력은 blur 1회). A-3 캐시로 중복 호출 차단", "status": "confirmed", "note": "2026-08-08 사용자 'A안 진행'" },
+    { "id": "D-2", "desc": "1.3에서 확정한 소방서를 customers.fire_station에 역반영(fire_station_source='manual')", "status": "deferred", "note": "1.3 밖의 데이터 변경 — 별도 승인 필요. 소방서 값 이원화는 그대로 존치" },
+    { "id": "D-3", "desc": "B안(관할 소방서 최상단 4카드 재편) 미착수 — 설계는 MD §4에 보존", "status": "deferred" },
+    { "id": "D-4", "desc": "A-4는 부분 채택 — 센터 좌표 컬럼(마이그레이션 118) 없이 라벨을 본서로 환원 + 화면 표기", "status": "confirmed", "note": "DB 변경 없이 K-3을 막는 최소 조치" },
+    { "id": "D-5", "desc": "C-1 조회·적용 UI 단일화 — A안을 기존 UI 위에 얹으면서 생긴 중복 4건 정리. 자동/수동 조회를 runRoute 하나로 합치고 [거리·시간 채우기] 폐기", "status": "confirmed", "note": "2026-08-08 사용자 '거리 시간 채우기 버튼 없애야 하는 것 아니야 중복이야' → 검토 후 진행 승인. B안 전면 재편 없이 필요한 최소분만" }
+  ],
+
+  "diagnosis": [
+    { "id": "K-1", "desc": "⚠ 1.3에서 고른 관할 소방서가 경로 조회에 전혀 반영되지 않았다 — resolveStationCoords가 customers.fire_station만 읽고, 1.3 값은 sections.location.fireStation에만 저장됨", "evidence": ["fire-route-actions.ts(구):104 customers.fire_station 조회", "plan-form13.tsx(구):285 patchLoc({fireStation})만 수행"], "severity": "high" },
+    { "id": "K-2", "desc": "경로 캐시(sections.routeMeta)가 고객당 단일 슬롯이라 소방서를 바꿔도 옛 경로가 cached:true로 반환됨", "evidence": ["fire-route-actions.ts(구):148 캐시 판정에 소방서 축 없음"] },
+    { "id": "K-3", "desc": "드롭다운의 '본서 (센터)' 라벨을 region_fire_stations.fire_station과 그대로 .eq() 비교 → 매칭 불가. fire_station_centers(117)에는 주소·좌표 컬럼 자체가 없음. K-1을 고치는 순간 활성화되어 터짐", "evidence": ["fire-station.ts:117 `${c.station} (${c.center})` 라벨 생성", "fire-route-actions.ts(구):121 .eq('fire_station', name)", "117_fire_station_centers.sql:10-18 좌표 컬럼 없음"], "severity": "high" },
+    { "id": "K-4", "desc": "소방서를 바꿔도 기존 거리·도착예상이 다른 소방서 기준의 낡은 값인 채 남아 인쇄됨 — 화면이 출처·신선도를 말하지 않음", "evidence": ["plan-form13.tsx(구):302-309 거리·ETA 입력칸에 출처 표시 없음"] },
+    { "id": "K-5", "desc": "A안을 기존 UI 위에 얹기만 해 한 화면에 같은 일을 하는 UI가 2벌씩 남았다(소방계획서_12 K-2와 동형의 자기 불일치) — ① 거리·시간 적용 버튼 2개(상단 [조회 값으로 적용] vs 하단 [거리·시간 채우기]) ② 조회 트리거 2개(소방서 선택 자동 vs [소방서에서 경로 가져오기]) ③ 결과 표시 2곳 ④ 같은 안내 문구 2벌", "evidence": ["plan-form13.tsx(A안 직후):381 상단 적용 버튼", "plan-form13.tsx(A안 직후):451-457 하단 [거리·시간 채우기]", "plan-form13.tsx(A안 직후):210·230 동일 unavailable 문구 2벌"], "note": "2026-08-08 사용자 지적으로 발견 — B안을 안 하고 A안만 얹은 것이 근인" }
+  ],
+
+  "items": [
+    { "id": "A-1", "title": "경로 조회 출발지를 1.3 선택 소방서로 (K-1)", "status": "implemented",
+      "criteria": [
+        { "id": "A-1-1", "desc": "getFireRouteAction이 opts.station을 받아 출발지로 사용 · 미지정 시 고객 정보 → 주소 추정 폴백 유지", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:168-177 opts.station → resolveStationLabel", "fire-route-actions.ts:119 preferred 우선 반환", "fire-route-actions.ts:126-133 고객값·추정 폴백"], "method": "독립 검증(Explore 판정자) 코드 대조" } },
+        { "id": "A-1-2", "desc": "클라이언트가 넘기는 값이 '1.3 선택값 우선, 비면 고객 자동값' — 인쇄 규약과 동일 우선순위", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:184 effectiveStation = loc.fireStation.trim() || autoFireStation.trim()", "fire-plan-template.ts:240 인쇄 규약 동일"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "A-2", "title": "소방서 확정 시 자동 조회 → 거리·도착예상 기입", "status": "implemented",
+      "criteria": [
+        { "id": "A-2-1", "desc": "select onChange 즉시 자동 조회 트리거", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:337-343 onChange → pickStation", "plan-form13.tsx:242-245 pickStation → autoFetchForStation"], "method": "독립 검증 + E2E 'A-2 소방서 선택 → 자동 조회 결과 반영' 통과" } },
+        { "id": "A-2-2", "desc": "직접 입력(text)은 타이핑마다가 아니라 blur 1회 — API 낭비 방지", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:347-348 onBlur → autoFetchForStation"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-2-3", "desc": "거리·ETA가 둘 다 비었을 때만 조용히 기입 · 값이 있으면 덮어쓰지 않고 제안만(§9-6 규약)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:232-241 비었을 때만 patchLoc, 다르면 setPending", "plan-form13.tsx:372-389 [조회 값으로 적용] 제안 UI"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-2-4", "desc": "조회 결과를 route state에 넣어 아래 [서술 초안]·[경로도 초안]이 재조회 없이 재사용", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:231 setRoute(p)"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-2-5", "desc": "조회 대기 중 사용자가 입력한 값까지 반영해 판정(stale closure 방지)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:186-188 locRef", "plan-form13.tsx:233 locRef.current 사용"], "method": "독립 검증 판정자가 stale closure 지적 → 수정 후 재확인" }, "note": "판정자 지적으로 실구현된 항목" }
+      ] },
+
+    { "id": "A-3", "title": "경로 캐시에 소방서 축 추가 (K-2)", "status": "implemented",
+      "criteria": [
+        { "id": "A-3-1", "desc": "RouteMeta.station(요청 라벨) 기록 · 캐시 유효 조건 = 요청 소방서와 일치", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:25-37 station 필드", "fire-route-actions.ts:183-184 cachedLabel === label"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-3-2", "desc": "구 캐시(station 없음) 하위호환 — stationName으로 판정", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:183 cached?.station ?? cached?.stationName"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-3-3", "desc": "같은 소방서면 캐시 재사용 — 자동 조회가 Directions를 반복 호출하지 않음(유료 전제 유지)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:184-190 캐시 히트 시 조기 반환"], "method": "독립 검증 회귀 항목 4 ✅" } },
+        { "id": "A-3-4", "desc": "generateRouteImageAction도 같은 축 사용 — 다른 소방서 캐시로 경로도를 만들지 않음", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:235-245 staleStation 판정 후 재조회"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "A-4", "title": "119안전센터 라벨 환원 + 표기 (K-3)", "status": "partial",
+      "note": "라벨 환원·표기는 완료. 센터 좌표 확보(마이그레이션 118 + 시드)는 미착수 — not_adopted 참조",
+      "criteria": [
+        { "id": "A-4-1", "desc": "'본서 (센터)' 라벨을 본서명으로 환원해 좌표 조회 — 정상 소방서명은 훼손하지 않음", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:106-108 stationBaseName", "fire-route-actions.ts:141 resolveStationCoords에서 환원"], "method": "독립 검증 — 정규식 케이스 4종 대조(괄호 없음·끝 괄호·중간 괄호) 이상 없음" } },
+        { "id": "A-4-2", "desc": "센터를 골라 본서 기준으로 계산됐다는 사실을 화면에 표기(centerFallback)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:230 centerFallback 반환", "plan-form13.tsx:439-441 앰버 안내", "plan-form13.tsx:196-197 centerNote"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-4-3", "desc": "서술 초안도 본서명으로 생성 — 센터명으로 쓰면 거짓 문장이 됨", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:198-206 originName = start.name"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-4-4", "desc": "센터 실좌표로 거리·ETA 계산 (마이그레이션 118 + 시드)", "status": "pending_order", "note": "DB 변경 동반 — 별도 승인 필요. 실출동은 센터에서 나가므로 값 정확도 잔여 리스크" }
+      ] },
+
+    { "id": "A-5", "title": "낡은 값 경고 (K-4)", "status": "implemented",
+      "criteria": [
+        { "id": "A-5-1", "desc": "조회 결과가 기존 입력과 다르면 '다른 소방서 기준의 값일 수 있습니다' 경고 + [조회 값으로 적용]", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:372-389 form13-route-suggest"], "method": "독립 검증 코드 대조" } },
+        { "id": "A-5-2", "desc": "조회 중 진행 표시(스피너) — 자동 동작이 무반응으로 보이지 않게", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:365-369 autoBusy 스피너"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "C-1", "title": "조회·적용 UI 단일화 — A안 도입으로 생긴 중복 4건 정리 (K-5)", "status": "implemented",
+      "criteria": [
+        { "id": "C-1-1", "desc": "자동 조회(소방서 확정)와 수동 조회를 runRoute 단일 함수로 통합 — 반영 규약·안내 문구 1벌", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx:191-217 runRoute 단일 진입점", "fetchRoute·autoFetchForStation 제거"], "method": "코드 대조 + E2E 69/69" } },
+        { "id": "C-1-2", "desc": "[거리·시간 채우기] 폐기 — 적용 경로는 상단 [조회 값으로 적용] 하나", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["form13-apply-distance 요소 제거"], "method": "E2E 'C-1 [거리·시간 채우기] 폐기(적용 경로 단일화)' 통과 — count()===0 단언" } },
+        { "id": "C-1-3", "desc": "[소방서에서 경로 가져오기]+[다시 가져오기] → [경로 다시 계산] 하나로. 트리거를 거리·ETA 옆(상단)으로 이동", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx 상단 카드 form13-fetch-route(경로 다시 계산)"], "method": "E2E 'C-1 구 [소방서에서 경로 가져오기] 폐기'·'조회 트리거 단일' 통과" } },
+        { "id": "C-1-4", "desc": "조회 근거 요약(km·분·진입도로·centerFallback)을 거리·ETA 바로 아래로 이동 — 값과 근거를 같은 자리에", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx 상단 카드 route 요약 한 줄"], "method": "코드 대조" } },
+        { "id": "C-1-5", "desc": "하단 카드는 [서술 초안 넣기]·[경로도 초안 만들기]만 — 경로 미조회 시 안내 문구. 안내는 draftMsg로 분리(소관 분리)", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx 하단 초안 버튼 블록", "draftMsg state · applyRouteImage가 draftMsg 사용"], "method": "코드 대조 + E2E 1.3 저장 경로 통과" } }
+      ] },
+
+    { "id": "E2E", "title": "회귀 단언", "status": "implemented",
+      "criteria": [
+        { "id": "E2E-1", "desc": "A-1·A-2 단언 추가 — 드롭다운 존재·후보 존재·선택 시 자동 결과 반영·입력 비차단", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["test-plan-tab.mts:153-166 A-1·A-2 4단언"], "method": "실행 — test-plan-tab 67/67" } },
+        { "id": "E2E-2", "desc": "NCP Directions 미가용(403) 환경에서도 결정적으로 통과 — 성공(값 기입)·미가용(안내) 양쪽 수용", "status": "implemented",
+          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["test-plan-tab.mts:163-165 msg 또는 km 값 중 하나", "plan-form13.tsx:225-228 unavailable 안내"], "method": "독립 검증 + 실행 통과" } }
+      ] }
+  ],
+
+  "not_adopted": [
+    { "id": "B", "desc": "관할 소방서 최상단 4카드 재편 — ① 관할 소방서·출동거리 / ② 위치·주변현황 / ③ 세부진입 / ④ 삽입 사진", "status": "deferred", "note": "사용자가 A안만 지시(2026-08-08). 설계는 소방계획서_13.md §4에 보존" },
+    { "id": "A-4-full", "desc": "fire_station_centers에 center_address·center_lat·center_lng 추가(마이그레이션 118) + 센터 좌표 시드", "status": "deferred", "note": "DB 변경 동반 — 별도 승인 필요" },
+    { "id": "D-2", "desc": "1.3 확정값을 customers.fire_station에 역반영", "status": "deferred" }
+  ],
+
+  "residual_risks": [
+    "실출동은 119안전센터에서 나가는데 거리·ETA는 본서 기준이라 실제보다 멀게 나올 수 있다 — 화면 표기는 하지만 값 정확도는 A-4-4 전까지 잔존",
+    "소방서 값이 customers.fire_station과 sections.location.fireStation으로 이원화된 상태는 그대로다(D-2 보류) — 경로 조회는 1.3 값을 따르게 됐으나 별지·보고서 계열은 고객 값을 쓰는 경로가 남아 있다"
+  ],
+
+  "verification_plan": {
+    "baseline": "test-plan-tab 63/63 (2026-08-08 소방계획서_12 직후) · tsc --noEmit 클린",
+    "result_2026_08_08": "tsc 클린 · test-plan-tab 67/67 (기존 63 + A안 4) · 독립 검증(Explore 판정자) 전 criteria ✅ · 차단급 결함 없음. 판정자가 stale closure 1건 지적 → locRef로 실수정 후 A-2-5로 승격 · 회귀 5관점(기존 버튼 흐름·정규식·캐시·권한·API 과호출) 이상 없음",
+    "result_2026_08_08_c1": "C-1 중복 정리 후 tsc 클린 · test-plan-tab 69/69 (A안 단언 일부를 C-1 단언 5건으로 교체·확장). 폐기 단언(구 버튼 부재)을 넣어 중복 재발을 회귀로 고정",
+    "env_note_2026_08_08": "검증 중 워킹트리의 별개 작업(피난기구 어휘 통일 — facility-codes.ts의 EVAC_SUB_ITEMS → EVAC_SUB_ITEMS_LEGACY 개명)이 plan-form14.tsx의 구 import를 깨뜨려 **Turbopack 전역 컴파일 오류 → 전 경로 500**(로그인 포함) 상태였다. 검증을 진행하기 위해 plan-form14.tsx의 import를 개명된 이름으로 별칭 연결(기존 동작 그대로)해 빌드만 복구했다 — 1.4 하위 체크를 EVAC_TYPES/s36_evac로 옮기는 본 이관은 해당 작업의 몫으로 남아 있다"
+  }
+}

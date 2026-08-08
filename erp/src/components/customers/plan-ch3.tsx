@@ -183,28 +183,29 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
               </div>
             </div>
             {/* 소방계획서_11 §13-A — 피난안내도는 [지도·사진] 슬롯(evac_*)이 단일 원천.
+                슬롯 UI는 2026-08-08부터 서식 1.3 안에 있다(전용 트리 노드 폐지).
                 슬롯과 여기의 mapImage는 둘 다 kind:'evacuation'으로 같은 자리(3.4 피난경로도)에 인쇄돼 중복이었다.
                 슬롯은 층별 복수 등록 + 붙여넣기를 지원하므로 상위 호환이다. */}
             <div className="rounded-lg border border-[#eceafd] bg-white p-2.5">
               <p className="text-[11px] font-medium text-[#514b81]">피난경로도 (피난안내도)</p>
               <p className="text-[11px] text-[#7d78a8] mt-0.5">
                 {hasEvacAsset
-                  ? '✅ [지도·사진]에 등록됨 — 생성 문서에는 이 이미지가 인쇄됩니다.'
-                  : '⚠ 미등록 — [지도·사진]에서 층별로 등록하세요(복수 등록·붙여넣기 지원).'}
+                  ? '✅ 1.3의 [지도·사진]에 등록됨 — 생성 문서에는 이 이미지가 인쇄됩니다.'
+                  : '⚠ 미등록 — 1.3의 [지도·사진]에서 층별로 등록하세요(복수 등록·붙여넣기 지원).'}
               </p>
-              <button type="button" onClick={() => goPlanNode('assets')} data-testid="ch3-goto-assets"
+              <button type="button" onClick={() => goPlanNode('1.3')} data-testid="ch3-goto-assets"
                 className="mt-1.5 inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
-                지도·사진 열기 →
+                1.3 위치·소방차진입 열기 →
               </button>
               {plan.mapImage && (
                 <p className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
                   이 서식에 저장된 옛 피난경로도가 있습니다 — {hasEvacAsset
-                    ? '문서에는 [지도·사진]의 이미지만 인쇄됩니다(중복 방지).'
-                    : '[지도·사진]이 비어 있어 문서에는 이 이미지가 인쇄됩니다.'}
+                    ? '문서에는 1.3 [지도·사진]의 이미지만 인쇄됩니다(중복 방지).'
+                    : '1.3 [지도·사진]이 비어 있어 문서에는 이 이미지가 인쇄됩니다.'}
                   {canManage && (
                     <button type="button" className="ml-1 underline hover:text-red-600"
                       onClick={() => {
-                        if (!window.confirm('서식에 저장된 옛 피난경로도를 삭제할까요? ([지도·사진]의 이미지는 유지됩니다)')) return
+                        if (!window.confirm('서식에 저장된 옛 피난경로도를 삭제할까요? (1.3 [지도·사진]의 이미지는 유지됩니다)')) return
                         const p = plan.mapImage
                         startTransition(async () => {
                           if (p) await deletePlanAssetAction(customerId, p)

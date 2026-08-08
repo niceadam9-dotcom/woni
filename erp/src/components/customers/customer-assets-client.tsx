@@ -2,14 +2,17 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Upload, Trash2, Loader2, Plus, ImageIcon, ClipboardPaste, MapPin, PencilRuler, X } from 'lucide-react'
-import { uploadCustomerAssetAction, deleteCustomerAssetAction, generateLocationMapAction } from '@/app/(dashboard)/customers/asset-actions'
+import {
+  uploadCustomerAssetAction, deleteCustomerAssetAction, generateLocationMapAction, listCustomerAssetsAction,
+} from '@/app/(dashboard)/customers/asset-actions'
 import { EvacMapBuilder } from './evac-map-builder'
 import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
 
-/** 지도·사진 카드 (소방계획서_7 §5·§5-1 — H-10) — 소방계획서 탭 빠른 입력 화면 통합.
+/** 지도·사진 카드 (소방계획서_7 §5·§5-1 — H-10) — 2026-08-08부터 서식 1.3 안에 삽입되어 렌더된다.
  *  슬롯 3종: 표지 건물 사진(1장)·위치도/약도(1장)·피난안내도/평면도(복수).
  *  업로드·교체·삭제 + 썸네일, 드래그&드롭(R0-6 드롭존 패턴), 미등록이어도 문서 생성은 막지 않음(자리표시).
- *  H-11: 업로드 전 클라이언트에서 EXIF 회전 보정 + 장변 1600px 리사이즈(JPEG q0.85) — 서버 sharp 의존 없음. */
+ *  H-11: 업로드 전 클라이언트에서 EXIF 회전 보정 + 장변 1600px 리사이즈(JPEG q0.85) — 서버 sharp 의존 없음.
+ *  업로드는 [서식 1.3 저장]과 무관하게 즉시 스토리지에 확정된다(서식 JSON에 담기지 않음). */
 
 const MAX_EDGE = 1600
 
@@ -42,10 +45,11 @@ async function prepareFile(file: File): Promise<File> {
   }
 }
 
-export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
+export function CustomerAssetsClient({ customerId, canManage, initialAssets, embedded = false }: {
   customerId: string
   canManage: boolean
   initialAssets: CustomerAsset[]
+  embedded?: boolean   // 서식 1.3 안에 삽입될 때 — 바깥 카드와 겹치지 않게 흰 하위 박스로 렌더
 }) {
   const [assets, setAssets] = useState<CustomerAsset[]>(initialAssets)
   const [isPending, startTransition] = useTransition()
@@ -132,15 +136,23 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
     })
   }
 
-  // 빈 슬롯 자동 생성·저장 (2026-08-05 사용자 확정) — 진입 시 표지 위성·위치도가 비어 있으면 버튼 없이 자동 생성.
-  // 키 미설정·주소 없음 등 실패는 조용히 넘어감(수동 버튼 경로에서 사유 안내) — 자동 경로에서 에러 팝업 반복 방지
-  const autoTried = useRef(false)
+  // 마운트 시 ① 서명 URL 재발급 ② 빈 슬롯 자동 생성 — 순서가 중요하다(신선한 목록으로 빈 슬롯을 판정).
+  const mountRan = useRef(false)
   useEffect(() => {
-    if (!canManage || autoTried.current) return
-    autoTried.current = true
-    const missing = (['cover', 'map_location'] as const).filter(s => !assets.some(a => a.slot === s))
-    if (missing.length === 0) return
+    if (mountRan.current) return
+    mountRan.current = true
     startTransition(async () => {
+      // ① 서버 렌더 시점에 발급된 서명 URL은 이 화면을 여는 순간 이미 만료됐을 수 있다(썸네일이 깨져 보이던 원인).
+      //    슬롯 UI는 서식 1.3을 열 때 비로소 마운트되므로, 열 때마다 목록을 다시 받아 URL을 갈아끼운다.
+      let current = initialAssets
+      try {
+        const listed = await listCustomerAssetsAction(customerId)
+        if (listed.assets) { current = listed.assets; setAssets(current) }
+      } catch { /* 권한·네트워크 실패 — 서버가 준 initialAssets를 그대로 쓴다 */ }
+      if (!canManage) return
+      // ② 빈 슬롯 자동 생성·저장 (2026-08-05 사용자 확정) — 표지 위성·위치도가 비어 있으면 버튼 없이 자동 생성.
+      //    키 미설정·주소 없음 등 실패는 조용히 넘어감(수동 버튼 경로에서 사유 안내) — 자동 경로에서 에러 팝업 반복 방지
+      const missing = (['cover', 'map_location'] as const).filter(s => !current.some(a => a.slot === s))
       for (const slot of missing) {
         const res = await generateLocationMapAction(customerId, slot)
         if (res.unavailable) return
@@ -204,10 +216,18 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets }: {
   const evacAssets = assets.filter(a => a.slot === 'evac')
 
   return (
-    <div data-testid="customer-assets" className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
-      <p className="text-xs font-semibold text-[#514b81] mb-2">
+    <div data-testid="customer-assets"
+      className={embedded
+        ? 'rounded-lg border border-[#eceafd] bg-white p-2.5'
+        : 'rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4'}>
+      <p className={`font-semibold text-[#514b81] ${embedded ? 'text-[11px] mb-1.5' : 'text-xs mb-2'}`}>
         지도·사진 <span className="font-normal text-[#b0acd6]">(소방계획서 재료 — 미등록이어도 생성은 가능하며 자리표시로 대체됩니다)</span>
       </p>
+      {embedded && (
+        <p className="text-[11px] text-[#7d78a8] mb-2">
+          여기서 등록·교체·삭제한 이미지는 <strong>즉시 저장</strong>됩니다 — [서식 1.3 저장]을 누르지 않아도 됩니다.
+        </p>
+      )}
       <div className="grid gap-3 md:grid-cols-3">
         {/* 1장 슬롯: 표지 건물 사진 · 위치도(약도) */}
         {SLOTS.map(({ slot, label, hint }) => {

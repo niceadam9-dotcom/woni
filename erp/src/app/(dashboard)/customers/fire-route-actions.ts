@@ -25,6 +25,10 @@ const MAX_PATH_POINTS = 300   // 경로도 렌더에 충분하고 sections JSONB
 export type RouteMeta = {
   distanceM: number
   durationMs: number
+  /** 요청 라벨 — 1.3 드롭다운이 고른 값 그대로("양평소방서 (용문119안전센터)"). 캐시 유효성 판정 축 (A-3).
+   *  구 캐시에는 없어 optional — 없으면 stationName으로 판정한다 */
+  station?: string
+  /** 좌표를 실제로 사용한 소방서(본서) — 센터는 좌표 미보유라 본서로 환원된다 */
   stationName: string
   mainRoad: string | null
   routeDesc: string
@@ -38,6 +42,8 @@ export type FireRouteResult = {
   meta?: Omit<RouteMeta, 'path'> & { pathPoints: number }
   cached?: boolean
   cacheFailed?: boolean   // 조회는 됐으나 캐시 저장 실패 — 다음 조회가 또 API를 부른다
+  /** 119안전센터를 골랐지만 센터 좌표가 없어 본서 기준으로 계산했다 — 화면이 그대로 표기해야 한다 */
+  centerFallback?: boolean
 }
 
 function downsample(path: LngLat[]): LngLat[] {
@@ -95,10 +101,23 @@ async function resolveBuildingCoords(customerId: string): Promise<
   return { coords, name }
 }
 
-/** 관할 소방서 좌표 — region_fire_stations(114 컬럼). 주소만 있으면 지오코딩 후 저장 */
-async function resolveStationCoords(customerId: string): Promise<
-  { coords?: LngLat; name?: string; error?: string }
-> {
+/** 드롭다운 라벨 "양평소방서 (용문119안전센터)" → 본서명. 센터는 좌표를 보유하지 않아(117 스키마)
+ *  본서로 환원해 경로를 낸다 — 센터 좌표 도입(A-4)은 마이그레이션 동반이라 후속 과제다. */
+function stationBaseName(label: string): string {
+  return label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+}
+function isCenterLabel(label: string): boolean {
+  return stationBaseName(label) !== label.trim()
+}
+
+/** 경로 출발지가 될 관할 소방서 라벨 — 1.3에서 고른 값(preferred) 우선, 없으면 고객 정보·주소 추정 (A-1).
+ *  좌표 조회 전에 라벨만 확정해 캐시 유효성을 먼저 판정한다(A-3). */
+async function resolveStationLabel(
+  customerId: string, preferred?: string,
+): Promise<{ label?: string; error?: string }> {
+  const p = (preferred ?? '').trim()
+  if (p) return { label: p }
+
   const admin = createAdminClient()
   const { data: cust } = await admin.from('customers')
     .select('fire_station, region_si, region_myeon, address').eq('id', customerId).maybeSingle()
@@ -107,13 +126,21 @@ async function resolveStationCoords(customerId: string): Promise<
     region_myeon: string | null; address: string | null
   } | null
 
-  let name = (c?.fire_station ?? '').trim()
-  if (!name) {
-    const resolved = await resolveFireStation(admin, {
-      regionMyeon: c?.region_myeon, regionSi: c?.region_si, address: c?.address,
-    })
-    name = resolved?.station ?? ''
-  }
+  const saved = (c?.fire_station ?? '').trim()
+  if (saved) return { label: saved }
+  const resolved = await resolveFireStation(admin, {
+    regionMyeon: c?.region_myeon, regionSi: c?.region_si, address: c?.address,
+  })
+  if (!resolved?.station) return { error: '관할 소방서를 알 수 없습니다 — 기본정보에서 주소를 저장해주세요.' }
+  return { label: resolved.station }
+}
+
+/** 관할 소방서 좌표 — region_fire_stations(114 컬럼). 주소만 있으면 지오코딩 후 저장 */
+async function resolveStationCoords(label: string): Promise<
+  { coords?: LngLat; name?: string; error?: string }
+> {
+  const admin = createAdminClient()
+  const name = stationBaseName(label)
   if (!name) return { error: '관할 소방서를 알 수 없습니다 — 기본정보에서 주소를 저장해주세요.' }
 
   const { data: stRaw } = await admin.from('region_fire_stations')
@@ -136,36 +163,50 @@ async function resolveStationCoords(customerId: string): Promise<
   return { coords, name }
 }
 
-/** B-1·B-2 — 경로 조회(캐시 우선). refresh=true면 강제 재조회 */
+/** B-1·B-2 — 경로 조회(캐시 우선). refresh=true면 강제 재조회.
+ *  opts.station = 1.3에서 고른 관할 소방서(A-1) — 종전엔 고객 정보 값만 써서 1.3 선택이 무시됐다(K-1) */
 export async function getFireRouteAction(
   customerId: string,
-  opts?: { refresh?: boolean },
+  opts?: { refresh?: boolean; station?: string },
 ): Promise<FireRouteResult> {
   await requirePermission('customer_manage')
   if (!hasMapsCredentials()) return { unavailable: true }
 
+  const resolved = await resolveStationLabel(customerId, opts?.station)
+  if (resolved.error || !resolved.label) return { error: resolved.error }
+  const label = resolved.label
+
   const sections = await loadSections(customerId)
   const cached = sections.routeMeta as RouteMeta | undefined
-  if (!opts?.refresh && cached?.path?.length) {
+  // A-3: 캐시는 '어느 소방서 기준인가'가 같을 때만 유효 — 소방서를 바꿔도 옛 경로가 나오던 문제(K-2).
+  // 구 캐시(station 없음)는 stationName으로 판정한다.
+  const cachedLabel = cached?.station ?? cached?.stationName
+  if (!opts?.refresh && cached?.path?.length && cachedLabel === label) {
     const { path, ...rest } = cached
-    return { meta: { ...rest, pathPoints: path.length }, cached: true }
+    return {
+      meta: { ...rest, station: label, pathPoints: path.length },
+      cached: true, centerFallback: isCenterLabel(label),
+    }
   }
 
   const goal = await resolveBuildingCoords(customerId)
   if (goal.error || !goal.coords) return { error: goal.error }
-  const start = await resolveStationCoords(customerId)
+  const start = await resolveStationCoords(label)
   if (start.error || !start.coords) return { error: start.error }
 
   const res = await fetchDrivingRoute(start.coords, goal.coords)
   if (res.unavailable) return { unavailable: true }
   if (res.error || !res.route) return { error: res.error }
 
+  // 센터를 골랐어도 좌표는 본서 것이다 — 서술이 '용문119안전센터에서'라고 말하면 거짓이 되므로 본서명을 쓴다
+  const originName = start.name ?? '관할 소방서'
   const meta: RouteMeta = {
     distanceM: res.route.distanceM,
     durationMs: res.route.durationMs,
+    station: label,
     stationName: start.name ?? '',
     mainRoad: mainApproachRoad(res.route),
-    routeDesc: buildRouteDesc(res.route, start.name ?? '관할 소방서'),
+    routeDesc: buildRouteDesc(res.route, originName),
     path: downsample(res.route.path),
     fetchedAt: new Date().toISOString(),
   }
@@ -186,18 +227,23 @@ export async function getFireRouteAction(
     meta: { ...rest, pathPoints: path.length },
     cached: false,
     cacheFailed: !!cacheErr,
+    centerFallback: isCenterLabel(label),
   }
 }
 
 /** B-3 — 캐시된 경로로 경로도 PNG 생성 → plan-assets 업로드. 화면이 fa.routeImage에 반영한다 */
 export async function generateRouteImageAction(
   customerId: string,
+  opts?: { station?: string },
 ): Promise<{ path?: string; unavailable?: boolean; error?: string }> {
   await requirePermission('customer_manage')
   const sections = await loadSections(customerId)
   let meta = sections.routeMeta as RouteMeta | undefined
-  if (!meta?.path?.length) {
-    const fetched = await getFireRouteAction(customerId)
+  // 캐시가 다른 소방서 기준이면 경로도도 그 소방서 것이 된다 — 요청 소방서와 다르면 다시 조회한다 (A-3)
+  const staleStation = !!opts?.station?.trim()
+    && (meta?.station ?? meta?.stationName) !== opts.station.trim()
+  if (!meta?.path?.length || staleStation) {
+    const fetched = await getFireRouteAction(customerId, { station: opts?.station })
     if (fetched.unavailable) return { unavailable: true }
     if (fetched.error) return { error: fetched.error }
     meta = (await loadSections(customerId)).routeMeta as RouteMeta | undefined
