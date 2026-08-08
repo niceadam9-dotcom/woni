@@ -28,8 +28,10 @@ export type RouteMeta = {
   /** 요청 라벨 — 1.3 드롭다운이 고른 값 그대로("양평소방서 (용문119안전센터)"). 캐시 유효성 판정 축 (A-3).
    *  구 캐시에는 없어 optional — 없으면 stationName으로 판정한다 */
   station?: string
-  /** 좌표를 실제로 사용한 소방서(본서) — 센터는 좌표 미보유라 본서로 환원된다 */
+  /** 좌표를 실제로 사용한 출발지명 — 센터 좌표가 있으면 센터명, 없으면 본서명 */
   stationName: string
+  /** 센터를 골랐는데 좌표가 없어 본서로 물러났는지 (A-4-4). 구 캐시엔 없어 optional */
+  centerFallback?: boolean
   mainRoad: string | null
   routeDesc: string
   path: LngLat[]
@@ -101,13 +103,40 @@ async function resolveBuildingCoords(customerId: string): Promise<
   return { coords, name }
 }
 
-/** 드롭다운 라벨 "양평소방서 (용문119안전센터)" → 본서명. 센터는 좌표를 보유하지 않아(117 스키마)
- *  본서로 환원해 경로를 낸다 — 센터 좌표 도입(A-4)은 마이그레이션 동반이라 후속 과제다. */
+/** 드롭다운 라벨 "양평소방서 (용문119안전센터)" → 본서명 / 센터명 분해 */
 function stationBaseName(label: string): string {
   return label.replace(/\s*\([^)]*\)\s*$/, '').trim()
 }
-function isCenterLabel(label: string): boolean {
-  return stationBaseName(label) !== label.trim()
+function centerNameOf(label: string): string | null {
+  return label.trim().match(/\(([^)]*)\)\s*$/)?.[1]?.trim() || null
+}
+
+/** 119안전센터 좌표 (A-4-4, 마이그레이션 118) — 실제 출동은 센터에서 나가므로 좌표가 있으면 센터를 쓴다.
+ *  주소만 있으면 지오코딩 후 저장. 센터 행·주소·좌표가 모두 없으면 null → 호출부가 본서로 폴백한다.
+ *
+ *  ⚠ 센터명만으로 조회하면 안 된다(독립검증 지적) — fire_station_centers의 키는
+ *  (region_sido, region_si, center)라 '중앙119안전센터'처럼 흔한 이름은 시/도마다 있다.
+ *  라벨에 본서명이 함께 오므로 **소속 본서(station)로 좁혀** 오매칭을 막는다. */
+async function resolveCenterCoords(
+  admin: ReturnType<typeof createAdminClient>, stationName: string, centerName: string,
+): Promise<LngLat | null> {
+  const { data } = await admin.from('fire_station_centers')
+    .select('region_sido, region_si, center, center_address, center_lat, center_lng')
+    .eq('station', stationName).eq('center', centerName).limit(1).maybeSingle()
+  const c = data as {
+    region_sido: string; region_si: string
+    center_address: string | null; center_lat: number | null; center_lng: number | null
+  } | null
+  if (!c) return null
+  if (c.center_lat != null && c.center_lng != null) return [Number(c.center_lng), Number(c.center_lat)]
+  if (!c.center_address) return null
+
+  const coords = await geocodeToLngLat(c.center_address)
+  if (!coords) return null
+  await admin.from('fire_station_centers')
+    .update({ center_lat: coords[1], center_lng: coords[0] } as Record<string, unknown>)
+    .eq('region_sido', c.region_sido).eq('region_si', c.region_si).eq('center', centerName)
+  return coords
 }
 
 /** 경로 출발지가 될 관할 소방서 라벨 — 1.3에서 고른 값(preferred) 우선, 없으면 고객 정보·주소 추정 (A-1).
@@ -135,13 +164,21 @@ async function resolveStationLabel(
   return { label: resolved.station }
 }
 
-/** 관할 소방서 좌표 — region_fire_stations(114 컬럼). 주소만 있으면 지오코딩 후 저장 */
+/** 경로 출발지 좌표 — 센터를 골랐고 센터 좌표가 있으면 센터, 아니면 본서(region_fire_stations, 114).
+ *  centerFallback = 센터를 골랐는데 좌표가 없어 본서로 물러난 경우(화면이 그대로 표기한다). */
 async function resolveStationCoords(label: string): Promise<
-  { coords?: LngLat; name?: string; error?: string }
+  { coords?: LngLat; name?: string; error?: string; centerFallback?: boolean }
 > {
   const admin = createAdminClient()
   const name = stationBaseName(label)
   if (!name) return { error: '관할 소방서를 알 수 없습니다 — 기본정보에서 주소를 저장해주세요.' }
+
+  // A-4-4: 센터 좌표 우선 — 없으면 아래 본서 경로로 폴백한다
+  const centerName = centerNameOf(label)
+  if (centerName) {
+    const centerCoords = await resolveCenterCoords(admin, name, centerName)
+    if (centerCoords) return { coords: centerCoords, name: centerName, centerFallback: false }
+  }
 
   const { data: stRaw } = await admin.from('region_fire_stations')
     .select('fire_station, station_address, station_lat, station_lng')
@@ -150,8 +187,9 @@ async function resolveStationCoords(label: string): Promise<
     station_address: string | null; station_lat: number | null; station_lng: number | null
   } | null
   if (!st) return { error: `'${name}'의 좌표가 등록돼 있지 않습니다 — 소방서 시드(scripts/seed-fire-station-coords.mjs)를 실행해주세요.` }
+  const fellBack = !!centerName   // 센터를 골랐는데 여기까지 왔다 = 센터 좌표가 없어 본서로 물러남
   if (st.station_lat != null && st.station_lng != null) {
-    return { coords: [Number(st.station_lng), Number(st.station_lat)], name }
+    return { coords: [Number(st.station_lng), Number(st.station_lat)], name, centerFallback: fellBack }
   }
   if (!st.station_address) return { error: `'${name}'의 주소가 등록돼 있지 않습니다 — 소방서 시드를 실행해주세요.` }
 
@@ -160,7 +198,7 @@ async function resolveStationCoords(label: string): Promise<
   await admin.from('region_fire_stations')
     .update({ station_lat: coords[1], station_lng: coords[0] } as Record<string, unknown>)
     .eq('fire_station', name)
-  return { coords, name }
+  return { coords, name, centerFallback: fellBack }
 }
 
 /** B-1·B-2 — 경로 조회(캐시 우선). refresh=true면 강제 재조회.
@@ -185,7 +223,9 @@ export async function getFireRouteAction(
     const { path, ...rest } = cached
     return {
       meta: { ...rest, station: label, pathPoints: path.length },
-      cached: true, centerFallback: isCenterLabel(label),
+      cached: true,
+      // 구 캐시엔 centerFallback이 없다 — 라벨이 센터인데 기록이 없으면 폴백으로 본다(보수적)
+      centerFallback: cached.centerFallback ?? !!centerNameOf(label),
     }
   }
 
@@ -198,13 +238,15 @@ export async function getFireRouteAction(
   if (res.unavailable) return { unavailable: true }
   if (res.error || !res.route) return { error: res.error }
 
-  // 센터를 골랐어도 좌표는 본서 것이다 — 서술이 '용문119안전센터에서'라고 말하면 거짓이 되므로 본서명을 쓴다
+  // start.name은 **실제로 좌표를 쓴 곳**이다(센터 좌표가 있으면 센터명, 없으면 본서명) —
+  // 서술이 실제 출발지와 어긋나지 않도록 그대로 쓴다
   const originName = start.name ?? '관할 소방서'
   const meta: RouteMeta = {
     distanceM: res.route.distanceM,
     durationMs: res.route.durationMs,
     station: label,
     stationName: start.name ?? '',
+    centerFallback: !!start.centerFallback,
     mainRoad: mainApproachRoad(res.route),
     routeDesc: buildRouteDesc(res.route, originName),
     path: downsample(res.route.path),
@@ -227,7 +269,7 @@ export async function getFireRouteAction(
     meta: { ...rest, pathPoints: path.length },
     cached: false,
     cacheFailed: !!cacheErr,
-    centerFallback: isCenterLabel(label),
+    centerFallback: !!start.centerFallback,
   }
 }
 

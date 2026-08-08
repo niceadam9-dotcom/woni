@@ -15,6 +15,10 @@
  *   - 세부제원에 이미 값이 있으면 **합집합**으로 병합한다(사용자 입력 우선, 유실 없음).
  *   - 이관 후 레거시 행은 installed=false로 내린다(행 삭제 대신 — 되돌릴 수 있게).
  *   - customer_facility_specs는 (customer_id, building_id, section_key) 단위 1행이다.
+ *   - ⚠ 대상 행은 **화면이 지금 읽는 축**과 같아야 한다. page.tsx는
+ *     `specsByBuilding[건물id] ?? specsByBuilding['']`로 **건물 단위 통째 폴백**을 하므로,
+ *     공통(building_id NULL) 행만 있는 고객에게 건물 행을 새로 만들면 나머지 섹션이 통째로
+ *     가려진다. 그래서 건물 행이 이미 있으면 건물 행, 없고 공통 행만 있으면 공통 행에 쓴다.
  */
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
@@ -69,14 +73,26 @@ if (e2) { console.error('✗ buildings 조회:', e2.message); process.exit(1) }
 const custOf = new Map(blds.map(b => [b.id, b.customer_id]))
 const nameOf = new Map(blds.map(b => [b.id, b.building_name]))
 
+// 대상 축 판정용 — 이 고객들이 이미 어떤 축으로 세부제원을 갖고 있는지 (섹션 무관)
+const { data: axisRows, error: e2b } = await admin.from('customer_facility_specs')
+  .select('customer_id, building_id').in('customer_id', [...new Set(blds.map(b => b.customer_id))])
+if (e2b) { console.error('✗ specs 축 조회:', e2b.message); process.exit(1) }
+const hasBuildingRow = new Set((axisRows ?? []).filter(r => r.building_id).map(r => r.building_id))
+const hasCommonRow = new Set((axisRows ?? []).filter(r => !r.building_id).map(r => r.customer_id))
+
 let done = 0
 for (const [buildingId, typeSet] of byBuilding) {
   const customerId = custOf.get(buildingId)
   if (!customerId) { console.log(`  ⚠ 건물 ${buildingId} — customers 연결 없음, 건너뜀`); continue }
 
-  const { data: exRows } = await admin.from('customer_facility_specs')
-    .select('id, spec').eq('customer_id', customerId).eq('building_id', buildingId)
-    .eq('section_key', SECTION).limit(1)
+  // 건물 행이 이미 있으면 건물 축, 없고 공통 행만 있으면 공통 축(폴백 유지), 둘 다 없으면 건물 축(신규 저장 경로와 동일)
+  const targetBuildingId = hasBuildingRow.has(buildingId) ? buildingId
+    : hasCommonRow.has(customerId) ? null
+    : buildingId
+  let sel = admin.from('customer_facility_specs')
+    .select('id, spec').eq('customer_id', customerId).eq('section_key', SECTION)
+  sel = targetBuildingId ? sel.eq('building_id', targetBuildingId) : sel.is('building_id', null)
+  const { data: exRows } = await sel.limit(1)
   const ex = exRows?.[0]
   const spec = (ex?.spec ?? {})
   const block = { ...(spec['evac_equipment'] ?? {}) }
@@ -86,13 +102,13 @@ for (const [buildingId, typeSet] of byBuilding) {
   block.types = merged
   const nextSpec = { ...spec, evac_equipment: block }
 
-  console.log(`  ${nameOf.get(buildingId) ?? buildingId}: [${before.join(', ') || '없음'}] + [${[...typeSet].join(', ')}] → [${merged.join(', ')}]`)
+  console.log(`  ${nameOf.get(buildingId) ?? buildingId} [${targetBuildingId ? '건물' : '공통(NULL)'}축]: [${before.join(', ') || '없음'}] + [${[...typeSet].join(', ')}] → [${merged.join(', ')}]`)
   if (dry) { done++; continue }
 
   const { error: e3 } = ex
     ? await admin.from('customer_facility_specs').update({ spec: nextSpec }).eq('id', ex.id)
     : await admin.from('customer_facility_specs')
-      .insert({ customer_id: customerId, building_id: buildingId, section_key: SECTION, spec: nextSpec })
+      .insert({ customer_id: customerId, building_id: targetBuildingId, section_key: SECTION, spec: nextSpec })
   if (e3) { console.error(`  ✗ specs 저장 실패(${buildingId}): ${e3.message}`); process.exit(1) }
   done++
 }

@@ -73,6 +73,28 @@ export async function saveFirePlanSectionsAction(
     updated_by: profile.id,
   } as Record<string, unknown>)
   if (error) return { error: `저장 실패: ${error.message}` }
+
+  // D-2(소방계획서_13) — 1.3에서 관할 소방서를 확정했으면 고객 정보에도 반영한다.
+  // 종전엔 customers.fire_station(자동 지정)과 sections.location.fireStation(1.3 입력)이 이원화돼,
+  // 1.3에서 고친 값이 별지·보고서 계열에는 반영되지 않아 문서마다 다른 소방서가 찍힐 수 있었다.
+  // 사람이 고른 값이므로 source를 'manual'로 올려 '추정' 배지도 함께 걷는다.
+  //
+  // ⚠ **값이 실제로 달라졌을 때만** 쓴다. page.tsx:609가 1.3 미저장 고객의 fireStation을 고객 값으로
+  //   프리필하므로, 같은 값에도 쓰면 주변현황만 고쳐 저장해도 source가 'manual'로 올라가
+  //   '추정' 경고 배지가 확인 없이 사라진다(안전 신호 소실).
+  const station = ((patch.location as { fireStation?: string } | undefined)?.fireStation ?? '').trim()
+  if (station) {
+    const { data: cur } = await admin.from('customers')
+      .select('fire_station').eq('id', customerId).maybeSingle()
+    const prev = ((cur as { fire_station: string | null } | null)?.fire_station ?? '').trim()
+    if (prev !== station) {
+      // 실패해도 1.3 저장 자체는 성공이다 — 부가 동기화이므로 에러를 표면화하지 않는다
+      await admin.from('customers')
+        .update({ fire_station: station, fire_station_source: 'manual' } as Record<string, unknown>)
+        .eq('id', customerId)
+    }
+  }
+
   revalidatePath(`/customers/${customerId}`)
   return {}
 }

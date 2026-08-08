@@ -199,7 +199,7 @@ export function PlanForm13({
     }
   }
   const centerNote = (p: RoutePreview) =>
-    p.centerFallback ? ` (센터 좌표가 없어 ${p.stationName} 본서 기준)` : ''
+    p.centerFallback ? ` (센터 좌표가 없어 ${p.stationName} 기준)` : ''
 
   /** A-2 — 경로 조회 단일 진입점. 소방서 확정(자동)·[경로 다시 계산](수동)이 같은 규약을 쓴다.
    *  station은 방금 고른 값(state 반영 전이라 인자로 받는다). 빈 문자열이면 고객 자동값으로 폴백. */
@@ -275,50 +275,13 @@ export function PlanForm13({
   const taCls = 'w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y'
   return (
     <div className="space-y-4">
-      {/* 위치·운영현황 (2.1+2.2) */}
+      {/* ① 관할 소방서·출동 거리 (소방계획서_13 B안) — 1.3의 기준점이라 최상단 독립 카드로 둔다.
+          여기서 소방서를 정하면 거리·도착예상이 따라오고, ③의 서술·경로도 초안도 이 결과를 쓴다. */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">건축물 위치·운영현황</p>
-        {/* 2026-08-08 사용자 확정: 트리의 [지도·사진] 노드를 폐지하고 슬롯 UI(표지·위치도·피난안내도)를 여기로 삽입했다.
-            D-1이 여기를 '상태 표시 + 이동 버튼'으로 뒀던 이유(중복 입력 제거)는 그대로다 — 단일 원천이 1.3 안으로 들어왔을 뿐. */}
-        {assetsSlot}
-        {loc.mapImage && (
-          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
-            이 서식에 저장된 옛 위치도가 있습니다 — {hasMapAsset
-              ? '문서에는 위 [지도·사진]의 위치도만 인쇄됩니다(중복 방지).'
-              : '위 [지도·사진]이 비어 있어 문서에는 이 이미지가 인쇄됩니다.'}
-            {canManage && (
-              <button type="button" onClick={removeLegacyMap} data-testid="form13-remove-legacy-map"
-                className="ml-1 underline hover:text-red-600">삭제</button>
-            )}
-          </p>
-        )}
-        {/* D-2: 자동차 도로 기반 초안 — 도로명은 자동, 차로수·인접 건물은 사람이 채운다 */}
-        <div>
-          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <label className="text-[11px] font-medium text-[#514b81]">주변 현황</label>
-            <span className="text-[11px] text-[#b0acd6]">소방차 진입·연소 확대 판단 근거</span>
-            {canManage && (
-              <>
-                <span className="text-[11px] text-[#b0acd6] ml-1">방위</span>
-                {BEARINGS.map(b => (
-                  <button key={b} type="button" onClick={() => setBearing(v => (v === b ? '' : b))}
-                    className={`h-6 px-1.5 rounded-md border text-[11px] ${bearing === b
-                      ? 'border-[#7b68ee] bg-[#7b68ee] text-white'
-                      : 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>{b}</button>
-                ))}
-                <button type="button" onClick={suggestSurroundings} disabled={suggesting} data-testid="form13-suggest-surroundings"
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
-                  {suggesting ? <Loader2 className="size-3 animate-spin" /> : '✨'} 자동 문장 만들기
-                </button>
-              </>
-            )}
-          </div>
-          <textarea value={loc.surroundings} data-testid="form13-surroundings"
-            onChange={e => { patchLoc({ surroundings: e.target.value }); setSuggested(false) }} disabled={!canManage}
-            rows={2} placeholder="예: 북측 마유산로에 접함(왕복 2차로). 동측 5층 근린생활시설, 서측 공지 인접."
-            className={`${taCls} ${suggested ? 'ring-2 ring-[#a78bfa]' : ''}`} />
-          {suggestMsg && <p className="text-[11px] text-[#7d78a8] mt-0.5">{suggestMsg}</p>}
-        </div>
+        <p className="text-xs font-semibold text-[#514b81]">
+          관할 소방서·출동 거리
+          <span className="ml-1.5 font-normal text-[#b0acd6]">소방서를 고르면 거리·도착예상을 자동으로 계산합니다</span>
+        </p>
         <div className="flex items-end gap-2 flex-wrap">
           <div>
             <label className="text-[11px] font-medium text-[#514b81] block mb-1">관할 소방서</label>
@@ -368,10 +331,11 @@ export function PlanForm13({
         {route && (
           <p className="text-[11px] text-[#514b81]">
             <strong>{route.km}km · {route.min}분</strong>
-            <span className="text-[#b0acd6]"> ⓘ {route.stationName || '관할 소방서'}(본서)에서 일반 차량 기준</span>
+            {/* stationName = 실제로 좌표를 쓴 출발지(센터 좌표가 있으면 센터명) — '(본서)' 하드코딩 금지 */}
+            <span className="text-[#b0acd6]"> ⓘ {route.stationName || '관할 소방서'}에서 일반 차량 기준</span>
             {route.mainRoad && <span className="text-[#7d78a8]"> · 진입 도로: {route.mainRoad}</span>}
             {route.centerFallback && (
-              <span className="text-amber-600"> · 선택한 119안전센터는 좌표 미보유라 본서 기준입니다</span>
+              <span className="text-amber-600"> · 선택한 119안전센터는 좌표가 없어 본서 기준입니다</span>
             )}
           </p>
         )}
@@ -398,7 +362,7 @@ export function PlanForm13({
         {/* D-3: 관할 소방서는 주소 저장 시 고객 정보에 자동 지정된다 — 여기서 또 쓰지 않아도 인쇄된다 */}
         {autoFireStation && !loc.fireStation.trim() && (
           <p className="text-[11px] text-[#7d78a8]">
-            비워두면 고객 정보의 관할 소방서(<strong>{autoFireStation}</strong>)가 인쇄됩니다 — 다르면 여기에 직접 입력하세요.
+            비워두면 고객 정보의 관할 소방서(<strong>{autoFireStation}</strong>)가 인쇄됩니다 — 다르면 여기서 직접 고르세요.
           </p>
         )}
         {/* C-1: 마지막 폴백은 '시/군명+소방서' 규칙 추정이라 틀릴 수 있다.
@@ -408,9 +372,55 @@ export function PlanForm13({
         {fireStationEstimated && (!loc.fireStation.trim() || loc.fireStation.trim() === autoFireStation.trim()) && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1"
             data-testid="form13-station-estimated">
-            ⚠ <strong>{autoFireStation}</strong>은 주소에서 <strong>추정</strong>한 값입니다 — 관할이 맞는지 확인하고, 다르면 위 칸에 직접 입력하세요.
+            ⚠ <strong>{autoFireStation}</strong>은 주소에서 <strong>추정</strong>한 값입니다 — 관할이 맞는지 확인하고, 다르면 위 칸에서 고쳐주세요.
           </p>
         )}
+      </div>
+
+      {/* ② 건축물 위치·주변 현황 (2.1+2.2) */}
+      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
+        <p className="text-xs font-semibold text-[#514b81]">건축물 위치·주변 현황</p>
+        {/* 2026-08-08 사용자 확정: 트리의 [지도·사진] 노드를 폐지하고 슬롯 UI(표지·위치도·피난안내도)를 여기로 삽입했다.
+            D-1이 여기를 '상태 표시 + 이동 버튼'으로 뒀던 이유(중복 입력 제거)는 그대로다 — 단일 원천이 1.3 안으로 들어왔을 뿐. */}
+        {assetsSlot}
+        {loc.mapImage && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+            이 서식에 저장된 옛 위치도가 있습니다 — {hasMapAsset
+              ? '문서에는 위 [지도·사진]의 위치도만 인쇄됩니다(중복 방지).'
+              : '위 [지도·사진]이 비어 있어 문서에는 이 이미지가 인쇄됩니다.'}
+            {canManage && (
+              <button type="button" onClick={removeLegacyMap} data-testid="form13-remove-legacy-map"
+                className="ml-1 underline hover:text-red-600">삭제</button>
+            )}
+          </p>
+        )}
+        {/* D-2: 자동차 도로 기반 초안 — 도로명은 자동, 차로수·인접 건물은 사람이 채운다 */}
+        <div>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <label className="text-[11px] font-medium text-[#514b81]">주변 현황</label>
+            <span className="text-[11px] text-[#b0acd6]">소방차 진입·연소 확대 판단 근거</span>
+            {canManage && (
+              <>
+                <span className="text-[11px] text-[#b0acd6] ml-1">방위</span>
+                {BEARINGS.map(b => (
+                  <button key={b} type="button" onClick={() => setBearing(v => (v === b ? '' : b))}
+                    className={`h-6 px-1.5 rounded-md border text-[11px] ${bearing === b
+                      ? 'border-[#7b68ee] bg-[#7b68ee] text-white'
+                      : 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>{b}</button>
+                ))}
+                <button type="button" onClick={suggestSurroundings} disabled={suggesting} data-testid="form13-suggest-surroundings"
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                  {suggesting ? <Loader2 className="size-3 animate-spin" /> : '✨'} 자동 문장 만들기
+                </button>
+              </>
+            )}
+          </div>
+          <textarea value={loc.surroundings} data-testid="form13-surroundings"
+            onChange={e => { patchLoc({ surroundings: e.target.value }); setSuggested(false) }} disabled={!canManage}
+            rows={2} placeholder="예: 북측 마유산로에 접함(왕복 2차로). 동측 5층 근린생활시설, 서측 공지 인접."
+            className={`${taCls} ${suggested ? 'ring-2 ring-[#a78bfa]' : ''}`} />
+          {suggestMsg && <p className="text-[11px] text-[#7d78a8] mt-0.5">{suggestMsg}</p>}
+        </div>
         <div>
           <label className="text-[11px] font-medium text-[#514b81] block mb-1">운영 개요</label>
           <textarea value={loc.operation} onChange={e => patchLoc({ operation: e.target.value })} disabled={!canManage}
@@ -418,7 +428,7 @@ export function PlanForm13({
         </div>
       </div>
 
-      {/* 소방차 진입 (2.3+2.4) */}
+      {/* ③ 소방차 진입 (2.3+2.4) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
         <p className="text-xs font-semibold text-[#514b81]">소방차 세부진입 계획</p>
         {/* D-4′(§9) — 조회·거리·도착예상은 위 카드로 이관(C-1 중복 정리). 여기엔 이 카드의 필드를 채우는 초안 버튼만 둔다 */}
@@ -441,7 +451,7 @@ export function PlanForm13({
               </>
             ) : (
               <span className="text-[11px] text-[#b0acd6]">
-                위 <strong>관할 소방서</strong>를 고르면 경로가 조회되고, 여기서 진입경로 서술·경로도 초안을 만들 수 있습니다.
+                맨 위 <strong>관할 소방서·출동 거리</strong>에서 소방서를 고르면 경로가 조회되고, 여기서 진입경로 서술·경로도 초안을 만들 수 있습니다.
               </span>
             )}
             {draftMsg && <span className="w-full text-[11px] text-[#7d78a8]">{draftMsg}</span>}
@@ -466,7 +476,7 @@ export function PlanForm13({
         </div>
       </div>
 
-      {/* 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}
+      {/* ④ 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
         <p className="text-xs font-semibold text-[#514b81]">생성 문서 삽입 사진 <span className="font-normal text-[#b0acd6]">(그 밖의 참고 사진 — PDF·HWP 생성 시 본문에 삽입)</span></p>
         <p className="text-[11px] text-[#7d78a8]">

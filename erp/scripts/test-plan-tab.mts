@@ -143,6 +143,14 @@ try {
   // ── 소방계획서_13 — 관할 소방서 선택 시 거리·도착예상 자동완성(A안) + 조회 UI 단일화(C-1) ──
   // 조회 결과는 성공(값 기입)·미가용(403 안내)·실패(주소 없음) 어느 쪽이든 **안내가 뜨고 입력은 계속 가능**해야 한다
   const routeOutcome = '[data-testid="form13-route-msg"], [data-testid="form13-route-suggest"]'
+  // B안 — 관할 소방서가 1.3의 기준점이라 최상단 독립 카드다(주변 현황 카드보다 먼저)
+  check('B안 카드 ① 관할 소방서·출동 거리', await page.isVisible('text=관할 소방서·출동 거리'))
+  check('B안 카드 ② 건축물 위치·주변 현황', await page.isVisible('text=건축물 위치·주변 현황'))
+  const cardOrder = await page.evaluate(() => {
+    const t = document.body.innerText
+    return [t.indexOf('관할 소방서·출동 거리'), t.indexOf('건축물 위치·주변 현황'), t.indexOf('소방차 세부진입 계획')]
+  })
+  check('B안 카드 순서 ①→②→③', cardOrder[0] >= 0 && cardOrder[0] < cardOrder[1] && cardOrder[1] < cardOrder[2], cardOrder.join(','))
   const stationSel = page.locator('[data-testid="form13-station-select"]')
   check('A-1 관할 소방서 드롭다운', await stationSel.isVisible())
   const stOpts = await stationSel.evaluate((el: HTMLSelectElement) =>
@@ -178,6 +186,28 @@ try {
   const { data: f13 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
   const sec13 = f13?.sections as { location?: { surroundings: string }; fireAccess?: { entryPoint: string } } | null
   check('DB sections.location 저장', sec13?.location?.surroundings === '주변현황 E2E', JSON.stringify(sec13?.location))
+  // D-2 — 1.3에서 고른 소방서가 고객 정보에 역반영되고 source가 manual로 올라간다(문서 간 불일치 제거)
+  const { data: custStation } = await raw.from('customers')
+    .select('fire_station, fire_station_source').eq('id', customerId).single()
+  check('D-2 1.3 관할 소방서 → 고객 정보 역반영',
+    (custStation?.fire_station ?? '').trim() === (sec13?.location?.fireStation ?? '').trim()
+    && custStation?.fire_station_source === 'manual', JSON.stringify(custStation))
+  // D-2-2(독립검증 지적) — page.tsx가 1.3의 소방서를 고객 값으로 프리필하므로, **값이 같은 저장**에
+  // 역반영이 걸리면 '추정' 경고가 확인 없이 사라진다. 같은 값이면 source를 건드리지 않아야 한다.
+  await raw.from('customers').update({ fire_station_source: 'estimate' }).eq('id', customerId)
+  // 직전 저장의 router.refresh(RSC) 늦은 커밋이 controlled input을 되돌린다 — 값 검증 후 재입력(문서화된 플레이크 패턴)
+  await page.waitForLoadState('networkidle')
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.fill('[data-testid="form13-surroundings"]', '주변현황 E2E 2차')  // 소방서는 그대로 두고 dirty만 만든다
+    await page.waitForTimeout(400)
+    if (await page.locator('[data-testid="form13-surroundings"]').inputValue() === '주변현황 E2E 2차') break
+  }
+  await page.click('button:has-text("서식 1.3 저장")')
+  await page.waitForSelector('text=서식 1.3 저장됨')
+  const { data: keptSrc } = await raw.from('customers')
+    .select('fire_station_source').eq('id', customerId).single()
+  check('D-2 같은 값 저장은 source 유지(추정 배지 보존)',
+    keptSrc?.fire_station_source === 'estimate', JSON.stringify(keptSrc))
   check('DB sections.fireAccess 저장', sec13?.fireAccess?.entryPoint === '정문 앞', JSON.stringify(sec13?.fireAccess))
 
   // ── 4.6) 서식 1.5·1.6·1.7 (P4-③) — 저장·DB 반영 ──
