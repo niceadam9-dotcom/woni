@@ -80,40 +80,40 @@
           "sub": [
             { "id": "A-4-4-a", "desc": "마이그레이션 118 — fire_station_centers에 center_address·center_lat·center_lng", "status": "code_present", "note": "파일 작성 완료 · DB 적용은 수동(Supabase SQL 편집기) — 러너 스크립트 없음" },
             { "id": "A-4-4-b", "desc": "센터 좌표 우선 사용 + 없으면 본서 폴백 · centerFallback이 실제 폴백을 반영", "status": "implemented",
-              "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:116-140 resolveCenterCoords", "fire-route-actions.ts:169-174 센터 우선", "fire-route-actions.ts:189-196 fellBack"], "method": "독립 검증(Explore 판정자) 코드 대조" } },
+              "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["fire-route-actions.ts:116-140 resolveCenterCoords", "fire-route-actions.ts:169-174 센터 우선", "fire-route-actions.ts:189-196 fellBack"], "method": "독립 검증(Explore 판정자) 코드 대조" } },
             { "id": "A-4-4-c", "desc": "주소만 있으면 지오코딩 후 좌표 캐시", "status": "implemented",
-              "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:130-139"], "method": "독립 검증 코드 대조" } },
+              "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["fire-route-actions.ts:130-139"], "method": "독립 검증 코드 대조" } },
             { "id": "A-4-4-d", "desc": "stationName·routeDesc·UI가 실제 출발지와 일치 — '(본서)' 하드코딩 제거", "status": "implemented",
-              "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts originName = start.name", "plan-form13.tsx route 요약에서 '(본서)' 제거"], "method": "독립 검증 코드 대조" } },
+              "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["fire-route-actions.ts originName = start.name", "plan-form13.tsx route 요약에서 '(본서)' 제거"], "method": "독립 검증 코드 대조" } },
             { "id": "A-4-4-e", "desc": "캐시에 centerFallback 보존 + 구 캐시 하위호환", "status": "implemented",
-              "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["RouteMeta.centerFallback optional", "cached.centerFallback ?? !!centerNameOf(label)"], "method": "독립 검증 코드 대조" } },
+              "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["RouteMeta.centerFallback optional", "cached.centerFallback ?? !!centerNameOf(label)"], "method": "독립 검증 코드 대조" } },
             { "id": "A-4-4-f", "desc": "시드 스크립트가 주소를 하드코딩하지 않고 권위 CSV(공공데이터포털 소방청 119안전센터 현황)를 입력으로 받음", "status": "implemented",
-              "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["scripts/seed-fire-station-center-coords.mjs — --csv 입력·컬럼 자동 탐지·주소 변경 시 좌표 무효화"], "method": "독립 검증 코드 대조 + node --check" } },
+              "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["scripts/seed-fire-station-center-coords.mjs — --csv 입력·컬럼 자동 탐지·주소 변경 시 좌표 무효화"], "method": "독립 검증 코드 대조 + node --check" } },
             { "id": "A-4-4-g", "desc": "센터 조회를 소속 본서(station)로 좁혀 동명 센터 오매칭 방지", "status": "implemented",
-              "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-route-actions.ts:126-127 .eq('station', stationName).eq('center', centerName)"], "method": "독립 검증 판정자가 차단급으로 지적 → 실수정 후 재확인" }, "note": "판정자 지적으로 실구현된 항목(키가 (region_sido, region_si, center)라 센터명만으로는 오매칭)" }
+              "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["fire-route-actions.ts:126-127 .eq('station', stationName).eq('center', centerName)"], "method": "독립 검증 판정자가 차단급으로 지적 → 실수정 후 재확인" }, "note": "판정자 지적으로 실구현된 항목(키가 (region_sido, region_si, center)라 센터명만으로는 오매칭)" }
           ] }
       ] },
 
     { "id": "D-2", "title": "1.3 관할 소방서를 고객 정보에 역반영 (문서 간 불일치 제거)", "status": "implemented",
       "criteria": [
         { "id": "D-2-1", "desc": "1.3 저장 시 customers.fire_station 갱신 + fire_station_source='manual'", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-plan-form-actions.ts saveFirePlanSectionsAction 말미"], "method": "독립 검증 + E2E 'D-2 1.3 관할 소방서 → 고객 정보 역반영'" } },
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["fire-plan-form-actions.ts saveFirePlanSectionsAction 말미"], "method": "독립 검증 + E2E 'D-2 1.3 관할 소방서 → 고객 정보 역반영'" } },
         { "id": "D-2-2", "desc": "⚠ 값이 실제로 달라졌을 때만 쓴다 — page.tsx:609가 고객 값을 프리필하므로 같은 값에도 쓰면 '추정' 경고가 확인 없이 사라진다", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["fire-plan-form-actions.ts `if (prev !== station)`", "test-plan-tab.mts 'D-2 같은 값 저장은 source 유지(추정 배지 보존)'"], "method": "구현자 자체 점검으로 발견·수정 → E2E 단언 추가(독립검증 지적분 반영)" }, "note": "최초 구현은 `|| source !== 'manual'` 조건이라 이 결함이 있었다 — 자체 점검에서 잡아 수정" },
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["fire-plan-form-actions.ts `if (prev !== station)`", "test-plan-tab.mts 'D-2 같은 값 저장은 source 유지(추정 배지 보존)'"], "method": "구현자 자체 점검으로 발견·수정 → E2E 단언 추가(독립검증 지적분 반영)" }, "note": "최초 구현은 `|| source !== 'manual'` 조건이라 이 결함이 있었다 — 자체 점검에서 잡아 수정" },
         { "id": "D-2-3", "desc": "역반영 실패가 1.3 저장 자체를 실패시키지 않음(부가 동기화)", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["update 결과를 검사하지 않고 진행"], "method": "독립 검증 코드 대조" } },
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["update 결과를 검사하지 않고 진행"], "method": "독립 검증 코드 대조" } },
         { "id": "D-2-4", "desc": "'본서 (센터)' 라벨 저장 시 경로 조회·드롭다운 후보·인쇄가 깨지지 않음", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["stationBaseName/centerNameOf가 라벨을 분해", "listFireStationCandidates가 같은 라벨 형식을 생성"], "method": "독립 검증 코드 대조" } }
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["stationBaseName/centerNameOf가 라벨을 분해", "listFireStationCandidates가 같은 라벨 형식을 생성"], "method": "독립 검증 코드 대조" } }
       ] },
 
     { "id": "B", "title": "B안 — 관할 소방서 기준 4카드 재편", "status": "implemented",
       "criteria": [
         { "id": "B-1", "desc": "① 관할 소방서·출동 거리 → ② 건축물 위치·주변 현황 → ③ 소방차 세부진입 계획 → ④ 생성 문서 삽입 사진 순서", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx 카드 4개 재편", "test-plan-tab.mts 'B안 카드 순서 ①→②→③'"], "method": "독립 검증 + E2E 순서 단언(innerText 인덱스 비교)" } },
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["plan-form13.tsx 카드 4개 재편", "test-plan-tab.mts 'B안 카드 순서 ①→②→③'"], "method": "독립 검증 + E2E 순서 단언(innerText 인덱스 비교)" } },
         { "id": "B-2", "desc": "재편 과정에서 중복 렌더·필드 누락 없음(소방서·거리·ETA·조회·요약·제안·안내·주변현황·운영개요·서술·경로도·진입장소·주변소방시설·사진 각 1회)", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["독립 검증자가 항목별 1회 존재를 대조 확인"], "method": "독립 검증(Explore 판정자) 전수 대조" } },
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["독립 검증자가 항목별 1회 존재를 대조 확인"], "method": "독립 검증(Explore 판정자) 전수 대조" } },
         { "id": "B-3", "desc": "카드 간 안내 문구가 새 배치와 일치(하단 카드가 '맨 위 관할 소방서·출동 거리에서…')", "status": "implemented",
-          "verified": { "date": "2026-08-08", "commit": "미커밋(작업트리)", "evidence": ["plan-form13.tsx 하단 초안 블록 안내 문구"], "method": "독립 검증 코드 대조" } }
+          "verified": { "date": "2026-08-08", "commit": "49b818e", "evidence": ["plan-form13.tsx 하단 초안 블록 안내 문구"], "method": "독립 검증 코드 대조" } }
       ] },
 
     { "id": "A-5", "title": "낡은 값 경고 (K-4)", "status": "implemented",
