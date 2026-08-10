@@ -58,8 +58,10 @@ try {
     && await page.isVisible('text=1.14 화재예방 및 홍보') && await page.isVisible('text=1.15 피해 복구'))
   check('URL 딥링크 form=1.12', page.url().includes('form=1.12'))
 
-  // 1.12 화기취급 기록 추가
+  // 1.12 화기취급 기록 추가 — 일자는 공용 DateInput(달력 팝업 + 숫자 자동 하이픈)
   await page.locator('div:has(> div > p:text-is("1.12 화기취급 감독")) button:has-text("기록 추가")').click()
+  await page.locator('div:has(> div > p:text-is("1.12 화기취급 감독")) input[placeholder="YYYY-MM-DD"]').fill('20260810')
+  check('1.12 일자 숫자 자동 하이픈', await page.locator('div:has(> div > p:text-is("1.12 화기취급 감독")) input[placeholder="YYYY-MM-DD"]').inputValue() === '2026-08-10')
   await page.fill('input[placeholder="작업 장소"]', '지하 기계실')
   await page.fill('input[placeholder="작업 내용"]', '배관 용접')
   await page.fill('input[placeholder="감독자"]', '김감독')
@@ -73,6 +75,7 @@ try {
   const { data: f1215 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', custId).single()
   const s = (f1215?.sections ?? {}) as Record<string, Array<Record<string, string>>>
   check('DB fireworkLog 저장', s.fireworkLog?.[0]?.work === '배관 용접' && s.fireworkLog?.[0]?.supervisor === '김감독', JSON.stringify(s.fireworkLog))
+  check('DB fireworkLog 일자 저장', s.fireworkLog?.[0]?.date === '2026-08-10', JSON.stringify(s.fireworkLog))
   check('DB recoveryLog 저장', s.recoveryLog?.[0]?.recovery === '감지기 2개 교체')
   check('빈 카드 미저장(promoLog 0행)', (s.promoLog ?? []).length === 0)
   check('dutyLog 보존', (s.dutyLog ?? []).length === 1)

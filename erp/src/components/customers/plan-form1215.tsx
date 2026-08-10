@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
+import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.12~1.15 기록부 4종 (소방계획서_4.md §3 — §12-3 결정 2026-07-23: v1 포함)
  *  1.12 화기취급 감독 · 1.13 소방시설 공사/정비 기록 · 1.14 화재예방 및 홍보 · 1.15 피해 복구
@@ -17,7 +18,7 @@ const CARDS: CardDef[] = [
   {
     key: 'fireworkLog', title: '1.12 화기취급 감독',
     cols: [
-      { k: 'date', label: '일자', w: 'w-28' }, { k: 'place', label: '작업 장소', w: 'w-32' },
+      { k: 'date', label: '일자', w: 'w-36' }, { k: 'place', label: '작업 장소', w: 'w-32' },
       { k: 'work', label: '작업 내용', w: 'flex-1 min-w-40' }, { k: 'supervisor', label: '감독자', w: 'w-24' },
       { k: 'measure', label: '안전조치', w: 'w-40' },
     ],
@@ -25,7 +26,7 @@ const CARDS: CardDef[] = [
   {
     key: 'constructionLog', title: '1.13 소방시설 공사·정비 기록',
     cols: [
-      { k: 'date', label: '일자', w: 'w-28' }, { k: 'facility', label: '대상 설비', w: 'w-32' },
+      { k: 'date', label: '일자', w: 'w-36' }, { k: 'facility', label: '대상 설비', w: 'w-32' },
       { k: 'content', label: '공사·정비 내용', w: 'flex-1 min-w-40' }, { k: 'company', label: '시공업체', w: 'w-28' },
       { k: 'note', label: '비고', w: 'w-28' },
     ],
@@ -33,14 +34,14 @@ const CARDS: CardDef[] = [
   {
     key: 'promoLog', title: '1.14 화재예방 및 홍보',
     cols: [
-      { k: 'date', label: '일자', w: 'w-28' }, { k: 'method', label: '방법(게시·방송·교육 등)', w: 'w-40' },
+      { k: 'date', label: '일자', w: 'w-36' }, { k: 'method', label: '방법(게시·방송·교육 등)', w: 'w-40' },
       { k: 'content', label: '내용', w: 'flex-1 min-w-40' }, { k: 'target', label: '대상', w: 'w-28' },
     ],
   },
   {
     key: 'recoveryLog', title: '1.15 피해 복구',
     cols: [
-      { k: 'date', label: '일자', w: 'w-28' }, { k: 'damage', label: '피해 내용', w: 'flex-1 min-w-40' },
+      { k: 'date', label: '일자', w: 'w-36' }, { k: 'damage', label: '피해 내용', w: 'flex-1 min-w-40' },
       { k: 'recovery', label: '복구 조치', w: 'flex-1 min-w-40' }, { k: 'cost', label: '비용', w: 'w-24' },
     ],
   },
@@ -55,7 +56,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
   const [logs, setLogs] = useState<Record<string, LogRow[]>>(() =>
     Object.fromEntries(CARDS.map(c => [c.key, initial[c.key] ?? []])))
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -71,16 +72,20 @@ export function PlanForm1215({ customerId, canManage, initial }: {
     setLogs(p => ({ ...p, [key]: p[key].filter((_, j) => j !== i) }))
     setDirty(true)
   }
-  function save() {
-    startTransition(async () => {
-      const patch = Object.fromEntries(CARDS.map(c => [
-        c.key, logs[c.key].filter(r => Object.values(r).some(v => v.trim())),
-      ]))
-      const res = await saveFirePlanSectionsAction(customerId, patch)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.12~1.15 저장됨')
-      router.refresh()
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const patch = Object.fromEntries(CARDS.map(c => [
+          c.key, logs[c.key].filter(r => Object.values(r).some(v => v.trim())),
+        ]))
+        const res = await saveFirePlanSectionsAction(customerId, patch)
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.12~1.15 저장됨')
+        router.refresh()
+        resolve(true)
+      })
     })
   }
 
@@ -107,7 +112,10 @@ export function PlanForm1215({ customerId, canManage, initial }: {
           <div className="space-y-1.5">
             {logs[card.key].map((row, i) => (
               <div key={i} className="flex items-center gap-1.5 flex-wrap">
-                {card.cols.map(col => (
+                {card.cols.map(col => col.k === 'date' ? (
+                  <DateInput key={col.k} value={row[col.k] ?? ''} disabled={!canManage} title={`${col.label} — YYYY-MM-DD (달력 버튼으로 선택 가능)`}
+                    onChange={e => setCell(card.key, i, col.k, e.target.value)} className={`${inputCls} ${col.w}`} />
+                ) : (
                   <input key={col.k} value={row[col.k] ?? ''} disabled={!canManage} placeholder={col.label}
                     onChange={e => setCell(card.key, i, col.k, e.target.value)} className={`${inputCls} ${col.w}`} />
                 ))}
@@ -122,7 +130,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.12~1.15 저장
           </button>
