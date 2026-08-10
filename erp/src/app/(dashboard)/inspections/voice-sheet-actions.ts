@@ -6,6 +6,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { saveSheetResponsesAction, createDefectsFromXAction } from './sheet-actions'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { sheetScope, isItemInScope } from '@/lib/sheet-scope'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /** V-1 음성 점검표 입력 (소방계획서_4.md §9-4) — Plaud 전사 텍스트 → Claude 구조화 → 점검자 확인 후 저장.
  *  저장 타깃 = 기존 inspection_sheet_responses (점검표·별지 9호 3쪽·불량 등록 자동 연동).
@@ -45,23 +47,25 @@ export async function parseVoiceSheetAction(
   if (!process.env.ANTHROPIC_API_KEY) return { error: 'AI 구조화가 구성되지 않았습니다 (ANTHROPIC_API_KEY).' }
   const admin = createAdminClient()
 
-  const [{ data: insp }, { data: sheetsRaw }] = await Promise.all([
-    admin.from('inspections').select('customer_id').eq('id', inspectionId).single(),
-    admin.from('inspection_sheets').select('id, sheet_name').eq('version', 'v2025').eq('is_active', true).order('sheet_code'),
-  ])
-  if (!insp) return { error: '점검을 찾을 수 없습니다.' }
+  // 시트 버전·종합전용 범위는 이 점검 건의 판정을 따른다 (sheet-scope.ts 단일 소스).
+  // v2025 하드코딩이면 정기·일반(EXT v2022) 건에서 화면에 없는 STD 코드를 AI가 제안하게 된다.
+  const { data: inspRaw } = await admin.from('inspections')
+    .select('customer_id, plan_type, customer:customers(inspection_type)').eq('id', inspectionId).single()
+  if (!inspRaw) return { error: '점검을 찾을 수 없습니다.' }
+  const insp = inspRaw as unknown as { customer_id: string; plan_type: string | null; customer: { inspection_type: string } | null }
+  const scope = sheetScope(insp.plan_type, insp.customer?.inspection_type ?? null)
+
+  const { data: sheetsRaw } = await admin.from('inspection_sheets')
+    .select('id, sheet_name').eq('version', scope.version).eq('is_active', true).order('sheet_code')
   const sheets = (sheetsRaw ?? []) as Array<{ id: string; sheet_name: string }>
   const sheetNameById = new Map(sheets.map(s => [s.id, s.sheet_name]))
 
-  // 항목 카탈로그 (페이지 순회 — 1,000행 한도)
-  const items: Array<{ item_code: string; item_name: string; sheet_id: string }> = []
-  for (let from = 0; ; from += 1000) {
-    const { data: page } = await admin.from('inspection_sheet_items')
-      .select('item_code, item_name, sheet_id').order('item_code').range(from, from + 999)
-    const rows = (page ?? []) as typeof items
-    items.push(...rows)
-    if (rows.length < 1000) break
-  }
+  // 항목 카탈로그 — 이 점검의 시트·범위로 한정 (fetch-all.ts로 1,000행 한도 우회)
+  const { rows: itemRows } = await fetchAllRows<{ item_code: string; item_name: string; sheet_id: string; comprehensive_only: boolean }>(
+    (from, to) => admin.from('inspection_sheet_items')
+      .select('item_code, item_name, sheet_id, comprehensive_only')
+      .in('sheet_id', sheets.map(s => s.id)).order('item_code').range(from, to))
+  const items = itemRows.filter(i => isItemInScope(i, scope))
   const itemMap = new Map(items.map(i => [i.item_code, i]))
 
   // Claude 컨텍스트 — 시트별 항목 목록(코드:이름)
@@ -111,7 +115,7 @@ export async function parseVoiceSheetAction(
   // 누락 감지 — 설치 시설(fire_facilities) 기준 관련 시트 중 제안·기존 응답이 모두 없는 시트 (§9-4)
   // 매칭은 명시 매핑(sheet-facility-map.ts — 실전 검증에서 퍼지 매칭 결함 확인, 빠른 입력과 공용)
   const { data: blds } = await admin.from('buildings').select('id')
-    .eq('customer_id', (insp as { customer_id: string }).customer_id).eq('is_active', true)
+    .eq('customer_id', insp.customer_id).eq('is_active', true)
   const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
   let missingSheets: string[] = []
   if (bldIds.length > 0) {

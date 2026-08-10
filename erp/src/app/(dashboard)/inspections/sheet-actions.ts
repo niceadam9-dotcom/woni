@@ -4,6 +4,21 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+
+/** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
+async function loadScope(admin: ReturnType<typeof createAdminClient>, inspectionId: string) {
+  const { data } = await admin.from('inspections')
+    .select('customer_id, plan_type, customer:customers(inspection_type)')
+    .eq('id', inspectionId).maybeSingle()
+  if (!data) return null
+  const row = data as unknown as { customer_id: string; plan_type: string | null; customer: { inspection_type: string } | null }
+  return {
+    customerId: row.customer_id,
+    scope: sheetScope(row.plan_type, row.customer?.inspection_type ?? null),
+  }
+}
 
 /** 선택한 설비 점검표의 표준 항목 로드 (P34-2, 지연 로드) */
 export async function loadSheetItemsAction(sheetId: string): Promise<{
@@ -15,11 +30,7 @@ export async function loadSheetItemsAction(sheetId: string): Promise<{
     .select('item_code, item_name, comprehensive_only, facility_type')
     .eq('sheet_id', sheetId).order('order_num')
   const items = ((data ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; facility_type: string | null }>)
-    // 그룹: 표준(STD, 숫자 시작) = 코드 접두(1-A-001 → 1-A) / 외관(X)·안전시설등(MU) = 서식의 구분란(facility_type)
-    .map(({ facility_type, ...i }) => ({
-      ...i,
-      group: /^[A-Z]/.test(i.item_code) ? (facility_type ?? i.item_code.replace(/-\d+$/, '')) : i.item_code.replace(/-\d+$/, ''),
-    }))
+    .map(({ facility_type, ...i }) => ({ ...i, group: sheetItemGroup(i.item_code, facility_type) }))
   return { items }
 }
 
@@ -50,15 +61,13 @@ export async function bulkAllGoodAction(inspectionId: string): Promise<{
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
-  const { data: insp } = await admin.from('inspections')
-    .select('customer_id, customer:customers(inspection_type)').eq('id', inspectionId).maybeSingle()
+  const insp = await loadScope(admin, inspectionId)
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
-  const inspectionType = ((insp as unknown as { customer: { inspection_type: string } | null }).customer)?.inspection_type ?? ''
-  const isSpecial = inspectionType === '종합' || inspectionType === '작동'
+  const { scope } = insp
 
   // 설치 시설 코드 → 시트 매칭 (명시 매핑 — sheet-facility-map.ts, 실전 검증에서 퍼지 매칭 결함 확인)
   const { data: blds } = await admin.from('buildings').select('id')
-    .eq('customer_id', (insp as { customer_id: string }).customer_id).eq('is_active', true)
+    .eq('customer_id', insp.customerId).eq('is_active', true)
   const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
   const { data: facs } = bldIds.length > 0
     ? await admin.from('fire_facilities').select('facility_code').in('building_id', bldIds).eq('installed', true)
@@ -67,15 +76,17 @@ export async function bulkAllGoodAction(inspectionId: string): Promise<{
   if (codes.length === 0) return { error: '설치 시설 정보가 없습니다 — 소방계획서 탭 > 1.4 소방시설에서 설치 시설을 먼저 등록해주세요.' }
 
   const { data: sheetRaw } = await admin.from('inspection_sheets')
-    .select('id, sheet_name').eq('version', isSpecial ? 'v2025' : 'v2022')
+    .select('id, sheet_name').eq('version', scope.version)
   const sheets = ((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
     .filter(s => sheetMatchesFacilities(s.sheet_name, codes))
   if (sheets.length === 0) return { error: '설치 시설과 매칭되는 점검표 시트가 없습니다.' }
 
-  const { data: itemRaw } = await admin.from('inspection_sheet_items')
-    .select('item_code, comprehensive_only').in('sheet_id', sheets.map(s => s.id))
-  let items = (itemRaw ?? []) as Array<{ item_code: string; comprehensive_only: boolean }>
-  if (inspectionType === '작동') items = items.filter(i => !i.comprehensive_only)
+  // 항목 카탈로그는 1000행을 넘을 수 있어 페이징 필수 (fetch-all.ts)
+  const { rows: itemRaw, error: itemErr } = await fetchAllRows<{ item_code: string; comprehensive_only: boolean }>(
+    (from, to) => admin.from('inspection_sheet_items')
+      .select('item_code, comprehensive_only').in('sheet_id', sheets.map(s => s.id)).range(from, to))
+  if (itemErr) return { error: `항목 조회 실패: ${itemErr}` }
+  const items = itemRaw.filter(i => isItemInScope(i, scope))
 
   const { data: resp } = await admin.from('inspection_sheet_responses')
     .select('item_code').eq('inspection_id', inspectionId)
@@ -103,13 +114,12 @@ export async function searchQuickItemsAction(inspectionId: string, q: string): P
   if (query.length < 2) return { items: [] }
   const admin = createAdminClient()
 
-  const { data: insp } = await admin.from('inspections')
-    .select('customer:customers(inspection_type)').eq('id', inspectionId).maybeSingle()
-  const inspectionType = ((insp as { customer: { inspection_type: string } | null } | null)?.customer)?.inspection_type ?? ''
-  const isSpecial = inspectionType === '종합' || inspectionType === '작동'
+  const insp = await loadScope(admin, inspectionId)
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+  const { scope } = insp
 
   const { data: sheetRaw } = await admin.from('inspection_sheets')
-    .select('id, sheet_name').eq('version', isSpecial ? 'v2025' : 'v2022')
+    .select('id, sheet_name').eq('version', scope.version)
   const sheetName = new Map(((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>).map(s => [s.id, s.sheet_name]))
 
   const { data: itemRaw } = await admin.from('inspection_sheet_items')
@@ -117,8 +127,8 @@ export async function searchQuickItemsAction(inspectionId: string, q: string): P
     .in('sheet_id', [...sheetName.keys()])
     .or(`item_name.ilike.%${query.replace(/[%,()]/g, '')}%,item_code.ilike.%${query.replace(/[%,()]/g, '')}%`)
     .order('item_code').limit(20)
-  let items = (itemRaw ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; sheet_id: string }>
-  if (inspectionType === '작동') items = items.filter(i => !i.comprehensive_only)
+  const items = ((itemRaw ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; sheet_id: string }>)
+    .filter(i => isItemInScope(i, scope))
 
   const { data: resp } = items.length > 0
     ? await admin.from('inspection_sheet_responses').select('item_code, result')

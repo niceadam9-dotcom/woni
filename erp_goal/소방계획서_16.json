@@ -1,0 +1,177 @@
+{
+  "doc": "소방계획서_16 — 회차별 작성·조회에 점검표 트리 조회·입력 통합 (+ 시트 범위 판정 축 단일화)",
+  "design": "대화 확정(2026-08-10) + 계획 파일 ~/.claude/plans/robust-watching-bee.md — 별도 설계 MD 없음",
+  "created": "2026-08-10",
+  "updated": "2026-08-10",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0·S1만 코드 작업 완료, S2~S6 미착수",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류",
+    "confirmed": "설계 결정·조사 결과 확정"
+  },
+
+  "decisions": [
+    { "id": "D-1", "desc": "트리 깊이 = 회차 → 점검표 노드 → 설비(시트)별 요약 행 상시 표시 → 클릭한 시트만 인라인 확장(lazy load). 항목 전체 상시 펼침은 채택하지 않음", "status": "confirmed", "note": "2026-08-10 사용자 선택. 근거: 시트 다수 × 항목 50~200 = 한 카드에 수백~수천 행" },
+    { "id": "D-2", "desc": "구현 방식 = inspection-sheet-client.tsx의 항목 입력부를 공용 컴포넌트로 추출·공유. 트리 전용 입력 UI 신규 구현 금지", "status": "confirmed", "note": "annex-compose-panel.tsx:12 '화면 1개(이중 구현 금지)' 규약과 동일 원칙" },
+    { "id": "D-3", "desc": "화면 신선도 = Supabase Realtime postgres_changes 구독 (양방향)", "status": "confirmed", "note": "2026-08-10 사용자 선택. 대안이던 '진입·복귀 시 재조회'는 폴백으로 유지" },
+    { "id": "D-4", "desc": "저장 경로는 기존 saveSheetResponsesAction·createDefectsFromXAction 재사용 — 신규 저장 액션 0개, 동기화 로직 0줄", "status": "confirmed", "note": "inspection_sheet_responses의 UNIQUE(inspection_id,item_code)로 단일 원천이 이미 확보돼 있음" },
+    { "id": "D-5", "desc": "권한은 두 축 AND — 역할축(can(role,'inspection_register'))은 props 주입, 점검건축(isAssigned||manager||admin)은 액션 반환값", "status": "confirmed", "note": "화면 A가 화면 B(page.tsx:172-175)와 다르게 보이면 안 됨" }
+  ],
+
+  "diagnosis": [
+    { "id": "K-1", "desc": "⚠ 시트 버전 판정 축 불일치 — 화면은 plan_type 축, bulkAllGoodAction·searchQuickItemsAction은 customers.inspection_type 축. 일반관리 자체점검(inspection_type='일반관리' + plan_type='special_작동')에서 화면은 v2025 STD를 그리는데 [설치 설비 전체 양호 ○]는 v2022 EXT 코드를 저장 → 버튼을 눌러도 화면에 아무것도 안 채워지는 '보이지 않는 데이터'", "evidence": ["inspections/[id]/page.tsx(구):77-78 plan_type 축", "sheet-actions.ts(구):56-57 customers.inspection_type 축", "sheet-actions.ts(구):108-109 동일"], "severity": "high", "status": "confirmed", "proof": "test-sheet-scope-axis.mts를 수정 전 코드에 실행 → 3 통과/3 실패, 저장 코드가 [\"X1-01\",\"X1-02\",...] (EXT v2022)로 확인됨. 수정 후 6/6 통과", "note": "재현 케이스는 test-general-selfinspection.mts:83이 실제로 만드는 고객 구성" },
+    { "id": "K-2", "desc": "PostgREST 행 상한(db-max-rows 기본 1000) — inspection_sheet_items를 .in('sheet_id', 21개)로 페이징 없이 읽어 총 항목이 1000행을 넘으면 조용히 잘림. 진행률 분모가 이 쿼리라 20/24 같은 값이 틀리게 됨", "evidence": ["sheet-actions.ts(구):75-77 페이징 없음"], "severity": "medium", "status": "confirmed", "note": "현재 스테이징 실측 830행(활성 v2025 706행)으로 아직 한도 미만 — 시트 추가 시 터지는 잠복 결함" },
+    { "id": "K-3", "desc": "⚠ Realtime publication에 등록된 테이블이 0개 — supabase_realtime publication은 존재하나 스테이징·운영 모두 등록 테이블 없음. postgres_changes는 publication 등록 테이블만 이벤트를 내므로 알림 벨(notification-bell.tsx:38-49)의 실시간 수신은 지금까지 한 번도 동작한 적이 없다(마운트 시 조회한 20건만 표시). 마이그레이션 전체에 ALTER PUBLICATION ... ADD TABLE 문이 전무", "evidence": ["scripts/_check-realtime-publication.mjs 실행 결과 — 스테이징/운영 모두 '등록 테이블: (없음)'", "supabase/migrations/** grep 'ADD TABLE' 0건"], "severity": "high", "status": "confirmed", "note": "D-3(Realtime)의 필수 전제. inspection_sheet_responses REPLICA IDENTITY도 양쪽 'd'(기본, PK만) → DELETE 이벤트에서 inspection_id 필터 매칭 불가" },
+    { "id": "K-4", "desc": "respondedCounts 접두 문자열 파싱이 두 파일에서 각자 재구현 — 분모(시트 항목 수)·○✕／ 집계·comprehensive_only 범위를 못 구하고, MU 시트가 여러 개면 한 버킷('MU' 고정)으로 뭉갬. 시드 코드 규약에 우연히 맞아떨어져 동작 중", "evidence": ["inspections/[id]/page.tsx:116-119 응답→버킷", "inspection-sheet-client.tsx(구):209-214 시트→버킷"], "severity": "medium", "status": "confirmed", "note": "S3에서 sheet_id 조인으로 대체 예정 — 미착수" },
+    { "id": "K-5", "desc": "권한 축 불일치 — PlanAnnexSection은 canManage prop이 없고(plan-annex-section.tsx:40 customerId만 수신), 점검표 입력은 requirePermission('inspection_register'). 트리에 입력을 넣으면 권한 없는 사용자에게 입력 UI가 노출될 수 있음(서버는 막지만 UX 불량)", "evidence": ["plan-annex-section.tsx:40 props", "sheet-actions.ts:12 requirePermission"], "severity": "medium", "status": "confirmed", "note": "D-5로 해소 예정 — 미착수" },
+    { "id": "K-6", "desc": "음성 점검표가 v2025를 하드코딩 — 정기·일반(EXT v2022) 건에서 화면에 없는 STD 코드를 AI가 제안. 항목 카탈로그도 시트 필터 없이 전 버전을 읽어 종합전용(●) 필터도 없었음. K-1과 같은 축 문제의 4번째 사례", "evidence": ["voice-sheet-actions.ts(구):50 .eq('version','v2025') 하드코딩", "voice-sheet-actions.ts(구):59-60 sheet_id 필터 없는 전량 조회"], "severity": "medium", "status": "confirmed" },
+    { "id": "K-7", "desc": "회귀 함정 — test-annex-interaction.mts가 'text=점검표 입력' 문자열 개수로 회차 펼침 상태를 판정. 새 요약 행·편집기에 같은 문자열을 쓰면 깨진다", "evidence": ["test-annex-interaction.mts:84 count()===1", "test-annex-interaction.mts:90 count()===2"], "severity": "low", "status": "confirmed", "note": "S4 착수 시 준수 — 요약 행은 '설비별 진행', 편집기 헤더는 시트명만" },
+    { "id": "K-8", "desc": "test-voice-sheet.mts 기존 실패 — AI 구조화 후 제안 목록이 뜨지 않고 120초 타임아웃. voice-sheet-actions.ts를 HEAD로 되돌려 같은 시드로 재실행해도 동일 실패(인과 확정) → 이번 작업과 무관한 선행 결함", "evidence": ["HEAD 버전 실행 결과 1 통과/1 실패 — waitForSelector('확정 저장') 타임아웃", "ANTHROPIC_API_KEY는 .env.local에 존재(108자)"], "severity": "medium", "status": "pending_order", "note": "claude-opus-4-8 + thinking:{type:'adaptive'} 호출부 의심. 이번 범위 밖 — 사용자 판단 대기" },
+    { "id": "K-9", "desc": "fetchAllRows 중복 — inspection-plans/page.tsx:12에 같은 목적의 로컬 헬퍼가 이미 존재. 신규 lib/supabase/fetch-all.ts와 2벌", "evidence": ["inspection-plans/page.tsx:12-", "lib/supabase/fetch-all.ts:6"], "severity": "low", "status": "pending_order", "note": "통합은 후속 — 지금 건드리면 S1 검증 범위가 넓어짐" }
+  ],
+
+  "items": [
+    { "id": "S0", "title": "Realtime publication 실태 조사", "status": "implemented",
+      "criteria": [
+        { "id": "S0-1", "desc": "스테이징·운영의 supabase_realtime publication 등록 테이블·REPLICA IDENTITY 조회", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "(미커밋)", "evidence": ["scripts/_check-realtime-publication.mjs — Management API /database/query로 pg_publication_tables 조회", "실행 결과: 스테이징 nwflnzugwylhpdyodyog·운영 ryuozdhnilfjlahorizh 모두 '등록 테이블: (없음)', replident='d'"], "method": "운영·스테이징 DB 직접 조회(읽기 전용) — 재현 가능한 스크립트로 고정" } }
+      ],
+      "note": "조사 항목이라 판정자 분리 불필요 — 결과가 기계 조회로 재현 가능(K-3)" },
+
+    { "id": "S1", "title": "시트 범위 판정 축 단일화 + 1000행 상한 해소 (K-1·K-2·K-6)", "status": "code_present",
+      "note": "구현자 자기 신고 단계. Json_Rule 규칙 3에 따라 독립 검증 패스 전에는 implemented로 올리지 않는다 — 다만 아래 E2E는 구현자가 아니라 기계가 판정한 근거",
+      "criteria": [
+        { "id": "S1-1", "desc": "sheet-scope.ts 신설 — sheetScope/isItemInScope/sheetItemGroup/scopeLabel 단일 소스. plan_type 축 단독, inspection_type은 plan_type=null 레거시의 종류 판정에만", "status": "code_present",
+          "evidence": ["sheet-scope.ts:18 sheetScope", "sheet-scope.ts:27 isItemInScope", "sheet-scope.ts:32 sheetItemGroup", "sheet-scope.ts:38 scopeLabel"] },
+        { "id": "S1-2", "desc": "bulkAllGoodAction이 plan_type 축 사용 — 화면과 같은 버전의 시트를 채운다 (K-1 핵심)", "status": "code_present",
+          "evidence": ["sheet-actions.ts:11-21 loadScope 헬퍼", "sheet-actions.ts:64 bulkAllGood에서 loadScope", "sheet-actions.ts:89 isItemInScope 필터"],
+          "self_check": { "e2e": "test-sheet-scope-axis.mts", "result": "수정 전 3통과/3실패 → 수정 후 6/6 통과", "proves": "저장 코드가 X1-* (EXT) → 1-* (STD)로 교정됨을 DB 카탈로그 대조로 확인" } },
+        { "id": "S1-3", "desc": "searchQuickItemsAction도 같은 축 — 불량 검색 제안이 화면과 같은 버전", "status": "code_present",
+          "evidence": ["sheet-actions.ts:117 loadScope", "sheet-actions.ts:131 isItemInScope 필터"],
+          "self_check": { "e2e": "test-sheet-scope-axis.mts", "result": "'불량 검색 제안 = STD 축' 수정 전 ❌(X1-02) → 수정 후 ✅" } },
+        { "id": "S1-4", "desc": "화면 B(inspection-sheet-client)가 sheetScope 사용 — 자체 판정 제거", "status": "code_present",
+          "evidence": ["inspection-sheet-client.tsx:102 scope", "inspection-sheet-client.tsx:108 isItemInScope", "inspection-sheet-client.tsx:134 scopeLabel"] },
+        { "id": "S1-5", "desc": "점검 상세 서버 페이지가 sheetScope로 시트 버전 결정", "status": "code_present",
+          "evidence": ["inspections/[id]/page.tsx:80 sheetScope(inspPlanType) 구조분해", "inspections/[id]/page.tsx:107 .eq('version', sheetVersion)"],
+          "note": "isOperational은 여기서 폴백이 불필요해 의도적으로 구조분해에서 제외(오용 방지)" },
+        { "id": "S1-6", "desc": "fetch-all.ts 신설 + bulkAllGood 항목 조회에 페이징 적용 (K-2)", "status": "code_present",
+          "evidence": ["lib/supabase/fetch-all.ts:6 fetchAllRows", "sheet-actions.ts:85-89 페이징 적용"] },
+        { "id": "S1-7", "desc": "음성 점검표도 같은 축 + 카탈로그를 이 점검의 시트·범위로 한정 (K-6)", "status": "code_present",
+          "evidence": ["voice-sheet-actions.ts:56 sheetScope", "voice-sheet-actions.ts:60 .eq('version', scope.version)", "voice-sheet-actions.ts:64-68 시트 한정 + isItemInScope"],
+          "note": "⚠ 런타임 검증 불가 — test-voice-sheet.mts가 K-8(선행 결함)로 실패해 이 경로는 E2E로 확인하지 못함. 코드 대조만 됨" },
+        { "id": "S1-8", "desc": "축 회귀 방지 E2E 신설 — 일반관리 자체점검에서 화면·저장·검색이 같은 버전인지 고정", "status": "code_present",
+          "evidence": ["scripts/test-sheet-scope-axis.mts — 6체크(화면 라벨·저장 여부·코드 축·카탈로그 대조·종합전용 제외·검색 축)"],
+          "note": "test-all.mts 등록은 S6에서" }
+      ] },
+
+    { "id": "S2", "title": "sheet-overview.ts 집계 엔진 + 서버 액션 2개", "status": "pending_order",
+      "criteria": [
+        { "id": "S2-1", "desc": "buildSheetOverviews — 점검 N건·시트 M개와 무관하게 고정 6쿼리(N+1 없음), 전부 in-memory 집계", "status": "pending_order" },
+        { "id": "S2-2", "desc": "분모 = 시트 내 item_code Set 크기(시드 중복 방어). Set 없이 세면 24/22 역전", "status": "pending_order" },
+        { "id": "S2-3", "desc": "한 코드가 같은 버전 두 시트에 있으면 시트별 양쪽 계상, totals는 코드 dedup 후 계산", "status": "pending_order" },
+        { "id": "S2-4", "desc": "getInspectionSheetOverviewAction(inspectionIds[]) — 최대 8건 가드", "status": "pending_order" },
+        { "id": "S2-5", "desc": "loadSheetEditorAction(inspectionId, sheetId) — 인라인 확장 lazy 로드, 서버에서 scope 필터 적용", "status": "pending_order" },
+        { "id": "S2-6", "desc": "SheetOverview.canEdit — page.tsx:172-175와 문자 그대로 동일한 규칙 (D-5)", "status": "pending_order" }
+      ] },
+
+    { "id": "S3", "title": "SheetItemEditor 추출 + 화면 B 전환 (D-2·K-4)", "status": "pending_order",
+      "criteria": [
+        { "id": "S3-1", "desc": "inspection-sheet-client.tsx 234-291행(로딩·스크롤 컨테이너·에러·저장/취소 푸터·하단 안내)을 공용 컴포넌트로 추출", "status": "pending_order" },
+        { "id": "S3-2", "desc": "그룹핑과 inlineX/inlineMemo 상태를 편집기 내부로 이동 — 양쪽 화면 배선 0줄", "status": "pending_order" },
+        { "id": "S3-3", "desc": "화면 B 회귀 0 — 클래스·아이콘·문구 유지, 취소·저장 버튼 형제 순서 유지(test-mu-sheet.mts:37 셀렉터)", "status": "pending_order" },
+        { "id": "S3-4", "desc": "접두 파싱 폐기 → progress prop 사용 (K-4). page.tsx:113-120·inspection-sheet-client.tsx:209-214 삭제", "status": "pending_order" }
+      ] },
+
+    { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "pending_order",
+      "criteria": [
+        { "id": "S4-1", "desc": "설비별 요약 행 상시 표시 — 진행률 20/24 · ○✕／ 집계 · ⚠ 미입력", "status": "pending_order" },
+        { "id": "S4-2", "desc": "클릭한 시트만 인라인 확장(lazy) — 한 회차에서 동시 확장 1개", "status": "pending_order" },
+        { "id": "S4-3", "desc": "'설치 설비만 보기' 기본 ON, installed 전무면 자동 해제 + 안내", "status": "pending_order" },
+        { "id": "S4-4", "desc": "저장 후 편집기를 닫지 않고 해당 시트 요약만 부분 갱신 — reload() 전체 재조회 금지(미리보기 캐시 무효화 비용)", "status": "pending_order" },
+        { "id": "S4-5", "desc": "canRegister props 주입 + overview.canEdit AND 게이트, 불가 시 '보기 전용' 표기 (D-5)", "status": "pending_order" },
+        { "id": "S4-6", "desc": "미시작 회차(docs===null)는 액션 호출 자체 skip, 기존 [이 회차 시작] CTA 유지", "status": "pending_order" },
+        { "id": "S4-7", "desc": "'점검표 입력' 문자열을 새 UI에 재사용하지 않음 (K-7)", "status": "pending_order" }
+      ] },
+
+    { "id": "S5", "title": "마이그레이션 119 + Realtime 구독 (D-3·K-3)", "status": "pending_order",
+      "criteria": [
+        { "id": "S5-1", "desc": "119_realtime_sheet_responses.sql — supabase_realtime에 inspection_sheet_responses·notifications 등록(멱등) + REPLICA IDENTITY FULL", "status": "pending_order" },
+        { "id": "S5-2", "desc": "useSheetResponsesRealtime 훅 — deps는 ids.join(','), cleanup removeChannel", "status": "pending_order" },
+        { "id": "S5-3", "desc": "600ms 트레일링 디바운스 — bulkAllGood 수백 행 insert 시 이벤트 폭주 방지", "status": "pending_order" },
+        { "id": "S5-4", "desc": "에코 억제 — payload.new.updated_by === selfId면 skip", "status": "pending_order" },
+        { "id": "S5-5", "desc": "dirty 보호 — 편집 중이면 자동 갱신 대신 [최신 불러오기] 배너. 자동 덮어쓰기 금지", "status": "pending_order" },
+        { "id": "S5-6", "desc": "폴백 — subscribe status가 CHANNEL_ERROR/TIMED_OUT/CLOSED면 focus·visibilitychange 갱신으로 전환", "status": "pending_order" },
+        { "id": "S5-7", "desc": "staging 적용 후 라이브 스모크 — publication 등록만으로는 부족(Realtime 서비스가 프로젝트 레벨 OFF면 SQL로 못 켬)", "status": "pending_order" },
+        { "id": "S5-8", "desc": "알림 벨 회귀 스모크 — K-3 부수 효과로 실시간 수신이 처음 동작하는지 확인", "status": "pending_order" }
+      ] },
+
+    { "id": "S6", "title": "E2E 신규 작성 + 전체 회귀", "status": "pending_order",
+      "criteria": [
+        { "id": "S6-1", "desc": "test-annex-sheet-inline.mts — 요약 상시 표시·설치 필터·lazy 확장·저장 반영·X 인라인 등록·분모 정합성·권한·미시작 회차·Realtime 2탭 (9블록)", "status": "pending_order" },
+        { "id": "S6-2", "desc": "분모 정합성 체크 — 화면 A 분모와 /inspections/{id}의 같은 시트 항목 수 일치. K-1 재발을 상시 감시", "status": "pending_order" },
+        { "id": "S6-3", "desc": "Realtime 2탭 체크 — 새로고침 없이 갱신. publication 미등록이면 이 체크만 실패해 K-3을 정확히 지목", "status": "pending_order" },
+        { "id": "S6-4", "desc": "test-all.mts에 test-annex-sheet-inline·test-sheet-scope-axis 등록(needServer:true)", "status": "pending_order" }
+      ] }
+  ],
+
+  "verification": {
+    "done": [
+      { "target": "S1", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" },
+      { "target": "S1", "cmd": "npx tsx scripts/test-sheet-scope-axis.mts", "result": "6/6 (수정 전 3/6 — A/B로 K-1 실재 증명)", "date": "2026-08-10" },
+      { "target": "회귀", "cmd": "npx tsx scripts/test-mu-sheet.mts", "result": "5/5", "date": "2026-08-10" },
+      { "target": "회귀", "cmd": "npx tsx scripts/test-quick-defect.mts", "result": "7/7", "date": "2026-08-10" },
+      { "target": "회귀", "cmd": "npx tsx scripts/test-general-selfinspection.mts", "result": "14/14", "date": "2026-08-10" },
+      { "target": "회귀", "cmd": "npx tsx scripts/test-sheet-delete.mts", "result": "6/6", "date": "2026-08-10" },
+      { "target": "S0", "cmd": "node scripts/_check-realtime-publication.mjs", "result": "스테이징·운영 모두 등록 테이블 0개 확인", "date": "2026-08-10" }
+    ],
+    "failed_preexisting": [
+      { "target": "K-8", "cmd": "npx tsx scripts/test-voice-sheet.mts <inspId>", "result": "1/2 실패 — HEAD 버전도 동일 실패(인과 확정, 이번 변경 무관)", "date": "2026-08-10" }
+    ],
+    "pending": [
+      { "target": "S1", "desc": "Json_Rule 규칙 3 독립 검증 패스 — 구현자≠판정자로 S1 criteria 8건 재판정 후 implemented 승격", "status": "pending_order" }
+    ]
+  },
+
+  "files": {
+    "new": [
+      "erp/src/lib/sheet-scope.ts",
+      "erp/src/lib/supabase/fetch-all.ts",
+      "erp/scripts/test-sheet-scope-axis.mts",
+      "erp/scripts/_check-realtime-publication.mjs"
+    ],
+    "modified": [
+      "erp/src/app/(dashboard)/inspections/sheet-actions.ts",
+      "erp/src/app/(dashboard)/inspections/voice-sheet-actions.ts",
+      "erp/src/app/(dashboard)/inspections/[id]/page.tsx",
+      "erp/src/components/inspections/inspection-sheet-client.tsx"
+    ],
+    "planned": [
+      "erp/src/lib/sheet-overview.ts (S2)",
+      "erp/src/components/inspections/sheet-item-editor.tsx (S3)",
+      "erp/src/components/customers/plan-annex-sheet-tree.tsx (S4)",
+      "erp/src/hooks/use-sheet-responses-realtime.ts (S5)",
+      "erp/supabase/migrations/119_realtime_sheet_responses.sql (S5)",
+      "erp/scripts/test-annex-sheet-inline.mts (S6)"
+    ]
+  },
+
+  "not_adopted": [
+    { "id": "N-1", "desc": "회차 펼침 시 전 설비·전 항목 상시 렌더", "reason": "시트 다수 × 항목 50~200 = 한 카드에 수백~수천 행. 별지 행이 저 아래로 밀림", "alternative": "D-1 (요약 상시 + 클릭 시 인라인 확장)" },
+    { "id": "N-2", "desc": "트리 전용 경량 입력 UI 신규 구현", "reason": "annex-compose-panel.tsx:12 '이중 구현 금지' 규약 위반. 빠른입력·불량자동등록 개선이 한쪽에만 적용되는 분기 발생", "alternative": "D-2 (공용 컴포넌트 추출)" },
+    { "id": "N-3", "desc": "조회 전용(요약만 보여주고 입력은 링크)", "reason": "'별지는 트리에서 다 되는데 원천인 점검표만 화면 이탈'이라는 최초 문제가 그대로 남음", "alternative": "D-1" },
+    { "id": "N-4", "desc": "카탈로그(시트·항목) unstable_cache 캐싱", "reason": "test-sheet-delete.mts·seed 재시딩과 충돌해 플래키 유발. 고정 6쿼리로 충분", "alternative": "필요해지면 revalidate+태그로 후속" }
+  ],
+
+  "next_actions": [
+    "S1 커밋 (사용자 지시 대기 — 진행 승인 규칙)",
+    "S1 독립 검증 패스 후 code_present → implemented 승격",
+    "S2 착수 (집계 엔진 + 서버 액션 2개, UI 변경 0)",
+    "K-8(음성 점검표 기존 실패) 별건 처리 여부 사용자 판단",
+    "K-9(fetchAllRows 중복) 후속 통합"
+  ]
+}

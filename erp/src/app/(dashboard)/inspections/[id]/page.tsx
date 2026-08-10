@@ -15,6 +15,7 @@ import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { stepDocs } from '@/lib/doc-requirements'
+import { sheetScope } from '@/lib/sheet-scope'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
 import { computeQuickReadiness } from '@/lib/doc-requirements'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -75,7 +76,8 @@ export default async function InspectionDetailPage({
   // §9-9a: 자체점검 여부 — plan_type 축 단독 판정 (special_*·null=자체점검 / monthly·레거시 event=정기·일반).
   // 관리유형 무관 — 일반관리 자체점검도 소방시설등점검표·별지 9호 대상 (소방계획서_6 W-4)
   const inspPlanType = ((inspection as unknown as Record<string, unknown>).plan_type as string | null) ?? null
-  const isSpecial = !inspPlanType || inspPlanType.startsWith('special')
+  // 판정은 sheet-scope.ts 단일 소스 — 여기선 종류(작동/종합) 폴백이 불필요해 isSpecial·version만 꺼낸다
+  const { isSpecial, version: sheetVersion } = sheetScope(inspPlanType)
 
   // 고객, 관계인, 담당직원, 보고서 병렬 조회
   const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
@@ -103,7 +105,7 @@ export default async function InspectionDetailPage({
       .eq('inspection_id', id).order('generated_at', { ascending: false }),
     // 정기·일반 = 외관점검표 시트(EXT, 별지 6호 v2022 — §9-8d·§9-9a) / 특별 = 소방시설등점검표(STD v2025)
     admin.from('inspection_sheets').select('id, sheet_code, sheet_name')
-      .eq('version', isSpecial ? 'v2025' : 'v2022').order('sheet_code'),
+      .eq('version', sheetVersion).order('sheet_code'),
     admin.from('inspection_sheet_responses').select('item_code, result, memo').eq('inspection_id', id),
   ])
 

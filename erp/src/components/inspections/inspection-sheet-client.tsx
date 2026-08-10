@@ -7,6 +7,7 @@ import {
   loadSheetItemsAction, saveSheetResponsesAction, createDefectsFromXAction,
   bulkAllGoodAction, searchQuickItemsAction,
 } from '@/app/(dashboard)/inspections/sheet-actions'
+import { sheetScope, isItemInScope, scopeLabel } from '@/lib/sheet-scope'
 
 type Sheet = { id: string; sheet_code: string; sheet_name: string }
 type Item = { item_code: string; item_name: string; comprehensive_only: boolean; group: string }
@@ -98,14 +99,13 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   }
 
   // 자체점검 여부·종류 = plan_type 우선 (일반관리 자체점검 대응 — W-20). null 레거시는 inspection_type 폴백
-  const isSpecial = !planType || planType.startsWith('special')
-  const isOperational = isSpecial && (planType === 'special_작동' || (!planType && inspectionType === '작동'))
+  const scope = sheetScope(planType, inspectionType)
 
   function open(sheet: Sheet) {
     setError(''); setSel(sheet)
     startTransition(async () => {
       const { items: all } = await loadSheetItemsAction(sheet.id)
-      const visible = isOperational ? all.filter(i => !i.comprehensive_only) : all
+      const visible = all.filter(i => isItemInScope(i, scope))
       setItems(visible)
       const init: Record<string, Result> = {}
       for (const it of visible) { const r = responses[it.item_code]; if (r) init[it.item_code] = r.result }
@@ -131,9 +131,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       <div className="flex items-center gap-2 mb-3">
         <ClipboardCheck className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">점검표 입력</h2>
-        <span className="text-xs text-[#b0acd6] ml-auto">
-          {!isSpecial ? '외관점검 (별지 6호)' : isOperational ? '작동점검 (○항목)' : '종합점검 (전체)'}
-        </span>
+        <span className="text-xs text-[#b0acd6] ml-auto">{scopeLabel(scope)}</span>
       </div>
 
       {!sel && canManage && xCount > 0 && (
