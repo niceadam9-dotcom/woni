@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 
 /** 고객 상세 탭 셸 (설계 §2·§4·§6-C) — URL ?tab= 동기화 + 상태 뱃지 + 미저장 경고 + 다음 탭 전환.
  *  패널은 전부 서버 렌더 후 show/hide — 탭 전환에도 각 폼의 입력 상태가 유지된다. */
@@ -56,10 +57,44 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [])
 
+  // 미저장 SPA 링크 이탈 확인 — beforeunload는 클라이언트 라우팅(사이드바 Link 등)에는 발화하지 않는다.
+  // 다른 경로로 가는 내부 링크 클릭을 캡처 단계에서 가로채 확인창을 태운다 (?tab= 등 같은 경로 이동은 상태가 유지되므로 통과).
+  const linkNav = useUnsavedNavGuard<string>({
+    onProceed: href => router.push(href),
+    message: '지금 페이지를 떠나면 입력한 내용이 저장되지 않습니다.',
+  })
+  const linkNavRef = useRef(linkNav)
+  linkNavRef.current = linkNav
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = (e.target as HTMLElement).closest?.('a[href]') as HTMLAnchorElement | null
+      if (!a || a.target === '_blank' || a.hasAttribute('download')) return
+      const url = new URL(a.href, window.location.href)
+      if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return
+      if (dirtyRef.current.size === 0 && collectPlanSaveHandlers().length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      linkNavRef.current.request(url.pathname + url.search + url.hash)
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [])
+
+  // 미저장 탭 이동 확인 — [저장하고 이동]은 미저장 폼이 등록한 save()를 await 한다 (ui/unsaved-nav)
+  const nav = useUnsavedNavGuard<string>({
+    onProceed: applySwitchTab,
+    message: '지금 탭을 이동하면 이 탭에 입력한 내용이 저장되지 않습니다.',
+    saveLabel: '저장하고 탭 이동',
+    discardLabel: '저장하지 않고 탭 이동',
+  })
   function switchTab(key: string) {
     if (key === active) return
-    if (dirtyRef.current.has(active) &&
-        !window.confirm('저장하지 않은 변경사항이 있습니다. 탭을 이동할까요?')) return
+    // 계획서 서식(1.2~3장)은 setTabDirty 배선이 없다 — 미저장 서식이 등록한 save 핸들러(dirty일 때만 등록)를 함께 본다
+    if (dirtyRef.current.has(active) || (active === 'plan' && collectPlanSaveHandlers().length > 0)) { nav.request(key); return }
+    applySwitchTab(key)
+  }
+  function applySwitchTab(key: string) {
     setActive(key)
     const sp = new URLSearchParams(window.location.search)
     sp.set('tab', key)
@@ -79,6 +114,8 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
   const isFull = fullWidthKeys?.includes(active) ?? false
   return (
     <CustomerTabsContext.Provider value={ctx}>
+      {nav.dialog}
+      {linkNav.dialog}
       <div className="flex gap-6 items-start">
         <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
           <div role="tablist" className="flex flex-wrap gap-1 border-b border-[#c8c4d0]">

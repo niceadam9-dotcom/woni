@@ -13,6 +13,7 @@ import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-pla
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
+import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
@@ -124,9 +125,19 @@ export function PlanTabView({
     window.addEventListener('erp:plan-dirty', onDirty)
     return () => window.removeEventListener('erp:plan-dirty', onDirty)
   }, [])
+  // 미저장 이동 확인 — [저장하고 이동]은 지금 떠 있는 서식이 등록한 save()를 await 한다 (ui/unsaved-nav)
+  const nav = useUnsavedNavGuard<string>({
+    onProceed: applySelect,
+    message: '지금 이동하면 이 서식에 입력한 내용이 저장되지 않습니다.',
+  })
   function select(key: string) {
     if (key === sel) return
-    if (dirtyRef.current && !window.confirm('저장하지 않은 변경이 있습니다. 이동할까요?')) return
+    // 월 그리드 토글·스테퍼 ±·프리셋 버튼처럼 input 이벤트가 없는 변경은 캡처 휴리스틱이 못 잡는다 —
+    // 미저장 서식이 등록한 save 핸들러(usePlanSaveHandler, dirty일 때만 등록)를 정확한 신호로 함께 본다
+    if (dirtyRef.current || collectPlanSaveHandlers().length > 0) { nav.request(key); return }
+    applySelect(key)
+  }
+  function applySelect(key: string) {
     dirtyRef.current = false
     setSelState(key)
     // §1-3 URL 딥링크 동기화 (서버 왕복 없이)
@@ -378,6 +389,7 @@ export function PlanTabView({
         ]
         return (
         <div className="flex gap-4 items-start">
+          {nav.dialog}
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
           <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-0.5 sticky top-2">
             {/* ⚡ 빠른 입력 노드 폐기(2026-08-06) — 랜딩은 1.1 일반현황, 송달 동의는 1.1 하단으로 이관 */}
@@ -401,13 +413,19 @@ export function PlanTabView({
 
           {/* 콘텐츠 — 입력 캡처로 미저장 감지(1-2 휴리스틱: 입력=dirty, '저장' 클릭=해제) */}
           <div className="flex-1 min-w-0"
-            onInputCapture={() => { dirtyRef.current = true }}
+            onInputCapture={e => {
+              // 모바일 목차 드롭다운 자체의 input 이벤트는 편집이 아니다 — dirty로 오인하면 매 이동마다 확인창이 뜬다
+              if ((e.target as HTMLElement).closest('[data-plan-nav]')) return
+              dirtyRef.current = true
+            }}
             onClickCapture={e => {
-              const btn = (e.target as HTMLElement).closest('button')
+              const el = e.target as HTMLElement
+              if (el.closest('[data-unsaved-dialog]')) return   // 이동 확인창의 [저장하고 …]은 서식 저장이 아니다
+              const btn = el.closest('button')
               if (btn?.textContent?.includes('저장')) dirtyRef.current = false
             }}>
             {/* 모바일 목차 드롭다운 (7-6) */}
-            <select value={sel} onChange={e => select(e.target.value)}
+            <select value={sel} data-plan-nav onChange={e => select(e.target.value)}
               className="md:hidden mb-3 h-8 w-full rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none">
               {NAV_ALL.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
             </select>
