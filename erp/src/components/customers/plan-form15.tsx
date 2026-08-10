@@ -4,9 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { useUnsavedWarning } from '@/components/ui/fields'
+import { useUnsavedWarning, NumStepper } from '@/components/ui/fields'
 import { ImageSlot } from '@/components/customers/plan-form13'
-import { SectionCopyButton } from '@/components/customers/section-copy-button'
 
 /** 서식 1.5 피난·방화시설 및 제연, 방염 관련 현황 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  1.5.1 일반현황(sections.evacFire) + 1.5.2 방화·제연구획 현황도(sections.evacMaps + plan-assets) */
@@ -60,21 +59,25 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
   const [ef, setEf] = useState<EvacFireSection>({ ...EMPTY_EVAC_FIRE, ...initialEvacFire })
   const [maps, setMaps] = useState<EvacMapRow[]>(initialMaps)
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function patch(p: Partial<EvacFireSection>) { setEf(v => ({ ...v, ...p })); setDirty(true) }
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, {
-        evacFire: ef,
-        evacMaps: maps.filter(m => m.floor.trim() || m.image || m.desc.trim()),
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, {
+          evacFire: ef,
+          evacMaps: maps.filter(m => m.floor.trim() || m.image || m.desc.trim()),
+        })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.5 저장됨')
+        router.refresh()
+        resolve(true)
       })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.5 저장됨')
-      router.refresh()
     })
   }
 
@@ -107,12 +110,6 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
               용도 기본값 ({presetType})
             </button>
           )}
-          {canManage && (
-            <span className="ml-auto">
-              <SectionCopyButton customerId={customerId} sectionKey="evacFire" sectionLabel="1.5 피난·방화"
-                onApplied={v => { setEf({ ...EMPTY_EVAC_FIRE, ...(v as Partial<EvacFireSection>) }); setDirty(false); setMsg('✅ 다른 고객에서 복사됨 (저장 완료) — 현황도(1.5.2)는 이미지라 복사 제외') }} />
-            </span>
-          )}
         </div>
         {/* 계단 */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -131,9 +128,12 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
                   {s}
                 </button>
                 {on && (
-                  <input value={ef.stairs[s]} disabled={!canManage} inputMode="numeric" placeholder="개소"
-                    onChange={e => patch({ stairs: { ...ef.stairs, [s]: e.target.value } })}
-                    className={`${inputCls} w-14`} />
+                  <NumStepper value={ef.stairs[s]} disabled={!canManage} label={`${s} 개소`}
+                    onChange={v => patch({ stairs: { ...ef.stairs, [s]: v } })}>
+                    <input value={ef.stairs[s]} disabled={!canManage} inputMode="numeric" placeholder="개소"
+                      onChange={e => patch({ stairs: { ...ef.stairs, [s]: e.target.value } })}
+                      className={`${inputCls} w-14`} />
+                  </NumStepper>
                 )}
               </span>
             )
@@ -161,8 +161,11 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
           </div>
           <div>
             <label className="text-[10px] text-[#b0acd6] block">출입구 개소</label>
-            <input value={ef.evacFloor.exits} disabled={!canManage} inputMode="numeric"
-              onChange={e => patch({ evacFloor: { ...ef.evacFloor, exits: e.target.value } })} className={`${inputCls} w-20`} />
+            <NumStepper value={ef.evacFloor.exits} disabled={!canManage} label="출입구 개소"
+              onChange={v => patch({ evacFloor: { ...ef.evacFloor, exits: v } })}>
+              <input value={ef.evacFloor.exits} disabled={!canManage} inputMode="numeric"
+                onChange={e => patch({ evacFloor: { ...ef.evacFloor, exits: e.target.value } })} className={`${inputCls} w-14`} />
+            </NumStepper>
           </div>
           <div>
             <label className="text-[10px] text-[#b0acd6] block">개폐 방법</label>
@@ -223,7 +226,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.5 저장
           </button>

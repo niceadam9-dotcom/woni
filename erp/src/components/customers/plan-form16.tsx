@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { SectionCopyButton } from '@/components/customers/section-copy-button'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.6 기타시설 현황 (1.6.1) — 전기·가스·위험물 (소방계획서_4.md §3, sections.etcFacility)
@@ -29,7 +28,7 @@ export function PlanForm16({ customerId, canManage, initial }: {
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
 
   function pe(p: Partial<EtcFacilitySection['electric']>) { setV(x => ({ ...x, electric: { ...x.electric, ...p } })); setDirty(true) }
   function pg(p: Partial<EtcFacilitySection['gas']>) { setV(x => ({ ...x, gas: { ...x.gas, ...p } })); setDirty(true) }
@@ -37,13 +36,17 @@ export function PlanForm16({ customerId, canManage, initial }: {
   function lpgPreset() {
     pg({ kind: 'LPG', location: '주방·보일러실', usage: '취사·난방', regulator: true, shutoff: true })
   }
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, { etcFacility: v })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.6 저장됨')
-      router.refresh()
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, { etcFacility: v })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.6 저장됨')
+        router.refresh()
+        resolve(true)
+      })
     })
   }
 
@@ -60,12 +63,6 @@ export function PlanForm16({ customerId, canManage, initial }: {
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
         <div className="flex items-center gap-2">
           <p className="text-xs font-semibold text-[#514b81]">전기 시설</p>
-          {canManage && (
-            <span className="ml-auto">
-              <SectionCopyButton customerId={customerId} sectionKey="etcFacility" sectionLabel="1.6 기타시설"
-                onApplied={val => { setV({ ...EMPTY_ETC_FACILITY, ...(val as Partial<EtcFacilitySection>) }); setDirty(false); setMsg('✅ 다른 고객에서 복사됨 (저장 완료)') }} />
-            </span>
-          )}
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           {field('수전 용량', <NumField value={v.electric.kw} disabled={!canManage} decimal unit="kW" onChange={kw => pe({ kw })} className="h-7 w-24 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
@@ -124,7 +121,7 @@ export function PlanForm16({ customerId, canManage, initial }: {
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.6 저장
           </button>

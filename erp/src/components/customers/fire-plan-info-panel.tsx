@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Copy, Mail } from 'lucide-react'
-import { saveFirePlanInfoAction, refreshLedgerAction, getFirePlanCopyCandidatesAction, type FirePlanInfoInput, type BrigadeMemberInput, type CopySourceCandidate } from '@/app/(dashboard)/customers/fire-plan-info-actions'
+import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Mail } from 'lucide-react'
+import { saveFirePlanInfoAction, refreshLedgerAction, type FirePlanInfoInput, type BrigadeMemberInput } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-readiness'
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { CardAnchorBar, NumField, PhoneField } from '@/components/ui/fields'
+import { usePlanSaveHandler } from '@/components/ui/unsaved-nav'
 
 /** 소방계획서 정보 패널 (5+6차) — 준비율 게이지 + 항상 편집 폼(①시설 ②운영 ③화재보험) + 가져오기 (설계 §4·§5,
  *  소방계획서_10 §3-4: 요약/편집 모드·아코디언 폐기, 열자마자 편집 폼 노출) */
@@ -51,12 +52,12 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   const [isLedgerPending, startLedgerTransition] = useTransition()
   const [msg, setMsg] = useState('')
   const [showPicker, setShowPicker] = useState(false)
-  // §6-D-1·4: 추천/복사로 채워진 필드 → 앰버 하이라이트 + 근거 툴팁 (저장 시 해제)
+  // §6-D-1: 추천값으로 채워진 필드 → 앰버 하이라이트 + 근거 툴팁 (저장 시 해제)
   const [suggested, setSuggested] = useState<Record<string, string>>({})
-  const [copyList, setCopyList] = useState<CopySourceCandidate[] | null>(null)
-  const [showCopy, setShowCopy] = useState(false)
 
-  const markDirty = () => tabs?.setTabDirty('plan', true)
+  // 미저장 여부는 탭 셸(setTabDirty)과 이동 확인창 양쪽이 쓴다 — 로컬 상태로도 들고 있어야 [저장하고 이동] 등록 조건이 된다
+  const [dirty, setDirty] = useState(false)
+  const markDirty = () => { setDirty(true); tabs?.setTabDirty('plan', true) }
   const set = <K extends keyof FirePlanInfoInput>(k: K, v: FirePlanInfoInput[K]) => { markDirty(); setD(p => ({ ...p, [k]: v })) }
   const setBrigade = (i: number, k: keyof BrigadeMemberInput, v: string) => {
     markDirty()
@@ -143,18 +144,24 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     })
   }
 
-  function save() {
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
     setMsg('')
-    startTransition(async () => {
-      const res = await saveFirePlanInfoAction(customerId, d)
-      setMsg(res.error ? `❌ ${res.error}` : '✅ 저장되었습니다')
-      if (!res.error) {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanInfoAction(customerId, d)
+        setMsg(res.error ? `❌ ${res.error}` : '✅ 저장되었습니다')
+        if (res.error) { resolve(false); return }
+        setDirty(false)
         tabs?.setTabDirty('plan', false)
         setSuggested({})
         router.refresh()
-      }
+        resolve(true)
+      })
     })
   }
+  // 이동 확인창(서식 트리·탭 전환)의 [저장하고 이동]
+  usePlanSaveHandler(save, dirty)
 
   // §6-D-1: [추천값 채우기] — 빈 칸만, 앰버 하이라이트 + 근거, 확정은 사용자(저장 전 검토)
   function applySuggestions() {
@@ -195,37 +202,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     setMsg(`✅ ${rows.length}명 자동 편성 (관계인 → 직원 순) — 확인 후 저장하세요`)
   }
 
-  // §6-D-4: [다른 고객에서 복사] — 같은 용도 고객 값을 빈 칸에만 적용
-  function openCopy() {
-    setShowCopy(v => !v)
-    if (copyList === null) {
-      getFirePlanCopyCandidatesAction(customerId)
-        .then(r => setCopyList(r.candidates))
-        .catch(() => setCopyList([]))
-    }
-  }
-
-  const COPY_LABELS: Record<string, string> = {
-    receiverLocation: '수신기위치', structure: '구조', roof: '지붕', grade: '급수',
-    opHoursWeekday: '운영(평일)', opHoursHoliday: '운영(휴일)', insuranceCompany: '보험사',
-  }
-
-  function applyCopy(c: CopySourceCandidate) {
-    const entries = Object.entries(c.values) as Array<[keyof typeof c.values, string]>
-    const fills = entries.filter(([k, v]) => v && !(d[k as keyof FirePlanInfoInput] as string))
-    setShowCopy(false)
-    if (fills.length === 0) { setMsg(`'${c.name}'에서 복사할 빈 항목이 없습니다.`); return }
-    markDirty()
-    setD(prev => {
-      const next = { ...prev } as Record<string, unknown>
-      for (const [k, v] of fills) if (!(next[k] as string)) next[k] = v
-      return next as unknown as FirePlanInfoInput
-    })
-    setSuggested(prev => ({ ...prev, ...Object.fromEntries(fills.map(([k]) => [k, `'${c.name}'에서 복사`])) }))
-    setMsg(`📋 '${c.name}'에서 복사(빈 칸만): ${fills.map(([k]) => COPY_LABELS[k] ?? k).join(' · ')} — 확인 후 저장하세요`)
-  }
-
-  // 추천/복사 하이라이트 (앰버) — title에 근거 표시
+  // 추천값 하이라이트 (앰버) — title에 근거 표시
   const sgCls = (k: string) => (suggested[k] ? ' !border-amber-400 !bg-amber-50' : '')
   const sgTitle = (k: string) => suggested[k]
 
@@ -256,35 +233,14 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
       </div>
 
       <div className="px-4 pb-4 space-y-4">
-        {/* §6-D-1·4 도구 모음 */}
+        {/* §6-D-1 도구 모음 */}
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={applySuggestions}
             className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
             <Sparkles className="size-3" /> 추천값 채우기
           </button>
-          <button onClick={openCopy}
-            className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
-            <Copy className="size-3" /> 다른 고객에서 복사
-          </button>
           {msg && <span className="text-[11px] text-[#514b81]">{msg}</span>}
         </div>
-        {showCopy && (
-          <div className="rounded-lg border border-[#d0ccf5] bg-white shadow-lg max-h-48 overflow-y-auto max-w-md">
-            {copyList === null ? (
-              <p className="px-3 py-2 text-[11px] text-[#b0acd6]">불러오는 중…</p>
-            ) : copyList.length === 0 ? (
-              <p className="px-3 py-2 text-[11px] text-[#b0acd6]">같은 용도의 복사 후보가 없습니다</p>
-            ) : copyList.map(c => (
-              <button key={c.id} onClick={() => applyCopy(c)}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff]">
-                <span className="font-medium text-[#090c1d]">{c.name}</span>
-                <span className="text-[#b0acd6] ml-1.5">
-                  {[c.purpose, c.values.grade && `급수 ${c.values.grade}`, c.values.opHoursWeekday && `운영 ${c.values.opHoursWeekday}`, c.values.insuranceCompany].filter(Boolean).join(' · ')}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* §1-2 카드 앵커 점프 */}
         <CardAnchorBar items={[
@@ -480,7 +436,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         </section>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => save()} disabled={isPending}
+          <button onClick={() => { void save() }} disabled={isPending}
             className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
             {isPending && <Loader2 className="size-3 animate-spin" />} 저장
           </button>

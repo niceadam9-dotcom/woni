@@ -4,8 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Wand2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { useUnsavedWarning } from '@/components/ui/fields'
-import { SectionCopyButton } from '@/components/customers/section-copy-button'
+import { NumStepper, useUnsavedWarning } from '@/components/ui/fields'
 
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
  *  1.11.1 연간계획(교육/훈련 × 12개월 그리드 + [표준 패턴] §11-3) · 1.11.2 세부계획 · 1.11.3 시나리오(유형 프리셋) · 1.11.4 결과 기록부(별지 28호, 2년 보관) */
@@ -42,7 +41,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   const router = useRouter()
   const [t, setT] = useState<TrainingSection>(initial ?? EMPTY_TRAINING)
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -57,19 +56,23 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   function loadScenario(type: string) {
     patch({ scenario: SCENARIO_PRESETS[type] ?? '', scenarioType: type })
   }
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, {
-        training: {
-          ...t,
-          details: t.details.filter(d => d.name.trim() || d.at.trim()),
-          records: t.records.filter(r => r.at.trim() || r.content.trim()),
-        },
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, {
+          training: {
+            ...t,
+            details: t.details.filter(d => d.name.trim() || d.at.trim()),
+            records: t.records.filter(r => r.at.trim() || r.content.trim()),
+          },
+        })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.11 저장됨 — 별지 9호 교육훈련 실시 판정에도 사용됩니다')
+        router.refresh()
+        resolve(true)
       })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.11 저장됨 — 별지 9호 교육훈련 실시 판정에도 사용됩니다')
-      router.refresh()
     })
   }
 
@@ -99,19 +102,16 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <Wand2 className="size-3" /> 표준 패턴 (5·11월)
             </button>
           )}
-          {canManage && (
-            <span className="ml-auto">
-              <SectionCopyButton customerId={customerId} sectionKey="training" sectionLabel="1.11 훈련·교육"
-                onApplied={v => { setT({ ...EMPTY_TRAINING, ...(v as Partial<TrainingSection>) }); setDirty(false); setMsg('✅ 다른 고객에서 복사됨 (저장 완료)') }} />
-            </span>
-          )}
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           {([['worker', '근무 인원'], ['resident', '거주 인원'], ['brigade', '자위소방대']] as const).map(([k, label]) => (
             <div key={k}>
               <label className="text-[10px] text-[#b0acd6] block">{label}</label>
-              <input value={t.headcount[k]} disabled={!canManage} inputMode="numeric"
-                onChange={e => patch({ headcount: { ...t.headcount, [k]: e.target.value } })} className={`${inputCls} w-20`} />
+              <NumStepper value={t.headcount[k]} disabled={!canManage} label={label}
+                onChange={v => patch({ headcount: { ...t.headcount, [k]: v } })}>
+                <input value={t.headcount[k]} disabled={!canManage} inputMode="numeric"
+                  onChange={e => patch({ headcount: { ...t.headcount, [k]: e.target.value } })} className={`${inputCls} w-16`} />
+              </NumStepper>
             </div>
           ))}
         </div>
@@ -195,7 +195,10 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <select value={r.kind} disabled={!canManage} onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, kind: e.target.value } : x) })} className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
                 <option value="훈련">훈련</option><option value="교육">교육</option><option value="교육·훈련">교육·훈련</option>
               </select>
-              <input value={r.attendees} disabled={!canManage} inputMode="numeric" placeholder="참여인원" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, attendees: e.target.value } : x) })} className={`${inputCls} w-20`} />
+              <NumStepper value={r.attendees} disabled={!canManage} label="참여인원"
+                onChange={v => patch({ records: t.records.map((x, j) => j === i ? { ...x, attendees: v } : x) })}>
+                <input value={r.attendees} disabled={!canManage} inputMode="numeric" placeholder="참여인원" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, attendees: e.target.value } : x) })} className={`${inputCls} w-20`} />
+              </NumStepper>
               <input value={r.content} disabled={!canManage} placeholder="내용" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, content: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               <input value={r.evaluation} disabled={!canManage} placeholder="평가" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, evaluation: e.target.value } : x) })} className={`${inputCls} w-32`} />
               {canManage && (
@@ -210,7 +213,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.11 저장
           </button>
