@@ -2,9 +2,9 @@
   "doc": "소방계획서_16 — 회차별 작성·조회에 점검표 트리 조회·입력 통합 (+ 시트 범위 판정 축 단일화)",
   "design": "대화 확정(2026-08-10) + 계획 파일 ~/.claude/plans/robust-watching-bee.md — 별도 설계 MD 없음",
   "created": "2026-08-10",
-  "updated": "2026-08-10",
+  "updated": "2026-08-10 (S2 완료 반영)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
-  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0·S1만 코드 작업 완료, S2~S6 미착수",
+  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0·S1·S2 완료(S1 커밋 16b42da), S3~S6 미착수",
 
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -39,7 +39,7 @@
     { "id": "S0", "title": "Realtime publication 실태 조사", "status": "implemented",
       "criteria": [
         { "id": "S0-1", "desc": "스테이징·운영의 supabase_realtime publication 등록 테이블·REPLICA IDENTITY 조회", "status": "implemented",
-          "verified": { "date": "2026-08-10", "commit": "(미커밋)", "evidence": ["scripts/_check-realtime-publication.mjs — Management API /database/query로 pg_publication_tables 조회", "실행 결과: 스테이징 nwflnzugwylhpdyodyog·운영 ryuozdhnilfjlahorizh 모두 '등록 테이블: (없음)', replident='d'"], "method": "운영·스테이징 DB 직접 조회(읽기 전용) — 재현 가능한 스크립트로 고정" } }
+          "verified": { "date": "2026-08-10", "commit": "16b42da", "evidence": ["scripts/_check-realtime-publication.mjs — Management API /database/query로 pg_publication_tables 조회", "실행 결과: 스테이징 nwflnzugwylhpdyodyog·운영 ryuozdhnilfjlahorizh 모두 '등록 테이블: (없음)', replident='d'"], "method": "운영·스테이징 DB 직접 조회(읽기 전용) — 재현 가능한 스크립트로 고정" } }
       ],
       "note": "조사 항목이라 판정자 분리 불필요 — 결과가 기계 조회로 재현 가능(K-3)" },
 
@@ -69,14 +69,36 @@
           "note": "test-all.mts 등록은 S6에서" }
       ] },
 
-    { "id": "S2", "title": "sheet-overview.ts 집계 엔진 + 서버 액션 2개", "status": "pending_order",
+    { "id": "S2", "title": "sheet-overview.ts 집계 엔진 + 서버 액션 2개", "status": "code_present",
+      "note": "구현자 자기 신고 단계 — Json_Rule 규칙 3 독립 검증 전. 단 S2-1~S2-3·S2-6은 test-sheet-overview.mts(23체크)가 기계 판정한 근거를 self_check에 기록. S2-4·S2-5는 인증이 필요한 서버 액션이라 스크립트로 호출 불가 — S4 UI 배선 후 E2E로 검증 예정",
       "criteria": [
-        { "id": "S2-1", "desc": "buildSheetOverviews — 점검 N건·시트 M개와 무관하게 고정 6쿼리(N+1 없음), 전부 in-memory 집계", "status": "pending_order" },
-        { "id": "S2-2", "desc": "분모 = 시트 내 item_code Set 크기(시드 중복 방어). Set 없이 세면 24/22 역전", "status": "pending_order" },
-        { "id": "S2-3", "desc": "한 코드가 같은 버전 두 시트에 있으면 시트별 양쪽 계상, totals는 코드 dedup 후 계산", "status": "pending_order" },
-        { "id": "S2-4", "desc": "getInspectionSheetOverviewAction(inspectionIds[]) — 최대 8건 가드", "status": "pending_order" },
-        { "id": "S2-5", "desc": "loadSheetEditorAction(inspectionId, sheetId) — 인라인 확장 lazy 로드, 서버에서 scope 필터 적용", "status": "pending_order" },
-        { "id": "S2-6", "desc": "SheetOverview.canEdit — page.tsx:172-175와 문자 그대로 동일한 규칙 (D-5)", "status": "pending_order" }
+        { "id": "S2-1", "desc": "buildSheetOverviews — 점검 N건·시트 M개와 무관하게 고정 6쿼리(N+1 없음), 전부 in-memory 집계", "status": "code_present",
+          "evidence": ["sheet-overview.ts:63-66 ①점검", "sheet-overview.ts:78-80 ②시트 카탈로그(등장 버전만)", "sheet-overview.ts:84-87 ③항목(페이징)", "sheet-overview.ts:96-99 ④응답(페이징)", "sheet-overview.ts:107-116 ⑤⑥건물·시설"],
+          "self_check": { "e2e": "test-sheet-overview.mts", "result": "23/23", "proves": "회차 2건·시트 24개를 처리하면서 쿼리는 회차 수와 무관하게 고정" } },
+        { "id": "S2-2", "desc": "분모 = 시트 내 item_code Set 크기(시드 중복 방어). Set 없이 세면 분모가 부풀어 24/22 역전", "status": "code_present",
+          "evidence": ["sheet-overview.ts:135-138 codes Set 구성", "sheet-overview.ts:152 total: codes.size"],
+          "self_check": { "e2e": "test-sheet-overview.mts", "result": "'STD-01 분모 = 작동 범위 코드 Set 크기' 통과 — 엔진값과 독립 재계산값(다른 쿼리 경로) 일치" } },
+        { "id": "S2-3", "desc": "한 코드가 같은 버전 두 시트에 있으면 시트별 양쪽 계상, totals는 코드 dedup 후 계산", "status": "code_present",
+          "evidence": ["sheet-overview.ts:133 seenCodes Set", "sheet-overview.ts:145-150 회차 합계 dedup"],
+          "self_check": { "e2e": "test-sheet-overview.mts", "result": "'totals.total ≤ 시트별 합' · 'totals 분자·불량 = 주입값' 통과" } },
+        { "id": "S2-3b", "desc": "범위 필터가 실제로 분모를 바꾸는지 — 같은 고객·같은 시트에서 작동(23) vs 종합(25) 분모 차등", "status": "code_present",
+          "evidence": ["sheet-overview.ts:136 isItemInScope 적용"],
+          "self_check": { "e2e": "test-sheet-overview.mts", "result": "'작동 분모 < 전체' · '종합점검 분모 = 전체' · '작동/종합 분모가 서로 다름' 3체크 통과", "note": "초기 검증이 `<=`라 무의미할 뻔한 것을 차등 검증으로 교체" } },
+        { "id": "S2-4", "desc": "getInspectionSheetOverviewAction(inspectionIds[]) — 최대 8건 가드", "status": "code_present",
+          "evidence": ["sheet-actions.ts:25-38 액션 + 8건 가드"],
+          "note": "requirePermission 때문에 스크립트 직접 호출 불가 — S4 배선 후 E2E 검증" },
+        { "id": "S2-5", "desc": "loadSheetEditorAction(inspectionId, sheetId) — 인라인 확장 lazy 로드, 서버에서 scope 필터 적용", "status": "code_present",
+          "evidence": ["sheet-actions.ts:42-75 액션", "sheet-actions.ts:60 isItemInScope 서버 적용", "sheet-actions.ts:64-71 응답 동시 반환"],
+          "note": "동일 — S4 배선 후 E2E 검증" },
+        { "id": "S2-6", "desc": "canEditInspection — inspections/[id]/page.tsx:172-175와 같은 규칙 (D-5 점검 건 축)", "status": "code_present",
+          "evidence": ["sheet-overview.ts:50-53 canEditInspection", "sheet-actions.ts:73 loadSheetEditorAction에서 재사용"],
+          "self_check": { "e2e": "test-sheet-overview.mts", "result": "'canEdit: 담당자 true' · 'canEdit: 비담당 employee false' 통과" } },
+        { "id": "S2-7", "desc": "noFacilityInfo 신호 — 설치 시설 0건이면 호출부가 [설치 설비만 보기]를 자동 해제", "status": "code_present",
+          "evidence": ["sheet-overview.ts:161 noFacilityInfo"],
+          "self_check": { "e2e": "test-sheet-overview.mts", "result": "'noFacilityInfo true' · '시설 0건에도 시트 반환' 통과" } },
+        { "id": "S2-8", "desc": "집계 엔진 검증 스크립트 신설 — UI 없이 분모·집계·권한·정렬을 고정", "status": "code_present",
+          "evidence": ["scripts/test-sheet-overview.mts — 23체크. server-only 때문에 `npx tsx --conditions=react-server`로 실행"],
+          "note": "test-all.mts 등록은 S6에서" }
       ] },
 
     { "id": "S3", "title": "SheetItemEditor 추출 + 화면 B 전환 (D-2·K-4)", "status": "pending_order",
@@ -127,13 +149,16 @@
       { "target": "회귀", "cmd": "npx tsx scripts/test-quick-defect.mts", "result": "7/7", "date": "2026-08-10" },
       { "target": "회귀", "cmd": "npx tsx scripts/test-general-selfinspection.mts", "result": "14/14", "date": "2026-08-10" },
       { "target": "회귀", "cmd": "npx tsx scripts/test-sheet-delete.mts", "result": "6/6", "date": "2026-08-10" },
-      { "target": "S0", "cmd": "node scripts/_check-realtime-publication.mjs", "result": "스테이징·운영 모두 등록 테이블 0개 확인", "date": "2026-08-10" }
+      { "target": "S0", "cmd": "node scripts/_check-realtime-publication.mjs", "result": "스테이징·운영 모두 등록 테이블 0개 확인", "date": "2026-08-10" },
+      { "target": "S2", "cmd": "npx tsx --conditions=react-server scripts/test-sheet-overview.mts", "result": "23/23", "date": "2026-08-10" },
+      { "target": "S2", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
     ],
     "failed_preexisting": [
       { "target": "K-8", "cmd": "npx tsx scripts/test-voice-sheet.mts <inspId>", "result": "1/2 실패 — HEAD 버전도 동일 실패(인과 확정, 이번 변경 무관)", "date": "2026-08-10" }
     ],
     "pending": [
-      { "target": "S1", "desc": "Json_Rule 규칙 3 독립 검증 패스 — 구현자≠판정자로 S1 criteria 8건 재판정 후 implemented 승격", "status": "pending_order" }
+      { "target": "S1", "desc": "Json_Rule 규칙 3 독립 검증 패스 — 구현자≠판정자로 S1 criteria 8건 재판정 후 implemented 승격", "status": "pending_order" },
+      { "target": "S2", "desc": "S2 criteria 9건 독립 검증 후 승격. 특히 S2-4·S2-5(서버 액션)는 인증 필요로 아직 런타임 미검증 — S4 배선 후 E2E 필수", "status": "pending_order" }
     ]
   },
 
@@ -142,7 +167,9 @@
       "erp/src/lib/sheet-scope.ts",
       "erp/src/lib/supabase/fetch-all.ts",
       "erp/scripts/test-sheet-scope-axis.mts",
-      "erp/scripts/_check-realtime-publication.mjs"
+      "erp/scripts/_check-realtime-publication.mjs",
+      "erp/src/lib/sheet-overview.ts (S2)",
+      "erp/scripts/test-sheet-overview.mts (S2)"
     ],
     "modified": [
       "erp/src/app/(dashboard)/inspections/sheet-actions.ts",
@@ -151,7 +178,6 @@
       "erp/src/components/inspections/inspection-sheet-client.tsx"
     ],
     "planned": [
-      "erp/src/lib/sheet-overview.ts (S2)",
       "erp/src/components/inspections/sheet-item-editor.tsx (S3)",
       "erp/src/components/customers/plan-annex-sheet-tree.tsx (S4)",
       "erp/src/hooks/use-sheet-responses-realtime.ts (S5)",
@@ -168,10 +194,14 @@
   ],
 
   "next_actions": [
-    "S1 커밋 (사용자 지시 대기 — 진행 승인 규칙)",
-    "S1 독립 검증 패스 후 code_present → implemented 승격",
-    "S2 착수 (집계 엔진 + 서버 액션 2개, UI 변경 0)",
+    "S2 커밋 (사용자 지시 대기 — 진행 승인 규칙)",
+    "S3 착수 (SheetItemEditor 추출 + 화면 B 전환)",
+    "S1·S2 독립 검증 패스 후 code_present → implemented 승격",
     "K-8(음성 점검표 기존 실패) 별건 처리 여부 사용자 판단",
     "K-9(fetchAllRows 중복) 후속 통합"
+  ],
+
+  "notes": [
+    { "id": "N-a", "desc": "server-only 모듈을 스크립트에서 검증하는 법 — `npx tsx --conditions=react-server`로 실행하고 정적 import 대신 `await import('...ts')` 사용. 정적 import는 'does not provide an export named' 오류가 난다", "context": "test-sheet-overview.mts" }
   ]
 }

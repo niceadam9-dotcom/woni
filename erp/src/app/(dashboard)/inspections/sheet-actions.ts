@@ -6,18 +6,74 @@ import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
+import type { UserRole } from '@/types'
 
 /** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
 async function loadScope(admin: ReturnType<typeof createAdminClient>, inspectionId: string) {
   const { data } = await admin.from('inspections')
-    .select('customer_id, plan_type, customer:customers(inspection_type)')
+    .select('customer_id, plan_type, assigned_employee_id, customer:customers(inspection_type)')
     .eq('id', inspectionId).maybeSingle()
   if (!data) return null
-  const row = data as unknown as { customer_id: string; plan_type: string | null; customer: { inspection_type: string } | null }
+  const row = data as unknown as {
+    customer_id: string; plan_type: string | null
+    assigned_employee_id: string | null; customer: { inspection_type: string } | null
+  }
   return {
     customerId: row.customer_id,
+    assignedEmployeeId: row.assigned_employee_id,
     scope: sheetScope(row.plan_type, row.customer?.inspection_type ?? null),
   }
+}
+
+/** 회차별 작성·조회 트리의 설비별 요약 행 — 회차(들)의 시트별 진행률 일괄 조회.
+ *  집계는 sheet-overview.ts 단일 소스(점검 상세 배지와 같은 값). 남용 방지로 한 번에 8회차까지. */
+export async function getInspectionSheetOverviewAction(inspectionIds: string[]): Promise<{
+  error?: string
+  overviews?: Record<string, SheetOverview>
+}> {
+  const profile = await requirePermission('inspection_register')
+  if (inspectionIds.length === 0) return { overviews: {} }
+  if (inspectionIds.length > 8) return { error: '한 번에 조회할 수 있는 회차는 8건까지입니다.' }
+  const { overviews, error } = await buildSheetOverviews(
+    createAdminClient(), inspectionIds, { id: profile.id, role: profile.role as UserRole })
+  if (error) return { error }
+  return { overviews }
+}
+
+/** 트리 인라인 확장 — 한 시트의 항목 + 현재 응답을 지연 로드.
+ *  loadSheetItemsAction과 달리 이 점검 건의 범위(작동=종합전용 제외)를 서버에서 적용해 내려준다. */
+export async function loadSheetEditorAction(inspectionId: string, sheetId: string): Promise<{
+  error?: string
+  items?: Array<{ item_code: string; item_name: string; comprehensive_only: boolean; group: string }>
+  responses?: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>
+  canEdit?: boolean
+}> {
+  const profile = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  const [insp, { data: itemRaw }] = await Promise.all([
+    loadScope(admin, inspectionId),
+    admin.from('inspection_sheet_items')
+      .select('item_code, item_name, comprehensive_only, facility_type')
+      .eq('sheet_id', sheetId).order('order_num'),
+  ])
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+
+  const items = ((itemRaw ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; facility_type: string | null }>)
+    .filter(i => isItemInScope(i, insp.scope))
+    .map(({ facility_type, ...i }) => ({ ...i, group: sheetItemGroup(i.item_code, facility_type) }))
+
+  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
+  if (items.length > 0) {
+    const { data: respRaw } = await admin.from('inspection_sheet_responses')
+      .select('item_code, result, memo').eq('inspection_id', inspectionId).in('item_code', items.map(i => i.item_code))
+    for (const r of (respRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>) {
+      responses[r.item_code] = { result: r.result, memo: r.memo }
+    }
+  }
+  const canEdit = canEditInspection(insp.assignedEmployeeId, { id: profile.id, role: profile.role as UserRole })
+  return { items, responses, canEdit }
 }
 
 /** 선택한 설비 점검표의 표준 항목 로드 (P34-2, 지연 로드) */
