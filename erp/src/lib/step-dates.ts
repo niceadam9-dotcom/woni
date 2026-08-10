@@ -3,9 +3,14 @@
  *
  *  트리거 요약 (자체점검 = plan_type special_*·null):
  *    base   = 사용승인일이 있으면 점검 연도의 응당일, 없으면 점검시작일
- *    ① = base +1영업일 · ② = ① +5영업일 · ③ = ① +10영업일 · ④ = ① +15영업일
+ *    ① = base +1영업일 · ③ = ① +10영업일 · ④ = ① +15영업일
+ *    ② = 점검종료일(없으면 시작일) +5영업일  ← 법정 기산점(121, 아래 참조)
  *    ⑤ = ④ +9일(달력, 당일 포함 10일째) · ⑥ = ⑤ +10영업일
- *  정기(monthly)·레거시 event는 ① 하나뿐이고 마감일 = 점검시작일(영업일 보정 없음). */
+ *  정기(monthly)·레거시 event는 ① 하나뿐이고 마감일 = 점검시작일(영업일 보정 없음).
+ *
+ *  ② 점검인력 배치신고: 법정 "점검이 끝난 날부터 5일 이내"이고 협회 계산법이
+ *  "종료일 당일 및 기간 내 토요일·공휴일 산입 제외"라 5영업일과 같다 — 일수가 아니라
+ *  기산점이 틀렸던 것을 121에서 종료일 기준으로 정정했다. */
 
 export type StepPreviewRow = { step_num: number; name_ko: string; due_date: string }
 
@@ -55,16 +60,18 @@ const STEP_LABELS = [
   '이행완료보고서 제출',
 ]
 
-export function previewInspectionSteps({ startDate, useApprovalDate, holidays }: {
+export function previewInspectionSteps({ startDate, endDate, useApprovalDate, holidays }: {
   startDate: string
+  endDate?: string | null          // 다일 점검 종료일 — ②단계 법정 기산점 (없으면 시작일)
   useApprovalDate?: string | null
   holidays: Set<string>
 }): StepPreviewRow[] {
   if (!ISO_RE.test(startDate)) return []   // 타이핑 중인 부분 입력 — 무한 루프 방지
   const base = stepBaseDate(startDate, useApprovalDate)
+  const endBase = endDate && ISO_RE.test(endDate.slice(0, 10)) ? endDate.slice(0, 10) : startDate
   const s1 = addWorkingDays(base, 1, holidays)
   const s4 = addWorkingDays(s1, 15, holidays)
   const s5 = addCalendarDays(s4, 9)
-  const dues = [s1, addWorkingDays(s1, 5, holidays), addWorkingDays(s1, 10, holidays), s4, s5, addWorkingDays(s5, 10, holidays)]
+  const dues = [s1, addWorkingDays(endBase, 5, holidays), addWorkingDays(s1, 10, holidays), s4, s5, addWorkingDays(s5, 10, holidays)]
   return STEP_LABELS.map((name_ko, i) => ({ step_num: i + 1, name_ko, due_date: dues[i] }))
 }

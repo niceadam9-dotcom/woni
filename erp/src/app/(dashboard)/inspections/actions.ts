@@ -495,5 +495,5 @@ export async function getInspectionWithSteps(inspectionId: string) {
   }
 }
 
-// 단계 마감일 미리보기는 lib/step-dates.previewInspectionSteps로 단일화 (DB 트리거 111과 같은 산식).
+// 단계 마감일 미리보기는 lib/step-dates.previewInspectionSteps로 단일화 (DB 트리거 111+121과 같은 산식).
 // 종전 previewStepDates는 호출처 없이 달력일 산식을 따로 들고 있어 제거했다.

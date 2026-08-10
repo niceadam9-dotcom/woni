@@ -4,7 +4,7 @@
  *  실행: node scripts/_probe-step-preview.mjs   (DB만 사용 — dev 서버 불필요)
  */
 import { raw, check, summary, mkUser, mkCustomer, cleanupCustomer, delUser } from './_e2e-helpers.mjs'
-import { previewInspectionSteps } from '../src/lib/step-dates.ts'
+import { previewInspectionSteps, addWorkingDays } from '../src/lib/step-dates.ts'
 
 const EMAIL = 'e2e-steppreview@test.local'
 
@@ -14,7 +14,7 @@ async function loadHolidays(years) {
   return new Set((data ?? []).map(h => h.date))
 }
 
-let userId, custId, custId2
+let userId, custId, custId2, custId3
 try {
   const START = '2026-09-15'          // 화요일
   const APPROVAL = '2019-03-31'       // 사용승인일 있는 고객 — 응당일(3/31)이 기준이 되어야 한다
@@ -62,16 +62,51 @@ try {
     (stepsB ?? [])[0]?.due_date !== (stepsA ?? [])[0]?.due_date,
     `A ${(stepsA ?? [])[0]?.due_date} / B ${(stepsB ?? [])[0]?.due_date}`)
 
-  // ── ③ 종전 산식(달력일 +7)이 2단계와 실제로 달랐음을 기록 ────────
-  const legacy2 = new Date(new Date(START + 'T12:00:00').getTime() + 7 * 86400000).toISOString().split('T')[0]
+  // ── ③ 종전 미리보기(달력일 0/7/14/21/28/35)가 실제와 달랐음을 기록 ──
+  // ②단계는 정정 후 우연히 같은 날이 되기도 하므로 6단계 전체로 판정한다
+  const legacySeries = [0, 7, 14, 21, 28, 35].map(d =>
+    new Date(new Date(START + 'T12:00:00').getTime() + d * 86400000).toISOString().split('T')[0])
+  const actualSeries = (stepsA ?? []).map(s => s.due_date)
+  const diffCount = actualSeries.filter((d, i) => d !== legacySeries[i]).length
+  check('종전 달력일 산식은 실제와 불일치했다(수정 근거)', diffCount > 0,
+    `종전 ${legacySeries.join(',')} / 실제 ${actualSeries.join(',')}`)
   const actual2 = (stepsA ?? []).find(s => s.step_num === 2)?.due_date
-  check('종전 달력일 산식은 실제와 불일치했다(수정 근거)', legacy2 !== actual2,
-    `종전 미리보기 ${legacy2} / 실제 ${actual2}`)
+
+  // ── ④ ②단계 = 법정 기산점(점검종료일 +5영업일) — 마이그레이션 121 ──
+  // 협회 계산법: "점검이 끝난 날부터 5일", 종료일 당일·토요일·공휴일 산입 제외 = 종료일 +5영업일
+  const legal2 = addWorkingDays(START, 5, holidays)
+  check('A: ②단계 = 점검종료일 +5영업일 (법정)', actual2 === legal2, `실제 ${actual2} / 법정 ${legal2}`)
+  const oldFormula2 = addWorkingDays(stepsA[0].due_date, 5, holidays)
+  check('A: 종전 기산점(①+5영업일)보다 앞당겨졌다', actual2 !== oldFormula2, `종전 산식이면 ${oldFormula2}`)
+
+  // 사용승인일 고객도 ②단계만은 점검일 기준 — 기준일 이상치(응당일)에 영향받지 않아야 한다
+  const actualB2 = (stepsB ?? []).find(s => s.step_num === 2)?.due_date
+  check('B: 사용승인일 고객도 ②단계는 법정 기산점', actualB2 === legal2, `실제 ${actualB2} / 법정 ${legal2}`)
+
+  // ── ⑤ 다일 점검 — 종료일이 있으면 그 날 기준 ────────────────────
+  const END = '2026-09-17'
+  custId3 = await mkCustomer({ customer_name: 'E2E단계고객C', created_by: userId })
+  const { data: insC, error: eC } = await raw.from('inspections').insert({
+    customer_id: custId3, assigned_employee_id: userId, inspection_type: '작동',
+    inspection_start_date: START, inspection_end_date: END, inspection_days: 3,
+    sequence_num: 1, status: 'scheduled', created_by: userId,
+  }).select('id').single()
+  if (eC) throw new Error(`점검 C 생성 실패: ${eC.message}`)
+  const { data: stepsC } = await raw.from('inspection_steps')
+    .select('step_num, due_date').eq('inspection_id', insC.id).order('step_num')
+  const predC = previewInspectionSteps({ startDate: START, endDate: END, useApprovalDate: null, holidays })
+  const actualC2 = (stepsC ?? []).find(s => s.step_num === 2)?.due_date
+  check('C(다일): ②단계 = 종료일 +5영업일', actualC2 === addWorkingDays(END, 5, holidays),
+    `실제 ${actualC2} / 기대 ${addWorkingDays(END, 5, holidays)}`)
+  check('C(다일): 미리보기도 종료일 기준으로 일치',
+    predC.find(x => x.step_num === 2)?.due_date === actualC2,
+    `미리보기 ${predC.find(x => x.step_num === 2)?.due_date} / DB ${actualC2}`)
 } catch (e) {
   check('예외 없음', false, String(e?.message ?? e))
 } finally {
   await cleanupCustomer(custId).catch(() => {})
   await cleanupCustomer(custId2).catch(() => {})
+  await cleanupCustomer(custId3).catch(() => {})
   await delUser(userId).catch(() => {})
 }
 summary()
