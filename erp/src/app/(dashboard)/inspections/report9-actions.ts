@@ -9,6 +9,7 @@ import {
   renderReport9, FORM3_ITEMS, form3Group,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
+import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map'
 import { renderReport4, type Report4Data } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData } from '@/lib/doc-templates/exterior'
@@ -27,12 +28,8 @@ function kdate(iso: string): string {
   return `${y}년 ${m}월 ${d}일`
 }
 
-/** 설비명 포함 매칭 (공백 제거 후 상호 포함) — 워커 _match와 동일 계열 */
-function nameMatch(a: string, b: string): boolean {
-  const x = a.replace(/ /g, '')
-  const y = b.replace(/ /g, '')
-  return !!x && !!y && (x.includes(y) || y.includes(x))
-}
+/** (제거) 설비명 퍼지 매칭 nameMatch — T-3(소방계획서_14_점검업무)에서 명시 매핑으로 교체.
+ *  sheet-facility-map.ts의 form3ItemsForSheet·form3ItemMatchesFacility가 대체한다. */
 
 /** PostgREST 1,000행 한도 대비 offset 페이지 순회 — 워커 db_get_all과 동일 계열 */
 async function pageAll<T>(
@@ -270,13 +267,12 @@ async function assembleReport9(
   for (const r of specRows.filter(r => r.building_id === null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
   for (const r of specRows.filter(r => r.building_id !== null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
 
-  const facilityChecks = FORM3_ITEMS.filter(it => codes.some(c => nameMatch(c, it)))
-  const resultMarks: Record<string, 'O' | 'X' | 'N'> = {}
-  for (const it of FORM3_ITEMS) {
-    const st = [...sheetStat.entries()].find(([name]) => nameMatch(name, it))?.[1]
-    if (st?.any) resultMarks[it] = st.x ? 'X' : 'O'
-    else if (!facilityChecks.includes(it)) resultMarks[it] = 'N'
-  }
+  // T-3(소방계획서_14_점검업무) — 시트·설비 ↔ FORM3 연결에서 퍼지 매칭 제거.
+  // 종전 nameMatch(공백 제거 양방향 includes)는 sheet-facility-map 상단 주석의 두 결함을 문서 생성 경로에 남겨뒀다:
+  //   오검 — 설치 '스프링클러설비'가 '간이·화재조기진압용' 항목까지 켬 / '비상조명등'이 '휴대용비상조명등'까지 켬
+  //   누락 — 시트 '…시각경보장치' ↔ 항목 '…시각경보기', 시트 '소화용수설비' ↔ 항목 2종, '부속실 등 제연설비' 등
+  // 설비→항목은 정규화 정확 매칭, 시트→항목은 명시 매핑(미등재 시트만 퍼지 폴백). _probe-form3-map.mjs가 차이를 고정.
+  const { facilityChecks, resultMarks } = rollUpForm3Results(sheetStat, FORM3_ITEMS, codes)
 
   // 3쪽 2절 안전시설등(다중이용업소, §9-6e) — MU 시트 응답 항목 단위 반영 (다중이용업 아니면 응답 없음 → 공란)
   const muResults: Record<string, 'O' | 'X' | 'N'> = {}
@@ -340,7 +336,8 @@ async function assembleReport9(
     if (code.startsWith('MU-')) return '안전시설등'
     const sheetName = sheetByItem.get(code)
     if (sheetName) {
-      const it = FORM3_ITEMS.find(i => nameMatch(sheetName, i))
+      // T-3 — 명시 매핑(미등재 시트는 퍼지 폴백). 한 시트가 여러 항목을 덮어도 8쪽 구분은 같으므로 첫 항목으로 판정
+      const it = form3ItemsForSheet(sheetName, FORM3_ITEMS)[0]
       if (it) return form3Group(it)
     }
     return '기타'

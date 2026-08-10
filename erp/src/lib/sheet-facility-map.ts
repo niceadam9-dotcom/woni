@@ -49,3 +49,59 @@ export function facilitiesForSheet(sheetName: string, candidates: string[]): str
   if (mapped) return candidates.filter(c => mapped.includes(norm(c)))
   return candidates.filter(c => { const cn = norm(c); return cn.includes(sn) || sn.includes(cn) })
 }
+
+/** 시트명 → 별지9호 3쪽 FORM3 항목명 목록 (소방계획서_14_점검업무 T-3).
+ *
+ *  별도 매핑 표를 새로 쓰지 않고 SHEET_FACILITY_MAP을 그대로 쓴다 — 이 맵의 **값이 이미 FORM3 어휘**다
+ *  (FACILITY_STANDARD 42종과 FORM3_ITEMS 40종은 정규화하면 같은 어휘. `_probe-form3-map.mjs`가 매 실행마다 단언).
+ *  표를 두 벌 두면 한쪽만 고쳐져 다시 어긋나므로 단일 원천을 유지한다.
+ *
+ *  종전에는 assembleReport9가 자체 퍼지(nameMatch: 공백 제거 양방향 includes)로 시트↔FORM3를 이었고,
+ *  그 결과 이 파일 상단 주석의 두 결함(오검·누락)이 **문서 생성 경로에만** 남아 있었다.
+ *  미등재 시트(EXT 등)는 종전과 같이 퍼지 폴백 — 카탈로그 밖 시트를 떨어뜨리지 않기 위해서다. */
+export function form3ItemsForSheet(sheetName: string, form3Items: string[]): string[] {
+  const sn = norm(sheetName)
+  const mapped = MAP_BY_NORM.get(sn)
+  if (mapped) return form3Items.filter(i => mapped.includes(norm(i)))
+  return form3Items.filter(i => { const inm = norm(i); return inm.includes(sn) || sn.includes(inm) })
+}
+
+/** 설치 설비 코드 ↔ FORM3 항목 — 정규화 정확 매칭.
+ *  퍼지였을 때 '스프링클러설비' 설치가 '간이스프링클러설비'·'화재조기진압용스프링클러설비'까지,
+ *  '비상조명등'이 '휴대용비상조명등'까지 켜던 오검을 없앤다(표준 40종 중 5종에서 판정이 달라진다). */
+export function form3ItemMatchesFacility(form3Item: string, facilityCode: string): boolean {
+  return norm(form3Item) === norm(facilityCode)
+}
+
+/** 시트별 점검 응답 통계 — 시트명 → { any: 응답 있음, x: 불량 있음 } */
+export type SheetStat = { any: boolean; x: boolean }
+
+/** 별지9호 3쪽 롤업 — 시트 통계 + 설치 설비 → FORM3 항목별 설치 체크·점검결과 마크.
+ *
+ *  assembleReport9(서버 액션 파일이라 외부에서 호출 불가)에서 순수 로직만 뽑아낸 것.
+ *  T-3 프로브가 DB 없이 실제 코드를 검증할 수 있고, T-2a(세부제원 패널 점검 결과 배지)가
+ *  같은 함수를 재사용해 문서와 화면이 어긋나지 않는다.
+ *
+ *  규약: 응답 있으면 X 유무로 ○/×, 응답이 없고 미설치면 해당없음 ／, 응답도 설치도 없으면 공란(키 없음).
+ *  한 시트가 FORM3 여러 항목을 덮을 수 있어(예: '소화용수설비' → 상수도·소화수조) 항목별로 합산한다. */
+export function rollUpForm3Results(
+  sheetStat: Map<string, SheetStat> | Array<[string, SheetStat]>,
+  form3Items: string[],
+  installedCodes: string[],
+): { facilityChecks: string[]; resultMarks: Record<string, 'O' | 'X' | 'N'> } {
+  const facilityChecks = form3Items.filter(it => installedCodes.some(c => form3ItemMatchesFacility(it, c)))
+  const statByItem = new Map<string, SheetStat>()
+  for (const [sheetName, st] of sheetStat) {
+    for (const it of form3ItemsForSheet(sheetName, form3Items)) {
+      const cur = statByItem.get(it) ?? { any: false, x: false }
+      statByItem.set(it, { any: cur.any || st.any, x: cur.x || st.x })
+    }
+  }
+  const resultMarks: Record<string, 'O' | 'X' | 'N'> = {}
+  for (const it of form3Items) {
+    const st = statByItem.get(it)
+    if (st?.any) resultMarks[it] = st.x ? 'X' : 'O'
+    else if (!facilityChecks.includes(it)) resultMarks[it] = 'N'
+  }
+  return { facilityChecks, resultMarks }
+}
