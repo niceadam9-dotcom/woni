@@ -1,0 +1,369 @@
+{
+  "doc": "소방계획서_15 — 소방계획서 본문·별지 4호·별지 제9호서식 매핑 전수 점검 (감사 자료)",
+  "design": "erp_goal/소방계획서_15.md",
+  "created": "2026-08-10",
+  "updated": "2026-08-10",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "scope_note": "이 문서는 '구현 설계'가 아니라 '점검 결과'다. items = 발견된 매핑 결함이며 status는 **수정 여부**를 뜻한다. 발견 사실 자체의 신뢰도는 각 항목의 audit 필드로 따로 표기한다(recheck=direct는 본 세션이 코드를 직접 재확인, agent는 병렬 감사 에이전트의 파일:줄 보고). 2026-08-10 현재 **수정은 전건 미착수** — 사용자 진행 지시 대기. 추가(2026-08-10 사용자 지시): library_mapping_checklist = 공통 서술 라이브러리(소방계획서_14_점검업무.md) 구현 완료 후 실행할 매핑 점검표 — MD §5와 1:1, 전건 pending_order",
+
+  "status_legend": {
+    "pending_order": "미수정·지시 대기",
+    "code_present": "수정 코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 수정 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류",
+    "confirmed": "설계 결정 확정",
+    "needs_decision": "사용자 결정 필요 — 옳고 그름이 코드가 아니라 정책에서 갈림"
+  },
+
+  "audit_legend": {
+    "direct": "본 세션이 해당 파일을 직접 열어 재확인함 (증거 신뢰도 상)",
+    "agent": "병렬 감사 에이전트의 파일:줄 보고 — 수정 착수 시 해당 줄 재확인 권장"
+  },
+
+  "severity_legend": {
+    "critical": "생성 문서에 값이 틀리게 인쇄됨 — 관공서 제출물 오기재",
+    "major": "ERP에 입력받은 값이 문서에 나가지 않음(유실) 또는 오기재 위험",
+    "minor": "항상 빈칸·고정 문구·라벨 차이 등 — 실害 제한적",
+    "policy": "동작 자체는 의도적일 수 있음 — 정책 확정 필요"
+  },
+
+  "targets": [
+    { "id": "T-1", "name": "소방계획서 본문", "render": "erp/src/lib/fire-plan-template.ts (650줄)", "assemble": "erp/src/lib/fire-plan-generate.ts (345줄, assembleFirePlanGenData)", "baseline": "erp_goal/소방계획서_4.md §3 설계", "verdict": "키 매핑 정합(오타성 불일치 없음) · 값 수준 결함 다수", "counts": { "critical": 1, "major": 8, "minor": 11 } },
+    { "id": "T-2", "name": "별지 4호 소방시설등 점검표", "render": "erp/src/lib/doc-templates/report4.ts + spec-sections.ts + base.ts", "assemble": "erp/src/app/(dashboard)/inspections/report9-actions.ts:454-475 assembleReport4 (assembleReport9 재사용)", "baseline": "erp_goal/_doc01/[별지 4] …점검표(…고시) (2).xml (HWPML)", "verdict": "1·2쪽 + 세부현황 8섹션 재현 정합 · 설비별 점검표 본체는 스코프 외", "counts": { "critical": 0, "major": 2, "minor": 5 } },
+    { "id": "T-3", "name": "별지 제9호서식 자체점검 실시결과 보고서", "render": "erp/src/lib/doc-templates/report9.ts (440줄)", "assemble": "erp/src/app/(dashboard)/inspections/report9-actions.ts:166-449 assembleReport9", "baseline": "erp_goal/_form/별지9호-placeholder.hwpx (현행 2025.12.1 개정판) + erp_goal/_doc01/별지9호.MD", "verdict": "1~8쪽 전 칸 재현 · 3쪽 하위칸(fcf6661)·4~7쪽 파생·8쪽 자동화 연결 양호 · 판정 근거와 폴백에 리스크", "counts": { "critical": 0, "major": 3, "minor": 9 } },
+    { "id": "T-4", "name": "별지 10·11호 / 외관점검표", "render": "erp/src/lib/doc-templates/report1011.ts, exterior.ts", "verdict": "이번 감사 범위 외 — 동일 파이프라인이므로 후속 점검 권장", "status": "pending_order" }
+  ],
+
+  "items": [
+    { "id": "M-1", "target": "T-1", "title": "1.2.2 화재위험요소 체크가 실입력일 때만 전부 유실", "severity": "critical", "type": "bug", "status": "pending_order",
+      "audit": { "recheck": "direct", "date": "2026-08-10" },
+      "desc": "서식 1.2 저장값은 짧은 라벨 ['전기','기계','화학','가스누출','부주의','자연재해']인데, 조립이 무변환 전달하고 템플릿은 긴 라벨 ['전기적 요인','기계적 요인','화학적 요인','가스누출(폭발)',…] 기준으로 includes 비교한다. 결과: 사용자가 체크한 전기·기계·화학·가스누출이 본문에서 전부 ☐로 인쇄되고, 부주의·자연재해만 일치한다. 미입력 시 쓰이는 폴백 프리셋은 긴 라벨이라 정상 출력 — 실입력만 깨지는 역전 현상이라 눈에 띄지 않았다.",
+      "evidence": ["erp/src/components/customers/plan-form12.tsx:15 RISKS 짧은 라벨", "erp/src/lib/fire-plan-generate.ts:230 factors: h.risks 무변환", "erp/src/lib/fire-plan-template.ts:28 HAZARD_FACTORS 긴 라벨", "erp/src/lib/fire-plan-template.ts:211 h.factors.includes(fa)", "erp/src/lib/fire-plan-generate.ts:231-235 폴백 프리셋은 긴 라벨(정상)"],
+      "fix_proposal": "조립 단계에서 짧은 라벨 → 긴 라벨 매핑 테이블 적용(양방향 허용). 또는 템플릿 비교를 정규화 비교로 변경. 기존 저장 데이터 호환 필수",
+      "priority": "P1" },
+
+    { "id": "M-2", "target": "T-1", "title": "1.1 시설현황 확장 3컬럼 유실 (계단·경사로·피난용승강기)", "severity": "major", "type": "loss", "status": "pending_order",
+      "audit": { "recheck": "direct", "date": "2026-08-10" },
+      "desc": "stairs_count·ramp_count·evac_elevator_count는 ERP에서 입력·저장되지만 조립의 customers select 목록에 컬럼 자체가 없어 본문에 나가지 않는다. 본문 1.1 계단 표기는 서식 1.5의 evacFire.stairs로만 채워진다.",
+      "evidence": ["erp/src/app/(dashboard)/customers/fire-plan-info-actions.ts:43-45 입력·저장", "erp/src/lib/fire-plan-generate.ts:93-96 select에 해당 컬럼 없음", "erp/src/lib/fire-plan-template.ts:366 1.1 계단은 ef.stairs 사용"],
+      "fix_proposal": "generate select에 3컬럼 추가 + 템플릿 1.1 시설현황 행에 출력. M-10(승강기 체크)과 함께 처리",
+      "priority": "P2" },
+
+    { "id": "M-3", "target": "T-1", "title": "1.1 운영현황 확장 3컬럼 유실 (대표자 구분·자격구분·최근 교육이수일)", "severity": "major", "type": "loss", "status": "pending_order",
+      "audit": { "recheck": "direct", "date": "2026-08-10" },
+      "desc": "rep_role·manager_license_grade·manager_edu_date가 입력·저장되나 조립 미조회·템플릿 미출력. 1.7 표의 '강습교육 수료일' 열은 sections.managers[].eduAt만 사용하므로 자동 폴백 행은 빈칸으로 남는다. 참고로 별지 9호는 같은 컬럼을 정상 사용한다(자격등급·교육이수일).",
+      "evidence": ["erp/src/app/(dashboard)/customers/fire-plan-info-actions.ts:50-52 입력·저장", "erp/src/lib/fire-plan-generate.ts:93-96 select 누락", "erp/src/lib/fire-plan-template.ts:427-428 1.7 표 eduAt만 사용", "erp/src/app/(dashboard)/inspections/report9-actions.ts:382 별지9호는 manager_license_grade 사용"],
+      "priority": "P2" },
+
+    { "id": "M-4", "target": "T-1", "title": "1.4 항목별 비고(detail.note) 유실", "severity": "major", "type": "loss", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "설비 대장의 항목별 비고를 ERP에서 입력받지만 조립이 facility_code·installed만 select 해 본문에 비고가 나가지 않는다.",
+      "evidence": ["erp/src/components/customers/plan-form14.tsx:66,87 FacState.note", "erp/src/lib/fire-plan-generate.ts:150 select 범위"],
+      "priority": "P2" },
+
+    { "id": "M-5", "target": "T-1", "title": "1.4 층별 수량(fire_facility_floors) 미반영", "severity": "minor", "type": "loss", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "층별 수량 테이블을 조립이 조회하지 않고 본문에도 층별 수량 표가 없다. 설계에 표가 있는지 확인 후 판단 필요(표 자체가 없다면 E 계열).",
+      "evidence": ["erp/src/components/customers/plan-form14.tsx:68,92-93"],
+      "priority": "P2" },
+
+    { "id": "M-6", "target": "T-1", "title": "1.8 대행업체 대표자·사업자등록번호 유실", "severity": "major", "type": "loss", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "ERP 패널은 대표자·사업자등록번호를 표시하지만 조립은 company_name·address·phone만 select 해 본문 1.8 표에 나가지 않는다.",
+      "evidence": ["erp/src/components/customers/plan-form18.tsx:32-33", "erp/src/lib/fire-plan-generate.ts:103", "erp/src/lib/fire-plan-template.ts:432-439"],
+      "priority": "P2" },
+
+    { "id": "M-7", "target": "T-1", "title": "훈련·교육 월 미입력 시 11월 폴백이 근거 없이 ■로 인쇄", "severity": "critical", "type": "bug", "status": "pending_order",
+      "audit": { "recheck": "direct", "date": "2026-08-10" },
+      "desc": "sections.training의 drillMonths·eduMonths가 비면 trainingMonth를 11로 고정한다. 1.11 미입력 고객의 본문 연간계획에 11월 ■가 실데이터처럼 찍힌다.",
+      "evidence": ["erp/src/lib/fire-plan-generate.ts:204 `?? 11`", "erp/src/lib/fire-plan-template.ts:543-546 연간계획 ■ 렌더"],
+      "fix_proposal": "폴백 제거(미입력이면 전 월 ☐) — M-15 폴백 정책과 함께 결정",
+      "priority": "P1" },
+
+    { "id": "M-8", "target": "T-1", "title": "소방안전관리자 = 관계인 대표 고정 (본문)", "severity": "major", "type": "misprint_risk", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "조립이 managerName/Phone을 관계인 '대표'(없으면 첫 연락처)로 채운다. 별도 선임자가 있어도 표지·1.1·개정이력 작성자에 대표자가 인쇄된다. 별지 9호의 A9-1과 같은 뿌리(전용 필드 부재).",
+      "evidence": ["erp/src/lib/fire-plan-generate.ts:190-191", "erp/src/lib/fire-plan-template.ts:339,349,360"],
+      "fix_proposal": "sections.managers(1.7 선임현황) 1순위 → 관계인 대표 폴백 순으로 변경, 또는 전용 컬럼 신설. A9-1과 동시 처리",
+      "priority": "P1", "related": ["A9-1"] },
+
+    { "id": "M-9", "target": "T-1", "title": "1.10.1 최초점검 입력이 종합점검월 없으면 통째 미출력", "severity": "major", "type": "bug", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "isInitial·initialMonth가 compMonthText 존재를 전제로 한 블록 안에 있어, 종합 판정이 빈 문자열이면 사용자가 입력한 최초점검 정보가 인쇄되지 않는다.",
+      "evidence": ["erp/src/lib/fire-plan-template.ts:499", "erp/src/lib/fire-plan-generate.ts:162-164 종합 판정"],
+      "priority": "P3" },
+
+    { "id": "M-10", "target": "T-1", "title": "1.1 승강기 체크 3종 항상 빈칸", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "승용·비상용·피난용 체크박스가 원천 연결 없이 고정 ☐. evac_elevator_count·buildings.emergency_elevator_count가 존재하는데 미연결(M-2와 함께 해소 가능).",
+      "evidence": ["erp/src/lib/fire-plan-template.ts:366"],
+      "priority": "P2", "related": ["M-2"] },
+
+    { "id": "M-11", "target": "T-1", "title": "업무대행 '■ 해당' 및 1.8 계약 항목 고정값", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "1.1·1.8의 대행여부가 ■ 고정이라 대행이 아닌 고객도 해당으로 인쇄된다. 계약기간은 종료일 없이 '~', 계약범위 '소방시설', 감독사항 문구, 점검주기 '매월 1회'가 고정.",
+      "evidence": ["erp/src/lib/fire-plan-template.ts:368,433,436-438", "erp/src/lib/fire-plan-generate.ts:201 점검주기 하드코딩"],
+      "priority": "P3" },
+
+    { "id": "M-12", "target": "T-1", "title": "1.3 거리·도착예상 조립값이 항상 빈 문자열", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "조립이 stationDistance·stationEta를 항상 ''로 두고, 서식 1.3 입력값이 유일한 원천이다. 1.3 자동 조회(소방계획서_13)를 쓰지 않은 고객은 본문이 빈칸으로 나간다.",
+      "evidence": ["erp/src/lib/fire-plan-generate.ts:194-195", "erp/src/lib/fire-plan-template.ts:241-242"],
+      "priority": "P3" },
+
+    { "id": "M-13", "target": "T-1", "title": "개정이력 작성자·검토·승인 열 빈칸", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "evidence": ["erp/src/lib/fire-plan-generate.ts:141 과거 행 작성자 ''", "erp/src/lib/fire-plan-template.ts:348-350"],
+      "priority": "P3" },
+
+    { "id": "M-14", "target": "T-1", "title": "예시문 하드코딩 — 프리셋 미적용 시 그대로 인쇄", "severity": "policy", "type": "hardcoded", "status": "needs_decision",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "프리셋 치환 앵커로 심어둔 예시 문장들이, 프리셋을 고르지 않고 생성하면 고객과 무관한 내용 그대로 인쇄된다. 1.11.3 시나리오 '2층 주방 초기화재', 3.4 '1층 주차장 대기'·'2층 화재…', 2장 가스밸브 차단 문구와 가스안전공사 031-798-0019·전기안전공사 1588-7500(지역 무관 고정), 3.1 '■ 연 2회', 1.10.1 일상점검 수행자·주기.",
+      "evidence": ["erp/src/lib/fire-plan-template.ts:156-163,558-560 시나리오 기본값", "erp/src/lib/fire-plan-template.ts:668,670 3.4 예시문", "erp/src/lib/fire-plan-template.ts:625,630 2장 고정 문구·전화번호", "erp/src/lib/fire-plan-template.ts:644 3.1 연 2회", "erp/src/lib/fire-plan-template.ts:503 1.10.1 일상점검", "erp/src/lib/fire-plan-template.ts:168-174 applyPresetPairs"],
+      "decision_needed": "예시문 존치(빈칸보다 낫다) vs 프리셋 미선택 시 빈칸 처리 vs 생성 차단 경고",
+      "priority": "P4" },
+
+    { "id": "M-15", "target": "T-1", "title": "조립 폴백 기본값이 실데이터처럼 인쇄되는 정책", "severity": "policy", "type": "fallback_policy", "status": "needs_decision",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "미입력 시 임의 기본값을 넣어 문서를 채운다: 자위소방대 5행 기본편성, 피난경로 '전층/직통계단', 집결지 '1층 주차장', 구역 '전층', 화재위험요소 3종 프리셋. '빈칸 방지'와 '사실과 다른 기재' 사이의 경계라 정책 확정이 필요하다.",
+      "evidence": ["erp/src/lib/fire-plan-generate.ts:207-213 자위소방대", "erp/src/lib/fire-plan-generate.ts:217-219 경로·집결지·비고", "erp/src/lib/fire-plan-generate.ts:226-228 구역", "erp/src/lib/fire-plan-generate.ts:231-235 위험요소"],
+      "decision_needed": "폴백 유지 / 폴백 제거하고 빈칸 / 폴백은 유지하되 미리보기에서 '자동 채움' 하이라이트 표시",
+      "priority": "P4" },
+
+    { "id": "M-16", "target": "T-1", "title": "[설계 대비] 1.10.3 이용자 유형 체크·영업시간 세분 미구현", "severity": "minor", "type": "design_gap", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "설계는 노유자·주취자·청소년·신체부자유자 체크와 평일/휴일×주간/야간 세분을 요구하나 ERP 타입·템플릿 모두 자유 텍스트 단일 칸.",
+      "evidence": ["erp_goal/소방계획서_4.md:185-186", "erp/src/components/customers/plan-form110.tsx:22-27 MultiUseSection", "erp/src/lib/fire-plan-template.ts:518-519"],
+      "priority": "P4" },
+
+    { "id": "M-17", "target": "T-1", "title": "[설계 대비] 1.6 비상발전기 용량·위치·수량, 정압기 위치 미구현", "severity": "minor", "type": "design_gap", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "evidence": ["erp_goal/소방계획서_4.md:148-150", "erp/src/components/customers/plan-form16.tsx:12-16 boolean+note로 축약", "erp/src/lib/fire-plan-template.ts:477,483"],
+      "priority": "P4" },
+
+    { "id": "M-18", "target": "T-1", "title": "[설계 대비] 선임·자위대 비상연락체계 텍스트 필드 없음", "severity": "minor", "type": "design_gap", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "evidence": ["erp_goal/소방계획서_4.md:166,172", "erp/src/components/customers/plan-form17.tsx:13 ManagerRow", "erp/src/lib/fire-plan-template.ts:619-620 2.2 phone 열로 대체"],
+      "priority": "P4" },
+
+    { "id": "M-19", "target": "T-1", "title": "[설계 대비] 1.11.2 종류·형태 구조화 선택지 미구현", "severity": "minor", "type": "design_gap", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "설계의 실습(기본/부분/종합)·이론(강의/세미나)·형태(자체/합동+참여기관) 구조화가 자유 텍스트로만 존재.",
+      "evidence": ["erp_goal/소방계획서_4.md:206-207", "erp/src/components/customers/plan-form111.tsx:13 TrainingDetailRow"],
+      "priority": "P4" },
+
+    { "id": "A4-1", "target": "T-2", "title": "별지 4호 설비별 점검표 1~32번 + 목차 미생성", "severity": "policy", "type": "scope", "status": "needs_decision",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "샘플 양식의 본체(점검번호 1-A-001~ 항목별 ○/×, 4,600여 줄)가 생성물에 없다. ERP는 항목 단위 응답을 보유하지만 1쪽 설비별 ○/× 롤업에만 쓴다. 템플릿 주석에 '7쪽 전체'가 의도적 스코프로 명시돼 있어 버그가 아니라 설계 결정으로 보인다. 항목별 점검표는 별도 엑셀 경로만 존재.",
+      "evidence": ["erp/src/lib/doc-templates/report4.ts:1 스코프 주석", "erp/src/app/(dashboard)/inspections/report9-actions.ts:274-279 롤업", "supabase/migrations/069_sheet_responses.sql item_code 원천", "erp/src/lib/report-generator.ts:84-86 엑셀 경로"],
+      "decision_needed": "현행 7쪽 유지 / 설비별 점검표 32종까지 PDF 생성 확장",
+      "priority": "P4" },
+
+    { "id": "A4-2", "target": "T-2", "title": "소방시설관리업 등록번호를 채울 수단이 없음", "severity": "major", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "'(제    -    호)'가 고정 출력이고, 조립은 company_profile에서 company_name·phone만 조회한다(business_number는 report11 조립에서만 사용). 별지 4호에는 ③ 수기 보정(annex_inputs) 경로도 없어 값을 넣을 방법 자체가 없다.",
+      "evidence": ["erp/src/lib/doc-templates/report4.ts:102", "erp/src/app/(dashboard)/inspections/report9-actions.ts:186 select 범위", "erp/src/app/(dashboard)/inspections/report9-actions.ts:52-60,432-436 annex_inputs는 report9/10/11만"],
+      "fix_proposal": "company_profile.business_number 조회 후 주입 (등록번호와 사업자번호가 다른 값이면 컬럼 신설 필요) 또는 별지4호에 ③ 보정 필드 추가",
+      "priority": "P2" },
+
+    { "id": "A4-3", "target": "T-2", "title": "수계공통(3-2) '설비의 종류' 체크줄 부재 / 미상 필드 추가", "severity": "minor", "type": "mismatch", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "샘플의 5개 블록(주된수원·고가/압력/가압수조·펌프방식)에 있는 '설비의 종류 [ ]옥내소화전…' 체크줄이 생성물에 없고, 대신 샘플(이 판)에 없는 '흡입방식 정압/부압·유효수량'이 있다. 샘플이 구판일 가능성이 있어 개정판 대조 필요.",
+      "evidence": ["erp/src/lib/doc-templates/spec-sections.ts:151-212", "erp/src/lib/doc-templates/spec-sections.ts:180 흡입방식·유효수량"],
+      "priority": "P3" },
+
+    { "id": "A4-4", "target": "T-2", "title": "설치장소 기입란 축소 — 다동 대상물 기입 불가", "severity": "minor", "type": "mismatch", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "수계개별·피난기구·인명구조기구는 양식 2줄인데 생성물 1줄, 무선통신 접속단자는 2칸인데 1칸.",
+      "evidence": ["erp/src/lib/doc-templates/spec-sections.ts:227,332,335,434"],
+      "priority": "P3" },
+
+    { "id": "A4-5", "target": "T-2", "title": "1쪽 '기타' 3항목(방화문·비상구·방염) 항상 ☐+공란", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "양식 31번 기타사항 점검표 응답이 있어도 반영되지 않는다. 별지 9호 A9-7과 동일 코드 경로(report9.ts 공용).",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:360,370"],
+      "priority": "P3", "related": ["A9-7"] },
+
+    { "id": "A4-6", "target": "T-2", "title": "라벨 문구 차이 5건", "severity": "minor", "type": "label", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "압력체임버↔압력챔버, 자동차압(과압조절형)댐퍼↔자동차압급기댐퍼, 피난안내도 구분자(,↔ㆍ)와 좌열 순서 역전, 강화액소화'전'설비(샘플 오기 추정), 화재알림설비 행(샘플 구판에는 없음 — 생성물이 개정판 기준이라 정당할 가능성).",
+      "evidence": ["erp/src/lib/doc-templates/spec-sections.ts:168", "erp/src/lib/doc-templates/spec-sections.ts:397", "erp/src/lib/doc-templates/report9.ts:388", "erp/src/lib/doc-templates/report9.ts:19,22", "erp/src/lib/doc-templates/spec-sections.ts:297"],
+      "note": "수정 전 반드시 현행 개정판(hwpx) 대조 — 샘플 xml이 구판이면 고치는 쪽이 오답이 된다",
+      "priority": "P3" },
+
+    { "id": "A4-7", "target": "T-2", "title": "쪽 경계가 샘플과 다름(섹션 단위 배치)", "severity": "minor", "type": "layout", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "샘플은 2번을 3~4쪽, 8번을 6~7쪽으로 분할하는데 생성물은 섹션 단위로 배치(3쪽=1·2, 4쪽=3, 5쪽=4·5, 6쪽=6·7, 7쪽=8). 내용은 동일.",
+      "evidence": ["erp/src/lib/doc-templates/report4.ts:156-160"],
+      "priority": "P4" },
+
+    { "id": "A9-1", "target": "T-3", "title": "소방안전관리자 성명·전화가 관계인 대표 폴백으로 인쇄", "severity": "major", "type": "misprint_risk", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "전용 컬럼이 없어 2쪽 소방안전관리자 칸에 관계인 대표의 이름·전화가 들어간다. 실제 선임자와 다르면 공문서 오기재. 마이그레이션 104는 grade·edu_date만 추가했다.",
+      "evidence": ["erp/src/app/(dashboard)/inspections/report9-actions.ts:384-386", "erp/src/app/(dashboard)/inspections/report9-actions.ts:219 관계인 대표 결정"],
+      "fix_proposal": "M-8과 동일 — sections.managers(1.7) 1순위 참조 또는 전용 컬럼 신설",
+      "priority": "P1", "related": ["M-8"] },
+
+    { "id": "A9-2", "target": "T-3", "title": "교육훈련 '실시' 체크가 sections.training 객체 존재만으로 켜짐", "severity": "major", "type": "logic", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "판정이 !!sections['training'] 하나뿐이라 (a) eduMonths/drillMonths 내용을 무시해 훈련 월만 입력해도 교육·훈련이 둘 다 실시로 체크되고(eduDone·drillDone 동일 플래그), (b) 1.11은 '계획' 입력인데 '실시'로 기재되는 의미론적 비약이 있다. 별지9호.MD §4-5가 예고한 ③ 수동 보정(실시 체크 확정)은 미구현 — report9의 ③ 필드는 reportDate·note 2개뿐.",
+      "evidence": ["erp/src/app/(dashboard)/inspections/report9-actions.ts:293 판정", "erp/src/app/(dashboard)/inspections/report9-actions.ts:391-392 eduDone·drillDone", "erp/src/components/inspections/annex-compose-panel.tsx:33-36 FIELD_DEFS"],
+      "fix_proposal": "1.11.4 실시 결과 기록부(records)의 해당 연도 실적 기반 판정으로 변경 + ③ 수동 보정 필드 추가",
+      "priority": "P3" },
+
+    { "id": "A9-3", "target": "T-3", "title": "특별피난계단 개소 — 세부제원 입력값 미연결", "severity": "major", "type": "loss", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "2쪽 계단 칸의 특별피난계단이 항상 ☐+공란인데, 같은 정보가 세부제원 s38.smoke_lobby.stair_count에 입력된다(이중 상태).",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:306"],
+      "priority": "P2" },
+
+    { "id": "A9-4", "target": "T-3", "title": "소방안전관리자 자격구분 5종 체크 항상 ☐", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "소방기술자격·수첩·업무대행감독·겸직·기타 체크가 고정 ☐ — ERP에 선임 형태 필드 자체가 없다.",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:253"],
+      "priority": "P3" },
+
+    { "id": "A9-5", "target": "T-3", "title": "주차장 옥내 하위(지하/지상/필로티) 체크 항상 ☐", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "parking_summary 문자열에서 '기계식'만 매칭하고 옥내 하위 구분은 매칭하지 않는다.",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:314", "erp/src/app/(dashboard)/inspections/report9-actions.ts:414-417"],
+      "priority": "P3" },
+
+    { "id": "A9-6", "target": "T-3", "title": "'단정 금지' 설계 — 미실시·미보관을 표현할 수단이 없음", "severity": "policy", "type": "design_policy", "status": "needs_decision",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "소방계획서 미보관·미작성, 전년도 점검 미실시, 교육훈련 미실시 체크박스는 어떤 데이터로도 체크되지 않는다. '데이터 있을 때만 체크'라는 의도적 설계지만, 결과적으로 '아님'을 적극적으로 기재할 방법이 없다.",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:257,261,265", "erp/src/app/(dashboard)/inspections/report9-actions.ts:287 설계 주석"],
+      "decision_needed": "현행 유지 / ③ 수동 보정으로 부정 체크 허용",
+      "priority": "P4" },
+
+    { "id": "A9-7", "target": "T-3", "title": "3쪽 '기타' 3항목 항상 ☐+결과 공란", "severity": "minor", "type": "hardcoded", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:360,370"],
+      "priority": "P3", "related": ["A4-5"] },
+
+    { "id": "A9-8", "target": "T-3", "title": "1쪽 유의사항 근거 조문 줄 누락", "severity": "minor", "type": "label", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "현행판 원문의 '「소방시설 설치 및 관리에 관한 법률」 제58조제1호 및 제61조제1항제8호' 줄이 템플릿에 없다.",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:216-221"],
+      "priority": "P3" },
+
+    { "id": "A9-9", "target": "T-3", "title": "설치인데 점검표 응답이 없으면 결과칸 공란", "severity": "minor", "type": "fallback", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "○도 /도 아닌 공란으로 남고 missing '점검표 응답'으로만 안내된다. 제출물에 빈칸이 남는 주요 경로.",
+      "evidence": ["erp/src/app/(dashboard)/inspections/report9-actions.ts:275-279"],
+      "priority": "P3" },
+
+    { "id": "A9-10", "target": "T-3", "title": "서식 1.10 연간 점검계획은 별지9호 판정에 미사용", "severity": "minor", "type": "info", "status": "confirmed",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "전년도 자체점검 실시는 inspections 테이블(전년도 completed)로만 판정한다. 계획/실적 분리라 타당 — 확인 결과 기록용.",
+      "evidence": ["erp/src/app/(dashboard)/inspections/report9-actions.ts:289-291"],
+      "priority": "none" },
+
+    { "id": "A9-11", "target": "T-3", "title": "missing 목록이 항상-공란 칸들을 포함하지 않음", "severity": "minor", "type": "ux", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "missing 8종(점검기간·주된인력·응답·송달동의·자격·주소·승인일·허가일)에 A9-1~A9-5류가 빠져 있어 사용자가 빈칸을 인지하기 어렵다.",
+      "evidence": ["erp/src/app/(dashboard)/inspections/report9-actions.ts:439-447"],
+      "priority": "P3" },
+
+    { "id": "A9-12", "target": "T-3", "title": "9쪽 '작성방법' 페이지 미출력", "severity": "minor", "type": "scope", "status": "pending_order",
+      "audit": { "recheck": "agent", "date": "2026-08-10" },
+      "desc": "별지9호.MD:19는 '출력만'으로 표기하나 renderReport9는 8쪽까지 생성한다. 안내 페이지라 실害는 낮음.",
+      "evidence": ["erp/src/lib/doc-templates/report9.ts:460-464", "erp_goal/_doc01/별지9호.MD:19"],
+      "priority": "P4" }
+  ],
+
+  "blank_field_rules": {
+    "T-1": {
+      "text": "v() — trim 후 빈 값이면 &nbsp; 빈 셀 ('—' 폴백 없음)",
+      "checkbox": "ck() — 미해당 ☐",
+      "row_padding": "pad() 최소 행 유지 — 1.10.2 5행·1.10.4 3행·1.11.4 3행·1.12~1.14 5행·1.15 3행",
+      "section_omit": "빈 표 대신 섹션 통째 생략 — 1.11.1 인원표·1.11.2·1.5.2·1.10.3 상세·3.5·3.6·부속 사진",
+      "inconsistency": ["pad형(빈 표 유지)과 생략형이 같은 문서에 혼재", "표지·1.4 대상명은 v() 미사용(esc() 직접) — 빈 값이면 완전 공백", "이미지 슬롯: cover/map/evacuation은 안내 박스, route/building/evacmap은 조용히 생략"]
+    },
+    "T-2": {
+      "text": "val() — 공란, 미리보기(highlight)만 노란 .missing",
+      "spec_slot": "slot()/pv() — 서식 원문 폭의 공백 유지",
+      "result": "resultMark — 미설치 자동 '/', 설치+무응답은 공란",
+      "row_padding": "보조인력 6행 패딩, 점검기간 빈칸은 '    년   월   일' 원문 유지",
+      "no_specs": "3~7쪽 빈 서식 + missing '설비 세부현황 미입력' 경고"
+    },
+    "T-3": {
+      "text": "val() — 공란 + 미리보기 하이라이트",
+      "checkbox": "ck(false) = [ ] (음성 단정 없음), 3상태 값은 null이면 양쪽 미체크",
+      "result": "resultMark O→○ / X→× / N→/ / 그 외 공란",
+      "row_padding": "보조 5행·불량 구분 행·3-1 동별 5행 유지",
+      "fail_soft": "specs·annex_inputs·관계인·건물이 없어도 생성 중단 없이 빈 서식으로 진행"
+    }
+  },
+
+  "priority_plan": {
+    "P1": { "desc": "즉시 — 값이 틀리게 인쇄되는 것", "items": ["M-1", "M-7", "M-8", "A9-1"] },
+    "P2": { "desc": "유실 복구 — 입력받은 값이 문서에 나가게", "items": ["M-2", "M-3", "M-4", "M-5", "M-6", "M-10", "A4-2", "A9-3"] },
+    "P3": { "desc": "판정·표기 정확화", "items": ["M-9", "M-11", "M-12", "M-13", "A4-3", "A4-4", "A4-5", "A4-6", "A9-2", "A9-4", "A9-5", "A9-7", "A9-8", "A9-9", "A9-11"] },
+    "P4": { "desc": "사용자 결정 필요 / 설계 보강", "items": ["M-14", "M-15", "M-16", "M-17", "M-18", "M-19", "A4-1", "A4-7", "A9-6", "A9-12"] }
+  },
+
+  "decisions_needed": [
+    { "id": "Q-1", "ref": "M-15", "question": "미입력 시 조립 폴백 기본값(자위소방대 5행·집결지 '1층 주차장' 등)을 계속 인쇄할 것인가?", "options": ["유지", "제거하고 빈칸", "유지하되 미리보기에 '자동 채움' 표시"], "status": "needs_decision" },
+    { "id": "Q-2", "ref": "A4-1", "question": "별지 4호에 설비별 점검표 1~32번 본체를 포함할 것인가? (현재 7쪽 스코프는 의도된 설계)", "options": ["현행 7쪽 유지", "32종까지 PDF 확장"], "status": "needs_decision" },
+    { "id": "Q-3", "ref": "M-14", "question": "프리셋 앵커용 예시문(시나리오·대피방법·고정 전화번호)을 프리셋 미선택 시에도 인쇄할 것인가?", "options": ["존치", "빈칸 처리", "생성 시 경고"], "status": "needs_decision" },
+    { "id": "Q-4", "ref": "A9-6", "question": "'미실시·미보관' 부정 체크를 ③ 수동 보정으로 허용할 것인가? (현행은 단정 금지로 영구 미체크)", "options": ["현행 유지", "수동 보정 허용"], "status": "needs_decision" },
+    { "id": "Q-5", "ref": ["M-16", "M-17", "M-18", "M-19"], "question": "설계(소방계획서_4.md §3) 대비 축약된 입력 항목 4건을 보강할 것인가?", "options": ["보강", "현행 자유 텍스트 유지"], "status": "needs_decision" }
+  ],
+
+  "audit_method": {
+    "date": "2026-08-10",
+    "approach": "병렬 감사 3건(본문·별지4호·별지9호) — 각 감사가 ERP 입력 타입 → 조립(select·매핑) → 렌더 템플릿 → 샘플 양식 순으로 필드 단위 대조. 이후 치명 후보를 본 세션이 직접 코드 재확인",
+    "direct_recheck": ["M-1 (plan-form12.tsx:15 · fire-plan-generate.ts:230 · fire-plan-template.ts:28,211 4개 지점 대조)", "M-7 (fire-plan-generate.ts:204)", "M-2·M-3 (fire-plan-generate.ts:93-96 select 목록 육안 확인)"],
+    "samples_used": ["erp_goal/_doc01/[별지 4] …점검표(…고시) (2).xml (HWPML, 구판 가능성 있음)", "erp_goal/_form/별지9호-placeholder.hwpx (현행 2025.12.1 개정판)", "erp_goal/_doc01/별지9호.MD", "erp_goal/소방계획서_4.md §3"],
+    "not_covered": ["별지 10·11호(report1011.ts)", "외관점검표(exterior.ts)", "실제 PDF 렌더 결과 육안 대조(코드 대조만 수행 — 레이아웃 깨짐은 별도 확인 필요)", "실데이터 고객으로 생성한 문서와 양식의 1:1 대조"]
+  },
+
+  "library_mapping_checklist": {
+    "ref": "erp_goal/소방계획서_14_점검업무.md",
+    "md_section": "erp_goal/소방계획서_15.md §5",
+    "run_after": "14_점검업무 L-1(1.11 적용)·L-2(나머지 7섹션) 구현 완료 후",
+    "judge_rule": "Json_Rule 규칙 3 — 구현자 ≠ 판정자. 항목별 파일:줄 근거와 ✅/❌ 판정 후에만 상태 승격",
+    "note": "2026-08-10 작성 시점 — 라이브러리는 설계만 존재(구현 전)이므로 전건 pending_order",
+    "items": [
+      { "id": "L-A-1", "group": "섹션별 매핑·비오염", "section": "1.11 training", "desc": "scenario·scenarioType·details만 적용 / headcount·eduMonths·drillMonths·records 불변. 정정②: details의 at·place는 body에 저장하지 않고 적용 시 빈 값으로 행 생성", "verify": "E2E — 고객A 등록→고객B 가져오기 후 DB sections.training 필드별 대조", "status": "pending_order" },
+      { "id": "L-A-2", "group": "섹션별 매핑·비오염", "section": "1.12 fireworkLog", "desc": "work·measure 서술만 템플릿화, date·place·supervisor 빈 값 + 기존 행 유지·append(교체 금지 — 사용자 확정 1-4-6)", "verify": "E2E — 기존 2행 고객에 적용 → 행 수 증가·기존 행 원문 보존 단언", "status": "pending_order" },
+      { "id": "L-A-3", "group": "섹션별 매핑·비오염", "section": "1.13 constructionLog", "desc": "content 서술만 / date·facility·company 빈 값 + append", "verify": "L-A-2와 동일 패턴", "status": "pending_order" },
+      { "id": "L-A-4", "group": "섹션별 매핑·비오염", "section": "1.14 promoLog", "desc": "method·content만 / date·target 빈 값 + append", "verify": "L-A-2와 동일 패턴", "status": "pending_order" },
+      { "id": "L-A-5", "group": "섹션별 매핑·비오염", "section": "1.15 recoveryLog", "desc": "damage·recovery만 / date·cost 빈 값 + append", "verify": "L-A-2와 동일 패턴", "status": "pending_order" },
+      { "id": "L-A-6", "group": "섹션별 매핑·비오염", "section": "2장 brigadeTeams", "desc": "7팀 Record 치환 / brigadeGeneral.type·2.2 편성표(fire_brigade_members) 불변", "verify": "DB 대조 — fire_brigade_members 행 해시 전후 동일", "status": "pending_order" },
+      { "id": "L-A-7", "group": "섹션별 매핑·비오염", "section": "3.4 evacPlan", "desc": "정정① — procedure만 치환. assembly(집결지)·routes·mapImage는 건물 고유라 불변", "verify": "E2E — assembly 값 있는 고객에 적용 → 원값 보존 단언", "status": "pending_order" },
+      { "id": "L-A-8", "group": "섹션별 매핑·비오염", "section": "3.6 vulnerableMethods", "desc": "6유형(노인·어린이·영유아·임산부·장애인·기타) Record 치환", "verify": "DB 대조", "status": "pending_order" },
+      { "id": "L-B-1", "group": "적용 규약", "desc": "자동주입(§4-0): 서식 진입 시 is_default 항목을 빈 칸에만 주입 — 값 있는 필드 절대 미덮어씀 (autoApplyLedgerEmptyAction 규약 준거)", "verify": "E2E — 일부 필드만 채운 고객 진입 → 채운 필드 불변·빈 필드만 주입", "status": "pending_order" },
+      { "id": "L-B-2", "group": "적용 규약", "desc": "가져오기·자동주입 공통: 폼 상태만 변경, DB 저장 없음 — [저장] 전 DB 불변", "verify": "E2E — 적용 직후 DB 조회 → 이전 값 그대로", "status": "pending_order" },
+      { "id": "L-B-3", "group": "적용 규약", "desc": "적용 시 dirty=true → 미저장 이동 확인창(unsaved-nav) 작동 — 클릭 전용 변경이므로 1281e14 가드(collectPlanSaveHandlers)가 잡는지", "verify": "E2E — 적용 후 트리 이동 → 확인창 표시 (_probe-unsaved-guard.mjs 패턴 재사용)", "status": "pending_order" },
+      { "id": "L-B-4", "group": "적용 규약", "desc": "출처 스탬프(§3-2 plan_text_applied): 서식 [저장] 성공 시점에만 기록 — 적용만 하고 저장 안 하면(또는 저장 실패 시) 스탬프 없음", "verify": "E2E — 적용→이탈(스탬프 0건) / 적용→저장(1건·library_version 일치)", "status": "pending_order" },
+      { "id": "L-B-5", "group": "적용 규약", "desc": "기존 입력 있는 필드는 인라인 확인('기존 서술을 덮어씁니다') 후에만 적용", "verify": "E2E — 확인 취소 → 원값 보존", "status": "pending_order" },
+      { "id": "L-C-1", "group": "생성 문서 인쇄", "desc": "scenario → 1.11.3 훈련 시나리오 칸 인쇄", "evidence": ["fire-plan-template.ts:558-560"], "verify": "생성 HTML 문자열 단언", "status": "pending_order" },
+      { "id": "L-C-2", "group": "생성 문서 인쇄", "desc": "brigadeTeams → 2.5~2.13 팀별 임무 표 인쇄", "evidence": ["fire-plan-template.ts:284-289"], "verify": "생성 HTML 단언", "status": "pending_order" },
+      { "id": "L-C-3", "group": "생성 문서 인쇄", "desc": "procedure → 3.4 피난유도 절차 인쇄", "verify": "생성 HTML 단언", "status": "pending_order" },
+      { "id": "L-C-4", "group": "생성 문서 인쇄", "desc": "행 템플릿 → 1.12~1.15 기록부 표 인쇄 (pad() 최소 행과 공존)", "verify": "생성 HTML 단언", "status": "pending_order" },
+      { "id": "L-C-5", "group": "생성 문서 인쇄", "desc": "§2-1 결함 해소 확인(핵심): 3.6 자동주입으로 6유형 전 행 인쇄 — 현재는 빈 유형 행째 제외. 템플릿 폴백 추가 없이 데이터로 해결(사용자 확정 1-4-5) — 템플릿 diff 없음 확인", "evidence": ["fire-plan-template.ts:702 vulTypes.filter (본 세션 코드 재확인 ✔)"], "verify": "생성 HTML에 6유형 행 존재 단언 + fire-plan-template.ts 미변경 확인", "status": "pending_order" },
+      { "id": "L-C-6", "group": "생성 문서 인쇄", "desc": "2장 화면=인쇄 일치: 자동주입 후 UI 표시값과 인쇄값 동일 — 현행은 화면 빈칸인데 preset 인쇄라 불일치", "evidence": ["fire-plan-template.ts:286 teamText preset 폴백 (본 세션 코드 재확인 ✔)"], "verify": "UI 값 vs 생성 HTML 대조", "status": "pending_order" },
+      { "id": "L-D-1", "group": "액션·스키마", "desc": "마이그레이션 119: plan_text_library·plan_text_applied 스키마 + uq_plan_text_library_default 부분 유니크(섹션당 활성 기본항목 1개)", "verify": "스테이징 적용 후 중복 is_default insert 실패 확인", "status": "pending_order" },
+      { "id": "L-D-2", "group": "액션·스키마", "desc": "서버 액션 5종: section_key 화이트리스트(§2의 8개만) 서버 검증 — 그 외 키 거부", "verify": "액션 직접 호출로 비허용 키 거부 단언", "status": "pending_order" },
+      { "id": "L-D-3", "group": "액션·스키마", "desc": "소프트 삭제(is_active=false) 후 이미 가져간 고객 데이터 무영향 (pull 시점 복사 — 참조 없음)", "verify": "삭제 후 고객 sections 재조회 대조", "status": "pending_order" },
+      { "id": "L-D-4", "group": "액션·스키마", "desc": "rename은 version 미증가, body 수정만 +1 — 아니면 문구 그대로인데 개정 배지가 뜸", "verify": "DB version 값 전후 대조", "status": "pending_order" }
+    ]
+  },
+
+  "residual_risks": [
+    "별지 4호 샘플(xml)이 구판일 가능성이 있다 — A4-3·A4-6의 라벨·필드 차이를 고치기 전에 현행 개정판 원본을 확보해 대조해야 한다. 구판 기준으로 고치면 오히려 개정판과 어긋난다",
+    "agent 판정 항목(audit.recheck='agent')의 파일:줄은 감사 시점 기준이다. 같은 시각 다른 세션이 plan-form*.tsx 등을 편집 중이었으므로 수정 착수 시 줄 번호가 밀렸을 수 있다 — 패턴으로 재확인할 것",
+    "M-1을 고칠 때 기존 저장 데이터(짧은 라벨)와 신규 저장(긴 라벨)이 섞이면 같은 버그가 반대 방향으로 재발한다. 양방향 정규화 비교로 구현하고 마이그레이션 없이 호환되게 할 것",
+    "M-8·A9-1(관리자=대표 폴백)을 고치면 지금까지 생성된 문서와 값이 달라진다. 이미 제출된 문서와의 불일치를 사용자에게 알릴 필요가 있다",
+    "이번 감사는 코드 대조다 — PDF로 실제 렌더했을 때의 레이아웃 깨짐·줄바꿈·표 넘침은 검증 범위 밖이다"
+  ],
+
+  "verification_plan": {
+    "baseline": "수정 미착수 — 현재 기준선은 tsc --noEmit 클린 · test-fireplan-gen(본문 생성) · test-plan-tab 계열 통과 상태",
+    "on_fix": "P1 수정 시 ① 해당 필드를 채운 고객으로 본문·별지9호 생성 ② 생성 HTML에서 값 존재를 문자열 단언 ③ scripts/test-fireplan-gen.mts에 회귀 단언 추가. M-1은 '전기' 저장 → 본문 '전기적 요인' ■ 확인이 핵심 단언",
+    "independent_check": "Json_Rule 규칙 3 — 구현자 ≠ 판정자. 수정 후 implemented 승격은 별도 검증 패스에서만"
+  }
+}

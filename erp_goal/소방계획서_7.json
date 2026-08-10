@@ -27,13 +27,13 @@
     { "id": "D-9", "desc": "소방시설등점검표(엑셀) 생성은 별지 4호 PDF로 대체·폐지 — H-21 전환·검증 후 제거", "status": "confirmed", "note": "2026-08-03 사용자 확정 (구 Q-5)" }
   ],
   "roadmap": [
-    { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "code_present", "note": "H-1~H-4 전건 code_present(2026-08-03)" },
-    { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "code_present", "note": "2026-08-03 전건 완료 — 4유형 서버 동기 생성 전환, 신구 파리티·스테이징 실주행 검증 PASS" },
-    { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "code_present", "note": "2026-08-03 완료 — E2E 11/11. 템플릿 삽입은 S4(H-12)에서" },
-    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "code_present", "note": "2026-08-04 전건 완료(H-18~24) — H-20/H-22는 설비 대장 통합으로 Q-6 해소·중복 없음 확인" },
-    { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "code_present", "note": "2026-08-04 전건 완료(H-25·26·27·28)" },
-    { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "code_present", "note": "2026-08-04 완료 — H-12·13·14 전건, 실주행 검증 PASS. SDK 최종 제거" },
-    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "code_present", "note": "2026-08-04 — H-15(SDK·워커 제거, 엑셀 잔여 경미)·H-15b·H-16·H-17(운영 배포 완결). 잔여: 점검표 엑셀 생성 제거(D-9, 경미)" }
+    { "id": "S1", "title": "공통 렌더 기반 — 템플릿 골격·print CSS·Gotenberg 클라이언트·폰트·미리보기 (H-1~H-4)", "status": "implemented", "note": "2026-08-04 독립검증(구현자≠판정자, 서브에이전트) PASS — H-1(base.ts:11-86)·H-2(pdf.ts:40-93 marginMode·타임아웃·5xx재시도)·H-4(report9-actions.ts:634-672 미리보기 단일소스) file:line 대조. H-3은 VPS 스모크(운영성). 커밋 bb88cec 배포분" },
+    { "id": "S2", "title": "별지 9·10·11호·외관 이식 (1차 전환) — 템플릿·생성 액션·병행 검증 (H-5~H-9)", "status": "implemented", "note": "2026-08-04 독립검증 PASS — H-5(report9.ts:433-446)·H-6(report1011.ts, 행제한 없음)·H-7(exterior.ts, EXTERIOR_SECTIONS 124항목 카운트 재확인)·H-8(ANNEX_TYPES 5종·서버동기 render→Gotenberg→storage→잡done). H-9는 파리티 검증 성격. 커밋 bb88cec" },
+    { "id": "S3", "title": "지도·사진 화면 등록 — 표지·위치도·피난안내도 슬롯 (H-10~H-11)", "status": "implemented", "note": "2026-08-04 독립검증 PASS — H-10(customer-assets-client.tsx 3슬롯+asset-actions.ts 서버액션)·H-11(createImageBitmap EXIF·1600px·q0.85, 경로 규약 일치). 커밋 bb88cec" },
+    { "id": "S3A", "title": "별지 작성 센터 — 저장소·설비 대장·별지 그룹·4호 템플릿·9~11호 작성 화면·작업대 (H-18~H-24)", "status": "implemented", "note": "2026-08-04 독립검증 PASS — H-18(facility-spec-schema.ts·spec-actions upsert)·H-19(plan-form14-specs.tsx 카탈로그·게이지)·H-21(report4.ts+spec-sections.ts 별지4=별지9 단일소스)·H-22(1.4=fire_facilities installed, 중복없음)·H-23(annex-compose-panel ③오버레이 라이브)·H-24(customer-docs [작성]→패널). 별지4호 보드행은 후속(경미). 커밋 bb88cec" },
+    { "id": "S3B", "title": "입력 동선 재편 — 온보딩 위저드·미완성 큐·문서 스트립·여정 스텝퍼 (H-25~H-28)", "status": "implemented", "note": "2026-08-04 독립검증 PASS — H-25(plan-onboarding-banner)·H-26(fetchInputTodo, 필드단위 이동은 후속)·H-27(docStrip DB판정, 상세 docChips는 후속)·H-28(여정 스텝퍼·전후갤러리). H-28 stale 워커문구(timeline:666)는 본 세션 수정(미커밋). 커밋 bb88cec+대기" },
+    { "id": "S4", "title": "소방계획서 장 단위 이식 (2차 전환) (H-12~H-14)", "status": "implemented", "note": "2026-08-04 독립검증 PASS — H-12(fire-plan-template.ts 전 장 1.1~3.7·슬롯·프리셋)·H-13(fire-plan-generate.ts fire_facilities→Gotenberg→fire_plans pdf ready·hwp null)·H-14(워커 파일 부재·전건 동기). 잔여: workerOnline 하트비트 dead code(무해). 커밋 bb88cec" },
+    { "id": "S5", "title": "정리·테스트·배포 — 워커·SDK·업로드·엑셀 제거, E2E, 배포 (H-15~H-17)", "status": "partial", "note": "2026-08-04 독립검증 — H-15b(업로드 진입 폐지)·H-16(test-doc-generation 등록)·H-17(운영배포) implemented. H-15는 partial: 파이썬14파일·SDK·워커 삭제 확인, 그러나 엑셀(generateOperationalReportAction) 잔존. D-9 제거 차단(엑셀이 갑지·위임장·계약서 유일 생성, PDF 미대체) — 사용자 결정 대기. 커밋 bb88cec" }
   ],
   "sections": [
     {
