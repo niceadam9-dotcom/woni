@@ -91,7 +91,7 @@ try {
 
   // D-7 호버 퀵뷰 — 9호 행 위에 머물면 우측 팝업 (데스크톱)
   await page.locator('[data-hover-doc="report9"]').first().hover()
-  await page.waitForSelector('text=퀵뷰 (클릭하면 전체 미리보기)')
+  await page.waitForSelector('text=퀵뷰 ([보기]를 누르면 크게)')
   check('호버 퀵뷰 — 9호 행 팝업 표시', true)
   await page.mouse.move(10, 10)
 
@@ -105,8 +105,29 @@ try {
   check('전체 미리보기 — 배치확인서 칩(⚠없음)', await page.isVisible('text=배치확인서 ⚠없음'))
   check('전체 미리보기 — 불량 0건 ⑩⑪ 미표시', !(await page.isVisible('text=이행계획서')))
   check('전체 미리보기 — 미입력 집계 요약', await page.isVisible('text=미입력 총'))
+  // 2-b) 단일 문서 모드(#13) — 칩으로 4호↔9호 전환, [전체]로 복귀
+  await page.locator('div.fixed >> button:has-text("9호")').first().click()
+  await page.waitForSelector('text=별지 9호 실시결과 보고서 보기')
+  check('단일 보기 — 9호 칩으로 전환', true)
+  check('단일 보기 — 세로 연결(4호) 미표시', (await page.locator('#fp-report4 iframe').count()) === 0)
+  await page.locator('div.fixed >> button:has-text("4호")').first().click()
+  await page.waitForSelector('text=별지 4호 점검표 보기')
+  check('단일 보기 — 4호로 전환(모달 유지)', true)
+  await page.locator('div.fixed >> button:has-text("전체")').first().click()
+  await page.waitForSelector('#fp-report4 iframe')
+  check('단일 보기 — [전체]로 복귀', await page.isVisible('#fp-report9 iframe'))
   await page.click('button:has-text("✕")')
   await page.waitForSelector('text=— 전체 미리보기', { state: 'detached' })
+
+  // 2-c) 문서 행 [보기] 버튼 → 그 문서만 바로 크게 (생성 전에도)
+  await page.locator('div:has(> span:text-is("실시결과 보고서 (9호)")) >> button:has-text("보기")').first().click()
+  await page.waitForSelector('text=별지 9호 실시결과 보고서 보기')
+  check('행 [보기] — 9호 단일 모달 오픈', true)
+  await page.click('button:has-text("✕")')
+  await page.locator('div:has(> span:text-is("별지 4호 점검표")) >> button:has-text("보기")').first().click()
+  await page.waitForSelector('text=별지 4호 점검표 보기')
+  check('행 [보기] — 4호 단일 모달 오픈', true)
+  await page.click('button:has-text("✕")')
 
   // ── 3) 별지 9호 작성(H-5) + 전 회차 이어받기(H-5b·D-5) ──
   await page.locator('div:has(> span:text-is("실시결과 보고서 (9호)")) >> button:has-text("작성")').first().click()

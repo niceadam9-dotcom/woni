@@ -13,13 +13,14 @@ export default async function InspectionNewPage() {
   const currentYear = new Date().getFullYear()
 
   const [customersRes, contactsRes, employeesRes, holidaysRes] = await Promise.all([
-    admin.from('customers').select('id, customer_name, customer_code, inspection_type').eq('is_active', true).order('customer_name'),
+    // use_approval_date — 단계 마감일 기준일(DB 트리거 create_inspection_steps)이라 예상 일정 미리보기에 필요
+    admin.from('customers').select('id, customer_name, customer_code, inspection_type, use_approval_date').eq('is_active', true).order('customer_name'),
     admin.from('customer_contacts').select('id, customer_id, role, name, phone'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).order('name'),
     admin.from('holidays').select('date').in('year', [currentYear, currentYear + 1]),
   ])
 
-  type CustomerOption = { id: string; customer_name: string; customer_code: string; inspection_type: string }
+  type CustomerOption = { id: string; customer_name: string; customer_code: string; inspection_type: string; use_approval_date: string | null }
   type ContactOption = { id: string; customer_id: string; role: string; name: string; phone: string | null }
   type EmployeeOption = { id: string; name: string; position: string | null }
 

@@ -6,6 +6,7 @@ import { Loader2, Calendar, ChevronRight } from 'lucide-react'
 import { createInspectionAction } from '@/app/(dashboard)/inspections/actions'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
+import { previewInspectionSteps, stepBaseDate } from '@/lib/step-dates'
 import type { InspectionType } from '@/types'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
@@ -20,7 +21,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-type CustomerOption = { id: string; customer_name: string; customer_code: string; inspection_type: string }
+type CustomerOption = { id: string; customer_name: string; customer_code: string; inspection_type: string; use_approval_date: string | null }
 type ContactOption  = { id: string; customer_id: string; role: string; name: string; phone: string | null }
 type EmployeeOption = { id: string; name: string; position: string | null }
 
@@ -30,29 +31,6 @@ interface Props {
   employees: EmployeeOption[]
   holidayDates: string[]
   currentUserId: string
-}
-
-const STEP_DEFS = [
-  { step_num: 1, name_ko: '점검일',                                  days: 0  },
-  { step_num: 2, name_ko: '배치확인서 보고서 작성',                  days: 7  },
-  { step_num: 3, name_ko: '관계인 보고서 제출',                      days: 14 },
-  { step_num: 4, name_ko: '소방서 보고서 제출 및 이행계획서 등록',   days: 21 },
-  { step_num: 5, name_ko: '소방보수 완료',                          days: 28 },
-  { step_num: 6, name_ko: '이행완료보고서 제출',                    days: 35 },
-]
-
-function calcStepDates(startDate: string, _holidaySet: Set<string>) {
-  if (!startDate) return []
-  const start = new Date(startDate + 'T12:00:00')
-  return STEP_DEFS.map(def => {
-    const d = new Date(start)
-    d.setDate(d.getDate() + def.days)
-    return {
-      step_num: def.step_num,
-      name_ko: def.name_ko,
-      due_date: d.toISOString().split('T')[0],
-    }
-  })
 }
 
 export function InspectionNewClient({ customers, contacts, employees, holidayDates, currentUserId }: Props) {
@@ -73,7 +51,14 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
   const filteredContacts = contacts.filter(c => c.customer_id === customerId)
   const isJongHap = selectedCustomer?.inspection_type === '종합'
 
-  const stepPreview = useMemo(() => calcStepDates(startDate, holidaySet), [startDate, holidaySet])
+  // 마감일은 DB 트리거가 만든다 — 미리보기도 같은 산식(lib/step-dates)을 쓴다.
+  // 사용승인일이 있는 고객은 트리거가 그 응당일을 기준일로 삼으므로 점검일과 다를 수 있어 아래에 근거를 표시한다.
+  const stepPreview = useMemo(
+    () => previewInspectionSteps({ startDate, useApprovalDate: selectedCustomer?.use_approval_date, holidays: holidaySet }),
+    [startDate, selectedCustomer?.use_approval_date, holidaySet],
+  )
+  const anchorDate = startDate && isCompleteDate(startDate)
+    ? stepBaseDate(startDate, selectedCustomer?.use_approval_date) : ''
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -200,11 +185,16 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
         </div>
       </div>
 
-      {/* 7단계 예상 일정 미리보기 */}
+      {/* 6단계 예상 일정 미리보기 — 등록 후 생성되는 실제 마감일과 같은 산식 */}
       {startDate && stepPreview.length > 0 && (
         <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
           <h2 className="text-sm font-semibold text-[#090c1d] mb-1">6단계 예상 일정</h2>
-          <p className="text-xs text-[#b0acd6] mb-4">공휴일·주말 제외 작업일 기준으로 자동 계산됩니다</p>
+          <p className="text-xs text-[#b0acd6] mb-4">
+            공휴일·주말 제외 작업일 기준으로 자동 계산됩니다 (⑤ 소방보수 완료만 달력일)
+            {anchorDate && anchorDate !== startDate && (
+              <><br />기준일 {anchorDate} — 이 고객은 사용승인일 응당일이 기준입니다 (점검일 아님)</>
+            )}
+          </p>
           <div className="space-y-2">
             {stepPreview.map((step, idx) => (
               <div key={step.step_num} className="flex items-center gap-3">

@@ -495,25 +495,5 @@ export async function getInspectionWithSteps(inspectionId: string) {
   }
 }
 
-// 점검 생성 시 6단계 예상 마감일 미리보기
-export async function previewStepDates(
-  startDate: string
-): Promise<{ error?: string; steps?: Array<{ step_num: number; name_ko: string; due_date: string | null }> }> {
-  const STEP_DEFS = [
-    { step_num: 1, name_ko: '점검일',                                  days: 0  },
-    { step_num: 2, name_ko: '배치확인서 보고서 작성',                  days: 7  },
-    { step_num: 3, name_ko: '관계인 보고서 제출',                      days: 14 },
-    { step_num: 4, name_ko: '소방서 보고서 제출 및 이행계획서 등록',   days: 21 },
-    { step_num: 5, name_ko: '소방보수 완료',                          days: 28 },
-    { step_num: 6, name_ko: '이행완료보고서 제출',                    days: 35 },
-  ]
-
-  const start = new Date(startDate + 'T12:00:00')
-  const steps = STEP_DEFS.map(def => {
-    const d = new Date(start)
-    d.setDate(d.getDate() + def.days)
-    return { step_num: def.step_num, name_ko: def.name_ko, due_date: d.toISOString().split('T')[0] }
-  })
-
-  return { steps }
-}
+// 단계 마감일 미리보기는 lib/step-dates.previewInspectionSteps로 단일화 (DB 트리거 111과 같은 산식).
+// 종전 previewStepDates는 호출처 없이 달력일 산식을 따로 들고 있어 제거했다.
