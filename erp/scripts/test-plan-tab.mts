@@ -40,6 +40,9 @@ try {
   check('생성 바 — 누락 칩(입력처 이동) 유지', await page.isVisible('text=누락:'))
   check('생성 바 — [계획서 생성] 버튼 (§7-5 HWP 단일)', await page.isVisible('button:has-text("계획서 생성 (HWP+PDF)")'))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
+  // 2026-08-10: 생성 바 연도 입력칸 폐지(올해 자동) — 연도 표기는 '보고서 커버' 서식으로 이동
+  check('생성 바 — 연도 입력칸 폐지',
+    (await page.locator('div:has(> button:has-text("계획서 생성 (HWP+PDF)")) > input').count()) === 0)
 
   // ── 2) 송달 동의 — 1.1 ④ 섹션으로 흡수, 저장 버튼 통합(2026-08-06) ──
   check('1.1 — ④ 송달 동의 섹션 이관됨', await page.isVisible('text=자체점검 보고서 전자우편 송달 동의'))
@@ -94,6 +97,22 @@ try {
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.6`)
   await page.waitForSelector('text=가스 시설')
   check('딥링크 form=1.6 직행', true)
+
+  // ── 보고서 커버 — 본문 그룹 마지막 노드 (2026-08-10: 생성 문서 마지막 페이지 업체명·연도) ──
+  await page.click('button:has-text("보고서 커버")')
+  await page.waitForSelector('#cover-company')
+  check('커버 — 노드 진입 + URL 동기화 form=cover', page.url().includes('form=cover'))
+  check('커버 — 연도 자동값 안내(placeholder=올해)',
+    (await page.getAttribute('#cover-year', 'placeholder')) === String(new Date().getFullYear()))
+  await page.fill('#cover-company', '커버 E2E 업체')
+  await page.fill('#cover-year', '2030')
+  check('커버 — 미리보기 즉시 반영', await page.isVisible('text=[ 커버 E2E 업체 ]') && await page.isVisible('text=2030년도'))
+  await page.click('button:has-text("보고서 커버 저장")')
+  await page.waitForSelector('text=보고서 커버 저장됨')
+  const { data: coverForm } = await raw.from('fire_plan_forms')
+    .select('sections').eq('customer_id', customerId).maybeSingle()
+  const rcSec = (coverForm?.sections as { reportCover?: { company?: string; year?: string } } | null)?.reportCover
+  check('DB sections.reportCover 저장', rcSec?.company === '커버 E2E 업체' && rcSec?.year === '2030', JSON.stringify(rcSec))
 
   // ── P6-2 §3-1.1: 1.1 신규 필드 (계단·경사로·피난용승강기·대표자 구분·자격구분·교육이수일) ──
   // 계획서 정보 패널 = 요약/편집 토글·아코디언 폐기(소방계획서_10 §3-4) — 열자마자 편집 폼 바로 노출

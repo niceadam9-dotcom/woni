@@ -67,7 +67,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus, archive,
-  form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
+  form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
   annex, ledgerAutoNeeded, textDefaultsNeeded,
 }: {
   customerId: string
@@ -95,6 +95,7 @@ export function PlanTabView({
   form1215: ReactNode
   ch2: ReactNode
   ch3: ReactNode
+  formCover: ReactNode            // 보고서 커버 — 생성 문서 마지막 페이지 업체명·연도 (2026-08-10, 본문 그룹 마지막 노드)
   annex?: ReactNode               // 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4, PlanAnnexSection)
 }) {
   const router = useRouter()
@@ -102,7 +103,7 @@ export function PlanTabView({
   // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
   // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'annex'])
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'cover', 'annex'])
   // 2026-08-08: 지도·사진 노드를 폐지하고 슬롯 UI를 1.3 안으로 옮겼다 — 옛 딥링크(?form=assets)는 1.3으로 보낸다
   const norm = (key: string | undefined) => (key === 'assets' ? '1.3' : key)
   const initialSel = norm(initialForm) && VALID_SEL.has(norm(initialForm)!) ? norm(initialForm)!
@@ -167,7 +168,9 @@ export function PlanTabView({
     const t = setTimeout(() => document.getElementById(decodeURIComponent(h.slice(1)))?.scrollIntoView({ block: 'start' }), 200)
     return () => clearTimeout(t)
   }, [sel])
-  const [year, setYear] = useState(new Date().getFullYear())
+  // 생성 연도 = 올해 자동 (2026-08-10 사용자 확정 — 생성 바의 연도 입력칸 폐지.
+  // 커버·표지의 연도 표기는 '보고서 커버' 서식이 담당하고, 보관함 연도 축·개정 차수 규약은 불변)
+  const currentYear = new Date().getFullYear()
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
   // 대장 수동 미리보기·확정 저장(구 [건축물대장 불러오기])은 빠른 입력 페이지와 함께 폐기(2026-08-06).
@@ -269,9 +272,9 @@ export function PlanTabView({
   function generateHwp() {
     setMsg('')
     startTransition(async () => {
-      const res = await requestFirePlanHwpFromTabAction(customerId, year, recommendPresetType(purpose))
+      const res = await requestFirePlanHwpFromTabAction(customerId, currentYear, recommendPresetType(purpose))
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg(`✅ 소방계획서 생성 완료 (${year}년) — 보관함에 등록되었습니다`)
+      setMsg('✅ 소방계획서 생성 완료 — 보관함에 등록되었습니다')
       router.refresh()
     })
   }
@@ -306,8 +309,7 @@ export function PlanTabView({
         {/* 구 보고서 센터 역링크 제거 — 이 트리(별지 서식)가 문서 현황의 단일 허브 (소방계획서_8 Phase B) */}
         {canManage && (
           <div className="flex items-center gap-1.5 ml-auto">
-            <input type="number" value={year} onChange={e => setYear(parseInt(e.target.value || '0', 10))}
-              className="h-8 w-20 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
+            {/* 연도 입력칸 폐지(2026-08-10 사용자 확정) — 올해 자동. 커버 연도 표기는 '보고서 커버' 서식에서 */}
             <button onClick={generateHwp} disabled={isPending}
               title="소방계획서 생성 (§7-5 HWP 단일 경로) — 워커(한글 SDK)가 HWP+웹 미리보기+PDF를 보관함에 등록"
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
@@ -372,6 +374,7 @@ export function PlanTabView({
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
+          { key: 'cover', label: '본문 보고서 커버' },
           { key: 'annex', label: '별지 서식 (회차)' },
           { key: 'archive', label: '보관함·개정이력' },
         ]
@@ -388,6 +391,8 @@ export function PlanTabView({
               {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
               {navBtn('ch2', '2장 자위소방대', true)}
               {navBtn('ch3', '3장 피난계획', true)}
+              {/* 보고서 커버 — 생성 문서 마지막 페이지라 본문 그룹 마지막 노드 (2026-08-10) */}
+              {navBtn('cover', '보고서 커버', true)}
             </div>
             {/* 🖼 지도·사진 노드 폐지(2026-08-08 사용자 확정) — 표지·위치도·피난안내도 슬롯은 1.3 안으로 이관 */}
             <div className="pt-1">
@@ -428,7 +433,7 @@ export function PlanTabView({
       {sel === 'archive' && (
         <div className="space-y-4">
           <RevisionHistory customerId={customerId} canManage={canManage}
-            initialYears={revisionYears} currentYear={year} />
+            initialYears={revisionYears} currentYear={currentYear} />
           {archive}
         </div>
       )}
@@ -451,6 +456,9 @@ export function PlanTabView({
 
       {/* ── 3장 피난계획 ── */}
       {sel === 'ch3' && ch3}
+
+      {/* ── 보고서 커버 (생성 문서 마지막 페이지 — 업체명·연도) ── */}
+      {sel === 'cover' && formCover}
 
       {/* ── 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4) ── */}
       {sel === 'annex' && (annex ?? <p className="text-xs text-[#b0acd6] py-4">별지 서식을 불러올 수 없습니다.</p>)}

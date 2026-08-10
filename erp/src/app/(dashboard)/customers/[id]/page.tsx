@@ -20,6 +20,7 @@ import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } fr
 import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/components/customers/plan-form16'
 import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
 import { PlanForm18 } from '@/components/customers/plan-form18'
+import { PlanFormCover, type ReportCoverSection } from '@/components/customers/plan-form-cover'
 import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow, type DutyLogRow } from '@/components/customers/plan-form110'
 import { PlanForm1215, type LogRow } from '@/components/customers/plan-form1215'
 import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
@@ -330,6 +331,7 @@ export default async function CustomerDetailPage({
     photos?: Array<{ path: string | null; kind: string; caption: string }>
     dutyLog?: DutyLogRow[]
     fireworkLog?: LogRow[]; constructionLog?: LogRow[]; promoLog?: LogRow[]; recoveryLog?: LogRow[]
+    reportCover?: ReportCoverSection
   } } | null)?.sections) ?? {}
 
   // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
@@ -354,6 +356,8 @@ export default async function CustomerDetailPage({
       || (fpSections.promoLog?.length ?? 0) || (fpSections.recoveryLog?.length ?? 0)),
     'ch2': !!(fpSections.brigadeGeneral?.type || Object.keys(fpSections.brigadeTeams ?? {}).length || planInfoInitial.brigade.length),
     'ch3': !!((fpSections.evacDetail?.length ?? 0) || fpSections.evacPlan || fpSections.vulnerable),
+    // 보고서 커버는 미입력이어도 자동값으로 항상 렌더되므로 완성도 판정에서 제외 — 입력 존재 표시만
+    'cover': !!fpSections.reportCover,
   }
   // §1-4: 목차 합산 = 소방계획서 탭 뱃지
   const formFilled = Object.values(formStatus)
@@ -688,6 +692,9 @@ export default async function CustomerDetailPage({
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []}
         hasEvacAsset={customerAssets.some(a => a.slot === 'evac')} />}
+      formCover={<PlanFormCover customerId={customer.id} canManage={canManage}
+        initial={fpSections.reportCover ?? {}}
+        defaults={{ company: customer.customer_name, year: String(new Date().getFullYear()) }} />}
       annex={<PlanAnnexSection customerId={customer.id}
         canRegister={can(profile.role as UserRole, 'inspection_register')} />}
     />

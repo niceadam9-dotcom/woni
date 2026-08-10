@@ -26,6 +26,14 @@ export type HazardRow = { place: string; location: string; factors: string[] }
 export type PlanPhoto = { path: string; kind: 'building' | 'map' | 'evacuation' | 'etc'; caption: string }
 
 export const HAZARD_FACTORS = ['전기적 요인', '기계적 요인', '화학적 요인', '가스누출(폭발)', '부주의', '자연재해'] as const
+
+/** M-8·A9-1(소방계획서_15): 소방안전관리자 = 서식 1.7 선임현황 1순위.
+ *  '보조' 행을 제외한, 성명이 있는 첫 행을 선임자로 본다. 없으면 null — 호출부가 관계인 대표로 폴백(종전 동작).
+ *  주의: 1.7에는 전화 열이 없다 — 선임자가 대표와 동일인이 아니면 대표 전화를 붙이지 말 것(타인 전화 오기재). */
+export function pickFirePlanManager(managers?: ManagerRow[] | null): ManagerRow | null {
+  if (!managers?.length) return null
+  return managers.find(m => (m.name ?? '').trim() !== '' && !(m.role ?? '').includes('보조')) ?? null
+}
 export const PHOTO_KINDS: Array<{ value: PlanPhoto['kind']; label: string }> = [
   { value: 'building', label: '건물 전경' },
   { value: 'map', label: '위치도(지도)' },
@@ -59,6 +67,7 @@ export type FirePlanFormSections = {
   constructionLog?: LogRow[]
   promoLog?: LogRow[]
   recoveryLog?: LogRow[]
+  reportCover?: { company?: string; year?: string; sub?: string }  // 보고서 커버 (마지막 페이지, 2026-08-10)
 }
 
 /** 서식 1.1 운영현황·화재보험 (고객 마스터 — 워커 build_stage2 병합 항목의 TS 이식) */
@@ -114,8 +123,9 @@ export type FirePlanGenData = {
   // 서식 1.10.1 자체점검
   operationMonth: string        // 작동점검 시기 (예: 2026년 7월)
   comprehensiveMonth: string    // 종합점검 시기 (종합 대상만, 없으면 '')
-  // 서식 1.11.1 훈련·교육 연간계획 (실시 월 1~12) — forms.training이 있으면 그 월 배열 우선
-  trainingMonth: number
+  // 서식 1.11.1 훈련·교육 연간계획 (실시 월 1~12) — forms.training이 있으면 그 월 배열 우선.
+  // M-7(소방계획서_15): 미입력이면 null — 임의 월(구 11월 고정)을 ■로 인쇄하지 않고 전 월 ☐로 남긴다
+  trainingMonth: number | null
   // 제2장 자위소방대
   brigade: BrigadeRow[]
   // 제3장 피난계획
@@ -217,8 +227,8 @@ export function buildFirePlanHtml(
     }</div></td></tr>`).join('')
 
   const monthCells = (marks: number[]) => months.map(m => `<td class="c">${marks.includes(m) ? '■' : '☐'}</td>`).join('')
-  const eduMonths = f.training?.eduMonths?.length ? f.training.eduMonths : [d.trainingMonth]
-  const drillMonths = f.training?.drillMonths?.length ? f.training.drillMonths : [d.trainingMonth]
+  const eduMonths = f.training?.eduMonths?.length ? f.training.eduMonths : d.trainingMonth != null ? [d.trainingMonth] : []
+  const drillMonths = f.training?.drillMonths?.length ? f.training.drillMonths : d.trainingMonth != null ? [d.trainingMonth] : []
 
   const brigadeRows = (d.brigade.length ? d.brigade : [{ team: '', name: '', duty: '', phone: '' }])
     .map(b => `<tr><td>${v(b.team)}</td><td>${v(b.name)}</td><td class="l">${v(b.duty)}</td><td>${v(b.phone)}</td></tr>`).join('')
@@ -302,6 +312,12 @@ export function buildFirePlanHtml(
   const mapImgs = imgsOf('map')
   const evacImgs = imgsOf('evacuation')
 
+  // 보고서 커버 (마지막 페이지, 2026-08-10) — 빈 값은 자동값(연도=생성 연도, 업체명=고객명).
+  // 앞표지 연도 표기도 이 값을 따라 앞뒤가 어긋나지 않게 한다 (생성 바 연도 입력칸 폐지의 단일 표기처).
+  const rc = f.reportCover
+  const coverYear = (rc?.year ?? '').trim() || String(d.year)
+  const coverCompany = (rc?.company ?? '').trim() || d.buildingName
+
   return `<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
 <style>
@@ -333,7 +349,7 @@ export function buildFirePlanHtml(
 <!-- 표지 -->
 <div class="page cover">
   <h1>소 방 계 획 서</h1>
-  <p style="font-size:16px">${d.year}년도</p>
+  <p style="font-size:16px">${esc(coverYear)}년도</p>
   <p class="name">[ ${esc(d.buildingName)} ]</p>
   ${coverImgs.length ? imgBlock(coverImgs, 320) : slotPlaceholder('표지 건물 사진')}
   <p class="co">작성일: ${v(d.revisionDate)}</p>
@@ -716,6 +732,14 @@ ${imgsOf('etc').length ? `<!-- 부속 사진 -->
   <h2>부속 사진</h2>
   ${imgBlock(imgsOf('etc'), 420)}
 </div>` : ''}
+
+<!-- 보고서 커버 — 문서 마지막 페이지 (트리 '보고서 커버' 서식, 업체명·연도 표기) -->
+<div class="page cover">
+  <p style="font-size:18px;margin-top:40px">${esc(coverYear)}년도</p>
+  <h1>소 방 계 획 서</h1>
+  <p class="name">[ ${esc(coverCompany)} ]</p>
+  <p class="co">${rc?.sub?.trim() ? esc(rc.sub) : v(d.companyName)}</p>
+</div>
 
 </body></html>`
 }
