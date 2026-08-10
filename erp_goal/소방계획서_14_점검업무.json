@@ -17,6 +17,20 @@
     "probe_reproduced": "scripts/_probe-report9-marks.mjs 재실행 4/4 (2026-08-10, 본 세션) — V-0 근거 재현 확인"
   },
 
+  "blockers": [
+    { "id": "BLK-1", "severity": "high", "status": "open", "detected": "2026-08-10",
+      "desc": "남은 3항목(T-2b·T-2c·T-1)이 전부 `inspection-sheet-client.tsx`를 건드리는데, 그 파일을 **다른 세션이 지금 재작성 중**이다. 착수하면 충돌하거나, 곧 바뀔 API 위에 쌓게 된다",
+      "evidence": [
+        "git status — inspection-sheet-client.tsx 수정됨(미커밋) · inspections/[id]/page.tsx 수정됨 · sheet-item-editor.tsx 신규 미커밋",
+        "커밋 eb23b33 '점검표 진행률 집계 엔진 + 조회 액션 2개 (소방계획서_16 S2)' — lib/sheet-overview.ts(buildSheetOverviews·SheetOverview·SheetProgress) + sheet-actions.ts(getInspectionSheetOverviewAction·loadSheetEditorAction·loadSheetItemsAction) 신설",
+        "다른 세션이 test-plan-tab.mts를 자기 변경(개정이력 UI)에 맞춰 계속 고치는 중 — 회귀 기준선 자체가 흔들린다"
+      ],
+      "resolved_note": "test-plan-tab 회귀는 2026-08-10 재확인 결과 **83/83 그린**(중간 실패는 중단된 실행이 남긴 계정 잔재 오염이었음 — 사본 계정으로 격리 실행해 판정). BLK-1은 파일 충돌·설계 갱신 필요성만 남는다",
+      "impact": "T-2b는 '기존 inspection-sheet-client를 고객 탭에서 재마운트' 설계인데, 소방계획서_16 S2가 마침 **재마운트에 더 적합한 부품**(sheet-item-editor + loadSheetEditorAction)을 만들고 있다. 지금 옛 모놀리스를 재마운트하면 곧 중복·폐기된다",
+      "recommendation": "소방계획서_16 점검표 작업이 안정된 뒤 착수하고, T-2b는 재마운트 대신 **loadSheetEditorAction + sheet-item-editor 재사용**으로 설계를 갱신할 것. 그 시점에 test-plan-tab 회귀도 복구돼 검증이 가능해진다"
+    }
+  ],
+
   "corrections": [
     { "id": "C-1", "target": "T-2b-1 최신 건 판정 규칙 — '미취소' 조건", "severity": "high", "status": "resolved",
       "draft_said": "special_*(레거시 null 포함)·**미취소** 중 inspection_start_date 최신 1건",
@@ -107,13 +121,13 @@
         { "id": "T-2a-1", "desc": "assembleReport9의 시트 통계(sheetStat) 롤업을 공용 함수로 추출 — 배지·별지9호가 같은 로직 공유", "status": "code_present",
           "self_report": { "date": "2026-08-10", "evidence": ["sheet-facility-map.ts rollUpForm3Results()"], "note": "T-3-2b에서 앞당겨 충족 — T-3 검증을 위해 순수 함수가 필요했다. T-2a-2(배지 UI)는 이 함수를 그대로 쓰면 된다" } },
         { "id": "T-2a-2", "desc": "plan-form14-specs.tsx 섹션 헤더에 설비별 ○/×/／/미입력 + 불량 수 배지 표시", "status": "code_present",
-          "self_report": { "date": "2026-08-10", "evidence": ["plan-form14-specs.tsx sectionBadge() + 섹션 헤더 렌더(data-testid=spec-mark-*)", "facility-spec-actions.ts getInspectedFacilityCodesAction이 sheetStats·defectsBySheet 추가 반환"], "probe": "_probe-spec-badge.mjs 12/12(순수 로직) + _probe-spec-badge-ui.mjs 6/6(브라우저 렌더)" },
+          "self_report": { "date": "2026-08-10", "evidence": ["plan-form14-specs.tsx sectionBadge() + 섹션 헤더 렌더(data-testid=spec-mark-*)", "facility-spec-actions.ts getInspectedFacilityCodesAction이 sheetStats·defectsBySheet 추가 반환"], "probe": "_probe-spec-badge.mjs 12/12(순수 로직) + _probe-spec-badge-ui.mjs 6/6(브라우저 렌더) + test-plan-tab 83/83 회귀" },
           "design_deviation": "마크 판정을 서버가 하지 않고 **원자료(시트 통계)만 받아 클라이언트가 공용 rollUpForm3Results로 계산**한다. ①별지9호 3쪽과 같은 함수를 써서 문서↔화면 불일치를 구조적으로 차단(T-2a-1 취지) ②'해당없음(／)' 판정에 쓰는 설치 여부가 화면에서 더 정확 — 서버 DB로 판정하면 방금 켠(미저장) 설비가 ／로 표시된다(프로브 §3이 이 케이스를 고정)" },
         { "id": "T-2a-3", "desc": "배지 클릭 시 T-2b 노드의 해당 시트로 이동", "status": "pending_order", "blocked_by": ["T-2b"], "note": "이동 대상 노드가 아직 없어 배지는 현재 읽기 전용(툴팁으로 회차·설비 안내)" }
       ] },
 
     { "id": "T-2b", "title": "별지 허브 트리 [점검표(최신)] 노드 — inspection-sheet-client 재마운트", "status": "pending_order",
-      "blocked_by": ["Q-2"],
+      "blocked_by": ["Q-2", "BLK-1"],
       "current_state": { "evidence": ["plan-annex-section.tsx에 점검표 노드 없음 — 별지 4·9·10·11호 문서 행만 표시"], "verified_date": "2026-08-10" },
       "criteria": [
         { "id": "T-2b-1", "desc": "getLatestSpecialInspection(customerId) 서버 헬퍼 — `plan_type is null OR like 'special_%'` + `order by year desc, sequence_num desc`로 최신 1건. **취소 조건 없음**(C-1 확정). 기존 getInspectedFacilityCodesAction의 로컬 회차 선택 로직을 이 헬퍼로 흡수해 단일화(C-2 확정)", "status": "code_present",
