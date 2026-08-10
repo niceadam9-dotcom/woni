@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, ClipboardList, Eye, Loader2, PlayCircle, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, Loader2, PlayCircle, RefreshCw } from 'lucide-react'
 import {
   getCustomerRoundsAction, getDocUrlAction,
   type CustomerRounds, type CustomerRound,
@@ -15,6 +15,7 @@ import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import type { InspectionType, PlanType } from '@/types'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
+import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers/plan-annex-sheet-tree'
 
 /** 별지 서식 섹션 (소방계획서_8 H-2·H-3·H-5) — 소방계획서 트리의 회차 자동 카드.
  *  최신 회차 즉시 펼침 + 과거 아코디언(D-4), 회차=plan_items∪inspections 자동(D-2),
@@ -37,7 +38,11 @@ function statePill(r: CustomerRound): { label: string; cls: string } {
   return { label: '진행중', cls: 'bg-[#f5f4ff] text-[#7b68ee]' }
 }
 
-export function PlanAnnexSection({ customerId }: { customerId: string }) {
+export function PlanAnnexSection({ customerId, canRegister = false }: {
+  customerId: string
+  /** 역할 축 권한 — 점검표 인라인 입력 노출 게이트(점검 건 축은 액션이 반환) */
+  canRegister?: boolean
+}) {
   const [data, setData] = useState<CustomerRounds | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -58,6 +63,17 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
   const [startErr, setStartErr] = useState<string | null>(null)
   // 전체 미리보기 요약 바의 배치확인서 칩 — 없으면 그 자리에서 업로드(협회 발급본이라 생성 불가)
   const certChipRef = useRef<HTMLInputElement>(null)
+
+  /** 점검표 인라인 저장 후 회차 머리줄의 응답 수만 갱신 — reload()는 미리보기 캐시를 통째로 버려
+   *  펼친 회차의 iframe이 전부 다시 렌더된다(68행). 부분 패치로 그 비용을 피한다. */
+  function patchSheetResponses(inspectionId: string, responded: number) {
+    setData(prev => prev && ({
+      ...prev,
+      rounds: prev.rounds.map(r => r.docs?.inspectionId === inspectionId
+        ? { ...r, docs: { ...r.docs, sheetResponses: responded } }
+        : r),
+    }))
+  }
 
   function reload(first = false) {
     startTransition(async () => {
@@ -178,7 +194,8 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
     <div className="space-y-3">
       {/* 그룹 머리 안내 (D-18) — 입력은 원천 한 곳 원칙 */}
       <p className="text-[11px] text-[#b0acd6]">
-        별지는 입력한 데이터로 자동 생성됩니다 — 입력: 점검표(점검 상세)·설비 대장(1.4)·9호 ③(작성 패널)
+        별지는 입력한 데이터로 자동 생성됩니다 — 점검표는 이 화면에서 설비별로 바로 입력할 수 있고(저장 위치는 점검 상세와 동일),
+        나머지 입력은 설비 대장(1.4)·9호 ③(작성 패널)
       </p>
 
       {rounds.length === 0 && (
@@ -236,16 +253,11 @@ export function PlanAnnexSection({ customerId }: { customerId: string }) {
                 onMouseLeave={() => setHoverDoc(null)}>
                 {r.docs ? (
                   <>
-                    {/* 📝 점검표 행 (D-11) — [입력] 원천, 점검 상세 딥링크 */}
-                    <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc]">
-                      <ClipboardList className="size-3.5 text-[#7b68ee] shrink-0" />
-                      <span className="font-medium text-[#090c1d] w-44">점검표 입력</span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#f5f4ff] text-[#7b68ee]">입력</span>
-                      <span className="text-[#514b81]">응답 {r.docs.sheetResponses} · 불량 {r.docs.defects.total}</span>
-                      <Link href={`/inspections/${r.docs.inspectionId}`} className="ml-auto text-[11px] text-[#7b68ee] hover:underline">
-                        점검 상세에서 입력 →
-                      </Link>
-                    </div>
+                    {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4) — 머리줄 + 설비별 인라인 입력 */}
+                    <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
+                      responded={r.docs.sheetResponses} defects={r.docs.defects.total} />
+                    <PlanAnnexSheetTree inspectionId={r.docs.inspectionId} canRegister={canRegister}
+                      onSaved={responded => patchSheetResponses(r.docs!.inspectionId, responded)} />
                     {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
                     <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap" data-hover-doc="report4">
                       <span className="font-medium text-[#090c1d] w-44 pl-5">별지 4호 점검표</span>

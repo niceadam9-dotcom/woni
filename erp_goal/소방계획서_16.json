@@ -2,9 +2,9 @@
   "doc": "소방계획서_16 — 회차별 작성·조회에 점검표 트리 조회·입력 통합 (+ 시트 범위 판정 축 단일화)",
   "design": "대화 확정(2026-08-10) + 계획 파일 ~/.claude/plans/robust-watching-bee.md — 별도 설계 MD 없음",
   "created": "2026-08-10",
-  "updated": "2026-08-10 (S3 완료 반영)",
+  "updated": "2026-08-10 (S4 완료 반영)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
-  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0~S3 완료(커밋 16b42da·eb23b33), S4~S6 미착수",
+  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0~S4 완료(커밋 16b42da·eb23b33·913c257) — 최초 요구인 '트리 조회·입력'은 S4에서 충족. S5(Realtime)·S6(전체 회귀) 잔여",
 
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -121,15 +121,33 @@
           "note": "선행 UX 공백을 E2E 타임아웃으로 발견해 함께 수정 — 공용 편집기가 된 이상 트리(S4)에서도 같은 문제가 생긴다" }
       ] },
 
-    { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "pending_order",
+    { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "code_present",
+      "note": "구현자 자기 신고 단계. 신규 E2E 20체크가 실제 브라우저 주행으로 판정 — 최초 요구('트리로 조회·입력')는 이 단계에서 충족됐다",
       "criteria": [
-        { "id": "S4-1", "desc": "설비별 요약 행 상시 표시 — 진행률 20/24 · ○✕／ 집계 · ⚠ 미입력", "status": "pending_order" },
-        { "id": "S4-2", "desc": "클릭한 시트만 인라인 확장(lazy) — 한 회차에서 동시 확장 1개", "status": "pending_order" },
-        { "id": "S4-3", "desc": "'설치 설비만 보기' 기본 ON, installed 전무면 자동 해제 + 안내", "status": "pending_order" },
-        { "id": "S4-4", "desc": "저장 후 편집기를 닫지 않고 해당 시트 요약만 부분 갱신 — reload() 전체 재조회 금지(미리보기 캐시 무효화 비용)", "status": "pending_order" },
-        { "id": "S4-5", "desc": "canRegister props 주입 + overview.canEdit AND 게이트, 불가 시 '보기 전용' 표기 (D-5)", "status": "pending_order" },
-        { "id": "S4-6", "desc": "미시작 회차(docs===null)는 액션 호출 자체 skip, 기존 [이 회차 시작] CTA 유지", "status": "pending_order" },
-        { "id": "S4-7", "desc": "'점검표 입력' 문자열을 새 UI에 재사용하지 않음 (K-7)", "status": "pending_order" }
+        { "id": "S4-1", "desc": "설비별 요약 행 상시 표시 — 진행률 N/M · ✕ 집계 · ⚠ 미입력 N", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx:160-172 요약 행", "plan-annex-section.tsx:239-243 노드 배선"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'설비별 진행 요약 표시'·'미입력 진행률 0/N'·'미입력 경고 표기' 통과" } },
+        { "id": "S4-2", "desc": "클릭한 시트만 인라인 확장(lazy) — 확장 전에는 항목 DOM 0개, 동시 확장 1개", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx:70-85 openSheetRow — loadSheetEditorAction 지연 호출"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'확장 전 항목 미로드(상시 펼침 아님)'·'클릭 후 항목 로드' 통과 — D-1(상시 펼침 안 함) 확정 검증" } },
+        { "id": "S4-3", "desc": "'설치 설비만 보기' 기본 ON, 설치 정보 전무면 자동 해제 + 안내", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx:126-128 filterOn(noFacilityInfo 시 해제)", "plan-annex-sheet-tree.tsx:139-146 토글·안내"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'기본 ON — 미설치 시트 숨김'·'필터 해제 — 미설치 시트 노출' 통과" } },
+        { "id": "S4-4", "desc": "저장 후 편집기를 닫지 않고 요약만 부분 갱신 — reload() 전체 재조회 금지(미리보기 캐시 무효화 비용)", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx:87-103 save — 편집기 유지 + overview 재조회", "plan-annex-section.tsx:62-71 patchSheetResponses 부분 패치"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'DB 저장 — 1건 O'·'새로고침 없이 요약 갱신(1/N)' 통과" } },
+        { "id": "S4-5", "desc": "canRegister props 주입 + overview.canEdit AND 게이트, 불가 시 '보기 전용' 표기 (D-5)", "status": "code_present",
+          "evidence": ["customers/[id]/page.tsx:691-692 can(role,'inspection_register') 주입", "plan-annex-sheet-tree.tsx:66 editable = canRegister && ov.canEdit", "plan-annex-sheet-tree.tsx:150 보기 전용 안내"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "비담당 employee — '요약은 보임'·'보기 전용 안내'·'저장 버튼 미노출'·'DB 무변화' 4체크 통과" } },
+        { "id": "S4-6", "desc": "미시작 회차(docs===null)는 트리를 렌더하지 않고 기존 [이 회차 시작] CTA 유지", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx:292-300 미시작 분기 그대로"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'미시작 회차 — 시작 CTA 표시'·'점검표 노드 없음' 통과" } },
+        { "id": "S4-7", "desc": "'점검표 입력' 문자열을 새 UI에 재사용하지 않음 (K-7) — 요약은 '설비별 진행'", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx:20-21 주의 주석", "plan-annex-sheet-tree.tsx:137 '설비별 진행'"],
+          "self_check": { "e2e": "test-annex-interaction.mts 35/35", "result": "문자열 카운트 단언(count===1/===2) 무사 — K-7 회피 확인" } },
+        { "id": "S4-8", "desc": "인라인 X 등록도 트리에서 동작 — 불량내역 자동 등록까지 기존 경로 재사용", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx:105-118 registerX — saveSheetResponses + createDefectsFromX"],
+          "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'X 인라인 → 불량내역 자동 등록' 통과" } }
       ] },
 
     { "id": "S5", "title": "마이그레이션 119 + Realtime 구독 (D-3·K-3)", "status": "pending_order",
@@ -166,7 +184,10 @@
       { "target": "S2", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" },
       { "target": "S3", "cmd": "npx tsx scripts/test-mu-sheet.mts", "result": "8/8 (인라인 X 3체크 신설 포함)", "date": "2026-08-10" },
       { "target": "S3 회귀", "cmd": "test-quick-defect · test-sheet-delete · test-sheet-scope-axis · test-sheet-overview", "result": "7/7 · 6/6 · 6/6 · 23/23", "date": "2026-08-10" },
-      { "target": "S3", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
+      { "target": "S3", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" },
+      { "target": "S4", "cmd": "npx tsx scripts/test-annex-sheet-inline.mts", "result": "20/20 (신규)", "date": "2026-08-10" },
+      { "target": "S4 회귀", "cmd": "npx tsx scripts/test-annex-interaction.mts", "result": "35/35 — K-7 문자열 카운트 함정 회피 확인", "date": "2026-08-10" },
+      { "target": "S4", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
     ],
     "failed_preexisting": [
       { "target": "K-8", "cmd": "npx tsx scripts/test-voice-sheet.mts <inspId>", "result": "1/2 실패 — HEAD 버전도 동일 실패(인과 확정, 이번 변경 무관)", "date": "2026-08-10" }
@@ -185,20 +206,22 @@
       "erp/scripts/_check-realtime-publication.mjs",
       "erp/src/lib/sheet-overview.ts (S2)",
       "erp/scripts/test-sheet-overview.mts (S2)",
-      "erp/src/components/inspections/sheet-item-editor.tsx (S3)"
+      "erp/src/components/inspections/sheet-item-editor.tsx (S3)",
+      "erp/src/components/customers/plan-annex-sheet-tree.tsx (S4)",
+      "erp/scripts/test-annex-sheet-inline.mts (S4)"
     ],
     "modified": [
       "erp/src/app/(dashboard)/inspections/sheet-actions.ts",
       "erp/src/app/(dashboard)/inspections/voice-sheet-actions.ts",
       "erp/src/app/(dashboard)/inspections/[id]/page.tsx",
       "erp/src/components/inspections/inspection-sheet-client.tsx",
-      "erp/scripts/test-mu-sheet.mts (S3 — 인라인 X 3체크 추가)"
+      "erp/scripts/test-mu-sheet.mts (S3 — 인라인 X 3체크 추가)",
+      "erp/src/components/customers/plan-annex-section.tsx (S4)",
+      "erp/src/app/(dashboard)/customers/[id]/page.tsx (S4 — canRegister 주입)"
     ],
     "planned": [
-      "erp/src/components/customers/plan-annex-sheet-tree.tsx (S4)",
       "erp/src/hooks/use-sheet-responses-realtime.ts (S5)",
-      "erp/supabase/migrations/119_realtime_sheet_responses.sql (S5)",
-      "erp/scripts/test-annex-sheet-inline.mts (S6)"
+      "erp/supabase/migrations/119_realtime_sheet_responses.sql (S5)"
     ]
   },
 
@@ -210,13 +233,15 @@
   ],
 
   "next_actions": [
-    "S4 착수 (회차별 조회 트리에 점검표 노드)",
-    "S1·S2·S3 독립 검증 패스 후 code_present → implemented 승격",
+    "S5 착수 (마이그레이션 119 + Realtime 구독)",
+    "S1~S4 독립 검증 패스 후 code_present → implemented 승격",
     "K-8(음성 점검표 기존 실패) 별건 처리 여부 사용자 판단",
     "K-9(fetchAllRows 중복) 후속 통합"
   ],
 
   "notes": [
+    { "id": "N-b", "desc": "E2E 경쟁 조건 — 로딩 문구가 완료 문구와 접두사를 공유하면(예: '설비별 진행을 불러오는 중…' vs '설비별 진행 N/M') text= 셀렉터가 로딩 상태에 즉시 매칭돼 데이터 도착 전에 단언이 실행된다. 실제 데이터 요소(시트 행)를 waitFor 하고, 로딩 문구는 다른 어휘를 쓸 것", "context": "test-annex-sheet-inline.mts 비담당 권한 블록에서 발생 — 컴포넌트 문구도 '점검표 설비 목록을 불러오는 중…'으로 변경" },
+    { "id": "N-c", "desc": "회차 정렬은 연도 desc → 차수 desc라, 같은 해에 미시작 2차가 있으면 그 카드가 자동 펼침 대상이 된다. 시작된 1차를 보려면 테스트가 직접 펼쳐야 한다", "context": "test-annex-sheet-inline.mts" },
     { "id": "N-a", "desc": "server-only 모듈을 스크립트에서 검증하는 법 — `npx tsx --conditions=react-server`로 실행하고 정적 import 대신 `await import('...ts')` 사용. 정적 import는 'does not provide an export named' 오류가 난다", "context": "test-sheet-overview.mts" }
   ]
 }
