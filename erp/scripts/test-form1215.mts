@@ -22,14 +22,32 @@ try {
   await page.waitForSelector('text=1.10.2 소방안전관리자 업무수행 기록')
   check('1.10.2 카드 표시', true)
   await page.locator('div:has(> div > p:text-is("1.10.2 소방안전관리자 업무수행 기록")) button:has-text("기록 추가")').click()
-  await page.fill('input[placeholder="일자 (YYYY-MM-DD)"]', '2026-07-23')
+  // 일자는 공용 DateInput(달력 팝업 + 숫자 자동 하이픈) — 텍스트 입력의 placeholder는 'YYYY-MM-DD'
+  await page.locator('div:has(> div > p:text-is("1.10.2 소방안전관리자 업무수행 기록")) input[placeholder="YYYY-MM-DD"]').first().fill('2026-07-23')
   await page.fill('input[placeholder="수행 업무 내용"]', '피난시설 상시 점검')
   await page.fill('input[placeholder="조치사항"]', '비상구 적치물 제거')
+
+  // ── 1.10.4 화재/비화재보 이력 — 발생일시는 날짜(DateInput) + 시각(time) 두 칸, 저장은 단일 문자열 ──
+  const hist = page.locator('div:has(> div > p:text-is("1.10.4 화재·비화재보 발생 이력"))')
+  await hist.locator('button:has-text("행 추가")').click()
+  await hist.locator('input[placeholder="YYYY-MM-DD"]').fill('2025-06-01')
+  await hist.locator('input[type="time"]').fill('14:30')
+  await hist.locator('input[placeholder="장소"]').fill('2층 복도')
+
   await page.click('button:has-text("서식 1.10 저장")')
   await page.waitForSelector('text=서식 1.10 저장됨')
   const { data: f110 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', custId).single()
-  const duty = ((f110?.sections ?? {}) as { dutyLog?: Array<Record<string, string>> }).dutyLog
+  const sec110 = (f110?.sections ?? {}) as { dutyLog?: Array<Record<string, string>>; fireHistory?: Array<Record<string, string>> }
+  const duty = sec110.dutyLog
   check('DB dutyLog 저장', duty?.[0]?.content === '피난시설 상시 점검' && duty?.[0]?.action === '비상구 적치물 제거', JSON.stringify(duty))
+  check('DB fireHistory.at 날짜+시각 결합 저장', sec110.fireHistory?.[0]?.at === '2025-06-01 14:30', JSON.stringify(sec110.fireHistory))
+
+  // 재진입 시 결합 문자열이 날짜·시각 칸으로 다시 분해되는지 (splitAt 왕복)
+  await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.10`)
+  await page.waitForSelector('text=1.10.4 화재·비화재보 발생 이력')
+  const hist2 = page.locator('div:has(> div > p:text-is("1.10.4 화재·비화재보 발생 이력"))')
+  check('발생일시 재진입 분해', await hist2.locator('input[placeholder="YYYY-MM-DD"]').inputValue() === '2025-06-01'
+    && await hist2.locator('input[type="time"]').inputValue() === '14:30')
 
   // ── 1.12~1.15 기록부 (§12-3: v1 포함) ──
   await page.waitForSelector('button:has-text("1.12~1.15 기록부")')

@@ -6,6 +6,7 @@ import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { CardAnchorBar, MonthField, useUnsavedWarning } from '@/components/ui/fields'
+import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 4개 (소방계획서_4.md §3)
  *  1.10.1 연간 점검 계획(sections.inspection — 종합 블록은 종합 고객만, §9-8 필드 조건부)
@@ -27,6 +28,19 @@ export type MultiUseSection = {
 export type FireHistoryRow = { kind: '화재' | '비화재보'; at: string; place: string; cause: string; action: string }
 /** 1.10.2 업무수행 기록 행 (§12-1 — ERP 입력 관리) */
 export type DutyLogRow = { date: string; content: string; action: string; note: string }
+
+/** 1.10.4 발생일시 — 저장은 지금까지처럼 단일 문자열('YYYY-MM-DD HH:MM', 시각 생략 시 날짜만).
+ *  입력만 달력·시각 두 칸으로 나누므로 스키마·병합 템플릿(1.10.4 표 '일시' 칸)은 그대로다.
+ *  형식을 벗어난 값(레거시 자유 텍스트)은 날짜 칸에 원문을 그대로 두어 보존한다. */
+const AT_RE = /^(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2}))?$/
+function splitAt(at: string): [date: string, time: string] {
+  const m = at.trim().match(AT_RE)
+  return m ? [m[1], m[2] ?? ''] : [at, '']
+}
+function joinAt(date: string, time: string): string {
+  const d = date.trim(), t = time.trim()
+  return d && t ? `${d} ${t}` : d || t
+}
 
 export const EMPTY_INSPECTION: InspectionPlanSection = {
   opMonth: '', opInspector: '외주', isInitial: false, initialMonth: '', compMonth: '', comp2Month: '', compInspector: '외주',
@@ -141,8 +155,8 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
         <div className="space-y-1.5">
           {duty.map((d, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
-              <input value={d.date} disabled={!canManage} placeholder="일자 (YYYY-MM-DD)"
-                onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, date: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-32`} />
+              <DateInput value={d.date} disabled={!canManage} title="수행 일자 — YYYY-MM-DD (달력 버튼으로 선택 가능)"
+                onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, date: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-36`} />
               <input value={d.content} disabled={!canManage} placeholder="수행 업무 내용"
                 onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, content: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-48`} />
               <input value={d.action} disabled={!canManage} placeholder="조치사항"
@@ -216,7 +230,10 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
         </div>
         {hist.length === 0 && <p className="text-[11px] text-[#b0acd6]">발생 이력이 없으면 비워둡니다.</p>}
         <div className="space-y-1.5">
-          {hist.map((h, i) => (
+          {hist.map((h, i) => {
+            const [atDate, atTime] = splitAt(h.at)
+            const setAt = (v: string) => { setHist(p => p.map((x, j) => j === i ? { ...x, at: v } : x)); setDirty(true) }
+            return (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
               <select value={h.kind} disabled={!canManage}
                 onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, kind: e.target.value as FireHistoryRow['kind'] } : x)); setDirty(true) }}
@@ -224,7 +241,10 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
                 <option value="화재">화재</option>
                 <option value="비화재보">비화재보</option>
               </select>
-              <input value={h.at} disabled={!canManage} placeholder="발생일시" onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, at: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-32`} />
+              <DateInput value={atDate} disabled={!canManage} title="발생 일자 — YYYY-MM-DD (달력 버튼으로 선택 가능)"
+                onChange={e => setAt(joinAt(e.target.value, atTime))} className={`${inputCls} w-36`} />
+              <input type="time" value={atTime} disabled={!canManage} aria-label="발생 시각" title="발생 시각 (선택 — 비워두면 날짜만 기록)"
+                onChange={e => setAt(joinAt(atDate, e.target.value))} className={`${inputCls} w-24`} />
               <input value={h.place} disabled={!canManage} placeholder="장소" onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, place: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-28`} />
               <input value={h.cause} disabled={!canManage} placeholder="원인" onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, cause: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-28`} />
               <input value={h.action} disabled={!canManage} placeholder="조치사항" onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, action: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-28`} />
@@ -234,7 +254,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
                 </button>
               )}
             </div>
-          ))}
+          )})}
         </div>
       </div>
 
