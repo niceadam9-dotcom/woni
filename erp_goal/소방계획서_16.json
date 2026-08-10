@@ -2,9 +2,9 @@
   "doc": "소방계획서_16 — 회차별 작성·조회에 점검표 트리 조회·입력 통합 (+ 시트 범위 판정 축 단일화)",
   "design": "대화 확정(2026-08-10) + 계획 파일 ~/.claude/plans/robust-watching-bee.md — 별도 설계 MD 없음",
   "created": "2026-08-10",
-  "updated": "2026-08-10 (S4 완료 반영)",
+  "updated": "2026-08-10 (독립 검증 패스 — S1~S4 승격, 구현자≠판정자)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
-  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0~S4 완료(커밋 16b42da·eb23b33·913c257) — 최초 요구인 '트리 조회·입력'은 S4에서 충족. S5(Realtime)·S6(전체 회귀) 잔여",
+  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0~S4 완료(커밋 16b42da·eb23b33·913c257 + S4=fe89322) — 최초 요구인 '트리 조회·입력'은 S4에서 충족, 2026-08-10 독립 검증 패스로 승격(S1-7만 K-8 사유 잔류). S5(Realtime)·S6(전체 회귀) 잔여 — S5 마이그레이션 번호는 119~121 선점으로 122+ 사용",
 
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -45,114 +45,118 @@
       ],
       "note": "조사 항목이라 판정자 분리 불필요 — 결과가 기계 조회로 재현 가능(K-3)" },
 
-    { "id": "S1", "title": "시트 범위 판정 축 단일화 + 1000행 상한 해소 (K-1·K-2·K-6)", "status": "code_present",
-      "note": "구현자 자기 신고 단계. Json_Rule 규칙 3에 따라 독립 검증 패스 전에는 implemented로 올리지 않는다 — 다만 아래 E2E는 구현자가 아니라 기계가 판정한 근거",
+    { "id": "S1", "title": "시트 범위 판정 축 단일화 + 1000행 상한 해소 (K-1·K-2·K-6)", "status": "partial",
+      "note": "독립 검증 패스(2026-08-10, 구현자≠판정자): S1-1~S1-6·S1-8 implemented 승격. S1-7만 code_present 잔류 — K-8(음성 E2E 선행 결함)로 런타임 검증 불가, 정적 코드 대조만 통과",
+      "verified": { "date": "2026-08-10", "judge": "독립 세션(구현 커밋 이력 없음)", "evidence": ["npx tsx scripts/test-sheet-scope-axis.mts 재실행 6/6", "npm run build 통과", "sheet-scope.ts 4함수(sheetScope:18·isItemInScope:27·sheetItemGroup:32·scopeLabel:38)·sheet-actions.ts loadScope:13/isItemInScope 필터·fetch-all 페이징 실존 대조"] },
       "criteria": [
-        { "id": "S1-1", "desc": "sheet-scope.ts 신설 — sheetScope/isItemInScope/sheetItemGroup/scopeLabel 단일 소스. plan_type 축 단독, inspection_type은 plan_type=null 레거시의 종류 판정에만", "status": "code_present",
+        { "id": "S1-1", "desc": "sheet-scope.ts 신설 — sheetScope/isItemInScope/sheetItemGroup/scopeLabel 단일 소스. plan_type 축 단독, inspection_type은 plan_type=null 레거시의 종류 판정에만", "status": "implemented",
           "evidence": ["sheet-scope.ts:18 sheetScope", "sheet-scope.ts:27 isItemInScope", "sheet-scope.ts:32 sheetItemGroup", "sheet-scope.ts:38 scopeLabel"] },
-        { "id": "S1-2", "desc": "bulkAllGoodAction이 plan_type 축 사용 — 화면과 같은 버전의 시트를 채운다 (K-1 핵심)", "status": "code_present",
+        { "id": "S1-2", "desc": "bulkAllGoodAction이 plan_type 축 사용 — 화면과 같은 버전의 시트를 채운다 (K-1 핵심)", "status": "implemented",
           "evidence": ["sheet-actions.ts:11-21 loadScope 헬퍼", "sheet-actions.ts:64 bulkAllGood에서 loadScope", "sheet-actions.ts:89 isItemInScope 필터"],
           "self_check": { "e2e": "test-sheet-scope-axis.mts", "result": "수정 전 3통과/3실패 → 수정 후 6/6 통과", "proves": "저장 코드가 X1-* (EXT) → 1-* (STD)로 교정됨을 DB 카탈로그 대조로 확인" } },
-        { "id": "S1-3", "desc": "searchQuickItemsAction도 같은 축 — 불량 검색 제안이 화면과 같은 버전", "status": "code_present",
+        { "id": "S1-3", "desc": "searchQuickItemsAction도 같은 축 — 불량 검색 제안이 화면과 같은 버전", "status": "implemented",
           "evidence": ["sheet-actions.ts:117 loadScope", "sheet-actions.ts:131 isItemInScope 필터"],
           "self_check": { "e2e": "test-sheet-scope-axis.mts", "result": "'불량 검색 제안 = STD 축' 수정 전 ❌(X1-02) → 수정 후 ✅" } },
-        { "id": "S1-4", "desc": "화면 B(inspection-sheet-client)가 sheetScope 사용 — 자체 판정 제거", "status": "code_present",
+        { "id": "S1-4", "desc": "화면 B(inspection-sheet-client)가 sheetScope 사용 — 자체 판정 제거", "status": "implemented",
           "evidence": ["inspection-sheet-client.tsx:102 scope", "inspection-sheet-client.tsx:108 isItemInScope", "inspection-sheet-client.tsx:134 scopeLabel"] },
-        { "id": "S1-5", "desc": "점검 상세 서버 페이지가 sheetScope로 시트 버전 결정", "status": "code_present",
+        { "id": "S1-5", "desc": "점검 상세 서버 페이지가 sheetScope로 시트 버전 결정", "status": "implemented",
           "evidence": ["inspections/[id]/page.tsx:80 sheetScope(inspPlanType) 구조분해", "inspections/[id]/page.tsx:107 .eq('version', sheetVersion)"],
           "note": "isOperational은 여기서 폴백이 불필요해 의도적으로 구조분해에서 제외(오용 방지)" },
-        { "id": "S1-6", "desc": "fetch-all.ts 신설 + bulkAllGood 항목 조회에 페이징 적용 (K-2)", "status": "code_present",
+        { "id": "S1-6", "desc": "fetch-all.ts 신설 + bulkAllGood 항목 조회에 페이징 적용 (K-2)", "status": "implemented",
           "evidence": ["lib/supabase/fetch-all.ts:6 fetchAllRows", "sheet-actions.ts:85-89 페이징 적용"] },
         { "id": "S1-7", "desc": "음성 점검표도 같은 축 + 카탈로그를 이 점검의 시트·범위로 한정 (K-6)", "status": "code_present",
           "evidence": ["voice-sheet-actions.ts:56 sheetScope", "voice-sheet-actions.ts:60 .eq('version', scope.version)", "voice-sheet-actions.ts:64-68 시트 한정 + isItemInScope"],
-          "note": "⚠ 런타임 검증 불가 — test-voice-sheet.mts가 K-8(선행 결함)로 실패해 이 경로는 E2E로 확인하지 못함. 코드 대조만 됨" },
-        { "id": "S1-8", "desc": "축 회귀 방지 E2E 신설 — 일반관리 자체점검에서 화면·저장·검색이 같은 버전인지 고정", "status": "code_present",
+          "note": "⚠ 런타임 검증 불가 — test-voice-sheet.mts가 K-8(선행 결함)로 실패해 이 경로는 E2E로 확인하지 못함. 판정자 정적 대조(2026-08-10)로 sheetScope:56·scope.version 필터:59·isItemInScope:68 실존은 재확인 — 승격은 K-8 해소 후" },
+        { "id": "S1-8", "desc": "축 회귀 방지 E2E 신설 — 일반관리 자체점검에서 화면·저장·검색이 같은 버전인지 고정", "status": "implemented",
           "evidence": ["scripts/test-sheet-scope-axis.mts — 6체크(화면 라벨·저장 여부·코드 축·카탈로그 대조·종합전용 제외·검색 축)"],
           "note": "test-all.mts 등록은 S6에서" }
       ] },
 
-    { "id": "S2", "title": "sheet-overview.ts 집계 엔진 + 서버 액션 2개", "status": "code_present",
-      "note": "구현자 자기 신고 단계 — Json_Rule 규칙 3 독립 검증 전. 단 S2-1~S2-3·S2-6은 test-sheet-overview.mts(23체크)가 기계 판정한 근거를 self_check에 기록. S2-4·S2-5는 인증이 필요한 서버 액션이라 스크립트로 호출 불가 — S4 UI 배선 후 E2E로 검증 예정",
+    { "id": "S2", "title": "sheet-overview.ts 집계 엔진 + 서버 액션 2개", "status": "implemented",
+      "note": "독립 검증 패스(2026-08-10, 구현자≠판정자) — 전 9 criteria 승격. S2-4·S2-5(인증 필요 서버 액션)는 S4 UI 배선 경유로 런타임 검증됨: test-annex-sheet-inline의 요약 로드=getInspectionSheetOverviewAction, lazy 확장=loadSheetEditorAction",
+      "verified": { "date": "2026-08-10", "judge": "독립 세션(구현 커밋 이력 없음)", "evidence": ["npx tsx --conditions=react-server scripts/test-sheet-overview.mts 재실행 23/23", "npx tsx scripts/test-annex-sheet-inline.mts 재실행 20/20 — S2-4('설비별 진행 요약 표시')·S2-5('클릭 후 항목 로드') 런타임 경유 검증", "sheet-overview.ts canEditInspection:50·seenCodes:133·codes.size:160·noFacilityInfo:178 실존 대조"] },
       "criteria": [
-        { "id": "S2-1", "desc": "buildSheetOverviews — 점검 N건·시트 M개와 무관하게 고정 6쿼리(N+1 없음), 전부 in-memory 집계", "status": "code_present",
+        { "id": "S2-1", "desc": "buildSheetOverviews — 점검 N건·시트 M개와 무관하게 고정 6쿼리(N+1 없음), 전부 in-memory 집계", "status": "implemented",
           "evidence": ["sheet-overview.ts:63-66 ①점검", "sheet-overview.ts:78-80 ②시트 카탈로그(등장 버전만)", "sheet-overview.ts:84-87 ③항목(페이징)", "sheet-overview.ts:96-99 ④응답(페이징)", "sheet-overview.ts:107-116 ⑤⑥건물·시설"],
           "self_check": { "e2e": "test-sheet-overview.mts", "result": "23/23", "proves": "회차 2건·시트 24개를 처리하면서 쿼리는 회차 수와 무관하게 고정" } },
-        { "id": "S2-2", "desc": "분모 = 시트 내 item_code Set 크기(시드 중복 방어). Set 없이 세면 분모가 부풀어 24/22 역전", "status": "code_present",
+        { "id": "S2-2", "desc": "분모 = 시트 내 item_code Set 크기(시드 중복 방어). Set 없이 세면 분모가 부풀어 24/22 역전", "status": "implemented",
           "evidence": ["sheet-overview.ts:135-138 codes Set 구성", "sheet-overview.ts:152 total: codes.size"],
           "self_check": { "e2e": "test-sheet-overview.mts", "result": "'STD-01 분모 = 작동 범위 코드 Set 크기' 통과 — 엔진값과 독립 재계산값(다른 쿼리 경로) 일치" } },
-        { "id": "S2-3", "desc": "한 코드가 같은 버전 두 시트에 있으면 시트별 양쪽 계상, totals는 코드 dedup 후 계산", "status": "code_present",
+        { "id": "S2-3", "desc": "한 코드가 같은 버전 두 시트에 있으면 시트별 양쪽 계상, totals는 코드 dedup 후 계산", "status": "implemented",
           "evidence": ["sheet-overview.ts:133 seenCodes Set", "sheet-overview.ts:145-150 회차 합계 dedup"],
           "self_check": { "e2e": "test-sheet-overview.mts", "result": "'totals.total ≤ 시트별 합' · 'totals 분자·불량 = 주입값' 통과" } },
-        { "id": "S2-3b", "desc": "범위 필터가 실제로 분모를 바꾸는지 — 같은 고객·같은 시트에서 작동(23) vs 종합(25) 분모 차등", "status": "code_present",
+        { "id": "S2-3b", "desc": "범위 필터가 실제로 분모를 바꾸는지 — 같은 고객·같은 시트에서 작동(23) vs 종합(25) 분모 차등", "status": "implemented",
           "evidence": ["sheet-overview.ts:136 isItemInScope 적용"],
           "self_check": { "e2e": "test-sheet-overview.mts", "result": "'작동 분모 < 전체' · '종합점검 분모 = 전체' · '작동/종합 분모가 서로 다름' 3체크 통과", "note": "초기 검증이 `<=`라 무의미할 뻔한 것을 차등 검증으로 교체" } },
-        { "id": "S2-4", "desc": "getInspectionSheetOverviewAction(inspectionIds[]) — 최대 8건 가드", "status": "code_present",
-          "evidence": ["sheet-actions.ts:25-38 액션 + 8건 가드"],
-          "note": "requirePermission 때문에 스크립트 직접 호출 불가 — S4 배선 후 E2E 검증" },
-        { "id": "S2-5", "desc": "loadSheetEditorAction(inspectionId, sheetId) — 인라인 확장 lazy 로드, 서버에서 scope 필터 적용", "status": "code_present",
-          "evidence": ["sheet-actions.ts:42-75 액션", "sheet-actions.ts:60 isItemInScope 서버 적용", "sheet-actions.ts:64-71 응답 동시 반환"],
-          "note": "동일 — S4 배선 후 E2E 검증" },
-        { "id": "S2-6", "desc": "canEditInspection — inspections/[id]/page.tsx:172-175와 같은 규칙 (D-5 점검 건 축)", "status": "code_present",
+        { "id": "S2-4", "desc": "getInspectionSheetOverviewAction(inspectionIds[]) — 최대 8건 가드", "status": "implemented",
+          "evidence": ["sheet-actions.ts:31-38 액션 + 8건 가드"],
+          "note": "S4 배선 후 test-annex-sheet-inline이 브라우저 경유로 런타임 검증 — '설비별 진행 요약 표시'·'두 회차 펼침' 체크가 이 액션의 응답" },
+        { "id": "S2-5", "desc": "loadSheetEditorAction(inspectionId, sheetId) — 인라인 확장 lazy 로드, 서버에서 scope 필터 적용", "status": "implemented",
+          "evidence": ["sheet-actions.ts:46-75 액션", "sheet-actions.ts:64 isItemInScope 서버 적용", "응답 동시 반환"],
+          "note": "S4 배선 후 test-annex-sheet-inline이 런타임 검증 — '클릭 후 항목 로드'·'트리 분모 = 독립 계산 항목 수' 체크가 이 액션의 응답" },
+        { "id": "S2-6", "desc": "canEditInspection — inspections/[id]/page.tsx:172-175와 같은 규칙 (D-5 점검 건 축)", "status": "implemented",
           "evidence": ["sheet-overview.ts:50-53 canEditInspection", "sheet-actions.ts:73 loadSheetEditorAction에서 재사용"],
           "self_check": { "e2e": "test-sheet-overview.mts", "result": "'canEdit: 담당자 true' · 'canEdit: 비담당 employee false' 통과" } },
-        { "id": "S2-7", "desc": "noFacilityInfo 신호 — 설치 시설 0건이면 호출부가 [설치 설비만 보기]를 자동 해제", "status": "code_present",
+        { "id": "S2-7", "desc": "noFacilityInfo 신호 — 설치 시설 0건이면 호출부가 [설치 설비만 보기]를 자동 해제", "status": "implemented",
           "evidence": ["sheet-overview.ts:161 noFacilityInfo"],
           "self_check": { "e2e": "test-sheet-overview.mts", "result": "'noFacilityInfo true' · '시설 0건에도 시트 반환' 통과" } },
-        { "id": "S2-8", "desc": "집계 엔진 검증 스크립트 신설 — UI 없이 분모·집계·권한·정렬을 고정", "status": "code_present",
+        { "id": "S2-8", "desc": "집계 엔진 검증 스크립트 신설 — UI 없이 분모·집계·권한·정렬을 고정", "status": "implemented",
           "evidence": ["scripts/test-sheet-overview.mts — 23체크. server-only 때문에 `npx tsx --conditions=react-server`로 실행"],
           "note": "test-all.mts 등록은 S6에서" }
       ] },
 
-    { "id": "S3", "title": "SheetItemEditor 추출 + 화면 B 전환 (D-2·K-4)", "status": "code_present",
-      "note": "구현자 자기 신고 단계. 회귀는 기존 E2E 4종 + 신규 인라인 X 체크 3건으로 확인",
+    { "id": "S3", "title": "SheetItemEditor 추출 + 화면 B 전환 (D-2·K-4)", "status": "implemented",
+      "note": "독립 검증 패스(2026-08-10, 구현자≠판정자) — 전 5 criteria 승격",
+      "verified": { "date": "2026-08-10", "judge": "독립 세션(구현 커밋 이력 없음)", "evidence": ["판정자 재실행: test-mu-sheet 8/8(인라인 X 3체크 포함)·test-quick-defect 7/7·test-sheet-delete 6/6·test-sheet-scope-axis 6/6·test-sheet-overview 23/23", "npm run build 통과", "sheet-item-editor.tsx notice:36·inlineX:44·groups:47 + inspection-sheet-client.tsx SheetItemEditor:232·registerInlineX:90·progress[s.id]:208 실존 대조"] },
       "criteria": [
-        { "id": "S3-1", "desc": "항목 입력부(로딩·스크롤 컨테이너·항목행·O/X/N·에러·저장/취소 푸터·하단 안내)를 공용 컴포넌트로 추출", "status": "code_present",
+        { "id": "S3-1", "desc": "항목 입력부(로딩·스크롤 컨테이너·항목행·O/X/N·에러·저장/취소 푸터·하단 안내)를 공용 컴포넌트로 추출", "status": "implemented",
           "evidence": ["sheet-item-editor.tsx:23-117 SheetItemEditor", "inspection-sheet-client.tsx:225-231 호출부로 치환"] },
-        { "id": "S3-2", "desc": "그룹핑과 inlineX/inlineMemo 상태를 편집기 내부로 이동 — 양쪽 화면 배선 0줄", "status": "code_present",
+        { "id": "S3-2", "desc": "그룹핑과 inlineX/inlineMemo 상태를 편집기 내부로 이동 — 양쪽 화면 배선 0줄", "status": "implemented",
           "evidence": ["sheet-item-editor.tsx:44-48 inlineX·inlineMemo·groups 내부 소유", "inspection-sheet-client.tsx:88-99 registerInlineX(code, memo)로 시그니처 변경"] },
-        { "id": "S3-3", "desc": "화면 B 회귀 0 — 클래스·아이콘·문구 유지, 취소·저장 버튼 형제 순서 유지(test-mu-sheet.mts 셀렉터)", "status": "code_present",
+        { "id": "S3-3", "desc": "화면 B 회귀 0 — 클래스·아이콘·문구 유지, 취소·저장 버튼 형제 순서 유지(test-mu-sheet.mts 셀렉터)", "status": "implemented",
           "self_check": { "e2e": "test-mu-sheet 8/8 · test-quick-defect 7/7 · test-sheet-delete 6/6 · test-sheet-scope-axis 6/6 · test-sheet-overview 23/23", "result": "전부 통과" } },
-        { "id": "S3-4", "desc": "접두 파싱 폐기 → progress prop 사용 (K-4). 시트 버튼이 '18/24' 분모까지 표시하고 완료/부분을 색으로 구분", "status": "code_present",
+        { "id": "S3-4", "desc": "접두 파싱 폐기 → progress prop 사용 (K-4). 시트 버튼이 '18/24' 분모까지 표시하고 완료/부분을 색으로 구분", "status": "implemented",
           "evidence": ["inspections/[id]/page.tsx:112-121 buildSheetOverviews로 대체(접두 파싱 삭제)", "inspection-sheet-client.tsx:205-221 progress[s.id] 사용"],
           "note": "두 화면이 같은 집계 소스를 쓰므로 진행률이 어긋날 수 없다" },
-        { "id": "S3-5", "desc": "인라인 불량 등록(R13-d) 피드백 — 편집기 안에서 알림 표시 (K-10)", "status": "code_present",
+        { "id": "S3-5", "desc": "인라인 불량 등록(R13-d) 피드백 — 편집기 안에서 알림 표시 (K-10)", "status": "implemented",
           "evidence": ["sheet-item-editor.tsx:35-36 notice prop", "sheet-item-editor.tsx:103 렌더", "inspection-sheet-client.tsx:230 notice 전달"],
           "self_check": { "e2e": "test-mu-sheet.mts 인라인 X 3체크 신설", "result": "통과" },
           "note": "선행 UX 공백을 E2E 타임아웃으로 발견해 함께 수정 — 공용 편집기가 된 이상 트리(S4)에서도 같은 문제가 생긴다" }
       ] },
 
-    { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "code_present",
-      "note": "구현자 자기 신고 단계. 신규 E2E 20체크가 실제 브라우저 주행으로 판정 — 최초 요구('트리로 조회·입력')는 이 단계에서 충족됐다",
+    { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "implemented",
+      "note": "독립 검증 패스(2026-08-10, 구현자≠판정자) — 전 8 criteria 승격. 최초 요구('트리로 조회·입력') 충족. 커밋 fe89322",
+      "verified": { "date": "2026-08-10", "judge": "독립 세션(구현 커밋 이력 없음)", "commit": "fe89322", "evidence": ["판정자 재실행: test-annex-sheet-inline 20/20 — 요약 상시·설치 필터·lazy 확장·저장 부분 갱신·X 인라인 등록·분모 정합·권한(비담당 4체크)·미시작 회차 전부 브라우저 주행 통과", "판정자 재실행: test-annex-interaction 35/35 — K-7 문자열 카운트 함정 무사", "plan-annex-sheet-tree.tsx editable:64·filterOn:125·registerX:99·'설비별 진행':133·'보기 전용':145 실존 대조", "npm run build 통과"] },
       "criteria": [
-        { "id": "S4-1", "desc": "설비별 요약 행 상시 표시 — 진행률 N/M · ✕ 집계 · ⚠ 미입력 N", "status": "code_present",
+        { "id": "S4-1", "desc": "설비별 요약 행 상시 표시 — 진행률 N/M · ✕ 집계 · ⚠ 미입력 N", "status": "implemented",
           "evidence": ["plan-annex-sheet-tree.tsx:160-172 요약 행", "plan-annex-section.tsx:239-243 노드 배선"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'설비별 진행 요약 표시'·'미입력 진행률 0/N'·'미입력 경고 표기' 통과" } },
-        { "id": "S4-2", "desc": "클릭한 시트만 인라인 확장(lazy) — 확장 전에는 항목 DOM 0개, 동시 확장 1개", "status": "code_present",
+        { "id": "S4-2", "desc": "클릭한 시트만 인라인 확장(lazy) — 확장 전에는 항목 DOM 0개, 동시 확장 1개", "status": "implemented",
           "evidence": ["plan-annex-sheet-tree.tsx:70-85 openSheetRow — loadSheetEditorAction 지연 호출"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'확장 전 항목 미로드(상시 펼침 아님)'·'클릭 후 항목 로드' 통과 — D-1(상시 펼침 안 함) 확정 검증" } },
-        { "id": "S4-3", "desc": "'설치 설비만 보기' 기본 ON, 설치 정보 전무면 자동 해제 + 안내", "status": "code_present",
+        { "id": "S4-3", "desc": "'설치 설비만 보기' 기본 ON, 설치 정보 전무면 자동 해제 + 안내", "status": "implemented",
           "evidence": ["plan-annex-sheet-tree.tsx:126-128 filterOn(noFacilityInfo 시 해제)", "plan-annex-sheet-tree.tsx:139-146 토글·안내"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'기본 ON — 미설치 시트 숨김'·'필터 해제 — 미설치 시트 노출' 통과" } },
-        { "id": "S4-4", "desc": "저장 후 편집기를 닫지 않고 요약만 부분 갱신 — reload() 전체 재조회 금지(미리보기 캐시 무효화 비용)", "status": "code_present",
+        { "id": "S4-4", "desc": "저장 후 편집기를 닫지 않고 요약만 부분 갱신 — reload() 전체 재조회 금지(미리보기 캐시 무효화 비용)", "status": "implemented",
           "evidence": ["plan-annex-sheet-tree.tsx:87-103 save — 편집기 유지 + overview 재조회", "plan-annex-section.tsx:62-71 patchSheetResponses 부분 패치"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'DB 저장 — 1건 O'·'새로고침 없이 요약 갱신(1/N)' 통과" } },
-        { "id": "S4-5", "desc": "canRegister props 주입 + overview.canEdit AND 게이트, 불가 시 '보기 전용' 표기 (D-5)", "status": "code_present",
+        { "id": "S4-5", "desc": "canRegister props 주입 + overview.canEdit AND 게이트, 불가 시 '보기 전용' 표기 (D-5)", "status": "implemented",
           "evidence": ["customers/[id]/page.tsx:691-692 can(role,'inspection_register') 주입", "plan-annex-sheet-tree.tsx:66 editable = canRegister && ov.canEdit", "plan-annex-sheet-tree.tsx:150 보기 전용 안내"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "비담당 employee — '요약은 보임'·'보기 전용 안내'·'저장 버튼 미노출'·'DB 무변화' 4체크 통과" } },
-        { "id": "S4-6", "desc": "미시작 회차(docs===null)는 트리를 렌더하지 않고 기존 [이 회차 시작] CTA 유지", "status": "code_present",
+        { "id": "S4-6", "desc": "미시작 회차(docs===null)는 트리를 렌더하지 않고 기존 [이 회차 시작] CTA 유지", "status": "implemented",
           "evidence": ["plan-annex-section.tsx:292-300 미시작 분기 그대로"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'미시작 회차 — 시작 CTA 표시'·'점검표 노드 없음' 통과" } },
-        { "id": "S4-7", "desc": "'점검표 입력' 문자열을 새 UI에 재사용하지 않음 (K-7) — 요약은 '설비별 진행'", "status": "code_present",
+        { "id": "S4-7", "desc": "'점검표 입력' 문자열을 새 UI에 재사용하지 않음 (K-7) — 요약은 '설비별 진행'", "status": "implemented",
           "evidence": ["plan-annex-sheet-tree.tsx:20-21 주의 주석", "plan-annex-sheet-tree.tsx:137 '설비별 진행'"],
           "self_check": { "e2e": "test-annex-interaction.mts 35/35", "result": "문자열 카운트 단언(count===1/===2) 무사 — K-7 회피 확인" } },
-        { "id": "S4-8", "desc": "인라인 X 등록도 트리에서 동작 — 불량내역 자동 등록까지 기존 경로 재사용", "status": "code_present",
+        { "id": "S4-8", "desc": "인라인 X 등록도 트리에서 동작 — 불량내역 자동 등록까지 기존 경로 재사용", "status": "implemented",
           "evidence": ["plan-annex-sheet-tree.tsx:105-118 registerX — saveSheetResponses + createDefectsFromX"],
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'X 인라인 → 불량내역 자동 등록' 통과" } }
       ] },
 
     { "id": "S5", "title": "마이그레이션 119 + Realtime 구독 (D-3·K-3)", "status": "pending_order",
       "criteria": [
-        { "id": "S5-1", "desc": "119_realtime_sheet_responses.sql — supabase_realtime에 inspection_sheet_responses·notifications 등록(멱등) + REPLICA IDENTITY FULL", "status": "pending_order" },
+        { "id": "S5-1", "desc": "122_realtime_sheet_responses.sql — supabase_realtime에 inspection_sheet_responses·notifications 등록(멱등) + REPLICA IDENTITY FULL", "status": "pending_order", "note": "⚠ 계획 당시 번호 119는 119_plan_text_library.sql이 선점, 120(fire_plan_revisions)·121(배치신고 기한)도 사용됨 — 122+로 이월(2026-08-10 판정자 확인)" },
         { "id": "S5-2", "desc": "useSheetResponsesRealtime 훅 — deps는 ids.join(','), cleanup removeChannel", "status": "pending_order" },
         { "id": "S5-3", "desc": "600ms 트레일링 디바운스 — bulkAllGood 수백 행 insert 시 이벤트 폭주 방지", "status": "pending_order" },
         { "id": "S5-4", "desc": "에코 억제 — payload.new.updated_by === selfId면 skip", "status": "pending_order" },
@@ -162,10 +166,11 @@
         { "id": "S5-8", "desc": "알림 벨 회귀 스모크 — K-3 부수 효과로 실시간 수신이 처음 동작하는지 확인", "status": "pending_order" }
       ] },
 
-    { "id": "S6", "title": "E2E 신규 작성 + 전체 회귀", "status": "pending_order",
+    { "id": "S6", "title": "E2E 신규 작성 + 전체 회귀", "status": "partial",
+      "note": "S6-1(Realtime 블록 제외)·S6-2는 S4에서 앞당겨 충족 — S6-3(Realtime 2탭)은 S5 이후, S6-4(test-all 등록) 잔여",
       "criteria": [
-        { "id": "S6-1", "desc": "test-annex-sheet-inline.mts — 요약 상시 표시·설치 필터·lazy 확장·저장 반영·X 인라인 등록·분모 정합성·권한·미시작 회차·Realtime 2탭 (9블록)", "status": "pending_order" },
-        { "id": "S6-2", "desc": "분모 정합성 체크 — 화면 A 분모와 /inspections/{id}의 같은 시트 항목 수 일치. K-1 재발을 상시 감시", "status": "pending_order" },
+        { "id": "S6-1", "desc": "test-annex-sheet-inline.mts — 요약 상시 표시·설치 필터·lazy 확장·저장 반영·X 인라인 등록·분모 정합성·권한·미시작 회차·Realtime 2탭 (9블록)", "status": "partial", "note": "S4에서 앞당겨 신설 — 9블록 중 Realtime 2탭 제외 8블록(20체크) 구현·통과. Realtime 블록은 S5 이후" },
+        { "id": "S6-2", "desc": "분모 정합성 체크 — 화면 A 분모와 /inspections/{id}의 같은 시트 항목 수 일치. K-1 재발을 상시 감시", "status": "implemented", "verified": { "date": "2026-08-10", "evidence": ["test-annex-sheet-inline '트리 분모 = 독립 계산 항목 수' 체크 — 판정자 재실행 통과"] } },
         { "id": "S6-3", "desc": "Realtime 2탭 체크 — 새로고침 없이 갱신. publication 미등록이면 이 체크만 실패해 K-3을 정확히 지목", "status": "pending_order" },
         { "id": "S6-4", "desc": "test-all.mts에 test-annex-sheet-inline·test-sheet-scope-axis 등록(needServer:true)", "status": "pending_order" }
       ] }
@@ -189,12 +194,22 @@
       { "target": "S4 회귀", "cmd": "npx tsx scripts/test-annex-interaction.mts", "result": "35/35 — K-7 문자열 카운트 함정 회피 확인", "date": "2026-08-10" },
       { "target": "S4", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
     ],
+    "independent_pass": {
+      "date": "2026-08-10", "judge": "독립 세션 — S1~S4 구현 커밋(16b42da·eb23b33·913c257·fe89322)에 관여하지 않은 세션이 빌드·E2E 전수 재실행으로 판정",
+      "results": [
+        "npm run build — 통과 (exit 0)",
+        "test-sheet-scope-axis 6/6", "test-sheet-overview 23/23 (--conditions=react-server)",
+        "test-mu-sheet 8/8", "test-quick-defect 7/7", "test-sheet-delete 6/6",
+        "test-annex-sheet-inline 20/20", "test-annex-interaction 35/35", "test-general-selfinspection 14/14"
+      ],
+      "total": "E2E 8스위트 119체크 전부 그린",
+      "not_promoted": "S1-7(음성 축) — K-8 선행 결함으로 런타임 검증 불가, 정적 대조만 통과 → code_present 유지"
+    },
     "failed_preexisting": [
       { "target": "K-8", "cmd": "npx tsx scripts/test-voice-sheet.mts <inspId>", "result": "1/2 실패 — HEAD 버전도 동일 실패(인과 확정, 이번 변경 무관)", "date": "2026-08-10" }
     ],
     "pending": [
-      { "target": "S1", "desc": "Json_Rule 규칙 3 독립 검증 패스 — 구현자≠판정자로 S1 criteria 8건 재판정 후 implemented 승격", "status": "pending_order" },
-      { "target": "S2", "desc": "S2 criteria 9건 독립 검증 후 승격. 특히 S2-4·S2-5(서버 액션)는 인증 필요로 아직 런타임 미검증 — S4 배선 후 E2E 필수", "status": "pending_order" }
+      { "target": "S1-7", "desc": "음성 점검표 축 승격 — K-8(test-voice-sheet 선행 결함) 해소 후 E2E 재실행으로 검증", "status": "pending_order" }
     ]
   },
 
@@ -221,7 +236,7 @@
     ],
     "planned": [
       "erp/src/hooks/use-sheet-responses-realtime.ts (S5)",
-      "erp/supabase/migrations/119_realtime_sheet_responses.sql (S5)"
+      "erp/supabase/migrations/122_realtime_sheet_responses.sql (S5 — 구 119, 119~121 선점으로 이월)"
     ]
   },
 
@@ -233,9 +248,9 @@
   ],
 
   "next_actions": [
-    "S5 착수 (마이그레이션 119 + Realtime 구독)",
-    "S1~S4 독립 검증 패스 후 code_present → implemented 승격",
-    "K-8(음성 점검표 기존 실패) 별건 처리 여부 사용자 판단",
+    "S5 착수 (마이그레이션 122 + Realtime 구독) — 번호 119→122 이월 주의",
+    "S6-4 — test-all.mts에 test-annex-sheet-inline·test-sheet-scope-axis 등록",
+    "S1-7 승격 — K-8(음성 점검표 기존 실패) 해소가 선행, 별건 처리 여부 사용자 판단",
     "K-9(fetchAllRows 중복) 후속 통합"
   ],
 
