@@ -176,9 +176,12 @@ try {
     String(routeMsg))
   await page.fill('[data-testid="form13-surroundings"]', '주변현황 E2E')
   await page.fill('input[placeholder*="정문 앞 도로"]', '정문 앞')
-  // §1-2 미저장 이동 확인 — 저장 전 목차 이동 시 confirm (취소 → 잔류)
-  page.once('dialog', d => d.dismiss())
+  // §1-2 미저장 이동 확인 — 저장 전 목차 이동 시 확인창(네이티브 confirm 아님, [저장하고 이동] 포함)
   await page.click('button:has-text("1.5 피난·방화")')
+  await page.waitForSelector('[data-unsaved-dialog]', { timeout: 5000 })
+  check('미저장 이동 확인 — [저장하고 이동] 버튼 제공',
+    await page.isVisible('[data-testid="unsaved-nav-save"]'))
+  await page.click('[data-testid="unsaved-nav-cancel"]')
   await page.waitForTimeout(400)
   check('미저장 이동 확인 — 취소 시 잔류', await page.isVisible('text=소방차 세부진입 계획'))
   await page.click('button:has-text("서식 1.3 저장")')
@@ -203,7 +206,14 @@ try {
     if (await page.locator('[data-testid="form13-surroundings"]').inputValue() === '주변현황 E2E 2차') break
   }
   await page.click('button:has-text("서식 1.3 저장")')
-  await page.waitForSelector('text=서식 1.3 저장됨')
+  // '서식 1.3 저장됨' 텍스트는 1차 저장의 잔류 메시지와 구분이 안 된다(스테일 통과) — 저장 완료의 정확한
+  // 신호는 미저장 save 핸들러 드레인(dirty 해제 시 등록 해제, ui/unsaved-nav). 이걸 기다려야 아래 1.5 이동이
+  // 미저장 확인창에 걸리지 않는다.
+  await page.waitForFunction(() => {
+    const handlers: unknown[] = []
+    window.dispatchEvent(new CustomEvent('erp:plan-save-collect', { detail: { handlers } }))
+    return handlers.length === 0
+  })
   const { data: keptSrc } = await raw.from('customers')
     .select('fire_station_source').eq('id', customerId).single()
   check('D-2 같은 값 저장은 source 유지(추정 배지 보존)',
@@ -379,7 +389,8 @@ try {
   check('B안 — 패널에 통합 [저장] 단일 버튼', await page.isVisible('[data-testid="specs-save"]'))
   check('B안 — 구 [모두 저장] 버튼 폐지', (await page.locator('button:has-text("모두 저장")').count()) === 0)
   check('B안 — 본문만 수정해도 패널 [저장] 활성',
-    await page.locator('[data-testid="specs-save"]').isEnabled())
+    await page.locator('[data-testid="specs-save"]').isEnabled(),
+    `footer=${await page.locator('[data-testid="specs-footer-status"]').textContent().catch(() => '?')}`)
   await page.click('[data-testid="specs-save"]')          // 패널을 닫지 않고 저장
   await page.waitForSelector('text=본문 저장됨')
   const { data: e2eBld } = await raw.from('buildings').select('id').eq('customer_id', customerId).limit(1).single()

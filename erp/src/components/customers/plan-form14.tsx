@@ -6,6 +6,7 @@ import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type Fl
 import { FACILITY_STANDARD, EVAC_TYPES, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
 import { NumField } from '@/components/ui/fields'
+import { usePlanSaveHandler, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 
 /** 서식 1.4 소방시설 현황 — 양식(image-1.png) 재현 입력 화면 (소방계획서_4.md §4)
  *  표 괘선·좌측 분류 세로 병합·셀 전체 클릭 토글·피난기구 하위 8종 연동·항목별 비고(detail.note)·
@@ -154,6 +155,8 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('erp:plan-dirty', { detail: dirty || specsDirty }))
   }, [dirty, specsDirty])
+  // 이동 확인창의 [저장하고 이동] — 통합 save()(본문+제원)를 그대로 재사용
+  usePlanSaveHandler(save, canManage && (dirty || specsDirty))
   // 미저장 상태 새로고침·창 닫기 가드
   useEffect(() => {
     if (!dirty && !specsDirty) return
@@ -175,9 +178,18 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     return () => window.removeEventListener('keydown', onKey)
   }, [specsOpen])
 
+  // 설비 대장은 key 리마운트로 초기화되므로 미저장 편집이 조용히 유실됨 — 전환 전 확인 (소방계획서_9)
+  const buildingNav = useUnsavedNavGuard<number>({
+    onProceed: applySwitchBuilding,
+    message: '지금 건물을 전환하면 1.4 본문·설비 대장의 저장하지 않은 입력이 사라집니다.',
+    saveLabel: '저장하고 전환',
+    discardLabel: '저장하지 않고 전환',
+  })
   function switchBuilding(i: number) {
-    // 설비 대장은 key 리마운트로 초기화되므로 미저장 편집이 조용히 유실됨 — 전환 전 확인 (소방계획서_9)
-    if ((dirty || specsDirty) && !window.confirm('저장하지 않은 변경이 있습니다. 건물을 전환할까요?')) return
+    if (dirty || specsDirty) { buildingNav.request(i); return }
+    applySwitchBuilding(i)
+  }
+  function applySwitchBuilding(i: number) {
     setBidx(i)
     setFac(initFac(buildings[i]))
     setMirror(initMirror(buildings[i]?.id))   // 피난기구 종류도 건물 축 — 이전 건물 값이 남으면 안 된다
@@ -222,9 +234,10 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   }
   /** 통합 [저장] (소방계획서_12 U3) — 본문(설비·층별)과 제원(설비 대장)을 한 번에, dirty인 쪽만 호출.
    *  두 액션은 서로 독립이라 Promise.all 동시 실행. 실패한 쪽은 dirty가 유지돼 재클릭 = 재시도 (U3-6) */
-  async function save() {
-    if (!canManage || (!dirty && !specsDirty) || saving) return
+  async function save(): Promise<boolean> {
+    if (!canManage || (!dirty && !specsDirty) || saving) return false
     setSaving(true)
+    setMsg('')   // 직전 저장 결과가 새 저장 중에 남아 있으면 완료로 오인된다 (E2E 스테일 매칭 포함)
     try {
       const rows: FacilityRow[] = allCodes.map(code => ({
         category: CATEGORY_OF[code] ?? '기타', facility_code: code,
@@ -249,8 +262,10 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
         if (specsRes.failedLabels.length > 0) { ok = false; parts.push(`제원 저장 실패: ${specsRes.failedLabels.join(', ')}`) }
       }
       setMsg(`${ok ? '✅' : '❌'} ${parts.join(' · ')}${ok ? ' — 계획서·별지 4·9호 출력에 반영됩니다' : ''}`)
+      return ok
     } catch {
       setMsg('❌ 저장 중 오류가 발생했습니다 — 잠시 후 다시 시도해주세요')
+      return false
     } finally {
       setSaving(false)
     }
@@ -313,6 +328,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
 
   return (
     <div className="space-y-3">
+      {buildingNav.dialog}
       {/* 타이틀 + 대상명 (양식 비고 2 — 대상물별 세트) */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-semibold text-[#090c1d]">서식 1.4 소방시설 현황</span>

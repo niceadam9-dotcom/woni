@@ -23,7 +23,7 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
     role: '관리자', affiliation: '', name: autoRow.name, selectedAt: autoRow.selectedAt, eduAt: '', duty: '소방안전관리 업무 총괄',
   }])
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -31,15 +31,19 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
     setRows(prev => prev.map((r, j) => (j === i ? { ...r, ...p } : r)))
     setDirty(true)
   }
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, {
-        managers: rows.filter(r => r.name.trim()),
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, {
+          managers: rows.filter(r => r.name.trim()),
+        })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.7 저장됨')
+        router.refresh()
+        resolve(true)
       })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.7 저장됨')
-      router.refresh()
     })
   }
 
@@ -99,7 +103,7 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.7 저장
           </button>

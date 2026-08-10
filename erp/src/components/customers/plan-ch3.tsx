@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction, deletePlanAssetAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, NumStepper, useUnsavedWarning } from '@/components/ui/fields'
 import { goPlanNode } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
 
@@ -58,18 +58,33 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   const [vul, setVul] = useState<VulnerableSection>(initialVulnerable ?? { none: false, counts: {}, plans: [] })
   const [methods, setMethods] = useState<Record<string, string>>(initialMethods)
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, () => saveKeys(fullPatch(), '3장')) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [equip, setEquip] = useState<EvacEquipRow[]>(initialEquip)
   const [isPending, startTransition] = useTransition()
 
-  function saveKeys(patch: Record<string, unknown>, label: string) {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, patch)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg(`✅ ${label} 저장됨`)
-      router.refresh()
+  /** 3장 전체 저장 패치 — 서식당 1개인 [3장 저장] 버튼과 이동 확인창의 [저장하고 이동]이 공유 */
+  function fullPatch(): Record<string, unknown> {
+    return {
+      evacDetail: detail.filter(r => r.facility.trim()),
+      evacHeadcount: { note: hcNote },
+      evacPlan: plan,
+      vulnerable: vul,
+      vulnerableMethods: methods,
+      evacEquip: equip.filter(r => r.name.trim()),
+    }
+  }
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function saveKeys(patch: Record<string, unknown>, label: string): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, patch)
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg(`✅ ${label} 저장됨`)
+        router.refresh()
+        resolve(true)
+      })
     })
   }
 
@@ -78,7 +93,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
     on ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`
   const saveBtn = (patch: Record<string, unknown>, label: string) => canManage && (
     <div className="flex items-center gap-2">
-      <button onClick={() => saveKeys(patch, label)} disabled={!dirty || isPending}
+      <button onClick={() => { void saveKeys(patch, label) }} disabled={!dirty || isPending}
         className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
         {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} {label} 저장
       </button>
@@ -234,10 +249,16 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                     return (
                       <div key={tp} className="flex items-center gap-2">
                         <span className="text-[11px] text-[#514b81] w-12">{tp}</span>
-                        <input value={c.work} disabled={!canManage} inputMode="numeric" placeholder="근무·거주"
-                          onChange={e => { setVul(p => ({ ...p, counts: { ...p.counts, [tp]: { ...c, work: e.target.value } } })); setDirty(true) }} className={`${inputCls} w-24`} />
-                        <input value={c.use} disabled={!canManage} inputMode="numeric" placeholder="시설 이용"
-                          onChange={e => { setVul(p => ({ ...p, counts: { ...p.counts, [tp]: { ...c, use: e.target.value } } })); setDirty(true) }} className={`${inputCls} w-24`} />
+                        <NumStepper value={c.work} disabled={!canManage} label={`${tp} 근무·거주 인원`}
+                          onChange={v => { setVul(p => ({ ...p, counts: { ...p.counts, [tp]: { ...c, work: v } } })); setDirty(true) }}>
+                          <input value={c.work} disabled={!canManage} inputMode="numeric" placeholder="근무·거주"
+                            onChange={e => { setVul(p => ({ ...p, counts: { ...p.counts, [tp]: { ...c, work: e.target.value } } })); setDirty(true) }} className={`${inputCls} w-20`} />
+                        </NumStepper>
+                        <NumStepper value={c.use} disabled={!canManage} label={`${tp} 시설 이용 인원`}
+                          onChange={v => { setVul(p => ({ ...p, counts: { ...p.counts, [tp]: { ...c, use: v } } })); setDirty(true) }}>
+                          <input value={c.use} disabled={!canManage} inputMode="numeric" placeholder="시설 이용"
+                            onChange={e => { setVul(p => ({ ...p, counts: { ...p.counts, [tp]: { ...c, use: e.target.value } } })); setDirty(true) }} className={`${inputCls} w-20`} />
+                        </NumStepper>
                       </div>
                     )
                   })}
@@ -252,7 +273,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 {vul.plans.map((r, i) => (
                   <div key={i} className="flex items-center gap-1.5 flex-wrap">
                     <input value={r.area} disabled={!canManage} placeholder="구역(동·층)" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, area: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-24`} />
-                    <input value={r.count} disabled={!canManage} inputMode="numeric" placeholder="인원" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, count: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-16`} />
+                    <NumStepper value={r.count} disabled={!canManage} label="피난계획 인원"
+                      onChange={v => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, count: v } : x) })); setDirty(true) }}>
+                      <input value={r.count} disabled={!canManage} inputMode="numeric" placeholder="인원" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, count: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-16`} />
+                    </NumStepper>
                     <input value={r.type} disabled={!canManage} placeholder="유형" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, type: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-20`} />
                     <input value={r.helper} disabled={!canManage} placeholder="보조자" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, helper: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-20`} />
                     <input value={r.equip} disabled={!canManage} placeholder="장비" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, equip: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-20`} />
@@ -297,7 +321,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                   <span className="text-[11px] text-[#b0acd6] w-5">{i + 1}</span>
                   <input value={r.name} disabled={!canManage} placeholder="장비 (예: 완강기)" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-40`} />
                   <input value={r.location} disabled={!canManage} placeholder="위치" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, location: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-32`} />
-                  <input value={r.qty} disabled={!canManage} inputMode="numeric" placeholder="수량" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, qty: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-16`} />
+                  <NumStepper value={r.qty} disabled={!canManage} label="장비 수량"
+                    onChange={v => { setEquip(p => p.map((x, j) => j === i ? { ...x, qty: v } : x)); setDirty(true) }}>
+                    <input value={r.qty} disabled={!canManage} inputMode="numeric" placeholder="수량" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, qty: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-16`} />
+                  </NumStepper>
                   {canManage && (
                     <button onClick={() => { setEquip(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                   )}
@@ -307,14 +334,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
       </div>
 
       {/* §1-2 저장 버튼 서식당 1개 — 3장 전체 일괄 저장 */}
-      {saveBtn({
-        evacDetail: detail.filter(r => r.facility.trim()),
-        evacHeadcount: { note: hcNote },
-        evacPlan: plan,
-        vulnerable: vul,
-        vulnerableMethods: methods,
-        evacEquip: equip.filter(r => r.name.trim()),
-      }, '3장')}
+      {saveBtn(fullPatch(), '3장')}
     </div>
   )
 }

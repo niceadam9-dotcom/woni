@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
-import { CardAnchorBar, MonthField, useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, MonthField, NumStepper, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 4개 (소방계획서_4.md §3)
@@ -70,23 +70,27 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   const [hist, setHist] = useState<FireHistoryRow[]>(initialHistory)
   const [duty, setDuty] = useState<DutyLogRow[]>(initialDutyLog)
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function pi(p: Partial<InspectionPlanSection>) { setInsp(v => ({ ...v, ...p })); setDirty(true) }
   function pm(p: Partial<MultiUseSection>) { setMu(v => ({ ...v, ...p })); setDirty(true) }
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, {
-        inspection: insp, multiUse: mu,
-        fireHistory: hist.filter(h => h.at.trim() || h.place.trim() || h.cause.trim()),
-        dutyLog: duty.filter(d => d.date.trim() || d.content.trim()),
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, {
+          inspection: insp, multiUse: mu,
+          fireHistory: hist.filter(h => h.at.trim() || h.place.trim() || h.cause.trim()),
+          dutyLog: duty.filter(d => d.date.trim() || d.content.trim()),
+        })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.10 저장됨')
+        router.refresh()
+        resolve(true)
       })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.10 저장됨')
-      router.refresh()
     })
   }
 
@@ -196,9 +200,12 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
                       {cat}
                     </button>
                     {on && (
-                      <input value={mu.categories[cat]} disabled={!canManage} inputMode="numeric"
-                        onChange={e => pm({ categories: { ...mu.categories, [cat]: e.target.value } })}
-                        className={`${inputCls} w-10`} title="개소" />
+                      <NumStepper value={mu.categories[cat]} disabled={!canManage} label={`${cat} 개소`}
+                        onChange={v => pm({ categories: { ...mu.categories, [cat]: v } })}>
+                        <input value={mu.categories[cat]} disabled={!canManage} inputMode="numeric"
+                          onChange={e => pm({ categories: { ...mu.categories, [cat]: e.target.value } })}
+                          className={`${inputCls} w-10`} title="개소" />
+                      </NumStepper>
                     )}
                   </span>
                 )
@@ -211,7 +218,9 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <input value={mu.phone} disabled={!canManage} placeholder="연락처" onChange={e => pm({ phone: e.target.value })} className={`${inputCls} w-28`} />
               <input value={mu.hours} disabled={!canManage} placeholder="영업시간 (평일/휴일·주간/야간)" onChange={e => pm({ hours: e.target.value })} className={`${inputCls} w-52`} />
               <input value={mu.users} disabled={!canManage} placeholder="이용자 유형" onChange={e => pm({ users: e.target.value })} className={`${inputCls} w-28`} />
-              <input value={mu.capacity} disabled={!canManage} inputMode="numeric" placeholder="수용인원" onChange={e => pm({ capacity: e.target.value })} className={`${inputCls} w-20`} />
+              <NumStepper value={mu.capacity} disabled={!canManage} label="수용인원" onChange={v => pm({ capacity: v })}>
+                <input value={mu.capacity} disabled={!canManage} inputMode="numeric" placeholder="수용인원" onChange={e => pm({ capacity: e.target.value })} className={`${inputCls} w-20`} />
+              </NumStepper>
             </div>
           </>
         )}
@@ -260,7 +269,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.10 저장
           </button>

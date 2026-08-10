@@ -44,22 +44,26 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
   const [rows, setRows] = useState<BrigadeRowInput[]>(initialBrigade.length > 0 ? initialBrigade : [{ team: '자위소방대장', name: '', duty: '', phone: '' }])
   const [showPeople, setShowPeople] = useState(false)
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  function save() {
-    startTransition(async () => {
-      const res1 = await saveFirePlanSectionsAction(customerId, {
-        brigadeGeneral: { type },
-        brigadeTeams: teams,
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res1 = await saveFirePlanSectionsAction(customerId, {
+          brigadeGeneral: { type },
+          brigadeTeams: teams,
+        })
+        if (res1.error) { setMsg(`❌ ${res1.error}`); resolve(false); return }
+        const res2 = await saveBrigadeAction(customerId, rows)
+        if (res2.error) { setMsg(`❌ ${res2.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 2장 저장됨 (편성표는 1.1 계획서 정보 패널과 동일 데이터)')
+        router.refresh()
+        resolve(true)
       })
-      if (res1.error) { setMsg(`❌ ${res1.error}`); return }
-      const res2 = await saveBrigadeAction(customerId, rows)
-      if (res2.error) { setMsg(`❌ ${res2.error}`); return }
-      setDirty(false)
-      setMsg('✅ 2장 저장됨 (편성표는 1.1 계획서 정보 패널과 동일 데이터)')
-      router.refresh()
     })
   }
 
@@ -156,7 +160,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 2장 저장
           </button>

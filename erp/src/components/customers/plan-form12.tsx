@@ -34,7 +34,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
   const [zones, setZones] = useState<ZoneRow[]>(initialZones.length > 0 ? initialZones : [{ ...EMPTY_ZONE }])
   const [hazards, setHazards] = useState<HazardRow[]>(initialHazards)
   const [dirty, setDirty] = useState(false)
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -71,16 +71,20 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
       ? `✅ ${rows.length}개 층 생성 — 명칭/용도를 건물 용도(${name})로 채웠습니다. 층별로 수정하세요`
       : `✅ ${rows.length}개 층 생성 — 명칭/용도·인원을 층별로 입력하세요`)
   }
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, {
-        zones: zones.filter(z => Object.values(z).some(v => String(v).trim())),
-        hazards: hazards.filter(h => h.place.trim() || h.loc.trim() || h.risks.length > 0),
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, {
+          zones: zones.filter(z => Object.values(z).some(v => String(v).trim())),
+          hazards: hazards.filter(h => h.place.trim() || h.loc.trim() || h.risks.length > 0),
+        })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.2 저장됨')
+        router.refresh()
+        resolve(true)
       })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.2 저장됨')
-      router.refresh()
     })
   }
 
@@ -189,7 +193,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.2 저장
           </button>

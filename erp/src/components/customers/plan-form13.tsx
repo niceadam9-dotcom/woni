@@ -132,7 +132,7 @@ export function PlanForm13({
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
-  useUnsavedWarning(dirty) // §11-4 이탈 경고
+  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
 
   // D-2: 주변 현황 자동 초안 — 자동차 도로(대로·로) 기준 도로명으로 뼈대 문장을 만든다
   const [bearing, setBearing] = useState('')
@@ -258,16 +258,20 @@ export function PlanForm13({
     })
   }
 
-  function save() {
-    startTransition(async () => {
-      const res = await saveFirePlanSectionsAction(customerId, {
-        location: loc, fireAccess: fa,
-        photos: photos.filter(p => p.path).map(p => ({ path: p.path, kind: p.kind || 'etc', caption: p.caption })),
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  function save(): Promise<boolean> {
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveFirePlanSectionsAction(customerId, {
+          location: loc, fireAccess: fa,
+          photos: photos.filter(p => p.path).map(p => ({ path: p.path, kind: p.kind || 'etc', caption: p.caption })),
+        })
+        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
+        setDirty(false)
+        setMsg('✅ 서식 1.3 저장됨')
+        router.refresh()
+        resolve(true)
       })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setDirty(false)
-      setMsg('✅ 서식 1.3 저장됨')
-      router.refresh()
     })
   }
 
@@ -520,7 +524,7 @@ export function PlanForm13({
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={save} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={!dirty || isPending}
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.3 저장
           </button>

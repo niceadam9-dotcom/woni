@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, type ReactNode } from 'react'
+import { usePlanSaveHandler, type PlanSaveHandler } from '@/components/ui/unsaved-nav'
 
 /** §11-4 입력 컴포넌트 공통 규칙 (P8) — 서식 화면 공용.
  *  단위 표시(NumField) · 숫자 키패드(inputMode) · 전화 자동 하이픈(PhoneField) ·
@@ -69,6 +70,32 @@ export function NumField({ value, onChange, unit, disabled, decimal = false, cla
         aria-label={`${unit ?? '값'} ${step} 증가`} className={btnCls}>+</button>
     </span>
   )
+}
+
+/** 컴팩트 ± 스테퍼 — 입력칸 마크업은 호출부가 그대로 두고 좌우 버튼만 감싼다.
+ *  NumField(h-8·자체 클래스)를 못 쓰는 촘촘한 행(1.5 계단 칩·1.10~1.11·3장 행 등)용으로,
+ *  설비 대장 제원(S4-4)이 쓴 방식을 컴포넌트로 뽑은 것. 증감 규칙은 bumpNumber 공유. */
+export function NumStepper({ value, onChange, disabled, label, step = 1, min = 0, max, decimal = false, children }: {
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+  label: string          // aria-label 접두 — "출입구 개소 1 증가"
+  step?: number
+  min?: number
+  max?: number
+  decimal?: boolean
+  children: ReactNode    // 호출부 입력칸 (클래스·placeholder·title 그대로 유지)
+}) {
+  const btnCls = 'shrink-0 grid place-items-center size-6 rounded border border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
+  const btn = (dir: 1 | -1) => (
+    <button type="button" disabled={disabled} className={btnCls}
+      aria-label={`${label} ${step} ${dir === 1 ? '증가' : '감소'}`}
+      onClick={() => {
+        const next = bumpNumber(value, dir, { step, min, max, decimal })
+        if (next !== null) onChange(next)
+      }}>{dir === 1 ? '+' : '−'}</button>
+  )
+  return <span className="inline-flex items-center gap-1">{btn(-1)}{children}{btn(1)}</span>
 }
 
 /** 전화번호 자동 하이픈 — 02 지역·0507 안심·휴대전화 공통 */
@@ -147,12 +174,15 @@ export function CardAnchorBar({ items }: { items: Array<{ id: string; label: str
   )
 }
 
-/** 미저장 브라우저 이탈 경고 — dirty 동안 beforeunload (탭 내 이동 확인은 plan-tab-view가 담당) */
-export function useUnsavedWarning(dirty: boolean) {
+/** 미저장 브라우저 이탈 경고 — dirty 동안 beforeunload (탭 내 이동 확인은 plan-tab-view가 담당).
+ *  save를 넘기면 탭 내 이동 확인창에 [저장하고 이동] 버튼이 생긴다 (dirty일 때만 등록 — unsaved-nav.tsx). */
+export function useUnsavedWarning(dirty: boolean, save?: PlanSaveHandler) {
   useEffect(() => {
     if (!dirty) return
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
+  usePlanSaveHandler(save ?? noSave, dirty && !!save)
 }
+const noSave: PlanSaveHandler = async () => false
