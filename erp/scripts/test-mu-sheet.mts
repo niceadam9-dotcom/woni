@@ -42,11 +42,32 @@ try {
   const badgeOk = await page.waitForSelector('button:has-text("안전시설등(다중이용업소)") >> text=16', { timeout: 15000 })
     .then(() => true).catch(() => false)
   check('응답수 뱃지 16 표시(MU 키)', badgeOk)
+
+  // R13-d 인라인 불량 등록 — 행에서 ✕ → 메모 → [등록] (항목 입력부는 회차 트리와 공용 컴포넌트)
+  await page.click('button:has-text("안전시설등(다중이용업소)")')
+  await page.waitForSelector('text=소화기 또는 자동확산소화기')
+  const firstRow = page.locator('div.border-b:has(span:text-matches("^MU-"))').first()
+  const inlineCode = ((await firstRow.locator('span').first().textContent()) ?? '').trim()
+  await firstRow.locator('button:has-text("✕")').click()
+  await page.waitForSelector('input[placeholder="불량 메모 (선택)"]')
+  check('✕ 클릭 → 인라인 메모칸 노출', true)
+  await page.fill('input[placeholder="불량 메모 (선택)"]', '인라인 등록 검증')
+  await page.click('button:has-text("등록")')
+  await page.waitForSelector('text=불량(✕) 저장')
+  const { data: xr } = await raw.from('inspection_sheet_responses')
+    .select('result, memo').eq('inspection_id', inspId).eq('item_code', inlineCode).single()
+  check('인라인 등록 — X·메모 저장', xr?.result === 'X' && xr?.memo === '인라인 등록 검증', JSON.stringify(xr))
+  const { data: dfs } = await raw.from('inspection_defects')
+    .select('defect_code').eq('inspection_id', inspId).eq('defect_code', inlineCode)
+  check('인라인 등록 — 불량내역 자동 등록', (dfs ?? []).length === 1, JSON.stringify(dfs))
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {
   if (browser) await browser.close()
-  if (inspId) await raw.from('inspection_sheet_responses').delete().eq('inspection_id', inspId)
+  if (inspId) {
+    await raw.from('inspection_sheet_responses').delete().eq('inspection_id', inspId)
+    await raw.from('inspection_defects').delete().eq('inspection_id', inspId)
+  }
   if (custId) await cleanupCustomer(custId)
   if (userId) await delUser(userId)
 }

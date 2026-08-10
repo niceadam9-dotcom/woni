@@ -16,6 +16,7 @@ import { InspectionReport9Client, type Report9CheckRow } from '@/components/insp
 import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { stepDocs } from '@/lib/doc-requirements'
 import { sheetScope } from '@/lib/sheet-scope'
+import { buildSheetOverviews, type SheetProgress } from '@/lib/sheet-overview'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
 import { computeQuickReadiness } from '@/lib/doc-requirements'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -112,15 +113,15 @@ export default async function InspectionDetailPage({
   const sheets = (sheetsRes.data ?? []) as Array<{ id: string; sheet_code: string; sheet_name: string }>
   const respRows = (responsesRes.data ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>
   const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
-  const respondedCounts: Record<string, number> = {}
-  for (const r of respRows) {
-    responses[r.item_code] = { result: r.result, memo: r.memo }
-    // 설비번호 키: STD '1-A-001' → '1' / 외관 'X1-01' → 'X1' / 안전시설등 'MU-001' → 'MU'
-    const first = r.item_code.split('-')[0]
-    const num = /^\d/.test(first) ? String(parseInt(first, 10)) : first
-    respondedCounts[num] = (respondedCounts[num] ?? 0) + 1
-  }
+  for (const r of respRows) responses[r.item_code] = { result: r.result, memo: r.memo }
   const xCount = respRows.filter(r => r.result === 'X').length
+
+  // 시트별 진행률 — sheet_id 조인 집계(sheet-overview.ts). 종전 item_code 접두 파싱은
+  // 분모·O/X/N 집계를 못 구하고 MU 시트 다수를 한 버킷으로 뭉개서 폐기했다.
+  // 회차별 작성·조회 트리와 같은 소스라 두 화면의 진행률이 어긋날 수 없다.
+  const { overviews } = await buildSheetOverviews(admin, [id], { id: profile.id, role: profile.role as UserRole })
+  const sheetProgress: Record<string, SheetProgress> = Object.fromEntries(
+    (overviews[id]?.sheets ?? []).map(p => [p.sheetId, p]))
 
   const auxParticipants = ((participantsRes.data ?? []) as unknown as Array<{
     id: string; employee_id: string | null
@@ -468,7 +469,7 @@ export default async function InspectionDetailPage({
         planType={inspPlanType}
         sheets={sheets}
         responses={responses}
-        respondedCounts={respondedCounts}
+        progress={sheetProgress}
         xCount={xCount}
         canManage={canEdit}
       />

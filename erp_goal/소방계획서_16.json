@@ -2,9 +2,9 @@
   "doc": "소방계획서_16 — 회차별 작성·조회에 점검표 트리 조회·입력 통합 (+ 시트 범위 판정 축 단일화)",
   "design": "대화 확정(2026-08-10) + 계획 파일 ~/.claude/plans/robust-watching-bee.md — 별도 설계 MD 없음",
   "created": "2026-08-10",
-  "updated": "2026-08-10 (S2 완료 반영)",
+  "updated": "2026-08-10 (S3 완료 반영)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
-  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0·S1·S2 완료(S1 커밋 16b42da), S3~S6 미착수",
+  "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0~S3 완료(커밋 16b42da·eb23b33), S4~S6 미착수",
 
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -32,6 +32,8 @@
     { "id": "K-6", "desc": "음성 점검표가 v2025를 하드코딩 — 정기·일반(EXT v2022) 건에서 화면에 없는 STD 코드를 AI가 제안. 항목 카탈로그도 시트 필터 없이 전 버전을 읽어 종합전용(●) 필터도 없었음. K-1과 같은 축 문제의 4번째 사례", "evidence": ["voice-sheet-actions.ts(구):50 .eq('version','v2025') 하드코딩", "voice-sheet-actions.ts(구):59-60 sheet_id 필터 없는 전량 조회"], "severity": "medium", "status": "confirmed" },
     { "id": "K-7", "desc": "회귀 함정 — test-annex-interaction.mts가 'text=점검표 입력' 문자열 개수로 회차 펼침 상태를 판정. 새 요약 행·편집기에 같은 문자열을 쓰면 깨진다", "evidence": ["test-annex-interaction.mts:84 count()===1", "test-annex-interaction.mts:90 count()===2"], "severity": "low", "status": "confirmed", "note": "S4 착수 시 준수 — 요약 행은 '설비별 진행', 편집기 헤더는 시트명만" },
     { "id": "K-8", "desc": "test-voice-sheet.mts 기존 실패 — AI 구조화 후 제안 목록이 뜨지 않고 120초 타임아웃. voice-sheet-actions.ts를 HEAD로 되돌려 같은 시드로 재실행해도 동일 실패(인과 확정) → 이번 작업과 무관한 선행 결함", "evidence": ["HEAD 버전 실행 결과 1 통과/1 실패 — waitForSelector('확정 저장') 타임아웃", "ANTHROPIC_API_KEY는 .env.local에 존재(108자)"], "severity": "medium", "status": "pending_order", "note": "claude-opus-4-8 + thinking:{type:'adaptive'} 호출부 의심. 이번 범위 밖 — 사용자 판단 대기" },
+    { "id": "K-10", "desc": "인라인 불량 등록(R13-d) 무피드백 — 알림줄이 `!sel` 조건이라 시트를 연 상태에서 [등록]을 눌러도 아무 표시가 없었다. 저장은 되지만 사용자는 알 수 없음", "evidence": ["inspection-sheet-client.tsx:147 `{!sel && notice && ...}`"], "severity": "low", "status": "confirmed", "note": "S3-5에서 공용 편집기 안 알림으로 해소. E2E가 알림을 기다리다 타임아웃 나서 발견" },
+    { "id": "K-11", "desc": "작업 절차 결함 — PowerShell 5.1의 Get-Content/Set-Content로 UTF-8 한글 JSON을 재작성해 파일 전체가 깨졌다(ANSI로 읽고 BOM 붙여 씀). git checkout으로 복구 후 Edit 도구로 재작업", "evidence": ["2026-08-10 소방계획서_16.json 손상·복구"], "severity": "low", "status": "confirmed", "note": "한글 포함 파일은 PowerShell 리다이렉트·Set-Content 금지 — Edit/Write 도구만 사용" },
     { "id": "K-9", "desc": "fetchAllRows 중복 — inspection-plans/page.tsx:12에 같은 목적의 로컬 헬퍼가 이미 존재. 신규 lib/supabase/fetch-all.ts와 2벌", "evidence": ["inspection-plans/page.tsx:12-", "lib/supabase/fetch-all.ts:6"], "severity": "low", "status": "pending_order", "note": "통합은 후속 — 지금 건드리면 S1 검증 범위가 넓어짐" }
   ],
 
@@ -101,12 +103,22 @@
           "note": "test-all.mts 등록은 S6에서" }
       ] },
 
-    { "id": "S3", "title": "SheetItemEditor 추출 + 화면 B 전환 (D-2·K-4)", "status": "pending_order",
+    { "id": "S3", "title": "SheetItemEditor 추출 + 화면 B 전환 (D-2·K-4)", "status": "code_present",
+      "note": "구현자 자기 신고 단계. 회귀는 기존 E2E 4종 + 신규 인라인 X 체크 3건으로 확인",
       "criteria": [
-        { "id": "S3-1", "desc": "inspection-sheet-client.tsx 234-291행(로딩·스크롤 컨테이너·에러·저장/취소 푸터·하단 안내)을 공용 컴포넌트로 추출", "status": "pending_order" },
-        { "id": "S3-2", "desc": "그룹핑과 inlineX/inlineMemo 상태를 편집기 내부로 이동 — 양쪽 화면 배선 0줄", "status": "pending_order" },
-        { "id": "S3-3", "desc": "화면 B 회귀 0 — 클래스·아이콘·문구 유지, 취소·저장 버튼 형제 순서 유지(test-mu-sheet.mts:37 셀렉터)", "status": "pending_order" },
-        { "id": "S3-4", "desc": "접두 파싱 폐기 → progress prop 사용 (K-4). page.tsx:113-120·inspection-sheet-client.tsx:209-214 삭제", "status": "pending_order" }
+        { "id": "S3-1", "desc": "항목 입력부(로딩·스크롤 컨테이너·항목행·O/X/N·에러·저장/취소 푸터·하단 안내)를 공용 컴포넌트로 추출", "status": "code_present",
+          "evidence": ["sheet-item-editor.tsx:23-117 SheetItemEditor", "inspection-sheet-client.tsx:225-231 호출부로 치환"] },
+        { "id": "S3-2", "desc": "그룹핑과 inlineX/inlineMemo 상태를 편집기 내부로 이동 — 양쪽 화면 배선 0줄", "status": "code_present",
+          "evidence": ["sheet-item-editor.tsx:44-48 inlineX·inlineMemo·groups 내부 소유", "inspection-sheet-client.tsx:88-99 registerInlineX(code, memo)로 시그니처 변경"] },
+        { "id": "S3-3", "desc": "화면 B 회귀 0 — 클래스·아이콘·문구 유지, 취소·저장 버튼 형제 순서 유지(test-mu-sheet.mts 셀렉터)", "status": "code_present",
+          "self_check": { "e2e": "test-mu-sheet 8/8 · test-quick-defect 7/7 · test-sheet-delete 6/6 · test-sheet-scope-axis 6/6 · test-sheet-overview 23/23", "result": "전부 통과" } },
+        { "id": "S3-4", "desc": "접두 파싱 폐기 → progress prop 사용 (K-4). 시트 버튼이 '18/24' 분모까지 표시하고 완료/부분을 색으로 구분", "status": "code_present",
+          "evidence": ["inspections/[id]/page.tsx:112-121 buildSheetOverviews로 대체(접두 파싱 삭제)", "inspection-sheet-client.tsx:205-221 progress[s.id] 사용"],
+          "note": "두 화면이 같은 집계 소스를 쓰므로 진행률이 어긋날 수 없다" },
+        { "id": "S3-5", "desc": "인라인 불량 등록(R13-d) 피드백 — 편집기 안에서 알림 표시 (K-10)", "status": "code_present",
+          "evidence": ["sheet-item-editor.tsx:35-36 notice prop", "sheet-item-editor.tsx:103 렌더", "inspection-sheet-client.tsx:230 notice 전달"],
+          "self_check": { "e2e": "test-mu-sheet.mts 인라인 X 3체크 신설", "result": "통과" },
+          "note": "선행 UX 공백을 E2E 타임아웃으로 발견해 함께 수정 — 공용 편집기가 된 이상 트리(S4)에서도 같은 문제가 생긴다" }
       ] },
 
     { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "pending_order",
@@ -151,7 +163,10 @@
       { "target": "회귀", "cmd": "npx tsx scripts/test-sheet-delete.mts", "result": "6/6", "date": "2026-08-10" },
       { "target": "S0", "cmd": "node scripts/_check-realtime-publication.mjs", "result": "스테이징·운영 모두 등록 테이블 0개 확인", "date": "2026-08-10" },
       { "target": "S2", "cmd": "npx tsx --conditions=react-server scripts/test-sheet-overview.mts", "result": "23/23", "date": "2026-08-10" },
-      { "target": "S2", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
+      { "target": "S2", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" },
+      { "target": "S3", "cmd": "npx tsx scripts/test-mu-sheet.mts", "result": "8/8 (인라인 X 3체크 신설 포함)", "date": "2026-08-10" },
+      { "target": "S3 회귀", "cmd": "test-quick-defect · test-sheet-delete · test-sheet-scope-axis · test-sheet-overview", "result": "7/7 · 6/6 · 6/6 · 23/23", "date": "2026-08-10" },
+      { "target": "S3", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
     ],
     "failed_preexisting": [
       { "target": "K-8", "cmd": "npx tsx scripts/test-voice-sheet.mts <inspId>", "result": "1/2 실패 — HEAD 버전도 동일 실패(인과 확정, 이번 변경 무관)", "date": "2026-08-10" }
@@ -169,16 +184,17 @@
       "erp/scripts/test-sheet-scope-axis.mts",
       "erp/scripts/_check-realtime-publication.mjs",
       "erp/src/lib/sheet-overview.ts (S2)",
-      "erp/scripts/test-sheet-overview.mts (S2)"
+      "erp/scripts/test-sheet-overview.mts (S2)",
+      "erp/src/components/inspections/sheet-item-editor.tsx (S3)"
     ],
     "modified": [
       "erp/src/app/(dashboard)/inspections/sheet-actions.ts",
       "erp/src/app/(dashboard)/inspections/voice-sheet-actions.ts",
       "erp/src/app/(dashboard)/inspections/[id]/page.tsx",
-      "erp/src/components/inspections/inspection-sheet-client.tsx"
+      "erp/src/components/inspections/inspection-sheet-client.tsx",
+      "erp/scripts/test-mu-sheet.mts (S3 — 인라인 X 3체크 추가)"
     ],
     "planned": [
-      "erp/src/components/inspections/sheet-item-editor.tsx (S3)",
       "erp/src/components/customers/plan-annex-sheet-tree.tsx (S4)",
       "erp/src/hooks/use-sheet-responses-realtime.ts (S5)",
       "erp/supabase/migrations/119_realtime_sheet_responses.sql (S5)",
@@ -194,9 +210,8 @@
   ],
 
   "next_actions": [
-    "S2 커밋 (사용자 지시 대기 — 진행 승인 규칙)",
-    "S3 착수 (SheetItemEditor 추출 + 화면 B 전환)",
-    "S1·S2 독립 검증 패스 후 code_present → implemented 승격",
+    "S4 착수 (회차별 조회 트리에 점검표 노드)",
+    "S1·S2·S3 독립 검증 패스 후 code_present → implemented 승격",
     "K-8(음성 점검표 기존 실패) 별건 처리 여부 사용자 판단",
     "K-9(fetchAllRows 중복) 후속 통합"
   ],
