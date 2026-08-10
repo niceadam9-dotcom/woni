@@ -10,7 +10,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appendGeneratedRevision } from '@/lib/fire-plan-revisions'
 import {
-  buildFirePlanHtml, applyPresetPairs, FACILITY_FORM,
+  buildFirePlanHtml, applyPresetPairs, FACILITY_FORM, pickFirePlanManager,
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
 } from '@/lib/fire-plan-template'
 import { toStandardCodes } from '@/lib/facility-codes'
@@ -25,6 +25,14 @@ const BUCKET = ASSET_BUCKET // 'fire-plans'
 const IMG_MIME: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
 }
+
+/** M-1(소방계획서_15): 서식 1.2는 짧은 라벨('전기')로 저장하는데 템플릿 체크박스는 긴 라벨('전기적 요인') 기준 includes 비교라
+ *  실입력 체크가 전부 ☐로 인쇄됐다. 조립에서 짧은→긴 라벨로 정규화한다. 긴 라벨 저장분(폴백 프리셋·과거 데이터)은
+ *  매핑에 없어 그대로 통과 — 양방향 호환, 데이터 마이그레이션 불필요. */
+const HAZARD_LABEL_LONG: Record<string, string> = {
+  '전기': '전기적 요인', '기계': '기계적 요인', '화학': '화학적 요인', '가스누출': '가스누출(폭발)',
+}
+const normHazardFactors = (risks: string[]) => risks.map(r => HAZARD_LABEL_LONG[r] ?? r)
 
 export type FirePlanAsset = { name: string; data: Uint8Array; mime: string }
 export type FirePlanImageRef = { file: string; kind: string; caption: string }
@@ -188,6 +196,12 @@ export async function assembleFirePlan(
 
   const photos = (sections.photos ?? []).filter((p): p is { path: string; kind: string; caption: string } => !!p.path)
 
+  // M-8(소방계획서_15): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
+  // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
+  const mgrRow = pickFirePlanManager(sections.managers)
+  const managerName = mgrRow?.name ?? owner?.name ?? ''
+  const managerPhone = managerName === (owner?.name ?? '') ? (owner?.phone ?? '') : ''
+
   const data: FirePlanGenData = {
     year,
     // 표지 작성일 = 개정이력 최신 행의 개정일 → (구) sections.revision → 오늘
@@ -207,9 +221,9 @@ export async function assembleFirePlan(
     receiverLocation: b?.receiver_location ?? '',
     ownerName: owner?.name ?? '',
     ownerPhone: owner?.phone ?? '',
-    managerName: owner?.name ?? '',
-    managerPhone: owner?.phone ?? '',
-    managerSelectedAt: cust.manager_selected_at ?? '',
+    managerName,
+    managerPhone,
+    managerSelectedAt: mgrRow?.selectedAt || cust.manager_selected_at || '',
     fireStation: cust.fire_station ?? '',
     stationDistance: '',
     stationEta: '',
@@ -221,7 +235,8 @@ export async function assembleFirePlan(
     inspectionCycle: '매월 1회',
     operationMonth,
     comprehensiveMonth,
-    trainingMonth: sections.training?.drillMonths?.[0] ?? sections.training?.eduMonths?.[0] ?? 11,
+    // M-7(소방계획서_15): 미입력 시 11월 고정 폴백 제거 — null이면 템플릿이 전 월 ☐로 렌더(허위 ■ 방지)
+    trainingMonth: sections.training?.drillMonths?.[0] ?? sections.training?.eduMonths?.[0] ?? null,
     brigade: brigadeRows.length > 0
       ? brigadeRows.map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' }))
       : [
@@ -247,7 +262,7 @@ export async function assembleFirePlan(
         weekday: '', holiday: '', managerCo: '', contact: owner?.phone ?? '',
       }],
     hazards: (sections.hazards?.length ?? 0) > 0
-      ? sections.hazards!.map(h => ({ place: h.place, location: h.loc, factors: h.risks }))
+      ? sections.hazards!.map(h => ({ place: h.place, location: h.loc, factors: normHazardFactors(h.risks) }))
       : [
         { place: '보일러실', location: '', factors: ['전기적 요인', '가스누출(폭발)'] },
         { place: '주방', location: '', factors: ['부주의', '가스누출(폭발)'] },

@@ -2,9 +2,9 @@
   "doc": "소방계획서_15 — 소방계획서 본문·별지 4호·별지 제9호서식 매핑 전수 점검 (감사 자료)",
   "design": "erp_goal/소방계획서_15.md",
   "created": "2026-08-10",
-  "updated": "2026-08-10",
+  "updated": "2026-08-10 (P1 4건 M-1·M-7·M-8·A9-1 code_present 반영)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
-  "scope_note": "이 문서는 '구현 설계'가 아니라 '점검 결과'다. items = 발견된 매핑 결함이며 status는 **수정 여부**를 뜻한다. 발견 사실 자체의 신뢰도는 각 항목의 audit 필드로 따로 표기한다(recheck=direct는 본 세션이 코드를 직접 재확인, agent는 병렬 감사 에이전트의 파일:줄 보고). 2026-08-10 현재 **수정은 전건 미착수** — 사용자 진행 지시 대기. 추가(2026-08-10 사용자 지시): library_mapping_checklist = 공통 서술 라이브러리(소방계획서_14_점검업무.md) 구현 완료 후 실행할 매핑 점검표 — MD §5와 1:1, 전건 pending_order",
+  "scope_note": "이 문서는 '구현 설계'가 아니라 '점검 결과'다. items = 발견된 매핑 결함이며 status는 **수정 여부**를 뜻한다. 발견 사실 자체의 신뢰도는 각 항목의 audit 필드로 따로 표기한다(recheck=direct는 본 세션이 코드를 직접 재확인, agent는 병렬 감사 에이전트의 파일:줄 보고). 2026-08-10 사용자 진행 지시로 **P1 4건(M-1·M-7·M-8·A9-1) 수정 착수 → code_present**(프로브 _probe-soban15-p1.mts 16/16 · tsc·build 통과, 미커밋). P2 이하는 미착수. 추가(2026-08-10 사용자 지시): library_mapping_checklist = 공통 서술 라이브러리(소방계획서_14_점검업무.md) 구현 완료 후 실행할 매핑 점검표 — MD §5와 1:1, 전건 pending_order",
 
   "status_legend": {
     "pending_order": "미수정·지시 대기",
@@ -36,11 +36,12 @@
   ],
 
   "items": [
-    { "id": "M-1", "target": "T-1", "title": "1.2.2 화재위험요소 체크가 실입력일 때만 전부 유실", "severity": "critical", "type": "bug", "status": "pending_order",
+    { "id": "M-1", "target": "T-1", "title": "1.2.2 화재위험요소 체크가 실입력일 때만 전부 유실", "severity": "critical", "type": "bug", "status": "code_present",
       "audit": { "recheck": "direct", "date": "2026-08-10" },
       "desc": "서식 1.2 저장값은 짧은 라벨 ['전기','기계','화학','가스누출','부주의','자연재해']인데, 조립이 무변환 전달하고 템플릿은 긴 라벨 ['전기적 요인','기계적 요인','화학적 요인','가스누출(폭발)',…] 기준으로 includes 비교한다. 결과: 사용자가 체크한 전기·기계·화학·가스누출이 본문에서 전부 ☐로 인쇄되고, 부주의·자연재해만 일치한다. 미입력 시 쓰이는 폴백 프리셋은 긴 라벨이라 정상 출력 — 실입력만 깨지는 역전 현상이라 눈에 띄지 않았다.",
       "evidence": ["erp/src/components/customers/plan-form12.tsx:15 RISKS 짧은 라벨", "erp/src/lib/fire-plan-generate.ts:230 factors: h.risks 무변환", "erp/src/lib/fire-plan-template.ts:28 HAZARD_FACTORS 긴 라벨", "erp/src/lib/fire-plan-template.ts:211 h.factors.includes(fa)", "erp/src/lib/fire-plan-generate.ts:231-235 폴백 프리셋은 긴 라벨(정상)"],
       "fix_proposal": "조립 단계에서 짧은 라벨 → 긴 라벨 매핑 테이블 적용(양방향 허용). 또는 템플릿 비교를 정규화 비교로 변경. 기존 저장 데이터 호환 필수",
+      "self_report": { "date": "2026-08-10", "evidence": ["fire-plan-generate.ts HAZARD_LABEL_LONG + normHazardFactors — 조립에서 짧은→긴 라벨 정규화, 긴 라벨(폴백 프리셋·과거 데이터)은 매핑 미포함으로 그대로 통과(양방향 호환, 마이그레이션 불필요)"], "probe": "_probe-soban15-p1.mts 16/16 — '전기'·'가스누출' 저장 → factors 긴 라벨 3단언 + 생성 HTML '■ 전기적 요인'·'■ 가스누출(폭발)' + 폴백 프리셋 경로 불변" },
       "priority": "P1" },
 
     { "id": "M-2", "target": "T-1", "title": "1.1 시설현황 확장 3컬럼 유실 (계단·경사로·피난용승강기)", "severity": "major", "type": "loss", "status": "pending_order",
@@ -74,18 +75,20 @@
       "evidence": ["erp/src/components/customers/plan-form18.tsx:32-33", "erp/src/lib/fire-plan-generate.ts:103", "erp/src/lib/fire-plan-template.ts:432-439"],
       "priority": "P2" },
 
-    { "id": "M-7", "target": "T-1", "title": "훈련·교육 월 미입력 시 11월 폴백이 근거 없이 ■로 인쇄", "severity": "critical", "type": "bug", "status": "pending_order",
+    { "id": "M-7", "target": "T-1", "title": "훈련·교육 월 미입력 시 11월 폴백이 근거 없이 ■로 인쇄", "severity": "critical", "type": "bug", "status": "code_present",
       "audit": { "recheck": "direct", "date": "2026-08-10" },
       "desc": "sections.training의 drillMonths·eduMonths가 비면 trainingMonth를 11로 고정한다. 1.11 미입력 고객의 본문 연간계획에 11월 ■가 실데이터처럼 찍힌다.",
       "evidence": ["erp/src/lib/fire-plan-generate.ts:204 `?? 11`", "erp/src/lib/fire-plan-template.ts:543-546 연간계획 ■ 렌더"],
       "fix_proposal": "폴백 제거(미입력이면 전 월 ☐) — M-15 폴백 정책과 함께 결정",
+      "self_report": { "date": "2026-08-10", "evidence": ["fire-plan-generate.ts trainingMonth `?? 11` → `?? null`", "fire-plan-template.ts trainingMonth: number|null + eduMonths·drillMonths 폴백 `[]`(미입력 시 전 월 ☐)"], "probe": "_probe-soban15-p1.mts 16/16 — 미입력 trainingMonth null + 11월 입력본과 ■ 수 차이 정확히 5(교육 3행+훈련 2행, 허위 ■ 0) + 입력값 경로 불변", "note": "M-15(Q-1) 일반 폴백 정책과 무관하게 처리 — 이 건은 '임의 월을 실데이터처럼 인쇄'라 폴백이 아니라 오기재였다. 나머지 폴백(자위소방대·집결지 등)은 Q-1 결정 대기 그대로" },
       "priority": "P1" },
 
-    { "id": "M-8", "target": "T-1", "title": "소방안전관리자 = 관계인 대표 고정 (본문)", "severity": "major", "type": "misprint_risk", "status": "pending_order",
+    { "id": "M-8", "target": "T-1", "title": "소방안전관리자 = 관계인 대표 고정 (본문)", "severity": "major", "type": "misprint_risk", "status": "code_present",
       "audit": { "recheck": "agent", "date": "2026-08-10" },
       "desc": "조립이 managerName/Phone을 관계인 '대표'(없으면 첫 연락처)로 채운다. 별도 선임자가 있어도 표지·1.1·개정이력 작성자에 대표자가 인쇄된다. 별지 9호의 A9-1과 같은 뿌리(전용 필드 부재).",
       "evidence": ["erp/src/lib/fire-plan-generate.ts:190-191", "erp/src/lib/fire-plan-template.ts:339,349,360"],
       "fix_proposal": "sections.managers(1.7 선임현황) 1순위 → 관계인 대표 폴백 순으로 변경, 또는 전용 컬럼 신설. A9-1과 동시 처리",
+      "self_report": { "date": "2026-08-10", "evidence": ["fire-plan-template.ts pickFirePlanManager() 신설 — '보조' 제외·성명 있는 첫 행, 없으면 null(호출부 대표 폴백)", "fire-plan-generate.ts mgrRow 적용 — managerName·managerSelectedAt 1.7 우선, managerPhone은 선임자=대표 동일인일 때만(1.7에 전화 열 없음 — 타인 전화 오기재 방지), 개정이력 작성자(appendGeneratedRevision authorName)도 선임자로 개선"], "probe": "_probe-soban15-p1.mts 16/16 — 김선임 채택·보조 제외·전화 공란·선임일 1.7 우선·대표 칸 유지·HTML 인쇄·1.7 미입력 시 종전 대표 폴백", "note": "잔여: 선임자 전화 원천 부재 — 전용 컬럼 신설은 별도 결정" },
       "priority": "P1", "related": ["A9-1"] },
 
     { "id": "M-9", "target": "T-1", "title": "1.10.1 최초점검 입력이 종합점검월 없으면 통째 미출력", "severity": "major", "type": "bug", "status": "pending_order",
@@ -198,11 +201,12 @@
       "evidence": ["erp/src/lib/doc-templates/report4.ts:156-160"],
       "priority": "P4" },
 
-    { "id": "A9-1", "target": "T-3", "title": "소방안전관리자 성명·전화가 관계인 대표 폴백으로 인쇄", "severity": "major", "type": "misprint_risk", "status": "pending_order",
+    { "id": "A9-1", "target": "T-3", "title": "소방안전관리자 성명·전화가 관계인 대표 폴백으로 인쇄", "severity": "major", "type": "misprint_risk", "status": "code_present",
       "audit": { "recheck": "agent", "date": "2026-08-10" },
       "desc": "전용 컬럼이 없어 2쪽 소방안전관리자 칸에 관계인 대표의 이름·전화가 들어간다. 실제 선임자와 다르면 공문서 오기재. 마이그레이션 104는 grade·edu_date만 추가했다.",
       "evidence": ["erp/src/app/(dashboard)/inspections/report9-actions.ts:384-386", "erp/src/app/(dashboard)/inspections/report9-actions.ts:219 관계인 대표 결정"],
       "fix_proposal": "M-8과 동일 — sections.managers(1.7) 1순위 참조 또는 전용 컬럼 신설",
+      "self_report": { "date": "2026-08-10", "evidence": ["report9-actions.ts assembleReport9 — mgrRow = pickFirePlanManager(sections.managers) 신설 후 mgrName·mgrPhone에 적용(M-8과 동일 헬퍼·동일 규칙)", "tsc --noEmit·npm run build 통과"], "probe": "간접 — _probe-soban15-p1.mts는 본문(assembleFirePlan) 경로만 주행. 별지9호 실생성(2쪽 칸 인쇄) 검증은 독립 검증 패스에서 수행할 것", "note": "동일 폴백이 별지 10·11호(report9-actions.ts:~103 Annex1011Data)·외관점검표(:~532 ExteriorData)에도 존재 — T-4 스코프 외라 미수정, 후속 점검 시 같은 헬퍼 적용 권장" },
       "priority": "P1", "related": ["M-8"] },
 
     { "id": "A9-2", "target": "T-3", "title": "교육훈련 '실시' 체크가 sections.training 객체 존재만으로 켜짐", "severity": "major", "type": "logic", "status": "pending_order",

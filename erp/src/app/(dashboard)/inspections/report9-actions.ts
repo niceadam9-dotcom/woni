@@ -13,6 +13,8 @@ import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map
 import { renderReport4, type Report4Data } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData } from '@/lib/doc-templates/exterior'
+import { pickFirePlanManager } from '@/lib/fire-plan-template'
+import type { ManagerRow } from '@/components/customers/plan-form17'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
@@ -287,6 +289,8 @@ async function assembleReport9(
   const prevTypes = new Set(((prevRows ?? []) as Array<{ inspection_type: string }>).map(r => r.inspection_type))
   const sections = ((formsRes.data?.[0] as { sections: Record<string, unknown> | null } | undefined)?.sections) ?? {}
   const hasTraining = !!sections['training']
+  // A9-1(소방계획서_15): 소방안전관리자 = 서식 1.7 선임현황(sections.managers) 1순위 → 관계인 대표 폴백
+  const mgrRow = pickFirePlanManager((sections['managers'] ?? null) as ManagerRow[] | null)
   // 다중이용업소현황 — 서식 1.10.3(sections.multiUse)과 공유 원본 (별지9호.MD §2 MULTI_USE_CATEGORIES)
   const muSection = (sections['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
   const multiUseCounts: Record<string, string> = {}
@@ -378,9 +382,10 @@ async function assembleReport9(
     ownerPhone: owner?.phone ?? '',
     managerGrade: ['특급', '1급', '2급', '3급'].includes(cust.manager_license_grade || cust.building_grade || '')
       ? (cust.manager_license_grade || cust.building_grade || '') : '',
-    // 소방안전관리자 별도 데이터 미보유 — 관계인 폴백 (워커 동일, 개선은 별지 MD §4)
-    mgrName: owner?.name ?? '',
-    mgrPhone: owner?.phone ?? '',
+    // A9-1(소방계획서_15): 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
+    // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
+    mgrName: mgrRow?.name ?? owner?.name ?? '',
+    mgrPhone: (mgrRow?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? (owner?.phone ?? '') : '',
     mgrEduDate: cust.manager_edu_date ? kdate(cust.manager_edu_date) : '',
     hasFirePlan: hasPlan,
     prevOpDone: prevTypes.has('작동'),
