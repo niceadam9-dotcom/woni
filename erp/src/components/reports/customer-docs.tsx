@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Camera, Loader2, Pencil } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Camera, Loader2, Pencil, Eye } from 'lucide-react'
 import { getDocUrlAction, type CustomerDocs, type DocGroupRef, type InspectionDocs } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
@@ -151,7 +151,7 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
   )
 }
 
-export function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback, onCompose }: {
+export function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback, onCompose, onPreview }: {
   i: InspectionDocs
   customerName: string
   isPending: boolean
@@ -160,6 +160,8 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
   upload: (inspectionId: string, slot: 'cert' | 'contract', file: File, rowKey: string) => void
   feedback: (key: string) => React.ReactNode
   onCompose: (inspectionId: string, annexNo: ComposeAnnexNo) => void
+  /** 문서 1건만 크게 보기 — 미리보기 캐시를 가진 화면(소방계획서 트리)에서만 전달 */
+  onPreview?: (inspectionId: string, type: 'report9' | 'report10' | 'report11') => void
 }) {
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
@@ -167,6 +169,13 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
   const k = (s: string) => `${i.inspectionId}:${s}`
   const statusLabel = i.status === 'completed' ? '완료' : i.status === 'in_progress' ? '진행중' : '예정'
   const date = i.endDate ?? i.startDate
+
+  /** 🔍 크게 보기 — 생성 전에도 조립 결과를 그대로 확인 (생성물과 동일 렌더) */
+  const previewBtn = (type: 'report9' | 'report10' | 'report11') => onPreview && (
+    <button onClick={() => onPreview(i.inspectionId, type)} className={composeBtn} title="이 문서만 크게 보기 — 생성 전에도 확인 가능">
+      <Eye className="size-3" /> 보기
+    </button>
+  )
 
   // R0-6: 업로드 행 = 드롭존
   const dropProps = (slot: 'cert' | 'contract') => ({
@@ -196,6 +205,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report9Full}>실시결과 보고서 (9호)</span>
             <button onClick={() => onCompose(i.inspectionId, 'report9')} disabled={isPending} className={composeBtn}
               title="작성 — 보고일·비고 입력 후 미리보기·생성 (이동 없이)"><Pencil className="size-3" /> 작성</button>
+            {previewBtn('report9')}
             {i.report9 ? (<>
               <span className="text-[#514b81]">✓ {fmtD(i.report9.at)}</span>
               <span className="ml-auto flex items-center gap-1">
@@ -281,6 +291,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report10Full}>이행계획서 (10호)</span>
               <button onClick={() => onCompose(i.inspectionId, 'report10')} disabled={isPending} className={composeBtn}
                 title="작성 — 제출일·이행기간·계획 요약 입력 후 생성"><Pencil className="size-3" /> 작성</button>
+              {previewBtn('report10')}
               {i.report10 ? (<>
                 <span className="text-[#514b81]">✓ {fmtD(i.report10.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
@@ -297,6 +308,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report11Full}>이행완료 보고서 (11호)</span>
               <button onClick={() => onCompose(i.inspectionId, 'report11')} disabled={isPending} className={composeBtn}
                 title="작성 — 제출일·완료 보고 문구 입력 후 생성"><Pencil className="size-3" /> 작성</button>
+              {previewBtn('report11')}
               {i.report11 ? (<>
                 <span className="text-[#514b81]">✓ {fmtD(i.report11.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
