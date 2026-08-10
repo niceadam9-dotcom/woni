@@ -11,6 +11,7 @@ import { requirePermission } from '@/lib/auth'
 import { FACILITY_SPEC_SECTIONS } from '@/lib/facility-spec-schema'
 import { FACILITY_STANDARD } from '@/lib/facility-codes'
 import { facilitiesForSheet } from '@/lib/sheet-facility-map'
+import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 
 const SECTION_KEYS = new Set(FACILITY_SPEC_SECTIONS.map(s => s.key))
 const ANNEX_NOS = new Set(['report9', 'report10', 'report11'])
@@ -124,62 +125,78 @@ export async function saveFacilitySpecsBulkAction(
 
 /** 교차 검증 (소방계획서_8 H-5e·D-17 ④) — 최근 자체점검 회차에서 점검표 응답(○×)이 있는 설비 코드.
  *  설비 대장이 "점검은 했는데 제원 미입력" 칩을 띄우는 근거 — 응답이 있는 최신 회차 1건 기준.
- *  시트→설비 매핑은 SHEET_FACILITY_MAP(명시) 우선, 미등재 시트는 퍼지 폴백. */
+ *  시트→설비 매핑은 SHEET_FACILITY_MAP(명시) 우선, 미등재 시트는 퍼지 폴백.
+ *
+ *  T-2a(소방계획서_14_점검업무) — 여기에 **시트별 응답 통계**를 얹는다. 설비 대장 섹션 헤더의
+ *  점검 결과 배지가 쓴다. 마크(○/×/／) 판정은 호출부가 공용 rollUpForm3Results로 직접 하도록
+ *  **원자료만** 돌려준다. 이유 두 가지:
+ *   ① 별지9호 3쪽과 **같은 함수**를 쓰게 되어 문서와 화면이 어긋나지 않는다(T-2a-1).
+ *   ② '해당없음(／)' 판정에 필요한 설치 여부는 클라이언트가 더 정확하다 — 화면의 1.4 체크는
+ *      저장 전 토글까지 반영된 최신 상태라, 서버가 DB로 판정하면 방금 켠 설비가 ／로 보인다. */
 export async function getInspectedFacilityCodesAction(
   customerId: string,
-): Promise<{ codes: string[]; roundLabel: string | null; error?: string }> {
+): Promise<{
+  codes: string[]
+  roundLabel: string | null
+  /** 시트명 → { any: 응답 있음, x: 불량 있음 } — rollUpForm3Results 입력 */
+  sheetStats: Array<[string, { any: boolean; x: boolean }]>
+  /** 시트명 → 불량(X) 응답 수 — 배지의 "불량 n건" */
+  defectsBySheet: Record<string, number>
+  error?: string
+}> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
+  const empty = { codes: [], roundLabel: null, sheetStats: [], defectsBySheet: {} }
 
-  // 최근 자체점검(plan_type null·special_*) 최대 6건 — 응답 있는 최신 회차 채택
-  // (status 필터 없음 — inspection_status enum에 cancelled 값이 없음, getCustomerRoundsAction과 일관)
-  const { data: inspRaw } = await admin.from('inspections')
-    .select('id, year, sequence_num')
-    .eq('customer_id', customerId)
-    .or('plan_type.is.null,plan_type.like.special_*')
-    .order('year', { ascending: false }).order('sequence_num', { ascending: false })
-    .limit(6)
-  const insps = (inspRaw ?? []) as Array<{ id: string; year: number; sequence_num: number }>
-  if (insps.length === 0) return { codes: [], roundLabel: null }
+  // 최신 자체점검 건 판정은 공용 헬퍼로 단일화 (소방계획서_14_점검업무 T-2b-1b·D-6) —
+  // 종전 이 자리의 로컬 구현을 그대로 옮긴 것. 축이 갈리면 이 칩과 점검표 화면이 다른 회차를 가리킨다.
+  const target = await getLatestSpecialInspection(admin, customerId, { requireResponses: true })
+  if (!target) return empty
+  const roundLabel = target.label
 
-  let target: (typeof insps)[number] | null = null
-  for (const i of insps) {
-    const { count } = await admin.from('inspection_sheet_responses')
-      .select('id', { count: 'exact', head: true }).eq('inspection_id', i.id)
-    if ((count ?? 0) > 0) { target = i; break }
-  }
-  if (!target) return { codes: [], roundLabel: null }
-  const roundLabel = `${target.year}년 ${target.sequence_num}차`
-
-  // 응답 item_code 전량 (PostgREST 1,000행 한도 대비 페이지 순회 — report9 롤업과 동일 계열)
-  const responded = new Set<string>()
+  // 응답 전량 (PostgREST 1,000행 한도 대비 페이지 순회 — report9 롤업과 동일 계열)
+  const resultByItem = new Map<string, string>()
   for (let from = 0; ; from += 1000) {
     const { data } = await admin.from('inspection_sheet_responses')
-      .select('item_code').eq('inspection_id', target.id).range(from, from + 999)
-    const rows = (data ?? []) as Array<{ item_code: string }>
-    for (const r of rows) responded.add(r.item_code)
+      .select('item_code, result').eq('inspection_id', target.id).range(from, from + 999)
+    const rows = (data ?? []) as Array<{ item_code: string; result: string }>
+    for (const r of rows) resultByItem.set(r.item_code, r.result)
     if (rows.length < 1000) break
   }
 
   // item_code → 시트 (카탈로그 고정 데이터 전량 순회)
-  const sheetIds = new Set<string>()
+  const sheetIdByItem = new Map<string, string>()
   for (let from = 0; ; from += 1000) {
     const { data } = await admin.from('inspection_sheet_items')
       .select('item_code, sheet_id').range(from, from + 999)
     const rows = (data ?? []) as Array<{ item_code: string; sheet_id: string }>
-    for (const r of rows) if (responded.has(r.item_code)) sheetIds.add(r.sheet_id)
+    for (const r of rows) if (resultByItem.has(r.item_code)) sheetIdByItem.set(r.item_code, r.sheet_id)
     if (rows.length < 1000) break
   }
-  if (sheetIds.size === 0) return { codes: [], roundLabel }
+  const sheetIds = new Set(sheetIdByItem.values())
+  if (sheetIds.size === 0) return { ...empty, roundLabel }
 
   const { data: sheetRaw } = await admin.from('inspection_sheets')
     .select('id, sheet_name').in('id', [...sheetIds])
+  const nameById = new Map(((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
+    .map(s => [s.id, s.sheet_name]))
+
+  const stat = new Map<string, { any: boolean; x: boolean }>()
+  const defectsBySheet: Record<string, number> = {}
+  for (const [itemCode, result] of resultByItem) {
+    const name = nameById.get(sheetIdByItem.get(itemCode) ?? '')
+    if (!name) continue
+    const cur = stat.get(name) ?? { any: false, x: false }
+    stat.set(name, { any: true, x: cur.x || result === 'X' })
+    if (result === 'X') defectsBySheet[name] = (defectsBySheet[name] ?? 0) + 1
+  }
+
   const allFacilities = FACILITY_STANDARD.flatMap(g => g.items)
   const codes = new Set<string>()
-  for (const s of (sheetRaw ?? []) as Array<{ sheet_name: string }>) {
-    for (const c of facilitiesForSheet(s.sheet_name, allFacilities)) codes.add(c)
+  for (const name of stat.keys()) {
+    for (const c of facilitiesForSheet(name, allFacilities)) codes.add(c)
   }
-  return { codes: [...codes], roundLabel }
+  return { codes: [...codes], roundLabel, sheetStats: [...stat], defectsBySheet }
 }
 
 // ── 별지 서식 고유 값 (점검 건 단위) ────────────────────────────────────────

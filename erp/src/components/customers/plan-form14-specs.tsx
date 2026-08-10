@@ -8,8 +8,10 @@ import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import { getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
 import {
   FACILITY_SPEC_SECTIONS, isDerivedField, isFullyDerived, mergeDerivedMulti, derivedBuildingValue,
-  type SpecBlock, type SpecField, type DerivedCtx,
+  type SpecBlock, type SpecField, type SpecSection, type DerivedCtx,
 } from '@/lib/facility-spec-schema'
+import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
+import { rollUpForm3Results, form3ItemsForSheet } from '@/lib/sheet-facility-map'
 import { bumpNumber } from '@/components/ui/fields'
 
 /** ± 스테퍼를 붙일 수량형 단위 (S4-4) — 용량·치수(㎥·㎾·MPa·ℓ·ℓ/min·m·㎜·㎡ 등)는 ±1이 무의미해 제외 */
@@ -138,6 +140,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   // D-17 교차 검증 — 최근 자체점검 회차의 점검표 응답이 있는 설비 코드 (점검함·제원 미입력 칩)
   const [inspected, setInspected] = useState<{ codes: Set<string>; label: string } | null>(null)
   const inspectedFetched = useRef(false)
+  // T-2a — 같은 회차의 시트별 응답 통계·불량 수. 섹션 헤더 점검 결과 배지가 쓴다
+  const [sheetStats, setSheetStats] = useState<Array<[string, { any: boolean; x: boolean }]>>([])
+  const [defectsBySheet, setDefectsBySheet] = useState<Record<string, number>>({})
 
   function loadSplit(inspId: string) {
     setSplitLoading(true)
@@ -172,11 +177,41 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     getInspectedFacilityCodesAction(customerId)
       .then(res => {
         if (res.codes.length > 0) setInspected({ codes: new Set(res.codes), label: res.roundLabel ?? '' })
+        setSheetStats(res.sheetStats ?? [])
+        setDefectsBySheet(res.defectsBySheet ?? {})
       })
       .catch(() => {})
   }
 
   const enabled = (b: SpecBlock) => !b.facilityHint || hintCodes(b).some(c => installed[c])
+
+  // ── T-2a 점검 결과 배지 (소방계획서_14_점검업무) ─────────────────────────────
+  // 마크 판정은 별지9호 3쪽과 **같은 함수**(rollUpForm3Results)를 쓴다 — 문서와 화면이 어긋나면 안 된다.
+  // 설치 여부는 서버 DB가 아니라 화면의 현재 체크 상태를 넘긴다: 방금 켠(미저장) 설비가 ／로 보이면 거짓말이 된다.
+  const installedCodes = useMemo(() => Object.keys(installed).filter(c => installed[c]), [installed])
+  const inspectionMarks = useMemo(
+    () => rollUpForm3Results(sheetStats, ALL_STANDARD_CODES, installedCodes).resultMarks,
+    [sheetStats, installedCodes])
+  /** 설비 코드 → 불량 수 — 시트별 X 수를 그 시트가 덮는 설비로 전개 */
+  const defectsByCode = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const [sheet, n] of Object.entries(defectsBySheet)) {
+      for (const c of form3ItemsForSheet(sheet, ALL_STANDARD_CODES)) out[c] = (out[c] ?? 0) + n
+    }
+    return out
+  }, [defectsBySheet])
+
+  /** 섹션 배지 — 섹션이 덮는 설비들의 마크를 합쳐 하나로. 불량이 하나라도 있으면 ×가 이긴다 */
+  function sectionBadge(sec: SpecSection): { mark: 'O' | 'X' | 'N' | null; defects: number; codes: string[] } | null {
+    if (sheetStats.length === 0) return null
+    const codes = [...new Set(sec.blocks.flatMap(hintCodes))]
+    if (codes.length === 0) return null                    // 공통사항 섹션(3-2 등)은 배지 없음
+    const marks = codes.map(c => inspectionMarks[c]).filter(Boolean) as Array<'O' | 'X' | 'N'>
+    if (marks.length === 0) return { mark: null, defects: 0, codes }   // 설치했는데 응답 없음 = 미입력
+    const defects = codes.reduce((n, c) => n + (defectsByCode[c] ?? 0), 0)
+    const mark = marks.includes('X') ? 'X' : marks.includes('O') ? 'O' : 'N'
+    return { mark, defects, codes }
+  }
 
   // ── 중복 입력 제거(2026-08-08) — 원천이 다른 세 갈래를 한 접근자로 흡수 ─────────
   //   ① 파생: 대장 체크·건물 정보에서 계산 (읽기 전용, 세부제원에 저장하지 않음)
@@ -645,6 +680,29 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                   {secOpen ? <ChevronDown className="size-3.5 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
                   <span className="text-xs font-semibold text-[#090c1d] truncate">{sec.no} {sec.label}</span>
                   {dirty[sec.key] && <span className="text-[10px] text-amber-500">● 미저장</span>}
+                  {/* T-2a 점검 결과 배지 — 최신 자체점검 회차 기준, 읽기 전용. 별지9호 3쪽과 같은 판정 로직 */}
+                  {(() => {
+                    const badge = sectionBadge(sec)
+                    if (!badge) return null
+                    const round = inspected?.label ? `${inspected.label} ` : ''
+                    const codes = badge.codes.join('·')
+                    if (badge.mark === 'X') return (
+                      <span data-testid={`spec-mark-${sec.key}`} title={`${round}점검 결과 불량 — ${codes}`}
+                        className="shrink-0 text-[10px] font-semibold text-red-600">× 불량 {badge.defects}건</span>
+                    )
+                    if (badge.mark === 'O') return (
+                      <span data-testid={`spec-mark-${sec.key}`} title={`${round}점검 결과 양호 — ${codes}`}
+                        className="shrink-0 text-[10px] font-semibold text-green-600">○ 양호</span>
+                    )
+                    if (badge.mark === 'N') return (
+                      <span data-testid={`spec-mark-${sec.key}`} title={`미설치로 해당없음 — ${codes}`}
+                        className="shrink-0 text-[10px] text-[#b0acd6]">／ 해당없음</span>
+                    )
+                    return (
+                      <span data-testid={`spec-mark-${sec.key}`} title={`${round}점검표에 이 설비 응답이 없습니다 — ${codes}`}
+                        className="shrink-0 text-[10px] text-amber-600">점검 미입력</span>
+                    )
+                  })()}
                   <span className="ml-auto flex items-center gap-1.5 shrink-0">
                     <span className="h-1 w-16 rounded bg-[#eeecf8] overflow-hidden">
                       <span className="block h-full bg-[#7b68ee]" style={{ width: `${pct}%` }} />

@@ -101,21 +101,26 @@
               "review": "전부 sheet-facility-map 상단 주석이 예고한 오검·누락 계열 — 신규 오차 없음. 대표: 시트 '자동화재탐지설비 및 시각경보장치'→항목 '…시각경보기'(누락 해소), 시트 '소화용수설비'→2항목(누락 해소), 설치 '스프링클러설비'가 '간이'를 켜지 않음(오검 제거)" } } }
       ] },
 
-    { "id": "T-2a", "title": "세부제원 패널 섹션 헤더에 최신 점검 결과 배지 (읽기 전용)", "status": "pending_order",
+    { "id": "T-2a", "title": "세부제원 패널 섹션 헤더에 최신 점검 결과 배지 (읽기 전용)", "status": "partial",
+      "partial_reason": "T-2a-1·T-2a-2 구현(code_present) · T-2a-3(배지 클릭 이동)은 대상 노드(T-2b) 부재로 미착수",
       "criteria": [
         { "id": "T-2a-1", "desc": "assembleReport9의 시트 통계(sheetStat) 롤업을 공용 함수로 추출 — 배지·별지9호가 같은 로직 공유", "status": "code_present",
           "self_report": { "date": "2026-08-10", "evidence": ["sheet-facility-map.ts rollUpForm3Results()"], "note": "T-3-2b에서 앞당겨 충족 — T-3 검증을 위해 순수 함수가 필요했다. T-2a-2(배지 UI)는 이 함수를 그대로 쓰면 된다" } },
-        { "id": "T-2a-2", "desc": "plan-form14-specs.tsx 섹션 헤더에 설비별 ○/×/／/미입력 + 불량 수 배지 표시, 클릭 시 T-2b 노드 해당 시트로 이동", "status": "pending_order" }
+        { "id": "T-2a-2", "desc": "plan-form14-specs.tsx 섹션 헤더에 설비별 ○/×/／/미입력 + 불량 수 배지 표시", "status": "code_present",
+          "self_report": { "date": "2026-08-10", "evidence": ["plan-form14-specs.tsx sectionBadge() + 섹션 헤더 렌더(data-testid=spec-mark-*)", "facility-spec-actions.ts getInspectedFacilityCodesAction이 sheetStats·defectsBySheet 추가 반환"], "probe": "_probe-spec-badge.mjs 12/12(순수 로직) + _probe-spec-badge-ui.mjs 6/6(브라우저 렌더)" },
+          "design_deviation": "마크 판정을 서버가 하지 않고 **원자료(시트 통계)만 받아 클라이언트가 공용 rollUpForm3Results로 계산**한다. ①별지9호 3쪽과 같은 함수를 써서 문서↔화면 불일치를 구조적으로 차단(T-2a-1 취지) ②'해당없음(／)' 판정에 쓰는 설치 여부가 화면에서 더 정확 — 서버 DB로 판정하면 방금 켠(미저장) 설비가 ／로 표시된다(프로브 §3이 이 케이스를 고정)" },
+        { "id": "T-2a-3", "desc": "배지 클릭 시 T-2b 노드의 해당 시트로 이동", "status": "pending_order", "blocked_by": ["T-2b"], "note": "이동 대상 노드가 아직 없어 배지는 현재 읽기 전용(툴팁으로 회차·설비 안내)" }
       ] },
 
     { "id": "T-2b", "title": "별지 허브 트리 [점검표(최신)] 노드 — inspection-sheet-client 재마운트", "status": "pending_order",
       "blocked_by": ["Q-2"],
       "current_state": { "evidence": ["plan-annex-section.tsx에 점검표 노드 없음 — 별지 4·9·10·11호 문서 행만 표시"], "verified_date": "2026-08-10" },
       "criteria": [
-        { "id": "T-2b-1", "desc": "getLatestSpecialInspection(customerId) 서버 헬퍼 — `plan_type is null OR like 'special_%'` + `order by year desc, sequence_num desc`로 최신 1건. **취소 조건 없음**(C-1 확정). 기존 getInspectedFacilityCodesAction의 로컬 회차 선택 로직을 이 헬퍼로 흡수해 단일화(C-2 확정)", "status": "pending_order",
+        { "id": "T-2b-1", "desc": "getLatestSpecialInspection(customerId) 서버 헬퍼 — `plan_type is null OR like 'special_%'` + `order by year desc, sequence_num desc`로 최신 1건. **취소 조건 없음**(C-1 확정). 기존 getInspectedFacilityCodesAction의 로컬 회차 선택 로직을 이 헬퍼로 흡수해 단일화(C-2 확정)", "status": "code_present",
           "spec_source": "Q-3 · D-6 (2026-08-10 사용자 확정)",
-          "current_state": { "evidence": ["헬퍼 미존재 — 동일 로직이 facility-spec-actions.ts:136-150에 로컬 구현(year desc·sequence_num desc·limit 6)"], "verified_date": "2026-08-10" } },
-        { "id": "T-2b-1b", "desc": "교차 검증 칩(getInspectedFacilityCodesAction)도 신설 헬퍼를 쓰도록 리팩터 — 두 화면이 다른 회차를 가리킬 여지를 구조적으로 제거", "status": "pending_order", "spec_source": "D-6" },
+          "self_report": { "date": "2026-08-10", "evidence": ["src/lib/latest-inspection.ts getLatestSpecialInspection()"], "note": "requireResponses 옵션으로 '응답 있는 최신 회차'(교차 검증 칩 종전 동작)와 '무조건 최신'(T-2b 노드용)을 겸한다" } },
+        { "id": "T-2b-1b", "desc": "교차 검증 칩(getInspectedFacilityCodesAction)도 신설 헬퍼를 쓰도록 리팩터 — 두 화면이 다른 회차를 가리킬 여지를 구조적으로 제거", "status": "code_present", "spec_source": "D-6",
+          "self_report": { "date": "2026-08-10", "evidence": ["facility-spec-actions.ts — 로컬 회차 선택 로직 삭제 후 getLatestSpecialInspection(requireResponses:true) 호출"], "note": "종전 로컬 구현이 이미 '취소 필터 없음(enum에 cancelled 없음)'이라 주석까지 달아뒀다 — Q-3 확정이 선례와 일치함을 코드가 뒷받침" } },
         { "id": "T-2b-2", "desc": "별지 허브 트리에 노드 추가, 최신 건에 바인딩해 기존 inspection-sheet-client 재마운트(신규 입력 화면 0개) — 점검 상세와 동일 저장소라 동기화 자동", "status": "pending_order" },
         { "id": "T-2b-3", "desc": "점검 건 없음 안내 + 점검 등록 딥링크. 회차 선택 UI는 어디에도 두지 않음(D-1)", "status": "pending_order" }
       ] },
