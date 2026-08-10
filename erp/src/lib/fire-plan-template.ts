@@ -723,38 +723,3 @@ ${imgsOf('etc').length ? `<!-- 부속 사진 -->
 function teamTextOr(teams: Record<string, string> | undefined, key: string, fallback: string): string {
   return (teams ?? {})[key]?.trim() || fallback
 }
-
-/** 계획서 데이터 시트 — 한컴독스(한글) 수동 편집 시 옆에 두고 옮겨 적는 1장 요약 (doc02 §8 ④안) */
-export function buildDataSheetHtml(d: FirePlanGenData): string {
-  const row = (label: string, value: string) =>
-    `<tr><th style="width:130px">${esc(label)}</th><td class="l">${v(value)}</td></tr>`
-  return `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8">
-<style>
-  body { font-family: 'Malgun Gothic', sans-serif; font-size: 11px; color: #111; margin: 0; }
-  h1 { font-size: 16px; margin: 0 0 4px; }
-  .sub { font-size: 10px; color: #555; margin: 0 0 12px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  th, td { border: 1px solid #555; padding: 4px 8px; text-align: center; }
-  th { background: #efefef; }
-  td.l { text-align: left; }
-</style></head><body>
-<h1>소방계획서 데이터 시트 — ${esc(d.buildingName)}</h1>
-<p class="sub">${d.year}년 · 한글(한컴독스)에서 표준양식 편집 시 참조용 · 생성일 ${esc(d.revisionDate)}</p>
-<table>
-  ${row('명칭', d.buildingName)}${row('도로명주소', d.address)}
-  ${row('대상물 급수', d.grade)}${row('주용도', d.purpose)}
-  ${row('사용승인일', d.useApprovalDate)}${row('연면적(㎡)', d.totalArea)}
-  ${row('층수', d.floors)}${row('구조', d.structure)}
-  ${row('대표자(책임자)', `${d.ownerName} / ${d.ownerPhone}`)}
-  ${row('소방안전관리자', `${d.managerName} / ${d.managerPhone}`)}
-  ${row('관할소방서', d.fireStation)}
-  ${row('설치 소방시설', d.facilities.join(', '))}
-  ${row('업무대행 업체', `${d.companyName} / ${d.companyPhone}`)}
-  ${row('업체 주소', d.companyAddress)}
-  ${row('계약기간', `${d.contractStart} ~`)}${row('점검주기', d.inspectionCycle)}
-  ${row('작동점검 시기', d.operationMonth)}
-  ${d.comprehensiveMonth ? row('종합점검 시기', d.comprehensiveMonth) : ''}
-</table>
-</body></html>`
-}

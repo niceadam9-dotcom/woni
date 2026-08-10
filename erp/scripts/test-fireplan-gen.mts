@@ -1,5 +1,5 @@
 /** 소방계획서 표준양식 생성 E2E — 생성 버튼 → 모달 자동 채움(서식 1.2 포함) → 사진 업로드 →
- *  PDF 생성·보관함 저장 → 편집·재생성(개정 2) → 데이터 시트 다운로드 (2026-07-15)
+ *  PDF 생성·보관함 저장 → 편집·재생성(개정 2) (2026-07-15 — 데이터 시트는 소방계획서_14 #8로 제거)
  *  실행: $env:TEST_BASE_URL='https://staging.sjfire.co.kr'; npx tsx scripts/test-fireplan-gen.mts
  */
 import { createClient } from '@supabase/supabase-js'
@@ -114,14 +114,6 @@ try {
   const { data: plans2 } = await raw.from('fire_plans')
     .select('revision').eq('customer_id', customerId).order('revision', { ascending: false })
   check('재생성 = 개정 차수 2', ((plans2 ?? [])[0] as { revision: number } | undefined)?.revision === 2, JSON.stringify(plans2))
-
-  // ── 데이터 시트 다운로드 ──
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
-  const [download] = await Promise.all([
-    page.waitForEvent('download', { timeout: 60000 }),
-    page.getByRole('button', { name: '데이터 시트' }).click(),
-  ])
-  check('데이터 시트 PDF 다운로드', (download.suggestedFilename() ?? '').includes('데이터시트'), download.suggestedFilename())
 
   await browser.close(); browser = null
 } catch (e) {

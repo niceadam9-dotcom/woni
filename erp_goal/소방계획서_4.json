@@ -158,7 +158,8 @@
         { "id": "7-3", "desc": "assembleFirePlanGenData() 어댑터 → 기존 파이프라인 공용 + .form.json 스냅샷 + 최초 진입 1회 임포트 배너", "status": "implemented",
           "criteria": [
             { "id": "7-3a", "desc": "입력 섹션 → 생성 기본값 연결 (웹 PDF·데이터시트·PDF 직결·HWP)", "status": "implemented",
-              "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — sections.zones→1.2.1(형태 매핑), hazards→1.2.2, evacPlan→3.4(절차·경로·집결지), fire_brigade_members→2.2, training 훈련월, 과거 개정이력 다행(revisions)", "fireplan-worker.py — sections.zones 우선 zone_rows(HWP 1.2.1 placeholder 재사용)", ".form.json 스냅샷은 기존 유지"], "method": "코드 대조 + E2E(섹션 저장 경로)" } },
+              "verified": { "date": "2026-07-23", "commit": "d51f0ac", "evidence": ["fire-plan-actions.ts getFirePlanGenDefaultsAction — sections.zones→1.2.1(형태 매핑), hazards→1.2.2, evacPlan→3.4(절차·경로·집결지), fire_brigade_members→2.2, training 훈련월, 과거 개정이력 다행(revisions)", "fireplan-worker.py — sections.zones 우선 zone_rows(HWP 1.2.1 placeholder 재사용)", ".form.json 스냅샷은 기존 유지"], "method": "코드 대조 + E2E(섹션 저장 경로)" },
+              "note": "후속(2026-08-10, 소방계획서_14 #8): 데이터시트·getFirePlanGenDefaultsAction 제거 — SDK 제거·전 문서 서버 PDF 전환(소방계획서_7)으로 수동 편집 참조 용도 소멸. 생성 기본값 연결은 assembleFirePlanGenData(fire-plan-generate.ts)로 존속" },
             { "id": "7-3b", "desc": "최초 진입 1회 임포트 배너", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "0c8e095", "evidence": ["fire-plan-form-actions.ts importLegacyFormAction — 최신 .form.json → sections 역매핑(zones·hazards·evacPlan·revision, §7-3a 어댑터 역방향), 서식 입력 존재 시 거부(최초 1회 원칙)", "plan-tab-view.tsx 빠른 입력 배너([가져오기]/[닫기]) + page.tsx importCandidate(서식 없음 && generated_ 웹 생성분 존재)"], "method": "E2E scripts/test-import-deeplink.mts 11/11 — 배너→가져오기→4개 섹션 역매핑 DB 검증→재진입 배너 미노출" } }
           ] },
         { "id": "7-4", "desc": "신규 서식 HWP 병합 — placeholder 확장(ANCHOR_KEYS + 심기 재실행), 서식별 순차", "status": "implemented",
@@ -170,7 +171,8 @@
               "verified": { "date": "2026-07-23", "commit": "580c088", "evidence": ["make-fireplan.py fill_table(범용 — 앵커+rowAddr/colAddr, 빈 런 주입·예시 텍스트 교체) + stride(블록형 표)·clear_rest(다행 예시 런 정리) 확장 + apply_form_tables", "병합: HWP 개정이력 다행(bc3da57)·1.10.4 이력(5열)·3.2 세부현황·3.7 기구·장비 + 기록부 4종(580c088 — 1.12 화기취급 13행·1.13 공사/정비 11행·1.14 홍보 결과 2블록·1.15 화재발생 개요 첫 행: 일시·개요=피해 내용·예방대책=복구 조치)", "검증: _test-form-pairs.py 42/42(표 병합 36셀)·test-hwp-single.mts 5/5(워커 실생성)·1.15 계획 표 원본 보존 확인"], "method": "코드 대조 + 템플릿 병합 검증 + 워커 파이프라인 E2E" },
               "note": "제외(구조 불일치 — 정직 기록): 1.11.2(차수 블록 고정 양식)·1.11.4(별지 28호 별도 양식)·시나리오(5앵커 분할 불일치, 프리셋 경로 유지)·1.10.2 dutyLog(양식에 기록표 없음 — '별도 파일철' 보관 대상, ERP 기록·보관용). 1.15는 양식이 단일 사건 서식이라 첫 행만·비용 미병합, 1.14는 2블록 한도·안전조치/대상은 인접 열에 합성" }
           ] },
-        { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6fe3800", "evidence": ["워커 이중 폴링(TARGETS: 스테이징+운영 — use_target 전환, 대상별 중단 복구·하트비트) = 운영 전환 동시 수행(운영 백로그 0건 상태에서 전환)", "웹 템플릿 폐기: [PDF 생성] 버튼 제거(생성 바=계획서 생성 HWP+PDF 단일), 보관함 생성/재생성=HWP 큐, generateFirePlanAction·getFirePlanFormAction·generateFirePlanPdfNowAction 삭제(데이터시트 HTML 경로만 유지, 구 .form.json은 7-3b 임포트 읽기 전용)", "사진 연계: 서식 1.3 sections.photos(건물 전경 우선)→HWP 표지, gen-assets 폴백", "일반관리 보관함 생성 버튼 억제(§9-8 — 회귀에서 발견·수정)"], "method": "E2E scripts/test-hwp-single.mts 5/5(생성 요청→워커 HWP+미리보기→PDF ready→보관함) + plan-tab 47/47 회귀 + 운영 하트비트·백로그 0건 확인" } },
+        { "id": "7-5", "desc": "출력 엔진 단일화 — 워커 상시화 시점에 HWP 단일 경로(HWP→PDF+미리보기), 웹 계획서 템플릿 폐기(데이터시트 등 경량 문서만 유지)", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "6fe3800", "evidence": ["워커 이중 폴링(TARGETS: 스테이징+운영 — use_target 전환, 대상별 중단 복구·하트비트) = 운영 전환 동시 수행(운영 백로그 0건 상태에서 전환)", "웹 템플릿 폐기: [PDF 생성] 버튼 제거(생성 바=계획서 생성 HWP+PDF 단일), 보관함 생성/재생성=HWP 큐, generateFirePlanAction·getFirePlanFormAction·generateFirePlanPdfNowAction 삭제(데이터시트 HTML 경로만 유지, 구 .form.json은 7-3b 임포트 읽기 전용)", "사진 연계: 서식 1.3 sections.photos(건물 전경 우선)→HWP 표지, gen-assets 폴백", "일반관리 보관함 생성 버튼 억제(§9-8 — 회귀에서 발견·수정)"], "method": "E2E scripts/test-hwp-single.mts 5/5(생성 요청→워커 HWP+미리보기→PDF ready→보관함) + plan-tab 47/47 회귀 + 운영 하트비트·백로그 0건 확인" },
+          "note": "후속(2026-08-10, 소방계획서_14 #8): '데이터시트 등 경량 문서만 유지'도 종료 — 데이터시트 제거로 계획서 관련 경량 HTML 문서 잔존 없음" },
         { "id": "7-6", "desc": "모바일 — 탭 줄 가로 스크롤, 표는 카드형 폴백", "status": "implemented", "verified": { "date": "2026-07-23", "commit": "31e165f", "evidence": ["목차 모바일 드롭다운(3827ecc — 탭 줄 대체)", "표 = TableWrap 가로 스크롤 래퍼(31e165f — 1.2·1.7·개정이력, 카드형 대신 채택: 열 구조 보존)"], "method": "E2E scripts/test-field-rules.mts 10/10 + plan-tab 46/46 회귀" }, "note": "카드형 폴백 대신 가로 스크롤 채택 — 설계 조정 정직 기록" }
       ]
     },
@@ -187,7 +189,8 @@
         { "id": "8-1b", "desc": "마이그레이션 096 파일 작성 (fire_plan_forms)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["sections[7] criteria 7-1 verified 참조 — 스테이징·운영 DB 적용 포함"], "method": "코드 대조 + DB 읽기 조회" } },
         { "id": "8-1c", "desc": "plan-tab-view.tsx 탭 골격 — 생성 바(준비율·연도·HWP/PDF/데이터시트) + 장 서브탭 + 1장 서식 칩(1.1 활성)", "status": "implemented",
-          "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["plan-tab-view.tsx:106-245 (생성 바 108-143, 서브탭 146-168, 서식 칩 229-239)", "E2E: HWP/PDF/데이터시트 버튼·2/3장 비활성·1.1 칩 표시 확인"], "method": "코드 대조 + E2E" } },
+          "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["plan-tab-view.tsx:106-245 (생성 바 108-143, 서브탭 146-168, 서식 칩 229-239)", "E2E: HWP/PDF/데이터시트 버튼·2/3장 비활성·1.1 칩 표시 확인"], "method": "코드 대조 + E2E" },
+          "note": "후속(2026-08-10, 소방계획서_14 #8): 생성 바의 [데이터 시트] 버튼 제거 — 수동 편집 워크플로 소멸" },
         { "id": "8-1d", "desc": "개정이력·보관 서브탭 (자동 목록 + sections.revision 저장 + 보관함 배치)", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "1aa4c97", "evidence": ["sections[2] criteria 2-1·2-2 verified 참조"], "method": "코드 대조 + E2E" } },
         { "id": "8-1e", "desc": "fire-plan-form-actions.ts — 개정이력 저장 / PDF 즉시 생성(생성 바 직결) / HWP 큐 래퍼", "status": "implemented",
@@ -312,7 +315,8 @@
       "note": "역할 분담 확정: 고객 탭=입력+개별 생성 / 보고서 페이지=전 고객 선택·일괄 생성+현황+이력+서식 관리. 고객 탭 [HWP/PDF 생성]은 유지",
       "criteria": [
         { "id": "10-R1", "desc": "R-1 — /reports 신설 + 소방계획서·데이터시트 카드 + /fire-plans/generate 흡수(리다이렉트·사이드바 메뉴명 변경) + 서식 관리 접기(프리셋 이동)", "status": "implemented",
-          "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["reports/page.tsx — 서식 카탈로그 4카드(버전 표시·비활성 흐림) + 소방계획서 카드=기존 FirePlanGenerateRequestClient 통째 흡수(고객 다중·프리셋·큐 현황·프리셋 관리 접기 포함)", "fire-plans/generate → redirect('/reports'), 사이드바 '소방계획서 생성'→'보고서'", "스모크 9/9 (카드·흡수·리다이렉트·검색)"], "method": "코드 대조 + UI 스모크" } },
+          "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["reports/page.tsx — 서식 카탈로그 4카드(버전 표시·비활성 흐림) + 소방계획서 카드=기존 FirePlanGenerateRequestClient 통째 흡수(고객 다중·프리셋·큐 현황·프리셋 관리 접기 포함)", "fire-plans/generate → redirect('/reports'), 사이드바 '소방계획서 생성'→'보고서'", "스모크 9/9 (카드·흡수·리다이렉트·검색)"], "method": "코드 대조 + UI 스모크" },
+          "note": "후속: 보고서 센터는 소방계획서_8에서 해체, 데이터시트 기능 자체도 2026-08-10 제거(소방계획서_14 #8)" },
         { "id": "10-R2", "desc": "R-2 — 큐 fire_plan_gen_jobs에 report_type 컬럼 확장(워커 유형별 병합 분기) + 별지 9호·배치확인서 카드(점검 건 선택 UI) + 점검 완료 화면 바로가기", "status": "implemented",
           "verified": { "date": "2026-07-23", "commit": "6643dab", "evidence": ["큐 report_type·워커 분기는 P3(099·48a28ea) 선구현", "별지 9호 카드 — 점검 건 선택(자체점검만·고객명 검색·생성 이력 수) → 점검 상세 준비 화면으로 이동(§9-6⑦ 진입점 2개·화면 1개)", "배치확인서 카드 — 업로드 문서 안내(예정 표시)"], "method": "코드 대조 + UI 스모크" },
           "note": "배치확인서는 협회 발급 업로드 문서(§9-9 ②)라 생성 카드 아님 — 점검 상세 업로드 슬롯은 §9-9 타임라인에서" },

@@ -8,7 +8,6 @@ import {
   requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction,
   importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
@@ -260,20 +259,6 @@ export function PlanTabView({
     })
   }
 
-  function downloadDataSheet() {
-    startTransition(async () => {
-      const res = await downloadFirePlanDataSheetAction(customerId)
-      if (res.error || !res.base64) { setMsg(`❌ ${res.error ?? '데이터 시트 생성 실패'}`); return }
-      const bytes = Uint8Array.from(atob(res.base64), c => c.charCodeAt(0))
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = res.fileName ?? '계획서데이터시트.pdf'
-      a.click()
-      URL.revokeObjectURL(url)
-    })
-  }
-
   function saveRevision() {
     startRevTransition(async () => {
       const res = await saveFirePlanRevisionAction(customerId, rev)
@@ -319,11 +304,6 @@ export function PlanTabView({
               title="소방계획서 생성 (§7-5 HWP 단일 경로) — 워커(한글 SDK)가 HWP+웹 미리보기+PDF를 보관함에 등록"
               className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
               {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileOutput className="size-3.5" />} 계획서 생성 (HWP+PDF)
-            </button>
-            <button onClick={downloadDataSheet} disabled={isPending}
-              title="한글 수동 편집용 데이터 요약 1장"
-              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
-              <Download className="size-3.5" /> 데이터 시트
             </button>
           </div>
         )}

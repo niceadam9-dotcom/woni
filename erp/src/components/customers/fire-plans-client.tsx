@@ -3,7 +3,7 @@
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine, Eye } from 'lucide-react'
-import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction, downloadFirePlanDataSheetAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { requestFirePlanHwpFromTabAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { DateInput } from '@/components/ui/date-input'
 
@@ -41,21 +41,6 @@ export function FirePlansClient({ customerId, plans, canManage }: {
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [subDraft, setSubDraft] = useState<{ submittedAt: string; fireStation: string }>({ submittedAt: '', fireStation: '' })
-
-  /** 데이터 시트 다운로드 — 한글(한컴독스) 수동 편집 시 참조용 1장 요약 PDF */
-  function downloadDataSheet() {
-    startTransition(async () => {
-      const res = await downloadFirePlanDataSheetAction(customerId)
-      if (res.error || !res.base64) { alert(res.error ?? '데이터 시트 생성에 실패했습니다.'); return }
-      const bytes = Uint8Array.from(atob(res.base64), c => c.charCodeAt(0))
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = res.fileName ?? '계획서데이터시트.pdf'
-      a.click()
-      URL.revokeObjectURL(url)
-    })
-  }
 
   /** 계획서 생성 — PDF 단일 경로: 서버 동기 생성(HTML→Gotenberg→PDF, 보관함 등록). 값 수정은 소방계획서 탭 서식에서 */
   function generateNow() {
@@ -298,14 +283,6 @@ export function FirePlansClient({ customerId, plans, canManage }: {
             className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
           >
             <FileOutput className="size-3.5" /> 계획서 생성 (PDF)
-          </button>
-          <button
-            onClick={downloadDataSheet}
-            disabled={isPending}
-            title="고객 데이터 1장 요약 PDF — 참조·검토용"
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50"
-          >
-            <Download className="size-3.5" /> 데이터 시트
           </button>
         </div>
       )}

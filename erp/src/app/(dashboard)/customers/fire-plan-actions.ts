@@ -3,9 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
-import { buildDataSheetHtml, FACILITY_FORM, type FirePlanGenData } from '@/lib/fire-plan-template'
-import { toStandardCodes } from '@/lib/facility-codes'
-import { convertHtmlToPdf } from '@/lib/pdf'
 
 const BUCKET = 'fire-plans'
 const MAX_SIZE = 30 * 1024 * 1024 // 30MB
@@ -225,158 +222,6 @@ export async function issueNextYearPlanAction(planId: string): Promise<{ error?:
   return { year: newYear }
 }
 
-/** 표준양식 생성 폼 기본값 — 고객·건물·시설·관계인·회사 데이터 자동 채움 (doc02 §8 A안) */
-export async function getFirePlanGenDefaultsAction(
-  customerId: string,
-): Promise<{ error?: string; data?: FirePlanGenData }> {
-  await requirePermission('customer_manage')
-  const admin = createAdminClient()
-
-  const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, plansRes] = await Promise.all([
-    admin.from('customers')
-      .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date, building_grade, manager_selected_at')
-      .eq('id', customerId).single(),
-    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
-    admin.from('buildings')
-      .select('id, purpose, total_area, floors_above, floors_below, height, receiver_location, main_structure, roof_structure')
-      .eq('customer_id', customerId).eq('is_active', true)
-      .order('created_at', { ascending: true }),
-    admin.from('company_profile').select('company_name, address, phone').limit(1).maybeSingle(),
-    admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
-    admin.from('fire_brigade_members').select('team, name, duty, phone').eq('customer_id', customerId).order('sort_order'),
-    admin.from('fire_plans').select('year, revision, note, created_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
-  ])
-  const cust = custRes.data as {
-    customer_name: string; address: string | null; use_approval_date: string | null
-    fire_station: string | null; inspection_type: string; plan_anchor_date: string | null; contract_date: string | null
-    building_grade: string | null; manager_selected_at: string | null
-  } | null
-  if (!cust) return { error: '고객을 찾을 수 없습니다.' }
-
-  const contacts = (contactRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
-  const owner = contacts.find(c => c.role === '대표') ?? contacts[0]
-  const buildings = (bldRes.data ?? []) as Array<{
-    id: string; purpose: string | null; total_area: number | null; floors_above: number | null; floors_below: number | null
-    height: number | string | null; receiver_location: string | null; main_structure: string | null; roof_structure: string | null
-  }>
-  const b = buildings[0]
-  const company = companyRes.data as { company_name: string; address: string | null; phone: string | null } | null
-  // 서식 입력(096 fire_plan_forms.sections) — 어댑터 §7-3: 입력값이 있으면 생성 기본값으로 사용
-  const sections = ((formRes.data as { sections?: {
-    revision?: { revisionDate?: string; revisionNote?: string }
-    zones?: Array<{ zone: string; name: string; area: string; workersWeekday: string; workersHoliday: string; company: string; phone: string }>
-    hazards?: Array<{ place: string; loc: string; risks: string[] }>
-    evacPlan?: { procedure?: string; routes?: Array<{ floor: string; route: string; guide: string; equip: string }>; assembly?: string }
-    training?: { drillMonths?: number[]; eduMonths?: number[] }
-    photos?: Array<{ path: string; kind: string; caption: string }>
-  } } | null)?.sections) ?? {}
-  const revision = sections.revision ?? null
-  // 과거 개정이력 다행 — 보관함(fire_plans) 기반, 이번 작성분은 마지막 행으로 이어짐 (§8-1i)
-  const revisions = ((plansRes.data ?? []) as Array<{ year: number; revision: number; note: string | null; created_at: string }>)
-    .map(p => ({
-      date: p.created_at.slice(0, 10),
-      note: p.note ?? `${p.year}년 소방계획서${p.revision > 1 ? ` (개정${p.revision})` : ' 작성'}`,
-      author: '',
-    }))
-  const brigadeRows = (brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>
-
-  // 설치 시설 → 서식 1.4 항목 — 표준 코드(100) 정확 일치, 레거시 잔존분은 toStandardCodes로 정규화
-  let facilities: string[] = []
-  if (buildings.length > 0) {
-    const { data: facRaw } = await admin.from('fire_facilities')
-      .select('facility_code, installed')
-      .in('building_id', buildings.map(x => x.id))
-      .eq('installed', true)
-    const codes = toStandardCodes(((facRaw ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code))
-    const allItems = new Set(FACILITY_FORM.flatMap(g => g.items))
-    facilities = codes.filter(c => allItems.has(c))
-  }
-
-  // 자체점검 시기 — 점검계획일 기준: 종합 고객은 종합=기준월·작동=+6개월, 작동 고객은 작동=기준월
-  const year = new Date().getFullYear()
-  const anchorMonth = cust.plan_anchor_date ? new Date(cust.plan_anchor_date).getMonth() + 1 : null
-  const plus6 = anchorMonth ? ((anchorMonth - 1 + 6) % 12) + 1 : null
-  const isComprehensive = cust.inspection_type === '종합'
-  const operationMonth = anchorMonth ? `${year}년 ${isComprehensive ? plus6 : anchorMonth}월` : ''
-  const comprehensiveMonth = isComprehensive && anchorMonth ? `${year}년 ${anchorMonth}월` : ''
-
-  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const floors = b ? `지하 ${b.floors_below ?? 0}층 / 지상 ${b.floors_above ?? 0}층` : ''
-
-  return {
-    data: {
-      year,
-      revisionDate: revision?.revisionDate || kstToday,
-      revisionNote: revision?.revisionNote || `${year}년 소방계획서 작성`,
-      buildingName: cust.customer_name,
-      address: cust.address ?? '',
-      // 고객·건물 데이터 연동 (2026-07-21, 소방계획서_2.md 요구 3·4·5 — 종전 하드코딩 제거)
-      grade: cust.building_grade ?? '',
-      purpose: b?.purpose ?? '',
-      useApprovalDate: cust.use_approval_date ?? '',
-      totalArea: b?.total_area != null ? String(b.total_area) : '',
-      buildingArea: '',
-      floors,
-      height: b?.height != null && String(b.height).trim() !== '' ? String(b.height) : '',
-      structure: b?.main_structure ?? '',
-      roof: b?.roof_structure ?? '',
-      receiverLocation: b?.receiver_location ?? '',
-      ownerName: owner?.name ?? '',
-      ownerPhone: owner?.phone ?? '',
-      managerName: owner?.name ?? '',
-      managerPhone: owner?.phone ?? '',
-      managerSelectedAt: cust.manager_selected_at ?? '',
-      fireStation: cust.fire_station ?? '',
-      stationDistance: '',
-      stationEta: '',
-      facilities,
-      companyName: company?.company_name ?? '',
-      companyAddress: company?.address ?? '',
-      companyPhone: company?.phone ?? '',
-      contractStart: cust.contract_date ?? '',
-      inspectionCycle: '매월 1회',
-      operationMonth,
-      comprehensiveMonth,
-      trainingMonth: sections.training?.drillMonths?.[0] ?? sections.training?.eduMonths?.[0] ?? 11,
-      // 어댑터 §7-3: 자위소방대·1.2·3.4 입력값이 있으면 우선, 없으면 종전 기본값
-      brigade: brigadeRows.length > 0
-        ? brigadeRows.map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' }))
-        : [
-          { team: '자위소방대장', name: '', duty: '관리구역 상황통제', phone: '' },
-          { team: '부대장', name: '', duty: '대장 부재시 수행', phone: '' },
-          { team: '비상연락', name: '', duty: '119신고 및 상황전파', phone: '' },
-          { team: '초기소화', name: '', duty: '소화기 이용 초기소화', phone: '' },
-          { team: '피난유도', name: '', duty: '피난층 또는 옥상으로 피난유도', phone: '' },
-        ],
-      evacRoutes: (sections.evacPlan?.routes?.length ?? 0) > 0
-        ? sections.evacPlan!.routes!
-        : [{ floor: '전층', route: '각 출입구 앞 직통계단 이용', guide: '', equip: '' }],
-      assembly: sections.evacPlan?.assembly || '1층 주차장',
-      evacNote: sections.evacPlan?.procedure || '피난유도자 지시에 따라 최단 경로로 피난 실시, 피난 늦은 인원은 옥상 대피',
-      zones: (sections.zones?.length ?? 0) > 0
-        ? sections.zones!.map(z => ({
-          zone: z.zone, name: z.name, area: z.area,
-          weekday: z.workersWeekday, holiday: z.workersHoliday, managerCo: z.company, contact: z.phone,
-        }))
-        : [{
-          zone: '전층', name: b?.purpose ?? '', area: b?.total_area != null ? String(b.total_area) : '',
-          weekday: '', holiday: '', managerCo: '', contact: owner?.phone ?? '',
-        }],
-      hazards: (sections.hazards?.length ?? 0) > 0
-        ? sections.hazards!.map(h => ({ place: h.place, location: h.loc, factors: h.risks }))
-        // 원본 양식 예시 프리셋 (보일러실·주방·전기실)
-        : [
-          { place: '보일러실', location: '', factors: ['전기적 요인', '가스누출(폭발)'] },
-          { place: '주방', location: '', factors: ['부주의', '가스누출(폭발)'] },
-          { place: '전기실', location: '', factors: ['전기적 요인'] },
-        ],
-      revisions,
-      // §8-1k: 생성 모달 폐지 — 사진은 서식 1.3 입력(sections.photos)에서
-      photos: (sections.photos ?? []) as FirePlanGenData['photos'],
-    },
-  }
-}
-
 const IMAGE_EXTS: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
 
 /** 표준양식 삽입용 사진 업로드 — fire-plans 버킷 gen-assets 경로 (마이그레이션 없음) */
@@ -412,26 +257,10 @@ export async function deleteFirePlanGenImageAction(
   return {}
 }
 
-/** 계획서 데이터 시트 PDF — 한컴독스(한글) 수동 편집 시 참조용 1장 요약 (doc02 §8 ④안) */
-export async function downloadFirePlanDataSheetAction(
-  customerId: string,
-): Promise<{ error?: string; base64?: string; fileName?: string }> {
-  const res = await getFirePlanGenDefaultsAction(customerId)
-  if (res.error || !res.data) return { error: res.error ?? '데이터를 불러오지 못했습니다.' }
-  try {
-    const pdf = await convertHtmlToPdf(buildDataSheetHtml(res.data))
-    return {
-      base64: Buffer.from(pdf).toString('base64'),
-      fileName: `${res.data.buildingName}_계획서데이터시트_${res.data.year}.pdf`,
-    }
-  } catch (e) {
-    return { error: `PDF 생성 실패: ${(e as Error).message}` }
-  }
-}
-
 // §7-5 출력 엔진 단일화(2026-07-23): 웹 계획서 템플릿 폐기 — generateFirePlanAction(HTML→Gotenberg PDF)과
-// getFirePlanFormAction(.form.json 재편집)을 제거. 계획서 생성 = HWP 워커 단일 경로(HWP+미리보기+PDF).
-// 경량 문서(데이터시트)만 Gotenberg HTML 경로 유지. 과거 .form.json은 임포트(7-3b)에서 읽기 전용으로만 사용.
+// getFirePlanFormAction(.form.json 재편집)을 제거. 과거 .form.json은 임포트(7-3b)에서 읽기 전용으로만 사용.
+// 데이터 시트(한컴독스 수동 편집 참조용 1장 요약)와 그 전용 조립 getFirePlanGenDefaultsAction도 제거 —
+// SDK 제거·전 문서 서버 PDF 전환(소방계획서_7)으로 수동 편집 워크플로가 소멸 (소방계획서_14 #8, 2026-08-10).
 
 /** 다운로드/인쇄/미리보기용 서명 URL (5분 유효) — html = HWP 생성분 웹 미리보기(레이아웃 참고) */
 export async function getFirePlanFileUrlAction(
