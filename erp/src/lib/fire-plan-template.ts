@@ -77,9 +77,10 @@ export type FirePlanOpsInfo = {
 
 export type FirePlanGenData = {
   year: number
-  revisionDate: string          // 이번 작성일 (개정이력 마지막 행)
-  revisionNote: string          // 개정 내용 (예: "2026년 소방계획서 작성")
-  revisions?: Array<{ date: string; note: string; author: string }>  // 과거 개정이력 (보관함 기반 다행 — §8-1i)
+  revisionDate: string          // 표지 작성일 = 개정이력 최신 행의 개정일
+  revisionNote: string          // (구) 이번 개정 내용 — 개정이력이 테이블로 승격돼 표에는 쓰이지 않는다
+  /** 개정이력 (마이그레이션 120 fire_plan_revisions — 전 연도 시계열 오름차순, 소방계획서_17 §2-4) */
+  revisions?: Array<{ date: string; note: string; author: string; reviewer?: string; approver?: string }>
   // 서식 1.1 건축물 일반현황
   buildingName: string
   address: string
@@ -345,9 +346,9 @@ export function buildFirePlanHtml(
   <h2>소방계획서 개정이력</h2>
   <table>
     <tr><th style="width:36px">순번</th><th style="width:70px">일자</th><th>주요 개정내용</th><th style="width:70px">작성자</th><th style="width:56px">검토</th><th style="width:56px">승인</th></tr>
-    ${(d.revisions ?? []).map((r, i) => `<tr><td>${i + 1}</td><td>${v(r.date)}</td><td class="l">${v(r.note)}</td><td>${v(r.author)}</td><td></td><td></td></tr>`).join('')}
-    <tr><td>${(d.revisions?.length ?? 0) + 1}</td><td>${v(d.revisionDate)}</td><td class="l">${v(d.revisionNote)}</td><td>${v(d.managerName)}</td><td></td><td></td></tr>
-    ${Array.from({ length: 7 }, (_, i) => `<tr><td>${i + 2}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('')}
+    ${/* 개정이력은 전 연도 시계열 통합 — 화면만 연도별로 접어 보여준다(법정 서식은 문서 전체의 이력) */''}
+    ${(d.revisions ?? []).map((r, i) => `<tr><td>${i + 1}</td><td>${v(r.date)}</td><td class="l">${v(r.note)}</td><td>${v(r.author)}</td><td>${v(r.reviewer ?? '')}</td><td>${v(r.approver ?? '')}</td></tr>`).join('')}
+    ${Array.from({ length: 7 }, (_, i) => `<tr><td>${(d.revisions?.length ?? 0) + i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('')}
   </table>
 
   <h2>제1장 소방안전관리계획</h2>

@@ -68,14 +68,16 @@ try {
   check('트리 — 보관함·개정이력 노드 진입', await page.isVisible('text=개정이력'))
   check('트리 — 4개 장 전부 활성', await page.isVisible('button:has-text("3장 피난계획")') && !(await page.isVisible('text=준비 중')))
 
-  // 개정이력 입력 저장 → fire_plan_forms(096)
-  await page.fill('input[placeholder*="소방계획서 작성"]', '개정 E2E 검증')
+  // 개정이력 저장 → fire_plan_revisions(120, 연도별 행 — 소방계획서_17).
+  // 구 경로(sections.revision 단일 슬롯)는 저장할 때마다 덮어써 이력이 남지 않아 폐기됐다.
+  await page.click('button:has-text("개정 추가")')
+  await page.fill('input[placeholder="주요 개정내용"]', '개정 E2E 검증')
   await page.click('button:has-text("저장")')
-  await page.waitForSelector('text=개정이력 입력 저장됨')
-  const { data: form } = await raw.from('fire_plan_forms')
-    .select('sections, updated_by').eq('customer_id', customerId).maybeSingle()
-  const rev = (form?.sections as { revision?: { revisionNote?: string } } | null)?.revision
-  check('DB fire_plan_forms.sections.revision 저장', rev?.revisionNote === '개정 E2E 검증', JSON.stringify(form))
+  await page.waitForSelector('text=개정이력 저장됨', { timeout: 60000 })
+  const { data: revRow } = await raw.from('fire_plan_revisions')
+    .select('year, seq, content, source').eq('customer_id', customerId).maybeSingle()
+  check('DB fire_plan_revisions 저장(수동 행)',
+    revRow?.content === '개정 E2E 검증' && revRow?.source === 'manual', JSON.stringify(revRow))
 
   // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 (소방계획서_8 D-12: 3그룹 재편) ──
   check('목차 트리 — 3그룹(본문·별지 서식·보관함)',
@@ -422,6 +424,7 @@ try {
   for (const id of [customerId, generalId]) {
     if (!id) continue
     await raw.from('fire_plan_forms').delete().eq('customer_id', id)
+    await raw.from('fire_plan_revisions').delete().eq('customer_id', id)   // 120 — 남기면 고객 삭제가 막혀 계정까지 잔류한다
     await raw.from('fire_brigade_members').delete().eq('customer_id', id)
     await raw.from('customer_facility_specs').delete().eq('customer_id', id)
     const { data: blds } = await raw.from('buildings').select('id').eq('customer_id', id)

@@ -15,12 +15,14 @@ import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
+import { RevisionHistory } from '@/components/customers/revision-history'
+import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
  *  진입 = 1.1 일반현황 입력폼(2026-08-06 사용자 확정 — ⚡ 빠른 입력 요약 페이지 폐기).
  *  좌측 목차 트리 + 서식 화면, form= 딥링크. 일반관리도 동일 (소방계획서_6 W-14). */
 
-export type RevisionRow = { year: number; revision: number; date: string; note: string | null; uploader: string | null }
+// 개정이력은 마이그레이션 120 fire_plan_revisions로 승격됐다 — 구 RevisionRow(fire_plans 파생)는 폐기
 
 /** 11-5: 누락 칩 → 입력처 딥링크 (필수 완성도 라벨 기준) */
 const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'consent'> = {
@@ -64,7 +66,7 @@ const CH1_FORMS = [
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
 
 export function PlanTabView({
-  customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
+  customerId, canManage, purpose, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
   annex, ledgerAutoNeeded, textDefaultsNeeded,
 }: {
@@ -74,8 +76,7 @@ export function PlanTabView({
   textDefaultsNeeded?: boolean // 진입 시 공통 서술 기본항목 자동주입 대상: 기본항목 있고 스탬프 없는 섹션 존재 (소방계획서_15_별도라이브러리 §4-0)
   purpose: string | null
   readiness: { done: number; total: number; missing: string[] }
-  revisionInitial: { revisionDate: string; revisionNote: string }
-  revisionRows: RevisionRow[]
+  revisionYears: RevisionYearGroup[]   // 개정이력 연도별 히스토리 (120 — 소방계획서_17)
   importCandidate?: boolean
   initialSection?: string
   initialForm?: string          // §1-3 딥링크 ?tab=plan&form=1.1 (sub=보다 우선)
@@ -169,9 +170,6 @@ export function PlanTabView({
   const [year, setYear] = useState(new Date().getFullYear())
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
-  const [rev, setRev] = useState(revisionInitial)
-  const [revDirty, setRevDirty] = useState(false)
-  const [isRevPending, startRevTransition] = useTransition()
   // 대장 수동 미리보기·확정 저장(구 [건축물대장 불러오기])은 빠른 입력 페이지와 함께 폐기(2026-08-06).
   // 대체 경로: 진입 시 자동 반영(아래) + 1.1 [건축물대장에서 다시 가져오기] + 건물·시설 탭 수기 입력.
   const [, startLedgerTransition] = useTransition()
@@ -275,15 +273,6 @@ export function PlanTabView({
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ 소방계획서 생성 완료 (${year}년) — 보관함에 등록되었습니다`)
       router.refresh()
-    })
-  }
-
-  function saveRevision() {
-    startRevTransition(async () => {
-      const res = await saveFirePlanRevisionAction(customerId, rev)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setRevDirty(false)
-      setMsg('✅ 개정이력 입력 저장됨 — 다음 생성 시 개정이력 표에 반영됩니다')
     })
   }
 
@@ -405,8 +394,12 @@ export function PlanTabView({
               <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
               {navBtn('annex', '회차별 작성·조회', true)}
             </div>
-            <div className="pt-1 border-t border-[#eceafd] mt-1">
-              {navBtn('archive', '🗂 보관함·개정이력')}
+            {/* 소방계획서_17 Q-4 — 별지를 보관함 아래로 내리지 않는다.
+                별지는 회차마다 쓰는 '작성' 화면이고 보관함은 완료물 조회라, 빈도 높은 쪽을 내리면 동선이 나빠진다.
+                대신 구분선을 그룹 라벨로 승격해 위(작성)/아래(보관·이력)의 성격 차이를 화면에 드러낸다. */}
+            <div className="pt-2 mt-1.5 border-t border-[#eceafd]">
+              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">🗂 보관·이력</p>
+              {navBtn('archive', '보관함·개정이력')}
             </div>
           </aside>
 
@@ -434,55 +427,8 @@ export function PlanTabView({
       {/* ── 개정이력·보관 ── */}
       {sel === 'archive' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
-            <p className="text-xs font-semibold text-[#514b81] mb-2">개정이력</p>
-            {revisionRows.length > 0 ? (
-              <TableWrap className="mb-3"><table className="w-full text-xs min-w-[480px]">
-                <thead>
-                  <tr className="border-b border-[#e0ddf5] text-left text-[11px] text-[#514b81]">
-                    <th className="pb-1 pr-3 font-medium w-12">순번</th>
-                    <th className="pb-1 pr-3 font-medium w-24">일자</th>
-                    <th className="pb-1 pr-3 font-medium">주요 개정내용</th>
-                    <th className="pb-1 font-medium w-20">작성자</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {revisionRows.map((r, i) => (
-                    <tr key={`${r.year}-${r.revision}-${i}`} className="border-b border-[#f3f1fb] last:border-0">
-                      <td className="py-1.5 pr-3 text-[#514b81]">{i + 1}</td>
-                      <td className="py-1.5 pr-3 text-[#090c1d]">{r.date.slice(0, 10)}</td>
-                      <td className="py-1.5 pr-3 text-[#090c1d]">{r.note ?? `${r.year}년 소방계획서${r.revision > 1 ? ` (개정${r.revision})` : ' 작성'}`}</td>
-                      <td className="py-1.5 text-[#514b81]">{r.uploader ?? '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></TableWrap>
-            ) : (
-              <p className="text-[11px] text-[#b0acd6] mb-3">생성 이력이 없습니다 — 첫 생성 시 1행이 기록됩니다</p>
-            )}
-            {canManage && (
-              <div className="flex items-end gap-2 flex-wrap">
-                <div>
-                  <label className="text-[11px] font-medium text-[#514b81] block mb-1">이번 작성일 <span className="text-[#b0acd6] font-normal">(비우면 생성일)</span></label>
-                  <DateInput value={rev.revisionDate}
-                    onChange={e => { setRev(p => ({ ...p, revisionDate: e.target.value })); setRevDirty(true) }}
-                    className="h-8 text-xs" />
-                </div>
-                <div className="flex-1 min-w-52">
-                  <label className="text-[11px] font-medium text-[#514b81] block mb-1">주요 개정내용</label>
-                  <input value={rev.revisionNote}
-                    onChange={e => { setRev(p => ({ ...p, revisionNote: e.target.value })); setRevDirty(true) }}
-                    placeholder={`${year}년 소방계획서 작성`}
-                    className="h-8 w-full rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]" />
-                </div>
-                <button onClick={saveRevision} disabled={!revDirty || isRevPending}
-                  className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
-                  {isRevPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
-                </button>
-              </div>
-            )}
-            <p className="text-[10px] text-[#b0acd6] mt-2">생성(HWP·PDF) 시 위 목록 + 이번 작성일·개정내용이 문서의 개정이력 표에 병합됩니다.</p>
-          </div>
+          <RevisionHistory customerId={customerId} canManage={canManage}
+            initialYears={revisionYears} currentYear={year} />
           {archive}
         </div>
       )}

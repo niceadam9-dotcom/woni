@@ -1,0 +1,139 @@
+{
+  "doc": "소방계획서_17 — 보관함 개정이력 연도별 히스토리 (fire_plan_revisions 승격)",
+  "design": "erp_goal/소방계획서_17.md",
+  "origin": "소방계획서_14.md #19(개정이력 연도별 히스토리·나열·추가 서술) · #16(별지 노드 위치 — §6 부수 제안)",
+  "created": "2026-08-10",
+  "updated": "2026-08-10",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · implemented는 독립 검증(구현자≠판정자) 통과 + verified 증거 동반",
+  "scope_note": "Q-1~Q-4 **권장안 그대로 확정**(2026-08-10 사용자) 후 A-0~A-3 구현 완료. 상태는 code_present — 구현자 자기신고이며 독립 검증(구현자≠판정자) 패스는 아직 없다. A-4(운영 반영)만 pending_order",
+  "commit_state": "**미커밋** (working tree) — 커밋·푸시·운영 반영은 진행 승인 후 (feedback_no_auto_proceed 단계마다 대기)",
+  "migration_state": "120_fire_plan_revisions.sql **스테이징 적용 완료**(2026-08-10, 백필 9행 = fire_plans 9행) · 운영 미적용",
+
+  "machine_checks": {
+    "date": "2026-08-10",
+    "tsc": "clean",
+    "eslint": "clean (신규·변경 파일). plan-tab-view의 react-hooks/refs 오류 2건은 HEAD에도 있는 기존 건 — 이번 변경과 무관",
+    "probe_ui": "scripts/_probe-revision-history.mjs 14/14",
+    "probe_print": "scripts/_probe-revision-print.mts 8/8 (npx tsx --conditions=react-server)",
+    "regression": "scripts/test-plan-tab.mts 83/83 (개정이력 단언을 신 경로로 갱신)"
+  },
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류",
+    "confirmed": "설계 결정 확정",
+    "needs_decision": "사용자 확정 필요 — 코드가 아니라 정책에서 갈림"
+  },
+
+  "diagnosis": [
+    { "id": "K-1", "severity": "high", "desc": "⚠ 과거 개정 사유가 남지 않는다 — saveFirePlanRevisionAction이 sections.revision에 {revisionDate, revisionNote} 객체 하나를 통째로 덮어쓴다. 작년 개정 사유는 올해 저장 시 소멸. 요구 #19의 '이력 나열'·'추가 서술'이 원천적으로 불가능한 근인",
+      "evidence": ["fire-plan-form-actions.ts:40-43 saveSection(customerId,'revision',{...})", "fire-plan-form-actions.ts:22 sections 키 단위 치환"],
+      "resolution": "fire_plan_revisions 행 단위 저장으로 승격 (A-1)" },
+    { "id": "K-2", "severity": "medium", "desc": "연도 개념이 없다 — 화면 표가 전 연도를 created_at 순으로 일렬 나열, 연도 그룹·필터·건수 없음",
+      "evidence": ["plan-tab-view.tsx:450-457"],
+      "resolution": "year 컬럼 + 연도 그룹 UI (A-2)" },
+    { "id": "K-3", "severity": "medium", "desc": "행 단위 추가·편집 수단이 없다 — revisionRows는 fire_plans 파생 읽기 전용이라, 문서 생성 없이 일어난 변경(설비 교체로 1.4 수정 등)을 이력에 남길 방법이 없다",
+      "evidence": ["customers/[id]/page.tsx:575-577 revisionRows 파생", "plan-tab-view.tsx:450-457 읽기 전용 표"],
+      "resolution": "source='manual' 행 직접 추가 + 인라인 편집 (A-2)" },
+    { "id": "K-4", "severity": "medium", "desc": "작성자·검토·승인이 항상 빈칸 — 인쇄 표는 6열인데 과거 행 author는 조립에서 항상 '', 검토·승인은 모든 행이 빈 td. 소방계획서_15 감사 M-13과 동일 건",
+      "evidence": ["fire-plan-template.ts:347 6열 헤더", "fire-plan-generate.ts:141 author: ''", "fire-plan-template.ts:348-350 검토·승인 빈 td"],
+      "resolution": "author_name·reviewer_name·approver_name 컬럼 + 템플릿 값 주입 (A-3)" },
+    { "id": "K-5", "severity": "medium", "desc": "✅ 인쇄 표 순번 어긋남 — 현 작성분은 (과거건수+1)인데 예약 빈 행은 항상 2..8 고정이라, 과거 행이 1건이라도 있으면 '3번 다음 2번'이 온다. 생성 2회차부터 항상 발생",
+      "evidence": ["fire-plan-template.ts:350 (수정 전) Array.from({length:7},(_,i)=>i+2)"],
+      "resolution": "빈 행 시작값을 (revisions.length)+i+2로 변경 — A-0 선반영" }
+  ],
+
+  "decisions_needed": [
+    { "id": "Q-1", "question": "'업데이트 건'의 범위", "recommend": "생성·업로드 실적 + 수동 추가", "options": ["생성 실적만", "생성 실적 + 수동 추가(권장)", "+ 서식 저장 자동 감지"],
+      "rationale": "서식 저장(fire_plan_forms.updated_at)까지 자동 기록하면 저장 버튼마다 행이 쌓여 노이즈가 크다. activity_logs는 테이블만 존재하고 코드에 INSERT가 0건이라 현재 원천이 못 된다", "status": "confirmed", "decided": "2026-08-10 사용자 '권장안 그대로 진행' — 권장안 채택" },
+    { "id": "Q-2", "question": "검토·승인 열을 ERP에서 입력받을지", "recommend": "컬럼 신설 + 빈칸 허용", "options": ["ERP 입력 + 빈칸 허용(권장)", "인쇄 후 수기 서명란 유지"],
+      "rationale": "비우면 지금처럼 수기 서명란으로 인쇄돼 양쪽 운용을 모두 수용한다", "status": "confirmed", "decided": "2026-08-10 사용자 '권장안 그대로 진행' — 권장안 채택" },
+    { "id": "Q-3", "question": "자동 생성 행의 편집 허용 범위", "recommend": "서술·작성자·검토·승인만(일자·출처 잠금)", "options": ["서술 등만(권장)", "전체 편집"],
+      "rationale": "일자·출처까지 열면 생성 실적과 이력이 어긋난다", "status": "confirmed", "decided": "2026-08-10 사용자 '권장안 그대로 진행' — 권장안 채택" },
+    { "id": "Q-4", "question": "#16 별지 노드 위치 — 단순 순서 교체 대신 트리를 '작성' / '보관·이력' 두 그룹으로 재편", "recommend": "그룹 라벨 승격(순서 유지)", "options": ["그룹 라벨 승격(권장)", "별지를 보관함 아래로 이동", "별지를 1~3장과 동일 레벨로"],
+      "rationale": "별지는 회차마다 쓰는 작업 화면, 보관함은 완료물 조회 — 빈도 높은 쪽을 내리면 동선이 나빠진다. A-2에서 보관함 노드를 손대므로 그때 함께 처리하면 비용이 낮다", "status": "confirmed", "decided": "2026-08-10 사용자 '권장안 그대로 진행' — 권장안 채택" }
+  ],
+
+  "items": [
+    { "id": "A-0", "title": "인쇄 표 순번 버그 수정 (K-5)", "status": "code_present",
+      "criteria": [
+        { "id": "A-0a", "desc": "예약 빈 행 시작값을 revisions.length+i+1로 — 과거 행 수와 무관하게 순번 연속", "status": "code_present",
+          "evidence": ["fire-plan-template.ts:350"], "self_check": "프로브 'K-5 순번 연속 (1..10)' 통과 — 실제 생성 HTML에서 확인" }
+      ] },
+
+    { "id": "A-1", "title": "마이그레이션 120 fire_plan_revisions + 백필 + 서버 액션", "status": "code_present",
+      "criteria": [
+        { "id": "A-1a", "desc": "fire_plan_revisions 테이블 — customer_id·year·seq·revised_on·content·author/reviewer/approver_name·source·fire_plan_id, UNIQUE(customer_id,year,seq), RLS enable(정책 없음)", "status": "code_present",
+          "evidence": ["120_fire_plan_revisions.sql:7-30"], "self_check": "스테이징 적용 성공 · 프로브 6) 유니크 위반 거부 통과" },
+        { "id": "A-1b", "desc": "백필 — 기존 fire_plans 전 행을 generated/uploaded 행으로 이관(content는 현행 자동 문구 규칙 그대로, fire_plan_id 연결·재실행 안전)", "status": "code_present",
+          "evidence": ["120_fire_plan_revisions.sql:36-56"], "self_check": "스테이징 백필 9행 = fire_plans 9행, 연도·seq·source 육안 확인" },
+        { "id": "A-1c", "desc": "sections.revision 단일 슬롯을 manual 행으로 이관(값 있을 때만) · 쓰기 중단·읽기 폴백으로 존치", "status": "code_present",
+          "evidence": ["120_fire_plan_revisions.sql:60-90", "fire-plan-generate.ts revisions 폴백 분기"], "self_check": "프로브 'A-1 폴백 — 이력 0행이어도 조립 성공' 통과. 스테이징엔 해당 값이 없어 이관 0행(경로 미실증)" },
+        { "id": "A-1d", "desc": "사용자 편집 액션 4종(list·add·update·delete) 전부 requirePermission('customer_manage')", "status": "code_present",
+          "evidence": ["fire-plan-revision-actions.ts:79,105,143,175"] },
+        { "id": "A-1e", "desc": "seq는 서버가 max(seq)+1로 채번(클라이언트 신뢰 금지) · 유니크 위반(23505) 시 1회 재시도", "status": "code_present",
+          "evidence": ["fire-plan-revision-actions.ts:112-134", "fire-plan-revisions.ts:26-45"], "self_check": "프로브 2) '서버 채번' · 6) 유니크 거부 통과" },
+        { "id": "A-1f", "desc": "삭제는 source='manual'만 허용 · 자동 행은 revised_on 변경 거부(Q-3)", "status": "code_present",
+          "evidence": ["fire-plan-revision-actions.ts:156-159", "fire-plan-revision-actions.ts:180-184"], "self_check": "프로브 3) 일자 불변 · 4) 삭제 버튼 부재 통과" },
+        { "id": "A-1g", "desc": "생성 파이프라인의 자동 기록은 'use server' 액션이 아니라 lib 함수로 둔다 — 액션이면 권한 검사 없는 공개 엔드포인트가 되어 임의 이력 삽입이 가능하다", "status": "code_present",
+          "evidence": ["lib/fire-plan-revisions.ts:1-14 (server-only, 액션 아님)", "fire-plan-generate.ts appendGeneratedRevision 호출"], "note": "구현 중 자체 발견해 설계에서 변경한 지점" }
+      ] },
+
+    { "id": "A-2", "title": "보관함 UI — 연도 그룹 타임라인 + 인라인 편집", "status": "code_present",
+      "criteria": [
+        { "id": "A-2a", "desc": "연도별 그룹(헤더에 건수) · 최신 연도만 펼치고 나머지 접기", "status": "code_present",
+          "evidence": ["revision-history.tsx:39, 190-206"], "self_check": "프로브 1) 4단언 통과" },
+        { "id": "A-2b", "desc": "[개정 추가]로 manual 행 추가 · 행별 인라인 수정 · manual 행만 삭제 버튼", "status": "code_present",
+          "evidence": ["revision-history.tsx:160-176, 232-243"], "self_check": "프로브 2)·5) 통과" },
+        { "id": "A-2c", "desc": "자동 행은 일자·출처 잠금, 서술·작성자·검토·승인만 편집(Q-3)", "status": "code_present",
+          "evidence": ["revision-history.tsx:139-142 (일자 대신 잠금 안내)", "revision-history.tsx:93-95 (자동 행은 revisedOn 미전송)"], "self_check": "프로브 3) 3단언 통과" },
+        { "id": "A-2d", "desc": "편집 시 dirty — 미저장 이동 확인창(unsaved-nav) 규약 준수", "status": "code_present",
+          "evidence": ["revision-history.tsx:56 useUnsavedWarning(canManage && dirty, commit)"], "note": "이동 확인창 연동은 프로브 미커버 — 독립 검증 시 확인 필요" },
+        { "id": "A-2e", "desc": "Q-4 — 구분선을 '🗂 보관·이력' 그룹 라벨로 승격, 별지 노드 순서는 유지", "status": "code_present",
+          "evidence": ["plan-tab-view.tsx 좌측 트리 하단 그룹"], "self_check": "test-plan-tab '목차 트리 — 3그룹' 단언 유지 통과" }
+      ] },
+
+    { "id": "A-3", "title": "인쇄 연동 — 조립·템플릿", "status": "code_present",
+      "criteria": [
+        { "id": "A-3a", "desc": "조립이 fire_plan_revisions를 읽어 revisions[] 생성 — author를 ''로 박던 자리에 author_name(K-4). 0행이면 종전 경로 폴백", "status": "code_present",
+          "evidence": ["fire-plan-generate.ts 조회 추가 + revisions 분기"], "self_check": "프로브 A-3a 2단언 통과" },
+        { "id": "A-3b", "desc": "템플릿 검토·승인 열에 값 주입(빈 값이면 종전처럼 빈칸 — 수기 서명 운용 호환, Q-2)", "status": "code_present",
+          "evidence": ["fire-plan-template.ts:348"], "self_check": "프로브 A-3b 통과" },
+        { "id": "A-3c", "desc": "현 작성분 별도 행(구 :349) 제거 — 사용자 입력도 테이블 한 행이라 이중 표기가 된다", "status": "code_present",
+          "evidence": ["fire-plan-template.ts 개정이력 표"], "self_check": "프로브 A-3c '이중 행 없음' 통과" },
+        { "id": "A-3d", "desc": "화면=연도별 그룹, 인쇄=전 연도 시계열 통합(법정 서식의 개정이력은 문서 전체 이력)", "status": "code_present",
+          "evidence": ["fire-plan-generate.ts order(year asc, seq asc)"], "self_check": "프로브 A-3d '2025가 2026보다 먼저' 통과" },
+        { "id": "A-3e", "desc": "표지 작성일 = 개정이력 최신 행의 개정일 → (구) sections.revision → 오늘", "status": "code_present",
+          "evidence": ["fire-plan-generate.ts revisionDate"], "self_check": "프로브 '표지 작성일 = 2026-08-01' 통과" },
+        { "id": "A-3f", "desc": "문서 생성 시 generated 이력 1행 자동 append (best-effort — 실패해도 생성을 되돌리지 않는다)", "status": "code_present",
+          "evidence": ["fire-plan-generate.ts appendGeneratedRevision 호출"], "note": "실제 생성 경로(Gotenberg 필요)는 프로브 미커버 — 독립 검증 시 확인 필요" }
+      ] },
+
+    { "id": "A-4", "title": "운영 반영", "status": "pending_order",
+      "criteria": [
+        { "id": "A-4a", "desc": "120 스테이징 적용·백필 검증 후 운영 적용 → staging→main (진행 승인 규칙, 단계마다 대기)", "status": "pending_order" }
+      ] }
+  ],
+
+  "verification_done": {
+    "probe_ui": { "file": "scripts/_probe-revision-history.mjs", "result": "14/14", "covers": ["연도 그룹·펼침/접힘", "수동 추가(검토·승인 포함)·서버 seq 채번", "자동 행 일자 잠금·서술 수정", "자동 행 삭제 버튼 부재", "수동 행 삭제 후 자동 행 잔존", "유니크 위반 거부"] },
+    "probe_print": { "file": "scripts/_probe-revision-print.mts", "run": "npx tsx --conditions=react-server", "result": "8/8", "covers": ["조립이 신 테이블 사용", "전 연도 시계열 통합", "작성자·검토·승인 실값", "이중 행 없음", "순번 1..10 연속", "표지 작성일", "이력 0행 폴백"] },
+    "regression": { "file": "scripts/test-plan-tab.mts", "result": "83/83", "note": "개정이력 단언을 구 sections.revision 경로 → 신 fire_plan_revisions 경로로 갱신. finally에 fire_plan_revisions 정리 추가(남기면 고객 삭제가 막혀 테스트 계정까지 잔류)" },
+    "not_covered": [
+      "실제 문서 생성 경로의 generated 이력 append (Gotenberg 필요 — A-3f)",
+      "미저장 이동 확인창 연동 (A-2d)",
+      "sections.revision → manual 이관 (스테이징에 해당 값이 없어 0행 — A-1c)"
+    ],
+    "independent_check": "**미실시** — Json_Rule 규칙 3(구현자 ≠ 판정자). 전 항목 code_present이며 implemented 승격은 별도 검증 패스 통과 후"
+  },
+
+  "risks": [
+    "백필 정확도 — fire_plans에 수동 업로드분과 자동 생성분이 섞여 있다(pdf_path 유무·note 문구로 구분). 오분류해도 source 라벨만 틀리고 이력 자체는 보존되므로 영향은 표시 수준",
+    "연도 판정 — fire_plans.year(계획서 연도)와 created_at(실제 생성 시각)이 연말·연초에 어긋난다. 그룹 축은 year, 표시 일자는 revised_on으로 분리",
+    "인쇄 회귀 — A-3c(현 작성분 별도 행 제거) 시 백필이 누락되면 마지막 개정이 사라져 보인다. A-1 백필 검증을 A-3의 선행 조건으로 둔다",
+    "seq 채번 경합 — 동시 저장 시 유니크 인덱스 위반 가능. 서버 재시도로 흡수(A-1e)"
+  ]
+}

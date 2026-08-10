@@ -8,6 +8,7 @@ import 'server-only'
  *  §6: hwp_path는 신규 기록하지 않고 pdf_status는 즉시 'ready' (2단계 변환 없음). */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { appendGeneratedRevision } from '@/lib/fire-plan-revisions'
 import {
   buildFirePlanHtml, applyPresetPairs, FACILITY_FORM,
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
@@ -88,7 +89,7 @@ export async function assembleFirePlan(
   year: number,
   presetType?: string,
 ): Promise<AssembledFirePlan> {
-  const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, plansRes] = await Promise.all([
+  const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, plansRes, revRowsRes] = await Promise.all([
     admin.from('customers')
       .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date, '
         + 'building_grade, manager_selected_at, insurance_joined, insurance_company, insurance_period, '
@@ -104,6 +105,11 @@ export async function assembleFirePlan(
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
     admin.from('fire_brigade_members').select('team, name, duty, phone').eq('customer_id', customerId).order('sort_order'),
     admin.from('fire_plans').select('year, revision, note, created_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
+    // 개정이력(120) — 인쇄는 전 연도 시계열 오름차순
+    admin.from('fire_plan_revisions')
+      .select('revised_on, content, author_name, reviewer_name, approver_name')
+      .eq('customer_id', customerId)
+      .order('year', { ascending: true }).order('seq', { ascending: true }),
   ])
   const cust = custRes.data as {
     customer_name: string; address: string | null; use_approval_date: string | null
@@ -134,12 +140,25 @@ export async function assembleFirePlan(
     photos?: Array<{ path: string | null; kind: string; caption: string }>
   }
   const revision = sections.revision ?? null
-  const revisions = ((plansRes.data ?? []) as Array<{ year: number; revision: number; note: string | null; created_at: string }>)
-    .map(p => ({
-      date: p.created_at.slice(0, 10),
-      note: p.note ?? `${p.year}년 소방계획서${p.revision > 1 ? ` (개정${p.revision})` : ' 작성'}`,
-      author: '',
-    }))
+  // 개정이력 — 마이그레이션 120 fire_plan_revisions가 단일 원천 (소방계획서_17 §2-4).
+  // 행이 하나도 없으면(백필 전·조회 실패) 종전 경로(fire_plans 파생)로 폴백해 표가 비지 않게 한다.
+  const revisions = revRowsRes.data && revRowsRes.data.length > 0
+    ? (revRowsRes.data as Array<{
+        revised_on: string | null; content: string | null
+        author_name: string | null; reviewer_name: string | null; approver_name: string | null
+      }>).map(r => ({
+        date: (r.revised_on ?? '').slice(0, 10),
+        note: r.content ?? '',
+        author: r.author_name ?? '',
+        reviewer: r.reviewer_name ?? '',
+        approver: r.approver_name ?? '',
+      }))
+    : ((plansRes.data ?? []) as Array<{ year: number; revision: number; note: string | null; created_at: string }>)
+      .map(p => ({
+        date: p.created_at.slice(0, 10),
+        note: p.note ?? `${p.year}년 소방계획서${p.revision > 1 ? ` (개정${p.revision})` : ' 작성'}`,
+        author: '', reviewer: '', approver: '',
+      }))
   const brigadeRows = (brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>
 
   // 설치 시설 → 서식 1.4 항목 — 표준 코드(100) 정확 일치, 레거시 잔존분은 toStandardCodes로 정규화
@@ -171,7 +190,8 @@ export async function assembleFirePlan(
 
   const data: FirePlanGenData = {
     year,
-    revisionDate: revision?.revisionDate || kstToday,
+    // 표지 작성일 = 개정이력 최신 행의 개정일 → (구) sections.revision → 오늘
+    revisionDate: revisions[revisions.length - 1]?.date || revision?.revisionDate || kstToday,
     revisionNote: revision?.revisionNote || `${year}년 소방계획서 작성`,
     buildingName: cust.customer_name,
     address: cust.address ?? '',
@@ -351,6 +371,7 @@ export async function generateFirePlanNow(
     const { data: existing } = await admin.from('fire_plans')
       .select('id').eq('customer_id', customerId).eq('year', year)
     const preset = opts.presetType ?? ''
+    const revisionNo = (existing?.length ?? 0) + 1
     const { data: inserted, error: insErr } = await admin.from('fire_plans').insert({
       customer_id: customerId,
       year,
@@ -361,7 +382,7 @@ export async function generateFirePlanNow(
       html_path: `${base}.html`,
       hwp_name: null,
       hwp_path: null,
-      revision: (existing?.length ?? 0) + 1,
+      revision: revisionNo,
       note: `자동 생성 (표준양식 웹 템플릿${preset ? `, ${preset} 프리셋` : ''})`,
       uploaded_by: opts.requestedBy ?? null,
     } as Record<string, unknown>).select('id').single()
@@ -369,7 +390,17 @@ export async function generateFirePlanNow(
       await admin.storage.from(BUCKET).remove([`${base}.pdf`, `${base}.html`])
       return { error: `보관함 등록 실패: ${insErr.message}` }
     }
-    return { planId: (inserted as { id: string }).id, missing }
+    const planId = (inserted as { id: string }).id
+    // 개정이력 1행 자동 기록 (120 — 소방계획서_17 §2-2). best-effort:
+    // 이력 기록에 실패해도 생성 자체는 되돌리지 않는다(파일은 남는 편이 낫다).
+    await appendGeneratedRevision(admin, {
+      customerId, year, firePlanId: planId,
+      content: `${year}년 소방계획서${revisionNo > 1 ? ` (개정${revisionNo})` : ' 작성'}`,
+      source: 'generated',
+      authorName: data.managerName,
+      createdBy: opts.requestedBy ?? null,
+    }).catch(() => {})
+    return { planId, missing }
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) }
   }

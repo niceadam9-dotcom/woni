@@ -10,7 +10,8 @@ import { EditInspectionTypeClient } from '@/components/customers/edit-inspection
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
-import { PlanTabView, type RevisionRow, type FormStatusMap } from '@/components/customers/plan-tab-view'
+import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
+import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 import { CustomerAssetsClient } from '@/components/customers/customer-assets-client'
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
@@ -572,9 +573,31 @@ export default async function CustomerDetailPage({
   const importCandidate = Object.keys(fpSections).length === 0
     && ((firePlansRes.data ?? []) as Array<{ pdf_path: string | null }>)
       .some(p => !!p.pdf_path && p.pdf_path.includes('generated_') && !p.pdf_path.includes('generated_hwp_'))
-  const revisionRows: RevisionRow[] = [...firePlans]
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    .map(p => ({ year: p.year, revision: p.revision, date: p.created_at, note: p.note, uploader: p.uploader_name }))
+  // 개정이력 — 연도별 히스토리(120). 연도 desc·연도 내 seq desc(최신이 위) — 소방계획서_17.md §2
+  const { data: revRowsRaw } = await admin.from('fire_plan_revisions')
+    .select('id, year, seq, revised_on, content, author_name, reviewer_name, approver_name, source')
+    .eq('customer_id', id)
+    .order('year', { ascending: false })
+    .order('seq', { ascending: false })
+  const revisionYears: RevisionYearGroup[] = []
+  for (const r of (revRowsRaw ?? []) as Array<{
+    id: string; year: number; seq: number; revised_on: string | null; content: string | null
+    author_name: string | null; reviewer_name: string | null; approver_name: string | null
+    source: 'generated' | 'uploaded' | 'manual'
+  }>) {
+    const row = {
+      id: r.id, year: r.year, seq: r.seq,
+      revisedOn: (r.revised_on ?? '').slice(0, 10),
+      content: r.content ?? '',
+      authorName: r.author_name ?? '',
+      reviewerName: r.reviewer_name ?? '',
+      approverName: r.approver_name ?? '',
+      source: r.source,
+    }
+    const last = revisionYears[revisionYears.length - 1]
+    if (last && last.year === r.year) last.rows.push(row)
+    else revisionYears.push({ year: r.year, rows: [row] })
+  }
   // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
   // 슬롯 UI는 2026-08-08부터 서식 1.3 안에 삽입된다 — 트리의 전용 'assets' 노드와 그 완성도 항목은 폐지.
   // 1.3 완성도는 종전대로 서식 입력(location·fireAccess) 유무로만 판정한다(탭 뱃지 분모 불변).
@@ -597,11 +620,7 @@ export default async function CustomerDetailPage({
       textDefaultsNeeded={textDefaultsNeeded}
       purpose={planInfoInitial.purpose}
       readiness={{ done: readiness.done, total: readiness.total, missing: readiness.missing }}
-      revisionInitial={{
-        revisionDate: revSection?.revisionDate || '',
-        revisionNote: revSection?.revisionNote || '',
-      }}
-      revisionRows={revisionRows}
+      revisionYears={revisionYears}
       importCandidate={importCandidate}
       initialSection={sub}
       initialForm={initialForm}
@@ -669,7 +688,8 @@ export default async function CustomerDetailPage({
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []}
         hasEvacAsset={customerAssets.some(a => a.slot === 'evac')} />}
-      annex={<PlanAnnexSection customerId={customer.id} />}
+      annex={<PlanAnnexSection customerId={customer.id}
+        canRegister={can(profile.role as UserRole, 'inspection_register')} />}
     />
   )
 
