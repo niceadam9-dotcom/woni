@@ -308,10 +308,16 @@ export default async function CustomerDetailPage({
   // 필수 완성도(quickReadiness)·필요 문서 칩(docChips)은 빠른 입력 페이지 폐기로 산출 중단 — 2026-08-06
 
   // ── 소방계획서 서식 입력 저장소 (096) — 목차 완성도(§1-4)·탭 뱃지 합산에 선행 조회 ──
-  const [{ data: fpForm }, { data: companyRow }] = await Promise.all([
+  const [{ data: fpForm }, { data: companyRow }, { data: textDefaults }, { data: textStamps }] = await Promise.all([
     admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
     admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
+    // 공통 서술 기본항목 자동주입 대상 판정 (119, 소방계획서_15_별도라이브러리 §4-0) — 둘 다 인덱스 소량 조회
+    admin.from('plan_text_library').select('section_key').eq('is_default', true).eq('is_active', true),
+    admin.from('plan_text_applied').select('section_key').eq('customer_id', id),
   ])
+  // 기본항목이 있는 섹션 중 이 고객에 스탬프(주입/가져오기 이력)가 없는 게 하나라도 있으면 진입 시 자동주입 시도
+  const textStampSet = new Set((textStamps ?? []).map(r => r.section_key as string))
+  const textDefaultsNeeded = (textDefaults ?? []).some(r => !textStampSet.has(r.section_key as string))
   const fpSections = ((fpForm as { sections?: {
     revision?: { revisionDate?: string; revisionNote?: string }
     zones?: ZoneRow[]; hazards?: HazardRow[]; location?: LocationSection; fireAccess?: FireAccessSection
@@ -588,6 +594,7 @@ export default async function CustomerDetailPage({
       customerId={customer.id}
       canManage={canManage}
       ledgerAutoNeeded={ledgerAutoNeeded}
+      textDefaultsNeeded={textDefaultsNeeded}
       purpose={planInfoInitial.purpose}
       readiness={{ done: readiness.done, total: readiness.total, missing: readiness.missing }}
       revisionInitial={{

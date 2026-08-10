@@ -1,0 +1,189 @@
+{
+  "doc": "소방계획서_15_별도라이브러리 — 공통 서술 라이브러리 (서술형 8섹션 pull + 기본항목 자동주입 + 출처 스탬프)",
+  "design": "erp_goal/소방계획서_15_별도라이브러리.md",
+  "origin": "소방계획서_14.md #6·#10·#11 — 기안은 erp_goal/소방계획서_14_점검업무.md에서 시작해 2026-08-10 사용자 지시로 본 문서로 이관·확정",
+  "created": "2026-08-10",
+  "updated": "2026-08-10",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · implemented는 독립 검증(구현자≠판정자) 통과 + verified 증거 동반",
+  "scope_note": "S-1(인프라 + 8섹션 전부 배선 + 자동주입) 구현 완료. 사용자 확정으로 파일럿 단계 없이 8섹션 일괄. push(즉시 일괄 덮어쓰기)는 범위 제외 — 로드맵 R-1(개정 알림형)·R-2(번들)로 이월",
+  "commit_state": "미커밋 (working tree) — 커밋·운영 반영은 진행 승인 후 (feedback_no_auto_proceed)",
+  "migration_state": "119_plan_text_library.sql 스테이징 적용 완료 (2026-08-10) · 운영 미적용",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류",
+    "confirmed": "설계 결정 확정"
+  },
+
+  "verification_pass": {
+    "date": "2026-08-10",
+    "method": "규칙 3 독립 검증 — 구현자와 분리된 판정자(Explore 에이전트)가 파일:라인 대조로 항목별 ✅/❌/부분 판정",
+    "checklist_items": 23,
+    "passed": 23,
+    "failed": 0,
+    "judge_note": "'구현자가 주장했지만 실제로는 다른 점 — 없음' 판정. 설계 3차 개정 확정 사항이 코드에 일치",
+    "machine_checks": {
+      "tsc": "clean",
+      "eslint": "clean (신규·변경 파일)",
+      "build": "성공 (npm run build)",
+      "probe": "scripts/_probe-text-library.mjs 20/20",
+      "regression": "scripts/test-plan-tab.mts 83/83 유지"
+    }
+  },
+
+  "decisions": [
+    { "id": "D-1", "desc": "'다른 고객에서 복사' 전면 폐지 후속으로 공통 서술 라이브러리 도입 — pull 방식", "status": "confirmed", "note": "2026-08-10 사용자 확정. A안 삭제는 커밋 720efd1" },
+    { "id": "D-2", "desc": "즉시 덮어쓰기 push는 계속 제외 — 라이브러리 수정이 이미 생성·제출된 HWP/PDF와 소리 없는 불일치를 만든다. 개정 알림형 push만 로드맵 편입", "status": "confirmed", "note": "전제인 출처 스탬프(§3-2)는 이번에 함께 구현 — 나중에 만들면 과거 pull 소급이 불가능" },
+    { "id": "D-3", "desc": "별도 라이브러리 관리 페이지 없음 — 등록·이름변경·삭제·기본지정 전부 각 서식 팝오버 안에서 처리", "status": "confirmed" },
+    { "id": "D-4", "desc": "3.6 문서 미인쇄 결함(K-3)은 자동주입으로 해결 — fire-plan-template.ts 폴백 추가하지 않음", "status": "confirmed", "note": "2026-08-10 사용자 선택. 폴백 추가 시 전 고객 다음 생성분부터 6개 행이 소급 등장해 제출 이력과 어긋남" },
+    { "id": "D-5", "desc": "행 배열 섹션 가져오기 = 기존 행 유지 + 템플릿 행 추가(append)", "status": "confirmed", "note": "2026-08-10 사용자 선택. 1.12~1.15는 실제 사건 로그라 교체 시 기록 유실" },
+    { "id": "D-6", "desc": "8개 섹션 전부 한 번에 구현 — 파일럿(1.11만) 단계 두지 않음", "status": "confirmed", "note": "2026-08-10 사용자 선택" },
+    { "id": "D-7", "desc": "자동주입은 폼 상태가 아니라 서버에서 DB 저장까지 수행 — 2차 개정의 '폼 상태만' 방침을 변경", "status": "confirmed", "note": "DB에 없으면 생성 문서에 실리지 않아 D-4(3.6 해결)가 성립하지 않는다. '빈 칸만 + 고객×섹션당 1회만'이라 유실 위험 0이고 1.1 autoApplyLedgerEmptyAction 선례와 동일" },
+    { "id": "D-8", "desc": "서술 세트(번들)는 이번 범위 제외 — bundle_id 컬럼 자리만 119에 확보", "status": "deferred", "note": "실사용 조합이 쌓이기 전에 스키마를 굳히면 안 쓰는 세트 UI만 남는다" }
+  ],
+
+  "diagnosis": [
+    { "id": "K-1", "desc": "1차 기안이 evacPlan.assembly(집결지)를 '집결지 문구'로 분류해 라이브러리 대상에 넣었으나, 실제 입력은 건물마다 다른 실제 장소 — 공통화하면 엉뚱한 집결지가 전 고객에 퍼진다", "severity": "high", "evidence": ["plan-ch3.tsx:197 placeholder=\"예: 1층 주차장\""], "resolution": "3.4 라이브러리 대상을 procedure만으로 축소 (L-2b)" },
+    { "id": "K-2", "desc": "1차 기안이 training.details를 순수 서술로 분류했으나 행에 at(일시)·place(장소)가 섞여 있어 그대로 담으면 타 고객 일정이 복제된다", "severity": "medium", "evidence": ["plan-form111.tsx:12 TrainingDetailRow = { name, at, place, target, kind, form, materials, plan }"], "resolution": "라이브러리 body에서 at·place 제외, 적용 시 빈 값으로 행 생성 (L-2c)" },
+    { "id": "K-3", "desc": "⚠ 기존 결함 — 3.6 피난약자는 UI가 METHOD_PRESETS를 회색 placeholder로 보여주지만 생성 문서는 빈 유형을 행째로 제외한다. 2장 팀별임무는 반대로 preset 폴백이 있어 빈 칸도 인쇄된다. 같은 모양의 화면인데 한쪽만 인쇄돼 사용자가 '이미 들어 있다'고 오인할 수 있다", "severity": "high", "evidence": ["fire-plan-template.ts:702 vulTypes.filter(t => methods[t]?.trim()) — 빈 유형 제외", "fire-plan-template.ts:286 teamText() — 빈 칸이면 preset 폴백", "plan-ch3.tsx:301 placeholder={METHOD_PRESETS[tp]}"], "resolution": "D-4 — 자동주입이 실값을 채워 인쇄 보장 + UI 안내 문구를 실제 동작대로 정정 (L-7)" },
+    { "id": "K-4", "desc": "출처 스탬프를 fire_plan_forms.sections JSONB에 넣으면 안 되는 3가지 이유 — ①saveFirePlanSectionsAction이 FORM_SECTION_KEYS 화이트리스트로 patch 키를 검증하므로 뚫는 순간 클라이언트가 자기 출처를 위조 가능 ②sections는 저장 시 통째 병합·upsert라 서식 저장이 스탬프를 밀어냄 ③개정 알림은 역방향 질의라 JSONB면 전 고객 스캔", "severity": "medium", "evidence": ["fire-plan-form-actions.ts:64 화이트리스트 검증", "fire-plan-form-actions.ts:68 sections 통째 병합"], "resolution": "별도 테이블 plan_text_applied 신설 (L-1c)" }
+  ],
+
+  "section_mapping": {
+    "note": "라이브러리 body에 담는 필드와 고객 고유 필드 구분 — 단일 원천은 src/lib/plan-text-sections.ts",
+    "rows": [
+      { "section_key": "training", "form": "1.11 훈련·교육", "library": ["scenario", "scenarioType", "details[](at·place 제외)"], "excluded": ["headcount", "eduMonths", "drillMonths", "records"], "mode": "scenario 치환 / details 추가" },
+      { "section_key": "fireworkLog", "form": "1.12 화기취급 감독", "library": ["work", "measure"], "excluded": ["date", "place", "supervisor"], "mode": "append" },
+      { "section_key": "constructionLog", "form": "1.13 소방시설 공사·정비", "library": ["content", "note"], "excluded": ["date", "facility", "company"], "mode": "append" },
+      { "section_key": "promoLog", "form": "1.14 화재예방·홍보", "library": ["method", "content"], "excluded": ["date", "target"], "mode": "append" },
+      { "section_key": "recoveryLog", "form": "1.15 피해 복구", "library": ["damage", "recovery"], "excluded": ["date", "cost"], "mode": "append" },
+      { "section_key": "brigadeTeams", "form": "2장 팀별임무 2.5~2.13", "library": ["7팀 Record 전체"], "excluded": ["brigadeGeneral.type", "fire_brigade_members 편성표"], "mode": "replace" },
+      { "section_key": "evacPlan", "form": "3.4 피난유도 절차", "library": ["procedure"], "excluded": ["routes", "assembly", "mapImage"], "mode": "replace", "note": "K-1 정정" },
+      { "section_key": "vulnerableMethods", "form": "3.6 피난약자 방법", "library": ["6유형 Record 전체"], "excluded": [], "mode": "replace" }
+    ]
+  },
+
+  "items": [
+    { "id": "L-1", "title": "마이그레이션 119 — plan_text_library + plan_text_applied", "status": "implemented",
+      "criteria": [
+        { "id": "L-1a", "desc": "plan_text_library 테이블 — section_key·title·body(JSONB)·is_default·version·bundle_id·sort_order·is_active·updated_by", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["119_plan_text_library.sql:6-18"], "method": "독립 검증(Explore 판정자) 스키마 대조 + 스테이징 적용 성공" } },
+        { "id": "L-1b", "desc": "섹션당 활성 기본항목 1개 강제 — 부분 유니크 인덱스 (자동주입 대상이 모호해지면 안 됨)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["119_plan_text_library.sql:23-24 uq_plan_text_library_default ON (section_key) WHERE is_default AND is_active"], "method": "독립 검증 스키마 대조" } },
+        { "id": "L-1c", "desc": "plan_text_applied — PK(customer_id, section_key)·library_version·source + library_id 역조회 인덱스 (K-4 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["119_plan_text_library.sql:32-40", "119_plan_text_library.sql:42 idx_plan_text_applied_library"], "method": "독립 검증 스키마 대조" } },
+        { "id": "L-1d", "desc": "두 테이블 RLS enable (정책 없음 — 서버 액션 전용, 096 관례)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["119_plan_text_library.sql:26", "119_plan_text_library.sql:45"], "method": "독립 검증 스키마 대조" } }
+      ] },
+
+    { "id": "L-2", "title": "단일 원천 lib/plan-text-sections.ts — 8섹션 pick·merge·injectEmpty", "status": "implemented",
+      "note": "여기가 틀어지면 고객 고유 값이 라이브러리를 타고 오염되므로 서버·클라이언트가 같은 정의를 공유",
+      "criteria": [
+        { "id": "L-2a", "desc": "8섹션 전부 정의 + PLAN_TEXT_SECTION_KEYS 화이트리스트 노출", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-sections.ts:88-150 PLAN_TEXT_SECTIONS 8키", "plan-text-sections.ts:152-153 PLAN_TEXT_SECTION_KEYS"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-2b", "desc": "evacPlan.pick은 procedure만 — assembly·routes·mapImage 미포함 (K-1 회귀 방지)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-sections.ts:134-148 pick: form => ({ procedure: ... }) · merge도 procedure만"], "method": "독립 검증 코드 대조 + 프로브 4) '악성 assembly 값이 든 body를 적용해도 고객 집결지 불변' 통과" } },
+        { "id": "L-2c", "desc": "training.pick이 details 행에서 at(일시)·place(장소) 제외 (K-2)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-sections.ts:82-84 TRAINING_DETAIL_TEXT에 at·place 없음", "plan-text-sections.ts:97 pickRows(textCols)"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-2d", "desc": "기록부 4종 append — 기존 행 유지 + 템플릿 행 추가, 새 행의 고객 고유 칸은 빈 값 (D-5)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-sections.ts:46-60 logSection/appendRows", "plan-text-sections.ts:22 pickRows가 비서술 열을 빈 값으로 정규화"], "method": "독립 검증 코드 대조 + 프로브 3) '기존 2행 + 템플릿 3행 = 5행 · 기존 행 불변 · 새 행 date 빈 값' 통과" } },
+        { "id": "L-2e", "desc": "injectEmpty '빈 칸만' 규약 — Record는 빈 키만·배열은 0행일 때만·문자열은 빈 값일 때만, 값이 있으면 changed=false", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-sections.ts:53-56 배열 0행 판정", "plan-text-sections.ts:71-76 Record 빈 키만", "plan-text-sections.ts:114-127 training scenario 빈 값만"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "L-3", "title": "서버 액션 8종 — plan-text-library-actions.ts", "status": "implemented",
+      "criteria": [
+        { "id": "L-3a", "desc": "8종 전부 존재하고 모두 requirePermission('customer_manage')", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:15-193 list·get·save·setDefault·rename·delete·stamp·applyDefaults"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-3b", "desc": "섹션 키 화이트리스트 서버 검증 (구 COPYABLE_SECTION_KEYS 방어 패턴)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:17", "plan-text-library-actions.ts:52", "plan-text-library-actions.ts:132"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-3c", "desc": "body가 실제로 바뀔 때만 version+1 · rename은 version 미증가 (문구 그대로인데 개정 배지가 뜨면 안 됨)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:65 JSON.stringify 비교", "plan-text-library-actions.ts:102-112 rename은 title만"], "method": "독립 검증 코드 대조 + 프로브 6) '이름변경 — version 미증가' 통과" } },
+        { "id": "L-3d", "desc": "savePlanTextAction이 서버에서도 def.pick을 태워 고객 고유 필드 유입 차단", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:58 const body = def.pick(formValue)"], "method": "독립 검증 코드 대조 + 프로브 1) 'body에 headcount·eduMonths 없음' 통과" } },
+        { "id": "L-3e", "desc": "setPlanTextDefaultAction이 같은 섹션 기존 기본을 먼저 해제 (L-1b 유니크 인덱스 위반 회피)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:90-93"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-3f", "desc": "deletePlanTextAction 소프트 삭제(is_active=false) — 가져간 고객 데이터 불변", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:120"], "method": "독립 검증 코드 대조 + 프로브 6) '삭제 후에도 가져간 고객 데이터 불변' 통과" } },
+        { "id": "L-3g", "desc": "applyPlanTextDefaultsAction — 스탬프 있는 섹션 스킵 + injectEmpty로 빈 칸만 + 서버 저장 + source='default' 스탬프 (D-7)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:171 stamped.has(key) 스킵", "plan-text-library-actions.ts:172 injectEmpty", "plan-text-library-actions.ts:184-188 fire_plan_forms upsert", "plan-text-library-actions.ts:179 source:'default'"], "method": "독립 검증 코드 대조 + 프로브 5) 자동주입·재주입 가드 통과" } }
+      ] },
+
+    { "id": "L-4", "title": "UI 컴포넌트 library-text-button.tsx — 관리 화면 0개", "status": "implemented",
+      "criteria": [
+        { "id": "L-4a", "desc": "칩 2개 [공통에서 가져오기]·[공통으로 등록]", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["library-text-button.tsx:120-127"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-4b", "desc": "리스트에 ⭐기본·이름·본문 앞 40자 미리보기·수정일 (이름만으로 항목 구분 불가 문제 보완)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["library-text-button.tsx:154-159", "plan-text-sections.ts:156-175 planTextPreview"], "method": "독립 검증 코드 대조 + 프로브 2) '리스트에 항목 노출' 통과" } },
+        { "id": "L-4c", "desc": "항목 선택 시 DB 저장하지 않고 폼 상태만 변경 — 구 복사 기능의 '즉시 저장 덮어쓰기' 문제를 설계로 차단", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["library-text-button.tsx:59-72 getPlanTextAction 로드 후 onApply만 호출·저장 액션 없음"], "method": "독립 검증 코드 대조 + 프로브 2) '적용 직후 DB 미반영' 통과" } },
+        { "id": "L-4d", "desc": "치환형이고 기존 서술이 있으면 인라인 덮어쓰기 확인", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["library-text-button.tsx:61-64 confirmItem 설정", "library-text-button.tsx:172-177 확인 UI"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-4e", "desc": "팝오버 외부 클릭·Esc 닫기 (customer-combobox 패턴 재사용)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["library-text-button.tsx:33-43"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-4f", "desc": "⭐기본지정·이름변경·삭제가 팝오버 안에 내장 — 별도 관리 페이지 0개 (D-3)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["library-text-button.tsx:162-169"], "method": "독립 검증 코드 대조 + 프로브 6) 이름변경·삭제 통과" } }
+      ] },
+
+    { "id": "L-5", "title": "서식 배선 — 6개 진입점(4개 파일)", "status": "implemented",
+      "criteria": [
+        { "id": "L-5a", "desc": "1.11(training) · 1.12~1.15 카드 4개 · 2장(brigadeTeams) · 3.4(evacPlan) · 3.6(vulnerableMethods) 배선", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-form111.tsx:180-182", "plan-form1215.tsx:113-119", "plan-ch2.tsx:160-162", "plan-ch3.tsx:319-321"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-5b", "desc": "출처 스탬프는 서식 [저장] 성공 후에만 호출 — 가져오기 즉시 찍으면 저장하지 않고 떠난 경우 거짓 출처", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-form111.tsx:79", "plan-form1215.tsx:92", "plan-ch2.tsx:70", "plan-ch3.tsx:91"], "method": "독립 검증 코드 대조 + 프로브 2) 'source=pull 스탬프' 통과" } },
+        { "id": "L-5c", "desc": "가져오기 시 dirty=true — 미저장 이동 확인창([저장하고 이동], 커밋 27340e2)이 그대로 동작", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-form111.tsx:182", "plan-form1215.tsx:117", "plan-ch2.tsx:162", "plan-ch3.tsx:321"], "method": "독립 검증 코드 대조" } }
+      ] },
+
+    { "id": "L-6", "title": "기본항목 자동주입 — 클릭 0회", "status": "implemented",
+      "note": "1.1 autoApplyLedgerEmptyAction(빈 칸만·1회 가드)과 같은 규약. 스탬프 테이블이 1회성 가드를 겸한다",
+      "criteria": [
+        { "id": "L-6a", "desc": "page.tsx가 textDefaultsNeeded 플래그(기본항목 있는 섹션 중 스탬프 없는 것 존재 여부)를 계산해 전달", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["customers/[id]/page.tsx:315-320", "customers/[id]/page.tsx:597 prop 전달"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-6b", "desc": "plan-tab-view가 useRef 1회 가드로 applyPlanTextDefaultsAction 호출 후 결과 안내", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-tab-view.tsx:197-210 autoTextRan 가드", "plan-tab-view.tsx:205 안내 메시지"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-6c", "desc": "사용자가 기본 서술을 지우고 저장해도 재주입하지 않음 — 스탬프 가드(사용자 의사 존중)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:171 stamped.has(key) continue"], "method": "프로브 5) '값 삭제·저장 후 재진입에도 재주입 없음' 통과" } }
+      ] },
+
+    { "id": "L-7", "title": "3.6 미인쇄 결함(K-3) 대응", "status": "implemented",
+      "criteria": [
+        { "id": "L-7a", "desc": "3.6 안내 문구를 실제 동작대로 정정 — 옛 문구 '빈 칸이면 표준 문구로 출력' 제거", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-ch3.tsx:314-315 '빈 칸인 유형은 생성 문서에서 제외됩니다 — 인쇄하려면 값을 입력·저장하세요'"], "method": "독립 검증 코드 대조(구 문구 부재 확인)" } },
+        { "id": "L-7b", "desc": "fire-plan-template.ts 미수정 — 폴백 추가하지 않아 기존 고객 문서가 소급 변경되지 않음 (D-4)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["fire-plan-template.ts:702 filter 로직 그대로 · 변경 없음"], "method": "독립 검증 코드 대조" } },
+        { "id": "L-7c", "desc": "인쇄 보장 경로 = 기본항목 자동주입이 실값을 DB에 채움 (L-6)", "status": "implemented",
+          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["plan-text-library-actions.ts:184-188 fire_plan_forms upsert"], "method": "프로브 5) 'vulnerableMethods 서버 저장' 통과" } }
+      ] }
+  ],
+
+  "probe": {
+    "file": "erp/scripts/_probe-text-library.mjs",
+    "result": "20/20 (2026-08-10)",
+    "env": "로컬 dev 서버 + 스테이징 DB (마이그레이션 119 적용)",
+    "scenarios": [
+      "1) 등록 → plan_text_library 행 생성 · body에 고객 고유 필드 없음",
+      "2) 가져오기 → 저장 전 DB 미반영 → 저장 후 반영 · 고객 고유 필드 비오염 · source=pull 스탬프",
+      "3) 행 배열 append — 기존 2행 + 템플릿 3행 = 5행 · 기존 행 불변 · 새 행 date 빈 값",
+      "4) 3.4 — 악성 assembly·routes가 든 body를 적용해도 procedure만 반영 (K-1 회귀 방지)",
+      "5) 자동주입 — 서버 저장 + source=default 스탬프 · 재진입 재주입 없음 · 값 삭제 후에도 재주입 없음",
+      "6) 이름변경(version 미증가) · 소프트 삭제 · 삭제 후 고객 데이터 불변"
+    ],
+    "permission_note": "customer_manage는 employee·manager·admin 전 직원 개방(permissions.ts:37)이라 역할 거부 케이스 없음 — 비로그인 차단만 해당"
+  },
+
+  "roadmap": [
+    { "id": "R-1", "title": "개정 알림형 push", "status": "pending_order", "desc": "라이브러리 항목 version 증가 시 plan_text_applied 역조회로 옛 버전 고객을 찾아 '공통 문구가 개정됐습니다 → 반영' 배지. 반영은 각 고객에서 1클릭(검토 후). 본문 해시로 '사용자 수정됨' 구분", "prerequisite_done": "출처 스탬프(L-1c) 이번에 구현 완료" },
+    { "id": "R-2", "title": "서술 세트(번들)", "status": "pending_order", "desc": "bundle_id로 8섹션 조합에 이름을 붙여 트리 상단에서 1클릭. 실사용 조합이 쌓인 뒤 설계", "prerequisite_done": "bundle_id 컬럼 자리 119에 확보" },
+    { "id": "R-3", "title": "라이브러리 관리 페이지", "status": "deferred", "desc": "항목이 수십 개를 넘어 서식 내 관리가 불편해지면 재검토" },
+    { "id": "R-4", "title": "기존 고객 서술에서 초기 항목 시드", "status": "pending_order", "desc": "잘 작성된 고객의 서술을 골라 공통 항목으로 일괄 등록" }
+  ],
+
+  "remaining": [
+    { "id": "S-2", "desc": "커밋 → 운영 반영 (119 운영 적용 · staging→main)", "status": "pending_order", "note": "진행 승인 규칙 준수 — 사용자 명시 지시 후" },
+    { "id": "OPS-1", "desc": "운영 도입 시 기본항목 최초 등록 필요 — 기본항목이 없는 섹션은 자동주입이 아무 일도 하지 않는다(안전 기본값)", "status": "pending_order" }
+  ]
+}

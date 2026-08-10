@@ -4,7 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Users } from 'lucide-react'
 import { saveFirePlanSectionsAction, saveBrigadeAction, type BrigadeRowInput } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { PhoneField, useUnsavedWarning } from '@/components/ui/fields'
+import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
+import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 
 /** 2장 자위소방대 운영계획 (소방계획서_4.md §5)
  *  2.1 일반현황(Type Ⅰ/Ⅱ/Ⅲ → sections.brigadeGeneral) · 2.2 편성표(fire_brigade_members — 1.1 패널과 동일 데이터)
@@ -47,6 +50,8 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // 공통 서술 가져오기 출처 — 저장 성공 시에만 스탬프 기록 (§3-2)
+  const [libMeta, setLibMeta] = useState<AppliedMeta | null>(null)
 
   /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
   function save(): Promise<boolean> {
@@ -61,6 +66,8 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
         if (res2.error) { setMsg(`❌ ${res2.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 2장 저장됨 (편성표는 1.1 계획서 정보 패널과 동일 데이터)')
+        // 공통 서술을 가져와 저장까지 마친 시점에만 출처 스탬프 (§3-2)
+        if (libMeta) { void stampPlanTextAppliedAction(customerId, 'brigadeTeams', libMeta.libraryId, libMeta.version); setLibMeta(null) }
         router.refresh()
         resolve(true)
       })
@@ -143,9 +150,19 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
 
       {/* 팀별 임무 (2.5~2.13) — 표준 문구 + 수정 (v1 프리셋) */}
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
-        <p className="text-xs font-semibold text-[#514b81]">팀별 임무 (2.5~2.13)
-          <span className="font-normal text-[#b0acd6] ml-2">표준 문구 기본 — 필요 시 수정 (빈 칸이면 표준 문구로 출력)</span>
-        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-xs font-semibold text-[#514b81]">팀별 임무 (2.5~2.13)
+            <span className="font-normal text-[#b0acd6] ml-2">표준 문구 기본 — 필요 시 수정 (빈 칸이면 표준 문구로 출력)</span>
+          </p>
+          {/* 공통 서술 라이브러리 — 7팀 Record 치환, 빈 키의 기존 입력은 유지 (소방계획서_15_별도라이브러리) */}
+          {canManage && (
+            <span className="ml-auto">
+              <LibraryTextButton def={PLAN_TEXT_SECTIONS.brigadeTeams}
+                extract={() => teams}
+                onApply={(body, meta) => { setTeams(p => PLAN_TEXT_SECTIONS.brigadeTeams.merge(p, body) as Record<string, string>); setDirty(true); setLibMeta(meta) }} />
+            </span>
+          )}
+        </div>
         {TEAMS.map(tm => (
           <div key={tm.key}>
             <label className="text-[11px] font-medium text-[#514b81] block mb-0.5">{tm.label}</label>

@@ -9,6 +9,7 @@ import {
   importLegacyFormAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
+import { applyPlanTextDefaultsAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
@@ -65,11 +66,12 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, purpose, readiness, revisionInitial, revisionRows, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3,
-  annex, ledgerAutoNeeded,
+  annex, ledgerAutoNeeded, textDefaultsNeeded,
 }: {
   customerId: string
   canManage: boolean
   ledgerAutoNeeded?: boolean   // 진입 시 자동 대장 조회 대상: bcode 있고 아직 미동기화(ledger_synced_at null)
+  textDefaultsNeeded?: boolean // 진입 시 공통 서술 기본항목 자동주입 대상: 기본항목 있고 스탬프 없는 섹션 존재 (소방계획서_15_별도라이브러리 §4-0)
   purpose: string | null
   readiness: { done: number; total: number; missing: string[] }
   revisionInitial: { revisionDate: string; revisionNote: string }
@@ -189,6 +191,23 @@ export function PlanTabView({
       } catch { /* best-effort */ }
     })
   }, [canManage, ledgerAutoNeeded, customerId])
+
+  // 진입 시 공통 서술 기본항목 자동주입 — 스탬프 없는 섹션의 '빈 칸만' 서버에서 채움·저장 (§4-0).
+  // 대장 자동반영과 같은 규약(1회 가드·조용한 best-effort). DB에 저장해야 생성 문서(3.6 등)에 실린다.
+  const autoTextRan = useRef(false)
+  useEffect(() => {
+    if (!canManage || !textDefaultsNeeded || autoTextRan.current) return
+    autoTextRan.current = true
+    startLedgerTransition(async () => {
+      try {
+        const res = await applyPlanTextDefaultsAction(customerId)
+        if (res.filled && res.filled.length > 0) {
+          setMsg(`✅ 공통 기본 서술 ${res.filled.length}개 서식을 채웠습니다 (빈 칸만) — ${res.filled.map(f => f.title).join(' · ')} — 각 서식에서 확인·수정하세요.`)
+          router.refresh()
+        }
+      } catch { /* best-effort */ }
+    })
+  }, [canManage, textDefaultsNeeded, customerId])
 
   // 11-5: 누락 칩 클릭 → 해당 입력처로 이동 + 필드 단위 포커스(스크롤·포커스·앰버 펄스)
   // 탭 이동은 탭 셸 컨텍스트 goTab 우선(미저장 confirm 존중) — 셸 밖 단독 렌더 시 router.push 폴백

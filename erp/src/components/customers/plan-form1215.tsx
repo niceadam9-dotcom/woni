@@ -4,8 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
+import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
+import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 
 /** 서식 1.12~1.15 기록부 4종 (소방계획서_4.md §3 — §12-3 결정 2026-07-23: v1 포함)
  *  1.12 화기취급 감독 · 1.13 소방시설 공사/정비 기록 · 1.14 화재예방 및 홍보 · 1.15 피해 복구
@@ -59,6 +62,8 @@ export function PlanForm1215({ customerId, canManage, initial }: {
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // 공통 서술 가져오기 출처 — 카드(섹션)별 누적, 저장 성공 시에만 스탬프 (§3-2)
+  const [libMetas, setLibMetas] = useState<Record<string, AppliedMeta>>({})
 
   function addRow(card: CardDef) {
     setLogs(p => ({ ...p, [card.key]: [...p[card.key], Object.fromEntries(card.cols.map(c => [c.k, '']))] }))
@@ -83,6 +88,9 @@ export function PlanForm1215({ customerId, canManage, initial }: {
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.12~1.15 저장됨')
+        // 공통 서술을 가져와 저장까지 마친 섹션만 출처 스탬프 (§3-2)
+        for (const [key, m] of Object.entries(libMetas)) void stampPlanTextAppliedAction(customerId, key, m.libraryId, m.version)
+        setLibMetas({})
         router.refresh()
         resolve(true)
       })
@@ -97,13 +105,23 @@ export function PlanForm1215({ customerId, canManage, initial }: {
       <CardAnchorBar items={CARDS.map(c => ({ id: `c-${c.title.split(' ')[0]}`, label: c.title }))} />
       {CARDS.map(card => (
         <div key={card.key} id={`c-${card.title.split(' ')[0]}`} className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <p className="text-xs font-semibold text-[#514b81]">{card.title}</p>
             {canManage && (
-              <button onClick={() => addRow(card)}
-                className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
-                <Plus className="size-3" /> 기록 추가
-              </button>
+              <span className="ml-auto inline-flex items-center gap-1.5">
+                {/* 공통 서술 라이브러리 — 추가형: 기존 기록 유지 + 템플릿 행 append, 일자는 빈 값 (소방계획서_15_별도라이브러리 §4-1) */}
+                <LibraryTextButton def={PLAN_TEXT_SECTIONS[card.key]}
+                  extract={() => logs[card.key]}
+                  onApply={(body, meta) => {
+                    setLogs(p => ({ ...p, [card.key]: PLAN_TEXT_SECTIONS[card.key].merge(p[card.key], body) as LogRow[] }))
+                    setDirty(true)
+                    setLibMetas(p => ({ ...p, [card.key]: meta }))
+                  }} />
+                <button onClick={() => addRow(card)}
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                  <Plus className="size-3" /> 기록 추가
+                </button>
+              </span>
             )}
           </div>
           {logs[card.key].length === 0 && (

@@ -4,7 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, Wand2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { NumStepper, useUnsavedWarning } from '@/components/ui/fields'
+import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
+import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
  *  1.11.1 연간계획(교육/훈련 × 12개월 그리드 + [표준 패턴] §11-3) · 1.11.2 세부계획 · 1.11.3 시나리오(유형 프리셋) · 1.11.4 결과 기록부(별지 28호, 2년 보관) */
@@ -44,6 +47,8 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // 공통 서술 가져오기 출처 — 저장 성공 시에만 스탬프 기록 (§3-2, 미저장 이탈 시 거짓 출처 방지)
+  const [libMeta, setLibMeta] = useState<AppliedMeta | null>(null)
 
   function patch(p: Partial<TrainingSection>) { setT(v => ({ ...v, ...p })); setDirty(true) }
   function toggleMonth(key: 'eduMonths' | 'drillMonths', m: number) {
@@ -70,6 +75,8 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.11 저장됨 — 별지 9호 교육훈련 실시 판정에도 사용됩니다')
+        // 공통 서술을 가져와 저장까지 마친 시점에만 출처 스탬프 (§3-2)
+        if (libMeta) { void stampPlanTextAppliedAction(customerId, 'training', libMeta.libraryId, libMeta.version); setLibMeta(null) }
         router.refresh()
         resolve(true)
       })
@@ -167,6 +174,14 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               {type}{type === presetType ? ' ★' : ''}
             </button>
           ))}
+          {/* 공통 서술 라이브러리 — 시나리오 치환 + 차수별 세부계획(서술만) 추가 (소방계획서_15_별도라이브러리) */}
+          {canManage && (
+            <span className="ml-auto">
+              <LibraryTextButton def={PLAN_TEXT_SECTIONS.training}
+                extract={() => t}
+                onApply={(body, meta) => { setT(v => PLAN_TEXT_SECTIONS.training.merge(v, body) as TrainingSection); setDirty(true); setLibMeta(meta) }} />
+            </span>
+          )}
         </div>
         <textarea value={t.scenario} disabled={!canManage} rows={4}
           onChange={e => patch({ scenario: e.target.value })}

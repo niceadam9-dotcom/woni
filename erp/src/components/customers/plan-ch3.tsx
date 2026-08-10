@@ -4,7 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction, deletePlanAssetAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { CardAnchorBar, NumStepper, useUnsavedWarning } from '@/components/ui/fields'
+import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
+import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 import { goPlanNode } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
 
@@ -59,6 +62,8 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   const [methods, setMethods] = useState<Record<string, string>>(initialMethods)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, () => saveKeys(fullPatch(), '3장')) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
+  // 공통 서술 가져오기 출처 — 섹션(3.4·3.6)별 누적, 저장 성공 시에만 스탬프 (§3-2)
+  const [libMetas, setLibMetas] = useState<Record<string, AppliedMeta>>({})
   const [msg, setMsg] = useState('')
   const [equip, setEquip] = useState<EvacEquipRow[]>(initialEquip)
   const [isPending, startTransition] = useTransition()
@@ -82,6 +87,9 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg(`✅ ${label} 저장됨`)
+        // 공통 서술을 가져와 저장까지 마친 섹션만 출처 스탬프 (§3-2)
+        for (const [key, m] of Object.entries(libMetas)) void stampPlanTextAppliedAction(customerId, key, m.libraryId, m.version)
+        setLibMetas({})
         router.refresh()
         resolve(true)
       })
@@ -168,6 +176,14 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
               {canManage && (
                 <button onClick={() => { setPlan(p => ({ ...p, procedure: PROCEDURE_PRESET })); setDirty(true) }}
                   className="h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">절차 프리셋</button>
+              )}
+              {/* 공통 서술 라이브러리 — procedure만 치환. 경로 행·집결지는 건물 고유라 제외 (소방계획서_15_별도라이브러리 §2 정정 ①) */}
+              {canManage && (
+                <span className="ml-auto">
+                  <LibraryTextButton def={PLAN_TEXT_SECTIONS.evacPlan}
+                    extract={() => plan}
+                    onApply={(body, meta) => { setPlan(p => PLAN_TEXT_SECTIONS.evacPlan.merge(p, body) as EvacPlanSection); setDirty(true); setLibMetas(p => ({ ...p, evacPlan: meta })) }} />
+                </span>
               )}
             </div>
             <textarea value={plan.procedure} disabled={!canManage} rows={3} placeholder="피난유도 절차"
@@ -292,9 +308,20 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
 
       {/* 3.6 유형별 방법 */}
       <div id="c-3.6" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
-            <p className="text-xs font-semibold text-[#514b81]">3.6 피난약자 유형별 피난방법
-              <span className="font-normal text-[#b0acd6] ml-2">표준 문구 기본 — 빈 칸이면 표준 문구로 출력</span>
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* ⚠ 3.6은 2장과 달리 빈 유형이 생성 문서에서 행째로 빠진다(fire-plan-template.ts 폴백 없음) —
+                  안내 문구를 실제 동작대로 고치고, 공통 기본항목 자동주입이 실값을 채워 해결 (소방계획서_15_별도라이브러리 §2-1) */}
+              <p className="text-xs font-semibold text-[#514b81]">3.6 피난약자 유형별 피난방법
+                <span className="font-normal text-[#b0acd6] ml-2">빈 칸인 유형은 생성 문서에서 제외됩니다 — 인쇄하려면 값을 입력·저장하세요</span>
+              </p>
+              {canManage && (
+                <span className="ml-auto">
+                  <LibraryTextButton def={PLAN_TEXT_SECTIONS.vulnerableMethods}
+                    extract={() => methods}
+                    onApply={(body, meta) => { setMethods(p => PLAN_TEXT_SECTIONS.vulnerableMethods.merge(p, body) as Record<string, string>); setDirty(true); setLibMetas(p => ({ ...p, vulnerableMethods: meta })) }} />
+                </span>
+              )}
+            </div>
             {VULNERABLE_TYPES.map(tp => (
               <div key={tp}>
                 <label className="text-[11px] font-medium text-[#514b81] block mb-0.5">{tp}</label>
