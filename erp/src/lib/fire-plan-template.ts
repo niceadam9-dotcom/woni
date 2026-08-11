@@ -216,7 +216,7 @@ type ImgRef = { file: string; kind: string; caption: string }
 /** images: 생성 시 Gotenberg 멀티파트로 첨부되는 파일명 목록
  *  kind: cover(표지)·map(위치도)·building(전경)·route(진입경로)·evacmap(구획 현황도)·evacuation(피난경로도)·etc */
 /** Q-1(M-15): 자동 채움 구획 키 — 조립(assembleFirePlan)의 폴백 지점과 1:1 */
-export type AutofillKey = 'brigade' | 'evacRoutes' | 'assembly' | 'evacNote' | 'zones' | 'hazards'
+export type AutofillKey = 'brigade' | 'evacRoutes' | 'assembly' | 'evacNote' | 'zones' | 'hazards' | 'station'
 export const AUTOFILL_LABELS: Record<AutofillKey, string> = {
   brigade: '자위소방대 편성(2.2 기본 5행)',
   evacRoutes: '피난경로(3.4 전층·직통계단)',
@@ -224,6 +224,7 @@ export const AUTOFILL_LABELS: Record<AutofillKey, string> = {
   evacNote: '피난유도 절차(3.4 기본 문구)',
   zones: '소화·경보 구역(1.2.1 전층)',
   hazards: '화재위험요소(1.2.2 프리셋 3개소)',
+  station: '소방서 최단거리·도착시간(1.3 자동조회 캐시)',  // B-5d(소방계획서_19 M-12, Q-4 확정)
 }
 
 export function buildFirePlanHtml(
@@ -469,8 +470,8 @@ ${(d.autoFilled?.length ?? 0) > 0
   <p class="formno">서식 1.3</p><h3 style="display:inline;margin-left:8px">건축물 위치·운영현황 및 소방차 세부진입 계획</h3>
   <table>
     <tr><th style="width:130px">관할소방서<br><span class="small">(119안전센터)</span></th><td class="l">${v(fireStation)}</td>
-        <th style="width:80px">최단거리</th><td>${v(stationDistance, ' km')}</td>
-        <th style="width:90px">예상도착시간</th><td>${v(stationEta, ' 분')}</td></tr>
+        <th style="width:80px">최단거리</th><td${d.autoFilled?.includes('station') && !loc?.distance?.trim() ? ' class="autofill"' : ''}>${v(stationDistance, ' km')}</td>
+        <th style="width:90px">예상도착시간</th><td${d.autoFilled?.includes('station') && !loc?.eta?.trim() ? ' class="autofill"' : ''}>${v(stationEta, ' 분')}</td></tr>
     <tr><th>수신기 위치</th><td class="l" colspan="3">${v(d.receiverLocation)}</td>
         <th>운영현황</th><td class="l">${v(loc?.operation)}</td></tr>
     <tr><th>주변 현황</th><td class="l" colspan="5">${v(loc?.surroundings)}</td></tr>
@@ -576,13 +577,18 @@ ${(d.autoFilled?.length ?? 0) > 0
 <div class="page">
   <p class="formno">서식 1.10</p><h3 style="display:inline;margin-left:8px">소방안전관리자 자체점검 및 업무 수행</h3>
   <h3>1.10.1 연간 점검 계획</h3>
+  ${/* B-5a(소방계획서_19 M-9): 최초점검 입력은 종합점검월이 비어도 독립 행으로 출력 — 종전엔 comp 블록 종속이라 통째 미출력 */''}
   <table>
-    <tr><th style="width:90px" rowspan="${compMonthText ? 2 : 1}">자체점검</th>
+    <tr><th style="width:90px" rowspan="${1 + (compMonthText ? 1 : 0) + (!compMonthText && insp?.isInitial ? 1 : 0)}">자체점검</th>
         <td class="l">■ 작동점검 — 점검시기: ${v(opMonthText)}</td>
         <td class="l">결과보고: 점검이 끝난 날부터 15일 이내</td>
         <td class="l">제출처: ${v(fireStation)}</td>
         <td class="l">점검자: ${ck(opInspector === '자체', '자체')} ${ck(opInspector === '외주', '외주')}</td></tr>
     ${compMonthText ? `<tr><td class="l">■ 종합점검 — 점검시기: ${v(compMonthText)}${insp?.comp2Month?.trim() ? ` / ${esc(insp.comp2Month)}` : ''}${insp?.isInitial ? ` <span class="small">(최초점검: ${v(insp.initialMonth)})</span>` : ''}</td>
+        <td class="l">결과보고: 점검이 끝난 날부터 15일 이내</td>
+        <td class="l">제출처: ${v(fireStation)}</td>
+        <td class="l">점검자: ${ck(compInspector === '자체', '자체')} ${ck(compInspector === '외주', '외주')}</td></tr>` : ''}
+    ${!compMonthText && insp?.isInitial ? `<tr><td class="l">■ 최초점검 — 점검시기: ${v(insp.initialMonth)}</td>
         <td class="l">결과보고: 점검이 끝난 날부터 15일 이내</td>
         <td class="l">제출처: ${v(fireStation)}</td>
         <td class="l">점검자: ${ck(compInspector === '자체', '자체')} ${ck(compInspector === '외주', '외주')}</td></tr>` : ''}

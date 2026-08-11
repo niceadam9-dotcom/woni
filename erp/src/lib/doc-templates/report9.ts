@@ -106,6 +106,10 @@ export type Report9Data = {
   rfSlab: boolean; rfTile: boolean; rfSlate: boolean; rfEtc: boolean
   elvR: string; elvE: string; elvV: string  // 승용·비상용·피난용 대수 (체크 = 대수 존재)
   pkIn: boolean; pkMech: boolean; pkRoof: boolean; pkOut: boolean
+  /** B-4c(소방계획서_19 A9-5): 옥내 하위(지하/지상/필로티) — parking_summary 문자열 매칭, 구 호출은 미공급(☐ 유지) */
+  pkInUg?: boolean; pkInGround?: boolean; pkInPiloti?: boolean
+  /** B-4d(소방계획서_19 A9-4, Q-2 확정): 선임 형태 — customers.manager_appointment_type(124), 없으면 전부 ☐ */
+  mgrAppointType?: string
   rampCount: string      // 경사로(개소) — 1.1 일반현황 입력 (buildings.ramp_count)
   stairsCount: string    // 계단(개소) — 직통·피난계단 합계로 표기 (buildings.stairs_count)
   /** A9-3(소방계획서_15): 특별피난계단 개소 — 세부제원 3-8 전실(smoke_lobby.stair_count) 연결, 없으면 '' */
@@ -117,6 +121,8 @@ export type Report9Data = {
   /** 1.4 대장의 설치(√) 코드 **전체** — 표준 42종 + 소화기구 하위 5종. 3쪽 하위 체크칸 주입용
    *  (facilityChecks는 FORM3_ITEMS로 걸러진 목록이라 하위 코드가 들어오지 않는다) */
   ledgerCodes?: string[]
+  /** B-3(소방계획서_19 K-3): '기타' 3항목 — 31번 기타사항 점검표 롤업(X>O>N), 무응답·미공급이면 종전 ☐+공란 */
+  etcMarks?: { door?: 'O' | 'X' | 'N'; exit?: 'O' | 'X' | 'N'; flame?: 'O' | 'X' | 'N' }
   /** 건물 파생 필드(비상용승강기 수) 원천 — buildings 행 */
   building?: Record<string, number | string | null | undefined>
   // ── 4~7쪽 — 세부 현황(customer_facility_specs, H-21) — 미보유 시 빈 서식 동등 ──
@@ -218,7 +224,8 @@ ${d.note ? `<p class="small" style="margin:2px 4px">비고: ${esc(d.note)}</p>` 
 <table class="form notice" style="margin-top:4px">
   <tr>
     <th style="width:40mm">유의 사항</th>
-    <td>1. 특정소방대상물의 관계인이 소방시설등에 대한 자체점검을 하지 않거나 관리업자 등으로 하여금 정기적으로 점검하게 하지 않은 경우 1년 이하의 징역 또는 1천만원 이하의 벌금에 처합니다.<br>2. 특정소방대상물의 관계인이 소방시설등의 점검 결과를 보고하지 않거나 거짓으로 보고한 경우 300만원 이하의 과태료를 부과합니다.</td>
+    ${/* B-4a(소방계획서_19 A9-8): 근거 조문 병기 — 현행판 원문 대비 생략돼 있던 줄 복원 */''}
+    <td>1. 특정소방대상물의 관계인이 소방시설등에 대한 자체점검을 하지 않거나 관리업자 등으로 하여금 정기적으로 점검하게 하지 않은 경우 1년 이하의 징역 또는 1천만원 이하의 벌금에 처합니다(「소방시설 설치 및 관리에 관한 법률」 제58조제1호).<br>2. 특정소방대상물의 관계인이 소방시설등의 점검 결과를 보고하지 않거나 거짓으로 보고한 경우 300만원 이하의 과태료를 부과합니다(「소방시설 설치 및 관리에 관한 법률」 제61조제1항제8호).</td>
   </tr>
 </table>
 ${pageFooter()}`
@@ -252,7 +259,8 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th class="lbl">소방안전<br>관리자</th>
-    <td class="pre"> ${ck(false)}소방기술자격, ${ck(false)}소방안전관리자수첩, ${ck(false)}업무대행감독, ${ck(false)}겸직, ${ck(false)}기타<br>성명: ${val(d.mgrName, { highlight: h })}, 전화번호: ${val(d.mgrPhone, { highlight: h })}, 최근 교육이수일: ${val(d.mgrEduDate, { highlight: h })}</td>
+    ${/* B-4d(소방계획서_19 A9-4): 선임 형태 — customers.manager_appointment_type(124), 미입력이면 종전 전부 ☐ */''}
+    <td class="pre"> ${ck(d.mgrAppointType === '소방기술자격')}소방기술자격, ${ck(d.mgrAppointType === '소방안전관리자수첩')}소방안전관리자수첩, ${ck(d.mgrAppointType === '업무대행감독')}업무대행감독, ${ck(d.mgrAppointType === '겸직')}겸직, ${ck(d.mgrAppointType === '기타')}기타<br>성명: ${val(d.mgrName, { highlight: h })}, 전화번호: ${val(d.mgrPhone, { highlight: h })}, 최근 교육이수일: ${val(d.mgrEduDate, { highlight: h })}</td>
   </tr>
   <tr>
     <th class="lbl">소방계획서</th>
@@ -313,7 +321,8 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th>주차장</th>
-    <td colspan="5" class="pre"> ${ck(d.pkIn)}옥내(${ck(false)}지하 ${ck(false)}지상 ${ck(false)}필로티 ${ck(d.pkMech)}기계식), ${ck(d.pkRoof)}옥상, ${ck(d.pkOut)}옥외</td>
+    ${/* B-4c(소방계획서_19 A9-5): 옥내 하위 — parking_summary 문자열 매칭(기계식과 동일 방식) */''}
+    <td colspan="5" class="pre"> ${ck(d.pkIn)}옥내(${ck(!!d.pkInUg)}지하 ${ck(!!d.pkInGround)}지상 ${ck(!!d.pkInPiloti)}필로티 ${ck(d.pkMech)}기계식), ${ck(d.pkRoof)}옥상, ${ck(d.pkOut)}옥외</td>
   </tr>
 </table>`
 }
@@ -336,7 +345,7 @@ function p3Table(groups: P3Group[]): string {
 
 /** 1절 소방시설등 점검 결과(설비 √ + ○/×//) 2열 표 — 별지 9호 3쪽 = 별지 4호 1쪽 공용(H-21) */
 export function facilityResultSection(
-  d: Pick<Report9Data, 'facilityChecks' | 'resultMarks'> & Partial<Pick<Report9Data, 'ledgerCodes' | 'specs'>>,
+  d: Pick<Report9Data, 'facilityChecks' | 'resultMarks'> & Partial<Pick<Report9Data, 'ledgerCodes' | 'specs' | 'etcMarks'>>,
 ): string {
   const f3 = (item: string): P3Item => ({
     html: ` ${ck(d.facilityChecks.includes(item))}${esc(item)}`,
@@ -359,7 +368,12 @@ export function facilityResultSection(
     html: ` ${ck(d.facilityChecks.includes('피난기구'))}피난기구<br>   ${grp(0)}공기안전매트ㆍ피난사다리<br>     (간이)완강기ㆍ미끄럼대ㆍ구조대<br>   ${grp(1)}다수인피난장비<br>   ${grp(2)}승강식피난기<br>      하향식피난구용내림식사다리`,
     mark: resultMark(d.resultMarks['피난기구']),
   }
-  const staticItem = (label: string): P3Item => ({ html: ` ${ck(false)}${esc(label)}`, mark: '' })
+  // B-3(소방계획서_19 K-3): '기타' 3항목 — 31번 기타사항 점검표 롤업 반영(별지4호 1쪽·별지9호 3쪽 공용).
+  // ○/×는 체크(√)+결과, ／는 결과만(muResultSection 규약과 동일), 무응답·미공급이면 종전 ☐+공란.
+  const etcItem = (key: 'door' | 'exit' | 'flame', label: string): P3Item => {
+    const r = d.etcMarks?.[key]
+    return { html: ` ${ck(r === 'O' || r === 'X')}${esc(label)}`, mark: resultMark(r) }
+  }
 
   const left1 = p3Table([
     { name: '소화<br>설비', items: [fireExt, ...FORM3_ITEMS.slice(1, 15).map(f3)] },
@@ -369,7 +383,7 @@ export function facilityResultSection(
     { name: '피난구조설비', items: [escapeEquip, ...FORM3_ITEMS.slice(25, 31).map(f3)] },
     { name: '소화용수설비', items: FORM3_ITEMS.slice(31, 33).map(f3) },
     { name: '소화활동설비', items: FORM3_ITEMS.slice(33, 40).map(f3) },
-    { name: '기타', items: [staticItem('방화문, 자동방화셔터'), staticItem('비상구, 피난통로'), staticItem('방  염')] },
+    { name: '기타', items: [etcItem('door', '방화문, 자동방화셔터'), etcItem('exit', '비상구, 피난통로'), etcItem('flame', '방  염')] },
     { name: '비고', items: [{ html: '&nbsp;', mark: '' }] },
   ])
   return `<table class="split"><tr><td>${left1}</td><td>${right1}</td></tr></table>`
@@ -464,6 +478,34 @@ export function renderReport9(d: Report9Data, opts: Report9RenderOpts = {}): str
       specPage(4, secs.slice(0, 2), true), specPage(5, secs.slice(2, 4)),
       specPage(6, secs.slice(4, 7)), specPage(7, secs.slice(7)),
       page8(d),
+      page9(),
     ],
   })
+}
+
+// ── 9쪽 — 작성방법 (B-4b · 소방계획서_19 A9-12) ────────────────────────────
+// 별지9호.MD:19 '출력만' — 원문: erp_goal/_doc01/[별지 제9호서식]…0009.htm (현행판, 고정 안내문).
+// 10쪽 작성 예시는 미출력 대상(MD:20) 그대로 둔다.
+function page9(): string {
+  return `
+${pageHeader(null, '(9쪽)')}
+<h1 class="doc-title" style="font-size:13pt; letter-spacing:.15em;">작성방법</h1>
+<div class="small pre" style="line-height:1.7">
+※ 이 서식은 전산입력되는 서식이므로 한글 또는 아라비아숫자로 정확하고 선명하게 작성하시기 바랍니다.
+※ 하나의 소방안전관리대상물에 대한 자체점검 결과를 보고하면서 이 중 일부 대상물 또는 전체 대상물을 같은 기간 내에 점검하여 함께 보고하는 경우 하나의 서식에 함께 작성하여 보고합니다.
+※ [　]에는 해당 시설에 √ 표를 하고, 세부 현황 및 설치된 수량을 기입합니다.
+※ "3. 소방시설등의 세부 현황"의 작성에 있어 해당 특정소방대상물에 설치된 소방시설에 대해서만 작성하므로 소방시설이 다수 설치되어 기입란이 부족한 경우 서식을 추가하여 작성할 수 있고, 해당하지 않는(설치되지 않은) 소방시설의 기입란은 삭제할 수 있습니다.(설비순서는 변경하지 않습니다.)
+
+1. "특정소방대상물의 명칭"은 건물명을 "대상물 구분"은 「소방시설 설치 및 관리에 관한 법률 시행령」 별표 2에 따른 특정소방대상물 구분을, "소재지"는 특정소방대상물의 도로명주소를 기입합니다.
+2. "점검기간"은 소방시설등 자체점검을 실시한 전체 기간을 말하며, 기간 중 실제 점검한 날 수의 합을 "총 점검일수"에 기입합니다.
+3. 점검자는 관계인, 소방안전관리자, 소방시설관리업자 중 점검을 실시한 자의 [　]에 √ 표를 하고, 세부 사항을 기입합니다. 또한 "전자우편 송달"에 동의하는 경우 자체점검 결과 소방시설등 불량사항의 조치에 대한 사전통지와 조치명령서는 우편이 아닌 정보통신망을 통하여 발송합니다.
+4. 점검인력은 관계인 점검의 경우 주된 기술인력란에 관계인에 대한 정보를 기입하고, 소방안전관리자가 점검한 경우 주된 기술인력란에 소방안전관리자에 대한 정보를 기입하며, 소방시설관리업자 점검의 경우 배치신고된 사항을 기입합니다. 또한, 소방안전관리자로 선임된 소방시설관리사 및 소방기술사가 점검하는 경우에는 해당 특정소방대상물의 관계인 또는 소방안전관리보조자를 보조 기술인력으로 추가 기입할 수 있습니다.
+5. 소방시설 관리업자 등이 점검한 경우에는 점검이 끝난 날부터 10일 이내 소방시설등 자체점검 실시결과 보고서에 소방청장이 정하여 고시하는 소방시설등점검표를 첨부하여 관계인에게 제출해야 합니다.
+6. 관계인은 소방시설관리업자 등이 점검한 결과를 제출받거나 스스로 점검한 경우 점검이 끝난 날부터 15일 이내 점검 결과에 대한 이행계획서(별지 제10호서식)를 작성ㆍ첨부하여 서면 또는 소방청장이 지정하는 전산망을 이용하여 관할 소방본부장 또는 소방서장에게 보고합니다. 이 경우 위임장을 첨부하는 경우에는 소방시설 관리업자 등이 보고할 수도 있습니다.
+7. "소방안전정보"의 대표자는 특정소방대상물의 관리 권한을 가진 관계인의 인적사항을 작성하며, 소방안전관리등급은 「화재의 예방 및 안전관리에 관한 법률 시행령」 별표 4에 따른 등급을 기재하고, 현재 선임된 소방안전관리자 정보를 기입합니다.
+8. "소방계획서", "자체점검(전년도)", "교육훈련(전년도)"은 「화재의 예방 및 안전관리에 관한 법률」 제24조에 따른 소방안전관리업무 실시사항을 기입합니다.
+9. "화재보험"은 해당 특정소방대상물에 화재보험이 가입되어 있는 경우 가입에 √ 표를 하고 화재보험 정보를 기입합니다.
+10. "다중이용업소현황"은 해당 특정소방대상물에 현재 입점하고 있는 다중이용업소에 대하여 [　]에 √ 표를 하고, 그 업소 숫자를 기입하고, "건축물정보"는 건축허가일 등 해당 특정소방대상물의 건축물 정보를 기입합니다. 둘 이상의 대상물을 같은 기간 내에 점검하여 함께 보고하는 경우 동별 다중이용업소 입점현황과 건축물정보를 동별로 나누어 작성합니다.
+</div>
+${pageFooter()}`
 }

@@ -26,6 +26,8 @@ export type Report4Data = {
   address: string             // 소재지
   facilityChecks: string[]                       // 설치 설비(√) — FORM3_ITEMS 명칭
   resultMarks: Record<string, 'O' | 'X' | 'N'>   // 점검결과 ○/×// (별지 9호 3쪽과 동일 데이터)
+  /** B-3(소방계획서_19): '기타' 3항목 — 31번 기타사항 롤업 (별지 9호 3쪽과 공용, facilityResultSection) */
+  etcMarks?: { door?: 'O' | 'X' | 'N'; exit?: 'O' | 'X' | 'N'; flame?: 'O' | 'X' | 'N' }
   // ── 2쪽 ──
   muResults: Record<string, 'O' | 'X' | 'N'>     // MU-001~016 (다중이용업 아니면 공란)
   main: Report9Person | null                     // 주인력

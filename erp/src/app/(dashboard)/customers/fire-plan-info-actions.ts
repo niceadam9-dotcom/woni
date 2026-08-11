@@ -50,6 +50,7 @@ export type FirePlanInfoInput = {
   repRole: string             // 대표자 구분: 소유자/관리자/점유자 | ''
   managerLicenseGrade: string // 소방안전관리자 자격구분: 특급/1급/2급/3급 | ''
   managerEduDate: string      // 최근 교육이수일 YYYY-MM-DD | ''
+  managerAppointType: string  // B-4d(소방계획서_19, 124): 선임 형태 — 소방기술자격/소방안전관리자수첩/업무대행감독/겸직/기타 | ''
   insuranceJoined: boolean | null
   insuranceCompany: string
   insurancePeriod: string
@@ -80,6 +81,7 @@ export async function saveFirePlanInfoAction(
 
   if (input.repRole && !['소유자', '관리자', '점유자'].includes(input.repRole)) return { error: '대표자 구분 값을 확인해주세요.' }
   if (input.managerLicenseGrade && !['특급', '1급', '2급', '3급'].includes(input.managerLicenseGrade)) return { error: '자격구분 값을 확인해주세요.' }
+  if (input.managerAppointType && !['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타'].includes(input.managerAppointType)) return { error: '선임 형태 값을 확인해주세요.' }
   // 송달 동의 검증 — 구 saveEmailConsentAction의 규칙을 그대로 승계(저장 통합, 2026-08-06)
   const reportEmail = input.reportEmail.trim()
   if (reportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reportEmail)) return { error: '이메일 형식을 확인해주세요.' }
@@ -92,6 +94,7 @@ export async function saveFirePlanInfoAction(
     rep_role: input.repRole || null,
     manager_license_grade: input.managerLicenseGrade || null,
     manager_edu_date: input.managerEduDate || null,
+    manager_appointment_type: input.managerAppointType || null,
     insurance_joined: input.insuranceJoined,
     insurance_company: input.insuranceCompany.trim() || null,
     insurance_period: input.insurancePeriod.trim() || null,

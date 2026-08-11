@@ -23,9 +23,11 @@ const TITLES: Record<ComposeAnnexNo, { title: string; doc: string }> = {
 type FieldDef = {
   key: string
   label: string
-  type: 'date' | 'daterange' | 'text' | 'textarea'
+  type: 'date' | 'daterange' | 'text' | 'textarea' | 'select'
   placeholder?: string
   hint?: string
+  /** type='select' 전용 — 첫 항목이 기본(빈 값=자동 판정) */
+  options?: Array<{ value: string; label: string }>
 }
 
 /** ③ 서식 고유 값 폼 정의 — 별지 MD §3 계층 매핑 기준 (문서 레벨 값만, 불량별 값은 불량 카드가 원본) */
@@ -33,6 +35,14 @@ const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   report9: [
     { key: 'reportDate', label: '보고일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
     { key: 'note', label: '비고·보완 문구', type: 'textarea', hint: '1쪽 하단(유의사항 위)에 1줄 출력 — 없으면 미출력' },
+    // B-2c(소방계획서_19 K-2, Q-1 확정): 교육훈련 '실시' 수동 보정 — 자동 판정(1.11.4 전년도 실적)이
+    // 못 보는 경우(종이로만 실시) 구제. 부정('미실시') 강제는 없다 — 단정 금지 설계(A9-6 확정) 유지
+    { key: 'eduDone', label: '소방안전교육 실시(전년도) 보정', type: 'select',
+      options: [{ value: '', label: '자동 판정 (1.11.4 전년도 실적)' }, { value: '실시', label: '실시로 기재 (수동 확정)' }],
+      hint: '2쪽 교육훈련 칸 — 실적 기록부에 없지만 실제 실시한 경우만 수동 확정' },
+    { key: 'drillDone', label: '소방훈련 실시(전년도) 보정', type: 'select',
+      options: [{ value: '', label: '자동 판정 (1.11.4 전년도 실적)' }, { value: '실시', label: '실시로 기재 (수동 확정)' }],
+      hint: '2쪽 교육훈련 칸 — 실적 기록부에 없지만 실제 실시한 경우만 수동 확정' },
   ],
   report10: [
     { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
@@ -296,6 +306,11 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                             </span>
                           )
                         })()
+                      ) : d.type === 'select' ? (
+                        <select value={fields[d.key] ?? ''} aria-label={d.label}
+                          onChange={e => setField(d.key, e.target.value)} className={`${inputBase} w-64 bg-white`}>
+                          {(d.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
                       ) : d.type === 'textarea' ? (
                         <textarea value={fields[d.key] ?? ''} aria-label={d.label} rows={2}
                           placeholder={d.placeholder} onChange={e => setField(d.key, e.target.value)}

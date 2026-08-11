@@ -116,9 +116,10 @@ async function assembleAnnex1011(
 
   if (kind === 'report10') {
     const planned = defects.filter(d => d.action_plan || d.action_start)
+    // E10-1(소방계획서_19 B-8 감사): 표 행 기간도 총 이행기간·보고일과 같은 한국어 날짜로 통일
     data.rows = planned.map(d => ({
       content: d.action_plan || d.defect_name || '',
-      period: `${d.action_start ?? ''} ~ ${d.action_end ?? ''}`.replace(/^ ~ $/, ''),
+      period: `${d.action_start ? kdate(d.action_start) : ''} ~ ${d.action_end ? kdate(d.action_end) : ''}`.replace(/^ ~ $/, ''),
     }))
     const starts = planned.map(d => d.action_start).filter(Boolean).sort() as string[]
     const ends = planned.map(d => d.action_end).filter(Boolean).sort() as string[]
@@ -130,9 +131,10 @@ async function assembleAnnex1011(
     if (planned.length === 0) missing.push('이행조치 계획 미입력')
   } else {
     const done = defects.filter(d => d.action_completed_at)
+    // E11-1(소방계획서_19 B-8 감사): 완료일도 보고일과 같은 한국어 날짜로 통일
     data.rows = done.map(d => ({
       content: d.action_taken || d.defect_name || '',
-      period: d.action_completed_at ?? '',
+      period: d.action_completed_at ? kdate(d.action_completed_at.slice(0, 10)) : '',
     }))
     const { data: companyRows } = await admin.from('company_profile')
       .select('company_name, business_number, representative, phone, address').limit(1)
@@ -186,7 +188,8 @@ async function assembleReport9(
     admin.from('customers')
       .select('customer_name, address, use_approval_date, fire_station, building_grade,'
         + 'insurance_joined, insurance_company, insurance_period, insurance_amount_person, insurance_amount_property,'
-        + 'email_delivery_consent, report_email, rep_role, manager_license_grade, manager_edu_date')
+        // B-4d(소방계획서_19 A9-4, Q-2 확정): 선임 형태(manager_appointment_type, 마이그레이션 124)
+        + 'email_delivery_consent, report_email, rep_role, manager_license_grade, manager_edu_date, manager_appointment_type')
       .eq('id', customerId).single(),
     admin.from('buildings')
       .select('id, purpose, total_area, building_area, floors_above, floors_below, height, main_structure, roof_structure,'
@@ -215,6 +218,7 @@ async function assembleReport9(
     insurance_period: string | null; insurance_amount_person: string | null; insurance_amount_property: string | null
     email_delivery_consent: boolean | null; report_email: string | null; rep_role: string | null
     manager_license_grade: string | null; manager_edu_date: string | null
+    manager_appointment_type: string | null
   }
   const cust = custRes.data as CustRow | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
@@ -318,6 +322,24 @@ async function assembleReport9(
   // 설비→항목은 정규화 정확 매칭, 시트→항목은 명시 매핑(미등재 시트만 퍼지 폴백). _probe-form3-map.mjs가 차이를 고정.
   const { facilityChecks, resultMarks } = rollUpForm3Results(sheetStat, FORM3_ITEMS, codes)
 
+  // B-3(소방계획서_19 K-3): '기타' 3항목(방화문·자동방화셔터 / 비상구·피난통로 / 방염) —
+  // 31번 '기타사항' 점검표(STD-31) 응답을 명시 매핑으로 반영(T-3 교훈 — 퍼지 금지).
+  // 롤업 규칙 = rollUpForm3Results 계열: X 있으면 ×, 아니면 O 있으면 ○, 전부 N이면 ／, 무응답이면 종전 ☐+공란.
+  const ETC_ITEM_MAP: Record<string, 'door' | 'exit' | 'flame'> = {
+    '31-A-001': 'door',   // 방화문 및 방화셔터의 관리 상태 …
+    '31-A-002': 'exit',   // 비상구 및 피난통로 확보 적정 여부 …
+    '31-B-001': 'flame',  // 선처리 방염대상물품 …
+    '31-B-002': 'flame',  // 후처리 방염대상물품 …
+  }
+  const etcAgg: Record<'door' | 'exit' | 'flame', Array<'O' | 'X' | 'N'>> = { door: [], exit: [], flame: [] }
+  for (const r of responses) {
+    const g = ETC_ITEM_MAP[r.item_code]
+    if (g && ['O', 'X', 'N'].includes(r.result)) etcAgg[g].push(r.result)
+  }
+  const etcRoll = (rs: Array<'O' | 'X' | 'N'>): 'O' | 'X' | 'N' | undefined =>
+    rs.includes('X') ? 'X' : rs.includes('O') ? 'O' : rs.length ? 'N' : undefined
+  const etcMarks = { door: etcRoll(etcAgg.door), exit: etcRoll(etcAgg.exit), flame: etcRoll(etcAgg.flame) }
+
   // 3쪽 2절 안전시설등(다중이용업소, §9-6e) — MU 시트 응답 항목 단위 반영 (다중이용업 아니면 응답 없음 → 공란)
   const muResults: Record<string, 'O' | 'X' | 'N'> = {}
   for (const r of responses) {
@@ -330,7 +352,14 @@ async function assembleReport9(
     .select('inspection_type').eq('customer_id', customerId).eq('year', insp.year - 1).eq('status', 'completed')
   const prevTypes = new Set(((prevRows ?? []) as Array<{ inspection_type: string }>).map(r => r.inspection_type))
   const sections = ((formsRes.data?.[0] as { sections: Record<string, unknown> | null } | undefined)?.sections) ?? {}
-  const hasTraining = !!sections['training']
+  // B-2(소방계획서_19 K-2, Q-1 확정 2026-08-11): 교육훈련 = **전년도 실시** 기입(서식 9쪽 작성방법 8호
+  // "교육훈련(전년도)" — 자체점검(전년도)과 동일 축). 종전 `!!sections['training']`은 1.11 '계획' 존재만으로
+  // 교육·훈련을 둘 다 '실시'로 찍던 판정 비약(A9-2). 실적 원천 = 1.11.4 결과 기록부(records)의
+  // 전년도(insp.year-1) 행 — 구분(교육/훈련)별로 분리 판정. 부정 단정 없음 — 실적 없으면 미체크(☐)일 뿐.
+  const trainingRecords = ((sections['training'] as { records?: Array<{ at?: string; kind?: string }> } | null)?.records) ?? []
+  const prevYearRecords = trainingRecords.filter(r => String(r.at ?? '').slice(0, 4) === String(insp.year - 1))
+  const eduDone = prevYearRecords.some(r => String(r.kind ?? '').includes('교육'))
+  const drillDone = prevYearRecords.some(r => String(r.kind ?? '').includes('훈련'))
   // A9-1(소방계획서_15): 소방안전관리자 = 서식 1.7 선임현황(sections.managers) 1순위 → 관계인 대표 폴백
   const mgrRow = pickFirePlanManager((sections['managers'] ?? null) as ManagerRow[] | null)
   // 다중이용업소현황 — 서식 1.10.3(sections.multiUse)과 공유 원본 (별지9호.MD §2 MULTI_USE_CATEGORIES)
@@ -432,8 +461,8 @@ async function assembleReport9(
     hasFirePlan: hasPlan,
     prevOpDone: prevTypes.has('작동'),
     prevCompDone: prevTypes.has('종합') || prevTypes.has('최초'),
-    eduDone: hasTraining,
-    drillDone: hasTraining,
+    eduDone,
+    drillDone,
     insuranceJoined: cust.insurance_joined,
     insCompany: cust.insurance_company ?? '',
     insPeriod: cust.insurance_period ?? '',
@@ -456,6 +485,10 @@ async function assembleReport9(
     elvE: b?.emergency_elevator_count ? String(b.emergency_elevator_count) : '',
     elvV: b?.evac_elevator_count ? String(b.evac_elevator_count) : '',
     pkIn: pk.includes('옥내'),
+    // B-4c(소방계획서_19 A9-5): 옥내 하위(지하/지상/필로티) — 기계식과 같은 방식의 문자열 매칭
+    pkInUg: pk.includes('지하'),
+    pkInGround: pk.includes('지상'),
+    pkInPiloti: pk.includes('필로티'),
     pkMech: pk.includes('기계식'),
     pkRoof: pk.includes('옥상'),
     pkOut: pk.includes('옥외'),
@@ -469,6 +502,9 @@ async function assembleReport9(
       return Number.isFinite(n) && n > 0 ? String(lobby!['stair_count']) : ''
     })(),
     facilityChecks,
+    // B-3: '기타' 3항목 롤업 · B-4d: 선임 형태(124)
+    etcMarks,
+    mgrAppointType: cust.manager_appointment_type ?? '',
     // 3쪽 하위 체크칸(소화기구 5종)·세부현황 파생(가스계·유도표지·피난유도선)의 원천 — 필터 전 전체 코드
     ledgerCodes: codes,
     building: (b ?? undefined) as Record<string, number | string | null | undefined> | undefined,
@@ -484,6 +520,9 @@ async function assembleReport9(
   if (/^\d{4}-\d{2}-\d{2}$/.test(fReportDate)) data.reportDate = kdate(fReportDate)
   const fNote = fstr(annexFields, 'note')
   if (fNote) data.note = fNote
+  // B-2c: ③ 수동 보정 — 실적 기록부에 없지만 실제 실시한 경우만 '실시'로 강제(양성 보정만, 부정 단정 없음)
+  if (fstr(annexFields, 'eduDone') === '실시') data.eduDone = true
+  if (fstr(annexFields, 'drillDone') === '실시') data.drillDone = true
 
   // 누락 항목 — 워커 process_report9 missing과 동일 문구
   const missing: string[] = []
@@ -495,6 +534,11 @@ async function assembleReport9(
   if (!cust.address) missing.push('주소')
   if (!cust.use_approval_date) missing.push('사용승인일')
   if (!b?.permit_date) missing.push('건축허가일')
+  // B-6(소방계획서_19 A9-11, Q-5 확정): 상시 공란 칸 인지 — 결과칸은 실제 응답 ○·×만 반영(무응답 공란 유지)
+  // 하므로, 공란이 남는 원인을 missing으로 표면화한다.
+  const unanswered = facilityChecks.filter(item => !resultMarks[item]).length
+  if (unanswered > 0) missing.push(`설치 설비 중 점검표 무응답 ${unanswered}건 — 3쪽 결과칸 공란`)
+  if (!cust.manager_appointment_type) missing.push('소방안전관리자 선임 형태(계획서 정보) 미입력 — 2쪽 체크 공란')
   return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections } }
 }
 
@@ -516,6 +560,7 @@ async function assembleReport4(
     ckOp: d9.ckOp, ckInitial: d9.ckInitial, ckCompEtc: d9.ckCompEtc,
     customerName: d9.customerName, purpose: d9.purpose, address: d9.address,
     facilityChecks: d9.facilityChecks, resultMarks: d9.resultMarks, muResults: d9.muResults,
+    etcMarks: d9.etcMarks,
     ledgerCodes: d9.ledgerCodes, building: d9.building,
     main: d9.main, assistants: d9.assistants,
     inspStart, inspEnd, inspDays: d9.inspDays,
@@ -570,10 +615,12 @@ async function assembleExterior(
   const day = Number(start.slice(8, 10))
 
   // 외관점검 시트 응답(X{섹션}-{행}) → 해당 월 결과란 ○/×// (워커: item_code=like.X*)
-  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N' }>((from, to) =>
-    admin.from('inspection_sheet_responses').select('item_code, result')
+  // EX-1(소방계획서_19 B-8 감사): memo도 조회 — X 항목 메모가 문서 어디에도 안 나가던 유실 해소(표지 비고칸 요약)
+  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>((from, to) =>
+    admin.from('inspection_sheet_responses').select('item_code, result, memo')
       .eq('inspection_id', inspectionId).like('item_code', 'X%').range(from, to))
   const anyX = responses.some(r => r.result === 'X')
+  const anyO = responses.some(r => r.result === 'O')
   const results: Record<string, 'O' | 'X' | 'N'> = {}
   for (const r of responses) {
     const m = /^X(\d{1,2})-(\d{1,3})$/.exec(r.item_code)
@@ -595,8 +642,14 @@ async function assembleExterior(
     month,
     day,
     inspectorName: inspector,
-    // 표지 해당 월 양호/불량 — 불량 1건이라도 있으면 불량, 응답 없으면 공란 (워커 동일)
-    monthGood: responses.length ? !anyX : null,
+    // 표지 해당 월 양호/불량 — 불량 1건이라도 있으면 불량. EX-5(B-8 감사): 전부 N(해당없음)이면
+    // 양호 단정 대신 공란 — 종전 `!anyX`는 O가 하나도 없어도 양호로 찍었다.
+    monthGood: anyX ? false : anyO ? true : null,
+    // EX-1(B-8 감사): X 항목 메모 요약 → 표지 비고칸 (종전 항상 공란 — 메모가 문서상 완전 사장)
+    remark: responses
+      .filter(r => r.result === 'X' && r.memo?.trim())
+      .map(r => `${r.item_code} ${r.memo!.trim()}`)
+      .join(' / '),
     results,
   }
 

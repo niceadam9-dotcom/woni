@@ -163,8 +163,18 @@ export async function assembleFirePlan(
     photos?: Array<{ path: string | null; kind: string; caption: string }>
   }
   const revision = sections.revision ?? null
+
+  // M-8(소방계획서_15): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
+  // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
+  // (B-5b에서 개정이력 폴백 작성자로도 쓰므로 revisions보다 먼저 계산)
+  const mgrRow = pickFirePlanManager(sections.managers)
+  const managerName = mgrRow?.name ?? owner?.name ?? ''
+  const managerPhone = managerName === (owner?.name ?? '') ? (owner?.phone ?? '') : ''
+
   // 개정이력 — 마이그레이션 120 fire_plan_revisions가 단일 원천 (소방계획서_17 §2-4).
   // 행이 하나도 없으면(백필 전·조회 실패) 종전 경로(fire_plans 파생)로 폴백해 표가 비지 않게 한다.
+  // B-5b(소방계획서_19 M-13): 폴백 행 작성자도 공란 대신 소방안전관리자(선임자→대표) — 120 경로의
+  // appendGeneratedRevision authorName 규약과 동일. 검토·승인은 수기 서명 운용이라 빈칸 유지.
   const revisions = revRowsRes.data && revRowsRes.data.length > 0
     ? (revRowsRes.data as Array<{
         revised_on: string | null; content: string | null
@@ -180,7 +190,7 @@ export async function assembleFirePlan(
       .map(p => ({
         date: p.created_at.slice(0, 10),
         note: p.note ?? `${p.year}년 소방계획서${p.revision > 1 ? ` (개정${p.revision})` : ' 작성'}`,
-        author: '', reviewer: '', approver: '',
+        author: managerName, reviewer: '', approver: '',
       }))
   const brigadeRows = (brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>
 
@@ -221,11 +231,12 @@ export async function assembleFirePlan(
 
   const photos = (sections.photos ?? []).filter((p): p is { path: string; kind: string; caption: string } => !!p.path)
 
-  // M-8(소방계획서_15): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
-  // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
-  const mgrRow = pickFirePlanManager(sections.managers)
-  const managerName = mgrRow?.name ?? owner?.name ?? ''
-  const managerPhone = managerName === (owner?.name ?? '') ? (owner?.phone ?? '') : ''
+  // B-5d(소방계획서_19 M-12, Q-4 확정): 1.3 미입력 고객은 자동 조회 캐시(sections.routeMeta,
+  // 소방계획서_13 Directions 결과)를 폴백으로 쓴다 — 자동 채움 표시(M-15 규약) 동반.
+  // 서식 1.3 입력값은 템플릿(fire-plan-template)이 항상 우선한다.
+  const routeMeta = (rawSections as { routeMeta?: { distanceM?: number; durationMs?: number } }).routeMeta
+  const cachedDistance = routeMeta?.distanceM != null ? (routeMeta.distanceM / 1000).toFixed(1) : ''
+  const cachedEta = routeMeta?.durationMs != null ? String(Math.max(1, Math.round(routeMeta.durationMs / 60000))) : ''
 
   const data: FirePlanGenData = {
     year,
@@ -250,8 +261,8 @@ export async function assembleFirePlan(
     managerPhone,
     managerSelectedAt: mgrRow?.selectedAt || cust.manager_selected_at || '',
     fireStation: cust.fire_station ?? '',
-    stationDistance: '',
-    stationEta: '',
+    stationDistance: cachedDistance,
+    stationEta: cachedEta,
     facilities,
     facilityNotes,                                    // M-4: 1.4 항목별 비고
     // M-2·M-10: 1.1 시설현황 확장 — 계단·경사로 개소, 승강기 3종 대수 (전부 buildings 원천)
@@ -318,6 +329,8 @@ export async function assembleFirePlan(
       if (!sections.evacPlan?.procedure) keys.push('evacNote')
       if ((sections.zones?.length ?? 0) === 0) keys.push('zones')
       if ((sections.hazards?.length ?? 0) === 0) keys.push('hazards')
+      // B-5d: 1.3 거리·도착이 캐시 폴백으로 채워졌으면 표시 (서식 1.3 입력이 있으면 템플릿이 그 값 우선)
+      if (!sections.location?.distance?.trim() && !sections.location?.eta?.trim() && (cachedDistance || cachedEta)) keys.push('station')
       return keys
     })(),
     revisions,

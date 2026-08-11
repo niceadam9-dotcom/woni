@@ -313,6 +313,7 @@ export default async function CustomerDetailPage({
     repRole: s(cRec.rep_role),
     managerLicenseGrade: s(cRec.manager_license_grade),
     managerEduDate: s(cRec.manager_edu_date),
+    managerAppointType: s(cRec.manager_appointment_type),  // B-4d(소방계획서_19, 124)
     insuranceJoined: (cRec.insurance_joined as boolean | null) ?? null,
     insuranceCompany: s(cRec.insurance_company),
     insurancePeriod: s(cRec.insurance_period),

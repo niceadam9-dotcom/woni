@@ -185,6 +185,8 @@ export type ExteriorData = {
   monthGood: boolean | null
   /** 섹션 표 결과란 — item_code(X{섹션}-{행}, 0패딩) → ○/×// (해당 월 열에만 표기) */
   results: Record<string, 'O' | 'X' | 'N'>
+  /** EX-1(소방계획서_19 B-8 감사): 표지 비고칸 — X 항목 메모 요약(코드+메모), 없으면 종전 공란 */
+  remark?: string
 }
 
 export type ExteriorRenderOpts = { highlight?: boolean } // 미리보기: 미입력 하이라이트 (§4-A-2c ③)
@@ -244,7 +246,8 @@ ${pageHeader('소방시설 자체점검사항 등에 관한 고시[별지 제6�
     <th>점검월일</th><th>점검결과</th><th>점검자</th><th>확인자</th>
   </tr>
   ${rows}
-  <tr><th>비고</th><td colspan="4" style="height:14mm">&nbsp;</td></tr>
+  ${/* EX-1(소방계획서_19): X 항목 메모 요약 — 종전엔 시트 메모가 문서 어디에도 안 나가던 유실 */''}
+  <tr><th>비고</th><td colspan="4" style="height:14mm; text-align:left; vertical-align:top">${d.remark?.trim() ? esc(d.remark) : '&nbsp;'}</td></tr>
 </table>
 ${pageFooter()}`
 }

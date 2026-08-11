@@ -152,6 +152,21 @@ export const PLAN_TEXT_SECTIONS: Record<string, PlanTextSectionDef> = {
 /** 서버 화이트리스트 (§5) — 구 COPYABLE_SECTION_KEYS·현 FORM_SECTION_KEYS와 같은 방어 패턴 */
 export const PLAN_TEXT_SECTION_KEYS = new Set(Object.keys(PLAN_TEXT_SECTIONS))
 
+/** B-7(소방계획서_19 K-8 · L-D-4): jsonb 키 순서와 무관한 내용 동등 비교.
+ *  Postgres jsonb는 키를 정규화(길이→사전순)해 돌려주므로 JSON.stringify 직접 비교는 항상 다르다고
+ *  판정된다 — 동일 내용 재등록에도 version이 +1 되던 결함의 근인. 키를 정렬해 비교한다. */
+export function planTextBodyEquals(a: unknown, b: unknown): boolean {
+  const sortKeys = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(sortKeys)
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(Object.keys(v as Record<string, unknown>).sort()
+        .map(k => [k, sortKeys((v as Record<string, unknown>)[k])]))
+    }
+    return v
+  }
+  return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b))
+}
+
 /** 리스트 미리보기 40자 — 이름만으로 항목을 구분 못 하는 문제 보완 (§4-1) */
 export function planTextPreview(sectionKey: string, body: unknown): string {
   const b = body as Dict

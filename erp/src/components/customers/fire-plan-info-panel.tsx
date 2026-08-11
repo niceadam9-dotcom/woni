@@ -318,6 +318,16 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               </div>
             </div>
             <div><label className={labelCls}>최근 교육이수일</label><br /><DateInput value={d.managerEduDate} onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32`} /></div>
+            {/* B-4d(소방계획서_19, 124): 선임 형태 — 별지 9호 2쪽 체크 5종의 원천 */}
+            <div><label className={labelCls}>선임 형태</label><br />
+              <select value={d.managerAppointType} onChange={e => set('managerAppointType', e.target.value)}
+                className={`${inputCls} w-40 bg-white`}>
+                <option value="">선택 안 함</option>
+                {['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>평일</label><br />

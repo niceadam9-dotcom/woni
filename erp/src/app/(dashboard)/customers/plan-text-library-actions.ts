@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { PLAN_TEXT_SECTIONS, PLAN_TEXT_SECTION_KEYS, planTextPreview } from '@/lib/plan-text-sections'
+import { PLAN_TEXT_SECTIONS, PLAN_TEXT_SECTION_KEYS, planTextPreview, planTextBodyEquals } from '@/lib/plan-text-sections'
 
 /** 공통 서술 라이브러리 액션 (소방계획서_15_별도라이브러리.md §5)
  *  저장소 = plan_text_library(119, 항목) + plan_text_applied(출처 스탬프·자동주입 1회 가드).
@@ -62,7 +62,8 @@ export async function savePlanTextAction(
       .select('body, version, section_key').eq('id', overwriteId).eq('is_active', true).maybeSingle()
     if (curErr) return { error: `조회 실패: ${curErr.message}` }
     if (!cur || cur.section_key !== sectionKey) return { error: '덮어쓸 항목이 없습니다.' }
-    const changed = JSON.stringify(cur.body) !== JSON.stringify(body)
+    // B-7(소방계획서_19 K-8): jsonb 키 순서 정규화 때문에 stringify 직접 비교는 항상 '다름'(version 오증가) — 정렬 비교
+    const changed = !planTextBodyEquals(cur.body, body)
     const { error } = await admin.from('plan_text_library').update({
       title: name, body,
       ...(changed ? { version: (cur.version as number) + 1 } : {}),
