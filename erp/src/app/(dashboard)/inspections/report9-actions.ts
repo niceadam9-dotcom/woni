@@ -10,10 +10,11 @@ import {
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
 import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map'
-import { renderReport4, type Report4Data } from '@/lib/doc-templates/report4'
+import { renderReport4, type Report4Data, type Report4SheetSection } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData } from '@/lib/doc-templates/exterior'
 import { pickFirePlanManager } from '@/lib/fire-plan-template'
+import { formatBizNo, formatTel } from '@/lib/format-contact'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
@@ -133,9 +134,9 @@ async function assembleAnnex1011(
       company_name?: string; business_number?: string; representative?: string; phone?: string; address?: string
     }
     data.companyName = company.company_name ?? ''
-    data.companyBizno = company.business_number ?? ''
+    data.companyBizno = formatBizNo(company.business_number)
     data.companyRep = company.representative ?? ''
-    data.companyPhone = company.phone ?? ''
+    data.companyPhone = formatTel(company.phone)
     data.companyAddress = company.address ?? ''
     if (done.length === 0) missing.push('이행완료 항목 없음')
   }
@@ -166,7 +167,12 @@ async function assembleReport9(
   admin: Admin,
   customerId: string,
   inspectionId: string,
-): Promise<{ data: Report9Data; missing: string[] }> {
+): Promise<{
+  data: Report9Data
+  missing: string[]
+  /** 별지 4호 전용 부가 조립분 — 별지 9호 렌더에는 쓰이지 않는다 (A4-2·A4-1 Q-2) */
+  annex4: { companyRegNo: string; sheetSections: Report4SheetSection[] }
+}> {
   const [inspRes, custRes, bldRes, contactsRes, companyRes, partsRes, plansRes, formsRes, defectsRes] = await Promise.all([
     admin.from('inspections')
       .select('inspection_type, is_initial, inspection_start_date, inspection_end_date, inspection_days, year, assigned_employee_id')
@@ -182,7 +188,8 @@ async function assembleReport9(
         + 'stairs_count, ramp_count')
       .eq('customer_id', customerId).eq('is_active', true).order('created_at', { ascending: true }).limit(1),
     admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
-    admin.from('company_profile').select('company_name, phone').limit(1),
+    // A4-2(소방계획서_15): 관리업 등록번호(management_reg_no, 마이그레이션 123) — 별지4호 2쪽 주입용
+    admin.from('company_profile').select('company_name, phone, management_reg_no').limit(1),
     admin.from('inspection_participants').select('employee_id, role, sort_order')
       .eq('inspection_id', inspectionId).order('sort_order'),
     admin.from('fire_plans').select('id').eq('customer_id', customerId).limit(1),
@@ -216,7 +223,9 @@ async function assembleReport9(
   const b = (bldRes.data?.[0] as BldRow | undefined) ?? null
   const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
-  const company = (companyRes.data?.[0] ?? {}) as { company_name?: string | null; phone?: string | null }
+  const company = (companyRes.data?.[0] ?? {}) as {
+    company_name?: string | null; phone?: string | null; management_reg_no?: string | null
+  }
 
   // 점검인력 — 주된 = 담당 직원(참여자에 '주된' 행이 있으면 우선), 보조 = inspection_participants (워커 동일)
   let parts = (partsRes.data ?? []) as Array<{ employee_id: string; role: string; sort_order: number }>
@@ -235,8 +244,8 @@ async function assembleReport9(
   const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N' }>((from, to) =>
     admin.from('inspection_sheet_responses').select('item_code, result').eq('inspection_id', inspectionId).range(from, to))
   const items = responses.length
-    ? await pageAll<{ item_code: string; item_name: string; sheet_id: string }>((from, to) =>
-      admin.from('inspection_sheet_items').select('item_code, item_name, sheet_id').range(from, to))
+    ? await pageAll<{ item_code: string; item_name: string; sheet_id: string; order_num: number | null }>((from, to) =>
+      admin.from('inspection_sheet_items').select('item_code, item_name, sheet_id, order_num').range(from, to))
     : []
   const sheets = responses.length
     ? ((await admin.from('inspection_sheets').select('id, sheet_name')).data ?? []) as Array<{ id: string; sheet_name: string }>
@@ -268,6 +277,33 @@ async function assembleReport9(
   const specs: SpecMap = {}
   for (const r of specRows.filter(r => r.building_id === null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
   for (const r of specRows.filter(r => r.building_id !== null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
+
+  // Q-2(소방계획서_15 A4-1, 2026-08-11 사용자 확정) — 별지 4호 부속 '설비별 점검표':
+  // 점검번호 체계(1-A-001…) 항목 중 결과가 ○/×인 것만 수록한다.
+  // /(해당없음)·무응답 항목은 생략하고, ○/×가 하나도 없는 설비(시트)는 통째로 미생성.
+  const SHEET_CODE_RE = /^\d{1,2}-[A-Z]-\d{3}$/
+  const resByCode = new Map(responses.map(r => [r.item_code, r.result]))
+  const seenCodes = new Set<string>()
+  const bySheet = new Map<string, { name: string; rows: Array<{ code: string; name: string; order: number; mark: 'O' | 'X' }> }>()
+  for (const it of items) {
+    if (!SHEET_CODE_RE.test(it.item_code) || seenCodes.has(it.item_code)) continue
+    const res = resByCode.get(it.item_code)
+    if (res !== 'O' && res !== 'X') continue
+    seenCodes.add(it.item_code)
+    const g = bySheet.get(it.sheet_id) ?? { name: sheetNameById.get(it.sheet_id) ?? '', rows: [] }
+    g.rows.push({ code: it.item_code, name: it.item_name, order: it.order_num ?? 0, mark: res })
+    bySheet.set(it.sheet_id, g)
+  }
+  const sheetSections: Report4SheetSection[] = [...bySheet.values()]
+    .map(g => {
+      const rows = g.rows.sort((a, b) => (a.order - b.order) || a.code.localeCompare(b.code))
+      return {
+        no: Number(rows[0].code.split('-')[0]),
+        name: g.name,
+        items: rows.map(({ code, name, mark }) => ({ code, name, mark })),
+      }
+    })
+    .sort((a, b) => (a.no - b.no) || a.name.localeCompare(b.name))
 
   // T-3(소방계획서_14_점검업무) — 시트·설비 ↔ FORM3 연결에서 퍼지 매칭 제거.
   // 종전 nameMatch(공백 제거 양방향 includes)는 sheet-facility-map 상단 주석의 두 결함을 문서 생성 경로에 남겨뒀다:
@@ -369,7 +405,7 @@ async function assembleReport9(
     inspPeriod: period,
     inspDays: String(insp.inspection_days ?? (period ? 1 : '')),
     companyName: company.company_name ?? '',
-    companyPhone: company.phone ?? '',
+    companyPhone: formatTel(company.phone),
     consent: cust.email_delivery_consent,
     reportEmail: cust.email_delivery_consent === true ? (cust.report_email ?? '') : '',
     main: mains.length ? toPerson(mains[0].employee_id) : null,
@@ -420,6 +456,12 @@ async function assembleReport9(
     // 계단·경사로 — 1.1 일반현황 입력분(그동안 템플릿에 빈칸 하드코딩되어 미반영, 2026-08-06 연결)
     rampCount: b?.ramp_count ? String(b.ramp_count) : '',
     stairsCount: b?.stairs_count ? String(b.stairs_count) : '',
+    // A9-3(소방계획서_15): 특별피난계단 — 세부제원 3-8 전실(smoke_lobby.stair_count)이 유일 원천
+    specialStairCount: (() => {
+      const lobby = (specs['s38_activity']?.['smoke_lobby'] ?? null) as Record<string, unknown> | null
+      const n = Number(lobby?.['stair_count'])
+      return Number.isFinite(n) && n > 0 ? String(lobby!['stair_count']) : ''
+    })(),
     facilityChecks,
     // 3쪽 하위 체크칸(소화기구 5종)·세부현황 파생(가스계·유도표지·피난유도선)의 원천 — 필터 전 전체 코드
     ledgerCodes: codes,
@@ -447,7 +489,7 @@ async function assembleReport9(
   if (!cust.address) missing.push('주소')
   if (!cust.use_approval_date) missing.push('사용승인일')
   if (!b?.permit_date) missing.push('건축허가일')
-  return { data, missing }
+  return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections } }
 }
 
 /** 별지 4호(소방시설등점검표) 데이터 조립 — H-21. 1·2쪽(대상물·점검결과·MU·인력·기간)은
@@ -458,11 +500,12 @@ async function assembleReport4(
   customerId: string,
   inspectionId: string,
 ): Promise<{ data: Report4Data; missing: string[] }> {
-  const { data: d9, missing: m9 } = await assembleReport9(admin, customerId, inspectionId)
+  const { data: d9, missing: m9, annex4 } = await assembleReport9(admin, customerId, inspectionId)
   const [inspStart = '', inspEnd = ''] = d9.inspPeriod ? d9.inspPeriod.split(' ~ ') : ['', '']
   // 송달 동의·사용승인일·건축허가일은 별지 9호 전용(1~2쪽) — 별지 4호 서식에 없음
   const missing = m9.filter(m => !['송달 동의', '사용승인일', '건축허가일'].includes(m))
   if (Object.keys(d9.specs ?? {}).length === 0) missing.push('설비 세부현황(설비 대장) 미입력 — 3~7쪽 빈 서식')
+  if (!annex4.companyRegNo) missing.push('관리업 등록번호(회사 정보) 미입력')
   const data: Report4Data = {
     ckOp: d9.ckOp, ckInitial: d9.ckInitial, ckCompEtc: d9.ckCompEtc,
     customerName: d9.customerName, purpose: d9.purpose, address: d9.address,
@@ -471,6 +514,8 @@ async function assembleReport4(
     main: d9.main, assistants: d9.assistants,
     inspStart, inspEnd, inspDays: d9.inspDays,
     companyName: d9.companyName,
+    companyRegNo: annex4.companyRegNo,
+    sheetSections: annex4.sheetSections,
     specs: d9.specs ?? {},
   }
   return { data, missing }

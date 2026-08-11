@@ -14,6 +14,7 @@ import {
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
 } from '@/lib/fire-plan-template'
 import { toStandardCodes } from '@/lib/facility-codes'
+import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { convertHtmlToPdf } from '@/lib/pdf'
 import { listCustomerAssets, ASSET_BUCKET } from '@/lib/customer-assets'
 import { PRESET_FILE_KEYS, type PresetType } from '@/lib/fire-plan-presets'
@@ -102,14 +103,21 @@ export async function assembleFirePlan(
       .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date, '
         + 'building_grade, manager_selected_at, insurance_joined, insurance_company, insurance_period, '
         + 'insurance_amount_person, insurance_amount_property, op_hours_weekday, op_hours_holiday, '
-        + 'headcount_worker, headcount_resident, headcount_max')
+        + 'headcount_worker, headcount_resident, headcount_max, '
+        // M-3(소방계획서_15): 1.1 운영현황 확장 3컬럼 — 입력받고도 select 누락으로 본문에 나가지 않던 것
+        + 'rep_role, manager_license_grade, manager_edu_date')
       .eq('id', customerId).single(),
     admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
     admin.from('buildings')
-      .select('id, purpose, total_area, building_area, floors_above, floors_below, height, receiver_location, main_structure, roof_structure')
+      // M-2·M-10(소방계획서_15): 계단·경사로·승강기 3종 — 전부 buildings 컬럼(104)이다.
+      // ⚠ 2026-08-11 교정: 초기 구현이 stairs_count 등을 customers에서 select해 본문 생성이 통째로
+      // 실패했다(컬럼 없음 → cust null → throw). 저장 경로(fire-plan-info-actions)·별지9호 조립 모두 buildings.
+      .select('id, purpose, total_area, building_area, floors_above, floors_below, height, receiver_location, main_structure, roof_structure, '
+        + 'stairs_count, ramp_count, evac_elevator_count, elevator_count, emergency_elevator_count')
       .eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }),
-    admin.from('company_profile').select('company_name, address, phone').limit(1).maybeSingle(),
+    // M-6(소방계획서_15): 대표자·사업자등록번호 추가 — 1.8 표 유실 복구
+    admin.from('company_profile').select('company_name, address, phone, representative, business_number').limit(1).maybeSingle(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
     admin.from('fire_brigade_members').select('team, name, duty, phone').eq('customer_id', customerId).order('sort_order'),
     admin.from('fire_plans').select('year, revision, note, created_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
@@ -127,18 +135,25 @@ export async function assembleFirePlan(
     insurance_amount_person: string | null; insurance_amount_property: string | null
     op_hours_weekday: string | null; op_hours_holiday: string | null
     headcount_worker: number | null; headcount_resident: number | null; headcount_max: number | null
+    rep_role: string | null; manager_license_grade: string | null; manager_edu_date: string | null
   } | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
 
   const contacts = (contactRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0]
-  const buildings = (bldRes.data ?? []) as Array<{
+  // 여러 줄 select 문자열은 PostgREST 타입 파서가 못 읽어 GenericStringError로 추론된다 — unknown 경유 캐스트
+  const buildings = (bldRes.data ?? []) as unknown as Array<{
     id: string; purpose: string | null; total_area: number | null; building_area: number | null
     floors_above: number | null; floors_below: number | null
     height: number | string | null; receiver_location: string | null; main_structure: string | null; roof_structure: string | null
+    stairs_count: number | null; ramp_count: number | null; evac_elevator_count: number | null
+    elevator_count: number | null; emergency_elevator_count: number | null
   }>
   const b = buildings[0]
-  const company = companyRes.data as { company_name: string; address: string | null; phone: string | null } | null
+  const company = companyRes.data as {
+    company_name: string; address: string | null; phone: string | null
+    representative: string | null; business_number: string | null
+  } | null
 
   const rawSections = ((formRes.data as { sections?: Record<string, unknown> } | null)?.sections) ?? {}
   const sections = rawSections as FirePlanFormSections & {
@@ -170,17 +185,25 @@ export async function assembleFirePlan(
   const brigadeRows = (brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>
 
   // 설치 시설 → 서식 1.4 항목 — 표준 코드(100) 정확 일치, 레거시 잔존분은 toStandardCodes로 정규화
+  // M-4(소방계획서_15): 항목별 비고(detail.note)도 함께 조회 — 설치 여부와 무관하게 비고가 있으면 인쇄
   let facilities: string[] = []
   let facCodes: string[] = []
+  const facilityNotes: Array<{ name: string; note: string }> = []
   if (buildings.length > 0) {
     const { data: facRaw } = await admin.from('fire_facilities')
-      .select('facility_code, installed')
+      .select('facility_code, installed, detail')
       .in('building_id', buildings.map(x => x.id))
-      .eq('installed', true)
-    facCodes = ((facRaw ?? []) as Array<{ facility_code: string }>).map(fc => fc.facility_code)
+    const facRows = (facRaw ?? []) as Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>
+    facCodes = facRows.filter(fc => fc.installed).map(fc => fc.facility_code)
     const codes = toStandardCodes(facCodes)
     const allItems = new Set(FACILITY_FORM.flatMap(g => g.items))
     facilities = codes.filter(c => allItems.has(c))
+    for (const fc of facRows) {
+      const note = fc.detail?.note?.trim()
+      if (!note) continue
+      const name = toStandardCodes([fc.facility_code])[0] ?? fc.facility_code
+      if (!facilityNotes.some(n => n.name === name && n.note === note)) facilityNotes.push({ name, note })
+    }
   }
 
   // 자체점검 시기 — 점검계획일 기준: 종합 고객은 종합=기준월·작동=+6개월, 작동 고객은 작동=기준월
@@ -193,6 +216,8 @@ export async function assembleFirePlan(
   const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const floors = b ? `지하 ${b.floors_below ?? 0}층 / 지상 ${b.floors_above ?? 0}층` : ''
   const n = (x: number | null | undefined) => x != null ? String(x) : ''
+  // 개수 표기 — 0·미입력은 빈 문자열(체크·개소 표기 안 함, 허위 ■ 방지)
+  const nz = (x: number | null | undefined) => x != null && x > 0 ? String(x) : ''
 
   const photos = (sections.photos ?? []).filter((p): p is { path: string; kind: string; caption: string } => !!p.path)
 
@@ -228,9 +253,25 @@ export async function assembleFirePlan(
     stationDistance: '',
     stationEta: '',
     facilities,
+    facilityNotes,                                    // M-4: 1.4 항목별 비고
+    // M-2·M-10: 1.1 시설현황 확장 — 계단·경사로 개소, 승강기 3종 대수 (전부 buildings 원천)
+    stairsCount: nz(b?.stairs_count),
+    rampCount: nz(b?.ramp_count),
+    elevators: {
+      passenger: nz(b?.elevator_count),
+      emergency: nz(b?.emergency_elevator_count),
+      evac: nz(b?.evac_elevator_count),
+    },
+    // M-3: 1.1 운영현황 확장 — 대표자 구분·자격구분·강습교육 수료일(1.7 폴백 행)
+    repRole: cust.rep_role ?? '',
+    managerGrade: cust.manager_license_grade ?? '',
+    managerEduDate: cust.manager_edu_date ?? '',
     companyName: company?.company_name ?? '',
     companyAddress: company?.address ?? '',
-    companyPhone: company?.phone ?? '',
+    companyPhone: formatTel(company?.phone),
+    // M-6: 1.8 대행업체 대표자·사업자등록번호
+    companyRep: company?.representative ?? '',
+    companyBizNo: formatBizNo(company?.business_number),
     contractStart: cust.contract_date ?? '',
     inspectionCycle: '매월 1회',
     operationMonth,
@@ -268,6 +309,17 @@ export async function assembleFirePlan(
         { place: '주방', location: '', factors: ['부주의', '가스누출(폭발)'] },
         { place: '전기실', location: '', factors: ['전기적 요인'] },
       ],
+    // Q-1(M-15, 2026-08-11 사용자 확정): 폴백 인쇄는 유지하되 자동 채움 구획을 미리보기에 표시
+    autoFilled: (() => {
+      const keys: NonNullable<FirePlanGenData['autoFilled']> = []
+      if (brigadeRows.length === 0) keys.push('brigade')
+      if ((sections.evacPlan?.routes?.length ?? 0) === 0) keys.push('evacRoutes')
+      if (!sections.evacPlan?.assembly) keys.push('assembly')
+      if (!sections.evacPlan?.procedure) keys.push('evacNote')
+      if ((sections.zones?.length ?? 0) === 0) keys.push('zones')
+      if ((sections.hazards?.length ?? 0) === 0) keys.push('hazards')
+      return keys
+    })(),
     revisions,
     photos: photos as PlanPhoto[],
     ops: {

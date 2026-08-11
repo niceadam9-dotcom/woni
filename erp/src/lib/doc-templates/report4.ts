@@ -12,6 +12,10 @@ import { renderDocument, pageHeader, pageFooter, esc, val, ck } from './base'
 import { facilityResultSection, muResultSection, type Report9Person } from './report9'
 import { renderSpecSections, type SpecMap } from './spec-sections'
 
+/** 부속 '설비별 점검표' 1행 — 점검번호(1-A-001…) 항목 중 ○/× 응답만 (A4-1 Q-2, 2026-08-11 확정) */
+export type Report4SheetItem = { code: string; name: string; mark: 'O' | 'X' }
+export type Report4SheetSection = { no: number; name: string; items: Report4SheetItem[] }
+
 export type Report4Data = {
   // ── 1쪽 ──
   ckOp: boolean               // 작동점검
@@ -29,7 +33,11 @@ export type Report4Data = {
   inspStart: string                              // 점검기간 시작 (예: 2026년 8월 1일)
   inspEnd: string
   inspDays: string
-  companyName: string                            // 소방시설관리업체 (등록번호는 수기)
+  companyName: string                            // 소방시설관리업체
+  /** A4-2(소방계획서_15): 소방시설관리업 등록번호 — company_profile.management_reg_no(123), 없으면 종전 공란 */
+  companyRegNo?: string
+  /** 부속 설비별 점검표 — ○/× 응답 항목만, 비면 부속 쪽 자체를 미생성 (A4-1 Q-2) */
+  sheetSections?: Report4SheetSection[]
   // ── 3~7쪽 ──
   specs: SpecMap                                 // customer_facility_specs 병합본
   ledgerCodes?: string[]                         // 1.4 설치(√) 코드 전체 — 1쪽 하위 체크칸·세부현황 파생용
@@ -99,7 +107,7 @@ ${muResultSection(d)}
 </table>
 <table class="form tight" style="margin-top:-0.6pt">
   <tr>
-    <td class="pre">점검기간(일자): ${dateSlot(d.inspStart)}부터 ${dateSlot(d.inspEnd)} 까지 (총 점검일수: ${val(d.inspDays, { highlight: h }) || '      '} 일)<br>                             소방시설관리업체(등록번호): ${val(d.companyName, { highlight: h })}                     (제    -    호)    (인)</td>
+    <td class="pre">점검기간(일자): ${dateSlot(d.inspStart)}부터 ${dateSlot(d.inspEnd)} 까지 (총 점검일수: ${val(d.inspDays, { highlight: h }) || '      '} 일)<br>                             소방시설관리업체(등록번호): ${val(d.companyName, { highlight: h })}                     (${d.companyRegNo ? `제 ${esc(d.companyRegNo)} 호` : '제    -    호'})    (인)</td>
   </tr>
 </table>
 <div class="sec-title">□ 점검번호 구분</div>
@@ -143,7 +151,28 @@ ${head}${sections.join('\n')}
 ${pageFooter()}`
 }
 
-/** 별지 4호 — 소방시설등점검표 (7쪽) */
+// ── 부속 — 설비별 점검표 (A4-1 Q-2, 2026-08-11 사용자 확정) ────────────────
+// 점검번호(1-A-001…) 항목 중 점검결과 ○/×만 수록. /(해당없음)·무응답 항목은 생략,
+// ○/×가 하나도 없으면 부속 쪽 자체를 만들지 않는다. 내용이 A4를 넘으면 인쇄 흐름 분할.
+function sheetItemPages(sections: Report4SheetSection[]): string[] {
+  if (!sections.length) return []
+  const body = sections.map(s => `
+  <tr><td colspan="3" style="background:#f2f2f2; font-weight:bold">${s.no ? `${s.no}. ` : ''}${esc(s.name)}</td></tr>
+  ${s.items.map(it => `<tr><td class="center nowrap">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="center">${it.mark === 'O' ? '○' : '×'}</td></tr>`).join('\n  ')}`).join('\n')
+  return [`
+${pageHeader(null, '(설비별 점검표)')}
+<h1 class="doc-title" style="font-size:13pt; letter-spacing:.1em; margin:4px 0 6px;">설비별 점검표</h1>
+<div class="small">※ 점검결과가 양호(○) 또는 불량(×)으로 기록된 점검항목만 수록하였으며, 해당없음(／)·미점검 항목은 생략하였습니다.</div>
+<table class="form tight">
+  <colgroup><col style="width:24mm"><col><col style="width:16mm"></colgroup>
+  <thead><tr><th>점검번호</th><th>점검항목</th><th>점검결과</th></tr></thead>
+  <tbody>${body}
+  </tbody>
+</table>
+${pageFooter()}`]
+}
+
+/** 별지 4호 — 소방시설등점검표 (7쪽 + 부속 설비별 점검표) */
 export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): string {
   const h = !!opts.highlight
   const secs = renderSpecSections(d.specs ?? {}, {
@@ -158,6 +187,7 @@ export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): str
       specPage(3, secs.slice(0, 2), true), specPage(4, secs.slice(2, 3)),
       specPage(5, secs.slice(3, 5)), specPage(6, secs.slice(5, 7)),
       specPage(7, secs.slice(7)),
+      ...sheetItemPages(d.sheetSections ?? []),
     ],
   })
 }

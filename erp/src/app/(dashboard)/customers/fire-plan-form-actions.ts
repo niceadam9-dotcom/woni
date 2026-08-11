@@ -54,6 +54,7 @@ const FORM_SECTION_KEYS = new Set([
   'dutyLog', // 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리)
   'fireworkLog', 'constructionLog', 'promoLog', 'recoveryLog', // 1.12~1.15 (§12-3 결정: v1 포함)
   'reportCover', // 보고서 커버 — 생성 문서 마지막 페이지 업체명·연도 (2026-08-10)
+  'emergencyContact', // M-18(소방계획서_15): 선임·자위대 비상연락체계 텍스트 — 서식 2.2 아래 인쇄 (2026-08-11)
 ])
 
 export async function saveFirePlanSectionsAction(

@@ -4,6 +4,7 @@ import { ChevronLeft, UserCheck, ClipboardList, History } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listFireStationCandidates } from '@/lib/fire-station'
+import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
@@ -332,6 +333,7 @@ export default async function CustomerDetailPage({
     dutyLog?: DutyLogRow[]
     fireworkLog?: LogRow[]; constructionLog?: LogRow[]; promoLog?: LogRow[]; recoveryLog?: LogRow[]
     reportCover?: ReportCoverSection
+    emergencyContact?: string  // M-18(소방계획서_15): 비상연락체계 텍스트
   } } | null)?.sections) ?? {}
 
   // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
@@ -652,14 +654,15 @@ export default async function CustomerDetailPage({
         initial={fpSections.etcFacility ?? EMPTY_ETC_FACILITY} />}
       form17={<PlanForm17 customerId={customer.id} canManage={canManage}
         initialRows={fpSections.managers ?? []}
+        initialEmergency={fpSections.emergencyContact ?? ''}
         autoRow={{ name: repContact?.name ?? '', selectedAt: planInfoInitial.managerSelectedAt }} />}
       form18={<PlanForm18 data={{
         company: companyRow ? {
           name: s((companyRow as Record<string, unknown>).company_name),
           representative: s((companyRow as Record<string, unknown>).representative),
-          bizNo: s((companyRow as Record<string, unknown>).business_number),
+          bizNo: formatBizNo(s((companyRow as Record<string, unknown>).business_number)),
           address: s((companyRow as Record<string, unknown>).address),
-          phone: s((companyRow as Record<string, unknown>).phone),
+          phone: formatTel(s((companyRow as Record<string, unknown>).phone)),
         } : null,
         contractDate: s(cRec.contract_date) || null,
         grade: s(cRec.building_grade) || null,

@@ -68,6 +68,8 @@ export type FirePlanFormSections = {
   promoLog?: LogRow[]
   recoveryLog?: LogRow[]
   reportCover?: { company?: string; year?: string; sub?: string }  // 보고서 커버 (마지막 페이지, 2026-08-10)
+  /** M-18(소방계획서_15, 2026-08-11 보강 확정): 선임·자위대 비상연락체계 — 서식 2.2 편성표 아래 인쇄 */
+  emergencyContact?: string
 }
 
 /** 서식 1.1 운영현황·화재보험 (고객 마스터 — 워커 build_stage2 병합 항목의 TS 이식) */
@@ -114,6 +116,21 @@ export type FirePlanGenData = {
   stationEta: string            // 분
   // 서식 1.4 — 설치된 소방시설명 목록 (체크 표시용)
   facilities: string[]
+  /** M-4(소방계획서_15): 1.4 항목별 비고 — 설비 대장 detail.note */
+  facilityNotes?: Array<{ name: string; note: string }>
+  // ── M-2·M-3·M-10(소방계획서_15): 1.1 확장 — 없으면 종전 렌더(하위 호환) ──
+  stairsCount?: string          // 계단 개소 (0·미입력은 '')
+  rampCount?: string            // 경사로 개소
+  elevators?: { passenger: string; emergency: string; evac: string }  // 승용·비상용·피난용 대수
+  repRole?: string              // 대표자 구분 (소유자/관리자/점유자)
+  managerGrade?: string         // 소방안전관리자 자격구분 (특급~3급)
+  managerEduDate?: string       // 최근 강습교육 수료일 — 1.7 자동 폴백 행
+  // M-6(소방계획서_15): 1.8 대행업체 대표자·사업자등록번호
+  companyRep?: string
+  companyBizNo?: string
+  /** Q-1(M-15, 2026-08-11 사용자 확정): 조립 폴백으로 자동 채움된 구획 목록 —
+   *  화면 미리보기에서만 노랗게 표시(@media screen), Gotenberg PDF(인쇄 매체)에는 나타나지 않는다 */
+  autoFilled?: AutofillKey[]
   // 서식 1.8 업무대행 (관리업체)
   companyName: string
   companyAddress: string
@@ -198,6 +215,17 @@ type ImgRef = { file: string; kind: string; caption: string }
 
 /** images: 생성 시 Gotenberg 멀티파트로 첨부되는 파일명 목록
  *  kind: cover(표지)·map(위치도)·building(전경)·route(진입경로)·evacmap(구획 현황도)·evacuation(피난경로도)·etc */
+/** Q-1(M-15): 자동 채움 구획 키 — 조립(assembleFirePlan)의 폴백 지점과 1:1 */
+export type AutofillKey = 'brigade' | 'evacRoutes' | 'assembly' | 'evacNote' | 'zones' | 'hazards'
+export const AUTOFILL_LABELS: Record<AutofillKey, string> = {
+  brigade: '자위소방대 편성(2.2 기본 5행)',
+  evacRoutes: '피난경로(3.4 전층·직통계단)',
+  assembly: '집결지(3.4 1층 주차장)',
+  evacNote: '피난유도 절차(3.4 기본 문구)',
+  zones: '소화·경보 구역(1.2.1 전층)',
+  hazards: '화재위험요소(1.2.2 프리셋 3개소)',
+}
+
 export function buildFirePlanHtml(
   d: FirePlanGenData,
   images: ImgRef[] = [],
@@ -207,6 +235,10 @@ export function buildFirePlanHtml(
   const f = d.forms ?? {}
   const ops = d.ops
 
+  // Q-1(M-15): 자동 채움 구획의 <tr>에 표시 클래스 부여 — 화면 미리보기 전용(CSS @media screen)
+  const af = (k: AutofillKey) => d.autoFilled?.includes(k) ? ' class="autofill"' : ''
+  const afc = (k: AutofillKey) => d.autoFilled?.includes(k) ? ' autofill' : ''
+
   const imgsOf = (kind: string) => images.filter(i => i.kind === kind)
   const imgBlock = (list: Array<{ file: string; caption: string }>, maxH = 300) =>
     list.map(i => `<figure style="margin:6px 0;text-align:center;page-break-inside:avoid">
@@ -215,10 +247,10 @@ export function buildFirePlanHtml(
     </figure>`).join('')
 
   const zoneRows = (d.zones.length ? d.zones : [{ zone: '', name: '', area: '', weekday: '', holiday: '', managerCo: '', contact: '' }])
-    .map(z => `<tr><td>${v(z.zone)}</td><td class="l">${v(z.name)}</td><td>${v(z.area)}</td><td>${v(z.weekday)}</td><td>${v(z.holiday)}</td><td>${v(z.managerCo)}</td><td>${v(z.contact)}</td></tr>`).join('')
+    .map(z => `<tr${af('zones')}><td>${v(z.zone)}</td><td class="l">${v(z.name)}</td><td>${v(z.area)}</td><td>${v(z.weekday)}</td><td>${v(z.holiday)}</td><td>${v(z.managerCo)}</td><td>${v(z.contact)}</td></tr>`).join('')
 
   const hazardRows = (d.hazards.length ? d.hazards : [{ place: '', location: '', factors: [] as string[] }])
-    .map(h => `<tr><td>${v(h.place)}</td><td class="l">${v(h.location)}</td>
+    .map(h => `<tr${af('hazards')}><td>${v(h.place)}</td><td class="l">${v(h.location)}</td>
       <td class="l"><div class="ckgrid">${HAZARD_FACTORS.map(fa => ck(h.factors.includes(fa), fa)).join('')}</div></td></tr>`).join('')
 
   const facilityRows = FACILITY_FORM.map(g => `
@@ -231,10 +263,10 @@ export function buildFirePlanHtml(
   const drillMonths = f.training?.drillMonths?.length ? f.training.drillMonths : d.trainingMonth != null ? [d.trainingMonth] : []
 
   const brigadeRows = (d.brigade.length ? d.brigade : [{ team: '', name: '', duty: '', phone: '' }])
-    .map(b => `<tr><td>${v(b.team)}</td><td>${v(b.name)}</td><td class="l">${v(b.duty)}</td><td>${v(b.phone)}</td></tr>`).join('')
+    .map(b => `<tr${af('brigade')}><td>${v(b.team)}</td><td>${v(b.name)}</td><td class="l">${v(b.duty)}</td><td>${v(b.phone)}</td></tr>`).join('')
 
   const evacRows = (d.evacRoutes.length ? d.evacRoutes : [{ floor: '', route: '', guide: '', equip: '' }])
-    .map(r => `<tr><td>${v(r.floor)}</td><td class="l">${v(r.route)}</td><td>${v(r.guide)}</td><td>${v(r.equip)}</td></tr>`).join('')
+    .map(r => `<tr${af('evacRoutes')}><td>${v(r.floor)}</td><td class="l">${v(r.route)}</td><td>${v(r.guide)}</td><td>${v(r.equip)}</td></tr>`).join('')
 
   // ── 1.1 운영현황·화재보험 (ops 없으면 v1과 동일 빈 체크) ──
   const opsRow = ops
@@ -277,8 +309,18 @@ export function buildFirePlanHtml(
 
   // ── 1.11 ──
   const tr = f.training
+  // M-19(소방계획서_15): 종류·형태 구조화 표기 — 구조화 값 우선, 없으면 레거시 자유 텍스트(kind·form)
+  const detailKind = (r: NonNullable<NonNullable<typeof tr>['details']>[number]) => {
+    const parts = [r.kindPractice ? `실습(${r.kindPractice})` : '', r.kindTheory ? `이론(${r.kindTheory})` : ''].filter(Boolean)
+    return parts.length ? parts.join('·') : r.kind
+  }
+  const detailForm = (r: NonNullable<NonNullable<typeof tr>['details']>[number]) => {
+    const ft = r.formType || (r.form === '자체' || r.form === '합동' ? r.form : '')
+    if (!ft) return r.form
+    return ft === '합동' ? `합동${r.formPartner?.trim() ? `(${r.formPartner})` : ''}` : '자체'
+  }
   const detailRows = (tr?.details ?? []).map(r =>
-    `<tr><td>${v(r.name)}</td><td>${v(r.at)}</td><td>${v(r.place)}</td><td>${v(r.target)}</td><td>${v(r.kind)}</td><td>${v(r.form)}</td><td class="l">${v(r.materials)}</td><td class="l">${v(r.plan)}</td></tr>`).join('')
+    `<tr><td>${v(r.name)}</td><td>${v(r.at)}</td><td>${v(r.place)}</td><td>${v(r.target)}</td><td>${v(detailKind(r))}</td><td>${v(detailForm(r))}</td><td class="l">${v(r.materials)}</td><td class="l">${v(r.plan)}</td></tr>`).join('')
   const recordRows = pad(tr?.records ?? [], 3, { at: '', kind: '', attendees: '', content: '', evaluation: '' })
     .map(r => `<tr><td>${v(r.at)}</td><td>${v(r.kind)}</td><td>${v(r.attendees)}</td><td class="l">${v(r.content)}</td><td class="l">${v(r.evaluation)}</td></tr>`).join('')
 
@@ -344,7 +386,18 @@ export function buildFirePlanHtml(
   td.c { width: 22px; padding: 3px 0; }
   .small { font-size: 9.5px; }
   .slotbox { border: 1.5px dashed #999; border-radius: 6px; padding: 26px 10px; text-align: center; color: #666; font-size: 10px; margin: 8px 0; }
+  /* Q-1(M-15): 자동 채움 표시 — 화면 미리보기 전용. Gotenberg PDF는 인쇄 매체라 @media screen 미적용 */
+  .autofill-banner { display: none; }
+  @media screen {
+    .autofill { background: #fff7cc; box-shadow: inset 0 0 0 1px #e0c26a; }
+    .autofill-banner { display: block; background: #fff7cc; border: 1px solid #e0c26a; border-radius: 6px;
+      padding: 8px 12px; margin: 10px 0; font-size: 11px; color: #6b5900; }
+  }
 </style></head><body>
+${(d.autoFilled?.length ?? 0) > 0
+    ? `<div class="autofill-banner">⚠ 자동 채움(미입력 폴백): ${d.autoFilled!.map(k => AUTOFILL_LABELS[k]).join(', ')}
+ — 노란 표시는 화면 미리보기 전용이며 PDF·인쇄물에는 나타나지 않습니다. 실제 값은 소방계획서 탭 해당 서식에서 입력하세요.</div>`
+    : ''}
 
 <!-- 표지 -->
 <div class="page cover">
@@ -373,14 +426,15 @@ export function buildFirePlanHtml(
   <table>
     <tr><th style="width:80px">명칭</th><td colspan="3" class="l">${v(d.buildingName)}</td></tr>
     <tr><th>도로명주소</th><td colspan="3" class="l">${v(d.address)}</td></tr>
-    <tr><th>연락처</th><td class="l">대표자(책임자): ${v(d.ownerName)} / ${v(d.ownerPhone)}</td>
-        <td colspan="2" class="l">소방안전관리자: ${v(d.managerName)} / ${v(d.managerPhone)}</td></tr>
+    <tr><th>연락처</th><td class="l">대표자(책임자): ${v(d.ownerName)}${d.repRole ? ` [${esc(d.repRole)}]` : ''} / ${v(d.ownerPhone)}</td>
+        <td colspan="2" class="l">소방안전관리자: ${v(d.managerName)}${d.managerGrade ? ` (${esc(d.managerGrade)})` : ''} / ${v(d.managerPhone)}</td></tr>
     <tr><th rowspan="5">시설현황</th><td class="l">수신기위치: ${v(d.receiverLocation)}</td>
         <td colspan="2" class="l">대상물 급수: ${GRADES.map(g => ck(d.grade === g, g)).join(' ')}</td></tr>
     <tr><td class="l">주용도: ${v(d.purpose)}</td><td class="l">사용승인일: ${v(d.useApprovalDate)}</td><td class="l">연면적: ${v(d.totalArea, ' ㎡')}</td></tr>
     <tr><td class="l">건축면적: ${v(d.buildingArea, ' ㎡')}</td><td class="l">층수: ${v(d.floors)}</td><td class="l">높이: ${v(d.height, ' m')}</td></tr>
     <tr><td class="l">구조: ${v(d.structure)}</td><td colspan="2" class="l">지붕: ${v(d.roof)}</td></tr>
-    <tr><td colspan="3" class="l">승강기: ☐ 승용 ☐ 비상용 ☐ 피난용 &nbsp;/&nbsp; 계단: ${stairKinds.map(k => ck(!!ef?.stairs?.[k], k)).join(' ')}</td></tr>
+    ${/* M-2·M-10(소방계획서_15): 승강기 3종은 건물·고객 원천 연결(대수 병기), 계단·경사로 개소 병기 — 값 없으면 종전 ☐/미표기 */''}
+    <tr><td colspan="3" class="l">승강기: ${ck(!!d.elevators?.passenger, '승용')}${d.elevators?.passenger ? `(${esc(d.elevators.passenger)}대)` : ''} ${ck(!!d.elevators?.emergency, '비상용')}${d.elevators?.emergency ? `(${esc(d.elevators.emergency)}대)` : ''} ${ck(!!d.elevators?.evac, '피난용')}${d.elevators?.evac ? `(${esc(d.elevators.evac)}대)` : ''} &nbsp;/&nbsp; 계단: ${stairKinds.map(k => ck(!!ef?.stairs?.[k], k)).join(' ')}${d.stairsCount ? ` (${esc(d.stairsCount)}개소)` : ''}${d.rampCount ? ` / 경사로 ${esc(d.rampCount)}개소` : ''}</td></tr>
     <tr><th>운영현황</th><td colspan="3" class="l">${opsRow}</td></tr>
     <tr><th>업무대행</th><td colspan="3" class="l">■ 해당 [서식1.8] 작성 &nbsp; ☐ 해당없음</td></tr>
     <tr><th>화재보험<br><span class="small">(관계인 기록)</span></th><td colspan="3" class="l">${insRow}</td></tr>
@@ -435,6 +489,9 @@ export function buildFirePlanHtml(
   <p class="formno">서식 1.4</p><h3 style="display:inline;margin-left:8px">소방시설 현황</h3>
   <p class="note">■ 대상명 : ${esc(d.buildingName)} &nbsp;&nbsp; ※ □에는 해당되는 곳에 √표를 합니다.</p>
   <table>${facilityRows}</table>
+  ${(d.facilityNotes?.length ?? 0) > 0
+    ? `<p class="note">※ 항목별 비고: ${d.facilityNotes!.map(fn => `${esc(fn.name)} — ${esc(fn.note)}`).join(' &nbsp;/&nbsp; ')}</p>`
+    : ''}
   <p class="note">※ 비고 1. 각 소방시설 설치장소·규격 등은 소방시설 자체점검표 참조 &nbsp; 2. 건물군 관리 시 대상물별 추가 작성</p>
 
   <p class="formno">서식 1.7</p><h3 style="display:inline;margin-left:8px">소방안전관리(보조)자 등 선임현황</h3>
@@ -442,13 +499,15 @@ export function buildFirePlanHtml(
     <tr><th>구분</th><th>소속</th><th>선임자 성명</th><th>선임일자</th><th style="width:76px">강습교육<br>수료일</th><th>담당업무</th></tr>
     ${(f.managers?.length ?? 0) > 0
       ? f.managers!.map(m => `<tr><td>${v(m.role)}</td><td>${v(m.affiliation)}</td><td>${v(m.name)}</td><td>${v(m.selectedAt)}</td><td>${v(m.eduAt)}</td><td class="l small">${v(m.duty)}</td></tr>`).join('')
-      : `<tr><td>소방안전관리자</td><td>${v(d.buildingName)}</td><td>${v(d.managerName)}</td><td>${v(d.managerSelectedAt)}</td><td></td><td class="l small">소방안전관리자의 업무</td></tr>`}
+      : `<tr><td>소방안전관리자</td><td>${v(d.buildingName)}</td><td>${v(d.managerName)}</td><td>${v(d.managerSelectedAt)}</td><td>${v(d.managerEduDate)}</td><td class="l small">소방안전관리자의 업무</td></tr>`}
   </table>
 
   <p class="formno">서식 1.8</p><h3 style="display:inline;margin-left:8px">업무대행 현황</h3>
   <table>
     <tr><th style="width:90px">대행여부</th><td class="l" colspan="3">■ 해당 (${GRADES.map(g => ck(d.grade === g, g)).join(' ')})</td></tr>
     <tr><th>업 체 명</th><td class="l">${v(d.companyName)}</td><th style="width:90px">연락처</th><td class="l">${v(d.companyPhone)}</td></tr>
+    ${/* M-6(소방계획서_15): 대표자·사업자등록번호 — ERP 회사 정보에 있던 값이 유실되던 결함 복구 */''}
+    <tr><th>대 표 자</th><td class="l">${v(d.companyRep)}</td><th>사업자등록번호</th><td class="l">${v(d.companyBizNo)}</td></tr>
     <tr><th>업체주소</th><td class="l" colspan="3">${v(d.companyAddress)}</td></tr>
     <tr><th>계약기간</th><td class="l">${v(d.contractStart)} ~</td><th>점검주기</th><td class="l">${v(d.inspectionCycle)}</td></tr>
     <tr><th>계약범위</th><td class="l" colspan="3">소방시설</td></tr>
@@ -490,14 +549,24 @@ export function buildFirePlanHtml(
         <td class="l">수전용량: ${v(etc?.electric?.kw, ' kW')}</td>
         <td class="l">변압기용량: ${v(etc?.electric?.kva, ' kVA')}</td>
         <td class="l">위치: ${v(etc?.electric?.location)}</td></tr>
+    ${/* M-17(소방계획서_15): 비상발전기 용량·위치·수량 구조화 인쇄 — 구조화 값 우선, 없으면 레거시 자유 텍스트 */''}
     <tr><td class="l">수량: ${v(etc?.electric?.qty)}</td>
-        <td class="l">비상발전기: ${ck(!!etc?.electric?.generator, '설치')}${etc?.electric?.generatorNote?.trim() ? ` (${esc(etc.electric.generatorNote)})` : ''}</td>
+        <td class="l">비상발전기: ${ck(!!etc?.electric?.generator, '설치')}${(() => {
+          const e6 = etc?.electric
+          const parts = [
+            e6?.genKw?.trim() ? `${esc(e6.genKw)}kW` : '',
+            e6?.genLocation?.trim() ? `위치 ${esc(e6.genLocation)}` : '',
+            e6?.genQty?.trim() ? `${esc(e6.genQty)}대` : '',
+          ].filter(Boolean)
+          if (parts.length) return ` (${parts.join(' · ')})${e6?.generatorNote?.trim() ? ` — ${esc(e6.generatorNote)}` : ''}`
+          return e6?.generatorNote?.trim() ? ` (${esc(e6.generatorNote)})` : ''
+        })()}</td>
         <td class="l">비고: ${v(etc?.electric?.note)}</td></tr>
     <tr><th rowspan="2">가스</th>
         <td class="l">종류: ${v(etc?.gas?.kind)}</td>
         <td class="l">위치: ${v(etc?.gas?.location)}</td>
         <td class="l">용도: ${v(etc?.gas?.usage)}</td></tr>
-    <tr><td class="l">정압기: ${ck(!!etc?.gas?.regulator, '있음')}</td>
+    <tr><td class="l">정압기: ${ck(!!etc?.gas?.regulator, '있음')}${etc?.gas?.regulatorLocation?.trim() ? ` — 위치: ${esc(etc.gas.regulatorLocation)}` : ''}</td>
         <td class="l" colspan="2">차단밸브: ${ck(!!etc?.gas?.shutoff, '있음')}${etc?.gas?.shutoffLocation?.trim() ? ` — 위치: ${esc(etc.gas.shutoffLocation)}` : ''}</td></tr>
     <tr><th>위험물</th><td class="l" colspan="3">${ck(!!etc?.hazmat?.none, '해당없음')}${etc?.hazmat?.note?.trim() ? ` — ${esc(etc.hazmat.note)}` : ''}</td></tr>
   </table>
@@ -532,8 +601,19 @@ export function buildFirePlanHtml(
     ${mu?.applicable ? `
     <tr><th>사업장명</th><td class="l">${v(mu.bizName)}</td><th style="width:90px">업종(개소)</th><td class="l">${v(muCats)}</td></tr>
     <tr><th>위치</th><td class="l">${v(mu.location)}</td><th>영업주</th><td class="l">${v(mu.owner)}</td></tr>
-    <tr><th>연락처</th><td class="l">${v(mu.phone)}</td><th>영업시간</th><td class="l">${v(mu.hours)}</td></tr>
-    <tr><th>이용객 수</th><td class="l">${v(mu.users)}</td><th>수용인원</th><td class="l">${v(mu.capacity)}</td></tr>` : ''}
+    ${/* M-16(소방계획서_15): 영업시간 평일/휴일×주간/야간 세분 + 이용자 유형 체크 — 구조화 값 우선, 자유 텍스트는 폴백·병기 */''}
+    <tr><th>연락처</th><td class="l">${v(mu.phone)}</td><th>영업시간</th><td class="l">${(() => {
+      const hd = mu.hoursDetail
+      if (hd && (hd.wkDay || hd.wkNight || hd.holDay || hd.holNight)) {
+        const seg = (label: string, day: string, night: string) =>
+          (day || night) ? `${label} ${ck(!!day, '주간')}${day ? `(${esc(day)})` : ''} ${ck(!!night, '야간')}${night ? `(${esc(night)})` : ''}` : ''
+        return [seg('평일', hd.wkDay, hd.wkNight), seg('휴일', hd.holDay, hd.holNight)].filter(Boolean).join(' / ')
+      }
+      return v(mu.hours)
+    })()}</td></tr>
+    <tr><th>이용자</th><td class="l">${(mu.userTypes?.length || mu.users.trim())
+      ? `${['노유자', '주취자', '청소년', '신체부자유자'].map(t => ck((mu.userTypes ?? []).includes(t), t)).join(' ')}${mu.users.trim() ? ` — ${esc(mu.users)}` : ''}`
+      : v(mu.users)}</td><th>수용인원</th><td class="l">${v(mu.capacity)}</td></tr>` : ''}
   </table>
 
   <h3>1.10.4 화재/비화재보 이력</h3>
@@ -636,6 +716,10 @@ export function buildFirePlanHtml(
     <tr><th style="width:110px">구분</th><th style="width:90px">성명</th><th>개별임무</th><th style="width:110px">비상연락체계</th></tr>
     ${brigadeRows}
   </table>
+  ${/* M-18(소방계획서_15): 비상연락체계 텍스트 — 서식 1.7 카드에서 입력(sections.emergencyContact) */''}
+  ${f.emergencyContact?.trim() ? `<table class="small">
+    <tr><th style="width:110px">비상연락체계</th><td class="l" style="white-space:pre-wrap">${esc(f.emergencyContact)}</td></tr>
+  </table>` : ''}
   <h3>초기대응 개요</h3>
   <table class="small">
     <tr><th style="width:130px">초기소화 방법</th><td class="l">${v(teamTextOr(f.brigadeTeams, 'extinguish', '소화기를 이용하여 초기 진압 실시'))}</td></tr>
@@ -683,7 +767,7 @@ export function buildFirePlanHtml(
   <h3>1. 피난유도 절차</h3>
   <table>
     <tr><th style="width:90px">비화재보</th><td class="l">피난 실시 및 1층 주차장 대기 후 오동작 각 세대 전파</td></tr>
-    <tr><th>화재 시</th><td class="l">${v(d.evacNote)}</td></tr>
+    <tr><th>화재 시</th><td class="l${afc('evacNote')}">${v(d.evacNote)}</td></tr>
     <tr><th>대피방법</th><td class="l">2층 화재 초기에 1층 출입문으로 대피 및 피난 늦은 자는 옥상으로 대피</td></tr>
   </table>
   <h3>2. 피난경로</h3>
@@ -693,7 +777,7 @@ export function buildFirePlanHtml(
   </table>
   <h3>3. 집결지</h3>
   <table>
-    <tr><th style="width:90px">장소</th><td class="l">${v(d.assembly)}</td></tr>
+    <tr><th style="width:90px">장소</th><td class="l${afc('assembly')}">${v(d.assembly)}</td></tr>
   </table>
   <h3>피난경로도(피난안내도)</h3>
   ${evacImgs.length ? imgBlock(evacImgs, 320) : slotPlaceholder('피난안내도·평면도')}

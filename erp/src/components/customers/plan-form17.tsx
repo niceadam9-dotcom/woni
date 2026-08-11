@@ -12,16 +12,19 @@ import { DateInput } from '@/components/ui/date-input'
 
 export type ManagerRow = { role: string; affiliation: string; name: string; selectedAt: string; eduAt: string; duty: string }
 
-export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
+export function PlanForm17({ customerId, canManage, initialRows, initialEmergency = '', autoRow }: {
   customerId: string
   canManage: boolean
   initialRows: ManagerRow[]
+  /** M-18(소방계획서_15): 비상연락체계 텍스트(sections.emergencyContact) — 서식 2.2 아래 인쇄 */
+  initialEmergency?: string
   autoRow: { name: string; selectedAt: string } // 고객 관리자 자동값
 }) {
   const router = useRouter()
   const [rows, setRows] = useState<ManagerRow[]>(initialRows.length > 0 ? initialRows : [{
     role: '관리자', affiliation: '', name: autoRow.name, selectedAt: autoRow.selectedAt, eduAt: '', duty: '소방안전관리 업무 총괄',
   }])
+  const [emergency, setEmergency] = useState(initialEmergency)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
@@ -37,6 +40,7 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
       startTransition(async () => {
         const res = await saveFirePlanSectionsAction(customerId, {
           managers: rows.filter(r => r.name.trim()),
+          emergencyContact: emergency.trim(),
         })
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
@@ -99,6 +103,17 @@ export function PlanForm17({ customerId, canManage, initialRows, autoRow }: {
             <Plus className="size-3" /> 행 추가
           </button>
         )}
+      </div>
+
+      {/* M-18(소방계획서_15, 2026-08-11 보강): 비상연락체계 — 서식 2.2 편성표 아래에 인쇄된다 */}
+      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+        <p className="text-xs font-semibold text-[#514b81] mb-2">비상연락체계
+          <span className="font-normal text-[#b0acd6] ml-2">연락망·전파 순서를 자유롭게 기재 — 제2장 편성표(서식 2.2) 아래에 인쇄</span>
+        </p>
+        <textarea value={emergency} disabled={!canManage} rows={3}
+          placeholder={'예: 발견자 → 자위소방대장(010-…) → 관계인 대표 → 119\n야간·휴일: 당직자 → 관리자'}
+          onChange={e => { setEmergency(e.target.value); setDirty(true) }}
+          className="w-full rounded border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y" />
       </div>
 
       {canManage && (

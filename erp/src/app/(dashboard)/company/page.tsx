@@ -12,6 +12,7 @@ export default async function CompanyPage() {
 
   type CompanyRow = {
     company_name: string; business_number: string | null; representative: string | null
+    management_reg_no: string | null
     phone: string | null; fax: string | null; email: string | null; address: string | null
     industry: string | null; established_date: string | null; logo_url: string | null
   }

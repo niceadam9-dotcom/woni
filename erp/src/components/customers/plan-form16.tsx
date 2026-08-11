@@ -10,13 +10,24 @@ import { NumField, useUnsavedWarning } from '@/components/ui/fields'
  *  §11-3: 가스 [LPG 프리셋], 위험물 [해당없음] 원클릭 */
 
 export type EtcFacilitySection = {
-  electric: { kw: string; kva: string; location: string; qty: string; generator: boolean; generatorNote: string; note: string }
-  gas: { kind: string; location: string; usage: string; regulator: boolean; shutoff: boolean; shutoffLocation: string }
+  // M-17(소방계획서_15, 2026-08-11 보강): 비상발전기 용량·위치·수량 구조화(genKw·genLocation·genQty).
+  // generatorNote는 레거시 자유 텍스트('용량·위치') — 비고로 존치, 기존 저장 데이터 보존
+  electric: {
+    kw: string; kva: string; location: string; qty: string
+    generator: boolean; generatorNote: string; note: string
+    genKw?: string; genLocation?: string; genQty?: string
+  }
+  // M-17: 정압기 위치(regulatorLocation) — 설계 4.md §3-6 '정압기위치'
+  gas: {
+    kind: string; location: string; usage: string
+    regulator: boolean; shutoff: boolean; shutoffLocation: string
+    regulatorLocation?: string
+  }
   hazmat: { none: boolean; note: string }
 }
 export const EMPTY_ETC_FACILITY: EtcFacilitySection = {
-  electric: { kw: '', kva: '', location: '', qty: '', generator: false, generatorNote: '', note: '' },
-  gas: { kind: '', location: '', usage: '', regulator: false, shutoff: false, shutoffLocation: '' },
+  electric: { kw: '', kva: '', location: '', qty: '', generator: false, generatorNote: '', note: '', genKw: '', genLocation: '', genQty: '' },
+  gas: { kind: '', location: '', usage: '', regulator: false, shutoff: false, shutoffLocation: '', regulatorLocation: '' },
   hazmat: { none: false, note: '' },
 }
 
@@ -75,9 +86,14 @@ export function PlanForm16({ customerId, canManage, initial }: {
           <button disabled={!canManage} className={chip(v.electric.generator)} onClick={() => pe({ generator: !v.electric.generator })}>
             {v.electric.generator ? '있음' : '없음'}
           </button>
-          {v.electric.generator && (
-            <input value={v.electric.generatorNote} disabled={!canManage} placeholder="용량·위치" onChange={e => pe({ generatorNote: e.target.value })} className={`${inputCls} w-40`} />
-          )}
+          {v.electric.generator && (<>
+            <NumField value={v.electric.genKw ?? ''} disabled={!canManage} decimal unit="kW" onChange={genKw => pe({ genKw })} className="h-7 w-20 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />
+            <input value={v.electric.genLocation ?? ''} disabled={!canManage} placeholder="위치" onChange={e => pe({ genLocation: e.target.value })} className={`${inputCls} w-28`} />
+            <NumField value={v.electric.genQty ?? ''} disabled={!canManage} unit="대" onChange={genQty => pe({ genQty })} className="h-7 w-16 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />
+            {v.electric.generatorNote.trim() !== '' && (
+              <input value={v.electric.generatorNote} disabled={!canManage} placeholder="비고(구 자유입력)" onChange={e => pe({ generatorNote: e.target.value })} className={`${inputCls} w-36`} />
+            )}
+          </>)}
           <input value={v.electric.note} disabled={!canManage} placeholder="비고" onChange={e => pe({ note: e.target.value })} className={`${inputCls} flex-1 min-w-32`} />
         </div>
       </div>
@@ -100,6 +116,9 @@ export function PlanForm16({ customerId, canManage, initial }: {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-medium text-[#514b81]">정압기</span>
           <button disabled={!canManage} className={chip(v.gas.regulator)} onClick={() => pg({ regulator: !v.gas.regulator })}>{v.gas.regulator ? '있음' : '없음'}</button>
+          {v.gas.regulator && (
+            <input value={v.gas.regulatorLocation ?? ''} disabled={!canManage} placeholder="정압기 위치" onChange={e => pg({ regulatorLocation: e.target.value })} className={`${inputCls} w-36`} />
+          )}
           <span className="text-[11px] font-medium text-[#514b81]">차단기구</span>
           <button disabled={!canManage} className={chip(v.gas.shutoff)} onClick={() => pg({ shutoff: !v.gas.shutoff })}>{v.gas.shutoff ? '있음' : '없음'}</button>
           {v.gas.shutoff && (

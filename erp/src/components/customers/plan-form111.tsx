@@ -12,7 +12,16 @@ import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
  *  1.11.1 연간계획(교육/훈련 × 12개월 그리드 + [표준 패턴] §11-3) · 1.11.2 세부계획 · 1.11.3 시나리오(유형 프리셋) · 1.11.4 결과 기록부(별지 28호, 2년 보관) */
 
-export type TrainingDetailRow = { name: string; at: string; place: string; target: string; kind: string; form: string; materials: string; plan: string }
+/** 1.11.2 세부계획 1행. M-19(소방계획서_15, 2026-08-11 보강): 종류·형태 구조화 —
+ *  kindPractice(실습 기본/부분/종합)·kindTheory(이론 강의/세미나)·formType(자체/합동)+formPartner(참여기관).
+ *  kind·form 자유 텍스트는 레거시 폴백으로 존치(구 데이터 인쇄 보존) */
+export type TrainingDetailRow = {
+  name: string; at: string; place: string; target: string; kind: string; form: string; materials: string; plan: string
+  kindPractice?: '' | '기본' | '부분' | '종합'
+  kindTheory?: '' | '강의' | '세미나'
+  formType?: '' | '자체' | '합동'
+  formPartner?: string
+}
 export type TrainingRecordRow = { at: string; kind: string; attendees: string; content: string; evaluation: string }
 export type TrainingSection = {
   headcount: { worker: string; resident: string; brigade: string }
@@ -145,12 +154,26 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <input value={d.at} disabled={!canManage} placeholder="일시" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, at: e.target.value } : x) })} className={`${inputCls} w-28`} />
               <input value={d.place} disabled={!canManage} placeholder="장소" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, place: e.target.value } : x) })} className={`${inputCls} w-24`} />
               <input value={d.target} disabled={!canManage} placeholder="대상" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, target: e.target.value } : x) })} className={`${inputCls} w-24`} />
-              <select value={d.kind} disabled={!canManage} onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, kind: e.target.value } : x) })} className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
-                <option value="이론">이론</option><option value="실습">실습</option>
+              {/* M-19(소방계획서_15, 2026-08-11 보강): 종류·형태 구조화 — 미선택 행은 구 kind·form 자유 값으로 인쇄 */}
+              <select value={d.kindPractice ?? ''} disabled={!canManage} title="실습 종류"
+                onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, kindPractice: e.target.value as TrainingDetailRow['kindPractice'] } : x) })}
+                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                <option value="">실습 없음</option><option value="기본">실습(기본)</option><option value="부분">실습(부분)</option><option value="종합">실습(종합)</option>
               </select>
-              <select value={d.form} disabled={!canManage} onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, form: e.target.value } : x) })} className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
-                <option value="자체">자체</option><option value="합동">합동</option>
+              <select value={d.kindTheory ?? ''} disabled={!canManage} title="이론 종류"
+                onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, kindTheory: e.target.value as TrainingDetailRow['kindTheory'] } : x) })}
+                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                <option value="">이론 없음</option><option value="강의">이론(강의)</option><option value="세미나">이론(세미나)</option>
               </select>
+              <select value={d.formType ?? (d.form === '자체' || d.form === '합동' ? d.form : '')} disabled={!canManage} title="형태"
+                onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, formType: e.target.value as TrainingDetailRow['formType'] } : x) })}
+                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                <option value="">형태 선택</option><option value="자체">자체</option><option value="합동">합동</option>
+              </select>
+              {(d.formType ?? d.form) === '합동' && (
+                <input value={d.formPartner ?? ''} disabled={!canManage} placeholder="참여기관"
+                  onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, formPartner: e.target.value } : x) })} className={`${inputCls} w-28`} />
+              )}
               <input value={d.materials} disabled={!canManage} placeholder="교보재" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, materials: e.target.value } : x) })} className={`${inputCls} w-24`} />
               <input value={d.plan} disabled={!canManage} placeholder="훈련·교육·평가 계획" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, plan: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               {canManage && (

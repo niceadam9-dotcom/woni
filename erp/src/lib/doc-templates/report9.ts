@@ -108,6 +108,8 @@ export type Report9Data = {
   pkIn: boolean; pkMech: boolean; pkRoof: boolean; pkOut: boolean
   rampCount: string      // 경사로(개소) — 1.1 일반현황 입력 (buildings.ramp_count)
   stairsCount: string    // 계단(개소) — 직통·피난계단 합계로 표기 (buildings.stairs_count)
+  /** A9-3(소방계획서_15): 특별피난계단 개소 — 세부제원 3-8 전실(smoke_lobby.stair_count) 연결, 없으면 '' */
+  specialStairCount?: string
   // ── 3쪽 ──
   facilityChecks: string[]                    // 설치 설비(√) — FORM3_ITEMS 명칭
   resultMarks: Record<string, 'O' | 'X' | 'N'>  // 항목 → 점검결과 (○/×//)
@@ -303,7 +305,7 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th>계단</th>
-    <td colspan="5" class="pre"> ${ck(!!d.stairsCount)}직통(또는 피난계단) (${val(d.stairsCount)}  개소), ${ck(false)}특별피난계단 (    개소)</td>
+    <td colspan="5" class="pre"> ${ck(!!d.stairsCount)}직통(또는 피난계단) (${val(d.stairsCount)}  개소), ${ck(!!d.specialStairCount)}특별피난계단 (${val(d.specialStairCount ?? '')}  개소)</td>
   </tr>
   <tr>
     <th>승강기</th>

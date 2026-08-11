@@ -98,9 +98,10 @@ export function NumStepper({ value, onChange, disabled, label, step = 1, min = 0
   return <span className="inline-flex items-center gap-1">{btn(-1)}{children}{btn(1)}</span>
 }
 
-/** 전화번호 자동 하이픈 — 02 지역·0507 안심·휴대전화 공통 */
+/** 전화번호 자동 하이픈 — 02 지역·0507 안심·휴대전화·전국 대표번호(15xx/16xx/18xx) 공통 */
 export function formatPhoneKR(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 11)
+  if (/^1[568]/.test(d)) return d.length < 5 ? d : `${d.slice(0, 4)}-${d.slice(4, 8)}`
   if (d.length < 4) return d
   if (d.startsWith('02')) {
     if (d.length < 6) return `${d.slice(0, 2)}-${d.slice(2)}`

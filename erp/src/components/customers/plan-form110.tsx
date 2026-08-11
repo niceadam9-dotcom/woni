@@ -19,11 +19,17 @@ export type InspectionPlanSection = {
   isInitial: boolean; initialMonth: string
   compMonth: string; comp2Month: string; compInspector: '자체' | '외주' | ''
 }
+/** M-16(소방계획서_15, 2026-08-11 보강): 이용자 유형 4종 — 설계 4.md §3-8 */
+export const MULTI_USE_USER_TYPES = ['노유자', '주취자', '청소년', '신체부자유자'] as const
 export type MultiUseSection = {
   applicable: boolean
   categories: Record<string, string> // 업종 → 개소
   bizName: string; location: string; owner: string; phone: string
   hours: string; users: string; capacity: string
+  /** M-16: 영업시간 세분(평일/휴일 × 주간/야간, 예 '09:00~18:00') — hours(자유 텍스트)는 레거시 폴백 */
+  hoursDetail?: { wkDay: string; wkNight: string; holDay: string; holNight: string }
+  /** M-16: 이용자 유형 체크 — users(자유 텍스트)는 레거시 병기 */
+  userTypes?: string[]
 }
 export type FireHistoryRow = { kind: '화재' | '비화재보'; at: string; place: string; cause: string; action: string }
 /** 1.10.2 업무수행 기록 행 (§12-1 — ERP 입력 관리) */
@@ -216,11 +222,40 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <input value={mu.location} disabled={!canManage} placeholder="위치" onChange={e => pm({ location: e.target.value })} className={`${inputCls} w-28`} />
               <input value={mu.owner} disabled={!canManage} placeholder="영업주" onChange={e => pm({ owner: e.target.value })} className={`${inputCls} w-24`} />
               <input value={mu.phone} disabled={!canManage} placeholder="연락처" onChange={e => pm({ phone: e.target.value })} className={`${inputCls} w-28`} />
-              <input value={mu.hours} disabled={!canManage} placeholder="영업시간 (평일/휴일·주간/야간)" onChange={e => pm({ hours: e.target.value })} className={`${inputCls} w-52`} />
-              <input value={mu.users} disabled={!canManage} placeholder="이용자 유형" onChange={e => pm({ users: e.target.value })} className={`${inputCls} w-28`} />
               <NumStepper value={mu.capacity} disabled={!canManage} label="수용인원" onChange={v => pm({ capacity: v })}>
                 <input value={mu.capacity} disabled={!canManage} inputMode="numeric" placeholder="수용인원" onChange={e => pm({ capacity: e.target.value })} className={`${inputCls} w-20`} />
               </NumStepper>
+            </div>
+            {/* M-16(소방계획서_15, 2026-08-11 보강): 영업시간 평일/휴일 × 주간/야간 세분 — 자유 텍스트(hours)는 레거시 폴백 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-medium text-[#514b81]">영업시간</span>
+              <span className="text-[10px] text-[#b0acd6]">평일</span>
+              <input value={mu.hoursDetail?.wkDay ?? ''} disabled={!canManage} placeholder="주간 09:00~18:00"
+                onChange={e => pm({ hoursDetail: { wkDay: e.target.value, wkNight: mu.hoursDetail?.wkNight ?? '', holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-36`} />
+              <input value={mu.hoursDetail?.wkNight ?? ''} disabled={!canManage} placeholder="야간"
+                onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: e.target.value, holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
+              <span className="text-[10px] text-[#b0acd6]">휴일</span>
+              <input value={mu.hoursDetail?.holDay ?? ''} disabled={!canManage} placeholder="주간"
+                onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: mu.hoursDetail?.wkNight ?? '', holDay: e.target.value, holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
+              <input value={mu.hoursDetail?.holNight ?? ''} disabled={!canManage} placeholder="야간"
+                onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: mu.hoursDetail?.wkNight ?? '', holDay: mu.hoursDetail?.holDay ?? '', holNight: e.target.value } })} className={`${inputCls} w-32`} />
+              {mu.hours.trim() !== '' && (
+                <input value={mu.hours} disabled={!canManage} placeholder="영업시간(구 자유입력)" onChange={e => pm({ hours: e.target.value })} className={`${inputCls} w-44`} title="구버전 자유 입력 — 세분 칸 입력 시 문서에는 세분 값이 인쇄됩니다" />
+              )}
+            </div>
+            {/* M-16: 이용자 유형 체크 — 자유 텍스트(users)는 레거시 병기 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-medium text-[#514b81]">이용자</span>
+              {MULTI_USE_USER_TYPES.map(t => {
+                const on = (mu.userTypes ?? []).includes(t)
+                return (
+                  <button key={t} disabled={!canManage} className={chip(on)}
+                    onClick={() => pm({ userTypes: on ? (mu.userTypes ?? []).filter(x => x !== t) : [...(mu.userTypes ?? []), t] })}>
+                    {t}
+                  </button>
+                )
+              })}
+              <input value={mu.users} disabled={!canManage} placeholder="기타 이용자 유형" onChange={e => pm({ users: e.target.value })} className={`${inputCls} w-32`} />
             </div>
           </>
         )}

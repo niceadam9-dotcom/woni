@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Loader2, MapPin, Phone, Mail, User, Building, Hash, Printer } from 'lucide-react'
 import { upsertCompanyAction } from '@/app/(dashboard)/company/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { formatPhoneKR } from '@/components/ui/fields'
+import { formatBizNo, formatBizNoKR, formatTel } from '@/lib/format-contact'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -19,6 +21,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 type CompanyInfo = {
   company_name: string; business_number: string | null; representative: string | null
+  management_reg_no: string | null
   phone: string | null; fax: string | null; email: string | null; address: string | null
   industry: string | null; established_date: string | null; logo_url: string | null
 }
@@ -31,10 +34,12 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
 
   const [form, setForm] = useState({
     company_name: existing?.company_name ?? '',
-    business_number: existing?.business_number ?? '',
+    // 사업자번호·전화·팩스는 과거 자유 입력분도 열자마자 정규 형식으로 (저장 시 그대로 정착)
+    business_number: formatBizNo(existing?.business_number),
+    management_reg_no: existing?.management_reg_no ?? '',
     representative: existing?.representative ?? '',
-    phone: existing?.phone ?? '',
-    fax: existing?.fax ?? '',
+    phone: formatTel(existing?.phone),
+    fax: formatTel(existing?.fax),
     email: existing?.email ?? '',
     address: existing?.address ?? '',
     industry: existing?.industry ?? '',
@@ -54,6 +59,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
       const result = await upsertCompanyAction({
         company_name: form.company_name.trim(),
         business_number: form.business_number.trim() || undefined,
+        management_reg_no: form.management_reg_no.trim() || undefined,
         representative: form.representative.trim() || undefined,
         phone: form.phone.trim() || undefined,
         fax: form.fax.trim() || undefined,
@@ -86,8 +92,8 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
           <Field label="사업자등록번호">
             <div className="relative">
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-              <input value={form.business_number} onChange={e => setField('business_number', e.target.value)}
-                placeholder="000-00-00000" className={`${inputCls} pl-8`} />
+              <input value={form.business_number} onChange={e => setField('business_number', formatBizNoKR(e.target.value))}
+                inputMode="numeric" placeholder="000-00-00000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="대표자">
@@ -103,15 +109,15 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
           <Field label="대표전화">
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-              <input value={form.phone} onChange={e => setField('phone', e.target.value)}
-                placeholder="02-0000-0000" className={`${inputCls} pl-8`} />
+              <input value={form.phone} onChange={e => setField('phone', formatPhoneKR(e.target.value))}
+                inputMode="tel" placeholder="02-0000-0000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="팩스">
             <div className="relative">
               <Printer className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-              <input value={form.fax} onChange={e => setField('fax', e.target.value)}
-                placeholder="02-0000-0001" className={`${inputCls} pl-8`} />
+              <input value={form.fax} onChange={e => setField('fax', formatPhoneKR(e.target.value))}
+                inputMode="tel" placeholder="02-0000-0001" className={`${inputCls} pl-8`} />
             </div>
           </Field>
         </div>
@@ -129,10 +135,19 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
           </Field>
         </div>
 
-        <Field label="업종">
-          <input value={form.industry} onChange={e => setField('industry', e.target.value)}
-            placeholder="예: 소방시설 점검업" className={inputCls} />
-        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="업종">
+            <input value={form.industry} onChange={e => setField('industry', e.target.value)}
+              placeholder="예: 소방시설 점검업" className={inputCls} />
+          </Field>
+          <Field label="관리업 등록번호">
+            <div className="relative">
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <input value={form.management_reg_no} onChange={e => setField('management_reg_no', e.target.value)}
+                placeholder="예: 2026-15 → 별지4호 (제 2026-15 호)" className={`${inputCls} pl-8`} />
+            </div>
+          </Field>
+        </div>
 
         <Field label="주소">
           <div className="relative">
