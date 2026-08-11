@@ -87,7 +87,27 @@ export default async function CustomerDetailPage({
 
   const admin = createAdminClient()
 
-  const [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes, brigadeRes] = await Promise.all([
+  // ── 성능(2026-08-11): 원격 DB 왕복(~240ms)이 순차 10여 회 쌓여 페이지당 ~2.5초를 소모하던 것을
+  //    2개 물결로 재편 — A: 고객 id만으로 가능한 조회 전부, B: A 결과(건물·점검·지역)에 의존하는 조회 ──
+  const navFilter = parseListFilter(Object.fromEntries(new URLSearchParams(lq ?? '')) as Record<string, string | undefined>)
+  const [
+    [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes, brigadeRes],
+    // 건물 용도 선택지 (049) — 건물 패널 용도 datalist 제안
+    buildingPurposes,
+    // 소방계획서 서식 입력 저장소 (096) — 목차 완성도(§1-4)·탭 뱃지 합산에 선행 조회
+    // + 공통 서술 기본항목 자동주입 대상 판정 (119, 소방계획서_15_별도라이브러리 §4-0) — 둘 다 인덱스 소량 조회
+    [fpFormRes, companyRes, textDefaultsRes, textStampsRes],
+    // 개정이력 — 연도별 히스토리(120). 연도 desc·연도 내 seq desc(최신이 위) — 소방계획서_17.md §2
+    revRowsRes,
+    // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
+    // 슬롯 UI는 2026-08-08부터 서식 1.3 안에 삽입된다 — 트리의 전용 'assets' 노드와 그 완성도 항목은 폐지.
+    // 1.3 완성도는 종전대로 서식 입력(location·fireAccess) 유무로만 판정한다(탭 뱃지 분모 불변).
+    customerAssets,
+    // [◀ 이전|다음 ▶] 네비 (§6-C-3) — 목록 필터 컨텍스트(lq) 그대로 같은 순서로 이동
+    // 2026-08-04 성능: 전체 목록 로직 대신 경량 ID 조회(fetchCustomerNavIds) — 상세 열람·저장 refresh 비용 대폭 절감
+    navIds,
+  ] = await Promise.all([
+    Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
@@ -122,6 +142,21 @@ export default async function CustomerDetailPage({
     admin.from('owners').select('id, name, contact').order('name'),
     admin.from('fire_brigade_members')
       .select('team, name, duty, phone').eq('customer_id', id).order('sort_order'),
+    ]),
+    listBuildingPurposes(),
+    Promise.all([
+      admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
+      admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
+      admin.from('plan_text_library').select('section_key').eq('is_default', true).eq('is_active', true),
+      admin.from('plan_text_applied').select('section_key').eq('customer_id', id),
+    ]),
+    admin.from('fire_plan_revisions')
+      .select('id, year, seq, revised_on, content, author_name, reviewer_name, approver_name, source')
+      .eq('customer_id', id)
+      .order('year', { ascending: false })
+      .order('seq', { ascending: false }),
+    listCustomerAssets(id),
+    fetchCustomerNavIds(admin, navFilter),
   ])
 
   if (!customerRes.data) notFound()
@@ -140,17 +175,38 @@ export default async function CustomerDetailPage({
   const ledgerAutoNeeded = ((buildingsRes.data ?? []) as Array<Record<string, unknown>>).some(
     b => b.is_active && !b.ledger_synced_at && ((b.bcode && b.address_jibun) || b.address || b.address_jibun))
 
-  // 건물 용도 선택지 (049) — 건물 패널 용도 datalist 제안
-  const buildingPurposes = await listBuildingPurposes()
+  const inspections = (inspectionsRes.data ?? []) as Array<
+    Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'plan_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
+  >
+  const regionSi = (customer as unknown as Record<string, unknown>).region_si as string | null
+  const regionMyeon = (customer as unknown as Record<string, unknown>).region_myeon as string | null
 
-  // 소방시설 현황 (건물별) — P33
+  // ── 물결 B: 물결 A 결과(건물·점검·지역)에 의존하는 조회 — 한 번에 병렬 ──
   const buildingIds = buildings.map(b => b.id)
-  const [facRes, floorRes, specRes] = buildingIds.length > 0 ? await Promise.all([
-    admin.from('fire_facilities').select('building_id, facility_code, installed, detail').in('building_id', buildingIds),
-    admin.from('fire_facility_floors').select('building_id, floor_label, counts').in('building_id', buildingIds).order('sort_order'),
-    // H-19 설비 대장 — 세부 제원 초기값 (112 customer_facility_specs, building_id NULL = 대표/공통)
-    admin.from('customer_facility_specs').select('building_id, section_key, spec').eq('customer_id', id),
-  ]) : [{ data: [] }, { data: [] }, { data: [] }]
+  const [facFloorSpec, stepsRes, regionRowsRes, stationCandidates] = await Promise.all([
+    // 소방시설 현황 (건물별) — P33
+    buildingIds.length > 0 ? Promise.all([
+      admin.from('fire_facilities').select('building_id, facility_code, installed, detail').in('building_id', buildingIds),
+      admin.from('fire_facility_floors').select('building_id, floor_label, counts').in('building_id', buildingIds).order('sort_order'),
+      // H-19 설비 대장 — 세부 제원 초기값 (112 customer_facility_specs, building_id NULL = 대표/공통)
+      admin.from('customer_facility_specs').select('building_id, section_key, spec').eq('customer_id', id),
+    ]) : Promise.resolve(null),
+    // 점검별 단계 진행 카운트
+    inspections.length > 0
+      ? admin.from('inspection_steps').select('inspection_id, status').in('inspection_id', inspections.map(i => i.id))
+      : Promise.resolve({ data: [] as Array<{ inspection_id: string; status: string }> }),
+    // §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만)
+    (() => {
+      if (customer.assigned_employee_id || !regionSi) return Promise.resolve({ data: null })
+      let rq = admin.from('customers').select('assigned_employee_id')
+        .eq('is_active', true).eq('region_si', regionSi).not('assigned_employee_id', 'is', null).neq('id', id)
+      if (regionMyeon) rq = rq.eq('region_myeon', regionMyeon)
+      return rq
+    })(),
+    // 1.3 관할 소방서 드롭다운 후보 — 행정구역 매핑 기반 (관할은 좌표 근접이 아니라 행정 관할)
+    listFireStationCandidates(admin, { regionSi, regionMyeon, address: customer.address }),
+  ])
+  const [facRes, floorRes, specRes] = facFloorSpec ?? [{ data: [] }, { data: [] }, { data: [] }]
   const facByBuilding = new Map<string, Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>>()
   for (const f of (facRes.data ?? []) as Array<{ building_id: string; facility_code: string; installed: boolean; detail: { note?: string } | null }>) {
     if (!facByBuilding.has(f.building_id)) facByBuilding.set(f.building_id, [])
@@ -178,9 +234,6 @@ export default async function CustomerDetailPage({
     if (!specsByBuilding[k]) specsByBuilding[k] = {}
     specsByBuilding[k][r.section_key] = (r.spec ?? {}) as Record<string, unknown>
   }
-  const inspections = (inspectionsRes.data ?? []) as Array<
-    Pick<Inspection, 'id' | 'year' | 'sequence_num' | 'inspection_type' | 'plan_type' | 'inspection_start_date' | 'status' | 'assigned_employee_id'>
-  >
   const activityLogs = (activityLogsRes.data ?? []) as ActivityLog[]
   const profileNameMap = new Map(
     ((allProfilesRes.data ?? []) as Array<{ id: string; name: string }>).map(p => [p.id, p.name])
@@ -208,20 +261,13 @@ export default async function CustomerDetailPage({
     }))
     .filter(x => x.actionLabel || x.changes.length > 0)
 
-  // 점검별 단계 진행 카운트
+  // 점검별 단계 진행 카운트 (물결 B에서 조회)
   const stepCounts: Record<string, { total: number; completed: number }> = {}
-  if (inspections.length > 0) {
-    const { data: steps } = await admin
-      .from('inspection_steps')
-      .select('inspection_id, status')
-      .in('inspection_id', inspections.map(i => i.id))
-
-    for (const s of steps ?? []) {
-      const r = s as { inspection_id: string; status: string }
-      if (!stepCounts[r.inspection_id]) stepCounts[r.inspection_id] = { total: 0, completed: 0 }
-      stepCounts[r.inspection_id].total++
-      if (r.status === 'completed') stepCounts[r.inspection_id].completed++
-    }
+  for (const s of stepsRes.data ?? []) {
+    const r = s as { inspection_id: string; status: string }
+    if (!stepCounts[r.inspection_id]) stepCounts[r.inspection_id] = { total: 0, completed: 0 }
+    stepCounts[r.inspection_id].total++
+    if (r.status === 'completed') stepCounts[r.inspection_id].completed++
   }
 
   const firePlans: FirePlanRow[] = ((firePlansRes.data ?? []) as Array<{
@@ -310,14 +356,11 @@ export default async function CustomerDetailPage({
   }
   // 필수 완성도(quickReadiness)·필요 문서 칩(docChips)은 빠른 입력 페이지 폐기로 산출 중단 — 2026-08-06
 
-  // ── 소방계획서 서식 입력 저장소 (096) — 목차 완성도(§1-4)·탭 뱃지 합산에 선행 조회 ──
-  const [{ data: fpForm }, { data: companyRow }, { data: textDefaults }, { data: textStamps }] = await Promise.all([
-    admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
-    admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
-    // 공통 서술 기본항목 자동주입 대상 판정 (119, 소방계획서_15_별도라이브러리 §4-0) — 둘 다 인덱스 소량 조회
-    admin.from('plan_text_library').select('section_key').eq('is_default', true).eq('is_active', true),
-    admin.from('plan_text_applied').select('section_key').eq('customer_id', id),
-  ])
+  // ── 소방계획서 서식 입력 저장소 (096) — 물결 A에서 조회 완료 ──
+  const fpForm = fpFormRes.data
+  const companyRow = companyRes.data
+  const textDefaults = textDefaultsRes.data
+  const textStamps = textStampsRes.data
   // 기본항목이 있는 섹션 중 이 고객에 스탬프(주입/가져오기 이력)가 없는 게 하나라도 있으면 진입 시 자동주입 시도
   const textStampSet = new Set((textStamps ?? []).map(r => r.section_key as string))
   const textDefaultsNeeded = (textDefaults ?? []).some(r => !textStampSet.has(r.section_key as string))
@@ -375,17 +418,11 @@ export default async function CustomerDetailPage({
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
 
-  // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만) ──
+  // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만, 물결 B에서 조회) ──
   let regionRecommend: { employeeId: string; name: string; regionLabel: string } | null = null
-  const regionSi = (customer as unknown as Record<string, unknown>).region_si as string | null
-  const regionMyeon = (customer as unknown as Record<string, unknown>).region_myeon as string | null
-  if (!customer.assigned_employee_id && regionSi) {
-    let rq = admin.from('customers').select('assigned_employee_id')
-      .eq('is_active', true).eq('region_si', regionSi).not('assigned_employee_id', 'is', null).neq('id', id)
-    if (regionMyeon) rq = rq.eq('region_myeon', regionMyeon)
-    const { data: regionRows } = await rq
+  {
     const counts = new Map<string, number>()
-    for (const r of (regionRows ?? []) as Array<{ assigned_employee_id: string }>) {
+    for (const r of (regionRowsRes.data ?? []) as Array<{ assigned_employee_id: string }>) {
       counts.set(r.assigned_employee_id, (counts.get(r.assigned_employee_id) ?? 0) + 1)
     }
     const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
@@ -394,9 +431,6 @@ export default async function CustomerDetailPage({
       if (emp) regionRecommend = { employeeId: emp.id, name: emp.name, regionLabel: [regionSi, regionMyeon].filter(Boolean).join(' ') }
     }
   }
-
-  // 1.3 관할 소방서 드롭다운 후보 — 행정구역 매핑 기반 (관할은 좌표 근접이 아니라 행정 관할)
-  const stationCandidates = await listFireStationCandidates(admin, { regionSi, regionMyeon, address: customer.address })
 
   // ── §6-E: 이력 탭 필터 (URL hy=올해/작년, hk=점검/변경) + 다음 점검 예정 ──
   const nowYear = new Date().getFullYear()
@@ -426,10 +460,7 @@ export default async function CustomerDetailPage({
     )
   }
 
-  // ── [◀ 이전|다음 ▶] 네비 (§6-C-3) — 목록 필터 컨텍스트(lq) 그대로 같은 순서로 이동 ──
-  // 2026-08-04 성능: 전체 목록 로직 대신 경량 ID 조회(fetchCustomerNavIds) — 상세 열람·저장 refresh 비용 대폭 절감
-  const navFilter = parseListFilter(Object.fromEntries(new URLSearchParams(lq ?? '')) as Record<string, string | undefined>)
-  const navIds = await fetchCustomerNavIds(admin, navFilter)
+  // ── [◀ 이전|다음 ▶] 네비 (§6-C-3) — 물결 A에서 경량 ID 조회 완료 ──
   const navIdx = navIds.indexOf(id)
   const prevId = navIdx > 0 ? navIds[navIdx - 1] : null
   const nextId = navIdx >= 0 && navIdx < navIds.length - 1 ? navIds[navIdx + 1] : null
@@ -579,12 +610,8 @@ export default async function CustomerDetailPage({
   const importCandidate = Object.keys(fpSections).length === 0
     && ((firePlansRes.data ?? []) as Array<{ pdf_path: string | null }>)
       .some(p => !!p.pdf_path && p.pdf_path.includes('generated_') && !p.pdf_path.includes('generated_hwp_'))
-  // 개정이력 — 연도별 히스토리(120). 연도 desc·연도 내 seq desc(최신이 위) — 소방계획서_17.md §2
-  const { data: revRowsRaw } = await admin.from('fire_plan_revisions')
-    .select('id, year, seq, revised_on, content, author_name, reviewer_name, approver_name, source')
-    .eq('customer_id', id)
-    .order('year', { ascending: false })
-    .order('seq', { ascending: false })
+  // 개정이력 — 연도별 히스토리(120, 물결 A에서 조회). 연도 desc·연도 내 seq desc(최신이 위) — 소방계획서_17.md §2
+  const revRowsRaw = revRowsRes.data
   const revisionYears: RevisionYearGroup[] = []
   for (const r of (revRowsRaw ?? []) as Array<{
     id: string; year: number; seq: number; revised_on: string | null; content: string | null
@@ -604,11 +631,6 @@ export default async function CustomerDetailPage({
     if (last && last.year === r.year) last.rows.push(row)
     else revisionYears.push({ year: r.year, rows: [row] })
   }
-  // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
-  // 슬롯 UI는 2026-08-08부터 서식 1.3 안에 삽입된다 — 트리의 전용 'assets' 노드와 그 완성도 항목은 폐지.
-  // 1.3 완성도는 종전대로 서식 입력(location·fireAccess) 유무로만 판정한다(탭 뱃지 분모 불변).
-  const customerAssets = await listCustomerAssets(customer.id)
-
   // ── H-25 온보딩 진행 배너 (§4-D 국면 1) — ?onboarding=1일 때만 구성, 이미 조회한 데이터만 사용 ──
   // ① 기본정보=빠른 입력 준비율 ② 관계인=대표 有無 ③ 설비 대장=설치 √ 개수·제원 입력 여부 ④ 지도·사진=자산 개수
   const installedFacCount = new Set(
