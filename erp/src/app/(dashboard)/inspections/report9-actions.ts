@@ -73,7 +73,7 @@ async function assembleAnnex1011(
   inspectionId: string,
   kind: 'report10' | 'report11',
 ): Promise<{ data: Annex1011Data; missing: string[] }> {
-  const [custRes, bldRes, contactsRes, defectsRes] = await Promise.all([
+  const [custRes, bldRes, contactsRes, defectsRes, formRes] = await Promise.all([
     admin.from('customers').select('customer_name, address, fire_station').eq('id', customerId).single(),
     admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1),
@@ -81,12 +81,18 @@ async function assembleAnnex1011(
     admin.from('inspection_defects')
       .select('defect_name, action_plan, action_start, action_end, action_taken, action_completed_at')
       .eq('inspection_id', inspectionId).order('created_at'),
+    // B-1(소방계획서_19 K-1): 서식 1.7 선임현황 — 소방안전관리자 결정 원천
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
   ])
   const cust = custRes.data as { customer_name: string; address: string | null; fire_station: string | null } | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
   const purpose = ((bldRes.data?.[0] as { purpose: string | null } | undefined)?.purpose) ?? ''
   const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
+  // B-1(소방계획서_19 K-1): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백 — 별지9호(A9-1)와 동일 규칙.
+  // 종전에는 대표 고정이라, 선임자≠대표인 고객은 별지9호와 10·11호의 관리자 이름이 서로 다르게 인쇄됐다.
+  const a1011Sections = ((formRes.data?.[0] as { sections?: Record<string, unknown> } | undefined)?.sections) ?? {}
+  const a1011Mgr = pickFirePlanManager((a1011Sections['managers'] ?? null) as ManagerRow[] | null)
   type DefectRow = {
     defect_name: string | null; action_plan: string | null; action_start: string | null
     action_end: string | null; action_taken: string | null; action_completed_at: string | null
@@ -100,9 +106,9 @@ async function assembleAnnex1011(
     address: cust.address ?? '',
     ownerName: owner?.name ?? '',
     ownerPhone: owner?.phone ?? '',
-    // 소방안전관리자 별도 데이터 미보유 — 관계인 폴백 (워커 동일, 개선은 별지 MD §4)
-    mgrName: owner?.name ?? '',
-    mgrPhone: owner?.phone ?? '',
+    // B-1: 1.7 선임자 우선 — 전화는 선임자=대표 동일인일 때만(1.7에 전화 열 없음, 타인 전화 오기재 방지)
+    mgrName: a1011Mgr?.name ?? owner?.name ?? '',
+    mgrPhone: (a1011Mgr?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? (owner?.phone ?? '') : '',
     rows: [],
     reportDate: kdate(new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]),
     submitTo: cust.fire_station ? `${cust.fire_station}장` : '관할 소방서장',
@@ -528,13 +534,15 @@ async function assembleExterior(
   customerId: string,
   inspectionId: string,
 ): Promise<{ data: ExteriorData; missing: string[] }> {
-  const [inspRes, custRes, bldRes, contactsRes] = await Promise.all([
+  const [inspRes, custRes, bldRes, contactsRes, formRes] = await Promise.all([
     admin.from('inspections').select('inspection_start_date, assigned_employee_id, year')
       .eq('id', inspectionId).single(),
     admin.from('customers').select('customer_name, address').eq('id', customerId).single(),
     admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1),
     admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
+    // B-1(소방계획서_19 K-1): 서식 1.7 선임현황 — 소방안전관리자 결정 원천
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
   ])
   const insp = inspRes.data as {
     inspection_start_date: string | null; assigned_employee_id: string | null; year: number
@@ -545,6 +553,10 @@ async function assembleExterior(
   const purpose = ((bldRes.data?.[0] as { purpose: string | null } | undefined)?.purpose) ?? ''
   const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
+  // B-1(소방계획서_19 K-1): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백 (별지9호 A9-1과 동일 규칙)
+  const extSections = ((formRes.data?.[0] as { sections?: Record<string, unknown> } | undefined)?.sections) ?? {}
+  const extMgr = pickFirePlanManager((extSections['managers'] ?? null) as ManagerRow[] | null)
+  const extMgrName = extMgr?.name ?? owner?.name ?? ''
 
   let inspector = ''
   if (insp.assigned_employee_id) {
@@ -576,9 +588,9 @@ async function assembleExterior(
     purpose,
     address: cust.address ?? '',
     mgrTitle: '', // 직위 별도 데이터 미보유 — 공란 (워커 동일)
-    // 소방안전관리자 별도 데이터 미보유 — 관계인(대표) 폴백 (워커 동일)
-    mgrName: owner?.name ?? '',
-    mgrPhone: owner?.phone ?? '',
+    // B-1: 1.7 선임자 우선 — 전화는 선임자=대표 동일인일 때만(타인 전화 오기재 방지)
+    mgrName: extMgrName,
+    mgrPhone: extMgrName === (owner?.name ?? '') ? (owner?.phone ?? '') : '',
     year: String(insp.year),
     month,
     day,
@@ -592,7 +604,7 @@ async function assembleExterior(
   const missing: string[] = []
   if (!responses.length) missing.push('외관점검 시트 응답 없음 — 결과란 공란')
   if (!inspector) missing.push('점검자(담당) 미배정')
-  if (!owner?.name) missing.push('소방안전관리자(대표 관계인) 미등록')
+  if (!extMgrName) missing.push('소방안전관리자(1.7 선임현황 또는 대표 관계인) 미등록')
   return { data, missing }
 }
 

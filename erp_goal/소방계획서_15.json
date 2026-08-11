@@ -4,6 +4,12 @@
   "created": "2026-08-10",
   "updated": "2026-08-11 (독립 판정 세션 — P1 4건·P2 6건·P4 구현 7건 전부 implemented 승격: 기존 프로브 재실행 p1 16/16·p2 29/29 + 판정자 신규 _judge-soban15-body.mts 24/24(본문 실조립 M-2·3·4·6·10·15)·_judge-soban15-annex.mjs 13/13(별지 9·4호 실생성 A9-1·A9-3·A4-2·A4-1) · tsc 판정 범위 클린(plan-archive-cleanup.tsx 4건은 소방계획서_18 WIP 범위 외) · company_profile 임시값 null 원복·테스트 데이터 전부 삭제)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "successor": {
+    "doc": "erp_goal/소방계획서_19.md + .json (2026-08-11 기안)",
+    "scope": "본 문서의 미완료 잔여 전부가 19로 이관됨 — items 17건(P3·P4 경미) · targets.T-4(별지10·11호·외관 미감사) · library_mapping_checklist.L-D-4(partial)",
+    "mapping": "19의 K-1=T-4 관리자 폴백 · K-2=A9-2 · K-3=A4-5+A9-7 · K-4=A9-8+A9-12 · K-5=A9-5+A9-4 · K-6=M-9·M-11·M-12·M-13 · K-7=A9-9+A9-11 · K-8=L-D-4 · K-9=T-4 전수 감사",
+    "note": "M-13은 소방계획서_17(마이그레이션 120)로 대부분 해소된 상태 — 19의 B-5b에서 폴백 경로만 처리하며 '부분 해소'로 정정 예정. 이후 잔여 건의 상태 갱신은 19에서 하고 본 문서는 감사 기록으로 동결한다"
+  },
   "scope_note": "이 문서는 '구현 설계'가 아니라 '점검 결과'다. items = 발견된 매핑 결함이며 status는 **수정 여부**를 뜻한다. 발견 사실 자체의 신뢰도는 각 항목의 audit 필드로 따로 표기한다(recheck=direct는 본 세션이 코드를 직접 재확인, agent는 병렬 감사 에이전트의 파일:줄 보고). 2026-08-10 사용자 진행 지시로 **P1 4건(M-1·M-7·M-8·A9-1) 수정 착수 → code_present**(프로브 _probe-soban15-p1.mts 16/16 · tsc·build 통과, 미커밋). P2 이하는 미착수. 추가(2026-08-10 사용자 지시): library_mapping_checklist = 공통 서술 라이브러리(소방계획서_14_점검업무.md) 구현 완료 후 실행할 매핑 점검표 — MD §5와 1:1, 전건 pending_order",
 
   "status_legend": {
