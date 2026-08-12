@@ -85,10 +85,12 @@ function rangeLine(b: Vals, h: boolean, sfx = ''): string {
     + `${gsel(b[`from_ground${sfx}`])}(${slot(b[`from_floor${sfx}`], ' ', h)})층 ~ ${gsel(b[`to_ground${sfx}`])}(${slot(b[`to_floor${sfx}`], ' ', h)})층`
 }
 
-/** 설치장소 2줄 블록(A4-4) — 서식 원문에서 둘째 줄을 가진 블록은 **7개**다:
- *  옥내소화전 · 화재조기진압용SP · 물분무 · 미분무 · 자동화재탐지설비 · 피난기구 · 인명구조기구.
- *  (원문 둘째 줄의 이음표는 '::: ', ': : : ', ':' 등 제각각이라 ':동명'만 찾으면 4개를 놓친다 —
- *   독립 판정에서 실제로 그렇게 누락됐다. 판정 근거: _form/_별지4호_현행판_추출.txt)
+/** 설치장소 2줄 블록(A4-4) — 서식 원문에서 둘째 줄을 가진 블록은 **8개**다:
+ *  옥내소화전 · 화재조기진압용SP · 물분무 · 미분무 · 자동화재탐지설비 · **화재알림설비** · 피난기구 · 인명구조기구.
+ *  기준 원문은 **현행 별지9호**(`_form/별지9호-placeholder.hwpx` Contents/section0.xml) — 세부현황은 4호·9호
+ *  공용 원본이고, `_doc01` 별지4호 샘플은 구판이라 화재알림설비 자체가 없다(form_edition_finding 참조).
+ *  초판이 구판을 기준으로 삼아 화재알림설비 1블록을 놓쳤고 독립 판정(2026-08-12)이 적발했다.
+ *  (원문 둘째 줄의 이음표는 '::: ', ': : : ', ':' 등 제각각이라 ':동명'만 찾으면 놓친다.)
  *  둘째 줄은 원문처럼 ':'로 시작해 첫 줄의 이어짐임을 보인다(라벨 반복 없음). */
 function rangeLines2(b: Vals, h: boolean): string[] {
   return [`◦ 설치장소: ${rangeLine(b, h)}`, `: ${rangeLine(b, h, '2')}`]
@@ -283,7 +285,8 @@ function renderS34(sec: Vals, h: boolean): string {
 
 // ── 3-5. 경보설비 ───────────────────────────────────────────────────────────
 /** 자탐·화재알림 공용 — detectionFields 대응.
- *  설치장소 둘째 줄은 자동화재탐지설비에만 있다(A4-4) — 화재알림설비는 원문 세부현황에 없는 신설 설비다. */
+ *  A4-4: 설치장소 둘째 줄은 **둘 다** 있다(현행 9호 원문 2줄 블록 8개에 모두 포함).
+ *  종전엔 화재알림설비를 "원문에 없는 신설 설비"로 보고 1줄만 냈는데, 그 근거가 **구판 별지4호 샘플**이었다. */
 function detectionLines(b: Vals, h: boolean, second = false): string[] {
   const det = b['detector']
   const detEtc = ['불꽃', '아날로그식', '복합형'].some(o => Array.isArray(det) && (det as unknown[]).map(String).includes(o))
@@ -315,7 +318,7 @@ function renderS35(sec: Vals, h: boolean): string {
     `◦ 설치장소: ${rangeLine(eb, h)}`,
     `◦ 조작장치 설치장소: 동명(${slot(eb['panel_dong'], '            ', h)}) ${gsel(eb['panel_ground'])} (${slot(eb['panel_floor'], '   ', h)})층 실명(${slot(eb['panel_room'], '              ', h)})`])}
   ${specRow(`${cb(blockHas(fd))} 자동화재<br>탐지설비`, detectionLines(fd, h, true))}
-  ${specRow(`${cb(blockHas(fa))} 화재알림설비`, detectionLines(fa, h))}
+  ${specRow(`${cb(blockHas(fa))} 화재알림설비`, detectionLines(fa, h, true))}
   ${specRow(`${cb(blockHas(bc))} 비상방송설비`, [
     `${sel(bc['usage'], '전용')}전용 ${sel(bc['usage'], '겸용')}겸용 / ${sel(bc['alarm_mode'], '전층경보')}전층경보 ${sel(bc['alarm_mode'], '우선경보')}우선경보`,
     `◦ 증폭기 설치장소: ${locLine(bc, 'amp', h)}`])}

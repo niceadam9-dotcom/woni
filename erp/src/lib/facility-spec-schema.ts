@@ -349,8 +349,9 @@ const S34: SpecSection = {
 // ── 3-5. 경보설비 ───────────────────────────────────────────────────────────
 
 /** 자동화재탐지설비·화재알림설비 공용 필드 세트 (수신기·경보방식·감지기 동일 구성).
- *  second는 자동화재탐지설비에만 준다 — 서식 원문에 둘째 줄이 있는 쪽은 자동화재탐지뿐이고,
- *  화재알림설비는 원문 세부현황에 아예 없는 신설 설비라 근거 없는 칸을 만들면 안 된다(A4-4). */
+ *  A4-4: **둘 다 설치장소가 2줄**이다. 종전 주석("화재알림설비는 원문에 없는 신설 설비")은 사실이 아니었다 —
+ *  구판 별지4호 샘플에는 없지만 **현행 별지9호 원문(_form/별지9호-placeholder.hwpx)에는 있고**, 세부현황은
+ *  4호·9호 공용 원본이라 9호 현행판이 기준이다(독립 판정 2026-08-12: 원문 2줄 블록 8개 중 화재알림설비 누락 적발). */
 function detectionFields(opts?: { second?: boolean }): SpecField[] {
   return [
     ...locFields('receiver', '수신기'),
@@ -379,9 +380,9 @@ const S35: SpecSection = {
         ...locFields('panel', '조작장치'),
       ],
     },
-    // 설치장소 2줄은 자동화재탐지설비만 — 화재알림설비는 원문 세부현황에 없다(A4-4)
+    // A4-4: 설치장소 2줄 — 자동화재탐지설비·화재알림설비 둘 다(현행 9호 원문 8블록에 모두 포함)
     { key: 'fire_detection', label: '자동화재탐지설비', facilityHint: '자동화재탐지설비 및 시각경보기', fields: detectionFields({ second: true }) },
-    { key: 'fire_alert', label: '화재알림설비', facilityHint: '화재알림설비', fields: detectionFields() },
+    { key: 'fire_alert', label: '화재알림설비', facilityHint: '화재알림설비', fields: detectionFields({ second: true }) },
     {
       key: 'broadcast', label: '비상방송설비', facilityHint: '비상방송설비',
       fields: [
