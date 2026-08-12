@@ -14,7 +14,9 @@ import { facilitiesForSheet } from '@/lib/sheet-facility-map'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 
 const SECTION_KEYS = new Set(FACILITY_SPEC_SECTIONS.map(s => s.key))
-const ANNEX_NOS = new Set(['report9', 'report10', 'report11'])
+// exterior 추가(소방계획서_19 EX-2) — 외관점검표도 ③ 서식 고유 값(점검일·비고)을 저장한다.
+// 여기와 DB CHECK(마이그레이션 126) 둘 다 열어야 저장이 통한다 — 한쪽만 고치면 조용히 막힌다.
+const ANNEX_NOS = new Set(['report9', 'report10', 'report11', 'exterior'])
 
 // ── 설비 세부현황 (고객·건물 단위) ──────────────────────────────────────────
 

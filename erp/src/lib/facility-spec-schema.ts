@@ -70,8 +70,8 @@ function locFields(prefix = '', labelPrefix = ''): SpecField[] {
 }
 
 /** 설치장소: 동명( ) 전체층/일부층, 지상/지하( )층 ~ 지상/지하( )층 — 층 범위형.
- *  opts.second=true면 둘째 동을 적는 줄까지 만든다(A4-4) — 서식 원문이 미분무·피난기구·
- *  인명구조기구 세 블록에만 설치장소 줄을 2줄로 두었다(현행 개정판 원문 대조, 2026-08-12).
+ *  opts.second=true면 둘째 동을 적는 줄까지 만든다(A4-4) — 현행 개정판 원문에서 설치장소 줄이
+ *  2줄인 블록은 **7개**다: 옥내소화전·화재조기진압용SP·물분무·미분무·자동화재탐지설비·피난기구·인명구조기구.
  *  칸이 하나뿐이면 동이 둘 이상인 대상물의 두 번째 동을 적을 자리가 없다. */
 function rangeLocFields(opts?: { coverage?: boolean; second?: boolean }): SpecField[] {
   const coverage = opts?.coverage !== false
@@ -253,7 +253,7 @@ const S33: SpecSection = {
     {
       key: 'indoor_hydrant', label: '옥내소화전', facilityHint: '옥내소화전설비',
       fields: [
-        ...rangeLocFields(),
+        ...rangeLocFields({ second: true }),   // 서식 원문 설치장소 2줄 (A4-4)
         { key: 'max_count', label: '설치개수가 가장 많은 층의 설치개수', type: 'number', unit: '개' },
       ],
     },
@@ -277,11 +277,11 @@ const S33: SpecSection = {
     },
     {
       key: 'early_suppression', label: '화재조기진압용 스프링클러설비', facilityHint: '화재조기진압용 스프링클러설비',
-      fields: rangeLocFields(),
+      fields: rangeLocFields({ second: true }),   // 서식 원문 설치장소 2줄 (A4-4)
     },
     {
       key: 'water_spray', label: '물분무소화설비', facilityHint: '물분무소화설비',
-      fields: rangeLocFields(),
+      fields: rangeLocFields({ second: true }),   // 서식 원문 설치장소 2줄 (A4-4)
     },
     {
       key: 'water_mist', label: '미분무소화설비', facilityHint: '미분무소화설비',
@@ -348,13 +348,15 @@ const S34: SpecSection = {
 
 // ── 3-5. 경보설비 ───────────────────────────────────────────────────────────
 
-/** 자동화재탐지설비·화재알림설비 공용 필드 세트 (수신기·경보방식·감지기 동일 구성) */
-function detectionFields(): SpecField[] {
+/** 자동화재탐지설비·화재알림설비 공용 필드 세트 (수신기·경보방식·감지기 동일 구성).
+ *  second는 자동화재탐지설비에만 준다 — 서식 원문에 둘째 줄이 있는 쪽은 자동화재탐지뿐이고,
+ *  화재알림설비는 원문 세부현황에 아예 없는 신설 설비라 근거 없는 칸을 만들면 안 된다(A4-4). */
+function detectionFields(opts?: { second?: boolean }): SpecField[] {
   return [
     ...locFields('receiver', '수신기'),
     { key: 'alarm_mode', label: '경보방식', type: 'select', options: ['전층경보', '우선경보'] },
     { key: 'visual_alarm', label: '시각경보기', type: 'select', options: ['유', '무'] },
-    ...rangeLocFields(),
+    ...rangeLocFields({ second: opts?.second }),
     { key: 'detector', label: '감지기종류', type: 'multicheck', options: ['열', '연기', '불꽃', '아날로그식', '복합형'] },
   ]
 }
@@ -377,7 +379,8 @@ const S35: SpecSection = {
         ...locFields('panel', '조작장치'),
       ],
     },
-    { key: 'fire_detection', label: '자동화재탐지설비', facilityHint: '자동화재탐지설비 및 시각경보기', fields: detectionFields() },
+    // 설치장소 2줄은 자동화재탐지설비만 — 화재알림설비는 원문 세부현황에 없다(A4-4)
+    { key: 'fire_detection', label: '자동화재탐지설비', facilityHint: '자동화재탐지설비 및 시각경보기', fields: detectionFields({ second: true }) },
     { key: 'fire_alert', label: '화재알림설비', facilityHint: '화재알림설비', fields: detectionFields() },
     {
       key: 'broadcast', label: '비상방송설비', facilityHint: '비상방송설비',

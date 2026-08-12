@@ -85,7 +85,10 @@ function rangeLine(b: Vals, h: boolean, sfx = ''): string {
     + `${gsel(b[`from_ground${sfx}`])}(${slot(b[`from_floor${sfx}`], ' ', h)})층 ~ ${gsel(b[`to_ground${sfx}`])}(${slot(b[`to_floor${sfx}`], ' ', h)})층`
 }
 
-/** 설치장소 2줄 블록(A4-4) — 서식 원문이 미분무·피난기구·인명구조기구에만 둘째 줄을 둔다.
+/** 설치장소 2줄 블록(A4-4) — 서식 원문에서 둘째 줄을 가진 블록은 **7개**다:
+ *  옥내소화전 · 화재조기진압용SP · 물분무 · 미분무 · 자동화재탐지설비 · 피난기구 · 인명구조기구.
+ *  (원문 둘째 줄의 이음표는 '::: ', ': : : ', ':' 등 제각각이라 ':동명'만 찾으면 4개를 놓친다 —
+ *   독립 판정에서 실제로 그렇게 누락됐다. 판정 근거: _form/_별지4호_현행판_추출.txt)
  *  둘째 줄은 원문처럼 ':'로 시작해 첫 줄의 이어짐임을 보인다(라벨 반복 없음). */
 function rangeLines2(b: Vals, h: boolean): string[] {
   return [`◦ 설치장소: ${rangeLine(b, h)}`, `: ${rangeLine(b, h, '2')}`]
@@ -241,7 +244,7 @@ function renderS33(sec: Vals, h: boolean): string {
 
   return `<table class="form tight">
   ${specRow(`${cb(blockHas(ih))}옥내<br>소화전`, [
-    `◦ 설치장소: ${rangeLine(ih, h)}`,
+    ...rangeLines2(ih, h),
     `◦ 설치개수가 가장 많은 층의 설치개수: ${pv(ih['max_count'], 3, h)}개`])}
   ${specRow(`${cb(blockHas(oh))} 옥외<br>소화전`, [`◦ 설치개수: ${pv(oh['count'], 3, h)}개`])}
   ${specRow(`${cb(blockHas(sp))} 스프링클러설비`, [
@@ -250,8 +253,8 @@ function renderS33(sec: Vals, h: boolean): string {
   ${specRow(`${cb(blockHas(ss))} 간이스프링클러설비`, [
     `◦ 종류: ${sel(ss['type'], '펌프')}펌프 ${sel(ss['type'], '캐비닛')}캐비닛 ${sel(ss['type'], '상수도')}상수도`,
     `◦ 설치장소: ${rangeLine(ss, h)}`])}
-  ${specRow(`${cb(blockHas(es))} 화재<br>조기진압용`, [`◦ 설치장소: ${rangeLine(es, h)}`])}
-  ${specRow(`${cb(blockHas(ws))} 물분무소화설비`, [`◦ 설치장소: ${rangeLine(ws, h)}`])}
+  ${specRow(`${cb(blockHas(es))} 화재<br>조기진압용`, rangeLines2(es, h))}
+  ${specRow(`${cb(blockHas(ws))} 물분무소화설비`, rangeLines2(ws, h))}
   ${specRow(`${cb(blockHas(wm))} 미분무소화설비`, rangeLines2(wm, h))}
   ${specRow(`${cb(blockHas(fo))} 포<br>소화설비`, [
     `${mc(fo['system'], '포워터스프링클러설비')}포워터스프링클러설비 ${mc(fo['system'], '포헤드설비')}포헤드설비 ${mc(fo['system'], '고정포방출설비')}고정포방출설비 ${mc(fo['system'], '기타')}기타(${slot(fo['system_etc'], '               ', h)})`,
@@ -279,14 +282,15 @@ function renderS34(sec: Vals, h: boolean): string {
 }
 
 // ── 3-5. 경보설비 ───────────────────────────────────────────────────────────
-/** 자탐·화재알림 공용 4줄 — detectionFields 대응 */
-function detectionLines(b: Vals, h: boolean): string[] {
+/** 자탐·화재알림 공용 — detectionFields 대응.
+ *  설치장소 둘째 줄은 자동화재탐지설비에만 있다(A4-4) — 화재알림설비는 원문 세부현황에 없는 신설 설비다. */
+function detectionLines(b: Vals, h: boolean, second = false): string[] {
   const det = b['detector']
   const detEtc = ['불꽃', '아날로그식', '복합형'].some(o => Array.isArray(det) && (det as unknown[]).map(String).includes(o))
   return [
     `◦ 수신기 위치: 동명(${slot(b['receiver_dong'], '            ', h)}) ${gsel(b['receiver_ground'])} (${slot(b['receiver_floor'], '   ', h)})층 실명(${slot(b['receiver_room'], '                ', h)})`,
     `◦ 경보방식 ${sel(b['alarm_mode'], '전층경보')}전층경보 ${sel(b['alarm_mode'], '우선경보')}우선경보, 시각경보기 ${sel(b['visual_alarm'], '유')}유 ${sel(b['visual_alarm'], '무')}무`,
-    `◦ 설치장소: ${rangeLine(b, h)}`,
+    ...(second ? rangeLines2(b, h) : [`◦ 설치장소: ${rangeLine(b, h)}`]),
     `◦ 감지기종류 ${mc(det, '열')}열 ${mc(det, '연기')}연기 ${cb(detEtc)}그 밖의 것(${mc(det, '불꽃')}불꽃 ${mc(det, '아날로그식')}아날로그식 ${mc(det, '복합형')}복합형)`,
   ]
 }
@@ -310,7 +314,7 @@ function renderS35(sec: Vals, h: boolean): string {
     `${mc(eb['type'], '비상벨설비')}비상벨설비 ${mc(eb['type'], '자동식사이렌설비')}자동식사이렌설비`,
     `◦ 설치장소: ${rangeLine(eb, h)}`,
     `◦ 조작장치 설치장소: 동명(${slot(eb['panel_dong'], '            ', h)}) ${gsel(eb['panel_ground'])} (${slot(eb['panel_floor'], '   ', h)})층 실명(${slot(eb['panel_room'], '              ', h)})`])}
-  ${specRow(`${cb(blockHas(fd))} 자동화재<br>탐지설비`, detectionLines(fd, h))}
+  ${specRow(`${cb(blockHas(fd))} 자동화재<br>탐지설비`, detectionLines(fd, h, true))}
   ${specRow(`${cb(blockHas(fa))} 화재알림설비`, detectionLines(fa, h))}
   ${specRow(`${cb(blockHas(bc))} 비상방송설비`, [
     `${sel(bc['usage'], '전용')}전용 ${sel(bc['usage'], '겸용')}겸용 / ${sel(bc['alarm_mode'], '전층경보')}전층경보 ${sel(bc['alarm_mode'], '우선경보')}우선경보`,
