@@ -9,10 +9,10 @@ import 'server-only'
  *  **순서 강제 미적용**: 배치확인서는 협회에서 늦게 오고 점검표는 먼저 채워진다. 순서를 강제하면
  *  첫 단계에서 막혀 아무것도 완료되지 않는다(종전 completeStepCore의 전제와 다른 점).
  *
- *  ⚠ recalc와의 순서(설계 C1-b): `recalc_inspection_steps`는 **미완료 단계만** 갱신한다.
- *  증거 동기화가 단계를 자동 완료시키면 재계산 대상에서 빠지므로, **종료일을 나중에 고치면
- *  이미 완료된 단계의 마감일이 낡은 채 남는다.** 그래서 종료일 변경 경로(saveMultidayAction)는
- *  recalc를 먼저 돌리고 그 다음에 이 함수를 부른다. */
+ *  ⚠ recalc와의 순서(설계 C1-b) — 마이그레이션 128로 해소: 종전 `recalc_inspection_steps`는
+ *  **미완료 단계만** 갱신해서, 증거로 자동 완료된 단계가 재계산에서 빠지고 종료일을 나중에 고치면
+ *  그 단계의 마감일만 낡은 채 남았다. 이제 두 호출부(여기, updateInspectionMultidayAction)가
+ *  `p_include_completed=TRUE`를 넘겨 완료 여부와 무관하게 기준일을 따르므로 순서 의존이 없다. */
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { isCertFileName, findArchivedCertInspections } from '@/lib/doc-status'
@@ -124,6 +124,19 @@ export async function applyStepSideEffects(
   return { justCompleted }
 }
 
+/** 단계 마감일 재계산 — 완료된 단계까지 포함(마이그레이션 128).
+ *  128 미적용 DB에서는 3인자 시그니처가 없어 PGRST202로 실패하므로 종전 2인자로 물러난다.
+ *  (마감일이 낡는 문제는 남지만 저장 자체가 실패하는 것보다 낫다 — 128 적용 후 자동으로 해소된다.) */
+export async function recalcStepDueDates(
+  admin: Admin, inspectionId: string, baseDate: string,
+): Promise<void> {
+  const { error } = await admin.rpc('recalc_inspection_steps', {
+    p_inspection_id: inspectionId, p_base_date: baseDate, p_include_completed: true,
+  })
+  if (!error) return
+  await admin.rpc('recalc_inspection_steps', { p_inspection_id: inspectionId, p_base_date: baseDate })
+}
+
 /** 증거 → inspection_steps.status 동기화. **status를 쓰는 유일한 함수**.
  *  상태가 실제로 바뀐 행만 갱신한다(무의미한 쓰기·revalidate 폭풍 방지). */
 export async function syncInspectionSteps(
@@ -170,13 +183,15 @@ export async function syncInspectionSteps(
   }
   const changed = toComplete.length + toRevert.length
 
-  // ①이 새로 완료되면 확정일 기준으로 미완료 단계 마감일 재계산 (migration 048 — 법정 기한은 실제 점검일 기산)
+  // ①이 새로 완료되면 확정일 기준으로 마감일 재계산 (migration 048 — 법정 기한은 실제 점검일 기산).
+  // p_include_completed=TRUE(128): 위에서 방금 2~4단계까지 함께 완료시켰을 수 있는데, 종전 recalc는
+  // 완료 행을 건너뛰므로 그 단계만 마감일이 비거나 낡은 채 남았다. 마감일은 완료 여부와 무관하다.
   if (newlyCompleted.includes(1)) {
     const kstToday = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
-    await admin.rpc('recalc_inspection_steps', {
-      p_inspection_id: inspectionId,
-      p_base_date: insp.inspection_end_date || insp.inspection_start_date || kstToday,
-    })
+    await recalcStepDueDates(
+      admin, inspectionId,
+      insp.inspection_end_date || insp.inspection_start_date || kstToday,
+    )
   }
 
   const allActiveDone = active.every(n => done[n])

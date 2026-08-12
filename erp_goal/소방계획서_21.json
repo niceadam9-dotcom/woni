@@ -630,13 +630,24 @@
         {
           "id": "R2-12",
           "desc": "E2E test-fireplan-generate.mts",
-          "status": "pending_order",
-          "note": "**미착수.** 핵심 시나리오(해시 같으면 미재생성 / 인쇄가 차수를 올리지 않음 / 제출본 동결)가 전부 **PDF 생성을 거치므로 Gotenberg 필요** — 로컬 작성·실행 불가, 스테이징에서 진행"
+          "status": "partial",
+          "evidence": ["scripts/test-fireplan-generate.mts (신규)"],
+          "self_check": "2026-08-12 실행 — **8 통과 / 0 실패 / 4 SKIP**. 정리 확인 잔존 고객 0",
+          "note": "**세 약속 중 ①만 실증됐다.** ① 조회는 파일을 만들지 않는다 — previewFirePlanHtmlAction을 서버 액션으로 직접 호출(_judge19-action 패턴)해 HTML 반환·고객명 병합을 확인하고, 호출 전후로 **fire_plans 행 수와 storage 객체 수가 모두 불변**임을 2회 호출 모두에서 검증했다. ②(인쇄가 차수를 올리지 않음)·③(제출본 동결)은 진입 자체가 막혀 SKIP",
+          "skipped": [
+            "②-1 해시가 같으면 재생성하지 않는다 — 마이그레이션 127 미적용(fire_plans.source_hash 없음)",
+            "②-2 인쇄가 차수를 올리지 않는다 — 127 미적용 + GOTENBERG_URL 미설정",
+            "③ 제출본 동결 — 127 미적용. ensureLatest가 source_hash를 SELECT해 진입 불가. **127만 적용되면 Gotenberg 없이도 검증 가능한 절이다**(동결은 조립 전 early return)",
+            "개정 발행(새 행 + revision +1 + 이력 1행) — GOTENBERG_URL 미설정"
+          ],
+          "design_note": "SKIP은 통과로 세지 않고 실행 말미에 사유와 함께 다시 출력한다(과대 표기 방지). 환경은 런타임 판정 — GOTENBERG_URL 유무와 source_hash 컬럼 존재를 각각 확인해 127이 적용되면 ③이 자동으로 실행된다",
+          "not_registered": "scripts/test-all.mts 미등록 — 그 파일이 다른 세션(소방계획서_16 S6-4)과 한 hunk를 공유해 충돌 위험이 있어 손대지 않았다"
         }
       ],
       "artifacts": [
         "scripts/_probe-fireplan-reissue.mjs (신규, 40/40 통과 — 서버 불필요 정적 규약 검증)",
-        "scripts/_apply-127-staging.mjs (신규)"
+        "scripts/_apply-127-staging.mjs (신규)",
+        "scripts/test-fireplan-generate.mts (신규, 8/0/4SKIP)"
       ]
     },
     {
@@ -792,7 +803,7 @@
           "desc": "수동 버튼 제거의 잔재 정리 — completeStepCore의 일괄 완료 호출자(주석 '일괄 완료 성능, 2026-08-04')와 InspectionDetailClient(C1에서 삭제) 참조 확인",
           "status": "code_present",
           "risk": "R-3",
-          "self_report": "수동 완료 잔재 — 타임라인 버튼은 사유 필수로 교체 완료. 달력 일괄(bulkCompleteStepsAction)·계획 패널은 잔재로 남음(아래 residual)"
+          "self_report": "수동 완료 잔재 정리 완료(2026-08-12 잔재 처리) — completeStepCore를 강제 완료 경로로 재작성(마커+sync, status 직접 쓰기·순서 강제 제거), 호출자 4곳(상세·계획 패널·달력 단건·달력 일괄) 전부 사유 필수. 아래 residual_resolved 참조"
         },
         {
           "id": "R4-10",
@@ -826,10 +837,27 @@
         "impact": "월간 건의 '영원한 미완'은 분모가 아니라 **① status가 버튼을 눌러야만 바뀌던 것**(F-5)이 원인이었다. R4-8의 실효는 **자체점검 불량 0건에서 분모를 6→4로 좁히는 것**에 남는다(⑤⑥ 행은 DB에 있으나 '해당없음'). 조회 시 필터 방식은 그대로 유효 — 불량이 생기면 다시 6이 된다",
         "evidence": "scripts/test-inspection-steps-sync.mts 2부 — 월간 건 생성 시 트리거가 1행만 만드는 것을 실주행으로 단언"
       },
-      "residual": [
-        "달력 일괄 완료(bulkCompleteStepsAction)·계획 패널(plan-item-slide-panel)은 여전히 completeStepCore로 status를 직접 쓴다 — 근거를 남기지 않으므로 다음 상세 진입 시 R4-7 보정이 되돌린다. 설계상 의도된 동작이나(D34-2) 사용자에겐 갑작스러우므로, C1(R5)에서 해당 버튼을 걷거나 forceCompleteStepAction으로 옮겨야 한다",
-        "C1-b ⚠ recalc 순서 — 종료일을 나중에 고치면 이미 자동 완료된 단계의 마감일이 낡은 채 남는다(recalc는 미완료 단계만 갱신). saveMultidayAction이 recalc를 먼저 돌린 뒤 sync를 부르는지 독립 검증에서 확인 필요"
-      ]
+      "residual": [],
+      "residual_resolved": {
+        "date": "2026-08-12",
+        "by": "구현 세션(자기 신고 — 독립 검증 전)",
+        "items": [
+          {
+            "was": "달력 일괄 완료(bulkCompleteStepsAction)·계획 패널(plan-item-slide-panel)은 여전히 completeStepCore로 status를 직접 쓴다 — 근거를 남기지 않으므로 다음 상세 진입 시 R4-7 보정이 되돌린다",
+            "now": "completeStepCore 자체를 강제 완료 경로로 다시 썼다 — status 직접 쓰기·순서 강제를 없애고 step_force_complete 마커(사유 5~300자 필수)를 남긴 뒤 syncInspectionSteps를 부른다. 어느 호출자를 거치든 근거가 남으므로 보정이 되돌리지 않는다. 호출자 4곳 전부 사유를 받는다: 상세(inspection-detail-client:58)·계획 패널(plan-item-slide-panel:75)·달력 단건(:786)·달력 일괄(:707 — 선택 전 건에 한 번 받아 공통 증빙으로 기록). 일괄 액션 2종도 reason 인자 필수",
+            "extra": "타임라인 [사유 완료]의 '가장 낮은 미완료 단계에만 노출' 제약도 제거 — 서버가 순서 강제를 버린 뒤로는 화면만 막는 꼴이었다(배치확인서 ②는 협회 지연으로 ①보다 늦게 온다)",
+            "evidence": "grep — inspection_steps.status를 쓰는 곳은 lib/inspection-step-sync.ts 하나뿐(inspection-start.ts는 due_date만 씀). completeStepAction 호출 4곳 모두 3인자. tsc 클린"
+          },
+          {
+            "was": "C1-b recalc 순서 — 종료일을 나중에 고치면 이미 자동 완료된 단계의 마감일이 낡은 채 남는다. saveMultidayAction이 recalc를 먼저 돌린 뒤 sync를 부르는지 확인 필요",
+            "finding": "설계가 가정한 'recalc 먼저, sync 나중' 순서는 **존재하지 않았다** — saveMultidayAction이라는 함수 자체가 없고(실명 updateInspectionMultidayAction), 그 경로는 recalc만 부르고 sync는 부르지 않는다. 게다가 같은 문제가 sync 내부에도 있었다: 증거로 ①~④를 한꺼번에 완료시킨 **뒤** recalc를 부르므로 방금 완료된 ②③④가 재계산에서 통째로 빠진다",
+            "now": "순서로 풀지 않고 전제를 바꿨다 — 마감일은 '언제 했는가'가 아니라 '언제까지였는가'라 완료 여부와 무관하다. 마이그레이션 128이 recalc_inspection_steps에 p_include_completed(기본 FALSE)를 추가하고 두 호출부는 신설 recalcStepDueDates()로 TRUE를 넘긴다. 순서 의존이 사라져 어느 쪽을 먼저 불러도 결과가 같다",
+            "compat": "128 미적용 DB에서는 3인자 시그니처가 없어 PGRST202가 나므로 recalcStepDueDates가 2인자로 폴백한다 — 마감일이 낡는 한계는 남지만 저장 자체가 실패하지 않는다. 128 적용 즉시 자동 해소",
+            "evidence": "test-inspection-steps-sync.mts 3부(신설 3단언) — 128 미적용 스테이징 실주행에서 폴백 성공·미완료 단계 갱신 확인, 완료 단계가 낡는 것까지 단언으로 고정(128 적용 후엔 반대 단언으로 분기). 전체 39/39",
+            "blocked": "마이그레이션 128 스테이징 적용 대기 — Management API 토큰(%TEMP%/sbtok.txt)이 사라져 이 세션에서 적용 불가. 토큰 재제공 후 적용 + 테스트 재실행 필요"
+          }
+        ]
+      }
     },
     {
       "id": "R5",

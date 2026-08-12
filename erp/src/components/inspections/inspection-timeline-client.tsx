@@ -312,9 +312,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   }
   const stepByNum = new Map(data.inspectionSteps.map(s => [s.step_num, s]))
   const stepOf = (k: TimelineStepKey) => stepByNum.get(STEP_NUM[k]) ?? null
-  // 완료 처리 버튼 = 미완료 중 가장 낮은 step_num (완료 순서 강제 — completeStepAction과 동일 규칙)
-  const firstIncompleteStepNum = data.inspectionSteps
-    .filter(s => s.status !== 'completed').map(s => s.step_num).sort((a, b) => a - b)[0]
+  // [사유 완료]는 **미완료 단계 어디서나** 가능하다(R4 잔재 ①). 종전엔 가장 낮은 미완료 단계에만
+  // 버튼을 뒀지만, 서버가 순서 강제를 버린 뒤로는 화면만 막는 꼴이었다 — 배치확인서(②)는 협회에서
+  // 늦게 오고 점검표(①)는 먼저 채워지는 등 순서가 어긋나는 것이 정상이다.
 
   // §4-E 완료 단계 자동 접힘: done → 접힘(사용자 클릭 시 펼침), 첫 미완료(nextStep)는 자동 펼침
   const doneMap: Record<TimelineStepKey, boolean> = {
@@ -346,7 +346,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   }) => {
     const st = stepOf(k)
     const open = isOpen(k)
-    const canCompleteHere = canComplete && st && st.status !== 'completed' && st.step_num === firstIncompleteStepNum
+    const canCompleteHere = canComplete && st && st.status !== 'completed'
     return (
       <div className="flex items-center gap-2 w-full">
         <button onClick={() => toggle(k)} className="flex items-center gap-2 flex-1 min-w-0 text-left">

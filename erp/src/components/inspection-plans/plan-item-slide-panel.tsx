@@ -74,8 +74,14 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
 
   async function handleCompleteStep(stepId: string) {
     if (!item.inspection_id) return
+    // R4-9(소방계획서_21): 근거 없는 완료는 증거 기반 동기화가 되돌린다 — 사유를 남긴다(D34-2)
+    const reason = window.prompt(
+      '이 단계를 완료 처리합니다.\n점검표 응답·파일·제출일이 등록되면 자동으로 완료됩니다.\n\n'
+      + '완료 사유를 입력하세요 (5자 이상 — 증빙으로 남습니다):',
+    )
+    if (reason === null) return
     setCompleteErr('')
-    const res = await completeStepAction(stepId, item.inspection_id)
+    const res = await completeStepAction(stepId, item.inspection_id, reason)
     if (res.error) { setCompleteErr(res.error); return }
     // 단계 목록 새로고침
     const r = await getInspectionStepsForItemAction(item.inspection_id)

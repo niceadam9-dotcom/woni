@@ -171,6 +171,40 @@ try {
   ok('자체점검은 DB에 6행', specialSteps.length === 6, JSON.stringify(specialSteps.map(s => s.step_num)))
   ok('불량 0건이면 유효 분모 4 — ⑤⑥은 해당없음', activeStepNums(true, false).length === 4)
   await db.from('inspections').delete().eq('id', mId)
+
+  // — 3부: 마감일 재계산 (R4 잔재 ②, 설계 C1-b / 마이그레이션 128)
+  // 종전 recalc는 완료 행을 건너뛰어, 증거로 자동 완료된 단계만 낡은 마감일이 남았다.
+  // lib/inspection-step-sync.ts는 server-only라 여기서 import할 수 없으므로 같은 폴백 순서를 재현한다.
+  console.log('\n— 3부 마감일 재계산(잔재 ②)')
+  await db.from('inspection_steps').update({ status: 'completed', due_date: '2000-01-01' } as never)
+    .eq('inspection_id', inspId).eq('step_num', 2)
+  await db.from('inspection_steps').update({ status: 'pending', due_date: '2000-01-01' } as never)
+    .eq('inspection_id', inspId).eq('step_num', 3)
+  const BASE = '2025-09-01'
+  const three = await db.rpc('recalc_inspection_steps',
+    { p_inspection_id: inspId, p_base_date: BASE, p_include_completed: true } as never)
+  const has128 = !three.error
+  if (!has128) {
+    const two = await db.rpc('recalc_inspection_steps',
+      { p_inspection_id: inspId, p_base_date: BASE } as never)
+    ok('128 미적용 DB에서도 폴백(2인자)이 성공한다 — 저장이 깨지지 않는다',
+      !two.error, two.error?.message ?? '')
+  } else {
+    ok('128 적용 — 3인자 재계산이 성공한다', true)
+  }
+  const { data: dueRows } = await db.from('inspection_steps')
+    .select('step_num, status, due_date').eq('inspection_id', inspId).in('step_num', [2, 3])
+  const due = Object.fromEntries((dueRows ?? []).map(
+    (r: { step_num: number; due_date: string | null }) => [r.step_num, r.due_date]))
+  ok('미완료 단계(③)는 새 기준일로 갱신된다', (due[3] ?? '') > BASE, JSON.stringify(due))
+  if (has128) {
+    ok('완료 단계(②)도 새 기준일로 갱신된다 — 마감일은 완료 여부와 무관',
+      (due[2] ?? '') > BASE, JSON.stringify(due))
+  } else {
+    ok('128 미적용이면 완료 단계(②)는 낡은 채 남는다 — 128 적용이 해소 조건임을 명시',
+      due[2] === '2000-01-01', JSON.stringify(due))
+    console.log('  ⚠ 마이그레이션 128 미적용 — 적용 후 재실행하면 완료 단계도 갱신되어야 한다')
+  }
 } catch (e) {
   fail++
   console.log(`  ❌ 2부 중단: ${(e as Error).message}`)

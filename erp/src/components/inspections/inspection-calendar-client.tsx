@@ -706,17 +706,25 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const planSel = bulkPlanCandidates.filter(c => bulkChecked.has(`p:${c.itemId}`))
       .map(({ itemId, label }) => ({ itemId, label }))
     if (stepItems.length + planSel.length === 0) { setBulkResult('선택된 건이 없습니다.'); return }
+    // R4-9: 일괄이라 건마다 묻지 않는 대신 **한 번은 반드시 사유를 받는다** — 근거 없는 완료는
+    // 다음 상세 진입 때 증거 기반 동기화가 되돌린다(D34-2).
+    const reason = window.prompt(
+      `선택한 ${stepItems.length + planSel.length}건을 완료 처리합니다.\n`
+      + '점검표·파일·제출일이 등록된 건은 사유 없이도 자동 완료됩니다.\n\n'
+      + '완료 사유를 입력하세요 (5자 이상 — 선택한 전 건에 증빙으로 남습니다):',
+    )
+    if (reason === null) return
     startBulk(async () => {
       let done = 0
       const failed: Array<{ label: string; error: string }> = []
       if (planSel.length > 0) {
-        const res = await bulkStartCompletePlanItemsAction(planSel)
+        const res = await bulkStartCompletePlanItemsAction(planSel, reason)
         if (res.error) { setBulkResult(`❌ ${res.error}`); return }
         done += res.done
         failed.push(...res.failed)
       }
       if (stepItems.length > 0) {
-        const res = await bulkCompleteStepsAction(stepItems)
+        const res = await bulkCompleteStepsAction(stepItems, reason)
         if (res.error) { setBulkResult(`❌ ${res.error}`); return }
         done += res.done
         failed.push(...res.failed)
@@ -759,8 +767,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   // 데이 패널: 정기 항목 시작+완료 — 확인창 없이 클릭 즉시 완료 처리, 점검업무 이동 없음 (2026-08-05 사용자 확정)
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null)
   async function handleStartFromPanel(p: CalendarPlanItem) {
+    const reason = window.prompt(
+      `${p.customer_name} — 점검을 시작하고 ① 단계를 완료 처리합니다.\n`
+      + '외관점검표를 입력하면 ①은 자동으로 완료됩니다.\n\n완료 사유를 입력하세요 (5자 이상 — 증빙으로 남습니다):',
+    )
+    if (reason === null) return
     setStartingPlanId(p.id)
-    const res = await bulkStartCompletePlanItemsAction([{ itemId: p.id, label: p.customer_name }])
+    const res = await bulkStartCompletePlanItemsAction([{ itemId: p.id, label: p.customer_name }], reason)
     setStartingPlanId(null)
     if (res.error) { alert(res.error); return }
     if (res.failed.length > 0) { alert(res.failed[0].error); return }
@@ -768,9 +781,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   }
 
   async function handleCompleteStep(stepId: string, inspId: string) {
+    // R4-9(소방계획서_21): 달력의 '완료'는 증거가 아니라 사람의 확인이다 — 사유를 남겨야 증거 기반
+    // 동기화가 되돌리지 않는다(D34-2). 점검표·파일·제출일이 들어오면 그때는 사유 없이 자동 완료된다.
+    const reason = window.prompt(
+      '이 단계를 완료 처리합니다.\n점검표 응답·파일·제출일이 등록되면 자동으로 완료되니, 그 경로를 먼저 확인해주세요.\n\n'
+      + '완료 사유를 입력하세요 (5자 이상 — 증빙으로 남습니다):',
+    )
+    if (reason === null) return
     setCompletingStepId(stepId)
     setStepError(null)
-    const result = await completeStepAction(stepId, inspId)
+    const result = await completeStepAction(stepId, inspId, reason)
     setCompletingStepId(null)
     if (result.error) {
       setStepError(result.error)

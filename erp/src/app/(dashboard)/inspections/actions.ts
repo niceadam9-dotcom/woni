@@ -6,6 +6,8 @@ import { requirePermission, getSessionUser } from '@/lib/auth'
 import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
 import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
+import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
+import { STEP_FORCE_COMPLETE_ACTION, isSelfInspection } from '@/lib/inspection-step-status'
 import type { InspectionType } from '@/types'
 
 // ── 점검 보조 참여자 관리 (P31-2) — 보고서 개요의 보조 인력 ──
@@ -161,24 +163,33 @@ export async function updateInspectionMultidayAction(
     .eq('id', inspectionId)
   if (error) return { error: `저장 실패: ${error.message}` }
 
-  // 종료일 지정 시 미완료 단계를 종료일 기준으로 재기산 (RPC는 미완료만 갱신)
+  // 종료일 지정 시 단계 마감일을 종료일 기준으로 재기산.
+  // p_include_completed=TRUE(마이그레이션 128, 설계 C1-b): R4 이후엔 점검표만 채워도 2~4단계가
+  // 증거로 자동 완료되므로, 완료 행을 건너뛰면 한 점검 안에서 2단계는 옛 종료일·5단계는 새 종료일
+  // 기준이 되는 모순이 남는다. 마감일은 "언제까지였는가"라 완료 여부와 무관하게 기준일을 따른다.
   if (input.endDate) {
-    await admin.rpc('recalc_inspection_steps', { p_inspection_id: inspectionId, p_base_date: input.endDate })
+    await recalcStepDueDates(admin, inspectionId, input.endDate)
   }
   revalidatePath(`/inspections/${inspectionId}`)
   return {}
 }
 
+/** 단계 수동 완료 — **사유 필수** (소방계획서_21 R4-3·R4-9 / D34-2)
+ *
+ *  종전엔 사유 없이 status만 바꿨다. 이제 status는 syncInspectionSteps가 증거로부터 계산하므로,
+ *  근거 없는 수동 완료는 다음 상세 진입 때 보정에 되돌아간다 — 사용자에겐 "완료했는데 풀렸다"로 보인다.
+ *  그래서 수동 경로는 **사유를 받아 step_force_complete 마커로 남기고**, 그 마커가 증거가 되어 유지된다. */
 export async function completeStepAction(
   stepId: string,
-  inspectionId: string
+  inspectionId: string,
+  reason: string,
 ): Promise<{ error?: string; justCompleted?: boolean; report9Eligible?: boolean }> {
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
   const admin = createAdminClient()
   const { data: prof0 } = await admin.from('profiles').select('role').eq('id', user.id).single()
   const role = (prof0 as { role: string } | null)?.role ?? 'employee'
-  const res = await completeStepCore(admin, user.id, role, stepId, inspectionId)
+  const res = await completeStepCore(admin, user.id, role, stepId, inspectionId, reason)
   if (!res.error) {
     revalidatePath(`/inspections/${inspectionId}`)
     revalidatePath('/inspections')
@@ -190,14 +201,27 @@ export async function completeStepAction(
 }
 
 /** 단계 완료 코어 — 역할은 호출자가 1회 조회해 전달, revalidate는 호출자 책임 (일괄 완료 성능, 2026-08-04).
- *  로직은 기존과 동일: 권한·순서 강제·1단계 재계산·점검 완료 전이·계획 동기화. */
+ *
+ *  R4-9(소방계획서_21) 재작성: 종전엔 여기서 `inspection_steps.status`를 **직접** 썼다.
+ *  이제 status를 쓰는 함수는 syncInspectionSteps 하나뿐이므로(R4-4 단일 기록자), 이 코어는
+ *  ① 권한을 확인하고 ② **사유를 step_force_complete 마커로 남긴 뒤** ③ 동기화를 부른다.
+ *  마커가 곧 증거라 보정에 되돌아가지 않는다.
+ *
+ *  **순서 강제는 폐지**했다(R4-4) — 배치확인서는 협회에서 늦게 오고 점검표는 먼저 채워진다.
+ *  순서를 강제하면 첫 단계에서 막혀 뒤 단계를 영영 완료할 수 없다. */
 async function completeStepCore(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   role: string,
   stepId: string,
   inspectionId: string,
+  reason: string,
 ): Promise<{ error?: string; justCompleted?: boolean; report9Eligible?: boolean }> {
+  const trimmedReason = (reason ?? '').trim()
+  if (trimmedReason.length < 5) {
+    return { error: '완료 사유를 5자 이상 입력해주세요 — 증거가 없는 완료는 사유가 곧 증빙입니다.' }
+  }
+  if (trimmedReason.length > 300) return { error: '사유는 300자 이내로 입력해주세요.' }
   // 본인 담당 점검 또는 manager/admin만 처리 가능
   const { data: insp } = await admin
     .from('inspections')
@@ -212,137 +236,55 @@ async function completeStepCore(
     return { error: '담당 직원만 단계를 완료할 수 있습니다.' }
   }
 
-  // 완료 순서 강제: 이전 단계가 모두 완료되어야 현재 단계 완료 가능
+  // 순서 강제 폐지(R4-4) — 대상 단계 번호만 확인해 마커에 담는다
   const { data: targetStep } = await admin
     .from('inspection_steps')
     .select('step_num')
     .eq('id', stepId)
     .single()
   const targetNum = (targetStep as { step_num: number } | null)?.step_num
-  if (targetNum && targetNum > 1) {
-    const { data: prevSteps } = await admin
-      .from('inspection_steps')
-      .select('step_num, status')
-      .eq('inspection_id', inspectionId)
-      .lt('step_num', targetNum)
-    const incomplete = (prevSteps ?? []).filter(s => (s as { status: string }).status !== 'completed')
-    if (incomplete.length > 0) {
-      const nums = incomplete.map(s => (s as { step_num: number }).step_num).sort().join(', ')
-      return { error: `이전 단계(${nums}단계)를 먼저 완료해주세요.` }
-    }
-  }
+  if (!targetNum) return { error: '단계를 찾을 수 없습니다.' }
 
-  const now = new Date().toISOString()
-  const { error } = await admin
-    .from('inspection_steps')
-    .update({
-      status: 'completed',
-      completed_at: now,
-      completed_by: userId,
-    } as Record<string, unknown>)
-    .eq('id', stepId)
+  // 사유를 증거로 남긴다 — 이 마커가 있어야 동기화가 완료 상태를 유지한다(R4-3)
+  await admin.from('activity_logs').insert({
+    actor_id: userId,
+    action: STEP_FORCE_COMPLETE_ACTION,
+    entity_type: 'inspection',
+    entity_id: inspectionId,
+    metadata: { step_num: targetNum, reason: trimmedReason, step_id: stepId },
+  } as Record<string, unknown>)
 
-  if (error) return { error: '단계 완료 처리에 실패했습니다.' }
+  // 마커를 남겼으니 나머지는 단일 기록자에게 맡긴다 — status 쓰기·recalc·점검 상태 전이·계획 동기화가
+  // 전부 syncInspectionSteps 안에서 일어난다(R4-4·R4-5, 복제 금지).
+  const { justCompleted, error: syncErr } = await syncInspectionSteps(admin, inspectionId, userId)
+  if (syncErr) return { error: syncErr }
 
-  // 1단계(점검일) 완료 시 확정일 기준으로 미완료 2~6단계 마감일 재계산 (migration 048)
-  // — 법정 기한(소방서 보고서 15일 이내 등)은 실제 점검일 기준으로 기산됨.
-  // 다일 점검(P32-9): 기산점 = 종료일(inspection_end_date). 없으면 당일.
-  if (targetNum === 1) {
-    const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const endDate = (insp as { inspection_end_date: string | null }).inspection_end_date
-    await admin.rpc('recalc_inspection_steps', {
-      p_inspection_id: inspectionId,
-      p_base_date: endDate || kstToday,
-    })
-  }
-
-  // 모든 단계 완료 시 inspection status → completed
-  const { data: steps } = await admin
-    .from('inspection_steps')
-    .select('status')
-    .eq('inspection_id', inspectionId)
-
-  const allDone = (steps ?? []).every(s => (s as { status: string }).status === 'completed')
-  // R0-7: 점검이 방금 완료로 전이됐는지 (이전 상태가 completed가 아니었을 때만)
-  const justCompleted = allDone && (insp as { status: string }).status !== 'completed'
   // 별지 9호 제출 대상 = 자체점검(special_*·null) — 정기(monthly)·레거시 event는 외관점검표만이라 제외.
   // 관리유형 무관(소방계획서_6 W-4) — requestReport9Action·getReport9StatusAction isSpecial과 동일 기준
   const _insp = insp as { inspection_type: string; plan_type: string | null }
-  const report9Eligible = !_insp.plan_type || _insp.plan_type.startsWith('special')
-  if (allDone) {
-    await admin
-      .from('inspections')
-      .update({ status: 'completed' } as Record<string, unknown>)
-      .eq('id', inspectionId)
-  } else if ((insp as { status: string }).status === 'scheduled') {
-    await admin
-      .from('inspections')
-      .update({ status: 'in_progress' } as Record<string, unknown>)
-      .eq('id', inspectionId)
-  }
-
-  await admin.from('activity_logs').insert({
-    actor_id: userId,
-    action: 'complete_step',
-    entity_type: 'inspection_step',
-    entity_id: stepId,
-    metadata: { inspection_id: inspectionId },
-  } as Record<string, unknown>)
-
-  // P-19: 단계 완료 → inspection_status_log + inspection_plan_items 자동 동기화
-  // (step_num은 위 targetStep 조회 재사용 — 건별 왕복 1회 절감, 2026-08-04)
-  if (targetNum) {
-    const stepNum = targetNum
-    const { data: planItem } = await admin
-      .from('inspection_plan_items')
-      .select('id, status')
-      .eq('inspection_id', inspectionId)
-      .maybeSingle()
-
-    if (planItem) {
-      const pid = (planItem as { id: string; status: string }).id
-      const STEP_FIELDS: Record<number, string> = {
-        1: 'inspection_date',
-        2: 'report_submitted_at',
-        3: 'sent_at',
-        4: 'filed_at',
-        5: 'step5_completed_at',
-        6: 'step6_completed_at',
-      }
-      const field = STEP_FIELDS[stepNum]
-      if (field) {
-        await admin
-          .from('inspection_status_log')
-          .upsert({
-            plan_item_id: pid,
-            [field]: now.split('T')[0],
-            updated_by: userId,
-          } as Record<string, unknown>, { onConflict: 'plan_item_id' })
-      }
-      // 1단계 완료 → plan_item status 'confirmed'으로 업데이트
-      if (stepNum === 1 && (planItem as { status: string }).status === 'planned') {
-        await admin
-          .from('inspection_plan_items')
-          .update({ status: 'confirmed' } as Record<string, unknown>)
-          .eq('id', pid)
-      }
-    }
-  }
+  const report9Eligible = isSelfInspection(_insp.plan_type)
 
   return { justCompleted, report9Eligible }
 }
 
 /** 점검달력 데이 패널 — 같은 날 미완료 단계 일괄 완료 (2026-08-04, 성능 개선판).
  *  느렸던 원인: 건별 직렬 실행 + 건마다 역할 조회·revalidate 5회 반복.
- *  개선: 역할 1회 조회 → 같은 점검은 직렬(순서 강제 보존)·점검 간 병렬(동시 6) → revalidate는 마지막 1회.
- *  로직은 completeStepCore 재사용 — 권한·순서·재계산·완료 전이·계획 동기화 동일. 최대 100건. */
+ *  개선: 역할 1회 조회 → 같은 점검은 직렬·점검 간 병렬(동시 6) → revalidate는 마지막 1회.
+ *  로직은 completeStepCore 재사용 — 권한·마커·동기화 동일. 최대 100건.
+ *
+ *  R4-9: **사유 1회 입력으로 묶음 전체에 적용**한다. 달력의 '완료'는 증거가 아니라 사람의 확인이므로
+ *  근거를 남겨야 동기화가 되돌리지 않는다(D34-2). 건마다 묻지 않는 대신 한 번은 반드시 받는다. */
 export async function bulkCompleteStepsAction(
   items: Array<{ stepId: string; inspectionId: string; label: string }>,
+  reason: string,
 ): Promise<{ done: number; failed: Array<{ label: string; error: string }>; error?: string }> {
   const user = await getSessionUser()
   if (!user) return { done: 0, failed: [], error: '인증이 필요합니다.' }
   if (items.length === 0) return { done: 0, failed: [] }
   if (items.length > 100) return { done: 0, failed: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
+  if ((reason ?? '').trim().length < 5) {
+    return { done: 0, failed: [], error: '완료 사유를 5자 이상 입력해주세요 — 사유가 곧 증빙입니다.' }
+  }
 
   const admin = createAdminClient()
   const { data: prof } = await admin.from('profiles').select('role').eq('id', user.id).single()
@@ -364,7 +306,7 @@ export async function bulkCompleteStepsAction(
     await Promise.all(groupArr.slice(i, i + CONC).map(async group => {
       for (const it of group) {
         try {
-          const res = await completeStepCore(admin, user.id, role, it.stepId, it.inspectionId)
+          const res = await completeStepCore(admin, user.id, role, it.stepId, it.inspectionId, reason)
           if (res.error) failed.push({ label: it.label, error: res.error })
           else done += 1
         } catch {
@@ -388,10 +330,15 @@ export async function bulkCompleteStepsAction(
  *  자체점검(special_*)은 6단계 법정 절차라 대상 제외 — 시작된 점검의 단계는 bulkCompleteStepsAction 담당. */
 export async function bulkStartCompletePlanItemsAction(
   items: Array<{ itemId: string; label: string }>,
+  reason: string,
 ): Promise<{ done: number; failed: Array<{ label: string; error: string }>; error?: string }> {
   const profile = await requirePermission('inspection_plan_manage')
   if (items.length === 0) return { done: 0, failed: [] }
   if (items.length > 100) return { done: 0, failed: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
+  // R4-9: ①을 사람이 확정하는 경로라 근거가 필요하다 — 점검표 응답이 들어오면 그때는 증거로 자동 완료된다
+  if ((reason ?? '').trim().length < 5) {
+    return { done: 0, failed: [], error: '완료 사유를 5자 이상 입력해주세요 — 사유가 곧 증빙입니다.' }
+  }
 
   const admin = createAdminClient()
   const role = (profile as { role: string }).role
@@ -429,7 +376,7 @@ export async function bulkStartCompletePlanItemsAction(
           .single()
         const stepId = (stepRaw as { id: string } | null)?.id
         if (!stepId) { failed.push({ label: it.label, error: '점검은 시작됐지만 1단계를 찾지 못했습니다.' }); return }
-        const res = await completeStepCore(admin, profile.id, role, stepId, started.inspectionId)
+        const res = await completeStepCore(admin, profile.id, role, stepId, started.inspectionId, reason)
         if (res.error) { failed.push({ label: it.label, error: `점검은 시작됨 — 완료 실패: ${res.error}` }); return }
         done += 1
       } catch {

@@ -56,9 +56,15 @@ export function InspectionDetailClient({ steps, inspectionId, canComplete, canDe
   }
 
   async function handleComplete(stepId: string) {
+    // R4-9(소방계획서_21): 사유 필수 — 근거 없는 완료는 동기화가 되돌린다(D34-2)
+    const reason = window.prompt(
+      '이 단계를 완료 처리합니다.\n증거(점검표·파일·제출일)가 등록되면 자동으로 완료됩니다.\n\n'
+      + '완료 사유를 입력하세요 (5자 이상 — 증빙으로 남습니다):',
+    )
+    if (reason === null) return
     setCompleting(stepId)
     setError(null)
-    const result = await completeStepAction(stepId, inspectionId)
+    const result = await completeStepAction(stepId, inspectionId, reason)
     setCompleting(null)
     if (result.error) { setError(result.error); return }
     // R0-7: 점검이 방금 완료됐고 별지 9호 대상이면 — 자동 생성 켜짐이면 바로, 아니면 제안 배너
