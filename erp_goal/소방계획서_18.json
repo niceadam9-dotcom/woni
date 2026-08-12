@@ -2,7 +2,7 @@
   "doc": "소방계획서_18 — 보관 정책: 최신만 ERP, 과거는 종이 보관 (소방계획서_14.md #17)",
   "design": "erp_goal/소방계획서_18.md (2026-08-10 사용자 '1~3 단계 채택 진행' 확정 → D-6·D-7 후속 확정)",
   "created": "2026-08-10",
-  "updated": "2026-08-12 — **독립 검증 3회 실행**. 1차 V-1~V-13 · 2차 W-1~W-10 · 3차 X-1~X-10 수정. 매 라운드마다 '고쳤다'던 항목이 부분 미해소로 재적발됐다(W-1·W-5·W-8이 3차에서 다시 유실 경로로 확인). 최종 E2E **40/40**(대상 대조 3체크 신설)·빌드·eslint 그린. 판정자가 ✅한 항목만 implemented, 판정 이후 수정분은 code_present(4차 검증 필요)",
+  "updated": "2026-08-12 — **독립 검증 4회 완료**. 1차 V-1~V-13 · 2차 W-1~W-10 · 3차 X-1~X-10 수정 → **4차(판정자 4인, 별도 세션)에서 V-3·V-5·W-1~W-9·V-10·V-11 전건 해소 판정 + X-1~X-10 전건 커버**(W-10만 '부분(UX)' → 판정 후 Y-2로 보강). E2E **40/40**·tsc 클린. 잔여: 실병합 프로브(서버 정지로 blocked)·커밋",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
 
   "status_legend": {
@@ -23,6 +23,21 @@
     { "id": "D-6", "desc": "종이 단일 보관 — 드라이브 백업 완전 종료. S3·D-3 폐지, 게이트는 '종이 보관(인쇄) 완료' 확인 하나뿐이며 '백업 없음·복구 불가'를 문구로 고지", "status": "confirmed" },
     { "id": "D-7", "desc": "업로드 원본 스캔(배치확인서·계약서)도 과거 회차면 정리 대상 ④. 부수 리스크(증빙 누락 감시 오경고)는 정리 마커로 차단", "status": "confirmed" }
   ],
+
+  "independent_verification_4": {
+    "date": "2026-08-12(4차)",
+    "method": "판정자 4인 분담(①삭제 실패·고아 ②마커 무결성·재생성 ③오경고 표시 정합 ④TOCTOU·표시·병합) — 요구와 1·2차 결함 설명만 주고 수정 내용 비공개. E2E는 구현 무관 세션이 재실행",
+    "result": "V-3 해소 · V-5 해소(cert 판정·표시 경로 17곳 전수 대조, 마커 미반영 경로 0) · W-1~W-9 해소 · W-10 '부분(UX, 전건 스크롤은 가능)' · V-10·V-11 해소 · 별지 재생성 경로 D-5 무결(Storage 의존 0, DB 원천만) · E2E 40/40 · tsc 클린",
+    "x_mapping": "3차 수정분(X-1~X-10)도 판정 범위에 포함돼 전건 검증됨 — X-1: allOk가 계획서 파일+부속자료 전부를 행 삭제 조건으로(228행) · X-2/X-9: 서명 필수(203-206행)+E2E 대조 3체크 그린 · X-3: deleteFirePlanAction rmErr 중단 확인 · X-4: or(action.neq,entity_type.neq) 논리를 3케이스 검산(마커만 제외·고객 감사로그는 만료) · X-5: certArchived=파일없음&&마커 확인 · X-6: skipped 사유에 연도·제목·회차 명시 확인 · X-7: CERT/CONTRACT_FILE_RE 단일 정의를 전 경로 import 전수 확인 · X-8: 라벨 등록일 확인 · X-10: limit(max(1000,n*20)) 확인",
+    "post_judgment_fixes": [
+      { "id": "Y-1", "found": "판정자 ① 신규 지적 — deleteFirePlanAction의 fire_plan_attachments 조회 실패(atts=null)가 빈 목록으로 폴백돼, DB 오류 시 부속자료 파일을 남긴 채 행만 삭제(고아)", "fix": "attErr 시 중단·에러 반환 (fire-plan-actions.ts:99-102)", "test": "tsc 클린 — 판정 후 2줄 가드라 형식상 미재검증" },
+      { "id": "Y-2", "found": "판정자 ④ — W-10 '부분': 건너뜀 목록 높이 160px가 좁아 대량 실패 시 확인 불편 + X-6 잔재: 머리글 '파일은 그대로 남아 있습니다' 단정이 마커 기록 실패류(파일은 이미 삭제됨)와 모순", "fix": "max-h-40→max-h-96 + 머리글 '항목별 사유'로 중립화 (plan-archive-cleanup.tsx)", "test": "tsc 클린. E2E는 해당 문구 미단언(회귀 없음)" }
+    ],
+    "accepted_not_fixed": [
+      { "id": "R-19", "severity": "하", "desc": "고객 감사 로그(deletedPaths)는 24개월 후 아카이브 JSON으로 이동해 DB 조회 불가(마커는 영구 보존) — '무엇이 지워졌나' 장기 추적은 아카이브 파일 열람 필요" },
+      { "id": "R-20", "severity": "하", "desc": "인쇄 클라이언트 에러가 'PDF를 불러오지 못했습니다: <서버 안내>' 이중 프리픽스 — 의미 전달엔 지장 없음" }
+    ]
+  },
 
   "independent_verification_3": {
     "date": "2026-08-12",
@@ -106,12 +121,12 @@
   },
 
   "items": [
-    { "id": "S1", "title": "회차 [전체 PDF 인쇄] — 별지 묶음 즉석 병합", "status": "partial",
+    { "id": "S1", "title": "회차 [전체 PDF 인쇄] — 별지 묶음 즉석 병합", "status": "implemented",
       "criteria": [
         { "id": "S1-1", "desc": "pdf.ts mergePdfs() — Gotenberg /forms/pdfengines/merge, 0패딩 인덱스 파일명으로 병합 순서 제어", "status": "implemented",
           "verified": { "date": "2026-08-11", "commit": "미커밋", "method": "독립 검증(정적) — 구현자≠판정자",
             "evidence": ["erp/src/lib/pdf.ts:122-147 (/forms/pdfengines/merge + 001.pdf 0패딩 순서 제어)"] },
-          "note": "판정 후 V-10 수정(단일 PDF 단축 경로를 GOTENBERG_URL 검사보다 앞으로) 반영 — 그 부분만 미재검증. 실병합은 로컬 Gotenberg 부재로 여전히 미실행" },
+          "note": "4차에서 V-10 재검증 해소(0·1건 처리가 env 검사 선행 — pdf.ts:122-128). 실병합은 **blocked** — 로컬 Docker·GOTENBERG_URL 없음 + 스테이징·운영 서버 무응답(2026-08-12 확인, VPS 정지 상태) → 서버 재가동 후 S4-1로 실행" },
         { "id": "S1-2", "desc": "회차 묶음 PDF 응답 경로 — 세션·권한 직접 검사('use server'/라우트 공개 엔드포인트 교훈), reportType별 최신 PDF를 9→4→10→11→외관 순 수집, 없는 서식 건너뜀, 저장 안 함(D-4)", "status": "implemented",
           "verified": { "date": "2026-08-11", "commit": "미커밋", "method": "독립 검증(정적) + E2E",
             "evidence": ["bundle/route.ts:19-23 (401/403 직접 검사)", "route.ts:38-46 (최신 PDF·TYPE_ORDER·건너뜀)", "route.ts:59-66 (저장 없이 바이트 응답·no-store)"] },
@@ -120,16 +135,17 @@
           "verified": { "date": "2026-08-11", "commit": "미커밋", "method": "독립 검증(정적)",
             "evidence": ["plan-annex-section.tsx:237-246", "print-bundle/page.tsx:29-30", "print-pdf-client.tsx:62-73 (기존 컴포넌트 재사용, 신규 인쇄 컴포넌트 없음)"] },
           "note": "판정자 확인: print-bundle 페이지 가드가 기존 /fire-plans/[id]/print보다 오히려 엄격(권한까지 검사)" },
-        { "id": "S1-4", "desc": "산출물 0건 회차는 버튼 미노출 + 라우트 안내 — 병합 대상 없음이 에러로 새지 않게", "status": "code_present",
-          "evidence": ["plan-annex-section.tsx:29-34 hasBundlePdf", "plan-annex-section.tsx:236", "bundle/route.ts:47-49", "print-pdf-client.tsx:16-25 (V-11 수정)"],
-          "note": "판정 '부분' — 서버 404는 있으나 안내 문구가 클라이언트에서 'HTTP 404'로 축약돼 사용자에게 도달하지 않았다. V-11로 수정했으나 재검증 전. 잔여 R-7(클라 게이트 false negative)" }
+        { "id": "S1-4", "desc": "산출물 0건 회차는 버튼 미노출 + 라우트 안내 — 병합 대상 없음이 에러로 새지 않게", "status": "implemented",
+          "verified": { "date": "2026-08-12", "commit": "미커밋", "method": "4차 독립 검증(정적) + E2E",
+            "evidence": ["bundle/route.ts:47-49 (404 + '생성된 별지 PDF가 없습니다' JSON)", "print-pdf-client.tsx:17-23 (본문 error 추출·표면화 — V-11 해소)", "print-pdf-client.tsx:30·63-64 (에러 표시)", "E2E 'bundle 빈 회차 404 + 안내'·'S1-4 — 0건 회차는 라우트도 404 유지'"] },
+          "note": "잔여 R-7(클라 게이트 false negative)·R-20(에러 프리픽스 중복 — 하)" }
       ] },
 
-    { "id": "S2", "title": "보관함 [과거본 정리] 버튼", "status": "partial",
+    { "id": "S2", "title": "보관함 [과거본 정리] 버튼", "status": "implemented",
       "criteria": [
-        { "id": "S2-1", "desc": "listCleanupTargetsAction(customerId) — 삭제 대상 미리보기(①계획서 과거본 ②과거 회차 별지 ③최신 회차 내 구본 ④과거 회차 업로드 스캔 ⑤부속자료), 건수·목록 반환. requirePermission('customer_manage')", "status": "code_present",
-          "evidence": ["fire-plan-cleanup-actions.ts:99-155"],
-          "note": "판정 '부분' — 최신 계획서 판정 축(V-1)·최신 회차 스캔 오분류(V-2)·부속자료 고아(V-3)·정기점검 혼입(V-4)을 적발. 4건 모두 수정했으나 재검증 전" },
+        { "id": "S2-1", "desc": "listCleanupTargetsAction(customerId) — 삭제 대상 미리보기(①계획서 과거본 ②과거 회차 별지 ③최신 회차 내 구본 ④과거 회차 업로드 스캔 ⑤부속자료), 건수·목록 반환. requirePermission('customer_manage')", "status": "implemented",
+          "verified": { "date": "2026-08-12", "commit": "미커밋", "method": "2차(V-1·V-2·V-4 ✅) + 4차 독립 검증(V-3 해소) + E2E",
+            "evidence": ["fire-plan-cleanup-actions.ts:108-128 (부속자료 대상 포함 — V-3)", "fire-plan-cleanup-actions.ts:113-118 (year·revision·created_at 축 — V-1)", "E2E 대상 체크 8건(과거본·최신 제외·구본·스캔 고지·늦게 올린 2024본·라벨 연도·부속자료 고지)"] } },
         { "id": "S2-2", "desc": "cleanupArchiveAction — 대상 서버 재계산(클라이언트 목록 불신), 삭제 실패는 skip+집계 보고. 백업 선행 없음(D-6)", "status": "implemented",
           "verified": { "date": "2026-08-11", "commit": "미커밋", "method": "독립 검증(정적) + E2E",
             "evidence": ["fire-plan-cleanup-actions.ts:165-180 (인자는 customerId + 확인 플래그뿐, 대상 전량 서버 재계산)", "fire-plan-cleanup-actions.ts:190-196 (실패 skip 후 계속)", "백업 호출 0건 — drive/backup 참조 없음"] },
@@ -151,9 +167,10 @@
         { "id": "S2-7", "desc": "D-7 — 업로드 스캔(cert_·contract_)을 ④로 분류해 별도 고지하고 종이 원본 보유 확인을 유도", "status": "implemented",
           "verified": { "date": "2026-08-11", "commit": "미커밋", "method": "독립 검증(정적) + E2E",
             "evidence": ["fire-plan-cleanup-actions.ts:22-30 SCAN_RE가 timeline-actions.ts:110 업로드 규약과 일치", "plan-archive-cleanup.tsx:80-84 '종이 원본을 보관 중인지 확인하세요'", "E2E 스캔 3체크"] } },
-        { "id": "S2-8", "desc": "D-7 ⚠ — 배치확인서를 지운 회차에 정리 마커를 남겨 증빙 누락 감시가 '미업로드'로 오경고하지 않게 함", "status": "code_present",
-          "evidence": ["doc-status.ts:55-72 ARCHIVE_CLEANUP_ACTION·findArchivedCertInspections", "doc-status.ts findMissingCerts", "docs-actions.ts 제출 현황판·buildInspectionDocs(certArchived)·명령 팔레트", "inspections/[id]/page.tsx:309 타임라인", "customer-docs.tsx·plan-annex-section.tsx·inspection-timeline-client.tsx 표시"],
-          "note": "판정 ❌ — 최초 구현은 감시 계열 2곳만 반영해 고객 문서 현황·별지 트리·점검 상세·명령 팔레트에서 오경고가 그대로였다(cert 판정이 5곳 중복 구현). V-5·V-6으로 전 경로 보완 + 마커를 cert 슬롯 한정으로 수정했으나 재검증 전. 화면 단언은 E2E에 없음" }
+        { "id": "S2-8", "desc": "D-7 ⚠ — 배치확인서를 지운 회차에 정리 마커를 남겨 증빙 누락 감시가 '미업로드'로 오경고하지 않게 함", "status": "implemented",
+          "verified": { "date": "2026-08-12", "commit": "미커밋", "method": "4차 독립 검증 — cert 판정·표시 경로 17곳 전수 대조(판정자 ③) + 마커 무결성(판정자 ②) + E2E",
+            "evidence": ["docs-actions.ts:124 buildInspectionDocs 단일 지점 certArchived", "doc-status.ts:86-115 findMissingCerts 제외", "고객 문서 현황·별지 트리·타임라인·명령 팔레트·현황판·엑셀·ZIP 안내 전부 반영(마커 미반영 경로 0)", "V-6 유지: isCertScan 한정·계약서만 지운 회차 마커 없음", "E2E 마커 3체크"] },
+          "note": "잔여 R-15(마커 기록 실패 회차의 복구는 수동 SQL)·R-19(장기 추적은 아카이브 JSON 열람)" }
       ] },
 
     { "id": "S3", "title": "삭제 전 드라이브 백업 안전망", "status": "abolished",
@@ -172,13 +189,14 @@
       "criteria": [
         { "id": "S4-1", "desc": "병합 프로브 — 묶음 PDF 생성·페이지 수 검증", "status": "code_present",
           "evidence": ["erp/scripts/_probe-merge-pdf.mts"],
-          "note": "미실행 — 로컬 GOTENBERG_URL 미구성(전 .env 파일에 없음, 컨테이너는 docker-compose.prod.yml의 gotenberg-prod/staging). 판정자가 /Type /Page 카운트의 불신뢰(압축 객체 스트림)와 순서 단언의 자동 통과를 지적 → V-13으로 /Count 교차검증·'미판정' 분리로 수정. 스테이징 실행 필요" },
-        { "id": "S4-2", "desc": "E2E — 시드(계획서 3건+회차 4개+구본+스캔+부속자료) → 정리 → 최신만 잔존·원천 무손실", "status": "code_present",
-          "evidence": ["erp/scripts/test-archive-cleanup.mts (36체크)"],
-          "note": "2026-08-11 실행 **36/36 통과**. 1차(28체크) 이후 판정 지적 반영: 허수 단언 check(...,true) 제거→실제 잔존 파일 수로 판정(V-12), 경계 시드 4종 추가(늦게 올린 과거 연도본·최신 회차 스캔 2장·계약서만 있는 과거 회차·부속자료). 이 테스트는 그전까지 한 번도 성공한 적이 없었다(시드 assigned_employee_id NOT NULL·작동점검 sequence_num=2 제약·finally의 .catch 오용). 단언 3건도 교정(미로그인은 proxy의 /login 302, 보관함 본문 스코프, 멱등은 재진입 후). 잔여 미커버: 비권한 계정(전 직원 보유라 불가)·정기점검 혼입·별지 재생성 경로·화면 오경고 표시",
+          "note": "**blocked(2026-08-12)** — 로컬 GOTENBERG_URL·Docker 없음이고 스테이징·운영 서버 모두 무응답(VPS 정지 상태, 서버 중단 B안). V-13(/Count 교차검증·미판정 분리)은 반영돼 있음. VPS 재가동 후 스테이징에서 실행" },
+        { "id": "S4-2", "desc": "E2E — 시드(계획서 3건+회차 4개+구본+스캔+부속자료) → 정리 → 최신만 잔존·원천 무손실", "status": "implemented",
+          "verified": { "date": "2026-08-12", "commit": "미커밋", "method": "구현 무관 세션이 재실행 — 40/40 통과",
+            "evidence": ["대상 대조 3체크(TOCTOU 거부·무삭제·복귀) 포함 40체크 전부 그린", "라벨 연도·부속자료 고아 방지·마커 3종·멱등(실 파일 수) 포함"] },
+          "note": "2026-08-11 36/36 → 대조 3체크·S1-4 라우트 체크 추가로 40체크. 잔여 미커버: 비권한 계정(전 직원 보유라 불가)·정기점검 혼입 시드·스토리지 실패 주입(X-1·X-3은 정적 판정)·화면 오경고 표시",
           "orphan_cleanup": "erp/scripts/_cleanup-archive-e2e-orphan.mts — 중단 시 시드 회수" },
         { "id": "S4-3", "desc": "npm run build + 별지 허브 회귀", "status": "code_present",
-          "note": "npm run build 통과(Next 16.2.9 Turbopack, ✓ Compiled). test-annex-sheet-inline 25/26 — 실패 1건 'Realtime 알림 벨(S5-8)'은 판정자가 독립 확인해 **본 변경과 무관**(마이그레이션 122 미적용에 기인, 소방계획서_16 S5 이월). eslint: 1차 변경 5파일은 판정자가 직접 실행해 0건 확인. 2차 수정 후 inspections/[id]/page.tsx에 error 1·warning 1이 뜨나 **둘 다 기존 라인**(3행 미사용 import, 181행 Date.now 순수성)이며 본 변경분은 3줄 추가뿐(git diff 확인). test-all.mts에 '보관함 과거본 정리(E2E)' 상시 회귀 등록" }
+          "note": "npm run build 통과(Next 16.2.9 Turbopack, ✓ Compiled). test-annex-sheet-inline 25/26 — 실패 1건 'Realtime 알림 벨(S5-8)'은 판정자가 독립 확인해 **본 변경과 무관**(마이그레이션 122 미적용에 기인, 소방계획서_16 S5 이월). eslint: 1차 변경 5파일은 판정자가 직접 실행해 0건 확인. 2차 수정 후 inspections/[id]/page.tsx에 error 1·warning 1이 뜨나 **둘 다 기존 라인**(3행 미사용 import, 181행 Date.now 순수성)이며 본 변경분은 3줄 추가뿐(git diff 확인). test-all.mts에 '보관함 과거본 정리(E2E)' 상시 회귀 등록. **2026-08-12 Y-1·Y-2 반영 후 tsc 클린** — dev 서버 동시 실행 중이라 build는 커밋 시 pre-push 게이트에서 재확인" }
       ] }
   ],
 
@@ -193,15 +211,16 @@
       "erp/src/components/customers/fire-plans-client.tsx (정리 블록 배치)",
       "erp/src/lib/doc-status.ts (정리 마커 판정 — D-7 ⚠)",
       "erp/src/app/(dashboard)/reports/docs-actions.ts (제출 현황판 마커 반영)",
+      "erp/src/app/(dashboard)/customers/fire-plan-actions.ts (W-8·X-3 개별 삭제 고아 방지 + Y-1 조회 실패 가드)",
       "erp/scripts/test-archive-cleanup.mts · _probe-merge-pdf.mts · _cleanup-archive-e2e-orphan.mts · test-all.mts"
     ],
     "deleted": ["erp/src/lib/drive-backup.ts (S3 폐지 잔재 — 미사용)"]
   },
 
   "next_actions": [
-    "4차 독립 검증 — 3차 수정분(X-1~X-10) 대상. X-1(전 파일 삭제 성공을 행 삭제 조건으로)·X-3(개별 삭제 중단)은 스토리지 실패 주입 시나리오가 E2E에 없어 코드 근거뿐. X-4(만료 제외 범위)는 크론 실행 검증 필요",
-    "스테이징에서 _probe-merge-pdf 실행 → S1-1 실병합·페이지 수 확인",
-    "미조치 리스크 R-1~R-8 처리 여부 결정 — 특히 R-1(프리뷰-실행 TOCTOU)·R-4(customer_manage가 전 직원)",
-    "커밋·푸시(사용자 지시 대기) — .gitignore 실데이터 보호 규칙 유지, add -A 금지·명시 파일 지정"
+    "커밋·푸시(사용자 지시 대기) — .gitignore 실데이터 보호 규칙 유지, add -A 금지·명시 파일 지정. 소방계획서_20 재개(Q-7)의 선행 조건",
+    "VPS 재가동 후 스테이징에서 _probe-merge-pdf 실행 → S4-1 실병합·페이지 수 확인 (유일한 blocked 항목)",
+    "미조치 리스크 처리 여부 결정 — R-1은 X-2로 해소됨. 잔여 중 우선순위: R-4(customer_manage가 전 직원)·R-15(마커 기록 실패 복구 수단)·R-16(감사 로그 1회 기록)·R-9(정기 회차 영구 미정리)",
+    "운영 반영 시: VPS crontab의 drive-backup 제거(R-5, 운영 서버 작업)"
   ]
 }

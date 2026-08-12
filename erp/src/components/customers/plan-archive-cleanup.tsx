@@ -126,8 +126,8 @@ export function PlanArchiveCleanup({ customerId, canManage }: { customerId: stri
           </p>
           {result.skipped.length > 0 && (
             <div className="mt-1 text-amber-700">
-              <p>⚠ 건너뜀 {result.skipped.length}건 (삭제 실패 — 파일은 그대로 남아 있습니다):</p>
-              <ul className="max-h-40 overflow-auto">
+              <p>⚠ 건너뜀 {result.skipped.length}건 — 항목별 사유:</p>
+              <ul className="max-h-96 overflow-auto">
                 {result.skipped.map(s => <li key={s.path}>· {s.path.split('/').pop()}: {s.reason}</li>)}
               </ul>
             </div>
