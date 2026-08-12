@@ -78,22 +78,28 @@ try {
   // ── 1) 회차 카드 — 최신 즉시 펼침(D-4)·과거 아코디언·성격 배지 ──
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=annex`)
   await page.waitForSelector(`text=${CUR_YEAR}년 1차`)
-  check('회차 카드 — 현·전 회차 표시', await page.isVisible(`text=${PREV_YEAR}년 1차`))
+  // 소방계획서_20 S2: 완료 회차는 "지난 회차 N건" 접힘 섹션으로 내려가 처음엔 라벨이 보이지 않는다
+  check('회차 카드 — 현 회차 + 지난 회차 섹션', await page.isVisible('text=지난 회차 1건'))
   check('회차 카드 — 최신 회차 자동 펼침(점검표 행)', await page.isVisible('text=점검표 입력'))
   check('회차 카드 — 성격 배지 작동(자체)', await page.isVisible('text=작동(자체)'))
   check('회차 카드 — 과거 회차는 접힘(문서 행 1세트)', (await page.locator('text=점검표 입력').count()) === 1)
   check('회차 카드 — 별지 4호 [자동] 행', await page.isVisible('text=별지 4호 점검표'))
 
-  // 과거 회차 펼침 → 문서 행 2세트
+  // 과거 회차 — 섹션 펼침 → 요약 행 클릭 시 상세 지연 로드(S2) → 문서 행 2세트
+  await page.click('button:has-text("지난 회차 1건")')
+  await page.waitForSelector(`text=${PREV_YEAR}년 1차`)
+  check('지난 회차 섹션 — 연도 그룹·요약 행', await page.isVisible(`text=${PREV_YEAR}년 · 1건`))
   await page.click(`button:has-text("${PREV_YEAR}년 1차")`)
-  await page.waitForTimeout(500)
-  check('과거 회차 펼침 — 문서 행 2세트', (await page.locator('text=점검표 입력').count()) === 2)
+  await page.waitForFunction(() =>
+    document.querySelectorAll('*').length > 0 &&
+    [...document.querySelectorAll('*')].filter(e => e.childElementCount === 0 && e.textContent?.includes('점검표 입력')).length >= 2,
+    undefined, { timeout: 30000 })
+  check('과거 회차 지연 로드 — 문서 행 2세트', (await page.locator('text=점검표 입력').count()) === 2)
 
-  // D-7 호버 퀵뷰 — 9호 행 위에 머물면 우측 팝업 (데스크톱)
-  await page.locator('[data-hover-doc="report9"]').first().hover()
-  await page.waitForSelector('text=퀵뷰 ([보기]를 누르면 크게)')
-  check('호버 퀵뷰 — 9호 행 팝업 표시', true)
-  await page.mouse.move(10, 10)
+  // D-7 호버 퀵뷰는 소방계획서_20 S3에서 폐지 — 프리페치 지연화로 캐시가 비어 빈 팝업만 뜨던 기능.
+  // 같은 일을 행 [보기](단일 문서 모달)가 하며, 아래 2-c에서 검증한다.
+  // 카드 본문 2블록(S3) — 작업 순서가 화면에 드러나는지
+  check('카드 2블록 — ① 점검표 / ② 별지 생성·확인', await page.isVisible('text=① 점검표') && await page.isVisible('text=② 별지 생성·확인'))
 
   // ── 2) 전체 미리보기(H-5c) — 요약 바·세로 연결 렌더·⑩⑪ 축약 ──
   await page.locator('text=🔍 전체 미리보기').first().click()

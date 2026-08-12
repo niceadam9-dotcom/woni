@@ -1,21 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, Eye, Loader2, PlayCircle, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import {
-  getCustomerRoundsAction, getDocUrlAction,
+  getCustomerRoundsAction, getRoundDocsAction, getDocUrlAction,
   type CustomerRounds, type CustomerRound,
 } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestReport9Action, getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
 import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspection-plans/actions'
-import { InspectionDocRows } from '@/components/reports/customer-docs'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import type { InspectionType, PlanType } from '@/types'
-import { DateInput, isCompleteDate } from '@/components/ui/date-input'
-import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers/plan-annex-sheet-tree'
+import { isCompleteDate } from '@/components/ui/date-input'
+import { PlanAnnexRoundCard } from '@/components/customers/plan-annex-round-card'
+import { PlanAnnexFullPreview, type PreviewDoc, type FullPreviewState } from '@/components/customers/plan-annex-full-preview'
+import { PlanAnnexStartModal } from '@/components/customers/plan-annex-start-modal'
 
 /** 별지 서식 섹션 (소방계획서_8 H-2·H-3·H-5) — 소방계획서 트리의 회차 자동 카드.
  *  최신 회차 즉시 펼침 + 과거 아코디언(D-4), 회차=plan_items∪inspections 자동(D-2),
@@ -25,24 +26,6 @@ import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers
 const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
 
 function roundKey(r: CustomerRound) { return `${r.year}-${r.sequenceNum}` }
-
-/** 회차 묶음 인쇄(소방계획서_18 S1) 가능 여부 — 병합 대상은 PDF뿐이라 HWP·HTML만 있으면 열지 않는다.
- *  bundle 라우트의 TYPE_ORDER와 같은 축. */
-function hasBundlePdf(d: NonNullable<CustomerRound['docs']>): boolean {
-  return [d.report9, d.report4, d.report10, d.report11, d.exterior].some(g => !!g?.pdf)
-}
-
-function statePill(r: CustomerRound): { label: string; cls: string } {
-  if (r.state === 'planned') {
-    const d = r.plannedDate ? Math.round((new Date(r.plannedDate).getTime() - new Date(todayStr()).getTime()) / 86400000) : null
-    if (d === null) return { label: '예정', cls: 'bg-blue-50 text-blue-600' }
-    if (d < 0) return { label: `예정 지연 ${-d}일 ⚠`, cls: 'bg-red-50 text-red-600' }
-    return { label: `예정 D-${d}`, cls: 'bg-blue-50 text-blue-600' }
-  }
-  if (r.state === 'completed') return { label: '완료', cls: 'bg-green-50 text-green-700' }
-  if (r.state === 'overdue') return { label: '기한초과', cls: 'bg-red-50 text-red-600' }
-  return { label: '진행중', cls: 'bg-[#f5f4ff] text-[#7b68ee]' }
-}
 
 export function PlanAnnexSection({ customerId, canRegister = false }: {
   customerId: string
@@ -55,20 +38,21 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
   const [compose, setCompose] = useState<{ inspectionId: string; annexNo: ComposeAnnexNo } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState<{ key: string; text: string; ok: boolean } | null>(null)
-  // H-5c: 회차 전체 미리보기 — prefetch 캐시(회차 펼침 시 백그라운드 렌더 → 클릭 0초)
-  type PreviewDoc = { type: 'report9' | 'report4' | 'report10' | 'report11'; label: string; html?: string; missing: string[]; error?: string }
+  // H-5c: 회차 전체 미리보기 — prefetch 캐시([보기]·[전체 미리보기] 클릭 시 렌더, 재오픈 0초)
   const [previewCache, setPreviewCache] = useState<Record<string, PreviewDoc[]>>({})
   // only=undefined → 전 별지 세로 연결(종전 전체 미리보기), only=타입 → 그 문서 1건만 전체 높이로 (2026-08-10 #13)
-  const [fullPreview, setFullPreview] = useState<{ inspectionId: string; label: string; only?: PreviewDoc['type'] } | null>(null)
-  // D-7 데스크톱 호버 퀵뷰 — 문서 행(data-hover-doc) 위에 머물면 prefetch 캐시로 미니 미리보기 (모바일 제외, D-16 Q-4)
-  const [hoverDoc, setHoverDoc] = useState<{ inspectionId: string; type: PreviewDoc['type']; top: number } | null>(null)
+  const [fullPreview, setFullPreview] = useState<FullPreviewState | null>(null)
+  // D-7 호버 퀵뷰 폐지(S3, 2026-08-12) — 프리페치를 지연화하면 호버 시점엔 캐시가 비어 '준비 중' 빈 팝업만
+  // 뜨는 경우가 대부분이라 가치가 사라졌다. 같은 일을 [보기](단일 문서 모달)가 확실하게 한다.
+  // customer-docs.tsx의 data-hover-doc 속성은 그대로 둔다 — 18 세션 diff를 늘리지 않고, 셀렉터 앵커로도 쓰인다.
+  // S2(소방계획서_20): 완료 회차는 "지난 회차 N건" 접힘 섹션 — 기본 닫힘, 상세는 클릭 시 지연 로드
+  const [pastOpen, setPastOpen] = useState(false)
+  const [loadingRound, setLoadingRound] = useState<string | null>(null)
   // H-3: 미시작 회차 점검일 확정 모달
   const [startModal, setStartModal] = useState<{ planItemId: string; label: string } | null>(null)
   const [startDate, setStartDate] = useState('')
   const [isStarting, startStarting] = useTransition()
   const [startErr, setStartErr] = useState<string | null>(null)
-  // 전체 미리보기 요약 바의 배치확인서 칩 — 없으면 그 자리에서 업로드(협회 발급본이라 생성 불가)
-  const certChipRef = useRef<HTMLInputElement>(null)
 
   /** 점검표 인라인 저장 후 회차 머리줄의 응답 수만 갱신 — reload()는 미리보기 캐시를 통째로 버려
    *  펼친 회차의 iframe이 전부 다시 렌더된다(68행). 부분 패치로 그 비용을 피한다. */
@@ -81,6 +65,26 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     }))
   }
 
+  /** 회차 1건 문서 상태만 재조회·패치 (소방계획서_20 S1) — 생성·업로드 후 전면 reload(3+3N 왕복) 대신.
+   *  미리보기 캐시도 이 회차 키만 무효화해, 다른 펼친 회차의 iframe 재렌더를 막는다. */
+  function refreshRound(inspectionId: string) {
+    startTransition(async () => {
+      const res = await getRoundDocsAction(customerId, inspectionId)
+      if (res.error || !res.docs) { reload(); return }   // 회차가 사라진 경우 등 — 전면 재조회 폴백
+      const docs = res.docs
+      setData(prev => prev && ({
+        ...prev,
+        rounds: prev.rounds.map(r => r.docs?.inspectionId === inspectionId ? { ...r, docs } : r),
+      }))
+      setPreviewCache(prev => {
+        if (!(inspectionId in prev)) return prev
+        const next = { ...prev }
+        delete next[inspectionId]
+        return next
+      })
+    })
+  }
+
   function reload(first = false) {
     startTransition(async () => {
       const res = await getCustomerRoundsAction(customerId)
@@ -89,9 +93,20 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
       setData(res.data)
       // 독립 검증 지적(2026-08-04): 재생성·저장 후 미리보기 캐시가 낡음 — reload마다 무효화(재열람 시 재렌더)
       if (!first) setPreviewCache({})
-      if (first && res.data.rounds.length > 0) {
-        setExpanded(new Set([roundKey(res.data.rounds[0])]))   // 최신 회차 자동 펼침 (D-4)
-        if (res.data.rounds[0].docs) prefetchPreviews(res.data.rounds[0])  // H-5c: 진입 즉시 prefetch → 클릭 0초
+      if (first) {
+        // 최신 회차 자동 펼침 (D-4). S2 이후 완료 회차는 접힘 섹션 안이라 자동 펼침 대상에서 뺀다 —
+        // 열어도 보이지 않고, 상세를 지연 로드하려는 취지와도 어긋난다.
+        const firstActive = res.data.rounds.find(r => r.state !== 'completed')
+        if (firstActive) {
+          setExpanded(new Set([roundKey(firstActive)]))
+          // S3: 진입 즉시 별지 4종을 렌더하면 마운트와 12~20왕복이 겹친다.
+          // 화면이 자리 잡은 뒤(유휴) 최신 회차 1건만 미리 데워 클릭 0초 체감은 남긴다.
+          if (firstActive.docs) {
+            window.setTimeout(() => {
+              if (!document.hidden) prefetchPreviews(firstActive)
+            }, 2500)
+          }
+        }
       }
     })
   }
@@ -102,6 +117,27 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
 
   function toggle(key: string) {
     setExpanded(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
+  }
+
+  /** 지난(완료) 회차 열기 (S2) — 요약(docsLite)만 실려 있으므로 이 시점에 상세를 지연 로드한다.
+   *  한 번 받은 회차는 docs가 채워져 다시 열 때 왕복이 없다. */
+  function openPastRound(r: CustomerRound) {
+    const key = roundKey(r)
+    if (expanded.has(key)) { toggle(key); return }
+    if (r.docs || !r.docsLite) { toggle(key); return }
+    const inspectionId = r.docsLite.inspectionId
+    setLoadingRound(key)
+    startTransition(async () => {
+      const res = await getRoundDocsAction(customerId, inspectionId)
+      setLoadingRound(null)
+      if (res.error || !res.docs) { setMsg({ key, text: `❌ ${res.error ?? '회차를 불러오지 못했습니다'}`, ok: false }); return }
+      const docs = res.docs
+      setData(prev => prev && ({
+        ...prev,
+        rounds: prev.rounds.map(x => x.docsLite?.inspectionId === inspectionId ? { ...x, docs } : x),
+      }))
+      toggle(key)
+    })
   }
 
   /* ── H-5c: 미리보기 prefetch — 회차 펼침·전체 미리보기 오픈 시 백그라운드 렌더 ── */
@@ -148,7 +184,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
       const res = await requestReport9Action(inspectionId, kind)
       if (res.error) { setMsg({ key: rowKey, text: `❌ ${res.error}`, ok: false }); return }
       setMsg({ key: rowKey, text: '✅ 생성 완료 — 이 행에 [PDF] 링크가 표시됩니다', ok: true })
-      reload()
+      refreshRound(inspectionId)
     })
   }
   function upload(inspectionId: string, slot: 'cert' | 'contract', file: File, rowKey: string) {
@@ -158,7 +194,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
       const res = await uploadTimelineFileAction(inspectionId, slot, fd)
       if (res.error) { setMsg({ key: rowKey, text: `❌ ${res.error}`, ok: false }); return }
       setMsg({ key: rowKey, text: '✅ 업로드됨 — 타임라인과 자동 동기됩니다', ok: true })
-      reload()
+      refreshRound(inspectionId)
     })
   }
   const feedback = (key: string) => msg?.key === key && (
@@ -196,6 +232,61 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     return <p className="text-xs text-[#b0acd6] py-4 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 회차를 불러오는 중…</p>
   }
 
+  // S2: 진행 중·예정만 카드로 펼쳐 두고 완료 회차는 접힘 섹션으로 내린다.
+  // 방치된 예정(과거 연도 planned)은 완료가 아니므로 접힘에 숨기지 않는다 — 눈에 띄어야 한다.
+  const activeRounds = rounds.filter(r => r.state !== 'completed')
+  const pastRounds = rounds.filter(r => r.state === 'completed')
+  const pastYears = [...new Map(pastRounds.map(r => [r.year, [] as CustomerRound[]])).entries()]
+    .map(([y]) => [y, pastRounds.filter(r => r.year === y)] as const)
+
+  /** 지난 회차 요약 행 (S2) — 상세를 받기 전 상태. ✓는 '생성 이력'(gen_jobs)이지 파일 존재가 아니다 */
+  const renderPastSummary = (r: CustomerRound) => {
+    const key = roundKey(r)
+    const lite = r.docsLite
+    const nb = inspectionNatureBadge(data.inspectionType as InspectionType, r.planType as PlanType | null)
+    const loading = loadingRound === key
+    return (
+      <div key={key}>
+        <button onClick={() => openPastRound(r)} disabled={loading}
+          title="펼치면 실제 파일·점검표를 불러옵니다 (요약의 ✓는 생성 이력)"
+          className="w-full flex items-center gap-2 px-3 py-2 text-left rounded-xl border border-[#e8e6f5] bg-[#fafafa] hover:bg-[#f5f4ff] disabled:opacity-60">
+          {loading ? <Loader2 className="size-3.5 text-[#b0acd6] shrink-0 animate-spin" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
+          <span className="text-xs font-semibold text-[#090c1d]">{r.year}년 {r.sequenceNum}차</span>
+          {lite?.endDate && <span className="text-[11px] text-[#b0acd6]">완료 {lite.endDate.slice(5, 10)}</span>}
+          <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 bg-green-50 text-green-700">완료</span>
+          {lite && (
+            <span className="text-[10px] text-[#b0acd6] shrink-0" title="생성 이력 기준 — 과거본 정리로 파일이 없을 수 있습니다">
+              ④{lite.generated.report4 ? '✓' : '·'} ⑨{lite.generated.report9 ? '✓' : '·'}
+              {lite.defectsTotal > 0 && <> ⑩{lite.generated.report10 ? '✓' : '·'} ⑪{lite.generated.report11 ? '✓' : '·'}</>}
+              {' '}불량 {lite.defectsTotal}
+            </span>
+          )}
+        </button>
+        {feedback(key)}
+      </div>
+    )
+  }
+
+  const renderCard = (r: CustomerRound) => {
+    const key = roundKey(r)
+    const label = `${r.year}년 ${r.sequenceNum}차`
+    return (
+      <PlanAnnexRoundCard
+        key={key} r={r} isOpen={expanded.has(key)}
+        inspectionType={data.inspectionType} customerName={data.customerName}
+        canRegister={canRegister} isPending={isPending} isStarting={isStarting}
+        onToggle={() => toggle(key)}
+        onFullPreview={() => { prefetchPreviews(r); setFullPreview({ inspectionId: r.docs!.inspectionId, label }) }}
+        onPreviewSingle={type => openSingle(r, type)}
+        onOpenFile={open} onGenerate={generate} onUpload={upload}
+        onCompose={(inspectionId, annexNo) => setCompose({ inspectionId, annexNo })}
+        onSheetSaved={responded => patchSheetResponses(r.docs!.inspectionId, responded)}
+        onStart={() => openStart(r)}
+        feedback={feedback} />
+    )
+  }
+
   return (
     <div className="space-y-3">
       {/* 그룹 머리 안내 (D-18) — 입력은 원천 한 곳 원칙 */}
@@ -210,144 +301,36 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
         </p>
       )}
 
-      {rounds.map(r => {
-        const key = roundKey(r)
-        const isOpen = expanded.has(key)
-        const nb = inspectionNatureBadge(data.inspectionType as InspectionType, r.planType as PlanType | null)
-        const pill = statePill(r)
-        const done = r.state === 'completed'
-        return (
-          <div key={key} className={`rounded-xl border ${isOpen ? 'border-[#d0ccf5]' : 'border-[#e8e6f5]'} ${done ? 'bg-[#fafafa]' : 'bg-white'}`}>
-            {/* 회차 헤더 */}
-            <button onClick={() => { toggle(key); if (!isOpen) prefetchPreviews(r) }} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
-              {isOpen ? <ChevronDown className="size-3.5 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
-              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
-              <span className="text-xs font-semibold text-[#090c1d]">{r.year}년 {r.sequenceNum}차</span>
-              {r.plannedDate && <span className="text-[11px] text-[#b0acd6]">{r.plannedDate.slice(5, 10)}</span>}
-              {r.docs && isOpen && (
-                <span
-                  role="button" tabIndex={0}
-                  onClick={e => { e.stopPropagation(); prefetchPreviews(r); setFullPreview({ inspectionId: r.docs!.inspectionId, label: `${r.year}년 ${r.sequenceNum}차` }) }}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); prefetchPreviews(r); setFullPreview({ inspectionId: r.docs!.inspectionId, label: `${r.year}년 ${r.sequenceNum}차` }) } }}
-                  className="text-[11px] text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] shrink-0 cursor-pointer">
-                  🔍 전체 미리보기
-                </span>
-              )}
-              {/* S1-4: 병합할 PDF가 하나도 없으면 열지 않는다 — 열어봐야 라우트 404다 */}
-              {r.docs && isOpen && hasBundlePdf(r.docs) && (
-                <span
-                  role="button" tabIndex={0}
-                  title="이 회차의 생성된 별지 PDF를 한 번에 인쇄 — 종이 보관용 (소방계획서_18 S1)"
-                  onClick={e => { e.stopPropagation(); window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') }}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') } }}
-                  className="text-[11px] text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] shrink-0 cursor-pointer">
-                  🖨 전체 인쇄
-                </span>
-              )}
-              <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
-              {r.docs && (
-                <span className="text-[10px] text-[#b0acd6] shrink-0">
-                  ④{r.docs.report4 ? '✓' : '·'} ⑨{r.docs.report9 ? '✓' : '·'}
-                  {r.docs.defects.total > 0 && <> ⑩{r.docs.report10 ? '✓' : '·'} ⑪{r.docs.report11 ? '✓' : '·'}</>}
-                  {' '}불량 {r.docs.defects.total}
-                </span>
-              )}
-            </button>
+      {activeRounds.map(r => renderCard(r))}
 
-            {isOpen && (
-              <div className="px-4 pb-3"
-                onMouseOver={e => {
-                  // D-7 호버 퀵뷰 — 데스크톱만, 행 델리게이션(data-hover-doc)
-                  if (!r.docs || window.innerWidth < 768) return
-                  const row = (e.target as HTMLElement).closest('[data-hover-doc]')
-                  if (!row) { setHoverDoc(null); return }
-                  const type = row.getAttribute('data-hover-doc') as PreviewDoc['type']
-                  const top = row.getBoundingClientRect().top
-                  setHoverDoc(prev =>
-                    prev && prev.inspectionId === r.docs!.inspectionId && prev.type === type ? prev
-                      : { inspectionId: r.docs!.inspectionId, type, top })
-                }}
-                onMouseLeave={() => setHoverDoc(null)}>
-                {r.docs ? (
-                  <>
-                    {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4) — 머리줄 + 설비별 인라인 입력 */}
-                    <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
-                      responded={r.docs.sheetResponses} defects={r.docs.defects.total} />
-                    <PlanAnnexSheetTree inspectionId={r.docs.inspectionId} canRegister={canRegister}
-                      onSaved={responded => patchSheetResponses(r.docs!.inspectionId, responded)} />
-                    {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
-                    <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap" data-hover-doc="report4">
-                      <span className="font-medium text-[#090c1d] w-44 pl-5">별지 4호 점검표</span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">자동</span>
-                      {r.docs.report4 ? (
-                        <span className="text-[#514b81]">✓ {(r.docs.report4.at ?? '').slice(5, 10)}</span>
-                      ) : (
-                        <span className="text-amber-600">미생성 — 점검표·설비 대장(1.4)에서 자동</span>
-                      )}
-                      <span className="ml-auto flex items-center gap-1">
-                        <button onClick={() => openSingle(r, 'report4')}
-                          title="이 문서만 크게 보기 — 생성 전에도 확인 가능"
-                          className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff]">
-                          <Eye className="size-3" /> 보기
-                        </button>
-                        {r.docs.report4?.pdf && (
-                          <button onClick={() => open(r.docs!.report4!.pdf!.path)} disabled={isPending}
-                            className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50">PDF</button>
-                        )}
-                        <button onClick={() => generate(r.docs!.inspectionId, 'report4', `${r.docs!.inspectionId}:r4`)} disabled={isPending}
-                          className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
-                          {r.docs.report4 ? '재생성' : '생성'}
-                        </button>
-                      </span>
-                      {feedback(`${r.docs.inspectionId}:r4`)}
-                    </div>
-                    {/* 문서 행 — 보고서 센터 InspectionDocRows 재사용 (9호·배치확인서·계약서·사진·10·11호) */}
-                    <InspectionDocRows
-                      i={r.docs} customerName={data.customerName}
-                      isPending={isPending} open={open} generate={generate} upload={upload} feedback={feedback}
-                      onCompose={(inspectionId, annexNo) => setCompose({ inspectionId, annexNo })}
-                      onPreview={(_id, type) => openSingle(r, type)} />
-                  </>
-                ) : (
-                  /* 미시작(계획) 회차 (H-3) */
-                  <div className="flex items-center gap-2 py-2 text-xs">
-                    <span className="text-[#514b81]">아직 점검 미시작 — 시작하면 점검표·별지 작성이 열립니다</span>
-                    <button onClick={() => openStart(r)} disabled={isStarting}
-                      className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
-                      <PlayCircle className="size-3.5" /> 이 회차 시작
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {/* S2: 지난(완료) 회차 — 기본 접힘. 요약만 싣고 상세는 열 때 지연 로드해 마운트 왕복을 줄인다 */}
+      {pastRounds.length > 0 && (
+        <div className="pt-1">
+          <button onClick={() => setPastOpen(v => !v)}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-[#847ba8] hover:bg-[#f8f8ff] rounded-lg">
+            {pastOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            지난 회차 {pastRounds.length}건
+            {!pastOpen && <span className="text-[#b0acd6] font-normal">— 완료된 회차입니다 (펼치면 조회·인쇄 가능)</span>}
+          </button>
+          {pastOpen && (
+            <div className="mt-1.5 space-y-3">
+              {pastYears.map(([year, list]) => (
+                <div key={year} className="space-y-1.5">
+                  <p className="px-2 text-[10px] font-semibold text-[#b0acd6]">{year}년 · {list.length}건</p>
+                  {list.map(r => expanded.has(roundKey(r)) || r.docs
+                    ? renderCard(r)
+                    : renderPastSummary(r))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <button onClick={() => reload()} disabled={isPending}
         className="text-[11px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-1 disabled:opacity-50">
         <RefreshCw className={`size-3 ${isPending ? 'animate-spin' : ''}`} /> 새로고침
       </button>
-
-      {/* D-7 호버 퀵뷰 팝업 — prefetch 캐시 즉시 표시 (렌더 전이면 준비 안내), 클릭 방해 없게 pointer-events-none */}
-      {hoverDoc && (() => {
-        const doc = (previewCache[hoverDoc.inspectionId] ?? []).find(d => d.type === hoverDoc.type)
-        const top = Math.max(8, Math.min(hoverDoc.top, window.innerHeight - 440))
-        return (
-          <div className="hidden md:block fixed right-4 w-[360px] h-[430px] z-50 pointer-events-none rounded-xl border border-[#d0ccf5] bg-white shadow-2xl overflow-hidden"
-            style={{ top }}>
-            <p className="px-3 py-1.5 text-[10px] text-[#514b81] bg-[#fafaff] border-b border-[#eeecf8]">
-              🔍 {doc?.label ?? '미리보기'} — 퀵뷰 ([보기]를 누르면 크게)
-              {doc && doc.missing.length > 0 && <span className="text-amber-600 ml-1">⚠ 미입력 {doc.missing.length}곳</span>}
-            </p>
-            {doc?.html ? (
-              <iframe srcDoc={doc.html} title="호버 퀵뷰" className="w-full h-full bg-white" />
-            ) : (
-              <p className="p-4 text-[11px] text-[#b0acd6]">미리보기 준비 중… (렌더가 끝나면 즉시 표시됩니다)</p>
-            )}
-          </div>
-        )
-      })()}
 
       {/* 별지 작성 패널 — 문서 작업대와 동일 컴포넌트 (H-24 재사용) */}
       {compose && (
@@ -356,155 +339,26 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
           annexNo={compose.annexNo}
           customerId={customerId}
           onClose={() => setCompose(null)}
-          onGenerated={() => reload()}
+          onGenerated={() => refreshRound(compose.inspectionId)}
         />
       )}
 
-      {/* H-5c 회차 전체 미리보기 — 전 별지 세로 연결 + 요약 바(미입력 집계·점프) */}
-      {fullPreview && (() => {
-        const docsForPreview = previewCache[fullPreview.inspectionId] ?? []
-        const allLoaded = docsForPreview.length > 0 && docsForPreview.every(d => d.html || d.error)
-        const totalMissing = docsForPreview.reduce((n, d) => n + d.missing.length, 0)
-        const curRound = rounds.find(r => r.docs?.inspectionId === fullPreview.inspectionId)
-        // 종이 보관 후 정리된 회차는 누락이 아니다 (소방계획서_18 D-7 ⚠)
-        const certMissing = curRound?.docs ? !curRound.docs.cert && !curRound.docs.certArchived : false
-        // 단일 문서 모드 — 선택 문서가 이 회차에 없으면(불량 0건 회차의 ⑩⑪) 전체 모드로 되돌린다
-        const only = fullPreview.only ? docsForPreview.find(d => d.type === fullPreview.only) : undefined
-        return (
-          <>
-            <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => setFullPreview(null)} />
-            <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-6 bottom-6 md:w-[860px] bg-white rounded-2xl shadow-2xl z-[70] flex flex-col">
-              {/* 요약 바 (고정 상단) — 칩 = 문서 선택기([전체] + 문서별), 단일 모드에서도 닫지 않고 전환 */}
-              <div className="px-5 py-3 border-b border-[#e0ddf5] shrink-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-sm text-[#090c1d]">
-                    {fullPreview.label} — {only ? `${only.label} 보기` : '전체 미리보기'}
-                  </p>
-                  <button onClick={() => setFullPreview(null)} className="ml-auto text-[#b0acd6] hover:text-[#514b81]">✕</button>
-                </div>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]">
-                  <button onClick={() => setFullPreview(p => p && { ...p, only: undefined })}
-                    title="전 별지를 세로로 이어 봅니다"
-                    className={`px-2 py-0.5 rounded-full border ${!fullPreview.only ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] font-medium' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
-                    전체
-                  </button>
-                  {docsForPreview.map(d => (
-                    <button key={d.type}
-                      onClick={() => setFullPreview(p => p && { ...p, only: d.type })}
-                      title={`${d.label}만 크게 보기`}
-                      className={`px-2 py-0.5 rounded-full border ${fullPreview.only === d.type ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] font-medium'
-                        : d.missing.length > 0 ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
-                      {d.label.replace(' 점검표', '').replace(' 실시결과 보고서', '').replace(' 이행계획서', '').replace(' 이행완료 보고서', '')} {d.missing.length > 0 ? `⚠${d.missing.length}곳` : '✓'}
-                    </button>
-                  ))}
-                  {/* 배치확인서 — 별지와 달리 협회 발급본이라 생성이 없다. 없으면 이 자리에서 업로드, 있으면 열기 */}
-                  {(() => {
-                    const cert = curRound?.docs?.cert
-                    const certKey = `${fullPreview.inspectionId}:cert-chip`
-                    const chipCls = 'px-2 py-0.5 rounded-full border transition-colors'
-                    // 종이 보관 후 정리된 회차 — 업로드를 재촉하면 안 된다 (소방계획서_18 D-7 ⚠)
-                    if (!cert && curRound?.docs?.certArchived) {
-                      return (
-                        <span title="과거본 정리로 ERP 사본이 삭제되었습니다 — 원본은 종이로 보관 중"
-                          className={`${chipCls} border-[#e0ddf5] bg-[#fafaff] text-[#847ba8]`}>
-                          배치확인서 · 종이 보관
-                        </span>
-                      )
-                    }
-                    if (cert) {
-                      return (
-                        <button onClick={() => open(cert.path, `${data.customerName}_점검인력 배치확인서_${(cert.at ?? '').slice(0, 10)}.${cert.path.split('.').pop()}`)}
-                          title="협회 발급 배치확인서 열기"
-                          className={`${chipCls} border-green-200 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50`}>
-                          배치확인서 ✓
-                        </button>
-                      )
-                    }
-                    return (
-                      <>
-                        <input ref={certChipRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) upload(fullPreview.inspectionId, 'cert', f, certKey); e.target.value = '' }} />
-                        {/* isPending은 미리보기 렌더·문서 생성과 공유하는 플래그다 — 여기에 묶으면 미리보기가 뜨는 동안
-                            업로드를 못 누른다. 칩은 회차 문서 정보만 보고, 업로드 결과는 아래 feedback이 알린다 */}
-                        <button onClick={() => certChipRef.current?.click()} disabled={!curRound?.docs}
-                          title="협회(kfma.kr) 발급본을 업로드합니다 — 미리보기를 닫지 않고 이 자리에서"
-                          className={`${chipCls} border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50`}>
-                          배치확인서 ⚠없음 — 업로드
-                        </button>
-                      </>
-                    )
-                  })()}
-                  {feedback(`${fullPreview.inspectionId}:cert-chip`)}
-                  {allLoaded && totalMissing === 0 && !certMissing && (
-                    <span className="text-green-700 font-medium">✅ 제출 준비 완료 — 빈칸 없음</span>
-                  )}
-                  {allLoaded && totalMissing > 0 && (
-                    <span className="text-[#b0acd6]">미입력 총 {totalMissing}곳 — 본문 노란 하이라이트 확인</span>
-                  )}
-                </div>
-              </div>
-              {/* 본문 — 단일 모드는 문서 1건이 창 높이를 다 쓰고(8쪽짜리 9호 대응), 전체 모드는 종전대로 세로 연결 */}
-              {only ? (
-                <div className="flex-1 flex flex-col bg-[#f3f4f6] p-4 min-h-0">
-                  <p className="text-xs font-semibold text-[#514b81] mb-1.5 shrink-0">
-                    ▌{only.label}
-                    {only.missing.length > 0 && <span className="text-amber-600"> ⚠ 미입력 {only.missing.length}곳: {only.missing.slice(0, 6).join(' · ')}{only.missing.length > 6 ? ' …' : ''}</span>}
-                  </p>
-                  {only.error ? (
-                    <p className="text-xs text-red-600 bg-white rounded-lg p-3">{only.error}</p>
-                  ) : only.html ? (
-                    <iframe srcDoc={only.html} title={only.label} className="flex-1 w-full bg-white rounded-lg border border-[#e0ddf5]" />
-                  ) : (
-                    <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 미리보기 렌더 중…</p>
-                  )}
-                </div>
-              ) : (
-              <div className="flex-1 overflow-y-auto bg-[#f3f4f6] p-4 space-y-4">
-                {!allLoaded && (
-                  <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 미리보기 렌더 중…</p>
-                )}
-                {docsForPreview.map(d => (
-                  <div key={d.type} id={`fp-${d.type}`}>
-                    <p className="text-xs font-semibold text-[#514b81] mb-1.5">▌{d.label} {d.missing.length > 0 && <span className="text-amber-600">⚠ 미입력 {d.missing.length}곳: {d.missing.slice(0, 4).join(' · ')}{d.missing.length > 4 ? ' …' : ''}</span>}</p>
-                    {d.error ? (
-                      <p className="text-xs text-red-600 bg-white rounded-lg p-3">{d.error}</p>
-                    ) : d.html ? (
-                      <iframe srcDoc={d.html} title={d.label} className="w-full h-[540px] bg-white rounded-lg border border-[#e0ddf5]" />
-                    ) : (
-                      <div className="h-24 bg-white rounded-lg border border-[#e0ddf5] animate-pulse" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              )}
-            </div>
-          </>
-        )
-      })()}
+      {/* H-5c 회차 전체 미리보기 (S3에서 컴포넌트 분리 — 문자열·#fp-* 앵커 불변) */}
+      {fullPreview && (
+        <PlanAnnexFullPreview
+          state={fullPreview} setState={setFullPreview}
+          docsForPreview={previewCache[fullPreview.inspectionId] ?? []}
+          curRound={rounds.find(r => r.docs?.inspectionId === fullPreview.inspectionId)}
+          customerName={data.customerName}
+          open={open} upload={upload} feedback={feedback} />
+      )}
 
-      {/* H-3 점검일 확정 모달 — 확정=자동 시작 (confirmPlanItemStageOneAction) */}
+      {/* H-3 점검일 확정 모달 — 확정=자동 시작 (S3에서 컴포넌트 분리) */}
       {startModal && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-[60]" onClick={() => !isStarting && setStartModal(null)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] bg-white rounded-2xl shadow-2xl z-[70] p-5">
-            <p className="font-semibold text-sm text-[#090c1d]">{startModal.label} 점검을 시작합니다</p>
-            <p className="text-xs text-[#514b81] mt-1">점검일을 확정하면 점검이 자동 시작되고 6단계 마감일이 계산됩니다.</p>
-            <div className="mt-3">
-              <label className="text-xs font-medium text-[#514b81]">점검일</label>
-              <DateInput value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="mt-1 h-9 w-full rounded-lg border border-[#d0ccf5] px-2 text-sm" />
-            </div>
-            {startErr && <p className="text-[11px] text-red-600 mt-2">{startErr}</p>}
-            <div className="flex items-center justify-end gap-2 mt-4">
-              <button onClick={() => setStartModal(null)} disabled={isStarting}
-                className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">취소</button>
-              <button onClick={runStart} disabled={isStarting}
-                className="h-8 px-3.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1">
-                {isStarting ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />} 확정·시작
-              </button>
-            </div>
-          </div>
-        </>
+        <PlanAnnexStartModal
+          label={startModal.label} date={startDate} onDateChange={setStartDate}
+          error={startErr} isPending={isStarting}
+          onCancel={() => setStartModal(null)} onConfirm={runStart} />
       )}
     </div>
   )
