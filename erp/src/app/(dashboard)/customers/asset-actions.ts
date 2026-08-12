@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requirePermission } from '@/lib/auth'
+import { getProfile, requirePermission } from '@/lib/auth'
 import { ASSET_BUCKET, ASSET_MAX_SIZE, ASSET_URL_TTL, listCustomerAssets, type AssetSlot, type CustomerAsset } from '@/lib/customer-assets'
 
 /** 지도·사진 화면 등록 액션 (소방계획서_7 §5 — H-10·H-11, S3)
@@ -14,9 +14,12 @@ const IMG_MIME: Record<string, string> = {
 }
 const UUID_RE = /^[0-9a-f-]{36}$/
 
-/** 슬롯별 자산 목록 + 서명 URL — 슬롯 UI가 마운트할 때마다 호출해 만료된 URL을 갈아끼운다 */
+/** 슬롯별 자산 목록 + 서명 URL — 슬롯 UI가 마운트할 때마다 호출해 만료된 URL을 갈아끼운다.
+ *  읽기 전용 조회라 로그인만 요구 (2026-08-11) — 종전 customer_manage 요구는 읽기 전용 사용자의
+ *  URL 갱신을 막아 1시간 뒤 썸네일이 깨졌고, 페이지 초기 로드의 서명 발급 왕복 지연을 지금은 제거했다. */
 export async function listCustomerAssetsAction(customerId: string): Promise<{ assets?: CustomerAsset[]; error?: string }> {
-  await requirePermission('customer_manage')
+  const profile = await getProfile()
+  if (!profile) return { error: '로그인이 필요합니다.' }
   if (!UUID_RE.test(customerId)) return { error: '잘못된 고객 ID입니다.' }
   return { assets: await listCustomerAssets(customerId) }
 }

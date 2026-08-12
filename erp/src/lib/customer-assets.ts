@@ -12,6 +12,8 @@ export const ASSET_MAX_SIZE = 10 * 1024 * 1024   // 10MB
 
 export type AssetSlot = 'cover' | 'map_location' | 'evac'
 export type CustomerAsset = { slot: AssetSlot; name: string; path: string; url: string }
+/** 서명 URL 없는 목록 항목 — 존재 여부 판정 전용 (서명 왕복 절약) */
+export type CustomerAssetEntry = { slot: AssetSlot; name: string; path: string }
 
 /** 파일명 → 슬롯 판별 (규약 밖 파일은 무시) */
 function slotOf(name: string): AssetSlot | null {
@@ -26,19 +28,26 @@ function slotOf(name: string): AssetSlot | null {
  *  클라이언트가 마운트마다 재조회하지만(권한 없는 조회자는 재조회 불가) 여유를 둔다. */
 export const ASSET_URL_TTL = 3600
 
-/** 고객 자산 목록 + 서명 URL — 페이지 초기 조회와 액션이 공용 */
-export async function listCustomerAssets(customerId: string): Promise<CustomerAsset[]> {
+/** 고객 자산 목록 (서명 URL 없음, 왕복 1회) — 페이지 초기 로드의 존재 여부 판정 전용.
+ *  썸네일 URL은 슬롯 UI가 마운트할 때 listCustomerAssetsAction으로 받는다 (2026-08-11 성능). */
+export async function listCustomerAssetEntries(customerId: string): Promise<CustomerAssetEntry[]> {
   const admin = createAdminClient()
   const prefix = `${customerId}/assets`
   const { data: objects } = await admin.storage.from(ASSET_BUCKET)
     .list(prefix, { limit: 100, sortBy: { column: 'name', order: 'asc' } })
-  const rows = (objects ?? [])
-    .map(o => ({ name: o.name, slot: slotOf(o.name) }))
-    .filter((r): r is { name: string; slot: AssetSlot } => r.slot !== null)
+  return (objects ?? [])
+    .map(o => ({ name: o.name, slot: slotOf(o.name), path: `${prefix}/${o.name}` }))
+    .filter((r): r is CustomerAssetEntry => r.slot !== null)
+}
+
+/** 고객 자산 목록 + 서명 URL — 슬롯 UI 마운트 조회와 액션이 공용 */
+export async function listCustomerAssets(customerId: string): Promise<CustomerAsset[]> {
+  const admin = createAdminClient()
+  const rows = await listCustomerAssetEntries(customerId)
   if (rows.length === 0) return []
-  const paths = rows.map(r => `${prefix}/${r.name}`)
+  const paths = rows.map(r => r.path)
   const { data: signed } = await admin.storage.from(ASSET_BUCKET).createSignedUrls(paths, ASSET_URL_TTL)
   return rows
-    .map((r, i) => ({ slot: r.slot, name: r.name, path: paths[i], url: signed?.[i]?.signedUrl ?? '' }))
+    .map((r, i) => ({ slot: r.slot, name: r.name, path: r.path, url: signed?.[i]?.signedUrl ?? '' }))
     .filter(a => a.url !== '')
 }

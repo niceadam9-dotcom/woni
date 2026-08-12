@@ -45,10 +45,11 @@ async function prepareFile(file: File): Promise<File> {
   }
 }
 
-export function CustomerAssetsClient({ customerId, canManage, initialAssets, embedded = false }: {
+export function CustomerAssetsClient({ customerId, canManage, initialAssets = [], embedded = false }: {
   customerId: string
   canManage: boolean
-  initialAssets: CustomerAsset[]
+  /** 서버 선조회분 — 페이지 초기 로드는 서명 왕복 절약을 위해 생략하고 마운트 조회에 맡긴다 (2026-08-11) */
+  initialAssets?: CustomerAsset[]
   embedded?: boolean   // 서식 1.3 안에 삽입될 때 — 바깥 카드와 겹치지 않게 흰 하위 박스로 렌더
 }) {
   const [assets, setAssets] = useState<CustomerAsset[]>(initialAssets)
@@ -142,14 +143,15 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets, emb
     if (mountRan.current) return
     mountRan.current = true
     startTransition(async () => {
-      // ① 서버 렌더 시점에 발급된 서명 URL은 이 화면을 여는 순간 이미 만료됐을 수 있다(썸네일이 깨져 보이던 원인).
-      //    슬롯 UI는 서식 1.3을 열 때 비로소 마운트되므로, 열 때마다 목록을 다시 받아 URL을 갈아끼운다.
-      let current = initialAssets
+      // ① 자산 목록·서명 URL은 마운트 시 조회 — 페이지 초기 로드는 존재 여부만 알고 URL을 만들지 않는다(2026-08-11 성능).
+      //    (종전에도 서버 발급 URL은 화면을 여는 순간 이미 만료됐을 수 있어 여기서 갈아끼웠다.)
+      let current: CustomerAsset[] | null = null
       try {
         const listed = await listCustomerAssetsAction(customerId)
         if (listed.assets) { current = listed.assets; setAssets(current) }
-      } catch { /* 권한·네트워크 실패 — 서버가 준 initialAssets를 그대로 쓴다 */ }
-      if (!canManage) return
+      } catch { /* 네트워크 실패 — 아래 자동 생성도 건너뛴다 */ }
+      // 목록 조회 실패 시 자동 생성 금지 — 빈 목록으로 오판해 기존 등록본(수동 촬영 표지 등)을 덮어쓸 수 있다
+      if (!canManage || current === null) return
       // ② 빈 슬롯 자동 생성·저장 (2026-08-05 사용자 확정) — 표지 위성·위치도가 비어 있으면 버튼 없이 자동 생성.
       //    키 미설정·주소 없음 등 실패는 조용히 넘어감(수동 버튼 경로에서 사유 안내) — 자동 경로에서 에러 팝업 반복 방지
       const missing = (['cover', 'map_location'] as const).filter(s => !current.some(a => a.slot === s))

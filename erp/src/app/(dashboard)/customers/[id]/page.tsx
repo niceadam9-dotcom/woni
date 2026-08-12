@@ -35,7 +35,7 @@ import { CustomerSummaryPanel } from '@/components/customers/customer-summary-pa
 import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
 import { RecommendAssignClient } from '@/components/customers/recommend-assign-client'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
-import { listCustomerAssets } from '@/lib/customer-assets'
+import { listCustomerAssetEntries } from '@/lib/customer-assets'
 import { listBuildingPurposes } from '@/lib/building-purposes'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
@@ -82,15 +82,14 @@ export default async function CustomerDetailPage({
 }) {
   const { id } = await params
   const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding } = await searchParams
-  const profile = await getProfile()
-  if (!profile) redirect('/login')
-
   const admin = createAdminClient()
 
   // ── 성능(2026-08-11): 원격 DB 왕복(~240ms)이 순차 10여 회 쌓여 페이지당 ~2.5초를 소모하던 것을
-  //    2개 물결로 재편 — A: 고객 id만으로 가능한 조회 전부, B: A 결과(건물·점검·지역)에 의존하는 조회 ──
+  //    2개 물결로 재편 — A: 인증 확인 + 고객 id만으로 가능한 조회 전부, B: A 결과(건물·점검·지역)에 의존하는 조회.
+  //    인증은 렌더 없이 redirect로만 반응하므로 데이터 조회와 병렬 시작해도 안전하다(결과는 아래에서 즉시 확인). ──
   const navFilter = parseListFilter(Object.fromEntries(new URLSearchParams(lq ?? '')) as Record<string, string | undefined>)
   const [
+    profile,
     [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes, brigadeRes],
     // 건물 용도 선택지 (049) — 건물 패널 용도 datalist 제안
     buildingPurposes,
@@ -99,14 +98,15 @@ export default async function CustomerDetailPage({
     [fpFormRes, companyRes, textDefaultsRes, textStampsRes],
     // 개정이력 — 연도별 히스토리(120). 연도 desc·연도 내 seq desc(최신이 위) — 소방계획서_17.md §2
     revRowsRes,
-    // 지도·사진 자산 초기 목록 (소방계획서_7 §5 — H-10: 서버에서 조회해 클라이언트에 전달)
+    // 지도·사진 자산 존재 여부 (소방계획서_7 §5 — H-10) — 서명 URL 발급은 슬롯 UI 마운트로 지연(2026-08-11 성능)
     // 슬롯 UI는 2026-08-08부터 서식 1.3 안에 삽입된다 — 트리의 전용 'assets' 노드와 그 완성도 항목은 폐지.
     // 1.3 완성도는 종전대로 서식 입력(location·fireAccess) 유무로만 판정한다(탭 뱃지 분모 불변).
-    customerAssets,
+    assetEntries,
     // [◀ 이전|다음 ▶] 네비 (§6-C-3) — 목록 필터 컨텍스트(lq) 그대로 같은 순서로 이동
     // 2026-08-04 성능: 전체 목록 로직 대신 경량 ID 조회(fetchCustomerNavIds) — 상세 열람·저장 refresh 비용 대폭 절감
     navIds,
   ] = await Promise.all([
+    getProfile(),
     Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
@@ -155,10 +155,11 @@ export default async function CustomerDetailPage({
       .eq('customer_id', id)
       .order('year', { ascending: false })
       .order('seq', { ascending: false }),
-    listCustomerAssets(id),
+    listCustomerAssetEntries(id),
     fetchCustomerNavIds(admin, navFilter),
   ])
 
+  if (!profile) redirect('/login')
   if (!customerRes.data) notFound()
 
   const customer = customerRes.data as Customer
@@ -664,8 +665,8 @@ export default async function CustomerDetailPage({
         initialLocation={fpSections.location ?? { mapImage: null, surroundings: '', fireStation: s(cRec.fire_station), distance: '', eta: '', operation: '' }}
         initialFireAccess={fpSections.fireAccess ?? { routeDesc: '', routeImage: null, entryPoint: '', nearbyFacilities: '' }}
         initialPhotos={fpSections.photos ?? []}
-        assetsSlot={<CustomerAssetsClient customerId={customer.id} canManage={canManage} initialAssets={customerAssets} embedded />}
-        hasMapAsset={customerAssets.some(a => a.slot === 'map_location')}
+        assetsSlot={<CustomerAssetsClient customerId={customer.id} canManage={canManage} embedded />}
+        hasMapAsset={assetEntries.some(a => a.slot === 'map_location')}
         autoFireStation={s(cRec.fire_station)}
         fireStationEstimated={s(cRec.fire_station_source) === 'estimate'}
         stationCandidates={stationCandidates} />}
@@ -717,7 +718,7 @@ export default async function CustomerDetailPage({
         initialVulnerable={fpSections.vulnerable ?? null}
         initialMethods={fpSections.vulnerableMethods ?? {}}
         initialEquip={fpSections.evacEquip ?? []}
-        hasEvacAsset={customerAssets.some(a => a.slot === 'evac')} />}
+        hasEvacAsset={assetEntries.some(a => a.slot === 'evac')} />}
       formCover={<PlanFormCover customerId={customer.id} canManage={canManage}
         initial={fpSections.reportCover ?? {}}
         defaults={{ company: customer.customer_name, year: String(new Date().getFullYear()) }} />}
