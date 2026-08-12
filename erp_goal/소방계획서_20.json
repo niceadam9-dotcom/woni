@@ -35,98 +35,102 @@
   ],
 
   "items": [
-    { "id": "S1", "title": "부분 갱신 — reload 전면 재조회 폐기", "status": "code_present", "commit_unit": "C1",
+    { "id": "S1", "title": "부분 갱신 — reload 전면 재조회 폐기", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "commit_unit": "C1",
       "criteria": [
-        { "id": "S1-1", "desc": "getRoundDocsAction(customerId, inspectionId) 신설 — buildInspectionDocs 1건 노출(왕복 ~4)", "status": "code_present",
+        { "id": "S1-1", "desc": "getRoundDocsAction(customerId, inspectionId) 신설 — buildInspectionDocs 1건 노출(왕복 ~4)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["reports/docs-actions.ts:213 getRoundDocsAction"], "self_check": "_probe-annex-refresh-round 6/6 — 업로드 후 실호출로 회차 행 갱신 확인" },
-        { "id": "S1-2", "desc": "refreshRound(inspectionId) 헬퍼 — 해당 회차 docs만 패치 + 미리보기 캐시 그 회차 키만 무효화", "status": "code_present",
+        { "id": "S1-2", "desc": "refreshRound(inspectionId) 헬퍼 — 해당 회차 docs만 패치 + 미리보기 캐시 그 회차 키만 무효화", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-section.tsx refreshRound (import 포함)"], "self_check": "프로브에서 대상 회차만 ✓로 바뀌고 다른 회차 스토리지 무변화 확인" },
-        { "id": "S1-3", "desc": "generate()·upload()·AnnexComposePanel onGenerated의 reload()를 refreshRound로 교체(3곳)", "status": "code_present",
+        { "id": "S1-3", "desc": "generate()·upload()·AnnexComposePanel onGenerated의 reload()를 refreshRound로 교체(3곳)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-section.tsx generate() refreshRound(inspectionId)", "upload() refreshRound(inspectionId)", "onGenerated={() => refreshRound(compose.inspectionId)}"],
           "self_check": "2026-08-12 배선 완료. upload 경로는 프로브로 실증, generate 경로는 로컬 Gotenberg 부재로 미실증(동일 함수 호출이라 코드 대조)" },
-        { "id": "S1-4", "desc": "runStart()의 reload()는 유지 — 회차 집합 자체가 바뀌므로 전면 재조회가 맞다", "status": "code_present",
+        { "id": "S1-4", "desc": "runStart()의 reload()는 유지 — 회차 집합 자체가 바뀌므로 전면 재조회가 맞다", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-section.tsx runStart() reload() 유지(무변경)"] },
         { "id": "S1-5", "desc": "기존 E2E 무수정 통과(test-annex-interaction·test-annex-compose)", "status": "partial",
           "self_check": "test-annex-interaction 35/35 그린(무수정). test-annex-compose는 6통과 후 실패하나 원인은 별지10호 '총 이행기간'이 daterange로 바뀐 뒤(163de41) 테스트 미갱신 — S1 이전부터의 드리프트이며 생성 이전 단계라 refreshRound 무관",
           "note": "test-annex-compose 갱신은 별건 후속" }
       ] },
 
-    { "id": "S2", "title": "마운트 왕복 상수화 + 지난 회차 접힘 섹션", "status": "code_present", "commit_unit": "C2",
+    { "id": "S2", "title": "마운트 왕복 상수화 + 지난 회차 접힘 섹션", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "commit_unit": "C2",
       "criteria": [
-        { "id": "S2-1", "desc": "getCustomerRoundsAction 재편 — 활성 회차(state≠completed)만 buildInspectionDocs 실행", "status": "code_present",
+        { "id": "S2-1", "desc": "getCustomerRoundsAction 재편 — 활성 회차(state≠completed)만 buildInspectionDocs 실행", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["docs-actions.ts activeRows/doneRows 분기 + Promise.all 1묶음"] },
-        { "id": "S2-2", "desc": "완료 회차는 docs:null + docsLite 신규 필드(문서 존재=gen_jobs 1쿼리, 불량 수=inspection_defects 전 회차 1쿼리 집계, cert=findArchivedCertInspections 기존 1쿼리)", "status": "code_present", "depends": ["Q-4"],
+        { "id": "S2-2", "desc": "완료 회차는 docs:null + docsLite 신규 필드(문서 존재=gen_jobs 1쿼리, 불량 수=inspection_defects 전 회차 1쿼리 집계, cert=findArchivedCertInspections 기존 1쿼리)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "depends": ["Q-4"],
           "evidence": ["docs-actions.ts RoundDocsLite 타입", "genBy/defBy 집계 후 rounds에 주입"],
           "note": "archivedCerts는 병렬 조회 후 활성 회차 docs에 사후 주입(certArchived) — 18 D-7 표시 규약 유지" },
         { "id": "S2-3", "desc": "왕복 3+3N → 6~7회 고정 — 프로브로 실측", "status": "code_present", "verify_by": "_probe-annex-latency.mjs",
+          "not_independently_verified": "판정자는 코드 구조(S2-1·S2-2)만 확인했고 성능 수치 자체는 재측정하지 않았다 — 25%는 구현자 실측값",
           "self_check": "동일 고객·8회차 A/B(전건 진행중 vs 1건 진행+7건 완료), [새로고침]으로 회차 로더만 격리 측정 — 중앙값 1933ms → 1447ms(25%)",
           "note": "초기에는 페이지 전체 진입 시간으로 쟀는데 SSR 고정비(~2초)와 로컬 편차에 묻혀 2~22%로 요동했다(임계값 판정이 플레이크). 바뀐 것은 로더뿐이므로 측정 대상을 로더로 좁혀 재현성을 확보했다" },
-        { "id": "S2-4", "desc": "UI active/past 분리 — 활성은 기존 카드(최신 자동 펼침 유지), 완료는 '지난 회차 N건' 기본 접힘(연도별 그룹, 요약 행)", "status": "code_present",
+        { "id": "S2-4", "desc": "UI active/past 분리 — 활성은 기존 카드(최신 자동 펼침 유지), 완료는 '지난 회차 N건' 기본 접힘(연도별 그룹, 요약 행)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-section.tsx activeRounds/pastRounds/pastYears + renderPastSummary"],
           "note": "자동 펼침 대상을 '첫 활성 회차'로 보정 — 완료 회차만 있는 고객이 접힘 안의 카드를 여는 일이 없게" },
-        { "id": "S2-5", "desc": "요약 행 클릭 → getRoundDocsAction lazy 상세 → 기존 카드 본문 렌더", "status": "code_present",
+        { "id": "S2-5", "desc": "요약 행 클릭 → getRoundDocsAction lazy 상세 → 기존 카드 본문 렌더", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-section.tsx openPastRound"], "self_check": "프로브 '섹션 펼쳐도 상세 미로드(1세트) → 행 클릭 시 2세트' 통과" },
-        { "id": "S2-6", "desc": "18 세션 기능(hasBundlePdf·[전체 인쇄]·cert 칩)은 조건 렌더 위치만 이동, 로직 이동 금지", "status": "code_present", "risk": "R-1",
+        { "id": "S2-6", "desc": "18 세션 기능(hasBundlePdf·[전체 인쇄]·cert 칩)은 조건 렌더 위치만 이동, 로직 이동 금지", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "risk": "R-1",
           "self_check": "test-archive-cleanup 40/40 무수정 통과" },
-        { "id": "S2-7", "desc": "경계 — planned인데 과거 연도(방치 회차)는 완료가 아니므로 활성 카드에 남긴다", "status": "code_present",
+        { "id": "S2-7", "desc": "경계 — planned인데 과거 연도(방치 회차)는 완료가 아니므로 활성 카드에 남긴다", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["activeRounds = state !== 'completed' (planned 포함)"], "note": "전용 E2E는 미추가 — 독립 검증 시 확인 필요" },
-        { "id": "S2-8", "desc": "test-annex-interaction 최소 수정(지난 회차 섹션 → 요약 행 클릭 → 상세 대기)", "status": "code_present",
+        { "id": "S2-8", "desc": "test-annex-interaction 최소 수정(지난 회차 섹션 → 요약 행 클릭 → 상세 대기)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "self_check": "36/36 통과(연도 그룹 단언 1건 추가). 수정은 3개 단언에 한정" }
       ] },
 
-    { "id": "S3", "title": "프리페치 지연화 + 퀵뷰 폐지 + 파일 분할 + 카드 2블록", "status": "code_present", "commit_unit": "C3",
+    { "id": "S3", "title": "프리페치 지연화 + 퀵뷰 폐지 + 파일 분할 + 카드 2블록", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "commit_unit": "C3",
       "criteria": [
-        { "id": "S3-1", "desc": "마운트·펼침 시 일괄 프리페치 제거 → [보기]/[전체 미리보기] 클릭 시 로드(캐시 유지로 재오픈 0초)", "status": "code_present",
+        { "id": "S3-1", "desc": "마운트·펼침 시 일괄 프리페치 제거 → [보기]/[전체 미리보기] 클릭 시 로드(캐시 유지로 재오픈 0초)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-round-card.tsx 헤더 onClick={onToggle} (prefetch 호출 제거)", "plan-annex-section.tsx onFullPreview/openSingle에서만 prefetchPreviews"] },
-        { "id": "S3-2", "desc": "보완 — 최신 활성 회차 1건만 idle(2~3초 후·document.hidden 아님) 프리페치", "status": "code_present",
+        { "id": "S3-2", "desc": "보완 — 최신 활성 회차 1건만 idle(2~3초 후·document.hidden 아님) 프리페치", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-section.tsx reload(first) setTimeout 2500ms"],
           "note": "설계의 'report4·report9 2종만'은 미채택 — 캐시 슬롯을 부분만 채우면 모달의 allLoaded·칩 목록이 깨진다. 회차 단위 전체 프리페치를 유지하되 시점만 유휴로 미뤘다" },
-        { "id": "S3-3", "desc": "호버 퀵뷰(D-7) 폐지 — hoverDoc state·팝업·delegation 제거. data-hover-doc 속성은 존치", "status": "code_present",
-          "evidence": ["plan-annex-section.tsx hoverDoc 관련 코드 전부 제거(폐지 사유 주석)", "customer-docs.tsx data-hover-doc 무변경"] },
-        { "id": "S3-4", "desc": "파일 분할 3건 — plan-annex-round-card.tsx · plan-annex-full-preview.tsx · plan-annex-start-modal.tsx", "status": "code_present",
+        { "id": "S3-3", "desc": "호버 퀵뷰(D-7) 폐지 — hoverDoc state·팝업·delegation·앵커 속성 제거", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed 이후 수정분은 미커밋" },
+          "evidence": ["plan-annex-section.tsx hoverDoc 관련 코드 전부 제거(폐지 사유 주석)", "customer-docs.tsx·plan-annex-round-card.tsx data-hover-doc 속성 제거"],
+          "judge_finding": "**최초 판정 '부분'** — 기능은 죽었는데 data-hover-doc 속성이 customer-docs 3곳·round-card 1곳에 남아 '미래 개발자가 호버 퀵뷰가 있다고 착각할 수 있다'는 지적. 당초 18 세션 diff 최소화·셀렉터 앵커 명목으로 남겼으나 18이 커밋된 뒤로는 근거가 사라져 **전건 제거 후 ✅로 재판정**" },
+        { "id": "S3-4", "desc": "파일 분할 3건 — plan-annex-round-card.tsx · plan-annex-full-preview.tsx · plan-annex-start-modal.tsx", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "self_check": "plan-annex-section.tsx 500줄+ → 362줄(오케스트레이션·지난 회차 섹션), round-card 160 · full-preview 152 · start-modal 40. 설계의 ~200줄 목표에는 미달 — S2의 지난 회차 섹션이 추가돼서" },
-        { "id": "S3-5", "desc": "카드 본문을 '① 점검표' / '② 별지 생성·확인' 2블록으로 시각 재편", "status": "code_present",
+        { "id": "S3-5", "desc": "카드 본문을 '① 점검표' / '② 별지 생성·확인' 2블록으로 시각 재편", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-round-card.tsx blockTitleCls 2개 제목"], "self_check": "E2E '카드 2블록' 단언 추가·통과" },
-        { "id": "S3-6", "desc": "블록 제목에 '점검표 입력' 문자열 사용 금지", "status": "code_present", "risk": "R-3",
+        { "id": "S3-6", "desc": "블록 제목에 '점검표 입력' 문자열 사용 금지", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "risk": "R-3",
           "evidence": ["'① 점검표'·'② 별지 생성·확인' — PlanAnnexSheetHeader가 '점검표 입력'의 유일 출처"],
           "self_check": "E2E 개수 판정(1세트/2세트) 그대로 통과" },
-        { "id": "S3-7", "desc": "문자열·#fp-* DOM 앵커 그대로 이동 — 미리보기 E2E 무수정 통과", "status": "code_present",
+        { "id": "S3-7", "desc": "문자열·#fp-* DOM 앵커 그대로 이동 — 미리보기 E2E 무수정 통과", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "self_check": "전체 미리보기·단일 모드·행 [보기] 단언 8건 무수정 통과" }
       ] },
 
-    { "id": "S4", "title": "점검표 입력 편의 — 자동 저장 + 전체 양호 + 터치 + 회차 복사", "status": "code_present", "commit_unit": "C4",
+    { "id": "S4", "title": "점검표 입력 편의 — 자동 저장 + 전체 양호 + 터치 + 회차 복사", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "commit_unit": "C4",
       "criteria": [
-        { "id": "S4-1", "desc": "use-debounced-autosave 훅 신설 — {status, flush, pause/resume}, 입력 멈춤 ~1초 후 save(), 실행 중 변경은 대기열", "status": "code_present", "depends": ["Q-3"],
+        { "id": "S4-1", "desc": "use-debounced-autosave 훅 신설 — {status, flush, pause/resume}, 입력 멈춤 ~1초 후 save(), 실행 중 변경은 대기열", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "depends": ["Q-3"],
           "evidence": ["hooks/use-debounced-autosave.ts"],
           "note": "save는 payload를 큐에 담지 않고 호출 시점 최신 상태를 읽는 콜백 — 대기 중 값이 더 바뀌어도 마지막 상태 하나만 저장하면 되기 때문. 재귀 대신 do-while로 큐 소진(React Compiler 린트 대응)" },
-        { "id": "S4-2", "desc": "변경분(delta)만 upsert — 현행은 응답 전체 전송. 페이로드·Realtime 에코 감소", "status": "code_present",
+        { "id": "S4-2", "desc": "변경분(delta)만 upsert — 현행은 응답 전체 전송. 페이로드·Realtime 에코 감소", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-sheet-tree.tsx autosave 콜백 draft≠baseline 필터"], "self_check": "프로브 '3연타 → updated_at 1종' 통과(1회 배치)" },
-        { "id": "S4-3", "desc": "저장 성공 시 baseline 병합 + 요약 로컬 패치 — 재조회는 시트 닫기·Realtime 시로 한정", "status": "code_present", "risk": "R-5",
+        { "id": "S4-3", "desc": "저장 성공 시 baseline 병합 + 요약 로컬 패치 — 재조회는 시트 닫기·Realtime 시로 한정", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "risk": "R-5",
           "evidence": ["patchOverviewLocal useCallback", "closeSheet에서 flush 후 load()로 수렴"] },
-        { "id": "S4-4", "desc": "저장 상태 칩 — '저장 중… / ✓ 저장됨 / ⏸ 저장 보류 / ⚠ 저장 실패 — [다시 시도]'", "status": "code_present",
+        { "id": "S4-4", "desc": "저장 상태 칩 — '저장 중… / ✓ 저장됨 / ⏸ 저장 보류 / ⚠ 저장 실패 — [다시 시도]'", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" },
           "evidence": ["plan-annex-sheet-tree.tsx 머리줄 autosave.status 분기"], "self_check": "프로브·E2E에서 '✓ 저장됨' 대기 통과" },
-        { "id": "S4-5", "desc": "Realtime 상호작용 — stale 시 자동 저장 pause, 배너에 [내 입력 저장] + [최신 불러오기] 2택, 해소 후 resume", "status": "code_present", "risk": "R-4",
+        { "id": "S4-5", "desc": "Realtime 상호작용 — stale 시 자동 저장 pause, 배너에 [내 입력 저장] + [최신 불러오기] 2택, 해소 후 resume", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "risk": "R-4",
           "evidence": ["useEffect(stale) → pause/resume", "배너 버튼 2종"],
           "self_check": "E2E 'dirty 중엔 배너로 대기' 통과. ✕는 자동 저장 대상에서 제외해 dirty 창을 남긴다(아래 note)" },
-        { "id": "S4-6", "desc": "[이 설비 저장] 트리에서 제거 — SheetItemEditor에 hideSave prop, 점검 상세는 종전 유지", "status": "code_present", "depends": ["Q-5"],
+        { "id": "S4-6", "desc": "[이 설비 저장] 트리에서 제거 — SheetItemEditor에 hideSave prop, 점검 상세는 종전 유지", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "depends": ["Q-5"],
           "evidence": ["sheet-item-editor.tsx hideSave·cancelLabel prop", "트리는 hideSave cancelLabel='닫기'"] },
-        { "id": "S4-7", "desc": "전체 양호→예외만 트리 이식 — [설치 설비 전체 양호 ○] + 불량 검색 태깅. 기존 액션 재사용(호출부만 추가)", "status": "code_present", "depends": ["Q-6"],
+        { "id": "S4-7", "desc": "전체 양호→예외만 트리 이식 — [설치 설비 전체 양호 ○] + 불량 검색 태깅. 기존 액션 재사용(호출부만 추가)", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "depends": ["Q-6"],
           "evidence": ["plan-annex-sheet-tree.tsx bulkGood·saveQuickDefect + 빠른 입력 패널"], "self_check": "프로브 '전체 양호 — 항목 증가·기존 유지' 통과" },
-        { "id": "S4-8", "desc": "터치 버튼 확대 — O/X/N 28px → 40px, 행 간격·메모 필드 폭 보정. 공용 컴포넌트라 점검 상세도 함께 개선", "status": "code_present", "depends": ["Q-6"],
+        { "id": "S4-8", "desc": "터치 버튼 확대 — O/X/N 28px → 40px, 행 간격·메모 필드 폭 보정. 공용 컴포넌트라 점검 상세도 함께 개선", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "depends": ["Q-6"],
           "evidence": ["sheet-item-editor.tsx w-10 h-10 + flex-wrap 메모 행"], "self_check": "프로브 boundingBox 40px 확인" },
-        { "id": "S4-9", "desc": "이전 회차 결과 복사 — copyPreviousRoundResponsesAction, 직전 완료 회차 응답을 미입력 항목에만 복사", "status": "code_present", "depends": ["Q-6"], "risk": "R-6",
+        { "id": "S4-9", "desc": "이전 회차 결과 복사 — copyPreviousRoundResponsesAction, 직전 완료 회차 응답을 미입력 항목에만 복사", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "depends": ["Q-6"], "risk": "R-6",
           "evidence": ["sheet-actions.ts copyPreviousRoundResponsesAction", "트리 [지난 회차 결과 불러오기]"],
           "self_check": "프로브 '기존 입력 보존(X로 덮어쓰지 않음)' 통과" },
-        { "id": "S4-10", "desc": "복사 안전장치 4종", "status": "partial", "risk": "R-6",
-          "self_check": "① 확인 다이얼로그에 '실제 점검을 대체할 수 없습니다' 고지 ✅ ③ X 복사해도 불량내역 자동 등록 안 함 ✅(프로브 검증) ④ activity_logs 'sheet_copy_previous' 기록 ✅(프로브 검증)",
-          "note": "②(복사 직후 시트 자동 펼침으로 검토 유도) 미구현 — 현재는 안내 문구로만 검토를 유도한다. 잔여" },
-        { "id": "S4-11", "desc": "test-annex-sheet-inline 수정 — 저장 버튼 단언 → 자동 저장 칩, 비담당은 결과 버튼 미노출로", "status": "code_present", "risk": "R-3",
+        { "id": "S4-10", "desc": "복사 안전장치 4종 — ①고지 ②복사 후 검토 유도 ③X 불량 자동등록 금지 ④감사 로그", "status": "implemented", "risk": "R-6",
+          "verified": { "date": "2026-08-12", "method": "독립 검증(판정자 24-d·24-e 항목) + _probe-annex-autosave 14/14",
+            "evidence": ["sheet-actions.ts copyPreviousRoundResponsesAction — have Set 필터(a)·X 자동등록 없음(b)·activity_logs(c)", "plan-annex-sheet-tree.tsx confirm 고지(d)·복사 후 불량 시트 자동 펼침(e)"] },
+          "self_check": "②는 2026-08-12에 추가 구현 — 복사 후 불량(✕)이 실린 시트를 우선 펼치고(없으면 응답이 들어온 첫 시트) 안내 문구에 무엇을 펼쳤는지 표기. 프로브 2단언 추가 통과" },
+        { "id": "S4-11", "desc": "test-annex-sheet-inline 수정 — 저장 버튼 단언 → 자동 저장 칩, 비담당은 결과 버튼 미노출로", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "risk": "R-3",
           "self_check": "25/1 — 유일 실패는 소방계획서_16 S5 미완(Realtime 알림 벨)으로 본 변경과 무관" }
       ] },
 
     { "id": "S5", "title": "검증 — 프로브 신설 + 회귀 E2E + 설계 문서 갱신", "status": "partial",
       "criteria": [
         { "id": "S5-1", "desc": "_probe-annex-latency.mjs 신설 — A/B 지연 측정", "status": "code_present",
+          "not_independently_verified": "프로브 존재·실행 결과는 구현자 자기 신고(판정 범위 밖)",
           "self_check": "6/6. 로더 격리 측정으로 1933→1447ms(25%) 재현",
           "note": "설계의 '마운트 프리페치 호출 0건 단언'은 미포함 — 클라이언트에서 서버 액션 호출을 구분해 세기 어려워 코드 대조(S3-1 evidence)로 대체" },
         { "id": "S5-2", "desc": "_probe-annex-autosave.mjs 신설 — 배치 저장·칩·복사 안전장치", "status": "partial",
@@ -135,16 +139,33 @@
         { "id": "S5-3", "desc": "기존 E2E 회귀", "status": "partial",
           "self_check": "test-annex-interaction 36/36 · test-plan-tab 88/88 · test-sheet-scope-axis 6/6 (모두 안정). test-annex-compose는 163de41 이후 기존 드리프트로 실패(본 변경 무관)",
           "note": "**test-annex-sheet-inline은 25/1(그린)과 18/2 사이를 오간다(6회 중 4회 그린)** — 흔들리는 지점은 9-b 'Realtime dirty 배너' 한 곳. 이 단계는 ✕ 클릭(UI)과 service-role INSERT(원격)를 경주시키는 구조다. 조사 중 실제 결함 3건을 찾아 고쳤고(F-1~F-3, fixes 참조) 그린 비율이 올랐으나 완전 해소는 못 했다. 대상 기능(S5-5 배너)은 소방계획서_16 S5 소유이고 그 인프라(마이그레이션 122·훅)가 아직 미커밋이라, 잔여 원인 규명은 독립 검증/16 세션으로 넘긴다" },
-        { "id": "S5-4", "desc": "test-archive-cleanup(소방계획서_18 게이트) 무수정 통과 — 대상 파일이 겹치므로 회귀 감시선", "status": "code_present", "risk": "R-1",
+        { "id": "S5-4", "desc": "test-archive-cleanup(소방계획서_18 게이트) 무수정 통과 — 대상 파일이 겹치므로 회귀 감시선", "status": "implemented", "verified": { "date": "2026-08-12", "method": "독립 검증 — Explore 판정자(구현자≠판정자), 요구사항만 제시하고 구현자 주장·증거는 비공개. 적대적 관점 질문 동반", "commit": "466baed (S1~S3) · S4는 미커밋 워킹트리" }, "risk": "R-1",
           "self_check": "40/40 — S2·S3·S4 각 단계 후 재확인" },
         { "id": "S5-5", "desc": "npm run build 통과", "status": "code_present",
+          "not_independently_verified": "빌드 실행은 구현자 자기 신고(판정 범위 밖)",
           "self_check": "2026-08-12 exit 0 — dev 중지 후 실행(같은 .next를 공유하면 충돌)" },
         { "id": "S5-6", "desc": "설계 MD를 실제 구현에 맞게 갱신 — 구현 시 변경·측정 방법 교정·잔여 명시", "status": "code_present",
+          "not_independently_verified": "문서 갱신 여부는 판정 범위 밖",
           "evidence": ["소방계획서_20.md §3 Q-7 확정 · §4 구현 시 변경 3건 · §5 검증 실행 결과 · §6 R-1 해소 · §7 진행 현황"] },
-        { "id": "S5-7", "desc": "독립 검증(Json_Rule 규칙 3) — 구현자≠판정자, implemented 승격", "status": "pending_order",
-          "note": "현재 전 criteria가 code_present(구현자 자기 신고) — 승격 전 필수" }
+        { "id": "S5-7", "desc": "독립 검증(Json_Rule 규칙 3) — 구현자≠판정자, implemented 승격", "status": "implemented",
+          "verified": { "date": "2026-08-12", "method": "Explore 판정자에게 요구사항 24항목만 제시(구현자 주장·증거 라인 비공개) + 적대적 관점 질문. 결과 27 ✅ / 1 부분",
+            "evidence": ["판정 결과: S3 호버 퀵뷰 폐지가 '부분'(data-hover-doc 속성 잔존) — 즉시 수정 후 재확인", "그 외 기능 요구 전건 ✅ with 파일:라인"] },
+          "note": "판정 범위는 기능 요구 24항목. 성능 수치·프로브 실행·빌드·문서 갱신(S2-3·S5-1·S5-5·S5-6)은 판정 범위 밖이라 code_present로 남긴다" }
       ] }
   ],
+
+  "independent_verification": {
+    "date": "2026-08-12",
+    "method": "Explore 판정자(구현자≠판정자)에게 기능 요구 24항목만 제시 — 구현자 주장·evidence 라인은 비공개. '빠져나가는 경로는 없나 / 화면에는 있는데 서버는 뚫려 있지 않나' 등 적대적 관점 질문 동반",
+    "result": "27 ✅ / 1 부분(호버 퀵뷰 폐지) — 기능 요구 전건 파일:라인 근거 확보",
+    "fixed_after_judgement": [
+      { "id": "J-1", "severity": "중", "found": "S3 호버 퀵뷰 '폐지' 요구에 대해 기능은 죽었으나 data-hover-doc 앵커 속성이 customer-docs 3곳·round-card 1곳에 잔존 — 미래 개발자가 기능이 있다고 오인할 여지", "fix": "속성 4곳 전건 제거 + 주석 갱신", "test": "tsc·eslint 클린 · E2E 4종 회귀 그린" },
+      { "id": "J-2", "severity": "하", "found": "유휴 예열이 document.hidden이면 건너뛰기만 하고 탭 복귀 시 재시도가 없어, 탭을 오가는 사용자는 예열 없이 사용", "fix": "숨김 상태면 visibilitychange 1회 리스너로 복귀 시 예열", "test": "코드(백그라운드 전환 시나리오는 프로브 미커버)" }
+    ],
+    "accepted_not_fixed": [
+      { "id": "J-3", "severity": "중(판정자 평가)", "desc": "지난 회차 요약의 '생성 이력' ✓와 실제 파일 유무가 어긋나 미리보기 시 혼동 가능 — **재검토 결과 실제 위험은 낮다**: 미리보기(getAnnexPreviewHtmlAction)는 저장된 파일이 아니라 DB 데이터로 HTML을 조립하므로 파일이 정리된 회차도 정상 렌더되고, [PDF] 버튼은 펼친 뒤 실파일 판정으로만 노출된다(자기 교정). Q-4 설계 의도대로 동작" }
+    ]
+  },
 
   "fixes_found_during_s5": [
     { "id": "F-1", "severity": "중", "found": "dirtyRef를 렌더 중에 쓰던 기존 코드(16 S5)가 React Compiler 메모이제이션과 얽혀 dirty 판정이 낡음 — 원격 변경 배너가 아예 뜨지 않았다", "fix": "effect 동기화로 교체", "test": "E2E 'dirty 중엔 배너로 대기' 복구" },
@@ -170,7 +191,7 @@
 
   "progress": {
     "date": "2026-08-12",
-    "state": "S1~S5 구현·검증·문서 완료. **S1~S3 커밋(466baed) · S4는 커밋 보류** — 잔여: S4 커밋(16 S5 선행)·독립 검증·S4-10②",
+    "state": "S1~S5 구현·검증·문서 완료 + **독립 검증 통과(27✅/1부분→수정)** + S4-10② 구현. **S1~S3 커밋(466baed) · S4는 커밋 보류** — 잔여: S4 커밋(16 S5 선행)뿐",
     "history": [
       "2026-08-11 기안(md+json) 작성 후 사용자 지시로 구현 중단",
       "2026-08-12 Q-7(18 선행 커밋) 해소 후 S1 재개·완료",
@@ -199,7 +220,8 @@
         "sheet-actions.ts — 소방계획서_19 EX-4(외관 month 축) 미커밋 변경 동거",
         "test-annex-sheet-inline.mts — 16 S5 Realtime 테스트 추가분 동거"
       ],
-      "unblock_condition": "소방계획서_16 S5 세션이 use-sheet-responses-realtime.ts·마이그레이션 122를 커밋한 뒤 S4 커밋"
+      "unblock_condition": "소방계획서_16 S5 세션이 use-sheet-responses-realtime.ts·마이그레이션 122·sheet-tree Realtime 배선을 커밋한 뒤 S4 커밋",
+      "update_2026_08_12_after": "타 세션 커밋 1b41384(19 EX-4 독립검증)로 상황이 일부 바뀌었다 — ① `use-sheet-responses-realtime.ts`가 추적 상태가 됐다(빌드 차단 요인 해소) ② **내 copyPreviousRoundResponsesAction이 그 커밋에 휩쓸려 이미 HEAD에 들어갔다**(sheet-actions.ts가 같은 파일이라 분리 불가했던 결과). 다만 HEAD의 plan-annex-sheet-tree.tsx에는 아직 16 S5의 Realtime 배선이 없고 마이그레이션 122도 미커밋이라, 지금 S4를 커밋하면 여전히 16의 미완 UI가 함께 올라간다 — 보류 유지"
     },
     "verification": {
       "tsc": "0 errors · eslint 변경 파일 전부 클린(타 세션의 렌더중 ref 쓰기 2건도 이번에 해소)",
@@ -211,6 +233,6 @@
       ],
       "known_env_issue": ".next 캐시 손상으로 고객 상세가 전 고객 404가 되는 현상 재발 — dev 종료 후 .next 삭제·재기동으로 해소(코드 회귀 아님)"
     },
-    "resume_from": "S4 커밋(16 S5 선행 후) → 독립 검증(S5-7) → S4-10②"
+    "resume_from": "S4 커밋(16 S5가 sheet-tree 배선·마이그레이션 122를 커밋한 뒤) — 그 외 잔여 없음"
   }
 }

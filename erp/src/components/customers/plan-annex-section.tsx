@@ -44,7 +44,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
   const [fullPreview, setFullPreview] = useState<FullPreviewState | null>(null)
   // D-7 호버 퀵뷰 폐지(S3, 2026-08-12) — 프리페치를 지연화하면 호버 시점엔 캐시가 비어 '준비 중' 빈 팝업만
   // 뜨는 경우가 대부분이라 가치가 사라졌다. 같은 일을 [보기](단일 문서 모달)가 확실하게 한다.
-  // customer-docs.tsx의 data-hover-doc 속성은 그대로 둔다 — 18 세션 diff를 늘리지 않고, 셀렉터 앵커로도 쓰인다.
+  // 델리게이션 앵커였던 data-hover-doc 속성도 함께 제거했다(독립 검증 지적 — 남겨두면 기능이 있는 줄 오인).
   // S2(소방계획서_20): 완료 회차는 "지난 회차 N건" 접힘 섹션 — 기본 닫힘, 상세는 클릭 시 지연 로드
   const [pastOpen, setPastOpen] = useState(false)
   const [loadingRound, setLoadingRound] = useState<string | null>(null)
@@ -101,9 +101,17 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
           setExpanded(new Set([roundKey(firstActive)]))
           // S3: 진입 즉시 별지 4종을 렌더하면 마운트와 12~20왕복이 겹친다.
           // 화면이 자리 잡은 뒤(유휴) 최신 회차 1건만 미리 데워 클릭 0초 체감은 남긴다.
+          // 배경 탭이면 건너뛰되, 돌아왔을 때 한 번 재시도한다 — 안 그러면 탭을 오가는 사용자는
+          // 예열 없이 쓰게 된다(독립 검증 지적).
           if (firstActive.docs) {
             window.setTimeout(() => {
-              if (!document.hidden) prefetchPreviews(firstActive)
+              if (!document.hidden) { prefetchPreviews(firstActive); return }
+              const onVisible = () => {
+                if (document.hidden) return
+                document.removeEventListener('visibilitychange', onVisible)
+                prefetchPreviews(firstActive)
+              }
+              document.addEventListener('visibilitychange', onVisible)
             }, 2500)
           }
         }

@@ -112,7 +112,7 @@ export function PlanAnnexRoundCard({
 
               <p className={`${blockTitleCls} mt-3`}>② 별지 생성·확인 <span className="font-normal text-[#b0acd6]">— 입력한 데이터로 자동 생성</span></p>
               {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
-              <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap" data-hover-doc="report4">
+              <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap">
                 <span className="font-medium text-[#090c1d] w-44 pl-5">별지 4호 점검표</span>
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">자동</span>
                 {r.docs.report4 ? (
