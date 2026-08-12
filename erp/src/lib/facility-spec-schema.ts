@@ -70,8 +70,10 @@ function locFields(prefix = '', labelPrefix = ''): SpecField[] {
 }
 
 /** 설치장소: 동명( ) 전체층/일부층, 지상/지하( )층 ~ 지상/지하( )층 — 층 범위형.
- *  opts.second=true면 둘째 동을 적는 줄까지 만든다(A4-4) — 현행 개정판 원문에서 설치장소 줄이
- *  2줄인 블록은 **7개**다: 옥내소화전·화재조기진압용SP·물분무·미분무·자동화재탐지설비·피난기구·인명구조기구.
+ *  opts.second=true면 둘째 동을 적는 줄까지 만든다(A4-4) — 현행 별지9호 원문에서 설치장소 줄이
+ *  2줄인 블록은 **8개**다: 옥내소화전·화재조기진압용SP·물분무·미분무·자동화재탐지설비·**화재알림설비**
+ *  ·피난기구·인명구조기구. (초판이 구판 샘플을 기준으로 7개로 세어 화재알림설비를 놓쳤고,
+ *  독립 판정 2회가 현행 9호 hwpx 전수 조사로 8개임을 확정했다 — 2026-08-12)
  *  칸이 하나뿐이면 동이 둘 이상인 대상물의 두 번째 동을 적을 자리가 없다. */
 function rangeLocFields(opts?: { coverage?: boolean; second?: boolean }): SpecField[] {
   const coverage = opts?.coverage !== false
