@@ -116,14 +116,14 @@ export function InspectionReport9Client({
               : variant === 'exterior' ? '외관점검표 생성 (PDF)'
               : defectsInfo.total > 0 ? '별지 9호 생성' : '보고서 생성 (PDF)'}
           </button>
-          {variant !== 'exterior' && (
-            <button onClick={() => setCompose('report9')} disabled={isPending || busy}
-              title="자동 채움 검토 → 고유 값 입력(비고·보고일) → 미리보기·생성 (H-23 작성 패널)"
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
-              <PenLine className="size-3.5" />
-              9호 작성
-            </button>
-          )}
+          {/* EX-2(소방계획서_19): 외관도 ③ 작성 경로를 연다 — 종전엔 이 계층이 없어
+              점검일·비고를 손볼 방법이 아예 없었다(자동값이 틀려도 고칠 수 없음) */}
+          <button onClick={() => setCompose(variant === 'exterior' ? 'exterior' : 'report9')} disabled={isPending || busy}
+            title="자동 채움 검토 → 고유 값 입력(비고·보고일) → 미리보기·생성 (H-23 작성 패널)"
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+            <PenLine className="size-3.5" />
+            {variant === 'exterior' ? '외관점검표 작성' : '9호 작성'}
+          </button>
           {variant !== 'exterior' && (
             <button onClick={() => generate('report4')} disabled={isPending || busy}
               title="소방시설등점검표 (별지 4호) — 1·2쪽·점검결과 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)에서 입력 (H-21)"

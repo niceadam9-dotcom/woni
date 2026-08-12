@@ -12,12 +12,14 @@ import { DateInput } from '@/components/ui/date-input'
  *  진입점: 점검 상세 타임라인 ④⑤⑥ · 별지 9호 카드 — 화면 1개(이중 구현 금지).
  *  같은 점검 건을 다시 열면 이전 ③ 입력 유지(재생성 대응). 배지 규약(§4-A-2c): [자동]=회색·원본 링크, [입력]=보라 */
 
-export type ComposeAnnexNo = 'report9' | 'report10' | 'report11'
+export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior'
 
 const TITLES: Record<ComposeAnnexNo, { title: string; doc: string }> = {
   report9: { title: '별지 9호 작성', doc: '자체점검 실시결과 보고서' },
   report10: { title: '별지 10호 작성', doc: '이행계획서' },
   report11: { title: '별지 11호 작성', doc: '이행완료 보고서' },
+  // EX-2(소방계획서_19): 외관점검표는 ③ 계층이 아예 없어 보고일·비고를 수기 보정할 경로가 없었다
+  exterior: { title: '외관점검표 작성', doc: '소방시설등 외관점검표' },
 }
 
 type FieldDef = {
@@ -56,6 +58,10 @@ const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
     { key: 'note', label: '완료 보고 문구', type: 'textarea', hint: '서명 블록 위에 1줄 출력 — 없으면 미출력' },
     { key: 'evidence', label: '증빙 목록 메모', type: 'textarea', hint: '내부 메모 — 전/후 사진·계약서 첨부는 제출 패키지에 자동 포함' },
+  ],
+  exterior: [
+    { key: 'reportDate', label: '점검일(보고일)', type: 'date', hint: '미입력 시 점검 시작일로 출력' },
+    { key: 'note', label: '비고', type: 'textarea', hint: '표 아래 비고란에 출력 — 없으면 미출력' },
   ],
 }
 

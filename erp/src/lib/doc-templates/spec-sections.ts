@@ -80,9 +80,15 @@ function locLine(b: Vals, prefix: string, h: boolean): string {
 }
 
 /** 설치장소: 동명( ) [ ]전체층/[ ]일부층 [ ]지상/[ ]지하( )층 ~ [ ]지상/[ ]지하( )층 — rangeLocFields 대응 */
-function rangeLine(b: Vals, h: boolean): string {
-  return `동명(${slot(b['dong'], '   ', h)}) ${sel(b['coverage'], '전체층')}전체층/${sel(b['coverage'], '일부층')}일부층 `
-    + `${gsel(b['from_ground'])}(${slot(b['from_floor'], ' ', h)})층 ~ ${gsel(b['to_ground'])}(${slot(b['to_floor'], ' ', h)})층`
+function rangeLine(b: Vals, h: boolean, sfx = ''): string {
+  return `동명(${slot(b[`dong${sfx}`], '   ', h)}) ${sel(b[`coverage${sfx}`], '전체층')}전체층/${sel(b[`coverage${sfx}`], '일부층')}일부층 `
+    + `${gsel(b[`from_ground${sfx}`])}(${slot(b[`from_floor${sfx}`], ' ', h)})층 ~ ${gsel(b[`to_ground${sfx}`])}(${slot(b[`to_floor${sfx}`], ' ', h)})층`
+}
+
+/** 설치장소 2줄 블록(A4-4) — 서식 원문이 미분무·피난기구·인명구조기구에만 둘째 줄을 둔다.
+ *  둘째 줄은 원문처럼 ':'로 시작해 첫 줄의 이어짐임을 보인다(라벨 반복 없음). */
+function rangeLines2(b: Vals, h: boolean): string[] {
+  return [`◦ 설치장소: ${rangeLine(b, h)}`, `: ${rangeLine(b, h, '2')}`]
 }
 
 /** 설치장소: 동명( ) [ ]지상/[ ]지하 ( )층 ~ [ ]지상/[ ]지하 ( )층 — coverage 없는 층 범위(3-8 비상콘센트·무선통신) */
@@ -246,7 +252,7 @@ function renderS33(sec: Vals, h: boolean): string {
     `◦ 설치장소: ${rangeLine(ss, h)}`])}
   ${specRow(`${cb(blockHas(es))} 화재<br>조기진압용`, [`◦ 설치장소: ${rangeLine(es, h)}`])}
   ${specRow(`${cb(blockHas(ws))} 물분무소화설비`, [`◦ 설치장소: ${rangeLine(ws, h)}`])}
-  ${specRow(`${cb(blockHas(wm))} 미분무소화설비`, [`◦ 설치장소: ${rangeLine(wm, h)}`])}
+  ${specRow(`${cb(blockHas(wm))} 미분무소화설비`, rangeLines2(wm, h))}
   ${specRow(`${cb(blockHas(fo))} 포<br>소화설비`, [
     `${mc(fo['system'], '포워터스프링클러설비')}포워터스프링클러설비 ${mc(fo['system'], '포헤드설비')}포헤드설비 ${mc(fo['system'], '고정포방출설비')}고정포방출설비 ${mc(fo['system'], '기타')}기타(${slot(fo['system_etc'], '               ', h)})`,
     `◦ 소화약제 ${mc(fo['agent'], '단백포')}단백포 ${mc(fo['agent'], '합성계면활성제포')}합성계면활성제포 ${mc(fo['agent'], '수성막포')}수성막포 ${mc(fo['agent'], '내알코올포')}내알코올포`,
@@ -340,10 +346,10 @@ function renderS36(sec: Vals, h: boolean): string {
     `${evT('피난교')} ${evT('피난용트랩')} ${evT('구조대')} ${evT('간이완강기')} ${evT('공기안전매트')}`,
     // 통합 어휘 11종의 마지막 — 종전 1.4 대장에만 있어 세부현황에 인쇄되지 못하던 종류 (2026-08-08)
     `${evT('하향식피난구용내림식사다리')}`,
-    `◦ 설치장소: ${rangeLine(ev, h)}`])}
+    ...rangeLines2(ev, h)])}
   ${specRow(`${cb(blockHas(re))} 인명구조기구`, [
     `◦ 종류: ${mc(re['types'], '방열복/방화복')}방열복/ 방화복 ${mc(re['types'], '공기호흡기')}공기호흡기 ${mc(re['types'], '인공소생기')}인공소생기`,
-    `◦ 설치장소: ${rangeLine(re, h)}`,
+    ...rangeLines2(re, h),
     `◦ 대상물의 용도: ${mc(re['target_usage'], '5층이상 병원')} 5층이상 병원  ${mc(re['target_usage'], '7층이상 관광호텔')} 7층이상 관광호텔 ${mc(re['target_usage'], '이산화탄소소화설비 설치')} 이산화탄소소화설비 설치`,
     `${mc(re['target_usage'], '지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관')} 지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관`])}
   ${specRow(`${cb(blockHas(gl))} 유도등`, [
@@ -442,7 +448,7 @@ function renderS38(sec: Vals, h: boolean): string {
   </tr>
   <tr>
     <th colspan="2">${cb(blockHas(wl))}무선<br> 통신보조</th>
-    <td class="pre">◦ 설치장소: ${rangeLineNoCoverage(wl, h)}<br>${sel(wl['usage'], '전용')}전용 ${sel(wl['usage'], '공용')}공용 / 방식: ${sel(wl['method'], '누설동축케이블')}누설동축케이블 ${sel(wl['method'], '누설동축케이블과 안테나')}누설동축케이블과 안테나 ${sel(wl['method'], '안테나')}안테나<br>◦ 접속단자 설치장소(${slot(wl['terminals'], '              ', h)})</td>
+    <td class="pre">◦ 설치장소: ${rangeLineNoCoverage(wl, h)}<br>${sel(wl['usage'], '전용')}전용 ${sel(wl['usage'], '공용')}공용 / 방식: ${sel(wl['method'], '누설동축케이블')}누설동축케이블 ${sel(wl['method'], '누설동축케이블과 안테나')}누설동축케이블과 안테나 ${sel(wl['method'], '안테나')}안테나<br>◦ 접속단자 설치장소(${slot(wl['terminals'], '              ', h)}), (${slot(wl['terminals2'], '              ', h)})</td>
   </tr>
   <tr>
     <th colspan="2">${cb(blockHas(fs))}연소<br> 방지</th>

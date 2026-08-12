@@ -69,17 +69,21 @@ function locFields(prefix = '', labelPrefix = ''): SpecField[] {
   ]
 }
 
-/** 설치장소: 동명( ) 전체층/일부층, 지상/지하( )층 ~ 지상/지하( )층 — 층 범위형 */
-function rangeLocFields(opts?: { coverage?: boolean }): SpecField[] {
+/** 설치장소: 동명( ) 전체층/일부층, 지상/지하( )층 ~ 지상/지하( )층 — 층 범위형.
+ *  opts.second=true면 둘째 동을 적는 줄까지 만든다(A4-4) — 서식 원문이 미분무·피난기구·
+ *  인명구조기구 세 블록에만 설치장소 줄을 2줄로 두었다(현행 개정판 원문 대조, 2026-08-12).
+ *  칸이 하나뿐이면 동이 둘 이상인 대상물의 두 번째 동을 적을 자리가 없다. */
+function rangeLocFields(opts?: { coverage?: boolean; second?: boolean }): SpecField[] {
   const coverage = opts?.coverage !== false
-  return [
-    { key: 'dong', label: '동명', type: 'text' },
-    ...(coverage ? [{ key: 'coverage', label: '전체층/일부층', type: 'select', options: ['전체층', '일부층'] } as SpecField] : []),
-    { key: 'from_ground', label: '시작 지상/지하', type: 'select', options: GROUND },
-    { key: 'from_floor', label: '시작 층', type: 'text' },
-    { key: 'to_ground', label: '끝 지상/지하', type: 'select', options: GROUND },
-    { key: 'to_floor', label: '끝 층', type: 'text' },
+  const one = (sfx: string, l: string): SpecField[] => [
+    { key: `dong${sfx}`, label: `${l}동명`, type: 'text' },
+    ...(coverage ? [{ key: `coverage${sfx}`, label: `${l}전체층/일부층`, type: 'select', options: ['전체층', '일부층'] } as SpecField] : []),
+    { key: `from_ground${sfx}`, label: `${l}시작 지상/지하`, type: 'select', options: GROUND },
+    { key: `from_floor${sfx}`, label: `${l}시작 층`, type: 'text' },
+    { key: `to_ground${sfx}`, label: `${l}끝 지상/지하`, type: 'select', options: GROUND },
+    { key: `to_floor${sfx}`, label: `${l}끝 층`, type: 'text' },
   ]
+  return [...one('', ''), ...(opts?.second ? one('2', '(2행) ') : [])]
 }
 
 /** 송풍기 제원: 설치장소(4) + 전동기 ㎾·풍량 ㎥/min·정압 ㎜Aq — 3-8 제연설비 공용 */
@@ -281,7 +285,7 @@ const S33: SpecSection = {
     },
     {
       key: 'water_mist', label: '미분무소화설비', facilityHint: '미분무소화설비',
-      fields: rangeLocFields(),
+      fields: rangeLocFields({ second: true }),   // 서식 원문 설치장소 2줄 (A4-4)
     },
     {
       key: 'foam', label: '포소화설비', facilityHint: '포소화설비',
@@ -430,14 +434,14 @@ const S36: SpecSection = {
       fields: [
         // 통합 어휘 11종(EVAC_TYPES)이 단일 저장소 — 1.4 대장 하위 체크박스도 이 값을 읽고 쓴다.
         { key: 'types', label: '종류', type: 'multicheck', options: EVAC_TYPES, mirrorInLedger: true },
-        ...rangeLocFields(),
+        ...rangeLocFields({ second: true }),   // 서식 원문 설치장소 2줄 (A4-4)
       ],
     },
     {
       key: 'rescue_equipment', label: '인명구조기구', facilityHint: '인명구조기구',
       fields: [
         { key: 'types', label: '종류', type: 'multicheck', options: ['방열복/방화복', '공기호흡기', '인공소생기'] },
-        ...rangeLocFields(),
+        ...rangeLocFields({ second: true }),   // 서식 원문 설치장소 2줄 (A4-4)
         { key: 'target_usage', label: '대상물의 용도', type: 'multicheck',
           options: ['5층이상 병원', '7층이상 관광호텔', '이산화탄소소화설비 설치',
             '지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관'] },
@@ -595,7 +599,9 @@ const S38: SpecSection = {
         { key: 'usage', label: '전용/공용', type: 'select', options: ['전용', '공용'] },
         { key: 'method', label: '방식', type: 'select',
           options: ['누설동축케이블', '누설동축케이블과 안테나', '안테나'] },
-        { key: 'terminals', label: '접속단자 설치장소(복수 자유 기입)', type: 'text' },
+        // 서식 원문은 '◦ 접속단자 설치장소( ), ( )' — 칸이 둘이다(A4-4)
+        { key: 'terminals', label: '접속단자 설치장소 1', type: 'text' },
+        { key: 'terminals2', label: '접속단자 설치장소 2', type: 'text' },
       ],
     },
     {

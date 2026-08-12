@@ -7,7 +7,9 @@
 
 import { renderDocument, pageHeader, pageFooter, esc, val } from './base'
 
-export type AnnexRow = { content: string; period: string }
+/** isSummary=true면 개별 이행조치가 아니라 '계획 요약' 줄 — 기간칸이 비는 게 정상이라
+ *  계획 항목처럼 읽히지 않도록 표에서 구분해 인쇄한다(E10-5) */
+export type AnnexRow = { content: string; period: string; isSummary?: boolean }
 
 export type Annex1011Data = {
   customerName: string
@@ -41,6 +43,8 @@ const CSS = `
   .rows-th { background: #f2f2f2; text-align: center; }
   .row-content { width: 70%; }
   .row-period { width: 30%; text-align: center; }
+  .row-summary { background: #fafafa; }
+  .row-tag { font-size: 8.5pt; border: 1px solid #999; border-radius: 2px; padding: 0 3px; margin-right: 3px; }
   .law { margin: 10px 2px 6px; text-indent: 0.5em; }
   .sign { text-align: center; margin: 14px 0 4px; }
   .signer { text-align: right; margin: 6px 8px; }
@@ -76,8 +80,11 @@ function rowsTable(title: string, colTitle: string, rows: AnnexRow[], extraRow?:
     <td class="rows-th row-period">이행조치 일자</td>
   </tr>
   ${padded.map(r => `<tr>
-    <td class="row-content">${esc(r.content)}&nbsp;</td>
-    <td class="row-period">${r.period ? esc(r.period) : '.  .  .  ~  .  .  .'}</td>
+    <td class="row-content${r.isSummary ? ' row-summary' : ''}">${r.isSummary ? '<span class="row-tag">계획 요약</span> ' : ''}${esc(r.content)}&nbsp;</td>
+    <td class="row-period${r.isSummary ? ' row-summary' : ''}">${
+      // 요약 줄은 개별 이행조치가 아니라 기간칸이 비는 게 정상 — 빈 날짜 자리표를 찍으면
+      // '기간 미정인 이행조치'로 읽힌다(E10-5)
+      r.isSummary ? '—' : r.period ? esc(r.period) : '.  .  .  ~  .  .  .'}</td>
   </tr>`).join('\n')}
   ${extraRow ?? ''}
 </table>`
@@ -105,7 +112,12 @@ export function renderReport10(d: Annex1011Data, opts: RenderOpts = {}): string 
   const h = !!opts.highlight
   const totalRow = `<tr>
     <td class="rows-th">이행조치 필요기간</td>
-    <td class="row-period">${val(d.totalPeriod, { highlight: h })}${d.totalDays ? ` (총 ${esc(d.totalDays)}일)` : ''}</td>
+    <td class="row-period">${
+      // 기간이 없는데 총일수만 있으면 '(총 n일)'만 남아 괄호가 허공에 뜬다(E10-8) —
+      // 그때는 총일수를 값 자체로 인쇄한다
+      d.totalPeriod
+        ? `${val(d.totalPeriod, { highlight: h })}${d.totalDays ? ` (총 ${esc(d.totalDays)}일)` : ''}`
+        : d.totalDays ? `총 ${esc(d.totalDays)}일` : val(d.totalPeriod, { highlight: h })}</td>
   </tr>`
   const page = `
 ${pageHeader('소방시설 설치 및 관리에 관한 법률 시행규칙 [별지 제10호서식]', '')}
