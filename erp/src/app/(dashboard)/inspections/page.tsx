@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
+import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
 
 const STATUS_LABELS: Record<InspectionStatus, string> = {
   scheduled: '예정',
@@ -88,15 +89,29 @@ export default async function InspectionsPage({
   const empMap = new Map(allProfiles.map(e => [e.id, e]))
 
   // 단계 진행률 및 마감임박 정보 로드
+  //
+  // R4-8(소방계획서_21 / F-6): **분모를 유효 단계로 좁힌다.** 트리거(019)는 모든 점검에 6행을 만드는데
+  // 정기·일반(월간 외관점검)의 유효 단계는 ① 하나이고, 자체점검도 불량이 0건이면 ⑤⑥은 '해당없음'이다.
+  // 종전엔 6행을 그대로 세어서 정기관리 고객의 연 12건이 **영원히 미완**으로 보였다(목록에서 가장 많은 행).
+  // 마이그레이션으로 행을 지우지 않고 **조회 시 필터**로 좁힌다 — 과거를 파괴하지 않고, 불량이 생기면
+  // ⑤⑥이 다시 필요해지기 때문이다. 판정 함수는 상세·동기화와 공용(inspection-step-status.ts).
   const stepSummary: Record<string, { total: number; completed: number; hasDueSoon: boolean; hasOverdue: boolean }> = {}
   if (inspections.length > 0) {
-    const { data: steps } = await admin
-      .from('inspection_steps')
-      .select('inspection_id, status, due_date')
-      .in('inspection_id', inspections.map(i => i.id))
+    const ids = inspections.map(i => i.id)
+    const [stepsRes, defectsRes] = await Promise.all([
+      admin.from('inspection_steps').select('inspection_id, step_num, status, due_date').in('inspection_id', ids),
+      admin.from('inspection_defects').select('inspection_id').in('inspection_id', ids),
+    ])
+    const withDefects = new Set(((defectsRes.data ?? []) as Array<{ inspection_id: string }>).map(d => d.inspection_id))
+    const activeByInsp = new Map(inspections.map(i => [
+      i.id,
+      new Set<number>(activeStepNums(isSelfInspection(i.plan_type), withDefects.has(i.id))),
+    ]))
 
-    for (const s of steps ?? []) {
-      const row = s as { inspection_id: string; status: string; due_date: string | null }
+    for (const s of stepsRes.data ?? []) {
+      const row = s as { inspection_id: string; step_num: number; status: string; due_date: string | null }
+      // 유효 단계가 아니면 분모·마감임박 어디에도 세지 않는다(행은 DB에 그대로 둔다)
+      if (!activeByInsp.get(row.inspection_id)?.has(row.step_num)) continue
       if (!stepSummary[row.inspection_id]) {
         stepSummary[row.inspection_id] = { total: 0, completed: 0, hasDueSoon: false, hasOverdue: false }
       }

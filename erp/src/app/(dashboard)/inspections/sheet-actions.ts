@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
 import type { UserRole } from '@/types'
 
@@ -131,7 +132,10 @@ export async function saveSheetResponsesAction(
   const { error } = await admin.from('inspection_sheet_responses')
     .upsert(payload as Record<string, unknown>[], { onConflict: 'inspection_id,item_code,month' })
   if (error) return { error: `저장 실패: ${error.message}` }
+  // R4-6: ① 점검표 응답이 곧 근거 — 저장 즉시 단계가 스스로 완료된다(버튼 불필요)
+  await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
   return {}
 }
 
@@ -188,7 +192,9 @@ export async function bulkAllGoodAction(inspectionId: string, month = 0): Promis
     const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
     if (error) return { error: `일괄 저장 실패: ${error.message}` }
   }
+  await syncInspectionSteps(admin, inspectionId, profile.id)   // R4-6: ①
   revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
   return { filled: payload.length, sheetCount: sheets.length, kept: items.filter(i => filled(i.item_code)).length }
 }
 
@@ -310,7 +316,7 @@ export async function searchQuickItemsAction(inspectionId: string, q: string): P
 export async function createDefectsFromXAction(
   inspectionId: string
 ): Promise<{ error?: string; added?: number }> {
-  await requirePermission('inspection_register')
+  const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
   const { data: xs } = await admin.from('inspection_sheet_responses')
@@ -339,6 +345,9 @@ export async function createDefectsFromXAction(
   if (toInsert.length === 0) return { added: 0 }
   const { error } = await admin.from('inspection_defects').insert(toInsert as Record<string, unknown>[])
   if (error) return { error: `불량 등록 실패: ${error.message}` }
+  // R4-6: ⑤ 불량이 생기면 분모가 6으로 늘고 ⑤가 미완료로 열린다
+  await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
   return { added: toInsert.length }
 }

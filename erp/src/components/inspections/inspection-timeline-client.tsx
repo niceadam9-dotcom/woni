@@ -14,7 +14,7 @@ import {
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
-import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
+import { forceCompleteStepAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
@@ -83,7 +83,19 @@ function saveBlob(base64: string, fileName: string) {
   URL.revokeObjectURL(url)
 }
 
-export function InspectionTimelineClient({ inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId }: {
+/** C1(소방계획서_21 R5): 종전에 페이지에 흩어져 있던 블록을 단계 안으로 끌어들이는 슬롯.
+ *  서버 컴포넌트가 데이터를 싣고 렌더한 노드를 그대로 받는다 — 타임라인은 배치만 책임진다.
+ *  자체점검 건은 sheet→① / participants→② / defects→⑤,
+ *  월간 외관점검 건은 단계가 ① 하나뿐이라 sheet·exterior·participants·defects가 모두 ①로 모인다. */
+export type TimelineSlots = {
+  multiday?: React.ReactNode
+  sheet?: React.ReactNode
+  exterior?: React.ReactNode
+  participants?: React.ReactNode
+  defects?: React.ReactNode
+}
+
+export function InspectionTimelineClient({ inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots }: {
   inspectionId: string
   canManage: boolean
   canComplete: boolean
@@ -93,6 +105,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   initialFiles: Report9File[]
   customerName?: string
   customerId?: string
+  slots?: TimelineSlots
 }) {
   const router = useRouter()
   const [job, setJob] = useState(initialJob)
@@ -202,14 +215,22 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     })
   }
 
-  // §4-E H-28: 단계 완료 처리 — InspectionDetailClient에서 흡수(같은 completeStepAction 재사용)
-  async function completeStep(stepId: string) {
+  // R4-3·R4-9(소방계획서_21 B-2): 종전 [단계 완료]는 근거 없이 status만 바꿨다 — 실제로 하지 않은 일이
+  // 소방서 제출 이력에 완료로 남는다(D34-2). 이제 단계는 **증거로 스스로 완료**되고, 이 버튼은
+  // 정말 예외인 경우를 위한 **사유 필수** 경로다. 사유가 곧 증거라 동기화가 되돌리지 않는다.
+  async function forceComplete(stepId: string, stepNum: number, label: string) {
+    const reason = window.prompt(
+      `${label} 단계를 예외로 완료 처리합니다.\n`
+      + '증거(점검표 응답·파일·발송 이력·제출일 등)가 생기면 자동으로 완료되니, 그 경로를 먼저 확인해주세요.\n\n'
+      + '완료 사유를 입력하세요 (5자 이상 — 이 사유가 증빙으로 남습니다):',
+    )
+    if (reason === null) return
     setCompleting(stepId)
     setMsg('')
-    const res = await completeStepAction(stepId, inspectionId)
+    const res = await forceCompleteStepAction(inspectionId, stepNum, reason)
     setCompleting(null)
     if (res.error) { setMsg(`❌ ${res.error}`); return }
-    setMsg('✅ 단계를 완료 처리했습니다.')
+    setMsg('✅ 사유와 함께 완료 처리했습니다.')
     router.refresh()
   }
 
@@ -338,10 +359,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
           {!open && collapsedSummary}
         </button>
         {canCompleteHere && (
-          <button onClick={() => completeStep(st!.id)} disabled={completing === st!.id}
-            className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#f5f4ff] text-[#7b68ee] border border-[#c3bdf5] text-[11px] font-medium hover:bg-[#ede9ff] disabled:opacity-50"
-            title="이 단계를 완료 처리합니다 (마감·완료는 여기서 한 곳)">
-            {completing === st!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 단계 완료
+          <button onClick={() => forceComplete(st!.id, st!.step_num, TIMELINE_STEP_LABELS[k])} disabled={completing === st!.id}
+            className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-white text-[#847ba8] border border-[#d0ccf5] text-[11px] font-medium hover:bg-[#f5f4ff] disabled:opacity-50"
+            title="증거가 생기면 이 단계는 자동으로 완료됩니다. 예외 상황에서만 사유를 남기고 완료하세요.">
+            {completing === st!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 사유 완료
           </button>
         )}
       </div>
@@ -426,6 +447,17 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
               )}
             </div>
           )}
+          {/* C1(R5-3·R5-8): ① 안의 실제 작업 — 점검 기간·점검표 입력.
+              월간 외관점검 건은 단계가 ① 하나라 외관점검표·참여자·불량까지 여기로 모인다 */}
+          {(isSpecialTimeline ? isOpen('checklist') : true) && (
+            <div className="mt-2 pl-6 space-y-3">
+              {slots?.multiday}
+              {slots?.sheet}
+              {!isSpecialTimeline && slots?.exterior}
+              {!isSpecialTimeline && slots?.participants}
+              {!isSpecialTimeline && slots?.defects}
+            </div>
+          )}
         </div>
       </div>
 
@@ -456,6 +488,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                   </>)}
                 </span>
               </div>
+            )}
+            {/* C1(R5-5): 배치확인서가 곧 인력 배치 증빙 — 참여자 편집을 같은 단계 안에 둔다 */}
+            {isOpen('cert') && slots?.participants && (
+              <div className="mt-2 pl-6">{slots.participants}</div>
             )}
           </div>
         </div>
@@ -618,15 +654,27 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                     </div>
                   ))}
                 </div>
+
+                {/* C1(R5-4): 불량내역 본체 — 조치·증빙과 같은 자리에서 편집한다 */}
+                {slots?.defects}
               </div>
             )}
           </div>
         </div>
       ) : (
-        <div className={`${row} opacity-50`}>
-          <Circle className="size-4 text-[#d0ccf5] shrink-0" />
-          <span className={label} title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
-          <span className="text-xs text-[#b0acd6]">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+        // 불량 0건 — 단계는 '해당없음'이지만 **불량 등록 경로는 열어 둔다**(여기서 추가하면 ⑤가 활성화된다)
+        <div className={row}>
+          <div className="flex-1 min-w-0">
+            <button onClick={() => toggle('repair')} className="flex items-center gap-2 w-full text-left opacity-60">
+              {isOpen('repair') ? <ChevronDown className="size-3.5 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
+              <Circle className="size-4 text-[#d0ccf5] shrink-0" />
+              <span className="text-xs font-semibold text-[#090c1d] shrink-0" title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
+              <span className="text-xs text-[#b0acd6]">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+            </button>
+            {isOpen('repair') && slots?.defects && (
+              <div className="mt-2 pl-6">{slots.defects}</div>
+            )}
+          </div>
         </div>
       ))}
 

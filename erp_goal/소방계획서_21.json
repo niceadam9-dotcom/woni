@@ -1,0 +1,1305 @@
+{
+  "doc": "소방계획서_21 — 요구별 설계 (#1 공통문구 관리 · #2 계획서 생성·조회 재편 · #3·#4 점검업무 재편 · #5 사이드바 정리)",
+  "design": "erp_goal/소방계획서_21.md (2026-08-12 사용자 확정)",
+  "created": "2026-08-12",
+  "updated": "2026-08-12 — R3·R8 code_present, R5 partial, **R4 code_present(전 10 criteria — 증거 기반 단계 동기화, 프로브 36/36)**. F-6 전제는 실측으로 정정(finding_correction). 나머지 4항목 pending_order",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분. 진행 방식은 erp_goal/Json_Rule_nostop.md(무중단)",
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류 — 후보로만 기록",
+    "confirmed": "설계 결정·조사 결과 확정"
+  },
+  "findings": [
+    {
+      "id": "F-1",
+      "for": "#1",
+      "desc": "plan_text_library(마이그레이션 119)에 customer_id가 없다 — 전역 테이블. '다른 고객도 가져오기'는 이미 동작하며 8섹션·서버 액션 8종이 완비돼 있다. 진짜 공백은 관리 진입점(전체 조망 불가·고객을 열어야만 관리 가능·기본항목 빈 섹션을 찾을 수 없음)",
+      "evidence": [
+        "마이그레이션 119 plan_text_library 스키마",
+        "library-text-button.tsx (관리 UI가 서식 팝오버뿐)"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-2",
+      "for": "#2",
+      "desc": "트리 상단 [계획서 생성 (HWP+PDF)]와 보관함 [계획서 생성 (PDF)]는 같은 액션(requestFirePlanHwpFromTabAction)을 부르고 산출물도 같다. 유일한 차이는 용도 프리셋 적용 여부",
+      "evidence": [
+        "plan-tab-view.tsx:313-317",
+        "fire-plans-client.tsx:47-54"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-3",
+      "for": "#2",
+      "desc": "HWP는 생성되지 않는다 — hwp_name·hwp_path에 null을 넣는다. 소방계획서_7 H-13(2026-08-04)이 한글 SDK·워커 경로를 걷어낸 뒤 라벨과 툴팁만 남아 사실과 다른 설명을 하고 있다",
+      "evidence": [
+        "fire-plan-generate.ts:463-464",
+        "fire-plan-generate.ts:8 주석 '§6: hwp_path는 신규 기록하지 않는다'",
+        "plan-tab-view.tsx:314 툴팁이 아직 '워커(한글 SDK)가 HWP+…를 등록'"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-4",
+      "for": "#2",
+      "desc": "조회가 파일에 묶여 있다 — 미리보기는 저장된 html_path, 인쇄는 저장된 PDF를 열고 그 파일은 새 행 + revision +1 + 개정이력 행을 만들 때만 생긴다. 그래서 '확인하려고 생성'하게 되어 보관함이 초안 더미가 되고 개정이력이 오염된다",
+      "evidence": [
+        "fire-plans-client.tsx:188",
+        "fire-plans-client.tsx:197",
+        "fire-plan-generate.ts:450-482"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-5",
+      "for": "#3·#4",
+      "desc": "완료 판정이 두 갈래다 — 타임라인의 ✓는 증거(done1~done6)로 계산하는데 inspection_steps.status는 [단계 완료] 버튼을 눌러야만 바뀐다. 상단 전체 진행률과 목록 '진행 단계' 열은 그 status를 읽으므로 타임라인은 여섯 다 ✓인데 진행률은 0/6일 수 있다",
+      "evidence": [
+        "inspection-timeline-client.tsx:264-270",
+        "inspection-timeline-client.tsx:340-346",
+        "inspections/actions.ts:194-333 completeStepCore",
+        "[id]/page.tsx:183-184",
+        "inspections/page.tsx:90-111"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-6",
+      "for": "#3·#4",
+      "desc": "월간 외관점검 건은 100%에 도달할 수 없다 — 트리거가 모든 점검에 6행을 만드는데 stepDocs({isSpecial:false})는 유효 단계를 ['checklist'] 하나로 본다. 정기관리 고객 1명당 연 12건이 생겨 목록에서 가장 많은 행이 영원히 미완으로 보인다",
+      "evidence": [
+        "019_update_inspection_steps_trigger.sql:59-104",
+        "doc-requirements.ts:88-92"
+      ],
+      "status": "confirmed",
+      "correction": "2026-08-12 실측 정정 — 트리거는 이미 monthly/event에 1행만 만든다. R4.finding_correction 참조"
+    },
+    {
+      "id": "F-7",
+      "for": "#3·#4",
+      "desc": "별지 10·11호는 이미 inspection_defects에서 직접 자동 조립된다(099의 action_plan·action_start·action_end + 084의 action_taken·action_completed_at·after_photo_url). annex_inputs는 고유값 오버레이일 뿐이고 getAnnexPreviewHtmlAction은 Gotenberg 없이 즉석 HTML을 준다. 불편의 원인은 조립이 아니라 거리다",
+      "evidence": [
+        "report9-actions.ts:70-120 assembleAnnex1011",
+        "report9-actions.ts:162-165",
+        "report9-actions.ts:835 getAnnexPreviewHtmlAction",
+        "[id]/page.tsx:524-531 불량 표가 화면 맨 끝"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-8",
+      "for": "#3·#4",
+      "desc": "관리유형(inspection_type: 종합·작동·일반관리)과 점검 종류(plan_type: special_*·monthly·event)는 다른 축이다. 타임라인 모양은 점검 종류가 정하며 일반관리 고객의 자체점검도 6단계 대상이다. 코드가 '일반'을 두 축에 모두 쓰고 있어 위험하다(PLAN_TYPE_LABELS의 event→'일반', inspectionTypeLabel의 일반관리→'일반')",
+      "evidence": [
+        "inspection-plans/actions.ts:256-257",
+        "types/index.ts:24-26",
+        "sheet-scope.ts:6-7",
+        "doc-requirements.ts:65"
+      ],
+      "status": "confirmed",
+      "note": "2026-08-12 사용자 정정으로 확인 — 초안이 두 축을 섞어 결함 범위를 축소해 기술했었다"
+    },
+    {
+      "id": "F-9",
+      "for": "#3·#4",
+      "desc": "V-1 음성 점검표는 ERP가 녹음하지 않는다 — Plaud 외부 녹음기의 전사를 사람이 붙여넣는 구조. VN-1 음성 불량은 Web Speech API를 써 iOS Safari에서 동작하지 않는다(코드가 스스로 Chrome/Edge 권장이라 밝힘). 점검표의 [전체 양호] 일괄 입력이 더 빠르고, 호출당 Claude 과금과 실 API를 호출하는 비결정적 E2E 부담이 있다",
+      "evidence": [
+        "inspection-voice-sheet-client.tsx:9",
+        "inspection-voice-defect-client.tsx:29",
+        "scripts/test-voice-sheet.mts:1"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-10",
+      "for": "#3·#4",
+      "desc": "'소방시설등점검표(엑셀) 생성' 폐지는 소방계획서_7 Q-5(2026-08-03)로 이미 확정됐고 대체재(별지 4호 PDF)는 구현·배포 완료. assembleReport4가 sheetSections(설비별 결과)·specs(세부제원 3~7쪽)를 담아 내용을 덮는다. 소방계획서_7의 잔여 D-9가 이 제거 작업이다",
+      "evidence": [
+        "소방계획서_7.md:187",
+        "소방계획서_7.md:433 Q-5",
+        "report9-actions.ts:553-577 assembleReport4"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-11",
+      "for": "#3·#4",
+      "desc": "관계인 메일 발송 내용을 관리하는 곳이 없다 — 제목·본문·첨부 파일명이 리터럴이고 상호 '승진소방ENG'가 메일 서명까지 네 곳에 박혀 있어 상호 변경 시 재배포가 필요하다. 발송 이력(report_deliveries)은 제목만 저장하고 본문을 남기지 않는다",
+      "evidence": [
+        "timeline-actions.ts:149",
+        "timeline-actions.ts:150",
+        "timeline-actions.ts:155-162",
+        "mail/actions.ts:76",
+        "timeline-actions.ts:165-169"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-12",
+      "for": "#3·#4",
+      "desc": "알림 자동 소멸은 미구현이다 — timeline-actions.ts:181 주석이 recordSubmissionAction을 '기한 D-day·알림 소멸 조건'이라 설명하지만 실제 함수는 컬럼 갱신과 activity_logs 기록만 한다. 주석은 의도이고 구현이 아니다",
+      "evidence": [
+        "timeline-actions.ts:181",
+        "timeline-actions.ts:182-197"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-13",
+      "for": "#3·#4",
+      "desc": "다일기간(inspection_end_date·inspection_days)은 ①만의 정보가 아니다 — ④ 소방서 제출 기한의 기산점(종료일+15일)이자 recalc_inspection_steps로 2~6단계 마감일 전체를 다시 까는 입력이며, 별지 4·9호 본문·문서 현황·불량 알림·계획 확정 보정까지 여섯 곳에서 소비된다",
+      "evidence": [
+        "[id]/page.tsx:295,301",
+        "inspections/actions.ts:164-167",
+        "report4.ts:112",
+        "report9.ts:183",
+        "doc-status.ts:104,126-132",
+        "defect-action-notify:136",
+        "inspection-plans/actions.ts:194-197"
+      ],
+      "status": "confirmed",
+      "note": "2026-08-12 사용자 지적으로 확인 — 초안이 '① 헤더 한 줄'로 치부했던 것을 정정"
+    },
+    {
+      "id": "F-14",
+      "for": "#5",
+      "desc": "보고서 대분류는 소방계획서_8 D-8·D-15로 2026-08-04 결정·08-05 완결되어 이미 해체됐다. 해체 이유가 '고객별 문서 현황·별지 생성이 트리와 중복되는 별도 화면 — 입력 지점이 둘로 늘어 유지·혼동 비용'이므로 재생성은 그 결정을 되돌린다",
+      "evidence": [
+        "sidebar.tsx:69-70 주석",
+        "소방계획서_8.md:14 D-8",
+        "소방계획서_8.md:29 §2-4",
+        "소방계획서_8.md:185-191 재배치 표"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "F-15",
+      "for": "#5",
+      "desc": "소방안전관리 그룹이 11개로 가장 길고 성격이 섞여 있으나, 분류는 이미 주석에 적혀 있고 화면에만 드러나지 않는다. 지목된 셋은 성격이 각각 다르다 — 점검현황 모니터링=행동 유도(D-3 배지), 점검 대장=명부 조회(customers 전체를 읽음), 점검표 관리=마스터데이터",
+      "evidence": [
+        "sidebar.tsx:60 순서 규칙 주석",
+        "sidebar.tsx:62-77",
+        "sidebar.tsx:192 D-3 배지",
+        "inspection-ledger/page.tsx:7-8,16-19"
+      ],
+      "status": "confirmed"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1-1",
+      "for": "#1",
+      "question": "관리 화면의 편집 범위",
+      "decided": "8섹션 전부 본문 직접 편집 허용 ('서술형 4섹션만'·'조회 전용' 기각)",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D1-2",
+      "for": "#1",
+      "question": "권한",
+      "decided": "현행 customer_manage(전 직원) 유지 — 지금도 서식 팝오버에서 전 직원이 삭제·기본지정을 할 수 있어 관리 화면은 가시성만 추가한다. 대신 삭제·기본변경 시 사용처 건수를 함께 노출",
+      "status": "confirmed"
+    },
+    {
+      "id": "D1-3",
+      "for": "#1",
+      "question": "메뉴 위치",
+      "decided": "사이드바 소방안전관리 그룹 맨 아래 '계획서 공통문구'(점검표 관리 옆) — '마스터데이터는 맨 아래' 순서 규칙과 일치",
+      "status": "confirmed"
+    },
+    {
+      "id": "D1-4",
+      "for": "#1",
+      "question": "일괄 반영 버튼",
+      "decided": "만들지 않는다 — 119 설계가 '즉시 일괄 덮어쓰기 금지'로 못박은 이유(제출된 문서와의 불일치, 고객별 수정분 유실)가 유효. 개정 반영은 2단계 R-1에서 고객 쪽 배지+1클릭으로",
+      "status": "confirmed"
+    },
+    {
+      "id": "D1-5",
+      "for": "#1",
+      "question": "화면 구조(재검토)",
+      "decided": "3단 트리가 아니라 '표준 계획서 한 장'(단일 세로 문서 + 좌측 목차)",
+      "rationale": "전체 10~25개라 감출 것이 없고 클릭만 는다 · 가장 잦은 일이 '도입 시 8섹션 채우기'인데 트리는 한 번에 하나만 보여준다 · 트리는 ⭐기본문구와 대안을 같은 층위 형제로 놓아 주인공이 묻힌다 · 개발량도 원안보다 작다",
+      "status": "confirmed",
+      "by": "2026-08-12 재검토 지시 반영"
+    },
+    {
+      "id": "D1-6",
+      "for": "#1",
+      "question": "[고객에서 불러오기]·[복제]의 단계",
+      "decided": "1단계에 포함(원안은 R-4로 2단계) — 빈 화면에 8섹션을 타이핑하는 것보다 잘 작성된 고객 하나를 통째로 승격하는 편이 빠르고 기존 pick을 그대로 태우면 되어 싸다",
+      "status": "confirmed"
+    },
+    {
+      "id": "D1-7",
+      "for": "#1",
+      "question": "치환 변수({{고객명}} 등)",
+      "decided": "보류 — 실태 조사만 선행. 미치환 시 제출 문서에 그대로 인쇄되는 위험이 있어 현재 고객 서술에 고객명·건물명이 얼마나 박혀 있는지 확인 후 판단",
+      "status": "deferred"
+    },
+    {
+      "id": "D2-1",
+      "for": "#2",
+      "question": "두 생성 버튼 중 무엇을 남기나",
+      "decided": "트리 상단 버튼을 제거하고 보관함을 남긴다. 프리셋은 보관함으로 이관",
+      "rationale": "생성물이 쌓이는 곳에서 생성해야 결과가 그 자리에 보인다 · 생성 관련 동작이 한 곳에 모인다 · 기능 손실 0(생성 바는 sel 조건 바깥이라 보관함 화면엔 같은 버튼이 위아래로 둘 있다)",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D2-2",
+      "for": "#2",
+      "question": "HWP 표기",
+      "decided": "전부 걷어낸다 — SDK는 의도적으로 폐기됐고 자동 생성분에 HWP는 없다(업로드분만 보유)",
+      "status": "confirmed"
+    },
+    {
+      "id": "D2-3",
+      "for": "#2",
+      "question": "조회 방식",
+      "decided": "즉석 렌더(파일 0) — 보관함 상단 '현재 내용' 카드에서 buildFirePlanHtml을 그 자리에 렌더. Gotenberg 미호출",
+      "status": "confirmed"
+    },
+    {
+      "id": "D2-4",
+      "for": "#2",
+      "question": "인쇄·PDF 클릭 시",
+      "decided": "말없이 갱신 — 최신본이 낡았으면 같은 행의 파일만 교체하고 인쇄한다. 차수·개정이력 불변",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D2-5",
+      "for": "#2",
+      "question": "개정 차수 증가 시점",
+      "decided": "[개정 발행] 버튼에서만 +1 — 사람이 '이 내용으로 확정'하는 순간",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D2-6",
+      "for": "#2",
+      "question": "제출본 처리",
+      "decided": "제출 기록(submitted_at)이 있는 행은 동결 — 소방서에 낸 PDF를 다시 인쇄할 때 내용이 바뀌면 안 된다. 이 구분이 빠지면 D2-4가 위험해진다",
+      "status": "confirmed"
+    },
+    {
+      "id": "D2-7",
+      "for": "#2",
+      "question": "stale 판정 기준",
+      "decided": "조립 결과 해시 — fire_plan_forms.updated_at만 보면 고객·건물·시설 대장·자위소방대 변경을 놓친다. 인쇄 시 어차피 조립하므로 추가 비용이 거의 없고 해시가 같으면 Gotenberg를 건너뛴다",
+      "status": "confirmed"
+    },
+    {
+      "id": "D34-1",
+      "for": "#3·#4",
+      "question": "'고객그룹'의 정체",
+      "decided": "점검 상세 상단 기본정보 카드 — 중요도 하이므로 헤더 팝오버로 접는다",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 확인"
+    },
+    {
+      "id": "D34-2",
+      "for": "#3·#4",
+      "question": "단계 자동완성의 근거",
+      "decided": "증거 기반 — 실제 증거가 생기면 그 단계가 스스로 완료된다. '클릭하면 완료'는 기각(실제로 하지 않은 일이 완료로 기록돼 소방서 제출 이력이 부정확해진다). 나아가 근거 없는 완료 자체를 없앤다",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택 + 재검토 심화"
+    },
+    {
+      "id": "D34-3",
+      "for": "#3·#4",
+      "question": "별지 10·11호 작성 위치",
+      "decided": "점검 화면에 유지 — 특정 회차 불량에 딸린 문서라 점검 맥락이 있어야 내용이 채워진다. 소방계획서 탭은 조회·인쇄만 연결",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D34-4",
+      "for": "#3·#4",
+      "question": "점검 상세 화면 구조",
+      "decided": "6단계 가로 스텝바 + 3칸 작업대(마스터·디테일·보조), 페이지 스크롤 제거",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D34-5",
+      "for": "#3·#4",
+      "question": "10·11호 조회 방식",
+      "decided": "즉석 HTML(getAnnexPreviewHtmlAction)로 보고 PDF는 확정할 때만 — #2의 D2-3과 같은 원칙",
+      "status": "confirmed"
+    },
+    {
+      "id": "D34-6",
+      "for": "#3·#4",
+      "question": "음성 점검표·음성 불량",
+      "decided": "둘 다 삭제",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 지시"
+    },
+    {
+      "id": "D34-7",
+      "for": "#3·#4",
+      "question": "발송 문구 관리 범위",
+      "decided": "관계인 보고 + 메일 서명 — 사람이 보내는 대외 메일 전부. 주간 브리핑은 본문이 동적이라 제외",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D34-8",
+      "for": "#3·#4",
+      "question": "발송 문구 편집 권한",
+      "decided": "관리자 + 매니저 — 신규 권한 키 message_template_manage. company_manage는 ['admin']이라 재사용 불가",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D34-9",
+      "for": "#3·#4",
+      "question": "엑셀 생성을 PDF로 만들 것인가",
+      "decided": "아니다 — 엑셀 경로를 제거하고 별지 4호 PDF로 일원화한다(소방계획서_7 D-9 실행). printOperationalReportAction이 이미 PDF를 만들지만 그 경로는 Gotenberg LibreOffice이고 별지 4호는 Chromium이라, 살리면 폰트·여백 이슈를 두 벌로 관리하게 되어 H-13의 단일 경로 취지와 어긋난다",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 점검 요청에 대한 조사 결론"
+    },
+    {
+      "id": "D5-1",
+      "for": "#5",
+      "question": "보고서 대분류를 만들 것인가",
+      "decided": "만들지 않는다(A안) — 새 대분류 없이 소방안전관리 그룹 안에 구분선을 넣어 주석에만 있던 분류를 화면에 드러낸다. 소방계획서_8 D-8 번복 금지",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    },
+    {
+      "id": "D5-2",
+      "for": "#5",
+      "question": "점검 대장",
+      "decided": "고객 관리의 탭으로 흡수 — customers를 통째로 읽는 뷰라 원천이 같다. 계약료 열의 billing_manage 전용 정책은 유지",
+      "status": "confirmed",
+      "by": "2026-08-12 사용자 선택"
+    }
+  ],
+  "items": [
+    {
+      "id": "R1",
+      "title": "#1 계획서 공통문구 — 전역 라이브러리 관리 페이지",
+      "status": "code_present",
+      "note": "소방계획서_15_별도라이브러리의 R-3(라이브러리 관리 페이지, deferred)를 실행 항목으로 승격하는 것. 전제: 마이그레이션 119가 운영 미적용이라 운영 반영은 119 선행 필요. **2026-08-12 구현 완료·자기 신고, 독립 검증 전·미커밋**",
+      "criteria": [
+        {
+          "id": "R1-1",
+          "desc": "전역 페이지 /fire-plans/library 신설(서버 게이트·SSR) — 고객 종속 화면에 두지 않는다(전역 데이터가 모든 고객 화면에 중복 노출되고, 거기서 누른 삭제가 전사 삭제라는 사실이 맥락과 어긋난다)",
+          "status": "code_present",
+          "files": [
+            "app/(dashboard)/fire-plans/library/page.tsx"
+          ],
+          "self_check": "getProfile→/login · can(role,'customer_manage')→/dashboard 게이트. 목록 로드는 클라이언트 액션 — 저장·기본지정 후 재조회가 잦아 SSR prop으로 내리면 매번 라우트 갱신을 태워야 한다(페이지는 게이트·헤더만)"
+        },
+        {
+          "id": "R1-2",
+          "desc": "화면 = '표준 계획서 한 장' — 8섹션 단일 세로 문서 + 좌측 목차(장→섹션 2단 점프 링크)",
+          "status": "code_present",
+          "depends": [
+            "D1-5"
+          ],
+          "files": [
+            "components/customers/plan-text-library-page.tsx"
+          ],
+          "self_check": "PLAN_TEXT_CHAPTERS(신설)로 장 그룹 → 섹션. 목차는 #sec-{key} 앵커 점프. E2E '8섹션 전부 렌더' 통과"
+        },
+        {
+          "id": "R1-3",
+          "desc": "좌측 목차와 본문에 ⭐/○ 표시 — 기본문구가 비어 있는 섹션을 한눈에 드러낸다(기본항목이 없으면 신규 고객 자동주입이 조용히 아무 일도 하지 않는다). 이 화면의 최대 가치",
+          "status": "code_present",
+          "self_check": "목차·섹션 헤더 ⭐/○ + 상단 요약 바에 '기본문구가 없는 섹션 N개'와 섹션명 나열. E2E 2단언 통과"
+        },
+        {
+          "id": "R1-4",
+          "desc": "8섹션 본문 직접 편집 — PlanTextSectionDef에 chapter·editor 스펙을 순수 추가하고 공용 렌더러 하나가 8섹션을 담당",
+          "status": "code_present",
+          "depends": [
+            "D1-1"
+          ],
+          "files": [
+            "lib/plan-text-sections.ts",
+            "components/customers/plan-text-body-editor.tsx"
+          ],
+          "self_check": "PlanTextEditorField 3종(text·record·rows)으로 8섹션 전부 표현. pick/merge/injectEmpty는 손대지 않은 순수 추가. 기록부 4종 editor 열은 textCols만 — 일자·장소·담당은 고객 고유라 편집 대상이 아니다. 팀 라벨은 plan-ch2 TEAMS와 같은 어휘"
+        },
+        {
+          "id": "R1-5",
+          "desc": "섹션 독립 저장 — savePlanTextAction 재사용(pick 멱등). 이름 변경은 renamePlanTextAction으로만(version 미증가 규약)",
+          "status": "code_present",
+          "self_check": "본문 변경=save, 이름만 변경=rename으로 분기. E2E 3단언 통과(version+1 · 이름만 변경 시 불변 · 변경 없으면 저장 버튼 비활성)"
+        },
+        {
+          "id": "R1-6",
+          "desc": "대안 문구는 섹션 헤더 드롭다운으로 전환하고 [⭐ 기본으로]로 승격",
+          "status": "code_present",
+          "self_check": "헤더 select로 항목 전환(전환 시 초안 폐기) + 비기본 항목에만 [기본으로]. E2E '기존 기본 자동 해제'·'섹션당 기본 1개 유지' 통과"
+        },
+        {
+          "id": "R1-7",
+          "desc": "하단 사용처 목록(고객명·가져오기/자동주입·가져간 version·적용일·딥링크) + 낮은 version에 앰버 '개정됨' 배지 — 조회 전용, 일괄 반영 버튼 없음",
+          "status": "code_present",
+          "depends": [
+            "D1-4"
+          ],
+          "self_check": "getPlanTextUsageAction 접기/펼치기. 딥링크는 섹션→서식 노드 매핑(training→1.11 · 기록부→1.12 · brigadeTeams→ch2 · 나머지→ch3). 일괄 반영 버튼 없음 + 사유 문구 명시",
+          "note": "**E2E 미커버** — plan_text_applied 스탬프 시드가 필요해 이번 스위트에서 뺐다. 독립 검증 시 확인 필요"
+        },
+        {
+          "id": "R1-8",
+          "desc": "[고객에서 불러오기] — 고객 선택 → 8섹션 pick 미리보기 → 체크한 것만 이름 붙여 등록(원하면 ⭐기본까지)",
+          "status": "code_present",
+          "depends": [
+            "D1-6"
+          ],
+          "files": [
+            "components/customers/plan-text-import-dialog.tsx"
+          ],
+          "self_check": "미리보기는 서버 pick 결과라 고객 고유 필드가 그 시점에 이미 빠진다. E2E 4단언 통과(서술 노출 · 장소 미혼입 · 일시 미혼입 · 빈 섹션 안내). 빈 섹션 등록은 서버에서도 거부"
+        },
+        {
+          "id": "R1-9",
+          "desc": "[복제] — 신규 액션 없이 savePlanTextAction(새 이름) 조합",
+          "status": "code_present",
+          "depends": [
+            "D1-6"
+          ],
+          "self_check": "화면이 이미 body를 들고 있어 getPlanTextAction 왕복 없이 save만 호출(설계의 2단 조합을 1단으로). E2E '원본 version 불변'·'사본 version 1' 통과"
+        },
+        {
+          "id": "R1-10",
+          "desc": "진입 동선 3개 — ① 사이드바(소방안전관리 맨 아래) ② 서식 팝오버 하단 '전체 관리 ↗'(새 탭 · ?section={key}) ③ 사용처 목록 → 고객 서식 딥링크",
+          "status": "code_present",
+          "depends": [
+            "D1-3"
+          ],
+          "files": [
+            "components/layout/sidebar.tsx",
+            "library-text-button.tsx"
+          ],
+          "self_check": "① sidebar '설정' 구역 점검표 관리 옆 ② 팝오버 하단 target=_blank + ?section= ③ 사용처 행 Link. ①②는 화면 확인, ③은 R1-7과 함께 E2E 미커버",
+          "note": "sidebar.tsx는 R8 세션 미커밋 변경과 동거 — 커밋 시 분리 불가"
+        },
+        {
+          "id": "R1-11",
+          "desc": "신규 서버 액션 4종 — listPlanTextLibraryAction · getPlanTextUsageAction · previewPlanTextsFromCustomerAction · importPlanTextsFromCustomerAction",
+          "status": "code_present",
+          "files": [
+            "plan-text-library-actions.ts"
+          ],
+          "self_check": "4종 모두 requirePermission('customer_manage'). list는 라이브러리+스탬프 2쿼리 병렬로 8왕복을 1회로. usage는 고객명 조인 + stale 판정. import는 빈 섹션 거부·makeDefault 승격 포함"
+        },
+        {
+          "id": "R1-12",
+          "desc": "E2E test-plan-text-library.mts",
+          "status": "code_present",
+          "files": [
+            "scripts/test-plan-text-library.mts"
+          ],
+          "self_check": "**20/20 통과.** 설계 항목 중 '동일 내용 재저장 불변'은 UI 가드(저장 버튼 비활성)로 검증했다 — 화면에서 같은 값을 다시 저장할 경로 자체가 없다. 서버측 planTextBodyEquals 불변은 기존 _probe-text-library가 커버",
+          "note": "구현 중 실제 UX 버그 1건 발견·수정 — 섹션의 마지막 항목을 지우면 cur이 사라져 '삭제되었습니다' 메시지가 함께 증발했다(알림을 cur 바깥으로 이동)"
+        },
+        {
+          "id": "R1-13",
+          "desc": "프로브 — 현재 고객 서술 8섹션에 고객명·건물명이 몇 건 포함돼 있는지 집계(치환 변수 도입 판단 근거)",
+          "status": "code_present",
+          "depends": [
+            "D1-7"
+          ],
+          "files": [
+            "scripts/_probe-plan-text-vars.mts"
+          ],
+          "self_check": "**실측: 활성 고객 315명 중 서술 보유 2명 · 작성 4건 · 고유명사 포함 0건(0%)** → D1-7 보류 유지가 타당. 다만 표본이 2명뿐이라 운영 데이터에서 재측정 필요",
+          "note": "설계는 .mjs로 적었으나 lib/plan-text-sections의 pick을 그대로 태워야 정확해 **.mts로 만들었다**(.mjs는 TS named import 불가). 저장소 관례대로 `.ts` 확장자 + default import"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "title": "#2 계획서 생성·조회 재편 — 조회를 파일에서 분리",
+      "status": "partial",
+      "note": "2026-08-12 R2-1~R2-11 구현·code_present(독립 검증 전, 미커밋). R2-12 E2E 미착수. ⚠ **마이그레이션 127이 스테이징 미적용 — 적용 전에는 계획서 생성이 실패한다**(BLOCK-1). GOTENBERG_URL이 로컬에 없어 실제 PDF 경로는 스테이징에서만 검증 가능",
+      "criteria": [
+        {
+          "id": "R2-1",
+          "desc": "마이그레이션 127 — fire_plans.source_hash TEXT(NULL 허용, 기존 행 NULL = 항상 stale)",
+          "status": "code_present",
+          "blocked_by": "BLOCK-1",
+          "evidence": [
+            "supabase/migrations/127_fire_plans_source_hash.sql",
+            "scripts/_apply-127-staging.mjs (_apply-123-staging 관례)"
+          ],
+          "note": "**파일만 만들었고 DB 적용은 못 했다** — 적용 스크립트가 %TEMP%/sbtok.txt의 Supabase 액세스 토큰을 요구하는데 그 파일이 없다"
+        },
+        {
+          "id": "R2-2",
+          "desc": "조립 결과 해시 — 키 정렬 안정 직렬화 후 sha1",
+          "status": "code_present",
+          "depends": [
+            "D2-7"
+          ],
+          "evidence": [
+            "fire-plan-generate.ts firePlanSourceHash + stableStringify"
+          ],
+          "note": "사진(assets)은 **바이트까지** 넣는다 — 같은 파일명으로 교체해도 잡아야 하기 때문. 파일명 정렬로 순서 무관"
+        },
+        {
+          "id": "R2-3",
+          "desc": "generateFirePlanNow mode 분기 — revise(기본) / reissue(파일만 교체)",
+          "status": "code_present",
+          "evidence": [
+            "fire-plan-generate.ts mode?: 'revise' | 'reissue' + targetPlanId 가드"
+          ],
+          "self_check": "프로브가 reissue 분기에 revision·appendGeneratedRevision·insert가 **없음**을 확인. 옛 파일 제거가 update 성공 뒤에 오는 순서도 확인 — 먼저 지우면 update 실패 시 복구 불가"
+        },
+        {
+          "id": "R2-4",
+          "desc": "previewFirePlanHtmlAction — 즉석 HTML, 파일 0, Gotenberg 미호출",
+          "status": "code_present",
+          "depends": [
+            "D2-3"
+          ],
+          "self_check": "프로브가 본문에 convertHtmlToPdf·.upload(·fire_plans 접근이 **없음**을 확인",
+          "note": "이미지가 상대경로라 iframe(srcDoc)에서 깨진다 — assets를 data URL로 인라인했다(설계에 없던 보완)"
+        },
+        {
+          "id": "R2-5",
+          "desc": "ensureLatestFirePlanPdfAction — 해시 비교 → reissue, 제출본 동결",
+          "status": "code_present",
+          "depends": [
+            "D2-4",
+            "D2-6"
+          ],
+          "self_check": "프로브가 **동결 판정이 해시 비교보다 먼저** 오는 순서를 확인 — 뒤바뀌면 제출본을 조립·갱신할 수 있다",
+          "note": "업로드분(note가 '자동 생성'으로 시작하지 않는 행)은 우리가 조립한 문서가 아니라 해시 판정이 성립하지 않으므로 손대지 않는다(설계에 없던 방어)"
+        },
+        {
+          "id": "R2-6",
+          "desc": "보관함 상단 '현재 내용' 카드(접힘→iframe) + 미입력 요약",
+          "status": "code_present",
+          "files": [
+            "components/customers/fire-plans-client.tsx"
+          ]
+        },
+        {
+          "id": "R2-7",
+          "desc": "[개정 발행]로 교체 + 프리셋(purpose) 보관함 이관",
+          "status": "code_present",
+          "depends": [
+            "D2-1",
+            "D2-5"
+          ],
+          "note": "보관함 **하단에도** [계획서 생성 (PDF)]가 하나 더 있었다(설계 미인지) — 같은 화면에 생성 버튼이 둘일 이유가 없어 상단 [개정 발행]으로 흡수"
+        },
+        {
+          "id": "R2-8",
+          "desc": "행별 [인쇄]·[PDF]를 ensureLatest 경유로",
+          "status": "code_present"
+        },
+        {
+          "id": "R2-9",
+          "desc": "행별 [재생성] 제거",
+          "status": "code_present"
+        },
+        {
+          "id": "R2-10",
+          "desc": "제출본 자물쇠 표시 + 갱신 없이 저장본 열기",
+          "status": "code_present",
+          "depends": [
+            "D2-6"
+          ]
+        },
+        {
+          "id": "R2-11",
+          "desc": "트리 상단 생성 버튼·generateHwp 제거 + HWP 표기 제거, 준비율·누락 칩 유지",
+          "status": "code_present",
+          "depends": [
+            "D2-1",
+            "D2-2"
+          ],
+          "note": "생성 버튼 전용이던 purpose prop·useTransition이 미사용이 되어 PlanTabView 시그니처에서 제거하고 호출부도 맞췄다"
+        },
+        {
+          "id": "R2-12",
+          "desc": "E2E test-fireplan-generate.mts",
+          "status": "pending_order",
+          "note": "**미착수.** 핵심 시나리오(해시 같으면 미재생성 / 인쇄가 차수를 올리지 않음 / 제출본 동결)가 전부 **PDF 생성을 거치므로 Gotenberg 필요** — 로컬 작성·실행 불가, 스테이징에서 진행"
+        }
+      ],
+      "artifacts": [
+        "scripts/_probe-fireplan-reissue.mjs (신규, 40/40 통과 — 서버 불필요 정적 규약 검증)",
+        "scripts/_apply-127-staging.mjs (신규)"
+      ]
+    },
+    {
+      "id": "R3",
+      "title": "#3·#4 A. 음성 입력 제거 (선행)",
+      "status": "code_present",
+      "note": "2026-08-12 구현 완료·자기 신고. 독립 검증(구현자≠판정자) 전이라 implemented로 올리지 않는다. 미커밋",
+      "criteria": [
+        {
+          "id": "R3-1",
+          "desc": "V-1 음성 점검표 삭제 — inspection-voice-sheet-client.tsx · voice-sheet-actions.ts",
+          "status": "code_present",
+          "depends": [
+            "D34-6"
+          ],
+          "self_check": "두 파일 삭제 확인. 잔존 참조 0(grep: voice-sheet-actions·InspectionVoiceSheetClient·parseVoiceSheetAction·applyVoiceSheetAction)"
+        },
+        {
+          "id": "R3-2",
+          "desc": "VN-1 음성 불량 삭제 — inspection-voice-defect-client.tsx · voice-defect-actions.ts",
+          "status": "code_present",
+          "depends": [
+            "D34-6"
+          ],
+          "self_check": "두 파일 삭제 확인. 잔존 참조 0(grep: voice-defect-actions·InspectionVoiceDefectClient·classifyDefectsFromTranscriptAction)"
+        },
+        {
+          "id": "R3-3",
+          "desc": "[id]/page.tsx의 import 2건과 렌더 제거",
+          "status": "code_present",
+          "evidence": [
+            "[id]/page.tsx:12-13 import 2줄 제거(InspectionVoiceDefectClient·InspectionVoiceSheetClient)",
+            "ExteriorMonthProvider 블록에서 <InspectionVoiceSheetClient> 렌더 제거",
+            "<InspectionVoiceDefectClient> 렌더와 주석 제거"
+          ],
+          "self_check": "git diff --stat 기준 page.tsx 14줄 변경(전부 삭제)"
+        },
+        {
+          "id": "R3-4",
+          "desc": "음성 전용 스크립트 정리",
+          "status": "code_present",
+          "evidence": [
+            "scripts/test-voice-sheet.mts 삭제(58줄)",
+            "scripts/_smoke-voice-wiring.mts 삭제(29줄) — V-1 배선 일회성 스모크",
+            "scripts/_judge-ex4-voice.mjs 삭제(323줄) — E/F/G 전 절이 음성 월 축 전용이라 음성 제거 후 실행 불가"
+          ],
+          "note": "test-all.mts에 음성 스크립트 등록이 없어 회귀 스위트 영향 0(grep 확인)"
+        },
+        {
+          "id": "R3-4b",
+          "desc": "음성을 참조하던 EX-4 일회성 판정 프로브 2건 처리 — 삭제하지 않고 비활성화(당시 검증 경로를 기록으로 남긴다)",
+          "status": "code_present",
+          "evidence": [
+            "_judge-ex4-recheck.mjs:196 D절은 이미 EX4_VOICE=1 게이트로 기본 제외 — 무변경",
+            "_judge-ex4-refresh.mjs 트리거②에 VOICE_TRIGGER_AVAILABLE=false 추가 + 사유 주석"
+          ],
+          "note": "refresh의 R-2 판정은 트리거①(Realtime)만으로도 성립하나 트리거가 둘에서 하나로 줄어 검증 강도는 약해졌다"
+        },
+        {
+          "id": "R3-5",
+          "desc": "남길 것 보존 — sheet-facility-map.ts · ExteriorMonthProvider · ANTHROPIC_API_KEY",
+          "status": "code_present",
+          "evidence": [
+            "sheet-facility-map.ts:1-2 주석에서 'V-1 누락 감지' → '별지 9호 조립 공용'으로 정정, 함수 무변경",
+            "[id]/page.tsx ExteriorMonthProvider 유지 + 주석에 '소비자는 점검표 카드 하나뿐이나 월 축 저장 규약이 묶여 있어 유지' 근거 명시",
+            "ANTHROPIC_API_KEY 무변경 — api/mobile/classify-defects가 계속 사용"
+          ]
+        },
+        {
+          "id": "R3-6",
+          "desc": "빌드로 참조 누락 확인",
+          "status": "code_present",
+          "self_check": "npx tsc --noEmit 통과 · npm run build 통과(전 라우트 생성). eslint는 page.tsx에 선행 이슈 2건(AlertCircle 미사용 경고 · Date.now 순수성 오류)이 남으나 git show HEAD로 **커밋본에 이미 존재**함을 확인 — R3 변경과 무관하며 범위 밖"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "title": "#3·#4 B. 완료는 근거를 남긴다 (마이그레이션 0)",
+      "status": "code_present",
+      "note": "핵심 원칙 — 근거 없는 완료를 허용하니까 자동이 그걸 지울까 봐 구분 컬럼과 예외 규칙이 필요했다. 근거를 남기게 하면 사슬이 통째로 사라지고 ③을 어떤 방법으로 보고했는지가 기록에 남아 증빙이 좋아진다",
+      "criteria": [
+        {
+          "id": "R4-1",
+          "desc": "판정 로직 서버 추출 — 신규 lib/inspection-step-status.ts에 evidenceDone()과 activeStepNums(isSpecial, hasDefects). 화면과 DB가 같은 함수를 쓰면 두 갈래가 하나가 된다",
+          "status": "code_present",
+          "depends": [
+            "F-5"
+          ],
+          "files": [
+            "src/lib/inspection-step-status.ts"
+          ],
+          "self_report": "판정 모듈 신설 — evidenceDone(순서 강제 없음)·activeStepNums·stepProgress. 순수 함수라 프로브가 DB 없이 전 조합 단언"
+        },
+        {
+          "id": "R4-2",
+          "desc": "③ 오프라인 보고 근거 신설 — activity_logs 마커 owner_report_offline + {일자, 방법, 메모}, done3 = !!delivery || offline. 소방계획서_18이 배치확인서 종이보관에 쓴 방식과 동일(마이그레이션 불필요)",
+          "status": "code_present",
+          "depends": [
+            "D34-2"
+          ],
+          "self_report": "recordOwnerReportOfflineAction — activity_logs owner_report_offline 마커 {date, method, memo}, done3 = delivery || offline"
+        },
+        {
+          "id": "R4-3",
+          "desc": "강제 완료도 근거로 — step_force_complete 마커 + 사유 필수. 사유 없이는 불가하며 이것도 증거가 되어 동기화가 단일 기록자로 유지된다",
+          "status": "code_present",
+          "depends": [
+            "D34-2"
+          ],
+          "self_report": "forceCompleteStepAction — step_force_complete 마커 + 사유 5자 이상 필수. 타임라인 [단계 완료] 버튼을 이 경로로 교체(근거 없는 완료 제거)"
+        },
+        {
+          "id": "R4-4",
+          "desc": "단일 기록자 syncInspectionSteps(admin, inspectionId, actorId) — status를 쓰는 곳은 이 함수 하나뿐. 순서 강제 미적용(배치확인서는 늦게 오고 점검표는 먼저 채워지므로 강제를 두면 첫 단계에서 막힌다). 되돌림에 예외 없음(제출일을 지웠으면 되돌아가는 것이 맞다). 상태가 실제로 바뀐 경우에만 쓰기",
+          "status": "code_present",
+          "files": [
+            "src/lib/inspection-step-sync.ts"
+          ],
+          "self_report": "syncInspectionSteps — status를 쓰는 유일한 함수. 순서 강제 없음·되돌림 예외 없음·바뀐 행만 갱신"
+        },
+        {
+          "id": "R4-5",
+          "desc": "①이 새로 완료되면 기존 recalc_inspection_steps RPC 호출 + 활성 단계 전부 완료 시 점검 status 전이·계획 동기화 — completeStepCore(:236-333) 뒷부분을 함수로 추출해 공유(복제 금지)",
+          "status": "code_present",
+          "self_report": "applyStepSideEffects로 추출 — ① 신규 완료 시 recalc RPC + status 전이 + 계획 동기화(inspection_status_log·plan_item)"
+        },
+        {
+          "id": "R4-6",
+          "desc": "호출 지점 배선 — 점검표 저장·삭제(①) · 배치확인서 업로드·삭제·종이보관(②) · 관계인 발송·오프라인 기록(③) · 제출일 기록·정정(④⑥) · 불량 추가·삭제·조치완료·해제(⑤) · 강제 완료",
+          "status": "code_present",
+          "risk": "R-2",
+          "self_report": "배선 — ① 점검표 저장/일괄양호/X→불량 · ② cert 업로드 · ③ 발송/오프라인 · ④⑥ 제출일 기록·정정 · ⑤ 불량 추가/조치/삭제 · 강제 완료"
+        },
+        {
+          "id": "R4-7",
+          "desc": "누락 방어 — 상세 진입 시 계산 증거와 저장 status가 어긋나면 그때 한 번 맞춘다(불일치일 때만 쓰기)",
+          "status": "code_present",
+          "self_report": "[id]/page.tsx 진입 보정 — 불일치일 때만 쓰기, changed>0이면 steps 재조회(낡은 렌더 방지)"
+        },
+        {
+          "id": "R4-8",
+          "desc": "분모 교정 — activeStepNums()로 좁힌다. 조회 시 필터로 하고 마이그레이션으로 행을 지우지 않는다(과거 파괴 + 트리거 수정 + 불량이 생기면 ⑤⑥ 재필요). 적용: [id]/page.tsx:183-184, inspections/page.tsx:90-111",
+          "status": "code_present",
+          "depends": [
+            "F-6"
+          ],
+          "note": "효과가 가장 큰 지점 — 월간 건이 ① 완료로 100%가 되어 목록의 '영원한 미완'이 사라진다",
+          "self_report": "목록 분모를 activeStepNums로 필터(행 삭제 없음). ⚠ 실효 범위는 설계와 다름 — 아래 finding_correction 참조"
+        },
+        {
+          "id": "R4-9",
+          "desc": "수동 버튼 제거의 잔재 정리 — completeStepCore의 일괄 완료 호출자(주석 '일괄 완료 성능, 2026-08-04')와 InspectionDetailClient(C1에서 삭제) 참조 확인",
+          "status": "code_present",
+          "risk": "R-3",
+          "self_report": "수동 완료 잔재 — 타임라인 버튼은 사유 필수로 교체 완료. 달력 일괄(bulkCompleteStepsAction)·계획 패널은 잔재로 남음(아래 residual)"
+        },
+        {
+          "id": "R4-10",
+          "desc": "E2E test-inspection-steps-sync.mts — 점검표 저장 → ① 자동 완료 + 상세·목록 진행률 동시 반영 · 응답 전삭제 → ① 자동 미완료 · 제출일 삭제 → ④ 미완료 복귀(예외 없음 확인) · 오프라인 보고만으로 ③ 완료 · 강제 완료는 사유 없이 불가 · 월간 외관점검 건이 ① 완료만으로 100% · 일반관리 자체점검 건은 분모 6(두 축 혼동 탐지) · 증거가 순서를 건너뛰어도 막히지 않음 · 제출일 기록 → 미읽음 기한 알림 읽음 처리",
+          "status": "code_present",
+          "files": [
+            "scripts/test-inspection-steps-sync.mts"
+          ],
+          "self_report": "test-inspection-steps-sync.mts — 판정 24단언 + 스테이징 실주행 12단언, 36/36"
+        }
+      ],
+      "self_report": {
+        "date": "2026-08-12",
+        "by": "구현 세션(구현자 자기 신고 — 독립 검증 전)",
+        "probe": "scripts/test-inspection-steps-sync.mts 36/36 · tsc 클린",
+        "files": [
+          "src/lib/inspection-step-status.ts (신규 — evidenceDone·activeStepNums·stepProgress·isSelfInspection·마커 상수)",
+          "src/lib/inspection-step-sync.ts (신규 — gatherStepEvidence·applyStepSideEffects·syncInspectionSteps)",
+          "src/app/(dashboard)/inspections/timeline-actions.ts (recordOwnerReportOfflineAction·forceCompleteStepAction 신설 + 발송·업로드·제출일 배선)",
+          "src/app/(dashboard)/inspections/sheet-actions.ts (① 저장·일괄양호·X→불량 배선)",
+          "src/app/(dashboard)/inspections/defect-actions.ts (⑤ 추가·조치·삭제 배선)",
+          "src/app/(dashboard)/inspections/[id]/page.tsx (R4-7 진입 보정 + 변경 시 steps 재조회)",
+          "src/app/(dashboard)/inspections/page.tsx (R4-8 분모 필터)",
+          "src/components/inspections/inspection-timeline-client.tsx (수동 [단계 완료] → 사유 필수 [사유 완료])"
+        ]
+      },
+      "finding_correction": {
+        "target": "F-6",
+        "date": "2026-08-12",
+        "desc": "F-6은 '트리거가 모든 점검에 6행을 만든다'를 전제로 월간 건의 영원한 미완을 설명했으나, **현행 DB에서는 사실이 아니다**. 스테이징 실측(plan_type별 inspection_steps 행 수): monthly 59건·event 8건 = 전부 **1행 [1]**, special_작동 6·special_종합 8·null 1 = 6행. 트리거는 이미 유효 단계만 만든다(019 이후 갱신된 것으로 보임)",
+        "impact": "월간 건의 '영원한 미완'은 분모가 아니라 **① status가 버튼을 눌러야만 바뀌던 것**(F-5)이 원인이었다. R4-8의 실효는 **자체점검 불량 0건에서 분모를 6→4로 좁히는 것**에 남는다(⑤⑥ 행은 DB에 있으나 '해당없음'). 조회 시 필터 방식은 그대로 유효 — 불량이 생기면 다시 6이 된다",
+        "evidence": "scripts/test-inspection-steps-sync.mts 2부 — 월간 건 생성 시 트리거가 1행만 만드는 것을 실주행으로 단언"
+      },
+      "residual": [
+        "달력 일괄 완료(bulkCompleteStepsAction)·계획 패널(plan-item-slide-panel)은 여전히 completeStepCore로 status를 직접 쓴다 — 근거를 남기지 않으므로 다음 상세 진입 시 R4-7 보정이 되돌린다. 설계상 의도된 동작이나(D34-2) 사용자에겐 갑작스러우므로, C1(R5)에서 해당 버튼을 걷거나 forceCompleteStepAction으로 옮겨야 한다",
+        "C1-b ⚠ recalc 순서 — 종료일을 나중에 고치면 이미 자동 완료된 단계의 마감일이 낡은 채 남는다(recalc는 미완료 단계만 갱신). saveMultidayAction이 recalc를 먼저 돌린 뒤 sync를 부르는지 독립 검증에서 확인 필요"
+      ]
+    },
+    {
+      "id": "R5",
+      "title": "#3·#4 C1. 블록 정리 (세로 구조 유지)",
+      "status": "partial",
+      "note": "2026-08-12 R5-1~R5-5 구현·code_present(독립 검증 전, 미커밋). **R5-6·R5-8은 미착수** — R5-6은 스테이징 대조(R5-7) 선행이라 의도적으로 제외, R5-8은 ④ 기산 근거 표시가 남았다",
+      "criteria": [
+        {
+          "id": "R5-1",
+          "desc": "전체 진행률 카드 삭제 — 타임라인 헤더가 대체",
+          "status": "code_present",
+          "evidence": [
+            "[id]/page.tsx에서 '전체 진행률' 카드와 progressPct 계산 제거(주석으로 사유 기록)"
+          ],
+          "self_check": "_probe-c1-blocks.mjs — 주석 제외 코드에 '전체 진행률'·'const progressPct' 0건"
+        },
+        {
+          "id": "R5-2",
+          "desc": "6단계 2열 체크리스트 삭제 + 월간 외관점검 건도 타임라인으로",
+          "status": "code_present",
+          "evidence": [
+            "InspectionDetailClient 렌더·import 제거",
+            "'단계별 보고서' 안내 카드 제거",
+            "비자체점검 분기에서 timelineData 생성(steps: stepDocs({isSpecial:false}), isGeneral: true)",
+            "렌더 조건이 isSpecial이 아니라 timelineData만 본다"
+          ],
+          "note": "종전에는 timelineData가 isSpecial일 때만 만들어져 월간 건은 낡은 2열 체크리스트를 봤다. 이제 양쪽 모두 타임라인을 쓰고 stepDocs가 ① 하나만 반환해 보고 절차 칸(②~⑥)은 렌더되지 않는다"
+        },
+        {
+          "id": "R5-3",
+          "desc": "점검표를 ① 안으로",
+          "status": "code_present",
+          "evidence": [
+            "TimelineSlots.sheet로 주입, 타임라인 ① 본문에서 렌더",
+            "ExteriorMonthProvider 래핑 유지(EX-4 월 축)"
+          ],
+          "note": "기존 InspectionSheetClient를 그대로 옮겼다 — 새 입력기를 만들지 않았으므로 소방계획서_16 공용 자산과 어긋날 여지가 없다"
+        },
+        {
+          "id": "R5-4",
+          "desc": "불량내역을 ⑤ 안으로 — #defects 앵커 유지",
+          "status": "code_present",
+          "evidence": [
+            "TimelineSlots.defects",
+            "⑤ 펼침부에 {slots?.defects}",
+            "id=\"defects\" 앵커 슬롯 안에 보존"
+          ],
+          "note": "**불량 0건일 때 ⑤가 '해당없음' 한 줄로 접혀 불량 등록 경로가 막히는 문제**를 발견해, 해당없음 행도 펼침 가능하게 바꾸고 그 안에서 defects 슬롯을 렌더하도록 했다(여기서 추가하면 ⑤가 활성화된다)"
+        },
+        {
+          "id": "R5-5",
+          "desc": "참여자→②, 외관점검표→①, 기본정보→헤더 접이식",
+          "status": "code_present",
+          "depends": [
+            "D34-1"
+          ],
+          "evidence": [
+            "② 펼침부에 {slots.participants}",
+            "① 본문에 !isSpecialTimeline일 때 {slots.exterior}",
+            "신규 components/inspections/inspection-info-popover.tsx + 헤더에 <InspectionInfoPopover />",
+            "InfoChip 및 기본정보 카드 제거, 헤더에 담당·시작일 한 줄 요약"
+          ]
+        },
+        {
+          "id": "R5-5b",
+          "desc": "월간 외관점검 건 기능 보존 — 단계가 ① 하나뿐이라 참여자·불량·외관점검표를 ②·⑤에만 두면 화면에서 통째로 사라진다",
+          "status": "code_present",
+          "note": "설계에 없던 위험이라 구현 중 발견해 대응했다. 월간 건은 sheet·exterior·participants·defects가 모두 ① 본문으로 모인다(C2의 '월간 건은 3칸을 설비/항목/불량으로 쓴다'와 같은 방향)",
+          "self_check": "프로브가 ① 본문의 !isSpecialTimeline 분기 3건과 자체점검 경로 2건을 각각 확인"
+        },
+        {
+          "id": "R5-6",
+          "desc": "엑셀 생성 폐지(소방계획서_7 D-9 실행)",
+          "status": "pending_order",
+          "depends": [
+            "D34-9",
+            "F-10"
+          ],
+          "blocked_by": "R5-7",
+          "note": "**의도적 미착수.** ReportGenerateClient를 존치하고 제거 보류 사유를 코드 주석에 남겼다 — R5-7 대조 없이 지우면 37시트에만 있던 항목이 조용히 사라진다"
+        },
+        {
+          "id": "R5-7",
+          "desc": "엑셀 제거 전 필수 검증 — 실제 점검 1건으로 별지 4호 PDF와 엑셀 PDF를 나란히 뽑아 항목 대조표 작성",
+          "status": "pending_order",
+          "risk": "R-6",
+          "note": "Gotenberg가 필요해 **로컬 불가 — 스테이징에서만 가능**"
+        },
+        {
+          "id": "R5-8",
+          "desc": "다일기간 배치 정정 — 종료일 입력은 ① 헤더에 두되 ④ 화면에 '기산: 종료일 {날짜} + 15일' 근거를 표시하고 거기서도 고칠 수 있게",
+          "status": "partial",
+          "depends": [
+            "F-13"
+          ],
+          "self_check": "**앞부분만 완료** — 다일기간을 TimelineSlots.multiday로 ① 본문에 넣었다. ④에 기산 근거를 표시하는 뒷부분은 미착수",
+          "note": "④ 기산 표시가 없으면 '제출 기한이 왜 이 날짜인지'를 여전히 찾을 수 없다"
+        }
+      ],
+      "artifacts": [
+        "scripts/_probe-c1-blocks.mjs (신규, 35/35 통과 — 서버 불필요 정적 검증)"
+      ]
+    },
+    {
+      "id": "R6",
+      "title": "#3·#4 C2. 한 화면 작업대 (레이아웃 교체 — 분리 커밋)",
+      "status": "pending_order",
+      "note": "기존 InspectionTimelineClient의 판정·D-day·단계 내용을 그대로 이어받고 레이아웃만 바꾼다. 소방계획서_7 H-28의 확장이지 재구현이 아니다",
+      "criteria": [
+        {
+          "id": "R6-1",
+          "desc": "6단계 가로 스텝바(항상 보임, 클릭 = 이동) — 세로 아코디언 대비 작업 영역 높이 약 27% 증가(1366×768 기준)",
+          "status": "pending_order",
+          "depends": [
+            "D34-4"
+          ]
+        },
+        {
+          "id": "R6-2",
+          "desc": "3칸 마스터·디테일·보조 — 단계마다 역할이 바뀐다(①설비목록/항목입력/불량목록 ②참여인력/업로드/배치요약 ③수신정보/발송·오프라인기록/발송이력 ④문서목록/미리보기/전제·제출일 ⑤불량목록/조치·전후사진/10호 ⑥완료현황/11호 고유값/11호)",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-3",
+          "desc": "①에서 점검표와 불량이 동시에 보인다 — '점검표 최상위, 불량 2순위'를 자리로 충족. ✕ 태깅하면 오른쪽 불량 목록이 그 자리에서 늘어난다",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-4",
+          "desc": "⑤ 보조 = 별지 10호 실시간 미리보기 — 불량의 action_plan·action_start·action_end를 고치면 getAnnexPreviewHtmlAction을 디바운스 재호출해 iframe 갱신. Gotenberg 미호출",
+          "status": "pending_order",
+          "depends": [
+            "D34-5",
+            "F-7"
+          ]
+        },
+        {
+          "id": "R6-5",
+          "desc": "⑥ 보조 = 별지 11호 미리보기(action_taken·action_completed_at·후 사진)",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-6",
+          "desc": "3단 작성 패널 걷어내기 — annex-compose-panel이 받던 고유값(제출일·총 이행기간 보정·계획 요약·완료 문구)을 미리보기 위 몇 칸으로 인라인. 자동 계산값 우선·입력 시 오버레이 규칙은 유지",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-7",
+          "desc": "불량 표를 스프레드시트처럼 편집 — 행마다 계획 내용·기간·완료일·사진 칸. 불량마다 폼을 펼치지 않아도 되게",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-8",
+          "desc": "[PDF 생성]은 확정 시 1회, 생성물은 ④·⑥ 문서 목록에 쌓인다(generated-doc-list.tsx 재사용)",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-9",
+          "desc": "뷰포트 고정 — 최상위 overflow-hidden + 칸별 overflow-y-auto. 페이지 스크롤 0(단계·진행상태·불량·문서가 항상 보이고 스크롤은 목록 칸 안에서만). 종합점검표는 항목이 100개가 넘어 문자 그대로 전부를 한 화면에 넣을 수는 없다는 점을 명시",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-10",
+          "desc": "모바일 세로 스택 폴백 — 3칸은 데스크톱 전용이고 현장은 폰이다(불량 사진 촬영이 capture=\"environment\" 모바일 경로). 높이 미달 시 자동 폴백",
+          "status": "pending_order",
+          "risk": "R-1"
+        },
+        {
+          "id": "R6-11",
+          "desc": "월간 외관점검 건은 스텝바가 ① 하나, 3칸은 설비/항목/불량 그대로",
+          "status": "pending_order"
+        },
+        {
+          "id": "R6-12",
+          "desc": "E2E test-inspection-workbench.mts — 페이지 스크롤 0(scrollHeight <= clientHeight) · 스텝바로 ①~⑥ 전환 · ①에서 점검표와 불량 동시 노출 · 불량 수정 → ⑤ 10호 미리보기 갱신 + 생성물 파일 수 불변 · 좁은 뷰포트 세로 폴백",
+          "status": "pending_order",
+          "files": [
+            "scripts/test-inspection-workbench.mts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "title": "#3·#4 D. 발송 문구·별지 4호 조회·알림 소멸 (마이그레이션 1개, 신규 페이지 0)",
+      "status": "pending_order",
+      "criteria": [
+        {
+          "id": "R7-1",
+          "desc": "마이그레이션 128 — message_templates(key·subject·body·attachment_name·updated_by·updated_at) + report_deliveries.body TEXT. 시드로 현행 문구를 그대로 넣어 도입 즉시 동작이 같게. company_profile은 단일 행이라 컬럼을 늘리면 종류가 늘 때마다 스키마가 바뀌므로 쓰지 않는다. key는 코드가 아는 값만 허용",
+          "status": "pending_order",
+          "depends": [
+            "D34-7",
+            "F-11"
+          ]
+        },
+        {
+          "id": "R7-2",
+          "desc": "신규 권한 키 message_template_manage: ['manager','admin'] — company_manage는 ['admin']이라 재사용 불가",
+          "status": "pending_order",
+          "depends": [
+            "D34-8"
+          ],
+          "files": [
+            "src/lib/permissions.ts"
+          ]
+        },
+        {
+          "id": "R7-3",
+          "desc": "[문구 편집] 모달을 ③ 발송 단계와 메일 작성 화면에 배치 — 새 페이지·사이드바 항목을 만들지 않는다. 보내는 자리에서 고치는 것이 더 편하고 /company가 requireRole(['admin'])이라 매니저가 못 들어가는 문제도 우회된다",
+          "status": "pending_order"
+        },
+        {
+          "id": "R7-4",
+          "desc": "치환 lib — 공통 {회사명} {대표자} {회사전화}는 getCompanyProfile()(이미 cache됨)에서, 관계인 보고는 {고객명} {연도} {차수} {점검일}, 서명은 {작성자}. 이 치환으로 상호가 company_profile 한 곳으로 수렴한다(최대 실익)",
+          "status": "pending_order",
+          "files": [
+            "src/lib/message-template.ts"
+          ]
+        },
+        {
+          "id": "R7-5",
+          "desc": "폴백 — 템플릿 행이 없으면 코드의 DEFAULT_TEMPLATES(현행 문구). 마이그레이션 적용 전후로 동작이 같다",
+          "status": "pending_order"
+        },
+        {
+          "id": "R7-6",
+          "desc": "편집 화면 미리보기 — 실제 값이 채워진 결과를 나란히, 치환되지 않은 {…}가 남으면 경고({고객 명} 같은 오타가 그대로 고객에게 나간다)",
+          "status": "pending_order"
+        },
+        {
+          "id": "R7-7",
+          "desc": "발송 시 렌더된 본문을 report_deliveries.body에 저장 — 지금은 제목만 남아 문구가 가변이 되면 '그때 무엇을 보냈는지'가 복원 불가가 된다. 관계인 보고는 ③의 완료 증빙",
+          "status": "pending_order",
+          "depends": [
+            "F-11"
+          ]
+        },
+        {
+          "id": "R7-8",
+          "desc": "timeline-actions.ts:149-162와 mail/actions.ts:76의 리터럴을 템플릿 렌더 호출로 교체",
+          "status": "pending_order"
+        },
+        {
+          "id": "R7-9",
+          "desc": "④에 별지 4호 조회 추가 — GENERATED_DOC_KINDS.report4가 이미 있으므로 ④ 문서 목록에 4·9·10호를 함께 놓는다(9호의 첨부가 점검표라 제출 직전 같이 보는 것이 자연스럽다)",
+          "status": "pending_order"
+        },
+        {
+          "id": "R7-10",
+          "desc": "알림 자동 소멸 — 단계 완료 시 그 점검을 참조하는 미읽음 기한 알림을 읽음 처리(reference_id·reference_type 활용). 삭제하지 않는다 — 지우면 '언제 알렸는지'를 잃는다. 종 배지에서 사라지면 요구는 충족",
+          "status": "pending_order",
+          "depends": [
+            "F-12"
+          ]
+        },
+        {
+          "id": "R7-11",
+          "desc": "E2E test-message-templates.mts — 행 없을 때 현행 문구 폴백 · 넣으면 편집분으로 발송 · {회사명} 치환 · 알 수 없는 {…} 경고 · report_deliveries.body 기록 · 매니저 편집 가능/일반 직원은 접근 불가",
+          "status": "pending_order",
+          "files": [
+            "scripts/test-message-templates.mts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R8",
+      "title": "#5 사이드바 정리 — 대분류를 늘리지 않고 구분선으로",
+      "status": "code_present",
+      "note": "2026-08-12 구현 완료·자기 신고. 독립 검증(구현자≠판정자) 전이라 implemented로 올리지 않는다. 미커밋",
+      "criteria": [
+        {
+          "id": "R8-1",
+          "desc": "NavItem에 구역 소제목 필드 추가 + sidebar 렌더에서 소제목 줄. 클릭 깊이 불변(2단 유지), 대분류 수 불변",
+          "status": "code_present",
+          "depends": [
+            "D5-1"
+          ],
+          "evidence": [
+            "sidebar.tsx NavItem에 section?: string 추가",
+            "sidebar.tsx 렌더: showSection = !!item.section && item.section !== visibleItems[i-1]?.section"
+          ],
+          "note": "설계의 divider?: string을 **section?: string**으로 구현했다 — 구역의 모든 항목에 같은 값을 달고 '권한 필터 통과 목록에서 값이 바뀌는 첫 지점'에만 소제목을 그리면 R8-7(빈 구역 방지)이 구조적으로 보장된다. 일회성 divider를 첫 항목에만 달면 그 항목이 권한으로 숨을 때 구역 전체가 소제목을 잃는다"
+        },
+        {
+          "id": "R8-2",
+          "desc": "소방안전관리 그룹 구역 배정 — 일상(고객 관리·점검확정·점검 달력·점검 업무·문의요청, 무제목) / 현황(점검현황 모니터링) / 정산(정산현황·세금계산서 발행) / 설정(점검표 관리·지역별 담당 배정)",
+          "status": "code_present",
+          "self_check": "_probe-sidebar-sections.mjs — 구역 배정 4건 통과"
+        },
+        {
+          "id": "R8-3",
+          "desc": "점검 대장을 고객 관리의 탭으로 흡수 — /customers/ledger 신설(기존 LedgerClient 그대로), 구 /inspection-ledger는 순수 리다이렉트",
+          "status": "code_present",
+          "depends": [
+            "D5-2"
+          ],
+          "evidence": [
+            "app/(dashboard)/customers/ledger/page.tsx 신설",
+            "app/(dashboard)/inspection-ledger/page.tsx → redirect('/customers/ledger')",
+            "components/customers/customer-view-tabs.tsx 신설(고객 목록·점검 대장 2탭)",
+            "customers/page.tsx에 <CustomerViewTabs /> 추가"
+          ],
+          "note": "/customers/regional-assign이 이미 쓰는 정적 하위 경로 패턴을 따랐다 — Next.js가 정적 세그먼트를 [id]보다 우선하므로 /customers/[id]와 충돌하지 않는다(빌드에서 두 라우트 공존 확인)",
+          "self_check": "npm run build — /customers · /customers/[id] · /customers/ledger · /customers/new · /customers/regional-assign · /inspection-ledger 전부 생성"
+        },
+        {
+          "id": "R8-4",
+          "desc": "계약료 열은 billing_manage(매니저↑)만 — 화면 숨김이 아니라 서버에서 미전송하는 현행 정책 유지",
+          "status": "code_present",
+          "evidence": [
+            "customers/ledger/page.tsx: canViewFee = can(profile.role, 'billing_manage') · fee: canViewFee ? … : null"
+          ],
+          "self_check": "프로브에서 두 패턴 존재 확인"
+        },
+        {
+          "id": "R8-5",
+          "desc": "헤더 브레드크럼 무결 — header-title.tsx는 item.href만 쓰므로 section 추가가 매칭에 영향 없음. /customers/ledger는 NavItem이 없어 /customers에 매칭돼 '고객 관리'로 표시된다(탭이므로 의도한 동작)",
+          "status": "code_present",
+          "risk": "R-7",
+          "self_check": "프로브 2건 통과"
+        },
+        {
+          "id": "R8-6",
+          "desc": "문의요청을 점검 흐름 한가운데에서 일상 블록 **끝**으로 이동",
+          "status": "code_present",
+          "note": "설계는 '맨 아래'였으나 그러면 설정 구역 바로 뒤에 무제목으로 붙어 설정의 일부처럼 읽힌다. 접수도 일상 업무이므로 일상 블록 끝(첫 소제목 앞)에 두는 편이 낫다고 판단해 변경했다",
+          "self_check": "프로브 — 문의요청 index 4 < 점검현황 모니터링 index 5"
+        },
+        {
+          "id": "R8-7",
+          "desc": "역할별 빈 구역 방지 — 매니저 전용 항목이 전부 숨는 역할에서 '정산' 소제목만 남으면 안 된다",
+          "status": "code_present",
+          "self_check": "_probe-sidebar-sections.mjs가 NAV_GROUPS를 파싱해 역할별 렌더를 재현 — employee/manager/admin 전부 '항목 없는 소제목 0개'. employee는 소제목이 [현황, 설정]으로 정산이 빠지고, 설정은 점검표 관리(전 직원)가 있어 남는다"
+        },
+        {
+          "id": "R8-8",
+          "desc": "타입·빌드·린트 + 회귀",
+          "status": "code_present",
+          "self_check": "npx tsc --noEmit 통과 · npm run build 통과 · 신규 3파일 eslint 클린. sidebar.tsx의 eslint 3건(FileCheck2 미사용·useEffect setState·삼항 표현식)은 git show HEAD로 **커밋본에 이미 존재**함을 확인 — R8 변경과 무관",
+          "note": "미실행 회귀: /inspection-ledger를 쓰는 E2E 3종(test-perms·test-report-s5b·_smoke-ledger)은 리다이렉트로 통과할 것으로 보이나 **dev 서버가 필요해 이번에 돌리지 못했다**. test-entire-batch2.mts의 메뉴 경로 이동도 미실행"
+        }
+      ],
+      "artifacts": [
+        "scripts/_probe-sidebar-sections.mjs (신규, 22/22 통과 — 서버 불필요 정적 검증)"
+      ]
+    }
+  ],
+  "not_in_scope": [
+    {
+      "id": "N-1",
+      "desc": "/my/voice-memos 녹음메모장 — sidebar.tsx:50의 전 직원 메뉴이고 직원 녹음 오디오가 Storage voice-memos 버킷에 사용자별로 실재한다(voice-memos-client.tsx:166-174). 점검 흐름과 무관한 개인 도구라 삭제하면 실데이터가 사라진다. 사용자는 '함께 정리'로 답했으나 성격이 설명과 달라 별도 판단이 필요하다",
+      "status": "deferred"
+    },
+    {
+      "id": "N-2",
+      "desc": "api/mobile/classify-defects(+-audio) — 주석이 expo-speech를 언급하는 외부 모바일 앱용 공개 엔드포인트. 저장소 안에 소비자가 없어 영향 범위를 확인할 수 없으므로 제거하면 조용히 깨질 수 있다",
+      "status": "deferred"
+    },
+    {
+      "id": "N-3",
+      "desc": "보고서 대분류 재생성 — 소방계획서_8 D-8 번복 금지(F-14)",
+      "status": "deferred"
+    },
+    {
+      "id": "N-4",
+      "desc": "#1의 2단계 — R-1 개정 알림 push · R-2 번들(bundle_id, 컬럼 이미 존재라 마이그레이션 불필요) · 치환 변수 도입 · 라이브러리 문구 인쇄 미리보기 · sort_order 드래그 정렬 · 검색 · 복원 · 변경 이력",
+      "status": "deferred"
+    },
+    {
+      "id": "N-5",
+      "desc": "inspection_steps 트리거가 월간 건에도 6행을 만드는 근본 원인 수정 — R4-8의 조회 시 필터로 증상을 해소한다. 언젠가 트리거를 고치되 기존 행은 건드리지 않는다",
+      "status": "deferred"
+    },
+    {
+      "id": "N-6",
+      "desc": "소방계획서_5 §4-⑤(전/후 사진 공용 모달 3곳 진입)·§4-⑦(배치확인서 누락 경고) — 미구현. 이번에 건드리지 않고 자리만 남긴다",
+      "status": "deferred"
+    }
+  ],
+  "risks": [
+    {
+      "id": "R-1",
+      "desc": "C2 고정 높이 레이아웃이 작은 노트북·브라우저 확대·글꼴 확대에서 뭉개진다. 폴백 임계값을 넉넉히 잡고 1366×768 실측 필수",
+      "mitigation": "R6-10 세로 스택 폴백",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-2",
+      "desc": "증거 동기화 호출 지점이 한 곳만 빠져도 두 갈래가 되살아난다. 진입 시 보정이 안전망이지만 목록만 보는 사용자에겐 늦게 반영된다",
+      "mitigation": "R4-6 전수 배선 + R4-7 진입 보정",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-3",
+      "desc": "completeStepCore가 순서를 전제로 짜여 있어 뒷부분(status 전이·계획 동기화) 추출 시 그 가정이 남아 있지 않은지 확인해야 한다",
+      "mitigation": "R4-5·R4-9",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-4",
+      "desc": "두 축 혼동 — 이미 한 번 밟은 지점이다. 섞으면 일반관리 고객의 자체점검이 ① 하나로 취급돼 별지 9~11호 단계가 통째로 사라진다. 판정은 sheetScope(plan_type)만 쓰고 inspection_type으로 분기하지 않는다(sheet-scope.ts:6-7이 같은 이유로 경고)",
+      "mitigation": "R4-10 E2E에 일반관리 자체점검 케이스 필수",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-5",
+      "desc": "C2가 기존 점검 E2E 셀렉터를 대부분 깬다 — C1과 반드시 분리해 커밋한다",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-6",
+      "desc": "엑셀 제거 시 37시트에만 있던 항목이 유실될 수 있다. Gotenberg가 필요해 로컬에서 대조가 불가능하다",
+      "mitigation": "R5-7 스테이징 대조 선행, 대조 전 삭제 금지",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-7",
+      "desc": "recalc_inspection_steps는 미완료 단계만 갱신한다 — 증거 기반 동기화가 단계를 자동 완료시키면 재계산 대상에서 빠지므로, 종료일을 나중에 고치면 이미 자동 완료된 단계의 마감일이 낡은 채 남는다",
+      "mitigation": "R4-4·R5-8 구현 시 순서 확인",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-8",
+      "desc": "동시 편집 — 다른 세션이 plan-annex-*.tsx·docs-actions.ts를 만지고 있고 점검표 공용 에디터(sheet-item-editor)는 공유 자산이다",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-9",
+      "desc": "로컬에 GOTENBERG_URL이 없어 PDF 생성 경로(R2·R5-7·R6-8)는 로컬 검증이 불가능하다 — 스테이징 배포 후 확인이 필요하다",
+      "status": "confirmed"
+    },
+    {
+      "id": "R-10",
+      "desc": ".gitignore가 실데이터 보호 규칙이 삭제된 상태라 고객 xls·hwp·png가 untracked로 노출돼 있다 — 커밋은 명시 파일 지정으로만 하고 add -A와 .gitignore 커밋을 금지한다",
+      "status": "confirmed"
+    },
+    {
+      "id": "BLOCK-1",
+      "desc": "**마이그레이션 127 미적용 = 계획서 생성 실패.** generateFirePlanNow가 insert/update에 source_hash를 넣는데 컬럼이 없으면 PostgREST가 거부한다. 적용 전까지 [개정 발행]·[인쇄 자동 갱신]이 모두 실패한다",
+      "mitigation": "node scripts/_apply-127-staging.mjs (%TEMP%/sbtok.txt에 Supabase 액세스 토큰 필요)",
+      "status": "confirmed",
+      "blocking": "R2"
+    }
+  ],
+  "cross_refs": [
+    {
+      "doc": "소방계획서_7",
+      "rel": "D-9(점검표 엑셀 생성 제거) 잔여를 R5-6·R5-7로 흡수 · Q-5(2026-08-03) 확정 근거 · H-13 단일 PDF 경로 · H-28 여정 스텝퍼를 R6가 확장"
+    },
+    {
+      "doc": "소방계획서_8",
+      "rel": "D-8 보고서 센터 해체 — R8은 이 결정을 번복하지 않는다(N-3)"
+    },
+    {
+      "doc": "소방계획서_15_별도라이브러리",
+      "rel": "R-3(라이브러리 관리 페이지, deferred)를 R1로 승격 · R-4를 D1-6으로 1단계 편입"
+    },
+    {
+      "doc": "소방계획서_16",
+      "rel": "S1~S4의 sheet-item-editor·sheet-overview.ts를 R5-3이 재사용(이중 구현 금지)"
+    },
+    {
+      "doc": "소방계획서_18",
+      "rel": "activity_logs 마커로 상태를 남기는 방식을 R4-2·R4-3이 그대로 따른다"
+    },
+    {
+      "doc": "소방계획서_19",
+      "rel": "EX-4(마이그레이션 125) 외관점검 월 공유 — R3-5가 ExteriorMonthProvider를 보존하는 이유"
+    }
+  ]
+}

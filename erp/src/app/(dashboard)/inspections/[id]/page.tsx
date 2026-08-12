@@ -13,6 +13,7 @@ import { InspectionDefectsClient } from '@/components/inspections/inspection-def
 import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
 import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-voice-sheet-client'
 import { ExteriorMonthProvider } from '@/components/inspections/exterior-month'
+import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { stepDocs } from '@/lib/doc-requirements'
@@ -74,7 +75,7 @@ export default async function InspectionDetailPage({
   if (!inspRes.data) notFound()
 
   const inspection = inspRes.data as Inspection
-  const steps = (stepsRes.data ?? []) as InspectionStep[]
+  let steps = (stepsRes.data ?? []) as InspectionStep[]
 
   // §9-9a: 자체점검 여부 — plan_type 축 단독 판정 (special_*·null=자체점검 / monthly·레거시 event=정기·일반).
   // 관리유형 무관 — 일반관리 자체점검도 소방시설등점검표·별지 9호 대상 (소방계획서_6 W-4)
@@ -180,6 +181,17 @@ export default async function InspectionDetailPage({
   const canEdit = isAssigned || userRole === 'manager' || userRole === 'admin'
 
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]  // KST 기준 — D-day는 doc-status.ts todayKst()와 동일 기산
+
+  // R4-7 누락 방어(소방계획서_21 B-4) — 증거 동기화 호출 지점이 한 곳만 빠져도 두 갈래가 되살아난다(R-2).
+  // 상세 진입 시 계산 증거와 저장 status를 맞춘다. **불일치일 때만 쓰기**(syncInspectionSteps 내부에서
+  // 바뀐 행만 갱신)라 조회 부하가 늘지 않고, 과거 데이터도 열람하는 순간 스스로 정합해진다.
+  const { changed: stepsChanged } = await syncInspectionSteps(admin, id, profile.id)
+  if (stepsChanged > 0) {
+    // 위 Promise.all에서 이미 읽은 steps가 낡았다 — 바뀐 경우에만 다시 읽는다(평시 왕복 0회)
+    const { data: fresh } = await admin.from('inspection_steps')
+      .select('*').eq('inspection_id', id).order('step_num')
+    steps = (fresh ?? []) as InspectionStep[]
+  }
   const completedCount = steps.filter(s => s.status === 'completed').length
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0
 

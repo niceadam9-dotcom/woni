@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole, getSessionUser } from '@/lib/auth'
+import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
@@ -31,7 +32,10 @@ export async function addDefectAction(input: {
     .single()
 
   if (error) return { error: '불량내역 저장에 실패했습니다.' }
+  // R4-6: ⑤ 불량이 생기면 분모가 6으로 늘고 ⑤가 미완료로 열린다 (증거 기반 동기화)
+  await syncInspectionSteps(admin, input.inspectionId, user.id)
   revalidatePath(`/inspections/${input.inspectionId}`)
+  revalidatePath('/inspections')
   return { id: (data as { id: string }).id }
 }
 
@@ -129,7 +133,10 @@ export async function updateDefectActionAction(input: {
     .update(patch)
     .eq('id', input.defectId)
   if (error) return { error: '조치 내용 저장에 실패했습니다.' }
+  // R4-6: ⑤ 조치완료·해제가 곧 근거 — 완료일을 지우면 ⑤도 되돌아간다(예외 없음)
+  await syncInspectionSteps(admin, input.inspectionId, user.id)
   revalidatePath(`/inspections/${input.inspectionId}`)
+  revalidatePath('/inspections')
   return {}
 }
 
@@ -160,6 +167,9 @@ export async function deleteDefectAction(defectId: string, inspectionId: string)
     .eq('id', defectId)
 
   if (error) return { error: '삭제에 실패했습니다.' }
+  // R4-6: 마지막 불량을 지우면 ⑤⑥이 '해당없음'이 되어 분모가 4로 줄어든다
+  await syncInspectionSteps(admin, inspectionId, null)
   revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
   return {}
 }

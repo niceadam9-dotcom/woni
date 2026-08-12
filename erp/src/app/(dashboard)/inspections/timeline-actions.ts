@@ -7,6 +7,8 @@ import { requirePermission } from '@/lib/auth'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
 import { CERT_FILE_RE, CONTRACT_FILE_RE, findArchivedCertInspections } from '@/lib/doc-status'
+import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION } from '@/lib/inspection-step-status'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
  *  업로드 슬롯 3종(②배치확인서·⑤계약서 — 전후 사진은 불량내역 슬롯 재사용), ③ 관계인 보고 발송,
@@ -117,7 +119,10 @@ export async function uploadTimelineFileAction(
     actor_id: profile.id, action: 'timeline_upload', entity_type: 'inspection', entity_id: inspectionId,
     metadata: { slot, customerId, customerName: (cust as { customer_name: string } | null)?.customer_name ?? '—', fileName: file.name },
   } as Record<string, unknown>)
+  // R4-6: ② 배치확인서 업로드가 곧 근거 — 파일이 생기면 단계가 스스로 완료된다
+  if (slot === 'cert') await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
   return {}
 }
 
@@ -167,7 +172,10 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
       recipient_email: i.customer.report_email, subject, file_name: filename,
       message_id: messageId, sent_by: profile.id,
     } as Record<string, unknown>)
+    // R4-6: ③ 발송 이력이 곧 근거
+    await syncInspectionSteps(admin, inspectionId, profile.id)
     revalidatePath(`/inspections/${inspectionId}`)
+    revalidatePath('/inspections')
     return { sentTo: i.customer.report_email }
   } catch (e) {
     const msg = (e as Error).message
@@ -178,21 +186,76 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
   }
 }
 
-/** ④⑥ 제출일 기록 — 기한 D-day·알림 소멸 조건 (§9-6f 제출추적) */
+/** ④⑥ 제출일 기록·정정 — 기한 D-day·알림 소멸 조건 (§9-6f 제출추적).
+ *  R4-6: 제출일이 ④⑥의 근거이므로 기록·삭제 후 단계 동기화를 부른다. date=null이면 정정(지움) —
+ *  **되돌림에 예외가 없다**(제출일을 지웠으면 그 단계는 미완료로 돌아간다, R4-4). */
 export async function recordSubmissionAction(
-  inspectionId: string, kind: 'report9' | 'report11', date: string,
+  inspectionId: string, kind: 'report9' | 'report11', date: string | null,
 ): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_register')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: '제출일 형식을 확인해주세요.' }
+  if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: '제출일 형식을 확인해주세요.' }
   const admin = createAdminClient()
   const col = kind === 'report9' ? 'report9_submitted_at' : 'report11_submitted_at'
   const { error } = await admin.from('inspections').update({ [col]: date }).eq('id', inspectionId)
   if (error) return { error: `저장 실패: ${error.message}` }
   await admin.from('activity_logs').insert({
-    actor_id: profile.id, action: 'report_submitted', entity_type: 'inspection', entity_id: inspectionId,
+    actor_id: profile.id, action: date ? 'report_submitted' : 'report_submission_cleared',
+    entity_type: 'inspection', entity_id: inspectionId,
     metadata: { kind, date },
   } as Record<string, unknown>)
+  await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return {}
+}
+
+/** ③ 관계인 보고 — 방문·전화 등 **오프라인 보고 근거** 기록 (R4-2 / B-2)
+ *
+ *  종전엔 이메일 발송 이력만 근거라, 방문·전화로 보고한 경우 근거가 없어 [단계 완료] 버튼으로 때웠다.
+ *  그 버튼은 실제로 하지 않은 일도 완료로 만들 수 있어 소방서 제출 이력이 부정확해진다(D34-2).
+ *  마이그레이션 없이 activity_logs 마커로 남긴다 — 소방계획서_18이 배치확인서 종이보관에 쓴 방식과 동일하고,
+ *  activity_logs는 append-only(001)라 2년 증빙 재구성의 단서로도 남는다. */
+export async function recordOwnerReportOfflineAction(
+  inspectionId: string, input: { date: string; method: string; memo?: string },
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { error: '보고일 형식을 확인해주세요.' }
+  const method = input.method.trim()
+  if (!method) return { error: '보고 방법을 입력해주세요 (예: 방문 설명, 유선 통보).' }
+  if (method.length > 40) return { error: '보고 방법은 40자 이내로 입력해주세요.' }
+  const admin = createAdminClient()
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: OWNER_REPORT_OFFLINE_ACTION,
+    entity_type: 'inspection', entity_id: inspectionId,
+    metadata: { date: input.date, method, memo: (input.memo ?? '').trim().slice(0, 300) },
+  } as Record<string, unknown>)
+  await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return {}
+}
+
+/** 그 밖의 예외를 사람이 확정 — **사유 필수** (R4-3 / B-2)
+ *
+ *  근거 없는 완료를 없애는 대신, 정말 예외가 필요한 경우를 위해 남겨둔 경로다.
+ *  사유가 곧 증거이므로 사유 없이는 완료할 수 없다. 마커가 남아 동기화는 계속 단일 기록자로 유지된다. */
+export async function forceCompleteStepAction(
+  inspectionId: string, stepNum: number, reason: string,
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  if (!Number.isInteger(stepNum) || stepNum < 1 || stepNum > 6) return { error: '단계 번호를 확인해주세요.' }
+  const trimmed = reason.trim()
+  if (trimmed.length < 5) return { error: '완료 사유를 5자 이상 입력해주세요 — 사유가 곧 증빙입니다.' }
+  if (trimmed.length > 300) return { error: '사유는 300자 이내로 입력해주세요.' }
+  const admin = createAdminClient()
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: STEP_FORCE_COMPLETE_ACTION,
+    entity_type: 'inspection', entity_id: inspectionId,
+    metadata: { step_num: stepNum, reason: trimmed },
+  } as Record<string, unknown>)
+  await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
   return {}
 }
 
