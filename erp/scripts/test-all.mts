@@ -13,6 +13,15 @@ const steps: Step[] = [
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },
   { name: '클릭 예산(E2E)',           cmd: 'npx tsx scripts/test-click-budget.mts',     needServer: true },
   { name: 'EX-V1 음수전표(E2E)',      cmd: 'npx tsx scripts/test-ex-v1.mts',            needServer: true },
+  // 소방계획서_16 S6-4 — 점검표 축·트리 인라인 입력(Realtime 포함) 상시 회귀
+  { name: '점검표 범위 축(E2E)',        cmd: 'npx tsx scripts/test-sheet-scope-axis.mts',    needServer: true },
+  { name: '점검표 트리 인라인(E2E)',    cmd: 'npx tsx scripts/test-annex-sheet-inline.mts',  needServer: true },
+  // 소방계획서_18 S4 — 과거본 정리는 되돌릴 수 없는 삭제라 게이트·대상 판정을 상시 고정한다
+  { name: '보관함 과거본 정리(E2E)',    cmd: 'npx tsx scripts/test-archive-cleanup.mts',     needServer: true },
+  // 실패 경로는 서버 없이 검증한다 — Storage 실패를 경계에서 주입해 "파일을 다 못 지우면 행도 안 지운다"를 고정
+  { name: '정리 실패 경로(프로브)',     cmd: 'npx tsx --conditions=react-server scripts/_probe-cleanup-failure.mts' },
+  // 마커는 판정 근거라 보존 크론이 지우면 안 된다 — 반대로 감사 로그까지 영구 보존해서도 안 된다
+  { name: '로그 보존 마커 제외(프로브)', cmd: 'npx tsx --conditions=react-server scripts/_probe-purge-marker.mts' },
 ]
 
 let serverUp = false

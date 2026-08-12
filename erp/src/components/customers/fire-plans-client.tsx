@@ -102,7 +102,10 @@ export function FirePlansClient({ customerId, plans, canManage }: {
   }
 
   function handleDelete(plan: FirePlanRow) {
-    if (!confirm(`'${plan.title ?? `${plan.year}년 소방계획서`}'를 삭제할까요?\n첨부 파일(PDF/HWP)도 함께 삭제됩니다.`)) return
+    // 부속자료(지도·사진)는 업로드 원본이라 다시 만들 수 없다 — 함께 지워진다는 사실을 확인창이 말해야 한다
+    const attCount = plan.attachments?.length ?? 0
+    const also = attCount > 0 ? `첨부 파일(PDF/HWP)과 부속자료(지도·사진) ${attCount}개` : '첨부 파일(PDF/HWP)'
+    if (!confirm(`'${plan.title ?? `${plan.year}년 소방계획서`}'를 삭제할까요?\n${also}도 함께 삭제됩니다.`)) return
     startTransition(async () => {
       const res = await deleteFirePlanAction(plan.id)
       if (res.error) { alert(res.error); return }

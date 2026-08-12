@@ -3,10 +3,9 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Archive, Loader2, Trash2 } from 'lucide-react'
-import {
-  listCleanupTargetsAction, cleanupArchiveAction,
-  type CleanupPreview, type CleanupResult,
-} from '@/app/(dashboard)/customers/fire-plan-cleanup-actions'
+import { listCleanupTargetsAction, cleanupArchiveAction } from '@/app/(dashboard)/customers/fire-plan-cleanup-actions'
+// 타입은 원천에서 직접 — 'use server' 파일은 타입 re-export도 런타임 export로 바뀌어 깨진다
+import type { CleanupPreview, CleanupResult } from '@/lib/archive-cleanup'
 
 /** 보관함 [과거본 정리] (소방계획서_18 S2) — "최신만 ERP, 과거는 종이 보관".
  *  Storage 산출물 파일만 지운다(원천·이력 무손실, D-5). 인쇄 완료 확인을 강제한다(D-1).

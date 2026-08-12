@@ -135,5 +135,26 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
   report('INV-D6c 일반관리 sub_type null (110 백필 후)', d6c ?? [], c => `${c.customer_name} (${c.id})`)
 }
 
+// ── INV-D7: 소방계획서_18 — 소방계획서 부속자료 고아 파일 ──
+// 부속자료 행은 fire_plans 삭제 시 FK CASCADE(086)로 함께 사라진다. 파일을 먼저 지우지 않고
+// 행을 지우면 아무도 접근할 수 없는 파일만 스토리지에 남는다(업로드 원본이라 재생성 불가).
+// 삭제 경로가 여럿이라(정리 액션·개별 삭제) 코드 리뷰로는 놓치기 쉬워, 결과 자체를 감시한다.
+{
+  const attFiles = []
+  const { data: planDirs } = await admin.storage.from('fire-plans').list('att', { limit: 1000 })
+  for (const d of planDirs ?? []) {
+    if (d.id !== null) continue   // att/ 아래는 계획서 id 폴더뿐
+    const { data: files } = await admin.storage.from('fire-plans').list(`att/${d.name}`, { limit: 1000 })
+    for (const f of files ?? []) if (f.id !== null) attFiles.push(`att/${d.name}/${f.name}`)
+  }
+  let orphans = []
+  if (attFiles.length > 0) {
+    const { data: rows } = await admin.from('fire_plan_attachments').select('file_path')
+    const known = new Set((rows ?? []).map(r => r.file_path))
+    orphans = attFiles.filter(p => !known.has(p))
+  }
+  report('INV-D7 부속자료 고아 파일(참조 행 없음)', orphans, p => p)
+}
+
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)
 process.exit(violations > 0 ? 1 : 0)
