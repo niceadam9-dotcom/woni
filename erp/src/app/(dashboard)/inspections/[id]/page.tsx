@@ -12,6 +12,7 @@ import { InspectionDeleteClient } from '@/components/inspections/inspection-dele
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
 import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-voice-sheet-client'
+import { ExteriorMonthProvider } from '@/components/inspections/exterior-month'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { stepDocs } from '@/lib/doc-requirements'
@@ -465,20 +466,24 @@ export default async function InspectionDetailPage({
         canManage={canEdit}
       />
 
-      {/* 점검표 입력 (P34) */}
-      <InspectionSheetClient
-        inspectionId={id}
-        inspectionType={customer?.inspection_type ?? ''}
-        planType={inspPlanType}
-        sheets={sheets}
-        responses={responses}
-        progress={sheetProgress}
-        xCount={xCount}
-        canManage={canEdit}
-      />
+      {/* EX-4(소방계획서_19, 125): 외관점검표 '점검 월'은 점검표·음성 카드가 공유한다 —
+          지역 상태로 두면 음성 저장이 항상 시작월로 가고, 달을 바꿔 반복하면 이전 달 입력이 사라진다 */}
+      <ExteriorMonthProvider isExterior={inspPlanType === 'monthly' || inspPlanType === 'event'}>
+        {/* 점검표 입력 (P34) */}
+        <InspectionSheetClient
+          inspectionId={id}
+          inspectionType={customer?.inspection_type ?? ''}
+          planType={inspPlanType}
+          sheets={sheets}
+          responses={responses}
+          progress={sheetProgress}
+          xCount={xCount}
+          canManage={canEdit}
+        />
 
-      {/* 음성 점검표 입력 V-1 (§9-4) — 전사 → AI 구조화 → 확인 후 점검표 반영 */}
-      <InspectionVoiceSheetClient inspectionId={id} canManage={canEdit} />
+        {/* 음성 점검표 입력 V-1 (§9-4) — 전사 → AI 구조화 → 확인 후 점검표 반영 */}
+        <InspectionVoiceSheetClient inspectionId={id} canManage={canEdit} />
+      </ExteriorMonthProvider>
 
       {/* 외관점검표 (§9-8d) — 일반관리 점검 전용, 별지 9호 준비 UI 재사용 */}
       {exteriorChecks && (

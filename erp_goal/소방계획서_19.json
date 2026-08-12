@@ -324,7 +324,8 @@
         "residual": "판정자 지적 미조치 3건 — (a) 패널 1단 '자동 채움 검토'가 외관에서 별지11호 문구(공사업체·이행조치) 표시 (b) 보고일 오버레이가 해당 월 기록이 없으면 조용히 무시(월 자체 교정은 불가) (c) '전 회차 이어받기'가 자체점검 축으로 조회해 외관에선 불발",
         "self_report": { "date": "2026-08-12", "evidence": ["annex-compose-panel.tsx — ComposeAnnexNo·TITLES·FIELD_DEFS에 exterior", "report9-actions.ts loadAnnexInputs 시그니처 확장 + assembleExterior ③ 오버레이", "inspection-report9-client.tsx — variant=exterior에도 작성 버튼 노출"] } },
       { "id": "EX-3", "target": "외관점검표", "class": "하드코딩", "severity": "policy", "status": "implemented", "desc": "직위(mgrTitle) 항상 공란 — 원본 서식엔 자리 존재, 1.7 ManagerRow.role이 후보 원천이나 미연결", "evidence": ["report9-actions.ts mgrTitle"], "fix": "1.7 선임자를 찾았을 때만 role을 직위로 인쇄 — 대표 폴백 시엔 단정하지 않음(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:617 extMgrTitle = extMgr?.name ? (extMgr.role ?? '') : ''", "실주행: 1.7 구분 '관리자' → 표지에 '직위: 관리자' 인쇄"] } },
-      { "id": "EX-4", "target": "외관점검표", "class": "설계", "severity": "policy", "status": "code_present",
+      { "id": "EX-4", "target": "외관점검표", "class": "설계", "severity": "policy", "status": "implemented",
+        "status_note": "2026-08-12 독립 판정 3회차(independent_recheck2)에서 승격 — 단 **음성 경로는 사용자 지시로 검증 범위 제외(미검증)**, unverified_scope 참조",
         "desc": "연간 서식(12행×12열)을 회차 단위로 생성 — 같은 해 이전 월 결과 미병합. 연간 누적본 부재가 의도인지 사용자 확정 필요",
         "evidence": ["exterior.ts 월 열 기입"],
         "decision": "2026-08-12 사용자 지시 — **연간 누적본으로 전환**",
@@ -343,6 +344,91 @@
           ],
           "probe": "_probe-soban19-b.mts 37/37(연간 누적 렌더 7건 신규) · tsc 클린",
           "residual": "독립 검증 미실시(구현자 자기 신고). 실사용 12개월 입력 → 연간본 1장 확인 필요. 운영 반영 시 125 선행"
+        },
+        "independent_check": {
+          "date": "2026-08-12",
+          "round": 1,
+          "resolved_by": "independent_recheck(2026-08-12 2차 재검증) — 아래 gaps의 저장 경로 6곳 중 5곳 해소(인라인 X·빠른 불량·전체 양호 배선 + 트리 3곳은 도달 불가로 무효), 음성 1곳은 잔존 확인",
+          "judge": "독립 판정 세션(구현자≠판정자, Json_Rule 규칙 3) — 커밋 18205b8 대상, 판정 시 HEAD 9cca6b1(assembleExterior·exterior.ts·inspection-sheet-client.tsx는 18205b8 이후 무변경)",
+          "verdict": "partial — 스키마·잠금 해제·연간 누적 렌더·레거시 폴백·일반 점검표 무오염·EX-5 정합은 전부 ✅ 실증. 단 **입력 경로 7곳 중 1곳만 월 축을 넘긴다**(아래 gaps) — 규칙 1(90% 구현은 partial)에 따라 승격 보류",
+          "probe": ["_judge-ex4-schema.mjs(스테이징 SQL 실조회)", "_judge-ex4-render.mjs 56/57", "_judge-ex4-ui.mjs 11/12"],
+          "runtime": [
+            "① 125 스키마 — 스테이징 실조회: month smallint NOT NULL DEFAULT 0 · CHECK ((month>=0) AND (month<=12)) · uq_sheet_responses_insp_item_month UNIQUE(inspection_id,item_code,month) · 구 inspection_sheet_responses_inspection_id_item_code_key 부재 · idx_sheet_responses_insp_month 존재. 백필 정확성: X% 26행 전부 month=그 건 시작월(불일치 0행·month=0 잔존 0행), 비-X 144행 전부 month=0, (건,항목) 중복 그룹 0",
+            "② 잠금 해제 — 직접 삽입: 같은 건·X1-01을 3월·7월에 각각 저장 성공, 같은 달 재삽입은 23505 거부, month=0도 별도 행 공존, 시험분 삭제 후 잔존 [3,7]",
+            "③ 연간 누적 렌더 — 한 점검 건에 3·7·9·11월을 심고 getAnnexPreviewHtmlAction(exterior) 실주행: 표지 12행 중 4개 달만 '3월 14일…' + 점검자 기입, 미점검 8개 달은 종전 빈 행(월  일·양쪽 ☐). 섹션 표 X1-01이 3월 ○ / 7월 × / 11월 ○로 각 열에 공존, 미점검 8열은 빈칸. X2-01 9월 열 '/'. 비고칸 '7월 X1-01 7월 소화기 압력 미달 / 11월 X1-03 11월 유도등 미점검' 형식 집계. missing '연간 누적 — 2026년 4개월 기록(응답 있는 달 3개월)'",
+            "④ 레거시 폴백 — month=0 응답만 가진 별도 건(시작일 9-8): 9월 행만 채워지고 나머지 11행은 종전 빈 행, X1-01 9월 열 ×, 비고도 '9월 X1-01 …' — 기존 고객 문서 무회귀 확인",
+            "⑤ 일반 점검표 무오염 — saveSheetResponsesAction을 month=7·11로 연속 실호출: 비-X(1-A-001·1-A-002)는 각각 1행·month=0(중복 0), X1-05만 7·11월 2행",
+            "⑥ 입력 UI — dev :3000 + Playwright 실조작: 외관 건에만 '점검 월' 선택기 노출(자체점검 건 미노출), 기본값 0, 5월 선택 후 [저장] → X1-04가 month=5로 기록, 7월↔3월 전환 시 같은 항목이 그 달 값(× ↔ ○)으로 재초기화, UI 저장분이 문서 5월 열에 ○로 인쇄되고 missing이 5개월로 증가",
+            "⑦ EX-5 정합 — 어떤 달의 응답이 전부 N이면 그 달 행은 양호·불량 양쪽 미체크(9월 행 실측)",
+            "⑧ 회귀 — _probe-soban19-b.mts 41/41(후속 커밋으로 37→41 확장) · _probe-soban15-p2.mts 29/29 · tsc는 EX-4 파일 오류 0(잔여 1건은 타 세션 미커밋 fire-plan-readiness.ts·fire-plans/generate/actions.ts의 managerAppointType — 판정 범위 밖)"
+          ],
+          "gaps": [
+            "월 축을 넘기는 저장 경로가 편집기 [저장] 1곳뿐 — inspection-sheet-client.tsx:169만 `isExterior ? month : 0`을 넘기고, 나머지 6곳은 인자 없이 month=0으로 저장한다: 같은 파일 :96(편집기 인라인 X [등록] — R13-d), :72(빠른 결과 입력 [✕ 불량 저장]), plan-annex-sheet-tree.tsx:198·257·269(회차별 작성·조회 트리 — 월 선택기 자체가 없음), voice-sheet-actions.ts:145(음성 점검표), sheet-actions.ts:177-182([설치 설비 전체 양호] 일괄 insert)",
+            "재현(실주행, _judge-ex4-render.mjs ⑥-b): 시작월 5월인 외관 건에서 '점검 월=7월'을 고른 뒤 X1-06을 ✕로 찍고 인라인 메모 '7월 내용연수 초과' [등록] → DB에 month=0으로 저장되고, 문서에서는 7월 열이 아니라 **시작월인 5월 열에 ×**로 인쇄되며 비고도 '5월 X1-06 …'로 오귀속됨(assembleExterior report9-actions.ts:659 month=0 폴백의 정상 동작이지만 입력 의도와 어긋남)",
+            "영향이 큰 이유 — 편집기 [저장](rows에 memo 없음, inspection-sheet-client.tsx:166)은 메모를 보내지 않으므로 **EX-1 비고칸에 들어갈 X 메모는 사실상 :96·:72 경로로만 생성된다**. 즉 연간 누적본에서 메모는 항상 시작월로 몰린다",
+            "[설치 설비 전체 양호](sheet-actions.ts:173-182)는 월 인자가 없을 뿐 아니라 기존 응답 판정(`have`)을 **월 구분 없이** 하므로, 3월에 채운 항목은 7월에 다시 채워지지 않는다 — 연간 12개월 입력 워크플로에서 사실상 1개월치만 일괄 입력 가능",
+            "회차별 작성·조회 트리(plan-annex-sheet-tree.tsx)에는 '점검 월' 선택기가 없어 외관 회차를 그 화면에서 입력하면 전부 시작월로 기록된다 — 선택기가 점검 상세 화면 1곳에만 있다",
+            "(경미) 점검 상세의 진행률·xCount·빠른검색 current는 item_code 단위로 월을 접어버린다(sheet-overview.ts:100-105, inspections/[id]/page.tsx:116-118) — 3월에만 답한 항목이 7월에도 '응답함'으로 보인다",
+            "(경미) 편집기 [저장] 성공 후 local/base가 초기화되지 않아(inspection-sheet-client.tsx:171) 다음 월 전환 때 '저장하지 않은 입력이 있습니다' 확인창이 불필요하게 뜬다 — 실주행에서 재현"
+          ],
+          "to_promote": "위 gaps의 저장 경로 6곳에 월 축을 배선(또는 외관 건에서 월 미지정 저장을 서버에서 차단)하면 재판정 시 implemented 승격 가능. 렌더·조립·스키마는 재검증 불필요(본 판정에서 통과)"
+        },
+        "independent_recheck": {
+          "date": "2026-08-12",
+          "round": 2,
+          "judge": "독립 재판정 세션(구현자≠판정자) — 1차 반증(independent_check.gaps)의 수정분만 재검증. 워킹트리 미커밋 상태의 sheet-actions.ts·inspection-sheet-client.tsx 대상(HEAD 9cca6b1 + 미커밋 수정)",
+          "verdict": "partial 유지 — 구현자 주장 1~3은 코드·실주행 모두 확인(전건 통과), 트리 3곳 미수정도 도달 불가로 무효 판정. 그러나 **음성 점검표 경로 1곳은 여전히 갭**이며 사용자 모순을 실주행으로 재현했다(아래 D). 규칙 1에 따라 승격 보류",
+          "claims": [
+            "주장1 ✅ inspection-sheet-client.tsx:100(인라인 X registerInlineX)·:74(빠른 결과 saveQuickDefect) 둘 다 `isExterior ? month : 0` 전달 — :173(편집기 저장)과 동일 축",
+            "주장2 ✅ sheet-actions.ts:140 bulkAllGoodAction(inspectionId, month = 0) 시그니처 + :178-180 monthOf/have를 `{item_code}@{month}` 축으로 판정 + :184 payload month: monthOf(code) + :192 kept도 같은 축(filled(i.item_code))",
+            "주장3 ✅ inspection-sheet-client.tsx:62 bulkAllGoodAction(inspectionId, isExterior ? month : 0)",
+            "주장4 ✖(부분) — 트리는 맞고 음성은 틀림(아래 판정)"
+          ],
+          "probe": [
+            "_judge-ex4-ui.mjs 12/12 (1차 11/12 → 인라인 X month=7 저장 통과로 전건 그린)",
+            "_judge-ex4-render.mjs 58/58 — 1차의 ⑥-b '결함 재현' 단언 2건을 **올바른 기대로 뒤집어**(7월 열 ×·5월 열 비×·비고 '7월 X1-06 …') 재실행, 뒤집은 3건 모두 통과. X1-06 열 분포 실측 [ , ,blank, ,blank, ,×, ,blank, ,blank, ] — 7월 열에만 ×",
+            "_judge-ex4-schema.mjs — 125 스키마·백필 무변경 재확인(month smallint NOT NULL DEFAULT 0·CHECK 0~12·uq_sheet_responses_insp_item_month·X 26행 month=7·비-X 144행 month=0·중복 그룹 0)",
+            "_judge-ex4-recheck.mjs 24/24 (본 재판정 신규 — 전체 양호 월 축·네 경로 동일 월·비외관 무오염·음성 경로)"
+          ],
+          "runtime": [
+            "A) [설치 설비 전체 양호] 월 축 — 외관 건(시작 5-14)에서 3월 선택 후 클릭: '설비 시트 1개 · 13개 항목' 채움·month=3 13행. **7월로 바꿔 다시 클릭 → 13개 신규 채움·month=7 13행**(종전 결함이면 0건) · 3월분 13행 그대로 · month=0 오염 0행. 같은 달 재클릭은 '0개 채움 (기존 입력 13건 유지)'로 kept도 월 축 — 총 26행 불변",
+            "B) 네 경로 동일 월 — 9월 선택 후 ①전체 양호(13행 @9) ②편집기 [저장] X1-05 ✕ @9 ③인라인 X + 메모 '9월 인라인 메모' @9 ④빠른 결과 [✕ 불량 저장] X1-03 메모 @9 — 전부 month=9, month=0 오염 0행, 달별 3·7·9월 각 13행",
+            "C) 비외관 무오염 — 자체점검(special_작동) 건: 월 선택기 미노출, 전체 양호·편집기 저장·인라인 X 전 경로 결과가 **전부 month=0**, item_code 중복 행 0(유니크 분화 없음)",
+            "D) 음성 경로(주장 4 반증) — 같은 점검 상세 화면에 '점검 월' 선택기와 '음성 점검표 입력(V-1)' 카드가 **함께** 있다(inspections/[id]/page.tsx:469 InspectionSheetClient · :481 InspectionVoiceSheetClient, 외관 건에도 무조건 렌더·실측 확인). 선택기를 7월로 둔 상태에서 applyVoiceSheetAction 실호출 → 저장은 month=0, 문서에서는 7월 열이 아니라 **시작월 5월 열에 ×**, 비고도 '5월 X1-10 음성 입력분'으로 오귀속(X1-10 열 분포 실측: 3·7·9월 ○ · 5월 ×)",
+            "E) 회귀 — _probe-soban19-b.mts 41/41 · npx tsc --noEmit 오류 0건(타 세션 미커밋분 포함 전체 클린)",
+            "F) 정리 — 3개 프로브 모두 finally 전량 삭제, 시험 고객·계정·응답 잔존 0. 실데이터 무변경: 외관 응답 26행(month 분포 [7]) · 전체 응답 170행 · company_profile 2행 updated_at 불변"
+          ],
+          "tree_verdict": "주장 4 중 **트리는 인정** — 회차별 작성·조회 트리(plan-annex-sheet-tree.tsx:198·223·257·269)는 PlanAnnexRoundCard → getCustomerRoundsAction(docs-actions.ts:252·258)로만 열리고, 그 조회가 SELF_INSPECTION_OR('plan_type.is.null,plan_type.like.special_*', doc-status.ts:10)로 필터한다. 스테이징 실측: 전체 81건 중 monthly 59·event 8이 필터에서 전량 제외되고 special_작동 5·special_종합 8·null 1만 남는다 → **외관 회차는 트리에 아예 나타나지 않는다**. 트리 3곳의 month=0은 정상이며 사용자 모순 없음",
+          "voice_verdict": "주장 4 중 **음성은 기각** — '월 선택기가 없는 화면'이라는 전제가 사실과 다르다. 음성 카드는 월 선택기와 **같은 페이지**에 있고(외관 건에서도 노출), 외관 건의 시트 범위(sheet-scope.ts: plan_type monthly → v2022 EXT, 전 항목 X 접두)라 AI 제안·확정 저장 대상이 그대로 X% 항목이다. 사용자가 7월을 고른 채 음성으로 확정 저장하면 (a) 그 응답이 5월 열에 인쇄되고 (b) 선택한 달의 편집기에는 보이지 않으며(loadExteriorMonthResponsesAction이 month로 필터) (c) 달을 바꿔 음성 입력을 반복하면 UNIQUE(건,항목,0) 한 행을 계속 덮어써 **이전 달 음성 입력분이 소실**된다. 1차 판정이 지적한 것과 같은 종류의 월 오귀속이 재현되므로 갭으로 유지",
+          "to_promote": "잔여 1곳: voice-sheet-actions.ts:145 applyVoiceSheetAction → saveSheetResponsesAction 호출에 월 축 전달. 방법 셋 중 택1 — ① 점검 월 상태를 페이지로 올려 음성 카드에 prop 전달 ② 음성 카드를 InspectionSheetClient 안으로 옮겨 같은 month 사용 ③ 외관 건에서는 음성 카드를 숨김(연간 12개월 서식과 설계가 맞지 않음을 명시). 이후 재판정 시 D 절만 재확인하면 승격 가능 — A·B·C·렌더·조립·스키마는 본 재판정에서 통과했으므로 재검증 불필요"
+        },
+        "independent_recheck2": {
+          "date": "2026-08-12",
+          "round": 3,
+          "judge": "독립 판정 세션(구현자≠판정자) — 워킹트리 미커밋 상태 대상(HEAD 9cca6b1 + 미커밋 수정, 신규 파일 exterior-month.tsx 포함)",
+          "scope_note": "**음성(voice) 경로는 사용자 지시로 검증 범위에서 제외 — 실행·단언 없이 정적 확인만 했다.** 이번 판정의 대상은 구현자가 음성을 고치면서 단행한 리팩터(월 상태를 지역 useState → React context provider로 이관)가 2회차까지 통과한 경로들을 깨뜨리지 않았는지(무회귀)다",
+          "verdict": "implemented 승격 — A(리팩터 무회귀) 5절 전건 통과 · B(기존 판정 자산 재실행) 전 프로브 그린, 플레이크 0(전부 1회차 실행에서 통과). 음성 경로의 정확성은 **판정하지 않았다**",
+          "unverified_scope": [
+            "voice-sheet-actions.applyVoiceSheetAction month 전달",
+            "inspection-voice-sheet-client 월 표기"
+          ],
+          "runtime": [
+            "A-1 provider 신설 — exterior-month.tsx:16-30 신규. ExteriorMonthProvider가 useState(0)로 month를 들고 {month,setMonth,isExterior} 제공(:18-25), useExteriorMonth는 컨텍스트 부재 시 `?? { month: 0, setMonth: () => {}, isExterior: false }` 폴백(:29) — provider 밖 소비자는 월 축 없음(0)으로 종전과 동일 동작. 실사용 소비자는 2곳뿐이고(grep: inspection-sheet-client.tsx:11·115, inspection-voice-sheet-client.tsx:7·30) 둘 다 provider 내부에 마운트되므로 폴백 경로는 현재 도달하지 않는다(방어용)",
+            "A-2 마운트 — inspections/[id]/page.tsx:471 `<ExteriorMonthProvider isExterior={inspPlanType === 'monthly' || inspPlanType === 'event'}>`가 :473 InspectionSheetClient와 :485 InspectionVoiceSheetClient를 함께 감싼다(:486 닫힘). 두 카드의 유일한 마운트 지점이며(전 코드베이스 grep 결과 각각 1곳), 서버 컴포넌트가 children으로 넘기는 형태라 RSC 경계 위반 없음",
+            "A-3 월 출처 교체 무회귀 — inspection-sheet-client.tsx:115가 `const { month, setMonth } = useExteriorMonth()`로 종전 useState를 대체. **선택기 노출 조건(:194 `isExterior && canManage`, isExterior는 :114에서 planType으로 여전히 지역 판정)·기본값 0(:199 옵션)·달 전환 재초기화(:159-163 changeMonth → open(sel,next) → :150-151 loadExteriorMonthResponsesAction)·미저장 확인창(:160)** 모두 2회차와 동일. 실주행(_judge-ex4-ui.mjs): 선택기 노출 ✅ / 기본값 0 ✅ / 5월(무응답)→미선택 ✅ / 7월↔3월 전환 시 같은 항목이 그 달 값(× ↔ ○)으로 재초기화 ✅ / dirty 상태에서 달 변경 시 '저장하지 않은 입력이 있습니다…' 확인창 실제 발생(로그 [dialog]) ✅",
+            "A-4 네 경로 동일 월 재확인(_judge-ex4-recheck.mjs A·B절) — ① 편집기 [저장] X1-05 ✕ @9월 ② 인라인 X + 메모 '9월 인라인 메모' @9월 ③ 빠른 결과 [✕ 불량 저장] X1-03 @9월 ④ [설치 설비 전체 양호] 9월 13행. **3월에 채운 뒤 7월로 바꿔 재클릭 → 7월분 13행 신규 충전·3월분 13행 유지·month=0 오염 0행**, 같은 달 재클릭은 '0개 채움 (기존 입력 13건 유지)'로 kept도 월 축(총 26행 불변). 달별 3·7·9월 각 13행",
+            "A-5 비외관 무회귀 — 자체점검(special_작동) 건: 월 선택기 미노출(recheck C-0·ui 모두 확인), [전체 양호]·편집기 [저장]·인라인 X 전 경로 결과가 **전부 month=0**, item_code 중복 행 0(유니크 분화 없음). 렌더 프로브 ⑤절도 saveSheetResponsesAction을 month=7·11로 실호출해 비-X는 1행·month=0, X1-05만 2행으로 분기함을 재확인",
+            "B 판정 자산 재실행 — _judge-ex4-ui.mjs **12/12** · _judge-ex4-render.mjs **58/58** · _judge-ex4-recheck.mjs **17/17(범위 내)** · _judge-ex4-schema.mjs **7/7** · 회귀 _probe-soban19-b.mts **41/41** · npx tsc --noEmit **오류 0건**. 전부 첫 실행에서 통과 — 재컴파일 404·재시도 없음(플레이크 0)",
+            "B-note recheck의 D절(음성) 7건은 **범위 제외로 스킵**했다(24 → 17). 그 7건은 2회차의 '음성은 month=0으로 샌다' 반증을 고정한 단언이라 음성 수정 후 실행하면 판정이 아니라 오독이 된다 — 코드는 이력 보존용으로 남기고 EX4_VOICE=1 환경변수로만 실행되게 게이트했다(_judge-ex4-recheck.mjs:192-199·221)",
+            "C 정적 확인(음성 — 실행·단언 없음) — voice-sheet-actions.ts:144 `month = 0` 선택 인자를 **맨 뒤에** 추가해 기존 3인자 호출과 하위 호환, :149에서 saveSheetResponsesAction에 그대로 전달. inspection-voice-sheet-client.tsx:30은 `{ month, isExterior }`를 **읽기만** 하고 setMonth를 호출하지 않아 provider 계약(단일 원천) 위반 없음, :48·:51에서 사용. tsc 0건으로 타입 계약도 성립. 값의 정확성(실제로 고른 달에 저장되는지)은 판정하지 않았다",
+            "D 정리·무변경 — 5개 프로브 모두 finally 전량 삭제, 시험 고객·계정·프로필·응답 잔존 0(_judge-ex4-cleanup-check.mjs). 실데이터: 외관 응답 26행(month 분포 [7]) 불변 · company_profile 2행 updated_at 2026-08-11 불변. 응답 전체는 170 → **171행**이나 이는 판정 잔존이 아니다 — 추적 결과 +1행은 2026-08-12 14:35 KST에 실제 사용자 계정(dongwon.hwang)이 실고객 '한라비발디아파트' special_작동 건에 남긴 1-A-001 N(month=0)이며, 같은 시각 activity_logs에 inspection_started·timeline_upload·report_submitted가 동반된 정상 사용 흔적(본 세션 첫 프로브 시작은 16:58 KST로 그보다 늦다)"
+          ],
+          "residual": [
+            "음성 경로 미검증 — 위 unverified_scope. 검증하려면 EX4_VOICE=1로 recheck D절을 돌리되, 단언을 '7월 선택 시 month=7'로 뒤집어야 한다(현 코드 기준 기대값)",
+            "(경미·1회차부터 이월) 진행률·xCount·빠른검색 current가 item_code 단위로 월을 접는다(sheet-overview.ts:100-105) — 3월에만 답한 항목이 7월에도 '응답함'으로 보인다",
+            "(경미·1회차부터 이월) 편집기 [저장] 성공 후 local/base 미초기화로 다음 달 전환 때 확인창이 불필요하게 뜬다 — 3회차에도 동일 재현(동작 회귀는 아님)",
+            "운영 반영 시 마이그레이션 125 선행(스테이징만 적용됨)"
+          ]
         },
         "blocker_resolved": {
           "title": "⚠ (해소됨) 스키마상 월별 응답을 저장할 자리가 없었다",

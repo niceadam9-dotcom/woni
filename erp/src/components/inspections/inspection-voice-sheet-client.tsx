@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mic, Loader2, Sparkles, Check, AlertTriangle } from 'lucide-react'
 import { parseVoiceSheetAction, applyVoiceSheetAction, type VoiceSheetEntry } from '@/app/(dashboard)/inspections/voice-sheet-actions'
+import { useExteriorMonth } from '@/components/inspections/exterior-month'
 
 /** V-1 음성 점검표 입력 (§9-4) — Plaud 전사 붙여넣기 → AI 구조화 제안 → 점검자 확인·확정 → 점검표 반영.
  *  무검수 자동확정 금지: 제안 목록에서 항목별 확인 후 [확정 저장]해야 inspection_sheet_responses에 저장된다. */
@@ -25,6 +26,8 @@ export function InspectionVoiceSheetClient({ inspectionId, canManage }: {
   const [missing, setMissing] = useState<string[]>([])
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
+  // EX-4(125): 외관점검표는 월별 저장 — 점검표 카드에서 고른 달을 그대로 쓴다(같은 provider 공유)
+  const { month, isExterior } = useExteriorMonth()
 
   function parse() {
     setMsg('')
@@ -42,9 +45,10 @@ export function InspectionVoiceSheetClient({ inspectionId, canManage }: {
     const rows = entries.filter(e => checked.has(e.item_code))
       .map(e => ({ item_code: e.item_code, result: e.result, memo: e.memo || null }))
     startTransition(async () => {
-      const res = await applyVoiceSheetAction(inspectionId, rows, transcript)
+      const res = await applyVoiceSheetAction(inspectionId, rows, transcript, isExterior ? month : 0)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg(`✅ ${res.saved}건 저장됨${(res.defectsAdded ?? 0) > 0 ? ` · 불량 ${res.defectsAdded}건 자동 등록` : ''} — 점검표에 반영됐습니다`)
+      setMsg(`✅ ${res.saved}건 저장됨${(res.defectsAdded ?? 0) > 0 ? ` · 불량 ${res.defectsAdded}건 자동 등록` : ''}${
+        isExterior && month > 0 ? ` (${month}월분)` : ''} — 점검표에 반영됐습니다`)
       setEntries(null)
       setTranscript('')
       router.refresh()

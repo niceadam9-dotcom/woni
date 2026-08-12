@@ -8,6 +8,7 @@ import {
   bulkAllGoodAction, searchQuickItemsAction, loadExteriorMonthResponsesAction,
 } from '@/app/(dashboard)/inspections/sheet-actions'
 import { sheetScope, isItemInScope, scopeLabel } from '@/lib/sheet-scope'
+import { useExteriorMonth } from '@/components/inspections/exterior-month'
 import { SheetItemEditor, type SheetItem as Item, type SheetResult as Result } from '@/components/inspections/sheet-item-editor'
 import type { SheetProgress } from '@/lib/sheet-overview'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
@@ -58,7 +59,8 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     if (!window.confirm('설치된 설비의 모든 미입력 항목을 ○(정상)으로 채웁니다.\n이미 입력한 항목(○/✕/／)은 그대로 유지됩니다. 진행할까요?')) return
     setError(''); setNotice('')
     startTransition(async () => {
-      const res = await bulkAllGoodAction(inspectionId)
+      // EX-4: 외관은 고른 달에 채운다 — 월을 접어 판정하면 3월에 채운 항목이 7월엔 안 채워진다
+      const res = await bulkAllGoodAction(inspectionId, isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       setNotice(`✅ 설비 시트 ${res.sheetCount}개 · ${res.filled}개 항목을 ○로 채웠습니다${(res.kept ?? 0) > 0 ? ` (기존 입력 ${res.kept}건 유지)` : ''} — 불량은 아래 검색으로 태깅하세요.`)
       router.refresh()
@@ -69,7 +71,8 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     if (!picked) return
     setError(''); setNotice('')
     startTransition(async () => {
-      const res = await saveSheetResponsesAction(inspectionId, [{ item_code: picked.item_code, result: 'X', memo: quickMemo }])
+      // EX-4: 화면에서 고른 달로 저장 — 같은 화면의 [저장]과 축이 어긋나면 안 된다(독립 검증 지적)
+      const res = await saveSheetResponsesAction(inspectionId, [{ item_code: picked.item_code, result: 'X', memo: quickMemo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       const reg = await createDefectsFromXAction(inspectionId)
       setNotice(`✅ ${picked.item_code} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
@@ -93,7 +96,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   function registerInlineX(itemCode: string, memo: string) {
     setError(''); setNotice('')
     startTransition(async () => {
-      const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }])
+      // EX-4: 인라인 X도 화면에서 고른 달로 — EX-1 비고칸 메모는 사실상 이 경로로만 생기므로,
+      // 여기가 month=0이면 연간본에서 메모가 전부 시작월로 몰린다(독립 검증 실증)
+      const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       const reg = await createDefectsFromXAction(inspectionId)
       setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
@@ -105,8 +110,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const scope = sheetScope(planType, inspectionType)
   // EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 한 점검 건에 달을 나눠 기록한다.
   // 0 = 점검일 기준(기본·레거시 저장분), 1~12 = 그 달의 실적. 외관 건에서만 선택기를 띄운다.
+  // 월은 provider가 단일 원천 — 같은 페이지의 음성 입력 카드도 같은 달에 저장해야 한다(독립 검증 2회차).
   const isExterior = planType === 'monthly' || planType === 'event'
-  const [month, setMonth] = useState(0)
+  const { month, setMonth } = useExteriorMonth()
 
   // ── Realtime (S5) — 트리(회차별 작성·조회)와 같은 훅. 편집 중이면 배너, 아니면 RSC 갱신 ──
   const selRef = useRef<Sheet | null>(null)

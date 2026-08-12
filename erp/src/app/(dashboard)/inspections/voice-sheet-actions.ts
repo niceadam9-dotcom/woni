@@ -138,11 +138,15 @@ export async function applyVoiceSheetAction(
   inspectionId: string,
   rows: Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo?: string | null }>,
   transcript: string,
+  /** EX-4(125): 외관점검표는 월별로 저장된다 — 화면에서 고른 달을 그대로 넘긴다.
+   *  0이면 종전대로 '월 무관'(조립이 점검 시작월로 폴백). 이 인자가 없으면 달을 바꿔 저장할 때마다
+   *  month=0 한 행을 덮어써 이전 달 음성 입력분이 사라진다(독립 검증 2회차 실증). */
+  month = 0,
 ): Promise<{ error?: string; saved?: number; defectsAdded?: number }> {
   const profile = await requirePermission('inspection_register')
   if (rows.length === 0) return { error: '확정할 항목이 없습니다.' }
 
-  const res = await saveSheetResponsesAction(inspectionId, rows)
+  const res = await saveSheetResponsesAction(inspectionId, rows, month)
   if (res.error) return { error: res.error }
 
   const admin = createAdminClient()

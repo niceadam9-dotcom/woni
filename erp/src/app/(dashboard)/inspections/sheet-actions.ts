@@ -137,7 +137,7 @@ export async function saveSheetResponsesAction(
 
 /** §9-4 A안: 설치 설비 전체 양호 — 설치 시설(fire_facilities)과 매칭되는 시트의 '미입력' 항목만 ○로 일괄 채움.
  *  기존 응답(O/X/N)은 절대 덮어쓰지 않는다 — 불량 먼저 태깅 후 눌러도, 누른 뒤 태깅해도 안전. */
-export async function bulkAllGoodAction(inspectionId: string): Promise<{
+export async function bulkAllGoodAction(inspectionId: string, month = 0): Promise<{
   error?: string; filled?: number; sheetCount?: number; kept?: number
 }> {
   const profile = await requirePermission('inspection_register')
@@ -170,12 +170,18 @@ export async function bulkAllGoodAction(inspectionId: string): Promise<{
   if (itemErr) return { error: `항목 조회 실패: ${itemErr}` }
   const items = itemRaw.filter(i => isItemInScope(i, scope))
 
+  // EX-4(125): 외관 항목은 **그 달에 이미 입력했는지**로 판정해야 한다 — 월을 접어 보면
+  // 3월에 채운 항목이 7월엔 영영 안 채워진다(독립 검증 지적). 일반 점검표는 종전대로 month=0 한 축.
   const { data: resp } = await admin.from('inspection_sheet_responses')
-    .select('item_code').eq('inspection_id', inspectionId)
-  const have = new Set(((resp ?? []) as Array<{ item_code: string }>).map(r => r.item_code))
+    .select('item_code, month').eq('inspection_id', inspectionId)
+  const respRows = (resp ?? []) as Array<{ item_code: string; month: number }>
+  const monthOf = (code: string) => (code.startsWith('X') ? month : 0)
+  const have = new Set(respRows.map(r => `${r.item_code}@${r.month}`))
+  const filled = (code: string) => have.has(`${code}@${monthOf(code)}`)
   const seen = new Set<string>() // 시드 중복 방어 — 같은 코드 2행이면 1건만
-  const payload = items.filter(i => !have.has(i.item_code) && !seen.has(i.item_code) && (seen.add(i.item_code), true)).map(i => ({
+  const payload = items.filter(i => !filled(i.item_code) && !seen.has(i.item_code) && (seen.add(i.item_code), true)).map(i => ({
     inspection_id: inspectionId, item_code: i.item_code, result: 'O',
+    month: monthOf(i.item_code),
     updated_by: profile.id, updated_at: new Date().toISOString(),
   }))
   if (payload.length > 0) {
@@ -183,7 +189,81 @@ export async function bulkAllGoodAction(inspectionId: string): Promise<{
     if (error) return { error: `일괄 저장 실패: ${error.message}` }
   }
   revalidatePath(`/inspections/${inspectionId}`)
-  return { filled: payload.length, sheetCount: sheets.length, kept: items.filter(i => have.has(i.item_code)).length }
+  return { filled: payload.length, sheetCount: sheets.length, kept: items.filter(i => filled(i.item_code)).length }
+}
+
+/** 지난 회차 결과 불러오기 (소방계획서_20 S4-9).
+ *
+ *  ⚠ 이 기능은 실제 점검을 대체하지 않는다. 자체점검 결과를 확인 없이 베끼면 허위 기재가 된다.
+ *  그래서 설계상 안전장치를 서버에도 건다(S4-10):
+ *   ① 미입력 항목에만 채운다 — 이번 회차에 이미 입력한 값은 절대 덮어쓰지 않는다(bulkAllGood와 같은 규약).
+ *   ② X(불량)를 복사해도 불량내역 자동 등록은 하지 않는다 — 현장 확인 후 사용자가 직접 등록해야 한다.
+ *   ③ 실행을 activity_logs에 남긴다(무엇을 몇 건 복사했는지).
+ *   ④ 호출부는 확인 다이얼로그로 ①②를 고지하고, 복사 후 검토를 유도한다.
+ *
+ *  출처는 같은 고객의 직전 완료 회차 1건이다(연도·차수 desc). */
+export async function copyPreviousRoundResponsesAction(inspectionId: string): Promise<{
+  error?: string; filled?: number; skipped?: number; sourceLabel?: string; copiedX?: number
+}> {
+  const profile = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  const insp = await loadScope(admin, inspectionId)
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+
+  // 직전 완료 회차 — 같은 고객, 이 건보다 앞선 회차 중 가장 최근
+  const { data: cur } = await admin.from('inspections')
+    .select('year, sequence_num').eq('id', inspectionId).maybeSingle()
+  if (!cur) return { error: '점검 건을 찾을 수 없습니다.' }
+  const c = cur as { year: number; sequence_num: number }
+
+  const { data: prevRaw } = await admin.from('inspections')
+    .select('id, year, sequence_num')
+    .eq('customer_id', insp.customerId).eq('status', 'completed').neq('id', inspectionId)
+    .order('year', { ascending: false }).order('sequence_num', { ascending: false })
+    .limit(24)
+  const prev = ((prevRaw ?? []) as Array<{ id: string; year: number; sequence_num: number }>)
+    .find(p => p.year < c.year || (p.year === c.year && p.sequence_num < c.sequence_num))
+  if (!prev) return { error: '불러올 지난 완료 회차가 없습니다.' }
+
+  const [{ data: srcRaw }, { data: haveRaw }] = await Promise.all([
+    admin.from('inspection_sheet_responses')
+      .select('item_code, result, memo, month').eq('inspection_id', prev.id),
+    admin.from('inspection_sheet_responses')
+      .select('item_code').eq('inspection_id', inspectionId),
+  ])
+  const src = (srcRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null; month: number | null }>
+  if (src.length === 0) return { error: `${prev.year}년 ${prev.sequence_num}차에 저장된 점검표 응답이 없습니다.` }
+  const have = new Set(((haveRaw ?? []) as Array<{ item_code: string }>).map(r => r.item_code))
+
+  // ① 미입력 항목만 — 이번 회차 입력값 보존
+  const seen = new Set<string>()
+  const target = src.filter(r => !have.has(r.item_code) && !seen.has(r.item_code) && (seen.add(r.item_code), true))
+  const payload = target.map(r => ({
+    inspection_id: inspectionId, item_code: r.item_code, result: r.result,
+    month: r.month ?? 0, memo: r.memo,
+    updated_by: profile.id, updated_at: new Date().toISOString(),
+  }))
+  if (payload.length > 0) {
+    const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
+    if (error) return { error: `불러오기 실패: ${error.message}` }
+  }
+
+  // ③ 감사 — 되돌리기가 없는 대량 입력이라 무엇을 베꼈는지 남긴다. ② 불량내역 자동 등록은 하지 않는다.
+  const copiedX = target.filter(r => r.result === 'X').length
+  await admin.from('activity_logs').insert({
+    action: 'sheet_copy_previous', entity_type: 'inspection', entity_id: inspectionId, actor_id: profile.id,
+    metadata: {
+      source_inspection_id: prev.id, source_label: `${prev.year}년 ${prev.sequence_num}차`,
+      filled: payload.length, skipped: src.length - target.length, copied_x: copiedX,
+    },
+  } as Record<string, unknown>)
+
+  revalidatePath(`/inspections/${inspectionId}`)
+  return {
+    filled: payload.length, skipped: src.length - target.length, copiedX,
+    sourceLabel: `${prev.year}년 ${prev.sequence_num}차`,
+  }
 }
 
 /** §9-4 A안: 불량 빠른 태깅용 항목 검색 — 코드·명칭 부분 일치, 점검 유형에 맞는 버전 시트만 (최대 20건) */
