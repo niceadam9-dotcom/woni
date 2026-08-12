@@ -1,0 +1,216 @@
+{
+  "doc": "소방계획서_20 — 회차별 작성·조회 개편: 속도·정리·입력 편의",
+  "design": "erp_goal/소방계획서_20.md (2026-08-11 사용자 확정 Q-1~Q-6, 점검표 입력 재검토 포함)",
+  "created": "2026-08-11",
+  "updated": "2026-08-11 — 설계 확정·기안만 완료. S1 착수 직후 사용자 지시로 **구현 중단**. 워킹트리에 부분 편집 2건 존치(미배선), 나머지 전건 미착수",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류 — 후보로만 기록",
+    "confirmed": "설계 결정·조사 결과 확정"
+  },
+
+  "diagnosis": [
+    { "id": "P-1", "desc": "마운트 왕복 3+3N — getCustomerRoundsAction이 회차마다 buildInspectionDocs(storage.list + inspection_defects + sheet_responses count) 3쿼리 실행. 원격 왕복 ~240ms 전제에서 회차 8건이면 5초+", "evidence": ["reports/docs-actions.ts getCustomerRoundsAction", "reports/docs-actions.ts buildInspectionDocs"], "status": "confirmed" },
+    { "id": "P-2", "desc": "회차 펼침 시 별지 4종 미리보기 일괄 프리페치 — 12~20왕복", "evidence": ["plan-annex-section.tsx:108 prefetchPreviews"], "status": "confirmed" },
+    { "id": "P-3", "desc": "생성·업로드 후 reload()가 미리보기 캐시 전체 폐기 — 방금 만든 문서 재열람도 3~5초", "evidence": ["plan-annex-section.tsx:91 setPreviewCache({})"], "status": "confirmed" },
+    { "id": "P-4", "desc": "회차 카드 하나에 문서 행 6종·점검표 트리·호버 퀵뷰·모달 3종 혼재(~500줄). 완료 회차가 진행 중과 한 목록에 나열", "evidence": ["plan-annex-section.tsx 전체"], "status": "confirmed" },
+    { "id": "P-5", "desc": "점검표가 설비별 수동 저장 — 설비 10개면 저장 10클릭", "evidence": ["plan-annex-sheet-tree.tsx save()", "inspections/sheet-item-editor.tsx 저장 버튼"], "status": "confirmed" },
+    { "id": "P-6", "desc": "기능 비대칭 — [설치 설비 전체 양호 ○]·불량 검색 태깅이 점검 상세에만 있고 회차별 작성·조회 트리엔 없음. 대부분 양호·불량 소수인 현장 패턴에서 입력 시간이 항목 수 비례", "evidence": ["inspections/sheet-actions.ts:114 bulkAllGoodAction", "inspections/sheet-actions.ts:164 searchQuickItemsAction", "inspection-sheet-client.tsx 전체 양호 버튼"], "status": "confirmed" },
+    { "id": "P-7", "desc": "공용 입력기 O/X/N 버튼 28px — 현장 터치에 작음", "evidence": ["inspections/sheet-item-editor.tsx O/X/N 버튼 w-7 h-7"], "status": "confirmed" }
+  ],
+
+  "decisions": [
+    { "id": "Q-1", "question": "개선 범위", "decided": "속도+정리+입력 전부", "status": "confirmed", "by": "2026-08-11 사용자 선택" },
+    { "id": "Q-2", "question": "과거(완료) 회차 표시", "decided": "진행 중·예정만 카드, 완료는 '지난 회차 N건' 접힘 섹션(연도별) — 접힘 상태에선 요약만 로드", "status": "confirmed", "by": "2026-08-11 사용자 선택(권장안)" },
+    { "id": "Q-3", "question": "점검표 저장 방식", "decided": "자동 저장(디바운스 ~1초 + 저장 상태 표시)", "status": "confirmed", "by": "2026-08-11 사용자 선택(권장안)" },
+    { "id": "Q-4", "question": "완료 회차 요약 ✓의 근거", "decided": "fire_plan_gen_jobs(status=done) 생성 이력 프록시 — 18 세션 D-5가 파일 삭제 후에도 행 유지 보장. ✓ 어휘는 '생성 이력'로 명시하고 펼침 시 실데이터로 자기 교정", "rationale": "펼침 전 storage 실확인은 왕복이 회차 수만큼 늘어 S2 목적과 상충", "status": "confirmed" },
+    { "id": "Q-5", "question": "[이 설비 저장] 버튼", "decided": "트리에서 제거(자동 저장+칩이 대체), 점검 상세는 종전 유지", "status": "confirmed" },
+    { "id": "Q-6", "question": "점검표 입력 편의 추가(재검토)", "decided": "채택 3건 — ① 전체 양호→예외만 트리 이식 ② 터치 버튼 확대 ③ 이전 회차 결과 복사. 보류 — 미입력만 보기 필터", "status": "confirmed", "by": "2026-08-11 사용자 복수 선택" },
+    { "id": "Q-7", "question": "소방계획서_18 세션 미커밋 변경의 선행 커밋 여부", "recommend": "선행 커밋", "rationale": "대상 파일 5개가 겹쳐 병행 시 커밋에 타 세션 변경이 휩쓸린다", "status": "confirmed", "decided": "2026-08-12 사용자 '커밋 진행' — 선행 커밋 실행(18bfe66 21파일 + 86165aa 누락분 1파일). 커밋 전 20 S1 스텁 2건을 일시 제거해 18 커밋을 순수하게 유지하고 커밋 후 복원(tsc 통과). 제외: test-all.mts(소방계획서_16 S6-4와 한 hunk), .gitignore(실데이터 보호 규칙 삭제 변경 — 커밋 금지)" }
+  ],
+
+  "items": [
+    { "id": "S1", "title": "부분 갱신 — reload 전면 재조회 폐기", "status": "code_present", "commit_unit": "C1",
+      "criteria": [
+        { "id": "S1-1", "desc": "getRoundDocsAction(customerId, inspectionId) 신설 — buildInspectionDocs 1건 노출(왕복 ~4)", "status": "code_present",
+          "evidence": ["reports/docs-actions.ts:213 getRoundDocsAction"], "self_check": "_probe-annex-refresh-round 6/6 — 업로드 후 실호출로 회차 행 갱신 확인" },
+        { "id": "S1-2", "desc": "refreshRound(inspectionId) 헬퍼 — 해당 회차 docs만 패치 + 미리보기 캐시 그 회차 키만 무효화", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx refreshRound (import 포함)"], "self_check": "프로브에서 대상 회차만 ✓로 바뀌고 다른 회차 스토리지 무변화 확인" },
+        { "id": "S1-3", "desc": "generate()·upload()·AnnexComposePanel onGenerated의 reload()를 refreshRound로 교체(3곳)", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx generate() refreshRound(inspectionId)", "upload() refreshRound(inspectionId)", "onGenerated={() => refreshRound(compose.inspectionId)}"],
+          "self_check": "2026-08-12 배선 완료. upload 경로는 프로브로 실증, generate 경로는 로컬 Gotenberg 부재로 미실증(동일 함수 호출이라 코드 대조)" },
+        { "id": "S1-4", "desc": "runStart()의 reload()는 유지 — 회차 집합 자체가 바뀌므로 전면 재조회가 맞다", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx runStart() reload() 유지(무변경)"] },
+        { "id": "S1-5", "desc": "기존 E2E 무수정 통과(test-annex-interaction·test-annex-compose)", "status": "partial",
+          "self_check": "test-annex-interaction 35/35 그린(무수정). test-annex-compose는 6통과 후 실패하나 원인은 별지10호 '총 이행기간'이 daterange로 바뀐 뒤(163de41) 테스트 미갱신 — S1 이전부터의 드리프트이며 생성 이전 단계라 refreshRound 무관",
+          "note": "test-annex-compose 갱신은 별건 후속" }
+      ] },
+
+    { "id": "S2", "title": "마운트 왕복 상수화 + 지난 회차 접힘 섹션", "status": "code_present", "commit_unit": "C2",
+      "criteria": [
+        { "id": "S2-1", "desc": "getCustomerRoundsAction 재편 — 활성 회차(state≠completed)만 buildInspectionDocs 실행", "status": "code_present",
+          "evidence": ["docs-actions.ts activeRows/doneRows 분기 + Promise.all 1묶음"] },
+        { "id": "S2-2", "desc": "완료 회차는 docs:null + docsLite 신규 필드(문서 존재=gen_jobs 1쿼리, 불량 수=inspection_defects 전 회차 1쿼리 집계, cert=findArchivedCertInspections 기존 1쿼리)", "status": "code_present", "depends": ["Q-4"],
+          "evidence": ["docs-actions.ts RoundDocsLite 타입", "genBy/defBy 집계 후 rounds에 주입"],
+          "note": "archivedCerts는 병렬 조회 후 활성 회차 docs에 사후 주입(certArchived) — 18 D-7 표시 규약 유지" },
+        { "id": "S2-3", "desc": "왕복 3+3N → 6~7회 고정 — 프로브로 실측", "status": "code_present", "verify_by": "_probe-annex-latency.mjs",
+          "self_check": "동일 고객·8회차 A/B(전건 진행중 vs 1건 진행+7건 완료), [새로고침]으로 회차 로더만 격리 측정 — 중앙값 1933ms → 1447ms(25%)",
+          "note": "초기에는 페이지 전체 진입 시간으로 쟀는데 SSR 고정비(~2초)와 로컬 편차에 묻혀 2~22%로 요동했다(임계값 판정이 플레이크). 바뀐 것은 로더뿐이므로 측정 대상을 로더로 좁혀 재현성을 확보했다" },
+        { "id": "S2-4", "desc": "UI active/past 분리 — 활성은 기존 카드(최신 자동 펼침 유지), 완료는 '지난 회차 N건' 기본 접힘(연도별 그룹, 요약 행)", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx activeRounds/pastRounds/pastYears + renderPastSummary"],
+          "note": "자동 펼침 대상을 '첫 활성 회차'로 보정 — 완료 회차만 있는 고객이 접힘 안의 카드를 여는 일이 없게" },
+        { "id": "S2-5", "desc": "요약 행 클릭 → getRoundDocsAction lazy 상세 → 기존 카드 본문 렌더", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx openPastRound"], "self_check": "프로브 '섹션 펼쳐도 상세 미로드(1세트) → 행 클릭 시 2세트' 통과" },
+        { "id": "S2-6", "desc": "18 세션 기능(hasBundlePdf·[전체 인쇄]·cert 칩)은 조건 렌더 위치만 이동, 로직 이동 금지", "status": "code_present", "risk": "R-1",
+          "self_check": "test-archive-cleanup 40/40 무수정 통과" },
+        { "id": "S2-7", "desc": "경계 — planned인데 과거 연도(방치 회차)는 완료가 아니므로 활성 카드에 남긴다", "status": "code_present",
+          "evidence": ["activeRounds = state !== 'completed' (planned 포함)"], "note": "전용 E2E는 미추가 — 독립 검증 시 확인 필요" },
+        { "id": "S2-8", "desc": "test-annex-interaction 최소 수정(지난 회차 섹션 → 요약 행 클릭 → 상세 대기)", "status": "code_present",
+          "self_check": "36/36 통과(연도 그룹 단언 1건 추가). 수정은 3개 단언에 한정" }
+      ] },
+
+    { "id": "S3", "title": "프리페치 지연화 + 퀵뷰 폐지 + 파일 분할 + 카드 2블록", "status": "code_present", "commit_unit": "C3",
+      "criteria": [
+        { "id": "S3-1", "desc": "마운트·펼침 시 일괄 프리페치 제거 → [보기]/[전체 미리보기] 클릭 시 로드(캐시 유지로 재오픈 0초)", "status": "code_present",
+          "evidence": ["plan-annex-round-card.tsx 헤더 onClick={onToggle} (prefetch 호출 제거)", "plan-annex-section.tsx onFullPreview/openSingle에서만 prefetchPreviews"] },
+        { "id": "S3-2", "desc": "보완 — 최신 활성 회차 1건만 idle(2~3초 후·document.hidden 아님) 프리페치", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx reload(first) setTimeout 2500ms"],
+          "note": "설계의 'report4·report9 2종만'은 미채택 — 캐시 슬롯을 부분만 채우면 모달의 allLoaded·칩 목록이 깨진다. 회차 단위 전체 프리페치를 유지하되 시점만 유휴로 미뤘다" },
+        { "id": "S3-3", "desc": "호버 퀵뷰(D-7) 폐지 — hoverDoc state·팝업·delegation 제거. data-hover-doc 속성은 존치", "status": "code_present",
+          "evidence": ["plan-annex-section.tsx hoverDoc 관련 코드 전부 제거(폐지 사유 주석)", "customer-docs.tsx data-hover-doc 무변경"] },
+        { "id": "S3-4", "desc": "파일 분할 3건 — plan-annex-round-card.tsx · plan-annex-full-preview.tsx · plan-annex-start-modal.tsx", "status": "code_present",
+          "self_check": "plan-annex-section.tsx 500줄+ → 362줄(오케스트레이션·지난 회차 섹션), round-card 160 · full-preview 152 · start-modal 40. 설계의 ~200줄 목표에는 미달 — S2의 지난 회차 섹션이 추가돼서" },
+        { "id": "S3-5", "desc": "카드 본문을 '① 점검표' / '② 별지 생성·확인' 2블록으로 시각 재편", "status": "code_present",
+          "evidence": ["plan-annex-round-card.tsx blockTitleCls 2개 제목"], "self_check": "E2E '카드 2블록' 단언 추가·통과" },
+        { "id": "S3-6", "desc": "블록 제목에 '점검표 입력' 문자열 사용 금지", "status": "code_present", "risk": "R-3",
+          "evidence": ["'① 점검표'·'② 별지 생성·확인' — PlanAnnexSheetHeader가 '점검표 입력'의 유일 출처"],
+          "self_check": "E2E 개수 판정(1세트/2세트) 그대로 통과" },
+        { "id": "S3-7", "desc": "문자열·#fp-* DOM 앵커 그대로 이동 — 미리보기 E2E 무수정 통과", "status": "code_present",
+          "self_check": "전체 미리보기·단일 모드·행 [보기] 단언 8건 무수정 통과" }
+      ] },
+
+    { "id": "S4", "title": "점검표 입력 편의 — 자동 저장 + 전체 양호 + 터치 + 회차 복사", "status": "code_present", "commit_unit": "C4",
+      "criteria": [
+        { "id": "S4-1", "desc": "use-debounced-autosave 훅 신설 — {status, flush, pause/resume}, 입력 멈춤 ~1초 후 save(), 실행 중 변경은 대기열", "status": "code_present", "depends": ["Q-3"],
+          "evidence": ["hooks/use-debounced-autosave.ts"],
+          "note": "save는 payload를 큐에 담지 않고 호출 시점 최신 상태를 읽는 콜백 — 대기 중 값이 더 바뀌어도 마지막 상태 하나만 저장하면 되기 때문. 재귀 대신 do-while로 큐 소진(React Compiler 린트 대응)" },
+        { "id": "S4-2", "desc": "변경분(delta)만 upsert — 현행은 응답 전체 전송. 페이로드·Realtime 에코 감소", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx autosave 콜백 draft≠baseline 필터"], "self_check": "프로브 '3연타 → updated_at 1종' 통과(1회 배치)" },
+        { "id": "S4-3", "desc": "저장 성공 시 baseline 병합 + 요약 로컬 패치 — 재조회는 시트 닫기·Realtime 시로 한정", "status": "code_present", "risk": "R-5",
+          "evidence": ["patchOverviewLocal useCallback", "closeSheet에서 flush 후 load()로 수렴"] },
+        { "id": "S4-4", "desc": "저장 상태 칩 — '저장 중… / ✓ 저장됨 / ⏸ 저장 보류 / ⚠ 저장 실패 — [다시 시도]'", "status": "code_present",
+          "evidence": ["plan-annex-sheet-tree.tsx 머리줄 autosave.status 분기"], "self_check": "프로브·E2E에서 '✓ 저장됨' 대기 통과" },
+        { "id": "S4-5", "desc": "Realtime 상호작용 — stale 시 자동 저장 pause, 배너에 [내 입력 저장] + [최신 불러오기] 2택, 해소 후 resume", "status": "code_present", "risk": "R-4",
+          "evidence": ["useEffect(stale) → pause/resume", "배너 버튼 2종"],
+          "self_check": "E2E 'dirty 중엔 배너로 대기' 통과. ✕는 자동 저장 대상에서 제외해 dirty 창을 남긴다(아래 note)" },
+        { "id": "S4-6", "desc": "[이 설비 저장] 트리에서 제거 — SheetItemEditor에 hideSave prop, 점검 상세는 종전 유지", "status": "code_present", "depends": ["Q-5"],
+          "evidence": ["sheet-item-editor.tsx hideSave·cancelLabel prop", "트리는 hideSave cancelLabel='닫기'"] },
+        { "id": "S4-7", "desc": "전체 양호→예외만 트리 이식 — [설치 설비 전체 양호 ○] + 불량 검색 태깅. 기존 액션 재사용(호출부만 추가)", "status": "code_present", "depends": ["Q-6"],
+          "evidence": ["plan-annex-sheet-tree.tsx bulkGood·saveQuickDefect + 빠른 입력 패널"], "self_check": "프로브 '전체 양호 — 항목 증가·기존 유지' 통과" },
+        { "id": "S4-8", "desc": "터치 버튼 확대 — O/X/N 28px → 40px, 행 간격·메모 필드 폭 보정. 공용 컴포넌트라 점검 상세도 함께 개선", "status": "code_present", "depends": ["Q-6"],
+          "evidence": ["sheet-item-editor.tsx w-10 h-10 + flex-wrap 메모 행"], "self_check": "프로브 boundingBox 40px 확인" },
+        { "id": "S4-9", "desc": "이전 회차 결과 복사 — copyPreviousRoundResponsesAction, 직전 완료 회차 응답을 미입력 항목에만 복사", "status": "code_present", "depends": ["Q-6"], "risk": "R-6",
+          "evidence": ["sheet-actions.ts copyPreviousRoundResponsesAction", "트리 [지난 회차 결과 불러오기]"],
+          "self_check": "프로브 '기존 입력 보존(X로 덮어쓰지 않음)' 통과" },
+        { "id": "S4-10", "desc": "복사 안전장치 4종", "status": "partial", "risk": "R-6",
+          "self_check": "① 확인 다이얼로그에 '실제 점검을 대체할 수 없습니다' 고지 ✅ ③ X 복사해도 불량내역 자동 등록 안 함 ✅(프로브 검증) ④ activity_logs 'sheet_copy_previous' 기록 ✅(프로브 검증)",
+          "note": "②(복사 직후 시트 자동 펼침으로 검토 유도) 미구현 — 현재는 안내 문구로만 검토를 유도한다. 잔여" },
+        { "id": "S4-11", "desc": "test-annex-sheet-inline 수정 — 저장 버튼 단언 → 자동 저장 칩, 비담당은 결과 버튼 미노출로", "status": "code_present", "risk": "R-3",
+          "self_check": "25/1 — 유일 실패는 소방계획서_16 S5 미완(Realtime 알림 벨)으로 본 변경과 무관" }
+      ] },
+
+    { "id": "S5", "title": "검증 — 프로브 신설 + 회귀 E2E + 설계 문서 갱신", "status": "partial",
+      "criteria": [
+        { "id": "S5-1", "desc": "_probe-annex-latency.mjs 신설 — A/B 지연 측정", "status": "code_present",
+          "self_check": "6/6. 로더 격리 측정으로 1933→1447ms(25%) 재현",
+          "note": "설계의 '마운트 프리페치 호출 0건 단언'은 미포함 — 클라이언트에서 서버 액션 호출을 구분해 세기 어려워 코드 대조(S3-1 evidence)로 대체" },
+        { "id": "S5-2", "desc": "_probe-annex-autosave.mjs 신설 — 배치 저장·칩·복사 안전장치", "status": "partial",
+          "self_check": "12/12 — 3연타 1배치(updated_at 1종)·복사 안전장치 3종·전체 양호·터치 40px",
+          "note": "설계의 '2계정 동시 입력'은 미커버 — Realtime 경합(R-4)은 E2E dirty 배너 경로만 확인. 독립 검증 대상" },
+        { "id": "S5-3", "desc": "기존 E2E 회귀", "status": "partial",
+          "self_check": "test-annex-interaction 36/36 · test-plan-tab 88/88 · test-sheet-scope-axis 6/6 (모두 안정). test-annex-compose는 163de41 이후 기존 드리프트로 실패(본 변경 무관)",
+          "note": "**test-annex-sheet-inline은 25/1(그린)과 18/2 사이를 오간다(6회 중 4회 그린)** — 흔들리는 지점은 9-b 'Realtime dirty 배너' 한 곳. 이 단계는 ✕ 클릭(UI)과 service-role INSERT(원격)를 경주시키는 구조다. 조사 중 실제 결함 3건을 찾아 고쳤고(F-1~F-3, fixes 참조) 그린 비율이 올랐으나 완전 해소는 못 했다. 대상 기능(S5-5 배너)은 소방계획서_16 S5 소유이고 그 인프라(마이그레이션 122·훅)가 아직 미커밋이라, 잔여 원인 규명은 독립 검증/16 세션으로 넘긴다" },
+        { "id": "S5-4", "desc": "test-archive-cleanup(소방계획서_18 게이트) 무수정 통과 — 대상 파일이 겹치므로 회귀 감시선", "status": "code_present", "risk": "R-1",
+          "self_check": "40/40 — S2·S3·S4 각 단계 후 재확인" },
+        { "id": "S5-5", "desc": "npm run build 통과", "status": "code_present",
+          "self_check": "2026-08-12 exit 0 — dev 중지 후 실행(같은 .next를 공유하면 충돌)" },
+        { "id": "S5-6", "desc": "설계 MD를 실제 구현에 맞게 갱신 — 구현 시 변경·측정 방법 교정·잔여 명시", "status": "code_present",
+          "evidence": ["소방계획서_20.md §3 Q-7 확정 · §4 구현 시 변경 3건 · §5 검증 실행 결과 · §6 R-1 해소 · §7 진행 현황"] },
+        { "id": "S5-7", "desc": "독립 검증(Json_Rule 규칙 3) — 구현자≠판정자, implemented 승격", "status": "pending_order",
+          "note": "현재 전 criteria가 code_present(구현자 자기 신고) — 승격 전 필수" }
+      ] }
+  ],
+
+  "fixes_found_during_s5": [
+    { "id": "F-1", "severity": "중", "found": "dirtyRef를 렌더 중에 쓰던 기존 코드(16 S5)가 React Compiler 메모이제이션과 얽혀 dirty 판정이 낡음 — 원격 변경 배너가 아예 뜨지 않았다", "fix": "effect 동기화로 교체", "test": "E2E 'dirty 중엔 배너로 대기' 복구" },
+    { "id": "F-2", "severity": "중", "found": "진행 중이던 remoteRefresh가 완료되며 그 뒤에 새로 올라온 stale 플래그를 지워, 배너가 저절로 닫히고 [최신 불러오기]가 사라짐", "fix": "staleTokenRef 세대 토큰 — 토큰이 바뀌었으면 setStale(false) 생략", "test": "코드(경합 재현은 확률적)" },
+    { "id": "F-3", "severity": "중", "found": "closeSheet가 flush 완료 뒤에 화면을 닫아, 그 사이 사용자가 다시 연 시트를 뒤늦게 닫아버림", "fix": "flush를 먼저 시작해 살아 있는 refs로 delta를 읽게 하고 화면은 즉시 닫음", "test": "코드" },
+    { "id": "F-4", "severity": "하", "found": "dirty를 effect로만 갱신하면 커밋 전에 도착한 원격 이벤트가 '편집 중 아님'으로 오판", "fix": "onResult 이벤트 핸들러에서 dirtyRef를 즉시 표시(렌더 중 쓰기와 달리 안전)", "test": "E2E 그린 비율 상승" }
+  ],
+
+  "risks": [
+    { "id": "R-1", "severity": "해소", "desc": "소방계획서_18 세션 미커밋 변경 휩쓸림 — **2026-08-12 선행 커밋으로 해소(Q-7)**. 18bfe66·86165aa로 21+1파일 커밋, 잔여는 test-all.mts 1건(16 S6-4와 한 hunk라 제외)뿐. 단 18 세션은 4차 검증 중이라 후속 수정이 더 나올 수 있고 plan-archive-cleanup.tsx는 다시 dirty — S2·S3 착수 시 재확인 필요" },
+    { "id": "R-1b", "severity": "중", "desc": "다른 동시 세션(15·16·19·주소중복·성능)도 같은 파일군을 계속 편집한다 — format-contact.ts가 f338a68(15 커밋)에 휩쓸려 들어간 전례가 있다. 커밋은 항상 명시 파일 지정, `add -A` 금지" },
+    { "id": "R-1c", "severity": "높음", "desc": "워킹트리 .gitignore가 실데이터 보호 규칙(erp/*.xls·*.hwp, erp_goal/*.png, _Data/, _doc01/)을 삭제하는 변경으로 바뀌어 있어, 그 파일들이 전부 untracked로 노출된 상태다. 커밋 금지 — `add -A`를 쓰면 고객 연락처·계좌번호 문서가 저장소에 올라간다" },
+    { "id": "R-2", "severity": "중", "desc": "완료 회차 ✓ = 생성 이력(파일 존재 아님) — 18 세션 정리로 파일이 지워진 회차도 ✓로 보인다. 어휘 명시 + 펼침 시 자기 교정. 반대로 워커 외 경로 레거시 파일은 ·로 보일 수 있음(허용)" },
+    { "id": "R-3", "severity": "중", "desc": "E2E 문자열 결합 — '점검표 입력' 개수 판정(test-annex-interaction)·'이 설비 저장'(test-annex-sheet-inline)이 UI 개편과 정면 충돌. 커밋마다 E2E 수정 동봉, 미커밋 diff 위 최소 패치" },
+    { "id": "R-4", "severity": "중", "desc": "자동 저장 × Realtime 경합 — 디바운스 중 원격 변경 수신 시 순서 역전 가능. stale 시 pause + updated_by 에코 억제로 방어, 2계정 동시 입력 프로브로 검증" },
+    { "id": "R-5", "severity": "하", "desc": "요약 로컬 패치 드리프트 — 시트 간 중복 코드 dedup 합계는 클라이언트 근사치. 시트 닫기·Realtime 시 재조회로 수렴하는지 프로브 확인" },
+    { "id": "R-6", "severity": "중", "desc": "이전 회차 복사(S4-9)의 법적·품질 리스크 — 실점검 없이 복사만 하는 관행을 조장할 수 있다(자체점검 결과 허위 기재는 법령 위반 소지). 안전장치 4종(S4-10)을 구현 조건으로 하며, 운영 후 남용 징후(복사 직후 무수정 생성) 모니터링을 후속 검토 대상으로 남긴다" }
+  ],
+
+  "deferred": [
+    { "id": "D-1", "desc": "미입력만 보기 필터 — 시트 안에서 미입력 항목만 표시하는 토글. Q-6에서 사용자 미선택, 후보로만 기록", "status": "deferred" }
+  ],
+
+  "progress": {
+    "date": "2026-08-12",
+    "state": "S1~S5 구현·검증·문서 완료. **S1~S3 커밋(466baed) · S4는 커밋 보류** — 잔여: S4 커밋(16 S5 선행)·독립 검증·S4-10②",
+    "history": [
+      "2026-08-11 기안(md+json) 작성 후 사용자 지시로 구현 중단",
+      "2026-08-12 Q-7(18 선행 커밋) 해소 후 S1 재개·완료",
+      "2026-08-12 S2 완료 — 로더 재편 + 지난 회차 접힘 + 지연 로드",
+      "2026-08-12 S3 완료 — 프리페치 지연화·퀵뷰 폐지·3파일 분할·카드 2블록",
+      "2026-08-12 S4 완료 — 자동 저장·빠른 입력 이식·터치 확대·지난 회차 복사",
+      "2026-08-12 S5 완료 — 프로브 3종·회귀 E2E·빌드 통과·설계 MD 실구현 반영",
+      "2026-08-12 S1~S3 커밋 466baed (8파일). S4는 의존성 때문에 보류(s4_commit_blocked)"
+    ],
+    "committed": {
+      "466baed": "S1~S3 — docs-actions.ts · plan-annex-section.tsx · round-card/full-preview/start-modal 신설 · test-annex-interaction.mts · 프로브 2종 (8파일)",
+      "note": "설계의 C1/C2/C3 3분할은 미달성 — S1·S2가 docs-actions.ts 한 파일에, S1~S3가 plan-annex-section.tsx 한 파일에 모여 파일 단위로 가를 수 없었다. hunk 분할은 앞 단계에서 편집 사고를 낸 방식이라 택하지 않고, 한 커밋으로 묶되 메시지를 단계별로 구성했다"
+    },
+    "uncommitted_edits": [
+      { "file": "erp/src/hooks/use-debounced-autosave.ts", "change": "S4 신설 — 디바운스 자동 저장 훅", "wired": true },
+      { "file": "erp/src/components/customers/plan-annex-sheet-tree.tsx", "change": "S4 자동 저장·상태 칩·Realtime pause·빠른 입력 패널·지난 회차 복사 + dirtyRef 렌더중 쓰기 제거", "wired": true },
+      { "file": "erp/src/components/inspections/sheet-item-editor.tsx", "change": "S4 hideSave·cancelLabel prop + 터치 버튼 40px", "wired": true },
+      { "file": "erp/src/app/(dashboard)/inspections/sheet-actions.ts", "change": "S4 copyPreviousRoundResponsesAction 신설(안전장치 3종 서버측)", "wired": true },
+      { "file": "erp/scripts/test-annex-sheet-inline.mts", "change": "S4 반영 — 저장 버튼 단언 → 자동 저장 칩·닫기, 항목 로드 대기 조건 교정", "wired": true },
+      { "file": "erp/scripts/_probe-annex-autosave.mjs", "change": "S4 프로브 신설(12/12)", "wired": true }
+    ],
+    "s4_commit_blocked": {
+      "decided": "2026-08-12 사용자 '보류 — 16 S5 먼저'",
+      "reason": "plan-annex-sheet-tree.tsx가 소방계획서_16 S5의 **미추적** 파일 `@/hooks/use-sheet-responses-realtime`를 import한다. 그 훅 없이 커밋하면 체크아웃 시 빌드가 깨지고, 함께 커밋하려면 16 S5의 미완 기능(자체 알림 벨 E2E 실패)과 마이그레이션 122(미커밋·운영 미적용)까지 끌고 들어가야 한다",
+      "also_mixed": [
+        "sheet-actions.ts — 소방계획서_19 EX-4(외관 month 축) 미커밋 변경 동거",
+        "test-annex-sheet-inline.mts — 16 S5 Realtime 테스트 추가분 동거"
+      ],
+      "unblock_condition": "소방계획서_16 S5 세션이 use-sheet-responses-realtime.ts·마이그레이션 122를 커밋한 뒤 S4 커밋"
+    },
+    "verification": {
+      "tsc": "0 errors · eslint 변경 파일 전부 클린(타 세션의 렌더중 ref 쓰기 2건도 이번에 해소)",
+      "e2e": "test-annex-interaction 36/36 · test-plan-tab 88/88 · test-archive-cleanup 40/40(18 게이트, 무수정) · test-sheet-scope-axis 6/6 · test-annex-sheet-inline 25/1(잔여 1건은 타 세션)",
+      "probe": "_probe-annex-refresh-round 6/6 · _probe-annex-latency 6/6(로더 1933→1447ms, 25%) · _probe-annex-autosave 12/12",
+      "unrelated_failures": [
+        "test-annex-sheet-inline 25/1 — 'Realtime 알림 벨 실시간 수신(S5-8)' 1건. 소방계획서_16 S5 미완(122 마이그레이션·use-sheet-responses-realtime.ts 미커밋)으로 인한 타 세션 잔여",
+        "test-annex-compose — 별지10호 총 이행기간 daterange 전환(163de41) 이후 테스트 미갱신 드리프트"
+      ],
+      "known_env_issue": ".next 캐시 손상으로 고객 상세가 전 고객 404가 되는 현상 재발 — dev 종료 후 .next 삭제·재기동으로 해소(코드 회귀 아님)"
+    },
+    "resume_from": "S4 커밋(16 S5 선행 후) → 독립 검증(S5-7) → S4-10②"
+  }
+}
