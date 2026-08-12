@@ -26,6 +26,12 @@ const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0
 
 function roundKey(r: CustomerRound) { return `${r.year}-${r.sequenceNum}` }
 
+/** 회차 묶음 인쇄(소방계획서_18 S1) 가능 여부 — 병합 대상은 PDF뿐이라 HWP·HTML만 있으면 열지 않는다.
+ *  bundle 라우트의 TYPE_ORDER와 같은 축. */
+function hasBundlePdf(d: NonNullable<CustomerRound['docs']>): boolean {
+  return [d.report9, d.report4, d.report10, d.report11, d.exterior].some(g => !!g?.pdf)
+}
+
 function statePill(r: CustomerRound): { label: string; cls: string } {
   if (r.state === 'planned') {
     const d = r.plannedDate ? Math.round((new Date(r.plannedDate).getTime() - new Date(todayStr()).getTime()) / 86400000) : null
@@ -227,6 +233,17 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
                   🔍 전체 미리보기
                 </span>
               )}
+              {/* S1-4: 병합할 PDF가 하나도 없으면 열지 않는다 — 열어봐야 라우트 404다 */}
+              {r.docs && isOpen && hasBundlePdf(r.docs) && (
+                <span
+                  role="button" tabIndex={0}
+                  title="이 회차의 생성된 별지 PDF를 한 번에 인쇄 — 종이 보관용 (소방계획서_18 S1)"
+                  onClick={e => { e.stopPropagation(); window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') } }}
+                  className="text-[11px] text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] shrink-0 cursor-pointer">
+                  🖨 전체 인쇄
+                </span>
+              )}
               <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
               {r.docs && (
                 <span className="text-[10px] text-[#b0acd6] shrink-0">
@@ -349,7 +366,8 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
         const allLoaded = docsForPreview.length > 0 && docsForPreview.every(d => d.html || d.error)
         const totalMissing = docsForPreview.reduce((n, d) => n + d.missing.length, 0)
         const curRound = rounds.find(r => r.docs?.inspectionId === fullPreview.inspectionId)
-        const certMissing = curRound?.docs ? !curRound.docs.cert : false
+        // 종이 보관 후 정리된 회차는 누락이 아니다 (소방계획서_18 D-7 ⚠)
+        const certMissing = curRound?.docs ? !curRound.docs.cert && !curRound.docs.certArchived : false
         // 단일 문서 모드 — 선택 문서가 이 회차에 없으면(불량 0건 회차의 ⑩⑪) 전체 모드로 되돌린다
         const only = fullPreview.only ? docsForPreview.find(d => d.type === fullPreview.only) : undefined
         return (
@@ -384,6 +402,15 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
                     const cert = curRound?.docs?.cert
                     const certKey = `${fullPreview.inspectionId}:cert-chip`
                     const chipCls = 'px-2 py-0.5 rounded-full border transition-colors'
+                    // 종이 보관 후 정리된 회차 — 업로드를 재촉하면 안 된다 (소방계획서_18 D-7 ⚠)
+                    if (!cert && curRound?.docs?.certArchived) {
+                      return (
+                        <span title="과거본 정리로 ERP 사본이 삭제되었습니다 — 원본은 종이로 보관 중"
+                          className={`${chipCls} border-[#e0ddf5] bg-[#fafaff] text-[#847ba8]`}>
+                          배치확인서 · 종이 보관
+                        </span>
+                      )
+                    }
                     if (cert) {
                       return (
                         <button onClick={() => open(cert.path, `${data.customerName}_점검인력 배치확인서_${(cert.at ?? '').slice(0, 10)}.${cert.path.split('.').pop()}`)}
