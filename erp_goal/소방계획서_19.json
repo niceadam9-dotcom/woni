@@ -201,33 +201,47 @@
     "note": "status: code_present = 본 세션이 즉시 수정(B-8c P1 앞당김) · pending_order = 후속 대상 · confirmed = 의도된 설계로 판정",
     "items": [
       { "id": "E10-1", "target": "별지10호", "class": "버그", "severity": "minor", "status": "code_present", "desc": "표 행 이행기간이 ISO 원문, 총 이행기간·보고일은 한국어 — 같은 문서 안 날짜 형식 혼재", "evidence": ["report9-actions.ts assembleAnnex1011 rows.period"], "fix": "행 기간도 kdate 통일(한쪽만 입력 시 그쪽만 한국어 표기)" },
-      { "id": "E10-2", "target": "별지10호", "class": "버그", "severity": "minor", "status": "pending_order", "desc": "관계인·소방안전관리자 전화 formatTel 미적용(회사 전화는 적용) — 스테이징 무하이픈 5/278건 그대로 인쇄", "evidence": ["report9-actions.ts ownerPhone·mgrPhone"] },
-      { "id": "E10-3", "target": "별지10호", "class": "유실", "severity": "minor", "status": "pending_order", "desc": "총 이행기간 미산출(시작·종료 불완전) 시 공란인데 missing 미표기", "evidence": ["report9-actions.ts totalPeriod 산출 조건"] },
-      { "id": "E10-4", "target": "별지10호", "class": "유실", "severity": "minor", "status": "pending_order", "desc": "action_end만 입력된 불량은 필터(action_plan||action_start) 탈락 — 표·총기간 제외", "evidence": ["report9-actions.ts planned 필터"] },
+      { "id": "E10-2", "target": "별지10호", "class": "버그", "severity": "minor", "status": "code_present", "desc": "관계인·소방안전관리자 전화 formatTel 미적용(회사 전화는 적용) — 스테이징 무하이픈 5/278건 그대로 인쇄", "evidence": ["report9-actions.ts ownerPhone·mgrPhone"], "fix": "assembleAnnex1011·assembleExterior에 formatTel 적용(2026-08-12)" },
+      { "id": "E10-3", "target": "별지10호", "class": "유실", "severity": "minor", "status": "code_present", "desc": "총 이행기간 미산출(시작·종료 불완전) 시 공란인데 missing 미표기", "evidence": ["report9-actions.ts totalPeriod 산출 조건"], "fix": "계획 건은 있는데 totalPeriod가 비면 missing 문구 추가(2026-08-12)" },
+      { "id": "E10-4", "target": "별지10호", "class": "유실", "severity": "minor", "status": "code_present", "desc": "action_end만 입력된 불량은 필터(action_plan||action_start) 탈락 — 표·총기간 제외", "evidence": ["report9-actions.ts planned 필터"], "fix": "필터에 action_end 추가(2026-08-12)" },
       { "id": "E10-5", "target": "별지10호", "class": "설계", "severity": "policy", "status": "pending_order", "desc": "③ summary가 표 첫 행에 계획 행과 구분 없이 삽입 — 계획 항목처럼 읽힐 소지(의도 주석 있음)", "evidence": ["report9-actions.ts summary 삽입"] },
-      { "id": "E10-6", "target": "별지10호", "class": "설계", "severity": "minor", "status": "pending_order", "desc": "fire_station·관계인 부재가 missing 미표기(10·11호 missing은 rows 건수 1종뿐)", "evidence": ["report9-actions.ts missing"] },
+      { "id": "E10-6", "target": "별지10호", "class": "설계", "severity": "minor", "status": "code_present", "desc": "fire_station·관계인 부재가 missing 미표기(10·11호 missing은 rows 건수 1종뿐)", "evidence": ["report9-actions.ts missing"], "fix": "10·11호 공통으로 제출처·관계인 미등록 missing 추가(2026-08-12)" },
       { "id": "E10-7", "target": "별지10호", "class": "설계", "severity": "policy", "status": "pending_order", "desc": "별지10호.MD §3 '4건 초과 표기 우선순위' 미구현 — 행 한도 폐지로 사유 소멸, MD 갱신만 필요", "evidence": ["별지10호.MD:47"] },
       { "id": "E10-8", "target": "별지10호", "class": "설계", "severity": "minor", "status": "pending_order", "desc": "③ totalDays만 입력·totalPeriod 공란이면 '(총 n일)'만 출력 — 기간 없는 총일수", "evidence": ["report1011.ts totalPeriod 렌더"] },
       { "id": "E11-1", "target": "별지11호", "class": "버그", "severity": "minor", "status": "code_present", "desc": "완료일 ISO 원문 인쇄 — E10-1 동일 계열", "evidence": ["report9-actions.ts done rows.period"], "fix": "kdate(slice(0,10)) 통일" },
       { "id": "E11-2", "target": "별지11호", "class": "버그", "severity": "minor", "status": "pending_order", "desc": "owner/mgr 전화 무포맷 — E10-2 동일", "evidence": ["report9-actions.ts"] },
-      { "id": "E11-3", "target": "별지11호", "class": "설계", "severity": "minor", "status": "pending_order", "desc": "action_taken 없이 완료일만 저장 시 불량명이 '이행조치 내용'에 폴백 인쇄 — 오독 소지(워커 파리티), 사전 경고 없음", "evidence": ["report9-actions.ts content 폴백"] },
+      { "id": "E11-3", "target": "별지11호", "class": "설계", "severity": "minor", "status": "code_present", "desc": "action_taken 없이 완료일만 저장 시 불량명이 '이행조치 내용'에 폴백 인쇄 — 오독 소지(워커 파리티), 사전 경고 없음", "evidence": ["report9-actions.ts content 폴백"], "fix": "폴백 인쇄 자체는 유지(워커 파리티) + '이행조치 내용 미입력 N건 — 불량명이 대신 인쇄됨' missing 경고(2026-08-12)" },
       { "id": "E11-4", "target": "별지11호", "class": "설계", "severity": "policy", "status": "confirmed", "desc": "③ note '비고:' 1줄이 법정 서식에 없는 칸 — H-23에서 의도 문서화된 확장", "evidence": ["report1011.ts note"] },
       { "id": "E11-5", "target": "별지11호", "class": "설계", "severity": "none", "status": "confirmed", "desc": "③ evidence·contractor·budget 내부 메모 미출력 — hint 명시 의도. 첨부는 제출 패키지 zip 담당(서식 요건 부합)", "evidence": ["annex-compose-panel.tsx hint"] },
       { "id": "EX-1", "target": "외관점검표", "class": "유실", "severity": "major", "status": "code_present", "desc": "시트 응답 memo가 어디에도 안 나감 — 표지 비고칸 항상 공란, 정기 건은 별지10·11호 경로도 없어 X 사유가 완전 사장", "evidence": ["report9-actions.ts responses select", "exterior.ts 비고칸"], "fix": "memo 조회 추가 + X 항목 '코드 메모' 요약을 표지 비고칸에 인쇄(없으면 종전 공란)" },
       { "id": "EX-2", "target": "외관점검표", "class": "하드코딩", "severity": "minor", "status": "pending_order", "desc": "외관은 ③ annex_inputs 계층 자체가 없음 — 보고일·비고 수기 보정 경로 전무", "evidence": ["annex-compose-panel.tsx ComposeAnnexNo"] },
-      { "id": "EX-3", "target": "외관점검표", "class": "하드코딩", "severity": "policy", "status": "pending_order", "desc": "직위(mgrTitle) 항상 공란 — 원본 서식엔 자리 존재, 1.7 ManagerRow.role이 후보 원천이나 미연결", "evidence": ["report9-actions.ts mgrTitle"] },
+      { "id": "EX-3", "target": "외관점검표", "class": "하드코딩", "severity": "policy", "status": "code_present", "desc": "직위(mgrTitle) 항상 공란 — 원본 서식엔 자리 존재, 1.7 ManagerRow.role이 후보 원천이나 미연결", "evidence": ["report9-actions.ts mgrTitle"], "fix": "1.7 선임자를 찾았을 때만 role을 직위로 인쇄 — 대표 폴백 시엔 단정하지 않음(2026-08-12)" },
       { "id": "EX-4", "target": "외관점검표", "class": "설계", "severity": "policy", "status": "pending_order", "desc": "연간 서식(12행×12열)을 회차 단위로 생성 — 같은 해 이전 월 결과 미병합. 연간 누적본 부재가 의도인지 사용자 확정 필요", "evidence": ["exterior.ts 월 열 기입"] },
       { "id": "EX-5", "target": "외관점검표", "class": "버그", "severity": "minor", "status": "code_present", "desc": "응답 전부 N(해당없음)이어도 '양호' 체크 — !anyX가 O 존재를 확인하지 않음", "evidence": ["report9-actions.ts monthGood"], "fix": "anyX→불량 / anyO→양호 / 그 외(전부 N·무응답)→공란" },
-      { "id": "EX-6", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "pending_order", "desc": "표 헤더 연도(inspections.year)와 점검월일(start_date) 축 분리 — 어긋나면 연도 오기재(스테이징 현재 0건)", "evidence": ["report9-actions.ts year·start"] },
-      { "id": "EX-7", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "pending_order", "desc": "missing 3종뿐 — 주소·용도 공란 무경고", "evidence": ["report9-actions.ts missing"] }
+      { "id": "EX-6", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "code_present", "desc": "표 헤더 연도(inspections.year)와 점검월일(start_date) 축 분리 — 어긋나면 연도 오기재(스테이징 현재 0건)", "evidence": ["report9-actions.ts year·start"], "fix": "두 축이 다르면 missing에 '연도 불일치' 경고(2026-08-12)" },
+      { "id": "EX-7", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "code_present", "desc": "missing 3종뿐 — 주소·용도 공란 무경고", "evidence": ["report9-actions.ts missing"], "fix": "소재지·대상물 구분 미입력 missing 추가(2026-08-12)" }
+    ]
+  },
+
+  "form_edition_finding": {
+    "date": "2026-08-12",
+    "title": "Q-6 부분 해소 — 세부현황은 별지4호·9호 **공용 원본**이라 현행 9호로 판정 가능",
+    "method": "erp_goal/_form/별지9호-placeholder.hwpx(법제처 API 현행판) Contents/section0.xml 추출 후 라벨 전수 대조. 세부현황 3-1~3-8은 report4.ts 주석대로 '별지 9호 4~7쪽과 공용 원본(§4-A-1)'이므로 9호 현행판이 4호 세부현황의 기준이 된다",
+    "sample_verdict": "**_doc01 별지4호 샘플 XML = 구판 확정** — 화재알림설비 0건(현행 9호엔 존재) · '압력챔버' 표기(현행 9호는 '압력체임버'). 15.md의 경고('구판 기준으로 고치면 오답')가 근거로 확증됨",
+    "results": [
+      "A4-6 라벨 5건 → **전부 우리 생성물이 옳음(수정 불필요)**: 압력체임버·자동차압(과압조절형)댐퍼·'피난안내도, 피난안내영상물'·강화액소화설비·화재알림설비 모두 현행 9호 원문과 문자열 일치",
+      "A4-3 전반부 → **실결함 확인**: 현행 원문에 '◦ 설비의 종류: [ ]옥내소화전설비, …' 8종 체크줄이 5블록(주된수원·고가/압력/가압수조·펌프방식)에 있는데 스키마·템플릿 모두 부재 → 별지4호·9호 세부현황에서 동시 누락. 구현 완료",
+      "A4-3 후반부(흡입방식 정압/부압·유효수량 추가) → **오탐**: 현행 원문에 그대로 있다",
+      "A4-4·A4-7 → 미판정 유지(설치장소 줄 수·쪽 경계는 정밀 레이아웃 대조 필요)"
     ]
   },
 
   "blocked": [
-    { "id": "A4-3", "status": "blocked", "blocked_on": "현행 개정판 별지4호 원본", "desc": "수계공통(3-2) '설비의 종류' 체크줄 부재 / 샘플에 없는 흡입방식·유효수량 추가" },
-    { "id": "A4-4", "status": "blocked", "blocked_on": "현행 개정판 별지4호 원본", "desc": "설치장소 기입란 축소(2줄→1줄) — 다동 대상물 기입 불가" },
-    { "id": "A4-6", "status": "blocked", "blocked_on": "현행 개정판 별지4호 원본", "desc": "라벨 문구 차이 5건(압력체임버↔압력챔버·자동차압댐퍼 등)" },
-    { "id": "A4-7", "status": "blocked", "blocked_on": "현행 개정판 별지4호 원본", "desc": "쪽 경계가 샘플과 다름 — 내용 동일, 레이아웃만(P4)" }
+    { "id": "A4-3", "status": "code_present", "resolved_by": "form_edition_finding(2026-08-12)", "desc": "수계공통(3-2) '설비의 종류' 체크줄 부재 — 현행 9호 원문 대조로 실결함 확인 후 구현(스키마 5블록 systems 필드 + 템플릿 sysLine). 흡입방식·유효수량 지적은 오탐으로 종결",
+      "self_report": { "date": "2026-08-12", "evidence": ["facility-spec-schema.ts WATER_SYSTEMS·systemsField() — main_water·pump_elevated·pump_pressure·pump_pressurized·pump_type 5블록에 multicheck(limitToInstalled) 추가", "spec-sections.ts sysLine() — 5블록 렌더에 체크줄 삽입(8종 3+5 줄바꿈, 현행 원문 배치)"], "probe": "_probe-soban19-b.mts 6/6 (5블록·√·☐·8종·별지4호 동일·현행 라벨 유지)" } },
+    { "id": "A4-4", "status": "blocked", "blocked_on": "정밀 레이아웃 대조(현행 9호 hwpx 기반 가능 — 후속)", "desc": "설치장소 기입란 축소(2줄→1줄) — 다동 대상물 기입 불가" },
+    { "id": "A4-6", "status": "confirmed", "resolved_by": "form_edition_finding(2026-08-12)", "desc": "라벨 문구 차이 5건 — **현행판 대조 결과 생성물이 옳고 샘플이 구판**. 수정 불필요로 종결" },
+    { "id": "A4-7", "status": "blocked", "blocked_on": "현행 개정판 별지4호 원본(4호 고유 레이아웃)", "desc": "쪽 경계가 샘플과 다름 — 내용 동일, 레이아웃만(P4)" }
   ],
 
   "risks": [

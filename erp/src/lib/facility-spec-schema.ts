@@ -124,12 +124,24 @@ const S31: SpecSection = {
 // ── 3-2. 수계소화설비(공통사항) ─────────────────────────────────────────────
 // 수계 설비(옥내·옥외소화전, 스프링클러류, 물분무·미분무·포)에 공통 — facilityHint 생략(항상 표시)
 
+/** A4-3(소방계획서_19): 서식 원문의 '◦ 설비의 종류' 체크줄 — 주된수원·고가/압력/가압수조·펌프방식 5블록에 있다.
+ *  종전엔 스키마·템플릿 모두 이 줄이 없어 **별지4호·9호 세부현황에서 통째로 누락**됐다(공용 원본이라 양쪽 동시).
+ *  8종 목록은 송수구(inlet.systems)와 동일 — 현행판(별지9호 placeholder, 법제처) 원문 대조로 확인. */
+const WATER_SYSTEM_OPTIONS = [
+  '옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비',
+  '화재조기진압용스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비',
+]
+const systemsField = () => ([
+  { key: 'systems', label: '설비의 종류', type: 'multicheck' as const, limitToInstalled: true, options: WATER_SYSTEM_OPTIONS },
+])
+
 const S32: SpecSection = {
   key: 's32_water_common', no: '3-2', label: '수계소화설비(공통사항)',
   blocks: [
     {
       key: 'main_water', label: '수원 — 주된수원',
       fields: [
+        ...systemsField(),
         ...locFields(),
         { key: 'intake', label: '흡입방식', type: 'select', options: ['정압', '부압'] },
         { key: 'capacity', label: '유효수량', type: 'number', unit: '㎥' },
@@ -147,6 +159,7 @@ const S32: SpecSection = {
       key: 'pump_elevated', label: '가압송수장치 — 고가수조',
       fields: [
         { key: 'used', label: '고가수조 방식', type: 'check' },
+        ...systemsField(),
         { key: 'dong', label: '동명', type: 'text' },
         { key: 'room', label: '실명', type: 'text' },
         { key: 'head_drop', label: '유효낙차', type: 'number', unit: 'm' },
@@ -156,6 +169,7 @@ const S32: SpecSection = {
       key: 'pump_pressure', label: '가압송수장치 — 압력수조',
       fields: [
         { key: 'used', label: '압력수조 방식', type: 'check' },
+        ...systemsField(),
         ...locFields(),
         { key: 'tank_volume', label: '수조용량', type: 'number', unit: 'ℓ' },
         { key: 'tank_pressure', label: '수조가압압력', type: 'number', unit: 'MPa' },
@@ -167,6 +181,7 @@ const S32: SpecSection = {
       key: 'pump_pressurized', label: '가압송수장치 — 가압수조',
       fields: [
         { key: 'used', label: '가압수조 방식', type: 'check' },
+        ...systemsField(),
         ...locFields(),
         { key: 'tank_volume', label: '수조용량', type: 'number', unit: 'ℓ' },
         { key: 'tank_pressure', label: '수조가압압력', type: 'number', unit: 'MPa' },
@@ -178,6 +193,7 @@ const S32: SpecSection = {
       key: 'pump_type', label: '가압송수장치 — 펌프방식',
       fields: [
         { key: 'used', label: '펌프 방식', type: 'check' },
+        ...systemsField(),
         ...locFields(),
         { key: 'main_head', label: '주펌프 전양정', type: 'number', unit: 'm' },
         { key: 'main_flow', label: '주펌프 토출량', type: 'number', unit: 'ℓ/min' },

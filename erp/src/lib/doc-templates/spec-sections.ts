@@ -158,7 +158,18 @@ function renderS32(sec: Vals, h: boolean): string {
   const inlet = blk(sec, 'inlet')
   const ep = blk(sec, 'emergency_power')
 
+  // A4-3(소방계획서_19): 서식 원문의 '◦ 설비의 종류' 체크줄 — 주된수원·고가/압력/가압수조·펌프방식 5블록.
+  // 종전엔 이 줄 자체가 없어 별지4호·9호 세부현황에서 통째로 누락됐다(현행판 원문 대조로 확인, 2026-08-12).
+  const WATER_SYSTEMS = [
+    '옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비',
+    '화재조기진압용스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비',
+  ]
+  const sysLine = (b: Vals) =>
+    `◦ 설비의 종류: ${WATER_SYSTEMS.slice(0, 3).map(o => `${mc(b['systems'], o)}${o}`).join(', ')},`
+    + `<br>　　${WATER_SYSTEMS.slice(3).map(o => `${mc(b['systems'], o)}${o}`).join(', ')}`
+
   const pumpLines = [
+    sysLine(pm),
     `◦ 설치장소: ${locLine(pm, '', h)}`,
     `◦ 주펌프  전양정:${pv(pm['main_head'], 9, h)}m, 토출량:${pv(pm['main_flow'], 9, h)}ℓ/min`,
     `◦ 예비펌프  전양정:${pv(pm['reserve_head'], 9, h)}m, 토출량:${pv(pm['reserve_flow'], 9, h)}ℓ/min`,
@@ -177,7 +188,7 @@ function renderS32(sec: Vals, h: boolean): string {
   <tr>
     <th rowspan="2">수원</th>
     <td class="center">주된수원</td>
-    <td class="pre">◦ 설치장소: ${locLine(mw, '', h)}<br>◦ 흡입방식: ${sel(mw['intake'], '정압')}정압, ${sel(mw['intake'], '부압')}부압,   ◦ 유효수량: ${pv(mw['capacity'], 9, h)}㎥</td>
+    <td class="pre">${sysLine(mw)}<br>◦ 설치장소: ${locLine(mw, '', h)}<br>◦ 흡입방식: ${sel(mw['intake'], '정압')}정압, ${sel(mw['intake'], '부압')}부압,   ◦ 유효수량: ${pv(mw['capacity'], 9, h)}㎥</td>
   </tr>
   <tr>
     <td class="center">보조수원</td>
@@ -186,15 +197,15 @@ function renderS32(sec: Vals, h: boolean): string {
   <tr>
     <th rowspan="4">가압<br>송수<br>장치</th>
     <td class="center">${cb(has(el['used']) || blockHas(el))}<br>고가수조</td>
-    <td class="pre">◦ 설치장소: 동명(${slot(el['dong'], '            ', h)}) 실명(${slot(el['room'], '            ', h)}), ◦ 유효낙차: ${pv(el['head_drop'], 9, h)}m</td>
+    <td class="pre">${sysLine(el)}<br>◦ 설치장소: 동명(${slot(el['dong'], '            ', h)}) 실명(${slot(el['room'], '            ', h)}), ◦ 유효낙차: ${pv(el['head_drop'], 9, h)}m</td>
   </tr>
   <tr>
     <td class="center">${cb(has(pr['used']) || blockHas(pr))}<br>압력수조</td>
-    <td class="pre">◦ 설치장소: ${locLine(pr, '', h)}<br>◦ 수조용량: ${pv(pr['tank_volume'], 9, h)}ℓ, 수조가압압력:${pv(pr['tank_pressure'], 9, h)}MPa<br>◦ 자동식공기압축기 용량:${pv(pr['compressor_capacity'], 9, h)}㎥/min, 동 력:${pv(pr['compressor_power'], 9, h)}Kw</td>
+    <td class="pre">${sysLine(pr)}<br>◦ 설치장소: ${locLine(pr, '', h)}<br>◦ 수조용량: ${pv(pr['tank_volume'], 9, h)}ℓ, 수조가압압력:${pv(pr['tank_pressure'], 9, h)}MPa<br>◦ 자동식공기압축기 용량:${pv(pr['compressor_capacity'], 9, h)}㎥/min, 동 력:${pv(pr['compressor_power'], 9, h)}Kw</td>
   </tr>
   <tr>
     <td class="center">${cb(has(pz['used']) || blockHas(pz))}<br>가압수조</td>
-    <td class="pre">◦ 설치장소: ${locLine(pz, '', h)}<br>◦ 수조용량: ${pv(pz['tank_volume'], 9, h)}ℓ, 수조가압압력:${pv(pz['tank_pressure'], 9, h)}MPa<br>◦ 가압가스의 종류: ${sel(pz['gas_type'], '공기')}공기 ${sel(pz['gas_type'], '불연성가스')}불연성가스(${slot(pz['gas_etc'], '                  ', h)})</td>
+    <td class="pre">${sysLine(pz)}<br>◦ 설치장소: ${locLine(pz, '', h)}<br>◦ 수조용량: ${pv(pz['tank_volume'], 9, h)}ℓ, 수조가압압력:${pv(pz['tank_pressure'], 9, h)}MPa<br>◦ 가압가스의 종류: ${sel(pz['gas_type'], '공기')}공기 ${sel(pz['gas_type'], '불연성가스')}불연성가스(${slot(pz['gas_etc'], '                  ', h)})</td>
   </tr>
   <tr>
     <td class="center">${cb(has(pm['used']) || blockHas(pm))}펌프방식</td>

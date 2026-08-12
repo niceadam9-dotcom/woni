@@ -136,6 +136,41 @@ console.log('— EX-1: 외관 비고칸 메모 요약')
   ok('메모 없으면 종전 공란', /<th>비고<\/th><td[^>]*>&nbsp;<\/td>/.test(empty))
 }
 
+console.log('— A4-3: 세부현황 수계공통 \'설비의 종류\' 체크줄 (별지4·9호 공용)')
+{
+  const specs = {
+    s32_water_common: {
+      main_water: { systems: ['옥내소화전설비', '스프링클러설비'] },
+      pump_type: { used: true, systems: ['옥내소화전설비'] },
+    },
+  }
+  const html = renderReport9({ ...r9base, specs } as unknown as Report9Data)
+  const lines = html.match(/◦ 설비의 종류:/g) ?? []
+  ok('5개 블록 전부 체크줄 출력', lines.length === 5, `실제 ${lines.length}건`)
+  ok('주된수원 선택분 √', /설비의 종류:[\s\S]{0,80}?\[√\]옥내소화전설비/.test(html))
+  ok('미선택은 ☐', /\[&nbsp;&nbsp;\]옥외소화전설비/.test(html))
+  ok('8종 전부 나열', ['옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비',
+    '화재조기진압용스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비'].every(s => html.includes(s)))
+  const r4: Report4Data = {
+    ckOp: true, ckInitial: false, ckCompEtc: false,
+    customerName: 'P', purpose: '', address: '',
+    facilityChecks: [], resultMarks: {}, muResults: {},
+    main: null, assistants: [], inspStart: '', inspEnd: '', inspDays: '',
+    companyName: '', specs,
+  }
+  ok('별지4호 세부현황에도 동일(공용 원본)', (renderReport4(r4).match(/◦ 설비의 종류:/g) ?? []).length === 5)
+  ok('현행판 라벨 유지 — 압력체임버(구판 압력챔버 아님)', html.includes('압력체임버') && !html.includes('압력챔버'))
+}
+
+console.log('— EX-3: 외관 직위(1.7 구분)')
+{
+  const extBase = {
+    customerName: 'P', purpose: '', address: '', mgrTitle: '', mgrName: '', mgrPhone: '',
+    year: '2026', month: 8, day: 11, inspectorName: '', monthGood: null, results: {},
+  } as unknown as ExteriorData
+  ok('직위 인쇄', renderExterior({ ...extBase, mgrTitle: '관리자', mgrName: '김선임' }).includes('관리자'))
+}
+
 console.log('— B-7: planTextBodyEquals (jsonb 키 순서 무관)')
 {
   ok('키 순서 달라도 동등', planTextBodyEquals({ a: 1, b: { d: [1, 2], c: 'x' } }, { b: { c: 'x', d: [1, 2] }, a: 1 }))

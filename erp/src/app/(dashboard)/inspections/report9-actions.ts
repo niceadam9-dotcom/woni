@@ -105,17 +105,19 @@ async function assembleAnnex1011(
     purpose,
     address: cust.address ?? '',
     ownerName: owner?.name ?? '',
-    ownerPhone: owner?.phone ?? '',
+    // E10-2·E11-2(B-8 감사): 관계인·관리자 전화도 회사 전화와 같은 정규화 — 무하이픈 실데이터가 그대로 인쇄되던 건
+    ownerPhone: formatTel(owner?.phone),
     // B-1: 1.7 선임자 우선 — 전화는 선임자=대표 동일인일 때만(1.7에 전화 열 없음, 타인 전화 오기재 방지)
     mgrName: a1011Mgr?.name ?? owner?.name ?? '',
-    mgrPhone: (a1011Mgr?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? (owner?.phone ?? '') : '',
+    mgrPhone: (a1011Mgr?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
     rows: [],
     reportDate: kdate(new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]),
     submitTo: cust.fire_station ? `${cust.fire_station}장` : '관할 소방서장',
   }
 
   if (kind === 'report10') {
-    const planned = defects.filter(d => d.action_plan || d.action_start)
+    // E10-4(B-8 감사): 종료일만 입력된 불량도 계획 건으로 편입 — 종전 필터는 표·총기간에서 통째 탈락시켰다
+    const planned = defects.filter(d => d.action_plan || d.action_start || d.action_end)
     // E10-1(소방계획서_19 B-8 감사): 표 행 기간도 총 이행기간·보고일과 같은 한국어 날짜로 통일
     data.rows = planned.map(d => ({
       content: d.action_plan || d.defect_name || '',
@@ -129,6 +131,8 @@ async function assembleAnnex1011(
       data.totalDays = String(days)
     }
     if (planned.length === 0) missing.push('이행조치 계획 미입력')
+    // E10-3(B-8 감사): 총 이행기간은 시작·종료가 둘 다 있어야 산출된다 — 공란으로 나가는 걸 표면화
+    else if (!data.totalPeriod) missing.push('총 이행기간 — 계획 시작일·종료일이 모두 있는 건이 없어 산출 불가')
   } else {
     const done = defects.filter(d => d.action_completed_at)
     // E11-1(소방계획서_19 B-8 감사): 완료일도 보고일과 같은 한국어 날짜로 통일
@@ -147,7 +151,13 @@ async function assembleAnnex1011(
     data.companyPhone = formatTel(company.phone)
     data.companyAddress = company.address ?? ''
     if (done.length === 0) missing.push('이행완료 항목 없음')
+    // E11-3(B-8 감사): 조치 내용 없이 완료일만 저장하면 불량명이 '이행조치 내용' 칸에 폴백 인쇄된다(오독 소지)
+    const takenMissing = done.filter(d => !d.action_taken?.trim()).length
+    if (takenMissing > 0) missing.push(`이행조치 내용 미입력 ${takenMissing}건 — 불량명이 대신 인쇄됨`)
   }
+  // E10-6(B-8 감사): 10·11호 공통 — 제출처·관계인 부재는 종전 무경고였다
+  if (!cust.fire_station) missing.push('관할 소방서 — 제출처가 일반 문구로 인쇄됨')
+  if (!owner?.name) missing.push('관계인(대표) 미등록')
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 작성 패널 저장분이 자동 계산값보다 우선
   const fields = await loadAnnexInputs(admin, inspectionId, kind)
@@ -582,7 +592,7 @@ async function assembleExterior(
   const [inspRes, custRes, bldRes, contactsRes, formRes] = await Promise.all([
     admin.from('inspections').select('inspection_start_date, assigned_employee_id, year')
       .eq('id', inspectionId).single(),
-    admin.from('customers').select('customer_name, address').eq('id', customerId).single(),
+    admin.from('customers').select('customer_name, address, fire_station').eq('id', customerId).single(),
     admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1),
     admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
@@ -593,7 +603,7 @@ async function assembleExterior(
     inspection_start_date: string | null; assigned_employee_id: string | null; year: number
   } | null
   if (!insp) throw new Error('점검 건을 찾을 수 없습니다')
-  const cust = custRes.data as { customer_name: string; address: string | null } | null
+  const cust = custRes.data as { customer_name: string; address: string | null; fire_station: string | null } | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
   const purpose = ((bldRes.data?.[0] as { purpose: string | null } | undefined)?.purpose) ?? ''
   const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
@@ -602,6 +612,9 @@ async function assembleExterior(
   const extSections = ((formRes.data?.[0] as { sections?: Record<string, unknown> } | undefined)?.sections) ?? {}
   const extMgr = pickFirePlanManager((extSections['managers'] ?? null) as ManagerRow[] | null)
   const extMgrName = extMgr?.name ?? owner?.name ?? ''
+  // EX-3(B-8 감사): 직위 — 서식에 자리가 있는데 항상 공란이었다. 1.7 선임현황의 구분(관리자/보조자)이 유일 원천,
+  // 선임자를 못 찾으면(대표 폴백) 직위를 단정하지 않는다.
+  const extMgrTitle = extMgr?.name ? (extMgr.role ?? '') : ''
 
   let inspector = ''
   if (insp.assigned_employee_id) {
@@ -634,10 +647,10 @@ async function assembleExterior(
     customerName: cust.customer_name,
     purpose,
     address: cust.address ?? '',
-    mgrTitle: '', // 직위 별도 데이터 미보유 — 공란 (워커 동일)
+    mgrTitle: extMgrTitle,  // EX-3: 1.7 선임현황 구분(선임자를 찾았을 때만)
     // B-1: 1.7 선임자 우선 — 전화는 선임자=대표 동일인일 때만(타인 전화 오기재 방지)
     mgrName: extMgrName,
-    mgrPhone: extMgrName === (owner?.name ?? '') ? (owner?.phone ?? '') : '',
+    mgrPhone: extMgrName === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
     year: String(insp.year),
     month,
     day,
@@ -658,6 +671,13 @@ async function assembleExterior(
   if (!responses.length) missing.push('외관점검 시트 응답 없음 — 결과란 공란')
   if (!inspector) missing.push('점검자(담당) 미배정')
   if (!extMgrName) missing.push('소방안전관리자(1.7 선임현황 또는 대표 관계인) 미등록')
+  // EX-7(B-8 감사): 표지 절반을 차지하는 대상물 정보 공란이 종전 무경고였다
+  if (!cust.address) missing.push('소재지 미입력 — 표지 공란')
+  if (!purpose) missing.push('대상물 구분(용도) 미입력 — 표지 공란')
+  // EX-6(B-8 감사): 표 헤더 연도(inspections.year)와 점검월일(시작일)의 축이 어긋나면 연도가 잘못 인쇄된다
+  if (insp.inspection_start_date && Number(insp.inspection_start_date.slice(0, 4)) !== insp.year) {
+    missing.push(`연도 불일치 — 표 헤더 ${insp.year}년 vs 점검시작일 ${insp.inspection_start_date.slice(0, 4)}년`)
+  }
   return { data, missing }
 }
 
