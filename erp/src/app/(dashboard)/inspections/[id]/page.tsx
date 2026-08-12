@@ -15,6 +15,7 @@ import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { stepDocs } from '@/lib/doc-requirements'
+import { CONTRACT_FILE_RE, findArchivedCertInspections, isCertFileName } from '@/lib/doc-status'
 import { sheetScope } from '@/lib/sheet-scope'
 import { buildSheetOverviews, type SheetProgress } from '@/lib/sheet-overview'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
@@ -286,8 +287,8 @@ export default async function InspectionDetailPage({
       .map(o => ({ name: o.name, path: `${storagePrefix}/${o.name}`, createdAt: o.created_at ?? null }))
 
     // 타임라인 데이터 (§9-9) — 기한: ④ 점검 종료+15일 / ⑥ 이행기간 종료일(max action_end)
-    const certObj = allObjects.find(o => /^cert_\d+\./.test(o.name)) ?? null
-    const contractObj = allObjects.find(o => /^contract_\d+\./.test(o.name)) ?? null
+    const certObj = allObjects.find(o => isCertFileName(o.name)) ?? null
+    const contractObj = allObjects.find(o => CONTRACT_FILE_RE.test(o.name)) ?? null
     const deliveryRow = (deliveryRes.data?.[0] ?? null) as { recipient_email: string; sent_at: string } | null
     const iRec = inspection as unknown as Record<string, unknown>
     const endDate = (iRec.inspection_end_date as string | null) ?? (iRec.inspection_start_date as string | null)
@@ -305,6 +306,8 @@ export default async function InspectionDetailPage({
       isGeneral: false,
       responded: respRows.length,
       certFile: certObj ? { name: certObj.name, path: `${storagePrefix}/${certObj.name}` } : null,
+      // 종이 보관 후 정리된 회차는 '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠)
+      certArchived: !certObj && (await findArchivedCertInspections(admin, [id])).has(id),
       contractFile: contractObj ? { name: contractObj.name, path: `${storagePrefix}/${contractObj.name}` } : null,
       delivery: deliveryRow ? { sentTo: deliveryRow.recipient_email, sentAt: deliveryRow.sent_at } : null,
       submit9: {

@@ -114,6 +114,37 @@ export async function convertOdtToPdf(odt: Uint8Array, fileName = 'doc.odt'): Pr
   return new Uint8Array(await res.arrayBuffer())
 }
 
+/**
+ * PDF 병합 (소방계획서_18 S1 — 회차 별지 묶음 인쇄).
+ * Gotenberg pdfengines/merge 라우트 사용 — 파일명 알파벳 순으로 병합되므로
+ * 0패딩 인덱스 파일명(001.pdf, 002.pdf…)으로 순서를 제어한다.
+ */
+export async function mergePdfs(pdfs: Uint8Array[]): Promise<Uint8Array> {
+  // 병합이 필요 없는 경우를 먼저 처리한다 — 서식이 하나뿐인 회차까지 Gotenberg를 요구하면
+  // 변환 서비스가 없는 환경에서 인쇄가 통째로 막힌다.
+  if (pdfs.length === 0) throw new Error('병합할 PDF가 없습니다.')
+  if (pdfs.length === 1) return pdfs[0]
+  const base = process.env.GOTENBERG_URL
+  if (!base) throw new Error('GOTENBERG_URL 미설정 — PDF 변환 서비스가 구성되지 않았습니다.')
+
+  const form = new FormData()
+  pdfs.forEach((p, i) => {
+    form.append('files', new Blob([p as BlobPart], { type: 'application/pdf' }),
+      `${String(i + 1).padStart(3, '0')}.pdf`)
+  })
+
+  const res = await fetch(`${base.replace(/\/$/, '')}/forms/pdfengines/merge`, {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`Gotenberg PDF 병합 실패 (${res.status}): ${detail.slice(0, 200)}`)
+  }
+  return new Uint8Array(await res.arrayBuffer())
+}
+
 /** Gotenberg 헬스체크 */
 export async function gotenbergHealthy(): Promise<boolean> {
   const base = process.env.GOTENBERG_URL

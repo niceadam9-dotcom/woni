@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
+import { CERT_FILE_RE, CONTRACT_FILE_RE, findArchivedCertInspections } from '@/lib/doc-status'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
  *  업로드 슬롯 3종(②배치확인서·⑤계약서 — 전후 사진은 불량내역 슬롯 재사용), ③ 관계인 보고 발송,
@@ -216,18 +217,24 @@ export async function downloadPackageAction(
     ? [
       { label: '별지 9호(PDF)', name: latest(/^report9_\d+\.pdf$/) ?? latest(/^report9_\d+\.hwp$/) },
       { label: '별지 10호', name: latest(/^report10_\d+\.pdf$/) ?? latest(/^report10_\d+\.hwp$/) },
-      { label: '배치확인서', name: latest(/^cert_\d+\./) },
+      { label: '배치확인서', name: latest(CERT_FILE_RE) },
     ]
     : [
       { label: '별지 11호', name: latest(/^report11_\d+\.pdf$/) ?? latest(/^report11_\d+\.hwp$/) },
-      { label: '공사 계약서', name: latest(/^contract_\d+\./) },
-      { label: '배치확인서', name: latest(/^cert_\d+\./) },
+      { label: '공사 계약서', name: latest(CONTRACT_FILE_RE) },
+      { label: '배치확인서', name: latest(CERT_FILE_RE) },
     ]
+
+  // 종이 보관 후 정리된 회차(소방계획서_18 D-7)의 배치확인서는 '누락'이 아니라 '종이 보관' —
+  // 현황판이 보유로 보여주는데 여기서 누락이라 하면 제출 담당자가 어느 쪽을 믿을지 알 수 없다.
+  const certArchived = (await findArchivedCertInspections(admin, [inspectionId])).has(inspectionId)
+  const paperOnly: string[] = []
 
   const zip = new JSZip()
   const included: string[] = []
   const skipped: string[] = []
   for (const w of wanted) {
+    if (!w.name && w.label === '배치확인서' && certArchived) { paperOnly.push(w.label); continue }
     if (!w.name) { skipped.push(w.label); continue }
     const { data: blob } = await admin.storage.from(BUCKET).download(`${prefix}/${w.name}`)
     if (!blob) { skipped.push(w.label); continue }
@@ -260,6 +267,7 @@ export async function downloadPackageAction(
   zip.file('안내.txt', [
     `${customerName} — ${kind === 'report9' ? '자체점검 결과 보고(별지 9호) 제출 패키지' : '이행완료 보고(별지 11호) 제출 패키지'}`,
     `포함: ${included.join(', ')}`,
+    ...(paperOnly.length ? [`종이 보관본 첨부 필요(ERP 사본 정리됨): ${paperOnly.join(', ')}`] : []),
     ...(skipped.length ? [`누락(직접 확인 필요): ${skipped.join(', ')}`] : []),
     '전산망(소방민원센터) 제출 후 타임라인에 제출일을 기록해주세요.',
   ].join('\n'))

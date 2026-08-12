@@ -221,7 +221,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
           </div>
           {/* 배치확인서 */}
           <div className={`${rowCls} ${dragOver === 'cert' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('cert')}>
-            <StatusIcon state={i.cert ? 'have' : 'warn'} />
+            <StatusIcon state={i.cert || i.certArchived ? 'have' : 'warn'} />
             <span className="font-medium text-[#090c1d] w-44" title={`${DOC_TERMS.certFull} — 협회 발급본 (자체점검 대행 시 필수)`}>배치확인서</span>
             {i.cert ? (<>
               <span className="text-[#514b81]">✓ {fmtD(i.cert.at)}</span>
@@ -230,7 +230,10 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
                   <Download className="size-3" /> 받기
                 </button>
               </span>
-            </>) : (<>
+            </>) : i.certArchived ? (
+              // 종이 보관 후 정리된 회차 — 누락이 아니다 (소방계획서_18 D-7 ⚠)
+              <span className="text-[#847ba8]">종이 보관됨 — 과거본 정리로 ERP 사본 삭제</span>
+            ) : (<>
               <span className="text-amber-600">미업로드 — 협회 발급본 (파일을 끌어다 놓아도 됩니다)</span>
               <span className="ml-auto flex items-center gap-1">
                 <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden"

@@ -6,6 +6,7 @@ import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, Chevro
 import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { requestFirePlanHwpFromTabAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { DateInput } from '@/components/ui/date-input'
+import { PlanArchiveCleanup } from '@/components/customers/plan-archive-cleanup'
 
 export type FirePlanAttachment = { id: string; kind: string; file_name: string }
 export type FirePlanRow = {
@@ -334,6 +335,9 @@ export function FirePlansClient({ customerId, plans, canManage }: {
           </div>
         </form>
       )}
+
+      {/* 과거본 정리 (소방계획서_18 S2) — 최신만 ERP, 과거는 종이 보관 */}
+      <PlanArchiveCleanup customerId={customerId} canManage={canManage} />
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { hangulMatch } from '@/lib/hangul'
-import { findMissingCerts, getDocTodo, hasCertFile, SELF_INSPECTION_OR, type MissingCertRow, type DueReport9Row } from '@/lib/doc-status'
+import { CONTRACT_FILE_RE, findArchivedCertInspections, findMissingCerts, getDocTodo, hasCertFile, isCertFileName, SELF_INSPECTION_OR, type MissingCertRow, type DueReport9Row } from '@/lib/doc-status'
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 
 /** 보고서 센터 데이터 액션 (소방계획서_5 S2) — ① 고객 문서 현황(R2)·④ 최근 문서(R5)·⑦ 누락 경고(R8)·행동 자동완성(R0-3).
@@ -46,6 +46,9 @@ export type InspectionDocs = {
   exterior: DocGroupRef | null
   cert: DocFileRef | null
   contract: DocFileRef | null
+  /** 배치확인서가 파일로는 없지만 종이 보관 후 정리된 회차 — '미업로드'와 구분해야 한다
+   *  (소방계획서_18 D-7 ⚠). 파일이 없는데 이 값이 true면 누락이 아니다. */
+  certArchived: boolean
 }
 
 export type CustomerDocs = {
@@ -87,6 +90,7 @@ type InspRow = {
 /** 점검 1건의 문서 상태 조립 — getCustomerDocsAction·getCustomerRoundsAction 공용 (소방계획서_8 H-1) */
 async function buildInspectionDocs(
   admin: ReturnType<typeof createAdminClient>, customerId: string, i: InspRow,
+  archivedCerts?: Set<string>,
 ): Promise<InspectionDocs> {
   const prefix = `${customerId}/inspections/${i.id}`
   const [objRes, defRes, respRes] = await Promise.all([
@@ -98,8 +102,8 @@ async function buildInspectionDocs(
   ])
   const objects = objRes.data ?? []
   const defects = (defRes.data ?? []) as Array<{ photo_url: string | null; after_photo_url: string | null; action_completed_at: string | null }>
-  const cert = objects.find(o => /^cert_\d+\./.test(o.name))
-  const contract = objects.find(o => /^contract_\d+\./.test(o.name))
+  const cert = objects.find(o => isCertFileName(o.name))
+  const contract = objects.find(o => CONTRACT_FILE_RE.test(o.name))
   return {
     inspectionId: i.id, year: i.year, sequenceNum: i.sequence_num,
     inspectionType: i.inspection_type, planType: i.plan_type, status: i.status,
@@ -117,6 +121,7 @@ async function buildInspectionDocs(
     exterior: latestGroup(objects, 'exterior', prefix),
     cert: cert ? { path: `${prefix}/${cert.name}`, at: cert.created_at ?? null } : null,
     contract: contract ? { path: `${prefix}/${contract.name}`, at: contract.created_at ?? null } : null,
+    certArchived: !cert && !!archivedCerts?.has(i.id),
   }
 }
 
@@ -149,8 +154,10 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
   const inspRows = ((inspRes.data ?? []) as InspRow[]).filter(i =>
     !i.plan_type || i.plan_type.startsWith('special'))
 
+  // 종이 보관 후 정리된 회차(D-7 ⚠) — 파일이 없어도 '미업로드'로 표시하지 않는다
+  const archivedCerts = await findArchivedCertInspections(admin, inspRows.map(i => i.id))
   const inspections: InspectionDocs[] = await Promise.all(
-    inspRows.map(i => buildInspectionDocs(admin, customerId, i)))
+    inspRows.map(i => buildInspectionDocs(admin, customerId, i, archivedCerts)))
 
   // 요약 게이지 (R2-c): 필요 문서 n종 중 m종 보유 — 소방계획서 + 점검 건별 (9호·배치확인서 필수 / 10·11호는 불량 시 / 사진·계약서는 선택이라 제외)
   // 일반관리 특례 없음 (소방계획서_6 W-16) — 전 유형 동일 판정
@@ -159,7 +166,7 @@ export async function getCustomerDocsAction(customerId: string): Promise<{ docs?
   tally(true, !!plan)
   for (const i of inspections) {
     tally(true, !!i.report9)
-    tally(true, !!i.cert)
+    tally(true, !!i.cert || i.certArchived)   // 종이 보관 정리분은 누락이 아니다(D-7 ⚠)
     tally(i.defects.total > 0, !!i.report10)
     tally(i.defects.total > 0, !!i.report11)
   }
@@ -234,7 +241,8 @@ export async function getCustomerRoundsAction(customerId: string): Promise<{ dat
   const items = (itemRes.data ?? []) as unknown as ItemRow[]
 
   // 시작된 점검 = 회차의 정본 (문서 상태 포함)
-  const docsList = await Promise.all(inspRows.map(i => buildInspectionDocs(admin, customerId, i)))
+  const archivedCerts = await findArchivedCertInspections(admin, inspRows.map(i => i.id))
+  const docsList = await Promise.all(inspRows.map(i => buildInspectionDocs(admin, customerId, i, archivedCerts)))
   const rounds = new Map<string, CustomerRound>()
   inspRows.forEach((i, idx) => {
     const key = `${i.year}-${i.sequence_num}`
@@ -328,8 +336,10 @@ export async function searchDocCommandsAction(q: string): Promise<{
         saveBase: `${top.customer_name}_실시결과 보고서_${(g9.at ?? '').slice(0, 10) || insp.year}`,
       })
     }
-    const hasCert = (objects ?? []).some(o => /^cert_\d+\./.test(o.name))
-    if (!hasCert) {
+    const hasCert = (objects ?? []).some(o => isCertFileName(o.name))
+    // 종이 보관 후 정리된 회차는 '미업로드'가 아니다 — 업로드 재촉 명령을 띄우지 않는다(D-7 ⚠)
+    const archived = (await findArchivedCertInspections(admin, [insp.id])).has(insp.id)
+    if (!hasCert && !archived) {
       commands.push({
         kind: 'upload-cert', customerId: top.id, customerName: top.customer_name,
         label: `${top.customer_name} · 점검인력 배치확인서 ⚠ 미업로드 (${insp.year}년 ${insp.sequence_num}차)`,
@@ -415,7 +425,8 @@ export type SubmissionRow = {
   report9Sent: boolean         // 관계인 발송 이력
   report9SubmittedAt: string | null
   due9Dday: number | null      // 미제출 시 종료+15 D-day
-  certUploaded: boolean        // 배치확인서 업로드
+  certUploaded: boolean        // 배치확인서 업로드 (종이 보관 정리분 포함 — 누락 아님 판정)
+  certArchived: boolean        // 그중 파일 없이 '종이 보관됨'인 경우 (소방계획서_18 D-7)
   defectsTotal: number
   report10Gen: boolean
   report11Gen: boolean
@@ -489,8 +500,10 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
     for (const d of (delRes.data ?? []) as Array<{ inspection_id: string }>) sent[d.inspection_id] = true
     for (const d of (defRes.data ?? []) as Array<{ inspection_id: string }>) def[d.inspection_id] = (def[d.inspection_id] ?? 0) + 1
   }
-  // 배치확인서(storage) 병렬 확인
-  const certFlags = await Promise.all(insps.map(i => hasCertFile(admin, i.customer_id, i.id)))
+  // 배치확인서(storage) 병렬 확인 — 종이 보관 후 정리된 회차는 보유로 본다(소방계획서_18 D-7).
+  // 마커가 있어도 파일 존재는 따로 확인한다: 정리 이후 다시 업로드했다면 '종이 보관'이 아니라 '보유'다.
+  const archivedCerts = await findArchivedCertInspections(admin, ids)
+  const certFiles = await Promise.all(insps.map(i => hasCertFile(admin, i.customer_id, i.id)))
 
   const monthPrefix = today.slice(0, 7)
   const rows: SubmissionRow[] = insps.map((i, idx) => {
@@ -498,7 +511,8 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
     const submitted = i.report9_submitted_at
     const due9Dday = !submitted && i.inspection_end_date ? diffYmd(shiftYmd(i.inspection_end_date, 15), today) : null
     const defectsTotal = def[i.id] ?? 0
-    const certUploaded = certFlags[idx]
+    const certArchived = !certFiles[idx] && archivedCerts.has(i.id)
+    const certUploaded = certFiles[idx] || certArchived
     // 위험도: 기한 초과(음수 dday) < 임박 < 누락 < 정상
     let risk = 100
     if (due9Dday !== null && due9Dday < 0) risk = -100 + due9Dday
@@ -509,7 +523,8 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
       year: i.year, sequenceNum: i.sequence_num, inspectionType: i.inspection_type, status: i.status,
       endDate: i.inspection_end_date,
       report9Gen: g.r9, report9Sent: !!sent[i.id], report9SubmittedAt: submitted, due9Dday,
-      certUploaded, defectsTotal, report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
+      certUploaded, certArchived,
+      defectsTotal, report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
       risk,
       assigneeId: i.assigned_employee_id,
       assigneeName: i.assigned_employee_id ? assigneeNames[i.assigned_employee_id] ?? null : null,

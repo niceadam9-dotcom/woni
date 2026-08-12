@@ -21,7 +21,7 @@ function Mark({ ok, na, warn, label }: { ok?: boolean; na?: boolean; warn?: bool
 }
 
 /** R10-c: 배치확인서 누락 셀 — ✅보유 / ⚠누락+[업로드] 그 자리 실행 (판정=hasCertFile 공유, 업로드=타임라인 액션 재사용) */
-function CertCell({ inspectionId, uploaded, warn }: { inspectionId: string; uploaded: boolean; warn: boolean }) {
+function CertCell({ inspectionId, uploaded, archived, warn }: { inspectionId: string; uploaded: boolean; archived?: boolean; warn: boolean }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, start] = useTransition()
@@ -40,7 +40,8 @@ function CertCell({ inspectionId, uploaded, warn }: { inspectionId: string; uplo
   }
   return (
     <div className="flex items-center gap-1.5">
-      <Mark ok={uploaded} warn={warn} label={uploaded ? '보유' : '누락'} />
+      {/* 종이 보관 정리분은 ERP에 파일이 없다 — '보유'로 뭉뚱그리면 제출 때 첨부가 비어 버린다 */}
+      <Mark ok={uploaded} warn={warn} label={archived ? '종이 보관' : uploaded ? '보유' : '누락'} />
       {!uploaded && (
         <>
           <button onClick={() => inputRef.current?.click()} disabled={pending} title="배치확인서 업로드"
@@ -71,7 +72,7 @@ async function exportRows(rows: SubmissionRow[]) {
     '9호 생성': r.report9Gen ? '생성' : '미생성',
     '발송': r.report9Sent ? '발송' : '미발송',
     '제출(D-day)': ddayText(r),
-    '배치확인서': r.certUploaded ? '보유' : '누락',
+    '배치확인서': r.certArchived ? '종이 보관' : r.certUploaded ? '보유' : '누락',
     '10호': r.defectsTotal === 0 ? '해당없음' : (r.report10Gen ? '생성' : '미생성'),
     '11호': r.defectsTotal === 0 ? '해당없음' : naText(r.report11Gen, !!r.report11SubmittedAt),
   }))
@@ -202,7 +203,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                             <Clock3 className="size-3" /> {r.due9Dday === null ? '기한 미정' : overdue ? `초과 ${-r.due9Dday!}일` : `D-${r.due9Dday}`}
                           </span>}
                     </td>
-                    <td className={cell}><CertCell inspectionId={r.inspectionId} uploaded={r.certUploaded} warn={r.status === 'completed' && !r.certUploaded} /></td>
+                    <td className={cell}><CertCell inspectionId={r.inspectionId} uploaded={r.certUploaded} archived={r.certArchived} warn={r.status === 'completed' && !r.certUploaded} /></td>
                     <td className={cell}>{r.defectsTotal === 0 ? <Mark na label="해당없음" /> : <Mark ok={r.report10Gen} warn={!r.report10Gen} label={r.report10Gen ? '생성' : '미생성'} />}</td>
                     <td className={cell}>{r.defectsTotal === 0 ? <Mark na label="해당없음" /> : <Mark ok={!!r.report11SubmittedAt || r.report11Gen} warn={!r.report11Gen} label={r.report11SubmittedAt ? '제출' : r.report11Gen ? '생성' : '미생성'} />}</td>
                   </tr>

@@ -14,7 +14,15 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
   useEffect(() => {
     let revoke: string | null = null
     fetch(url)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob() })
+      .then(async r => {
+        // 서버가 담아 보낸 안내(예: "이 회차에 생성된 별지 PDF가 없습니다")를 버리지 않는다 —
+        // 상태 코드만 남기면 사용자는 무엇을 해야 할지 알 수 없다.
+        if (!r.ok) {
+          const msg = await r.json().then(j => j?.error as string | undefined).catch(() => undefined)
+          throw new Error(msg ?? `HTTP ${r.status}`)
+        }
+        return r.blob()
+      })
       .then(b => {
         revoke = URL.createObjectURL(new Blob([b], { type: 'application/pdf' }))
         setBlobUrl(revoke)

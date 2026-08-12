@@ -56,6 +56,8 @@ export type TimelineData = {
   isGeneral: boolean                    // 일반관리 (① = 외관점검표)
   responded: number                     // 점검표 응답 수
   certFile: { name: string; path: string } | null
+  /** 파일은 없지만 종이 보관 후 정리된 회차 — '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠) */
+  certArchived?: boolean
   contractFile: { name: string; path: string } | null
   delivery: { sentTo: string; sentAt: string } | null   // ③ 발송 이력 (최근)
   submit9: { due: string | null; dday: number | null; submittedAt: string | null }
@@ -260,7 +262,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   const has = (k: TimelineStepKey) => data.steps.includes(k)
   const hasDefects = data.defects.total > 0
   const done1 = data.responded > 0
-  const done2 = !!data.certFile
+  const done2 = !!data.certFile || !!data.certArchived
   const done3 = !!data.delivery
   const done4 = !!data.submit9.submittedAt
   // ⑤ 완료 판정 = 불량 전건 조치 완료 (R10-a — 계약서·사진은 선택 증빙이라 완료 조건에서 제외)
@@ -435,7 +437,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
             {isOpen('cert') && (
               <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
                 <span className={`text-xs ${done2 ? 'text-[#514b81]' : 'text-amber-600'}`}>
-                  {data.certFile ? `업로드됨: ${data.certFile.name}` : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
+                  {data.certFile ? `업로드됨: ${data.certFile.name}`
+                    : data.certArchived ? '종이 보관됨 — 과거본 정리로 ERP 사본은 삭제되었습니다'
+                    : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
                 </span>
                 <span className="ml-auto flex items-center gap-1.5 shrink-0">
                   {/* R7 배치신고 도우미 — 신고값 협회 순서 텍스트로 복사 */}

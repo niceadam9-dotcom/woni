@@ -94,14 +94,23 @@ export async function deleteFirePlanAction(planId: string): Promise<{ error?: st
   if (!plan) return { error: '소방계획서를 찾을 수 없습니다.' }
   const p = plan as { customer_id: string; year: number; title: string | null; pdf_path: string | null; hwp_path: string | null; html_path: string | null; odt_path: string | null }
 
-  await admin.storage.from(BUCKET).remove([
+  // 부속자료(지도·사진)는 행이 FK CASCADE(086)로 함께 사라진다 — 파일을 먼저 지우지 않으면
+  // 아무도 접근할 수 없는 고아 파일만 스토리지에 남는다.
+  const { data: atts } = await admin.from('fire_plan_attachments')
+    .select('file_path').eq('fire_plan_id', planId)
+
+  // 파일 삭제가 실패하면 행을 지우지 않는다 — 지우면 CASCADE로 참조가 사라져 되찾을 수 없다
+  const { error: rmErr } = await admin.storage.from(BUCKET).remove([
     ...(p.pdf_path ? [p.pdf_path] : []),
     ...(p.hwp_path ? [p.hwp_path] : []),
     ...(p.html_path ? [p.html_path] : []),
     ...(p.odt_path ? [p.odt_path] : []),
     // 표준양식 생성분의 폼 데이터(.form.json)도 함께 정리 — 없으면 무시됨
     ...(p.pdf_path?.includes('generated_') ? [p.pdf_path.replace(/\.pdf$/, '.form.json')] : []),
+    ...((atts ?? []) as Array<{ file_path: string }>).map(a => a.file_path),
   ])
+  if (rmErr) return { error: `첨부 파일 삭제에 실패해 중단했습니다 — 다시 시도해주세요. (${rmErr.message})` }
+
   const { error } = await admin.from('fire_plans').delete().eq('id', planId)
   if (error) return { error: '삭제에 실패했습니다.' }
 
