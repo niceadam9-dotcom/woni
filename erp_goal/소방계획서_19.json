@@ -3,7 +3,27 @@
   "design": "erp_goal/소방계획서_19.md",
   "origin": "erp_goal/소방계획서_15.json — items 미완료 17건(P3·P4 경미) + targets.T-4(미감사) + library_mapping_checklist.L-D-4(partial)",
   "created": "2026-08-11",
-  "updated": "2026-08-11",
+  "updated": "2026-08-12",
+  "independent_judgment": {
+    "date": "2026-08-12",
+    "judge": "독립 판정자 세션(구현자≠판정자, Json_Rule 규칙 3)",
+    "verdict": "B-1~B-8 전 단계 + A4-3 implemented 승격. audit_findings 수정분 13건 승격, EX-6만 반증(도달 불가)으로 code_present 유지",
+    "runtime": "스테이징(nwflnzugwylhpdyodyog) + dev :3000 실주행 — 별지 트리 [전체 미리보기](getAnnexPreviewHtmlAction) UI 경로와 같은 서버 액션 HTTP 호출 경로로 별지9·4·10·11호·외관 HTML을 실제 조립·렌더해 단언",
+    "probes": [
+      "_judge19-annex.mjs 58/58 — 별지4·9·10·11호·외관 실주행(B-1·B-2·B-3·B-4·B-6·A4-3·E10/E11/EX)",
+      "_judge19-body.mts 15/15 — assembleFirePlan 실주행(B-5 M-9·M-13·M-12)",
+      "_judge19-lib.mjs 7/7 — savePlanTextAction UI 실주행(B-7 version 불변)",
+      "_judge19-page9.mjs — 9쪽 작성방법 원문(_doc01 0009.htm) 축자 대조 18/19",
+      "_judge19-action.mjs — 서버 액션 id 추출·HTTP 호출·RSC flight 파싱 헬퍼(외관 미리보기 UI 진입점 부재 대응)",
+      "회귀 재실행: _probe-soban19-b.mts 31/31 · _probe-soban15-p2.mts 29/29 · _probe-soban15-p1.mts 16/16 · npx tsc --noEmit 클린"
+    ],
+    "data_hygiene": "테스트 고객·점검·응답·불량·서식·세부제원·annex_inputs 전량 삭제 후 잔존 0건 재조회 확인. company_profile·plan_text_library 등 실데이터는 값 변경 없음(plan_text_library는 사전·사후 0행 동일)",
+    "notes": [
+      "마이그레이션 124는 스테이징 적용 확인됨(운영 미적용은 배포 잔여)",
+      "EX-6 반증: inspections.year가 생성열이라 '연도 축 불일치'가 성립 불가 — audit_findings.EX-6 참조",
+      "경미 관측: 9쪽 작성방법 10호 문장 말미가 원문과 1곳 다름(B-4 independent_check.note)"
+    ]
+  },
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · implemented는 독립 검증(구현자≠판정자) 통과 + verified 증거 동반",
   "scope_note": "선행(소방계획서_15 P1·P2·P4)은 전건 implemented·커밋 f338a68(미푸시). 우선순위 기준은 15와 동일: ① 사실과 다르게 인쇄되는 것 → ② 서식 충실도 → ③ 인지 UX. **Q-1~Q-5 사용자 확정 완료(2026-08-11)** — Q-3(업무대행)은 '현행 유지'라 B-5c는 구현 없이 confirmed 종결, 나머지 차단 해제. Q-6(별지4호 원본)만 사용자 조치 대기. 2026-08-11 사용자 지시로 **B-1 우선 착수**",
   "migration_note": "122=다른 세션 선점(Realtime, 미커밋) · 123=소방계획서_15 A4-2(company_profile.management_reg_no, 스테이징 적용·운영 미적용) · **본 문서가 컬럼을 쓰게 되면 124**(Q-2 선임 형태 / Q-3 업무대행 플래그 동승)",
@@ -78,86 +98,160 @@
   ],
 
   "stages": [
-    { "id": "B-1", "title": "관리자 폴백 3곳 교정 (별지10·11호·외관)", "diagnosis": "K-1", "status": "code_present",
+    { "id": "B-1", "title": "관리자 폴백 3곳 교정 (별지10·11호·외관)", "diagnosis": "K-1", "status": "implemented",
       "priority": "P1", "blocked_on": null, "recommended_first": true,
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "report9-actions.ts:85 assembleAnnex1011 Promise.all에 fire_plan_forms.sections 조회 추가 · :94-95 a1011Mgr = pickFirePlanManager(sections.managers)",
+          "report9-actions.ts:111-112 mgrName = 선임자 → 대표 폴백 / mgrPhone은 선임자=대표 동일인일 때만 formatTel(owner.phone)",
+          "report9-actions.ts:612-614 assembleExterior 동일 패턴(extMgr·extMgrName) · :653 전화 동일 규칙 · :673 missing 문구 갱신",
+          "실주행(선임자 김선임 ≠ 대표 홍대표): 별지9·10·11호·외관 네 문서 관리자 성명 전부 '김선임'으로 일치, 네 문서 모두 관리자 전화칸에 숫자 0개(대표 전화 미유입), 보조자 '박보조' 미선택",
+          "관계인(대표) 칸은 종전대로 홍대표·010-1111-2222 유지"
+        ],
+        "probe": "_judge19-annex.mjs 58/58 (UI 별지 트리 [전체 미리보기] iframe srcdoc + getAnnexPreviewHtmlAction 실호출)" },
       "rationale": "오기재 위험 대비 비용이 가장 낮다 — 헬퍼(pickFirePlanManager)가 이미 있어 호출부 교체 수준",
       "self_report": { "date": "2026-08-11", "tsc": "clean",
         "evidence": ["report9-actions.ts assembleAnnex1011 — Promise.all에 fire_plan_forms 조회 추가, a1011Mgr = pickFirePlanManager(sections.managers) → mgrName 선임자 우선·대표 폴백", "assembleExterior — 동일 패턴(extMgr), missing 문구를 '소방안전관리자(1.7 선임현황 또는 대표 관계인) 미등록'으로 갱신", "전화는 선임자=대표 동일인일 때만 — 별지9호 A9-1과 동일 식"],
         "note": "실생성(별지10·11호·외관 미리보기 E2E) 검증은 독립 검증 패스에서 — B-1e 유지" },
       "criteria": [
-        { "id": "B-1a", "desc": "별지10·11호 조립(assembleAnnex1011)이 sections.managers 1순위 → 대표 폴백으로 mgrName 결정", "status": "code_present" },
-        { "id": "B-1b", "desc": "외관점검표 조립(assembleExterior) 동일 적용", "status": "code_present" },
-        { "id": "B-1c", "desc": "전화는 선임자=대표 동일인일 때만 사용 — 별지9호(A9-1)와 동일 규칙(1.7에 전화 열이 없어 타인 전화 오기재 방지)", "status": "code_present" },
-        { "id": "B-1d", "desc": "1.7 미입력 고객은 종전 대표 폴백 유지 — 하위 호환 (mgrRow null이면 owner 폴백)", "status": "code_present" },
-        { "id": "B-1e", "desc": "프로브: 선임자≠대표 고객으로 별지9·10·11호·외관 생성 → 네 문서의 관리자 이름 일치 단언 (독립 검증 패스에서)", "status": "pending_order" }
+        { "id": "B-1a", "desc": "별지10·11호 조립(assembleAnnex1011)이 sections.managers 1순위 → 대표 폴백으로 mgrName 결정", "status": "implemented" },
+        { "id": "B-1b", "desc": "외관점검표 조립(assembleExterior) 동일 적용", "status": "implemented" },
+        { "id": "B-1c", "desc": "전화는 선임자=대표 동일인일 때만 사용 — 별지9호(A9-1)와 동일 규칙(1.7에 전화 열이 없어 타인 전화 오기재 방지)", "status": "implemented" },
+        { "id": "B-1d", "desc": "1.7 미입력 고객은 종전 대표 폴백 유지 — 하위 호환 (mgrRow null이면 owner 폴백)", "status": "implemented",
+          "check_note": "코드상 `?? owner?.name ?? ''` 폴백 유지 확인(report9-actions.ts:111·614). 1.7 미입력 케이스는 소방계획서_15 _probe-soban15-p1(16/16, 'M-8 1.7 없으면 대표 폴백')이 회귀로 고정하고 있어 재실행으로 갈음" },
+        { "id": "B-1e", "desc": "프로브: 선임자≠대표 고객으로 별지9·10·11호·외관 생성 → 네 문서의 관리자 이름 일치 단언 (독립 검증 패스에서)", "status": "implemented",
+          "check_note": "_judge19-annex.mjs — 네 문서 관리자 성명 일치 + 전화 공란 + 보조자 미선택 단언 통과" }
       ] },
 
-    { "id": "B-2", "title": "교육훈련 실시 판정 — 계획→실적 기반", "diagnosis": "K-2", "status": "code_present",
+    { "id": "B-2", "title": "교육훈련 실시 판정 — 계획→실적 기반", "diagnosis": "K-2", "status": "implemented",
       "priority": "P1", "blocked_on": null, "decision_ref": "Q-1 resolved(실적 기반+③ 보정)",
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "report9-actions.ts:369-372 — hasTraining 제거, trainingRecords에서 at 연도 == insp.year-1 필터 후 kind에 '교육'/'훈련' 포함 여부로 각각 판정",
+          "report9-actions.ts:533-535 ③ 오버레이 — fstr(annexFields,'eduDone')==='실시'일 때만 true 강제(양성 보정만)",
+          "annex-compose-panel.tsx:40·43 FIELD_DEFS.report9 eduDone·drillDone select(자동 판정/실시) · :309-313 select 렌더 분기",
+          "실주행(전년도=2025 축): ①전년도 교육 실적만 → 교육 √·훈련 ☐ ②계획(eduMonths·drillMonths)만 → 양쪽 ☐(종전 결함 해소) ③당해년도(2026) 실적 → 양쪽 ☐(B-2b 축 확인) ④전년도 훈련 실적만 → 훈련 √·교육 ☐ ⑤③ 보정 eduDone='실시' → 교육 √ ⑥보정 '자동 판정'으로 되돌리면 자동 판정 복귀"
+        ],
+        "probe": "_judge19-annex.mjs 58/58" },
       "self_report": { "date": "2026-08-11", "evidence": ["report9-actions.ts assembleReport9 — hasTraining 제거, 1.11.4 records의 전년도(insp.year-1) 행을 구분(교육/훈련) 포함 매칭으로 분리 판정", "annex-compose-panel.tsx FIELD_DEFS report9에 eduDone·drillDone select(자동 판정/실시 확정) + select 렌더 분기 신설", "assembleReport9 ③ 오버레이 — '실시'일 때만 강제(양성 보정만, A9-6 단정 금지 정합)"], "probe": "_probe-soban19-b.mts 렌더 1단언 — 판정 로직·③ 오버레이 실주행은 독립 검증(124 적용 후)" },
       "criteria": [
-        { "id": "B-2a", "desc": "eduDone·drillDone을 분리 — 1.11.4 records의 구분(교육/훈련)별 실적 유무로 각각 판정", "status": "code_present" },
-        { "id": "B-2b", "desc": "판정 연도 = 전년도(insp.year-1) — 서식 9쪽 작성방법 8호 '교육훈련(전년도)' 명문 근거로 확정(자체점검(전년도)과 동일 축)", "status": "code_present" },
-        { "id": "B-2c", "desc": "③ 수동 보정 필드 추가 — annex-compose-panel FIELD_DEFS에 교육·훈련 실시 select(종이로만 실시한 경우 구제)", "status": "code_present" },
-        { "id": "B-2d", "desc": "프로브: 계획만 입력=양쪽 미체크 / 교육 실적만=교육만 체크 / ③ 보정 시 보정값 우선 (독립 검증에서 실주행)", "status": "pending_order" },
-        { "id": "B-2e", "desc": "기존 생성 문서와 값이 달라짐을 사용자에게 고지 — 2026-08-11 보고에 명시(계획만 입력하던 고객은 '실시' → ☐로 바뀜)", "status": "code_present" }
+        { "id": "B-2a", "desc": "eduDone·drillDone을 분리 — 1.11.4 records의 구분(교육/훈련)별 실적 유무로 각각 판정", "status": "implemented" },
+        { "id": "B-2b", "desc": "판정 연도 = 전년도(insp.year-1) — 서식 9쪽 작성방법 8호 '교육훈련(전년도)' 명문 근거로 확정(자체점검(전년도)과 동일 축)", "status": "implemented",
+          "check_note": "원문 대조로도 확인 — _doc01 …0009.htm 8호 '\"소방계획서\", \"자체점검(전년도)\", \"교육훈련(전년도)\"' 문장 존재" },
+        { "id": "B-2c", "desc": "③ 수동 보정 필드 추가 — annex-compose-panel FIELD_DEFS에 교육·훈련 실시 select(종이로만 실시한 경우 구제)", "status": "implemented" },
+        { "id": "B-2d", "desc": "프로브: 계획만 입력=양쪽 미체크 / 교육 실적만=교육만 체크 / ③ 보정 시 보정값 우선 (독립 검증에서 실주행)", "status": "implemented",
+          "check_note": "_judge19-annex.mjs 6개 변주 전부 통과(계획만·전년도 교육·전년도 훈련·당해년도·③ 보정·보정 해제)" },
+        { "id": "B-2e", "desc": "기존 생성 문서와 값이 달라짐을 사용자에게 고지 — 2026-08-11 보고에 명시(계획만 입력하던 고객은 '실시' → ☐로 바뀜)", "status": "implemented",
+          "check_note": "판정자는 세션 보고문을 직접 확인할 수 없어, 문서상 고지 기록으로 갈음 — 소방계획서_19.md §5 리스크 1번·본 json risks[0]에 동일 취지가 명문화돼 있음" }
       ] },
 
-    { "id": "B-3", "title": "'기타' 3항목 반영 (별지4·9호 공용)", "diagnosis": "K-3", "status": "code_present",
+    { "id": "B-3", "title": "'기타' 3항목 반영 (별지4·9호 공용)", "diagnosis": "K-3", "status": "implemented",
       "priority": "P3", "blocked_on": null,
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "report9-actions.ts:338-351 ETC_ITEM_MAP(31-A-001→door·31-A-002→exit·31-B-001/002→flame) + etcRoll(X>O>N, 무응답이면 undefined)",
+          "report9.ts:373-386 etcItem — 체크는 O/X만, 결과는 resultMark(muResultSection 규약) · report4.ts Report4Data.etcMarks 전달(report9-actions.ts:573)",
+          "스테이징 STD-31 실항목 확인 — 31-A-001 '방화문 및 방화셔터의 관리 상태…' / 31-A-002 '비상구 및 피난통로 확보…' / 31-B-001·002 방염",
+          "실주행: 31-A-001=X → 별지9호 3쪽·별지4호 1쪽 모두 [√]방화문, 자동방화셔터 + × / 31-A-002=O → [√]비상구, 피난통로 + ○ / 방염(무응답) → ☐ + 결과 공란"
+        ],
+        "probe": "_judge19-annex.mjs 58/58 · _probe-soban19-b.mts 31/31(순수 렌더 재현)" },
       "self_report": { "date": "2026-08-11", "evidence": ["report9-actions.ts ETC_ITEM_MAP — 31-A-001→door·31-A-002→exit·31-B-001/002→flame 명시 매핑(스테이징 STD-31 시트 실항목 대조) + X>O>N 롤업(etcMarks)", "report9.ts staticItem 제거 → etcItem(체크는 O/X만, 결과 resultMark — muResultSection 규약) + facilityResultSection Pick에 etcMarks", "report4.ts Report4Data.etcMarks + assembleReport4 전달"], "probe": "_probe-soban19-b.mts 5/5 (X·O·N·미공급 하위호환·별지4호 동일 반영)" },
       "criteria": [
-        { "id": "B-3a", "desc": "점검표 31번(기타사항) 응답 → 방화문·자동방화셔터 / 비상구·피난통로 / 방염 체크·결과 반영", "status": "code_present" },
-        { "id": "B-3b", "desc": "응답 없으면 종전대로 ☐+공란 유지(단정 금지 설계 — A9-6 confirmed와 정합)", "status": "code_present" },
-        { "id": "B-3c", "desc": "프로브: 31번 O/X 응답 → 별지4호 1쪽·별지9호 3쪽에 동일 반영(공용 함수라 1곳 수정=2건)", "status": "code_present" }
+        { "id": "B-3a", "desc": "점검표 31번(기타사항) 응답 → 방화문·자동방화셔터 / 비상구·피난통로 / 방염 체크·결과 반영", "status": "implemented" },
+        { "id": "B-3b", "desc": "응답 없으면 종전대로 ☐+공란 유지(단정 금지 설계 — A9-6 confirmed와 정합)", "status": "implemented" },
+        { "id": "B-3c", "desc": "프로브: 31번 O/X 응답 → 별지4호 1쪽·별지9호 3쪽에 동일 반영(공용 함수라 1곳 수정=2건)", "status": "implemented" }
       ] },
 
-    { "id": "B-4", "title": "서식 충실도 — 조문 줄·9쪽·주차장 하위·선임 형태", "diagnosis": ["K-4", "K-5"], "status": "code_present",
+    { "id": "B-4", "title": "서식 충실도 — 조문 줄·9쪽·주차장 하위·선임 형태", "diagnosis": ["K-4", "K-5"], "status": "implemented",
       "priority": "P3", "blocked_on": null,
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "report9.ts:228 유의사항 1·2호에 조문 병기(제58조제1호·제61조제1항제8호)",
+          "report9.ts:489-511 page9() + :481 pages에 편입 — 원본 _doc01 …0009.htm(EUC-KR) 문장 19개 중 18개 축자 일치(_judge19-page9.mjs)",
+          "report9.ts:325 옥내 하위 3칸 + report9-actions.ts:499-501 parking_summary '지하/지상/필로티' 매칭",
+          "supabase/migrations/124_manager_appointment_type.sql (CHECK 5종) — **스테이징 적용 확인**(customers.manager_appointment_type 조회 성공) · fire-plan-info-actions.ts:84·97 검증·저장 · fire-plan-info-panel.tsx:321-327 select · report9.ts:263 5종 체크",
+          "실주행: parking_summary='옥내(지하, 필로티), 옥외' → [√]옥내([√]지하 [ ]지상 [√]필로티 · manager_appointment_type='겸직' → [√]겸직만 체크, 미입력이면 5종 전부 ☐(하위 호환)"
+        ],
+        "note": "경미 관측 1건 — 9쪽 10호 문장 말미가 원문 '…건축물정보를 다음과 같이 작성합니다'인데 구현은 '동별로 나누어 작성합니다'로 바뀌어 있다(10쪽 작성 예시 미출력에 맞춘 의도적 각색으로 보임). 나머지 18문장은 축자 일치이며 판정에는 영향 없음",
+        "probe": "_judge19-annex.mjs 58/58 · _judge19-page9.mjs(원문 대조) · _probe-soban19-b.mts 31/31" },
       "self_report": { "date": "2026-08-11", "evidence": ["report9.ts 유의사항 2개 항에 조문 병기(제58조제1호·제61조제1항제8호)", "report9.ts page9() 신설 — 0009.htm(EUC-KR) 원문 추출·전문 재현, pages에 추가", "report9.ts 주차장 옥내 하위 3칸 + assembleReport9 parking_summary '지하/지상/필로티' 매칭", "124_manager_appointment_type.sql(CHECK 5종, ⚠ 스테이징·운영 미적용 — 적용 승인 대기) + fire-plan-info-actions/panel/page.tsx 선임 형태 select + assembleReport9 select·report9.ts 5종 체크"], "probe": "_probe-soban19-b.mts 9/9 (조문·9쪽·주차장·선임형태·하위호환)" },
       "criteria": [
-        { "id": "B-4a", "desc": "A9-8 1쪽 유의사항에 근거 조문 줄 추가(제58조제1호·제61조제1항제8호)", "status": "code_present" },
-        { "id": "B-4b", "desc": "A9-12 9쪽 '작성방법' 페이지 추가 — 별지9호.MD:19 '출력만' 표기와 일치시킴", "status": "code_present" },
-        { "id": "B-4c", "desc": "A9-5 주차장 옥내 하위(지하/지상/필로티) — parking_summary 파싱 확장", "status": "code_present" },
-        { "id": "B-4d", "desc": "A9-4 선임 형태 5종 — 고객 마스터 컬럼(124) + 계획서 정보 select + 별지9호 체크 연결. ⚠ 124 미적용 상태에선 별지4·9호 조립 select 실패 — 스테이징 적용이 런타임 선행 조건", "status": "code_present", "decision_ref": "Q-2 resolved" }
+        { "id": "B-4a", "desc": "A9-8 1쪽 유의사항에 근거 조문 줄 추가(제58조제1호·제61조제1항제8호)", "status": "implemented" },
+        { "id": "B-4b", "desc": "A9-12 9쪽 '작성방법' 페이지 추가 — 별지9호.MD:19 '출력만' 표기와 일치시킴", "status": "implemented" },
+        { "id": "B-4c", "desc": "A9-5 주차장 옥내 하위(지하/지상/필로티) — parking_summary 파싱 확장", "status": "implemented" },
+        { "id": "B-4d", "desc": "A9-4 선임 형태 5종 — 고객 마스터 컬럼(124) + 계획서 정보 select + 별지9호 체크 연결. ⚠ 124 미적용 상태에선 별지4·9호 조립 select 실패 — 스테이징 적용이 런타임 선행 조건", "status": "implemented", "decision_ref": "Q-2 resolved",
+          "check_note": "124 스테이징 적용 완료 확인 — 별지9·4호 조립 정상(select 실패 없음). 운영 적용은 배포 절차로 잔여" }
       ] },
 
-    { "id": "B-5", "title": "본문 표기 4건 (M-9·M-11·M-12·M-13)", "diagnosis": "K-6", "status": "code_present",
+    { "id": "B-5", "title": "본문 표기 4건 (M-9·M-11·M-12·M-13)", "diagnosis": "K-6", "status": "implemented",
       "priority": "P3", "blocked_on": null,
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "fire-plan-template.ts:582 rowspan 동적 · :587 종합월 있으면 종전 병기 · :591 종합월 없고 isInitial이면 독립 행",
+          "fire-plan-generate.ts:170-172 mgr 계산을 revisions보다 앞으로 이동 · :193 폴백 행 author = managerName(선임자→대표), reviewer·approver는 공란 유지",
+          "fire-plan-generate.ts:237-239 routeMeta(distanceM·durationMs) → km·분 환산 · :264-265 주입 · :333 서식 1.3 입력이 없을 때만 autoFilled 'station' · fire-plan-template.ts:285-286·473-474 폼값 우선 + autofill 클래스",
+          "실주행(assembleFirePlan 직접): ①종합월 공백+isInitial → '■ 최초점검 — 점검시기: 2026년 3월' 독립 행 출력 ②종합월 있으면 '(최초점검: …)' 병기·중복 행 없음 ③isInitial=false면 행 미생성 ④120 행 없음+fire_plans 있음 → revisions[].author='김선임'·reviewer/approver 공란, 120 행이 있으면 그 값 우선 ⑤routeMeta 2430m·402000ms → 2.4km·7분 + autofill 표시·배너 ⑥서식 1.3 입력(1.2km·4분)이 있으면 그 값 우선·autoFilled에서 station 제외 ⑦캐시·입력 모두 없으면 빈칸 유지"
+        ],
+        "probe": "_judge19-body.mts 15/15 (스테이징 실데이터 조립)" },
       "self_report": { "date": "2026-08-11", "evidence": ["fire-plan-template.ts 1.10.1 — 최초점검을 comp 블록 종속에서 분리, 종합월 없고 isInitial이면 독립 행(rowspan 동적), 종합월 있으면 종전 병기 유지", "fire-plan-generate.ts — mgr 계산을 revisions 앞으로 이동, 120 폴백 행 author=소방안전관리자(선임자→대표, appendGeneratedRevision authorName 규약 동일)", "fire-plan-generate.ts — sections.routeMeta(소방계획서_13 캐시) → stationDistance(km)·stationEta(분) 폴백 + autoFilled 'station' / fire-plan-template.ts AutofillKey·라벨·1.3 셀 autofill 표시(서식 1.3 입력은 종전대로 우선)"], "probe": "_probe-soban19-b.mts 4/4 (M-9 독립 출력·종전 병기·station 표시·배너) — routeMeta 실조립은 독립 검증에서" },
       "criteria": [
-        { "id": "B-5a", "desc": "M-9 최초점검(isInitial·initialMonth)을 종합점검월 블록에서 분리 — 종합 판정이 비어도 독립 출력", "status": "code_present" },
-        { "id": "B-5b", "desc": "M-13 폴백 경로 작성자 — 소방안전관리자(선임자→대표)로 채움. 15.json M-13은 successor 규약대로 동결(상태 추적은 본 문서)", "status": "code_present" },
+        { "id": "B-5a", "desc": "M-9 최초점검(isInitial·initialMonth)을 종합점검월 블록에서 분리 — 종합 판정이 비어도 독립 출력", "status": "implemented" },
+        { "id": "B-5b", "desc": "M-13 폴백 경로 작성자 — 소방안전관리자(선임자→대표)로 채움. 15.json M-13은 successor 규약대로 동결(상태 추적은 본 문서)", "status": "implemented" },
         { "id": "B-5c", "desc": "M-11 업무대행 — Q-3 '현행 유지(실고객 전수 대행)' 확정으로 구현 없이 종결", "status": "confirmed", "decision_ref": "Q-3 resolved(2026-08-11)" },
-        { "id": "B-5d", "desc": "M-12 1.3 거리·도착 — 자동 조회 캐시(routeMeta) 조립 폴백 + 자동 채움 표시(M-15 규약 정합)", "status": "code_present", "decision_ref": "Q-4 resolved" }
+        { "id": "B-5d", "desc": "M-12 1.3 거리·도착 — 자동 조회 캐시(routeMeta) 조립 폴백 + 자동 채움 표시(M-15 규약 정합)", "status": "implemented", "decision_ref": "Q-4 resolved" }
       ] },
 
-    { "id": "B-6", "title": "빈칸 인지 — 결과칸 규약·missing 확장", "diagnosis": "K-7", "status": "code_present",
+    { "id": "B-6", "title": "빈칸 인지 — 결과칸 규약·missing 확장", "diagnosis": "K-7", "status": "implemented",
       "priority": "P3", "blocked_on": null, "decision_ref": "Q-5 resolved(결과칸은 실제 응답 ○·×만 — 무응답 공란 유지·자동 기입 금지)",
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "report9-actions.ts:547-551 — unanswered = facilityChecks 중 resultMarks 미보유 건수 → '설치 설비 중 점검표 무응답 N건 — 3쪽 결과칸 공란' + '소방안전관리자 선임 형태(계획서 정보) 미입력 — 2쪽 체크 공란'",
+          "실주행: 설치 설비(소화기구) 1건 무응답 상태에서 missing에 '점검표 무응답 1건' 표기 · manager_appointment_type null로 바꾸면 '선임 형태' 문구 추가, 채우면 사라짐",
+          "B-6a 결과칸 규약 — 설치(√)인데 무응답인 설비의 결과칸이 ○·／ 없이 실제로 공란(자동 기입 0)"
+        ],
+        "probe": "_judge19-annex.mjs 58/58" },
       "self_report": { "date": "2026-08-11", "evidence": ["report9-actions.ts missing 확장 — '설치 설비 중 점검표 무응답 N건 — 3쪽 결과칸 공란' + '소방안전관리자 선임 형태 미입력 — 2쪽 체크 공란'(A9-4·A9-5·A9-9류 상시 공란 표면화, 15의 관리업 등록번호 선례)", "결과칸 규약은 코드 주석으로 명문화 — 무응답 시 ○·／ 자동 기입 없음(Q-5 확정 그대로, 동작 변경 없음)"], "probe": "missing 실주행은 독립 검증에서(124 적용 후)" },
       "criteria": [
-        { "id": "B-6a", "desc": "A9-9 설치+무응답 결과칸 — 공란 유지 확정(○·× 실응답만 반영, ／·○ 자동 기입 금지). 규약 주석 명문화, 동작 변경 없음", "status": "code_present" },
-        { "id": "B-6b", "desc": "A9-11 missing 목록에 상시 공란 칸 열거 추가(무응답 설비 건수·선임 형태 미입력)", "status": "code_present" },
-        { "id": "B-6c", "desc": "프로브: 상시 공란 칸이 missing에 나타나는지 (독립 검증에서 실주행)", "status": "pending_order" }
+        { "id": "B-6a", "desc": "A9-9 설치+무응답 결과칸 — 공란 유지 확정(○·× 실응답만 반영, ／·○ 자동 기입 금지). 규약 주석 명문화, 동작 변경 없음", "status": "implemented" },
+        { "id": "B-6b", "desc": "A9-11 missing 목록에 상시 공란 칸 열거 추가(무응답 설비 건수·선임 형태 미입력)", "status": "implemented" },
+        { "id": "B-6c", "desc": "프로브: 상시 공란 칸이 missing에 나타나는지 (독립 검증에서 실주행)", "status": "implemented" }
       ] },
 
-    { "id": "B-7", "title": "라이브러리 version 오증가 교정 (L-D-4)", "diagnosis": "K-8", "status": "code_present",
+    { "id": "B-7", "title": "라이브러리 version 오증가 교정 (L-D-4)", "diagnosis": "K-8", "status": "implemented",
       "priority": "P2", "blocked_on": null,
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "plan-text-sections.ts:158-168 planTextBodyEquals — 키 재귀 정렬 후 stringify 비교(배열 순서는 내용으로 취급)",
+          "plan-text-library-actions.ts:66 changed = !planTextBodyEquals(cur.body, body) → :69 changed일 때만 version+1",
+          "UI 실주행(1.11 화면 [공통으로 등록]): 등록 v1 → rename v1(불변) → 프리셋 교체 후 덮어쓰기 v2(+1) → 동일 body 재등록 v2(**불변**, updated_at만 갱신) → 반복 재등록도 v2 유지. 2026-08-11 반증(v2→v3)이 재현되지 않음"
+        ],
+        "probe": "_judge19-lib.mjs 7/7 (plan_text_library 실데이터 0행 확인 후 [JUDGE19] 접두어만 시드·전량 삭제)" },
       "self_report": { "date": "2026-08-11", "evidence": ["lib/plan-text-sections.ts planTextBodyEquals 신설 — 키 재귀 정렬 후 비교(배열 순서는 내용으로 취급)", "plan-text-library-actions.ts:65 stringify 직접 비교 → planTextBodyEquals로 교체"], "probe": "_probe-soban19-b.mts 3/3 (키 순서 무관 동등·내용 차이·배열 순서) — savePlanTextAction 실주행(version 불변)은 독립 검증에서 _judge-lib-a 재실행" },
       "criteria": [
-        { "id": "B-7a", "desc": "키 정렬 기반 비교로 교체 — jsonb 키 순서 정규화와 무관하게 실제 내용 변경만 감지", "status": "code_present" },
-        { "id": "B-7b", "desc": "_judge-lib-a.mjs 재실행 — 동일 body 재등록 시 version 불변 / 실제 변경 시 +1 / rename 미증가 (독립 검증에서)", "status": "pending_order" },
-        { "id": "B-7c", "desc": "소방계획서_15.json library_mapping_checklist.L-D-4를 partial → 재판정 대상으로 이관 (판정 통과 시)", "status": "pending_order" }
+        { "id": "B-7a", "desc": "키 정렬 기반 비교로 교체 — jsonb 키 순서 정규화와 무관하게 실제 내용 변경만 감지", "status": "implemented" },
+        { "id": "B-7b", "desc": "_judge-lib-a.mjs 재실행 — 동일 body 재등록 시 version 불변 / 실제 변경 시 +1 / rename 미증가 (독립 검증에서)", "status": "implemented",
+          "check_note": "판정자가 같은 시나리오를 _judge19-lib.mjs로 재작성해 실행(원본 _judge-lib-a.mjs는 반증 고정 단언이라 그대로 돌리면 실패가 정상)" },
+        { "id": "B-7c", "desc": "소방계획서_15.json library_mapping_checklist.L-D-4를 partial → 재판정 대상으로 이관 (판정 통과 시)", "status": "implemented",
+          "check_note": "소방계획서_15.json L-D-4를 partial → implemented로 승격하고 recheck(2026-08-12, _judge19-lib.mjs 7/7) 기록 추가" }
       ] },
 
-    { "id": "B-8", "title": "T-4 전수 감사 — 별지10·11호·외관점검표", "diagnosis": "K-9", "status": "code_present",
+    { "id": "B-8", "title": "T-4 전수 감사 — 별지10·11호·외관점검표", "diagnosis": "K-9", "status": "implemented",
       "priority": "P2", "blocked_on": null,
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "감사 산출물(audit_findings 20건)의 정확성 표본 대조 — 전부 코드와 일치: E10-5(report9-actions.ts:171-172 summary가 rows 첫 행) · E10-8(report1011.ts:106-109 totalDays 단독 출력) · E11-4(report1011.ts:139 '비고:' 1줄) · E11-5·EX-2(annex-compose-panel.tsx:15 ComposeAnnexNo = report9|report10|report11 — 외관 ③ 계층 부재) · EX-4(exterior.ts 월 열 단위 기입)",
+          "감사에서 수정으로 이어진 12건 중 11건이 런타임에서 재현 확인(아래 audit_findings 개별 independent_check 참조) — 감사의 3층 매핑 대조가 실제 코드 경로를 짚었다는 방증",
+          "19.md §7 감사 요약 추기 확인(문서 130-149행)"
+        ],
+        "note": "판정 범위상 '문안·표 구성·과태료 문구 원문 일치'는 감사자 주장 그대로 채택하되, 별지9호는 원본(_doc01 0009.htm)으로 직접 재대조해 일치를 확인했다(B-4b). 별지10·11호 원문 재대조는 본 판정에서 수행하지 않음",
+        "probe": "_judge19-annex.mjs 58/58" },
       "self_report": { "date": "2026-08-11", "evidence": ["감사 에이전트(구현 무관) — hwpx 원본(section0.xml 추출)·별지 MD·외관 manifest 대조 + 스테이징 읽기 전용 프로브(annex_inputs 0행·v2022 시트 14/항목 124 무결·연도 축 불일치 0건). 문안·표 구성 원문 일치 확인", "발견 20건 → audit_findings 기록(E10-1~8·E11-1~5·EX-1~7)", "권고 P1 앞당겨 즉시 수정: E10-1·E11-1(행 날짜 kdate 통일)·EX-5(전부 N이면 양호 단정 대신 공란)·EX-1(memo 조회 추가 + X 항목 메모 → 표지 비고칸 요약)"], "probe": "_probe-soban19-b.mts EX-1 2/2" },
       "criteria": [
-        { "id": "B-8a", "desc": "별지10·11호(report1011.ts + assembleAnnex1011) 3층 매핑 대조 — 원문 일치 확인, 발견 13건(E10-1~8·E11-1~5)", "status": "code_present" },
-        { "id": "B-8b", "desc": "외관점검표(exterior.ts + assembleExterior) 3층 매핑 대조 — 카탈로그 3자 무결 확인, 발견 7건(EX-1~7)", "status": "code_present" },
-        { "id": "B-8c", "desc": "발견 결함 audit_findings 추가 + P1(E10-1·E11-1·EX-1·EX-5) 즉시 수정", "status": "code_present" },
-        { "id": "B-8d", "desc": "감사 요약을 19.md §7로 추기", "status": "code_present" }
+        { "id": "B-8a", "desc": "별지10·11호(report1011.ts + assembleAnnex1011) 3층 매핑 대조 — 원문 일치 확인, 발견 13건(E10-1~8·E11-1~5)", "status": "implemented" },
+        { "id": "B-8b", "desc": "외관점검표(exterior.ts + assembleExterior) 3층 매핑 대조 — 카탈로그 3자 무결 확인, 발견 7건(EX-1~7)", "status": "implemented" },
+        { "id": "B-8c", "desc": "발견 결함 audit_findings 추가 + P1(E10-1·E11-1·EX-1·EX-5) 즉시 수정", "status": "implemented",
+          "check_note": "P1 4건 전부 런타임 재현. 다만 EX-6(2차 수정분)은 도달 불가 판정 — audit_findings.EX-6 참조" },
+        { "id": "B-8d", "desc": "감사 요약을 19.md §7로 추기", "status": "implemented" }
       ] }
   ],
 
@@ -199,27 +293,39 @@
     "date": "2026-08-11",
     "method": "B-8 — 감사 에이전트(구현 무관)가 hwpx 원본(section0.xml)·별지10/11호.MD·외관 manifest 대조 + 스테이징 읽기 전용 프로브. 문안·표 구성·과태료 문구·컬럼 헤더는 원문 일치 확인",
     "note": "status: code_present = 본 세션이 즉시 수정(B-8c P1 앞당김) · pending_order = 후속 대상 · confirmed = 의도된 설계로 판정",
+    "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+      "summary": "수정분 13건(E10-1·2·3·4·6 · E11-1·2·3 · EX-1·3·5·7)을 스테이징 실주행으로 재현 확인 → implemented 승격. EX-6만 반증(도달 불가)으로 code_present 유지. E11-2는 json이 pending_order였으나 실제로는 assembleAnnex1011 공용 경로에 이미 적용돼 있어(런타임 확인) 상태를 정정",
+      "probe": "_judge19-annex.mjs 58/58" },
     "items": [
-      { "id": "E10-1", "target": "별지10호", "class": "버그", "severity": "minor", "status": "code_present", "desc": "표 행 이행기간이 ISO 원문, 총 이행기간·보고일은 한국어 — 같은 문서 안 날짜 형식 혼재", "evidence": ["report9-actions.ts assembleAnnex1011 rows.period"], "fix": "행 기간도 kdate 통일(한쪽만 입력 시 그쪽만 한국어 표기)" },
-      { "id": "E10-2", "target": "별지10호", "class": "버그", "severity": "minor", "status": "code_present", "desc": "관계인·소방안전관리자 전화 formatTel 미적용(회사 전화는 적용) — 스테이징 무하이픈 5/278건 그대로 인쇄", "evidence": ["report9-actions.ts ownerPhone·mgrPhone"], "fix": "assembleAnnex1011·assembleExterior에 formatTel 적용(2026-08-12)" },
-      { "id": "E10-3", "target": "별지10호", "class": "유실", "severity": "minor", "status": "code_present", "desc": "총 이행기간 미산출(시작·종료 불완전) 시 공란인데 missing 미표기", "evidence": ["report9-actions.ts totalPeriod 산출 조건"], "fix": "계획 건은 있는데 totalPeriod가 비면 missing 문구 추가(2026-08-12)" },
-      { "id": "E10-4", "target": "별지10호", "class": "유실", "severity": "minor", "status": "code_present", "desc": "action_end만 입력된 불량은 필터(action_plan||action_start) 탈락 — 표·총기간 제외", "evidence": ["report9-actions.ts planned 필터"], "fix": "필터에 action_end 추가(2026-08-12)" },
+      { "id": "E10-1", "target": "별지10호", "class": "버그", "severity": "minor", "status": "implemented", "desc": "표 행 이행기간이 ISO 원문, 총 이행기간·보고일은 한국어 — 같은 문서 안 날짜 형식 혼재", "evidence": ["report9-actions.ts assembleAnnex1011 rows.period"], "fix": "행 기간도 kdate 통일(한쪽만 입력 시 그쪽만 한국어 표기)", "independent_check": { "evidence": ["report9-actions.ts:122-125", "실주행: 표 행 기간 '2026년 8월 1일 ~ 2026년 8월 20일' 인쇄(ISO 잔존 0)"] } },
+      { "id": "E10-2", "target": "별지10호", "class": "버그", "severity": "minor", "status": "implemented", "desc": "관계인·소방안전관리자 전화 formatTel 미적용(회사 전화는 적용) — 스테이징 무하이픈 5/278건 그대로 인쇄", "evidence": ["report9-actions.ts ownerPhone·mgrPhone"], "fix": "assembleAnnex1011·assembleExterior에 formatTel 적용(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:109·112·653", "실주행: 무하이픈 '01011112222' 시드 → 별지10호 관계인 칸에 '010-1111-2222' 인쇄"] } },
+      { "id": "E10-3", "target": "별지10호", "class": "유실", "severity": "minor", "status": "implemented", "desc": "총 이행기간 미산출(시작·종료 불완전) 시 공란인데 missing 미표기", "evidence": ["report9-actions.ts totalPeriod 산출 조건"], "fix": "계획 건은 있는데 totalPeriod가 비면 missing 문구 추가(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:134-135", "실주행: 계획 3건의 action_start·action_end를 모두 null로 만들면 missing에 '총 이행기간 — … 산출 불가' 등장"] } },
+      { "id": "E10-4", "target": "별지10호", "class": "유실", "severity": "minor", "status": "implemented", "desc": "action_end만 입력된 불량은 필터(action_plan||action_start) 탈락 — 표·총기간 제외", "evidence": ["report9-actions.ts planned 필터"], "fix": "필터에 action_end 추가(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:120", "실주행: action_end만 있는 '유도등 미점등'이 표에 '~ 2026년 9월 10일'로 편입"] } },
       { "id": "E10-5", "target": "별지10호", "class": "설계", "severity": "policy", "status": "pending_order", "desc": "③ summary가 표 첫 행에 계획 행과 구분 없이 삽입 — 계획 항목처럼 읽힐 소지(의도 주석 있음)", "evidence": ["report9-actions.ts summary 삽입"] },
-      { "id": "E10-6", "target": "별지10호", "class": "설계", "severity": "minor", "status": "code_present", "desc": "fire_station·관계인 부재가 missing 미표기(10·11호 missing은 rows 건수 1종뿐)", "evidence": ["report9-actions.ts missing"], "fix": "10·11호 공통으로 제출처·관계인 미등록 missing 추가(2026-08-12)" },
+      { "id": "E10-6", "target": "별지10호", "class": "설계", "severity": "minor", "status": "implemented", "desc": "fire_station·관계인 부재가 missing 미표기(10·11호 missing은 rows 건수 1종뿐)", "evidence": ["report9-actions.ts missing"], "fix": "10·11호 공통으로 제출처·관계인 미등록 missing 추가(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:158-160", "실주행: customers.fire_station=null → missing에 '관할 소방서 — 제출처가 일반 문구로 인쇄됨'"] } },
       { "id": "E10-7", "target": "별지10호", "class": "설계", "severity": "policy", "status": "pending_order", "desc": "별지10호.MD §3 '4건 초과 표기 우선순위' 미구현 — 행 한도 폐지로 사유 소멸, MD 갱신만 필요", "evidence": ["별지10호.MD:47"] },
       { "id": "E10-8", "target": "별지10호", "class": "설계", "severity": "minor", "status": "pending_order", "desc": "③ totalDays만 입력·totalPeriod 공란이면 '(총 n일)'만 출력 — 기간 없는 총일수", "evidence": ["report1011.ts totalPeriod 렌더"] },
-      { "id": "E11-1", "target": "별지11호", "class": "버그", "severity": "minor", "status": "code_present", "desc": "완료일 ISO 원문 인쇄 — E10-1 동일 계열", "evidence": ["report9-actions.ts done rows.period"], "fix": "kdate(slice(0,10)) 통일" },
-      { "id": "E11-2", "target": "별지11호", "class": "버그", "severity": "minor", "status": "pending_order", "desc": "owner/mgr 전화 무포맷 — E10-2 동일", "evidence": ["report9-actions.ts"] },
-      { "id": "E11-3", "target": "별지11호", "class": "설계", "severity": "minor", "status": "code_present", "desc": "action_taken 없이 완료일만 저장 시 불량명이 '이행조치 내용'에 폴백 인쇄 — 오독 소지(워커 파리티), 사전 경고 없음", "evidence": ["report9-actions.ts content 폴백"], "fix": "폴백 인쇄 자체는 유지(워커 파리티) + '이행조치 내용 미입력 N건 — 불량명이 대신 인쇄됨' missing 경고(2026-08-12)" },
+      { "id": "E11-1", "target": "별지11호", "class": "버그", "severity": "minor", "status": "implemented", "desc": "완료일 ISO 원문 인쇄 — E10-1 동일 계열", "evidence": ["report9-actions.ts done rows.period"], "fix": "kdate(slice(0,10)) 통일", "independent_check": { "evidence": ["report9-actions.ts:139-142", "실주행: action_completed_at 2026-08-05 → '2026년 8월 5일' 인쇄"] } },
+      { "id": "E11-2", "target": "별지11호", "class": "버그", "severity": "minor", "status": "implemented", "desc": "owner/mgr 전화 무포맷 — E10-2 동일", "evidence": ["report9-actions.ts"], "independent_check": { "evidence": ["report9-actions.ts:109·112 — 10·11호 공용 assembleAnnex1011에 적용돼 11호도 함께 해소", "실주행: 별지11호 관계인 칸 '010-1111-2222'", "⚠ json 상태가 pending_order로 남아 있었으나 md §7 2차 수정 기재와 코드가 일치 — 판정에서 정정"] } },
+      { "id": "E11-3", "target": "별지11호", "class": "설계", "severity": "minor", "status": "implemented", "desc": "action_taken 없이 완료일만 저장 시 불량명이 '이행조치 내용'에 폴백 인쇄 — 오독 소지(워커 파리티), 사전 경고 없음", "evidence": ["report9-actions.ts content 폴백"], "fix": "폴백 인쇄 자체는 유지(워커 파리티) + '이행조치 내용 미입력 N건 — 불량명이 대신 인쇄됨' missing 경고(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:154-156", "실주행: action_taken 없이 완료일만 있는 1건 → missing에 '이행조치 내용 미입력 1건 — 불량명이 대신 인쇄됨'"] } },
       { "id": "E11-4", "target": "별지11호", "class": "설계", "severity": "policy", "status": "confirmed", "desc": "③ note '비고:' 1줄이 법정 서식에 없는 칸 — H-23에서 의도 문서화된 확장", "evidence": ["report1011.ts note"] },
       { "id": "E11-5", "target": "별지11호", "class": "설계", "severity": "none", "status": "confirmed", "desc": "③ evidence·contractor·budget 내부 메모 미출력 — hint 명시 의도. 첨부는 제출 패키지 zip 담당(서식 요건 부합)", "evidence": ["annex-compose-panel.tsx hint"] },
-      { "id": "EX-1", "target": "외관점검표", "class": "유실", "severity": "major", "status": "code_present", "desc": "시트 응답 memo가 어디에도 안 나감 — 표지 비고칸 항상 공란, 정기 건은 별지10·11호 경로도 없어 X 사유가 완전 사장", "evidence": ["report9-actions.ts responses select", "exterior.ts 비고칸"], "fix": "memo 조회 추가 + X 항목 '코드 메모' 요약을 표지 비고칸에 인쇄(없으면 종전 공란)" },
+      { "id": "EX-1", "target": "외관점검표", "class": "유실", "severity": "major", "status": "implemented", "desc": "시트 응답 memo가 어디에도 안 나감 — 표지 비고칸 항상 공란, 정기 건은 별지10·11호 경로도 없어 X 사유가 완전 사장", "evidence": ["report9-actions.ts responses select", "exterior.ts 비고칸"], "fix": "memo 조회 추가 + X 항목 '코드 메모' 요약을 표지 비고칸에 인쇄(없으면 종전 공란)", "independent_check": { "evidence": ["report9-actions.ts:632-634 memo 조회 · :661-665 X 항목만 요약", "exterior.ts:250 비고칸", "실주행: X1-01(X, memo '소화기 압력 미달') → 표지 비고칸에 'X1-01 소화기 압력 미달' 인쇄 / memo 제거 시 종전 공란"] } },
       { "id": "EX-2", "target": "외관점검표", "class": "하드코딩", "severity": "minor", "status": "pending_order", "desc": "외관은 ③ annex_inputs 계층 자체가 없음 — 보고일·비고 수기 보정 경로 전무", "evidence": ["annex-compose-panel.tsx ComposeAnnexNo"] },
-      { "id": "EX-3", "target": "외관점검표", "class": "하드코딩", "severity": "policy", "status": "code_present", "desc": "직위(mgrTitle) 항상 공란 — 원본 서식엔 자리 존재, 1.7 ManagerRow.role이 후보 원천이나 미연결", "evidence": ["report9-actions.ts mgrTitle"], "fix": "1.7 선임자를 찾았을 때만 role을 직위로 인쇄 — 대표 폴백 시엔 단정하지 않음(2026-08-12)" },
+      { "id": "EX-3", "target": "외관점검표", "class": "하드코딩", "severity": "policy", "status": "implemented", "desc": "직위(mgrTitle) 항상 공란 — 원본 서식엔 자리 존재, 1.7 ManagerRow.role이 후보 원천이나 미연결", "evidence": ["report9-actions.ts mgrTitle"], "fix": "1.7 선임자를 찾았을 때만 role을 직위로 인쇄 — 대표 폴백 시엔 단정하지 않음(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:617 extMgrTitle = extMgr?.name ? (extMgr.role ?? '') : ''", "실주행: 1.7 구분 '관리자' → 표지에 '직위: 관리자' 인쇄"] } },
       { "id": "EX-4", "target": "외관점검표", "class": "설계", "severity": "policy", "status": "pending_order", "desc": "연간 서식(12행×12열)을 회차 단위로 생성 — 같은 해 이전 월 결과 미병합. 연간 누적본 부재가 의도인지 사용자 확정 필요", "evidence": ["exterior.ts 월 열 기입"] },
-      { "id": "EX-5", "target": "외관점검표", "class": "버그", "severity": "minor", "status": "code_present", "desc": "응답 전부 N(해당없음)이어도 '양호' 체크 — !anyX가 O 존재를 확인하지 않음", "evidence": ["report9-actions.ts monthGood"], "fix": "anyX→불량 / anyO→양호 / 그 외(전부 N·무응답)→공란" },
-      { "id": "EX-6", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "code_present", "desc": "표 헤더 연도(inspections.year)와 점검월일(start_date) 축 분리 — 어긋나면 연도 오기재(스테이징 현재 0건)", "evidence": ["report9-actions.ts year·start"], "fix": "두 축이 다르면 missing에 '연도 불일치' 경고(2026-08-12)" },
-      { "id": "EX-7", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "code_present", "desc": "missing 3종뿐 — 주소·용도 공란 무경고", "evidence": ["report9-actions.ts missing"], "fix": "소재지·대상물 구분 미입력 missing 추가(2026-08-12)" }
+      { "id": "EX-5", "target": "외관점검표", "class": "버그", "severity": "minor", "status": "implemented", "desc": "응답 전부 N(해당없음)이어도 '양호' 체크 — !anyX가 O 존재를 확인하지 않음", "evidence": ["report9-actions.ts monthGood"], "fix": "anyX→불량 / anyO→양호 / 그 외(전부 N·무응답)→공란", "independent_check": { "evidence": ["report9-actions.ts:660 monthGood = anyX ? false : anyO ? true : null", "exterior.ts:215-220", "실주행 3케이스: X 포함 → [ ]양호 [√]불량 / 전부 N → 양쪽 ☐(양호 단정 없음) / O 존재 → [√]양호"] } },
+      { "id": "EX-6", "target": "외관점검표", "class": "설계", "severity": "none", "status": "confirmed", "desc": "표 헤더 연도(inspections.year)와 점검월일(start_date) 축 분리 — **감사 전제가 성립하지 않음**. year는 start_date 기반 생성열이라 두 축이 어긋날 수 없다", "evidence": ["report9-actions.ts year·start", "supabase/migrations/002_fire_safety.sql:109 GENERATED ALWAYS AS"], "fix": "1차로 넣었던 '연도 불일치' missing 경고는 **도달 불가 죽은 코드**라 판정 반영 후 제거(2026-08-12) — 근거 주석만 남김",
+        "independent_check": { "verdict": "부분 — 코드 존재하나 **도달 불가**(승격 보류)",
+          "evidence": [
+            "supabase/migrations/002_fire_safety.sql:109 — inspections.year는 GENERATED ALWAYS AS (EXTRACT(YEAR FROM inspection_start_date))::INT STORED",
+            "실주행: year 직접 갱신 시도 → Postgres 428C9 'column \"year\" is a generated column' / inspection_start_date를 전년으로 바꾸면 year도 같이 이동 → 두 축이 어긋난 상태를 만들 수 없음",
+            "따라서 report9-actions.ts:678-680의 '연도 불일치' missing은 어떤 입력으로도 발생하지 않는다(무해한 방어 코드). 감사 원문의 '축 분리' 전제 자체가 성립하지 않음",
+            "start_date가 null이면 year도 null이라 가드 조건(start_date 존재)이 먼저 falsy — 이 경로도 불가"
+          ],
+          "recommend": "가드는 남겨도 무해하나, 원장에는 '도달 불가'로 기록하고 EX-6를 confirmed(설계상 불성립)로 종결하는 편이 정확하다 — 상태 변경은 기안 세션 판단에 맡김",
+          "resolution": "2026-08-12 기안 세션이 권고를 수용 — 죽은 코드를 제거하고 confirmed(설계상 불성립)로 종결. 잔여 후속 목록에서도 제외" } },
+      { "id": "EX-7", "target": "외관점검표", "class": "설계", "severity": "minor", "status": "implemented", "desc": "missing 3종뿐 — 주소·용도 공란 무경고", "evidence": ["report9-actions.ts missing"], "fix": "소재지·대상물 구분 미입력 missing 추가(2026-08-12)", "independent_check": { "evidence": ["report9-actions.ts:674-676", "실주행: address·purpose를 비우면 missing에 '소재지 미입력 — 표지 공란'·'대상물 구분(용도) 미입력 — 표지 공란' 2건 등장"] } }
     ]
   },
 
@@ -237,8 +343,15 @@
   },
 
   "blocked": [
-    { "id": "A4-3", "status": "code_present", "resolved_by": "form_edition_finding(2026-08-12)", "desc": "수계공통(3-2) '설비의 종류' 체크줄 부재 — 현행 9호 원문 대조로 실결함 확인 후 구현(스키마 5블록 systems 필드 + 템플릿 sysLine). 흡입방식·유효수량 지적은 오탐으로 종결",
-      "self_report": { "date": "2026-08-12", "evidence": ["facility-spec-schema.ts WATER_SYSTEMS·systemsField() — main_water·pump_elevated·pump_pressure·pump_pressurized·pump_type 5블록에 multicheck(limitToInstalled) 추가", "spec-sections.ts sysLine() — 5블록 렌더에 체크줄 삽입(8종 3+5 줄바꿈, 현행 원문 배치)"], "probe": "_probe-soban19-b.mts 6/6 (5블록·√·☐·8종·별지4호 동일·현행 라벨 유지)" } },
+    { "id": "A4-3", "status": "implemented", "resolved_by": "form_edition_finding(2026-08-12)", "desc": "수계공통(3-2) '설비의 종류' 체크줄 부재 — 현행 9호 원문 대조로 실결함 확인 후 구현(스키마 5블록 systems 필드 + 템플릿 sysLine). 흡입방식·유효수량 지적은 오탐으로 종결",
+      "self_report": { "date": "2026-08-12", "evidence": ["facility-spec-schema.ts WATER_SYSTEMS·systemsField() — main_water·pump_elevated·pump_pressure·pump_pressurized·pump_type 5블록에 multicheck(limitToInstalled) 추가", "spec-sections.ts sysLine() — 5블록 렌더에 체크줄 삽입(8종 3+5 줄바꿈, 현행 원문 배치)"], "probe": "_probe-soban19-b.mts 6/6 (5블록·√·☐·8종·별지4호 동일·현행 라벨 유지)" },
+      "independent_check": { "date": "2026-08-12", "judge": "독립 판정자(구현자≠판정자)",
+        "evidence": [
+          "facility-spec-schema.ts:134-135 systemsField() · :144·162·172·184·196 5블록에 전개",
+          "spec-sections.ts:163-169 WATER_SYSTEMS 8종·sysLine(3+5 줄바꿈) · :172·191·200·204·208 5개 호출부",
+          "실주행: customer_facility_specs s32_water_common에 main_water.systems=['옥내소화전설비','스프링클러설비'], pump_type.systems=['옥내소화전설비'] 저장 → 별지9호·별지4호 세부현황 모두 '◦ 설비의 종류:' 5블록 인쇄, 저장분 [√]옥내소화전설비 · 미선택 [ ]옥외소화전설비"
+        ],
+        "probe": "_judge19-annex.mjs 58/58" } },
     { "id": "A4-4", "status": "blocked", "blocked_on": "정밀 레이아웃 대조(현행 9호 hwpx 기반 가능 — 후속)", "desc": "설치장소 기입란 축소(2줄→1줄) — 다동 대상물 기입 불가" },
     { "id": "A4-6", "status": "confirmed", "resolved_by": "form_edition_finding(2026-08-12)", "desc": "라벨 문구 차이 5건 — **현행판 대조 결과 생성물이 옳고 샘플이 구판**. 수정 불필요로 종결" },
     { "id": "A4-7", "status": "blocked", "blocked_on": "현행 개정판 별지4호 원본(4호 고유 레이아웃)", "desc": "쪽 경계가 샘플과 다름 — 내용 동일, 레이아웃만(P4)" }

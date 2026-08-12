@@ -674,10 +674,9 @@ async function assembleExterior(
   // EX-7(B-8 감사): 표지 절반을 차지하는 대상물 정보 공란이 종전 무경고였다
   if (!cust.address) missing.push('소재지 미입력 — 표지 공란')
   if (!purpose) missing.push('대상물 구분(용도) 미입력 — 표지 공란')
-  // EX-6(B-8 감사): 표 헤더 연도(inspections.year)와 점검월일(시작일)의 축이 어긋나면 연도가 잘못 인쇄된다
-  if (insp.inspection_start_date && Number(insp.inspection_start_date.slice(0, 4)) !== insp.year) {
-    missing.push(`연도 불일치 — 표 헤더 ${insp.year}년 vs 점검시작일 ${insp.inspection_start_date.slice(0, 4)}년`)
-  }
+  // EX-6(B-8 감사)은 성립하지 않는다 — inspections.year는 inspection_start_date 기반 생성열
+  // (002_fire_safety.sql:109 GENERATED ALWAYS AS ... STORED)이라 표 헤더 연도와 점검월일의 축이
+  // 어긋난 행 자체를 만들 수 없다. 독립 검증(2026-08-12)이 428C9로 실증 — 경고를 두지 않는다.
   return { data, missing }
 }
 
