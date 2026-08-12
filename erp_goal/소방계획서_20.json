@@ -191,7 +191,7 @@
 
   "progress": {
     "date": "2026-08-12",
-    "state": "S1~S5 구현·검증·문서 완료 + **독립 검증 통과(27✅/1부분→수정)** + S4-10② 구현. **S1~S3 커밋(466baed) · S4는 커밋 보류** — 잔여: S4 커밋(16 S5 선행)뿐",
+    "state": "**전 단계 완료·커밋 완결** — S1~S3 `466baed` · 문서 `db8e584` · 독립 검증 반영 `1f1b8d9` · S4 `f921986`. 잔여: 푸시(사용자 지시 대기)와 §5-2b 플레이크(16 S5 이관)뿐",
     "history": [
       "2026-08-11 기안(md+json) 작성 후 사용자 지시로 구현 중단",
       "2026-08-12 Q-7(18 선행 커밋) 해소 후 S1 재개·완료",
@@ -203,18 +203,16 @@
     ],
     "committed": {
       "466baed": "S1~S3 — docs-actions.ts · plan-annex-section.tsx · round-card/full-preview/start-modal 신설 · test-annex-interaction.mts · 프로브 2종 (8파일)",
+      "db8e584": "docs — 소방계획서_20 기안·검증 기록",
+      "1f1b8d9": "독립 검증 반영 — J-1(data-hover-doc 잔존)·J-2(배경 탭 예열 재시도) 수정 + 기능 요구 implemented 승격 (5파일)",
+      "f921986": "S4 — 자동 저장·빠른 입력 이식·터치 40px·지난 회차 복사 + Realtime 결함 F-1~F-4 (5파일)",
+      "swept_elsewhere": "S4의 서버 액션 copyPreviousRoundResponsesAction은 sheet-actions.ts가 같은 파일이라 타 세션 커밋 1b41384(19 EX-4)에 휩쓸려 먼저 들어갔다",
       "note": "설계의 C1/C2/C3 3분할은 미달성 — S1·S2가 docs-actions.ts 한 파일에, S1~S3가 plan-annex-section.tsx 한 파일에 모여 파일 단위로 가를 수 없었다. hunk 분할은 앞 단계에서 편집 사고를 낸 방식이라 택하지 않고, 한 커밋으로 묶되 메시지를 단계별로 구성했다"
     },
-    "uncommitted_edits": [
-      { "file": "erp/src/hooks/use-debounced-autosave.ts", "change": "S4 신설 — 디바운스 자동 저장 훅", "wired": true },
-      { "file": "erp/src/components/customers/plan-annex-sheet-tree.tsx", "change": "S4 자동 저장·상태 칩·Realtime pause·빠른 입력 패널·지난 회차 복사 + dirtyRef 렌더중 쓰기 제거", "wired": true },
-      { "file": "erp/src/components/inspections/sheet-item-editor.tsx", "change": "S4 hideSave·cancelLabel prop + 터치 버튼 40px", "wired": true },
-      { "file": "erp/src/app/(dashboard)/inspections/sheet-actions.ts", "change": "S4 copyPreviousRoundResponsesAction 신설(안전장치 3종 서버측)", "wired": true },
-      { "file": "erp/scripts/test-annex-sheet-inline.mts", "change": "S4 반영 — 저장 버튼 단언 → 자동 저장 칩·닫기, 항목 로드 대기 조건 교정", "wired": true },
-      { "file": "erp/scripts/_probe-annex-autosave.mjs", "change": "S4 프로브 신설(12/12)", "wired": true }
-    ],
+    "uncommitted_edits": [],
     "s4_commit_blocked": {
-      "decided": "2026-08-12 사용자 '보류 — 16 S5 먼저'",
+      "resolved": "**2026-08-12 사용자 지시로 보류 해제 — S4 커밋 f921986.** 16 S5는 여전히 sheet-tree 배선·마이그레이션 122를 커밋하지 않았으므로, 그 Realtime 배선(sheet-tree 24줄·테스트 14줄)이 f921986에 함께 실렸다(같은 파일이라 분리 불가). 마이그레이션 122는 소유 세션 몫으로 커밋하지 않아 publication 미등록 상태에서는 Realtime이 무동작이며, 16 S5의 알림 벨 E2E 1건은 계속 실패한다. 커밋 메시지에 동거 사실을 명시했다",
+      "decided": "2026-08-12 사용자 '보류 — 16 S5 먼저' (이후 해제)",
       "reason": "plan-annex-sheet-tree.tsx가 소방계획서_16 S5의 **미추적** 파일 `@/hooks/use-sheet-responses-realtime`를 import한다. 그 훅 없이 커밋하면 체크아웃 시 빌드가 깨지고, 함께 커밋하려면 16 S5의 미완 기능(자체 알림 벨 E2E 실패)과 마이그레이션 122(미커밋·운영 미적용)까지 끌고 들어가야 한다",
       "also_mixed": [
         "sheet-actions.ts — 소방계획서_19 EX-4(외관 month 축) 미커밋 변경 동거",
@@ -233,6 +231,6 @@
       ],
       "known_env_issue": ".next 캐시 손상으로 고객 상세가 전 고객 404가 되는 현상 재발 — dev 종료 후 .next 삭제·재기동으로 해소(코드 회귀 아님)"
     },
-    "resume_from": "S4 커밋(16 S5가 sheet-tree 배선·마이그레이션 122를 커밋한 뒤) — 그 외 잔여 없음"
+    "resume_from": "푸시(사용자 지시 대기). 설계 항목 잔여 없음 — §5-2b 플레이크는 소방계획서_16 S5로 이관"
   }
 }
