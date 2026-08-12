@@ -23,6 +23,7 @@ const activeCls = (r: SheetResult) =>
 export function SheetItemEditor({
   items, loading, value, onResult, onRegisterX, canEdit, busy, error, notice,
   onSave, onCancel, maxHeight = 'max-h-[420px]', showFooterHint = true, saveLabel = '저장',
+  hideSave = false, cancelLabel = '취소',
 }: {
   items: SheetItem[]                                   // 범위 필터(작동=종합전용 제외)가 이미 적용된 표시 대상
   loading: boolean
@@ -39,6 +40,9 @@ export function SheetItemEditor({
   maxHeight?: string
   showFooterHint?: boolean
   saveLabel?: string
+  /** 자동 저장 화면에서 저장 버튼을 감춘다 (소방계획서_20 S4-6) — 점검 상세는 기본값(false)로 종전 유지 */
+  hideSave?: boolean
+  cancelLabel?: string
 }) {
   // R13-d: X 선택 시 그 자리에서 메모+[등록] — 상단 [불량 등록] 왕복 없이
   const [inlineX, setInlineX] = useState<string | null>(null)
@@ -57,10 +61,12 @@ export function SheetItemEditor({
               <p className="text-[11px] font-semibold text-[#7b68ee] sticky top-0 bg-white py-0.5">{g}</p>
               {its.map(it => (
                 <div key={it.item_code} className="border-b border-[#f8f9fa]">
-                  <div className="flex items-center gap-2 py-1">
+                  {/* S4-8: O/X/N은 현장에서 장갑 낀 손으로 누르는 버튼이다 — 28px는 오탭이 잦아 40px로 키우고
+                      행 간격도 넓혔다. 메모 입력은 좁은 화면에서 넘치지 않게 아래 줄로 흐르게 한다. */}
+                  <div className="flex items-center gap-2 py-1.5">
                     <span className="text-[10px] text-[#b0acd6] w-14 shrink-0">{it.item_code}</span>
                     <span className="text-xs text-[#090c1d] flex-1 min-w-0">{it.item_name}</span>
-                    <div className="flex gap-0.5 shrink-0">
+                    <div className="flex gap-1 shrink-0">
                       {RESULTS.map(r => (
                         <button key={r} onClick={() => {
                           if (!canEdit) return
@@ -68,7 +74,8 @@ export function SheetItemEditor({
                           if (r === 'X') { setInlineX(it.item_code); setInlineMemo('') }
                           else if (inlineX === it.item_code) setInlineX(null)
                         }}
-                          className={`w-7 h-7 rounded text-xs font-bold transition-colors ${value[it.item_code] === r
+                          aria-label={`${it.item_code} ${r}`}
+                          className={`w-10 h-10 rounded-lg text-sm font-bold transition-colors ${value[it.item_code] === r
                             ? activeCls(r)
                             : 'bg-[#f5f4ff] text-[#b0acd6] hover:bg-[#ebe9ff]'}`}>
                           {mark(r)}
@@ -77,14 +84,14 @@ export function SheetItemEditor({
                     </div>
                   </div>
                   {inlineX === it.item_code && (
-                    <div className="flex items-center gap-2 pb-1.5 pl-14">
+                    <div className="flex items-center gap-2 pb-1.5 pl-14 flex-wrap">
                       <input value={inlineMemo} onChange={e => setInlineMemo(e.target.value)}
-                        placeholder="불량 메모 (선택)" className="h-7 flex-1 min-w-40 rounded border border-red-200 bg-white px-2 text-[11px] outline-none focus:border-red-400" />
+                        placeholder="불량 메모 (선택)" className="h-9 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-white px-2 text-[11px] outline-none focus:border-red-400" />
                       <button onClick={() => { onRegisterX(it.item_code, inlineMemo); setInlineX(null); setInlineMemo('') }} disabled={busy}
-                        className="h-7 px-2.5 rounded bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium disabled:opacity-50">
+                        className="h-9 px-3 rounded bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium disabled:opacity-50">
                         {busy ? <Loader2 className="size-3 animate-spin" /> : '등록'}
                       </button>
-                      <button onClick={() => setInlineX(null)} className="h-7 px-2 rounded border border-[#c8c4d0] text-[11px] text-[#514b81]">닫기</button>
+                      <button onClick={() => setInlineX(null)} className="h-9 px-3 rounded border border-[#c8c4d0] text-[11px] text-[#514b81]">닫기</button>
                     </div>
                   )}
                 </div>
@@ -97,10 +104,12 @@ export function SheetItemEditor({
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
       {canEdit && (
         <div className="flex gap-2 mt-3">
-          <button onClick={onCancel} disabled={busy} className="flex-1 h-8 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">취소</button>
-          <button onClick={onSave} disabled={busy} className="flex-1 h-8 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-3.5 mr-1" /> {saveLabel}</>}
-          </button>
+          <button onClick={onCancel} disabled={busy} className="flex-1 h-9 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">{cancelLabel}</button>
+          {!hideSave && (
+            <button onClick={onSave} disabled={busy} className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-3.5 mr-1" /> {saveLabel}</>}
+            </button>
+          )}
         </div>
       )}
       {showFooterHint && (
