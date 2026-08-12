@@ -124,16 +124,39 @@ console.log('— B-5a: M-9 최초점검 독립 출력')
   ok('배너에 1.3 라벨', st.includes('소방서 최단거리·도착시간(1.3 자동조회 캐시)'))
 }
 
-console.log('— EX-1: 외관 비고칸 메모 요약')
+console.log('— EX-1·EX-4: 외관 비고칸 메모 + 연간 누적본')
 {
   const extBase = {
     customerName: '프로브빌딩', purpose: '', address: '', mgrTitle: '', mgrName: '', mgrPhone: '',
-    year: '2026', month: 8, day: 11, inspectorName: '', monthGood: false, results: { 'X1-01': 'X' },
+    year: '2026', months: [],
   } as unknown as ExteriorData
-  const html = renderExterior({ ...extBase, remark: 'X1-01 소화기 압력 미달' })
-  ok('비고칸에 메모 인쇄', html.includes('X1-01 소화기 압력 미달'))
+  const mk = (month: number, day: number, good: boolean | null, results: Record<string, 'O' | 'X' | 'N'>, who = '') =>
+    ({ month, day, good, results, inspectorName: who })
+
+  const html = renderExterior({
+    ...extBase,
+    months: [
+      mk(3, 5, true, { 'X1-01': 'O' }, '김점검'),
+      mk(8, 11, false, { 'X1-01': 'X' }, '이점검'),
+    ],
+    remark: '8월 X1-01 소화기 압력 미달',
+  } as unknown as ExteriorData)
+  ok('비고칸에 월 표기 메모 인쇄', html.includes('8월 X1-01 소화기 압력 미달'))
+  ok('3월 행 채움(양호·점검자)', html.includes('3월 5일') && html.includes('김점검'))
+  ok('8월 행 채움(불량·점검자)', html.includes('8월 11일') && html.includes('이점검'))
+  ok('미점검 달은 종전 빈 행', html.includes('월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일'))
+  // 섹션 표 — 같은 항목이 3월엔 ○, 8월엔 ×로 두 열 모두 채워져야 한다(종전엔 1열만)
+  const row = html.split('\n').find(l => l.includes('소화기의 변형') || l.includes('X1-01')) ?? ''
+  const firstItemRow = html.match(/<tr><td class="itm">[\s\S]*?<\/tr>/)?.[0] ?? row
+  const marks = (firstItemRow.match(/○|×/g) ?? [])
+  ok('첫 항목 행에 ○·× 두 달 모두 표기', marks.includes('○') && marks.includes('×'), `실제 ${JSON.stringify(marks)}`)
+
   const empty = renderExterior(extBase)
-  ok('메모 없으면 종전 공란', /<th>비고<\/th><td[^>]*>&nbsp;<\/td>/.test(empty))
+  ok('기록 0개월 — 메모 없으면 종전 공란', /<th>비고<\/th><td[^>]*>&nbsp;<\/td>/.test(empty))
+  ok('기록 0개월 — 12행 전부 빈 행', (empty.match(/월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일/g) ?? []).length === 12)
+
+  const allN = renderExterior({ ...extBase, months: [mk(5, 2, null, { 'X1-01': 'N' })] } as unknown as ExteriorData)
+  ok('EX-5 — 전부 N이면 양호·불량 양쪽 미체크', !/\[√\]양호/.test(allN) && !/\[√\]불량/.test(allN))
 }
 
 console.log('— A4-3: 세부현황 수계공통 \'설비의 종류\' 체크줄 (별지4·9호 공용)')
@@ -166,7 +189,7 @@ console.log('— EX-3: 외관 직위(1.7 구분)')
 {
   const extBase = {
     customerName: 'P', purpose: '', address: '', mgrTitle: '', mgrName: '', mgrPhone: '',
-    year: '2026', month: 8, day: 11, inspectorName: '', monthGood: null, results: {},
+    year: '2026', months: [],
   } as unknown as ExteriorData
   ok('직위 인쇄', renderExterior({ ...extBase, mgrTitle: '관리자', mgrName: '김선임' }).includes('관리자'))
 }

@@ -12,7 +12,7 @@ import {
 import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map'
 import { renderReport4, type Report4Data, type Report4SheetSection } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
-import { renderExterior, type ExteriorData } from '@/lib/doc-templates/exterior'
+import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
 import { pickFirePlanManager } from '@/lib/fire-plan-template'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import type { ManagerRow } from '@/components/customers/plan-form17'
@@ -52,7 +52,7 @@ async function pageAll<T>(
 async function loadAnnexInputs(
   admin: Admin,
   inspectionId: string,
-  annexNo: 'report9' | 'report10' | 'report11',
+  annexNo: 'report9' | 'report10' | 'report11' | 'exterior',
 ): Promise<Record<string, unknown>> {
   const { data } = await admin.from('annex_inputs').select('fields')
     .eq('inspection_id', inspectionId).eq('annex_no', annexNo).maybeSingle()
@@ -167,9 +167,10 @@ async function assembleAnnex1011(
     // 작성 패널 daterange는 "YYYY-MM-DD ~ YYYY-MM-DD"로 저장 — 자동 산출과 같은 한국어 날짜로 변환 (과거 자유 텍스트는 그대로 통과)
     if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod').replace(/\d{4}-\d{2}-\d{2}/g, m => kdate(m))
     if (fstr(fields, 'totalDays')) data.totalDays = fstr(fields, 'totalDays')
-    // 계획 내용 요약 — 렌더 변경 없이 이행조치 사항 표의 첫 행으로 출력
+    // 계획 내용 요약 — 이행조치 사항 표의 첫 행으로 출력하되 개별 계획 항목과 구분한다(E10-5).
+    // 종전엔 구분 없이 얹혀 있어 기간이 빈 요약 줄이 '기간 미정인 이행조치 1건'처럼 읽혔다.
     const summary = fstr(fields, 'summary')
-    if (summary) data.rows = [{ content: summary, period: '' }, ...data.rows]
+    if (summary) data.rows = [{ content: summary, period: '', isSummary: true }, ...data.rows]
   } else {
     // 완료 보고 문구 — 있을 때만 서명 블록 위 1줄 (report1011.ts note)
     const note = fstr(fields, 'note')
@@ -616,32 +617,85 @@ async function assembleExterior(
   // 선임자를 못 찾으면(대표 폴백) 직위를 단정하지 않는다.
   const extMgrTitle = extMgr?.name ? (extMgr.role ?? '') : ''
 
-  let inspector = ''
-  if (insp.assigned_employee_id) {
-    const { data: profs } = await admin.from('profiles').select('name').eq('id', insp.assigned_employee_id).limit(1)
-    inspector = ((profs?.[0] as { name: string | null } | undefined)?.name) ?? ''
+  // ── EX-4(소방계획서_19, 2026-08-12 사용자 확정): **연간 누적본** ──
+  // 서식이 12개월 × 12행 연간 양식인데 종전엔 회차 단위로 생성해 해당 월 1칸만 채웠다(같은 해 이전 월은 영구 공백).
+  // 이제 같은 고객·같은 연도의 **외관점검 대상 회차 전부**를 모아 월별로 채운다.
+  // 대상 판정은 생성 게이트(requestReport9Action)와 동일 축 — plan_type이 있고 'special'로 시작하지 않는 건.
+  const yearInsps = await pageAll<{
+    id: string; inspection_start_date: string | null; assigned_employee_id: string | null; plan_type: string | null
+  }>((from, to) =>
+    admin.from('inspections')
+      .select('id, inspection_start_date, assigned_employee_id, plan_type')
+      .eq('customer_id', customerId).eq('year', insp.year)
+      .not('plan_type', 'is', null).not('plan_type', 'like', 'special%')
+      .order('inspection_start_date', { ascending: true }).range(from, to))
+  // 생성 요청 건이 목록에 없으면(가드를 우회한 예외 상황) 그 건만이라도 포함해 빈 문서를 막는다
+  const targets = yearInsps.some(x => x.id === inspectionId)
+    ? yearInsps
+    : [...yearInsps, { id: inspectionId, inspection_start_date: insp.inspection_start_date, assigned_employee_id: insp.assigned_employee_id, plan_type: null }]
+
+  const empIds = [...new Set(targets.map(t => t.assigned_employee_id).filter(Boolean))] as string[]
+  const nameById = new Map<string, string>()
+  if (empIds.length) {
+    const { data: profs } = await admin.from('profiles').select('id, name').in('id', empIds)
+    for (const p of (profs ?? []) as Array<{ id: string; name: string | null }>) nameById.set(p.id, p.name ?? '')
   }
 
-  // 점검월일 — 점검시작일(없으면 오늘 KST, 워커 동일)
-  const start = insp.inspection_start_date ?? new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
-  const month = Number(start.slice(5, 7))
-  const day = Number(start.slice(8, 10))
-
-  // 외관점검 시트 응답(X{섹션}-{행}) → 해당 월 결과란 ○/×// (워커: item_code=like.X*)
-  // EX-1(소방계획서_19 B-8 감사): memo도 조회 — X 항목 메모가 문서 어디에도 안 나가던 유실 해소(표지 비고칸 요약)
-  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>((from, to) =>
-    admin.from('inspection_sheet_responses').select('item_code, result, memo')
-      .eq('inspection_id', inspectionId).like('item_code', 'X%').range(from, to))
-  const anyX = responses.some(r => r.result === 'X')
-  const anyO = responses.some(r => r.result === 'O')
-  const results: Record<string, 'O' | 'X' | 'N'> = {}
-  for (const r of responses) {
-    const m = /^X(\d{1,2})-(\d{1,3})$/.exec(r.item_code)
-    if (m && ['O', 'X', 'N'].includes(r.result)) {
-      // 워커의 정수 정규화와 동일 계열 — 카탈로그 코드(0패딩 2자리)로 통일
-      results[`X${Number(m[1])}-${String(Number(m[2])).padStart(2, '0')}`] = r.result
+  // 외관점검 시트 응답(X{섹션}-{행}) → 월별 결과란 ○/×// (워커: item_code=like.X*)
+  // EX-1(B-8 감사): memo도 조회 — X 항목 메모가 문서 어디에도 안 나가던 유실 해소(표지 비고칸 요약)
+  // EX-4(125): **month가 연간 누적의 1차 축**이다(고객·연도당 점검 건이 최대 2건이라 회차로는 12달을 못 담는다).
+  // month=0(백필 이전 레거시)은 그 점검 건의 시작월로 본다.
+  type ExtResp = { item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }
+  const respByMonth = new Map<number, ExtResp[]>()
+  const metaOfMonth = new Map<number, { employeeId: string | null; day: number }>()
+  if (targets.length) {
+    const allResp = await pageAll<{ inspection_id: string; item_code: string; result: 'O' | 'X' | 'N'; memo: string | null; month: number }>((from, to) =>
+      admin.from('inspection_sheet_responses').select('inspection_id, item_code, result, memo, month')
+        .in('inspection_id', targets.map(t => t.id)).like('item_code', 'X%').range(from, to))
+    const inspById = new Map(targets.map(t => [t.id, t]))
+    for (const r of allResp) {
+      const t = inspById.get(r.inspection_id)
+      const start = t?.inspection_start_date ?? null
+      const m = r.month > 0 ? r.month : (start ? Number(start.slice(5, 7)) : 0)
+      if (!(m >= 1 && m <= 12)) continue
+      const arr = respByMonth.get(m) ?? []
+      arr.push({ item_code: r.item_code, result: r.result, memo: r.memo })
+      respByMonth.set(m, arr)
+      // 그 달의 점검자·일자 — 응답이 붙은 점검 건 기준(같은 달에 여러 건이면 시작일이 늦은 건이 남는다)
+      if (start && !metaOfMonth.has(m)) metaOfMonth.set(m, { employeeId: t?.assigned_employee_id ?? null, day: Number(start.slice(8, 10)) })
     }
   }
+
+  const remarks: string[] = []
+  const monthMap = new Map<number, ExteriorMonthEntry>()
+  for (const [month, resp] of [...respByMonth.entries()].sort((a, b) => a[0] - b[0])) {
+    const results: Record<string, 'O' | 'X' | 'N'> = {}
+    for (const r of resp) {
+      const m = /^X(\d{1,2})-(\d{1,3})$/.exec(r.item_code)
+      if (m && ['O', 'X', 'N'].includes(r.result)) {
+        // 워커의 정수 정규화와 동일 계열 — 카탈로그 코드(0패딩 2자리)로 통일
+        results[`X${Number(m[1])}-${String(Number(m[2])).padStart(2, '0')}`] = r.result
+      }
+    }
+    const anyX = resp.some(r => r.result === 'X')
+    const anyO = resp.some(r => r.result === 'O')
+    const meta = metaOfMonth.get(month)
+    monthMap.set(month, {
+      month,
+      day: meta?.day ?? 0,
+      inspectorName: meta?.employeeId ? (nameById.get(meta.employeeId) ?? '') : '',
+      // EX-5(B-8 감사): 전부 N(해당없음)·무응답이면 양호 단정 대신 공란 — 종전 `!anyX`는 O가 없어도 양호로 찍었다
+      good: anyX ? false : anyO ? true : null,
+      results,
+    })
+    for (const r of resp) {
+      if (r.result === 'X' && r.memo?.trim()) remarks.push(`${month}월 ${r.item_code} ${r.memo.trim()}`)
+    }
+  }
+  const months = [...monthMap.values()].sort((a, b) => a.month - b.month)
+  // 생성 요청 건의 응답 유무 — missing 판정 기준은 종전과 동일하게 '이 회차'
+  const responses = [...respByMonth.values()].flat()
+  const inspector = insp.assigned_employee_id ? (nameById.get(insp.assigned_employee_id) ?? '') : ''
 
   const data: ExteriorData = {
     customerName: cust.customer_name,
@@ -652,24 +706,36 @@ async function assembleExterior(
     mgrName: extMgrName,
     mgrPhone: extMgrName === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
     year: String(insp.year),
-    month,
-    day,
-    inspectorName: inspector,
-    // 표지 해당 월 양호/불량 — 불량 1건이라도 있으면 불량. EX-5(B-8 감사): 전부 N(해당없음)이면
-    // 양호 단정 대신 공란 — 종전 `!anyX`는 O가 하나도 없어도 양호로 찍었다.
-    monthGood: anyX ? false : anyO ? true : null,
+    // EX-4: 연간 누적 — 같은 해 점검한 달이 전부 채워진다
+    months,
     // EX-1(B-8 감사): X 항목 메모 요약 → 표지 비고칸 (종전 항상 공란 — 메모가 문서상 완전 사장)
-    remark: responses
-      .filter(r => r.result === 'X' && r.memo?.trim())
-      .map(r => `${r.item_code} ${r.memo!.trim()}`)
-      .join(' / '),
-    results,
+    remark: remarks.join(' / '),
+  }
+
+  // ③ 서식 고유 값 오버레이 (EX-2) — 외관만 이 계층이 없어 보고일·비고를 손볼 방법이 아예 없었다.
+  // 다른 별지와 같은 규약: 작성 패널 저장분이 자동 계산값보다 우선한다.
+  const fields = await loadAnnexInputs(admin, inspectionId, 'exterior')
+  const fNote = fstr(fields, 'note')
+  if (fNote) data.remark = data.remark ? `${data.remark} / ${fNote}` : fNote
+  const fDate = fstr(fields, 'reportDate')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fDate)) {
+    // 표는 월·일 칸이라 날짜 자체를 그 달 항목에 반영한다(연도는 생성열이라 건드리지 않는다)
+    const m = Number(fDate.slice(5, 7)), d2 = Number(fDate.slice(8, 10))
+    const hit = data.months.find(x => x.month === m)
+    if (hit) hit.day = d2
   }
 
   // 누락 항목 — 워커 process_exterior missing과 동일 문구
   const missing: string[] = []
   if (!responses.length) missing.push('외관점검 시트 응답 없음 — 결과란 공란')
   if (!inspector) missing.push('점검자(담당) 미배정')
+  // EX-4: 연간 누적본이므로 '이 회차만 있고 나머지 달은 비어 있음'을 알린다(연간 12칸 중 몇 칸이 찼는지)
+  if (months.length > 0) {
+    const filled = months.filter(m => m.good !== null).length
+    if (filled < months.length || months.length < 12) {
+      missing.push(`연간 누적 — ${insp.year}년 ${months.length}개월 기록(응답 있는 달 ${filled}개월), 나머지 달은 공란`)
+    }
+  }
   if (!extMgrName) missing.push('소방안전관리자(1.7 선임현황 또는 대표 관계인) 미등록')
   // EX-7(B-8 감사): 표지 절반을 차지하는 대상물 정보 공란이 종전 무경고였다
   if (!cust.address) missing.push('소재지 미입력 — 표지 공란')

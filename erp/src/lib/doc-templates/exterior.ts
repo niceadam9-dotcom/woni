@@ -176,17 +176,27 @@ export type ExteriorData = {
   mgrTitle: string            // 직위 — 별도 데이터 미보유(워커 동일 공란)
   mgrName: string             // 소방안전관리자 — 관계인(대표) 폴백 (워커 동일)
   mgrPhone: string
-  // ── 점검결과 연도·해당 월 (워커 ph: yr·d{월}_md·d{월}_g/b·d{월}_nm) ──
+  // ── 점검결과 연도 (워커 ph: yr) ──
   year: string                // ( yr 년도) 점검결과 — 전 섹션 표 공통
-  month: number               // 점검 월(1~12) — 표지 해당 행 + 섹션 표 해당 월 열만 기입
+
+  /** EX-4(소방계획서_19, 2026-08-12 확정): **연간 누적본**.
+   *  서식이 12개월 × 12행짜리 연간 양식인데 종전엔 회차 단위로 생성해 해당 월 1칸만 채웠다
+   *  (같은 해 이전 월은 영구 공백 — 2년 보관 취지상 연간 누적본이 없었다).
+   *  이제 같은 고객·같은 연도의 외관점검 대상 회차를 전부 모아 월별로 채운다. */
+  months: ExteriorMonthEntry[]
+  /** EX-1(B-8 감사): 표지 비고칸 — 월별 X 항목 메모 요약, 없으면 공란 */
+  remark?: string
+}
+
+/** 연간 누적본의 월 1칸 — 회차 1건(같은 달에 2건이면 나중 회차가 덮어씀) */
+export type ExteriorMonthEntry = {
+  month: number               // 1~12
   day: number                 // 점검 일
   inspectorName: string       // 점검자(담당 직원)
-  /** 표지 해당 월 양호/불량 체크 — null = 시트 응답 없음(양쪽 공란, 워커 동일) */
-  monthGood: boolean | null
-  /** 섹션 표 결과란 — item_code(X{섹션}-{행}, 0패딩) → ○/×// (해당 월 열에만 표기) */
+  /** 표지 양호/불량 — null이면 양쪽 공란(응답 없음 / 전부 해당없음, EX-5 규약) */
+  good: boolean | null
+  /** 섹션 표 결과란 — item_code(X{섹션}-{행}, 0패딩) → ○/×// */
   results: Record<string, 'O' | 'X' | 'N'>
-  /** EX-1(소방계획서_19 B-8 감사): 표지 비고칸 — X 항목 메모 요약(코드+메모), 없으면 종전 공란 */
-  remark?: string
 }
 
 export type ExteriorRenderOpts = { highlight?: boolean } // 미리보기: 미입력 하이라이트 (§4-A-2c ③)
@@ -208,15 +218,16 @@ const MONTH_COL = '<col style="width:4.6%">'.repeat(12)
 
 /** 표지 — 특정소방대상물·소방안전관리자·소방시설등 점검내역(12행)·비고 */
 function coverPage(d: ExteriorData, h: boolean): string {
+  // EX-4: 연간 누적 — 점검한 달만 채우고 나머지는 종전처럼 빈 행(수기 기입 여지)
+  const byMonth = new Map(d.months.map(e => [e.month, e]))
   const rows = Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1
-    const isCur = m === d.month
-    const md = isCur ? `${d.month}월 ${d.day}일` : '월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일'
-    const good = isCur && d.monthGood !== null ? ck(d.monthGood) : ck(false)
-    const bad = isCur && d.monthGood !== null ? ck(!d.monthGood) : ck(false)
-    const nm = isCur ? val(d.inspectorName, { highlight: h }) : ''
+    const e = byMonth.get(i + 1)
+    const md = e ? `${e.month}월 ${e.day}일` : '월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일'
+    const good = e && e.good !== null ? ck(e.good) : ck(false)
+    const bad = e && e.good !== null ? ck(!e.good) : ck(false)
+    const nm = e ? val(e.inspectorName, { highlight: h }) : ''
     return `<tr>
-    <td class="center">${isCur ? esc(md) : md}</td>
+    <td class="center">${e ? esc(md) : md}</td>
     <td class="center">${good}양호 ${bad}불량</td>
     <td class="center">${nm}</td>
     <td class="sign right">(서명)</td>
@@ -260,6 +271,7 @@ function sectionPage(
   const from = opts.from ?? 0
   const to = opts.to ?? s.items.length
   const items = s.items.slice(from, to)
+  const monthMap = new Map(d.months.map(e => [e.month, e]))
 
   let prevCat: string | null | undefined
   const bodyRows: string[] = []
@@ -268,11 +280,11 @@ function sectionPage(
       bodyRows.push(`<tr><td class="cat">${esc(it.category)}</td><td class="mk" colspan="12"></td></tr>`)
     }
     prevCat = it.category
+    // EX-4: 연간 누적 — 점검한 달의 열마다 결과를 채운다(종전엔 해당 월 1열만)
     const cells = Array.from({ length: 12 }, (_, i) => {
-      const m = i + 1
-      if (m !== d.month) return '<td class="mk"></td>'
-      const r = d.results[it.code]
-      const mark = resultMark(r)
+      const e = monthMap.get(i + 1)
+      if (!e) return '<td class="mk"></td>'
+      const mark = resultMark(e.results[it.code])
       return `<td class="mk">${mark || (h ? '<span class="missing">&nbsp;&nbsp;</span>' : '')}</td>`
     }).join('')
     bodyRows.push(`<tr><td class="itm">${esc(it.content)}</td>${cells}</tr>`)

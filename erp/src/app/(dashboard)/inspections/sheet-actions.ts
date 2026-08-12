@@ -90,20 +90,46 @@ export async function loadSheetItemsAction(sheetId: string): Promise<{
   return { items }
 }
 
-/** 점검표 응답 저장 (P34-2) — 해당 항목들 upsert */
+/** EX-4(소방계획서_19, 125): 외관점검표 특정 월의 응답만 로드 — 연간 누적본 입력용.
+ *  month=0이면 '월 무관'(레거시 저장분)을 돌려준다. 화면은 월을 바꿀 때마다 이 값으로 다시 초기화한다. */
+export async function loadExteriorMonthResponsesAction(
+  inspectionId: string, month: number,
+): Promise<{ responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>; error?: string }> {
+  await requirePermission('inspection_register')
+  if (!Number.isInteger(month) || month < 0 || month > 12) return { responses: {}, error: '점검 월 값을 확인해주세요.' }
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('inspection_sheet_responses')
+    .select('item_code, result, memo')
+    .eq('inspection_id', inspectionId).eq('month', month).like('item_code', 'X%')
+  if (error) return { responses: {}, error: `조회 실패: ${error.message}` }
+  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
+  for (const r of (data ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>) {
+    responses[r.item_code] = { result: r.result, memo: r.memo }
+  }
+  return { responses }
+}
+
+/** 점검표 응답 저장 (P34-2) — 해당 항목들 upsert
+ *  EX-4(소방계획서_19, 125): month는 **외관점검표(X% 항목)의 연간 누적 축**이다.
+ *  0 = 월 무관(일반 점검표 전부, 기본값) / 1~12 = 그 달의 외관점검 실적.
+ *  월을 넘기지 않으면 종전과 완전히 동일하게 동작한다. */
 export async function saveSheetResponsesAction(
   inspectionId: string,
-  rows: Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo?: string | null }>
+  rows: Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo?: string | null }>,
+  month = 0,
 ): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   if (rows.length === 0) return {}
+  if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
   const payload = rows.map(r => ({
     inspection_id: inspectionId, item_code: r.item_code, result: r.result,
+    // 외관 항목만 월 축을 쓴다 — 일반 점검표에 월이 섞이면 유니크가 갈라져 중복 응답이 생긴다
+    month: r.item_code.startsWith('X') ? month : 0,
     memo: r.memo?.trim() || null, updated_by: profile.id, updated_at: new Date().toISOString(),
   }))
   const { error } = await admin.from('inspection_sheet_responses')
-    .upsert(payload as Record<string, unknown>[], { onConflict: 'inspection_id,item_code' })
+    .upsert(payload as Record<string, unknown>[], { onConflict: 'inspection_id,item_code,month' })
   if (error) return { error: `저장 실패: ${error.message}` }
   revalidatePath(`/inspections/${inspectionId}`)
   return {}
