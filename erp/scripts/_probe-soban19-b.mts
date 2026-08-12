@@ -12,7 +12,7 @@ import type { FirePlanGenData } from '../src/lib/fire-plan-template.ts'
 import ptsmod from '../src/lib/plan-text-sections.ts'
 
 const { renderReport4 } = r4mod as unknown as typeof import('../src/lib/doc-templates/report4.ts')
-const { renderReport9 } = r9mod as unknown as typeof import('../src/lib/doc-templates/report9.ts')
+const { renderReport9, parseParkingSummary } = r9mod as unknown as typeof import('../src/lib/doc-templates/report9.ts')
 const { renderExterior } = extmod as unknown as typeof import('../src/lib/doc-templates/exterior.ts')
 const { buildFirePlanHtml } = tplmod as unknown as typeof import('../src/lib/fire-plan-template.ts')
 const { planTextBodyEquals } = ptsmod as unknown as typeof import('../src/lib/plan-text-sections.ts')
@@ -76,6 +76,22 @@ console.log('— B-4c: 주차장 옥내 하위')
   ok('지하·필로티 √, 지상 ☐', /\[√\]지하 \[&nbsp;&nbsp;\]지상 \[√\]필로티/.test(html))
   const legacy = renderReport9(r9base)
   ok('미공급 → 종전 전부 ☐', /\[&nbsp;&nbsp;\]지하 \[&nbsp;&nbsp;\]지상 \[&nbsp;&nbsp;\]필로티/.test(legacy))
+}
+
+console.log('— B-4c 보강: parking_summary 매칭(조립·프로브 공용 함수)')
+{
+  // 기존 검증 케이스 — 출력 불변(회귀 없음)
+  const p1 = parseParkingSummary('옥내(지하, 필로티), 옥외')
+  ok('옥내(지하, 필로티), 옥외 → 옥내·지하·필로티 √, 지상 ☐', p1.pkIn && !!p1.pkInUg && !!p1.pkInPiloti && !p1.pkInGround && p1.pkOut)
+  // L-2: 옥외 문맥의 '지상'이 옥내 하위로 오체크되지 않는다
+  const p2 = parseParkingSummary('옥외 지상 6대')
+  ok('옥외 지상 6대 → 옥내 ☐·지상 ☐·옥외 √', !p2.pkIn && !p2.pkInGround && p2.pkOut)
+  // L-1: 지하는 서식상 옥내의 하위 유형 — 상위(옥내)도 함께 체크돼 모순 출력이 없다
+  const p3 = parseParkingSummary('지하 자주식 30대')
+  ok('지하 자주식 30대 → 옥내 √·지하 √', p3.pkIn && !!p3.pkInUg)
+  // 실데이터 형태(스테이징 2건) — 전부 ☐ + 옥외 √ 유지
+  const p4 = parseParkingSummary('옥외 자주식 6대')
+  ok('옥외 자주식 6대 → 옥내·하위 전부 ☐, 옥외 √', !p4.pkIn && !p4.pkInUg && !p4.pkInGround && !p4.pkInPiloti && p4.pkOut)
 }
 
 console.log('— B-4d: 선임 형태 5종')

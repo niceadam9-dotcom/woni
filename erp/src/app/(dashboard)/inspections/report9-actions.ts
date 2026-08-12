@@ -6,7 +6,7 @@ import { requirePermission } from '@/lib/auth'
 import { convertHtmlToPdf } from '@/lib/pdf'
 import { renderReport10, renderReport11, type Annex1011Data } from '@/lib/doc-templates/report1011'
 import {
-  renderReport9, FORM3_ITEMS, form3Group,
+  renderReport9, FORM3_ITEMS, form3Group, parseParkingSummary,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
 import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map'
@@ -495,14 +495,8 @@ async function assembleReport9(
     elvR: b?.elevator_count ? String(b.elevator_count) : '',
     elvE: b?.emergency_elevator_count ? String(b.emergency_elevator_count) : '',
     elvV: b?.evac_elevator_count ? String(b.evac_elevator_count) : '',
-    pkIn: pk.includes('옥내'),
-    // B-4c(소방계획서_19 A9-5): 옥내 하위(지하/지상/필로티) — 기계식과 같은 방식의 문자열 매칭
-    pkInUg: pk.includes('지하'),
-    pkInGround: pk.includes('지상'),
-    pkInPiloti: pk.includes('필로티'),
-    pkMech: pk.includes('기계식'),
-    pkRoof: pk.includes('옥상'),
-    pkOut: pk.includes('옥외'),
+    // B-4c(소방계획서_19 A9-5): 주차 체크 — 매칭 규칙은 parseParkingSummary 단일 정의(프로브 공용)
+    ...parseParkingSummary(pk),
     // 계단·경사로 — 1.1 일반현황 입력분(그동안 템플릿에 빈칸 하드코딩되어 미반영, 2026-08-06 연결)
     rampCount: b?.ramp_count ? String(b.ramp_count) : '',
     stairsCount: b?.stairs_count ? String(b.stairs_count) : '',

@@ -343,6 +343,22 @@ function p3Table(groups: P3Group[]): string {
 </table>`
 }
 
+/** B-4c(소방계획서_19 A9-5): parking_summary 자유 텍스트 → 주차 체크 플래그.
+ *  조립(assembleReport9)·프로브가 공용 — 매칭 규칙 사본을 만들지 말 것(드리프트).
+ *  지하·필로티는 서식상 옥내의 하위 유형이라 상위(옥내)도 함께 체크해 모순 출력을 막고,
+ *  '지상'은 옥외 문맥("옥외 지상 N대")에서도 쓰이므로 옥내 명시가 있을 때만 하위로 인정한다. */
+export function parseParkingSummary(pk: string): Pick<Report9Data, 'pkIn' | 'pkInUg' | 'pkInGround' | 'pkInPiloti' | 'pkMech' | 'pkRoof' | 'pkOut'> {
+  return {
+    pkIn: pk.includes('옥내') || pk.includes('지하') || pk.includes('필로티'),
+    pkInUg: pk.includes('지하'),
+    pkInGround: pk.includes('옥내') && pk.includes('지상'),
+    pkInPiloti: pk.includes('필로티'),
+    pkMech: pk.includes('기계식'),
+    pkRoof: pk.includes('옥상'),
+    pkOut: pk.includes('옥외'),
+  }
+}
+
 /** 1절 소방시설등 점검 결과(설비 √ + ○/×//) 2열 표 — 별지 9호 3쪽 = 별지 4호 1쪽 공용(H-21) */
 export function facilityResultSection(
   d: Pick<Report9Data, 'facilityChecks' | 'resultMarks'> & Partial<Pick<Report9Data, 'ledgerCodes' | 'specs' | 'etcMarks'>>,
