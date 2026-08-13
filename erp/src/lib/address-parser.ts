@@ -91,6 +91,38 @@ export function extractRegionDetail(address: string): {
   return { sido, sigun, gu, emd }
 }
 
+/**
+ * 주소 중복 판정용 정규화 키 — "행정구역 + 도로명 + 건물번호"까지만 남기고 뒤를 버린다.
+ *
+ * 등록 화면은 주소 검색 뒤 동/호수를 덧붙이도록 안내하므로(`주소 검색 후 동/호수 등 추가 입력`),
+ * 같은 건물이라도 저장된 문자열이 갈린다. 완전일치만 보면 이 경우를 전부 놓치므로
+ * **건물번호 뒤(동·호수·건물명)와 괄호 보충설명을 떼고**, 시/도 약칭을 정식 명칭으로 통일한 뒤 비교한다.
+ *
+ * 건물번호 = 도로명주소·지번주소 공통으로 행정구역 뒤 **첫 순수숫자 토큰**(하이픈 허용).
+ * `256번길`·`72번길`처럼 숫자가 섞인 도로명 토큰은 순수숫자가 아니라 통과되어 도로명에 남는다.
+ *
+ * 예) '경기 양평군 중복검증로 77 101동 202호' → '경기도양평군중복검증로77'
+ * 예) '경기도 양평군 중복검증로 77(양평빌딩)'  → '경기도양평군중복검증로77'
+ * 예) '경기 성남시 분당구 판교로 256번길 12'   → '경기도성남시분당구판교로256번길12'
+ *
+ * 건물번호가 없는 주소는 잘라낼 기준이 없으므로 공백만 제거해 그대로 키로 쓴다(= 사실상 완전일치).
+ */
+export function addressDupKey(address: string): string {
+  if (!address) return ''
+  const cleaned = address.replace(/\([^)]*\)/g, ' ').trim()
+  if (!cleaned) return ''
+  const tokens = cleaned.split(/\s+/).map(t => SIDO_ALIASES[t] ?? t)
+  const bldNoIdx = tokens.findIndex(t => /^\d+(-\d+)?$/.test(t))
+  const kept = bldNoIdx >= 0 ? tokens.slice(0, bldNoIdx + 1) : tokens
+  return kept.join('').replace(/\s+/g, '')
+}
+
+/** 두 주소가 같은 건물을 가리키는지 — 정규화 키 비교. 빈 주소는 항상 false */
+export function isSameAddress(a: string, b: string): boolean {
+  const ka = addressDupKey(a)
+  return !!ka && ka === addressDupKey(b)
+}
+
 export function extractRegionFromAddress(address: string): {
   region_si: string
   region_myeon: string
