@@ -512,14 +512,13 @@ export default async function InspectionDetailPage({
       {/* 상시 쓰지 않는 도구는 접어 둔다 — 펼치면 작업대가 그만큼 줄어들 뿐 페이지는 스크롤하지 않는다(R6-9) */}
       <details className="shrink-0 rounded-xl border border-[#e0ddf5] bg-white">
         <summary className="cursor-pointer px-3 py-1.5 text-[11px] text-[#847ba8] hover:text-[#7b68ee]">
-          기타 도구 — 점검표 엑셀 생성{canDelete ? ' · 점검 삭제' : ''}
+          기타 도구{genHistory.length > 0 ? ' — 과거 엑셀 점검표' : ''}{canDelete ? ' · 점검 삭제' : ''}
         </summary>
         <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-[#f3f1fc] p-3">
-          {/* 소방시설등점검표(엑셀) 생성 (P32, 7-C #4 개명)
-              ⚠ 소방계획서_7 Q-5·D-9로 폐지가 확정됐으나(별지 4호 PDF로 대체) 제거 전
-              '37시트 엑셀에만 있는 항목' 대조가 선행이고 Gotenberg가 필요해 스테이징에서만 가능하다.
-              대조 전에는 삭제하지 않는다 — 소방계획서_21 R5-6/R5-7 */}
-          <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />
+          {/* 소방시설등점검표(엑셀) — **생성 폐지**(소방계획서_21 R5-6 / 소방계획서_7 D-9, 2026-08-13).
+              별지 4호 PDF가 대체하고, R5-7 대조로 유실 0을 확인한 뒤 걷어냈다.
+              과거 생성물 다운로드만 남는다(이력이 없으면 컴포넌트가 스스로 렌더하지 않는다) */}
+          <ReportGenerateClient history={genHistory} />
 
           {/* 점검 삭제 — 단계 완료·보고서는 작업대가 흡수했고 삭제만 별도로 남는다 */}
           {canDelete && <InspectionDeleteClient inspectionId={id} />}

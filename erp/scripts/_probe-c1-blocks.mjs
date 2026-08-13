@@ -70,11 +70,21 @@ check('⑤ 안에 defects(자체점검 경로)', /\{slots\?\.defects\}/.test(tl)
 check('불량 0건 ⑤에서도 defects 슬롯 접근 가능(등록 경로 유지)',
   /isOpen\('repair'\) && slots\?\.defects/.test(tl))
 
-// ── R5-6 엑셀은 아직 지우지 않았다 ──────────────────────────────────────────
-console.log('\n— R5-6 엑셀 생성 (스테이징 대조 선행이라 이번 범위 제외)')
-check('ReportGenerateClient 존치', /<ReportGenerateClient/.test(pageCode))
-check('제거 보류 사유가 주석으로 남아 있다', /R5-6\/R5-7|대조 전에는 삭제하지 않는다/.test(page))
-check('엑셀 액션 파일 존치', existsSync(join(SRC, 'app/(dashboard)/inspections/report-generate-actions.ts')))
+// ── R5-6 엑셀 생성 폐지 (2026-08-13 실행) ──────────────────────────────────
+// 종전 이 절은 '존치'를 단언했다 — R5-7 대조로 유실 0을 확인하고 걷어냈으므로 반대로 뒤집는다.
+console.log('\n— R5-6 엑셀 생성 폐지')
+const genActions = readFileSync(join(SRC, 'app/(dashboard)/inspections/report-generate-actions.ts'), 'utf8')
+check('생성 액션 제거 — generateOperationalReportAction', !/export async function generateOperationalReportAction/.test(genActions))
+check('인쇄 액션 제거 — printOperationalReportAction', !/export async function printOperationalReportAction/.test(genActions))
+check('37시트 주입기 제거 — lib/report-generator.ts', !existsSync(join(SRC, 'lib/report-generator.ts')))
+// 주석에는 템플릿 이름이 남는다(왜 Storage에서 지우지 않았는지 설명) — **코드 사용**만 본다
+const genCode = genActions.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+check('템플릿 상수·다운로드 제거(주석 제외)',
+  !/TEMPLATE_PATH/.test(genCode) && !/operational_v2026\.xlsx/.test(genCode))
+// 폐지 대상은 '생성'이지 이미 만들어 둔 기록이 아니다 — 실고객 xlsx가 Storage에 남아 있다
+check('★ 과거 생성물 다운로드는 남는다', /export async function getGeneratedReportUrlAction/.test(genActions))
+check('★ 이력 조회 컴포넌트는 남는다', /<ReportGenerateClient/.test(pageCode))
+check('폐지 사유·남긴 이유가 주석에 있다', /R5-6/.test(genActions) && /과거 생성물|기록/.test(genActions))
 
 // ── R5-5 기본정보 팝오버 ────────────────────────────────────────────────────
 console.log('\n— R5-5 기본정보 → 헤더 접이식')

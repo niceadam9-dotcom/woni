@@ -51,6 +51,9 @@ try {
   const annexText = textOf(html)
 
   // ── 엑셀 워크북 ──
+  // ⚠ 2026-08-13 R5-6으로 엑셀 생성이 폐지돼 이 스크립트는 더 이상 돌지 않는다.
+  //    남겨 두는 이유는 폐지 판단의 근거였기 때문이다 — 다시 돌리려면 폐지 커밋을 revert한다.
+  //    당시 결과: 9/9, 유실 0 (erp_goal/_대조PDF/content-diff.md)
   const genId = await findActionId(page, 'generateOperationalReportAction', [...scripts])
   const gen = genId ? (await callAction(page, genId, [INSP])).text : ''
   const pathM = /"url":"([^"]+)"/.exec(gen)

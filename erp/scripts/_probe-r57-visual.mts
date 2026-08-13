@@ -89,8 +89,13 @@ try {
   }
 
   // ── ② 37시트 엑셀 PDF — printOperationalReportAction이 base64로 돌려준다 ──
+  // ⚠ 2026-08-13 R5-6으로 **엑셀 생성이 폐지**돼 이 절은 더 이상 돌지 않는다.
+  //    대조를 다시 하려면 폐지 커밋을 revert해야 한다(Storage 템플릿은 일부러 남겨 뒀다).
+  //    폐지 근거였던 내용 대조 결과는 erp_goal/_대조PDF/content-diff.md에 있다.
   const prtId = await findActionId(page, 'printOperationalReportAction', [...scripts])
-  check('엑셀 인쇄 액션 id 추출', !!prtId)
+  if (!prtId) {
+    console.log('  ⏭  엑셀 PDF 절 건너뜀 — R5-6으로 생성 폐지됨(폐지 커밋 revert 시 복구)')
+  }
   if (prtId) {
     const res = await callAction(page, prtId, [inspId])
     // base64가 크면 RSC가 별도 텍스트 청크(`N:T<길이16진>,<본문>`)로 빼고 객체에는 `$N` 참조만 남긴다.

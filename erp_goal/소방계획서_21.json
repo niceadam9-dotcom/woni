@@ -1152,12 +1152,11 @@
         {
           "id": "R5-6",
           "desc": "엑셀 생성 폐지(소방계획서_7 D-9 실행)",
-          "status": "pending_order",
+          "status": "code_present",
           "depends": [
             "D34-9",
             "F-10"
           ],
-          "blocked_by": null,
           "note": "**차단 3건 중 2건 해소, 1건은 게이트로 전환.** ① 엑셀 전용 12건 편입(132·133) ② 펌프 대상 설비 8개(132) ③ 레이아웃 육안 확인 = 스테이징 게이트. 기능 삭제라 게이트 통과 전 자동 진행하지 않는다. 절차: erp_goal/_편입안_엑셀전용12건_별지4호.md §스테이징 확인 절차",
           "blocker_check": {
             "date": "2026-08-13",
@@ -1178,7 +1177,6 @@
             }
           },
           "removal_map": "report-generate-actions.ts(generateOperationalReportAction·printOperationalReportAction) · lib/report-generator.ts · report-generate-client.tsx · [id]/page.tsx의 [기타 도구] details 블록 · 템플릿 reports/templates/operational_v2026.xlsx · _probe-c1-blocks.mjs가 엑셀 버튼 존치를 단언 중이라 함께 갱신",
-          "gate": "**사용자 확정(2026-08-13): 스테이징에서 레이아웃을 눈으로 본 뒤 착수.** 로컬에서 끝난 것 — 항목 유실 0(결과 있는 24건 전부 수록·편입 12건 문서 도달)·블록 대응 3/3. 스테이징이 필요한 이유는 단 하나, **로컬 사이드카(Playwright Chromium·LibreOffice)가 운영 Gotenberg와 렌더러가 달라** 칸 배치·인쇄 레이아웃을 여기서 판정할 수 없기 때문이다",
           "staging_prereq": "DB는 이미 스테이징이고(로컬 .env.local이 스테이징 Supabase) 132·133도 적용돼 있다 — 새로 필요한 것은 **앱 코드 배포 하나**뿐(별지 4호 pumpTestPages 렌더 + 편입 항목 반영). 현재 main 미푸시 87건",
           "staging_steps": [
             "main 푸시 → 스테이징 배포",
@@ -1186,7 +1184,22 @@
             "annex4.pdf·excel.pdf를 나란히 열어 육안 확인 — 제어반 면 칸 배치 · 펌프성능시험 표 한 쪽 수용 · 부속 점검표 쪽 나눔이 항목을 자르지 않는지 · 엑셀에만 있는 시각 요소",
             "문제 없으면 R5-6 착수 / 있으면 새 차단으로 기록 후 해소",
             "node scripts/_probe-r57-clean.mjs 로 시드 정리"
-          ]
+          ],
+          "executed": "2026-08-13 사용자 지시로 실행. **게이트 경위 기록**: 직전에 사용자가 \"스테이징 확인 후\"로 레이아웃 육안 확인 게이트를 세웠으나, 이후 \"r5-6 진행해줘\"로 지시가 바뀌어 게이트 통과 없이 착수했다. 근거로 삼은 것은 R5-7③ **내용 대조(9/9, 유실 0)**이고, 레이아웃 육안 확인은 여전히 미수행이다",
+          "removed": [
+            "generateOperationalReportAction · printOperationalReportAction · buildOperationalReportBytes (report-generate-actions.ts)",
+            "lib/report-generator.ts — 37시트 템플릿 주입기 전체",
+            "report-generate-client.tsx의 [엑셀 생성]·[PDF 인쇄] 버튼과 누락 안내",
+            "[id]/page.tsx [기타 도구] 라벨의 \"점검표 엑셀 생성\""
+          ],
+          "kept": [
+            "**과거 생성물 다운로드**(getGeneratedReportUrlAction + 이력 목록) — 폐지 대상은 생성이지 이미 만들어 둔 기록이 아니다. 실고객 xlsx 3건(행복마을아파트 2·송학떡집 1)이 Storage에 남아 있어, 이 경로를 지우면 거기 닿을 길이 사라진다. 이력이 0건이면 컴포넌트가 스스로 렌더하지 않는다",
+            "**Storage 템플릿 templates/operational_v2026.xlsx** — 스테이징 레이아웃 대조를 아직 하지 않았으므로, 이 커밋을 revert하면 대조를 다시 할 수 있어야 한다. 코드는 git으로 되돌릴 수 있지만 템플릿을 지우면 그 대조 능력은 되돌릴 수 없다"
+          ],
+          "probe": "_probe-c1-blocks.mjs **39/39** — 종전 이 프로브는 \"엑셀 존치\"를 단언했다(R5-6 미착수 표기와 맞물려). 폐지에 맞춰 **반대로 뒤집었고**, 과거 생성물 다운로드가 남는다는 것도 함께 단언한다. 주석에는 템플릿 이름이 남으므로(왜 Storage에서 안 지웠는지 설명) 주석을 걷어낸 코드만 검사한다",
+          "regression": "tsc 0 · 빌드 그린 · test-inspection-workbench 26/26 · test-timeline 29/29 · test-doc-generation 23/23(사이드카로 종전 실패 12건도 해소)",
+          "side_effect": "대조 스크립트 2종(_probe-r57-visual.mts · _probe-r57-content.mts)은 폐지된 액션을 부르므로 더 이상 돌지 않는다. 삭제하지 않고 남겼다 — 폐지 판단의 근거였기 때문이다. 각 파일 머리에 \"R5-6으로 폐지됨, 다시 돌리려면 revert\" 를 적었다",
+          "remaining": "독립 검증 미실시 · 스테이징 레이아웃 육안 확인 미수행(게이트를 건너뛴 상태로 남아 있다)"
         },
         {
           "id": "R5-7",

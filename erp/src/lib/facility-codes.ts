@@ -1,7 +1,8 @@
 /** 소방시설 표준 코드 — 서식 1.4 정식 명칭 42종 (소방계획서_4.md §4-3, 2026-07-23 표준화)
  *
  *  단일 기준: 이 상수를 시설현황 UI(facilities-client)·웹 PDF(fire-plan-template FACILITY_FORM)·
- *  HWP 병합(build_stage2)·별지 9호 3쪽·점검 보고서(report-generator)가 공유한다.
+ *  HWP 병합(build_stage2)·별지 9호 3쪽이 공유한다.
+ *  (점검 보고서 엑셀 주입기 report-generator는 소방계획서_21 R5-6으로 폐지 — 별지 4호 PDF가 대체)
  *  DB(fire_facilities.facility_code)는 마이그레이션 100에서 축약 22종 → 이 표준 코드로 이관됨.
  *  피난기구 하위 8종(공기안전매트 등)은 1.4 양식 재현 화면(P4-②b)에서 detail로 추가 예정. */
 

@@ -1,54 +1,25 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { FileSpreadsheet, Download, AlertTriangle, Loader2, Printer } from 'lucide-react'
-import { generateOperationalReportAction, getGeneratedReportUrlAction, printOperationalReportAction } from '@/app/(dashboard)/inspections/report-generate-actions'
+import { FileSpreadsheet, Download } from 'lucide-react'
+import { getGeneratedReportUrlAction } from '@/app/(dashboard)/inspections/report-generate-actions'
 
 export type GenReportRow = { id: string; report_kind: string; file_name: string; generated_at: string; by_name: string | null }
 
-/** 소방시설등점검표(엑셀) 생성 (P32-5, 7-C #4 개명) — 개요 주입 엑셀 생성·다운로드. 엑셀을 열면 수식으로 전 시트 자동완성.
- *  별지 9호의 첨부물(점검표) — 별지 9호 본문 생성은 문서 타임라인 ④에서. */
-export function ReportGenerateClient({ inspectionId, history, canManage }: {
-  inspectionId: string; history: GenReportRow[]; canManage: boolean
+/** 소방시설등점검표(엑셀) — **생성 폐지, 과거 이력 조회만** (소방계획서_21 R5-6 / 소방계획서_7 D-9)
+ *
+ *  엑셀 생성은 별지 4호 PDF로 대체됐다. 폐지 전 R5-7 대조로 유실이 없음을 확인했다 —
+ *  엑셀에만 있던 점검항목 12건은 마이그레이션 132·133으로 별지 4호 원천에 편입했고,
+ *  펌프성능시험 실측치는 131로 자리를 만들어 별지 4호 표에 실린다.
+ *
+ *  ⚠ 과거에 생성된 파일은 남긴다. 폐지 대상은 **생성**이지 이미 만들어 둔 기록에 대한 접근이 아니다.
+ *     이 화면이 없으면 실고객의 기존 xlsx에 닿을 길이 사라진다. */
+export function ReportGenerateClient({ history }: {
+  inspectionId?: string; history: GenReportRow[]; canManage?: boolean
 }) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [missing, setMissing] = useState<string[] | null>(null)
   const [error, setError] = useState('')
 
-  function generate() {
-    setError(''); setMissing(null)
-    startTransition(async () => {
-      const res = await generateOperationalReportAction(inspectionId)
-      if (res.error) { setError(res.error); if (res.missing?.length) setMissing(res.missing); return }
-      if (res.missing?.length) setMissing(res.missing)
-      if (res.url) window.open(res.url, '_blank')
-      router.refresh()
-    })
-  }
-  function printPdf() {
-    setError(''); setMissing(null)
-    startTransition(async () => {
-      const res = await printOperationalReportAction(inspectionId)
-      if (res.error) { setError(res.error); if (res.missing?.length) setMissing(res.missing); return }
-      if (res.missing?.length) setMissing(res.missing)
-      if (!res.pdfBase64) return
-      const bin = atob(res.pdfBase64)
-      const bytes = new Uint8Array(bin.length)
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
-      const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
-      iframe.src = url
-      iframe.onload = () => {
-        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print() }
-        catch { window.open(url, '_blank') }
-      }
-      document.body.appendChild(iframe)
-      setTimeout(() => { URL.revokeObjectURL(url); iframe.remove() }, 60000)
-    })
-  }
   function redownload(id: string) {
     startTransition(async () => {
       const res = await getGeneratedReportUrlAction(id)
@@ -57,54 +28,31 @@ export function ReportGenerateClient({ inspectionId, history, canManage }: {
     })
   }
 
+  // 이력이 없으면 화면에서 통째로 뺀다 — 폐지된 기능의 빈 카드를 남길 이유가 없다
+  if (history.length === 0) return null
+
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <FileSpreadsheet className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]"
-          title="소방시설등점검표 — 별지 9호에 첨부하는 점검표 (구 '작동점검 보고서')">소방시설등점검표 (엑셀) 생성</h2>
-        {canManage && (
-          <div className="ml-auto flex items-center gap-1.5">
-            <button onClick={printPdf} disabled={isPending}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-xs font-medium transition-colors disabled:opacity-50">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Printer className="size-3.5" />} PDF 인쇄
-            </button>
-            <button onClick={generate} disabled={isPending}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} 엑셀 생성
-            </button>
-          </div>
-        )}
+    <div className="rounded-xl border border-[#c8c4d0] bg-white p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <FileSpreadsheet className="size-4 text-[#b0acd6]" />
+        <h2 className="text-sm font-semibold text-[#514b81]">소방시설등점검표 (엑셀) — 과거 생성물</h2>
+        <span className="text-[10px] text-[#b0acd6]">엑셀 생성은 폐지됐습니다 — 별지 4호 PDF로 대체</span>
       </div>
 
-      <p className="text-[11px] text-[#b0acd6] mb-2">[엑셀 생성]은 개요 데이터로 갑지·정보·위임장·계약서가 수식 자동완성됩니다. [PDF 인쇄]는 Gotenberg로 PDF 변환 후 인쇄 대화상자를 엽니다.</p>
+      {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
-      {missing && missing.length > 0 && (
-        <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 p-3">
-          <p className="text-xs font-semibold text-amber-700 flex items-center gap-1 mb-1"><AlertTriangle className="size-3.5" /> 누락 항목 {missing.length}건 (빈칸으로 생성됨)</p>
-          <ul className="text-[11px] text-amber-700 space-y-0.5 list-disc pl-4">
-            {missing.map((m, i) => <li key={i}>{m}</li>)}
-          </ul>
-        </div>
-      )}
-      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
-
-      {history.length === 0 ? (
-        <p className="text-xs text-[#b0acd6] py-2 text-center">생성 이력이 없습니다</p>
-      ) : (
-        <div className="space-y-1">
-          {history.map(h => (
-            <div key={h.id} className="flex items-center gap-2 text-xs py-1.5 border-b border-[#f8f9fa] last:border-0">
-              <span className="text-[#090c1d]">{h.file_name}</span>
-              <span className="text-[#b0acd6]">{h.generated_at.slice(0, 16).replace('T', ' ')}{h.by_name ? ` · ${h.by_name}` : ''}</span>
-              <button onClick={() => redownload(h.id)} disabled={isPending}
-                className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
-                <Download className="size-3" /> 다운로드
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="space-y-1">
+        {history.map(h => (
+          <div key={h.id} className="flex items-center gap-2 border-b border-[#f8f9fa] py-1.5 text-xs last:border-0">
+            <span className="text-[#090c1d]">{h.file_name}</span>
+            <span className="text-[#b0acd6]">{h.generated_at.slice(0, 16).replace('T', ' ')}{h.by_name ? ` · ${h.by_name}` : ''}</span>
+            <button onClick={() => redownload(h.id)} disabled={isPending}
+              className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-[#d0ccf5] px-2 text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+              <Download className="size-3" /> 다운로드
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
