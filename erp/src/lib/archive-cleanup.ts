@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ARCHIVE_CLEANUP_ACTION, CONTRACT_FILE_RE, isCertFileName } from '@/lib/doc-status'
+import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 
 /** 보관함 [과거본 정리]의 알맹이 (소방계획서_18 S2 — 소방계획서_14.md #17)
  *  "최신만 ERP, 과거는 종이 보관" — Storage 산출물 파일만 지운다.
@@ -300,6 +301,15 @@ export async function runArchiveCleanup(
     },
   } as Record<string, unknown>)
   if (logErr) skipped.push({ path: 'activity_logs', reason: `삭제 이력 기록 실패: ${logErr.message}` })
+
+  // R4-6(독립 검증 D4): 종이 보관 마커는 ②의 증거다(소방계획서_18 D-7) — 파일을 지운 회차는
+  // '업로드 필요'가 아니라 '보관됨'이므로 여기서 바로 단계를 맞춘다. 빠져 있으면 정리 직후
+  // ②가 미완으로 되돌아간 것처럼 보였다(다음 상세 진입 때야 R4-7이 복구).
+  for (const r of oldRounds) {
+    if (r.paths.some(isCertScan)) {
+      try { await syncInspectionSteps(admin, r.inspId, actorId) } catch { /* 정리 자체를 실패로 만들지 않는다 */ }
+    }
+  }
 
   return { data: { plansDeleted, filesDeleted: deleted.length, scansDeleted, skipped } }
 }

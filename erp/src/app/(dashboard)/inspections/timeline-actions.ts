@@ -179,12 +179,16 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
       message_id: messageId, sent_by: profile.id,
     } as Record<string, unknown>).select('id').single()
     // R7-7: 발송 시점에 **렌더된 본문**을 남긴다 — 템플릿이 나중에 바뀌어도 당시 내용을 복원할 수 있게.
-    // 130 미적용 DB에는 body 컬럼이 없다. 본문 이력 때문에 발송이 실패해선 안 되므로 별도 UPDATE로 분리하고
-    // 실패는 삼킨다(130 적용 후 자동으로 기록되기 시작한다).
+    // 130 미적용 DB에는 body 컬럼이 없다. 본문 이력 때문에 발송이 실패해선 안 되므로 별도 UPDATE로 분리한다.
+    // 다만 **조용히 삼키지는 않는다**(독립 검증 지적) — 컬럼 부재가 아닌 다른 이유로 실패하면
+    // 증빙이 빠진 사실을 알 방법이 없어진다. 서버 로그에 남겨 추적 가능하게 한다.
     if (deliv) {
-      await admin.from('report_deliveries')
+      const { error: bodyErr } = await admin.from('report_deliveries')
         .update({ body: rendered.body } as Record<string, unknown>)
         .eq('id', (deliv as { id: string }).id)
+      if (bodyErr) {
+        console.error('[sendOwnerReport] 발송 본문 이력 저장 실패(발송은 완료됨):', bodyErr.message)
+      }
     }
     // R4-6: ③ 발송 이력이 곧 근거
     await syncInspectionSteps(admin, inspectionId, profile.id)

@@ -644,8 +644,10 @@ export function InspectionWorkbench({
         </>)}
       </div>
 
-      {/* D1: 사유로 완료한 단계는 되돌릴 수 있어야 한다 — 증거로 완료된 단계엔 나오지 않는다 */}
-      {isSpecial && canComplete && stepOf(sel) && forcedNums.has(stepOf(sel)!.step_num) && (
+      {/* D1: 사유로 완료한 단계는 되돌릴 수 있어야 한다 — 증거로 완료된 단계엔 나오지 않는다.
+          ⚠ isSpecial로 막지 않는다(2차 독립 검증 지적): 달력 일괄·계획 패널은 plan_type을 가리지 않고
+          마커를 찍으므로 월간·일반 건에도 사유 완료가 생긴다 — 찍히는데 되돌릴 수 없으면 안 된다 */}
+      {canComplete && stepOf(sel) && forcedNums.has(stepOf(sel)!.step_num) && (
         <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-1.5">
           <span className="text-[10px] text-amber-700">사유로 완료한 단계입니다 — 철회하면 증거만으로 다시 판정합니다.</span>
           <button onClick={() => undoForce(sel)} disabled={completing === stepOf(sel)!.id}

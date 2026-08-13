@@ -44,7 +44,7 @@ export async function gatherStepEvidence(
     admin.from('inspection_sheet_responses').select('id', { count: 'exact', head: true }).eq('inspection_id', insp.id),
     admin.storage.from('fire-plans').list(prefix, { limit: 100 }),
     admin.from('report_deliveries').select('id').eq('inspection_id', insp.id).eq('doc_kind', 'report9_owner').limit(1),
-    admin.from('inspection_defects').select('action_completed_at, created_at').eq('inspection_id', insp.id),
+    admin.from('inspection_defects').select('action_completed_at').eq('inspection_id', insp.id),
     // ③ 오프라인 보고·강제 완료·철회 마커 — 마이그레이션 없이 activity_logs를 근거로 쓴다(D34-2).
     // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
     admin.from('activity_logs').select('action, metadata, created_at')
@@ -55,13 +55,11 @@ export async function gatherStepEvidence(
     findArchivedCertInspections(admin, [insp.id]),
   ])
 
-  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null; created_at: string }>
+  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null }>
   const logs = (logsRes.data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null; created_at: string }>
-  const { steps: forced, at: forcedAt } = resolveForcedSteps(
+  const { steps: forced } = resolveForcedSteps(
     logs.map(l => ({ action: l.action, stepNum: Number(l.metadata?.['step_num']), at: l.created_at })),
   )
-  // ⑤ 강제 완료 이후에 들어온 미조치 불량을 잡기 위한 시각 (D1)
-  const unresolved = defects.filter(d => !d.action_completed_at).map(d => d.created_at).sort()
 
   return {
     responded: respRes.count ?? 0,
@@ -74,8 +72,6 @@ export async function gatherStepEvidence(
     defectsDone: defects.filter(d => d.action_completed_at).length,
     submit11At: insp.report11_submitted_at,
     forced,
-    forcedAt,
-    unresolvedDefectSince: unresolved.length > 0 ? unresolved[unresolved.length - 1] : null,
   }
 }
 

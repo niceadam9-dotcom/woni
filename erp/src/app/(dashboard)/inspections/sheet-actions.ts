@@ -265,6 +265,10 @@ export async function copyPreviousRoundResponsesAction(inspectionId: string): Pr
     },
   } as Record<string, unknown>)
 
+  // R4-6(독립 검증 D4): 응답을 대량으로 넣는 경로인데 동기화가 빠져 있었다 —
+  // ①이 완료로 올라가는 시점이 다음 상세 진입까지 미뤄졌다(R4-7이 늦게 맞추는 지연 정합)
+  if (payload.length > 0) await syncInspectionSteps(admin, inspectionId, profile.id)
+
   revalidatePath(`/inspections/${inspectionId}`)
   return {
     filled: payload.length, skipped: src.length - target.length, copiedX,

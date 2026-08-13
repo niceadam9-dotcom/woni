@@ -14,6 +14,9 @@ export const PERMISSIONS = {
   user_manage:    ['admin'],           // 직원 등록 · 수정 · 비활성화
   holiday_manage: ['admin'],           // 공휴일 등록 · 삭제
   company_manage: ['admin'],           // 본사 정보 수정
+  // 대외 발송 문구(관계인 보고·메일 서명) 수정 — 고객에게 나가는 문서라 매니저 이상 (소방계획서_21 R7-2).
+  // company_manage(admin 전용)를 재사용할 수 없어 별도 키로 둔다.
+  message_template_manage: ['manager', 'admin'],
 
   // ── 회계관리 ──────────────────────────────────────────────────────────────
   accounting_view:    ['manager', 'admin'], // 회계 메뉴 접근 (손익·재무·부가세)

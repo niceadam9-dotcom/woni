@@ -28,7 +28,12 @@ import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actio
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType, type ReportType } from '@/app/(dashboard)/inspections/report-constants'
 import type { InspectionStep } from '@/types'
 
-/** 문서 타임라인 (§9-9 / P7) — 단계별 상태·D-day·업로드 슬롯·생성·발송·제출 패키지.
+/** ⚠ **현재 렌더되지 않는다**(2026-08-13 2차 독립 검증 지적) — R6에서 상세 화면이
+ *  InspectionWorkbench로 교체됐고, 이 파일에서 살아 있는 것은 아래 TimelineData·TimelineSlots
+ *  **타입 두 개**뿐이다. 여기에 기능을 더해도 사용자에게 닿지 않으니, 손대야 할 곳은 작업대다.
+ *  (파일 정리·타입 이관은 R6 담당 — 소방계획서_21.json R4.independent_review.residual 참조)
+ *
+ *  문서 타임라인 (§9-9 / P7) — 단계별 상태·D-day·업로드 슬롯·생성·발송·제출 패키지.
  *  단계 구성은 stepDocs(§9-9a): 자체점검 ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림).
  *  ④ 전제조건 = 종전 별지 9호 준비 체크(§9-6⑦ 흡수). 값 입력은 각 원천 화면에서. */
 

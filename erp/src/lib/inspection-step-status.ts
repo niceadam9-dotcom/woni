@@ -48,40 +48,42 @@ export type StepEvidence = {
   submit11At: string | null
   /** 강제 완료된 단계 번호 — 사유가 남고 **철회되지 않은** 것만 들어온다(R4-3 / resolveForcedSteps) */
   forced?: StepNum[]
-  /** 각 강제 완료 마커가 찍힌 시각 — ⑤ 무효화 판정에 쓴다(아래 D1 규칙) */
-  forcedAt?: Partial<Record<StepNum, string>>
-  /** 미조치 불량 중 **가장 늦게 등록된** 시각. 강제 완료 이후에 새 미조치 불량이 들어왔다는 신호 */
-  unresolvedDefectSince?: string | null
 }
 
 /** append-only 로그에서 **현재 유효한** 강제 완료 단계를 가려낸다 (독립 검증 D1).
  *  단계별로 가장 최근 마커만 본다 — force면 유효, undo면 해제. 순수 함수라 DB 없이 단언 가능. */
 export function resolveForcedSteps(
   markers: Array<{ action: string; stepNum: number; at: string }>,
-): { steps: StepNum[]; at: Partial<Record<StepNum, string>> } {
+): { steps: StepNum[] } {
   const latest = new Map<number, { action: string; at: string }>()
   for (const m of markers) {
     if (!Number.isInteger(m.stepNum) || m.stepNum < 1 || m.stepNum > 6) continue
     if (m.action !== STEP_FORCE_COMPLETE_ACTION && m.action !== STEP_FORCE_UNDO_ACTION) continue
     const cur = latest.get(m.stepNum)
-    if (!cur || m.at > cur.at) latest.set(m.stepNum, { action: m.action, at: m.at })
+    // 시각이 같으면 **철회가 이긴다** — 한 트랜잭션에서 두 마커가 함께 들어오면 created_at이 동일해질
+    // 수 있는데(2차 독립 검증 지적), 그때 완료 쪽으로 기우는 것이 더 위험한 오답이다
+    const wins = !cur || m.at > cur.at
+      || (m.at === cur.at && m.action === STEP_FORCE_UNDO_ACTION)
+    if (wins) latest.set(m.stepNum, { action: m.action, at: m.at })
   }
   const steps: StepNum[] = []
-  const at: Partial<Record<StepNum, string>> = {}
   for (const [num, m] of latest) {
     if (m.action !== STEP_FORCE_COMPLETE_ACTION) continue
     steps.push(num as StepNum)
-    at[num as StepNum] = m.at
   }
-  return { steps: steps.sort((a, b) => a - b), at }
+  return { steps: steps.sort((a, b) => a - b) }
 }
 
 /** 증거 → 단계별 완료 여부. 순서 강제 없음(R4-4) — 배치확인서는 늦게 오고 점검표는 먼저 채워진다.
  *  강제 완료 마커는 마지막에 덮어쓴다(사유가 남은 근거이므로 증거와 동급).
  *
  *  ⚠ D1 규칙(독립 검증 지적): 강제 완료가 **미래의 일까지 완료로 고정**해서는 안 된다.
- *  ⑤를 사유로 완료한 뒤 새 불량이 등록되면 그건 '아직 하지 않은 일'이므로 강제분을 무효로 본다 —
- *  D34-2가 막으려던 바로 그 상태(하지 않은 일이 완료로 남음)가 재현되기 때문이다.
+ *  ⑤(보수 완료)만은 사유 완료가 **미조치 불량이 하나도 없을 때만** 효력을 갖는다 —
+ *  미조치가 남아 있는데 완료로 굳으면 D34-2가 막으려던 '하지 않은 일이 완료로 남는다'가 된다.
+ *
+ *  시각 비교(마커 이후에 등록된 불량인지)로 풀지 않는다: inspection_defects에는 updated_at이 없어
+ *  **조치완료를 해제해도 created_at은 그대로**라, 2차 독립 검증에서 그 구멍이 실제로 재현됐다.
+ *  '지금 미조치가 있는가'만 보면 신규 등록·조치 해제·불량 삭제가 한 규칙으로 덮인다.
  *  ①~④·⑥은 증거가 단발(제출일·파일)이라 같은 문제가 없고, 필요하면 철회 마커로 되돌린다. */
 export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
   const done: Record<StepNum, boolean> = {
@@ -93,18 +95,16 @@ export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
     6: !!e.submit11At,
   }
   for (const n of e.forced ?? []) {
-    if (n === 5 && isForced5Stale(e)) continue
+    if (n === 5 && isForced5Void(e)) continue
     done[n] = true
   }
   return done
 }
 
-/** ⑤ 강제 완료가 낡았는지 — 마커 이후에 등록된 미조치 불량이 있으면 낡은 것으로 본다 */
-export function isForced5Stale(e: StepEvidence): boolean {
-  const at = e.forcedAt?.[5]
-  const since = e.unresolvedDefectSince
-  if (!at || !since) return false
-  return e.defectsDone < e.defectsTotal && since > at
+/** ⑤ 사유 완료가 무효인 상태 — 미조치 불량이 하나라도 남아 있으면 완료로 굳히지 않는다.
+ *  (신규 등록·조치 해제·불량 삭제를 한 규칙으로 덮는다 — 시각 비교로는 조치 해제를 못 잡았다) */
+export function isForced5Void(e: StepEvidence): boolean {
+  return e.defectsDone < e.defectsTotal
 }
 
 /** 진행률 분모가 될 **유효 단계** (R4-8 / B-5).

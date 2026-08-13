@@ -22,7 +22,8 @@ export function InspectionMultidayClient({ inspectionId, startDate, endDate, day
     startTransition(async () => {
       const res = await updateInspectionMultidayAction(inspectionId, { endDate: end || null, days: parseInt(d, 10) || 1 })
       if (res.error) { setErr(res.error); return }
-      setMsg('저장했습니다. 종료일 기준으로 미완료 단계 마감일이 재계산됩니다.')
+      // 마이그레이션 128 이후 완료된 단계의 마감일도 함께 재계산된다(마감일은 완료 여부와 무관)
+      setMsg('저장했습니다. 종료일 기준으로 단계 마감일이 재계산됩니다.')
       router.refresh()
     })
   }
