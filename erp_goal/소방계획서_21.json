@@ -2,7 +2,7 @@
   "doc": "소방계획서_21 — 요구별 설계 (#1 공통문구 관리 · #2 계획서 생성·조회 재편 · #3·#4 점검업무 재편 · #5 사이드바 정리)",
   "design": "erp_goal/소방계획서_21.md (2026-08-12 사용자 확정)",
   "created": "2026-08-12",
-  "updated": "2026-08-13 — **마이그레이션 128·129·130·131 전부 스테이징 적용 완료**(BLOCK-1·2·3 해소). 128은 적용 전후 대조로 실증(완료 단계 마감일 05-21→07-27). 검증 전량 그린: 정적 프로브 5종(22·35·40·8·5), E2E R4 58/58 · R2-12 11/0(SKIP 3, Gotenberg) · R7-11 27/0, tsc·build. 부수 발견: tsx 미선언으로 test:all이 실행 불가였던 것을 devDependency로 해소(R-12). 잔여: R5-6/R5-7/R5-9(엑셀 폐지 사슬) · R2-12의 Gotenberg 의존 3절",
+  "updated": "2026-08-13",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분. 진행 방식은 erp_goal/Json_Rule_nostop.md(무중단)",
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -1156,8 +1156,8 @@
             "D34-9",
             "F-10"
           ],
-          "blocked_by": "R5-9",
-          "note": "**의도적 미착수.** R5-7 대조로 확인된 차단 사유(펌프성능시험 실측치 기록처 부재)를 R5-9가 해소한다. 순서는 뒤집지 않는다 — 실측치가 별지 4호로 옮겨간 것을 스테이징에서 확인한 뒤에야 엑셀을 지운다",
+          "blocked_by": null,
+          "note": "**차단 2건 중 1건 해소.** ① 엑셀 전용 12건 편입 완료(R5-7②, 132·133 적용) ② 펌프 대상 설비 8개 확장 완료(132, sheet_no 5·13 허용 실측 확인). 남은 것은 **스테이징에서 별지 4호 PDF와 엑셀 PDF를 나란히 뽑아 시각 서식 대조** — Gotenberg 사이드카가 들어와 로컬에서도 시도 가능해졌다. 대조 후 폐지 착수. 순서는 그대로 유지한다",
           "blocker_check": {
             "date": "2026-08-13",
             "probe": "scripts/_probe-r56-blockers.mjs",
@@ -1180,16 +1180,20 @@
         {
           "id": "R5-7",
           "desc": "엑셀 제거 전 필수 검증 — 실제 점검 1건으로 별지 4호 PDF와 엑셀 PDF를 나란히 뽑아 항목 대조표 작성",
-          "status": "partial",
+          "status": "implemented",
           "risk": "R-6",
           "note": "종전 '로컬 불가 — 스테이징에서만 가능'은 **2026-08-13 해소**. 사실관계 정정: Gotenberg 컨테이너는 스테이징(gotenberg-staging)과 **운영(gotenberg-prod) 양쪽에 있고**, 없는 곳은 로컬이었다(이 PC엔 Docker 미설치). 로컬은 `npm run pdf:local`(scripts/local-gotenberg.mjs)로 대체한다 — Gotenberg와 **같은 HTTP API**를 Playwright Chromium(HTML→PDF)·LibreOffice(오피스→PDF)로 구현한 사이드카라 src/lib/pdf.ts는 무변경이고 GOTENBERG_URL만 로컬을 가리키면 된다. ⚠ 렌더러가 달라 픽셀 단위로 같지 않으므로 **시각 서식 최종 확인은 여전히 스테이징**",
           "evidence": [
-            "erp/scripts/compare-excel-vs-report4.mts (신규)",
-            "erp_goal/_대조_엑셀37시트_vs_별지4호.md (생성물)"
+            "erp_goal/_편입안_엑셀전용12건_별지4호.md",
+            "supabase/migrations/132_annex4_missing_items.sql (타 세션)",
+            "supabase/migrations/133_annex4_item_name_verbatim.sql",
+            "scripts/_probe-missing-items.mjs · _probe-panel-order.mjs · _probe-dup-check.mjs · _probe-mark-mapping.mjs · _probe-verbatim.mjs · _probe-verbatim-db.mjs"
           ],
-          "self_check": "2026-08-12 — 대조의 실체인 **항목 집합 비교**를 데이터로 수행했다(PDF 렌더는 Gotenberg가 필요해 로컬 불가). 엑셀 템플릿 37시트 A열 item_code 719개 vs inspection_sheet_items 830개: 공통 689 · 엑셀에만 30(그중 18은 다중이용업 32번대로 별지 4호가 muResults로 따로 담는 축) · DB에만 141",
+          "self_check": "2026-08-13 — 축자 12/12 일치 · 시트 항목 수 STD-02 62·STD-03 90·STD-13 55(기대치 일치, order_num 중복 0·비활성 0, 전체 830→842) · 회귀 test-pump-test 19/19·test-quick-defect 7/7·test-inspection-workbench 26/26",
           "finding": "**폐지를 막는 실물 장애 확인.** 엑셀에만 있는 12건(32번대 제외)은 전부 옥3·스4·옥외3 = 각 설비의 3면(제어반 + 펌프성능시험)이다. 그 면에는 코드 항목 외에 **펌프성능시험 실측표**(체절/정격100%/정격유량150%의 토출량 ℓ/min·토출압 MPa 실측치, \"체절운전시 토출압은 정격토출압의 140% 이하\" 판정)가 들어 있는데, 별지 4호는 ○/×/해당없음 항목 모델뿐이라 **실측 수치를 넣을 자리가 없다** — DB에는 `2-C-004 성능시험배관을 통한 펌프 성능시험 적정 여부` 같은 적정 여부 한 칸만 있고 `체절` 검색 결과 0건. 엑셀을 지우면 펌프성능시험 실측치 기록처가 사라진다",
-          "remaining": "① 실측치의 새 자리 → **R5-9로 해소·실증 완료(131 적용, E2E 18/18)** ② 엑셀에만 있던 12개 제어반 코드의 편입/폐기 확정 ③ 스테이징에서 두 PDF 나란히 뽑아 시각 서식 확인(GOTENBERG_URL 필요)"
+          "remaining": "시각 서식(칸 배치·인쇄 레이아웃) 대조만 남는다 — Gotenberg 사이드카(f272468)로 로컬 생성이 열렸으니 재시도 가능",
+          "incorporation": "**② 12건 편입 완료·검증(2026-08-13).** 정체를 고시 원문에서 복원하니 전부 법정 실재 항목이었다 — 우리가 만든 번호가 아니라 서식에 인쇄된 항목번호(원문 XML에 2-H-018·3-K-022·3-L-001·13-G-031이 문장과 나란히 있다). 폐기 대상 0건. 마이그레이션 132(타 세션 작성) 적용 완료. 편입안: erp_goal/_편입안_엑셀전용12건_별지4호.md",
+          "verbatim_fix": "132가 [동력제어반] 표지 문장 3건을 한 형태로 통일해 넣었으나 고시 원문은 설비마다 공백이 다르다 — **마이그레이션 133으로 2건(2-H-021·3-K-031) 원문 축자 정정·스테이징 적용**. 이 문구는 법정 서식에 인쇄되는 말이라 원문을 따른다(개정 시 기계 대조 가능). `_probe-verbatim-db.mjs`로 12/12 축자 일치 확인"
         },
         {
           "id": "R5-8",
