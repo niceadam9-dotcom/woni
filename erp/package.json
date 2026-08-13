@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:all": "tsx scripts/test-all.mts",
+    "pdf:local": "node scripts/local-gotenberg.mjs",
     "test:invariants": "node scripts/check-data-invariants.mjs",
     "seed": "node seed/seed.js",
     "seed:reset": "node seed/seed.js --reset"
@@ -47,6 +48,7 @@
     "eslint-config-next": "16.2.9",
     "playwright": "^1.61.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vercel": "^54.21.0"
   }

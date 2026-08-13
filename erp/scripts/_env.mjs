@@ -11,6 +11,11 @@ const env = Object.fromEntries(
     .map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
 )
 
+// .env.local 값을 process.env에도 채운다 — 앱은 Next가 자동으로 읽지만 스크립트는 아니라서,
+// 테스트가 process.env.GOTENBERG_URL 같은 값을 보고 절을 SKIP하는 판정이 실제와 어긋났다.
+// 셸에 이미 있는 값은 덮지 않는다(일회성 override가 이기도록).
+for (const [k, v] of Object.entries(env)) if (process.env[k] === undefined) process.env[k] = v
+
 export const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL
 export const SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY
 export const ANON_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
