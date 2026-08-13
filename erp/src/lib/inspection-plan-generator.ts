@@ -124,23 +124,37 @@ export async function generateYearlyPlanItems(
     }
   }
 
-  let created = 0
-  for (const { year, month, sequence_num, planType } of toCreate) {
-    let planId: string | null = null
-    const { data: ep } = await admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
-    if (ep) {
-      planId = (ep as { id: string }).id
-    } else {
-      const { data: np } = await admin.from('inspection_plans')
-        .insert({ year, month, status: 'draft', auto_generated: true, created_by: createdBy } as Record<string, unknown>)
-        .select('id').single()
-      if (np) {
-        planId = (np as { id: string }).id
-      } else {
-        const { data: dp } = await admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).single()
-        if (dp) planId = (dp as { id: string }).id
+  // ── 왕복 줄이기 ──────────────────────────────────────────────────────────
+  // 종전에는 항목마다 `inspection_plans` 조회 + 없으면 insert + `plan_items` insert를 **직렬로** 돌았다.
+  // 고객 등록 한 번이 최대 12개월 × 2~3왕복이라, 왕복 200ms인 원격 DB에서 계획 생성에만
+  // 2.4초(6건)~5초(12건)가 들었다(실측 — _probe-customer-create-latency.mts).
+  // 월은 최대 12개로 정해져 있으므로 **한 번에 조회하고 없는 것만 한 번에 만든다**.
+  const months = [...new Set(toCreate.map(c => c.month))]
+  const planIdOf = new Map<string, string>()   // `${year}-${month}` → plan_id
+  {
+    const { data: plans } = await admin.from('inspection_plans')
+      .select('id, year, month').eq('year', targetYear).in('month', months)
+    for (const p of (plans ?? []) as Array<{ id: string; year: number; month: number }>) {
+      planIdOf.set(`${p.year}-${p.month}`, p.id)
+    }
+    const missing = months.filter(m => !planIdOf.has(`${targetYear}-${m}`))
+    if (missing.length > 0) {
+      // 동시 등록이 겹치면 UNIQUE 충돌이 날 수 있다 — 무시하고 아래에서 다시 읽는다(멱등)
+      await admin.from('inspection_plans').upsert(
+        missing.map(m => ({ year: targetYear, month: m, status: 'draft', auto_generated: true, created_by: createdBy })) as Record<string, unknown>[],
+        { onConflict: 'year,month', ignoreDuplicates: true },
+      )
+      const { data: after } = await admin.from('inspection_plans')
+        .select('id, year, month').eq('year', targetYear).in('month', missing)
+      for (const p of (after ?? []) as Array<{ id: string; year: number; month: number }>) {
+        planIdOf.set(`${p.year}-${p.month}`, p.id)
       }
     }
+  }
+
+  const rows: Record<string, unknown>[] = []
+  for (const { year, month, sequence_num, planType } of toCreate) {
+    const planId = planIdOf.get(`${year}-${month}`) ?? null
     if (!planId) continue
 
     // 기준일 이전 항목은 생성하지 않음 — 최초 점검 전에는 이행 의무가 없다.
@@ -159,7 +173,7 @@ export async function generateYearlyPlanItems(
     }
 
     const isMonthly = planType === 'monthly'
-    const { error } = await admin.from('inspection_plan_items').insert({
+    rows.push({
       plan_id: planId,
       customer_id: customer.id,
       inspection_type,
@@ -171,9 +185,16 @@ export async function generateYearlyPlanItems(
       scheduled_date: isMonthly ? planned : null,
       status: isMonthly ? 'confirmed' : 'planned',
       plan_type: planType,
-    } as Record<string, unknown>)
-    // 23505 중복 에러는 무시 (멱등)
-    if (!error) created++
+    })
   }
-  return created
+  if (rows.length === 0) return 0
+
+  // 이미 있는 (plan, customer, sequence)는 건너뛴다 — 종전 건별 insert의 23505 무시와 같은 멱등성을
+  // 한 번의 왕복으로 얻는다(005의 UNIQUE(plan_id, customer_id, sequence_num)).
+  // ignoreDuplicates 이므로 select()로 돌아오는 건 **실제로 새로 만들어진 행**뿐이다.
+  const { data: inserted, error } = await admin.from('inspection_plan_items')
+    .upsert(rows, { onConflict: 'plan_id,customer_id,sequence_num', ignoreDuplicates: true })
+    .select('id')
+  if (error) return 0
+  return (inserted ?? []).length
 }

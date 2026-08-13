@@ -3,10 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
-import { extractRegionFromAddress } from '@/lib/address-parser'
+import { extractRegionFromAddress, extractRoadName, addressDupKey } from '@/lib/address-parser'
 import { resolveFireStation } from '@/lib/fire-station'
 import { generateYearlyPlanItems, loadHolidaySet, loadAnchorDates } from '@/lib/inspection-plan-generator'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
+import { formatTel } from '@/lib/format-contact'
 import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
@@ -156,51 +157,57 @@ export async function createCustomerAction(
   if (insertErr || !customerRaw) return { error: '고객 등록에 실패했습니다.' }
   const customerId = (customerRaw as { id: string }).id
 
+  // 이 뒤의 후속 작업은 서로를 기다릴 이유가 없다 — 원격 DB 왕복이 200ms대라 직렬로 두면
+  // 등록 버튼 체감이 그만큼 늘어난다. 관계인·담당자 알림·이력·건물·연간계획을 병렬로 돌린다.
+  // (고객 행은 위에서 이미 만들어졌으므로 순서 의존이 없다)
   const validContacts = input.contacts.filter(c => c.name.trim())
-  if (validContacts.length > 0) {
-    await admin.from('customer_contacts').insert(
+  const contactsTask = validContacts.length > 0
+    ? admin.from('customer_contacts').insert(
       validContacts.map(c => ({
         customer_id: customerId,
         role: c.role,
         name: c.name.trim(),
         phone: c.phone?.trim() || null,
         email: c.email?.trim() || null,
-      })) as Record<string, unknown>[]
-    )
-  }
+      })) as Record<string, unknown>[])
+    : Promise.resolve()
 
-  let assignedEmpName: string | null = null
-  if (input.assigned_employee_id) {
-    const { data: empRaw } = await admin
-      .from('profiles')
-      .select('name')
-      .eq('id', input.assigned_employee_id)
-      .single()
-    assignedEmpName = (empRaw as { name: string } | null)?.name ?? '담당자'
+  // 담당자 이름은 **활동이력 문구에만** 쓰이므로 이 갈래만 순서를 지킨다(조회 → 알림 → 이력)
+  const logTask = (async () => {
+    let assignedEmpName: string | null = null
+    if (input.assigned_employee_id) {
+      const { data: empRaw } = await admin
+        .from('profiles')
+        .select('name')
+        .eq('id', input.assigned_employee_id)
+        .single()
+      assignedEmpName = (empRaw as { name: string } | null)?.name ?? '담당자'
 
-    await notifyIfEnabled(admin, input.assigned_employee_id, 'assignment', {
-      title: '고객 담당자 배정',
-      message: `"${input.customer_name}" 고객의 담당자로 배정되었습니다.`,
-      type: 'inspection_assigned',
-      reference_id: customerId,
-      reference_type: 'inspection',
-    })
-    // ADD-6: 등록 시점의 담당자 배정은 별도 이력을 남기지 않음 (등록 이력에 포함) — 등록 시 이력 2건 중복 방지
-  }
+      await notifyIfEnabled(admin, input.assigned_employee_id, 'assignment', {
+        title: '고객 담당자 배정',
+        message: `"${input.customer_name}" 고객의 담당자로 배정되었습니다.`,
+        type: 'inspection_assigned',
+        reference_id: customerId,
+        reference_type: 'inspection',
+      })
+      // ADD-6: 등록 시점의 담당자 배정은 별도 이력을 남기지 않음 (등록 이력에 포함) — 등록 시 이력 2건 중복 방지
+    }
 
-  await admin.from('activity_logs').insert({
-    actor_id: profile.id,
-    action: 'customer_created',
-    entity_type: 'customer',
-    entity_id: customerId,
-    metadata: {
-      customer_code: input.customer_code,
-      customer_name: input.customer_name,
-      ...(assignedEmpName ? { employee_name: assignedEmpName } : {}),
-    },
-  } as Record<string, unknown>)
+    await admin.from('activity_logs').insert({
+      actor_id: profile.id,
+      action: 'customer_created',
+      entity_type: 'customer',
+      entity_id: customerId,
+      metadata: {
+        customer_code: input.customer_code,
+        customer_name: input.customer_name,
+        ...(assignedEmpName ? { employee_name: assignedEmpName } : {}),
+      },
+    } as Record<string, unknown>)
+  })()
 
   // buildings 테이블에 자동 생성 (V9-3: 건물 기본정보 포함)
+  const buildingTask = (async () => {
   if (input.customer_name && (input.address || input.zipcode || input.building_purpose || input.building_floors_above)) {
     const buildingBase: Record<string, unknown> = {
       customer_id: customerId,
@@ -252,9 +259,10 @@ export async function createCustomerAction(
     }
     revalidatePath('/buildings')
   }
+  })()
 
   // 점검계획일(필수) 기준 연간 점검계획 항목 자동 생성 (V9-9)
-  await _autoCreatePlanItemsForNewCustomer(
+  const planTask = _autoCreatePlanItemsForNewCustomer(
     admin, customerId,
     {
       inspection_type: input.inspection_type,
@@ -266,6 +274,9 @@ export async function createCustomerAction(
     },
     profile.id,
   )
+
+  // 하나라도 실패하면 등록 자체를 실패로 보고해야 한다 — 조용히 반쪽 등록되는 것이 더 나쁘다
+  await Promise.all([contactsTask, logTask, buildingTask, planTask])
 
   revalidatePath('/customers')
   revalidatePath('/inspection-plans')
@@ -800,7 +811,7 @@ export async function upsertContactAction(
       .from('customer_contacts')
       .update({
         name: contact.name.trim(),
-        phone: contact.phone?.trim() || null,
+        phone: contact.phone?.trim() ? formatTel(contact.phone) : null,
         email: contact.email?.trim() || null,
         position: contact.position?.trim() || null,
         birth_date: contact.birth_date || null,
@@ -814,7 +825,7 @@ export async function upsertContactAction(
         customer_id: customerId,
         role: contact.role,
         name: contact.name.trim(),
-        phone: contact.phone?.trim() || null,
+        phone: contact.phone?.trim() ? formatTel(contact.phone) : null,
         email: contact.email?.trim() || null,
         position: contact.position?.trim() || null,
         birth_date: contact.birth_date || null,
@@ -1098,43 +1109,128 @@ export async function deleteCustomerAction(
   return {}
 }
 
-/** ADD-2/ADD-4: 주소 선택 시 중복 고객 확인 + 기존 건물정보 자동 로드 */
-export async function checkAddressAction(address: string): Promise<{
-  duplicate?: { id: string; customer_name: string; inspection_type: string; employee_name: string | null }
+export type AddressDuplicateCustomer = {
+  id: string
+  customer_name: string
+  inspection_type: string
+  employee_name: string | null
+  address: string
+  /** 저장된 주소가 글자까지 같은지 — false면 동/호수 등 상세주소만 다른 '같은 건물' 추정 */
+  exact: boolean
+}
+export type AddressDuplicateBuilding = {
+  id: string
+  building_name: string
+  address: string
+  customer_id: string
+  customer_name: string | null
+  exact: boolean
+}
+
+/**
+ * ADD-2/ADD-4: 주소 선택 시 중복 고객·건물 확인 + 기존 건물정보 자동 로드.
+ *
+ * 완전일치만 보면 '주소 검색 후 동/호수 추가 입력' 안내 때문에 같은 건물이 서로 다른 문자열로
+ * 저장돼 중복을 놓친다. 그래서 완전일치를 먼저 보고, 없으면 **도로명이 같은 후보만 좁혀 온 뒤**
+ * `addressDupKey`(건물번호까지만 남긴 키)로 비교한다. 도로명을 못 뽑는 주소는 완전일치만 판정한다.
+ *
+ * `excludeCustomerId`는 그 고객과 그 고객의 건물을 판정에서 통째로 뺀다. 자기 주소를 고칠 때 자신이
+ * 잡히는 것을 막고, 한 고객이 **같은 주소에 여러 동**을 등록하는 정상 사용(아파트 단지 등)에서
+ * 매번 팝업이 뜨는 것도 막는다. 즉 남는 신호는 '다른 계약과 겹친다' 하나뿐이다.
+ */
+export async function checkAddressAction(address: string, opts?: {
+  excludeCustomerId?: string
+}): Promise<{
+  duplicate?: AddressDuplicateCustomer
+  duplicateBuilding?: AddressDuplicateBuilding
   building?: { purpose: string | null; total_area: number | null; floors_above: number | null; floors_below: number | null; year_built: number | null }
 }> {
   const addr = address.trim()
   if (!addr) return {}
   const admin = createAdminClient()
 
-  const [custRes, bldRes] = await Promise.all([
-    admin.from('customers')
-      .select('id, customer_name, inspection_type, assigned_employee_id, profiles:assigned_employee_id(name)')
-      .eq('address', addr).eq('is_active', true).limit(1).maybeSingle(),
-    admin.from('buildings')
-      .select('purpose, total_area, floors_above, floors_below, year_built')
-      .eq('address', addr).eq('is_active', true).limit(1).maybeSingle(),
+  const key = addressDupKey(addr)
+  // 후보 축소용 도로명 — 인덱스 없는 전량 스캔을 피한다. 지번주소 등 도로명이 없으면 완전일치만.
+  const road = extractRoadName(addr)?.road ?? null
+
+  const custSel = 'id, customer_name, inspection_type, address, assigned_employee_id, profiles:assigned_employee_id(name)'
+  const bldSel = 'id, building_name, address, customer_id, purpose, total_area, floors_above, floors_below, year_built, customers:customer_id(customer_name)'
+
+  // 후보는 도로명으로 좁히되 상한을 둔다. 다만 상한에 걸려 **완전일치가 잘려나가면** 가장 중요한
+  // 판정을 조용히 놓치므로, 완전일치는 후보 스캔과 별개로 반드시 한 번 직접 조회한다.
+  const CAND_LIMIT = 200
+
+  const custBase = () => {
+    const q = admin.from('customers').select(custSel).eq('is_active', true)
+    if (opts?.excludeCustomerId) q.neq('id', opts.excludeCustomerId)
+    return q
+  }
+  const bldBase = () => {
+    const q = admin.from('buildings').select(bldSel).eq('is_active', true)
+    if (opts?.excludeCustomerId) q.neq('customer_id', opts.excludeCustomerId)
+    return q
+  }
+
+  const [custExact, bldExact, custCand, bldCand] = await Promise.all([
+    custBase().eq('address', addr).limit(1),
+    bldBase().eq('address', addr).limit(1),
+    road ? custBase().ilike('address', `%${road}%`).limit(CAND_LIMIT) : Promise.resolve({ data: [] }),
+    road ? bldBase().ilike('address', `%${road}%`).limit(CAND_LIMIT) : Promise.resolve({ data: [] }),
   ])
 
-  const cust = custRes.data as {
-    id: string; customer_name: string; inspection_type: string
+  type CustRow = {
+    id: string; customer_name: string; inspection_type: string; address: string | null
     profiles: { name: string } | null
-  } | null
-  const bld = bldRes.data as {
+  }
+  type BldRow = {
+    id: string; building_name: string; address: string | null; customer_id: string
     purpose: string | null; total_area: number | null
     floors_above: number | null; floors_below: number | null; year_built: number | null
-  } | null
+    customers: { customer_name: string } | null
+  }
+
+  // 완전일치를 유사일치보다 우선 — 같은 건물에 여러 건이 걸리면 정확한 쪽을 보여준다
+  const pick = <T extends { address: string | null }>(exactRows: T[], candRows: T[]): { row: T; exact: boolean } | null => {
+    if (exactRows.length > 0) return { row: exactRows[0], exact: true }
+    if (!key) return null
+    const similar = candRows.find(r => addressDupKey(r.address ?? '') === key)
+    return similar ? { row: similar, exact: false } : null
+  }
+
+  const cust = pick(
+    (custExact.data ?? []) as unknown as CustRow[],
+    (custCand.data ?? []) as unknown as CustRow[])
+  const bld = pick(
+    (bldExact.data ?? []) as unknown as BldRow[],
+    (bldCand.data ?? []) as unknown as BldRow[])
 
   return {
     ...(cust ? {
       duplicate: {
-        id: cust.id,
-        customer_name: cust.customer_name,
-        inspection_type: cust.inspection_type,
-        employee_name: cust.profiles?.name ?? null,
+        id: cust.row.id,
+        customer_name: cust.row.customer_name,
+        inspection_type: cust.row.inspection_type,
+        employee_name: cust.row.profiles?.name ?? null,
+        address: cust.row.address ?? '',
+        exact: cust.exact,
       },
     } : {}),
-    ...(bld ? { building: bld } : {}),
+    ...(bld ? {
+      duplicateBuilding: {
+        id: bld.row.id,
+        building_name: bld.row.building_name,
+        address: bld.row.address ?? '',
+        customer_id: bld.row.customer_id,
+        customer_name: bld.row.customers?.customer_name ?? null,
+        exact: bld.exact,
+      },
+      // 기존 건물정보 자동 로드 (ADD-4) — 중복 여부와 무관하게 빈 칸 채움용으로 계속 제공
+      building: {
+        purpose: bld.row.purpose, total_area: bld.row.total_area,
+        floors_above: bld.row.floors_above, floors_below: bld.row.floors_below,
+        year_built: bld.row.year_built,
+      },
+    } : {}),
   }
 }
 

@@ -54,8 +54,10 @@ const hdSet = await loadHolidaySet(admin, curYear)
 try {
   // ── 케이스 1: 작동 고객 + 사용승인일(3월) — 특별 1건(과거여도 생성) + 정기(현재월 이후만)
   console.log('\n[케이스 1] 작동 고객, 사용승인일 2020-03-15')
-  const c1 = await createCustomer({ customer_name: 'TEST-FIRE-S1-작동', inspection_type: '작동', inspection_category: '소방안전관리', inspection_sub_type: '작동', use_approval_date: '2020-03-15' })
-  const n1 = await generateYearlyPlanItems(admin, { id: c1, inspection_type: '작동', use_approval_date: '2020-03-15', assigned_employee_id: null }, curYear, createdBy, hdSet)
+  // ⚠ 기준일은 **점검계획일(plan_anchor_date)**이다 — 사용승인일 폴백은 2026-07-14에 제거됐다.
+  // 종전 판은 use_approval_date만 주고 3월 특별점검을 기대해 기준일이 없어 0건이 나왔다(테스트 노후화).
+  const c1 = await createCustomer({ customer_name: 'TEST-FIRE-S1-작동', inspection_type: '작동', inspection_category: '소방안전관리', inspection_sub_type: '작동', use_approval_date: '2020-03-15', plan_anchor_date: '2020-03-15' })
+  const n1 = await generateYearlyPlanItems(admin, { id: c1, inspection_type: '작동', plan_anchor_date: '2020-03-15', assigned_employee_id: null }, curYear, createdBy, hdSet)
   const i1 = await getItems(c1)
   const monthly1 = i1.filter(i => i.plan_type === 'monthly').map(i => i.inspection_plans.month).sort((a, b) => a - b)
   const special1 = i1.filter(i => i.plan_type === 'special_작동')
@@ -66,8 +68,8 @@ try {
 
   // ── 케이스 2: 종합 고객 + 사용승인일(1월) — 특별 2건(1월/7월) + 정기
   console.log('\n[케이스 2] 종합 고객, 사용승인일 2018-01-10 (2차 = 7월)')
-  const c2 = await createCustomer({ customer_name: 'TEST-FIRE-S1-종합', inspection_type: '종합', inspection_category: '소방안전관리', inspection_sub_type: '종합', use_approval_date: '2018-01-10' })
-  await generateYearlyPlanItems(admin, { id: c2, inspection_type: '종합', use_approval_date: '2018-01-10', assigned_employee_id: null }, curYear, createdBy, hdSet)
+  const c2 = await createCustomer({ customer_name: 'TEST-FIRE-S1-종합', inspection_type: '종합', inspection_category: '소방안전관리', inspection_sub_type: '종합', use_approval_date: '2018-01-10', plan_anchor_date: '2018-01-10' })
+  await generateYearlyPlanItems(admin, { id: c2, inspection_type: '종합', plan_anchor_date: '2018-01-10', assigned_employee_id: null }, curYear, createdBy, hdSet)
   const i2 = await getItems(c2)
   const special2 = i2.filter(i => i.plan_type === 'special_종합').map(i => `${i.inspection_plans.month}월/${i.sequence_num}차`).sort()
   const monthly2 = i2.filter(i => i.plan_type === 'monthly').map(i => i.inspection_plans.month).sort((a, b) => a - b)
@@ -109,11 +111,14 @@ try {
 
   // ── 케이스 5: 멱등성 — 재실행 시 0건 추가
   console.log('\n[케이스 5] 멱등성 — 케이스 1 재실행')
-  const n5 = await generateYearlyPlanItems(admin, { id: c1, inspection_type: '작동', use_approval_date: '2020-03-15', assigned_employee_id: null }, curYear, createdBy, hdSet)
+  const n5 = await generateYearlyPlanItems(admin, { id: c1, inspection_type: '작동', plan_anchor_date: '2020-03-15', assigned_employee_id: null }, curYear, createdBy, hdSet)
   const i5 = await getItems(c1)
   check('재실행 시 신규 0건 + 총 건수 불변', n5 === 0 && i5.length === i1.length, `신규 ${n5}건, 총 ${i5.length}건`)
 
   // ── 케이스 6: 일반관리 — 생성 없음
+  // ⚠ 이 케이스는 지금 **기준일이 없어서** 0건이 나온다(사용승인일만 줌) — 의도한 '일반관리 규칙'을
+  //   검증하지 못한다. 현행 설계는 일반관리도 특별점검(special_*)은 만들고 정기(monthly)만 안 만든다
+  //   (소방계획서_6 D-1/W-9). 기준일을 주면 이 단언은 깨진다 — 규칙을 다시 정하고 고칠 것.
   console.log('\n[케이스 6] 일반관리 고객 — 자동 생성 없음')
   const c6 = await createCustomer({ customer_name: 'TEST-FIRE-S1-일반', inspection_type: '일반관리', inspection_category: '일반관리', use_approval_date: '2020-06-01' })
   const n6 = await generateYearlyPlanItems(admin, { id: c6, inspection_type: '일반관리' as never, use_approval_date: '2020-06-01', assigned_employee_id: null }, curYear, createdBy, hdSet)

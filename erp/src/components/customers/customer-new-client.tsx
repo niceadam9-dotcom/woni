@@ -2,13 +2,12 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Loader2, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, AlertTriangle, ChevronDown, ChevronRight, Check } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo } from '@/app/(dashboard)/customers/actions'
+import { Loader2, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
+import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import type { InspectionType } from '@/types'
-import { inspectionTypeLabel } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
   const match = fullAddress.match(/\(([^)]+)\)$/)
@@ -44,7 +43,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const openPostcode = useDaumPostcode()
   const customerNameRef = useRef<HTMLInputElement>(null)
   // ADD-2: 주소 중복 등록 감지 팝업 (+저장 시점 재검증)
-  const [dupInfo, setDupInfo] = useState<{ id: string; customer_name: string; inspection_type: string; employee_name: string | null } | null>(null)
+  const [dupInfo, setDupInfo] = useState<{ customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding } | null>(null)
   const dupAckRef = useRef('')            // '계속 등록'으로 확인 완료된 주소
   const pendingSubmitRef = useRef(false)  // 저장 시점 중복 확인 후 이어서 제출할지
   // 건축물대장 소방안전 자료 (높이/주구조/승강기/세대수) — buildings 저장용
@@ -53,8 +52,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const [ledgerNote, setLedgerNote] = useState('')
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
-  // §10(T9): 선택 항목 아코디언 — 필수 5개 외에는 접힘
-  const [showOptional, setShowOptional] = useState(false)
+  // §10(T9) 선택 항목 — 종전에는 세로로 이어 붙어 있어 펼치면 폼이 두 배가 되므로 접어 뒀다.
+  // 이제 **오른쪽 칸**을 따로 쓰므로 펼쳐도 필수 정보를 밀어내지 않는다 → 기본 펼침.
+  const [showOptional, setShowOptional] = useState(true)
 
   // 기본 지역 pre-fill: 시/군/구 ← 회사 기본, 읍/면 ← 최근 사용값(localStorage, 클라이언트에서만) — effect 대신 lazy 초기값
   const [form, setForm] = useState(() => ({
@@ -132,9 +132,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         }, 50)
       }
 
-      // ADD-2/ADD-4: 중복 고객 확인 + 기존 건물정보 자동 로드
+      // ADD-2/ADD-4: 중복 고객·건물 확인 + 기존 건물정보 자동 로드
       checkAddressAction(data.roadAddress).then(res => {
-        if (res.duplicate) setDupInfo(res.duplicate)
+        if (res.duplicate || res.duplicateBuilding) {
+          setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
+        }
         if (res.building) {
           const b = res.building
           setForm(prev => ({
@@ -201,9 +203,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     if (addr && dupAckRef.current !== addr) {
       startTransition(async () => {
         const res = await checkAddressAction(addr)
-        if (res.duplicate) {
+        if (res.duplicate || res.duplicateBuilding) {
           pendingSubmitRef.current = true
-          setDupInfo(res.duplicate)
+          setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
           return
         }
         dupAckRef.current = addr
@@ -267,8 +269,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       if (form.region_myeon.trim()) localStorage.setItem('lastUsedMyeon', form.region_myeon.trim())
       // §10-3: 등록 직후 상세(탭)로 — created=1 보완 안내 + H-25 온보딩(소방계획서 탭 진행 배너)
       // 필수 최소만 강제된 상태에서 설비 대장·지도/사진·완성도를 이어서 안내(§4-D 국면 1)
+      // ⚠ router.refresh()를 뒤에 붙이지 않는다 — push가 이미 새 경로의 RSC를 받아오는데
+      // refresh가 같은 페이지를 한 번 더 받아 **상세 화면 로딩이 두 번** 일어났다.
+      // 목록 캐시는 액션의 revalidatePath('/customers')가 이미 무효화한다.
       router.push(`/customers/${result.customerId}?created=1&tab=plan&onboarding=1`)
-      router.refresh()
     })
   }
 
@@ -297,8 +301,14 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const assignedName = employees.find(e => e.id === form.assigned_employee_id)?.name
 
   return (
-    <form className="flex flex-col lg:flex-row gap-6 items-start" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
-    <div className="flex-1 w-full max-w-2xl space-y-6 min-w-0">
+    <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
+    {/* 좌 필수 | 우 선택 — 세로로 쌓으면 ~1070px라 반드시 스크롤이 생긴다.
+        나란히 놓으면 max(500,570)≈570px로 한 화면에 들어간다.
+        종전 우측의 '등록 요약'은 제거했다 — 폼이 길어 다 안 보이던 시절의 보조 장치였고,
+        두 칸이 동시에 보이는 지금은 같은 값을 두 번 보여주는 셈이다.
+        요약이 갖고 있던 필수 체크·[등록] 상태 문구·'대장 자동' 배지는 아래·오른쪽으로 옮겨 살렸다. */}
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+    <div className="flex-1 w-full space-y-6 min-w-0">
       {/* §10-1: 필수 정보 — 주소 검색·고객명·점검유형·점검계획일·대표 관계인 */}
       <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
         <h2 className="text-sm font-semibold text-[#090c1d]">필수 정보 <span className="text-xs font-normal text-[#b0acd6]">— 주소 검색 한 번이면 대부분 자동으로 채워집니다</span></h2>
@@ -462,8 +472,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
           </div>
         </div>
       </section>
+    </div>
 
-      {/* §10-1: 선택 항목 — 접힘 (담당 배정·추가 관계인·계약일·사용승인일·건물 정보·비고) */}
+    {/* 우측 칸 — 선택 항목 (담당 배정·추가 관계인·계약일·사용승인일·건물 정보·비고) */}
+    <div className="flex-1 w-full space-y-6 min-w-0">
       <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
         <button type="button" onClick={() => setShowOptional(v => !v)} className="w-full flex items-center gap-2 px-6 py-4">
           {showOptional ? <ChevronDown className="size-4 text-[#7b68ee]" /> : <ChevronRight className="size-4 text-[#7b68ee]" />}
@@ -671,134 +683,58 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         </div>
         )}
       </section>
+    </div>
+    </div>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>
       )}
 
-      <div className="flex gap-3 pb-8">
+      {/* 하단 바 — 요약 패널이 갖고 있던 **필수 체크**와 **[등록] 상태 문구**를 여기로 옮겼다.
+          값 미러는 옮기지 않았다: 두 칸이 동시에 보이므로 같은 값을 다시 보여줄 이유가 없다.
+          어느 칸이 비었는지 알려 주는 기능은 여전히 필요해 칩으로 남긴다. */}
+      <div className="flex flex-wrap items-center gap-3 pb-8 pt-1">
+        <div className="flex flex-wrap gap-1 items-center min-w-0 flex-1">
+          <span className="text-[10px] text-[#b0acd6] shrink-0">필수</span>
+          {requiredChecks.map(([label, ok]) => (
+            <span key={label as string}
+              className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+              {ok && <Check className="size-2.5" />}{label}
+            </span>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex-1 h-11 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+          className="h-11 px-6 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors shrink-0"
         >
           취소
         </button>
         <button
           type="submit"
           disabled={isPending || !requiredOk}
-          className="flex-1 h-11 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
-        >
-          {isPending ? <Loader2 className="size-4 animate-spin" /> : '고객 등록'}
-        </button>
-      </div>
-    </div>
-
-    {/* §10-2: 우측 실시간 등록 요약 — 입력 즉시 등록될 내용·필수 체크 반영, sticky [등록] */}
-    <aside className="w-full lg:w-72 shrink-0 lg:sticky lg:top-6">
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">등록 요약</p>
-        <div className="space-y-1.5 text-xs">
-          {[
-            ['고객명', form.customer_name.trim() || null],
-            ['주소', form.address.trim() || null],
-            ['점검유형', typeLabel],
-            ['점검계획일', form.plan_anchor_date || null],
-            ['대표', contacts['대표'].name.trim() ? `${contacts['대표'].name.trim()}${contacts['대표'].phone ? ` ${contacts['대표'].phone}` : ''}` : null],
-            ['담당', assignedName ?? null],
-          ].map(([label, val]) => (
-            <div key={label as string} className="flex items-baseline gap-2 min-w-0">
-              <span className="text-[10px] text-[#b0acd6] w-14 shrink-0">{label}</span>
-              {val
-                ? <span className="text-[#090c1d] truncate">{val}</span>
-                : <span className="text-amber-600 text-[11px]">미입력</span>}
-            </div>
-          ))}
-        </div>
-
-        {(form.building_purpose || form.building_total_area || ledgerRef.current) && (
-          <div className="pt-2 border-t border-[#f0eefb] space-y-1">
-            <p className="text-[10px] text-[#b0acd6]">
-              건물 {ledgerRef.current && <span className="ml-1 px-1.5 py-px rounded-full bg-green-50 text-green-600">대장 자동</span>}
-            </p>
-            <p className="text-xs text-[#090c1d]">
-              {[form.building_purpose,
-                form.building_total_area && `${form.building_total_area}㎡`,
-                form.building_floors_above && `지상${form.building_floors_above}층`,
-                form.building_floors_below && `지하${form.building_floors_below}층`,
-                ledgerRef.current?.main_structure && `구조 ${ledgerRef.current.main_structure}`,
-                ledgerRef.current?.height != null && `높이 ${ledgerRef.current.height}m`,
-              ].filter(Boolean).join(' · ') || '—'}
-            </p>
-          </div>
-        )}
-
-        <div className="pt-2 border-t border-[#f0eefb]">
-          <p className="text-[10px] text-[#b0acd6] mb-1.5">필수 체크</p>
-          <div className="flex flex-wrap gap-1">
-            {requiredChecks.map(([label, ok]) => (
-              <span key={label as string}
-                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                {ok && <Check className="size-2.5" />}{label}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={!requiredOk || isPending}
-          className="w-full h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-40"
+          className="h-11 px-8 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50 shrink-0"
         >
           {isPending ? <Loader2 className="size-4 animate-spin" />
-            : requiredOk ? '등록'
+            : requiredOk ? '고객 등록'
             : allFieldsOk ? '고객코드 생성 중…'
             : '필수 항목을 채워주세요'}
         </button>
-        <p className="text-[10px] text-[#b0acd6]">등록 후 고객 상세에서 나머지 항목(건물·시설·계획서 등)을 이어서 입력합니다</p>
       </div>
-    </aside>
 
       {/* ADD-2: 주소 중복 등록 안내 팝업 — 확인 후 등록 진행 가능 */}
       {dupInfo && (
-        <div
-          className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setDupInfo(null)}
-        >
-          <div
-            className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-sm p-5"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="size-4 text-amber-500" />
-              <h3 className="text-sm font-bold text-[#090c1d]">이미 등록된 주소입니다</h3>
-            </div>
-            <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1 text-sm">
-              <p className="font-medium text-[#090c1d]">{dupInfo.customer_name}</p>
-              <p className="text-xs text-[#514b81]">점검유형: {inspectionTypeLabel(dupInfo.inspection_type)} · 담당: {dupInfo.employee_name ?? '미배정'}</p>
-            </div>
-            <p className="text-xs text-[#514b81] mt-3">같은 주소의 고객이 이미 있습니다. 기존 고객 정보를 확인하거나, 별도 고객이 맞으면 계속 등록할 수 있습니다.</p>
-            <div className="flex gap-2 mt-4">
-              <Link
-                href={`/customers/${dupInfo.id}`}
-                className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center"
-              >
-                기존 고객 보기
-              </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  dupAckRef.current = form.address.trim()
-                  setDupInfo(null)
-                  if (pendingSubmitRef.current) { pendingSubmitRef.current = false; doSubmit() }
-                }}
-                className="flex-1 h-9 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
-              >
-                계속 등록
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddressDuplicateDialog
+          customer={dupInfo.customer}
+          building={dupInfo.building}
+          address={form.address.trim()}
+          onClose={() => setDupInfo(null)}
+          onContinue={() => {
+            dupAckRef.current = form.address.trim()
+            setDupInfo(null)
+            if (pendingSubmitRef.current) { pendingSubmitRef.current = false; doSubmit() }
+          }}
+        />
       )}
     </form>
   )
