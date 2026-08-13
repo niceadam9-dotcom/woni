@@ -263,6 +263,11 @@ export function injectReport(
   // 다수동(2동 이상)일 때만 '다수동일때' 시트 주입
   const buildingResult = buildings.length > 1 ? injectMultiBuilding(wb, buildings) : { injected: 0, overflow: 0 }
   if (completion) injectCompletionReport(wb, completion)
+  // 정의된 이름(defined names)을 버린다 — 템플릿에 1013개가 있고 **전부 #REF!로 깨져** 있다
+  // (시트를 반복 복사·병합하며 누적된 잔재). LibreOffice는 이걸 만나면 파일 자체를 거부해
+  // PDF 변환이 `source file could not be loaded`로 실패한다. 전부 깨진 이름이라 잃을 것이 없다.
+  // 구간 좁히기로 확정: Workbook.Names만 제거 → 열림 / Sheets·Views 제거 → 여전히 실패.
+  delete wb.Workbook?.Names
   const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array
   return { bytes, sheetResult, facilityResult, buildingResult }
 }

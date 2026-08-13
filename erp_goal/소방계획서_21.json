@@ -1157,7 +1157,7 @@
             "F-10"
           ],
           "blocked_by": null,
-          "note": "**차단 2건 중 1건 해소.** ① 엑셀 전용 12건 편입 완료(R5-7②, 132·133 적용) ② 펌프 대상 설비 8개 확장 완료(132, sheet_no 5·13 허용 실측 확인). 남은 것은 **스테이징에서 별지 4호 PDF와 엑셀 PDF를 나란히 뽑아 시각 서식 대조** — Gotenberg 사이드카가 들어와 로컬에서도 시도 가능해졌다. 대조 후 폐지 착수. 순서는 그대로 유지한다",
+          "note": "**차단 3건 중 2.5건 해소.** ① 엑셀 전용 12건 편입 완료(132·133) ② 펌프 대상 설비 8개 확장 완료(132) ③ 대조 — **내용 대조는 통과(9/9, 유실 0)**, 칸 배치·인쇄 레이아웃 육안 확인만 스테이징에 남는다. 착수 여부는 사용자 판단 대기 — 기능 삭제라 자동 진행하지 않는다",
           "blocker_check": {
             "date": "2026-08-13",
             "probe": "scripts/_probe-r56-blockers.mjs",
@@ -1175,7 +1175,8 @@
               "scope_note": "앞서 '15건'으로 셌던 것은 `2-H-002`가 `12-H-002` 안에서 잡힌 **내 정규식 오탐**이었다(경계 미지정). 경계를 넣어 재확인해 12건으로 확정 — R5-7 대조와 일치",
               "remaining_before_delete": "이제 남은 것은 **스테이징에서 별지 4호 PDF에 12건이 실제로 인쇄되는지 눈으로 확인**하는 단계뿐이다. 그 확인 후에 엑셀 생성 경로를 제거한다(report-generate-actions.ts · lib/report-generator.ts · report-generate-client.tsx · [id]/page.tsx 호출부 · 스토리지 템플릿 · _probe-c1-blocks.mjs의 존치 단언 2건)"
             }
-          }
+          },
+          "removal_map": "report-generate-actions.ts(generateOperationalReportAction·printOperationalReportAction) · lib/report-generator.ts · report-generate-client.tsx · [id]/page.tsx의 [기타 도구] details 블록 · 템플릿 reports/templates/operational_v2026.xlsx · _probe-c1-blocks.mjs가 엑셀 버튼 존치를 단언 중이라 함께 갱신"
         },
         {
           "id": "R5-7",
@@ -1193,7 +1194,10 @@
           "finding": "**폐지를 막는 실물 장애 확인.** 엑셀에만 있는 12건(32번대 제외)은 전부 옥3·스4·옥외3 = 각 설비의 3면(제어반 + 펌프성능시험)이다. 그 면에는 코드 항목 외에 **펌프성능시험 실측표**(체절/정격100%/정격유량150%의 토출량 ℓ/min·토출압 MPa 실측치, \"체절운전시 토출압은 정격토출압의 140% 이하\" 판정)가 들어 있는데, 별지 4호는 ○/×/해당없음 항목 모델뿐이라 **실측 수치를 넣을 자리가 없다** — DB에는 `2-C-004 성능시험배관을 통한 펌프 성능시험 적정 여부` 같은 적정 여부 한 칸만 있고 `체절` 검색 결과 0건. 엑셀을 지우면 펌프성능시험 실측치 기록처가 사라진다",
           "remaining": "시각 서식(칸 배치·인쇄 레이아웃) 대조만 남는다 — Gotenberg 사이드카(f272468)로 로컬 생성이 열렸으니 재시도 가능",
           "incorporation": "**② 12건 편입 완료·검증(2026-08-13).** 정체를 고시 원문에서 복원하니 전부 법정 실재 항목이었다 — 우리가 만든 번호가 아니라 서식에 인쇄된 항목번호(원문 XML에 2-H-018·3-K-022·3-L-001·13-G-031이 문장과 나란히 있다). 폐기 대상 0건. 마이그레이션 132(타 세션 작성) 적용 완료. 편입안: erp_goal/_편입안_엑셀전용12건_별지4호.md",
-          "verbatim_fix": "132가 [동력제어반] 표지 문장 3건을 한 형태로 통일해 넣었으나 고시 원문은 설비마다 공백이 다르다 — **마이그레이션 133으로 2건(2-H-021·3-K-031) 원문 축자 정정·스테이징 적용**. 이 문구는 법정 서식에 인쇄되는 말이라 원문을 따른다(개정 시 기계 대조 가능). `_probe-verbatim-db.mjs`로 12/12 축자 일치 확인"
+          "verbatim_fix": "132가 [동력제어반] 표지 문장 3건을 한 형태로 통일해 넣었으나 고시 원문은 설비마다 공백이 다르다 — **마이그레이션 133으로 2건(2-H-021·3-K-031) 원문 축자 정정·스테이징 적용**. 이 문구는 법정 서식에 인쇄되는 말이라 원문을 따른다(개정 시 기계 대조 가능). `_probe-verbatim-db.mjs`로 12/12 축자 일치 확인",
+          "visual_compare": "**③ 대조 수행(2026-08-13).** Gotenberg 사이드카(f272468)로 같은 점검 건에서 두 PDF를 실제로 뽑았다 — annex4.pdf 336KB · excel.pdf 1.5MB(erp_goal/_대조PDF/). PDF 판독 도구(poppler·pdfjs)가 이 PC에 없고 사이드카 렌더러가 운영 Gotenberg와 달라 픽셀 비교는 애초에 성립하지 않으므로, **원본끼리 대조**했다 — 별지 4호는 PDF의 입력인 HTML, 엑셀은 워크북 셀(SheetJS). 결과 9/9: 엑셀에서 결과가 찍힌 항목 24건이 별지 4호에 24건 전부 수록(누락 0) · 편입 12건 12/12 문서 도달 · 개요·펌프성능시험·현황 블록 모두 대응 존재. 대조표: erp_goal/_대조PDF/content-diff.md",
+          "visual_remaining": "**칸 배치·인쇄 레이아웃 육안 확인만 남는다.** 로컬 사이드카는 Playwright Chromium·LibreOffice라 운영 Gotenberg와 픽셀이 다르다 — 최종 레이아웃 판정은 스테이징에서 해야 한다. 내용 유실 관점의 검증은 끝났다",
+          "side_fix": "엑셀 PDF 변환이 LibreOffice에서 실패하던 것(`source file could not be loaded`)을 함께 고쳤다 — 템플릿 operational_v2026.xlsx의 정의된 이름 1013개가 전부 #REF!로 깨져 LibreOffice가 파일을 거부했다. injectReport의 XLSX.write 직전에 `delete wb.Workbook?.Names` 한 줄. 전부 깨진 이름이라 잃을 것이 없다. 이 수정이 없으면 대조 자체가 불가능했다"
         },
         {
           "id": "R5-8",
