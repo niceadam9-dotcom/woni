@@ -29,9 +29,12 @@ import { promisify } from 'node:util'
 const run = promisify(execFile)
 const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 3010
 
+// ⚠ Windows에서는 **soffice.com**(콘솔판)을 쓴다. soffice.exe는 런처라 변환이 끝나기 전에 반환해
+// 호출부가 완료를 기다리지 못하고, 실측상 한 건에 48초가 걸렸다(.com은 워밍업 후 1초대).
 const SOFFICE = [
+  'C:\\Program Files\\LibreOffice\\program\\soffice.com',
   'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
-  'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+  'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.com',
   '/usr/bin/soffice',
 ].find(p => existsSync(p))
 
@@ -97,17 +100,37 @@ async function htmlToPdf(form, dir) {
   }
 }
 
+// 변환은 직렬로 돌린다 — 기본 프로필을 공유하므로 동시에 부르면 LibreOffice가 잠금 때문에 깨진다.
+// 요청이 원래 순차적이라 실질 지연은 없다.
+let loQueue = Promise.resolve()
+const loLock = fn => (loQueue = loQueue.then(fn, fn))
+// 격리 프로필(-env:UserInstallation)은 **한 건당 48초**가 걸린다(실측: 기본 프로필 1초 vs 커스텀 48초,
+// 재사용해도 매번 그렇다). 그래서 기본 프로필을 쓰고, GUI가 떠 있어 잠기는 경우에만 격리로 물러난다.
+const LO_PROFILE = join(tmpdir(), 'localgot-lo-profile')
+
 async function officeToPdf(form, dir) {
+  return loLock(() => officeToPdfInner(form, dir))
+}
+
+async function officeToPdfInner(form, dir) {
   if (!SOFFICE) throw Object.assign(new Error('LibreOffice(soffice)를 찾지 못했습니다'), { status: 501 })
   const names = await spillFiles(form, dir)
   const src = names.find(n => !/\.pdf$/i.test(n))
   if (!src) throw Object.assign(new Error('변환할 파일이 없습니다'), { status: 400 })
   // ⚠ landscape는 문서 자체의 페이지 설정을 따른다 — Gotenberg의 filter 옵션까지 흉내내지 않는다
-  const profile = join(dir, 'lo-profile')
-  await run(SOFFICE, [
-    '--headless', '--norestore', `-env:UserInstallation=file:///${profile.replace(/\\/g, '/')}`,
-    '--convert-to', 'pdf', '--outdir', dir, join(dir, src),
-  ], { timeout: 120_000, windowsHide: true })
+  const base = ['--headless', '--norestore', '--convert-to', 'pdf', '--outdir', dir, join(dir, src)]
+  const pdfPath = join(dir, src.replace(extname(src), '.pdf'))
+  try {
+    await run(SOFFICE, base, { timeout: 120_000, windowsHide: true })
+    if (!existsSync(pdfPath)) throw new Error('기본 프로필로 변환되지 않음')
+  } catch {
+    // GUI가 떠 있으면 기본 프로필이 잠긴다 — 느리지만 확실한 격리 프로필로 재시도
+    console.log('  ↻ 기본 프로필 실패 → 격리 프로필로 재시도(느립니다: LibreOffice GUI를 닫으면 빨라집니다)')
+    await run(SOFFICE, [
+      '--headless', '--norestore', `-env:UserInstallation=file:///${LO_PROFILE.replace(/\\/g, '/')}`,
+      '--convert-to', 'pdf', '--outdir', dir, join(dir, src),
+    ], { timeout: 180_000, windowsHide: true })
+  }
   const out = (await readdir(dir)).find(f => f.toLowerCase() === src.replace(extname(src), '.pdf').toLowerCase())
   if (!out) throw new Error('LibreOffice가 PDF를 만들지 못했습니다')
   return readFile(join(dir, out))
