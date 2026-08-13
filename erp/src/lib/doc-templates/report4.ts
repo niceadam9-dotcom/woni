@@ -11,10 +11,24 @@
 import { renderDocument, pageHeader, pageFooter, esc, val, ck } from './base'
 import { facilityResultSection, muResultSection, type Report9Person } from './report9'
 import { renderSpecSections, type SpecMap } from './spec-sections'
+import { PUMP_JUDGE_LABELS, PUMP_SHEET_LABELS } from '@/lib/pump-test'
 
 /** 부속 '설비별 점검표' 1행 — 점검번호(1-A-001…) 항목 중 ○/× 응답만 (A4-1 Q-2, 2026-08-11 확정) */
 export type Report4SheetItem = { code: string; name: string; mark: 'O' | 'X' }
 export type Report4SheetSection = { no: number; name: string; items: Report4SheetItem[] }
+
+/** ※ 펌프성능시험 1행 — 법정 서식의 표 (소방계획서_21 R5-7 후속, inspection_pump_tests가 원천) */
+export type Report4PumpRow = {
+  sheetNo: number
+  pumpKind: '주' | '예비'
+  shutoffFlow: number | null; shutoffPress: number | null
+  ratedFlow: number | null; ratedPress: number | null
+  overFlow: number | null; overPress: number | null
+  setStartPress: number | null; setStopPress: number | null
+  /** 적정 여부 3건의 최종값(자동 판정 + 수동 보정) — 판정 규칙은 lib/pump-test.ts가 원본 */
+  judges: Array<'O' | 'X' | null>
+  note: string | null
+}
 
 export type Report4Data = {
   // ── 1쪽 ──
@@ -40,6 +54,8 @@ export type Report4Data = {
   companyRegNo?: string
   /** 부속 설비별 점검표 — ○/× 응답 항목만, 비면 부속 쪽 자체를 미생성 (A4-1 Q-2) */
   sheetSections?: Report4SheetSection[]
+  /** ※ 펌프성능시험 실측치 — 비면 그 쪽을 미생성 (R5-7 후속) */
+  pumpRows?: Report4PumpRow[]
   // ── 3~7쪽 ──
   specs: SpecMap                                 // customer_facility_specs 병합본
   ledgerCodes?: string[]                         // 1.4 설치(√) 코드 전체 — 1쪽 하위 체크칸·세부현황 파생용
@@ -174,7 +190,55 @@ ${pageHeader(null, '(설비별 점검표)')}
 ${pageFooter()}`]
 }
 
-/** 별지 4호 — 소방시설등점검표 (7쪽 + 부속 설비별 점검표) */
+/** ※ 펌프성능시험 — 법정 별지 4호서식에 원래 있는 표 (소방계획서_21 R5-7 후속).
+ *  37시트 엑셀만 담고 있던 실측치의 문서 출력처다. 값이 없으면 쪽 자체를 만들지 않는다 —
+ *  빈 표를 찍으면 '측정 안 함'과 '측정했는데 공란'이 구분되지 않는다. */
+function pumpTestPages(rows: Report4PumpRow[]): string[] {
+  const bySheet = new Map<number, Report4PumpRow[]>()
+  for (const r of rows) bySheet.set(r.sheetNo, [...(bySheet.get(r.sheetNo) ?? []), r])
+  if (bySheet.size === 0) return []
+
+  const n = (v: number | null | undefined) => (v == null ? '' : String(v))
+  const tables = [...bySheet.entries()].sort((a, b) => a[0] - b[0]).map(([sheetNo, rs]) => {
+    const main = rs.find(r => r.pumpKind === '주')
+    const cell = (k: '주' | '예비', f: keyof Report4PumpRow) => n(rs.find(r => r.pumpKind === k)?.[f] as number | null)
+    const setPress = rs.map(r =>
+      `ㅇ${r.pumpKind}펌프 기동: ${n(r.setStartPress)} MPa / 정지: ${n(r.setStopPress)} MPa`).join('<br>')
+    return `
+<div class="sec-title">${esc(PUMP_SHEET_LABELS[sheetNo] ?? `설비 ${sheetNo}`)} — ※ 펌프성능시험 <span style="font-weight:normal">(펌프 명판 및 설계치 참조)</span></div>
+<table class="form tight">
+  <colgroup><col style="width:26mm"><col><col><col><col style="width:62mm"></colgroup>
+  <thead><tr>
+    <th>구분</th><th>체절운전</th><th>정격운전<br>(100%)</th><th>정격유량의<br>150% 운전</th><th>적정 여부</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class="center">토출량<br>(ℓ/min) 주</td>
+      <td class="center">${cell('주', 'shutoffFlow')}</td><td class="center">${cell('주', 'ratedFlow')}</td><td class="center">${cell('주', 'overFlow')}</td>
+      <td rowspan="4" class="small">
+        ${PUMP_JUDGE_LABELS.map((l, i) => `${esc(l)} ( ${main?.judges[i] ?? ''} )`).join('<br>')}
+        <div style="margin-top:4px">${setPress}</div>
+        ${main?.note ? `<div style="margin-top:4px">비고: ${esc(main.note)}</div>` : ''}
+      </td>
+    </tr>
+    <tr><td class="center">예비</td>
+      <td class="center">${cell('예비', 'shutoffFlow')}</td><td class="center">${cell('예비', 'ratedFlow')}</td><td class="center">${cell('예비', 'overFlow')}</td></tr>
+    <tr><td class="center">토출압<br>(MPa) 주</td>
+      <td class="center">${cell('주', 'shutoffPress')}</td><td class="center">${cell('주', 'ratedPress')}</td><td class="center">${cell('주', 'overPress')}</td></tr>
+    <tr><td class="center">예비</td>
+      <td class="center">${cell('예비', 'shutoffPress')}</td><td class="center">${cell('예비', 'ratedPress')}</td><td class="center">${cell('예비', 'overPress')}</td></tr>
+  </tbody>
+</table>`
+  })
+
+  return [`
+${pageHeader(null, '(펌프성능시험)')}
+<h1 class="doc-title" style="font-size:13pt; letter-spacing:.1em; margin:4px 0 6px;">펌프성능시험</h1>
+${tables.join('\n')}
+${pageFooter()}`]
+}
+
+/** 별지 4호 — 소방시설등점검표 (7쪽 + 부속 설비별 점검표 + 펌프성능시험) */
 export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): string {
   const h = !!opts.highlight
   const secs = renderSpecSections(d.specs ?? {}, {
@@ -190,6 +254,7 @@ export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): str
       specPage(5, secs.slice(3, 5)), specPage(6, secs.slice(5, 7)),
       specPage(7, secs.slice(7)),
       ...sheetItemPages(d.sheetSections ?? []),
+      ...pumpTestPages(d.pumpRows ?? []),
     ],
   })
 }

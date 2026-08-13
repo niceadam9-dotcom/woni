@@ -14,7 +14,8 @@ import {
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
-import { forceCompleteStepAction } from '@/app/(dashboard)/inspections/timeline-actions'
+import { forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction } from '@/app/(dashboard)/inspections/timeline-actions'
+import { evidenceDone, activeStepNums, stepProgress, type StepEvidence } from '@/lib/inspection-step-status'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
@@ -63,6 +64,9 @@ export type TimelineData = {
   contractFile: { name: string; path: string } | null
   delivery: { sentTo: string; sentAt: string } | null   // ③ 발송 이력 (최근)
   submit9: { due: string | null; dday: number | null; submittedAt: string | null }
+  /** R4-1(독립 검증 D3): 화면 ✓도 서버와 **같은 판정 함수**(evidenceDone)를 쓰기 위한 증거 묶음.
+   *  화면이 따로 계산하면 오프라인 보고·사유 완료가 DB에만 반영되는 괴리가 다시 생긴다. */
+  evidence?: StepEvidence
   /** R5-8: ④ 기한의 기산 근거 — '왜 이 날짜인지'를 ④에서 바로 보고 고칠 수 있어야 한다.
    *  end가 없으면 시작일이 기산일이다(page.tsx의 due9 계산과 같은 규칙). */
   period?: { start: string | null; end: string | null; days: number }
@@ -95,6 +99,8 @@ function saveBlob(base64: string, fileName: string) {
 export type TimelineSlots = {
   multiday?: React.ReactNode
   sheet?: React.ReactNode
+  /** 펌프성능시험 실측치 — 법정 별지 4호 "※ 펌프성능시험" 표의 입력처 (R5-7 후속) */
+  pumpTest?: React.ReactNode
   exterior?: React.ReactNode
   participants?: React.ReactNode
   defects?: React.ReactNode
@@ -129,6 +135,11 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   const [completing, setCompleting] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<TimelineStepKey, boolean>>({} as Record<TimelineStepKey, boolean>)
   const [reportsOpen, setReportsOpen] = useState(false)  // 하단 제출 보고서 접이식
+  // R4-2(D2): ③ 방문·유선 보고 기록 — 이메일 발송만 근거로 삼으면 오프라인 보고가 영원히 미완이다
+  const [offlineOpen, setOfflineOpen] = useState(false)
+  const [offlineDate, setOfflineDate] = useState(today)
+  const [offlineMethod, setOfflineMethod] = useState('방문 설명')
+  const [offlineMemo, setOfflineMemo] = useState('')
   // R5-8: ④ 기산 근거 인라인 수정 — 종료일 입력은 ①에 두되, 기한을 보는 자리에서도 고칠 수 있게
   const [anchorEdit, setAnchorEdit] = useState(false)
   const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
@@ -221,6 +232,19 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     })
   }
 
+  function saveOffline() {
+    setMsg('')
+    startTransition(async () => {
+      const res = await recordOwnerReportOfflineAction(inspectionId, {
+        date: offlineDate, method: offlineMethod, memo: offlineMemo,
+      })
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setOfflineOpen(false); setOfflineMemo('')
+      setMsg('✅ 오프라인 보고를 기록했습니다 — ③이 근거로 완료됩니다.')
+      router.refresh()
+    })
+  }
+
   function pkg(kind: 'report9' | 'report11') {
     setMsg('')
     startTransition(async () => {
@@ -255,6 +279,23 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     setCompleting(null)
     if (res.error) { setMsg(`❌ ${res.error}`); return }
     setMsg('✅ 사유와 함께 완료 처리했습니다.')
+    router.refresh()
+  }
+
+  /** D1: 사유 완료 철회 — 마커를 지우는 게 아니라 반대 마커를 남긴다(로그는 append-only) */
+  async function undoForce(stepId: string, stepNum: number, label: string) {
+    const reason = window.prompt(
+      `${label} 단계의 '사유 완료'를 철회합니다.\n`
+      + '철회하면 증거만으로 다시 판정하므로, 증거가 없으면 미완료로 돌아갑니다.\n\n'
+      + '철회 사유를 입력하세요 (5자 이상 — 철회도 기록으로 남습니다):',
+    )
+    if (reason === null) return
+    setCompleting(stepId)
+    setMsg('')
+    const res = await undoForceCompleteStepAction(inspectionId, stepNum, reason)
+    setCompleting(null)
+    if (res.error) { setMsg(`❌ ${res.error}`); return }
+    setMsg('✅ 사유 완료를 철회했습니다 — 증거 기준으로 다시 판정합니다.')
     router.refresh()
   }
 
@@ -306,21 +347,32 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
 
   const has = (k: TimelineStepKey) => data.steps.includes(k)
   const hasDefects = data.defects.total > 0
-  const done1 = data.responded > 0
-  const done2 = !!data.certFile || !!data.certArchived
-  const done3 = !!data.delivery
-  const done4 = !!data.submit9.submittedAt
+  // R4-1(독립 검증 D3): ✓는 **서버와 같은 판정 함수**로 계산한다. 종전엔 여기서 리터럴로 다시 계산해
+  // 오프라인 보고·사유 완료가 DB에서는 완료인데 화면 ✓는 미완으로 남는 새 괴리가 생겼다.
+  // evidence가 오지 않는 옛 호출자를 위해 화면이 가진 값으로 같은 모양을 만들어 넘긴다.
+  const stepDone = evidenceDone(data.evidence ?? {
+    responded: data.responded,
+    certFile: !!data.certFile, certArchived: !!data.certArchived,
+    delivery: !!data.delivery, offlineReport: false,
+    submit9At: data.submit9.submittedAt,
+    defectsTotal: data.defects.total, defectsDone: data.defects.done,
+    submit11At: data.submit11.submittedAt,
+  })
+  const done1 = stepDone[1]
+  const done2 = stepDone[2]
+  const done3 = stepDone[3]
+  const done4 = stepDone[4]
   // ⑤ 완료 판정 = 불량 전건 조치 완료 (R10-a — 계약서·사진은 선택 증빙이라 완료 조건에서 제외)
-  const done5 = hasDefects && data.defects.done >= data.defects.total
-  const done6 = !!data.submit11.submittedAt
+  const done5 = stepDone[5]
+  const done6 = stepDone[6]
+  /** 이 단계가 증거가 아니라 **사유**로 완료됐는지 — 표시와 철회 버튼에 쓴다(D1) */
+  const forcedNums = new Set<number>(data.evidence?.forced ?? [])
 
   // R10-b: 진행률 — 해당없음(불량 0건의 ⑤⑥)은 분모에서 제외
   const isSpecialTimeline = data.steps.length > 1
-  const activeDones = isSpecialTimeline
-    ? (hasDefects ? [done1, done2, done3, done4, done5, done6] : [done1, done2, done3, done4])
-    : [done1]
-  const doneCount = activeDones.filter(Boolean).length
-  const progressPct = Math.round((doneCount / activeDones.length) * 100)
+  const progress = stepProgress(stepDone, activeStepNums(isSpecialTimeline, hasDefects))
+  const doneCount = progress.done
+  const progressPct = progress.pct
 
   // §4-E "다음 할 일" — 활성 단계 중 첫 미완료 (처음 사용자도 바로 알게)
   const orderedSteps: Array<{ key: TimelineStepKey; done: boolean }> = [
@@ -389,6 +441,15 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
             {completing === st!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 사유 완료
           </button>
         )}
+        {/* D1: 사유로 완료한 단계는 **되돌릴 수 있어야 한다** — 마커가 영구히 남으면 하지 않은 일이
+            완료로 고정된다. 증거로 완료된 단계에는 이 버튼이 없다(되돌릴 마커가 없으므로) */}
+        {canComplete && st && forcedNums.has(st.step_num) && (
+          <button onClick={() => undoForce(st.id, st.step_num, TIMELINE_STEP_LABELS[k])} disabled={completing === st.id}
+            className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-white text-amber-600 border border-amber-200 text-[11px] font-medium hover:bg-amber-50 disabled:opacity-50"
+            title="사유로 완료한 단계입니다. 철회하면 증거만으로 다시 판정합니다.">
+            {completing === st.id ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />} 사유 완료 철회
+          </button>
+        )}
       </div>
     )
   }
@@ -416,7 +477,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         )}
         {isSpecialTimeline && (
           <span className={`${customerId ? '' : 'ml-auto'} text-[11px] font-semibold text-[#7b68ee] shrink-0`}
-            title="해당없음 단계는 분모에서 제외">{doneCount}/{activeDones.length} 단계 완료</span>
+            title="해당없음 단계는 분모에서 제외">{doneCount}/{progress.total} 단계 완료</span>
         )}
       </div>
       {isSpecialTimeline && (
@@ -531,7 +592,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                 <span className={`text-xs ${done3 ? 'text-[#514b81]' : 'text-amber-600'}`}>
                   {data.delivery
                     ? `발송됨 → ${data.delivery.sentTo} (${data.delivery.sentAt.slice(0, 10)})`
-                    : data.consentOk ? '점검 결과 보고 후 개선·변경 협의 → ④로 (별지 9호 생성 후 이메일 발송)' : '송달 동의·이메일 미입력 — 고객 소방계획서 탭에서 입력'}
+                    : data.evidence?.offlineReport
+                      ? '방문·유선으로 보고함 (오프라인 기록됨)'
+                      : data.consentOk ? '점검 결과 보고 후 개선·변경 협의 → ④로 (별지 9호 생성 후 이메일 발송)' : '송달 동의·이메일 미입력 — 고객 소방계획서 탭에서 입력'}
                 </span>
                 <span className="ml-auto flex items-center gap-1.5 shrink-0">
                   {/* R7-3: 문구는 **보내는 자리**에서 고친다 (전용 페이지 없음). 권한은 액션이 판정 */}
@@ -542,7 +605,29 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                       <Send className="size-3" /> {done3 ? '재발송' : '생성물 이메일 발송'}
                     </button>
                   )}
+                  {/* R4-2(독립 검증 D2): 이메일이 전부가 아니다 — 방문·유선 보고를 남길 자리가 없어
+                      서버 액션만 있고 쓰이지 못했다. 여기가 그 입력처다 */}
+                  {canManage && !offlineOpen && (
+                    <button onClick={() => setOfflineOpen(true)} className={btn}>
+                      <PenLine className="size-3" /> 방문·유선 보고 기록
+                    </button>
+                  )}
                 </span>
+              </div>
+            )}
+            {isOpen('ownerReport') && offlineOpen && canManage && (
+              <div className="mt-1.5 pl-6 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-[#b0acd6]">보고일</span>
+                <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
+                  className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
+                  className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]">
+                  <option>방문 설명</option><option>유선 통보</option><option>대면 전달</option><option>기타</option>
+                </select>
+                <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
+                  className="h-7 w-48 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
+                <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-[#b0acd6]">취소</button>
               </div>
             )}
           </div>

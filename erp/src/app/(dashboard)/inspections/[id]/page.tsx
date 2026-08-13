@@ -10,8 +10,11 @@ import { InspectionSheetClient } from '@/components/inspections/inspection-sheet
 import { InspectionDeleteClient } from '@/components/inspections/inspection-delete-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import { InspectionInfoPopover } from '@/components/inspections/inspection-info-popover'
+import { PumpTestPanel } from '@/components/inspections/pump-test-panel'
+import { PUMP_TEST_SHEETS } from '@/lib/pump-test'
+import { listPumpTestsAction } from '@/app/(dashboard)/inspections/pump-test-actions'
 import { ExteriorMonthProvider } from '@/components/inspections/exterior-month'
-import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { syncInspectionSteps, loadStepEvidence } from '@/lib/inspection-step-sync'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import { type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
@@ -110,6 +113,14 @@ export default async function InspectionDetailPage({
   for (const r of respRows) responses[r.item_code] = { result: r.result, memo: r.memo }
   const xCount = respRows.filter(r => r.result === 'X').length
 
+  // 펌프성능시험(법정 별지 4호 "※ 펌프성능시험" 표) — 이 점검 건에 포함된 설비 중 표가 붙는 것만.
+  // STD-02 같은 sheet_code 앞자리가 item_code 앞자리(=설비 번호)와 같은 축이다.
+  const pumpSheetNos = sheets
+    .map(s => Number((s.sheet_code.match(/^STD-(\d+)$/)?.[1] ?? '')))
+    .filter(n => (PUMP_TEST_SHEETS as readonly number[]).includes(n))
+    .sort((a, b) => a - b)
+  const pumpRows = pumpSheetNos.length > 0 ? (await listPumpTestsAction(id)).rows : []
+
   // 시트별 진행률 — sheet_id 조인 집계(sheet-overview.ts). 종전 item_code 접두 파싱은
   // 분모·O/X/N 집계를 못 구하고 MU 시트 다수를 한 버킷으로 뭉개서 폐기했다.
   // 회차별 작성·조회 트리와 같은 소스라 두 화면의 진행률이 어긋날 수 없다.
@@ -183,6 +194,9 @@ export default async function InspectionDetailPage({
       .select('*').eq('inspection_id', id).order('step_num')
     steps = (fresh ?? []) as InspectionStep[]
   }
+  // 독립 검증 D3: 화면 ✓도 서버와 **같은 증거·같은 판정 함수**를 써야 한다 —
+  // 종전엔 타임라인이 리터럴로 다시 계산해 오프라인 보고·사유 완료가 화면에 반영되지 않았다.
+  const stepEvidence = await loadStepEvidence(admin, id)
   // 전체 진행률 카드는 C1(R5-1)에서 제거했다 — 타임라인 헤더가 같은 값을 보여주고,
   // 그 카드가 읽던 inspection_steps는 월간 건에서 분모가 6으로 고정돼 100%에 닿지 못했다(R4-8에서 교정 예정)
 
@@ -234,6 +248,7 @@ export default async function InspectionDetailPage({
       delivery: null,
       submit9: { due: null, dday: null, submittedAt: null },
       submit11: { due: null, dday: null, submittedAt: null },
+      evidence: stepEvidence ?? undefined,   // D3: 화면도 서버와 같은 판정 함수를 쓴다
       defects: { total: defects.length, planned: 0, done: 0, photoPairs: 0 },
       prereqs: [],
       consentOk: false,
@@ -337,6 +352,7 @@ export default async function InspectionDetailPage({
         due: due9, submittedAt: (iRec.report9_submitted_at as string | null) ?? null,
         dday: (iRec.report9_submitted_at as string | null) ? null : ddayOf(due9),
       },
+      evidence: stepEvidence ?? undefined,   // D3: 화면도 서버와 같은 판정 함수를 쓴다
       // R5-8: ④가 기한의 기산 근거를 그 자리에서 보이고 고칠 수 있도록 기간을 함께 넘긴다
       period: {
         start: (iRec.inspection_start_date as string | null) ?? null,
@@ -449,6 +465,11 @@ export default async function InspectionDetailPage({
                 />
               </ExteriorMonthProvider>
             ),
+            /* 펌프성능시험 실측치 — 점검표 바로 아래. 법정 별지 4호 표의 원천이고,
+               이 자리가 생겨야 37시트 엑셀을 지울 수 있다(R5-6 선행, R5-7 대조 결과) */
+            pumpTest: pumpSheetNos.length > 0 ? (
+              <PumpTestPanel inspectionId={id} sheetNos={pumpSheetNos} initial={pumpRows} canEdit={canEdit} />
+            ) : null,
             // 외관점검표 (§9-8d) — 월간 외관점검 건 전용, 별지 9호 준비 UI 재사용
             exterior: exteriorChecks ? (
               <InspectionReport9Client

@@ -14,12 +14,13 @@ import {
 import { getAnnexInputsAction, saveAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
-  forceCompleteStepAction,
+  forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { evidenceDone, activeStepNums, stepProgress, type StepNum } from '@/lib/inspection-step-status'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
@@ -73,26 +74,43 @@ export function InspectionWorkbench({
   const [anchorEdit, setAnchorEdit] = useState(false)
   const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
   const [anchorMsg, setAnchorMsg] = useState('')
+  // R4-2(D2): ③ 방문·유선 보고 기록 입력
+  const [offlineOpen, setOfflineOpen] = useState(false)
+  const [offlineDate, setOfflineDate] = useState(today)
+  const [offlineMethod, setOfflineMethod] = useState('방문 설명')
+  const [offlineMemo, setOfflineMemo] = useState('')
   const [dragOver, setDragOver] = useState<'cert' | 'contract' | null>(null)
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
 
-  /* ── 판정 — 타임라인과 같은 규칙(증거 기반). 여기서 새로 만들지 않는다 ── */
+  /* ── 판정 — 서버(syncInspectionSteps)와 **같은 함수**를 쓴다 (R4-1).
+   *  여기서 규칙을 다시 쓰면 화면 ✓와 DB status가 갈라진다 — 오프라인 보고·사유 완료가
+   *  DB에만 반영되던 그 괴리가 되살아난다. data.evidence가 없는 과도기에만 옛 규칙으로 폴백한다. */
   const hasDefects = data.defects.total > 0
-  const done: Record<StepKey, boolean> = {
-    checklist: data.responded > 0,
-    cert: !!data.certFile || !!data.certArchived,
-    ownerReport: !!data.delivery,
-    submit9: !!data.submit9.submittedAt,
-    repair: hasDefects && data.defects.done >= data.defects.total,
-    submit11: !!data.submit11.submittedAt,
-  }
   const isSpecial = data.steps.length > 1
-  /** 불량 0건이면 ⑤⑥은 해당없음 — 분모에서 뺀다(R10-b) */
-  const activeSteps: StepKey[] = data.steps.filter(k => (hasDefects ? true : k !== 'repair' && k !== 'submit11'))
-  const doneCount = activeSteps.filter(k => done[k]).length
-  const progressPct = Math.round((doneCount / Math.max(1, activeSteps.length)) * 100)
+  const doneByNum = data.evidence
+    ? evidenceDone(data.evidence)
+    : ({
+      1: data.responded > 0,
+      2: !!data.certFile || !!data.certArchived,
+      3: !!data.delivery,
+      4: !!data.submit9.submittedAt,
+      5: hasDefects && data.defects.done >= data.defects.total,
+      6: !!data.submit11.submittedAt,
+    } as Record<StepNum, boolean>)
+  const done = Object.fromEntries(
+    (Object.keys(STEP_NUM) as StepKey[]).map(k => [k, doneByNum[STEP_NUM[k] as StepNum]]),
+  ) as Record<StepKey, boolean>
+
+  /** 불량 0건이면 ⑤⑥은 해당없음 — 분모에서 뺀다(R10-b·R4-8, activeStepNums가 원본) */
+  /** 사유로 완료된 단계 — 철회 버튼 노출 판정 (D1) */
+  const forcedNums = new Set<number>(data.evidence?.forced ?? [])
+  const activeNums = activeStepNums(isSpecial, hasDefects)
+  const activeSteps: StepKey[] = data.steps.filter(k => activeNums.includes(STEP_NUM[k] as StepNum))
+  const prog = stepProgress(doneByNum, activeNums)
+  const doneCount = prog.done
+  const progressPct = prog.pct
   const nextStep = activeSteps.find(k => !done[k])
 
   // 진입 화면은 첫 미완료 단계 — '지금 무엇을 해야 하는지'가 곧 초기 화면이다
@@ -240,6 +258,38 @@ export function InspectionWorkbench({
     })
   }
 
+  /** D1: 사유 완료 철회 — 마커는 append-only라 지우지 않고 반대 마커를 남긴다 */
+  function undoForce(k: StepKey) {
+    const st = stepOf(k)
+    if (!st) return
+    const reason = window.prompt(
+      `${TIMELINE_STEP_LABELS[k]} — '사유 완료'를 철회합니다.\n`
+      + '철회하면 증거만으로 다시 판정하므로, 증거가 없으면 미완료로 돌아갑니다.\n\n'
+      + '철회 사유(5자 이상):')?.trim()
+    if (!reason) return
+    setCompleting(st.id)
+    startTransition(async () => {
+      const res = await undoForceCompleteStepAction(inspectionId, st.step_num, reason)
+      setCompleting(null)
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setMsg('✅ 사유 완료를 철회했습니다 — 증거 기준으로 다시 판정합니다.')
+      router.refresh()
+    })
+  }
+
+  /** R4-2(D2): ③ 방문·유선 보고 기록 */
+  function saveOffline() {
+    startTransition(async () => {
+      const res = await recordOwnerReportOfflineAction(inspectionId, {
+        date: offlineDate, method: offlineMethod, memo: offlineMemo,
+      })
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setOfflineOpen(false); setOfflineMemo('')
+      setMsg('✅ 오프라인 보고를 기록했습니다 — ③이 근거로 완료됩니다.')
+      router.refresh()
+    })
+  }
+
   const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50'
   const btnPri = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50'
 
@@ -312,6 +362,8 @@ export function InspectionWorkbench({
           <Pane title="점검표 입력" cls={paneCls} head={paneHead}>
             {slots?.multiday}
             {slots?.sheet}
+            {/* 펌프성능시험 실측치 — 점검표 바로 아래(같은 ① 안). 별지 4호가 이 값을 읽는다 */}
+            {slots?.pumpTest}
             {!isSpecial && slots?.exterior}
           </Pane>
           {/* R6-3: ①에서 점검표와 불량이 동시에 보인다 — ✕ 태깅하면 오른쪽에서 그 자리에 늘어난다 */}
@@ -374,8 +426,27 @@ export function InspectionWorkbench({
           <Pane title="발송" cls={paneCls} head={paneHead}>
             <div className="space-y-2 px-3 py-2">
               <p className={`text-xs ${done.ownerReport ? 'text-[#514b81]' : 'text-amber-600'}`}>
-                {data.delivery ? '발송 완료 — 필요 시 재발송' : '별지 9호 생성 후 이메일로 보고합니다'}
+                {data.delivery ? '발송 완료 — 필요 시 재발송'
+                  : data.evidence?.offlineReport ? '방문·유선으로 보고함 (오프라인 기록됨)'
+                  : '별지 9호 생성 후 이메일로 보고합니다'}
               </p>
+              {/* R4-2(독립 검증 D2): 이메일만 근거로 삼으면 방문·유선 보고가 영원히 미완이다 */}
+              {canManage && (offlineOpen ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
+                    className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                  <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
+                    className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]">
+                    <option>방문 설명</option><option>유선 통보</option><option>대면 전달</option><option>기타</option>
+                  </select>
+                  <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
+                    className="h-7 w-40 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                  <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
+                  <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-[#b0acd6]">취소</button>
+                </div>
+              ) : (
+                <button onClick={() => setOfflineOpen(true)} className={btn}>방문·유선 보고 기록</button>
+              ))}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <MessageTemplateModal templateKey="owner_report" label="관계인 보고 메일"
                   sampleVars={{ 고객명: customerName ?? '', 연도: '', 차수: '', 점검일: '' }} />
@@ -572,6 +643,17 @@ export function InspectionWorkbench({
           </Pane>
         </>)}
       </div>
+
+      {/* D1: 사유로 완료한 단계는 되돌릴 수 있어야 한다 — 증거로 완료된 단계엔 나오지 않는다 */}
+      {isSpecial && canComplete && stepOf(sel) && forcedNums.has(stepOf(sel)!.step_num) && (
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-1.5">
+          <span className="text-[10px] text-amber-700">사유로 완료한 단계입니다 — 철회하면 증거만으로 다시 판정합니다.</span>
+          <button onClick={() => undoForce(sel)} disabled={completing === stepOf(sel)!.id}
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-white text-[11px] text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+            {completing === stepOf(sel)!.id ? <Loader2 className="size-3 animate-spin" /> : null} 사유 완료 철회
+          </button>
+        </div>
+      )}
 
       {/* 예외 완료 — 증거가 생기면 자동 완료되므로 여기는 예외 경로다 */}
       {isSpecial && canComplete && !done[sel] && stepOf(sel) && stepOf(sel)!.status !== 'completed' && (

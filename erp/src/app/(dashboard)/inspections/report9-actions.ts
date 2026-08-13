@@ -10,7 +10,8 @@ import {
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
 import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map'
-import { renderReport4, type Report4Data, type Report4SheetSection } from '@/lib/doc-templates/report4'
+import { renderReport4, type Report4Data, type Report4SheetSection, type Report4PumpRow } from '@/lib/doc-templates/report4'
+import { judgePumpTest, type PumpTestRow } from '@/lib/pump-test'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
 import { pickFirePlanManager } from '@/lib/fire-plan-template'
@@ -557,6 +558,9 @@ async function assembleReport4(
 ): Promise<{ data: Report4Data; missing: string[] }> {
   const { data: d9, missing: m9, annex4 } = await assembleReport9(admin, customerId, inspectionId)
   const [inspStart = '', inspEnd = ''] = d9.inspPeriod ? d9.inspPeriod.split(' ~ ') : ['', '']
+  // ※ 펌프성능시험 — 법정 서식의 표(R5-7 후속). 37시트 엑셀만 담던 실측치가 여기로 들어온다.
+  // 131 미적용 환경에서도 나머지 쪽은 정상 생성돼야 하므로 조회 실패는 빈 배열로 흡수한다.
+  const pumpRows = await loadPumpRows(admin, inspectionId)
   // 송달 동의·사용승인일·건축허가일은 별지 9호 전용(1~2쪽) — 별지 4호 서식에 없음
   const missing = m9.filter(m => !['송달 동의', '사용승인일', '건축허가일'].includes(m))
   if (Object.keys(d9.specs ?? {}).length === 0) missing.push('설비 세부현황(설비 대장) 미입력 — 3~7쪽 빈 서식')
@@ -572,9 +576,43 @@ async function assembleReport4(
     companyName: d9.companyName,
     companyRegNo: annex4.companyRegNo,
     sheetSections: annex4.sheetSections,
+    pumpRows,
     specs: d9.specs ?? {},
   }
   return { data, missing }
+}
+
+/** 펌프성능시험 실측치 → 별지 4호 행. 판정은 lib/pump-test.judgePumpTest 하나만 쓴다
+ *  (화면과 문서가 다른 규칙으로 판정하면 두 갈래가 된다). */
+async function loadPumpRows(admin: Admin, inspectionId: string): Promise<Report4PumpRow[]> {
+  const { data, error } = await admin.from('inspection_pump_tests')
+    .select('sheet_no, pump_kind, shutoff_flow, shutoff_press, rated_flow, rated_press,'
+      + ' over_flow, over_press, set_start_press, set_stop_press, judge1, judge2, judge3, note')
+    .eq('inspection_id', inspectionId)
+    .order('sheet_no')
+  if (error || !data) return []
+  return (data as unknown as Array<Record<string, unknown>>).map(d => {
+    const mark = (v: unknown) => (v === 'O' || v === 'X' ? v : null)
+    const n = (v: unknown) => (typeof v === 'number' ? v : null)
+    const row: PumpTestRow = {
+      sheetNo: Number(d.sheet_no), pumpKind: d.pump_kind === '예비' ? '예비' : '주',
+      shutoffFlow: n(d.shutoff_flow), shutoffPress: n(d.shutoff_press),
+      ratedFlow: n(d.rated_flow), ratedPress: n(d.rated_press),
+      overFlow: n(d.over_flow), overPress: n(d.over_press),
+      setStartPress: n(d.set_start_press), setStopPress: n(d.set_stop_press),
+      judge1: mark(d.judge1), judge2: mark(d.judge2), judge3: mark(d.judge3),
+      note: typeof d.note === 'string' ? d.note : null,
+    }
+    return {
+      sheetNo: row.sheetNo, pumpKind: row.pumpKind,
+      shutoffFlow: row.shutoffFlow, shutoffPress: row.shutoffPress,
+      ratedFlow: row.ratedFlow, ratedPress: row.ratedPress,
+      overFlow: row.overFlow, overPress: row.overPress,
+      setStartPress: row.setStartPress, setStopPress: row.setStopPress,
+      judges: judgePumpTest(row).final,
+      note: row.note,
+    }
+  })
 }
 
 /** 외관점검표(별지 6호) 데이터 조립 — 워커 process_exterior(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-7, 파리티 우선).

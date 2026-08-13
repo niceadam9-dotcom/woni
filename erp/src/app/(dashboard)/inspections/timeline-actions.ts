@@ -8,7 +8,8 @@ import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
 import { CERT_FILE_RE, CONTRACT_FILE_RE, findArchivedCertInspections } from '@/lib/doc-status'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
-import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION } from '@/lib/inspection-step-status'
+import { renderMessage } from '@/lib/message-template'
+import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
  *  업로드 슬롯 3종(②배치확인서·⑤계약서 — 전후 사진은 불량내역 슬롯 재사용), ③ 관계인 보고 발송,
@@ -151,27 +152,40 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
 
   const customerName = i.customer.customer_name
   const ext = pick.endsWith('.pdf') ? 'pdf' : 'hwp'
-  const filename = `${customerName}_자체점검결과보고서.${ext}`
-  const subject = `[승진소방ENG] ${customerName} 소방시설 자체점검 결과 보고`
+
+  // R7-8: 제목·본문·첨부 파일명을 message_templates에서 렌더한다(130 미적용이면 현행 문구로 폴백).
+  // 종전에는 상호가 제목·본문에 리터럴로 박혀 있어 상호 변경 시 재배포가 필요했다.
+  const { data: inspMeta } = await admin.from('inspections')
+    .select('year, sequence_num, inspection_start_date').eq('id', inspectionId).single()
+  const im = (inspMeta ?? {}) as { year?: number; sequence_num?: number; inspection_start_date?: string }
+  const rendered = await renderMessage(admin, 'owner_report', {
+    고객명: customerName,
+    연도: String(im.year ?? ''),
+    차수: String(im.sequence_num ?? ''),
+    점검일: im.inspection_start_date ?? '',
+  })
+  const filename = `${rendered.attachmentName || `${customerName}_자체점검결과보고서`}.${ext}`
+  const subject = rendered.subject
   try {
     const { messageId } = await gmailSendWithAttachment({
       to: i.customer.report_email,
       subject,
-      bodyText: [
-        `${customerName} 관계인님께`,
-        '',
-        '소방시설 자체점검 결과 보고서(별지 제9호서식)를 송부드립니다.',
-        '본 메일은 전자우편 송달 동의에 따라 발송되었습니다 (소방시설 설치 및 관리에 관한 법률 시행규칙).',
-        '',
-        '승진소방ENG 드림',
-      ].join('\n'),
+      bodyText: rendered.body,
       attachment: { filename, mime: ext === 'pdf' ? 'application/pdf' : 'application/octet-stream', data: new Uint8Array(await blob.arrayBuffer()) },
     })
-    await admin.from('report_deliveries').insert({
+    const { data: deliv } = await admin.from('report_deliveries').insert({
       inspection_id: inspectionId, customer_id: i.customer_id, doc_kind: 'report9_owner',
       recipient_email: i.customer.report_email, subject, file_name: filename,
       message_id: messageId, sent_by: profile.id,
-    } as Record<string, unknown>)
+    } as Record<string, unknown>).select('id').single()
+    // R7-7: 발송 시점에 **렌더된 본문**을 남긴다 — 템플릿이 나중에 바뀌어도 당시 내용을 복원할 수 있게.
+    // 130 미적용 DB에는 body 컬럼이 없다. 본문 이력 때문에 발송이 실패해선 안 되므로 별도 UPDATE로 분리하고
+    // 실패는 삼킨다(130 적용 후 자동으로 기록되기 시작한다).
+    if (deliv) {
+      await admin.from('report_deliveries')
+        .update({ body: rendered.body } as Record<string, unknown>)
+        .eq('id', (deliv as { id: string }).id)
+    }
     // R4-6: ③ 발송 이력이 곧 근거
     await syncInspectionSteps(admin, inspectionId, profile.id)
     revalidatePath(`/inspections/${inspectionId}`)
@@ -250,6 +264,31 @@ export async function forceCompleteStepAction(
   const admin = createAdminClient()
   await admin.from('activity_logs').insert({
     actor_id: profile.id, action: STEP_FORCE_COMPLETE_ACTION,
+    entity_type: 'inspection', entity_id: inspectionId,
+    metadata: { step_num: stepNum, reason: trimmed },
+  } as Record<string, unknown>)
+  await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return {}
+}
+
+/** 강제 완료 **철회** (독립 검증 D1)
+ *
+ *  activity_logs는 append-only(트리거 040)라 마커를 지울 수 없다 — 반대 마커를 덧붙여 무효화한다.
+ *  철회하면 그 단계는 다시 증거만으로 판정되므로, 증거가 없으면 미완료로 돌아간다.
+ *  철회도 기록이라 '누가 언제 되돌렸는지'가 남는다(강제 완료가 영구 고정되던 결함의 해소). */
+export async function undoForceCompleteStepAction(
+  inspectionId: string, stepNum: number, reason: string,
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  if (!Number.isInteger(stepNum) || stepNum < 1 || stepNum > 6) return { error: '단계 번호를 확인해주세요.' }
+  const trimmed = reason.trim()
+  if (trimmed.length < 5) return { error: '철회 사유를 5자 이상 입력해주세요 — 철회도 기록으로 남습니다.' }
+  if (trimmed.length > 300) return { error: '사유는 300자 이내로 입력해주세요.' }
+  const admin = createAdminClient()
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: STEP_FORCE_UNDO_ACTION,
     entity_type: 'inspection', entity_id: inspectionId,
     metadata: { step_num: stepNum, reason: trimmed },
   } as Record<string, unknown>)

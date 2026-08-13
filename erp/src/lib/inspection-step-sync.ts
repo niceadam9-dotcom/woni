@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { dismissInspectionDeadlineNotifications } from '@/lib/inspection-notify-dismiss'
+
 /** 점검 단계 **단일 기록자** — `inspection_steps.status`를 쓰는 곳은 이 파일 하나다 (소방계획서_21 R4-4·R4-5 / B-3)
  *
  *  F-5의 두 갈래(증거로 계산하는 타임라인 ✓ vs 버튼으로만 바뀌는 status)를 하나로 합친다.
@@ -17,8 +19,8 @@ import 'server-only'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { isCertFileName, findArchivedCertInspections } from '@/lib/doc-status'
 import {
-  evidenceDone, activeStepNums, isSelfInspection,
-  OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION,
+  evidenceDone, activeStepNums, isSelfInspection, resolveForcedSteps,
+  OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
   type StepEvidence, type StepNum,
 } from '@/lib/inspection-step-status'
 
@@ -42,22 +44,24 @@ export async function gatherStepEvidence(
     admin.from('inspection_sheet_responses').select('id', { count: 'exact', head: true }).eq('inspection_id', insp.id),
     admin.storage.from('fire-plans').list(prefix, { limit: 100 }),
     admin.from('report_deliveries').select('id').eq('inspection_id', insp.id).eq('doc_kind', 'report9_owner').limit(1),
-    admin.from('inspection_defects').select('action_completed_at').eq('inspection_id', insp.id),
-    // ③ 오프라인 보고·강제 완료 마커 — 마이그레이션 없이 activity_logs를 근거로 쓴다(D34-2)
-    admin.from('activity_logs').select('action, metadata')
+    admin.from('inspection_defects').select('action_completed_at, created_at').eq('inspection_id', insp.id),
+    // ③ 오프라인 보고·강제 완료·철회 마커 — 마이그레이션 없이 activity_logs를 근거로 쓴다(D34-2).
+    // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
+    admin.from('activity_logs').select('action, metadata, created_at')
       .eq('entity_type', 'inspection').eq('entity_id', insp.id)
-      .in('action', [OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION])
+      .in('action', [OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION])
+      .order('created_at')
       .limit(500),
     findArchivedCertInspections(admin, [insp.id]),
   ])
 
-  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null }>
-  const logs = (logsRes.data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null }>
-  const forced = [...new Set(
-    logs.filter(l => l.action === STEP_FORCE_COMPLETE_ACTION)
-      .map(l => Number(l.metadata?.['step_num']))
-      .filter(n => Number.isInteger(n) && n >= 1 && n <= 6),
-  )] as StepNum[]
+  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null; created_at: string }>
+  const logs = (logsRes.data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null; created_at: string }>
+  const { steps: forced, at: forcedAt } = resolveForcedSteps(
+    logs.map(l => ({ action: l.action, stepNum: Number(l.metadata?.['step_num']), at: l.created_at })),
+  )
+  // ⑤ 강제 완료 이후에 들어온 미조치 불량을 잡기 위한 시각 (D1)
+  const unresolved = defects.filter(d => !d.action_completed_at).map(d => d.created_at).sort()
 
   return {
     responded: respRes.count ?? 0,
@@ -70,6 +74,8 @@ export async function gatherStepEvidence(
     defectsDone: defects.filter(d => d.action_completed_at).length,
     submit11At: insp.report11_submitted_at,
     forced,
+    forcedAt,
+    unresolvedDefectSince: unresolved.length > 0 ? unresolved[unresolved.length - 1] : null,
   }
 }
 
@@ -122,6 +128,19 @@ export async function applyStepSideEffects(
     }
   }
   return { justCompleted }
+}
+
+/** 화면이 서버와 **같은 증거**로 판정하도록 증거 묶음을 그대로 내준다 (독립 검증 D3).
+ *  상세 페이지가 이 값을 TimelineData.evidence로 실어 보내면 ✓·진행률이 DB와 갈라질 수 없다. */
+export async function loadStepEvidence(
+  admin: Admin, inspectionId: string,
+): Promise<StepEvidence | null> {
+  const { data } = await admin.from('inspections')
+    .select('id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at')
+    .eq('id', inspectionId).maybeSingle()
+  const insp = data as InspRow | null
+  if (!insp) return null
+  return gatherStepEvidence(admin, insp)
 }
 
 /** 단계 마감일 재계산 — 완료된 단계까지 포함(마이그레이션 128).
@@ -182,6 +201,12 @@ export async function syncInspectionSteps(
       .in('id', toRevert)
   }
   const changed = toComplete.length + toRevert.length
+
+  // R7-10(소방계획서_21): 단계가 새로 완료되면 그 점검의 미읽음 **기한 알림**을 읽음 처리한다.
+  // 삭제가 아니라 읽음 처리다 — 알림은 "언제 알렸는지"의 이력이다. 실패는 삼킨다(동기화를 되돌리지 않는다).
+  if (newlyCompleted.length > 0) {
+    await dismissInspectionDeadlineNotifications(admin, inspectionId)
+  }
 
   // ①이 새로 완료되면 확정일 기준으로 마감일 재계산 (migration 048 — 법정 기한은 실제 점검일 기산).
   // p_include_completed=TRUE(128): 위에서 방금 2~4단계까지 함께 완료시켰을 수 있는데, 종전 recalc는

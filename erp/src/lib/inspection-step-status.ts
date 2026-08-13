@@ -15,6 +15,9 @@
 export const OWNER_REPORT_OFFLINE_ACTION = 'owner_report_offline'
 /** 그 밖의 예외를 사람이 확정하는 마커 (R4-3) — **사유 필수**. 이것도 증거로 남는다 */
 export const STEP_FORCE_COMPLETE_ACTION = 'step_force_complete'
+/** 강제 완료의 **철회** 마커 (독립 검증 D1). activity_logs는 append-only(트리거 040)라 마커를 지울 수
+ *  없다 — 지우는 대신 반대 마커를 덧붙여 무효화한다. 철회도 기록이므로 이력이 사라지지 않는다. */
+export const STEP_FORCE_UNDO_ACTION = 'step_force_undo'
 
 /** 단계 번호 ①~⑥ — inspection_steps.step_num과 1:1 */
 export type StepNum = 1 | 2 | 3 | 4 | 5 | 6
@@ -43,12 +46,43 @@ export type StepEvidence = {
   defectsDone: number
   /** ⑥ 별지 11호 제출일 */
   submit11At: string | null
-  /** 강제 완료된 단계 번호 — 사유가 남은 것만 들어온다(R4-3) */
+  /** 강제 완료된 단계 번호 — 사유가 남고 **철회되지 않은** 것만 들어온다(R4-3 / resolveForcedSteps) */
   forced?: StepNum[]
+  /** 각 강제 완료 마커가 찍힌 시각 — ⑤ 무효화 판정에 쓴다(아래 D1 규칙) */
+  forcedAt?: Partial<Record<StepNum, string>>
+  /** 미조치 불량 중 **가장 늦게 등록된** 시각. 강제 완료 이후에 새 미조치 불량이 들어왔다는 신호 */
+  unresolvedDefectSince?: string | null
+}
+
+/** append-only 로그에서 **현재 유효한** 강제 완료 단계를 가려낸다 (독립 검증 D1).
+ *  단계별로 가장 최근 마커만 본다 — force면 유효, undo면 해제. 순수 함수라 DB 없이 단언 가능. */
+export function resolveForcedSteps(
+  markers: Array<{ action: string; stepNum: number; at: string }>,
+): { steps: StepNum[]; at: Partial<Record<StepNum, string>> } {
+  const latest = new Map<number, { action: string; at: string }>()
+  for (const m of markers) {
+    if (!Number.isInteger(m.stepNum) || m.stepNum < 1 || m.stepNum > 6) continue
+    if (m.action !== STEP_FORCE_COMPLETE_ACTION && m.action !== STEP_FORCE_UNDO_ACTION) continue
+    const cur = latest.get(m.stepNum)
+    if (!cur || m.at > cur.at) latest.set(m.stepNum, { action: m.action, at: m.at })
+  }
+  const steps: StepNum[] = []
+  const at: Partial<Record<StepNum, string>> = {}
+  for (const [num, m] of latest) {
+    if (m.action !== STEP_FORCE_COMPLETE_ACTION) continue
+    steps.push(num as StepNum)
+    at[num as StepNum] = m.at
+  }
+  return { steps: steps.sort((a, b) => a - b), at }
 }
 
 /** 증거 → 단계별 완료 여부. 순서 강제 없음(R4-4) — 배치확인서는 늦게 오고 점검표는 먼저 채워진다.
- *  강제 완료 마커는 마지막에 덮어쓴다(사유가 남은 근거이므로 증거와 동급). */
+ *  강제 완료 마커는 마지막에 덮어쓴다(사유가 남은 근거이므로 증거와 동급).
+ *
+ *  ⚠ D1 규칙(독립 검증 지적): 강제 완료가 **미래의 일까지 완료로 고정**해서는 안 된다.
+ *  ⑤를 사유로 완료한 뒤 새 불량이 등록되면 그건 '아직 하지 않은 일'이므로 강제분을 무효로 본다 —
+ *  D34-2가 막으려던 바로 그 상태(하지 않은 일이 완료로 남음)가 재현되기 때문이다.
+ *  ①~④·⑥은 증거가 단발(제출일·파일)이라 같은 문제가 없고, 필요하면 철회 마커로 되돌린다. */
 export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
   const done: Record<StepNum, boolean> = {
     1: e.responded > 0,
@@ -58,8 +92,19 @@ export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
     5: e.defectsTotal > 0 && e.defectsDone >= e.defectsTotal,
     6: !!e.submit11At,
   }
-  for (const n of e.forced ?? []) done[n] = true
+  for (const n of e.forced ?? []) {
+    if (n === 5 && isForced5Stale(e)) continue
+    done[n] = true
+  }
   return done
+}
+
+/** ⑤ 강제 완료가 낡았는지 — 마커 이후에 등록된 미조치 불량이 있으면 낡은 것으로 본다 */
+export function isForced5Stale(e: StepEvidence): boolean {
+  const at = e.forcedAt?.[5]
+  const since = e.unresolvedDefectSince
+  if (!at || !since) return false
+  return e.defectsDone < e.defectsTotal && since > at
 }
 
 /** 진행률 분모가 될 **유효 단계** (R4-8 / B-5).
