@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireRole, getSessionUser } from '@/lib/auth'
+import { requireRole, getSessionUser, requirePermission } from '@/lib/auth'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
@@ -15,8 +15,9 @@ export async function addDefectAction(input: {
   defectDetail?: string | null
   severity: DefectSeverity
 }): Promise<{ error?: string; id?: string }> {
-  const user = await getSessionUser()
-  if (!user) return { error: '인증이 필요합니다.' }
+  // 인증만으로는 부족하다 — 같은 파일의 다른 액션·점검표 저장과 같은 권한 축을 쓴다
+  // ('use server' export는 그 자체가 공개 엔드포인트다. R4 독립 검증 지적)
+  const user = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
   const { data, error } = await admin
@@ -72,8 +73,8 @@ export async function getDefectSuggestionsAction(): Promise<{ chips: string[]; s
 
 // 불량사진 업로드 (FormData 방식)
 export async function uploadDefectPhotoAction(formData: FormData): Promise<{ error?: string; url?: string }> {
-  const user = await getSessionUser()
-  if (!user) return { error: '인증이 필요합니다.' }
+  // 전·후 사진은 별지 11호 증빙이다 — 쓰기 액션이므로 같은 권한 축으로 통일
+  const user = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
   const defectId     = formData.get('defectId')     as string | null
@@ -118,8 +119,8 @@ export async function updateDefectActionAction(input: {
   actionStart?: string | null
   actionEnd?: string | null
 }): Promise<{ error?: string }> {
-  const user = await getSessionUser()
-  if (!user) return { error: '인증이 필요합니다.' }
+  // 작업대 ⑤⑥ 불량 표(defect-grid)가 칸마다 이 액션을 부른다 — 인증만으로는 부족하다 (R4 독립 검증 지적)
+  const user = await requirePermission('inspection_register')
   const admin = createAdminClient()
   const patch: Record<string, unknown> = {
     action_taken: input.actionTaken?.trim() || null,
