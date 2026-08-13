@@ -1,0 +1,207 @@
+'use client'
+
+import { useRef, useState, useTransition } from 'react'
+import { Camera, Check, Loader2 } from 'lucide-react'
+import { updateDefectActionAction, uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
+import { DateInput } from '@/components/ui/date-input'
+
+/** 불량 표 편집 (소방계획서_21 R6-7) — 불량마다 폼을 펼치지 않고 한 표에서 고친다.
+ *  행 = 불량 1건, 칸 = 계획 내용 · 계획 기간 · 완료 내용 · 완료일 · 전/후 사진.
+ *  칸을 떠날 때(blur) 저장한다 — 타이핑 중 저장하면 부분 문장이 문서에 실리므로 디바운스가 아니라 blur다.
+ *  원본 액션은 불량 카드(inspection-defects-client)와 같은 것을 쓴다 — 저장 경로는 하나다. */
+
+export type GridDefect = {
+  id: string
+  defect_name: string
+  defect_detail?: string | null
+  severity: string
+  photo_url: string | null
+  after_photo_url: string | null
+  action_plan?: string | null
+  action_start?: string | null
+  action_end?: string | null
+  action_taken: string | null
+  action_completed_at: string | null
+}
+
+type Row = {
+  actionPlan: string; actionStart: string; actionEnd: string
+  actionTaken: string; actionCompletedAt: string
+}
+
+const toRow = (d: GridDefect): Row => ({
+  actionPlan: d.action_plan ?? '', actionStart: d.action_start ?? '', actionEnd: d.action_end ?? '',
+  actionTaken: d.action_taken ?? '', actionCompletedAt: d.action_completed_at ?? '',
+})
+
+const SEV_CLS: Record<string, string> = {
+  경미: 'bg-yellow-100 text-yellow-700', 보통: 'bg-orange-100 text-orange-700', 중대: 'bg-red-100 text-red-700',
+}
+
+export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
+  defects: GridDefect[]
+  inspectionId: string
+  canEdit: boolean
+  /** plan = ⑤ 이행계획(계획·기간·전 사진) / complete = ⑥ 이행완료(완료 내용·완료일·후 사진) */
+  mode: 'plan' | 'complete'
+  onSaved?: () => void
+}) {
+  /** 편집분만 들고 있고 나머지는 서버 값을 그대로 읽는다 — 사본을 만들면 refresh와 어긋난다 */
+  const [edits, setEdits] = useState<Record<string, Partial<Row>>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+  const [justSaved, setJustSaved] = useState<Record<string, boolean>>({})
+  const [err, setErr] = useState('')
+
+  const rowOf = (d: GridDefect): Row => ({ ...toRow(d), ...edits[d.id] })
+  const set = (id: string, patch: Partial<Row>) =>
+    setEdits(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+
+  /** 날짜는 값 자체가 완결이라 고르는 즉시 저장한다 — 달력 팝업으로 고르면 blur가 오지 않는다.
+   *  서술 칸은 반대로 blur까지 기다린다(타이핑 중간 문장이 문서에 실리면 안 된다). */
+  function setDate(d: GridDefect, patch: Partial<Row>) {
+    set(d.id, patch)
+    const v = Object.values(patch)[0] ?? ''
+    if (v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v)) commit(d, patch)
+  }
+
+  function commit(d: GridDefect, patch?: Partial<Row>) {
+    const base = toRow(d)
+    const row: Row = { ...base, ...edits[d.id], ...patch }
+    if ((Object.keys(base) as Array<keyof Row>).every(k => row[k] === base[k])) return
+    setSaving(d.id)
+    setErr('')
+    void updateDefectActionAction({
+      defectId: d.id, inspectionId,
+      actionPlan: row.actionPlan || null,
+      actionStart: row.actionStart || null,
+      actionEnd: row.actionEnd || null,
+      actionTaken: row.actionTaken || null,
+      actionCompletedAt: row.actionCompletedAt || null,
+    }).then(res => {
+      setSaving(null)
+      if (res.error) { setErr(res.error); return }
+      setJustSaved(prev => ({ ...prev, [d.id]: true }))
+      setTimeout(() => setJustSaved(prev => ({ ...prev, [d.id]: false })), 4000)
+      onSaved?.()
+    })
+  }
+
+  if (defects.length === 0) {
+    return <p className="px-1 py-2 text-[11px] text-[#b0acd6]">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
+  }
+
+  const cell = 'w-full rounded border border-[#e0ddf5] px-1.5 py-1 text-[11px] focus:outline-none focus:border-[#7b68ee] disabled:bg-[#fafafa]'
+
+  return (
+    <div className="space-y-1">
+      {err && <p className="px-1 text-[11px] text-red-600">❌ {err}</p>}
+      <table className="w-full table-fixed border-collapse text-[11px]" data-testid="defect-grid">
+        <thead>
+          <tr className="text-left text-[10px] text-[#847ba8]">
+            <th className="w-[30%] px-1 pb-1 font-medium">불량</th>
+            {mode === 'plan' ? (<>
+              <th className="w-[34%] px-1 pb-1 font-medium">조치 계획</th>
+              <th className="w-[26%] px-1 pb-1 font-medium">계획 기간</th>
+            </>) : (<>
+              <th className="w-[34%] px-1 pb-1 font-medium">조치 내용</th>
+              <th className="w-[26%] px-1 pb-1 font-medium">완료일</th>
+            </>)}
+            <th className="w-[10%] px-1 pb-1 font-medium">사진 전·후</th>
+          </tr>
+        </thead>
+        <tbody>
+          {defects.map(d => {
+            const r = rowOf(d)
+            return (
+              <tr key={d.id} className="align-top border-t border-[#f3f1fc]" data-defect-row={d.id}>
+                <td className="px-1 py-1">
+                  <span className={`mr-1 inline-block rounded px-1 py-px text-[9px] ${SEV_CLS[d.severity] ?? 'bg-[#eeedf3] text-[#514b81]'}`}>{d.severity}</span>
+                  <span className="text-[#090c1d]">{d.defect_name}</span>
+                  {d.defect_detail && <span className="block truncate text-[10px] text-[#b0acd6]">{d.defect_detail}</span>}
+                  <span className="inline-flex h-3 items-center gap-1">
+                    {saving === d.id && <Loader2 className="size-2.5 animate-spin text-[#7b68ee]" />}
+                    {justSaved[d.id] && saving !== d.id && <span className="text-[9px] text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}
+                  </span>
+                </td>
+                {mode === 'plan' ? (<>
+                  <td className="px-1 py-1">
+                    <textarea rows={2} disabled={!canEdit} value={r.actionPlan} aria-label={`${d.defect_name} 조치 계획`}
+                      onChange={e => set(d.id, { actionPlan: e.target.value })} onBlur={() => commit(d)}
+                      className={`${cell} resize-y`} />
+                  </td>
+                  <td className="px-1 py-1 space-y-1">
+                    <DateInput value={r.actionStart} disabled={!canEdit} aria-label={`${d.defect_name} 계획 시작일`}
+                      onChange={e => setDate(d, { actionStart: e.target.value })} onBlur={() => commit(d)} className={cell} />
+                    <DateInput value={r.actionEnd} disabled={!canEdit} aria-label={`${d.defect_name} 계획 종료일`}
+                      onChange={e => setDate(d, { actionEnd: e.target.value })} onBlur={() => commit(d)} className={cell} />
+                  </td>
+                </>) : (<>
+                  <td className="px-1 py-1">
+                    <textarea rows={2} disabled={!canEdit} value={r.actionTaken} aria-label={`${d.defect_name} 조치 내용`}
+                      onChange={e => set(d.id, { actionTaken: e.target.value })} onBlur={() => commit(d)}
+                      className={`${cell} resize-y`} />
+                  </td>
+                  <td className="px-1 py-1">
+                    <DateInput value={r.actionCompletedAt} disabled={!canEdit} aria-label={`${d.defect_name} 완료일`}
+                      onChange={e => setDate(d, { actionCompletedAt: e.target.value })} onBlur={() => commit(d)} className={cell} />
+                  </td>
+                </>)}
+                {/* 전·후를 한 행에 나란히 — 쌍이 맞는지는 나란히 놓아야 보인다(별지 11호 증빙) */}
+                <td className="flex gap-1 px-1 py-1">
+                  <PhotoCell defectId={d.id} inspectionId={inspectionId} canEdit={canEdit}
+                    field="before" url={d.photo_url} onDone={onSaved} />
+                  <PhotoCell defectId={d.id} inspectionId={inspectionId} canEdit={canEdit}
+                    field="after" url={d.after_photo_url} onDone={onSaved} />
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="px-1 text-[10px] text-[#b0acd6]">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
+    </div>
+  )
+}
+
+function PhotoCell({ defectId, inspectionId, canEdit, field, url, onDone }: {
+  defectId: string; inspectionId: string; canEdit: boolean
+  field: 'before' | 'after'; url: string | null; onDone?: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  // 업로드 직후 서버 URL이 올 때까지만 쓰는 로컬 미리보기 — 서버 값을 사본으로 들고 있지 않는다
+  const [local, setLocal] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const preview = local ?? url
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setLocal(URL.createObjectURL(file))
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.append('defectId', defectId); fd.append('inspectionId', inspectionId)
+      fd.append('file', file); fd.append('field', field)
+      const res = await uploadDefectPhotoAction(fd)
+      if (res.error) setLocal(null)
+      else onDone?.()
+    })
+  }
+
+  return (
+    <>
+      <button type="button" disabled={!canEdit || pending} onClick={() => ref.current?.click()}
+        aria-label={field === 'before' ? '전(불량) 사진' : '후 사진 추가'}
+        title={field === 'before' ? '전(불량) 사진' : '후(조치) 사진'}
+        className={`flex size-12 items-center justify-center overflow-hidden rounded border border-dashed disabled:opacity-50
+          ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-[#d0ccf5] hover:border-[#7b68ee]'}`}>
+        {pending ? <Loader2 className="size-3.5 animate-spin text-[#7b68ee]" />
+          /* eslint-disable-next-line @next/next/no-img-element */
+          : preview ? <img src={preview} alt="" className="size-full object-cover" />
+            : <Camera className="size-3.5 text-[#b0acd6]" />}
+      </button>
+      {/* 현장은 폰이다 — 슬롯을 탭하면 카메라가 바로 열린다(R6-10과 같은 경로) */}
+      <input ref={ref} type="file" accept="image/*" capture="environment" className="hidden" onChange={pick} />
+    </>
+  )
+}

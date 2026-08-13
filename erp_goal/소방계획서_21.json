@@ -2,7 +2,7 @@
   "doc": "소방계획서_21 — 요구별 설계 (#1 공통문구 관리 · #2 계획서 생성·조회 재편 · #3·#4 점검업무 재편 · #5 사이드바 정리)",
   "design": "erp_goal/소방계획서_21.md (2026-08-12 사용자 확정)",
   "created": "2026-08-12",
-  "updated": "2026-08-12 — R3·R8 code_present, R5 partial, **R4 code_present(전 10 criteria — 증거 기반 단계 동기화, 프로브 36/36)**. F-6 전제는 실측으로 정정(finding_correction). 나머지 4항목 pending_order",
+  "updated": "2026-08-12",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분. 진행 방식은 erp_goal/Json_Rule_nostop.md(무중단)",
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -388,13 +388,13 @@
     {
       "id": "R1",
       "title": "#1 계획서 공통문구 — 전역 라이브러리 관리 페이지",
-      "status": "code_present",
+      "status": "implemented",
       "note": "소방계획서_15_별도라이브러리의 R-3(라이브러리 관리 페이지, deferred)를 실행 항목으로 승격하는 것. 전제: 마이그레이션 119가 운영 미적용이라 운영 반영은 119 선행 필요. **2026-08-12 구현 완료·자기 신고, 독립 검증 전·미커밋**",
       "criteria": [
         {
           "id": "R1-1",
           "desc": "전역 페이지 /fire-plans/library 신설(서버 게이트·SSR) — 고객 종속 화면에 두지 않는다(전역 데이터가 모든 고객 화면에 중복 노출되고, 거기서 누른 삭제가 전사 삭제라는 사실이 맥락과 어긋난다)",
-          "status": "code_present",
+          "status": "implemented",
           "files": [
             "app/(dashboard)/fire-plans/library/page.tsx"
           ],
@@ -403,7 +403,7 @@
         {
           "id": "R1-2",
           "desc": "화면 = '표준 계획서 한 장' — 8섹션 단일 세로 문서 + 좌측 목차(장→섹션 2단 점프 링크)",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-5"
           ],
@@ -415,13 +415,13 @@
         {
           "id": "R1-3",
           "desc": "좌측 목차와 본문에 ⭐/○ 표시 — 기본문구가 비어 있는 섹션을 한눈에 드러낸다(기본항목이 없으면 신규 고객 자동주입이 조용히 아무 일도 하지 않는다). 이 화면의 최대 가치",
-          "status": "code_present",
+          "status": "implemented",
           "self_check": "목차·섹션 헤더 ⭐/○ + 상단 요약 바에 '기본문구가 없는 섹션 N개'와 섹션명 나열. E2E 2단언 통과"
         },
         {
           "id": "R1-4",
           "desc": "8섹션 본문 직접 편집 — PlanTextSectionDef에 chapter·editor 스펙을 순수 추가하고 공용 렌더러 하나가 8섹션을 담당",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-1"
           ],
@@ -434,19 +434,19 @@
         {
           "id": "R1-5",
           "desc": "섹션 독립 저장 — savePlanTextAction 재사용(pick 멱등). 이름 변경은 renamePlanTextAction으로만(version 미증가 규약)",
-          "status": "code_present",
+          "status": "implemented",
           "self_check": "본문 변경=save, 이름만 변경=rename으로 분기. E2E 3단언 통과(version+1 · 이름만 변경 시 불변 · 변경 없으면 저장 버튼 비활성)"
         },
         {
           "id": "R1-6",
           "desc": "대안 문구는 섹션 헤더 드롭다운으로 전환하고 [⭐ 기본으로]로 승격",
-          "status": "code_present",
+          "status": "implemented",
           "self_check": "헤더 select로 항목 전환(전환 시 초안 폐기) + 비기본 항목에만 [기본으로]. E2E '기존 기본 자동 해제'·'섹션당 기본 1개 유지' 통과"
         },
         {
           "id": "R1-7",
           "desc": "하단 사용처 목록(고객명·가져오기/자동주입·가져간 version·적용일·딥링크) + 낮은 version에 앰버 '개정됨' 배지 — 조회 전용, 일괄 반영 버튼 없음",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-4"
           ],
@@ -456,7 +456,7 @@
         {
           "id": "R1-8",
           "desc": "[고객에서 불러오기] — 고객 선택 → 8섹션 pick 미리보기 → 체크한 것만 이름 붙여 등록(원하면 ⭐기본까지)",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-6"
           ],
@@ -468,7 +468,7 @@
         {
           "id": "R1-9",
           "desc": "[복제] — 신규 액션 없이 savePlanTextAction(새 이름) 조합",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-6"
           ],
@@ -477,7 +477,7 @@
         {
           "id": "R1-10",
           "desc": "진입 동선 3개 — ① 사이드바(소방안전관리 맨 아래) ② 서식 팝오버 하단 '전체 관리 ↗'(새 탭 · ?section={key}) ③ 사용처 목록 → 고객 서식 딥링크",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-3"
           ],
@@ -491,7 +491,7 @@
         {
           "id": "R1-11",
           "desc": "신규 서버 액션 4종 — listPlanTextLibraryAction · getPlanTextUsageAction · previewPlanTextsFromCustomerAction · importPlanTextsFromCustomerAction",
-          "status": "code_present",
+          "status": "implemented",
           "files": [
             "plan-text-library-actions.ts"
           ],
@@ -500,7 +500,7 @@
         {
           "id": "R1-12",
           "desc": "E2E test-plan-text-library.mts",
-          "status": "code_present",
+          "status": "implemented",
           "files": [
             "scripts/test-plan-text-library.mts"
           ],
@@ -510,7 +510,7 @@
         {
           "id": "R1-13",
           "desc": "프로브 — 현재 고객 서술 8섹션에 고객명·건물명이 몇 건 포함돼 있는지 집계(치환 변수 도입 판단 근거)",
-          "status": "code_present",
+          "status": "implemented",
           "depends": [
             "D1-7"
           ],
@@ -520,7 +520,8 @@
           "self_check": "**실측: 활성 고객 315명 중 서술 보유 2명 · 작성 4건 · 고유명사 포함 0건(0%)** → D1-7 보류 유지가 타당. 다만 표본이 2명뿐이라 운영 데이터에서 재측정 필요",
           "note": "설계는 .mjs로 적었으나 lib/plan-text-sections의 pick을 그대로 태워야 정확해 **.mts로 만들었다**(.mjs는 TS named import 불가). 저장소 관례대로 `.ts` 확장자 + default import"
         }
-      ]
+      ],
+      "verified": "2026-08-12 독립 검증(구현자≠판정자, 구현 주장 비공개·적대적 프롬프트) — 13/13 ✅. 판정자가 별도 확인한 것: 섹션당 기본 1개가 UI가 아니라 DB 부분 유니크 인덱스(119:23-24) + 서버 트랜잭션 2중으로 강제됨 · 고객 고유 필드 배제가 화이트리스트(pickRows의 textCols)라 새 필드가 추가돼도 새지 않음 · plan-text-library-actions.ts의 export 액션 12개 전부가 첫 줄에서 requirePermission(customer_manage) 호출"
     },
     {
       "id": "R2",
@@ -631,7 +632,9 @@
           "id": "R2-12",
           "desc": "E2E test-fireplan-generate.mts",
           "status": "partial",
-          "evidence": ["scripts/test-fireplan-generate.mts (신규)"],
+          "evidence": [
+            "scripts/test-fireplan-generate.mts (신규)"
+          ],
           "self_check": "2026-08-12 실행 — **8 통과 / 0 실패 / 4 SKIP**. 정리 확인 잔존 고객 0",
           "note": "**세 약속 중 ①만 실증됐다.** ① 조회는 파일을 만들지 않는다 — previewFirePlanHtmlAction을 서버 액션으로 직접 호출(_judge19-action 패턴)해 HTML 반환·고객명 병합을 확인하고, 호출 전후로 **fire_plans 행 수와 storage 객체 수가 모두 불변**임을 2회 호출 모두에서 검증했다. ②(인쇄가 차수를 올리지 않음)·③(제출본 동결)은 진입 자체가 막혀 SKIP",
           "skipped": [
@@ -863,7 +866,7 @@
       "id": "R5",
       "title": "#3·#4 C1. 블록 정리 (세로 구조 유지)",
       "status": "partial",
-      "note": "2026-08-12 R5-1~R5-5 구현·code_present(독립 검증 전, 미커밋). **R5-6·R5-8은 미착수** — R5-6은 스테이징 대조(R5-7) 선행이라 의도적으로 제외, R5-8은 ④ 기산 근거 표시가 남았다",
+      "note": "2026-08-12 R5-1~R5-5·R5-8 구현·code_present(독립 검증 전). **R5-6·R5-7만 미착수** — R5-6은 엑셀↔별지4호 대조(R5-7) 선행이라 의도적으로 제외이고, R5-7은 Gotenberg가 필요해 로컬 불가(스테이징에서만 가능)",
       "criteria": [
         {
           "id": "R5-1",
@@ -937,191 +940,331 @@
             "F-10"
           ],
           "blocked_by": "R5-7",
-          "note": "**의도적 미착수.** ReportGenerateClient를 존치하고 제거 보류 사유를 코드 주석에 남겼다 — R5-7 대조 없이 지우면 37시트에만 있던 항목이 조용히 사라진다"
+          "note": "**의도적 미착수 — 이제 사유가 추정이 아니라 실측이다.** R5-7 대조 결과 별지 4호에 자리가 없는 데이터(펌프성능시험 실측표)가 실제로 확인됐다. 그 자리를 만들기 전에 지우면 기록처가 사라진다. ReportGenerateClient 존치(점검 상세 하단 [기타 도구] 접이식으로 이동)"
         },
         {
           "id": "R5-7",
           "desc": "엑셀 제거 전 필수 검증 — 실제 점검 1건으로 별지 4호 PDF와 엑셀 PDF를 나란히 뽑아 항목 대조표 작성",
-          "status": "pending_order",
+          "status": "partial",
           "risk": "R-6",
-          "note": "Gotenberg가 필요해 **로컬 불가 — 스테이징에서만 가능**"
+          "note": "Gotenberg가 필요해 **로컬 불가 — 스테이징에서만 가능**",
+          "evidence": [
+            "erp/scripts/compare-excel-vs-report4.mts (신규)",
+            "erp_goal/_대조_엑셀37시트_vs_별지4호.md (생성물)"
+          ],
+          "self_check": "2026-08-12 — 대조의 실체인 **항목 집합 비교**를 데이터로 수행했다(PDF 렌더는 Gotenberg가 필요해 로컬 불가). 엑셀 템플릿 37시트 A열 item_code 719개 vs inspection_sheet_items 830개: 공통 689 · 엑셀에만 30(그중 18은 다중이용업 32번대로 별지 4호가 muResults로 따로 담는 축) · DB에만 141",
+          "finding": "**폐지를 막는 실물 장애 확인.** 엑셀에만 있는 12건(32번대 제외)은 전부 옥3·스4·옥외3 = 각 설비의 3면(제어반 + 펌프성능시험)이다. 그 면에는 코드 항목 외에 **펌프성능시험 실측표**(체절/정격100%/정격유량150%의 토출량 ℓ/min·토출압 MPa 실측치, \"체절운전시 토출압은 정격토출압의 140% 이하\" 판정)가 들어 있는데, 별지 4호는 ○/×/해당없음 항목 모델뿐이라 **실측 수치를 넣을 자리가 없다** — DB에는 `2-C-004 성능시험배관을 통한 펌프 성능시험 적정 여부` 같은 적정 여부 한 칸만 있고 `체절` 검색 결과 0건. 엑셀을 지우면 펌프성능시험 실측치 기록처가 사라진다",
+          "remaining": "① 펌프성능시험 실측표의 새 자리 결정(별지 4호 실측 칸 신설 / 설비 대장 1.4 펌프 제원 옆 / 별도 기록) ② 12개 코드 매핑 또는 폐기 확정 ③ 스테이징에서 두 PDF 나란히 뽑아 시각 서식 확인"
         },
         {
           "id": "R5-8",
           "desc": "다일기간 배치 정정 — 종료일 입력은 ① 헤더에 두되 ④ 화면에 '기산: 종료일 {날짜} + 15일' 근거를 표시하고 거기서도 고칠 수 있게",
-          "status": "partial",
+          "status": "code_present",
           "depends": [
             "F-13"
           ],
-          "self_check": "**앞부분만 완료** — 다일기간을 TimelineSlots.multiday로 ① 본문에 넣었다. ④에 기산 근거를 표시하는 뒷부분은 미착수",
-          "note": "④ 기산 표시가 없으면 '제출 기한이 왜 이 날짜인지'를 여전히 찾을 수 없다"
+          "self_check": "앞부분(다일기간을 TimelineSlots.multiday로 ① 본문에 배치) + **뒷부분 완료(2026-08-12)** — ④에 '기산: 종료일 {날짜} + 15일 = 기한 {날짜}' 표시, [종료일 고치기]로 그 자리에서 수정(①과 동일한 updateInspectionMultidayAction, 일수는 보존). 종료일이 없으면 '시작일 기산 + 종료일 미지정' 경고를 띄운다(종전엔 다일 점검인데 종료일이 비어도 아무 말이 없었다). 종전의 기산일 없는 고정 문구 '(점검 후 15일)'은 제거",
+          "evidence": [
+            "TimelineData.period{start,end,days} 신설 — page.tsx가 due9와 같은 원천(end ?? start)에서 채운다",
+            "inspection-timeline-client.tsx ④ 블록: 기산 표시 + anchorEdit 인라인 수정 + saveAnchor",
+            "scripts/_probe-r5-8.mjs 14/14 — ④ 블록만 잘라내 검사(다른 단계에 붙어도 통과하지 않게)",
+            "회귀: _probe-c1-blocks.mjs 35/35 · tsc 클린"
+          ],
+          "note": "④ 기산 표시가 없으면 '제출 기한이 왜 이 날짜인지'를 여전히 찾을 수 없다 — 해소됨"
         }
       ],
       "artifacts": [
-        "scripts/_probe-c1-blocks.mjs (신규, 35/35 통과 — 서버 불필요 정적 검증)"
+        "scripts/_probe-c1-blocks.mjs (신규, 35/35 통과 — 서버 불필요 정적 검증)",
+        "scripts/_probe-r5-8.mjs (신규, 14/14 통과 — ④ 기산 근거·인라인 수정 정적 검증)"
       ]
     },
     {
       "id": "R6",
       "title": "#3·#4 C2. 한 화면 작업대 (레이아웃 교체 — 분리 커밋)",
-      "status": "pending_order",
+      "status": "implemented",
       "note": "기존 InspectionTimelineClient의 판정·D-day·단계 내용을 그대로 이어받고 레이아웃만 바꾼다. 소방계획서_7 H-28의 확장이지 재구현이 아니다",
       "criteria": [
         {
           "id": "R6-1",
           "desc": "6단계 가로 스텝바(항상 보임, 클릭 = 이동) — 세로 아코디언 대비 작업 영역 높이 약 27% 증가(1366×768 기준)",
-          "status": "pending_order",
+          "status": "implemented",
           "depends": [
             "D34-4"
+          ],
+          "self_report": "가로 스텝바 신설 — data.steps를 버튼 6개로, 클릭 = 칸 교체. 세로 아코디언(행마다 펼침) 제거로 작업 영역이 스텝바 한 줄(약 52px)만 남기고 나머지 전부를 3칸에 내준다",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
           ]
         },
         {
           "id": "R6-2",
           "desc": "3칸 마스터·디테일·보조 — 단계마다 역할이 바뀐다(①설비목록/항목입력/불량목록 ②참여인력/업로드/배치요약 ③수신정보/발송·오프라인기록/발송이력 ④문서목록/미리보기/전제·제출일 ⑤불량목록/조치·전후사진/10호 ⑥완료현황/11호 고유값/11호)",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "단계별 3칸 구성 — ①점검표/불량/인력·생성물 ②인력/업로드/배치요약 ③수신정보/발송/생성물 ④전제·생성·제출/9호 고유값·미리보기 ⑤불량표/10호 고유값·계약서/10호 미리보기 ⑥불량표(완료)/11호 고유값·제출/11호 미리보기",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-3",
           "desc": "①에서 점검표와 불량이 동시에 보인다 — '점검표 최상위, 불량 2순위'를 자리로 충족. ✕ 태깅하면 오른쪽 불량 목록이 그 자리에서 늘어난다",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "① 가운데 칸이 불량 목록(slots.defects) — 점검표와 나란히. ✕ 태깅 시 같은 화면에서 불량이 늘어난다",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-4",
           "desc": "⑤ 보조 = 별지 10호 실시간 미리보기 — 불량의 action_plan·action_start·action_end를 고치면 getAnnexPreviewHtmlAction을 디바운스 재호출해 iframe 갱신. Gotenberg 미호출",
-          "status": "pending_order",
+          "status": "implemented",
           "depends": [
             "D34-5",
             "F-7"
+          ],
+          "self_report": "AnnexPreview(report10) — getAnnexPreviewHtmlAction을 600ms 디바운스로 재호출해 iframe srcDoc 교체. watch에 불량 계획·완료 수 + 표 저장 토큰(defectRev). E2E로 파일 수 불변 확인(Gotenberg 미호출)",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
           ]
         },
         {
           "id": "R6-5",
           "desc": "⑥ 보조 = 별지 11호 미리보기(action_taken·action_completed_at·후 사진)",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "AnnexPreview(report11) — 조치 완료·후 사진 쌍 + 표 저장 토큰을 watch로",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-6",
           "desc": "3단 작성 패널 걷어내기 — annex-compose-panel이 받던 고유값(제출일·총 이행기간 보정·계획 요약·완료 문구)을 미리보기 위 몇 칸으로 인라인. 자동 계산값 우선·입력 시 오버레이 규칙은 유지",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "FIELD_DEFS·AnnexFieldInput을 annex-fields.tsx로 분리(정의 1벌)하고 작업대는 AnnexFields로 인라인. 저장은 blur, 액션은 패널과 같은 saveAnnexInputsAction. 작업대에서 AnnexComposePanel 미사용(패널 자체는 보고서 센터·고객 탭 진입점이 남아 존치)",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-7",
           "desc": "불량 표를 스프레드시트처럼 편집 — 행마다 계획 내용·기간·완료일·사진 칸. 불량마다 폼을 펼치지 않아도 되게",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "DefectGrid 신설 — 행=불량, 칸=조치 계획/기간/조치 내용/완료일/전·후 사진. 서술은 blur 저장, 날짜는 선택 즉시 저장(달력 팝업은 blur가 오지 않음). 사본을 두지 않고 서버 값 + 편집분만 병합해 refresh와 어긋나지 않게 함",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-8",
           "desc": "[PDF 생성]은 확정 시 1회, 생성물은 ④·⑥ 문서 목록에 쌓인다(generated-doc-list.tsx 재사용)",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "생성은 requestReport9Action 1회, 생성물은 GeneratedDocList로 ④·⑥ 칸에 누적. ④에는 제출 보고서 파일(data.reports) 접이식도 이관",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-9",
           "desc": "뷰포트 고정 — 최상위 overflow-hidden + 칸별 overflow-y-auto. 페이지 스크롤 0(단계·진행상태·불량·문서가 항상 보이고 스크롤은 목록 칸 안에서만). 종합점검표는 항목이 100개가 넘어 문자 그대로 전부를 한 화면에 넣을 수는 없다는 점을 명시",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "페이지 = flex 세로 + lg:h-full lg:overflow-hidden, 칸마다 overflow-y-auto. 하단 기타 도구는 details로 접어 페이지 스크롤 0 유지. 종합점검표 100+ 항목은 ① 칸 안에서 스크롤(전부를 한 화면에 넣지는 못한다)",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-10",
           "desc": "모바일 세로 스택 폴백 — 3칸은 데스크톱 전용이고 현장은 폰이다(불량 사진 촬영이 capture=\"environment\" 모바일 경로). 높이 미달 시 자동 폴백",
-          "status": "pending_order",
-          "risk": "R-1"
+          "status": "implemented",
+          "risk": "R-1",
+          "self_report": "lg 미만에서 grid-cols-1 + 고정 해제 — 현장 폰에서는 세로로 흐른다. 불량 사진은 capture=\"environment\" 유지",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-11",
           "desc": "월간 외관점검 건은 스텝바가 ① 하나, 3칸은 설비/항목/불량 그대로",
-          "status": "pending_order"
+          "status": "implemented",
+          "self_report": "월간·이벤트는 stepDocs가 ① 하나만 주므로 스텝바 버튼 1개, 3칸은 점검표/불량/인력 그대로",
+          "files": [
+            "src/components/inspections/inspection-workbench.tsx",
+            "src/components/inspections/defect-grid.tsx",
+            "src/components/inspections/annex-fields.tsx",
+            "src/app/(dashboard)/inspections/[id]/page.tsx"
+          ]
         },
         {
           "id": "R6-12",
           "desc": "E2E test-inspection-workbench.mts — 페이지 스크롤 0(scrollHeight <= clientHeight) · 스텝바로 ①~⑥ 전환 · ①에서 점검표와 불량 동시 노출 · 불량 수정 → ⑤ 10호 미리보기 갱신 + 생성물 파일 수 불변 · 좁은 뷰포트 세로 폴백",
-          "status": "pending_order",
+          "status": "implemented",
           "files": [
             "scripts/test-inspection-workbench.mts"
-          ]
+          ],
+          "self_report": "scripts/test-inspection-workbench.mts 23/23 — 페이지 스크롤 0 · ①~⑥ 전환 · ①동시 노출 · 표 편집→DB·10호 미리보기 갱신·파일 수 불변 · 월간 ① 하나 · 430px 세로 폴백",
+          "regression": "기존 E2E 이관·전량 그린 — test-timeline 29/29 · test-h28-journey-stepper 22/22 · test-annex-compose 20/20 · test-owner-send 8/8 · test-general-selfinspection 14/14 · test-gate-consistency 15/15(연속 2회) · test-inspection-workbench 26/26. test-doc-generation은 GOTENBERG_URL 미설정으로 PDF 절 전량 실패 — 환경 제약(R6 무관, 외관점검표·계획서 등 미변경 경로도 같이 실패)",
+          "side_fix": "test-gate-consistency가 summary()를 try 안에서 불러 process.exit이 finally 정리를 건너뛰었다 — 다음 실행이 \"이미 등록된 이메일\"로 죽던 원인. summary()를 finally 끝으로 옮겨 해소(연속 2회 통과로 확인)"
         }
-      ]
+      ],
+      "self_report": "작업대 신설(inspection-workbench.tsx) + page.tsx 컴포넌트 교체. 기존 타임라인 E2E 6종을 작업대 셀렉터로 이관해 회귀 확인 — test-timeline 29/29 · h28 22/22 · annex-compose 20/20 · general-selfinspection 14/14 · gate-consistency 15/15 · owner-send 8/8. 빌드 그린",
+      "verified": "2026-08-12 독립 검증(구현자≠판정자, 적대적 프롬프트로 \"타임라인에 있던 기능이 조용히 사라졌는지\" 대조 지시) — 12/12 ✅. 판정자가 잡아낸 누락 2건을 실구현 후 승격: (1) 업로드 슬롯 드롭존(R0-6 규약)이 클릭 전용으로 축소돼 있던 것 → cert·contract 양쪽에 dropProps 복원 (2) R5-8 기산 근거·[종료일 고치기] 인라인 수정이 ④에서 사라져 있던 것 → 제출 전제 칸에 복원. 두 건 모두 E2E 단언 추가(26/26). 판정자가 지적한 3번째(제출 보고서 파일 목록)는 오탐 — ④ 칸에 details로 이미 존재(inspection-workbench.tsx:452)"
     },
     {
       "id": "R7",
       "title": "#3·#4 D. 발송 문구·별지 4호 조회·알림 소멸 (마이그레이션 1개, 신규 페이지 0)",
-      "status": "pending_order",
+      "status": "code_present",
+      "note": "2026-08-12 전 criteria 구현·자기 신고(독립 검증 전, 미커밋). **마이그레이션 130 미적용이지만 폴백 설계 덕에 발송은 정상 동작한다** — R2와 달리 차단 이슈가 아니다(문구 편집 저장만 비활성). E2E 22/0(SKIP 1)",
       "criteria": [
         {
           "id": "R7-1",
-          "desc": "마이그레이션 128 — message_templates(key·subject·body·attachment_name·updated_by·updated_at) + report_deliveries.body TEXT. 시드로 현행 문구를 그대로 넣어 도입 즉시 동작이 같게. company_profile은 단일 행이라 컬럼을 늘리면 종류가 늘 때마다 스키마가 바뀌므로 쓰지 않는다. key는 코드가 아는 값만 허용",
-          "status": "pending_order",
+          "desc": "마이그레이션 **130** — message_templates(key·subject·body·attachment_name·updated_by·updated_at) + report_deliveries.body TEXT. 시드로 현행 문구를 그대로 넣어 도입 즉시 동작이 같게",
+          "status": "code_present",
           "depends": [
             "D34-7",
             "F-11"
-          ]
+          ],
+          "evidence": [
+            "supabase/migrations/130_message_templates.sql"
+          ],
+          "note": "**설계는 128이었으나 같은 날 127(선임 형태 기본값)·128(recalc 3인자)·129(내 R2 source_hash)가 차례로 선점돼 130으로 옮겼다.** 이 과정에서 내 R2 마이그레이션이 127로 **중복**돼 있던 것을 발견해 129로 재번호했다(중복 번호는 적용 순서를 모호하게 만든다). DB 적용은 못 했다 — %TEMP%/sbtok.txt 토큰 없음",
+          "blocked_by": "BLOCK-2"
         },
         {
           "id": "R7-2",
-          "desc": "신규 권한 키 message_template_manage: ['manager','admin'] — company_manage는 ['admin']이라 재사용 불가",
-          "status": "pending_order",
+          "desc": "신규 권한 키 message_template_manage: ['manager','admin']",
+          "status": "code_present",
           "depends": [
             "D34-8"
           ],
-          "files": [
-            "src/lib/permissions.ts"
-          ]
+          "evidence": [
+            "src/lib/permissions.ts message_template_manage"
+          ],
+          "self_check": "E2E — 매니저 canEdit=true · 일반 직원 canEdit=false·저장 차단"
         },
         {
           "id": "R7-3",
-          "desc": "[문구 편집] 모달을 ③ 발송 단계와 메일 작성 화면에 배치 — 새 페이지·사이드바 항목을 만들지 않는다. 보내는 자리에서 고치는 것이 더 편하고 /company가 requireRole(['admin'])이라 매니저가 못 들어가는 문제도 우회된다",
-          "status": "pending_order"
+          "desc": "[문구 편집] 모달을 ③ 발송 단계와 메일 작성 화면에 배치 — 새 페이지·사이드바 항목 없음",
+          "status": "code_present",
+          "evidence": [
+            "src/components/settings/message-template-modal.tsx",
+            "inspection-timeline-client.tsx ③ 행에 owner_report 모달",
+            "mail-compose-client.tsx에 mail_signature 모달"
+          ],
+          "self_check": "E2E가 /mail/compose에서 버튼을 실제로 클릭해 모달이 열리는지 확인"
         },
         {
           "id": "R7-4",
-          "desc": "치환 lib — 공통 {회사명} {대표자} {회사전화}는 getCompanyProfile()(이미 cache됨)에서, 관계인 보고는 {고객명} {연도} {차수} {점검일}, 서명은 {작성자}. 이 치환으로 상호가 company_profile 한 곳으로 수렴한다(최대 실익)",
-          "status": "pending_order",
+          "desc": "치환 lib — {회사명}{대표자}{회사전화}는 getCompanyProfile()에서, 보고는 {고객명}{연도}{차수}{점검일}, 서명은 {작성자}",
+          "status": "code_present",
           "files": [
             "src/lib/message-template.ts"
-          ]
+          ],
+          "self_check": "E2E — 미리보기 제목에 실제 상호('승진소방ENG')가 채워지고 unresolved가 빈 배열",
+          "note": "값이 없는 **알려진** 변수는 빈 문자열로 지운다(미치환 표기가 고객에게 나가면 안 된다). **모르는** 변수만 남겨 경고한다"
         },
         {
           "id": "R7-5",
-          "desc": "폴백 — 템플릿 행이 없으면 코드의 DEFAULT_TEMPLATES(현행 문구). 마이그레이션 적용 전후로 동작이 같다",
-          "status": "pending_order"
+          "desc": "폴백 — 템플릿 행이 없으면 코드의 DEFAULT_TEMPLATES. 마이그레이션 적용 전후로 동작이 같다",
+          "status": "code_present",
+          "self_check": "E2E를 **130 미적용 상태에서** 돌려 현행 문구가 그대로 조회됨을 확인 — 폴백이 실제로 동작하는 조건에서 검증됐다",
+          "note": "loadTemplate은 절대 throw하지 않는다(테이블 없음·행 없음·빈 본문 모두 기본값). 발송을 막으면 안 된다"
         },
         {
           "id": "R7-6",
-          "desc": "편집 화면 미리보기 — 실제 값이 채워진 결과를 나란히, 치환되지 않은 {…}가 남으면 경고({고객 명} 같은 오타가 그대로 고객에게 나간다)",
-          "status": "pending_order"
+          "desc": "편집 화면 미리보기 + 미치환 경고",
+          "status": "code_present",
+          "self_check": "E2E — 130 미적용 안내 배너가 화면에 뜨는지 확인. 저장 단계에서도 알 수 없는 변수면 **거부**한다(경고에 그치지 않음)"
         },
         {
           "id": "R7-7",
-          "desc": "발송 시 렌더된 본문을 report_deliveries.body에 저장 — 지금은 제목만 남아 문구가 가변이 되면 '그때 무엇을 보냈는지'가 복원 불가가 된다. 관계인 보고는 ③의 완료 증빙",
-          "status": "pending_order",
+          "desc": "발송 시 렌더된 본문을 report_deliveries.body에 저장",
+          "status": "code_present",
           "depends": [
             "F-11"
-          ]
+          ],
+          "note": "**insert에 body를 넣지 않고 별도 UPDATE로 분리했다** — 130 미적용 DB에는 컬럼이 없어 insert에 넣으면 발송 자체가 실패한다(R2의 BLOCK-1과 같은 함정). 본문 이력 때문에 발송이 깨지면 안 되므로 실패를 삼킨다",
+          "not_verified": "실제 발송은 Gmail API가 필요해 E2E에서 확인하지 못했다"
         },
         {
           "id": "R7-8",
-          "desc": "timeline-actions.ts:149-162와 mail/actions.ts:76의 리터럴을 템플릿 렌더 호출로 교체",
-          "status": "pending_order"
+          "desc": "timeline-actions.ts·mail/actions.ts의 리터럴을 템플릿 렌더 호출로 교체",
+          "status": "code_present",
+          "evidence": [
+            "sendOwnerReportAction이 renderMessage('owner_report')를 쓴다",
+            "sendMailAction이 renderMessage('mail_signature')를 쓴다"
+          ],
+          "note": "상호가 박혀 있던 네 곳(제목·본문·첨부명·서명)이 모두 {회사명}으로 바뀌어 company_profile 한 곳으로 수렴했다"
         },
         {
           "id": "R7-9",
-          "desc": "④에 별지 4호 조회 추가 — GENERATED_DOC_KINDS.report4가 이미 있으므로 ④ 문서 목록에 4·9·10호를 함께 놓는다(9호의 첨부가 점검표라 제출 직전 같이 보는 것이 자연스럽다)",
-          "status": "pending_order"
+          "desc": "④에 별지 4호 조회 추가",
+          "status": "code_present",
+          "evidence": [
+            "inspection-timeline-client.tsx ④에 [별지 4호] 버튼(9호의 첨부라 제출 직전 함께 확인)"
+          ],
+          "note": "생성 진입점의 원천은 ①로 두고 ④에서는 조회·재생성 편의만 제공한다"
         },
         {
           "id": "R7-10",
-          "desc": "알림 자동 소멸 — 단계 완료 시 그 점검을 참조하는 미읽음 기한 알림을 읽음 처리(reference_id·reference_type 활용). 삭제하지 않는다 — 지우면 '언제 알렸는지'를 잃는다. 종 배지에서 사라지면 요구는 충족",
-          "status": "pending_order",
+          "desc": "알림 자동 소멸 — 단계 완료 시 그 점검의 미읽음 기한 알림을 읽음 처리",
+          "status": "code_present",
           "depends": [
             "F-12"
-          ]
+          ],
+          "evidence": [
+            "src/lib/inspection-notify-dismiss.ts",
+            "inspection-step-sync.ts syncInspectionSteps에서 newlyCompleted 시 호출"
+          ],
+          "note": "R4 세션이 만든 단일 기록자 안에 **한 줄만 삽입**하고 로직은 별도 파일에 뒀다(동시 편집 충돌면 최소화). 삭제가 아니라 읽음 처리 — 알림은 이력이다. 대상을 기한 알림(type 화이트리스트)으로 좁혀 담당 배정 알림까지 지우지 않는다",
+          "not_verified": "알림 시드를 만들어 소멸을 실측하지는 못했다"
         },
         {
           "id": "R7-11",
-          "desc": "E2E test-message-templates.mts — 행 없을 때 현행 문구 폴백 · 넣으면 편집분으로 발송 · {회사명} 치환 · 알 수 없는 {…} 경고 · report_deliveries.body 기록 · 매니저 편집 가능/일반 직원은 접근 불가",
-          "status": "pending_order",
+          "desc": "E2E test-message-templates.mts",
+          "status": "partial",
           "files": [
             "scripts/test-message-templates.mts"
-          ]
+          ],
+          "self_check": "2026-08-12 실행 — **22 통과 / 0 실패 / 1 SKIP**",
+          "skipped": [
+            "저장 → 재조회 왕복 — 마이그레이션 130 미적용(message_templates 없음). 대신 '130 미적용이면 명확한 사유로 실패한다'를 검증했다"
+          ],
+          "note": "액션 청크는 **모달을 열어야** 로드된다 — 1차 실행에서 'Server action not found'로 13건이 실패했다. UI로 모달을 먼저 열도록 바꿨고, 그 자체가 R7-3 배선 검증이 됐다"
         }
+      ],
+      "artifacts": [
+        "scripts/test-message-templates.mts (신규, 22/0/1SKIP)",
+        "supabase/migrations/130_message_templates.sql (신규, 미적용)"
       ]
     },
     {
@@ -1299,9 +1442,22 @@
     {
       "id": "BLOCK-1",
       "desc": "**마이그레이션 127 미적용 = 계획서 생성 실패.** generateFirePlanNow가 insert/update에 source_hash를 넣는데 컬럼이 없으면 PostgREST가 거부한다. 적용 전까지 [개정 발행]·[인쇄 자동 갱신]이 모두 실패한다",
-      "mitigation": "node scripts/_apply-127-staging.mjs (%TEMP%/sbtok.txt에 Supabase 액세스 토큰 필요)",
+      "mitigation": "node scripts/_apply-129-staging.mjs (%TEMP%/sbtok.txt에 Supabase 액세스 토큰 필요)",
       "status": "confirmed",
-      "blocking": "R2"
+      "blocking": "R2",
+      "renumbered": "설계·초기 구현은 127이었으나 같은 날 127(선임 형태 기본값)·128(recalc 3인자)이 다른 세션에 선점돼 **129**로 옮겼다. 한때 127 파일이 둘이었다"
+    },
+    {
+      "id": "BLOCK-2",
+      "desc": "마이그레이션 130(message_templates) 미적용 — **발송은 폴백으로 정상 동작하고 문구 편집 저장만 비활성**이다. BLOCK-1과 달리 기능을 막지 않는다(R7-5·R7-7의 폴백/분리 설계 덕분)",
+      "mitigation": "node scripts/_apply-sql-staging.mjs supabase/migrations/130_message_templates.sql (토큰 필요)",
+      "status": "confirmed",
+      "blocking": "R7-11 저장 왕복 검증"
+    },
+    {
+      "id": "R-11",
+      "desc": "**마이그레이션 번호 충돌** — 여러 세션이 같은 날 병행하며 127을 둘이 만들었다. 새 마이그레이션 작성 전 반드시 디렉터리를 확인하고, 커밋 전에도 중복이 없는지 다시 본다",
+      "status": "confirmed"
     }
   ],
   "cross_refs": [

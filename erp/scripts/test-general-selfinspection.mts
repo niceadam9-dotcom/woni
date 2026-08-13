@@ -130,15 +130,18 @@ try {
   const { data: steps } = await raw.from('inspection_steps').select('step_num').eq('inspection_id', inspId).order('step_num')
   check('일반관리 자체점검 = 6단계 생성(트리거 111)', (steps ?? []).length === 6, `steps=${(steps ?? []).length}`)
 
-  // ── 4) UI: 점검 상세 — 소방시설등점검표·별지 9호·타임라인 ①~⑥ ──
+  // ── 4) UI: 점검 상세 — 소방시설등점검표·별지 9호·작업대 스텝바 ①~⑥ ──
   await page.goto(`${BASE}/inspections/${inspId}`)
-  await page.waitForSelector('text=문서 타임라인')
+  await page.waitForSelector('[data-testid="workbench-stepbar"]')
   check('점검표 라벨 = 작동점검 (소방시설등점검표 축)', await page.isVisible('text=작동점검 (○항목)'))
-  check('별지 9호 생성 어포던스 노출', await page.isVisible('text=별지 9호 생성'))
   check('외관점검표 렌더 아님', !(await page.isVisible('text=외관점검 (별지 6호)')))
-  check('타임라인 ① 점검표', await page.isVisible('text=① 점검표'))
-  check('타임라인 ④ 소방서 제출(9호)', await page.isVisible('text=④ 소방서 제출'))
-  check('타임라인 ⑥ 이행완료(별지 11호)', await page.isVisible('text=⑥ 이행완료 (별지 11호)'))
+  check('스텝바 ① 점검표', await page.isVisible('text=① 점검표'))
+  check('스텝바 ④ 소방서 제출(9호)', await page.isVisible('text=④ 소방서 제출'))
+  check('스텝바 ⑥ 이행완료(별지 11호)', await page.isVisible('text=⑥ 이행완료 (별지 11호)'))
+  // 별지 9호 생성은 ④ 칸에 있다 — 일반관리 자체점검도 보고 대상(F-8)
+  await page.click('[data-testid="workbench-stepbar"] button[data-step="submit9"]')
+  await page.waitForSelector('text=제출 전제')
+  check('별지 9호 생성 어포던스 노출', await page.isVisible('text=별지 9호 생성'))
 
   await browser.close(); browser = null
 } catch (e) {

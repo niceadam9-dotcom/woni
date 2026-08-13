@@ -34,7 +34,9 @@ try {
 
   await page.goto(`${BASE}/inspections/${inspId}`)
   await page.waitForSelector('text=③ 관계인 보고')
-  check('타임라인 ③ 표시', true)
+  check('작업대 ③ 표시', true)
+  await page.click('[data-testid="workbench-stepbar"] button[data-step="ownerReport"]')
+  await page.waitForSelector('text=수신 정보')
   const sendBtn = page.locator('button:has-text("생성물 이메일 발송")')
   check('발송 버튼 활성(동의+이메일 보유)', !(await sendBtn.isDisabled()))
   await sendBtn.click()
@@ -51,7 +53,9 @@ try {
 
   // 재진입 — ③ 완료 표시(발송됨)
   await page.goto(`${BASE}/inspections/${inspId}`)
-  await page.waitForSelector(`text=발송됨 → ${SAFE_RECIPIENT}`)
+  await page.waitForSelector('[data-testid="workbench-stepbar"]')
+  await page.click('[data-testid="workbench-stepbar"] button[data-step="ownerReport"]')
+  await page.waitForSelector(`text=${SAFE_RECIPIENT}`)
   check('③ 발송 이력 표시(재발송 버튼 전환)', await page.isVisible('button:has-text("재발송")'))
 } catch (e) {
   check('예외 없음', false, String(e))

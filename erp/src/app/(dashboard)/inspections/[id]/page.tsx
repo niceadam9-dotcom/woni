@@ -1,21 +1,20 @@
 ﻿import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ClipboardList, User, Calendar, Building2, AlertCircle, FileText } from 'lucide-react'
+import { ChevronLeft, ClipboardList } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { InspectionDetailClient } from '@/components/inspections/inspection-detail-client'
 import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
 import { InspectionMultidayClient } from '@/components/inspections/inspection-multiday-client'
 import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
 import { InspectionSheetClient } from '@/components/inspections/inspection-sheet-client'
 import { InspectionDeleteClient } from '@/components/inspections/inspection-delete-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
-import { InspectionVoiceDefectClient } from '@/components/inspections/inspection-voice-defect-client'
-import { InspectionVoiceSheetClient } from '@/components/inspections/inspection-voice-sheet-client'
+import { InspectionInfoPopover } from '@/components/inspections/inspection-info-popover'
 import { ExteriorMonthProvider } from '@/components/inspections/exterior-month'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
-import { InspectionTimelineClient, type TimelineData } from '@/components/inspections/inspection-timeline-client'
+import { type TimelineData } from '@/components/inspections/inspection-timeline-client'
+import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
 import { stepDocs } from '@/lib/doc-requirements'
 import { CONTRACT_FILE_RE, findArchivedCertInspections, isCertFileName } from '@/lib/doc-status'
 import { sheetScope } from '@/lib/sheet-scope'
@@ -46,15 +45,7 @@ const STATUS_COLORS: Record<InspectionStatus, string> = {
   overdue: 'bg-red-50 text-red-600',
 }
 
-function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-[#b0acd6]">{icon}</span>
-      <span className="text-xs text-[#514b81]">{label}</span>
-      <span className="font-medium text-[#090c1d]">{value}</span>
-    </div>
-  )
-}
+// InfoChip은 기본정보 카드와 함께 InspectionInfoPopover로 이관됐다 (C1 R5-5)
 
 export default async function InspectionDetailPage({
   params,
@@ -192,8 +183,8 @@ export default async function InspectionDetailPage({
       .select('*').eq('inspection_id', id).order('step_num')
     steps = (fresh ?? []) as InspectionStep[]
   }
-  const completedCount = steps.filter(s => s.status === 'completed').length
-  const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0
+  // 전체 진행률 카드는 C1(R5-1)에서 제거했다 — 타임라인 헤더가 같은 값을 보여주고,
+  // 그 카드가 읽던 inspection_steps는 월간 건에서 분모가 6으로 고정돼 100%에 닿지 못했다(R4-8에서 교정 예정)
 
   // ── 문서 타임라인 (§9-9 / P7) — 특별점검 ①~④(불량 시 ⑤⑥) / 정기·일반 ①(외관점검표) ──
   let report9Checks: Report9CheckRow[] | null = null
@@ -231,6 +222,25 @@ export default async function InspectionDetailPage({
     report9Files = (filesResExt.data ?? [])
       .filter(o => /^exterior_/.test(o.name))
       .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
+
+    // C1(소방계획서_21 R5-2): 월간 외관점검 건도 타임라인으로 — 종전 2열 체크리스트(InspectionDetailClient)를
+    // 없애고 단계 표현을 한 곳으로 모은다. stepDocs가 ① 하나만 반환하므로 보고 절차 칸(②~⑥)은 렌더되지 않는다.
+    timelineData = {
+      steps: stepDocs({ isSpecial: false }),
+      isGeneral: true,
+      responded: respRows.length,
+      certFile: null,
+      contractFile: null,
+      delivery: null,
+      submit9: { due: null, dday: null, submittedAt: null },
+      submit11: { due: null, dday: null, submittedAt: null },
+      defects: { total: defects.length, planned: 0, done: 0, photoPairs: 0 },
+      prereqs: [],
+      consentOk: false,
+      inspectionSteps: steps,
+      defectRows: [],
+      reports: [],
+    }
   }
   if (isSpecial && customer) {
     const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9, deliveryRes] = await Promise.all([
@@ -327,6 +337,12 @@ export default async function InspectionDetailPage({
         due: due9, submittedAt: (iRec.report9_submitted_at as string | null) ?? null,
         dday: (iRec.report9_submitted_at as string | null) ? null : ddayOf(due9),
       },
+      // R5-8: ④가 기한의 기산 근거를 그 자리에서 보이고 고칠 수 있도록 기간을 함께 넘긴다
+      period: {
+        start: (iRec.inspection_start_date as string | null) ?? null,
+        end: (iRec.inspection_end_date as string | null) ?? null,
+        days: (iRec.inspection_days as number | null) ?? 1,
+      },
       submit11: {
         due: due11, submittedAt: (iRec.report11_submitted_at as string | null) ?? null,
         dday: (iRec.report11_submitted_at as string | null) ? null : ddayOf(due11),
@@ -351,169 +367,50 @@ export default async function InspectionDetailPage({
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* 헤더 */}
-      <div className="flex items-center gap-3">
+    /* R6-9 뷰포트 고정 — 페이지는 스크롤하지 않고 각 칸이 스크롤한다.
+       좁은 화면(lg 미만)에서는 고정을 풀고 평소대로 세로로 흐른다(R6-10). */
+    <div className="flex flex-col gap-3 lg:h-full lg:overflow-hidden">
+      {/* 헤더 — 기본정보는 접이식으로 내렸다 (C1 R5-5 / D-1) */}
+      <div className="relative flex shrink-0 items-center gap-3">
         <Link href="/inspections" className="text-[#514b81] hover:text-[#7b68ee] transition-colors">
           <ChevronLeft className="size-5" />
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <ClipboardList className="size-4 text-[#7b68ee]" />
-            <h1 className="text-xl font-bold text-[#090c1d]">
+            <ClipboardList className="size-4 text-[#7b68ee] shrink-0" />
+            <h1 className="text-xl font-bold text-[#090c1d] truncate">
               {customer?.customer_name ?? '—'}
             </h1>
-            <span className="text-sm text-[#514b81]">{inspection.year}년 {inspection.sequence_num}차</span>
+            <span className="text-sm text-[#514b81] shrink-0">{inspection.year}년 {inspection.sequence_num}차</span>
+            <span className="text-xs text-[#b0acd6] shrink-0 truncate">
+              {employee ? `담당 ${employee.name}` : '담당 미배정'} · {inspection.inspection_start_date}
+            </span>
           </div>
         </div>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[inspection.inspection_type]}`}>
+        <InspectionInfoPopover info={{
+          customerName: customer?.customer_name ?? '—',
+          employee: employee ? `${employee.name}${employee.position ? ` (${employee.position})` : ''}` : '미배정',
+          startDate: inspection.inspection_start_date,
+          contactRole: contact?.role ?? null,
+          contactName: contact?.name ?? null,
+          contactPhone: contact?.phone ?? null,
+          address: customer?.address ?? null,
+          notes: inspection.notes ?? null,
+        }} />
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${TYPE_COLORS[inspection.inspection_type]}`}>
           {inspectionTypeLabel(inspection.inspection_type)}
         </span>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[inspection.status as InspectionStatus]}`}>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${STATUS_COLORS[inspection.status as InspectionStatus]}`}>
           {STATUS_LABELS[inspection.status as InspectionStatus]}
         </span>
       </div>
 
-      {/* 기본정보 카드 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="grid grid-cols-2 gap-3">
-          <InfoChip
-            icon={<Building2 className="size-3.5" />}
-            label="고객"
-            value={customer?.customer_name ?? '—'}
-          />
-          <InfoChip
-            icon={<User className="size-3.5" />}
-            label="담당자"
-            value={employee ? `${employee.name}${employee.position ? ` (${employee.position})` : ''}` : '미배정'}
-          />
-          <InfoChip
-            icon={<Calendar className="size-3.5" />}
-            label="시작일"
-            value={inspection.inspection_start_date}
-          />
-          {contact && (
-            <InfoChip
-              icon={<User className="size-3.5" />}
-              label={`관계인 (${contact.role})`}
-              value={`${contact.name}${contact.phone ? ` · ${contact.phone}` : ''}`}
-            />
-          )}
-          {customer?.address && (
-            <div className="col-span-2 flex items-start gap-2 text-sm">
-              <span className="text-xs text-[#514b81] shrink-0 mt-0.5">주소</span>
-              <span className="text-xs text-[#514b81]">{customer.address}</span>
-            </div>
-          )}
-          {inspection.notes && (
-            <div className="col-span-2 flex items-start gap-2 text-sm">
-              <span className="text-xs text-[#514b81] shrink-0 mt-0.5">비고</span>
-              <span className="text-xs text-[#514b81]">{inspection.notes}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 다일 점검 기간 (P32-9) */}
-      <InspectionMultidayClient
-        inspectionId={id}
-        startDate={inspection.inspection_start_date}
-        endDate={(inspection as { inspection_end_date?: string | null }).inspection_end_date ?? null}
-        days={(inspection as { inspection_days?: number }).inspection_days ?? 1}
-        canManage={canEdit}
-      />
-
-      {/* 진행률 바 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-[#090c1d]">전체 진행률</p>
-          <span className="text-sm font-bold text-[#7b68ee]">{completedCount}/{steps.length} 단계</span>
-        </div>
-        <div className="w-full h-2.5 bg-[#e0ddf5] rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${progressPct === 100 ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <div className="flex justify-between mt-2">
-          <span className="text-xs text-[#514b81]">시작</span>
-          <span className="text-xs font-medium text-[#7b68ee]">{progressPct}%</span>
-          <span className="text-xs text-[#514b81]">완료</span>
-        </div>
-      </div>
-
-      {/* 6단계 체크리스트 + 보고서관리 — 정기·일반(비자체점검)만 현행 2열 유지.
-          자체점검(isSpecial)은 §4-E H-28 여정 스텝퍼(아래 문서 타임라인)가 단계 마감·완료·제출 보고서를 흡수 */}
-      {!isSpecial ? (
-        <div className="grid grid-cols-2 gap-5 items-start">
-          <InspectionDetailClient
-            steps={steps}
-            inspectionId={id}
-            canComplete={canComplete}
-            canDelete={canDelete}
-            today={today}
-          />
-          {/* 일반·정기 점검 = 외관점검표 2년 보관만 (소방서 보고 의무 없음) — 단계별 보고서 표면 비노출 */}
-          <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#e0ddf5] flex items-center gap-2">
-              <FileText className="size-4 text-[#7b68ee]" />
-              <h2 className="text-sm font-semibold text-[#090c1d]">단계별 보고서</h2>
-            </div>
-            <p className="px-5 py-6 text-sm text-[#514b81]">
-              일반·정기 점검은 <span className="font-medium text-[#090c1d]">외관점검표 작성·2년 보관</span>만 대상입니다 — 소방서 보고 의무가 없어 단계별 보고서(별지 9~11호)가 없습니다.
-            </p>
-          </div>
-        </div>
-      ) : (
-        // 자체점검: 삭제 버튼만 별도 노출 (단계 완료·보고서는 타임라인 스텝퍼로 이동)
-        canDelete && <InspectionDeleteClient inspectionId={id} />
-      )}
-
-      {/* 점검 참여자 (주된/보조) — 보고서 개요 */}
-      <InspectionParticipantsClient
-        inspectionId={id}
-        mainEmployee={employee ? { name: employee.name, license_no: employee.license_no } : null}
-        aux={auxParticipants}
-        employees={allEmployees}
-        canManage={canEdit}
-      />
-
-      {/* EX-4(소방계획서_19, 125): 외관점검표 '점검 월'은 점검표·음성 카드가 공유한다 —
-          지역 상태로 두면 음성 저장이 항상 시작월로 가고, 달을 바꿔 반복하면 이전 달 입력이 사라진다 */}
-      <ExteriorMonthProvider isExterior={inspPlanType === 'monthly' || inspPlanType === 'event'}>
-        {/* 점검표 입력 (P34) */}
-        <InspectionSheetClient
-          inspectionId={id}
-          inspectionType={customer?.inspection_type ?? ''}
-          planType={inspPlanType}
-          sheets={sheets}
-          responses={responses}
-          progress={sheetProgress}
-          xCount={xCount}
-          canManage={canEdit}
-        />
-
-        {/* 음성 점검표 입력 V-1 (§9-4) — 전사 → AI 구조화 → 확인 후 점검표 반영 */}
-        <InspectionVoiceSheetClient inspectionId={id} canManage={canEdit} />
-      </ExteriorMonthProvider>
-
-      {/* 외관점검표 (§9-8d) — 일반관리 점검 전용, 별지 9호 준비 UI 재사용 */}
-      {exteriorChecks && (
-        <InspectionReport9Client
-          inspectionId={id}
-          canManage={canEdit}
-          checks={exteriorChecks}
-          initialJob={report9Job}
-          initialFiles={report9Files}
-          defectsInfo={{ total: 0, planned: 0, done: 0 }}
-          variant="exterior"
-          customerName={customer?.customer_name}
-        />
-      )}
-
-      {/* 문서 타임라인 (§9-9 / P7) — 특별점검: 별지 9호 준비 섹션을 ④ 전제로 흡수 */}
+      {/* C1(소방계획서_21 R5): 13블록 → 헤더 + 타임라인 하나.
+          제거: 전체 진행률 카드(R5-1, 타임라인 헤더가 대체) · 6단계 2열 체크리스트(R5-2, 타임라인이 흡수)
+          이동: 다일기간·점검표 → ① / 참여자 → ② / 불량내역 → ⑤ (월간 외관점검 건은 단계가 ① 하나라 전부 ①로)
+          C2(R6): 세로 아코디언 → 가로 스텝바 + 3칸 작업대. 슬롯 계약은 그대로라 여기서는 컴포넌트만 바뀐다 */}
       {timelineData && (
-        <InspectionTimelineClient
+        <InspectionWorkbench
           inspectionId={id}
           canManage={canEdit}
           canComplete={canComplete}
@@ -523,24 +420,90 @@ export default async function InspectionDetailPage({
           initialFiles={report9Files}
           customerName={customer?.customer_name}
           customerId={inspection.customer_id}
+          defectRows={defects}
+          slots={{
+            multiday: (
+              <InspectionMultidayClient
+                inspectionId={id}
+                startDate={inspection.inspection_start_date}
+                endDate={(inspection as { inspection_end_date?: string | null }).inspection_end_date ?? null}
+                days={(inspection as { inspection_days?: number }).inspection_days ?? 1}
+                canManage={canEdit}
+              />
+            ),
+            sheet: (
+              /* EX-4(소방계획서_19, 125): 외관점검표 '점검 월'의 단일 원천.
+                 소방계획서_21 R3에서 음성 점검표(V-1)를 제거해 지금 소비자는 점검표 카드 하나뿐이지만,
+                 provider는 유지한다 — 월 축 저장 규약(month별 UNIQUE 분화)이 여기에 묶여 있어
+                 지역 상태로 되돌리면 EX-4 회귀 위험이 있다 */
+              <ExteriorMonthProvider isExterior={inspPlanType === 'monthly' || inspPlanType === 'event'}>
+                <InspectionSheetClient
+                  inspectionId={id}
+                  inspectionType={customer?.inspection_type ?? ''}
+                  planType={inspPlanType}
+                  sheets={sheets}
+                  responses={responses}
+                  progress={sheetProgress}
+                  xCount={xCount}
+                  canManage={canEdit}
+                />
+              </ExteriorMonthProvider>
+            ),
+            // 외관점검표 (§9-8d) — 월간 외관점검 건 전용, 별지 9호 준비 UI 재사용
+            exterior: exteriorChecks ? (
+              <InspectionReport9Client
+                inspectionId={id}
+                canManage={canEdit}
+                checks={exteriorChecks}
+                initialJob={report9Job}
+                initialFiles={report9Files}
+                defectsInfo={{ total: 0, planned: 0, done: 0 }}
+                variant="exterior"
+                customerName={customer?.customer_name}
+              />
+            ) : null,
+            participants: (
+              <InspectionParticipantsClient
+                inspectionId={id}
+                mainEmployee={employee ? { name: employee.name, license_no: employee.license_no } : null}
+                aux={auxParticipants}
+                employees={allEmployees}
+                canManage={canEdit}
+              />
+            ),
+            defects: (
+              <>
+                {/* 타임라인 ⑤ 전·후 사진 슬롯 앵커 — 기존 #defects 딥링크 유지 */}
+                <div id="defects" />
+                <InspectionDefectsClient
+                  inspectionId={id}
+                  initialDefects={defects}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  hasActionPlan={hasActionPlan}
+                />
+              </>
+            ),
+          }}
         />
       )}
 
-      {/* 소방시설등점검표(엑셀) 생성 (P32, 7-C #4 개명) */}
-      <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />
+      {/* 상시 쓰지 않는 도구는 접어 둔다 — 펼치면 작업대가 그만큼 줄어들 뿐 페이지는 스크롤하지 않는다(R6-9) */}
+      <details className="shrink-0 rounded-xl border border-[#e0ddf5] bg-white">
+        <summary className="cursor-pointer px-3 py-1.5 text-[11px] text-[#847ba8] hover:text-[#7b68ee]">
+          기타 도구 — 점검표 엑셀 생성{canDelete ? ' · 점검 삭제' : ''}
+        </summary>
+        <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-[#f3f1fc] p-3">
+          {/* 소방시설등점검표(엑셀) 생성 (P32, 7-C #4 개명)
+              ⚠ 소방계획서_7 Q-5·D-9로 폐지가 확정됐으나(별지 4호 PDF로 대체) 제거 전
+              '37시트 엑셀에만 있는 항목' 대조가 선행이고 Gotenberg가 필요해 스테이징에서만 가능하다.
+              대조 전에는 삭제하지 않는다 — 소방계획서_21 R5-6/R5-7 */}
+          <ReportGenerateClient inspectionId={id} history={genHistory} canManage={canEdit} />
 
-      {/* 음성 불량 기록 (VN-1) — 말로 보고 → AI 정리 → 불량 추가 */}
-      <InspectionVoiceDefectClient inspectionId={id} canManage={canEdit} />
-
-      {/* 불량내역 — 전체 너비 (타임라인 ⑤ 전·후 사진 슬롯 앵커) */}
-      <div id="defects" />
-      <InspectionDefectsClient
-        inspectionId={id}
-        initialDefects={defects}
-        canEdit={canEdit}
-        canDelete={canDelete}
-        hasActionPlan={hasActionPlan}
-      />
+          {/* 점검 삭제 — 단계 완료·보고서는 작업대가 흡수했고 삭제만 별도로 남는다 */}
+          {canDelete && <InspectionDeleteClient inspectionId={id} />}
+        </div>
+      </details>
     </div>
   )
 }

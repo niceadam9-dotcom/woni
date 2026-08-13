@@ -194,26 +194,25 @@ try {
   const prefA = `${custA}/inspections/${inspAid}`
   const prefB = `${custB}/inspections/${inspBid}`
 
-  // ── 1) 자체점검 A 상세 — 별지 9·10·11호 생성 (타임라인 ④⑤⑥ 버튼) ──
+  // ── 1) 자체점검 A 상세 — 별지 9·10·11호 생성 (작업대 ④⑤⑥ 칸 버튼) ──
   await page.goto(`${BASE}/inspections/${inspAid}`)
-  await page.waitForSelector('text=문서 타임라인')
-  check('A: 타임라인 렌더(자체점검)', true)
-
-  await clickAndWait(page, '별지 9호', '별지 9호 생성', inspAid, 'report9', prefA, /^report9_\d+\.pdf$/)
-  await clickAndWait(page, '별지 10호', '별지 10호 생성', inspAid, 'report10', prefA, /^report10_\d+\.pdf$/)
-
-  // 별지 11호는 ⑥ 행 — 페이지 하단. 버튼이 뷰포트 밖일 수 있어 스크롤 후 클릭
-  await page.locator('button:has-text("별지 11호 생성")').scrollIntoViewIfNeeded()
-  await clickAndWait(page, '별지 11호', '별지 11호 생성', inspAid, 'report11', prefA, /^report11_\d+\.pdf$/)
-
-  // 별지 4호: 버튼이 있으면 UI 경유로 생성 검증, 없으면 UI 미연결(제품 이슈)로 기록 — 실패로 계산하지 않음.
-  // (별지 4호 버튼은 InspectionReport9Client variant=report9 에만 존재하나 이 클라이언트는 점검 상세에 미렌더)
-  const report4Button = await page.locator('button:has-text("별지 4호 생성")').count()
-  if (report4Button > 0) {
-    await clickAndWait(page, '별지 4호', '별지 4호 생성', inspAid, 'report4', prefA, /^report4_\d+\.pdf$/)
-  } else {
-    console.log('  ⚠ 별지 4호: UI 버튼 미노출 — 점검 상세에 report4 생성 버튼이 렌더되지 않음(제품 이슈, 생성 경로는 requestReport9Action 공유). 발견사항 참고.')
+  await page.waitForSelector('[data-testid="workbench-stepbar"]')
+  check('A: 작업대 렌더(자체점검)', true)
+  const goStep = async (step: string) => {
+    await page.click(`[data-testid="workbench-stepbar"] button[data-step="${step}"]`)
+    await page.waitForTimeout(300)
   }
+
+  await goStep('submit9')
+  await clickAndWait(page, '별지 9호', '별지 9호 생성', inspAid, 'report9', prefA, /^report9_\d+\.pdf$/)
+  await goStep('repair')
+  await clickAndWait(page, '별지 10호', '10호 PDF 생성', inspAid, 'report10', prefA, /^report10_\d+\.pdf$/)
+  await goStep('submit11')
+  await clickAndWait(page, '별지 11호', '11호 PDF 생성', inspAid, 'report11', prefA, /^report11_\d+\.pdf$/)
+
+  // 별지 4호 — ① 칸(원천)과 ④ 칸(제출 직전 확인) 양쪽에 있다
+  await goStep('checklist')
+  await clickAndWait(page, '별지 4호', '별지 4호 생성', inspAid, 'report4', prefA, /^report4_\d+\.pdf$/)
 
   // ── 2) 외관 B 상세 — 외관점검표 생성 ──
   await page.goto(`${BASE}/inspections/${inspBid}`)

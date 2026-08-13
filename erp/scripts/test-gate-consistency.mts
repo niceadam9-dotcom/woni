@@ -38,7 +38,10 @@ try {
   // 자체점검(소방·일반 공통): 별지 9호 생성 어포던스 O — 일반관리 자체점검도 동일 (W-22 반전)
   for (const [label, id] of [['소방 자체점검', inspSpecial], ['일반관리 자체점검', inspGenSpecial]] as const) {
     await page.goto(`${BASE}/inspections/${id}`)
-    await page.waitForSelector('text=문서 타임라인')
+    await page.waitForSelector('[data-testid="workbench-stepbar"]')
+    // 별지 9호 생성은 작업대 ④ 칸에 있다(R6-2)
+    await page.click('[data-testid="workbench-stepbar"] button[data-step="submit9"]')
+    await page.waitForSelector('text=제출 전제')
     check(`${label} → 별지 9호 생성 어포던스 노출`, await page.isVisible('text=별지 9호 생성'))
     check(`${label} → 외관점검표 미노출`, !(await page.isVisible('text=외관점검 (별지 6호)')))
   }
@@ -56,16 +59,19 @@ try {
   await page.waitForTimeout(800)
   check('정기(monthly) → 별지 9호 생성 미노출(게이트)', !(await page.isVisible('text=별지 9호 생성')))
 
-  // "단계별 보고서" 카드 게이트 — 자체점검(소방·일반)=6슬롯 표시 / 레거시 event·정기=안내 대체
+  // 보고 절차 게이트 — R5-2·R6에서 '단계별 보고서' 2열 카드를 걷어내고 작업대 스텝바로 단일화했다.
+  // 자체점검(소방·일반) = 6단계 / 레거시 event·정기 = ① 하나 + '보고 의무 없음' 안내
   for (const [label, id] of [['소방 자체점검', inspSpecial], ['일반관리 자체점검', inspGenSpecial]] as const) {
     await page.goto(`${BASE}/inspections/${id}`)
-    await page.waitForSelector('text=단계별 보고서')
-    check(`${label} → 단계별 보고서 카드(슬롯) 표시`, !(await page.isVisible('text=소방서 보고 의무가 없어')))
+    await page.waitForSelector('[data-testid="workbench-stepbar"]')
+    const n = await page.locator('[data-testid="workbench-stepbar"] button').count()
+    check(`${label} → 보고 절차 6단계 표시`, n === 6 && !(await page.isVisible('text=보고 의무 없음')), `${n}단계`)
   }
   for (const [label, id] of [['레거시 event', inspGenEvent], ['정기(monthly)', inspMonthly]] as const) {
     await page.goto(`${BASE}/inspections/${id}`)
-    await page.waitForSelector('text=단계별 보고서')
-    check(`${label} → 단계별 보고서 비노출(안내 대체)`, await page.isVisible('text=소방서 보고 의무가 없어'))
+    await page.waitForSelector('[data-testid="workbench-stepbar"]')
+    const n = await page.locator('[data-testid="workbench-stepbar"] button').count()
+    check(`${label} → 보고 절차 비노출(안내 대체)`, n === 1 && await page.isVisible('text=보고 의무 없음'), `${n}단계`)
   }
 
   // 데이터 게이트: 비자체점검(레거시 event·정기)엔 report9 생성잡이 생기지 않는지 — 직접 job 없음 확인
@@ -82,14 +88,16 @@ try {
     check('레거시 event → 1단계 생성(트리거 111)', (s2 ?? []).length === 1)
   }
 
-  summary()
 } catch (e) {
   console.error('❌ 예외:', (e as Error).message)
   process.exitCode = 1
 } finally {
+  // summary()는 process.exit을 부른다 — try 안에서 부르면 이 정리가 통째로 건너뛰어져
+  // 다음 실행이 "이미 등록된 이메일"로 죽는다. 정리 후 마지막에 부른다.
   if (browser) await browser.close()
   for (const c of custIds) await cleanupCustomer(c)
   const { raw: r } = await import('./_e2e-helpers.mjs')
   await r.from('profiles').delete().eq('id', userId)
   await r.auth.admin.deleteUser(userId).catch(() => {})
+  summary()
 }

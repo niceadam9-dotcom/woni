@@ -15,12 +15,14 @@ import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { forceCompleteStepAction } from '@/app/(dashboard)/inspections/timeline-actions'
+import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
+import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType, type ReportType } from '@/app/(dashboard)/inspections/report-constants'
 import type { InspectionStep } from '@/types'
@@ -61,6 +63,9 @@ export type TimelineData = {
   contractFile: { name: string; path: string } | null
   delivery: { sentTo: string; sentAt: string } | null   // ③ 발송 이력 (최근)
   submit9: { due: string | null; dday: number | null; submittedAt: string | null }
+  /** R5-8: ④ 기한의 기산 근거 — '왜 이 날짜인지'를 ④에서 바로 보고 고칠 수 있어야 한다.
+   *  end가 없으면 시작일이 기산일이다(page.tsx의 due9 계산과 같은 규칙). */
+  period?: { start: string | null; end: string | null; days: number }
   submit11: { due: string | null; dday: number | null; submittedAt: string | null }
   defects: { total: number; planned: number; done: number; photoPairs: number }
   prereqs: PrereqRow[]                  // ④ 전제 체크 (§9-6⑦)
@@ -124,6 +129,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   const [completing, setCompleting] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<TimelineStepKey, boolean>>({} as Record<TimelineStepKey, boolean>)
   const [reportsOpen, setReportsOpen] = useState(false)  // 하단 제출 보고서 접이식
+  // R5-8: ④ 기산 근거 인라인 수정 — 종료일 입력은 ①에 두되, 기한을 보는 자리에서도 고칠 수 있게
+  const [anchorEdit, setAnchorEdit] = useState(false)
+  const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
+  const [anchorMsg, setAnchorMsg] = useState('')
   // §4-E-2: ⑤ 전/후 갤러리 후 사진 업로드
   const afterRef = useRef<HTMLInputElement>(null)
   const afterTarget = useRef<string | null>(null)
@@ -193,6 +202,21 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
       const res = await recordSubmissionAction(inspectionId, kind, date)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg('✅ 제출일이 기록됐습니다 — 기한 뱃지·알림이 소멸됩니다.')
+      router.refresh()
+    })
+  }
+
+  /** R5-8: ④에서 기산일(종료일)을 고친다 — 저장하면 서버가 단계 마감일을 종료일 기준으로 재계산한다.
+   *  ①의 [점검 기간]과 같은 액션을 쓰므로 두 자리가 갈라지지 않는다(일수는 기존 값을 보존). */
+  function saveAnchor() {
+    setAnchorMsg('')
+    startTransition(async () => {
+      const res = await updateInspectionMultidayAction(inspectionId, {
+        endDate: anchorEnd || null, days: data.period?.days ?? 1,
+      })
+      if (res.error) { setAnchorMsg(`❌ ${res.error}`); return }
+      setAnchorEdit(false)
+      setAnchorMsg('✅ 기산일 변경 — 마감일을 다시 계산했습니다.')
       router.refresh()
     })
   }
@@ -509,13 +533,16 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                     ? `발송됨 → ${data.delivery.sentTo} (${data.delivery.sentAt.slice(0, 10)})`
                     : data.consentOk ? '점검 결과 보고 후 개선·변경 협의 → ④로 (별지 9호 생성 후 이메일 발송)' : '송달 동의·이메일 미입력 — 고객 소방계획서 탭에서 입력'}
                 </span>
-                {canManage && (
-                  <span className="ml-auto shrink-0">
+                <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                  {/* R7-3: 문구는 **보내는 자리**에서 고친다 (전용 페이지 없음). 권한은 액션이 판정 */}
+                  <MessageTemplateModal templateKey="owner_report" label="관계인 보고 메일"
+                    sampleVars={{ 고객명: customerName ?? '', 연도: '', 차수: '', 점검일: '' }} />
+                  {canManage && (
                     <button onClick={sendOwner} disabled={isPending || !data.consentOk} className={btnPri}>
                       <Send className="size-3" /> {done3 ? '재발송' : '생성물 이메일 발송'}
                     </button>
-                  </span>
-                )}
+                  )}
+                </span>
               </div>
             )}
           </div>
@@ -533,7 +560,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
           <div className="flex-1 min-w-0 space-y-1.5 mt-1.5 pl-6">
             <div className="flex items-center gap-2 flex-wrap">
               {dday(data.submit9.dday, data.submit9.submittedAt)}
-              {data.submit9.due && !data.submit9.submittedAt && <span className="text-[10px] text-[#b0acd6]">기한 {data.submit9.due} (점검 후 15일)</span>}
+              {data.submit9.due && !data.submit9.submittedAt && <span className="text-[10px] text-[#b0acd6]">기한 {data.submit9.due}</span>}
               {canManage && (<>
                 <button onClick={() => generate('report9')} disabled={isPending || busy} className={btnPri}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
@@ -549,6 +576,12 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                     <PenLine className="size-3" /> 10호 작성
                   </button>
                 </>)}
+                {/* R7-9: 별지 4호(점검표)는 9호의 첨부다 — 제출 직전 같이 확인할 수 있게 ④에도 둔다.
+                    생성 진입점은 ①이 원천이고 여기서는 조회·재생성 편의만 제공한다 */}
+                <button onClick={() => generate('report4')} disabled={isPending || busy} className={btn}
+                  title="별지 4호(소방시설등점검표) — 9호의 첨부. 제출 직전 함께 확인">
+                  <FileText className="size-3" /> 별지 4호
+                </button>
                 <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
                 <span className="inline-flex items-center gap-1">
                   <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)} className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
@@ -556,6 +589,32 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                 </span>
               </>)}
             </div>
+            {/* R5-8 기산 근거 — '제출 기한이 왜 이 날짜인지'를 ④에서 바로 보고, 여기서 고칠 수도 있다.
+                종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
+            {data.period && (data.period.end || data.period.start) && (
+              <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-[#b0acd6]">
+                <Clock className="size-3 shrink-0" />
+                <span>
+                  기산: {data.period.end
+                    ? <>종료일 <b className="text-[#514b81]">{data.period.end}</b></>
+                    : <>시작일 <b className="text-[#514b81]">{data.period.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어야 기한이 맞습니다)</span></>
+                  } + 15일 = 기한 <b className="text-[#514b81]">{data.submit9.due ?? '—'}</b>
+                </span>
+                {canManage && !anchorEdit && (
+                  <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
+                    className="underline hover:text-[#7b68ee]">종료일 고치기</button>
+                )}
+                {canManage && anchorEdit && (
+                  <span className="inline-flex items-center gap-1">
+                    <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
+                      className="h-6 w-28 rounded-lg border border-[#d0ccf5] px-1.5 text-[10px]" />
+                    <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
+                    <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
+                  </span>
+                )}
+                {anchorMsg && <span className={anchorMsg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}>{anchorMsg}</span>}
+              </div>
+            )}
             {/* 전제 체크 (§9-6⑦ 흡수) */}
             <div className="flex items-center gap-2 flex-wrap text-[10px]">
               <span className="text-[#b0acd6]">└ 전제:</span>

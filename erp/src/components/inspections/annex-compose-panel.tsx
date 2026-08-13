@@ -5,65 +5,14 @@ import Link from 'next/link'
 import { X, Eye, FileText, Loader2, Save, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react'
 import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getAnnexPreviewHtmlAction, requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
-import { DateInput } from '@/components/ui/date-input'
+import { ANNEX_TITLES as TITLES, FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
 
 /** 별지 9·10·11호 작성 패널 — 공통 3단 패턴 (소방계획서_7 H-23, §4-A-2b)
  *  [1단 자동 채움 검토(①②)] → [2단 서식 고유 값 입력(③ annex_inputs)] → [3단 미리보기·PDF 생성]
  *  진입점: 점검 상세 타임라인 ④⑤⑥ · 별지 9호 카드 — 화면 1개(이중 구현 금지).
  *  같은 점검 건을 다시 열면 이전 ③ 입력 유지(재생성 대응). 배지 규약(§4-A-2c): [자동]=회색·원본 링크, [입력]=보라 */
 
-export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior'
-
-const TITLES: Record<ComposeAnnexNo, { title: string; doc: string }> = {
-  report9: { title: '별지 9호 작성', doc: '자체점검 실시결과 보고서' },
-  report10: { title: '별지 10호 작성', doc: '이행계획서' },
-  report11: { title: '별지 11호 작성', doc: '이행완료 보고서' },
-  // EX-2(소방계획서_19): 외관점검표는 ③ 계층이 아예 없어 보고일·비고를 수기 보정할 경로가 없었다
-  exterior: { title: '외관점검표 작성', doc: '소방시설등 외관점검표' },
-}
-
-type FieldDef = {
-  key: string
-  label: string
-  type: 'date' | 'daterange' | 'text' | 'textarea' | 'select'
-  placeholder?: string
-  hint?: string
-  /** type='select' 전용 — 첫 항목이 기본(빈 값=자동 판정) */
-  options?: Array<{ value: string; label: string }>
-}
-
-/** ③ 서식 고유 값 폼 정의 — 별지 MD §3 계층 매핑 기준 (문서 레벨 값만, 불량별 값은 불량 카드가 원본) */
-const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
-  report9: [
-    { key: 'reportDate', label: '보고일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
-    { key: 'note', label: '비고·보완 문구', type: 'textarea', hint: '1쪽 하단(유의사항 위)에 1줄 출력 — 없으면 미출력' },
-    // B-2c(소방계획서_19 K-2, Q-1 확정): 교육훈련 '실시' 수동 보정 — 자동 판정(1.11.4 전년도 실적)이
-    // 못 보는 경우(종이로만 실시) 구제. 부정('미실시') 강제는 없다 — 단정 금지 설계(A9-6 확정) 유지
-    { key: 'eduDone', label: '소방안전교육 실시(전년도) 보정', type: 'select',
-      options: [{ value: '', label: '자동 판정 (1.11.4 전년도 실적)' }, { value: '실시', label: '실시로 기재 (수동 확정)' }],
-      hint: '2쪽 교육훈련 칸 — 실적 기록부에 없지만 실제 실시한 경우만 수동 확정' },
-    { key: 'drillDone', label: '소방훈련 실시(전년도) 보정', type: 'select',
-      options: [{ value: '', label: '자동 판정 (1.11.4 전년도 실적)' }, { value: '실시', label: '실시로 기재 (수동 확정)' }],
-      hint: '2쪽 교육훈련 칸 — 실적 기록부에 없지만 실제 실시한 경우만 수동 확정' },
-  ],
-  report10: [
-    { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
-    { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'daterange', hint: '미입력 시 불량별 계획 시작·종료일로 자동 산출 — 문서에는 "○년 ○월 ○일" 형식으로 출력' },
-    { key: 'totalDays', label: '총 일수 (수동 보정)', type: 'text', placeholder: '예: 20' },
-    { key: 'summary', label: '계획 내용 요약', type: 'textarea', hint: '이행조치 사항 표의 첫 행으로 출력' },
-    { key: 'contractor', label: '공사업체 메모', type: 'text', hint: '내부 메모 — 문서에는 출력되지 않습니다' },
-    { key: 'budget', label: '예산 메모', type: 'text', hint: '내부 메모 — 문서에는 출력되지 않습니다' },
-  ],
-  report11: [
-    { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
-    { key: 'note', label: '완료 보고 문구', type: 'textarea', hint: '서명 블록 위에 1줄 출력 — 없으면 미출력' },
-    { key: 'evidence', label: '증빙 목록 메모', type: 'textarea', hint: '내부 메모 — 전/후 사진·계약서 첨부는 제출 패키지에 자동 포함' },
-  ],
-  exterior: [
-    { key: 'reportDate', label: '점검일(보고일)', type: 'date', hint: '미입력 시 점검 시작일로 출력' },
-    { key: 'note', label: '비고', type: 'textarea', hint: '표 아래 비고란에 출력 — 없으면 미출력' },
-  ],
-}
+export type { ComposeAnnexNo }
 
 type AutoRow = { label: string; source: string; href?: string }
 
@@ -97,8 +46,6 @@ function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: s
 const stepNo = 'inline-flex items-center justify-center size-5 rounded-full bg-[#7b68ee] text-white text-[11px] font-bold shrink-0'
 const badgeAuto = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#eeedf3] text-[#514b81]'
 const badgeInput = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#7b68ee] text-white'
-const inputBase = 'text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#7b68ee]'
-const inputCls = `w-full ${inputBase}`
 
 export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, onGenerated }: {
   inspectionId: string
@@ -296,36 +243,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                       <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#514b81] mb-1">
                         <span className={badgeInput}>입력</span> {d.label}
                       </label>
-                      {d.type === 'date' ? (
-                        <DateInput value={fields[d.key] ?? ''} aria-label={d.label}
-                          onChange={e => setField(d.key, e.target.value)} className={`${inputCls} w-40`} />
-                      ) : d.type === 'daterange' ? (
-                        // 가입기간(1.1 일반현황)과 동일 패턴 — "YYYY-MM-DD ~ YYYY-MM-DD"로 저장, 문서 출력 시 한국어 날짜로 변환(report9-actions)
-                        (() => {
-                          const [ps = '', pe = ''] = (fields[d.key] ?? '').split(/\s*~\s*/)
-                          const join = (s: string, e2: string) => setField(d.key, !s && !e2 ? '' : `${s} ~ ${e2}`.trim())
-                          return (
-                            <span className="inline-flex items-center gap-1.5">
-                              <DateInput value={ps} aria-label={`${d.label} 시작일`} onChange={e => join(e.target.value, pe)} className={`${inputBase} w-36`} />
-                              <span className="text-xs text-[#847ba8] shrink-0">~</span>
-                              <DateInput value={pe} aria-label={`${d.label} 종료일`} onChange={e => join(ps, e.target.value)} className={`${inputBase} w-36`} />
-                            </span>
-                          )
-                        })()
-                      ) : d.type === 'select' ? (
-                        <select value={fields[d.key] ?? ''} aria-label={d.label}
-                          onChange={e => setField(d.key, e.target.value)} className={`${inputBase} w-64 bg-white`}>
-                          {(d.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                      ) : d.type === 'textarea' ? (
-                        <textarea value={fields[d.key] ?? ''} aria-label={d.label} rows={2}
-                          placeholder={d.placeholder} onChange={e => setField(d.key, e.target.value)}
-                          className={`${inputCls} resize-y`} />
-                      ) : (
-                        <input type="text" value={fields[d.key] ?? ''} aria-label={d.label}
-                          placeholder={d.placeholder} onChange={e => setField(d.key, e.target.value)}
-                          className={inputCls} />
-                      )}
+                      <AnnexFieldInput def={d} value={fields[d.key] ?? ''} onChange={v => setField(d.key, v)} />
                       {d.hint && <p className="text-[10px] text-[#b0acd6] mt-0.5">{d.hint}</p>}
                     </div>
                   ))}
