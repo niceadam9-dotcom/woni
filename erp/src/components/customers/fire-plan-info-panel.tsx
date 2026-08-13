@@ -83,6 +83,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     managerSelectedAt: d.managerSelectedAt, grade: d.grade, insuranceJoined: d.insuranceJoined,
     opHoursWeekday: d.opHoursWeekday,
     hasHeadcount: !!(d.headcountWorker || d.headcountResident || d.headcountMax),
+    managerAppointType: d.managerAppointType,
     hasBrigade: d.brigade.some(m => m.name.trim()),
   })
 
@@ -218,7 +219,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   return (
     <div className="mb-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff]">
       {/* 헤더 — 준비율 게이지(입력 즉시 반영). 누락 칩은 상단 생성 바와 완전 중복이라 제거(2026-08-06):
-          같은 computeFirePlanReadiness 9항목을 두 번 그리고 있었고, 상단 칩은 다른 탭(건물·기본정보 등)까지
+          같은 computeFirePlanReadiness 항목을 두 번 그리고 있었고, 상단 칩은 다른 탭(건물·기본정보 등)까지
           보낼 수 있어 기능이 더 넓다. focusMissing은 상단 칩이 보내는 erp:focus-missing 수신용으로 존치. */}
       <div className="flex items-center gap-2 px-4 py-3">
         <span className="flex items-center gap-2 shrink-0">
@@ -318,15 +319,14 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               </div>
             </div>
             <div><label className={labelCls}>최근 교육이수일</label><br /><DateInput value={d.managerEduDate} onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32`} /></div>
-            {/* B-4d(소방계획서_19, 124): 선임 형태 — 별지 9호 2쪽 체크 5종의 원천 */}
+            {/* B-4d(소방계획서_19, 124): 선임 형태 — 별지 9호 2쪽 체크 5종의 원천. 주변 필드와 같은 버튼형 토글 */}
             <div><label className={labelCls}>선임 형태</label><br />
-              <select value={d.managerAppointType} onChange={e => set('managerAppointType', e.target.value)}
-                className={`${inputCls} w-40 bg-white`}>
-                <option value="">선택 안 함</option>
+              <div id="fp-appoint-type" className="flex flex-wrap rounded-lg border border-[#d0ccf5] overflow-hidden">
                 {['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타'].map(t => (
-                  <option key={t} value={t}>{t}</option>
+                  <button key={t} onClick={() => set('managerAppointType', d.managerAppointType === t ? '' : t)}
+                    className={`px-2.5 h-8 text-xs ${d.managerAppointType === t ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{t}</button>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">

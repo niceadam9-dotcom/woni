@@ -31,7 +31,7 @@ const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'con
   '층수': 'buildings', '높이': 'buildings', '세대수': 'buildings', '건물동수': 'buildings',
   '승강기': 'buildings', '주차장': 'buildings',
   '수신기위치': 'form11', '구조': 'form11', '지붕': 'form11', '선임일': 'form11', '급수': 'form11',
-  '화재보험': 'form11', '운영시간': 'form11', '인원': 'form11',
+  '화재보험': 'form11', '운영시간': 'form11', '인원': 'form11', '선임 형태': 'form11',
   '자위소방대': 'ch2', '송달 동의': 'consent',
 }
 const CHIP_TARGET_LABEL: Record<string, string> = {

@@ -111,7 +111,7 @@ export async function fetchCustomerList(
       inspection_type, inspection_sub_type, address, is_active, assigned_employee_id, created_at,
       region_si, region_myeon, region_ri,
       manager_selected_at, building_grade, insurance_joined, op_hours_weekday,
-      headcount_worker, headcount_resident, headcount_max,
+      headcount_worker, headcount_resident, headcount_max, manager_appointment_type,
       buildings(id, building_name, total_area, floors_above, floors_below, purpose, is_active,
         receiver_location, main_structure, roof_structure)`)
     .order('created_at', { ascending: false })
@@ -218,6 +218,7 @@ export async function fetchCustomerList(
       opHoursWeekday: s(r.op_hours_weekday),
       hasHeadcount: r.headcount_worker != null || r.headcount_resident != null || r.headcount_max != null,
       hasBrigade: brigadeIds.has(r.id as string),
+      managerAppointType: s(r.manager_appointment_type),
     })
     // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 준비율·미완료 판정 전 유형 동일
     const incompleteAreas: string[] = []

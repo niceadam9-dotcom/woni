@@ -11,6 +11,8 @@ export type FirePlanReadinessData = {
   opHoursWeekday: string
   hasHeadcount: boolean
   hasBrigade: boolean
+  /** 선임 형태(customers.manager_appointment_type, 124) — 별지 9호 2쪽 체크 5종의 원천 (A9-4 입력 개선) */
+  managerAppointType: string
 }
 
 export type FirePlanReadiness = { done: number; total: number; missing: string[] }
@@ -20,6 +22,7 @@ export const READINESS_TARGET_IDS: Record<string, string> = {
   '수신기위치': 'fp-receiver', '구조': 'fp-structure', '지붕': 'fp-roof',
   '선임일': 'fp-manager-date', '급수': 'fp-grade', '화재보험': 'fp-insurance',
   '운영시간': 'fp-ophours', '인원': 'fp-headcount', '자위소방대': 'fp-brigade',
+  '선임 형태': 'fp-appoint-type',
 }
 
 export function computeFirePlanReadiness(d: FirePlanReadinessData): FirePlanReadiness {
@@ -33,6 +36,7 @@ export function computeFirePlanReadiness(d: FirePlanReadinessData): FirePlanRead
     ['운영시간', !!d.opHoursWeekday],
     ['인원', d.hasHeadcount],
     ['자위소방대', d.hasBrigade],
+    ['선임 형태', !!d.managerAppointType],
   ]
   return {
     done: checks.filter(c => c[1]).length,

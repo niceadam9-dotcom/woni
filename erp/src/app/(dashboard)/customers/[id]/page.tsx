@@ -349,6 +349,7 @@ export default async function CustomerDetailPage({
     insuranceJoined: planInfoInitial.insuranceJoined, opHoursWeekday: planInfoInitial.opHoursWeekday,
     hasHeadcount: !!(planInfoInitial.headcountWorker || planInfoInitial.headcountResident || planInfoInitial.headcountMax),
     hasBrigade: planInfoInitial.brigade.length > 0,
+    managerAppointType: planInfoInitial.managerAppointType,
   })
 
   // ── P2: 문서 요구 매트릭스 + 빠른 입력 필수 완성도 (§1-1) — 일반관리 특례 없음 (소방계획서_6 W-14) ──

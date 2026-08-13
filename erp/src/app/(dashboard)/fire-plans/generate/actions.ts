@@ -57,7 +57,7 @@ export async function getFirePlanReadinessAction(customerIds: string[]): Promise
 
   const [{ data: custs }, { data: blds }, { data: brigade }] = await Promise.all([
     admin.from('customers')
-      .select('id, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max')
+      .select('id, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, manager_appointment_type')
       .in('id', ids),
     admin.from('buildings')
       .select('customer_id, receiver_location, main_structure, roof_structure, created_at')
@@ -76,6 +76,7 @@ export async function getFirePlanReadinessAction(customerIds: string[]): Promise
       id: string; manager_selected_at: string | null; building_grade: string | null
       insurance_joined: boolean | null; op_hours_weekday: string | null
       headcount_worker: number | null; headcount_resident: number | null; headcount_max: number | null
+      manager_appointment_type: string | null
     }>).map(c => {
       const b = firstBld.get(c.id)
       return {
@@ -90,6 +91,7 @@ export async function getFirePlanReadinessAction(customerIds: string[]): Promise
           opHoursWeekday: c.op_hours_weekday ?? '',
           hasHeadcount: c.headcount_worker != null || c.headcount_resident != null || c.headcount_max != null,
           hasBrigade: brigadeIds.has(c.id),
+          managerAppointType: c.manager_appointment_type ?? '',
         }),
       }
     }),
