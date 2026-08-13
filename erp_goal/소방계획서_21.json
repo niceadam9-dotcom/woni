@@ -1157,7 +1157,7 @@
             "F-10"
           ],
           "blocked_by": null,
-          "note": "**차단 3건 중 2.5건 해소.** ① 엑셀 전용 12건 편입 완료(132·133) ② 펌프 대상 설비 8개 확장 완료(132) ③ 대조 — **내용 대조는 통과(9/9, 유실 0)**, 칸 배치·인쇄 레이아웃 육안 확인만 스테이징에 남는다. 착수 여부는 사용자 판단 대기 — 기능 삭제라 자동 진행하지 않는다",
+          "note": "**차단 3건 중 2건 해소, 1건은 게이트로 전환.** ① 엑셀 전용 12건 편입(132·133) ② 펌프 대상 설비 8개(132) ③ 레이아웃 육안 확인 = 스테이징 게이트. 기능 삭제라 게이트 통과 전 자동 진행하지 않는다. 절차: erp_goal/_편입안_엑셀전용12건_별지4호.md §스테이징 확인 절차",
           "blocker_check": {
             "date": "2026-08-13",
             "probe": "scripts/_probe-r56-blockers.mjs",
@@ -1176,7 +1176,16 @@
               "remaining_before_delete": "이제 남은 것은 **스테이징에서 별지 4호 PDF에 12건이 실제로 인쇄되는지 눈으로 확인**하는 단계뿐이다. 그 확인 후에 엑셀 생성 경로를 제거한다(report-generate-actions.ts · lib/report-generator.ts · report-generate-client.tsx · [id]/page.tsx 호출부 · 스토리지 템플릿 · _probe-c1-blocks.mjs의 존치 단언 2건)"
             }
           },
-          "removal_map": "report-generate-actions.ts(generateOperationalReportAction·printOperationalReportAction) · lib/report-generator.ts · report-generate-client.tsx · [id]/page.tsx의 [기타 도구] details 블록 · 템플릿 reports/templates/operational_v2026.xlsx · _probe-c1-blocks.mjs가 엑셀 버튼 존치를 단언 중이라 함께 갱신"
+          "removal_map": "report-generate-actions.ts(generateOperationalReportAction·printOperationalReportAction) · lib/report-generator.ts · report-generate-client.tsx · [id]/page.tsx의 [기타 도구] details 블록 · 템플릿 reports/templates/operational_v2026.xlsx · _probe-c1-blocks.mjs가 엑셀 버튼 존치를 단언 중이라 함께 갱신",
+          "gate": "**사용자 확정(2026-08-13): 스테이징에서 레이아웃을 눈으로 본 뒤 착수.** 로컬에서 끝난 것 — 항목 유실 0(결과 있는 24건 전부 수록·편입 12건 문서 도달)·블록 대응 3/3. 스테이징이 필요한 이유는 단 하나, **로컬 사이드카(Playwright Chromium·LibreOffice)가 운영 Gotenberg와 렌더러가 달라** 칸 배치·인쇄 레이아웃을 여기서 판정할 수 없기 때문이다",
+          "staging_prereq": "DB는 이미 스테이징이고(로컬 .env.local이 스테이징 Supabase) 132·133도 적용돼 있다 — 새로 필요한 것은 **앱 코드 배포 하나**뿐(별지 4호 pumpTestPages 렌더 + 편입 항목 반영). 현재 main 미푸시 87건",
+          "staging_steps": [
+            "main 푸시 → 스테이징 배포",
+            "$env:TEST_BASE_URL=\"https://staging.sjfire.co.kr\" 로 _probe-r57-visual.mts · _probe-r57-content.mts 재실행 (로컬과 같은 명령, BASE만 변경)",
+            "annex4.pdf·excel.pdf를 나란히 열어 육안 확인 — 제어반 면 칸 배치 · 펌프성능시험 표 한 쪽 수용 · 부속 점검표 쪽 나눔이 항목을 자르지 않는지 · 엑셀에만 있는 시각 요소",
+            "문제 없으면 R5-6 착수 / 있으면 새 차단으로 기록 후 해소",
+            "node scripts/_probe-r57-clean.mjs 로 시드 정리"
+          ]
         },
         {
           "id": "R5-7",
@@ -1224,7 +1233,7 @@
         {
           "id": "R5-9",
           "desc": "펌프성능시험 실측치 기록처 신설 — 엑셀 폐지(R5-6) 전에 실측치가 갈 곳을 먼저 만든다",
-          "status": "code_present",
+          "status": "partial",
           "depends": [
             "R5-7"
           ],
@@ -1296,7 +1305,24 @@
                 "next": "다중이용업 별지4호 렌더 축을 확인한 뒤 32 포함 여부 결정 — 포함 시 CHECK에 32 추가 + 라벨 + 렌더 배치"
               }
             ]
-          }
+          },
+          "recheck_by_coordinator": {
+            "date": "2026-08-13",
+            "who": "이 세션(R5-9 비구현자) — 앞선 판정 3인과도 별개의 제4의 눈",
+            "method": "기록을 신뢰하지 않고 원문·DB·코드를 직접 재측정. 계수는 선입견 없이 다시 셌다(그 기록 자체가 \"계수는 한 원문·한 사람으로 끝내지 말 것\"이라 적었다)",
+            "confirmed": [
+              "**마이그레이션 132 적용 실측 확인** — CHECK 제약을 오류 코드로 구분해 프로브(23514=check vs 23503=fk). 허용 [2,3,4,5,6,7,8,13], 거부 [32,1,9,99]. V21-1 해소가 DB에 실제로 반영됐다",
+              "**V21-6 확정 — 표가 붙는 면은 9개다.** _probe-pump-recount.mjs로 별지4호 XML의 \"펌프성능시험\" 9회 출현 전부에 대해 직전·직후 항목코드와 문맥을 뽑았다: 2-H-031 / 3-L-002 / 4-J-004(4쪽 중 4쪽) / 5-M-001 / 6-L-001 / 7-I-031 / 8-L-041 / 13-G-041 / **32-A-018→32-B-001**. 9번째는 다중이용업소 면이 맞다(문맥 \"시험밸브 개방시 펌프기동 및 음향 경보 여부\"). 8개는 축소가 아니라 미결이라는 기존 판단은 타당하나, **누락 자체는 실재**한다",
+              "V21-2 실재 — report9-actions.ts의 missing 열거 24건 중 펌프성능시험 관련 0건. 엑셀 폐지 후 유일 기록처가 되는데 미입력 인지 수단이 없다",
+              "V21-3 실재 — pump-test-panel.tsx에 useUnsavedNavGuard·collectPlanSaveHandlers 참조 0건",
+              "V21-4 실재 — pump-test-actions.ts num()에 하한 검증 없음(음수 저장 가능)"
+            ],
+            "verdict": "**partial 유지.** 차단 결함(V21-1)은 DB까지 실측 해소됐고 판정 정직성·문서 도달 등 핵심은 앞선 판정에서 확인됐다. 다만 미해소 4건(V21-2·3·4·6)이 모두 실재하므로 implemented로 올릴 수 없다(Json_Rule 규칙 1 — 일부만 충족은 partial)",
+            "blocking_r5_6": "R5-6(엑셀 폐지)의 전제는 \"실측치 기록처가 사라지지 않는다\"이고 그 전제 자체는 충족됐다(값이 문서까지 도달함을 E2E가 확인). 다만 **32(다중이용업) 면은 아직 기록처가 없다** — 엑셀에 그 면이 있었다면 폐지 시 유실된다. R5-6 착수 전 32 포함 여부를 결론내야 한다"
+          },
+          "artifacts": [
+            "scripts/_probe-pump-recount.mjs (신규 — 원문 9회 출현의 설비 번호를 문맥과 함께 재검산)"
+          ]
         }
       ],
       "artifacts": [
