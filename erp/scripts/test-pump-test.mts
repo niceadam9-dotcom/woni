@@ -60,14 +60,19 @@ try {
   await page.waitForSelector('[data-testid="workbench-stepbar"]')
   const panel = page.locator('[data-testid="pump-test-panel"]')
   await panel.waitFor({ timeout: 60000 })
-  check('① 점검표 칸에 펌프성능시험 패널', true)
+  check('① 점검표 칸에 펌프성능시험 패널', await panel.isVisible())
   check('법정 서식 표제 노출', await page.isVisible('text=※ 펌프성능시험'))
   check('설비 탭 — 옥내소화전', await panel.locator('button:has-text("옥내소화전설비")').isVisible())
   // 탭은 패널 안에서만 센다 — 점검표 시트 목록에도 같은 이름의 버튼이 있다
   const tabNames = await panel.locator('button').filter({ hasText: /설비$/ }).allInnerTexts()
-  check('표가 붙는 설비만 탭에 있음(법정 6개 중 DB 보유분)',
-    tabNames.every(t => ['옥내소화전설비', '스프링클러설비', '간이스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비'].includes(t.trim())),
+  // 법정 8개(2·3·4·5·6·7·8·13) 중 STD 시트가 실재하는 것만 탭에 뜬다.
+  // 종전 단언은 6개로 굳어 있었고 그 숫자가 틀렸다 — 5(화재조기진압)·13(옥외소화전) 누락(V21-1).
+  check('표가 붙는 설비만 탭에 있음(법정 8개 중 DB 보유분)',
+    tabNames.every(t => ['옥내소화전설비', '스프링클러설비', '간이스프링클러설비', '화재조기진압용 스프링클러설비',
+      '물분무소화설비', '미분무소화설비', '포소화설비', '옥외소화전설비'].includes(t.trim())),
     tabNames.join(','))
+  check('옥외소화전설비 탭 노출 — V21-1 해소(132 CHECK 확장분)',
+    tabNames.some(t => t.trim() === '옥외소화전설비'), tabNames.join(','))
 
   // ── 2) 실측치 입력 → DB 저장 ──
   const fill = async (label: string, v: string) => {

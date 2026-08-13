@@ -2,7 +2,7 @@
 // 실행: npx tsx scripts/_probe-pump-test.mts
 import pump from '../src/lib/pump-test.ts'
 
-const { judgePumpTest, emptyPumpRow, pumpRowHasValue, PUMP_TEST_SHEETS, PUMP_JUDGE_LABELS } = pump as typeof import('../src/lib/pump-test.ts')
+const { judgePumpTest, emptyPumpRow, pumpRowHasValue, PUMP_TEST_SHEETS, PUMP_JUDGE_LABELS, PUMP_SHEET_LABELS } = pump as typeof import('../src/lib/pump-test.ts')
 
 let pass = 0, fail = 0
 const check = (name: string, cond: boolean, detail = '') => {
@@ -13,9 +13,16 @@ const check = (name: string, cond: boolean, detail = '') => {
 const row = (o: Partial<ReturnType<typeof emptyPumpRow>>) => ({ ...emptyPumpRow(2, '주'), ...o })
 
 // ── 서식 상수 ──
-check('표가 붙는 설비 6개 (법정 서식 기준)',
-  PUMP_TEST_SHEETS.length === 6 && [2, 3, 4, 6, 7, 8].every(n => (PUMP_TEST_SHEETS as readonly number[]).includes(n)),
+// 8개다 — 이 단언은 원래 6개로 굳어 있었고 그 숫자가 틀렸다(5·13 누락).
+// 고시 원문에서 '펌프성능시험' 9회 출현의 직전 항목코드로 귀속을 확정했다:
+//   2-H-031→2 · 3-L-002→3 · '4쪽 중 4쪽'면→4 · 5-M-001→5 · 6-L-001→6 · 7-I-031→7 · 8-L-041→8 · 13-G-041→13
+// 근거: scripts/_probe-pump-table-source.mjs(두 원문 교차 대조) · _probe-pump-table-context.mjs(문맥)
+check('표가 붙는 설비 8개 (법정 서식 기준)',
+  PUMP_TEST_SHEETS.length === 8 && [2, 3, 4, 5, 6, 7, 8, 13].every(n => (PUMP_TEST_SHEETS as readonly number[]).includes(n)),
   PUMP_TEST_SHEETS.join(','))
+check('설비 라벨이 전 대상에 있다',
+  PUMP_TEST_SHEETS.every(n => !!PUMP_SHEET_LABELS[n]),
+  PUMP_TEST_SHEETS.filter(n => !PUMP_SHEET_LABELS[n]).join(',') || 'ok')
 check('적정 여부 문장 3개', PUMP_JUDGE_LABELS.length === 3)
 check('①은 140% 기준 문장', PUMP_JUDGE_LABELS[0].includes('140%'))
 check('③은 65% 기준 문장', PUMP_JUDGE_LABELS[2].includes('65%'))

@@ -7,13 +7,19 @@
  *
  *  DB 조회 없는 순수 함수로 둔다 — 프로브가 전 조합을 DB 없이 단언할 수 있어야 한다. */
 
-/** 표가 붙는 설비 (item_code 앞자리 = sheet_no). 법정 서식 기준 6개. */
-export const PUMP_TEST_SHEETS = [2, 3, 4, 6, 7, 8] as const
+/** 표가 붙는 설비 (item_code 앞자리 = sheet_no). 법정 서식 기준 **8개**.
+ *  ⚠ 최초 구현은 6개(5·13 누락)였다. 고시 원문에서 '펌프성능시험' 9회 출현의 직전 항목코드로
+ *  귀속을 확정했다 — 2-H-031→2 · 3-L-002→3 · 5-M-001→5 · 6-L-001→6 · 7-I-031→7
+ *  · 8-L-041→8 · 13-G-041→13 (그리고 '4쪽 중 4쪽' 면→4). 근거: scripts/_probe-pump-table-context.mjs.
+ *  숫자를 고칠 일이 있으면 원문을 다시 세라 — 구현자 6개·판정자 7개로 두 번 틀린 자리다. */
+export const PUMP_TEST_SHEETS = [2, 3, 4, 5, 6, 7, 8, 13] as const
 export type PumpTestSheetNo = (typeof PUMP_TEST_SHEETS)[number]
 
 export const PUMP_SHEET_LABELS: Record<number, string> = {
   2: '옥내소화전설비', 3: '스프링클러설비', 4: '간이스프링클러설비',
+  5: '화재조기진압용 스프링클러설비',
   6: '물분무소화설비', 7: '미분무소화설비', 8: '포소화설비',
+  13: '옥외소화전설비',
 }
 
 export const PUMP_KINDS = ['주', '예비'] as const

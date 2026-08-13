@@ -1,0 +1,98 @@
+[
+  {
+    "code": "2-H-018",
+    "name": "감시제어반 전용실 적정 설치 및 관리 여부",
+    "comprehensive": true,
+    "sheetId": "d6342a20-625f-47f2-8718-0edbedf287b9",
+    "fac": "옥내소화전설비",
+    "order": 59
+  },
+  {
+    "code": "2-H-019",
+    "name": "기계·기구 또는 시설 등 제어 및 감시설비 외 설치 여부",
+    "comprehensive": true,
+    "sheetId": "d6342a20-625f-47f2-8718-0edbedf287b9",
+    "fac": "옥내소화전설비",
+    "order": 60
+  },
+  {
+    "code": "2-H-021",
+    "name": "앞면은 적색으로 하고,“옥내소화전설비용 동력제어반”표지 설치 여부",
+    "comprehensive": false,
+    "sheetId": "d6342a20-625f-47f2-8718-0edbedf287b9",
+    "fac": "옥내소화전설비",
+    "order": 61
+  },
+  {
+    "code": "2-H-031",
+    "name": "소방전원보존형발전기는 이를 식별할 수 있는 표지 설치 여부",
+    "comprehensive": true,
+    "sheetId": "d6342a20-625f-47f2-8718-0edbedf287b9",
+    "fac": "옥내소화전설비",
+    "order": 62
+  },
+  {
+    "code": "3-K-022",
+    "name": "일제개방밸브 사용 설비 화재감지기 회로별 화재표시 적정 여부",
+    "comprehensive": true,
+    "sheetId": "c55ba68d-46c1-40d7-97a2-8f43dcd6d417",
+    "fac": "스프링클러설비",
+    "order": 85
+  },
+  {
+    "code": "3-K-023",
+    "name": "감시제어반과 수신기 간 상호 연동 여부(별도로 설치된 경우)",
+    "comprehensive": true,
+    "sheetId": "c55ba68d-46c1-40d7-97a2-8f43dcd6d417",
+    "fac": "스프링클러설비",
+    "order": 86
+  },
+  {
+    "code": "3-K-031",
+    "name": "앞면은 적색으로 하고,“스프링클러설비용 동력제어반”표지 설치 여부",
+    "comprehensive": false,
+    "sheetId": "c55ba68d-46c1-40d7-97a2-8f43dcd6d417",
+    "fac": "스프링클러설비",
+    "order": 87
+  },
+  {
+    "code": "3-K-041",
+    "name": "소방전원보존형발전기는 이를 식별할 수 있는 표지 설치 여부",
+    "comprehensive": true,
+    "sheetId": "c55ba68d-46c1-40d7-97a2-8f43dcd6d417",
+    "fac": "스프링클러설비",
+    "order": 88
+  },
+  {
+    "code": "3-L-001",
+    "name": "헤드 설치 제외 적정 여부(설치 제외된 경우)",
+    "comprehensive": true,
+    "sheetId": "c55ba68d-46c1-40d7-97a2-8f43dcd6d417",
+    "fac": "스프링클러설비",
+    "order": 89
+  },
+  {
+    "code": "3-L-002",
+    "name": "드렌처설비 설치 적정 여부",
+    "comprehensive": true,
+    "sheetId": "c55ba68d-46c1-40d7-97a2-8f43dcd6d417",
+    "fac": "스프링클러설비",
+    "order": 90
+  },
+  {
+    "code": "13-G-031",
+    "name": "앞면은 적색으로 하고,“옥외소화전설비용 동력제어반”표지 설치 여부",
+    "comprehensive": false,
+    "sheetId": "dc7fa1e7-02b8-414a-a889-b1b6f36bd219",
+    "fac": "옥외소화전설비",
+    "order": 54
+  },
+  {
+    "code": "13-G-041",
+    "name": "소방전원보존형발전기는 이를 식별할 수 있는 표지 설치 여부",
+    "comprehensive": true,
+    "sheetId": "dc7fa1e7-02b8-414a-a889-b1b6f36bd219",
+    "fac": "옥외소화전설비",
+    "order": 55
+  }
+]
