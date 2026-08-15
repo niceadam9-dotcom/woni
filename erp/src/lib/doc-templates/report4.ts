@@ -8,13 +8,25 @@
  *  customer_facility_specs, 별지 9호 4~7쪽과 공용 원본 §4-A-1).
  *  렌더는 순수 함수(조회 없음) — 데이터 조립은 report9-actions.assembleReport4. */
 
-import { renderDocument, pageHeader, pageFooter, esc, val, ck } from './base'
+import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from './base'
 import { facilityResultSection, muResultSection, type Report9Person } from './report9'
 import { renderSpecSections, type SpecMap } from './spec-sections'
 import { PUMP_JUDGE_LABELS, PUMP_SHEET_LABELS } from '@/lib/pump-test'
 
-/** 부속 '설비별 점검표' 1행 — 점검번호(1-A-001…) 항목 중 ○/× 응답만 (A4-1 Q-2, 2026-08-11 확정) */
-export type Report4SheetItem = { code: string; name: string; mark: 'O' | 'X' }
+/** 부속 '설비별 점검표' 1행 — 시트 전 항목 수록: ○·×·／ 세 값 + 무응답 공란(소방계획서_22 Q-1·Q-5,
+ *  2026-08-14 확정 — 종전 A4-1 Q-2 '○/× 발췌 수록'을 번복. 법정 서식은 항목 행이 항상 존재한다).
+ *  group/subgroup은 소방계획서_23 Q-16(3층 축) — 마이그레이션 134 이전 조립분은 undefined라 종전 렌더 그대로다. */
+export type Report4SheetItem = {
+  code: string; name: string
+  /** 점검결과 — O 양호○ / X 불량× / N 해당없음／ / null 무응답(공란, 미점검) */
+  mark: 'O' | 'X' | 'N' | null
+  /** 종합점검 전용 항목(●) — 항목명 앞 불릿이 ●, 일반 항목은 ○ (22 S2, 원문 R-5) */
+  comprehensive?: boolean
+  /** 중분류 헤더(법정 표기 — 예: '1-A. 소화기구(소화기, 자동확산소화기, 간이소화용구)') */
+  group?: string | null
+  /** 대괄호 소제목(예: '주거용 주방 자동소화장치') — null = 소제목 없는 구간(혼재 중분류의 앞부분) */
+  subgroup?: string | null
+}
 export type Report4SheetSection = { no: number; name: string; items: Report4SheetItem[] }
 
 /** ※ 펌프성능시험 1행 — 법정 서식의 표 (소방계획서_21 R5-7 후속, inspection_pump_tests가 원천) */
@@ -52,7 +64,8 @@ export type Report4Data = {
   companyName: string                            // 소방시설관리업체
   /** A4-2(소방계획서_15): 소방시설관리업 등록번호 — company_profile.management_reg_no(123), 없으면 종전 공란 */
   companyRegNo?: string
-  /** 부속 설비별 점검표 — ○/× 응답 항목만, 비면 부속 쪽 자체를 미생성 (A4-1 Q-2) */
+  /** 부속 설비별 점검표 — 설치 설비 축 시트의 전 항목(○·×·／·공란, 22 Q-1·Q-3·Q-4).
+   *  목차(tocPage)와 본문(sheetItemPages)이 같은 배열을 읽어 어긋날 수 없다 */
   sheetSections?: Report4SheetSection[]
   /** ※ 펌프성능시험 실측치 — 비면 그 쪽을 미생성 (R5-7 후속) */
   pumpRows?: Report4PumpRow[]
@@ -169,22 +182,136 @@ ${head}${sections.join('\n')}
 ${pageFooter()}`
 }
 
-// ── 부속 — 설비별 점검표 (A4-1 Q-2, 2026-08-11 사용자 확정) ────────────────
-// 점검번호(1-A-001…) 항목 중 점검결과 ○/×만 수록. /(해당없음)·무응답 항목은 생략,
-// ○/×가 하나도 없으면 부속 쪽 자체를 만들지 않는다. 내용이 A4를 넘으면 인쇄 흐름 분할.
+/** 부속 점검표 1행 조각 — 페이지 분할(S12)을 위해 행 단위로 만든다. w = 대략적 줄 수(분할 예산용) */
+type SheetRowPiece = { html: string; w: number }
+
+/** 항목명이 표 안에서 2줄로 꺾일 만한 길이 — 이름 열 폭(약 140mm, 8.5pt) 기준 보수적 추정 */
+const WRAP_THRESHOLD = 46
+
+function sheetItemRowPieces(items: Report4SheetItem[]): SheetRowPiece[] {
+  const out: SheetRowPiece[] = []
+  let curGroup: string | null | undefined
+  let curSub: string | null | undefined
+  for (const it of items) {
+    if (it.group != null && it.group !== curGroup) {
+      out.push({ html: `<tr><td colspan="3" style="font-weight:bold; background:#fafafa">${esc(it.group)}</td></tr>`, w: 1 })
+      curGroup = it.group
+      curSub = undefined   // 중분류가 바뀌면 소제목 추적도 리셋 — 이전 중분류의 소제목이 이월되면 안 된다
+    }
+    if (it.subgroup !== undefined && it.subgroup !== curSub) {
+      // null run(소제목 없는 앞부분)은 행을 만들지 않는다 — 원문에 없는 헤더를 지어내지 않는다(G-2 혼재)
+      if (it.subgroup) out.push({ html: `<tr><td></td><td colspan="2" style="font-weight:600">[${esc(it.subgroup)}]</td></tr>`, w: 1 })
+      curSub = it.subgroup
+    }
+    // R-5(22 S2) — 항목명 앞 불릿: 종합전용 ●, 일반 ○ (원문 축자 — 불릿은 DB 이름에 없고 comprehensive_only가 원천)
+    // R-6(22 S1, Q-1·Q-5) — 결과란 4분기: ○/×/／/공란(무응답)
+    out.push({
+      html: `<tr><td class="center nowrap">${esc(it.code)}</td><td>${it.comprehensive ? '●' : '○'} ${esc(it.name)}</td><td class="center">${resultMark(it.mark)}</td></tr>`,
+      w: it.name.length > WRAP_THRESHOLD ? 2 : 1,
+    })
+  }
+  return out
+}
+
+/** 부속 점검표 본문 행 emit — 중분류·대괄호 소제목 행을 **값이 바뀔 때만** 삽입 (소방계획서_23 Q-16, 22 S9-4 흡수).
+ *  순수 함수 분리(23 §0-b) — S12의 설비당 페이지 골격과 행 생성 규칙을 섞지 않는다.
+ *  group/subgroup이 없는 조립분(134 미적용)은 헤더 행 없이 렌더된다. */
+export function sheetItemBodyRows(items: Report4SheetItem[]): string {
+  return sheetItemRowPieces(items).map(p => p.html).join('\n  ')
+}
+
+/** 점검표 꼬리 — '비고' 행 + ※ 각주 4줄 (22 S4, `_별지4호_현행판_추출.txt:507-512` 축자).
+ *  specNoteTable()(별지 9호 4쪽 세부현황용 3줄)과는 별개 문안이므로 재사용하지 않는다(S4-3).
+ *  따옴표(U+201C/201D)·구분자(위치․구조․용도 = U+2024)까지 원문 그대로 — 전역 치환 금지(위치별 축자). */
+function sheetTail(): string {
+  return `<table class="form tight" style="margin-top:-0.6pt">
+  <colgroup><col style="width:24mm"><col></colgroup>
+  <tr><td class="center">비고</td><td style="height:12mm"></td></tr>
+</table>
+<div class="small" style="margin-top:2px; line-height:1.55">※ 점검항목 중 “●”는 종합점검의 경우에만 해당한다.<br>※ 점검결과란은 양호 “○”, 불량 “×”, 해당없는 항목은 “/”로 표시한다.<br>※ 점검항목 내용 중 “설치기준” 및 “설치상태”에 대한 점검은 정상적인 작동 가능 여부를 포함한다.<br>※ ‘비고’란에는 특정소방대상물의 위치․구조․용도 및 소방시설의 상황 등이 이 표의 항목대로 기재하기<br>&nbsp;&nbsp;&nbsp;&nbsp;곤란하거나 이 표에서 누락된 사항을 기재한다.(이하 같다)</div>`
+}
+
+/** 점검표 전용 용지 푸터 — 원문(:513)은 '[백상지(80g/㎡)]' 단독 표기(공용 pageFooter와 문안이 다르다) */
+function sheetPageFooter(): string {
+  return '<div class="footnote">210mm×297mm [백상지(80g/㎡)]</div>'
+}
+
+// 페이지 분할 예산(대략 줄 수) — @page A4 15mm/13mm 여백, 8.5pt tight 행 기준 보수 추정.
+// 첫 쪽은 제목 오버헤드, 꼬리(비고+각주 5줄)는 TAIL_W 예산을 마지막 쪽에 확보한다.
+const SHEET_PAGE_W_FIRST = 34
+const SHEET_PAGE_W_NEXT = 38
+const TAIL_W = 9
+
+// ── 부속 — 설비별 점검표 (22 S12 — 설비당 독립 문서·자체 쪽번호) ─────────────
+// 법정 원문은 점검표마다 독립 쪽번호 축을 갖는다((7쪽 중 N쪽) 뒤로 (3쪽 중 1쪽)이 설비마다
+// 새로 시작 — P-18). 설비당 1개 이상의 page를 만들고 각 page에 자체 (N쪽 중 M쪽) 헤더,
+// 마지막 page에 꼬리(비고+각주, S4)를 붙인다. 수록 규칙은 Q-1·Q-4·Q-5 — 전 항목 수록,
+// 무응답 공란, 응답 0건 설비도 서식은 온전히 찍는다(시트 선별은 조립부의 설치 설비 축).
 function sheetItemPages(sections: Report4SheetSection[]): string[] {
-  if (!sections.length) return []
-  const body = sections.map(s => `
-  <tr><td colspan="3" style="background:#f2f2f2; font-weight:bold">${s.no ? `${s.no}. ` : ''}${esc(s.name)}</td></tr>
-  ${s.items.map(it => `<tr><td class="center nowrap">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="center">${it.mark === 'O' ? '○' : '×'}</td></tr>`).join('\n  ')}`).join('\n')
-  return [`
-${pageHeader(null, '(설비별 점검표)')}
-<h1 class="doc-title" style="font-size:13pt; letter-spacing:.1em; margin:4px 0 6px;">설비별 점검표</h1>
-<div class="small">※ 점검결과가 양호(○) 또는 불량(×)으로 기록된 점검항목만 수록하였으며, 해당없음(／)·미점검 항목은 생략하였습니다.</div>
-<table class="form tight">
+  const pages: string[] = []
+  for (const s of sections) {
+    // 1) 행 조각을 예산 단위로 쪽에 배분 — 분할을 CSS 흐름에 맡기지 않아야 M/N을 계산할 수 있다
+    const pieces = sheetItemRowPieces(s.items)
+    const chunks: SheetRowPiece[][] = []
+    let cur: SheetRowPiece[] = []
+    let used = 0
+    let cap = SHEET_PAGE_W_FIRST
+    for (const p of pieces) {
+      if (cur.length && used + p.w > cap) {
+        chunks.push(cur)
+        cur = []; used = 0; cap = SHEET_PAGE_W_NEXT
+      }
+      cur.push(p); used += p.w
+    }
+    if (cur.length || chunks.length === 0) chunks.push(cur)
+    // 꼬리가 마지막 쪽에 안 들어가면 꼬리 전용 쪽을 하나 더 만든다
+    const tailOwnPage = used + TAIL_W > cap && chunks[chunks.length - 1].length > 0
+    const total = chunks.length + (tailOwnPage ? 1 : 0)
+
+    // 2) 쪽 렌더 — 설비 제목은 첫 쪽만, 3열 머리행은 매 쪽 반복, 쪽번호는 설비별 독립 축(R-7)
+    const title = `${s.no ? `${s.no}. ` : ''}${esc(s.name)} 점검표`
+    const tableOf = (rows: SheetRowPiece[]) => `<table class="form tight">
   <colgroup><col style="width:24mm"><col><col style="width:16mm"></colgroup>
-  <thead><tr><th>점검번호</th><th>점검항목</th><th>점검결과</th></tr></thead>
-  <tbody>${body}
+  <thead><tr><th>번호</th><th>점검항목</th><th>점검결과</th></tr></thead>
+  <tbody>
+  ${rows.map(p => p.html).join('\n  ')}
+  </tbody>
+</table>`
+    chunks.forEach((rows, i) => {
+      const head = i === 0
+        ? `<h1 class="doc-title" style="font-size:13pt; letter-spacing:.05em; margin:4px 0 6px;">${title}</h1>\n`
+        : ''
+      const tail = !tailOwnPage && i === chunks.length - 1 ? `\n${sheetTail()}` : ''
+      pages.push(`
+${pageHeader(null, `(${total}쪽 중 ${i + 1}쪽)`)}
+${head}${tableOf(rows)}${tail}
+${sheetPageFooter()}`)
+    })
+    if (tailOwnPage) {
+      pages.push(`
+${pageHeader(null, `(${total}쪽 중 ${total}쪽)`)}
+${sheetTail()}
+${sheetPageFooter()}`)
+    }
+  }
+  return pages
+}
+
+// ── 목차 (22 S3·S6 — Q-3·Q-7) ────────────────────────────────────────────────
+// 표기는 시트 제목 한 줄(대분류만 — image-59와 동일, 중분류·대괄호 그룹은 올리지 않는다).
+// 법정 번호 유지(1·15·21·31 — 재번호 금지). 본문과 같은 sections 배열을 받으므로 둘이 어긋날 수 없다.
+// 근거: 추출본 446행 '(작성요령) 목차에는 점검을 실시하고자 하는 소방시설명만을 순서대로 기재한다'.
+// 펌프성능시험은 값이 있을 때만 조건부 1줄(Q-11 — 측정 기록이라 빈 표를 만들지 않는 현행 규약 유지).
+function tocPage(sections: Report4SheetSection[], hasPumpTest: boolean): string[] {
+  if (!sections.length) return []
+  const lines = sections.map(s => `${s.no ? `${s.no}. ` : ''}${esc(s.name)} 점검표`)
+  if (hasPumpTest) lines.push('펌프성능시험')
+  return [`
+${pageHeader(null, '(목차)')}
+<h1 class="doc-title" style="letter-spacing:.5em;">목  차</h1>
+<table class="form">
+  <tbody>
+  ${lines.map(l => `<tr><td style="padding:7px 10px; border-left:none; border-right:none; border-top:none;">${l}</td></tr>`).join('\n  ')}
   </tbody>
 </table>
 ${pageFooter()}`]
@@ -253,6 +380,8 @@ export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): str
       specPage(3, secs.slice(0, 2), true), specPage(4, secs.slice(2, 3)),
       specPage(5, secs.slice(3, 5)), specPage(6, secs.slice(5, 7)),
       specPage(7, secs.slice(7)),
+      // 목차는 신규 저장 타입이 아니라 같은 문서의 한 쪽(22 S6-1) — 색인 대상인 부속 점검표 직전
+      ...tocPage(d.sheetSections ?? [], (d.pumpRows ?? []).length > 0),
       ...sheetItemPages(d.sheetSections ?? []),
       ...pumpTestPages(d.pumpRows ?? []),
     ],

@@ -6,7 +6,7 @@ import { DateInput } from '@/components/ui/date-input'
  *  소방계획서_21 R6-6에서 작업대가 이 값을 미리보기 위에 인라인으로 받게 되면서
  *  정의가 두 벌이 되지 않도록 여기로 뺐다. 정의를 고칠 곳은 여기 하나다. */
 
-export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior'
+export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior' | 'official'
 
 export type FieldDef = {
   key: string
@@ -24,6 +24,8 @@ export const ANNEX_TITLES: Record<ComposeAnnexNo, { title: string; doc: string }
   report11: { title: '별지 11호 작성', doc: '이행완료 보고서' },
   // EX-2(소방계획서_19): 외관점검표는 ③ 계층이 아예 없어 보고일·비고를 수기 보정할 경로가 없었다
   exterior: { title: '외관점검표 작성', doc: '소방시설등 외관점검표' },
+  // 소방계획서_22 S7 — 공문은 문서번호(수동+자동 제안 Q-14)·수신·참조가 ③ 계층
+  official: { title: '공문 작성', doc: '점검 결과보고서 제출 공문' },
 }
 
 /** ③ 서식 고유 값 폼 정의 — 별지 MD §3 계층 매핑 기준 (문서 레벨 값만, 불량별 값은 불량 카드가 원본) */
@@ -56,6 +58,13 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   exterior: [
     { key: 'reportDate', label: '점검일(보고일)', type: 'date', hint: '미입력 시 점검 시작일로 출력' },
     { key: 'note', label: '비고', type: 'textarea', hint: '표 아래 비고란에 출력 — 없으면 미출력' },
+  ],
+  official: [
+    { key: 'docNo', label: '문서번호', type: 'text', placeholder: '예: 승 진 2511-977',
+      hint: '비워 두면 "{회사 약칭} {YYMM}-{동월 마지막 번호+1}"로 자동 제안됩니다 (Q-14)' },
+    { key: 'sendDate', label: '발신일자 표기', type: 'text', placeholder: '예: 2025년 11월', hint: '미입력 시 점검 종료월로 출력' },
+    { key: 'recipient', label: '수신', type: 'text', hint: '미입력 시 고객명(건물명)으로 출력' },
+    { key: 'reference', label: '참조', type: 'text', placeholder: '소방안전관리자 및 관계인', hint: '미입력 시 기본 문구로 출력' },
   ],
 }
 

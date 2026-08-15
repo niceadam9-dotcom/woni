@@ -21,6 +21,8 @@ import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actio
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { evidenceDone, activeStepNums, stepProgress, type StepNum } from '@/lib/inspection-step-status'
+import { isRegenBlocked } from '@/lib/annex-regen-policy'
+import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
@@ -83,6 +85,12 @@ export function InspectionWorkbench({
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
+  // 22 S15(Q-12) — 과거 건 재생성 차단. 서버(requestReport9Action)와 같은 순수 함수로 판정해
+  // 화면 비활성과 서버 거부가 갈라지지 않는다. 기준일 축도 서버와 동일(종료일 → 시작일 폴백)
+  const regenBlocked = isRegenBlocked({
+    inspection_end_date: data.period?.end ?? null,
+    inspection_start_date: data.period?.start ?? null,
+  })
 
   /* ── 판정 — 서버(syncInspectionSteps)와 **같은 함수**를 쓴다 (R4-1).
    *  여기서 규칙을 다시 쓰면 화면 ✓와 DB status가 갈라진다 — 오프라인 보고·사유 완료가
@@ -143,7 +151,7 @@ export function InspectionWorkbench({
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior') {
+  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official') {
     setMsg('')
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, reportType)
@@ -355,7 +363,8 @@ export function InspectionWorkbench({
 
       {msg && <p className={`shrink-0 text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
 
-      {/* 3칸 — 데스크톱 전용. 좁은 화면은 세로 스택 폴백(R6-10, 현장은 폰이다) */}
+      {/* 3칸 — 데스크톱 전용. 좁은 화면은 세로 스택 폴백(R6-10, 현장은 폰이다).
+          점검표 드로어는 createPortal 오버레이(소방계획서_23 Q-4·Q-15)라 이 grid 밖에 뜬다 — 3칸 비율은 개폐와 무관하게 고정. */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]"
         data-testid="workbench-panes">
         {sel === 'checklist' && (<>
@@ -499,15 +508,31 @@ export function InspectionWorkbench({
           </Pane>
           <Pane title="별지 9·10호 생성·제출" cls={paneCls} head={paneHead}>
             <div className="space-y-2 px-3 py-2">
+              {/* 22 S15(Q-12) — 규약 전환일 이전 건은 재생성 차단(서버 가드와 같은 판정 함수).
+                  CUTOFF가 null인 동안은 아무 건도 막지 않으므로 이 배너는 안 뜬다 */}
+              {regenBlocked && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                  구 규약(미선택=해당없음)으로 작성된 점검 — 재생성하면 결과 표기가 달라져 생성이 차단됩니다. 보관함 원본을 사용하세요.
+                  {customerId && (
+                    <NextLink href={`/customers/${customerId}`} className="ml-1 underline hover:text-amber-900">고객 문서 보관함 열기</NextLink>
+                  )}
+                  <span className="ml-1">원본이 없으면 관리자에게 문의해주세요.</span>
+                </div>
+              )}
               <div className="flex items-center gap-1.5 flex-wrap">
                 {canManage && (<>
-                  <button onClick={() => generate('report9')} disabled={isPending || busy} className={btnPri}>
+                  <button onClick={() => generate('report9')} disabled={isPending || busy || regenBlocked} className={btnPri}>
                     {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
                   </button>
-                  <button onClick={() => generate('report4')} disabled={isPending || busy} className={btn}><FileText className="size-3" /> 별지 4호</button>
+                  <button onClick={() => generate('report4')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 별지 4호</button>
+                  {/* 소방계획서_22 S5·S7 — 납품 번들 앞장 2종. 번들 순서는 공문 → 표지 → 본문(bundle TYPE_ORDER) */}
+                  <button onClick={() => generate('official')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 공문</button>
+                  <button onClick={() => generate('cover')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 표지</button>
                   <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
                 </>)}
               </div>
+              {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
+              {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
               <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] pt-2">
                 <span className="text-[11px] text-[#514b81]">소방서 제출일</span>
                 <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}

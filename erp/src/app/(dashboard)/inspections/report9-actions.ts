@@ -9,11 +9,17 @@ import {
   renderReport9, FORM3_ITEMS, form3Group, parseParkingSummary,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
-import { form3ItemsForSheet, rollUpForm3Results } from '@/lib/sheet-facility-map'
+import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { renderReport4, type Report4Data, type Report4SheetSection, type Report4PumpRow } from '@/lib/doc-templates/report4'
-import { judgePumpTest, type PumpTestRow } from '@/lib/pump-test'
+import { judgePumpTest, PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, type PumpTestRow } from '@/lib/pump-test'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
+import { renderCover } from '@/lib/doc-templates/cover'
+import { renderOfficial } from '@/lib/doc-templates/official'
+import { assembleCover, assembleOfficial } from '@/lib/annex-cover-official'
+import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
+import { deriveMuFromStd32 } from '@/lib/mu-std32-map'
+import type { DocAsset } from '@/lib/doc-templates/base'
 import { pickFirePlanManager } from '@/lib/fire-plan-template'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import type { ManagerRow } from '@/components/customers/plan-form17'
@@ -265,13 +271,26 @@ async function assembleReport9(
   // 점검표 응답 롤업(§9-3) — 시트별 X 유무 → 3쪽 양호○/불량×, 미설치 설비는 해당없음 /
   const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N' }>((from, to) =>
     admin.from('inspection_sheet_responses').select('item_code, result').eq('inspection_id', inspectionId).range(from, to))
-  const items = responses.length
-    ? await pageAll<{ item_code: string; item_name: string; sheet_id: string; order_num: number | null }>((from, to) =>
-      admin.from('inspection_sheet_items').select('item_code, item_name, sheet_id, order_num').range(from, to))
-    : []
-  const sheets = responses.length
-    ? ((await admin.from('inspection_sheets').select('id, sheet_name')).data ?? []) as Array<{ id: string; sheet_name: string }>
-    : []
+  // 카탈로그는 **항상** 조회한다(22 S3-5·S3-6) — 부속 시트 집합이 응답 역산이 아니라 설치 설비 축이라
+  // 응답 0건이어도 시트·항목이 나와야 한다. 종전 `responses.length ? … : []` 최적화는 Q-4 번복으로 제거.
+  // 그룹 축(group_name·subgroup_name)은 마이그레이션 134(소방계획서_23)가 만든다 —
+  // 미적용 환경에서는 select가 42703으로 죽으므로 종전 컬럼으로 폴백해 문서 생성을 막지 않는다.
+  type CatalogRow = {
+    item_code: string; item_name: string; sheet_id: string; order_num: number | null
+    comprehensive_only?: boolean | null
+    group_name?: string | null; subgroup_name?: string | null
+  }
+  let items: CatalogRow[] = []
+  try {
+    items = await pageAll<CatalogRow>((from, to) =>
+      admin.from('inspection_sheet_items')
+        .select('item_code, item_name, sheet_id, order_num, comprehensive_only, group_name, subgroup_name').range(from, to))
+  } catch {
+    items = await pageAll<CatalogRow>((from, to) =>
+      admin.from('inspection_sheet_items').select('item_code, item_name, sheet_id, order_num, comprehensive_only').range(from, to))
+  }
+  const sheets = ((await admin.from('inspection_sheets').select('id, sheet_code, sheet_name, version')).data ?? []) as
+    Array<{ id: string; sheet_code: string; sheet_name: string; version: string }>
   const sheetNameById = new Map(sheets.map(s => [s.id, s.sheet_name]))
   const sheetByItem = new Map(items.map(i => [i.item_code, sheetNameById.get(i.sheet_id) ?? '']))
   const itemNameByCode = new Map(items.map(i => [i.item_code, i.item_name]))
@@ -300,33 +319,6 @@ async function assembleReport9(
   for (const r of specRows.filter(r => r.building_id === null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
   for (const r of specRows.filter(r => r.building_id !== null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
 
-  // Q-2(소방계획서_15 A4-1, 2026-08-11 사용자 확정) — 별지 4호 부속 '설비별 점검표':
-  // 점검번호 체계(1-A-001…) 항목 중 결과가 ○/×인 것만 수록한다.
-  // /(해당없음)·무응답 항목은 생략하고, ○/×가 하나도 없는 설비(시트)는 통째로 미생성.
-  const SHEET_CODE_RE = /^\d{1,2}-[A-Z]-\d{3}$/
-  const resByCode = new Map(responses.map(r => [r.item_code, r.result]))
-  const seenCodes = new Set<string>()
-  const bySheet = new Map<string, { name: string; rows: Array<{ code: string; name: string; order: number; mark: 'O' | 'X' }> }>()
-  for (const it of items) {
-    if (!SHEET_CODE_RE.test(it.item_code) || seenCodes.has(it.item_code)) continue
-    const res = resByCode.get(it.item_code)
-    if (res !== 'O' && res !== 'X') continue
-    seenCodes.add(it.item_code)
-    const g = bySheet.get(it.sheet_id) ?? { name: sheetNameById.get(it.sheet_id) ?? '', rows: [] }
-    g.rows.push({ code: it.item_code, name: it.item_name, order: it.order_num ?? 0, mark: res })
-    bySheet.set(it.sheet_id, g)
-  }
-  const sheetSections: Report4SheetSection[] = [...bySheet.values()]
-    .map(g => {
-      const rows = g.rows.sort((a, b) => (a.order - b.order) || a.code.localeCompare(b.code))
-      return {
-        no: Number(rows[0].code.split('-')[0]),
-        name: g.name,
-        items: rows.map(({ code, name, mark }) => ({ code, name, mark })),
-      }
-    })
-    .sort((a, b) => (a.no - b.no) || a.name.localeCompare(b.name))
-
   // T-3(소방계획서_14_점검업무) — 시트·설비 ↔ FORM3 연결에서 퍼지 매칭 제거.
   // 종전 nameMatch(공백 제거 양방향 includes)는 sheet-facility-map 상단 주석의 두 결함을 문서 생성 경로에 남겨뒀다:
   //   오검 — 설치 '스프링클러설비'가 '간이·화재조기진압용' 항목까지 켬 / '비상조명등'이 '휴대용비상조명등'까지 켬
@@ -352,7 +344,9 @@ async function assembleReport9(
     rs.includes('X') ? 'X' : rs.includes('O') ? 'O' : rs.length ? 'N' : undefined
   const etcMarks = { door: etcRoll(etcAgg.door), exit: etcRoll(etcAgg.exit), flame: etcRoll(etcAgg.flame) }
 
-  // 3쪽 2절 안전시설등(다중이용업소, §9-6e) — MU 시트 응답 항목 단위 반영 (다중이용업 아니면 응답 없음 → 공란)
+  // 3쪽 2절 안전시설등(다중이용업소, §9-6e) — MU-01 직접 응답 항목 단위 반영.
+  // Q-10(22 S14): 이제 입력 원천은 STD-32 한 벌이고 16칸은 롤업 파생이지만,
+  // 직접 응답이 있는 레거시 건은 그 값이 이긴다(S14-3) — 아래 부속 조립 뒤에서 빈 칸만 파생을 채운다.
   const muResults: Record<string, 'O' | 'X' | 'N'> = {}
   for (const r of responses) {
     if (r.item_code.startsWith('MU-') && ['O', 'X', 'N'].includes(r.result)) muResults[r.item_code] = r.result
@@ -381,6 +375,71 @@ async function assembleReport9(
     for (const [cat, cnt] of Object.entries(muSection.categories ?? {})) {
       if (String(cnt ?? '').trim()) multiUseCounts[cat] = String(cnt).trim()
     }
+  }
+
+  // ── 부속 '설비별 점검표' 조립 (22 S1·S3 — Q-1·Q-3·Q-4·Q-5, 2026-08-14 확정) ──
+  // 시트 집합을 설치 설비(fire_facilities.installed) 축에서 **먼저** 정하고, 그 시트의 전 항목을
+  // 카탈로그에서 가져와 응답을 왼쪽 조인한다. ○·×·／ 세 값 전부 수록, 무응답은 공란(행은 존재),
+  // 응답 0건 설비도 본문·목차에 나온다. 종전 A4-1 Q-2(○/× 발췌 수록·무응답 설비 미생성)는 Q-1이 번복.
+  // 목차(tocPage)와 본문(sheetItemPages)이 이 배열 하나를 읽으므로 둘이 어긋날 수 없다(S3-4).
+  const SHEET_CODE_RE = /^\d{1,2}-[A-Z]-\d{3}$/
+  const resByCode = new Map(responses.map(r => [r.item_code, r.result]))
+  // 응답이 있는 시트 — 대장 미등록이어도 실제 입력을 버리지 않기 위한 레거시 보호 축(합집합)
+  const respSheetIds = new Set<string>()
+  for (const it of items) {
+    if (SHEET_CODE_RE.test(it.item_code) && resByCode.has(it.item_code)) respSheetIds.add(it.sheet_id)
+  }
+  // 부속은 자체점검 전용이라 버전은 항상 v2025(sheetScope: isSpecial → v2025, 생성 게이트가 보장)
+  const stdSheets = sheets.filter(s => s.version === 'v2025' && /^STD-\d+$/.test(s.sheet_code))
+  const hasMultiUse = Object.keys(multiUseCounts).length > 0
+  const includedSheets = stdSheets.filter(s => {
+    const no = Number(s.sheet_code.match(/^STD-(\d+)$/)![1])
+    if (no === 31) return true                                   // 기타사항 — 맵 미등재·항상 포함(Q-3·P-12)
+    if (no === 32) return hasMultiUse || respSheetIds.has(s.id)  // 다중이용업소 — 1.10.3 업종 축(Q-10)
+    return sheetMatchesFacilities(s.sheet_name, codes) || respSheetIds.has(s.id)
+  })
+  // 대장 미등록인데 응답만으로 편입된 시트 — 아래 missing에서 표면화(조용한 편입 금지)
+  const respOnlySheetNames = includedSheets
+    .filter(s => !/^STD-3[12]$/.test(s.sheet_code) && !sheetMatchesFacilities(s.sheet_name, codes))
+    .map(s => s.sheet_name)
+  const itemsBySheetId = new Map<string, CatalogRow[]>()
+  for (const it of items) {
+    if (!SHEET_CODE_RE.test(it.item_code)) continue
+    const arr = itemsBySheetId.get(it.sheet_id)
+    if (arr) arr.push(it)
+    else itemsBySheetId.set(it.sheet_id, [it])
+  }
+  const seenCodes = new Set<string>()   // 시드에 같은 코드가 2행 있어도 1건(전 경로 공통 중복 방어)
+  const sheetSections: Report4SheetSection[] = includedSheets
+    .map(s => {
+      const rows = (itemsBySheetId.get(s.id) ?? [])
+        .sort((a, b) => ((a.order_num ?? 0) - (b.order_num ?? 0)) || a.item_code.localeCompare(b.item_code))
+        .filter(it => (seenCodes.has(it.item_code) ? false : (seenCodes.add(it.item_code), true)))
+      return {
+        no: Number(s.sheet_code.match(/^STD-(\d+)$/)![1]),   // 법정 번호 유지(S3-3) — 1~n 재번호 금지
+        name: s.sheet_name,
+        items: rows.map(it => {
+          const res = resByCode.get(it.item_code)
+          // 중분류 헤더는 법정 표기('1-A. 소화기구(…)') — group_name엔 이름만 있고 접두는 코드에서 온다.
+          // 134 미적용 폴백(select에 컬럼 없음)이면 undefined로 남아 렌더에 헤더 행이 없다(Q-16).
+          const prefix = it.item_code.replace(/-\d+$/, '')
+          return {
+            code: it.item_code, name: it.item_name,
+            mark: res === 'O' || res === 'X' || res === 'N' ? res : null,   // 무응답 = 공란(Q-5)
+            comprehensive: !!it.comprehensive_only,
+            group: it.group_name != null ? `${prefix}. ${it.group_name}` : undefined,
+            subgroup: it.subgroup_name,
+          }
+        }),
+      }
+    })
+    .filter(s => s.items.length > 0)
+    .sort((a, b) => (a.no - b.no) || a.name.localeCompare(b.name))
+
+  // Q-10(22 S14-2·3) — MU 16칸 롤업: 직접 응답이 없는 칸만 STD-32 응답에서 파생
+  // (X 있으면 X → O 있으면 O → 전부 N이면 N → 응답 없으면 공란). 매핑·규칙은 mu-std32-map.ts 단일 원천.
+  for (const [mu, v] of Object.entries(deriveMuFromStd32(c => resByCode.get(c)))) {
+    if (!muResults[mu]) muResults[mu] = v
   }
 
   let period = ''
@@ -544,6 +603,10 @@ async function assembleReport9(
   // 하므로, 공란이 남는 원인을 missing으로 표면화한다.
   const unanswered = facilityChecks.filter(item => !resultMarks[item]).length
   if (unanswered > 0) missing.push(`설치 설비 중 점검표 무응답 ${unanswered}건 — 3쪽 결과칸 공란`)
+  // 22 S3 — 설치 축 밖인데 응답이 있어 부속에 편입된 시트는 조용히 넘기지 않는다(대장 정비 유도)
+  if (respOnlySheetNames.length > 0) {
+    missing.push(`설비 대장 미등록 시트 ${respOnlySheetNames.join('·')} — 점검표 응답이 있어 부속 점검표·목차에 포함됨`)
+  }
   if (!cust.manager_appointment_type) missing.push('소방안전관리자 선임 형태(계획서 정보) 미입력 — 2쪽 체크 공란')
   return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections } }
 }
@@ -565,6 +628,19 @@ async function assembleReport4(
   const missing = m9.filter(m => !['송달 동의', '사용승인일', '건축허가일'].includes(m))
   if (Object.keys(d9.specs ?? {}).length === 0) missing.push('설비 세부현황(설비 대장) 미입력 — 3~7쪽 빈 서식')
   if (!annex4.companyRegNo) missing.push('관리업 등록번호(회사 정보) 미입력')
+  // V21-2: 펌프성능시험 미입력 경고. 엑셀 폐지(R5-6) 후엔 이 표가 실측치의 **유일 기록처**라
+  // '안 넣었다'를 알려 줄 수단이 필요하다. 대상 판정 축은 화면(page.tsx)과 같은 STD-{n} 시트다.
+  {
+    const { data: shRaw } = await admin.from('inspection_sheets').select('sheet_code').eq('version', 'v2025')
+    const targetSheets = ((shRaw ?? []) as Array<{ sheet_code: string }>)
+      .map(s => Number(s.sheet_code.match(/^STD-(\d+)$/)?.[1] ?? ''))
+      .filter(n => (PUMP_TEST_SHEETS as readonly number[]).includes(n))
+    const filled = new Set(pumpRows.map(r => r.sheetNo))
+    const empty = [...new Set(targetSheets)].filter(n => !filled.has(n)).sort((a, b) => a - b)
+    if (empty.length > 0) {
+      missing.push(`펌프성능시험 실측치 미입력 ${empty.length}개 설비(${empty.map(n => PUMP_SHEET_LABELS[n] ?? n).join('·')}) — 해당 쪽의 표가 공란으로 인쇄됨`)
+    }
+  }
   const data: Report4Data = {
     ckOp: d9.ckOp, ckInitial: d9.ckInitial, ckCompEtc: d9.ckCompEtc,
     customerName: d9.customerName, purpose: d9.purpose, address: d9.address,
@@ -783,8 +859,9 @@ export type Report9Job = {
 }
 export type Report9File = { name: string; path: string; createdAt: string | null }
 
-/** 생성 요청 — 별지 4·9·10·11호·외관점검표 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7·H-21) */
-const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior'] as const
+/** 생성 요청 — 별지 4·9·10·11호·외관점검표·공문·표지 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7·H-21).
+ *  official(공문)·cover(표지)는 소방계획서_22 S5·S7 — 번들 순서는 공문 → 표지 → 본문(bundle/route TYPE_ORDER) */
+const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior', 'cover', 'official'] as const
 export type AnnexType = typeof ANNEX_TYPES[number]
 
 export async function requestReport9Action(
@@ -796,20 +873,27 @@ export async function requestReport9Action(
   const admin = createAdminClient()
 
   const { data: insp } = await admin.from('inspections')
-    .select('id, customer_id, year, inspection_type, plan_type, customer:customers(customer_name)')
+    .select('id, customer_id, year, inspection_type, plan_type, inspection_start_date, inspection_end_date, customer:customers(customer_name)')
     .eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
-  const i = insp as unknown as { id: string; customer_id: string; year: number; inspection_type: string; plan_type: string | null; customer: { customer_name: string } | null }
+  const i = insp as unknown as {
+    id: string; customer_id: string; year: number; inspection_type: string; plan_type: string | null
+    inspection_start_date: string | null; inspection_end_date: string | null
+    customer: { customer_name: string } | null
+  }
 
   // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(special_*·null)만, 정기·레거시 event는 외관점검표만.
   // 관리유형 무관 — 일반관리 자체점검도 대상 (소방계획서_6 W-15, page.tsx isSpecial과 동일 기준)
   const isSpecial = !i.plan_type || i.plan_type.startsWith('special')
-  if (['report4', 'report9', 'report10', 'report11'].includes(reportType) && !isSpecial) {
-    return { error: '일반·정기 점검은 별지 4·9·10·11호 대상이 아닙니다 — 외관점검표만 작성합니다.' }
+  if (['report4', 'report9', 'report10', 'report11', 'cover', 'official'].includes(reportType) && !isSpecial) {
+    return { error: '일반·정기 점검은 별지 4·9·10·11호(표지·공문 포함) 대상이 아닙니다 — 외관점검표만 작성합니다.' }
   }
   if (reportType === 'exterior' && isSpecial) {
     return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
   }
+  // 22 S15(Q-12) — 규약 전환일 이전 건은 별지 재생성 차단(보관함 원본이 원천).
+  // CUTOFF가 null인 동안(전환 규약 미배포)은 조용히 통과한다 — annex-regen-policy.ts 참조.
+  if (isRegenBlocked(i)) return { error: REGEN_BLOCKED_MESSAGE }
 
   const { data: waiting } = await admin.from('fire_plan_gen_jobs')
     .select('id').eq('inspection_id', inspectionId).in('status', ['pending', 'processing']).limit(1)
@@ -821,6 +905,8 @@ export async function requestReport9Action(
   try {
     let html: string
     let missing: string[]
+    // 표지만 이미지 첨부(건물 사진·로고) — 기존 4종 경로는 빈 배열 그대로(무손상, S5-7)
+    let assets: DocAsset[] = []
     if (reportType === 'report9') {
       const assembled = await assembleReport9(admin, i.customer_id, inspectionId)
       html = renderReport9(assembled.data)
@@ -833,12 +919,25 @@ export async function requestReport9Action(
       const assembled = await assembleExterior(admin, i.customer_id, inspectionId)
       html = renderExterior(assembled.data)
       missing = assembled.missing
+    } else if (reportType === 'cover') {
+      const assembled = await assembleCover(admin, i.customer_id, inspectionId)
+      html = renderCover(assembled.data)
+      missing = assembled.missing
+      assets = assembled.assets
+    } else if (reportType === 'official') {
+      const assembled = await assembleOfficial(admin, i.customer_id, inspectionId)
+      html = renderOfficial(assembled.data)
+      missing = assembled.missing
     } else {
       const assembled = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
       html = reportType === 'report10' ? renderReport10(assembled.data) : renderReport11(assembled.data)
       missing = assembled.missing
     }
-    const pdf = await convertHtmlToPdf(html, [], { marginMode: 'none' })
+    // 22 S1-8 — 별지 4호는 Q-1·Q-4로 부속 분량이 늘었다(설치 시트 전 항목 + 설비당 페이지).
+    // 기본 60초(pdf.ts) 대신 120초(선례 fire-plan-generate.ts)로 여유를 둔다.
+    const pdf = await convertHtmlToPdf(html, assets, {
+      marginMode: 'none', ...(reportType === 'report4' ? { timeoutMs: 120_000 } : {}),
+    })
     const stamp = Date.now()
     const base = `${i.customer_id}/inspections/${inspectionId}/${reportType}_${stamp}`
     const upHtml = await admin.storage.from(BUCKET)
@@ -863,6 +962,8 @@ export async function requestReport9Action(
     return {}
   } catch (e) {
     const label = reportType === 'exterior' ? '외관점검표'
+      : reportType === 'cover' ? '표지'
+      : reportType === 'official' ? '공문'
       : `별지 ${reportType === 'report4' ? '4' : reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'}호`
     return { error: `${label} 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
   }
@@ -872,7 +973,7 @@ export async function requestReport9Action(
  *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시 */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
-  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior',
+  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official',
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -880,12 +981,12 @@ export async function getAnnexPreviewHtmlAction(
     .select('id, customer_id, plan_type').eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const ins = insp as { customer_id: string; plan_type: string | null }
-  // 유형 가드 — requestReport9Action과 동일 기준(자체점검=별지 4·9·10·11호, 정기·레거시 event=외관점검표)
+  // 유형 가드 — requestReport9Action과 동일 기준(자체점검=별지 4·9·10·11호·표지·공문, 정기·레거시 event=외관점검표)
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
   if (reportType === 'exterior') {
     if (isSpecial) return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
   } else if (!isSpecial) {
-    return { error: '자체점검 건만 별지 4·9·10·11호 대상입니다.' }
+    return { error: '자체점검 건만 별지 4·9·10·11호(표지·공문 포함) 대상입니다.' }
   }
   try {
     if (reportType === 'report9') {
@@ -899,6 +1000,15 @@ export async function getAnnexPreviewHtmlAction(
     if (reportType === 'exterior') {
       const { data, missing } = await assembleExterior(admin, ins.customer_id, inspectionId)
       return { html: renderExterior(data, { highlight: true }), missing }
+    }
+    if (reportType === 'cover') {
+      // 미리보기는 서명 URL을 <img src>로 직접 — iframe이 브라우저에서 fetch(S5-7 분기)
+      const { data, missing } = await assembleCover(admin, ins.customer_id, inspectionId, { forPreview: true })
+      return { html: renderCover(data), missing }
+    }
+    if (reportType === 'official') {
+      const { data, missing } = await assembleOfficial(admin, ins.customer_id, inspectionId)
+      return { html: renderOfficial(data), missing }
     }
     const { data, missing } = await assembleAnnex1011(admin, ins.customer_id, inspectionId, reportType)
     const html = reportType === 'report10'
@@ -925,8 +1035,9 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
 
   // 유형 가드(데이터 계층) — 자체점검은 별지 4/9/10/11호만, 정기·레거시 event는 외관점검표만 조회 (page.tsx isSpecial과 동일)
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
-  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11'] : ['exterior']
-  const filePattern = isSpecial ? /^report(4|9|10|11)_/ : /^exterior_/
+  // 22 S5·S7 — 표지·공문도 문서 목록에 잡혀야 재생성·다운로드 동선이 성립한다
+  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11', 'cover', 'official'] : ['exterior']
+  const filePattern = isSpecial ? /^(report(4|9|10|11)|cover|official)_/ : /^exterior_/
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')

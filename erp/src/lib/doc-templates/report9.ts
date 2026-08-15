@@ -406,7 +406,11 @@ export function facilityResultSection(
 }
 
 /** 2절 안전시설등 점검 결과(다중이용업소) 2열 표 — 별지 9호 3쪽 = 별지 4호 2쪽 공용(H-21).
- *  시트 MU-001~016(§9-6e) — ○/×는 체크(√)+결과, /는 결과만 (워커 _apply_mu 동일) */
+ *  시트 MU-001~016(§9-6e) — ○/×는 체크(√)+결과, /는 결과만 (워커 _apply_mu 동일)
+ *
+ *  순서·구분은 법정 서식 축자(소방계획서_23 P-4·P-5 정정, 원천 _별지4호_현행판_추출.txt:93-123):
+ *  MU-007 피난안내도는 피난구조설비가 아니라 **기타의 5번째**(창 문 다음·방염 앞)다.
+ *  라벨 구분자 ㆍ는 U+318D 축자(P-8 — 전역 치환 금지, 마이그레이션 133 선례). */
 export function muResultSection(d: Pick<Report9Data, 'muResults'>): string {
   const mu = (code: string, label: string): P3Item => {
     const r = d.muResults[code]
@@ -417,7 +421,7 @@ export function muResultSection(d: Pick<Report9Data, 'muResults'>): string {
     { name: '경보설비', items: [mu('MU-003', '비상경보설비 또는<br>    자동화재탐지설비'), mu('MU-004', '가스누설경보기')] },
     {
       name: '피난구조설비',
-      items: [mu('MU-005', '피난기구'), mu('MU-007', '피난안내도, 피난안내영상물'), mu('MU-006', '피난유도선'),
+      items: [mu('MU-005', '피난기구'), mu('MU-006', '피난유도선'),
         mu('MU-008', '유도등, 유도표지 또는 비상조명등'), mu('MU-009', '휴대용비상조명등')],
     },
   ])
@@ -426,7 +430,7 @@ export function muResultSection(d: Pick<Report9Data, 'muResults'>): string {
     {
       name: '기타',
       items: [mu('MU-013', '영업장 내부 피난통로'), mu('MU-014', '영상음향차단장치'), mu('MU-015', '누전차단기'),
-        mu('MU-010', '창 문'), mu('MU-016', '방염대상물품')],
+        mu('MU-010', '창 문'), mu('MU-007', '피난안내도ㆍ피난안내영상물'), mu('MU-016', '방염대상물품')],
     },
     { name: '비고', items: [{ html: '&nbsp;', mark: '' }] },
   ])

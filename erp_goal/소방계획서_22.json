@@ -1,0 +1,250 @@
+{
+  "doc": "소방계획서_22 — 점검 결과보고서 인쇄 번들 완전화: 표지·목차 신설 + 설비별 점검표 법정 서식 복원",
+  "design": "erp_goal/소방계획서_22.md (2026-08-14 작성·같은 날 이미지 6장 추가로 갱신)",
+  "created": "2026-08-14",
+  "updated": "2026-08-15(독립 검증 통과 — implemented 승격) — 판정자 4인(Explore, 구현자≠판정자)이 영역 분담 적대 검증: A 인쇄 규칙(S1~S4·S6·S12·Q-11) 전건 ✅ + 프로브 재실행 20/20·8/8, B 표지·공문(S5·S7·136) 전건 ✅, C 번들·차단(S13·S15) — 지적 3건 중 실결함 1건(번들 진입 선제 가드 부재, UX 결함)은 즉시 수정·tsc 그린, 나머지 2건은 비결함 판정(병합 라우트는 재생성이 아니라 열람이라 Q-12 대상 아님·파일명 파싱은 자사 규약 고정), D MU·137(S14-1~3·S9-3) 전건 ✅ + 프로브 재실행 12/12·10/10. tsc --noEmit 2회 그린. 마이그레이션 134~137 스테이징 적용 완료·운영 미적용. 전부 미커밋 — 커밋은 승인 대기",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "image_status": "image-59~74는 승진소방 실제 납품물의 샘플 예시이며 재현 의무가 없다(2026-08-14 사용자 확인). 구속 근거는 erp_goal/_form/_별지4호_현행판_추출.txt 뿐. 구속=R-2·R-3·R-4·R-5·R-6·R-7 / 재량=R-1·R-8·R-9·R-10·R-11 / 반례로만 유효=image-72·73·74의 1-B 전량 '/'. 반례에서 원인(대장 파생)까지 읽어낸 것이 Q-6의 오류였고 Q-8에서 번복됨. 상세는 소방계획서_22.md §0",
+  "source_images": [
+    "erp_goal/image-59.png 목차", "erp_goal/image-60.png 소화기구 점검표 머리", "erp_goal/image-61.png 소화기구 점검표 꼬리(비고·각주)",
+    "erp_goal/image-62.png 엑셀 탭", "erp_goal/image-63.png 자탐 점검표", "erp_goal/image-65.png 표지",
+    "erp_goal/image-66.png 공문", "erp_goal/image-67.png 별지4호 1쪽", "erp_goal/image-68.png 별지4호 2쪽",
+    "erp_goal/image-69.png 별지4호 3쪽(세부현황)", "erp_goal/image-70.png 별지4호 4쪽(세부현황)",
+    "erp_goal/image-72.png 소화기구 점검표 1-A 전체+1-B 시작", "erp_goal/image-73.png 1-B 【주거용】·【상업용】·【캐비닛형】 전부 /",
+    "erp_goal/image-74.png 1-B 【가스·분말·고체에어로졸】 / + 비고 + 각주 4줄"
+  ],
+  "key_evidence": "image-72·73·74를 이으면 STD-01 시트가 전량(1-A 10개 + 1-B 15개 = 25개) 인쇄돼 있고, 우리 DB의 STD-01도 정확히 25개로 일치(2026-08-14 실조회). 미설치 하위 설비(자동소화장치)의 1-B 15개가 전부 /로 찍혀 있다 — Q-1·Q-4·Q-6의 결정적 근거",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류 — 후보로만 기록",
+    "confirmed": "설계 결정·조사 결과 확정",
+    "open": "미결 — 결정 대기 (decisions 전용)",
+    "superseded": "후속 결정으로 번복됨 (decisions 전용, supersededBy 참조)"
+  },
+
+  "diagnosis": [
+    { "id": "P-1", "desc": "/(해당없음)·무응답이 조립 단계에서 버려진다 — image-61의 1-B-031~033(전원 /)과 image-63의 15-A-001·002(둘 다 /)가 인쇄물에서 소멸. 전 항목이 /인 설비는 시트 자체가 미생성돼 목차에도 못 오름", "evidence": ["report9-actions.ts:313 if (res !== 'O' && res !== 'X') continue", "report9-actions.ts:305 ○/×가 하나도 없는 설비는 통째로 미생성", "report4.ts:179 mark === 'O' ? '○' : '×'", "report4.ts:183 생략 안내 문구"], "status": "confirmed" },
+    { "id": "P-2", "desc": "목차 쪽이 없다 — renderReport4 pages 배열에 목차 없음", "evidence": ["report4.ts:242-259 renderReport4 pages"], "status": "confirmed" },
+    { "id": "P-3", "desc": "● 종합정밀점검 전용 불릿 없음 — DB의 comprehensive_only를 조립이 읽지 않는다. 행이 {code,name,order,mark} 4개뿐", "evidence": ["report9-actions.ts:316 g.rows.push({ code, name, order, mark })"], "status": "confirmed", "note": "데이터 정합성 확인됨(2026-08-14 스테이징 실조회): STD-01 1-A 종합전용 2개 = 1-A-009(설치수량 적정 여부)·1-A-010(적응성 있는 소화약제 사용 여부) → image-60의 ● 2개와 일치. STD-15 15-A 2개 전부 종합전용 = image-63과 일치" },
+    { "id": "P-4", "desc": "그룹 소제목(1-A. 소화기구(…)·15-B. 수신기)과 대괄호 소제목([주거용 주방 자동소화장치] — 원문은 반각 [ U+005B, §3-4) 텍스트가 DB에 없다. facility_type은 전 항목이 시트명만 반복", "evidence": ["report4.ts:178 설비명 1줄만 렌더", "실조회: STD-01 1-A/1-B 및 STD-15 15-A~15-I 전부 facility_type이 시트명 반복"], "status": "confirmed" },
+    { "id": "P-5", "desc": "점검표 꼬리의 '비 고' 행과 ※ 각주 4줄이 없다. specNoteTable()은 별지 9호 4쪽 세부현황용 다른 문안이라 재사용 불가", "evidence": ["spec-sections.ts:497-503 specNoteTable — '해당 특정소방대상물에 설치된…' 3줄"], "status": "confirmed" },
+    { "id": "P-6", "desc": "표지·공문·위임장 생성 코드가 전무. 현재 번들은 report9→report4→report10→report11→exterior 5종만 병합", "evidence": ["bundle/route.ts:16 TYPE_ORDER", "report9.ts:520 위임장은 법정 문구 참조뿐"], "status": "confirmed" },
+    { "id": "P-7", "desc": "표지 재료는 이미 있다 — cover 사진 슬롯이 정확히 이 용도로 정의돼 있고 회사 정보·로고도 보유. 신규 데이터 불필요", "evidence": ["customer-assets.ts:5 cover.<ext> 표지 건물 사진 (1장 — 기존 워커 --photo CLI 대체)", "customer-assets.ts:44 listCustomerAssets", "company-profile.ts:18 getCompanyProfile", "fire-plan-template.ts:403-412 — 같은 cover 슬롯을 쓰는 작동하는 선례(P-16)"], "status": "confirmed" },
+    { "id": "P-8", "desc": "company_profile select·타입에 fax가 빠져 있다(테이블엔 존재). image-65·66이 Fax를 인쇄하므로 추가 필요", "evidence": ["company-profile.ts:4-15 CompanyProfile 타입", "company-profile.ts:22 select 목록"], "status": "confirmed" },
+    { "id": "P-9", "desc": "이미지 첨부는 별지 서식 경로에서만 안 쓴다 — report9-actions.ts:854가 assets를 빈 배열로 넘겨 별지 5종 전부가 이미지 없이 생성된다. 그러나 소방계획서 경로는 이미 상시 사용 중이므로 S5는 신규 기술 도입이 아니라 이식이다", "evidence": ["report9-actions.ts:854 convertHtmlToPdf(html, [], { marginMode: 'none' }) — 별지 경로", "fire-plan-generate.ts:480 convertHtmlToPdf(html, assets, { marginMode: 'none', timeoutMs: 120_000 }) — 소방계획서 경로, 상시 사용", "fire-plan-template.ts:244-248 imgBlock — <img src=\"${i.file}\"> 상대경로 참조", "fire-plan-template.ts:403-412 앞표지에 imgsOf('cover') 삽입", "fire-plan-template.ts:210-212 slotPlaceholder — 미등록 시 자리표시", "pdf.ts:42,51-53 멀티파트 첨부"], "status": "confirmed", "corrected": "2026-08-14 — 초판 '이미지 첨부 경로가 한 번도 쓰인 적 없다'는 오류였다. report9-actions.ts:854 한 곳만 보고 저장소 전체로 일반화했다. 이 오류가 S5를 '유일한 신규 기술 요소'로 과대평가하게 만들었다" },
+    { "id": "P-16", "desc": "소방계획서에는 표지가 이미 두 벌 있으나 둘 다 제목이 '소 방 계 획 서'라 점검 결과보고서 표지(image-65 '소방시설 작동점검 결과보고서')와는 다른 문서다. 소방계획서를 생성해도 이 표지는 나오지 않는다 — 재료(cover 슬롯·회사정보)와 기법은 공유하되 문서는 별개. 인쇄 목차는 어느 문서에도 없다(저장소의 '목차'는 전부 고객 상세 UI 트리)", "evidence": ["fire-plan-template.ts:403-412 앞표지 <h1>소 방 계 획 서</h1>", "fire-plan-template.ts:826-832 뒷 '보고서 커버' 동일 제목", "customers/[id]/page.tsx:391,410,604 목차 = UI 트리·완성도 뱃지"], "status": "confirmed", "note": "사용자 질의 '표지 목차는 소방계획서로 만들어 지는게 맞지 않나'(2026-08-14)에 대한 조사 결과. 위 두 벌은 S5의 작동하는 참고 구현이다" },
+    { "id": "P-17", "desc": "Q-1이 점검표 입력 UI의 전제를 깼다. sheet-item-editor.tsx:18-25가 / 버튼을 없앤 근거가 '별지 4호 부속 점검표는 ○/×만 수록하고 /·무응답을 이미 똑같이 생략하므로 문서 출력이 달라지지 않는다'였는데, Q-1이 정확히 그 전제를 번복했다. 이제 ○·×·/(인쇄됨)·공란(미점검) 넷을 구분해야 하는데 현행 UI는 뒤의 둘을 만들 수단이 없다(안 고르면 둘 다 응답 없음)", "evidence": ["sheet-item-editor.tsx:18-25 주석 — 2026-08-13 '○·✕ 둘뿐' 확정 근거", "sheet-item-editor.tsx:25 RESULTS = ['O','X']", "sheet-item-editor.tsx:80-82 미선택 자리에 회색 ／ 기본값 힌트"], "status": "confirmed", "note": "Q-9로 해소 — 개별 / 버튼은 부활시키지 않고 그룹 일괄 버튼으로만 입력. 구현은 소방계획서_23 소관. 미선택의 의미가 /에서 공란으로 바뀌므로 :18-25 주석과 :80-82 힌트도 갱신 필요" },
+    { "id": "P-10", "desc": "공문 문서번호(승 진 2511-977 = 약칭+YYMM+일련번호) 채번 로직이 저장소에 전무", "evidence": ["grep document_no·doc_no 0건"], "status": "confirmed" },
+    { "id": "P-11", "desc": "시트 선별 축이 세 경로에서 서로 다르다 — 입력 화면은 버전만(전 시트 노출), 일괄 채움은 설치 설비, 인쇄는 응답 ○/×. 결과적으로 인쇄 대상을 정하는 실질 주체가 점검자(사람)", "evidence": ["[id]/page.tsx:105-106 .eq('version', sheetVersion)만", "sheet-actions.ts:186-195 fire_facilities installed=true + sheetMatchesFacilities", "report9-actions.ts:313 응답 축"], "status": "confirmed" },
+    { "id": "P-12", "desc": "SHEET_FACILITY_MAP에 21개 설비만 등재 — 기타사항(STD-31)·다중이용업소(STD-32)가 없어 퍼지 폴백으로도 매칭되지 않는다. 그런데 image-59 목차엔 31이 있다", "evidence": ["sheet-facility-map.ts:9-31 맵 21개", "sheet-facility-map.ts:42 퍼지 폴백"], "status": "confirmed" },
+    { "id": "P-13", "desc": "머더항목(별지4호 1쪽 하위 설비 체크)과 점검표 본문이 연결돼 있지 않다. 데이터(FIRE_SUB_ITEMS 5종)는 fire_facilities에 개별 행으로 있고 별지4호 1쪽·별지9호 3쪽 렌더는 이미 읽는데(report9.ts:380), 점검표 항목 경로는 설비 대장을 전혀 참조하지 않는다(sheet-actions.ts에 specs 참조 0건). 그래서 미설치 머더항목의 / 가 자동으로 채워지지 않고 점검자 수동 입력에 의존한다", "evidence": ["facility-codes.ts:74-77 FIRE_SUB_ITEMS 5종", "report9.ts:380 ledger.has(FIRE_SUB_ITEMS[n])", "report9.ts:370 2026-08-08 ck(false) 하드코딩 수정 이력", "sheet-scope.ts:27-29 isItemInScope — comprehensive_only 단일 필터", "sheet-actions.ts specs 참조 0건"], "status": "confirmed", "note": "머더항목↔점검표 그룹은 item_code 십의 자리로 1:1 대응한다(1-A-*, 1-B-00*, 1-B-01*, 1-B-02*, 1-B-03*). 소제목 텍스트(S9) 없이도 S10 구현 가능" },
+    { "id": "P-14", "desc": "/(대장 파생 해당없음)와 공란(점검자 무응답)은 원인이 다른데 현재 시스템은 둘을 구분할 수단이 없다(둘 다 '응답 없음'). Q-5의 '무응답 → 공란'만 적용하면 image-73·74의 1-B 15개 전량 /가 재현되지 않고 전부 공란으로 인쇄된다", "evidence": ["image-73·74 — 1-B 15개 전량 /", "image-67 — 해당 하위 4종 전부 미체크"], "status": "confirmed" },
+    { "id": "P-15", "desc": "머더항목 하위 입력률이 사실상 0 — S10 최대 위험. 스테이징 fire_facilities 실측(총 60행): 대분류 '소화기구 및 자동소화장치' 10행 체크됐는데 하위 '소화기(소화기·자동확산·간이)' 0행, 캐비닛형 0행, 가스·분말 0행(주거용 2행·상업용 1행만 존재). 이 상태로 '미체크 → 자동 /' 규칙을 넣으면 소화기가 실제 설치된 건물의 1-A 10개까지 전부 /로 찍힌다", "evidence": ["2026-08-14 스테이징 fire_facilities 실조회"], "status": "confirmed", "note": "하위가 전부 미체크면 대분류 체크로 폴백하는 방어 없이는 S10 착수 금지" },
+    { "id": "P-18", "desc": "부속 점검표가 페이지 1장에 몰려 있어 R-7(설비별 쪽번호)·S4(설비별 비고+각주)가 구조적으로 성립하지 않는다. 법정 원문은 점검표마다 독립 쪽번호 축을 갖는데((7쪽 중 N쪽) 뒤로 (3쪽 중 1쪽)·(4쪽 중 1쪽)이 설비마다 새로 시작 — 2026-08-14 추출본 전수 실측), 우리 구현은 sheetItemPages가 전 설비를 string[] 1개 원소로 반환하고 분할을 CSS 흐름에 위임한다. 코드가 페이지 경계를 모르므로 M도 N도 계산할 수 없고, 전 설비가 표 하나의 <tr> 나열이라 설비 경계에 꼬리를 넣을 자리도 없다", "evidence": ["report4.ts:175-191 sheetItemPages — return [`…`] 페이지 1장", "report4.ts:181 pageHeader(null, '(설비별 점검표)') — 쪽번호가 아니라 라벨", "report4.ts:184-189 표 하나, 설비명은 <tr><td colspan=3> 회색 행", "report4.ts:174 주석 '내용이 A4를 넘으면 인쇄 흐름 분할'", "_별지4호_현행판_추출.txt 쪽번호 실측 — (7쪽 중 1~7쪽) 뒤 (3쪽 중 1쪽)·(4쪽 중 1쪽) 반복"], "status": "confirmed", "note": "S12로 해소. S4·R-7의 선행 조건이다" },
+    { "id": "P-19", "desc": "별지 4호 부속은 점검표 하나가 아니라 둘이다 — renderReport4 pages가 법정 7쪽 → sheetItemPages → pumpTestPages 순으로 조립하며 펌프성능시험이 이미 부속으로 붙고 있다. 22는 이를 한 번도 다루지 않았다. 또한 pumpTestPages는 값이 없으면 쪽 자체를 만들지 않는데('빈 표를 찍으면 측정 안 함과 측정했는데 공란이 구분되지 않는다'), 이는 Q-4('서식은 온전히 찍고 결과만 비운다')와 정면으로 다른 철학이다", "evidence": ["report4.ts:251-258 renderReport4 pages 배열", "report4.ts:196-239 pumpTestPages", "report4.ts:193-195 주석 — 빈 표 금지 철학", "report4.ts:199 if (bySheet.size === 0) return []"], "status": "confirmed", "note": "Q-11 결정 대기" }
+  ],
+
+  "decisions": [
+    { "id": "Q-1", "question": "점검표에 /(해당없음)을 수록할 것인가", "decided": "전부 수록 — 법정 서식 그대로 ○·×·/ 세 값 모두 인쇄", "rationale": "법정 서식에서 /는 '점검했고 해당 없음'이라는 기록이며 빈칸(미점검)과 의미가 다르다. 현행은 / 전용 그룹(1-B-031~033·15-A)이 통째로 소멸한다", "status": "confirmed", "by": "2026-08-14 사용자 선택", "overrides": "소방계획서_15 A4-1 Q-2 (2026-08-11 확정 '○/×만 수록')을 번복. 구현 시 report9-actions.ts:303-305·report4.ts:172-174 주석과 report4.ts:183 안내 문구를 함께 걷어낼 것" },
+    { "id": "Q-2", "question": "이번 차수 범위", "decided": "설계 문서만 작성 — 구현 전건 보류, 착수는 별도 지시 대기", "status": "confirmed", "by": "2026-08-14 사용자 '구현하지 말고 계획만 세워줘'" },
+    { "id": "Q-3", "question": "목차에 올릴 점검표를 무엇으로 정할 것인가", "decided": "설치 설비 기준(fire_facilities.installed=true → sheetMatchesFacilities) + 기타사항(STD-31) 항상 포함", "rationale": "image-59의 목차(1·15·21·31)가 설치 설비와 일치. 응답 기준은 선별 주체가 사람이 되어 점검 누락이 드러나지 않는다", "status": "confirmed", "by": "2026-08-14 사용자 선택(권장안)", "layer": "선별도 표기도 대분류(시트) 한 층위뿐이다(2026-08-14 사용자 확인). ①표기 — image-59는 시트 제목 4줄뿐이고 1-A·1-B나 대괄호 그룹이 한 줄도 없다 ②선별 — sheetMatchesFacilities(sheet-facility-map.ts:37)가 쓰는 SHEET_FACILITY_MAP(:9-31)의 값은 표준 42종 대분류 어휘뿐이라 FIRE_SUB_ITEMS 5종(facility-codes.ts:74-77)이 한 번도 등장하지 않는다. fire_facilities에 하위 행이 있어도 시트 선별에 관여하지 못한다 ③본문 — Q-1·Q-4로 설치 시트는 전 항목을 찍고, 그룹 단위로 줄이는 유일한 장치였던 S10이 Q-8로 폐기됐다. 미설치 그룹도 인쇄되고 점검자가 Q-9의 그룹 일괄 버튼으로 /를 찍는다" },
+    { "id": "Q-4", "question": "설치됐으나 점검 입력이 전혀 없는 설비 처리", "decided": "본문도 인쇄 — 점검결과란 전부 공란. 서식은 온전히 찍고 결과만 비운다", "rationale": "Q-1의 '법정 서식 그대로'와 일관. 초안의 '목차만 올림'은 값은 법정 서식인데 설비 하나가 통째로 빠지는 불일치를 낳는다(구현자가 충돌을 지적해 재확인)", "status": "confirmed", "by": "2026-08-14 사용자 재확인", "supersedes": "같은 날 1차 답변 '목차에만 올리고 본문은 생략' — 기안에 반영됐다가 번복됨", "impact": "본문 시트 목록의 원천이 응답 역산에서 설치 설비 축으로 바뀐다(S3-5)" },
+    { "id": "Q-5", "question": "본문이 인쇄되는 시트 안에서 항목 단위 무응답 처리", "decided": "항목은 찍되 점검결과란을 공란으로 둔다", "rationale": "Q-1·Q-4와 같은 원리 — 설비 단위든 항목 단위든 서식은 온전히 찍고 결과만 비운다", "status": "confirmed", "note": "Q-4 재확인(2026-08-14)으로 같은 원리가 설비 단위에서도 확정돼 정합성이 검증됨. 종전에 달려 있던 단서 '단 Q-6이 우선한다 — 미설치 머더항목은 공란이 아니라 /'는 Q-8 번복으로 삭제됐다. 이제 미설치 머더항목도 점검자가 찍기 전까지는 공란이며, Q-9의 그룹 일괄 버튼을 눌러야 /가 된다" },
+    { "id": "Q-6", "question": "미설치 머더항목(별지4호 1쪽 하위 설비 미체크)의 점검표 항목 결과 표기", "decided": "설비 대장에서 자동 파생해 / 로 채운다. 단 해당 시트의 하위가 전부 미체크면 파생을 포기하고 공란으로 두는 폴백 방어를 둔다", "rationale": "image-73·74의 1-B 15개 전량 /는 점검자가 15번 클릭한 결과가 아니라 자동소화장치 미설치에서 파생된 값이다(image-67 미체크와 대응). 자동 파생 없이는 법정 서식이 재현되지 않는다. 폴백은 P-15(하위 입력률 0) 때문에 필수", "status": "superseded", "supersededBy": "Q-8", "by": "2026-08-14 사용자 '넣어줘'", "priority": "응답이 있으면 응답이 이긴다 — ①응답값 ②미체크면 / ③체크됐고 무응답이면 공란" },
+    { "id": "Q-7", "question": "§0에서 '재량'으로 분류된 요소(표지·공문)를 어떤 기준으로 만들 것인가", "decided": "샘플에 근접하게 — image-65·66의 배치를 최대한 재현한다", "rationale": "이미지가 스펙은 아니지만(§0) 실제 납품물이므로 고객이 익숙한 형태다. 사내 표준(소방계획서 표지 톤)으로 통일하는 대안도 검토했으나 사용자가 샘플 근접을 선택", "status": "confirmed", "by": "2026-08-14 사용자 선택", "impact": "S5-1(표지 레이아웃)·S7-1(공문 배치)의 서술을 배치 재현으로 구체화. 단 자산 로드·자리표시 규약은 소방계획서 구현(P-16)을 따른다" },
+    { "id": "Q-8", "question": "미설치 머더항목의 / 를 자동 파생할 것인가 (Q-6 재검토)", "decided": "자동 파생하지 않는다 — 점검자가 그룹 단위로 일괄 입력한다. 설비 대장은 '⚠미설치?' 힌트로만 쓰고 판정은 하지 않는다", "rationale": "①Q-6의 근거였던 '전량 /는 대장 파생값'은 이미지에서 읽어낼 수 없는 추측이었다(§0 — 샘플이면 수동 입력 결과일 수 있다) ②P-15 실측대로면 자동 파생은 실제 설치된 소화기의 1-A 10개를 전부 /로 인쇄해 법정 문서에 허위 기록을 남긴다 ③판정 주체가 사람이면 폴백(S10-4)·경고(S10-5)·대장 입력률 의존이 통째로 사라진다", "status": "confirmed", "by": "2026-08-14 사용자 선택 '점검자 일괄 입력으로 대체'", "overrides": "Q-6(2026-08-14 같은 날 확정)을 번복", "impact": "S10 폐기(deferred). S11 신설 → 소방계획서_23으로 이관. 대장이 비어 있어도 오작동이 없다" },
+    { "id": "Q-9", "question": "점검표 입력에서 /(해당없음)를 어떻게 찍게 할 것인가 — 개별 항목 / 버튼을 되살릴 것인가", "decided": "개별 항목 / 버튼은 두지 않는다. 그룹 단위 일괄 버튼([／ 이 그룹]·[／ 모두])으로만 / 를 입력하고, 미선택은 공란(미점검)으로 둔다", "rationale": "미설치는 그룹 통째로 발생하므로 항목 단위 / 가 필요한 경우가 드물다. 2026-08-13 '○·✕ 둘뿐' 결정의 화면을 최대한 유지한다", "status": "confirmed", "by": "2026-08-14 사용자 선택", "blocking_context": "P-17 — Q-1이 sheet-item-editor.tsx:18-25의 전제('/·무응답 둘 다 어차피 생략되니 구분 불필요')를 깼다", "impact": "구현은 소방계획서_23 소관(S11). 미선택의 의미가 /에서 공란으로 바뀌므로 sheet-item-editor.tsx:18-25 주석과 :80-82 회색 ／ 힌트 갱신 필요. 진행률 responded 집계에 N을 포함시켜야 '이 머더는 다 봤다'가 표현된다", "resolved_open": "(3차) 해제 경로 미설계 건 → 23 Q-19·Q-21로 해소 — 일괄 버튼은 빈 칸만 채우는 토글(재클릭 시 그 범위 N만 제거, O/X 절대 보존)" },
+    { "id": "Q-10", "question": "다중이용업소 점검표를 어느 벌로 인쇄할 것인가 — STD-32(32-A~32-G 7그룹 44항목, 원문 실측) vs MU-01(MU-001~016 16항목, seed-mu-sheet.mjs)", "decided": "STD-32 입력 단일화 + MU 16칸 롤업 — 점검자는 법정 44항목 한 벌만 입력하고, 별지 4호 2쪽/9호 3쪽 결과표(muResults)는 STD-32 응답에서 롤업 파생. MU-01은 입력 목록에서 숨김", "rationale": "두 벌이 입력 화면에 동시에 떠 있었다(둘 다 v2025 — [id]/page.tsx:105-106 버전 필터를 함께 통과, 2026-08-14 실측). 판별 축은 신규 컬럼이 아니라 서식 1.10.3 sections.multiUse(이미 report9-actions.ts:184·377 사용 중), 롤업 선례는 rollUpForm3Results. 레거시 건은 MU-01 직접 응답 우선으로 보호", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "dependency": "S9-3(32-A·32-B 18항목 적재)이 S14의 선행 조건 — 원문 3649행 '32-A. 소화설비'·3711행 '32-B. 경보설비' 실재, DB는 32-C-002부터(실측). 실행은 S14", "impact": "23의 135(MU 순서 정정)·23 S4(muResultSection)는 무영향 — 렌더는 muResults 맵만 읽는다. 노출 규칙은 23 S7-5 확장(owner 23)" },
+    { "id": "Q-11", "question": "펌프성능시험 부속을 목차·번들에서 어떻게 다룰 것인가", "decided": "권고안 채택 — 값 없으면 미생성 유지(측정 기록이라 빈 표는 '측정 안 함'과 '측정했는데 공란'을 구분 못 한다). 목차에는 값 있을 때만 조건부 1줄, 번들 내 위치는 현행(report4 내부 꼬리) 유지", "status": "confirmed", "by": "2026-08-15 사용자 선택(구현 착수 시 확정)", "context": "P-19 — renderReport4가 이미 pumpTestPages를 부속으로 붙이는데 22가 한 번도 다루지 않았다", "evidence": "report4.ts tocPage(hasPumpTest 조건부 1줄) — _probe-annex4-print-rules.mts 'Q-11' 단언 통과" },
+    { "id": "Q-12", "question": "과거 점검 건을 새 규약(미선택=미점검)으로 재생성하면 의미가 반전된다 — 어떻게 방어할 것인가", "decided": "차단 — 규약 전환일(Q-9/23 Q-19 배포일) 이전 건은 별지 재생성을 서버·UI 양쪽에서 막는다. 보관함 원본(소방계획서_18 정책)이 원천. 값 조작(무응답→/ 해석)은 허위기록이라 배제", "rationale": "구 규약에서 무응답은 의도된 '해당없음'(sheet-item-editor.tsx:80-82 옛 힌트). 새 렌더로 재생성하면 같은 DB 상태가 '미점검 공란'으로 인쇄돼 멀쩡히 끝난 점검이 부실 점검처럼 보인다", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "impact": "실행은 S15. 보관함 원본 부재 시 관리자 문의 안내 — 개별 해제 경로는 추후 결정" },
+    { "id": "Q-13", "question": "번들 생성을 어떻게 일괄화할 것인가 — 문서가 6~8종으로 늘면 개별 생성은 클릭 수·stale 혼입이 함께 는다", "decided": "한 건 원클릭 — [번들 생성] 1버튼이 미생성·stale 문서를 자동 판정해 병렬 생성 후 병합. 생성 전 시트별 공란(미점검) 리포트(경고만·진행은 사용자 선택) + ③칸 구성요소 체크리스트", "rationale": "stale 혼입(점검표 수정 후 별지4만 재생성, 표지·공문은 옛 날짜)이 구조적으로 발생하는 것을 판정 자동화로 차단", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "rejected": ["다건 일괄(점검 목록 다중 선택 → zip) — 미채택, 후보 기록만", "현행 유지(개별 생성)"], "impact": "실행은 S13" },
+    { "id": "Q-14", "question": "공문 문서번호(승 진 2511-977 = 약칭+YYMM+일련) 채번 방식", "decided": "수동 + 자동 제안 — annex_inputs 패턴으로 저장하고, 기본값을 '승 진 {YYMM}-{동월 최대 일련+1}'로 제안하되 수정 가능", "rationale": "완전 자동은 시퀀스 테이블·재생성 시 번호 유지 규칙이 필요하고 사내 관행(수기 번호)을 못 담는다. 완전 수동은 매번 이전 번호를 찾아야 한다. 하이브리드가 신속과 유연을 다 잡는다", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "impact": "S7 blocker 해소 → Phase A 이동" }
+  ],
+
+  "items": [
+    { "id": "S1", "title": "/(해당없음) 복원 + 무응답 공란", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 A — 구현자≠판정자) + 프로브 재실행 20/20", "evidence": ["report9-actions.ts:428 mark 4분기(발췌 필터 부재)", "report4.ts:19-29 mark 'O'|'X'|'N'|null", "base.ts:59-61 resultMark 4분기"] },
+      "note": "2026-08-15 구현 — 발췌 필터·역산 조립 자체를 걷어내고 설치 설비 축 왼쪽 조인(S3-5)으로 대체. 렌더 프로브 _probe-annex4-print-rules.mts 20/20",
+      "criteria": [
+        { "id": "S1-1", "desc": "report9-actions.ts:313의 `if (res !== 'O' && res !== 'X') continue` 제거", "status": "implemented", "evidence": "부속 조립 블록 재작성 — mark = res ∈ {O,X,N} ? res : null (report9-actions.ts assembleReport9 '부속 설비별 점검표 조립')" },
+        { "id": "S1-2", "desc": "Report4SheetItem.mark를 'O'|'X'|'N'|null로 확장, 조립부도 동일 확장", "status": "implemented", "evidence": "report4.ts Report4SheetItem { mark: 'O'|'X'|'N'|null, comprehensive?, … } — tsc 통과" },
+        { "id": "S1-3", "desc": "○/×///공란 4분기 렌더로 교체", "status": "implemented", "evidence": "sheetItemRowPieces → resultMark(it.mark) (base.ts 공용 4분기). 프로브 'S1: ／(N) 마크 렌더' 통과" },
+        { "id": "S1-4", "desc": "'해당없음(／)·미점검 항목은 생략하였습니다' 안내 문구 삭제", "status": "implemented", "evidence": "프로브 'S1: 발췌 안내 문구 삭제' 통과" },
+        { "id": "S1-5", "desc": "A4-1 Q-2 주석을 Q-1 번복 사실로 갱신", "status": "implemented", "evidence": "report4.ts 타입 주석·report9-actions 조립 블록 주석 — Q-1·Q-3·Q-4·Q-5 확정 사실 명기" },
+        { "id": "S1-6", "desc": "'○/× 없는 설비 미생성' 규칙 제거 — 설치 설비는 응답 0건이어도 본문", "status": "implemented", "evidence": "시트 집합이 설치 축(includedSheets)에서 정해지고 응답은 왼쪽 조인 — 프로브 'S1: 무응답 항목 행 존재' 통과" },
+        { "id": "S1-7", "desc": "합격선 — 1-B-031~033(전원 /)·15-A-001·002가 생성 PDF에 살아 있을 것", "status": "implemented", "verified": "2026-08-15 실데이터 E2E(_e2e-annex4-print.mts 27/27) — 실 서버 액션 경로(requestReport9Action→조립→Gotenberg 사이드카→storage)로 생성한 HTML에서 1-B-031~033 전량 ／·그룹/대괄호 헤더 생존 확인. 렌더 프로브 20/20 동반" },
+        { "id": "S1-8", "desc": "(3차) timeoutMs 120_000 + 설치 설비 최다 고객 1건 생성 시간 실측", "status": "implemented", "verified": "2026-08-15 E2E — 맵 등재 전 21시트 설치(실사용 상한 초과 케이스)로 별지 4호 생성 14.3초·PDF 907KB·51쪽. 120초 한도 대비 여유. ※ 로컬 사이드카(Chromium) 측정 — 운영 Gotenberg 재확인 권장" }
+      ] },
+    { "id": "S2", "title": "● 종합정밀점검 전용 불릿", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 A) + 프로브 재실행", "evidence": ["report9-actions.ts:286-287 select comprehensive_only", "report4.ts:206-209 ●/○ 렌더", "E2E _e2e-annex4-print.mts:133 실생성 단언"] },
+      "criteria": [
+        { "id": "S2-1", "desc": "조립에서 comprehensive_only를 행에 실어 전달", "status": "implemented", "evidence": "카탈로그 select에 comprehensive_only 동반(폴백 select 포함), 행에 comprehensive: !!it.comprehensive_only" },
+        { "id": "S2-2", "desc": "렌더에서 항목명 앞에 ●(종합전용)/○(일반) 불릿", "status": "implemented", "evidence": "sheetItemRowPieces — 프로브 'S2: 종합전용 ● 불릿'·'S2: 일반 ○ 불릿' 통과. DB item_name에 불릿 미포함 확인(133 계열 실측)" },
+        { "id": "S2-3", "desc": "합격선 — STD-01 1-A-009·010·STD-15 15-A-001·002에 ● (image-60·63 대조)", "status": "implemented", "evidence": "렌더 프로브에서 1-A-009·15-A-001 ● 확인. ⚠ 실 DB 생성물 대조는 잔여" }
+      ] },
+    { "id": "S3", "title": "목차 쪽 (Q-3·Q-4)", "status": "implemented", "phase": "A",
+      "legal_basis": "(3차) 추출본 446행 '(작성요령) 목차에는 점검을 실시하고자 하는 소방시설명만을 순서대로 기재한다' — Q-3 설치 설비 축·S3-7 시트 제목 한 줄의 직접 근거",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 A) + 프로브 재실행", "evidence": ["report9-actions.ts:395-400 includedSheets(설치 축+31 강제+32 multiUse)", "report4.ts:384-386 tocPage·sheetItemPages 동일 배열(구조적 일치)", "report9-actions.ts:274-276 카탈로그 항시 조회", "report9-actions.ts:607-608 설비 대장 미등록 시트 missing 표면화"] },
+      "note": "2026-08-15 구현. 설계 대비 추가 1건 — 설치 축 밖인데 응답이 있는 시트는 합집합으로 편입하고 missing으로 표면화(실입력 데이터를 조용히 버리지 않기 위한 레거시 보호. 목차=본문 동일 집합은 유지)",
+      "criteria": [
+        { "id": "S3-1", "desc": "대상 = 설치 설비(fire_facilities.installed=true) → sheetMatchesFacilities 매칭 시트", "status": "implemented", "evidence": "includedSheets 필터 — sheetMatchesFacilities(s.sheet_name, codes)" },
+        { "id": "S3-2", "desc": "STD-31 기타사항 강제 포함", "status": "implemented", "evidence": "no === 31 → true 분기 + (Q-10) no === 32 → multiUse 업종 축" },
+        { "id": "S3-3", "desc": "법정 번호 유지 — 번호는 sheet_code의 STD-(\\d+)에서 취함", "status": "implemented", "evidence": "프로브 'S3: 법정 번호 유지(1·3·15·31)' 통과" },
+        { "id": "S3-4", "desc": "목차와 본문이 같은 집합 — 둘이 어긋날 수 없어야 함", "status": "implemented", "evidence": "tocPage·sheetItemPages가 같은 d.sheetSections 배열 하나를 읽는다(구조적 보장)" },
+        { "id": "S3-5", "desc": "본문 시트 목록 원천 전환 — 설치 축에서 시트 집합 먼저, 카탈로그 전 항목 + 응답 왼쪽 조인", "status": "implemented", "evidence": "assembleReport9 부속 조립 블록 재작성 — 응답 역산 전면 제거" },
+        { "id": "S3-6", "desc": "responses.length 게이트 최적화 제거", "status": "implemented", "evidence": "카탈로그·시트 조회 항시 실행으로 변경(주석 명기)" },
+        { "id": "S3-7", "desc": "목차 표기는 시트 제목 한 줄 — 중분류·대괄호 그룹 미표기", "status": "implemented", "evidence": "tocPage — `${no}. ${name} 점검표` 1줄만. 프로브 통과" }
+      ] },
+    { "id": "S12", "title": "부속 점검표 구조 재편 — R-7·S4의 선행 조건", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 A) + E2E 정적 검토", "evidence": ["report4.ts:239-243 행 예산 상수 34/38/9", "report4.ts:250-298 설비별 chunk·독립 (N쪽 중 M쪽) 축", "report4.ts:284-295 마지막 쪽 sheetTail·꼬리 전용 쪽"] },
+      "note": "P-18 해소(2026-08-15). 분할을 CSS에 맡기지 않고 행 예산(SHEET_PAGE_W_FIRST 34·NEXT 38·TAIL_W 9, 긴 항목명은 가중 2)으로 코드가 쪽 경계를 계산 — 그래야 M/N이 나온다. 23 Q-16의 행 emit 순수 함수(sheetItemRowPieces/sheetItemBodyRows)를 페이지 골격과 분리 유지",
+      "criteria": [
+        { "id": "S12-1", "desc": "sheetItemPages가 설비 수만큼(설비당 1쪽 이상) 페이지 반환", "status": "implemented", "evidence": "report4.ts sheetItemPages 재작성 — 설비별 chunk 배분 후 페이지 배열 생성" },
+        { "id": "S12-2", "desc": "설비마다 자체 pageHeader — 설비별 (N쪽 중 M쪽) 축", "status": "implemented", "evidence": "프로브 'S12: 설비당 (1쪽 중 1쪽) 독립 축'·'대형 설비 분할 (2쪽 중 1쪽)·(2쪽 중 2쪽)' 통과" },
+        { "id": "S12-3", "desc": "설비당 독립 <table> — 꼬리(S4) 자리 확보", "status": "implemented", "evidence": "tableOf(rows)가 쪽마다 독립 표 + 3열 머리행 반복, 마지막 쪽에 sheetTail() 부착(넘치면 꼬리 전용 쪽)" },
+        { "id": "S12-4", "desc": "합격선 — 설비 3종 이상에서 각자 쪽번호 시작·설비 경계 페이지 분리", "status": "implemented", "verified": "2026-08-15 E2E — 23시트 실생성 PDF 51쪽·각주 23회(시트 수 일치)·설비별 (N쪽 중 M쪽) 확인. ⚠ 행 예산(34/38)의 픽셀 단위 넘침 육안 확인은 운영 Gotenberg 렌더에서 1회 권장(사이드카는 렌더러 상이)" }
+      ] },
+    { "id": "S4", "title": "점검표 비고 행 + ※ 각주 4줄", "status": "implemented", "phase": "A", "blocked_by": null,
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 A) + _probe-annex4-tail-verbatim.mjs 재실행 8/8(U+2024·U+201C/201D 코드포인트 대조)", "evidence": ["report4.ts:226-236 sheetTail·sheetPageFooter(점검표 전용)", "원문 _별지4호_현행판_추출.txt:507 '비고' 대조"] },
+      "criteria": [
+        { "id": "S4-1", "desc": "각 설비 점검표 꼬리에 '비고' 행", "status": "implemented", "evidence": "sheetTail() — 원문(:507)이 '비고'(공백 없음)라 원문을 따름. 프로브 'S4: 비고 행 존재' 통과" },
+        { "id": "S4-2", "desc": "※ 각주 4줄 축자", "status": "implemented", "evidence": "_probe-annex4-tail-verbatim.mjs 8/8 — 따옴표 U+201C/201D·구분자 U+2024(위치․구조․용도)까지 코드포인트 일치. 설비마다 반복(프로브 '4설비 = 4회')" },
+        { "id": "S4-3", "desc": "specNoteTable() 재사용 금지 — 신규 함수 분리", "status": "implemented", "evidence": "sheetTail()·sheetPageFooter() 신설(용지 푸터도 점검표 전용 '210mm×297mm [백상지(80g/㎡)]' — 공용 pageFooter와 문안 상이)" }
+      ] },
+    { "id": "S5", "title": "표지 — 신규 ANNEX 타입 cover", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 B — 구현자≠판정자)", "evidence": ["cover.ts:49-77 렌더(자리표시 포함)", "report9-actions.ts:864 ANNEX_TYPES·:922-926 생성 분기·:1004-1007 미리보기 분기·:1039 allowTypes", "annex-cover-official.ts:65-94 assets 바이트+fail-soft", "company-profile.ts:10·24 fax + company-form-client.tsx:116-122 입력"] },
+      "note": "선행 세션 구현분(2026-08-14~15, 미커밋)을 이번 세션이 확인·보완. 파일: doc-templates/cover.ts·annex-cover-official.ts·마이그레이션 136(fire_plan_gen_jobs report_type CHECK에 cover/official). 보완: getReport9StatusAction allowTypes에 cover/official 추가(문서 목록·재생성 동선)",
+      "criteria": [
+        { "id": "S5-1", "desc": "doc-templates/cover.ts 신설(image-65 배치)", "status": "implemented", "evidence": "cover.ts 존재 — 연도/제목/[건물명]/사진/발행연월/레터헤드" },
+        { "id": "S5-2", "desc": "ANNEX_TYPES에 'cover' 추가", "status": "implemented", "evidence": "report9-actions.ts ANNEX_TYPES 7종" },
+        { "id": "S5-3", "desc": "유형 가드에 cover 포함(자체점검 축)", "status": "implemented", "evidence": "requestReport9Action·getAnnexPreviewHtmlAction 가드 갱신" },
+        { "id": "S5-4", "desc": "if 체인에 assembleCover/renderCover 분기", "status": "implemented", "evidence": "생성·미리보기 양쪽 분기 존재(미리보기는 서명 URL, 생성은 assets 바이트)" },
+        { "id": "S5-5", "desc": "GENERATED_DOC_KINDS에 cover 라벨", "status": "implemented", "evidence": "doc-requirements.ts '보고서 표지'" },
+        { "id": "S5-6", "desc": "TYPE_ORDER 표지 선두 배치", "status": "implemented", "evidence": "bundle/route.ts ['official','cover','report9',…] — S7-3에 따라 공문이 최선두, 표지 둘째" },
+        { "id": "S5-7", "desc": "이미지 첨부 — assets 바이트 + 상대경로(서명 URL 직접 삽입 금지)", "status": "implemented", "evidence": "annex-cover-official.ts assembleCover — 다운로드 실패도 생성은 통과(fail-soft)" },
+        { "id": "S5-8", "desc": "company-profile fax + 관리자 설정 화면 fax 입력 실존 확인", "status": "implemented", "evidence": "타입·select에 fax 추가 + 회사 정보 화면 fax 입력 실존 확인(company-form-client.tsx:119, company/actions.ts 저장 경로 포함 — 2026-08-15 확인)" },
+        { "id": "S5-9", "desc": "cover 사진 미등록이어도 생성 통과(자리표시)", "status": "implemented", "evidence": "photoSrc null → missing 경고만, 렌더는 자리표시" },
+        { "id": "S5-10", "desc": "표지 제목 점검종류 가변", "status": "implemented", "evidence": "inspectionTypeLabel(작동/최초/종합) — annex-cover-official.ts" }
+      ] },
+    { "id": "S6", "title": "목차 배치", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 A)", "evidence": ["report4.ts:378-387 pages — 법정 7쪽 → tocPage → sheetItemPages → pumpTestPages"] },
+      "criteria": [
+        { "id": "S6-1", "desc": "목차는 신규 저장 타입 아님 — renderReport4 pages에서 sheetItemPages 직전 삽입", "status": "implemented", "rationale": "색인 대상인 설비별 점검표가 별지 4호 부속이므로 같은 문서 안에 두는 게 맞다", "evidence": "renderReport4 pages — tocPage(…) 삽입. 프로브 'S6: 목차가 부속 점검표 직전' 통과" }
+      ] },
+
+    { "id": "S10", "title": "미설치 머더항목 / 자동 파생 (Q-6) — 폐기", "status": "deferred", "phase": "A",
+      "deferred_reason": "Q-8(2026-08-14)로 번복. 자동 파생 대신 점검자 그룹 단위 일괄 입력(S11)을 쓴다. 아래 criteria는 후보 기록으로만 보존하며 구현하지 않는다 — 대장 하위 입력률이 실용 수준으로 오르면 재론한다",
+      "criteria": [
+        { "id": "S10-1", "desc": "FIRE_SUB_ITEMS(facility-codes.ts:74-77) ↔ item_code 매핑 상수 신설 — [0]소화기→1-A-*, [1]주거용→1-B-00*, [2]상업용→1-B-01*, [3]캐비닛형→1-B-02*, [4]가스·분말→1-B-03*", "status": "pending_order" },
+        { "id": "S10-2", "desc": "피난기구 하위는 EVAC_FORM3_GROUPS(report9.ts:378)가 이미 3칸으로 묶고 있으므로 같은 방식으로 확장", "status": "pending_order" },
+        { "id": "S10-3", "desc": "판정 우선순위 — ①inspection_sheet_responses에 값이 있으면 그 값 ②없고 머더항목 미체크면 / ③없고 체크됐으면 공란. 점검자가 실제로 본 결과를 대장 파생값이 덮으면 안 된다", "status": "pending_order" },
+        { "id": "S10-4", "desc": "폴백 방어(필수) — 해당 시트의 머더항목 하위가 전부 미체크면 파생을 포기하고 전부 공란. P-15의 실측(소화기 하위 0행)대로면 방어 없이는 설치된 소화기까지 /로 찍힌다. '하위를 입력 안 한 것'과 '하위가 없는 것'을 구분할 수 없기 때문", "status": "pending_order" },
+        { "id": "S10-5", "desc": "폴백 발동 시 생성 missing[]에 '하위 설비 미입력 — / 자동 판정 생략' 경고를 남겨 대장 입력을 유도", "status": "pending_order" },
+        { "id": "S10-6", "desc": "합격선 — image-67에서 자동소화장치 하위 4종이 미체크인 조건으로 생성했을 때 image-73·74처럼 1-B 15개가 전부 /로 찍힐 것", "status": "pending_order" }
+      ] },
+
+    { "id": "S11", "title": "그룹 단위 / 일괄 입력 (Q-8·Q-9) — 소방계획서_23으로 이관", "status": "pending_order", "phase": "A", "owner": "소방계획서_23",
+      "note": "22는 인쇄 쪽만 책임진다. 23이 개정 1판(Q-19)·개정 2판(Q-20~Q-22)으로 전 criteria를 흡수했다 — 대응: S11-1→23 S7-19([／ 이 그룹]), S11-2→23 S7-26(대장 힌트 배너), S11-3→23 S7-20, S11-4→23 Q-19·Q-21 토글(+S7-23), S11-5→23 S7-21, S11-6→23 S8 프로브 계열. 추가로 시트(대분류) 단위 [／ 전체](23 Q-20·S6-6·S7-22)와 채움 정책(빈 칸만·○/✕ 보존, 23 Q-21)까지 확장 확정. 이 항목은 추적용 — 구현·검증은 23에서 하고, 23 완료 시 여기 상태를 동기화한다",
+      "criteria": [
+        { "id": "S11-1", "desc": "드로어 본문에 대괄호 그룹 소제목 인라인 행 + 우측 [／ 이 그룹] 버튼. 1-B. 자동소화장치 하나가 별지 4호 1쪽 체크박스 4개로 쪼개지므로 중분류 단위 [／ 모두]만으로는 부분 설치를 표현할 수 없다", "status": "pending_order" },
+        { "id": "S11-2", "desc": "미설치 힌트 — 설비 대장에서 미체크인 그룹에 '⚠미설치?' 뱃지를 띄우고 [／ 이 그룹]을 강조한다. 판정은 하지 않는다(Q-8). 대장이 비어 있으면 뱃지가 안 뜰 뿐 오작동이 없다", "status": "pending_order" },
+        { "id": "S11-3", "desc": "미선택 = 공란(미점검)으로 의미 전환 — sheet-item-editor.tsx:18-25 주석과 :80-82의 회색 ／ 기본값 힌트를 갱신한다. 현행 힌트 '고르지 않으면 해당없음(／)으로 처리됩니다'는 Q-1·Q-5 이후 거짓 안내가 된다", "status": "pending_order" },
+        { "id": "S11-4", "desc": "그룹 일괄 / 해제 경로 — 개별 / 버튼이 없으므로(Q-9) [／ 이 그룹] 토글 또는 그룹 초기화 버튼이 필요하다. 미설계 상태", "status": "pending_order" },
+        { "id": "S11-5", "desc": "진행률 집계에 N 포함 — 현행 responded는 O/X만 센다. /도 응답으로 세야 머더 카드에 '다 봤다'가 표현된다(sheet-overview.ts)", "status": "pending_order" },
+        { "id": "S11-6", "desc": "합격선 — 자동소화장치 4개 그룹에서 [／ 이 그룹]을 눌렀을 때 인쇄물의 1-B 15개가 전부 /로 찍힐 것(image-73·74와 동일 결과, 단 판정 주체는 점검자)", "status": "pending_order" }
+      ] },
+
+    { "id": "S13", "title": "(3차 신설) 원클릭 번들 — Q-13", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 C) — 지적 중 파일명 파싱 silent skip은 자사 업로드 규약({type}_{ms}.pdf) 고정이라 비결함 판정(존치)", "evidence": ["bundle-status.ts:38-42 judgeStale", "bundle-actions.ts:22-29 bundleTargets·:119-128 Promise.all 타입별 명시 반환", "bundle-generate-panel.tsx:67-80 3상태 체크리스트·자동 갱신", "inspection-workbench.tsx:509-535 작업대 마운트"] },
+      "note": "2026-08-15 구현 — 신규: lib/bundle-status.ts(타입·judgeStale — 'use server' 타입 재노출 금지 교훈 준수)·inspections/bundle-actions.ts(체크리스트·병렬 생성 액션)·components/inspections/bundle-generate-panel.tsx(패널). 작업대 '별지 9·10호 생성·제출' 칸에 마운트. 대상: 자체점검 = 공문·표지·9호·4호 + 불량 있으면 10·11호 / 정기 = 외관. E2E(_e2e-annex4-print.mts) — 체크리스트 미생성 표시·[필요분 생성] 3종 병렬 7.7초·병합 라우트 200 PDF 확인. 로컬 병합은 pdf-lib 설치로 성립(사이드카 501 폴백 해소 — devDependency 추가)",
+      "criteria": [
+        { "id": "S13-1", "desc": "stale 판정 — 생성물 시각 < max(응답·불량·annex_inputs·펌프 최신 수정) 또는 미생성", "status": "implemented", "evidence": "latestDataAt(updated_at→created_at 폴백) + 파일명 스탬프({type}_{ms}.pdf) 비교 — judgeStale" },
+        { "id": "S13-2", "desc": "[번들 생성] 1버튼 — 병렬 생성(Promise.all) + 타입별 성공/실패 리포트", "status": "implemented", "evidence": "generateBundleAction — 부분 실패 타입별 반환, 패널이 실패 목록 표시. [필요분 생성]/[전체 재생성]/[번들 열기]" },
+        { "id": "S13-3", "desc": "사전 리포트 — 시트별 공란 n건, 경고만(차단 아님)", "status": "implemented", "evidence": "buildSheetOverviews 재사용(화면 진행률과 동일 소스) — blank = total − responded, 인쇄 축 근사(installed ∪ 응답 있음 ∪ STD-31)" },
+        { "id": "S13-4", "desc": "구성요소 체크리스트 — ✓ 최신 / ⚠stale / ✗미생성 + 대상 미리보기 겸용", "status": "implemented", "evidence": "bundle-generate-panel 체크리스트(data-testid bundle-checklist), 생성 직후 자동 갱신" },
+        { "id": "S13-5", "desc": "다건 일괄(zip) 미채택 — 후보 기록만(Q-13 rejected)", "status": "deferred" }
+      ] },
+
+    { "id": "S14", "title": "(3차 신설) 다중이용업소 단일화 — Q-10", "status": "partial", "phase": "A",
+      "blocked_by": "S9-3 DB 적용(137) — 코드는 준비됐고 18항목 적재 전에는 44항목 입력이 불가할 뿐",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 D) + 프로브 재실행 12/12 — S14-1~3만(S14-4/5는 23 소관 잔류 → 섹션 partial 유지)", "evidence": ["mu-std32-map.ts:15-37 매핑·:41-51 deriveMuFromStd32(X→O→N→공란)", "report9-actions.ts:350-353 직접 응답 선기록·:441-443 빈 칸만 파생", "원문 :3768-3783 MU-010/011/012 귀속 대조"] },
+      "note": "2026-08-15 — 매핑·롤업은 lib/mu-std32-map.ts 단일 원천(MU 16칸 ↔ 법정 44항목 전건 1:1 귀속). 매핑 유도: MU 칸 라벨(스테이징 실측) ↔ 32번 블록 설비 단위. MU-011 방화문↔32-D-003, MU-012 비상구↔32-D-001·002, MU-010 창문↔32-E-004",
+      "criteria": [
+        { "id": "S14-1", "desc": "매핑표 + 프로브(16칸 전부 ≥1 / 각 항목 0~1칸 귀속)", "status": "implemented", "evidence": "_probe-mu-std32-map.mts 12/12 — 44항목 전건 귀속·중복 0·법정 밖 코드 0" },
+        { "id": "S14-2", "desc": "롤업 규칙 X→O→N→공란", "status": "implemented", "evidence": "deriveMuFromStd32 — 프로브 우선순위 단언 5건 통과", "verified": "2026-08-15 E2E — 실생성 별지 4호 2쪽에서 MU-001←○(32-A-001)·MU-016←×(32-G-001)·MU-004←／(32-B-011) 파생 확인" },
+        { "id": "S14-3", "desc": "레거시 우선 — MU-01 직접 응답이 이긴다", "status": "implemented", "evidence": "assembleReport9 — 직접 응답 채운 뒤 빈 칸만 파생(if (!muResults[mu]))" },
+        { "id": "S14-4", "desc": "노출 규칙 — multiUse 업종 ≥1이면 STD-32 노출, MU-01 숨김", "status": "pending_order", "owner": "소방계획서_23 (S7-5 확장)", "note": "인쇄 측(부속 시트 집합의 no===32 → multiUse 축)은 이번에 반영. 입력 화면 노출·숨김은 23 소관" },
+        { "id": "S14-5", "desc": "합격선 — 입력 화면 다중이용업소 시트 1개(STD-32)·별지 4호 2쪽 16칸 파생", "status": "pending_order", "note": "137 적용 + 23 S7-5 이후 실검증" }
+      ] },
+
+    { "id": "S15", "title": "(3차 신설) 과거 건 재생성 차단 — Q-12", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 C) — 지적 1건(번들 진입 선제 가드 부재) 즉시 수정 반영·tsc 그린. 병합 라우트 미차단 지적은 비결함 판정(Q-12는 재생성만 차단, 기존 원본 열람·병합은 정책 의도상 허용)", "evidence": ["annex-regen-policy.ts:13-24 CUTOFF null 안전·isRegenBlocked", "report9-actions.ts:896 서버 가드", "inspection-workbench.tsx:513-535 배너+5버튼 비활성(서버와 동일 순수 함수·날짜 축)", "bundle-actions.ts generateBundleAction 진입 선제 가드(독립검증 후 추가)"] },
+      "note": "판정·문구는 lib/annex-regen-policy.ts 단일 원천(선행 세션 작성) — 이번 세션이 서버 가드·작업대 UI·번들 패널에 배선 + 독립검증 지적으로 generateBundleAction 진입 선제 가드 추가(2026-08-15). REGEN_POLICY_CUTOFF는 null(가드 조용히 통과) — 23 Q-19 규약 전환 운영 배포일에 기입",
+      "criteria": [
+        { "id": "S15-1", "desc": "cutoff 상수 — 규약 전환 배포일에 확정 기입", "status": "implemented", "evidence": "REGEN_POLICY_CUTOFF: string | null = null — null인 동안 아무 건도 막지 않는다(코드 선배포 안전)" },
+        { "id": "S15-2", "desc": "서버 가드 — 종료일(폴백 시작일) < cutoff 거부 + 사유", "status": "implemented", "evidence": "requestReport9Action — isRegenBlocked(i) → REGEN_BLOCKED_MESSAGE 반환(미리보기는 읽기 전용이라 미차단)" },
+        { "id": "S15-3", "desc": "UI — 생성 버튼 비활성 + 사유 배너 + 보관함 링크", "status": "implemented", "evidence": "inspection-workbench — regenBlocked(서버와 같은 순수 함수·같은 날짜 축) 배너 + 9호/4호/공문/표지/번들 비활성, 고객 상세 링크" },
+        { "id": "S15-4", "desc": "원본 부재 시 관리자 문의 안내 — 개별 해제 경로는 추후", "status": "implemented", "evidence": "배너·REGEN_BLOCKED_MESSAGE 문구에 관리자 문의 포함" }
+      ] },
+
+    { "id": "S7", "title": "공문 (3차: Q-14로 blocker 해소 — Phase A 이동)", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 B)", "evidence": ["official.ts:60-94 전 구획 렌더", "annex-cover-official.ts:122-142 companyAbbrev·suggestDocNo(수동 우선)", "bundle/route.ts:17 TYPE_ORDER official 최선두", "136_cover_official_types.sql:12·17 CHECK 확장", "annex-fields.tsx:62-68 ③ 공문 필드 4종"] },
+      "note": "선행 세션 구현분 확인 — doc-templates/official.ts·assembleOfficial·annex-fields ③ 공문 필드(docNo·sendDate·recipient·reference)·마이그레이션 136(annex_inputs annex_no CHECK에 official)",
+      "criteria": [
+        { "id": "S7-1", "desc": "레터헤드/문서번호·발신일자·수신·참조·발신/결재란/제목/본문/붙임 + 점검종류 가변", "status": "implemented", "evidence": "official.ts + inspectionTypeLabel 공유(S5-10과 동일 축)" },
+        { "id": "S7-2", "desc": "문서번호 = annex_inputs 저장 + '{약칭} {YYMM}-{동월 최대 일련+1}' 자동 제안", "status": "implemented", "evidence": "annex-cover-official.ts suggestDocNo·companyAbbrev — 수동 저장분 항상 우선(Q-14)" },
+        { "id": "S7-3", "desc": "번들 위치 — TYPE_ORDER ['official','cover','report9',…]", "status": "implemented", "evidence": "bundle/route.ts TYPE_ORDER 갱신 확인" }
+      ] },
+    { "id": "S8", "title": "위임장", "status": "deferred", "phase": "B",
+      "blocked_by": "필요 여부부터 미확정 — 근거가 샘플 엑셀의 탭 이름 하나뿐이다(§0 기준 재량). 서식 실물도 미확인(제시된 이미지 11장에 위임장 화면 없음). 필요 확인 → 서식 확보 순서로 풀어야 한다",
+      "criteria": [
+        { "id": "S8-1", "desc": "위임장 서식 확보 후 렌더 구현. 데이터(관계인·관리업체·대상물·점검종류)는 기존 테이블에 전부 있음", "status": "pending_order" }
+      ] },
+    { "id": "S9", "title": "점검표 그룹·대괄호 소제목 — S9-3만 잔류(나머지는 소방계획서_23이 흡수)", "status": "partial", "phase": "B",
+      "blocked_by": null,
+      "note": "2026-08-14 — 22 §7-2의 대괄호 오진 지적이 발단이 되어 23이 '개정 1판'을 냈고, S9-1·S9-2·S9-4가 전부 23으로 넘어갔다(23 G-1·Q-13·Q-16). 종전 blocked_by('별지 4호 원문 재추출 선행')는 해소됐다. 22에는 S9-3만 남으며 Q-10(다중이용업소 두 벌)과 연동된다",
+      "criteria": [
+        { "id": "S9-1", "desc": "그룹 소제목(1-A. 소화기구(…)·15-B. 수신기)을 원문에서 추출해 DB 적재", "status": "deferred", "owner": "소방계획서_23", "resolution": "23 P-6·S1 추출 프로브 + 마이그레이션 134가 group_name을 적재 — 23이 수행" },
+        { "id": "S9-2", "desc": "대괄호 소제목([주거용 주방 자동소화장치]·[가스·분말·고체에어로졸 자동소화장치]) 동일", "status": "deferred", "owner": "소방계획서_23", "resolution": "23 Q-13이 3층(subgroup_*)으로 편입 — 원천 110건 실측 확인(반각 [ U+005B, 【 아님). 22의 지적이 23 설계를 2층→3층으로 바꿨다" },
+        { "id": "S9-3", "desc": "STD-32 A·B 그룹 18항목 누락(32-A-001~32-C-001)을 함께 처리 — 동일 원인(엑셀 병합 셀 미추출)", "status": "implemented", "verified": "2026-08-15 스테이징 적용 완료(사용자 승인, _apply-134-137-staging.mjs — 134·135·136·137 일괄 201) + _probe-137-verify.mjs 10/10(44항목·order 1~44 연속·● 6건 정확·group_name 백필). ⚠ 운영 미적용 · seed 재실행 방어(23 R-9)와 동일 계열 주의", "evidence": ["137_std32_missing_ab_items.sql — 원문 :3649-3725 축자, 기존 26행 order +18 시프트, 재실행 게이트"] },
+        { "id": "S9-4", "desc": "S9 데이터로 report4.ts:178(설비명 1줄) 확장 — 설비 헤더 아래 그룹 행·대괄호 행 삽입", "status": "deferred", "owner": "소방계획서_23", "resolution": "23 Q-16이 흡수 — '어차피 report9.ts를 건드리고, 화면과 인쇄물이 한 번에 같아진다'. ⚠ 22의 S12(부속 구조 재편)와 같은 파일·같은 함수권을 건드리므로 착수 순서 조율 필요" }
+      ] }
+  ],
+
+  "handoff_to_23": {
+    "status": "✅ 전건 수용 완료 (2026-08-14, 3차) — T-1·T-3은 23 Q-19(미선택=공란·힌트/주석/responded 갱신), T-2는 23 Q-19 [／ 이 그룹]+S7-19, T-4는 23 Q-19·Q-21(빈 칸만 채우는 토글). sequencing_conflict는 23 S4-5(emit 순수 함수 분리)로 완화. 원문은 기록 보존용",
+    "context": "23이 같은 날 개정 1판으로 대괄호 3층(Q-13)·시트 단위 드로어(Q-14)·인쇄물 흡수(Q-16)·[○ 모두] 범위(Q-17)를 확정했다. 아래 4건은 22의 Q-8·Q-9에서 파생됐고 (작성 시점 기준) 23에 아직 없었다. 상세는 md §7-5",
+    "items": [
+      { "id": "T-1", "desc": "Q-1이 입력 UI의 전제를 깼다(P-17) — sheet-item-editor.tsx:18-25가 / 버튼을 없앤 근거 '/·무응답이 어차피 둘 다 인쇄에서 생략되므로 구분 불필요'가 번복됐다. 23의 Q-17은 현행 '미선택 = /' 의미 위에서 정해진 결정이라 재검토 대상" },
+      { "id": "T-2", "desc": "대괄호(3층) 단위 [／ 이 그룹] 버튼 필요 — 23의 [／ 모두]는 중분류 단위(Q-17)인데 1-B. 자동소화장치 하나가 별지 4호 1쪽 체크박스 4개로 쪼개진다. Q-13으로 subgroup_* 데이터가 생기므로 이제 구현 가능" },
+      { "id": "T-3", "desc": "미선택의 의미를 / → 공란(미점검)으로 전환 — sheet-item-editor.tsx:18-25 주석과 :80-82 회색 ／ 힌트('고르지 않으면 해당없음(／)으로 처리됩니다')가 거짓 안내가 된다. 진행률 responded 집계에 N 포함도 필요" },
+      { "id": "T-4", "desc": "그룹 일괄 / 의 해제 경로 미설계 — 개별 / 버튼이 없으므로(Q-9) [／ 이 그룹] 토글 또는 그룹 초기화 버튼이 필요하다" }
+    ],
+    "sequencing_conflict": "23의 Q-16(인쇄물 그룹 렌더)과 22의 S12(부속 구조 재편)가 같은 함수권(report4.ts sheetItemPages)을 건드린다. S12가 '표 하나 → 설비당 페이지'로 뒤집으므로 Q-16을 먼저 하면 다시 뜯게 된다"
+  },
+
+  "out_of_scope": [
+    "image-62의 자탐1/자탐2 탭 분할 — 엑셀 탭 길이 제약에 따른 편의이며 PDF 자동 페이지 분할로 대체. 요구사항 아님",
+    "산출 형식은 PDF 유지(HTML→Gotenberg). 엑셀 산출 검토 안 함",
+    "STD 번호 공백 7종(물분무·미분무·포·분말소화설비, 누전경보기, 제연설비(거실), 지하구) 점검표 부재 — 별도 과제"
+  ],
+
+  "unverified": [
+    "이미지는 샘플이므로 배치·서식 세부에 구속력이 없다(image_status·md §0). 구속 근거는 _form/_별지4호_현행판_추출.txt 하나뿐이며, 재량 요소는 Q-7로 결정했을 뿐 원문 대조 대상이 아니다",
+    "샘플의 / 표기가 대장 파생인지 수동 입력인지 확인 불가 — Q-6을 Q-8로 번복한 직접 근거. 이미지로는 영원히 판별할 수 없으므로 재론 시 다른 증거가 필요하다",
+    "위임장 서식 실물 미확인 + 필요 여부 자체가 미확정 — S8 deferred",
+    "현3·현4·현5 탭의 정체 미확인. 임의 명칭이고 나머지 탭이 전부 별지 4호/9호로 매핑되므로 같은 계열의 쪽 분할일 가능성이 높으나 확인 안 됨",
+    "report9.ts의 쪽 구성(9쪽 조립)은 조사 에이전트 보고에 의존 — 직접 대조 안 함",
+    "설치 설비가 있는데 응답 0인 실제 사례로 Q-4(본문 인쇄·결과란 공란)를 확인하지 않음 — 구현 시 필수 검증 항목",
+    "Q-4 번복으로 인쇄 분량이 늘어난다(S3-5). 설치 설비가 많은 고객의 쪽수·생성 시간 증가를 측정하지 않음 — (3차) S1-8로 실측·timeoutMs 120s 편입",
+    "~~(3차 신규) MU 매핑표 유도~~ → 해소(2026-08-15) — _probe-mu-std32-map.mts 12/12. MU-001(소화기 5)·MU-002(간이SP 8)는 32-A 안에서 항목 코드 블록(001~/011~)으로 갈림을 원문 실측",
+    "~~(3차 신규) annex_inputs 공문 스키마 정합~~ → 해소 — 마이그레이션 136이 annex_no CHECK에 official 추가, annex-fields ③ 패턴 그대로 재사용",
+    "~~(구현 후 잔여) 실 DB→PDF 생성 실측~~ → 해소(2026-08-15) — 실데이터 E2E _e2e-annex4-print.mts 27/27: 실 조립 경로 생성 14.3초·51쪽·1-B 전량 ／·MU 롤업·번들 병합 200. 단 렌더러가 로컬 사이드카(Chromium)라 운영 Gotenberg 픽셀 확인 1회 권장",
+    "~~(구현 후 잔여) 마이그레이션 134~137 미적용~~ → 스테이징 해소(2026-08-15 승인 적용, _probe-137-verify 10/10). 운영은 미적용 — 운영 배포 시 동반 적용 필요",
+    "(구현 후 잔여) S13 공란 사전 리포트의 시트 축은 인쇄 축의 근사(installed ∪ 응답 ∪ STD-31, 작동점검 ● 제외 분모) — 인쇄 본문 분모(전 항목)와 다를 수 있음(경고 용도라 허용, 문구로 오해 방지)"
+  ]
+}
