@@ -16,7 +16,8 @@ import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
 import { renderCover } from '@/lib/doc-templates/cover'
 import { renderOfficial } from '@/lib/doc-templates/official'
-import { assembleCover, assembleOfficial } from '@/lib/annex-cover-official'
+import { assembleCover, assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
+import { renderDelegation } from '@/lib/doc-templates/delegation'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
 import { deriveMuFromStd32 } from '@/lib/mu-std32-map'
 import type { DocAsset } from '@/lib/doc-templates/base'
@@ -859,9 +860,10 @@ export type Report9Job = {
 }
 export type Report9File = { name: string; path: string; createdAt: string | null }
 
-/** 생성 요청 — 별지 4·9·10·11호·외관점검표·공문·표지 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7·H-21).
- *  official(공문)·cover(표지)는 소방계획서_22 S5·S7 — 번들 순서는 공문 → 표지 → 본문(bundle/route TYPE_ORDER) */
-const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior', 'cover', 'official'] as const
+/** 생성 요청 — 별지 4·9·10·11호·외관점검표·공문·표지·위임장 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7·H-21).
+ *  official(공문)·cover(표지)는 소방계획서_22 S5·S7, delegation(위임장)은 S8 —
+ *  번들 순서는 공문 → 위임장 → 표지 → 본문(bundle/route TYPE_ORDER) */
+const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior', 'cover', 'official', 'delegation'] as const
 export type AnnexType = typeof ANNEX_TYPES[number]
 
 export async function requestReport9Action(
@@ -885,8 +887,8 @@ export async function requestReport9Action(
   // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(special_*·null)만, 정기·레거시 event는 외관점검표만.
   // 관리유형 무관 — 일반관리 자체점검도 대상 (소방계획서_6 W-15, page.tsx isSpecial과 동일 기준)
   const isSpecial = !i.plan_type || i.plan_type.startsWith('special')
-  if (['report4', 'report9', 'report10', 'report11', 'cover', 'official'].includes(reportType) && !isSpecial) {
-    return { error: '일반·정기 점검은 별지 4·9·10·11호(표지·공문 포함) 대상이 아닙니다 — 외관점검표만 작성합니다.' }
+  if (['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation'].includes(reportType) && !isSpecial) {
+    return { error: '일반·정기 점검은 별지 4·9·10·11호(표지·공문·위임장 포함) 대상이 아닙니다 — 외관점검표만 작성합니다.' }
   }
   if (reportType === 'exterior' && isSpecial) {
     return { error: '자체점검(특별점검)은 외관점검표 대상이 아닙니다 — 별지 9호를 작성해주세요.' }
@@ -928,6 +930,10 @@ export async function requestReport9Action(
       const assembled = await assembleOfficial(admin, i.customer_id, inspectionId)
       html = renderOfficial(assembled.data)
       missing = assembled.missing
+    } else if (reportType === 'delegation') {
+      const assembled = await assembleDelegation(admin, i.customer_id, inspectionId)
+      html = renderDelegation(assembled.data)
+      missing = assembled.missing
     } else {
       const assembled = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
       html = reportType === 'report10' ? renderReport10(assembled.data) : renderReport11(assembled.data)
@@ -964,6 +970,7 @@ export async function requestReport9Action(
     const label = reportType === 'exterior' ? '외관점검표'
       : reportType === 'cover' ? '표지'
       : reportType === 'official' ? '공문'
+      : reportType === 'delegation' ? '위임장'
       : `별지 ${reportType === 'report4' ? '4' : reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'}호`
     return { error: `${label} 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
   }
@@ -973,7 +980,7 @@ export async function requestReport9Action(
  *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시 */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
-  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official',
+  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation',
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -1010,6 +1017,10 @@ export async function getAnnexPreviewHtmlAction(
       const { data, missing } = await assembleOfficial(admin, ins.customer_id, inspectionId)
       return { html: renderOfficial(data), missing }
     }
+    if (reportType === 'delegation') {
+      const { data, missing } = await assembleDelegation(admin, ins.customer_id, inspectionId)
+      return { html: renderDelegation(data), missing }
+    }
     const { data, missing } = await assembleAnnex1011(admin, ins.customer_id, inspectionId, reportType)
     const html = reportType === 'report10'
       ? renderReport10(data, { highlight: true })
@@ -1036,8 +1047,8 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   // 유형 가드(데이터 계층) — 자체점검은 별지 4/9/10/11호만, 정기·레거시 event는 외관점검표만 조회 (page.tsx isSpecial과 동일)
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
   // 22 S5·S7 — 표지·공문도 문서 목록에 잡혀야 재생성·다운로드 동선이 성립한다
-  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11', 'cover', 'official'] : ['exterior']
-  const filePattern = isSpecial ? /^(report(4|9|10|11)|cover|official)_/ : /^exterior_/
+  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation'] : ['exterior']
+  const filePattern = isSpecial ? /^(report(4|9|10|11)|cover|official|delegation)_/ : /^exterior_/
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')

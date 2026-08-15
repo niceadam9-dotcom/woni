@@ -151,7 +151,7 @@ export function InspectionWorkbench({
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official') {
+  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation') {
     setMsg('')
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, reportType)
@@ -525,14 +525,38 @@ export function InspectionWorkbench({
                     {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
                   </button>
                   <button onClick={() => generate('report4')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 별지 4호</button>
-                  {/* 소방계획서_22 S5·S7 — 납품 번들 앞장 2종. 번들 순서는 공문 → 표지 → 본문(bundle TYPE_ORDER) */}
+                  {/* 소방계획서_22 S5·S7·S8 — 납품 번들 앞장 3종. 번들 순서는 공문 → 위임장 → 표지 → 본문(bundle TYPE_ORDER) */}
                   <button onClick={() => generate('official')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 공문</button>
+                  <button onClick={() => generate('delegation')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 위임장</button>
                   <button onClick={() => generate('cover')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 표지</button>
                   <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
                 </>)}
               </div>
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
+              {/* 22 S7 보강 — 공문 ③ 고유값 진입점. 정의·저장 경로(Q-14)는 있었는데 여는 화면이 없어
+                  자동 제안 문서번호를 수정할 방법이 없었다(2026-08-15 S8 배선 중 발견) */}
+              {canManage && (
+                <details className="border-t border-[#f3f1fc] pt-2">
+                  <summary className="cursor-pointer text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]">
+                    공문 입력 (문서번호·수신·참조)
+                  </summary>
+                  <div className="mt-1.5">
+                    <AnnexFields inspectionId={inspectionId} annexNo="official" canEdit={canManage} />
+                  </div>
+                </details>
+              )}
+              {/* 22 S8 — 위임장 ③ 고유값(생년월일 등 시스템 미보유 값). 자동 기본값 위에 수동 우선 */}
+              {canManage && (
+                <details className="border-t border-[#f3f1fc] pt-2">
+                  <summary className="cursor-pointer text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]">
+                    위임장 입력 (관계인·대리인 생년월일 등)
+                  </summary>
+                  <div className="mt-1.5">
+                    <AnnexFields inspectionId={inspectionId} annexNo="delegation" canEdit={canManage} />
+                  </div>
+                </details>
+              )}
               <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] pt-2">
                 <span className="text-[11px] text-[#514b81]">소방서 제출일</span>
                 <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}

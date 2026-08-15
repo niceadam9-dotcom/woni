@@ -2,7 +2,7 @@
   "doc": "소방계획서_22 — 점검 결과보고서 인쇄 번들 완전화: 표지·목차 신설 + 설비별 점검표 법정 서식 복원",
   "design": "erp_goal/소방계획서_22.md (2026-08-14 작성·같은 날 이미지 6장 추가로 갱신)",
   "created": "2026-08-14",
-  "updated": "2026-08-15(독립 검증 통과 — implemented 승격) — 판정자 4인(Explore, 구현자≠판정자)이 영역 분담 적대 검증: A 인쇄 규칙(S1~S4·S6·S12·Q-11) 전건 ✅ + 프로브 재실행 20/20·8/8, B 표지·공문(S5·S7·136) 전건 ✅, C 번들·차단(S13·S15) — 지적 3건 중 실결함 1건(번들 진입 선제 가드 부재, UX 결함)은 즉시 수정·tsc 그린, 나머지 2건은 비결함 판정(병합 라우트는 재생성이 아니라 열람이라 Q-12 대상 아님·파일명 파싱은 자사 규약 고정), D MU·137(S14-1~3·S9-3) 전건 ✅ + 프로브 재실행 12/12·10/10. tsc --noEmit 2회 그린. 마이그레이션 134~137 스테이징 적용 완료·운영 미적용. 전부 미커밋 — 커밋은 승인 대기",
+  "updated": "2026-08-15(독립 검증 통과 — implemented 승격) — 판정자 4인(Explore, 구현자≠판정자)이 영역 분담 적대 검증: A 인쇄 규칙(S1~S4·S6·S12·Q-11) 전건 ✅ + 프로브 재실행 20/20·8/8, B 표지·공문(S5·S7·136) 전건 ✅, C 번들·차단(S13·S15) — 지적 3건 중 실결함 1건(번들 진입 선제 가드 부재, UX 결함)은 즉시 수정·tsc 그린, 나머지 2건은 비결함 판정(병합 라우트는 재생성이 아니라 열람이라 Q-12 대상 아님·파일명 파싱은 자사 규약 고정), D MU·137(S14-1~3·S9-3) 전건 ✅ + 프로브 재실행 12/12·10/10. tsc --noEmit 2회 그린. 마이그레이션 134~137 스테이징 적용 완료·운영 미적용. 커밋 7de9d90·푸시 완료(2026-08-15). **같은 날 후속: S8 위임장 구현(Q-15 필요 확정 — '보고서 갑지.xls' [위임장] 탭 실측 서식, 렌더 프로브 15/15·tsc 그린·마이그레이션 138 작성) + Q-14 공백 보강(공문 ③ 입력 진입점 부재 발견·해소). S8은 같은 날 138 스테이징 적용(201)·실데이터 조립 프로브 9/9·독립검증 통과로 implemented 승격·커밋(사용자 '진행' 승인). 잔여: 운영 반영 시 134~138 동반**",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
   "image_status": "image-59~74는 승진소방 실제 납품물의 샘플 예시이며 재현 의무가 없다(2026-08-14 사용자 확인). 구속 근거는 erp_goal/_form/_별지4호_현행판_추출.txt 뿐. 구속=R-2·R-3·R-4·R-5·R-6·R-7 / 재량=R-1·R-8·R-9·R-10·R-11 / 반례로만 유효=image-72·73·74의 1-B 전량 '/'. 반례에서 원인(대장 파생)까지 읽어낸 것이 Q-6의 오류였고 Q-8에서 번복됨. 상세는 소방계획서_22.md §0",
   "source_images": [
@@ -62,7 +62,9 @@
     { "id": "Q-11", "question": "펌프성능시험 부속을 목차·번들에서 어떻게 다룰 것인가", "decided": "권고안 채택 — 값 없으면 미생성 유지(측정 기록이라 빈 표는 '측정 안 함'과 '측정했는데 공란'을 구분 못 한다). 목차에는 값 있을 때만 조건부 1줄, 번들 내 위치는 현행(report4 내부 꼬리) 유지", "status": "confirmed", "by": "2026-08-15 사용자 선택(구현 착수 시 확정)", "context": "P-19 — renderReport4가 이미 pumpTestPages를 부속으로 붙이는데 22가 한 번도 다루지 않았다", "evidence": "report4.ts tocPage(hasPumpTest 조건부 1줄) — _probe-annex4-print-rules.mts 'Q-11' 단언 통과" },
     { "id": "Q-12", "question": "과거 점검 건을 새 규약(미선택=미점검)으로 재생성하면 의미가 반전된다 — 어떻게 방어할 것인가", "decided": "차단 — 규약 전환일(Q-9/23 Q-19 배포일) 이전 건은 별지 재생성을 서버·UI 양쪽에서 막는다. 보관함 원본(소방계획서_18 정책)이 원천. 값 조작(무응답→/ 해석)은 허위기록이라 배제", "rationale": "구 규약에서 무응답은 의도된 '해당없음'(sheet-item-editor.tsx:80-82 옛 힌트). 새 렌더로 재생성하면 같은 DB 상태가 '미점검 공란'으로 인쇄돼 멀쩡히 끝난 점검이 부실 점검처럼 보인다", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "impact": "실행은 S15. 보관함 원본 부재 시 관리자 문의 안내 — 개별 해제 경로는 추후 결정" },
     { "id": "Q-13", "question": "번들 생성을 어떻게 일괄화할 것인가 — 문서가 6~8종으로 늘면 개별 생성은 클릭 수·stale 혼입이 함께 는다", "decided": "한 건 원클릭 — [번들 생성] 1버튼이 미생성·stale 문서를 자동 판정해 병렬 생성 후 병합. 생성 전 시트별 공란(미점검) 리포트(경고만·진행은 사용자 선택) + ③칸 구성요소 체크리스트", "rationale": "stale 혼입(점검표 수정 후 별지4만 재생성, 표지·공문은 옛 날짜)이 구조적으로 발생하는 것을 판정 자동화로 차단", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "rejected": ["다건 일괄(점검 목록 다중 선택 → zip) — 미채택, 후보 기록만", "현행 유지(개별 생성)"], "impact": "실행은 S13" },
-    { "id": "Q-14", "question": "공문 문서번호(승 진 2511-977 = 약칭+YYMM+일련) 채번 방식", "decided": "수동 + 자동 제안 — annex_inputs 패턴으로 저장하고, 기본값을 '승 진 {YYMM}-{동월 최대 일련+1}'로 제안하되 수정 가능", "rationale": "완전 자동은 시퀀스 테이블·재생성 시 번호 유지 규칙이 필요하고 사내 관행(수기 번호)을 못 담는다. 완전 수동은 매번 이전 번호를 찾아야 한다. 하이브리드가 신속과 유연을 다 잡는다", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "impact": "S7 blocker 해소 → Phase A 이동" }
+    { "id": "Q-14", "question": "공문 문서번호(승 진 2511-977 = 약칭+YYMM+일련) 채번 방식", "decided": "수동 + 자동 제안 — annex_inputs 패턴으로 저장하고, 기본값을 '승 진 {YYMM}-{동월 최대 일련+1}'로 제안하되 수정 가능", "rationale": "완전 자동은 시퀀스 테이블·재생성 시 번호 유지 규칙이 필요하고 사내 관행(수기 번호)을 못 담는다. 완전 수동은 매번 이전 번호를 찾아야 한다. 하이브리드가 신속과 유연을 다 잡는다", "status": "confirmed", "by": "2026-08-14 사용자 선택(3차)", "impact": "S7 blocker 해소 → Phase A 이동. ⚠구현 후 발견(2026-08-15 S8 배선 중): ③필드 정의·저장 경로는 있었으나 여는 화면이 없어 '수정 가능'이 미실현 — 작업대에 [공문 입력] 진입점 추가로 해소" },
+    { "id": "Q-15", "question": "위임장(S8)을 만들 것인가, 서식은 무엇을 쓰나", "decided": "필요 확정. 서식 원천 = 사내 실무 엑셀 '보고서 갑지.xls' [위임장] 탭 실측(2026-08-15 추출 — 점검종류 체크·관계인/대리인 인적사항 4행·점검일자·위임내용(법 22조 1항·시행규칙 23조)·관할 소방서 귀하·붙임서류·유의사항 2건·백상지(재활용품) 푸터). 법정 별지가 아니라 §0 기준 재량 — Q-7 원칙(샘플 근접)으로 재현하되 띄어쓰기 오탈자만 교정", "status": "confirmed", "by": "2026-08-15 사용자 '위임장 필요'", "impact": "S8 deferred 해제 → 구현. blocked_by(필요 미확정·서식 미확보) 양쪽 모두 해소" },
+    { "id": "Q-16", "question": "위임장의 번들 위치·기본 포함 여부", "decided": "(권고안 적용, 확인 대기) TYPE_ORDER 공문 → 위임장 → 표지 — 제출용 행정 서류를 보고서 본체 앞에 묶는다. 자체점검 번들 기본 구성에 포함(bundleTargets base) — 값 없으면 서식만 온전히 찍고 칸은 공란(Q-4 철학). 생년월일 등 시스템 미보유 값은 annex_inputs('delegation') 수동 입력이 원천", "status": "confirmed", "by": "2026-08-15 구현자 권고 제시 후 사용자 '진행'(이의 없음)으로 확정", "rationale": "샘플 엑셀 탭 순서는 구속력이 없고(§0), 실무 서류철 관행(공문·위임장·보고서 본체)을 따랐다" }
   ],
 
   "items": [
@@ -199,10 +201,17 @@
         { "id": "S7-2", "desc": "문서번호 = annex_inputs 저장 + '{약칭} {YYMM}-{동월 최대 일련+1}' 자동 제안", "status": "implemented", "evidence": "annex-cover-official.ts suggestDocNo·companyAbbrev — 수동 저장분 항상 우선(Q-14)" },
         { "id": "S7-3", "desc": "번들 위치 — TYPE_ORDER ['official','cover','report9',…]", "status": "implemented", "evidence": "bundle/route.ts TYPE_ORDER 갱신 확인" }
       ] },
-    { "id": "S8", "title": "위임장", "status": "deferred", "phase": "B",
-      "blocked_by": "필요 여부부터 미확정 — 근거가 샘플 엑셀의 탭 이름 하나뿐이다(§0 기준 재량). 서식 실물도 미확인(제시된 이미지 11장에 위임장 화면 없음). 필요 확인 → 서식 확보 순서로 풀어야 한다",
+    { "id": "S8", "title": "위임장 — Q-15 필요 확정으로 구현(2026-08-15)", "status": "implemented", "phase": "B",
+      "blocked_by": null,
+      "verified": { "date": "2026-08-15", "method": "독립 검증(Explore 판정자, 구현자≠판정자) — 프로브 재실행 15/15·9/9(스테이징 실데이터), 원문 엑셀 탭 직접 추출 대조, 1.7 전화 규약 준수 확인. 결함 0", "evidence": ["delegation.ts:56-101 전 구성요소", "annex-cover-official.ts:228 선임자≠대표 전화 공란 규약", "report9-actions.ts:866·890·933-936·983·1022·1050-1051", "bundle/route.ts:17·bundle-actions.ts:27", "138 스테이징 적용(INSERT 양성·음성 실증)"] },
+      "note": "서식 원천: '보고서 갑지.xls' [위임장] 탭 실측(Q-15). 신규 doc-templates/delegation.ts(렌더 순수 함수) + assembleDelegation(annex-cover-official.ts — 관계인=1.7 선임 소방안전관리자 폴백 대표, 대리인=주된 점검인력 폴백 담당 직원, 관할 소방서=customers.fire_station에서 '소방서' 접미 제거, 생년월일=annex_inputs 수동 전용). ⚠1.7에 전화 열이 없어 선임자≠대표면 전화 자동 기재 금지(pickFirePlanManager 규약 준수). 렌더 프로브 _probe-delegation-render.mts 15/15. 마이그레이션 138(두 CHECK 확장) — 스테이징 적용 완료(2026-08-15 승인, _apply-138-staging.mjs 201·검증 2/2). 실데이터 조립 프로브 _probe-delegation-assemble.mts 9/9(NODE_OPTIONS=--conditions=react-server로 'server-only' 우회 실행). ⚠운영 미적용 — 운영 반영 시 134~138 동반",
       "criteria": [
-        { "id": "S8-1", "desc": "위임장 서식 확보 후 렌더 구현. 데이터(관계인·관리업체·대상물·점검종류)는 기존 테이블에 전부 있음", "status": "pending_order" }
+        { "id": "S8-1", "desc": "doc-templates/delegation.ts 렌더 — 체크박스 3행(점검종류 √)·당사자 4행 표·점검일자(N일)·위임내용 축자·서명란·소방서(본부) 귀하·붙임서류·유의사항 2건·백상지(재활용품) 푸터", "status": "implemented", "evidence": "_probe-delegation-render.mts 15/15 — 공란 데이터도 서식 온전 렌더(Q-4 철학)" },
+        { "id": "S8-2", "desc": "assembleDelegation — 자동 기본값(관계인·대리인·관할서·일자) 위에 annex_inputs('delegation') 수동 우선, 누락은 missing[] 표면화", "status": "implemented", "evidence": "annex-cover-official.ts assembleDelegation" },
+        { "id": "S8-3", "desc": "ANNEX 배선 — ANNEX_TYPES·유형 가드(자체점검)·생성/미리보기 분기·status allowTypes·filePattern", "status": "implemented", "evidence": "report9-actions.ts delegation 분기 6곳" },
+        { "id": "S8-4", "desc": "번들 편입 — TYPE_ORDER(official→delegation→cover)·bundleTargets base 포함", "status": "implemented", "evidence": "bundle/route.ts·bundle-actions.ts (Q-16 권고 적용)" },
+        { "id": "S8-5", "desc": "UI — 작업대 [위임장] 생성 버튼(regenBlocked 연동) + [위임장 입력] ③필드 10종(생년월일 등) + GENERATED_DOC_KINDS 라벨", "status": "implemented", "evidence": "inspection-workbench.tsx·annex-fields.tsx delegation 10필드·doc-requirements.ts" },
+        { "id": "S8-6", "desc": "마이그레이션 138 — fire_plan_gen_jobs report_type·annex_inputs annex_no CHECK에 delegation (재실행 안전, 136 패턴)", "status": "implemented", "evidence": "138_delegation_type.sql — DB 미적용(승인 대기)" }
       ] },
     { "id": "S9", "title": "점검표 그룹·대괄호 소제목 — S9-3만 잔류(나머지는 소방계획서_23이 흡수)", "status": "partial", "phase": "B",
       "blocked_by": null,
@@ -236,7 +245,7 @@
   "unverified": [
     "이미지는 샘플이므로 배치·서식 세부에 구속력이 없다(image_status·md §0). 구속 근거는 _form/_별지4호_현행판_추출.txt 하나뿐이며, 재량 요소는 Q-7로 결정했을 뿐 원문 대조 대상이 아니다",
     "샘플의 / 표기가 대장 파생인지 수동 입력인지 확인 불가 — Q-6을 Q-8로 번복한 직접 근거. 이미지로는 영원히 판별할 수 없으므로 재론 시 다른 증거가 필요하다",
-    "위임장 서식 실물 미확인 + 필요 여부 자체가 미확정 — S8 deferred",
+    "~~위임장 서식 실물 미확인 + 필요 여부 자체가 미확정~~ → 해소(2026-08-15 Q-15) — '보고서 갑지.xls' [위임장] 탭 실측으로 서식 확보, 구현·138 스테이징 적용·독립검증 통과(implemented, 2026-08-15). 잔여: 운영 반영 시 138 동반뿐",
     "현3·현4·현5 탭의 정체 미확인. 임의 명칭이고 나머지 탭이 전부 별지 4호/9호로 매핑되므로 같은 계열의 쪽 분할일 가능성이 높으나 확인 안 됨",
     "report9.ts의 쪽 구성(9쪽 조립)은 조사 에이전트 보고에 의존 — 직접 대조 안 함",
     "설치 설비가 있는데 응답 0인 실제 사례로 Q-4(본문 인쇄·결과란 공란)를 확인하지 않음 — 구현 시 필수 검증 항목",

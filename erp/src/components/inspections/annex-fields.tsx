@@ -6,7 +6,7 @@ import { DateInput } from '@/components/ui/date-input'
  *  소방계획서_21 R6-6에서 작업대가 이 값을 미리보기 위에 인라인으로 받게 되면서
  *  정의가 두 벌이 되지 않도록 여기로 뺐다. 정의를 고칠 곳은 여기 하나다. */
 
-export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior' | 'official'
+export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior' | 'official' | 'delegation'
 
 export type FieldDef = {
   key: string
@@ -26,6 +26,8 @@ export const ANNEX_TITLES: Record<ComposeAnnexNo, { title: string; doc: string }
   exterior: { title: '외관점검표 작성', doc: '소방시설등 외관점검표' },
   // 소방계획서_22 S7 — 공문은 문서번호(수동+자동 제안 Q-14)·수신·참조가 ③ 계층
   official: { title: '공문 작성', doc: '점검 결과보고서 제출 공문' },
+  // 소방계획서_22 S8 — 위임장은 생년월일 등 시스템 미보유 값이 ③ 계층(자동 기본값 위에 수동 우선)
+  delegation: { title: '위임장 작성', doc: '점검결과 보고서 제출용 위임장' },
 }
 
 /** ③ 서식 고유 값 폼 정의 — 별지 MD §3 계층 매핑 기준 (문서 레벨 값만, 불량별 값은 불량 카드가 원본) */
@@ -65,6 +67,18 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     { key: 'sendDate', label: '발신일자 표기', type: 'text', placeholder: '예: 2025년 11월', hint: '미입력 시 점검 종료월로 출력' },
     { key: 'recipient', label: '수신', type: 'text', hint: '미입력 시 고객명(건물명)으로 출력' },
     { key: 'reference', label: '참조', type: 'text', placeholder: '소방안전관리자 및 관계인', hint: '미입력 시 기본 문구로 출력' },
+  ],
+  delegation: [
+    { key: 'ownerName', label: '관계인 성명', type: 'text', hint: '미입력 시 서식 1.7 선임 소방안전관리자(폴백: 대표)로 출력' },
+    { key: 'ownerPosition', label: '관계인 직위', type: 'text', placeholder: '예: 소방안전관리자' },
+    { key: 'ownerPhone', label: '관계인 연락처', type: 'text', hint: '선임자와 대표가 다르면 자동으로 채우지 않습니다 — 직접 입력' },
+    { key: 'ownerBirth', label: '관계인 생년월일', type: 'text', placeholder: '예: 1972.12.27', hint: '시스템 미보유 값 — 미입력 시 공란 인쇄' },
+    { key: 'agentName', label: '대리인 성명', type: 'text', hint: '미입력 시 주된 점검인력(폴백: 담당 직원)으로 출력' },
+    { key: 'agentPosition', label: '대리인 직위', type: 'text', placeholder: '예: 과장' },
+    { key: 'agentPhone', label: '대리인 연락처', type: 'text' },
+    { key: 'agentBirth', label: '대리인 생년월일', type: 'text', placeholder: '예: 1987.10.13', hint: '시스템 미보유 값 — 미입력 시 공란 인쇄' },
+    { key: 'submitDate', label: '위임 일자 표기', type: 'text', placeholder: '예: 2026년 7월 16일', hint: '미입력 시 점검 종료일로 출력' },
+    { key: 'station', label: '관할 소방서', type: 'text', placeholder: '예: 양평', hint: '미입력 시 고객 정보의 관할 소방서에서 "소방서"를 뗀 이름으로 출력' },
   ],
 }
 

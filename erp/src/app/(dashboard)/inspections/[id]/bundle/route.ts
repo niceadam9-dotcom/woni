@@ -12,9 +12,9 @@ import { mergePdfs } from '@/lib/pdf'
  *  세션·권한(inspection_register, 문서 조회 액션과 동일 축)을 직접 검사한다. */
 
 const BUCKET = 'fire-plans'
-// 병합 순서(소방계획서_22 S7-3) — 공문이 최선두(통상 공문이 문서 앞장), 표지, 이어서
-// 보고서(9호)·점검표(4호)·계획서(10호)·이행계획(11호)·외관. 공문·표지 미생성 회차는 종전과 동일하게 본문부터.
-const TYPE_ORDER = ['official', 'cover', 'report9', 'report4', 'report10', 'report11', 'exterior'] as const
+// 병합 순서(소방계획서_22 S7-3·S8) — 공문이 최선두(통상 공문이 문서 앞장), 위임장(제출용 행정 서류),
+// 표지, 이어서 보고서(9호)·점검표(4호)·계획서(10호)·이행계획(11호)·외관. 앞장류 미생성 회차는 종전대로 본문부터.
+const TYPE_ORDER = ['official', 'delegation', 'cover', 'report9', 'report4', 'report10', 'report11', 'exterior'] as const
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()

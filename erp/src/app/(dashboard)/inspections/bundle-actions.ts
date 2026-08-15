@@ -12,8 +12,9 @@ import { requestReport9Action, type AnnexType } from './report9-actions'
 /** 원클릭 번들 (소방계획서_22 S13 — Q-13). 판정·타입은 lib/bundle-status.ts,
  *  이 파일은 async 서버 액션만 export 한다('use server' 규약 — 소방계획서_18 교훈).
  *
- *  구성요소(자체점검): 공문·표지·별지 9호·별지 4호 + 불량이 있으면 별지 10·11호.
- *  정기·레거시 event: 외관점검표 1종. 위임장(S8)은 서식 미확정이라 제외(deferred). */
+ *  구성요소(자체점검): 공문·위임장·표지·별지 9호·별지 4호 + 불량이 있으면 별지 10·11호.
+ *  정기·레거시 event: 외관점검표 1종. 위임장은 S8(2026-08-15 사용자 '필요' 확정) —
+ *  서식 원천은 '보고서 갑지.xls' [위임장] 탭, 값 없으면 공란 인쇄(Q-4 철학). */
 
 const BUCKET = 'fire-plans'
 
@@ -23,7 +24,7 @@ async function bundleTargets(admin: Admin, inspectionId: string, isSpecial: bool
   if (!isSpecial) return ['exterior']
   const { count } = await admin.from('inspection_defects')
     .select('id', { count: 'exact', head: true }).eq('inspection_id', inspectionId)
-  const base: AnnexType[] = ['official', 'cover', 'report9', 'report4']
+  const base: AnnexType[] = ['official', 'delegation', 'cover', 'report9', 'report4']
   // 별지 10(이행계획)·11(완료보고)은 불량이 있어야 의미가 있다 — 0건이면 빈 서식 혼입 방지 차원에서 제외
   return (count ?? 0) > 0 ? [...base, 'report10', 'report11'] : base
 }

@@ -100,6 +100,8 @@ export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }
   exterior: { label: '외관점검표', full: `${DOC_TERMS.checklistExterior} (별지 6호 — 작성 후 2년 보관)` },
   // 소방계획서_22 S5·S7 — 결과보고서 납품 번들의 앞장 2종 (번들 순서: 공문 → 표지 → 본문, bundle TYPE_ORDER)
   official: { label: '제출 공문', full: '점검 결과보고서 제출 공문 (문서번호·수신·결재란 — 관계인 제출용 앞장)' },
+  // 소방계획서_22 S8 — 관계인이 결과보고서 제출을 관리업체에 위임하는 서식 (원천: 사내 실무 서식)
+  delegation: { label: '위임장', full: '점검결과 보고서 제출용 위임장 (관계인 → 관리업체 대리 제출)' },
   cover: { label: '보고서 표지', full: '점검 결과보고서 표지 (연도·건물명·건물 사진·회사 레터헤드)' },
   fire_plan: { label: '소방계획서', full: DOC_TERMS.firePlan },
 }

@@ -12,6 +12,9 @@ import { listCustomerAssetEntries, ASSET_BUCKET, ASSET_URL_TTL } from '@/lib/cus
 import type { DocAsset } from '@/lib/doc-templates/base'
 import type { CoverData } from '@/lib/doc-templates/cover'
 import type { OfficialData } from '@/lib/doc-templates/official'
+import type { DelegationData } from '@/lib/doc-templates/delegation'
+import { pickFirePlanManager } from '@/lib/fire-plan-template'
+import type { ManagerRow } from '@/components/customers/plan-form17'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -31,12 +34,13 @@ function ymLabel(iso: string | null | undefined): string {
 
 async function loadInspection(admin: Admin, inspectionId: string) {
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, inspection_type, is_initial, inspection_start_date, inspection_end_date, customer:customers(customer_name)')
+    .select('id, customer_id, year, inspection_type, is_initial, inspection_start_date, inspection_end_date, assigned_employee_id, customer:customers(customer_name)')
     .eq('id', inspectionId).single()
   return data as unknown as {
     id: string; customer_id: string; year: number
     inspection_type: string | null; is_initial: boolean | null
     inspection_start_date: string | null; inspection_end_date: string | null
+    assigned_employee_id: string | null
     customer: { customer_name: string } | null
   } | null
 }
@@ -179,5 +183,94 @@ export async function assembleOfficial(
   }
   if (!data.recipient) missing.push('수신(고객명) 없음')
   if (!company?.fax) missing.push('회사 팩스 미등록 — 레터헤드에서 생략 (본사 정보에서 입력)')
+  return { data, missing }
+}
+
+// ── 위임장 (S8) ──────────────────────────────────────────────────────────────
+
+function ymdDots(iso: string | null): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return y && m && d ? `${y}.${m}.${d}` : ''
+}
+
+/** 점검결과 보고서 제출용 위임장 조립 — 서식 원천은 '보고서 갑지.xls' [위임장] 탭(사내 실무 서식, 재량 영역).
+ *  자동 기본값: 관계인 = 서식 1.7 선임 소방안전관리자(폴백: 대표 연락처), 대리인 = 주된 점검인력(폴백: 담당 직원),
+ *  관할 소방서 = customers.fire_station. 생년월일은 시스템 미보유 — annex_inputs('delegation') 수동 입력만.
+ *  ⚠ 1.7에는 전화 열이 없다 — 선임자≠대표면 대표 전화를 붙이지 않는다(타인 전화 오기재 방지, pickFirePlanManager 주석 규약) */
+export async function assembleDelegation(
+  admin: Admin, _customerId: string, inspectionId: string,
+): Promise<{ data: DelegationData; missing: string[] }> {
+  const insp = await loadInspection(admin, inspectionId)
+  if (!insp) throw new Error('점검을 찾을 수 없습니다.')
+  const missing: string[] = []
+
+  const [inputRes, custRes, formRes, contactsRes, partsRes] = await Promise.all([
+    admin.from('annex_inputs').select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'delegation').maybeSingle(),
+    admin.from('customers').select('fire_station').eq('id', insp.customer_id).single(),
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
+    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', insp.customer_id),
+    admin.from('inspection_participants').select('employee_id, role, sort_order').eq('inspection_id', inspectionId),
+  ])
+  const f = ((inputRes.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
+  const fstr = (k: string) => String(f[k] ?? '').trim()
+
+  // 관계인(본인) — 소방안전관리자 우선, 없으면 대표 연락처
+  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const rep = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
+  const managers = ((formRes.data?.sections as Record<string, unknown> | null)?.['managers'] ?? null) as ManagerRow[] | null
+  const mgr = pickFirePlanManager(managers)
+  const mgrContact = mgr ? contacts.find(c => c.name.trim() === mgr.name.trim()) ?? null : null
+  const ownerName = fstr('ownerName') || (mgr?.name ?? rep?.name ?? '')
+  const owner = {
+    name: ownerName,
+    position: fstr('ownerPosition') || (mgr ? '소방안전관리자' : rep ? '대표' : ''),
+    phone: fstr('ownerPhone') || (mgr ? (mgrContact?.phone ?? '') : (rep?.phone ?? '')),
+    birth: fstr('ownerBirth'),
+  }
+  if (!owner.name) missing.push('관계인 성명 없음 — 서식 1.7 선임현황 또는 [입력]에서 지정')
+  if (!owner.birth) missing.push('관계인 생년월일 미입력 — 공란 인쇄 ([입력]에서 기재 가능)')
+
+  // 대리인(관리업체) — 주된 점검인력(참여자 '주된' → 담당 직원 폴백, report9와 동일 축)
+  const parts = (partsRes.data ?? []) as Array<{ employee_id: string; role: string; sort_order: number }>
+  const mainId = parts.filter(p => p.role === '주된').sort((a, b) => a.sort_order - b.sort_order)[0]?.employee_id
+    ?? insp.assigned_employee_id ?? null
+  let agentName = ''
+  if (mainId) {
+    const { data: prof } = await admin.from('profiles').select('name').eq('id', mainId).maybeSingle()
+    agentName = (prof as { name: string | null } | null)?.name ?? ''
+  }
+  const agent = {
+    name: fstr('agentName') || agentName,
+    position: fstr('agentPosition'),
+    phone: fstr('agentPhone'),
+    birth: fstr('agentBirth'),
+  }
+  if (!agent.name) missing.push('대리인(주된 점검인력) 없음 — 점검 참여자 지정 또는 [입력]에서 기재')
+  if (!agent.birth) missing.push('대리인 생년월일 미입력 — 공란 인쇄 ([입력]에서 기재 가능)')
+
+  // 점검일자 — 시작~종료(같으면 1일). 표기는 샘플 축('YYYY.MM.DD 부터 ~ 까지 (N일)')
+  const s = insp.inspection_start_date, e = insp.inspection_end_date ?? insp.inspection_start_date
+  const periodLabel = s ? `${ymdDots(s)} 부터 ~ ${ymdDots(e)} 까지` : ''
+  let daysLabel = ''
+  if (s && e) {
+    const days = Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86_400_000) + 1
+    if (days > 0) daysLabel = `${days}일`
+  }
+  if (!periodLabel) missing.push('점검일자 없음 — 점검 시작·종료일 미입력')
+
+  // 관할 소방서 — customers.fire_station('양평소방서' → '양평', 뒤에 고정 문구가 붙는다)
+  const rawStation = ((custRes.data as { fire_station: string | null } | null)?.fire_station ?? '').trim()
+  const station = fstr('station') || rawStation.replace(/소방서\s*$/, '').trim()
+  if (!station) missing.push('관할 소방서 없음 — 고객 정보(1.3) 또는 [입력]에서 지정')
+
+  const submitBase = insp.inspection_end_date ?? insp.inspection_start_date
+  const sd = submitBase ? new Date(submitBase) : new Date()
+  const data: DelegationData = {
+    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial),
+    owner, agent, periodLabel, daysLabel,
+    submitDate: fstr('submitDate') || `${sd.getFullYear()}년 ${sd.getMonth() + 1}월 ${sd.getDate()}일`,
+    station,
+  }
   return { data, missing }
 }
