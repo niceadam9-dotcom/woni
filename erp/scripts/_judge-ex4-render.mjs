@@ -230,7 +230,8 @@ try {
   check('⑥ 선택기 기본값 = 0(점검일 기준)', (await sel.inputValue()) === '0')
   // 외관 시트 목록에서 소화기구 시트 열기 — 저장 버튼은 전환 중 스피너·disabled라 활성 조건을 폴링(고정 대기 금지)
   const sheetBtn = page.locator('button', { hasText: '소화기구' }).first()
-  const backBtn = page.locator('button', { hasText: '← 설비 목록' })
+  // 23 개편: 시트 = 포털 드로어. '열려 있음' 판정은 드로어 존재로
+  const backBtn = page.locator('[data-testid="sheet-drawer"]')
   const saveBtn = page.locator('div.flex.gap-2.mt-3 button', { hasText: '저장' })
   const waitReady = () => page.waitForFunction(() => {
     const b = [...document.querySelectorAll('div.flex.gap-2.mt-3 button')].find(x => (x.innerText || '').includes('저장'))
@@ -282,7 +283,7 @@ try {
     await waitReady()
     await page.locator('[aria-label="X1-06 X"]').click()
     await page.locator('input[placeholder="불량 메모 (선택)"]').fill('7월 내용연수 초과')
-    await page.locator('button', { hasText: '등록' }).first().click()
+    await page.locator('[data-testid="sheet-drawer"] button', { hasText: '등록' }).first().click()
     const got = await pollDb(async () => {
       const { data } = await raw.from('inspection_sheet_responses')
         .select('month, memo').eq('inspection_id', inspA).eq('item_code', 'X1-06')
@@ -293,6 +294,9 @@ try {
   }
   {
     await page.goto(`${BASE}/inspections/${inspC}`)
+    // 진입 pane = 첫 미완료 단계 — ⑤에서 inspC에 응답이 쌓여 ①이 증거완료(responded>0)라 초기 pane이 ②다.
+    // ① 점검표 pane으로 명시 전환(스텝바는 항상 보인다).
+    await page.click('[data-step="checklist"]')
     await page.waitForSelector('text=점검표 입력')
     check('⑥ 자체점검 건(special_작동) → 점검 월 선택기 미노출', await page.locator('text=점검 월').count() === 0)
   }

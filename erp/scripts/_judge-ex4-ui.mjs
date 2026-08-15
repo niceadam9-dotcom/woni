@@ -48,7 +48,8 @@ try {
   check('⑥ 기본값 0(점검일 기준)', (await monthSel.inputValue()) === '0')
 
   const listBtn = page.locator('button', { hasText: '소화기구' }).first()
-  const backBtn = page.locator('button', { hasText: '← 설비 목록' })
+  // 23 개편: 시트 = 포털 드로어. '열려 있음' 판정은 [← 설비 목록]이 아니라 드로어 존재로
+  const backBtn = page.locator('[data-testid="sheet-drawer"]')
   const saveBtn = page.locator('div.flex.gap-2.mt-3 button', { hasText: '저장' })
   // 편집기 저장 버튼은 전환(isPending) 동안 스피너·disabled — 고정 대기 대신 활성화 조건 폴링
   const waitReady = () => page.waitForFunction(() => {
@@ -127,7 +128,9 @@ try {
   await waitReady()
   await page.locator('[aria-label="X1-06 X"]').click()
   await page.locator('input[placeholder="불량 메모 (선택)"]').fill('7월 내용연수 초과')
-  await page.locator('button', { hasText: '등록' }).first().click()
+  // 23 개편: 인라인 [등록]은 포털 드로어 안 — 무스코프 first()는 페이지 뒤(불량내역 패널)의
+  // [불량 등록]을 집어 모달에 가로막힌다. 드로어 스코프 필수.
+  await page.locator('[data-testid="sheet-drawer"] button', { hasText: '등록' }).first().click()
   const got = await pollDb(async () => {
     const { data } = await raw.from('inspection_sheet_responses')
       .select('month, memo').eq('inspection_id', insp).eq('item_code', 'X1-06')
@@ -142,8 +145,8 @@ try {
   check('⑥ 자체점검(special_작동) → 점검 월 선택기 미노출', await page.locator('text=점검 월').count() === 0)
   {
     // [대조군] 비외관(v2025) 시트에서도 편집기 저장 버튼이 같은 상태인가 — EX-4 특이 여부 판별
-    await page.locator('div.grid.grid-cols-2 button').first().click()
-    await page.waitForSelector('button:has-text("← 설비 목록")')
+    await page.locator('[data-group-key]').first().click()
+    await page.waitForSelector('[data-testid="sheet-drawer"]')
     await page.waitForSelector('div.flex.gap-2.mt-3 button')
     console.log('  [대조군] 비외관 편집기 하단 버튼: ' + JSON.stringify(
       await page.evaluate(() => {

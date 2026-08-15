@@ -69,7 +69,8 @@ try {
   const monthSel = page.locator('select').filter({ has: page.locator('option', { hasText: '점검일 기준(기본)' }) }).first()
   const bulkBtn = page.locator('button', { hasText: '설치 설비 전체 양호' })
   const listBtn = page.locator('button', { hasText: '소화기구' }).first()
-  const backBtn = page.locator('button', { hasText: '← 설비 목록' })
+  // 23 개편: 시트 = 포털 드로어. '열려 있음' 판정은 드로어 존재로, 닫기는 ✕ 버튼으로
+  const backBtn = page.locator('[data-testid="sheet-drawer"]')
   const saveBtn = page.locator('div.flex.gap-2.mt-3 button', { hasText: '저장' })
   const notice = async () => (await page.locator('p.text-green-600').allInnerTexts()).join(' | ')
   const waitReady = () => page.waitForFunction(() => {
@@ -82,7 +83,14 @@ try {
     await waitReady()
   }
   const closeSheet = async () => {
-    if (await backBtn.count() > 0) await backBtn.click()
+    if (await backBtn.count() > 0) {
+      await page.click('[data-testid="sheet-drawer-close"]')
+      // Q-18(소방계획서_23): dirty면 unsaved-nav 확인창이 닫힘을 가로챈다 — [저장하고 이동]으로 통과
+      // (인라인 [등록]은 서버엔 이미 저장됐지만 편집기 base가 갱신 전이라 dirty로 남는다)
+      const dlg = await page.waitForSelector('[data-testid="unsaved-nav-save"]', { timeout: 1500 }).catch(() => null)
+      if (dlg) await dlg.click()
+      await page.waitForSelector('[data-testid="sheet-drawer"]', { state: 'detached' })
+    }
     await page.waitForSelector('button:has-text("설치 설비 전체 양호")')
   }
   const waitNotice = (sub) => page.waitForFunction(
@@ -133,7 +141,7 @@ try {
   await openSheet()                                   // ③ 인라인 X [등록](메모)
   await page.locator('[aria-label="X1-06 X"]').click()
   await page.locator('input[placeholder="불량 메모 (선택)"]').fill('9월 인라인 메모')
-  await page.locator('button', { hasText: '등록' }).first().click()
+  await page.locator('[data-testid="sheet-drawer"] button', { hasText: '등록' }).first().click()
   const b3 = await pollDb(async () => {
     const r = (await rowsOf(inspA, 'X1-06')).find(x => x.memo === '9월 인라인 메모')
     return r ?? null
@@ -168,17 +176,19 @@ try {
   const cN = await pollDb(async () => (await rowsOf(inspB)).length > 0 ? (await rowsOf(inspB)).length : null, 60000)
   check('C-1 [전체 양호] 동작', (cN ?? 0) > 0, `${cN}행`)
   await openSheet()
-  const firstCode = await page.locator('[aria-label$=" X"]').first().getAttribute('aria-label')
+  // 드로어 스코프 필수 — 무스코프면 페이지 뒤 펌프성능시험 패널(소방계획서_21)의 "… X" 버튼을 집는다
+  const inDrawer = (sel) => page.locator(`[data-testid="sheet-drawer"] ${sel}`)
+  const firstCode = await inDrawer('[aria-label$=" X"]').first().getAttribute('aria-label')
   const code1 = (firstCode ?? '').replace(' X', '')
-  await page.locator(`[aria-label="${code1} X"]`).click()
+  await inDrawer(`[aria-label="${code1} X"]`).click()
   await saveBtn.first().click()
   await pollDb(async () => ((await rowsOf(inspB, code1)).some(r => r.result === 'X') ? true : null), 60000)
   await openSheet()
-  const codes = await page.locator('[aria-label$=" X"]').evaluateAll(els => els.map(e => e.getAttribute('aria-label').replace(' X', '')))
+  const codes = await inDrawer('[aria-label$=" X"]').evaluateAll(els => els.map(e => e.getAttribute('aria-label').replace(' X', '')))
   const code2 = codes.find(c => c !== code1) ?? code1
-  await page.locator(`[aria-label="${code2} X"]`).click()
+  await inDrawer(`[aria-label="${code2} X"]`).click()
   await page.locator('input[placeholder="불량 메모 (선택)"]').fill('비외관 인라인')
-  await page.locator('button', { hasText: '등록' }).first().click()
+  await page.locator('[data-testid="sheet-drawer"] button', { hasText: '등록' }).first().click()
   await pollDb(async () => ((await rowsOf(inspB, code2)).some(r => r.memo === '비외관 인라인') ? true : null), 60000)
   await closeSheet()
   {

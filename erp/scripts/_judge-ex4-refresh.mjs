@@ -100,7 +100,12 @@ try {
   //    음성 카드 [확정 저장] → applyVoiceSheetAction → revalidatePath → RSC 재렌더 →
   //    page.tsx의 월 무관 responses가 새 prop으로 내려온다. 편집기는 열린 채·dirty 아님.
   //    (AI 구조화 단계만 스텁 — 잔액 부족. 저장 이후는 전부 실제 코드)
-  if (!clob) {
+  //
+  //    ⚠ 2026-08-12 소방계획서_21 R3에서 음성 점검표(V-1)를 제거해 이 트리거는 **실행 불가**다.
+  //    형제 카드 트리거가 사라졌을 뿐 R-2 판정 자체는 트리거①(Realtime)만으로도 성립하므로
+  //    절을 지우지 않고 비활성화만 한다(당시 검증 경로를 기록으로 남기기 위함).
+  const VOICE_TRIGGER_AVAILABLE = false
+  if (!clob && VOICE_TRIGGER_AVAILABLE) {
     console.log('— 트리거② 음성 카드 [확정 저장](형제 액션 + revalidatePath)')
     const pid = await findActionId(page, 'parseVoiceSheetAction', scriptUrls)
     check('R-2a parseVoiceSheetAction 액션 id 확보(스텁 대상)', !!pid, String(pid))

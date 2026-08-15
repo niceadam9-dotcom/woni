@@ -1,33 +1,44 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClipboardCheck, Check, Loader2, CircleCheck, AlertTriangle, Zap, Search } from 'lucide-react'
+import { ClipboardCheck, Loader2, AlertTriangle, Zap, Search } from 'lucide-react'
 import {
-  loadSheetItemsAction, saveSheetResponsesAction, createDefectsFromXAction,
-  bulkAllGoodAction, searchQuickItemsAction, loadExteriorMonthResponsesAction,
+  loadSheetSnapshotAction, saveSheetResponsesAction, createDefectsFromXAction,
+  bulkAllGoodAction, bulkSheetNAAction, searchQuickItemsAction,
 } from '@/app/(dashboard)/inspections/sheet-actions'
-import { sheetScope, isItemInScope, scopeLabel } from '@/lib/sheet-scope'
+import { sheetScope, scopeLabel } from '@/lib/sheet-scope'
+import { FIRE_SUB_BY_SUBGROUP } from '@/lib/facility-codes'
 import { useExteriorMonth } from '@/components/inspections/exterior-month'
 import { SheetItemEditor, type SheetItem as Item, type SheetResult as Result } from '@/components/inspections/sheet-item-editor'
-import type { SheetProgress } from '@/lib/sheet-overview'
+import { SheetGroupBoard } from '@/components/inspections/sheet-group-board'
+import { SheetDrawer } from '@/components/inspections/sheet-drawer'
+import { SheetGroupToc, type TocEntry } from '@/components/inspections/sheet-group-toc'
+import { useUnsavedNavGuard, usePlanSaveHandler } from '@/components/ui/unsaved-nav'
+import type { SheetProgress, SheetGroupProgress } from '@/lib/sheet-overview'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 
 type Sheet = { id: string; sheet_code: string; sheet_name: string }
 
-/** 점검표 입력 (P34-2) — 설비 선택 → 항목별 ○/X/／. 작동점검이면 종합전용(●) 항목 숨김.
- *  점검 종류 판정은 plan_type 축(소방계획서_6 W-20) — 외관 렌더는 레거시 event·정기 건 전용.
- *  항목 입력부는 회차별 작성·조회 트리와 공용(sheet-item-editor.tsx) — 이중 구현 금지 */
-export function InspectionSheetClient({ inspectionId, inspectionType, planType, sheets, responses, progress, xCount, canManage }: {
+/** 드로어 개폐·dirty 게이트의 단일 소유자 (소방계획서_23 S7-10 오케스트레이터).
+ *
+ *  구조(개정 1·2판): 왼쪽 = 머더 카드 보드 상시(SheetGroupBoard, 접이 없음 — Q-2) /
+ *  오른쪽 = 시트 단위 포털 드로어(SheetDrawer + SheetGroupToc + SheetItemEditor outline — Q-14).
+ *  카드 클릭 = 그 시트 전체를 드로어로 열고 해당 머더로 점프. 같은 시트 안 이동은 재로드·확인창 없음(S7-11).
+ *  미저장 이동은 unsaved-nav 3버튼 확인창(Q-18 — window.confirm 금지).
+ *  보드 진행률은 서버 progress 위에 열린 시트의 로컬 값을 오버레이(G-9) — 저장·일괄 직후 즉시 갱신. */
+export function InspectionSheetClient({ inspectionId, inspectionType, planType, sheets, responses, progress, xCount, canManage, ledgerSubCodes = [] }: {
   inspectionId: string
   inspectionType: string
-  planType: string | null   // special_종합·special_작동·null=자체점검 / monthly·event=외관
+  planType: string | null   // special_종합·special_작동·null=자체점검 / monthly·레거시 event=외관
   sheets: Sheet[]
   responses: Record<string, { result: Result; memo: string | null }>
-  /** 시트별 진행률 — sheet-overview.ts 집계(sheet_id 조인). 종전 item_code 접두 파싱을 대체 */
+  /** 시트별 진행률 — sheet-overview.ts 집계(withGroups=true — 머더 버킷 포함) */
   progress: Record<string, SheetProgress>
   xCount: number
   canManage: boolean
+  /** 대장 하위(FIRE_SUB_ITEMS) 설치 코드 — Q-22 ② 힌트 배너용. 비면 배너 침묵(P-15) */
+  ledgerSubCodes?: string[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -35,6 +46,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const [items, setItems] = useState<Item[]>([])
   const [local, setLocal] = useState<Record<string, Result>>({})
   const [base, setBase] = useState<Record<string, Result>>({})   // 편집 기준값 — dirty 판정용 (S5-5)
+  const [pendingJump, setPendingJump] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [stale, setStale] = useState(false)   // S5-5: 편집 중 원격 저장 감지 배너
@@ -44,6 +56,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const [picked, setPicked] = useState<{ item_code: string; item_name: string; sheet_name: string } | null>(null)
   const [quickMemo, setQuickMemo] = useState('')
   const quickDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollBoxRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (quickDebounce.current) clearTimeout(quickDebounce.current)
@@ -54,6 +67,260 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     return () => { if (quickDebounce.current) clearTimeout(quickDebounce.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickQ])
+
+  // 자체점검 여부·종류 = plan_type 우선 (일반관리 자체점검 대응 — W-20). null 레거시는 inspection_type 폴백
+  const scope = sheetScope(planType, inspectionType)
+  // EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 한 점검 건에 달을 나눠 기록한다.
+  const isExterior = planType === 'monthly' || planType === 'event'
+  const { month, setMonth } = useExteriorMonth()
+
+  // ── dirty — local ↔ base 차이 ──
+  const dirty = useMemo(() => {
+    for (const k of new Set([...Object.keys(local), ...Object.keys(base)]))
+      if (local[k] !== base[k]) return true
+    return false
+  }, [local, base])
+  const selRef = useRef<Sheet | null>(null)
+  selRef.current = sel
+  const dirtyRef = useRef(false)
+  dirtyRef.current = dirty
+
+  // ── Realtime (S5) — 편집 중이면 드로어 안 배너, 아니면 RSC 갱신 ──
+  const reinitRef = useRef(false)   // [최신 불러오기] — dirty여도 1회 강제 재초기화
+  useSheetResponsesRealtime([inspectionId], () => {
+    if (selRef.current && dirtyRef.current) { setStale(true); return }
+    setStale(false)
+    router.refresh()
+  })
+  // router.refresh()로 responses prop이 새로 오면, 편집 중이 아닐 때만 열린 편집기 값을 재초기화
+  useEffect(() => {
+    if (!selRef.current) return
+    if (dirtyRef.current && !reinitRef.current) return
+    reinitRef.current = false
+    if (isExterior) {
+      // EX-4 재검증 R-2·R-3: responses prop은 월 무구분 축약(page.tsx가 month 없이 조회)이라
+      // 그대로 부으면 다른 달 값이 이 달 편집기에 주입되고, 저장 시 그 달로 복제된다 —
+      // 열린 시트를 지금 달 스냅샷(doOpen과 같은 월 필터 경로)으로 다시 로드한다
+      const seq = ++loadSeq.current
+      const sheetId = selRef.current.id
+      void (async () => {
+        const snap = await loadSheetSnapshotAction(inspectionId, sheetId, month)
+        if (seq !== loadSeq.current || snap.error) return
+        const visible = snap.items ?? []
+        setItems(visible)
+        const init: Record<string, Result> = {}
+        for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) init[it.item_code] = r.result }
+        setLocal(init); setBase(init)
+      })()
+      return
+    }
+    const init: Record<string, Result> = {}
+    for (const it of items) { const r = responses[it.item_code]; if (r) init[it.item_code] = r.result }
+    setLocal(init); setBase(init)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responses])
+
+  /** 로드 경합 방지 — 카드 A→B를 빠르게 누르면 두 요청이 겹친다. 마지막 요청만 반영(loadSeq) */
+  const loadSeq = useRef(0)
+  function doOpen(sheet: Sheet, groupCode: string | null, forMonth = month) {
+    setError(''); setStale(false); setSel(sheet)
+    const seq = ++loadSeq.current
+    startTransition(async () => {
+      // 스냅샷 1왕복(S6-2) — 항목(서버 범위 필터 적용)+응답+권한. 종전 2왕복(항목→외관 월 응답)을 접는다
+      const snap = await loadSheetSnapshotAction(inspectionId, sheet.id, isExterior ? forMonth : 0)
+      if (seq !== loadSeq.current) return
+      if (snap.error) { setError(snap.error); return }
+      const visible = snap.items ?? []
+      setItems(visible)
+      const init: Record<string, Result> = {}
+      for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) init[it.item_code] = r.result }
+      setLocal(init); setBase(init)
+      setPendingJump(groupCode ?? (visible[0] ? groupCodeOf(visible[0]) : null))
+    })
+  }
+  function doClose() {
+    setSel(null); setItems([]); setLocal({}); setBase({}); setPendingJump(null)
+    // 편집 중 미뤄둔 원격 변경이 있으면 나가면서 반영
+    if (stale) { setStale(false); router.refresh() }
+  }
+
+  // ── Q-18 — 미저장 이동은 unsaved-nav 3버튼([저장하고 이동]) 확인창. window.confirm 금지 ──
+  type NavTarget = { kind: 'open'; sheet: Sheet; groupCode: string | null } | { kind: 'close' } | { kind: 'month'; month: number }
+  const guard = useUnsavedNavGuard<NavTarget>({
+    message: '점검표에 저장하지 않은 입력이 있습니다. 저장하지 않고 이동하면 이 시트의 입력이 사라집니다.',
+    onProceed: t => {
+      if (t.kind === 'open') doOpen(t.sheet, t.groupCode)
+      else if (t.kind === 'close') doClose()
+      else applyMonth(t.month)
+    },
+  })
+  // [저장하고 이동] — 드로어의 save를 등록(dirty일 때만 응답)
+  usePlanSaveHandler(() => doSave(), dirty)
+
+  /** 카드·시트 헤더 → 열기. 같은 시트면 점프만(재로드 금지 — 종전 open()은 무조건 재로드해
+   *  미저장 입력을 날렸다, S7-11). 다른 시트로는 dirty 게이트를 거친다 */
+  function requestOpen(sheetId: string, groupCode: string | null) {
+    // canManage 없어도 연다 — 조회 전용 드로어(○/✕ 비활성·[저장] 없음, S8 프로브 17). 편집 게이트는 에디터 canEdit이 갖는다
+    const sheet = sheets.find(s => s.id === sheetId)
+    if (!sheet) return
+    if (sel?.id === sheetId) { setPendingJump(groupCode ?? groupEntries[0]?.code ?? null); return }
+    if (dirtyRef.current) { guard.request({ kind: 'open', sheet, groupCode }); return }
+    doOpen(sheet, groupCode)
+  }
+  function requestClose(reason: 'esc' | 'backdrop' | 'button') {
+    if (reason === 'backdrop' && dirtyRef.current) return   // dismissOnBackdrop=false와 이중 방어
+    if (dirtyRef.current) { guard.request({ kind: 'close' }); return }
+    doClose()
+  }
+  /** EX-4: 월 전환 — dirty면 같은 guard(Q-18), 아니면 그 달 값으로 다시 채운다 */
+  function changeMonth(next: number) {
+    if (dirtyRef.current) { guard.request({ kind: 'month', month: next }); return }
+    applyMonth(next)
+  }
+  function applyMonth(next: number) {
+    setMonth(next)
+    if (selRef.current) doOpen(selRef.current, null, next)
+  }
+
+  /** 저장(S7-14) — 시트 전체 rows + 해제분 clearCodes. 저장 후 드로어를 닫지 않고 base=local — 연속 입력 */
+  function doSave(): Promise<boolean> {
+    setError('')
+    const snapshot = local
+    const rows = items.filter(i => snapshot[i.item_code]).map(i => ({ item_code: i.item_code, result: snapshot[i.item_code] }))
+    // 기준값에는 있었는데 지금은 없는 항목 = 미점검(공란)으로 되돌린 것 → DB에서 지운다(Q-19).
+    // 이게 없으면 화면에서만 풀리고 저장된 값이 남아 문서에 그대로 인쇄된다.
+    const clearCodes = items.filter(i => base[i.item_code] && !snapshot[i.item_code]).map(i => i.item_code)
+    return new Promise(resolve => {
+      startTransition(async () => {
+        const res = await saveSheetResponsesAction(inspectionId, rows, isExterior ? month : 0, clearCodes)
+        if (res.error) { setError(res.error); resolve(false); return }
+        setBase(snapshot); setStale(false)
+        setNotice('✅ 저장했습니다 — 계속 입력할 수 있습니다.')
+        router.refresh()
+        resolve(true)
+      })
+    })
+  }
+
+  function groupCodeOf(it: Item): string {
+    return it.group_code ?? (/^[A-Z]/.test(it.item_code) ? (it.group ?? '') : it.item_code.replace(/-\d+$/, ''))
+  }
+
+  // ── 파생 — 드로어 목차 엔트리·시트 카운트 (로컬 값 기준 = 라이브) ──
+  const groupEntries: TocEntry[] = useMemo(() => {
+    const map = new Map<string, TocEntry>()
+    for (const it of items) {
+      const code = groupCodeOf(it)
+      let e = map.get(code)
+      if (!e) { e = { code, name: it.group_name ?? code, total: 0, responded: 0, x: 0 }; map.set(code, e) }
+      e.total++
+      const r = local[it.item_code]
+      if (r) { e.responded++; if (r === 'X') e.x++ }
+    }
+    return [...map.values()]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, local])
+  const selCounts = useMemo(() => {
+    let responded = 0, x = 0, n = 0
+    for (const it of items) { const r = local[it.item_code]; if (r) { responded++; if (r === 'X') x++; if (r === 'N') n++ } }
+    return { responded, x, n, total: items.length }
+  }, [items, local])
+
+  /** G-9 — 보드 진행률 오버레이: 열린 시트만 로컬 값으로 재집계해 서버 progress를 대체.
+   *  저장·일괄 직후 카드 n/m·섹션 합계가 새로고침 없이 즉시 맞는다(프로브 21) */
+  const overlaidProgress: SheetProgress[] = useMemo(() => {
+    const list = sheets.map(s => progress[s.id]).filter((p): p is SheetProgress => !!p)
+    if (!sel) return list
+    return list.map(p => {
+      if (p.sheetId !== sel.id) return p
+      const buckets = new Map<string, SheetGroupProgress>()
+      const counts = { O: 0, X: 0, N: 0 }
+      let responded = 0
+      for (const it of items) {
+        const code = groupCodeOf(it)
+        let b = buckets.get(code)
+        if (!b) {
+          b = {
+            groupKey: `${p.sheetId}:${code}`, groupCode: code, groupName: it.group_name ?? code,
+            groupOrder: buckets.size + 1, total: 0, responded: 0, x: 0, subgroupNames: [],
+          }
+          buckets.set(code, b)
+        }
+        b.total++
+        if (it.subgroup_name && !b.subgroupNames.includes(it.subgroup_name)) b.subgroupNames.push(it.subgroup_name)
+        const r = local[it.item_code]
+        if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++ }
+      }
+      return { ...p, total: items.length || p.total, responded, counts, groups: [...buckets.values()] }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheets, progress, sel, items, local])
+  const noFacilityInfo = overlaidProgress.length > 0 && overlaidProgress.every(p => !p.installed)
+
+  // ── Q-20 — 시트 단위 ／ 일괄 (빈 칸만·토글, Q-21) ──
+  function localSheetNA() {
+    const empty = items.filter(i => !local[i.item_code]).map(i => i.item_code)
+    if (empty.length > 0) {
+      if (!window.confirm(`이 시트의 미입력 ${empty.length}개 항목을 ／(해당없음)로 표시합니다.\n이미 입력한 ○/✕/／ ${selCounts.responded}건은 그대로 유지됩니다. 진행할까요?`)) return
+      setLocal(s => { const n = { ...s }; for (const c of empty) n[c] = 'N'; return n })
+      return
+    }
+    const ns = items.filter(i => local[i.item_code] === 'N').map(i => i.item_code)
+    if (ns.length === 0) return
+    if (!window.confirm(`미입력 항목이 없습니다. 이 시트의 ／(해당없음) ${ns.length}건을 해제할까요? (○/✕는 유지)`)) return
+    setLocal(s => { const n = { ...s }; for (const c of ns) delete n[c]; return n })
+  }
+  /** 보드의 [／ 전체] — 열린 시트면 로컬 위임(dirty 충돌 방지), 닫힌 시트면 서버 액션 1왕복(S6-6) */
+  function boardSheetNA(sheetId: string) {
+    if (sel?.id === sheetId) { localSheetNA(); return }
+    const p = progress[sheetId]
+    if (!p) return
+    const empty = p.total - p.responded
+    setError(''); setNotice('')
+    if (empty > 0) {
+      if (!window.confirm(`[${p.sheetName}] 미입력 ${empty}개 항목을 ／(해당없음)로 기록합니다.\n이미 입력한 ○/✕/／ ${p.responded}건은 그대로 유지됩니다. 진행할까요?`)) return
+      startTransition(async () => {
+        const res = await bulkSheetNAAction(inspectionId, sheetId, isExterior ? month : 0, 'apply')
+        if (res.error) { setError(res.error); return }
+        setNotice(`✅ [${p.sheetName}] ${res.applied}개 항목을 ／로 기록했습니다.`)
+        router.refresh()
+      })
+      return
+    }
+    if (p.counts.N === 0) return
+    if (!window.confirm(`[${p.sheetName}] 미입력 항목이 없습니다. ／(해당없음) ${p.counts.N}건을 해제할까요? (○/✕는 유지)`)) return
+    startTransition(async () => {
+      const res = await bulkSheetNAAction(inspectionId, sheetId, isExterior ? month : 0, 'release')
+      if (res.error) { setError(res.error); return }
+      setNotice(`✅ [${p.sheetName}] ／ ${res.released}건을 해제했습니다.`)
+      router.refresh()
+    })
+  }
+
+  // ── Q-22 ② — 대장 힌트 배너: 하위 행이 1건 이상 있을 때만(P-15 침묵), 판정은 사람 ──
+  const ledgerHint = useMemo(() => {
+    if (!sel || ledgerSubCodes.length === 0) return null
+    const missing: Array<{ name: string; codes: string[] }> = []
+    const seen = new Set<string>()
+    for (const it of items) {
+      const sub = it.subgroup_name
+      if (!sub || seen.has(sub)) continue
+      const ledger = FIRE_SUB_BY_SUBGROUP[sub]
+      if (!ledger || ledgerSubCodes.includes(ledger)) continue
+      seen.add(sub)
+      missing.push({ name: sub, codes: items.filter(i => i.subgroup_name === sub).map(i => i.item_code) })
+    }
+    return missing.length > 0 ? missing : null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, items, ledgerSubCodes])
+  function applyLedgerHint() {
+    if (!ledgerHint) return
+    setLocal(s => {
+      const n = { ...s }
+      for (const g of ledgerHint) for (const c of g.codes) if (!n[c]) n[c] = 'N'   // 빈 칸만 (Q-21)
+      return n
+    })
+  }
 
   function bulkGood() {
     if (!window.confirm('설치된 설비의 모든 미입력 항목을 ○(정상)으로 채웁니다.\n이미 입력한 항목(○/✕/／)은 그대로 유지됩니다. 진행할까요?')) return
@@ -71,7 +338,6 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     if (!picked) return
     setError(''); setNotice('')
     startTransition(async () => {
-      // EX-4: 화면에서 고른 달로 저장 — 같은 화면의 [저장]과 축이 어긋나면 안 된다(독립 검증 지적)
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: picked.item_code, result: 'X', memo: quickMemo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       const reg = await createDefectsFromXAction(inspectionId)
@@ -91,13 +357,10 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     })
   }
 
-  // R13-d: 시트 X 항목 그 자리에서 즉시 등록 (X 저장 + 불량내역 자동 등록).
-  // 메모는 편집기가 소유하므로 인자로 받는다 (sheet-item-editor.tsx)
+  // R13-d: 시트 X 항목 그 자리에서 즉시 등록 (X 저장 + 불량내역 자동 등록)
   function registerInlineX(itemCode: string, memo: string) {
     setError(''); setNotice('')
     startTransition(async () => {
-      // EX-4: 인라인 X도 화면에서 고른 달로 — EX-1 비고칸 메모는 사실상 이 경로로만 생기므로,
-      // 여기가 month=0이면 연간본에서 메모가 전부 시작월로 몰린다(독립 검증 실증)
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       const reg = await createDefectsFromXAction(inspectionId)
@@ -105,81 +368,6 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       router.refresh()
     })
   }
-
-  // 자체점검 여부·종류 = plan_type 우선 (일반관리 자체점검 대응 — W-20). null 레거시는 inspection_type 폴백
-  const scope = sheetScope(planType, inspectionType)
-  // EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 한 점검 건에 달을 나눠 기록한다.
-  // 0 = 점검일 기준(기본·레거시 저장분), 1~12 = 그 달의 실적. 외관 건에서만 선택기를 띄운다.
-  // 월은 provider가 단일 원천 — 같은 페이지의 음성 입력 카드도 같은 달에 저장해야 한다(독립 검증 2회차).
-  const isExterior = planType === 'monthly' || planType === 'event'
-  const { month, setMonth } = useExteriorMonth()
-
-  // ── Realtime (S5) — 트리(회차별 작성·조회)와 같은 훅. 편집 중이면 배너, 아니면 RSC 갱신 ──
-  const selRef = useRef<Sheet | null>(null)
-  selRef.current = sel
-  const dirtyRef = useRef(false)
-  dirtyRef.current = (() => {
-    for (const k of new Set([...Object.keys(local), ...Object.keys(base)]))
-      if (local[k] !== base[k]) return true
-    return false
-  })()
-  const reinitRef = useRef(false)   // [최신 불러오기] — dirty여도 1회 강제 재초기화
-  useSheetResponsesRealtime([inspectionId], () => {
-    if (selRef.current && dirtyRef.current) { setStale(true); return }
-    setStale(false)
-    router.refresh()
-  })
-  // router.refresh()로 responses prop이 새로 오면, 편집 중이 아닐 때만 열린 편집기 값을 재초기화
-  useEffect(() => {
-    if (!selRef.current) return
-    if (dirtyRef.current && !reinitRef.current) return
-    reinitRef.current = false
-    const init: Record<string, Result> = {}
-    for (const it of items) { const r = responses[it.item_code]; if (r) init[it.item_code] = r.result }
-    setLocal(init); setBase(init)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [responses])
-
-  function open(sheet: Sheet, forMonth = month) {
-    setError(''); setSel(sheet)
-    startTransition(async () => {
-      const { items: all } = await loadSheetItemsAction(sheet.id)
-      const visible = all.filter(i => isItemInScope(i, scope))
-      setItems(visible)
-      // EX-4: 외관은 월별로 응답이 갈리므로 그 달치만 가져온다(일반 점검표는 종전대로 prop 사용)
-      const src = isExterior
-        ? (await loadExteriorMonthResponsesAction(inspectionId, forMonth)).responses
-        : responses
-      const init: Record<string, Result> = {}
-      for (const it of visible) { const r = src[it.item_code]; if (r) init[it.item_code] = r.result }
-      setLocal(init); setBase(init)
-    })
-  }
-  /** EX-4: 월 전환 — 저장 안 한 편집이 있으면 확인 후 그 달 값으로 다시 채운다 */
-  function changeMonth(next: number) {
-    if (dirtyRef.current && !window.confirm('저장하지 않은 입력이 있습니다. 다른 달로 바꾸면 사라집니다. 계속할까요?')) return
-    setMonth(next)
-    if (sel) open(sel, next)
-  }
-  function setAll(result: Result) { setLocal(Object.fromEntries(items.map(i => [i.item_code, result]))) }
-  function closeEditor() {
-    setSel(null); setItems([])
-    // 편집 중 미뤄둔 원격 변경이 있으면 목록으로 나가면서 반영
-    if (stale) { setStale(false); router.refresh() }
-  }
-  function save() {
-    setError('')
-    const rows = items.filter(i => local[i.item_code]).map(i => ({ item_code: i.item_code, result: local[i.item_code] }))
-    startTransition(async () => {
-      // EX-4: 외관은 선택한 달에 저장(0=점검일 기준) — 일반 점검표는 month 인자 없이 종전 동작
-      const res = await saveSheetResponsesAction(inspectionId, rows, isExterior ? month : 0)
-      if (res.error) { setError(res.error); return }
-      setSel(null); setItems([]); setStale(false); router.refresh()
-    })
-  }
-
-  // 그룹핑
-  const groups = items.reduce<Record<string, Item[]>>((acc, i) => { (acc[i.group] ??= []).push(i); return acc }, {})
 
   return (
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
@@ -189,8 +377,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         <span className="text-xs text-[#b0acd6] ml-auto">{scopeLabel(scope)}</span>
       </div>
 
-      {/* EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 같은 점검 건에 달을 나눠 기록한다.
-          기록한 달은 연간 누적본 한 장에 모두 인쇄된다(표지 12행 + 섹션 표 12열). */}
+      {/* EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 같은 점검 건에 달을 나눠 기록한다 */}
       {isExterior && canManage && (
         <div className="mb-3 flex items-center gap-2 flex-wrap rounded-lg border border-[#e0ddf5] bg-[#fafaff] px-3 py-2">
           <span className="text-[11px] font-semibold text-[#514b81]">점검 월</span>
@@ -207,7 +394,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         </div>
       )}
 
-      {!sel && canManage && xCount > 0 && (
+      {canManage && xCount > 0 && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
           <AlertTriangle className="size-3.5 text-red-500 shrink-0" />
           <span className="text-xs text-red-700">불량(X) {xCount}건 — 표준 문구로 불량내역에 등록</span>
@@ -217,11 +404,11 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
           </button>
         </div>
       )}
-      {!sel && notice && <p className="text-xs text-green-600 mb-2">{notice}</p>}
-      {!sel && error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {notice && <p className="text-xs text-green-600 mb-2">{notice}</p>}
+      {error && !sel && <p className="text-xs text-red-600 mb-2">{error}</p>}
 
       {/* §9-4 A안: 빠른 결과 입력 — 대부분 양호·불량 소수 패턴 (모바일 현장 입력 대응) */}
-      {!sel && canManage && (
+      {canManage && (
         <div className="mb-3 rounded-lg border border-[#e0ddf5] bg-[#fafaff] p-3 space-y-2">
           <p className="text-[11px] font-semibold text-[#514b81] flex items-center gap-1">
             <Zap className="size-3 text-[#7b68ee]" /> 빠른 결과 입력
@@ -272,56 +459,78 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         </div>
       )}
 
-      {!sel ? (
-        <>
-          <p className="text-[11px] text-[#b0acd6] mb-2">설비를 선택해 항목별 ○(정상)/X(불량)/／(해당없음)을 입력합니다.</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {sheets.map(s => {
-              // 진행률은 sheet_id 조인 집계 — 분모까지 있어 '18/24'로 보여줄 수 있다
-              const p = progress[s.id]
-              const done = p?.responded ?? 0
-              return (
-                <button key={s.id} onClick={() => canManage && open(s)} disabled={!canManage || isPending}
-                  className="flex items-center gap-1.5 h-9 px-2.5 rounded-lg border border-[#e0ddf5] text-xs text-[#090c1d] hover:bg-[#f5f4ff] hover:border-[#c3bdf5] transition-colors text-left disabled:opacity-60">
-                  {done > 0 && <CircleCheck className={`size-3.5 shrink-0 ${p && done >= p.total ? 'text-green-500' : 'text-amber-400'}`} />}
-                  <span className="truncate">{s.sheet_name}</span>
-                  {done > 0 && (
-                    <span className={`ml-auto text-[10px] shrink-0 ${p && done >= p.total ? 'text-green-600' : 'text-amber-600'}`}>
-                      {p ? `${done}/${p.total}` : done}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </>
-      ) : (
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <button onClick={closeEditor} className="text-xs text-[#7b68ee] hover:underline">← 설비 목록</button>
-            <span className="text-sm font-semibold text-[#090c1d]">{sel.sheet_name}</span>
-            {canManage && <button onClick={() => setAll('O')} className="ml-auto h-7 px-2.5 rounded-lg bg-[#f5f4ff] text-[#7b68ee] text-xs font-medium hover:bg-[#ebe9ff]">전체 정상 ○</button>}
-          </div>
-          {/* S5-5: dirty 중 원격 저장 감지 — 자동 덮어쓰기 금지, 사용자가 선택 */}
-          {stale && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 mb-2">
-              <span className="text-xs text-amber-700 flex-1">
-                다른 곳에서 이 점검표가 저장되었습니다 — 입력 중이라 자동 갱신을 멈췄습니다.
-              </span>
-              <button onClick={() => { reinitRef.current = true; setStale(false); router.refresh() }}
-                className="text-xs text-[#7b68ee] font-medium hover:underline shrink-0">
-                최신 불러오기
+      {/* 머더 카드 보드 — 상시(Q-2, 접이 없음). 드로어가 떠도 사라지지 않는다(포털 오버레이 — Q-4) */}
+      <p className="text-[11px] text-[#b0acd6] mb-2">
+        머더(중분류) 카드를 누르면 그 시트 전체가 오른쪽에 열리고 해당 위치로 이동합니다 — ○(정상)/✕(불량), ／(해당없음)는 일괄 버튼.
+      </p>
+      <SheetGroupBoard progress={overlaidProgress} noFacilityInfo={noFacilityInfo}
+        canEdit={canManage} busy={isPending}
+        onOpen={requestOpen} onSheetNA={boardSheetNA} />
+
+      {/* 시트 단위 드로어 (Q-14) — 개폐·dirty 게이트는 이 컴포넌트가 소유, 셸은 dirty를 모른다 */}
+      <SheetDrawer open={!!sel} onRequestClose={requestClose} dismissOnBackdrop={!dirty}
+        title={sel?.sheet_name ?? ''}
+        headerRight={
+          <span className="flex items-center gap-2 ml-auto min-w-0">
+            <span className={`text-[10px] shrink-0 ${selCounts.total > 0 && selCounts.responded >= selCounts.total ? 'text-green-600' : 'text-[#b0acd6]'}`}>
+              {selCounts.responded}/{selCounts.total}{selCounts.x > 0 ? ` ✕${selCounts.x}` : ''}
+            </span>
+            {canManage && (
+              <button onClick={localSheetNA} disabled={isPending} data-testid="drawer-sheet-na"
+                title="이 시트의 미입력 항목을 전부 ／(해당없음)로 — 입력된 ○/✕는 보존 (재클릭 시 ／만 해제)"
+                className="h-6 px-2 rounded text-[10px] font-medium border border-[#d0ccf5] text-[#514b81] hover:bg-[#ebe9ff] disabled:opacity-40 shrink-0">
+                ／ 전체
               </button>
-            </div>
-          )}
-          <SheetItemEditor
-            items={items} loading={isPending} value={local}
-            onResult={(code, r) => setLocal(s => ({ ...s, [code]: r }))}
-            onRegisterX={registerInlineX}
-            canEdit={canManage} busy={isPending} error={error} notice={notice}
-            onSave={save} onCancel={closeEditor} />
-        </div>
-      )}
+            )}
+            {dirty && <span className="text-[10px] font-semibold text-amber-600 shrink-0" data-testid="drawer-dirty">● 미저장</span>}
+          </span>
+        }
+        banner={
+          <>
+            {/* S5-5: dirty 중 원격 저장 감지 — 자동 덮어쓰기 금지, 사용자가 선택 (드로어 안 배너 — R-7) */}
+            {stale && (
+              <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
+                <span className="text-xs text-amber-700 flex-1">
+                  다른 곳에서 이 점검표가 저장되었습니다 — 입력 중이라 자동 갱신을 멈췄습니다.
+                </span>
+                <button onClick={() => { reinitRef.current = true; setStale(false); router.refresh() }}
+                  className="text-xs text-[#7b68ee] font-medium hover:underline shrink-0">
+                  최신 불러오기
+                </button>
+              </div>
+            )}
+            {/* Q-22 ② — 대장 힌트: 판정은 사람(22 Q-8). 대장 하위가 전부 비어 있으면 침묵(P-15) */}
+            {ledgerHint && canManage && (
+              <div className="flex items-center gap-2 flex-wrap border-b border-[#e0ddf5] bg-[#fafaff] px-4 py-2" data-testid="ledger-hint-banner">
+                <span className="text-[11px] text-[#514b81] flex-1 min-w-40">
+                  설비 대장 기준 미설치로 보이는 그룹 {ledgerHint.length}개 — {ledgerHint.map(g => `[${g.name}]`).join(' ')}
+                </span>
+                <button onClick={applyLedgerHint} disabled={isPending} data-testid="ledger-hint-apply"
+                  className="h-6 px-2 rounded text-[10px] font-medium bg-[#7b68ee] text-white hover:bg-[#6647f0] disabled:opacity-40 shrink-0">
+                  해당 그룹 일괄 ／
+                </button>
+              </div>
+            )}
+          </>
+        }
+        toc={<SheetGroupToc entries={groupEntries} scrollBoxRef={scrollBoxRef}
+          pendingJump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />}>
+        <SheetItemEditor
+          items={items} loading={isPending && items.length === 0} value={local}
+          grouping="outline" scrollBoxRef={scrollBoxRef}
+          maxHeight="max-h-[calc(100dvh-260px)] max-sm:max-h-[calc(92dvh-250px)]"
+          // r=null = 해제 → 키를 지운다(미점검 = 값 없음, Q-19). 남겨 두면 저장 시 값이 다시 쓰인다
+          onResult={(code, r) => setLocal(s => {
+            if (r === null) { const n = { ...s }; delete n[code]; return n }
+            return { ...s, [code]: r }
+          })}
+          onRegisterX={registerInlineX}
+          canEdit={canManage} busy={isPending} error={sel ? error : undefined} notice={sel ? notice : undefined}
+          onSave={() => { void doSave() }} onCancel={() => requestClose('button')}
+          cancelLabel="닫기" showFooterHint={false} />
+      </SheetDrawer>
+
+      {guard.dialog}
     </div>
   )
 }

@@ -2,8 +2,9 @@ import 'server-only'
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { UserRole } from '@/types'
-import { sheetScope, isItemInScope, type SheetScope } from '@/lib/sheet-scope'
+import { sheetScope, isItemInScope, sheetItemGroupRef, type SheetScope } from '@/lib/sheet-scope'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /** 점검표 진행률 집계 — 회차별 작성·조회 트리의 설비별 요약 행과 점검 상세 배지의 공용 소스.
@@ -17,6 +18,22 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type SheetResult = 'O' | 'X' | 'N'
 
+/** 중분류(머더) 진행률 — 보드 카드 1장의 데이터 (소방계획서_23 S5-5).
+ *  responded는 N(해당없음)을 포함한다 — '이 머더는 다 봤다'의 표현(Q-19·S7-21). */
+export type SheetGroupProgress = {
+  /** `${sheetId}:${groupCode}` — 시트 간 코드 중복(EXT/MU 구분란 재사용) 방어 */
+  groupKey: string
+  groupCode: string
+  /** 134 미적용 폴백에서는 groupCode와 같을 수 있다 — 카드가 name === code로 병기 생략 */
+  groupName: string
+  groupOrder: number
+  total: number
+  responded: number
+  x: number
+  /** 대괄호 소제목(3층) 이름들 — 카드 부제 칩. 등장 순서 유지 */
+  subgroupNames: string[]
+}
+
 export type SheetProgress = {
   sheetId: string
   sheetCode: string
@@ -28,6 +45,8 @@ export type SheetProgress = {
   counts: { O: number; X: number; N: number }
   /** 이 고객에 설치된 설비와 매칭되는 시트인지 — 정렬·[설치 설비만 보기] 필터용 */
   installed: boolean
+  /** 머더 버킷 — withGroups=true(점검 상세)에서만 채워진다. 트리(최대 8회차)는 payload 비대화 방지로 생략 */
+  groups?: SheetGroupProgress[]
 }
 
 export type SheetOverview = {
@@ -41,6 +60,9 @@ export type SheetOverview = {
   sheets: SheetProgress[]
   /** 설치 시설 정보가 하나도 없는 고객 — 호출부가 [설치 설비만 보기] 필터를 자동 해제하는 신호 */
   noFacilityInfo: boolean
+  /** 대장 하위(FIRE_SUB_ITEMS) 중 설치로 등록된 코드 — Q-22 ② 대장 힌트 배너용.
+   *  하위 행이 0건이면 빈 배열 → 배너 침묵(P-15). 이미 조회한 facilityCodes에서 거르므로 왕복 추가 0회 */
+  ledgerSubCodes: string[]
 }
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -55,6 +77,7 @@ export async function buildSheetOverviews(
   admin: Admin,
   inspectionIds: string[],
   viewer: { id: string; role: UserRole },
+  opts: { withGroups?: boolean } = {},
 ): Promise<{ overviews: Record<string, SheetOverview>; error?: string }> {
   const ids = [...new Set(inspectionIds.filter(Boolean))]
   if (ids.length === 0) return { overviews: {} }
@@ -80,16 +103,45 @@ export async function buildSheetOverviews(
   if (sheetErr) return { overviews: {}, error: `점검표 조회 실패: ${sheetErr.message}` }
   const sheets = (sheetRaw ?? []) as Array<{ id: string; sheet_code: string; sheet_name: string; version: string }>
 
-  // ③ 항목 카탈로그 — 1000행을 넘으므로 페이징 필수 (fetch-all.ts)
-  const { rows: items, error: itemErr } = await fetchAllRows<{ sheet_id: string; item_code: string; comprehensive_only: boolean }>(
-    (from, to) => admin.from('inspection_sheet_items')
-      .select('sheet_id, item_code, comprehensive_only').in('sheet_id', sheets.map(s => s.id)).range(from, to))
-  if (itemErr) return { overviews: {}, error: `항목 조회 실패: ${itemErr}` }
-  const itemsBySheet = new Map<string, Array<{ item_code: string; comprehensive_only: boolean }>>()
+  // ③ 항목 카탈로그 — 1000행을 넘으므로 페이징 필수 (fetch-all.ts).
+  // 그룹 축(23 S5-4)은 select에 컬럼만 얹는다 — 쿼리 추가 0회. 134 미적용 DB에서는
+  // 42703(column does not exist)이 나므로 종전 컬럼으로 폴백한다(폴백 시 코드 접두 그룹).
+  type CatalogItem = {
+    sheet_id: string; item_code: string; comprehensive_only: boolean
+    facility_type?: string | null
+    group_code?: string | null; group_name?: string | null; group_order?: number | null
+    subgroup_name?: string | null; subgroup_order?: number | null
+  }
+  let items: CatalogItem[]
+  {
+    const ext = await fetchAllRows<CatalogItem>(
+      (from, to) => admin.from('inspection_sheet_items')
+        .select('sheet_id, item_code, comprehensive_only, facility_type, group_code, group_name, group_order, subgroup_name, subgroup_order')
+        .in('sheet_id', sheets.map(s => s.id)).range(from, to))
+    if (!ext.error) items = ext.rows
+    else {
+      const legacy = await fetchAllRows<CatalogItem>(
+        (from, to) => admin.from('inspection_sheet_items')
+          .select('sheet_id, item_code, comprehensive_only, facility_type')
+          .in('sheet_id', sheets.map(s => s.id)).range(from, to))
+      if (legacy.error) return { overviews: {}, error: `항목 조회 실패: ${legacy.error}` }
+      items = legacy.rows
+    }
+  }
+  const itemsBySheet = new Map<string, CatalogItem[]>()
   for (const it of items) {
     const arr = itemsBySheet.get(it.sheet_id)
     if (arr) arr.push(it)
     else itemsBySheet.set(it.sheet_id, [it])
+  }
+  // 그룹 집계는 정렬 순서에 의존한다(연속 run) — DB order를 신뢰하지 말고 여기서 고정
+  if (opts.withGroups) {
+    for (const arr of itemsBySheet.values()) {
+      arr.sort((a, b) =>
+        (a.group_order ?? Number.MAX_SAFE_INTEGER) - (b.group_order ?? Number.MAX_SAFE_INTEGER)
+        || (a.subgroup_order ?? -1) - (b.subgroup_order ?? -1)
+        || a.item_code.localeCompare(b.item_code))
+    }
   }
 
   // ④ 응답 — 전 점검 1회 (회차당 수백 행이라 페이징 필수)
@@ -137,8 +189,28 @@ export async function buildSheetOverviews(
       if (sheet.version !== scope.version) continue
       // 분모는 item_code Set 크기 — 시드에 같은 코드가 2행 있어도 1건 (bulkAllGoodAction의 중복 방어와 동일 이유)
       const codes = new Set<string>()
+      // 머더 버킷(23 S5-6) — isItemInScope가 이미 적용된 자리라 작동점검 종합전용(●) 제외가 분모에도 자동 반영
+      const buckets = opts.withGroups ? new Map<string, SheetGroupProgress>() : null
       for (const it of itemsBySheet.get(sheet.id) ?? []) {
-        if (isItemInScope(it, scope)) codes.add(it.item_code)
+        if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
+        codes.add(it.item_code)
+        if (buckets) {
+          const ref = sheetItemGroupRef(it)
+          let b = buckets.get(ref.code)
+          if (!b) {
+            b = {
+              groupKey: `${sheet.id}:${ref.code}`, groupCode: ref.code, groupName: ref.name,
+              // 134 미적용 폴백은 order가 없다 — 등장 순서(정렬 후)로 대체
+              groupOrder: ref.order ?? buckets.size + 1,
+              total: 0, responded: 0, x: 0, subgroupNames: [],
+            }
+            buckets.set(ref.code, b)
+          }
+          b.total++
+          const r = responses.get(it.item_code)
+          if (r) { b.responded++; if (r === 'X') b.x++ }   // N 포함 — Q-19('다 봤다' 표현)
+          if (ref.subgroup && !b.subgroupNames.includes(ref.subgroup)) b.subgroupNames.push(ref.subgroup)
+        }
       }
       if (codes.size === 0) continue
 
@@ -159,6 +231,9 @@ export async function buildSheetOverviews(
         sheetId: sheet.id, sheetCode: sheet.sheet_code, sheetName: sheet.sheet_name,
         total: codes.size, responded, counts,
         installed: sheetMatchesFacilities(sheet.sheet_name, facilityCodes),
+        groups: buckets
+          ? [...buckets.values()].sort((a, b) => (a.groupOrder - b.groupOrder) || a.groupCode.localeCompare(b.groupCode))
+          : undefined,
       })
     }
 
@@ -176,6 +251,7 @@ export async function buildSheetOverviews(
       totals: { total: tTotal, responded: tResponded, x: tX },
       sheets: progress,
       noFacilityInfo: facilityCodes.length === 0,
+      ledgerSubCodes: facilityCodes.filter(c => FIRE_SUB_ITEMS.includes(c)),
     }
   }
 

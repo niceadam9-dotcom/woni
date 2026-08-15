@@ -20,19 +20,23 @@ try {
 
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  // W-4(소방계획서_6) 이후 외관/정기 판정은 plan_type 축 단독 — 일반관리는 event로 생성된다(당일 1회성).
+  // plan_type 없이 만들면 자체점검으로 분류돼 외관점검표 섹션 자체가 렌더되지 않는다.
   const { data: insp, error: iErr } = await raw.from('inspections').insert({
-    customer_id: custId, inspection_type: '일반관리', sequence_num: 1,
+    customer_id: custId, inspection_type: '일반관리', sequence_num: 1, plan_type: 'event',
     inspection_start_date: today, status: 'in_progress', assigned_employee_id: userId, created_by: userId,
   }).select('id').single()
   if (iErr) throw new Error(`점검 생성 실패: ${iErr.message}`)
   inspId = insp!.id
 
-  // 외관점검 시트 응답 3건 (섹션 1 — ○/×/／)
-  await raw.from('inspection_sheet_responses').upsert([
-    { inspection_id: inspId, item_code: 'X1-01', result: 'O', updated_by: userId },
-    { inspection_id: inspId, item_code: 'X1-02', result: 'X', memo: '표지 훼손', updated_by: userId },
-    { inspection_id: inspId, item_code: 'X1-03', result: 'N', updated_by: userId },
-  ], { onConflict: 'inspection_id,item_code' })
+  // 외관점검 시트 응답 3건 (섹션 1 — ○/×/／) — EX-4(125) 이후 유니크 축은 (inspection_id,item_code,month)
+  const month = now.getMonth() + 1
+  const { error: rErr } = await raw.from('inspection_sheet_responses').upsert([
+    { inspection_id: inspId, item_code: 'X1-01', result: 'O', month, updated_by: userId },
+    { inspection_id: inspId, item_code: 'X1-02', result: 'X', memo: '표지 훼손', month, updated_by: userId },
+    { inspection_id: inspId, item_code: 'X1-03', result: 'N', month, updated_by: userId },
+  ], { onConflict: 'inspection_id,item_code,month' })
+  if (rErr) throw new Error(`응답 주입 실패: ${rErr.message}`)
 
   const l = await launch()
   browser = l.browser
@@ -56,12 +60,14 @@ try {
   await page.waitForSelector('text=거주자 등이 손쉽게 사용할 수 있는 장소에 설치되어 있는지 여부')
   check('EXT 항목 로드', true)
   check('구분 그룹 헤더(자동확산소화기)', await page.isVisible('text=자동확산소화기'))
-  await page.click('button:has-text("← 설비 목록")')
+  // 23 개편: 시트는 포털 드로어로 뜬다 — [← 설비 목록] 대신 ✕로 닫는다(뒤 버튼이 백드롭에 가리므로 필수)
+  await page.click('[data-testid="sheet-drawer-close"]')
+  await page.waitForSelector('[data-testid="sheet-drawer"]', { state: 'detached' })
 
-  // 생성 → 워커 처리 → 생성물
+  // 생성 → 서버 동기 생성(H-7·H-8: HTML→Gotenberg PDF, 워커 폐지) → 생성물
   await page.click('button:has-text("외관점검표 생성")')
-  await page.waitForSelector('text=생성 요청됨')
-  check('생성 요청', true)
+  await page.waitForSelector('text=생성 완료', { timeout: 90000 })
+  check('생성 완료 메시지', true)
   const job = await pollDb(async () => {
     const { data } = await raw.from('fire_plan_gen_jobs')
       .select('id, status, missing, error').eq('inspection_id', inspId).eq('report_type', 'exterior')
@@ -69,18 +75,19 @@ try {
     const j = data?.[0]
     return j && (j.status === 'done' || j.status === 'failed') ? j : null
   }, 90000)
-  check('워커 처리 완료(done)', job?.status === 'done', JSON.stringify(job))
+  check('잡 완료(done)', job?.status === 'done', JSON.stringify(job))
   if (job?.status === 'done') {
     const { data: objects } = await raw.storage.from('fire-plans').list(`${custId}/inspections/${inspId}`)
     const names = (objects ?? []).map((o: { name: string }) => o.name)
-    check('생성물 exterior_*.hwp', names.some((n: string) => /^exterior_\d+\.hwp$/.test(n)), names.join(','))
-    check('생성물 exterior_*.pdf|html', names.some((n: string) => /^exterior_\d+\.(pdf|html)$/.test(n)))
+    check('생성물 exterior_*.html', names.some((n: string) => /^exterior_\d+\.html$/.test(n)), names.join(','))
+    check('생성물 exterior_*.pdf', names.some((n: string) => /^exterior_\d+\.pdf$/.test(n)))
     check('누락 목록에 응답없음 아님', !(job.missing ?? []).some((m: string) => m.includes('응답 없음')), JSON.stringify(job.missing))
-    // 화면 갱신 후 생성물 목록·받기 버튼
+    // 화면 갱신 후 생성물 목록 — 원시 파일명이 아니라 라벨+[PDF]·[미리보기]로 렌더된다(GeneratedDocList).
+    // '받기'는 hwp/pdf/html이 전무한 그룹의 폴백이라 여기선 안 나온다.
     await page.goto(`${BASE}/inspections/${inspId}`)
-    await page.waitForSelector('text=exterior_')
-    check('생성물 목록 표시', true)
-    check('받기 버튼', await page.isVisible('button:has-text("받기")'))
+    await page.waitForSelector('button[title="바로 보기·인쇄"]')
+    check('생성물 목록 — PDF 열람 버튼', true)
+    check('생성물 목록 — 미리보기(HTML)', await page.isVisible('button:has-text("미리보기")'))
   }
 } catch (e) {
   check('예외 없음', false, String(e))

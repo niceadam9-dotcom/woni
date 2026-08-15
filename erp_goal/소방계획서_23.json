@@ -249,8 +249,8 @@
         { "id": "S8-10", "desc": "test-sheet-overview.mts groups 검증 — 머더 합 == 시트 total (+N 포함 responded)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
         { "id": "S8-11", "desc": "INV-D8 — group_code/group_name NULL 0건 (컬럼 부재=134 미적용도 위반으로 보고)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
         { "id": "S8-12", "desc": "INV-D9 — MU-007·MU-010 facility_type='기타'", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
-        { "id": "S8-13", "desc": "npm run test:all + pre-push 게이트", "status": "pending_order" },
-        { "id": "S8-14", "desc": "npx tsx scripts/test-doc-generation.mts 문서 렌더 회귀", "status": "pending_order", "note": "2026-08-15 시도 — dev 서버(:3000) 부재로 미실행(코드 문제 아님)" },
+        { "id": "S8-13", "desc": "npm run test:all + pre-push 게이트", "status": "partial", "note": "2026-08-15 3회 실행 — 빌드(차단 게이트)·INV·12/13 스위트 그린. 유일 잔여: 점검표 트리 인라인의 Realtime 1체크가 실행마다 다른 항목(알림벨/stale배너)으로 간헐 실패 — 스테이징 Realtime 전달 지연(독립 프로브에서도 미전달 관측), 23 미변경 영역(소방계획서_16 S5-8)이라 23 회귀 아님. 부수 성과: 클릭 예산 스위트를 Phase B 현행화(7/7)·summary() try내 호출로 성공 실행마다 정리가 건너뛰던 잔재 축적 버그 수정" },
+        { "id": "S8-14", "desc": "npx tsx scripts/test-doc-generation.mts 문서 렌더 회귀", "status": "implemented", "verified": "2026-08-15 test:all 3회 실행 모두 문서 생성 회귀(E2E) PASS" },
         { "id": "S8-15", "desc": "(개정 2판) 프로브 20 — [／ 전체 · 시트] 토글: 확인창 대상 수, 공란만 N·○/✕ 보존(Q-21), 재클릭 해제, 드로어·보드 양쪽 경로, 작동점검 ● 항목 N 미생성", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
         { "id": "S8-16", "desc": "(개정 2판) 프로브 21 — 저장·일괄 직후 보드 카드 n/m·섹션 합계 즉시 갱신(G-9) + 완료 시 섹션 ✓", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
         { "id": "S8-17", "desc": "(개정 2판) 프로브 22 — 대장 힌트 배너: 하위 행≥1+미설치 그룹 시트에서만, 전부 0행이면 미표시(P-15), [일괄 ／]는 해당 그룹에만", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" }

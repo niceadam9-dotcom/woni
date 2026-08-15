@@ -124,7 +124,8 @@ export default async function InspectionDetailPage({
   // 시트별 진행률 — sheet_id 조인 집계(sheet-overview.ts). 종전 item_code 접두 파싱은
   // 분모·O/X/N 집계를 못 구하고 MU 시트 다수를 한 버킷으로 뭉개서 폐기했다.
   // 회차별 작성·조회 트리와 같은 소스라 두 화면의 진행률이 어긋날 수 없다.
-  const { overviews } = await buildSheetOverviews(admin, [id], { id: profile.id, role: profile.role as UserRole })
+  // withGroups: 머더 카드 보드(소방계획서_23 S5-7)가 중분류 버킷을 쓴다 — 점검 상세만 true
+  const { overviews } = await buildSheetOverviews(admin, [id], { id: profile.id, role: profile.role as UserRole }, { withGroups: true })
   const sheetProgress: Record<string, SheetProgress> = Object.fromEntries(
     (overviews[id]?.sheets ?? []).map(p => [p.sheetId, p]))
 
@@ -462,6 +463,7 @@ export default async function InspectionDetailPage({
                   progress={sheetProgress}
                   xCount={xCount}
                   canManage={canEdit}
+                  ledgerSubCodes={overviews[id]?.ledgerSubCodes ?? []}
                 />
               </ExteriorMonthProvider>
             ),

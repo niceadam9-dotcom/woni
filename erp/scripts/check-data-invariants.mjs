@@ -9,6 +9,9 @@
 // INV-D5: 점검 단계수 — 정기·레거시 event = 1단계, 자체점검(special_*·null) = 6단계 (트리거 111 정합)
 // INV-D6: 소방계획서_6 W-5 — ⓐ 소방안전관리 sub_type null 0건 ⓑ 소방안전관리 event 계획항목 0건
 //         ⓒ 일반관리 sub_type null 0건 (110 백필 후)
+// INV-D7: 소방계획서_18 — 소방계획서 부속자료 고아 파일 0건
+// INV-D8: 소방계획서_23 — inspection_sheet_items.group_code/group_name NULL 0건 (134 적재·seed 재실행 원복 감시)
+// INV-D9: 소방계획서_23 — MU-007·MU-010 facility_type='기타' (법정 구분 이탈 재발 차단, 135)
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -154,6 +157,30 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
     orphans = attFiles.filter(p => !known.has(p))
   }
   report('INV-D7 부속자료 고아 파일(참조 행 없음)', orphans, p => p)
+}
+
+// ── INV-D8: 소방계획서_23 — 점검표 그룹 축(134) NULL 감시 ──
+// 134가 전 행을 백필하고 seed도 같은 값을 채우도록 정정했다(S3A). 여기가 깨지면
+// 누군가 그룹 축 없는 경로로 항목을 넣었거나 구판 seed를 재실행한 것이다(R-9 재발).
+{
+  const { data, error } = await admin.from('inspection_sheet_items')
+    .select('item_code, group_code, group_name')
+    .or('group_code.is.null,group_name.is.null').limit(50)
+  if (error && /column .* does not exist|42703/.test(`${error.message} ${error.code}`)) {
+    report('INV-D8 그룹 축 NULL(group_code/group_name)', [{ item_code: '(컬럼 없음 — 마이그레이션 134 미적용)' }], r => r.item_code)
+  } else {
+    report('INV-D8 그룹 축 NULL(group_code/group_name)', data ?? [], r => `${r.item_code} code=${r.group_code} name=${r.group_name}`)
+  }
+}
+
+// ── INV-D9: 소방계획서_23 — MU 법정 구분(135) 이탈 감시 ──
+// MU-007 피난안내도·MU-010 창 문은 법정 서식상 '기타' 구분이다(P-4·P-5 정정).
+// seed 재실행·수동 편집으로 구판 값('피난구조설비')이 되살아나는 것을 결과 축에서 잡는다.
+{
+  const { data } = await admin.from('inspection_sheet_items')
+    .select('item_code, facility_type')
+    .in('item_code', ['MU-007', 'MU-010']).neq('facility_type', '기타')
+  report("INV-D9 MU-007·MU-010 facility_type≠'기타'", data ?? [], r => `${r.item_code} facility_type=${r.facility_type}`)
 }
 
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)

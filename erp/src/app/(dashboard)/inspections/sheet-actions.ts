@@ -42,6 +42,149 @@ export async function getInspectionSheetOverviewAction(inspectionIds: string[]):
   return { overviews }
 }
 
+/** 시트 항목 카탈로그 로더 — 3층 축(group_*·subgroup_*, 134) 포함 + 미적용 DB 폴백 (소방계획서_23 S6-1).
+ *  134 이전 환경에서는 확장 select가 42703으로 죽으므로 종전 컬럼으로 재시도한다 — 화면이 막히면 안 된다.
+ *  정렬은 JS에서 고정(3축): group_order → subgroup_order → order_num. 폴백 행은 order_num 단독. */
+type SheetCatalogRow = {
+  item_code: string; item_name: string; comprehensive_only: boolean
+  facility_type: string | null; order_num: number | null
+  group_code?: string | null; group_name?: string | null; group_order?: number | null
+  subgroup_name?: string | null; subgroup_order?: number | null
+}
+async function loadSheetCatalog(
+  admin: ReturnType<typeof createAdminClient>, sheetId: string,
+): Promise<SheetCatalogRow[]> {
+  const ext = await admin.from('inspection_sheet_items')
+    .select('item_code, item_name, comprehensive_only, facility_type, order_num, group_code, group_name, group_order, subgroup_name, subgroup_order')
+    .eq('sheet_id', sheetId)
+  const rows = ext.error
+    ? ((await admin.from('inspection_sheet_items')
+        .select('item_code, item_name, comprehensive_only, facility_type, order_num')
+        .eq('sheet_id', sheetId)).data ?? [])
+    : (ext.data ?? [])
+  return (rows as SheetCatalogRow[]).sort((a, b) =>
+    (a.group_order ?? Number.MAX_SAFE_INTEGER) - (b.group_order ?? Number.MAX_SAFE_INTEGER)
+    || (a.subgroup_order ?? -1) - (b.subgroup_order ?? -1)
+    || (a.order_num ?? 0) - (b.order_num ?? 0)
+    || a.item_code.localeCompare(b.item_code))
+}
+
+/** 시트 스냅샷 1왕복 (소방계획서_23 S6-2 — Q-5 시트 전체 로드) — 항목(범위 필터 서버 적용) + 응답 + 편집 권한.
+ *  현행 open()의 2왕복(항목 로드 → 외관 월별 응답)을 1회로 접는다. month는 외관(X%) 항목의 연간 축(EX-4). */
+export async function loadSheetSnapshotAction(inspectionId: string, sheetId: string, month = 0): Promise<{
+  error?: string
+  items?: Array<{
+    item_code: string; item_name: string; comprehensive_only: boolean; group: string
+    group_code?: string | null; group_name?: string | null; subgroup_name?: string | null
+  }>
+  responses?: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>
+  canEdit?: boolean
+}> {
+  const profile = await requirePermission('inspection_register')
+  if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
+  const admin = createAdminClient()
+
+  const [insp, catalog] = await Promise.all([
+    loadScope(admin, inspectionId),
+    loadSheetCatalog(admin, sheetId),
+  ])
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+
+  const items = catalog
+    .filter(i => isItemInScope(i, insp.scope))
+    .map(i => ({
+      item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
+      group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
+      group_code: i.group_code, group_name: i.group_name, subgroup_name: i.subgroup_name,
+    }))
+
+  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
+  if (items.length > 0) {
+    const { data: respRaw } = await admin.from('inspection_sheet_responses')
+      .select('item_code, result, memo, month')
+      .eq('inspection_id', inspectionId).in('item_code', items.map(i => i.item_code))
+    for (const r of (respRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null; month: number | null }>) {
+      // 외관(X…)만 월 축 — 저장 규칙(saveSheetResponsesAction)과 같은 판정이어야 다른 달 값이 새지 않는다
+      const want = r.item_code.startsWith('X') ? month : 0
+      if ((r.month ?? 0) === want) responses[r.item_code] = { result: r.result, memo: r.memo }
+    }
+  }
+  const canEdit = canEditInspection(insp.assignedEmployeeId, { id: profile.id, role: profile.role as UserRole })
+  return { items, responses, canEdit }
+}
+
+/** 시트(대분류) 단위 ／ 일괄 (소방계획서_23 Q-20 = S6-6) — bulkAllGoodAction 패턴 미러.
+ *  apply = 그 시트의 **공란 항목에만** N 기록(Q-21 — 기존 ○/✕/N 절대 무변경)
+ *  release = 그 시트의 N만 삭제(O/X 보존) — 토글 해제 경로.
+ *  범위 필터(작동=종합전용 ● 제외)를 동일 적용해 범위 밖 항목에 N을 만들지 않는다. */
+export async function bulkSheetNAAction(
+  inspectionId: string, sheetId: string, month = 0, mode: 'apply' | 'release' = 'apply',
+): Promise<{ error?: string; applied?: number; released?: number; total?: number }> {
+  const profile = await requirePermission('inspection_register')
+  if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
+  const admin = createAdminClient()
+
+  const [insp, catalog] = await Promise.all([
+    loadScope(admin, inspectionId),
+    loadSheetCatalog(admin, sheetId),
+  ])
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+
+  const seen = new Set<string>()
+  const codes = catalog
+    .filter(i => isItemInScope(i, insp.scope))
+    .filter(i => !seen.has(i.item_code) && (seen.add(i.item_code), true))
+    .map(i => i.item_code)
+  if (codes.length === 0) return { error: '이 시트에 입력 대상 항목이 없습니다.' }
+  const monthOf = (code: string) => (code.startsWith('X') ? month : 0)
+
+  if (mode === 'release') {
+    const { data: nRows } = await admin.from('inspection_sheet_responses')
+      .select('item_code, month').eq('inspection_id', inspectionId).eq('result', 'N').in('item_code', codes)
+    const target = ((nRows ?? []) as Array<{ item_code: string; month: number | null }>)
+      .filter(r => (r.month ?? 0) === monthOf(r.item_code))
+    if (target.length > 0) {
+      // 저장과 같은 월 축으로 지운다 — 외관은 그 달의 N만, 일반은 month=0만
+      const std = target.filter(r => !r.item_code.startsWith('X')).map(r => r.item_code)
+      const extC = target.filter(r => r.item_code.startsWith('X')).map(r => r.item_code)
+      if (std.length > 0) {
+        const { error } = await admin.from('inspection_sheet_responses').delete()
+          .eq('inspection_id', inspectionId).eq('result', 'N').eq('month', 0).in('item_code', std)
+        if (error) return { error: `해제 실패: ${error.message}` }
+      }
+      if (extC.length > 0) {
+        const { error } = await admin.from('inspection_sheet_responses').delete()
+          .eq('inspection_id', inspectionId).eq('result', 'N').eq('month', month).in('item_code', extC)
+        if (error) return { error: `해제 실패: ${error.message}` }
+      }
+    }
+    await syncInspectionSteps(admin, inspectionId, profile.id)
+    revalidatePath(`/inspections/${inspectionId}`)
+    revalidatePath('/inspections')
+    return { released: target.length, total: codes.length }
+  }
+
+  // apply — 이미 응답이 있는 항목(그 달 축)은 건드리지 않는다 (bulkAllGoodAction과 동일 판정)
+  const { data: resp } = await admin.from('inspection_sheet_responses')
+    .select('item_code, month').eq('inspection_id', inspectionId).in('item_code', codes)
+  const have = new Set(((resp ?? []) as Array<{ item_code: string; month: number | null }>)
+    .map(r => `${r.item_code}@${r.month ?? 0}`))
+  const payload = codes
+    .filter(c => !have.has(`${c}@${monthOf(c)}`))
+    .map(c => ({
+      inspection_id: inspectionId, item_code: c, result: 'N', month: monthOf(c),
+      updated_by: profile.id, updated_at: new Date().toISOString(),
+    }))
+  if (payload.length > 0) {
+    const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
+    if (error) return { error: `일괄 저장 실패: ${error.message}` }
+  }
+  await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return { applied: payload.length, total: codes.length }
+}
+
 /** 트리 인라인 확장 — 한 시트의 항목 + 현재 응답을 지연 로드.
  *  loadSheetItemsAction과 달리 이 점검 건의 범위(작동=종합전용 제외)를 서버에서 적용해 내려준다. */
 export async function loadSheetEditorAction(inspectionId: string, sheetId: string): Promise<{
@@ -53,17 +196,19 @@ export async function loadSheetEditorAction(inspectionId: string, sheetId: strin
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
-  const [insp, { data: itemRaw }] = await Promise.all([
+  const [insp, catalog] = await Promise.all([
     loadScope(admin, inspectionId),
-    admin.from('inspection_sheet_items')
-      .select('item_code, item_name, comprehensive_only, facility_type')
-      .eq('sheet_id', sheetId).order('order_num'),
+    loadSheetCatalog(admin, sheetId),
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
-  const items = ((itemRaw ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; facility_type: string | null }>)
+  // group_name(134)이 있으면 헤더가 '2-H' → '2-H. 제어반'으로 자동 개선된다(23 Q-9 — 트리는 배선 무변경)
+  const items = catalog
     .filter(i => isItemInScope(i, insp.scope))
-    .map(({ facility_type, ...i }) => ({ ...i, group: sheetItemGroup(i.item_code, facility_type) }))
+    .map(i => ({
+      item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
+      group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
+    }))
 
   const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
   if (items.length > 0) {
@@ -77,17 +222,21 @@ export async function loadSheetEditorAction(inspectionId: string, sheetId: strin
   return { items, responses, canEdit }
 }
 
-/** 선택한 설비 점검표의 표준 항목 로드 (P34-2, 지연 로드) */
+/** 선택한 설비 점검표의 표준 항목 로드 (P34-2, 지연 로드) — 3층 축 필드 동반(23 S6-1, group은 하위호환) */
 export async function loadSheetItemsAction(sheetId: string): Promise<{
-  items: Array<{ item_code: string; item_name: string; comprehensive_only: boolean; group: string }>
+  items: Array<{
+    item_code: string; item_name: string; comprehensive_only: boolean; group: string
+    group_code?: string | null; group_name?: string | null; subgroup_name?: string | null
+  }>
 }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
-  const { data } = await admin.from('inspection_sheet_items')
-    .select('item_code, item_name, comprehensive_only, facility_type')
-    .eq('sheet_id', sheetId).order('order_num')
-  const items = ((data ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; facility_type: string | null }>)
-    .map(({ facility_type, ...i }) => ({ ...i, group: sheetItemGroup(i.item_code, facility_type) }))
+  const catalog = await loadSheetCatalog(admin, sheetId)
+  const items = catalog.map(i => ({
+    item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
+    group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
+    group_code: i.group_code, group_name: i.group_name, subgroup_name: i.subgroup_name,
+  }))
   return { items }
 }
 
@@ -118,11 +267,39 @@ export async function saveSheetResponsesAction(
   inspectionId: string,
   rows: Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo?: string | null }>,
   month = 0,
+  /** 해당없음(기본)으로 되돌릴 항목 — 종전 O/X 행을 **지운다**.
+   *  2026-08-13 기본값이 ／(해당없음)이 되면서 필요해졌다. upsert만으로는 해제가 반영되지 않아
+   *  화면에서는 풀렸는데 DB에는 O가 남는다(문서에도 그대로 인쇄된다). */
+  clearCodes: string[] = [],
 ): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
-  if (rows.length === 0) return {}
   if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
+
+  if (clearCodes.length > 0) {
+    // 외관(X…)만 월 축을 쓴다 — 저장과 같은 규칙으로 지워야 엉뚱한 달이 남지 않는다
+    const ext = clearCodes.filter(c => c.startsWith('X'))
+    const std = clearCodes.filter(c => !c.startsWith('X'))
+    if (std.length > 0) {
+      const { error } = await admin.from('inspection_sheet_responses').delete()
+        .eq('inspection_id', inspectionId).eq('month', 0).in('item_code', std)
+      if (error) return { error: `해제 반영 실패: ${error.message}` }
+    }
+    if (ext.length > 0) {
+      const { error } = await admin.from('inspection_sheet_responses').delete()
+        .eq('inspection_id', inspectionId).eq('month', month).in('item_code', ext)
+      if (error) return { error: `해제 반영 실패: ${error.message}` }
+    }
+  }
+
+  if (rows.length === 0) {
+    if (clearCodes.length === 0) return {}
+    // 해제만 있어도 근거가 줄었으므로 단계 동기화는 돌려야 한다
+    await syncInspectionSteps(admin, inspectionId, profile.id)
+    revalidatePath(`/inspections/${inspectionId}`)
+    revalidatePath('/inspections')
+    return {}
+  }
   const payload = rows.map(r => ({
     inspection_id: inspectionId, item_code: r.item_code, result: r.result,
     // 외관 항목만 월 축을 쓴다 — 일반 점검표에 월이 섞이면 유니크가 갈라져 중복 응답이 생긴다

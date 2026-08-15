@@ -64,6 +64,29 @@ try {
   check('STD-01 O/X 집계', p1!.counts.O === 3 && p1!.counts.X === 1 && p1!.counts.N === 0, JSON.stringify(p1?.counts))
   check('STD-01 installed=true (설치 시설 매칭)', p1!.installed === true)
 
+  // 2b) 머더 버킷 (소방계획서_23 S5-5~S5-8, withGroups=true) — 분모 보존이 핵심 불변식
+  check('withGroups 기본 false — groups 미포함', p1!.groups === undefined)
+  const { overviews: ovG } = await buildSheetOverviews(raw as never, [inspId], { id: userId, role: 'admin' }, { withGroups: true })
+  const pg = ovG[inspId].sheets.find((s: { sheetCode: string }) => s.sheetCode === 'STD-01')
+  check('withGroups: 머더 버킷 반환(≥2 — 1-A·1-B)', (pg?.groups?.length ?? 0) >= 2, String(pg?.groups?.length))
+  const gSum = (pg?.groups ?? []).reduce((a: number, g: { total: number }) => a + g.total, 0)
+  check('머더 total 합 == 시트 total', gSum === pg!.total, `sum=${gSum} sheet=${pg?.total}`)
+  const gResp = (pg?.groups ?? []).reduce((a: number, g: { responded: number }) => a + g.responded, 0)
+  check('머더 responded 합 == 시트 responded', gResp === pg!.responded, `sum=${gResp} sheet=${pg?.responded}`)
+
+  // 2c) Q-19 — ／(N)도 responded에 포함된다('이 머더는 다 봤다'의 표현, S7-21)
+  if (s1Codes.length >= 5) {
+    await raw.from('inspection_sheet_responses').insert({
+      inspection_id: inspId, item_code: s1Codes[4], result: 'N', updated_by: userId,
+    })
+    const { overviews: ovN } = await buildSheetOverviews(raw as never, [inspId], { id: userId, role: 'admin' }, { withGroups: true })
+    const pn = ovN[inspId].sheets.find((s: { sheetCode: string }) => s.sheetCode === 'STD-01')
+    const nSum = (pn!.groups ?? []).reduce((a: number, g: { responded: number }) => a + g.responded, 0)
+    check('N 포함 responded — 시트·머더 합 동일 반영', pn!.responded === 5 && pn!.counts.N === 1 && nSum === 5,
+      JSON.stringify({ responded: pn?.responded, N: pn?.counts.N, nSum }))
+    await raw.from('inspection_sheet_responses').delete().eq('inspection_id', inspId).eq('item_code', s1Codes[4])
+  }
+
   // 3) 종합전용(●) 항목은 작동 범위 분모에서 제외 — 종합점검과 분모가 달라야 필터가 실제로 도는 것
   const allCodes = new Set(((s1items ?? []) as Array<{ item_code: string }>).map(i => i.item_code))
   const hasCompOnly = allCodes.size > s1Codes.length

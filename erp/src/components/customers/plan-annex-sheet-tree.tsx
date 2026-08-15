@@ -203,13 +203,18 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
     const rows = itemsRef.current
       .filter(i => d[i.item_code] && d[i.item_code] !== b[i.item_code])
       .map(i => ({ item_code: i.item_code, result: d[i.item_code] }))
-    if (rows.length === 0) return {}
-    const res = await saveSheetResponsesAction(inspectionId, rows)
+    // 해제(선택 → 해당없음)도 delta다. upsert만 보내면 화면에서만 풀리고 DB에는 종전 O/X가 남는다.
+    const clearCodes = itemsRef.current
+      .filter(i => b[i.item_code] && !d[i.item_code])
+      .map(i => i.item_code)
+    if (rows.length === 0 && clearCodes.length === 0) return {}
+    const res = await saveSheetResponsesAction(inspectionId, rows, 0, clearCodes)
     if (res.error) return res
     // 저장분만 기준값으로 승격 — 저장 도중 바뀐 항목은 dirty로 남아 다음 저장에 실린다
     setBaseline(prev => {
       const next = { ...prev }
       for (const r of rows) next[r.item_code] = r.result
+      for (const c of clearCodes) delete next[c]
       return next
     })
     patchOverviewLocal()
@@ -442,7 +447,11 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
                       // dirty를 effect로만 갱신하면 커밋 전에 도착한 원격 이벤트가 '편집 중 아님'으로 오판해
                       // 내 입력을 덮어쓴다. 이벤트 핸들러의 ref 쓰기는 렌더 중 쓰기와 달리 안전하므로 즉시 표시한다.
                       dirtyRef.current = true
-                      setDraft(s => ({ ...s, [code]: r }))
+                      // r=null = 해제 → 키를 지운다(해당없음 = 값 없음)
+                      setDraft(s => {
+                        if (r === null) { const n = { ...s }; delete n[code]; return n }
+                        return { ...s, [code]: r }
+                      })
                       // ✕는 인라인 메모 + [등록](불량내역 자동 등록)으로 완결되는 별도 흐름이다.
                       // 여기서 미리 저장하면 메모 없는 X를 썼다가 곧바로 덮어쓰는 이중 쓰기가 되고
                       // Realtime 에코도 두 번 난다. 시트를 닫을 때 flush가 남은 ✕까지 함께 저장한다.
