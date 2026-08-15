@@ -157,9 +157,14 @@ export async function recalcStepDueDates(
 export async function syncInspectionSteps(
   admin: Admin, inspectionId: string, actorId: string | null,
 ): Promise<{ changed: number; justCompleted?: boolean; error?: string }> {
-  const { data: inspRaw } = await admin.from('inspections')
-    .select('id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at')
-    .eq('id', inspectionId).maybeSingle()
+  // 점검 행과 단계 행은 서로 독립 — 병렬 조회로 왕복 1회 절약(저장 경로 최적화, 2026-08-15)
+  const [{ data: inspRaw }, { data: stepRaw }] = await Promise.all([
+    admin.from('inspections')
+      .select('id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at')
+      .eq('id', inspectionId).maybeSingle(),
+    admin.from('inspection_steps')
+      .select('id, step_num, status').eq('inspection_id', inspectionId),
+  ])
   const insp = inspRaw as InspRow | null
   if (!insp) return { changed: 0, error: '점검을 찾을 수 없습니다.' }
 
@@ -168,8 +173,6 @@ export async function syncInspectionSteps(
   const isSpecial = isSelfInspection(insp.plan_type)
   const active = activeStepNums(isSpecial, evidence.defectsTotal > 0)
 
-  const { data: stepRaw } = await admin.from('inspection_steps')
-    .select('id, step_num, status').eq('inspection_id', inspectionId)
   const steps = (stepRaw ?? []) as Array<{ id: string; step_num: number; status: string }>
   if (steps.length === 0) return { changed: 0 }
 

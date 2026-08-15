@@ -271,49 +271,55 @@ export async function saveSheetResponsesAction(
    *  2026-08-13 기본값이 ／(해당없음)이 되면서 필요해졌다. upsert만으로는 해제가 반영되지 않아
    *  화면에서는 풀렸는데 DB에는 O가 남는다(문서에도 그대로 인쇄된다). */
   clearCodes: string[] = [],
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; stepsChanged?: boolean }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
 
-  if (clearCodes.length > 0) {
-    // 외관(X…)만 월 축을 쓴다 — 저장과 같은 규칙으로 지워야 엉뚱한 달이 남지 않는다
-    const ext = clearCodes.filter(c => c.startsWith('X'))
-    const std = clearCodes.filter(c => !c.startsWith('X'))
-    if (std.length > 0) {
-      const { error } = await admin.from('inspection_sheet_responses').delete()
-        .eq('inspection_id', inspectionId).eq('month', 0).in('item_code', std)
-      if (error) return { error: `해제 반영 실패: ${error.message}` }
-    }
-    if (ext.length > 0) {
-      const { error } = await admin.from('inspection_sheet_responses').delete()
-        .eq('inspection_id', inspectionId).eq('month', month).in('item_code', ext)
-      if (error) return { error: `해제 반영 실패: ${error.message}` }
-    }
-  }
-
-  if (rows.length === 0) {
-    if (clearCodes.length === 0) return {}
-    // 해제만 있어도 근거가 줄었으므로 단계 동기화는 돌려야 한다
-    await syncInspectionSteps(admin, inspectionId, profile.id)
-    revalidatePath(`/inspections/${inspectionId}`)
-    revalidatePath('/inspections')
-    return {}
-  }
+  // 저장속도 개선(2026-08-15) — 실측: 저장 1회 완전 종료 5.8초. 지배 요인은 DB가 아니라
+  // revalidatePath가 액션 응답에 실어 보내는 상세 페이지 RSC 재렌더(+클라이언트의 중복 refresh)였다.
+  // ① 삭제 2종·upsert는 서로소 집합이라 병렬 ② revalidate는 단계 상태가 실제로 바뀐 저장에만.
+  // 화면 신선도는 드로어 로컬 상태 + 보드 오버레이(23 S7-24)가 이미 책임진다 — 페이지 서버 props의
+  // 응답 사본은 재방문·Realtime(원격 변경)에서 갱신되므로 이 세션에서 낡아도 소비처가 없다.
+  const rowCodes = new Set(rows.map(r => r.item_code))
+  const clears = clearCodes.filter(c => !rowCodes.has(c))   // 겹치면 값 저장(rows)이 이긴다 — 병렬 안전 보장
+  // 외관(X…)만 월 축을 쓴다 — 저장과 같은 규칙으로 지워야 엉뚱한 달이 남지 않는다
+  const clrExt = clears.filter(c => c.startsWith('X'))
+  const clrStd = clears.filter(c => !c.startsWith('X'))
   const payload = rows.map(r => ({
     inspection_id: inspectionId, item_code: r.item_code, result: r.result,
     // 외관 항목만 월 축을 쓴다 — 일반 점검표에 월이 섞이면 유니크가 갈라져 중복 응답이 생긴다
     month: r.item_code.startsWith('X') ? month : 0,
     memo: r.memo?.trim() || null, updated_by: profile.id, updated_at: new Date().toISOString(),
   }))
-  const { error } = await admin.from('inspection_sheet_responses')
-    .upsert(payload as Record<string, unknown>[], { onConflict: 'inspection_id,item_code,month' })
-  if (error) return { error: `저장 실패: ${error.message}` }
-  // R4-6: ① 점검표 응답이 곧 근거 — 저장 즉시 단계가 스스로 완료된다(버튼 불필요)
-  await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
-  return {}
+
+  const ops: Array<{ label: string; run: PromiseLike<{ error: { message: string } | null }> }> = []
+  if (clrStd.length > 0) ops.push({
+    label: '해제 반영', run: admin.from('inspection_sheet_responses').delete()
+      .eq('inspection_id', inspectionId).eq('month', 0).in('item_code', clrStd),
+  })
+  if (clrExt.length > 0) ops.push({
+    label: '해제 반영', run: admin.from('inspection_sheet_responses').delete()
+      .eq('inspection_id', inspectionId).eq('month', month).in('item_code', clrExt),
+  })
+  if (payload.length > 0) ops.push({
+    label: '저장', run: admin.from('inspection_sheet_responses')
+      .upsert(payload as Record<string, unknown>[], { onConflict: 'inspection_id,item_code,month' }),
+  })
+  if (ops.length === 0) return {}
+  const results = await Promise.all(ops.map(o => o.run))
+  const bad = results.findIndex(r => r.error)
+  if (bad >= 0) return { error: `${ops[bad].label} 실패: ${results[bad].error!.message}` }
+
+  // R4-6: ① 점검표 응답이 곧 근거 — 저장 즉시 단계가 스스로 완료된다(버튼 불필요).
+  // 해제만 있어도 근거가 줄었으므로 동기화는 항상 돈다.
+  const sync = await syncInspectionSteps(admin, inspectionId, profile.id)
+  const stepsChanged = sync.changed > 0 || !!sync.justCompleted
+  if (stepsChanged) {
+    revalidatePath(`/inspections/${inspectionId}`)
+    revalidatePath('/inspections')
+  }
+  return { stepsChanged }
 }
 
 /** §9-4 A안: 설치 설비 전체 양호 — 설치 시설(fire_facilities)과 매칭되는 시트의 '미입력' 항목만 ○로 일괄 채움.

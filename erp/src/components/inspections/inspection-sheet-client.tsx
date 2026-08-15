@@ -87,8 +87,13 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
 
   // ── Realtime (S5) — 편집 중이면 드로어 안 배너, 아니면 RSC 갱신 ──
   const reinitRef = useRef(false)   // [최신 불러오기] — dirty여도 1회 강제 재초기화
+  // 저장속도 개선(2026-08-15): 내 저장의 DELETE 이벤트는 old에 PK만 실려 updated_by 자기 식별이
+  // 불가능하다(훅 주석 참조) — 방금 저장한 직후의 이벤트는 에코로 보고 refresh를 건너뛴다
+  const lastSaveAtRef = useRef(0)
   useSheetResponsesRealtime([inspectionId], () => {
+    // dirty 배너가 항상 우선 — 에코 창이 원격 변경 감지(S5-5·P14)를 삼키면 안 된다
     if (selRef.current && dirtyRef.current) { setStale(true); return }
+    if (Date.now() - lastSaveAtRef.current < 2000) return   // 내 저장 에코 — refresh만 건너뜀
     setStale(false)
     router.refresh()
   })
@@ -195,8 +200,11 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         const res = await saveSheetResponsesAction(inspectionId, rows, isExterior ? month : 0, clearCodes)
         if (res.error) { setError(res.error); resolve(false); return }
         setBase(snapshot); setStale(false)
+        lastSaveAtRef.current = Date.now()
         setNotice('✅ 저장했습니다 — 계속 입력할 수 있습니다.')
-        router.refresh()
+        // 저장속도 개선(2026-08-15): 상세 페이지 재렌더(1~4초)가 저장을 지배했다 — 단계 상태가
+        // 실제로 바뀐 저장(서버가 판정)에만 refresh. 화면 값은 로컬 상태+보드 오버레이가 이미 최신이다
+        if (res.stepsChanged) router.refresh()
         resolve(true)
       })
     })
