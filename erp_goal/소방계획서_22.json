@@ -149,15 +149,16 @@
         { "id": "S10-6", "desc": "합격선 — image-67에서 자동소화장치 하위 4종이 미체크인 조건으로 생성했을 때 image-73·74처럼 1-B 15개가 전부 /로 찍힐 것", "status": "pending_order" }
       ] },
 
-    { "id": "S11", "title": "그룹 단위 / 일괄 입력 (Q-8·Q-9) — 소방계획서_23으로 이관", "status": "pending_order", "phase": "A", "owner": "소방계획서_23",
+    { "id": "S11", "title": "그룹 단위 / 일괄 입력 (Q-8·Q-9) — 소방계획서_23으로 이관", "status": "implemented", "phase": "A", "owner": "소방계획서_23",
+      "verified": { "date": "2026-08-15", "method": "23 측 독립 검증 승격 동기화 — 23 S7-19~23·S7-26 전건 implemented(verified 동반, 판정자 에이전트 E2E 재실행: mother-drawer 58/58·overview 28/28·프로브 20~22 포함). ⚠23 코드·JSON은 커밋 승인 대기 상태의 승격", "evidence": ["23 S7-19([／ 이 그룹]·[／ 모두] 토글)", "23 S7-20(미선택=공란 전환·힌트/주석)", "23 S7-21(responded에 N 포함)", "23 S7-26(대장 힌트 배너)", "23 S8-15 프로브 20(공란만 N·○/✕ 보존·재클릭 해제)"] },
       "note": "22는 인쇄 쪽만 책임진다. 23이 개정 1판(Q-19)·개정 2판(Q-20~Q-22)으로 전 criteria를 흡수했다 — 대응: S11-1→23 S7-19([／ 이 그룹]), S11-2→23 S7-26(대장 힌트 배너), S11-3→23 S7-20, S11-4→23 Q-19·Q-21 토글(+S7-23), S11-5→23 S7-21, S11-6→23 S8 프로브 계열. 추가로 시트(대분류) 단위 [／ 전체](23 Q-20·S6-6·S7-22)와 채움 정책(빈 칸만·○/✕ 보존, 23 Q-21)까지 확장 확정. 이 항목은 추적용 — 구현·검증은 23에서 하고, 23 완료 시 여기 상태를 동기화한다",
       "criteria": [
-        { "id": "S11-1", "desc": "드로어 본문에 대괄호 그룹 소제목 인라인 행 + 우측 [／ 이 그룹] 버튼. 1-B. 자동소화장치 하나가 별지 4호 1쪽 체크박스 4개로 쪼개지므로 중분류 단위 [／ 모두]만으로는 부분 설치를 표현할 수 없다", "status": "pending_order" },
-        { "id": "S11-2", "desc": "미설치 힌트 — 설비 대장에서 미체크인 그룹에 '⚠미설치?' 뱃지를 띄우고 [／ 이 그룹]을 강조한다. 판정은 하지 않는다(Q-8). 대장이 비어 있으면 뱃지가 안 뜰 뿐 오작동이 없다", "status": "pending_order" },
-        { "id": "S11-3", "desc": "미선택 = 공란(미점검)으로 의미 전환 — sheet-item-editor.tsx:18-25 주석과 :80-82의 회색 ／ 기본값 힌트를 갱신한다. 현행 힌트 '고르지 않으면 해당없음(／)으로 처리됩니다'는 Q-1·Q-5 이후 거짓 안내가 된다", "status": "pending_order" },
-        { "id": "S11-4", "desc": "그룹 일괄 / 해제 경로 — 개별 / 버튼이 없으므로(Q-9) [／ 이 그룹] 토글 또는 그룹 초기화 버튼이 필요하다. 미설계 상태", "status": "pending_order" },
-        { "id": "S11-5", "desc": "진행률 집계에 N 포함 — 현행 responded는 O/X만 센다. /도 응답으로 세야 머더 카드에 '다 봤다'가 표현된다(sheet-overview.ts)", "status": "pending_order" },
-        { "id": "S11-6", "desc": "합격선 — 자동소화장치 4개 그룹에서 [／ 이 그룹]을 눌렀을 때 인쇄물의 1-B 15개가 전부 /로 찍힐 것(image-73·74와 동일 결과, 단 판정 주체는 점검자)", "status": "pending_order" }
+        { "id": "S11-1", "desc": "드로어 본문에 대괄호 그룹 소제목 인라인 행 + 우측 [／ 이 그룹] 버튼. 1-B. 자동소화장치 하나가 별지 4호 1쪽 체크박스 4개로 쪼개지므로 중분류 단위 [／ 모두]만으로는 부분 설치를 표현할 수 없다", "status": "implemented", "evidence": "23 S7-19 (2026-08-15 독립검증 승격)" },
+        { "id": "S11-2", "desc": "미설치 힌트 — 설비 대장에서 미체크인 그룹에 '⚠미설치?' 뱃지를 띄우고 [／ 이 그룹]을 강조한다. 판정은 하지 않는다(Q-8). 대장이 비어 있으면 뱃지가 안 뜰 뿐 오작동이 없다", "status": "implemented", "evidence": "23 S7-26 + 프로브 22(전부 0행이면 미표시 — P-15 방어)" },
+        { "id": "S11-3", "desc": "미선택 = 공란(미점검)으로 의미 전환 — sheet-item-editor.tsx:18-25 주석과 :80-82의 회색 ／ 기본값 힌트를 갱신한다. 현행 힌트 '고르지 않으면 해당없음(／)으로 처리됩니다'는 Q-1·Q-5 이후 거짓 안내가 된다", "status": "implemented", "evidence": "23 S7-20" },
+        { "id": "S11-4", "desc": "그룹 일괄 / 해제 경로 — 개별 / 버튼이 없으므로(Q-9) [／ 이 그룹] 토글 또는 그룹 초기화 버튼이 필요하다. 미설계 상태", "status": "implemented", "evidence": "23 Q-19·Q-21 확정 + S7-19·S7-23(재클릭 시 범위 내 N만 제거, O/X 절대 보존)" },
+        { "id": "S11-5", "desc": "진행률 집계에 N 포함 — 현행 responded는 O/X만 센다. /도 응답으로 세야 머더 카드에 '다 봤다'가 표현된다(sheet-overview.ts)", "status": "implemented", "evidence": "23 S7-21 + S8-10(머더 합 == 시트 total, N 포함 responded)" },
+        { "id": "S11-6", "desc": "합격선 — 자동소화장치 4개 그룹에서 [／ 이 그룹]을 눌렀을 때 인쇄물의 1-B 15개가 전부 /로 찍힐 것(image-73·74와 동일 결과, 단 판정 주체는 점검자)", "status": "implemented", "evidence": "23 S8-15 프로브 20(일괄 N 기록) + 22 E2E _e2e-annex4-print 27/27(1-B 전량 ／ 인쇄 생존) 조합" }
       ] },
 
     { "id": "S13", "title": "(3차 신설) 원클릭 번들 — Q-13", "status": "implemented", "phase": "A",
@@ -179,15 +180,15 @@
         { "id": "S14-1", "desc": "매핑표 + 프로브(16칸 전부 ≥1 / 각 항목 0~1칸 귀속)", "status": "implemented", "evidence": "_probe-mu-std32-map.mts 12/12 — 44항목 전건 귀속·중복 0·법정 밖 코드 0" },
         { "id": "S14-2", "desc": "롤업 규칙 X→O→N→공란", "status": "implemented", "evidence": "deriveMuFromStd32 — 프로브 우선순위 단언 5건 통과", "verified": "2026-08-15 E2E — 실생성 별지 4호 2쪽에서 MU-001←○(32-A-001)·MU-016←×(32-G-001)·MU-004←／(32-B-011) 파생 확인" },
         { "id": "S14-3", "desc": "레거시 우선 — MU-01 직접 응답이 이긴다", "status": "implemented", "evidence": "assembleReport9 — 직접 응답 채운 뒤 빈 칸만 파생(if (!muResults[mu]))" },
-        { "id": "S14-4", "desc": "노출 규칙 — multiUse 업종 ≥1이면 STD-32 노출, MU-01 숨김", "status": "pending_order", "owner": "소방계획서_23 (S7-5 확장)", "note": "인쇄 측(부속 시트 집합의 no===32 → multiUse 축)은 이번에 반영. 입력 화면 노출·숨김은 23 소관" },
-        { "id": "S14-5", "desc": "합격선 — 입력 화면 다중이용업소 시트 1개(STD-32)·별지 4호 2쪽 16칸 파생", "status": "pending_order", "note": "137 적용 + 23 S7-5 이후 실검증" }
+        { "id": "S14-4", "desc": "노출 규칙 — multiUse 업종 ≥1이면 STD-32 노출, MU-01 숨김", "status": "pending_order", "owner": "소방계획서_23 S7-27", "note": "인쇄 측(부속 시트 집합의 no===32 → multiUse 축)은 이번에 반영. 입력 화면 노출·숨김은 23 소관. ⚠2026-08-15 재확인 — 종전 위임처 '23 S7-5 확장'이 23 설계에 미반영(허공)이었음을 발견, 23 S7-27로 실등재(installedOnly 상호작용 경고 포함)" },
+        { "id": "S14-5", "desc": "합격선 — 입력 화면 다중이용업소 시트 1개(STD-32)·별지 4호 2쪽 16칸 파생", "status": "pending_order", "note": "137 적용(스테이징 완료) + 23 S7-27 이후 실검증" }
       ] },
 
     { "id": "S15", "title": "(3차 신설) 과거 건 재생성 차단 — Q-12", "status": "implemented", "phase": "A",
       "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 C) — 지적 1건(번들 진입 선제 가드 부재) 즉시 수정 반영·tsc 그린. 병합 라우트 미차단 지적은 비결함 판정(Q-12는 재생성만 차단, 기존 원본 열람·병합은 정책 의도상 허용)", "evidence": ["annex-regen-policy.ts:13-24 CUTOFF null 안전·isRegenBlocked", "report9-actions.ts:896 서버 가드", "inspection-workbench.tsx:513-535 배너+5버튼 비활성(서버와 동일 순수 함수·날짜 축)", "bundle-actions.ts generateBundleAction 진입 선제 가드(독립검증 후 추가)"] },
       "note": "판정·문구는 lib/annex-regen-policy.ts 단일 원천(선행 세션 작성) — 이번 세션이 서버 가드·작업대 UI·번들 패널에 배선 + 독립검증 지적으로 generateBundleAction 진입 선제 가드 추가(2026-08-15). REGEN_POLICY_CUTOFF는 null(가드 조용히 통과) — 23 Q-19 규약 전환 운영 배포일에 기입",
       "criteria": [
-        { "id": "S15-1", "desc": "cutoff 상수 — 규약 전환 배포일에 확정 기입", "status": "implemented", "evidence": "REGEN_POLICY_CUTOFF: string | null = null — null인 동안 아무 건도 막지 않는다(코드 선배포 안전)" },
+        { "id": "S15-1", "desc": "cutoff 상수 — 규약 전환 배포일에 확정 기입", "status": "implemented", "evidence": "REGEN_POLICY_CUTOFF: string | null = null — null인 동안 아무 건도 막지 않는다(코드 선배포 안전). 날짜 기입 의무는 23 S9-1로 실등재(2026-08-15 — 종전엔 23 문서에 리마인더 0건이라 배포 시 잊힐 위험이 있었다)" },
         { "id": "S15-2", "desc": "서버 가드 — 종료일(폴백 시작일) < cutoff 거부 + 사유", "status": "implemented", "evidence": "requestReport9Action — isRegenBlocked(i) → REGEN_BLOCKED_MESSAGE 반환(미리보기는 읽기 전용이라 미차단)" },
         { "id": "S15-3", "desc": "UI — 생성 버튼 비활성 + 사유 배너 + 보관함 링크", "status": "implemented", "evidence": "inspection-workbench — regenBlocked(서버와 같은 순수 함수·같은 날짜 축) 배너 + 9호/4호/공문/표지/번들 비활성, 고객 상세 링크" },
         { "id": "S15-4", "desc": "원본 부재 시 관리자 문의 안내 — 개별 해제 경로는 추후", "status": "implemented", "evidence": "배너·REGEN_BLOCKED_MESSAGE 문구에 관리자 문의 포함" }

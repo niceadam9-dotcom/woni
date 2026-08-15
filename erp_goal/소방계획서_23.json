@@ -1,0 +1,280 @@
+{
+  "doc": "소방계획서_23 — 점검표 입력 3층 축 신설(중분류+대괄호 소제목) + 시트 단위 드로어 + 다중이용업소 법정 순서 정정",
+  "design": "erp_goal/소방계획서_23.md (2026-08-14 작성, 같은 날 개정 1판 — §0 개정 내역)",
+  "plan_file": "C:/Users/dwhwang/.claude/plans/glowing-wandering-boot.md",
+  "created": "2026-08-14",
+  "updated": "2026-08-15(2차) — 독립 검증 통과·92건 implemented 승격(구현자≠판정자, 판정자 에이전트 재실행: mother-drawer 58/58·overview 28/28·mu-sheet 8/8·exterior-ui 18/18·judge-ex4 4종·annex4-print 27/27 실PDF 51쪽·seed dry-run DB diff 0·INV-D1~D9·tsc). 마이그레이션 134·135·136·137·122 스테이징 적용 확인(소제목 210 일치). 이 과정에서 실버그 2건 수정: ① sheet-drawer ESC 포커스 유실(문서 레벨 보강) ② EX-4 재초기화 월 오염(월 무구분 responses prop 주입→그 달 스냅샷 재로드, _probe-ex4-reinit-fix.mjs 6/6). 잔여: S7-18(성능 측정)·S7-27(STD-32 노출)·S8-13(test:all — 재실행 중)·S8-14(doc-generation)·S9(운영 배포 체크). 전부 미커밋 — 커밋은 승인 대기",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "source_images": [
+    "erp_goal/image-71.png 현행 점검표 입력 화면(개선 대상)",
+    "erp_goal/image-67.png 별지4호 1쪽 대상물 — 소방시설등 점검결과 2열 표",
+    "erp_goal/image-68.png 별지4호 2쪽 대상물2 — 다중이용업소 안전시설등 점검결과(순서 정답표)"
+  ],
+  "source_of_truth": {
+    "legal_form_text": "erp_goal/_form/_별지4호_현행판_추출.txt",
+    "mu_table": ":93-123 (별지 4호 2쪽 2열 표 선형화)",
+    "group_headers": "213건 — /^\\d{1,2}-[A-Z]\\.\\s*제목$/",
+    "subgroup_headers": "110건 — /^\\[…\\]$/ 반각 U+005B (빈 [ ] 4건 제외). 귀속=직전 코드 블록, 324블록 코드수==텍스트수 기계검증. ⚠ 면 경계 예외 4건(2-H-018·019, 3-K-022·023) — 추출본은 면(페이지) 경계에서 소제목 연속을 잃는다. 법정 서식·xls·항목 내용으로 [감시제어반] 귀속 확정(2026-08-15) → 소제목 적용 행 206이 아니라 **210**",
+    "seed_source": "erp_goal/_doc01/전체 보고서.xls — 제목 행 132건 + 소제목 58건 실측(2026-08-14), xls 단일 원천 자급자족. 소제목 col1 52 + col2 6 — 열 고정 금지. ⚠ '3면' 시트(옥3·스4·옥외3 등)는 병합 셀 시프트로 항목명이 col2 — 종전 seed가 12건을 흘렸고 마이그레이션 132가 편입으로 메웠던 행들(2026-08-15 실측, seed가 col2 폴백으로 직접 파싱하도록 정정)",
+    "cross_check": "erp_goal/_doc01/[별지 4] …xml (고시 원문 — </P> 경계로만 끊을 것, 태그 전삭제 시 run 잘림)"
+  },
+  "related": {
+    "소방계획서_22": "개정 1판에서 분담 변경 — S9-1·S9-2 해소, S9-4는 23이 흡수(Q-16). 22에는 S9-3(STD-32 18항목)만 잔류. (개정 2판 정정) 22 S10은 22 Q-8로 폐기(deferred) — 대장은 Q-22 ②의 힌트 배너로만 쓰고 판정은 사람. 22 S11(그룹 일괄 ／)은 23의 Q-19~Q-22 + S7-19~26이 수행. ⚠ 22 세션이 2026-08-15 마이그레이션 136·137 작성 — 134~137 스테이징 적용을 같은 승인 게이트에서 대기 중"
+  },
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류 — 후보로만 기록",
+    "confirmed": "설계 결정·조사 결과 확정",
+    "dropped": "개정으로 삭제·무효"
+  },
+
+  "implementation_notes_2026-08-15": [
+    "면 경계 연속 4건: 134 ⑤ VALUES에 2-H-018·019, 3-K-022·023([감시제어반]) 편입, DO $$ 기대값 206→210. 추출본 블록 귀속이 면 경계에서 연속을 잃는 것을 xls·항목 내용으로 보정",
+    "S3A 확장: seed가 col2 시프트 12건(132 편입분)을 직접 파싱 — xls 단일 원천 자급자족 완성. dry-run에 자기 단언 5종 + DB 대조 단언(134 적용 후 유효) 내장",
+    "P10 편차: 드로어가 모달(백드롭)이라 '드로어 열린 채 다른 시트 카드 클릭'은 성립하지 않음 — unsaved-nav guard의 실경로는 닫기(ESC·✕)·EX-4 월 전환. E2E 프로브 10은 ESC 경로로 검증",
+    "P17 정정: 조회 전용 계정도 드로어를 열 수 있게 requestOpen·보드 버튼의 canManage 게이트 제거(§8 프로브 17 명세와 구현 불일치 해소) — 편집 게이트는 에디터 canEdit이 소유",
+    "배선 보강: [id]/page.tsx에 withGroups:true 및 ledgerSubCodes 전달 누락 발견·수정(2026-08-15). ledgerSubCodes는 SheetOverview에 신설(이미 조회한 fire_facilities에서 FIRE_SUB_ITEMS 교집합 — 왕복 0회)",
+    "Q-15 마감: inspection-workbench.tsx의 lg:has-[[data-sheet-open]] 클래스·구 주석 제거(전 세션이 미처리한 S7-15)"
+  ],
+
+  "revision_1": {
+    "date": "2026-08-14",
+    "trigger": "소방계획서_22 §7-2 지적(대괄호 소제목 오진) → 착수 전 프로브 실측",
+    "gaps": [
+      { "id": "G-1", "was": "대괄호 소제목 【 0건 → 범위 밖", "found": "반각 [ 110건 실재(빈 [ ] 4건 제외). 22의 109건도 1건 어긋남", "fix": "Q-13 범위 편입 — 3층 축" },
+      { "id": "G-2", "was": "소제목 없음 전제 2층 설계", "found": "DB 시딩분 소제목 58 인스턴스/중분류 22개/항목 206건(29.3%), 혼재 중분류 14개", "fix": "subgroup_* 2컬럼 + run 렌더" },
+      { "id": "G-3", "was": "원천 이상치 1건(988행)", "found": "2건 — 3557행 29-B-0010 4자리 오타, \\d{1,3}이면 조용히 유실", "fix": "정규식 \\d{1,4} + 단언 2건" },
+      { "id": "G-4", "was": "S1-4 양방향 차집합 0", "found": "역방향 83종(미시딩 81 + 32-A·B) — 달성 불가 기준", "fix": "DB→추출 0만 단언" },
+      { "id": "G-5", "was": "R-1 EXT facility_type 미확인", "found": "진짜 중분류 라벨 54종·NULL 0건(시트명 반복은 중분류 1개짜리 EXT-11~14뿐)", "fix": "리스크 소멸, 134 ② 확정" },
+      { "id": "G-6", "was": "머더 단위 드로어", "found": "중분류 평균 5.4항목/최대 18 — STD-03 완주에 여닫기 12회", "fix": "Q-14 시트 단위 드로어 + 머더 점프" }
+    ],
+    "design_fixes": [
+      "R-3 과대평가 — [id]/page.tsx:105-106이 시트를 version으로 걸러 한 화면 최대 135카드(213 아님)",
+      "data-sheet-open :has() 규약 폐기(Q-15) — 포털 드로어는 workbench-panes 밖이라 영영 미매치. 클래스째 제거",
+      "seed 원천 실측 — 전체 보고서.xls 제목 132건+소제목 58건 자급자족, 추출본 이중 원천 불필요"
+    ]
+  },
+
+  "revision_2": {
+    "date": "2026-08-14",
+    "trigger": "사용자 요구 — '편리하고 신속하게 조회·처리 + 대분류 그룹별 N/A 한번에 처리 방안 점검'",
+    "gaps": [
+      { "id": "G-7", "was": "일괄 ／ 사다리에 시트(대분류) 층이 없음 — 전체=[전체 양호 ○](○만)/시트=없음/머더=Q-17/대괄호=Q-19", "found": "'이 설비 전체 해당없음'이 STD-05(중분류 13개)에서 ~14클릭. Q-14가 없앤 반복이 일괄 ／에서 재생산", "fix": "Q-20 — [／ 전체 · 시트]를 드로어 헤더+보드 섹션 양쪽에" },
+      { "id": "G-8", "was": "Q-19 'N 일괄 기록'이 기존 ○/✕를 덮는지 미정의", "found": "구현자마다 다르게 읽을 수 있는 모호", "fix": "Q-21 — 모든 일괄 버튼 공통 빈 칸만 채움·○/✕ 절대 보존, 해제는 범위 내 N만 제거" },
+      { "id": "G-9", "was": "보드가 progress prop(서버 파생)만 사용", "found": "드로어 저장(base=local) 후 보드 카드 n/m·막대가 새로고침 전까지 낡음. 프로브 19도 드로어만 확인", "fix": "S7-24 로컬 응답 오버레이 + 프로브 21" }
+    ],
+    "adopted": "Q-20(시트 ／ 양쪽 배치)·Q-21(빈 칸만)·Q-22(섹션 합계·완료 ✓ + 대장 힌트 배너)",
+    "rejected": ["미완료만 필터 칩", "머더 카드 quick ／ 메뉴"],
+    "note": "미채택 2건은 후보 기록 — 배너·완료 체크로 충분한지 실사용 후 재론(§0-c)"
+  },
+
+  "diagnosis": [
+    { "id": "P-1", "desc": "중분류(머더항목) 이름이 DB에 없다 — seed가 코드 정규식에 맞는 행만 취해 제목 행을 버렸다. 화면 그룹 헤더가 '1-A' 코드로만 표시", "evidence": ["scripts/seed-inspection-sheets.mjs:13", "scripts/seed-inspection-sheets.mjs:32-42", "src/lib/sheet-scope.ts:32-35 코드 접두 폴백"], "status": "confirmed" },
+    { "id": "P-2", "desc": "세부항목 입력 영역이 좁다 — 좌측 w-36 레일 + max-h-[420px] 스크롤 박스. (개정 주석: '수십~90여 항목'은 시트 기준. 중분류는 평균 5.4 — G-6)", "evidence": ["src/components/inspections/inspection-sheet-client.tsx:319", "src/components/inspections/sheet-item-editor.tsx:32"], "status": "confirmed" },
+    { "id": "P-3", "desc": "시트를 고르면 전체 목록이 사라져 조망을 잃는다 — 배타 분기", "evidence": ["inspection-sheet-client.tsx:292-313", "inspection-sheet-client.tsx:315-369"], "status": "confirmed" },
+    { "id": "P-4", "desc": "MU-007 피난안내도 — 법정은 '기타'인데 화면·문서 양쪽 오답, 위치도 서로 다름(화면 3번째/문서 2번째)", "evidence": ["scripts/seed-mu-sheet.mjs:21", "src/lib/doc-templates/report9.ts:420", "_별지4호_현행판_추출.txt:119"], "status": "confirmed" },
+    { "id": "P-5", "desc": "MU-010 창 문 — 법정·문서는 '기타'인데 화면(seed)만 '피난구조설비' — 화면↔인쇄 불일치", "evidence": ["scripts/seed-mu-sheet.mjs:24", "report9.ts:429", "_별지4호_현행판_추출.txt:117"], "status": "confirmed" },
+    { "id": "P-6", "desc": "중분류 이름 원천 실재 — 추출본 헤더 213건. 이상치는 '헤더 다음 첫 항목코드 접두 채택' 규칙으로 자동 해소", "evidence": ["_별지4호_현행판_추출.txt 213건", ":988 이상치 + :989 4-C-001"], "status": "confirmed", "verified": "2026-08-14 _probe-extract-annex4-groups.mjs 통과 — 213건·이상치 988행 1건·XML 교차 diff 0" },
+    { "id": "P-7", "desc": "소방계획서_22 S9-1 blocker가 P-6으로 해소", "evidence": ["소방계획서_22.json S9"], "status": "confirmed" },
+    { "id": "P-8", "desc": "구분자 문자가 위치마다 다르다(U+318D/U+2024/U+2027 실측) — 위치별 축자, 전역 치환 금지", "evidence": ["_별지4호_현행판_추출.txt:119", ":3784"], "status": "confirmed", "precedent": "마이그레이션 133" },
+    { "id": "P-9", "desc": "STD 중분류 순서·항목 순서는 이미 법정 일치 — 순서 정정은 MU 한정", "evidence": ["추출본 213건 등장 순서", "132_annex4_missing_items.sql:26-37"], "status": "confirmed" },
+    { "id": "P-10", "desc": "(개정 1판) 대괄호 소제목 3층이 실재 — 반각 [ 110건, 귀속은 직전 코드 블록(324블록 코드수==텍스트수 기계검증, 소제목 2개 블록 0건). DB 시딩분 206항목(29.3%)에 걸리고 혼재 중분류 14개. (2026-08-15 보정) 면 경계 연속 4건 추가 → 적용 행 210", "evidence": ["_별지4호_현행판_추출.txt:479,489,496,503,553…", "일회성 분석 스크립트 실측 2026-08-14"], "status": "confirmed" },
+    { "id": "P-11", "desc": "(개정 1판) 원천 이상치 2건째 — 3557행 29-B-0010(4자리 오타). DB는 29-B-010 정상이라 무해하나 \\d{1,3} 파서가 조용히 유실", "evidence": ["_별지4호_현행판_추출.txt:3557", "DB 29-* 22건 실조회"], "status": "confirmed" }
+  ],
+
+  "decisions": [
+    { "id": "Q-1", "question": "개선 범위", "decided": "MU + STD 둘 다", "status": "confirmed", "by": "2026-08-14 사용자" },
+    { "id": "Q-2", "question": "입력 UI 형태", "decided": "왼쪽 머더 목록 상시(접힘 없음) + 오른쪽 대형 드로어", "status": "confirmed", "by": "2026-08-14 사용자", "rejected": ["접이식 아코디언(명시 거부)", "3분할 상시", "전체 펼침+칩", "서식형 2열 표"] },
+    { "id": "Q-3", "question": "MU 순서 정정 범위", "decided": "화면(seed·DB)과 문서(report9.ts) 양쪽", "status": "confirmed" },
+    { "id": "Q-4", "question": "드로어 구현", "decided": "createPortal(document.body) 오버레이 — 워크벤치 grid 무재배치", "status": "confirmed" },
+    { "id": "Q-5", "question": "드로어 로드 단위", "decided": "시트 전체 1회 로드", "rationale": "머더 전환 네트워크 0회 + save()의 clearCodes가 시트 전체 items를 전제", "status": "confirmed" },
+    { "id": "Q-6", "question": "작은 시트 처리", "decided": "삭제 — Q-14로 드로어가 항상 시트 전체라 분기 불필요", "status": "dropped", "by": "개정 1판" },
+    { "id": "Q-7", "question": "순서 전수 정정", "decided": "MU만. STD는 프로브 리포트만", "status": "confirmed" },
+    { "id": "Q-8", "question": "SheetItemEditor", "decided": "단일 원천 유지 — 선택 prop만 추가(개정: grouping/anchorPrefix/scrollRef/onActiveGroup, 기본값=현행)", "status": "confirmed" },
+    { "id": "Q-9", "question": "회차별 트리", "decided": "드로어 미적용 — 머더명·소제목은 DB에서 와 자동 개선", "status": "confirmed" },
+    { "id": "Q-10", "question": "저장 방식", "decided": "명시 [저장] + dirty 확인창(Q-18로 구체화). 같은 시트 내 머더 이동은 자유", "status": "confirmed" },
+    { "id": "Q-11", "question": "MU 정정 경로", "decided": "seed 소스 수정 + UPDATE 마이그레이션 135 별도, seed 재실행 금지", "status": "confirmed" },
+    { "id": "Q-12", "question": "미설치 설비 표시", "decided": "installedOnly 기본 on + noFacilityInfo 유도 배너 + 검색창(개정: 최대 135카드)", "status": "confirmed" },
+    { "id": "Q-13", "question": "대괄호 소제목(3층) 편입", "decided": "데이터 + 화면 + 인쇄물 전부", "rationale": "G-1 — 원천 110건 실재. 22 S9-1·S9-2 동시 해소", "status": "confirmed", "by": "2026-08-14 사용자(개정 1판)" },
+    { "id": "Q-14", "question": "드로어 단위", "decided": "시트 단위 + 머더 점프 + sticky 목차 + 스크롤 스파이", "rationale": "G-6 — 머더 단위면 STD-03 완주에 여닫기 12회", "status": "confirmed", "by": "2026-08-14 사용자(개정 1판)" },
+    { "id": "Q-15", "question": "작업대 3칸 폭", "decided": "기본비율 1.15/1/1 유지, data-sheet-open+:has() 클래스 제거", "rationale": "포털 오버레이라 :has()가 영영 미매치 — 죽은 CSS", "status": "confirmed", "by": "2026-08-14 사용자(개정 1판)" },
+    { "id": "Q-16", "question": "인쇄물 렌더", "decided": "별지 4호 부속 점검표에 중분류·소제목 행 — 22 S9-4 흡수", "status": "confirmed", "by": "2026-08-14 사용자(개정 1판)" },
+    { "id": "Q-17", "question": "[○ 모두]/[／ 모두] 범위", "decided": "활성 머더에만 + 라벨에 대상 명시([○ 모두 · 1-A]). 시트 전체 일괄은 기존 [전체 양호 ○](bulkAllGoodAction) 담당", "rationale": "시트 전체 채움은 안 본 그룹까지 O가 되는 허위 기록 버튼", "status": "confirmed", "by": "2026-08-14 제안 승인(개정 1판)" },
+    { "id": "Q-18", "question": "dirty 확인창", "decided": "window.confirm 금지 — components/ui/unsaved-nav.tsx 재사용([저장하고 이동] 3버튼). EX-4 월 전환도 같은 guard", "rationale": "confirm은 90항목 입력 중 버리기/취소 양자택일 강요. E2E 고정점 기존 재사용. (2026-08-15 주석) 드로어가 모달이라 guard의 실경로는 닫기·월 전환 — implementation_notes 참조", "status": "confirmed", "by": "2026-08-14 제안 승인(개정 1판)" },
+    { "id": "Q-19", "question": "/ 입력 체계 (22 Q-9 수용 — §0-b T-1~T-4)", "decided": "미선택=공란(미점검)으로 전환. 개별 / 버튼 없음 — [／ 모두 · 머더](Q-17) + [／ 이 그룹](대괄호 소제목 단위) 일괄 토글로만(재클릭 시 그 범위 N만 해제, O/X 보존). 에디터 힌트·주석 갱신 + responded 집계에 N 포함", "rationale": "22 사용자 확정(2026-08-14, Q-1 / 전부 인쇄·Q-8 자동파생 폐기·Q-9). 1-B 하나가 체크박스 4개로 쪼개져 중분류 단위만으론 부분 설치 표현 불가. Q-17의 '미선택=/' 전제는 소멸했으나 활성 머더 한정 결정은 유지", "status": "confirmed", "by": "2026-08-14 소방계획서_22 사용자 확정 + 23 수용" },
+    { "id": "Q-20", "question": "시트(대분류) 단위 ／ 일괄 (개정 2판, G-7)", "decided": "[／ 전체 · {시트명}]을 드로어 헤더와 보드 시트 섹션 헤더 양쪽에. 확인창 필수(대상 공란 수 표시), 토글(재클릭 시 그 시트의 N만 해제). ○는 시트 단위를 만들지 않음 — 머더 한정(Q-17) 유지", "rationale": "STD-05(중분류 13개) ~14클릭 → 2동작. Q-17의 허위 기록 논거는 ○ 판정에 대한 것이고 ／는 '이 설비 계열 해당없음'이라는 설비 단위 판단이라 층위가 맞다. 시트 전체 ○ 일괄은 [전체 양호 ○](bulkAllGoodAction)가 이미 선례", "status": "confirmed", "by": "2026-08-14 사용자 선택" },
+    { "id": "Q-21", "question": "일괄 채움 정책 (개정 2판, G-8 — Q-19 모호 확정)", "decided": "모든 일괄 버튼([○ 모두]·[／ 모두]·[／ 이 그룹]·[／ 전체]) 공통: 빈 칸(공란)만 채운다 — 기존 ○/✕ 절대 보존. 해제(재클릭)는 그 범위의 N만 제거. 외관(EX-4)은 현재 선택 월의 값에만 적용", "rationale": "적용↔해제가 깨끗하게 왕복하고 실수 클릭에도 데이터 손실 0. '잘못 채운 시트 통째로 다시'는 해제 토글 후 재적용", "status": "confirmed", "by": "2026-08-14 사용자 선택" },
+    { "id": "Q-22", "question": "마무리 동선 — 어디가 아직 비었나 (개정 2판)", "decided": "① 보드 시트 섹션 헤더에 합계(38/62 ✕3) + 전 항목 처리(○/✕/N) 완료 시 ✓ ② 대장 힌트 일괄 ／ 배너 — 드로어 banner 슬롯, '대장 기준 미설치 N그룹 → [일괄 ／]'(22 S11-2 흡수). 같은 시트의 대장 하위 행 1건 이상일 때만 힌트(P-15 안전 — 전부 0행이면 침묵), 판정은 사람(22 Q-8 준수)", "rationale": "마무리 국면 동선. 미채택(후보 기록): 미완료만 필터 칩·머더 카드 quick ／ 메뉴 — 실사용 후 재론", "status": "confirmed", "by": "2026-08-14 사용자 선택" }
+  ],
+
+  "items": [
+    { "id": "S1", "title": "추출 프로브 — 중분류 + 소제목(개정 확장)", "status": "implemented", "phase": "A",
+      "note": "확장분(S1-9~13)까지 작성·실행 완료 — 2026-08-15 재실행 실패 0, 중분류 VALUES 213줄 + 소제목 VALUES 379줄",
+      "criteria": [
+        { "id": "S1-1", "desc": "scripts/_probe-extract-annex4-groups.mjs 신설 — 읽기 전용(DB 무변경)", "status": "implemented", "verified": "2026-08-14 실행 — 실패 0, 213건 VALUES 출력. 2026-08-15 재실행 동일. 독립 검증 전 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-2", "desc": "파싱 규칙 — '헤더 다음 첫 항목코드의 접두'를 group_code로 채택(988행 이상치 자동 해소), 헤더에서는 이름만", "status": "implemented", "verified": "2026-08-14 프로브 통과 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-3", "desc": "헤더 접두 ≠ 채택 접두 ⚠ 로그 — 988행 1건만", "status": "implemented", "verified": "2026-08-14 프로브 — 정확히 988행 1건 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-4", "desc": "(개정 G-4) DB→추출 차집합 0만 단언. 역방향 83종은 미시딩 81 / 32-A·B 분류 출력", "status": "implemented", "verified": "2026-08-14 프로브 — DB→추출 0, 역방향 분류 출력 확인 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-5", "desc": "EXT/MU facility_type SELECT DISTINCT — NULL이면 134 ② 스킵", "status": "implemented", "verified": "2026-08-14 프로브 — EXT 54종·MU 5종·NULL 0 → 134 ② 확정(G-5) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-6", "desc": "item_code 중복 확인", "status": "implemented", "verified": "2026-08-14 프로브 — 842건 전건 유일 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-7", "desc": "고시 XML 교차검증 diff 0 — </P> 경계 파싱(run 잘림 방지)", "status": "implemented", "verified": "2026-08-14 프로브 — 213/213 일치. 첫 시도 diff 15는 파서 결함(태그 전삭제)이었음 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-8", "desc": "134 ③ VALUES 213줄 출력(stdout만)", "status": "implemented", "verified": "2026-08-14 프로브 — 213줄 출력 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-9", "desc": "(개정 신규) 대괄호 소제목 110건 추출 — 빈 [ ] 4건(350·353·371·374행) 제외", "status": "implemented", "verified": "2026-08-15 재실행 — 소제목 110건 ✅ · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-10", "desc": "(개정 신규) 귀속 규칙 검증 — 324블록 전부 코드수==텍스트수, 소제목 2개 블록 0건 단언", "status": "implemented", "verified": "2026-08-15 재실행 — 324블록 1:1 성립·모호 0건 ✅ · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-11", "desc": "(개정 신규) 이상치 2건 단언 — 988행 + 3557행 29-B-0010. 코드 정규식 \\d{1,4}", "status": "implemented", "verified": "2026-08-15 재실행 — 3557행 1건 정확히 검출 ✅ · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S1-13", "desc": "(개정 신규) 134 ⑤용 소제목 VALUES 379건 출력 — (item_code, subgroup_name, subgroup_order)", "status": "implemented", "verified": "2026-08-15 재실행 — 379줄·귀속 379건·중분류 42개 ✅. ⚠ 면 경계 연속 4건은 프로브 산출 밖 — 134 ⑤에 수동 편입(implementation_notes) · 독립검증 2026-08-15 판정자 재실행 그린" }
+      ] },
+
+    { "id": "S2", "title": "마이그레이션 134 — group_* 3컬럼 + subgroup_* 2컬럼(개정)", "status": "implemented", "phase": "A",
+      "blocked_by": "스테이징 적용은 사용자 승인 대기(feedback_no_auto_proceed) — 2026-08-15 실측: 미적용(group_code 컬럼 없음)",
+      "note": "134_sheet_item_group_axis.sql 작성 완료(전 세션) + 2026-08-15 면 경계 연속 4건 편입·검증 기대값 206→210 정정",
+      "criteria": [
+        { "id": "S2-1", "desc": "ALTER TABLE ADD COLUMN group_code/group_name/group_order + subgroup_name/subgroup_order(NULL 허용)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-2", "desc": "① STD: group_code = regexp_replace(item_code,'-[0-9]+$','')", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-3", "desc": "② EXT/MU: group_code = facility_type (G-5로 확정)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-4", "desc": "③ STD group_name/group_order 백필 — S1-8 VALUES 213줄, WHERE EXISTS로 DB 존재분(130종)만", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-5", "desc": "④ EXT/MU: group_name = group_code, group_order = MIN(order_num) per (sheet_id, group_code)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-6", "desc": "⑤ (개정 신규) STD subgroup 백필 — S1-13 VALUES 379건 + 면 경계 연속 4건 → WHERE 조인으로 DB 존재분 210건 적용", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-7", "desc": "CREATE INDEX (sheet_id, group_order, subgroup_order NULLS FIRST, order_num)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-8", "desc": "DO $$ 검증 — group_code/group_name NULL 0 · STD 중분류 130개(개정: 213 아님, DB 시딩분) · 소제목 적용 210행·인스턴스 58. 미달 시 RAISE EXCEPTION", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S2-9", "desc": "합격선 — 스테이징 적용 후 그룹 헤더가 '1-A'가 아니라 '소화기구(소화기, 자동확산소화기, 간이소화용구)'", "status": "implemented", "verified": "독립검증 2026-08-15 판정자 재실행 — mother-drawer P2([1-A] 카드에 시트명 표시) + _e2e-annex4-print(그룹 헤더 '1-A. 소화기구(소화기, 자동확산소화기, 간이소화용구)' 인쇄)" }
+      ] },
+
+    { "id": "S3", "title": "MU 법정 순서·구분 정정 (마이그레이션 135)", "status": "implemented", "phase": "A",
+      "blocked_by": "스테이징 적용은 사용자 승인 대기 — 2026-08-15 실측: 미적용",
+      "criteria": [
+        { "id": "S3-1", "desc": "135_mu_group_legal_order.sql — MU 16행 UPDATE … FROM (VALUES …)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3-2", "desc": "MU-007 → 기타 5번째(창문 다음·방염 앞) — P-4", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3-3", "desc": "MU-010 → 기타 4번째(누전차단기 다음) — P-5", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3-4", "desc": "라벨 축자 — MU-007 '피난안내도ㆍ피난안내영상물'(U+318D) · MU-010 '창 문'", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3-5", "desc": "group_order — 소화1·경보2·피난구조3·비상구4·기타5", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3-6", "desc": "DO $$ — MU-007·MU-010 facility_type='기타' 2/2 + 행 순서(창 문<피난안내도<방염), 미달 시 RAISE EXCEPTION", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3-7", "desc": "seed 재실행 금지(Q-11)", "status": "confirmed" }
+      ] },
+
+    { "id": "S3A", "title": "(개정 신규) seed 스크립트 정정 — 재발 방지", "status": "implemented", "phase": "A",
+      "note": "2026-08-15 정정 완료. 추가 발견: '3면' 시트 col2 시프트로 종전 seed가 12건(132 편입분)을 흘림 — col2 폴백으로 직접 파싱해 xls 자급자족 완성. dry-run 자기 단언 5/5 통과(제목 132·소제목 행 58·인스턴스 58·귀속 210·이름공백 0)",
+      "criteria": [
+        { "id": "S3A-1", "desc": "seed-inspection-sheets.mjs — 제목 행+소제목 파싱 추가, 항목에 group_*/subgroup_* 부여. xls 단일 원천(실측 제목 132·소제목 58)", "status": "implemented", "verified": "2026-08-15 dry-run — 단언 5/5 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3A-2", "desc": "소제목 파싱 열 고정 금지 — col1 52 + col2 6 실측 (+ 항목명 col2 시프트 12건 폴백)", "status": "implemented", "verified": "2026-08-15 dry-run — 인스턴스 58(col2 6건 포함) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3A-3", "desc": "dry-run 로그 — '제목 132건(32-A·B는 항목 없음 — 22 S9-3)' + DB 현재값 대조 단언", "status": "implemented", "verified": "2026-08-15 — 로그·대조 코드 내장. DB 대조 실행은 134·135 적용 후(현재는 '134 미적용 — 대조 생략' 경로 확인) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3A-4", "desc": "seed-mu-sheet.mjs — 법정 순서 재배열 + group_* + 라벨 축자(U+318D)", "status": "implemented", "verified": "2026-08-15 dry-run — 16항목 법정 순서·구분 출력 확인(135 VALUES와 1:1 미러) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S3A-5", "desc": "--execute 금지 — 소스 정정만(Q-11)", "status": "implemented", "verified": "2026-08-15 — dry-run만 실행, --execute 미사용 · 독립검증 2026-08-15 판정자 재실행 그린" }
+      ] },
+
+    { "id": "S4", "title": "문서 렌더 — MU 정정 + 그룹 행(Q-16, 22 S9-4 흡수)", "status": "implemented", "phase": "A",
+      "note": "S2·S3와 완전 독립. 전 세션 구현 + 2026-08-15 _probe-mu-order.mts 11/11 재확인",
+      "criteria": [
+        { "id": "S4-1", "desc": "report9.ts 피난구조설비에서 MU-007 제거 → [005,006,008,009]", "status": "implemented", "verified": "2026-08-15 _probe-mu-order.mts — P-4 좌열 부재 확인 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S4-2", "desc": "기타에 삽입 → [013,014,015,010 창 문,007 피난안내도ㆍ피난안내영상물,016]", "status": "implemented", "verified": "2026-08-15 _probe-mu-order.mts — 우열 순서·U+318D 축자 확인 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S4-3", "desc": "report4.ts:118 재사용으로 별지 4호 2쪽 자동 정정 — 코드로 확인", "status": "implemented", "verified": "report4.ts page2가 muResultSection() 동일 함수 호출 — 코드 확인 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S4-4", "desc": "_probe-mu-order — muResultSection() HTML을 추출본 :93-123 순서열과 대조, 16/16", "status": "implemented", "verified": "2026-08-15 실행 — 11/11(좌8+우8 순서·축자·1회 출현) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S4-5", "desc": "(개정 신규) report4.ts sheetItemPages() — Report4SheetItem에 group?/subgroup? 추가, 값이 바뀔 때만 중분류·소제목 행 emit(현행 선별에서 빈 그룹 자동 생략). emit 로직은 순수 함수로 분리 — 22 S12(같은 함수권 재편)와의 충돌 완화(§0-b)", "status": "implemented", "verified": "sheetItemBodyRows() 순수 함수 분리 구현 확인(전 세션) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S4-6", "desc": "(개정 신규) report9-actions.ts bySheet 조립 select에 group_name·subgroup_name 추가", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S4-7", "desc": "(개정 신규) 합격선 — 별지 4호 PDF 부속 점검표에 중분류·소제목 행 실물 확인", "status": "implemented", "verified": "독립검증 2026-08-15 판정자 재실행 — _e2e-annex4-print.mts 27/27(그룹 헤더·대괄호 소제목 HTML 단언 + 실PDF 51쪽 907KB 생성)" }
+      ] },
+
+    { "id": "S5", "title": "lib — sheet-scope · sheet-outline(신설) · sheet-overview", "status": "implemented", "phase": "B",
+      "note": "전 세션 구현 + 2026-08-15 ledgerSubCodes 필드 신설(Q-22 ② 배선용). tsc 그린. 실행 검증은 test-sheet-overview.mts(2b·2c 추가) 실행 대기",
+      "criteria": [
+        { "id": "S5-1", "desc": "sheetItemGroupRef() 신설 — { code, name, order, subgroup }. 폴백: group_name → facility_type → 코드 접두", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-2", "desc": "sheetItemGroup() 하위호환 얇은 래퍼 유지", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-3", "desc": "(개정 신규) lib/sheet-outline.ts — subgroup run 분해(연속 구간만, groupBy 금지 — order_num 순서 보존). 혼재 중분류 14개 처리", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-4", "desc": "sheet-overview fetchAllRows select에 group_*+subgroup_* 추가 — 쿼리 0회 추가(42703 폴백 포함)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-5", "desc": "SheetGroupProgress 신설 — groupKey(`${sheetId}:${groupCode}`)·total·responded·x·subgroupNames", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-6", "desc": "집계 루프에서 머더 버킷 — isItemInScope 적용 자리라 작동 ● 제외 자동 반영. responded에 N 포함(Q-19)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-7", "desc": "buildSheetOverviews opts.withGroups(기본 false) — 점검 상세만 true. ⚠ [id]/page.tsx 전달 누락을 2026-08-15 발견·수정", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S5-8", "desc": "합격선 — 머더 total 합 == 시트 total (test-sheet-overview.mts)", "status": "implemented", "verified": "검증 코드(2b·2c — 합 보존·N 포함) 작성 완료, 실행 대기 · 독립검증 2026-08-15 판정자 재실행 그린" }
+      ] },
+
+    { "id": "S6", "title": "서버 액션 — loadSheetSnapshotAction", "status": "implemented", "phase": "B",
+      "criteria": [
+        { "id": "S6-1", "desc": "loadSheetItemsAction에 group_*/subgroup_* 추가(group 하위호환), .order 3축", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S6-2", "desc": "loadSheetSnapshotAction(inspectionId, sheetId, month=0) → { items, responses, canEdit } — 2왕복을 1회로", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S6-3", "desc": "범위 필터(작동=● 제외) 서버 적용", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S6-4", "desc": "'use server' 타입 re-export 금지 — 새 타입은 lib에", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S6-5", "desc": "saveSheetResponsesAction/bulkAllGoodAction/createDefectsFromXAction 무변경", "status": "confirmed" },
+        { "id": "S6-6", "desc": "(개정 2판, Q-20) bulkSheetNAAction(inspectionId, sheetId, month=0, mode:'apply'|'release') 신설 — bulkAllGoodAction 패턴 미러. apply=그 시트의 공란 항목에만 N(Q-21, 기존 ○/✕/N 무변경), release=그 시트의 N만 삭제. 범위 필터(S6-3, 작동=● 제외) 동일 적용 — 범위 밖 항목에 N 미생성. 반환에 적용 건수(보드 확인창·토스트용). 닫힌 시트에서 보드 [／ 전체] 1왕복 처리", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" }
+      ] },
+
+    { "id": "S7", "title": "UI — 머더 보드 + 시트 단위 드로어(개정 재설계)", "status": "partial", "phase": "C",
+      "status_note": "2026-08-15 S7-27(22 위임 편입, pending_order) 신설로 code_present → partial — S7-1~26 구현 상태와 무관한 신규 항목 추가 때문",
+      "note": "전 세션 구현(보드·드로어·목차·에디터 outline·클라이언트 재구성) + 2026-08-15 보완 3건: S7-15 :has() 제거 마감 / withGroups·ledgerSubCodes 페이지 배선 / 조회 전용 열람 허용(P17). 편차 2건은 implementation_notes(P10 모달·P17)",
+      "criteria": [
+        { "id": "S7-1", "desc": "sheet-item-editor.tsx — grouping('flat'|'outline' 기본 flat)/scrollBoxRef prop. outline은 별도 분기+ItemRow 공유, flat 경로·기존 호출부 픽셀 불변. SheetItem에 group_code?/group_name?/subgroup_name? 옵셔널", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-2", "desc": "outline 렌더 — 중분류 헤더 sticky 높이 고정(h-[22px]) + 소제목 run sticky top-[22px]·border-l + 혼재(선행 null run 라벨 없음)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-3", "desc": "sheet-group-board.tsx 신설 — progress prop 파생(자체 fetch 없음), 시트별 sticky 섹션+카드 2열, 시트명 병기, 접이 없음", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-4", "desc": "카드 — [1-A] 이름 + 진행 막대 + n/m + ✕k + 소제목 칩. installed=false는 opacity-45", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-5", "desc": "Q-12 — installedOnly 기본 on + '설비·중분류 찾기' 검색 + noFacilityInfo 유도 배너. 가상화 안 함(최대 135)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-6", "desc": "sheet-drawer.tsx 신설 — createPortal 셸(dirty 모름), 백드롭 z-50, 패널 w-[min(920px,94vw)], sm 미만 bottom sheet. 헤더에 '점검표 입력' 문자열 금지", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-7", "desc": "sheet-group-toc.tsx 신설 — 머더 목차(진행·✕k·활성 하이라이트). 점프=scrollTop 수동 계산(scrollIntoView 금지)+pendingJump, 스파이=IntersectionObserver 1개+점프 후 400ms 억제", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-8", "desc": "접근성 — dialog/aria-modal, 포커스 트랩, 초기 포커스=목차 활성 버튼, 닫을 때 카드 복원, body 잠금+스크롤바 폭 보정, dirty 시 백드롭 닫기 비활성, ESC 우선순위(inlineX 폼이 먼저 소비)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-9", "desc": "2단 컬럼 배치 금지", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-10", "desc": "inspection-sheet-client.tsx 재구성 — Board+Drawer, stale 배너→banner 슬롯. 유지: 빠른입력·month·Realtime·loadSeq·canManage·clearCodes·syncInspectionSteps", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-11", "desc": "requestOpen — 같은 시트면 점프만(재로드·확인창 없음), 다른 시트면 Q-18 guard. 재로드 금지가 필수", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-12", "desc": "Q-18 — useUnsavedNavGuard + usePlanSaveHandler([저장하고 이동] 3버튼). window.confirm 금지(dirty 확인창 한정). EX-4 월 전환도 같은 guard", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-13", "desc": "Q-17 — [○ 모두 · {머더}]/[／ 모두 · {머더}] 활성 머더 한정(bulkO/bulkNA). 시트 전체 ○는 기존 [전체 양호 ○] 유지", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-14", "desc": "save() 현행 유지(시트 전체 rows/clearCodes) + 저장 후 드로어 유지·base=local 갱신. _probe-sheet-ox-only.mjs:51 함께 수정", "status": "implemented", "verified": "ox-only 프로브도 2026-08-15 신 규약(저장 후 유지·공란 의미)으로 수정 완료 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-15", "desc": "workbench lg:has-[[data-sheet-open]] 클래스+구 주석 제거(Q-15). 기본 grid 무변경", "status": "implemented", "verified": "2026-08-15 제거(전 세션 미처리분 마감) · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-16", "desc": "E2E 고정점 — sheet-group-board/data-group-key/sheet-drawer/sheet-toc/data-bulk-o·na/data-subgroup/data-na-mark/data-sheet-na·count·done 계열", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-17", "desc": "createPortal 'use client'+mounted 가드(R-6)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-18", "desc": "성능 R-8 — 먼저 측정(React Compiler), 필요 시 ItemRow memo+스칼라 prop", "status": "pending_order" },
+        { "id": "S7-19", "desc": "(Q-19) [／ 모두 · 머더]·[／ 이 그룹](소제목 단위) 일괄 토글 — 재클릭 시 그 범위 N만 해제, O/X 보존", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-20", "desc": "(Q-19) 미선택=공란(미점검) 전환 — 에디터 힌트·주석 갱신, N은 일괄로만 기록(개별 해제는 같은 값 재클릭=공란)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-21", "desc": "(Q-19) responded 집계에 N 포함 — 점검 상세·sheet-overview 머더 버킷 동일 적용", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-22", "desc": "(개정 2판, Q-20) [／ 전체 · 시트] — 드로어 헤더 + 보드 시트 섹션 헤더 양쪽. 확인창(대상 공란 수) 공유, 토글. 열린 시트면 로컬 setSheetNA 위임, 닫힌 시트면 bulkSheetNAAction 1왕복", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-23", "desc": "(개정 2판, Q-21) 일괄 채움 정책 배선 — 전 일괄 버튼 공란만 채움·○/✕ 보존, 해제는 범위 내 N만. EX-4는 현재 선택 월만", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-24", "desc": "(개정 2판, G-9) 보드 진행률 로컬 오버레이 — 열린 시트를 로컬 값으로 재집계해 병합. 저장·일괄 직후 즉시 갱신", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-25", "desc": "(개정 2판, Q-22 ①) 보드 시트 섹션 헤더에 합계 + 전 항목 처리 완료 시 ✓", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-26", "desc": "(개정 2판, Q-22 ②) 대장 힌트 일괄 ／ 배너 — FIRE_SUB_BY_SUBGROUP 명시 매핑, 하위 행 1건 이상일 때만, 해당 그룹에만 Q-21 규칙. 판정은 사람(22 Q-8). ⚠ ledgerSubCodes 페이지 배선은 2026-08-15 보완", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S7-27", "desc": "(2026-08-15 편입 — 22 Q-10·S14-4/5 위임) 다중이용업소 입력 단일화 노출 규칙 — 서식 1.10.3 sections.multiUse 업종 ≥1이면 STD-32 노출·MU-01 숨김(레거시 MU 직접 응답 건은 보존). ⚠종전 위임처 'S7-5 확장'이 23 설계에 미반영 상태였음을 22 재확인(2026-08-15)에서 발견해 신설. ⚠⚠상호작용 주의: STD-32는 SHEET_FACILITY_MAP 미등재라 S7-5 installedOnly 기본 on이 multiUse 건의 STD-32를 오히려 숨길 수 있다 — 인쇄 축(22 report9-actions no===32 → multiUse)과 같은 판별로 노출 예외 처리 필요. 합격선 = 22 S14-5(입력 화면 다중이용 시트 1개·별지4호 2쪽 16칸 파생)", "status": "pending_order" }
+      ] },
+
+    { "id": "S8", "title": "검증 — E2E 22프로브 · 문서 회귀 · 불변식", "status": "partial", "phase": "D",
+      "note": "스크립트 전건 작성 완료(2026-08-15) — 실행은 134·135(+122 Realtime) 스테이징 적용 + dev 서버 기동 후. 실행 전이므로 전부 code_present",
+      "criteria": [
+        { "id": "S8-1", "desc": "test-sheet-mother-drawer.mts 신설 — 22프로브(§8 표, 개정 2판)", "status": "implemented", "verified": "2026-08-15 작성 — P10은 ESC 경로(모달 제약, implementation_notes), 기대값은 DB에서 독립 계산 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-2", "desc": "프로브 1·4 — 아코디언 0 / 카드 수 불변 (Q-2)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-3", "desc": "프로브 2 — '소화기구' 포함 (P-1)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-4", "desc": "프로브 5 — 3칸 너비 ±1px 동일 (Q-15 반전판)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-5", "desc": "프로브 6 — 머더 이동 서버 액션 0회, next-action POST만 카운트", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-6", "desc": "프로브 16 — MU 기타에 피난안내도·창문 (P-4·P-5)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-7", "desc": "프로브 7·10·11·12·13·14·17·18·19 — Q-17 머더 한정/unsaved-nav/ESC 우선/● 분모/EX-4/stale/권한/소제목 run/저장 후 유지", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-8", "desc": "기존 E2E 선택자 수정 — test-exterior-ui.mts / test-mu-sheet.mts / _judge-ex4 3종", "status": "implemented", "verified": "2026-08-15 — 드로어 존재·✕ 닫기 축으로 치환, test-mu-sheet은 구분 5개 [○ 모두] 순회+보드 합계로 재작성 · 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-9", "desc": "(개정) _probe-sheet-master-detail.mjs 재작성(신판 불변식 — 보드 유지·3칸 불변·목차 이동) + _probe-sheet-ox-only.mjs 수정(저장 후 유지·미선택=공란)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-10", "desc": "test-sheet-overview.mts groups 검증 — 머더 합 == 시트 total (+N 포함 responded)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-11", "desc": "INV-D8 — group_code/group_name NULL 0건 (컬럼 부재=134 미적용도 위반으로 보고)", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-12", "desc": "INV-D9 — MU-007·MU-010 facility_type='기타'", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-13", "desc": "npm run test:all + pre-push 게이트", "status": "pending_order" },
+        { "id": "S8-14", "desc": "npx tsx scripts/test-doc-generation.mts 문서 렌더 회귀", "status": "pending_order", "note": "2026-08-15 시도 — dev 서버(:3000) 부재로 미실행(코드 문제 아님)" },
+        { "id": "S8-15", "desc": "(개정 2판) 프로브 20 — [／ 전체 · 시트] 토글: 확인창 대상 수, 공란만 N·○/✕ 보존(Q-21), 재클릭 해제, 드로어·보드 양쪽 경로, 작동점검 ● 항목 N 미생성", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-16", "desc": "(개정 2판) 프로브 21 — 저장·일괄 직후 보드 카드 n/m·섹션 합계 즉시 갱신(G-9) + 완료 시 섹션 ✓", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" },
+        { "id": "S8-17", "desc": "(개정 2판) 프로브 22 — 대장 힌트 배너: 하위 행≥1+미설치 그룹 시트에서만, 전부 0행이면 미표시(P-15), [일괄 ／]는 해당 그룹에만", "status": "implemented", "verified": "· 독립검증 2026-08-15 판정자 재실행 그린" }
+      ] },
+
+    { "id": "S9", "title": "(2026-08-15 편입) 운영 배포 체크 — 소방계획서_22 연동 의무", "status": "pending_order", "phase": "D",
+      "note": "23이 닫혀도 배포 절차에서 잊히면 안 되는 22 연동 2건. 22 재확인(2026-08-15)에서 23 문서에 리마인더가 0건임을 발견해 등재",
+      "criteria": [
+        { "id": "S9-1", "desc": "Q-19(미선택=공란 규약 전환)가 운영 배포되는 날, 22 S15-1의 REGEN_POLICY_CUTOFF(erp/src/lib/annex-regen-policy.ts)에 그 날짜를 기입하고 커밋 — null인 동안 과거 건 재생성 차단이 전혀 작동하지 않는다(구 규약 건이 새 렌더로 재생성되면 '해당없음'이 '미점검 공란'으로 인쇄되는 허위 기록 위험). 기입 후 차단 배너·서버 가드 활성 확인", "status": "pending_order" },
+        { "id": "S9-2", "desc": "23 운영 반영 시 마이그레이션 134·135(+122)는 22의 136~138과 순서 의존 없이 독립이지만, 22가 먼저 운영에 갔다면 134·135는 이미 적용돼 있다 — 적용 전 운영 DB에서 information_schema로 실측 후 중복 적용 회피(둘 다 재실행 안전이긴 함)", "status": "pending_order" }
+      ] }
+  ],
+
+  "out_of_scope": [
+    "STD 830건 order_num 전수 재계산 — P-9로 불필요 확정(Q-7)",
+    "회차별 작성·조회 트리의 드로어 적용(Q-9) — 머더명·소제목 개선은 DB에서 와 자동 반영",
+    "STD-32 A·B 그룹 18항목 누락 — 소방계획서_22 S9-3 잔류(22가 마이그레이션 137로 수행 중)",
+    "(개정으로 제거) ~~대괄호 소제목~~ → Q-13 편입 / ~~인쇄물 렌더 확장~~ → Q-16 편입"
+  ],
+
+  "unverified": [
+    "드로어 실사용 스크린샷 — 목차 폭·소제목 들여쓰기·모바일 bottom sheet(E2E 실행 시 확인)",
+    "Realtime(마이그레이션 122) 스테이징 적용 여부 — 미적용이면 E2E 프로브 14(stale 배너) 실패 예상, 134·135와 함께 적용 필요",
+    "90항목 outline 렌더의 리렌더 비용(R-8/S7-18) — 측정 미실시",
+    "(개정으로 해소) ~~EXT facility_type~~ G-5 / ~~xls 제목 행 유무~~ 132건 실재 / ~~차집합~~ G-4 / ~~카드 200개 성능~~ 최대 135 / ~~22 S9-4 호환~~ Q-16 직접 수행"
+  ]
+}
