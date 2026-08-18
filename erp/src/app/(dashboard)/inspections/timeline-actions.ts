@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
-import { CERT_FILE_RE, CONTRACT_FILE_RE, findArchivedCertInspections } from '@/lib/doc-status'
+import { CERT_FILE_RE, CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections } from '@/lib/doc-status'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { renderMessage } from '@/lib/message-template'
 import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
@@ -122,6 +122,67 @@ export async function uploadTimelineFileAction(
   } as Record<string, unknown>)
   // R4-6: ② 배치확인서 업로드가 곧 근거 — 파일이 생기면 단계가 스스로 완료된다
   if (slot === 'cert') await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return {}
+}
+
+/** ②⑤ 업로드 슬롯 파일 삭제 — 잘못 올린 파일을 화면에서 되돌린다.
+ *
+ *  종전에는 업로드만 있고 삭제가 없어, 다른 고객 파일을 잘못 올리면 화면에서 되돌릴 방법이 없었다.
+ *  ②는 파일이 곧 완료 근거라 잘못된 파일 하나로 단계가 완료로 굳는다 — 지우면 다시 미완료가 되도록
+ *  삭제 후에도 동기화를 부른다(업로드 경로와 대칭).
+ *  슬롯 규약(cert_/contract_)에 맞는 파일만 지운다 — 생성물(report9_ 등)은 이 경로로 못 지운다. */
+export async function deleteTimelineFileAction(
+  inspectionId: string, slot: 'cert' | 'contract',
+): Promise<{ error?: string; deleted?: number }> {
+  const profile = await requirePermission('inspection_register')
+  const re = slot === 'cert' ? CERT_FILE_RE : slot === 'contract' ? CONTRACT_FILE_RE : null
+  if (!re) return { error: '지원하지 않는 슬롯입니다.' }
+
+  const { prefix, customerId, error } = await inspectionPrefix(inspectionId)
+  if (error) return { error }
+  const admin = createAdminClient()
+  const { data: objects } = await admin.storage.from(BUCKET).list(prefix!, { limit: 100 })
+  const targets = (objects ?? []).filter(o => re.test(o.name)).map(o => `${prefix}/${o.name}`)
+  if (targets.length === 0) return { error: '삭제할 파일이 없습니다.' }
+
+  const { error: rmErr } = await admin.storage.from(BUCKET).remove(targets)
+  if (rmErr) return { error: `삭제 실패: ${rmErr.message}` }
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: 'timeline_delete', entity_type: 'inspection', entity_id: inspectionId,
+    metadata: { slot, customerId, files: targets.map(t => t.split('/').pop()) },
+  } as Record<string, unknown>)
+  // 근거가 사라졌으므로 다시 판정한다 — 지웠는데 완료로 남아 있으면 업로드 경로와 어긋난다
+  if (slot === 'cert') await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return { deleted: targets.length }
+}
+
+/** ② 배치확인서 — **종이 보관** 사실 기록 (제안1)
+ *
+ *  협회 발급본을 종이로만 받아 파일철에 보관하는 경우가 실무의 기본값인데, 그 사실을 적을 자리가
+ *  없어 [사유 완료](예외 경로)로 때워야 했다. 종이는 예외가 아니라 증거다 — ③의 방문·유선 보고와
+ *  같은 취급으로 마커를 남긴다. 마이그레이션 없이 activity_logs(append-only)에 기록한다.
+ *
+ *  ⚠ 나중에 스캔본을 올리면 파일이 더 강한 증거라 그대로 완료가 유지된다(둘 다 done[2]=true). */
+export async function recordCertPaperAction(
+  inspectionId: string, input: { date: string; location: string; memo?: string },
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { error: '수령일 형식을 확인해주세요.' }
+  const location = input.location.trim()
+  if (!location) return { error: '보관 위치를 입력해주세요 (예: 사무실 캐비닛 A, 고객 비치).' }
+  if (location.length > 60) return { error: '보관 위치는 60자 이내로 입력해주세요.' }
+  const admin = createAdminClient()
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: CERT_PAPER_ACTION,
+    entity_type: 'inspection', entity_id: inspectionId,
+    metadata: { date: input.date, location, memo: (input.memo ?? '').trim().slice(0, 300) },
+  } as Record<string, unknown>)
+  await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
   return {}

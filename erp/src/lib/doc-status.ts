@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
+} from '@/lib/inspection-step-status'
 
 /** 문서 누락·기한 판정 함수 1곳 (소방계획서_5 7-C #8, R8-b) —
  *  대시보드 '문서 할 일' 위젯(R0-9)·보고서 센터 누락 뱃지(R8)·고객 문서 현황(R2)·제출 현황판(S4)·크론이 공유.
@@ -63,6 +66,25 @@ export async function hasCertFile(admin: SupabaseClient, customerId: string, ins
  *  activity_logs는 append-only(001)라 이력 자체가 2년 증빙 재구성의 단서로 남는다(소방계획서_18 D-5). */
 export const ARCHIVE_CLEANUP_ACTION = 'fire_plan_archive_cleanup'
 
+/** ② 배치확인서를 **처음부터 종이로 받아 보관 중**임을 사람이 남기는 마커.
+ *  보존 정리 마커(위)와 구분한다 — 정리는 "ERP 사본을 지웠다", 이것은 "스캔본이 애초에 없다".
+ *  종전에는 이 사실을 적을 자리가 없어 [사유 완료](예외 경로)로 때워야 했다. 종이는 예외가 아니라
+ *  증거이므로 별도 마커로 남긴다(③ 방문·유선 보고 = OWNER_REPORT_OFFLINE_ACTION과 같은 취급).
+ *  metadata: {date, location, memo} */
+export const CERT_PAPER_ACTION = 'cert_paper_archived'
+
+/** 단계 완료 **판정의 근거**가 되는 마커들 — 보존 만료로 지우면 완료된 단계가 되살아난다.
+ *  로그 보존 크론(purge-activity-logs)이 회차 마커를 지우지 않도록 이 목록을 한 곳에서 관리한다.
+ *  (종전에는 ARCHIVE_CLEANUP_ACTION만 제외돼, 24개월이 지나면 오프라인 보고·사유 완료 마커가
+ *   사라져 그 단계들이 미완료로 되돌아갈 수 있었다.) */
+export const EVIDENCE_MARKER_ACTIONS = [
+  ARCHIVE_CLEANUP_ACTION,
+  CERT_PAPER_ACTION,
+  OWNER_REPORT_OFFLINE_ACTION,
+  STEP_FORCE_COMPLETE_ACTION,
+  STEP_FORCE_UNDO_ACTION,
+] as const
+
 /** 보관 정책(소방계획서_18 D-7)으로 스캔이 정리된 회차 — '업로드 안 함'과 구분해야 한다.
  *  과거 회차 배치확인서는 종이 보관 후 ERP에서 지우므로, storage만 보면 전부 '누락'으로 보인다.
  *  정리 액션이 남긴 activity_logs 마커가 있으면 종이로 보관 중이라는 뜻이므로 경고 대상에서 뺀다. */
@@ -74,7 +96,8 @@ export async function findArchivedCertInspections(
   // 일부가 조용히 빠지면 오경고가 되살아나므로 상한을 조회 대상 수에 맞춰 명시한다.
   const { data } = await admin.from('activity_logs')
     .select('entity_id')
-    .eq('action', ARCHIVE_CLEANUP_ACTION)
+    // 보존 정리(사본 삭제)와 처음부터 종이 보관 — 둘 다 '종이로 갖고 있다'라 누락이 아니다
+    .in('action', [ARCHIVE_CLEANUP_ACTION, CERT_PAPER_ACTION])
     .eq('entity_type', 'inspection')
     .in('entity_id', inspectionIds)
     .limit(Math.max(1000, inspectionIds.length * 20))

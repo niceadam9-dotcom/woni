@@ -66,6 +66,8 @@ export type TimelineData = {
   certFile: { name: string; path: string } | null
   /** 파일은 없지만 종이 보관 후 정리된 회차 — '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠) */
   certArchived?: boolean
+  /** 사람이 남긴 **종이 보관** 기록(수령일·보관 위치). 보존 정리로 사본이 지워진 것과 구분해 표시한다 */
+  certPaper?: { date: string; location: string; memo: string } | null
   contractFile: { name: string; path: string } | null
   delivery: { sentTo: string; sentAt: string } | null   // ③ 발송 이력 (최근)
   submit9: { due: string | null; dday: number | null; submittedAt: string | null }

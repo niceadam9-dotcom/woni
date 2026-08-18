@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ARCHIVE_CLEANUP_ACTION } from '@/lib/doc-status'
+import { EVIDENCE_MARKER_ACTIONS } from '@/lib/doc-status'
 
 // 활동로그 보존 정책: 보존 기간(기본 24개월) 경과분을 월별 JSON으로
 // Supabase Storage(log-archives 버킷)에 아카이브한 뒤 삭제한다.
@@ -48,15 +48,16 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
 
   // 1) 만료 로그 조회
-  //    단 보관 정책 마커(소방계획서_18 D-7)는 제외한다 — 이 행은 '기록'이 아니라 판정 근거다.
-  //    지우면 종이로 보관 중인 과거 회차가 어느 날 갑자기 '배치확인서 누락'으로 되살아난다.
+  //    단 **단계 판정 근거 마커**는 제외한다 — 이 행들은 '기록'이 아니라 판정의 증거다.
+  //    지우면 종이 보관 회차가 '배치확인서 누락'으로 되살아나고, 오프라인 보고·사유 완료로 닫은
+  //    단계가 24개월 뒤 미완료로 되돌아간다(EVIDENCE_MARKER_ACTIONS에서 목록을 관리).
   //    제외 범위는 회차 마커(entity_type='inspection')로 한정한다. 같은 action의 고객 단위
   //    감사 로그는 판정에 쓰이지 않으므로 보존정책대로 아카이브 후 만료시킨다.
   const { data: expiredRaw, error: selErr } = await admin
     .from('activity_logs')
     .select('*')
     .lt('created_at', cutoffIso)
-    .or(`action.neq.${ARCHIVE_CLEANUP_ACTION},entity_type.neq.inspection`)
+    .or(`action.not.in.(${EVIDENCE_MARKER_ACTIONS.join(',')}),entity_type.neq.inspection`)
     .order('created_at', { ascending: true })
     .limit(BATCH)
 

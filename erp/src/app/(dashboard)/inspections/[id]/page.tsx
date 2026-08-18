@@ -19,7 +19,24 @@ import { InspectionReport9Client, type Report9CheckRow } from '@/components/insp
 import { type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
 import { stepDocs } from '@/lib/doc-requirements'
-import { CONTRACT_FILE_RE, findArchivedCertInspections, isCertFileName } from '@/lib/doc-status'
+import { CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections, isCertFileName } from '@/lib/doc-status'
+
+/** ② 종이 보관 기록의 최신 1건 — 화면에 '언제·어디' 를 보여주기 위한 조회(판정은 마커 존재 여부로 이미 끝난다) */
+async function loadCertPaperRecord(
+  admin: ReturnType<typeof createAdminClient>, inspectionId: string,
+): Promise<{ date: string; location: string; memo: string } | null> {
+  const { data } = await admin.from('activity_logs')
+    .select('metadata, created_at')
+    .eq('action', CERT_PAPER_ACTION).eq('entity_type', 'inspection').eq('entity_id', inspectionId)
+    .order('created_at', { ascending: false }).limit(1)
+  const m = (data?.[0] as { metadata: Record<string, unknown> } | undefined)?.metadata
+  if (!m) return null
+  return {
+    date: String(m.date ?? ''),
+    location: String(m.location ?? ''),
+    memo: String(m.memo ?? ''),
+  }
+}
 import { sheetScope } from '@/lib/sheet-scope'
 import { buildSheetOverviews, type SheetProgress } from '@/lib/sheet-overview'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
@@ -50,12 +67,22 @@ const STATUS_COLORS: Record<InspectionStatus, string> = {
 
 // InfoChip은 기본정보 카드와 함께 InspectionInfoPopover로 이관됐다 (C1 R5-5)
 
+/** 딥링크 계약 (달력·계획 패널의 [점검표 입력] → 이 페이지):
+ *  `?step=1..6`  진입 시 펼칠 단계 — 작업대(InspectionWorkbench) 초기 선택
+ *  `?sheet=auto` ① 점검표의 **첫 미완성 시트 드로어**를 자동으로 연다
+ *  `#defects`    ⑤ 불량내역 앵커(기존) — step=5와 함께 써야 그 칸이 렌더된다
+ *  값이 이상하면 전부 조용히 무시하고 기본 동작으로 떨어진다 — 링크가 썩어도 페이지는 열려야 한다. */
 export default async function InspectionDetailPage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ step?: string; sheet?: string }>
 }) {
   const { id } = await params
+  const sp = (await searchParams) ?? {}
+  const stepParam = Number(sp.step)
+  const initialStepNum = Number.isInteger(stepParam) && stepParam >= 1 && stepParam <= 6 ? stepParam : null
+  const autoOpenSheet = sp.sheet === 'auto'
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
@@ -347,6 +374,8 @@ export default async function InspectionDetailPage({
       certFile: certObj ? { name: certObj.name, path: `${storagePrefix}/${certObj.name}` } : null,
       // 종이 보관 후 정리된 회차는 '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠)
       certArchived: !certObj && (await findArchivedCertInspections(admin, [id])).has(id),
+      // 사람이 남긴 '종이 보관' 기록 — 언제·어디에 두었는지를 그 자리에서 보여준다
+      certPaper: await loadCertPaperRecord(admin, id),
       contractFile: contractObj ? { name: contractObj.name, path: `${storagePrefix}/${contractObj.name}` } : null,
       delivery: deliveryRow ? { sentTo: deliveryRow.recipient_email, sentAt: deliveryRow.sent_at } : null,
       submit9: {
@@ -438,6 +467,7 @@ export default async function InspectionDetailPage({
           customerName={customer?.customer_name}
           customerId={inspection.customer_id}
           defectRows={defects}
+          initialStepNum={initialStepNum}
           slots={{
             multiday: (
               <InspectionMultidayClient
@@ -464,6 +494,7 @@ export default async function InspectionDetailPage({
                   xCount={xCount}
                   canManage={canEdit}
                   ledgerSubCodes={overviews[id]?.ledgerSubCodes ?? []}
+                  autoOpenSheet={autoOpenSheet}
                 />
               </ExteriorMonthProvider>
             ),

@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, FileText, Loader2,
-  Package, Send, Upload,
+  Maximize2, Package, Send, Trash2, Upload, X,
 } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, getAnnexPreviewHtmlAction,
@@ -15,6 +16,7 @@ import { getAnnexInputsAction, saveAnnexInputsAction } from '@/app/(dashboard)/c
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
   forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction,
+  deleteTimelineFileAction, recordCertPaperAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
@@ -48,6 +50,7 @@ const STEP_NUM: Record<StepKey, number> = {
 
 export function InspectionWorkbench({
   inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots, defectRows,
+  initialStepNum = null,
 }: {
   inspectionId: string
   canManage: boolean
@@ -61,6 +64,8 @@ export function InspectionWorkbench({
   slots?: TimelineSlots
   /** ⑤⑥ 표 편집용 원본 행(R6-7) — ①의 불량 카드(slots.defects)와 같은 데이터, 저장 액션도 같다 */
   defectRows?: GridDefect[]
+  /** 딥링크 `?step=N`(1~6) — 진입 시 펼칠 단계. 해당없음 단계면 무시하고 기본값을 쓴다 */
+  initialStepNum?: number | null
 }) {
   const router = useRouter()
   const [job, setJob] = useState(initialJob)
@@ -81,6 +86,11 @@ export function InspectionWorkbench({
   const [offlineDate, setOfflineDate] = useState(today)
   const [offlineMethod, setOfflineMethod] = useState('방문 설명')
   const [offlineMemo, setOfflineMemo] = useState('')
+  // 제안1: ② 배치확인서 종이 보관 기록 입력 (③ 오프라인 보고와 같은 구조)
+  const [paperOpen, setPaperOpen] = useState(false)
+  const [paperDate, setPaperDate] = useState(today)
+  const [paperLocation, setPaperLocation] = useState('')
+  const [paperMemo, setPaperMemo] = useState('')
   const [dragOver, setDragOver] = useState<'cert' | 'contract' | null>(null)
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
@@ -121,8 +131,14 @@ export function InspectionWorkbench({
   const progressPct = prog.pct
   const nextStep = activeSteps.find(k => !done[k])
 
-  // 진입 화면은 첫 미완료 단계 — '지금 무엇을 해야 하는지'가 곧 초기 화면이다
-  const [sel, setSel] = useState<StepKey>(() => nextStep ?? data.steps[0] ?? 'checklist')
+  /** 딥링크 `?step=N`이 지정한 단계 — **활성 단계일 때만** 인정한다. 불량 0건이면 ⑤⑥이 해당없음이라
+   *  (activeSteps) 그 칸을 억지로 펼치면 빈 화면이 뜬다. 그럴 땐 조용히 기본값으로 떨어진다. */
+  const linkedStep = initialStepNum
+    ? activeSteps.find(k => STEP_NUM[k] === initialStepNum)
+    : undefined
+
+  // 진입 화면은 딥링크 → 첫 미완료 단계 순 — '지금 무엇을 해야 하는지'가 곧 초기 화면이다
+  const [sel, setSel] = useState<StepKey>(() => linkedStep ?? nextStep ?? data.steps[0] ?? 'checklist')
 
   const stepByNum = new Map(data.inspectionSteps.map(s => [s.step_num, s]))
   const stepOf = (k: StepKey) => stepByNum.get(STEP_NUM[k]) ?? null
@@ -298,6 +314,31 @@ export function InspectionWorkbench({
     })
   }
 
+  /** 제안1: ② 배치확인서를 종이로만 받은 경우 — 예외가 아니라 증거로 기록한다 */
+  function savePaper() {
+    startTransition(async () => {
+      const res = await recordCertPaperAction(inspectionId, {
+        date: paperDate, location: paperLocation, memo: paperMemo,
+      })
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setPaperOpen(false); setPaperMemo('')
+      setMsg('✅ 종이 보관으로 기록했습니다 — ②가 근거로 완료됩니다.')
+      router.refresh()
+    })
+  }
+
+  /** 제안2: 잘못 올린 업로드 파일 삭제 — 근거가 사라지므로 단계도 다시 판정된다 */
+  function removeFile(slot: 'cert' | 'contract') {
+    const label = slot === 'cert' ? '배치확인서' : '계약서'
+    if (!window.confirm(`${label} 파일을 삭제합니다.\n${slot === 'cert' ? '삭제하면 ② 단계가 다시 미완료로 돌아갑니다.\n' : ''}계속할까요?`)) return
+    startTransition(async () => {
+      const res = await deleteTimelineFileAction(inspectionId, slot)
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setMsg(`✅ ${label} 파일을 삭제했습니다 (${res.deleted ?? 0}건).`)
+      router.refresh()
+    })
+  }
+
   const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50'
   const btnPri = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50'
 
@@ -400,8 +441,10 @@ export function InspectionWorkbench({
               title={canManage ? '클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
               <p className={`text-xs ${done.cert ? 'text-[#514b81]' : 'text-amber-600'}`}>
                 {data.certFile ? `업로드됨: ${data.certFile.name}`
-                  : data.certArchived ? '종이 보관됨 — 과거본 정리로 ERP 사본은 삭제되었습니다'
-                    : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
+                  : data.certPaper
+                    ? `종이 보관 중 — ${data.certPaper.date} 수령 · ${data.certPaper.location}`
+                    : data.certArchived ? '종이 보관됨 — 과거본 정리로 ERP 사본은 삭제되었습니다'
+                      : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
               </p>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
@@ -411,8 +454,39 @@ export function InspectionWorkbench({
                 {canManage && (<>
                   <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={uploadCert} />
                   <button onClick={() => certRef.current?.click()} disabled={isPending} className={btn}><Upload className="size-3" /> 업로드</button>
+                  {/* 제안2: 잘못 올린 파일을 되돌린다 — ②는 파일이 곧 완료 근거라 지우면 다시 미완료가 된다 */}
+                  {data.certFile && (
+                    <button onClick={() => removeFile('cert')} disabled={isPending} data-testid="cert-delete"
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[10px] text-red-600 hover:bg-red-50 disabled:opacity-50">
+                      <Trash2 className="size-3" /> 삭제
+                    </button>
+                  )}
+                  {/* 제안1: 종이로만 받은 경우 — 예외([사유 완료])가 아니라 증거로 기록한다 */}
+                  {!data.certFile && !paperOpen && (
+                    <button onClick={() => setPaperOpen(true)} disabled={isPending} data-testid="cert-paper-open"
+                      className={btn}><FileText className="size-3" /> 종이 보관 기록</button>
+                  )}
                 </>)}
               </div>
+
+              {canManage && paperOpen && (
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-[#f3f1fc] pt-2">
+                  <DateInput value={paperDate} onChange={e => setPaperDate(e.target.value)}
+                    className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                  <input value={paperLocation} onChange={e => setPaperLocation(e.target.value)}
+                    placeholder="보관 위치 (예: 사무실 캐비닛 A)" data-testid="cert-paper-location"
+                    className="h-7 w-52 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                  <input value={paperMemo} onChange={e => setPaperMemo(e.target.value)}
+                    placeholder="메모 (선택)"
+                    className="h-7 w-40 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                  <button onClick={savePaper} disabled={isPending} data-testid="cert-paper-save"
+                    className="h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">기록</button>
+                  <button onClick={() => setPaperOpen(false)} className="h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81]">취소</button>
+                  <p className="w-full text-[10px] text-[#b0acd6]">
+                    스캔본이 없어도 종이로 갖고 있으면 이 단계는 완료입니다 — 나중에 업로드하면 파일이 우선 근거가 됩니다.
+                  </p>
+                </div>
+              )}
             </div>
           </Pane>
           <Pane title="배치 요약" cls={paneCls} head={paneHead}>
@@ -593,7 +667,7 @@ export function InspectionWorkbench({
             </div>
           </Pane>
           {/* R6-6: 3단 작성 패널 대신 미리보기 위에 서식 고유값 몇 칸 */}
-          <Pane title="9호 고유값·미리보기" cls={paneCls} head={paneHead}>
+          <Pane title="9호 고유값·미리보기" cls={paneCls} head={paneHead} fill>
             <AnnexPane inspectionId={inspectionId} annexNo="report9" canEdit={canManage} />
           </Pane>
         </>)}
@@ -626,6 +700,12 @@ export function InspectionWorkbench({
                 <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={uploadContract} />
                 <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn}
                   title="수리 계약서 (선택 증빙)"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
+                {data.contractFile && (
+                  <button onClick={() => removeFile('contract')} disabled={isPending} data-testid="contract-delete"
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50">
+                    <Trash2 className="size-3" /> 삭제
+                  </button>
+                )}
               </>)}
             </div>
             <div className="border-t border-[#f3f1fc] pt-2">
@@ -642,7 +722,7 @@ export function InspectionWorkbench({
             )}
           </Pane>
           {/* R6-4: 불량을 고치면 10호 미리보기가 갱신된다. Gotenberg 미호출(즉석 HTML) */}
-          <Pane title="10호 실시간 미리보기" cls={paneCls} head={paneHead}>
+          <Pane title="10호 실시간 미리보기" cls={paneCls} head={paneHead} fill>
             <AnnexPreview inspectionId={inspectionId} reportType="report10"
               watch={`${data.defects.planned}-${data.defects.done}-${data.defects.total}-${defectRev}`} />
           </Pane>
@@ -686,7 +766,7 @@ export function InspectionWorkbench({
             </div>
           </Pane>
           {/* R6-5 */}
-          <Pane title="11호 실시간 미리보기" cls={paneCls} head={paneHead}>
+          <Pane title="11호 실시간 미리보기" cls={paneCls} head={paneHead} fill>
             <AnnexPreview inspectionId={inspectionId} reportType="report11"
               watch={`${data.defects.done}-${data.defects.photoPairs}-${defectRev}`} />
           </Pane>
@@ -721,11 +801,19 @@ export function InspectionWorkbench({
   )
 }
 
-function Pane({ title, children, cls, head }: { title: string; children: React.ReactNode; cls: string; head: string }) {
+/** fill=true — 본문이 **칸 높이를 끝까지 쓴다**.
+ *
+ *  기본(false)은 내용만큼만 커지고 남으면 빈 채로 둔다. 그래도 되는 칸이 대부분인데,
+ *  미리보기 칸만은 그게 곧 손해였다: 칸은 594px인데 iframe이 min-h(224px)에 갇혀
+ *  A4 문서(872px 필요)의 **27%만 보이고 나머지는 내부 스크롤**이었다(실측 2026-08-18).
+ *  section을 flex 열로 만들고 본문에 flex-1/min-h-0을 물려야 자식의 h-full이 실제 높이로 풀린다. */
+function Pane({ title, children, cls, head, fill = false }: {
+  title: string; children: React.ReactNode; cls: string; head: string; fill?: boolean
+}) {
   return (
-    <section className={cls}>
+    <section className={fill ? `${cls} flex flex-col` : cls}>
       <p className={head}>{title}</p>
-      <div className="p-2">{children}</div>
+      <div className={fill ? 'flex min-h-0 flex-1 flex-col p-2' : 'p-2'}>{children}</div>
     </section>
   )
 }
@@ -827,10 +915,13 @@ function AnnexPane({ inspectionId, annexNo, canEdit }: {
   canEdit: boolean
 }) {
   const [rev, setRev] = useState(0)
+  // 고유값 칸은 내용만큼(shrink-0), 남는 높이는 전부 미리보기에 — Pane fill이 물려준 높이를 여기서 흘려보낸다
   return (
-    <div className="space-y-2">
-      <AnnexFields inspectionId={inspectionId} annexNo={annexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
-      <div className="border-t border-[#f3f1fc] pt-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="shrink-0">
+        <AnnexFields inspectionId={inspectionId} annexNo={annexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col border-t border-[#f3f1fc] pt-2">
         <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)} />
       </div>
     </div>
@@ -865,17 +956,68 @@ function AnnexPreview({ inspectionId, reportType, watch }: {
     return () => clearTimeout(t)
   }, [load, watch])
 
+  // [크게 보기] — 칸을 다 채워도 A4 한 장이 다 들어가지 않는다(폭 640px에서 626px 필요 vs 약 560px 확보).
+  // 스크롤을 아예 없애려면 화면 전체가 필요해 포털 오버레이를 둔다. SheetDrawer와 같은 관례:
+  // 'use client' + mounted 가드(SSR엔 document가 없다) · ESC 닫기 · body 스크롤 잠금.
+  const [zoom, setZoom] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    if (!zoom) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoom(false) }
+    document.addEventListener('keydown', h)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = prev }
+  }, [zoom])
+
+  const frame = (cls: string) => html
+    ? <iframe srcDoc={html} title={`${reportType} 미리보기`} className={cls} />
+    : null
+
   return (
     <div className="flex h-full min-h-[16rem] flex-col gap-1">
       <div className="flex items-center gap-1.5 px-1">
         {loading && <span className="inline-flex items-center gap-1 text-[10px] text-[#847ba8]"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
         {!loading && missing.length > 0 && <span className="text-[10px] text-amber-600">⚠ 미입력 {missing.length}곳</span>}
         {!loading && !err && missing.length === 0 && <span className="text-[10px] text-green-600">✓ 빈칸 없음</span>}
-        <button onClick={load} className="ml-auto text-[10px] text-[#7b68ee] hover:underline">새로고침</button>
+        <span className="ml-auto flex items-center gap-2">
+          {html && (
+            <button onClick={() => setZoom(true)} data-testid="preview-zoom"
+              title="화면 전체로 크게 보기 — 스크롤 없이 한 장을 봅니다 (ESC로 닫기)"
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-[#7b68ee] hover:underline">
+              <Maximize2 className="size-3" /> 크게 보기
+            </button>
+          )}
+          <button onClick={load} className="text-[10px] text-[#7b68ee] hover:underline">새로고침</button>
+        </span>
       </div>
       {err ? <p className="px-1 text-[11px] text-red-600">{err}</p>
-        : html ? <iframe srcDoc={html} title={`${reportType} 미리보기`} className="min-h-[14rem] flex-1 rounded-lg border border-[#e0ddf5] bg-white" />
+        : html ? frame('min-h-[14rem] flex-1 rounded-lg border border-[#e0ddf5] bg-white')
           : !loading ? <Empty>미리보기를 만들 수 없습니다.</Empty> : null}
+
+      {mounted && zoom && html && createPortal(
+        <div className="fixed inset-0 z-[60] flex flex-col bg-black/50 p-4" data-testid="preview-zoom-overlay"
+          onClick={e => { if (e.target === e.currentTarget) setZoom(false) }}>
+          <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center gap-2 border-b border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
+              <FileText className="size-4 text-[#7b68ee]" />
+              <p className="text-xs font-semibold text-[#514b81]">{ANNEX_PREVIEW_TITLES[reportType]} 미리보기</p>
+              {missing.length > 0 && <span className="text-[10px] text-amber-600">⚠ 미입력 {missing.length}곳</span>}
+              <button onClick={() => setZoom(false)} data-testid="preview-zoom-close"
+                className="ml-auto text-[#847ba8] hover:text-[#514b81]" title="닫기 (ESC)">
+                <X className="size-4" />
+              </button>
+            </div>
+            {frame('min-h-0 flex-1 bg-white')}
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   )
+}
+
+const ANNEX_PREVIEW_TITLES: Record<'report9' | 'report10' | 'report11', string> = {
+  report9: '별지 9호', report10: '별지 10호', report11: '별지 11호',
 }
