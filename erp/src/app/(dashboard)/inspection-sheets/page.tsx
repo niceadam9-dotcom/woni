@@ -16,7 +16,7 @@ const TYPE_COLORS: Record<string, string> = {
 export default async function InspectionSheetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; active?: string }>
+  searchParams: Promise<{ q?: string; type?: string; active?: string; page?: string; per_page?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -25,6 +25,7 @@ export default async function InspectionSheetsPage({
   const q = params.q ?? ''
   const typeFilter = params.type ?? ''
   const activeFilter = params.active ?? 'active'
+  const pageSize = Math.max(0, parseInt(params.per_page ?? '25', 10))  // 0 = 전체
 
   const admin = createAdminClient()
 
@@ -62,7 +63,24 @@ export default async function InspectionSheetsPage({
   if (activeFilter === 'active') rows = rows.filter(r => r.is_active)
   if (activeFilter === 'inactive') rows = rows.filter(r => !r.is_active)
 
+  const totalCount = rows.length
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(totalCount / pageSize))
+  // 필터를 바꾸면 현재 페이지가 범위 밖일 수 있다 — 빈 화면 대신 마지막 페이지를 보여준다
+  const page = Math.min(Math.max(1, parseInt(params.page ?? '1', 10)), totalPages)
+  if (pageSize > 0) rows = rows.slice((page - 1) * pageSize, page * pageSize)
+
   const canCreate = profile.role === 'manager' || profile.role === 'admin'
+
+  function buildPageUrl(p: number) {
+    const sp = new URLSearchParams()
+    if (q) sp.set('q', q)
+    if (typeFilter) sp.set('type', typeFilter)
+    if (activeFilter !== 'active') sp.set('active', activeFilter)
+    if (pageSize !== 25) sp.set('per_page', String(pageSize))
+    if (p > 1) sp.set('page', String(p))
+    const qs = sp.toString()
+    return `/inspection-sheets${qs ? `?${qs}` : ''}`
+  }
 
   return (
     <div className="space-y-6">
@@ -114,15 +132,26 @@ export default async function InspectionSheetsPage({
           <option value="active">활성</option>
           <option value="inactive">비활성</option>
         </select>
+        <select
+          name="per_page"
+          defaultValue={String(pageSize)}
+          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+        >
+          <option value="25">25건</option>
+          <option value="50">50건</option>
+          <option value="0">전체</option>
+        </select>
         <button type="submit" className="h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors">
           검색
         </button>
-        {(q || typeFilter || activeFilter !== 'active') && (
+        {(q || typeFilter || activeFilter !== 'active' || pageSize !== 25) && (
           <a href="/inspection-sheets" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">총 {rows.length}개</span>
+        <span className="text-xs text-[#514b81] ml-auto">
+          총 {totalCount}개{totalPages > 1 && ` · ${page}/${totalPages} 페이지`}
+        </span>
       </form>
 
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
@@ -141,9 +170,15 @@ export default async function InspectionSheetsPage({
               <tbody className="divide-y divide-[#c8c4d0]">
                 {rows.map(r => (
                   <tr key={r.id} className="hover:bg-[#f8f9fa] transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono text-[#514b81]">{r.sheet_code}</td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-[#090c1d]">{r.sheet_name}</p>
+                      <Link href={`/inspection-sheets/${r.id}`} className="text-xs font-mono text-[#514b81] hover:text-[#7b68ee] hover:underline transition-colors">
+                        {r.sheet_code}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/inspection-sheets/${r.id}`} className="font-medium text-[#090c1d] hover:text-[#7b68ee] hover:underline transition-colors">
+                        {r.sheet_name}
+                      </Link>
                       {r.description && <p className="text-xs text-[#b0acd6] mt-0.5 truncate max-w-[180px]">{r.description}</p>}
                     </td>
                     <td className="px-4 py-3">
@@ -180,6 +215,24 @@ export default async function InspectionSheetsPage({
           </div>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          {page > 1 && (
+            <a href={buildPageUrl(page - 1)}
+              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              이전
+            </a>
+          )}
+          <span className="text-sm text-[#514b81]">{page} / {totalPages}</span>
+          {page < totalPages && (
+            <a href={buildPageUrl(page + 1)}
+              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              다음
+            </a>
+          )}
+        </div>
+      )}
     </div>
   )
 }
