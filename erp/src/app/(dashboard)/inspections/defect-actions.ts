@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole, getSessionUser, requirePermission } from '@/lib/auth'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { extractStoragePath } from '@/lib/defect-photos'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
@@ -94,19 +95,20 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
 
   if (uploadErr) return { error: '사진 업로드에 실패했습니다.' }
 
-  const { data: urlData } = admin.storage
-    .from('inspection-defects')
-    .getPublicUrl(path)
-
-  const photoUrl = urlData.publicUrl
-
+  // ⚠ 종전엔 getPublicUrl()을 저장했다 — 이 버킷은 비공개라 그 주소는 400(Bucket not found)이고
+  // 불량사진이 화면 전체에서 뜨지 않았다. DB에는 경로만 두고 표시 시점에 서명한다(lib/defect-photos).
   await admin
     .from('inspection_defects')
-    .update({ [field]: photoUrl } as Record<string, unknown>)
+    .update({ [field]: path } as Record<string, unknown>)
     .eq('id', defectId)
 
+  // 호출부는 업로드 직후 미리보기에 이 값을 그대로 <img src>로 쓴다 — 서명 URL이어야 보인다
+  const { data: signed } = await admin.storage
+    .from('inspection-defects')
+    .createSignedUrl(path, 3600)
+
   revalidatePath(`/inspections/${inspectionId}`)
-  return { url: photoUrl }
+  return { url: signed?.signedUrl }
 }
 
 // 불량 조치 저장 (P34-4 + R-3 §9-7) — 이행계획(별지 10호: 계획·기간) + 조치완료(별지 11호: 내용·완료일)
@@ -146,20 +148,19 @@ export async function deleteDefectAction(defectId: string, inspectionId: string)
   await requireRole(['manager', 'admin'])
   const admin = createAdminClient()
 
-  // Storage 사진 삭제 (있으면)
+  // Storage 사진 삭제 (있으면) — 전·후 둘 다. 종전엔 photo_url만 지워 조치 후 사진이 고아로 남았다.
+  // 경로 추출은 extractStoragePath 공용 — 신형식(경로)·구형식(공개 URL)을 모두 받는다.
   const { data: defect } = await admin
     .from('inspection_defects')
-    .select('photo_url')
+    .select('photo_url, after_photo_url')
     .eq('id', defectId)
     .single()
 
-  if ((defect as { photo_url?: string | null } | null)?.photo_url) {
-    // Extract path from URL
-    const url = (defect as { photo_url: string }).photo_url
-    const pathMatch = url.match(/inspection-defects\/(.+)$/)
-    if (pathMatch) {
-      await admin.storage.from('inspection-defects').remove([pathMatch[1]])
-    }
+  const d = defect as { photo_url?: string | null; after_photo_url?: string | null } | null
+  const paths = [extractStoragePath(d?.photo_url), extractStoragePath(d?.after_photo_url)]
+    .filter((p): p is string => !!p)
+  if (paths.length > 0) {
+    await admin.storage.from('inspection-defects').remove(paths)
   }
 
   const { error } = await admin

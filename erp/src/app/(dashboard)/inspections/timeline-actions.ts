@@ -8,6 +8,7 @@ import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
 import { CERT_FILE_RE, CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections } from '@/lib/doc-status'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
 import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
 
@@ -415,14 +416,16 @@ export async function downloadPackageAction(
     let n = 0
     for (const d of (defects ?? []) as Array<{ defect_name: string; photo_url: string | null; after_photo_url: string | null }>) {
       for (const [tag, p] of [['전', d.photo_url], ['후', d.after_photo_url]] as Array<[string, string | null]>) {
-        if (!p) continue
+        // ⚠ 종전엔 저장된 public URL을 fetch했다 — 버킷이 비공개라 항상 실패했고, 실패는 조용히
+        // 건너뛰므로 **증빙 사진이 0장인 채로 제출 패키지가 만들어졌다**. 버킷에서 직접 내려받는다.
+        const path = extractStoragePath(p)
+        if (!path) continue
         try {
-          // photo_url = inspection-defects 버킷 public URL — 직접 fetch
-          const res = await fetch(p)
-          if (!res.ok) continue
+          const { data: img } = await admin.storage.from('inspection-defects').download(path)
+          if (!img) continue
           n += 1
-          const ext = (p.split('.').pop() ?? 'jpg').split('?')[0]
-          zip.file(`사진/${String(n).padStart(2, '0')}_${d.defect_name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 30)}_${tag}.${ext}`, await res.arrayBuffer())
+          const ext = (path.split('.').pop() ?? 'jpg').split('?')[0]
+          zip.file(`사진/${String(n).padStart(2, '0')}_${d.defect_name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 30)}_${tag}.${ext}`, await img.arrayBuffer())
         } catch { /* 사진 1장 실패는 건너뜀 (안내.txt에 누락 표기) */ }
       }
     }

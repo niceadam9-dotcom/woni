@@ -20,6 +20,9 @@ const steps: Step[] = [
   { name: '점검 고객명 검색(E2E)',      cmd: 'npx tsx scripts/test-inspection-customer-search.mts', needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
   { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
+  // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.
+  // src만 보면 통과하므로 naturalWidth로 '실제로 그려졌는지'까지 본다
+  { name: '불량 전/후 사진(E2E)',       cmd: 'npx tsx scripts/test-defect-photos.mts',              needServer: true },
   // 소방계획서_18 S4 — 과거본 정리는 되돌릴 수 없는 삭제라 게이트·대상 판정을 상시 고정한다
   { name: '보관함 과거본 정리(E2E)',    cmd: 'npx tsx scripts/test-archive-cleanup.mts',     needServer: true },
   // 실패 경로는 서버 없이 검증한다 — Storage 실패를 경계에서 주입해 "파일을 다 못 지우면 행도 안 지운다"를 고정

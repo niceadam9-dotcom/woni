@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft, ClipboardList } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withSignedDefectPhotos } from '@/lib/defect-photos'
 import { ActionPlanDetailClient } from '@/components/action-plans/action-plan-detail-client'
 import type { UserRole } from '@/types'
 
@@ -37,11 +38,15 @@ export default async function ActionPlanDetailPage({
 
   // 불량내역 조회
   const inspectionId = (plan as Record<string, unknown>).inspection_id as string
-  const { data: defects } = await admin
+  const { data: defectRows } = await admin
     .from('inspection_defects')
     .select('id, defect_code, defect_name, defect_detail, photo_url, severity, created_at')
     .eq('inspection_id', inspectionId)
     .order('created_at')
+  // 비공개 버킷 — 표시 직전 서명 (lib/defect-photos)
+  const defects = await withSignedDefectPhotos(
+    admin, (defectRows ?? []) as Array<{ photo_url: string | null }>,
+  )
 
   const canManage = can(profile.role as UserRole, 'action_plan_manage')
 

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft, ClipboardList } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withSignedDefectPhotos } from '@/lib/defect-photos'
 import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
 import { InspectionMultidayClient } from '@/components/inspections/inspection-multiday-client'
 import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
@@ -179,7 +180,8 @@ export default async function InspectionDetailPage({
     action_plan: string | null; action_start: string | null; action_end: string | null
     severity: '경미' | '보통' | '중대'; created_at: string
   }
-  const defects = (defectsRes.data ?? []) as DefectRow[]
+  // 사진은 비공개 버킷이라 표시 직전에 서명한다 — DB엔 경로만 있다(lib/defect-photos)
+  const defects = await withSignedDefectPhotos(admin, (defectsRes.data ?? []) as DefectRow[])
   const hasActionPlan = !!actionPlanRes.data
 
   type ReportRow = {
