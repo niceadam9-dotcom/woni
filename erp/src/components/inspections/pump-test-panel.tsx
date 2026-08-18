@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import { savePumpTestAction } from '@/app/(dashboard)/inspections/pump-test-actions'
+import { useUnsavedWarning } from '@/components/ui/fields'
 import {
   PUMP_KINDS, PUMP_JUDGE_LABELS, PUMP_SHEET_LABELS, emptyPumpRow, judgePumpTest,
   type PumpKind, type PumpTestRow,
@@ -36,31 +37,54 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
   const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [err, setErr] = useState('')
   const [openSheet, setOpenSheet] = useState<number | null>(sheetNos[0] ?? null)
+  // V21-3: blur 저장이라 **blur 전에 화면을 떠나면 유실된다**. 아직 커밋되지 않은 행을 추적해
+  // 공용 미저장 규약(useUnsavedWarning)에 참여시킨다 — 확인창의 [저장하고 이동]이 여기로 들어온다.
+  const [dirty, setDirty] = useState<Set<string>>(new Set())
 
-  if (sheetNos.length === 0) return null
-
-  const set = (s: number, k: PumpKind, patch: Partial<PumpTestRow>) =>
+  const set = (s: number, k: PumpKind, patch: Partial<PumpTestRow>) => {
     setRows(prev => ({ ...prev, [key(s, k)]: { ...prev[key(s, k)], ...patch } }))
+    setDirty(prev => new Set(prev).add(key(s, k)))
+  }
 
-  function commit(s: number, k: PumpKind, patch?: Partial<PumpTestRow>) {
-    if (!canEdit) return
+  /** 한 행 저장. 성공하면 dirty에서 뺀다 — 성공 여부를 돌려줘 일괄 저장이 실패를 알 수 있게 한다 */
+  async function saveRow(s: number, k: PumpKind, patch?: Partial<PumpTestRow>): Promise<boolean> {
+    if (!canEdit) return true
     const id = key(s, k)
     const row = { ...rows[id], ...patch }
     setSaving(id)
     setErr('')
-    void savePumpTestAction(inspectionId, s, k, {
+    const res = await savePumpTestAction(inspectionId, s, k, {
       shutoffFlow: row.shutoffFlow, shutoffPress: row.shutoffPress,
       ratedFlow: row.ratedFlow, ratedPress: row.ratedPress,
       overFlow: row.overFlow, overPress: row.overPress,
       setStartPress: row.setStartPress, setStopPress: row.setStopPress,
       judge1: row.judge1, judge2: row.judge2, judge3: row.judge3, note: row.note,
-    }).then(res => {
-      setSaving(null)
-      if (res.error) { setErr(res.error); return }
-      setSaved(p => ({ ...p, [id]: true }))
-      setTimeout(() => setSaved(p => ({ ...p, [id]: false })), 4000)
     })
+    setSaving(null)
+    if (res.error) { setErr(res.error); return false }
+    setDirty(prev => { const n = new Set(prev); n.delete(id); return n })
+    setSaved(p => ({ ...p, [id]: true }))
+    setTimeout(() => setSaved(p => ({ ...p, [id]: false })), 4000)
+    return true
   }
+
+  function commit(s: number, k: PumpKind, patch?: Partial<PumpTestRow>) {
+    void saveRow(s, k, patch)
+  }
+
+  /** 미저장 확인창의 [저장하고 이동] — 아직 커밋되지 않은 행을 전부 저장한다 */
+  async function saveAllDirty(): Promise<boolean> {
+    const ids = [...dirty]
+    for (const id of ids) {
+      const [sRaw, kRaw] = id.split('|')
+      const ok = await saveRow(Number(sRaw), kRaw as PumpKind)
+      if (!ok) return false
+    }
+    return true
+  }
+  useUnsavedWarning(dirty.size > 0, saveAllDirty)
+
+  if (sheetNos.length === 0) return null
 
   const numCell = 'w-full rounded border border-[#e0ddf5] px-1 py-0.5 text-right text-[11px] focus:outline-none focus:border-[#7b68ee] disabled:bg-[#fafafa]'
   const numVal = (v: number | null) => (v == null ? '' : String(v))
@@ -71,7 +95,13 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
     className: numCell,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value.trim()
-      set(s, k, { [f]: raw === '' ? null : Number(raw) } as Partial<PumpTestRow>)
+      // V21-4: 음수·숫자 아님은 화면에서도 받지 않는다(서버 num()과 같은 규칙) —
+      // 토출량·토출압은 물리적으로 음수가 될 수 없고, 음수가 들어가면 판정식이 조용히 뒤집힌다.
+      // 0은 유효하다(체절운전 토출량은 통상 0).
+      if (raw === '') { set(s, k, { [f]: null } as Partial<PumpTestRow>); return }
+      const n = Number(raw)
+      if (!Number.isFinite(n) || n < 0) return
+      set(s, k, { [f]: n } as Partial<PumpTestRow>)
     },
     onBlur: () => commit(s, k),
   })

@@ -49,10 +49,14 @@ export async function listPumpTestsAction(inspectionId: string): Promise<{
   return { rows: ((data ?? []) as unknown as DbRow[]).map(toRow) }
 }
 
+/** 실측 수치 정규화. **음수는 버린다**(V21-4) — 토출량·토출압·설정압력은 물리적으로 음수가 될 수 없고,
+ *  음수가 들어오면 판정식(체절 ≤ 정격×1.4, 150% ≥ 정격×0.65)이 조용히 뒤집혀 잘못된 O가 찍힌다.
+ *  0은 유효하다 — 체절운전 토출량은 통상 0이다. */
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null
   const n = typeof v === 'number' ? v : Number(String(v).replace(/,/g, '').trim())
-  return Number.isFinite(n) ? n : null
+  if (!Number.isFinite(n) || n < 0) return null
+  return n
 }
 const mark = (v: unknown): 'O' | 'X' | null => (v === 'O' || v === 'X' ? v : null)
 
