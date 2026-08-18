@@ -21,7 +21,12 @@ export async function GET(req: NextRequest) {
   const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
   const currentYear = kstNow.getUTCFullYear()
 
-  // 수동 year 파라미터가 있으면 해당 연도만, 없으면 올해+내년 (12월 실행이면 내년 선행 로드)
+  // 수동 year 파라미터가 있으면 해당 연도만, 없으면 **올해·내년·내후년** 3년.
+  //
+  // 왜 내후년까지인가: 점검 6단계 마감일은 시작일에서 약 2개월 뒤까지 뻗는다. 연말 점검은
+  // 다음 해 공휴일이 있어야 마감일이 맞는데(예: 2027-12-20 점검 → ③④⑤⑥이 2028년),
+  // 올해+내년만 받으면 12월 점검마다 그 다음 해가 비어 마감일이 앞당겨진다.
+  // 특일 정보 API는 내후년치를 이미 제공하므로 미리 받아 두는 데 비용이 없다.
   const paramYear = req.nextUrl.searchParams.get('year')
   let yearsToSync: number[]
   if (paramYear) {
@@ -31,7 +36,7 @@ export async function GET(req: NextRequest) {
     }
     yearsToSync = [y]
   } else {
-    yearsToSync = [currentYear, currentYear + 1]
+    yearsToSync = [currentYear, currentYear + 1, currentYear + 2]
   }
 
   const results: SyncResult[] = []

@@ -70,7 +70,10 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
   }
 
   const currentYear = new Date().getFullYear()
-  const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
+  // 내후년까지 — 연말 점검의 6단계 마감일이 **다음 해로 넘어가기 때문**이다.
+  // (예: 2027-12-20 점검 → ③④⑤⑥이 2028년. 그 해 공휴일이 없으면 마감일이 앞당겨진다)
+  // 평소엔 크론이 3년치를 채우지만, 서버가 멈춘 동안에는 여기서 직접 받아야 한다.
+  const yearOptions = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
 
   return (
     <div className="space-y-6">
@@ -84,7 +87,9 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
           직접 추가한 날을 다시 자동 관리로 되돌리려면 <strong className="text-[#514b81]">삭제 후 동기화</strong>하시면 됩니다.
         </p>
         <p className="text-xs text-[#b0acd6] mb-4">
-          자동 동기화: 매년 <strong className="text-[#514b81]">1월 1일</strong> · <strong className="text-[#514b81]">12월 1일</strong> 에 올해·내년 공휴일이 자동 갱신됩니다.
+          자동 동기화: 매년 <strong className="text-[#514b81]">1월 1일</strong> · <strong className="text-[#514b81]">12월 1일</strong> 에{' '}
+          <strong className="text-[#514b81]">올해·내년·내후년</strong> 공휴일이 자동 갱신됩니다.
+          연말 점검은 6단계 마감일이 다음 해로 넘어가므로 미리 받아 둡니다.
         </p>
         <div className="flex items-center gap-3">
           <select
