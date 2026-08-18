@@ -12,6 +12,8 @@
 // INV-D7: 소방계획서_18 — 소방계획서 부속자료 고아 파일 0건
 // INV-D8: 소방계획서_23 — inspection_sheet_items.group_code/group_name NULL 0건 (134 적재·seed 재실행 원복 감시)
 // INV-D9: 소방계획서_23 — MU-007·MU-010 facility_type='기타' (법정 구분 이탈 재발 차단, 135)
+// INV-D10: 소방계획서_25 — holidays.source가 api/library/manual 범위 안 (139)
+// INV-D11: 소방계획서_25 — 대체공휴일이 토·일에 앉아 있지 않음 (「관공서의 공휴일에 관한 규정」제3조③)
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -181,6 +183,32 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
     .select('item_code, facility_type')
     .in('item_code', ['MU-007', 'MU-010']).neq('facility_type', '기타')
   report("INV-D9 MU-007·MU-010 facility_type≠'기타'", data ?? [], r => `${r.item_code} facility_type=${r.facility_type}`)
+}
+
+// ── INV-D10: 소방계획서_25 — 공휴일 출처 축(139) 감시 ──
+// source가 범위를 벗어나면 동기화가 그 행을 '자동 생성분'으로도 '수동'으로도 못 다뤄
+// 정리 대상에서 조용히 빠지거나 반대로 지워진다. 컬럼이 없으면 139 미적용이다.
+{
+  const { data, error } = await admin.from('holidays')
+    .select('date, source').not('source', 'in', '("api","library","manual")').limit(50)
+  if (error && /column .* does not exist|42703/.test(`${error.message} ${error.code}`)) {
+    report('INV-D10 공휴일 source 범위', [{ date: '(컬럼 없음 — 마이그레이션 139 미적용)', source: '' }], r => r.date)
+  } else {
+    report('INV-D10 공휴일 source 범위', data ?? [], r => `${r.date} source=${r.source}`)
+  }
+}
+
+// ── INV-D11: 소방계획서_25 — 대체공휴일이 주말에 앉아 있지 않은가 ──
+// 「관공서의 공휴일에 관한 규정」제3조③에 따라 대체공휴일은 토요일이 될 수 없고,
+// 일요일은 그 자체가 공휴일(제2조1호)이라 대체 대상이 아니다. 여기가 걸리면
+// 산출 로직이 되돌아갔거나 손으로 잘못 넣은 것이다.
+{
+  const { data } = await admin.from('holidays').select('date, name').like('name', '대체공휴일%')
+  const weekendSubs = (data ?? []).filter(r => {
+    const d = new Date(`${r.date}T00:00:00`).getDay()
+    return d === 0 || d === 6
+  })
+  report('INV-D11 대체공휴일이 주말(제3조③ 위반)', weekendSubs, r => `${r.date} ${r.name}`)
 }
 
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)

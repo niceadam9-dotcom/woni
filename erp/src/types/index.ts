@@ -77,8 +77,12 @@ export interface Notification {
 }
 
 // Fire Safety Inspection interfaces
+/** source: 공휴일이 어디서 왔는가 (마이그레이션 139) — manual은 자동 동기화가 건드리지 않는다.
+ *  api=특일정보 API(확정) · library=date-holidays+제3조 산출(폴백) · manual=관리자 수동 */
+export type HolidaySource = 'api' | 'library' | 'manual'
 export interface Holiday {
-  id: string; date: string; name: string; is_national: boolean; year: number; created_at: string
+  id: string; date: string; name: string; is_national: boolean; source: HolidaySource
+  year: number; created_at: string
 }
 export interface Customer {
   id: string; customer_code: string; customer_name: string
@@ -330,8 +334,8 @@ export type Database = {
       }
       holidays: {
         Row: Holiday
-        Insert: { date: string; name: string; id?: string; is_national?: boolean; created_at?: string }
-        Update: Partial<{ name: string; is_national: boolean }>
+        Insert: { date: string; name: string; id?: string; is_national?: boolean; source?: HolidaySource; created_at?: string }
+        Update: Partial<{ name: string; is_national: boolean; source: HolidaySource }>
         Relationships: never[]
       }
       customers: {

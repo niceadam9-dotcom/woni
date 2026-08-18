@@ -35,7 +35,12 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
       if (res.error) {
         setSyncMsg(`오류: ${res.error}`)
       } else {
-        setSyncMsg(`${year}년 국가공휴일 ${res.count}건 동기화 완료`)
+        // 무엇이 보존·정리됐는지 숨기지 않는다 — 특히 폴백(note)은 값이 달라지는 이유다
+        const origin = res.source === 'api' ? '공공API 확정본' : '라이브러리 산출본'
+        const bits = [`${year}년 ${res.count}건 동기화 (${origin})`]
+        if (res.skipped) bits.push(`수동 등록 ${res.skipped}건 보존`)
+        if (res.removed) bits.push(`옛 자동 생성분 ${res.removed}건 정리`)
+        setSyncMsg(bits.join(' · ') + (res.note ? `\n⚠ ${res.note}` : ''))
         // 서버 revalidate 후 reload
         window.location.reload()
       }
@@ -73,7 +78,10 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
       <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
         <h2 className="text-sm font-semibold text-[#090c1d] mb-4">국가공휴일 자동 동기화</h2>
         <p className="text-xs text-[#514b81] mb-4">
-          대한민국 공휴일을 자동으로 불러옵니다. 이미 등록된 날짜는 이름이 갱신되며 중복 추가되지 않습니다.
+          대한민국 공휴일(대체공휴일 포함)을 공공데이터포털에서 불러옵니다.
+          <strong className="text-[#514b81]"> 아래에서 직접 추가한 날짜는 덮어쓰지 않고 그대로 둡니다.</strong>{' '}
+          임시공휴일·선거일처럼 자동으로 받아오지 못하는 날은 직접 추가해 주세요.
+          직접 추가한 날을 다시 자동 관리로 되돌리려면 <strong className="text-[#514b81]">삭제 후 동기화</strong>하시면 됩니다.
         </p>
         <p className="text-xs text-[#b0acd6] mb-4">
           자동 동기화: 매년 <strong className="text-[#514b81]">1월 1일</strong> · <strong className="text-[#514b81]">12월 1일</strong> 에 올해·내년 공휴일이 자동 갱신됩니다.
@@ -161,14 +169,26 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
                     </span>
                     <span className="text-xs text-[#514b81]">({dow})</span>
                     <span className="text-sm text-[#090c1d]">{h.name}</span>
-                    {h.is_national ? (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#7b68ee]/10 text-[#7b68ee]">
-                        국가공휴일
+                    {/* 출처 배지 — 사용자에게 중요한 건 '이 값이 어디서 왔고 동기화에 지워지는가'다.
+                        수동 등록분만 자동 동기화에서 보존된다(마이그레이션 139) */}
+                    {h.source === 'manual' ? (
+                      <span title="직접 등록 — 자동 동기화가 덮어쓰지 않습니다"
+                        className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
+                        수동 등록
+                      </span>
+                    ) : h.source === 'api' ? (
+                      <span title="공공데이터포털 특일 정보 — 대체공휴일까지 확정된 값"
+                        className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#7b68ee]/10 text-[#7b68ee]">
+                        확정(공공API)
                       </span>
                     ) : (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
-                        자체휴무
+                      <span title="공공API를 쓰지 못해 라이브러리로 산출한 값 — 임시공휴일·선거일은 빠져 있습니다"
+                        className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                        자동(라이브러리)
                       </span>
+                    )}
+                    {!h.is_national && (
+                      <span className="text-xs text-[#b0acd6]">자체휴무</span>
                     )}
                   </div>
                   <button

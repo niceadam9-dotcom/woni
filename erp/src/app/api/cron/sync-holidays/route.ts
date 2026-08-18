@@ -1,27 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getKoreanHolidays } from '@/lib/holidays'
+import { syncHolidaysForYear, type SyncResult } from '@/lib/holiday-sync'
 
 // Vercel Cron에서 매년 1월 1일(0 0 1 1 *) + 12월 1일(0 0 1 12 *)에 자동 호출
 // 수동 테스트: GET /api/cron/sync-holidays?year=2026
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
+//
+// 반영 규칙은 lib/holiday-sync.ts 하나가 갖는다(관리 화면 동기화 버튼과 동일 코드).
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
+  // CRON_SECRET 미설정 시 통과시키던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
+  // 설정돼 있지 않으면 아예 거부한다 (소방계획서_24 P-9와 같은 지적)
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const admin = createAdminClient()
   const now = new Date()
-  // 컨테이너 TZ가 UTC라 1/1 00:10 KST 발화 시 전년도로 잡힘 — +9h 시프트 후 UTC 게터로 KST 연·월 추출
+  // 컨테이너 TZ가 UTC라 1/1 00:10 KST 발화 시 전년도로 잡힘 — +9h 시프트 후 UTC 게터로 KST 연 추출
   const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
   const currentYear = kstNow.getUTCFullYear()
-  const currentMonth = kstNow.getUTCMonth() + 1 // 1-indexed
 
-  // 수동 year 파라미터가 있으면 해당 연도만, 없으면 자동 결정
+  // 수동 year 파라미터가 있으면 해당 연도만, 없으면 올해+내년 (12월 실행이면 내년 선행 로드)
   const paramYear = req.nextUrl.searchParams.get('year')
-
   let yearsToSync: number[]
   if (paramYear) {
     const y = parseInt(paramYear, 10)
@@ -29,52 +30,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 연도입니다.' }, { status: 400 })
     }
     yearsToSync = [y]
-  } else if (currentMonth === 12) {
-    // 12월 1일 실행: 내년 데이터 선행 로드
-    yearsToSync = [currentYear, currentYear + 1]
   } else {
-    // 1월 1일 실행: 올해 + 내년 동기화
     yearsToSync = [currentYear, currentYear + 1]
   }
 
-  const results: Array<{ year: number; count: number; error?: string }> = []
-
+  const results: SyncResult[] = []
   for (const year of yearsToSync) {
-    try {
-      const holidays = await getKoreanHolidays(year)
-
-      if (holidays.length === 0) {
-        results.push({ year, count: 0, error: '공휴일 데이터 없음' })
-        continue
-      }
-
-      const rows = holidays.map(h => ({
-        date: h.date,
-        name: h.name,
-        is_national: true,
-      }))
-
-      const { error } = await admin
-        .from('holidays')
-        .upsert(rows as unknown as Record<string, unknown>[], { onConflict: 'date' })
-
-      if (error) {
-        results.push({ year, count: 0, error: error.message })
-      } else {
-        results.push({ year, count: rows.length })
-      }
-    } catch (err) {
-      results.push({ year, count: 0, error: String(err) })
-    }
+    results.push(await syncHolidaysForYear(admin, year))
   }
 
-  const totalCount = results.reduce((s, r) => s + r.count, 0)
   const hasError = results.some(r => r.error)
-
   return NextResponse.json({
     ok: !hasError,
     synced: results,
-    totalCount,
+    totalCount: results.reduce((s, r) => s + r.upserted, 0),
+    // 폴백이 일어났으면 감춰지지 않게 최상위로 끌어올린다
+    ...(results.some(r => r.note) ? { notes: results.filter(r => r.note).map(r => `${r.year}: ${r.note}`) } : {}),
     timestamp: now.toISOString(),
   })
 }

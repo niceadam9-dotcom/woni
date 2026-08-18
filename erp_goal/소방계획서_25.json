@@ -1,0 +1,188 @@
+{
+  "doc": "소방계획서_25 — 공휴일 정확도 개선 (특일정보 API 주 경로 · 라이브러리 폴백 · 수동 보정)",
+  "design": "erp_goal/소방계획서_25.md (2026-08-18 작성)",
+  "created": "2026-08-18",
+  "updated": "2026-08-18(B+A+C 구현·검증 완료 + 운영·스테이징 DB 교정 완료. 잔여: 커밋·푸시, 서버 재기동 후 화면 육안)",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "plan_file": "C:\\Users\\dwhwang\\.claude\\plans\\b-a-c-starry-metcalfe.md",
+  "key_evidence": "holidays.ts:51 `if (!dateMap.has(dateStr)) dateMap.set(...)` — 같은 날짜에 공휴일이 둘 이상이면 뒤에 온 것을 버린다. 2025-05-05는 어린이날과 부처님오신날이 겹치는 날인데 이 한 줄 때문에 2025년 산출에서 석가탄신일이 통째로 사라지고, 겹침 사실이 소실되어 「관공서의 공휴일에 관한 규정」 제3조제1항제3호(평일 겹침)의 대체공휴일 2025-05-06이 생성되지 않았다. 같은 파일 :60-64는 호별 구분 없이 모든 공휴일의 토·일 겹침에 대체를 만들어 현충일 대체(2026-06-08)를 과다 생성한다. 특일정보 API 실측 결과 두 케이스 모두 API가 정답을 준다 — 이 차수가 B안을 주 경로로 삼는 직접 근거",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "deferred": "보류 — 후보로만 기록",
+    "confirmed": "설계 결정·조사 결과 확정",
+    "open": "미결 — 결정 대기 (decisions 전용)"
+  },
+
+  "diagnosis": [
+    { "id": "P-1", "desc": "같은 날 겹친 공휴일을 조용히 버린다 — Map<date,name> 하나에 if(!has)로 후행분 폐기. 2025년 산출에 석가탄신일이 없고, 겹침 소실로 대체공휴일 2025-05-06이 생성되지 않는다", "evidence": ["holidays.ts:30 const dateMap = new Map<string, string>()", "holidays.ts:51 if (!dateMap.has(dateStr)) dateMap.set(dateStr, h.name)"], "status": "confirmed" },
+    { "id": "P-2", "desc": "대체 트리거가 '모든 공휴일 × 토·일' — 제3조①의 호별 구분이 없어 현충일(제8호, 비대상) 대체를 과다 생성한다(2026-06-08·2027-06-07)", "evidence": ["holidays.ts:60-64 for (const [dateStr, name] of dateMap) { if (dow===0||dow===6) …"], "status": "confirmed" },
+    { "id": "P-3", "desc": "설·추석 연휴가 날짜 단위로 3번 트리거된다 — 일요일 겹침으로 배정한 뒤 토요일이 두 번째 트리거를 일으켜 중복 생성(2024-02-13·2027-02-10)", "evidence": ["holidays.ts:60 dateMap 전량 순회 — 연휴 단위 판정 없음"], "status": "confirmed", "note": "초기 진단은 '설 토요일분 과다'로 원인을 잘못 짚었다 — 실제로는 중복 배정" },
+    { "id": "P-4", "desc": "어린이날의 '다른 공휴일과 겹침'(제3조①3호) 경로가 아예 없다. P-1로 겹침 정보가 사라져 구현 자체가 불가능한 상태였다", "evidence": ["holidays.ts:64 if (dow === 0 || dow === 6) — 평일 겹침 분기 없음"], "status": "confirmed" },
+    { "id": "P-5", "desc": "노동절(5월 1일)이 통째로 빠져 있다 — 2026-05-01 시행(대통령령 제36290호)인데 date-holidays가 제공하지 않는다. 2026-05-01·2027-05-01·2027-05-03(대체) 누락", "evidence": ["date-holidays getHolidays(2026) raw 실측 — 노동절 없음", "법제처 MST=285779 제2조제6호 '노동절(5월 1일)'"], "status": "confirmed" },
+    { "id": "P-6", "desc": "선거일·임시공휴일은 라이브러리로 원리상 못 잡는다(제2조 제10의2·11호) — 2024-04-10·2024-10-01·2025-01-27·2025-06-03·2026-06-03·2028-04-12", "evidence": ["법제처 제2조 10의2호·11호", "특일정보 API는 전부 제공(실측)"], "status": "confirmed", "note": "C안(수동 보정 보존)의 가장 강한 근거" },
+    { "id": "P-7", "desc": "동기화 로직이 크론과 관리 화면 두 곳에 복붙돼 있어 한쪽만 고치면 갈라진다", "evidence": ["api/cron/sync-holidays/route.ts:51-59", "admin/holidays/actions.ts:17-25 — 동일 upsert"], "status": "confirmed" },
+    { "id": "P-8", "desc": "두 경로가 is_national:true를 강제하고 onConflict:'date'로 행 전체를 덮어써 수동 등록분이 다음 동기화에 소실된다 — P-6 범주가 시스템에 영영 못 들어오는 이유", "evidence": ["위 두 곳의 rows.map(h => ({ date, name, is_national: true }))"], "status": "confirmed" },
+    { "id": "P-9", "desc": "크론 인증이 `if (cronSecret && …)`이라 CRON_SECRET 미설정 시 무인증 통과한다", "evidence": ["sync-holidays/route.ts:11"], "status": "confirmed", "note": "소방계획서_24 P-9와 동일 패턴" },
+    { "id": "P-10", "desc": "저장된 inspection_steps.due_date는 공휴일이 바뀌어도 자동 재계산되지 않는다. 재계산 경로는 존재(recalc_inspection_steps RPC)", "evidence": ["048_step_dates_recalc.sql:60"], "status": "confirmed" },
+    { "id": "P-11", "desc": "운영 DB 2026년이 실제로 틀려 있었다 — 22건으로 개수는 같지만 2026-06-03(지방선거일) 누락, 2026-06-08·2026-09-28 과다. 선거일을 평일로, 평일을 공휴일로 계산 중", "evidence": ["_probe-holiday-db-state.mjs 실측(운영 대체 6건)", "특일정보 API 2026년 22건과 날짜 집합 불일치"], "status": "confirmed" }
+  ],
+
+  "corrections": [
+    { "id": "C-1", "desc": "초기 진단 '2027-07-19 제헌절 대체는 과다'는 틀렸다 — 제헌절은 2026-05-11부터 국경일(제2조2호)이라 제3조①1호 대상이며 API도 생성한다. 과다로 보고 제거했다면 새 결함을 만들었을 것", "status": "confirmed", "by": "법제처 조문 조회 + 특일정보 API 실측" },
+    { "id": "C-2", "desc": "초기 진단 '2027-02-10은 설 연휴 토요일분 과다'는 원인이 틀렸다 — 일요일 겹침으로 2/9를 배정한 뒤 토요일이 두 번째 트리거를 일으킨 중복 배정이다. 수정 방식이 달라진다", "status": "confirmed", "by": "computeSubstitutes 설계 중 재분석" }
+  ],
+
+  "decisions": [
+    { "id": "Q-1", "question": "공휴일 원천을 무엇으로 할 것인가", "decided": "B(특일정보 API) 주 경로 · A(date-holidays+제3조) 폴백 · C(수동 등록) 보정 — 3층", "rationale": "API가 대체공휴일·임시공휴일·선거일을 모두 확정 제공한다. A는 외부 장애 시에도 시스템이 서게 하는 비상 경로이고, C는 A로도 API로도 못 채우는 자체 휴무일과 보정을 담당", "status": "confirmed", "by": "2026-08-18 사용자 'b안 우선하고 a안과 c안 보조'" },
+    { "id": "Q-2", "question": "이번 차수 범위", "decided": "B+A+C 전부 구현", "rationale": "공공데이터포털 활용신청이 승인되어(2026-08-18) B의 블로커가 사라졌다. 승인 전에는 '문서+A·C'였다가 승인 후 재확인해 확대", "status": "confirmed", "by": "2026-08-18 사용자 선택" },
+    { "id": "Q-3", "question": "수동 보정을 자동 동기화로부터 어떻게 지킬 것인가", "decided": "source 컬럼 신설 — api / library / manual", "rationale": "기존 is_national 재활용안은 '국가공휴일 여부'와 '출처'가 뒤섞여 의미가 모호해진다. 덮어쓰기 유지안은 C를 보조로 쓸 수 없게 만든다", "status": "confirmed", "by": "2026-08-18 사용자 선택", "impact": "마이그레이션 139. DEFAULT를 'manual'로 둬서 source를 빠뜨린 경로가 있어도 '보호됨'으로 떨어진다" },
+    { "id": "Q-4", "question": "틀린 DB를 언제 고칠 것인가", "decided": "구현 후 동기화로 일괄 — 사전에 마감일 diff 프로브로 영향 확인", "status": "confirmed", "by": "2026-08-18 사용자 선택" },
+    { "id": "Q-5", "question": "라이브러리가 주지 않는 노동절을 어떻게 할 것인가", "decided": "A안 어댑터가 주입하고 NAME_PERIODS(fromYear: 2026) 게이트로 연도를 건다", "rationale": "관공서 휴무일이라 그날 소방서 제출이 불가능하다. 누락은 마감일을 앞당기는 안전 방향이지만 실무상 제출 불가일에 마감이 잡힌다", "status": "confirmed" },
+    { "id": "Q-6", "question": "공휴일이 겹칠 때 대체공휴일을 며칠 줄 것인가", "decided": "날짜당 1일", "rationale": "조문은 일수를 명시하지 않는다. 2025-05-06이 1일이었던 실무와 API 응답이 일치하는 것을 근거로 삼는다", "status": "confirmed", "note": "향후 겹침 사례가 나오면 재확인 필요(R-6 아님, 설계상 남는 불확실성)" },
+    { "id": "Q-7", "question": "manual 보호를 어디서 할 것인가", "decided": "앱 선조회 제외(주) + DB 트리거(안전망) 양쪽", "rationale": "PostgREST upsert는 ON CONFLICT DO UPDATE SET <전 컬럼> 고정이라 조건절을 노출하지 않는다 — SQL만으로는 'manual이면 건드리지 마라'를 표현할 수 없다", "status": "confirmed" },
+    { "id": "Q-8", "question": "기존 inspection_steps.due_date를 소급 재계산할 것인가", "decided": "하지 않는다", "rationale": "S-7 실측 — 운영 자체점검 8건 전부 마감일 변화가 0건이다(바뀌는 공휴일이 전부 점검일 이전). 재계산할 대상이 없다", "status": "confirmed", "by": "_probe-step-due-diff.mts --prod 결과" }
+  ],
+
+  "sections": [
+    {
+      "id": "S-1", "title": "마이그레이션 139 — holidays.source", "status": "implemented",
+      "criteria": [
+        { "id": "S-1-1", "desc": "source 컬럼 신설(TEXT NOT NULL DEFAULT 'manual') + CHECK(api/library/manual) + 인덱스", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["supabase/migrations/139_holidays_source.sql", "_apply-139-staging.mjs 검증: col=1 chk=1 trg=1"], "method": "스테이징 적용 + DO $$ 자기검증" } },
+        { "id": "S-1-2", "desc": "기존 행 백필 — is_national=TRUE인 자동 동기화분을 'library'로", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["적용 직후 lib=22 man=0 api=0 total=22"], "method": "스테이징 실측" } },
+        { "id": "S-1-3", "desc": "protect_manual_holidays 트리거 — 자동분이 manual 행을 덮으면 RETURN OLD", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["_probe-holiday-sync.mts '공휴일 날짜의 수동 수정이 동기화에 덮이지 않는다' 통과"], "method": "프로브" } },
+        { "id": "S-1-4", "desc": "트리거의 부작용(manual→자동 되돌리기 차단)과 탈출구(삭제 후 재동기화)를 마이그레이션 주석·관리 화면 안내에 명시", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["139_holidays_source.sql 트리거 주석 '⚠ 탈출구'", "holidays-manager.tsx 안내 문구", "_probe-holiday-sync.mts '삭제 후 재동기화로 자동본 복구 가능(탈출구)' 통과"], "method": "프로브 + 코드 대조" } }
+      ]
+    },
+    {
+      "id": "S-2", "title": "특일정보 API 프로바이더", "status": "implemented",
+      "criteria": [
+        { "id": "S-2-1", "desc": "getRestDeInfo 호출 — solYear·numOfRows=100·_type=json, resultCode='00' 검사", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["src/lib/holidays.ts fetchHolidaysFromOpenApi", "_probe-holiday-sync.mts '원천이 공공API' 통과"], "method": "실호출" } },
+        { "id": "S-2-2", "desc": "isHoliday='Y'만 채택(기념일·절기 제외), locdate 8자리 → ISO 변환", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["2026년 22건 수신 — 기념일 미포함"], "method": "실호출 결과 대조" } },
+        { "id": "S-2-3", "desc": "같은 날 2행(2025-05-05 어린이날/부처님오신날)을 '·'로 병합", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["mergeByDate 적용", "API 2025년 응답에 20250505 2행 실재"], "method": "코드 대조 + API 실측" } },
+        { "id": "S-2-4", "desc": "키 미설정·403은 unavailable(폴백 신호), 그 외는 error로 구분", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["holidays.ts:res.status===401||403 → unavailable"], "method": "코드 대조. 승인 전 403 실측으로 경로 확인" } },
+        { "id": "S-2-5", "desc": "인증키는 기존 data.go.kr 계정 키 재사용 — DATA_GO_KR_API_KEY ?? BUILDING_LEDGER_API_KEY", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["같은 키로 건축물대장 200 / 특일정보 승인 후 200 실측"], "method": "실호출" } }
+      ]
+    },
+    {
+      "id": "S-3", "title": "제3조 순수 판정 모듈", "status": "implemented",
+      "criteria": [
+        { "id": "S-3-1", "desc": "BaseHoliday의 names·clauses를 배열로 — 겹침 보존(P-1 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["holiday-rules.ts BaseHoliday", "test-holiday-rules '2025-05-05 겹침 보존' 통과"], "method": "단위 검증" } },
+        { "id": "S-3-2", "desc": "법령 상수 3종을 조문 호별로 분리(SUB_ON_WEEKEND/SUNDAY/OVERLAP)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["_probe-holiday-law.mts 조문과 상수 나란히 출력 — ①1호=C2,C5,C6,C7,C10 / ②호=C4,C9 / ③호 7종 일치"], "method": "법령 원문 대조" } },
+        { "id": "S-3-3", "desc": "제3조①3호 평일 겹침 경로 구현(P-4 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["test-holiday-rules '2025-05-06 대체공휴일 생성(제3조①3호)' 통과"], "method": "단위 검증" } },
+        { "id": "S-3-4", "desc": "설·추석은 일요일 겹침만 트리거 — 중복 배정 제거(P-2·P-3 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["'2027-02-09 설날 대체 1건만' · '2026-09-28 추석 대체 없음' · '2026-06-08 현충일 대체 없음' 통과"], "method": "단위 검증" } },
+        { "id": "S-3-5", "desc": "②항(대체끼리 겹침)·③항(토요일 회피)·제2조1호(일요일=공휴일) 배정 규칙", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["computeSubstitutes 배정 루프", "2024~2028 전 연도 과다 0·누락 0"], "method": "API 대조" } },
+        { "id": "S-3-6", "desc": "'use server'·'server-only' 없이 순수 유지 — 스크립트가 직접 import", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["test-holiday-rules.mts가 서버·DB 없이 실행됨"], "method": "실행 확인" } }
+      ]
+    },
+    {
+      "id": "S-4", "title": "A안 어댑터 개편 + 폴백 오케스트레이터", "status": "implemented",
+      "criteria": [
+        { "id": "S-4-1", "desc": "normalizeLibraryHolidays를 raw 주입형 순수 함수로 분리(fixture 회귀 가능)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["holidays.ts export function normalizeLibraryHolidays(raw, year)"], "method": "코드 대조" } },
+        { "id": "S-4-2", "desc": "노동절 주입 + NAME_PERIODS 연도 게이트(P-5 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["test-holiday-rules '2026-05-01 노동절 포함' · '2027-05-03 노동절 대체 있음' 통과"], "method": "단위 검증" } },
+        { "id": "S-4-3", "desc": "제헌절 2008~2025 제외 유지(종전 동작 보존)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["NAME_PERIODS 제헌절 [{toYear:2007},{fromYear:2026}]", "2024·2025 과다 0건"], "method": "API 대조" } },
+        { "id": "S-4-4", "desc": "resolveHolidays — B→A 폴백, 폴백 사유를 note로 표면화", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["holidays.ts resolveHolidays", "_probe-holiday-sync '폴백 note 없음(API 정상)' 통과"], "method": "프로브" },
+          "note": "폴백 발생 경로 자체(API 차단 상태)는 승인 전 403으로 확인했으나, 구현 후 강제 폴백 재현은 미실시" },
+        { "id": "S-4-5", "desc": "getKoreanHolidays 시그니처 유지 — 기존 호출부 무수정", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["npm run build 그린 — 호출부 2곳 변경 없음"], "method": "빌드" } },
+        { "id": "S-4-6", "desc": "A안 산출이 API 정답과 과다 0·누락 0으로 일치(2024~2028)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["test-holiday-rules.mts 20/20"], "method": "API 대조" },
+          "note": "선거일·임시공휴일 6건은 A안 원리상 한계로 EXCLUDED 처리" }
+      ]
+    },
+    {
+      "id": "S-5", "title": "동기화 공용화 + manual 보존 + stale 정리", "status": "implemented",
+      "criteria": [
+        { "id": "S-5-1", "desc": "syncHolidaysForYear 하나로 통합 — 크론·관리 화면이 같은 코드(P-7 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["src/lib/holiday-sync.ts", "route.ts·actions.ts가 이를 호출"], "method": "코드 대조" } },
+        { "id": "S-5-2", "desc": "manual 선조회 제외 — 수동 등록분 보존(P-8 해소)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["_probe-holiday-sync 4건 통과(행 생존·source 유지·이름 불변·충돌 시 skippedManual 보고)"], "method": "프로브" } },
+        { "id": "S-5-3", "desc": "stale 정리 — 자동 생성분 중 새 결과에 없는 날짜 삭제(과다분 제거)", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["removedStale: 2026-06-08·2026-09-28·테스트분", "'2026-06-08 현충일 대체 제거' 통과"], "method": "프로브" } },
+        { "id": "S-5-4", "desc": "결과 리포트(source/upserted/skippedManual/removedStale/note) 반환·노출", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["SyncResult 타입", "크론 응답 notes", "관리 화면 메시지"], "method": "코드 대조 + 프로브 출력" } },
+        { "id": "S-5-5", "desc": "크론 인증 강화 — CRON_SECRET 미설정 시 401(P-9 해소)", "status": "code_present",
+          "note": "코드는 `if (!cronSecret || …)`로 교체 완료. 서버 정지 중이라 실제 401 응답 실측은 미실시" }
+      ]
+    },
+    {
+      "id": "S-6", "title": "타입·관리 화면", "status": "code_present",
+      "criteria": [
+        { "id": "S-6-1", "desc": "Holiday.source 타입 + Insert/Update 반영", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["types/index.ts HolidaySource", "npm run build 그린"], "method": "빌드" } },
+        { "id": "S-6-2", "desc": "출처 배지 3종(확정(공공API)/자동(라이브러리)/수동 등록) + 자체휴무 보조 표시", "status": "code_present",
+          "note": "코드 반영 완료. 서버 정지·화면 육안 확인 미실시" },
+        { "id": "S-6-3", "desc": "안내 문구 정정 — 종전 '이미 등록된 날짜는 이름이 갱신되며'가 사실과 달라짐", "status": "code_present",
+          "note": "수동 등록 보존·삭제 후 재동기화 탈출구 안내로 교체. 육안 확인 미실시" },
+        { "id": "S-6-4", "desc": "동기화 결과에 보존·정리 건수와 폴백 note 표시", "status": "code_present",
+          "note": "handleSync 메시지 조립 반영. 육안 확인 미실시" }
+      ]
+    },
+    {
+      "id": "S-7", "title": "마감일 영향 분석", "status": "implemented",
+      "criteria": [
+        { "id": "S-7-1", "desc": "previewInspectionSteps를 공휴일 집합만 바꿔 두 번 호출해 6단계 diff 산출", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["scripts/_probe-step-due-diff.mts", "운영 실행 결과: 추가 2·제거 2 → 자체점검 8건 전부 변화 0건"], "method": "운영 읽기 전용 실행" } },
+        { "id": "S-7-2", "desc": "뒤로 밀리는 건(위험)과 앞당겨지는 건(안전)을 분리 출력", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["출력 섹션 2종 — 운영 기준 양쪽 0건"], "method": "실행" } }
+      ]
+    },
+    {
+      "id": "S-8", "title": "운영·스테이징 DB 교정", "status": "implemented",
+      "criteria": [
+        { "id": "S-8-1", "desc": "운영에 마이그레이션 139 적용", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["_apply-139-prod.mjs 실행 — col=1 chk=1 trg=1, 기존 22건 전부 library로 백필", "운영 INV-D10·D11 통과"], "method": "Management API 적용 + 불변식" } },
+        { "id": "S-8-2", "desc": "운영 2025~2027 동기화 — 2026-06-08·2026-09-28 정리, 2025·2027 신규 적재", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["_sync-holidays-run.mts --prod: 2025=19 2026=22(정리 2건) 2027=24, 전부 source=api", "_probe-holiday-verify.mts --prod 11/11 — DB가 API 확정본과 전 연도 일치"], "method": "동기화 실행 + API 직접 대조" } },
+        { "id": "S-8-3", "desc": "스테이징도 같은 범위(2025~2027)로 정렬", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["_probe-holiday-verify.mts 11/11 — 운영과 동일 결과"], "method": "동기화 실행 + API 대조" } }
+      ]
+    },
+    {
+      "id": "S-9", "title": "회귀 그물", "status": "implemented",
+      "criteria": [
+        { "id": "S-9-1", "desc": "test-holiday-rules.mts — API 정답표 대비 A안 과다·누락 0, 개별 회귀 10건 고정", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["20/20 통과"], "method": "실행" } },
+        { "id": "S-9-2", "desc": "test-all.mts 무서버 단계 등록", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["test-all.mts '공휴일 대체 규칙' 항목"], "method": "코드 대조" } },
+        { "id": "S-9-3", "desc": "_probe-holiday-law.mts — 법제처 제2·3조 원문 조회 + 코드 상수 대조 출력. LAW_OC 실패 시 test 폴백", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["MST=285779 공포 20260430 조회 성공, 제2·3조 전문 출력"], "method": "실행" } },
+        { "id": "S-9-4", "desc": "_probe-holiday-sync.mts — manual 보존·stale 정리·탈출구 검증", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["16/16 통과"], "method": "실행" } },
+        { "id": "S-9-5", "desc": "불변식 INV-D10(source 범위)·INV-D11(대체공휴일 주말 금지) 신설", "status": "implemented",
+          "verified": { "date": "2026-08-18", "evidence": ["스테이징 전건 통과", "운영에서 INV-D10이 139 미적용을 정확히 검출"], "method": "양쪽 실행" } }
+      ]
+    }
+  ],
+
+  "risks": [
+    { "id": "R-1", "desc": "운영 DB 교정 — 완료(2026-08-18). 139 적용 + 2025~2027 동기화, API 확정본과 전 연도 일치 검증", "status": "confirmed" },
+    { "id": "R-2", "desc": "임시공휴일은 1~3주 전 지정되는데 크론은 연 2회(1/1·12/1)뿐 — 월 1회 상향 검토 필요", "status": "open" },
+    { "id": "R-3", "desc": "법령 개정이 조용히 일어난다(노동절 신설이 사례). law-revision-check WATCHES에 「관공서의 공휴일에 관한 규정」 추가 검토", "status": "open" },
+    { "id": "R-4", "desc": "관리 화면에 수정 기능이 없다(추가·삭제만) — 이름을 고치려면 삭제 후 재등록", "status": "open" },
+    { "id": "R-5", "desc": "자동 공휴일을 삭제해도 다음 동기화 때 되살아난다. 영구 제외(tombstone)는 이번 범위 밖", "status": "open" },
+    { "id": "R-6", "desc": "date-holidays가 음력 계산을 바꾸면 설·추석이 통째로 틀어진다 — normalizeLibraryHolidays를 raw 주입형으로 분리해 fixture 회귀가 가능하게 해 뒀다", "status": "open" }
+  ]
+}

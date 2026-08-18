@@ -3,31 +3,27 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { getKoreanHolidays } from '@/lib/holidays'
+import { syncHolidaysForYear } from '@/lib/holiday-sync'
 
+/** 반영 규칙은 lib/holiday-sync.ts 하나가 갖는다(크론과 동일 코드).
+ *  여기서는 권한과 화면 갱신만 책임진다 — 종전엔 크론과 같은 upsert를 복붙해 갖고 있었다. */
 export async function syncNationalHolidaysAction(
   year: number
-): Promise<{ count?: number; error?: string }> {
+): Promise<{ count?: number; skipped?: number; removed?: number; source?: string; note?: string; error?: string }> {
   await requirePermission('holiday_manage')
   const admin = createAdminClient()
 
-  const holidays = await getKoreanHolidays(year)
-  if (holidays.length === 0) return { error: '공휴일 데이터를 가져올 수 없습니다.' }
-
-  const rows = holidays.map(h => ({
-    date: h.date,
-    name: h.name,
-    is_national: true,
-  }))
-
-  const { error } = await admin
-    .from('holidays')
-    .upsert(rows as unknown as Record<string, unknown>[], { onConflict: 'date' })
-
-  if (error) return { error: '동기화에 실패했습니다: ' + error.message }
+  const res = await syncHolidaysForYear(admin, year)
+  if (res.error) return { error: res.error }
 
   revalidatePath('/admin/holidays')
-  return { count: rows.length }
+  return {
+    count: res.upserted,
+    skipped: res.skippedManual.length,
+    removed: res.removedStale.length,
+    source: res.source,
+    note: res.note,
+  }
 }
 
 export async function addCustomHolidayAction(
@@ -40,7 +36,9 @@ export async function addCustomHolidayAction(
   const admin = createAdminClient()
   const { error } = await admin
     .from('holidays')
-    .insert({ date, name: name.trim(), is_national: false } as Record<string, unknown>)
+    // source='manual' 명시 — 컬럼 DEFAULT도 manual이지만, 이 값이 자동 동기화로부터
+    // 이 행을 지켜 주는 유일한 표식이라 기본값에 기대지 않는다 (마이그레이션 139)
+    .insert({ date, name: name.trim(), is_national: false, source: 'manual' } as Record<string, unknown>)
 
   if (error) {
     if (error.code === '23505') return { error: '이미 등록된 날짜입니다.' }
