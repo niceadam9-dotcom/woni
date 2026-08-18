@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search } from 'lucide-react'
-import { updateCustomerAction, quickAddressApplyAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput } from '@/app/(dashboard)/customers/actions'
-import { useDaumPostcode } from '@/hooks/use-daum-postcode'
+import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
+import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
+import { AddressDuplicateDialog } from './address-duplicate-dialog'
 import type { Customer } from '@/types'
 
 type Props = {
@@ -47,6 +48,14 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   const [isPending, startTransition] = useTransition()
   // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
   const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
+  // 주소 중복 안내 팝업 — 자기 자신은 제외하고 '다른 고객'과 겹칠 때만
+  const [dupInfo, setDupInfo] = useState<{
+    customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding; address: string
+  } | null>(null)
+  const dupAckRef = useRef('')                                  // '계속 적용'으로 확인 완료된 주소
+  // 팝업 확인 후 이어서 실행할 동작. null = 대기 없음. (decision은 undefined일 수 있어 객체로 감싼다)
+  const pendingAddrRef = useRef<DaumPostcodeData | null>(null)  // 주소 검색 결과 적용
+  const pendingSaveRef = useRef<{ decision?: 'unconfirm' | 'keep' } | null>(null)  // [저장]
 
   // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
   const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station].join('|')
@@ -70,30 +79,45 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   }
 
   // 주소 검색 = 선택 즉시 저장 + 전파(관할소방서 자동 매핑·건물 주소·bcode). 도로명 수기 보정은 아래 [저장]으로.
+  // 즉시 저장 구조이므로 **적용 전에** 중복을 확인한다 — 저장 후 알리면 되돌릴 방법이 없다.
   function handleAddressSearch() {
     if (!canManage) return
     openPostcode(data => {
       startTransition(async () => {
-        const result = await quickAddressApplyAction(customer.id, {
-          zonecode: data.zonecode,
-          roadAddress: data.roadAddress,
-          jibunAddress: data.jibunAddress,
-          bcode: data.bcode,
-          sigungu: data.sigungu,
-          bname1: data.bname1,
-          bname2: data.bname2,
-          bname: data.bname,
-        })
-        if (result.error) { setError(result.error); return }
-        const a = result.applied
-        if (a && (a.fireStation || a.buildings > 0)) {
-          const parts = ['주소 저장됨']
-          if (a.fireStation) parts.push(`관할소방서 자동 입력: ${a.fireStation}`)
-          if (a.buildings > 0) parts.push(`건물 주소 ${a.buildings}건 채움`)
-          alert(`✅ ${parts.join(' · ')}`)
+        if (dupAckRef.current !== data.roadAddress) {
+          const dup = await checkAddressAction(data.roadAddress, { excludeCustomerId: customer.id }).catch(() => null)
+          if (dup?.duplicate || dup?.duplicateBuilding) {
+            pendingAddrRef.current = data
+            setDupInfo({ customer: dup.duplicate, building: dup.duplicateBuilding, address: data.roadAddress })
+            return
+          }
         }
-        router.refresh()
+        applyAddress(data)
       })
+    })
+  }
+
+  function applyAddress(data: DaumPostcodeData) {
+    startTransition(async () => {
+      const result = await quickAddressApplyAction(customer.id, {
+        zonecode: data.zonecode,
+        roadAddress: data.roadAddress,
+        jibunAddress: data.jibunAddress,
+        bcode: data.bcode,
+        sigungu: data.sigungu,
+        bname1: data.bname1,
+        bname2: data.bname2,
+        bname: data.bname,
+      })
+      if (result.error) { setError(result.error); return }
+      const a = result.applied
+      if (a && (a.fireStation || a.buildings > 0)) {
+        const parts = ['주소 저장됨']
+        if (a.fireStation) parts.push(`관할소방서 자동 입력: ${a.fireStation}`)
+        if (a.buildings > 0) parts.push(`건물 주소 ${a.buildings}건 채움`)
+        alert(`✅ ${parts.join(' · ')}`)
+      }
+      router.refresh()
     })
   }
 
@@ -126,6 +150,25 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
     setError('')
+    // 주소를 실제로 바꾼 경우에만 중복 재검증 (수기 보정 대비) — 이미 확인했거나 원래 주소 그대로면 통과
+    const addr = form.address.trim()
+    if (addr && addr !== (customer.address ?? '').trim() && dupAckRef.current !== addr) {
+      startTransition(async () => {
+        const dup = await checkAddressAction(addr, { excludeCustomerId: customer.id }).catch(() => null)
+        if (dup?.duplicate || dup?.duplicateBuilding) {
+          pendingSaveRef.current = { decision: confirmedDecision }
+          setDupInfo({ customer: dup.duplicate, building: dup.duplicateBuilding, address: addr })
+          return
+        }
+        dupAckRef.current = addr
+        doSave(confirmedDecision)
+      })
+      return
+    }
+    doSave(confirmedDecision)
+  }
+
+  function doSave(confirmedDecision?: 'unconfirm' | 'keep') {
     startTransition(async () => {
       const result = await updateCustomerAction(customer.id, buildInput(), confirmedDecision ? { confirmedDecision } : undefined)
       // 확정 일정 보유 고객의 기준일 변경 — 아직 저장 안 됨, 사용자 선택 팝업 표시
@@ -242,6 +285,25 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           isPending={isPending}
           onDecide={d => handleSave(d)}
           onCancel={() => setConfirmedDlg(null)}
+        />
+      )}
+
+      {/* 주소 중복 안내 — 다른 고객과 겹칠 때만. 확인 후 원래 하려던 동작(주소 적용 또는 저장)을 이어서 실행 */}
+      {dupInfo && (
+        <AddressDuplicateDialog
+          customer={dupInfo.customer}
+          building={dupInfo.building}
+          address={dupInfo.address}
+          onClose={() => { pendingAddrRef.current = null; pendingSaveRef.current = null; setDupInfo(null) }}
+          onContinue={() => {
+            dupAckRef.current = dupInfo.address
+            setDupInfo(null)
+            const addr = pendingAddrRef.current
+            if (addr) { pendingAddrRef.current = null; applyAddress(addr); return }
+            const save = pendingSaveRef.current
+            if (save) { pendingSaveRef.current = null; doSave(save.decision) }
+          }}
+          continueLabel="계속 적용"
         />
       )}
     </form>

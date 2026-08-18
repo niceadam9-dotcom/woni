@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction } from '@/app/(dashboard)/buildings/actions'
-import { fetchBuildingLedgerAction } from '@/app/(dashboard)/customers/actions'
+import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
+import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
@@ -105,6 +106,10 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const [ledgerNote, setLedgerNote] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  // 주소 중복 안내 팝업 — 다른 고객의 고객/건물과 주소가 겹칠 때만 (같은 고객의 다른 동은 정상)
+  const [dupInfo, setDupInfo] = useState<{ customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding } | null>(null)
+  const dupAckRef = useRef('')            // '계속 등록'으로 확인 완료된 주소
+  const pendingSaveRef = useRef(false)    // 저장 시점 중복 확인 후 이어서 저장할지
 
   function toForm(b?: BuildingPanelRow): FormState {
     if (!b) return { ...EMPTY }
@@ -246,6 +251,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       }
       setForm(p => ({ ...p, ...next, building_name: p.building_name || data.buildingName || '' }))
       if (data.bcode) fetchLedger(data.bcode, data.jibunAddress)
+      checkAddressAction(data.roadAddress, { excludeCustomerId: customerId }).then(res => {
+        if (res.duplicate || res.duplicateBuilding) {
+          setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
+        }
+      }).catch(() => null)
     })
   }
 
@@ -268,6 +278,25 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   function save() {
     if (!form.building_name.trim()) { setError('건물명을 입력해주세요.'); return }
     setError('')
+    // 저장 시점 중복 재검증 (주소 수기 보정 대비) — 이미 확인한 주소는 통과
+    const addr = form.address.trim()
+    if (addr && dupAckRef.current !== addr) {
+      startTransition(async () => {
+        const res = await checkAddressAction(addr, { excludeCustomerId: customerId })
+        if (res.duplicate || res.duplicateBuilding) {
+          pendingSaveRef.current = true
+          setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
+          return
+        }
+        dupAckRef.current = addr
+        doSave()
+      })
+      return
+    }
+    doSave()
+  }
+
+  function doSave() {
     startTransition(async () => {
       const common = {
         building_name: form.building_name.trim(),
@@ -477,6 +506,22 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             </div>
           )}
         </div>
+      )}
+
+      {/* 주소 중복 안내 — 다른 고객의 고객·건물과 주소가 겹칠 때만 */}
+      {dupInfo && (
+        <AddressDuplicateDialog
+          customer={dupInfo.customer}
+          building={dupInfo.building}
+          address={form.address.trim()}
+          onClose={() => setDupInfo(null)}
+          onContinue={() => {
+            dupAckRef.current = form.address.trim()
+            setDupInfo(null)
+            if (pendingSaveRef.current) { pendingSaveRef.current = false; doSave() }
+          }}
+          continueLabel="계속 저장"
+        />
       )}
     </div>
   )
