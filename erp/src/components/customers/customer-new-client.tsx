@@ -295,10 +295,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   ]
   const allFieldsOk = requiredChecks.every(c => c[1])
   const requiredOk = allFieldsOk && !!form.customer_code.trim()  // 고객코드 자동 생성 완료까지 등록 보류
-  const typeLabel = form.inspection_type !== '일반관리'
-    ? `${form.inspection_type} (${form.inspection_type === '종합' ? '연 2회' : '연 1회'})`
-    : `일반 ${form.general_sub_type} (${form.general_sub_type === '종합' ? '연 2회' : '연 1회'})`
-  const assignedName = employees.find(e => e.id === form.assigned_employee_id)?.name
+  // typeLabel·assignedName은 '등록 요약' 패널 전용이었다 — 패널을 없애면서 함께 제거.
+  // 두 값 모두 입력칸에 그대로 보이므로 파생 표시가 필요 없다.
 
   return (
     <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
@@ -343,9 +341,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             </div>
           </div>
 
-          {/* 도로명주소 */}
+          {/* 도로명주소 — requiredChecks의 '주소'가 이 값이다(비면 [등록] 비활성).
+              주소검색 블록 안에 있다 보니 다른 필수 4개와 달리 Field 헬퍼를 안 써서 별표가 빠져 있었다. */}
           <div className="space-y-1">
-            <p className="text-xs text-[#b0acd6]">도로명주소 (상세주소 직접 입력 가능)</p>
+            <p className={labelCls}>도로명주소 <span className="text-red-500 ml-0.5">*</span>
+              <span className="text-xs text-[#b0acd6] font-normal ml-1">(상세주소 직접 입력 가능)</span></p>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
               <input
