@@ -169,9 +169,10 @@ export default async function InspectionsPage({
         </div>
       </div>
 
-      {/* 최근 본 고객 — 칩을 누르면 그 고객 상세로 바로 간다(2026-08-18 사용자 확정, 고객관리와 동일 동작).
+      {/* 최근 본 고객 — 칩은 **아래 표의 고객명과 같은 곳**(점검업무 상세조회)으로 간다
+          (2026-08-18 사용자 확정). 점검이 없는 고객만 고객 상세로 폴백한다.
           이 목록을 고객으로 거르는 일은 바로 아래 고객명 검색창이 그대로 담당한다 */}
-      <RecentCustomersStrip userId={profile.id} />
+      <RecentCustomersStrip userId={profile.id} target="inspection" />
 
       {/* 필터 */}
       <form method="GET" action="/inspections" className="flex flex-wrap items-center gap-2">
