@@ -36,17 +36,31 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     load()
 
     const channel = supabase
-      .channel('notifications')
+      .channel(`notifications:${userId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` },
         (payload) => {
-          setNotifications((prev) => [payload.new as Notification, ...prev])
+          const next = payload.new as Notification
+          setNotifications((prev) => (prev.some((n) => n.id === next.id) ? prev : [next, ...prev]))
         }
       )
-      .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // ⚠ 세션 로드 후 조인 (use-sheet-responses-realtime S5-7 실측과 동일): 마운트 직후 바로
+    // subscribe하면 소켓에 access_token이 안 실려 anon으로 붙고, notifications RLS가
+    // authenticated 한정이라 조인은 성공하는데 이벤트가 0건이다. 지금까지 벨 실시간 수신이
+    // 페이지에 따라 되다 말다 한 원인 — 같은 소켓을 쓰는 다른 구독이 setAuth를 먼저 불러줄
+    // 때만 우연히 동작했다.
+    let disposed = false
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        if (disposed) return
+        supabase.realtime.setAuth(data.session?.access_token ?? null)
+        channel.subscribe()
+      })
+      .catch(() => { if (!disposed) channel.subscribe() })
+
+    return () => { disposed = true; supabase.removeChannel(channel) }
   }, [userId])
 
   useEffect(() => {
