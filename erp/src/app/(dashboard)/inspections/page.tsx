@@ -169,8 +169,9 @@ export default async function InspectionsPage({
         </div>
       </div>
 
-      {/* 최근 본 고객 — 칩을 누르면 그 고객으로 목록을 거른다(고객명 검색 축 재사용) */}
-      <RecentCustomersStrip userId={profile.id} linkMode="inspection-filter" activeName={q} />
+      {/* 최근 본 고객 — 칩을 누르면 그 고객 상세로 바로 간다(2026-08-18 사용자 확정, 고객관리와 동일 동작).
+          이 목록을 고객으로 거르는 일은 바로 아래 고객명 검색창이 그대로 담당한다 */}
+      <RecentCustomersStrip userId={profile.id} />
 
       {/* 필터 */}
       <form method="GET" action="/inspections" className="flex flex-wrap items-center gap-2">

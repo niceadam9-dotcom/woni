@@ -2,7 +2,8 @@
  *  실행: npx tsx scripts/test-recent-customers.mts  (dev 서버 localhost:3000 또는 TEST_BASE_URL)
  *
  *  고정하는 것: 고객 상세를 열면 기록된다 / 두 목록에 칩이 뜬다 / 최근 순으로 앞에 온다 /
- *  중복 없이 한 번만 / 고객관리 칩은 상세로, 점검업무 칩은 그 고객 필터로 간다 /
+ *  중복 없이 한 번만 / **어느 화면에서 눌러도 고객 상세로 간다**(2026-08-18 사용자 확정 —
+ *  종전엔 점검업무에서만 ?q= 목록 필터라 같은 칩이 화면마다 다르게 동작했다) /
  *  **기본 목록 정렬은 바뀌지 않는다**(이번 설계의 핵심 — 스트립은 얹기만 한다) /
  *  계정이 다르면 기록이 섞이지 않는다 / 지우기.
  */
@@ -121,15 +122,20 @@ try {
   await page.waitForURL(u => u.pathname === `/customers/${customerIds[1]}`, { timeout: 20000 })
   check('칩 클릭 시 고객 상세로', page.url().includes(customerIds[1]))
 
-  console.log('[6] 점검업무 칩 → 그 고객으로 필터')
+  console.log('[6] 점검업무 칩 → 고객 상세 이동 (2026-08-18 사용자 확정, 고객관리와 동일)')
   await page.goto(`${BASE}/inspections`)
   await strip().waitFor({ timeout: 15000 })
   check('점검업무에도 스트립 표시', await strip().count() === 1)
   await chip(names[0]).click()
-  await page.waitForURL(u => u.searchParams.get('q') === names[0], { timeout: 20000 })
-  check('칩 클릭 시 목록을 그 고객으로 필터', new URL(page.url()).pathname === '/inspections')
+  await page.waitForURL(u => u.pathname === `/customers/${customerIds[0]}`, { timeout: 20000 })
+  check('점검업무 칩도 고객 상세로 이동', page.url().includes(customerIds[0]))
+  // 종전 규약(?q= 목록 필터)으로 되돌아가지 않았는지 — 화면마다 다르게 동작하던 것을 없앤 것이 이번 변경이다
+  check('목록 필터(?q=)로 가지 않는다', !page.url().includes('q='), page.url())
+  // 고객으로 거르는 동선은 검색창이 그대로 담당한다(칩이 빠져나간 자리를 대신하는지 확인)
+  await page.goto(`${BASE}/inspections?q=${encodeURIComponent(names[0])}`)
+  await page.locator('table tbody tr').first().waitFor({ timeout: 20000 })
   const rows = await page.locator('table tbody tr').count()
-  check('그 고객의 점검 1건만', rows === 1, `${rows}행`)
+  check('검색창 축은 그대로 — 그 고객의 점검 1건만', rows === 1, `${rows}행`)
   check('검색창에도 값 반영', await page.getByRole('textbox', { name: '고객명 검색', exact: true }).inputValue() === names[0])
 
   console.log('[7] 계정 분리')

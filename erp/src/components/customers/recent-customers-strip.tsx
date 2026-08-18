@@ -17,19 +17,16 @@ export function RecordRecentCustomer({ userId, customerId, customerName }: {
   return null
 }
 
-/** 최근 본 고객 스트립 — 목록 위 칩.
+/** 최근 본 고객 스트립 — 목록 위 칩. 어느 화면에서든 **고객 상세로 간다**.
  *
- *  링크 대상은 화면마다 다르다: 고객관리는 고객 상세로, 점검업무는 그 고객으로 목록을 거른다
- *  (?q=고객명 — 점검업무의 조회 구조를 건드리지 않고 고객명 검색을 재사용).
- *  대상은 함수가 아니라 문자열 모드로 받는다 — 서버 컴포넌트는 클라이언트로 함수를 넘길 수 없다.
+ *  종전엔 화면마다 대상이 달랐다(고객관리=상세 / 점검업무=?q로 목록 필터). 사용자 확정으로
+ *  단일화한다(2026-08-18) — '최근 본 고객'은 방금 보던 고객으로 돌아가려는 동선인데,
+ *  점검업무에서만 목록이 걸러지면 같은 칩이 화면에 따라 다르게 동작해 예측이 어긋난다.
+ *  점검업무의 고객명 필터는 바로 아래 검색창이 그대로 담당한다.
  *
  *  localStorage는 서버에 없으므로 첫 렌더에선 아무것도 그리지 않는다(하이드레이션 불일치 방지). */
-export function RecentCustomersStrip({ userId, linkMode, activeName }: {
+export function RecentCustomersStrip({ userId }: {
   userId: string
-  /** 'detail' = 고객 상세로 이동 · 'inspection-filter' = 점검 목록을 그 고객으로 필터 */
-  linkMode: 'detail' | 'inspection-filter'
-  /** 지금 보고 있는 필터값 — 해당 칩을 눌린 상태로 표시 (점검업무) */
-  activeName?: string
 }) {
   const [items, setItems] = useState<RecentCustomer[]>([])
   const [ready, setReady] = useState(false)
@@ -47,26 +44,16 @@ export function RecentCustomersStrip({ userId, linkMode, activeName }: {
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#b0acd6] shrink-0">
         <Clock className="size-3" /> 최근 본 고객
       </span>
-      {items.map(c => {
-        const active = !!activeName && activeName === c.name
-        const href = linkMode === 'detail'
-          ? `/customers/${c.id}`
-          // 이미 그 고객으로 걸러진 상태면 다시 눌러 해제 — 칩이 토글처럼 동작한다
-          : active ? '/inspections' : `/inspections?q=${encodeURIComponent(c.name)}`
-        return (
-          <Link
-            key={c.id}
-            href={href}
-            className={`inline-flex items-center h-7 px-2.5 rounded-full border text-xs transition-colors max-w-[12rem] truncate ${
-              active
-                ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] font-medium'
-                : 'border-[#d0ccf5] bg-white text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
-            }`}
-          >
-            {c.name}
-          </Link>
-        )
-      })}
+      {items.map(c => (
+        <Link
+          key={c.id}
+          href={`/customers/${c.id}`}
+          title={`${c.name} 상세 조회로 이동`}
+          className="inline-flex items-center h-7 px-2.5 rounded-full border text-xs transition-colors max-w-[12rem] truncate border-[#d0ccf5] bg-white text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]"
+        >
+          {c.name}
+        </Link>
+      ))}
       <button
         type="button"
         onClick={() => {

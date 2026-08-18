@@ -96,7 +96,7 @@ export default async function CustomersPage({
       <CustomerViewTabs />
 
       {/* 최근 본 고객 — 목록 정렬은 그대로 두고 바로가기만 얹는다(정렬을 섞으면 순서가 불안정해진다) */}
-      <RecentCustomersStrip userId={profile.id} linkMode="detail" />
+      <RecentCustomersStrip userId={profile.id} />
 
       {/* 검색/필터 */}
       <form method="GET" action="/customers" className="flex flex-wrap items-center gap-2">
