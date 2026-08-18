@@ -815,3 +815,69 @@ export async function getInspectionStepsForItemAction(inspectionId: string) {
     due_date: string | null; status: string; completed_at: string | null
   }> }
 }
+
+// ── 일괄 확정 ────────────────────────────────────────────────
+/** 선택한 '계획' 항목을 한 번에 확정한다 (2026-08-13 사용자 확정).
+ *
+ *  종전에는 클라이언트가 항목마다 updatePlanItemAction을 부르고 **반환된 오류를 버렸다.**
+ *  점검일이 없는 항목은 서버가 '확정하려면 점검일을 입력해주세요'로 거부하는데 화면은
+ *  성공한 것처럼 선택을 풀고 새로고침만 해서, 확정을 눌러도 '계획 N건'이 그대로 남았다.
+ *
+ *  규칙: ① 점검일이 비었으면 오늘(한국 시간)로 채워 확정한다 ② 담당이 비었으면 확정한 직원을
+ *  담당으로 배정한다(점검 [시작]과 같은 규칙 — lib/inspection-start.ts, 기존 담당은 건드리지 않는다)
+ *  ③ 항목별 실패 사유를 돌려준다. */
+export async function bulkConfirmPlanItemsAction(itemIds: string[]): Promise<{
+  confirmed: number
+  assigned: number
+  failed: Array<{ name: string; reason: string }>
+  error?: string
+}> {
+  const profile = await requirePermission('inspection_plan_manage')
+  const admin = createAdminClient()
+
+  const ids = Array.isArray(itemIds) ? itemIds.filter(id => typeof id === 'string') : []
+  if (ids.length === 0) return { confirmed: 0, assigned: 0, failed: [] }
+  if (ids.length > 500) return { confirmed: 0, assigned: 0, failed: [], error: '한 번에 500건까지 확정할 수 있습니다.' }
+
+  // 확정일 = 한국 시간 기준 오늘. 클라이언트 값을 믿지 않는다(시계·시간대가 제각각).
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+
+  const { data: rowsRaw } = await admin
+    .from('inspection_plan_items')
+    .select('id, scheduled_date, status, assigned_employee_id, customers:customer_id(customer_name)')
+    .in('id', ids)
+  const rows = (rowsRaw ?? []) as unknown as Array<{
+    id: string; scheduled_date: string | null; status: string
+    assigned_employee_id: string | null
+    customers: { customer_name: string } | null
+  }>
+
+  const failed: Array<{ name: string; reason: string }> = []
+  let confirmed = 0
+  let assigned = 0
+
+  for (const r of rows) {
+    const name = r.customers?.customer_name ?? '(고객 미상)'
+    if (r.status !== 'planned') { failed.push({ name, reason: `이미 ${r.status} 상태입니다` }); continue }
+
+    // 담당 미배정이면 확정한 직원을 담당으로 — 확정 실패 시 되돌릴 수 있게 성공 여부를 따로 센다
+    let justAssigned = false
+    if (!r.assigned_employee_id) {
+      const { error: aErr } = await admin.from('inspection_plan_items')
+        .update({ assigned_employee_id: profile.id } as Record<string, unknown>)
+        .eq('id', r.id)
+      if (!aErr) justAssigned = true
+    }
+
+    const res = await confirmPlanItemStageOneAction(r.id, r.scheduled_date ?? today)
+    if (res.error) { failed.push({ name, reason: res.error }); continue }
+    confirmed++
+    if (justAssigned) assigned++
+  }
+
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  return { confirmed, assigned, failed }
+}

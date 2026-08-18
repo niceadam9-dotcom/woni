@@ -15,6 +15,7 @@ import {
   createInspectionPlanAction,
   startInspectionAction, updatePlanItemAction,
   confirmPlanItemStageOneAction, moveMonthlyPlanItemAction,
+  bulkConfirmPlanItemsAction,
 } from '@/app/(dashboard)/inspection-plans/actions'
 import { PlanItemSlidePanel } from './plan-item-slide-panel'
 import { TableScroll } from '@/components/ui/table-scroll'
@@ -938,8 +939,11 @@ function ListView({
 }) {
   const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set())
   const [bulkPending, startBulkTransition]  = useTransition()
+  const [bulkResult, setBulkResult]         = useState<{ ok: boolean; text: string } | null>(null)
   const customerMap = Object.fromEntries(customers.map(c => [c.id, c]))
-  const todayStr = new Date().toISOString().split('T')[0]
+  // 한국 시간 기준 오늘 — toISOString()은 UTC라 오전 9시 이전이면 어제로 밀린다.
+  // 일괄 확정이 이 날짜를 **저장**하므로(아래) 밀리면 잘못된 점검일이 기록된다.
+  const todayStr = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
 
   // 확정 가능한 '계획 중' 항목만 선택 대상 — 완료/확정/취소 선택 시 막다른 길 방지
   const selectableItems     = items.filter(i => i.status === 'planned')
@@ -961,11 +965,21 @@ function ListView({
   }
 
   function handleBulkConfirm() {
+    setBulkResult(null)
     startBulkTransition(async () => {
-      for (const item of confirmableSelected) {
-        await updatePlanItemAction({ itemId: item.id, status: 'confirmed' })
+      // 서버가 한 번에 처리한다 — 점검일 없으면 오늘로 채우고, 담당 미배정이면 확정자로 배정.
+      // 종전 구현은 항목마다 호출하고 **오류를 버려서** 확정을 눌러도 아무 일이 없던 것처럼 보였다.
+      const res = await bulkConfirmPlanItemsAction(confirmableSelected.map(i => i.id))
+      if (res.error) { setBulkResult({ ok: false, text: res.error }); return }
+      const parts = [`${res.confirmed}건 확정`]
+      if (res.assigned > 0) parts.push(`담당 배정 ${res.assigned}건`)
+      if (res.failed.length > 0) {
+        const detail = res.failed.slice(0, 3).map(f => `${f.name}(${f.reason})`).join(' · ')
+        parts.push(`실패 ${res.failed.length}건 — ${detail}${res.failed.length > 3 ? ` 외 ${res.failed.length - 3}건` : ''}`)
       }
-      setSelectedIds(new Set())
+      setBulkResult({ ok: res.failed.length === 0, text: parts.join(' · ') })
+      // 실패분은 선택을 남겨 재시도할 수 있게 한다
+      setSelectedIds(res.failed.length === 0 ? new Set() : selectedIds)
       onRefresh()
     })
   }
@@ -1143,7 +1157,17 @@ function ListView({
             <span className="text-sm text-[#514b81]">
               <span className="font-semibold text-[#7b68ee]">{selectedIds.size}건</span> 선택됨
               {confirmableSelected.length > 0 && (
-                <span className="text-xs text-[#b0acd6] ml-2">확정 가능 {confirmableSelected.length}건</span>
+                <span className="text-xs text-[#b0acd6] ml-2">
+                  확정 가능 {confirmableSelected.length}건
+                  {confirmableSelected.some(i => !i.scheduled_date) && (
+                    <> · 점검일 없는 {confirmableSelected.filter(i => !i.scheduled_date).length}건은 오늘({todayStr})로 확정</>
+                  )}
+                </span>
+              )}
+              {bulkResult && (
+                <span className={`block text-xs mt-0.5 ${bulkResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                  {bulkResult.ok ? '✅' : '❌'} {bulkResult.text}
+                </span>
               )}
             </span>
             <div className="flex items-center gap-2">
