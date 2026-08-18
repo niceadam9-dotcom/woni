@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { BookMarked, Loader2, Pencil, Star, Trash2, Upload } from 'lucide-react'
+import { BookMarked, ExternalLink, Loader2, Pencil, Star, Trash2, Upload } from 'lucide-react'
 import {
   listPlanTextsAction, getPlanTextAction, savePlanTextAction, setPlanTextDefaultAction,
   renamePlanTextAction, deletePlanTextAction, type PlanTextItem,
@@ -181,6 +181,12 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
               {msg && <p className="text-[11px] text-red-600 px-2 py-1">{msg}</p>}
             </>
           )}
+          {/* 소방계획서_21 R1-10 ② — 전역 관리 화면으로. 새 탭인 이유: 같은 탭 이동은 서식의
+              미저장 이동 확인창과 부딪혀, 가져오기를 보러 갔다가 입력을 잃을 수 있다 */}
+          <a href={`/fire-plans/library?section=${def.key}`} target="_blank" rel="noopener noreferrer"
+            className="mt-1 flex items-center gap-1 border-t border-[#f0eefb] px-2 pt-1.5 pb-0.5 text-[10px] text-[#7b68ee] hover:underline">
+            전체 관리 <ExternalLink className="size-2.5" />
+          </a>
         </div>
       )}
     </div>

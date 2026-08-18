@@ -649,14 +649,13 @@ export default async function CustomerDetailPage({
       canManage={canManage}
       ledgerAutoNeeded={ledgerAutoNeeded}
       textDefaultsNeeded={textDefaultsNeeded}
-      purpose={planInfoInitial.purpose}
       readiness={{ done: readiness.done, total: readiness.total, missing: readiness.missing }}
       revisionYears={revisionYears}
       importCandidate={importCandidate}
       initialSection={sub}
       initialForm={initialForm}
       formStatus={formStatus}
-      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
+      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} purpose={planInfoInitial.purpose} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}

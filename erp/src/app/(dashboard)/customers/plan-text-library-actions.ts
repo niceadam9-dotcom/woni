@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { PLAN_TEXT_SECTIONS, PLAN_TEXT_SECTION_KEYS, planTextPreview, planTextBodyEquals } from '@/lib/plan-text-sections'
+import { PLAN_TEXT_SECTIONS, PLAN_TEXT_SECTION_KEYS, planTextPreview, planTextBodyEquals, planTextBodyIsEmpty } from '@/lib/plan-text-sections'
 
 /** 공통 서술 라이브러리 액션 (소방계획서_15_별도라이브러리.md §5)
  *  저장소 = plan_text_library(119, 항목) + plan_text_applied(출처 스탬프·자동주입 1회 가드).
@@ -31,6 +31,201 @@ export async function listPlanTextsAction(sectionKey: string): Promise<{ items?:
       preview: planTextPreview(sectionKey, r.body),
     })),
   }
+}
+
+/* ── 소방계획서_21 R1: 전역 관리 화면(/fire-plans/library)용 액션 ──────────────────────────
+ *  기존 액션은 '서식 팝오버에서 한 섹션'을 전제로 만들어져 8섹션을 그리려면 8왕복·권한검사 8회가 든다.
+ *  관리 화면은 8섹션을 한 장에 펼치므로 전체를 1회에 읽는 액션이 필요하다. */
+
+export type PlanTextLibraryEntry = {
+  id: string
+  sectionKey: string
+  title: string
+  body: unknown
+  version: number
+  isDefault: boolean
+  updatedAt: string
+  preview: string
+  /** 이 항목을 가져다 쓴 고객 수 (삭제·기본변경 전에 영향 범위를 보여준다 — D1-2) */
+  usageCount: number
+  /** 가져간 version이 현재보다 낮은 고객 수 = '개정됨' 배지 대상 */
+  staleCount: number
+}
+
+export type PlanTextLibrarySnapshot = {
+  entries: PlanTextLibraryEntry[]
+  /** 기본문구가 없는 섹션 키 — 자동주입이 조용히 아무 일도 하지 않는 섹션(R1-3의 ○ 표시) */
+  sectionsWithoutDefault: string[]
+}
+
+/** 전체 라이브러리 1회 조회 + 사용 수 집계 (R1-11) */
+export async function listPlanTextLibraryAction(): Promise<{ data?: PlanTextLibrarySnapshot; error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const [{ data: rows, error }, { data: stamps }] = await Promise.all([
+    admin.from('plan_text_library')
+      .select('id, section_key, title, body, version, is_default, updated_at')
+      .eq('is_active', true)
+      .order('is_default', { ascending: false })
+      .order('updated_at', { ascending: false }),
+    admin.from('plan_text_applied').select('library_id, library_version'),
+  ])
+  if (error) return { error: `목록 조회 실패: ${error.message}` }
+
+  const used = new Map<string, { total: number; stale: number; versions: number[] }>()
+  for (const st of (stamps ?? []) as Array<{ library_id: string | null; library_version: number }>) {
+    if (!st.library_id) continue
+    const u = used.get(st.library_id) ?? { total: 0, stale: 0, versions: [] }
+    u.total += 1
+    u.versions.push(st.library_version)
+    used.set(st.library_id, u)
+  }
+
+  const entries: PlanTextLibraryEntry[] = ((rows ?? []) as Array<Record<string, unknown>>).map(r => {
+    const id = r.id as string
+    const version = r.version as number
+    const u = used.get(id)
+    return {
+      id,
+      sectionKey: r.section_key as string,
+      title: r.title as string,
+      body: r.body,
+      version,
+      isDefault: !!r.is_default,
+      updatedAt: (r.updated_at as string).slice(0, 10),
+      preview: planTextPreview(r.section_key as string, r.body),
+      usageCount: u?.total ?? 0,
+      staleCount: u ? u.versions.filter(v => v < version).length : 0,
+    }
+  })
+
+  const withDefault = new Set(entries.filter(e => e.isDefault).map(e => e.sectionKey))
+  return {
+    data: {
+      entries,
+      sectionsWithoutDefault: [...PLAN_TEXT_SECTION_KEYS].filter(k => !withDefault.has(k)),
+    },
+  }
+}
+
+export type PlanTextUsageRow = {
+  customerId: string
+  customerName: string
+  source: 'pull' | 'default'
+  version: number
+  appliedAt: string
+  /** 가져간 version < 현재 version — 앰버 '개정됨' 배지 */
+  stale: boolean
+}
+
+/** 사용처 역조회 (R1-7) — 조회 전용. 일괄 반영 버튼은 만들지 않는다(D1-4) */
+export async function getPlanTextUsageAction(libraryId: string): Promise<{ rows?: PlanTextUsageRow[]; error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const [{ data: cur }, { data: stamps, error }] = await Promise.all([
+    admin.from('plan_text_library').select('version').eq('id', libraryId).maybeSingle(),
+    admin.from('plan_text_applied')
+      .select('customer_id, library_version, source, applied_at')
+      .eq('library_id', libraryId).order('applied_at', { ascending: false }),
+  ])
+  if (error) return { error: `사용처 조회 실패: ${error.message}` }
+  const list = (stamps ?? []) as Array<{ customer_id: string; library_version: number; source: string; applied_at: string }>
+  if (list.length === 0) return { rows: [] }
+
+  const { data: custs } = await admin.from('customers')
+    .select('id, customer_name').in('id', [...new Set(list.map(s => s.customer_id))])
+  const nameById = new Map(((custs ?? []) as Array<{ id: string; customer_name: string }>).map(c => [c.id, c.customer_name]))
+  const version = (cur?.version as number | undefined) ?? 0
+
+  return {
+    rows: list.map(s => ({
+      customerId: s.customer_id,
+      customerName: nameById.get(s.customer_id) ?? '(삭제된 고객)',
+      source: s.source === 'default' ? 'default' : 'pull',
+      version: s.library_version,
+      appliedAt: s.applied_at.slice(0, 10),
+      stale: s.library_version < version,
+    })),
+  }
+}
+
+export type PlanTextImportPreviewRow = {
+  sectionKey: string
+  label: string
+  body: unknown
+  preview: string
+  /** 이 고객에 서술이 없어 가져올 것이 없는 섹션 */
+  empty: boolean
+}
+
+/** [고객에서 불러오기] 미리보기 (R1-8) — 고객 서식 1회 조회 후 8섹션 pick.
+ *  pick을 서버에서 태우므로 고객 고유 필드(일시·장소·인원)는 이 시점에 이미 제거된다. */
+export async function previewPlanTextsFromCustomerAction(
+  customerId: string,
+): Promise<{ rows?: PlanTextImportPreviewRow[]; customerName?: string; error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const [{ data: cust }, { data: formRow }] = await Promise.all([
+    admin.from('customers').select('customer_name').eq('id', customerId).maybeSingle(),
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
+  ])
+  if (!cust) return { error: '고객을 찾을 수 없습니다.' }
+  const sections = ((formRow as { sections?: Record<string, unknown> } | null)?.sections ?? {})
+
+  return {
+    customerName: cust.customer_name as string,
+    rows: Object.values(PLAN_TEXT_SECTIONS).map(def => {
+      const body = def.pick(sections[def.key])
+      return {
+        sectionKey: def.key,
+        label: def.label,
+        body,
+        preview: planTextPreview(def.key, body),
+        empty: planTextBodyIsEmpty(def.key, body),
+      }
+    }),
+  }
+}
+
+/** [고객에서 불러오기] 실행 (R1-8) — 체크한 섹션만 이름 붙여 등록. 8왕복·권한검사 8회를 하나로.
+ *  makeDefault=true면 등록 후 기본으로 승격한다(섹션당 1개 규약은 기존 기본 해제로 지킨다). */
+export async function importPlanTextsFromCustomerAction(
+  customerId: string,
+  picks: Array<{ sectionKey: string; title: string; makeDefault?: boolean }>,
+): Promise<{ created?: Array<{ sectionKey: string; title: string }>; error?: string }> {
+  const profile = await requirePermission('customer_manage')
+  if (picks.length === 0) return { error: '가져올 섹션을 선택해주세요.' }
+  const admin = createAdminClient()
+
+  const { data: formRow } = await admin.from('fire_plan_forms')
+    .select('sections').eq('customer_id', customerId).maybeSingle()
+  const sections = ((formRow as { sections?: Record<string, unknown> } | null)?.sections ?? {})
+
+  const created: Array<{ sectionKey: string; title: string }> = []
+  const toDefault: string[] = []
+  for (const p of picks) {
+    const def = PLAN_TEXT_SECTIONS[p.sectionKey]
+    if (!def) continue
+    const name = p.title.trim()
+    if (!name) return { error: `${def.label} 항목 이름을 입력해주세요.` }
+    if (name.length > 60) return { error: `${def.label} 항목 이름은 60자 이내로 입력해주세요.` }
+    const body = def.pick(sections[def.key])
+    // 빈 섹션을 등록하면 자동주입이 빈 값을 채우는 셈이라 아무 의미가 없다 — 조용히 건너뛰지 않고 막는다
+    if (planTextBodyIsEmpty(def.key, body)) return { error: `${def.label}은 이 고객에 서술이 없어 가져올 수 없습니다.` }
+    const { data, error } = await admin.from('plan_text_library')
+      .insert({ section_key: def.key, title: name, body, updated_by: profile.id })
+      .select('id').single()
+    if (error) return { error: `${def.label} 등록 실패: ${error.message}` }
+    created.push({ sectionKey: def.key, title: name })
+    if (p.makeDefault) toDefault.push(data.id as string)
+  }
+
+  for (const id of toDefault) {
+    const r = await setPlanTextDefaultAction(id, true)
+    if (r.error) return { error: r.error }
+  }
+  revalidatePath('/fire-plans/library')
+  return { created }
 }
 
 /** 항목 본문 로드 — 가져오기 적용 시점 (버전은 저장 성공 시 스탬프에 쓴다 §3-2) */

@@ -2,9 +2,10 @@
 
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Printer, Download, Trash2, Plus, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, PencilLine, Eye } from 'lucide-react'
+import { Printer, Download, Trash2, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, Eye, Lock } from 'lucide-react'
 import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
-import { requestFirePlanHwpFromTabAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { requestFirePlanHwpFromTabAction, previewFirePlanHtmlAction, ensureLatestFirePlanPdfAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { PlanArchiveCleanup } from '@/components/customers/plan-archive-cleanup'
 
@@ -31,10 +32,12 @@ export type FirePlanRow = {
 }
 
 /** 소방계획서 보관함 (doc02 §8) — 표준양식 PDF 업로드 → ERP에서 자동 인쇄. HWP 원본은 선택 보관 */
-export function FirePlansClient({ customerId, plans, canManage }: {
+export function FirePlansClient({ customerId, plans, canManage, purpose }: {
   customerId: string
   plans: FirePlanRow[]
   canManage: boolean
+  /** 건물 용도 — 개정 발행·미리보기에 쓸 프리셋 추천 (트리 상단 생성 바에서 이관, R2-7) */
+  purpose?: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -43,13 +46,44 @@ export function FirePlansClient({ customerId, plans, canManage }: {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [subDraft, setSubDraft] = useState<{ submittedAt: string; fireStation: string }>({ submittedAt: '', fireStation: '' })
 
-  /** 계획서 생성 — PDF 단일 경로: 서버 동기 생성(HTML→Gotenberg→PDF, 보관함 등록). 값 수정은 소방계획서 탭 서식에서 */
-  function generateNow() {
+  // ── 소방계획서_21 R2 (#2): 조회를 파일에서 떼어낸다 ───────────────────────
+  const [preview, setPreview] = useState<{ open: boolean; html: string; missing: string[]; loading: boolean }>(
+    { open: false, html: '', missing: [], loading: false })
+  const [busyPlan, setBusyPlan] = useState<string | null>(null)
+
+  /** 현재 내용 — 즉석 렌더. 파일을 만들지 않고 개정차수도 오르지 않는다 (D-3) */
+  function togglePreview() {
+    if (preview.open) { setPreview(p => ({ ...p, open: false })); return }
+    setPreview({ open: true, html: '', missing: [], loading: true })
     startTransition(async () => {
-      const res = await requestFirePlanHwpFromTabAction(customerId, new Date().getFullYear())
+      const res = await previewFirePlanHtmlAction(customerId, currentYear, recommendPresetType(purpose))
+      if (res.error) { setError(res.error); setPreview({ open: false, html: '', missing: [], loading: false }); return }
+      setPreview({ open: true, html: res.html ?? '', missing: res.missing ?? [], loading: false })
+    })
+  }
+
+  /** 개정 발행 — 사람이 "이 내용으로 확정"하는 순간에만 차수가 오른다 (D-5) */
+  function issueRevision() {
+    if (!confirm('지금 내용으로 개정판을 발행할까요?\n보관함에 새 개정 차수로 등록되고 개정이력에 1행이 남습니다.')) return
+    startTransition(async () => {
+      const res = await requestFirePlanHwpFromTabAction(customerId, currentYear, recommendPresetType(purpose))
       if (res.error) { alert(res.error); return }
-      alert('생성됐습니다 — 보관함에 PDF가 등록되었습니다.')
+      alert('개정판을 발행했습니다.')
       router.refresh()
+    })
+  }
+
+  /** [인쇄]·[PDF]는 낡았으면 말없이 갱신한다 — 같은 행의 파일만 교체, 차수·이력 불변 (D-4).
+   *  제출 기록이 있는 행은 갱신하지 않고 저장본을 그대로 연다 (D-6). */
+  function openLatest(planId: string, how: 'print' | 'download') {
+    setBusyPlan(planId)
+    startTransition(async () => {
+      const res = await ensureLatestFirePlanPdfAction(planId)
+      setBusyPlan(null)
+      if (res.error) { alert(res.error); return }
+      if (how === 'print') window.open(`/fire-plans/${planId}/print`, '_blank')
+      else await handleDownload(planId, 'pdf')
+      if (res.refreshed) router.refresh()
     })
   }
 
@@ -125,10 +159,44 @@ export function FirePlansClient({ customerId, plans, canManage }: {
 
   return (
     <div>
+      {/* ── 현재 내용 + 개정 발행 (소방계획서_21 R2 / #2) ──────────────────────
+          조회는 파일과 무관하다: [현재 내용]은 즉석 렌더라 파일도 개정차수도 만들지 않고,
+          차수는 [개정 발행]에서만 오른다. 종전 [계획서 생성 (PDF)] 버튼을 대체한다. */}
+      <div className="flex items-center gap-2 flex-wrap pb-3 mb-3 border-b border-[#e0ddf5]">
+        <button onClick={togglePreview} disabled={isPending}
+          title="지금 서식 입력값으로 계획서를 그 자리에서 렌더합니다 — 파일을 만들지 않고 개정차수도 오르지 않습니다"
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50">
+          {preview.loading ? <Loader2 className="size-3.5 animate-spin" /> : preview.open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+          현재 내용
+        </button>
+        {canManage && (
+          <button onClick={issueRevision} disabled={isPending}
+            title="지금 내용으로 개정판을 발행합니다 — 보관함에 새 차수로 등록되고 개정이력에 1행이 남습니다"
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+            <FileOutput className="size-3.5" /> 개정 발행
+          </button>
+        )}
+        <span className="text-[11px] text-[#b0acd6]">
+          인쇄·PDF는 저장본이 낡았으면 자동으로 갱신됩니다 (차수 불변)
+        </span>
+      </div>
+
+      {preview.open && (
+        <div className="mb-4">
+          {preview.missing.length > 0 && (
+            <p className="text-[11px] text-amber-600 mb-1.5">
+              미입력 {preview.missing.length}곳: {preview.missing.slice(0, 8).join(' · ')}{preview.missing.length > 8 ? ' …' : ''}
+            </p>
+          )}
+          <iframe srcDoc={preview.html} title="현재 내용 미리보기" sandbox=""
+            className="w-full h-[560px] rounded-lg border border-[#d0ccf5] bg-white" />
+        </div>
+      )}
+
       {plans.length === 0 && !showForm && (
         <p className="text-sm text-[#514b81] py-4 text-center">
           등록된 소방계획서가 없습니다
-          {canManage && ' — 표준양식으로 작성한 PDF를 업로드하면 ERP에서 바로 인쇄할 수 있습니다'}
+          {canManage && ' — [개정 발행]으로 만들거나, 표준양식 PDF를 업로드하면 ERP에서 바로 인쇄할 수 있습니다'}
         </p>
       )}
 
@@ -164,19 +232,21 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                       ? <span className="text-amber-600 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" />PDF 변환 중</span>
                       : <span className="text-red-500">PDF 실패</span>}
                     {p.hwp_name ? ' · HWP' : ''}{p.has_html ? ' · 미리보기' : ''}{p.attachments.length > 0 ? ` · 부속${p.attachments.length}` : ''}
-                    {p.submitted_at && <span className="ml-1 text-[11px] text-green-600">제출{p.submitted_at.slice(5)}</span>}
+                    {p.submitted_at && (
+                      /* 제출본 동결(R2-10 / D-6) — 소방서에 낸 PDF는 다시 인쇄해도 내용이 바뀌지 않는다 */
+                      <span className="ml-1 inline-flex items-center gap-0.5 text-[11px] text-green-600"
+                        title="제출본 — 인쇄·PDF 시 갱신하지 않고 제출 당시 내용 그대로 엽니다">
+                        <Lock className="size-2.5" />제출{p.submitted_at.slice(5)}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 pr-4 text-xs text-[#514b81] whitespace-nowrap">
                     {p.created_at.slice(0, 10)}{p.uploader_name ? ` · ${p.uploader_name}` : ''}
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-1.5 justify-end flex-nowrap whitespace-nowrap">
-                      {canManage && p.generated && (
-                        <button onClick={generateNow} disabled={isPending} title="서식 입력값으로 재생성 (새 개정판, PDF) — 값 수정은 소방계획서 탭 서식 화면에서"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
-                          <PencilLine className="size-3" /> 재생성
-                        </button>
-                      )}
+                      {/* 행별 [재생성] 제거 (R2-9) — 상단 [개정 발행]이 같은 동작을 하고,
+                          내용만 최신화하는 일은 [인쇄]·[PDF]가 말없이 처리한다 */}
                       {canManage && (
                         <button onClick={() => issueNext(p.id)} disabled={isPending} title="다음 연도로 연차발행 (파일 복제)"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
@@ -186,26 +256,30 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                       {p.has_html && (
                         <button
                           onClick={() => handleDownload(p.id, 'html')}
-                          title="웹 미리보기 (레이아웃 참고용 — 제출·인쇄는 PDF 사용)"
+                          title="이 개정판의 저장본 미리보기 (지금 내용은 위 [현재 내용])"
                           className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors"
                         >
-                          <Eye className="size-3" /> 미리보기
+                          <Eye className="size-3" /> 저장본
                         </button>
                       )}
                       {p.pdf_status === 'ready' && (
                         <button
-                          onClick={() => window.open(`/fire-plans/${p.id}/print`, '_blank')}
-                          title="표준양식 PDF 인쇄 — 열리면 인쇄 대화상자가 자동으로 뜹니다"
-                          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors"
+                          onClick={() => openLatest(p.id, 'print')}
+                          disabled={busyPlan === p.id}
+                          title={p.submitted_at
+                            ? '제출본 — 제출 당시 내용 그대로 인쇄합니다 (갱신하지 않음)'
+                            : '인쇄 — 저장본이 낡았으면 자동으로 갱신한 뒤 엽니다 (개정차수는 오르지 않습니다)'}
+                          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
                         >
-                          <Printer className="size-3" /> 인쇄
+                          {busyPlan === p.id ? <Loader2 className="size-3 animate-spin" /> : <Printer className="size-3" />} 인쇄
                         </button>
                       )}
                       {p.pdf_status === 'ready' && (
                         <button
-                          onClick={() => handleDownload(p.id, 'pdf')}
-                          title="PDF 다운로드"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+                          onClick={() => openLatest(p.id, 'download')}
+                          disabled={busyPlan === p.id}
+                          title={p.submitted_at ? '제출본 PDF 다운로드 (갱신하지 않음)' : 'PDF 다운로드 — 낡았으면 자동 갱신'}
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50"
                         >
                           <Download className="size-3" /> PDF
                         </button>
@@ -276,20 +350,10 @@ export function FirePlansClient({ customerId, plans, canManage }: {
         </div>
       )}
 
-      {canManage && !showForm && (
-        <div className="mt-3 flex gap-2">
-          {/* 소방계획서_7 H-15b(§6-A): 생성 단일화 — 업로드 진입 폐지(생성 가능 문서는 만들지, 받지 않는다).
-              과거 업로드본은 아래 목록에서 읽기 전용으로 유지, 예외적 외부 문서는 범용 문서함 사용 */}
-          <button
-            onClick={generateNow}
-            disabled={isPending}
-            title="서식 입력값(소방계획서 탭)+고객·건물·시설 데이터로 서버가 즉시 PDF 생성 — 보관함에 등록 (소방계획서_7 H-13)"
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
-          >
-            <FileOutput className="size-3.5" /> 계획서 생성 (PDF)
-          </button>
-        </div>
-      )}
+      {/* 소방계획서_7 H-15b(§6-A): 생성 단일화 — 업로드 진입 폐지(생성 가능 문서는 만들지, 받지 않는다).
+          과거 업로드본은 위 목록에서 읽기 전용으로 유지, 예외적 외부 문서는 범용 문서함 사용.
+          하단에 있던 [계획서 생성 (PDF)]는 상단 [개정 발행]으로 흡수했다 (소방계획서_21 R2-7) —
+          같은 화면에 생성 버튼이 둘일 이유가 없고, 조회는 [현재 내용]이 파일 없이 담당한다 */}
 
       {canManage && showForm && (
         <form onSubmit={handleUpload} className="mt-3 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">

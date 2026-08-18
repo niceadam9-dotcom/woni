@@ -7,6 +7,7 @@ import 'server-only'
  *  buildFirePlanHtml(웹 템플릿 v2) → Gotenberg PDF → fire-plans 버킷 업로드 → fire_plans 등록.
  *  §6: hwp_path는 신규 기록하지 않고 pdf_status는 즉시 'ready' (2단계 변환 없음). */
 
+import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appendGeneratedRevision } from '@/lib/fire-plan-revisions'
 import {
@@ -413,17 +414,60 @@ export async function assembleFirePlan(
   return { data, images, assets, missing, presetPairs }
 }
 
-export type FirePlanGenResult = { planId?: string; missing?: string[]; error?: string }
+/** 안정 직렬화 — 키 정렬 후 JSON. 같은 내용이면 항상 같은 문자열이 나와야 해시가 흔들리지 않는다
+ *  (plan-text-sections.ts planTextBodyEquals의 키 정렬 비교가 선례) */
+function stableStringify(v: unknown): string {
+  if (v === null || v === undefined || typeof v !== 'object') return JSON.stringify(v ?? null) ?? 'null'
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`
+  const o = v as Record<string, unknown>
+  return `{${Object.keys(o).sort().map(k => `${JSON.stringify(k)}:${stableStringify(o[k])}`).join(',')}}`
+}
+
+/** 조립 결과 해시 (소방계획서_21 R2 / #2 D-7) — 저장된 PDF가 최신인지 판정하는 단일 근거.
+ *  fire_plan_forms.updated_at만 보면 고객·건물·설비 대장·자위소방대 변경을 놓치는데
+ *  계획서 내용의 상당 부분이 거기서 온다. 인쇄 시 어차피 조립하므로 추가 비용이 거의 없다.
+ *  사진(assets)은 **바이트까지** 넣는다 — 같은 파일명으로 교체해도 잡아야 하기 때문이다. */
+export function firePlanSourceHash(a: {
+  data: FirePlanGenData
+  images: FirePlanImageRef[]
+  assets: FirePlanAsset[]
+  presetPairs: Array<{ find: string; value: string }>
+}): string {
+  const h = createHash('sha1')
+  h.update(stableStringify(a.data))
+  h.update(stableStringify(a.images))
+  h.update(stableStringify(a.presetPairs))
+  for (const asset of [...a.assets].sort((x, y) => x.name.localeCompare(y.name))) {
+    h.update(asset.name)
+    h.update(asset.data)
+  }
+  return h.digest('hex')
+}
+
+export type FirePlanGenResult = { planId?: string; missing?: string[]; error?: string; sourceHash?: string }
 
 /** 소방계획서 1건 서버 동기 생성 — HTML 렌더 → Gotenberg PDF → 업로드 → fire_plans 등록 (H-13)
- *  §6: hwp 신규 기록 없음, pdf_status 즉시 'ready'. 잡 행 기록은 호출자(액션)가 담당. */
+ *  §6: hwp 신규 기록 없음, pdf_status 즉시 'ready'. 잡 행 기록은 호출자(액션)가 담당.
+ *
+ *  mode (소방계획서_21 R2 / #2 D-4·D-5):
+ *   - 'revise'(기본)  = 개정 발행. 새 행 + revision +1 + 개정이력 1행 — 사람이 "이 내용으로 확정"할 때만.
+ *   - 'reissue'       = **같은 행의 파일만 교체.** 차수·개정이력 불변. [인쇄]가 낡은 PDF를 말없이 갱신하는 경로다.
+ *                       targetPlanId 필수. 옛 파일은 교체 성공 후 정리한다. */
 export async function generateFirePlanNow(
   admin: Admin,
-  opts: { customerId: string; year: number; presetType?: string; requestedBy?: string | null },
+  opts: {
+    customerId: string; year: number; presetType?: string; requestedBy?: string | null
+    mode?: 'revise' | 'reissue'
+    /** mode='reissue'일 때 파일을 갈아끼울 대상 행 */
+    targetPlanId?: string
+  },
 ): Promise<FirePlanGenResult> {
   const { customerId, year } = opts
+  const mode = opts.mode ?? 'revise'
+  if (mode === 'reissue' && !opts.targetPlanId) return { error: '갱신 대상이 지정되지 않았습니다.' }
   try {
     const { data, images, assets, missing, presetPairs } = await assembleFirePlan(admin, customerId, year, opts.presetType)
+    const sourceHash = firePlanSourceHash({ data, images, assets, presetPairs })
     let html = buildFirePlanHtml(data, images)
     if (presetPairs.length > 0) html = applyPresetPairs(html, presetPairs)
 
@@ -447,6 +491,28 @@ export async function generateFirePlanNow(
       return { error: `PDF 업로드 실패: ${upPdf.error.message}` }
     }
 
+    // ── mode='reissue' — 대상 행의 파일만 교체. 차수·개정이력은 손대지 않는다 (#2 D-4) ──
+    if (mode === 'reissue') {
+      const { data: target } = await admin.from('fire_plans')
+        .select('id, pdf_path, html_path').eq('id', opts.targetPlanId!).single()
+      if (!target) {
+        await admin.storage.from(BUCKET).remove([`${base}.pdf`, `${base}.html`])
+        return { error: '갱신 대상을 찾을 수 없습니다.' }
+      }
+      const old = target as { id: string; pdf_path: string | null; html_path: string | null }
+      const { error: updErr } = await admin.from('fire_plans').update({
+        pdf_path: `${base}.pdf`, html_path: `${base}.html`, pdf_status: 'ready', source_hash: sourceHash,
+      } as Record<string, unknown>).eq('id', old.id)
+      if (updErr) {
+        await admin.storage.from(BUCKET).remove([`${base}.pdf`, `${base}.html`])
+        return { error: `보관함 갱신 실패: ${updErr.message}` }
+      }
+      // 교체가 확정된 뒤에만 옛 파일을 지운다 — 먼저 지우면 update 실패 시 복구 불가
+      const stale = [old.pdf_path, old.html_path].filter((p): p is string => !!p && p !== `${base}.pdf` && p !== `${base}.html`)
+      if (stale.length > 0) await admin.storage.from(BUCKET).remove(stale)
+      return { planId: old.id, missing, sourceHash }
+    }
+
     // 보관함 등록 — 개정 차수 = 같은 연도 기존 행 수 + 1 (워커와 동일 규약)
     const { data: existing } = await admin.from('fire_plans')
       .select('id').eq('customer_id', customerId).eq('year', year)
@@ -463,6 +529,7 @@ export async function generateFirePlanNow(
       hwp_name: null,
       hwp_path: null,
       revision: revisionNo,
+      source_hash: sourceHash,
       note: `자동 생성 (표준양식 웹 템플릿${preset ? `, ${preset} 프리셋` : ''})`,
       uploaded_by: opts.requestedBy ?? null,
     } as Record<string, unknown>).select('id').single()
@@ -480,7 +547,7 @@ export async function generateFirePlanNow(
       authorName: data.managerName,
       createdBy: opts.requestedBy ?? null,
     }).catch(() => {})
-    return { planId, missing }
+    return { planId, missing, sourceHash }
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) }
   }

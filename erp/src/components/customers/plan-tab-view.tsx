@@ -1,16 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FileOutput, Download, Loader2, Save, Info } from 'lucide-react'
-import {
-  requestFirePlanHwpFromTabAction, saveFirePlanRevisionAction,
-  importLegacyFormAction,
-} from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { Download, Loader2, Info } from 'lucide-react'
+import { importLegacyFormAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { applyPlanTextDefaultsAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
-import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
@@ -66,7 +61,7 @@ const CH1_FORMS = [
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
 
 export function PlanTabView({
-  customerId, canManage, purpose, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus, archive,
+  customerId, canManage, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
   annex, ledgerAutoNeeded, textDefaultsNeeded,
 }: {
@@ -74,7 +69,7 @@ export function PlanTabView({
   canManage: boolean
   ledgerAutoNeeded?: boolean   // 진입 시 자동 대장 조회 대상: bcode 있고 아직 미동기화(ledger_synced_at null)
   textDefaultsNeeded?: boolean // 진입 시 공통 서술 기본항목 자동주입 대상: 기본항목 있고 스탬프 없는 섹션 존재 (소방계획서_15_별도라이브러리 §4-0)
-  purpose: string | null
+  // purpose는 생성 버튼(프리셋 추천) 전용이었고 보관함으로 이관했다 (소방계획서_21 R2-11)
   readiness: { done: number; total: number; missing: string[] }
   revisionYears: RevisionYearGroup[]   // 개정이력 연도별 히스토리 (120 — 소방계획서_17)
   importCandidate?: boolean
@@ -171,7 +166,8 @@ export function PlanTabView({
   // 생성 연도 = 올해 자동 (2026-08-10 사용자 확정 — 생성 바의 연도 입력칸 폐지.
   // 커버·표지의 연도 표기는 '보고서 커버' 서식이 담당하고, 보관함 연도 축·개정 차수 규약은 불변)
   const currentYear = new Date().getFullYear()
-  const [isPending, startTransition] = useTransition()
+  // 종전 useTransition은 생성 버튼 전용이었다 — 보관함 이관으로 제거 (R2-11).
+  // 대장 자동조회·임포트는 각자의 transition을 따로 쓴다(아래)
   const [msg, setMsg] = useState('')
   // 대장 수동 미리보기·확정 저장(구 [건축물대장 불러오기])은 빠른 입력 페이지와 함께 폐기(2026-08-06).
   // 대체 경로: 진입 시 자동 반영(아래) + 1.1 [건축물대장에서 다시 가져오기] + 건물·시설 탭 수기 입력.
@@ -269,15 +265,10 @@ export function PlanTabView({
     })
   }
 
-  function generateHwp() {
-    setMsg('')
-    startTransition(async () => {
-      const res = await requestFirePlanHwpFromTabAction(customerId, currentYear, recommendPresetType(purpose))
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg('✅ 소방계획서 생성 완료 — 보관함에 등록되었습니다')
-      router.refresh()
-    })
-  }
+  // 생성 버튼은 보관함으로 이관했다 (소방계획서_21 R2-11 / #2 D-1) —
+  // 생성물이 쌓이는 곳에서 생성해야 결과가 그 자리에 바로 보인다. 프리셋(recommendPresetType)도 함께 옮겼다.
+  // 종전 라벨 '계획서 생성 (HWP+PDF)'는 사실과 달랐다: 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤
+  // hwp_path에 null을 넣으므로 HWP는 생성되지 않는다.
 
   const pct = readiness.total > 0 ? Math.round((readiness.done / readiness.total) * 100) : 0
   // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
@@ -306,17 +297,9 @@ export function PlanTabView({
             ))}
           </span>
         )}
-        {/* 구 보고서 센터 역링크 제거 — 이 트리(별지 서식)가 문서 현황의 단일 허브 (소방계획서_8 Phase B) */}
-        {canManage && (
-          <div className="flex items-center gap-1.5 ml-auto">
-            {/* 연도 입력칸 폐지(2026-08-10 사용자 확정) — 올해 자동. 커버 연도 표기는 '보고서 커버' 서식에서 */}
-            <button onClick={generateHwp} disabled={isPending}
-              title="소방계획서 생성 (§7-5 HWP 단일 경로) — 워커(한글 SDK)가 HWP+웹 미리보기+PDF를 보관함에 등록"
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileOutput className="size-3.5" />} 계획서 생성 (HWP+PDF)
-            </button>
-          </div>
-        )}
+        {/* 구 보고서 센터 역링크 제거 — 이 트리(별지 서식)가 문서 현황의 단일 허브 (소방계획서_8 Phase B)
+            생성 버튼 제거(R2-11) — 조회는 보관함 [현재 내용], 발행은 보관함 [개정 발행]으로 일원화.
+            준비율 게이지·누락 칩은 입력처 점프 기능이라 여기 남긴다 */}
       </div>
       {msg && <p className="text-xs text-[#514b81] mb-3">{msg}</p>}
 
@@ -369,14 +352,14 @@ export function PlanTabView({
           const v = fs[f.key]
           return typeof v === 'object' ? v.done >= v.total : v === true
         }).length
-        {/* 소방계획서_8 D-12: 3그룹 재편 — 📘 본문(1~3장) / 📑 별지 서식(회차) / 🗂 보관함·개정이력(맨 아래) */}
+        {/* 소방계획서_8 D-12 3그룹 재편 → 14.md #16(2026-08-11): 📘 본문(1~3장) / 🗂 보관함·개정이력 / 📑 별지 서식(맨 아래) */}
         const NAV_ALL = [
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
           { key: 'cover', label: '본문 보고서 커버' },
-          { key: 'annex', label: '별지 서식 (회차)' },
           { key: 'archive', label: '보관함·개정이력' },
+          { key: 'annex', label: '별지 서식 (회차)' },
         ]
         return (
         <div className="flex gap-4 items-start">
@@ -395,16 +378,14 @@ export function PlanTabView({
               {navBtn('cover', '보고서 커버', true)}
             </div>
             {/* 🖼 지도·사진 노드 폐지(2026-08-08 사용자 확정) — 표지·위치도·피난안내도 슬롯은 1.3 안으로 이관 */}
-            <div className="pt-1">
-              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
-              {navBtn('annex', '회차별 작성·조회', true)}
-            </div>
-            {/* 소방계획서_17 Q-4 — 별지를 보관함 아래로 내리지 않는다.
-                별지는 회차마다 쓰는 '작성' 화면이고 보관함은 완료물 조회라, 빈도 높은 쪽을 내리면 동선이 나빠진다.
-                대신 구분선을 그룹 라벨로 승격해 위(작성)/아래(보관·이력)의 성격 차이를 화면에 드러낸다. */}
+            {/* 14.md #16 — 별지를 보관·이력 아래(맨 아래)로 이동 (2026-08-11 사용자 재확정, 구 Q-4 순서 유지안 대체) */}
             <div className="pt-2 mt-1.5 border-t border-[#eceafd]">
               <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">🗂 보관·이력</p>
               {navBtn('archive', '보관함·개정이력')}
+            </div>
+            <div className="pt-2 mt-1.5 border-t border-[#eceafd]">
+              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
+              {navBtn('annex', '회차별 작성·조회', true)}
             </div>
           </aside>
 
