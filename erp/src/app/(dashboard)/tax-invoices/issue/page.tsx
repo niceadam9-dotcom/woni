@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { TaxInvoiceIssueClient } from '@/components/billing/tax-invoice-issue-client'
 
 interface Props {
@@ -37,10 +38,15 @@ export default async function TaxInvoiceIssuePage({ searchParams }: Props) {
     .limit(1)
     .single()
 
+  const co = (company ?? {}) as Record<string, unknown>
   return (
     <TaxInvoiceIssueClient
       bill={bill as Record<string, unknown>}
-      company={(company ?? {}) as Record<string, unknown>}
+      company={{
+        ...co,
+        business_number: formatBizNo(co.business_number as string | null),
+        phone: formatTel(co.phone as string | null),
+      }}
     />
   )
 }

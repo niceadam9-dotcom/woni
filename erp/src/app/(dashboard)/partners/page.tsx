@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Handshake, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { formatBizNo, formatTel } from '@/lib/format-contact'
 
 const TYPE_LABELS: Record<string, string> = {
   supplier: '공급업체', subcontractor: '협력업체', client: '고객사', other: '기타',
@@ -43,10 +44,13 @@ export default async function PartnersPage({
   let rows = (partners ?? []) as PartnerRow[]
   if (q) {
     const lq = q.toLowerCase()
+    // 사업자번호는 하이픈 유무와 무관하게 매칭 — 표시 정규화 이후에도 숫자만 검색 가능
+    const qDigits = q.replace(/\D/g, '')
     rows = rows.filter(r =>
       r.partner_name.toLowerCase().includes(lq) ||
       (r.representative ?? '').toLowerCase().includes(lq) ||
-      (r.business_number ?? '').includes(q)
+      (r.business_number ?? '').includes(q) ||
+      (qDigits.length > 0 && (r.business_number ?? '').replace(/\D/g, '').includes(qDigits))
     )
   }
   if (typeFilter) rows = rows.filter(r => r.partner_type === typeFilter)
@@ -121,9 +125,9 @@ export default async function PartnersPage({
                         {TYPE_LABELS[r.partner_type] ?? r.partner_type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs font-mono text-[#514b81]">{r.business_number ?? '-'}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-[#514b81]">{r.business_number ? formatBizNo(r.business_number) : '-'}</td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">{r.representative ?? '-'}</td>
-                    <td className="px-4 py-3 text-xs text-[#514b81]">{r.phone ?? '-'}</td>
+                    <td className="px-4 py-3 text-xs text-[#514b81]">{r.phone ? formatTel(r.phone) : '-'}</td>
                     <td className="px-4 py-3 text-xs text-[#514b81] max-w-[140px] truncate">{r.address ?? '-'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${r.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/auth'
+import { formatBizNo, formatTel } from '@/lib/format-contact'
 
 export type PartnerType = 'supplier' | 'subcontractor' | 'client' | 'other'
 
@@ -28,9 +29,9 @@ export async function createPartnerAction(
     .insert({
       partner_name: input.partner_name,
       partner_type: input.partner_type,
-      business_number: input.business_number || null,
+      business_number: input.business_number ? formatBizNo(input.business_number) : null,
       representative: input.representative || null,
-      phone: input.phone || null,
+      phone: input.phone ? formatTel(input.phone) : null,
       email: input.email || null,
       address: input.address || null,
       notes: input.notes || null,
@@ -53,9 +54,9 @@ export async function updatePartnerAction(input: CreatePartnerInput & { id: stri
     .update({
       partner_name: input.partner_name,
       partner_type: input.partner_type,
-      business_number: input.business_number || null,
+      business_number: input.business_number ? formatBizNo(input.business_number) : null,
       representative: input.representative || null,
-      phone: input.phone || null,
+      phone: input.phone ? formatTel(input.phone) : null,
       email: input.email || null,
       address: input.address || null,
       notes: input.notes || null,

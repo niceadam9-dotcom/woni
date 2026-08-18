@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, MapPin, Phone, Mail, User, Building, Hash } from 'lucide-react'
 import { createPartnerAction, updatePartnerAction, type PartnerType } from '@/app/(dashboard)/partners/actions'
+import { formatPhoneKR } from '@/components/ui/fields'
+import { formatBizNo, formatBizNoKR, formatTel } from '@/lib/format-contact'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 const labelCls = 'text-xs font-medium text-[#514b81]'
@@ -39,9 +41,9 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
   const [form, setForm] = useState({
     partner_name: existing?.partner_name ?? '',
     partner_type: (existing?.partner_type ?? 'supplier') as PartnerType,
-    business_number: existing?.business_number ?? '',
+    business_number: formatBizNo(existing?.business_number),
     representative: existing?.representative ?? '',
-    phone: existing?.phone ?? '',
+    phone: formatTel(existing?.phone),
     email: existing?.email ?? '',
     address: existing?.address ?? '',
     notes: existing?.notes ?? '',
@@ -114,8 +116,8 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
           <Field label="사업자등록번호">
             <div className="relative">
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-              <input value={form.business_number} onChange={e => setField('business_number', e.target.value)}
-                placeholder="000-00-00000" className={`${inputCls} pl-8`} />
+              <input value={form.business_number} onChange={e => setField('business_number', formatBizNoKR(e.target.value))}
+                inputMode="numeric" placeholder="000-00-00000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="대표자">
@@ -131,8 +133,8 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
           <Field label="연락처">
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
-              <input value={form.phone} onChange={e => setField('phone', e.target.value)}
-                placeholder="02-0000-0000" className={`${inputCls} pl-8`} />
+              <input value={form.phone} onChange={e => setField('phone', formatPhoneKR(e.target.value))}
+                inputMode="tel" placeholder="02-0000-0000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="이메일">

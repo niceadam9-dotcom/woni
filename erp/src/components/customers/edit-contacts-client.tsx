@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame } from 'lucide-react'
 import { upsertContactAction, getMyAddressContactsAction } from '@/app/(dashboard)/customers/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { formatPhoneKR } from '@/components/ui/fields'
+import { formatTel } from '@/lib/format-contact'
 import type { CustomerContact, ContactRole } from '@/types'
 
 const ROLES: ContactRole[] = ['대표', '직원1', '직원2']
@@ -43,7 +45,7 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
     }
   }
   function applyBookEntry(e: AddressEntry) {
-    setForm(s => ({ ...s, name: e.name, phone: e.phone || s.phone, email: e.email || s.email, position: e.position || s.position }))
+    setForm(s => ({ ...s, name: e.name, phone: e.phone ? formatTel(e.phone) : s.phone, email: e.email || s.email, position: e.position || s.position }))
     setShowBook(false)
   }
   function copyPhone(phone: string) {
@@ -57,7 +59,7 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
     const existing = contacts.find(c => c.role === role)
     setForm({
       name: existing?.name ?? '',
-      phone: existing?.phone ?? '',
+      phone: formatTel(existing?.phone),
       email: existing?.email ?? '',
       position: existing?.position ?? '',
       birth_date: existing?.birth_date ?? '',
@@ -149,7 +151,7 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
                   type="tel"
                   placeholder="연락처"
                   value={form.phone}
-                  onChange={e => setForm(s => ({ ...s, phone: e.target.value }))}
+                  onChange={e => setForm(s => ({ ...s, phone: formatPhoneKR(e.target.value) }))}
                   className="w-full text-sm px-3 py-2 border border-[#c8c4d0] rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#7b68ee]"
                 />
                 <input
@@ -224,7 +226,7 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
                 {contact!.phone && (
                   <span className="flex items-center gap-1 text-xs text-[#514b81]">
                     <Phone className="size-3 text-[#b0acd6]" />
-                    <a href={`tel:${contact!.phone}`} className="hover:text-[#7b68ee] hover:underline">{contact!.phone}</a>
+                    <a href={`tel:${contact!.phone}`} className="hover:text-[#7b68ee] hover:underline">{formatTel(contact!.phone)}</a>
                     <button onClick={() => copyPhone(contact!.phone!)} title="복사"
                       className="p-0.5 text-[#b0acd6] hover:text-[#7b68ee]">
                       <Copy className="size-3" />
