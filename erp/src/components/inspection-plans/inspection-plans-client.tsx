@@ -17,8 +17,10 @@ import {
   confirmPlanItemStageOneAction, moveMonthlyPlanItemAction,
   bulkConfirmPlanItemsAction,
 } from '@/app/(dashboard)/inspection-plans/actions'
+import { hangulMatch } from '@/lib/hangul'
 import { PlanItemSlidePanel } from './plan-item-slide-panel'
 import { TableScroll } from '@/components/ui/table-scroll'
+import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddPlanItemModal } from './add-plan-item-modal'
 import { OverdueResolveModal } from './overdue-resolve-modal'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
@@ -112,10 +114,11 @@ interface Props {
   isEmployee?: boolean
   /** 월 이동 시 보기 모드 유지 — URL ?view= 에서 복원 (key 리마운트 대응) */
   initialViewMode?: 'calendar' | 'list'
-  /** 월 이동 시 필터 유지 — URL ?type=/?status=/?emp= 에서 복원 (key 리마운트 대응) */
+  /** 월 이동 시 필터 유지 — URL ?type=/?status=/?emp=/?cust= 에서 복원 (key 리마운트 대응) */
   initialFilterPlanType?: string
   initialFilterStatus?: string
   initialFilterEmployee?: string
+  initialFilterCustomer?: string
 }
 
 export function InspectionPlansClient({
@@ -134,6 +137,7 @@ export function InspectionPlansClient({
   initialFilterPlanType = 'all',
   initialFilterStatus = 'planned',
   initialFilterEmployee = 'all',
+  initialFilterCustomer = '',
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -152,6 +156,7 @@ export function InspectionPlansClient({
   const [filterEmployee, setFilterEmployee] = useState<string>(initialFilterEmployee)
   const [filterStatus,   setFilterStatus]   = useState<string>(initialFilterStatus)
   const [filterPlanType, setFilterPlanType] = useState<string>(initialFilterPlanType)
+  const [filterCustomer, setFilterCustomer] = useState<string>(initialFilterCustomer)
 
   // 필터 변경을 URL에 기록 — 월 이동(key 리마운트)·새로고침 후에도 유지
   useEffect(() => {
@@ -159,8 +164,9 @@ export function InspectionPlansClient({
     if (filterPlanType === 'all') sp.delete('type'); else sp.set('type', filterPlanType)
     if (filterStatus === 'planned') sp.delete('status'); else sp.set('status', filterStatus)
     if (filterEmployee === 'all') sp.delete('emp'); else sp.set('emp', filterEmployee)
+    if (!filterCustomer.trim()) sp.delete('cust'); else sp.set('cust', filterCustomer.trim())
     window.history.replaceState(null, '', `?${sp.toString()}`)
-  }, [filterPlanType, filterStatus, filterEmployee])
+  }, [filterPlanType, filterStatus, filterEmployee, filterCustomer])
 
   const [selectedItem, setSelectedItem]     = useState<ItemView | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -192,10 +198,20 @@ export function InspectionPlansClient({
     return item.status === status && item.customers?.is_active !== false
   }
 
-  // 담당자 + 점검유형까지만 적용한 기준 집합 (상태별 현황 카운트는 이 위에서 계산)
+  // 고객명 검색 — 부분 일치 + 초성(lib/hangul). 검색어가 비면 통과시켜 종전 동작 그대로.
+  const custQuery = filterCustomer.trim()
+  function matchCustomer(item: ItemView) {
+    if (!custQuery) return true
+    const name = (item.customers as { customer_name: string } | null)?.customer_name ?? ''
+    return hangulMatch(name, custQuery)
+  }
+
+  // 담당자 + 점검유형 + 고객명까지 적용한 기준 집합 (상태별 현황 카운트는 이 위에서 계산 —
+  // 검색 중에는 칩 숫자도 검색 결과 기준이어야 "확정 3건"이 목록과 어긋나지 않는다)
   const baseItems = items.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
     if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
+    if (!matchCustomer(item)) return false
     return true
   })
 
@@ -210,10 +226,11 @@ export function InspectionPlansClient({
   // 목록 뷰 최종 필터 (상태까지 적용)
   const filteredItems = baseItems.filter(item => matchStatus(item, filterStatus))
 
-  // 달력 뷰 필터 (담당자 + 점검유형 적용, 상태 필터 무시 — 달력은 전체 일정을 보여줌)
+  // 달력 뷰 필터 (담당자 + 점검유형 + 고객명 적용, 상태 필터만 무시 — 달력은 전체 일정을 보여줌)
   const calendarItems = items.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
     if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
+    if (!matchCustomer(item)) return false
     return true
   })
   const itemsByDate = calendarItems.reduce<Record<string, ItemView[]>>((acc, item) => {
@@ -426,8 +443,17 @@ export function InspectionPlansClient({
           })}
         </div>
 
-        {/* 담당자 + 점검유형 필터 */}
+        {/* 고객명 검색 + 담당자 + 점검유형 필터 */}
         <div className="flex items-center gap-2 px-4 py-2 flex-wrap">
+          {/* 고객명 검색 — 목록·달력 양쪽에 적용. 활성 고객을 이미 통째로 받아뒀으므로 서버 왕복이 없다 */}
+          <CustomerFilterSearch
+            customers={customers.map(c => ({ id: c.id, name: c.customer_name }))}
+            value={filterCustomer}
+            onChange={setFilterCustomer}
+            testId="plans-customer-search"
+          />
+          <div className="w-px h-5 bg-[#e0ddf5]" />
+
           {/* 담당자 필터 — B안: 전 직원 표시 */}
           <select
             value={filterEmployee}
@@ -465,6 +491,23 @@ export function InspectionPlansClient({
         </div>
       </div>
 
+      {/* 검색 중 안내 — 달력 뷰는 빈 칸이 '일정 없음'처럼 보여 원인을 알 수 없다(목록은 빈 상태 카드가 알린다) */}
+      {custQuery && viewMode === 'calendar' && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] text-xs text-[#514b81]">
+          <Filter className="size-3.5 text-[#7b68ee]" />
+          <span>
+            &lsquo;<b className="text-[#090c1d]">{custQuery}</b>&rsquo; 검색 중 — {calendarItems.length}건만 표시됩니다.
+          </span>
+          <button
+            onClick={() => setFilterCustomer('')}
+            data-testid="plans-cal-clear-search"
+            className="ml-auto underline hover:text-[#7b68ee]"
+          >
+            검색 해제
+          </button>
+        </div>
+      )}
+
       {/* 메인 뷰 (전체 너비) */}
       <div>
         {viewMode === 'calendar' ? (
@@ -496,6 +539,8 @@ export function InspectionPlansClient({
             planYear={viewYear}
             planMonth={viewMonth}
             holidays={holidays}
+            custQuery={custQuery}
+            onClearCustomer={() => setFilterCustomer('')}
           />
         )}
       </div>
@@ -932,10 +977,13 @@ function InlineDateCell({
 // ── 목록 뷰 ──────────────────────────────────────────────────
 function ListView({
   items, customers, employees, canManage, isEmployee, isPending, onItemClick, onStart, onRefresh, planYear, planMonth, holidays,
+  custQuery, onClearCustomer,
 }: {
   items: ItemView[]; customers: CustomerOption[]; employees: Employee[]; canManage: boolean; isEmployee: boolean; isPending: boolean
   onItemClick: (item: ItemView) => void; onStart: (item: ItemView) => void
   onRefresh: () => void; planYear: number; planMonth: number; holidays: string[]
+  /** 빈 화면의 원인을 가리기 위해 검색어를 함께 받는다 — '계획이 없다'와 '검색에 안 걸렸다'는 다른 상황 */
+  custQuery: string; onClearCustomer: () => void
 }) {
   const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set())
   const [bulkPending, startBulkTransition]  = useTransition()
@@ -988,7 +1036,22 @@ function ListView({
     return (
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-12 text-center">
         <Calendar className="size-8 text-[#b0acd6] mx-auto mb-3" />
-        <p className="text-sm text-[#514b81]">이 달의 점검 계획이 없습니다.</p>
+        {custQuery ? (
+          <>
+            <p className="text-sm text-[#514b81]">
+              &lsquo;<b className="text-[#090c1d]">{custQuery}</b>&rsquo; 검색 결과가 없습니다.
+            </p>
+            <button
+              onClick={onClearCustomer}
+              data-testid="plans-empty-clear-search"
+              className="mt-3 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+            >
+              검색 해제
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-[#514b81]">이 달의 점검 계획이 없습니다.</p>
+        )}
       </div>
     )
   }

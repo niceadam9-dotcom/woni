@@ -38,7 +38,7 @@ export type OverdueItem = {
 export default async function InspectionPlansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; month?: string; view?: string; type?: string; status?: string; emp?: string }>
+  searchParams: Promise<{ year?: string; month?: string; view?: string; type?: string; status?: string; emp?: string; cust?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -52,6 +52,8 @@ export default async function InspectionPlansPage({
   const filterPlanType = ['special_종합', 'special_작동', 'monthly', 'event'].includes(sp.type ?? '') ? sp.type! : 'all'
   const filterStatus   = ['all', 'confirmed', 'completed', 'cancelled'].includes(sp.status ?? '') ? sp.status! : 'planned'
   const filterEmployee = sp.emp || 'all'
+  // 고객명 검색어 — 필터링은 클라이언트가 한다(활성 고객을 통째로 넘기므로). 여기선 복원만.
+  const filterCustomer = (sp.cust ?? '').slice(0, 100)
 
   const admin = createAdminClient()
 
@@ -177,6 +179,7 @@ export default async function InspectionPlansPage({
       initialFilterPlanType={filterPlanType}
       initialFilterStatus={filterStatus}
       initialFilterEmployee={filterEmployee}
+      initialFilterCustomer={filterCustomer}
       initialPlans={(plans ?? []) as InspectionPlan[]}
       initialItems={items}
       initialYear={year}
