@@ -138,6 +138,37 @@ try {
   const { overviews: ov4 } = await buildSheetOverviews(
     raw as never, ['00000000-0000-0000-0000-000000000000'], { id: userId, role: 'admin' })
   check('없는 회차 → 빈 결과', Object.keys(ov4).length === 0)
+
+  // 11) S7-27 — 다중이용 입력 단일화 노출 규칙 (22 Q-10·S14-4/5 위임분)
+  //     multiUse 업종 ≥1 → STD-32 installed 취급(설비 맵 미등재 예외) + MU-01 숨김(레거시 응답은 보존)
+  {
+    // 사전: multiUse 아님 — MU-01 노출·STD-32는 미설치 취급
+    const pre = ov3[inspId]
+    check('S7-27 사전 — multiUse 아님: MU-01 포함', pre.sheets.some(s => s.sheetCode === 'MU-01'))
+    check('S7-27 사전 — STD-32 installed=false', pre.sheets.find(s => s.sheetCode === 'STD-32')?.installed === false)
+
+    await raw.from('fire_plan_forms').insert({
+      customer_id: custId, sections: { multiUse: { applicable: true, categories: { '노래연습장업': '2' } } },
+    })
+    const { overviews: ovMu } = await buildSheetOverviews(raw as never, [inspId], { id: userId, role: 'admin' })
+    const mu = ovMu[inspId]
+    check('S7-27 — multiUse: STD-32 installed=true(노출 예외)', mu.sheets.find(s => s.sheetCode === 'STD-32')?.installed === true)
+    check('S7-27 — multiUse: MU-01 숨김', !mu.sheets.some(s => s.sheetCode === 'MU-01'),
+      JSON.stringify(mu.sheets.filter(s => s.sheetCode === 'MU-01').map(s => s.sheetCode)))
+    check('S7-27 — 입력 화면 다중이용 시트 1개(합격선 22 S14-5)',
+      mu.sheets.filter(s => s.sheetCode === 'STD-32' || s.sheetCode === 'MU-01').length === 1)
+
+    // 레거시 보존 — MU 직접 응답이 이미 있으면 숨기지 않는다
+    await raw.from('inspection_sheet_responses').insert({
+      inspection_id: inspId, item_code: 'MU-001', result: 'O', updated_by: userId,
+    })
+    const { overviews: ovLg } = await buildSheetOverviews(raw as never, [inspId], { id: userId, role: 'admin' })
+    const lg = ovLg[inspId].sheets.find(s => s.sheetCode === 'MU-01')
+    check('S7-27 — 레거시 MU 응답 보존: MU-01 재노출·responded 반영', !!lg && lg.responded === 1,
+      JSON.stringify(lg && { r: lg.responded }))
+    await raw.from('inspection_sheet_responses').delete().eq('inspection_id', inspId).eq('item_code', 'MU-001')
+    await raw.from('fire_plan_forms').delete().eq('customer_id', custId)
+  }
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

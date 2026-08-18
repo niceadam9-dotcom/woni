@@ -31,7 +31,6 @@ export function useSheetResponsesRealtime(
     const supabase = createClient()
     let disposed = false
     let selfId: string | null = null
-    supabase.auth.getUser().then(({ data }) => { selfId = data.user?.id ?? null }).catch(() => {})
 
     // 디바운스는 점검 건별 — 서로 다른 건의 이벤트가 상대 타이머를 밀지 않는다
     const timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -67,14 +66,26 @@ export function useSheetResponsesRealtime(
     channel.on('postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'inspection_sheet_responses' },
       () => { ids.forEach(fire) })
-    channel.subscribe(status => {
-      if (disposed || fallback) return
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        fallback = true
-        window.addEventListener('focus', onWake)
-        document.addEventListener('visibilitychange', onWake)
-      }
-    })
+    // ⚠ 세션 로드 **후** 조인 (S5-7 보강, 실측 2026-08-15): WALRUS(RLS 필터)는 조인 시점의
+    // access_token 역할로 이벤트를 거른다. 마운트 직후 바로 subscribe하면 쿠키 세션이 아직
+    // 안 실려 anon으로 붙고 — {authenticated} 한정 정책이라 조인은 성공하는데 이벤트가 0건이다
+    // (join 프레임에 access_token 부재를 웹소켓 실측으로 확인). INITIAL_SESSION은 supabase-js가
+    // realtime 토큰을 갱신해 주지 않으므로 여기서 setAuth를 직접 부른다.
+    const start = (token: string | null) => {
+      if (disposed) return
+      supabase.realtime.setAuth(token)
+      channel.subscribe(status => {
+        if (disposed || fallback) return
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          fallback = true
+          window.addEventListener('focus', onWake)
+          document.addEventListener('visibilitychange', onWake)
+        }
+      })
+    }
+    supabase.auth.getSession()
+      .then(({ data }) => { selfId = data.session?.user.id ?? null; start(data.session?.access_token ?? null) })
+      .catch(() => start(null))
 
     return () => {
       disposed = true

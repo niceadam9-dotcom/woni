@@ -174,12 +174,25 @@ export async function buildSheetOverviews(
     else facByCustomer.set(cid, [f.facility_code])
   }
 
+  // ⑦ 다중이용업소 판별 (S7-27 — 22 Q-10·S14-4/5 위임) — 인쇄 조립·번들 공란 리포트와 같은 축
+  //   (서식 1.10.3 sections.multiUse 업종 ≥1, bundle-actions.ts:94-96과 동일식).
+  //   STD-32는 SHEET_FACILITY_MAP 미등재라 installed 축에 안 잡힌다 — multiUse면 노출 예외.
+  const { data: formRaw } = await admin.from('fire_plan_forms')
+    .select('customer_id, sections').in('customer_id', customerIds)
+  const multiUseByCustomer = new Map<string, boolean>()
+  for (const row of (formRaw ?? []) as Array<{ customer_id: string; sections: Record<string, unknown> | null }>) {
+    const mu = (row.sections?.['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
+    if (!!mu?.applicable && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim()))
+      multiUseByCustomer.set(row.customer_id, true)
+  }
+
   // ── in-memory 집계 ──
   const overviews: Record<string, SheetOverview> = {}
   for (const insp of insps) {
     const scope = scopeById.get(insp.id)!
     const responses = respByInsp.get(insp.id) ?? new Map<string, SheetResult>()
     const facilityCodes = facByCustomer.get(insp.customer_id) ?? []
+    const multiUse = multiUseByCustomer.get(insp.customer_id) ?? false
 
     const progress: SheetProgress[] = []
     const seenCodes = new Set<string>()   // 회차 합계용 — 시트 간 중복 코드 이중 계상 방지
@@ -213,6 +226,10 @@ export async function buildSheetOverviews(
         }
       }
       if (codes.size === 0) continue
+      // S7-27 — 다중이용 입력 단일화: multiUse 고객은 STD-32(안전시설등 세부)로만 입력하고
+      // MU-01(16칸 직접 입력)은 숨긴다. 별지4호 2쪽 16칸은 STD-32 롤업이 파생(22 S14).
+      // 레거시로 MU 직접 응답이 이미 있는 건은 보존 — 숨기면 기존 입력이 유령이 된다.
+      if (multiUse && sheet.sheet_code === 'MU-01' && ![...codes].some(c => responses.has(c))) continue
 
       const counts = { O: 0, X: 0, N: 0 }
       let responded = 0
@@ -230,7 +247,9 @@ export async function buildSheetOverviews(
       progress.push({
         sheetId: sheet.id, sheetCode: sheet.sheet_code, sheetName: sheet.sheet_name,
         total: codes.size, responded, counts,
-        installed: sheetMatchesFacilities(sheet.sheet_name, facilityCodes),
+        // S7-27 노출 예외 — STD-32는 설비 맵 미등재라 multiUse 판별로 installed 취급(필터·정렬 동일 취급)
+        installed: sheetMatchesFacilities(sheet.sheet_name, facilityCodes)
+          || (sheet.sheet_code === 'STD-32' && multiUse),
         groups: buckets
           ? [...buckets.values()].sort((a, b) => (a.groupOrder - b.groupOrder) || a.groupCode.localeCompare(b.groupCode))
           : undefined,
