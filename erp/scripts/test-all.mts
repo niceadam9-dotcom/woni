@@ -18,6 +18,8 @@ const steps: Step[] = [
   { name: '점검표 트리 인라인(E2E)',    cmd: 'npx tsx scripts/test-annex-sheet-inline.mts',  needServer: true },
   // 고객명 검색은 목록을 거르는 축이라 조용히 깨지면 '검색해도 안 나온다'로만 드러난다
   { name: '점검 고객명 검색(E2E)',      cmd: 'npx tsx scripts/test-inspection-customer-search.mts', needServer: true },
+  // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
+  { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
   // 소방계획서_18 S4 — 과거본 정리는 되돌릴 수 없는 삭제라 게이트·대상 판정을 상시 고정한다
   { name: '보관함 과거본 정리(E2E)',    cmd: 'npx tsx scripts/test-archive-cleanup.mts',     needServer: true },
   // 실패 경로는 서버 없이 검증한다 — Storage 실패를 경계에서 주입해 "파일을 다 못 지우면 행도 안 지운다"를 고정

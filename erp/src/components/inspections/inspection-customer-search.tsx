@@ -33,6 +33,16 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
     }
   }, [])
 
+  // 밖에서 검색어가 바뀌면 따라간다 — [최근 본 고객] 칩·초기화처럼 클라이언트 내비게이션으로
+  // 오는 경로는 이 컴포넌트를 다시 마운트하지 않아, useState 초기값만으로는 입력창이 빈 채로
+  // 남는다. 그러면 필터가 걸린 줄 모르고 다른 조건을 바꿔 제출해 q가 조용히 풀린다.
+  useEffect(() => {
+    setValue(defaultValue)
+    setSug([])
+    setOpen(false)
+    setActive(-1)
+  }, [defaultValue])
+
   function handleChange(v: string) {
     setValue(v)
     setActive(-1)

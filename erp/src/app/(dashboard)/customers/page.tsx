@@ -9,6 +9,7 @@ import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { ClickableRow } from '@/components/customers/clickable-row'
 import { CustomerViewTabs } from '@/components/customers/customer-view-tabs'
+import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { InspectionType, UserRole } from '@/types'
@@ -93,6 +94,9 @@ export default async function CustomersPage({
 
       {/* 뷰 탭 — 고객 목록 / 점검 대장 (소방계획서_21 R8-3, 같은 원천을 다른 열 구성으로) */}
       <CustomerViewTabs />
+
+      {/* 최근 본 고객 — 목록 정렬은 그대로 두고 바로가기만 얹는다(정렬을 섞으면 순서가 불안정해진다) */}
+      <RecentCustomersStrip userId={profile.id} linkMode="detail" />
 
       {/* 검색/필터 */}
       <form method="GET" action="/customers" className="flex flex-wrap items-center gap-2">

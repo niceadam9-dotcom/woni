@@ -5,6 +5,7 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { InspectionCustomerSearch } from '@/components/inspections/inspection-customer-search'
+import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
@@ -167,6 +168,9 @@ export default async function InspectionsPage({
           </div>
         </div>
       </div>
+
+      {/* 최근 본 고객 — 칩을 누르면 그 고객으로 목록을 거른다(고객명 검색 축 재사용) */}
+      <RecentCustomersStrip userId={profile.id} linkMode="inspection-filter" activeName={q} />
 
       {/* 필터 */}
       <form method="GET" action="/inspections" className="flex flex-wrap items-center gap-2">

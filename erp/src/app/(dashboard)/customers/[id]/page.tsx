@@ -30,6 +30,7 @@ import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSecti
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
+import { RecordRecentCustomer } from '@/components/customers/recent-customers-strip'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
 import { CustomerSummaryPanel } from '@/components/customers/customer-summary-panel'
 import { CustomerPrevNext } from '@/components/customers/customer-prev-next'
@@ -884,6 +885,8 @@ export default async function CustomerDetailPage({
 
   return (
     <div className="space-y-6">
+      {/* 최근 본 고객 기록 (목록 스트립의 원천) — 렌더 없음 */}
+      <RecordRecentCustomer userId={profile.id} customerId={customer.id} customerName={customer.customer_name} />
       {/* 뒤로가기 + 헤더 */}
       <div className="flex items-center gap-3 max-w-3xl xl:max-w-none">
         <Link href="/customers" className="text-[#514b81] hover:text-[#7b68ee] transition-colors">
