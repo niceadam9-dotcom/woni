@@ -9,8 +9,10 @@
  *  활성화: 규약 전환(23 Q-19 구현)이 운영 배포되는 날 그 날짜를 CUTOFF에 기입한다.
  *  null인 동안은 가드가 조용히 통과한다 — 코드가 먼저 배포돼도 아무 건도 막지 않는다. */
 
-/** 규약 전환일 (YYYY-MM-DD) — 23 Q-19 운영 배포일에 확정 기입. null = 가드 비활성 */
-export const REGEN_POLICY_CUTOFF: string | null = null
+/** 규약 전환일 (YYYY-MM-DD) — 23 Q-19 운영 배포일에 확정 기입. null = 가드 비활성
+ *  2026-08-18: 운영 DB 마이그레이션 132~138 적용일. 서버는 정지 상태라 이날 이전의 운영 건
+ *  전부가 구 규약 입력분 — 재기동 후 생성되는 건만 새 규약으로 허용된다. */
+export const REGEN_POLICY_CUTOFF: string | null = '2026-08-18'
 
 /** 이 점검 건의 별지 재생성이 차단 대상인가 — 종료일(폴백: 시작일)이 전환일 이전이면 차단 */
 export function isRegenBlocked(insp: {
