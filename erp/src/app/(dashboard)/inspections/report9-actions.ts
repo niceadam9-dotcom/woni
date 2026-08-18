@@ -977,11 +977,17 @@ export async function requestReport9Action(
 }
 
 /** 별지 9·10·11호·외관점검표 미리보기 HTML (소방계획서_7 H-4·H-7) — 생성물과 동일 렌더 함수 단일 소스,
- *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시 */
+ *  미입력 항목은 하이라이트(§4-A-2c). 클라이언트는 iframe srcDoc으로 표시.
+ *
+ *  `highlight: false` = 초안 인쇄용 — 미입력 노란 배경(.missing)을 뺀다. BASE_CSS가
+ *  print-color-adjust:exact라 하이라이트가 인쇄에서 **살아나기 때문에**, 화면 미리보기 HTML을
+ *  그대로 인쇄하면 노란 칠이 종이에 찍힌다. 인쇄 경로는 반드시 이 옵션으로 다시 렌더할 것. */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
   reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation',
+  opts?: { highlight?: boolean },
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
+  const hl = opts?.highlight ?? true
   await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections')
@@ -998,15 +1004,15 @@ export async function getAnnexPreviewHtmlAction(
   try {
     if (reportType === 'report9') {
       const { data, missing } = await assembleReport9(admin, ins.customer_id, inspectionId)
-      return { html: renderReport9(data, { highlight: true }), missing }
+      return { html: renderReport9(data, { highlight: hl }), missing }
     }
     if (reportType === 'report4') {
       const { data, missing } = await assembleReport4(admin, ins.customer_id, inspectionId)
-      return { html: renderReport4(data, { highlight: true }), missing }
+      return { html: renderReport4(data, { highlight: hl }), missing }
     }
     if (reportType === 'exterior') {
       const { data, missing } = await assembleExterior(admin, ins.customer_id, inspectionId)
-      return { html: renderExterior(data, { highlight: true }), missing }
+      return { html: renderExterior(data, { highlight: hl }), missing }
     }
     if (reportType === 'cover') {
       // 미리보기는 서명 URL을 <img src>로 직접 — iframe이 브라우저에서 fetch(S5-7 분기)
@@ -1023,8 +1029,8 @@ export async function getAnnexPreviewHtmlAction(
     }
     const { data, missing } = await assembleAnnex1011(admin, ins.customer_id, inspectionId, reportType)
     const html = reportType === 'report10'
-      ? renderReport10(data, { highlight: true })
-      : renderReport11(data, { highlight: true })
+      ? renderReport10(data, { highlight: hl })
+      : renderReport11(data, { highlight: hl })
     return { html, missing }
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) }

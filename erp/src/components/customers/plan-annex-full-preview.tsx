@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { CustomerRound } from '@/app/(dashboard)/reports/docs-actions'
+import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 
 /** 회차 전체 미리보기 모달 (소방계획서_8 H-5c + 2026-08-10 #13 단일 문서 모드).
  *  소방계획서_20 S3에서 plan-annex-section.tsx에서 분리 — 문자열·#fp-* 앵커·동작 모두 불변. */
@@ -116,10 +117,21 @@ export function PlanAnnexFullPreview({
         {/* 본문 — 단일 모드는 문서 1건이 창 높이를 다 쓰고(8쪽짜리 9호 대응), 전체 모드는 종전대로 세로 연결 */}
         {only ? (
           <div className="flex-1 flex flex-col bg-[#f3f4f6] p-4 min-h-0">
-            <p className="text-xs font-semibold text-[#514b81] mb-1.5 shrink-0">
-              ▌{only.label}
-              {only.missing.length > 0 && <span className="text-amber-600"> ⚠ 미입력 {only.missing.length}곳: {only.missing.slice(0, 6).join(' · ')}{only.missing.length > 6 ? ' …' : ''}</span>}
-            </p>
+            <div className="flex items-start gap-2 mb-1.5 shrink-0">
+              <p className="text-xs font-semibold text-[#514b81]">
+                ▌{only.label}
+                {only.missing.length > 0 && <span className="text-amber-600"> ⚠ 미입력 {only.missing.length}곳: {only.missing.slice(0, 6).join(' · ')}{only.missing.length > 6 ? ' …' : ''}</span>}
+              </p>
+              {/* 이 별지만 인쇄 — 생성본이 있으면 서버 PDF(제출용), 없으면 초안(경고 후) */}
+              <span className="ml-auto shrink-0 flex items-center gap-1.5">
+                <AnnexPrintButton
+                  inspectionId={state.inspectionId}
+                  type={only.type}
+                  label={only.label}
+                  hasPdf={!!curRound?.docs?.[only.type]?.pdf}
+                />
+              </span>
+            </div>
             {only.error ? (
               <p className="text-xs text-red-600 bg-white rounded-lg p-3">{only.error}</p>
             ) : only.html ? (
