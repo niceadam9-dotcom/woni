@@ -8,7 +8,7 @@ import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 export default async function InspectionCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string; cust?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -17,6 +17,8 @@ export default async function InspectionCalendarPage({
   const initialFilter = (['all', 'today', 'week', 'overdue'].includes(params.filter ?? '')
     ? params.filter
     : 'all') as 'all' | 'today' | 'week' | 'overdue'
+  // 고객명 검색어 — 필터링은 클라이언트가 한다(달력에 실린 고객에서 고르므로). 여기선 복원만.
+  const initialCustomerQuery = (params.cust ?? '').slice(0, 100)
 
   const admin = createAdminClient()
   const currentYear = new Date().getFullYear()
@@ -167,6 +169,7 @@ export default async function InspectionCalendarPage({
       currentUserId={profile.id}
       currentUserRole={profile.role as UserRole}
       initialFilter={initialFilter}
+      initialCustomerQuery={initialCustomerQuery}
       holidays={holidays}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
     />

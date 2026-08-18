@@ -12,10 +12,13 @@ import Link from 'next/link'
 import {
   CalendarDays, Check, X, AlertTriangle, Loader2,
   Users, Building2, ChevronRight, ChevronLeft,
-  SlidersHorizontal, Info, Search, PlayCircle, ExternalLink,
+  SlidersHorizontal, Info, Search, PlayCircle, ExternalLink, PenLine,
 } from 'lucide-react'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { stepInputLink } from '@/lib/inspection-step-links'
+import { hangulMatch } from '@/lib/hangul'
+import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -269,6 +272,8 @@ interface Props {
   currentUserId: string
   currentUserRole: UserRole
   initialFilter?: QuickFilter
+  /** 고객명 검색어 복원 — URL ?cust= (새로고침·링크 공유에도 유지) */
+  initialCustomerQuery?: string
   /** 주말·공휴일 표시용 (YYYY-MM-DD + 이름) */
   holidays?: Array<{ date: string; name: string }>
   /** 정기 칩 드래그 이동 권한 (inspection_plan_manage) */
@@ -276,7 +281,7 @@ interface Props {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', holidays = [], canMovePlan = false }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', holidays = [], canMovePlan = false }: Props) {
   const router = useRouter()
 
   // 공휴일 맵 + 날짜 클릭 안내 상태
@@ -338,7 +343,19 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(
     () => currentUserRole === 'employee' ? new Set([currentUserId]) : new Set(employees.map(e => e.id))
   )
-  const [customerSearch, setCustomerSearch] = useState('')
+  // 고객명 검색 — 툴바 단일 입력. 종전엔 필터 팝오버 안(고객 뷰 전용)에 있어 **체크박스 목록만**
+  // 걸렀다: 검색해 찾아도 체크를 다시 눌러야 달력이 바뀌고, 기본값인 담당자 뷰에서는 아예 무시됐다.
+  // 이제 뷰 모드와 무관하게 달력을 직접 거르고, 팝오버 목록은 같은 질의로 함께 좁아진다(입력 하나).
+  const [customerSearch, setCustomerSearch] = useState(initialCustomerQuery)
+  const custQuery = customerSearch.trim()
+
+  // 검색어를 URL에 기록 — 새로고침·뒤로가기·링크 공유에도 유지 (점검확정 ?cust= 와 같은 규약)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (!custQuery) sp.delete('cust'); else sp.set('cust', custQuery)
+    const qs = sp.toString()
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
+  }, [custQuery])
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
     () => new Set([...inspections.map(i => i.customer_id), ...planItems.map(p => p.customer_id)])
   )
@@ -384,10 +401,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   }, [inspections, planItems])
 
   const filteredCustomerList = useMemo(() => {
-    if (!customerSearch) return uniqueCustomers
-    const q = customerSearch.toLowerCase()
-    return uniqueCustomers.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q))
-  }, [uniqueCustomers, customerSearch])
+    if (!custQuery) return uniqueCustomers
+    // 달력 필터와 **같은 규칙**(부분 일치 + 초성) — 목록에 보이는데 달력엔 없는 어긋남을 막는다
+    return uniqueCustomers.filter(c => hangulMatch(c.name, custQuery) || hangulMatch(c.code, custQuery))
+  }, [uniqueCustomers, custQuery])
 
   // 퀵필터 적용 범위 계산
   const weekEnd = useMemo(() => {
@@ -400,6 +417,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const events = useMemo<CalEvent[]>(() => {
     if (calMode === 'regular' || calMode === 'event') return []
     return inspections.flatMap(insp => {
+      // 고객명 검색은 뷰 모드와 무관하게 적용 — 담당자 뷰에서도 "이 고객만 보기"가 통한다
+      if (custQuery && !hangulMatch(insp.customer_name, custQuery)) return []
       if (viewMode === 'employee' && knownEmployeeIds.has(insp.assigned_employee_id) && !selectedEmployeeIds.has(insp.assigned_employee_id)) return []
       if (viewMode === 'customer' && !selectedCustomerIds.has(insp.customer_id)) return []
       // 종합/작동 탭 = 해당 유형만 — 일반관리 6단계는 전체 탭에서만 표시
@@ -459,7 +478,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           }]
         })
     })
-  }, [inspections, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, typeFilters, statusFilters, today, quickFilter, weekEnd])
+  }, [inspections, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, typeFilters, statusFilters, today, quickFilter, weekEnd, custQuery])
 
   // 정기(monthly)·일반(event) 계획 항목 — 현재 필터가 적용된 표시 대상 (달력 집계 칩 + 데이 패널 공용)
   const visiblePlanItems = useMemo<CalendarPlanItem[]>(() => {
@@ -468,6 +487,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       // 모드별 계획 유형 필터 — 정기점검 탭=monthly, 일반관리 탭=event
       if (calMode === 'regular' && p.plan_type !== 'monthly') return false
       if (calMode === 'event' && p.plan_type !== 'event') return false
+      if (custQuery && !hangulMatch(p.customer_name, custQuery)) return false
       // 담당자 미배정·퇴사자 담당 항목은 담당자 필터와 무관하게 표시
       if (viewMode === 'employee' && p.assigned_employee_id && knownEmployeeIds.has(p.assigned_employee_id) && !selectedEmployeeIds.has(p.assigned_employee_id)) return false
       if (viewMode === 'customer' && !selectedCustomerIds.has(p.customer_id)) return false
@@ -485,7 +505,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       if (quickFilter === 'week' && (p.scheduled_date < today || p.scheduled_date > weekEnd)) return false
       return true
     })
-  }, [planItems, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, statusFilters, today, quickFilter, weekEnd])
+  }, [planItems, calMode, viewMode, selectedEmployeeIds, selectedCustomerIds, knownEmployeeIds, statusFilters, today, quickFilter, weekEnd, custQuery])
 
   // 계획 이벤트 — 정기(monthly)=날짜별 집계 칩 1개 (하루 100건+ "+N개 더 보기" 방지),
   // 일반(event)=개별 이벤트 (종합/작동처럼 건별 표시·완료 취소선, 라벨 일반(종합)/일반(작동) — 2026-08-04 사용자 확정)
@@ -995,6 +1015,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2">
+          {/* 고객명 검색 — 달력에 실린 고객에서 바로 고른다(서버 왕복 없음). 뷰 모드와 무관하게 적용 */}
+          <CustomerFilterSearch
+            customers={uniqueCustomers.map(c => ({ id: c.id, name: c.name, sub: c.code }))}
+            value={customerSearch}
+            onChange={setCustomerSearch}
+            testId="cal-customer-search"
+          />
           {/* 필터 팝오버 — 보기·직원/고객·유형·상태 (구 사이드바) */}
           <div ref={filterRef} className="relative">
             <button
@@ -1088,13 +1115,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   >해제</button>
                 </div>
               </div>
-              <input
-                type="text"
-                value={customerSearch}
-                onChange={e => setCustomerSearch(e.target.value)}
-                placeholder="고객 검색..."
-                className="w-full h-7 px-2 text-xs border border-[#d0ccf5] rounded-md mb-2 outline-none focus:border-[#7b68ee] transition"
-              />
+              {/* 검색 입력은 툴바 하나로 통일 — 여기 있던 입력은 이 목록만 걸러서 달력이 안 바뀌었다 */}
+              {custQuery && (
+                <p className="text-[10px] text-[#7b68ee] mb-2">
+                  &lsquo;{custQuery}&rsquo; 검색 중 — 목록도 함께 좁혀졌습니다.
+                </p>
+              )}
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {filteredCustomerList.map(cust => (
                   <label key={cust.id} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
@@ -1198,6 +1224,24 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
       {/* ── 달력 ──────────────────────────────────────────── */}
       <div className="space-y-3">
+          {/* 검색 중 안내 — 빈 달력이 '일정 없음'으로 보이는 오해를 막고, 해제 수단을 그 자리에 둔다 */}
+          {custQuery && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] text-xs text-[#514b81]">
+              <Search className="size-3.5 text-[#7b68ee] shrink-0" />
+              <span>
+                &lsquo;<b className="text-[#090c1d]">{custQuery}</b>&rsquo; 검색 중 — 이 고객의 일정만 표시됩니다.
+                {events.length + planEvents.length === 0 && ' 이 달에는 해당 일정이 없습니다.'}
+              </span>
+              <button
+                onClick={() => setCustomerSearch('')}
+                data-testid="cal-clear-search"
+                className="ml-auto shrink-0 underline hover:text-[#7b68ee]"
+              >
+                검색 해제
+              </button>
+            </div>
+          )}
+
           {/* 기한초과 진입 과거 달 점프 안내 — 오늘 달이 아닌 이유를 설명 (2026-08-04) */}
           {overdueJumpNotice && earliestOverdue && (
             <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
@@ -1659,10 +1703,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 const isDueSoon = step.status !== 'completed' && step.due_date !== null &&
                   step.due_date >= today &&
                   step.due_date <= new Date(new Date(today + 'T00:00:00Z').getTime() + 7 * 86400000).toISOString().split('T')[0]
-                // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 완료 버튼 표시
+                // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 [사유 완료] 표시
                 const isCurrentStep = step.status !== 'completed'
                   && selectedInspection.steps.every(s => s.step_num >= step.step_num || s.status === 'completed')
                 const canCompleteThis = canCompleteInspection(selectedInspection) && isCurrentStep
+                // [입력]은 **모든 미완료 단계**에 — 서버는 R4-4에서 순서 강제를 폐지했다(배치확인서는 협회에서
+                // 늦게 오고 점검표는 먼저 채워진다). 정상 경로까지 ①에 막히면 뒤 단계를 영영 시작할 수 없다.
+                const inputLink = step.status !== 'completed' ? stepInputLink(selectedInspection.id, step.step_num) : null
 
                 return (
                   <div
@@ -1699,17 +1746,35 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         <p className="text-xs text-green-600 mt-0.5">완료: {step.completed_at.split('T')[0]}</p>
                       )}
                     </div>
-                    {canCompleteThis && (
-                      <button
-                        onClick={() => handleCompleteStep(step.id, selectedInspection.id)}
-                        disabled={completingStepId === step.id}
-                        className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors ${isStepOverdue ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : 'bg-[#f5f4ff] text-[#7b68ee] hover:bg-[#ede9ff] border border-[#c3bdf5]'}`}
-                      >
-                        {completingStepId === step.id
-                          ? <Loader2 className="size-3 animate-spin" />
-                          : <Check className="size-3" />}
-                        완료
-                      </button>
+                    {/* 정상 경로가 위(채움), 예외 경로가 아래(테두리만) — 위계를 색으로 드러낸다.
+                        종전엔 [완료] 하나뿐이라 증거 없는 강제 완료가 유일한 출구처럼 보였다. */}
+                    {(inputLink || canCompleteThis) && (
+                      <div className="shrink-0 flex flex-col items-stretch gap-1">
+                        {inputLink && (
+                          <Link
+                            href={inputLink.href}
+                            title={inputLink.title}
+                            onClick={() => setSelectedInspectionId(null)}
+                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#7b68ee] text-white hover:bg-[#6647f0] transition-colors whitespace-nowrap"
+                          >
+                            <PenLine className="size-3" />
+                            {inputLink.label}
+                          </Link>
+                        )}
+                        {canCompleteThis && (
+                          <button
+                            onClick={() => handleCompleteStep(step.id, selectedInspection.id)}
+                            disabled={completingStepId === step.id}
+                            title="점검표·파일·제출일 같은 증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
+                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-[#c8c4d0] text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#514b81] disabled:opacity-50 transition-colors whitespace-nowrap"
+                          >
+                            {completingStepId === step.id
+                              ? <Loader2 className="size-3 animate-spin" />
+                              : <Check className="size-3" />}
+                            사유 완료
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )
