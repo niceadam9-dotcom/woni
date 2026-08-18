@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, getProfile } from '@/lib/auth'
 import { isGoogleConfigured, gmailGetAttachment, gmailSendMail, gmailGetReplyMeta } from '@/lib/google'
+import { renderMessage } from '@/lib/message-template'
 
 /** 메일 첨부 다운로드 — 전 직원 (회사 메일은 읽기 전용 공개) */
 export async function downloadMailAttachmentAction(
@@ -73,7 +74,9 @@ export async function sendMailAction(formData: FormData): Promise<{ error?: stri
   }
 
   // 공용 계정 발신 — 작성 직원 서명 자동 부착 (거버넌스)
-  const bodyWithSign = `${body}\n\n---\n승진소방ENG ${profile.name} 드림\n(본 메일은 회사 공용 계정에서 발송되었습니다)`
+  // R7-8: 서명도 message_templates에서 렌더한다(130 미적용이면 현행 문구로 폴백) — 상호가 company_profile로 수렴
+  const sign = await renderMessage(admin, 'mail_signature', { 작성자: profile.name })
+  const bodyWithSign = `${body}\n\n${sign.body}`
 
   try {
     const { messageId } = await gmailSendMail({ to, cc: cc.length ? cc : undefined, subject, bodyText: bodyWithSign, attachments, reply })

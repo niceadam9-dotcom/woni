@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Paperclip, Send, X } from 'lucide-react'
 import { sendMailAction } from '@/app/(dashboard)/mail/actions'
+import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 
 /** 메일 작성 폼 (2026-07-23) — 공용 계정 발신 + 작성자 자동 서명. 수신자 자동완성 = 관계인·직원 이메일 */
 export function MailComposeClient({ candidates, initial }: {
@@ -93,9 +94,12 @@ export function MailComposeClient({ candidates, initial }: {
           {isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} 발송
         </button>
         <button onClick={() => router.push('/mail')} className="h-9 px-4 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa]">취소</button>
+        {/* R7-3: 서명은 발송 시 자동 부착된다 — 고치는 자리를 여기 둔다(전용 페이지 없음) */}
+        <MessageTemplateModal templateKey="mail_signature" label="메일 서명"
+          buttonClass="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#7b68ee] hover:bg-[#f5f4ff]" />
         {msg && <span className="text-sm text-[#514b81]">{msg}</span>}
       </div>
-      <p className="text-[11px] text-[#b0acd6]">발신 주소는 회사 공용 계정(sjfirekorea@gmail.com)이며, 발송 이력에 작성 직원이 기록됩니다.</p>
+      <p className="text-[11px] text-[#b0acd6]">발신 주소는 회사 공용 계정(sjfirekorea@gmail.com)이며, 발송 이력에 작성 직원이 기록됩니다. 서명은 발송 시 자동으로 붙습니다.</p>
     </div>
   )
 }
