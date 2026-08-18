@@ -4,7 +4,7 @@
   "created": "2026-08-10",
   "updated": "2026-08-10",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
-  "scope_note": "**T-3 구현·독립검증 완료(implemented, 2026-08-10, 미커밋)** — 나머지(T-2a-2·T-2b·T-2c·T-1)는 pending_order. 소방계획서_14.md #12·#15·#18은 T-2로 흡수·대체(회차별 트리 안 만듦). 착수 전 결정 대기 **2건(Q-1·Q-2)** — Q-3은 2026-08-10 확정(C-1·C-2 resolved, D-6 규약 신설)",
+  "scope_note": "**T-3 implemented·커밋 72ab287 · T-2a-1·2 + T-2b-1·1b code_present·커밋 02fa009** (2026-08-10). **BLK-1 해소** — 소방계획서_16 S3(913c257)·S4(fe89322) 커밋으로 점검표 재작성 안정화. **T-2b(최신 노드+재마운트)는 소방계획서_16 S4가 상위 대체 구현해 폐기(deferred)** — 별지 허브 회차 카드마다 해당 회차 점검표 인라인 노드(공용 sheet-item-editor). 잔여 = T-2a-3(배지 클릭 이동)·T-2c(제원 요약+딥링크)·T-1(이어받기). 결정 대기는 **Q-1 1건**(Q-2는 S4로 소멸, Q-3은 확정)",
   "impl_state_note": "T-3 **implemented 승격** — 독립 검증(구현자≠판정자) 5/5 통과, 신규 위험 없음. 근거: 프로브 _probe-form3-map 13/13 · _probe-report9-marks 4/4 · tsc·eslint·build 그린. T-2a-1은 T-3 과정에서 앞당겨 충족(code_present — 배지 UI T-2a-2와 함께 검증 예정)",
   "verification_pass": {
     "date": "2026-08-10",
@@ -18,7 +18,8 @@
   },
 
   "blockers": [
-    { "id": "BLK-1", "severity": "high", "status": "open", "detected": "2026-08-10",
+    { "id": "BLK-1", "severity": "high", "status": "resolved", "detected": "2026-08-10", "resolved": "2026-08-10",
+      "resolution": "소방계획서_16 작업이 커밋으로 안정화 — S3 913c257(sheet-item-editor 공용 추출)·S4 fe89322(별지 허브 회차 카드에 점검표 인라인 노드). recommendation대로 '재마운트 대신 loadSheetEditorAction+sheet-item-editor 재사용'이 S4로 실현됐고, 그 결과 T-2b 자체가 대체됐다(T-2b deferred 참조). test-plan-tab 기준선도 83/83 복구(e8cc66e에 갱신 반영)",
       "desc": "남은 3항목(T-2b·T-2c·T-1)이 전부 `inspection-sheet-client.tsx`를 건드리는데, 그 파일을 **다른 세션이 지금 재작성 중**이다. 착수하면 충돌하거나, 곧 바뀔 API 위에 쌓게 된다",
       "evidence": [
         "git status — inspection-sheet-client.tsx 수정됨(미커밋) · inspections/[id]/page.tsx 수정됨 · sheet-item-editor.tsx 신규 미커밋",
@@ -64,9 +65,11 @@
     { "id": "D-2", "desc": "저장소는 합치지 않는다 — 점검 결과(inspection_id 귀속)·세부제원(고객·건물 귀속) 축 구분 유지, 화면·어휘만 통합. 스키마 무변경", "status": "confirmed" },
     { "id": "D-3", "desc": "자동 이월 금지 — 새 점검 건에 이전 결과를 자동으로 채우지 않는다(점검 없이 통과 기록 위조 위험). 수동 [이전 결과 이어받기] 버튼만", "status": "confirmed", "note": "N(해당없음)만 자동 이월하는 절충안은 Q-1" },
     { "id": "D-4", "desc": "과거 회차 응답 행은 DB 보존·UI 비노출 — 삭제 배치 없음(생성된 과거 별지9호와의 대사 근거)", "status": "confirmed" },
-    { "id": "D-5", "desc": "소방계획서_14.md #12(회차별작성조회 점검표 트리)·#15(점검상세 입력을 조회에서)·#18(점검표입력 트리·동기화)은 T-2 [점검표(최신)] 노드로 흡수·대체 — 회차별 트리는 만들지 않는다", "status": "confirmed" },
+    { "id": "D-5", "desc": "소방계획서_14.md #12(회차별작성조회 점검표 트리)·#15(점검상세 입력을 조회에서)·#18(점검표입력 트리·동기화)은 T-2 [점검표(최신)] 노드로 흡수·대체 — 회차별 트리는 만들지 않는다", "status": "confirmed",
+      "note": "갱신(2026-08-10): 흡수의 실제 실행자는 소방계획서_16 S4(fe89322) — 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력'을 직접 요청해 회차 카드별 인라인 노드로 구현. '회차 선택 UI를 별도로 만들지 않는다'는 원칙은 유지(기존 회차 자동 카드에 얹었을 뿐), 점검표 저장소도 점검 건 단위 그대로(D-2)" },
     { "id": "Q-1", "desc": "이어받기 절충안 — N(해당없음) 판정만 자동 이월할지(설비 구성 불변이라 위조 위험 없음). 미채택 시 수동 버튼만", "status": "open" },
-    { "id": "Q-2", "desc": "[점검표(최신)] 노드 위치 — 기안은 별지 허브 트리(별지9호 생성과 같은 동선). 1.4 아래 배치 대안은 밀도 문제로 비권장", "status": "open" },
+    { "id": "Q-2", "desc": "[점검표(최신)] 노드 위치 — 기안은 별지 허브 트리(별지9호 생성과 같은 동선). 1.4 아래 배치 대안은 밀도 문제로 비권장", "status": "confirmed",
+      "resolution": "2026-08-10 소멸 — 소방계획서_16 S4(fe89322, 사용자 확정 설계)가 별지 허브 트리 **회차 카드 내부**에 점검표 노드를 구현. 기안의 권장 위치(별지 허브)와 같은 동선이므로 별도 결정 불요" },
     { "id": "Q-3", "desc": "최신 점검 건 판정 규칙 확정 — ①'미취소' 조건 표현 방식(C-1) ②정렬 축(C-2)", "status": "confirmed", "severity": "high",
       "resolution": "2026-08-10 사용자 확정 — **①'미취소' 조건은 뺀다** ②**기존 선례로 통일**(`year desc, sequence_num desc`)",
       "note": "독립 검증에서 새로 발견된 질문. 확정으로 C-1·C-2 resolved, T-2b-1 차단 해제" },
@@ -100,46 +103,49 @@
       "verification_gap": "설계가 요구한 '별지9호 생성 E2E(test-doc-generation.mts) 회귀'는 **이 환경에서 실행 불가** — GOTENBERG_URL 미설정으로 PDF 변환 단계가 서고, 오늘 잡 생성 0건·최근 성공 잡은 2026-07-23. 변경 지점(조립)은 순수 함수 프로브로 대신 검증했고, PDF 변환 경로는 손대지 않았다. 운영/스테이징 배포 시 생성 E2E 재확인 필요",
       "criteria": [
         { "id": "T-3-1", "desc": "시트 ↔ FORM3 항목 명시 매핑 — form3ItemsForSheet() 신설(SHEET_FACILITY_MAP 역방향, 미등재 시트는 퍼지 폴백)", "status": "implemented",
-          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["sheet-facility-map.ts:62-67 — 명시 매핑 우선(:34 MAP_BY_NORM), 미등재만 퍼지 폴백(:66)"], "method": "독립 검증 코드 대조 + 프로브 §1 '값이 전부 FORM3_ITEMS 어휘' 단언(역방향 파생의 전제를 매 실행 확인)" } },
+          "verified": { "date": "2026-08-10", "commit": "72ab287", "evidence": ["sheet-facility-map.ts:62-67 — 명시 매핑 우선(:34 MAP_BY_NORM), 미등재만 퍼지 폴백(:66)"], "method": "독립 검증 코드 대조 + 프로브 §1 '값이 전부 FORM3_ITEMS 어휘' 단언(역방향 파생의 전제를 매 실행 확인)" } },
         { "id": "T-3-1b", "desc": "설치 설비 ↔ FORM3 항목 정규화 정확 매칭 — form3ItemMatchesFacility() 신설. 퍼지 오검(스프링클러→간이/화재조기진압용, 비상조명등→휴대용) 제거", "status": "implemented",
-          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["sheet-facility-map.ts:72-74 — norm(a)===norm(b), includes 아님"], "method": "독립 검증 코드 대조 + 프로브 §4(표준 40종 중 5종 판정 변화 스냅샷)" } },
+          "verified": { "date": "2026-08-10", "commit": "72ab287", "evidence": ["sheet-facility-map.ts:72-74 — norm(a)===norm(b), includes 아님"], "method": "독립 검증 코드 대조 + 프로브 §4(표준 40종 중 5종 판정 변화 스냅샷)" } },
         { "id": "T-3-2", "desc": "assembleReport9의 nameMatch 3곳 교체 — facilityChecks·resultMarks·groupOfCode. nameMatch 함수 자체 제거", "status": "implemented",
-          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["report9-actions.ts:275 rollUpForm3Results 호출(구 facilityChecks·resultMarks)", "report9-actions.ts:340 groupOfCode의 form3ItemsForSheet(구 :343)", "report9-actions.ts:31-32 nameMatch 정의 삭제(주석만 잔존)"], "method": "독립 검증 — 판정자가 파일 전체에서 nameMatch 잔존 호출 0건 확인" } },
+          "verified": { "date": "2026-08-10", "commit": "72ab287", "evidence": ["report9-actions.ts:275 rollUpForm3Results 호출(구 facilityChecks·resultMarks)", "report9-actions.ts:340 groupOfCode의 form3ItemsForSheet(구 :343)", "report9-actions.ts:31-32 nameMatch 정의 삭제(주석만 잔존)"], "method": "독립 검증 — 판정자가 파일 전체에서 nameMatch 잔존 호출 0건 확인" } },
         { "id": "T-3-2b", "desc": "롤업을 순수 함수 rollUpForm3Results()로 추출 — 'use server' 파일 안이라 프로브가 호출할 수 없던 문제 해소. T-2a-1(공용 함수 추출)을 앞당겨 충족", "status": "implemented",
-          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["sheet-facility-map.ts:87-107 rollUpForm3Results()", "report9-actions.ts:275 호출"], "method": "독립 검증(Explore 판정자) — 종전 인라인 로직과 ○/×/N/공란 규약 동일성 확인 + 프로브 §6 7건" },
+          "verified": { "date": "2026-08-10", "commit": "72ab287", "evidence": ["sheet-facility-map.ts:87-107 rollUpForm3Results()", "report9-actions.ts:275 호출"], "method": "독립 검증(Explore 판정자) — 종전 인라인 로직과 ○/×/N/공란 규약 동일성 확인 + 프로브 §6 7건" },
           "correction_note": "구현자가 최초에 '퍼지 시절 **구조**로는 한 시트→여러 항목을 표현 못 했다'고 적었으나 부정확했다. 종전 코드도 항목마다 시트를 찾는(find) 구조라 표현 자체는 가능했고, 실제 실패 원인은 **퍼지 매칭**이었다(예: nameMatch('소화용수설비','소화수조 및 저수조')=false). statByItem 합산은 표현력 확장이 아니라 동등 재작성 + 향후 확장 대비다 — 판정자 확인 결과 현재 각 FORM3 항목은 최대 1개 시트에만 등재돼 합산의 실제 효과는 없다" },
         { "id": "T-3-3", "desc": "교체 전후 스냅샷 비교 프로브 — 차이 항목이 전부 퍼지 결함 교정분인지 확인", "status": "implemented",
-          "verified": { "date": "2026-08-10", "commit": "uncommitted", "evidence": ["scripts/_probe-form3-map.mjs — 6개 절(어휘정합·시트→항목·항목→시트·설비→항목·회귀단언·실제 롤업) 13/13"], "method": "독립 검증 — 판정자가 프로브 내용이 실제 대상 함수를 검증하는지 코드 대조" },
+          "verified": { "date": "2026-08-10", "commit": "72ab287", "evidence": ["scripts/_probe-form3-map.mjs — 6개 절(어휘정합·시트→항목·항목→시트·설비→항목·회귀단언·실제 롤업) 13/13"], "method": "독립 검증 — 판정자가 프로브 내용이 실제 대상 함수를 검증하는지 코드 대조" },
           "self_report": { "date": "2026-08-10", "evidence": ["scripts/_probe-form3-map.mjs 13/13"],
             "snapshot": { "sheet_to_item": "카탈로그 시트 21개 중 7개 변화", "item_to_sheet": "FORM3 40개 중 10개 변화", "facility_to_item": "표준 40종 중 5종 변화",
               "review": "전부 sheet-facility-map 상단 주석이 예고한 오검·누락 계열 — 신규 오차 없음. 대표: 시트 '자동화재탐지설비 및 시각경보장치'→항목 '…시각경보기'(누락 해소), 시트 '소화용수설비'→2항목(누락 해소), 설치 '스프링클러설비'가 '간이'를 켜지 않음(오검 제거)" } } }
       ] },
 
     { "id": "T-2a", "title": "세부제원 패널 섹션 헤더에 최신 점검 결과 배지 (읽기 전용)", "status": "partial",
-      "partial_reason": "T-2a-1·T-2a-2 구현(code_present) · T-2a-3(배지 클릭 이동)은 대상 노드(T-2b) 부재로 미착수",
+      "partial_reason": "T-2a-1·T-2a-2 구현(code_present, 커밋 02fa009) · T-2a-3(배지 클릭 이동)은 미착수 — 이동 대상은 소방계획서_16 S4로 생겼고 딥링크 설계만 남음",
       "criteria": [
         { "id": "T-2a-1", "desc": "assembleReport9의 시트 통계(sheetStat) 롤업을 공용 함수로 추출 — 배지·별지9호가 같은 로직 공유", "status": "code_present",
-          "self_report": { "date": "2026-08-10", "evidence": ["sheet-facility-map.ts rollUpForm3Results()"], "note": "T-3-2b에서 앞당겨 충족 — T-3 검증을 위해 순수 함수가 필요했다. T-2a-2(배지 UI)는 이 함수를 그대로 쓰면 된다" } },
+          "self_report": { "date": "2026-08-10", "commit": "72ab287", "evidence": ["sheet-facility-map.ts rollUpForm3Results()"], "note": "T-3-2b에서 앞당겨 충족 — T-3 검증을 위해 순수 함수가 필요했다. T-2a-2(배지 UI)는 이 함수를 그대로 쓰면 된다" } },
         { "id": "T-2a-2", "desc": "plan-form14-specs.tsx 섹션 헤더에 설비별 ○/×/／/미입력 + 불량 수 배지 표시", "status": "code_present",
-          "self_report": { "date": "2026-08-10", "evidence": ["plan-form14-specs.tsx sectionBadge() + 섹션 헤더 렌더(data-testid=spec-mark-*)", "facility-spec-actions.ts getInspectedFacilityCodesAction이 sheetStats·defectsBySheet 추가 반환"], "probe": "_probe-spec-badge.mjs 12/12(순수 로직) + _probe-spec-badge-ui.mjs 6/6(브라우저 렌더) + test-plan-tab 83/83 회귀" },
+          "self_report": { "date": "2026-08-10", "commit": "02fa009", "evidence": ["plan-form14-specs.tsx sectionBadge() + 섹션 헤더 렌더(data-testid=spec-mark-*)", "facility-spec-actions.ts getInspectedFacilityCodesAction이 sheetStats·defectsBySheet 추가 반환"], "probe": "_probe-spec-badge.mjs 12/12(순수 로직) + _probe-spec-badge-ui.mjs 6/6(브라우저 렌더) + test-plan-tab 83/83 회귀" },
           "design_deviation": "마크 판정을 서버가 하지 않고 **원자료(시트 통계)만 받아 클라이언트가 공용 rollUpForm3Results로 계산**한다. ①별지9호 3쪽과 같은 함수를 써서 문서↔화면 불일치를 구조적으로 차단(T-2a-1 취지) ②'해당없음(／)' 판정에 쓰는 설치 여부가 화면에서 더 정확 — 서버 DB로 판정하면 방금 켠(미저장) 설비가 ／로 표시된다(프로브 §3이 이 케이스를 고정)" },
-        { "id": "T-2a-3", "desc": "배지 클릭 시 T-2b 노드의 해당 시트로 이동", "status": "pending_order", "blocked_by": ["T-2b"], "note": "이동 대상 노드가 아직 없어 배지는 현재 읽기 전용(툴팁으로 회차·설비 안내)" }
+        { "id": "T-2a-3", "desc": "배지 클릭 시 점검표 노드의 해당 시트로 이동", "status": "pending_order",
+          "note": "차단 해제(2026-08-10) — 이동 대상이 소방계획서_16 S4로 생김(별지 탭 회차 카드의 시트 행). 딥링크 설계 필요: ?tab=plan&sub=annex 진입 + 대상 회차 펼침 + 해당 시트 자동 확장. 미착수" }
       ] },
 
-    { "id": "T-2b", "title": "별지 허브 트리 [점검표(최신)] 노드 — inspection-sheet-client 재마운트", "status": "pending_order",
-      "blocked_by": ["Q-2", "BLK-1"],
-      "current_state": { "evidence": ["plan-annex-section.tsx에 점검표 노드 없음 — 별지 4·9·10·11호 문서 행만 표시"], "verified_date": "2026-08-10" },
+    { "id": "T-2b", "title": "별지 허브 트리 [점검표(최신)] 노드 — inspection-sheet-client 재마운트", "status": "deferred",
+      "deferred_reason": "**소방계획서_16 S4(fe89322, 2026-08-10)가 상위 대체 구현** — '최신 1건 노드 + 모놀리스 재마운트' 대신 별지 허브 **회차 카드마다** 해당 회차 점검표를 공용 부품(plan-annex-sheet-tree + sheet-item-editor + loadSheetEditorAction)으로 인라인 배선. 목적(점검표를 별지 트리에서 조회·입력, #12·#15·#18 흡수)은 S4가 달성. T-2b-1·1b(최신 회차 판정 헬퍼)는 별개 실체로 커밋 02fa009에 존속 — T-2a 배지·교차 검증 칩이 사용",
+      "superseded_by": "erp_goal/소방계획서_16.json S4 (검증: test-annex-sheet-inline 20/20 · test-annex-interaction 35/35)",
+      "current_state": { "evidence": ["plan-annex-section.tsx — 회차 카드에 PlanAnnexSheetHeader + PlanAnnexSheetTree 배선(fe89322)"], "verified_date": "2026-08-10" },
       "criteria": [
         { "id": "T-2b-1", "desc": "getLatestSpecialInspection(customerId) 서버 헬퍼 — `plan_type is null OR like 'special_%'` + `order by year desc, sequence_num desc`로 최신 1건. **취소 조건 없음**(C-1 확정). 기존 getInspectedFacilityCodesAction의 로컬 회차 선택 로직을 이 헬퍼로 흡수해 단일화(C-2 확정)", "status": "code_present",
           "spec_source": "Q-3 · D-6 (2026-08-10 사용자 확정)",
-          "self_report": { "date": "2026-08-10", "evidence": ["src/lib/latest-inspection.ts getLatestSpecialInspection()"], "note": "requireResponses 옵션으로 '응답 있는 최신 회차'(교차 검증 칩 종전 동작)와 '무조건 최신'(T-2b 노드용)을 겸한다" } },
+          "self_report": { "date": "2026-08-10", "commit": "02fa009", "evidence": ["src/lib/latest-inspection.ts getLatestSpecialInspection()"], "note": "requireResponses 옵션으로 '응답 있는 최신 회차'(교차 검증 칩 종전 동작)와 '무조건 최신'을 겸한다. T-2b 본체는 deferred지만 이 헬퍼는 T-2a 배지·교차 검증 칩이 실사용" } },
         { "id": "T-2b-1b", "desc": "교차 검증 칩(getInspectedFacilityCodesAction)도 신설 헬퍼를 쓰도록 리팩터 — 두 화면이 다른 회차를 가리킬 여지를 구조적으로 제거", "status": "code_present", "spec_source": "D-6",
-          "self_report": { "date": "2026-08-10", "evidence": ["facility-spec-actions.ts — 로컬 회차 선택 로직 삭제 후 getLatestSpecialInspection(requireResponses:true) 호출"], "note": "종전 로컬 구현이 이미 '취소 필터 없음(enum에 cancelled 없음)'이라 주석까지 달아뒀다 — Q-3 확정이 선례와 일치함을 코드가 뒷받침" } },
-        { "id": "T-2b-2", "desc": "별지 허브 트리에 노드 추가, 최신 건에 바인딩해 기존 inspection-sheet-client 재마운트(신규 입력 화면 0개) — 점검 상세와 동일 저장소라 동기화 자동", "status": "pending_order" },
-        { "id": "T-2b-3", "desc": "점검 건 없음 안내 + 점검 등록 딥링크. 회차 선택 UI는 어디에도 두지 않음(D-1)", "status": "pending_order" }
+          "self_report": { "date": "2026-08-10", "commit": "02fa009", "evidence": ["facility-spec-actions.ts — 로컬 회차 선택 로직 삭제 후 getLatestSpecialInspection(requireResponses:true) 호출"], "note": "종전 로컬 구현이 이미 '취소 필터 없음(enum에 cancelled 없음)'이라 주석까지 달아뒀다 — Q-3 확정이 선례와 일치함을 코드가 뒷받침" } },
+        { "id": "T-2b-2", "desc": "별지 허브 트리에 노드 추가, 최신 건에 바인딩해 기존 inspection-sheet-client 재마운트(신규 입력 화면 0개) — 점검 상세와 동일 저장소라 동기화 자동", "status": "deferred", "note": "소방계획서_16 S4-1~S4-8이 대체(회차 카드별 인라인 노드, 저장 경로 동일 saveSheetResponsesAction — 동기화 자동이라는 목적은 동일하게 달성)" },
+        { "id": "T-2b-3", "desc": "점검 건 없음 안내 + 점검 등록 딥링크. 회차 선택 UI는 어디에도 두지 않음(D-1)", "status": "deferred", "note": "소방계획서_16 S4-6이 부분 대체 — 미시작 회차는 [이 회차 시작] CTA 유지(점검표 트리 미렌더). 별도 '점검 건 없음' 안내는 회차 자동 카드 구조상 불요" }
       ] },
 
     { "id": "T-2c", "title": "점검표 입력 화면 시트 헤더에 제원 요약 + from=inspection 딥링크", "status": "pending_order",
+      "note": "구현 지점 갱신(2026-08-10) — 항목 입력부가 공용 sheet-item-editor(소방계획서_16 S3)로 추출돼, 헤더 제원 요약을 편집기 1곳에 넣으면 점검 상세·별지 트리 양쪽에 동시 적용된다",
       "criteria": [
         { "id": "T-2c-1", "desc": "시트 헤더에 해당 설비 세부제원 완성도(n/m) 표시", "status": "pending_order" },
         { "id": "T-2c-2", "desc": "[제원 입력] 딥링크 — 기존 from=report9 진입·복귀 패턴을 from=inspection으로 확장", "status": "pending_order" }
