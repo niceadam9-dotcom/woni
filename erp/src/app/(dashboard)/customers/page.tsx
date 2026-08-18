@@ -8,6 +8,7 @@ import { DeleteCustomerClient } from '@/components/customers/delete-customer-cli
 import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { ClickableRow } from '@/components/customers/clickable-row'
+import { CustomerViewTabs } from '@/components/customers/customer-view-tabs'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { InspectionType, UserRole } from '@/types'
@@ -89,6 +90,9 @@ export default async function CustomersPage({
           </div>
         </div>
       </div>
+
+      {/* 뷰 탭 — 고객 목록 / 점검 대장 (소방계획서_21 R8-3, 같은 원천을 다른 열 구성으로) */}
+      <CustomerViewTabs />
 
       {/* 검색/필터 */}
       <form method="GET" action="/customers" className="flex flex-wrap items-center gap-2">

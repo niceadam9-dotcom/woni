@@ -22,6 +22,10 @@ type NavItem = {
   href: string
   icon: React.ElementType
   roles: UserRole[]
+  /** 구역 소제목 (소방계획서_21 R8) — 같은 구역의 **모든** 항목에 같은 값을 단다.
+   *  렌더는 권한 필터를 통과한 항목만 훑으며 값이 바뀌는 첫 지점에 소제목을 그리므로,
+   *  구역 전체가 권한으로 숨는 역할에서는 소제목도 함께 사라진다(빈 구역 방지). */
+  section?: string
 }
 
 type NavGroup = {
@@ -58,22 +62,26 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: Flame,
     roles: ['employee', 'manager', 'admin'],
     // 순서 규칙(2026-07-16 사용자 확정): 일상 점검 흐름순 → 정산(매니저↑) → 마스터데이터(점검표·지역배정)는 맨 아래
+    // 소방계획서_21 R8: 그 분류를 section 소제목으로 화면에 드러낸다(대분류를 늘리지 않는다 — '보고서' 재생성 금지, 소방계획서_8 D-8)
     items: [
       { label: '고객 관리',        href: '/customers',                  icon: BookUser,       roles: ['employee', 'manager', 'admin'] },
       // 건물 관리 메뉴 삭제 (2026-07-16 A안 확정) — 건물 조회·등록·수정은 고객 상세 > 건물·시설 탭
+      // '점검 대장' 메뉴 소멸 (소방계획서_21 R8-3) — customers를 통째로 읽는 뷰라 고객 관리 탭으로 흡수. /inspection-ledger는 리다이렉트
       { label: '점검확정',          href: '/inspection-plans',           icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
       { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
-      { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'] },
-      { label: '점검 대장',        href: '/inspection-ledger',          icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
+      // 접수 업무 — 점검 흐름 한가운데(종전 점검현황 앞)에서 일상 블록 끝으로 이동 (R8-6)
+      { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
       // '보고서' 메뉴 소멸 (소방계획서_8 Phase B H-6d·D-8) — 고객별 문서·별지는 고객관리>소방계획서 트리,
       // 제출 현황은 대시보드 위젯, 연차·일괄 생성은 점검확정>배치 발행. /reports는 새 위치로 리다이렉트.
-      { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
+      { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'], section: '현황' },
       // '안전관리 대장'(실체=월별 수금 현황)은 정산현황 [월별 대장] 탭으로 흡수 (R15-b)
-      { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'] },
-      { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'] },
-      { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'] },
-      { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'] },
+      { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'], section: '정산' },
+      { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'], section: '정산' },
+      { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'], section: '설정' },
+      // 소방계획서_21 R1-10 ① — 마스터데이터는 맨 아래(D1-3). 서식 팝오버에서만 관리되던 공통문구의 전역 진입점
+      { label: '계획서 공통문구',  href: '/fire-plans/library',         icon: BookMarked,     roles: ['employee', 'manager', 'admin'], section: '설정' },
+      { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'], section: '설정' },
     ],
   },
   // ── 업무관리 ─────────────────────────────────────────────────────────────
@@ -304,15 +312,24 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '�
               {/* 그룹 아이템 */}
               {isOpen && (
                 <div className="ml-3 pl-3 border-l-2 border-[#c4bff5] mt-0.5 mb-1 space-y-0.5">
-                  {visibleItems.map(item => {
+                  {visibleItems.map((item, i) => {
                     const exactOnly = item.href === '/dashboard' || item.href === '/admin'
                     const isActive =
                       pathname === item.href ||
                       (!exactOnly && pathname.startsWith(item.href + '/'))
+                    // R8: 권한 필터를 통과한 목록에서 section이 바뀌는 첫 지점에만 소제목을 그린다 —
+                    // 구역 전체가 숨는 역할에서는 소제목도 나타나지 않는다(빈 구역 방지)
+                    const showSection = !!item.section && item.section !== visibleItems[i - 1]?.section
 
                     return (
+                      <div key={item.href}>
+                      {showSection && (
+                        <div className="flex items-center gap-1.5 pl-2.5 pr-1 pt-2 pb-1 select-none">
+                          <span className="text-[10px] font-semibold tracking-wide text-[#b0acd6]">{item.section}</span>
+                          <span className="flex-1 h-px bg-[#e6e3f7]" />
+                        </div>
+                      )}
                       <Link
-                        key={item.href}
                         href={item.href}
                         className={cn(
                           'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors',
@@ -334,6 +351,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '�
                           </span>
                         )}
                       </Link>
+                      </div>
                     )
                   })}
                 </div>
