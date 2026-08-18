@@ -4,6 +4,7 @@ import { ClipboardList, Plus, AlertTriangle } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
+import { InspectionCustomerSearch } from '@/components/inspections/inspection-customer-search'
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
@@ -25,13 +26,14 @@ const STATUS_COLORS: Record<InspectionStatus, string> = {
 export default async function InspectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; status?: string; employee?: string; page?: string; per_page?: string }>
+  searchParams: Promise<{ q?: string; year?: string; status?: string; employee?: string; page?: string; per_page?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
   const params = await searchParams
   const isEmployee = (profile.role as UserRole) === 'employee'
+  const q = (params.q ?? '').trim()
   const yearFilter = params.year ?? ''
   const statusFilter = params.status ?? ''
   // B안: 일반직원도 전체 조회 가능 — 첫 진입 기본값만 본인 담당
@@ -47,6 +49,20 @@ export default async function InspectionsPage({
   const from = pageSize > 0 ? (page - 1) * pageSize : 0
   const to = pageSize > 0 ? from + pageSize - 1 : 99999
 
+  // 고객명 검색 — 이름으로 고객을 먼저 찾고 그 id로 점검을 거른다.
+  // 임베디드 컬럼(customers.customer_name)에 직접 필터를 걸면 count가 조인 전 기준이 되어
+  // 페이지 수가 어긋난다. 고객 수는 수백 규모라 id 목록이 쿼리를 넘치게 하지 않는다.
+  let custIdFilter: string[] | null = null
+  if (q) {
+    const { data: matched } = await admin.from('customers')
+      .select('id')
+      .ilike('customer_name', `%${q}%`)
+      .limit(500)
+    const ids = ((matched ?? []) as Array<{ id: string }>).map(r => r.id)
+    // 일치 고객이 없으면 '전체 표시'가 아니라 0건이어야 한다 — 도달 불가 id로 비운다
+    custIdFilter = ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000']
+  }
+
   // 검색 쿼리 구성 — 필터는 DB에서, 페이지 단위로만 가져옴
   // ADD-15: '취소(비활성/삭제)' 필터는 고객 is_active 기준 → inner join 필요
   const custJoin = statusFilter === 'cancelled' ? 'customers:customer_id!inner' : 'customers:customer_id'
@@ -55,6 +71,7 @@ export default async function InspectionsPage({
      ${custJoin} (id, customer_name, customer_code, is_active)`,
     { count: 'exact' }
   )
+  if (custIdFilter) query = query.in('customer_id', custIdFilter) as typeof query
   if (employeeFilter) query = query.eq('assigned_employee_id', employeeFilter) as typeof query
   if (yearFilter) query = query.eq('year', parseInt(yearFilter)) as typeof query
   // ADD-15: 비완료/완료/취소(비활성·삭제) 구분 필터
@@ -129,6 +146,7 @@ export default async function InspectionsPage({
 
   function buildPageUrl(p: number) {
     const sp = new URLSearchParams()
+    if (q) sp.set('q', q)
     if (yearFilter) sp.set('year', yearFilter)
     if (statusFilter) sp.set('status', statusFilter)
     if (employeeFilter) sp.set('employee', employeeFilter)
@@ -152,6 +170,7 @@ export default async function InspectionsPage({
 
       {/* 필터 */}
       <form method="GET" action="/inspections" className="flex flex-wrap items-center gap-2">
+        <InspectionCustomerSearch defaultValue={q} />
         <select
           name="year"
           defaultValue={yearFilter}
@@ -200,7 +219,7 @@ export default async function InspectionsPage({
         >
           검색
         </button>
-        {(yearFilter || statusFilter || employeeFilter) && (
+        {(q || yearFilter || statusFilter || employeeFilter) && (
           <a
             href="/inspections"
             className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
@@ -215,7 +234,7 @@ export default async function InspectionsPage({
       <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {inspections.length === 0 ? (
           <div className="py-16 text-center text-sm text-[#514b81]">
-            검색된 점검 업무가 없습니다
+            {q ? `'${q}'에 해당하는 점검 업무가 없습니다` : '검색된 점검 업무가 없습니다'}
           </div>
         ) : (
           <TableScroll offset={300}>

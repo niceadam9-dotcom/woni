@@ -444,3 +444,49 @@ export async function getInspectionWithSteps(inspectionId: string) {
 
 // 단계 마감일 미리보기는 lib/step-dates.previewInspectionSteps로 단일화 (DB 트리거 111+121과 같은 산식).
 // 종전 previewStepDates는 호출처 없이 달력일 산식을 따로 들고 있어 제거했다.
+
+/** 점검 업무 목록의 고객명 자동완성.
+ *
+ *  고객 마스터 전체가 아니라 **점검 건이 있는 고객만** 제안한다 — 목록을 거를 검색어이므로
+ *  고르는 순간 0건이 되는 이름이 뜨면 안 된다. 비활성 고객도 포함한다(취소 필터로 조회 가능).
+ *
+ *  제안은 **고객이 아니라 이름 단위**다 — 고르면 그 이름으로 목록을 거르므로, 동명이 둘이면
+ *  둘 다 걸린다. 고객별로 나눠 보여주면 특정 고객만 골라지는 것처럼 오해된다. 건수도 합산. */
+export async function searchInspectionCustomersAction(q: string): Promise<{
+  customers: { name: string; count: number }[]
+}> {
+  await getSessionUser()
+  const query = q.trim()
+  if (!query) return { customers: [] }
+  const admin = createAdminClient()
+
+  const { data: matched } = await admin.from('customers')
+    .select('id, customer_name, customer_code, is_active')
+    .ilike('customer_name', `%${query}%`)
+    .order('customer_name')
+    .limit(50)
+  const rows = (matched ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean }>
+  if (rows.length === 0) return { customers: [] }
+
+  // 점검 건수는 한 번의 조회로 — 고객마다 count 쿼리를 돌리면 제안 하나에 왕복 50번이 된다
+  const { data: insps } = await admin.from('inspections')
+    .select('customer_id').in('customer_id', rows.map(r => r.id))
+  const counts = new Map<string, number>()
+  for (const i of (insps ?? []) as Array<{ customer_id: string }>) {
+    counts.set(i.customer_id, (counts.get(i.customer_id) ?? 0) + 1)
+  }
+
+  const byName = new Map<string, number>()
+  for (const r of rows) {
+    const n = counts.get(r.id) ?? 0
+    if (n === 0) continue
+    byName.set(r.customer_name, (byName.get(r.customer_name) ?? 0) + n)
+  }
+
+  return {
+    customers: [...byName.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'ko'))
+      .slice(0, 8)
+      .map(([name, count]) => ({ name, count })),
+  }
+}
