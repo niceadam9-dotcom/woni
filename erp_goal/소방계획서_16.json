@@ -2,7 +2,7 @@
   "doc": "소방계획서_16 — 회차별 작성·조회에 점검표 트리 조회·입력 통합 (+ 시트 범위 판정 축 단일화)",
   "design": "대화 확정(2026-08-10) + 계획 파일 ~/.claude/plans/robust-watching-bee.md — 별도 설계 MD 없음",
   "created": "2026-08-10",
-  "updated": "2026-08-10 (독립 검증 패스 — S1~S4 승격, 구현자≠판정자)",
+  "updated": "2026-08-18 (S5·S6 독립 검증 승격 + 알림 벨 anon 조인 실결함 수정 + S1-7·K-8 음성 기능 제거(5a1b6a8)로 소멸 종결 — 실동 잔여는 K-9 후속뿐)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
   "scope_note": "발단: 사용자가 '회차별작성조회에 점검표도 트리로 조회·입력하고 점검표 입력과 동기화' 요청(2026-08-10). 착수 전 조사에서 기존 결함 4건(K-1~K-4) 발견 — 진행률 분모 정확도에 직결되어 함께 수정. S0~S4 완료(커밋 16b42da·eb23b33·913c257 + S4=fe89322) — 최초 요구인 '트리 조회·입력'은 S4에서 충족, 2026-08-10 독립 검증 패스로 승격(S1-7만 K-8 사유 잔류). S5(Realtime)·S6(전체 회귀) 잔여 — S5 마이그레이션 번호는 119~121 선점으로 122+ 사용",
 
@@ -12,7 +12,8 @@
     "partial": "부분 구현 — criteria 참조",
     "implemented": "독립 검증 통과 + verified 증거 동반",
     "deferred": "보류",
-    "confirmed": "설계 결정·조사 결과 확정"
+    "confirmed": "설계 결정·조사 결과 확정",
+    "abolished": "대상 기능 폐지로 소멸"
   },
 
   "decisions": [
@@ -26,12 +27,12 @@
   "diagnosis": [
     { "id": "K-1", "desc": "⚠ 시트 버전 판정 축 불일치 — 화면은 plan_type 축, bulkAllGoodAction·searchQuickItemsAction은 customers.inspection_type 축. 일반관리 자체점검(inspection_type='일반관리' + plan_type='special_작동')에서 화면은 v2025 STD를 그리는데 [설치 설비 전체 양호 ○]는 v2022 EXT 코드를 저장 → 버튼을 눌러도 화면에 아무것도 안 채워지는 '보이지 않는 데이터'", "evidence": ["inspections/[id]/page.tsx(구):77-78 plan_type 축", "sheet-actions.ts(구):56-57 customers.inspection_type 축", "sheet-actions.ts(구):108-109 동일"], "severity": "high", "status": "confirmed", "proof": "test-sheet-scope-axis.mts를 수정 전 코드에 실행 → 3 통과/3 실패, 저장 코드가 [\"X1-01\",\"X1-02\",...] (EXT v2022)로 확인됨. 수정 후 6/6 통과", "note": "재현 케이스는 test-general-selfinspection.mts:83이 실제로 만드는 고객 구성" },
     { "id": "K-2", "desc": "PostgREST 행 상한(db-max-rows 기본 1000) — inspection_sheet_items를 .in('sheet_id', 21개)로 페이징 없이 읽어 총 항목이 1000행을 넘으면 조용히 잘림. 진행률 분모가 이 쿼리라 20/24 같은 값이 틀리게 됨", "evidence": ["sheet-actions.ts(구):75-77 페이징 없음"], "severity": "medium", "status": "confirmed", "note": "현재 스테이징 실측 830행(활성 v2025 706행)으로 아직 한도 미만 — 시트 추가 시 터지는 잠복 결함" },
-    { "id": "K-3", "desc": "⚠ Realtime publication에 등록된 테이블이 0개 — supabase_realtime publication은 존재하나 스테이징·운영 모두 등록 테이블 없음. postgres_changes는 publication 등록 테이블만 이벤트를 내므로 알림 벨(notification-bell.tsx:38-49)의 실시간 수신은 지금까지 한 번도 동작한 적이 없다(마운트 시 조회한 20건만 표시). 마이그레이션 전체에 ALTER PUBLICATION ... ADD TABLE 문이 전무", "evidence": ["scripts/_check-realtime-publication.mjs 실행 결과 — 스테이징/운영 모두 '등록 테이블: (없음)'", "supabase/migrations/** grep 'ADD TABLE' 0건"], "severity": "high", "status": "confirmed", "note": "D-3(Realtime)의 필수 전제. inspection_sheet_responses REPLICA IDENTITY도 양쪽 'd'(기본, PK만) → DELETE 이벤트에서 inspection_id 필터 매칭 불가" },
+    { "id": "K-3", "desc": "⚠ Realtime publication에 등록된 테이블이 0개 — supabase_realtime publication은 존재하나 스테이징·운영 모두 등록 테이블 없음. postgres_changes는 publication 등록 테이블만 이벤트를 내므로 알림 벨(notification-bell.tsx:38-49)의 실시간 수신은 지금까지 한 번도 동작한 적이 없다(마운트 시 조회한 20건만 표시). 마이그레이션 전체에 ALTER PUBLICATION ... ADD TABLE 문이 전무", "evidence": ["scripts/_check-realtime-publication.mjs 실행 결과 — 스테이징/운영 모두 '등록 테이블: (없음)'", "supabase/migrations/** grep 'ADD TABLE' 0건"], "severity": "high", "status": "confirmed", "note": "D-3(Realtime)의 필수 전제. inspection_sheet_responses REPLICA IDENTITY도 양쪽 'd'(기본, PK만) → DELETE 이벤트에서 inspection_id 필터 매칭 불가. → 122로 해소(2026-08-18 실측: 양쪽 등록·identity=f·라이브 스모크 4/4). 벨 미동작의 제2 원인(anon 조인)은 S5-8에서 별도 수정" },
     { "id": "K-4", "desc": "respondedCounts 접두 문자열 파싱이 두 파일에서 각자 재구현 — 분모(시트 항목 수)·○✕／ 집계·comprehensive_only 범위를 못 구하고, MU 시트가 여러 개면 한 버킷('MU' 고정)으로 뭉갬. 시드 코드 규약에 우연히 맞아떨어져 동작 중", "evidence": ["inspections/[id]/page.tsx:116-119 응답→버킷", "inspection-sheet-client.tsx(구):209-214 시트→버킷"], "severity": "medium", "status": "confirmed", "note": "S3에서 sheet_id 조인으로 대체 예정 — 미착수" },
     { "id": "K-5", "desc": "권한 축 불일치 — PlanAnnexSection은 canManage prop이 없고(plan-annex-section.tsx:40 customerId만 수신), 점검표 입력은 requirePermission('inspection_register'). 트리에 입력을 넣으면 권한 없는 사용자에게 입력 UI가 노출될 수 있음(서버는 막지만 UX 불량)", "evidence": ["plan-annex-section.tsx:40 props", "sheet-actions.ts:12 requirePermission"], "severity": "medium", "status": "confirmed", "note": "D-5로 해소 예정 — 미착수" },
     { "id": "K-6", "desc": "음성 점검표가 v2025를 하드코딩 — 정기·일반(EXT v2022) 건에서 화면에 없는 STD 코드를 AI가 제안. 항목 카탈로그도 시트 필터 없이 전 버전을 읽어 종합전용(●) 필터도 없었음. K-1과 같은 축 문제의 4번째 사례", "evidence": ["voice-sheet-actions.ts(구):50 .eq('version','v2025') 하드코딩", "voice-sheet-actions.ts(구):59-60 sheet_id 필터 없는 전량 조회"], "severity": "medium", "status": "confirmed" },
     { "id": "K-7", "desc": "회귀 함정 — test-annex-interaction.mts가 'text=점검표 입력' 문자열 개수로 회차 펼침 상태를 판정. 새 요약 행·편집기에 같은 문자열을 쓰면 깨진다", "evidence": ["test-annex-interaction.mts:84 count()===1", "test-annex-interaction.mts:90 count()===2"], "severity": "low", "status": "confirmed", "note": "S4 착수 시 준수 — 요약 행은 '설비별 진행', 편집기 헤더는 시트명만" },
-    { "id": "K-8", "desc": "test-voice-sheet.mts 기존 실패 — AI 구조화 후 제안 목록이 뜨지 않고 120초 타임아웃. voice-sheet-actions.ts를 HEAD로 되돌려 같은 시드로 재실행해도 동일 실패(인과 확정) → 이번 작업과 무관한 선행 결함", "evidence": ["HEAD 버전 실행 결과 1 통과/1 실패 — waitForSelector('확정 저장') 타임아웃", "ANTHROPIC_API_KEY는 .env.local에 존재(108자)"], "severity": "medium", "status": "pending_order", "note": "claude-opus-4-8 + thinking:{type:'adaptive'} 호출부 의심. 이번 범위 밖 — 사용자 판단 대기" },
+    { "id": "K-8", "desc": "test-voice-sheet.mts 기존 실패 — AI 구조화 후 제안 목록이 뜨지 않고 120초 타임아웃. voice-sheet-actions.ts를 HEAD로 되돌려 같은 시드로 재실행해도 동일 실패(인과 확정) → 이번 작업과 무관한 선행 결함", "evidence": ["HEAD 버전 실행 결과 1 통과/1 실패 — waitForSelector('확정 저장') 타임아웃", "ANTHROPIC_API_KEY는 .env.local에 존재(108자)"], "severity": "medium", "status": "resolved", "note": "claude-opus-4-8 + thinking:{type:'adaptive'} 호출부 의심이었으나 — 음성 입력 기능 전체 제거(5a1b6a8, 2026-08-18)로 test-voice-sheet 자체가 삭제돼 소멸 종결" },
     { "id": "K-10", "desc": "인라인 불량 등록(R13-d) 무피드백 — 알림줄이 `!sel` 조건이라 시트를 연 상태에서 [등록]을 눌러도 아무 표시가 없었다. 저장은 되지만 사용자는 알 수 없음", "evidence": ["inspection-sheet-client.tsx:147 `{!sel && notice && ...}`"], "severity": "low", "status": "confirmed", "note": "S3-5에서 공용 편집기 안 알림으로 해소. E2E가 알림을 기다리다 타임아웃 나서 발견" },
     { "id": "K-11", "desc": "작업 절차 결함 — PowerShell 5.1의 Get-Content/Set-Content로 UTF-8 한글 JSON을 재작성해 파일 전체가 깨졌다(ANSI로 읽고 BOM 붙여 씀). git checkout으로 복구 후 Edit 도구로 재작업", "evidence": ["2026-08-10 소방계획서_16.json 손상·복구"], "severity": "low", "status": "confirmed", "note": "한글 포함 파일은 PowerShell 리다이렉트·Set-Content 금지 — Edit/Write 도구만 사용" },
     { "id": "K-9", "desc": "fetchAllRows 중복 — inspection-plans/page.tsx:12에 같은 목적의 로컬 헬퍼가 이미 존재. 신규 lib/supabase/fetch-all.ts와 2벌", "evidence": ["inspection-plans/page.tsx:12-", "lib/supabase/fetch-all.ts:6"], "severity": "low", "status": "pending_order", "note": "통합은 후속 — 지금 건드리면 S1 검증 범위가 넓어짐" }
@@ -45,8 +46,8 @@
       ],
       "note": "조사 항목이라 판정자 분리 불필요 — 결과가 기계 조회로 재현 가능(K-3)" },
 
-    { "id": "S1", "title": "시트 범위 판정 축 단일화 + 1000행 상한 해소 (K-1·K-2·K-6)", "status": "partial",
-      "note": "독립 검증 패스(2026-08-10, 구현자≠판정자): S1-1~S1-6·S1-8 implemented 승격. S1-7만 code_present 잔류 — K-8(음성 E2E 선행 결함)로 런타임 검증 불가, 정적 코드 대조만 통과",
+    { "id": "S1", "title": "시트 범위 판정 축 단일화 + 1000행 상한 해소 (K-1·K-2·K-6)", "status": "implemented",
+      "note": "독립 검증 패스(2026-08-10, 구현자≠판정자): S1-1~S1-6·S1-8 implemented 승격. S1-7은 음성 기능 제거(5a1b6a8, 2026-08-18)로 abolished 종결 — 실동 criteria 전건 implemented",
       "verified": { "date": "2026-08-10", "judge": "독립 세션(구현 커밋 이력 없음)", "evidence": ["npx tsx scripts/test-sheet-scope-axis.mts 재실행 6/6", "npm run build 통과", "sheet-scope.ts 4함수(sheetScope:18·isItemInScope:27·sheetItemGroup:32·scopeLabel:38)·sheet-actions.ts loadScope:13/isItemInScope 필터·fetch-all 페이징 실존 대조"] },
       "criteria": [
         { "id": "S1-1", "desc": "sheet-scope.ts 신설 — sheetScope/isItemInScope/sheetItemGroup/scopeLabel 단일 소스. plan_type 축 단독, inspection_type은 plan_type=null 레거시의 종류 판정에만", "status": "implemented",
@@ -64,9 +65,8 @@
           "note": "isOperational은 여기서 폴백이 불필요해 의도적으로 구조분해에서 제외(오용 방지)" },
         { "id": "S1-6", "desc": "fetch-all.ts 신설 + bulkAllGood 항목 조회에 페이징 적용 (K-2)", "status": "implemented",
           "evidence": ["lib/supabase/fetch-all.ts:6 fetchAllRows", "sheet-actions.ts:85-89 페이징 적용"] },
-        { "id": "S1-7", "desc": "음성 점검표도 같은 축 + 카탈로그를 이 점검의 시트·범위로 한정 (K-6)", "status": "code_present",
-          "evidence": ["voice-sheet-actions.ts:56 sheetScope", "voice-sheet-actions.ts:60 .eq('version', scope.version)", "voice-sheet-actions.ts:64-68 시트 한정 + isItemInScope"],
-          "note": "⚠ 런타임 검증 불가 — test-voice-sheet.mts가 K-8(선행 결함)로 실패해 이 경로는 E2E로 확인하지 못함. 판정자 정적 대조(2026-08-10)로 sheetScope:56·scope.version 필터:59·isItemInScope:68 실존은 재확인 — 승격은 K-8 해소 후" },
+        { "id": "S1-7", "desc": "음성 점검표도 같은 축 + 카탈로그를 이 점검의 시트·범위로 한정 (K-6)", "status": "abolished",
+          "note": "대상 기능 소멸 — 음성 입력 기능 전체가 커밋 5a1b6a8(2026-08-18)로 제거(voice-sheet-actions·클라이언트·test-voice-sheet 등 7파일 869줄 삭제). 검증 대기(K-8 해소 후 승격)였으나 검증할 코드 자체가 없어져 종결. 이전 기록: 판정자 정적 대조(2026-08-10)로 sheetScope·scope.version 필터·isItemInScope 실존 확인까지는 통과했었음" },
         { "id": "S1-8", "desc": "축 회귀 방지 E2E 신설 — 일반관리 자체점검에서 화면·저장·검색이 같은 버전인지 고정", "status": "implemented",
           "evidence": ["scripts/test-sheet-scope-axis.mts — 6체크(화면 라벨·저장 여부·코드 축·카탈로그 대조·종합전용 제외·검색 축)"],
           "note": "test-all.mts 등록은 S6에서" }
@@ -154,25 +154,32 @@
           "self_check": { "e2e": "test-annex-sheet-inline.mts", "result": "'X 인라인 → 불량내역 자동 등록' 통과" } }
       ] },
 
-    { "id": "S5", "title": "마이그레이션 119 + Realtime 구독 (D-3·K-3)", "status": "pending_order",
+    { "id": "S5", "title": "마이그레이션 119 + Realtime 구독 (D-3·K-3)", "status": "implemented",
+      "note": "코드·122는 선행 세션들이 커밋(bc14059 동승) — 본 세션(2026-08-18)은 검증 승격 + 알림 벨 실결함 수정. 승격은 독립 판정(구현자≠판정자, 주장 비공개) 근거",
       "criteria": [
-        { "id": "S5-1", "desc": "122_realtime_sheet_responses.sql — supabase_realtime에 inspection_sheet_responses·notifications 등록(멱등) + REPLICA IDENTITY FULL", "status": "pending_order", "note": "⚠ 계획 당시 번호 119는 119_plan_text_library.sql이 선점, 120(fire_plan_revisions)·121(배치신고 기한)도 사용됨 — 122+로 이월(2026-08-10 판정자 확인)" },
-        { "id": "S5-2", "desc": "useSheetResponsesRealtime 훅 — deps는 ids.join(','), cleanup removeChannel", "status": "pending_order" },
-        { "id": "S5-3", "desc": "600ms 트레일링 디바운스 — bulkAllGood 수백 행 insert 시 이벤트 폭주 방지", "status": "pending_order" },
-        { "id": "S5-4", "desc": "에코 억제 — payload.new.updated_by === selfId면 skip", "status": "pending_order" },
-        { "id": "S5-5", "desc": "dirty 보호 — 편집 중이면 자동 갱신 대신 [최신 불러오기] 배너. 자동 덮어쓰기 금지", "status": "pending_order" },
-        { "id": "S5-6", "desc": "폴백 — subscribe status가 CHANNEL_ERROR/TIMED_OUT/CLOSED면 focus·visibilitychange 갱신으로 전환", "status": "pending_order" },
-        { "id": "S5-7", "desc": "staging 적용 후 라이브 스모크 — publication 등록만으로는 부족(Realtime 서비스가 프로젝트 레벨 OFF면 SQL로 못 켬)", "status": "pending_order" },
-        { "id": "S5-8", "desc": "알림 벨 회귀 스모크 — K-3 부수 효과로 실시간 수신이 처음 동작하는지 확인", "status": "pending_order" }
-      ] },
+        { "id": "S5-1", "desc": "122_realtime_sheet_responses.sql — supabase_realtime에 inspection_sheet_responses·notifications 등록(멱등) + REPLICA IDENTITY FULL", "status": "implemented", "note": "⚠ 계획 당시 번호 119는 119_plan_text_library.sql이 선점, 120(fire_plan_revisions)·121(배치신고 기한)도 사용됨 — 122+로 이월(2026-08-10 판정자 확인)", "verified": { "date": "2026-08-18", "evidence": ["판정자: 122:7-26 IF NOT EXISTS 3중 가드(멱등)·:32 REPLICA IDENTITY FULL", "_check-realtime-publication.mjs — 스테이징·운영 양쪽 두 테이블 등록·identity=f 실측"] } },
+        { "id": "S5-2", "desc": "useSheetResponsesRealtime 훅 — deps는 ids.join(','), cleanup removeChannel", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: use-sheet-responses-realtime.ts:26 join(',') → :97 deps [key,uid], :90-96 cleanup에서 타이머·리스너·removeChannel 전부 해제"] } },
+        { "id": "S5-3", "desc": "600ms 트레일링 디바운스 — bulkAllGood 수백 행 insert 시 이벤트 폭주 방지", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: 훅 :36-41 점검 건별 트레일링 600ms(이전 타이머 clear 후 재설정)", "test-annex-sheet-inline 26/26 — [전체 양호] 경로 포함 그린"] } },
+        { "id": "S5-4", "desc": "에코 억제 — payload.new.updated_by === selfId면 skip", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: 훅 :50-51·:57-58 — updated_by 부재(null)는 원격 취급이라 억제가 원격 변경을 삼키지 않음", "저장 경로 4곳 전부 updated_by 기록 확인(sheet-actions.ts:176,293,372,434)"] } },
+        { "id": "S5-5", "desc": "dirty 보호 — 편집 중이면 자동 갱신 대신 [최신 불러오기] 배너. 자동 덮어쓰기 금지", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: 트리(plan-annex-sheet-tree:127-130·359-374·226-228 자동저장 pause)·드로어(inspection-sheet-client:93-99·499-509) 양쪽 구현", "E2E 9-b: dirty 배너·최신 불러오기·배너 해제 3체크 그린"] } },
+        { "id": "S5-6", "desc": "폴백 — subscribe status가 CHANNEL_ERROR/TIMED_OUT/CLOSED면 focus·visibilitychange 갱신으로 전환", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: 훅 :77-84 세 상태 모두 onWake 등록·fallback 플래그 중복 방지·getSession 실패 시 start(null) 경로 보존"], "limit": "에러 상태를 강제하는 런타임 테스트는 없음 — 정적 검토 판정. anon 조인은 SUBSCRIBED(정상)라 폴백 조건에 안 걸리는 조용한 실패 모드 — 세션 후 조인으로 예방하는 구조(판정자 관찰)" } },
+        { "id": "S5-7", "desc": "staging 적용 후 라이브 스모크 — publication 등록만으로는 부족(Realtime 서비스가 프로젝트 레벨 OFF면 SQL로 못 켬)", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["_probe-realtime-live.mjs 4/4(SUBSCRIBED·응답 INSERT·DELETE·notifications INSERT) — 판정자 재실행 포함", "⚠ 구독 직후 첫 이벤트는 WAL 리스너 활성화 지연으로 유실 가능(1차 실측) — 프로브에 1회 재삽입 보강(2026-08-18)"], "limit": "운영은 publication·identity까지만 실측 — 운영 라이브 스모크는 미실행(.env.local=스테이징)" } },
+        { "id": "S5-8", "desc": "알림 벨 회귀 스모크 — K-3 부수 효과로 실시간 수신이 처음 동작하는지 확인", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["E2E 'Realtime — 알림 벨 실시간 수신(S5-8)' 그린 — 판정자 재실행 포함", "실결함 수정 동반: notification-bell.tsx가 세션 토큰 없이 즉시 subscribe → anon 조인이라 RLS가 이벤트 전량 필터. 같은 소켓(싱글턴)의 다른 구독이 setAuth를 먼저 불러줄 때만 우연히 동작(test:all 'Realtime 플레이크'의 정체). 훅과 동일하게 getSession→setAuth→subscribe로 수정 + 중복 prepend 가드 + 채널명 userId 축(2026-08-18)"] } }
+      ],
+      "independent_check": { "date": "2026-08-18", "judge": "구현 무관 서브에이전트 — 구현자 주장 비공개, 코드 직접 열람 + 프로브·E2E 전부 재실행", "verdict": "S5-1~S5-8·S6-1·S6-3·S6-4 전 11기준 충족(E2E 32체크·프로브 4체크·DB 실측 그린, 재실행 필요 플레이크 없음)",
+        "minor_findings": [
+          "저장속도 개선(330b95b)의 2초 에코 창(inspection-sheet-client:96)이 비편집 상태에서 내 저장 직후 2초 내 도착한 타인 변경도 다음 이벤트까지 지연시킴 — dirty 배너가 우선이라 편집 중엔 안전, 트리 쪽엔 없음. 수용(지연일 뿐 유실 아님·다음 이벤트/재진입 시 수렴)",
+          "S6-3 '2탭'은 원격 측을 두 번째 브라우저 탭이 아닌 service role DB 쓰기로 재현 — 수신 측 WALRUS 경로는 동일하게 검증, 송신 브라우저 경로는 저장 E2E가 별도 커버",
+          "notification-bell getSession 실패(catch) 경로는 setAuth 없이 subscribe(anon 조인 가능) + 벨엔 focus 폴백 없음 — 세션 로드 실패는 페이지 전체가 이미 비정상인 엣지라 수용"
+        ] } },
 
-    { "id": "S6", "title": "E2E 신규 작성 + 전체 회귀", "status": "partial",
-      "note": "S6-1(Realtime 블록 제외)·S6-2는 S4에서 앞당겨 충족 — S6-3(Realtime 2탭)은 S5 이후, S6-4(test-all 등록) 잔여",
+    { "id": "S6", "title": "E2E 신규 작성 + 전체 회귀", "status": "implemented",
+      "note": "S6-1~S6-4 전건 완료 — Realtime 블록(9번)까지 포함해 26체크. 승격 근거는 S5.independent_check(2026-08-18) 동일 판정",
       "criteria": [
-        { "id": "S6-1", "desc": "test-annex-sheet-inline.mts — 요약 상시 표시·설치 필터·lazy 확장·저장 반영·X 인라인 등록·분모 정합성·권한·미시작 회차·Realtime 2탭 (9블록)", "status": "partial", "note": "S4에서 앞당겨 신설 — 9블록 중 Realtime 2탭 제외 8블록(20체크) 구현·통과. Realtime 블록은 S5 이후" },
+        { "id": "S6-1", "desc": "test-annex-sheet-inline.mts — 요약 상시 표시·설치 필터·lazy 확장·저장 반영·X 인라인 등록·분모 정합성·권한·미시작 회차·Realtime 2탭 (9블록)", "status": "implemented", "note": "S4에서 8블록(20체크) 선구현 → S5 완료로 Realtime 블록 포함 9블록 전부 실행", "verified": { "date": "2026-08-18", "evidence": ["판정자: 9블록 전부 실재 확인(파일:줄 대조) + 26/26 재실행 그린"] } },
         { "id": "S6-2", "desc": "분모 정합성 체크 — 화면 A 분모와 /inspections/{id}의 같은 시트 항목 수 일치. K-1 재발을 상시 감시", "status": "implemented", "verified": { "date": "2026-08-10", "evidence": ["test-annex-sheet-inline '트리 분모 = 독립 계산 항목 수' 체크 — 판정자 재실행 통과"] } },
-        { "id": "S6-3", "desc": "Realtime 2탭 체크 — 새로고침 없이 갱신. publication 미등록이면 이 체크만 실패해 K-3을 정확히 지목", "status": "pending_order" },
-        { "id": "S6-4", "desc": "test-all.mts에 test-annex-sheet-inline·test-sheet-scope-axis 등록(needServer:true)", "status": "pending_order" }
+        { "id": "S6-3", "desc": "Realtime 2탭 체크 — 새로고침 없이 갱신. publication 미등록이면 이 체크만 실패해 K-3을 정확히 지목", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: Realtime 독립 블록(:148-213) — 원격 저장→새로고침 없는 요약 반영·dirty 배너·최신 불러오기·벨 4체크 그린", "원격 측은 service role DB 쓰기로 재현(두 번째 탭 아님) — 수신 WALRUS 경로 동일(판정자 관찰)"] } },
+        { "id": "S6-4", "desc": "test-all.mts에 test-annex-sheet-inline·test-sheet-scope-axis 등록(needServer:true)", "status": "implemented", "verified": { "date": "2026-08-18", "evidence": ["판정자: test-all.mts:17-18 두 스위트 needServer:true 등록 확인"], "note": "등록 자체는 선행 세션 커밋분 — 본 세션은 판정만" } }
       ] }
   ],
 
@@ -192,7 +199,12 @@
       { "target": "S3", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" },
       { "target": "S4", "cmd": "npx tsx scripts/test-annex-sheet-inline.mts", "result": "20/20 (신규)", "date": "2026-08-10" },
       { "target": "S4 회귀", "cmd": "npx tsx scripts/test-annex-interaction.mts", "result": "35/35 — K-7 문자열 카운트 함정 회피 확인", "date": "2026-08-10" },
-      { "target": "S4", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" }
+      { "target": "S4", "cmd": "npm run build", "result": "통과", "date": "2026-08-10" },
+      { "target": "S5-1·S5-7", "cmd": "node scripts/_check-realtime-publication.mjs", "result": "스테이징·운영 모두 두 테이블 등록 + REPLICA IDENTITY f", "date": "2026-08-18" },
+      { "target": "S5-7", "cmd": "node scripts/_probe-realtime-live.mjs", "result": "4/4 ×3회(1차 ① 미수신은 구독 직후 레이스 — 프로브에 1회 재삽입 보강)", "date": "2026-08-18" },
+      { "target": "S5·S6", "cmd": "npx tsx scripts/test-annex-sheet-inline.mts", "result": "26/26 ×3회(벨 수정 후) — S5-8 최초 그린", "date": "2026-08-18" },
+      { "target": "회귀", "cmd": "npx tsx scripts/test-sheet-scope-axis.mts", "result": "6/6", "date": "2026-08-18" },
+      { "target": "S5-8 수정", "cmd": "npx tsc --noEmit", "result": "exit 0", "date": "2026-08-18" }
     ],
     "independent_pass": {
       "date": "2026-08-10", "judge": "독립 세션 — S1~S4 구현 커밋(16b42da·eb23b33·913c257·fe89322)에 관여하지 않은 세션이 빌드·E2E 전수 재실행으로 판정",
@@ -209,7 +221,7 @@
       { "target": "K-8", "cmd": "npx tsx scripts/test-voice-sheet.mts <inspId>", "result": "1/2 실패 — HEAD 버전도 동일 실패(인과 확정, 이번 변경 무관)", "date": "2026-08-10" }
     ],
     "pending": [
-      { "target": "S1-7", "desc": "음성 점검표 축 승격 — K-8(test-voice-sheet 선행 결함) 해소 후 E2E 재실행으로 검증", "status": "pending_order" }
+      { "target": "S1-7", "desc": "음성 점검표 축 승격 — K-8(test-voice-sheet 선행 결함) 해소 후 E2E 재실행으로 검증", "status": "abolished", "note": "음성 기능 제거(5a1b6a8, 2026-08-18)로 소멸" }
     ]
   },
 
@@ -232,7 +244,9 @@
       "erp/src/components/inspections/inspection-sheet-client.tsx",
       "erp/scripts/test-mu-sheet.mts (S3 — 인라인 X 3체크 추가)",
       "erp/src/components/customers/plan-annex-section.tsx (S4)",
-      "erp/src/app/(dashboard)/customers/[id]/page.tsx (S4 — canRegister 주입)"
+      "erp/src/app/(dashboard)/customers/[id]/page.tsx (S4 — canRegister 주입)",
+      "erp/src/components/layout/notification-bell.tsx (S5-8 — 세션 후 조인 수정, 2026-08-18)",
+      "erp/scripts/_probe-realtime-live.mjs (S5-7 — 첫 이벤트 레이스 1회 재삽입 보강, 2026-08-18)"
     ],
     "planned": [
       "erp/src/hooks/use-sheet-responses-realtime.ts (S5)",
@@ -248,10 +262,8 @@
   ],
 
   "next_actions": [
-    "S5 착수 (마이그레이션 122 + Realtime 구독) — 번호 119→122 이월 주의",
-    "S6-4 — test-all.mts에 test-annex-sheet-inline·test-sheet-scope-axis 등록",
-    "S1-7 승격 — K-8(음성 점검표 기존 실패) 해소가 선행, 별건 처리 여부 사용자 판단",
-    "K-9(fetchAllRows 중복) 후속 통합"
+    "~~S5·S6-4~~ 완료(2026-08-18 독립 판정 승격) · ~~S1-7~~ 음성 기능 제거(5a1b6a8)로 소멸",
+    "K-9(fetchAllRows 중복) 후속 통합 — 유일 잔여"
   ],
 
   "notes": [
