@@ -97,10 +97,10 @@ try {
   check('재진입 — 요약 유지', (await panel2.locator('textarea[aria-label="계획 내용 요약"]').inputValue()) === SUMMARY)
 
   // ── 4) 실시간 미리보기 — iframe srcDoc에 ③ 값 반영 (H-4 / R6-4) ──
-  const iframe = page.locator('iframe[title="report10 미리보기"]')
+  const iframe = page.locator('iframe[title="별지 10호 미리보기"]')
   await iframe.waitFor({ timeout: 60000 })
   await page.waitForFunction(`(() => {
-    const el = document.querySelector('iframe[title="report10 미리보기"]')
+    const el = document.querySelector('iframe[title="별지 10호 미리보기"]')
     return !!el && (el.getAttribute('srcdoc') || '').includes(${JSON.stringify(SUMMARY)})
   })()`, undefined, { timeout: 60000 })
   const srcDoc = (await iframe.getAttribute('srcdoc')) ?? ''
@@ -163,10 +163,10 @@ try {
   await page.click('text=전·후 사진 쌍')   // blur → 저장
   await p11.locator('text=저장됨').waitFor({ timeout: 30000 })
   await page.waitForFunction(`(() => {
-    const el = document.querySelector('iframe[title="report11 미리보기"]')
+    const el = document.querySelector('iframe[title="별지 11호 미리보기"]')
     return !!el && (el.getAttribute('srcdoc') || '').includes('E2E완료문구')
   })()`, undefined, { timeout: 60000 })
-  const src11 = (await page.locator('iframe[title="report11 미리보기"]').getAttribute('srcdoc')) ?? ''
+  const src11 = (await page.locator('iframe[title="별지 11호 미리보기"]').getAttribute('srcdoc')) ?? ''
   check('11호 미리보기 — ③ 완료 보고 문구(서명 위 1줄)', src11.includes('비고: E2E완료문구-전항목 이행 완료함'))
   check('11호 미리보기 — ③ 제출일 반영', src11.includes(kdate(SUBMIT_DATE)))
   check('11호 미리보기 — ② 완료 행 자동', src11.includes('감지기 교체 완료'))
@@ -181,13 +181,13 @@ try {
   await p9.locator('textarea[aria-label="비고·보완 문구"]').fill('E2E비고-소화기 위치 보완 권고')
   await page.click('text=제출 전제')   // blur → 저장
   await p9.locator('text=저장됨').waitFor({ timeout: 30000 })
-  await page.locator('iframe[title="report9 미리보기"] >> nth=0').waitFor({ timeout: 60000 })
+  await page.locator('iframe[title="별지 9호 미리보기"] >> nth=0').waitFor({ timeout: 60000 })
   await page.click('text=새로고침')
   await page.waitForFunction(`(() => {
-    const el = document.querySelector('iframe[title="report9 미리보기"]')
+    const el = document.querySelector('iframe[title="별지 9호 미리보기"]')
     return !!el && (el.getAttribute('srcdoc') || '').includes('E2E비고')
   })()`, undefined, { timeout: 60000 })
-  const src9 = (await page.locator('iframe[title="report9 미리보기"]').getAttribute('srcdoc')) ?? ''
+  const src9 = (await page.locator('iframe[title="별지 9호 미리보기"]').getAttribute('srcdoc')) ?? ''
   check('9호 미리보기 — ③ 비고(1쪽 유의사항 위)', src9.includes('비고: E2E비고-소화기 위치 보완 권고'))
   check('9호 미리보기 — ③ 보고일 반영', src9.includes(kdate(SUBMIT_DATE)))
   check('9호 미리보기 — 법정 서식 제목 보존', src9.includes('소방시설등 자체점검 실시결과 보고서'))

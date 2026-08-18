@@ -80,6 +80,10 @@ export function InspectionWorkbench({
   const [isPending, startTransition] = useTransition()
   const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
   const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
+  /** 서버가 저장을 확인해 준 제출일 — 무거운 재조회가 끝나기 전까지 화면이 쓸 값 */
+  const [justSubmitted, setJustSubmitted] = useState<{ report9: string | null; report11: string | null }>(
+    { report9: null, report11: null },
+  )
   const [completing, setCompleting] = useState<string | null>(null)
   // 불량을 고치면 ⑤⑥ 미리보기가 따라가야 한다 — 표가 저장할 때마다 토큰을 올린다(R6-4·R6-5)
   const [defectRev, setDefectRev] = useState(0)
@@ -113,15 +117,21 @@ export function InspectionWorkbench({
    *  DB에만 반영되던 그 괴리가 되살아난다. data.evidence가 없는 과도기에만 옛 규칙으로 폴백한다. */
   const hasDefects = data.defects.total > 0
   const isSpecial = data.steps.length > 1
+  // 방금 기록한 제출일을 화면에 즉시 반영한다 (2026-08-18 실측: router.refresh()가 이 무거운
+  // 상세 페이지를 통째로 다시 그리느라 **약 5초** 걸려 "눌러도 반응이 없다"로 보였다).
+  // 서버 응답이 온 뒤에만 세우므로 낙관적 추정이 아니라 '확정된 값의 선반영'이고,
+  // 새 데이터가 도착하면(props 갱신) 그 값이 우선이라 어긋난 채 남지 않는다.
+  const submit9At = data.submit9.submittedAt ?? justSubmitted.report9
+  const submit11At = data.submit11.submittedAt ?? justSubmitted.report11
   const doneByNum = data.evidence
-    ? evidenceDone(data.evidence)
+    ? evidenceDone({ ...data.evidence, submit9At, submit11At })
     : ({
       1: data.responded > 0,
       2: !!data.certFile || !!data.certArchived,
       3: !!data.delivery,
-      4: !!data.submit9.submittedAt,
+      4: !!submit9At,
       5: hasDefects && data.defects.done >= data.defects.total,
-      6: !!data.submit11.submittedAt,
+      6: !!submit11At,
     } as Record<StepNum, boolean>)
   const done = Object.fromEntries(
     (Object.keys(STEP_NUM) as StepKey[]).map(k => [k, doneByNum[STEP_NUM[k] as StepNum]]),
@@ -155,7 +165,8 @@ export function InspectionWorkbench({
     // ④⑥ 기한은 법정 규칙(9호 = 점검 종료일+15일 / 11호 = 이행기간 종료)이 원천이고
     // inspection_steps.due_date는 그 사본이라 어긋날 수 있다 — 지켜야 하는 날짜를 보여준다
     const legal = k === 'submit9' ? data.submit9 : k === 'submit11' ? data.submit11 : null
-    if (legal?.submittedAt) return { text: `제출 ${legal.submittedAt}`, cls: 'text-green-600' }
+    const legalAt = k === 'submit9' ? submit9At : k === 'submit11' ? submit11At : null
+    if (legalAt) return { text: `제출 ${legalAt}`, cls: 'text-green-600' }
     const due = legal?.due ?? st?.due_date ?? null
     if (!due) return null
     const d = Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000)
@@ -239,7 +250,9 @@ export function InspectionWorkbench({
     startTransition(async () => {
       const res = await recordSubmissionAction(inspectionId, kind, date)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg('✅ 제출 기록됨')
+      // 저장이 확인된 값을 먼저 화면에 세운다 — router.refresh()는 상세 전체를 다시 그려 느리다
+      setJustSubmitted(prev => ({ ...prev, [kind]: date || null }))
+      setMsg(date ? `✅ 제출일 ${date} 기록됨` : '✅ 제출일 지움')
       router.refresh()
     })
   }
@@ -661,9 +674,11 @@ export function InspectionWorkbench({
                 <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
                   className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
                 {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
-                {data.submit9.due && !data.submit9.submittedAt && (
-                  <span className="text-[10px] text-[#b0acd6]">기한 {data.submit9.due} (점검 종료일 +15일)</span>
-                )}
+                {submit9At
+                  ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
+                  : data.submit9.due && (
+                    <span className="text-[10px] text-[#b0acd6]">기한 {data.submit9.due} (점검 종료일 +15일)</span>
+                  )}
               </div>
               <div className="border-t border-[#f3f1fc] pt-2">
                 <DocPane files={files} customerName={customerName} onOpen={download} />
@@ -754,8 +769,10 @@ export function InspectionWorkbench({
         </>)}
 
         {sel === 'submit11' && (<>
-          {/* R6-7: 완료 내용·완료일·후 사진을 같은 표에서 */}
-          <Pane title={`이행완료 ${data.defects.done}/${data.defects.total}`} cls={paneCls} head={paneHead}>
+          {/* R6-7: 완료 내용·완료일·후 사진을 같은 표에서.
+              ⚠ 제목은 '불량 조치'다 — 이 숫자는 불량별 조치완료일 개수이지 ⑥의 완료 조건(제출일)이
+              아니다. 종전 '이행완료 N/M'은 제출일을 넣어도 안 바뀌어 '반응이 없다'로 읽혔다. */}
+          <Pane title={`불량 조치 ${data.defects.done}/${data.defects.total}`} cls={paneCls} head={paneHead}>
             {defectRows
               ? <DefectGrid defects={defectRows} inspectionId={inspectionId} canEdit={canManage} mode="complete"
                   onSaved={() => { setDefectRev(v => v + 1); router.refresh() }} />
@@ -784,6 +801,12 @@ export function InspectionWorkbench({
                 <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)}
                   className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
                 {canManage && <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btn}>기록</button>}
+                {/* 기록 여부를 그 자리에서 — ⑥ 완료 조건은 이 날짜뿐이다(위 표의 조치 수가 아니라) */}
+                {submit11At
+                  ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit11At} — ⑥ 완료</span>
+                  : <span className="text-[10px] text-[#b0acd6]">
+                      미기록 — 이 날짜가 ⑥ 완료 조건{data.submit11.due ? ` · 기한 ${data.submit11.due}` : ''}
+                    </span>}
               </div>
               <div className="border-t border-[#f3f1fc] pt-2">
                 <DocPane files={files} customerName={customerName} onOpen={download} />

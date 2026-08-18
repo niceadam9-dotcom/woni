@@ -105,7 +105,7 @@ try {
   const { data: filesBefore } = await raw.storage.from('fire-plans').list(`${custA}/inspections/${inspA}`)
   const beforeCount = (filesBefore ?? []).length
 
-  await page.waitForSelector('iframe[title="report10 미리보기"]', { timeout: 60000 })
+  await page.waitForSelector('iframe[title="별지 10호 미리보기"]', { timeout: 60000 })
   const planCell = page.locator(`[data-defect-row="${defectId}"] textarea`).first()
   await planCell.fill('E2E 이행계획 — 밸브 교체')
   await page.locator(`[data-defect-row="${defectId}"] input[placeholder="YYYY-MM-DD"]`).first().fill(kstShift(1))
@@ -126,7 +126,7 @@ try {
 
   // 미리보기는 디바운스 후 다시 그려진다 — 내용에 방금 넣은 계획이 실려야 한다
   const previewHasPlan = await page.waitForFunction(`(() => {
-    const f = document.querySelector('iframe[title="report10 미리보기"]')
+    const f = document.querySelector('iframe[title="별지 10호 미리보기"]')
     return !!f && (f.getAttribute('srcdoc') || '').includes('밸브 교체')
   })()`, undefined, { timeout: 60000 }).then(() => true).catch(() => false)
   check('⑤ 10호 미리보기 갱신(R6-4)', previewHasPlan)
@@ -136,7 +136,7 @@ try {
     `${beforeCount} → ${(filesAfter ?? []).length}`)
 
   await go('submit11', '이행완료')
-  const prev11 = await page.waitForSelector('iframe[title="report11 미리보기"]', { timeout: 60000 })
+  const prev11 = await page.waitForSelector('iframe[title="별지 11호 미리보기"]', { timeout: 60000 })
     .then(() => true).catch(() => false)
   check('⑥ 전환 — 11호 미리보기(R6-5)', prev11)
 
