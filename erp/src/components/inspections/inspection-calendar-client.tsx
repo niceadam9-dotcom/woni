@@ -706,14 +706,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const planSel = bulkPlanCandidates.filter(c => bulkChecked.has(`p:${c.itemId}`))
       .map(({ itemId, label }) => ({ itemId, label }))
     if (stepItems.length + planSel.length === 0) { setBulkResult('선택된 건이 없습니다.'); return }
-    // R4-9: 일괄이라 건마다 묻지 않는 대신 **한 번은 반드시 사유를 받는다** — 근거 없는 완료는
-    // 다음 상세 진입 때 증거 기반 동기화가 되돌린다(D34-2).
-    const reason = window.prompt(
-      `선택한 ${stepItems.length + planSel.length}건을 완료 처리합니다.\n`
-      + '점검표·파일·제출일이 등록된 건은 사유 없이도 자동 완료됩니다.\n\n'
-      + '완료 사유를 입력하세요 (5자 이상 — 선택한 전 건에 증빙으로 남습니다):',
-    )
-    if (reason === null) return
+    // 사유 입력 팝업 폐지 (2026-08-13 사용자 요청) — 이 모달에서 대상을 눈으로 확인하고 누르는 구조라
+    // 확인 절차는 이미 있다. 다만 서버는 사유를 필수로 요구하고(R4-9·D34-2: 근거 없는 완료는 증거 기반
+    // 동기화가 되돌린다) 사유가 곧 증빙이므로, **경로와 날짜를 담은 사유를 자동으로 남긴다.**
+    const reason = `${dayPanelDate ?? ''} 점검 달력 [이날 전체 완료]로 일괄 확인`.trim()
     startBulk(async () => {
       let done = 0
       const failed: Array<{ label: string; error: string }> = []
