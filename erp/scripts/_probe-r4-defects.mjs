@@ -11,7 +11,6 @@ const wb = existsSync('src/components/inspections/inspection-workbench.tsx')
   ? read('src/components/inspections/inspection-workbench.tsx') : ''
 const page = read('src/app/(dashboard)/inspections/[id]/page.tsx')
 const sheet = read('src/app/(dashboard)/inspections/sheet-actions.ts')
-const archive = read('src/lib/archive-cleanup.ts')
 const test = read('scripts/test-inspection-steps-sync.mts')
 
 let pass = 0, fail = 0
@@ -58,7 +57,8 @@ ok('타임라인이 미렌더임을 파일 머리에 명시했다', /현재 렌�
 console.log('\n— D4 동기화 배선 누락')
 ok('지난 회차 복사가 sync를 부른다',
   /copyPreviousRoundResponsesAction[\s\S]{0,6000}?syncInspectionSteps\(admin, inspectionId/.test(sheet))
-ok('종이 보관 정리가 sync를 부른다', /syncInspectionSteps\(admin, r\.inspId/.test(archive))
+// 과거본 정리(archive-cleanup)는 폐기(2026-08-18) — 종이 보관은 이제 사람이 기록한다
+ok('종이 보관 기록이 sync를 부른다', /recordCertPaperAction[\s\S]{0,1200}syncInspectionSteps/.test(tlActions))
 
 console.log('\n— D5 테스트가 스테이징을 오염시키던 결함')
 ok('정리에 purge_activity_logs를 쓴다', /rpc\('purge_activity_logs'/.test(test))

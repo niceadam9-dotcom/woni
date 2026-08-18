@@ -7,7 +7,6 @@ import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, u
 import { requestFirePlanHwpFromTabAction, previewFirePlanHtmlAction, ensureLatestFirePlanPdfAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
-import { PlanArchiveCleanup } from '@/components/customers/plan-archive-cleanup'
 
 export type FirePlanAttachment = { id: string; kind: string; file_name: string }
 export type FirePlanRow = {
@@ -403,8 +402,9 @@ export function FirePlansClient({ customerId, plans, canManage, purpose }: {
         </form>
       )}
 
-      {/* 과거본 정리 (소방계획서_18 S2) — 최신만 ERP, 과거는 종이 보관 */}
-      <PlanArchiveCleanup customerId={customerId} canManage={canManage} />
+      {/* 과거본 정리(소방계획서_18) 폐기 — 2026-08-18 사용자 확정.
+          보관본은 앞으로 ERP에 계속 쌓아 둔다(자동 삭제 없음). 과거에 정리된 회차의
+          '종이 보관' 마커는 판정 근거라 읽기 쪽에 그대로 남겨 뒀다. */}
     </div>
   )
 }

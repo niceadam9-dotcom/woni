@@ -15,7 +15,7 @@ const REDIRECT = `http://localhost:${PORT}/callback`
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send', // §9-9d 관계인 보고 이메일 발송
-  'https://www.googleapis.com/auth/drive.file',
+  // drive.file 제거 — Drive 백업 폐기(2026-08-18)로 더 이상 필요 없다
 ].join(' ')
 
 const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({

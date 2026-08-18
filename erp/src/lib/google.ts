@@ -146,49 +146,11 @@ export async function gmailGetAttachment(messageId: string, attachmentId: string
   return new Uint8Array(Buffer.from(res.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64'))
 }
 
-// ── Drive (백업 미러) ─────────────────────────────────────────
-const DRIVE = 'https://www.googleapis.com/drive/v3'
-const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
-
-function escapeQ(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-}
-
-/** 폴더 확보 (없으면 생성) — 반환: 폴더 ID */
-export async function driveEnsureFolder(name: string, parentId: string | null): Promise<string> {
-  const parent = parentId ?? 'root'
-  const q = `name='${escapeQ(name)}' and '${parent}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-  const found = await gapi<{ files: Array<{ id: string }> }>(`${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id)`)
-  if (found.files.length > 0) return found.files[0].id
-  const created = await gapi<{ id: string }>(`${DRIVE}/files`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
-  })
-  return created.id
-}
-
-export async function driveFileExists(name: string, parentId: string): Promise<boolean> {
-  const q = `name='${escapeQ(name)}' and '${parentId}' in parents and trashed=false`
-  const found = await gapi<{ files: Array<{ id: string }> }>(`${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id)`)
-  return found.files.length > 0
-}
-
-export async function driveUpload(name: string, parentId: string, data: Uint8Array, mime: string): Promise<string> {
-  const boundary = 'erp_backup_boundary'
-  const meta = JSON.stringify({ name, parents: [parentId] })
-  const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`
-  const tail = `\r\n--${boundary}--`
-  const body = Buffer.concat([Buffer.from(head, 'utf8'), Buffer.from(data), Buffer.from(tail, 'utf8')])
-  const token = await getAccessToken()
-  const res = await fetch(`${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
-    body: body as unknown as BodyInit,
-  })
-  if (!res.ok) throw new Error(`Drive 업로드 실패 (${res.status}): ${(await res.text()).slice(0, 200)}`)
-  return ((await res.json()) as { id: string }).id
-}
+// ── Drive 백업 폐기 (2026-08-18 사용자 확정) ───────────────────
+// ERP 스토리지를 Google Drive로 야간 미러하던 크론(/api/cron/drive-backup)과 전용 함수
+// (driveEnsureFolder·driveFileExists·driveUpload)를 함께 제거했다. 남은 Google 연동은
+// Gmail(조회·발송)뿐이므로 필요한 스코프도 gmail.readonly + gmail.send 두 개다.
+// 되살릴 경우 drive.file 스코프 재동의(scripts/google-oauth-setup.mjs)부터 필요하다.
 
 // ── Gmail 발송 (§9-9d 관계인 보고 — 첨부 1개 MIME) ─────────────
 // ⚠ gmail.send 스코프 필요 — 기존 토큰(readonly)이면 403: scripts/google-oauth-setup.mjs 재실행 후 GOOGLE_REFRESH_TOKEN 교체

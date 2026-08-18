@@ -23,12 +23,12 @@ const steps: Step[] = [
   // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.
   // src만 보면 통과하므로 naturalWidth로 '실제로 그려졌는지'까지 본다
   { name: '불량 전/후 사진(E2E)',       cmd: 'npx tsx scripts/test-defect-photos.mts',              needServer: true },
-  // 소방계획서_18 S4 — 과거본 정리는 되돌릴 수 없는 삭제라 게이트·대상 판정을 상시 고정한다
-  { name: '보관함 과거본 정리(E2E)',    cmd: 'npx tsx scripts/test-archive-cleanup.mts',     needServer: true },
-  // 실패 경로는 서버 없이 검증한다 — Storage 실패를 경계에서 주입해 "파일을 다 못 지우면 행도 안 지운다"를 고정
-  { name: '정리 실패 경로(프로브)',     cmd: 'npx tsx --conditions=react-server scripts/_probe-cleanup-failure.mts' },
-  // 마커는 판정 근거라 보존 크론이 지우면 안 된다 — 반대로 감사 로그까지 영구 보존해서도 안 된다
+  // 보관함 과거본 정리(소방계획서_18)는 폐기됨(2026-08-18) — 관련 E2E·프로브 2건도 함께 삭제.
+  // 마커 보존 프로브는 남긴다: 정리 기능은 없어져도 **과거 마커를 읽는 판정**은 그대로 살아 있고,
+  // 오프라인 보고·사유 완료 마커까지 보존 대상이라 크론이 지우면 그 단계들이 되살아난다.
   { name: '로그 보존 마커 제외(프로브)', cmd: 'npx tsx --conditions=react-server scripts/_probe-purge-marker.mts' },
+  // ② 배치확인서 — 종이 보관 기록 + 업로드 파일 삭제(제안1·2)
+  { name: '배치확인서 종이·삭제(E2E)',   cmd: 'npx tsx scripts/test-cert-paper-delete.mts',   needServer: true },
 ]
 
 let serverUp = false
