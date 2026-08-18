@@ -15,6 +15,7 @@ import { SheetGroupBoard } from '@/components/inspections/sheet-group-board'
 import { SheetDrawer } from '@/components/inspections/sheet-drawer'
 import { SheetGroupToc, type TocEntry } from '@/components/inspections/sheet-group-toc'
 import { useUnsavedNavGuard, usePlanSaveHandler } from '@/components/ui/unsaved-nav'
+import { pickAutoOpenSheet } from '@/lib/inspection-step-links'
 import type { SheetProgress, SheetGroupProgress } from '@/lib/sheet-overview'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 
@@ -27,7 +28,7 @@ type Sheet = { id: string; sheet_code: string; sheet_name: string }
  *  카드 클릭 = 그 시트 전체를 드로어로 열고 해당 머더로 점프. 같은 시트 안 이동은 재로드·확인창 없음(S7-11).
  *  미저장 이동은 unsaved-nav 3버튼 확인창(Q-18 — window.confirm 금지).
  *  보드 진행률은 서버 progress 위에 열린 시트의 로컬 값을 오버레이(G-9) — 저장·일괄 직후 즉시 갱신. */
-export function InspectionSheetClient({ inspectionId, inspectionType, planType, sheets, responses, progress, xCount, canManage, ledgerSubCodes = [] }: {
+export function InspectionSheetClient({ inspectionId, inspectionType, planType, sheets, responses, progress, xCount, canManage, ledgerSubCodes = [], autoOpenSheet = false }: {
   inspectionId: string
   inspectionType: string
   planType: string | null   // special_종합·special_작동·null=자체점검 / monthly·레거시 event=외관
@@ -39,6 +40,8 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   canManage: boolean
   /** 대장 하위(FIRE_SUB_ITEMS) 설치 코드 — Q-22 ② 힌트 배너용. 비면 배너 침묵(P-15) */
   ledgerSubCodes?: string[]
+  /** 딥링크 `?sheet=auto` — 마운트 시 첫 미완성 시트 드로어를 자동으로 연다 */
+  autoOpenSheet?: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -186,6 +189,22 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     setMonth(next)
     if (selRef.current) doOpen(selRef.current, null, next)
   }
+
+  /** 딥링크 `?sheet=auto` — 달력·계획 패널의 [점검표 입력]이 여기로 보낸다. 마운트 1회만 연다.
+   *
+   *  ① 단계의 정상 완료 경로는 '점검표 응답 1건 이상'인데(inspection-step-status.ts evidenceDone),
+   *  종전엔 그 자리로 가는 링크가 없어 사용자가 [사유 완료]밖에 누를 수 없었다. 이 훅이 그 경로를 잇는다.
+   *  선택 규칙은 pickAutoOpenSheet(순수 함수 — 프로브가 DB 없이 단언한다).
+   *  전부 입력된 상태면 열지 않는다 — 다 채운 사람에게 드로어를 던지면 방해일 뿐이다. */
+  const autoOpenedRef = useRef(false)
+  useEffect(() => {
+    if (!autoOpenSheet || autoOpenedRef.current) return
+    autoOpenedRef.current = true
+    const list = sheets.map(s => progress[s.id]).filter((p): p is SheetProgress => !!p)
+    const target = pickAutoOpenSheet(list)
+    if (target) requestOpen(target.sheetId, null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenSheet])
 
   /** 저장(S7-14) — 시트 전체 rows + 해제분 clearCodes. 저장 후 드로어를 닫지 않고 base=local — 연속 입력 */
   function doSave(): Promise<boolean> {

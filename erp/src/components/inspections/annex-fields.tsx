@@ -99,11 +99,14 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
     // 가입기간(1.1 일반현황)과 동일 패턴 — "YYYY-MM-DD ~ YYYY-MM-DD"로 저장, 문서 출력 시 한국어 날짜로 변환(report9-actions)
     const [ps = '', pe = ''] = (value ?? '').split(/\s*~\s*/)
     const join = (s: string, e2: string) => onChange(!s && !e2 ? '' : `${s} ~ ${e2}`.trim())
+    // 좁은 칸에서는 **접힌다**(flex-wrap + min-w-0). 종전엔 w-36 두 칸이 고정이라 최소 312px를 요구해
+    // 작업대 3칸 폭 재배분의 병목이었다(실측 2026-08-18: 1:0.9:1.8에서 이 한 줄이 +38px 넘침).
+    // 접히면 세로로 한 줄 늘 뿐이고, 그 칸은 세로 여유가 있다.
     return (
-      <span className="inline-flex items-center gap-1.5">
-        <DateInput value={ps} aria-label={`${def.label} 시작일`} onChange={e => join(e.target.value, pe)} className={`${inputBase} w-36`} />
+      <span className="flex flex-wrap items-center gap-1.5">
+        <DateInput value={ps} aria-label={`${def.label} 시작일`} onChange={e => join(e.target.value, pe)} className={`${inputBase} w-36 min-w-0 max-w-full`} />
         <span className="text-xs text-[#847ba8] shrink-0">~</span>
-        <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)} className={`${inputBase} w-36`} />
+        <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)} className={`${inputBase} w-36 min-w-0 max-w-full`} />
       </span>
     )
   }

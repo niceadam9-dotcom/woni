@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, FileText, Loader2,
+  AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Eye, FileText, Loader2,
   Maximize2, Package, Send, Trash2, Upload, X,
 } from 'lucide-react'
 import {
@@ -48,6 +48,9 @@ const STEP_NUM: Record<StepKey, number> = {
   checklist: 1, cert: 2, ownerReport: 3, submit9: 4, repair: 5, submit11: 6,
 }
 
+/** 3번째 칸이 A4 서식 실시간 미리보기인 단계 — 이 단계에서만 폭을 미리보기 쪽으로 재배분한다 */
+const PREVIEW_STEPS = new Set<StepKey>(['submit9', 'repair', 'submit11'])
+
 export function InspectionWorkbench({
   inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots, defectRows,
   initialStepNum = null,
@@ -71,6 +74,9 @@ export function InspectionWorkbench({
   const [job, setJob] = useState(initialJob)
   const [files, setFiles] = useState(initialFiles)
   const [msg, setMsg] = useState('')
+  // 22 S8 후속 — [위임장 보기]가 아래 접힘 영역을 열고 그리로 스크롤한다
+  const [delegationOpen, setDelegationOpen] = useState(false)
+  const delegationRef = useRef<HTMLDetailsElement>(null)
   const [isPending, startTransition] = useTransition()
   const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
   const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
@@ -405,8 +411,19 @@ export function InspectionWorkbench({
       {msg && <p className={`shrink-0 text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
 
       {/* 3칸 — 데스크톱 전용. 좁은 화면은 세로 스택 폴백(R6-10, 현장은 폰이다).
-          점검표 드로어는 createPortal 오버레이(소방계획서_23 Q-4·Q-15)라 이 grid 밖에 뜬다 — 3칸 비율은 개폐와 무관하게 고정. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]"
+          점검표 드로어는 createPortal 오버레이(소방계획서_23 Q-4·Q-15)라 이 grid 밖에 뜬다 — 3칸 비율은 개폐와 무관하게 고정.
+
+          ④⑤⑥은 3번째 칸이 **A4 서식 미리보기**라 폭이 곧 세로 스크롤이다: A4 표는 폭이 좁을수록
+          세로로 늘어난다(실측 2026-08-18, 불량 3건 기준 — 폭 385px면 문서가 950px을 요구해 527px만
+          보이지만, 505px로 넓히면 756px만 요구해 표시율이 55%→70%가 된다).
+          2xl에서 더 밀면 1920 기준 87%→99%로 사실상 스크롤이 사라진다.
+          ⚠ 이 재배분은 날짜 칸 병목(annex-fields 총 이행기간·defect-grid 날짜 열)을 먼저 푼 뒤에야
+          가로 넘침 없이 성립한다 — 그 두 곳을 되돌리면 여기도 함께 되돌려야 한다. */}
+      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-2 ${
+        PREVIEW_STEPS.has(sel)
+          ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,1.5fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.8fr)]'
+          : 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]'
+      }`}
         data-testid="workbench-panes">
         {sel === 'checklist' && (<>
           <Pane title="점검표 입력" cls={paneCls} head={paneHead}>
@@ -602,6 +619,10 @@ export function InspectionWorkbench({
                   {/* 소방계획서_22 S5·S7·S8 — 납품 번들 앞장 3종. 번들 순서는 공문 → 위임장 → 표지 → 본문(bundle TYPE_ORDER) */}
                   <button onClick={() => generate('official')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 공문</button>
                   <button onClick={() => generate('delegation')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 위임장</button>
+                  {/* 22 S8 후속 — 만들기 전에 확인. 아래 접힘 영역(입력+즉석 미리보기)을 연다 */}
+                  <button onClick={() => { setDelegationOpen(true); setTimeout(() => delegationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50) }}
+                    title="위임장 미리보기 — 생성 전에 내용을 확인합니다"
+                    className={btn}><Eye className="size-3" /> 위임장 보기</button>
                   <button onClick={() => generate('cover')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 표지</button>
                   <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
                 </>)}
@@ -620,14 +641,18 @@ export function InspectionWorkbench({
                   </div>
                 </details>
               )}
-              {/* 22 S8 — 위임장 ③ 고유값(생년월일 등 시스템 미보유 값). 자동 기본값 위에 수동 우선 */}
+              {/* 22 S8 — 위임장 ③ 고유값(생년월일 등 시스템 미보유 값). 자동 기본값 위에 수동 우선.
+                  [위임장 보기]가 이 영역을 여는 구조라 open을 상태로 잡는다(details 기본 토글도 그대로 유지) */}
               {canManage && (
-                <details className="border-t border-[#f3f1fc] pt-2">
+                <details ref={delegationRef} open={delegationOpen}
+                  onToggle={e => setDelegationOpen((e.currentTarget as HTMLDetailsElement).open)}
+                  className="border-t border-[#f3f1fc] pt-2">
                   <summary className="cursor-pointer text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]">
-                    위임장 입력 (관계인·대리인 생년월일 등)
+                    위임장 입력·미리보기 (관계인·대리인 생년월일 등)
                   </summary>
                   <div className="mt-1.5">
-                    <AnnexFields inspectionId={inspectionId} annexNo="delegation" canEdit={canManage} />
+                    {/* 열렸을 때만 렌더 — 닫힌 채로 미리보기를 조립하면 불필요한 왕복이 생긴다 */}
+                    {delegationOpen && <AnnexInlineCompose inspectionId={inspectionId} annexNo="delegation" canEdit={canManage} />}
                   </div>
                 </details>
               )}
@@ -908,6 +933,26 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved }: {
   )
 }
 
+/** 앞장류 입력 + 즉석 미리보기 (22 S8) — 접힘 영역용. AnnexPane과 같은 구성이지만
+ *  Pane이 물려주는 높이가 없는 자리라 미리보기 높이를 직접 준다.
+ *  왜 필요한가: 공문·위임장은 생성 버튼만 있고 **만들기 전에 내용을 볼 방법이 없었다** —
+ *  생년월일 같은 ③ 입력이 문서에 어떻게 찍히는지 확인하려면 일단 PDF를 만들어야 했다. */
+function AnnexInlineCompose({ inspectionId, annexNo, canEdit }: {
+  inspectionId: string
+  annexNo: 'official' | 'delegation'
+  canEdit: boolean
+}) {
+  const [rev, setRev] = useState(0)
+  return (
+    <div className="space-y-2">
+      <AnnexFields inspectionId={inspectionId} annexNo={annexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
+      <div className="h-[30rem] border-t border-[#f3f1fc] pt-2">
+        <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)} />
+      </div>
+    </div>
+  )
+}
+
 /** 고유값 + 미리보기 한 칸 — ④처럼 보조 칸이 하나뿐일 때 */
 function AnnexPane({ inspectionId, annexNo, canEdit }: {
   inspectionId: string
@@ -932,7 +977,8 @@ function AnnexPane({ inspectionId, annexNo, canEdit }: {
  *  watch가 바뀌면(불량 수정 등) 디바운스 후 다시 부른다. Gotenberg 미호출이라 파일이 생기지 않는다. */
 function AnnexPreview({ inspectionId, reportType, watch }: {
   inspectionId: string
-  reportType: 'report9' | 'report10' | 'report11'
+  /** 앞장류(공문·위임장·표지)도 같은 즉석 렌더를 탄다 — 액션이 전 종류를 처리한다(22 S5·S7·S8) */
+  reportType: 'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover'
   watch?: string
 }) {
   const [html, setHtml] = useState<string | null>(null)
@@ -971,8 +1017,9 @@ function AnnexPreview({ inspectionId, reportType, watch }: {
     return () => { document.removeEventListener('keydown', h); document.body.style.overflow = prev }
   }, [zoom])
 
+  // 제목은 내부 코드명('delegation')이 아니라 사람이 읽는 이름 — 스크린리더가 읽는 값이다
   const frame = (cls: string) => html
-    ? <iframe srcDoc={html} title={`${reportType} 미리보기`} className={cls} />
+    ? <iframe srcDoc={html} title={`${ANNEX_PREVIEW_TITLES[reportType]} 미리보기`} className={cls} />
     : null
 
   return (
@@ -1018,6 +1065,7 @@ function AnnexPreview({ inspectionId, reportType, watch }: {
   )
 }
 
-const ANNEX_PREVIEW_TITLES: Record<'report9' | 'report10' | 'report11', string> = {
+const ANNEX_PREVIEW_TITLES: Record<'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover', string> = {
   report9: '별지 9호', report10: '별지 10호', report11: '별지 11호',
+  official: '제출 공문', delegation: '위임장', cover: '보고서 표지',
 }

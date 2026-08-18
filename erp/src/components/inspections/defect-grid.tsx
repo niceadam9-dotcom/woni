@@ -90,7 +90,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
     return <p className="px-1 py-2 text-[11px] text-[#b0acd6]">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
   }
 
-  const cell = 'w-full rounded border border-[#e0ddf5] px-1.5 py-1 text-[11px] focus:outline-none focus:border-[#7b68ee] disabled:bg-[#fafafa]'
+  // min-w-0 — input[type=date]는 UA 고유 최소폭이 있어 w-full이어도 좁은 칸에서 밖으로 삐져나온다.
+  // 이게 작업대 3칸 폭 재배분의 남은 병목이었다(실측 2026-08-18: 계획 기간 칸에서 +27px).
+  const cell = 'w-full min-w-0 rounded border border-[#e0ddf5] px-1.5 py-1 text-[11px] focus:outline-none focus:border-[#7b68ee] disabled:bg-[#fafafa]'
 
   return (
     <div className="space-y-1">
@@ -98,13 +100,16 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
       <table className="w-full table-fixed border-collapse text-[11px]" data-testid="defect-grid">
         <thead>
           <tr className="text-left text-[10px] text-[#847ba8]">
-            <th className="w-[30%] px-1 pb-1 font-medium">불량</th>
+            {/* 날짜 열은 'YYYY-MM-DD'(약 78px) + 달력 버튼(28px)이 들어가야 글자가 안 잘린다.
+                종전 26%로는 칸이 좁아지면 날짜가 잘렸다 — 작업대 3칸 폭 재배분의 병목(실측 2026-08-18).
+                불량명은 잘려도 줄바꿈으로 읽히므로 여기서 폭을 내준다. */}
+            <th className="w-[26%] px-1 pb-1 font-medium">불량</th>
             {mode === 'plan' ? (<>
-              <th className="w-[34%] px-1 pb-1 font-medium">조치 계획</th>
-              <th className="w-[26%] px-1 pb-1 font-medium">계획 기간</th>
+              <th className="w-[32%] px-1 pb-1 font-medium">조치 계획</th>
+              <th className="w-[32%] px-1 pb-1 font-medium">계획 기간</th>
             </>) : (<>
-              <th className="w-[34%] px-1 pb-1 font-medium">조치 내용</th>
-              <th className="w-[26%] px-1 pb-1 font-medium">완료일</th>
+              <th className="w-[32%] px-1 pb-1 font-medium">조치 내용</th>
+              <th className="w-[32%] px-1 pb-1 font-medium">완료일</th>
             </>)}
             <th className="w-[10%] px-1 pb-1 font-medium">사진 전·후</th>
           </tr>

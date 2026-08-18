@@ -10,6 +10,7 @@ import { updatePlanItemAction, startInspectionAction, getInspectionStepsForItemA
 import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
+import { stepInputLink } from '@/lib/inspection-step-links'
 
 type StepInfo = {
   id: string; step_num: number; name_ko: string
@@ -368,8 +369,12 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   {steps.map(step => {
                     const done = step.status === 'completed'
                     const overdue = !done && step.due_date && step.due_date < new Date().toISOString().split('T')[0]
-                    // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 완료 버튼 표시
+                    // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 [사유 완료] 표시
                     const isCurrent = !done && steps.every(s => s.step_num >= step.step_num || s.status === 'completed')
+                    // [입력]은 모든 미완료 단계에 — 서버는 R4-4에서 순서 강제를 폐지했다(달력 패널과 같은 규칙)
+                    const inputLink = !done && item.inspection_id
+                      ? stepInputLink(item.inspection_id, step.step_num)
+                      : null
                     return (
                       <div
                         key={step.id}
@@ -397,13 +402,28 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                               </p>
                             )}
                           </div>
-                          {isCurrent && (
-                            <button
-                              onClick={() => handleCompleteStep(step.id)}
-                              className="shrink-0 text-[10px] px-2 py-1 rounded-md bg-[#7b68ee] text-white hover:bg-[#6a5acd] transition-colors"
-                            >
-                              완료
-                            </button>
+                          {/* 정상 경로(채움) 위 · 예외 경로(테두리만) 아래 — 달력 패널과 같은 위계 */}
+                          {(inputLink || isCurrent) && (
+                            <div className="shrink-0 flex flex-col items-stretch gap-1">
+                              {inputLink && (
+                                <Link
+                                  href={inputLink.href}
+                                  title={inputLink.title}
+                                  className="text-[10px] px-2 py-1 rounded-md bg-[#7b68ee] text-white hover:bg-[#6a5acd] transition-colors text-center whitespace-nowrap"
+                                >
+                                  {inputLink.label}
+                                </Link>
+                              )}
+                              {isCurrent && (
+                                <button
+                                  onClick={() => handleCompleteStep(step.id)}
+                                  title="증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
+                                  className="text-[10px] px-2 py-1 rounded-md border border-[#c8c4d0] text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#514b81] transition-colors whitespace-nowrap"
+                                >
+                                  사유 완료
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
