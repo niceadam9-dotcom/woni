@@ -6,7 +6,9 @@ import { ClipboardCopy, Check, X, ExternalLink, AlertTriangle, Loader2 } from 'l
 import { getPlacementInfoAction, type PlacementField } from '@/app/(dashboard)/inspections/timeline-actions'
 
 /** ⑥ 배치신고 도우미 (소방계획서_5 R7) — [신고 정보 복사] + 복사 전 미리보기 팝오버.
- *  빈 값 앰버·입력처 딥링크 + '✓ 복사됨' 피드백 + 협회 링크 병치 (복사→이동 한 흐름). */
+ *  빈 값 앰버·입력처 딥링크 + '✓ 복사됨' 피드백 + 협회 링크 병치 (복사→이동 한 흐름).
+ *  팝오버는 버튼 **왼쪽 모서리 기준**으로 연다 — 작업대(R6)에서 이 버튼이 행 맨 앞이라
+ *  right-0이면 320px가 카드 왼쪽 밖으로 뻗어 옆 칸을 덮고 잘렸다. */
 export function PlacementReportHelper({ inspectionId }: { inspectionId: string }) {
   const [open, setOpen] = useState(false)
   const [fields, setFields] = useState<PlacementField[] | null>(null)
@@ -41,7 +43,7 @@ export function PlacementReportHelper({ inspectionId }: { inspectionId: string }
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-80 rounded-xl border border-[#d0ccf5] bg-white shadow-lg p-3 text-left">
+        <div className="absolute left-0 z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-[#d0ccf5] bg-white shadow-lg p-3 text-left">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-[#090c1d]">협회 배치신고 정보</span>
             <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-700"><X className="size-3.5" /></button>
