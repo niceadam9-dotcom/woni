@@ -95,44 +95,10 @@ export async function uploadReportAction(
     metadata:    { report_type: reportType, file_name: file.name },
   } as Record<string, unknown>)
 
-  // 6단계 보고서 업로드 → 점검현황 모니터링 날짜 자동 반영
-  const STEP_TO_LOG_FIELD: Record<string, string> = {
-    step1: 'inspection_date',
-    step2: 'report_submitted_at',
-    step3: 'sent_at',
-    step4: 'filed_at',
-  }
-  const logField = STEP_TO_LOG_FIELD[reportType]
-  if (logField) {
-    const { data: planItem } = await admin
-      .from('inspection_plan_items')
-      .select('id')
-      .eq('inspection_id', inspectionId)
-      .maybeSingle()
-
-    if (planItem) {
-      const planItemId = (planItem as { id: string }).id
-      const today = new Date().toISOString().slice(0, 10)
-
-      // 이미 해당 날짜가 수동으로 입력되어 있으면 덮어쓰지 않음
-      const { data: existingLog } = await admin
-        .from('inspection_status_log')
-        .select(logField)
-        .eq('plan_item_id', planItemId)
-        .maybeSingle()
-
-      const alreadySet = existingLog && (existingLog as unknown as Record<string, unknown>)[logField]
-      if (!alreadySet) {
-        await admin
-          .from('inspection_status_log')
-          .upsert(
-            { plan_item_id: planItemId, [logField]: today, updated_by: profileId } as Record<string, unknown>,
-            { onConflict: 'plan_item_id' }
-          )
-        revalidatePath('/inspection-plans/monitor')
-      }
-    }
-  }
+  // 종전에는 여기서 inspection_status_log에 단계 날짜를 자동 반영했다(쓰기 3곳 중 하나).
+  // 그 테이블은 inspection_steps와 1:1 중복인 두 번째 축이었고, 읽는 곳은 모니터링 화면 하나뿐이라
+  // 세 곳이 쓰고 한 곳만 읽는데 그 값을 나머지 시스템은 믿지 않는 구조였다(소방계획서_24 P-14·P-15).
+  // Q-8로 모니터링을 폐지하며 이 쓰기도 걷어냈다 — 단계 완료 판정의 단일 원천은 inspection_steps다.
 
   revalidatePath(`/inspections/${inspectionId}`)
   return {}

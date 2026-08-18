@@ -1,8 +1,9 @@
 ﻿'use client'
 
 import { useState, useTransition } from 'react'
-import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame } from 'lucide-react'
-import { upsertContactAction, getMyAddressContactsAction } from '@/app/(dashboard)/customers/actions'
+import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame, MessageSquare } from 'lucide-react'
+import { upsertContactAction, getMyAddressContactsAction, setContactSmsRecipientAction } from '@/app/(dashboard)/customers/actions'
+import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
@@ -14,6 +15,10 @@ type AddressEntry = { name: string; phone: string; email: string; position: stri
 
 interface Props {
   customerId: string
+  /** 임의 발송 모달 제목·문구 치환용 (소방계획서_24 Q-17) */
+  customerName?: string
+  /** 사전 안내 문자 발송 권한 (inspection_sms_send) */
+  canSendSms?: boolean
   contacts: CustomerContact[]
   canManage: boolean
   /** §6-E: 자위소방대 편성 교차 표시 — 이름 → 구분(자위소방대장 등) */
@@ -28,7 +33,9 @@ interface FormState {
   birth_date: string
 }
 
-export function EditContactsClient({ customerId, contacts, canManage, brigadeByName = {} }: Props) {
+export function EditContactsClient({ customerId, customerName = '', canSendSms = false, contacts, canManage, brigadeByName = {} }: Props) {
+  // 임의 발송(Q-17) — 재방문·불량 보수·AS 판단은 그 고객을 보면서 한다. 가장 자연스러운 자리다.
+  const [smsOpen, setSmsOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<ContactRole | null>(null)
   const [form, setForm] = useState<FormState>({ name: '', phone: '', email: '', position: '', birth_date: '' })
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +44,20 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
   const [book, setBook] = useState<AddressEntry[] | null>(null)
   const [showBook, setShowBook] = useState(false)
   const [copied, setCopied] = useState('')
+  // 문자 수신 지정(Q-10) — 서버 왕복을 기다리지 않고 화면을 먼저 반영한다(체크 반응이 느리면 두 번 누른다)
+  const [smsPick, setSmsPick] = useState<Record<string, boolean>>(
+    Object.fromEntries(contacts.map(c => [c.id, c.sms_recipient === true])))
+
+  const pickedCount = Object.values(smsPick).filter(Boolean).length
+
+  function toggleSms(contactId: string) {
+    const next = !smsPick[contactId]
+    setSmsPick(s => ({ ...s, [contactId]: next }))
+    startTransition(async () => {
+      const res = await setContactSmsRecipientAction(customerId, contactId, next)
+      if (res.error) { setError(res.error); setSmsPick(s => ({ ...s, [contactId]: !next })) }
+    })
+  }
 
   function openBook() {
     setShowBook(v => !v)
@@ -106,6 +127,35 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
     <div className="grid grid-cols-1 gap-3">
       {visibleRoles.length === 0 && (
         <p className="text-xs text-[#b0acd6]">등록된 관계인이 없습니다</p>
+      )}
+      {/* 체크 인원 = 회차당 통수 (소방계획서_24 S5-b) — 문자 비용이 정해지는 지점은 발송 모달이 아니라
+          여기다. 정기점검 고객이면 3명 체크 = 연 36통이 되는데 그 사실이 화면에 드러나지 않았다. */}
+      {visibleRoles.length > 0 && (
+        <div data-testid="sms-recipient-summary"
+          className="flex items-center gap-1.5 text-[11px] text-[#514b81] bg-[#faf9ff] border border-[#eceaf8] rounded-lg px-3 py-1.5">
+          <MessageSquare className="size-3 text-[#7b68ee]" />
+          {pickedCount > 0 ? (
+            <>사전 안내 문자 <b className="text-[#090c1d]">{pickedCount}명</b> 지정 — <b>점검 1회당 {pickedCount}통</b>이 나갑니다.</>
+          ) : (
+            <>문자 수신자 <b className="text-[#090c1d]">미지정</b> — 대표(또는 지정관계인)에게 <b>1통</b>만 나갑니다.</>
+          )}
+          {canSendSms && (
+            <button
+              data-testid="customer-adhoc-sms"
+              onClick={() => setSmsOpen(true)}
+              title="계획에 없는 방문(재방문·불량 보수·AS 등)을 안내합니다 — 점검 회차로 잡히지 않습니다"
+              className="ml-auto h-6 px-2 rounded-lg border border-[#d0ccf5] text-[10px] text-[#7b68ee] hover:bg-white transition-colors"
+            >
+              문자 보내기
+            </button>
+          )}
+        </div>
+      )}
+      {smsOpen && (
+        <InspectionSmsModal
+          source={{ kind: 'adhoc', customerId, customerName }}
+          onClose={() => setSmsOpen(false)}
+        />
       )}
       {visibleRoles.map(role => {
         const contact = contacts.find(c => c.role === role)
@@ -242,15 +292,36 @@ export function EditContactsClient({ customerId, contacts, canManage, brigadeByN
                 )}
               </div>
             </div>
-            {canManage && (
-              <button
-                onClick={() => startEdit(role)}
-                className="flex items-center gap-1 text-xs text-[#514b81] hover:text-[#7b68ee] transition-colors shrink-0"
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              {canManage && (
+                <button
+                  onClick={() => startEdit(role)}
+                  className="flex items-center gap-1 text-xs text-[#514b81] hover:text-[#7b68ee] transition-colors"
+                >
+                  <Pencil className="size-3" />
+                  수정
+                </button>
+              )}
+              {/* 문자 받음 (소방계획서_24 Q-10) — 번호가 없으면 체크해도 못 보내므로 그 사실을 말한다 */}
+              <label
+                data-testid="sms-recipient-toggle"
+                title={contact!.phone ? '사전 안내 문자를 이 사람에게 보냅니다' : '전화번호가 없어 발송되지 않습니다'}
+                className={`flex items-center gap-1 text-[11px] ${canManage ? 'cursor-pointer' : 'opacity-60'} ${
+                  contact!.phone ? 'text-[#514b81]' : 'text-[#b0acd6]'}`}
               >
-                <Pencil className="size-3" />
-                수정
-              </button>
-            )}
+                <input
+                  type="checkbox"
+                  disabled={!canManage || isPending}
+                  checked={!!smsPick[contact!.id]}
+                  onChange={() => toggleSms(contact!.id)}
+                  className="accent-[#7b68ee]"
+                />
+                <MessageSquare className="size-3" /> 문자 받음
+              </label>
+              {smsPick[contact!.id] && !contact!.phone && (
+                <span className="text-[10px] text-red-500">번호가 없어 발송되지 않습니다</span>
+              )}
+            </div>
           </div>
         )
       })}

@@ -537,6 +537,8 @@ export default async function CustomerDetailPage({
         <h2 className="text-sm font-semibold text-[#090c1d] mb-4">관계인 정보</h2>
         <EditContactsClient
           customerId={customer.id}
+          customerName={customer.customer_name}
+          canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}
           contacts={contacts}
           canManage={canManage}
           brigadeByName={Object.fromEntries(planInfoInitial.brigade.map(m => [m.name, m.team]))}

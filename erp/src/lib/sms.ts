@@ -1,0 +1,396 @@
+import 'server-only'
+
+import { createHmac } from 'crypto'
+import type { createAdminClient } from '@/lib/supabase/admin'
+import { loadTemplate, companyVars } from '@/lib/message-template'
+import {
+  pickContacts, groupTargets, countMessages, normalizePhone, maskPhone,
+  smsByteLength, smsKind, dDayLabel, daysBetween, todayKst, shortDate,
+  parseSolapiResult, renderTemplate,
+  type SmsTarget, type SmsGroup, type Contact,
+} from '@/lib/sms-recipients'
+
+/** 사전 안내 SMS — **유일한 발송 경로** (소방계획서_24 S3)
+ *
+ *  화면·크론·임의 발송이 전부 이 함수를 지난다. 종전에는 발송 규칙이 클라이언트 컴포넌트에
+ *  흩어져 있어(P-10) 경로마다 규칙이 갈라졌다.
+ *
+ *  실패를 정직하게 남기는 것이 이 모듈의 존재 이유다 — 종전 saveSmsAction은 Solapi 호출
+ *  결과와 무관하게 sms_sent_at을 찍었고, 번호가 없어 걸러진 항목까지 같은 루프를 돌아
+ *  **문자를 못 받은 고객이 '발송됨'으로 보였다**(P-1·P-2).
+ */
+
+type Admin = ReturnType<typeof createAdminClient>
+
+// ── 안전장치 ──────────────────────────────────────────────────
+/** 문자는 되돌릴 수 없고 돈이 나간다. 세 겹으로 막는다. */
+export function smsGuards() {
+  return {
+    /** 네트워크 호출 없이 가짜 성공 — 운영에서 "잠깐 멈춤" 스위치로도 쓴다 */
+    dryRun: process.env.SMS_DRY_RUN === '1',
+    /** 목록 밖 번호는 전부 skip. 스테이징에 걸어두면 사고 시 최대 피해가 본인 1통 */
+    allowlist: (process.env.SMS_ALLOWLIST ?? '').split(',').map(s => normalizePhone(s)).filter(Boolean),
+    /** 1회 상한 — 초과하면 발송 자체를 안 한다(부분 발송으로 어중간하게 만들지 않는다) */
+    maxPerRun: Number(process.env.SMS_MAX_PER_RUN ?? 200) || 200,
+    from: process.env.SOLAPI_SENDER_PHONE ?? process.env.SMS_SENDER_PHONE ?? '',
+    hasCredentials: !!(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET),
+  }
+}
+
+// ── 대상 조회 ─────────────────────────────────────────────────
+export type LoadTargetsInput =
+  | { planItemIds: string[] }
+  | { from: string; to: string }
+
+/** 발송 대상을 만든다.
+ *
+ *  `plan_type` 필터를 걸지 않는다 — 달력의 계획 칩 축은 monthly·event만 로드하지만(P-8),
+ *  자체점검도 방문이므로 여기서 빠지면 그 건들에 문자를 보낼 방법이 없어진다.
+ *
+ *  미확정(`planned`) 건은 **빼지 않고 `sendable:false`로 함께 반환**한다(S8-11).
+ *  달력에는 미확정 칩도 보이므로 조용히 빼면 "달력에 있는데 문자 목록엔 없다"가 된다.
+ */
+export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Promise<SmsTarget[]> {
+  const today = todayKst()
+  let q = admin
+    .from('inspection_plan_items')
+    .select(`
+      id, scheduled_date, status, inspection_type, plan_type,
+      profiles:assigned_employee_id ( name ),
+      customers:customer_id (
+        id, customer_name, is_active, region_si, region_myeon, region_ri,
+        customer_contacts ( id, role, name, phone, sms_recipient )
+      )
+    `)
+    .not('scheduled_date', 'is', null)
+    .in('status', ['planned', 'confirmed'])
+
+  if ('planItemIds' in input) {
+    if (input.planItemIds.length === 0) return []
+    q = q.in('id', input.planItemIds)
+  } else {
+    // 지난 방문일에 "방문합니다"는 성립하지 않는다 — 배너의 '시기 지남'은 조회 전용이고
+    // 여기(발송 대상)에서는 오늘 이후만 본다
+    const from = input.from < today ? today : input.from
+    q = q.gte('scheduled_date', from).lte('scheduled_date', input.to)
+  }
+
+  const { data, error } = await q
+  if (error) return []
+
+  const rows = (data ?? []) as unknown as Array<{
+    id: string; scheduled_date: string; status: string
+    inspection_type: string | null; plan_type: string | null
+    profiles: { name: string } | null
+    customers: {
+      id: string; customer_name: string; is_active: boolean | null
+      region_si: string | null; region_myeon: string | null; region_ri: string | null
+      customer_contacts: Contact[] | null
+    } | null
+  }>
+
+  const out: SmsTarget[] = []
+  for (const r of rows) {
+    const c = r.customers
+    if (!c || c.is_active === false) continue          // 계약이 끝난 고객에게 보내지 않는다
+    if (r.scheduled_date < today) continue             // 과거 방문일 가드(planItemIds 경로에도 적용)
+    out.push({
+      planItemId: r.id,
+      customerId: c.id,
+      customerName: c.customer_name,
+      visitDate: r.scheduled_date,
+      inspectionType: r.inspection_type,
+      assigneeName: r.profiles?.name ?? null,
+      regionSi: c.region_si, regionMyeon: c.region_myeon, regionRi: c.region_ri,
+      contacts: c.customer_contacts ?? [],
+      sendable: r.status === 'confirmed',
+      unsendableReason: r.status === 'confirmed' ? null : '점검일 미확정 — 점검확정에서 확정해주세요',
+    })
+  }
+  return out
+}
+
+/** 임의 발송(Q-17)용 대상 1건 — 계획 항목 없이 고객+날짜만으로 만든다 */
+export async function loadAdhocTarget(admin: Admin, customerId: string, visitDate: string): Promise<SmsTarget | null> {
+  const { data } = await admin
+    .from('customers')
+    .select('id, customer_name, is_active, region_si, region_myeon, region_ri, customer_contacts ( id, role, name, phone, sms_recipient )')
+    .eq('id', customerId).maybeSingle()
+  const c = data as unknown as {
+    id: string; customer_name: string; is_active: boolean | null
+    region_si: string | null; region_myeon: string | null; region_ri: string | null
+    customer_contacts: Contact[] | null
+  } | null
+  if (!c) return null
+  return {
+    planItemId: null, customerId: c.id, customerName: c.customer_name, visitDate,
+    inspectionType: null, assigneeName: null,
+    regionSi: c.region_si, regionMyeon: c.region_myeon, regionRi: c.region_ri,
+    contacts: c.customer_contacts ?? [],
+    sendable: true, unsendableReason: null,
+  }
+}
+
+// ── 문구 렌더 ─────────────────────────────────────────────────
+export type RenderedMessage = { text: string; byteLen: number; msgType: 'SMS' | 'LMS'; unresolved: string[] }
+
+/** 그룹·수신자별 문구. `{디데이}`는 **발송 시점 기준**으로 계산한다 — 배너 규칙값이 아니다. */
+export function renderSmsFor(
+  bodyTemplate: string,
+  base: Record<string, string>,
+  group: { visitDate: string; customerName: string; inspectionTypes?: string[]; assigneeName?: string | null },
+  contact: Contact | null,
+  today: string,
+): RenderedMessage {
+  const lead = daysBetween(today, group.visitDate)
+  const text = renderTemplate(bodyTemplate, {
+    ...base,
+    고객명: group.customerName,
+    관계인명: contact?.name ?? '',
+    디데이: dDayLabel(lead),
+    점검일: group.visitDate,
+    점검일짧게: shortDate(group.visitDate),
+    점검종류: (group.inspectionTypes ?? []).join('·'),
+    담당자: group.assigneeName ?? '',
+  })
+  const unresolved = [...new Set([...text.matchAll(/\{([^}]+)\}/g)].map(m => m[1].trim()))]
+  return { text, byteLen: smsByteLength(text), msgType: smsKind(text), unresolved }
+}
+
+/** 발송 전 미리보기 묶음 — 화면(모달)이 그대로 그린다. 클라이언트는 번호를 계산하지 않는다. */
+export async function prepareSms(admin: Admin, targets: SmsTarget[], overrideBody?: string) {
+  const tpl = overrideBody != null ? { body: overrideBody } : await loadTemplate(admin, 'inspection_sms')
+  const base = await companyVars()
+  const today = todayKst()
+  const { groups, noPhone } = groupTargets(targets)
+  const preview = groups.map(g => ({
+    group: g,
+    perRecipient: g.recipients.map(c => ({ contact: c, ...renderSmsFor(tpl.body, base, g, c, today) })),
+  }))
+  return { body: tpl.body, groups, noPhone, preview, totalMessages: countMessages(groups) }
+}
+
+// ── 발송 ──────────────────────────────────────────────────────
+export type SendResult = {
+  ok: boolean
+  error?: string
+  sent: number
+  failed: number
+  unverified: number
+  noPhone: number
+  skipped: number
+  rows: Array<{ customerName: string; phoneMasked: string; contactName: string | null; status: string; error: string | null }>
+}
+
+async function callSolapi(messages: Array<{ to: string; from: string; text: string }>) {
+  const apiKey = process.env.SOLAPI_API_KEY!, apiSecret = process.env.SOLAPI_API_SECRET!
+  const date = new Date().toISOString()
+  const salt = Math.random().toString(36).substring(2, 18)
+  const signature = createHmac('sha256', apiSecret).update(date + salt).digest('hex')
+  try {
+    const res = await fetch('https://api.solapi.com/messages/v4/send-many/detail', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`,
+      },
+      body: JSON.stringify({ messages }),
+    })
+    const text = await res.text()
+    let body: unknown = text
+    try { body = JSON.parse(text) } catch { /* 원문 유지 */ }
+    return { status: res.status, body }
+  } catch (e) {
+    return { status: 0, body: `네트워크 오류: ${String(e)}` }
+  }
+}
+
+/** 발송 — 순서가 곧 안전장치다.
+ *
+ *  ① 상한 → ② dryRun(DB 미기록) → ③ allowlist → ④ `sending` 행 기록 →
+ *  ⑤ 자격증명 없으면 `failed`(**조용히 성공 금지**) → ⑥ Solapi 1회 →
+ *  ⑦ 행별 결과 + 원문 → ⑧ noPhone 기록 → ⑨ 활동 로그
+ *
+ *  ④를 발송 **전에** 하는 이유: 여기서 프로세스가 죽어도 `sending`이 남아
+ *  "보냈는지 모름"이 드러난다. 발송 후에 기록하면 죽었을 때 흔적이 아예 없다.
+ */
+export async function sendInspectionSms(
+  admin: Admin,
+  opts: {
+    targets: SmsTarget[]
+    actorId: string
+    kind?: 'pre_visit' | 'manual' | 'adhoc'
+    trigger?: 'cron' | 'manual'
+    overrideBody?: string
+    /** 회차 한정 수신자 변경 — customerId|visitDate → 허용 번호 목록 */
+    recipientOverride?: Record<string, string[]>
+  },
+): Promise<SendResult> {
+  const g = smsGuards()
+  const today = todayKst()
+  const kind = opts.kind ?? 'pre_visit'
+  const trigger = opts.trigger ?? 'manual'
+  const empty: SendResult = { ok: true, sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
+
+  const tpl = opts.overrideBody != null ? { body: opts.overrideBody } : await loadTemplate(admin, 'inspection_sms')
+  const base = await companyVars()
+  const { groups: allGroups, noPhone } = groupTargets(opts.targets)
+
+  // 미확정 건은 발송하지 않는다 — 목록에는 보이되 나가지는 않는다
+  let groups = allGroups.filter(x => x.sendable)
+  const blocked = allGroups.length - groups.length
+
+  // 회차 한정 수신자 변경 적용
+  if (opts.recipientOverride) {
+    groups = groups.map(x => {
+      const allow = opts.recipientOverride![`${x.customerId}|${x.visitDate}`]
+      if (!allow) return x
+      const set = new Set(allow.map(normalizePhone))
+      return { ...x, recipients: x.recipients.filter(c => set.has(normalizePhone(c.phone))) }
+    }).filter(x => x.recipients.length > 0)
+  }
+
+  // ① 상한 — 초과 시 아무것도 보내지 않는다
+  const total = countMessages(groups)
+  if (total > g.maxPerRun) {
+    return { ...empty, ok: false, error: `1회 발송 상한(${g.maxPerRun}통)을 넘습니다 — ${total}통. 범위를 좁혀 나눠 보내주세요.` }
+  }
+  if (total === 0 && noPhone.length === 0) {
+    return { ...empty, ok: false, error: blocked > 0 ? '선택한 건이 모두 점검일 미확정입니다.' : '보낼 대상이 없습니다.' }
+  }
+
+  // 발송 단위 펼치기 (1행 = 1수신자)
+  type Unit = { group: SmsGroup; contact: Contact; text: string; byteLen: number; msgType: 'SMS' | 'LMS'; phone: string }
+  const units: Unit[] = []
+  for (const x of groups) {
+    for (const c of x.recipients) {
+      const r = renderSmsFor(tpl.body, base, x, c, today)
+      units.push({ group: x, contact: c, text: r.text, byteLen: r.byteLen, msgType: r.msgType, phone: normalizePhone(c.phone) })
+    }
+  }
+
+  // ② dryRun — DB에도 남기지 않는다. 리허설이 이력을 오염시키면 리허설이 아니다.
+  if (g.dryRun) {
+    return {
+      ok: true, sent: units.length, failed: 0, unverified: 0, noPhone: noPhone.length, skipped: 0,
+      error: `[DRY RUN] 실제로 발송하지 않았습니다 (${units.length}통 예정).`,
+      rows: units.map(u => ({
+        customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
+        contactName: u.contact.name, status: 'dry_run', error: null,
+      })),
+    }
+  }
+
+  // ③ allowlist — 목록이 설정돼 있으면 그 밖의 번호는 보내지 않는다
+  const sendUnits = g.allowlist.length > 0 ? units.filter(u => g.allowlist.includes(u.phone)) : units
+  const skipped = units.length - sendUnits.length
+
+  // ④ sending 행 claim (발송 **전에**)
+  const rowIds: string[] = []
+  for (const u of sendUnits) {
+    const { data } = await admin.from('sms_send_log').insert({
+      kind,
+      customer_id: u.group.customerId,
+      plan_item_ids: u.group.planItemIds,
+      visit_date: u.group.visitDate,
+      lead_days: daysBetween(today, u.group.visitDate),
+      to_phone: u.phone,
+      from_phone: g.from || null,
+      contact_role: u.contact.role,
+      contact_name: u.contact.name,
+      content: u.text,
+      byte_len: u.byteLen,
+      msg_type: u.msgType,
+      status: 'sending',
+      trigger,
+      sent_by: opts.actorId,
+    } as Record<string, unknown>).select('id').single()
+    rowIds.push((data as { id: string } | null)?.id ?? '')
+  }
+
+  // 번호 없는 고객도 기록한다 — 못 받았다는 사실이 남아야 사람이 조치할 수 있다(P-2)
+  for (const n of noPhone) {
+    await admin.from('sms_send_log').insert({
+      kind, customer_id: n.customerId, plan_item_ids: n.planItemIds, visit_date: n.visitDate,
+      lead_days: daysBetween(today, n.visitDate),
+      to_phone: null, from_phone: g.from || null, content: '(발송 안 됨)',
+      status: 'no_phone', error: n.reason, trigger, sent_by: opts.actorId,
+    } as Record<string, unknown>)
+  }
+
+  // ⑤ 자격증명 없음 → 조용히 성공하지 않는다. 이 한 줄이 P-1의 핵심 수리다.
+  if (!g.hasCredentials || !g.from) {
+    const reason = !g.hasCredentials
+      ? 'Solapi 자격증명이 설정되지 않았습니다 (SOLAPI_API_KEY·SOLAPI_API_SECRET).'
+      : '발신번호가 설정되지 않았습니다 (SOLAPI_SENDER_PHONE).'
+    for (const id of rowIds) if (id) await admin.from('sms_send_log').update({ status: 'failed', error: reason }).eq('id', id)
+    return {
+      ok: false, error: reason, sent: 0, failed: sendUnits.length, unverified: 0, noPhone: noPhone.length, skipped,
+      rows: sendUnits.map(u => ({
+        customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
+        contactName: u.contact.name, status: 'failed', error: reason,
+      })),
+    }
+  }
+
+  // ⑥⑦ 발송 1회 → 번호별 판정
+  const res = sendUnits.length > 0
+    ? await callSolapi(sendUnits.map(u => ({ to: u.phone, from: g.from, text: u.text })))
+    : { status: 200, body: { messageList: [] } }
+  const verdicts = parseSolapiResult(sendUnits.map(u => u.phone), res.status, res.body)
+
+  const rows: SendResult['rows'] = []
+  let sent = 0, failed = 0, unverified = 0
+  for (let i = 0; i < sendUnits.length; i++) {
+    const u = sendUnits[i]
+    const v = verdicts.get(u.phone) ?? { status: 'unverified' as const, error: '판정 없음' }
+    if (v.status === 'sent') sent++; else if (v.status === 'failed') failed++; else unverified++
+    if (rowIds[i]) {
+      await admin.from('sms_send_log').update({
+        status: v.status,
+        provider_message_id: v.messageId ?? null,
+        provider_status_code: v.statusCode ?? null,
+        provider_raw: (res.body ?? null) as Record<string, unknown> | null,
+        error: v.error ?? null,
+      } as Record<string, unknown>).eq('id', rowIds[i])
+    }
+    rows.push({
+      customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
+      contactName: u.contact.name, status: v.status, error: v.error ?? null,
+    })
+  }
+
+  // ⑨ 활동 로그 — 번호는 마스킹해서 남긴다
+  await admin.from('activity_logs').insert({
+    actor_id: opts.actorId,
+    action: 'inspection_sms_sent',
+    entity_type: 'sms_send_log',
+    entity_id: null,
+    metadata: {
+      kind, trigger, sent, failed, unverified, no_phone: noPhone.length, skipped,
+      recipients: rows.map(r => r.phoneMasked),
+    },
+  } as Record<string, unknown>)
+
+  return {
+    ok: failed === 0, sent, failed, unverified, noPhone: noPhone.length, skipped, rows,
+    error: failed > 0 ? `${failed}건 발송 실패 — 사유는 건별 결과를 확인해주세요.` : undefined,
+  }
+}
+
+/** 이미 보낸 (고객, 방문일) 쌍 — '미발송' 판정의 단일 규칙 (S5-10).
+ *  plan_item이 아니라 **방문일 쌍**이 키라서, 점검일을 옮기면 자동으로 다시 미발송이 된다. */
+export async function loadSentPairs(admin: Admin, from: string, to: string): Promise<Set<string>> {
+  const { data } = await admin
+    .from('sms_send_log')
+    .select('customer_id, visit_date')
+    .in('status', ['sent', 'unverified'])   // unverified는 실제로 나갔을 수 있어 '보냄'으로 친다
+    .gte('visit_date', from).lte('visit_date', to)
+  const set = new Set<string>()
+  for (const r of (data ?? []) as Array<{ customer_id: string; visit_date: string }>) {
+    set.add(`${r.customer_id}|${r.visit_date}`)
+  }
+  return set
+}
+
+export { pickContacts }

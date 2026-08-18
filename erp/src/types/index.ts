@@ -122,6 +122,9 @@ export interface CustomerContact {
   id: string; customer_id: string; role: ContactRole; name: string
   phone: string | null; email: string | null
   position: string | null; birth_date: string | null
+  /** 사전 안내 SMS 수신 지정 (140 / 소방계획서_24 Q-10).
+   *  null = 미지정 — 고객의 관계인이 전원 미지정이면 우선순위 1명에게만 폴백 발송한다. */
+  sms_recipient?: boolean | null
   created_at: string; updated_at: string
 }
 export interface Building {

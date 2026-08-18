@@ -14,7 +14,7 @@ import { getCompanyProfile } from '@/lib/company-profile'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-export type TemplateKey = 'owner_report' | 'mail_signature'
+export type TemplateKey = 'owner_report' | 'mail_signature' | 'inspection_sms'
 
 export type MessageTemplate = {
   key: TemplateKey
@@ -44,6 +44,20 @@ export const DEFAULT_TEMPLATES: Record<TemplateKey, MessageTemplate> = {
     body: ['---', '{회사명} {작성자} 드림', '(본 메일은 회사 공용 계정에서 발송되었습니다)'].join('\n'),
     attachmentName: null,
   },
+  // 방문 전 사전 안내 SMS (소방계획서_24 Q-3) — 141 시드와 **같은 내용이어야 한다**.
+  // 길이 주의: 90바이트를 넘으면 LMS로 전환돼 요금이 2~3배. 이 문구는 약 78바이트.
+  // {디데이}가 발송 시점에 맞춰 오늘/내일/모레/N일 후로 자동 치환되므로,
+  // 배너 시점을 몇 개 만들든 문구는 **한 장**이면 된다(Q-13).
+  inspection_sms: {
+    key: 'inspection_sms',
+    subject: null,
+    body: [
+      '[{회사명}] {디데이} {점검일짧게}',
+      '소방시설 점검을 위해 방문합니다.',
+      '문의 {회사전화}',
+    ].join('\n'),
+    attachmentName: null,
+  },
 }
 
 /** 편집 화면이 받는 묶음 — **타입은 여기 둔다.**
@@ -62,12 +76,22 @@ export type TemplateEditData = {
 export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   owner_report: '관계인 보고 메일',
   mail_signature: '메일 서명',
+  inspection_sms: '점검 안내 SMS',
 }
 
 /** 종류별 사용 가능한 치환 변수 — 편집 화면 안내·미치환 경고 판정에 함께 쓴다 */
 export const TEMPLATE_VARS: Record<TemplateKey, string[]> = {
   owner_report: ['회사명', '대표자', '회사전화', '고객명', '연도', '차수', '점검일'],
   mail_signature: ['회사명', '대표자', '회사전화', '작성자'],
+  // {담당자연락처}는 만들지 않는다 — profiles에 전화 컬럼이 없어 채울 값이 없다
+  inspection_sms: ['회사명', '대표자', '회사전화', '고객명', '관계인명', '디데이', '점검일', '점검일짧게', '점검종류', '담당자'],
+}
+
+/** SMS만 문자 수 제한이 실제 요금으로 이어진다 — 편집 화면이 바이트·SMS/LMS를 보여줄 종류 */
+export const TEMPLATE_IS_SMS: Record<TemplateKey, boolean> = {
+  owner_report: false,
+  mail_signature: false,
+  inspection_sms: true,
 }
 
 /** 문구 1건 조회 — 테이블·행이 없으면 기본값. **절대 throw하지 않는다**(발송을 막으면 안 된다) */

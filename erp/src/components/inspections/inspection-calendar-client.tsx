@@ -12,8 +12,9 @@ import Link from 'next/link'
 import {
   CalendarDays, Check, X, AlertTriangle, Loader2,
   Users, Building2, ChevronRight, ChevronLeft,
-  SlidersHorizontal, Info, Search, PlayCircle, ExternalLink, PenLine,
+  SlidersHorizontal, Info, Search, PlayCircle, ExternalLink, PenLine, MessageSquare,
 } from 'lucide-react'
+import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { stepInputLink } from '@/lib/inspection-step-links'
@@ -278,11 +279,16 @@ interface Props {
   holidays?: Array<{ date: string; name: string }>
   /** 정기 칩 드래그 이동 권한 (inspection_plan_manage) */
   canMovePlan?: boolean
+  /** 사전 안내 문자 발송 권한 (inspection_sms_send) — 소방계획서_24 S9 */
+  canSendSms?: boolean
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', holidays = [], canMovePlan = false }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', holidays = [], canMovePlan = false, canSendSms = false }: Props) {
   const router = useRouter()
+
+  // 사전 안내 문자 — 날짜만 넘기고 서버가 대상을 계산한다(Q-14). 달력 쪽 상태는 이 하나뿐이다.
+  const [smsSource, setSmsSource] = useState<SmsModalSource | null>(null)
 
   // 공휴일 맵 + 날짜 클릭 안내 상태
   const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h.name])), [holidays])
@@ -1015,6 +1021,20 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2">
+          {/* 툴바 진입 — 기본은 내일이지만 모달 안에서 기간을 바꿀 수 있다(주간 지역 순회 준비) */}
+          {canSendSms && (
+            <button
+              data-testid="calendar-sms-toolbar"
+              onClick={() => {
+                const t = new Date(Date.now() + 9 * 3600_000 + 86400_000).toISOString().slice(0, 10)
+                setSmsSource({ kind: 'range', from: t, to: t, title: '내일 방문 — 사전 안내' })
+              }}
+              title="내일 방문하는 고객에게 사전 안내 문자를 보냅니다"
+              className="h-8 px-3 rounded-lg border border-[#c8c4d0] bg-white text-xs font-medium text-[#514b81] hover:bg-[#f8f9fa] flex items-center gap-1.5 transition-colors"
+            >
+              <MessageSquare className="size-3.5" /> 사전안내 문자
+            </button>
+          )}
           {/* 고객명 검색 — 달력에 실린 고객에서 바로 고른다(서버 왕복 없음). 뷰 모드와 무관하게 적용 */}
           <CustomerFilterSearch
             customers={uniqueCustomers.map(c => ({ id: c.id, name: c.name, sub: c.code }))}
@@ -1434,14 +1454,29 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
                   <p className="text-xs text-[#514b81]">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
-                  {bulkTotal > 0 && (
-                    <button
-                      onClick={openBulkModal}
-                      className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
-                      title="이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리">
-                      <Check className="size-3" /> 이날 전체 완료 ({bulkTotal})
-                    </button>
-                  )}
+                  <span className="flex items-center gap-1">
+                    {/* 사전 안내 문자 — **주 발송 경로**(소방계획서_24 Q-14·Q-15).
+                        칩을 체크하지 않고 **날짜만 넘긴다**: 서버가 그날 방문 전 건을 계산하므로
+                        ①달력 쪽 신규 상태가 0개이고 ②②~⑥ 서류 마감 칩에 "내일 방문" 문자가
+                        나가는 사고가 원천 차단되며 ③달력이 로드하지 않는 자체점검도 목록에 든다. */}
+                    {canSendSms && (
+                      <button
+                        data-testid="calendar-sms-day"
+                        onClick={() => setSmsSource({ kind: 'range', from: dayPanelDate, to: dayPanelDate, title: `${format(d, 'M월 d일', { locale: ko })} 방문 — 사전 안내` })}
+                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
+                        title="이 날짜에 방문하는 고객에게 사전 안내 문자를 보냅니다">
+                        <MessageSquare className="size-3" /> 사전안내 문자
+                      </button>
+                    )}
+                    {bulkTotal > 0 && (
+                      <button
+                        onClick={openBulkModal}
+                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
+                        title="이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리">
+                        <Check className="size-3" /> 이날 전체 완료 ({bulkTotal})
+                      </button>
+                    )}
+                  </span>
                 </div>
                 <div className="relative mt-2">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
@@ -1800,6 +1835,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           </>
         )}
       </div>
+
+      {/* 사전 안내 문자 — 날짜만 넘긴다. 대상 계산·수신자·문구는 전부 서버가 만든다(Q-14).
+          발송 결과는 여기 붙이지 않는다 — 결과 창구는 문자 발송 화면 하나뿐이다(Q-15).
+          모달이 발송 후 [발송 결과 전체 보기] 링크로 그 화면에 이어 준다. */}
+      {smsSource && (
+        <InspectionSmsModal source={smsSource} onClose={() => setSmsSource(null)} />
+      )}
     </div>
   )
 }

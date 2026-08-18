@@ -5,9 +5,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import {
-  loadTemplate, companyVars, renderTemplate, TEMPLATE_VARS,
+  loadTemplate, companyVars, renderTemplate, TEMPLATE_VARS, TEMPLATE_LABEL, TEMPLATE_IS_SMS,
   type TemplateKey, type TemplateEditData,
 } from '@/lib/message-template'
+import { smsByteLength, smsKind } from '@/lib/sms-recipients'
 import type { UserRole } from '@/types'
 
 /** 발송 문구 편집 (소방계획서_21 R7-3) — 전용 페이지를 만들지 않고 **쓰는 자리**(③ 관계인 보고 단계,
@@ -85,5 +86,40 @@ export async function saveMessageTemplateAction(
   } as Record<string, unknown>)
 
   revalidatePath('/mail')
+  revalidatePath('/settings/message-templates')
+  revalidatePath('/inspections/sms')
   return {}
+}
+
+/** 발송 문구 3종을 한 번에 — 설정 화면이 카드 목록을 그린다 (소방계획서_24 S7).
+ *
+ *  종전에는 문구를 고치러 갈 자리가 없었다(P-7 정정판): 편집 자체는 작업대 ③ 칸·메일 작성 화면에서
+ *  됐지만 **개별 건 안에 숨어 있어** "문구를 바꾸려면 어디로"에 답이 없었다.
+ *  SMS 문구는 아예 키가 없어 컴포넌트 상수 + 개인 localStorage에만 있었다(P-6). */
+export async function listMessageTemplatesAction(): Promise<{
+  items?: Array<{ key: TemplateKey; label: string; isSms: boolean; subject: string | null; body: string; byteLen: number; msgType: 'SMS' | 'LMS' }>
+  canEdit?: boolean
+  storageReady?: boolean
+  error?: string
+}> {
+  const profile = await getProfile()
+  if (!profile) return { error: '인증이 필요합니다.' }
+  const admin = createAdminClient()
+
+  const keys: TemplateKey[] = ['inspection_sms', 'owner_report', 'mail_signature']
+  const items = []
+  for (const key of keys) {
+    const t = await loadTemplate(admin, key)
+    items.push({
+      key,
+      label: TEMPLATE_LABEL[key],
+      isSms: TEMPLATE_IS_SMS[key],
+      subject: t.subject,
+      body: t.body,
+      byteLen: smsByteLength(t.body),
+      msgType: smsKind(t.body),
+    })
+  }
+  const probe = await admin.from('message_templates').select('key').limit(1)
+  return { items, canEdit: can(profile.role as UserRole, 'message_template_manage'), storageReady: !probe.error }
 }

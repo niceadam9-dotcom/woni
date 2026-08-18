@@ -1,68 +1,20 @@
 import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { MonitorClient } from '@/components/inspection-plans/monitor-client'
-import type { UserRole } from '@/types'
 
-export default async function InspectionMonitorPage() {
-  const profile = await getProfile()
-  if (!profile) redirect('/login')
-
-  const admin = createAdminClient()
-  const now   = new Date()
-  const year  = now.getFullYear()
-  const month = now.getMonth() + 1
-
-  // 이번 달의 plan_id 목록 먼저 조회
-  const { data: plans } = await admin
-    .from('inspection_plans')
-    .select('id')
-    .eq('year', year)
-    .eq('month', month)
-
-  const planIds = (plans ?? []).map((p: { id: string }) => p.id)
-
-  // 해당 월의 plan_items + status_log join
-  let items: Record<string, unknown>[] = []
-  if (planIds.length > 0) {
-    const { data } = await admin
-      .from('inspection_plan_items')
-      .select(`
-        id, plan_id, customer_id, inspection_type, sequence_num,
-        scheduled_date, assigned_employee_id, status,
-        customers:customer_id ( customer_name, customer_code, address, is_active, customer_contacts ( role, name, phone ) ),
-        contacts:customer_contacts!contact_id ( role, name, phone ),
-        profiles:assigned_employee_id ( name ),
-        inspection_plans:plan_id ( year, month ),
-        inspection_status_log ( inspection_date, report_submitted_at, sent_at, filed_at, step5_completed_at, step6_completed_at, sms_confirmed, sms_sent_at, sms_content )
-      `)
-      .in('plan_id', planIds)
-      // ADD-12: 취소/비활성 건도 조회 — 클라이언트 상태 필터에서 '취소(비활성/삭제)'로 구분
-      // ADD-14: 최신 등록 최상위
-      .order('created_at', { ascending: false })
-      .limit(500)
-    items = (data ?? []) as Record<string, unknown>[]
-  }
-
-  // 직원 목록
-  const { data: employees } = await admin
-    .from('profiles')
-    .select('id, name, position')
-    .eq('is_active', true)
-    .eq('is_system', false)
-    .order('name')
-
-  const canManage = (profile.role as UserRole) !== 'employee'
-
-  return (
-    <MonitorClient
-      initialItems={(items ?? []) as Record<string, unknown>[]}
-      employees={(employees ?? []) as Array<{ id: string; name: string; position: string | null }>}
-      canManage={canManage}
-      defaultYear={year}
-      defaultMonth={month}
-      currentUserId={profile.id}
-      currentUserRole={profile.role as UserRole}
-    />
-  )
+/** 점검현황 모니터링 폐지 → 문자 발송으로 리다이렉트 (소방계획서_24 Q-8 / S6)
+ *
+ *  폐지한 이유는 둘이다.
+ *  ① **축이 둘이었다** — 이 화면이 읽던 `inspection_status_log`의 날짜 6개는 `inspection_steps`
+ *     6단계와 1:1 중복인데, 동기화가 작업대 → 모니터링 단방향뿐이라 여기서 입력한 날짜는
+ *     작업대·달력·목록·대시보드에 반영되지 않았다. 같은 점검의 진행률이 화면마다 달랐다(P-14·P-15).
+ *  ② **정작 필요한 것을 못 찾았다** — "내일 방문할 미발송 고객"을 찾을 수단이 없었다:
+ *     정렬이 등록순, 기간 필터는 월 단위뿐, SMS 미발송 필터 없음, 지역 축 없음(P-17).
+ *
+ *  6단계 진행은 작업대·점검 업무 목록·달력·대시보드가 이미 보여준다(전부 `inspection_steps` 축이라
+ *  값이 갈라지지 않는다). 이 자리가 하던 나머지 일 — 문자 발송 — 은 새 화면이 가져간다.
+ *
+ *  라우트를 지우지 않고 리다이렉트로 두는 이유: 즐겨찾기·기존 링크가 404가 되지 않게.
+ *  테이블(`inspection_status_log`)과 과거 데이터도 DROP하지 않는다 — 읽는 화면이 없어졌으니
+ *  자연히 죽고, 되돌릴 여지는 남는다. */
+export default function InspectionMonitorPage() {
+  redirect('/inspections/sms')
 }

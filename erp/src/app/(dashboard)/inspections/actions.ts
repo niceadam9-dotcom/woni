@@ -140,7 +140,7 @@ export async function createInspectionAction(
 
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath(`/customers/${input.customer_id}`)
   return { inspectionId }
 }
@@ -194,7 +194,7 @@ export async function completeStepAction(
     revalidatePath(`/inspections/${inspectionId}`)
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
-    revalidatePath('/inspection-plans/monitor')
+    revalidatePath('/inspections/sms')
     revalidatePath('/inspection-plans')
   }
   return res
@@ -319,7 +319,7 @@ export async function bulkCompleteStepsAction(
   // 화면 갱신은 마지막 1회 — 건별 반복이 큰 지연 요인이었음
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath('/inspection-plans')
   return { done, failed }
 }
@@ -387,7 +387,7 @@ export async function bulkStartCompletePlanItemsAction(
 
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath('/inspection-plans')
   return { done, failed }
 }
@@ -424,7 +424,7 @@ export async function deleteInspectionAction(
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspection-plans')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   return {}
 }
 

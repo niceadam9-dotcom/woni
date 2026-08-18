@@ -122,13 +122,23 @@ try {
   await page.waitForURL(u => u.pathname === `/customers/${customerIds[1]}`, { timeout: 20000 })
   check('칩 클릭 시 고객 상세로', page.url().includes(customerIds[1]))
 
-  console.log('[6] 점검업무 칩 → 고객 상세 이동 (2026-08-18 사용자 확정, 고객관리와 동일)')
+  // [6] 점검업무 칩 → **그 고객의 점검 상세**로 (커밋 bef8174에서 번복된 규약)
+  //
+  // 처음엔 '어느 화면에서든 고객 상세'(b1ed4c1)였는데, 점검업무에서는 표의 고객명이 점검 상세로
+  // 가기 때문에 칩만 고객 상세로 빠지는 화면 내 불일치가 남았다. 그래서 기준을
+  // '전 화면 동일'이 아니라 **'그 화면의 표와 동일'**로 바꿨다(bef8174).
+  // 이 단언은 그 번복을 따라오지 않아 계속 실패하고 있었다 — 규약에 맞춰 정정한다.
+  console.log('[6] 점검업무 칩 → 그 고객의 점검 상세 이동 (bef8174: 그 화면의 표와 같은 곳)')
   await page.goto(`${BASE}/inspections`)
   await strip().waitFor({ timeout: 15000 })
   check('점검업무에도 스트립 표시', await strip().count() === 1)
   await chip(names[0]).click()
-  await page.waitForURL(u => u.pathname === `/customers/${customerIds[0]}`, { timeout: 20000 })
-  check('점검업무 칩도 고객 상세로 이동', page.url().includes(customerIds[0]))
+  // 징검다리 라우트(by-customer/[customerId])가 서버에서 고객→최근 점검을 풀어 준다
+  await page.waitForURL(u => /^\/inspections\/[0-9a-f-]{36}$/.test(u.pathname), { timeout: 20000 })
+  check('점검업무 칩은 그 고객의 점검 상세로 이동', /\/inspections\/[0-9a-f-]{36}$/.test(new URL(page.url()).pathname), page.url())
+  const { data: inspOfCust } = await raw.from('inspections').select('id').eq('customer_id', customerIds[0])
+  check('★ 이동한 점검이 그 고객의 점검이다(아무 점검으로나 가지 않는다)',
+    (inspOfCust ?? []).some((r: { id: string }) => page.url().includes(r.id)), page.url())
   // 종전 규약(?q= 목록 필터)으로 되돌아가지 않았는지 — 화면마다 다르게 동작하던 것을 없앤 것이 이번 변경이다
   check('목록 필터(?q=)로 가지 않는다', !page.url().includes('q='), page.url())
   // 고객으로 거르는 동선은 검색창이 그대로 담당한다(칩이 빠져나간 자리를 대신하는지 확인)

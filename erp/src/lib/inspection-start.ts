@@ -20,6 +20,43 @@ export async function syncInspectionStepDates(
   }
 }
 
+/** 방문일 동기화: inspections.inspection_start_date ← 확정된 점검일 (소방계획서_24 S12-1 / P-19)
+ *
+ *  이 갱신이 confirmPlanItemStageOneAction 밖(updatePlanItemAction)에만 있던 탓에,
+ *  점검확정 화면의 인라인 달력으로 날짜를 바꾸면 계획·체크리스트는 새 날짜인데
+ *  inspections만 옛 날짜로 남았다. 별지 9호 점검기간·작업대 기간 카드가 이 값을 읽으므로
+ *  "문자·계획 화면은 새 날짜, 서류·작업대는 옛 날짜"로 갈라진다.
+ *  → 확정 함수 안으로 옮겨 어느 호출처로 들어와도 같이 움직이게 한다.
+ *
+ *  다일 점검(inspection_days 2~5)에서 종료일이 새 시작일보다 앞서면 종료일도 함께 민다. */
+export async function syncInspectionVisitDate(
+  admin: Admin,
+  inspectionId: string,
+  startDate: string,
+) {
+  const { data: raw } = await admin
+    .from('inspections')
+    .select('inspection_end_date')
+    .eq('id', inspectionId)
+    .single()
+  const endDate = (raw as { inspection_end_date: string | null } | null)?.inspection_end_date
+  const patch: Record<string, unknown> = { inspection_start_date: startDate }
+  if (endDate && endDate < startDate) patch.inspection_end_date = startDate
+  await admin.from('inspections').update(patch).eq('id', inspectionId)
+}
+
+/** 1단계(점검일)가 이미 완료된 점검인가 — 완료 후에는 계획 쪽에서 날짜를 못 바꾼다(사실 기록).
+ *  소방계획서_24 S12-3: 종전에는 updatePlanItemAction에만 있어서 인라인 달력이 우회했다. */
+export async function isStepOneCompleted(admin: Admin, inspectionId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('inspection_steps')
+    .select('status')
+    .eq('inspection_id', inspectionId)
+    .eq('step_num', 1)
+    .single()
+  return (data as { status: string } | null)?.status === 'completed'
+}
+
 /** 점검 시작 코어 — plan_item → inspections 생성 (권한 검사 없음 — 호출자가 보장).
  *  호출처: [시작] 버튼·확정 자동 시작(자체점검 special_* — 일반관리 포함)·당일 자동 시작 크론(정기). */
 export async function startInspectionCore(
@@ -102,7 +139,7 @@ export async function startInspectionCore(
     revalidatePath('/inspection-plans')
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
-    revalidatePath('/inspection-plans/monitor')
+    revalidatePath('/inspections/sms')
   }
   return { inspectionId }
 }

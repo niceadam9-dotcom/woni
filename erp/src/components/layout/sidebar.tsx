@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, FileText, CheckSquare, CalendarDays, Palmtree, ShieldCheck,
   Users, UserPlus, Building2, ClipboardList, Settings, Umbrella,
-  Flame, BookUser, TableProperties, BarChart2, FileCheck2, ClipboardCheck,
+  Flame, BookUser, TableProperties, Send, FileCheck2, ClipboardCheck,
   Wallet, Receipt, CalendarCheck, ListTodo, MessageSquare, MessageCircle,
   FileSpreadsheet, ShoppingCart, BookOpen, TrendingUp, Scale, ReceiptText,
   Banknote, Handshake, LayoutList, BookMarked, NotebookPen, Car, Route,
@@ -74,13 +74,19 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
       // '보고서' 메뉴 소멸 (소방계획서_8 Phase B H-6d·D-8) — 고객별 문서·별지는 고객관리>소방계획서 트리,
       // 제출 현황은 대시보드 위젯, 연차·일괄 생성은 점검확정>배치 발행. /reports는 새 위치로 리다이렉트.
-      { label: '점검현황 모니터링',href: '/inspection-plans/monitor',   icon: BarChart2,      roles: ['employee', 'manager', 'admin'], section: '현황' },
+      // 소방계획서_24 Q-8 — [점검현황 모니터링] 폐지. 그 화면은 6단계를 inspection_steps와
+      // 이중 추적했고(P-14·P-15) 정작 "내일 방문할 미발송 고객"은 찾을 수 없었다(P-17).
+      // 6단계는 작업대·점검 업무 목록·달력이 이미 보여주므로, 이 자리는 문자 발송이 가져간다.
+      { label: '문자 발송',        href: '/inspections/sms',            icon: Send,           roles: ['employee', 'manager', 'admin'], section: '현황' },
       // '안전관리 대장'(실체=월별 수금 현황)은 정산현황 [월별 대장] 탭으로 흡수 (R15-b)
       { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'], section: '정산' },
       { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'], section: '정산' },
       { label: '점검표 관리',      href: '/inspection-sheets',          icon: ClipboardList,  roles: ['employee', 'manager', 'admin'], section: '설정' },
       // 소방계획서_21 R1-10 ① — 마스터데이터는 맨 아래(D1-3). 서식 팝오버에서만 관리되던 공통문구의 전역 진입점
       { label: '계획서 공통문구',  href: '/fire-plans/library',         icon: BookMarked,     roles: ['employee', 'manager', 'admin'], section: '설정' },
+      // 소방계획서_24 S7 — 문구를 고치러 갈 자리가 없었다(개별 점검 건 안에 숨어 있었다).
+      // 계획서 공통문구 옆에 같은 위상으로 둔다
+      { label: '발송 문구',        href: '/settings/message-templates', icon: PenLine,        roles: ['employee', 'manager', 'admin'], section: '설정' },
       { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'], section: '설정' },
     ],
   },
@@ -208,7 +214,8 @@ interface SidebarProps {
 // href → 뱃지 매핑 (Victory10 §6 사이드바 카운터)
 const BADGE_HREFS: Record<string, 'red' | 'orange'> = {
   '/inspections/calendar': 'red',
-  '/inspection-plans/monitor': 'orange',
+  // 소방계획서_24 S9 — 모니터링이 있던 자리를 문자 발송이 가져가면서 뱃지 축도 함께 옮긴다
+  '/inspections/sms': 'orange',
 }
 
 export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '승진소방 ERP', logoUrl }: SidebarProps) {

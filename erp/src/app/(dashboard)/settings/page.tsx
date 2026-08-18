@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   Settings, User, KeyRound, PenLine, Building2, Users, Network,
-  CalendarDays, Warehouse, ScrollText, ChevronRight, Bell,
+  CalendarDays, Warehouse, ScrollText, ChevronRight, Bell, MessageSquare,
 } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -105,6 +105,18 @@ export default async function SettingsPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-[#090c1d]">결재 서명</p>
           <p className="text-xs text-[#b0acd6]">전자결재에 사용할 서명을 등록·변경합니다</p>
+        </div>
+        <ChevronRight className="size-4 text-[#b0acd6] shrink-0" />
+      </Link>
+
+      {/* 발송 문구 (소방계획서_24 S7) — 사이드바 '설정' 구역과 이 허브 양쪽에서 들어갈 수 있게.
+          종전에는 문구를 고치러 갈 자리가 없어, 관계인 보고 문구를 바꾸려면 아무 점검 건이나 열어
+          작업대 ③ 칸까지 들어가야 했다(P-7). 조회는 전 직원, 저장은 매니저↑ */}
+      <Link href="/settings/message-templates" className={`${cardCls} flex items-center gap-3 px-5 py-4 hover:bg-[#fafafa] transition-colors`}>
+        <MessageSquare className="size-4 text-[#7b68ee] shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[#090c1d]">발송 문구</p>
+          <p className="text-xs text-[#b0acd6]">점검 안내 문자·관계인 보고 메일 문구와 사전 안내 시점</p>
         </div>
         <ChevronRight className="size-4 text-[#b0acd6] shrink-0" />
       </Link>

@@ -342,7 +342,7 @@ async function _syncEmployeeToRelated(
   }
 
   revalidatePath('/inspection-plans')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
 }
@@ -833,6 +833,34 @@ export async function upsertContactAction(
     if (error) return { error: '관계인 등록에 실패했습니다.' }
   }
 
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
+/** 관계인별 '문자 받음' 지정 (소방계획서_24 S5-b / Q-10)
+ *
+ *  이 고객의 관계인 중 하나라도 체크돼 있으면 **체크된 사람들에게만** 사전 안내 문자가 간다.
+ *  전원 미지정(NULL)이면 종전과 같이 우선순위 1명(대표 등)에게만 간다 —
+ *  폴백이 있어야 기존 고객 수백 곳을 일괄 설정하지 않아도 되고, 도입만으로
+ *  문자량이 몇 배가 되는 사고도 없다.
+ *
+ *  편집 폼이 아니라 전용 토글로 둔 이유: 수신 지정은 연락처 '내용' 수정이 아니라
+ *  발송 대상 선택이고, 카드에서 바로 켜고 끄는 편이 실수가 적다. */
+export async function setContactSmsRecipientAction(
+  customerId: string,
+  contactId: string,
+  value: boolean,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('customer_contacts')
+    // false가 아니라 null로 되돌린다 — '수신 안 함'과 '미지정'을 구분하지 않는 설계다.
+    // false를 쓰면 전원 false인 고객이 생겨 폴백이 안 도는데, 그러면 그 고객만 조용히 문자가 끊긴다.
+    .update({ sms_recipient: value ? true : null } as Record<string, unknown>)
+    .eq('id', contactId)
+    .eq('customer_id', customerId)
+  if (error) return { error: '문자 수신 설정에 실패했습니다.' }
   revalidatePath(`/customers/${customerId}`)
   return {}
 }

@@ -6,7 +6,7 @@ import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Eye, FileText, Loader2,
-  Maximize2, Package, Send, Trash2, Upload, X,
+  Maximize2, MessageSquare, Package, Send, Trash2, Upload, X,
 } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, getAnnexPreviewHtmlAction,
@@ -30,6 +30,7 @@ import { PlacementReportHelper } from '@/components/inspections/placement-report
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect } from '@/components/inspections/defect-grid'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
+import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
 import type { TimelineData, TimelineSlots } from '@/components/inspections/inspection-timeline-client'
 
@@ -98,6 +99,9 @@ export function InspectionWorkbench({
   const [offlineMemo, setOfflineMemo] = useState('')
   // 제안1: ② 배치확인서 종이 보관 기록 입력 (③ 오프라인 보고와 같은 구조)
   const [paperOpen, setPaperOpen] = useState(false)
+  // 재방문 안내 (소방계획서_24 Q-17) — 계획에 없는 방문을 담는 그릇이 시스템에 없어서(P-20)
+  // 지금까지는 "가야 하는데 문자를 못 보내는" 상태였다
+  const [adhocSms, setAdhocSms] = useState(false)
   const [paperDate, setPaperDate] = useState(today)
   const [paperLocation, setPaperLocation] = useState('')
   const [paperMemo, setPaperMemo] = useState('')
@@ -452,14 +456,23 @@ export function InspectionWorkbench({
           </Pane>
           <Pane title="점검 인력·생성물" cls={paneCls} head={paneHead}>
             {slots?.participants}
-            {isSpecial && canManage && (
-              <div className="px-3 py-2">
+            <div className="px-3 py-2 flex flex-wrap items-center gap-1.5">
+              {isSpecial && canManage && (
                 <button onClick={() => generate('report4')} disabled={isPending || busy} className={btn}
                   title="소방시설등점검표(별지 4호) — 점검결과·인력 자동, 3~7쪽은 설비 대장(1.4)">
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 4호 생성
                 </button>
-              </div>
-            )}
+              )}
+              {/* 재방문 안내 (소방계획서_24 Q-17) — 부재·문 잠김으로 다시 가야 할 때.
+                  계획 항목을 만들지 않으므로 **점검 회차는 그대로**다. */}
+              {customerId && canManage && (
+                <button onClick={() => setAdhocSms(true)} className={btn}
+                  data-testid="workbench-adhoc-sms"
+                  title="다시 방문해야 할 때 고객에게 안내 문자를 보냅니다 — 점검 회차로 잡히지 않습니다">
+                  <MessageSquare className="size-3" /> 재방문 안내
+                </button>
+              )}
+            </div>
             <DocPane files={files} customerName={customerName} onOpen={download} />
           </Pane>
         </>)}
@@ -845,6 +858,13 @@ export function InspectionWorkbench({
         </div>
       )}
 
+      {/* 재방문 안내 — 계획 항목을 만들지 않는 임의 발송(Q-17). 점검 회차·진행률에 영향이 없다 */}
+      {adhocSms && customerId && (
+        <InspectionSmsModal
+          source={{ kind: 'adhoc', customerId, customerName: customerName ?? '', title: `재방문 안내 — ${customerName ?? ''}` }}
+          onClose={() => setAdhocSms(false)}
+        />
+      )}
     </div>
   )
 }

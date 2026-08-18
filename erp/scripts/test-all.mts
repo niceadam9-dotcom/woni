@@ -11,6 +11,9 @@ const steps: Step[] = [
   // 공휴일은 영업일 → 6단계 마감일을 결정한다. 하나만 틀려도 법정 제출기한이 밀리는데
   // 화면 어디에도 안 드러난다 — 순수 산출을 공공API 확정본과 대조해 상시 고정 (소방계획서_25)
   { name: '공휴일 대체 규칙',          cmd: 'npx tsx scripts/test-holiday-rules.mts' },
+  // SMS는 돈이 나가고 되돌릴 수 없다. 수신자 선정·중복 접기·응답 판정이 틀려도 화면은 멀쩡해 보이므로
+  // (실패를 '발송됨'으로 보이게 한 P-1·P-2가 정확히 그랬다) 순수 함수 단계에서 결정적으로 고정한다
+  { name: 'SMS 순수 함수',             cmd: 'npx tsx scripts/test-sms-pure.mts' },
   { name: '게이트 정합성(E2E)',        cmd: 'npx tsx scripts/test-gate-consistency.mts', needServer: true },
   { name: '일반관리 자체점검 통주행(E2E)', cmd: 'npx tsx scripts/test-general-selfinspection.mts', needServer: true },
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },
@@ -35,6 +38,15 @@ const steps: Step[] = [
   { name: '로그 보존 마커 제외(프로브)', cmd: 'npx tsx --conditions=react-server scripts/_probe-purge-marker.mts' },
   // ② 배치확인서 — 종이 보관 기록 + 업로드 파일 삭제(제안1·2)
   { name: '배치확인서 종이·삭제(E2E)',   cmd: 'npx tsx scripts/test-cert-paper-delete.mts',   needServer: true },
+  // 점검일은 계획·체크리스트·서류가 같이 봐야 하는 값인데 축이 넷이라 한 경로만 빠져도 조용히 갈라진다
+  // (소방계획서_24 P-19: 인라인 달력이 inspections.inspection_start_date를 안 고쳐 별지 9호 점검기간이
+  //  옛 날짜로 인쇄될 수 있었다). 다섯 경로 × 네 축을 상시 고정한다
+  { name: '점검일 동기화 5경로(E2E)',    cmd: 'npx tsx scripts/test-plan-date-sync.mts',      needServer: true },
+  // 사전 안내 SMS — 서버 로직은 _probe-sms-send가 덮고, 여기서는 **화면 배선**을 고정한다:
+  // 모니터링 폐지 후 링크가 살아 있는지 · 달력에서 열어도 자체점검이 목록에 드는지(Q-14의 핵심) ·
+  // 미확정 건이 조용히 빠지지 않는지 · 수신 미지정 시 폴백 1명인지(문자량이 몇 배가 되지 않게)
+  { name: '사전 안내 SMS 배선(E2E)',     cmd: 'npx tsx scripts/test-inspection-sms.mts',      needServer: true },
+  { name: 'SMS 발송 모듈(프로브)',       cmd: 'npx tsx --conditions=react-server scripts/_probe-sms-send.mts' },
 ]
 
 let serverUp = false

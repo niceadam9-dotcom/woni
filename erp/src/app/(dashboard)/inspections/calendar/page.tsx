@@ -172,6 +172,7 @@ export default async function InspectionCalendarPage({
       initialCustomerQuery={initialCustomerQuery}
       holidays={holidays}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
+      canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}
     />
   )
 }

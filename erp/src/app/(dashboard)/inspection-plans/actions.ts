@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
 import { loadAnchorDates } from '@/lib/inspection-plan-generator'
-import { startInspectionCore, syncInspectionStepDates } from '@/lib/inspection-start'
+import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
 
 // ── 점검 시작 — plan_item → inspections 생성 (코어는 src/lib/inspection-start.ts — 크론·자동 시작과 공용) ──
@@ -187,16 +187,8 @@ export async function updatePlanItemAction(input: {
     if (!confirmDate) return { error: '확정하려면 점검일을 입력해주세요.' }
     const res = await confirmPlanItemStageOneAction(input.itemId, confirmDate)
     if (res.error) return res
-
-    // 시작된 점검(1단계 미완료)의 시작일 동기화 — 다일 점검 종료일이 앞서게 되면 함께 이동
-    if (cur.inspection_id && dateChanged) {
-      const { data: inspRaw } = await admin.from('inspections')
-        .select('inspection_end_date').eq('id', cur.inspection_id).single()
-      const endDate = (inspRaw as { inspection_end_date: string | null } | null)?.inspection_end_date
-      const inspPatch: Record<string, unknown> = { inspection_start_date: confirmDate }
-      if (endDate && endDate < confirmDate) inspPatch.inspection_end_date = confirmDate
-      await admin.from('inspections').update(inspPatch).eq('id', cur.inspection_id)
-    }
+    // inspections.inspection_start_date 동기화는 confirmPlanItemStageOneAction 안으로 이관됐다
+    // (소방계획서_24 S12-1 / P-19) — 여기서 또 갱신하면 경로별로 규칙이 갈라진다
   }
 
   // ── 확정 해제(확정→계획): 점검 미시작만, 6단계 일정 초기화 (예정일은 유지)
@@ -239,13 +231,19 @@ export async function updatePlanItemAction(input: {
   }
 
   revalidatePath('/inspection-plans')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   return {}
 }
 
 // ── 1단계 점검일 확정 + step1~6 자동계산 ─────────────────────
+/** 점검일 확정의 **단일 경로** (소방계획서_24 S12-1 / P-19).
+ *  호출처 5곳 — 점검확정 인라인 달력·슬라이드 패널(updatePlanItemAction)·달력 드래그
+ *  (moveMonthlyPlanItemAction)·별지 회차 확정 모달·일괄 확정(bulkConfirmPlanItemsAction).
+ *  네 축(plan_items.scheduled_date / step1~6_date / inspection_steps.due_date /
+ *  inspections.inspection_start_date)을 **이 함수가 책임진다** — 호출처가 각자 갱신하면
+ *  한 경로만 빠져도 서류 날짜가 갈라진다(P-19가 정확히 그 사고였다). */
 export async function confirmPlanItemStageOneAction(
   planItemId: string,
   confirmedDate: string,
@@ -262,6 +260,13 @@ export async function confirmPlanItemStageOneAction(
     .single()
   const itemInfo = itemInfoRaw as { plan_type: string | null; inspection_type: string; inspection_id: string | null } | null
   if (!itemInfo) return { error: '계획 항목을 찾을 수 없습니다.' }
+
+  // 1단계 완료 후 날짜 변경 금지 — 종전에는 updatePlanItemAction에만 있어서
+  // 인라인 달력(canManage만 검사)이 우회했다. 확정 함수가 막아야 전 경로가 막힌다 (S12-3)
+  if (itemInfo.inspection_id && await isStepOneCompleted(admin, itemInfo.inspection_id)) {
+    return { error: '이미 점검일(1단계)이 완료된 점검입니다 — 날짜는 점검 상세에서 변경해주세요.' }
+  }
+
   const isEvent = itemInfo.plan_type === 'event' || itemInfo.plan_type === 'monthly'
   if (isEvent) {
     const { error } = await admin
@@ -269,8 +274,10 @@ export async function confirmPlanItemStageOneAction(
       .update({ scheduled_date: confirmedDate, status: 'confirmed' } as Record<string, unknown>)
       .eq('id', planItemId)
     if (error) return { error: error.message }
+    // 정기도 당일 크론으로 점검이 시작되면 inspections를 갖는다 — 이동 시 함께 민다
+    if (itemInfo.inspection_id) await syncInspectionVisitDate(admin, itemInfo.inspection_id, confirmedDate)
     revalidatePath('/inspection-plans')
-    revalidatePath('/inspection-plans/monitor')
+    revalidatePath('/inspections/sms')
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
     revalidatePath('/customers')
@@ -337,10 +344,12 @@ export async function confirmPlanItemStageOneAction(
   // 이미 점검이 시작된 항목이면 업무체크리스트(inspection_steps) 마감일도 재확정일 기준으로 갱신
   if (itemInfo.inspection_id) {
     await syncInspectionStepDates(admin, itemInfo.inspection_id, [step1, step2, step3, step4, step5, step6])
+    // 방문일 자체도 함께 — 별지 9호 점검기간·작업대 기간 카드의 원천 (S12-1 / P-19)
+    await syncInspectionVisitDate(admin, itemInfo.inspection_id, confirmedDate)
   }
 
   revalidatePath('/inspection-plans')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
 
@@ -876,7 +885,7 @@ export async function bulkConfirmPlanItemsAction(itemIds: string[]): Promise<{
   }
 
   revalidatePath('/inspection-plans')
-  revalidatePath('/inspection-plans/monitor')
+  revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   return { confirmed, assigned, failed }

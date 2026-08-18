@@ -807,6 +807,9 @@ function InlineDateCell({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 })
+  // 서버 거부 사유 — 1단계 완료 후 날짜 변경 금지 가드(소방계획서_24 S12-3)가 여기서 걸린다.
+  // 종전에는 res.error를 버려서 "날짜를 눌러도 아무 일도 안 일어난다"로만 보였다
+  const [err, setErr] = useState<string | null>(null)
   // 팝업에 표시 중인 연/월 — 계획 월 외 날짜(예: 익월 초 점검)도 확정 가능하도록 이동 지원
   const [viewYM, setViewYM] = useState({ year: planYear, month: planMonth })
   const triggerRef = useRef<HTMLDivElement>(null)
@@ -855,17 +858,21 @@ function InlineDateCell({
 
   function handleSelectDay(day: number) {
     const dateStr = `${viewYM.year}-${String(viewYM.month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    setErr(null)
     startTransition(async () => {
       const res = await confirmPlanItemStageOneAction(itemId, dateStr)
-      if (!res.error) { setOpen(false); onSaved() }
+      if (res.error) { setErr(res.error); return }
+      setOpen(false); onSaved()
     })
   }
 
   function handleClear(e: React.MouseEvent) {
     e.stopPropagation()
+    setErr(null)
     startTransition(async () => {
       const res = await updatePlanItemAction({ itemId, scheduledDate: null })
-      if (!res.error) { setOpen(false); onSaved() }
+      if (res.error) { setErr(res.error); return }
+      setOpen(false); onSaved()
     })
   }
 
@@ -966,6 +973,15 @@ function InlineDateCell({
             <div className="flex items-center justify-center gap-1.5 mt-2">
               <div className="animate-spin rounded-full h-3 w-3 border border-[#7b68ee] border-t-transparent" />
               <span className="text-[10px] text-[#514b81]">저장 중…</span>
+            </div>
+          )}
+          {err && !isPending && (
+            <div
+              data-testid="inline-date-error"
+              className="mt-2 flex items-start gap-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1.5"
+            >
+              <AlertCircle className="size-3 text-red-500 shrink-0 mt-px" />
+              <span className="text-[10px] leading-snug text-red-600">{err}</span>
             </div>
           )}
         </div>
