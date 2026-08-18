@@ -13,7 +13,7 @@ interface HeaderProps {
 export function Header({ profile }: HeaderProps) {
   const showPalette = can(profile.role as UserRole, 'inspection_register')
   return (
-    <header className="h-16 shrink-0 flex items-center justify-between gap-4 px-6 bg-white border-b border-[#c8c4d0]">
+    <header className="h-16 shrink-0 flex items-center justify-between gap-4 px-6 bg-white border-b border-[#c8c4d0] print:hidden">
       {/* 좌: 현재 페이지 브레드크럼 (2026-07-14 상단 공백 활용 A안) */}
       <HeaderTitle />
 

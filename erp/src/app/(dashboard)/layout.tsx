@@ -38,7 +38,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f8f9fa]">
+    /* 인쇄: 사이드바·헤더는 print:hidden으로 빠지지만, 그것만으로는 부족하다 —
+       h-screen + overflow 컨테이너 안의 내용은 **첫 화면 분량만 인쇄**되고 나머지가 잘린다.
+       인쇄에서는 높이·스크롤 제약을 풀어 본문이 그대로 흐르게 한다(세금계산서·자격증명서 등 공용). */
+    <div className="flex h-screen overflow-hidden bg-[#f8f9fa] print:block print:h-auto print:overflow-visible print:bg-white">
       <Sidebar
         role={profile.role}
         redCount={redCount}
@@ -46,9 +49,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         companyName={company?.company_name}
         logoUrl={company?.logo_url}
       />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:block print:overflow-visible">
         <Header profile={profile} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">
           {children}
         </main>
       </div>

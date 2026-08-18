@@ -243,7 +243,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '�
   const isDashboard = pathname === '/dashboard'
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col h-full bg-white border-r-2 border-[#d4d0f0]">
+    <aside className="w-56 shrink-0 flex flex-col h-full bg-white border-r-2 border-[#d4d0f0] print:hidden">
       {/* 로고 */}
       <div className="h-14 flex items-center gap-2.5 px-4 border-b-2 border-[#d4d0f0]">
         {logoUrl ? (
