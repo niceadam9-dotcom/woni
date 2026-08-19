@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
+import { ComboInput } from '@/components/ui/combo-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction } from '@/app/(dashboard)/buildings/actions'
 import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
@@ -433,14 +434,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
 
           <div className="flex flex-wrap gap-2 items-end">
             <div className="w-36"><label className={labelCls}>용도</label>
-              {/* 049 building_purposes 제안 — select가 아닌 datalist: 대장이 목록에 없는 용도를 넣는 경우가 있어 강제하면 값이 잘린다 */}
-              <input id="bf-purpose" value={form.purpose} onChange={e => setField('purpose', e.target.value)} disabled={!canManage}
-                list="building-purpose-options" placeholder={purposes.length > 0 ? '선택/직접 입력' : '예: 근린생활시설'} className={inputCls} />
-              {purposes.length > 0 && (
-                <datalist id="building-purpose-options">
-                  {purposes.map(p => <option key={p} value={p} />)}
-                </datalist>
-              )}</div>
+              {/* 049 building_purposes 제안 — select가 아닌 콤보: 대장이 목록에 없는 용도를 넣는 경우가
+                  있어 강제하면 값이 잘린다. datalist→ComboInput 교체(2026-08-19) — 누르기 전엔 목록이 안 보였다 */}
+              <ComboInput id="bf-purpose" value={form.purpose} onChange={v => setField('purpose', v)} disabled={!canManage}
+                options={purposes} ariaLabel="건물 용도"
+                placeholder={purposes.length > 0 ? '선택/직접 입력' : '예: 근린생활시설'} className={inputCls} /></div>
             <div className="w-28"><label className={labelCls}>연면적(㎡)</label>
               <input id="bf-total-area" type="number" value={form.total_area} onChange={e => setField('total_area', e.target.value)} disabled={!canManage} className={inputCls} /></div>
             <div className="w-24"><label className={labelCls}>지상(층)</label>

@@ -7,6 +7,7 @@ import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, f
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
+import { ComboInput } from '@/components/ui/combo-input'
 import type { InspectionType } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
@@ -610,20 +611,18 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             </div>
             <div className="grid grid-cols-2 gap-4">
           <Field label="건물용도">
-            {/* 049 building_purposes 목록 제안 — select가 아닌 datalist: 건축물대장이 목록에 없는 용도를
-                자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT) */}
-            <input
+            {/* 049 building_purposes 목록 제안 — select가 아닌 콤보: 건축물대장이 목록에 없는 용도를
+                자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT).
+                datalist에서 ComboInput으로 교체(2026-08-19) — datalist는 타이핑 전에는 목록이
+                안 떠서 "선택하거나"가 거짓말이었다. 이제 칸을 누르면 전체가 펼쳐진다. */}
+            <ComboInput
               value={form.building_purpose}
-              onChange={e => setField('building_purpose', e.target.value)}
-              list="building-purpose-options"
+              onChange={v => setField('building_purpose', v)}
+              options={purposes}
+              ariaLabel="건물용도"
               placeholder={purposes.length > 0 ? '선택하거나 직접 입력' : '예: 업무시설, 근린생활시설'}
               className={inputCls}
             />
-            {purposes.length > 0 && (
-              <datalist id="building-purpose-options">
-                {purposes.map(p => <option key={p} value={p} />)}
-              </datalist>
-            )}
           </Field>
           <Field label="연면적 (㎡)">
             <input
