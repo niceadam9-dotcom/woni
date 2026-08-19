@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { hangulMatch } from '@/lib/hangul'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { CONTRACT_FILE_RE, findArchivedCertInspections, findMissingCerts, getDocTodo, hasCertFile, isCertFileName, SELF_INSPECTION_OR, type MissingCertRow, type DueReport9Row } from '@/lib/doc-status'
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 
@@ -359,11 +360,14 @@ export async function searchDocCommandsAction(q: string): Promise<{
   const query = q.trim()
   if (query.length < 1) return { customers: [], commands: [] }
   const admin = createAdminClient()
-  // 초성 검색(R0-5) 지원 — 활성 고객 이름을 서버에서 필터 (약 300건 규모)
-  const { data: all } = await admin.from('customers')
-    .select('id, customer_name, inspection_type').eq('is_active', true).order('customer_name').limit(1000)
-  const matched = ((all ?? []) as Array<{ id: string; customer_name: string; inspection_type: string }>)
-    .filter(c => hangulMatch(c.customer_name, query)).slice(0, 5)
+  // 초성 검색(R0-5) 지원 — 초성은 DB가 못 거르므로 활성 고객을 받아 와 이름을 여기서 맞춘다.
+  // ⚠ `.limit(1000)`은 상한 구실을 못 한다 — PostgREST가 요청당 1000행에서 자르므로 같은 값이고,
+  // 고객이 1000곳을 넘으면 뒤쪽 고객은 **검색해도 안 나온다**(오류도 없이). 끝까지 받는다.
+  const { rows: all } = await fetchAllRows<{ id: string; customer_name: string; inspection_type: string }>(
+    (from, to) => admin.from('customers')
+      .select('id, customer_name, inspection_type').eq('is_active', true)
+      .order('customer_name').order('id').range(from, to))
+  const matched = all.filter(c => hangulMatch(c.customer_name, query)).slice(0, 5)
   const customers = matched.map(c => ({ id: c.id, name: c.customer_name, type: c.inspection_type }))
   if (matched.length === 0) return { customers, commands: [] }
 

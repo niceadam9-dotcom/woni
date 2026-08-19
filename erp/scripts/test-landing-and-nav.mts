@@ -54,9 +54,13 @@ async function main() {
   const navTexts = await page.locator('nav > div').evaluateAll(els =>
     els.map(e => (e.querySelector('button, a')?.textContent ?? '').trim()))
   check('3-1 ★ 첫 항목이 소방안전관리', navTexts[0]?.includes('소방안전관리') === true, JSON.stringify(navTexts))
-  const dashIdx = navTexts.findIndex(t => t.includes('대시보드'))
-  check('3-2 ★ 대시보드는 그룹들 아래(마지막)', dashIdx === navTexts.length - 1, `index ${dashIdx}/${navTexts.length - 1}`)
+  check('3-2 ★ 대시보드는 스크롤 목록 밖(하단 고정)', !navTexts.some(t => t.includes('대시보드')), JSON.stringify(navTexts))
   check('3-3 My Page는 소방안전관리 다음', navTexts[1]?.includes('My Page') === true, JSON.stringify(navTexts.slice(0, 3)))
+  // 스크롤 없이 닿아야 한다 — 맨 위 그룹이 17항목이라 목록 안에 두면 매번 스크롤해야 했다
+  const dash = page.locator('aside > div:last-child a[href="/dashboard"]')
+  check('3-4 ★ 대시보드가 하단 고정 영역에 보인다', await dash.isVisible(), `${await dash.count()}개`)
+  check('3-5 설정도 같은 자리에 유지',
+    await page.locator('aside > div:last-child a[href="/settings"]').isVisible())
 
   console.log('\n[4] 착륙 직후 소방안전관리 그룹이 펼쳐져 있다')
   const calLink = page.locator('nav a[href="/inspections/calendar"]')

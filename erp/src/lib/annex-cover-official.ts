@@ -7,6 +7,7 @@
  *  서명 URL을 PDF HTML에 박지 않는다 — Gotenberg 컨테이너의 외부 네트워크 의존·TTL 만료 위험. */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { listCustomerAssetEntries, ASSET_BUCKET, ASSET_URL_TTL } from '@/lib/customer-assets'
 import type { DocAsset } from '@/lib/doc-templates/base'
@@ -134,10 +135,15 @@ export function companyAbbrev(name: string): string {
  *  수동 저장분이 있으면 그 값이 항상 이긴다 — 제안은 빈 칸일 때만 */
 async function suggestDocNo(admin: Admin, abbrev: string, now = new Date()): Promise<string> {
   const yymm = `${String(now.getFullYear() % 100).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}`
-  const { data } = await admin.from('annex_inputs').select('fields').eq('annex_no', 'official').limit(1000)
+  // ⚠ `.limit(1000)`은 상한이 아니다 — PostgREST가 요청당 1000행에서 자르므로 같은 값이고,
+  // 공문 발급이 1000건을 넘으면 뒤쪽이 조용히 빠져 **이미 쓴 일련번호를 다시 제안**하게 된다.
+  // 끝까지 받는다(정렬은 페이지가 겹치지 않게 id로 고정).
+  const { rows } = await fetchAllRows<{ fields: Record<string, unknown> | null }>(
+    (from, to) => admin.from('annex_inputs').select('fields')
+      .eq('annex_no', 'official').order('id').range(from, to))
   let max = 0
   const re = new RegExp(`${yymm}-(\\d+)\\s*$`)
-  for (const row of (data ?? []) as Array<{ fields: Record<string, unknown> | null }>) {
+  for (const row of rows) {
     const v = String(row.fields?.docNo ?? '')
     const m = re.exec(v)
     if (m) max = Math.max(max, Number(m[1]))

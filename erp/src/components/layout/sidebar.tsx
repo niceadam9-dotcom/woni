@@ -388,26 +388,25 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
           )
         })}
 
-        {/* 대시보드 — 단독 항목. 기본 착륙지가 [점검 달력]이 되면서 '홈'이 아니라
-            지표를 보러 가는 곳이 됐다(KPI·제출현황·공지). 그래서 그룹들 아래에 둔다. */}
-        <div className="px-2 mt-1">
-          <Link
-            href="/dashboard"
-            className={cn(
-              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isDashboard
-                ? 'bg-[#7b68ee]/10 text-[#7b68ee]'
-                : 'text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
-            )}
-          >
-            <LayoutDashboard className={cn('size-4 shrink-0', isDashboard ? 'text-[#7b68ee]' : 'text-[#b0acd6]')} />
-            대시보드
-          </Link>
-        </div>
       </nav>
 
-      {/* 하단 설정 */}
-      <div className="px-2 py-2 border-t-2 border-[#d4d0f0]">
+      {/* 하단 고정 — 대시보드·설정. 스크롤 밖이라 **항상 보인다**.
+          기본 착륙지가 [점검 달력]이 되면서 대시보드는 '홈'이 아니라 지표를 보러 가는 곳이
+          됐다(KPI·제출현황·공지). 그런데 맨 위 소방안전관리(17항목)가 펼쳐진 채 시작하므로
+          목록 안에 두면 매번 스크롤해야 닿는다 — 설정과 같은 고정 자리로 내린다. */}
+      <div className="px-2 py-2 border-t-2 border-[#d4d0f0] space-y-0.5">
+        <Link
+          href="/dashboard"
+          className={cn(
+            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+            isDashboard
+              ? 'bg-[#7b68ee]/10 text-[#7b68ee]'
+              : 'text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+          )}
+        >
+          <LayoutDashboard className={cn('size-4 shrink-0', isDashboard ? 'text-[#7b68ee]' : 'text-[#8b87b8]')} />
+          대시보드
+        </Link>
         <Link
           href="/settings"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors"

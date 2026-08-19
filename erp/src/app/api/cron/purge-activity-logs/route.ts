@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EVIDENCE_MARKER_ACTIONS } from '@/lib/doc-status'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 
 // 활동로그 보존 정책: 보존 기간(기본 24개월) 경과분을 월별 JSON으로
 // Supabase Storage(log-archives 버킷)에 아카이브한 뒤 삭제한다.
@@ -53,17 +54,21 @@ export async function GET(req: NextRequest) {
   //    단계가 24개월 뒤 미완료로 되돌아간다(EVIDENCE_MARKER_ACTIONS에서 목록을 관리).
   //    제외 범위는 회차 마커(entity_type='inspection')로 한정한다. 같은 action의 고객 단위
   //    감사 로그는 판정에 쓰이지 않으므로 보존정책대로 아카이브 후 만료시킨다.
-  const { data: expiredRaw, error: selErr } = await admin
+  //    ⚠ `.limit(BATCH)`는 BATCH가 1000을 넘으면 지켜지지 않는다 — PostgREST가 요청당 1000행에서
+  //    자르므로, BATCH=5000이어도 실제로는 1회 1000행만 지워져 만료 로그가 뒤로 밀려 쌓인다
+  //    (2026-08-19 실측). 1000행씩 나눠 받아 BATCH를 실제 상한으로 만든다.
+  const { rows: expiredRaw, error: selErr } = await fetchAllRows<LogRow>((from, to) => admin
     .from('activity_logs')
     .select('*')
     .lt('created_at', cutoffIso)
     .or(`action.not.in.(${EVIDENCE_MARKER_ACTIONS.join(',')}),entity_type.neq.inspection`)
     .order('created_at', { ascending: true })
-    .limit(BATCH)
+    .order('id')      // 동점 없는 2차 키 — 같은 시각 로그가 페이지 경계에서 겹치거나 새지 않게
+    .range(from, to), { maxRows: BATCH })
 
-  if (selErr) return NextResponse.json({ error: `조회 실패: ${selErr.message}` }, { status: 500 })
+  if (selErr) return NextResponse.json({ error: `조회 실패: ${selErr}` }, { status: 500 })
 
-  const expired = (expiredRaw ?? []) as LogRow[]
+  const expired = expiredRaw
   if (expired.length === 0) {
     return NextResponse.json({ ok: true, cutoff: cutoffIso, archived: 0, deleted: 0, months: [] })
   }

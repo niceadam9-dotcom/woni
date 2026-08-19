@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
 } from '@/lib/inspection-step-status'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 
 /** 문서 누락·기한 판정 함수 1곳 (소방계획서_5 7-C #8, R8-b) —
  *  대시보드 '문서 할 일' 위젯(R0-9)·보고서 센터 누락 뱃지(R8)·고객 문서 현황(R2)·제출 현황판(S4)·크론이 공유.
@@ -92,16 +93,20 @@ export async function findArchivedCertInspections(
   admin: SupabaseClient, inspectionIds: string[],
 ): Promise<Set<string>> {
   if (inspectionIds.length === 0) return new Set()
-  // 마커는 영구 보존이라 같은 회차에 반복 정리가 누적될 수 있다 — 기본 max-rows에 걸려
-  // 일부가 조용히 빠지면 오경고가 되살아나므로 상한을 조회 대상 수에 맞춰 명시한다.
-  const { data } = await admin.from('activity_logs')
+  // 마커는 영구 보존이라 같은 회차에 반복 정리가 누적될 수 있다 — 일부가 조용히 빠지면
+  // 오경고(종이 보관 회차가 '배치확인서 누락')가 되살아난다.
+  // ⚠ 종전엔 `.limit(Math.max(1000, n*20))`으로 "상한을 명시"했는데 **그 상한은 지켜지지 않는다** —
+  // PostgREST는 요청당 1000행이 하드 상한이라 1000을 넘겨 적어도 1000에서 잘린다(2026-08-19 실측).
+  // 지켜지지도 않는 숫자가 안전하다는 인상만 줬다. 페이지를 나눠 끝까지 받는다.
+  const { rows } = await fetchAllRows<{ entity_id: string }>((from, to) => admin.from('activity_logs')
     .select('entity_id')
     // 보존 정리(사본 삭제)와 처음부터 종이 보관 — 둘 다 '종이로 갖고 있다'라 누락이 아니다
     .in('action', [ARCHIVE_CLEANUP_ACTION, CERT_PAPER_ACTION])
     .eq('entity_type', 'inspection')
     .in('entity_id', inspectionIds)
-    .limit(Math.max(1000, inspectionIds.length * 20))
-  return new Set((data ?? []).map(r => (r as { entity_id: string }).entity_id))
+    .order('id')      // 페이지가 겹치거나 건너뛰지 않게 동점 없는 키로 고정
+    .range(from, to))
+  return new Set(rows.map(r => r.entity_id))
 }
 
 /** R8: 배치확인서 누락 — 완료된 자체점검 & cert 슬롯 없음 & 종이 정리 이력 없음
