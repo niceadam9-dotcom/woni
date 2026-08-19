@@ -208,7 +208,11 @@ async function main() {
       .map(t => /미발송 (\d+)곳/.exec(t)?.[1]).filter(Boolean).reduce((n, v) => n + Number(v), 0)
     check('배너에 미발송이 잡혀 있다(뱃지 비교의 전제)', bannerUnsent > 0, String(bannerUnsent))
 
+    // 뱃지는 **마운트 후 클라이언트에서** 채워진다(렌더 경로에서 뺐기 때문 — 실측 497ms).
+    // 즉시 단언하면 부하가 걸린 상황에서만 실패한다: 단독 실행에서는 빨라서 늘 통과하고,
+    // 전체 스위트 안에서만 깨져 원인 찾기가 어려워진다. 반드시 나타날 때까지 기다린다.
     const badge = page.locator('[data-testid="sidebar-sms-badge"]')
+    await badge.waitFor({ timeout: 30000 }).catch(() => {})
     check('★ 사이드바에 미발송 뱃지가 뜬다(종전에는 액션만 있고 호출부가 없었다)',
       await badge.count() === 1, String(await badge.count()))
     check('★ 뱃지 수 = 배너 미발송 곳 수 — 두 곳이 다른 수를 보이면 어느 쪽을 믿을지 모른다',
@@ -235,12 +239,14 @@ async function main() {
     //   정작 이 기능이 필요한 경우를 못 고른다(독립 판정 지적으로 드러난 결함)
     await page.waitForFunction(
       () => /전체 고객 \d+곳/.test(document.querySelector('[data-testid="sms-adhoc-picker"]')?.textContent ?? ''),
-      undefined, { timeout: 20000 })
+      undefined, { timeout: 30000 })
     const pickerText = await page.locator('[data-testid="sms-adhoc-picker"]').innerText()
     const optionCount = Number(/전체 고객 (\d+)곳/.exec(pickerText)?.[1] ?? 0)
-    const screenRows = (await page.locator('[data-testid="sms-row"]').allInnerTexts()).length
-    check('★ 임의 발송 후보가 화면에 뜬 행보다 많다(계획 없는 고객도 고를 수 있다)',
-      optionCount > screenRows, `후보 ${optionCount}곳 vs 화면 ${screenRows}행`)
+    // 화면 행 수와 비교하면 다른 테스트가 남긴 데이터에 흔들린다 — **활성 고객 수 실측**과 맞춘다
+    const { count: activeCustomers } = await raw.from('customers')
+      .select('id', { count: 'exact', head: true }).eq('is_active', true)
+    check('★ 임의 발송 후보 = 전 활성 고객 (화면에 뜬 행으로 한정되지 않는다)',
+      optionCount === (activeCustomers ?? 0), `후보 ${optionCount}곳 vs 활성 고객 ${activeCustomers}곳`)
     // 계획이 전혀 없는 고객을 실제로 고를 수 있는지 — 이 테스트가 만든 '계획 없는 고객'으로 확인.
     // 이름을 **끝까지** 치면 안 된다: 정확히 하나로 좁혀지면 컴포넌트가 '이미 고른 상태'로 보고
     // 제안 목록을 닫는다(customer-filter-search.tsx:48). 부분 문자열로 목록을 띄운다.
