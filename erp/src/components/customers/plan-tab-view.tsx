@@ -19,7 +19,20 @@ import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-re
 
 // 개정이력은 마이그레이션 120 fire_plan_revisions로 승격됐다 — 구 RevisionRow(fire_plans 파생)는 폐기
 
-/** 11-5: 누락 칩 → 입력처 딥링크 (필수 완성도 라벨 기준) */
+/** 11-5: 누락 칩 → 입력처 딥링크 (필수 완성도 라벨 기준)
+ *
+ *  ⚠ **지금 실제로 뜨는 칩은 form11 계열뿐이다.** 칩은 readiness.missing으로만 만들어지는데
+ *  (아래 렌더 지점) computeFirePlanReadiness가 내보내는 라벨은 1.1 일반현황 10개가 전부다 —
+ *  수신기위치·구조·지붕·선임일·급수·화재보험·운영시간·인원·자위소방대·선임 형태.
+ *  따라서 아래 info(주소·사용승인일)·buildings(높이·세대수 등) 항목과 gotoMissing의 해당
+ *  분기는 **도달하지 않는다**. 이 표를 도입한 커밋(0c8e095, 2026-07-23) 시점에도 readiness는
+ *  같은 9개뿐이었으니 나중에 유실된 게 아니라 처음부터 그랬다.
+ *
+ *  그래도 지우지 않는다: 준비율에 주소·건물 항목을 편입하면(1.1 완성도 분모와 탭 경고가 함께
+ *  바뀌는 제품 결정이다) 이 매핑이 즉시 필요해지고, 없으면 칩이 form11로 떨어져 엉뚱한 탭을
+ *  연다. 대신 '지금은 안 뜬다'는 사실은 test-cd-ui가 단언으로 붙들고 있다 —
+ *  그게 없어서 낡은 E2E가 오래 빨간 채로 방치됐다(2026-08-19 정리).
+ */
 const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'consent'> = {
   '주소': 'info', '사용승인일': 'info',
   '건물 용도': 'buildings', '건축허가일': 'buildings', '연면적': 'buildings', '건축면적': 'buildings',

@@ -79,11 +79,23 @@ export async function GET(req: NextRequest) {
           type: 'law_revision',
           reference_type: 'document',
         }))
-        if (rows.length > 0) await admin.from('notifications').insert(rows as Record<string, unknown>[])
+        // ⚠ 알림이 실패하면 **기준일을 올리지 않는다.**
+        //   올려 버리면 다음 실행에서 entry.date > announce_date가 거짓이 되어 개정 사실이
+        //   통째로 사라지고, 재심기가 영영 돌지 않는다(법정 서식이 바뀌었는데 옛 서식으로 계속
+        //   문서를 만든다). 실제로 type='law_revision'이 CHECK에 없어 insert가 항상 실패하는데
+        //   오류를 안 보고 기준만 올리고 있었다 — 스테이징 실측 알림 0건, 마이그레이션 143에서 해소.
+        //   신호를 잃느니 다음 실행이 다시 시도하게 두는 편이 낫다.
+        const { error: notiErr } = rows.length > 0
+          ? await admin.from('notifications').insert(rows as Record<string, unknown>[])
+          : { error: null }
+        if (notiErr) {
+          results[w.key] = `개정 감지 ${base.announce_date} → ${entry.date} — ⚠ 알림 발송 실패로 기준 미갱신(다음 실행 재시도): ${notiErr.message.slice(0, 120)}`
+          continue
+        }
         await admin.from('law_form_baselines')
           .update({ announce_date: entry.date, updated_at: new Date().toISOString() }).eq('key', w.key)
         revised.push(w.key)
-        results[w.key] = `개정 감지 ${base.announce_date} → ${entry.date} (알림 발송)`
+        results[w.key] = `개정 감지 ${base.announce_date} → ${entry.date} (알림 ${rows.length}건 발송)`
       } else {
         results[w.key] = `최신 (${base.announce_date})`
       }
