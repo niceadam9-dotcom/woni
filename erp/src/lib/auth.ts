@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile, UserRole } from '@/types'
 import { can, type PermissionKey } from '@/lib/permissions'
+import { HOME_PATH } from '@/lib/routes'
 
 const PROFILE_COLS = 'id, employee_id, name, email, role, department_id, position, hire_date, is_active, is_system, failed_logins, locked_until'
 
@@ -51,7 +52,7 @@ export async function requireAuth() {
 export async function requireRole(roles: UserRole[]) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (!roles.includes(profile.role as UserRole)) redirect('/dashboard')
+  if (!roles.includes(profile.role as UserRole)) redirect(HOME_PATH)
   return profile
 }
 
@@ -59,7 +60,7 @@ export async function requireRole(roles: UserRole[]) {
 export async function requirePermission(key: PermissionKey) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (!can(profile.role as UserRole, key)) redirect('/dashboard')
+  if (!can(profile.role as UserRole, key)) redirect(HOME_PATH)
   return profile
 }
 

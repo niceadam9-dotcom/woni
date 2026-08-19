@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { HOME_PATH } from '@/lib/routes'
 import type { Profile } from '@/types'
 
 const MAX_FAILED_LOGINS = 5
@@ -97,5 +98,5 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     })
   }
 
-  redirect('/dashboard')
+  redirect(HOME_PATH)
 }

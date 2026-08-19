@@ -39,24 +39,10 @@ type NavGroup = {
 
 // 헤더 브레드크럼(header-title.tsx)이 경로→메뉴명 매칭에 재사용
 export const NAV_GROUPS: NavGroup[] = [
-  // ── My Page ─────────────────────────────────────────────────────────────
-  {
-    key: 'mypage',
-    label: 'My Page',
-    icon: CalendarCheck,
-    roles: ['employee', 'manager', 'admin'],
-    items: [
-      { label: '일정 관리',    href: '/my/schedules',   icon: CalendarCheck, roles: ['employee', 'manager', 'admin'] },
-      { label: 'ToDo 목록',   href: '/my/todos',        icon: ListTodo,      roles: ['employee', 'manager', 'admin'] },
-      { label: '주소록',      href: '/my/address-book', icon: Users2,        roles: ['employee', 'manager', 'admin'] },
-      { label: '쪽지함',      href: '/my/messages',     icon: MessageSquare, roles: ['employee', 'manager', 'admin'] },
-      { label: '회사 메일',   href: '/mail',            icon: Mail,          roles: ['employee', 'manager', 'admin'] },
-      { label: '노트',        href: '/my/notes',        icon: StickyNote,    roles: ['employee', 'manager', 'admin'] },
-      { label: '녹음메모장',  href: '/my/voice-memos',  icon: Mic,           roles: ['employee', 'manager', 'admin'] },
-      { label: '결재서명',    href: '/my/signature',    icon: PenLine,       roles: ['employee', 'manager', 'admin'] },
-    ],
-  },
   // ── 소방안전관리 ─────────────────────────────────────────────────────────
+  // 맨 위 (2026-08-19 사용자 확정) — 이 회사의 본업이 소방 점검이다. 기본 착륙지도
+  // 이 그룹의 [점검 달력](lib/routes.ts HOME_PATH)이라, 로그인하면 이 그룹이 펼쳐진 채 시작한다
+  // (아래 getActiveGroup이 현재 경로가 속한 그룹을 자동으로 연다).
   {
     key: 'fire',
     label: '소방안전관리',
@@ -89,6 +75,23 @@ export const NAV_GROUPS: NavGroup[] = [
       // 계획서 공통문구 옆에 같은 위상으로 둔다
       { label: '발송 문구',        href: '/settings/message-templates', icon: PenLine,        roles: ['employee', 'manager', 'admin'], section: '설정' },
       { label: '지역별 담당 배정', href: '/customers/regional-assign',  icon: Users2,         roles: ['manager', 'admin'], section: '설정' },
+    ],
+  },
+  // ── My Page ─────────────────────────────────────────────────────────────
+  {
+    key: 'mypage',
+    label: 'My Page',
+    icon: CalendarCheck,
+    roles: ['employee', 'manager', 'admin'],
+    items: [
+      { label: '일정 관리',    href: '/my/schedules',   icon: CalendarCheck, roles: ['employee', 'manager', 'admin'] },
+      { label: 'ToDo 목록',   href: '/my/todos',        icon: ListTodo,      roles: ['employee', 'manager', 'admin'] },
+      { label: '주소록',      href: '/my/address-book', icon: Users2,        roles: ['employee', 'manager', 'admin'] },
+      { label: '쪽지함',      href: '/my/messages',     icon: MessageSquare, roles: ['employee', 'manager', 'admin'] },
+      { label: '회사 메일',   href: '/mail',            icon: Mail,          roles: ['employee', 'manager', 'admin'] },
+      { label: '노트',        href: '/my/notes',        icon: StickyNote,    roles: ['employee', 'manager', 'admin'] },
+      { label: '녹음메모장',  href: '/my/voice-memos',  icon: Mic,           roles: ['employee', 'manager', 'admin'] },
+      { label: '결재서명',    href: '/my/signature',    icon: PenLine,       roles: ['employee', 'manager', 'admin'] },
     ],
   },
   // ── 업무관리 ─────────────────────────────────────────────────────────────
@@ -293,23 +296,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
 
       {/* 네비게이션 */}
       <nav className="flex-1 overflow-y-auto py-2">
-        {/* 대시보드 — 단독 항목 */}
-        <div className="px-2 mb-1">
-          <Link
-            href="/dashboard"
-            className={cn(
-              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isDashboard
-                ? 'bg-[#7b68ee]/10 text-[#7b68ee]'
-                : 'text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
-            )}
-          >
-            <LayoutDashboard className={cn('size-4 shrink-0', isDashboard ? 'text-[#7b68ee]' : 'text-[#b0acd6]')} />
-            대시보드
-          </Link>
-        </div>
-
-        {/* 그룹 목록 */}
+        {/* 그룹 목록 — 맨 위가 소방안전관리(본업). 대시보드는 아래 단독 항목으로 내렸다 (2026-08-19) */}
         {NAV_GROUPS.map(group => {
           // 권한 필터
           if (!group.roles.includes(role)) return null
@@ -400,6 +387,23 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
             </div>
           )
         })}
+
+        {/* 대시보드 — 단독 항목. 기본 착륙지가 [점검 달력]이 되면서 '홈'이 아니라
+            지표를 보러 가는 곳이 됐다(KPI·제출현황·공지). 그래서 그룹들 아래에 둔다. */}
+        <div className="px-2 mt-1">
+          <Link
+            href="/dashboard"
+            className={cn(
+              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              isDashboard
+                ? 'bg-[#7b68ee]/10 text-[#7b68ee]'
+                : 'text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+            )}
+          >
+            <LayoutDashboard className={cn('size-4 shrink-0', isDashboard ? 'text-[#7b68ee]' : 'text-[#b0acd6]')} />
+            대시보드
+          </Link>
+        </div>
       </nav>
 
       {/* 하단 설정 */}

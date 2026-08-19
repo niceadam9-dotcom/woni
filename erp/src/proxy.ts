@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { HOME_PATH } from '@/lib/routes'
 
 // /api/cron: 세션 없이 호출되는 Vercel Cron 경로 — 라우트 자체의 CRON_SECRET Bearer 검증으로 보호
 const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron']
@@ -59,13 +60,13 @@ export async function proxy(request: NextRequest) {
 
     if (ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
       if (profile?.role !== 'admin') {
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL(HOME_PATH, request.url))
       }
     }
 
     if (MANAGER_PATHS.some((p) => pathname.startsWith(p))) {
       if (!['manager', 'admin'].includes(profile?.role ?? '')) {
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL(HOME_PATH, request.url))
       }
     }
   }
