@@ -23,6 +23,7 @@ import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actio
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { hangulMatch } from '@/lib/hangul'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
+import { AddressMapButton } from '@/components/ui/address-map-button'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -41,6 +42,8 @@ export type CalendarInspection = {
   customer_id: string
   customer_name: string
   customer_code: string
+  /** 방문 준비 지도용 (S5-7 확산) — 없을 수 있고, 없으면 버튼이 안 그려진다 */
+  customer_address?: string | null
   customer_inactive?: boolean
   inspection_type: InspectionType
   year: number
@@ -58,6 +61,8 @@ export type CalendarPlanItem = {
   customer_id: string
   customer_name: string
   customer_code: string
+  /** 방문 준비 지도용 (S5-7 확산) */
+  customer_address?: string | null
   plan_type: 'monthly' | 'event'
   /** 일반관리 세부 유형(종합/작동) — 일반(종합)/일반(작동) 라벨용 (2026-08-04) */
   sub_type?: '종합' | '작동' | null
@@ -139,6 +144,7 @@ type CalEventResource = {
   dueDate: string
   completedAt: string | null
   customerName: string
+  customerAddress?: string | null
   inspectionType: InspectionType
   year: number
   sequenceNum: number
@@ -489,6 +495,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               dueDate: s.due_date!,
               completedAt: s.completed_at,
               customerName: insp.customer_name,
+              customerAddress: insp.customer_address ?? null,
               inspectionType: insp.inspection_type,
               year: insp.year,
               sequenceNum: insp.sequence_num,
@@ -1630,17 +1637,20 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">단계 일정 (종합·작동)</p>
                     <div className="space-y-0.5">
                       {panelSteps.map(e => (
-                        // 선택 모드에선 클릭을 막는다 — 이 버튼은 패널을 닫아버려 고른 선택이 날아간다
-                        <button
-                          key={e.id}
-                          disabled={moveSelectMode}
-                          onClick={() => { setDayPanelDate(null); setSelectedInspectionId(e.resource.inspectionId); setStepError(null) }}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] text-left transition-colors disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent"
-                        >
-                          <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.resource.color }} />
-                          <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{e.title}</span>
-                          <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />
-                        </button>
+                        // 지도 버튼을 행 버튼 **밖**에 둔다 — button 안의 button은 중첩이 안 된다
+                        <div key={e.id} className="flex items-center gap-1 rounded-lg hover:bg-[#f8f9fa] transition-colors">
+                          {/* 선택 모드에선 클릭을 막는다 — 이 버튼은 패널을 닫아버려 고른 선택이 날아간다 */}
+                          <button
+                            disabled={moveSelectMode}
+                            onClick={() => { setDayPanelDate(null); setSelectedInspectionId(e.resource.inspectionId); setStepError(null) }}
+                            className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left disabled:opacity-50 disabled:cursor-default"
+                          >
+                            <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.resource.color }} />
+                            <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{e.title}</span>
+                            <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />
+                          </button>
+                          <AddressMapButton customerName={e.resource.customerName} address={e.resource.customerAddress} iconOnly className="mr-2" />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1679,6 +1689,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                               <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-[#b0acd6] line-through' : 'text-[#090c1d]'}`} title={`담당 ${p.assigned_employee_name}`}>
                                 {p.customer_name}
                               </span>
+                              {/* 방문 준비 지도(S5-7 확산) — 이름 span 밖에 둔다. 안에 넣으면
+                                  이름이 길 때 truncate에 아이콘까지 잘려 나간다.
+                                  시작·완료된 건에도 남는다: 순회 준비는 그때도 필요하다 */}
+                              <AddressMapButton customerName={p.customer_name} address={p.customer_address} iconOnly />
                               {isOverdue && <span className="text-[10px] text-red-600 font-semibold shrink-0">지연⚠</span>}
                               {isCompleted && <Check className="size-3.5 text-green-600 shrink-0" />}
                               {p.inspection_id ? (

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Building2, User, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import { AddressMapButton } from '@/components/ui/address-map-button'
 
 /** 점검 기본정보 — 헤더 접이식 (소방계획서_21 R5-5 / D-1).
  *  사용자가 "중요도 하"로 꼽은 블록이라 상단 카드에서 헤더의 접힌 요약으로 내렸다.
@@ -60,6 +61,8 @@ export function InspectionInfoPopover({ info }: { info: InspectionInfo }) {
                 <div className="col-span-2 flex items-start gap-2">
                   <span className="text-xs text-[#514b81] shrink-0 mt-0.5">주소</span>
                   <span className="text-xs text-[#514b81]">{info.address}</span>
+                  {/* 방문 준비 — 주소를 읽는 것과 "거기가 어디쯤인가"는 다른 일이다(S5-7 확산) */}
+                  <AddressMapButton customerName={info.customerName} address={info.address} className="mt-0.5" />
                 </div>
               )}
               {info.notes && (

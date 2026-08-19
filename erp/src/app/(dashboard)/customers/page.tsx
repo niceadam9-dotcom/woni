@@ -11,6 +11,7 @@ import { ClickableRow } from '@/components/customers/clickable-row'
 import { CustomerViewTabs } from '@/components/customers/customer-view-tabs'
 import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
+import { AddressMapButton } from '@/components/ui/address-map-button'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
 import type { InspectionType, UserRole } from '@/types'
 
@@ -195,7 +196,15 @@ export default async function CustomersPage({
                               displayVariant="pencil-only" />
                           )}
                         </div>
-                        {c.address && <p className="text-xs text-[#b0acd6] mt-0.5 truncate max-w-[180px]">{c.address}</p>}
+                        {/* 주소 줄에 지도(S5-7 확산) — 이미 있던 부제를 누를 수 있게 만든 것이라
+                            새 정보가 늘지 않는다. 아이콘만 두는 이유: [지도] 글자를 넣으면
+                            180px로 잘라 놓은 주소가 더 잘린다. 잘림은 텍스트에만 걸어 둔다. */}
+                        {c.address && (
+                          <div className="flex items-center gap-1 mt-0.5 max-w-[180px]">
+                            <AddressMapButton customerName={c.customer_name} address={c.address} iconOnly />
+                            <p className="text-xs text-[#b0acd6] truncate">{c.address}</p>
+                          </div>
+                        )}
                         {bld ? (
                           <p className="text-[10px] text-[#7b68ee] mt-0.5 truncate max-w-[180px]">
                             🏢 {[bld.purpose, bld.total_area != null && `${bld.total_area}㎡`,

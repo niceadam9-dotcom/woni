@@ -2,6 +2,7 @@
 
 import { X, ExternalLink, MapPin, Copy, Check } from 'lucide-react'
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 
 /** 주소 지도 모달 — 방문 준비용 (소방계획서_24 S5-7)
  *
@@ -34,7 +35,14 @@ export function AddressMapModal({ customerName, address, onClose }: {
     }).catch(() => { /* 클립보드 권한 없음 — 주소가 화면에 그대로 보이니 손으로 복사할 수 있다 */ })
   }
 
-  return (
+  // 붙는 자리와 무관하게 뜨도록 body에 그린다.
+  //  ① 행 전체가 클릭 대상인 표(ClickableRow) 안에 두면, 배경을 눌러 닫는 클릭이 그 행까지
+  //     올라가 **닫자마자 다른 페이지로 튕긴다**(배경 div는 a·button이 아니라 예외에 안 걸린다).
+  //  ② overflow-hidden·transform이 걸린 조상 아래에서는 fixed가 그 상자에 갇혀 잘린다.
+  // 열림 자체가 사용자 조작 이후라 서버 렌더 시점에는 그려지지 않는다(하이드레이션 불일치 없음).
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div
         data-testid="address-map-modal"
@@ -74,6 +82,7 @@ export function AddressMapModal({ customerName, address, onClose }: {
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

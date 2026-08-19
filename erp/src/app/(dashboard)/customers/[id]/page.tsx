@@ -923,6 +923,7 @@ export default async function CustomerDetailPage({
         fullWidthKeys={['plan']}
         summary={
           <CustomerSummaryPanel
+            customerName={customer.customer_name}
             address={customer.address}
             repName={repContact?.name ?? null}
             repPhone={repContact?.phone ?? null}

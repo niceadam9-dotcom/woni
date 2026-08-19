@@ -51,7 +51,7 @@ export default async function InspectionCalendarPage({
   // planned_date는 동점·NULL이 많아 그것만으로 페이지를 나누면 건너뛰거나 중복된다 → id를 2차 정렬로 고정.
   const planItemsQuery = fetchAllRows((from, to) => admin
     .from('inspection_plan_items')
-    .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code)')
+    .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code, address)')
     .in('plan_type', ['monthly', 'event'])
     .neq('status', 'cancelled')
     .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
@@ -98,7 +98,7 @@ export default async function InspectionCalendarPage({
         .select('id, inspection_id, step_num, name_ko, due_date, status, completed_at')
         .in('inspection_id', inspIds)
         .order('step_num'),
-      admin.from('customers').select('id, customer_name, customer_code, is_active').in('id', custIds),
+      admin.from('customers').select('id, customer_name, customer_code, is_active, address').in('id', custIds),
     ])
 
     type StepRow = {
@@ -113,7 +113,7 @@ export default async function InspectionCalendarPage({
     }
 
     const customerMap = new Map(
-      ((customersRes.data ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean }>)
+      ((customersRes.data ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean; address: string | null }>)
         .map(c => [c.id, c])
     )
 
@@ -124,6 +124,7 @@ export default async function InspectionCalendarPage({
         customer_id: insp.customer_id,
         customer_name: cust?.customer_name ?? '—',
         customer_code: cust?.customer_code ?? '',
+        customer_address: cust?.address ?? null,
         inspection_type: insp.inspection_type as InspectionType,
         year: insp.year,
         sequence_num: insp.sequence_num as 1 | 2,
@@ -151,7 +152,7 @@ export default async function InspectionCalendarPage({
     inspection_sub_type: string | null
     scheduled_date: string | null; planned_date: string | null
     status: string; assigned_employee_id: string | null; inspection_id: string | null
-    customers: { customer_name: string; customer_code: string } | null
+    customers: { customer_name: string; customer_code: string; address: string | null } | null
   }
   const planItems: CalendarPlanItem[] = (planItemsRes.rows as unknown as PlanItemRow[]).flatMap(p => {
     const date = p.scheduled_date ?? p.planned_date
@@ -161,6 +162,7 @@ export default async function InspectionCalendarPage({
       customer_id: p.customer_id,
       customer_name: p.customers?.customer_name ?? '—',
       customer_code: p.customers?.customer_code ?? '',
+      customer_address: p.customers?.address ?? null,
       plan_type: p.plan_type,
       sub_type: p.inspection_sub_type === '종합' || p.inspection_sub_type === '작동' ? p.inspection_sub_type : null,
       scheduled_date: date,

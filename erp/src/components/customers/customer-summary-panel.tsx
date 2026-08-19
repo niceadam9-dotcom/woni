@@ -1,8 +1,11 @@
 import { MapPin, Phone, UserCheck, Calendar, ClipboardList } from 'lucide-react'
+import { AddressMapButton } from '@/components/ui/address-map-button'
 
 /** 우측 고정 요약 패널 (설계 §6-C-2) — 탭을 옮겨도 핵심 정보 상시 표시.
- *  서버 컴포넌트: 페이지가 이미 조회한 데이터만 받는다 (추가 쿼리 없음). 좁은 화면(<xl)은 숨김. */
-export function CustomerSummaryPanel({ address, repName, repPhone, employeeName, planDate, lastInspectionDate }: {
+ *  서버 컴포넌트: 페이지가 이미 조회한 데이터만 받는다 (추가 쿼리 없음). 좁은 화면(<xl)은 숨김.
+ *  지도 버튼은 클라이언트 컴포넌트지만 문자열만 넘기므로 서버 컴포넌트 안에서 그대로 쓴다. */
+export function CustomerSummaryPanel({ customerName, address, repName, repPhone, employeeName, planDate, lastInspectionDate }: {
+  customerName: string
   address: string | null
   repName: string | null
   repPhone: string | null
@@ -13,7 +16,10 @@ export function CustomerSummaryPanel({ address, repName, repPhone, employeeName,
   const rows: Array<{ icon: React.ReactNode; label: string; value: React.ReactNode }> = [
     {
       icon: <MapPin className="size-3.5" />, label: '주소',
-      value: address ?? <span className="text-[#b0acd6]">미입력</span>,
+      // 주소를 읽는 것과 "거기가 어디쯤인가"는 다른 일이다(S5-7 확산)
+      value: address ? (
+        <span>{address} <AddressMapButton customerName={customerName} address={address} /></span>
+      ) : <span className="text-[#b0acd6]">미입력</span>,
     },
     {
       icon: <UserCheck className="size-3.5" />, label: '담당',
