@@ -268,7 +268,56 @@ async function main() {
       const statusB = await rowLocB.locator('[data-testid="row-status"]').getAttribute('data-status')
       check('★ 결과가 안 기록된 행은 "확인필요" — 미발송으로 두면 재발송·이중 과금이 된다',
         statusB === 'stuck', `상태=${statusB} · ${(await rowLocB.innerText()).replace(/\n/g, ' ')}`)
+
+      // ── 시간 축(2차 판정) — 이력은 append-only인데 표시가 그걸 몰랐다 ──
+      // 옛 실패를 재발송으로 해결해도 행이 영구히 '실패'로 남아 기본 필터에 계속 걸렸다.
+      // 사람을 재발송으로 미는 결함이라, 표시 계층이 만들어내는 이중 과금이다.
       await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', TOMORROW)
+      const t0 = new Date(Date.now() - 3600_000).toISOString()
+      const t1 = new Date(Date.now() - 60_000).toISOString()
+      await raw.from('sms_send_log').insert([
+        { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+          to_phone: '01011112222', content: 'x', status: 'failed', error: '일시 오류', sent_by: userId, created_at: t0 },
+        { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+          to_phone: '01011112222', content: 'x', status: 'sent', sent_by: userId, created_at: t1 },
+      ])
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      // ★ 해결된 건은 기본 필터('발송 제외')에서 **빠져야 한다** — 그게 이 수리의 요점이다.
+      //   종전엔 영구히 '실패'로 남아 목록에 계속 걸렸고, 그것이 사람을 재발송으로 밀었다.
+      check('★ 해결된 건은 "발송 제외" 목록에서 사라진다(재발송을 유도하지 않는다)',
+        await page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).count() === 0,
+        '아직 목록에 남아 있다 — 옛 실패가 이후 성공을 덮고 있다')
+      await page.locator('[data-testid="filter-status"]').selectOption('all')
+      await page.waitForTimeout(1200)
+      const rowLocC = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
+      const statusC = await rowLocC.locator('[data-testid="row-status"]').getAttribute('data-status')
+      check('★ 실패를 재발송으로 해결하면 상태가 "발송됨"이다(마지막 결과가 현재 상태)',
+        statusC === 'sent', `상태=${statusC} · ${(await rowLocC.innerText()).replace(/\n/g, ' ')}`)
+      check('같은 사람에게 2번 시도한 것을 "2명"으로 세지 않는다',
+        !/2명 중/.test(await rowLocC.innerText()), (await rowLocC.innerText()).replace(/\n/g, ' '))
+
+      // 옛 '번호없음'도 이후 발송이 있으면 해소된 것이다 —
+      // 종전엔 그 행이 이후 성공을 덮고 "연락처를 채우세요"라고 잘못 안내했다
+      await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', TOMORROW)
+      await raw.from('sms_send_log').insert([
+        { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+          to_phone: null, content: '(발송 안 됨)', status: 'no_phone', error: '전화번호 없음', sent_by: userId, created_at: t0 },
+        { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+          to_phone: '01011112222', content: 'x', status: 'sent', sent_by: userId, created_at: t1 },
+      ])
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      await page.locator('[data-testid="filter-status"]').selectOption('all')
+      await page.waitForTimeout(1200)
+      const rowLocD = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
+      const statusD = await rowLocD.locator('[data-testid="row-status"]').getAttribute('data-status')
+      check('★ 번호를 채우고 보냈으면 "번호없음"이 아니다',
+        statusD === 'sent', `상태=${statusD} · ${(await rowLocD.innerText()).replace(/\n/g, ' ')}`)
+
+      await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', TOMORROW)
+      await page.locator('[data-testid="filter-status"]').selectOption('not_sent')
+      await page.waitForTimeout(800)
       await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
     }

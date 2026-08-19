@@ -68,11 +68,19 @@ export async function prepareInspectionSmsAction(source: {
     return { error: e instanceof Error ? e.message : String(e) }
   }
 
-  const prep = await prepareSms(admin, targets, source.overrideBody)
-  const dates = prep.groups.map(x => x.visitDate).sort()
-  const sent = dates.length
-    ? await loadSentPairs(admin, dates[0], dates[dates.length - 1])
-    : new Set<string>()
+  // ⚠ throw를 넣었으면 **호출부도 같이 감싼다.** 여기가 안 감싸여 있으면 모달이
+  //   스피너도 오류도 목록도 없는 **완전 빈 상태**로 남는다 — 그 throw가 막으려던 침묵 그대로다.
+  //   (loadSmsTargets는 위에서 감쌌는데 loadSentPairs·prepareSms는 빠져 있었다)
+  let prep, sent
+  try {
+    prep = await prepareSms(admin, targets, source.overrideBody)
+    const dates = prep.groups.map(x => x.visitDate).sort()
+    sent = dates.length
+      ? await loadSentPairs(admin, dates[0], dates[dates.length - 1])
+      : new Set<string>()
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
   const guards = smsGuards()
 
   return {
@@ -155,15 +163,25 @@ export async function sendInspectionSmsAction(input: {
     }
   }
 
-  const res = await sendInspectionSms(admin, {
-    targets,
-    actorId: g.profile!.id,
-    kind: input.kind === 'adhoc' ? 'adhoc' : (input.overrideBody != null ? 'manual' : 'pre_visit'),
-    trigger: 'manual',
-    overrideBody: input.overrideBody,
-    recipientOverride: input.recipientOverride,
-    allowResend: input.allowResend === true,
-  })
+  // ②-b가 loadSentPairs를 부르고 그건 이제 throw한다 — 안 감싸면 [N통 발송]을 눌러도
+  // setResult가 안 돌아 **아무 일도 안 일어난다**(사용자는 버튼이 죽은 줄 안다)
+  let res
+  try {
+    res = await sendInspectionSms(admin, {
+      targets,
+      actorId: g.profile!.id,
+      kind: input.kind === 'adhoc' ? 'adhoc' : (input.overrideBody != null ? 'manual' : 'pre_visit'),
+      trigger: 'manual',
+      overrideBody: input.overrideBody,
+      recipientOverride: input.recipientOverride,
+      allowResend: input.allowResend === true,
+    })
+  } catch (e) {
+    return {
+      ok: false, error: e instanceof Error ? e.message : String(e),
+      sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [],
+    }
+  }
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections/calendar')
   return res
@@ -270,33 +288,54 @@ export async function listSmsStatusAction(filters: {
    *  'sending'은 결과 기록이 실패해 굳은 행이다(sms.ts가 로그를 남긴다). 돈이 나갔을 수 있으므로
    *  '미발송'으로 떨어뜨리면 배너가 재발송을 권해 **이중 과금**이 된다. 별도 상태로 드러낸다. */
   const rowOf = (pair: string, base: Omit<Row, 'status' | 'sentAt' | 'reason' | 'key' | 'movedFrom'>): Row => {
-    const ls = byPair.get(pair) ?? []
-    const latest = ls[0] ?? null
-    const sentRows = ls.filter(l => l.status === 'sent' || l.status === 'unverified')
-    const failedRows = ls.filter(l => l.status === 'failed')
-    const noPhoneRows = ls.filter(l => l.status === 'no_phone')
-    const stuckRows = ls.filter(l => l.status === 'sending')
+    const ls = byPair.get(pair) ?? []        // created_at 내림차순(최신이 앞)
+
+    // ⚠ **시간을 본다.** 종전엔 이력 전체를 한 덩어리로 접어, 옛 실패 + 이후 성공인 건이
+    //   영구히 '실패'로 남았다. 이력은 append-only인데 표시는 그걸 몰랐다. 그 행은 기본
+    //   필터(발송 제외)에도 계속 걸려 **사람을 재발송으로 민다** — 표시 계층이 만들어내는
+    //   이중 과금이라, 이 기능이 막으려던 것과 같은 사고다.
+    //   사람마다 **마지막 시도**가 그 사람의 현재 상태다.
+    const cur = new Map<string, (typeof ls)[number]>()
+    for (const l of ls) {
+      if (!l.to_phone) continue              // 번호없음 행은 수신자가 아니다(아래에서 따로 본다)
+      if (!cur.has(l.to_phone)) cur.set(l.to_phone, l)   // 내림차순이므로 첫 번째가 최신
+    }
+    const now = [...cur.values()]
+    const sentRows = now.filter(l => l.status === 'sent' || l.status === 'unverified')
+    const failedRows = now.filter(l => l.status === 'failed')
+    const stuckRows = now.filter(l => l.status === 'sending')
+    // '번호 없음'은 수신자별 상태가 아니라 **그 시점에 보낼 사람이 없었다**는 기록이다.
+    // 이후에 어떤 행이든 생겼다면 해소된 것이므로, 최신 행일 때만 유효하다
+    // (종전엔 옛 no_phone이 이후 성공을 덮고 "연락처를 채우세요"라고 잘못 안내했다).
+    const noPhoneActive = ls[0]?.status === 'no_phone'
 
     const status =
       stuckRows.length ? 'stuck'
       : failedRows.length ? 'failed'
-      : noPhoneRows.length ? 'no_phone'
+      : noPhoneActive ? 'no_phone'
       : sentRows.length ? 'sent'
       : 'unsent'
 
-    // 일부만 실패한 경우를 숫자로 말한다 — '실패'만 뜨면 몇 명에게 갔는지 알 수 없다
+    // 일부만 실패한 경우를 숫자로 말한다 — '실패'만 뜨면 몇 명에게 갔는지 알 수 없다.
+    // 세는 단위는 **사람**이다(종전엔 ls.length라 1명에게 2번 시도한 것이 '2명 중'이 됐다).
     const partial = failedRows.length > 0 && sentRows.length > 0
-      ? `${ls.length}명 중 ${failedRows.length}명 실패 (${sentRows.length}명 발송됨) · `
+      ? `${now.length}명 중 ${failedRows.length}명 실패 (${sentRows.length}명 발송됨) · `
       : ''
     return {
       key: pair, ...base,
       status,
       movedFrom: null,   // 아래에서 전체 행을 다 만든 뒤 채운다(다른 행을 봐야 판정된다)
-      sentAt: sentRows.length ? (latest?.created_at ?? null) : null,
+      // 발송 '일시'는 발송된 행의 시각이어야 한다 — 종전엔 상태 무관 최신 행이라
+      // 성공 뒤 실패한 재시도가 있으면 **실패 시각이 발송일시로 찍혔다**.
+      // 성공이 없으면 **마지막 시도 시각**을 준다: 열 이름이 '발송일시·사유'인데
+      // 실패 행에는 시각이 아예 안 찍혀 "언제 실패했는지" 알 수 없었다(3차 판정).
+      sentAt: sentRows.map(l => l.created_at).sort().at(-1)
+        ?? now.map(l => l.created_at).sort().at(-1)
+        ?? (noPhoneActive ? ls[0]?.created_at ?? null : null),
       reason:
         stuckRows.length ? '발송 결과가 기록되지 않았습니다 — 실제 발송 여부를 확인해주세요'
         : failedRows.length ? partial + (failedRows[0]?.error ?? '')
-        : noPhoneRows.length ? (noPhoneRows[0]?.error ?? null)
+        : noPhoneActive ? (ls[0]?.error ?? null)
         : null,
     }
   }
@@ -390,12 +429,14 @@ export async function listSmsStatusAction(filters: {
   //
   // 과거까지 싣는 이유(includePast): '시기 지남'을 세려면 지난 방문일이 필요한데,
   // 기본 경로는 발송 대상만 만드느라 과거를 버려서 overdue가 **항상 0**이었다.
-  const rules = await loadLeadRules(admin)
-  const bannerFrom = addDays(today, -OVERDUE_WINDOW_DAYS)
-  const bannerTo = addDays(today, Math.max(...rules, 1))
-  const sentPairs = await loadSentPairs(admin, bannerFrom, bannerTo)
-  let wide
+  let rules, bannerFrom, bannerTo, sentPairs, wide
   try {
+    // 이 셋 다 이제 throw한다 — 안 감싸면 data가 null로 남아 목록이
+    // "이 조건에 해당하는 건이 없습니다"가 된다(그 throw가 막으려던 조용한 초록불 그대로)
+    rules = await loadLeadRules(admin)
+    bannerFrom = addDays(today, -OVERDUE_WINDOW_DAYS)
+    bannerTo = addDays(today, Math.max(...rules, 1))
+    sentPairs = await loadSentPairs(admin, bannerFrom, bannerTo)
     wide = await loadSmsTargets(admin, { from: bannerFrom, to: bannerTo, includePast: true })
   } catch (e) {
     // 배너만 실패한 경우 — 목록은 이미 만들었으니 통째로 버리지 않되, 배너가 '없음 ✓'로
@@ -487,8 +528,14 @@ export async function listSmsCustomerOptionsAction() {
 export async function getSmsSettingsAction() {
   const g = await guard('inspection_sms_send')
   if (g.error) return { error: g.error }
-  // loadLeadRules를 쓴다 — 여기만 정렬이 빠져 있어 설정 화면이 저장한 것과 다른 행을 읽을 수 있었다
-  const rules = await loadLeadRules(createAdminClient())
+  // loadLeadRules를 쓴다 — 여기만 정렬이 빠져 있어 설정 화면이 저장한 것과 다른 행을 읽을 수 있었다.
+  // 이제 throw하므로 감싼다(설정 화면에 catch가 없어 그대로 죽는다)
+  let rules
+  try {
+    rules = await loadLeadRules(createAdminClient())
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
   const p = await getProfile()
   return { rules, canEdit: !!p && can(p.role, 'message_template_manage') }
 }

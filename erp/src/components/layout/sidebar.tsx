@@ -242,15 +242,21 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
     if (!canSeeSms) return
     if (Date.now() - lastFetch.current < 60_000) return
     lastFetch.current = Date.now()
-    let alive = true
+    // ⚠ **로그인 직후 착륙 화면에서만 뱃지가 영영 안 떴다**(3차 판정 실측: 90초 기다려도 없음,
+    //   F5하면 1.7초에 뜸). 서버는 정상 응답하는데 화면에 반영이 안 됐다.
+    //   원인은 StrictMode 이중 effect + 60초 throttle의 조합이다: 첫 effect의 응답은
+    //   cleanup이 `alive=false`로 만들어 버려지고, 두 번째 effect는 throttle에 막혀
+    //   요청조차 안 나간다. 즉 **결과가 있는데 아무도 받지 않는** 상태가 된다.
+    //   `alive` 가드는 컴포넌트가 사라진 뒤 setState를 막으려는 것인데, 이 컴포넌트는
+    //   레이아웃이라 사라지지 않는다 — 가드가 지키는 것이 없고 잃는 것만 있었다.
+    //   throttle을 되돌려 다음 effect가 다시 시도할 수 있게 한다.
     countUnsentNoticesAction()
       // '보낼 것' + '못 보내는 것'. 후자를 빼면 번호 없는 고객만 뱃지에서 사라져
       // "할 일 없음"으로 보인다 — 정작 사람이 손봐야 하는 쪽이다.
-      .then(r => { if (alive) setSmsCount((r.count ?? 0) + (r.blockedCount ?? 0)) })
+      .then(r => setSmsCount((r.count ?? 0) + (r.blockedCount ?? 0)))
       // ⚠ 실패를 0으로 뭉개면 **뱃지가 사라져 '할 일 없음'과 구별되지 않는다.**
       //   보조 신호라도 거짓 초록불이 되면 안 된다 — 물음표로 "모른다"를 표시한다.
-      .catch(() => { if (alive) setSmsCount(-1) })
-    return () => { alive = false }
+      .catch(() => { lastFetch.current = 0; setSmsCount(-1) })
   }, [canSeeSms, pathname])
 
   // 현재 경로가 속한 그룹 key 계산

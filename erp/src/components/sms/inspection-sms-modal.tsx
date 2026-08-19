@@ -119,6 +119,17 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
     ? unresolvedVars(body ?? prep.body).filter(v => !prep.knownVars.includes(v))
     : []
 
+  /** **값이 비어** 치환되지 않은 변수 — 오타(위)와는 다른 문제다.
+   *
+   *  서버는 이 건들을 발송에서 빼고, 전 건이 그러면 통째로 거부한다(sms.ts ①-c).
+   *  그런데 화면은 그 사실을 **누르기 전에는 말하지 않았다** — `recipients[].unresolved`를
+   *  서버가 내려주는데도 한 번도 그리지 않아서, `{회사전화}`가 빈 상태로 [12통 발송]을 누르면
+   *  0통이 나가고 그제서야 사유가 뜬다. 오타 가드(knownVars)는 이걸 못 잡는다(아는 변수니까).
+   *  렌더된 결과 기준이므로 인라인 편집 직후에는 한 박자 늦지만, 그래도 **누르기 전**이다. */
+  const emptyVars = [...new Set(groups.flatMap(g => g.recipients.flatMap(r => r.unresolved ?? [])))]
+  const emptyVarsAll = emptyVars.length > 0
+    && groups.every(g => g.recipients.every(r => (r.unresolved ?? []).length > 0))
+
   function toggleRecipient(g: Group, phone: string) {
     setPicked(p => {
       const cur = p[key(g)] ?? []
@@ -498,6 +509,19 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                   <span>
                     치환되지 않은 변수: <b>{unresolvedInSelection.map(v => `{${v}}`).join(', ')}</b> — 이대로 고객에게 <b>글자 그대로</b> 나갑니다.
                     변수 이름을 고치거나 [기본 문구로 되돌리기]를 누르세요.
+                  </span>
+                </p>
+              )}
+              {emptyVars.length > 0 && (
+                <p data-testid="sms-emptyvar-warn"
+                  className={`mt-1.5 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] ${
+                    emptyVarsAll ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                  <AlertTriangle className="size-3.5 shrink-0 mt-px" />
+                  <span>
+                    <b>{emptyVars.map(v => `{${v}}`).join(', ')}</b> 값이 비어 있습니다.
+                    {emptyVarsAll
+                      ? ' 모든 건이 그래서 **한 통도 나가지 않습니다** — 회사 정보를 채우거나 문구에서 빼주세요.'
+                      : ' 해당 건은 발송에서 제외되고 사유가 기록됩니다.'}
                   </span>
                 </p>
               )}

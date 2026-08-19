@@ -224,6 +224,10 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
     try { localStorage.setItem(LAST_REGION_KEY, JSON.stringify(v)) } catch { /* 위와 같음 */ }
   }, [regionSi, regionMyeon, regionRi])
 
+  /** '시기 지남' 명단 펼침 — 이 목록은 기간 필터로 찾을 수 없어(축 A는 오늘 이후만)
+   *  여기가 유일한 조회 수단이다. 접혀 있으면 3곳 넘는 나머지는 화면 어디에도 없다. */
+  const [overdueOpen, setOverdueOpen] = useState(false)
+
   // 지역순(하루 동선) ↔ 날짜순(언제 가나) — 기본은 지역순
   const [sortBy, setSortBy] = useState<'region' | 'date'>('region')
   const [moveDate, setMoveDate] = useState('')
@@ -295,7 +299,11 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
 
   // 기간이 비면 **오늘부터 1개월** — 서버와 같은 규칙이어야 화면과 결과가 어긋나지 않는다.
   // 라벨을 '전체'라고 쓰면 화면이 거짓말을 한다(실제로는 1개월만 담겨 있다).
-  const effFrom = from || today
+  // ⚠ 서버는 계획 축의 하한을 **오늘로 당긴다**(sms.ts loadSmsTargets). 화면이 사용자가 고른
+  //   과거 날짜를 그대로 써 놓으면, 0건이 떴을 때 "그 기간엔 방문이 없었구나"로 읽힌다 —
+  //   실제로는 지난 방문이 조회 대상이 아닐 뿐이고, 그 건들은 '시기 지남'에 있다(3차 판정).
+  const pastRequested = !!from && from < today
+  const effFrom = from && from >= today ? from : today
   const effTo = to || addDays(today, 30)
   const periodLabel = from || to ? `이 기간(${effFrom} ~ ${effTo})` : `기본 1개월(${effFrom} ~ ${effTo})`
   // '걸린 필터'는 **기본값에서 벗어난 것**만 센다 — 기본(1개월·발송 제외)까지 필터로 치면
@@ -448,9 +456,19 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 <button className={btn} onClick={() => { setStatus('unsent'); setShowFilter(true) }}>
                   미발송만 보기
                 </button>
-                <button data-testid="sms-approve-range" className={btnPri}
+                {/* ⚠ 이 버튼은 화면에서 **가장 되돌릴 수 없는 것**이다. 첫 줄 [승인·발송](내일 3통)과
+                    똑같은 주버튼 색이었는데, 이쪽은 기본 1개월이라 267통이 이미 선택된 채 모달이 열렸다
+                    — 거기서 한 번 더 누르면 한 달치가 나간다(3차 판정 실측).
+                    통수를 버튼에 박고, 큰 건은 색을 낮춰 '주 동선이 아님'을 눈으로 알린다. */}
+                <button data-testid="sms-approve-range"
+                  className={unsentMessages >= 50
+                    ? 'h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors'
+                    : btnPri}
+                  title={unsentMessages >= 50
+                    ? `${unsentMessages}통입니다 — 기간을 좁혀 나눠 보내는 편이 안전합니다`
+                    : undefined}
                   onClick={() => setModal({ kind: 'range', from: effFrom, to: effTo, title: `${periodLabel} 방문 — 사전 안내` })}>
-                  {from || to ? '이 기간 발송' : '전체 발송'}
+                  {from || to ? '이 기간 발송' : '전체 발송'} {unsentMessages}통
                 </button>
               </div>
             )}
@@ -483,6 +501,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             <AlertTriangle className="size-3.5 text-amber-500" />
             {/* 서버가 고객명(items)까지 보내는데 화면이 개수만 그려, 어느 고객인지 알 길이
                 없었다. 이 목록은 기간 필터로도 찾을 수 없어(축 A는 오늘 이후만) 여기가 유일한 단서다. */}
+            {/* ⚠ 이름 3곳만 보이고 나머지는 **화면 어디에도 없었다**(3차 판정: 197곳 중 194곳).
+                기간을 과거로 넣어 찾아도 서버가 from을 오늘로 당겨 0건이 뜨고, 화면은 그 사실을
+                말하지 않아 사용자는 "그 기간엔 방문이 없었구나"로 읽는다. 펼쳐 볼 수 있게 한다. */}
             <span className="text-xs text-amber-700">
               안내 못 하고 지난 방문 <b>{data!.overdue.count}곳</b>
               {data!.overdue.items.length > 0 && (
@@ -491,10 +512,27 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               )}
               . 문자는 보낼 수 없습니다
             </span>
+            {data!.overdue.items.length > 3 && (
+              <button data-testid="sms-overdue-expand" className={btn}
+                onClick={() => setOverdueOpen(v => !v)}>
+                {overdueOpen ? '접기' : `전체 ${data!.overdue.items.length}곳 보기`}
+              </button>
+            )}
             <Link href="/inspection-plans" className={`${btn} ml-auto inline-flex items-center gap-1`}>
               <CalendarDays className="size-3" /> 일정 확인
             </Link>
           </div>
+        )}
+        {overdueOpen && (data?.overdue.items.length ?? 0) > 0 && (
+          <ul data-testid="sms-overdue-list"
+            className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-amber-200 bg-amber-50/50 divide-y divide-amber-100">
+            {data!.overdue.items.map((i, n) => (
+              <li key={`${i.customerName}-${i.visitDate}-${n}`} className="flex items-center gap-2 px-3 py-1 text-[11px] text-amber-800">
+                <span className="tabular-nums text-amber-600">{i.visitDate}</span>
+                <span className="text-[#090c1d]">{i.customerName}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -512,9 +550,12 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               {filterOn ? (
                 <>
                   {from || to ? `${effFrom} ~ ${effTo}` : `기본 1개월(${effFrom} ~ ${effTo})`}
-                  {regionSi && ` · ${regionSi}`}{regionMyeon && ` · ${regionMyeon}`}{regionRi && ` · ${regionRi}`}
-                  {status !== 'all' && ` · ${STATUS_LABEL[status]}`}
-                  {assignee && ` · ${assignee}`}
+                  {regionSi && ` · ${optLabel(regionSi)}`}{regionMyeon && ` · ${optLabel(regionMyeon)}`}{regionRi && ` · ${optLabel(regionRi)}`}
+                  {/* ⚠ 기본값 'not_sent'가 STATUS_LABEL에 없어 리터럴 `undefined`가 찍혔다 —
+                      상태를 손대지 않은 **가장 흔한 경로**에서만 나오는 결함이었다(3차 판정 재현 100%).
+                      라벨이 없는 축은 아예 그리지 않는다. */}
+                  {status !== 'all' && status !== 'not_sent' && STATUS_LABEL[status] && ` · ${STATUS_LABEL[status]}`}
+                  {assignee && ` · ${optLabel(assignee)}`}
                 </>
               ) : `기본 — 1개월(${effFrom} ~ ${effTo}) · 발송 제외`}
             </span>
@@ -640,15 +681,43 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           </span>
         </div>
 
+        {pastRequested && (
+          <p data-testid="sms-past-clamped"
+            className="mx-4 mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-[11px] text-amber-800">
+            <AlertTriangle className="size-3.5 shrink-0 mt-px" />
+            <span>
+              시작일을 <b>{from}</b>로 지정했지만 목록은 <b>오늘({today})부터</b> 보여줍니다 —
+              지난 방문에는 사전 안내를 보낼 수 없기 때문입니다.
+              <b> 안내를 놓친 지난 방문은 위 &lsquo;시기 지남&rsquo;에서 확인하세요.</b>
+            </span>
+          </p>
+        )}
         {rows.length === 0 && !isPending && (
           <p className="py-10 text-center text-xs text-[#8b87b8]">이 조건에 해당하는 건이 없습니다.</p>
         )}
 
+        {/* ⚠ 조회는 평균 3초 걸리는데 그동안 **옛 목록이 새 결과인 척** 남아 있었다.
+            독립 판정자 본인이 여기 속아 "광주시 297건" 같은 값을 읽었다 — 사람도 똑같이 속는다.
+            지역을 연달아 훑는 것이 이 화면의 주 동선이라 특히 위험하다.
+            숫자를 지우지는 않되(깜빡임), 지금 보이는 것이 옛 조건임을 분명히 한다. */}
+        {isPending && rows.length > 0 && (
+          <div data-testid="sms-list-stale"
+            className="flex items-center justify-center gap-1.5 py-1.5 bg-[#faf9ff] border-y border-[#eceaf8] text-[11px] text-[#7b68ee]">
+            <Loader2 className="size-3 animate-spin" /> 새 조건으로 불러오는 중 — 아래는 <b>이전 조건</b>의 결과입니다
+          </div>
+        )}
+
         {rows.length > 0 && (
-          <table className="w-full text-xs table-fixed">
+          /* ⚠ 좁은 화면에서 **고객 이름이 0px가 됐다**(3차 판정 실측: 900px에서 0, 1024px에서 14px).
+             `table-fixed`에서 고정 폭 합이 656px인데 가변 열이 이름 하나뿐이라, 폭이 모자라면
+             누구에게 보내는지가 가장 먼저 사라졌다 — 목록의 존재 이유가 먼저 잘린 셈이다.
+             가로 스크롤도 안 생겨 되찾을 방법이 없었다.
+             ① 이름에 최소 폭을 주고 ② 표를 감싸 가로 스크롤을 허용한다. */
+          <div className="overflow-x-auto">
+          <table className={`w-full min-w-[820px] text-xs table-fixed transition-opacity ${isPending ? 'opacity-50' : ''}`}>
             <colgroup>
               <col className="w-8" />
-              <col />
+              <col className="min-w-[10rem]" />
               <col className="w-24" />
               <col className="w-20" />
               {showAssignee && <col className="w-20" />}
@@ -695,6 +764,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                     canSend={canSend} onResend={openResend} />)}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

@@ -362,6 +362,103 @@ try {
     await raw.from('sms_send_log').delete().eq('customer_id', cidA).in('visit_date', [d2, d3, d4])
   }
 
+  console.log('\n— recipientOverride: 뺀 사람에게 가지 않는가 (3차 판정 — 미검증 1순위)')
+  {
+    // 모달에서 수신자를 체크 해제하면 **그 사람에게는 안 가야 한다.** 그런데 이 경로를
+    // 실행하는 테스트가 하나도 없었다(E2E는 발송 버튼을 끝내 누르지 않는다).
+    // 틀리면 뺀 사람에게 문자가 가고 돈이 나가는데, 아무도 모른다.
+    const two = targets.filter((t: any) => t.customerId === cidA)
+    const g0 = two[0]
+    const key = `${g0.customerId}|${g0.visitDate}`
+    process.env.SMS_DRY_RUN = '1'
+
+    const both = await sendInspectionSms(admin, { targets: two, actorId: userId })
+    check('전제: 지정 없이 보내면 수신자 2명 전원', both.dryRunPlanned === 2, String(both.dryRunPlanned))
+
+    const one = await sendInspectionSms(admin, {
+      targets: two, actorId: userId, recipientOverride: { [key]: ['010-1111-2222'] },
+    })
+    check('★ 한 명만 남기면 1통이다(뺀 사람에게 가지 않는다)', one.dryRunPlanned === 1,
+      JSON.stringify({ planned: one.dryRunPlanned, rows: one.rows.map(r => r.phoneMasked) }))
+    // 마스킹은 010-****-2222 형태라 앞자리로는 못 가른다 — 뒷 4자리로 본다
+    check('★ 남긴 사람이 맞다(엉뚱한 사람에게 가지 않는다)',
+      one.rows.length === 1 && /2222$/.test(one.rows[0].phoneMasked), JSON.stringify(one.rows))
+
+    // 목록에 없는 번호를 넣어도 **추가되면 안 된다** — override는 좁히는 용도다
+    const inject = await sendInspectionSms(admin, {
+      targets: two, actorId: userId, recipientOverride: { [key]: ['010-9999-8888'] },
+    })
+    check('★ 목록에 없는 번호를 넣어도 발송 대상이 되지 않는다(주입 방지)',
+      !inject.ok || (inject.dryRunPlanned ?? 0) === 0,
+      JSON.stringify({ ok: inject.ok, planned: inject.dryRunPlanned, error: inject.error }))
+    delete process.env.SMS_DRY_RUN
+  }
+
+  console.log('\n— 재발송이 경합으로 오인되지 않는가 (3차 판정 1순위)')
+  {
+    // allowResend는 "사용자가 화면에서 한 번 더 확인했다"는 뜻이다. 그런데 ④-b가 직전
+    // sent/unverified를 라이벌로 세면 **발송 직후 120초 동안 재발송이 막히고**,
+    // "다른 창에서 보내는 중"이라며 존재하지 않는 창을 가리켰다.
+    // 종전 시험은 dryRun(claim 이전 반환) 아래에 있어 ④-b가 한 번도 실행되지 않았다.
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+    const one = targets.filter((t: any) => t.customerId === cidA).slice(0, 1)
+    const g0: any = one[0]
+    // 방금 보낸 것처럼 sent 행을 심는다(경합 창 안)
+    await raw.from('sms_send_log').insert({
+      kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: g0.visitDate,
+      to_phone: '01011112222', content: 'x', status: 'sent', sent_by: userId,
+    })
+    const resend = await sendInspectionSms(admin, {
+      targets: one, actorId: userId, allowResend: true,
+      recipientOverride: { [`${g0.customerId}|${g0.visitDate}`]: ['010-1111-2222'] },
+    })
+    check('★ 확인을 거친 재발송이 "다른 창에서 보내는 중"으로 막히지 않는다',
+      !/다른 창에서 보내는 중/.test(resend.error ?? ''), resend.error ?? '(막히지 않음)')
+    // 자격증명이 없으므로 failed로 끝나는 것이 정상 — 요점은 **경합으로 거부되지 않는 것**
+    check('재발송이 실제 발송 단계까지 도달한다(자격증명 없음으로 끝남)',
+      /자격증명|발신번호/.test(resend.error ?? ''), resend.error ?? '')
+
+    // 반대로 allowResend 없이 in-flight(sending)와 부딪히면 여전히 막혀야 한다
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+    await raw.from('sms_send_log').insert({
+      kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: g0.visitDate,
+      to_phone: '01011112222', content: 'x', status: 'sending', sent_by: userId,
+    })
+    const racing = await sendInspectionSms(admin, {
+      targets: one, actorId: userId, allowResend: true,
+      recipientOverride: { [`${g0.customerId}|${g0.visitDate}`]: ['010-1111-2222'] },
+    })
+    check('★ 아직 나가는 중(sending)인 건은 재발송 확인을 했어도 막는다',
+      /다른 창에서 보내는 중/.test(racing.error ?? ''), racing.error ?? '')
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+  }
+
+  console.log('\n— 중단해도 번호없음은 기록되는가 (3차 판정 — P-2 재발)')
+  {
+    // claim 실패·경합으로 조기 반환하면 번호 없는 고객이 흔적 없이 사라지고
+    // 결과창은 "번호없음 0"이라 말했다 — 이 모듈이 P-2로 규정한 그 사고다.
+    await raw.from('sms_send_log').delete().eq('customer_id', cidB)
+    const withNoPhone = targets.filter((t: any) => t.customerId === cidA || t.customerId === cidB)
+    const g0: any = withNoPhone.find((t: any) => t.customerId === cidA)
+    // 경합을 만든다: 같은 번호로 sending 행을 먼저 심어 우리 요청이 지게 한다
+    await raw.from('sms_send_log').insert({
+      kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: g0.visitDate,
+      to_phone: '01011112222', content: 'x', status: 'sending', sent_by: userId,
+    })
+    // allowResend=true로 ②-b(이미 보냄 확인)를 지나 ④-b(경합) 중단 경로에 실제로 도달시킨다.
+    // 안 그러면 ②-b에서 먼저 끊겨 검증하려는 경로를 밟지 못한다.
+    const aborted = await sendInspectionSms(admin, {
+      targets: withNoPhone, actorId: userId, allowResend: true,
+      recipientOverride: { [`${g0.customerId}|${g0.visitDate}`]: ['010-1111-2222'] },
+    })
+    const bLogs = await logsOf(cidB)
+    check('★ 경합으로 중단돼도 번호 없는 고객은 기록에 남는다(P-2 재발 방지)',
+      bLogs.some(l => l.status === 'no_phone'), JSON.stringify(bLogs.map(l => l.status)))
+    check('결과의 noPhone 수도 0이 아니다', (aborted.noPhone ?? 0) > 0, JSON.stringify({ noPhone: aborted.noPhone }))
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+    await raw.from('sms_send_log').delete().eq('customer_id', cidB)
+  }
+
   console.log('\n— 조회 실패 주입: 침묵하지 않는가 (2차 판정 1순위)')
   {
     // 이 가드들은 **조회가 실제로 실패해야** 도달한다. 변이로는 못 덮고, 그래서
