@@ -14,6 +14,10 @@ const steps: Step[] = [
   // SMS는 돈이 나가고 되돌릴 수 없다. 수신자 선정·중복 접기·응답 판정이 틀려도 화면은 멀쩡해 보이므로
   // (실패를 '발송됨'으로 보이게 한 P-1·P-2가 정확히 그랬다) 순수 함수 단계에서 결정적으로 고정한다
   { name: 'SMS 순수 함수',             cmd: 'npx tsx scripts/test-sms-pure.mts' },
+  // 단계 [입력] 링크 — 서버 불필요(순수 함수 + 소스 배선). 6단계는 증거가 등록되면 자동 완료되는데
+  // 그 자리로 가는 링크가 없어 사용자가 [사유 완료](증거 없는 예외)밖에 못 누르던 것을 이은 기능.
+  // 링크가 조용히 끊기면 다시 그 상태로 돌아가므로 목적지·배선을 함께 고정한다
+  { name: '단계 입력 링크(순수·배선)',  cmd: 'npx tsx scripts/test-step-input-link.mts' },
   { name: '게이트 정합성(E2E)',        cmd: 'npx tsx scripts/test-gate-consistency.mts', needServer: true },
   { name: '일반관리 자체점검 통주행(E2E)', cmd: 'npx tsx scripts/test-general-selfinspection.mts', needServer: true },
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },
@@ -38,6 +42,19 @@ const steps: Step[] = [
   { name: '로그 보존 마커 제외(프로브)', cmd: 'npx tsx --conditions=react-server scripts/_probe-purge-marker.mts' },
   // ② 배치확인서 — 종이 보관 기록 + 업로드 파일 삭제(제안1·2)
   { name: '배치확인서 종이·삭제(E2E)',   cmd: 'npx tsx scripts/test-cert-paper-delete.mts',   needServer: true },
+  // ★ 기간 입력 — 종료일이 시작일보다 빨라도 "저장했습니다"가 뜨고 그대로 들어가던 결함(2026-08-19).
+  // 조용히 틀린 값이 남는 종류라 화면만 봐서는 영영 모른다. 저장 액션 5곳의 방어를 함께 고정한다 —
+  // 'use server' export는 공개 엔드포인트라 화면 검사만 남으면 우회된다
+  { name: '기간 입력 검증(E2E)',         cmd: 'npx tsx scripts/test-date-range.mts',          needServer: true },
+  // 단계 [입력] 링크 실주행 — 드로어 자동 오픈은 마운트 타이밍·RSC 커밋에 걸리기 쉬워
+  // 소스 검사(위 순수·배선)로는 증명되지 않는다. 클릭해서 실제로 열리는지까지 본다
+  { name: '단계 입력 링크(E2E)',         cmd: 'npx tsx scripts/test-step-input-link-e2e.mts', needServer: true },
+  // 별지 미리보기 칸 — Pane이 높이를 자식에게 안 물려줘 iframe이 min-h(224px)에 갇히고
+  // 칸 594px 중 322px이 죽어 있던 결함. 레이아웃 회귀는 눈으로만 알 수 있어 수치로 못 박는다
+  { name: '미리보기 칸 높이·확대(E2E)',  cmd: 'npx tsx scripts/test-preview-pane.mts',        needServer: true },
+  // 건물용도 콤보 — datalist는 타이핑 전엔 목록이 안 떠서 "선택하거나"가 거짓말이었다.
+  // 되돌려 select로 바꾸면 대장이 넣는 목록 밖 용도가 잘리므로 '자유 입력 보존'까지 함께 고정한다
+  { name: '건물용도 콤보(E2E)',          cmd: 'npx tsx scripts/test-purpose-combo.mts',       needServer: true },
   // 점검일은 계획·체크리스트·서류가 같이 봐야 하는 값인데 축이 넷이라 한 경로만 빠져도 조용히 갈라진다
   // (소방계획서_24 P-19: 인라인 달력이 inspections.inspection_start_date를 안 고쳐 별지 9호 점검기간이
   //  옛 날짜로 인쇄될 수 있었다). 다섯 경로 × 네 축을 상시 고정한다

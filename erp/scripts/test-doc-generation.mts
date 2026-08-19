@@ -220,34 +220,18 @@ try {
   check('B: 외관점검표 섹션 렌더', true)
   await clickAndWait(page, '외관점검표', '외관점검표 생성', inspBid, 'exterior', prefB, /^exterior_\d+\.pdf$/)
 
-  // ── 3) 소방계획서 — /reports?form=fire_plan → 고객 A [계획서 생성] ──
-  await page.goto(`${BASE}/reports?form=fire_plan`)
-  // 소방계획서 생성 카드로 스코프 — 상단 문서 검색창(docs)과 구분. '부분 검색' placeholder = 생성 폼 입력.
-  const searchInput = page.locator('input[placeholder*="부분 검색"]')
-  await searchInput.waitFor()
-  await searchInput.scrollIntoViewIfNeeded()
-  // 생성 폼 검색 컨테이너(입력의 조상 div.relative.w-80) 내부 후보만 클릭 대상 (docs 검색 결과와 혼동 방지)
-  const genForm = searchInput.locator('xpath=ancestor::div[contains(@class,"w-80")][1]')
-  const option = genForm.locator('button', { hasText: 'TEST문서생성-자체점검A' }).first()
-  let optionVisible = false
-  for (let i = 0; i < 8 && !optionVisible; i++) {
-    await searchInput.fill('')
-    await searchInput.type('TEST문서생성-자체점검A', { delay: 30 })
-    optionVisible = await option.waitFor({ state: 'visible', timeout: 4_000 }).then(() => true).catch(() => false)
-  }
-  check('계획서: 고객 검색 후보 노출(생성 폼)', optionVisible)
-  await option.click()
-  // 고객 칩 등록 → 생성 버튼 활성화 대기
-  const chipAdded = await page.waitForFunction(
-    () => {
-      const b = [...document.querySelectorAll('button')].find(x => (x.textContent ?? '').includes('계획서 생성'))
-      return !!b && !(b as HTMLButtonElement).disabled
-    },
-    { timeout: 20_000 },
-  ).then(() => true).catch(() => false)
-  check('계획서: 고객 선택 후 생성 버튼 활성화', chipAdded)
-  if (!chipAdded) await page.screenshot({ path: 'scripts/_docgen-fireplan-debug.png', fullPage: true })
-  const genBtn = page.locator('button:has-text("계획서 생성")').first()
+  // ── 3) 소방계획서 — 고객 A 소방계획서 탭 [개정 발행] ──
+  //  종전엔 /reports?form=fire_plan → 배치 발행의 '소방계획서 일괄 생성' 폼을 몰았다.
+  //  배치 발행 폐지(2026-08-19)로 생성 창구가 **고객 상세 소방계획서 탭 하나**로 좁아졌으므로
+  //  살아 있는 경로로 옮긴다. 확인하려는 것은 '계획서 PDF가 실제로 만들어지는가'이지 어느 화면이냐가 아니다.
+  //  탭만 열면 트리 첫 노드(본문 1.1)가 뜬다 — [개정 발행]은 '보관함·개정이력' 가지에 있으므로 form=archive로 바로 간다
+  await page.goto(`${BASE}/customers/${custA}?tab=plan&form=archive`)
+  const genBtn = page.locator('button:has-text("개정 발행")').first()
+  const genVisible = await genBtn.waitFor({ state: 'visible', timeout: 30_000 }).then(() => true).catch(() => false)
+  check('계획서: 소방계획서 탭 [개정 발행] 노출', genVisible)
+  if (!genVisible) await page.screenshot({ path: 'scripts/_docgen-fireplan-debug.png', fullPage: true })
+  // 확인창(confirm) + 완료 알림(alert) 자동 수락 — 이 테스트는 생성 결과만 본다
+  page.on('dialog', d => { void d.accept() })
   await genBtn.click()
   // 계획서 = fire_plans ready 행 + {cust}/{year}/generated_web_*.pdf
   const planOk = await pollUntil(async () => {
