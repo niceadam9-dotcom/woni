@@ -17,6 +17,9 @@ import {
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
+// 여러 건 날짜 이동은 문자 발송 화면이 쓰는 액션을 **그대로 태운다** — 같은 달·미시작·1단계 완료
+// 가드가 그 경로에만 있으므로 여기서 복제하면 두 곳이 갈라진다(sms-actions.ts:391-394의 교훈)
+import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { hangulMatch } from '@/lib/hangul'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
@@ -73,10 +76,15 @@ export function eventPlanLabel(subType?: '종합' | '작동' | null): string {
 
 /** 데이 패널 정기 이동 버튼 — 클릭하면 네이티브 달력이 바로 열리고 날짜 선택 즉시 이동
  *  (2026-08-05 사용자 확정: 클릭 최소화 — 인라인 입력줄·[이동] 버튼 제거). min·max로 같은 달만 선택 가능 */
-function PanelMoveButton({ scheduledDate, moving, onPick }: {
+function PanelMoveButton({ scheduledDate, moving, onPick, label, disabled = false, title, testId }: {
   scheduledDate: string
   moving: boolean
   onPick: (to: string) => void
+  /** 주면 아이콘 대신 [라벨] 버튼 모양 — 일괄 이동 바에서 같은 min·max 클램프를 그대로 쓰기 위한 것 */
+  label?: string
+  disabled?: boolean
+  title?: string
+  testId?: string
 }) {
   const pickerRef = useRef<HTMLInputElement>(null)
   const ym = scheduledDate.slice(0, 7)
@@ -84,8 +92,9 @@ function PanelMoveButton({ scheduledDate, moving, onPick }: {
   return (
     <span className="relative inline-flex">
       <button
-        title="날짜 이동 — 달력에서 선택 즉시 이동 (같은 달, 이동=즉시 확정)"
-        disabled={moving}
+        title={title ?? '날짜 이동 — 달력에서 선택 즉시 이동 (같은 달, 이동=즉시 확정)'}
+        data-testid={testId}
+        disabled={moving || disabled}
         onClick={() => {
           const p = pickerRef.current
           if (!p) return
@@ -93,9 +102,12 @@ function PanelMoveButton({ scheduledDate, moving, onPick }: {
           if (typeof p.showPicker === 'function') p.showPicker()
           else { p.focus(); p.click() }
         }}
-        className="p-1 rounded text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50"
+        className={label
+          ? 'h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1'
+          : 'p-1 rounded text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50'}
       >
         {moving ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarDays className="size-3.5" />}
+        {label}
       </button>
       {/* 달력 팝업 전용 히든 입력 — 선택값만 onPick으로 전달 */}
       <input
@@ -103,6 +115,7 @@ function PanelMoveButton({ scheduledDate, moving, onPick }: {
         type="date"
         tabIndex={-1}
         aria-hidden="true"
+        data-testid={testId ? `${testId}-input` : undefined}
         min={`${ym}-01`}
         max={`${ym}-${String(lastDay).padStart(2, '0')}`}
         onChange={e => { if (e.target.value) onPick(e.target.value) }}
@@ -304,6 +317,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const [bulkChecked, setBulkChecked] = useState<Set<string>>(new Set())
   const [isBulkRunning, startBulk] = useTransition()
   const [bulkResult, setBulkResult] = useState<string | null>(null)
+  // 정기 여러 건 날짜 이동 (선택 모드) — 말일에 몰린 28건을 아이콘 28번 눌러 옮기던 것을 한 번에
+  const [moveSelectMode, setMoveSelectMode] = useState(false)
+  const [moveChecked, setMoveChecked] = useState<Set<string>>(new Set())   // plan_item id
+  const [isBulkMoving, startBulkMove] = useTransition()
+  const [bulkMoveResult, setBulkMoveResult] = useState<{ ok: boolean; text: string } | null>(null)
   // 툴바 팝오버 (필터·범례) — 사이드바 제거 후 통합
   const [filterOpen, setFilterOpen] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
@@ -617,7 +635,14 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const panelProgressPct = panelTotalCount > 0 ? Math.round((panelCompletedCount / panelTotalCount) * 100) : 0
 
   // ── 정기 칩 드래그 이동 (드롭=즉시 확정, 같은 달 한정, 2026-07-13 확정 설계) ──
-  const [moveConfirm, setMoveConfirm] = useState<{ planItemId: string; customerName: string; from: string; to: string } | null>(null)
+  /** 단건(드래그·행 아이콘)과 일괄(데이 패널 선택 모드)이 **같은 확인 팝업**을 쓴다 —
+   *  공휴일·주말·과거일 경고를 두 벌 만들면 그 순간 갈라진다. 건수가 아니라 **진입 경로**로
+   *  구분하는 이유는 과거 날짜 규칙이 다르기 때문이다(단건=경고 후 허용, 일괄=서버가 배치 전체를 거부). */
+  const [moveConfirm, setMoveConfirm] = useState<
+    | { mode: 'single'; planItemId: string; customerName: string; from: string; to: string }
+    | { mode: 'bulk'; itemIds: string[]; names: string[]; from: string; to: string }
+    | null
+  >(null)
   const [isMoving, startMoving] = useTransition()
 
   const draggableAccessor = useCallback((event: object) => {
@@ -636,11 +661,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const to = format(new Date(args.start), 'yyyy-MM-dd')
     if (to === from) return
     if (to.slice(0, 7) !== from.slice(0, 7)) { alert('같은 달 안에서만 이동할 수 있습니다.'); return }
-    setMoveConfirm({ planItemId: r.inspectionId, customerName: r.customerName, from, to })
+    setMoveConfirm({ mode: 'single', planItemId: r.inspectionId, customerName: r.customerName, from, to })
   }, [draggableAccessor])
 
   function handleMoveConfirm() {
     if (!moveConfirm) return
+    if (moveConfirm.mode === 'bulk') { runBulkMove(moveConfirm.itemIds, moveConfirm.to); return }
     startMoving(async () => {
       const res = await moveMonthlyPlanItemAction(moveConfirm.planItemId, moveConfirm.to)
       setMoveConfirm(null)
@@ -677,6 +703,31 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         return a.customer_name.localeCompare(b.customer_name, 'ko')
       })
   }, [visiblePlanItems, dayPanelDate, today])
+
+  // 고객명 검색 필터 — 렌더 안이 아니라 여기서 계산한다. [전체 선택]이 **보이는 행만** 담아야 하는데
+  // 렌더 IIFE 안에 있으면 핸들러가 그 목록을 볼 수 없다.
+  const daySearchQ = daySearch.trim().toLowerCase()
+  const panelSteps = useMemo(
+    () => daySearchQ ? dayPanelSteps.filter(e => e.resource.customerName.toLowerCase().includes(daySearchQ)) : dayPanelSteps,
+    [dayPanelSteps, daySearchQ]
+  )
+  const panelPlans = useMemo(
+    () => daySearchQ ? dayPanelPlans.filter(p => p.customer_name.toLowerCase().includes(daySearchQ)) : dayPanelPlans,
+    [dayPanelPlans, daySearchQ]
+  )
+
+  // 일괄 이동 대상 = 행의 [날짜 이동] 아이콘이 붙는 조건과 **같은 판정**(canAct + 정기)
+  const isMovablePlan = useCallback(
+    (p: CalendarPlanItem) => canMovePlan && p.plan_type === 'monthly' && p.status !== 'completed' && !p.inspection_id,
+    [canMovePlan]
+  )
+  // 토글 노출 판정은 검색과 무관한 그날 전체로 — 검색을 타이핑하는 중에 버튼이 사라지지 않게
+  const movableDayPlans = useMemo(() => dayPanelPlans.filter(isMovablePlan), [dayPanelPlans, isMovablePlan])
+  // [전체]가 담는 범위는 **지금 화면에 보이는 것만** (검색 = 사용자가 명시한 범위)
+  const movableVisibleIds = useMemo(() => panelPlans.filter(isMovablePlan).map(p => p.id), [panelPlans, isMovablePlan])
+  // 선택 건수·대상은 **살아 있는 행에서 다시 만든다** — 이동 후 router.refresh()로 행이 그 날짜를
+  // 떠나면 체크 Set에 id가 남아 있어도 여기서 빠진다 ("N건 선택"이 거짓말을 하지 않게)
+  const moveCheckedItems = useMemo(() => movableDayPlans.filter(p => moveChecked.has(p.id)), [movableDayPlans, moveChecked])
 
   // 같은 날 일괄 완료 후보 — 그 날짜 마감·미완료 단계 전부 (1단계형=정기·일반은 기본 체크, 자체점검 6단계는 기본 해제)
   const bulkCandidates = useMemo(() => {
@@ -768,7 +819,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     if (to.slice(0, 7) !== p.scheduled_date.slice(0, 7)) { alert('같은 달 안에서만 이동할 수 있습니다.'); return }
     const dow = new Date(to + 'T12:00:00').getDay()
     if (holidayMap.has(to) || dow === 0 || dow === 6 || to < today) {
-      setMoveConfirm({ planItemId: p.id, customerName: p.customer_name, from: p.scheduled_date, to })
+      setMoveConfirm({ mode: 'single', planItemId: p.id, customerName: p.customer_name, from: p.scheduled_date, to })
       return
     }
     setMovingPlanId(p.id)
@@ -776,6 +827,70 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     setMovingPlanId(null)
     if (res.error) { alert(res.error); return }
     router.refresh()
+  }
+
+  // ── 데이 패널: 정기 여러 건 날짜 이동 (선택 모드) ─────────────
+  function toggleMoveChecked(id: string, checked: boolean) {
+    setMoveChecked(prev => {
+      const next = new Set(prev)
+      if (checked) next.add(id); else next.delete(id)
+      return next
+    })
+  }
+  /** [전체]는 **보이는 행만** 담는다 — 검색은 사용자가 명시한 범위이고, 안 보이는 행까지 담으면
+   *  본 적 없는 레코드를 조용히 고치게 된다. 검색어를 바꿔도 선택은 유지한다
+   *  ('가' 검색→체크→'나' 검색→체크→한 번에 이동'은 정당한 동선). 비우려면 [해제]. */
+  function selectAllVisibleForMove() {
+    setMoveChecked(prev => new Set([...prev, ...movableVisibleIds]))
+  }
+
+  function handleBulkMovePick(to: string) {
+    if (!dayPanelDate || moveCheckedItems.length === 0) return
+    setBulkMoveResult(null)
+    if (to === dayPanelDate) return
+    // min·max로 이미 막히지만, 규칙을 화면에도 남긴다 (정기는 월 단위 의무)
+    if (to.slice(0, 7) !== dayPanelDate.slice(0, 7)) {
+      setBulkMoveResult({ ok: false, text: '같은 달 안에서만 이동할 수 있습니다.' }); return
+    }
+    // 과거 날짜는 **부르기 전에** 막는다 — 서버(bulkMovePlanDatesAction)가 배치 전체를 거부해
+    // 한 건도 안 옮겨진다. 단건 이동은 종전대로 경고 후 허용이라 막다른 길이 아님을 문구로 알린다.
+    if (to < today) {
+      setBulkMoveResult({ ok: false, text: '지난 날짜로는 일괄 이동할 수 없습니다 — 한 건씩(행의 달력 아이콘) 이동은 가능합니다.' }); return
+    }
+    if (moveCheckedItems.length > 200) {
+      setBulkMoveResult({ ok: false, text: '한 번에 200건까지 이동할 수 있습니다.' }); return
+    }
+    setMoveConfirm({
+      mode: 'bulk',
+      itemIds: moveCheckedItems.map(p => p.id),
+      names: moveCheckedItems.map(p => p.customer_name),
+      from: dayPanelDate,
+      to,
+    })
+  }
+
+  function runBulkMove(itemIds: string[], to: string) {
+    startBulkMove(async () => {
+      const res = await bulkMovePlanDatesAction(itemIds, to)
+      setMoveConfirm(null)
+      setMoveChecked(new Set())   // 선택만 비우고 선택 모드는 유지 — 이어서 다른 묶음을 옮길 수 있게
+      // 건별 실패를 삼키지 않는다. 문자 발송 화면(sms-status-client)과 **같은 문구**로 보고한다
+      setBulkMoveResult(res.failed.length === 0
+        ? { ok: true, text: `${res.moved}건을 ${to}로 이동했습니다.` }
+        : { ok: false, text: `${res.moved}건 이동 · ${res.failed.length}건 실패 — ${res.failed.map(f => `${f.name}(${f.reason})`).join(' / ')}` })
+      router.refresh()
+    })
+  }
+
+  // 패널을 닫거나(dayPanelDate=null) 다른 날짜로 옮기면 선택 모드 초기화 — effect가 아니라
+  // 렌더 중 조정(React 공식 '값이 바뀌면 state 조정' 패턴). 이렇게 해야 setDayPanelDate 호출처
+  // 네 곳에 초기화를 흩뿌리지 않고 한 곳에서 끝난다.
+  const [moveModeDate, setMoveModeDate] = useState<string | null>(dayPanelDate)
+  if (moveModeDate !== dayPanelDate) {
+    setMoveModeDate(dayPanelDate)
+    setMoveSelectMode(false)
+    setMoveChecked(new Set())
+    setBulkMoveResult(null)
   }
 
   // 툴바 필터 배지 — 기본값에서 벗어난 필터 수
@@ -1434,12 +1549,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       {dayPanelDate && (() => {
         const d = new Date(dayPanelDate + 'T12:00:00')
         const holiday = holidayMap.get(dayPanelDate)
-        const q = daySearch.trim().toLowerCase()
-        const panelSteps = q ? dayPanelSteps.filter(e => e.resource.customerName.toLowerCase().includes(q)) : dayPanelSteps
-        const panelPlans = q ? dayPanelPlans.filter(p => p.customer_name.toLowerCase().includes(q)) : dayPanelPlans
+        // panelSteps·panelPlans·daySearchQ는 컴포넌트 상단 메모에서 계산 ([전체 선택]이 같은 목록을 봐야 한다)
         return (
           <>
-            <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setDayPanelDate(null)} />
+            <div className="fixed inset-0 bg-black/20 z-40" onClick={() => { if (!isBulkMoving) setDayPanelDate(null) }} />
             <div className="fixed top-0 right-0 bottom-0 w-[400px] bg-white shadow-2xl z-50 flex flex-col">
               {/* 헤더 */}
               <div className="px-5 py-4 border-b border-[#e0ddf5] shrink-0">
@@ -1448,13 +1561,15 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     {format(d, 'M월 d일 (EEE)', { locale: ko })}
                     {holiday && <span className="ml-2 text-xs text-red-500 font-medium">{holiday}</span>}
                   </p>
-                  <button onClick={() => setDayPanelDate(null)} className="text-[#b0acd6] hover:text-[#514b81] transition-colors">
+                  <button onClick={() => setDayPanelDate(null)} disabled={isBulkMoving}
+                    className="text-[#b0acd6] hover:text-[#514b81] transition-colors disabled:opacity-40">
                     <X className="size-5" />
                   </button>
                 </div>
-                <div className="flex items-center justify-between mt-0.5">
+                {/* 버튼이 셋이라 한 줄에 같이 두면 400px에서 요약 글자가 3줄로 접힌다 → 줄을 나눈다 */}
+                <div className="mt-0.5">
                   <p className="text-xs text-[#514b81]">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 flex-wrap mt-1.5">
                     {/* 사전 안내 문자 — **주 발송 경로**(소방계획서_24 Q-14·Q-15).
                         칩을 체크하지 않고 **날짜만 넘긴다**: 서버가 그날 방문 전 건을 계산하므로
                         ①달력 쪽 신규 상태가 0개이고 ②②~⑥ 서류 마감 칩에 "내일 방문" 문자가
@@ -1463,7 +1578,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       <button
                         data-testid="calendar-sms-day"
                         onClick={() => setSmsSource({ kind: 'range', from: dayPanelDate, to: dayPanelDate, title: `${format(d, 'M월 d일', { locale: ko })} 방문 — 사전 안내` })}
-                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
+                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1 whitespace-nowrap"
                         title="이 날짜에 방문하는 고객에게 사전 안내 문자를 보냅니다">
                         <MessageSquare className="size-3" /> 사전안내 문자
                       </button>
@@ -1471,9 +1586,28 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     {bulkTotal > 0 && (
                       <button
                         onClick={openBulkModal}
-                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1"
-                        title="이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리">
+                        disabled={moveSelectMode}
+                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
+                        title={moveSelectMode ? '날짜 이동 선택 중에는 사용할 수 없습니다' : '이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리'}>
                         <Check className="size-3" /> 이날 전체 완료 ({bulkTotal})
+                      </button>
+                    )}
+                    {/* 정기 여러 건 날짜 이동 — 켜면 이동 가능한 정기 행에 체크박스가 생긴다 */}
+                    {movableDayPlans.length > 0 && (
+                      <button
+                        data-testid="day-move-toggle"
+                        onClick={() => {
+                          setMoveSelectMode(v => !v)
+                          setMoveChecked(new Set())
+                          setBulkMoveResult(null)
+                        }}
+                        disabled={isBulkMoving}
+                        className={`text-[11px] font-medium border rounded-lg px-2 py-0.5 transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-50 ${
+                          moveSelectMode
+                            ? 'bg-[#7b68ee] border-[#7b68ee] text-white'
+                            : 'text-[#7b68ee] border-[#d0ccf5] hover:bg-[#f5f4ff]'}`}
+                        title="정기 일정 여러 건을 같은 달 다른 날짜로 한 번에 옮깁니다">
+                        <CalendarDays className="size-3" /> {moveSelectMode ? '이동 취소' : '날짜 이동'}
                       </button>
                     )}
                   </span>
@@ -1496,10 +1630,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">단계 일정 (종합·작동)</p>
                     <div className="space-y-0.5">
                       {panelSteps.map(e => (
+                        // 선택 모드에선 클릭을 막는다 — 이 버튼은 패널을 닫아버려 고른 선택이 날아간다
                         <button
                           key={e.id}
+                          disabled={moveSelectMode}
                           onClick={() => { setDayPanelDate(null); setSelectedInspectionId(e.resource.inspectionId); setStepError(null) }}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] text-left transition-colors"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] text-left transition-colors disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent"
                         >
                           <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.resource.color }} />
                           <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{e.title}</span>
@@ -1519,9 +1655,24 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         const isCompleted = p.status === 'completed'
                         const isOverdue = !isCompleted && p.scheduled_date < today
                         const canAct = canMovePlan && !isCompleted && !p.inspection_id
+                        const movable = isMovablePlan(p)
                         return (
                           <div key={p.id}>
                             <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-[#f8f9fa]'}`}>
+                              {/* 선택 모드: 이동 가능한 정기만 체크박스, 나머지는 자리만 비워 이름 정렬을 유지 */}
+                              {moveSelectMode && (movable ? (
+                                <input
+                                  type="checkbox"
+                                  data-testid="day-move-check"
+                                  data-plan-id={p.id}
+                                  disabled={isBulkMoving}
+                                  checked={moveChecked.has(p.id)}
+                                  onChange={ev => toggleMoveChecked(p.id, ev.target.checked)}
+                                  className="accent-[#7b68ee] shrink-0"
+                                />
+                              ) : (
+                                <span className="size-3.5 shrink-0" title="이동 대상이 아닙니다 (정기·미시작 항목만 이동)" />
+                              ))}
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${p.plan_type === 'monthly' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
                                 {p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type)}
                               </span>
@@ -1534,7 +1685,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                 <Link href={`/inspections/${p.inspection_id}`} className="shrink-0 text-[10px] text-green-600 hover:underline flex items-center gap-0.5">
                                   <ExternalLink className="size-3" />점검 보기
                                 </Link>
-                              ) : canAct ? (
+                              ) : canAct && !moveSelectMode ? (
                                 <span className="flex items-center gap-0.5 shrink-0">
                                   {p.plan_type === 'monthly' && (
                                     <PanelMoveButton
@@ -1563,10 +1714,49 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
                 {panelSteps.length === 0 && panelPlans.length === 0 && (
                   <p className="text-xs text-[#b0acd6] text-center py-10">
-                    {q ? '검색 결과가 없습니다.' : '이 날짜에 표시할 일정이 없습니다.'}
+                    {daySearchQ ? '검색 결과가 없습니다.' : '이 날짜에 표시할 일정이 없습니다.'}
                   </p>
                 )}
               </div>
+
+              {/* 선택 모드 하단 바 — 목록이 flex-1 overflow-y-auto라 여기가 자연스럽게 고정된다 */}
+              {moveSelectMode && (() => {
+                const outsideSearch = moveCheckedItems.filter(p => !movableVisibleIds.includes(p.id)).length
+                return (
+                  <div data-testid="day-move-bar" className="px-5 py-2.5 border-t border-[#e0ddf5] bg-[#faf9ff] shrink-0 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[11px] text-[#514b81] flex-1 min-w-0">
+                        <strong className="text-[#090c1d]">{moveCheckedItems.length}건</strong> 선택
+                        {outsideSearch > 0 && <span className="text-[#8b87b8]"> (검색 밖 {outsideSearch}건 포함)</span>}
+                      </p>
+                      <button data-testid="day-move-all" onClick={selectAllVisibleForMove} disabled={isBulkMoving}
+                        className="h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-white transition-colors disabled:opacity-50"
+                        title="화면에 보이는 정기 일정만 선택합니다">
+                        전체
+                      </button>
+                      <button data-testid="day-move-clear" onClick={() => setMoveChecked(new Set())} disabled={isBulkMoving}
+                        className="h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-white transition-colors disabled:opacity-50">
+                        해제
+                      </button>
+                      <PanelMoveButton
+                        scheduledDate={dayPanelDate}
+                        moving={isBulkMoving}
+                        disabled={moveCheckedItems.length === 0}
+                        onPick={handleBulkMovePick}
+                        label="날짜 선택"
+                        title="선택한 정기 일정을 같은 달 다른 날짜로 옮깁니다"
+                        testId="day-move-pick"
+                      />
+                    </div>
+                    {bulkMoveResult && (
+                      <p data-testid="day-move-result"
+                        className={`text-[11px] whitespace-pre-wrap ${bulkMoveResult.ok ? 'text-[#514b81]' : 'text-red-600'}`}>
+                        {bulkMoveResult.text}
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
 
               <div className="px-5 py-3 border-t border-[#e0ddf5] shrink-0">
                 <Link href="/inspection-plans" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
@@ -1647,12 +1837,20 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           !toHoliday && (toDow === 0 || toDow === 6) ? '주말 날짜입니다.' : null,
           moveConfirm.to < today ? '오늘 이전 날짜라 이동 시 지연⚠으로 표시됩니다.' : null,
         ].filter(Boolean) as string[]
+        const busy = isMoving || isBulkMoving
+        const names = moveConfirm.mode === 'bulk' ? moveConfirm.names : [moveConfirm.customerName]
         return (
-          <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4" onClick={() => !isMoving && setMoveConfirm(null)}>
+          <div className="fixed inset-0 bg-black/20 z-[80] flex items-center justify-center p-4" onClick={() => !busy && setMoveConfirm(null)}>
             <div className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
-              <p className="text-sm font-semibold text-[#090c1d] mb-1">정기점검 일자 이동</p>
+              <p className="text-sm font-semibold text-[#090c1d] mb-1">
+                {moveConfirm.mode === 'bulk' ? `정기점검 일자 일괄 이동 (${moveConfirm.itemIds.length}건)` : '정기점검 일자 이동'}
+              </p>
               <p className="text-xs text-[#514b81]">
-                {moveConfirm.customerName} · {moveConfirm.from} → <span className="font-semibold text-[#7b68ee]">{moveConfirm.to}</span>
+                {moveConfirm.from} → <span className="font-semibold text-[#7b68ee]">{moveConfirm.to}</span>
+              </p>
+              {/* 고객명을 반드시 보여준다 — 검색 밖에서 고른 건이 섞여 있어도 눈으로 확인하고 누르게 */}
+              <p className="text-[11px] text-[#514b81] mt-1 break-keep">
+                {names.slice(0, 10).join(', ')}{names.length > 10 ? ` 외 ${names.length - 10}건` : ''}
               </p>
               <p className="text-[11px] text-[#b0acd6] mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
               {warnings.map(w => (
@@ -1661,17 +1859,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => setMoveConfirm(null)}
-                  disabled={isMoving}
+                  disabled={busy}
                   className="flex-1 h-8 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50"
                 >
                   취소
                 </button>
                 <button
+                  data-testid="day-move-confirm"
                   onClick={handleMoveConfirm}
-                  disabled={isMoving}
+                  disabled={busy}
                   className="flex-1 h-8 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors flex items-center justify-center disabled:opacity-50"
                 >
-                  {isMoving ? <Loader2 className="size-3.5 animate-spin" /> : '이동 확정'}
+                  {busy ? <Loader2 className="size-3.5 animate-spin" /> : '이동 확정'}
                 </button>
               </div>
             </div>

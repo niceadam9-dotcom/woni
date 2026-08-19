@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -45,15 +46,24 @@ export default async function InspectionCalendarPage({
   // 확정 전 항목은 scheduled_date가 없으므로 planned_date(예정일)로도 표시
   const rangeStart = `${currentYear - 1}-01-01`
   const rangeEnd   = `${currentYear + 1}-12-31`
-  const planItemsQuery = admin
+  // 1000행씩 끝까지 받아온다 — PostgREST 요청당 상한이 1000이라 한 번에 받으면 조용히 잘린다
+  // (2026-08-19 실측: 조건에 맞는 1425건 중 1000건만 실려, 나머지 425건이 달력·데이 패널에서 통째로 빠졌다).
+  // planned_date는 동점·NULL이 많아 그것만으로 페이지를 나누면 건너뛰거나 중복된다 → id를 2차 정렬로 고정.
+  const planItemsQuery = fetchAllRows((from, to) => admin
     .from('inspection_plan_items')
     .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code)')
     .in('plan_type', ['monthly', 'event'])
     .neq('status', 'cancelled')
     .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
     .order('planned_date')
+    .order('id')
+    .range(from, to))
 
   const [inspRes, profilesRes, holidaysRes, planItemsRes] = await Promise.all([inspQuery, profilesQuery, holidaysQuery, planItemsQuery])
+  if (planItemsRes.error || planItemsRes.truncated) {
+    // 조용히 적게 그리지 않는다 — 빠진 게 있으면 서버 로그에 남긴다
+    console.error('[calendar] 계획 항목 로드 이상:', planItemsRes.error ?? `${planItemsRes.rows.length}건에서 상한 도달`)
+  }
 
   type InspRow = {
     id: string; customer_id: string; inspection_type: string; year: number
@@ -143,7 +153,7 @@ export default async function InspectionCalendarPage({
     status: string; assigned_employee_id: string | null; inspection_id: string | null
     customers: { customer_name: string; customer_code: string } | null
   }
-  const planItems: CalendarPlanItem[] = ((planItemsRes.data ?? []) as unknown as PlanItemRow[]).flatMap(p => {
+  const planItems: CalendarPlanItem[] = (planItemsRes.rows as unknown as PlanItemRow[]).flatMap(p => {
     const date = p.scheduled_date ?? p.planned_date
     if (!date) return []
     return [{
