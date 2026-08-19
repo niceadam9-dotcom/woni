@@ -17,7 +17,7 @@ config({ path: '.env.local' })
 import { raw, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, ensurePlan } from './_e2e-helpers.mjs'
 
 const { createAdminClient } = await import('../src/lib/supabase/admin.ts')
-const { loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards } =
+const { loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards, countUnsentNotices } =
   await import('../src/lib/sms.ts')
 const { todayKst, addDays } = await import('../src/lib/sms-recipients.ts')
 
@@ -29,6 +29,9 @@ const VISIT = addDays(today, 1)
 let userId = ''
 const custIds: string[] = []
 let plan: { id: string; created: boolean } | null = null
+// D1 검증용 과거 계획 — 우리가 만든 것만 되돌린다(기존 월 계획은 건드리지 않는다)
+let madePastPlan: string | null = null
+let pastItemId: string | null = null
 
 const logsOf = async (cid: string) =>
   ((await raw.from('sms_send_log').select('*').eq('customer_id', cid)).data ?? []) as any[]
@@ -101,7 +104,12 @@ try {
   console.log('\n— sendInspectionSms: dryRun (DB 미기록)')
   process.env.SMS_DRY_RUN = '1'
   const dry = await sendInspectionSms(admin, { targets, actorId: userId })
-  check('dryRun은 성공으로 보고', dry.ok && dry.sent === 2, JSON.stringify({ ok: dry.ok, sent: dry.sent }))
+  // ★ 리허설은 **sent=0**이어야 한다(예정 통수는 dryRunPlanned로 따로 준다).
+  //   종전엔 sent=units.length라 화면이 "발송됨 N"으로 읽고 sent>0을 성공 신호로 써서,
+  //   한 통도 안 나간 리허설을 성공으로 오인하게 만들었다(D6).
+  check('★ 리허설은 sent=0 — "발송됨"으로 오인되지 않는다', dry.ok && dry.sent === 0,
+    JSON.stringify({ ok: dry.ok, sent: dry.sent }))
+  check('리허설이 예정 통수를 따로 알린다', dry.dryRunPlanned === 2, String(dry.dryRunPlanned))
   check('★ dryRun은 sms_send_log에 아무것도 남기지 않는다(리허설이 이력을 오염시키면 안 된다)',
     (await logsOf(cidA)).length === 0 && (await logsOf(cidB)).length === 0)
   delete process.env.SMS_DRY_RUN
@@ -142,7 +150,8 @@ try {
   process.env.SMS_DRY_RUN = '1'
   process.env.SMS_ALLOWLIST = '010-1111-2222'
   const allow = await sendInspectionSms(admin, { targets, actorId: userId })
-  check('allowlist는 dryRun보다 뒤에 적용된다(리허설은 전건 미리보기)', allow.sent === 2, String(allow.sent))
+  check('allowlist는 dryRun보다 뒤에 적용된다(리허설은 전건 미리보기)',
+    allow.dryRunPlanned === 2, String(allow.dryRunPlanned))
   delete process.env.SMS_DRY_RUN
   const allow2 = await sendInspectionSms(admin, { targets, actorId: userId })
   check('★ 실발송에서는 목록 밖 번호가 skip된다', allow2.skipped === 1, JSON.stringify({ skipped: allow2.skipped }))
@@ -167,7 +176,8 @@ try {
   process.env.SMS_DRY_RUN = '1'
   const adhocDry = await sendInspectionSms(admin, { targets: [adhocT!], actorId: userId, kind: 'adhoc' })
   delete process.env.SMS_DRY_RUN
-  check('adhoc도 수신자 2명 → 2통', adhocDry.sent === 2, String(adhocDry.sent))
+  check('adhoc도 수신자 2명 → 2통(리허설이라 예정 통수로 센다)',
+    adhocDry.dryRunPlanned === 2, String(adhocDry.dryRunPlanned))
   const afterItems = ((await raw.from('inspection_plan_items').select('id').eq('customer_id', cidA)).data ?? []).length
   check('★ 임의 발송은 계획 항목을 만들지 않는다(점검 실적 오염 금지)',
     beforeItems === afterItems, `${beforeItems} → ${afterItems}`)
@@ -193,15 +203,73 @@ try {
       ids.size === wide.length, `고유 ${ids.size} / 전체 ${wide.length}`)
   }
 
+  console.log('\n— D1: 시기 지남(안내 못 하고 지난 방문)이 실제로 잡히는가')
+  {
+    // 어제 방문 건을 만든다 — 종전에는 loadSmsTargets가 from을 today로 clamp하고
+    // 과거 행을 drop해서 overdue가 **구조적으로 항상 0**이었다(배너 줄이 렌더될 수 없었다).
+    const yesterday = addDays(today, -1)
+    const { data: pastPlan } = await raw.from('inspection_plans')
+      .select('id').eq('year', +yesterday.slice(0, 4)).eq('month', +yesterday.slice(5, 7)).maybeSingle()
+    let pastPlanId = (pastPlan as any)?.id
+    if (!pastPlanId) {
+      const { data: np } = await raw.from('inspection_plans')
+        .insert({ year: +yesterday.slice(0, 4), month: +yesterday.slice(5, 7), status: 'draft', auto_generated: true, created_by: userId })
+        .select('id').single()
+      pastPlanId = (np as any).id
+      madePastPlan = pastPlanId
+    }
+    // 고객C를 쓴다 — 고객A는 위 절에서 이미 이 달 계획을 가져
+    // UNIQUE(plan_id, customer_id, sequence_num)에 걸릴 수 있다(과거 계획이 같은 달일 때).
+    // 오류를 삼키지 않는다: null을 그대로 쓰면 이 절이 무엇을 검증했는지 알 수 없게 된다.
+    const { data: pi, error: piErr } = await raw.from('inspection_plan_items').insert({
+      plan_id: pastPlanId, customer_id: cidC, sequence_num: 2,
+      inspection_type: '작동', plan_type: 'monthly',
+      scheduled_date: yesterday, status: 'confirmed',
+    }).select('id').single()
+    if (piErr || !pi) throw new Error(`D1 픽스처(과거 방문 건) 생성 실패: ${piErr?.message ?? 'no row'}`)
+    pastItemId = (pi as any).id
+
+    const past = await loadSmsTargets(admin, { from: addDays(today, -7), to: today, includePast: true })
+    check('★ includePast면 지난 방문일이 실린다(종전엔 통째로 버려졌다)',
+      past.some(t => t.visitDate === yesterday), `${past.length}건`)
+    const pastOnes = past.filter(t => t.visitDate === yesterday)
+    check('★ 지난 건은 발송 불가로 표시된다(모달에 실려도 못 보낸다)',
+      pastOnes.length > 0 && pastOnes.every(t => t.sendable === false && /지난 방문일/.test(t.unsendableReason ?? '')),
+      JSON.stringify(pastOnes.map(t => t.unsendableReason)))
+
+    const withoutPast = await loadSmsTargets(admin, { from: addDays(today, -7), to: today })
+    check('기본 경로(includePast 없음)는 여전히 지난 건을 뺀다', !withoutPast.some(t => t.visitDate === yesterday))
+
+    const cnt = await countUnsentNotices(admin)
+    check('★ 배너 집계가 시기 지남을 0이 아닌 값으로 낸다(D1 해소)',
+      cnt.overdueCount > 0, `overdueCount=${cnt.overdueCount}`)
+  }
+
+  console.log('\n— D3: 결과 기록이 굳은 행(sending)은 미발송으로 되살아나지 않는다')
+  {
+    const vd = addDays(today, 2)
+    await raw.from('sms_send_log').insert({
+      kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: vd,
+      content: 'x', status: 'sending', sent_by: userId,
+    })
+    const pairs = await loadSentPairs(admin, today, addDays(today, 7))
+    check('★ sending도 "보냄"으로 친다 — 미발송으로 두면 배너가 재발송을 권해 이중 과금이 된다',
+      pairs.has(`${cidA}|${vd}`), '돈이 나갔을 수 있는 건이다')
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', vd)
+  }
+
   console.log('\n— 과거 방문일 가드')
   const past = await loadSmsTargets(admin, { from: addDays(today, -10), to: addDays(today, -1) })
   check('★ 지난 방문일은 발송 대상에서 빠진다("지난 날에 방문합니다"는 성립하지 않는다)',
     past.length === 0, String(past.length))
 } finally {
+  // 과거 계획 항목이 남으면 다음 실행의 '시기 지남' 수를 오염시킨다 — 고객보다 먼저 지운다
+  if (pastItemId) await raw.from('inspection_plan_items').delete().eq('id', pastItemId)
   for (const c of custIds) {
     await raw.from('sms_send_log').delete().eq('customer_id', c)
     await cleanupCustomer(c)
   }
+  if (madePastPlan) await raw.from('inspection_plans').delete().eq('id', madePastPlan)
   if (plan?.created) await raw.from('inspection_plans').delete().eq('id', plan.id)
   await delUser(userId)
 }

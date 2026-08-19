@@ -171,6 +171,85 @@ async function main() {
         `${await page.locator('[data-testid="sms-row"]').count()} vs ${before}`)
     }
 
+    console.log('\n— D2·D3: 부분 실패와 굳은 행이 화면에서 덮이지 않는가')
+    {
+      // 고객A(수신자 2명)에 **1명 성공 + 1명 실패** 이력을 심는다.
+      // 종전엔 anySent가 우선이라 행이 '발송됨'으로 덮였고, 기본 필터(발송 제외)에서도 사라져
+      // 실패한 그 1명이 영구히 은폐됐다 — Q-9(멀티 수신자)의 근거를 스스로 무너뜨린 셈이다.
+      await raw.from('sms_send_log').insert([
+        { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+          to_phone: '01011112222', content: 'x', status: 'sent', sent_by: userId },
+        { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+          to_phone: '01033334444', content: 'x', status: 'failed', error: '수신거부', sent_by: userId },
+      ])
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      // 상태는 **상태 칸의 data-status로 읽는다** — 행 전체 텍스트로 보면 사유 문구
+      // "(1명 발송됨)"에 걸려 오탐이 난다(실제로 겪음).
+      const rowLoc = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
+      const rowA = await rowLoc.innerText()
+      const statusA = await rowLoc.locator('[data-testid="row-status"]').getAttribute('data-status')
+      check('★ 일부만 실패해도 행이 "발송됨"으로 덮이지 않는다(조치 필요가 우선)',
+        statusA === 'failed', `상태=${statusA} · ${rowA.replace(/\n/g, ' ')}`)
+      check('★ 몇 명 중 몇 명이 실패인지 말한다', /2명 중 1명 실패/.test(rowA), rowA.replace(/\n/g, ' '))
+
+      // 굳은 행(sending) — 돈이 나갔을 수 있으므로 '미발송'이 아니라 '확인필요'여야 한다
+      await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', TOMORROW)
+      await raw.from('sms_send_log').insert({
+        kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
+        to_phone: '01011112222', content: 'x', status: 'sending', sent_by: userId,
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      const rowLocB = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
+      const statusB = await rowLocB.locator('[data-testid="row-status"]').getAttribute('data-status')
+      check('★ 결과가 안 기록된 행은 "확인필요" — 미발송으로 두면 재발송·이중 과금이 된다',
+        statusB === 'stuck', `상태=${statusB} · ${(await rowLocB.innerText()).replace(/\n/g, ' ')}`)
+      await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', TOMORROW)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+    }
+
+    console.log('\n— D5·S5-0b: 계획 없는 행의 출구와 일정변경 배지')
+    {
+      // 계획이 없는 이력(임의 발송 등)은 일괄 경로로 못 보낸다 — 체크가 막히고 전용 버튼이 있어야 한다.
+      // 종전엔 체크는 되는데 발송에서 조용히 빠져, 사용자는 보냈다고 믿었다.
+      await raw.from('sms_send_log').insert({
+        kind: 'adhoc', customer_id: cidD, plan_item_ids: [], visit_date: kst(3),
+        to_phone: '01099990000', content: 'x', status: 'failed', error: '수신거부', sent_by: userId,
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      const adhocRow = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-무계획${SUF}` }).first()
+      check('★ 계획 없는 행은 체크가 막힌다(일괄 발송에서 조용히 빠지지 않게)',
+        await adhocRow.locator('[data-testid="row-check-disabled"]').count() === 1)
+      check('★ 대신 행에 [다시 보내기]가 있다 — 없으면 재발송할 방법이 아예 없다',
+        await adhocRow.locator('[data-testid="row-resend"]').count() === 1)
+      await adhocRow.locator('[data-testid="row-resend"]').click()
+      await page.waitForSelector('[data-testid="adhoc-date"]', { timeout: 20000 })
+      check('★ 방문일이 미리 채워진다(아는 값을 다시 입력시키지 않는다)',
+        await page.locator('[data-testid="adhoc-date"]').inputValue() === kst(3),
+        await page.locator('[data-testid="adhoc-date"]').inputValue())
+      await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
+      await raw.from('sms_send_log').delete().eq('customer_id', cidD)
+
+      // 일정변경 — 옛 날짜로 안내가 나간 뒤 점검일이 옮겨진 상황.
+      // 그 옛 날짜에는 계획이 없어야 '이동'으로 판정된다(다음 회차와 구별).
+      await raw.from('sms_send_log').insert({
+        kind: 'pre_visit', customer_id: cidB, plan_item_ids: [], visit_date: kst(9),
+        to_phone: '01055556666', content: 'x', status: 'sent', sent_by: userId,
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      const movedRow = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-B${SUF}` }).first()
+      check('★ 일정변경 배지가 뜬다 — 그냥 보내면 고객이 두 날짜를 안내받는다(S5-0b)',
+        await movedRow.locator('[data-testid="badge-moved"]').count() === 1,
+        (await movedRow.innerText()).replace(/\n/g, ' '))
+      await raw.from('sms_send_log').delete().eq('customer_id', cidB)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+    }
+
     console.log('\n— Q-12: 승인 배너')
     const notices = await page.locator('[data-testid="sms-notice"]').allInnerTexts()
     check('배너 줄이 그려진다', notices.length >= 1, notices.join(' | '))

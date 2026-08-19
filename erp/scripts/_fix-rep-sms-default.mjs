@@ -10,11 +10,28 @@
 //
 // 실행: node scripts/_fix-rep-sms-default.mjs          (미리보기)
 //       node scripts/_fix-rep-sms-default.mjs --apply
+import { readFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
 import { SUPABASE_URL, SERVICE_ROLE_KEY } from './_env.mjs'
 
 const APPLY = process.argv.includes('--apply')
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+
+// 대상 DB — 인자로 env 파일을 주면 그쪽(운영 등), 없으면 기본 .env.local(스테이징).
+//   node scripts/_fix-rep-sms-default.mjs .env.local.prod-backup          (운영 미리보기)
+//   node scripts/_fix-rep-sms-default.mjs .env.local.prod-backup --apply  (운영 적용)
+const envArg = process.argv.slice(2).find(a => a.startsWith('.env'))
+let url = SUPABASE_URL, key = SERVICE_ROLE_KEY
+if (envArg) {
+  const env = Object.fromEntries(
+    readFileSync(new URL(`../${envArg}`, import.meta.url), 'utf8').split(/\r?\n/)
+      .filter(l => l.includes('=') && !l.startsWith('#'))
+      .map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
+  )
+  url = env.NEXT_PUBLIC_SUPABASE_URL; key = env.SUPABASE_SERVICE_ROLE_KEY
+}
+console.log(`대상: ${envArg ?? '.env.local'} (${url?.slice(8, 28)}…) · ${APPLY ? '**적용**' : '미리보기'}`)
+
+const admin = createClient(url, key, { auth: { persistSession: false } })
 
 const { data, error } = await admin
   .from('customer_contacts')

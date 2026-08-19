@@ -192,6 +192,17 @@ console.log('\n— resolvePendingNotices (Q-12의 심장)')
   ok('통수가 수신자 기준으로 계산', notices[1].messageCount === 1)
   ok('라벨에 디데이와 월/일', notices[1].label === `내일(${+addDays(today,1).slice(5,7)}/${+addDays(today,1).slice(8,10)}) 방문`, notices[1].label)
   ok('시기 지남은 별도로 분리(발송 대상 아님)', overdue.count === 1 && overdue.groups[0].customerId === 'N4')
+  // ★ D1 회귀 방어 — 이 함수는 **넘겨받은 groups 안에 지난 방문일이 있어야만** overdue를 셀 수 있다.
+  //   실제 결함은 호출부가 오늘 이후만 실어 보내 overdue가 구조적으로 항상 0이었던 것이다
+  //   (loadSmsTargets가 from을 today로 clamp + 과거 행 drop). 여기서는 "지난 건이 없으면 0"이라는
+  //   **전제 자체**를 고정해, 호출부가 다시 과거를 버리면 프로브(_probe-sms-send)가 잡도록 한다.
+  {
+    const futureOnly = groups.filter(g => g.visitDate >= today)
+    const r = resolvePendingNotices(futureOnly, [1], today, () => false)
+    ok('★ 지난 건이 안 실리면 overdue는 0 — 호출부가 과거를 버리면 이 줄은 영영 안 뜬다',
+      r.overdue.count === 0,
+      '이 전제 때문에 호출부에 includePast가 필요하다(D1)')
+  }
   ok('시기 지남이 배너 줄에는 섞이지 않는다', notices.every(n => n.groups.every(g => g.visitDate >= today)))
 
   // 날짜를 옮기면 옛 발송 기록이 새 날짜를 가리면 안 된다 — S5-10의 핵심

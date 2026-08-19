@@ -64,9 +64,39 @@ const procs = Array.isArray(s.procs) ? s.procs : (s.procs ? [s.procs] : [])
 const totalNodeMb = procs.reduce((n, p) => n + (p.mb ?? 0), 0)
 const devMb = s.dev ? (procs.find(p => p.id === s.dev)?.mb ?? null) : null
 
-console.log('── dev 메모리 진단 ──')
+// ── 살아 있는가 (프로세스 존재 ≠ 응답 가능) ────────────────────────────────
+// 실측(2026-08-19): 프로세스는 2.5GB로 멀쩡히 떠 있고 여유 메모리도 3.2GB인데
+// **응답만 안 하는** 상태가 있다(wedge). 그때 메모리만 보면 "✅ 돌려도 된다"고 오판하고,
+// 회귀는 서버가 필요한 E2E부터 줄줄이 실패한다 — 실제로 11건이 그렇게 깨졌다.
+// 그래서 크기·개수와 함께 **응답 여부**를 반드시 본다.
+// 한 번 실패했다고 wedge로 단정하지 않는다 — **갓 기동한 dev는 첫 요청에서 라우트를 컴파일하느라
+// 수 초~십수 초가 걸린다**(실측: 첫 GET /login 4.3s, 두 번째 398ms). 단발 타임아웃으로 재면
+// 멀쩡한 서버를 무응답으로 몰아, 없는 문제를 쫓게 만든다(오탐 경고는 없느니만 못하다).
+// 3회까지 시도하고 전부 실패할 때만 wedge로 본다.
+let alive = null, aliveMs = null, tries = 0
+if (s.dev) {
+  const t0 = Date.now()
+  for (tries = 1; tries <= 3; tries++) {
+    try {
+      const ctl = new AbortController()
+      const timer = setTimeout(() => ctl.abort(), 15_000)
+      const r = await fetch('http://localhost:3000/login', { method: 'HEAD', signal: ctl.signal })
+      clearTimeout(timer)
+      if (r.ok) { alive = true; break }
+    } catch { /* 다음 시도 */ }
+    alive = false
+    if (tries < 3) await new Promise(res => setTimeout(res, 3000))
+  }
+  aliveMs = Date.now() - t0
+}
+
+console.log('── dev 진단 ──')
 console.log(`  node 프로세스 : ${procs.length}개 · 합계 ${totalNodeMb}MB`)
 console.log(`  dev(:3000)    : ${s.dev ? `PID ${s.dev} · ${devMb ?? '?'}MB` : '기동 안 됨'}`)
+console.log(`  응답          : ${s.dev
+  ? (alive ? `정상 (${aliveMs}ms${tries > 1 ? `, ${tries}회째 성공 — 컴파일 중이었던 듯` : ''})`
+           : `**무응답** (3회 시도 ${aliveMs}ms)`)
+  : '—'}`)
 console.log(`  시스템 메모리 : 여유 ${s.free}MB / 전체 ${s.total}MB`)
 
 // 임계값 — 실측 기반. 2.6GB에서 이미 실패가 나왔고 6.5GB에서는 전건 그린이었다.
@@ -76,6 +106,8 @@ const DEV_WARN = 3000      // dev 한 프로세스가 3GB를 넘으면 회귀 �
 const COUNT_WARN = 30      // ① 고아 워커 누적
 
 const problems = []
+// 무응답이 가장 심각하다 — 메모리가 아무리 넉넉해도 E2E는 전부 깨진다
+if (s.dev && alive === false) problems.push(`dev가 떠 있는데 **응답하지 않는다**(wedge) — 메모리와 무관하다`)
 if (s.free < FREE_DANGER) problems.push(`여유 메모리 ${s.free}MB — E2E가 무작위로 실패한다`)
 if (devMb != null && devMb > DEV_WARN) problems.push(`dev 프로세스 ${devMb}MB — 회귀 도중 메모리가 마른다`)
 if (procs.length > COUNT_WARN) problems.push(`node ${procs.length}개 — 고아 워커 누적(양상 ①)`)

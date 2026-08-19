@@ -17,7 +17,9 @@ import { smsByteLength, smsKind } from '@/lib/sms-recipients'
 export type SmsModalSource =
   | { kind: 'items'; planItemIds: string[]; title?: string }
   | { kind: 'range'; from: string; to: string; title?: string }
-  | { kind: 'adhoc'; customerId: string; customerName: string; title?: string }
+  /** visitDate를 주면 방문일을 미리 채운다 — 목록에서 [다시 보내기]로 들어올 때
+   *  이미 아는 날짜를 사용자가 다시 입력하게 만들 이유가 없다 */
+  | { kind: 'adhoc'; customerId: string; customerName: string; visitDate?: string; title?: string }
 
 type Recipient = {
   name: string | null; role: string | null; phone: string | null; phoneMasked: string
@@ -58,9 +60,10 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
   // 체크 상태: 그룹 키 → 선택된 번호들. 기본값 = 서버가 준 수신자 전부(고객관리 지정값)
   const [picked, setPicked] = useState<Record<string, string[]>>({})
   const [body, setBody] = useState<string | null>(null)   // null이면 저장된 문구 사용
-  const [visitDate, setVisitDate] = useState('')          // adhoc 전용
+  // adhoc 전용. 목록에서 들어오면 날짜를 이미 아니까 채워 준다(D5 — 재발송 동선)
+  const [visitDate, setVisitDate] = useState(source.kind === 'adhoc' ? (source.visitDate ?? '') : '')
   const [confirmDup, setConfirmDup] = useState(false)
-  const [result, setResult] = useState<{ rows: SendRow[]; sent: number; failed: number; unverified: number; noPhone: number; skipped: number; error?: string } | null>(null)
+  const [result, setResult] = useState<{ rows: SendRow[]; sent: number; failed: number; unverified: number; noPhone: number; skipped: number; dryRunPlanned?: number; error?: string } | null>(null)
 
   const key = (g: { customerId: string; visitDate: string }) => `${g.customerId}|${g.visitDate}`
 
@@ -287,10 +290,17 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           {/* 결과 — 발송 후에도 닫지 않는다 */}
           {result && (
             <div data-testid="sms-result" className="rounded-xl border border-[#eceaf8] overflow-hidden">
-              <div className="px-3 py-2 bg-[#faf9ff] text-[11px] font-semibold text-[#090c1d]">
-                발송됨 {result.sent} · 실패 {result.failed} · 확인불가 {result.unverified} · 번호없음 {result.noPhone}
-                {result.skipped > 0 && ` · 제외 ${result.skipped}`}
-              </div>
+              {/* 리허설은 **'발송됨'이라는 말을 쓰지 않는다** — 한 통도 안 나갔는데 성공으로 읽힌다 */}
+              {result.dryRunPlanned != null ? (
+                <div data-testid="sms-result-dryrun" className="px-3 py-2 bg-amber-50 text-[11px] font-semibold text-amber-800">
+                  리허설 — 실제 발송 0통 (보내면 {result.dryRunPlanned}통)
+                </div>
+              ) : (
+                <div className="px-3 py-2 bg-[#faf9ff] text-[11px] font-semibold text-[#090c1d]">
+                  발송됨 {result.sent} · 실패 {result.failed} · 확인불가 {result.unverified} · 번호없음 {result.noPhone}
+                  {result.skipped > 0 && ` · 제외 ${result.skipped}`}
+                </div>
+              )}
               {result.error && <div className="px-3 py-2 text-[11px] text-red-600 border-t border-[#eceaf8]">{result.error}</div>}
               <ul className="max-h-40 overflow-y-auto divide-y divide-[#f2f0fb]">
                 {result.rows.map((r, i) => (

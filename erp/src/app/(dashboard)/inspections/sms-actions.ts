@@ -6,7 +6,7 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import {
   loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards,
-  loadLeadRules, countUnsentNotices,
+  loadLeadRules, countUnsentNotices, OVERDUE_WINDOW_DAYS,
 } from '@/lib/sms'
 import {
   groupTargets, resolvePendingNotices, validateLeadRules,
@@ -162,8 +162,9 @@ export async function listSmsStatusAction(filters: {
   regionSi?: string | null
   regionMyeon?: string | null
   regionRi?: string | null
-  /** 'not_sent' = 발송됨 제외(기본) — 이 화면의 일은 '아직 안 보낸 것'이라 그게 기본이다 */
-  status?: 'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone'
+  /** 'not_sent' = 발송됨 제외(기본) — 이 화면의 일은 '아직 안 보낸 것'이라 그게 기본이다.
+   *  'stuck' = 결과가 기록되지 않아 발송 여부를 모르는 건(사람이 확인해야 한다) */
+  status?: 'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone' | 'stuck'
   assignee?: string | null
 }) {
   const g = await guard('inspection_sms_send')
@@ -220,20 +221,49 @@ export async function listSmsStatusAction(filters: {
     regionSi: string | null; regionMyeon: string | null; regionRi: string | null
     recipientCount: number; status: string; sentAt: string | null; reason: string | null
     isAdhoc: boolean; sendable: boolean; unsendableReason: string | null
+    /** 점검일이 옮겨져 **옛 날짜로 이미 안내가 나간** 건 — 그 옛 날짜(S5-0b).
+     *  재안내가 필요한지는 사람이 판단한다(자동 재발송은 하지 않는다). */
+    movedFrom: string | null
   }
 
-  const rowOf = (pair: string, base: Omit<Row, 'status' | 'sentAt' | 'reason' | 'key'>): Row => {
+  /** 한 (고객, 방문일)의 여러 수신자 행을 한 줄로 접는다.
+   *
+   *  ⚠ 우선순위가 중요하다. 종전엔 `anySent`가 맨 앞이라 **3명 중 1명만 실패해도 '발송됨'**이었다.
+   *  Q-9(멀티 수신자)의 근거가 "3명 중 1명 실패하면 그 한 명만 재발송"인데, 결과 창구가 그 1명을
+   *  덮어버렸다 — 기본 필터(발송 제외)에서도 사라지므로 영구 은폐다. P-1이 표시 계층에서 재발한 꼴.
+   *  그래서 **조치가 필요한 상태를 앞에 둔다**: sending → failed → no_phone → sent → unsent.
+   *
+   *  'sending'은 결과 기록이 실패해 굳은 행이다(sms.ts가 로그를 남긴다). 돈이 나갔을 수 있으므로
+   *  '미발송'으로 떨어뜨리면 배너가 재발송을 권해 **이중 과금**이 된다. 별도 상태로 드러낸다. */
+  const rowOf = (pair: string, base: Omit<Row, 'status' | 'sentAt' | 'reason' | 'key' | 'movedFrom'>): Row => {
     const ls = byPair.get(pair) ?? []
     const latest = ls[0] ?? null
-    const anySent = ls.some(l => l.status === 'sent' || l.status === 'unverified')
-    const anyFailed = ls.some(l => l.status === 'failed')
-    const anyNoPhone = ls.some(l => l.status === 'no_phone')
+    const sentRows = ls.filter(l => l.status === 'sent' || l.status === 'unverified')
+    const failedRows = ls.filter(l => l.status === 'failed')
+    const noPhoneRows = ls.filter(l => l.status === 'no_phone')
+    const stuckRows = ls.filter(l => l.status === 'sending')
+
+    const status =
+      stuckRows.length ? 'stuck'
+      : failedRows.length ? 'failed'
+      : noPhoneRows.length ? 'no_phone'
+      : sentRows.length ? 'sent'
+      : 'unsent'
+
+    // 일부만 실패한 경우를 숫자로 말한다 — '실패'만 뜨면 몇 명에게 갔는지 알 수 없다
+    const partial = failedRows.length > 0 && sentRows.length > 0
+      ? `${ls.length}명 중 ${failedRows.length}명 실패 (${sentRows.length}명 발송됨) · `
+      : ''
     return {
       key: pair, ...base,
-      status: anySent ? 'sent' : anyFailed ? 'failed' : anyNoPhone ? 'no_phone' : 'unsent',
-      sentAt: anySent ? (latest?.created_at ?? null) : null,
-      reason: anyFailed ? (ls.find(l => l.status === 'failed')?.error ?? null)
-            : anyNoPhone ? (ls.find(l => l.status === 'no_phone')?.error ?? null) : null,
+      status,
+      movedFrom: null,   // 아래에서 전체 행을 다 만든 뒤 채운다(다른 행을 봐야 판정된다)
+      sentAt: sentRows.length ? (latest?.created_at ?? null) : null,
+      reason:
+        stuckRows.length ? '발송 결과가 기록되지 않았습니다 — 실제 발송 여부를 확인해주세요'
+        : failedRows.length ? partial + (failedRows[0]?.error ?? '')
+        : noPhoneRows.length ? (noPhoneRows[0]?.error ?? null)
+        : null,
     }
   }
 
@@ -275,6 +305,29 @@ export async function listSmsStatusAction(filters: {
     }))
   }
 
+  // ── 일정변경 판정 (S5-0b) ─────────────────────────────────────────────
+  // 점검일을 옮기면 (고객, 새 날짜)는 미발송이 된다(S5-10). 그 자체는 옳지만, 사용자는
+  // "이 고객에겐 이미 8/19로 안내가 나갔다"는 사실을 모른 채 새로 보내게 된다 —
+  // 고객은 두 날짜를 안내받고 어느 쪽이 맞는지 모른다.
+  //
+  // '다음 회차'와 구별하는 것이 핵심이다. 같은 고객의 8월 건을 보냈고 9월 건이 미발송인 것은
+  // 일정변경이 아니라 정상이다. 그래서 **옛 날짜에 계획 항목이 더는 없을 때만** 이동으로 본다
+  // (옮겨졌으니 그 날짜의 계획이 사라진 것이다). 계획이 그대로면 둘 다 살아 있는 별개 회차다.
+  const sentDatesByCustomer = new Map<string, string[]>()
+  for (const [pair, ls] of byPair) {
+    if (!ls.some(l => l.status === 'sent' || l.status === 'unverified')) continue
+    const [cid, vd] = pair.split('|')
+    if (seen.has(pair) && rows.some(r => r.key === pair && r.planItemIds.length > 0)) continue  // 그 날짜에 계획이 살아 있다
+    const a = sentDatesByCustomer.get(cid) ?? []
+    a.push(vd); sentDatesByCustomer.set(cid, a)
+  }
+  for (const r of rows) {
+    if (r.status !== 'unsent' || r.planItemIds.length === 0) continue
+    const others = (sentDatesByCustomer.get(r.customerId) ?? []).filter(d => d !== r.visitDate)
+    if (others.length === 0) continue
+    r.movedFrom = others.sort().at(-1) ?? null   // 가장 최근에 안내한 옛 날짜
+  }
+
   // 필터
   let out = rows
   const f = filters
@@ -287,10 +340,20 @@ export async function listSmsStatusAction(filters: {
   if (f.status === 'not_sent') out = out.filter(r => r.status !== 'sent')
   else if (f.status && f.status !== 'all') out = out.filter(r => r.status === f.status)
 
-  // 배너 (Q-12) — 시점 규칙은 loadLeadRules 한 곳에서만 읽는다(정렬 고정 포함)
+  // 배너 (Q-12) — 시점 규칙은 loadLeadRules 한 곳에서만 읽는다(정렬 고정 포함).
+  //
+  // ⚠ 배너는 **화면 필터와 독립**이어야 한다. 종전엔 loadSentPairs에 화면 기간(from~to)을 주고
+  //   대상은 today~+rules로 읽어, 두 범위가 어긋나면 이미 보낸 건의 쌍이 조회되지 않아
+  //   "내일 방문 — 미발송"이 다시 떴다(필터에서 [오늘]만 눌러도 재현). 재발송 유도다.
+  //   이제 배너가 쓰는 두 조회를 **같은 창**으로 맞춘다.
+  //
+  // 과거까지 싣는 이유(includePast): '시기 지남'을 세려면 지난 방문일이 필요한데,
+  // 기본 경로는 발송 대상만 만드느라 과거를 버려서 overdue가 **항상 0**이었다.
   const rules = await loadLeadRules(admin)
-  const sentPairs = await loadSentPairs(admin, from, to)
-  const wide = await loadSmsTargets(admin, { from: today, to: addDays(today, Math.max(...rules, 1)) })
+  const bannerFrom = addDays(today, -OVERDUE_WINDOW_DAYS)
+  const bannerTo = addDays(today, Math.max(...rules, 1))
+  const sentPairs = await loadSentPairs(admin, bannerFrom, bannerTo)
+  const wide = await loadSmsTargets(admin, { from: bannerFrom, to: bannerTo, includePast: true })
   const { groups: wideGroups } = groupTargets(wide)
   const { notices, overdue } = resolvePendingNotices(
     wideGroups, rules, today, (c, v) => sentPairs.has(`${c}|${v}`))

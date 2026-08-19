@@ -28,6 +28,8 @@ type Row = {
   regionSi: string | null; regionMyeon: string | null; regionRi: string | null
   recipientCount: number; status: string; sentAt: string | null; reason: string | null
   isAdhoc: boolean; sendable: boolean; unsendableReason: string | null
+  /** 점검일이 옮겨져 옛 날짜로 이미 안내가 나간 건 — 그 옛 날짜 (S5-0b) */
+  movedFrom: string | null
 }
 type Notice = { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; planItemIds: string[] }
 type Data = {
@@ -42,12 +44,23 @@ type Data = {
 
 const STATUS_LABEL: Record<string, string> = {
   unsent: '미발송', sent: '발송됨', failed: '실패', no_phone: '번호없음',
+  // 발송 직전 claim 행이 결과 기록에 실패해 굳은 상태 — **돈이 나갔을 수 있다**.
+  // '미발송'으로 보이면 배너가 재발송을 권해 이중 과금이 되므로 따로 드러낸다.
+  stuck: '확인필요',
+}
+/** 배지에 다 못 쓰는 사실을 툴팁으로 — 특히 '발송됨'이 무엇을 포함하는지 (S5-0c) */
+const STATUS_TOOLTIP: Record<string, string> = {
+  sent: '보냈습니다. 공급자 응답을 못 읽어 접수 확인이 안 된 건(확인불가)도 여기 포함됩니다 — 실패로 두면 이미 나간 문자를 다시 보내게 되기 때문입니다.',
+  failed: '보내지 못했습니다. 사유는 오른쪽에 있습니다.',
+  no_phone: '보낼 번호가 없어 발송되지 않았습니다 — 고객관리에서 연락처를 채워주세요.',
+  stuck: '발송을 시작했는데 결과가 기록되지 않았습니다. 실제로 나갔을 수 있으니 확인 전에는 다시 보내지 마세요.',
 }
 const STATUS_CLASS: Record<string, string> = {
   unsent: 'bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5]',
   sent: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   failed: 'bg-red-50 text-red-600 border-red-200',
   no_phone: 'bg-amber-50 text-amber-700 border-amber-200',
+  stuck: 'bg-orange-100 text-orange-800 border-orange-300 font-semibold',
 }
 const btn = 'h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-40'
 const btnPri = 'h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-semibold hover:bg-[#6a57dd] transition-colors disabled:opacity-40'
@@ -60,35 +73,72 @@ const sel = 'h-8 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] 
  *   · 담당 — 종류가 하나뿐이면 열 자체를 뺀다(showAssignee)
  *   · 수신 — 1명이면 굳이 쓰지 않는다. 2명 이상일 때만 눈에 띄게(비용이 곱해지는 경우다)
  *   · 상태 — '미발송'은 기본값이라 배지를 없앤다. 발송됨·실패·번호없음만 배지 → 예외가 눈에 띈다 */
-function SmsRow({ r, checked, onToggle, showAssignee }: {
+function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
   r: Row; checked: boolean; onToggle: () => void; showAssignee: boolean
+  canSend: boolean; onResend: (r: Row) => void
 }) {
   const isDefault = r.status === 'unsent'
+  // 계획 항목이 없는 행(임의 발송·계획이 사라진 과거 이력)은 **일괄 경로로 못 보낸다** —
+  // 일괄 발송은 planItemIds로 대상을 찾기 때문이다. 종전엔 체크는 되는데 발송에서 조용히 빠져,
+  // 사용자는 보냈다고 믿고 그 고객만 안내를 못 받았다. 체크를 막고 전용 버튼을 준다.
+  const bulkable = r.planItemIds.length > 0
   return (
     <tr data-testid="sms-row" className="border-t border-[#f7f6fd] hover:bg-[#faf9ff]">
       <td className="pl-4 py-1.5 align-top">
-        <input type="checkbox" className="accent-[#7b68ee]" checked={checked} onChange={onToggle} />
+        <input type="checkbox" className="accent-[#7b68ee]"
+          checked={checked} onChange={onToggle}
+          disabled={!bulkable}
+          data-testid={bulkable ? undefined : 'row-check-disabled'}
+          title={bulkable ? undefined : '계획이 없는 건입니다 — 오른쪽 [다시 보내기]로 보냅니다'} />
       </td>
       <td className="py-1.5 text-[#090c1d] truncate" title={r.customerName}>
         {r.customerName}
         {r.isAdhoc && <span data-testid="badge-adhoc" className="ml-1 px-1 py-0.5 rounded bg-[#f5f4ff] text-[10px] text-[#7b68ee] border border-[#d0ccf5]">임의</span>}
       </td>
-      <td className="py-1.5 text-[#514b81] tabular-nums">{r.visitDate}</td>
+      <td className="py-1.5 text-[#514b81] tabular-nums">
+        {r.visitDate}
+        {/* 일정변경(S5-0b) — 옛 날짜로 이미 안내가 나갔다. 그냥 보내면 고객이 두 날짜를 안내받는다.
+            자동 재발송은 하지 않는다: 다시 알릴지는 상황을 아는 사람이 판단할 일이다. */}
+        {r.movedFrom && (
+          <span data-testid="badge-moved"
+            title={`${r.movedFrom}로 이미 안내했습니다 — 날짜가 바뀌었으니 다시 알릴지 확인해주세요`}
+            className="ml-1 px-1 py-0.5 rounded bg-amber-50 text-[9px] text-amber-700 border border-amber-200 whitespace-nowrap">
+            일정변경 {r.movedFrom.slice(5)} 안내함
+          </span>
+        )}
+      </td>
       <td className="py-1.5 text-[#8b87b8] truncate">{r.inspectionTypes.join('·')}</td>
       {showAssignee && <td className="py-1.5 text-[#8b87b8] truncate">{r.assigneeName ?? '-'}</td>}
       <td className={`py-1.5 ${r.recipientCount > 1 ? 'text-[#7b68ee] font-medium' : 'text-[#b0acd6]'}`}>
         {r.recipientCount === 0 ? '없음' : r.recipientCount === 1 ? '1명' : `${r.recipientCount}명`}
       </td>
-      <td className="py-1.5">
+      <td className="py-1.5" data-testid="row-status" data-status={r.status}>
         {isDefault
           ? <span className="text-[10px] text-[#b0acd6]">미발송</span>
-          : <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${STATUS_CLASS[r.status]}`}>{STATUS_LABEL[r.status]}</span>}
+          : <span
+              /* '발송됨'에는 접수 확인이 안 된 건(unverified)이 섞여 있을 수 있다 —
+                 실패로 두면 이미 나간 문자를 재발송하므로 발송됨으로 묶되, 툴팁으로 알린다(S5-0c) */
+              title={STATUS_TOOLTIP[r.status]}
+              className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${STATUS_CLASS[r.status]}`}>
+              {STATUS_LABEL[r.status]}
+            </span>}
       </td>
-      <td className="py-1.5 pr-4 text-[10px] text-[#8b87b8] truncate"
+      <td className="py-1.5 pr-2 text-[10px] text-[#8b87b8] truncate"
         title={[r.reason, !r.sendable ? r.unsendableReason : null].filter(Boolean).join(' · ')}>
         {r.sentAt ? new Date(r.sentAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
         {r.reason ? ` ${r.reason}` : ''}
         {!r.sendable && r.unsendableReason ? r.unsendableReason : ''}
+      </td>
+      <td className="py-1.5 pr-4 text-right">
+        {/* 일괄 경로로 못 보내는 행의 유일한 출구 — 없으면 임의 발송 실패 건을 재발송할 방법이 없다 */}
+        {canSend && !bulkable && r.visitDate >= todayKst() && (
+          <button data-testid="row-resend"
+            onClick={() => onResend(r)}
+            title="이 고객에게 이 날짜로 다시 보냅니다"
+            className="h-6 px-2 rounded-lg border border-[#d0ccf5] text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors whitespace-nowrap">
+            다시 보내기
+          </button>
+        )}
       </td>
     </tr>
   )
@@ -107,7 +157,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   // 기본은 **발송됨 제외**(2026-08-19 사용자 지시) — 이 화면에서 할 일은 '아직 안 보낸 것'이다.
   // 이미 보낸 건이 섞여 있으면 목록이 길어지기만 하고 남은 일이 안 보인다.
   // 발송 결과를 확인하려면 상태를 '발송됨'이나 '전체'로 바꾼다(결과 창구 역할은 그대로다).
-  const [status, setStatus] = useState<'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone'>('not_sent')
+  const [status, setStatus] = useState<'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone' | 'stuck'>('not_sent')
   const [assignee, setAssignee] = useState('')
   // 필터는 **항상 펼쳐 둔다**(2026-08-19 사용자 지시).
   // 설계 초안(S5-11)은 "주 동선이 배너 승인이니 접어 둔다"였는데, 실사용에서 뒤집혔다 —
@@ -189,10 +239,13 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   // 논리적으로는 맞지만 사용자에겐 "이렇게 많은데 없다니?"로 읽힌다. 이 화면의 전제가
   // '찾지 않게 한다'인데 배너가 오히려 혼란을 만든 셈이라, **지금 조회 범위의 미발송**을 함께 센다.
   const unsentRows = rows.filter(r => r.status === 'unsent' && r.sendable)
-  const unsentMessages = unsentRows.reduce((n, r) => n + Math.max(r.recipientCount, 0), 0)
-  const noticeCovered = new Set((data?.notices ?? []).flatMap(n => n.planItemIds))
-  // 시점 규칙 밖이라 배너가 못 잡는 미발송 — 이것이 있으면 "없음 ✓"만 보여선 안 된다
-  const unsentOutsideNotices = unsentRows.filter(r => !r.planItemIds.some(id => noticeCovered.has(id)))
+  // ⚠ 배너 줄이 이미 세는 건을 여기서 또 세면 안 된다. 종전엔 게이트만 '시점 밖'으로 걸고
+  // 표시는 **전체 미발송 수**를 써서, 배너 첫 줄의 "내일 6곳"이 둘째 줄 N에도 다시 들어갔다.
+  // 문구는 "안내 시점은 아니지만"인데 사실과 달랐다 — 세는 대상과 말하는 대상을 일치시킨다.
+  // (배너가 커버하는지는 **방문일**로 판정한다 — planItemIds 기준은 S5-10의 쌍 규칙과 어긋나는 잔재였다.)
+  const noticeDates = new Set((data?.notices ?? []).map(n => n.visitDate))
+  const unsentOutsideNotices = unsentRows.filter(r => !noticeDates.has(r.visitDate))
+  const unsentMessages = unsentOutsideNotices.reduce((n, r) => n + Math.max(r.recipientCount, 0), 0)
 
   // 같은 값이 모든 행에 반복되면 열로 둘 가치가 없다 — 폭만 먹고 오른쪽이 잘린다
   const assigneeSet = new Set(rows.map(r => r.assigneeName ?? '-'))
@@ -211,8 +264,22 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
     setStatus('all'); setAssignee('')
   }
 
-  const checkedRows = rows.filter(r => checked.has(r.key))
+  // 체크는 계획 항목이 있는 행에만 걸린다(SmsRow가 나머지를 disabled로 막는다).
+  // 그래도 여기서 한 번 더 거른다 — 필터가 바뀌며 남은 체크가 섞이면 액션 바 숫자가 거짓이 된다.
+  const checkedRows = rows.filter(r => checked.has(r.key) && r.planItemIds.length > 0)
   const checkedPlanItems = checkedRows.flatMap(r => r.planItemIds)
+
+  // 지역·담당으로 좁혀 놓았는가 — 배너 승인이 그 범위를 존중해야 하는지의 판단 근거.
+  // 기간·상태는 제외한다: 배너는 자기 날짜와 미발송만 보므로 그 둘로는 범위가 넓어지지 않는다.
+  const narrowed = !!(regionSi || regionMyeon || regionRi || assignee)
+  /** 지금 화면에 보이는 그 날짜의 미발송 계획 항목 — 배너 승인을 필터 범위로 좁힐 때 쓴다 */
+  const visibleItemsOn = (d: string) =>
+    rows.filter(r => r.visitDate === d && r.status === 'unsent' && r.sendable).flatMap(r => r.planItemIds)
+
+  /** 계획 없는 행의 재발송 — 임의 발송 경로로 그 고객·그 날짜를 미리 채워 연다 */
+  function openResend(r: Row) {
+    setModal({ kind: 'adhoc', customerId: r.customerId, customerName: r.customerName, visitDate: r.visitDate, title: `다시 보내기 — ${r.customerName}` })
+  }
 
   // 임의 발송 후보 — **전 활성 고객**이다. 화면에 뜬 행으로 한정하면 '계획이 잡힌 고객'만
   // 고를 수 있는데, Q-17이 든 사례(견적 방문·계획 없는 AS·상담)는 계획이 없는 고객이라
@@ -307,9 +374,16 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 <button className={btn} onClick={() => { setFrom(n.visitDate); setTo(n.visitDate); setStatus('unsent'); setShowFilter(true) }}>
                   대상 보기
                 </button>
+                {/* 화면을 지역·담당으로 좁혀 놓았으면 **그 범위 안에서만** 보낸다.
+                    종전엔 날짜만 넘겨서, 강하면만 보던 사용자가 누르면 그날 전 지역이
+                    전체 체크 상태로 열렸다(과다 발송 여지). 좁힌 게 없으면 종전대로
+                    날짜만 넘겨 서버가 완전한 목록을 만든다(Q-14). */}
                 <button data-testid="sms-approve" className={btnPri}
-                  onClick={() => setModal({ kind: 'range', from: n.visitDate, to: n.visitDate, title: `${n.label} — 사전 안내` })}>
-                  승인·발송
+                  title={narrowed ? '지금 걸린 지역·담당 범위 안에서만 보냅니다' : undefined}
+                  onClick={() => setModal(narrowed
+                    ? { kind: 'items', planItemIds: visibleItemsOn(n.visitDate), title: `${n.label} — 사전 안내 (현재 필터 범위)` }
+                    : { kind: 'range', from: n.visitDate, to: n.visitDate, title: `${n.label} — 사전 안내` })}>
+                  승인·발송{narrowed ? ' (필터 범위)' : ''}
                 </button>
               </div>
             )}
@@ -323,7 +397,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             <span className="size-1.5 rounded-full bg-[#b0acd6]" />
             <span className="text-xs text-[#090c1d]">{periodLabel}</span>
             <span className="text-xs text-[#514b81]">
-              — 안내 시점은 아니지만 미발송 <b>{unsentRows.length}곳</b> · <b>{unsentMessages}통</b>
+              — 안내 시점은 아니지만 미발송 <b>{unsentOutsideNotices.length}곳</b> · <b>{unsentMessages}통</b>
             </span>
             {canSend && (
               <div className="ml-auto flex items-center gap-1.5">
@@ -432,6 +506,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 <option value="sent">발송됨</option>
                 <option value="failed">실패</option>
                 <option value="no_phone">번호없음</option>
+                <option value="stuck">확인필요</option>
               </select>
             </label>
             <label className="text-[11px] text-[#514b81]">담당
@@ -492,7 +567,8 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               {showAssignee && <col className="w-20" />}
               <col className="w-16" />
               <col className="w-20" />
-              <col className="w-44" />
+              <col className="w-40" />
+              <col className="w-24" />
             </colgroup>
             {/* 머리글이 없어 "2026-08-24 · 종합 · - · 수신1명"이 무슨 열인지 알 수 없었다 */}
             <thead>
@@ -504,7 +580,8 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 {showAssignee && <th className="py-1.5 text-left font-medium">담당</th>}
                 <th className="py-1.5 text-left font-medium">수신</th>
                 <th className="py-1.5 text-left font-medium">상태</th>
-                <th className="py-1.5 pr-4 text-left font-medium">발송일시·사유</th>
+                <th className="py-1.5 text-left font-medium">발송일시·사유</th>
+                <th className="py-1.5 pr-4" />
               </tr>
             </thead>
             <tbody>
@@ -516,7 +593,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                           checked={g.groups.every(r => checked.has(r.key))}
                           onChange={() => toggleGroup(g)} />
                       </td>
-                      <td colSpan={showAssignee ? 7 : 6} className="py-1.5">
+                      <td colSpan={showAssignee ? 8 : 7} className="py-1.5">
                         <span className="inline-flex items-center gap-1.5">
                           <MapPin className="size-3 text-[#b0acd6]" />
                           <span data-testid="sms-region-group" className="text-[11px] font-semibold text-[#090c1d]">{g.label}</span>
@@ -524,9 +601,11 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                         </span>
                       </td>
                     </tr>,
-                    ...g.groups.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee} />),
+                    ...g.groups.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee}
+                    canSend={canSend} onResend={openResend} />),
                   ])
-                : sorted.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee} />)}
+                : sorted.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee}
+                    canSend={canSend} onResend={openResend} />)}
             </tbody>
           </table>
         )}

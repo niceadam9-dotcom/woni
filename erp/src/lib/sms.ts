@@ -24,6 +24,11 @@ import {
 
 type Admin = ReturnType<typeof createAdminClient>
 
+/** '시기 지남'을 며칠까지 거슬러 볼 것인가.
+ *  무한이면 몇 달 전 건까지 계속 떠서 경고가 소음이 되고, 짧으면 놓친 방문을 못 본다.
+ *  한 달이면 "이번 달에 연락 없이 간 곳"을 덮는다 — 사전 안내의 실무 주기와 맞다. */
+export const OVERDUE_WINDOW_DAYS = 30
+
 // ── 안전장치 ──────────────────────────────────────────────────
 /** 문자는 되돌릴 수 없고 돈이 나간다. 세 겹으로 막는다. */
 export function smsGuards() {
@@ -42,7 +47,9 @@ export function smsGuards() {
 // ── 대상 조회 ─────────────────────────────────────────────────
 export type LoadTargetsInput =
   | { planItemIds: string[] }
-  | { from: string; to: string }
+  /** includePast=true면 **지난 방문일도 싣는다** — '시기 지남'(안내 못 하고 지나간 방문)을
+   *  세려면 그 건들이 필요한데, 기본 경로는 발송 대상만 만들므로 과거를 버린다(아래 주석 참조). */
+  | { from: string; to: string; includePast?: boolean }
 
 /** 발송 대상을 만든다.
  *
@@ -82,9 +89,9 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
     if ('planItemIds' in input) {
       q = q.in('id', input.planItemIds)
     } else {
-      // 지난 방문일에 "방문합니다"는 성립하지 않는다 — 배너의 '시기 지남'은 조회 전용이고
-      // 여기(발송 대상)에서는 오늘 이후만 본다
-      const from = input.from < today ? today : input.from
+      // 지난 방문일에 "방문합니다"는 성립하지 않으므로 **발송 대상**에서는 오늘 이후만 본다.
+      // 단 includePast면 그대로 둔다 — '시기 지남'을 세려면 지난 건이 필요하기 때문이다.
+      const from = input.includePast || input.from >= today ? input.from : today
       q = q.gte('scheduled_date', from).lte('scheduled_date', input.to)
     }
     return q.order('id').range(from, to)
@@ -112,7 +119,10 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
   for (const r of rows) {
     const c = r.customers
     if (!c || c.is_active === false) continue          // 계약이 끝난 고객에게 보내지 않는다
-    if (r.scheduled_date < today) continue             // 과거 방문일 가드(planItemIds 경로에도 적용)
+    // 과거 방문일 가드 — planItemIds 경로에도 적용된다(모달에 지난 건이 실리면 안 된다).
+    // includePast일 때만 통과시킨다: '시기 지남'은 **보내려는 게 아니라 놓친 것을 알리려는** 목록이다.
+    const wantsPast = !('planItemIds' in input) && input.includePast === true
+    if (r.scheduled_date < today && !wantsPast) continue
     out.push({
       planItemId: r.id,
       customerId: c.id,
@@ -126,8 +136,12 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
       contacts: c.customer_contacts ?? [],
       // completed도 발송 가능하다 — 확정을 지나 점검이 시작된 상태이지 미확정이 아니다.
       // 여기서 빼면 위 status 필터를 넓힌 의미가 없어지고 '점검일 미확정'이라는 틀린 사유가 붙는다.
-      sendable: r.status !== 'planned',
-      unsendableReason: r.status === 'planned' ? '점검일 미확정 — 점검확정에서 확정해주세요' : null,
+      // 지난 방문일(includePast로 실린 건)은 **보낼 수 없다** — 사유를 달아 모달에서도 막는다.
+      sendable: r.status !== 'planned' && r.scheduled_date >= today,
+      unsendableReason:
+        r.scheduled_date < today ? '이미 지난 방문일 — 사전 안내를 보낼 수 없습니다'
+        : r.status === 'planned' ? '점검일 미확정 — 점검확정에서 확정해주세요'
+        : null,
     })
   }
   return out
@@ -203,6 +217,9 @@ export type SendResult = {
   unverified: number
   noPhone: number
   skipped: number
+  /** 리허설(SMS_DRY_RUN)에서 "실제로 보내면 몇 통인가" — sent와 섞지 않는다.
+   *  sent에 넣으면 화면이 '발송됨'으로 읽어 한 통도 안 나간 것을 성공으로 오인한다. */
+  dryRunPlanned?: number
   rows: Array<{ customerName: string; phoneMasked: string; contactName: string | null; status: string; error: string | null }>
 }
 
@@ -294,10 +311,15 @@ export async function sendInspectionSms(
   }
 
   // ② dryRun — DB에도 남기지 않는다. 리허설이 이력을 오염시키면 리허설이 아니다.
+  //
+  // ⚠ sent에는 **0을 넣는다**(dryRunPlanned로 따로 알린다). 종전엔 sent=units.length라
+  // 화면이 "발송됨 N"으로 읽고 `sent > 0`을 성공 신호로 써서 목록까지 갱신했다 —
+  // 한 통도 안 나간 리허설을 성공으로 오인하게 만든다. 이 기능에서 가장 하면 안 되는 착각이다.
   if (g.dryRun) {
     return {
-      ok: true, sent: units.length, failed: 0, unverified: 0, noPhone: noPhone.length, skipped: 0,
-      error: `[DRY RUN] 실제로 발송하지 않았습니다 (${units.length}통 예정).`,
+      ok: true, sent: 0, failed: 0, unverified: 0, noPhone: noPhone.length, skipped: 0,
+      dryRunPlanned: units.length,
+      error: `[리허설] 실제로 발송하지 않았습니다 — 실제로 보내면 ${units.length}통입니다.`,
       rows: units.map(u => ({
         customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
         contactName: u.contact.name, status: 'dry_run', error: null,
@@ -455,14 +477,20 @@ export async function countUnsentNotices(admin: Admin): Promise<{
   rules: number[]
   /** 가장 가까운(작은 lead) 시점의 요약 — 위젯 문구용 */
   nearest: { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; totalCount: number } | null
+  /** 안내 못 하고 지나간 방문 — 발송은 못 하지만 **알려는 줘야 한다** */
+  overdueCount: number
 }> {
   const today = todayKst()
   const rules = await loadLeadRules(admin)
   const to = addDays(today, Math.max(...rules, 1))
-  const targets = await loadSmsTargets(admin, { from: today, to })
+  // ★ 지난 방문일도 함께 싣는다(includePast) — 종전에는 from을 today로 clamp해서
+  //   overdue가 **구조적으로 항상 0**이었고 '시기 지남' 줄이 렌더될 수 없었다.
+  //   OVERDUE_WINDOW만 거슬러 본다: 몇 달 전 건까지 계속 띄우면 경고가 소음이 된다.
+  const from = addDays(today, -OVERDUE_WINDOW_DAYS)
+  const targets = await loadSmsTargets(admin, { from, to, includePast: true })
   const { groups } = groupTargets(targets)
-  const sent = await loadSentPairs(admin, today, to)
-  const { notices } = resolvePendingNotices(groups, rules, today, (c, v) => sent.has(`${c}|${v}`))
+  const sent = await loadSentPairs(admin, from, to)
+  const { notices, overdue } = resolvePendingNotices(groups, rules, today, (c, v) => sent.has(`${c}|${v}`))
 
   const withWork = [...notices].sort((a, b) => a.leadDays - b.leadDays).find(n => n.unsentCount > 0)
     ?? [...notices].sort((a, b) => a.leadDays - b.leadDays)[0] ?? null
@@ -475,6 +503,7 @@ export async function countUnsentNotices(admin: Admin): Promise<{
       unsentCount: withWork.unsentCount, messageCount: withWork.messageCount,
       totalCount: withWork.groups.length,
     } : null,
+    overdueCount: overdue.count,
   }
 }
 
@@ -486,7 +515,10 @@ export async function loadSentPairs(admin: Admin, from: string, to: string): Pro
   const page = await fetchAllRows((f, t) => admin
     .from('sms_send_log')
     .select('customer_id, visit_date')
-    .in('status', ['sent', 'unverified'])   // unverified는 실제로 나갔을 수 있어 '보냄'으로 친다
+    // unverified·sending도 '보냄'으로 친다 — 둘 다 **실제로 나갔을 수 있는** 상태다.
+    // 미발송으로 두면 배너가 재발송을 권하고, 이미 받은 고객이 두 번 받는다(요금도 두 번).
+    // 대신 목록에서는 각각 '확인불가'·'확인필요'로 드러나 사람이 판단할 수 있다.
+    .in('status', ['sent', 'unverified', 'sending'])
     .gte('visit_date', from).lte('visit_date', to)
     .order('id')
     .range(f, t))

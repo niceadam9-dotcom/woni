@@ -141,8 +141,13 @@
       "note": "Q-8·Q-11·Q-12·Q-15. 종전 'S5 모니터링 SMS 열 5상태'는 화면 폐지로 소멸. 발송 주 경로는 달력(S9)이고 이 화면은 결과·이력의 유일한 창구",
       "criteria": [
         { "id": "S5-0", "desc": "상단 승인 배너(Q-12) — resolvePendingNotices가 sms_lead_rules 시점별로 줄 생성('내일 방문 — 미발송 6곳·7통 [승인·발송]'), [승인·발송]=그 조건 필터+전체 체크된 모달 오픈, 시기 지남은 별도 줄, 결과 0이면 '오늘 보낼 안내 없음 ✓'", "status": "pending_order", "depends": ["Q-12", "Q-13"] },
-        { "id": "S5-0b", "desc": "일정변경 배지 — sms_send_log.visit_date(발송 당시)와 현재 scheduled_date가 다르면 '일정변경 — N/N로 안내함' 표시, 재안내는 사람 판단(자동 재발송 없음)", "status": "pending_order" },
-        { "id": "S5-0c", "desc": "사용자 노출 상태 4종(미발송·발송됨·실패·번호없음) — unverified는 DB에만, 화면은 '발송됨'+툴팁(G-10)", "status": "pending_order" },
+        { "id": "S5-0b", "desc": "일정변경 배지 — sms_send_log.visit_date(발송 당시)와 현재 scheduled_date가 다르면 '일정변경 — N/N로 안내함' 표시, 재안내는 사람 판단(자동 재발송 없음)", "status": "code_present",
+          "evidence": ["sms-actions.ts — 전체 행을 만든 뒤 sentDatesByCustomer로 판정, Row.movedFrom", "sms-status-client.tsx — 점검일 칸에 badge-moved"],
+          "verified": "test-inspection-sms — 옛 날짜 sent 이력을 심고 배지가 뜨는지 확인(2026-08-19)",
+          "note": "**'다음 회차'와 구별하는 것이 핵심**이다. 같은 고객의 8월 건을 보내고 9월 건이 미발송인 것은 정상이다. 그래서 옛 날짜에 **계획 항목이 더는 없을 때만** 이동으로 본다(옮겨졌으니 그 날짜의 계획이 사라진 것). 판정자 지적으로 미구현이 드러나 이번에 구현" },
+        { "id": "S5-0c", "desc": "사용자 노출 상태 4종(미발송·발송됨·실패·번호없음) — unverified는 DB에만, 화면은 '발송됨'+툴팁(G-10)", "status": "code_present",
+          "evidence": ["sms-status-client.tsx STATUS_TOOLTIP — 상태 배지 title", "sms-actions.ts:228 unverified→sent 매핑"],
+          "note": "상태가 **5종이 됐다** — 'stuck(확인필요)' 신설. 결과 기록이 굳은 행은 돈이 나갔을 수 있어 '미발송'으로 두면 재발송·이중 과금이 된다(판정 D3)" },
         { "id": "S5-1", "desc": "행 = 고객 + 점검일(발송 단위와 일치, 계획 항목 단위가 아니다). 열: 고객명·점검일(1단계)·지역(시/군·읍/면·리)·점검유형·담당·수신자(N명)·상태·발송일시·사유", "status": "pending_order", "depends": ["Q-8"] },
         { "id": "S5-2", "desc": "점검일 원천은 inspection_plan_items.scheduled_date — inspection_status_log.inspection_date(세 번째 값)가 아니다", "status": "pending_order", "depends": ["Q-5", "Q-8"] },
         { "id": "S5-3", "desc": "지역 3단 필터 — 시/군→읍/면→리. 앞 단계를 고르면 다음 목록이 그 안의 값만. 리는 선택 사항", "status": "pending_order", "depends": ["Q-11", "P-16"] },
@@ -154,7 +159,10 @@
         { "id": "S5-9", "desc": "조회 원천은 2축 UNION이다 — 축 A(보낼 것) inspection_plan_items ⟕ customers / 축 B(보낸 것) sms_send_log ⟕ customers. (customer_id, visit_date)로 병합하고, 축 A에 없는 축 B 행은 '임의' 배지를 단 별도 행으로 남긴다. 한 조인으로는 계획 항목이 없는 adhoc(Q-17) 건이 화면에 보이지 않는다", "status": "pending_order", "depends": ["Q-17"], "note": "개정 4판 G-21 — 초판의 '조회 원천: inspection_plan_items ⟕ customers ⟕ sms_send_log' 단일 조인은 S8의 '결과 화면에서 임의 배지로 구분'과 서로 어긋났다" },
         { "id": "S5-10", "desc": "'미발송' 판정은 (customer_id, visit_date) 쌍 기준 — sms_send_log에 그 쌍으로 status='sent'인 행이 있으면 발송됨. plan_item_id 기준이 아니다: 점검일을 옮기면 visit_date가 달라져 자동으로 다시 미발송이 되어 배너에 뜬다", "status": "pending_order", "depends": ["Q-16"], "note": "개정 4판 G-22 — 계획 항목 기준으로 판정하면 옛 날짜로 보낸 문자 때문에 '발송됨'으로 남아 재안내를 통째로 놓친다. S12(일괄 이동)와 직접 맞물리는 규칙" },
         { "id": "S5-11", "desc": "필터(기간·지역 3단·상태·담당) 5축은 기본 접힘 — [필터 ▾] 한 줄만 노출하고, 마지막 사용 지역을 기억해 1클릭 복원. 주 동선은 배너 승인이라 필터를 상시 펼치면 '찾는 행위를 없앤다'는 설계와 반대 인상을 준다", "status": "pending_order", "note": "개정 4판 G-26 편의 결함" },
-        { "id": "S5-12", "desc": "'시기 지남' 배너 줄은 다른 줄과 구분한다 — 문구에 불가 사유를 박고('안내 못 하고 지난 방문 3곳 — 문자는 보낼 수 없습니다') 버튼은 [일정 확인]으로 점검확정 화면의 해당 건으로 보낸다. 과거 방문일은 발송 가드에 막히므로 발송 버튼처럼 보이면 '눌렀는데 안 된다'가 된다", "status": "pending_order", "note": "개정 4판 G-26 편의 결함" }
+        { "id": "S5-12", "desc": "'시기 지남' 배너 줄은 다른 줄과 구분한다 — 문구에 불가 사유를 박고('안내 못 하고 지난 방문 3곳 — 문자는 보낼 수 없습니다') 버튼은 [일정 확인]으로 점검확정 화면의 해당 건으로 보낸다. 과거 방문일은 발송 가드에 막히므로 발송 버튼처럼 보이면 '눌렀는데 안 된다'가 된다", "status": "code_present",
+          "evidence": ["sms.ts loadSmsTargets에 includePast 옵션 + OVERDUE_WINDOW_DAYS=30", "sms-actions.ts 배너 경로가 includePast:true로 지난 30일 포함", "countUnsentNotices가 overdueCount 반환", "실린 과거 건은 sendable:false + '이미 지난 방문일' 사유"],
+          "verified": "_probe-sms-send 4건 — includePast면 지난 건이 실린다 · 지난 건은 발송 불가 · 기본 경로는 여전히 제외 · overdueCount>0(2026-08-19)",
+          "note": "★ **차단급 결함이었다**(독립 판정 D1). UI는 처음부터 있었지만 loadSmsTargets가 from을 today로 clamp하고 과거 행을 drop해 overdue가 **구조적으로 항상 0** — 이 줄은 렌더될 수 없었다. '안내 못 하고 지나간 방문'이 시스템 어디에도 안 뜨니, 사용자는 연락 없이 방문한 사실 자체를 몰랐다" }
       ] },
 
     { "id": "S5-b", "title": "고객관리 관계인 화면에 '문자 받음' 체크 (Q-10)", "status": "implemented", "phase": "A",
