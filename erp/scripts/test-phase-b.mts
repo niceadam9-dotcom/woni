@@ -26,9 +26,10 @@ try {
   await page.waitForURL(u => u.pathname === '/dashboard')
   check('리다이렉트 — form=submissions → 대시보드(위젯)', true)
 
+  // 배치 발행 폐지(2026-08-19) — 연차 발행·일괄 생성 창구가 고객 소방계획서 탭으로 좁아져 고객관리로 보낸다
   await page.goto(`${BASE}/reports?form=annual`)
-  await page.waitForURL(u => u.pathname === '/inspection-plans/batch')
-  check('리다이렉트 — form=annual → 배치 발행', true)
+  await page.waitForURL(u => u.pathname === '/customers')
+  check('리다이렉트 — form=annual → 고객관리(배치 발행 폐지)', true)
 
   await page.goto(`${BASE}/reports?form=docs&cust=${customerId}`)
   await page.waitForURL(u => u.pathname === `/customers/${customerId}` && u.searchParams.get('form') === 'annex')
@@ -41,16 +42,17 @@ try {
   await page.waitForURL(u => u.pathname === '/dashboard')
   check('리다이렉트 — /action-plans/status → 대시보드', true)
 
-  // ── 2) 배치 발행 페이지 (H-6c) — 연차 발행·일괄 생성 이전 ──
-  await page.goto(`${BASE}/inspection-plans/batch`)
-  await page.waitForSelector('h1:has-text("배치 발행")')
-  check('배치 발행 — 연차 일괄 발행 마법사', await page.isVisible('h2:has-text("연차 일괄 발행")'))
-  check('배치 발행 — 소방계획서 일괄 생성', await page.isVisible('h2:has-text("소방계획서 일괄 생성")'))
+  // ── 2) 배치 발행 폐지 확인 (2026-08-19 사용자 확정) ──
+  //  종전 H-6c로 여기 모아 뒀던 연차 일괄 발행·소방계획서 일괄 생성을 없앴다.
+  //  근거(실측): 활성 고객 313명 중 계획서 입력 완비 0명 — 일괄 발행은 빈 문서만 만들었고,
+  //  실제 '연차발행'은 고객 상세 [연차] 버튼이 하고 있었다. 되살아나지 않게 못을 박는다.
+  const gone = await page.goto(`${BASE}/inspection-plans/batch`)
+  check('배치 발행 페이지 소멸(404)', gone?.status() === 404, `status=${gone?.status()}`)
 
-  // 점검확정 페이지 진입점
   await page.goto(`${BASE}/inspection-plans`)
-  await page.waitForSelector('a[href="/inspection-plans/batch"]')
-  check('점검확정 — 배치 발행 진입 링크', true)
+  await page.waitForSelector('table, [data-plan-client]', { timeout: 20000 }).catch(() => {})
+  check('점검확정 — 배치 발행 진입 링크 없음',
+    await page.locator('a[href="/inspection-plans/batch"]').count() === 0)
 
   // ── 3) 대시보드 제출 현황 위젯 (H-6b·D-16) — 요약 스트립 + 펼침 테이블 ──
   await page.goto(`${BASE}/dashboard`)

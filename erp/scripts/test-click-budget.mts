@@ -67,8 +67,9 @@ try {
   await page.waitForURL(u => u.pathname === `/customers/${custA}`, { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
   check('예산2 구 딥링크 ?form=docs&cust= → 고객 소방계획서 탭', page.url().includes('tab=plan') && page.url().includes('form=annex'))
   await page.goto(`${BASE}/reports?form=annual`)
-  await page.waitForURL(u => u.pathname === '/inspection-plans/batch', { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
-  check('예산2 구 딥링크 ?form=annual → 배치 발행', true)
+  // 배치 발행 폐지(2026-08-19) — 생성 창구가 고객 소방계획서 탭 하나라 고객관리 목록으로 보낸다
+  await page.waitForURL(u => u.pathname === '/customers', { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
+  check('예산2 구 딥링크 ?form=annual → 고객관리(배치 발행 폐지)', true)
   await page.goto(`${BASE}/reports?form=submissions`)
   await page.waitForURL(u => u.pathname === '/dashboard', { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
   check('예산2 구 딥링크 ?form=submissions → 대시보드(제출 현황판)', true)

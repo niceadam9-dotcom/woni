@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { FileText, CalendarDays, Users, ClipboardList, ArrowRight, TrendingUp } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { FirePlanPresetManager } from '@/components/fire-plans/fire-plan-preset-manager'
 
 const DOC_STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft:    { label: '임시저장', color: 'bg-gray-100 text-gray-600' },
@@ -242,6 +243,12 @@ export default async function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* 소방계획서 공통 프리셋 — 배치 발행 폐지(2026-08-19) 때 여기로 옮겼다.
+          프리셋 자체는 살아 있다: 고객 상세에서 계획서를 생성할 때 requestFirePlanHwpAction이
+          _presets/{유형}.json을 읽는다(실측: house·retail 2종 12항목씩 저장돼 있음).
+          편집기만 없애면 살아 있는 값을 고칠 방법이 사라지므로 관리자 화면으로 옮긴다. */}
+      <FirePlanPresetManager />
     </div>
   )
 }

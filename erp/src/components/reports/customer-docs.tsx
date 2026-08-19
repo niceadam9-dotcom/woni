@@ -118,8 +118,10 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
         </>) : (<>
           <StatusIcon state="warn" />
           <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
-          <span className="text-amber-600">미생성 — 고객 탭 또는 배치 발행에서 생성</span>
-          <Link href="/inspection-plans/batch" className={`ml-auto ${priBtn}`}>바로 생성 →</Link>
+          {/* 배치 발행 폐지(2026-08-19) — 생성 창구가 고객 소방계획서 탭 하나로 좁아졌다.
+              종전엔 전 고객 일괄 생성 화면으로 보냈는데, 그 화면은 이 고객을 다시 찾게 만들었다 */}
+          <span className="text-amber-600">미생성 — 소방계획서 탭에서 생성</span>
+          <Link href={`/customers/${docs.customerId}?tab=plan`} className={`ml-auto ${priBtn}`}>바로 생성 →</Link>
         </>)}
         {feedback('plan')}
       </div>

@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { PackageOpen } from 'lucide-react'
+// Link·PackageOpen 제거 — 배치 발행 진입 칩이 유일한 사용처였다(2026-08-19 폐지)
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadAnchorDates } from '@/lib/inspection-plan-generator'
@@ -166,13 +165,8 @@ export default async function InspectionPlansPage({
 
   return (
     <div className="space-y-2">
-      {/* 배치 발행 진입점 (소방계획서_8 Phase B H-6c) — 구 보고서 센터의 연차 발행·일괄 생성 이전지 */}
-      <div className="flex justify-end">
-        <Link href="/inspection-plans/batch"
-          className="inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
-          <PackageOpen className="size-3.5" /> 배치 발행 — 연차 일괄 발행·소방계획서 일괄 생성 →
-        </Link>
-      </div>
+      {/* 배치 발행 진입점 삭제(2026-08-19 사용자 확정) — 페이지 자체를 폐지했다.
+          연차 발행은 고객 상세 소방계획서 탭의 [연차], 계획서 생성도 같은 탭이 담당한다. */}
     <InspectionPlansClient
       key={`${year}-${month}`}
       initialViewMode={viewMode}

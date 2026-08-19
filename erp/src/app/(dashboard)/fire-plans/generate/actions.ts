@@ -45,58 +45,9 @@ export async function searchCustomersForPlanAction(q: string): Promise<{
   }
 }
 
-/** 생성 페이지 사전 체크 — 선택 고객별 계획서 준비율·누락 항목 (설계 §5-2)
- *  누락이 있어도 생성은 허용(fail-soft) — '이대로 생성' 또는 고객 상세에서 '입력 후 생성' 선택 */
-export async function getFirePlanReadinessAction(customerIds: string[]): Promise<{
-  readiness: Array<{ id: string } & FirePlanReadiness>
-}> {
-  await requirePermission('customer_manage')
-  const ids = [...new Set(customerIds)].filter(Boolean).slice(0, 30)
-  if (ids.length === 0) return { readiness: [] }
-  const admin = createAdminClient()
-
-  const [{ data: custs }, { data: blds }, { data: brigade }] = await Promise.all([
-    admin.from('customers')
-      .select('id, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, manager_appointment_type')
-      .in('id', ids),
-    admin.from('buildings')
-      .select('customer_id, receiver_location, main_structure, roof_structure, created_at')
-      .in('customer_id', ids).eq('is_active', true).order('created_at', { ascending: true }),
-    admin.from('fire_brigade_members').select('customer_id').in('customer_id', ids),
-  ])
-
-  const firstBld = new Map<string, { receiver_location: string | null; main_structure: string | null; roof_structure: string | null }>()
-  for (const b of (blds ?? []) as Array<{ customer_id: string; receiver_location: string | null; main_structure: string | null; roof_structure: string | null }>) {
-    if (!firstBld.has(b.customer_id)) firstBld.set(b.customer_id, b)
-  }
-  const brigadeIds = new Set(((brigade ?? []) as Array<{ customer_id: string }>).map(m => m.customer_id))
-
-  return {
-    readiness: ((custs ?? []) as Array<{
-      id: string; manager_selected_at: string | null; building_grade: string | null
-      insurance_joined: boolean | null; op_hours_weekday: string | null
-      headcount_worker: number | null; headcount_resident: number | null; headcount_max: number | null
-      manager_appointment_type: string | null
-    }>).map(c => {
-      const b = firstBld.get(c.id)
-      return {
-        id: c.id,
-        ...computeFirePlanReadiness({
-          receiverLocation: b?.receiver_location ?? '',
-          structure: b?.main_structure ?? '',
-          roof: b?.roof_structure ?? '',
-          managerSelectedAt: c.manager_selected_at ?? '',
-          grade: c.building_grade ?? '',
-          insuranceJoined: c.insurance_joined,
-          opHoursWeekday: c.op_hours_weekday ?? '',
-          hasHeadcount: c.headcount_worker != null || c.headcount_resident != null || c.headcount_max != null,
-          hasBrigade: brigadeIds.has(c.id),
-          managerAppointType: c.manager_appointment_type ?? '',
-        }),
-      }
-    }),
-  }
-}
+// getFirePlanReadinessAction 삭제(2026-08-19) — 배치 발행 폐지로 유일한 소비자(generate-request-client)가
+// 사라졌다. 'use server' export는 그 자체로 공개 엔드포인트라 쓰지 않는 것은 남기지 않는다.
+// 준비율 계산 자체는 lib/fire-plan-readiness.ts에 그대로 있고 고객 상세·프로브가 계속 쓴다.
 
 /** 프리셋 유형이 지정된 요청 전, 워커가 읽을 _presets/{유형}.json이 없으면 기본값으로 시딩 */
 async function ensurePresetFile(admin: ReturnType<typeof createAdminClient>, type: PresetType): Promise<void> {
@@ -169,54 +120,15 @@ export async function requestFirePlanHwpAction(
   return { requested }
 }
 
-/* ── P-1 연차 일괄 발행 마법사 (소방계획서_5 §8 P-1) ── */
-
-export type AnnualTargets = {
-  year: number
-  total: number       // 소방계획서 대상(활성 전체 — 일반관리 포함, 소방계획서_6 W-19) 고객 수
-  issued: number      // 해당 연도 계획서 보유 고객 수
-  pending: number     // 해당 연도 생성 대기/진행 중
-  remaining: number   // 아직 발행 안 됨 (일괄 발행 대상)
-}
-
-/** 소방계획서 대상 고객 중 해당 연도 미발행 집계 — 마법사 현황 */
-export async function getAnnualTargetsAction(year: number): Promise<{ targets?: AnnualTargets; error?: string }> {
-  await requirePermission('customer_manage')
-  if (!year || year < 2000 || year > 2100) return { error: '연도를 확인해주세요.' }
-  const admin = createAdminClient()
-  const [custRes, planRes, jobRes] = await Promise.all([
-    admin.from('customers').select('id').eq('is_active', true),
-    admin.from('fire_plans').select('customer_id').eq('year', year),
-    admin.from('fire_plan_gen_jobs').select('customer_id').eq('year', year).in('status', ['pending', 'processing']),
-  ])
-  const targets = new Set(((custRes.data ?? []) as Array<{ id: string }>).map(c => c.id))
-  const issued = new Set(((planRes.data ?? []) as Array<{ customer_id: string }>).map(p => p.customer_id).filter(id => targets.has(id)))
-  const pending = new Set(((jobRes.data ?? []) as Array<{ customer_id: string }>).map(j => j.customer_id).filter(id => targets.has(id)))
-  const remaining = [...targets].filter(id => !issued.has(id) && !pending.has(id)).length
-  return { targets: { year, total: targets.size, issued: issued.size, pending: pending.size, remaining } }
-}
-
-/** 해당 연도 미발행 대상 일괄 생성 — H-13: 서버 동기 순차 생성(건당 수 초).
- *  한 요청당 30건 한도(요청 액션과 동일) — 남은 대상은 마법사 현황이 갱신되므로 반복 실행으로 이어서 발행. */
-export async function bulkAnnualIssueAction(year: number, opts: { limit?: number } = {}): Promise<{ requested?: number; error?: string }> {
-  await requirePermission('customer_manage')
-  if (!year || year < 2000 || year > 2100) return { error: '연도를 확인해주세요.' }
-  const admin = createAdminClient()
-  const cap = Math.min(opts.limit ?? 30, 30)
-
-  const [custRes, planRes, jobRes] = await Promise.all([
-    admin.from('customers').select('id, customer_name').eq('is_active', true).order('customer_name'),
-    admin.from('fire_plans').select('customer_id').eq('year', year),
-    admin.from('fire_plan_gen_jobs').select('customer_id').eq('year', year).in('status', ['pending', 'processing']),
-  ])
-  const issued = new Set(((planRes.data ?? []) as Array<{ customer_id: string }>).map(p => p.customer_id))
-  const pending = new Set(((jobRes.data ?? []) as Array<{ customer_id: string }>).map(j => j.customer_id))
-  const toIssue = ((custRes.data ?? []) as Array<{ id: string; customer_name: string }>)
-    .filter(c => !issued.has(c.id) && !pending.has(c.id)).slice(0, cap)
-  if (toIssue.length === 0) return { requested: 0 }
-
-  return requestFirePlanHwpAction(toIssue.map(c => c.id), year, '')
-}
+/* ── P-1 연차 일괄 발행 마법사 삭제 (2026-08-19 사용자 확정) ──
+ *  getAnnualTargetsAction·bulkAnnualIssueAction·AnnualTargets를 걷어냈다.
+ *
+ *  왜: 전 고객 일괄 발행의 전제가 무너져 있었다 — 실측(2026-08-19) 활성 고객 313명 중
+ *  계획서 입력이 완비된 고객이 **0명**이라 일괄 발행은 빈칸투성이 문서 313건을 만들 뿐이었다.
+ *  실사용도 없었다(소방계획서 생성 잡 총 8건·3일, 최근 2건은 실패).
+ *  실제로 쓰인 '연차발행'은 이 마법사가 아니라 고객 상세 소방계획서 탭의 [연차] 버튼
+ *  (fire-plan-actions.ts issueNextYearPlanAction)이며 그쪽은 그대로 남는다.
+ *  잘못 눌러 빈 문서를 대량 생성할 위험이 이득보다 컸다. */
 
 // ── 7차: 프리셋 조회·저장 ─────────────────────────────────────
 
@@ -267,68 +179,7 @@ export async function saveFirePlanPresetAction(preset: FirePlanPreset): Promise<
   return {}
 }
 
-type QueueItem = { name: string; customerId: string; customerName: string; year: number; presetType?: string; requestedByName: string; requestedAt: string }
-
-export type GenStatus = {
-  workerOnline: boolean
-  processing: QueueItem[]
-  pending: QueueItem[]
-  results: Array<{ name: string; ok: boolean; error?: string; customerName?: string; year?: number; preset?: string; customerId?: string; finishedAt?: string; missing?: string[] }>
-}
-
-type JobRow = {
-  id: string; customer_id: string; customer_name: string; year: number
-  preset_type: string | null; status: string; error: string | null; missing: string[] | null
-  requested_by_name: string | null; created_at: string; finished_at: string | null
-}
-
-const toQueueItem = (j: JobRow): QueueItem => ({
-  name: j.id,
-  customerId: j.customer_id,
-  customerName: j.customer_name,
-  year: j.year,
-  presetType: j.preset_type ?? undefined,
-  requestedByName: j.requested_by_name ?? '',
-  requestedAt: j.created_at,
-})
-
-export async function getFirePlanGenStatusAction(): Promise<GenStatus> {
-  await requirePermission('customer_manage')
-  const admin = createAdminClient()
-
-  // 하트비트 (90초 내 = 온라인 — HWP 생성·PDF 변환이 건당 수십 초라 여유 있게)
-  let workerOnline = false
-  const { data: ws } = await admin.from('fire_plan_worker_status')
-    .select('last_seen_at').eq('id', 1).maybeSingle()
-  if (ws?.last_seen_at) workerOnline = Date.now() - new Date(ws.last_seen_at as string).getTime() < 90_000
-
-  const [{ data: active }, { data: finished }] = await Promise.all([
-    admin.from('fire_plan_gen_jobs')
-      .select('id, customer_id, customer_name, year, preset_type, status, error, missing, requested_by_name, created_at, finished_at')
-      .in('status', ['pending', 'processing'])
-      .order('created_at', { ascending: true }),
-    admin.from('fire_plan_gen_jobs')
-      .select('id, customer_id, customer_name, year, preset_type, status, error, missing, requested_by_name, created_at, finished_at')
-      .in('status', ['done', 'failed'])
-      .order('finished_at', { ascending: false })
-      .limit(10),
-  ])
-
-  const jobs = (active ?? []) as JobRow[]
-  return {
-    workerOnline,
-    processing: jobs.filter(j => j.status === 'processing').map(toQueueItem),
-    pending: jobs.filter(j => j.status === 'pending').map(toQueueItem),
-    results: ((finished ?? []) as JobRow[]).map(j => ({
-      name: j.id,
-      ok: j.status === 'done',
-      error: j.error ?? undefined,
-      customerName: j.customer_name,
-      year: j.year,
-      preset: j.preset_type ?? undefined,
-      customerId: j.customer_id,
-      finishedAt: j.finished_at ?? undefined,
-      missing: j.missing ?? undefined,
-    })),
-  }
-}
+// getFirePlanGenStatusAction·GenStatus 삭제(2026-08-19) — 큐 현황판은 배치 발행 화면 전용이었다.
+// 소비자(batch page·generate-request-client)가 함께 사라져 더는 읽히지 않는다.
+// 생성 자체는 서버 동기(H-13, requestFirePlanHwpAction)라 큐를 들여다볼 화면이 필요 없고,
+// 고객 상세는 잡이 아니라 결과(보관함 행)를 본다. 잡 행은 완료 기록용으로 계속 남는다.
