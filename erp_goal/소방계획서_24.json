@@ -62,7 +62,8 @@
   ],
 
   "items": [
-    { "id": "S1", "title": "마이그레이션 140·141 — 발송 이력 테이블 + 수신자 지정 + 시점 규칙 + 문구 시드 (개정 2판: 139는 holidays_source가 선점 — P-18)", "status": "code_present", "phase": "A",
+    { "id": "S1", "title": "마이그레이션 140·141 — 발송 이력 테이블 + 수신자 지정 + 시점 규칙 + 문구 시드 (개정 2판: 139는 holidays_source가 선점 — P-18)", "status": "implemented", "phase": "A",
+      "verified": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션, 구현자 주장 비공개)", "evidence": ["140·141 파일 실재, 139=holidays_source라 번호 충돌 없음", "스테이징 실측: sms_send_log 22/22 컬럼·인덱스 4·RLS 정책 2건·updated_at 트리거 발화·CHECK 4건이 bogus 값을 23514로 거부", "customer_contacts.sms_recipient(nullable=폴백 유효) · company_profile.sms_lead_rules jsonb DEFAULT [1] · message_templates 3행", "anon RLS: select 0행 · insert 42501 차단"], "limit": "운영 DB 적용 여부는 판정 범위 밖(.env.local=스테이징)" },
       "evidence": ["supabase/migrations/140_sms_send_log.sql — sms_send_log(1행=1수신자, kind pre_visit|manual|adhoc, lead_days, provider_raw) + customer_contacts.sms_recipient + 인덱스 3종 + RLS(130 패턴). 유니크 인덱스 없음(G-11)", "supabase/migrations/141_sms_settings.sql — inspection_sms 시드 ON CONFLICT DO NOTHING + company_profile.sms_lead_rules 기본 [1]", "scripts/_apply-140-141-staging.mjs"],
       "verified": "스테이징 적용·검증 완료(2026-08-18): 테이블 1·컬럼 2(sms_recipient·sms_lead_rules)·시드 1·인덱스 4·기본값 [1] 실측. 운영 적용은 미실시",
       "criteria": [
@@ -74,7 +75,8 @@
         { "id": "S1-6", "desc": "스테이징 적용 확인(테이블·컬럼·기본값)", "status": "pending_order" }
       ] },
 
-    { "id": "S2", "title": "lib/sms-recipients.ts — 순수 함수 (서버·클라이언트·테스트 공용)", "status": "code_present", "phase": "A",
+    { "id": "S2", "title": "lib/sms-recipients.ts — 순수 함수 (서버·클라이언트·테스트 공용)", "status": "implemented", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["import 문이 하나도 없음 — import/require/process.env/window/document/fetch/supabase/next grep 전부 0건", "3방향 소비 실증: 클라이언트 3파일('use client')·서버 2파일(sms.ts는 server-only, sms-actions.ts는 'use server')·테스트(무서버 실행)", "test-sms-pure 66/66 재실행"], "minor": "todayKst(now = Date.now())만 기본 인자로 현재 시각 의존 — 인자 주입 가능하고 테스트가 실제로 주입하므로 순수성 위반 아님" },
       "evidence": ["src/lib/sms-recipients.ts 신설 — pickContacts·groupTargets·groupByRegion·smsByteLength/smsKind·maskPhone·parseSolapiResult·dDayLabel·resolvePendingNotices·validateLeadRules·renderTemplate. server-only도 use server도 없음"],
       "verified": "scripts/test-sms-pure.mts 66/66 통과(2026-08-18, 무서버). pickContacts 6케이스·같은 고객 같은 날 2건→1그룹·같은 번호 2역할→1통·(리 없음) 묶음·90바이트 경계·parseSolapiResult 미지 스키마→unverified·점검일 이동 시 재안내 대상 복귀 포함",
       "note": "server-only도 use server도 붙이지 않는다. P-10 해소의 핵심",
@@ -92,6 +94,16 @@
       ] },
 
     { "id": "S3", "title": "lib/sms.ts — 유일한 서버 발송 경로 (server-only)", "status": "code_present", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "verdict": "차단급 1건 지적 → **수정 완료(2026-08-19)**. 다만 수정자가 판정자와 같은 세션이므로 **재판정 전까지 code_present 유지** — 구현자≠판정자 원칙",
+        "passed": ["server-only 확인, SMS 공급자 HTTP 호출은 sms.ts:192 callSolapi 하나뿐(solapi|aligo|coolsms|ncloud|sendSms 전수 grep에서 다른 호출부 0건)", "@/lib/sms import는 서버 3곳뿐이고 sendInspectionSms 실호출부는 sms-actions.ts:126 단 한 곳", "api 라우트·크론에 SMS 우회 경로 0건", "_probe-sms-send 32/32"],
+        "blocker": { "id": "J24-B1", "where": "src/lib/sms.ts:292-310, :338, :349",
+          "desc": "sending 행 claim insert의 error를 검사하지 않는다 — `const { data } = await ...insert()`로 error를 버리고 실패 시 rowIds에 ''를 넣은 뒤 **그대로 :338에서 Solapi를 호출**한다. 결과: 돈은 나갔는데 sms_send_log에 행이 없다 → 화면은 그 건을 '미발송'으로 표시 → 다음 발송 때 재발송·이중 과금. :349 `if (rowIds[i])`가 결과 업데이트도 조용히 건너뛴다.",
+          "why_blocking": "이 파일의 존재 이유(P-1: 실패를 성공으로 보이게 하지 않는다)가 뒤집힌 형태로 재발한 것이고, '발송 전 claim'이 막으려던 바로 그 상황에서 막지 못한다. 되돌릴 수 없는 지출 경로다.",
+          "fix_direction": "기록 실패 시 발송을 중단해야 한다(claim 실패 = 발송 금지).",
+          "fixed": { "date": "2026-08-19", "how": "claim insert의 error를 검사해 실패 시 **발송 전에 중단**한다. 이미 claim한 행은 failed로 정리해 sending으로 방치하지 않는다(중단도 기록으로 남아야 사람이 판단한다). 결과 갱신의 `if (rowIds[i])` 조건도 제거 — claim이 보장되므로 조건부 갱신은 실패를 조용히 건너뛰는 통로였다. noPhone·activity_logs insert 오류는 발송을 막지 않되 console.error로 표면화(삼키지 않는다).",
+            "probe": "scripts/_probe-sms-claim-fail.mts 10/10 — admin 클라이언트를 Proxy로 감싸 sms_send_log insert만 실패시키는 실패 주입. **자격증명을 넣은 상태로 시험**해야 변별력이 생긴다(키가 없으면 어차피 안 나가므로 중단 로직 덕분인지 구분 불가) — solapi 호출은 가짜 응답으로 가로채 외부 발송 0. 대조군 ⑧이 같은 경로로 공급자에 도달함을 보여 ③의 통과가 공허하지 않음을 보증한다. test-all 등록",
+            "regression": "_probe-sms-send 32/32 · test-sms-pure 66/66 · tsc 0" } },
+        "minor": ["서버측 중복 발송 방지 0 — 유일 방어가 클라이언트 2단 확인(inspection-sms-modal.tsx:96·113)이라 탭 2개·액션 재요청으로 통과. maxPerRun은 호출 1회당 상한이라 N회 호출로 우회", "dryRun이 sent를 실통수로 반환(sms.ts:276) → 모달 :130 `if (res.sent > 0) onSent?.()`가 리허설에서도 '발송됨' 콜백을 쏜다", "noPhone insert(:314)·activity_logs insert(:365) 오류도 미검사", "미치환 변수가 경고 없이 나갈 수 있다 — unresolved를 서버가 계산해 넘기지만 모달이 렌더하지 않고 발송도 막지 않는다"] },
       "evidence": ["src/lib/sms.ts 신설 — smsGuards(dryRun·allowlist·maxPerRun) · loadSmsTargets(plan_type 필터 없음·미확정은 sendable:false로 함께 반환·과거일 제외) · loadAdhocTarget · prepareSms · sendInspectionSms(상한→dryRun→allowlist→sending claim→키없음 failed→Solapi 1회→행별 결과+provider_raw→noPhone 기록→활동로그) · loadSentPairs((customer_id, visit_date) 쌍)"],
       "verified": "scripts/_probe-sms-send.mts 32/32 통과(2026-08-18, 스테이징): 자격증명 없음→ok:false+failed 2행(조용한 성공 금지, P-1) · 번호없음→no_phone 행(P-2) · to_phone·contact_role·contact_name·lead_days 기록(P-3) · dryRun DB 미기록 · 상한 초과 시 통째 거부 · allowlist skip · 미확정 건은 행조차 안 생김 · adhoc이 계획 회차를 늘리지 않음 · 과거 방문일 제외",
       "criteria": [
@@ -107,7 +119,8 @@
         { "id": "S3-10", "desc": "activity_logs 요약 1건 — 번호는 maskPhone", "status": "pending_order" }
       ] },
 
-    { "id": "S4", "title": "inspections/sms-actions.ts — 서버 액션 신설 + 구 액션 삭제", "status": "code_present", "phase": "A",
+    { "id": "S4", "title": "inspections/sms-actions.ts — 서버 액션 신설 + 구 액션 삭제", "status": "implemented", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["구 액션 소멸 확인 — monitor/actions.ts·monitor-client.tsx 삭제, saveSmsAction|upsertStatusLogAction|_sendSolapi가 src 내 0건(남은 히트는 전부 '종전에는…' 주석)", "export된 서버 액션 7개 전부 첫 줄에 권한 guard(:47 :108 :155 :294 :302 :311 :334) — 누락 0", "'use server' 규약 준수: async 함수만 export"], "minor": "bulkMovePlanDatesAction(:334)은 계획 날짜를 바꾸는데 inspection_sms_send로 가드 — 현재 두 키의 역할 집합이 같고 내부 confirmPlanItemStageOneAction이 inspection_plan_manage로 이중 방어라 실권한 상승은 없다. 다만 축이 갈리는 순간 내부 가드의 redirect()로 모달에서 화면이 통째로 튄다" },
       "evidence": ["src/app/(dashboard)/inspections/sms-actions.ts 신설 — prepare/send/list + countUnsentNotices + get/saveSmsSettings + bulkMovePlanDates. async 함수만 export, 권한은 can()+{error} 반환(requirePermission의 redirect는 모달에서 화면이 튄다, P-4)", "monitor/actions.ts 삭제(_sendSolapi·saveSmsAction·upsertStatusLogAction 소멸)"],
       "verified": "npm run build 통과 + test-inspection-sms.mts 31/31(2026-08-18). 구 액션 파일은 실제로 삭제돼 잔여 참조 0(grep)",
       "criteria": [
@@ -118,7 +131,11 @@
         { "id": "S4-5", "desc": "monitor/actions.ts에서 _sendSolapi·saveSmsAction 삭제", "status": "pending_order", "depends": ["P-1", "P-2", "P-3", "P-4"] }
       ] },
 
-    { "id": "S5", "title": "문자 발송 화면 신설 (/inspections/sms) — 모니터링 대체 · 결과 단일 창구 + 보조 발송", "status": "code_present", "phase": "A",
+    { "id": "S5", "title": "문자 발송 화면 신설 (/inspections/sms) — 모니터링 대체 · 결과 단일 창구 + 보조 발송", "status": "partial", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "verdict": "부분 — 핵심(2축 UNION)은 충족, 하위 3건 미구현",
+        "passed": ["★ 2축 UNION 실데이터 확인 — 계획 항목만 있는 고객과 sms_send_log만 있고 계획 항목이 없는 adhoc 고객을 각각 넣고 브라우저로 확인, **둘 다 목록에 뜬다**([임의] 배지 표시). 선행 지적 G-21 해소", "승인 배너·'시기 지남' 별도 줄·필터 기본 접힘·지역 3단 필터·상태 4종·사이드바 교체", "미발송 판정이 (customer_id, visit_date) 쌍이고 배너·행·뱃지가 같은 규칙"],
+        "not_met": ["S5-0b 일정변경 배지 미구현 — src 전역에 '일정변경' 문자열 0건. 날짜를 옮긴 뒤 옛 날짜로 보낸 이력이 있다는 사실을 화면이 말하지 않는다(S12-6도 함께 공백)", "S5-7 지도 모달 미이식 — 폐지된 모니터링의 방문 준비 지도가 **대체 없이 소실**(기능 회귀)", "S5-11 후반부(마지막 사용 지역 기억·1클릭 복원) 미구현 — 상태가 전부 useState라 영속화 없음"],
+        "minor": ["S5-0c unverified 툴팁 없음", "S5-1 '지역'이 열이 아니라 그룹 헤더로 대체", "S5-12 [일정 확인]이 해당 건이 아니라 /inspection-plans 목록으로", "실패·이력-only 행은 planItemIds=[]라 선택해도 발송 버튼이 비활성 → adhoc 실패 건을 결과 화면에서 재발송할 수 없다(S5-6의 사각)", "축 B 조회에 limit 없음 → PostgREST 기본 1000행 절단 여지"] },
       "evidence": ["src/app/(dashboard)/inspections/sms/page.tsx + src/components/sms/sms-status-client.tsx 신설 — 승인 배너·지역 3단 묶음·필터 기본 접힘·상태 4종·선택 액션 바(발송/점검일 일괄 변경)", "listSmsStatusAction의 2축 UNION(계획 축 + sms_send_log 축, (customer_id, visit_date) 병합, A에 없는 B는 '임의' 배지)"],
       "verified": "test-inspection-sms.mts — 자체점검·정기·미확정이 모두 목록에 뜸 · 지역 3단 헤더에 '전수리' · '(리 없음)' 묶음 유지 · 필터 기본 접힘 · 배너에 내일 미발송 집계(2026-08-18)",
       "note": "Q-8·Q-11·Q-12·Q-15. 종전 'S5 모니터링 SMS 열 5상태'는 화면 폐지로 소멸. 발송 주 경로는 달력(S9)이고 이 화면은 결과·이력의 유일한 창구",
@@ -140,7 +157,8 @@
         { "id": "S5-12", "desc": "'시기 지남' 배너 줄은 다른 줄과 구분한다 — 문구에 불가 사유를 박고('안내 못 하고 지난 방문 3곳 — 문자는 보낼 수 없습니다') 버튼은 [일정 확인]으로 점검확정 화면의 해당 건으로 보낸다. 과거 방문일은 발송 가드에 막히므로 발송 버튼처럼 보이면 '눌렀는데 안 된다'가 된다", "status": "pending_order", "note": "개정 4판 G-26 편의 결함" }
       ] },
 
-    { "id": "S5-b", "title": "고객관리 관계인 화면에 '문자 받음' 체크 (Q-10)", "status": "code_present", "phase": "A",
+    { "id": "S5-b", "title": "고객관리 관계인 화면에 '문자 받음' 체크 (Q-10)", "status": "implemented", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["edit-contacts-client.tsx:306-323 체크박스 · :321-323 번호 없음 경고 · :134-141 '미지정 시 대표 1통 / 체크 시 N명 지정 = 점검 1회당 N통'", "customers/actions.ts:849-860이 해제를 false가 아니라 null로 되돌려 폴백을 살린다", "E2E 4/4 — DB 저장까지 확인"] },
       "evidence": ["edit-contacts-client.tsx — 관계인 카드마다 '문자 받음' 체크 + 번호 없으면 '발송되지 않습니다' 안내 + 상단 통수 요약(체크 인원 = 회차당 통수)", "customers/actions.ts setContactSmsRecipientAction — 해제는 false가 아니라 null로 되돌린다(전원 false면 폴백이 안 돌아 그 고객만 조용히 문자가 끊긴다)"],
       "verified": "test-inspection-sms.mts — 미지정 시 '대표에게 1통' 표시 · 체크가 DB에 저장(sms_recipient=true) · 체크 후 '1명 … 1회당 1통' 표시 확인(2026-08-18)",
       "criteria": [
@@ -149,7 +167,8 @@
         { "id": "S5b-3", "desc": "전원 미지정(NULL) 고객은 '미지정 — 대표에게 1통'으로 표시해 폴백 동작을 숨기지 않는다", "status": "pending_order" }
       ] },
 
-    { "id": "S6b", "title": "모니터링 폐지 + inspection_status_log 은퇴 (Q-8)", "status": "code_present", "phase": "A",
+    { "id": "S6b", "title": "모니터링 폐지 + inspection_status_log 은퇴 (Q-8)", "status": "implemented", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["monitor/page.tsx:19 → redirect('/inspections/sms') — 죽은 링크 아님, E2E 실측", "src 내 inspection_status_log 실사용 0건(남은 히트는 전부 주석), 쓰기 3곳 제거 확인", "E2E: 구 모니터링 주소가 문자 발송으로 이어진다 ✅ / [점검현황 모니터링] 사라졌다 ✅ / [문자 발송] 있다 ✅"], "minor": ["죽은 타입 InspectionStatusLog(types/index.ts:198) 참조처 0인 채 잔존", "구 모니터링 주소를 쓰는 레거시 스크립트 4건 — 이제 리다이렉트만 되므로 해당 단정은 의미를 잃었다"] },
       "evidence": ["monitor/page.tsx → /inspections/sms 리다이렉트(즐겨찾기·기존 링크가 404가 되지 않게)", "monitor/actions.ts·monitor-client.tsx 삭제", "쓰기 3곳 제거: upsertStatusLogAction(파일째) · inspection-step-sync.ts의 status_log upsert 블록 · report-actions.ts의 자동 반영", "src에 남은 inspection_status_log 참조 0(grep)", "테이블·과거 데이터는 DROP하지 않음"],
       "verified": "★ inspection-step-sync.ts의 plan_items status='confirmed' 승격은 **남겼다** — test-general-selfinspection 14/14·test-plan-date-sync 23/23 통과로 1단계 완료가 계획 항목에 반영되는지 확인(2026-08-18). test-inspection-sms에서 구 주소 리다이렉트·사이드바 교체 확인",
       "criteria": [
@@ -160,7 +179,8 @@
         { "id": "S6b-5", "desc": "회귀 — 작업대 6단계 판정과 plan_items 승격이 그대로인지(test-inspection-steps-sync.mts), 보고서 업로드가 정상인지", "status": "pending_order" }
       ] },
 
-    { "id": "S6", "title": "문구를 message_templates로 이관", "status": "code_present", "phase": "B",
+    { "id": "S6", "title": "문구를 message_templates로 이관", "status": "implemented", "phase": "B",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["★ 반증 시도로 확정 — 스테이징 message_templates.inspection_sms.body를 센티넬로 바꾸고 prepareSms 호출 → 출력이 센티넬로 바뀜. 코드 상수가 실사용 경로를 이기지 않는다(판정 후 원본 복구 확인)", "종전 경로 소멸: localStorage('sms_default_content') grep 0건", "컴포넌트·서버액션에 문구 리터럴 없음"], "minor": "lib/message-template.ts:51-60 DEFAULT_TEMPLATES.inspection_sms만 리터럴로 남음 — 130 미적용 대비 폴백이고 141 시드와 바이트 단위 동일. owner_report·mail_signature와 같은 기존 패턴이라 위반으로 보지 않음" },
       "evidence": ["message-template.ts — TemplateKey·DEFAULT_TEMPLATES·TEMPLATE_LABEL·TEMPLATE_VARS에 inspection_sms 추가 + TEMPLATE_IS_SMS 신설(요금이 갈리는 종류만 바이트 표시)", "141 시드와 DEFAULT_TEMPLATES 본문 동일", "monitor-client.tsx 삭제로 DEFAULT_MSG·localStorage('sms_default_content') 소멸"],
       "verified": "test-sms-pure.mts에서 기본 문구 78바이트·SMS 범위 확인 · test-inspection-sms.mts에서 설정 화면 3종 카드 렌더·SMS 카드에만 바이트 표시 확인(2026-08-18)",
       "criteria": [
@@ -169,7 +189,8 @@
         { "id": "S6-3", "desc": "DEFAULT_MSG·localStorage('sms_default_content')는 S6b에서 monitor-client.tsx가 통째로 사라지며 함께 제거된다", "status": "pending_order", "depends": ["P-6", "Q-8"] }
       ] },
 
-    { "id": "S7", "title": "문자 발송 설정 화면 신설 (/settings/message-templates) — 시점 + 문구", "status": "code_present", "phase": "B",
+    { "id": "S7", "title": "문자 발송 설정 화면 신설 (/settings/message-templates) — 시점 + 문구", "status": "implemented", "phase": "B",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["시점 블록(태그·×제거·숫자 자유 입력·빠른 추가 칩·중복 거부·먼 시점 우선 정렬, message-templates-page.tsx:71-113) + 문구 3종 카드·SMS 카드에만 바이트/LMS 표시(:116-146)", "사이드바 [발송 문구]와 /settings 허브 카드 양쪽 진입", "저장은 message_template_manage 가드, company_profile 정렬 고정으로 저장·조회 행 일치", "E2E 7/7"], "minor": "settings/message-templates/page.tsx:7 주석('이 앱의 첫 /settings 라우트')이 json S7 정정('허브는 이미 있었다')과 모순 — 문서 부정합" },
       "evidence": ["src/app/(dashboard)/settings/message-templates/page.tsx + src/components/settings/message-templates-page.tsx 신설", "listMessageTemplatesAction — 3종 1회 조회", "사이드바 '설정'에 [발송 문구] + /settings 허브에도 링크 카드"],
       "verified": "test-inspection-sms.mts — 시점 태그 추가 시 증가·먼 시점이 앞·중복 거부 · 문구 3종 카드 · 관계인 보고 문구가 설정에서 보임 · SMS 카드에만 바이트 표시(2026-08-18)",
       "note": "Q-6·Q-13. **정정**: 초판은 '관계인 보고 문구가 처음 편집 가능해진다'였으나 편집은 작업대 ③ 칸에서 이미 됐다(P-7 corrected). 이 화면이 해소하는 것은 '발견 가능성'이다. 또한 '첫 /settings 페이지 신설'도 오독이었다 — /settings 허브는 이미 있었고 이 화면은 그 하위 페이지다",
@@ -184,7 +205,8 @@
         { "id": "S7-7", "desc": "UI는 plan-text-library-page.tsx 참고하되 단순화 — 대안문구·버전·사용처 추적은 넣지 않는다(키당 1개 모델)", "status": "pending_order" }
       ] },
 
-    { "id": "S8", "title": "공용 발송 모달 (components/sms/inspection-sms-modal.tsx)", "status": "code_present", "phase": "B",
+    { "id": "S8", "title": "공용 발송 모달 (components/sms/inspection-sms-modal.tsx)", "status": "implemented", "phase": "B",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["items/range/adhoc 3진입(:17-20)·서버 계산(prepare)·수신자 체크(:99-110)·실통수 버튼(:342)·'이미 발송됨' 배지+확인 1회·미확정 회색 줄+[점검확정으로 이동]·자격증명 경고·발송 후 건별 결과+[발송 결과 전체 보기]", "수신자 전체 해제 시 그룹이 실제로 제외됨을 lib/sms.ts:245-251에서 확인(빈 배열도 필터에 걸림 → 과발송 없음)", "발송 전 수신자 수가 목록 행·선택 바·모달 하단·버튼 네 곳에 보인다(비용이 눌리기 전에 드러남)"], "minor": ["S8-3 '번호 수정' 미구현", "S8-10 결과 링크에 날짜 필터 미부착 — 기본 범위로 떨어져 한 번 더 좁혀야 한다"] },
       "evidence": ["src/components/sms/inspection-sms-modal.tsx 신설 — items/range/adhoc 3진입 · 서버가 그룹·수신자·문구 계산 · 수신자 체크(회차 한정) · 실통수 버튼 · '이미 발송됨' 배지 + 확인 1회 · 미확정 회색 줄 + [점검확정으로 이동] · 자격증명 없음 경고 · 발송 후 건별 결과 + [발송 결과 전체 보기]"],
       "verified": "test-inspection-sms.mts — 모달에 자체점검 포함 · 폴백 1명 · 미확정 발송 불가 표시 · 자격증명 경고 · 버튼에 실통수 · 바이트/LMS 표시(2026-08-18)",
       "criteria": [
@@ -201,7 +223,10 @@
         { "id": "S8-11", "desc": "미확정(planned) 건은 목록에서 빼지 않고 회색 줄 + '점검일 미확정' + [점검확정으로 이동 →]로 보여주되 체크 불가. 달력에는 미확정 계획 칩도 보이므로 조용히 빼면 '달력에 있는데 문자 목록엔 없다'가 된다", "status": "pending_order", "depends": ["Q-14"], "note": "개정 4판 — loadSmsTargets가 sendable:false로 함께 반환" }
       ] },
 
-    { "id": "S9", "title": "진입점 — 주 = 달력, 보조 = 문자 발송 화면 (Q-14·Q-15)", "status": "partial", "phase": "B",
+    { "id": "S9", "title": "진입점 — 주 = 달력, 보조 = 문자 발송 화면 (Q-14·Q-15)", "status": "implemented", "phase": "B",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "verdict": "partial → implemented 승격 — 코드가 아니라 **화면에서 눌러** 8개 진입점 전부 확인",
+        "evidence": ["주: 달력 툴바 [사전안내 문자] 클릭 → 모달에 내일 계획 건 실림 · 달력 데이 패널 [사전안내 문자](calendar-sms-day)", "보조: 사이드바 [문자 발송] · 미발송 뱃지(배너 수치와 일치) · 대시보드 위젯(href·수치 일치)", "adhoc 3곳: 고객 상세 [문자 보내기] · 작업대 [재방문 안내] · 문자 화면 툴바 [임의 발송] — 클릭해 모달 대상 계산까지 도달", "'모드만 있고 누를 버튼이 없다'는 반증 조건 불성립"],
+        "reservation": "S9-6③ 툴바 임의 발송의 고객 후보가 '화면에 뜬 행'(기본 오늘~+7)으로 한정 — 기준 문구는 '고객 검색부터'였다. P-20이 든 사례(견적 방문·계획 없는 AS 고객)는 이 진입점으로 못 고른다. ①②가 임의 고객을 커버하므로 차단은 아니나 S9-6은 완전 충족이 아니다" },
       "evidence": ["inspection-calendar-client.tsx — 데이 패널·툴바 [사전안내 문자](날짜 전달, 달력 신규 상태는 smsSource 하나) + canSendSms prop", "sidebar.tsx — [점검현황 모니터링] → [문자 발송] 교체, 뱃지 축도 이동", "adhoc 진입 2곳: 고객 상세 [문자 보내기](edit-contacts-client.tsx) · 작업대 [재방문 안내](inspection-workbench.tsx) · 문자 발송 화면 툴바 진입은 미구현"],
       "verified": "test-inspection-sms.mts — 툴바 버튼 존재 · 달력에서 열어도 자체점검 포함 전 건 표시 · 사이드바 교체 확인 · 고객 상세 adhoc 진입점 확인(2026-08-18)",
       "note": "partial 사유 — S9-5의 **대시보드 위젯**과 **사이드바 미발송 뱃지 실제 배선**(countUnsentNoticesAction을 레이아웃에서 호출)이 미구현이다. 액션은 만들어 뒀으나 호출부가 없다. 문자 발송 화면 툴바의 [임의 발송] 버튼도 미구현(고객 상세·작업대 2곳만)",
@@ -218,19 +243,24 @@
       "note": "Q-12(승인 방식)로 deferred. 승인 방식이 자동의 준비 단계 — 배너의 resolvePendingNotices를 크론이 그대로 부르면 되므로 켤 때 라우트 1개 + 그때 멱등 유니크 인덱스 마이그레이션. 켤 때의 설계 메모(보존): 인증은 if (!cronSecret || ...) return 401(P-9 — 기존 'cronSecret &&' 패턴은 미설정 시 무인증 통과라 금지) · 과거 방문일 400 · 키 없을 때 failed 행+{ok:false,reason:'SOLAPI_CREDENTIALS_MISSING'}(HTTP 200)+manager 인앱 알림 · VPS 한 곳만 등록(vercel.json 금지 — 이중 등록=이중 발송)",
       "criteria": [] },
 
-    { "id": "S12", "title": "점검일 동기화 단일화 + 지역 묶음 일괄 이동 (P-19·Q-16)", "status": "code_present", "phase": "A",
+    { "id": "S12", "title": "점검일 동기화 단일화 + 지역 묶음 일괄 이동 (P-19·Q-16)", "status": "implemented", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션) — 변이 검증 직접 수행", "evidence": ["호출처 전수: 요구는 5곳이나 실제 6경로(인라인 달력·슬라이드 패널·정기 드래그·별지 확정 모달·일괄 확정·지역 묶음 일괄 이동) 전부 확정 액션 단일 통과, 우회 0", "test-plan-date-sync 23/23 · test-sms-bulk-move 17/17"],
+        "incident": "⚠ 변이 검증 중 사고 — 판정자가 S12-3 가드를 일시 무력화한 사이 **타 세션이 그 임시 줄을 커밋 30ceb27에 담았다**(`if (false && ...)`). HEAD에서 1단계 완료 건의 날짜가 6경로 전부에서 변경 가능한 상태였다(법정 기록 훼손 직결). 미푸시 상태에서 발견해 커밋 54aa213으로 복구. 교훈: 여러 세션이 같은 워킹트리를 공유하는 환경에서 변이 검증은 워크트리 분리가 필요하다" },
       "evidence": ["①은 S12-1~S12-3 참조(inspection-start.ts syncInspectionVisitDate·isStepOneCompleted, 확정 함수로 이관, 인라인 달력 에러 표시)", "②bulkMovePlanDatesAction — 단일 경로(confirmPlanItemStageOneAction) 순회 + 건별 실패 반환 · sms-status-client.tsx의 [점검일 일괄 변경]('지역 순회 일정 조정' 라벨 동반)"],
       "verified": "test-plan-date-sync.mts 23/23 + 변이 검증(2026-08-18). ②의 건별 실패 반환은 코드상 구현됐으나 **E2E 미검증** — S11-9가 남은 이유",
       "note": "사용자 요구 '전체 점검일이 동일하게 동기화되어야 해' — 일괄 이동을 만들면서 동기화를 한 경로로 강제한다",
       "criteria": [
-        { "id": "S12-1", "desc": "confirmPlanItemStageOneAction 안으로 inspections.inspection_start_date 동기화 이관 — 호출처 5곳(인라인 달력·updatePlanItemAction·moveMonthlyPlanItemAction·별지 확정 모달·일괄 확정) 어디로 들어와도 갈라지지 않게. updatePlanItemAction:191-199의 중복 갱신은 제거", "status": "code_present", "depends": ["P-19"],
+        { "id": "S12-1", "desc": "confirmPlanItemStageOneAction 안으로 inspections.inspection_start_date 동기화 이관 — 호출처 5곳(인라인 달력·updatePlanItemAction·moveMonthlyPlanItemAction·별지 확정 모달·일괄 확정) 어디로 들어와도 갈라지지 않게. updatePlanItemAction:191-199의 중복 갱신은 제거", "status": "implemented", "depends": ["P-19"],
+          "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["syncInspectionVisitDate 호출이 확정 액션 두 분기 모두에 있음(actions.ts:294 정기·event / :364 자체점검)", "중복 갱신 제거 확인 — inspection-plans/actions.ts 안에 from('inspections').update가 0건", "호출처 6경로 전수 확인, 우회 0"] },
           "evidence": ["inspection-start.ts:23-48 syncInspectionVisitDate 신설(다일 종료일 보정 포함)", "inspection-plans/actions.ts:249-262 확정 함수 주석 — 네 축을 이 함수가 책임진다", "inspection-plans/actions.ts 정기 분기·자체점검 분기 각각에서 syncInspectionVisitDate 호출(2회)", "inspection-plans/actions.ts updatePlanItemAction의 inspections 직접 갱신 제거"],
           "verified": "test-plan-date-sync.mts 23/23 통과(2026-08-18). 변이 검증: 동기화를 무력화하면 ★단언이 실패하고 scheduled=9/17·step1=9/17·steps.due=9/17 대비 inspections.start=9/10으로 갈라진다 — 테스트가 결함을 실제로 잡는다",
           "note": "실측 정정 — 초판이 '갱신됨'으로 적은 ②(updatePlanItemAction) 경로는 도달 불가능한 죽은 코드였다. startInspectionCore:117이 시작과 동시에 plan_items.status='completed'로 바꾸고 :168이 완료 항목의 날짜 변경을 먼저 거부한다. 즉 시작된 점검의 방문일을 고치는 살아 있는 경로가 하나도 없었다" },
-        { "id": "S12-2", "desc": "다일 점검 보정도 함께 이관 — inspection_end_date < 새 시작일이면 종료일 동반 이동", "status": "code_present",
+        { "id": "S12-2", "desc": "다일 점검 보정도 함께 이관 — inspection_end_date < 새 시작일이면 종료일 동반 이동", "status": "implemented",
+          "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["inspection-start.ts:42-45 — end < start일 때만 밀고, 뒤에 있으면 유지(기간 임의 축소 방지). 양방향 실행 확인", "변이 검증 M2: 보정 줄을 제거하니 start=09-24·end=09-17로 어긋나며 단언 실패"] },
           "evidence": ["inspection-start.ts:43-45 endDate < startDate일 때만 inspection_end_date 동반 이동"],
           "verified": "test-plan-date-sync.mts — 앞선 종료일은 함께 이동, 뒤에 있는 종료일은 유지(기간을 임의로 줄이지 않는다) 2건 통과" },
-        { "id": "S12-3", "desc": "인라인 달력에도 '1단계 완료 후 계획에서 변경 금지' 가드 적용 — 지금은 canManage만 검사해 우회된다(inspection-plans-client.tsx:830-831)", "status": "code_present", "depends": ["P-19"],
+        { "id": "S12-3", "desc": "인라인 달력에도 '1단계 완료 후 계획에서 변경 금지' 가드 적용 — 지금은 canManage만 검사해 우회된다(inspection-plans-client.tsx:830-831)", "status": "implemented", "depends": ["P-19"],
+          "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["actions.ts:269-271이 isStepOneCompleted로 **확정 액션 내부에서** 차단 — 화면 disabled가 아니라 서버 거부임을 HTTP 액션 직접 호출로 확인", "일괄 이동에서도 1단계 완료 건이 사유와 함께 실패로 반환", "변이 검증 M3: 가드를 무력화하니 '인라인 달력 경로가 가드에 막힌다' 단언이 실패 — 가드가 실제로 동작함이 역으로 입증됨"], "note": "⚠ 이 변이 검증 중 임시 무력화 줄이 타 세션 커밋 30ceb27에 딸려 들어가 HEAD가 깨졌다 — 커밋 54aa213으로 복구(S12 incident 참조)" },
           "evidence": ["inspection-start.ts:50-59 isStepOneCompleted", "inspection-plans/actions.ts confirmPlanItemStageOneAction 진입부 가드 — 클라이언트가 아니라 서버가 막는다", "inspection-plans-client.tsx InlineDateCell err 상태 + data-testid='inline-date-error' — 종전에는 res.error를 버려 '눌러도 아무 일이 없음'으로만 보였다"],
           "verified": "test-plan-date-sync.mts — 1단계 완료 후 인라인 달력·패널 양쪽 거부 + 날짜 불변 3건 통과. 변이 검증 시 scheduled가 9/22로 실제 이동해 결함이 재현된다",
           "note": "문서는 '가드는 호출처에 남긴다'였으나 서버 함수 안으로 넣었다 — 클라이언트 게이트는 우회 가능하고, 확정 함수가 책임지면 어느 경로로 들어와도 막힌다(S12-1과 같은 논리)" },
@@ -239,7 +269,8 @@
         { "id": "S12-6", "desc": "이동 후 기발송 건은 일정변경 배지가 자동으로 붙어 재안내 판단으로 이어진다(S5-0b 연동 확인)", "status": "pending_order" }
       ] },
 
-    { "id": "S11", "title": "검증 스크립트", "status": "code_present", "phase": "A",
+    { "id": "S11", "title": "검증 스크립트", "status": "implemented", "phase": "A",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["test-plan-date-sync 23/23 · test-sms-bulk-move 17/17 · test-sms-pure 66/66 · _probe-sms-send 32/32 재실행"], "minor": ["test-plan-date-sync:209-211의 정적 단언(소스 텍스트 정규식)은 **주석 처리된 코드도 세어** 변이 M1에서 통과했다 — 감시자로는 약하다(실제 방어는 동적 단언이 했다)", "test-sms-bulk-move는 일괄 이동 경로에서 scheduled_date만 단언하고 네 축 단언은 없다(공용 확정 액션을 타므로 성질은 상속되나 직접 단언 부재)", "test-inspection-sms는 테스트 결함 2건으로 레드 — 셀렉터가 data-testid 자손 input을 찾는데 실제로는 input 자신에 붙어 있고(:225 타임아웃으로 스위트 중단), :80의 nav 셀렉터가 Next dev 오버레이를 잡아 오탐. **제품 결함 아님**"] },
       "evidence": ["scripts/test-sms-pure.mts (무서버 66건)", "scripts/_probe-sms-send.mts (서버 발송 모듈 32건)", "scripts/test-inspection-sms.mts (UI 배선 31건)", "scripts/test-plan-date-sync.mts (점검일 5경로 23건)", "test-all.mts에 4건 등록"],
       "verified": "합계 152건 통과(2026-08-18). test-inspection-sms는 2회 연속 실행으로 잔재 내성 확인 — 시점 규칙을 시작 시 [1]로 고정하고 finally에서 원복하도록 고친 뒤",
       "criteria": [
@@ -250,7 +281,8 @@
         { "id": "S11-5", "desc": "수신자 2명이면 sms_send_log 2행 · 같은 번호 2역할이면 1행", "status": "pending_order", "depends": ["Q-9"] },
         { "id": "S11-6", "desc": "test-message-templates.mts 확장 — 기존 13항목 회귀 + inspection_sms 조회·저장·오타 변수 거부 + {디데이} 치환 + 설정 화면 시점 태그 추가·삭제 + 3종 카드 렌더", "status": "pending_order", "depends": ["Q-13"] },
         { "id": "S11-7", "desc": "회귀 — status_log 쓰기 3곳 제거 후 작업대 6단계·plan_items 확정 승격 유지(test-inspection-steps-sync.mts)·보고서 업로드 정상. test-all.mts에 신규 2개 등록", "status": "pending_order", "depends": ["Q-8"] },
-        { "id": "S11-8", "desc": "★ P-19 회귀 방어 — 다섯 경로(인라인 달력·슬라이드 패널·달력 드래그·별지 확정 모달·일괄 확정)로 각각 날짜를 바꾼 뒤 scheduled_date·step1~6_date·inspection_steps.due_date·inspections.inspection_start_date가 **전부 같은 날짜**인지 단언. 다일 점검이면 end_date 보정까지", "status": "code_present", "depends": ["P-19", "Q-16"],
+        { "id": "S11-8", "desc": "★ P-19 회귀 방어 — 다섯 경로(인라인 달력·슬라이드 패널·달력 드래그·별지 확정 모달·일괄 확정)로 각각 날짜를 바꾼 뒤 scheduled_date·step1~6_date·inspection_steps.due_date·inspections.inspection_start_date가 **전부 같은 날짜**인지 단언. 다일 점검이면 end_date 보정까지", "status": "implemented", "depends": ["P-19", "Q-16"],
+          "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["test-plan-date-sync 23/23(변이 복구 후 재확인도 23/0)", "변이 M1(동기화 무력화)에서 23→19통과/4실패 — 죽은 단언에 '인라인 달력으로 이동 후 네 축 일치'가 포함돼 P-19 그 모양(scheduled·step1·steps.due=09-17 vs inspections.start=09-10)이 그대로 재현됨"] },
           "evidence": ["scripts/test-plan-date-sync.mts 신설 — _judge19-action.mjs로 같은 서버 액션을 로그인 세션 HTTP 호출(코드 경로가 UI와 동일)", "test-all.mts에 '점검일 동기화 5경로(E2E)' 등록"],
           "verified": "23/23 통과(2026-08-18). 슬라이드 패널은 시작 전(planned) 구간에서 검증 — 시작된 뒤의 거부는 기존 설계라 사실로 고정",
           "note": "S11-9(지역 일괄 이동)는 S12② 구현 후에 이 스크립트로 확장한다" },
@@ -260,7 +292,8 @@
         { "id": "S11-10", "desc": "★ Q-17 임의 발송 — 고객 상세 [문자 보내기] → 방문일 지정 → 발송 시 sms_send_log에 kind='adhoc'·plan_item_ids=[] 1행이 남고 **계획 항목·점검 회차는 늘지 않는다**(점검 업무 목록 건수 불변 단언). S5 화면에 '임의' 배지로 보인다(축 B 병합, S5-9)", "status": "pending_order", "depends": ["Q-17", "P-20"], "note": "개정 4판 G-24 — md·json 양쪽 모두에 없던 유일한 검증 공백. 계획 오염 방지가 Q-17의 핵심 제약이므로 '회차 수 불변'이 단언의 중심" },
         { "id": "S11-11", "desc": "미확정(planned) 건이 있는 날짜로 모달을 열면 회색 줄 + '점검일 미확정'으로 보이되 체크 불가 — 목록에서 빠지지 않는다(S8-11)", "status": "pending_order", "note": "개정 4판" },
         { "id": "S11-12", "desc": "일정 변경 후 재안내 — 발송된 건의 scheduled_date를 옮기면 그 건이 배너에 **다시 미발송으로 뜬다**(S5-10 판정 회귀). 옛 visit_date의 sent 행이 새 날짜를 가리면 재안내를 통째로 놓친다", "status": "pending_order", "depends": ["Q-16"], "note": "개정 4판 G-22" },
-        { "id": "S11-13", "desc": "S11-8의 인라인 달력 단언은 **수정 전에 실패하는지부터 확인한다** — 회귀 테스트가 P-19 결함을 실제로 잡는지 검증하지 않으면 통과가 무의미하다. 호출처는 5곳이다(inspection-plans-client.tsx:859 · plan-annex-section.tsx:225 · actions.ts:188 · actions.ts:390 · actions.ts:872) — S11-8의 '네 경로'를 다섯으로 정정(일괄 확정 누락)", "status": "code_present", "depends": ["P-19"],
+        { "id": "S11-13", "desc": "S11-8의 인라인 달력 단언은 **수정 전에 실패하는지부터 확인한다** — 회귀 테스트가 P-19 결함을 실제로 잡는지 검증하지 않으면 통과가 무의미하다. 호출처는 5곳이다(inspection-plans-client.tsx:859 · plan-annex-section.tsx:225 · actions.ts:188 · actions.ts:390 · actions.ts:872) — S11-8의 '네 경로'를 다섯으로 정정(일괄 확정 누락)", "status": "implemented", "depends": ["P-19"],
+          "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션) — 변이를 직접 재수행(구현자 결과를 믿지 않음)", "evidence": ["M1 동기화 무력화 → 23통과/4실패, 죽은 단언에 ★인라인 달력 네 축 일치 포함(기대 09-17인데 inspections.start=09-10 — P-19 그 모양)", "M2 종료일 보정 제거 → 다일 보정 단언 실패", "M3 가드 무력화 → '인라인 달력이 가드에 막힌다' 단언 실패", "복구 확인: 두 파일 SHA256이 변이 전과 바이트 단위 일치, MUTATION-TEST-TEMP grep 0건"] },
           "verified": "변이 검증 실시(2026-08-18) — syncInspectionVisitDate·isStepOneCompleted를 일시 무력화하니 23통과가 16통과/7실패로 떨어졌고, 실패 내용이 P-19의 지문 그대로였다(scheduled·step1·steps.due는 새 날짜, inspections.start만 옛 날짜). 가드 무력화 시 1단계 완료 건의 scheduled가 실제로 이동. 복원 후 23/23 재확인",
           "note": "개정 4판 G-24. test-all.mts 등록은 신규 3개(pure·e2e·plan-date-sync) 중 plan-date-sync 1개 완료" }
       ] }

@@ -46,7 +46,15 @@ const steps: Step[] = [
   // 모니터링 폐지 후 링크가 살아 있는지 · 달력에서 열어도 자체점검이 목록에 드는지(Q-14의 핵심) ·
   // 미확정 건이 조용히 빠지지 않는지 · 수신 미지정 시 폴백 1명인지(문자량이 몇 배가 되지 않게)
   { name: '사전 안내 SMS 배선(E2E)',     cmd: 'npx tsx scripts/test-inspection-sms.mts',      needServer: true },
+  // 지역 일괄 이동 — 건별 실패를 삼키면 담당자는 5건이 다 옮겨진 줄 알고 **안 옮겨진 곳에 안 간다**.
+  // 실제로 정기의 '같은 달' 가드가 이 경로에서만 새고 있었다(S11-9 E2E가 잡아냄: moved:2·failed:[]).
+  // 반환값과 DB를 함께 대조한다 — 응답과 데이터가 갈라지는 것이 이 기능의 최악 시나리오다
+  { name: '지역 일괄 이동(E2E)',         cmd: 'npx tsx scripts/test-sms-bulk-move.mts',       needServer: true },
   { name: 'SMS 발송 모듈(프로브)',       cmd: 'npx tsx --conditions=react-server scripts/_probe-sms-send.mts' },
+  // ★ 독립 검증 J24-B1 — 발송 이력 기록이 실패하면 **보내지 않는다**. 종전엔 insert 오류를 버리고
+  // 그대로 발송해 '돈은 나갔는데 기록이 없는' 건이 생길 수 있었다(→ 화면은 미발송 → 재발송·이중 과금).
+  // 자격증명을 넣은 상태로 시험해야 변별력이 생긴다 — 키가 없으면 어차피 안 나가기 때문
+  { name: 'SMS 기록 실패 시 발송 중단(프로브)', cmd: 'npx tsx --conditions=react-server scripts/_probe-sms-claim-fail.mts' },
 ]
 
 let serverUp = false

@@ -3,10 +3,11 @@ import 'server-only'
 import { createHmac } from 'crypto'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { loadTemplate, companyVars } from '@/lib/message-template'
+import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 import {
   pickContacts, groupTargets, countMessages, normalizePhone, maskPhone,
-  smsByteLength, smsKind, dDayLabel, daysBetween, todayKst, shortDate,
-  parseSolapiResult, renderTemplate,
+  smsByteLength, smsKind, dDayLabel, daysBetween, todayKst, shortDate, addDays,
+  parseSolapiResult, renderTemplate, resolvePendingNotices, validateLeadRules,
   type SmsTarget, type SmsGroup, type Contact,
 } from '@/lib/sms-recipients'
 
@@ -286,9 +287,28 @@ export async function sendInspectionSms(
   const skipped = units.length - sendUnits.length
 
   // ④ sending 행 claim (발송 **전에**)
+  //
+  // ⚠ claim이 실패하면 **보내지 않는다**. 종전엔 insert 오류를 버리고 rowIds에 ''를 넣은 뒤 그대로
+  // 발송해서, 돈은 나갔는데 이력이 없는 건이 생길 수 있었다 — 그러면 화면이 그 건을 '미발송'으로
+  // 표시하고 다음 발송 때 재발송·이중 과금이 된다. claim을 발송 전에 두는 이유가 바로 그것을
+  // 막기 위해서인데 오류를 무시하면 그 장치가 정확히 필요한 순간에만 무력해진다(P-1의 재발 형태).
   const rowIds: string[] = []
+  /** 이미 claim한 행을 sending 상태로 방치하지 않는다 — 중단도 기록으로 남겨야 사람이 판단한다 */
+  const abortClaimed = async (reason: string): Promise<SendResult> => {
+    for (const id of rowIds) {
+      await admin.from('sms_send_log').update({ status: 'failed', error: reason }).eq('id', id)
+    }
+    return {
+      ok: false, error: reason,
+      sent: 0, failed: sendUnits.length, unverified: 0, noPhone: 0, skipped,
+      rows: sendUnits.map(u => ({
+        customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
+        contactName: u.contact.name, status: 'failed', error: reason,
+      })),
+    }
+  }
   for (const u of sendUnits) {
-    const { data } = await admin.from('sms_send_log').insert({
+    const { data, error: claimErr } = await admin.from('sms_send_log').insert({
       kind,
       customer_id: u.group.customerId,
       plan_item_ids: u.group.planItemIds,
@@ -305,17 +325,26 @@ export async function sendInspectionSms(
       trigger,
       sent_by: opts.actorId,
     } as Record<string, unknown>).select('id').single()
-    rowIds.push((data as { id: string } | null)?.id ?? '')
+    const rowId = (data as { id: string } | null)?.id
+    if (claimErr || !rowId) {
+      return abortClaimed(
+        '발송 이력을 기록하지 못해 발송을 중단했습니다 — 보냈는데 기록이 없으면 재발송·이중 과금이 됩니다.'
+        + ` (사유: ${claimErr?.message ?? '이력 행 생성 실패'})`,
+      )
+    }
+    rowIds.push(rowId)
   }
 
-  // 번호 없는 고객도 기록한다 — 못 받았다는 사실이 남아야 사람이 조치할 수 있다(P-2)
+  // 번호 없는 고객도 기록한다 — 못 받았다는 사실이 남아야 사람이 조치할 수 있다(P-2).
+  // 이 기록 실패는 발송을 막지 않는다(보낼 대상과 무관) — 다만 삼키지 않고 로그로 표면화한다.
   for (const n of noPhone) {
-    await admin.from('sms_send_log').insert({
+    const { error: npErr } = await admin.from('sms_send_log').insert({
       kind, customer_id: n.customerId, plan_item_ids: n.planItemIds, visit_date: n.visitDate,
       lead_days: daysBetween(today, n.visitDate),
       to_phone: null, from_phone: g.from || null, content: '(발송 안 됨)',
       status: 'no_phone', error: n.reason, trigger, sent_by: opts.actorId,
     } as Record<string, unknown>)
+    if (npErr) console.error('[sms] 번호없음 기록 실패 — 이 고객은 화면에서 미발송으로 남습니다:', n.customerId, npErr.message)
   }
 
   // ⑤ 자격증명 없음 → 조용히 성공하지 않는다. 이 한 줄이 P-1의 핵심 수리다.
@@ -345,14 +374,19 @@ export async function sendInspectionSms(
     const u = sendUnits[i]
     const v = verdicts.get(u.phone) ?? { status: 'unverified' as const, error: '판정 없음' }
     if (v.status === 'sent') sent++; else if (v.status === 'failed') failed++; else unverified++
-    if (rowIds[i]) {
-      await admin.from('sms_send_log').update({
-        status: v.status,
-        provider_message_id: v.messageId ?? null,
-        provider_status_code: v.statusCode ?? null,
-        provider_raw: (res.body ?? null) as Record<string, unknown> | null,
-        error: v.error ?? null,
-      } as Record<string, unknown>).eq('id', rowIds[i])
+    // claim이 보장되므로 조건 없이 갱신한다 — 종전의 `if (rowIds[i])`는 claim 실패를 조용히
+    // 건너뛰어, 발송 결과가 sending 상태로 굳는 행을 만들었다.
+    const upd = await admin.from('sms_send_log').update({
+      status: v.status,
+      provider_message_id: v.messageId ?? null,
+      provider_status_code: v.statusCode ?? null,
+      provider_raw: (res.body ?? null) as Record<string, unknown> | null,
+      error: v.error ?? null,
+    } as Record<string, unknown>).eq('id', rowIds[i])
+    // 결과 기록 실패는 발송을 되돌릴 수 없으니 중단하지 않는다. 대신 삼키지도 않는다 —
+    // sending으로 남은 행은 사람이 봐야 한다(조용히 지나가면 '보냈는지 모르는' 건이 된다).
+    if (upd.error) {
+      console.error('[sms] 발송 결과 기록 실패 — 행이 sending으로 남습니다:', rowIds[i], upd.error.message)
     }
     rows.push({
       customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
@@ -360,8 +394,9 @@ export async function sendInspectionSms(
     })
   }
 
-  // ⑨ 활동 로그 — 번호는 마스킹해서 남긴다
-  await admin.from('activity_logs').insert({
+  // ⑨ 활동 로그 — 번호는 마스킹해서 남긴다. sms_send_log가 원천이라 이 실패가 발송 판정을
+  // 바꾸지는 않지만, 조용히 넘기면 감사 흔적만 사라진다.
+  const { error: logErr } = await admin.from('activity_logs').insert({
     actor_id: opts.actorId,
     action: 'inspection_sms_sent',
     entity_type: 'sms_send_log',
@@ -371,10 +406,52 @@ export async function sendInspectionSms(
       recipients: rows.map(r => r.phoneMasked),
     },
   } as Record<string, unknown>)
+  if (logErr) console.error('[sms] 발송 활동 로그 기록 실패:', logErr.message)
 
   return {
     ok: failed === 0, sent, failed, unverified, noPhone: noPhone.length, skipped, rows,
     error: failed > 0 ? `${failed}건 발송 실패 — 사유는 건별 결과를 확인해주세요.` : undefined,
+  }
+}
+
+/** 설정된 시점 규칙 — company_profile은 '단일 행' 전제지만 실측상 여러 행일 수 있어
+ *  정렬을 고정한다(고정 안 하면 저장한 행과 읽는 행이 달라진다). */
+export async function loadLeadRules(admin: Admin): Promise<number[]> {
+  const { data } = await admin.from('company_profile').select('sms_lead_rules')
+    .order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
+  return validateLeadRules((data as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1]).rules
+}
+
+/** 지금 보내야 할 안내가 몇 곳인가 — 사이드바 뱃지·대시보드 위젯이 함께 쓴다 (S9-5).
+ *
+ *  뱃지가 배너와 다른 수를 보여주면 사용자는 어느 쪽을 믿을지 모른다.
+ *  그래서 배너와 **같은 함수**(resolvePendingNotices)로 센다. */
+export async function countUnsentNotices(admin: Admin): Promise<{
+  count: number
+  messages: number
+  rules: number[]
+  /** 가장 가까운(작은 lead) 시점의 요약 — 위젯 문구용 */
+  nearest: { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; totalCount: number } | null
+}> {
+  const today = todayKst()
+  const rules = await loadLeadRules(admin)
+  const to = addDays(today, Math.max(...rules, 1))
+  const targets = await loadSmsTargets(admin, { from: today, to })
+  const { groups } = groupTargets(targets)
+  const sent = await loadSentPairs(admin, today, to)
+  const { notices } = resolvePendingNotices(groups, rules, today, (c, v) => sent.has(`${c}|${v}`))
+
+  const withWork = [...notices].sort((a, b) => a.leadDays - b.leadDays).find(n => n.unsentCount > 0)
+    ?? [...notices].sort((a, b) => a.leadDays - b.leadDays)[0] ?? null
+  return {
+    count: notices.reduce((n, x) => n + x.unsentCount, 0),
+    messages: notices.reduce((n, x) => n + x.messageCount, 0),
+    rules,
+    nearest: withWork ? {
+      leadDays: withWork.leadDays, visitDate: withWork.visitDate, label: withWork.label,
+      unsentCount: withWork.unsentCount, messageCount: withWork.messageCount,
+      totalCount: withWork.groups.length,
+    } : null,
   }
 }
 
