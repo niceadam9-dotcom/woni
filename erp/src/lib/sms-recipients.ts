@@ -30,6 +30,8 @@ export type SmsTarget = {
   regionSi?: string | null
   regionMyeon?: string | null
   regionRi?: string | null
+  /** 방문 준비용 지도(S5-7) — 지역 3단은 묶음용이고, 실제로 찾아가려면 주소가 필요하다 */
+  address?: string | null
   /** 지정관계인(inspections.contact_id 등)이 있으면 우선순위 최상단 */
   designated?: Contact | null
   contacts: Contact[]
@@ -51,6 +53,8 @@ export type SmsGroup = {
   regionSi: string | null
   regionMyeon: string | null
   regionRi: string | null
+  /** 방문 준비용 지도(S5-7) — 지역 3단은 묶음용이고, 실제로 찾아가려면 주소가 필요하다 */
+  address: string | null
   /** ⚠ 고객에게 나가는 문자 본문의 {점검종류} 원천(sms.ts renderSmsFor) — 표시용으로 바꾸지 말 것.
    *  화면 배지는 natures를 쓴다. */
   inspectionTypes: string[]
@@ -174,6 +178,7 @@ export function groupTargets(targets: SmsTarget[]): { groups: SmsGroup[]; noPhon
       planItemIds: [], recipients, inspectionTypes: [], natures: [],
       representative: (t.contacts ?? []).find(c => c.role === '대표') ?? null,
       regionSi: t.regionSi ?? null, regionMyeon: t.regionMyeon ?? null, regionRi: t.regionRi ?? null,
+      address: t.address ?? null,
       assigneeName: t.assigneeName ?? null,
       sendable: t.sendable !== false,
       unsendableReason: t.unsendableReason ?? null,
@@ -381,37 +386,44 @@ export function parseSolapiResult(
     return out
   }
 
-  // send-many/detail 응답의 건별 배열 — 키 이름이 버전에 따라 다를 수 있어 후보를 훑는다
   const b = (body ?? {}) as Record<string, unknown>
-  const list =
-    (Array.isArray(b.messageList) && b.messageList) ||
-    (Array.isArray(b.messages) && b.messages) ||
-    (Array.isArray(b.failedMessageList) && b.failedMessageList) ||
-    null
 
-  if (!list) {
-    // 200인데 건별 정보를 못 찾았다 — 나갔을 수도 있으므로 실패로 단정하지 않는다
-    for (const p of phones) out.set(norm(p), { status: 'unverified', error: '발송 응답 형식을 확인하지 못했습니다(접수 여부 불명)' })
-    return out
-  }
-
-  for (const raw of list as Record<string, unknown>[]) {
+  // ① 접수가 거부된 번호 — 실패는 **여기에만** 실린다
+  const failedList = Array.isArray(b.failedMessageList) ? (b.failedMessageList as Record<string, unknown>[]) : []
+  for (const raw of failedList) {
     const to = norm(String(raw.to ?? raw.receiver ?? ''))
     if (!to) continue
     const code = raw.statusCode != null ? String(raw.statusCode) : null
-    const msgId = raw.messageId != null ? String(raw.messageId) : null
-    // Solapi 성공 코드는 '2000'대. 코드가 없으면 판정 불가로 둔다
-    const ok = code ? /^2\d{3}$/.test(code) : null
-    out.set(to,
-      ok === true  ? { status: 'sent', messageId: msgId, statusCode: code } :
-      ok === false ? { status: 'failed', messageId: msgId, statusCode: code, error: String(raw.statusMessage ?? `상태코드 ${code}`) } :
-                     { status: 'unverified', messageId: msgId, statusCode: code, error: '상태코드가 없어 접수 여부를 확인하지 못했습니다' })
+    out.set(to, {
+      status: 'failed', messageId: null, statusCode: code,
+      error: String(raw.statusMessage ?? `상태코드 ${code ?? '없음'}`),
+    })
   }
 
-  // 응답에 안 실린 번호 — 보냈는지 알 수 없다
-  for (const p of phones) {
-    const k = norm(p)
-    if (!out.has(k)) out.set(k, { status: 'unverified', error: '응답에 해당 번호가 없어 접수 여부를 확인하지 못했습니다' })
+  // ② 나머지는 groupInfo 집계로 가른다.
+  //    send-many/detail 성공 응답에는 **번호별 배열이 없다**(2026-08-19 실측). 오는 것은
+  //    `groupInfo.count.registeredSuccess`(접수 성공 건수)와 위 실패 목록뿐이고, 개별
+  //    messageId도 없어 `groupId`가 유일한 추적 키다(`/messages/v4/list?groupId=`로 조회).
+  //    종전 코드는 번호별 배열을 찾다 못 찾고 전건을 unverified로 떨어뜨렸다 — 실제로는
+  //    나간 문자라 재발송 시 이중 과금이 된다.
+  const gi = (b.groupInfo ?? {}) as Record<string, unknown>
+  const count = (gi.count ?? {}) as Record<string, unknown>
+  const groupId = gi.groupId != null ? String(gi.groupId) : null
+  // 접수 시점의 그룹 상태. SENDING = 접수됨(통신사 전달은 비동기) — 수신 완료가 아니다.
+  const groupStatus = gi.status != null ? String(gi.status) : null
+  const registered = Number(count.registeredSuccess ?? NaN)
+  const rest = phones.map(norm).filter(p => !out.has(p))
+
+  // 접수 성공 건수가 남은 번호 수와 **정확히** 맞을 때만 sent로 본다. 어긋나면 누가 성공인지
+  // 응답만으로 가릴 수 없으므로 unverified에 둔다 — 성공을 부풀리지 않는다.
+  const allRegistered = Number.isFinite(registered) && rest.length > 0 && registered === rest.length
+  for (const p of rest) {
+    out.set(p, allRegistered
+      ? { status: 'sent', messageId: groupId, statusCode: groupStatus }
+      : {
+          status: 'unverified', messageId: groupId, statusCode: groupStatus,
+          error: `접수 결과를 확인하지 못했습니다(접수 성공 ${Number.isFinite(registered) ? registered : '불명'}건 / 대상 ${rest.length}건)`,
+        })
   }
   return out
 }

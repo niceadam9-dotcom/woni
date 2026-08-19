@@ -9,6 +9,7 @@ import {
 import { listSmsStatusAction, bulkMovePlanDatesAction, listSmsCustomerOptionsAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
+import { AddressMapModal } from '@/components/ui/address-map-modal'
 import { todayKst, addDays, groupByRegion } from '@/lib/sms-recipients'
 
 /** 문자 발송 화면 (소방계획서_24 S5) — 점검현황 모니터링 대체
@@ -28,6 +29,8 @@ type Row = {
   regionSi: string | null; regionMyeon: string | null; regionRi: string | null
   recipientCount: number; status: string; sentAt: string | null; reason: string | null
   isAdhoc: boolean; sendable: boolean; unsendableReason: string | null
+  /** 방문 준비용 지도(S5-7) */
+  address: string | null
   /** 점검일이 옮겨져 옛 날짜로 이미 안내가 나간 건 — 그 옛 날짜 (S5-0b) */
   movedFrom: string | null
 }
@@ -73,9 +76,9 @@ const sel = 'h-8 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] 
  *   · 담당 — 종류가 하나뿐이면 열 자체를 뺀다(showAssignee)
  *   · 수신 — 1명이면 굳이 쓰지 않는다. 2명 이상일 때만 눈에 띄게(비용이 곱해지는 경우다)
  *   · 상태 — '미발송'은 기본값이라 배지를 없앤다. 발송됨·실패·번호없음만 배지 → 예외가 눈에 띈다 */
-function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
+function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend, onMap }: {
   r: Row; checked: boolean; onToggle: () => void; showAssignee: boolean
-  canSend: boolean; onResend: (r: Row) => void
+  canSend: boolean; onResend: (r: Row) => void; onMap: (r: Row) => void
 }) {
   const isDefault = r.status === 'unsent'
   // 계획 항목이 없는 행(임의 발송·계획이 사라진 과거 이력)은 **일괄 경로로 못 보낸다** —
@@ -91,9 +94,19 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
           data-testid={bulkable ? undefined : 'row-check-disabled'}
           title={bulkable ? undefined : '계획이 없는 건입니다 — 오른쪽 [다시 보내기]로 보냅니다'} />
       </td>
-      <td className="py-1.5 text-[#090c1d] truncate" title={r.customerName}>
+      <td className="py-1.5 text-[#090c1d] truncate" title={r.address ? `${r.customerName} · ${r.address}` : r.customerName}>
         {r.customerName}
         {r.isAdhoc && <span data-testid="badge-adhoc" className="ml-1 px-1 py-0.5 rounded bg-[#f5f4ff] text-[10px] text-[#7b68ee] border border-[#d0ccf5]">임의</span>}
+        {/* 방문 준비 — 지역 3단은 묶음용이라 "이 고객이 어디쯤인가"는 답해주지 못한다(S5-7).
+            주소가 없으면 버튼도 안 그린다: 눌렀는데 빈 지도가 뜨는 것이 없는 것보다 나쁘다 */}
+        {r.address && (
+          <button data-testid="row-map"
+            onClick={() => onMap(r)}
+            title={r.address}
+            className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-[#7b68ee] hover:underline align-middle">
+            <MapPin className="size-2.5" /> 지도
+          </button>
+        )}
       </td>
       <td className="py-1.5 text-[#514b81] tabular-nums">
         {r.visitDate}
@@ -275,6 +288,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   /** 지금 화면에 보이는 그 날짜의 미발송 계획 항목 — 배너 승인을 필터 범위로 좁힐 때 쓴다 */
   const visibleItemsOn = (d: string) =>
     rows.filter(r => r.visitDate === d && r.status === 'unsent' && r.sendable).flatMap(r => r.planItemIds)
+
+  /** 방문 준비 지도 — 폐지된 모니터링에서 소실됐던 것을 공용 컴포넌트로 되살렸다(S5-7) */
+  const [mapRow, setMapRow] = useState<Row | null>(null)
 
   /** 계획 없는 행의 재발송 — 임의 발송 경로로 그 고객·그 날짜를 미리 채워 연다 */
   function openResend(r: Row) {
@@ -602,10 +618,10 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                       </td>
                     </tr>,
                     ...g.groups.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee}
-                    canSend={canSend} onResend={openResend} />),
+                    canSend={canSend} onResend={openResend} onMap={setMapRow} />),
                   ])
                 : sorted.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee}
-                    canSend={canSend} onResend={openResend} />)}
+                    canSend={canSend} onResend={openResend} onMap={setMapRow} />)}
             </tbody>
           </table>
         )}
@@ -641,6 +657,15 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
 
       {modal && (
         <InspectionSmsModal source={modal} onClose={() => setModal(null)} onSent={reload} />
+      )}
+
+      {/* 방문 준비 지도 (S5-7) — 모니터링 폐지로 소실됐던 기능의 복원 */}
+      {mapRow?.address && (
+        <AddressMapModal
+          customerName={mapRow.customerName}
+          address={mapRow.address}
+          onClose={() => setMapRow(null)}
+        />
       )}
     </div>
   )

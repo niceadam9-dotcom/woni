@@ -73,7 +73,7 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
         id, scheduled_date, status, inspection_type, plan_type,
         profiles:assigned_employee_id ( name ),
         customers:customer_id (
-          id, customer_name, is_active, region_si, region_myeon, region_ri,
+          id, customer_name, is_active, address, region_si, region_myeon, region_ri,
           customer_contacts ( id, role, name, phone, sms_recipient )
         )
       `)
@@ -110,6 +110,7 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
     profiles: { name: string } | null
     customers: {
       id: string; customer_name: string; is_active: boolean | null
+      address: string | null
       region_si: string | null; region_myeon: string | null; region_ri: string | null
       customer_contacts: Contact[] | null
     } | null
@@ -133,6 +134,7 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
       planType: r.plan_type,
       assigneeName: r.profiles?.name ?? null,
       regionSi: c.region_si, regionMyeon: c.region_myeon, regionRi: c.region_ri,
+      address: c.address,
       contacts: c.customer_contacts ?? [],
       // completed도 발송 가능하다 — 확정을 지나 점검이 시작된 상태이지 미확정이 아니다.
       // 여기서 빼면 위 status 필터를 넓힌 의미가 없어지고 '점검일 미확정'이라는 틀린 사유가 붙는다.
@@ -151,10 +153,11 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
 export async function loadAdhocTarget(admin: Admin, customerId: string, visitDate: string): Promise<SmsTarget | null> {
   const { data } = await admin
     .from('customers')
-    .select('id, customer_name, is_active, region_si, region_myeon, region_ri, customer_contacts ( id, role, name, phone, sms_recipient )')
+    .select('id, customer_name, is_active, address, region_si, region_myeon, region_ri, customer_contacts ( id, role, name, phone, sms_recipient )')
     .eq('id', customerId).maybeSingle()
   const c = data as unknown as {
     id: string; customer_name: string; is_active: boolean | null
+    address: string | null
     region_si: string | null; region_myeon: string | null; region_ri: string | null
     customer_contacts: Contact[] | null
   } | null
@@ -164,6 +167,7 @@ export async function loadAdhocTarget(admin: Admin, customerId: string, visitDat
     // 계획 항목이 없으니 유형·계획축이 존재하지 않는다 — '빠뜨린 것'과 구분되게 null을 못 박는다
     inspectionType: null, planType: null, assigneeName: null,
     regionSi: c.region_si, regionMyeon: c.region_myeon, regionRi: c.region_ri,
+    address: c.address,
     contacts: c.customer_contacts ?? [],
     sendable: true, unsendableReason: null,
   }

@@ -216,17 +216,23 @@ console.log('\n— resolvePendingNotices (Q-12의 심장)')
 
 console.log('\n— parseSolapiResult (P-11) — unverified가 요점')
 {
+  // ⚠ 응답 모양은 **실측**이다(2026-08-19 실발송 1통의 provider_raw). 종전 이 블록은
+  //   번호별 `messageList` 배열을 가정했는데 send-many/detail은 그런 배열을 주지 않는다 —
+  //   그래서 정상 접수된 문자가 unverified로 기록됐다. 추측 모양으로 되돌리지 말 것.
   const phones = ['01011112222', '01033334444']
-  const all = parseSolapiResult(phones, 200, { messageList: [
-    { to: '01011112222', statusCode: '2000', messageId: 'M1' },
-    { to: '01033334444', statusCode: '2000', messageId: 'M2' },
-  ] })
-  ok('전건 성공', [...all.values()].every(v => v.status === 'sent'))
+  const grp = (registeredSuccess: number, registeredFailed = 0) => ({
+    groupId: 'G4V-test', status: 'SENDING', count: { total: 2, registeredSuccess, registeredFailed },
+  })
 
-  const partial = parseSolapiResult(phones, 200, { messageList: [
-    { to: '01011112222', statusCode: '2000', messageId: 'M1' },
-    { to: '01033334444', statusCode: '3019', statusMessage: '수신거부', messageId: 'M2' },
-  ] })
+  const all = parseSolapiResult(phones, 200, { groupInfo: grp(2), failedMessageList: [] })
+  ok('전건 접수 성공', [...all.values()].every(v => v.status === 'sent'))
+  ok('groupId가 추적 키로 남는다(개별 messageId는 응답에 없다)',
+    [...all.values()].every(v => v.messageId === 'G4V-test'))
+
+  const partial = parseSolapiResult(phones, 200, {
+    groupInfo: grp(1, 1),
+    failedMessageList: [{ to: '01033334444', statusCode: '3019', statusMessage: '수신거부' }],
+  })
   ok('★ 부분 실패를 번호별로 구분(종전에는 res.ok만 봐서 불가능했다)',
     partial.get('01011112222')!.status === 'sent' && partial.get('01033334444')!.status === 'failed')
   ok('실패 사유가 남는다', /수신거부/.test(partial.get('01033334444')!.error ?? ''))
@@ -239,11 +245,24 @@ console.log('\n— parseSolapiResult (P-11) — unverified가 요점')
   ok('★ 알 수 없는 스키마 → unverified (failed로 두면 실제 나간 문자를 재발송한다)',
     [...unknown.values()].every(v => v.status === 'unverified'))
 
-  const missing = parseSolapiResult(phones, 200, { messageList: [{ to: '01011112222', statusCode: '2000' }] })
-  ok('응답에 없는 번호도 unverified', missing.get('01033334444')!.status === 'unverified')
+  // 집계가 대상 수와 어긋나면 누가 성공인지 가릴 수 없다 — 성공으로 올리지 않는다
+  const mismatch = parseSolapiResult(phones, 200, { groupInfo: grp(1), failedMessageList: [] })
+  ok('접수 건수가 대상 수와 안 맞으면 unverified',
+    [...mismatch.values()].every(v => v.status === 'unverified'))
 
-  const noCode = parseSolapiResult(['01011112222'], 200, { messageList: [{ to: '01011112222', messageId: 'M1' }] })
-  ok('상태코드가 없으면 unverified', noCode.get('01011112222')!.status === 'unverified')
+  // 실발송 원문 회귀 — 이 케이스가 깨지면 정상 발송이 다시 unverified로 기록된다.
+  // ⚠ 응답 **모양**만 실측이고 번호는 가짜로 바꿨다(공개 저장소에 실번호를 남기지 않는다).
+  //   parseSolapiResult는 번호를 키로만 쓰므로 어떤 번호든 판정은 같다.
+  const TEST_PHONE = '01000000000'
+  const real = parseSolapiResult([TEST_PHONE], 200, {
+    groupInfo: {
+      groupId: 'G4V20260819174111BN09INSUKREAKVR', status: 'SENDING',
+      count: { total: 1, registeredFailed: 0, registeredSuccess: 1, sentSuccess: 0 },
+    },
+    failedMessageList: [],
+  })
+  ok('★ 실제 접수 성공 응답(실측 원문) → sent', real.get(TEST_PHONE)!.status === 'sent',
+    real.get(TEST_PHONE)!.status)
 }
 
 console.log('\n— 문구 치환')

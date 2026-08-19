@@ -171,6 +171,33 @@ async function main() {
         `${await page.locator('[data-testid="sms-row"]').count()} vs ${before}`)
     }
 
+    console.log('\n— S5-7: 방문 준비 지도 (모니터링 폐지로 소실됐던 기능)')
+    {
+      // 고객A는 주소가 없다(mkCustomer 기본) — 주소가 있는 고객에만 버튼이 떠야 한다.
+      // 눌렀는데 빈 지도가 뜨는 것은 버튼이 없는 것보다 나쁘다.
+      await raw.from('customers').update({ address: '경기도 양평군 강하면 강남로 1' }).eq('id', cidA)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      const withAddr = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
+      const noAddr = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-C${SUF}` }).first()
+      check('★ 주소가 있는 행에 [지도]가 있다(S5-7 복원)',
+        await withAddr.locator('[data-testid="row-map"]').count() === 1)
+      check('주소가 없으면 버튼도 없다 — 눌렀는데 빈 지도가 뜨지 않게',
+        await noAddr.locator('[data-testid="row-map"]').count() === 0)
+      await withAddr.locator('[data-testid="row-map"]').click()
+      await page.waitForSelector('[data-testid="address-map-modal"]', { timeout: 20000 })
+      const mapText = await page.locator('[data-testid="address-map-modal"]').innerText()
+      check('지도 모달이 주소와 [새 창]·[주소 복사]를 함께 준다 — iframe이 막혀도 길이 남는다',
+        /강남로 1/.test(mapText) && /새 창/.test(mapText) && /주소 복사/.test(mapText),
+        mapText.replace(/\n/g, ' ').slice(0, 120))
+      await page.keyboard.press('Escape').catch(() => {})
+      await page.locator('[data-testid="address-map-modal"]').press('Escape').catch(() => {})
+      await page.mouse.click(5, 5)
+      await raw.from('customers').update({ address: null }).eq('id', cidA)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+    }
+
     console.log('\n— D2·D3: 부분 실패와 굳은 행이 화면에서 덮이지 않는가')
     {
       // 고객A(수신자 2명)에 **1명 성공 + 1명 실패** 이력을 심는다.
@@ -272,8 +299,16 @@ async function main() {
       groupA.includes('홍길동') && !groupA.includes('김철수'), groupA.replace(/\n/g, ' '))
     check('★ 미확정 건은 사유와 함께 보이되 발송 불가',
       (await page.locator('[data-testid="sms-unsendable"]').count()) >= 1)
-    check('자격증명이 없으면 "실제로 나가지 않는다"를 먼저 말한다',
-      (await page.locator('[data-testid="sms-cred-warn"]').count()) >= 1)
+    // 경고는 **양방향**으로 단언한다. 없을 때 뜨는 것만 보면, 키가 들어온 뒤에도 빨간 띠가
+    // 계속 붙어 있는 상태를 통과시킨다 — 항상 켜진 경고는 읽히지 않아 경고가 아니게 된다.
+    // (2026-08-19 로컬에 SOLAPI 실키가 들어오면서 실제로 이 방향이 갈렸다)
+    const credsMissing = !(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET
+      && (process.env.SOLAPI_SENDER_PHONE || process.env.SMS_SENDER_PHONE))
+    const credWarn = await page.locator('[data-testid="sms-cred-warn"]').count()
+    check(credsMissing
+      ? '자격증명이 없으면 "실제로 나가지 않는다"를 먼저 말한다'
+      : '자격증명이 갖춰지면 경고가 사라진다(상시 경고는 경고가 아니다)',
+      credsMissing ? credWarn >= 1 : credWarn === 0, `키 ${credsMissing ? '없음' : '있음'} · 경고 ${credWarn}개`)
     const sendLabel = await page.locator('[data-testid="sms-send"]').innerText()
     check('★ 발송 버튼에 실통수가 찍힌다(비용이 눌리기 전에 보인다)', /\d+통 발송/.test(sendLabel), sendLabel)
     check('문구 편집란이 있고 바이트·SMS/LMS를 보여준다',

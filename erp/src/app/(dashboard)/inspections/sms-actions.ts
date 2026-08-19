@@ -194,7 +194,7 @@ export async function listSmsStatusAction(filters: {
   // created_at은 동점이 날 수 있어 id를 2차 정렬로 고정한다(페이지가 밀리면 건너뛴다).
   const logPage = await fetchAllRows((f, t) => admin
     .from('sms_send_log')
-    .select('id, kind, customer_id, visit_date, status, error, contact_name, contact_role, to_phone, created_at, customers:customer_id ( customer_name, region_si, region_myeon, region_ri )')
+    .select('id, kind, customer_id, visit_date, status, error, contact_name, contact_role, to_phone, created_at, customers:customer_id ( customer_name, address, region_si, region_myeon, region_ri )')
     .gte('visit_date', from).lte('visit_date', to)
     .order('created_at', { ascending: false })
     .order('id')
@@ -205,7 +205,7 @@ export async function listSmsStatusAction(filters: {
     id: string; kind: string; customer_id: string; visit_date: string
     status: string; error: string | null; contact_name: string | null; contact_role: string | null
     to_phone: string | null; created_at: string
-    customers: { customer_name: string; region_si: string | null; region_myeon: string | null; region_ri: string | null } | null
+    customers: { customer_name: string; address: string | null; region_si: string | null; region_myeon: string | null; region_ri: string | null } | null
   }>
 
   const byPair = new Map<string, typeof logs>()
@@ -221,6 +221,8 @@ export async function listSmsStatusAction(filters: {
     regionSi: string | null; regionMyeon: string | null; regionRi: string | null
     recipientCount: number; status: string; sentAt: string | null; reason: string | null
     isAdhoc: boolean; sendable: boolean; unsendableReason: string | null
+    /** 방문 준비용 지도(S5-7) — 지역 3단은 묶음용이라 실제로 찾아가려면 주소가 필요하다 */
+    address: string | null
     /** 점검일이 옮겨져 **옛 날짜로 이미 안내가 나간** 건 — 그 옛 날짜(S5-0b).
      *  재안내가 필요한지는 사람이 판단한다(자동 재발송은 하지 않는다). */
     movedFrom: string | null
@@ -276,6 +278,7 @@ export async function listSmsStatusAction(filters: {
       customerId: x.customerId, customerName: x.customerName, visitDate: x.visitDate,
       planItemIds: x.planItemIds, inspectionTypes: x.inspectionTypes, assigneeName: x.assigneeName,
       regionSi: x.regionSi, regionMyeon: x.regionMyeon, regionRi: x.regionRi,
+      address: x.address,
       recipientCount: x.recipients.length, isAdhoc: false,
       sendable: x.sendable, unsendableReason: x.unsendableReason,
     }))
@@ -287,7 +290,7 @@ export async function listSmsStatusAction(filters: {
     rows.push(rowOf(pair, {
       customerId: n.customerId, customerName: n.customerName, visitDate: n.visitDate,
       planItemIds: n.planItemIds, inspectionTypes: [], assigneeName: null,
-      regionSi: null, regionMyeon: null, regionRi: null,
+      regionSi: null, regionMyeon: null, regionRi: null, address: null,
       recipientCount: 0, isAdhoc: false, sendable: false, unsendableReason: '전화번호 없음',
     }))
   }
@@ -299,7 +302,7 @@ export async function listSmsStatusAction(filters: {
       customerId: l.customer_id, customerName: l.customers?.customer_name ?? '(고객 미상)',
       visitDate: l.visit_date, planItemIds: [], inspectionTypes: [], assigneeName: null,
       regionSi: l.customers?.region_si ?? null, regionMyeon: l.customers?.region_myeon ?? null,
-      regionRi: l.customers?.region_ri ?? null,
+      regionRi: l.customers?.region_ri ?? null, address: l.customers?.address ?? null,
       recipientCount: ls.filter(x => x.to_phone).length,
       isAdhoc: ls.every(x => x.kind === 'adhoc'), sendable: false, unsendableReason: null,
     }))

@@ -13,6 +13,19 @@
  */
 import { config } from 'dotenv'
 config({ path: '.env.local' })
+
+// ── 밀폐(hermetic) 기준선 ────────────────────────────────────────
+// 이 프로브는 **실패 경로**를 시험한다. 종전에는 "로컬에 키가 없으니 실발송은 안 일어난다"는
+// 환경의 우연에 기대고 있었다 — 2026-08-19 .env.local에 SOLAPI 실키가 들어오자 그 전제가 깨져,
+// '자격증명 없음' 절이 그대로 **진짜 발송**을 시도하는 코드가 됐다. 안전장치를 시험하는 스크립트가
+// 안전장치를 환경에 위임하면 안 된다. 그래서 여기서 명시적으로 끊는다.
+delete process.env.SOLAPI_API_KEY
+delete process.env.SOLAPI_API_SECRET
+// 상한·allowlist도 고정한다 — .env.local의 운영 안전값(SMS_MAX_PER_RUN=1 등)이 들어오면
+// 상한 절이 먼저 걸려 뒤 절들이 통째로 엉뚱하게 실패한다(실제로 6건이 그렇게 실패했다).
+process.env.SMS_MAX_PER_RUN = '200'
+delete process.env.SMS_ALLOWLIST
+delete process.env.SMS_DRY_RUN
 // @ts-expect-error mjs 헬퍼
 import { raw, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, ensurePlan } from './_e2e-helpers.mjs'
 
