@@ -17,7 +17,12 @@ import type { EvacFireSection } from '@/components/customers/plan-form15'
 
 export type EvacDetailRow = { facility: string; location: string; status: string }
 export type EvacRouteRow = { floor: string; route: string; guide: string; equip: string }
-export type EvacPlanSection = { procedure: string; routes: EvacRouteRow[]; assembly: string; mapImage: string | null }
+/** falseAlarm·evacMethod 추가(2026-08-19 공통 수기 프리셋 폐지) — 서식 3.4 '1. 피난유도 절차' 표의
+ *  비화재보·대피방법 두 줄. 종전엔 템플릿 하드코딩이라 고객이 고칠 수 없었다. 구 데이터엔 없으므로 선택 필드 */
+export type EvacPlanSection = {
+  procedure: string; routes: EvacRouteRow[]; assembly: string; mapImage: string | null
+  falseAlarm?: string; evacMethod?: string
+}
 export type VulnerableSection = {
   none: boolean
   counts: Record<string, { work: string; use: string }>
@@ -186,8 +191,21 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 </span>
               )}
             </div>
+            {/* 서식 3.4 표 순서 그대로 — 비화재보 / 화재 시(절차) / 대피방법.
+                앞뒤 두 줄은 프리셋 폐지(2026-08-19)로 열린 칸이다. 비우면 종전 양식 기본값이 인쇄된다 */}
+            <label className="block text-[11px] font-medium text-[#514b81]">비화재보 대응</label>
+            <textarea value={plan.falseAlarm ?? ''} disabled={!canManage} rows={2}
+              placeholder="비워 두면 양식 기본값이 인쇄됩니다 — 예: 피난 실시 및 건물 앞 주차장 대기 후 오동작 각 매장 전파"
+              onChange={e => { setPlan(p => ({ ...p, falseAlarm: e.target.value })); setDirty(true) }}
+              className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y" />
+            <label className="block text-[11px] font-medium text-[#514b81]">피난유도 절차 (화재 시)</label>
             <textarea value={plan.procedure} disabled={!canManage} rows={3} placeholder="피난유도 절차"
               onChange={e => { setPlan(p => ({ ...p, procedure: e.target.value })); setDirty(true) }}
+              className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y" />
+            <label className="block text-[11px] font-medium text-[#514b81]">대피방법</label>
+            <textarea value={plan.evacMethod ?? ''} disabled={!canManage} rows={2}
+              placeholder="비워 두면 양식 기본값이 인쇄됩니다 — 예: 2층 화재 초기에 1층 주 출입구로 대피 및 피난 늦은 자는 옥상으로 대피"
+              onChange={e => { setPlan(p => ({ ...p, evacMethod: e.target.value })); setDirty(true) }}
               className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y" />
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-medium text-[#514b81]">경로 행</span>

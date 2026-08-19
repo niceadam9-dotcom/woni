@@ -3,10 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { buildFirePlanHtml, applyPresetPairs, type FirePlanGenData } from '@/lib/fire-plan-template'
+import { buildFirePlanHtml, type FirePlanGenData } from '@/lib/fire-plan-template'
 import { assembleFirePlan, firePlanSourceHash, generateFirePlanNow } from '@/lib/fire-plan-generate'
 import { requestFirePlanHwpAction } from '@/app/(dashboard)/fire-plans/generate/actions'
-import type { PresetType } from '@/lib/fire-plan-presets'
 import { extractRoadName, type RoadTier } from '@/lib/address-parser'
 import { buildSurroundingsDraft } from '@/lib/fire-plan-suggest'
 
@@ -296,9 +295,9 @@ export async function importLegacyFormAction(customerId: string): Promise<{ impo
 
 /** 계획서 생성 (생성 바 직결 — 서버 동기 생성, 완료 시 보관함 즉시 등록) */
 export async function requestFirePlanHwpFromTabAction(
-  customerId: string, year: number, presetType?: PresetType | '',
+  customerId: string, year: number,
 ): Promise<{ requested?: number; error?: string }> {
-  return requestFirePlanHwpAction([customerId], year, presetType)
+  return requestFirePlanHwpAction([customerId], year)
 }
 
 // ── 소방계획서_21 R2 (#2) — 조회를 파일에서 떼어낸다 ─────────────────────────
@@ -308,15 +307,13 @@ export async function requestFirePlanHwpFromTabAction(
 /** 현재 내용 즉석 미리보기 — 조립 → HTML 문자열. **파일을 만들지 않고 Gotenberg도 부르지 않는다.**
  *  별지 미리보기(getAnnexPreviewHtmlAction)와 같은 패턴. */
 export async function previewFirePlanHtmlAction(
-  customerId: string, year: number, presetType?: PresetType | '',
+  customerId: string, year: number,
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   await requirePermission('customer_manage')
   const admin = createAdminClient()
   try {
-    const { data, images, assets, missing, presetPairs } =
-      await assembleFirePlan(admin, customerId, year, presetType || undefined)
+    const { data, images, assets, missing } = await assembleFirePlan(admin, customerId, year)
     let html = buildFirePlanHtml(data, images)
-    if (presetPairs.length > 0) html = applyPresetPairs(html, presetPairs)
     // 이미지는 상대경로 참조라 iframe(srcDoc)에서는 깨진다 — data URL로 인라인해 미리보기에서도 보이게 한다
     for (const a of assets) {
       const b64 = Buffer.from(a.data).toString('base64')
@@ -354,8 +351,8 @@ export async function ensureLatestFirePlanPdfAction(
   if (!/^자동 생성/.test(plan.note ?? '')) return { pdfPath: plan.pdf_path, refreshed: false }
 
   try {
-    const { data, images, assets, presetPairs } = await assembleFirePlan(admin, plan.customer_id, plan.year)
-    const hash = firePlanSourceHash({ data, images, assets, presetPairs })
+    const { data, images, assets } = await assembleFirePlan(admin, plan.customer_id, plan.year)
+    const hash = firePlanSourceHash({ data, images, assets })
     if (plan.source_hash && plan.source_hash === hash) {
       return { pdfPath: plan.pdf_path, refreshed: false }   // 최신 — Gotenberg 미호출
     }

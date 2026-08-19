@@ -80,7 +80,7 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
 
   function generatePlan(c: DocCommand) {
     startTransition(async () => {
-      const res = await requestFirePlanHwpAction([c.customerId], new Date().getFullYear(), '')
+      const res = await requestFirePlanHwpAction([c.customerId], new Date().getFullYear())
       setMsg(res.error ? `❌ ${res.error}` : `✅ ${c.customerName} 소방계획서 생성 요청됨 — 완료되면 보관함·문서 현황에 등록됩니다`)
     })
   }

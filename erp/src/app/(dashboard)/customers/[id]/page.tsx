@@ -658,7 +658,7 @@ export default async function CustomerDetailPage({
       initialSection={sub}
       initialForm={initialForm}
       formStatus={formStatus}
-      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} purpose={planInfoInitial.purpose} />}
+      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}

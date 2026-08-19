@@ -116,6 +116,8 @@ const BRIGADE_TEAM_LABELS: Record<string, string> = {
   rescue: '응급구조', protect: '방호안전', initial: '초기대응체계',
 }
 const VULNERABLE_TYPES = ['노인', '어린이', '영유아', '임산부', '장애인', '기타']
+/** 3.4 '1. 피난유도 절차' 표의 서술 3줄 — 서식 렌더 순서와 같게 둔다(비화재보 → 화재 시 → 대피방법) */
+const EVAC_TEXT_KEYS = ['falseAlarm', 'procedure', 'evacMethod']
 
 export const PLAN_TEXT_SECTIONS: Record<string, PlanTextSectionDef> = {
   // 1.11 — scenario 치환 + details 추가 (headcount·월 선택·records는 고객 고유)
@@ -179,23 +181,49 @@ export const PLAN_TEXT_SECTIONS: Record<string, PlanTextSectionDef> = {
   recoveryLog: logSection('recoveryLog', '1.15 피해 복구', ['damage', 'recovery'], ['date', 'damage', 'recovery', 'cost'],
     { damage: '피해 내용', recovery: '복구 조치' }, '복구 유형 추가'),
   brigadeTeams: recordSection('brigadeTeams', '2장 팀별임무', BRIGADE_TEAM_KEYS, '2장 자위소방대', BRIGADE_TEAM_LABELS),
-  // 3.4 — procedure만. routes·mapImage·assembly(집결지=건물 고유 장소)는 제외 (§2 정정 ①)
+  /** 3.4 — 서식 '1. 피난유도 절차' 표의 3줄(비화재보 / 화재 시 / 대피방법).
+   *  routes·mapImage·assembly(집결지=건물 고유 장소)는 제외 (§2 정정 ①).
+   *
+   *  falseAlarm·evacMethod 추가(2026-08-19 공통 수기 프리셋 폐지) — 이 두 줄은 종전에
+   *  fire-plan-template.ts에 문자열로 박혀 있어 고객도 라이브러리도 손댈 수 없었고,
+   *  프리셋의 전역 문자열 치환만이 유일한 변경 수단이었다. 유형별 문구는 이제 이 섹션의
+   *  대안 항목(주택형·상가형·공장형)으로 표현한다. */
   evacPlan: {
     key: 'evacPlan', label: '3.4 피난유도 절차', mode: 'replace',
     chapter: '3장 피난계획',
-    editor: [{ kind: 'text', key: 'procedure', label: '피난유도 절차', multiline: true }],
-    pick: form => ({ procedure: s(dict(form).procedure).trim() }),
+    editor: [
+      { kind: 'text', key: 'falseAlarm', label: '비화재보 대응', multiline: true },
+      { kind: 'text', key: 'procedure', label: '피난유도 절차 (화재 시)', multiline: true },
+      { kind: 'text', key: 'evacMethod', label: '대피방법', multiline: true },
+    ],
+    pick: form => {
+      const f = dict(form)
+      return {
+        procedure: s(f.procedure).trim(),
+        falseAlarm: s(f.falseAlarm).trim(),
+        evacMethod: s(f.evacMethod).trim(),
+      }
+    },
+    // 세 칸을 각각 판단한다 — 라이브러리 항목이 한 칸만 채워져 있어도 그 칸만 반영되게
     merge: (current, body) => {
-      const procedure = s(dict(body).procedure).trim()
-      return procedure ? { ...dict(current), procedure } : current
+      const cur = dict(current)
+      const b = dict(body)
+      const next = { ...cur }
+      for (const k of EVAC_TEXT_KEYS) { const val = s(b[k]).trim(); if (val) next[k] = val }
+      return next
     },
     injectEmpty: (current, body) => {
       const cur = dict(current)
-      const procedure = s(dict(body).procedure).trim()
-      if (!procedure || s(cur.procedure).trim()) return { next: current, changed: false }
-      return { next: { ...cur, procedure }, changed: true }
+      const b = dict(body)
+      const next = { ...cur }
+      let changed = false
+      for (const k of EVAC_TEXT_KEYS) {
+        const val = s(b[k]).trim()
+        if (val && !s(cur[k]).trim()) { next[k] = val; changed = true }
+      }
+      return changed ? { next, changed } : { next: current, changed: false }
     },
-    hasContent: current => !!s(dict(current).procedure).trim(),
+    hasContent: current => EVAC_TEXT_KEYS.some(k => !!s(dict(current)[k]).trim()),
   },
   /** 3.6 피난약자 방법 — **라이브러리는 한 칸, 고객 서식은 유형별 6칸** (2026-08-13 사용자 확정).
    *

@@ -148,7 +148,11 @@ export type FirePlanGenData = {
   // 제3장 피난계획
   evacRoutes: EvacRow[]
   assembly: string              // 집결지
-  evacNote: string              // 피난유도 방법 서술
+  evacNote: string              // 피난유도 방법 서술 (3.4 '화재 시')
+  // 3.4 나머지 두 줄 — 종전엔 템플릿에 문자열로 박혀 있어 고객도 라이브러리도 손댈 수 없었고,
+  // 공통 수기 프리셋의 전역 치환만이 유일한 변경 수단이었다(2026-08-19 프리셋 폐지로 데이터화)
+  evacFalseAlarm: string        // 비화재보 대응
+  evacMethod: string            // 대피방법
   // 서식 1.2 건축물 세부현황
   zones: ZoneRow[]
   hazards: HazardRow[]
@@ -180,7 +184,9 @@ const BRIGADE_TEAMS: Array<{ key: string; label: string; preset: string }> = [
   { key: 'initial', label: '초기대응체계', preset: '근무 인원 중심으로 상시 초기대응체계를 유지하고, 근무시간 외에는 당직자가 초기 대응을 담당한다.' },
 ]
 
-/** 1.11.3 훈련 시나리오 기본값 — 표준양식 예시 문구(프리셋 앵커, fire-plan-presets.ts ANCHORS와 동일) */
+/** 1.11.3 훈련 시나리오 기본값 — 고객이 시나리오를 입력하지 않았을 때 인쇄되는 표준양식 예시 문구.
+ *  종전엔 프리셋이 이 문구들을 유형별로 전역 치환했다(2026-08-19 폐지) — 이제 유형별 시나리오는
+ *  '계획서 공통문구' 1.11 섹션의 대안 항목을 고객에게 주입해 training.scenario를 채우는 방식이다. */
 const SCENARIO_DEFAULTS: Array<{ label: string; text: string }> = [
   { label: '훈련상황', text: '2층 주방 초기화재' },
   { label: '화재발생 인지', text: '1. 2층 세대에서 연기발생' },
@@ -190,16 +196,10 @@ const SCENARIO_DEFAULTS: Array<{ label: string; text: string }> = [
   { label: '안내방송', text: '1층 화재 발생 (최대한 빨리 집결 요함)' },
 ]
 
-/** 공통 수기 프리셋(find→value) 적용 — 워커의 XML 전역 치환과 동일 의미.
- *  고객 입력이 있으면 양식 기본값(앵커)이 HTML에 없으므로 자연히 '고객 입력 > 프리셋 > 기본값' 우선순위 유지.
- *  긴 문구부터 치환(짧은 앵커가 긴 문구를 먼저 깨뜨리지 않게 — load_preset_pairs와 동일). */
-export function applyPresetPairs(html: string, pairs: Array<{ find: string; value: string }>): string {
-  const sorted = [...pairs]
-    .filter(p => p.find && p.value && p.find !== p.value)
-    .sort((a, b) => b.find.length - a.find.length)
-  for (const p of sorted) html = html.split(esc(p.find)).join(esc(p.value))
-  return html
-}
+// applyPresetPairs 삭제(2026-08-19) — 완성된 HTML에 find→value를 **문서 전역** 치환하던 함수.
+// 폐지 이유: 섹션 범위가 없어 '1층 주차장'(6자) 같은 짧은 앵커가 문서 어디든 바꿨고,
+// DB에 없는 문구가 인쇄물에만 존재해 화면과 제출 문서가 갈라졌다.
+// 유형별 문구는 '계획서 공통문구'가 고객 서식 값으로 주입한다.
 
 /** 행 수 보정 — 입력이 min행 미만이면 빈 행으로 채워 서식 모양 유지 */
 function pad<T>(rows: T[], min: number, empty: T): T[] {
@@ -216,11 +216,14 @@ type ImgRef = { file: string; kind: string; caption: string }
 /** images: 생성 시 Gotenberg 멀티파트로 첨부되는 파일명 목록
  *  kind: cover(표지)·map(위치도)·building(전경)·route(진입경로)·evacmap(구획 현황도)·evacuation(피난경로도)·etc */
 /** Q-1(M-15): 자동 채움 구획 키 — 조립(assembleFirePlan)의 폴백 지점과 1:1 */
-export type AutofillKey = 'brigade' | 'evacRoutes' | 'assembly' | 'evacNote' | 'zones' | 'hazards' | 'station'
+export type AutofillKey = 'brigade' | 'evacRoutes' | 'assembly' | 'evacNote'
+  | 'evacFalseAlarm' | 'evacMethod' | 'zones' | 'hazards' | 'station'
 export const AUTOFILL_LABELS: Record<AutofillKey, string> = {
   brigade: '자위소방대 편성(2.2 기본 5행)',
   evacRoutes: '피난경로(3.4 전층·직통계단)',
   assembly: '집결지(3.4 1층 주차장)',
+  evacFalseAlarm: '비화재보 대응(3.4)',
+  evacMethod: '대피방법(3.4)',
   evacNote: '피난유도 절차(3.4 기본 문구)',
   zones: '소화·경보 구역(1.2.1 전층)',
   hazards: '화재위험요소(1.2.2 프리셋 3개소)',
@@ -772,9 +775,9 @@ ${(d.autoFilled?.length ?? 0) > 0
   <p class="formno">서식 3.4</p><h3 style="display:inline;margin-left:8px">피난유도 절차 및 피난경로(집결지) 설정</h3>
   <h3>1. 피난유도 절차</h3>
   <table>
-    <tr><th style="width:90px">비화재보</th><td class="l">피난 실시 및 1층 주차장 대기 후 오동작 각 세대 전파</td></tr>
+    <tr><th style="width:90px">비화재보</th><td class="l${afc('evacFalseAlarm')}">${v(d.evacFalseAlarm)}</td></tr>
     <tr><th>화재 시</th><td class="l${afc('evacNote')}">${v(d.evacNote)}</td></tr>
-    <tr><th>대피방법</th><td class="l">2층 화재 초기에 1층 출입문으로 대피 및 피난 늦은 자는 옥상으로 대피</td></tr>
+    <tr><th>대피방법</th><td class="l${afc('evacMethod')}">${v(d.evacMethod)}</td></tr>
   </table>
   <h3>2. 피난경로</h3>
   <table>

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Printer, Download, Trash2, Loader2, FileText, ChevronDown, ChevronRight, Paperclip, Send, CalendarPlus, FileOutput, Eye, Lock } from 'lucide-react'
 import { uploadFirePlanAction, deleteFirePlanAction, getFirePlanFileUrlAction, updateFirePlanSubmissionAction, uploadFirePlanAttachmentAction, deleteFirePlanAttachmentAction, issueNextYearPlanAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { requestFirePlanHwpFromTabAction, previewFirePlanHtmlAction, ensureLatestFirePlanPdfAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { DateInput } from '@/components/ui/date-input'
 
 export type FirePlanAttachment = { id: string; kind: string; file_name: string }
@@ -31,12 +30,11 @@ export type FirePlanRow = {
 }
 
 /** 소방계획서 보관함 (doc02 §8) — 표준양식 PDF 업로드 → ERP에서 자동 인쇄. HWP 원본은 선택 보관 */
-export function FirePlansClient({ customerId, plans, canManage, purpose }: {
+// purpose prop 제거(2026-08-19) — 프리셋 폐지로 개정 발행·미리보기가 건물 유형을 더는 쓰지 않는다
+export function FirePlansClient({ customerId, plans, canManage }: {
   customerId: string
   plans: FirePlanRow[]
   canManage: boolean
-  /** 건물 용도 — 개정 발행·미리보기에 쓸 프리셋 추천 (트리 상단 생성 바에서 이관, R2-7) */
-  purpose?: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -55,7 +53,7 @@ export function FirePlansClient({ customerId, plans, canManage, purpose }: {
     if (preview.open) { setPreview(p => ({ ...p, open: false })); return }
     setPreview({ open: true, html: '', missing: [], loading: true })
     startTransition(async () => {
-      const res = await previewFirePlanHtmlAction(customerId, currentYear, recommendPresetType(purpose))
+      const res = await previewFirePlanHtmlAction(customerId, currentYear)
       if (res.error) { setError(res.error); setPreview({ open: false, html: '', missing: [], loading: false }); return }
       setPreview({ open: true, html: res.html ?? '', missing: res.missing ?? [], loading: false })
     })
@@ -65,7 +63,7 @@ export function FirePlansClient({ customerId, plans, canManage, purpose }: {
   function issueRevision() {
     if (!confirm('지금 내용으로 개정판을 발행할까요?\n보관함에 새 개정 차수로 등록되고 개정이력에 1행이 남습니다.')) return
     startTransition(async () => {
-      const res = await requestFirePlanHwpFromTabAction(customerId, currentYear, recommendPresetType(purpose))
+      const res = await requestFirePlanHwpFromTabAction(customerId, currentYear)
       if (res.error) { alert(res.error); return }
       alert('개정판을 발행했습니다.')
       router.refresh()

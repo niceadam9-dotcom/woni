@@ -3,7 +3,7 @@ import 'server-only'
 /** 소방계획서 서버 동기 생성 (소방계획서_7 H-12·H-13)
  *
  *  기존 워커(scripts/fireplan-worker.py process — SDK HWP 병합)의 데이터 조립을 TS로 완결 이식:
- *  고객·건물·시설·관계인·자위소방대·fire_plan_forms.sections·프리셋(_presets, fail-soft)을 모아
+ *  고객·건물·시설·관계인·자위소방대·fire_plan_forms.sections를 모아
  *  buildFirePlanHtml(웹 템플릿 v2) → Gotenberg PDF → fire-plans 버킷 업로드 → fire_plans 등록.
  *  §6: hwp_path는 신규 기록하지 않고 pdf_status는 즉시 'ready' (2단계 변환 없음). */
 
@@ -11,14 +11,13 @@ import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appendGeneratedRevision } from '@/lib/fire-plan-revisions'
 import {
-  buildFirePlanHtml, applyPresetPairs, FACILITY_FORM, pickFirePlanManager,
+  buildFirePlanHtml, FACILITY_FORM, pickFirePlanManager,
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
 } from '@/lib/fire-plan-template'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { convertHtmlToPdf } from '@/lib/pdf'
 import { listCustomerAssets, ASSET_BUCKET } from '@/lib/customer-assets'
-import { PRESET_FILE_KEYS, type PresetType } from '@/lib/fire-plan-presets'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -44,24 +43,9 @@ export type AssembledFirePlan = {
   images: FirePlanImageRef[]
   assets: FirePlanAsset[]
   missing: string[]
-  presetPairs: Array<{ find: string; value: string }>
 }
 
-/** 프리셋 JSON(_presets/{유형}.json) → find/value 쌍 — 없거나 손상 시 [] (양식 기본값 유지, fail-soft) */
-async function loadPresetPairs(admin: Admin, presetType: string): Promise<Array<{ find: string; value: string }>> {
-  const key = PRESET_FILE_KEYS[presetType as PresetType]
-  if (!key) return []
-  try {
-    const { data } = await admin.storage.from(BUCKET).download(`_presets/${key}.json`)
-    if (!data) return []
-    const parsed = JSON.parse(await data.text()) as { entries?: Array<{ find?: string; value?: string }> }
-    return (parsed.entries ?? [])
-      .map(e => ({ find: e.find ?? '', value: e.value ?? '' }))
-      .filter(p => p.find && p.value && p.find !== p.value)
-  } catch {
-    return []
-  }
-}
+// loadPresetPairs 삭제(2026-08-19) — 공통 수기 프리셋 폐지. fire-plan-presets.ts 주석 참조.
 
 /** 스토리지 이미지 수집 — 경로 중복 제거, 실패 항목은 건너뜀(fail-soft) */
 async function collectImages(
@@ -97,7 +81,6 @@ export async function assembleFirePlan(
   admin: Admin,
   customerId: string,
   year: number,
-  presetType?: string,
 ): Promise<AssembledFirePlan> {
   const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, plansRes, revRowsRes] = await Promise.all([
     admin.from('customers')
@@ -299,12 +282,17 @@ export async function assembleFirePlan(
         { team: '초기소화', name: '', duty: '소화기 이용 초기소화', phone: '' },
         { team: '피난유도', name: '', duty: '피난층 또는 옥상으로 피난유도', phone: '' },
       ],
-    // 3.4 — 고객 입력 > (양식 기본값 = 프리셋 앵커, applyPresetPairs로 유형별 치환)
+    // 3.4 — 고객 입력 > 양식 기본값. 종전엔 기본값을 프리셋(applyPresetPairs)이 유형별로 전역 치환했으나
+    // 프리셋 폐지(2026-08-19)로 유형별 문구는 '계획서 공통문구'(plan_text_library)가 담당한다.
     evacRoutes: (sections.evacPlan?.routes?.length ?? 0) > 0
       ? sections.evacPlan!.routes!
       : [{ floor: '전층', route: '각 세대 출입구 앞 직통계단 이용', guide: '', equip: '' }],
     assembly: sections.evacPlan?.assembly || '1층 주차장',
     evacNote: sections.evacPlan?.procedure || '피난유도자 지시에 따라 최단 경로로 피난 실시, 피난 늦은 인원은 옥상 대피',
+    // 비화재보·대피방법 — 종전엔 템플릿에 문자열로 박혀 고객도 못 고쳤다. 기본값 문구는 그대로라
+    // 아무도 입력하지 않은 문서의 인쇄 결과는 바뀌지 않는다(주택형 기준 = 종전 양식 기본값)
+    evacFalseAlarm: sections.evacPlan?.falseAlarm || '피난 실시 및 1층 주차장 대기 후 오동작 각 세대 전파',
+    evacMethod: sections.evacPlan?.evacMethod || '2층 화재 초기에 1층 출입문으로 대피 및 피난 늦은 자는 옥상으로 대피',
     zones: (sections.zones?.length ?? 0) > 0
       ? sections.zones!.map(z => ({
         zone: z.zone, name: z.name, area: z.area,
@@ -328,6 +316,8 @@ export async function assembleFirePlan(
       if ((sections.evacPlan?.routes?.length ?? 0) === 0) keys.push('evacRoutes')
       if (!sections.evacPlan?.assembly) keys.push('assembly')
       if (!sections.evacPlan?.procedure) keys.push('evacNote')
+      if (!sections.evacPlan?.falseAlarm) keys.push('evacFalseAlarm')
+      if (!sections.evacPlan?.evacMethod) keys.push('evacMethod')
       if ((sections.zones?.length ?? 0) === 0) keys.push('zones')
       if ((sections.hazards?.length ?? 0) === 0) keys.push('hazards')
       // B-5d: 1.3 거리·도착이 캐시 폴백으로 채워졌으면 표시 (서식 1.3 입력이 있으면 템플릿이 그 값 우선)
@@ -410,8 +400,7 @@ export async function assembleFirePlan(
     ['자위소방대', brigadeRows.length > 0],
   ] as Array<[string, boolean]>).filter(([, has]) => !has).map(([label]) => label)
 
-  const presetPairs = presetType ? await loadPresetPairs(admin, presetType) : []
-  return { data, images, assets, missing, presetPairs }
+  return { data, images, assets, missing }
 }
 
 /** 안정 직렬화 — 키 정렬 후 JSON. 같은 내용이면 항상 같은 문자열이 나와야 해시가 흔들리지 않는다
@@ -431,12 +420,12 @@ export function firePlanSourceHash(a: {
   data: FirePlanGenData
   images: FirePlanImageRef[]
   assets: FirePlanAsset[]
-  presetPairs: Array<{ find: string; value: string }>
 }): string {
   const h = createHash('sha1')
   h.update(stableStringify(a.data))
   h.update(stableStringify(a.images))
-  h.update(stableStringify(a.presetPairs))
+  // presetPairs 축 제거(2026-08-19 프리셋 폐지) — 해시 입력이 바뀌므로 기존 fire_plans.source_hash는
+  // 한 번 불일치로 판정된다. [인쇄]·[PDF]가 그때 한 번 다시 만들고 이후로는 안정된다(내용은 동일).
   for (const asset of [...a.assets].sort((x, y) => x.name.localeCompare(y.name))) {
     h.update(asset.name)
     h.update(asset.data)
@@ -456,7 +445,7 @@ export type FirePlanGenResult = { planId?: string; missing?: string[]; error?: s
 export async function generateFirePlanNow(
   admin: Admin,
   opts: {
-    customerId: string; year: number; presetType?: string; requestedBy?: string | null
+    customerId: string; year: number; requestedBy?: string | null
     mode?: 'revise' | 'reissue'
     /** mode='reissue'일 때 파일을 갈아끼울 대상 행 */
     targetPlanId?: string
@@ -466,10 +455,9 @@ export async function generateFirePlanNow(
   const mode = opts.mode ?? 'revise'
   if (mode === 'reissue' && !opts.targetPlanId) return { error: '갱신 대상이 지정되지 않았습니다.' }
   try {
-    const { data, images, assets, missing, presetPairs } = await assembleFirePlan(admin, customerId, year, opts.presetType)
-    const sourceHash = firePlanSourceHash({ data, images, assets, presetPairs })
-    let html = buildFirePlanHtml(data, images)
-    if (presetPairs.length > 0) html = applyPresetPairs(html, presetPairs)
+    const { data, images, assets, missing } = await assembleFirePlan(admin, customerId, year)
+    const sourceHash = firePlanSourceHash({ data, images, assets })
+    const html = buildFirePlanHtml(data, images)
 
     // P-3 생성 품질 게이트(워커 verify_merge 계열) — 값이 있는데 생성물에 없으면 병합 확인 실패
     const text = html.replace(/<[^>]+>/g, ' ')
@@ -516,7 +504,6 @@ export async function generateFirePlanNow(
     // 보관함 등록 — 개정 차수 = 같은 연도 기존 행 수 + 1 (워커와 동일 규약)
     const { data: existing } = await admin.from('fire_plans')
       .select('id').eq('customer_id', customerId).eq('year', year)
-    const preset = opts.presetType ?? ''
     const revisionNo = (existing?.length ?? 0) + 1
     const { data: inserted, error: insErr } = await admin.from('fire_plans').insert({
       customer_id: customerId,
@@ -530,7 +517,7 @@ export async function generateFirePlanNow(
       hwp_path: null,
       revision: revisionNo,
       source_hash: sourceHash,
-      note: `자동 생성 (표준양식 웹 템플릿${preset ? `, ${preset} 프리셋` : ''})`,
+      note: '자동 생성 (표준양식 웹 템플릿)',
       uploaded_by: opts.requestedBy ?? null,
     } as Record<string, unknown>).select('id').single()
     if (insErr) {
