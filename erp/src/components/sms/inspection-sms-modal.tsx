@@ -163,6 +163,10 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
   function send() {
     if (dupSelected && !confirmDup) { setConfirmDup(true); return }
+    // 여기까지 왔으면 이미 보낸 건을 **알고** 보내는 것이다. 서버도 같은 확인을 하므로
+    // 그 사실을 명시해 넘긴다 — 안 넘기면 서버가 막고, 사용자는 두 번 눌렀는데
+    // 아무 일도 안 일어나는 막다른 길에 갇힌다(sms.ts ②-b).
+    const allowResend = dupSelected
     setErr('')
     startTransition(async () => {
       const override: Record<string, string[]> = {}
@@ -176,6 +180,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
         visitDate: source.kind === 'adhoc' ? visitDate : undefined,
         overrideBody: body ?? undefined,
         recipientOverride: override,
+        allowResend,
       })
       setResult(res as typeof result)
       setConfirmDup(false)

@@ -8,7 +8,7 @@ import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
   pickContacts, groupTargets, countMessages, normalizePhone, maskPhone,
   smsByteLength, smsKind, dDayLabel, daysBetween, todayKst, shortDate, addDays,
-  parseSolapiResult, renderTemplate, resolvePendingNotices, validateLeadRules,
+  parseSolapiResult, renderTemplate, unresolvedVars, resolvePendingNotices, validateLeadRules,
   type SmsTarget, type SmsGroup, type Contact,
 } from '@/lib/sms-recipients'
 
@@ -29,6 +29,11 @@ type Admin = ReturnType<typeof createAdminClient>
  *  한 달이면 "이번 달에 연락 없이 간 곳"을 덮는다 — 사전 안내의 실무 주기와 맞다. */
 export const OVERDUE_WINDOW_DAYS = 30
 
+/** '동시에 누른 것'으로 볼 시간 창(④-b).
+ *  이보다 오래된 발송은 경합이 아니라 **의도한 재발송**이고, 그쪽은 ②-b가 확인을 받는다.
+ *  짧으면 느린 요청이 서로를 못 보고, 길면 정상 재발송이 경합으로 오인된다. */
+const CONCURRENT_WINDOW_MS = 120_000
+
 // ── 안전장치 ──────────────────────────────────────────────────
 /** 문자는 되돌릴 수 없고 돈이 나간다. 세 겹으로 막는다. */
 export function smsGuards() {
@@ -37,6 +42,13 @@ export function smsGuards() {
     dryRun: process.env.SMS_DRY_RUN === '1',
     /** 목록 밖 번호는 전부 skip. 스테이징에 걸어두면 사고 시 최대 피해가 본인 1통 */
     allowlist: (process.env.SMS_ALLOWLIST ?? '').split(',').map(s => normalizePhone(s)).filter(Boolean),
+    /** 값이 **설정돼 있었는가** — 정규화 결과가 비었는지와 따로 본다.
+     *
+     *  ⚠ 이 둘을 구분하지 않으면 fail-open이 된다: `SMS_ALLOWLIST="내번호"`처럼 숫자가 없는
+     *  오타를 넣으면 normalizePhone이 전부 버려 빈 배열이 되고, 빈 배열은 '미설정'과 같아
+     *  **전건이 실고객에게 나간다**. 가드를 켰다고 믿는 순간이 가장 위험하다.
+     *  화면 배너도 함께 사라져 켜진 줄 알 단서조차 없다. */
+    allowlistSet: (process.env.SMS_ALLOWLIST ?? '').trim().length > 0,
     /** 1회 상한 — 초과하면 발송 자체를 안 한다(부분 발송으로 어중간하게 만들지 않는다) */
     maxPerRun: Number(process.env.SMS_MAX_PER_RUN ?? 200) || 200,
     from: process.env.SOLAPI_SENDER_PHONE ?? process.env.SMS_SENDER_PHONE ?? '',
@@ -100,7 +112,17 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
   if ('planItemIds' in input && input.planItemIds.length === 0) return []
 
   const page = await fetchAllRows(build)
-  if (page.error) return []
+  // ⚠ **조용히 빈 목록을 돌려주지 않는다.**
+  //
+  //  종전엔 오류를 삼키고 []를 반환했다. 그러면 배너는 "오늘 보낼 안내 없음 ✓",
+  //  모달은 "보낼 대상이 없습니다", 사이드바 뱃지는 0이 된다 — 조회가 실패했을 뿐인데
+  //  화면 전체가 **정상적으로 할 일이 없는 상태**와 똑같이 보인다. 방문 전날 전건 미발송을
+  //  아무도 모르게 넘길 수 있는 형태라, 이 기능에서 가장 위험한 종류의 침묵이다.
+  //  던지면 호출부의 error 경로를 타고 사용자에게 사유가 뜬다.
+  if (page.error) {
+    // fetchAllRows의 error는 **문자열**이다(객체 아님) — .message로 읽으면 빌드가 깨진다
+    throw new Error(`발송 대상을 불러오지 못했습니다: ${page.error}`)
+  }
   // 조용히 적게 보여주지 않는다 — 상한에 걸리면 서버 로그에 남긴다
   if (page.truncated) console.error('[sms] 발송 대상 로드 상한 도달 — 일부가 빠졌을 수 있다:', page.rows.length)
 
@@ -281,6 +303,9 @@ export async function sendInspectionSms(
     overrideBody?: string
     /** 회차 한정 수신자 변경 — customerId|visitDate → 허용 번호 목록 */
     recipientOverride?: Record<string, string[]>
+    /** 이미 보낸 건을 **알고도** 다시 보낸다(화면에서 한 번 더 확인한 경우).
+     *  기본 false — 모르고 두 번 나가는 것을 기본값이 막아야 한다. */
+    allowResend?: boolean
   },
 ): Promise<SendResult> {
   const g = smsGuards()
@@ -328,15 +353,32 @@ export async function sendInspectionSms(
     }
   }
 
-  // ①-b 치환되지 않은 변수 — 아무것도 보내지 않는다.
+  // ①-b **알 수 없는** 변수 — 아무것도 보내지 않는다.
   //
   // 문구 **설정** 저장은 알 수 없는 변수를 이미 거부한다(message-template-actions.ts:60-69).
   // 그런데 이 함수가 받는 overrideBody(모달 인라인 편집)는 그 검사를 통과하지 않는다 —
   // `{점검일자}` 같은 오타가 글자 그대로 고객 문자에 찍히고, 문자는 되돌릴 수 없으며 돈도 나간 뒤다.
   // 화면에서도 버튼을 막지만 이 액션은 공개 엔드포인트라 화면 가드만으로는 우회된다.
-  if (unresolvedAll.size > 0) {
+  //
+  // ⚠ **오타와 '값이 빈 변수'를 구분한다.** renderTemplate은 값이 비면 `{담당자}`를 그대로
+  //   남긴다(sms-recipients.ts renderTemplate — 조용한 빈칸을 막으려는 의도적 설계).
+  //   그것까지 여기서 막으면, 담당자가 없는 계획 한 건 때문에 **그 배치 전체가 안 나간다**.
+  //   오타는 문구 전체의 문제라 전건 차단이 맞고, 빈 값은 그 건만의 문제라 아래에서 건별로 뺀다.
+  //   (화면 가드도 knownVars 기준이라, 이렇게 해야 서버와 화면 판정이 갈라지지 않는다.)
+  const known = new Set(smsVarNames(base))
+  const unknownVars = [...unresolvedAll].filter(v => !known.has(v))
+  if (unknownVars.length > 0) {
+    const names = unknownVars.map(v => `{${v}}`).join(', ')
+    return { ...empty, ok: false, error: `알 수 없는 변수가 있습니다: ${names} — 이대로 보내면 고객에게 글자 그대로 나갑니다.` }
+  }
+
+  // ①-c 값이 비어 `{변수}`가 남은 **건만** 뺀다 — 나머지는 정상 발송한다.
+  //   조용히 빼지 않고 사유와 함께 noPhone 옆에 기록한다(못 받은 고객이 기록에 남아야 조치가 된다).
+  const emptyVarUnits = units.filter(u => unresolvedVars(u.text).length > 0)
+  const sendableUnits = units.filter(u => unresolvedVars(u.text).length === 0)
+  if (emptyVarUnits.length > 0 && sendableUnits.length === 0) {
     const names = [...unresolvedAll].map(v => `{${v}}`).join(', ')
-    return { ...empty, ok: false, error: `치환되지 않은 변수가 있습니다: ${names} — 이대로 보내면 고객에게 글자 그대로 나갑니다.` }
+    return { ...empty, ok: false, error: `문구의 ${names} 값이 비어 있어 보낼 수 있는 건이 없습니다 — 값을 채우거나 문구에서 빼주세요.` }
   }
 
   // ② dryRun — DB에도 남기지 않는다. 리허설이 이력을 오염시키면 리허설이 아니다.
@@ -346,19 +388,58 @@ export async function sendInspectionSms(
   // 한 통도 안 나간 리허설을 성공으로 오인하게 만든다. 이 기능에서 가장 하면 안 되는 착각이다.
   if (g.dryRun) {
     return {
-      ok: true, sent: 0, failed: 0, unverified: 0, noPhone: noPhone.length, skipped: 0,
-      dryRunPlanned: units.length,
-      error: `[리허설] 실제로 발송하지 않았습니다 — 실제로 보내면 ${units.length}통입니다.`,
-      rows: units.map(u => ({
-        customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
-        contactName: u.contact.name, status: 'dry_run', error: null,
-      })),
+      ok: true, sent: 0, failed: 0, unverified: 0, noPhone: noPhone.length, skipped: emptyVarUnits.length,
+      dryRunPlanned: sendableUnits.length,
+      error: `[리허설] 실제로 발송하지 않았습니다 — 실제로 보내면 ${sendableUnits.length}통입니다.`
+        + (emptyVarUnits.length > 0 ? ` (변수 값이 비어 제외 ${emptyVarUnits.length}건)` : ''),
+      rows: [
+        ...sendableUnits.map(u => ({
+          customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
+          contactName: u.contact.name, status: 'dry_run', error: null,
+        })),
+        ...emptyVarUnits.map(u => ({
+          customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
+          contactName: u.contact.name, status: 'failed',
+          error: `문구의 ${unresolvedVars(u.text).map(v => `{${v}}`).join(', ')} 값이 비어 있습니다`,
+        })),
+      ],
     }
   }
 
-  // ③ allowlist — 목록이 설정돼 있으면 그 밖의 번호는 보내지 않는다
-  const sendUnits = g.allowlist.length > 0 ? units.filter(u => g.allowlist.includes(u.phone)) : units
-  const skipped = units.length - sendUnits.length
+  // ②-b 이미 보낸 건 — **서버가 다시 묻는다**.
+  //
+  // 화면에도 확인 1회가 있지만(모달 confirmDup) 그건 탭 하나 안의 상태다.
+  // 탭을 두 개 열거나 액션을 다시 호출하면 그 확인을 통째로 건너뛴다 —
+  // 이 액션은 'use server' 공개 엔드포인트라 화면 가드는 우회를 전제해야 한다.
+  //
+  // ⚠ **유니크 인덱스를 걸지 않는 이유**(Q-12): 재발송은 사람의 판단이다.
+  // 실패했거나 고객이 못 받았으면 다시 보내야 하고, 인덱스는 그 길까지 영구히 막는다.
+  // 그래서 '막는' 대신 '한 번 더 확인'한다 — allowResend를 명시해야 통과한다.
+  if (!opts.allowResend) {
+    const dates = groups.map(x => x.visitDate).sort()
+    const already = await loadSentPairs(admin, dates[0], dates[dates.length - 1])
+    const dup = groups.filter(x => already.has(`${x.customerId}|${x.visitDate}`))
+    if (dup.length > 0) {
+      const names = dup.slice(0, 3).map(x => x.customerName).join(', ')
+      return {
+        ...empty, ok: false,
+        error: `이미 안내를 보낸 건이 ${dup.length}곳 있습니다 (${names}${dup.length > 3 ? ' 외' : ''}).`
+          + ' 다시 보내려면 화면에서 한 번 더 확인해주세요.',
+      }
+    }
+  }
+
+  // ③ allowlist — 설정돼 있으면 그 밖의 번호는 보내지 않는다.
+  //   **설정됐는데 쓸 수 있는 번호가 하나도 없으면 전건을 막는다**(fail-closed).
+  //   빈 목록을 '미설정'으로 흘려보내면 오타 하나가 실고객 전건 발송이 된다.
+  if (g.allowlistSet && g.allowlist.length === 0) {
+    return {
+      ...empty, ok: false,
+      error: 'SMS_ALLOWLIST가 설정돼 있으나 유효한 번호가 하나도 없습니다 — 오타로 가드가 풀리는 것을 막기 위해 발송하지 않았습니다.',
+    }
+  }
+  const sendUnits = g.allowlistSet ? sendableUnits.filter(u => g.allowlist.includes(u.phone)) : sendableUnits
+  const skipped = sendableUnits.length - sendUnits.length + emptyVarUnits.length
 
   // ④ sending 행 claim (발송 **전에**)
   //
@@ -367,10 +448,19 @@ export async function sendInspectionSms(
   // 표시하고 다음 발송 때 재발송·이중 과금이 된다. claim을 발송 전에 두는 이유가 바로 그것을
   // 막기 위해서인데 오류를 무시하면 그 장치가 정확히 필요한 순간에만 무력해진다(P-1의 재발 형태).
   const rowIds: string[] = []
-  /** 이미 claim한 행을 sending 상태로 방치하지 않는다 — 중단도 기록으로 남겨야 사람이 판단한다 */
-  const abortClaimed = async (reason: string): Promise<SendResult> => {
+  const claims: Array<{ id: string; created_at: string; unit: Unit }> = []
+  /** 이미 claim한 행을 sending 상태로 방치하지 않는다 — 중단도 기록으로 남겨야 사람이 판단한다.
+   *
+   *  `discard=true`면 **행을 지운다**. 경합에서 물러난 쪽이 그 경우다.
+   *  물러난 쪽은 Solapi를 부른 적이 없으므로 '실패'가 아니라 **아무 일도 없었던 것**이다.
+   *  failed로 남기면 목록의 상태 우선순위가 failed > sent라(sms-actions rowOf)
+   *  **승자가 실제로 보낸 그 건이 화면에 '실패'로 표시되고**, 기본 필터(발송 제외)에 계속 남아
+   *  재발송을 유도한다 — 이 기능이 막으려던 거짓말의 정확한 반대 방향이다.
+   *  반면 claim 실패 같은 진짜 사고는 failed로 남겨야 사람이 본다. */
+  const abortClaimed = async (reason: string, discard = false): Promise<SendResult> => {
     for (const id of rowIds) {
-      await admin.from('sms_send_log').update({ status: 'failed', error: reason }).eq('id', id)
+      if (discard) await admin.from('sms_send_log').delete().eq('id', id)
+      else await admin.from('sms_send_log').update({ status: 'failed', error: reason }).eq('id', id)
     }
     return {
       ok: false, error: reason,
@@ -398,15 +488,77 @@ export async function sendInspectionSms(
       status: 'sending',
       trigger,
       sent_by: opts.actorId,
-    } as Record<string, unknown>).select('id').single()
-    const rowId = (data as { id: string } | null)?.id
-    if (claimErr || !rowId) {
+    } as Record<string, unknown>).select('id, created_at').single()
+    const claimed = data as { id: string; created_at: string } | null
+    if (claimErr || !claimed?.id) {
       return abortClaimed(
         '발송 이력을 기록하지 못해 발송을 중단했습니다 — 보냈는데 기록이 없으면 재발송·이중 과금이 됩니다.'
         + ` (사유: ${claimErr?.message ?? '이력 행 생성 실패'})`,
       )
     }
-    rowIds.push(rowId)
+    rowIds.push(claimed.id)
+    claims.push({ ...claimed, unit: u })
+  }
+
+  // ④-b 동시 발송 감지 — **claim 뒤에** 본다.
+  //
+  // ②-b는 '이미 보낸 것'을 막지만, 두 탭이 **동시에** 누르면 어느 쪽도 상대의 sent 행을
+  // 아직 못 본다(read-then-write의 TOCTOU). 그래서 claim을 먼저 하고 **그 다음에** 확인한다:
+  // 두 요청 모두 상대의 sending 행을 보게 되므로, 더 이른 쪽만 진행하고 늦은 쪽은 스스로 물러난다.
+  //
+  // ⚠ 승자 판정은 **요청 단위**여야 한다. 유닛(고객·번호)마다 따로 판정하면, 두 요청의 insert가
+  //   교차했을 때 A는 유닛2에서, B는 유닛1에서 각각 더 이른 상대를 발견해 **양쪽 다 물러난다** —
+  //   0통 발송에 "먼저 시작된 쪽을 확인하라"는 안내만 둘 남고, 그런 쪽은 없다.
+  //   그래서 내 claim 전체의 최소 순위 하나와 상대 전체의 최소 순위 하나를 비교한다.
+  //   순위는 (created_at, id) 전순서라 동률이 없고, 양쪽이 반드시 같은 결론에 도달한다.
+  //
+  // 유니크 인덱스 없이 경합만 잡는 방식이라 정상 재발송 경로는 그대로 열려 있다.
+  if (claims.length > 0) {
+    const since = new Date(Date.now() - CONCURRENT_WINDOW_MS).toISOString()
+    const mine = new Set(rowIds)
+    const rank = (r: { id: string; created_at: string }) => `${r.created_at}|${r.id}`
+    const myRank = claims.map(rank).sort()[0]
+    let rivalRank: string | null = null
+    let rivalName = ''
+    for (const c of claims) {
+      const { data: rivals, error: rivalErr } = await admin.from('sms_send_log')
+        .select('id, created_at')
+        .eq('customer_id', c.unit.group.customerId)
+        .eq('visit_date', c.unit.group.visitDate)
+        .eq('to_phone', c.unit.phone)
+        .in('status', ['sending', 'sent', 'unverified'])
+        .gte('created_at', since)
+      // 조회 자체가 실패하면 경합 여부를 **모르는** 것이다. 모르는 채로 보내면 가드가 없는 것과 같다.
+      if (rivalErr) {
+        return abortClaimed(`동시 발송 여부를 확인하지 못해 중단했습니다 (${rivalErr.message}).`)
+      }
+      for (const r of rivals ?? []) {
+        if (mine.has(r.id)) continue
+        const rr = rank(r)
+        if (rivalRank === null || rr < rivalRank) { rivalRank = rr; rivalName = c.unit.group.customerName }
+      }
+    }
+    if (rivalRank !== null && rivalRank < myRank) {
+      return abortClaimed(
+        `같은 건을 방금 다른 창에서 보내는 중입니다 (${rivalName}).`
+        + ' 이중 발송을 막기 위해 이번 요청은 보내지 않았습니다 — 먼저 시작된 쪽의 결과를 확인해주세요.',
+        true,   // 보낸 적이 없으므로 claim 행을 지운다 — '실패'로 남으면 승자의 발송을 가린다
+      )
+    }
+  }
+
+  // ①-c에서 뺀 건도 기록한다 — 조용히 빠지면 "왜 이 고객만 문자가 안 갔지"를 알 길이 없다.
+  for (const u of emptyVarUnits) {
+    const reason = `문구의 ${unresolvedVars(u.text).map(v => `{${v}}`).join(', ')} 값이 비어 있어 보내지 않았습니다`
+    const { error: evErr } = await admin.from('sms_send_log').insert({
+      kind, customer_id: u.group.customerId, plan_item_ids: u.group.planItemIds, visit_date: u.group.visitDate,
+      lead_days: daysBetween(today, u.group.visitDate),
+      to_phone: u.phone, from_phone: g.from || null,
+      contact_role: u.contact.role, contact_name: u.contact.name,
+      content: u.text, byte_len: u.byteLen, msg_type: u.msgType,
+      status: 'failed', error: reason, trigger, sent_by: opts.actorId,
+    } as Record<string, unknown>)
+    if (evErr) console.error('[sms] 빈 변수 제외 기록 실패:', u.group.customerId, evErr.message)
   }
 
   // 번호 없는 고객도 기록한다 — 못 받았다는 사실이 남아야 사람이 조치할 수 있다(P-2).

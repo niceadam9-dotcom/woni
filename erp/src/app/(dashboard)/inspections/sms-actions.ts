@@ -50,17 +50,22 @@ export async function prepareInspectionSmsAction(source: {
   const admin = createAdminClient()
 
   let targets
-  if (source.kind === 'adhoc') {
-    if (!source.customerId || !source.visitDate) return { error: '고객과 방문일을 선택해주세요.' }
-    if (source.visitDate < todayKst()) return { error: '지난 날짜에는 방문 안내를 보낼 수 없습니다.' }
-    const t = await loadAdhocTarget(admin, source.customerId, source.visitDate)
-    if (!t) return { error: '고객을 찾을 수 없습니다.' }
-    targets = [t]
-  } else if (source.kind === 'items') {
-    targets = await loadSmsTargets(admin, { planItemIds: source.planItemIds ?? [] })
-  } else {
-    if (!source.from || !source.to) return { error: '기간을 지정해주세요.' }
-    targets = await loadSmsTargets(admin, { from: source.from, to: source.to })
+  try {
+    if (source.kind === 'adhoc') {
+      if (!source.customerId || !source.visitDate) return { error: '고객과 방문일을 선택해주세요.' }
+      if (source.visitDate < todayKst()) return { error: '지난 날짜에는 방문 안내를 보낼 수 없습니다.' }
+      const t = await loadAdhocTarget(admin, source.customerId, source.visitDate)
+      if (!t) return { error: '고객을 찾을 수 없습니다.' }
+      targets = [t]
+    } else if (source.kind === 'items') {
+      targets = await loadSmsTargets(admin, { planItemIds: source.planItemIds ?? [] })
+    } else {
+      if (!source.from || !source.to) return { error: '기간을 지정해주세요.' }
+      targets = await loadSmsTargets(admin, { from: source.from, to: source.to })
+    }
+  } catch (e) {
+    // 조회 실패를 "보낼 대상이 없습니다"로 흘리지 않는다
+    return { error: e instanceof Error ? e.message : String(e) }
   }
 
   const prep = await prepareSms(admin, targets, source.overrideBody)
@@ -75,7 +80,8 @@ export async function prepareInspectionSmsAction(source: {
     totalMessages: prep.totalMessages,
     noPhone: prep.noPhone,
     dryRun: guards.dryRun,
-    allowlistOn: guards.allowlist.length > 0,
+    // 설정 여부로 본다 — 오타로 유효 번호가 0이어도 배너는 켜져 있어야 한다(sms.ts allowlistSet)
+    allowlistOn: guards.allowlistSet,
     credentialsMissing: !guards.hasCredentials || !guards.from,
     // 인라인 편집 중 오타를 화면이 즉시 잡으려면 필요하다 — 미리보기의 unresolved는
     // 서버가 렌더한 시점 기준이라 방금 타이핑한 변수를 모른다(sms.ts smsVarNames 주석)
@@ -120,23 +126,33 @@ export async function sendInspectionSmsAction(input: {
   visitDate?: string
   overrideBody?: string
   recipientOverride?: Record<string, string[]>
+  /** 화면에서 '다시 보내기'를 한 번 더 확인했을 때만 true (sms.ts ②-b) */
+  allowResend?: boolean
 }) {
   const g = await guard('inspection_sms_send')
   if (g.error) return { ok: false, error: g.error, sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
   const admin = createAdminClient()
 
   let targets
-  if (input.kind === 'adhoc') {
-    if (!input.customerId || !input.visitDate) return { ok: false, error: '고객과 방문일을 선택해주세요.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
-    if (input.visitDate < todayKst()) return { ok: false, error: '지난 날짜에는 방문 안내를 보낼 수 없습니다.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
-    const t = await loadAdhocTarget(admin, input.customerId, input.visitDate)
-    if (!t) return { ok: false, error: '고객을 찾을 수 없습니다.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
-    targets = [t]
-  } else if (input.kind === 'items') {
-    targets = await loadSmsTargets(admin, { planItemIds: input.planItemIds ?? [] })
-  } else {
-    if (!input.from || !input.to) return { ok: false, error: '기간을 지정해주세요.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
-    targets = await loadSmsTargets(admin, { from: input.from, to: input.to })
+  try {
+    if (input.kind === 'adhoc') {
+      if (!input.customerId || !input.visitDate) return { ok: false, error: '고객과 방문일을 선택해주세요.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
+      if (input.visitDate < todayKst()) return { ok: false, error: '지난 날짜에는 방문 안내를 보낼 수 없습니다.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
+      const t = await loadAdhocTarget(admin, input.customerId, input.visitDate)
+      if (!t) return { ok: false, error: '고객을 찾을 수 없습니다.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
+      targets = [t]
+    } else if (input.kind === 'items') {
+      targets = await loadSmsTargets(admin, { planItemIds: input.planItemIds ?? [] })
+    } else {
+      if (!input.from || !input.to) return { ok: false, error: '기간을 지정해주세요.', sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [] }
+      targets = await loadSmsTargets(admin, { from: input.from, to: input.to })
+    }
+  } catch (e) {
+    // 대상 조회 실패 — '보낼 대상이 없습니다'로 흘리면 발송 안 된 것을 정상으로 오인한다
+    return {
+      ok: false, error: e instanceof Error ? e.message : String(e),
+      sent: 0, failed: 0, unverified: 0, noPhone: 0, skipped: 0, rows: [],
+    }
   }
 
   const res = await sendInspectionSms(admin, {
@@ -146,6 +162,7 @@ export async function sendInspectionSmsAction(input: {
     trigger: 'manual',
     overrideBody: input.overrideBody,
     recipientOverride: input.recipientOverride,
+    allowResend: input.allowResend === true,
   })
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections/calendar')
@@ -188,7 +205,14 @@ export async function listSmsStatusAction(filters: {
   const to = filters.to || addDays(today, 30)
 
   // ── 축 A: 계획 항목
-  const targets = await loadSmsTargets(admin, { from, to })
+  //  조회 실패를 삼키면 화면 전체가 "보낼 안내 없음 ✓"가 된다(sms.ts loadSmsTargets 주석).
+  //  사유를 그대로 올려 사용자가 '할 일이 없는 것'과 '못 본 것'을 구별하게 한다.
+  let targets
+  try {
+    targets = await loadSmsTargets(admin, { from, to })
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
   const { groups, noPhone } = groupTargets(targets)
 
   // ── 축 B: 발송 이력 (adhoc 포함)
@@ -292,9 +316,11 @@ export async function listSmsStatusAction(filters: {
     seen.add(pair)
     rows.push(rowOf(pair, {
       customerId: n.customerId, customerName: n.customerName, visitDate: n.visitDate,
-      planItemIds: n.planItemIds, inspectionTypes: [], assigneeName: null,
-      regionSi: null, regionMyeon: null, regionRi: null, address: null,
-      recipientCount: 0, isAdhoc: false, sendable: false, unsendableReason: '전화번호 없음',
+      // ⚠ null로 채우면 지역·담당 필터에서 이 행들만 통째로 사라진다 —
+      //   문자를 못 받는 바로 그 고객이 조용히 지워진다(NoPhoneEntry 주석)
+      planItemIds: n.planItemIds, inspectionTypes: [], assigneeName: n.assigneeName,
+      regionSi: n.regionSi, regionMyeon: n.regionMyeon, regionRi: n.regionRi, address: n.address,
+      recipientCount: 0, isAdhoc: false, sendable: false, unsendableReason: n.reason,
     }))
   }
   // 축 B에만 있는 것 = 임의 발송이거나 계획이 사라진 과거 이력
@@ -359,7 +385,14 @@ export async function listSmsStatusAction(filters: {
   const bannerFrom = addDays(today, -OVERDUE_WINDOW_DAYS)
   const bannerTo = addDays(today, Math.max(...rules, 1))
   const sentPairs = await loadSentPairs(admin, bannerFrom, bannerTo)
-  const wide = await loadSmsTargets(admin, { from: bannerFrom, to: bannerTo, includePast: true })
+  let wide
+  try {
+    wide = await loadSmsTargets(admin, { from: bannerFrom, to: bannerTo, includePast: true })
+  } catch (e) {
+    // 배너만 실패한 경우 — 목록은 이미 만들었으니 통째로 버리지 않되, 배너가 '없음 ✓'로
+    // 보이지 않게 사유를 올린다. 침묵보다 목록 없는 오류가 낫다.
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
   const { groups: wideGroups } = groupTargets(wide)
   const { notices, overdue } = resolvePendingNotices(
     wideGroups, rules, today, (c, v) => sentPairs.has(`${c}|${v}`))

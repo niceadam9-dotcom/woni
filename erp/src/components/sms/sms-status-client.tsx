@@ -299,7 +299,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const filterOn = !!(from || to || regionSi || regionMyeon || regionRi || assignee || status !== 'not_sent')
   function clearFilters() {
     setFrom(''); setTo(''); setRegionSi(''); setRegionMyeon(''); setRegionRi('')
-    setStatus('all'); setAssignee('')
+    // 해제 = **기본값으로 되돌리기**. 'all'로 두면 filterOn 판정(status !== 'not_sent')이
+    // 계속 참이라 해제한 직후에도 [필터 해제]가 그대로 떠 있다 — 눌렀는데 안 풀린 것처럼 보인다.
+    setStatus('not_sent'); setAssignee('')
   }
 
   // 체크는 계획 항목이 있는 행에만 걸린다(SmsRow가 나머지를 disabled로 막는다).

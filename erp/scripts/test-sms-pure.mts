@@ -104,6 +104,36 @@ console.log('\n— groupTargets (P-12) — 이 기능의 핵심 리스크')
   ok('noPhone에도 planItemIds가 실린다', noPhone[0].planItemIds.length === 1)
 }
 {
+  // ★ 독립 판정 D2 — noPhone이 지역·담당을 잃으면 화면의 지역/담당 필터에서
+  //   이 행들만 통째로 사라진다. 문자를 못 받는 바로 그 고객이 조용히 지워진다.
+  const { noPhone } = groupTargets([
+    T({
+      customerId: 'B', customerName: '번호없는곳', visitDate: '2026-09-19',
+      contacts: [C('대표', '무번호', null)],
+      regionSi: '양평군', regionMyeon: '강하면', regionRi: '전수리',
+      assigneeName: '김태건', address: '경기도 양평군 강하면 강남로 1',
+    } as any),
+  ])
+  ok('★ noPhone도 지역·담당·주소를 나른다(필터에서 조용히 사라지지 않는다)',
+    noPhone[0].regionSi === '양평군' && noPhone[0].regionMyeon === '강하면'
+    && noPhone[0].regionRi === '전수리' && noPhone[0].assigneeName === '김태건'
+    && !!noPhone[0].address,
+    JSON.stringify(noPhone[0]))
+}
+{
+  // 번호는 있는데 **수신을 끈** 고객 — 사유가 '번호 없음'으로 고정되면
+  // 화면이 "연락처를 채워주세요"라고 잘못 안내한다(번호는 멀쩡히 있다)
+  const { groups, noPhone } = groupTargets([
+    T({
+      customerId: 'D', customerName: '수신거부', visitDate: '2026-09-19',
+      contacts: [C('대표', '홍', '01011112222', false)],
+    }),
+  ])
+  ok('수신 해제 고객은 발송 대상에서 빠진다', groups.length === 0 && noPhone.length === 1)
+  ok('★ 사유가 번호 없음이 아니라 수신 해제로 나온다',
+    /수신/.test(noPhone[0].reason), noPhone[0].reason)
+}
+{
   const cs = [C('대표', '홍', '01011112222', true), C('직원1', '김', '01033334444', true)]
   const { groups } = groupTargets([T({ customerId: 'C', visitDate: '2026-09-19', contacts: cs })])
   ok('수신자 2명이면 통수 2', countMessages(groups) === 2)
@@ -249,6 +279,20 @@ console.log('\n— parseSolapiResult (P-11) — unverified가 요점')
   const mismatch = parseSolapiResult(phones, 200, { groupInfo: grp(1), failedMessageList: [] })
   ok('접수 건수가 대상 수와 안 맞으면 unverified',
     [...mismatch.values()].every(v => v.status === 'unverified'))
+
+  // ★ 응답을 **못 받은 것**과 **거절당한 것**은 다르다(독립 판정 D1).
+  //   status 0 = 네트워크 예외. 요청이 Solapi에 닿은 뒤 응답만 못 받았을 수 있다 —
+  //   즉 문자는 나갔을 수 있다. failed로 적으면 loadSentPairs의 재발송 방어망에서 빠져
+  //   배너가 미발송으로 되살리고 ②-b 중복 확인도 통과한다 = 확인 없는 이중 과금.
+  const netErr = parseSolapiResult(phones, 0, '네트워크 오류: fetch failed')
+  ok('★ 네트워크 오류(status 0)는 failed가 아니라 unverified',
+    [...netErr.values()].every(v => v.status === 'unverified'),
+    JSON.stringify([...netErr.values()].map(v => v.status)))
+  const srvErr = parseSolapiResult(phones, 503, 'upstream unavailable')
+  ok('★ 5xx도 회색지대 — unverified', [...srvErr.values()].every(v => v.status === 'unverified'))
+  const badReq = parseSolapiResult(phones, 400, '{"errorCode":"ValidationError"}')
+  ok('4xx는 요청이 거절된 것이므로 failed(재시도해야 한다)',
+    [...badReq.values()].every(v => v.status === 'failed'))
 
   // 실발송 원문 회귀 — 이 케이스가 깨지면 정상 발송이 다시 unverified로 기록된다.
   // ⚠ 응답 **모양**만 실측이고 번호는 가짜로 바꿨다(공개 저장소에 실번호를 남기지 않는다).

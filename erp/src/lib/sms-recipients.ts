@@ -75,6 +75,17 @@ export type NoPhoneEntry = {
   visitDate: string
   planItemIds: string[]
   reason: string
+  /** ⚠ 지역·담당을 **반드시 함께 나른다.**
+   *
+   *  종전엔 이 필드들이 없어 화면이 null로 채웠고, 지역·담당 필터가 등가 비교라
+   *  **어떤 필터를 걸어도 이 행들이 통째로 사라졌다.** 지역으로 좁혀 일하는 것이 이 화면의
+   *  주 동선인데, 그 순간 '문자를 못 받는 고객'만 골라 화면에서 지우는 셈이었다.
+   *  게다가 화면은 아무 신호도 내지 않는다 — 조용히 사라지는 것이 이 기능 최악의 실패다. */
+  regionSi: string | null
+  regionMyeon: string | null
+  regionRi: string | null
+  assigneeName: string | null
+  address: string | null
 }
 
 // ── 전화번호 ──────────────────────────────────────────────────
@@ -166,7 +177,14 @@ export function groupTargets(targets: SmsTarget[]): { groups: SmsGroup[]; noPhon
     if (recipients.length === 0) {
       const e = noPhoneMap.get(key) ?? {
         customerId: t.customerId, customerName: t.customerName, visitDate: t.visitDate,
-        planItemIds: [], reason: '발송 가능한 전화번호가 없습니다',
+        planItemIds: [],
+        // 번호는 있는데 **수신을 껐을** 수도 있다. 사유를 하나로 고정하면 화면이
+        // "고객관리에서 연락처를 채워주세요"라고 잘못 안내한다(번호는 멀쩡히 있다).
+        reason: (t.contacts ?? []).some(c => c.sms_recipient === false)
+          ? '이 고객은 문자 수신을 받지 않도록 설정되어 있습니다'
+          : '발송 가능한 전화번호가 없습니다',
+        regionSi: t.regionSi ?? null, regionMyeon: t.regionMyeon ?? null, regionRi: t.regionRi ?? null,
+        assigneeName: t.assigneeName ?? null, address: t.address ?? null,
       }
       if (t.planItemId && !e.planItemIds.includes(t.planItemId)) e.planItemIds.push(t.planItemId)
       noPhoneMap.set(key, e)
@@ -382,7 +400,23 @@ export function parseSolapiResult(
 
   if (httpStatus < 200 || httpStatus >= 300) {
     const msg = typeof body === 'string' ? body : JSON.stringify(body ?? {})
-    for (const p of phones) out.set(norm(p), { status: 'failed', error: `Solapi 오류 (${httpStatus}): ${msg.slice(0, 300)}` })
+    // ⚠ **응답을 못 받은 것과 거절당한 것은 다르다.**
+    //
+    //  status 0 = 네트워크 예외(연결 리셋·읽기 타임아웃). 요청이 Solapi에 닿은 뒤 응답만
+    //  못 받았을 수 있다 — 즉 **문자는 나갔을 수 있다**. 5xx도 같은 회색지대다.
+    //  이걸 failed로 적으면 loadSentPairs의 재발송 방어망(sent·unverified·sending)에서
+    //  빠져 배너가 그 건을 미발송으로 되살리고, ②-b 중복 확인마저 통과한다 —
+    //  확인 절차 없는 이중 과금. unverified가 존재하는 이유가 정확히 이 경우다.
+    //  4xx는 요청 자체가 거절된 것이므로 failed가 맞다(재시도해야 한다).
+    const uncertain = httpStatus === 0 || httpStatus >= 500
+    for (const p of phones) {
+      out.set(norm(p), uncertain
+        ? {
+          status: 'unverified', statusCode: String(httpStatus),
+          error: `발송 여부를 확인하지 못했습니다 (${httpStatus === 0 ? '네트워크 오류' : `Solapi ${httpStatus}`}): ${msg.slice(0, 200)}`,
+        }
+        : { status: 'failed', error: `Solapi 오류 (${httpStatus}): ${msg.slice(0, 300)}` })
+    }
     return out
   }
 

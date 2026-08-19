@@ -159,6 +159,98 @@ try {
   check('상한에 걸리면 새 행도 안 생긴다', aLogs2.length === 2, String(aLogs2.length))
   delete process.env.SMS_MAX_PER_RUN
 
+  console.log('\n— 중복 발송 방지 (서버측)')
+  {
+    // 화면의 확인 1회는 탭 하나 안의 상태다. 탭 두 개·액션 재호출은 그걸 통째로 건너뛴다.
+    // 유니크 인덱스는 걸지 않는다(Q-12: 재발송은 사람 판단) — 그래서 '막기'가 아니라 '다시 묻기'다.
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+    await raw.from('sms_send_log').insert({
+      kind: 'pre_visit', customer_id: cidA, plan_item_ids: [a1], visit_date: VISIT,
+      content: 'x', status: 'sent', sent_by: userId,
+    })
+    const oneTarget = targets.filter((t: any) => t.customerId === cidA)
+
+    const blocked = await sendInspectionSms(admin, { targets: oneTarget, actorId: userId })
+    check('★ 이미 보낸 건은 서버가 막는다(화면 확인을 우회해도)',
+      !blocked.ok && /이미 안내를 보낸/.test(blocked.error ?? ''), blocked.error ?? '')
+
+    process.env.SMS_DRY_RUN = '1'
+    const allowed = await sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true })
+    check('★ allowResend를 명시하면 통과한다(재발송 길을 영구히 막지 않는다)',
+      allowed.ok === true, JSON.stringify({ ok: allowed.ok, error: allowed.error }))
+    delete process.env.SMS_DRY_RUN
+
+    // 동시 경합 — 두 요청이 서로의 sent 행을 아직 못 보는 상황(TOCTOU).
+    // 둘 다 allowResend로 들어가야 ②-b를 지나 ④-b(claim 후 판정)까지 도달한다.
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+    const [r1, r2] = await Promise.all([
+      sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true }),
+      sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true }),
+    ])
+    const raced = [r1, r2].filter(r => /다른 창에서 보내는 중/.test(r.error ?? ''))
+    check('★ 동시에 눌러도 한쪽은 스스로 물러난다(두 탭 이중 발송 차단)',
+      raced.length === 1, JSON.stringify({ r1: r1.error ?? 'ok', r2: r2.error ?? 'ok' }))
+    check('★ 양쪽 다 물러나지 않는다 — 한쪽은 반드시 진행한다(livelock 방지, 판정 D6)',
+      raced.length === 1 && [r1, r2].some(r => !/다른 창에서 보내는 중/.test(r.error ?? '')),
+      JSON.stringify({ r1: r1.error ?? 'ok', r2: r2.error ?? 'ok' }))
+    // 물러난 쪽이 sending으로 남으면 '보냈는지 모름'이 되어 사람이 판단할 수 없다
+    const stuck = (await logsOf(cidA)).filter(r => r.status === 'sending')
+    check('물러난 쪽이 sending으로 방치되지 않는다', stuck.length === 0, String(stuck.length))
+    // ★ 판정 D5 — 물러난 쪽이 failed 행을 남기면, 목록 우선순위가 failed > sent라
+    //   **승자가 실제로 보낸 그 건이 화면에 '실패'로 표시**되고 재발송을 유도한다.
+    //   물러난 쪽은 Solapi를 부른 적이 없으므로 '아무 일도 없었던 것'이어야 한다.
+    const ghosts = (await logsOf(cidA)).filter(r => /다른 창에서 보내는 중/.test(r.error ?? ''))
+    check('★ 물러난 쪽은 failed 행조차 남기지 않는다(승자의 발송을 가리지 않게)',
+      ghosts.length === 0, String(ghosts.length))
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+  }
+
+  console.log('\n— allowlist fail-closed (독립 판정 D4)')
+  {
+    // 오타로 유효 번호가 0이 되면 '미설정'과 구별되지 않아 **전건이 실고객에게 나간다**.
+    // 가드를 켰다고 믿는 순간이 가장 위험하므로, 닫히는 쪽으로 실패해야 한다.
+    process.env.SMS_ALLOWLIST = '내번호'          // 숫자가 없다 → 정규화 결과 0건
+    const failOpen = await sendInspectionSms(admin, { targets, actorId: userId })
+    check('★ allowlist가 설정됐는데 유효 번호가 0이면 발송을 막는다(fail-closed)',
+      !failOpen.ok && /유효한 번호가 하나도/.test(failOpen.error ?? ''), failOpen.error ?? '')
+    delete process.env.SMS_ALLOWLIST
+  }
+
+  console.log('\n— 빈 변수는 그 건만 뺀다 (과잉 차단 금지)')
+  {
+    // 오타(알 수 없는 변수)는 문구 전체의 문제라 전건 차단이 맞다.
+    // 그러나 값이 빈 변수는 그 건만의 문제다 — 담당자 없는 계획 하나 때문에
+    // 배치 전체가 안 나가면 그게 더 큰 사고다.
+    // 한 건만 담당자가 있고 나머지는 비어 있는 **섞인** 상황이라야 부분 차단을 볼 수 있다.
+    // 전부 비면 '보낼 게 하나도 없음'이 맞는 답이라 판정이 되지 않는다.
+    // targets 개수에 기대지 않는다 — 담당자 있는 건 1 + 없는 건 1을 명시적으로 만든다.
+    // (한때 targets가 1건이라 '섞임'이 성립하지 않아 이 단언이 조용히 통과했다)
+    const base0: any = targets[0]
+    const mixed = [
+      { ...base0, assigneeName: '김태건' },
+      { ...base0, customerId: cidB, customerName: '담당없는곳', planItemId: null, assigneeName: null },
+    ]
+    process.env.SMS_DRY_RUN = '1'
+    const withEmpty = await sendInspectionSms(admin, {
+      targets: mixed, actorId: userId,
+      overrideBody: '{고객명}님 {점검일}({담당자} 담당) 방문합니다',
+    })
+    check('★ 값이 빈 변수 때문에 배치 전체가 막히지 않는다(담당자 있는 건은 나간다)',
+      withEmpty.ok === true && (withEmpty.dryRunPlanned ?? 0) > 0,
+      JSON.stringify({ ok: withEmpty.ok, planned: withEmpty.dryRunPlanned, error: withEmpty.error }))
+    check('빈 변수 건은 조용히 빠지지 않고 제외로 집계된다',
+      (withEmpty.skipped ?? 0) > 0, JSON.stringify({ skipped: withEmpty.skipped }))
+    delete process.env.SMS_DRY_RUN
+
+    // 전부 비면 '보낼 게 없다'고 분명히 말해야 한다 — 조용히 0통 성공은 금지
+    const allEmpty = await sendInspectionSms(admin, {
+      targets: [{ ...base0, assigneeName: null }], actorId: userId,
+      overrideBody: '{고객명}님 {점검일}({담당자} 담당) 방문합니다',
+    })
+    check('보낼 수 있는 건이 하나도 없으면 사유와 함께 실패로 말한다',
+      !allEmpty.ok && /값이 비어/.test(allEmpty.error ?? ''), allEmpty.error ?? '')
+  }
+
   console.log('\n— 미치환 변수 (인라인 편집 오타)')
   {
     // 문구 **설정** 저장은 알 수 없는 변수를 이미 거부하지만, 모달 인라인 편집(overrideBody)은
