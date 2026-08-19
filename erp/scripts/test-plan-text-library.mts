@@ -13,6 +13,21 @@ const SEED_SCENARIO = 'E2E 표준 훈련 시나리오 본문'
 
 let userId = '', customerId = '', browser: { close: () => Promise<void> } | null = null
 const libIds: string[] = []
+/** 이 테스트가 잠시 내려둔 실데이터 ⭐기본 항목 — finally에서 되돌린다 */
+let displacedDefaultId: string | null = null
+
+/** 섹션당 활성 ⭐기본은 최대 1개(uq_plan_text_library_default)다. 이 테스트는 자기 항목을 기본으로
+ *  심어야 하므로, 실데이터가 이미 그 자리를 쓰고 있으면 잠시 비켜 둔다(정리 단계에서 복원).
+ *  종전에는 이 처리가 없어 실데이터에 training 기본문구가 생긴 뒤(2026-08-18) 시드 단계에서
+ *  유니크 위반으로 계속 실패했다 — 전역 DB 상태에 의존하던 결함(2026-08-19 정정). */
+const releaseExistingDefault = async (sectionKey: string) => {
+  const { data } = await raw.from('plan_text_library')
+    .select('id').eq('section_key', sectionKey).eq('is_default', true).eq('is_active', true).maybeSingle()
+  const id = (data as { id: string } | null)?.id
+  if (!id) return
+  await raw.from('plan_text_library').update({ is_default: false }).eq('id', id)
+  displacedDefaultId = id
+}
 
 const seedLib = async (sectionKey: string, title: string, body: unknown, isDefault = false) => {
   const { data, error } = await raw.from('plan_text_library')
@@ -45,7 +60,9 @@ try {
     updated_at: new Date().toISOString(), updated_by: userId,
   } as Record<string, unknown>)
 
-  // 라이브러리 시드 — training 2개(하나는 기본), brigadeTeams 1개
+  // 라이브러리 시드 — training 2개(하나는 기본), brigadeTeams 1개.
+  // 실데이터가 training ⭐기본을 쓰고 있으면 잠시 비켜 둔다(정리 단계에서 복원)
+  await releaseExistingDefault('training')
   const trainA = await seedLib('training', 'E2E 훈련 A(기본)', { scenario: 'A 시나리오', scenarioType: '', details: [] }, true)
   const trainB = await seedLib('training', 'E2E 훈련 B', { scenario: 'B 시나리오', scenarioType: '', details: [] })
   const teamsId = await seedLib('brigadeTeams', 'E2E 팀별임무', { command: '지휘 서술' })
@@ -143,6 +160,13 @@ try {
   if (browser) await browser.close()
   // 시드 정리 — 라이브러리는 하드 삭제(테스트 데이터가 실제 목록에 남으면 안 된다)
   if (libIds.length) await raw.from('plan_text_library').delete().in('id', libIds)
+  // 비켜 둔 실데이터 ⭐기본 복원 — **테스트 행 삭제 뒤에** 해야 유니크 인덱스에 걸리지 않는다
+  // (테스트 도중 ⭐가 E2E 훈련 B로 옮겨가 있으므로, 그 행이 살아 있으면 복원이 실패한다)
+  if (displacedDefaultId) {
+    const { error } = await raw.from('plan_text_library')
+      .update({ is_default: true }).eq('id', displacedDefaultId)
+    if (error) console.error(`⚠ ⭐기본 복원 실패(${displacedDefaultId}): ${error.message} — 수동 확인 필요`)
+  }
   if (customerId) {
     await raw.from('plan_text_applied').delete().eq('customer_id', customerId)
     await raw.from('fire_plan_forms').delete().eq('customer_id', customerId)

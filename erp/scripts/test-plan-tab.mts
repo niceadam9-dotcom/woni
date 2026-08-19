@@ -38,11 +38,24 @@ try {
   check('폐기 — 보관함 요약 없음', !(await page.isVisible('text=보관함이 비어 있습니다')))
   check('폐기 — 건축물대장 불러오기 버튼 없음', !(await page.isVisible('button:has-text("건축물대장 불러오기")')))
   check('생성 바 — 누락 칩(입력처 이동) 유지', await page.isVisible('text=누락:'))
-  check('생성 바 — [계획서 생성] 버튼 (§7-5 HWP 단일)', await page.isVisible('button:has-text("계획서 생성 (HWP+PDF)")'))
+  // 생성 버튼은 보관함으로 이관됐다 (소방계획서_21 R2-11 / #2 D-1) — 생성물이 쌓이는 곳에서 생성해야
+  // 결과가 그 자리에 바로 보인다. 종전 라벨 '계획서 생성 (HWP+PDF)'는 사실과도 달랐다:
+  // 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤 hwp_path에 null을 넣으므로 HWP는 만들어지지 않는다.
+  // (이 단언은 이관 이후 계속 실패하고 있었다 — 사라진 버튼을 찾고 있었다. 2026-08-19 정정)
+  check('생성 바 — [계획서 생성] 버튼 폐지(보관함 [개정 발행]으로 이관)',
+    !(await page.isVisible('button:has-text("계획서 생성")')))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
-  // 2026-08-10: 생성 바 연도 입력칸 폐지(올해 자동) — 연도 표기는 '보고서 커버' 서식으로 이동
+  // 2026-08-10: 생성 바 연도 입력칸 폐지(올해 자동) — 연도 표기는 '보고서 커버' 서식으로 이동.
+  // 버튼이 사라졌으므로 '생성 바에 연도 입력칸이 없다'를 생성 바 영역 기준으로 본다
   check('생성 바 — 연도 입력칸 폐지',
-    (await page.locator('div:has(> button:has-text("계획서 생성 (HWP+PDF)")) > input').count()) === 0)
+    (await page.locator('div:has(> p:has-text("누락:")) input[type="number"]').count()) === 0)
+
+  // 이관처 확인 — 보관함 가지에 [개정 발행]이 있다(생성 창구가 사라지지 않았음을 함께 고정)
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=archive`)
+  await page.waitForLoadState('networkidle')
+  check('보관함 — [개정 발행]이 생성 창구', await page.isVisible('button:has-text("개정 발행")'))
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
+  await page.waitForSelector('text=① 시설현황')
 
   // ── 2) 송달 동의 — 1.1 ④ 섹션으로 흡수, 저장 버튼 통합(2026-08-06) ──
   check('1.1 — ④ 송달 동의 섹션 이관됨', await page.isVisible('text=자체점검 보고서 전자우편 송달 동의'))
