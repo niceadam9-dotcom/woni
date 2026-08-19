@@ -61,6 +61,15 @@ let serverUp = false
 try { const r = await fetch('http://localhost:3000/login', { method: 'HEAD' }); serverUp = r.ok } catch { serverUp = false }
 if (!serverUp) console.log('ℹ localhost:3000 미기동 — E2E 단계는 건너뜁니다(무서버 게이트만 실행). 전체 실행하려면 먼저 `npm run dev` 또는 `npm start`.\n')
 
+// ── 시작 전에 **환경**부터 본다 (2026-08-19) ────────────────────────────────
+// dev 서버는 회귀 한 번에 수 GB를 먹는다(재기동 30분 만에 26MB → 4.2GB 실측).
+// 여유 메모리가 마르면 page.goto가 타임아웃하는데, 그 증상이 하필
+// "실행마다 다른 테스트가 실패하고 단독 실행은 통과"로 나타나 코드를 의심하게 만든다.
+// 여기서 미리 경고해 두면, 뒤에 실패가 나왔을 때 로그 맨 위를 보고 원인을 바로 안다.
+if (serverUp) {
+  try { execSync('node scripts/check-dev-memory.mjs', { stdio: 'inherit' }) } catch { /* 진단 실패는 무시 */ }
+}
+
 const results: Array<{ name: string; status: 'PASS' | 'FAIL' | 'SKIP' }> = []
 for (const s of steps) {
   if (s.needServer && !serverUp) { results.push({ name: s.name, status: 'SKIP' }); console.log(`⏭  ${s.name} — 건너뜀(서버 없음)`); continue }
