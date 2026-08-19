@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { countUnsentNoticesAction } from '@/app/(dashboard)/inspections/sms-actions'
 import {
   LayoutDashboard, FileText, CheckSquare, CalendarDays, Palmtree, ShieldCheck,
   Users, UserPlus, Building2, ClipboardList, Settings, Umbrella,
@@ -203,8 +204,10 @@ interface SidebarProps {
   role: UserRole
   /** 점검 달력 뱃지 — 지연/D-Day 건수 */
   redCount?: number
-  /** 점검현황 모니터링 뱃지 — D-3 이내 건수 */
+  /** 점검 업무 뱃지 — D-3 이내 단계 마감 건수 (모니터링 폐지로 자리 이동, 소방계획서_24 Q-8) */
   orangeCount?: number
+  /** 문자 발송 권한 — 있으면 마운트 후 미발송 곳 수를 가져와 뱃지를 띄운다 (S9-5) */
+  canSeeSms?: boolean
   /** 회사 정보(company_profile)의 업체명 — 미설정 시 기본 브랜드명 */
   companyName?: string
   /** 회사 정보의 로고 URL — 있으면 기본 아이콘 대신 표시 */
@@ -212,14 +215,36 @@ interface SidebarProps {
 }
 
 // href → 뱃지 매핑 (Victory10 §6 사이드바 카운터)
-const BADGE_HREFS: Record<string, 'red' | 'orange'> = {
+//
+// 소방계획서_24 S9-5로 축이 하나 늘었다. 주황(D-1~3 단계 마감)은 원래 [점검현황 모니터링]에
+// 붙어 있었는데 그 화면이 폐지됐다(Q-8). 같은 자리를 문자 발송이 가져갔지만 **의미가 다르므로**
+// 뱃지를 그대로 물려주지 않는다 — 주황은 6단계를 실제로 보여주는 [점검 업무]로 옮기고,
+// 문자 발송에는 '미발송 안내 곳 수'를 뜻하는 별도 축(보라)을 둔다.
+const BADGE_HREFS: Record<string, 'red' | 'orange' | 'sms'> = {
   '/inspections/calendar': 'red',
-  // 소방계획서_24 S9 — 모니터링이 있던 자리를 문자 발송이 가져가면서 뱃지 축도 함께 옮긴다
-  '/inspections/sms': 'orange',
+  '/inspections': 'orange',
+  '/inspections/sms': 'sms',
 }
 
-export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '승진소방 ERP', logoUrl }: SidebarProps) {
+export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false, companyName = '승진소방 ERP', logoUrl }: SidebarProps) {
   const pathname = usePathname()
+
+  // 미발송 뱃지 — **첫 페인트를 막지 않는다.** 서버 레이아웃에서 세면 실측 497ms가
+  // 모든 화면 전환에 붙는다(_probe-sms-badge-cost.mts). 뱃지는 "할 일이 있다"는 힌트일 뿐이라
+  // 마운트 후 따라오면 충분하다. 화면을 옮길 때마다 다시 세지는 않고, 마지막 조회로부터
+  // 60초가 지났을 때만 갱신한다 — 발송 직후에도 곧 반영된다.
+  const [smsCount, setSmsCount] = useState(0)
+  const lastFetch = useRef(0)
+  useEffect(() => {
+    if (!canSeeSms) return
+    if (Date.now() - lastFetch.current < 60_000) return
+    lastFetch.current = Date.now()
+    let alive = true
+    countUnsentNoticesAction()
+      .then(r => { if (alive) setSmsCount(r.count ?? 0) })
+      .catch(() => { /* 뱃지는 보조 신호 — 실패해도 조용히 넘어간다 */ })
+    return () => { alive = false }
+  }, [canSeeSms, pathname])
 
   // 현재 경로가 속한 그룹 key 계산
   function getActiveGroup(): string {
@@ -355,6 +380,15 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, companyName = '�
                         {BADGE_HREFS[item.href] === 'orange' && orangeCount > 0 && (
                           <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-400 text-white text-[10px] font-bold flex items-center justify-center">
                             {orangeCount > 99 ? '99+' : orangeCount}
+                          </span>
+                        )}
+                        {/* 미발송 안내 (소방계획서_24 S9-5) — 배너와 **같은 함수**로 센다.
+                            뱃지와 배너의 수가 다르면 사용자는 어느 쪽을 믿을지 모른다. */}
+                        {BADGE_HREFS[item.href] === 'sms' && smsCount > 0 && (
+                          <span data-testid="sidebar-sms-badge"
+                            title={`보내야 할 사전 안내 ${smsCount}곳`}
+                            className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#7b68ee] text-white text-[10px] font-bold flex items-center justify-center">
+                            {smsCount > 99 ? '99+' : smsCount}
                           </span>
                         )}
                       </Link>

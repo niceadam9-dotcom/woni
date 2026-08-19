@@ -57,6 +57,12 @@ async function main() {
     await raw.from('customer_contacts').insert([{ customer_id: cidB, role: '대표', name: '이대표', phone: '01055556666' }])
     await mkItem(cidB, 'monthly', 'confirmed')
 
+    // D — **계획이 하나도 없는 고객**. Q-17이 든 사례(견적 방문·계획 없는 AS)가 이것이고,
+    //     임의 발송 후보를 '화면에 뜬 행'으로 한정하면 이 고객을 못 고른다
+    const cidD = await mkCustomer({ customer_name: `문자UI-무계획${SUF}`, created_by: userId, region_si: '양평군', region_myeon: '지평면' })
+    custIds.push(cidD)
+    await raw.from('customer_contacts').insert([{ customer_id: cidD, role: '대표', name: '무계획', phone: '01099990000' }])
+
     // C — 미확정(planned)
     const cidC = await mkCustomer({ customer_name: `문자UI-C${SUF}`, created_by: userId, region_si: '양평군', region_myeon: '강하면', region_ri: '전수리' })
     custIds.push(cidC)
@@ -77,9 +83,11 @@ async function main() {
     await page.goto(`${BASE}/inspection-plans/monitor`, { waitUntil: 'networkidle' })
     check('★ 구 모니터링 주소가 문자 발송으로 이어진다(404·죽은 링크 아님)',
       page.url().includes('/inspections/sms'), page.url())
-    const sidebar = await page.locator('nav, aside').first().innerText().catch(() => '')
-    check('사이드바에서 [점검현황 모니터링]이 사라졌다', !/점검현황 모니터링/.test(sidebar))
-    check('사이드바에 [문자 발송]이 있다', /문자 발송/.test(sidebar), sidebar.slice(0, 200))
+    // 텍스트 스크래핑('nav, aside' 첫 요소)은 다른 nav를 잡아 헛통과할 수 있다 — 링크로 직접 본다
+    check('사이드바에서 [점검현황 모니터링] 링크가 사라졌다',
+      await page.locator('a[href="/inspection-plans/monitor"]').count() === 0)
+    check('사이드바에 [문자 발송] 링크가 있다',
+      await page.locator('a[href="/inspections/sms"]').count() >= 1)
 
     console.log('\n— S5: 문자 발송 화면')
     await page.waitForSelector('[data-testid="sms-row"]', { timeout: 20000 })
@@ -163,14 +171,19 @@ async function main() {
       await page.locator('[data-testid="customer-adhoc-sms"]').isVisible())
 
     console.log('\n— Q-13: 시점 설정')
-    await page.goto(`${BASE}/settings/message-templates`, { waitUntil: 'networkidle' })
-    await page.waitForSelector('[data-testid="lead-rule-tag"]')
-    const before = await page.locator('[data-testid="lead-rule-tag"]').count()
+    // 기준을 여기서 다시 [1]로 고정한다 — 앞 절에서 규칙이 바뀌었을 수 있고,
+    // 상대값(before+1)으로 단언하면 오염된 상태에서 조용히 통과하거나 엉뚱하게 실패한다
+    await raw.from('company_profile').update({ sms_lead_rules: [1] }).not('id', 'is', null)
+    // networkidle은 dev의 HMR 웹소켓 때문에 안 끝날 수 있다 — 필요한 요소를 직접 기다린다
+    await page.goto(`${BASE}/settings/message-templates`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="lead-rule-tag"]', { timeout: 30000 })
+    check('기준 상태: 시점 1개(내일)', await page.locator('[data-testid="lead-rule-tag"]').count() === 1,
+      (await page.locator('[data-testid="lead-rule-tag"]').allInnerTexts()).join(','))
     await page.locator('[data-testid="lead-rule-input"]').fill('3')
     await page.locator('[data-testid="lead-rule-add"]').click()
     await page.waitForTimeout(1500)
-    check('★ 시점 태그를 추가하면 늘어난다', await page.locator('[data-testid="lead-rule-tag"]').count() === before + 1,
-      String(await page.locator('[data-testid="lead-rule-tag"]').count()))
+    check('★ 시점 태그를 추가하면 2개가 된다', await page.locator('[data-testid="lead-rule-tag"]').count() === 2,
+      (await page.locator('[data-testid="lead-rule-tag"]').allInnerTexts()).join(','))
     const tags = await page.locator('[data-testid="lead-rule-tag"]').allInnerTexts()
     check('먼 시점이 앞에 온다(급한 것이 아래로 가지 않게)', /3일 후/.test(tags[0]), tags.join(','))
     // 중복 거부
@@ -186,6 +199,71 @@ async function main() {
       cards.some(t => t.includes('관계인 보고 메일')), cards.join(' | ').slice(0, 200))
     check('SMS 카드에만 바이트·요금 구분이 뜬다',
       (await page.locator('[data-testid="template-bytes"]').count()) === 1)
+
+    console.log('\n— S9-5: 사이드바 뱃지·대시보드 위젯·툴바 임의 발송')
+    await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
+    await page.waitForSelector('[data-testid="sms-notice"]')
+    // 배너가 세는 미발송 곳 수 — 뱃지·위젯이 이 수와 같아야 한다(같은 함수로 세므로)
+    const bannerUnsent = (await page.locator('[data-testid="sms-notice"]').allInnerTexts())
+      .map(t => /미발송 (\d+)곳/.exec(t)?.[1]).filter(Boolean).reduce((n, v) => n + Number(v), 0)
+    check('배너에 미발송이 잡혀 있다(뱃지 비교의 전제)', bannerUnsent > 0, String(bannerUnsent))
+
+    const badge = page.locator('[data-testid="sidebar-sms-badge"]')
+    check('★ 사이드바에 미발송 뱃지가 뜬다(종전에는 액션만 있고 호출부가 없었다)',
+      await badge.count() === 1, String(await badge.count()))
+    check('★ 뱃지 수 = 배너 미발송 곳 수 — 두 곳이 다른 수를 보이면 어느 쪽을 믿을지 모른다',
+      (await badge.innerText()).trim() === String(bannerUnsent),
+      `뱃지 ${await badge.innerText()} vs 배너 ${bannerUnsent}`)
+
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' })
+    const widget = page.locator('[data-testid="dash-sms-widget"]')
+    await widget.waitFor({ timeout: 30000 })
+    check('★ 대시보드 위젯이 그려진다', await widget.count() === 1)
+    const wText = await widget.innerText()
+    check('위젯 수도 배너와 일치', new RegExp(`${bannerUnsent}곳`).test(wText), wText.replace(/\n/g, ' '))
+    check('위젯이 문자 발송 화면으로 잇는다',
+      (await widget.getAttribute('href')) === '/inspections/sms', await widget.getAttribute('href') ?? '')
+
+    await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
+    await page.waitForSelector('[data-testid="sms-row"]')
+    check('툴바에 [임의 발송]이 있다(Q-17 세 번째 진입)',
+      await page.locator('[data-testid="sms-adhoc-toolbar"]').isVisible())
+    await page.locator('[data-testid="sms-adhoc-toolbar"]').click()
+    await page.waitForSelector('[data-testid="sms-adhoc-picker"]')
+    // ★ 후보는 '화면에 뜬 행'이 아니라 **전 활성 고객**이어야 한다 —
+    //   Q-17이 든 사례(견적 방문·계획 없는 AS)는 계획이 없는 고객이라, 화면 행으로 한정하면
+    //   정작 이 기능이 필요한 경우를 못 고른다(독립 판정 지적으로 드러난 결함)
+    await page.waitForFunction(
+      () => /전체 고객 \d+곳/.test(document.querySelector('[data-testid="sms-adhoc-picker"]')?.textContent ?? ''),
+      undefined, { timeout: 20000 })
+    const pickerText = await page.locator('[data-testid="sms-adhoc-picker"]').innerText()
+    const optionCount = Number(/전체 고객 (\d+)곳/.exec(pickerText)?.[1] ?? 0)
+    const screenRows = (await page.locator('[data-testid="sms-row"]').allInnerTexts()).length
+    check('★ 임의 발송 후보가 화면에 뜬 행보다 많다(계획 없는 고객도 고를 수 있다)',
+      optionCount > screenRows, `후보 ${optionCount}곳 vs 화면 ${screenRows}행`)
+    // 계획이 전혀 없는 고객을 실제로 고를 수 있는지 — 이 테스트가 만든 '계획 없는 고객'으로 확인.
+    // 이름을 **끝까지** 치면 안 된다: 정확히 하나로 좁혀지면 컴포넌트가 '이미 고른 상태'로 보고
+    // 제안 목록을 닫는다(customer-filter-search.tsx:48). 부분 문자열로 목록을 띄운다.
+    await page.locator('[data-testid="sms-adhoc-customer"]').click()
+    await page.locator('[data-testid="sms-adhoc-customer"]').fill(`무계획${SUF}`)
+    await page.waitForTimeout(600)
+    const listText = await page.locator('[data-testid="sms-adhoc-customer-list"]').innerText().catch(() => '(목록 없음)')
+    check('★ 계획이 없는 고객도 후보에 뜬다', listText.includes(`문자UI-무계획${SUF}`), listText.replace(/\n/g, ' '))
+    // CustomerFilterSearch는 testId를 input 자체에 붙인다(래퍼가 아니다)
+    await page.locator('[data-testid="sms-adhoc-customer"]').fill(`문자UI-A${SUF}`)
+    await page.waitForTimeout(400)
+    await page.locator('[data-testid="sms-adhoc-open"]').click()
+    await page.waitForSelector('[data-testid="adhoc-date"]')
+    check('★ 임의 발송은 방문일부터 묻는다(고객은 이미 정해져 있다)',
+      await page.locator('[data-testid="adhoc-date"]').isVisible())
+    const beforeItems = ((await raw.from('inspection_plan_items').select('id').eq('customer_id', cidA)).data ?? []).length
+    await page.locator('[data-testid="adhoc-date"]').fill(kst(3))
+    await page.locator('[data-testid="sms-modal"] button', { hasText: '대상 확인' }).click()
+    await page.waitForSelector('[data-testid="sms-group"]')
+    check('임의 발송 대상이 계산된다', (await page.locator('[data-testid="sms-group"]').count()) === 1)
+    const afterItems = ((await raw.from('inspection_plan_items').select('id').eq('customer_id', cidA)).data ?? []).length
+    check('★ 대상 계산만으로 계획 회차가 늘지 않는다', beforeItems === afterItems, `${beforeItems} → ${afterItems}`)
+    await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
 
     console.log('\n— 배너가 설정 시점을 따라온다')
     await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })

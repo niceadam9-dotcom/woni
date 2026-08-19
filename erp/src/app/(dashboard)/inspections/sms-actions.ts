@@ -6,13 +6,14 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import {
   loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards,
+  loadLeadRules, countUnsentNotices,
 } from '@/lib/sms'
 import {
   groupTargets, groupByRegion, countMessages, resolvePendingNotices, validateLeadRules,
   todayKst, addDays, maskPhone,
 } from '@/lib/sms-recipients'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
-import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 
 /** 사전 안내 SMS 서버 액션 (소방계획서_24 S4)
  *
@@ -250,12 +251,8 @@ export async function listSmsStatusAction(filters: {
   if (f.assignee)    out = out.filter(r => r.assigneeName === f.assignee)
   if (f.status && f.status !== 'all') out = out.filter(r => r.status === f.status)
 
-  // 배너 (Q-12)
-  // company_profile은 '단일 행' 전제지만 실측상 여러 행일 수 있다 — 정렬을 고정해
-  // 저장·조회가 같은 행을 보게 한다(고정 안 하면 시점을 저장해도 배너가 옛 값을 읽는다)
-  const { data: cp } = await admin.from('company_profile').select('sms_lead_rules')
-    .order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
-  const rules = validateLeadRules((cp as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1]).rules
+  // 배너 (Q-12) — 시점 규칙은 loadLeadRules 한 곳에서만 읽는다(정렬 고정 포함)
+  const rules = await loadLeadRules(admin)
   const sentPairs = await loadSentPairs(admin, f.from, f.to)
   const wide = await loadSmsTargets(admin, { from: today, to: addDays(today, Math.max(...rules, 1)) })
   const { groups: wideGroups } = groupTargets(wide)
@@ -289,32 +286,47 @@ export async function listSmsStatusAction(filters: {
   }
 }
 
-/** 사이드바·대시보드 뱃지 — 오늘 기준 미발송 곳 수 */
+/** 사이드바 뱃지·대시보드 위젯 — 오늘 기준 미발송 곳 수 (S9-5).
+ *
+ *  세는 로직은 lib/sms.ts의 countUnsentNotices 하나뿐이다 — 그 함수가 배너와 **같은**
+ *  resolvePendingNotices를 쓴다. 뱃지가 배너와 다른 수를 보여주면 사용자는 어느 쪽을 믿을지 모른다. */
 export async function countUnsentNoticesAction() {
   const g = await guard('inspection_sms_send')
-  if (g.error) return { count: 0 }
+  if (g.error) return { count: 0, messages: 0, nearest: null }
+  const r = await countUnsentNotices(createAdminClient())
+  return { count: r.count, messages: r.messages, nearest: r.nearest }
+}
+
+/** 임의 발송용 고객 후보 — **전 활성 고객** (S9-6③).
+ *
+ *  문자 발송 화면에 뜬 행에서만 고르게 하면 '계획이 잡힌 고객'만 선택할 수 있다.
+ *  그런데 Q-17이 든 사례(견적 방문·계획 없는 AS·상담)는 **계획이 없는 고객**이다 —
+ *  후보를 화면 행으로 한정하면 정작 이 기능이 필요한 경우를 못 고른다(독립 판정 지적).
+ *
+ *  초성 검색은 클라이언트의 CustomerFilterSearch가 하므로 여기서는 목록만 준다.
+ *  활성 고객 수백 규모라 한 번에 실어도 무겁지 않다. */
+export async function listSmsCustomerOptionsAction() {
+  const g = await guard('inspection_sms_send')
+  if (g.error) return { customers: [] }
   const admin = createAdminClient()
-  const today = todayKst()
-  // company_profile은 '단일 행' 전제지만 실측상 여러 행일 수 있다 — 정렬을 고정해
-  // 저장·조회가 같은 행을 보게 한다(고정 안 하면 시점을 저장해도 배너가 옛 값을 읽는다)
-  const { data: cp } = await admin.from('company_profile').select('sms_lead_rules')
-    .order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
-  const rules = validateLeadRules((cp as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1]).rules
-  const to = addDays(today, Math.max(...rules, 1))
-  const targets = await loadSmsTargets(admin, { from: today, to })
-  const { groups } = groupTargets(targets)
-  const sent = await loadSentPairs(admin, today, to)
-  const { notices } = resolvePendingNotices(groups, rules, today, (c, v) => sent.has(`${c}|${v}`))
-  return { count: notices.reduce((n, x) => n + x.unsentCount, 0) }
+  const { data } = await admin
+    .from('customers')
+    .select('id, customer_name, customer_code')
+    .eq('is_active', true)
+    .order('customer_name')
+    .limit(2000)
+  return {
+    customers: ((data ?? []) as Array<{ id: string; customer_name: string; customer_code: string | null }>)
+      .map(c => ({ id: c.id, name: c.customer_name, sub: c.customer_code ?? undefined })),
+  }
 }
 
 // ── 시점 규칙 설정 (Q-13) ─────────────────────────────────────
 export async function getSmsSettingsAction() {
   const g = await guard('inspection_sms_send')
   if (g.error) return { error: g.error }
-  const admin = createAdminClient()
-  const { data } = await admin.from('company_profile').select('sms_lead_rules').limit(1).maybeSingle()
-  const { rules } = validateLeadRules((data as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1])
+  // loadLeadRules를 쓴다 — 여기만 정렬이 빠져 있어 설정 화면이 저장한 것과 다른 행을 읽을 수 있었다
+  const rules = await loadLeadRules(createAdminClient())
   const p = await getProfile()
   return { rules, canEdit: !!p && can(p.role, 'message_template_manage') }
 }
@@ -352,16 +364,26 @@ export async function bulkMovePlanDatesAction(planItemIds: string[], newDate: st
 
   const admin = createAdminClient()
   const { data } = await admin.from('inspection_plan_items')
-    .select('id, customers:customer_id ( customer_name )').in('id', planItemIds)
+    .select('id, plan_type, customers:customer_id ( customer_name )').in('id', planItemIds)
+  const rows = (data ?? []) as unknown as Array<{ id: string; plan_type: string | null; customers: { customer_name: string } | null }>
   const names = new Map<string, string>()
-  for (const r of (data ?? []) as unknown as Array<{ id: string; customers: { customer_name: string } | null }>) {
+  const planTypes = new Map<string, string | null>()
+  for (const r of rows) {
     names.set(r.id, r.customers?.customer_name ?? '(고객 미상)')
+    planTypes.set(r.id, r.plan_type)
   }
 
   let moved = 0
   const failed: Array<{ name: string; reason: string }> = []
   for (const id of planItemIds) {
-    const res = await confirmPlanItemStageOneAction(id, newDate)
+    // 정기(monthly)는 **moveMonthlyPlanItemAction으로 태운다** — '같은 달 안에서만 이동'이라는
+    // 규칙이 그 함수에만 있기 때문이다. 종전에는 여기서 confirm을 직접 불러 그 제약이 새어,
+    // 다른 달로 옮겨도 조용히 성공했다(moved에 포함). 규칙을 여기 복제하지 않고 경로를 태우는 이유는
+    // 복제하는 순간 두 곳이 갈라지기 때문이다 — P-19가 정확히 그 사고였다.
+    const pt = planTypes.get(id)
+    const res = pt === 'monthly' || pt === 'event'
+      ? await moveMonthlyPlanItemAction(id, newDate)
+      : await confirmPlanItemStageOneAction(id, newDate)
     if (res.error) failed.push({ name: names.get(id) ?? '(고객 미상)', reason: res.error })
     else moved++
   }

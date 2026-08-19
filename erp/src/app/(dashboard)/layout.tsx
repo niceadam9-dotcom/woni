@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCompanyProfile } from '@/lib/company-profile'
+import { can } from '@/lib/permissions'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
+import type { UserRole } from '@/types'
 
 // 사이드바 뱃지: 미완료 6단계 중 지연/D-Day(빨강), D-1~3(주황) 건수 (Victory10 §6)
 async function getStepBadgeCounts(profileId: string, role: string) {
@@ -32,6 +34,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
+  // 문자 발송 뱃지(소방계획서_24 S9-5)는 **여기서 계산하지 않는다.**
+  // 실측 497ms(중앙값)인데 이 레이아웃은 모든 화면이 지나므로, 넣으면 화면 전환마다
+  // 0.5초가 붙는다. 뱃지는 "할 일이 있다"는 보조 신호일 뿐이라 첫 페인트를 막을 이유가 없다.
+  // → Sidebar가 마운트 후 클라이언트에서 가져온다(scripts/_probe-sms-badge-cost.mts가 상한을 고정).
   const [{ redCount, orangeCount }, company] = await Promise.all([
     getStepBadgeCounts(profile.id, profile.role),
     getCompanyProfile(),
@@ -46,6 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role={profile.role}
         redCount={redCount}
         orangeCount={orangeCount}
+        canSeeSms={can(profile.role as UserRole, 'inspection_sms_send')}
         companyName={company?.company_name}
         logoUrl={company?.logo_url}
       />

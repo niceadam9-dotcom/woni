@@ -6,8 +6,9 @@ import {
   MessageSquare, Loader2, SlidersHorizontal, AlertTriangle, CalendarDays,
   ChevronRight, RefreshCw, Send, MapPin,
 } from 'lucide-react'
-import { listSmsStatusAction, bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
+import { listSmsStatusAction, bulkMovePlanDatesAction, listSmsCustomerOptionsAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
+import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { todayKst, addDays } from '@/lib/sms-recipients'
 
 /** 문자 발송 화면 (소방계획서_24 S5) — 점검현황 모니터링 대체
@@ -67,6 +68,19 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const [data, setData] = useState<Data | null>(null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [modal, setModal] = useState<SmsModalSource | null>(null)
+  // 임의 발송 진입 (Q-17) — 고객 검색부터 시작하는 완전 수동 경로
+  const [adhocOpen, setAdhocOpen] = useState(false)
+  const [adhocQuery, setAdhocQuery] = useState('')
+  const [adhocOptions, setAdhocOptions] = useState<Array<{ id: string; name: string; sub?: string }>>([])
+
+  function openAdhoc() {
+    setAdhocOpen(true)
+    if (adhocOptions.length > 0) return          // 한 번만 가져온다
+    startTransition(async () => {
+      const res = await listSmsCustomerOptionsAction()
+      setAdhocOptions(res.customers ?? [])
+    })
+  }
   const [moveDate, setMoveDate] = useState('')
   const [moveMsg, setMoveMsg] = useState<string | null>(null)
   const [err, setErr] = useState('')
@@ -110,6 +124,11 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const checkedRows = rows.filter(r => checked.has(r.key))
   const checkedPlanItems = checkedRows.flatMap(r => r.planItemIds)
 
+  // 임의 발송 후보 — **전 활성 고객**이다. 화면에 뜬 행으로 한정하면 '계획이 잡힌 고객'만
+  // 고를 수 있는데, Q-17이 든 사례(견적 방문·계획 없는 AS·상담)는 계획이 없는 고객이라
+  // 정작 이 기능이 필요한 경우를 못 고른다. 목록은 [임의 발송]을 열 때 한 번만 가져온다.
+  const adhocPick = adhocOptions.find(c => c.name === adhocQuery) ?? null
+
   function toggle(k: string) {
     setChecked(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
   }
@@ -143,10 +162,48 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           <MessageSquare className="size-4 text-[#7b68ee]" />
           <h2 className="text-sm font-semibold text-[#090c1d]">보낼 사전 안내</h2>
           {isPending && <Loader2 className="size-3.5 animate-spin text-[#b0acd6]" />}
-          <button onClick={reload} className="ml-auto p-1 rounded hover:bg-[#f5f4ff] text-[#8b87b8]" title="새로고침">
+          {/* 임의 발송(Q-17) 세 번째 진입 — 고객 상세·작업대에서 시작하지 않는 완전 수동 경로.
+              계획에 없는 방문(견적·상담 등)은 특정 점검 건에서 출발하지 않는다 */}
+          {canSend && (
+            <button
+              data-testid="sms-adhoc-toolbar"
+              onClick={openAdhoc}
+              title="계획에 없는 방문을 안내합니다 — 고객을 검색해 보냅니다. 점검 회차로 잡히지 않습니다"
+              className="ml-auto h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+            >
+              임의 발송
+            </button>
+          )}
+          <button onClick={reload} className={`${canSend ? '' : 'ml-auto'} p-1 rounded hover:bg-[#f5f4ff] text-[#8b87b8]`} title="새로고침">
             <RefreshCw className="size-3.5" />
           </button>
         </div>
+
+        {/* 고객 검색 — 열었을 때만. 초성 검색은 공용 컴포넌트가 담당한다 */}
+        {adhocOpen && (
+          <div data-testid="sms-adhoc-picker" className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f5f4ff]">
+            <span className="text-[11px] text-[#514b81] shrink-0">고객</span>
+            <CustomerFilterSearch
+              customers={adhocOptions}
+              value={adhocQuery}
+              onChange={setAdhocQuery}
+              testId="sms-adhoc-customer"
+            />
+            <span className="text-[10px] text-[#8b87b8]">
+              {adhocPick ? `${adhocPick.name} 선택됨`
+                : adhocOptions.length === 0 ? '고객 목록을 불러오는 중…'
+                : `전체 고객 ${adhocOptions.length}곳에서 고릅니다 (초성 가능)`}
+            </span>
+            {adhocPick && (
+              <button className={btnPri}
+                data-testid="sms-adhoc-open"
+                onClick={() => setModal({ kind: 'adhoc', customerId: adhocPick.id, customerName: adhocPick.name })}>
+                문자 보내기
+              </button>
+            )}
+            <button className={`${btn} ml-auto`} onClick={() => { setAdhocOpen(false); setAdhocQuery('') }}>닫기</button>
+          </div>
+        )}
 
         {(data?.notices ?? []).map(n => (
           <div key={n.leadDays} data-testid="sms-notice" className="flex items-center gap-2 py-1.5 border-t border-[#f5f4ff] first:border-0">
