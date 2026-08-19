@@ -62,12 +62,18 @@ export default async function DashboardPage() {
   const canDoc = can(profile.role as UserRole, 'inspection_register')
   // 사전 안내 위젯 (소방계획서_24 S9-5) — 사이드바 뱃지·문자 발송 화면 배너와 **같은 함수**로 센다.
   // 실측 ~500ms라 문서 할 일 조회와 **병렬로** 묶는다(직렬로 붙이면 대시보드가 그만큼 느려진다).
-  // 실패해도 대시보드가 죽지 않게 null로 물러난다 — 위젯은 보조 신호다.
+  // 실패해도 대시보드가 죽지 않게 한다 — 다만 **null로 물러나면 위젯이 통째로 사라져
+  // '오늘 보낼 안내가 없다'와 구별되지 않는다**(위젯 파일 주석이 금지한 바로 그 상태를
+  // 호출부가 만들고 있었다). 실패는 실패로 표시하도록 error 객체를 넘긴다.
   const canSms = can(profile.role as UserRole, 'inspection_sms_send')
   const [docTodo, inputTodo, smsNotice] = await Promise.all([
     canDoc ? getDocTodo(admin) : Promise.resolve(null),
     canDoc ? fetchInputTodo(admin) : Promise.resolve([]),   // §4-D H-26 입력 미완료 큐
-    canSms ? countUnsentNotices(admin).catch(() => null) : Promise.resolve(null),
+    canSms
+      ? countUnsentNotices(admin).catch((e: unknown) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }))
+      : Promise.resolve(null),
   ])
 
   const today = new Date()
@@ -358,8 +364,10 @@ export default async function DashboardPage() {
       {/* ── 사전 안내 위젯 (소방계획서_24 S9-5) — 문자 발송 화면 배너의 축약판.
              방문 안내는 시점을 놓치면 의미가 없어져(지난 날에 "방문합니다"는 성립하지 않는다)
              하루의 시작 화면에서 먼저 보이게 둔다 ── */}
-      {smsNotice && (
-        <SmsNoticeWidget count={smsNotice.count} messages={smsNotice.messages} nearest={smsNotice.nearest} />
+      {smsNotice && ('error' in smsNotice
+        ? <SmsNoticeWidget count={0} messages={0} nearest={null} error={smsNotice.error} />
+        : <SmsNoticeWidget count={smsNotice.count} messages={smsNotice.messages}
+            nearest={smsNotice.nearest} blockedCount={smsNotice.blockedCount} />
       )}
 
       {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점 ── */}

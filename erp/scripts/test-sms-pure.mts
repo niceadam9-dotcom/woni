@@ -15,8 +15,14 @@ import {
 } from '../src/lib/sms-recipients.ts'
 
 let pass = 0, fail = 0
-const ok = (name: string, cond: boolean, detail = '') => {
-  if (cond) { pass++; console.log(`  ✅ ${name}`) }
+/** ⚠ 단언식 자체가 던지면(널 접근 등) **스위트가 요약 출력 전에 죽어** 뒤의 수십 개가
+ *  조용히 실행되지 않고 통과/실패 수도 보고되지 않는다. 회귀 상황에서 부수 피해를 가린다.
+ *  그래서 조건을 지연 평가로 받아 여기서 감싼다. */
+const ok = (name: string, cond: boolean | (() => boolean), detail = '') => {
+  let v: boolean
+  try { v = typeof cond === 'function' ? cond() : cond }
+  catch (e) { fail++; console.log(`  ❌ ${name} — 단언 중 예외: ${e instanceof Error ? e.message : String(e)}`); return }
+  if (v) { pass++; console.log(`  ✅ ${name}`) }
   else { fail++; console.log(`  ❌ ${name}${detail ? ` — ${detail}` : ''}`) }
 }
 
@@ -227,13 +233,67 @@ console.log('\n— resolvePendingNotices (Q-12의 심장)')
   //   (loadSmsTargets가 from을 today로 clamp + 과거 행 drop). 여기서는 "지난 건이 없으면 0"이라는
   //   **전제 자체**를 고정해, 호출부가 다시 과거를 버리면 프로브(_probe-sms-send)가 잡도록 한다.
   {
-    const futureOnly = groups.filter(g => g.visitDate >= today)
-    const r = resolvePendingNotices(futureOnly, [1], today, () => false)
-    ok('★ 지난 건이 안 실리면 overdue는 0 — 호출부가 과거를 버리면 이 줄은 영영 안 뜬다',
-      r.overdue.count === 0,
-      '이 전제 때문에 호출부에 includePast가 필요하다(D1)')
+    // ⚠ 종전 이 자리는 테스트가 **스스로 과거를 걸러낸 뒤** "과거가 없다"고 단언했다 —
+    //   전제의 재진술이라 어떤 코드 변경으로도 실패하지 않는 무효 단언이었다(판정 지적).
+    //   여기서 지킬 수 있는 것은 "지난 건이 실리면 반드시 센다"는 **양성 방향**뿐이고,
+    //   호출부가 과거를 버리지 않는지는 _probe-sms-send의 includePast 절이 실DB로 본다.
+    const withPast = groupTargets([
+      T({ customerId: 'D1a', visitDate: addDays(today, -1), contacts: cs }),
+      T({ customerId: 'D1b', visitDate: addDays(today, 1), contacts: cs }),
+    ]).groups
+    const r = resolvePendingNotices(withPast, [1], today, () => false)
+    ok('★ 지난 방문이 실리면 반드시 시기 지남으로 센다(놓친 방문을 알린다)',
+      r.overdue.count === 1 && r.overdue.groups[0].customerId === 'D1a',
+      JSON.stringify({ count: r.overdue.count }))
+    ok('지난 건이 배너 발송 줄로는 새지 않는다', r.notices.every(n => n.unsentGroups.every(g => g.visitDate >= today)))
   }
   ok('시기 지남이 배너 줄에는 섞이지 않는다', notices.every(n => n.groups.every(g => g.visitDate >= today)))
+  {
+    // ★ 무방비였던 가드 2개(판정 M8·M9) — 지우거나 뒤집어도 아무 단언도 실패하지 않았다.
+    // ① overdue의 `!isSent` — 빠지면 이미 안내한 지난 방문이 '시기 지남'에 영구히 남아 경고가 소음이 된다
+    const past = groupTargets([T({ customerId: 'P1', visitDate: addDays(today, -3), contacts: cs })]).groups
+    const sentPast = resolvePendingNotices(past, [1], today, () => true)
+    ok('★ 이미 안내한 지난 방문은 시기 지남에서 빠진다(경고가 소음이 되지 않게)',
+      sentPast.overdue.count === 0, `count=${sentPast.overdue.count}`)
+    // ② 배너 inDay의 `sendable` — 빠지면 미확정 건이 '미발송 N곳'에 섞이고, 승인하면
+    //    "모두 점검일 미확정"만 뜬다. 뱃지·배너가 같은 함수라 'E2E 뱃지=배너' 단언도 못 잡는다.
+    const unconfirmed = groupTargets([T({
+      customerId: 'P2', visitDate: addDays(today, 1), contacts: cs,
+      sendable: false, unsendableReason: '점검일 미확정',
+    } as any)]).groups
+    const r3 = resolvePendingNotices(unconfirmed, [1], today, () => false)
+    ok('★ 미확정 건은 배너의 미발송 수에 섞이지 않는다', r3.notices[0].unsentCount === 0,
+      `unsentCount=${r3.notices[0].unsentCount}`)
+    ok('★ 대신 "보낼 수 없음"으로 센다 — 조용히 사라지지 않는다',
+      r3.notices[0].blockedCount === 1 && /미확정/.test(r3.notices[0].blocked[0]?.reason ?? ''),
+      JSON.stringify(r3.notices[0].blocked))
+  }
+  {
+    // ★ 번호 없는 고객이 배너·뱃지·위젯 어디에도 안 세지던 결함(2차 판정 1순위).
+    //   내일 방문 전부가 번호 없음이면 화면이 "보낼 안내가 없습니다 ✓" 초록불이 됐다 —
+    //   문자를 못 받을 것이 **확정된** 고객만 골라 요약에서 지우는 구조였다.
+    const tomorrow = addDays(today, 1)
+    const { groups: gs, noPhone } = groupTargets([
+      T({ customerId: 'NP', customerName: '번호없는곳', visitDate: tomorrow, contacts: [C('대표', '무번호', null)] }),
+    ])
+    ok('전제: 번호 없는 고객은 groups에 없다', gs.length === 0 && noPhone.length === 1)
+    const noArg = resolvePendingNotices(gs, [1], today, () => false)
+    ok('전제: noPhone을 안 넘기면 배너가 0으로 보인다(그래서 넘겨야 한다)',
+      noArg.notices[0].unsentCount === 0 && noArg.notices[0].blockedCount === 0)
+    const withArg = resolvePendingNotices(gs, [1], today, () => false, noPhone)
+    ok('★ noPhone을 넘기면 "보낼 수 없음"으로 잡힌다(초록불 거짓말 방지)',
+      withArg.notices[0].blockedCount === 1, JSON.stringify(withArg.notices[0].blocked))
+    ok('사유가 함께 실린다(무엇을 손봐야 하는지)',
+      /전화번호/.test(withArg.notices[0].blocked[0]?.reason ?? ''),
+      withArg.notices[0].blocked[0]?.reason ?? '')
+    // 지나간 방문 중 번호 없는 건도 세야 한다 — 안 그러면 완전 무흔적이다
+    const { noPhone: pastNo } = groupTargets([
+      T({ customerId: 'NP2', customerName: '지난번호없음', visitDate: addDays(today, -2), contacts: [C('대표', '무번호', null)] }),
+    ])
+    const over2 = resolvePendingNotices([], [1], today, () => false, pastNo)
+    ok('★ 지나간 방문 중 번호 없는 건도 시기 지남에 센다(완전 무흔적 방지)',
+      over2.overdue.count === 1 && over2.overdue.blocked.length === 1)
+  }
 
   // 날짜를 옮기면 옛 발송 기록이 새 날짜를 가리면 안 된다 — S5-10의 핵심
   const moved = groupTargets([T({ customerId: 'N2', visitDate: addDays(today, 1), contacts: cs })]).groups

@@ -10,7 +10,7 @@ import {
 } from '@/lib/sms'
 import {
   groupTargets, resolvePendingNotices, validateLeadRules,
-  todayKst, addDays, maskPhone, normalizePhone,
+  todayKst, addDays, maskPhone, normalizePhone, FILTER_NONE,
 } from '@/lib/sms-recipients'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 import { fetchAllRows } from '@/lib/supabase/paginate'
@@ -226,6 +226,11 @@ export async function listSmsStatusAction(filters: {
     .order('created_at', { ascending: false })
     .order('id')
     .range(f, t))
+  // 이력 조회가 실패하면 발송됨·실패·확인필요·임의 행이 **전부 사라지고 전건이 '미발송'으로**
+  // 렌더된다 — 조치가 필요한 고객이 목록에서 지워지는 동시에 재발송을 유도한다. 삼키지 않는다.
+  if (logPage.error) {
+    return { error: `발송 이력을 불러오지 못했습니다: ${logPage.error}` }
+  }
   if (logPage.truncated) console.error('[sms] 발송 이력 로드 상한 도달:', logPage.rows.length)
   const logRaw = logPage.rows
   const logs = (logRaw ?? []) as unknown as Array<{
@@ -363,10 +368,14 @@ export async function listSmsStatusAction(filters: {
   // 필터
   let out = rows
   const f = filters
-  if (f.regionSi)    out = out.filter(r => r.regionSi === f.regionSi)
-  if (f.regionMyeon) out = out.filter(r => r.regionMyeon === f.regionMyeon)
-  if (f.regionRi)    out = out.filter(r => r.regionRi === f.regionRi)
-  if (f.assignee)    out = out.filter(r => r.assigneeName === f.assignee)
+  // ⚠ 등가 비교만 두면 **값이 빈 행을 되찾을 방법이 없다.** 지역·담당이 비어 있는 고객과
+  //   임의 발송 행(담당 개념 자체가 없다)이 필터를 거는 순간 통째로 사라졌고, 선택지 목록도
+  //   filter(Boolean)이라 '(없음)'을 고를 수조차 없었다. 담당별로 일하는 사용자에게는
+  //   그 고객들이 영구히 안 보인다. NONE 토큰으로 명시적으로 고를 수 있게 한다.
+  if (f.regionSi)    out = out.filter(r => f.regionSi === FILTER_NONE ? !r.regionSi : r.regionSi === f.regionSi)
+  if (f.regionMyeon) out = out.filter(r => f.regionMyeon === FILTER_NONE ? !r.regionMyeon : r.regionMyeon === f.regionMyeon)
+  if (f.regionRi)    out = out.filter(r => f.regionRi === FILTER_NONE ? !r.regionRi : r.regionRi === f.regionRi)
+  if (f.assignee)    out = out.filter(r => f.assignee === FILTER_NONE ? !r.assigneeName : r.assigneeName === f.assignee)
   // 'not_sent'는 특정 상태가 아니라 **발송됨만 빼는** 축이다 —
   // 실패·번호없음도 아직 처리할 일이라 남겨야 한다(그것만 빼면 조치가 필요한 건이 사라진다)
   if (f.status === 'not_sent') out = out.filter(r => r.status !== 'sent')
@@ -393,14 +402,21 @@ export async function listSmsStatusAction(filters: {
     // 보이지 않게 사유를 올린다. 침묵보다 목록 없는 오류가 낫다.
     return { error: e instanceof Error ? e.message : String(e) }
   }
-  const { groups: wideGroups } = groupTargets(wide)
+  const { groups: wideGroups, noPhone: wideNoPhone } = groupTargets(wide)
   const { notices, overdue } = resolvePendingNotices(
-    wideGroups, rules, today, (c, v) => sentPairs.has(`${c}|${v}`))
+    wideGroups, rules, today, (c, v) => sentPairs.has(`${c}|${v}`), wideNoPhone)
 
-  // 지역 3단 선택지 — 앞 단계가 정해지면 그 안의 값만
-  const siList = [...new Set(rows.map(r => r.regionSi).filter(Boolean))].sort() as string[]
-  const myeonList = [...new Set(rows.filter(r => !f.regionSi || r.regionSi === f.regionSi).map(r => r.regionMyeon).filter(Boolean))].sort() as string[]
-  const riList = [...new Set(rows.filter(r => (!f.regionSi || r.regionSi === f.regionSi) && (!f.regionMyeon || r.regionMyeon === f.regionMyeon)).map(r => r.regionRi).filter(Boolean))].sort() as string[]
+  // 지역 3단 선택지 — 앞 단계가 정해지면 그 안의 값만.
+  // 값이 빈 행이 하나라도 있으면 '(없음)' 선택지를 붙인다 — 없으면 그 행들을 되찾을 길이 없다.
+  const withNone = (vals: Array<string | null>) => {
+    const list = [...new Set(vals.filter(Boolean))].sort() as string[]
+    return vals.some(v => !v) ? [...list, FILTER_NONE] : list
+  }
+  const inSi = rows.filter(r => !f.regionSi || (f.regionSi === FILTER_NONE ? !r.regionSi : r.regionSi === f.regionSi))
+  const inMyeon = inSi.filter(r => !f.regionMyeon || (f.regionMyeon === FILTER_NONE ? !r.regionMyeon : r.regionMyeon === f.regionMyeon))
+  const siList = withNone(rows.map(r => r.regionSi))
+  const myeonList = withNone(inSi.map(r => r.regionMyeon))
+  const riList = withNone(inMyeon.map(r => r.regionRi))
 
   return {
     rows: out.sort((a, b) =>
@@ -412,13 +428,20 @@ export async function listSmsStatusAction(filters: {
       leadDays: n.leadDays, visitDate: n.visitDate, label: n.label,
       unsentCount: n.unsentCount, messageCount: n.messageCount,
       planItemIds: n.unsentGroups.flatMap(x => x.planItemIds),
+      // 보낼 수 없는 곳도 배너에 싣는다 — 빼면 전원 번호없음인 날이 "보낼 안내 없음 ✓"가 된다
+      blockedCount: n.blockedCount,
+      blocked: n.blocked.map(b => ({ customerName: b.customerName, reason: b.reason })),
     })),
     overdue: {
       count: overdue.count,
-      items: overdue.groups.map(x => ({ customerName: x.customerName, visitDate: x.visitDate, planItemIds: x.planItemIds })),
+      items: [
+        ...overdue.groups.map(x => ({ customerName: x.customerName, visitDate: x.visitDate, planItemIds: x.planItemIds })),
+        // 번호가 없어 안내 자체가 불가능했던 지난 방문 — 여기서 빠지면 완전 무흔적이다
+        ...overdue.blocked.map(b => ({ customerName: b.customerName, visitDate: b.visitDate, planItemIds: [] as string[] })),
+      ],
     },
     regions: { si: siList, myeon: myeonList, ri: riList },
-    assignees: [...new Set(rows.map(r => r.assigneeName).filter(Boolean))].sort() as string[],
+    assignees: withNone(rows.map(r => r.assigneeName)),
     leadRules: rules,
     today,
   }
@@ -430,9 +453,10 @@ export async function listSmsStatusAction(filters: {
  *  resolvePendingNotices를 쓴다. 뱃지가 배너와 다른 수를 보여주면 사용자는 어느 쪽을 믿을지 모른다. */
 export async function countUnsentNoticesAction() {
   const g = await guard('inspection_sms_send')
-  if (g.error) return { count: 0, messages: 0, nearest: null }
+  if (g.error) return { count: 0, messages: 0, blockedCount: 0, nearest: null }
+  // 실패를 0으로 뭉개지 않는다 — 호출부(사이드바 뱃지)가 '모름'으로 표시해야 한다
   const r = await countUnsentNotices(createAdminClient())
-  return { count: r.count, messages: r.messages, nearest: r.nearest }
+  return { count: r.count, messages: r.messages, blockedCount: r.blockedCount, nearest: r.nearest }
 }
 
 /** 임의 발송용 고객 후보 — **전 활성 고객** (S9-6③).

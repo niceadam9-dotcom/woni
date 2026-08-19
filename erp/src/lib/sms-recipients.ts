@@ -330,11 +330,33 @@ export type PendingNotice = {
   unsentGroups: SmsGroup[]
   unsentCount: number          // 곳
   messageCount: number         // 통
+  /** ⚠ **보낼 수 없는 곳**(번호 없음·수신 해제·점검일 미확정) — 통수에는 안 들어가지만
+   *  **반드시 함께 센다.** 종전엔 이 함수가 noPhone을 인자로 받지도 않아, 문자를 못 받을 것이
+   *  확정된 고객만 골라 배너·뱃지·대시보드에서 지웠다. 내일 방문 5곳이 전부 번호 없음이면
+   *  화면은 "보낼 안내가 없습니다 ✓" 초록불이 됐다 — 배너가 초록이면 목록을 열 이유가 없다.
+   *  못 보내는 것도 **할 일**이다(연락처를 채우거나 점검일을 확정해야 한다). */
+  blockedCount: number
+  blocked: BlockedEntry[]
 }
+
+/** 보낼 수 없어 배너에 사유와 함께 세는 항목 */
+export type BlockedEntry = { customerId: string; customerName: string; visitDate: string; reason: string }
+
+/** 지역·담당이 **비어 있는 행**을 고르는 필터 값.
+ *
+ *  빈 문자열은 '전체'라 쓸 수 없다. 이 토큰이 없으면 값이 빈 고객은 필터를 거는 순간
+ *  사라진 채 **되찾을 선택지조차 없다** — 임의 발송 행은 담당 개념 자체가 없어 100% 해당하고,
+ *  담당별로 일하는 사용자에게는 그 고객들이 영구히 보이지 않는다.
+ *
+ *  ⚠ 여기(순수 모듈)에 둔다. `'use server'` 파일은 async 함수 외에는 export할 수 없다 —
+ *  상수 하나만 내보내도 그 파일의 API 라우트가 통째로 404가 된 전례가 있다. */
+export const FILTER_NONE = '__none__'
 
 export type PendingOverdue = {
   groups: SmsGroup[]
   count: number
+  /** 지나간 방문 중 **번호가 없어** 안내 자체가 불가능했던 곳 — 여기서도 빠지면 완전 무흔적 */
+  blocked: BlockedEntry[]
 }
 
 /** 배너 줄을 계산한다 — Q-12의 심장이자, 나중에 크론(S10)이 그대로 부를 함수다.
@@ -353,12 +375,26 @@ export function resolvePendingNotices(
   leadRules: number[],
   today: string,
   isSent: (customerId: string, visitDate: string) => boolean,
+  /** 번호가 없거나 수신을 꺼서 **발송 대상에서 아예 빠진** 고객들.
+   *  groups에는 존재하지 않으므로 따로 받지 않으면 어떤 요약에도 나타나지 않는다. */
+  noPhone: NoPhoneEntry[] = [],
 ): { notices: PendingNotice[]; overdue: PendingOverdue } {
   const notices: PendingNotice[] = []
   for (const lead of [...leadRules].sort((a, b) => b - a)) {
     const visitDate = addDays(today, lead)
-    const inDay = groups.filter(g => g.visitDate === visitDate && g.sendable)
+    const sameDay = groups.filter(g => g.visitDate === visitDate)
+    const inDay = sameDay.filter(g => g.sendable)
     const unsent = inDay.filter(g => !isSent(g.customerId, g.visitDate))
+    // 못 보내는 것들 — 미확정 건(sendable=false)과 번호 없음/수신 해제를 함께 센다
+    const blocked: BlockedEntry[] = [
+      ...sameDay.filter(g => !g.sendable).map(g => ({
+        customerId: g.customerId, customerName: g.customerName, visitDate: g.visitDate,
+        reason: g.unsendableReason ?? '발송 불가',
+      })),
+      ...noPhone.filter(n => n.visitDate === visitDate).map(n => ({
+        customerId: n.customerId, customerName: n.customerName, visitDate: n.visitDate, reason: n.reason,
+      })),
+    ]
     const md = `${+visitDate.slice(5, 7)}/${+visitDate.slice(8, 10)}`
     notices.push({
       leadDays: lead,
@@ -368,10 +404,15 @@ export function resolvePendingNotices(
       unsentGroups: unsent,
       unsentCount: unsent.length,
       messageCount: countMessages(unsent),
+      blockedCount: blocked.length,
+      blocked,
     })
   }
   const over = groups.filter(g => g.visitDate < today && !isSent(g.customerId, g.visitDate))
-  return { notices, overdue: { groups: over, count: over.length } }
+  const overBlocked = noPhone.filter(n => n.visitDate < today).map(n => ({
+    customerId: n.customerId, customerName: n.customerName, visitDate: n.visitDate, reason: n.reason,
+  }))
+  return { notices, overdue: { groups: over, count: over.length + overBlocked.length, blocked: overBlocked } }
 }
 
 // ── Solapi 응답 판정 (P-11) ───────────────────────────────────

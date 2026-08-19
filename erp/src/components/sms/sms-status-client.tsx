@@ -10,7 +10,7 @@ import { listSmsStatusAction, bulkMovePlanDatesAction, listSmsCustomerOptionsAct
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapModal } from '@/components/ui/address-map-modal'
-import { todayKst, addDays, groupByRegion } from '@/lib/sms-recipients'
+import { todayKst, addDays, groupByRegion, FILTER_NONE } from '@/lib/sms-recipients'
 
 /** 문자 발송 화면 (소방계획서_24 S5) — 점검현황 모니터링 대체
  *
@@ -34,7 +34,12 @@ type Row = {
   /** 점검일이 옮겨져 옛 날짜로 이미 안내가 나간 건 — 그 옛 날짜 (S5-0b) */
   movedFrom: string | null
 }
-type Notice = { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; planItemIds: string[] }
+type Notice = {
+  leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; planItemIds: string[]
+  /** 보낼 수 **없는** 곳(번호 없음·수신 해제·점검일 미확정) — 통수엔 안 들어가지만 할 일이다 */
+  blockedCount?: number
+  blocked?: Array<{ customerName: string; reason: string }>
+}
 type Data = {
   rows: Row[]
   notices: Notice[]
@@ -159,6 +164,10 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend, onMap }
 
 /** 마지막으로 고른 지역 — 적용이 아니라 **제안**에만 쓴다(아래 주석 참조) */
 const LAST_REGION_KEY = 'sms:lastRegion'
+
+/** 값이 빈 행을 고르는 선택지의 라벨. 이 선택지가 없으면 지역·담당이 비어 있는 고객과
+ *  임의 발송 행은 필터를 거는 순간 사라진 채 되돌아올 길이 없다(sms-recipients FILTER_NONE). */
+const optLabel = (v: string) => v === FILTER_NONE ? '(없음)' : v
 
 export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const today = todayKst()
@@ -455,16 +464,40 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             )}
           </div>
         )}
-        {data && data.notices.every(n => n.unsentCount === 0) && unsentOutsideNotices.length === 0 && (
+        {/* ⚠ '보낼 수 없는 곳'까지 0일 때만 초록불이다. 종전엔 unsentCount만 봐서,
+            내일 방문 5곳이 **전부 번호 없음**이면 "보낼 안내가 없습니다 ✓"가 떴다 —
+            문자를 못 받을 것이 확정된 고객만 골라 화면에서 지운 셈이었다. */}
+        {data && data.notices.every(n => n.unsentCount === 0 && (n.blockedCount ?? 0) === 0)
+          && unsentOutsideNotices.length === 0 && (
           <p className="text-xs text-[#8b87b8] py-1">보낼 안내가 없습니다 ✓</p>
+        )}
+        {data && data.notices.some(n => (n.blockedCount ?? 0) > 0) && (
+          <div data-testid="sms-blocked" className="flex items-start gap-2 mt-2 pt-2 border-t border-[#f5f4ff]">
+            <AlertTriangle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <span className="text-xs text-amber-700">
+              보낼 수 없는 곳 <b>{data.notices.reduce((n, x) => n + (x.blockedCount ?? 0), 0)}곳</b>
+              {' — '}
+              {[...new Set(data.notices.flatMap(n => n.blocked ?? []).map(b => `${b.customerName}(${b.reason})`))]
+                .slice(0, 3).join(', ')}
+              {data.notices.reduce((n, x) => n + (x.blockedCount ?? 0), 0) > 3 && ' 외'}
+              . 그대로 두면 연락 없이 방문하게 됩니다.
+            </span>
+          </div>
         )}
 
         {/* 시기 지남 — 이 줄만 성격이 다르다. 눌러도 발송은 안 되므로 [일정 확인]으로 보낸다 (S5-12) */}
         {(data?.overdue.count ?? 0) > 0 && (
           <div data-testid="sms-overdue" className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f5f4ff]">
             <AlertTriangle className="size-3.5 text-amber-500" />
+            {/* 서버가 고객명(items)까지 보내는데 화면이 개수만 그려, 어느 고객인지 알 길이
+                없었다. 이 목록은 기간 필터로도 찾을 수 없어(축 A는 오늘 이후만) 여기가 유일한 단서다. */}
             <span className="text-xs text-amber-700">
-              안내 못 하고 지난 방문 <b>{data!.overdue.count}곳</b> — 문자는 보낼 수 없습니다
+              안내 못 하고 지난 방문 <b>{data!.overdue.count}곳</b>
+              {data!.overdue.items.length > 0 && (
+                <> — {data!.overdue.items.slice(0, 3).map(i => `${i.customerName}(${i.visitDate.slice(5)})`).join(', ')}
+                  {data!.overdue.items.length > 3 && ` 외 ${data!.overdue.items.length - 3}곳`}</>
+              )}
+              . 문자는 보낼 수 없습니다
             </span>
             <Link href="/inspection-plans" className={`${btn} ml-auto inline-flex items-center gap-1`}>
               <CalendarDays className="size-3" /> 일정 확인
@@ -528,15 +561,15 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               <span className="flex items-center gap-1 mt-1">
                 <select className={sel} value={regionSi} onChange={e => { setRegionSi(e.target.value); setRegionMyeon(''); setRegionRi('') }}>
                   <option value="">시/군 전체</option>
-                  {(data?.regions.si ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(data?.regions.si ?? []).map(s => <option key={s} value={s}>{optLabel(s)}</option>)}
                 </select>
                 <select className={sel} value={regionMyeon} onChange={e => { setRegionMyeon(e.target.value); setRegionRi('') }}>
                   <option value="">읍/면 전체</option>
-                  {(data?.regions.myeon ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(data?.regions.myeon ?? []).map(s => <option key={s} value={s}>{optLabel(s)}</option>)}
                 </select>
                 <select className={sel} value={regionRi} onChange={e => setRegionRi(e.target.value)}>
                   <option value="">리 전체</option>
-                  {(data?.regions.ri ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(data?.regions.ri ?? []).map(s => <option key={s} value={s}>{optLabel(s)}</option>)}
                 </select>
                 {/* 제안일 뿐 — 누르기 전에는 아무것도 걸려 있지 않다 */}
                 {!regionSi && lastRegion?.si && (
@@ -574,7 +607,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             <label className="text-[11px] text-[#514b81]">담당
               <select className={`${sel} block mt-1`} value={assignee} onChange={e => setAssignee(e.target.value)}>
                 <option value="">전체</option>
-                {(data?.assignees ?? []).map(a => <option key={a} value={a}>{a}</option>)}
+                {(data?.assignees ?? []).map(a => <option key={a} value={a}>{optLabel(a)}</option>)}
               </select>
             </label>
             {/* 필터를 바꾸면 자동으로 조회되므로 이 버튼은 '다시 불러오기'다 —

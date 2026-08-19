@@ -38,8 +38,13 @@ const CONCURRENT_WINDOW_MS = 120_000
 /** 문자는 되돌릴 수 없고 돈이 나간다. 세 겹으로 막는다. */
 export function smsGuards() {
   return {
-    /** 네트워크 호출 없이 가짜 성공 — 운영에서 "잠깐 멈춤" 스위치로도 쓴다 */
-    dryRun: process.env.SMS_DRY_RUN === '1',
+    /** 네트워크 호출 없이 가짜 성공 — 운영에서 "잠깐 멈춤" 스위치로도 쓴다.
+     *
+     *  ⚠ `=== '1'` 정확 일치였다. 이건 **발송을 멈추는** 스위치인데, `true`·`on`·`yes`로 적으면
+     *  가드가 열린 채 실발송됐다 — 켰다고 믿는 순간이 가장 위험하다는 점에서 allowlist
+     *  fail-open과 같은 부류인데, 하필 더 중요한 쪽에 그 처리가 없었다.
+     *  참으로 읽힐 만한 값은 전부 참으로 본다. 애매하면 **멈추는 쪽**이 안전하다. */
+    dryRun: ['1', 'true', 'yes', 'on', 'y'].includes((process.env.SMS_DRY_RUN ?? '').trim().toLowerCase()),
     /** 목록 밖 번호는 전부 skip. 스테이징에 걸어두면 사고 시 최대 피해가 본인 1통 */
     allowlist: (process.env.SMS_ALLOWLIST ?? '').split(',').map(s => normalizePhone(s)).filter(Boolean),
     /** 값이 **설정돼 있었는가** — 정규화 결과가 비었는지와 따로 본다.
@@ -49,8 +54,16 @@ export function smsGuards() {
      *  **전건이 실고객에게 나간다**. 가드를 켰다고 믿는 순간이 가장 위험하다.
      *  화면 배너도 함께 사라져 켜진 줄 알 단서조차 없다. */
     allowlistSet: (process.env.SMS_ALLOWLIST ?? '').trim().length > 0,
-    /** 1회 상한 — 초과하면 발송 자체를 안 한다(부분 발송으로 어중간하게 만들지 않는다) */
-    maxPerRun: Number(process.env.SMS_MAX_PER_RUN ?? 200) || 200,
+    /** 1회 상한 — 초과하면 발송 자체를 안 한다(부분 발송으로 어중간하게 만들지 않는다).
+     *
+     *  ⚠ `Number(x) || 200`이었다. 그래서 **0을 넣으면 200이 된다** — 상한 0으로 전면 차단하려는
+     *  운영자가 정확히 반대 결과를 얻는다. 0은 0으로, 숫자가 아닐 때만 기본값으로 되돌린다. */
+    maxPerRun: (() => {
+      const raw = (process.env.SMS_MAX_PER_RUN ?? '').trim()
+      if (raw === '') return 200
+      const n = Number(raw)
+      return Number.isFinite(n) && n >= 0 ? n : 200
+    })(),
     from: process.env.SOLAPI_SENDER_PHONE ?? process.env.SMS_SENDER_PHONE ?? '',
     hasCredentials: !!(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET),
   }
@@ -173,10 +186,12 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
 
 /** 임의 발송(Q-17)용 대상 1건 — 계획 항목 없이 고객+날짜만으로 만든다 */
 export async function loadAdhocTarget(admin: Admin, customerId: string, visitDate: string): Promise<SmsTarget | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('customers')
     .select('id, customer_name, is_active, address, region_si, region_myeon, region_ri, customer_contacts ( id, role, name, phone, sms_recipient )')
     .eq('id', customerId).maybeSingle()
+  // 조회 실패를 null로 뭉개면 화면에 "고객을 찾을 수 없습니다"가 떠 원인을 엉뚱한 곳에서 찾게 된다
+  if (error) throw new Error(`고객 정보를 불러오지 못했습니다: ${error.message}`)
   const c = data as unknown as {
     id: string; customer_name: string; is_active: boolean | null
     address: string | null
@@ -184,6 +199,9 @@ export async function loadAdhocTarget(admin: Admin, customerId: string, visitDat
     customer_contacts: Contact[] | null
   } | null
   if (!c) return null
+  // ⚠ is_active를 select만 하고 쓰지 않았다 — **계약이 끝난 고객에게 임의 발송이 나갔다.**
+  //   계획 경로(loadSmsTargets:144)는 같은 조건을 거른다. 두 경로의 규칙이 갈리면 안 된다.
+  if (c.is_active === false) return null
   return {
     planItemId: null, customerId: c.id, customerName: c.customer_name, visitDate,
     // 계획 항목이 없으니 유형·계획축이 존재하지 않는다 — '빠뜨린 것'과 구분되게 null을 못 박는다
@@ -506,21 +524,23 @@ export async function sendInspectionSms(
   // 아직 못 본다(read-then-write의 TOCTOU). 그래서 claim을 먼저 하고 **그 다음에** 확인한다:
   // 두 요청 모두 상대의 sending 행을 보게 되므로, 더 이른 쪽만 진행하고 늦은 쪽은 스스로 물러난다.
   //
-  // ⚠ 승자 판정은 **요청 단위**여야 한다. 유닛(고객·번호)마다 따로 판정하면, 두 요청의 insert가
-  //   교차했을 때 A는 유닛2에서, B는 유닛1에서 각각 더 이른 상대를 발견해 **양쪽 다 물러난다** —
-  //   0통 발송에 "먼저 시작된 쪽을 확인하라"는 안내만 둘 남고, 그런 쪽은 없다.
-  //   그래서 내 claim 전체의 최소 순위 하나와 상대 전체의 최소 순위 하나를 비교한다.
-  //   순위는 (created_at, id) 전순서라 동률이 없고, 양쪽이 반드시 같은 결론에 도달한다.
+  // ⚠ 판정 단위는 **요청이 아니라 메시지**(고객·방문일·번호)다.
+  //
+  //  요청 단위로 비교하면(내 claim 최소 순위 vs 상대 최소 순위) 두 가지가 다 깨진다:
+  //   · 부분 겹침 — A={X,Y}, B={Y,Z}면 비교가 비대칭이라 **양쪽 다 진행**하고 Y가 2통 받는다.
+  //   · 사슬형 — A={X}, B={X,Y}, C={Y}면 B와 C가 **둘 다 물러나** Y가 아무에게서도 안 나간다.
+  //  중복을 막아야 하는 대상은 '요청'이 아니라 '한 사람에게 가는 한 통'이므로,
+  //  겹치는 그 메시지만 떨어뜨리고 겹치지 않는 나머지는 그대로 보낸다.
+  //  같은 메시지에 대해서는 (created_at, id) 전순서로 정확히 한쪽만 이긴다.
   //
   // 유니크 인덱스 없이 경합만 잡는 방식이라 정상 재발송 경로는 그대로 열려 있다.
+  const racedIdx = new Set<number>()
   if (claims.length > 0) {
     const since = new Date(Date.now() - CONCURRENT_WINDOW_MS).toISOString()
     const mine = new Set(rowIds)
     const rank = (r: { id: string; created_at: string }) => `${r.created_at}|${r.id}`
-    const myRank = claims.map(rank).sort()[0]
-    let rivalRank: string | null = null
-    let rivalName = ''
-    for (const c of claims) {
+    for (let i = 0; i < claims.length; i++) {
+      const c = claims[i]
       const { data: rivals, error: rivalErr } = await admin.from('sms_send_log')
         .select('id, created_at')
         .eq('customer_id', c.unit.group.customerId)
@@ -532,18 +552,23 @@ export async function sendInspectionSms(
       if (rivalErr) {
         return abortClaimed(`동시 발송 여부를 확인하지 못해 중단했습니다 (${rivalErr.message}).`)
       }
-      for (const r of rivals ?? []) {
-        if (mine.has(r.id)) continue
-        const rr = rank(r)
-        if (rivalRank === null || rr < rivalRank) { rivalRank = rr; rivalName = c.unit.group.customerName }
+      const lost = (rivals ?? []).some(r => !mine.has(r.id) && rank(r) < rank(c))
+      if (lost) {
+        racedIdx.add(i)
+        // 보낸 적이 없으므로 claim 행을 지운다 — failed로 남기면 목록 우선순위(failed > sent)
+        // 때문에 **승자가 실제로 보낸 그 건이 '실패'로 표시**되고 재발송을 유도한다.
+        await admin.from('sms_send_log').delete().eq('id', c.id)
       }
     }
-    if (rivalRank !== null && rivalRank < myRank) {
-      return abortClaimed(
-        `같은 건을 방금 다른 창에서 보내는 중입니다 (${rivalName}).`
-        + ' 이중 발송을 막기 위해 이번 요청은 보내지 않았습니다 — 먼저 시작된 쪽의 결과를 확인해주세요.',
-        true,   // 보낸 적이 없으므로 claim 행을 지운다 — '실패'로 남으면 승자의 발송을 가린다
-      )
+  }
+  const liveUnits = sendUnits.filter((_, i) => !racedIdx.has(i))
+  const liveRowIds = rowIds.filter((_, i) => !racedIdx.has(i))
+  const racedCount = racedIdx.size
+  if (racedCount > 0 && liveUnits.length === 0) {
+    return {
+      ...empty, ok: false, skipped: skipped + racedCount,
+      error: `선택한 건을 방금 다른 창에서 보내는 중입니다 (${racedCount}건).`
+        + ' 이중 발송을 막기 위해 보내지 않았습니다 — 먼저 시작된 쪽의 결과를 확인해주세요.',
     }
   }
 
@@ -578,10 +603,11 @@ export async function sendInspectionSms(
     const reason = !g.hasCredentials
       ? 'Solapi 자격증명이 설정되지 않았습니다 (SOLAPI_API_KEY·SOLAPI_API_SECRET).'
       : '발신번호가 설정되지 않았습니다 (SOLAPI_SENDER_PHONE).'
-    for (const id of rowIds) if (id) await admin.from('sms_send_log').update({ status: 'failed', error: reason }).eq('id', id)
+    for (const id of liveRowIds) await admin.from('sms_send_log').update({ status: 'failed', error: reason }).eq('id', id)
     return {
-      ok: false, error: reason, sent: 0, failed: sendUnits.length, unverified: 0, noPhone: noPhone.length, skipped,
-      rows: sendUnits.map(u => ({
+      ok: false, error: reason, sent: 0, failed: liveUnits.length, unverified: 0, noPhone: noPhone.length,
+      skipped: skipped + racedCount,
+      rows: liveUnits.map(u => ({
         customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
         contactName: u.contact.name, status: 'failed', error: reason,
       })),
@@ -589,15 +615,15 @@ export async function sendInspectionSms(
   }
 
   // ⑥⑦ 발송 1회 → 번호별 판정
-  const res = sendUnits.length > 0
-    ? await callSolapi(sendUnits.map(u => ({ to: u.phone, from: g.from, text: u.text })))
+  const res = liveUnits.length > 0
+    ? await callSolapi(liveUnits.map(u => ({ to: u.phone, from: g.from, text: u.text })))
     : { status: 200, body: { messageList: [] } }
-  const verdicts = parseSolapiResult(sendUnits.map(u => u.phone), res.status, res.body)
+  const verdicts = parseSolapiResult(liveUnits.map(u => u.phone), res.status, res.body)
 
   const rows: SendResult['rows'] = []
   let sent = 0, failed = 0, unverified = 0
-  for (let i = 0; i < sendUnits.length; i++) {
-    const u = sendUnits[i]
+  for (let i = 0; i < liveUnits.length; i++) {
+    const u = liveUnits[i]
     const v = verdicts.get(u.phone) ?? { status: 'unverified' as const, error: '판정 없음' }
     if (v.status === 'sent') sent++; else if (v.status === 'failed') failed++; else unverified++
     // claim이 보장되므로 조건 없이 갱신한다 — 종전의 `if (rowIds[i])`는 claim 실패를 조용히
@@ -608,11 +634,11 @@ export async function sendInspectionSms(
       provider_status_code: v.statusCode ?? null,
       provider_raw: (res.body ?? null) as Record<string, unknown> | null,
       error: v.error ?? null,
-    } as Record<string, unknown>).eq('id', rowIds[i])
+    } as Record<string, unknown>).eq('id', liveRowIds[i])
     // 결과 기록 실패는 발송을 되돌릴 수 없으니 중단하지 않는다. 대신 삼키지도 않는다 —
     // sending으로 남은 행은 사람이 봐야 한다(조용히 지나가면 '보냈는지 모르는' 건이 된다).
     if (upd.error) {
-      console.error('[sms] 발송 결과 기록 실패 — 행이 sending으로 남습니다:', rowIds[i], upd.error.message)
+      console.error('[sms] 발송 결과 기록 실패 — 행이 sending으로 남습니다:', liveRowIds[i], upd.error.message)
     }
     rows.push({
       customerName: u.group.customerName, phoneMasked: maskPhone(u.phone),
@@ -635,7 +661,8 @@ export async function sendInspectionSms(
   if (logErr) console.error('[sms] 발송 활동 로그 기록 실패:', logErr.message)
 
   return {
-    ok: failed === 0, sent, failed, unverified, noPhone: noPhone.length, skipped, rows,
+    ok: failed === 0, sent, failed, unverified, noPhone: noPhone.length,
+    skipped: skipped + racedCount, rows,
     error: failed > 0 ? `${failed}건 발송 실패 — 사유는 건별 결과를 확인해주세요.` : undefined,
   }
 }
@@ -643,8 +670,12 @@ export async function sendInspectionSms(
 /** 설정된 시점 규칙 — company_profile은 '단일 행' 전제지만 실측상 여러 행일 수 있어
  *  정렬을 고정한다(고정 안 하면 저장한 행과 읽는 행이 달라진다). */
 export async function loadLeadRules(admin: Admin): Promise<number[]> {
-  const { data } = await admin.from('company_profile').select('sms_lead_rules')
+  const { data, error } = await admin.from('company_profile').select('sms_lead_rules')
     .order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
+  // ⚠ 오류를 버리고 `?? [1]` 폴백으로 가면, 설정이 [7,1]이어도 조용히 [1]이 되어
+  //   **7일 전 안내 줄이 통째로 사라진다.** 사용자는 "이번 주엔 대상이 없나 보다"로 읽는다.
+  //   설정을 못 읽은 것과 설정이 [1]인 것은 완전히 다른 상태다.
+  if (error) throw new Error(`발송 시점 설정을 불러오지 못했습니다: ${error.message}`)
   return validateLeadRules((data as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1]).rules
 }
 
@@ -655,9 +686,12 @@ export async function loadLeadRules(admin: Admin): Promise<number[]> {
 export async function countUnsentNotices(admin: Admin): Promise<{
   count: number
   messages: number
+  /** 보낼 수 **없어서** 사람이 손봐야 하는 곳(번호 없음·수신 해제·점검일 미확정).
+   *  count에서 빼고 세면 이 고객들만 골라 뱃지·위젯에서 지우는 셈이 된다. */
+  blockedCount: number
   rules: number[]
   /** 가장 가까운(작은 lead) 시점의 요약 — 위젯 문구용 */
-  nearest: { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; totalCount: number } | null
+  nearest: { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; totalCount: number; blockedCount: number } | null
   /** 안내 못 하고 지나간 방문 — 발송은 못 하지만 **알려는 줘야 한다** */
   overdueCount: number
 }> {
@@ -669,20 +703,29 @@ export async function countUnsentNotices(admin: Admin): Promise<{
   //   OVERDUE_WINDOW만 거슬러 본다: 몇 달 전 건까지 계속 띄우면 경고가 소음이 된다.
   const from = addDays(today, -OVERDUE_WINDOW_DAYS)
   const targets = await loadSmsTargets(admin, { from, to, includePast: true })
-  const { groups } = groupTargets(targets)
+  // noPhone도 함께 넘긴다 — 안 넘기면 번호 없는 고객이 뱃지·위젯에서 통째로 빠져
+  // "보낼 안내가 없습니다 ✓"가 된다(resolvePendingNotices blockedCount 주석)
+  const { groups, noPhone } = groupTargets(targets)
   const sent = await loadSentPairs(admin, from, to)
-  const { notices, overdue } = resolvePendingNotices(groups, rules, today, (c, v) => sent.has(`${c}|${v}`))
+  const { notices, overdue } = resolvePendingNotices(
+    groups, rules, today, (c, v) => sent.has(`${c}|${v}`), noPhone)
 
-  const withWork = [...notices].sort((a, b) => a.leadDays - b.leadDays).find(n => n.unsentCount > 0)
+  // '보낼 것'뿐 아니라 '못 보내는 것'도 할 일이다 — 뱃지에서 빠지면 초록불이 거짓말이 된다
+  const withWork = [...notices].sort((a, b) => a.leadDays - b.leadDays)
+      .find(n => n.unsentCount > 0 || n.blockedCount > 0)
     ?? [...notices].sort((a, b) => a.leadDays - b.leadDays)[0] ?? null
+  const blockedTotal = notices.reduce((n, x) => n + x.blockedCount, 0)
   return {
     count: notices.reduce((n, x) => n + x.unsentCount, 0),
     messages: notices.reduce((n, x) => n + x.messageCount, 0),
+    /** 번호 없음·수신 해제·점검일 미확정 — 보낼 수 없어 사람이 손봐야 하는 곳 */
+    blockedCount: blockedTotal,
     rules,
     nearest: withWork ? {
       leadDays: withWork.leadDays, visitDate: withWork.visitDate, label: withWork.label,
       unsentCount: withWork.unsentCount, messageCount: withWork.messageCount,
       totalCount: withWork.groups.length,
+      blockedCount: withWork.blockedCount,
     } : null,
     overdueCount: overdue.count,
   }
@@ -703,6 +746,15 @@ export async function loadSentPairs(admin: Admin, from: string, to: string): Pro
     .gte('visit_date', from).lte('visit_date', to)
     .order('id')
     .range(f, t))
+  // ⚠ **조회 실패를 삼키면 '이미 보냄'이 통째로 빈 집합이 된다.**
+  //
+  //  그러면 ②-b 중복 재확인이 통과하고, 배너·뱃지·모달의 '발송됨' 배지가 **동시에** 사라진다 —
+  //  사용자는 "아직 아무것도 안 보냈네"라고 믿고 이미 받은 고객 전원에게 다시 보낸다.
+  //  조회 한 번 실패가 곧 전건 이중 과금이고, 페이지 일부만 실패하면 절반만 되살아나 더 나쁘다.
+  //  바로 위 loadSmsTargets는 정확히 이 사고를 막으려고 throw한다 — 돈이 걸린 쪽이 여기다.
+  if (page.error) {
+    throw new Error(`발송 이력을 불러오지 못해 중단했습니다(이미 보낸 건을 알 수 없습니다): ${page.error}`)
+  }
   if (page.truncated) console.error('[sms] 발송 이력(쌍) 로드 상한 도달 — 중복 발송 위험:', page.rows.length)
   const set = new Set<string>()
   for (const r of page.rows as Array<{ customer_id: string; visit_date: string }>) {

@@ -30,7 +30,7 @@ delete process.env.SMS_DRY_RUN
 import { raw, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, ensurePlan } from './_e2e-helpers.mjs'
 
 const { createAdminClient } = await import('../src/lib/supabase/admin.ts')
-const { loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards, countUnsentNotices } =
+const { loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards, countUnsentNotices, loadLeadRules } =
   await import('../src/lib/sms.ts')
 const { todayKst, addDays } = await import('../src/lib/sms-recipients.ts')
 
@@ -149,7 +149,45 @@ try {
   check('★ 미확정 고객에게는 아무 행도 생기지 않는다(발송도, 기록도 없다)', cLogs.length === 0, String(cLogs.length))
   if (savedKey) process.env.SOLAPI_API_KEY = savedKey
   if (savedSec) process.env.SOLAPI_API_SECRET = savedSec
-  check('자격증명 유무 판정이 env를 그대로 반영', smsGuards().hasCredentials === before)
+  // 종전 이 자리에는 `hasCredentials === before`가 있었는데, 상단에서 키를 이미 지운 탓에
+  // 양변이 **변하지 않은 환경에 대한 같은 식**이라 구조적으로 실패가 불가능했다(판정 지적).
+  // 실제로 env를 넣었다 뺐다 하며 판정이 따라오는지를 본다.
+  {
+    const wasKey = process.env.SOLAPI_API_KEY, wasSec = process.env.SOLAPI_API_SECRET
+    process.env.SOLAPI_API_KEY = 'probe-key'; process.env.SOLAPI_API_SECRET = 'probe-secret'
+    const on = smsGuards().hasCredentials
+    delete process.env.SOLAPI_API_KEY; delete process.env.SOLAPI_API_SECRET
+    const off = smsGuards().hasCredentials
+    check('★ 자격증명 판정이 env를 실제로 따라간다(넣으면 true, 빼면 false)',
+      on === true && off === false, JSON.stringify({ on, off }))
+    if (wasKey) process.env.SOLAPI_API_KEY = wasKey
+    if (wasSec) process.env.SOLAPI_API_SECRET = wasSec
+  }
+
+  console.log('\n— 스위치 값 해석 (fail-open 방지)')
+  {
+    // ★ SMS_DRY_RUN은 **발송을 멈추는** 스위치다. '1' 정확 일치였을 때 true/on 오타면
+    //   가드가 열린 채 실발송됐다 — 켰다고 믿는 순간이 가장 위험하다.
+    const saved = process.env.SMS_DRY_RUN
+    for (const v of ['1', 'true', 'TRUE', 'yes', 'on']) {
+      process.env.SMS_DRY_RUN = v
+      check(`★ SMS_DRY_RUN='${v}'는 멈춤으로 읽는다`, smsGuards().dryRun === true, v)
+    }
+    process.env.SMS_DRY_RUN = '0'
+    check("SMS_DRY_RUN='0'은 멈춤이 아니다(과잉 차단 금지)", smsGuards().dryRun === false)
+    delete process.env.SMS_DRY_RUN
+    check('SMS_DRY_RUN 미설정은 멈춤이 아니다', smsGuards().dryRun === false)
+    if (saved !== undefined) process.env.SMS_DRY_RUN = saved
+
+    // ★ SMS_MAX_PER_RUN=0은 '전면 차단' 의도다. `Number(x) || 200`이라 200이 됐었다.
+    const savedMax = process.env.SMS_MAX_PER_RUN
+    process.env.SMS_MAX_PER_RUN = '0'
+    check('★ SMS_MAX_PER_RUN=0은 0이다(200으로 뒤집히지 않는다)', smsGuards().maxPerRun === 0,
+      String(smsGuards().maxPerRun))
+    process.env.SMS_MAX_PER_RUN = 'abc'
+    check('숫자가 아니면 기본값 200', smsGuards().maxPerRun === 200, String(smsGuards().maxPerRun))
+    if (savedMax !== undefined) process.env.SMS_MAX_PER_RUN = savedMax; else delete process.env.SMS_MAX_PER_RUN
+  }
 
   console.log('\n— 상한 (SMS_MAX_PER_RUN)')
   process.env.SMS_MAX_PER_RUN = '1'
@@ -225,7 +263,11 @@ try {
     // 전부 비면 '보낼 게 하나도 없음'이 맞는 답이라 판정이 되지 않는다.
     // targets 개수에 기대지 않는다 — 담당자 있는 건 1 + 없는 건 1을 명시적으로 만든다.
     // (한때 targets가 1건이라 '섞임'이 성립하지 않아 이 단언이 조용히 통과했다)
-    const base0: any = targets[0]
+    // ⚠ targets[0]에 기대면 안 된다 — .order('id')의 id가 무작위 UUID라 4개 픽스처 중
+    //   어느 것이 앞에 올지 매번 달라진다. 번호 없는 고객이나 미확정 건이 걸리면
+    //   '섞임'이 성립하지 않아 이 절이 무작위로 실패했다(판정 실측). 술어로 고른다.
+    const base0: any = targets.find((t: any) => t.customerId === cidA && t.sendable !== false)
+    if (!base0) throw new Error('픽스처 전제 붕괴: 발송 가능한 고객A 대상이 없다')
     const mixed = [
       { ...base0, assigneeName: '김태건' },
       { ...base0, customerId: cidB, customerName: '담당없는곳', planItemId: null, assigneeName: null },
@@ -295,11 +337,81 @@ try {
   check('보낸 (고객, 방문일) 쌍이 잡힌다', pairs.has(`${cidA}|${VISIT}`))
   check('★ 방문일을 옮기면 그 쌍은 미발송이 된다(재안내를 놓치지 않는다)',
     !pairs.has(`${cidA}|${addDays(VISIT, 2)}`))
+  {
+    // ★ `unverified`가 재발송 방어망에 **실제로 들어 있는지** 아무도 확인하지 않았다(판정 M11).
+    //   parseSolapiResult가 이 제3상태를 만든 이유 전체가 여기 들어가기 위해서인데,
+    //   빠지면 '나갔을 수 있는' 문자가 미발송으로 되살아나 배너가 재발송을 권한다.
+    //   P-11이 막으려던 이중 과금이 조용히 복원되고 전 스위트는 그린이다.
+    const d2 = addDays(VISIT, 3), d3 = addDays(VISIT, 4)
+    await raw.from('sms_send_log').insert([
+      { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: d2, content: 'x', status: 'unverified', sent_by: userId },
+      { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: d3, content: 'x', status: 'sending', sent_by: userId },
+    ])
+    const p2 = await loadSentPairs(admin, today, addDays(today, 14))
+    check('★ unverified도 이미 보냄으로 친다(나갔을 수 있는 문자를 되살리지 않는다)',
+      p2.has(`${cidA}|${d2}`), `unverified 쌍 누락 — 재발송·이중 과금 경로가 열린다`)
+    check('★ sending도 이미 보냄으로 친다(보냈는지 모르는 건을 다시 보내지 않는다)',
+      p2.has(`${cidA}|${d3}`))
+    // 반대로 failed·no_phone은 되살아나야 한다 — 아니면 재시도 길이 막힌다
+    const d4 = addDays(VISIT, 5)
+    await raw.from('sms_send_log').insert({
+      kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: d4, content: 'x', status: 'failed', sent_by: userId,
+    })
+    const p3 = await loadSentPairs(admin, today, addDays(today, 14))
+    check('failed는 이미 보냄이 아니다(재시도할 수 있어야 한다)', !p3.has(`${cidA}|${d4}`))
+    await raw.from('sms_send_log').delete().eq('customer_id', cidA).in('visit_date', [d2, d3, d4])
+  }
+
+  console.log('\n— 조회 실패 주입: 침묵하지 않는가 (2차 판정 1순위)')
+  {
+    // 이 가드들은 **조회가 실제로 실패해야** 도달한다. 변이로는 못 덮고, 그래서
+    // 지금껏 아무도 확인하지 않았다. 실패를 주입해 "조용한 빈 결과"가 아닌지 본다.
+    //
+    // loadSentPairs가 빈 집합을 돌려주면 ②-b 중복 확인·배너·뱃지·모달 배지가 **동시에**
+    // 무력화된다 — 조회 한 번 실패가 곧 전건 재발송·이중 과금이다.
+    const boom = { message: 'injected: connection reset' }
+    const chain = (): any => new Proxy({}, {
+      get: (_t, p) => p === 'then'
+        ? (res: (v: unknown) => void) => res({ data: null, error: boom })
+        : () => chain(),
+    })
+    const boomAdmin: any = { from: () => chain() }
+
+    let threw = ''
+    try { await loadSentPairs(boomAdmin, today, addDays(today, 7)) }
+    catch (e) { threw = e instanceof Error ? e.message : String(e) }
+    check('★ 발송 이력 조회가 실패하면 빈 집합이 아니라 오류다(전건 재발송 방지)',
+      /불러오지 못/.test(threw), threw || '조용히 빈 집합을 돌려줬다 — 이미 보낸 건이 전부 미발송으로 보인다')
+
+    let threw2 = ''
+    try { await loadSmsTargets(boomAdmin, { from: today, to: addDays(today, 7) }) }
+    catch (e) { threw2 = e instanceof Error ? e.message : String(e) }
+    check('★ 발송 대상 조회가 실패하면 빈 목록이 아니라 오류다("보낼 안내 없음 ✓" 방지)',
+      /불러오지 못/.test(threw2), threw2 || '조용히 []를 돌려줬다')
+
+    let threw3 = ''
+    try { await loadLeadRules(boomAdmin) }
+    catch (e) { threw3 = e instanceof Error ? e.message : String(e) }
+    check('★ 시점 설정 조회가 실패하면 [1]로 축소되지 않는다(7일 전 줄이 사라지는 것 방지)',
+      /불러오지 못/.test(threw3), threw3 || '조용히 [1] 폴백 — 설정한 시점 줄이 통째로 사라진다')
+  }
 
   console.log('\n— 임의 발송 (Q-17): 계획 회차가 늘지 않아야 한다')
   const beforeItems = ((await raw.from('inspection_plan_items').select('id').eq('customer_id', cidA)).data ?? []).length
   const adhocT = await loadAdhocTarget(admin, cidA, addDays(today, 3))
   check('adhoc 대상은 planItemId 없이 만들어진다', !!adhocT && adhocT.planItemId === null)
+  {
+    // ★ 계약이 끝난 고객 제외가 무방비였다(판정 M12) — 계획 경로는 거르는데 임의 발송은
+    //   is_active를 select만 하고 쓰지 않아 **해지 고객에게 문자가 나갔다**.
+    await raw.from('customers').update({ is_active: false }).eq('id', cidA)
+    const inactive = await loadAdhocTarget(admin, cidA, addDays(today, 3))
+    check('★ 계약이 끝난 고객에게는 임의 발송 대상이 만들어지지 않는다', inactive === null,
+      inactive ? '해지 고객에게 문자가 나간다' : '')
+    const planned = await loadSmsTargets(admin, { from: today, to: addDays(today, 7) })
+    check('계획 경로도 같은 규칙을 쓴다(두 경로가 갈리지 않는다)',
+      !planned.some((t: any) => t.customerId === cidA))
+    await raw.from('customers').update({ is_active: true }).eq('id', cidA)
+  }
   process.env.SMS_DRY_RUN = '1'
   const adhocDry = await sendInspectionSms(admin, { targets: [adhocT!], actorId: userId, kind: 'adhoc' })
   delete process.env.SMS_DRY_RUN

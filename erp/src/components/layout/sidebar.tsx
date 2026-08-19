@@ -244,8 +244,12 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
     lastFetch.current = Date.now()
     let alive = true
     countUnsentNoticesAction()
-      .then(r => { if (alive) setSmsCount(r.count ?? 0) })
-      .catch(() => { /* 뱃지는 보조 신호 — 실패해도 조용히 넘어간다 */ })
+      // '보낼 것' + '못 보내는 것'. 후자를 빼면 번호 없는 고객만 뱃지에서 사라져
+      // "할 일 없음"으로 보인다 — 정작 사람이 손봐야 하는 쪽이다.
+      .then(r => { if (alive) setSmsCount((r.count ?? 0) + (r.blockedCount ?? 0)) })
+      // ⚠ 실패를 0으로 뭉개면 **뱃지가 사라져 '할 일 없음'과 구별되지 않는다.**
+      //   보조 신호라도 거짓 초록불이 되면 안 된다 — 물음표로 "모른다"를 표시한다.
+      .catch(() => { if (alive) setSmsCount(-1) })
     return () => { alive = false }
   }, [canSeeSms, pathname])
 
@@ -371,11 +375,14 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                         )}
                         {/* 미발송 안내 (소방계획서_24 S9-5) — 배너와 **같은 함수**로 센다.
                             뱃지와 배너의 수가 다르면 사용자는 어느 쪽을 믿을지 모른다. */}
-                        {BADGE_HREFS[item.href] === 'sms' && smsCount > 0 && (
+                        {BADGE_HREFS[item.href] === 'sms' && smsCount !== 0 && (
                           <span data-testid="sidebar-sms-badge"
-                            title={`보내야 할 사전 안내 ${smsCount}곳`}
-                            className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#7b68ee] text-white text-[10px] font-bold flex items-center justify-center">
-                            {smsCount > 99 ? '99+' : smsCount}
+                            title={smsCount < 0
+                              ? '사전 안내 건수를 불러오지 못했습니다 — 화면을 열어 확인해주세요'
+                              : `손봐야 할 사전 안내 ${smsCount}곳`}
+                            className={`shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${
+                              smsCount < 0 ? 'bg-[#b0acd6]' : 'bg-[#7b68ee]'}`}>
+                            {smsCount < 0 ? '?' : smsCount > 99 ? '99+' : smsCount}
                           </span>
                         )}
                       </Link>

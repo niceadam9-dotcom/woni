@@ -483,9 +483,13 @@ async function main() {
     await badge.waitFor({ timeout: 30000 }).catch(() => {})
     check('★ 사이드바에 미발송 뱃지가 뜬다(종전에는 액션만 있고 호출부가 없었다)',
       await badge.count() === 1, String(await badge.count()))
-    check('★ 뱃지 수 = 배너 미발송 곳 수 — 두 곳이 다른 수를 보이면 어느 쪽을 믿을지 모른다',
-      (await badge.innerText()).trim() === String(bannerUnsent),
-      `뱃지 ${await badge.innerText()} vs 배너 ${bannerUnsent}`)
+    // 뱃지는 '보낼 것' + '보낼 수 **없는** 것'을 함께 센다. 후자를 빼면 번호 없는 고객만
+    // 골라 뱃지에서 지우는 셈이라, 내일 방문 전부가 번호 없음인 날 뱃지가 사라진다.
+    const bannerBlocked = Number(
+      /보낼 수 없는 곳 (\d+)곳/.exec(await page.locator('[data-testid="sms-banner"], body').first().innerText())?.[1] ?? 0)
+    check('★ 뱃지 수 = 배너의 (미발송 + 보낼 수 없음) — 두 곳이 다르면 어느 쪽을 믿을지 모른다',
+      (await badge.innerText()).trim() === String(bannerUnsent + bannerBlocked),
+      `뱃지 ${await badge.innerText()} vs 배너 미발송 ${bannerUnsent} + 보낼수없음 ${bannerBlocked}`)
 
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' })
     const widget = page.locator('[data-testid="dash-sms-widget"]')

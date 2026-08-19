@@ -206,6 +206,27 @@
         "minor_open": ["임의 발송 고객 후보 1000행 절단", "모달에 원번호 하달(주석과 코드 불일치)", "죽은 분기 2곳"] },
       "verified": "_probe-sms-send 54/54(중복 4 + fail-closed 1 + 빈 변수 3 포함, 경합 가드는 변이 검증) · test-sms-pure 79/79(D1 3체크·D2 2체크) · test-inspection-sms 80/80 · build·tsc" },
 
+    { "id": "S3-c", "title": "2차 독립 검증(판정자 3인) 결함 11건 수리 (2026-08-19)", "status": "code_present", "phase": "A",
+      "not_independently_verified": "수리 자체는 다시 구현자=검증자 — 3차 판정 대기. 1차·2차 모두 '다 고쳤다' 이후에 더 큰 것이 나왔다",
+      "independent_check": { "date": "2026-08-19", "judge": "독립 판정자 3인(관점 분리: 1 돈의 진실 / 2 고객의 조용한 소멸 / 3 테스트가 증명하는가). 수리 내역 비공개, 코드 직접 열람 + 변이 검증",
+        "verdict": "실결함 11건. 판정자 1과 2가 **독립적으로 같은 항목을 1순위로 지목** — loadSentPairs 오류 삼킴",
+        "defects_fixed": [
+          "★loadSentPairs가 page.error 미검사 — 실패 시 '이미 보냄'이 빈 집합이 되어 중복확인·배너·뱃지·모달 배지가 동시 무력화 = 확인 없는 전건 재발송. **1차에서 바로 옆 loadSmsTargets만 고치고 돈이 걸린 쪽을 놓쳤다**",
+          "발송 이력 조회(sms-actions)·시점 설정(loadLeadRules)도 같은 형태 — 후자는 설정이 [7,1]이어도 조용히 [1]이 되어 7일 전 줄이 통째로 사라졌다",
+          "SMS_DRY_RUN이 '1' 정확 일치 → true·on 오타면 **가드가 열린 채 실발송**. 멈춤 스위치인데 allowlist보다 허술했다",
+          "SMS_MAX_PER_RUN=0이 200이 됨(Number||200) — 전면 차단 의도의 정반대",
+          "★부분 겹침 경합에서 **양쪽 다 진행**(1차 D6 수리가 비대칭) — A={X,Y}·B={Y,Z}면 Y가 2통·2회 과금. 사슬형에선 반대로 양쪽 중단. 판정 단위를 요청에서 메시지로 내려 둘 다 해소",
+          "임의 발송이 is_active를 select만 하고 미사용 — 계약 끝난 고객에게 문자가 나갔다(계획 경로는 거른다)",
+          "★resolvePendingNotices가 noPhone을 인자로 받지 않음 — 문자를 못 받을 것이 **확정된** 고객만 골라 배너·뱃지·위젯에서 제외. 내일 방문 전부가 번호 없음이면 '보낼 안내가 없습니다' 초록불",
+          "사이드바 뱃지 catch로 0, 대시보드 위젯 catch로 null: 실패가 '할 일 없음'과 동일. 위젯 파일 주석이 금지한 상태를 호출부가 만들고 있었다",
+          "overdue.items(고객명)를 서버가 보내는데 화면이 미사용 — 지나간 미발송은 기간 필터로도 못 찾아 여기가 유일한 단서였다",
+          "지역·담당이 빈 행을 되찾을 선택지 부재(임의 발송 행은 담당이 100% null) — FILTER_NONE 선택지 신설",
+          "노번호 사유가 '전화번호 없음'으로 고정돼 수신 해제 고객에게 '연락처를 채우세요'로 잘못 안내"
+        ],
+        "test_findings": "변이 15건 중 **4건 SURVIVED**(가드를 지워도 전 스위트 그린) — 특히 unverified가 재발송 방어망에 있는지 아무도 확인 안 함(그 상태의 존재 이유 전부). 무효 단언 2건(양변이 같은 식이라 실패 불가), targets[0]이 무작위 UUID 정렬이라 절반만 성립하던 절, 예외 시 뒤 40개가 조용히 미실행. 이 가드들은 조회가 실제 실패해야 도달해 변이로 못 덮음 → 실패 주입 프로브 신설",
+        "minor_open": ["표시 우선순위가 시간 미고려(옛 실패+이후 성공이면 영구 '실패' — 사람을 재발송으로 민다). 남은 것 중 유일하게 돈으로 이어짐", "고객 후보 1000행 절단", "같은 번호 두 고객 판정 공유", "allowResend 클라이언트 값", "truncated 미표시"] },
+      "verified": "test-sms-pure 88/88(79에서 88) · _probe-sms-send 71/71(54에서 71, 실패 주입 3체크 포함) · test-inspection-sms 80/80 · test-sms-bulk-move 17/17 · test-message-templates 27/27 · build·tsc" },
+
     { "id": "S5-b", "title": "고객관리 관계인 화면에 '문자 받음' 체크 (Q-10)", "status": "implemented", "phase": "A",
       "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션)", "evidence": ["edit-contacts-client.tsx:306-323 체크박스 · :321-323 번호 없음 경고 · :134-141 '미지정 시 대표 1통 / 체크 시 N명 지정 = 점검 1회당 N통'", "customers/actions.ts:849-860이 해제를 false가 아니라 null로 되돌려 폴백을 살린다", "E2E 4/4 — DB 저장까지 확인"] },
       "evidence": ["edit-contacts-client.tsx — 관계인 카드마다 '문자 받음' 체크 + 번호 없으면 '발송되지 않습니다' 안내 + 상단 통수 요약(체크 인원 = 회차당 통수)", "customers/actions.ts setContactSmsRecipientAction — 해제는 false가 아니라 null로 되돌린다(전원 false면 폴백이 안 돌아 그 고객만 조용히 문자가 끊긴다)"],
