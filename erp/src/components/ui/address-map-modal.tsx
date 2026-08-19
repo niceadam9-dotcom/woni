@@ -1,7 +1,7 @@
 'use client'
 
 import { X, ExternalLink, MapPin, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 /** 주소 지도 모달 — 방문 준비용 (소방계획서_24 S5-7)
@@ -24,6 +24,15 @@ export function AddressMapModal({ customerName, address, onClose }: {
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
+
+  // ESC로 닫기 — 배경 클릭과 X만 있으면 키보드로는 빠져나갈 수 없다. iframe에 포커스가
+  // 들어가면 배경도 눌러야 해서 더 답답하다(독립 판정 지적, 2026-08-19).
+  // 같은 계열 결함(소방계획서_23 드로어 ESC 포커스 유실)을 이 저장소가 실버그로 잡은 전례가 있다.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   const q = encodeURIComponent(address)
   const embedUrl = `https://map.kakao.com/link/search/${q}`
   const openUrl = `https://map.kakao.com/?q=${q}`
