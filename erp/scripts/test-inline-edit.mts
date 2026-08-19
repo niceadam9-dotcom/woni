@@ -100,23 +100,35 @@ try {
   await row(page).locator('td').nth(1).locator('[title="클릭하여 수정"]').click()
   const typeSel = row(page).locator('td').nth(1).locator('select')
   await typeSel.waitFor()
-  await typeSel.selectOption('일반관리')
+  // 2026-08-05 종류 세분화로 이 셀렉트의 값은 종합·작동·일반종합·일반작동 넷이 됐다.
+  // 종전 '일반관리'는 값 목록에 없어 selectOption이 계속 타임아웃났다(옵션을 못 찾는다).
+  // 일반(작동)을 고르는 이유: 110 백필 기본이 작동이라 기존 동작과 같은 자리에 떨어진다.
+  await typeSel.selectOption('일반작동')
   await page.locator('h1').click() // blur → 저장
-  const afterType = await waitFor(getItems, list =>
-    list.some(i => i.plan_type === 'event') && !list.some(i => i.inspection_category !== undefined && i.plan_type?.startsWith('special')))
-  const { data: c1 } = await raw.from('customers').select('inspection_type, inspection_category').eq('id', customerId).single()
-  check('고객: 일반관리로 변경', (c1 as { inspection_type: string } | null)?.inspection_type === '일반관리', JSON.stringify(c1))
-  check('planned 소방 항목 삭제', !afterType.some(i => i.plan_type?.startsWith('special') || i.plan_type === 'monthly'), JSON.stringify(afterType.map(i => i.plan_type)))
-  const ev1 = afterType.find(i => i.plan_type === 'event')
-  check('event 1건 자동 생성 + 자동 확정 + 날짜=점검계획일',
-    !!ev1 && ev1.status === 'confirmed' && ev1.planned_date === ANCHOR0 && ev1.scheduled_date === ANCHOR0, JSON.stringify(ev1))
+  // ⚠ 기대를 현행 설계로 바꿨다(2026-08-19). 소방계획서_6 W-9·W-26으로 일반관리는
+  //   **event를 만들지 않는다** — 소방안전관리와 같은 special_* 파이프라인을 쓰고
+  //   정기(monthly)만 미생성한다(customers/actions.ts:290-291 및 312-313 주석).
+  //   종전 이 자리의 기대(special 전부 삭제 + event 1건 자동 생성·자동 확정)는 그 이전 모델이라
+  //   현행에서는 영영 참이 될 수 없었다. 앞줄 selectOption이 먼저 타임아웃나서 가려져 있었다.
+  const afterType = await waitFor(getItems, list => list.length > 0 && !list.some(i => i.plan_type === 'monthly'))
+  const { data: c1 } = await raw.from('customers').select('inspection_type, inspection_sub_type').eq('id', customerId).single()
+  const c1o = c1 as { inspection_type: string; inspection_sub_type: string | null } | null
+  check('고객: 일반관리(작동)로 변경', c1o?.inspection_type === '일반관리' && c1o?.inspection_sub_type === '작동', JSON.stringify(c1))
+  check('정기(monthly) 항목은 사라진다 — 일반관리는 매달 돌지 않는다',
+    !afterType.some(i => i.plan_type === 'monthly'), JSON.stringify(afterType.map(i => i.plan_type)))
+  check('특별(special_*) 항목은 남는다 — 일반관리도 같은 파이프라인(W-26)',
+    afterType.some(i => i.plan_type?.startsWith('special')), JSON.stringify(afterType.map(i => i.plan_type)))
+  check('event는 생성되지 않는다 — event 신규 생성 중단(W-26)',
+    !afterType.some(i => i.plan_type === 'event'), JSON.stringify(afterType.map(i => i.plan_type)))
 
   // ── 2) 담당직원 드롭다운: 미배정 → 테스트관리자 ──
   console.log('\n[2] 담당직원 드롭다운 (미배정 → 배정)')
   await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-INLINE')}&active=all`)
   await row(page).waitFor()
-  await row(page).locator('td').nth(6).locator('[title="클릭하여 수정"]').click()
-  const empSel = row(page).locator('td').nth(6).locator('select')
+  // 컬럼은 고객명·점검유형·점검계획일·담당직원·상태·문서·(액션) — cols=full이 아니면 담당직원은 3번이다
+  // (customers/page.tsx:80-82). 종전 nth(6)은 컬럼이 더 많던 시절의 인덱스다.
+  await row(page).locator('td').nth(3).locator('[title="클릭하여 수정"]').click()
+  const empSel = row(page).locator('td').nth(3).locator('select')
   await empSel.waitFor()
   await empSel.selectOption(userId)
   await page.locator('h1').click()
@@ -125,30 +137,44 @@ try {
   check('고객: 담당직원 저장', (c2 as { assigned_employee_id: string | null } | null)?.assigned_employee_id === userId)
   check('계획항목(확정 event 포함)에 담당 전파', afterEmp.every(i => i.assigned_employee_id === userId), JSON.stringify(afterEmp.map(i => i.assigned_employee_id)))
 
-  // ── 3) 점검계획일 인라인 변경 (일반관리): 팝업 없이 event 이동 ──
-  console.log('\n[3] 점검계획일 변경 (9월 → 10월, 확정 event 자동 이동)')
+  // ── 3) 점검계획일 인라인 변경 (일반관리): 그 달 안에서 날짜만 따라간다 ──
+  console.log('\n[3] 점검계획일 변경 (10일 → 5일, 계획 달은 유지)')
   lastAlert = ''
-  await row(page).locator('td').nth(5).locator('[title="클릭하여 수정"]').click()
-  const dateInput = row(page).locator('td').nth(5).locator('input[type=text]')
+  // 점검계획일은 2번 컬럼(위 주석 참조) — 종전 nth(5)는 옛 인덱스다
+  await row(page).locator('td').nth(2).locator('[title="클릭하여 수정"]').click()
+  const dateInput = row(page).locator('td').nth(2).locator('input[type=text]')
   await dateInput.waitFor()
   await dateInput.fill(ANCHOR1)
   await dateInput.press('Enter')
   await page.waitForTimeout(500)
   const popupShown = await page.getByText('확정된 점검 일정이 있습니다').count()
-  check('확정보호 팝업 미표시 (event는 제외)', popupShown === 0)
+  check('확정보호 팝업 미표시 (확정된 건이 없다)', popupShown === 0)
+  // ★ 먼저 **저장 자체**를 확인한다 — 이게 빠져 있어서, 인라인 저장이 안 된 경우에도
+  //   아래 항목 단언만 실패하고 원인이 계획 재계산 쪽으로 오인됐다.
+  const savedAnchor = await waitFor(
+    async () => ((await raw.from('customers').select('plan_anchor_date').eq('id', customerId).single()).data as { plan_anchor_date: string } | null)?.plan_anchor_date ?? '',
+    v => v === ANCHOR1)
+  check('★ 점검계획일이 실제로 저장된다', savedAnchor === ANCHOR1, `anchor=${savedAnchor}`)
+  // ★ 기준일이 옮기는 것은 **달이 아니라 그 달 안의 날짜**다.
+  //   _resetPlanItemsForCustomer(customers/actions.ts:766-795)는 각 항목의 원래 계획 달을
+  //   유지한 채 기준일의 **일(日)**만 다시 적용하고, 주말·공휴일이면 다음 영업일로 민다.
+  //   즉 특별점검을 몇 월에 하느냐는 계획이 정하고, 기준일은 그 달의 며칠에 가느냐를 정한다.
+  //   종전 기대(10월로 이동)는 event 모델의 것이다 — event 1건은 기준일 달로 재생성됐었다.
+  const beforeDate = afterEmp.find(i => i.plan_type?.startsWith('special'))?.planned_date ?? ''
+  const anchorDay = +ANCHOR1.slice(8, 10)
   const afterAnchor = await waitFor(getItems, list => {
-    const ev = list.find(i => i.plan_type === 'event')
-    return !!ev && ev.planned_date === ANCHOR1
+    const sp = list.find(i => i.plan_type?.startsWith('special'))
+    return !!sp && sp.planned_date !== beforeDate
   })
-  const ev2 = afterAnchor.find(i => i.plan_type === 'event')
-  check('event 재생성: 새 날짜 + 확정 유지 + 1건뿐',
-    afterAnchor.filter(i => i.plan_type === 'event').length === 1
-    && !!ev2 && ev2.status === 'confirmed' && ev2.planned_date === ANCHOR1 && ev2.scheduled_date === ANCHOR1,
-    JSON.stringify(afterAnchor))
-  const { data: plans } = await raw.from('inspection_plan_items')
-    .select('id, inspection_plans!inner(year, month)').eq('customer_id', customerId).eq('plan_type', 'event')
-  const evMonth = ((plans ?? [])[0] as { inspection_plans: { month: number } } | undefined)?.inspection_plans?.month
-  check('event가 10월 계획으로 이동', evMonth === 10, `month=${evMonth}`)
+  const sp2 = afterAnchor.find(i => i.plan_type?.startsWith('special'))
+  check('특별 항목은 1건뿐 (재계산이 항목을 늘리지 않는다)',
+    afterAnchor.filter(i => i.plan_type?.startsWith('special')).length === 1, JSON.stringify(afterAnchor))
+  check('★ 계획 달은 그대로 — 기준일은 달을 옮기지 않는다',
+    !!sp2 && sp2.planned_date?.slice(0, 7) === beforeDate.slice(0, 7), `${beforeDate} → ${sp2?.planned_date}`)
+  check('★ 그 달 안에서 새 기준일의 일자로 이동(주말·공휴일이면 다음 영업일)',
+    !!sp2 && +sp2.planned_date!.slice(8, 10) >= anchorDay && +sp2.planned_date!.slice(8, 10) <= anchorDay + 4,
+    `기준일 ${anchorDay}일 → ${sp2?.planned_date}`)
+  check('event는 여전히 없다', !afterAnchor.some(i => i.plan_type === 'event'), JSON.stringify(afterAnchor.map(i => i.plan_type)))
   check('오류 알림 없음', lastAlert === '', `alert="${lastAlert}"`)
 
   await browser.close(); browser = null

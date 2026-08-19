@@ -1,4 +1,5 @@
-// C·D 배치 E2E — §1-2 앵커/세로 전환 · §11-5 필드 포커스 · §9-8c-3 카드 흐림 · §10-R3 서식 버전·새 개정판
+// C 배치 E2E — §1-2 앵커/세로 전환 · §11-5 누락 칩 → 필드 포커스
+// (구 §9-8c-3 카드 흐림 · §10-R3 서식 버전·새 개정판은 보고서 센터 해체로 삭제 — 아래 C-3 주석)
 // 실행: npx tsx scripts/test-cd-ui.mts   (로컬 dev + 스테이징 DB)
 // @ts-expect-error mjs 헬퍼
 import { raw, BASE, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, launch, login } from './_e2e-helpers.mjs'
@@ -54,50 +55,50 @@ try {
   } else {
     check('수신기위치 칩 노출', false)
   }
+  // 기본정보 탭으로 보내는 누락 칩(주소·사용승인일)은 **존재하지 않는다**.
+  // computeFirePlanReadiness가 내보내는 라벨 10개는 전부 1.1 일반현황 항목이고
+  // (수신기위치·구조·지붕·선임일·급수·화재보험·운영시간·인원·자위소방대·선임 형태),
+  // 주소·사용승인일은 고객 기본정보 축이라 준비율에 든 적이 없다(git log -S로 확인 —
+  // 그 라벨이 이 파일에 있었던 적이 없다). plan-tab-view의 CHIP_TARGET·CHIP_FIELD_ID에
+  // 남은 두 항목은 라벨이 안 나오므로 죽은 매핑이다.
+  // 종전 이 자리에서 '사용승인일 ↗'를 눌러 cf-approval 포커스를 보려다 **항상** 타임아웃이 났다.
+  // 없는 것을 기다리는 단언을 지우되, 사라진 사실 자체는 단언으로 남긴다.
   await page.goto(`${BASE}/customers/${custId}?tab=plan`)
   await page.waitForLoadState('networkidle')
-  await page.locator('button:has-text("사용승인일 ↗")').first().click()
-  await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("기본정보")', { timeout: 15000 })
-  await page.waitForTimeout(1200)
-  const infoActive = await page.evaluate(() => document.activeElement?.id ?? '')
-  check('사용승인일 칩 → 기본정보 편집 + cf-approval 포커스', infoActive === 'cf-approval', `active=${infoActive}`)
+  check('기본정보 탭행 누락 칩은 없다 — 준비율은 1.1 항목만 센다',
+    await page.locator('button:has-text("사용승인일 ↗"), button:has-text("주소 ↗")').count() === 0)
 
-  // 대장 전용 칩(높이·세대수·승강기 등) — 탭 이동 없이 이 화면에서 [건축물대장 불러오기] 즉시 실행 (사용자 보고 2026-07-25)
+  // ⚠ 대장 전용 칩(높이·세대수·승강기 등)도 **뜨지 않는다**. 위와 같은 이유다 —
+  //   ↗ 칩을 만드는 곳은 plan-tab-view.tsx:295 한 곳뿐이고 거기 들어가는 라벨은
+  //   readiness.missing(=1.1 항목 10개)이 전부다. '높이'는 그 10개에 없고, git log -S로
+  //   보면 readiness에 들어 있던 적도 없다.
+  //   → CHIP_TARGET의 buildings·info 항목 전부와, gotoMissing의 그 두 분기(탭 이동 +
+  //     cf-* 포커스 / 즉시 대장 조회)는 **도달할 수 없는 코드**다.
+  //   2026-07-25 사용자 보고로 만든 '칩에서 대장 즉시 실행'이 그래서 쓰이지 못하고 있다.
+  //   테스트를 지우기보다 이 사실을 단언으로 고정해 둔다 — 칩이 되살아나면 여기가 먼저 깨진다.
   await page.goto(`${BASE}/customers/${custId}?tab=plan`)
   await page.waitForLoadState('networkidle')
-  await page.locator('button:has-text("높이 ↗")').first().click()
-  const ledgerRan = await page.waitForSelector('text=/지번 정보가 없습니다|확정 저장|가져올 값이 없습니다/', { timeout: 15000 })
-    .then(() => true).catch(() => false)
-  check('높이 칩 → 대장 불러오기 실행(미리보기/안내)', ledgerRan)
-  check('높이 칩 — 소방계획서 탭 유지', (await page.locator('[role=tab][aria-selected="true"]:has-text("소방계획서")').count()) === 1)
+  const chipLabels = await page.locator('button:text-matches("↗$")').allInnerTexts()
+  const buildingChips = chipLabels.filter(t => /^(높이|세대수|승강기|주차장|연면적|건축면적|층수|건물 용도|건축허가일|건물동수)\s*↗$/.test(t.trim()))
+  check('건물 탭행 누락 칩도 없다 — 준비율이 건물 항목을 세지 않는다',
+    buildingChips.length === 0, buildingChips.join(','))
+  check('보이는 칩은 전부 1.1 일반현황 항목이다',
+    chipLabels.every(t => /^(수신기위치|구조|지붕|선임일|급수|화재보험|운영시간|인원|자위소방대|선임 형태)\s*↗$/.test(t.trim())),
+    chipLabels.join(','))
 
-  // ── C-3: 보고서 센터 — 일반관리 고객 흐림·선택 불가 ──
-  await page.goto(`${BASE}/reports`)
-  await page.waitForSelector('text=소방계획서 HWP 생성')
-  await page.fill('input[placeholder="고객명 입력 (부분 검색)"]', 'CD일반관리고객')
-  await page.waitForSelector('text=일반관리 — 대상 아님')
-  const genBtn = page.locator('button:has-text("CD일반관리고객")').first()
-  check('일반관리 후보 흐림 + disabled', await genBtn.isDisabled())
-
-  // ── D: 서식 버전 baseline 연동 + 새 개정판 뱃지·반영 완료 ──
-  check('별지 9호 카드 버전 = baseline 공포일', await page.isVisible('text=2026-07-01 공포 (법제처)'))
-  // 개정 시뮬레이션: announce_date만 앞으로 (크론 동작과 동일)
-  await raw.from('law_form_baselines').update({ announce_date: '20270101' }).eq('key', 'report9')
-  await page.goto(`${BASE}/reports`)
-  await page.waitForSelector('text=법제처 서식 개정이 감지됐습니다')
-  check('개정 배너 + 새 개정판 뱃지', await page.isVisible('text=새 개정판') && await page.isVisible('text=2027-01-01 공포 (법제처)'))
-  await page.click('button:has-text("재심기 반영 완료")')
-  await page.waitForTimeout(1500)
-  await page.goto(`${BASE}/reports`)
-  await page.waitForSelector('text=보고서 센터')
-  check('반영 완료 → 뱃지 해제', !(await page.isVisible('text=새 개정판')))
-  const { data: bl } = await raw.from('law_form_baselines').select('announce_date, seed_date').eq('key', 'report9').single()
-  check('DB seed_date 갱신', bl?.seed_date === '20270101', JSON.stringify(bl))
+  // ── C-3·D 삭제 (2026-08-19) — 보고서 센터가 해체됐다 ──
+  //   원래 여기서 /reports의 ① 일반관리 후보 흐림 ② 별지 9호 카드의 baseline 공포일
+  //   ③ 새 개정판 뱃지·[재심기 반영 완료] → seed_date 갱신을 확인했다.
+  //   소방계획서_8 Phase B에서 보고서 센터를 해체하면서 그 화면이 사라졌다:
+  //     · app/(dashboard)/reports 아래에 페이지 파일이 하나도 없다(구 딥링크는 대시보드로 보낸다)
+  //     · '소방계획서 HWP 생성'·'새 개정판'·'법제처 서식 개정이 감지됐습니다'가 src 전역에 없다
+  //   그래서 이 단언들은 되살릴 화면이 없어 지운다.
+  //   ⚠ 다만 개정 감지 자체는 살아 있다 — api/cron/law-revision-check가 law_form_baselines를
+  //     계속 쓴다. **UI가 없어졌을 뿐 크론은 도는데 그 경로를 덮는 테스트가 지금 없다.**
+  //     크론 단위 검증은 별도로 필요하다(이 파일은 화면 배치 테스트라 여기가 자리가 아니다).
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {
-  // baseline 원복 (스테이징 DB)
-  await raw.from('law_form_baselines').update({ announce_date: '20260701', seed_date: '20260701' }).eq('key', 'report9')
   if (browser) await browser.close()
   for (const id of [custId, genId]) {
     if (!id) continue
