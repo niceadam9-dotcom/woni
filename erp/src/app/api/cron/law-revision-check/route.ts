@@ -6,6 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // 개정 감지 시 관리자 알림(law_revision — 재심기 안내) + 기준 갱신(알림 1회).
 // 재심기: 새 HWP 수신 후 seed-report9/-report1011/-exterior-placeholders.py 재실행 (개발 PC).
 
+/** 법제처 호출 1건당 상한. 타임아웃이 없으면 상대가 멈출 때 크론 요청이 **영원히** 서버 워커를 문다
+ *  (2026-08-19 실측: 응답이 300초를 넘겨도 안 끊겼다). 감지가 하루 늦는 것보다 낫다 —
+ *  실패한 서식은 그 회차만 '조회 실패'로 남고 기준일을 올리지 않으므로 다음 실행이 다시 본다. */
+const LAW_API_TIMEOUT_MS = 15_000
+
 type FormWatch = {
   key: string; target: 'licbyl' | 'admbyl'; query: string; match: string
   dateTag: '공포일자' | '발령일자'; reseed: string
@@ -32,7 +37,9 @@ function parseEntry(xml: string, match: string, dateTag: string): { date: string
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
+  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   // OC = 법제처 회원 ID (활용신청에 호출 서버 IP 등록 필요). 주 계정 검증 실패 시 공용 샘플(test) 폴백 —
@@ -42,7 +49,7 @@ export async function GET(req: NextRequest) {
   let oc = ocPrimary
   let ocNote = ''
   try {
-    const probe = await fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(ocPrimary)}&target=licbyl&type=XML&query=a`, { cache: 'no-store' })
+    const probe = await fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(ocPrimary)}&target=licbyl&type=XML&query=a`, { cache: 'no-store', signal: AbortSignal.timeout(LAW_API_TIMEOUT_MS) })
     if ((await probe.text()).includes('사용자 정보 검증에 실패')) {
       oc = 'test'
       ocNote = `주 계정(${ocPrimary}) 검증 실패 — 공용 샘플(test)로 폴백. 법제처 OPEN API 활용신청의 IP(121.78.123.230) 등록·승인 상태를 확인해주세요.`
@@ -59,7 +66,7 @@ export async function GET(req: NextRequest) {
   for (const w of WATCHES) {
     try {
       const url = `https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(oc)}&target=${w.target}&type=XML&query=${encodeURIComponent(w.query)}`
-      const res = await fetch(url, { cache: 'no-store' })
+      const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(LAW_API_TIMEOUT_MS) })
       const xml = await res.text()
       if (xml.includes('사용자 정보 검증에 실패')) {
         return NextResponse.json({ ok: false, error: `OC 검증 실패(${oc}) — 법제처 OPEN API에 호출 서버 IP(VPS)가 등록된 계정인지 확인해주세요.` }, { status: 200 })
