@@ -9,7 +9,7 @@ import {
 import { listSmsStatusAction, bulkMovePlanDatesAction, listSmsCustomerOptionsAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
-import { todayKst, addDays } from '@/lib/sms-recipients'
+import { todayKst, addDays, groupByRegion } from '@/lib/sms-recipients'
 
 /** 문자 발송 화면 (소방계획서_24 S5) — 점검현황 모니터링 대체
  *
@@ -109,17 +109,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   }, [])
 
   const rows = data?.rows ?? []
-  // 지역 3단 묶음 — 담당자가 하루 동선을 지역으로 짠다
-  const regionGroups = (() => {
-    const m = new Map<string, { label: string; rows: Row[] }>()
-    for (const r of rows) {
-      const k = `${r.regionSi ?? ''}|${r.regionMyeon ?? ''}|${r.regionRi ?? ''}`
-      const parts = [r.regionSi ?? '(지역 미상)', r.regionMyeon, r.regionRi ? r.regionRi : (r.regionMyeon ? '(리 없음)' : null)].filter(Boolean)
-      const g = m.get(k) ?? { label: parts.join(' · '), rows: [] }
-      g.rows.push(r); m.set(k, g)
-    }
-    return [...m.values()]
-  })()
+  // 지역 3단 묶음 — 담당자가 하루 동선을 지역으로 짠다.
+  // 같은 규칙을 인라인으로 재구현하고 있었다(모달까지 붙으면 3중 복제) → 공용 함수로 단일화
+  const regionGroups = groupByRegion(rows)
 
   const checkedRows = rows.filter(r => checked.has(r.key))
   const checkedPlanItems = checkedRows.flatMap(r => r.planItemIds)
@@ -132,11 +124,11 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   function toggle(k: string) {
     setChecked(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
   }
-  function toggleGroup(g: { rows: Row[] }) {
+  function toggleGroup(g: { groups: Row[] }) {
     setChecked(s => {
       const n = new Set(s)
-      const all = g.rows.every(r => n.has(r.key))
-      for (const r of g.rows) all ? n.delete(r.key) : n.add(r.key)
+      const all = g.groups.every(r => n.has(r.key))
+      for (const r of g.groups) all ? n.delete(r.key) : n.add(r.key)
       return n
     })
   }
@@ -318,15 +310,15 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           <div key={g.label} className="border-b border-[#f5f4ff] last:border-0">
             <div className="flex items-center gap-2 px-4 py-2 bg-[#faf9ff]">
               <input type="checkbox" className="accent-[#7b68ee]"
-                checked={g.rows.every(r => checked.has(r.key))}
+                checked={g.groups.every(r => checked.has(r.key))}
                 onChange={() => toggleGroup(g)} />
               <MapPin className="size-3 text-[#b0acd6]" />
               <span data-testid="sms-region-group" className="text-[11px] font-semibold text-[#090c1d]">{g.label}</span>
-              <span className="text-[11px] text-[#8b87b8]">({g.rows.length}건)</span>
+              <span className="text-[11px] text-[#8b87b8]">({g.groups.length}건)</span>
             </div>
             <table className="w-full text-xs">
               <tbody>
-                {g.rows.map(r => (
+                {g.groups.map(r => (
                   <tr key={r.key} data-testid="sms-row" className="border-t border-[#f7f6fd] hover:bg-[#faf9ff]">
                     <td className="w-8 pl-4 py-1.5">
                       <input type="checkbox" className="accent-[#7b68ee]" checked={checked.has(r.key)} onChange={() => toggle(r.key)} />

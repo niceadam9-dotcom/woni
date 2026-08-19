@@ -134,6 +134,40 @@ async function main() {
     check('문구 편집란이 있고 바이트·SMS/LMS를 보여준다',
       (await page.locator('[data-testid="sms-body"]').count()) === 1 &&
       /바이트/.test(await page.locator('[data-testid="sms-modal"]').innerText()))
+
+    // ── 정리된 보기(2026-08-19) — 유형·지역 구별 + 대표/수신 위계 + 모두선택 ──
+    // 종전엔 유형 칩이 전부 같은 보라색이라 정기/자체가 구별되지 않았고, 지역은 아예 없었다.
+    // 라벨은 달력 데이 패널과 같은 축 — 정기 / 종합 / 작동 / 일반.
+    // '작동(정기)' 같은 조합형은 쓰지 않는다(서로 다른 축을 묶어 "작동인데 정기?"로 읽혔다)
+    const groupB = groups.find(t => t.includes(`문자UI-B${SUF}`)) ?? ''
+    check('★ 자체점검은 유형(작동/종합)으로 보인다', /작동|종합/.test(groupA) && !groupA.includes('(정기)'),
+      groupA.replace(/\n/g, ' '))
+    check('★ 월간 방문은 정기로 보인다', groupB.includes('정기'), groupB.replace(/\n/g, ' '))
+    check('★ 조합형 라벨을 쓰지 않는다', !/\(자체\)|\(정기\)/.test(groups.join(' ')),
+      groups.join(' | ').slice(0, 200))
+
+    const modalText = await page.locator('[data-testid="sms-modal"]').innerText()
+    check('★ 자체점검·계획 일정 구역이 나뉜다',
+      modalText.includes('자체점검') && modalText.includes('계획 일정'), modalText.slice(0, 200).replace(/\n/g, ' '))
+    check('바이트·SMS 표기는 목록에서 뺀다(문구 칸에만 남긴다)',
+      !/\d+B·(SMS|LMS)/.test(modalText))
+
+    // 대표가 수신자면 '대표'로 표기된다(폴백 1명 케이스) — 누구에게 가는지가 역할과 함께 보인다
+    check('★ 대표·수신 구분 표기', groupA.includes('대표'), groupA.replace(/\n/g, ' '))
+
+    // 모두 선택/해제 — 통수가 0이 되고 발송 버튼이 잠긴다
+    const selectAll = page.locator('[data-testid="sms-select-all"]')
+    check('전체 선택 체크박스가 있다', await selectAll.count() === 1)
+    await selectAll.click()
+    await page.waitForTimeout(400)
+    const offLabel = await page.locator('[data-testid="sms-send"]').innerText()
+    check('★ 전체 해제하면 0통이 되고 발송이 잠긴다',
+      /0통 발송/.test(offLabel) && await page.locator('[data-testid="sms-send"]').isDisabled(), offLabel)
+    await selectAll.click()
+    await page.waitForTimeout(400)
+    const onLabel = await page.locator('[data-testid="sms-send"]').innerText()
+    check('★ 다시 누르면 전부 선택으로 복귀', /[1-9]\d*통 발송/.test(onLabel), onLabel)
+
     await page.keyboard.press('Escape').catch(() => {})
     await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click().catch(() => {})
 

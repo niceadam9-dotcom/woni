@@ -24,6 +24,8 @@ export type SmsTarget = {
   customerName: string
   visitDate: string            // YYYY-MM-DD — 발송·판정의 기준 축
   inspectionType?: string | null
+  /** 계획 축 — monthly(정기) / special_*(자체) / event(일반) / null. 표시용 배지에만 쓴다 */
+  planType?: string | null
   assigneeName?: string | null
   regionSi?: string | null
   regionMyeon?: string | null
@@ -36,6 +38,10 @@ export type SmsTarget = {
   unsendableReason?: string | null
 }
 
+/** 유형 × 계획축 **쌍** — 배열 둘로 나누면 어느 유형이 어느 축인지 복원할 수 없어
+ *  배지가 틀린 색으로 나간다(같은 고객·같은 날에 자체와 정기가 섞일 수 있다). */
+export type SmsNature = { inspectionType: string | null; planType: string | null }
+
 export type SmsGroup = {
   customerId: string
   customerName: string
@@ -45,7 +51,15 @@ export type SmsGroup = {
   regionSi: string | null
   regionMyeon: string | null
   regionRi: string | null
+  /** ⚠ 고객에게 나가는 문자 본문의 {점검종류} 원천(sms.ts renderSmsFor) — 표시용으로 바꾸지 말 것.
+   *  화면 배지는 natures를 쓴다. */
   inspectionTypes: string[]
+  /** 표시 전용 — 유형·계획축 쌍(중복 제거). adhoc은 빈 배열 */
+  natures: SmsNature[]
+  /** 역할 '대표'인 관계인 — **수신자가 아니어도** 담는다.
+   *  pickContacts는 '누가 받는가'만 답하고 '사장님한테는 안 간다'를 말해주지 않는다.
+   *  문자는 취소가 안 되므로 발송 전에만 되돌릴 수 있는 정보다. */
+  representative: Contact | null
   assigneeName: string | null
   sendable: boolean
   unsendableReason: string | null
@@ -99,6 +113,12 @@ export function pickContacts(target: { designated?: Contact | null; contacts: Co
   let picked: Contact[]
   if (chosen.length > 0) {
     picked = chosen.filter(c => isSendablePhone(c.phone))
+  } else if (all.some(c => c.sms_recipient === false)) {
+    // **명시적으로 해제한 고객에게는 보내지 않는다**(2026-08-19 사용자 확정).
+    // 종전엔 해제해도 폴백이 대표를 도로 집어넣어 체크를 꺼도 문자가 나갔다 —
+    // 끄는 수단이 없는 것과 같았다. '아무도 체크 안 함'(NULL, 미결정)과
+    // '꺼 두었음'(false, 결정)을 구분해야 그 의사가 지켜진다.
+    picked = []
   } else {
     // 폴백 — 1명만
     const one =
@@ -151,7 +171,8 @@ export function groupTargets(targets: SmsTarget[]): { groups: SmsGroup[]; noPhon
 
     const g = map.get(key) ?? {
       customerId: t.customerId, customerName: t.customerName, visitDate: t.visitDate,
-      planItemIds: [], recipients, inspectionTypes: [],
+      planItemIds: [], recipients, inspectionTypes: [], natures: [],
+      representative: (t.contacts ?? []).find(c => c.role === '대표') ?? null,
       regionSi: t.regionSi ?? null, regionMyeon: t.regionMyeon ?? null, regionRi: t.regionRi ?? null,
       assigneeName: t.assigneeName ?? null,
       sendable: t.sendable !== false,
@@ -159,6 +180,15 @@ export function groupTargets(targets: SmsTarget[]): { groups: SmsGroup[]; noPhon
     }
     if (t.planItemId && !g.planItemIds.includes(t.planItemId)) g.planItemIds.push(t.planItemId)
     if (t.inspectionType && !g.inspectionTypes.includes(t.inspectionType)) g.inspectionTypes.push(t.inspectionType)
+    // 표시용 쌍 — 둘 다 없으면(adhoc) 담지 않는다. 담으면 배지가 'null(자체)'로 찍힌다
+    if (t.inspectionType || t.planType) {
+      const nk = `${t.inspectionType ?? ''}|${t.planType ?? ''}`
+      if (!g.natures.some(n => `${n.inspectionType ?? ''}|${n.planType ?? ''}` === nk)) {
+        g.natures.push({ inspectionType: t.inspectionType ?? null, planType: t.planType ?? null })
+      }
+    }
+    // 뒤에 붙는 target이 대표를 들고 올 수도 있다(첫 target에 없었던 경우)
+    if (!g.representative) g.representative = (t.contacts ?? []).find(c => c.role === '대표') ?? null
     // 한 건이라도 발송 불가면 그룹 전체를 불가로 — 미확정 회차가 섞인 채 나가면 안 된다
     if (t.sendable === false) { g.sendable = false; g.unsendableReason = t.unsendableReason ?? '점검일 미확정' }
     map.set(key, g)
@@ -175,24 +205,28 @@ export function countMessages(groups: SmsGroup[]): number {
 }
 
 // ── 지역 3단 (Q-11) ───────────────────────────────────────────
-export type RegionGroup = {
+/** 지역 3단만 있으면 무엇이든 묶을 수 있다 — 모달(SmsGroup)과 발송 화면(행)이 같은 규칙을 쓰게 */
+export type RegionLike = { regionSi: string | null; regionMyeon: string | null; regionRi: string | null }
+
+export type RegionGroup<T extends RegionLike = SmsGroup> = {
   si: string | null
   myeon: string | null
   ri: string | null
   label: string
-  groups: SmsGroup[]
+  groups: T[]
 }
 
 /** 시/군 → 읍/면 → 리로 묶는다. 담당자가 하루 동선을 지역으로 짜기 때문이다.
  *
  *  **리가 빈 고객을 숨기지 않는다** — '(리 없음)' 묶음으로 남긴다.
- *  필터에서 빠지면 그 고객만 영영 문자가 안 가는데, 화면상으로는 아무 문제가 없어 보인다. */
-export function groupByRegion(groups: SmsGroup[]): RegionGroup[] {
-  const map = new Map<string, RegionGroup>()
+ *  필터에서 빠지면 그 고객만 영영 문자가 안 가는데, 화면상으로는 아무 문제가 없어 보인다.
+ *  단 읍/면조차 없으면 '(리 없음)'을 붙이지 않는다 — '양평군 · (리 없음)'은 말이 안 된다. */
+export function groupByRegion<T extends RegionLike>(groups: T[]): RegionGroup<T>[] {
+  const map = new Map<string, RegionGroup<T>>()
   for (const g of groups) {
     const si = g.regionSi || null, myeon = g.regionMyeon || null, ri = g.regionRi || null
     const key = `${si ?? ''}|${myeon ?? ''}|${ri ?? ''}`
-    const parts = [si ?? '(지역 미상)', myeon, ri ? ri : (myeon || si ? '(리 없음)' : null)].filter(Boolean)
+    const parts = [si ?? '(지역 미상)', myeon, ri ? ri : (myeon ? '(리 없음)' : null)].filter(Boolean)
     const rg = map.get(key) ?? { si, myeon, ri, label: parts.join(' · '), groups: [] }
     rg.groups.push(g)
     map.set(key, rg)

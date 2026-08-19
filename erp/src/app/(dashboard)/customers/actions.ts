@@ -169,6 +169,9 @@ export async function createCustomerAction(
         name: c.name.trim(),
         phone: c.phone?.trim() || null,
         email: c.email?.trim() || null,
+        // 대표만 기본 수신(2026-08-19 사용자 확정) — 전원을 켜면 정기 고객은 연 12회 × 인원수로
+        // 문자량이 몇 배가 된다. 대표 1명은 종전 폴백과 결과가 같아 비용이 늘지 않는다.
+        ...(c.role === '대표' ? { sms_recipient: true } : {}),
       })) as Record<string, unknown>[])
     : Promise.resolve()
 
@@ -829,6 +832,9 @@ export async function upsertContactAction(
         email: contact.email?.trim() || null,
         position: contact.position?.trim() || null,
         birth_date: contact.birth_date || null,
+        // 대표는 기본 수신(2026-08-19 사용자 확정). 나머지는 미지정(NULL)으로 두어
+        // 필요할 때만 켜게 한다 — 전원 기본 체크는 문자량이 인원수만큼 곱해진다.
+        ...(contact.role === '대표' ? { sms_recipient: true } : {}),
       } as Record<string, unknown>)
     if (error) return { error: '관계인 등록에 실패했습니다.' }
   }
@@ -855,9 +861,10 @@ export async function setContactSmsRecipientAction(
   const admin = createAdminClient()
   const { error } = await admin
     .from('customer_contacts')
-    // false가 아니라 null로 되돌린다 — '수신 안 함'과 '미지정'을 구분하지 않는 설계다.
-    // false를 쓰면 전원 false인 고객이 생겨 폴백이 안 도는데, 그러면 그 고객만 조용히 문자가 끊긴다.
-    .update({ sms_recipient: value ? true : null } as Record<string, unknown>)
+    // 해제는 **false**로 남긴다(2026-08-19 사용자 확정) — 종전엔 null로 되돌려 폴백이 대표를
+    // 도로 집어넣었고, 그래서 체크를 꺼도 문자가 나갔다(끄는 수단이 없는 것과 같았다).
+    // NULL은 '아직 아무도 정하지 않음'(폴백 1명)이라는 뜻으로만 남는다 — pickContacts 참조.
+    .update({ sms_recipient: value } as Record<string, unknown>)
     .eq('id', contactId)
     .eq('customer_id', customerId)
   if (error) return { error: '문자 수신 설정에 실패했습니다.' }

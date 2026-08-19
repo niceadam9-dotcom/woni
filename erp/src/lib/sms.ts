@@ -64,7 +64,13 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
       )
     `)
     .not('scheduled_date', 'is', null)
-    .in('status', ['planned', 'confirmed'])
+    // ⚠ 'completed'를 빼지 않는다(2026-08-19 실측 수정). 이 컬럼의 completed는 '점검이 끝났다'가
+    // 아니라 **'계획 단계를 졸업했다'**는 뜻이다 — 점검일을 확정하면 startInspectionCore가 점검 건을
+    // 만들면서 이 항목을 completed로 바꾼다(inspection-start.ts:117). 확정=자동 시작이라, 방문 며칠
+    // 전에 점검일을 확정해 두는 정상 업무만으로 자체점검(종합·작동)이 사전 안내 대상에서 통째로
+    // 사라졌다(스테이징 실측: 오늘 이후 자체점검 4건 중 2건이 이 사유로 누락).
+    // 방문이 지났는지는 아래 scheduled_date >= today 가드가 이미 본다.
+    .in('status', ['planned', 'confirmed', 'completed'])
 
   if ('planItemIds' in input) {
     if (input.planItemIds.length === 0) return []
@@ -101,11 +107,15 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
       customerName: c.customer_name,
       visitDate: r.scheduled_date,
       inspectionType: r.inspection_type,
+      // 조회는 이미 하고 있었는데(select) 여기서 버려져 화면이 정기/자체를 구별하지 못했다
+      planType: r.plan_type,
       assigneeName: r.profiles?.name ?? null,
       regionSi: c.region_si, regionMyeon: c.region_myeon, regionRi: c.region_ri,
       contacts: c.customer_contacts ?? [],
-      sendable: r.status === 'confirmed',
-      unsendableReason: r.status === 'confirmed' ? null : '점검일 미확정 — 점검확정에서 확정해주세요',
+      // completed도 발송 가능하다 — 확정을 지나 점검이 시작된 상태이지 미확정이 아니다.
+      // 여기서 빼면 위 status 필터를 넓힌 의미가 없어지고 '점검일 미확정'이라는 틀린 사유가 붙는다.
+      sendable: r.status !== 'planned',
+      unsendableReason: r.status === 'planned' ? '점검일 미확정 — 점검확정에서 확정해주세요' : null,
     })
   }
   return out
@@ -125,7 +135,8 @@ export async function loadAdhocTarget(admin: Admin, customerId: string, visitDat
   if (!c) return null
   return {
     planItemId: null, customerId: c.id, customerName: c.customer_name, visitDate,
-    inspectionType: null, assigneeName: null,
+    // 계획 항목이 없으니 유형·계획축이 존재하지 않는다 — '빠뜨린 것'과 구분되게 null을 못 박는다
+    inspectionType: null, planType: null, assigneeName: null,
     regionSi: c.region_si, regionMyeon: c.region_myeon, regionRi: c.region_ri,
     contacts: c.customer_contacts ?? [],
     sendable: true, unsendableReason: null,

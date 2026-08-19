@@ -9,8 +9,8 @@ import {
   loadLeadRules, countUnsentNotices,
 } from '@/lib/sms'
 import {
-  groupTargets, groupByRegion, countMessages, resolvePendingNotices, validateLeadRules,
-  todayKst, addDays, maskPhone,
+  groupTargets, resolvePendingNotices, validateLeadRules,
+  todayKst, addDays, maskPhone, normalizePhone,
 } from '@/lib/sms-recipients'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
@@ -25,7 +25,7 @@ import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/
  *  requirePermission은 redirect()라서 모달 안에서 부르면 화면이 통째로 튄다(P-4).
  */
 
-async function guard(perm: 'inspection_sms_send' | 'message_template_manage') {
+async function guard(perm: 'inspection_sms_send' | 'message_template_manage' | 'inspection_plan_manage') {
   const profile = await getProfile()
   if (!profile) return { error: '로그인이 필요합니다.' as const, profile: null }
   if (!can(profile.role, perm)) return { error: '권한이 없습니다.' as const, profile: null }
@@ -82,6 +82,18 @@ export async function prepareInspectionSmsAction(source: {
       visitDate: p.group.visitDate,
       planItemIds: p.group.planItemIds,
       inspectionTypes: p.group.inspectionTypes,
+      // 지역·유형쌍은 SmsGroup에 이미 있었는데 여기서 잘려 모달이 못 받고 있었다
+      regionSi: p.group.regionSi, regionMyeon: p.group.regionMyeon, regionRi: p.group.regionRi,
+      natures: p.group.natures,
+      // 대표는 **선택 대상이 아니다** — 원번호를 클라이언트에 두지 않는다(발송은 picked의 원번호만 되돌린다).
+      // 수신자 여부는 서버에서 판정한다(클라이언트엔 마스킹 값뿐이라 비교가 불가능하다).
+      representative: p.group.representative ? {
+        name: p.group.representative.name,
+        phoneMasked: maskPhone(p.group.representative.phone),
+        isRecipient: p.group.recipients.some(
+          c => normalizePhone(c.phone) === normalizePhone(p.group.representative!.phone),
+        ),
+      } : null,
       sendable: p.group.sendable,
       unsendableReason: p.group.unsendableReason,
       alreadySent: sent.has(`${p.group.customerId}|${p.group.visitDate}`),
@@ -355,7 +367,12 @@ export async function saveSmsSettingsAction(rulesInput: unknown) {
  *  P-19가 만든 것과 같은 갈라짐이 새로 생긴다.
  *  건별 실패를 삼키지 않는다: 1단계 완료 건은 가드에 막히고 정기는 같은 달 제약이 있다. */
 export async function bulkMovePlanDatesAction(planItemIds: string[], newDate: string) {
-  const g = await guard('inspection_sms_send')
+  // 권한은 **이 함수가 실제로 행사하는 것**으로 검사한다 — 건별로 moveMonthlyPlanItemAction /
+  // confirmPlanItemStageOneAction이 requirePermission('inspection_plan_manage')를 부르고,
+  // 그 함수는 실패 시 redirect()로 **던진다**. sms 권한만 통과시키면 루프 중간에 예외가 나
+  // 일부만 쓰인 채 failed에 아무것도 안 남는다. 오늘은 두 키의 역할 집합이 같아 동작 변화 없음.
+  // 데이 패널(점검달력) 일괄 이동도 이 액션을 그대로 쓴다 (2026-08-19).
+  const g = await guard('inspection_plan_manage')
   if (g.error) return { moved: 0, failed: [{ name: '', reason: g.error }] }
   if (!Array.isArray(planItemIds) || planItemIds.length === 0) return { moved: 0, failed: [] }
   if (planItemIds.length > 200) return { moved: 0, failed: [{ name: '', reason: '한 번에 200건까지 이동할 수 있습니다.' }] }
