@@ -13,6 +13,7 @@ import {
   todayKst, addDays, maskPhone, normalizePhone,
 } from '@/lib/sms-recipients'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 
 /** 사전 안내 SMS 서버 액션 (소방계획서_24 S4)
@@ -161,7 +162,8 @@ export async function listSmsStatusAction(filters: {
   regionSi?: string | null
   regionMyeon?: string | null
   regionRi?: string | null
-  status?: 'all' | 'unsent' | 'sent' | 'failed' | 'no_phone'
+  /** 'not_sent' = 발송됨 제외(기본) — 이 화면의 일은 '아직 안 보낸 것'이라 그게 기본이다 */
+  status?: 'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone'
   assignee?: string | null
 }) {
   const g = await guard('inspection_sms_send')
@@ -169,16 +171,35 @@ export async function listSmsStatusAction(filters: {
   const admin = createAdminClient()
   const today = todayKst()
 
+  // 기간을 비워 두면 **오늘부터 1개월**을 본다(2026-08-19 사용자 지시).
+  //
+  // 경위: 처음엔 오늘~+7이 기본이라 사용자가 필터를 건 적도 없는데 목록이 잘려 있었다.
+  // 그래서 '해제=전체'로 바꿨더니 이번엔 1000행을 넘겨 화면이 무거워졌다.
+  // 사전 안내는 방문 며칠 전에 보내는 일이라 몇 달 뒤 계획까지 늘어놓을 이유가 없다 —
+  // 기본은 1개월, 더 보고 싶으면 [전체]를 명시적으로 누른다.
+  //
+  // 하한이 오늘인 이유: 지난 방문일은 어차피 발송 대상이 아니고(loadSmsTargets가 거른다)
+  // 배너의 '시기 지남'이 따로 알려준다.
+  const from = filters.from || today
+  const to = filters.to || addDays(today, 30)
+
   // ── 축 A: 계획 항목
-  const targets = await loadSmsTargets(admin, { from: filters.from, to: filters.to })
+  const targets = await loadSmsTargets(admin, { from, to })
   const { groups, noPhone } = groupTargets(targets)
 
   // ── 축 B: 발송 이력 (adhoc 포함)
-  const { data: logRaw } = await admin
+  // 1행=1수신자라 계획 항목보다 빨리 불어난다 — 여기도 1000행 상한에 걸리면
+  // '보낸 건'이 조용히 빠져 미발송으로 되살아난다(재발송·이중 과금). 끝까지 받아온다.
+  // created_at은 동점이 날 수 있어 id를 2차 정렬로 고정한다(페이지가 밀리면 건너뛴다).
+  const logPage = await fetchAllRows((f, t) => admin
     .from('sms_send_log')
     .select('id, kind, customer_id, visit_date, status, error, contact_name, contact_role, to_phone, created_at, customers:customer_id ( customer_name, region_si, region_myeon, region_ri )')
-    .gte('visit_date', filters.from).lte('visit_date', filters.to)
+    .gte('visit_date', from).lte('visit_date', to)
     .order('created_at', { ascending: false })
+    .order('id')
+    .range(f, t))
+  if (logPage.truncated) console.error('[sms] 발송 이력 로드 상한 도달:', logPage.rows.length)
+  const logRaw = logPage.rows
   const logs = (logRaw ?? []) as unknown as Array<{
     id: string; kind: string; customer_id: string; visit_date: string
     status: string; error: string | null; contact_name: string | null; contact_role: string | null
@@ -261,11 +282,14 @@ export async function listSmsStatusAction(filters: {
   if (f.regionMyeon) out = out.filter(r => r.regionMyeon === f.regionMyeon)
   if (f.regionRi)    out = out.filter(r => r.regionRi === f.regionRi)
   if (f.assignee)    out = out.filter(r => r.assigneeName === f.assignee)
-  if (f.status && f.status !== 'all') out = out.filter(r => r.status === f.status)
+  // 'not_sent'는 특정 상태가 아니라 **발송됨만 빼는** 축이다 —
+  // 실패·번호없음도 아직 처리할 일이라 남겨야 한다(그것만 빼면 조치가 필요한 건이 사라진다)
+  if (f.status === 'not_sent') out = out.filter(r => r.status !== 'sent')
+  else if (f.status && f.status !== 'all') out = out.filter(r => r.status === f.status)
 
   // 배너 (Q-12) — 시점 규칙은 loadLeadRules 한 곳에서만 읽는다(정렬 고정 포함)
   const rules = await loadLeadRules(admin)
-  const sentPairs = await loadSentPairs(admin, f.from, f.to)
+  const sentPairs = await loadSentPairs(admin, from, to)
   const wide = await loadSmsTargets(admin, { from: today, to: addDays(today, Math.max(...rules, 1)) })
   const { groups: wideGroups } = groupTargets(wide)
   const { notices, overdue } = resolvePendingNotices(

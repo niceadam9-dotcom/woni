@@ -172,6 +172,27 @@ try {
   check('★ 임의 발송은 계획 항목을 만들지 않는다(점검 실적 오염 금지)',
     beforeItems === afterItems, `${beforeItems} → ${afterItems}`)
 
+  console.log('\n— PostgREST 1000행 상한 (조용히 잘리지 않는가)')
+  {
+    // 넘친 만큼은 오류 없이 그냥 빠진다 — 발송 화면에서 잘리면 **그 고객만 안내를 못 받는데
+    // 화면상으로는 아무 문제가 없어 보인다**. 화면 행 수로는 못 잰다(고객+방문일로 접히기 때문에
+    // 1260건이 291행이 된다) — 그래서 여기서 **접기 전 대상 수**를 직접 센다.
+    const wide = await loadSmsTargets(admin, { from: today, to: addDays(today, 365) })
+    const { count: dbCount } = await raw.from('inspection_plan_items')
+      .select('id', { count: 'exact', head: true })
+      .not('scheduled_date', 'is', null)
+      .gte('scheduled_date', today).lte('scheduled_date', addDays(today, 365))
+      .in('status', ['planned', 'confirmed', 'completed'])
+    check('★ 1년 범위 대상이 1000건에서 멈추지 않는다(상한을 넘겨 받는다)',
+      (dbCount ?? 0) <= 1000 || wide.length > 1000,
+      `대상 ${wide.length}건 / DB 후보 ${dbCount}건 — 정확히 1000이면 잘린 것이다`)
+    check('대상 수가 DB 후보를 넘지 않는다(페이지 중복 수집 없음)',
+      wide.length <= (dbCount ?? 0), `${wide.length} vs ${dbCount}`)
+    const ids = new Set(wide.map(t => t.planItemId))
+    check('★ 페이지 경계에서 중복이 생기지 않는다(id 정렬 고정)',
+      ids.size === wide.length, `고유 ${ids.size} / 전체 ${wide.length}`)
+  }
+
   console.log('\n— 과거 방문일 가드')
   const past = await loadSmsTargets(admin, { from: addDays(today, -10), to: addDays(today, -1) })
   check('★ 지난 방문일은 발송 대상에서 빠진다("지난 날에 방문합니다"는 성립하지 않는다)',

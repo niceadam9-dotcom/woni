@@ -4,6 +4,7 @@ import { createHmac } from 'crypto'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { loadTemplate, companyVars } from '@/lib/message-template'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
   pickContacts, groupTargets, countMessages, normalizePhone, maskPhone,
   smsByteLength, smsKind, dDayLabel, daysBetween, todayKst, shortDate, addDays,
@@ -53,39 +54,50 @@ export type LoadTargetsInput =
  */
 export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Promise<SmsTarget[]> {
   const today = todayKst()
-  let q = admin
-    .from('inspection_plan_items')
-    .select(`
-      id, scheduled_date, status, inspection_type, plan_type,
-      profiles:assigned_employee_id ( name ),
-      customers:customer_id (
-        id, customer_name, is_active, region_si, region_myeon, region_ri,
-        customer_contacts ( id, role, name, phone, sms_recipient )
-      )
-    `)
-    .not('scheduled_date', 'is', null)
+  // ⚠ PostgREST는 **요청당 1000행이 하드 상한**이고 넘친 만큼은 오류 없이 그냥 빠진다.
+  // 기간 필터를 해제(전체)할 수 있게 되면서 실제로 이 상한에 걸렸다 — 화면 행 수가
+  // 1000/1001에서 오락가락했다. 발송 화면에서 잘리면 **그 고객만 안내를 못 받는데
+  // 화면상으로는 아무 문제가 없어 보인다**. 그래서 끝까지 받아온다.
+  // 페이지를 나누므로 정렬은 동점 없는 키(id)로 고정해야 건너뛰거나 중복되지 않는다.
+  const build = (from: number, to: number) => {
+    let q = admin
+      .from('inspection_plan_items')
+      .select(`
+        id, scheduled_date, status, inspection_type, plan_type,
+        profiles:assigned_employee_id ( name ),
+        customers:customer_id (
+          id, customer_name, is_active, region_si, region_myeon, region_ri,
+          customer_contacts ( id, role, name, phone, sms_recipient )
+        )
+      `)
+      .not('scheduled_date', 'is', null)
     // ⚠ 'completed'를 빼지 않는다(2026-08-19 실측 수정). 이 컬럼의 completed는 '점검이 끝났다'가
     // 아니라 **'계획 단계를 졸업했다'**는 뜻이다 — 점검일을 확정하면 startInspectionCore가 점검 건을
     // 만들면서 이 항목을 completed로 바꾼다(inspection-start.ts:117). 확정=자동 시작이라, 방문 며칠
     // 전에 점검일을 확정해 두는 정상 업무만으로 자체점검(종합·작동)이 사전 안내 대상에서 통째로
     // 사라졌다(스테이징 실측: 오늘 이후 자체점검 4건 중 2건이 이 사유로 누락).
     // 방문이 지났는지는 아래 scheduled_date >= today 가드가 이미 본다.
-    .in('status', ['planned', 'confirmed', 'completed'])
+      .in('status', ['planned', 'confirmed', 'completed'])
 
-  if ('planItemIds' in input) {
-    if (input.planItemIds.length === 0) return []
-    q = q.in('id', input.planItemIds)
-  } else {
-    // 지난 방문일에 "방문합니다"는 성립하지 않는다 — 배너의 '시기 지남'은 조회 전용이고
-    // 여기(발송 대상)에서는 오늘 이후만 본다
-    const from = input.from < today ? today : input.from
-    q = q.gte('scheduled_date', from).lte('scheduled_date', input.to)
+    if ('planItemIds' in input) {
+      q = q.in('id', input.planItemIds)
+    } else {
+      // 지난 방문일에 "방문합니다"는 성립하지 않는다 — 배너의 '시기 지남'은 조회 전용이고
+      // 여기(발송 대상)에서는 오늘 이후만 본다
+      const from = input.from < today ? today : input.from
+      q = q.gte('scheduled_date', from).lte('scheduled_date', input.to)
+    }
+    return q.order('id').range(from, to)
   }
 
-  const { data, error } = await q
-  if (error) return []
+  if ('planItemIds' in input && input.planItemIds.length === 0) return []
 
-  const rows = (data ?? []) as unknown as Array<{
+  const page = await fetchAllRows(build)
+  if (page.error) return []
+  // 조용히 적게 보여주지 않는다 — 상한에 걸리면 서버 로그에 남긴다
+  if (page.truncated) console.error('[sms] 발송 대상 로드 상한 도달 — 일부가 빠졌을 수 있다:', page.rows.length)
+
+  const rows = page.rows as unknown as Array<{
     id: string; scheduled_date: string; status: string
     inspection_type: string | null; plan_type: string | null
     profiles: { name: string } | null
@@ -469,13 +481,18 @@ export async function countUnsentNotices(admin: Admin): Promise<{
 /** 이미 보낸 (고객, 방문일) 쌍 — '미발송' 판정의 단일 규칙 (S5-10).
  *  plan_item이 아니라 **방문일 쌍**이 키라서, 점검일을 옮기면 자동으로 다시 미발송이 된다. */
 export async function loadSentPairs(admin: Admin, from: string, to: string): Promise<Set<string>> {
-  const { data } = await admin
+  // 1000행 상한에 걸리면 **보낸 건이 미발송으로 되살아난다** — 배너가 다시 권하고,
+  // 승인하면 같은 고객에게 두 번 간다(돈도 두 번). 여기는 특히 끝까지 받아야 한다.
+  const page = await fetchAllRows((f, t) => admin
     .from('sms_send_log')
     .select('customer_id, visit_date')
     .in('status', ['sent', 'unverified'])   // unverified는 실제로 나갔을 수 있어 '보냄'으로 친다
     .gte('visit_date', from).lte('visit_date', to)
+    .order('id')
+    .range(f, t))
+  if (page.truncated) console.error('[sms] 발송 이력(쌍) 로드 상한 도달 — 중복 발송 위험:', page.rows.length)
   const set = new Set<string>()
-  for (const r of (data ?? []) as Array<{ customer_id: string; visit_date: string }>) {
+  for (const r of page.rows as Array<{ customer_id: string; visit_date: string }>) {
     set.add(`${r.customer_id}|${r.visit_date}`)
   }
   return set

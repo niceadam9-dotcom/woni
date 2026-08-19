@@ -99,11 +99,77 @@ async function main() {
     check('지역 3단 묶음 헤더가 리까지 보여준다',
       (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.includes('전수리')),
       (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).join(' | '))
-    check('리가 빈 고객은 (리 없음)으로 묶여 사라지지 않는다',
-      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.includes('리 없음')))
-    check('필터는 기본으로 접혀 있다(주 동선은 배너)',
+    // '(리 없음)' 문구는 뺐다 — 읍/면이 있는 고객의 94%가 리 없음이라 화면이 그 문구로 뒤덮였다.
+    // 지켜야 할 것은 문구가 아니라 **그 고객이 목록에서 사라지지 않는가**다.
+    // 건수는 별도 span이라 라벨 텍스트에 안 들어온다 — 라벨 자체가 읍/면에서 끝나는지만 본다
+    check('리가 빈 고객도 목록에 남고, 라벨은 읍/면에서 끝난다',
+      rowsTxt.some(t => t.includes(`문자UI-B${SUF}`)) &&
+      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.trim() === '양평군 · 양평읍'),
+      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).join(' | '))
+    check('어느 라벨에도 (리 없음)이 남지 않는다',
+      !(await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.includes('리 없음')))
+    // 설계 초안은 '기본 접힘'(S5-11)이었으나 실사용에서 뒤집혔다(2026-08-19 사용자 지시) —
+    // 접혀 있으면 좁힐 때마다 한 번 더 눌러야 하고, 무엇이 걸려 있는지도 요약 한 줄로만 보인다.
+    check('★ 필터가 항상 펼쳐져 있다(누르지 않아도 조회 조건이 보인다)',
       await page.locator('[data-testid="sms-filter-toggle"]').isVisible() &&
-      !(await page.locator('select').first().isVisible().catch(() => false)))
+      await page.locator('[data-testid="period-all"]').isVisible())
+    // 기본은 **오늘부터 1개월**(2026-08-19 사용자 지시). 사용자가 건 필터는 없지만
+    // 범위는 1개월이다 — 라벨이 '전체'라고 하면 화면이 거짓말을 하게 되므로 문구까지 고정한다.
+    check('★ 기본 조회 범위가 오늘부터 1개월이라고 화면이 말한다',
+      /1개월/.test(await page.locator('[data-testid="sms-filter-summary"]').innerText()),
+      await page.locator('[data-testid="sms-filter-summary"]').innerText())
+    // 기본은 **발송됨 제외** — 이 화면의 일은 '아직 안 보낸 것'이다.
+    // 다만 실패·번호없음은 남아야 한다(조치가 필요한 건인데 함께 빠지면 영영 안 보인다).
+    check('★ 기본이 발송 제외라고 화면이 말한다',
+      /발송 제외/.test(await page.locator('[data-testid="sms-filter-summary"]').innerText()),
+      await page.locator('[data-testid="sms-filter-summary"]').innerText())
+    check('발송됨 상태의 행이 목록에 없다',
+      !(await page.locator('[data-testid="sms-row"]').allInnerTexts()).some(t => /발송됨/.test(t)))
+    check('기본 상태에서는 [필터 해제] 버튼이 없다(누를 게 없으니)',
+      await page.locator('[data-testid="sms-filter-clear"]').count() === 0)
+    {
+      // 서버가 실제로 1개월만 담는가 — 라벨과 결과가 어긋나면 안 된다
+      const dates = (await page.locator('[data-testid="sms-row"]').allInnerTexts())
+        .map(t => /\d{4}-\d{2}-\d{2}/.exec(t)?.[0]).filter(Boolean) as string[]
+      const limit = kst(30)
+      check('★ 목록에 1개월 밖 날짜가 섞이지 않는다',
+        dates.length > 0 && dates.every(d => d >= kst(0) && d <= limit),
+        `${dates.length}건 · 최대 ${dates.sort().at(-1)} (한계 ${limit})`)
+    }
+
+    // ★ 기간 해제(전체)로 넓히면 PostgREST의 **1000행 하드 상한**에 걸린다.
+    //   넘친 만큼은 오류 없이 그냥 빠져서 화면은 "그만큼밖에 없다"고 믿는다 —
+    //   발송 화면에서 잘리면 그 고객만 안내를 못 받는데 화면상으로는 멀쩡해 보인다.
+    //   실제로 이 화면이 1000/1001에서 오락가락했다(2026-08-19). 상한을 넘겨 받는지 못 박는다.
+    // (1000행 상한 검증은 화면이 아니라 _probe-sms-send.mts에서 한다 —
+    //  화면 행은 고객+방문일로 **접힌 그룹**이라 계획 항목 수와 비교할 수 없다.
+    //  실제로 1260건이 291행으로 접혀, UI에서 재면 잘림과 접힘을 구별하지 못한다.)
+
+    // ★ 필터를 바꾸면 **바로 조회돼야 한다** — [조회]를 눌러야만 반영되면
+    //   값만 바뀌고 목록은 옛 조건 그대로인 상태가 생긴다(특히 '해제했는데 목록이 그대로').
+    {
+      const before = await page.locator('[data-testid="sms-row"]').count()
+      // 필터는 이미 펼쳐져 있다 — 토글을 누르면 오히려 **닫혀서** select를 못 찾는다(실제로 겪음).
+      // 인덱스(nth=3)로 집던 것도 열이 늘면 조용히 다른 select를 집으므로 testid로 바꾼다.
+      await page.locator('[data-testid="filter-status"]').waitFor()
+      // 상태를 '실패'로 — 이 테스트 데이터에는 실패 건이 없으므로 목록이 줄어야 한다
+      await page.locator('[data-testid="filter-status"]').selectOption('failed')
+      await page.waitForFunction(
+        (n) => document.querySelectorAll('[data-testid="sms-row"]').length !== n,
+        before, { timeout: 15000 }).catch(() => {})
+      const after = await page.locator('[data-testid="sms-row"]').count()
+      check('★ 필터를 바꾸면 [조회]를 누르지 않아도 목록이 따라온다', after !== before, `${before} → ${after}`)
+      check('필터가 걸리면 [필터 해제]가 나타난다',
+        await page.locator('[data-testid="sms-filter-clear"]').count() === 1)
+      // ★ 해제도 마찬가지 — 누르면 바로 되돌아와야 한다
+      await page.locator('[data-testid="sms-filter-clear"]').click()
+      await page.waitForFunction(
+        (n) => document.querySelectorAll('[data-testid="sms-row"]').length === n,
+        before, { timeout: 15000 }).catch(() => {})
+      check('★ [필터 해제]를 누르면 바로 전체가 다시 조회된다',
+        await page.locator('[data-testid="sms-row"]').count() === before,
+        `${await page.locator('[data-testid="sms-row"]').count()} vs ${before}`)
+    }
 
     console.log('\n— Q-12: 승인 배너')
     const notices = await page.locator('[data-testid="sms-notice"]').allInnerTexts()

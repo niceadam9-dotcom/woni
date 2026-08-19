@@ -131,8 +131,14 @@ console.log('\n— groupByRegion (Q-11)')
   const rgs = groupByRegion(groups)
   ok('3단으로 묶인다(전수리 2건이 한 묶음)', rgs.length === 3 && rgs.some(r => r.ri === '전수리' && r.groups.length === 2),
     JSON.stringify(rgs.map(r => [r.label, r.groups.length])))
-  ok('★ 리가 빈 고객은 (리 없음)으로 남는다 — 숨기면 그 고객만 영영 문자가 안 간다',
-    rgs.some(r => r.label === '양평군 · 양평읍 · (리 없음)'), JSON.stringify(rgs.map(r => r.label)))
+  // 지키려는 것은 라벨 문구가 아니라 **그 고객이 사라지지 않는가**다.
+  // '(리 없음)' 표기는 뺐지만(읍/면 있는 고객의 94%가 리 없음이라 화면이 뒤덮였다)
+  // 묶음 자체는 남아야 한다 — 빠지면 그 고객만 영영 문자가 안 간다.
+  ok('★ 리가 빈 고객도 묶음으로 남는다 — 숨기면 그 고객만 영영 문자가 안 간다',
+    rgs.some(r => r.myeon === '양평읍' && r.ri === null && r.groups.some(g => g.customerId === 'R3')),
+    JSON.stringify(rgs.map(r => r.label)))
+  ok('리가 없으면 라벨을 읍/면에서 끝낸다(없는 것을 굳이 말하지 않는다)',
+    rgs.some(r => r.label === '양평군 · 양평읍'), JSON.stringify(rgs.map(r => r.label)))
   ok('정렬은 시/군 → 읍/면 → 리', rgs[0].si === '가평군', JSON.stringify(rgs.map(r => r.si)))
 }
 

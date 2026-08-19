@@ -218,15 +218,18 @@ export type RegionGroup<T extends RegionLike = SmsGroup> = {
 
 /** 시/군 → 읍/면 → 리로 묶는다. 담당자가 하루 동선을 지역으로 짜기 때문이다.
  *
- *  **리가 빈 고객을 숨기지 않는다** — '(리 없음)' 묶음으로 남긴다.
+ *  **리가 빈 고객을 숨기지 않는다** — 묶음 자체는 그대로 남긴다.
  *  필터에서 빠지면 그 고객만 영영 문자가 안 가는데, 화면상으로는 아무 문제가 없어 보인다.
- *  단 읍/면조차 없으면 '(리 없음)'을 붙이지 않는다 — '양평군 · (리 없음)'은 말이 안 된다. */
+ *
+ *  다만 라벨에 **'(리 없음)'을 쓰지 않는다**(2026-08-19). 실측상 읍/면이 있는 고객의
+ *  94%(256/273)가 리 없음이라 화면이 온통 그 문구로 뒤덮여 읽는 데 방해만 됐다.
+ *  없는 것을 굳이 말하지 않고 `양평군 · 개군면`에서 끝낸다 — 리가 있는 소수만 한 칸 더 붙는다. */
 export function groupByRegion<T extends RegionLike>(groups: T[]): RegionGroup<T>[] {
   const map = new Map<string, RegionGroup<T>>()
   for (const g of groups) {
     const si = g.regionSi || null, myeon = g.regionMyeon || null, ri = g.regionRi || null
     const key = `${si ?? ''}|${myeon ?? ''}|${ri ?? ''}`
-    const parts = [si ?? '(지역 미상)', myeon, ri ? ri : (myeon ? '(리 없음)' : null)].filter(Boolean)
+    const parts = [si ?? '(지역 미상)', myeon, ri].filter(Boolean)
     const rg = map.get(key) ?? { si, myeon, ri, label: parts.join(' · '), groups: [] }
     rg.groups.push(g)
     map.set(key, rg)

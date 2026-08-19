@@ -53,17 +53,68 @@ const btn = 'h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] 
 const btnPri = 'h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-semibold hover:bg-[#6a57dd] transition-colors disabled:opacity-40'
 const sel = 'h-8 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] bg-white'
 
+/** 목록 한 행.
+ *
+ *  화면 폭의 절반을 **모든 행이 같은 값**으로 채우고 있었다(담당 전원 동일·수신 전원 1명·
+ *  상태 전원 미발송). 그 탓에 오른쪽이 잘려 배너 버튼이 안 보였다. 그래서 기본값은 그리지 않는다:
+ *   · 담당 — 종류가 하나뿐이면 열 자체를 뺀다(showAssignee)
+ *   · 수신 — 1명이면 굳이 쓰지 않는다. 2명 이상일 때만 눈에 띄게(비용이 곱해지는 경우다)
+ *   · 상태 — '미발송'은 기본값이라 배지를 없앤다. 발송됨·실패·번호없음만 배지 → 예외가 눈에 띈다 */
+function SmsRow({ r, checked, onToggle, showAssignee }: {
+  r: Row; checked: boolean; onToggle: () => void; showAssignee: boolean
+}) {
+  const isDefault = r.status === 'unsent'
+  return (
+    <tr data-testid="sms-row" className="border-t border-[#f7f6fd] hover:bg-[#faf9ff]">
+      <td className="pl-4 py-1.5 align-top">
+        <input type="checkbox" className="accent-[#7b68ee]" checked={checked} onChange={onToggle} />
+      </td>
+      <td className="py-1.5 text-[#090c1d] truncate" title={r.customerName}>
+        {r.customerName}
+        {r.isAdhoc && <span data-testid="badge-adhoc" className="ml-1 px-1 py-0.5 rounded bg-[#f5f4ff] text-[10px] text-[#7b68ee] border border-[#d0ccf5]">임의</span>}
+      </td>
+      <td className="py-1.5 text-[#514b81] tabular-nums">{r.visitDate}</td>
+      <td className="py-1.5 text-[#8b87b8] truncate">{r.inspectionTypes.join('·')}</td>
+      {showAssignee && <td className="py-1.5 text-[#8b87b8] truncate">{r.assigneeName ?? '-'}</td>}
+      <td className={`py-1.5 ${r.recipientCount > 1 ? 'text-[#7b68ee] font-medium' : 'text-[#b0acd6]'}`}>
+        {r.recipientCount === 0 ? '없음' : r.recipientCount === 1 ? '1명' : `${r.recipientCount}명`}
+      </td>
+      <td className="py-1.5">
+        {isDefault
+          ? <span className="text-[10px] text-[#b0acd6]">미발송</span>
+          : <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${STATUS_CLASS[r.status]}`}>{STATUS_LABEL[r.status]}</span>}
+      </td>
+      <td className="py-1.5 pr-4 text-[10px] text-[#8b87b8] truncate"
+        title={[r.reason, !r.sendable ? r.unsendableReason : null].filter(Boolean).join(' · ')}>
+        {r.sentAt ? new Date(r.sentAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+        {r.reason ? ` ${r.reason}` : ''}
+        {!r.sendable && r.unsendableReason ? r.unsendableReason : ''}
+      </td>
+    </tr>
+  )
+}
+
 export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const today = todayKst()
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(addDays(today, 7))
+  // 기간은 **기본 해제**(빈 값 = 전체). 종전엔 오늘~+7이 미리 걸려 있어,
+  // 사용자가 필터를 건 적이 없는데도 목록이 잘려 있었다 — 안 보이는 건이 있다는 사실 자체를 모른다.
+  // 빈 값이면 서버가 '오늘 이후 전체'로 해석한다(지난 방문일은 어차피 발송 대상이 아니다).
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [regionSi, setRegionSi] = useState('')
   const [regionMyeon, setRegionMyeon] = useState('')
   const [regionRi, setRegionRi] = useState('')
-  const [status, setStatus] = useState<'all' | 'unsent' | 'sent' | 'failed' | 'no_phone'>('all')
+  // 기본은 **발송됨 제외**(2026-08-19 사용자 지시) — 이 화면에서 할 일은 '아직 안 보낸 것'이다.
+  // 이미 보낸 건이 섞여 있으면 목록이 길어지기만 하고 남은 일이 안 보인다.
+  // 발송 결과를 확인하려면 상태를 '발송됨'이나 '전체'로 바꾼다(결과 창구 역할은 그대로다).
+  const [status, setStatus] = useState<'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone'>('not_sent')
   const [assignee, setAssignee] = useState('')
-  // 주 동선은 배너 승인이라 필터는 접어 둔다 — 상시 펼치면 '찾는 화면'처럼 보인다(S5-11)
-  const [showFilter, setShowFilter] = useState(false)
+  // 필터는 **항상 펼쳐 둔다**(2026-08-19 사용자 지시).
+  // 설계 초안(S5-11)은 "주 동선이 배너 승인이니 접어 둔다"였는데, 실사용에서 뒤집혔다 —
+  // 접혀 있으면 지역·기간을 좁히려 할 때마다 한 번 더 눌러야 하고,
+  // 무엇보다 **지금 무엇이 걸려 있는지**가 요약 한 줄로만 보여 확신이 안 선다.
+  // 접는 기능 자체는 남긴다(좁은 화면·목록에 집중할 때).
+  const [showFilter, setShowFilter] = useState(true)
 
   const [data, setData] = useState<Data | null>(null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -81,6 +132,8 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
       setAdhocOptions(res.customers ?? [])
     })
   }
+  // 지역순(하루 동선) ↔ 날짜순(언제 가나) — 기본은 지역순
+  const [sortBy, setSortBy] = useState<'region' | 'date'>('region')
   const [moveDate, setMoveDate] = useState('')
   const [moveMsg, setMoveMsg] = useState<string | null>(null)
   const [err, setErr] = useState('')
@@ -108,10 +161,55 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 필터를 바꾸면 **바로 조회한다** — [조회]를 눌러야만 반영되던 때는, 값만 바꿔 놓고
+  // 목록은 옛 조건 그대로인 상태가 생긴다. 화면과 필터가 다른 말을 하는 셈이고,
+  // 특히 [필터 해제]는 "해제했는데 목록이 그대로"로 보인다.
+  // 날짜 입력은 타이핑 중에도 onChange가 계속 오므로 잠깐 묶었다가 한 번만 보낸다.
+  const firstFilterRun = useRef(true)
+  useEffect(() => {
+    if (firstFilterRun.current) { firstFilterRun.current = false; return }   // 최초 로드와 중복 방지
+    const t = setTimeout(() => reload(), 350)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to, regionSi, regionMyeon, regionRi, status, assignee])
+
   const rows = data?.rows ?? []
   // 지역 3단 묶음 — 담당자가 하루 동선을 지역으로 짠다.
   // 같은 규칙을 인라인으로 재구현하고 있었다(모달까지 붙으면 3중 복제) → 공용 함수로 단일화
   const regionGroups = groupByRegion(rows)
+
+  // 정렬 축 — 지역순이 기본이지만(하루 동선), "언제 가야 하나"를 볼 때는 날짜가 섞여 보인다.
+  // 지역순에서는 8/24 → 8/21 → 8/24처럼 날짜가 오르내려 일정 감각을 잡을 수 없다.
+  const sorted = sortBy === 'date'
+    ? [...rows].sort((a, b) => a.visitDate.localeCompare(b.visitDate) || a.customerName.localeCompare(b.customerName))
+    : []
+
+  // ★ 배너와 목록이 서로 다른 말을 하던 문제 —
+  // 배너는 시점 규칙(기본 [1]=내일)만 보므로 "보낼 안내 없음 ✓"인데, 목록에는 미발송이 십수 건 있었다.
+  // 논리적으로는 맞지만 사용자에겐 "이렇게 많은데 없다니?"로 읽힌다. 이 화면의 전제가
+  // '찾지 않게 한다'인데 배너가 오히려 혼란을 만든 셈이라, **지금 조회 범위의 미발송**을 함께 센다.
+  const unsentRows = rows.filter(r => r.status === 'unsent' && r.sendable)
+  const unsentMessages = unsentRows.reduce((n, r) => n + Math.max(r.recipientCount, 0), 0)
+  const noticeCovered = new Set((data?.notices ?? []).flatMap(n => n.planItemIds))
+  // 시점 규칙 밖이라 배너가 못 잡는 미발송 — 이것이 있으면 "없음 ✓"만 보여선 안 된다
+  const unsentOutsideNotices = unsentRows.filter(r => !r.planItemIds.some(id => noticeCovered.has(id)))
+
+  // 같은 값이 모든 행에 반복되면 열로 둘 가치가 없다 — 폭만 먹고 오른쪽이 잘린다
+  const assigneeSet = new Set(rows.map(r => r.assigneeName ?? '-'))
+  const showAssignee = assigneeSet.size > 1
+
+  // 기간이 비면 **오늘부터 1개월** — 서버와 같은 규칙이어야 화면과 결과가 어긋나지 않는다.
+  // 라벨을 '전체'라고 쓰면 화면이 거짓말을 한다(실제로는 1개월만 담겨 있다).
+  const effFrom = from || today
+  const effTo = to || addDays(today, 30)
+  const periodLabel = from || to ? `이 기간(${effFrom} ~ ${effTo})` : `기본 1개월(${effFrom} ~ ${effTo})`
+  // '걸린 필터'는 **기본값에서 벗어난 것**만 센다 — 기본(1개월·발송 제외)까지 필터로 치면
+  // 사용자가 아무것도 안 건드렸는데 [필터 해제]가 떠서 "내가 뭘 걸었나?" 하게 된다
+  const filterOn = !!(from || to || regionSi || regionMyeon || regionRi || assignee || status !== 'not_sent')
+  function clearFilters() {
+    setFrom(''); setTo(''); setRegionSi(''); setRegionMyeon(''); setRegionRi('')
+    setStatus('all'); setAssignee('')
+  }
 
   const checkedRows = rows.filter(r => checked.has(r.key))
   const checkedPlanItems = checkedRows.flatMap(r => r.planItemIds)
@@ -217,8 +315,31 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             )}
           </div>
         ))}
-        {data && data.notices.every(n => n.unsentCount === 0) && (
-          <p className="text-xs text-[#8b87b8] py-1">오늘 보낼 안내가 없습니다 ✓</p>
+        {/* 시점 규칙 밖의 미발송 — 배너가 "없음 ✓"인데 목록엔 십수 건이 있던 모순을 여기서 닫는다.
+            규칙(기본 [1]=내일)은 그대로 두되, **지금 보고 있는 기간**의 미발송을 따로 세어 보여준다.
+            이게 없으면 사용자는 두 화면이 다른 말을 한다고 느끼고 배너를 믿지 않게 된다. */}
+        {unsentOutsideNotices.length > 0 && (
+          <div data-testid="sms-notice-extra" className="flex items-center gap-2 py-1.5 border-t border-[#f5f4ff]">
+            <span className="size-1.5 rounded-full bg-[#b0acd6]" />
+            <span className="text-xs text-[#090c1d]">{periodLabel}</span>
+            <span className="text-xs text-[#514b81]">
+              — 안내 시점은 아니지만 미발송 <b>{unsentRows.length}곳</b> · <b>{unsentMessages}통</b>
+            </span>
+            {canSend && (
+              <div className="ml-auto flex items-center gap-1.5">
+                <button className={btn} onClick={() => { setStatus('unsent'); setShowFilter(true) }}>
+                  미발송만 보기
+                </button>
+                <button data-testid="sms-approve-range" className={btnPri}
+                  onClick={() => setModal({ kind: 'range', from: effFrom, to: effTo, title: `${periodLabel} 방문 — 사전 안내` })}>
+                  {from || to ? '이 기간 발송' : '전체 발송'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {data && data.notices.every(n => n.unsentCount === 0) && unsentOutsideNotices.length === 0 && (
+          <p className="text-xs text-[#8b87b8] py-1">보낼 안내가 없습니다 ✓</p>
         )}
 
         {/* 시기 지남 — 이 줄만 성격이 다르다. 눌러도 발송은 안 되므로 [일정 확인]으로 보낸다 (S5-12) */}
@@ -235,20 +356,36 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
         )}
       </div>
 
-      {/* ── 필터 (기본 접힘) */}
+      {/* ── 필터 (기본 접힘 · **기본 해제**) */}
       <div className="rounded-2xl border border-[#eceaf8] bg-white">
-        <button onClick={() => setShowFilter(v => !v)}
-          data-testid="sms-filter-toggle"
-          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-[#514b81] hover:bg-[#faf9ff] rounded-2xl">
-          <SlidersHorizontal className="size-3.5" />
-          필터
-          <span className="text-[#8b87b8]">
-            {from} ~ {to}
-            {regionSi && ` · ${regionSi}`}{regionMyeon && ` · ${regionMyeon}`}{regionRi && ` · ${regionRi}`}
-            {status !== 'all' && ` · ${STATUS_LABEL[status]}`}
-          </span>
-          <ChevronRight className={`ml-auto size-3.5 transition-transform ${showFilter ? 'rotate-90' : ''}`} />
-        </button>
+        <div className="flex items-center">
+          <button onClick={() => setShowFilter(v => !v)}
+            data-testid="sms-filter-toggle"
+            className="flex-1 flex items-center gap-2 px-4 py-2.5 text-xs text-[#514b81] hover:bg-[#faf9ff] rounded-2xl">
+            <SlidersHorizontal className="size-3.5" />
+            필터
+            {/* 아무것도 안 걸렸으면 '걸린 게 없다'를 분명히 말한다 — 종전엔 기본 기간이 늘 찍혀 있어
+                사용자가 필터를 건 적이 없는데도 뭔가 걸려 있는 것처럼 보였다 */}
+            <span data-testid="sms-filter-summary" className={filterOn ? 'text-[#7b68ee]' : 'text-[#b0acd6]'}>
+              {filterOn ? (
+                <>
+                  {from || to ? `${effFrom} ~ ${effTo}` : `기본 1개월(${effFrom} ~ ${effTo})`}
+                  {regionSi && ` · ${regionSi}`}{regionMyeon && ` · ${regionMyeon}`}{regionRi && ` · ${regionRi}`}
+                  {status !== 'all' && ` · ${STATUS_LABEL[status]}`}
+                  {assignee && ` · ${assignee}`}
+                </>
+              ) : `기본 — 1개월(${effFrom} ~ ${effTo}) · 발송 제외`}
+            </span>
+            <ChevronRight className={`ml-auto size-3.5 transition-transform ${showFilter ? 'rotate-90' : ''}`} />
+          </button>
+          {filterOn && (
+            <button data-testid="sms-filter-clear"
+              onClick={clearFilters}   /* 값이 바뀌면 위 effect가 알아서 조회한다 */
+              className="mr-3 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] transition-colors shrink-0">
+              필터 해제
+            </button>
+          )}
+        </div>
         {showFilter && (
           <div className="px-4 pb-3 flex flex-wrap items-end gap-2 border-t border-[#f5f4ff] pt-3">
             <label className="text-[11px] text-[#514b81]">기간
@@ -258,9 +395,17 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               </span>
             </label>
             <span className="flex items-center gap-1">
+              {/* 기본(빈 값) = 오늘부터 1개월. 좁혔다가 되돌아올 길을 프리셋 안에 둔다 */}
+              <button className={`${btn} ${!from && !to ? 'border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]' : ''}`}
+                data-testid="period-default"
+                onClick={() => { setFrom(''); setTo('') }}>1개월</button>
               <button className={btn} onClick={() => { setFrom(today); setTo(today) }}>오늘</button>
               <button className={btn} onClick={() => { setFrom(addDays(today, 1)); setTo(addDays(today, 1)) }}>내일</button>
               <button className={btn} onClick={() => { setFrom(today); setTo(addDays(today, 7)) }}>이번 주</button>
+              {/* 1개월 밖까지 봐야 할 때만 — 명시적으로 누른다(기본이 아니다) */}
+              <button className={btn} data-testid="period-all"
+                onClick={() => { setFrom(today); setTo(addDays(today, 365)) }}
+                title="1년치까지 봅니다 — 건수가 많아 화면이 무거워질 수 있습니다">전체</button>
             </span>
             <label className="text-[11px] text-[#514b81]">지역
               <span className="flex items-center gap-1 mt-1">
@@ -279,7 +424,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               </span>
             </label>
             <label className="text-[11px] text-[#514b81]">상태
-              <select className={`${sel} block mt-1`} value={status} onChange={e => setStatus(e.target.value as typeof status)}>
+              <select data-testid="filter-status" className={`${sel} block mt-1`} value={status} onChange={e => setStatus(e.target.value as typeof status)}>
+                {/* 기본 — 아직 처리할 것만. 발송됨을 빼면 '남은 일'이 그대로 목록이 된다 */}
+                <option value="not_sent">발송 제외</option>
                 <option value="all">전체</option>
                 <option value="unsent">미발송</option>
                 <option value="sent">발송됨</option>
@@ -293,7 +440,11 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 {(data?.assignees ?? []).map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </label>
-            <button className={btnPri} onClick={reload} disabled={isPending}>조회</button>
+            {/* 필터를 바꾸면 자동으로 조회되므로 이 버튼은 '다시 불러오기'다 —
+                남겨 두는 이유: 다른 사람이 방금 발송했을 때 손으로 갱신할 수단이 있어야 한다 */}
+            <button className={btn} onClick={reload} disabled={isPending} title="지금 조건으로 다시 불러옵니다">
+              {isPending ? '조회 중…' : '다시 조회'}
+            </button>
           </div>
         )}
       </div>
@@ -301,52 +452,84 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
       {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{err}</div>}
       {moveMsg && <div data-testid="sms-move-msg" className="rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] px-3 py-2 text-xs text-[#514b81]">{moveMsg}</div>}
 
-      {/* ── 목록 (지역 3단 묶음) */}
+      {/* ── 목록 ─────────────────────────────────────────────────────────
+          **테이블 하나**로 그린다. 종전엔 지역 그룹마다 <table>을 따로 만들어서
+          그룹별로 열 너비가 제각각 잡혔고, 그래서 날짜 열이 행마다 다른 위치에 찍혔다
+          (같은 표처럼 보이는데 정렬이 안 맞아 읽을 수가 없었다).
+          지역 헤더는 별도 <table>이 아니라 colSpan 행으로 끼워 넣는다. */}
       <div className="rounded-2xl border border-[#eceaf8] bg-white overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[#eceaf8]">
+          <span className="text-[11px] text-[#8b87b8]">{rows.length}건</span>
+          {/* 지역순은 하루 동선용, 날짜순은 "언제 가나"용 — 지역순에서는 날짜가 오르내려 안 보인다 */}
+          <span className="ml-auto flex items-center gap-1">
+            <span className="text-[10px] text-[#b0acd6]">정렬</span>
+            <button data-testid="sort-region"
+              onClick={() => setSortBy('region')}
+              className={`h-7 px-2 rounded-lg border text-[11px] transition-colors ${
+                sortBy === 'region' ? 'border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+              지역순
+            </button>
+            <button data-testid="sort-date"
+              onClick={() => setSortBy('date')}
+              className={`h-7 px-2 rounded-lg border text-[11px] transition-colors ${
+                sortBy === 'date' ? 'border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+              날짜순
+            </button>
+          </span>
+        </div>
+
         {rows.length === 0 && !isPending && (
           <p className="py-10 text-center text-xs text-[#8b87b8]">이 조건에 해당하는 건이 없습니다.</p>
         )}
-        {regionGroups.map(g => (
-          <div key={g.label} className="border-b border-[#f5f4ff] last:border-0">
-            <div className="flex items-center gap-2 px-4 py-2 bg-[#faf9ff]">
-              <input type="checkbox" className="accent-[#7b68ee]"
-                checked={g.groups.every(r => checked.has(r.key))}
-                onChange={() => toggleGroup(g)} />
-              <MapPin className="size-3 text-[#b0acd6]" />
-              <span data-testid="sms-region-group" className="text-[11px] font-semibold text-[#090c1d]">{g.label}</span>
-              <span className="text-[11px] text-[#8b87b8]">({g.groups.length}건)</span>
-            </div>
-            <table className="w-full text-xs">
-              <tbody>
-                {g.groups.map(r => (
-                  <tr key={r.key} data-testid="sms-row" className="border-t border-[#f7f6fd] hover:bg-[#faf9ff]">
-                    <td className="w-8 pl-4 py-1.5">
-                      <input type="checkbox" className="accent-[#7b68ee]" checked={checked.has(r.key)} onChange={() => toggle(r.key)} />
-                    </td>
-                    <td className="py-1.5 text-[#090c1d]">
-                      {r.customerName}
-                      {r.isAdhoc && <span data-testid="badge-adhoc" className="ml-1 px-1 py-0.5 rounded bg-[#f5f4ff] text-[10px] text-[#7b68ee] border border-[#d0ccf5]">임의</span>}
-                    </td>
-                    <td className="py-1.5 text-[#514b81] w-24">{r.visitDate}</td>
-                    <td className="py-1.5 text-[#8b87b8] w-24">{r.inspectionTypes.join('·')}</td>
-                    <td className="py-1.5 text-[#8b87b8] w-20">{r.assigneeName ?? '-'}</td>
-                    <td className="py-1.5 text-[#8b87b8] w-20">수신 {r.recipientCount}명</td>
-                    <td className="py-1.5 w-20">
-                      <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${STATUS_CLASS[r.status]}`}>
-                        {STATUS_LABEL[r.status]}
-                      </span>
-                    </td>
-                    <td className="py-1.5 pr-4 text-[10px] text-[#8b87b8] max-w-[220px] truncate" title={r.reason ?? ''}>
-                      {r.sentAt ? new Date(r.sentAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                      {r.reason ? ` ${r.reason}` : ''}
-                      {!r.sendable && r.unsendableReason ? r.unsendableReason : ''}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
+
+        {rows.length > 0 && (
+          <table className="w-full text-xs table-fixed">
+            <colgroup>
+              <col className="w-8" />
+              <col />
+              <col className="w-24" />
+              <col className="w-20" />
+              {showAssignee && <col className="w-20" />}
+              <col className="w-16" />
+              <col className="w-20" />
+              <col className="w-44" />
+            </colgroup>
+            {/* 머리글이 없어 "2026-08-24 · 종합 · - · 수신1명"이 무슨 열인지 알 수 없었다 */}
+            <thead>
+              <tr className="text-[10px] text-[#b0acd6] bg-[#faf9ff]">
+                <th className="pl-4 py-1.5" />
+                <th className="py-1.5 text-left font-medium">고객</th>
+                <th className="py-1.5 text-left font-medium">점검일</th>
+                <th className="py-1.5 text-left font-medium">유형</th>
+                {showAssignee && <th className="py-1.5 text-left font-medium">담당</th>}
+                <th className="py-1.5 text-left font-medium">수신</th>
+                <th className="py-1.5 text-left font-medium">상태</th>
+                <th className="py-1.5 pr-4 text-left font-medium">발송일시·사유</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortBy === 'region'
+                ? regionGroups.flatMap(g => [
+                    <tr key={`h-${g.label}`} className="bg-[#faf9ff] border-t border-[#eceaf8]">
+                      <td className="pl-4 py-1.5">
+                        <input type="checkbox" className="accent-[#7b68ee]"
+                          checked={g.groups.every(r => checked.has(r.key))}
+                          onChange={() => toggleGroup(g)} />
+                      </td>
+                      <td colSpan={showAssignee ? 7 : 6} className="py-1.5">
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin className="size-3 text-[#b0acd6]" />
+                          <span data-testid="sms-region-group" className="text-[11px] font-semibold text-[#090c1d]">{g.label}</span>
+                          <span className="text-[11px] text-[#8b87b8]">({g.groups.length}건)</span>
+                        </span>
+                      </td>
+                    </tr>,
+                    ...g.groups.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee} />),
+                  ])
+                : sorted.map(r => <SmsRow key={r.key} r={r} checked={checked.has(r.key)} onToggle={() => toggle(r.key)} showAssignee={showAssignee} />)}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* ── 선택 액션 바 */}
