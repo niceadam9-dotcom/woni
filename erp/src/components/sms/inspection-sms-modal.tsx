@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { X, Loader2, AlertTriangle, MessageSquare, CheckCircle2, ExternalLink, Ban } from 'lucide-react'
 import { prepareInspectionSmsAction, sendInspectionSmsAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
-import { smsByteLength, smsKind } from '@/lib/sms-recipients'
+import { smsByteLength, smsKind, unresolvedVars } from '@/lib/sms-recipients'
 
 /** 공용 사전 안내 발송 모달 (소방계획서_24 S8)
  *
@@ -40,6 +40,8 @@ type Prep = {
   body: string; totalMessages: number
   noPhone: Array<{ customerId: string; customerName: string; visitDate: string; reason: string }>
   dryRun: boolean; allowlistOn: boolean; credentialsMissing: boolean
+  /** 문구에 쓸 수 있는 변수 이름 — 인라인 편집 중 오타 판정에 쓴다(sms.ts smsVarNames) */
+  knownVars: string[]
   groups: Group[]
 }
 type SendRow = { customerName: string; phoneMasked: string; contactName: string | null; status: string; error: string | null }
@@ -103,6 +105,19 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
   const messageCount = sendableGroups.reduce((n, g) => n + (picked[key(g)] ?? []).length, 0)
   const dupSelected = sendableGroups.some(g => g.alreadySent && (picked[key(g)] ?? []).length > 0)
   const blockedCount = groups.length - sendableGroups.length
+
+  /** 치환되지 않은 변수 — **지금 편집 중인 문구**를 기준으로 판정한다.
+   *
+   *  미리보기의 `unresolved`를 쓰면 안 된다. 그건 서버가 렌더한 시점의 문구 기준이라
+   *  사용자가 방금 타이핑한 `{점검일자}`를 모른다 — 정작 오타를 내는 순간에만 침묵한다.
+   *  알려진 변수 목록(`knownVars`)은 서버가 내려준다(여기 복사해 두면 갈라진다).
+   *
+   *  설정 저장은 이미 알 수 없는 변수를 거부한다(message-template-actions.ts:60-69).
+   *  이 인라인 편집만 그 검사를 비켜 가 있어서 오타가 **글자 그대로** 고객 문자에 찍혔다 —
+   *  되돌릴 수 없고 돈도 나간 뒤다. 같은 규칙으로 막는다(서버도 sms.ts ①-b에서 다시 막는다). */
+  const unresolvedInSelection = prep
+    ? unresolvedVars(body ?? prep.body).filter(v => !prep.knownVars.includes(v))
+    : []
 
   function toggleRecipient(g: Group, phone: string) {
     setPicked(p => {
@@ -471,6 +486,16 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                 rows={2}
                 className="w-full rounded-lg border border-[#d0ccf5] px-2 py-1.5 text-xs"
               />
+              {unresolvedInSelection.length > 0 && (
+                <p data-testid="sms-unresolved-warn"
+                  className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-2 text-[11px] text-red-700">
+                  <AlertTriangle className="size-3.5 shrink-0 mt-px" />
+                  <span>
+                    치환되지 않은 변수: <b>{unresolvedInSelection.map(v => `{${v}}`).join(', ')}</b> — 이대로 고객에게 <b>글자 그대로</b> 나갑니다.
+                    변수 이름을 고치거나 [기본 문구로 되돌리기]를 누르세요.
+                  </span>
+                </p>
+              )}
               <p className="mt-1 text-[10px] text-[#8b87b8]">
                 여기서 고친 문구는 <b>이번 발송에만</b> 적용됩니다. 기본 문구를 바꾸려면 [문구 편집].
               </p>
@@ -499,7 +524,8 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
               <button
                 data-testid="sms-send"
                 onClick={send}
-                disabled={isPending || messageCount === 0}
+                disabled={isPending || messageCount === 0 || unresolvedInSelection.length > 0}
+                title={unresolvedInSelection.length > 0 ? '치환되지 않은 변수가 있습니다' : undefined}
                 className={btnPri}>
                 {isPending ? <Loader2 className="size-3.5 animate-spin inline" /> : <>{messageCount}통 발송</>}
               </button>

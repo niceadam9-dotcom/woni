@@ -157,11 +157,15 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend, onMap }
   )
 }
 
+/** 마지막으로 고른 지역 — 적용이 아니라 **제안**에만 쓴다(아래 주석 참조) */
+const LAST_REGION_KEY = 'sms:lastRegion'
+
 export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const today = todayKst()
   // 기간은 **기본 해제**(빈 값 = 전체). 종전엔 오늘~+7이 미리 걸려 있어,
   // 사용자가 필터를 건 적이 없는데도 목록이 잘려 있었다 — 안 보이는 건이 있다는 사실 자체를 모른다.
-  // 빈 값이면 서버가 '오늘 이후 전체'로 해석한다(지난 방문일은 어차피 발송 대상이 아니다).
+  // 빈 값이면 서버가 **오늘~+30일**로 해석한다(sms-actions.ts:184-185, 2026-08-19 사용자 지시 '1개월').
+  // 지난 방문일은 어차피 발송 대상이 아니라 하한이 오늘이고, 놓친 건은 배너 '시기 지남'이 따로 알린다.
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [regionSi, setRegionSi] = useState('')
@@ -195,6 +199,27 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
       setAdhocOptions(res.customers ?? [])
     })
   }
+  // ── 마지막 사용 지역 (S5-11 후반부) ──────────────────────────
+  //
+  // ⚠ **자동으로 적용하지 않는다.** 담당자는 대개 같은 지역을 연달아 도니 기억할 값은 있지만,
+  //   되살린 필터를 몰래 걸면 "필터를 건 적이 없는데 목록이 잘려 있는" 상태가 된다 —
+  //   이 화면에서 이미 한 번 뒤집은 실수다(기간 기본값 오늘~+7, 위 :162 주석).
+  //   지역은 특히 위험하다. 빠진 고객이 **문자를 영영 못 받는데** 화면은 조용하다.
+  //   그래서 기억은 하되 제안만 하고, 적용은 사용자가 한 번 누른다.
+  const [lastRegion, setLastRegion] = useState<{ si: string; myeon: string; ri: string } | null>(null)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAST_REGION_KEY)
+      if (raw) setLastRegion(JSON.parse(raw))
+    } catch { /* 사파리 프라이빗 등 — 기억 못 하는 것뿐이라 조용히 넘긴다 */ }
+  }, [])
+  useEffect(() => {
+    if (!regionSi) return                       // 해제는 기억하지 않는다(다음에 제안할 것이 없다)
+    const v = { si: regionSi, myeon: regionMyeon, ri: regionRi }
+    setLastRegion(v)
+    try { localStorage.setItem(LAST_REGION_KEY, JSON.stringify(v)) } catch { /* 위와 같음 */ }
+  }, [regionSi, regionMyeon, regionRi])
+
   // 지역순(하루 동선) ↔ 날짜순(언제 가나) — 기본은 지역순
   const [sortBy, setSortBy] = useState<'region' | 'date'>('region')
   const [moveDate, setMoveDate] = useState('')
@@ -511,6 +536,25 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                   <option value="">리 전체</option>
                   {(data?.regions.ri ?? []).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                {/* 제안일 뿐 — 누르기 전에는 아무것도 걸려 있지 않다 */}
+                {!regionSi && lastRegion?.si && (
+                  <span data-testid="last-region" className="flex items-center gap-1 text-[11px] text-[#7b68ee]">
+                    <button className={`${btn} border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]`}
+                      data-testid="last-region-apply"
+                      title="지난번에 보던 지역으로 좁힙니다"
+                      onClick={() => {
+                        setRegionSi(lastRegion.si); setRegionMyeon(lastRegion.myeon); setRegionRi(lastRegion.ri)
+                      }}>
+                      지난번: {[lastRegion.si, lastRegion.myeon, lastRegion.ri].filter(Boolean).join(' · ')}
+                    </button>
+                    <button className="text-[#b0acd6] hover:text-[#514b81]" title="기억 지우기"
+                      data-testid="last-region-forget"
+                      onClick={() => {
+                        setLastRegion(null)
+                        try { localStorage.removeItem(LAST_REGION_KEY) } catch { /* 무시 */ }
+                      }}>×</button>
+                  </span>
+                )}
               </span>
             </label>
             <label className="text-[11px] text-[#514b81]">상태

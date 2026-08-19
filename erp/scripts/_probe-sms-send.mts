@@ -159,6 +159,28 @@ try {
   check('상한에 걸리면 새 행도 안 생긴다', aLogs2.length === 2, String(aLogs2.length))
   delete process.env.SMS_MAX_PER_RUN
 
+  console.log('\n— 미치환 변수 (인라인 편집 오타)')
+  {
+    // 문구 **설정** 저장은 알 수 없는 변수를 이미 거부하지만, 모달 인라인 편집(overrideBody)은
+    // 그 검사를 비켜 간다. 화면 버튼도 막지만 액션은 공개 엔드포인트라 서버가 막아야 실효가 있다.
+    const before = (await logsOf(cidA)).length
+    const typo = await sendInspectionSms(admin, {
+      targets, actorId: userId,
+      overrideBody: '{고객명}님 {점검일자}에 방문합니다',   // 올바른 변수는 {점검일}
+    })
+    check('★ 미치환 변수가 있으면 발송을 거부한다(글자 그대로 고객에게 나가는 것을 막는다)',
+      !typo.ok && /점검일자/.test(typo.error ?? ''), typo.error ?? '')
+    check('거부 시 sms_send_log에 행을 남기지 않는다(상한과 같은 자리에서 끊는다)',
+      (await logsOf(cidA)).length === before, String((await logsOf(cidA)).length))
+    // 올바른 변수만 쓰면 통과해야 한다 — 아니면 정상 문구까지 막는 과잉 차단이다
+    process.env.SMS_DRY_RUN = '1'
+    const okBody = await sendInspectionSms(admin, {
+      targets, actorId: userId, overrideBody: '{고객명}님 {점검일}에 방문합니다',
+    })
+    check('알려진 변수만 쓰면 통과한다(과잉 차단 아님)', okBody.ok === true, JSON.stringify({ ok: okBody.ok, error: okBody.error }))
+    delete process.env.SMS_DRY_RUN
+  }
+
   console.log('\n— allowlist')
   process.env.SMS_DRY_RUN = '1'
   process.env.SMS_ALLOWLIST = '010-1111-2222'

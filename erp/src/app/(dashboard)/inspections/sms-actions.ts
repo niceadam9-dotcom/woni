@@ -77,6 +77,9 @@ export async function prepareInspectionSmsAction(source: {
     dryRun: guards.dryRun,
     allowlistOn: guards.allowlist.length > 0,
     credentialsMissing: !guards.hasCredentials || !guards.from,
+    // 인라인 편집 중 오타를 화면이 즉시 잡으려면 필요하다 — 미리보기의 unresolved는
+    // 서버가 렌더한 시점 기준이라 방금 타이핑한 변수를 모른다(sms.ts smsVarNames 주석)
+    knownVars: prep.knownVars,
     groups: prep.preview.map(p => ({
       customerId: p.group.customerId,
       customerName: p.group.customerName,

@@ -171,6 +171,42 @@ async function main() {
         `${await page.locator('[data-testid="sms-row"]').count()} vs ${before}`)
     }
 
+    console.log('\n— S5-11 후반부: 마지막 사용 지역은 기억하되 **자동 적용하지 않는다**')
+    {
+      // 되살린 필터를 몰래 걸면 "필터를 건 적이 없는데 목록이 잘려 있는" 상태가 된다.
+      // 지역은 특히 위험하다 — 빠진 고객은 문자를 영영 못 받는데 화면은 조용하다.
+      const siSel = page.locator('select').filter({ hasText: '시/군 전체' }).first()
+      const opts = await siSel.locator('option').allInnerTexts()
+      const pick = opts.find(o => o !== '시/군 전체')
+      if (!pick) {
+        console.log('  ⚠ 지역 옵션이 없어 건너뜀(고객 지역 미설정)')
+      } else {
+        await siSel.selectOption({ label: pick })
+        await page.waitForTimeout(800)
+        // 새로 열어도 자동으로 걸려 있으면 안 된다
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+        const siAfter = await page.locator('select').filter({ hasText: '시/군 전체' }).first().inputValue()
+        check('★ 다시 열면 지역이 자동으로 걸려 있지 않다(몰래 좁히지 않는다)', siAfter === '', `값="${siAfter}"`)
+        check('대신 지난번 지역을 제안한다(1클릭 복원)',
+          await page.locator('[data-testid="last-region-apply"]').count() === 1)
+        await page.locator('[data-testid="last-region-apply"]').click()
+        await page.waitForTimeout(800)
+        check('제안을 누르면 그때 비로소 적용된다',
+          (await page.locator('select').filter({ hasText: '시/군 전체' }).first().inputValue()) === pick)
+        // 기억을 지우면 제안도 사라져야 한다 — 안 지워지면 끄는 수단이 없는 것과 같다
+        await page.locator('[data-testid="sms-filter-clear"]').click()
+        await page.waitForTimeout(600)
+        await page.locator('[data-testid="last-region-forget"]').click()
+        check('기억을 지우면 제안이 사라진다',
+          await page.locator('[data-testid="last-region"]').count() === 0)
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+        check('지운 기억은 새로고침 후에도 돌아오지 않는다',
+          await page.locator('[data-testid="last-region"]').count() === 0)
+      }
+    }
+
     console.log('\n— S5-7: 방문 준비 지도 (모니터링 폐지로 소실됐던 기능)')
     {
       // 고객A는 주소가 없다(mkCustomer 기본) — 주소가 있는 고객에만 버튼이 떠야 한다.
@@ -314,6 +350,24 @@ async function main() {
     check('문구 편집란이 있고 바이트·SMS/LMS를 보여준다',
       (await page.locator('[data-testid="sms-body"]').count()) === 1 &&
       /바이트/.test(await page.locator('[data-testid="sms-modal"]').innerText()))
+
+    // ── 미치환 변수 — 인라인 편집 오타가 글자 그대로 고객에게 나가는 것을 막는다 ──
+    // 문구 **설정** 저장은 이미 알 수 없는 변수를 거부하지만, 이 인라인 편집은 그 검사를 비켜 간다.
+    {
+      const bodyBox = page.locator('[data-testid="sms-body"]')
+      const original = await bodyBox.inputValue()
+      await bodyBox.fill('{고객명}님 {점검일자}에 방문합니다')   // 올바른 변수는 {점검일}
+      await page.waitForSelector('[data-testid="sms-unresolved-warn"]', { timeout: 10000 })
+      const warn = await page.locator('[data-testid="sms-unresolved-warn"]').innerText()
+      check('★ 미치환 변수를 이름까지 짚어 경고한다', /점검일자/.test(warn), warn.replace(/\n/g, ' '))
+      check('★ 그 상태로는 발송 버튼이 눌리지 않는다(문자는 되돌릴 수 없다)',
+        await page.locator('[data-testid="sms-send"]').isDisabled())
+      // 고치면 즉시 풀려야 한다 — 안 풀리면 사용자는 원인을 못 찾고 갇힌다
+      await bodyBox.fill(original)
+      await page.waitForSelector('[data-testid="sms-unresolved-warn"]', { state: 'detached', timeout: 10000 })
+      check('고치면 경고가 사라지고 다시 보낼 수 있다',
+        !(await page.locator('[data-testid="sms-send"]').isDisabled()))
+    }
 
     // ── 정리된 보기(2026-08-19) — 유형·지역 구별 + 대표/수신 위계 + 모두선택 ──
     // 종전엔 유형 칩이 전부 같은 보라색이라 정기/자체가 구별되지 않았고, 지역은 아예 없었다.

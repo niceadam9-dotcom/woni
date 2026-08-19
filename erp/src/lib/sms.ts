@@ -199,6 +199,18 @@ export function renderSmsFor(
   return { text, byteLen: smsByteLength(text), msgType: smsKind(text), unresolved }
 }
 
+/** 문구에서 **쓸 수 있는** 변수 이름 전부.
+ *
+ *  화면이 인라인 편집 중 오타를 즉시 잡으려면 이 목록이 필요하다. 미리보기(`unresolved`)로는
+ *  안 된다 — 그건 서버가 렌더한 시점의 문구 기준이라, 사용자가 방금 타이핑한 `{점검일자}`를
+ *  모른다. 목록을 클라이언트에 복사해 두면 여기와 갈라지므로 서버가 내려준다. */
+export function smsVarNames(base: Record<string, string>): string[] {
+  return [...new Set([
+    ...Object.keys(base),
+    '고객명', '관계인명', '디데이', '점검일', '점검일짧게', '점검종류', '담당자',
+  ])]
+}
+
 /** 발송 전 미리보기 묶음 — 화면(모달)이 그대로 그린다. 클라이언트는 번호를 계산하지 않는다. */
 export async function prepareSms(admin: Admin, targets: SmsTarget[], overrideBody?: string) {
   const tpl = overrideBody != null ? { body: overrideBody } : await loadTemplate(admin, 'inspection_sms')
@@ -209,7 +221,7 @@ export async function prepareSms(admin: Admin, targets: SmsTarget[], overrideBod
     group: g,
     perRecipient: g.recipients.map(c => ({ contact: c, ...renderSmsFor(tpl.body, base, g, c, today) })),
   }))
-  return { body: tpl.body, groups, noPhone, preview, totalMessages: countMessages(groups) }
+  return { body: tpl.body, groups, noPhone, preview, totalMessages: countMessages(groups), knownVars: smsVarNames(base) }
 }
 
 // ── 발송 ──────────────────────────────────────────────────────
@@ -307,11 +319,24 @@ export async function sendInspectionSms(
   // 발송 단위 펼치기 (1행 = 1수신자)
   type Unit = { group: SmsGroup; contact: Contact; text: string; byteLen: number; msgType: 'SMS' | 'LMS'; phone: string }
   const units: Unit[] = []
+  const unresolvedAll = new Set<string>()
   for (const x of groups) {
     for (const c of x.recipients) {
       const r = renderSmsFor(tpl.body, base, x, c, today)
+      for (const v of r.unresolved) unresolvedAll.add(v)
       units.push({ group: x, contact: c, text: r.text, byteLen: r.byteLen, msgType: r.msgType, phone: normalizePhone(c.phone) })
     }
+  }
+
+  // ①-b 치환되지 않은 변수 — 아무것도 보내지 않는다.
+  //
+  // 문구 **설정** 저장은 알 수 없는 변수를 이미 거부한다(message-template-actions.ts:60-69).
+  // 그런데 이 함수가 받는 overrideBody(모달 인라인 편집)는 그 검사를 통과하지 않는다 —
+  // `{점검일자}` 같은 오타가 글자 그대로 고객 문자에 찍히고, 문자는 되돌릴 수 없으며 돈도 나간 뒤다.
+  // 화면에서도 버튼을 막지만 이 액션은 공개 엔드포인트라 화면 가드만으로는 우회된다.
+  if (unresolvedAll.size > 0) {
+    const names = [...unresolvedAll].map(v => `{${v}}`).join(', ')
+    return { ...empty, ok: false, error: `치환되지 않은 변수가 있습니다: ${names} — 이대로 보내면 고객에게 글자 그대로 나갑니다.` }
   }
 
   // ② dryRun — DB에도 남기지 않는다. 리허설이 이력을 오염시키면 리허설이 아니다.
