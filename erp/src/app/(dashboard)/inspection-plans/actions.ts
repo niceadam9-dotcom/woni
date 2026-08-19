@@ -266,8 +266,7 @@ export async function confirmPlanItemStageOneAction(
 
   // 1단계 완료 후 날짜 변경 금지 — 종전에는 updatePlanItemAction에만 있어서
   // 인라인 달력(canManage만 검사)이 우회했다. 확정 함수가 막아야 전 경로가 막힌다 (S12-3)
-  // MUTATION-TEST-TEMP: 가드 무력화
-  if (false && itemInfo.inspection_id && await isStepOneCompleted(admin, itemInfo.inspection_id)) {
+  if (itemInfo.inspection_id && await isStepOneCompleted(admin, itemInfo.inspection_id)) {
     return { error: '이미 점검일(1단계)이 완료된 점검입니다 — 날짜는 점검 상세에서 변경해주세요.' }
   }
 
