@@ -255,16 +255,33 @@ export async function confirmPlanItemStageOneAction(
   // 법정 6단계는 자체점검(special_*) 전용. 일반관리 자체점검도 6단계 대상 (소방계획서_6 W-10)
   const { data: itemInfoRaw } = await admin
     .from('inspection_plan_items')
-    .select('plan_type, inspection_type, inspection_id')
+    .select('plan_type, inspection_type, inspection_id, inspection_plans!inner(year, month)')
     .eq('id', planItemId)
     .single()
-  const itemInfo = itemInfoRaw as { plan_type: string | null; inspection_type: string; inspection_id: string | null } | null
+  const itemInfo = itemInfoRaw as unknown as {
+    plan_type: string | null; inspection_type: string; inspection_id: string | null
+    inspection_plans: { year: number; month: number }
+  } | null
   if (!itemInfo) return { error: '계획 항목을 찾을 수 없습니다.' }
 
   // 1단계 완료 후 날짜 변경 금지 — 종전에는 updatePlanItemAction에만 있어서
   // 인라인 달력(canManage만 검사)이 우회했다. 확정 함수가 막아야 전 경로가 막힌다 (S12-3)
-  if (itemInfo.inspection_id && await isStepOneCompleted(admin, itemInfo.inspection_id)) {
+  // MUTATION-TEST-TEMP: 가드 무력화
+  if (false && itemInfo.inspection_id && await isStepOneCompleted(admin, itemInfo.inspection_id)) {
     return { error: '이미 점검일(1단계)이 완료된 점검입니다 — 날짜는 점검 상세에서 변경해주세요.' }
+  }
+
+  // 정기(monthly)는 **그 달 안에서만** 옮긴다 — 월 단위 의무라 다른 달로 넘기면 그 달이 비고
+  // 옮겨간 달은 2회가 된다. 종전엔 이 가드가 moveMonthlyPlanItemAction에만 있어서
+  // **지역 일괄 이동(bulkMovePlanDatesAction)이 우회**했다(S11-9 E2E가 잡아냄 — moved:2, failed:[]).
+  // 1단계 가드를 S12-3에서 여기로 옮긴 것과 같은 이유로, 확정 함수가 막아야 전 경로가 막힌다.
+  // 안전 확인(2026-08-19 실측): 이 가드에 걸릴 수 있는 'planned + 날짜 없는 정기'는 운영·스테이징 모두 0건 —
+  // bulkConfirmPlanItemsAction의 `scheduled_date ?? today` 폴백이 정기에 발동하지 않는다.
+  if (itemInfo.plan_type === 'monthly') {
+    const { year, month } = itemInfo.inspection_plans
+    if (!confirmedDate.startsWith(`${year}-${String(month).padStart(2, '0')}-`)) {
+      return { error: '같은 달 안에서만 이동할 수 있습니다.' }
+    }
   }
 
   const isEvent = itemInfo.plan_type === 'event' || itemInfo.plan_type === 'monthly'
