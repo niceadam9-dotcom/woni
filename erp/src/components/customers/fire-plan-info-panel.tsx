@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Mail } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, type FirePlanInfoInput, type BrigadeMemberInput } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
+import { isEndBeforeStart, DATE_RANGE_ERROR } from '@/lib/date-range'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-readiness'
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
@@ -400,10 +401,16 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <input value={d.insuranceCompany} onChange={e => set('insuranceCompany', e.target.value)} placeholder="예: 삼성화재" className={`${inputCls} w-32${sgCls('insuranceCompany')}`} title={sgTitle('insuranceCompany')} />
               </div>
               <div><label className={labelCls}>가입기간</label><br />
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex flex-wrap items-center gap-1">
                   <DateInput value={insStart} onChange={e => setInsPeriod(e.target.value, insEnd)} className={`${inputCls} w-32`} />
                   <span className="text-[11px] text-[#847ba8] shrink-0">~</span>
-                  <DateInput value={insEnd} onChange={e => setInsPeriod(insStart, e.target.value)} className={`${inputCls} w-32`} />
+                  <DateInput value={insEnd} onChange={e => setInsPeriod(insStart, e.target.value)}
+                    aria-invalid={isEndBeforeStart(insStart, insEnd)}
+                    className={`${inputCls} w-32${isEndBeforeStart(insStart, insEnd) ? ' !border-red-400' : ''}`} />
+                  {/* 저장은 서버(saveFirePlanInfoAction)가 거절한다 — 여기서는 그 전에 보이게만 한다 */}
+                  {isEndBeforeStart(insStart, insEnd) && (
+                    <span className="w-full text-[10px] text-red-600" data-testid="ins-range-error">❌ {DATE_RANGE_ERROR}</span>
+                  )}
                 </span>
               </div>
               <div><label className={labelCls}>대인 가입금액</label><br />

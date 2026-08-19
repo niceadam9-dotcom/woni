@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { createStockMovementAction } from '@/app/(dashboard)/stock/actions'
+import { dateRangeError } from '@/lib/date-range'
 
 export type POStatus = 'draft' | 'ordered' | 'received' | 'cancelled'
 
@@ -17,6 +18,11 @@ export type CreatePOInput = {
 
 export async function createPurchaseOrderAction(input: CreatePOInput): Promise<{ error?: string; poId?: string }> {
   const profile = await requirePermission('purchase_order_manage')
+
+  // 입고예정일이 발주일보다 앞설 수 없다(2026-08-19 기간 검증 일괄 도입) — 종전엔 그대로 저장됐다
+  const dateErr = dateRangeError(input.order_date, input.expected_date, '입고예정일')
+  if (dateErr) return { error: dateErr }
+
   const admin = createAdminClient()
 
   const total_amount = input.lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0)

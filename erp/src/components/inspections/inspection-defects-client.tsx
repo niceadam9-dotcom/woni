@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useState, useRef, useEffect, useTransition } from 'react'
-import { Plus, Trash2, Camera, AlertTriangle, X, Upload, Wrench, Check, Images } from 'lucide-react'
+import { Plus, Trash2, Camera, AlertTriangle, X, Upload, Wrench, Check, Images, ArrowRight } from 'lucide-react'
 import {
   addDefectAction,
   uploadDefectPhotoAction,
@@ -12,6 +12,7 @@ import {
 } from '@/app/(dashboard)/inspections/defect-actions'
 import { createActionPlanAction } from '@/app/(dashboard)/action-plans/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { dateRangeError } from '@/lib/date-range'
 import { PhotoGalleryModal } from '@/components/inspections/photo-gallery-modal'
 import { useRouter } from 'next/navigation'
 
@@ -75,15 +76,19 @@ function PhotoUploadButton({
     })
   }
 
+  // 슬롯 위에 전/후 라벨이 따로 붙으므로 버튼 안 문구는 짧게 둔다. 대신 **접근성 이름**에는
+  // 전/후를 남긴다 — 화면에서 줄인 구분을 스크린리더·E2E가 잃지 않게.
+  const kindLabel = field === 'after' ? '후(조치)' : '전(불량)'
   return (
     <div className="relative">
       {preview ? (
         <div className="relative group inline-block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="불량사진" className="w-20 h-20 object-cover rounded border" />
+          <img src={preview} alt={`${kindLabel} 사진`} className="w-20 h-20 object-cover rounded border" />
           {!disabled && (
             <button
               onClick={() => fileRef.current?.click()}
+              aria-label={`${kindLabel} 사진 교체`}
               className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity"
             >
               <Camera size={14} className="text-white" />
@@ -95,10 +100,11 @@ function PhotoUploadButton({
           <button
             onClick={() => fileRef.current?.click()}
             disabled={pending}
+            aria-label={`${kindLabel} 사진 추가`}
             className={`w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center gap-1 transition-colors ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-gray-300 hover:border-[#7b68ee]'}`}
           >
             {pending ? <Upload size={14} className="animate-pulse text-gray-400" /> : <Camera size={14} className={field === 'after' ? 'text-amber-500' : 'text-gray-400'} />}
-            <span className={`text-[10px] leading-tight text-center ${field === 'after' ? 'text-amber-600' : 'text-gray-400'}`}>{label ?? (field === 'after' ? '후(조치) 사진' : '전(불량) 사진')}</span>
+            <span className={`text-[10px] leading-tight text-center ${field === 'after' ? 'text-amber-600' : 'text-gray-400'}`}>{label ?? '사진 추가'}</span>
           </button>
         )
       )}
@@ -124,15 +130,21 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
 
+  // 기간이 뒤집혔는지는 타이핑 중에도 보여준다 — 저장을 눌러야 알게 되면 이미 늦다
+  const rangeErr = dateRangeError(planStart, planEnd, '이행 기간')
+
   function save() {
     setMsg('')
+    // 서버(defect-actions)에도 같은 검사가 있다. 여기서 먼저 막는 건 왕복을 아끼려는 것일 뿐이라
+    // 이 줄을 지워도 저장은 되지 않는다.
+    if (rangeErr) { setMsg(`❌ ${rangeErr}`); return }
     startTransition(async () => {
       const res = await updateDefectActionAction({
         defectId: defect.id, inspectionId,
         actionTaken: taken, actionCompletedAt: date || null,
         actionPlan: plan, actionStart: planStart || null, actionEnd: planEnd || null,
       })
-      setMsg(res.error ?? '조치 내용을 저장했습니다.')
+      setMsg(res.error ? `❌ ${res.error}` : '조치 내용을 저장했습니다.')
     })
   }
 
@@ -144,8 +156,10 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
         <Wrench size={12} /> 이행계획·조치 완료 {planned && <span className="text-[10px] text-amber-600">계획</span>} {done && <Check size={12} className="text-green-600" />}
         <span className="text-gray-400">{open ? '▲' : '▼'}</span>
       </button>
+      {/* 후(조치) 사진 슬롯은 카드 위쪽 전·후 쌍으로 옮겼다 — 같은 사진이 두 자리에 있으면
+          어느 쪽이 최신인지 헷갈리고, 사진을 채우려고 아코디언을 여는 동선도 사라진다. */}
       {open && (
-        <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-start">
+        <div className="mt-2">
           <div className="space-y-2">
             {/* 이행계획 (별지 10호 — §9-7) */}
             <textarea rows={1} value={plan} onChange={e => setPlan(e.target.value)} disabled={!canEdit}
@@ -154,26 +168,24 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
               <span className="text-xs text-gray-500 shrink-0">이행 기간</span>
               <DateInput value={planStart} onChange={e => setPlanStart(e.target.value)} disabled={!canEdit} className="text-sm w-32" />
               <span className="text-xs text-gray-400">~</span>
-              <DateInput value={planEnd} onChange={e => setPlanEnd(e.target.value)} disabled={!canEdit} className="text-sm w-32" />
+              <DateInput value={planEnd} onChange={e => setPlanEnd(e.target.value)} disabled={!canEdit}
+                aria-invalid={!!rangeErr} className={`text-sm w-32${rangeErr ? ' !border-red-400' : ''}`} />
             </div>
+            {rangeErr && <p className="text-[11px] text-red-600" data-testid="defect-range-error">❌ {rangeErr}</p>}
             <textarea rows={2} value={taken} onChange={e => setTaken(e.target.value)} disabled={!canEdit}
               placeholder="조치 내용" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 shrink-0">조치완료일</span>
               <DateInput value={date} onChange={e => setDate(e.target.value)} disabled={!canEdit} className="text-sm" />
               {canEdit && (
-                <button onClick={save} disabled={pending}
+                <button onClick={save} disabled={pending || !!rangeErr}
+                  title={rangeErr ?? undefined}
                   className="ml-auto text-xs bg-[#7b68ee] text-white px-3 py-1.5 rounded disabled:opacity-50">
                   {pending ? '저장…' : '저장'}
                 </button>
               )}
             </div>
-            {msg && <p className="text-[11px] text-green-600">{msg}</p>}
-          </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[10px] text-gray-400">조치 후</span>
-            <PhotoUploadButton defectId={defect.id} inspectionId={inspectionId}
-              currentUrl={defect.after_photo_url} disabled={!canEdit} field="after" />
+            {msg && <p className={`text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
           </div>
         </div>
       )}
@@ -543,13 +555,31 @@ export function InspectionDefectsClient({
               className={`border rounded-lg p-3 transition-opacity ${isDeleting ? 'opacity-50' : ''}`}
             >
               <div className="flex items-start gap-3">
-                {/* 사진 */}
-                <PhotoUploadButton
-                  defectId={defect.id}
-                  inspectionId={inspectionId}
-                  currentUrl={defect.photo_url}
-                  disabled={!canEdit}
-                />
+                {/* 전·후 사진 나란히 — 아코디언을 열지 않아도 조치 전후가 한눈에 보인다.
+                    종전엔 전은 여기, 후는 '이행계획·조치 완료' 안쪽이라 쌍을 맞추려면 펼쳐야 했고
+                    어느 불량이 후 사진을 빠뜨렸는지도 모달을 열어야 알 수 있었다. */}
+                <div className="flex items-start gap-1.5 shrink-0">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[10px] text-gray-400">전(불량)</span>
+                    <PhotoUploadButton
+                      defectId={defect.id}
+                      inspectionId={inspectionId}
+                      currentUrl={defect.photo_url}
+                      disabled={!canEdit}
+                    />
+                  </div>
+                  <ArrowRight className="size-3 text-[#d0ccf5] mt-5 shrink-0" />
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className={`text-[10px] ${defect.after_photo_url ? 'text-gray-400' : 'text-amber-500'}`}>후(조치)</span>
+                    <PhotoUploadButton
+                      defectId={defect.id}
+                      inspectionId={inspectionId}
+                      currentUrl={defect.after_photo_url}
+                      disabled={!canEdit}
+                      field="after"
+                    />
+                  </div>
+                </div>
 
                 {/* 정보 */}
                 <div className="flex-1 min-w-0">

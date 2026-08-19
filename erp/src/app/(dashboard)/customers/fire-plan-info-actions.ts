@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { fetchBuildingLedgerAction, geocodeAddressToBcodeAction } from './actions'
+import { combinedRangeError } from '@/lib/date-range'
 
 /** bcode·지번 확보 — 저장값 우선, 없으면 저장된 주소로 Juso 지오코딩 후 buildings에 백필(B안, 2026-08-05).
  *  반환 null = 확보 실패(주소 없음·키 미설정·매칭 실패 → 호출부는 needAddress로 처리). */
@@ -86,6 +87,12 @@ export async function saveFirePlanInfoAction(
   const reportEmail = input.reportEmail.trim()
   if (reportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reportEmail)) return { error: '이메일 형식을 확인해주세요.' }
   if (input.emailConsent === true && !reportEmail) return { error: '송달 동의 시 이메일을 입력해주세요.' }
+
+  // 가입기간은 "YYYY-MM-DD ~ YYYY-MM-DD" 한 문자열(별지 9호·소방계획서 출력 호환) — 뒤집힘 차단(2026-08-19).
+  // 만기일 알림 크론(insurance-expiry-notify)이 마지막 날짜 토큰을 만기로 읽으므로,
+  // 뒤집힌 값이 저장되면 이미 지난 날짜를 만기로 잡아 알림이 오작동한다.
+  const insErr = combinedRangeError(input.insurancePeriod, '가입기간')
+  if (insErr) return { error: insErr }
 
   // customers 갱신
   const { error: cErr } = await admin.from('customers').update({

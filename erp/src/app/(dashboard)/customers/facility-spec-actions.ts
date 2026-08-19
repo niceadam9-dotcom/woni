@@ -12,6 +12,7 @@ import { FACILITY_SPEC_SECTIONS } from '@/lib/facility-spec-schema'
 import { FACILITY_STANDARD } from '@/lib/facility-codes'
 import { facilitiesForSheet } from '@/lib/sheet-facility-map'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
+import { combinedRangeError } from '@/lib/date-range'
 
 const SECTION_KEYS = new Set(FACILITY_SPEC_SECTIONS.map(s => s.key))
 // exterior 추가(소방계획서_19 EX-2) — 외관점검표도 ③ 서식 고유 값(점검일·비고)을 저장한다.
@@ -267,6 +268,17 @@ export async function saveAnnexInputsAction(
 ): Promise<{ error?: string }> {
   await requirePermission('inspection_register')
   if (!ANNEX_NOS.has(annexNo)) return { error: '알 수 없는 별지 서식입니다.' }
+
+  // 기간 칸(daterange, 예: 총 이행기간)은 "YYYY-MM-DD ~ YYYY-MM-DD" 한 문자열로 저장된다 —
+  // 뒤집힌 값을 막는다(2026-08-19). 어떤 키가 기간인지는 화면 정의(annex-fields FIELD_DEFS)에 있지만
+  // 서버가 그 클라이언트 모듈을 끌어올 수는 없으므로 **형태로만** 판정한다:
+  // '~로 나뉜 두 완성 날짜'일 때만 검사하므로 과거 자유 텍스트 값은 그대로 통과한다.
+  for (const [key, v] of Object.entries(fields)) {
+    if (typeof v !== 'string') continue
+    const err = combinedRangeError(v, key)
+    if (err) return { error: err }
+  }
+
   const admin = createAdminClient()
 
   const { error } = await admin.from('annex_inputs')

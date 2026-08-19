@@ -8,6 +8,7 @@ import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
 import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
 import { STEP_FORCE_COMPLETE_ACTION, isSelfInspection } from '@/lib/inspection-step-status'
+import { dateRangeError } from '@/lib/date-range'
 import type { InspectionType } from '@/types'
 
 // ── 점검 보조 참여자 관리 (P31-2) — 보고서 개요의 보조 인력 ──
@@ -155,7 +156,10 @@ export async function updateInspectionMultidayAction(
   const { data: insp } = await admin.from('inspections').select('inspection_start_date').eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const start = (insp as { inspection_start_date: string }).inspection_start_date
-  if (input.endDate && input.endDate < start) return { error: '종료일은 시작일 이후여야 합니다.' }
+  // 종전엔 여기서만 직접 비교했다 — 문구·규칙을 공용 lib/date-range로 모은다(2026-08-19).
+  // 같은 날(1일 점검)은 허용, 미완성 형식은 통과라는 규약이 다른 기간 칸과 같아진다.
+  const multidayErr = dateRangeError(start, input.endDate, '점검 종료일')
+  if (multidayErr) return { error: multidayErr }
   const days = Number.isFinite(input.days) && input.days >= 1 && input.days <= 5 ? input.days : 1
 
   const { error } = await admin.from('inspections')

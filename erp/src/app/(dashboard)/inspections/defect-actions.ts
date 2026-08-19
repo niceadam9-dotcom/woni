@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole, getSessionUser, requirePermission } from '@/lib/auth'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { extractStoragePath } from '@/lib/defect-photos'
+import { dateRangeError } from '@/lib/date-range'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
@@ -123,6 +124,12 @@ export async function updateDefectActionAction(input: {
 }): Promise<{ error?: string }> {
   // 작업대 ⑤⑥ 불량 표(defect-grid)가 칸마다 이 액션을 부른다 — 인증만으로는 부족하다 (R4 독립 검증 지적)
   const user = await requirePermission('inspection_register')
+
+  // 이행 기간 뒤집힘 차단(2026-08-19) — 종전엔 2026-08-20 ~ 2026-08-18도 조용히 저장됐다.
+  // 화면 두 곳(불량 카드·작업대 표)이 각각 부르는 자리라, 막는 것은 여기 한 곳이어야 새는 경로가 없다.
+  const rangeErr = dateRangeError(input.actionStart, input.actionEnd, '이행 기간')
+  if (rangeErr) return { error: rangeErr }
+
   const admin = createAdminClient()
   const patch: Record<string, unknown> = {
     action_taken: input.actionTaken?.trim() || null,

@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import { Camera, Check, Loader2 } from 'lucide-react'
 import { updateDefectActionAction, uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
+import { dateRangeError, isEndBeforeStart } from '@/lib/date-range'
 
 /** 불량 표 편집 (소방계획서_21 R6-7) — 불량마다 폼을 펼치지 않고 한 표에서 고친다.
  *  행 = 불량 1건, 칸 = 계획 내용 · 계획 기간 · 완료 내용 · 완료일 · 전/후 사진.
@@ -68,6 +69,10 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
     const base = toRow(d)
     const row: Row = { ...base, ...edits[d.id], ...patch }
     if ((Object.keys(base) as Array<keyof Row>).every(k => row[k] === base[k])) return
+    // 기간 뒤집힘은 보내지 않는다(2026-08-19). 이 표는 날짜를 고르는 즉시 저장하므로
+    // 서버 거절만 믿으면 왕복 뒤에야 알게 된다 — 서버 검사는 그대로 남아 최종 방어선이다.
+    const rangeErr = dateRangeError(row.actionStart, row.actionEnd, '이행 기간')
+    if (rangeErr) { setErr(rangeErr); return }
     setSaving(d.id)
     setErr('')
     void updateDefectActionAction({
@@ -138,7 +143,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
                     <DateInput value={r.actionStart} disabled={!canEdit} aria-label={`${d.defect_name} 계획 시작일`}
                       onChange={e => setDate(d, { actionStart: e.target.value })} onBlur={() => commit(d)} className={cell} />
                     <DateInput value={r.actionEnd} disabled={!canEdit} aria-label={`${d.defect_name} 계획 종료일`}
-                      onChange={e => setDate(d, { actionEnd: e.target.value })} onBlur={() => commit(d)} className={cell} />
+                      onChange={e => setDate(d, { actionEnd: e.target.value })} onBlur={() => commit(d)}
+                      aria-invalid={isEndBeforeStart(r.actionStart, r.actionEnd)}
+                      className={`${cell}${isEndBeforeStart(r.actionStart, r.actionEnd) ? ' !border-red-400' : ''}`} />
                   </td>
                 </>) : (<>
                   <td className="px-1 py-1">

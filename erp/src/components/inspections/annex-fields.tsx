@@ -1,6 +1,7 @@
 'use client'
 
 import { DateInput } from '@/components/ui/date-input'
+import { isEndBeforeStart, DATE_RANGE_ERROR } from '@/lib/date-range'
 
 /** 별지 ③계층(서식 고유 값) 필드 정의 — 작성 패널과 작업대가 함께 쓴다.
  *  소방계획서_21 R6-6에서 작업대가 이 값을 미리보기 위에 인라인으로 받게 되면서
@@ -102,11 +103,15 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
     // 좁은 칸에서는 **접힌다**(flex-wrap + min-w-0). 종전엔 w-36 두 칸이 고정이라 최소 312px를 요구해
     // 작업대 3칸 폭 재배분의 병목이었다(실측 2026-08-18: 1:0.9:1.8에서 이 한 줄이 +38px 넘침).
     // 접히면 세로로 한 줄 늘 뿐이고, 그 칸은 세로 여유가 있다.
+    // 뒤집힌 기간은 서버(saveAnnexInputsAction)가 거절한다 — 여기서는 그 전에 눈에 보이게 한다
+    const bad = isEndBeforeStart(ps, pe)
     return (
       <span className="flex flex-wrap items-center gap-1.5">
         <DateInput value={ps} aria-label={`${def.label} 시작일`} onChange={e => join(e.target.value, pe)} className={`${inputBase} w-36 min-w-0 max-w-full`} />
         <span className="text-xs text-[#847ba8] shrink-0">~</span>
-        <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)} className={`${inputBase} w-36 min-w-0 max-w-full`} />
+        <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)}
+          aria-invalid={bad} className={`${inputBase} w-36 min-w-0 max-w-full${bad ? ' !border-red-400' : ''}`} />
+        {bad && <span className="w-full text-[10px] text-red-600" data-testid="annex-range-error">❌ {DATE_RANGE_ERROR}</span>}
       </span>
     )
   }
