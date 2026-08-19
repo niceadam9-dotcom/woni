@@ -1,5 +1,6 @@
 import 'server-only'
 import type { createAdminClient } from '@/lib/supabase/admin'
+import type { NotificationType, NotificationReferenceType } from '@/lib/notification-types'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -16,9 +17,11 @@ export const NOTIFY_CATEGORY_LABEL: Record<NotifyCategory, string> = {
 type NotificationRow = {
   title: string
   message: string
-  type: string
+  /** DB CHECK와 같은 목록. string이던 시절 'law_revision'이 CHECK에 없는 채로 나가
+   *  insert가 조용히 실패했다 — 컴파일러가 막게 한다(notification-types.ts 참조) */
+  type: NotificationType
   reference_id?: string | null
-  reference_type?: string | null
+  reference_type?: NotificationReferenceType | null
 }
 
 /** 수신 설정 확인 — false로 명시된 카테고리만 발송 생략 (미설정 키 = 수신) */
