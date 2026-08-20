@@ -1,0 +1,74 @@
+# /etc/cron.d/sjfire-erp — 운영 크론 정본
+#
+# 이 파일이 원본이고 VPS의 /etc/cron.d/sjfire-erp는 사본이다. 종전에는 정본이 없어
+# 백업 txt(F:\AI\sjfire\vps-env-backup\vps-cron-and-info.txt)가 유일한 기록이었는데,
+# 그건 '그때 무엇이 돌고 있었는지'의 기록이지 '앞으로 무엇을 돌릴지'가 아니다.
+#
+# ⚠ 이 저장소는 공개다 — CRON_SECRET을 여기에 적지 말 것. 자리표시자로만 둔다.
+#   (2026-07-09 service_role 키가 공개 저장소에 노출돼 전량 로테이션한 전례가 있다.)
+#
+# 설치:
+#   SECRET=$(grep '^CRON_SECRET=' /home/ubuntu/woni/erp/.env.production | cut -d= -f2-)
+#   sed "s|__CRON_SECRET__|$SECRET|g" deploy/cron/sjfire-erp.cron \
+#     | sudo tee /etc/cron.d/sjfire-erp > /dev/null
+#   sudo chmod 644 /etc/cron.d/sjfire-erp && sudo systemctl restart cron
+#
+# 확인: tail -f /var/log/sjfire-cron.log
+# 시각 표기는 종전 등록분과 동일하다(서버 TZ 기준). 컨테이너는 UTC로 도는데,
+# 연/일 경계가 중요한 작업은 라우트가 직접 +9h 시프트해 KST를 계산한다.
+
+MAILTO=""
+
+# 점검 단계 마감 알림 — 매일 00:05
+5 0 * * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/inspection-deadline-notify >> /var/log/sjfire-cron.log 2>&1
+
+# 공휴일 동기화 — 매월 1일 00:10   ★ 종전 1/1·12/1 연 2회에서 상향 (소방계획서_25 R-2)
+#   임시공휴일은 1~3주 전에 지정되는데, 연 2회로는 그 사이 지정분을 다음 발화까지 놓친다.
+#   공휴일 하나가 틀리면 6단계 마감일이 통째로 밀리고 그 사실이 화면 어디에도 안 드러난다.
+#   호출당 올해·내년·내후년 3년을 갱신하고(sync-holidays/route.ts:39) 멱등이라 월 1회 비용은 작다.
+10 0 1 * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/sync-holidays >> /var/log/sjfire-cron.log 2>&1
+
+# 화재보험 만기 알림 — 매일 00:15
+15 0 * * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/insurance-expiry-notify >> /var/log/sjfire-cron.log 2>&1
+
+# 연간 점검계획 생성 — 12/1(내년분)·1/1(올해분) 00:20
+20 0 1 1,12 * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/generate-yearly-plans >> /var/log/sjfire-cron.log 2>&1
+
+# 월정액 청구 생성 — 매월 1일 12:00 (2026-08-20 사용자 지정 · 낮 12시)
+#   ★ 신규 등록이다. 라우트는 "Cron: 매월 1일 호출 권장"으로 쓰여 있었는데 등록된 적이 없어
+#     운영 bills가 0건이었다(2026-08-20 실측). 이 줄이 없으면 월정액이 자동으로 서지 않는다.
+#   같은 달·같은 고객에 '정액' 청구가 이미 있으면 건너뛰므로 재실행해도 중복되지 않는다.
+#   발화 시각은 안전하다 — 라우트가 +9h 시프트로 KST 연·월을 직접 뽑는다(route.ts).
+#   ⚠ 대상은 is_active이고 inspection_type이 종합·작동인 고객이다. 월정액이 0이거나
+#     비어 있는 고객까지 도는지는 첫 발화 뒤 bills 건수로 확인할 것.
+0 12 1 * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/generate-monthly-bills >> /var/log/sjfire-cron.log 2>&1
+
+# 정기·일반관리 점검 자동 시작 — 매일 00:25 (3일 캐치업·미배정 건너뜀)
+25 0 * * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/auto-start-inspections >> /var/log/sjfire-cron.log 2>&1
+
+# 불량 이행기한 임박 알림 — 매일 00:35 (별지 9호 15일 기한 포함)
+35 0 * * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/defect-action-notify >> /var/log/sjfire-cron.log 2>&1
+
+# 법제처 서식 개정 감지 — 매주 월 00:45
+#   ⚠ LAW_OC 계정에 서버 IP가 등록돼 있어야 한다. 외부 fetch에 타임아웃이 없어
+#     응답이 늦으면 오래 매달린다(로컬 dev에서 6분 걸린 실측이 있다) — -m 300으로 끊는다.
+45 0 * * 1 root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/law-revision-check >> /var/log/sjfire-cron.log 2>&1
+
+# 주간 문서 브리핑 — 매주 월 00:50 (소방계획서_5 P-2)
+50 0 * * 1 root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/weekly-doc-briefing >> /var/log/sjfire-cron.log 2>&1
+
+# 소방계획서 PDF 변환 안전망 — 매시 40분 (2026-08-20 신규)
+#   ★ 라우트는 "워커 실패 시 즉시 호출 + 주기 크론(안전망)"을 전제하는데 그 주기 크론이
+#     등록된 적이 없었다 — 안전망이 존재한 적 없다는 뜻이다. 워커가 변환 전에 죽으면
+#     그 계획서는 pdf_status='converting'에 영원히 머문다(화면엔 '변환 중'으로 보인다).
+#   1회 최대 5건만 처리한다(Gotenberg 타임아웃 여유) — 밀린 게 많으면 여러 번에 걸쳐 빠진다.
+#   :40인 이유는 자정 무렵 잡들이 05·10·15·20·25·35·45·50분을 이미 쓰고 있어서다.
+#   ⚠ Gotenberg 컨테이너가 떠 있어야 의미가 있다. 내려가 있으면 매시간 실패 로그만 쌓인다.
+40 * * * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/convert-fireplan-pdf >> /var/log/sjfire-cron.log 2>&1
+
+# 활동로그 정리 — 매월 1일 03:00
+0 3 1 * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/purge-activity-logs >> /var/log/sjfire-cron.log 2>&1
+
+# 🚫 drive-backup — 2026-08-18 기능 폐기(커밋 fed332c). 라우트 자체가 제거됐으므로
+#    재등록하면 매일 새벽 404를 때린다. 백업 txt에는 아직 이 줄이 남아 있으니
+#    **그 파일을 그대로 복원하지 말 것** — 이 정본을 쓸 것.
