@@ -97,6 +97,28 @@ try {
   check('공개 URL(죽은 주소)이 아님', shots.every(s => !s.src.includes('/object/public/')))
   check('실제로 픽셀이 실린 이미지', shots.every(s => s.ok), brief(shots))
 
+  console.log('[1-b] 전·후 나란히 배치 — 아코디언을 열지 않아도 보인다')
+  {
+    // 종전엔 후 사진이 '이행계획·조치 완료' 안쪽이라 펼쳐야 보였다. 카드에서 바로 쌍이 보여야 한다.
+    const beforeImg = page.getByRole('img', { name: '전(불량) 사진' })
+    const afterImg = page.getByRole('img', { name: '후(조치) 사진' })
+    check('카드에 전(불량) 사진 노출', await beforeImg.count() >= 1)
+    check('카드에 후(조치) 사진 노출(펼치지 않고)', await afterImg.count() >= 1)
+    // 나란히 = 같은 행. 두 슬롯의 세로 위치가 거의 같아야 한다(위아래로 쌓이면 크게 벌어진다)
+    const b = await beforeImg.first().boundingBox()
+    const a = await afterImg.first().boundingBox()
+    check('두 사진이 같은 행에 나란히', !!b && !!a && Math.abs(b.y - a.y) < 20 && a.x > b.x,
+      `before=${JSON.stringify(b)} after=${JSON.stringify(a)}`)
+    // 아코디언 안에는 더 이상 후 사진 슬롯이 없어야 한다(같은 사진 두 자리 금지)
+    const accordion = page.getByRole('button', { name: /이행계획·조치 완료/ }).first()
+    if (await accordion.count() > 0) {
+      await accordion.click()
+      await page.waitForTimeout(800)
+      check('아코디언 안 후 사진 슬롯 제거(중복 없음)',
+        await page.getByRole('img', { name: '후(조치) 사진' }).count() === 1)
+    }
+  }
+
   console.log('[2] 전/후 사진 모아보기 모달')
   const galleryBtn = page.locator('button', { hasText: '전/후 사진 모아보기' })
   if (await galleryBtn.count() > 0) {
@@ -137,7 +159,7 @@ try {
     await page.locator(`text=${TAG}업로드경로`).first().waitFor({ timeout: 20000 })
     // 숨은 input을 DOM으로 찾아가는 건 구조 변경에 약하다 — 실제 사용자처럼 슬롯을 눌러
     // 파일 선택창을 띄우고 그 이벤트에 파일을 준다. 사진이 없는 불량만 이 버튼을 그린다.
-    const slot = page.getByRole('button', { name: '전(불량) 사진' }).first()
+    const slot = page.getByRole('button', { name: '전(불량) 사진 추가' }).first()
     await slot.waitFor({ timeout: 20000 })
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser'),

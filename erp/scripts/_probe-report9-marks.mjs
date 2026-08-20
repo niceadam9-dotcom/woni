@@ -23,11 +23,15 @@ const d = {
 
 const html = renderReport9(d)
 
-// 3쪽 표 행 = <tr>…<td class="pre">설비명</td><td class="center">기호</td> — 행 조각 안에서 기호를 판정한다
-const rows = html.split(/<tr[^>]*>/)
+// 3쪽 표 행 = <tr>…<td class="pre">설비명</td><td class="center mk">기호</td> — 행 조각 안에서 기호를 판정한다
+// class는 'center'로 시작하되 표식이 더 붙을 수 있다('mk' = 오버라이드 편집 금지, lib/doc-overrides)
+// <style> 블록을 먼저 걷어낸다 — CSS 주석이 서식 문구를 인용하는 경우가 있어(spec-sections의
+// "'[ ]옥내소화전설비' 바로 아래로 정렬" 설명 주석) 문서 전체를 훑으면 첫 조각이 <head>가 된다.
+// 그러면 어떤 라벨이든 CSS에서 먼저 걸려 결과칸이 빈 문자열로 잡힌다.
+const rows = html.replace(/<style>[\s\S]*?<\/style>/g, '').split(/<tr[^>]*>/)
 const rowOf = (label) => rows.find(r => r.replace(/\s+/g, '').includes(label.replace(/\s+/g, ''))) ?? ''
 const markIn = (label) => {
-  const m = rowOf(label).match(/class="center"[^>]*>([^<]*)</)
+  const m = rowOf(label).match(/class="center[^"]*"[^>]*>([^<]*)</)
   return (m?.[1] ?? '').trim()
 }
 

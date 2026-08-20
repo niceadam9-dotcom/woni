@@ -127,7 +127,8 @@ async function run() {
     }
     check('S1-7: 1-B-031~033 전량 ／ 인쇄', ['1-B-031', '1-B-032', '1-B-033'].every(c => row(c).includes('>/<')))
     check('S1: 1-A-002 ×', row('1-A-002').includes('>×<'))
-    check('S1: 무응답 1-A-003 행 존재·결과 공란', row('1-A-003').length > 0 && /class="center"><\/td>/.test(row('1-A-003')))
+    // 결과칸 class는 'center'로 시작하되 표식이 더 붙는다('mk' = 오버라이드 편집 금지, lib/doc-overrides)
+    check('S1: 무응답 1-A-003 행 존재·결과 공란', row('1-A-003').length > 0 && /class="center[^"]*"><\/td>/.test(row('1-A-003')))
     check('S1: 발췌 안내 문구 없음', !html.includes('점검항목만 수록'))
     // S2 — ● 불릿 / 134 그룹 축(그룹 헤더·대괄호 소제목)
     check('S2: ● 불릿(1-A-009 설치수량)', row('1-A-009').includes('● 설치수량 적정 여부'))

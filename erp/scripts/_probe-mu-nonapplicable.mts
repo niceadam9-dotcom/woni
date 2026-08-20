@@ -22,8 +22,9 @@ const check = (name: string, ok: boolean, detail = '') => {
   else { fail++; console.log(`  ❌ ${name}${detail ? ` — ${detail}` : ''}`) }
 }
 type R = Record<string, 'O' | 'X' | 'N'>
-/** 2열 표의 결과 셀만 뽑는다(비고 행 포함 17칸). _probe-report9-marks.mjs와 같은 축. */
-const marksOf = (html: string) => [...html.matchAll(/class="center"[^>]*>([^<]*)</g)].map(m => m[1].trim())
+/** 2열 표의 결과 셀만 뽑는다(비고 행 포함 17칸). _probe-report9-marks.mjs와 같은 축.
+ *  class는 'center'로 시작하되 표식이 더 붙는다('mk' = 오버라이드 편집 금지, lib/doc-overrides) */
+const marksOf = (html: string) => [...html.matchAll(/class="center[^"]*"[^>]*>([^<]*)</g)].map(m => m[1].trim())
 
 // ── ① 규칙 축 ──────────────────────────────────────────────
 console.log('\n=== ① fillNonApplicableMu 규칙')

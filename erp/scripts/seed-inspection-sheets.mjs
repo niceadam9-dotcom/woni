@@ -207,3 +207,6 @@ for (const f of facList) {
   itemN += items.length
 }
 console.log(`시딩 완료 — 점검표 ${sheetN}종 / 항목 ${itemN}`)
+console.log('⚠ 앱은 점검표 카탈로그를 캐시한다(lib/sheet-catalog.ts) — 이 스크립트는 DB를 직접 써서'
+  + ' 캐시가 자동으로 비워지지 않는다. 화면에 즉시 반영하려면 /inspection-sheets 의 [캐시 비우기]를'
+  + ' 누르거나 최대 1시간(TTL) 기다릴 것.')

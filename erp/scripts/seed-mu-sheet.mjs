@@ -62,3 +62,5 @@ const rows = ITEMS.map((it, i) => ({
 const { error: ie } = await admin.from('inspection_sheet_items').insert(rows)
 if (ie) { console.error('항목 실패:', ie.message); process.exit(1) }
 console.log(`✅ 시트 1 · 항목 ${rows.length} 반영 완료`)
+console.log('⚠ 앱은 점검표 카탈로그를 캐시한다(lib/sheet-catalog.ts) — DB 직접 쓰기는 캐시를 비우지'
+  + ' 않는다. /inspection-sheets 의 [캐시 비우기]를 누르거나 최대 1시간(TTL) 기다릴 것.')

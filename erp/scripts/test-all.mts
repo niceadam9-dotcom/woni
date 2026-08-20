@@ -8,6 +8,12 @@ const steps: Step[] = [
   { name: '데이터 불변식(스테이징)',    cmd: 'node scripts/check-data-invariants.mjs' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
+  // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을
+  // 덮어쓰는 층이다. 두 가지가 조용히 깨질 수 있어 상시 고정한다:
+  //   ① 템플릿의 태그 열기·닫기 균형 — 깨지면 오버라이드가 엉뚱한 범위를 덮어써 서식이 망가진다
+  //   ② highlight on/off 앵커 동일성 — 갈리면 미리보기에서 고친 칸과 인쇄되는 칸이 어긋난다
+  // 그리고 점검결과 마크 칸에 키가 새면 자체점검 결과 위조 통로가 된다.
+  { name: '별지 셀 오버라이드',         cmd: 'npx tsx scripts/test-annex-overrides.mts' },
   // 공휴일은 영업일 → 6단계 마감일을 결정한다. 하나만 틀려도 법정 제출기한이 밀리는데
   // 화면 어디에도 안 드러난다 — 순수 산출을 공공API 확정본과 대조해 상시 고정 (소방계획서_25)
   { name: '공휴일 대체 규칙',          cmd: 'npx tsx scripts/test-holiday-rules.mts' },

@@ -244,8 +244,9 @@ try {
   // ══════════ B-3 — '기타' 3항목 (별지9호 3쪽 · 별지4호 1쪽 동시) ══════════
   console.log('\n— B-3: 31번 응답 롤업 (X>O>N)')
   for (const [label, h] of [['별지9호 3쪽', html9], ['별지4호 1쪽', html4]]) {
-    check(`${label} 방화문(31-A-001 X) → [√] + ×`, /\[√\]방화문, 자동방화셔터[\s\S]{0,200}?<td class="center">×<\/td>/.test(h))
-    check(`${label} 비상구(31-A-002 O) → [√] + ○`, /\[√\]비상구, 피난통로[\s\S]{0,200}?<td class="center">○<\/td>/.test(h))
+    // 결과칸 class는 'center'로 시작하되 표식이 더 붙는다('mk' = 오버라이드 편집 금지, lib/doc-overrides)
+    check(`${label} 방화문(31-A-001 X) → [√] + ×`, /\[√\]방화문, 자동방화셔터[\s\S]{0,200}?<td class="center[^"]*">×<\/td>/.test(h))
+    check(`${label} 비상구(31-A-002 O) → [√] + ○`, /\[√\]비상구, 피난통로[\s\S]{0,200}?<td class="center[^"]*">○<\/td>/.test(h))
     check(`${label} 방염(무응답) → ☐ + 공란`, /\[&nbsp;&nbsp;\]방  염/.test(h))
   }
 
@@ -281,8 +282,8 @@ try {
   await raw.from('customers').update({ manager_appointment_type: '겸직' }).eq('id', custA)
   console.log('  · B-6a 결과칸 규약 — 무응답이면 ○·／ 자동 기입 없음')
   check('설치(√) 소화기구인데 응답 없음 → 결과칸 공란(자동 기입 0)',
-    /\[√\]소화기구 및 자동소화장치[\s\S]{0,300}?<td class="center"><\/td>/.test(html9)
-    || /소화기구 및 자동소화장치[\s\S]{0,200}?<td class="center">\s*<\/td>/.test(html9),
+    /\[√\]소화기구 및 자동소화장치[\s\S]{0,300}?<td class="center[^"]*"><\/td>/.test(html9)
+    || /소화기구 및 자동소화장치[\s\S]{0,200}?<td class="center[^"]*">\s*<\/td>/.test(html9),
     seg(html9, /소화기구 및 자동소화장치[\s\S]{0,220}/))
 
   // ══════════ B-8 — 별지10·11호 감사 후속 ══════════

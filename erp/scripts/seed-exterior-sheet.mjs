@@ -45,3 +45,5 @@ for (const s of manifest.sections) {
   itemN += items.length
 }
 console.log(`✅ 시트 ${sheetN} · 항목 ${itemN} 반영 완료`)
+console.log('⚠ 앱은 점검표 카탈로그를 캐시한다(lib/sheet-catalog.ts) — DB 직접 쓰기는 캐시를 비우지'
+  + ' 않는다. /inspection-sheets 의 [캐시 비우기]를 누르거나 최대 1시간(TTL) 기다릴 것.')

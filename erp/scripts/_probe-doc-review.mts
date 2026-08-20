@@ -171,6 +171,10 @@ const other = {
   official: {
     company: COMPANY, docNo: '승 진 2608-977', sendDate: '2026년 8월', recipient: LONG_NAME,
     reference: '소방안전관리자 및 관계인', sender: '㈜승진소방 ENG', year: 2026, typeLabel: '작동점검',
+    // 147(2026-08-20) 하단 발신 명의 — 필수 필드다. 여기 빠지면 signBlock이 s.name에서 터진다.
+    // ⚠ 이 파일은 렌더 인자를 `as never`로 넘겨 타입 검사를 우회한다 — 서식에 필드가 늘면
+    // tsc가 안 잡아주고 **실행할 때 터진다**. 실제로 그렇게 한 번 깨졌다.
+    senderSign: { name: '주식회사 승진소방엔지니어링', title: '대표이사', rep: '이대표' },
   },
   delegation: {
     typeLabel: '작동점검',
