@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { X, Eye, FileText, Loader2, Save, ExternalLink } from 'lucide-react'
 import { AnnexMissingList } from '@/components/inspections/annex-missing-list'
-import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction, getAnnexAutoDefaultsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getAnnexPreviewHtmlAction, requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import { ANNEX_TITLES as TITLES, FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
 
@@ -58,6 +58,8 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
   const meta = TITLES[annexNo]
   const defs = FIELD_DEFS[annexNo]
   const [fields, setFields] = useState<Record<string, string>>({})
+  // 자동 계산값 — 보여주기만 한다(저장 금지). 작업대 AnnexFields와 같은 규약
+  const [auto, setAuto] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [dirty, setDirty] = useState(false)
   const [missing, setMissing] = useState<string[]>([])
@@ -77,7 +79,9 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
     Promise.all([
       getAnnexInputsAction(inspectionId, annexNo),
       getAnnexPreviewHtmlAction(inspectionId, annexNo),
-    ]).then(([inp, prev]) => {
+      // 자동값은 보조 정보 — 실패해도 입력은 되어야 한다
+      getAnnexAutoDefaultsAction(inspectionId, annexNo).catch(() => ({ defaults: {} })),
+    ]).then(([inp, prev, def]) => {
       if (!alive) return
       const f: Record<string, string> = {}
       for (const d of FIELD_DEFS[annexNo]) {
@@ -85,6 +89,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
         if (typeof v === 'string') f[d.key] = v
       }
       setFields(f)
+      setAuto(def.defaults ?? {})
       setMissing(prev.missing ?? [])
       const err = inp.error || prev.error
       if (err) setMsg(`❌ ${err}`)
@@ -230,15 +235,28 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                   {dirty && <span className="text-[10px] text-amber-600 font-medium ml-auto">미저장</span>}
                 </div>
                 <div className="space-y-3 pl-7">
-                  {defs.map(d => (
-                    <div key={d.key}>
-                      <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#514b81] mb-1">
-                        <span className={badgeInput}>입력</span> {d.label}
-                      </label>
-                      <AnnexFieldInput def={d} value={fields[d.key] ?? ''} onChange={v => setField(d.key, v)} />
-                      {d.hint && <p className="text-[10px] text-[#b0acd6] mt-0.5">{d.hint}</p>}
-                    </div>
-                  ))}
+                  {defs.map(d => {
+                    // 자동 계산값을 빈 칸에 회색으로 비춘다 — 작업대(AnnexFields)와 같은 규약.
+                    // 채워 넣지는 않는다: 저장되면 원천이 바뀌어도 옛 값이 굳는다.
+                    const a = auto[d.key]?.trim()
+                    const filled = (fields[d.key] ?? '').trim()
+                    return (
+                      <div key={d.key}>
+                        <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#514b81] mb-1">
+                          <span className={badgeInput}>입력</span> {d.label}
+                        </label>
+                        <AnnexFieldInput def={a ? { ...d, placeholder: a } : d} value={fields[d.key] ?? ''}
+                          onChange={v => setField(d.key, v)} />
+                        {a && !filled && (
+                          <p className="text-[10px] text-[#847ba8] mt-0.5">
+                            <span className="inline-flex items-center rounded bg-[#eeecf8] px-1 py-px text-[9px] font-medium text-[#514b81] mr-1">자동</span>
+                            이대로 출력됩니다 — 고치면 고친 값이 나갑니다
+                          </p>
+                        )}
+                        {d.hint && <p className="text-[10px] text-[#b0acd6] mt-0.5">{d.hint}</p>}
+                      </div>
+                    )
+                  })}
                   <button onClick={save} disabled={isPending || !dirty}
                     className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
                     {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장

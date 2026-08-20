@@ -13,6 +13,7 @@ import { FACILITY_STANDARD } from '@/lib/facility-codes'
 import { facilitiesForSheet } from '@/lib/sheet-facility-map'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 import { combinedRangeError } from '@/lib/date-range'
+import { assembleOfficial } from '@/lib/annex-cover-official'
 
 const SECTION_KEYS = new Set(FACILITY_SPEC_SECTIONS.map(s => s.key))
 // exterior 추가(소방계획서_19 EX-2) — 외관점검표도 ③ 서식 고유 값(점검일·비고)을 저장한다.
@@ -220,6 +221,39 @@ export async function getAnnexInputsAction(
     .maybeSingle()
   if (error) return { fields: {}, error: `별지 입력값 조회 실패: ${error.message}` }
   return { fields: (data?.fields ?? {}) as Record<string, unknown> }
+}
+
+/** 서식 고유값의 **자동 계산값** 조회 (2026-08-20) — 입력 화면이 "비워 두면 자동"이라고만 말하고
+ *  그 자동값이 무엇인지는 보여주지 않아, 수신·문서번호가 무엇으로 나갈지 생성 전에는 알 수 없었다.
+ *
+ *  ⚠ 이 값을 저장하지 않는다. 저장하면 그 순간 수동값이 되어 **원천이 바뀌어도 옛 값이 굳는다**
+ *  (고객명을 고쳐도 공문 수신이 그대로인 사고). 화면은 이걸 placeholder로만 비추고,
+ *  사용자가 직접 타이핑한 값만 annex_inputs에 남는다 — 그러면 종전대로 수동이 이긴다.
+ *
+ *  현재 공문(official)만 지원한다. 다른 서식은 자동값 조립부가 각기 달라 필요할 때 넓힌다. */
+export async function getAnnexAutoDefaultsAction(
+  inspectionId: string,
+  annexNo: string,
+): Promise<{ defaults: Record<string, string>; error?: string }> {
+  await requirePermission('inspection_register')
+  if (annexNo !== 'official') return { defaults: {} }
+  const admin = createAdminClient()
+  try {
+    // 조립부가 '수동 우선 → 없으면 자동'을 이미 계산한다. 저장된 수동값이 없는 칸에서는
+    // 반환값이 곧 자동값이므로, 빈 칸의 placeholder로 그대로 쓸 수 있다.
+    const { data } = await assembleOfficial(admin, '', inspectionId)
+    return {
+      defaults: {
+        docNo: data.docNo ?? '',
+        sendDate: data.sendDate ?? '',
+        recipient: data.recipient ?? '',
+        reference: data.reference ?? '',
+      },
+    }
+  } catch (e) {
+    // 자동값은 보조 정보다 — 못 구해도 입력 자체는 되어야 한다
+    return { defaults: {}, error: e instanceof Error ? e.message : '자동값 조회 실패' }
+  }
 }
 
 /** 전 회차 이어받기 (소방계획서_8 H-5b·D-5) — 같은 고객의 직전 자체점검 회차에서 같은 별지의
