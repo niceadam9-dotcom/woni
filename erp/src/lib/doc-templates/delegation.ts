@@ -39,10 +39,12 @@ const CSS = `
   .dg-sechd { border: .6pt solid #000; border-top: none; background: #f4f4f4; text-align: center;
               font-weight: bold; letter-spacing: .3em; padding: 1.8mm 0; font-size: 10.5pt; }
   .dg-body { border: .6pt solid #000; border-top: none; padding: 5mm 6mm; font-size: 11pt; line-height: 2; }
-  .dg-date { text-align: center; font-size: 11.5pt; margin: 10mm 0 6mm; }
-  .dg-sign { text-align: center; font-size: 11.5pt; margin-bottom: 10mm; }
+  /* 날짜·관계인·귀하는 원본 서식('보고서 갑지.xls' [위임장] 탭)에서 셋 다 **오른쪽 끝**에 맞춰져 있다.
+     종전엔 날짜·관계인이 가운데, 귀하가 왼쪽이라 원본과 어긋났다(2026-08-20 대조). */
+  .dg-date { text-align: right; font-size: 11.5pt; margin: 10mm 0 6mm; }
+  .dg-sign { text-align: right; font-size: 11.5pt; margin-bottom: 10mm; }
   .dg-sign .nm { display: inline-block; min-width: 30mm; text-align: center; }
-  .dg-to { font-size: 13pt; font-weight: bold; margin: 4mm 0 10mm; }
+  .dg-to { text-align: right; font-size: 13pt; font-weight: bold; margin: 4mm 0 10mm; }
   .dg-to .st { display: inline-block; min-width: 24mm; text-align: center; border-bottom: .6pt solid #000; }
   table.dg-note { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9.5pt; }
   table.dg-note th, table.dg-note td { border: .6pt solid #000; padding: 2mm; vertical-align: middle; }

@@ -27,6 +27,7 @@ import { isRegenBlocked } from '@/lib/annex-regen-policy'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
+import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect } from '@/components/inspections/defect-grid'
@@ -1100,6 +1101,11 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId }: {
               <FileText className="size-4 text-[#7b68ee]" />
               <p className="text-xs font-semibold text-[#514b81]">{ANNEX_PREVIEW_TITLES[reportType]} 미리보기</p>
               <span className="relative"><AnnexMissingChip missing={missing} customerId={customerId} /></span>
+              {/* 이 미리보기는 저장된 PDF가 아니라 **현재 데이터로 조립한 초안**이다(위 주석) —
+                  그래서 hasPdf=false로 넘겨 '초안 인쇄' 경로를 탄다. 버튼이 확인창으로
+                  제출용이 아님을 알리고, 하이라이트를 뺀 HTML로 다시 렌더해 인쇄한다. */}
+              <AnnexPrintButton inspectionId={inspectionId} type={reportType}
+                label={ANNEX_PREVIEW_TITLES[reportType]} hasPdf={false} />
               <button onClick={() => setZoom(false)} data-testid="preview-zoom-close"
                 className="ml-auto text-[#847ba8] hover:text-[#514b81]" title="닫기 (ESC)">
                 <X className="size-4" />
