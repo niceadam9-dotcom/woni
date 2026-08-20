@@ -324,7 +324,13 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   // 지역·담당으로 좁혀 놓았는가 — 배너 승인이 그 범위를 존중해야 하는지의 판단 근거.
   // 기간·상태는 제외한다: 배너는 자기 날짜와 미발송만 보므로 그 둘로는 범위가 넓어지지 않는다.
   const narrowed = !!(regionSi || regionMyeon || regionRi || assignee)
-  /** 지금 화면에 보이는 그 날짜의 미발송 계획 항목 — 배너 승인을 필터 범위로 좁힐 때 쓴다 */
+  /** 지금 화면에 보이는 그 날짜의 미발송 계획 항목 — 배너 승인을 필터 범위로 좁힐 때 쓴다.
+   *
+   *  ⚠ `status === 'unsent'`를 요구하는데 `narrowed`는 지역·담당만 본다. 그래서 지역을 걸고
+   *  상태를 '실패'나 '발송됨'으로 두면 **빈 배열이 넘어가 모달이 "보낼 대상이 없습니다"**를
+   *  띄웠다 — 바로 위 배너 줄은 "미발송 6건"이라 말한 직후다. 사용자는 기능이 고장난 줄 안다.
+   *  빈 배열이면 날짜 범위로 되돌린다(서버가 완전한 목록을 만든다). 좁히지 못할 뿐,
+   *  **아무 일도 안 일어나는 것보다 낫다** — 모달 안에서 다시 고를 수 있다. */
   const visibleItemsOn = (d: string) =>
     rows.filter(r => r.visitDate === d && r.status === 'unsent' && r.sendable).flatMap(r => r.planItemIds)
 
@@ -419,7 +425,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             <span className={`size-1.5 rounded-full ${n.unsentCount > 0 ? 'bg-[#7b68ee]' : 'bg-[#d0ccf5]'}`} />
             <span className="text-xs text-[#090c1d]">{n.label}</span>
             <span className="text-xs text-[#514b81]">
-              {n.unsentCount > 0 ? <>— 미발송 <b>{n.unsentCount}곳</b> · <b>{n.messageCount}통</b></> : '— 보낼 안내 없음 ✓'}
+              {/* 단위는 **건**(고객+방문일)이다. '곳'이라 쓰면 한 고객이 그 주에 두 번
+                  방문할 때 "2곳"이 되어 거짓이 된다 — 뱃지·위젯도 같은 단위로 맞췄다. */}
+              {n.unsentCount > 0 ? <>— 미발송 <b>{n.unsentCount}건</b> · <b>{n.messageCount}통</b></> : '— 보낼 안내 없음 ✓'}
             </span>
             {n.unsentCount > 0 && canSend && (
               <div className="ml-auto flex items-center gap-1.5">
@@ -432,9 +440,13 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                     날짜만 넘겨 서버가 완전한 목록을 만든다(Q-14). */}
                 <button data-testid="sms-approve" className={btnPri}
                   title={narrowed ? '지금 걸린 지역·담당 범위 안에서만 보냅니다' : undefined}
-                  onClick={() => setModal(narrowed
-                    ? { kind: 'items', planItemIds: visibleItemsOn(n.visitDate), title: `${n.label} — 사전 안내 (현재 필터 범위)` }
-                    : { kind: 'range', from: n.visitDate, to: n.visitDate, title: `${n.label} — 사전 안내` })}>
+                  onClick={() => {
+                    const items = narrowed ? visibleItemsOn(n.visitDate) : []
+                    setModal(items.length > 0
+                      ? { kind: 'items', planItemIds: items, title: `${n.label} — 사전 안내 (현재 필터 범위)` }
+                      // 좁힌 게 없거나, 좁혔는데 화면에 미발송 행이 안 보이는 경우(상태 필터 등)
+                      : { kind: 'range', from: n.visitDate, to: n.visitDate, title: `${n.label} — 사전 안내` })
+                  }}>
                   승인·발송{narrowed ? ' (필터 범위)' : ''}
                 </button>
               </div>
@@ -449,7 +461,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             <span className="size-1.5 rounded-full bg-[#b0acd6]" />
             <span className="text-xs text-[#090c1d]">{periodLabel}</span>
             <span className="text-xs text-[#514b81]">
-              — 안내 시점은 아니지만 미발송 <b>{unsentOutsideNotices.length}곳</b> · <b>{unsentMessages}통</b>
+              — 안내 시점은 아니지만 미발송 <b>{unsentOutsideNotices.length}건</b> · <b>{unsentMessages}통</b>
             </span>
             {canSend && (
               <div className="ml-auto flex items-center gap-1.5">
@@ -485,7 +497,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           <div data-testid="sms-blocked" className="flex items-start gap-2 mt-2 pt-2 border-t border-[#f5f4ff]">
             <AlertTriangle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
             <span className="text-xs text-amber-700">
-              보낼 수 없는 곳 <b>{data.notices.reduce((n, x) => n + (x.blockedCount ?? 0), 0)}곳</b>
+              보낼 수 없는 건 <b>{data.notices.reduce((n, x) => n + (x.blockedCount ?? 0), 0)}건</b>
               {' — '}
               {[...new Set(data.notices.flatMap(n => n.blocked ?? []).map(b => `${b.customerName}(${b.reason})`))]
                 .slice(0, 3).join(', ')}
@@ -505,17 +517,17 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 기간을 과거로 넣어 찾아도 서버가 from을 오늘로 당겨 0건이 뜨고, 화면은 그 사실을
                 말하지 않아 사용자는 "그 기간엔 방문이 없었구나"로 읽는다. 펼쳐 볼 수 있게 한다. */}
             <span className="text-xs text-amber-700">
-              안내 못 하고 지난 방문 <b>{data!.overdue.count}곳</b>
+              안내 못 하고 지난 방문 <b>{data!.overdue.count}건</b>
               {data!.overdue.items.length > 0 && (
                 <> — {data!.overdue.items.slice(0, 3).map(i => `${i.customerName}(${i.visitDate.slice(5)})`).join(', ')}
-                  {data!.overdue.items.length > 3 && ` 외 ${data!.overdue.items.length - 3}곳`}</>
+                  {data!.overdue.items.length > 3 && ` 외 ${data!.overdue.items.length - 3}건`}</>
               )}
               . 문자는 보낼 수 없습니다
             </span>
             {data!.overdue.items.length > 3 && (
               <button data-testid="sms-overdue-expand" className={btn}
                 onClick={() => setOverdueOpen(v => !v)}>
-                {overdueOpen ? '접기' : `전체 ${data!.overdue.items.length}곳 보기`}
+                {overdueOpen ? '접기' : `전체 ${data!.overdue.items.length}건 보기`}
               </button>
             )}
             <Link href="/inspection-plans" className={`${btn} ml-auto inline-flex items-center gap-1`}>
@@ -772,7 +784,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
       {checkedRows.length > 0 && (
         <div className="sticky bottom-4 rounded-2xl border border-[#d0ccf5] bg-white shadow-lg px-4 py-3 flex flex-wrap items-center gap-3">
           <span className="text-xs text-[#514b81]">
-            <b className="text-[#090c1d]">{checkedRows.length}곳</b> 선택 · 수신 {checkedRows.reduce((n, r) => n + r.recipientCount, 0)}명
+            <b className="text-[#090c1d]">{checkedRows.length}건</b> 선택 · 수신 {checkedRows.reduce((n, r) => n + r.recipientCount, 0)}명
           </span>
           {canSend && (
             <button data-testid="sms-send-selected" className={btnPri}

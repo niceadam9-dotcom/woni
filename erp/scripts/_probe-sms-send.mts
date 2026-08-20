@@ -26,11 +26,13 @@ delete process.env.SOLAPI_API_SECRET
 process.env.SMS_MAX_PER_RUN = '200'
 delete process.env.SMS_ALLOWLIST
 delete process.env.SMS_DRY_RUN
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 // @ts-expect-error mjs 헬퍼
 import { raw, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, ensurePlan } from './_e2e-helpers.mjs'
 
 const { createAdminClient } = await import('../src/lib/supabase/admin.ts')
-const { loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards, countUnsentNotices, loadLeadRules } =
+const { loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards, countUnsentNotices, loadLeadRules, loadSmsEpoch, overdueFloor, OVERDUE_WINDOW_DAYS } =
   await import('../src/lib/sms.ts')
 const { todayKst, addDays } = await import('../src/lib/sms-recipients.ts')
 
@@ -92,6 +94,31 @@ try {
     plan_type: 'monthly', scheduled_date: VISIT, status: 'planned',
   }).select('id').single()
   const c1 = (cItem as any).id as string
+
+  console.log('\n— 관계인 임베드 힌트 (145 이후 PGRST201 재발 방지)')
+  {
+    // 마이그레이션 145가 customers.manager_contact_id를 추가한 순간 customers↔customer_contacts
+    // 관계가 둘이 됐고, **힌트 없는 임베드는 전부 PGRST201로 거절**됐다(양방향 실측).
+    // 문자 발송 화면·문의 등록·메일 수신자 후보가 함께 죽었다. 새 코드가 힌트를 빼먹으면
+    // 그 화면만 조용히 비므로 여기서 소스 전체를 훑어 고정한다.
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
+      .flatMap(e => e.isDirectory() ? walk(join(dir, e.name))
+        : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [])
+    // ⚠ 주석을 먼저 걷어낸다 — 이 결함을 설명하는 주석 자체가 `customer_contacts(id)`를 담고 있어
+    //   걷어내지 않으면 **고쳐 놓은 파일이 도로 걸린다**(첫 시도에서 11파일이 그렇게 잡혔다).
+    const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+    const bad = walk('src').filter(f => {
+      const s = strip(readFileSync(f, 'utf8'))
+      // ① customers → customer_contacts. `from('customer_contacts')`는 따옴표가 사이에 있어 안 걸린다
+      if (/customer_contacts\s*\(/.test(s)) return true
+      // ② 역방향은 **그 조회 안에서만** 모호하다. 같은 파일 다른 줄의
+      //    `inspections → customers(customer_name)`는 관계가 하나뿐이라 멀쩡한데,
+      //    파일 단위로 보면 그것까지 잡는다(2파일이 그렇게 걸렸다). 체인 뒤만 본다.
+      return [...s.matchAll(/from\('customer_contacts'\)/g)]
+        .some(m => /(?<!!)\bcustomers\s*\(/.test(s.slice(m.index!, m.index! + 300)))
+    })
+    check('★ src에 힌트 없는 customer_contacts↔customers 임베드가 없다', bad.length === 0, bad.join(', '))
+  }
 
   console.log('\n— loadSmsTargets')
   const targets = await loadSmsTargets(admin, { planItemIds: [a1, a2, b1, c1] })
@@ -219,20 +246,51 @@ try {
     delete process.env.SMS_DRY_RUN
 
     // 동시 경합 — 두 요청이 서로의 sent 행을 아직 못 보는 상황(TOCTOU).
-    // 둘 다 allowResend로 들어가야 ②-b를 지나 ④-b(claim 후 판정)까지 도달한다.
-    await raw.from('sms_send_log').delete().eq('customer_id', cidA)
-    const [r1, r2] = await Promise.all([
-      sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true }),
-      sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true }),
-    ])
-    const raced = [r1, r2].filter(r => /다른 창에서 보내는 중/.test(r.error ?? ''))
-    check('★ 동시에 눌러도 한쪽은 스스로 물러난다(두 탭 이중 발송 차단)',
-      raced.length === 1, JSON.stringify({ r1: r1.error ?? 'ok', r2: r2.error ?? 'ok' }))
-    check('★ 양쪽 다 물러나지 않는다 — 한쪽은 반드시 진행한다(livelock 방지, 판정 D6)',
-      raced.length === 1 && [r1, r2].some(r => !/다른 창에서 보내는 중/.test(r.error ?? '')),
-      JSON.stringify({ r1: r1.error ?? 'ok', r2: r2.error ?? 'ok' }))
-    // 물러난 쪽이 sending으로 남으면 '보냈는지 모름'이 되어 사람이 판단할 수 없다
-    const stuck = (await logsOf(cidA)).filter(r => r.status === 'sending')
+    //
+    // ⚠ 종전엔 `Promise.all`로 sendInspectionSms 둘을 동시에 불러 겹치기를 **기대**했다.
+    //   그런데 자격증명이 없으면 ⑤가 곧바로 claim 행을 failed로 바꾸고 끝나서, 먼저 들어간
+    //   쪽이 **두 번째가 라이벌을 조회하기도 전에 sending을 벗는다**. 그러면 둘 다 이긴다.
+    //   실제로 2026-08-19 같은 코드가 37초 간격으로 ✅ 한 번·❌ 한 번을 냈다 — 기계 상태가
+    //   판정을 좌우했다. 돈이 나가는 가드를 이런 검사에 맡길 수 없다.
+    //
+    //   그래서 상대를 **행으로 고정**한다: 'sending'인 라이벌 행을 직접 심어 두고,
+    //   우리 요청의 claim이 그보다 늦은지/이른지로 양쪽 분기를 결정적으로 태운다.
+    const phonesA = ['01011112222', '01033334444']   // cidA의 수신 대상 2명(위 시드)
+    const plantRivals = async (createdAt: string) => {
+      await raw.from('sms_send_log').delete().eq('customer_id', cidA)
+      const { data, error } = await raw.from('sms_send_log').insert(
+        phonesA.map(p => ({
+          kind: 'pre_visit', customer_id: cidA, plan_item_ids: [a1], visit_date: VISIT,
+          to_phone: p, content: 'rival', status: 'sending', sent_by: userId, created_at: createdAt,
+        }))).select('id, created_at')
+      if (error) throw new Error(`라이벌 행 심기 실패: ${error.message}`)
+      // created_at을 못 쓰면(기본값이 덮으면) 이 검사는 순서를 못 만든다 — 조용히 통과시키지 않는다
+      check('전제: 라이벌 행의 created_at을 지정할 수 있다',
+        (data ?? []).every((r: any) => r.created_at.slice(0, 19) === createdAt.slice(0, 19)),
+        JSON.stringify((data ?? []).map((r: any) => r.created_at)))
+      return (data ?? []).map((r: any) => r.id as string)
+    }
+
+    // ① 상대가 **먼저** 시작한 경우 — 우리가 물러나야 한다
+    const earlier = await plantRivals(new Date(Date.now() - 5_000).toISOString())
+    const r1 = await sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true })
+    check('★ 먼저 시작한 창이 있으면 스스로 물러난다(두 탭 이중 발송 차단)',
+      !r1.ok && /다른 창에서 보내는 중/.test(r1.error ?? ''), r1.error ?? 'ok')
+    check('★ 물러나도 라이벌 행은 건드리지 않는다(승자의 발송을 지우지 않는다)',
+      (await logsOf(cidA)).filter(r => earlier.includes(r.id)).length === earlier.length)
+
+    // ② 상대가 **나중에** 시작한 경우 — 우리가 진행해야 한다(둘 다 물러나면 아무도 못 보낸다)
+    await plantRivals(new Date(Date.now() + 5_000).toISOString())
+    const r2 = await sendInspectionSms(admin, { targets: oneTarget, actorId: userId, allowResend: true })
+    check('★ 상대가 나중에 시작했으면 우리가 진행한다(livelock 방지, 판정 D6)',
+      !/다른 창에서 보내는 중/.test(r2.error ?? ''), r2.error ?? 'ok')
+    check('진행한 쪽은 발송 단계까지 도달한다(자격증명 없음으로 끝남)',
+      /자격증명/.test(r2.error ?? ''), r2.error ?? 'ok')
+
+    // 물러난 쪽이 sending으로 남으면 '보냈는지 모름'이 되어 사람이 판단할 수 없다.
+    // 심어 둔 라이벌은 우리가 만든 게 아니므로 세지 않는다(그건 '다른 창'의 몫이다).
+    const planted = new Set([...earlier, ...(await logsOf(cidA)).filter(r => r.content === 'rival').map(r => r.id)])
+    const stuck = (await logsOf(cidA)).filter(r => r.status === 'sending' && !planted.has(r.id))
     check('물러난 쪽이 sending으로 방치되지 않는다', stuck.length === 0, String(stuck.length))
     // ★ 판정 D5 — 물러난 쪽이 failed 행을 남기면, 목록 우선순위가 failed > sent라
     //   **승자가 실제로 보낸 그 건이 화면에 '실패'로 표시**되고 재발송을 유도한다.
@@ -360,6 +418,47 @@ try {
     const p3 = await loadSentPairs(admin, today, addDays(today, 14))
     check('failed는 이미 보냄이 아니다(재시도할 수 있어야 한다)', !p3.has(`${cidA}|${d4}`))
     await raw.from('sms_send_log').delete().eq('customer_id', cidA).in('visit_date', [d2, d3, d4])
+  }
+
+  console.log('\n— 시기 지남 하한 (기능 도입 전 방문까지 세지 않는가)')
+  {
+    // 하한이 없으면 **기능을 켠 날 한 달치 방문이 전부 '안내 못 함'으로 뜬다**.
+    // 수백 건짜리 빨간 경고는 읽히지 않고, 진짜로 놓친 한 건을 그 속에 묻는다.
+    // 종전 단언은 `overdueCount > 0`이라는 하한뿐이라 1이든 300이든 통과했다.
+    // ⚠ 실 이력을 지웠다 되돌리는 방식은 쓰지 않는다 — 공유 스테이징에서 스크립트가 중간에
+    //   죽으면 발송 이력이 통째로 사라진다. 검증 때문에 실데이터를 위험에 두면 안 된다.
+    //   대신 조회 결과만 갈아끼워 **경계 동작**을 본다.
+    const epoch = await loadSmsEpoch(admin)
+    check('발송 이력이 있으면 그 날짜가 기준이 된다(없으면 null)',
+      epoch === null || /^\d{4}-\d{2}-\d{2}$/.test(epoch), String(epoch))
+
+    const stub = (row: unknown): any => {
+      const chain: any = new Proxy({}, {
+        get: (_t, p) => p === 'then'
+          ? (res: (v: unknown) => void) => res({ data: row, error: null })
+          : () => chain,
+      })
+      return { from: () => chain }
+    }
+    check('★ 이력이 하나도 없으면 기준일이 null이다(도입 전 방문을 놓친 것으로 세지 않는다)',
+      (await loadSmsEpoch(stub(null))) === null)
+    check('첫 이력 날짜가 그대로 기준일이 된다',
+      (await loadSmsEpoch(stub({ created_at: '2026-08-19T08:41:11.000Z' }))) === '2026-08-19')
+    // 하한이 실제로 걸리는지 — 창(오늘-30)과 기준일 중 **늦은 쪽**이어야 한다.
+    // ⚠ 종전 단언은 `today > win`뿐이라 **하한 함수를 한 번도 부르지 않고** 통과했다.
+    //   날짜 산술의 자명한 성질을 확인했을 뿐, 하한이 사라져도 초록불이었다(가짜 양성).
+    const win = addDays(today, -OVERDUE_WINDOW_DAYS)
+    check('★ 기준일이 창보다 늦으면 기준일이 하한이다(도입 당일 한 달치가 뜨지 않는다)',
+      overdueFloor(win, addDays(today, -3)) === addDays(today, -3),
+      overdueFloor(win, addDays(today, -3)))
+    check('기준일이 창보다 이르면 창이 하한이다(몇 달 전 건까지 띄우지 않는다)',
+      overdueFloor(win, addDays(today, -400)) === win, overdueFloor(win, addDays(today, -400)))
+    check('이력이 없으면 하한이 오늘이다(과거 구간 자체가 없어진다)',
+      overdueFloor(win, null) === today, overdueFloor(win, null))
+    // 뱃지와 배너가 **같은 함수**를 쓰는가 — 각자 계산하면 두 화면이 다른 수를 말한다
+    check('★ 배너(listSmsStatusAction)가 하한을 따로 계산하지 않는다',
+      /overdueFloor\(addDays\(today, -OVERDUE_WINDOW_DAYS\), await loadSmsEpoch\(admin\)\)/
+        .test(readFileSync('src/app/(dashboard)/inspections/sms-actions.ts', 'utf8')))
   }
 
   console.log('\n— recipientOverride: 뺀 사람에게 가지 않는가 (3차 판정 — 미검증 1순위)')

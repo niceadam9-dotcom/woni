@@ -16,13 +16,16 @@ export default async function InquiryNewPage({
   const params = await searchParams
   const admin = createAdminClient()
 
+  // customer_contacts에 붙은 `!customer_id`는 지워도 되는 장식이 아니다 — 145가
+  // customers.manager_contact_id를 추가해 두 테이블 사이 관계가 둘이 됐고, 힌트가 없으면
+  // PostgREST가 PGRST201로 거절한다. 그러면 이 화면의 고객 목록이 통째로 빈다.
   const { data: customers } = await admin
     .from('customers')
     .select(`
       id, customer_name, customer_code,
       zipcode, address, region_si, region_myeon, region_ri,
       assigned_employee:assigned_employee_id ( name ),
-      customer_contacts ( role, name, phone )
+      customer_contacts!customer_id ( role, name, phone )
     `)
     .eq('is_active', true)
     .order('customer_name')

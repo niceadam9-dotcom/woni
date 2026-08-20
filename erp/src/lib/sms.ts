@@ -34,6 +34,29 @@ export const OVERDUE_WINDOW_DAYS = 30
  *  짧으면 느린 요청이 서로를 못 보고, 길면 정상 재발송이 경합으로 오인된다. */
 const CONCURRENT_WINDOW_MS = 120_000
 
+/** '시기 지남'을 거슬러 볼 **하한 날짜**: 창(오늘-30)과 기능 도입일(epoch) 중 늦은 쪽.
+ *
+ *  `epoch`가 null이면(=아직 한 번도 안 보냄) **오늘**을 준다 — 과거 구간이 아예 없어져
+ *  '시기 지남'이 0이 된다. 기능을 쓴 적이 없으면 놓친 것도 없다.
+ *
+ *  ⚠ 뱃지(countUnsentNotices)와 배너(listSmsStatusAction)가 **이 함수 하나**를 쓴다.
+ *  각자 계산하면 주석엔 '같은 규칙'이라 써 놓고 수가 갈린다 — 사용자는 어느 쪽을 믿을지 모른다. */
+export function overdueFloor(windowFrom: string, epoch: string | null): string {
+  if (!epoch) return todayKst()
+  return windowFrom > epoch ? windowFrom : epoch
+}
+
+/** 고객 → 관계인 임베드.
+ *
+ *  ⚠ `!customer_id` 힌트가 **반드시** 있어야 한다. 마이그레이션 145가
+ *  `customers.manager_contact_id → customer_contacts(id)`를 만들면서 두 테이블 사이 관계가
+ *  둘이 됐고, 힌트 없는 임베드는 PostgREST가 `PGRST201`로 **거절**한다(추측 아닌 실측).
+ *  그 순간 발송 대상 조회가 통째로 throw해서 문자 발송 화면이 열리지 않는다.
+ *
+ *  상수로 묶어 두는 이유: 같은 임베드를 쓰는 곳이 둘(대상 목록·임의 발송 1건)인데
+ *  한쪽만 고치면 나머지가 조용히 남는다 — 실제로 145 적용 직후 두 곳이 함께 깨졌다. */
+const CONTACTS_EMBED = 'customer_contacts!customer_id ( id, role, name, phone, sms_recipient )'
+
 // ── 안전장치 ──────────────────────────────────────────────────
 /** 문자는 되돌릴 수 없고 돈이 나간다. 세 겹으로 막는다. */
 export function smsGuards() {
@@ -99,7 +122,7 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
         profiles:assigned_employee_id ( name ),
         customers:customer_id (
           id, customer_name, is_active, address, region_si, region_myeon, region_ri,
-          customer_contacts ( id, role, name, phone, sms_recipient )
+          ${CONTACTS_EMBED}
         )
       `)
       .not('scheduled_date', 'is', null)
@@ -188,7 +211,7 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
 export async function loadAdhocTarget(admin: Admin, customerId: string, visitDate: string): Promise<SmsTarget | null> {
   const { data, error } = await admin
     .from('customers')
-    .select('id, customer_name, is_active, address, region_si, region_myeon, region_ri, customer_contacts ( id, role, name, phone, sms_recipient )')
+    .select(`id, customer_name, is_active, address, region_si, region_myeon, region_ri, ${CONTACTS_EMBED}`)
     .eq('id', customerId).maybeSingle()
   // 조회 실패를 null로 뭉개면 화면에 "고객을 찾을 수 없습니다"가 떠 원인을 엉뚱한 곳에서 찾게 된다
   if (error) throw new Error(`고객 정보를 불러오지 못했습니다: ${error.message}`)
@@ -732,6 +755,23 @@ export async function loadLeadRules(admin: Admin): Promise<number[]> {
   return validateLeadRules((data as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1]).rules
 }
 
+/** '시기 지남'을 어디까지 거슬러 볼 것인가의 **하한**.
+ *
+ *  ⚠ 하한이 없으면 **기능을 켠 날 한 달치 방문이 전부 '안내 못 하고 지난 방문'으로 뜬다**.
+ *  그 건들은 사전 안내라는 기능이 없던 시절의 방문이라 안내를 '놓친' 것이 아니다.
+ *  수백 건짜리 빨간 경고는 읽히지 않고, 진짜로 놓친 한 건을 그 속에 묻는다.
+ *
+ *  기준은 **첫 발송 이력**이다 — 이 기능을 실제로 쓰기 시작한 시점이고, 자체 조정된다.
+ *  이력이 하나도 없으면 아직 한 번도 안 썼다는 뜻이므로 '놓친 방문'도 성립하지 않는다(null).
+ *  상수로 날짜를 박으면 스테이징·운영이 갈리고 시간이 지나면 아무도 못 고친다. */
+export async function loadSmsEpoch(admin: Admin): Promise<string | null> {
+  const { data, error } = await admin.from('sms_send_log')
+    .select('created_at').order('created_at', { ascending: true }).limit(1).maybeSingle()
+  if (error) throw new Error(`발송 이력 시작일을 불러오지 못했습니다: ${error.message}`)
+  const at = (data as { created_at?: string } | null)?.created_at
+  return at ? at.slice(0, 10) : null
+}
+
 /** 지금 보내야 할 안내가 몇 곳인가 — 사이드바 뱃지·대시보드 위젯이 함께 쓴다 (S9-5).
  *
  *  뱃지가 배너와 다른 수를 보여주면 사용자는 어느 쪽을 믿을지 모른다.
@@ -754,7 +794,10 @@ export async function countUnsentNotices(admin: Admin): Promise<{
   // ★ 지난 방문일도 함께 싣는다(includePast) — 종전에는 from을 today로 clamp해서
   //   overdue가 **구조적으로 항상 0**이었고 '시기 지남' 줄이 렌더될 수 없었다.
   //   OVERDUE_WINDOW만 거슬러 본다: 몇 달 전 건까지 계속 띄우면 경고가 소음이 된다.
-  const from = addDays(today, -OVERDUE_WINDOW_DAYS)
+  //   그리고 **기능을 쓰기 시작한 날**보다 앞으로는 가지 않는다(loadSmsEpoch) —
+  //   그 전 방문은 안내를 '놓친' 것이 아니라 안내라는 기능이 없던 시절의 방문이다.
+  const epoch = await loadSmsEpoch(admin)
+  const from = overdueFloor(addDays(today, -OVERDUE_WINDOW_DAYS), epoch)
   const targets = await loadSmsTargets(admin, { from, to, includePast: true })
   // noPhone도 함께 넘긴다 — 안 넘기면 번호 없는 고객이 뱃지·위젯에서 통째로 빠져
   // "보낼 안내가 없습니다 ✓"가 된다(resolvePendingNotices blockedCount 주석)

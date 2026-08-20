@@ -21,7 +21,9 @@ export default async function MailComposePage({
 
   // 수신자 자동완성 후보 — 고객 관계인 + 직원 (이메일 보유자)
   const [contactsRes, profilesRes] = await Promise.all([
-    admin.from('customer_contacts').select('name, email, customer:customers(customer_name)')
+    // `!customer_id`는 장식이 아니다 — 145가 customers.manager_contact_id를 만들면서 두 테이블
+    // 사이 관계가 둘이 됐고, 힌트가 없으면 PostgREST가 PGRST201로 거절해 수신자 후보가 통째로 빈다.
+    admin.from('customer_contacts').select('name, email, customer:customers!customer_id(customer_name)')
       .not('email', 'is', null).limit(300),
     admin.from('profiles').select('name, email').eq('is_active', true).not('email', 'is', null).limit(100),
   ])

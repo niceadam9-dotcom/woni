@@ -13,6 +13,13 @@
  */
 import { config } from 'dotenv'
 config({ path: '.env.local' })
+// ⚠ dryRun은 claim보다 **앞에서** 반환한다(sms.ts ②) — 켜져 있으면 이 프로브가 재려는 구간에
+//   도달조차 못 하고 전부 'dry_run'으로 끝난다. 실제로 .env.local에 SMS_DRY_RUN=1이 들어오면서
+//   test:all에서 4체크가 죽었다(2026-08-19). 이 프로브는 solapi 호출을 가짜 응답으로 가로채므로
+//   꺼도 외부로 나가는 것이 없다 — 여기서만 해제한다(파일은 건드리지 않는다).
+delete process.env.SMS_DRY_RUN
+// 허용목록도 비운다 — 목록 밖 번호는 skip돼 claim 자체가 안 일어난다
+delete process.env.SMS_ALLOWLIST
 // @ts-expect-error mjs 헬퍼
 import { raw, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, ensurePlan } from './_e2e-helpers.mjs'
 

@@ -6,7 +6,7 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import {
   loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards,
-  loadLeadRules, countUnsentNotices, OVERDUE_WINDOW_DAYS,
+  loadLeadRules, countUnsentNotices, loadSmsEpoch, overdueFloor, OVERDUE_WINDOW_DAYS,
 } from '@/lib/sms'
 import {
   groupTargets, resolvePendingNotices, validateLeadRules,
@@ -434,7 +434,10 @@ export async function listSmsStatusAction(filters: {
     // 이 셋 다 이제 throw한다 — 안 감싸면 data가 null로 남아 목록이
     // "이 조건에 해당하는 건이 없습니다"가 된다(그 throw가 막으려던 조용한 초록불 그대로)
     rules = await loadLeadRules(admin)
-    bannerFrom = addDays(today, -OVERDUE_WINDOW_DAYS)
+    // '시기 지남'은 **기능을 쓰기 시작한 날**보다 앞으로 가지 않는다 —
+    // 하한이 없으면 도입 당일 한 달치 방문이 전부 '안내 못 함'으로 뜬다.
+    // 뱃지(countUnsentNotices)와 **같은 함수**를 쓴다 — 따로 계산하면 두 곳이 다른 수를 말한다.
+    bannerFrom = overdueFloor(addDays(today, -OVERDUE_WINDOW_DAYS), await loadSmsEpoch(admin))
     bannerTo = addDays(today, Math.max(...rules, 1))
     sentPairs = await loadSentPairs(admin, bannerFrom, bannerTo)
     wide = await loadSmsTargets(admin, { from: bannerFrom, to: bannerTo, includePast: true })

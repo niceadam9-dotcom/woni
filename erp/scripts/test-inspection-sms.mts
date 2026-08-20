@@ -522,7 +522,8 @@ async function main() {
     await page.waitForSelector('[data-testid="sms-notice"]')
     // 배너가 세는 미발송 곳 수 — 뱃지·위젯이 이 수와 같아야 한다(같은 함수로 세므로)
     const bannerUnsent = (await page.locator('[data-testid="sms-notice"]').allInnerTexts())
-      .map(t => /미발송 (\d+)곳/.exec(t)?.[1]).filter(Boolean).reduce((n, v) => n + Number(v), 0)
+      // 단위는 '건'(고객+방문일)이다 — '곳'은 한 고객이 두 번 방문할 때 거짓이 되어 바꿨다
+      .map(t => /미발송 (\d+)건/.exec(t)?.[1]).filter(Boolean).reduce((n, v) => n + Number(v), 0)
     check('배너에 미발송이 잡혀 있다(뱃지 비교의 전제)', bannerUnsent > 0, String(bannerUnsent))
 
     // 뱃지는 **마운트 후 클라이언트에서** 채워진다(렌더 경로에서 뺐기 때문 — 실측 497ms).
@@ -535,7 +536,7 @@ async function main() {
     // 뱃지는 '보낼 것' + '보낼 수 **없는** 것'을 함께 센다. 후자를 빼면 번호 없는 고객만
     // 골라 뱃지에서 지우는 셈이라, 내일 방문 전부가 번호 없음인 날 뱃지가 사라진다.
     const bannerBlocked = Number(
-      /보낼 수 없는 곳 (\d+)곳/.exec(await page.locator('[data-testid="sms-banner"], body').first().innerText())?.[1] ?? 0)
+      /보낼 수 없는 건 (\d+)건/.exec(await page.locator('[data-testid="sms-banner"], body').first().innerText())?.[1] ?? 0)
     check('★ 뱃지 수 = 배너의 (미발송 + 보낼 수 없음) — 두 곳이 다르면 어느 쪽을 믿을지 모른다',
       (await badge.innerText()).trim() === String(bannerUnsent + bannerBlocked),
       `뱃지 ${await badge.innerText()} vs 배너 미발송 ${bannerUnsent} + 보낼수없음 ${bannerBlocked}`)
@@ -545,7 +546,16 @@ async function main() {
     await widget.waitFor({ timeout: 30000 })
     check('★ 대시보드 위젯이 그려진다', await widget.count() === 1)
     const wText = await widget.innerText()
-    check('위젯 수도 배너와 일치', new RegExp(`${bannerUnsent}곳`).test(wText), wText.replace(/\n/g, ' '))
+    // ★ 부분 문자열이 아니라 **두 축을 각각** 본다 — 종전엔 `${bannerUnsent}곳` 포함 여부만 봐서
+    //   뱃지≠위젯이어도 둘 다 통과했다(3차 판정 지적). 세 화면이 같은 값을 말해야 한다.
+    const wUnsent = Number(/보낼 사전 안내 (\d+)건/.exec(wText)?.[1] ?? -1)
+    const wBlocked = Number(/보낼 수 없음 (\d+)건/.exec(wText)?.[1] ?? 0)
+    check('★ 위젯 = 배너 (미발송·보낼수없음 각각 일치)',
+      wUnsent === bannerUnsent && wBlocked === bannerBlocked,
+      `위젯 ${wUnsent}/${wBlocked} vs 배너 ${bannerUnsent}/${bannerBlocked} · ${wText.replace(/\n/g, ' ')}`)
+    check('★ 위젯 합계 = 뱃지 수(세 화면이 같은 단위로 센다)',
+      wUnsent + wBlocked === Number((await badge.innerText()).trim()),
+      `위젯합 ${wUnsent + wBlocked} vs 뱃지 ${await badge.innerText()}`)
     check('위젯이 문자 발송 화면으로 잇는다',
       (await widget.getAttribute('href')) === '/inspections/sms', await widget.getAttribute('href') ?? '')
 
