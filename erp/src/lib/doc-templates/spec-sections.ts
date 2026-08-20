@@ -54,9 +54,21 @@ function sel(v: unknown, opt: string): string {
 function mc(v: unknown, opt: string): string {
   return cb(Array.isArray(v) && v.map(String).includes(opt))
 }
-/** 블록에 입력값이 하나라도 있는가 — 서식 행 머리 [ ] 체크 근거 */
+/** 행 머리 [ ]에 √를 찍을 근거로 '이 설비가 설치됨'을 표시하는 렌더 전용 마커.
+ *  저장되지 않는다 — renderSpecSections가 인쇄 직전에 사본에만 얹는다. */
+const INSTALLED_MARK = '__installed'
+
+/** 서식 행 머리 [ ] 체크 근거.
+ *
+ *  서식 원문 지시는 **설치 여부**다 — 별지 9호 4쪽 비고 2·9쪽 작성방법:
+ *  "[ ]에는 해당 시설에 √표를 하고, 세부 현황 및 설치된 수량을 기입합니다."
+ *  √가 먼저고 기입이 다음인데, 종전엔 '세부현황에 값이 있는가'만 봐서 순서가 뒤집혀 있었다.
+ *  그 결과 대장에 설치(√)한 화재알림설비·가스누설경보기가 3쪽 1절엔 [√], 6쪽 3-5엔 [ ]로
+ *  **한 문서 안에서 모순**되게 인쇄됐다(2026-08-20). 이제 설치 마커도 근거로 본다.
+ *  (마커 키 자체는 값으로 세지 않는다 — has()가 true를 값으로 칠 수 있어 명시 분기한다.) */
 function blockHas(b: Vals): boolean {
-  return Object.values(b).some(has)
+  if (b[INSTALLED_MARK] === true) return true
+  return Object.entries(b).some(([k, v]) => k !== INSTALLED_MARK && has(v))
 }
 function blk(sec: Vals, key: string): Vals {
   return (sec[key] ?? {}) as Vals
@@ -498,13 +510,36 @@ const RENDERERS: Record<string, (sec: Vals, h: boolean) => string> = {
   s38_activity: renderS38,
 }
 
+/** 블록별 '설치됨' 마커를 사본에 얹는다 — 판정 근거는 카탈로그의 facilityHint 하나뿐이다.
+ *  installed가 없으면(구 호출·프로브) 아무것도 얹지 않아 종전 출력과 동일하다. */
+function withInstalledMarks(sectionKey: string, vals: Vals, ctx?: DerivedCtx): Vals {
+  const inst = ctx?.installed
+  if (!inst) return vals
+  const set = inst instanceof Set ? inst : new Set(inst)
+  if (set.size === 0) return vals
+  const blocks = FACILITY_SPEC_SECTIONS.find(s => s.key === sectionKey)?.blocks ?? []
+  let out: Vals | null = null
+  for (const bl of blocks) {
+    if (!bl.facilityHint) continue
+    const hit = bl.facilityHint.split(',').map(c => c.trim()).filter(Boolean).some(c => set.has(c))
+    if (!hit) continue
+    out ??= { ...vals }
+    out[bl.key] = { ...((vals[bl.key] ?? {}) as Vals), [INSTALLED_MARK]: true }
+  }
+  return out ?? vals
+}
+
 /** 세부현황 3-1~3-8 섹션 HTML 배열 — 카탈로그 순서·라벨 기준, 쪽 묶음은 호출부(템플릿)가 결정 */
 export function renderSpecSections(specs: SpecMap, opts: SpecRenderOpts = {}): string[] {
   const h = !!opts.highlight
   return FACILITY_SPEC_SECTIONS.map((s, i) => {
     const no = opts.numbering === 'annex4' ? `${i + 1}.` : `${s.no}.`
     const raw = (specs[s.key] ?? {}) as Vals
-    const vals = opts.derived ? applyDerived(s.key, raw, opts.derived) as Vals : raw
+    const derivedVals = opts.derived ? applyDerived(s.key, raw, opts.derived) as Vals : raw
+    // 설치(√) 마커 주입 — 블록의 facilityHint(표준 42종 코드, 복수는 쉼표)가 1.4 대장의 설치 목록과
+    // 겹치면 그 블록은 '해당 시설'이다. 저장분을 건드리지 않도록 사본에만 얹는다.
+    // hint가 없는 블록(3-2 수계 공통 등)은 특정 설비에 매이지 않으므로 종전대로 입력값만 본다.
+    const vals = withInstalledMarks(s.key, derivedVals, opts.derived)
     const body = RENDERERS[s.key]?.(vals, h) ?? ''
     return `<div class="sec-title"> ${no} ${esc(s.label)}</div>\n${body}`
   })
