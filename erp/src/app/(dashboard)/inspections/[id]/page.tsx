@@ -21,6 +21,7 @@ import { type TimelineData } from '@/components/inspections/inspection-timeline-
 import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
 import { stepDocs } from '@/lib/doc-requirements'
 import { CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections, isCertFileName } from '@/lib/doc-status'
+import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 
 /** ② 종이 보관 기록의 최신 1건 — 화면에 '언제·어디' 를 보여주기 위한 조회(판정은 마커 존재 여부로 이미 끝난다) */
 async function loadCertPaperRecord(
@@ -264,7 +265,7 @@ export default async function InspectionDetailPage({
     ]
     report9Job = (jobResExt.data?.[0] as Report9Job | undefined) ?? null
     report9Files = (filesResExt.data ?? [])
-      .filter(o => /^exterior_/.test(o.name))
+      .filter(o => EXTERIOR_DOC_FILE_RE.test(o.name))
       .map(o => ({ name: o.name, path: `${inspection.customer_id}/inspections/${id}/${o.name}`, createdAt: o.created_at ?? null }))
 
     // C1(소방계획서_21 R5-2): 월간 외관점검 건도 타임라인으로 — 종전 2열 체크리스트(InspectionDetailClient)를
@@ -351,7 +352,9 @@ export default async function InspectionDetailPage({
     const storagePrefix = `${inspection.customer_id}/inspections/${id}`
     const allObjects = (filesRes9.data ?? [])
     report9Files = allObjects
-      .filter(o => /^report(9|10|11)_/.test(o.name))
+      // 필터는 lib/generated-docs 한 곳 — 종전엔 여기만 report9·10·11이라 위임장·공문·표지가
+      // 만들면 보였다가 새로고침하면 사라졌다(생성 직후 갱신은 넓은 필터를 쓴다)
+      .filter(o => INSPECTION_DOC_FILE_RE.test(o.name))
       .map(o => ({ name: o.name, path: `${storagePrefix}/${o.name}`, createdAt: o.created_at ?? null }))
 
     // 타임라인 데이터 (§9-9) — 기한: ④ 점검 종료+15일 / ⑥ 이행기간 종료일(max action_end)

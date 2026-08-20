@@ -4,9 +4,22 @@
  *  렌더는 components/inspections/generated-doc-list, 회귀 고정은 scripts/_probe-doc-order.mts.
  *  (컴포넌트 안에 두면 프로브가 lucide·React까지 끌어와야 해서 검증이 안 된다 — 순수 로직만 여기.) */
 
-import { GENERATED_DOC_KINDS, generatedDocRank } from '@/lib/doc-requirements'
+import { GENERATED_DOC_KINDS, GENERATED_DOC_ORDER, generatedDocRank } from '@/lib/doc-requirements'
 
 export type GeneratedDocFile = { name: string; path: string; createdAt: string | null }
+
+/* ── 점검 폴더에서 '생성물'로 볼 파일 (2026-08-20) ────────────────────────────
+ *  같은 목록의 필터가 두 벌이었고 서로 달랐다:
+ *    · 생성 직후 갱신(getReport9StatusAction) — report4·9·10·11 + 표지·공문·위임장
+ *    · 페이지 최초 렌더(inspections/[id]/page.tsx) — report9·10·11 뿐
+ *  그래서 위임장·공문·표지는 **만들면 보였다가 새로고침하면 사라졌다**. 여기 하나로 모은다.
+ *  ⚠ 업로드 슬롯(cert_*·계약서)은 여기 들어오면 안 된다 — 그 둘은 각자의 자리에서 다룬다.
+ *  ⚠ 소방계획서(fire_plan)는 고객 단위 문서라 점검 폴더에 없다 — 그래서 제외다. */
+const INSPECTION_DOC_KINDS = GENERATED_DOC_ORDER.filter(k => k !== 'fire_plan' && k !== 'exterior')
+/** 자체점검 건의 생성물 파일명 — {종류}_{타임스탬프}.{확장자} */
+export const INSPECTION_DOC_FILE_RE = new RegExp(`^(${INSPECTION_DOC_KINDS.join('|')})_\\d+\\.`)
+/** 월간 외관점검 건은 외관점검표만 쌓인다 */
+export const EXTERIOR_DOC_FILE_RE = /^exterior_\d+\./
 
 export type DocGroup = {
   key: string            // kind_stamp

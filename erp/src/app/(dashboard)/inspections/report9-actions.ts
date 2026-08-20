@@ -27,6 +27,7 @@ import type { DocAsset } from '@/lib/doc-templates/base'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { trainingDoneIn, type TrainingRecordLike } from '@/lib/training-records'
+import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
@@ -1126,7 +1127,9 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
   // 22 S5·S7 — 표지·공문도 문서 목록에 잡혀야 재생성·다운로드 동선이 성립한다
   const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation'] : ['exterior']
-  const filePattern = isSpecial ? /^(report(4|9|10|11)|cover|official|delegation)_/ : /^exterior_/
+  // 필터는 lib/generated-docs 한 곳 — 페이지 최초 렌더와 이 갱신이 서로 다른 규칙을 쓰면
+  // 문서가 만들면 보였다가 새로고침하면 사라진다(2026-08-20 실측 결함)
+  const filePattern = isSpecial ? INSPECTION_DOC_FILE_RE : EXTERIOR_DOC_FILE_RE
 
   const { data: jobs } = await admin.from('fire_plan_gen_jobs')
     .select('id, status, missing, error, created_at')
