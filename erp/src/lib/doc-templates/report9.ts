@@ -395,16 +395,15 @@ export function facilityResultSection(
     (((d.specs?.['s36_evac'] as Record<string, unknown> | undefined)?.['evac_equipment'] as
       Record<string, unknown> | undefined)?.['types'] as string[] | undefined) ?? [],
   )
-  // 2026-08-20 — 하위 항목의 미해당 표기는 체크박스 안에 [/]로 넣는다.
-  //   서식 원문(별지9호 hwpx section0.xml)에서 소화기구·피난기구의 하위 줄은 **해당설비 칸 하나 안의
-  //   문단**이고, 그 옆 점검결과 칸은 부모와 공유하는 한 칸뿐이다(소화기구 colAddr 2/rowAddr 4 rowSpan 1,
-  //   피난기구 colAddr 4/rowAddr 4). 즉 하위 줄에는 /를 찍을 칸이 아예 없다.
-  //   표 괘선을 새로 긋는 대신, 서식이 이미 가진 [ ] 칸에 서식 자체의 어휘(/)를 넣어 해당없음을 보인다.
-  //   부모 체크박스는 종전대로 √ 또는 빈칸 — 부모의 해당없음은 자기 점검결과 칸이 /로 말한다.
-  const ckSub = (on: boolean) => (on ? ck(true) : '[/]')
-  const grp = (i: number) => ckSub(EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t)))
+  // 2026-08-20(정정) — 하위 항목의 미해당은 **빈 체크박스**로 둔다(사용자 지시).
+  //   잠시 이 자리에 [/]를 찍었으나, '/'는 점검결과 칸의 어휘(양호○·불량×·해당없음/)이지
+  //   체크박스 어휘가 아니다. 서식 원문에서도 하위 줄은 부모와 똑같은 [ ] 칸이다
+  //   (_form/_별지4호_현행판_추출.txt:23-37) — 원문에 없는 표기를 만들어 넣은 셈이었다.
+  //   하위 줄에 자기 점검결과 칸이 없는 것은 사실이지만(부모와 한 칸을 공유), 그렇다고 체크박스를
+  //   결과칸 대용으로 쓰지는 않는다. 해당없음은 부모의 점검결과 칸 '/'가 말한다.
+  const grp = (i: number) => ck(EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t)))
   const fireExt: P3Item = {
-    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[0]))}소화기구(소화기, 자확, 간이)<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[1]))}주거용주방자동소화장치<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[2]))}상업용주방자동소화장치<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[3]))}캐비닛형자동소화장치<br>  ${ckSub(ledger.has(FIRE_SUB_ITEMS[4]))}가스ㆍ분말ㆍ고체자동소화장치`,
+    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[0]))}소화기구(소화기, 자확, 간이)<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[1]))}주거용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[2]))}상업용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[3]))}캐비닛형자동소화장치<br>  ${ck(ledger.has(FIRE_SUB_ITEMS[4]))}가스ㆍ분말ㆍ고체자동소화장치`,
     mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
   }
   const escapeEquip: P3Item = {
