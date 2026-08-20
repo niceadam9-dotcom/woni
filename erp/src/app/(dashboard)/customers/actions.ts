@@ -49,6 +49,9 @@ export type CreateCustomerInput = {
   building_floors_above?: number
   building_floors_below?: number
   building_year_built?: number
+  /** 소방안전관리등급 = customers.building_grade (별표4 **대상물** 급수).
+   *  선택 입력 — 2·3급은 설비 설치 여부로 갈리는데 등록 시점엔 설비 대장이 없다(2026-08-20 확정). */
+  building_grade?: string
   // 092: 법정동코드·지번주소 (건축물대장 재조회 원클릭화 — 탭개편 설계 §5-A-5)
   building_bcode?: string
   building_address_jibun?: string
@@ -99,6 +102,12 @@ export async function createCustomerAction(
     return { error: '일반관리 고객도 점검 종류(종합/작동)를 선택해주세요.' }
   }
 
+  // 소방안전관리등급 — 미선택은 허용(선택 입력), 값이 왔다면 규약 안이어야 한다.
+  // 별지 9호 2쪽 체크는 화이트리스트로 거르므로, 규약 밖 값이 들어오면 조용히 공란으로 인쇄될 뿐이다 — 저장 때 막는다.
+  if (input.building_grade && !['특급', '1급', '2급', '3급'].includes(input.building_grade)) {
+    return { error: '소방안전관리등급 값을 확인해주세요.' }
+  }
+
   // 건물 숫자 필드 검증 (IMP-10) — 음수/비상식 값 차단
   const nowYear = new Date().getFullYear()
   const numErr = validateBuildingNumbers({
@@ -134,6 +143,8 @@ export async function createCustomerAction(
     address: input.address || null,
     notes: input.notes || null,
     assigned_employee_id: input.assigned_employee_id || null,
+    // 소방안전관리등급(별표4 대상물 급수) — 선택 입력이라 미선택은 null (등록을 막지 않는다)
+    building_grade: input.building_grade || null,
     created_by: profile.id,
   }
 

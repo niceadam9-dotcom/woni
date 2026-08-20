@@ -36,7 +36,9 @@ export const DEFAULT_TEMPLATES: Record<TemplateKey, MessageTemplate> = {
       '',
       '{회사명} 드림',
     ].join('\n'),
-    attachmentName: '{고객명}_자체점검결과보고서',
+    // 별지 9호 저장명 규약과 같은 문구 (마이그레이션 144) — 화면 내려받기는 lib/annex-filename이 만든다.
+    // 여기 {연도}는 **점검 연도**라, 해를 넘겨 재생성한 문서를 보내면 내려받기 이름(생성일 연도)과 한 해 갈릴 수 있다.
+    attachmentName: '{연도}_소방시설등 자체점검_실시결과보고서_{고객명}',
   },
   mail_signature: {
     key: 'mail_signature',

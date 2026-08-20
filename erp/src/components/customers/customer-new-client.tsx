@@ -81,6 +81,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     building_floors_below: '',
     building_total_area: '',
     building_year_built: '',
+    // 소방안전관리등급 = customers.building_grade (별표4 대상물 급수) — 선택 입력
+    building_grade: '',
   }))
   const [addrJibun, setAddrJibun] = useState('')
 
@@ -252,6 +254,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         building_floors_below: form.building_floors_below ? parseInt(form.building_floors_below) : undefined,
         building_total_area:   form.building_total_area   ? parseFloat(form.building_total_area)  : undefined,
         building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
+        // 소방안전관리등급(별표4 대상물 급수) — 미선택이면 보내지 않는다(선택 입력)
+        building_grade:        form.building_grade || undefined,
         // 건축물대장 소방안전 자료 (migration 037/038)
         building_bcode:           bcodeRef.current?.bcode ?? undefined,
         building_address_jibun:   bcodeRef.current?.jibun ?? undefined,
@@ -440,6 +444,27 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : `일반관리 › ${form.general_sub_type}`}: {INSPECTION_ANNUAL[form.inspection_type]}
           </p>
         )}
+
+        {/* 소방안전관리등급 (2026-08-20) — 별지 9호 2쪽 «소방안전정보»에 실리는 대상물 급수(별표4).
+            **필수로 걸지 않는다**: 별표4의 2·3급은 설비 설치 여부로 갈리는데 등록 폼엔 설비 입력이 없어
+            등록 시점에 자동 산정이 사실상 불가하다. 실측상 최근 1년 등록 321건 중 315건이 미입력이었고,
+            필수로 걸었다면 그 전부가 등록 자체를 못 했다(2026-08-20). 아는 사람은 여기서 바로 채운다. */}
+        <Field label="소방안전관리등급 (대상물 급수)">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex rounded-lg border border-[#c8c4d0] overflow-hidden">
+              {(['특급', '1급', '2급', '3급'] as const).map(g => (
+                <button key={g} type="button"
+                  onClick={() => setField('building_grade', form.building_grade === g ? '' : g)}
+                  className={`px-3 h-9 text-sm ${form.building_grade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-[#b0acd6]">
+              모르면 비워두세요 — 관계인 탭 [소방안전관리]에서 나중에 입력·자동 산정할 수 있습니다
+            </span>
+          </div>
+        </Field>
 
         {/* §10-1: 대표 관계인 — 필수 */}
         <div className="space-y-1.5">
