@@ -214,7 +214,7 @@ export async function assembleDelegation(
   if (!insp) throw new Error('점검을 찾을 수 없습니다.')
   const missing: string[] = []
 
-  const [inputRes, custRes, formRes, contactsRes, partsRes] = await Promise.all([
+  const [inputRes, custRes, formRes, contactsRes, partsRes, r9Res] = await Promise.all([
     admin.from('annex_inputs').select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'delegation').maybeSingle(),
     admin.from('customers').select('fire_station, manager_contact_id').eq('id', insp.customer_id).single(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
@@ -222,6 +222,8 @@ export async function assembleDelegation(
     // 보고서 공문·위임장에 사용됩니다”) 종전엔 위임장이 읽지 않아 매번 손으로 다시 넣었다(2026-08-20)
     admin.from('customer_contacts').select('id, role, name, phone, position, birth_date').eq('customer_id', insp.customer_id),
     admin.from('inspection_participants').select('employee_id, role, sort_order').eq('inspection_id', inspectionId),
+    // 위임 일자는 별지 9호 보고일과 같은 축을 쓴다(아래 submitDate 주석) — 그 보고일의 수기 지정분
+    admin.from('annex_inputs').select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'report9').maybeSingle(),
   ])
   const f = ((inputRes.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
   const fstr = (k: string) => String(f[k] ?? '').trim()
@@ -287,12 +289,20 @@ export async function assembleDelegation(
   const station = fstr('station') || rawStation.replace(/소방서\s*$/, '').trim()
   if (!station) missing.push('관할 소방서 없음 — 고객 정보(1.3) 또는 [입력]에서 지정')
 
-  const submitBase = insp.inspection_end_date ?? insp.inspection_start_date
-  const sd = submitBase ? new Date(submitBase) : new Date()
+  // 위임 일자 — **별지 9호 보고일과 같은 축**(2026-08-20 사용자 확정). 위임장은 보고서 제출용 첨부라
+  // 같은 인쇄 번들에 별지 9호와 나란히 들어가는데, 종전엔 위임장만 점검일 축(종료일 → 시작일)이라
+  // 두 문서의 날짜가 서로 달랐다. 게다가 inspection_end_date는 실측 2/188만 채워져 있어(2026-08-20)
+  // 사실상 '점검 시작일'이 찍히고 있었다 — 의도(종료일)와도 어긋났다.
+  // 폴백: [입력] 수기 → 별지 9호 보고일(annex_inputs.report9.reportDate) → 오늘(KST).
+  // 마지막 단은 report9-actions의 기본 보고일과 같은 식이라 둘이 자동으로 같은 날짜가 된다.
+  const r9f = ((r9Res.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
+  const r9Date = String(r9f['reportDate'] ?? '').trim()
+  const kstToday = new Date(Date.now() + 9 * 3_600_000).toISOString().split('T')[0]
+  const [sy, sm, sdd] = (/^\d{4}-\d{2}-\d{2}$/.test(r9Date) ? r9Date : kstToday).split('-').map(Number)
   const data: DelegationData = {
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial),
     owner, agent, periodLabel, daysLabel,
-    submitDate: fstr('submitDate') || `${sd.getFullYear()}년 ${sd.getMonth() + 1}월 ${sd.getDate()}일`,
+    submitDate: fstr('submitDate') || `${sy}년 ${sm}월 ${sdd}일`,
     station,
   }
   return { data, missing }

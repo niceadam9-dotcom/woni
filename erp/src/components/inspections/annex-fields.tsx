@@ -123,7 +123,8 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     { key: 'agentPhone', label: '대리인 연락처', type: 'text', hint: '미입력 시 직원 관리의 [연락처]로 출력' },
     { key: 'agentBirth', label: '대리인 생년월일', type: 'text', placeholder: '예: 1987.10.13',
       hint: '미입력 시 직원 관리의 [생년월일]로 출력' },
-    { key: 'submitDate', label: '위임 일자 표기', type: 'text', placeholder: '예: 2026년 7월 16일', hint: '미입력 시 점검 종료일로 출력' },
+    { key: 'submitDate', label: '위임 일자 표기', type: 'text', placeholder: '예: 2026년 7월 16일',
+      hint: '미입력 시 별지 9호 보고일과 같은 날짜로 출력 (보고일도 미지정이면 오늘)' },
     { key: 'station', label: '관할 소방서', type: 'text', placeholder: '예: 양평', hint: '미입력 시 고객 정보의 관할 소방서에서 "소방서"를 뗀 이름으로 출력' },
   ],
 }
