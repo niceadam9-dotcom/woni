@@ -36,6 +36,29 @@ export const MU_STD32_MAP: Record<string, string[]> = {
   'MU-016': ['32-G-001', '32-G-002'],                                                          // 방염대상물품
 }
 
+/** MU 16칸 코드 — 법정 서식의 칸 수는 고정이다(별지 4호 2쪽·9호 3쪽 공용). */
+export const MU_CODES: readonly string[] =
+  Array.from({ length: 16 }, (_, i) => `MU-${String(i + 1).padStart(3, '0')}`)
+
+/** 다중이용업소가 **아니면** 빈 칸을 전부 'N'(／)으로 채운다 (A안, 2026-08-20 사용자 확정).
+ *
+ *  근거 — 서식 3쪽 머리말 "해당없는 항목은 /표시를 합니다"(report9.ts:444). 종전에는 비대상 건의
+ *  16칸이 통째로 공란이었다(서림사 사례: 1.10.3 미입력 + MU 직접응답 0 + STD-32 응답 0).
+ *  1절 소방시설등이 `rollUpForm3Results`에서 '미설치 → N'을 찍는 것과 대칭이 맞지 않았다.
+ *
+ *  1.10.3 미입력(applicable 부재)도 비대상으로 본다 — 1절이 fire_facilities 행 부재를 미설치로
+ *  단정하는 것과 같은 축. 다중이용업소(applicable === true)면 무변경이라, 응답이 아직 없는 칸은
+ *  공란(입력 대기)으로 남는다 = 1절의 '설치됐는데 응답 없음'과 동일 취급.
+ *  이미 값이 있는 칸(직접 응답·STD-32 파생)은 절대 덮지 않는다. */
+export function fillNonApplicableMu(
+  muResults: Record<string, 'O' | 'X' | 'N'>,
+  applicable: boolean | null | undefined,
+): Record<string, 'O' | 'X' | 'N'> {
+  if (applicable) return muResults
+  for (const k of MU_CODES) if (!muResults[k]) muResults[k] = 'N'
+  return muResults
+}
+
 /** STD-32 응답 → MU 16칸 파생값 (S14-2). 직접 응답 우선(S14-3)은 호출부 몫 —
  *  이 함수는 파생값만 반환하고, 응답이 하나도 없는 칸은 키를 만들지 않는다(공란 유지). */
 export function deriveMuFromStd32(

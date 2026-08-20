@@ -19,7 +19,7 @@ import { renderOfficial } from '@/lib/doc-templates/official'
 import { assembleCover, assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
 import { renderDelegation } from '@/lib/doc-templates/delegation'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
-import { deriveMuFromStd32 } from '@/lib/mu-std32-map'
+import { deriveMuFromStd32, fillNonApplicableMu } from '@/lib/mu-std32-map'
 import type { DocAsset } from '@/lib/doc-templates/base'
 import { pickFirePlanManager } from '@/lib/fire-plan-template'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
@@ -442,6 +442,9 @@ async function assembleReport9(
   for (const [mu, v] of Object.entries(deriveMuFromStd32(c => resByCode.get(c)))) {
     if (!muResults[mu]) muResults[mu] = v
   }
+  // 다중이용업소가 아니면 남은 16칸을 전부 해당없음(／)으로 — 1절 '미설치 → N'과 대칭(A안, 2026-08-20).
+  // 규칙·근거는 mu-std32-map.ts 단일 원천. 별지 4호 2쪽도 이 값을 그대로 공유한다(:648).
+  fillNonApplicableMu(muResults, muSection?.applicable)
 
   let period = ''
   if (insp.inspection_start_date) {
