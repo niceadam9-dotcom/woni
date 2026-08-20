@@ -515,7 +515,6 @@ export default async function InspectionDetailPage({
                 initialFiles={report9Files}
                 defectsInfo={{ total: 0, planned: 0, done: 0 }}
                 variant="exterior"
-                customerName={customer?.customer_name}
               />
             ) : null,
             participants: (

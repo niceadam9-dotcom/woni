@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Mail } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Mail, ShieldCheck, ExternalLink } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, type FirePlanInfoInput, type BrigadeMemberInput } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { isEndBeforeStart, DATE_RANGE_ERROR } from '@/lib/date-range'
@@ -302,33 +303,19 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 ))}
               </div>
             </div>
-            <div><label className={labelCls}>관리자 선임일</label><br /><DateInput id="fp-manager-date" value={d.managerSelectedAt} onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-32`} /></div>
-            {/* 신규 (104 — 별지 9호 2쪽 연계): 대표자 구분·자격구분·최근 교육이수일 */}
-            <div><label className={labelCls}>대표자 구분</label><br />
-              <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-                {['소유자', '관리자', '점유자'].map(r => (
-                  <button key={r} onClick={() => set('repRole', d.repRole === r ? '' : r)}
-                    className={`px-2.5 h-8 text-xs ${d.repRole === r ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{r}</button>
-                ))}
-              </div>
-            </div>
-            <div><label className={labelCls}>관리자 자격구분</label><br />
-              <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
-                {GRADES.map(g => (
-                  <button key={g} onClick={() => set('managerLicenseGrade', d.managerLicenseGrade === g ? '' : g)}
-                    className={`px-2.5 h-8 text-xs ${d.managerLicenseGrade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
-                ))}
-              </div>
-            </div>
-            <div><label className={labelCls}>최근 교육이수일</label><br /><DateInput value={d.managerEduDate} onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32`} /></div>
-            {/* B-4d(소방계획서_19, 124): 선임 형태 — 별지 9호 2쪽 체크 5종의 원천. 주변 필드와 같은 버튼형 토글 */}
-            <div><label className={labelCls}>선임 형태</label><br />
-              <div id="fp-appoint-type" className="flex flex-wrap rounded-lg border border-[#d0ccf5] overflow-hidden">
-                {['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타'].map(t => (
-                  <button key={t} onClick={() => set('managerAppointType', d.managerAppointType === t ? '' : t)}
-                    className={`px-2.5 h-8 text-xs ${d.managerAppointType === t ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{t}</button>
-                ))}
-              </div>
+            {/* 사람 축(선임일·대표자 구분·자격구분·교육이수일·선임 형태)은 2026-08-20부터 **관계인 탭
+                [소방안전관리]** 한 자리에서 입력한다. 여기서 칸을 지우되 값은 상태에 그대로 두고 함께
+                저장한다 — 상태에서 빼면 이 패널 저장이 관계인 탭에서 채운 값을 null로 덮어쓴다.
+                누락 칩(READINESS_TARGET_IDS)이 여전히 이 카드로 오므로 앵커 id는 유지한다. */}
+            <div id="fp-manager-date" className="scroll-mt-4">
+              <label className={labelCls}>소방안전관리자 정보</label><br />
+              <Link href={`/customers/${customerId}?tab=contacts#c-fire-safety-manager`}
+                id="fp-appoint-type"
+                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] scroll-mt-4">
+                <ShieldCheck className="size-3" />
+                선임일·자격구분·교육이수일·선임 형태·대표자 구분 → 관계인 탭
+                <ExternalLink className="size-2.5" />
+              </Link>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">

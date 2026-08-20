@@ -1,8 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { SHEET_CATALOG_TAG } from '@/lib/sheet-catalog'
 import type { InspectionType } from '@/types'
 
 export type SheetItemInput = {
@@ -70,6 +71,7 @@ export async function createSheetAction(
     if (itemErr) return { error: itemErr.message }
   }
 
+  revalidateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   return { sheetId }
 }
@@ -132,6 +134,7 @@ export async function deleteSheetAction(id: string): Promise<{ error?: string }>
   const { error } = await admin.from('inspection_sheets').delete().eq('id', id)
   if (error) return { error: error.message }
 
+  revalidateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   return {}
 }
@@ -158,7 +161,20 @@ export async function updateSheetAction(input: {
     .eq('id', input.id)
 
   if (error) return { error: error.message }
+  // ⚠ sheet_name이 바뀌면 sheetMatchesFacilities의 installed 판정(sheet-overview.ts:251)이 달라진다 —
+  // 이름만 고쳐도 카탈로그 캐시를 반드시 비워야 한다.
+  revalidateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   revalidatePath(`/inspection-sheets/${input.id}`)
   return {}
+}
+
+/** 카탈로그 캐시 수동 비우기 (2026-08-20) — 시드 스크립트·마이그레이션은 DB를 직접 써서
+ *  revalidateTag가 불리지 않는다(sheet-catalog.ts 헤더의 '무효화 구멍'). TTL 1시간을 기다리지
+ *  않고 즉시 반영하고 싶을 때 쓰는 관리자 수동 경로다. */
+export async function clearSheetCatalogCacheAction(): Promise<{ error?: string; ok?: boolean }> {
+  await requirePermission('inspection_register')
+  revalidateTag(SHEET_CATALOG_TAG)
+  revalidatePath('/inspection-sheets')
+  return { ok: true }
 }

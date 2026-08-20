@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { X, Eye, FileText, Loader2, Save, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react'
+import { X, Eye, FileText, Loader2, Save, ExternalLink } from 'lucide-react'
+import { AnnexMissingList } from '@/components/inspections/annex-missing-list'
 import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getAnnexPreviewHtmlAction, requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import { ANNEX_TITLES as TITLES, FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
@@ -215,16 +216,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                       </span>
                     </div>
                   ))}
-                  {missing.length > 0 ? (
-                    <p className="text-[11px] text-amber-600 flex items-start gap-1 pt-1">
-                      <AlertTriangle className="size-3.5 shrink-0 mt-px" />
-                      <span>미비 항목: {missing.join(' · ')} — 빈 칸으로 출력됩니다 (생성은 막지 않음)</span>
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-green-600 flex items-center gap-1 pt-1">
-                      <CheckCircle2 className="size-3.5 shrink-0" /> 자동 채움 항목에 누락이 없습니다
-                    </p>
-                  )}
+                  <AnnexMissingList missing={missing} customerId={customerId} />
                 </div>
               </section>
 

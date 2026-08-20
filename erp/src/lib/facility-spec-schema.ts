@@ -55,6 +55,10 @@ export type SpecField = {
   mirrorInLedger?: boolean
   /** 선택지를 1.4에서 설치(√)된 설비로 제한 — 미설치 설비를 고를 수 없게 해 대장과 어긋나지 않게 한다 */
   limitToInstalled?: boolean
+  /** **화면 전용** 묶음 이름 — 서식에서 한 줄(`◦ 설치장소:` 등)로 인쇄되는 필드들을 입력 화면에서도
+   *  그 줄 이름 아래 모아 보여준다. 값이 같은 필드가 연속하면 그 앞에 머리글이 한 번 그려진다.
+   *  라벨·저장 키·인쇄 출력에는 영향이 없다 — 인쇄는 spec-sections가 따로 문구를 만든다. */
+  group?: string
 }
 
 export type SpecBlock = {
@@ -97,13 +101,17 @@ function locFields(prefix = '', labelPrefix = ''): SpecField[] {
  *  칸이 하나뿐이면 동이 둘 이상인 대상물의 두 번째 동을 적을 자리가 없다. */
 function rangeLocFields(opts?: { coverage?: boolean; second?: boolean }): SpecField[] {
   const coverage = opts?.coverage !== false
+  // group='설치장소' — 라벨이 '동명'·'시작 층'처럼 무명이라 화면만 봐서는 서식의 어느 줄인지 알 수 없었다
+  // (바로 위 '수신기 동명'과 구분이 안 됐다). 라벨은 그대로 두고 머리글로만 묶는다.
+  // 이 헬퍼가 만드는 필드는 21개 블록 전부 서식에서 `◦ 설치장소:` 줄로 인쇄된다
+  // ('설치대상'은 별도 targets 텍스트 필드라 여기 해당 없음).
   const one = (sfx: string, l: string): SpecField[] => [
-    { key: `dong${sfx}`, label: `${l}동명`, type: 'text' },
-    ...(coverage ? [{ key: `coverage${sfx}`, label: `${l}전체층/일부층`, type: 'select', options: ['전체층', '일부층'] } as SpecField] : []),
-    { key: `from_ground${sfx}`, label: `${l}시작 지상/지하`, type: 'select', options: GROUND },
-    { key: `from_floor${sfx}`, label: `${l}시작 층`, type: 'text' },
-    { key: `to_ground${sfx}`, label: `${l}끝 지상/지하`, type: 'select', options: GROUND },
-    { key: `to_floor${sfx}`, label: `${l}끝 층`, type: 'text' },
+    { key: `dong${sfx}`, label: `${l}동명`, type: 'text', group: '설치장소' },
+    ...(coverage ? [{ key: `coverage${sfx}`, label: `${l}전체층/일부층`, type: 'select', options: ['전체층', '일부층'], group: '설치장소' } as SpecField] : []),
+    { key: `from_ground${sfx}`, label: `${l}시작 지상/지하`, type: 'select', options: GROUND, group: '설치장소' },
+    { key: `from_floor${sfx}`, label: `${l}시작 층`, type: 'text', group: '설치장소' },
+    { key: `to_ground${sfx}`, label: `${l}끝 지상/지하`, type: 'select', options: GROUND, group: '설치장소' },
+    { key: `to_floor${sfx}`, label: `${l}끝 층`, type: 'text', group: '설치장소' },
   ]
   return [...one('', ''), ...(opts?.second ? one('2', '(2행) ') : [])]
 }

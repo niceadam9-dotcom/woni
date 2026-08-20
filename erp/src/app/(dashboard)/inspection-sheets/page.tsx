@@ -4,6 +4,7 @@ import { ClipboardList, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SheetDeleteButton } from '@/components/inspection-sheets/sheet-delete-button'
+import { SheetCacheClearButton } from '@/components/inspection-sheets/sheet-cache-clear-button'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -92,15 +93,19 @@ export default async function InspectionSheetsPage({
             <p className="text-sm text-[#514b81] mt-0.5">소방시설별 점검 체크리스트 양식을 관리합니다</p>
           </div>
         </div>
-        {canCreate && (
-          <Link
-            href="/inspection-sheets/new"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors"
-          >
-            <Plus className="size-4" />
-            점검표 등록
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {/* 시드·마이그레이션이 DB를 직접 고친 뒤 캐시를 즉시 반영하는 수동 경로 (sheet-catalog.ts) */}
+          <SheetCacheClearButton />
+          {canCreate && (
+            <Link
+              href="/inspection-sheets/new"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors"
+            >
+              <Plus className="size-4" />
+              점검표 등록
+            </Link>
+          )}
+        </div>
       </div>
 
       <form method="GET" action="/inspection-sheets" className="flex flex-wrap items-center gap-2">

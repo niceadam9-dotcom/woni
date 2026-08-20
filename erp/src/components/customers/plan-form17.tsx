@@ -2,13 +2,20 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Save, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { TableWrap, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.7 소방안전관리(보조)자 등 일반현황 (1.7.1 선임현황) — sections.managers (소방계획서_4.md §3)
- *  1행은 고객 데이터(소방안전관리자·선임일)로 자동 채움 */
+ *
+ *  2026-08-20부터 **보조자 전용**이다. 주 선임자(소방안전관리자)는 관계인 탭 [소방안전관리]가 정본이고,
+ *  여기 첫 줄에는 그 값을 읽어 보여주기만 한다(수정은 거기서). 종전에는 성명·선임일이 이 표에도,
+ *  customers 컬럼에도 있어서 어느 쪽이 문서에 나가는지가 서식마다 달랐다 —
+ *  별지 9호는 customers를, 소방계획서는 이 표를 읽었다.
+ *
+ *  인쇄되는 1.7 표는 조립 시점에 [주 선임자 1행 + 여기 보조자들]로 합성된다(lib/fire-plan-generate). */
 
 export type ManagerRow = { role: string; affiliation: string; name: string; selectedAt: string; eduAt: string; duty: string }
 
@@ -18,12 +25,12 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
   initialRows: ManagerRow[]
   /** M-18(소방계획서_15): 비상연락체계 텍스트(sections.emergencyContact) — 서식 2.2 아래 인쇄 */
   initialEmergency?: string
-  autoRow: { name: string; selectedAt: string } // 고객 관리자 자동값
+  /** 주 선임자 — 관계인 탭 [소방안전관리]에서 온 읽기 전용 표시값 */
+  autoRow: { name: string; selectedAt: string }
 }) {
   const router = useRouter()
-  const [rows, setRows] = useState<ManagerRow[]>(initialRows.length > 0 ? initialRows : [{
-    role: '관리자', affiliation: '', name: autoRow.name, selectedAt: autoRow.selectedAt, eduAt: '', duty: '소방안전관리 업무 총괄',
-  }])
+  // 보조자만 편집한다 — 과거에 저장된 관리자 행은 화면에서 감추고 저장에서도 뺀다(합성으로 인쇄되므로 유실 아님)
+  const [rows, setRows] = useState<ManagerRow[]>(initialRows.filter(r => (r.role ?? '').includes('보조')))
   const [emergency, setEmergency] = useState(initialEmergency)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
@@ -39,7 +46,9 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
     return new Promise(resolve => {
       startTransition(async () => {
         const res = await saveFirePlanSectionsAction(customerId, {
-          managers: rows.filter(r => r.name.trim()),
+          // 구분을 강제로 '보조자'로 못박는다 — 이 표는 보조자 전용이고,
+          // 인쇄 시 합성부(fire-plan-generate)가 role에 '보조'가 든 행만 골라 쓴다
+          managers: rows.filter(r => r.name.trim()).map(r => ({ ...r, role: '보조자' })),
           emergencyContact: emergency.trim(),
         })
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
@@ -56,8 +65,23 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
     <div className="space-y-3">
       <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
         <p className="text-xs font-semibold text-[#514b81] mb-2">1.7.1 소방안전관리(보조)자 선임현황
-          <span className="font-normal text-[#b0acd6] ml-2">1행은 고객 관리자 정보로 자동 채움</span>
+          <span className="font-normal text-[#b0acd6] ml-2">여기서는 <b>보조자</b>만 입력합니다</span>
         </p>
+        {/* 주 선임자 — 관계인 탭이 정본. 읽기 전용으로 보여주고 고치러 갈 곳을 알려준다 */}
+        <div className="mb-2 flex items-center gap-2 flex-wrap rounded-lg border border-[#e0ddf5] bg-white px-3 py-2 text-xs">
+          <span className="text-[11px] font-medium text-[#514b81]">소방안전관리자</span>
+          {autoRow.name
+            ? <><span className="font-medium text-[#090c1d]">{autoRow.name}</span>
+              {autoRow.selectedAt && <span className="text-[#b0acd6]">선임 {autoRow.selectedAt}</span>}</>
+            : <span className="text-amber-600">미지정</span>}
+          <Link href={`/customers/${customerId}?tab=contacts#c-fire-safety-manager`}
+            className="ml-auto text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
+            관계인 탭에서 수정 <ExternalLink className="size-2.5" />
+          </Link>
+        </div>
+        {rows.length === 0 && (
+          <p className="text-[11px] text-[#b0acd6] py-1">등록된 보조자가 없습니다 — 선임된 보조자가 있으면 아래에서 추가하세요</p>
+        )}
         <TableWrap><table className="w-full text-xs min-w-[560px]">
           <thead>
             <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
@@ -73,20 +97,15 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
           <tbody>
             {rows.map((r, i) => (
               <tr key={i}>
-                <td className="py-0.5 pr-1">
-                  <select value={r.role} disabled={!canManage} onChange={e => set(i, { role: e.target.value })}
-                    className="h-7 w-full rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
-                    <option value="관리자">관리자</option>
-                    <option value="보조자">보조자</option>
-                  </select>
-                </td>
+                {/* 구분은 보조자로 고정 — 관리자는 관계인 탭이 정본이라 여기서 만들 수 없다 */}
+                <td className="py-0.5 pr-1"><span className="text-[#514b81]">보조자</span></td>
                 <td className="py-0.5 pr-1"><input value={r.affiliation} disabled={!canManage} onChange={e => set(i, { affiliation: e.target.value })} className={inputCls} /></td>
                 <td className="py-0.5 pr-1"><input value={r.name} disabled={!canManage} onChange={e => set(i, { name: e.target.value })} className={inputCls} /></td>
                 <td className="py-0.5 pr-1"><DateInput value={r.selectedAt} disabled={!canManage} onChange={e => set(i, { selectedAt: e.target.value })} className="h-7 text-xs" /></td>
                 <td className="py-0.5 pr-1"><DateInput value={r.eduAt} disabled={!canManage} onChange={e => set(i, { eduAt: e.target.value })} className="h-7 text-xs" /></td>
                 <td className="py-0.5 pr-1"><input value={r.duty} disabled={!canManage} onChange={e => set(i, { duty: e.target.value })} className={inputCls} /></td>
                 <td className="py-0.5">
-                  {canManage && rows.length > 1 && (
+                  {canManage && (
                     <button onClick={() => { setRows(p => p.filter((_, j) => j !== i)); setDirty(true) }}
                       className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
                       <Trash2 className="size-3.5" />
@@ -100,7 +119,7 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
         {canManage && (
           <button onClick={() => { setRows(p => [...p, { role: '보조자', affiliation: '', name: '', selectedAt: '', eduAt: '', duty: '' }]); setDirty(true) }}
             className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
-            <Plus className="size-3" /> 행 추가
+            <Plus className="size-3" /> 보조자 추가
           </button>
         )}
       </div>

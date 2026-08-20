@@ -7,6 +7,7 @@ import { listFireStationCandidates } from '@/lib/fire-station'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
+import { FireSafetyManagerPanel } from '@/components/customers/fire-safety-manager-panel'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
@@ -543,6 +544,32 @@ export default async function CustomerDetailPage({
           canManage={canManage}
           brigadeByName={Object.fromEntries(planInfoInitial.brigade.map(m => [m.name, m.team]))}
         />
+        {/* 소방안전관리 (2026-08-20) — 별지 9호 2쪽 «소방안전정보» 한 블록을 여기서 다 채운다.
+            종전엔 이 블록이 관계인 탭·계획서 1.1 ②·계획서 1.7 세 곳에 흩어져 320곳 중 1곳만 완성돼 있었다. */}
+        <div className="mt-4 pt-4 border-t border-[#f3f1fc]">
+          <FireSafetyManagerPanel
+            customerId={customer.id}
+            contacts={contacts}
+            canManage={canManage}
+            initial={{
+              managerContactId: s(cRec.manager_contact_id),
+              managerLicenseGrade: planInfoInitial.managerLicenseGrade,
+              managerSelectedAt: planInfoInitial.managerSelectedAt,
+              managerEduDate: planInfoInitial.managerEduDate,
+              managerAppointType: planInfoInitial.managerAppointType,
+              repRole: planInfoInitial.repRole,
+              buildingGrade: planInfoInitial.grade,
+            }}
+            gradeBasis={{
+              purpose: planInfoInitial.purpose,
+              totalArea: planInfoInitial.totalArea,
+              floorsAbove: planInfoInitial.floorsAbove,
+              floorsBelow: planInfoInitial.floorsBelow,
+              height: planInfoInitial.height,
+              facilityCodes: planInfoInitial.facilityCodes,
+            }}
+          />
+        </div>
       </div>
   )
 
@@ -682,7 +709,11 @@ export default async function CustomerDetailPage({
       form17={<PlanForm17 customerId={customer.id} canManage={canManage}
         initialRows={fpSections.managers ?? []}
         initialEmergency={fpSections.emergencyContact ?? ''}
-        autoRow={{ name: repContact?.name ?? '', selectedAt: planInfoInitial.managerSelectedAt }} />}
+        autoRow={{
+          // 주 선임자 표시값 — 관계인 탭에서 지목한 사람이 정본, 없으면 종전대로 대표
+          name: contacts.find(c => c.id === cRec.manager_contact_id)?.name ?? repContact?.name ?? '',
+          selectedAt: planInfoInitial.managerSelectedAt,
+        }} />}
       form18={<PlanForm18 data={{
         company: companyRow ? {
           name: s((companyRow as Record<string, unknown>).company_name),

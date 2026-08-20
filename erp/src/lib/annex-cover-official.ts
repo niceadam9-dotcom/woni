@@ -15,7 +15,7 @@ import type { DocAsset } from '@/lib/doc-templates/base'
 import type { CoverData } from '@/lib/doc-templates/cover'
 import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
-import { pickFirePlanManager } from '@/lib/fire-plan-template'
+import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -205,7 +205,8 @@ function ymdDots(iso: string | null): string {
 /** 점검결과 보고서 제출용 위임장 조립 — 서식 원천은 '보고서 갑지.xls' [위임장] 탭(사내 실무 서식, 재량 영역).
  *  자동 기본값: 관계인 = 서식 1.7 선임 소방안전관리자(폴백: 대표 연락처), 대리인 = 주된 점검인력(폴백: 담당 직원),
  *  관할 소방서 = customers.fire_station. 생년월일은 시스템 미보유 — annex_inputs('delegation') 수동 입력만.
- *  ⚠ 1.7에는 전화 열이 없다 — 선임자≠대표면 대표 전화를 붙이지 않는다(타인 전화 오기재 방지, pickFirePlanManager 주석 규약) */
+ *  소방안전관리자 해석은 별지 9호·10·11호·외관과 **같은 lib/fire-safety-manager**를 탄다 — 145 지목이 있으면
+ *  그 관계인의 전화가 그대로 온다(종전엔 1.7에 전화 열이 없어 선임자≠대표면 항상 공란이었다). */
 export async function assembleDelegation(
   admin: Admin, _customerId: string, inspectionId: string,
 ): Promise<{ data: DelegationData; missing: string[] }> {
@@ -215,28 +216,31 @@ export async function assembleDelegation(
 
   const [inputRes, custRes, formRes, contactsRes, partsRes] = await Promise.all([
     admin.from('annex_inputs').select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'delegation').maybeSingle(),
-    admin.from('customers').select('fire_station').eq('id', insp.customer_id).single(),
+    admin.from('customers').select('fire_station, manager_contact_id').eq('id', insp.customer_id).single(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
-    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', insp.customer_id),
+    admin.from('customer_contacts').select('id, role, name, phone, position').eq('customer_id', insp.customer_id),
     admin.from('inspection_participants').select('employee_id, role, sort_order').eq('inspection_id', inspectionId),
   ])
   const f = ((inputRes.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
   const fstr = (k: string) => String(f[k] ?? '').trim()
 
   // 관계인(본인) — 소방안전관리자 우선, 없으면 대표 연락처
-  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const contacts = (contactsRes.data ?? []) as ContactLite[]
   const rep = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
-  const managers = ((formRes.data?.sections as Record<string, unknown> | null)?.['managers'] ?? null) as ManagerRow[] | null
-  const mgr = pickFirePlanManager(managers)
-  const mgrContact = mgr ? contacts.find(c => c.name.trim() === mgr.name.trim()) ?? null : null
-  const ownerName = fstr('ownerName') || (mgr?.name ?? rep?.name ?? '')
+  const cust = custRes.data as { fire_station: string | null; manager_contact_id: string | null } | null
+  const mgr = resolveFireSafetyManager({
+    contacts, managerContactId: cust?.manager_contact_id,
+    managers: ((formRes.data?.sections as Record<string, unknown> | null)?.['managers'] ?? null) as ManagerRow[] | null,
+  })
+  // 대표 폴백(source==='owner')은 '소방안전관리자'가 아니다 — 직위를 그렇게 단정하지 않는다
+  const isMgr = mgr.source === 'contact' || mgr.source === 'form17'
   const owner = {
-    name: ownerName,
-    position: fstr('ownerPosition') || (mgr ? '소방안전관리자' : rep ? '대표' : ''),
-    phone: formatTel(fstr('ownerPhone') || (mgr ? (mgrContact?.phone ?? '') : (rep?.phone ?? ''))),
+    name: fstr('ownerName') || mgr.name,
+    position: fstr('ownerPosition') || (isMgr ? '소방안전관리자' : rep ? '대표' : ''),
+    phone: formatTel(fstr('ownerPhone') || mgr.phone),
     birth: fstr('ownerBirth'),
   }
-  if (!owner.name) missing.push('관계인 성명 없음 — 서식 1.7 선임현황 또는 [입력]에서 지정')
+  if (!owner.name) missing.push('관계인 성명 없음 — 관계인 탭 [소방안전관리] 지정 또는 [입력]에서 기재')
   if (!owner.birth) missing.push('관계인 생년월일 미입력 — 공란 인쇄 ([입력]에서 기재 가능)')
 
   // 대리인(관리업체) — 주된 점검인력(참여자 '주된' → 담당 직원 폴백, report9와 동일 축)

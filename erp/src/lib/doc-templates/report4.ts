@@ -210,7 +210,10 @@ function sheetItemRowPieces(items: Report4SheetItem[]): SheetRowPiece[] {
     // R-5(22 S2) — 항목명 앞 불릿: 종합전용 ●, 일반 ○ (원문 축자 — 불릿은 DB 이름에 없고 comprehensive_only가 원천)
     // R-6(22 S1, Q-1·Q-5) — 결과란 4분기: ○/×/／/공란(무응답)
     out.push({
-      html: `<tr><td class="center nowrap">${esc(it.code)}</td><td>${it.comprehensive ? '●' : '○'} ${esc(it.name)}</td><td class="center">${resultMark(it.mark)}</td></tr>`,
+      // class 'mk' = 점검결과 마크 칸 표식 — lib/doc-overrides가 이 표식으로 편집 금지(never) 등급을 준다.
+      // 결과란은 점검자가 시트에 입력한 *점검 사실*이라, 인쇄 검수 화면에서 ○를 ×로 바꾸는 통로를 열면
+      // 그건 자체점검 결과 위조다. 값을 고쳐야 하면 점검표 입력으로 돌아가야 한다.
+      html: `<tr><td class="center nowrap">${esc(it.code)}</td><td>${it.comprehensive ? '●' : '○'} ${esc(it.name)}</td><td class="center mk">${resultMark(it.mark)}</td></tr>`,
       w: it.name.length > WRAP_THRESHOLD ? 2 : 1,
     })
   }

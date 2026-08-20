@@ -37,13 +37,52 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     { key: 'reportDate', label: '보고일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
     { key: 'note', label: '비고·보완 문구', type: 'textarea', hint: '1쪽 하단(유의사항 위)에 1줄 출력 — 없으면 미출력' },
     // B-2c(소방계획서_19 K-2, Q-1 확정): 교육훈련 '실시' 수동 보정 — 자동 판정(1.11.4 전년도 실적)이
-    // 못 보는 경우(종이로만 실시) 구제. 부정('미실시') 강제는 없다 — 단정 금지 설계(A9-6 확정) 유지
-    { key: 'eduDone', label: '소방안전교육 실시(전년도) 보정', type: 'select',
-      options: [{ value: '', label: '자동 판정 (1.11.4 전년도 실적)' }, { value: '실시', label: '실시로 기재 (수동 확정)' }],
-      hint: '2쪽 교육훈련 칸 — 실적 기록부에 없지만 실제 실시한 경우만 수동 확정' },
-    { key: 'drillDone', label: '소방훈련 실시(전년도) 보정', type: 'select',
-      options: [{ value: '', label: '자동 판정 (1.11.4 전년도 실적)' }, { value: '실시', label: '실시로 기재 (수동 확정)' }],
-      hint: '2쪽 교육훈련 칸 — 실적 기록부에 없지만 실제 실시한 경우만 수동 확정' },
+    // 못 보는 경우(종이로만 실시) 구제.
+    // A(2026-08-20): '미실시'도 고를 수 있다. 부정 칸(미실시·미작성·미보관)이 종전엔 ck(false)
+    // 하드코딩이라 실제로 미실시인 대상물조차 √를 못 찍고 양쪽 공란으로 나갔다. **자동 판정은
+    // 여전히 부정을 단정하지 않는다** — 사람이 여기서 고를 때만 부정 칸에 √가 찍힌다(A9-6 유지).
+    { key: 'eduDone', label: '소방안전교육 (전년도)', type: 'select',
+      options: [
+        { value: '', label: '자동 판정 (1.11.4 전년도 실적)' },
+        { value: '실시', label: '실시로 기재 (수동 확정)' },
+        { value: '미실시', label: '미실시로 기재 (수동 확정)' },
+      ],
+      hint: '2쪽 교육훈련 칸 — 자동 판정은 실시만 찍는다. 미실시 √는 여기서 확정해야 나간다' },
+    { key: 'drillDone', label: '소방훈련 (전년도)', type: 'select',
+      options: [
+        { value: '', label: '자동 판정 (1.11.4 전년도 실적)' },
+        { value: '실시', label: '실시로 기재 (수동 확정)' },
+        { value: '미실시', label: '미실시로 기재 (수동 확정)' },
+      ],
+      hint: '2쪽 교육훈련 칸 — 자동 판정은 실시만 찍는다. 미실시 √는 여기서 확정해야 나간다' },
+    { key: 'prevOpDone', label: '자체점검(전년도) 작동점검', type: 'select',
+      options: [
+        { value: '', label: '자동 판정 (전년도 완료 점검 이력)' },
+        { value: '실시', label: '실시로 기재 (수동 확정)' },
+        { value: '미실시', label: '미실시로 기재 (수동 확정)' },
+      ],
+      hint: '2쪽 자체점검 칸 — ERP 도입 전 이력(종이·타사)은 자동 판정에 안 잡힌다' },
+    { key: 'prevCompDone', label: '자체점검(전년도) 종합점검', type: 'select',
+      options: [
+        { value: '', label: '자동 판정 (전년도 완료 점검 이력)' },
+        { value: '실시', label: '실시로 기재 (수동 확정)' },
+        { value: '미실시', label: '미실시로 기재 (수동 확정)' },
+      ],
+      hint: '2쪽 자체점검 칸 — ERP 도입 전 이력(종이·타사)은 자동 판정에 안 잡힌다' },
+    { key: 'firePlanWritten', label: '소방계획서 작성 여부', type: 'select',
+      options: [
+        { value: '', label: '자동 판정 (소방계획서 보관함 등록분)' },
+        { value: '작성', label: '작성으로 기재 (수동 확정)' },
+        { value: '미작성', label: '미작성으로 기재 (수동 확정)' },
+      ],
+      hint: '2쪽 소방계획서 칸 — 미작성을 고르면 보관 칸은 자동으로 비워진다' },
+    { key: 'firePlanStored', label: '소방계획서 보관 여부', type: 'select',
+      options: [
+        { value: '', label: '자동 판정 (작성 여부를 따름)' },
+        { value: '보관', label: '보관으로 기재 (수동 확정)' },
+        { value: '미보관', label: '미보관으로 기재 (수동 확정)' },
+      ],
+      hint: '2쪽 소방계획서 칸 — 작성했으나 현장에 비치되지 않은 경우 미보관' },
   ],
   report10: [
     { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },

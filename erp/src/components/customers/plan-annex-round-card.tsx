@@ -6,6 +6,7 @@ import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-pane
 import { InspectionDocRows } from '@/components/reports/customer-docs'
 import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers/plan-annex-sheet-tree'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
+import { openAnnexPdf } from '@/lib/annex-filename'
 import type { InspectionType, PlanType } from '@/types'
 import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
 
@@ -127,7 +128,7 @@ export function PlanAnnexRoundCard({
                     <Eye className="size-3" /> 보기
                   </button>
                   {r.docs.report4?.pdf && (
-                    <button onClick={() => onOpenFile(r.docs!.report4!.pdf!.path)} disabled={isPending}
+                    <button onClick={() => openAnnexPdf(r.docs!.inspectionId, r.docs!.report4!.pdf!.path)} disabled={isPending}
                       className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50">PDF</button>
                   )}
                   <button onClick={() => onGenerate(r.docs!.inspectionId, 'report4', `${r.docs!.inspectionId}:r4`)} disabled={isPending}

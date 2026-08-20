@@ -7,6 +7,7 @@ import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { isMultiUseApplicable } from '@/lib/multi-use'
+import { getAllSheetItems, getSheets, type SheetCatalogItem, type SheetRow } from '@/lib/sheet-catalog'
 
 /** 점검표 진행률 집계 — 회차별 작성·조회 트리의 설비별 요약 행과 점검 상세 배지의 공용 소스.
  *
@@ -98,44 +99,30 @@ export async function buildSheetOverviews(
   const versions = [...new Set([...scopeById.values()].map(s => s.version))]
   const customerIds = [...new Set(insps.map(i => i.customer_id))]
 
-  // ② 시트 카탈로그 — 등장하는 버전만 1회
-  const { data: sheetRaw, error: sheetErr } = await admin.from('inspection_sheets')
-    .select('id, sheet_code, sheet_name, version').in('version', versions).order('sheet_code')
-  if (sheetErr) return { overviews: {}, error: `점검표 조회 실패: ${sheetErr.message}` }
-  const sheets = (sheetRaw ?? []) as Array<{ id: string; sheet_code: string; sheet_name: string; version: string }>
+  // ②③ 시트·항목 카탈로그 — 마스터 데이터라 캐시에서 읽는다(sheet-catalog.ts, 2026-08-20).
+  // 종전에는 매 호출마다 시트 1회 + 항목 전건 페이징(860행이라 2왕복)을 다시 읽었다.
+  // 42703 폴백·정렬도 캐시 안으로 옮겼다. 캐시 함수는 throw하므로 여기서 종전 error 계약으로 되돌린다.
+  let sheets: SheetRow[]
+  let allItems: SheetCatalogItem[]
+  try {
+    [sheets, allItems] = await Promise.all([getSheets(), getAllSheetItems()])
+  } catch (e) {
+    return { overviews: {}, error: e instanceof Error ? e.message : String(e) }
+  }
+  const versionSet = new Set<string>(versions)
+  sheets = sheets.filter(s => versionSet.has(s.version))
 
-  // ③ 항목 카탈로그 — 1000행을 넘으므로 페이징 필수 (fetch-all.ts).
-  // 그룹 축(23 S5-4)은 select에 컬럼만 얹는다 — 쿼리 추가 0회. 134 미적용 DB에서는
-  // 42703(column does not exist)이 나므로 종전 컬럼으로 폴백한다(폴백 시 코드 접두 그룹).
-  type CatalogItem = {
-    sheet_id: string; item_code: string; comprehensive_only: boolean
-    facility_type?: string | null
-    group_code?: string | null; group_name?: string | null; group_order?: number | null
-    subgroup_name?: string | null; subgroup_order?: number | null
-  }
-  let items: CatalogItem[]
-  {
-    const ext = await fetchAllRows<CatalogItem>(
-      (from, to) => admin.from('inspection_sheet_items')
-        .select('sheet_id, item_code, comprehensive_only, facility_type, group_code, group_name, group_order, subgroup_name, subgroup_order')
-        .in('sheet_id', sheets.map(s => s.id)).range(from, to))
-    if (!ext.error) items = ext.rows
-    else {
-      const legacy = await fetchAllRows<CatalogItem>(
-        (from, to) => admin.from('inspection_sheet_items')
-          .select('sheet_id, item_code, comprehensive_only, facility_type')
-          .in('sheet_id', sheets.map(s => s.id)).range(from, to))
-      if (legacy.error) return { overviews: {}, error: `항목 조회 실패: ${legacy.error}` }
-      items = legacy.rows
-    }
-  }
+  type CatalogItem = SheetCatalogItem
+  const sheetIds = new Set(sheets.map(s => s.id))
+  const items = allItems.filter(i => sheetIds.has(i.sheet_id))
   const itemsBySheet = new Map<string, CatalogItem[]>()
   for (const it of items) {
     const arr = itemsBySheet.get(it.sheet_id)
     if (arr) arr.push(it)
     else itemsBySheet.set(it.sheet_id, [it])
   }
-  // 그룹 집계는 정렬 순서에 의존한다(연속 run) — DB order를 신뢰하지 말고 여기서 고정
+  // 그룹 집계는 정렬 순서에 의존한다(연속 run). 캐시가 이미 4축(group_order→subgroup_order→
+  // order_num→code)으로 정렬해 두지만, 여기서 한 번 더 고정해도 결과는 같다 — 종전 단언을 남긴다.
   if (opts.withGroups) {
     for (const arr of itemsBySheet.values()) {
       arr.sort((a, b) =>

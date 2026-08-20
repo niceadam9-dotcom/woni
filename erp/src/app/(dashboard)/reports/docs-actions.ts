@@ -348,7 +348,9 @@ export async function getCustomerRoundsAction(customerId: string): Promise<{ dat
 
 export type DocCommand =
   | { kind: 'open-docs'; customerId: string; customerName: string; label: string }
-  | { kind: 'open-file'; customerId: string; customerName: string; label: string; pdfPath?: string; hwpPath?: string; saveBase: string }
+  /** 별지 산출물이면 inspectionId를 싣는다 — 저장명은 `/inspections/{id}/doc` 라우트가 붙는다.
+   *  saveBase는 그 규약 밖인 소방계획서 파일에만 쓴다(둘 중 하나만 채워진다). */
+  | { kind: 'open-file'; customerId: string; customerName: string; label: string; pdfPath?: string; hwpPath?: string; saveBase?: string; inspectionId?: string }
   | { kind: 'upload-cert'; customerId: string; customerName: string; label: string; inspectionId: string }
   | { kind: 'generate-plan'; customerId: string; customerName: string; label: string }
 
@@ -406,7 +408,7 @@ export async function searchDocCommandsAction(q: string): Promise<{
         kind: 'open-file', customerId: top.id, customerName: top.customer_name,
         label: `${top.customer_name} · ${GENERATED_DOC_KINDS.report9.label} 최신`,
         pdfPath: g9.pdf?.path, hwpPath: g9.hwp?.path,
-        saveBase: `${top.customer_name}_실시결과 보고서_${(g9.at ?? '').slice(0, 10) || insp.year}`,
+        inspectionId: insp.id,
       })
     }
     const hasCert = (objects ?? []).some(o => isCertFileName(o.name))

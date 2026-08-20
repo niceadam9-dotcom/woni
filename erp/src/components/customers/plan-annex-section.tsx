@@ -10,13 +10,23 @@ import {
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestReport9Action, getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
 import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspection-plans/actions'
-import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
+import dynamic from 'next/dynamic'
+import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import type { InspectionType, PlanType } from '@/types'
 import { isCompleteDate } from '@/components/ui/date-input'
 import { PlanAnnexRoundCard } from '@/components/customers/plan-annex-round-card'
-import { PlanAnnexFullPreview, type PreviewDoc, type FullPreviewState } from '@/components/customers/plan-annex-full-preview'
+import type { PreviewDoc, FullPreviewState } from '@/components/customers/plan-annex-full-preview'
 import { PlanAnnexStartModal } from '@/components/customers/plan-annex-start-modal'
+
+// 조건부로만 뜨는 무거운 모달 2종은 지연 로드 — 탭에 들어오기만 한 사용자는 내려받지 않는다.
+// 회차 카드(PlanAnnexRoundCard)·점검표 트리는 **의도적으로 정적**이다: 최신 회차가 자동으로
+// 펼쳐져 즉시 렌더되므로 동적화하면 청크 워터폴만 늘어난다.
+// 점검일 확정 모달(2.2KB)도 정적 유지 — 청크 왕복 비용이 이득보다 크다.
+const AnnexComposePanel = dynamic(
+  () => import('@/components/inspections/annex-compose-panel').then(m => m.AnnexComposePanel))
+const PlanAnnexFullPreview = dynamic(
+  () => import('@/components/customers/plan-annex-full-preview').then(m => m.PlanAnnexFullPreview))
 
 /** 별지 서식 섹션 (소방계획서_8 H-2·H-3·H-5) — 소방계획서 트리의 회차 자동 카드.
  *  최신 회차 즉시 펼침 + 과거 아코디언(D-4), 회차=plan_items∪inspections 자동(D-2),
@@ -99,21 +109,10 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
         const firstActive = res.data.rounds.find(r => r.state !== 'completed')
         if (firstActive) {
           setExpanded(new Set([roundKey(firstActive)]))
-          // S3: 진입 즉시 별지 4종을 렌더하면 마운트와 12~20왕복이 겹친다.
-          // 화면이 자리 잡은 뒤(유휴) 최신 회차 1건만 미리 데워 클릭 0초 체감은 남긴다.
-          // 배경 탭이면 건너뛰되, 돌아왔을 때 한 번 재시도한다 — 안 그러면 탭을 오가는 사용자는
-          // 예열 없이 쓰게 된다(독립 검증 지적).
-          if (firstActive.docs) {
-            window.setTimeout(() => {
-              if (!document.hidden) { prefetchPreviews(firstActive); return }
-              const onVisible = () => {
-                if (document.hidden) return
-                document.removeEventListener('visibilitychange', onVisible)
-                prefetchPreviews(firstActive)
-              }
-              document.addEventListener('visibilitychange', onVisible)
-            }, 2500)
-          }
+          // 유휴 예열 폐지(2026-08-20). S3가 마운트 직후 렌더를 2.5초 뒤로 미뤄 뒀지만, **누르지도 않은**
+          // 별지 4종을 백그라운드에서 조립하는 일 자체가 남아 있었다(각각 카탈로그 조회 + 8쪽 HTML 렌더).
+          // 화면이 무겁다는 지적의 실체가 여기다. 이제 [보기]·[전체 미리보기]를 누른 시점에만 렌더한다 —
+          // 그 클릭 경로는 카탈로그 캐시(sheet-catalog.ts)로 이미 가벼워졌다.
         }
       }
     })
@@ -148,34 +147,57 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     })
   }
 
-  /* ── H-5c: 미리보기 prefetch — 회차 펼침·전체 미리보기 오픈 시 백그라운드 렌더 ── */
-  function prefetchPreviews(r: CustomerRound) {
-    if (!r.docs || previewCache[r.docs.inspectionId]) return
-    const inspectionId = r.docs.inspectionId
-    const types: PreviewDoc[] = [
+  /** 회차의 미리보기 문서 목록(순서 = 인쇄 순서). 불량이 없으면 ⑩⑪은 대상이 아니다. */
+  function previewTypesOf(r: CustomerRound): PreviewDoc[] {
+    return [
       { type: 'report4', label: '별지 4호 점검표', missing: [] },
       { type: 'report9', label: '별지 9호 실시결과 보고서', missing: [] },
-      ...(r.docs.defects.total > 0
+      ...((r.docs?.defects.total ?? 0) > 0
         ? [{ type: 'report10' as const, label: '별지 10호 이행계획서', missing: [] },
            { type: 'report11' as const, label: '별지 11호 이행완료 보고서', missing: [] }]
         : []),
     ]
-    // 캐시 슬롯 예약(중복 요청 방지) 후 각 문서 병렬 렌더
-    setPreviewCache(prev => ({ ...prev, [inspectionId]: types }))
-    void Promise.all(types.map(async t => {
+  }
+
+  /** 미리보기 렌더 — `only`를 주면 **그 문서 1건만** 조립한다 (2026-08-20).
+   *
+   *  종전엔 [보기]로 9호 하나를 열어도 4종을 전부 조립했다. 별지 조립은 카탈로그 전건 조회 +
+   *  8쪽 HTML 렌더이고 4호는 부속 점검표까지 얹어 특히 무겁다(pdf 변환에 timeoutMs 120초를 따로 줄 정도).
+   *  이미 받아둔 문서는 건너뛰고 없는 것만 채운 뒤, 순서는 인쇄 순서로 되돌린다. */
+  function prefetchPreviews(r: CustomerRound, only?: PreviewDoc['type']) {
+    if (!r.docs) return
+    const inspectionId = r.docs.inspectionId
+    const all = previewTypesOf(r)
+    const cached = previewCache[inspectionId]
+    const pending = all.filter(t => (!only || t.type === only)
+      && !cached?.some(c => c.type === t.type && (c.html !== undefined || c.error !== undefined)))
+    if (pending.length === 0) return
+
+    // 캐시 슬롯 예약(중복 요청 방지) — 이미 있는 항목은 보존한다
+    setPreviewCache(prev => {
+      const base = prev[inspectionId] ?? []
+      const byType = new Map(base.map(d => [d.type, d]))
+      for (const t of pending) if (!byType.has(t.type)) byType.set(t.type, t)
+      return { ...prev, [inspectionId]: all.filter(t => byType.has(t.type)).map(t => byType.get(t.type)!) }
+    })
+    void Promise.all(pending.map(async t => {
       try {
         const res = await getAnnexPreviewHtmlAction(inspectionId, t.type)
         return { ...t, html: res.html, missing: res.missing ?? [], error: res.error }
       } catch {
         return { ...t, missing: [], error: '미리보기 렌더 실패 — 다시 시도해주세요' }
       }
-    })).then(loaded => setPreviewCache(prev => ({ ...prev, [inspectionId]: loaded })))
+    })).then(loaded => setPreviewCache(prev => {
+      const byType = new Map((prev[inspectionId] ?? []).map(d => [d.type, d]))
+      for (const d of loaded) byType.set(d.type, d)
+      return { ...prev, [inspectionId]: all.filter(t => byType.has(t.type)).map(t => byType.get(t.type)!) }
+    }))
   }
 
   /** 문서 1건만 크게 보기 — 회차 라벨을 붙여 같은 모달을 단일 문서 모드로 연다 */
   function openSingle(r: CustomerRound, type: PreviewDoc['type']) {
     if (!r.docs) return
-    prefetchPreviews(r)
+    prefetchPreviews(r, type)   // 연 문서 1건만 조립한다(나머지 3종은 누를 때)
     setFullPreview({ inspectionId: r.docs.inspectionId, label: `${r.year}년 ${r.sequenceNum}차`, only: type })
   }
 

@@ -8,6 +8,7 @@ import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline
 import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import { getFirePlanFileUrlAction } from '@/app/(dashboard)/customers/fire-plan-actions'
 import { DOC_TERMS } from '@/lib/doc-requirements'
+import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
 /** 별지 작성 진입 버튼 (H-24 문서 작업대 §4-B) — 문서 현황에서 이동 없이 작성 패널 오픈 */
@@ -211,7 +212,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             {i.report9 ? (<>
               <span className="text-[#514b81]">✓ {fmtD(i.report9.at)}</span>
               <span className="ml-auto flex items-center gap-1">
-                {genButtons9(i.report9, `${customerName}_실시결과 보고서_${(i.report9.at ?? '').slice(0, 10)}`, open, isPending)}
+                {genButtons9(i.report9, i.inspectionId, isPending)}
               </span>
             </>) : (<>
               <span className="text-amber-600">미생성</span>
@@ -300,7 +301,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               {i.report10 ? (<>
                 <span className="text-[#514b81]">✓ {fmtD(i.report10.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
-                  {genButtons9(i.report10, `${customerName}_이행계획서_${(i.report10.at ?? '').slice(0, 10)}`, open, isPending)}
+                  {genButtons9(i.report10, i.inspectionId, isPending)}
                 </span>
               </>) : (<>
                 <span className="text-amber-600">불량 {i.defects.total}건 미생성</span>
@@ -317,7 +318,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               {i.report11 ? (<>
                 <span className="text-[#514b81]">✓ {fmtD(i.report11.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
-                  {genButtons9(i.report11, `${customerName}_이행완료 보고서_${(i.report11.at ?? '').slice(0, 10)}`, open, isPending)}
+                  {genButtons9(i.report11, i.inspectionId, isPending)}
                 </span>
               </>) : (<>
                 <span className="text-amber-600">조치 완료 {i.defects.done}/{i.defects.total} — 미생성</span>
@@ -332,18 +333,17 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
   )
 }
 
-export function genButtons9(
-  g: DocGroupRef, saveBase: string,
-  open: (path: string | null | undefined, saveName?: string) => void, isPending: boolean,
-) {
+/** 별지 생성물 [HWP][PDF] 버튼 — 저장명은 `/inspections/{id}/doc` 라우트가 붙인다
+ *  (별지 4·9호 제출용 이름 규약이 점검 유형에 걸려 있어 서버 단일 출처, lib/annex-filename). */
+export function genButtons9(g: DocGroupRef, inspectionId: string, isPending: boolean) {
   return (<>
     {g.hwp && (
-      <button onClick={() => open(g.hwp!.path, `${saveBase}.hwp`)} disabled={isPending} title="한글 편집용 원본 내려받기" className={hwpBtn}>
+      <button onClick={() => openAnnexHwp(inspectionId, g.hwp!.path)} disabled={isPending} title="한글 편집용 원본 내려받기" className={hwpBtn}>
         <FileText className="size-3" /> HWP
       </button>
     )}
     {g.pdf && (
-      <button onClick={() => open(g.pdf!.path)} disabled={isPending} title="바로 보기·인쇄" className={pdfBtn}>
+      <button onClick={() => openAnnexPdf(inspectionId, g.pdf!.path)} disabled={isPending} title="바로 보기·인쇄" className={pdfBtn}>
         <FileType2 className="size-3" /> PDF
       </button>
     )}

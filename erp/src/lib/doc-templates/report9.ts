@@ -80,11 +80,22 @@ export type Report9Data = {
   mgrName: string
   mgrPhone: string
   mgrEduDate: string
-  hasFirePlan: boolean        // true → 작성+보관 체크 (워커 동일 — 미보관·미작성 단정 안 함)
+  hasFirePlan: boolean        // true → 작성+보관 체크 (자동 판정은 미보관·미작성을 단정하지 않는다)
   prevOpDone: boolean         // 전년도 작동점검 실시
   prevCompDone: boolean       // 전년도 종합점검 실시
   eduDone: boolean
   drillDone: boolean
+  /** A: 2쪽 부정 칸(미작성·미보관·미실시) — **③ 수동 확정 전용**.
+   *  자동 판정은 여전히 부정을 단정하지 않는다(A9-6 유지). 종전엔 ck(false) 하드코딩이라
+   *  실제로 미실시인 대상물도 서식에 √를 찍을 수 없어 양쪽이 공란으로 나갔다.
+   *  미공급(구 호출·프로브)이면 종전과 동일하게 ☐ — 하위 호환. */
+  firePlanNone?: boolean      // 미작성
+  firePlanStored?: boolean    // 보관 √ (미공급 시 hasFirePlan을 따른다 — 종전 동작)
+  firePlanUnstored?: boolean  // 미보관
+  prevOpNone?: boolean        // 전년도 작동점검 미실시
+  prevCompNone?: boolean      // 전년도 종합점검 미실시
+  eduNone?: boolean           // 소방안전교육 미실시
+  drillNone?: boolean         // 소방훈련 미실시
   insuranceJoined: boolean | null
   insCompany: string
   insPeriod: string
@@ -269,15 +280,15 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th class="lbl">소방계획서</th>
-    <td class="pre"> ${ck(d.hasFirePlan)}작성 (${ck(d.hasFirePlan)}보관 ${ck(false)}미보관), ${ck(false)}미작성</td>
+    <td class="pre"> ${ck(d.hasFirePlan)}작성 (${ck(d.firePlanStored ?? d.hasFirePlan)}보관 ${ck(!!d.firePlanUnstored)}미보관), ${ck(!!d.firePlanNone)}미작성</td>
   </tr>
   <tr>
     <th class="lbl">자체점검<br>(전년도)</th>
-    <td class="pre"> 작동점검 (${ck(d.prevOpDone)}실시 ${ck(false)}미실시), 종합점검 (${ck(d.prevCompDone)}실시 ${ck(false)}미실시)</td>
+    <td class="pre"> 작동점검 (${ck(d.prevOpDone)}실시 ${ck(!!d.prevOpNone)}미실시), 종합점검 (${ck(d.prevCompDone)}실시 ${ck(!!d.prevCompNone)}미실시)</td>
   </tr>
   <tr>
     <th class="lbl">교육훈련</th>
-    <td class="pre"> 소방안전교육 (${ck(d.eduDone)}실시 ${ck(false)}미실시), 소방훈련 (${ck(d.drillDone)}실시 ${ck(false)}미실시)</td>
+    <td class="pre"> 소방안전교육 (${ck(d.eduDone)}실시 ${ck(!!d.eduNone)}미실시), 소방훈련 (${ck(d.drillDone)}실시 ${ck(!!d.drillNone)}미실시)</td>
   </tr>
   <tr>
     <th class="lbl">화재보험</th>
@@ -342,7 +353,9 @@ type P3Group = { name: string; items: P3Item[] }
 function p3Table(groups: P3Group[], opts?: { fillLast?: boolean }): string {
   const body = groups.map(g => g.items.map((it, i) => `<tr>${
     i === 0 ? `<th rowspan="${g.items.length}">${g.name}</th>` : ''
-  }<td class="pre">${it.html}</td><td class="center">${it.mark}</td></tr>`).join('\n')).join('\n')
+    // class 'mk' = 점검결과 마크 칸 표식 — report4.ts와 동일 규약. lib/doc-overrides가 이 표식으로
+    // 편집 금지(never) 등급을 준다(점검 사실 위조 방지). 이 표는 별지 4호 1쪽과 공용이다.
+  }<td class="pre">${it.html}</td><td class="center mk">${it.mark}</td></tr>`).join('\n')).join('\n')
   return `<table class="form tight fill${opts?.fillLast ? ' fill-last' : ''}" style="width:100%">
   <colgroup><col style="width:10mm"><col><col style="width:16mm"></colgroup>
   <tr><th>구분</th><th>해  당  설  비</th><th class="nowrap">점검결과</th></tr>

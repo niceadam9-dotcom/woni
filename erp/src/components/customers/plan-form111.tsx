@@ -8,6 +8,7 @@ import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-tex
 import { NumStepper, useUnsavedWarning } from '@/components/ui/fields'
 import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
+import { trainingDoneIn, trainingRecordYear } from '@/lib/training-records'
 
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
  *  1.11.1 연간계획(교육/훈련 × 12개월 그리드 + [표준 패턴] §11-3) · 1.11.2 세부계획 · 1.11.3 시나리오(유형 프리셋) · 1.11.4 결과 기록부(별지 28호, 2년 보관) */
@@ -22,7 +23,11 @@ export type TrainingDetailRow = {
   formType?: '' | '자체' | '합동'
   formPartner?: string
 }
-export type TrainingRecordRow = { at: string; kind: string; attendees: string; content: string; evaluation: string }
+/** 1.11.4 결과 기록부 1행.
+ *  D(2026-08-20): `year` — 실적 **연도를 행에 명시 보관**한다. 별지 9호 2쪽 «교육훈련» 자동 체크의
+ *  1순위 축이다. 종전엔 자유 텍스트 `at`의 앞 4자리만 봐서 '25.6.10'·앞 공백이 조용히 탈락했고,
+ *  계획서를 새 연도로 갱신하며 전년도 행을 지우면 판정 근거까지 함께 사라졌다. */
+export type TrainingRecordRow = { at: string; year?: string; kind: string; attendees: string; content: string; evaluation: string }
 export type TrainingSection = {
   headcount: { worker: string; resident: string; brigade: string }
   eduMonths: number[]
@@ -43,6 +48,11 @@ const SCENARIO_PRESETS: Record<string, string> = {
   '공장형': '① 화재 발견 → 사이렌·방송 전파, 라인 비상정지 ② 자위소방대장 지휘 — 비상연락반 119 신고 ③ 방호안전반 위험물·가스 밸브 차단 ④ 초기소화반 소화설비로 초기 진화 ⑤ 피난유도반 작업자 옥외 집결지 유도 ⑥ 인원 점검·부상자 응급조치 후 소방대 인계',
 }
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
+/** D: 기록부 행의 연도 선택지 — 올해~5년 전 (별지 28호 보관 의무 2년보다 넉넉히) */
+const RECORD_YEARS = (() => {
+  const y = new Date().getFullYear()
+  return Array.from({ length: 6 }, (_, i) => String(y - i))
+})()
 
 export function PlanForm111({ customerId, canManage, initial, presetType }: {
   customerId: string
@@ -70,6 +80,16 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   function loadScenario(type: string) {
     patch({ scenario: SCENARIO_PRESETS[type] ?? '', scenarioType: type })
   }
+  /** D: 지난 연도 행 삭제 보호 — 이 행이 사라지면 별지 9호 2쪽 판정 근거도 함께 사라진다.
+   *  계획서를 새 연도로 갱신하며 기록부를 갈아엎는 것이 전년도 판정이 비는 주된 경로였다. */
+  function removeRecord(i: number) {
+    const r = t.records[i]
+    const yr = r.year ?? trainingRecordYear(r)
+    if (yr && Number(yr) < Number(RECORD_YEARS[0]) && !window.confirm(
+      `${yr}년 실적 기록입니다. 지우면 별지 9호 2쪽 «교육훈련» 전년도 판정 근거가 사라집니다.\n삭제할까요?`
+    )) return
+    patch({ records: t.records.filter((_, j) => j !== i) })
+  }
   /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
   function save(): Promise<boolean> {
     return new Promise(resolve => {
@@ -78,7 +98,9 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
           training: {
             ...t,
             details: t.details.filter(d => d.name.trim() || d.at.trim()),
-            records: t.records.filter(r => r.at.trim() || r.content.trim()),
+            // D: 연도만 지정한 행도 살린다 — 종전 필터는 at·content가 비면 통째로 버려
+            //    "연도는 골랐는데 저장하면 사라지는" 경로가 있었다
+            records: t.records.filter(r => r.at.trim() || r.content.trim() || (r.year ?? '').trim()),
           },
         })
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
@@ -93,6 +115,27 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   }
 
   const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]'
+
+  /** D: 전년도 실적 현황 배지 — 별지 9호 2쪽 «교육훈련»이 **여기 있는 것만** 자동 체크한다.
+   *  판정은 report9-actions와 같은 함수(trainingDoneIn)를 쓴다 — 화면과 서식이 어긋날 수 없다.
+   *  종전엔 서식을 뽑아 보기 전까지 이 칸이 빌 거라는 사실을 알 방법이 없었다. */
+  const prevYear = Number(RECORD_YEARS[0]) - 1
+  const prev = trainingDoneIn(t.records, prevYear)
+  const mark = (ok: boolean) => ok ? '☑' : '☐'
+  const prevYearBadge = (
+    <p className={`text-[11px] mb-2 rounded-lg px-2 py-1 border ${
+      prev.edu && prev.drill
+        ? 'border-[#c7e8d4] bg-[#f2fbf6] text-[#2f7a52]'
+        : 'border-[#f0dcc0] bg-[#fffaf2] text-[#8a6120]'}`}>
+      전년도({prevYear}년) 실적 {prev.count}건 — 소방안전교육 {mark(prev.edu)} · 소방훈련 {mark(prev.drill)}
+      <span className="ml-1 opacity-80">
+        {prev.edu && prev.drill
+          ? '별지 9호 2쪽 «교육훈련»에 실시 √로 자동 기재됩니다.'
+          : `별지 9호 2쪽 «교육훈련»의 미확정 칸은 공란으로 인쇄됩니다 — ${prevYear}년 행을 남기거나, 별지 9호 작성 패널에서 실시·미실시를 확정하세요.`}
+      </span>
+    </p>
+  )
+
   const monthGrid = (label: string, key: 'eduMonths' | 'drillMonths') => (
     <div className="flex items-center gap-1 flex-wrap">
       <span className="text-[11px] font-medium text-[#514b81] w-10">{label}</span>
@@ -219,16 +262,29 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
             <span className="font-normal text-[#b0acd6] ml-2">별지 28호 — 2년 보관 · 별지 9호 실시 판정 소스 · 2장 2.14와 공용</span>
           </p>
           {canManage && (
-            <button onClick={() => patch({ records: [...t.records, { at: '', kind: '훈련', attendees: '', content: '', evaluation: '' }] })}
+            <button onClick={() => patch({ records: [...t.records, { at: '', year: RECORD_YEARS[0], kind: '훈련', attendees: '', content: '', evaluation: '' }] })}
               className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
               <Plus className="size-3" /> 행 추가
             </button>
           )}
         </div>
+        {prevYearBadge}
         {t.records.length === 0 && <p className="text-[11px] text-[#b0acd6]">실시 후 결과를 기록하세요.</p>}
         <div className="space-y-1.5">
-          {t.records.map((r, i) => (
+          {t.records.map((r, i) => {
+            // 구 데이터는 year가 없다 — 실시일에서 파생해 보여주고, 목록에 없는 연도면 선택지에 얹는다
+            // (그러지 않으면 2018년 행이 화면에서 '연도' 공란으로 보여 사용자가 지우게 된다)
+            const yr = r.year ?? trainingRecordYear(r)
+            const yearOpts = yr && !RECORD_YEARS.includes(yr) ? [yr, ...RECORD_YEARS] : RECORD_YEARS
+            return (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
+              {/* D: 실적 연도 — 별지 9호 2쪽 자동 체크의 1순위 축 */}
+              <select value={yr} disabled={!canManage} title="실적 연도 — 별지 9호 2쪽 판정 축"
+                onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, year: e.target.value } : x) })}
+                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                <option value="">연도</option>
+                {yearOpts.map(y => <option key={y} value={y}>{y}년</option>)}
+              </select>
               <input value={r.at} disabled={!canManage} placeholder="실시일" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, at: e.target.value } : x) })} className={`${inputCls} w-28`} />
               <select value={r.kind} disabled={!canManage} onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, kind: e.target.value } : x) })} className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
                 <option value="훈련">훈련</option><option value="교육">교육</option><option value="교육·훈련">교육·훈련</option>
@@ -240,12 +296,13 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <input value={r.content} disabled={!canManage} placeholder="내용" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, content: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               <input value={r.evaluation} disabled={!canManage} placeholder="평가" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, evaluation: e.target.value } : x) })} className={`${inputCls} w-32`} />
               {canManage && (
-                <button onClick={() => patch({ records: t.records.filter((_, j) => j !== i) })} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => removeRecord(i)} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 

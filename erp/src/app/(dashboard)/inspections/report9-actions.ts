@@ -11,6 +11,7 @@ import {
 } from '@/lib/doc-templates/report9'
 import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { renderReport4, type Report4Data, type Report4SheetSection, type Report4PumpRow } from '@/lib/doc-templates/report4'
+import { annexDownloadName } from '@/lib/annex-filename'
 import { judgePumpTest, PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, type PumpTestRow } from '@/lib/pump-test'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
@@ -20,10 +21,12 @@ import { assembleCover, assembleOfficial, assembleDelegation } from '@/lib/annex
 import { renderDelegation } from '@/lib/doc-templates/delegation'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
 import { deriveMuFromStd32, fillNonApplicableMu } from '@/lib/mu-std32-map'
+import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 import type { DocAsset } from '@/lib/doc-templates/base'
-import { pickFirePlanManager } from '@/lib/fire-plan-template'
+import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
+import { trainingDoneIn, type TrainingRecordLike } from '@/lib/training-records'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
@@ -83,25 +86,30 @@ async function assembleAnnex1011(
   kind: 'report10' | 'report11',
 ): Promise<{ data: Annex1011Data; missing: string[] }> {
   const [custRes, bldRes, contactsRes, defectsRes, formRes] = await Promise.all([
-    admin.from('customers').select('customer_name, address, fire_station').eq('id', customerId).single(),
+    admin.from('customers').select('customer_name, address, fire_station, manager_contact_id').eq('id', customerId).single(),
     admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1),
-    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
+    admin.from('customer_contacts').select('id, role, name, phone').eq('customer_id', customerId),
     admin.from('inspection_defects')
       .select('defect_name, action_plan, action_start, action_end, action_taken, action_completed_at')
       .eq('inspection_id', inspectionId).order('created_at'),
     // B-1(소방계획서_19 K-1): 서식 1.7 선임현황 — 소방안전관리자 결정 원천
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
   ])
-  const cust = custRes.data as { customer_name: string; address: string | null; fire_station: string | null } | null
+  const cust = custRes.data as {
+    customer_name: string; address: string | null; fire_station: string | null; manager_contact_id: string | null
+  } | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
   const purpose = ((bldRes.data?.[0] as { purpose: string | null } | undefined)?.purpose) ?? ''
-  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const contacts = (contactsRes.data ?? []) as ContactLite[]
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
-  // B-1(소방계획서_19 K-1): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백 — 별지9호(A9-1)와 동일 규칙.
-  // 종전에는 대표 고정이라, 선임자≠대표인 고객은 별지9호와 10·11호의 관리자 이름이 서로 다르게 인쇄됐다.
+  // 소방안전관리자 — 별지 9호와 **같은 해석기**를 탄다. 종전에는 대표 고정이라 선임자≠대표인 고객은
+  // 별지9호와 10·11호의 관리자 이름이 서로 다르게 인쇄됐다(B-1, 소방계획서_19 K-1).
   const a1011Sections = ((formRes.data?.[0] as { sections?: Record<string, unknown> } | undefined)?.sections) ?? {}
-  const a1011Mgr = pickFirePlanManager((a1011Sections['managers'] ?? null) as ManagerRow[] | null)
+  const a1011Mgr = resolveFireSafetyManager({
+    contacts, managerContactId: cust.manager_contact_id,
+    managers: (a1011Sections['managers'] ?? null) as ManagerRow[] | null,
+  })
   type DefectRow = {
     defect_name: string | null; action_plan: string | null; action_start: string | null
     action_end: string | null; action_taken: string | null; action_completed_at: string | null
@@ -116,9 +124,8 @@ async function assembleAnnex1011(
     ownerName: owner?.name ?? '',
     // E10-2·E11-2(B-8 감사): 관계인·관리자 전화도 회사 전화와 같은 정규화 — 무하이픈 실데이터가 그대로 인쇄되던 건
     ownerPhone: formatTel(owner?.phone),
-    // B-1: 1.7 선임자 우선 — 전화는 선임자=대표 동일인일 때만(1.7에 전화 열 없음, 타인 전화 오기재 방지)
-    mgrName: a1011Mgr?.name ?? owner?.name ?? '',
-    mgrPhone: (a1011Mgr?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
+    mgrName: a1011Mgr.name,
+    mgrPhone: formatTel(a1011Mgr.phone),
     rows: [],
     reportDate: kdate(new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]),
     submitTo: cust.fire_station ? `${cust.fire_station}장` : '관할 소방서장',
@@ -209,14 +216,17 @@ async function assembleReport9(
       .select('customer_name, address, use_approval_date, fire_station, building_grade,'
         + 'insurance_joined, insurance_company, insurance_period, insurance_amount_person, insurance_amount_property,'
         // B-4d(소방계획서_19 A9-4, Q-2 확정): 선임 형태(manager_appointment_type, 마이그레이션 124)
-        + 'email_delivery_consent, report_email, rep_role, manager_license_grade, manager_edu_date, manager_appointment_type')
+        // 145: 소방안전관리자로 지목된 관계인 — 2쪽 성명·전화의 1순위 원천
+        + 'email_delivery_consent, report_email, rep_role, manager_license_grade, manager_edu_date, manager_appointment_type,'
+        // inspection_sub_type(030·035): 일반관리 고객의 종합/작동 축 — 2쪽 «자체점검(전년도)» 판정에 필요
+        + 'manager_contact_id, inspection_sub_type')
       .eq('id', customerId).single(),
     admin.from('buildings')
       .select('id, purpose, total_area, building_area, floors_above, floors_below, height, main_structure, roof_structure,'
         + 'households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, evac_elevator_count,'
         + 'stairs_count, ramp_count')
       .eq('customer_id', customerId).eq('is_active', true).order('created_at', { ascending: true }).limit(1),
-    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
+    admin.from('customer_contacts').select('id, role, name, phone, position').eq('customer_id', customerId),
     // A4-2(소방계획서_15): 관리업 등록번호(management_reg_no, 마이그레이션 123) — 별지4호 2쪽 주입용
     admin.from('company_profile').select('company_name, phone, management_reg_no').limit(1),
     admin.from('inspection_participants').select('employee_id, role, sort_order')
@@ -239,6 +249,8 @@ async function assembleReport9(
     email_delivery_consent: boolean | null; report_email: string | null; rep_role: string | null
     manager_license_grade: string | null; manager_edu_date: string | null
     manager_appointment_type: string | null
+    manager_contact_id: string | null
+    inspection_sub_type: string | null
   }
   const cust = custRes.data as CustRow | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
@@ -251,7 +263,7 @@ async function assembleReport9(
     stairs_count: number | null; ramp_count: number | null
   }
   const b = (bldRes.data?.[0] as BldRow | undefined) ?? null
-  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const contacts = (contactsRes.data ?? []) as ContactLite[]
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
   const company = (companyRes.data?.[0] ?? {}) as {
     company_name?: string | null; phone?: string | null; management_reg_no?: string | null
@@ -275,24 +287,11 @@ async function assembleReport9(
     admin.from('inspection_sheet_responses').select('item_code, result').eq('inspection_id', inspectionId).range(from, to))
   // 카탈로그는 **항상** 조회한다(22 S3-5·S3-6) — 부속 시트 집합이 응답 역산이 아니라 설치 설비 축이라
   // 응답 0건이어도 시트·항목이 나와야 한다. 종전 `responses.length ? … : []` 최적화는 Q-4 번복으로 제거.
-  // 그룹 축(group_name·subgroup_name)은 마이그레이션 134(소방계획서_23)가 만든다 —
-  // 미적용 환경에서는 select가 42703으로 죽으므로 종전 컬럼으로 폴백해 문서 생성을 막지 않는다.
-  type CatalogRow = {
-    item_code: string; item_name: string; sheet_id: string; order_num: number | null
-    comprehensive_only?: boolean | null
-    group_name?: string | null; subgroup_name?: string | null
-  }
-  let items: CatalogRow[] = []
-  try {
-    items = await pageAll<CatalogRow>((from, to) =>
-      admin.from('inspection_sheet_items')
-        .select('item_code, item_name, sheet_id, order_num, comprehensive_only, group_name, subgroup_name').range(from, to))
-  } catch {
-    items = await pageAll<CatalogRow>((from, to) =>
-      admin.from('inspection_sheet_items').select('item_code, item_name, sheet_id, order_num, comprehensive_only').range(from, to))
-  }
-  const sheets = ((await admin.from('inspection_sheets').select('id, sheet_code, sheet_name, version')).data ?? []) as
-    Array<{ id: string; sheet_code: string; sheet_name: string; version: string }>
+  // 마스터 데이터라 캐시에서 읽는다(sheet-catalog.ts, 2026-08-20) — 종전엔 별지를 조립할 때마다
+  // **테이블 전건**(sheet_id 필터도 없이 860행 페이징)을 다시 읽었고, 미리보기 프리페치가 이를 반복시켰다.
+  // 134 미적용 DB의 42703 폴백도 캐시 안으로 옮겼다.
+  type CatalogRow = SheetCatalogItem
+  const [items, sheets] = await Promise.all([getAllSheetItems(), getSheets()])
   const sheetNameById = new Map(sheets.map(s => [s.id, s.sheet_name]))
   const sheetByItem = new Map(items.map(i => [i.item_code, sheetNameById.get(i.sheet_id) ?? '']))
   const itemNameByCode = new Map(items.map(i => [i.item_code, i.item_name]))
@@ -358,18 +357,35 @@ async function assembleReport9(
   const hasPlan = (plansRes.data ?? []).length > 0
   const { data: prevRows } = await admin.from('inspections')
     .select('inspection_type').eq('customer_id', customerId).eq('year', insp.year - 1).eq('status', 'completed')
-  const prevTypes = new Set(((prevRows ?? []) as Array<{ inspection_type: string }>).map(r => r.inspection_type))
+  const prevList = (prevRows ?? []) as Array<{ inspection_type: string }>
+  // D(전년도 자체점검 자동 체크) — 전년도 이력이 보관돼 있으면 그 축 그대로 √.
+  //  · **종합은 종합, 작동은 작동**(2026-08-20 확정) — 축을 섞지 않는다. 종전엔 '최초'를 종합에
+  //    얹었으나(prevTypes.has('최초')) 그 값이 종합 1차라는 근거가 확정되지 않았고, 035가 레거시
+  //    '최초'·'기타'를 전부 '작동'으로 바꿔 데이터에 남아 있지도 않다(035:6-17). 근거 없는 단정을
+  //    지운 것이라 실데이터 판정은 달라지지 않는다. is_initial로도 축을 넓히지 않는다.
+  //  · 일반관리 고객의 점검 행은 inspection_type='일반관리'라 작동/종합 어디에도 걸리지 않았다
+  //    (inspections에는 inspection_sub_type 컬럼이 없다 — 035는 customers·plan_items에만 추가).
+  //    전년도 점검을 완료해도 두 칸이 영구 공란이던 원인 — 고객의 sub_type으로 **같은 축**을 복원한다.
+  const prevGeneral = prevList.some(r => r.inspection_type === '일반관리')
+  const generalSub = cust.inspection_sub_type ?? ''
+  const prevOpDone = prevList.some(r => r.inspection_type === '작동') || (prevGeneral && generalSub === '작동')
+  const prevCompDone = prevList.some(r => r.inspection_type === '종합') || (prevGeneral && generalSub === '종합')
   const sections = ((formsRes.data?.[0] as { sections: Record<string, unknown> | null } | undefined)?.sections) ?? {}
   // B-2(소방계획서_19 K-2, Q-1 확정 2026-08-11): 교육훈련 = **전년도 실시** 기입(서식 9쪽 작성방법 8호
   // "교육훈련(전년도)" — 자체점검(전년도)과 동일 축). 종전 `!!sections['training']`은 1.11 '계획' 존재만으로
   // 교육·훈련을 둘 다 '실시'로 찍던 판정 비약(A9-2). 실적 원천 = 1.11.4 결과 기록부(records)의
   // 전년도(insp.year-1) 행 — 구분(교육/훈련)별로 분리 판정. 부정 단정 없음 — 실적 없으면 미체크(☐)일 뿐.
-  const trainingRecords = ((sections['training'] as { records?: Array<{ at?: string; kind?: string }> } | null)?.records) ?? []
-  const prevYearRecords = trainingRecords.filter(r => String(r.at ?? '').slice(0, 4) === String(insp.year - 1))
-  const eduDone = prevYearRecords.some(r => String(r.kind ?? '').includes('교육'))
-  const drillDone = prevYearRecords.some(r => String(r.kind ?? '').includes('훈련'))
-  // A9-1(소방계획서_15): 소방안전관리자 = 서식 1.7 선임현황(sections.managers) 1순위 → 관계인 대표 폴백
-  const mgrRow = pickFirePlanManager((sections['managers'] ?? null) as ManagerRow[] | null)
+  // C·D: 연도 판정은 lib/training-records 한 곳 — 입력 화면(1.11.4)의 전년도 배지와 같은 함수를 쓴다.
+  // 종전 `at.slice(0,4)` 비교는 at이 자유 텍스트라 '25.6.10'·앞 공백이 조용히 탈락했다.
+  const trainingRecords = ((sections['training'] as { records?: TrainingRecordLike[] } | null)?.records) ?? []
+  const prevTraining = trainingDoneIn(trainingRecords, insp.year - 1)
+  const eduDone = prevTraining.edu
+  const drillDone = prevTraining.drill
+  // 소방안전관리자 — 145 지목(manager_contact_id) → 서식 1.7 → 대표 폴백. 규칙은 lib/fire-safety-manager 한 곳.
+  const mgr = resolveFireSafetyManager({
+    contacts, managerContactId: cust.manager_contact_id,
+    managers: (sections['managers'] ?? null) as ManagerRow[] | null,
+  })
   // 다중이용업소현황 — 서식 1.10.3(sections.multiUse)과 공유 원본 (별지9호.MD §2 MULTI_USE_CATEGORIES)
   const muSection = (sections['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
   const multiUseCounts: Record<string, string> = {}
@@ -523,22 +539,26 @@ async function assembleReport9(
     assistants: assists.map(a => toPerson(a.employee_id)),
     reportDate: kdate(new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]),
     submitTo: cust.fire_station ? `관계인ㆍ${cust.fire_station}장` : '관계인ㆍ소방본부장ㆍ소방서장',
-    // 2쪽 — 대표자 구분(104 rep_role — 미입력 시 관계인 대표=소유자 폴백)·자격구분(manager_license_grade 우선)
+    // 2쪽 — 대표자 구분(104 rep_role — 미입력 시 관계인 대표=소유자 폴백)
     repRole: ['소유자', '관리자', '점유자'].includes(cust.rep_role ?? '') ? (cust.rep_role as string) : (owner ? '소유자' : ''),
     ownerName: owner?.name ?? '',
-    // 별지 9호만 종전에 원문 그대로였다 — 같은 파일의 10·11호(:117)·외관(:819)·companyPhone은
+    // 별지 9호만 종전에 원문 그대로였다 — 같은 파일의 10·11호(:118)·외관(:820)·companyPhone(:519)은
     // 전부 formatTel을 거치므로, 2쪽 소방안전정보에서만 '01012345678' 꼴로 찍히던 표기 불일치를 맞춘다.
     ownerPhone: formatTel(owner?.phone),
-    managerGrade: ['특급', '1급', '2급', '3급'].includes(cust.manager_license_grade || cust.building_grade || '')
-      ? (cust.manager_license_grade || cust.building_grade || '') : '',
-    // A9-1(소방계획서_15): 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
-    // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
-    mgrName: mgrRow?.name ?? owner?.name ?? '',
-    mgrPhone: (mgrRow?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
+    // 소방안전관리등급 = **대상물** 등급(building_grade) 하나만 쓴다.
+    // 서식 각주 7이 말하는 「화재예방법 시행령 별표 4」는 특정소방대상물의 등급이고, ERP에서 그 축은
+    // building_grade다(091 '소방안전관리대상물 급수', suggestGrade가 별표4로 산정해 넣는 컬럼).
+    // 종전엔 manager_license_grade(=**사람**의 자격구분, 104 주석에 "대상물 등급과 별개"로 명시)를
+    // 1순위로 읽어, 2급 대상물에 1급 자격 관리자가 선임되면 '1급'이 찍혔다. 축이 다른 값을 폴백으로
+    // 두면 틀린 등급을 조용히 인쇄하므로 아예 끊는다 — 미입력은 공란이 맞고, missing이 그 사실을 알린다.
+    managerGrade: ['특급', '1급', '2급', '3급'].includes(cust.building_grade ?? '') ? (cust.building_grade as string) : '',
+    // 145: 관계인 지목이 있으면 그 사람의 전화가 그대로 온다 — 종전엔 선임자≠대표면 항상 공란이었다
+    mgrName: mgr.name,
+    mgrPhone: formatTel(mgr.phone),
     mgrEduDate: cust.manager_edu_date ? kdate(cust.manager_edu_date) : '',
     hasFirePlan: hasPlan,
-    prevOpDone: prevTypes.has('작동'),
-    prevCompDone: prevTypes.has('종합') || prevTypes.has('최초'),
+    prevOpDone,
+    prevCompDone,
     eduDone,
     drillDone,
     insuranceJoined: cust.insurance_joined,
@@ -595,9 +615,27 @@ async function assembleReport9(
   if (/^\d{4}-\d{2}-\d{2}$/.test(fReportDate)) data.reportDate = kdate(fReportDate)
   const fNote = fstr(annexFields, 'note')
   if (fNote) data.note = fNote
-  // B-2c: ③ 수동 보정 — 실적 기록부에 없지만 실제 실시한 경우만 '실시'로 강제(양성 보정만, 부정 단정 없음)
-  if (fstr(annexFields, 'eduDone') === '실시') data.eduDone = true
-  if (fstr(annexFields, 'drillDone') === '실시') data.drillDone = true
+  // A(3상태화): ③ 수동 보정 — '실시/미실시', '작성/미작성', '보관/미보관'을 사람이 확정한다.
+  //  자동 판정은 종전대로 **부정을 단정하지 않는다**(A9-6). 부정 칸(미실시·미작성·미보관)은 종전에
+  //  ck(false) 하드코딩이라 실제로 미실시인 대상물조차 √를 찍을 수 없었다 — 그 경로를 여기서만 연다.
+  const mark2 = (key: string, yes: string, no: string): 'yes' | 'no' | '' => {
+    const v = fstr(annexFields, key)
+    return v === yes ? 'yes' : v === no ? 'no' : ''
+  }
+  const mEdu = mark2('eduDone', '실시', '미실시')
+  if (mEdu) { data.eduDone = mEdu === 'yes'; data.eduNone = mEdu === 'no' }
+  const mDrill = mark2('drillDone', '실시', '미실시')
+  if (mDrill) { data.drillDone = mDrill === 'yes'; data.drillNone = mDrill === 'no' }
+  const mPrevOp = mark2('prevOpDone', '실시', '미실시')
+  if (mPrevOp) { data.prevOpDone = mPrevOp === 'yes'; data.prevOpNone = mPrevOp === 'no' }
+  const mPrevComp = mark2('prevCompDone', '실시', '미실시')
+  if (mPrevComp) { data.prevCompDone = mPrevComp === 'yes'; data.prevCompNone = mPrevComp === 'no' }
+  const mPlan = mark2('firePlanWritten', '작성', '미작성')
+  if (mPlan) { data.hasFirePlan = mPlan === 'yes'; data.firePlanNone = mPlan === 'no' }
+  // 미작성이면 보관 칸은 성립하지 않는다 — 자동 폴백(hasFirePlan)이 살아나지 않게 명시로 끊는다
+  if (data.firePlanNone) data.firePlanStored = false
+  const mStore = mark2('firePlanStored', '보관', '미보관')
+  if (mStore) { data.firePlanStored = mStore === 'yes'; data.firePlanUnstored = mStore === 'no' }
 
   // 누락 항목 — 워커 process_report9 missing과 동일 문구
   const missing: string[] = []
@@ -617,7 +655,29 @@ async function assembleReport9(
   if (respOnlySheetNames.length > 0) {
     missing.push(`설비 대장 미등록 시트 ${respOnlySheetNames.join('·')} — 점검표 응답이 있어 부속 점검표·목차에 포함됨`)
   }
-  if (!cust.manager_appointment_type) missing.push('소방안전관리자 선임 형태(계획서 정보) 미입력 — 2쪽 체크 공란')
+  // 2쪽 «소방안전정보» 블록 — 라벨은 실제 입력처(관계인 탭 [소방안전관리])와 맞춘다.
+  // 이 블록이 다 채워진 고객은 320곳 중 1곳뿐이었다(2026-08-20 실측). 아무도 알려주지 않았기 때문이다.
+  if (!cust.manager_appointment_type) missing.push('소방안전관리자 선임 형태 미입력 — 2쪽 체크 공란')
+  if (!data.managerGrade) missing.push('소방안전관리등급(대상물 급수) 미입력 — 2쪽 체크 공란')
+  if (!data.mgrName) missing.push('소방안전관리자 미지정 — 2쪽 성명·전화 공란')
+  else if (!data.mgrPhone) missing.push('소방안전관리자 전화번호 없음 — 지정한 관계인에 번호가 비어 2쪽 공란')
+  if (!data.mgrEduDate) missing.push('소방안전관리자 최근 교육이수일 미입력 — 2쪽 공란')
+  // B: 2쪽 «소방계획서»·«자체점검(전년도)»·«교육훈련» 공란 사유 표면화. 이 세 줄은 자동 판정이라
+  // 아무도 입력을 요구받지 않고, 왜 비었는지 모른 채 그대로 인쇄돼 나갔다. 실시/미실시를 ③에서
+  // 확정하면(A) 사라진다 — 즉 "확정되지 않은 칸"만 남는다.
+  const prevYear = insp.year - 1
+  if (!data.hasFirePlan && !data.firePlanNone) {
+    missing.push('소방계획서 보관함(고객 > 소방계획서)에 등록분 없음 — 2쪽 작성·보관 칸 공란')
+  }
+  if (!data.prevOpDone && !data.prevCompDone && !data.prevOpNone && !data.prevCompNone) {
+    missing.push(`전년도(${prevYear}) 완료된 자체점검 이력 없음 — 2쪽 자체점검 칸 공란(작성 패널 ③에서 실시·미실시 확정 가능)`)
+  }
+  if (!data.eduDone && !data.eduNone) {
+    missing.push(`전년도(${prevYear}) 소방안전교육 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 작성 패널 ③ 보정)`)
+  }
+  if (!data.drillDone && !data.drillNone) {
+    missing.push(`전년도(${prevYear}) 소방훈련 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 작성 패널 ③ 보정)`)
+  }
   return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections } }
 }
 
@@ -641,8 +701,7 @@ async function assembleReport4(
   // V21-2: 펌프성능시험 미입력 경고. 엑셀 폐지(R5-6) 후엔 이 표가 실측치의 **유일 기록처**라
   // '안 넣었다'를 알려 줄 수단이 필요하다. 대상 판정 축은 화면(page.tsx)과 같은 STD-{n} 시트다.
   {
-    const { data: shRaw } = await admin.from('inspection_sheets').select('sheet_code').eq('version', 'v2025')
-    const targetSheets = ((shRaw ?? []) as Array<{ sheet_code: string }>)
+    const targetSheets = (await getSheets('v2025'))
       .map(s => Number(s.sheet_code.match(/^STD-(\d+)$/)?.[1] ?? ''))
       .filter(n => (PUMP_TEST_SHEETS as readonly number[]).includes(n))
     const filled = new Set(pumpRows.map(r => r.sheetNo))
@@ -711,29 +770,34 @@ async function assembleExterior(
   const [inspRes, custRes, bldRes, contactsRes, formRes] = await Promise.all([
     admin.from('inspections').select('inspection_start_date, assigned_employee_id, year')
       .eq('id', inspectionId).single(),
-    admin.from('customers').select('customer_name, address, fire_station').eq('id', customerId).single(),
+    admin.from('customers').select('customer_name, address, fire_station, manager_contact_id').eq('id', customerId).single(),
     admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1),
-    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
-    // B-1(소방계획서_19 K-1): 서식 1.7 선임현황 — 소방안전관리자 결정 원천
+    admin.from('customer_contacts').select('id, role, name, phone, position').eq('customer_id', customerId),
+    // 서식 1.7 선임현황 — 지목(145)이 없을 때의 폴백 원천
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
   ])
   const insp = inspRes.data as {
     inspection_start_date: string | null; assigned_employee_id: string | null; year: number
   } | null
   if (!insp) throw new Error('점검 건을 찾을 수 없습니다')
-  const cust = custRes.data as { customer_name: string; address: string | null; fire_station: string | null } | null
+  const cust = custRes.data as {
+    customer_name: string; address: string | null; fire_station: string | null; manager_contact_id: string | null
+  } | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
   const purpose = ((bldRes.data?.[0] as { purpose: string | null } | undefined)?.purpose) ?? ''
-  const contacts = (contactsRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const contacts = (contactsRes.data ?? []) as ContactLite[]
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
-  // B-1(소방계획서_19 K-1): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백 (별지9호 A9-1과 동일 규칙)
+  // 소방안전관리자 — 별지 9호·10·11호와 같은 해석기(lib/fire-safety-manager)
   const extSections = ((formRes.data?.[0] as { sections?: Record<string, unknown> } | undefined)?.sections) ?? {}
-  const extMgr = pickFirePlanManager((extSections['managers'] ?? null) as ManagerRow[] | null)
-  const extMgrName = extMgr?.name ?? owner?.name ?? ''
-  // EX-3(B-8 감사): 직위 — 서식에 자리가 있는데 항상 공란이었다. 1.7 선임현황의 구분(관리자/보조자)이 유일 원천,
-  // 선임자를 못 찾으면(대표 폴백) 직위를 단정하지 않는다.
-  const extMgrTitle = extMgr?.name ? (extMgr.role ?? '') : ''
+  const extMgr = resolveFireSafetyManager({
+    contacts, managerContactId: cust.manager_contact_id,
+    managers: (extSections['managers'] ?? null) as ManagerRow[] | null,
+  })
+  const extMgrName = extMgr.name
+  // EX-3(B-8 감사): 직위 — 서식에 자리가 있는데 항상 공란이었다. 지목이면 관계인 직위, 1.7이면 그 행의 구분.
+  // 대표 폴백만으로는 직위를 단정하지 않는다(해석기가 ''를 준다).
+  const extMgrTitle = extMgr.title
 
   // ── EX-4(소방계획서_19, 2026-08-12 사용자 확정): **연간 누적본** ──
   // 서식이 12개월 × 12행 연간 양식인데 종전엔 회차 단위로 생성해 해당 월 1칸만 채웠다(같은 해 이전 월은 영구 공백).
@@ -819,10 +883,9 @@ async function assembleExterior(
     customerName: cust.customer_name,
     purpose,
     address: cust.address ?? '',
-    mgrTitle: extMgrTitle,  // EX-3: 1.7 선임현황 구분(선임자를 찾았을 때만)
-    // B-1: 1.7 선임자 우선 — 전화는 선임자=대표 동일인일 때만(타인 전화 오기재 방지)
+    mgrTitle: extMgrTitle,  // EX-3
     mgrName: extMgrName,
-    mgrPhone: extMgrName === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
+    mgrPhone: formatTel(extMgr.phone),
     year: String(insp.year),
     // EX-4: 연간 누적 — 같은 해 점검한 달이 전부 채워진다
     months,
@@ -854,7 +917,7 @@ async function assembleExterior(
       missing.push(`연간 누적 — ${insp.year}년 ${months.length}개월 기록(응답 있는 달 ${filled}개월), 나머지 달은 공란`)
     }
   }
-  if (!extMgrName) missing.push('소방안전관리자(1.7 선임현황 또는 대표 관계인) 미등록')
+  if (!extMgrName) missing.push('소방안전관리자(관계인 탭 [소방안전관리] 지정 또는 1.7 선임현황) 미등록')
   // EX-7(B-8 감사): 표지 절반을 차지하는 대상물 정보 공란이 종전 무경고였다
   if (!cust.address) missing.push('소재지 미입력 — 표지 공란')
   if (!purpose) missing.push('대상물 구분(용도) 미입력 — 표지 공란')
@@ -1080,15 +1143,23 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
 }
 
 /** R4-c: 최신 생성물 바로 받기 — 종류별 최신 스탬프의 PDF(없으면 HWP) 서명 URL.
- *  보고서 센터 ②③ 목록의 인라인 [받기]용(문서 현황 우회, 중복 생성 대신 기생성분 우선). */
+ *  보고서 센터 ②③ 목록의 인라인 [받기]용(문서 현황 우회, 중복 생성 대신 기생성분 우선).
+ *  ⚠ 저장명은 화면과 **같은 규약**(lib/annex-filename)을 쓴다 — 종전엔 여기만 호출부가 넘긴
+ *  saveBase+타임스탬프8자를 붙여, 같은 문서인데 경로에 따라 이름이 갈렸다. saveBase는 더 안 쓴다. */
 export async function getLatestAnnexUrlAction(
-  inspectionId: string, kind: 'report9' | 'report10' | 'report11', saveBase?: string,
+  inspectionId: string, kind: 'report9' | 'report10' | 'report11',
 ): Promise<{ url?: string; error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
-  const { data: insp } = await admin.from('inspections').select('customer_id').eq('id', inspectionId).single()
+  const { data: insp } = await admin.from('inspections')
+    .select('customer_id, inspection_type, plan_type, customers:customer_id (customer_name)')
+    .eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
-  const customerId = (insp as { customer_id: string }).customer_id
+  const ins = insp as unknown as {
+    customer_id: string; inspection_type: string | null; plan_type: string | null
+    customers: { customer_name: string } | null
+  }
+  const customerId = ins.customer_id
   const prefix = `${customerId}/inspections/${inspectionId}`
   const { data: objects } = await admin.storage.from(BUCKET)
     .list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } })
@@ -1108,9 +1179,14 @@ export async function getLatestAnnexUrlAction(
   const name = byStamp[bestStamp].pdf ?? byStamp[bestStamp].hwp
   if (!name) return { error: '내려받을 파일을 찾지 못했습니다.' }
   const ext = name.split('.').pop()!
-  const saveName = saveBase ? `${saveBase.replace(/[\\/:*?"<>|]/g, '_')}_${(bestStamp || '').slice(0, 8)}.${ext}` : undefined
+  const saveName = annexDownloadName({
+    kind, ext,
+    customerName: ins.customers?.customer_name ?? '',
+    inspectionType: ins.inspection_type, planType: ins.plan_type,
+    createdAt: new Date(Number(bestStamp)).toISOString(),
+  })
   const { data, error } = await admin.storage.from(BUCKET)
-    .createSignedUrl(`${prefix}/${name}`, 300, saveName ? { download: saveName } : undefined)
+    .createSignedUrl(`${prefix}/${name}`, 300, { download: saveName })
   if (error || !data) return { error: '다운로드 URL 생성 실패' }
   return { url: data.signedUrl }
 }

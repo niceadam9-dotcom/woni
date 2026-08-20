@@ -26,6 +26,7 @@ import { evidenceDone, activeStepNums, stepProgress, type StepNum } from '@/lib/
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
+import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect } from '@/components/inspections/defect-grid'
@@ -473,7 +474,7 @@ export function InspectionWorkbench({
                 </button>
               )}
             </div>
-            <DocPane files={files} customerName={customerName} onOpen={download} />
+            <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
           </Pane>
         </>)}
 
@@ -584,7 +585,7 @@ export function InspectionWorkbench({
               </div>
             </div>
           </Pane>
-          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} customerName={customerName} onOpen={download} /></Pane>
+          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} /></Pane>
         </>)}
 
         {sel === 'submit9' && (<>
@@ -694,7 +695,7 @@ export function InspectionWorkbench({
                   )}
               </div>
               <div className="border-t border-[#f3f1fc] pt-2">
-                <DocPane files={files} customerName={customerName} onOpen={download} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
               </div>
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
@@ -721,7 +722,7 @@ export function InspectionWorkbench({
           </Pane>
           {/* R6-6: 3단 작성 패널 대신 미리보기 위에 서식 고유값 몇 칸 */}
           <Pane title="9호 고유값·미리보기" cls={paneCls} head={paneHead} fill>
-            <AnnexPane inspectionId={inspectionId} annexNo="report9" canEdit={canManage} />
+            <AnnexPane inspectionId={inspectionId} annexNo="report9" canEdit={canManage} customerId={customerId} />
           </Pane>
         </>)}
 
@@ -776,7 +777,7 @@ export function InspectionWorkbench({
           </Pane>
           {/* R6-4: 불량을 고치면 10호 미리보기가 갱신된다. Gotenberg 미호출(즉석 HTML) */}
           <Pane title="10호 실시간 미리보기" cls={paneCls} head={paneHead} fill>
-            <AnnexPreview inspectionId={inspectionId} reportType="report10"
+            <AnnexPreview inspectionId={inspectionId} reportType="report10" customerId={customerId}
               watch={`${data.defects.planned}-${data.defects.done}-${data.defects.total}-${defectRev}`} />
           </Pane>
         </>)}
@@ -822,13 +823,13 @@ export function InspectionWorkbench({
                     </span>}
               </div>
               <div className="border-t border-[#f3f1fc] pt-2">
-                <DocPane files={files} customerName={customerName} onOpen={download} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
               </div>
             </div>
           </Pane>
           {/* R6-5 */}
           <Pane title="11호 실시간 미리보기" cls={paneCls} head={paneHead} fill>
-            <AnnexPreview inspectionId={inspectionId} reportType="report11"
+            <AnnexPreview inspectionId={inspectionId} reportType="report11" customerId={customerId}
               watch={`${data.defects.done}-${data.defects.photoPairs}-${defectRev}`} />
           </Pane>
         </>)}
@@ -904,13 +905,13 @@ function Summary({ rows }: { rows: Array<[string, string]> }) {
 }
 
 /** R6-8: 생성물은 문서 목록에 쌓인다 — 타임라인과 같은 GeneratedDocList 재사용 */
-function DocPane({ files, customerName, onOpen }: {
+function DocPane({ files, inspectionId, onOpen }: {
   files: Report9File[]
-  customerName?: string
+  inspectionId: string
   onOpen: (path: string, saveName?: string) => void
 }) {
   if (files.length === 0) return <Empty>생성된 문서가 없습니다.</Empty>
-  return <GeneratedDocList files={files} onOpen={onOpen} customerName={customerName} />
+  return <GeneratedDocList files={files} onOpen={onOpen} inspectionId={inspectionId} />
 }
 
 /** 서식 고유값 인라인 (R6-6) — 3단 슬라이드 패널 대신 미리보기 옆 몇 칸.
@@ -997,10 +998,11 @@ function AnnexInlineCompose({ inspectionId, annexNo, canEdit }: {
 }
 
 /** 고유값 + 미리보기 한 칸 — ④처럼 보조 칸이 하나뿐일 때 */
-function AnnexPane({ inspectionId, annexNo, canEdit }: {
+function AnnexPane({ inspectionId, annexNo, canEdit, customerId }: {
   inspectionId: string
   annexNo: 'report9' | 'report10' | 'report11'
   canEdit: boolean
+  customerId?: string
 }) {
   const [rev, setRev] = useState(0)
   // 고유값 칸은 내용만큼(shrink-0), 남는 높이는 전부 미리보기에 — Pane fill이 물려준 높이를 여기서 흘려보낸다
@@ -1010,7 +1012,8 @@ function AnnexPane({ inspectionId, annexNo, canEdit }: {
         <AnnexFields inspectionId={inspectionId} annexNo={annexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col border-t border-[#f3f1fc] pt-2">
-        <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)} />
+        <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)}
+          customerId={customerId} />
       </div>
     </div>
   )
@@ -1018,11 +1021,13 @@ function AnnexPane({ inspectionId, annexNo, canEdit }: {
 
 /** 별지 즉석 미리보기 (R6-4·R6-5, D34-5) — 저장된 PDF가 아니라 현재 데이터로 HTML을 조립해 보여준다.
  *  watch가 바뀌면(불량 수정 등) 디바운스 후 다시 부른다. Gotenberg 미호출이라 파일이 생기지 않는다. */
-function AnnexPreview({ inspectionId, reportType, watch }: {
+function AnnexPreview({ inspectionId, reportType, watch, customerId }: {
   inspectionId: string
   /** 앞장류(공문·위임장·표지)도 같은 즉석 렌더를 탄다 — 액션이 전 종류를 처리한다(22 S5·S7·S8) */
   reportType: 'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover'
   watch?: string
+  /** 미입력 항목의 [고치기] 딥링크용 — 없으면 링크 없이 목록만 */
+  customerId?: string
 }) {
   const [html, setHtml] = useState<string | null>(null)
   const [missing, setMissing] = useState<string[]>([])
@@ -1067,10 +1072,11 @@ function AnnexPreview({ inspectionId, reportType, watch }: {
 
   return (
     <div className="flex h-full min-h-[16rem] flex-col gap-1">
-      <div className="flex items-center gap-1.5 px-1">
+      {/* 머리줄 — relative는 미입력 목록 팝오버(AnnexMissingChip)의 기준이다 */}
+      <div className="relative flex items-center gap-1.5 px-1">
         {loading && <span className="inline-flex items-center gap-1 text-[10px] text-[#847ba8]"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
-        {!loading && missing.length > 0 && <span className="text-[10px] text-amber-600">⚠ 미입력 {missing.length}곳</span>}
-        {!loading && !err && missing.length === 0 && <span className="text-[10px] text-green-600">✓ 빈칸 없음</span>}
+        {/* 종전엔 개수만 띄웠다 — 무엇이 왜 비었는지 볼 방법이 없어 조립 쪽에 항목을 더해도 숫자만 올랐다 */}
+        {!loading && !(err && missing.length === 0) && <AnnexMissingChip missing={missing} customerId={customerId} />}
         <span className="ml-auto flex items-center gap-2">
           {html && (
             <button onClick={() => setZoom(true)} data-testid="preview-zoom"
@@ -1093,7 +1099,7 @@ function AnnexPreview({ inspectionId, reportType, watch }: {
             <div className="flex shrink-0 items-center gap-2 border-b border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
               <FileText className="size-4 text-[#7b68ee]" />
               <p className="text-xs font-semibold text-[#514b81]">{ANNEX_PREVIEW_TITLES[reportType]} 미리보기</p>
-              {missing.length > 0 && <span className="text-[10px] text-amber-600">⚠ 미입력 {missing.length}곳</span>}
+              <span className="relative"><AnnexMissingChip missing={missing} customerId={customerId} /></span>
               <button onClick={() => setZoom(false)} data-testid="preview-zoom-close"
                 className="ml-auto text-[#847ba8] hover:text-[#514b81]" title="닫기 (ESC)">
                 <X className="size-4" />

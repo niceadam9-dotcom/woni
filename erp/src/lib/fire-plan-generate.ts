@@ -11,9 +11,11 @@ import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appendGeneratedRevision } from '@/lib/fire-plan-revisions'
 import {
-  buildFirePlanHtml, FACILITY_FORM, pickFirePlanManager,
+  buildFirePlanHtml, FACILITY_FORM,
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
 } from '@/lib/fire-plan-template'
+import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
+import type { ManagerRow } from '@/components/customers/plan-form17'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { convertHtmlToPdf } from '@/lib/pdf'
@@ -89,9 +91,10 @@ export async function assembleFirePlan(
         + 'insurance_amount_person, insurance_amount_property, op_hours_weekday, op_hours_holiday, '
         + 'headcount_worker, headcount_resident, headcount_max, '
         // M-3(소방계획서_15): 1.1 운영현황 확장 3컬럼 — 입력받고도 select 누락으로 본문에 나가지 않던 것
-        + 'rep_role, manager_license_grade, manager_edu_date')
+        // 145: 소방안전관리자로 지목된 관계인
+        + 'rep_role, manager_license_grade, manager_edu_date, manager_contact_id')
       .eq('id', customerId).single(),
-    admin.from('customer_contacts').select('role, name, phone').eq('customer_id', customerId),
+    admin.from('customer_contacts').select('id, role, name, phone, position').eq('customer_id', customerId),
     admin.from('buildings')
       // M-2·M-10(소방계획서_15): 계단·경사로·승강기 3종 — 전부 buildings 컬럼(104)이다.
       // ⚠ 2026-08-11 교정: 초기 구현이 stairs_count 등을 customers에서 select해 본문 생성이 통째로
@@ -120,10 +123,11 @@ export async function assembleFirePlan(
     op_hours_weekday: string | null; op_hours_holiday: string | null
     headcount_worker: number | null; headcount_resident: number | null; headcount_max: number | null
     rep_role: string | null; manager_license_grade: string | null; manager_edu_date: string | null
+    manager_contact_id: string | null
   } | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
 
-  const contacts = (contactRes.data ?? []) as Array<{ role: string; name: string; phone: string | null }>
+  const contacts = (contactRes.data ?? []) as ContactLite[]
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0]
   // 여러 줄 select 문자열은 PostgREST 타입 파서가 못 읽어 GenericStringError로 추론된다 — unknown 경유 캐스트
   const buildings = (bldRes.data ?? []) as unknown as Array<{
@@ -148,12 +152,30 @@ export async function assembleFirePlan(
   }
   const revision = sections.revision ?? null
 
-  // M-8(소방계획서_15): 소방안전관리자 = 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
-  // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
+  // 소방안전관리자 — 별지 9·10·11호·외관·위임장과 **같은 해석기**(145 지목 → 1.7 → 대표).
   // (B-5b에서 개정이력 폴백 작성자로도 쓰므로 revisions보다 먼저 계산)
-  const mgrRow = pickFirePlanManager(sections.managers)
-  const managerName = mgrRow?.name ?? owner?.name ?? ''
-  const managerPhone = managerName === (owner?.name ?? '') ? (owner?.phone ?? '') : ''
+  const mgr = resolveFireSafetyManager({
+    contacts, managerContactId: cust.manager_contact_id, managers: sections.managers,
+  })
+  const managerName = mgr.name
+  const managerPhone = mgr.phone
+
+  // 서식 1.7 표 = **주 선임자 1행(관계인 탭 파생) + 1.7의 보조자 행들**.
+  // 1.7이 보조자 전용이 된 뒤로도 표에서 관리자 행이 사라지면 안 되므로 여기서 합성한다.
+  // 저장소는 늘리지 않는다 — 주 선임자 행은 저장된 값이 아니라 매 생성 시 파생이다.
+  const assistantRows = (sections.managers ?? []).filter(m => (m.role ?? '').includes('보조'))
+  const managerRows: ManagerRow[] = [
+    ...(managerName ? [{
+      role: '소방안전관리자',
+      // 소속 칸은 종전 폴백 행과 같은 값(대상물명)을 쓴다 — 서식 1.7 원문 관행
+      affiliation: cust.customer_name,
+      name: managerName,
+      selectedAt: cust.manager_selected_at ?? '',
+      eduAt: cust.manager_edu_date ?? '',
+      duty: '소방안전관리 업무 총괄',
+    }] : []),
+    ...assistantRows,
+  ]
 
   // 개정이력 — 마이그레이션 120 fire_plan_revisions가 단일 원천 (소방계획서_17 §2-4).
   // 행이 하나도 없으면(백필 전·조회 실패) 종전 경로(fire_plans 파생)로 폴백해 표가 비지 않게 한다.
@@ -245,7 +267,8 @@ export async function assembleFirePlan(
     ownerPhone: formatTel(owner?.phone),
     managerName,
     managerPhone: formatTel(managerPhone),
-    managerSelectedAt: mgrRow?.selectedAt || cust.manager_selected_at || '',
+    // 선임일은 customers가 정본 — 1.7은 보조자 전용이 됐다(2026-08-20). managerRows[0]과 같은 값.
+    managerSelectedAt: cust.manager_selected_at || '',
     fireStation: cust.fire_station ?? '',
     stationDistance: cachedDistance,
     stationEta: cachedEta,
@@ -340,7 +363,8 @@ export async function assembleFirePlan(
       headcountResident: n(cust.headcount_resident),
       headcountMax: n(cust.headcount_max),
     },
-    forms: sections,
+    // 1.7 managers만 합성본으로 갈아끼운다 — 나머지 장은 저장된 sections 그대로
+    forms: { ...sections, managers: managerRows },
   }
 
   // ── 이미지 수집 (§5) — 슬롯 자산(cover/map_location/evac_*) + 서식 입력 이미지(plan-assets)·사진(photos) ──

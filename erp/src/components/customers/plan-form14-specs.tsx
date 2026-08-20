@@ -936,18 +936,34 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                               </p>
                             )}
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-1.5">
-                              {bl.fields
-                                .filter(f => !secSnap || secSnap.includes(`${bid}.${f.key}`))
-                                .map(f => (
-                                  <div key={f.key} data-spec-field={`${bid}.${f.key}`}
-                                    className={f.type === 'multicheck' || f.type === 'rowtable' ? 'col-span-full' : ''}>
-                                    <p className="mb-0.5 text-[10px] text-[#514b81]">
-                                      {f.label}{f.unit ? ` (${f.unit})` : ''}
-                                      {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}
-                                    </p>
-                                    {fieldWidget(sec.key, bl, f, on)}
-                                  </div>
-                                ))}
+                              {/* 서식 줄 머리글(◦ 설치장소 등) — f.group이 바뀌는 자리에 한 번만 끼운다.
+                                  '빈칸만 보기'로 필드가 걸러지면 남은 목록 기준으로 다시 계산된다. */}
+                              {(() => {
+                                const shown = bl.fields.filter(f => !secSnap || secSnap.includes(`${bid}.${f.key}`))
+                                let prevGroup: string | undefined
+                                return shown.flatMap(f => {
+                                  const head = f.group && f.group !== prevGroup
+                                    ? [
+                                      <p key={`group-${f.key}`}
+                                        className="col-span-full mt-1 mb-0 text-[10px] font-semibold text-[#514b81]">
+                                        ◦ {f.group}
+                                      </p>,
+                                    ]
+                                    : []
+                                  prevGroup = f.group
+                                  return [
+                                    ...head,
+                                    <div key={f.key} data-spec-field={`${bid}.${f.key}`}
+                                      className={f.type === 'multicheck' || f.type === 'rowtable' ? 'col-span-full' : ''}>
+                                      <p className="mb-0.5 text-[10px] text-[#514b81]">
+                                        {f.label}{f.unit ? ` (${f.unit})` : ''}
+                                        {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}
+                                      </p>
+                                      {fieldWidget(sec.key, bl, f, on)}
+                                    </div>,
+                                  ]
+                                })
+                              })()}
                             </div>
                           </div>
                         )}

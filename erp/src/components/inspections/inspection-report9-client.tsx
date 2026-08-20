@@ -19,7 +19,7 @@ export type Report9CheckRow = { label: string; ok: boolean; detail: string; href
 export type DefectsInfo = { total: number; planned: number; done: number }
 
 export function InspectionReport9Client({
-  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9', customerName, customerId,
+  inspectionId, canManage, checks, initialJob, initialFiles, defectsInfo, variant = 'report9', customerId,
 }: {
   inspectionId: string
   canManage: boolean
@@ -28,7 +28,6 @@ export function InspectionReport9Client({
   initialFiles: Report9File[]
   defectsInfo: DefectsInfo
   variant?: 'report9' | 'exterior' // exterior = 외관점검표(일반관리, §9-8d)
-  customerName?: string
   customerId?: string
 }) {
   const [job, setJob] = useState(initialJob)
@@ -195,7 +194,7 @@ export function InspectionReport9Client({
       {/* 생성물 목록 — 문서 단위 1행 그룹핑 (⑩ R11 공용 컴포넌트) */}
       {files.length > 0 && (
         <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
-          <GeneratedDocList files={files} onOpen={download} customerName={customerName} disabled={isPending} />
+          <GeneratedDocList files={files} onOpen={download} inspectionId={inspectionId} disabled={isPending} />
         </div>
       )}
       {busy && (

@@ -7,6 +7,7 @@ import {
 } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestFirePlanHwpAction } from '@/app/(dashboard)/fire-plans/generate/actions'
+import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 
 /** 행동 자동완성 검색 (소방계획서_5 R0-3·4-0-13-(1)) — 검색 결과가 곧 실행 버튼.
  *  고객 2자/초성(R0-5) 입력 → 문서·행동 후보 드롭다운에서 즉시 실행(PDF 보기·HWP 받기·업로드·생성).
@@ -116,13 +117,13 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
               {c.kind === 'open-file' && (<>
                 <span className="text-[#090c1d] flex-1 truncate">{c.label}</span>
                 {c.pdfPath && (
-                  <button onClick={() => openFile(c.pdfPath)} disabled={isPending} title="바로 보기·인쇄"
+                  <button onClick={() => (c.inspectionId ? openAnnexPdf(c.inspectionId, c.pdfPath!) : openFile(c.pdfPath))} disabled={isPending} title="바로 보기·인쇄"
                     className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50">
                     <FileType2 className="size-3" /> PDF 보기
                   </button>
                 )}
                 {c.hwpPath && (
-                  <button onClick={() => openFile(c.hwpPath, `${c.saveBase}.hwp`)} disabled={isPending} title="한글 편집용 원본 내려받기"
+                  <button onClick={() => (c.inspectionId ? openAnnexHwp(c.inspectionId, c.hwpPath!) : openFile(c.hwpPath, c.saveBase ? `${c.saveBase}.hwp` : undefined))} disabled={isPending} title="한글 편집용 원본 내려받기"
                     className="inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-[11px] text-blue-600 hover:bg-blue-50">
                     <FileText className="size-3" /> HWP 받기
                   </button>

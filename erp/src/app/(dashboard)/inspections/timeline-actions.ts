@@ -10,6 +10,7 @@ import { CERT_FILE_RE, CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInsp
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
+import { annexDownloadName } from '@/lib/annex-filename'
 import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
@@ -218,15 +219,26 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
   // R7-8: 제목·본문·첨부 파일명을 message_templates에서 렌더한다(130 미적용이면 현행 문구로 폴백).
   // 종전에는 상호가 제목·본문에 리터럴로 박혀 있어 상호 변경 시 재배포가 필요했다.
   const { data: inspMeta } = await admin.from('inspections')
-    .select('year, sequence_num, inspection_start_date').eq('id', inspectionId).single()
-  const im = (inspMeta ?? {}) as { year?: number; sequence_num?: number; inspection_start_date?: string }
+    .select('year, sequence_num, inspection_start_date, inspection_type, plan_type').eq('id', inspectionId).single()
+  const im = (inspMeta ?? {}) as {
+    year?: number; sequence_num?: number; inspection_start_date?: string
+    inspection_type?: string | null; plan_type?: string | null
+  }
   const rendered = await renderMessage(admin, 'owner_report', {
     고객명: customerName,
     연도: String(im.year ?? ''),
     차수: String(im.sequence_num ?? ''),
     점검일: im.inspection_start_date ?? '',
   })
-  const filename = `${rendered.attachmentName || `${customerName}_자체점검결과보고서`}.${ext}`
+  // 관계인에게 그대로 가는 첨부다 — 폴백 이름은 화면 내려받기와 **같은 규약**을 쓴다(lib/annex-filename).
+  // 템플릿에 attachmentName을 지정했으면 그쪽이 이긴다(사용자가 정한 이름을 덮지 않는다).
+  const filename = rendered.attachmentName
+    ? `${rendered.attachmentName}.${ext}`
+    : annexDownloadName({
+      kind: 'report9', ext, customerName,
+      inspectionType: im.inspection_type, planType: im.plan_type,
+      createdAt: new Date(Number(/_(\d+)\./.exec(pick)![1])).toISOString(),
+    })
   const subject = rendered.subject
   try {
     const { messageId } = await gmailSendWithAttachment({

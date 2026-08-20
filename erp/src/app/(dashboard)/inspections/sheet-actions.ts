@@ -8,6 +8,7 @@ import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
+import { getAllSheetItems, getSheetItems, getSheets } from '@/lib/sheet-catalog'
 import type { UserRole } from '@/types'
 
 /** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
@@ -42,32 +43,10 @@ export async function getInspectionSheetOverviewAction(inspectionIds: string[]):
   return { overviews }
 }
 
-/** 시트 항목 카탈로그 로더 — 3층 축(group_*·subgroup_*, 134) 포함 + 미적용 DB 폴백 (소방계획서_23 S6-1).
- *  134 이전 환경에서는 확장 select가 42703으로 죽으므로 종전 컬럼으로 재시도한다 — 화면이 막히면 안 된다.
- *  정렬은 JS에서 고정(3축): group_order → subgroup_order → order_num. 폴백 행은 order_num 단독. */
-type SheetCatalogRow = {
-  item_code: string; item_name: string; comprehensive_only: boolean
-  facility_type: string | null; order_num: number | null
-  group_code?: string | null; group_name?: string | null; group_order?: number | null
-  subgroup_name?: string | null; subgroup_order?: number | null
-}
-async function loadSheetCatalog(
-  admin: ReturnType<typeof createAdminClient>, sheetId: string,
-): Promise<SheetCatalogRow[]> {
-  const ext = await admin.from('inspection_sheet_items')
-    .select('item_code, item_name, comprehensive_only, facility_type, order_num, group_code, group_name, group_order, subgroup_name, subgroup_order')
-    .eq('sheet_id', sheetId)
-  const rows = ext.error
-    ? ((await admin.from('inspection_sheet_items')
-        .select('item_code, item_name, comprehensive_only, facility_type, order_num')
-        .eq('sheet_id', sheetId)).data ?? [])
-    : (ext.data ?? [])
-  return (rows as SheetCatalogRow[]).sort((a, b) =>
-    (a.group_order ?? Number.MAX_SAFE_INTEGER) - (b.group_order ?? Number.MAX_SAFE_INTEGER)
-    || (a.subgroup_order ?? -1) - (b.subgroup_order ?? -1)
-    || (a.order_num ?? 0) - (b.order_num ?? 0)
-    || a.item_code.localeCompare(b.item_code))
-}
+// 시트 항목 카탈로그(3층 축 + 42703 폴백 + 4축 정렬)는 lib/sheet-catalog.ts로 옮겼다(2026-08-20).
+// 종전 loadSheetCatalog는 **시트를 열 때마다** DB를 다시 읽었다 — 이제 캐시에서 메모리 필터다.
+// ⚠ 캐시 로더는 조회 실패 시 throw한다(종전은 빈 배열을 조용히 돌려줬다). 항목 0개로 보이는
+//    가짜 성공보다 낫다 — 폴백까지 실패하는 상황은 DB 자체가 죽은 때뿐이다.
 
 /** 시트 스냅샷 1왕복 (소방계획서_23 S6-2 — Q-5 시트 전체 로드) — 항목(범위 필터 서버 적용) + 응답 + 편집 권한.
  *  현행 open()의 2왕복(항목 로드 → 외관 월별 응답)을 1회로 접는다. month는 외관(X%) 항목의 연간 축(EX-4). */
@@ -86,7 +65,7 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
 
   const [insp, catalog] = await Promise.all([
     loadScope(admin, inspectionId),
-    loadSheetCatalog(admin, sheetId),
+    getSheetItems(sheetId),
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
@@ -126,7 +105,7 @@ export async function bulkSheetNAAction(
 
   const [insp, catalog] = await Promise.all([
     loadScope(admin, inspectionId),
-    loadSheetCatalog(admin, sheetId),
+    getSheetItems(sheetId),
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
@@ -198,7 +177,7 @@ export async function loadSheetEditorAction(inspectionId: string, sheetId: strin
 
   const [insp, catalog] = await Promise.all([
     loadScope(admin, inspectionId),
-    loadSheetCatalog(admin, sheetId),
+    getSheetItems(sheetId),
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
@@ -231,7 +210,7 @@ export async function loadSheetItemsAction(sheetId: string): Promise<{
 }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
-  const catalog = await loadSheetCatalog(admin, sheetId)
+  const catalog = await getSheetItems(sheetId)
   const items = catalog.map(i => ({
     item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
     group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
@@ -344,18 +323,14 @@ export async function bulkAllGoodAction(inspectionId: string, month = 0): Promis
   const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
   if (codes.length === 0) return { error: '설치 시설 정보가 없습니다 — 소방계획서 탭 > 1.4 소방시설에서 설치 시설을 먼저 등록해주세요.' }
 
-  const { data: sheetRaw } = await admin.from('inspection_sheets')
-    .select('id, sheet_name').eq('version', scope.version)
-  const sheets = ((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
+  const sheets = (await getSheets(scope.version))
     .filter(s => sheetMatchesFacilities(s.sheet_name, codes))
   if (sheets.length === 0) return { error: '설치 시설과 매칭되는 점검표 시트가 없습니다.' }
 
-  // 항목 카탈로그는 1000행을 넘을 수 있어 페이징 필수 (fetch-all.ts)
-  const { rows: itemRaw, error: itemErr } = await fetchAllRows<{ item_code: string; comprehensive_only: boolean }>(
-    (from, to) => admin.from('inspection_sheet_items')
-      .select('item_code, comprehensive_only').in('sheet_id', sheets.map(s => s.id)).range(from, to))
-  if (itemErr) return { error: `항목 조회 실패: ${itemErr}` }
-  const items = itemRaw.filter(i => isItemInScope(i, scope))
+  // 카탈로그는 캐시에서(sheet-catalog.ts) — 종전엔 [전체 양호]를 누를 때마다 전건 페이징을 다시 읽었다
+  const sheetIds = new Set(sheets.map(s => s.id))
+  const items = (await getAllSheetItems())
+    .filter(i => sheetIds.has(i.sheet_id) && isItemInScope(i, scope))
 
   // EX-4(125): 외관 항목은 **그 달에 이미 입력했는지**로 판정해야 한다 — 월을 접어 보면
   // 3월에 채운 항목이 7월엔 영영 안 채워진다(독립 검증 지적). 일반 점검표는 종전대로 month=0 한 축.
@@ -473,17 +448,17 @@ export async function searchQuickItemsAction(inspectionId: string, q: string): P
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
   const { scope } = insp
 
-  const { data: sheetRaw } = await admin.from('inspection_sheets')
-    .select('id, sheet_name').eq('version', scope.version)
-  const sheetName = new Map(((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>).map(s => [s.id, s.sheet_name]))
+  const sheetName = new Map((await getSheets(scope.version)).map(s => [s.id, s.sheet_name]))
 
-  const { data: itemRaw } = await admin.from('inspection_sheet_items')
-    .select('item_code, item_name, comprehensive_only, sheet_id')
-    .in('sheet_id', [...sheetName.keys()])
-    .or(`item_name.ilike.%${query.replace(/[%,()]/g, '')}%,item_code.ilike.%${query.replace(/[%,()]/g, '')}%`)
-    .order('item_code').limit(20)
-  const items = ((itemRaw ?? []) as Array<{ item_code: string; item_name: string; comprehensive_only: boolean; sheet_id: string }>)
-    .filter(i => isItemInScope(i, scope))
+  // 캐시 위 메모리 검색 — 종전엔 300ms 디바운스마다 ilike 쿼리가 DB로 나갔다(sheet-catalog.ts).
+  // 종전은 DB에서 20건을 먼저 자른 뒤 범위(scope) 필터를 걸어, 범위 밖 항목이 섞이면 결과가
+  // 20건보다 적게 나왔다. 이제 범위 필터를 **먼저** 걸고 20건을 자른다 — 검색이 덜 잘린다.
+  const needle = query.toLowerCase()
+  const items = (await getAllSheetItems())
+    .filter(i => sheetName.has(i.sheet_id) && isItemInScope(i, scope)
+      && (i.item_name.toLowerCase().includes(needle) || i.item_code.toLowerCase().includes(needle)))
+    .sort((a, b) => a.item_code.localeCompare(b.item_code))
+    .slice(0, 20)
 
   const { data: resp } = items.length > 0
     ? await admin.from('inspection_sheet_responses').select('item_code, result')
