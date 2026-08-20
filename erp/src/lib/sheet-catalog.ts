@@ -18,11 +18,13 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
  *  (번들 문서 `next/dist/docs/01-app/02-guides/caching-without-cache-components.md`).
  *
  *  ⚠ **무효화 구멍** — `scripts/seed-*.mjs`와 마이그레이션 스크립트는 DB를 직접 쓰므로
- *  `revalidateTag`가 절대 불리지 않는다. 3중 방어로 덮는다:
+ *  무효화가 절대 불리지 않는다. 3중 방어로 덮는다:
  *    ① 아래 revalidate TTL(1시간) 백스톱
  *    ② /inspection-sheets 의 관리자용 [카탈로그 캐시 비우기] 버튼
  *    ③ 시드 스크립트 말미 안내 출력
- *  항목(item) 편집 UI가 앞으로 생기면 **그 액션에도 `revalidateTag(SHEET_CATALOG_TAG)`를 붙일 것.**
+ *  항목(item) 편집 UI가 앞으로 생기면 **그 액션에도 `updateTag(SHEET_CATALOG_TAG)`를 붙일 것.**
+ *  ⚠ `revalidateTag`가 아니다 — 이 Next 버전에서 그 함수는 2인자(tag, profile)이고 단일 인자형은
+ *  deprecated라 컴파일되지 않는다. 쓰기 직후 Server Action의 짝은 updateTag다(read-your-own-writes).
  *
  *  캐시에는 **범위 필터를 적용하지 않은 원본**을 담는다 — scope는 점검 건마다 다르므로
  *  `isItemInScope`(sheet-scope.ts) 필터는 호출부가 그대로 유지한다. */

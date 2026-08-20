@@ -1,6 +1,11 @@
 'use server'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
+// 2026-08-20: revalidateTag → updateTag. 이 Next 버전의 revalidateTag는 2인자(tag, profile)이고
+// 단일 인자형은 deprecated라 `revalidateTag(TAG)`는 컴파일되지 않는다(TS2554).
+// 아래 호출부는 전부 **쓰기 직후의 Server Action**이라 updateTag가 맞는 짝이다 — 문서상
+// updateTag는 Server Action 전용이며 read-your-own-writes를 보장한다. revalidateTag(TAG,'max')는
+// stale-while-revalidate라 방금 저장한 점검표가 한 박자 늦게 보인다.
+import { revalidatePath, updateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { SHEET_CATALOG_TAG } from '@/lib/sheet-catalog'
@@ -71,7 +76,7 @@ export async function createSheetAction(
     if (itemErr) return { error: itemErr.message }
   }
 
-  revalidateTag(SHEET_CATALOG_TAG)
+  updateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   return { sheetId }
 }
@@ -134,7 +139,7 @@ export async function deleteSheetAction(id: string): Promise<{ error?: string }>
   const { error } = await admin.from('inspection_sheets').delete().eq('id', id)
   if (error) return { error: error.message }
 
-  revalidateTag(SHEET_CATALOG_TAG)
+  updateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   return {}
 }
@@ -163,7 +168,7 @@ export async function updateSheetAction(input: {
   if (error) return { error: error.message }
   // ⚠ sheet_name이 바뀌면 sheetMatchesFacilities의 installed 판정(sheet-overview.ts:251)이 달라진다 —
   // 이름만 고쳐도 카탈로그 캐시를 반드시 비워야 한다.
-  revalidateTag(SHEET_CATALOG_TAG)
+  updateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   revalidatePath(`/inspection-sheets/${input.id}`)
   return {}
@@ -174,7 +179,7 @@ export async function updateSheetAction(input: {
  *  않고 즉시 반영하고 싶을 때 쓰는 관리자 수동 경로다. */
 export async function clearSheetCatalogCacheAction(): Promise<{ error?: string; ok?: boolean }> {
   await requirePermission('inspection_register')
-  revalidateTag(SHEET_CATALOG_TAG)
+  updateTag(SHEET_CATALOG_TAG)
   revalidatePath('/inspection-sheets')
   return { ok: true }
 }

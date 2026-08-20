@@ -873,7 +873,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
       {/* 생성물 목록 — 문서 단위 1행 그룹핑 (⑩ R11 공용 컴포넌트) */}
       {files.length > 0 && (
         <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
-          <GeneratedDocList files={files} onOpen={download} customerName={customerName} disabled={isPending} />
+          <GeneratedDocList files={files} onOpen={download} inspectionId={inspectionId} disabled={isPending} />
         </div>
       )}
 
