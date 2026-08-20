@@ -784,6 +784,14 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           <span className="inline-flex items-center rounded bg-[#eeecf8] px-1.5 py-0.5 text-[10px] font-semibold text-[#514b81] mx-1">자동</span>
           (고객정보·점검표에서 채움). 설치(√)한 설비 블록만 펼쳐 입력합니다.
         </p>
+        {/* 여기 넣은 제원이 소방계획서 본문에 안 보인다는 문의가 반복된다(2026-08-20) —
+            소방계획서 템플릿은 customer_facility_specs를 아예 읽지 않는다(설비 체크 목록만 인쇄).
+            같은 '1.4' 카드 안에서 두 층위가 서로 다른 문서로 가는 게 원인이라 인쇄처를 못박아 둔다. */}
+        <p className="rounded-lg border border-[#d0ccf5] bg-[#f5f4ff] px-3 py-1.5 text-[11px] text-[#514b81]">
+          <span className="inline-flex items-center rounded bg-[#7b68ee]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#7b68ee] mr-1">인쇄처</span>
+          여기 입력한 제원(설치장소·수량·규격 등)은 <b>별지 9호 4~7쪽 · 별지 4호 3~7쪽</b>에 인쇄됩니다.
+          <b> 소방계획서 본문(서식 1.4)에는 설비 체크 목록만</b> 나가고 제원은 실리지 않습니다.
+        </p>
 
         {/* D-17 9호發 복귀 바 — 안내칩으로 넘어온 경우에만 */}
         {fromReport9 && (
