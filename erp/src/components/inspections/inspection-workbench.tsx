@@ -1,18 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Eye, FileText, Loader2,
-  Maximize2, MessageSquare, Package, Send, Trash2, Upload, X,
+  AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Download, ExternalLink,
+  FileText, Loader2, Maximize2, MessageSquare, Package, RotateCcw, Send, Trash2, Upload, X,
 } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, getAnnexPreviewHtmlAction,
   type Report9Job, type Report9File,
 } from '@/app/(dashboard)/inspections/report9-actions'
-import { getAnnexInputsAction, saveAnnexInputsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
   forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction,
@@ -34,6 +34,10 @@ import { DefectGrid, type GridDefect } from '@/components/inspections/defect-gri
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
+import {
+  PANE_BASE, PANE_LABELS, PANE_W_DEFAULT, getPaneWServerSnapshot, getPaneWSnapshot,
+  nudgePaneW, paneCols, subscribePaneW, writePaneW,
+} from '@/lib/pane-width'
 import type { TimelineData, TimelineSlots } from '@/components/inspections/inspection-timeline-client'
 
 /** 점검 상세 한 화면 작업대 (소방계획서_21 R6 / C2, D34-4)
@@ -77,9 +81,12 @@ export function InspectionWorkbench({
   const [job, setJob] = useState(initialJob)
   const [files, setFiles] = useState(initialFiles)
   const [msg, setMsg] = useState('')
-  // 22 S8 후속 — [위임장 보기]가 아래 접힘 영역을 열고 그리로 스크롤한다
-  const [delegationOpen, setDelegationOpen] = useState(false)
-  const delegationRef = useRef<HTMLDetailsElement>(null)
+  // ④ 문서 칩이 고른 문서 — 3칸(고유값·미리보기·생성)이 이 값을 따라간다 (2026-08-20)
+  const [docSel, setDocSel] = useState<AnnexDocType>('report9')
+  /** 이미 생성된 종류 — 칩의 ✓ 표시. 파일명 규약 `{kind}_{stamp}.{ext}`에서 종류만 뽑는다 */
+  const genKinds = useMemo(
+    () => new Set(files.map(f => /^([a-z0-9]+)_\d+\./i.exec(f.name)?.[1]).filter(Boolean) as string[]),
+    [files])
   const [isPending, startTransition] = useTransition()
   const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
   const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
@@ -371,6 +378,21 @@ export function InspectionWorkbench({
    *  ① 설비목록·점검표 / 불량 / (참여·기간)   ② 참여인력 / 업로드 / 배치요약
    *  ③ 수신정보 / 발송 / 발송이력            ④ 문서목록 / 제출 / 전제·제출일
    *  ⑤ 불량목록 / 조치 / 10호 미리보기        ⑥ 완료현황 / 11호 / 11호 미리보기 */
+  // 칸 폭 조정치 — 브라우저에 남긴다(사람마다 화면도 일하는 방식도 다르다).
+  // 서버 렌더는 기본값, 붙은 뒤 저장값으로 한 번 다시 그린다(lib/pane-width 헤더 참고).
+  const dw = useSyncExternalStore(subscribePaneW, getPaneWSnapshot, getPaneWServerSnapshot)
+  const nudgePane = useCallback((i: number, dir: 1 | -1) => {
+    const next = nudgePaneW(dw, i, dir)
+    if (next) writePaneW(next)
+  }, [dw])
+  const paneAdjusted = dw.some(v => Math.abs(v) > 1e-9)
+  const stepKind = PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
+  // 두 breakpoint의 기본값에 각각 조정치를 얹어 CSS 변수로 넘긴다 — 반응형은 Tailwind가 그대로 고른다.
+  const paneStyle = {
+    '--wb-lg': paneCols(PANE_BASE.lg[stepKind], dw),
+    '--wb-2xl': paneCols(PANE_BASE.xl[stepKind], dw),
+  } as React.CSSProperties
+
   const paneCls = 'min-h-0 overflow-y-auto rounded-xl border border-[#e0ddf5] bg-white'
   const paneHead = 'sticky top-0 z-10 flex items-center gap-1.5 border-b border-[#eceafd] bg-[#fafaff] px-3 py-1.5 text-[11px] font-semibold text-[#514b81]'
 
@@ -438,11 +460,37 @@ export function InspectionWorkbench({
           2xl에서 더 밀면 1920 기준 87%→99%로 사실상 스크롤이 사라진다.
           ⚠ 이 재배분은 날짜 칸 병목(annex-fields 총 이행기간·defect-grid 날짜 열)을 먼저 푼 뒤에야
           가로 넘침 없이 성립한다 — 그 두 곳을 되돌리면 여기도 함께 되돌려야 한다. */}
-      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-2 ${
-        PREVIEW_STEPS.has(sel)
-          ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,1.5fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.8fr)]'
-          : 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]'
-      }`}
+      {/* 칸 폭 조절 줄 — 아래 그리드와 **같은 템플릿**을 쓰므로 각 ◀▶ 짝이 자기 칸 바로 위에 선다.
+          칸이 세로로 쌓이는 좁은 화면(lg 미만)에서는 폭 개념이 없으므로 숨긴다. */}
+      <div className="hidden shrink-0 gap-2 lg:grid lg:grid-cols-[var(--wb-lg)] 2xl:grid-cols-[var(--wb-2xl)]"
+        style={paneStyle} data-testid="workbench-pane-width">
+        {PANE_LABELS.map((label, i) => (
+          <div key={label} className="flex items-center justify-end gap-0.5 pr-1">
+            {i === 2 && paneAdjusted && (
+              <button onClick={() => writePaneW(PANE_W_DEFAULT)} title="칸 폭을 기본값으로 되돌립니다"
+                aria-label="칸 폭 초기화" data-testid="pane-w-reset"
+                className="mr-1 inline-flex items-center gap-1 rounded px-1 text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                <RotateCcw className="size-3" /> 초기화
+              </button>
+            )}
+            <span className="text-[10px] text-[#b0acd6]">{label}</span>
+            <button onClick={() => nudgePane(i, -1)} disabled={!nudgePaneW(dw, i, -1)}
+              title={`${label}을 좁힙니다`} aria-label={`${label} 좁게`} data-testid={`pane-w-${i}-narrow`}
+              className="inline-flex size-5 items-center justify-center rounded text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#7b68ee] disabled:opacity-30 disabled:hover:bg-transparent">
+              <ChevronLeft className="size-3.5" />
+            </button>
+            <button onClick={() => nudgePane(i, 1)} disabled={!nudgePaneW(dw, i, 1)}
+              title={`${label}을 넓힙니다 — 나머지 두 칸이 절반씩 양보합니다`} aria-label={`${label} 넓게`}
+              data-testid={`pane-w-${i}-wide`}
+              className="inline-flex size-5 items-center justify-center rounded text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#7b68ee] disabled:opacity-30 disabled:hover:bg-transparent">
+              <ChevronRight className="size-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[var(--wb-lg)] 2xl:grid-cols-[var(--wb-2xl)]"
+        style={paneStyle}
         data-testid="workbench-panes">
         {sel === 'checklist' && (<>
           <Pane title="점검표 입력" cls={paneCls} head={paneHead}>
@@ -638,52 +686,31 @@ export function InspectionWorkbench({
                   <span className="ml-1">원본이 없으면 관리자에게 문의해주세요.</span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {canManage && (<>
-                  <button onClick={() => generate('report9')} disabled={isPending || busy || regenBlocked} className={btnPri}>
-                    {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
-                  </button>
-                  <button onClick={() => generate('report4')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 별지 4호</button>
-                  {/* 소방계획서_22 S5·S7·S8 — 납품 번들 앞장 3종. 번들 순서는 공문 → 위임장 → 표지 → 본문(bundle TYPE_ORDER) */}
-                  <button onClick={() => generate('official')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 공문</button>
-                  <button onClick={() => generate('delegation')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 위임장</button>
-                  {/* 22 S8 후속 — 만들기 전에 확인. 아래 접힘 영역(입력+즉석 미리보기)을 연다 */}
-                  <button onClick={() => { setDelegationOpen(true); setTimeout(() => delegationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50) }}
-                    title="위임장 미리보기 — 생성 전에 내용을 확인합니다"
-                    className={btn}><Eye className="size-3" /> 위임장 보기</button>
-                  <button onClick={() => generate('cover')} disabled={isPending || busy || regenBlocked} className={btn}><FileText className="size-3" /> 표지</button>
+              {/* 문서 칩 = **무엇을 작업할지 고르는 스위치**(2026-08-20 사용자 확정).
+                  종전에는 칩 하나하나가 곧 [생성]이었고 3칸은 별지 9호로 고정이라, 별지 4호·공문·표지는
+                  **만들어봐야 내용을 알 수 있었다**(위임장만 [위임장 보기]로 예외 처리돼 있었다).
+                  이제 칩을 누르면 3칸이 그 문서의 고유값·미리보기·생성으로 바뀐다 — 보고 나서 만든다. */}
+              <div className="flex items-center gap-1.5 flex-wrap" data-testid="annex-doc-chips">
+                {ANNEX_DOC_CHIPS.map(c => {
+                  const on = docSel === c.type
+                  return (
+                    <button key={c.type} onClick={() => setDocSel(c.type)} data-doc-chip={c.type}
+                      aria-pressed={on}
+                      title={`${c.label} — 3칸에서 내용을 확인하고 생성합니다`}
+                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] transition-colors ${
+                        on ? 'border-[#7b68ee] bg-[#7b68ee] text-white font-medium' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+                      <FileText className="size-3" /> {c.label}
+                      {/* 생성 여부 — 칩만 보고도 무엇이 남았는지 안다 */}
+                      <span className={on ? 'text-white/80' : 'text-[#b0acd6]'}>{genKinds.has(c.type) ? '✓' : '·'}</span>
+                    </button>
+                  )
+                })}
+                {canManage && (
                   <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
-                </>)}
+                )}
               </div>
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
-              {/* 22 S7 보강 — 공문 ③ 고유값 진입점. 정의·저장 경로(Q-14)는 있었는데 여는 화면이 없어
-                  자동 제안 문서번호를 수정할 방법이 없었다(2026-08-15 S8 배선 중 발견) */}
-              {canManage && (
-                <details className="border-t border-[#f3f1fc] pt-2">
-                  <summary className="cursor-pointer text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]">
-                    공문 입력 (문서번호·수신·참조)
-                  </summary>
-                  <div className="mt-1.5">
-                    <AnnexFields inspectionId={inspectionId} annexNo="official" canEdit={canManage} />
-                  </div>
-                </details>
-              )}
-              {/* 22 S8 — 위임장 ③ 고유값(생년월일 등 시스템 미보유 값). 자동 기본값 위에 수동 우선.
-                  [위임장 보기]가 이 영역을 여는 구조라 open을 상태로 잡는다(details 기본 토글도 그대로 유지) */}
-              {canManage && (
-                <details ref={delegationRef} open={delegationOpen}
-                  onToggle={e => setDelegationOpen((e.currentTarget as HTMLDetailsElement).open)}
-                  className="border-t border-[#f3f1fc] pt-2">
-                  <summary className="cursor-pointer text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]">
-                    위임장 입력·미리보기 (관계인·대리인 생년월일 등)
-                  </summary>
-                  <div className="mt-1.5">
-                    {/* 열렸을 때만 렌더 — 닫힌 채로 미리보기를 조립하면 불필요한 왕복이 생긴다 */}
-                    {delegationOpen && <AnnexInlineCompose inspectionId={inspectionId} annexNo="delegation" canEdit={canManage} />}
-                  </div>
-                </details>
-              )}
               <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] pt-2">
                 <span className="text-[11px] text-[#514b81]">소방서 제출일</span>
                 <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
@@ -721,9 +748,13 @@ export function InspectionWorkbench({
               )}
             </div>
           </Pane>
-          {/* R6-6: 3단 작성 패널 대신 미리보기 위에 서식 고유값 몇 칸 */}
-          <Pane title="9호 고유값·미리보기" cls={paneCls} head={paneHead} fill>
-            <AnnexPane inspectionId={inspectionId} annexNo="report9" canEdit={canManage} customerId={customerId} />
+          {/* R6-6: 3단 작성 패널 대신 미리보기 위에 서식 고유값 몇 칸.
+              2026-08-20 — 어떤 문서를 띄울지는 왼쪽 칩이 정한다(종전 report9 고정) */}
+          <Pane title={`${ANNEX_PREVIEW_TITLES[docSel]} — ${ANNEX_HAS_FIELDS.has(docSel) ? '고유값·미리보기' : '미리보기'}`}
+            cls={paneCls} head={paneHead} fill>
+            <AnnexPane inspectionId={inspectionId} annexNo={docSel} canEdit={canManage} customerId={customerId}
+              onGenerate={() => generate(docSel)} generating={busy} genBlocked={regenBlocked || isPending}
+              generated={genKinds.has(docSel)} />
           </Pane>
         </>)}
 
@@ -927,17 +958,24 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved }: {
 }) {
   const defs = FIELD_DEFS[annexNo]
   const [fields, setFields] = useState<Record<string, string>>({})
+  // 자동 계산값 — 보여주기만 한다(저장 금지). 저장하면 원천이 바뀌어도 옛 값이 굳는다
+  const [auto, setAuto] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const savedRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     let alive = true
-    getAnnexInputsAction(inspectionId, annexNo).then(inp => {
+    Promise.all([
+      getAnnexInputsAction(inspectionId, annexNo),
+      // 자동값은 보조 정보 — 실패해도 입력은 되어야 한다
+      getAnnexAutoDefaultsAction(inspectionId, annexNo).catch(() => ({ defaults: {} })),
+    ]).then(([inp, def]) => {
       if (!alive) return
       const f: Record<string, string> = {}
       for (const d of defs) { const v = inp.fields[d.key]; if (typeof v === 'string') f[d.key] = v }
       setFields(f)
+      setAuto(def.defaults ?? {})
       savedRef.current = { ...f }
       setLoading(false)
     })
@@ -967,54 +1005,62 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved }: {
         {state === 'saved' && <span className="text-green-600">저장됨</span>}
         {state === 'error' && <span className="text-red-600">저장 실패</span>}
       </p>
-      {defs.map(d => (
-        <label key={d.key} className="block">
-          <span className="block text-[10px] font-medium text-[#514b81]">{d.label}</span>
-          <AnnexFieldInput def={d} value={fields[d.key] ?? ''} rows={1}
-            onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))} />
-        </label>
-      ))}
+      {defs.map(d => {
+        // 자동값은 **빈 칸일 때만** 회색으로 비춘다(placeholder). 값을 넣는 순간 그 값이 이긴다.
+        // 칸에 미리 채워 넣지 않는 이유: 저장되어 원천 변경을 따라가지 못하게 된다.
+        const a = auto[d.key]?.trim()
+        const shown = a ? { ...d, placeholder: a } : d
+        return (
+          <label key={d.key} className="block">
+            <span className="block text-[10px] font-medium text-[#514b81]">{d.label}</span>
+            <AnnexFieldInput def={shown} value={fields[d.key] ?? ''} rows={1}
+              onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))} />
+            {a && !(fields[d.key] ?? '').trim() && (
+              <span className="mt-0.5 flex items-center gap-1 text-[10px] text-[#847ba8]">
+                <span className="inline-flex items-center rounded bg-[#eeecf8] px-1 py-px text-[9px] font-medium text-[#514b81]">자동</span>
+                이대로 출력됩니다 — 고치면 고친 값이 나갑니다
+              </span>
+            )}
+          </label>
+        )
+      })}
     </div>
   )
 }
 
-/** 앞장류 입력 + 즉석 미리보기 (22 S8) — 접힘 영역용. AnnexPane과 같은 구성이지만
- *  Pane이 물려주는 높이가 없는 자리라 미리보기 높이를 직접 준다.
- *  왜 필요한가: 공문·위임장은 생성 버튼만 있고 **만들기 전에 내용을 볼 방법이 없었다** —
- *  생년월일 같은 ③ 입력이 문서에 어떻게 찍히는지 확인하려면 일단 PDF를 만들어야 했다. */
-function AnnexInlineCompose({ inspectionId, annexNo, canEdit }: {
-  inspectionId: string
-  annexNo: 'official' | 'delegation'
-  canEdit: boolean
-}) {
-  const [rev, setRev] = useState(0)
-  return (
-    <div className="space-y-2">
-      <AnnexFields inspectionId={inspectionId} annexNo={annexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
-      <div className="h-[30rem] border-t border-[#f3f1fc] pt-2">
-        <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)} />
-      </div>
-    </div>
-  )
-}
+/* AnnexInlineCompose(22 S8 접힘 영역)는 폐지했다(2026-08-20).
+   "공문·위임장을 만들기 전에 볼 방법이 없다"는 문제를 접힘 영역으로 풀었었는데,
+   이제 칩으로 고르면 3칸이 같은 구성(고유값+미리보기+생성)을 보여주므로 자리가 둘일 이유가 없다. */
 
-/** 고유값 + 미리보기 한 칸 — ④처럼 보조 칸이 하나뿐일 때 */
-function AnnexPane({ inspectionId, annexNo, canEdit, customerId }: {
+/** 고유값 + 미리보기 한 칸 — ④처럼 보조 칸이 하나뿐일 때.
+ *  2026-08-20: ④에서는 왼쪽 칩이 고른 문서를 받는다. 고유값이 없는 서식(별지 4호·표지)은
+ *  입력 칸 없이 미리보기만 — 그 문서는 전부 자동 조립이라 여기서 고칠 값이 없다.
+ *  [생성]은 이 칸 안에 둔다: 보고 나서 만드는 순서를 화면이 강제한다. */
+function AnnexPane({ inspectionId, annexNo, canEdit, customerId, onGenerate, generating, genBlocked, generated }: {
   inspectionId: string
-  annexNo: 'report9' | 'report10' | 'report11'
+  annexNo: AnnexDocType | 'report10' | 'report11'
   canEdit: boolean
   customerId?: string
+  onGenerate?: () => void
+  generating?: boolean
+  genBlocked?: boolean
+  generated?: boolean
 }) {
   const [rev, setRev] = useState(0)
+  const hasFields = ANNEX_HAS_FIELDS.has(annexNo)
   // 고유값 칸은 내용만큼(shrink-0), 남는 높이는 전부 미리보기에 — Pane fill이 물려준 높이를 여기서 흘려보낸다
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="shrink-0">
-        <AnnexFields inspectionId={inspectionId} annexNo={annexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
-      </div>
+      {hasFields && (
+        <div className="shrink-0">
+          <AnnexFields inspectionId={inspectionId} annexNo={annexNo as ComposeAnnexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col border-t border-[#f3f1fc] pt-2">
         <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)}
-          customerId={customerId} />
+          customerId={customerId}
+          onGenerate={canEdit ? onGenerate : undefined} generating={generating}
+          genBlocked={genBlocked} generated={generated} />
       </div>
     </div>
   )
@@ -1022,13 +1068,19 @@ function AnnexPane({ inspectionId, annexNo, canEdit, customerId }: {
 
 /** 별지 즉석 미리보기 (R6-4·R6-5, D34-5) — 저장된 PDF가 아니라 현재 데이터로 HTML을 조립해 보여준다.
  *  watch가 바뀌면(불량 수정 등) 디바운스 후 다시 부른다. Gotenberg 미호출이라 파일이 생기지 않는다. */
-function AnnexPreview({ inspectionId, reportType, watch, customerId }: {
+function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate, generating, genBlocked, generated }: {
   inspectionId: string
-  /** 앞장류(공문·위임장·표지)도 같은 즉석 렌더를 탄다 — 액션이 전 종류를 처리한다(22 S5·S7·S8) */
-  reportType: 'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover'
+  /** 앞장류(공문·위임장·표지)·별지 4호도 같은 즉석 렌더를 탄다 — 액션이 전 종류를 처리한다(22 S5·S7·S8) */
+  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover'
   watch?: string
   /** 미입력 항목의 [고치기] 딥링크용 — 없으면 링크 없이 목록만 */
   customerId?: string
+  /** ④ 문서 칩 흐름 — [생성]을 **머리줄에** 둔다. 별도 줄로 빼면 미리보기 높이를 그만큼 깎는다
+   *  (test-preview-pane이 그 높이를 지킨다: 별도 줄로 넣었더니 281→237px로 내려갔다) */
+  onGenerate?: () => void
+  generating?: boolean
+  genBlocked?: boolean
+  generated?: boolean
 }) {
   const [html, setHtml] = useState<string | null>(null)
   const [missing, setMissing] = useState<string[]>([])
@@ -1079,6 +1131,17 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId }: {
         {/* 종전엔 개수만 띄웠다 — 무엇이 왜 비었는지 볼 방법이 없어 조립 쪽에 항목을 더해도 숫자만 올랐다 */}
         {!loading && !(err && missing.length === 0) && <AnnexMissingChip missing={missing} customerId={customerId} />}
         <span className="ml-auto flex items-center gap-2">
+          {/* 지금 보고 있는 이 초안을 그대로 PDF로 만든다 — 전제 미충족이어도 막지 않는다(빈 칸으로 인쇄).
+              ⚠ 형제 버튼(크게 보기·새로고침)과 **같은 글자 높이**를 지킨다. 알약(h-6)으로 넣었더니
+              머리줄이 커지며 미리보기가 9px 깎였다 — 이 칸은 이미 세로가 빠듯하다(test-preview-pane). */}
+          {onGenerate && (
+            <button onClick={onGenerate} disabled={generating || genBlocked} data-testid="annex-generate"
+              title={generated ? '이미 생성됨 — 다시 만들면 최신본이 됩니다' : '이 미리보기 내용 그대로 PDF를 만듭니다'}
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-[#7b68ee] hover:underline disabled:opacity-50">
+              {generating ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />}
+              {generated ? '재생성' : 'PDF 생성'}
+            </button>
+          )}
           {html && (
             <button onClick={() => setZoom(true)} data-testid="preview-zoom"
               title="화면 전체로 크게 보기 — 스크롤 없이 한 장을 봅니다 (ESC로 닫기)"
@@ -1120,7 +1183,20 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId }: {
   )
 }
 
-const ANNEX_PREVIEW_TITLES: Record<'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover', string> = {
-  report9: '별지 9호', report10: '별지 10호', report11: '별지 11호',
+const ANNEX_PREVIEW_TITLES: Record<'report4' | 'report9' | 'report10' | 'report11' | 'official' | 'delegation' | 'cover', string> = {
+  report4: '별지 4호', report9: '별지 9호', report10: '별지 10호', report11: '별지 11호',
   official: '제출 공문', delegation: '위임장', cover: '보고서 표지',
 }
+
+/** ④에서 칩으로 고를 수 있는 문서 — 순서는 납품 번들 순서(공문 → 위임장 → 표지 → 본문)가 아니라
+ *  **작업 순서**를 따른다: 본문(9호·4호)을 먼저 확정하고 앞장류를 붙인다. */
+export type AnnexDocType = 'report9' | 'report4' | 'official' | 'delegation' | 'cover'
+const ANNEX_DOC_CHIPS: Array<{ type: AnnexDocType; label: string }> = [
+  { type: 'report9', label: '별지 9호' },
+  { type: 'report4', label: '별지 4호' },
+  { type: 'official', label: '공문' },
+  { type: 'delegation', label: '위임장' },
+  { type: 'cover', label: '표지' },
+]
+/** 서식 고유값(annex_inputs)이 있는 종류 — 없는 것(별지 4호·표지)은 미리보기만 띄운다 */
+const ANNEX_HAS_FIELDS = new Set<string>(['report9', 'report10', 'report11', 'official', 'delegation'])
