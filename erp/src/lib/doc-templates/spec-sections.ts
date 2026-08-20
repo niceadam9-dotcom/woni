@@ -187,9 +187,14 @@ function renderS32(sec: Vals, h: boolean): string {
     '옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비',
     '화재조기진압용스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비',
   ]
-  const sysLine = (b: Vals) =>
-    `◦ 설비의 종류: ${WATER_SYSTEMS.slice(0, 3).map(o => `${mc(b['systems'], o)}${o}`).join(', ')},`
-    + `<br>　　${WATER_SYSTEMS.slice(3).map(o => `${mc(b['systems'], o)}${o}`).join(', ')}`
+  // 배치는 원문 그대로 3·2·3행 — 종전 3+5는 둘째 줄에 5종이 몰려 '포소화설비'가 칸 끝에서 접혔다.
+  // 구분자도 원문은 쉼표가 아닌 공백이다(_별지4호_현행판_추출.txt:184-186).
+  const sysLine = (b: Vals) => {
+    const g = (from: number, to: number) =>
+      WATER_SYSTEMS.slice(from, to).map(o => `${mc(b['systems'], o)}${o}`).join(' ')
+    return `<span class="syslist">◦ 설비의 종류: </span>`
+      + `<span class="syslist">${g(0, 3)}<br>${g(3, 5)}<br>${g(5, 8)}</span>`
+  }
 
   const pumpLines = [
     sysLine(pm),

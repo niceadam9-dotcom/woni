@@ -35,6 +35,11 @@ export const BASE_CSS = `
   .small { font-size: 8.5pt; }
   .muted { color: #444; }
   .nowrap { white-space: nowrap; }
+  /* '◦ 설비의 종류' 8종 체크줄(3-2 수계공통) — 라벨과 목록을 두 개의 inline-block으로 나눠, 2·3행이
+     라벨 폭만큼 걸려 첫 항목 '[ ]옥내소화전설비' 바로 아래로 정렬된다(서식 원문 배치). 전각 공백으로
+     들여쓰던 종전 방식은 라벨 폭과 어긋나 줄마다 시작점이 달랐다. vertical-align:top이 없으면 1줄짜리
+     라벨이 3줄짜리 목록의 **마지막 줄** 베이스라인에 붙는다. */
+  .syslist { display: inline-block; vertical-align: top; }
   .footnote { font-size: 8pt; text-align: center; margin-top: 4px; } /* 210mm×297mm 규격 표기 */
   .missing { background: #fff7cc; }              /* 미입력 하이라이트 — 미리보기 확인용(§4-A-2c ③) */
   img.slot { max-width: 100%; }
