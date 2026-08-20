@@ -11,7 +11,25 @@
 
 import { EVAC_TYPES } from './facility-codes'
 
-export type SpecFieldType = 'text' | 'number' | 'check' | 'select' | 'multicheck'
+export type SpecFieldType = 'text' | 'number' | 'check' | 'select' | 'multicheck' | 'rowtable'
+
+/** rowtable 한 열 — 반복 행 표(3-1 동별 수량)의 칸. 열 자체는 단순 text/number만 담는다.
+ *  서식 원문의 병합 헤더(소화기 › 분말/기타)를 group+short 두 줄로 재현한다. */
+export type SpecColumn = {
+  key: string
+  label: string          // 전체 이름 — 툴팁·aria-label
+  group?: string         // 표 헤더 윗줄 (서식 원문의 병합 칸)
+  short?: string         // 표 헤더 아랫줄 (좁은 폭용 축약)
+  type: 'text' | 'number'
+  unit?: string
+  /** 동명·비고처럼 글자를 받는 열 — 좁은 수량 열과 달리 넓게 */
+  wide?: boolean
+  /** 같은 블록 multicheck의 이 선택지가 체크돼야 입력 가능 — 미체크 열은 잠긴다.
+   *  '설치하지 않은 설비 칸에 수량이 남는' 모순을 구조로 막는다(2026-08-20). */
+  enabledBy?: string
+  /** 합계 행에서 세로 합산 대상 (수량 열) */
+  total?: boolean
+}
 
 export type SpecField = {
   key: string
@@ -19,6 +37,8 @@ export type SpecField = {
   type: SpecFieldType
   unit?: string          // number 필드 단위 (㎥, m, ℓ/min …)
   options?: string[]     // select·multicheck 선택지 (서식 원문 표기 그대로)
+  /** rowtable 열 정의 — 행 수는 사용자가 늘린다(동 추가). 합계 행은 total 열의 세로 합. */
+  columns?: SpecColumn[]
 
   // ── 중복 입력 제거 표시 (2026-08-08) ─────────────────────────────────────
   // 같은 정보를 1.4 대장·건물 정보와 두 번 받던 필드들을 **원천 한 곳**으로 정리했다.
@@ -100,31 +120,96 @@ function fanFields(prefix: string, labelPrefix: string): SpecField[] {
 
 // ── 3-1. 소화기구, 자동소화장치 ─────────────────────────────────────────────
 
+export const S31_TYPE_OPTIONS = [
+  '소화기(분말)', '소화기(기타)', '간이소화용구(투척용)', '간이소화용구(기타)', '자동확산소화기', '자동소화장치',
+] as const
+
+/** 서식(별지 9호 4쪽 3-1) 표의 열 = 구분(동명) + 수량 6 + 비고.
+ *  enabledBy로 위 체크박스와 1:1로 묶여 있어, 체크한 종류의 칸만 열린다. */
+export const S31_COLUMNS: SpecColumn[] = [
+  { key: 'dong', label: '동명', short: '동명', type: 'text', wide: true },
+  { key: 'qty_ext_powder', label: '소화기(분말)', group: '소화기', short: '분말', type: 'number', unit: '개', enabledBy: '소화기(분말)', total: true },
+  { key: 'qty_ext_other', label: '소화기(기타)', group: '소화기', short: '기타', type: 'number', unit: '개', enabledBy: '소화기(기타)', total: true },
+  { key: 'qty_simple_throw', label: '간이소화용구(투척용)', group: '간이소화용구', short: '투척용', type: 'number', unit: '개', enabledBy: '간이소화용구(투척용)', total: true },
+  { key: 'qty_simple_other', label: '간이소화용구(기타)', group: '간이소화용구', short: '기타', type: 'number', unit: '개', enabledBy: '간이소화용구(기타)', total: true },
+  { key: 'qty_auto_diffuse', label: '자동확산소화기', group: '자동', short: '확산소화기', type: 'number', unit: '개', enabledBy: '자동확산소화기', total: true },
+  { key: 'qty_auto_device', label: '자동소화장치', group: '자동', short: '소화장치', type: 'number', unit: '개', enabledBy: '자동소화장치', total: true },
+  { key: 'note', label: '비고', short: '비고', type: 'text', wide: true },
+]
+
 const S31: SpecSection = {
   key: 's31_extinguisher', no: '3-1', label: '소화기구, 자동소화장치',
   blocks: [
     {
-      key: 'summary', label: '합계', facilityHint: '소화기구 및 자동소화장치',
+      // 2026-08-20 개편 — 종전엔 ① 합계 수량 6칸(수동) ② 동별 내역 자유 기입 텍스트, 두 블록이었다.
+      // 동을 추가해도 숫자가 아니라 문장이라 **합계를 낼 수 없었고**, 서식 표(동명+수량6+비고)와도
+      // 어긋났다(인쇄 시 colspan=6 한 칸으로 뭉갬). 이제 동별 행이 유일한 입력이고 합계는 그 세로 합이다.
+      key: 'summary', label: '동별 수량 · 합계', facilityHint: '소화기구 및 자동소화장치',
       fields: [
-        { key: 'types', label: '설치 종류', type: 'multicheck',
-          options: ['소화기(분말)', '소화기(기타)', '간이소화용구(투척용)', '간이소화용구(기타)', '자동확산소화기', '자동소화장치'] },
-        { key: 'qty_ext_powder', label: '소화기(분말) 수량', type: 'number', unit: '개' },
-        { key: 'qty_ext_other', label: '소화기(기타) 수량', type: 'number', unit: '개' },
-        { key: 'qty_simple_throw', label: '간이소화용구(투척용) 수량', type: 'number', unit: '개' },
-        { key: 'qty_simple_other', label: '간이소화용구(기타) 수량', type: 'number', unit: '개' },
-        { key: 'qty_auto_diffuse', label: '자동확산소화기 수량', type: 'number', unit: '개' },
-        { key: 'qty_auto_device', label: '자동소화장치 수량', type: 'number', unit: '개' },
-        { key: 'note', label: '비고', type: 'text' },
-      ],
-    },
-    {
-      // 서식은 동명별 반복 행(최대 5행) — 표 반복 패턴이라 자유 기입으로 완화(파일 머리 주석 참조)
-      key: 'by_dong', label: '동별 내역', facilityHint: '소화기구 및 자동소화장치',
-      fields: [
-        { key: 'rows', label: '동별 수량(동명·구분별 수량 자유 기입, 줄 단위)', type: 'text' },
+        { key: 'types', label: '설치 종류', type: 'multicheck', options: [...S31_TYPE_OPTIONS] },
+        { key: 'dong_rows', label: '동별 수량', type: 'rowtable', columns: S31_COLUMNS },
       ],
     },
   ],
+}
+
+// ── rowtable 값 헬퍼 (화면·인쇄 공용) ───────────────────────────────────────
+
+/** rowtable 한 행 — 열 key → 문자열 값 */
+export type SpecRow = Record<string, string>
+
+/** 저장분(JSONB 배열)·미상 값을 행 배열로 정규화 — 숫자로 저장된 칸도 문자열로 통일 */
+export function normalizeRows(raw: unknown): SpecRow[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map(r => {
+    const out: SpecRow = {}
+    if (r && typeof r === 'object') {
+      for (const [k, v] of Object.entries(r as Record<string, unknown>)) {
+        if (v == null || typeof v === 'object') continue
+        const s = String(v).trim()
+        if (s) out[k] = s
+      }
+    }
+    return out
+  })
+}
+export function rowIsEmpty(r: SpecRow): boolean {
+  return Object.values(r).every(v => !String(v ?? '').trim())
+}
+/** 표에 실제 입력이 하나라도 있는가 — 완성도·빈칸 큐 판정 */
+export function rowsHaveValue(rows: SpecRow[]): boolean {
+  return rows.some(r => !rowIsEmpty(r))
+}
+/** 열 세로 합 — 숫자 입력이 하나도 없으면 null(= 서식 빈칸). 숫자가 아닌 칸은 무시한다 */
+export function columnTotal(rows: SpecRow[], key: string): number | null {
+  let sum = 0, seen = false
+  for (const r of rows) {
+    const s = String(r?.[key] ?? '').trim()
+    if (!s) continue
+    const n = Number(s)
+    if (!Number.isFinite(n)) continue
+    sum += n; seen = true
+  }
+  return seen ? sum : null
+}
+
+/** 구(舊) 3-1 저장분 → 새 첫 행 (2026-08-20 개편 이관).
+ *  구조: summary.qty_*(합계 수동 입력) + summary.note. 화면을 열면 첫 행으로 올라오고,
+ *  저장 시 새 구조로 덮인다. by_dong.rows(자유 기입)는 폐기 — 운영·스테이징 실측 0건(2026-08-20).
+ *  이 함수는 **인쇄 쪽도 같이 쓴다**: 아직 다시 저장하지 않은 대상물의 문서가 빈 표로 나가면 안 된다. */
+export function s31LegacyRow(rawSection: Record<string, unknown> | undefined, dongName?: string): SpecRow | null {
+  const s = (rawSection?.['summary'] ?? {}) as Record<string, unknown>
+  const row: SpecRow = {}
+  for (const c of S31_COLUMNS) {
+    if (c.key === 'dong') continue
+    const v = s[c.key]
+    if (v == null) continue
+    const t = String(v).trim()
+    if (t) row[c.key] = t
+  }
+  if (rowIsEmpty(row)) return null
+  if (dongName?.trim()) row.dong = dongName.trim()
+  return row
 }
 
 // ── 3-2. 수계소화설비(공통사항) ─────────────────────────────────────────────

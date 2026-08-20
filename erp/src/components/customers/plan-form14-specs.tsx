@@ -7,8 +7,9 @@ import { saveFacilitySpecsBulkAction, getInspectedFacilityCodesAction } from '@/
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import { getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
 import {
-  FACILITY_SPEC_SECTIONS, isDerivedField, isFullyDerived, mergeDerivedMulti, derivedBuildingValue,
-  type SpecBlock, type SpecField, type SpecSection, type DerivedCtx,
+  FACILITY_SPEC_SECTIONS, isDerivedField, mergeDerivedMulti, derivedBuildingValue,
+  normalizeRows, rowIsEmpty, rowsHaveValue, columnTotal, s31LegacyRow,
+  type SpecBlock, type SpecField, type SpecSection, type SpecColumn, type SpecRow, type DerivedCtx,
 } from '@/lib/facility-spec-schema'
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
 import { rollUpForm3Results, form3ItemsForSheet } from '@/lib/sheet-facility-map'
@@ -23,17 +24,23 @@ const COUNT_UNITS = new Set(['개', '대', '개소', '개층', '구역'])
  *  facilityHint 블록은 1.4 표에서 설치(√)된 설비만 펼침 가능(§4-A-2 입력량 최소화),
  *  힌트 없는 블록(3-2 수계 공통 등)은 항상 입력 가능. 저장은 섹션 단위(건물 축 = 1.4의 bidx). */
 
-type FieldValue = string | boolean | string[]
+type FieldValue = string | boolean | string[] | SpecRow[]
 type SectionValues = Record<string, Record<string, FieldValue>> // blockKey → fieldKey → 값
 
 function initFieldValue(f: SpecField, raw: unknown): FieldValue {
   if (f.type === 'check') return raw === true
   if (f.type === 'multicheck') return Array.isArray(raw) ? raw.map(String) : []
+  if (f.type === 'rowtable') return normalizeRows(raw)
   return raw == null ? '' : String(raw)
 }
 function isFilled(v: FieldValue): boolean {
   if (typeof v === 'boolean') return v
-  if (Array.isArray(v)) return v.length > 0
+  if (Array.isArray(v)) {
+    // multicheck(문자열 배열)과 rowtable(행 객체 배열)이 같은 자리를 쓴다.
+    // 빈 행만 든 표는 '입력됨'이 아니다 — 완성도·빈칸 큐가 거짓 100%를 내면 안 된다.
+    if (v.length === 0) return false
+    return typeof v[0] === 'string' ? true : rowsHaveValue(v as SpecRow[])
+  }
   return v.trim() !== ''
 }
 function hintCodes(b: SpecBlock): string[] {
@@ -86,6 +93,13 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         const rawBl = (rawSec[bl.key] ?? {}) as Record<string, unknown>
         sv[bl.key] = {}
         for (const f of bl.fields) sv[bl.key][f.key] = initFieldValue(f, rawBl[f.key])
+      }
+      // 3-1 개편 이관(2026-08-20) — 구 저장분은 합계 수량 6칸이 summary에 직접 있었다.
+      // 동별 표가 비어 있을 때만 첫 행으로 올린다(다시 저장하면 새 구조로 확정).
+      // 인쇄 쪽도 같은 폴백을 갖고 있어, 저장 전까지 화면과 문서가 같은 값을 보인다.
+      if (sec.key === 's31_extinguisher' && !rowsHaveValue(sv['summary']?.['dong_rows'] as SpecRow[])) {
+        const legacy = s31LegacyRow(rawSec, buildingName)
+        if (legacy) sv['summary']['dong_rows'] = [legacy]
       }
       out[sec.key] = sv
     }
@@ -364,9 +378,27 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       for (const f of bl.fields) {
         if (isDerivedField(f)) continue
         const v = fieldValue(secKey, bl.key, f)
+        // rowtable: 빈 행은 버리고, 수량 열은 숫자로 저장한다(합계·인쇄가 숫자로 읽는다)
+        if (f.type === 'rowtable') {
+          const numeric = new Set((f.columns ?? []).filter(c => c.type === 'number').map(c => c.key))
+          const rows = (v as SpecRow[])
+            .filter(r => !rowIsEmpty(r))
+            .map(r => {
+              const out2: Record<string, unknown> = {}
+              for (const [k, raw] of Object.entries(r)) {
+                const s = String(raw ?? '').trim()
+                if (!s) continue
+                const n = Number(s)
+                out2[k] = numeric.has(k) && Number.isFinite(n) ? n : s
+              }
+              return out2
+            })
+          if (rows.length > 0) out[f.key] = rows
+          continue
+        }
         // 부분 파생(유도등): 사용자가 고른 비파생 선택지만 저장하고 대장에서 오는 값은 뺀다
-        if (f.derivedFrom && Array.isArray(v)) {
-          const own = v.filter(o => !f.derivedFrom![o])
+        if (f.derivedFrom && f.type === 'multicheck' && Array.isArray(v)) {
+          const own = (v as string[]).filter(o => !f.derivedFrom![o])
           if (own.length) out[f.key] = own
           continue
         }
@@ -422,10 +454,20 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       if (f.key === 'from_ground') return below > 0 ? '지하' : above > 0 ? '지상' : null
       if (f.key === 'to_ground') return above > 0 ? '지상' : null
     }
-    if (f.type === 'number' && bl.key === 'summary' && f.key === 'qty_ext_powder' && (extinguisherTotal ?? 0) > 0) {
-      return String(extinguisherTotal)
-    }
     return null
+  }
+
+  /** rowtable 기본 첫 행 — 동명(건물명) + 1.4 층별 수량표의 소화기 합계.
+   *  종전엔 3-1 합계 칸(qty_ext_powder)에 직접 넣던 값이다(소방계획서_9). 합계가 동별 합으로
+   *  바뀌었으니 같은 값을 **첫 동의 분말 수량**으로 넣는다 — 합계는 그대로 같은 수가 된다. */
+  function deriveRowDefault(f: SpecField): SpecRow | null {
+    const seed: SpecRow = {}
+    const cols = f.columns ?? []
+    if (buildingName && cols.some(c => c.key === 'dong')) seed.dong = buildingName
+    if ((extinguisherTotal ?? 0) > 0 && cols.some(c => c.key === 'qty_ext_powder')) {
+      seed.qty_ext_powder = String(extinguisherTotal)
+    }
+    return rowIsEmpty(seed) ? null : seed
   }
 
   function fillDefaults() {
@@ -440,7 +482,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         for (const f of bl.fields) {
           if (isDerivedField(f)) continue   // 원천이 대장·건물 — 여기서 기본값을 심으면 안 된다
           if (isFilled(next[sec.key][bl.key][f.key])) continue
-          const d = deriveDefault(bl, f)
+          const d: FieldValue | null = f.type === 'rowtable'
+            ? (() => { const r = deriveRowDefault(f); return r ? [r] : null })()
+            : deriveDefault(bl, f)
           if (d == null) continue
           if (!copiedSec.has(sec.key)) { next[sec.key] = { ...next[sec.key] }; copiedSec.add(sec.key) }
           const bid = `${sec.key}.${bl.key}`
@@ -500,6 +544,24 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       const instSet = new Set(Object.keys(installed).filter(c => installed[c]))
       const allOpts = f.options ?? []
       const known = new Set(allOpts.filter(o => instSet.has(o) || !Object.hasOwn(installed, o)))
+      /** 체크 토글 — 이 선택지가 같은 블록 rowtable의 어떤 열을 여닫는가(enabledBy)까지 책임진다.
+       *  끄면 그 열은 잠기므로, 값이 남아 있으면 '설치 안 했는데 수량이 인쇄되는' 모순이 된다.
+       *  조용히 지우지도, 조용히 남기지도 않는다 — 몇 칸이 지워지는지 밝히고 확인을 받는다. */
+      function toggleOpt(o: string, on: boolean) {
+        if (on) {
+          const tbl = bl.fields.find(x => x.type === 'rowtable' && (x.columns ?? []).some(c => c.enabledBy === o))
+          const col = tbl?.columns?.find(c => c.enabledBy === o)
+          if (tbl && col) {
+            const rows = fieldValue(secKey, bl, tbl) as SpecRow[]
+            const n = rows.filter(r => String(r[col.key] ?? '').trim()).length
+            if (n > 0) {
+              if (!window.confirm(`‘${o}’ 체크를 해제하면 표에 입력된 ${col.label} 수량 ${n}칸이 지워집니다. 계속할까요?`)) return
+              setField(secKey, bl.key, tbl.key, rows.map(r => { const c2 = { ...r }; delete c2[col.key]; return c2 }))
+            }
+          }
+        }
+        writeField(secKey, bl, f, on ? arr.filter(x => x !== o) : [...arr, o])
+      }
       return (
         <div className="flex flex-wrap gap-x-2.5 gap-y-1 py-1">
           {allOpts.map(o => {
@@ -512,7 +574,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
               : blocked ? '1.4에서 설치(√)로 체크한 설비만 고를 수 있습니다' : undefined
             return (
               <button key={o} type="button" disabled={lock} title={title}
-                onClick={() => writeField(secKey, bl, f, on ? arr.filter(x => x !== o) : [...arr, o])}
+                onClick={() => toggleOpt(o, on)}
                 className={`inline-flex items-center gap-1 text-[11px] ${
                   on ? 'font-bold text-[#090c1d]' : 'text-[#514b81] hover:text-[#7b68ee]'
                 } ${optDerived ? '!text-[#847ba8] cursor-default' : ''} disabled:opacity-60`}>
@@ -520,6 +582,122 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
               </button>
             )
           })}
+        </div>
+      )
+    }
+    // 반복 행 표(3-1 동별 수량) — 한 행 = 한 동, 합계 행은 세로 합(읽기 전용).
+    // 수량 칸을 좁게 깔아 6종 + 비고가 **한 줄**에 들어간다(2026-08-20 요청).
+    if (f.type === 'rowtable') {
+      const cols = f.columns ?? []
+      // 열을 여닫는 체크박스 = 같은 블록의 multicheck. 카탈로그의 enabledBy로만 연결한다(하드코딩 금지)
+      const gate = bl.fields.find(x => x.type === 'multicheck')
+      const checked = new Set(gate ? (fieldValue(secKey, bl, gate) as string[]) : [])
+      const colOn = (c: SpecColumn) => !c.enabledBy || checked.has(c.enabledBy)
+      const rows = v as SpecRow[]
+      // 행이 0개면 입력할 칸 자체가 사라진다 — 빈 행 1개는 항상 보인다(값이 들어가야 저장 대상이 됨)
+      const shown: SpecRow[] = rows.length > 0 ? rows : [{}]
+      const write = (next: SpecRow[]) => setField(secKey, bl.key, f.key, next)
+      const setCell = (i: number, key: string, val: string) => {
+        const next = shown.map(r => ({ ...r }))
+        if (val.trim()) next[i][key] = val
+        else delete next[i][key]
+        write(next)
+      }
+      // 서식 원문의 2단 헤더(소화기 › 분말/기타) 재현 — group이 같은 이웃 열끼리 묶는다
+      const groups: Array<{ group?: string; cols: SpecColumn[] }> = []
+      for (const c of cols) {
+        const last = groups[groups.length - 1]
+        if (c.group && last?.group === c.group) last.cols.push(c)
+        else groups.push({ group: c.group, cols: [c] })
+      }
+      const th = 'border border-[#e0ddf5] bg-[#f8f8fb] px-0.5 py-1 text-[9px] font-medium leading-tight'
+      const td = 'border border-[#e0ddf5] p-0.5 align-middle'
+      const dlId = `dongopt-${secKey}-${bl.key}-${f.key}`
+      const usedDongs = new Set(shown.map(r => (r.dong ?? '').trim()).filter(Boolean))
+      const nextDong = dongChips.find(nm => !usedDongs.has(nm)) ?? ''
+      return (
+        <div>
+          <div className="overflow-x-auto">
+            <table data-testid={`rowtable-${secKey}-${f.key}`} className="w-full border-collapse table-fixed">
+              <colgroup>
+                {cols.map(c => <col key={c.key} style={{ width: c.wide ? undefined : '44px' }} />)}
+                {!dis && <col style={{ width: '24px' }} />}
+              </colgroup>
+              <thead>
+                <tr>
+                  {groups.map(g => g.group
+                    ? <th key={g.group} colSpan={g.cols.length}
+                        className={`${th} ${g.cols.some(colOn) ? 'text-[#514b81]' : 'text-[#c4c0dd]'}`}>{g.group}</th>
+                    : <th key={g.cols[0].key} rowSpan={2} className={`${th} text-[#514b81]`}>{g.cols[0].short ?? g.cols[0].label}</th>)}
+                  {!dis && <th rowSpan={2} className={th} />}
+                </tr>
+                <tr>
+                  {groups.filter(g => g.group).flatMap(g => g.cols).map(c => (
+                    <th key={c.key} title={colOn(c) ? c.label : `${c.label} — 위 ‘설치 종류’에서 체크해야 입력할 수 있습니다`}
+                      className={`${th} ${colOn(c) ? 'text-[#090c1d]' : 'text-[#c4c0dd] font-normal'}`}>
+                      {colOn(c) ? '☑' : '☐'} {c.short ?? c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {/* 합계 — 아래 동별 행의 세로 합. 직접 입력하지 않는다(동을 더해도 늘 맞는다) */}
+                <tr data-testid="rowtable-total" className="bg-[#f5f4ff]">
+                  {cols.map((c, ci) => {
+                    if (ci === 0) return <td key={c.key} className={`${td} text-center text-[11px] font-semibold text-[#514b81]`}>합계</td>
+                    const t = c.total && colOn(c) ? columnTotal(shown, c.key) : null
+                    return <td key={c.key} data-total={c.key}
+                      className={`${td} text-center text-[11px] font-semibold tabular-nums text-[#090c1d]`}>{t ?? ''}</td>
+                  })}
+                  {!dis && <td className={td} />}
+                </tr>
+                {shown.map((r, i) => (
+                  <tr key={i}>
+                    {cols.map(c => {
+                      const on = colOn(c)
+                      return (
+                        <td key={c.key} className={td}>
+                          <input
+                            value={r[c.key] ?? ''} disabled={dis || !on}
+                            list={c.key === 'dong' && dongChips.length > 0 ? dlId : undefined}
+                            inputMode={c.type === 'number' ? 'decimal' : undefined}
+                            aria-label={`${i + 1}행 ${c.label}`}
+                            title={on ? undefined : `‘${c.enabledBy}’를 체크해야 입력할 수 있습니다`}
+                            placeholder={on ? undefined : '—'}
+                            onChange={e => setCell(i, c.key, e.target.value)}
+                            className={`h-6 w-full min-w-0 rounded-sm border px-1 text-[11px] outline-none focus:border-[#7b68ee] ${
+                              c.wide ? 'text-left' : 'text-center tabular-nums'} ${
+                              on ? 'border-[#d0ccf5] bg-white' : 'border-transparent bg-[#f3f2f8] text-[#c4c0dd] placeholder:text-[#d5d2e6] cursor-not-allowed'}`} />
+                        </td>
+                      )
+                    })}
+                    {!dis && (
+                      <td className={`${td} text-center`}>
+                        <button type="button" aria-label={`${i + 1}행 삭제`} title="이 동 삭제"
+                          disabled={shown.length <= 1 && rowIsEmpty(r)}
+                          onClick={() => write(shown.filter((_, j) => j !== i))}
+                          className="text-[11px] leading-none text-[#b0acd6] hover:text-red-500 disabled:opacity-30">✕</button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {dongChips.length > 0 && (
+            <datalist id={dlId}>{dongChips.map(nm => <option key={nm} value={nm} />)}</datalist>
+          )}
+          {!dis && (
+            <div className="mt-1 flex items-center gap-2">
+              <button type="button" onClick={() => write([...shown, nextDong ? { dong: nextDong } : {}])}
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[10px] font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors">
+                + 동 추가{nextDong ? ` (${nextDong})` : ''}
+              </button>
+              <span className="text-[10px] text-[#b0acd6]">
+                합계는 동별 행의 자동 합산입니다 · 체크한 종류의 칸만 열립니다
+              </span>
+            </div>
+          )}
         </div>
       )
     }
@@ -762,7 +940,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                 .filter(f => !secSnap || secSnap.includes(`${bid}.${f.key}`))
                                 .map(f => (
                                   <div key={f.key} data-spec-field={`${bid}.${f.key}`}
-                                    className={f.type === 'multicheck' ? 'col-span-full' : ''}>
+                                    className={f.type === 'multicheck' || f.type === 'rowtable' ? 'col-span-full' : ''}>
                                     <p className="mb-0.5 text-[10px] text-[#514b81]">
                                       {f.label}{f.unit ? ` (${f.unit})` : ''}
                                       {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}

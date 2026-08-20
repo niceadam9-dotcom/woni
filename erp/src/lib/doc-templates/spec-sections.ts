@@ -8,7 +8,11 @@
  *  섹션 순서·라벨은 카탈로그(FACILITY_SPEC_SECTIONS) 순회 기준, 필드 key도 카탈로그와 1:1. */
 
 import { esc } from './base'
-import { FACILITY_SPEC_SECTIONS, applyDerived, type DerivedCtx } from '../facility-spec-schema'
+import {
+  FACILITY_SPEC_SECTIONS, applyDerived, S31_COLUMNS,
+  normalizeRows, rowIsEmpty, rowsHaveValue, columnTotal, s31LegacyRow,
+  type DerivedCtx,
+} from '../facility-spec-schema'
 
 /** customer_facility_specs 병합본 — { sectionKey: { blockKey: { fieldKey: 값 } } } */
 export type SpecMap = Record<string, Record<string, unknown>>
@@ -118,7 +122,6 @@ function specRow(label: string, lines: string[]): string {
 // ── 3-1. 소화기구, 자동소화장치 ─────────────────────────────────────────────
 function renderS31(sec: Vals, h: boolean): string {
   const s = blk(sec, 'summary')
-  const dong = blk(sec, 'by_dong')
   const t = (opt: string) => mc(s['types'], opt)
   const tAny = (...opts: string[]) =>
     cb(Array.isArray(s['types']) && opts.some(o => (s['types'] as unknown[]).map(String).includes(o)))
@@ -127,18 +130,27 @@ function renderS31(sec: Vals, h: boolean): string {
   const blankRow = (label: string) =>
     `<tr><td class="center">${label}</td>${'<td>&nbsp;</td>'.repeat(7)}</tr>`
 
-  // 합계 행 — 수량 6칸 + 비고
-  const sumRow = `<tr><td class="center">합계</td>${cell(s['qty_ext_powder'])}${cell(s['qty_ext_other'])}${
-    cell(s['qty_simple_throw'])}${cell(s['qty_simple_other'])}${cell(s['qty_auto_diffuse'])}${cell(s['qty_auto_device'])}${cell(s['note'])}</tr>`
+  // 2026-08-20 개편 — 동별 행(summary.dong_rows)이 유일한 입력이고 합계는 그 세로 합이다.
+  // 아직 새 구조로 다시 저장하지 않은 대상물은 구 합계 수량(summary.qty_*)을 한 행으로 올려 읽는다
+  // (s31LegacyRow — 화면 초기화와 **같은 함수**라 저장 전에도 화면과 문서가 갈리지 않는다).
+  const stored = normalizeRows(s['dong_rows'])
+  const legacy = rowsHaveValue(stored) ? null : s31LegacyRow(sec as Record<string, unknown>)
+  const rows = rowsHaveValue(stored) ? stored.filter(r => !rowIsEmpty(r)) : legacy ? [legacy] : []
 
-  // 동별 내역 — 자유 기입(줄 단위, 카탈로그 by_dong.rows) → 줄당 1행, 없으면 서식 빈 행 유지
-  const lines = sv(dong['rows']).split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  const qtyKeys = S31_COLUMNS.filter(c => c.total).map(c => c.key)
+  // 합계 행 — 수량 6칸(세로 합). 비고는 동별 행이 각자 갖는다(여기서 이어 붙이면 같은 말이 두 번 인쇄된다)
+  const totals = qtyKeys.map(k => columnTotal(rows, k))
+  const sumRow = `<tr><td class="center">합계</td>${
+    totals.map(n => cell(n == null ? '' : n)).join('')}<td>&nbsp;</td></tr>`
+
+  // 동별 내역 — 행당 동명 + 수량 6 + 비고. 서식 빈 서식과 같게 최소 5행을 유지한다(넘치면 그대로 늘어남)
   let dongRows: string
-  if (lines.length === 0) {
+  if (rows.length === 0) {
     dongRows = [blankRow('동명'), blankRow('&nbsp;'), blankRow('&nbsp;'), blankRow('&nbsp;'), blankRow('&nbsp;')].join('\n  ')
   } else {
-    const filled = lines.map((l, i) =>
-      `<tr><td class="center">${i === 0 ? '동명' : '&nbsp;'}</td><td class="pre" colspan="6">${esc(l)}</td><td>&nbsp;</td></tr>`)
+    const filled = rows.map(r =>
+      `<tr><td class="center">${slot(r['dong'], '&nbsp;', h)}</td>${
+        qtyKeys.map(k => cell(r[k])).join('')}${cell(r['note'])}</tr>`)
     while (filled.length < 5) filled.push(blankRow('&nbsp;'))
     dongRows = filled.join('\n  ')
   }
