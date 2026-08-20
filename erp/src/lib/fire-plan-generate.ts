@@ -240,9 +240,11 @@ export async function assembleFirePlan(
     roof: b?.roof_structure ?? '',
     receiverLocation: b?.receiver_location ?? '',
     ownerName: owner?.name ?? '',
-    ownerPhone: owner?.phone ?? '',
+    // 전화번호는 전부 formatTel을 거친다 — 종전엔 업무대행 업체 전화(companyPhone)만 포맷돼서
+    // 같은 서식 1.1 안에 '01032162321'과 '031-772-3019'가 나란히 찍혔다. 판별 불가한 값은 원문 유지.
+    ownerPhone: formatTel(owner?.phone),
     managerName,
-    managerPhone,
+    managerPhone: formatTel(managerPhone),
     managerSelectedAt: mgrRow?.selectedAt || cust.manager_selected_at || '',
     fireStation: cust.fire_station ?? '',
     stationDistance: cachedDistance,
@@ -274,7 +276,7 @@ export async function assembleFirePlan(
     // M-7(소방계획서_15): 미입력 시 11월 고정 폴백 제거 — null이면 템플릿이 전 월 ☐로 렌더(허위 ■ 방지)
     trainingMonth: sections.training?.drillMonths?.[0] ?? sections.training?.eduMonths?.[0] ?? null,
     brigade: brigadeRows.length > 0
-      ? brigadeRows.map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: m.phone ?? '' }))
+      ? brigadeRows.map(m => ({ team: m.team, name: m.name, duty: m.duty ?? '', phone: formatTel(m.phone) }))
       : [
         { team: '자위소방대장', name: '', duty: '관리구역 상황통제', phone: '' },
         { team: '부대장', name: '', duty: '대장 부재시 수행', phone: '' },
@@ -296,11 +298,11 @@ export async function assembleFirePlan(
     zones: (sections.zones?.length ?? 0) > 0
       ? sections.zones!.map(z => ({
         zone: z.zone, name: z.name, area: z.area,
-        weekday: z.workersWeekday, holiday: z.workersHoliday, managerCo: z.company, contact: z.phone,
+        weekday: z.workersWeekday, holiday: z.workersHoliday, managerCo: z.company, contact: formatTel(z.phone),
       }))
       : [{
         zone: '전층', name: b?.purpose ?? '', area: b?.total_area != null ? String(b.total_area) : '',
-        weekday: '', holiday: '', managerCo: '', contact: owner?.phone ?? '',
+        weekday: '', holiday: '', managerCo: '', contact: formatTel(owner?.phone),
       }],
     hazards: (sections.hazards?.length ?? 0) > 0
       ? sections.hazards!.map(h => ({ place: h.place, location: h.loc, factors: normHazardFactors(h.risks) }))

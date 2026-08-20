@@ -23,7 +23,12 @@ export const BASE_CSS = `
   .page-no { text-align: right; font-size: 8.5pt; } /* (n쪽 중 제m쪽) */
   h1.doc-title { font-size: 15pt; text-align: center; letter-spacing: .2em; margin: 8px 0 10px; }
   table.form { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  table.form th, table.form td { border: .6pt solid #000; padding: 3px 5px; vertical-align: middle; word-break: break-all; }
+  /* 한글은 음절 단위로 끊지 않는다 — 종전 break-all이면 '포소화설비'가 '포소화/설비'로, 상호가
+     '서울사/업본부'로 쪼개졌다. keep-all은 어절(공백·쉼표) 경계에서만 접고, 한 단어가 칸보다 길 때만
+     overflow-wrap이 끊는다. **table.form이 아닌 표(공문 머리·위임장 당사자표 등)도 같은 규칙**이라
+     선택자를 칸 전체로 둔다 — 종전엔 table.form에만 걸려 공문이 '부/속창고동'으로 끊겼다. */
+  th, td { word-break: keep-all; overflow-wrap: break-word; }
+  table.form th, table.form td { border: .6pt solid #000; padding: 3px 5px; vertical-align: middle; }
   table.form th { font-weight: normal; background: #f2f2f2; text-align: center; }
   .center { text-align: center; }
   .right { text-align: right; }

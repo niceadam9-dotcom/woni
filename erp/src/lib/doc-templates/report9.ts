@@ -117,7 +117,7 @@ export type Report9Data = {
   // ── 3쪽 ──
   facilityChecks: string[]                    // 설치 설비(√) — FORM3_ITEMS 명칭
   resultMarks: Record<string, 'O' | 'X' | 'N'>  // 항목 → 점검결과 (○/×//)
-  muResults: Record<string, 'O' | 'X' | 'N'>    // MU-001~016 → 결과 (다중이용업 아님이면 공란)
+  muResults: Record<string, 'O' | 'X' | 'N'>    // MU-001~016 → 결과 (다중이용업 아님이면 전 칸 'N' = ／)
   /** 1.4 대장의 설치(√) 코드 **전체** — 표준 42종 + 소화기구 하위 5종. 3쪽 하위 체크칸 주입용
    *  (facilityChecks는 FORM3_ITEMS로 걸러진 목록이라 하위 코드가 들어오지 않는다) */
   ledgerCodes?: string[]
@@ -140,8 +140,13 @@ const CSS = `
   .pre { white-space: pre-wrap; }
   table.form.tight th, table.form.tight td { padding: 1.5px 3px; font-size: 8.5pt; line-height: 1.4; }
   table.form .lbl { width: 22mm; }
-  table.split { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  table.split > tbody > tr > td { padding: 0; vertical-align: top; width: 50%; }
+  table.split { width: 100%; border-collapse: collapse; table-layout: fixed; height: 1px; }
+  table.split > tbody > tr > td { padding: 0; vertical-align: top; width: 50%; height: 100%; }
+  /* 좌·우 표 바닥 맞춤 — 짧은 쪽이 셀 높이(=양쪽 중 큰 값)를 채워 가운데 괘선이 끊기지 않게 한다.
+     남는 높이는 비고가 있는 표(.fill-last)면 마지막 비고 행이 통째로, 없으면 전 행이 고르게 흡수. */
+  table.form.fill { height: 100%; }
+  table.form.fill-last > tbody > tr { height: 1px; }
+  table.form.fill-last > tbody > tr:last-child { height: 100%; }
   table.mu3 { width: 100%; border-collapse: collapse; }
   table.mu3 td { border: none; padding: 0 2px; vertical-align: top; font-size: 8.5pt; width: 33.3%; }
   .law { margin: 10px 2px 4px; }
@@ -331,14 +336,16 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
 type P3Item = { html: string; mark: string }
 type P3Group = { name: string; items: P3Item[] }
 
-/** 구분/해당설비/점검결과 3열 표 — 좌·우 병렬 배치용 */
-function p3Table(groups: P3Group[]): string {
+/** 구분/해당설비/점검결과 3열 표 — 좌·우 병렬 배치용.
+ *  fillLast: 마지막 행이 '비고'인 표 — 좌·우 높이 차를 그 행이 흡수해 바닥을 맞춘다.
+ *  점검결과 열은 머리글 '점검결과'(8.5pt 4자 ≒ 12mm + 여백)가 한 줄에 들어가는 폭. */
+function p3Table(groups: P3Group[], opts?: { fillLast?: boolean }): string {
   const body = groups.map(g => g.items.map((it, i) => `<tr>${
     i === 0 ? `<th rowspan="${g.items.length}">${g.name}</th>` : ''
   }<td class="pre">${it.html}</td><td class="center">${it.mark}</td></tr>`).join('\n')).join('\n')
-  return `<table class="form tight" style="width:100%">
-  <colgroup><col style="width:10mm"><col><col style="width:11mm"></colgroup>
-  <tr><th>구분</th><th>해  당  설  비</th><th>점검결과</th></tr>
+  return `<table class="form tight fill${opts?.fillLast ? ' fill-last' : ''}" style="width:100%">
+  <colgroup><col style="width:10mm"><col><col style="width:16mm"></colgroup>
+  <tr><th>구분</th><th>해  당  설  비</th><th class="nowrap">점검결과</th></tr>
   ${body}
 </table>`
 }
@@ -401,7 +408,7 @@ export function facilityResultSection(
     { name: '소화활동설비', items: FORM3_ITEMS.slice(33, 40).map(f3) },
     { name: '기타', items: [etcItem('door', '방화문, 자동방화셔터'), etcItem('exit', '비상구, 피난통로'), etcItem('flame', '방  염')] },
     { name: '비고', items: [{ html: '&nbsp;', mark: '' }] },
-  ])
+  ], { fillLast: true })
   return `<table class="split"><tr><td>${left1}</td><td>${right1}</td></tr></table>`
 }
 
@@ -433,7 +440,7 @@ export function muResultSection(d: Pick<Report9Data, 'muResults'>): string {
         mu('MU-010', '창 문'), mu('MU-007', '피난안내도ㆍ피난안내영상물'), mu('MU-016', '방염대상물품')],
     },
     { name: '비고', items: [{ html: '&nbsp;', mark: '' }] },
-  ])
+  ], { fillLast: true })
   return `<table class="split"><tr><td>${left2}</td><td>${right2}</td></tr></table>`
 }
 

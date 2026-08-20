@@ -55,7 +55,7 @@ export type Report4Data = {
   /** B-3(소방계획서_19): '기타' 3항목 — 31번 기타사항 롤업 (별지 9호 3쪽과 공용, facilityResultSection) */
   etcMarks?: { door?: 'O' | 'X' | 'N'; exit?: 'O' | 'X' | 'N'; flame?: 'O' | 'X' | 'N' }
   // ── 2쪽 ──
-  muResults: Record<string, 'O' | 'X' | 'N'>     // MU-001~016 (다중이용업 아니면 공란)
+  muResults: Record<string, 'O' | 'X' | 'N'>     // MU-001~016 (다중이용업 아니면 전 칸 'N' = ／)
   main: Report9Person | null                     // 주인력
   assistants: Report9Person[]                    // 보조인력 — 서식 기본 6행, 초과 시 행 추가
   inspStart: string                              // 점검기간 시작 (예: 2026년 8월 1일)
@@ -82,8 +82,12 @@ const CSS = `
   .pre { white-space: pre-wrap; }
   table.form.tight th, table.form.tight td { padding: 1.5px 3px; font-size: 8.5pt; line-height: 1.4; }
   table.form .lbl { width: 22mm; }
-  table.split { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  table.split > tbody > tr > td { padding: 0; vertical-align: top; width: 50%; }
+  table.split { width: 100%; border-collapse: collapse; table-layout: fixed; height: 1px; }
+  table.split > tbody > tr > td { padding: 0; vertical-align: top; width: 50%; height: 100%; }
+  /* 좌·우 표 바닥 맞춤 — report9.ts CSS와 동일 규약(공용 facilityResultSection·muResultSection) */
+  table.form.fill { height: 100%; }
+  table.form.fill-last > tbody > tr { height: 1px; }
+  table.form.fill-last > tbody > tr:last-child { height: 100%; }
   .notice th, .notice td { font-size: 8.5pt; }
   .p47 .sec-title { margin: 5px 0 2px; }
 `
