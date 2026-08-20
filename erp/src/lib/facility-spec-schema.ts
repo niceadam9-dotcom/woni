@@ -59,6 +59,9 @@ export type SpecField = {
    *  그 줄 이름 아래 모아 보여준다. 값이 같은 필드가 연속하면 그 앞에 머리글이 한 번 그려진다.
    *  라벨·저장 키·인쇄 출력에는 영향이 없다 — 인쇄는 spec-sections가 따로 문구를 만든다. */
   group?: string
+  /** **화면 전용** — 그룹 전체가 비어 있으면 접어두고 버튼으로만 보여준다(동이 하나면 안 쓰는 칸).
+   *  값이 하나라도 있으면 항상 펼친다. 인쇄는 종전대로 빈 칸을 서식 빈 줄로 찍는다. */
+  collapsedWhenEmpty?: boolean
 }
 
 export type SpecBlock = {
@@ -85,11 +88,14 @@ const GROUND = ['지상', '지하']
 function locFields(prefix = '', labelPrefix = ''): SpecField[] {
   const p = prefix ? `${prefix}_` : ''
   const l = labelPrefix ? `${labelPrefix} ` : ''
+  // 접두사가 없으면 라벨이 그냥 '동명·층·실명'이라 서식의 어느 줄인지 화면에서 알 수 없다 → '설치장소'로 묶는다.
+  // 접두사가 있는 호출('수신기'·'조작장치'·'주수신기' 등)은 라벨 자체가 줄 이름을 담고 있어 묶지 않는다.
+  const group = labelPrefix ? undefined : '설치장소'
   return [
-    { key: `${p}dong`, label: `${l}동명`, type: 'text' },
-    { key: `${p}ground`, label: `${l}지상/지하`, type: 'select', options: GROUND },
-    { key: `${p}floor`, label: `${l}층`, type: 'text' },
-    { key: `${p}room`, label: `${l}실명`, type: 'text' },
+    { key: `${p}dong`, label: `${l}동명`, type: 'text', group },
+    { key: `${p}ground`, label: `${l}지상/지하`, type: 'select', options: GROUND, group },
+    { key: `${p}floor`, label: `${l}층`, type: 'text', group },
+    { key: `${p}room`, label: `${l}실명`, type: 'text', group },
   ]
 }
 
@@ -105,14 +111,20 @@ function rangeLocFields(opts?: { coverage?: boolean; second?: boolean }): SpecFi
   // (바로 위 '수신기 동명'과 구분이 안 됐다). 라벨은 그대로 두고 머리글로만 묶는다.
   // 이 헬퍼가 만드는 필드는 21개 블록 전부 서식에서 `◦ 설치장소:` 줄로 인쇄된다
   // ('설치대상'은 별도 targets 텍스트 필드라 여기 해당 없음).
-  const one = (sfx: string, l: string): SpecField[] => [
-    { key: `dong${sfx}`, label: `${l}동명`, type: 'text', group: '설치장소' },
-    ...(coverage ? [{ key: `coverage${sfx}`, label: `${l}전체층/일부층`, type: 'select', options: ['전체층', '일부층'], group: '설치장소' } as SpecField] : []),
-    { key: `from_ground${sfx}`, label: `${l}시작 지상/지하`, type: 'select', options: GROUND, group: '설치장소' },
-    { key: `from_floor${sfx}`, label: `${l}시작 층`, type: 'text', group: '설치장소' },
-    { key: `to_ground${sfx}`, label: `${l}끝 지상/지하`, type: 'select', options: GROUND, group: '설치장소' },
-    { key: `to_floor${sfx}`, label: `${l}끝 층`, type: 'text', group: '설치장소' },
-  ]
+  // 2행은 **동이 둘 이상인 대상물**에만 쓰는 칸이라 비어 있으면 접어둔다(칸 12개 → 6개).
+  // 값이 있으면 항상 펼쳐진다. 인쇄는 종전 그대로 — 빈 2행은 서식의 빈 줄로 찍힌다.
+  const one = (sfx: string, l: string): SpecField[] => {
+    const g = sfx ? '설치장소 (2행)' : '설치장소'
+    const c = sfx ? { collapsedWhenEmpty: true } : {}
+    return [
+      { key: `dong${sfx}`, label: `${l}동명`, type: 'text', group: g, ...c },
+      ...(coverage ? [{ key: `coverage${sfx}`, label: `${l}전체층/일부층`, type: 'select', options: ['전체층', '일부층'], group: g, ...c } as SpecField] : []),
+      { key: `from_ground${sfx}`, label: `${l}시작 지상/지하`, type: 'select', options: GROUND, group: g, ...c },
+      { key: `from_floor${sfx}`, label: `${l}시작 층`, type: 'text', group: g, ...c },
+      { key: `to_ground${sfx}`, label: `${l}끝 지상/지하`, type: 'select', options: GROUND, group: g, ...c },
+      { key: `to_floor${sfx}`, label: `${l}끝 층`, type: 'text', group: g, ...c },
+    ]
+  }
   return [...one('', ''), ...(opts?.second ? one('2', '(2행) ') : [])]
 }
 
@@ -249,8 +261,9 @@ const S32: SpecSection = {
     {
       key: 'aux_water', label: '수원 — 보조수원',
       fields: [
-        { key: 'dong', label: '동명', type: 'text' },
-        { key: 'room', label: '실명', type: 'text' },
+        // 서식 줄: `◦ 설치장소: 동명( ) 실명( )` — locFields와 달리 층이 없어 직접 정의한다
+        { key: 'dong', label: '동명', type: 'text', group: '설치장소' },
+        { key: 'room', label: '실명', type: 'text', group: '설치장소' },
         { key: 'capacity', label: '유효수량', type: 'number', unit: '㎥' },
       ],
     },
@@ -259,8 +272,9 @@ const S32: SpecSection = {
       fields: [
         { key: 'used', label: '고가수조 방식', type: 'check' },
         ...systemsField(),
-        { key: 'dong', label: '동명', type: 'text' },
-        { key: 'room', label: '실명', type: 'text' },
+        // 서식 줄: `◦ 설치장소: 동명( ) 실명( )` — 층이 없어 locFields를 못 쓴다(보조수원과 같은 형태)
+        { key: 'dong', label: '동명', type: 'text', group: '설치장소' },
+        { key: 'room', label: '실명', type: 'text', group: '설치장소' },
         { key: 'head_drop', label: '유효낙차', type: 'number', unit: 'm' },
       ],
     },

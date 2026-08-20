@@ -107,6 +107,8 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   })
   const [openSec, setOpenSec] = useState<string | null>(null)
   const [openBlocks, setOpenBlocks] = useState<Record<string, boolean>>({})
+  /** 접어둔 필드 묶음(설치장소 2행 등)을 사용자가 편 상태 — 블록:그룹 단위 */
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const detailsRef = useRef<HTMLDetailsElement | null>(null)
 
   // A안(2026-08-04): 1.4에서 설비 체크(√) → 해당 제원 섹션 자동 펼침·블록 오픈·스크롤 (erp:open-spec-section)
@@ -940,27 +942,47 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                   '빈칸만 보기'로 필드가 걸러지면 남은 목록 기준으로 다시 계산된다. */}
                               {(() => {
                                 const shown = bl.fields.filter(f => !secSnap || secSnap.includes(`${bid}.${f.key}`))
-                                let prevGroup: string | undefined
-                                return shown.flatMap(f => {
-                                  const head = f.group && f.group !== prevGroup
-                                    ? [
-                                      <p key={`group-${f.key}`}
-                                        className="col-span-full mt-1 mb-0 text-[10px] font-semibold text-[#514b81]">
-                                        ◦ {f.group}
-                                      </p>,
+                                // group이 같은 연속 구간 단위로 묶는다 — 머리글은 구간당 한 번
+                                const runs: Array<{ group?: string; fields: SpecField[] }> = []
+                                for (const f of shown) {
+                                  const last = runs[runs.length - 1]
+                                  if (last && last.group === f.group) last.fields.push(f)
+                                  else runs.push({ group: f.group, fields: [f] })
+                                }
+                                return runs.flatMap((run, ri) => {
+                                  const gid = `${bid}:${run.group ?? ''}#${ri}`
+                                  // 전부 비었고 접기 대상이면 버튼만 — '빈칸만 보기'에서는 접지 않는다(찾으러 온 칸이다)
+                                  const collapsible = !secSnap && !!run.group
+                                    && run.fields.every(f => f.collapsedWhenEmpty)
+                                    && run.fields.every(f => !filledAt(sec.key, bl, f))
+                                  if (collapsible && !openGroups[gid]) {
+                                    return [
+                                      <button key={gid} type="button" disabled={!on}
+                                        onClick={() => setOpenGroups(p => ({ ...p, [gid]: true }))}
+                                        className="col-span-full mt-1 justify-self-start rounded border border-dashed border-[#d0ccf5] px-2 py-0.5 text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                                        + {run.group} 입력 <span className="text-[#b0acd6]">(동이 둘 이상일 때만)</span>
+                                      </button>,
                                     ]
-                                    : []
-                                  prevGroup = f.group
+                                  }
                                   return [
-                                    ...head,
-                                    <div key={f.key} data-spec-field={`${bid}.${f.key}`}
-                                      className={f.type === 'multicheck' || f.type === 'rowtable' ? 'col-span-full' : ''}>
-                                      <p className="mb-0.5 text-[10px] text-[#514b81]">
-                                        {f.label}{f.unit ? ` (${f.unit})` : ''}
-                                        {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}
-                                      </p>
-                                      {fieldWidget(sec.key, bl, f, on)}
-                                    </div>,
+                                    ...(run.group
+                                      ? [
+                                        <p key={gid}
+                                          className="col-span-full mt-1 mb-0 text-[10px] font-semibold text-[#514b81]">
+                                          ◦ {run.group}
+                                        </p>,
+                                      ]
+                                      : []),
+                                    ...run.fields.map(f => (
+                                      <div key={f.key} data-spec-field={`${bid}.${f.key}`}
+                                        className={f.type === 'multicheck' || f.type === 'rowtable' ? 'col-span-full' : ''}>
+                                        <p className="mb-0.5 text-[10px] text-[#514b81]">
+                                          {f.label}{f.unit ? ` (${f.unit})` : ''}
+                                          {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}
+                                        </p>
+                                        {fieldWidget(sec.key, bl, f, on)}
+                                      </div>
+                                    )),
                                   ]
                                 })
                               })()}
