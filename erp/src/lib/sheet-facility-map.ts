@@ -106,3 +106,24 @@ export function rollUpForm3Results(
   }
   return { facilityChecks, resultMarks }
 }
+
+// ── '설치 설비만' 필터의 단일 규칙 (2026-08-20) ──────────────────────────────
+//
+// 종전엔 같은 규칙이 네 곳에 복사돼 있었다: 점검표 보드·스텝 링크·별지 트리·인쇄 번들.
+// 그래서 STD-31(기타사항) 예외가 **인쇄에만** 들어갔다 — 인쇄는 항상 대상으로 잡으면서
+// 입력 화면은 숨겨, 별지 9호 3쪽 '기타' 3칸(방화문·비상구·방염)이 채워질 길이 없었다
+// (실측 2026-08-20: STD-31 응답 스테이징 전체 0건). 별지 트리는 한술 더 떠 responded 조건마저
+// 빠져 있어 이미 입력한 시트도 숨겼다. 규칙을 여기 한 곳에 둔다.
+
+/** 설비 축에 매이지 않는 상시 시트 — 설비가 아니라 모든 대상물 공통이라 설치 여부로 거르면 안 된다.
+ *  STD-32(다중이용업소)는 여기 넣지 않는다: 그쪽은 sheet-overview가 multiUse일 때만 installed로 쳐서
+ *  '해당 대상물만' 노출한다(비대상에까지 띄우면 안 되는 시트다). */
+export const ALWAYS_SHOWN_SHEET_CODES: string[] = ['STD-31']
+
+/** '설치 설비만' 켠 상태에서 이 시트를 보여줄 것인가.
+ *  이미 입력이 있는 시트는 절대 숨기지 않는다 — 화면에서 사라지면 유령 입력이 된다. */
+export function sheetShownWhenInstalledOnly(
+  s: { sheetCode: string; installed: boolean; responded: number },
+): boolean {
+  return s.installed || s.responded > 0 || ALWAYS_SHOWN_SHEET_CODES.includes(s.sheetCode)
+}

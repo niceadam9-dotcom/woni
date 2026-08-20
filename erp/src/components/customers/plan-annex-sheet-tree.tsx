@@ -9,6 +9,7 @@ import {
   bulkAllGoodAction, searchQuickItemsAction, copyPreviousRoundResponsesAction,
 } from '@/app/(dashboard)/inspections/sheet-actions'
 import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
+import { sheetShownWhenInstalledOnly } from '@/lib/sheet-facility-map'
 import { SheetItemEditor, type SheetItem, type SheetResult } from '@/components/inspections/sheet-item-editor'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 import { useDebouncedAutosave } from '@/hooks/use-debounced-autosave'
@@ -315,7 +316,9 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
 
   // 설치 정보가 아예 없는 고객은 필터를 걸면 전부 사라지므로 자동 해제 (bulkAllGood와 같은 상황 처리)
   const filterOn = installedOnly && !ov.noFacilityInfo
-  const rows = filterOn ? ov.sheets.filter(s => s.installed) : ov.sheets
+  // 규칙은 lib/sheet-facility-map 한 곳(보드·스텝 링크·인쇄 번들과 동일).
+  // 종전엔 여기만 installed 단독이라 **이미 입력한 시트도 숨었다** — 보드는 안 숨기는데 트리는 숨겼다.
+  const rows = filterOn ? ov.sheets.filter(sheetShownWhenInstalledOnly) : ov.sheets
   const hiddenCount = ov.sheets.length - rows.length
 
   return (

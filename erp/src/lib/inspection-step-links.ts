@@ -1,3 +1,5 @@
+import { sheetShownWhenInstalledOnly } from '@/lib/sheet-facility-map'
+
 /** 단계별 '정상 경로' 진입 링크 — 달력 패널·계획 슬라이드 패널 공용 단일 소스
  *
  *  배경: 6단계는 [완료] 버튼을 눌러 끝내는 게 아니라 **증거가 등록되면 자동으로 완료**된다
@@ -37,16 +39,16 @@ export function stepInputLink(
  *  구조적 타입만 받는다: SheetProgress를 값으로 import하면 sheet-overview.ts가 딸려 오고
  *  그 안의 createAdminClient가 클라이언트 번들로 새어 든다. 순수 함수라 DB 없이 단언 가능하다.
  *
- *  ⚠ 필터는 보드(SheetGroupBoard)의 기본 표시와 **같아야** 한다 — 보드는 installedOnly 기본 on에
- *  `installed || responded > 0`으로 거른다. 여기서 그 필터를 빼면 화면에 보이지도 않는 시트가 열려
- *  '첫 미완성'이 사용자 눈의 첫 미완성과 어긋난다.
+ *  ⚠ 필터는 보드(SheetGroupBoard)의 기본 표시와 **같아야** 한다 — 여기서 그 필터를 빼면 화면에
+ *  보이지도 않는 시트가 열려 '첫 미완성'이 사용자 눈의 첫 미완성과 어긋난다.
+ *  주석으로만 맞춰 두면 한쪽만 바뀐다(2026-08-20 STD-31 실사고) — 이제 같은 함수를 쓴다.
  *  설치 정보가 아예 없는 고객은 보드가 전체를 보여주므로(Q-12) 필터도 함께 푼다. */
 export function pickAutoOpenSheet<T extends {
-  sheetId: string; total: number; responded: number; installed: boolean
+  sheetId: string; sheetCode: string; total: number; responded: number; installed: boolean
 }>(list: T[]): T | null {
   const noFacility = list.length > 0 && list.every(p => !p.installed)
   return list.find(p =>
-    (noFacility || p.installed || p.responded > 0)
+    (noFacility || sheetShownWhenInstalledOnly(p))
     && p.total > 0
     && p.responded < p.total) ?? null
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { CircleCheck, Search } from 'lucide-react'
 import type { SheetProgress } from '@/lib/sheet-overview'
+import { sheetShownWhenInstalledOnly } from '@/lib/sheet-facility-map'
 
 /** 왼쪽 머더 카드 보드 — 전 시트·전 머더 상시 조회, **접이 없음** (소방계획서_23 S7-3, Q-2).
  *
@@ -28,7 +29,8 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
   const visible = useMemo(() => {
     const needle = q.trim().replace(/\s+/g, '')
     return progress
-      .filter(s => !effectiveOnly || s.installed || s.responded > 0)   // 입력이 이미 있는 시트는 필터로 숨기지 않는다
+      // 규칙은 lib/sheet-facility-map 한 곳 — 스텝 링크·별지 트리·인쇄 번들이 같은 함수를 쓴다
+      .filter(s => !effectiveOnly || sheetShownWhenInstalledOnly(s))
       .map(s => ({
         ...s,
         groups: (s.groups ?? []).filter(g => {

@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 import { buildSheetOverviews } from '@/lib/sheet-overview'
+import { sheetShownWhenInstalledOnly } from '@/lib/sheet-facility-map'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
 import { isMultiUseApplicable } from '@/lib/multi-use'
 import { judgeStale, type BundleChecklist, type BundleItemStatus, type BundleGenResult, type BundleBlankRow } from '@/lib/bundle-status'
@@ -98,8 +99,9 @@ export async function getBundleChecklistAction(inspectionId: string): Promise<{ 
     const hasMultiUse = !!mu && isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim())
     const ov = overviews[inspectionId]
     for (const s of ov?.sheets ?? []) {
-      // 인쇄 대상 축(Q-3 근사): 설치 매칭 + 응답 있음 + 기타사항(항상) + 다중이용업소(업종 축)
-      if (!(s.installed || s.responded > 0 || s.sheetCode === 'STD-31' || (s.sheetCode === 'STD-32' && hasMultiUse))) continue
+      // 인쇄 대상 축(Q-3 근사) = 입력 화면의 '설치 설비만' 규칙(lib/sheet-facility-map) + 다중이용업소(업종 축).
+      // 종전엔 기타사항(STD-31) 예외가 여기에만 있어 인쇄는 항상 요구하면서 입력 화면은 숨겼다(2026-08-20).
+      if (!(sheetShownWhenInstalledOnly(s) || (s.sheetCode === 'STD-32' && hasMultiUse))) continue
       const blank = s.total - s.responded
       if (blank > 0) blanks.push({ sheetName: s.sheetName, blank, total: s.total })
     }
