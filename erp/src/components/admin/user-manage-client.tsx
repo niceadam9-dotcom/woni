@@ -10,6 +10,7 @@ import {
   type CreateUserInput, type UpdateUserInput,
 } from '@/app/(dashboard)/admin/users/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { formatPhoneKR } from '@/components/ui/fields'
 
 type User = {
   id: string
@@ -22,6 +23,8 @@ type User = {
   hire_date: string | null
   license_no?: string | null
   license_grade?: string | null
+  phone?: string | null
+  birth_date?: string | null
   is_active: boolean
   is_system?: boolean // 시스템(개발·운영지원) 계정 — 업무 화면 직원 목록에서 제외됨
 }
@@ -93,6 +96,8 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
     hire_date: user?.hire_date ?? '',
     license_no: user?.license_no ?? '',
     license_grade: user?.license_grade ?? '',
+    phone: user?.phone ?? '',
+    birth_date: user?.birth_date ?? '',
     is_active: user?.is_active ?? true,
   })
 
@@ -299,6 +304,30 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               />
             </Field>
           </div>
+
+          {/* 146 — 위임장 대리인 칸(직위·연락처·생년월일)의 원천. 여기 한 번 넣으면 점검 건마다
+              다시 입력할 필요가 없다. 직위는 위의 [직책]을 그대로 쓴다. */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="연락처">
+              <input
+                value={form.phone}
+                onChange={e => set('phone', formatPhoneKR(e.target.value))}
+                inputMode="tel"
+                placeholder="010-0000-0000"
+                className={inputCls}
+              />
+            </Field>
+            <Field label="생년월일">
+              <DateInput
+                value={form.birth_date}
+                onChange={e => set('birth_date', e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+          </div>
+          <p className="-mt-2 text-[11px] text-[#b0acd6]">
+            직책·연락처·생년월일은 <b>점검결과 보고서 제출용 위임장</b>의 대리인 칸에 자동으로 들어갑니다.
+          </p>
 
           {mode === 'edit' && (
             <div className="flex items-center gap-2">

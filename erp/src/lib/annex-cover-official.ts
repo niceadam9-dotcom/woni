@@ -218,14 +218,16 @@ export async function assembleDelegation(
     admin.from('annex_inputs').select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'delegation').maybeSingle(),
     admin.from('customers').select('fire_station, manager_contact_id').eq('id', insp.customer_id).single(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
-    admin.from('customer_contacts').select('id, role, name, phone, position').eq('customer_id', insp.customer_id),
+    // birth_date까지 뽑는다 — 고객 상세 관계인 카드가 이미 받아 두는 값인데(“직위·생년월일은
+    // 보고서 공문·위임장에 사용됩니다”) 종전엔 위임장이 읽지 않아 매번 손으로 다시 넣었다(2026-08-20)
+    admin.from('customer_contacts').select('id, role, name, phone, position, birth_date').eq('customer_id', insp.customer_id),
     admin.from('inspection_participants').select('employee_id, role, sort_order').eq('inspection_id', inspectionId),
   ])
   const f = ((inputRes.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
   const fstr = (k: string) => String(f[k] ?? '').trim()
 
   // 관계인(본인) — 소방안전관리자 우선, 없으면 대표 연락처
-  const contacts = (contactsRes.data ?? []) as ContactLite[]
+  const contacts = (contactsRes.data ?? []) as Array<ContactLite & { birth_date?: string | null }>
   const rep = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
   const cust = custRes.data as { fire_station: string | null; manager_contact_id: string | null } | null
   const mgr = resolveFireSafetyManager({
@@ -234,32 +236,41 @@ export async function assembleDelegation(
   })
   // 대표 폴백(source==='owner')은 '소방안전관리자'가 아니다 — 직위를 그렇게 단정하지 않는다
   const isMgr = mgr.source === 'contact' || mgr.source === 'form17'
+  // 위임장에 실릴 그 사람의 관계인 레코드 — 직위·생년월일의 원천.
+  // 이름으로 맞춘다: 지목(source='contact')·대표 폴백은 물론, 1.7 선임자가 관계인으로도 등록돼 있으면 걸린다.
+  const ownerContact = contacts.find(c => c.name?.trim() && c.name.trim() === mgr.name.trim()) ?? null
   const owner = {
     name: fstr('ownerName') || mgr.name,
-    position: fstr('ownerPosition') || (isMgr ? '소방안전관리자' : rep ? '대표' : ''),
+    // 저장된 직위 우선(2026-08-20 사용자 확정) — 없을 때만 선임 여부로 추정한다.
+    // mgr.title은 쓰지 않는다: 1.7에서 오면 그건 직위가 아니라 선임 구분('관리자'/'보조자')이다.
+    position: fstr('ownerPosition') || ownerContact?.position?.trim() || (isMgr ? '소방안전관리자' : rep ? '대표' : ''),
     phone: formatTel(fstr('ownerPhone') || mgr.phone),
-    birth: fstr('ownerBirth'),
+    birth: fstr('ownerBirth') || ymdDots(ownerContact?.birth_date ?? null),
   }
   if (!owner.name) missing.push('관계인 성명 없음 — 관계인 탭 [소방안전관리] 지정 또는 [입력]에서 기재')
-  if (!owner.birth) missing.push('관계인 생년월일 미입력 — 공란 인쇄 ([입력]에서 기재 가능)')
+  if (!owner.birth) missing.push('관계인 생년월일 미입력 — 공란 인쇄 (고객 상세 관계인 카드 또는 [입력]에서 기재)')
 
   // 대리인(관리업체) — 주된 점검인력(참여자 '주된' → 담당 직원 폴백, report9와 동일 축)
   const parts = (partsRes.data ?? []) as Array<{ employee_id: string; role: string; sort_order: number }>
   const mainId = parts.filter(p => p.role === '주된').sort((a, b) => a.sort_order - b.sort_order)[0]?.employee_id
     ?? insp.assigned_employee_id ?? null
-  let agentName = ''
+  // 146 — 직위·연락처·생년월일까지 직원 정보에서 가져온다. 종전엔 성명만 자동이고 나머지 3칸은
+  // 점검 건마다 annex_inputs에 손으로 다시 넣어야 했다(같은 직원이 매 회차 같은 값을 반복 입력).
+  type AgentProfile = { name: string | null; position: string | null; phone: string | null; birth_date: string | null }
+  let prof: AgentProfile | null = null
   if (mainId) {
-    const { data: prof } = await admin.from('profiles').select('name').eq('id', mainId).maybeSingle()
-    agentName = (prof as { name: string | null } | null)?.name ?? ''
+    const { data } = await admin.from('profiles')
+      .select('name, position, phone, birth_date').eq('id', mainId).maybeSingle()
+    prof = (data ?? null) as AgentProfile | null
   }
   const agent = {
-    name: fstr('agentName') || agentName,
-    position: fstr('agentPosition'),
-    phone: formatTel(fstr('agentPhone')),
-    birth: fstr('agentBirth'),
+    name: fstr('agentName') || (prof?.name ?? ''),
+    position: fstr('agentPosition') || (prof?.position?.trim() ?? ''),
+    phone: formatTel(fstr('agentPhone') || (prof?.phone ?? '')),
+    birth: fstr('agentBirth') || ymdDots(prof?.birth_date ?? null),
   }
   if (!agent.name) missing.push('대리인(주된 점검인력) 없음 — 점검 참여자 지정 또는 [입력]에서 기재')
-  if (!agent.birth) missing.push('대리인 생년월일 미입력 — 공란 인쇄 ([입력]에서 기재 가능)')
+  if (!agent.birth) missing.push('대리인 생년월일 미입력 — 공란 인쇄 (관리자 > 직원 관리 또는 [입력]에서 기재)')
 
   // 점검일자 — 시작~종료(같으면 1일). 표기는 샘플 축('YYYY.MM.DD 부터 ~ 까지 (N일)')
   const s = insp.inspection_start_date, e = insp.inspection_end_date ?? insp.inspection_start_date

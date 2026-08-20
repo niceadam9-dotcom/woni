@@ -15,6 +15,9 @@ export type CreateUserInput = {
   hire_date?: string
   license_no?: string     // 점검자 경력수첩 번호 (보고서 개요)
   license_grade?: string
+  // 146 — 위임장 대리인 칸(직위·연락처·생년월일)의 원천. 종전엔 점검 건마다 손으로 다시 넣었다
+  phone?: string
+  birth_date?: string
 }
 
 export type UpdateUserInput = {
@@ -26,6 +29,8 @@ export type UpdateUserInput = {
   hire_date?: string
   license_no?: string
   license_grade?: string
+  phone?: string
+  birth_date?: string
   is_active: boolean
 }
 
@@ -62,6 +67,8 @@ export async function createUserAction(input: CreateUserInput): Promise<{ error?
       hire_date: input.hire_date || null,
       license_no: input.license_no || null,
       license_grade: input.license_grade || null,
+      phone: input.phone || null,
+      birth_date: input.birth_date || null,
       is_active: true,
     } as Record<string, unknown>, { onConflict: 'id' })
 
@@ -102,6 +109,8 @@ export async function updateUserAction(
       hire_date: input.hire_date || null,
       license_no: input.license_no || null,
       license_grade: input.license_grade || null,
+      phone: input.phone || null,
+      birth_date: input.birth_date || null,
       is_active: input.is_active,
     } as Record<string, unknown>)
     .eq('id', userId)
