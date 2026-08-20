@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Pencil, Trash2, Check, X, Phone, Mail, Building2, Search } from 'lucide-react'
 import { createContactAction, updateContactAction, deleteContactAction } from '@/app/(dashboard)/my/address-book/actions'
+import { formatPhoneKR } from '@/components/ui/fields'
+import { formatTel } from '@/lib/format-contact'
 
 const inputCls = 'w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 
@@ -31,9 +33,14 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
   const rows = contacts as Contact[]
   const groups = [...new Set(rows.map(c => c.group_name).filter(Boolean))] as string[]
 
+  // 전화번호 검색은 하이픈 유무를 가리지 않는다 — 저장값이 '010-1234-5678'인데 '01012345678'로
+  // 찾으면 안 나오던 문제(자동 하이픈 도입 후 저장 형식이 섞인다)
+  const digits = (s: string | null | undefined) => (s ?? '').replace(/\D/g, '')
   const filtered = rows.filter(c => {
     const q = search.toLowerCase()
-    const matchSearch = !q || c.name.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q) || c.phone?.includes(q) || c.mobile?.includes(q)
+    const qd = digits(search)
+    const matchSearch = !q || c.name.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q)
+      || (!!qd && (digits(c.phone).includes(qd) || digits(c.mobile).includes(qd)))
     const matchGroup = !groupFilter || c.group_name === groupFilter
     return matchSearch && matchGroup
   })
@@ -113,8 +120,8 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
             <div className="space-y-1"><label className="text-xs text-[#514b81]">이메일</label><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">전화번호</label><input value={form.phone} onChange={set('phone')} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">휴대폰</label><input value={form.mobile} onChange={set('mobile')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">전화번호</label><input value={form.phone} inputMode="tel" placeholder="010-0000-0000" onChange={e => setForm(s => ({ ...s, phone: formatPhoneKR(e.target.value) }))} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-[#514b81]">휴대폰</label><input value={form.mobile} inputMode="tel" placeholder="010-0000-0000" onChange={e => setForm(s => ({ ...s, mobile: formatPhoneKR(e.target.value) }))} className={inputCls} /></div>
             <div className="space-y-1"><label className="text-xs text-[#514b81]">주소</label><input value={form.address} onChange={set('address')} className={inputCls} /></div>
           </div>
           <textarea value={form.notes} onChange={set('notes')} placeholder="메모" rows={2}
@@ -159,8 +166,8 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
               </div>
             </div>
             <div className="mt-2 space-y-1">
-              {c.phone && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Phone className="size-3 text-[#b0acd6]" />{c.phone}</p>}
-              {c.mobile && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Phone className="size-3 text-[#b0acd6]" />{c.mobile} (휴대)</p>}
+              {c.phone && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Phone className="size-3 text-[#b0acd6]" />{formatTel(c.phone)}</p>}
+              {c.mobile && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Phone className="size-3 text-[#b0acd6]" />{formatTel(c.mobile)} (휴대)</p>}
               {c.email && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Mail className="size-3 text-[#b0acd6]" />{c.email}</p>}
             </div>
             {c.notes && <p className="text-xs text-[#b0acd6] mt-2 truncate">{c.notes}</p>}

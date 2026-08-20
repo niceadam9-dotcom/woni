@@ -7,6 +7,7 @@ import { createInspectionAction } from '@/app/(dashboard)/inspections/actions'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { previewInspectionSteps, stepBaseDate } from '@/lib/step-dates'
+import { formatTel } from '@/lib/format-contact'
 import type { InspectionType } from '@/types'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
@@ -167,7 +168,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
               <option value="">관계인 선택 (선택사항)</option>
               {filteredContacts.map(c => (
                 <option key={c.id} value={c.id}>
-                  [{c.role}] {c.name}{c.phone ? ` — ${c.phone}` : ''}
+                  [{c.role}] {c.name}{c.phone ? ` — ${formatTel(c.phone)}` : ''}
                 </option>
               ))}
             </select>

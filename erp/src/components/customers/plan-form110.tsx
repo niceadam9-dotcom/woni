@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
-import { CardAnchorBar, MonthField, NumStepper, useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, MonthField, NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 4개 (소방계획서_4.md §3)
@@ -221,7 +221,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <input value={mu.bizName} disabled={!canManage} placeholder="사업장명" onChange={e => pm({ bizName: e.target.value })} className={`${inputCls} w-32`} />
               <input value={mu.location} disabled={!canManage} placeholder="위치" onChange={e => pm({ location: e.target.value })} className={`${inputCls} w-28`} />
               <input value={mu.owner} disabled={!canManage} placeholder="영업주" onChange={e => pm({ owner: e.target.value })} className={`${inputCls} w-24`} />
-              <input value={mu.phone} disabled={!canManage} placeholder="연락처" onChange={e => pm({ phone: e.target.value })} className={`${inputCls} w-28`} />
+              <input value={mu.phone} disabled={!canManage} inputMode="tel" placeholder="010-0000-0000" onChange={e => pm({ phone: formatPhoneKR(e.target.value) })} className={`${inputCls} w-28`} />
               <NumStepper value={mu.capacity} disabled={!canManage} label="수용인원" onChange={v => pm({ capacity: v })}>
                 <input value={mu.capacity} disabled={!canManage} inputMode="numeric" placeholder="수용인원" onChange={e => pm({ capacity: e.target.value })} className={`${inputCls} w-20`} />
               </NumStepper>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Building2, User, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { AddressMapButton } from '@/components/ui/address-map-button'
+import { formatTel } from '@/lib/format-contact'
 
 /** 점검 기본정보 — 헤더 접이식 (소방계획서_21 R5-5 / D-1).
  *  사용자가 "중요도 하"로 꼽은 블록이라 상단 카드에서 헤더의 접힌 요약으로 내렸다.
@@ -30,7 +31,7 @@ export function InspectionInfoPopover({ info }: { info: InspectionInfo }) {
     rows.push({
       icon: <User className="size-3.5" />,
       label: `관계인${info.contactRole ? ` (${info.contactRole})` : ''}`,
-      value: `${info.contactName}${info.contactPhone ? ` · ${info.contactPhone}` : ''}`,
+      value: `${info.contactName}${info.contactPhone ? ` · ${formatTel(info.contactPhone)}` : ''}`,
     })
   }
 

@@ -169,6 +169,7 @@ const ck = (on: boolean, label: string) => `<span class="ck">${on ? '■' : '☐
 
 /** 서식 1.4 소방시설 고정 목록 — 표준 코드 상수 재수출 (마이그레이션 100 이후 DB 코드와 동일) */
 import { FACILITY_STANDARD } from './facility-codes'
+import { formatTel } from './format-contact'
 export const FACILITY_FORM = FACILITY_STANDARD
 
 const GRADES = ['특급', '1급', '2급', '3급']
@@ -267,7 +268,7 @@ export function buildFirePlanHtml(
   const drillMonths = f.training?.drillMonths?.length ? f.training.drillMonths : d.trainingMonth != null ? [d.trainingMonth] : []
 
   const brigadeRows = (d.brigade.length ? d.brigade : [{ team: '', name: '', duty: '', phone: '' }])
-    .map(b => `<tr${af('brigade')}><td>${v(b.team)}</td><td>${v(b.name)}</td><td class="l">${v(b.duty)}</td><td>${v(b.phone)}</td></tr>`).join('')
+    .map(b => `<tr${af('brigade')}><td>${v(b.team)}</td><td>${v(b.name)}</td><td class="l">${v(b.duty)}</td><td>${v(formatTel(b.phone))}</td></tr>`).join('')
 
   const evacRows = (d.evacRoutes.length ? d.evacRoutes : [{ floor: '', route: '', guide: '', equip: '' }])
     .map(r => `<tr${af('evacRoutes')}><td>${v(r.floor)}</td><td class="l">${v(r.route)}</td><td>${v(r.guide)}</td><td>${v(r.equip)}</td></tr>`).join('')
@@ -377,7 +378,9 @@ export function buildFirePlanHtml(
   h3 { font-size: 12px; margin: 14px 0 6px; }
   .formno { display: inline-block; border: 1.5px solid #333; padding: 2px 10px; font-weight: bold; font-size: 11px; margin: 14px 0 4px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
-  th, td { border: 1px solid #555; padding: 4px 6px; text-align: center; vertical-align: middle; word-break: break-all; }
+  /* 한글은 음절 단위로 끊지 않는다 — break-all이면 전화번호가 '0103/2162321'로, 상호가 '서울사/업본부'로
+     쪼개진다. keep-all은 어절 경계에서만 접고, 한 단어가 칸보다 길 때만 overflow-wrap이 끊는다(별지 서식 base.ts 동일). */
+  th, td { border: 1px solid #555; padding: 4px 6px; text-align: center; vertical-align: middle; word-break: keep-all; overflow-wrap: break-word; }
   th { background: #efefef; font-weight: 600; }
   td.l, th.l { text-align: left; }
   th.cat { width: 84px; }
@@ -513,7 +516,8 @@ ${(d.autoFilled?.length ?? 0) > 0
     ${/* M-6(소방계획서_15): 대표자·사업자등록번호 — ERP 회사 정보에 있던 값이 유실되던 결함 복구 */''}
     <tr><th>대 표 자</th><td class="l">${v(d.companyRep)}</td><th>사업자등록번호</th><td class="l">${v(d.companyBizNo)}</td></tr>
     <tr><th>업체주소</th><td class="l" colspan="3">${v(d.companyAddress)}</td></tr>
-    <tr><th>계약기간</th><td class="l">${v(d.contractStart)} ~</td><th>점검주기</th><td class="l">${v(d.inspectionCycle)}</td></tr>
+    ${/* 시작일이 없으면 '~'만 덩그러니 남아 계약이 깨진 값처럼 보인다 — 값이 있을 때만 기간 기호를 붙인다 */''}
+    <tr><th>계약기간</th><td class="l">${d.contractStart ? `${v(d.contractStart)} ~` : ''}</td><th>점검주기</th><td class="l">${v(d.inspectionCycle)}</td></tr>
     <tr><th>계약범위</th><td class="l" colspan="3">소방시설</td></tr>
     <tr><th>감독사항</th><td class="l" colspan="3">점검 후 소방안전관리업무 대행 점검표 확인 후 서명</td></tr>
   </table>
@@ -611,7 +615,7 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><th>사업장명</th><td class="l">${v(mu.bizName)}</td><th style="width:90px">업종(개소)</th><td class="l">${v(muCats)}</td></tr>
     <tr><th>위치</th><td class="l">${v(mu.location)}</td><th>영업주</th><td class="l">${v(mu.owner)}</td></tr>
     ${/* M-16(소방계획서_15): 영업시간 평일/휴일×주간/야간 세분 + 이용자 유형 체크 — 구조화 값 우선, 자유 텍스트는 폴백·병기 */''}
-    <tr><th>연락처</th><td class="l">${v(mu.phone)}</td><th>영업시간</th><td class="l">${(() => {
+    <tr><th>연락처</th><td class="l">${v(formatTel(mu.phone))}</td><th>영업시간</th><td class="l">${(() => {
       const hd = mu.hoursDetail
       if (hd && (hd.wkDay || hd.wkNight || hd.holDay || hd.holNight)) {
         const seg = (label: string, day: string, night: string) =>
@@ -732,12 +736,16 @@ ${(d.autoFilled?.length ?? 0) > 0
   <h3>초기대응 개요</h3>
   <table class="small">
     <tr><th style="width:130px">초기소화 방법</th><td class="l">${v(teamTextOr(f.brigadeTeams, 'extinguish', '소화기를 이용하여 초기 진압 실시'))}</td></tr>
-    <tr><th>가스시설 조치</th><td class="l">가스공급 밸브 차단</td></tr>
+    ${/* 윗줄(초기소화=extinguish)과 같은 규약 — 2장 팀별임무 입력을 쓰고 없으면 요약 기본문구.
+          종전엔 이 칸만 고정 문구라 고객이 방호안전 임무를 고쳐도 반영되지 않았다. */''}
+    <tr><th>가스시설 조치</th><td class="l">${v(teamTextOr(f.brigadeTeams, 'protect', '가스공급 밸브 차단'))}</td></tr>
   </table>
   <h3>비상연락처</h3>
   <table class="small">
     <tr><th>${v(fireStation)}</th><td>119</td><th>${v(d.companyName)}</th><td>${v(d.companyPhone)}</td></tr>
-    <tr><th>가스안전공사</th><td>031-798-0019</td><th>전기안전공사</th><td>1588-7500</td></tr>
+    ${/* 전국 대표번호만 쓴다 — 종전 031-798-0019는 특정 지사 번호라 타 지역 고객에게 오정보였다.
+          1544-4500은 발신지에서 가장 가까운 지역본부로 연결된다(전기안전공사 1588-7500과 같은 성격). */''}
+    <tr><th>가스안전공사</th><td>1544-4500</td><th>전기안전공사</th><td>1588-7500</td></tr>
   </table>
 </div>
 

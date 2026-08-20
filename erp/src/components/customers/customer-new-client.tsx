@@ -8,6 +8,7 @@ import { AddressDuplicateDialog } from '@/components/customers/address-duplicate
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
+import { formatPhoneKR } from '@/components/ui/fields'
 import type { InspectionType } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
@@ -455,7 +456,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
               <input
                 value={contacts['대표'].phone}
-                onChange={e => setContact('대표', 'phone', e.target.value)}
+                onChange={e => setContact('대표', 'phone', formatPhoneKR(e.target.value))}
+                inputMode="tel"
                 placeholder="010-0000-0000"
                 className={`${inputCls} pl-7`}
               />
@@ -567,7 +569,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 <Field label="연락처">
                   <input
                     value={contacts[role].phone}
-                    onChange={e => setContact(role, 'phone', e.target.value)}
+                    onChange={e => setContact(role, 'phone', formatPhoneKR(e.target.value))}
+                    inputMode="tel"
                     placeholder="010-0000-0000"
                     className={inputCls}
                   />

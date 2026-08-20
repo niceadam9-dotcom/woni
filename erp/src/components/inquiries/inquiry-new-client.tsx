@@ -7,6 +7,7 @@ import { createInquiryAction, type InquiryType } from '@/app/(dashboard)/inquiri
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { extractRegionFromAddress } from '@/lib/address-parser'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
+import { formatPhoneKR } from '@/components/ui/fields'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 const readonlyCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-[#f8f9fa] px-3 text-sm text-[#514b81] outline-none cursor-default'
@@ -284,7 +285,8 @@ export function InquiryNewClient({
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
               <input
                 value={form.contact_phone}
-                onChange={e => setField('contact_phone', e.target.value)}
+                onChange={e => setField('contact_phone', formatPhoneKR(e.target.value))}
+                inputMode="tel"
                 placeholder="010-0000-0000"
                 className={`${inputCls} pl-8`}
               />

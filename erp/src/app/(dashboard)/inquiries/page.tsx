@@ -4,6 +4,7 @@ import { MessageCircle, Plus, Search } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
+import { formatTel } from '@/lib/format-contact'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: '접수대기',
@@ -169,7 +170,7 @@ export default async function InquiriesPage({
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">
                       {r.contact_name && <p>{r.contact_name}</p>}
-                      {r.contact_phone && <p className="text-[#b0acd6]">{r.contact_phone}</p>}
+                      {r.contact_phone && <p className="text-[#b0acd6]">{formatTel(r.contact_phone)}</p>}
                       {!r.contact_name && !r.contact_phone && '-'}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#514b81]">

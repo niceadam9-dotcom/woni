@@ -9,6 +9,8 @@ import {
   type InquiryType,
   type InquiryStatus,
 } from '@/app/(dashboard)/inquiries/actions'
+import { formatPhoneKR } from '@/components/ui/fields'
+import { formatTel } from '@/lib/format-contact'
 
 const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
 const labelCls = 'text-xs font-medium text-[#514b81]'
@@ -269,7 +271,8 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
                   <input
                     value={form.contact_phone}
-                    onChange={e => setField('contact_phone', e.target.value)}
+                    onChange={e => setField('contact_phone', formatPhoneKR(e.target.value))}
+                    inputMode="tel" placeholder="010-0000-0000"
                     className={`${inputCls} pl-8`}
                   />
                 </div>
@@ -304,7 +307,7 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
                   {inquiry.contact_phone && (
                     <span className="flex items-center gap-1 text-[#090c1d]">
                       <Phone className="size-3.5 text-[#b0acd6]" />
-                      {inquiry.contact_phone}
+                      {formatTel(inquiry.contact_phone)}
                     </span>
                   )}
                 </div>

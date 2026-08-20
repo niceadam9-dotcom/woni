@@ -184,7 +184,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                     <button key={i} onClick={() => applyBookEntry(e)}
                       className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff] flex justify-between gap-2">
                       <span>{e.name}{e.position && <span className="text-[#b0acd6]"> · {e.position}</span>}</span>
-                      <span className="text-[#b0acd6]">{e.phone}</span>
+                      <span className="text-[#b0acd6]">{formatTel(e.phone)}</span>
                     </button>
                   ))}
                 </div>
@@ -276,7 +276,8 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 {contact!.phone && (
                   <span className="flex items-center gap-1 text-xs text-[#514b81]">
                     <Phone className="size-3 text-[#b0acd6]" />
-                    <a href={`tel:${contact!.phone}`} className="hover:text-[#7b68ee] hover:underline">{formatTel(contact!.phone)}</a>
+                    {/* href는 숫자만 — 하이픈이 섞인 tel: URI를 못 다루는 기기가 있다. 보이는 글자만 하이픈 */}
+                    <a href={`tel:${contact!.phone.replace(/\D/g, '')}`} className="hover:text-[#7b68ee] hover:underline">{formatTel(contact!.phone)}</a>
                     <button onClick={() => copyPhone(contact!.phone!)} title="복사"
                       className="p-0.5 text-[#b0acd6] hover:text-[#7b68ee]">
                       <Copy className="size-3" />

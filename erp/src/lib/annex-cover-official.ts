@@ -9,6 +9,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { getCompanyProfile } from '@/lib/company-profile'
+import { formatTel } from '@/lib/format-contact'
 import { listCustomerAssetEntries, ASSET_BUCKET, ASSET_URL_TTL } from '@/lib/customer-assets'
 import type { DocAsset } from '@/lib/doc-templates/base'
 import type { CoverData } from '@/lib/doc-templates/cover'
@@ -111,8 +112,9 @@ export async function assembleCover(
     company: {
       name: company?.company_name ?? '',
       address: company?.address ?? '',
-      phone: company?.phone ?? '',
-      fax: company?.fax ?? '',
+      // 표기는 조립 지점에서 통일한다(별지 9호 report9-actions와 같은 축) — 템플릿은 받은 문자열을 그대로 찍는다
+      phone: formatTel(company?.phone),
+      fax: formatTel(company?.fax),
       logoSrc,
     },
   }
@@ -176,8 +178,8 @@ export async function assembleOfficial(
     company: {
       name: company?.company_name ?? '',
       address: company?.address ?? '',
-      phone: company?.phone ?? '',
-      fax: company?.fax ?? '',
+      phone: formatTel(company?.phone),
+      fax: formatTel(company?.fax),
     },
     docNo,
     sendDate: fstr('sendDate') || ymLabel(insp.inspection_end_date ?? null),
@@ -231,7 +233,7 @@ export async function assembleDelegation(
   const owner = {
     name: ownerName,
     position: fstr('ownerPosition') || (mgr ? '소방안전관리자' : rep ? '대표' : ''),
-    phone: fstr('ownerPhone') || (mgr ? (mgrContact?.phone ?? '') : (rep?.phone ?? '')),
+    phone: formatTel(fstr('ownerPhone') || (mgr ? (mgrContact?.phone ?? '') : (rep?.phone ?? ''))),
     birth: fstr('ownerBirth'),
   }
   if (!owner.name) missing.push('관계인 성명 없음 — 서식 1.7 선임현황 또는 [입력]에서 지정')
@@ -249,7 +251,7 @@ export async function assembleDelegation(
   const agent = {
     name: fstr('agentName') || agentName,
     position: fstr('agentPosition'),
-    phone: fstr('agentPhone'),
+    phone: formatTel(fstr('agentPhone')),
     birth: fstr('agentBirth'),
   }
   if (!agent.name) missing.push('대리인(주된 점검인력) 없음 — 점검 참여자 지정 또는 [입력]에서 기재')

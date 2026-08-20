@@ -11,6 +11,7 @@ import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { CardAnchorBar, NumField, PhoneField } from '@/components/ui/fields'
+import { formatTel } from '@/lib/format-contact'
 import { usePlanSaveHandler } from '@/components/ui/unsaved-nav'
 
 /** 소방계획서 정보 패널 (5+6차) — 준비율 게이지 + 항상 편집 폼(①시설 ②운영 ③화재보험) + 가져오기 (설계 §4·§5,
@@ -372,7 +373,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                     <button key={i} onClick={() => addFromPerson(p)}
                       className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff] flex justify-between gap-3">
                       <span>{p.name} <span className="text-[#b0acd6]">({p.kind})</span></span>
-                      <span className="text-[#b0acd6]">{p.phone}</span>
+                      <span className="text-[#b0acd6]">{formatTel(p.phone)}</span>
                     </button>
                   ))}
                 </div>

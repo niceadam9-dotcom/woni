@@ -1,5 +1,6 @@
 import { MapPin, Phone, UserCheck, Calendar, ClipboardList } from 'lucide-react'
 import { AddressMapButton } from '@/components/ui/address-map-button'
+import { formatTel } from '@/lib/format-contact'
 
 /** 우측 고정 요약 패널 (설계 §6-C-2) — 탭을 옮겨도 핵심 정보 상시 표시.
  *  서버 컴포넌트: 페이지가 이미 조회한 데이터만 받는다 (추가 쿼리 없음). 좁은 화면(<xl)은 숨김.
@@ -35,7 +36,7 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
         <span>
           {repName}
           {repPhone && (
-            <a href={`tel:${repPhone}`} className="text-[#7b68ee] hover:underline ml-1.5">{repPhone}</a>
+            <a href={`tel:${repPhone.replace(/\D/g, '')}`} className="text-[#7b68ee] hover:underline ml-1.5">{formatTel(repPhone)}</a>
           )}
         </span>
       ) : <span className="text-amber-600">미등록</span>,
