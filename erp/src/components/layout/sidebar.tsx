@@ -385,7 +385,8 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                           <span data-testid="sidebar-sms-badge"
                             title={smsCount < 0
                               ? '사전 안내 건수를 불러오지 못했습니다 — 화면을 열어 확인해주세요'
-                              : `손봐야 할 사전 안내 ${smsCount}곳`}
+                              /* 단위는 배너·위젯과 같은 **건**(고객+방문일) */
+                              : `손봐야 할 사전 안내 ${smsCount}건`}
                             className={`shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${
                               smsCount < 0 ? 'bg-[#b0acd6]' : 'bg-[#7b68ee]'}`}>
                             {smsCount < 0 ? '?' : smsCount > 99 ? '99+' : smsCount}
