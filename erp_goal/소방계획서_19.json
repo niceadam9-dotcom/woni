@@ -534,7 +534,16 @@
           "spec-sections.ts:163-169 WATER_SYSTEMS 8종·sysLine(3+5 줄바꿈) · :172·191·200·204·208 5개 호출부",
           "실주행: customer_facility_specs s32_water_common에 main_water.systems=['옥내소화전설비','스프링클러설비'], pump_type.systems=['옥내소화전설비'] 저장 → 별지9호·별지4호 세부현황 모두 '◦ 설비의 종류:' 5블록 인쇄, 저장분 [√]옥내소화전설비 · 미선택 [ ]옥외소화전설비"
         ],
-        "probe": "_judge19-annex.mjs 58/58" } },
+        "probe": "_judge19-annex.mjs 58/58" },
+      "followup": { "date": "2026-08-20", "commit": "f3fabb3", "title": "체크줄 배치를 원문 3·2·3으로 정정 — status는 implemented 유지",
+        "desc": "2026-08-12 self_report의 '8종 3+5 줄바꿈, 현행 원문 배치'는 배치 서술이 사실과 달랐다. 현행 원문(_form/_별지4호_현행판_추출.txt:184-186)은 3·2·3 세 줄이고 구분자도 쉼표가 아닌 공백이다. 3+5는 둘째 줄에 5종이 몰려 '포소화설비'가 칸 끝에서 접혔고, 전각공백 2칸 들여쓰기는 라벨 폭과 어긋나 줄 시작점이 제각각이었다. 체크줄 존재 자체는 2026-08-12에 구현됐으므로 status는 implemented 유지 — 이 건은 배치 정정이다.",
+        "evidence": [
+          "spec-sections.ts sysLine() — 3·2·3 분할 + 공백 구분. 라벨과 목록을 .syslist 두 칸으로 나눠 2·3행이 첫 항목 '[ ]옥내소화전설비' 바로 아래로 정렬",
+          "base.ts BASE_CSS .syslist(inline-block + vertical-align:top) — renderDocument가 항상 주입하므로 별지4·9호 양쪽에 동시 적용",
+          "송수구는 같은 8종 목록이지만 원문(_별지4호_현행판_추출.txt:234-235)이 라벨 없는 4+4 배치이고 코드가 이미 일치 — 미변경"
+        ],
+        "probe": "_probe-s32-syslist.mjs 16/16(신규) · _probe-soban19-b.mts 41/41 회귀 · 브라우저 실측 행 시작 x좌표 198.9/198.9/198.9 정렬",
+        "test_quality_fix": "_probe-soban19-b.mts:190 '미선택은 ☐' 단언은 base.ts ck()가 찍는 두 칸 '[&nbsp;&nbsp;]옥외소화전설비'(3쪽 점검결과 표 FORM3_ITEMS)를 맞히던 가짜 양성이었다 — 3-2 체크줄을 통째로 지워도 통과함을 실측 확인. 세부현황 CB는 한 칸이라 '설비의 종류' 줄 안으로 범위를 좁혔고, 같은 변이에서 죽는 것까지 확인했다" } },
     { "id": "A4-4", "status": "implemented", "resolved_by": "form_edition_finding_2(2026-08-12)", "desc": "설치장소 기입란 축소(2줄→1줄) — 다동 대상물 기입 불가",
       "gap_fix": { "date": "2026-08-12(3차)", "by": "기안 세션(구현자) — 독립 판정 반증 수용",
         "desc": "판정자가 적발한 누락 1블록(화재알림설비) 해소 — 원문 2줄 블록은 7개가 아니라 **8개**임을 확인하고 fire_alert에도 둘째 줄을 준다",
