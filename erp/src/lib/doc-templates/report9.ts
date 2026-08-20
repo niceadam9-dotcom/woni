@@ -401,15 +401,60 @@ export function facilityResultSection(
   //   (_form/_별지4호_현행판_추출.txt:23-37) — 원문에 없는 표기를 만들어 넣은 셈이었다.
   //   하위 줄에 자기 점검결과 칸이 없는 것은 사실이지만(부모와 한 칸을 공유), 그렇다고 체크박스를
   //   결과칸 대용으로 쓰지는 않는다. 해당없음은 부모의 점검결과 칸 '/'가 말한다.
-  const grp = (i: number) => ck(EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t)))
-  const fireExt: P3Item = {
-    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[0]))}소화기구(소화기, 자확, 간이)<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[1]))}주거용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[2]))}상업용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[3]))}캐비닛형자동소화장치<br>  ${ck(ledger.has(FIRE_SUB_ITEMS[4]))}가스ㆍ분말ㆍ고체자동소화장치`,
-    mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
+  const grpOn = (i: number) => EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t))
+
+  /** 부모 1행 + 하위 각 1행으로 편다 (2026-08-20 사용자 확정, 원본 서식 image-33).
+   *
+   *  종전엔 부모와 하위를 <br>로 **한 칸에 묶고 점검결과도 하나**만 줬다. 서식 원본은
+   *  하위마다 자기 행과 자기 결과칸을 갖고, 부모 결과칸은 비어 있다.
+   *
+   *  결과칸 규칙(값을 지어내지 않는다 — 22 Q-8 '자동 기록 금지'를 지킨다):
+   *    · 미설치 하위        → '/'(해당없음). 설비 대장이 말해 주는 사실이다.
+   *    · 설치된 하위        → 부모 롤업 결과를 **첫 설치 행 하나에만** 내린다.
+   *                          지금 부모에 찍히는 값이 곧 그 시트의 점검 결과이므로 새로 만든 값이 아니다.
+   *                          나머지 설치 행은 공란(무응답 = 공란, B-6 규약).
+   *    · 설치된 하위가 없으면 → 롤업을 부모 행에 그대로 둔다. 옮길 자리가 없다고 결과를 버리지 않는다.
+   *
+   *  라벨의 후속 줄(예: '(간이)완강기…')은 앞 항목이 두 줄로 접힌 것이라 같은 행에 둔다(원문 축자). */
+  function subRows(parent: { label: string; checked: boolean; mark: string },
+    subs: Array<{ label: string; installed: boolean }>): P3Item[] {
+    const first = subs.findIndex(s => s.installed)
+    const rows: P3Item[] = [{
+      html: ` ${ck(parent.checked)}${parent.label}`,
+      mark: first < 0 ? parent.mark : '',
+    }]
+    subs.forEach((s, i) => rows.push({
+      html: `   ${ck(s.installed)}${s.label}`,
+      mark: s.installed ? (i === first ? parent.mark : '') : resultMark('N'),
+    }))
+    return rows
   }
-  const escapeEquip: P3Item = {
-    html: ` ${ck(d.facilityChecks.includes('피난기구'))}피난기구<br>   ${grp(0)}공기안전매트ㆍ피난사다리<br>     (간이)완강기ㆍ미끄럼대ㆍ구조대<br>   ${grp(1)}다수인피난장비<br>   ${grp(2)}승강식피난기<br>      하향식피난구용내림식사다리`,
-    mark: resultMark(d.resultMarks['피난기구']),
-  }
+
+  const fireExtRows = subRows(
+    {
+      label: '소화기구 및 자동소화장치',
+      checked: d.facilityChecks.includes('소화기구 및 자동소화장치'),
+      mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
+    },
+    [
+      { label: '소화기구(소화기, 자확, 간이)', installed: ledger.has(FIRE_SUB_ITEMS[0]) },
+      { label: '주거용주방자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[1]) },
+      { label: '상업용주방자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[2]) },
+      { label: '캐비닛형자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[3]) },
+      { label: '가스ㆍ분말ㆍ고체자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[4]) },
+    ])
+
+  const escapeEquipRows = subRows(
+    {
+      label: '피난기구',
+      checked: d.facilityChecks.includes('피난기구'),
+      mark: resultMark(d.resultMarks['피난기구']),
+    },
+    [
+      { label: '공기안전매트ㆍ피난사다리<br>       (간이)완강기ㆍ미끄럼대ㆍ구조대', installed: grpOn(0) },
+      { label: '다수인피난장비', installed: grpOn(1) },
+      { label: '승강식피난기<br>       하향식피난구용내림식사다리', installed: grpOn(2) },
+    ])
   // B-3(소방계획서_19 K-3): '기타' 3항목 — 31번 기타사항 점검표 롤업 반영(별지4호 1쪽·별지9호 3쪽 공용).
   // ○/×는 체크(√)+결과, ／는 결과만(muResultSection 규약과 동일).
   //
@@ -424,11 +469,11 @@ export function facilityResultSection(
   }
 
   const left1 = p3Table([
-    { name: '소화<br>설비', items: [fireExt, ...FORM3_ITEMS.slice(1, 15).map(f3)] },
+    { name: '소화<br>설비', items: [...fireExtRows, ...FORM3_ITEMS.slice(1, 15).map(f3)] },
     { name: '경보<br>설비', items: FORM3_ITEMS.slice(15, 24).map(f3) },
   ])
   const right1 = p3Table([
-    { name: '피난구조설비', items: [escapeEquip, ...FORM3_ITEMS.slice(25, 31).map(f3)] },
+    { name: '피난구조설비', items: [...escapeEquipRows, ...FORM3_ITEMS.slice(25, 31).map(f3)] },
     { name: '소화용수설비', items: FORM3_ITEMS.slice(31, 33).map(f3) },
     { name: '소화활동설비', items: FORM3_ITEMS.slice(33, 40).map(f3) },
     { name: '기타', items: [etcItem('door', '방화문, 자동방화셔터'), etcItem('exit', '비상구, 피난통로'), etcItem('flame', '방  염')] },
