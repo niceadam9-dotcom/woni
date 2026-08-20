@@ -553,9 +553,10 @@ async function main() {
     check('★ 위젯 = 배너 (미발송·보낼수없음 각각 일치)',
       wUnsent === bannerUnsent && wBlocked === bannerBlocked,
       `위젯 ${wUnsent}/${wBlocked} vs 배너 ${bannerUnsent}/${bannerBlocked} · ${wText.replace(/\n/g, ' ')}`)
-    check('★ 위젯 합계 = 뱃지 수(세 화면이 같은 단위로 센다)',
-      wUnsent + wBlocked === Number((await badge.innerText()).trim()),
-      `위젯합 ${wUnsent + wBlocked} vs 뱃지 ${await badge.innerText()}`)
+    // 뱃지는 여기서 다시 읽지 않는다 — 사이드바는 **활성 그룹만 펼치므로**(sidebar.tsx:272)
+    // /dashboard에서는 문자 발송 항목 자체가 DOM에 없다. 없는 것을 기다리면 20초 타임아웃이고,
+    // catch로 삼키면 '뱃지 0'과 구별이 안 돼 거짓 실패가 된다(둘 다 실제로 겪었다).
+    // 세 화면 일치는 **배너를 축으로** 이미 닫혀 있다: 위(540행) 뱃지=배너, 여기(553행) 위젯=배너.
     check('위젯이 문자 발송 화면으로 잇는다',
       (await widget.getAttribute('href')) === '/inspections/sms', await widget.getAttribute('href') ?? '')
 
