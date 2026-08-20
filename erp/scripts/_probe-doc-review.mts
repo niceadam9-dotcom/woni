@@ -54,7 +54,9 @@ const blank9 = {
   repRole: '', ownerName: '', ownerPhone: '', managerGrade: '', mgrName: '', mgrPhone: '', mgrEduDate: '',
   hasFirePlan: false, prevOpDone: false, prevCompDone: false, eduDone: false, drillDone: false,
   insuranceJoined: null, insCompany: '', insPeriod: '', insPerson: '', insProperty: '',
-  multiUseNone: false, multiUseCounts: {},
+  // 1.10.3 미입력 = 비대상 규약(lib/multi-use) — 실제 조립부가 내놓는 값과 같게 둔다.
+  // 스테이징 fire_plan_forms 4건 중 3건이 이 상태다.
+  multiUseNone: true, multiUseCounts: {},
   permitDate: '', useApprovalDate: '', totalArea: '', buildingArea: '', households: '',
   floorsAbove: '', floorsBelow: '', heightM: '', buildingCount: '',
   stCon: false, stSteel: false, stBrick: false, stWood: false, stEtc: false,

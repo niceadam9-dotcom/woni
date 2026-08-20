@@ -6,6 +6,7 @@ import type { UserRole } from '@/types'
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 import { buildSheetOverviews } from '@/lib/sheet-overview'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
+import { isMultiUseApplicable } from '@/lib/multi-use'
 import { judgeStale, type BundleChecklist, type BundleItemStatus, type BundleGenResult, type BundleBlankRow } from '@/lib/bundle-status'
 import { requestReport9Action, type AnnexType } from './report9-actions'
 
@@ -93,7 +94,8 @@ export async function getBundleChecklistAction(inspectionId: string): Promise<{ 
     ])
     const mu = ((formRow?.sections as Record<string, unknown> | null)?.['multiUse'] ?? null) as
       { applicable?: boolean; categories?: Record<string, string> } | null
-    const hasMultiUse = !!mu?.applicable && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim())
+    // 해당 여부 판정은 lib/multi-use 한 곳 — 여기는 거기에 '업종 개소 ≥1'을 더 요구하는 축이다
+    const hasMultiUse = isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim())
     const ov = overviews[inspectionId]
     for (const s of ov?.sheets ?? []) {
       // 인쇄 대상 축(Q-3 근사): 설치 매칭 + 응답 있음 + 기타사항(항상) + 다중이용업소(업종 축)

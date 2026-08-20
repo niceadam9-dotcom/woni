@@ -20,6 +20,7 @@ import { assembleCover, assembleOfficial, assembleDelegation } from '@/lib/annex
 import { renderDelegation } from '@/lib/doc-templates/delegation'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
 import { deriveMuFromStd32, fillNonApplicableMu } from '@/lib/mu-std32-map'
+import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 import type { DocAsset } from '@/lib/doc-templates/base'
 import { pickFirePlanManager } from '@/lib/fire-plan-template'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
@@ -372,7 +373,7 @@ async function assembleReport9(
   // 다중이용업소현황 — 서식 1.10.3(sections.multiUse)과 공유 원본 (별지9호.MD §2 MULTI_USE_CATEGORIES)
   const muSection = (sections['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
   const multiUseCounts: Record<string, string> = {}
-  if (muSection?.applicable) {
+  if (isMultiUseApplicable(muSection)) {
     for (const [cat, cnt] of Object.entries(muSection.categories ?? {})) {
       if (String(cnt ?? '').trim()) multiUseCounts[cat] = String(cnt).trim()
     }
@@ -444,7 +445,7 @@ async function assembleReport9(
   }
   // 다중이용업소가 아니면 남은 16칸을 전부 해당없음(／)으로 — 1절 '미설치 → N'과 대칭(A안, 2026-08-20).
   // 규칙·근거는 mu-std32-map.ts 단일 원천. 별지 4호 2쪽도 이 값을 그대로 공유한다(:648).
-  fillNonApplicableMu(muResults, muSection?.applicable)
+  fillNonApplicableMu(muResults, isMultiUseApplicable(muSection))
 
   let period = ''
   if (insp.inspection_start_date) {
@@ -525,13 +526,15 @@ async function assembleReport9(
     // 2쪽 — 대표자 구분(104 rep_role — 미입력 시 관계인 대표=소유자 폴백)·자격구분(manager_license_grade 우선)
     repRole: ['소유자', '관리자', '점유자'].includes(cust.rep_role ?? '') ? (cust.rep_role as string) : (owner ? '소유자' : ''),
     ownerName: owner?.name ?? '',
-    ownerPhone: owner?.phone ?? '',
+    // 별지 9호만 종전에 원문 그대로였다 — 같은 파일의 10·11호(:117)·외관(:819)·companyPhone은
+    // 전부 formatTel을 거치므로, 2쪽 소방안전정보에서만 '01012345678' 꼴로 찍히던 표기 불일치를 맞춘다.
+    ownerPhone: formatTel(owner?.phone),
     managerGrade: ['특급', '1급', '2급', '3급'].includes(cust.manager_license_grade || cust.building_grade || '')
       ? (cust.manager_license_grade || cust.building_grade || '') : '',
     // A9-1(소방계획서_15): 1.7 선임현황 1순위 → 관계인 대표 폴백(종전 동작).
     // 1.7에는 전화 열이 없어, 선임자가 대표와 동일인일 때만 대표 전화를 사용한다(타인 전화 오기재 방지).
     mgrName: mgrRow?.name ?? owner?.name ?? '',
-    mgrPhone: (mgrRow?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? (owner?.phone ?? '') : '',
+    mgrPhone: (mgrRow?.name ?? owner?.name ?? '') === (owner?.name ?? '') ? formatTel(owner?.phone) : '',
     mgrEduDate: cust.manager_edu_date ? kdate(cust.manager_edu_date) : '',
     hasFirePlan: hasPlan,
     prevOpDone: prevTypes.has('작동'),
@@ -543,7 +546,10 @@ async function assembleReport9(
     insPeriod: cust.insurance_period ?? '',
     insPerson: cust.insurance_amount_person ?? '',
     insProperty: cust.insurance_amount_property ?? '',
-    multiUseNone: muSection ? muSection.applicable === false : false,
+    // 3쪽 2절(fillNonApplicableMu)과 **같은 판정**을 써야 한다 — 종전 `applicable === false`는
+    // 1.10.3 미입력을 비대상으로 안 봐서, 3쪽이 16칸을 전부 ／로 찍는 건에서도 2쪽 '해당없음'이
+    // 빈 채로 인쇄됐다(스테이징 4건 중 3건). 판정은 lib/multi-use 한 곳.
+    multiUseNone: isMultiUseNone(muSection),
     multiUseCounts,
     permitDate: b?.permit_date ? kdate(b.permit_date) : '',
     useApprovalDate: cust.use_approval_date ? kdate(cust.use_approval_date) : '',

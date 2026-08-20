@@ -6,6 +6,7 @@ import { sheetScope, isItemInScope, sheetItemGroupRef, type SheetScope } from '@
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { isMultiUseApplicable } from '@/lib/multi-use'
 
 /** 점검표 진행률 집계 — 회차별 작성·조회 트리의 설비별 요약 행과 점검 상세 배지의 공용 소스.
  *
@@ -182,7 +183,8 @@ export async function buildSheetOverviews(
   const multiUseByCustomer = new Map<string, boolean>()
   for (const row of (formRaw ?? []) as Array<{ customer_id: string; sections: Record<string, unknown> | null }>) {
     const mu = (row.sections?.['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
-    if (!!mu?.applicable && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim()))
+    // 해당 여부 판정은 lib/multi-use 한 곳 — 여기는 거기에 '업종 개소 ≥1'을 더 요구하는 축이다
+    if (isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim()))
       multiUseByCustomer.set(row.customer_id, true)
   }
 

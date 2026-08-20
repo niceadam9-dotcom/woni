@@ -46,8 +46,9 @@ export const MU_CODES: readonly string[] =
  *  16칸이 통째로 공란이었다(서림사 사례: 1.10.3 미입력 + MU 직접응답 0 + STD-32 응답 0).
  *  1절 소방시설등이 `rollUpForm3Results`에서 '미설치 → N'을 찍는 것과 대칭이 맞지 않았다.
  *
- *  1.10.3 미입력(applicable 부재)도 비대상으로 본다 — 1절이 fire_facilities 행 부재를 미설치로
- *  단정하는 것과 같은 축. 다중이용업소(applicable === true)면 무변경이라, 응답이 아직 없는 칸은
+ *  ⚠ '비대상이냐'의 판정은 여기가 아니라 **lib/multi-use**가 원천이다 — 호출부는 반드시
+ *  `isMultiUseApplicable(muSection)`을 넘긴다(1.10.3 미입력도 비대상). 이 함수는 그 결과를
+ *  받아 칸을 채우기만 한다. 다중이용업소(applicable === true)면 무변경이라, 응답이 아직 없는 칸은
  *  공란(입력 대기)으로 남는다 = 1절의 '설치됐는데 응답 없음'과 동일 취급.
  *  이미 값이 있는 칸(직접 응답·STD-32 파생)은 절대 덮지 않는다. */
 export function fillNonApplicableMu(
