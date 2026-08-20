@@ -382,9 +382,16 @@ export function facilityResultSection(
     (((d.specs?.['s36_evac'] as Record<string, unknown> | undefined)?.['evac_equipment'] as
       Record<string, unknown> | undefined)?.['types'] as string[] | undefined) ?? [],
   )
-  const grp = (i: number) => ck(EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t)))
+  // 2026-08-20 — 하위 항목의 미해당 표기는 체크박스 안에 [/]로 넣는다.
+  //   서식 원문(별지9호 hwpx section0.xml)에서 소화기구·피난기구의 하위 줄은 **해당설비 칸 하나 안의
+  //   문단**이고, 그 옆 점검결과 칸은 부모와 공유하는 한 칸뿐이다(소화기구 colAddr 2/rowAddr 4 rowSpan 1,
+  //   피난기구 colAddr 4/rowAddr 4). 즉 하위 줄에는 /를 찍을 칸이 아예 없다.
+  //   표 괘선을 새로 긋는 대신, 서식이 이미 가진 [ ] 칸에 서식 자체의 어휘(/)를 넣어 해당없음을 보인다.
+  //   부모 체크박스는 종전대로 √ 또는 빈칸 — 부모의 해당없음은 자기 점검결과 칸이 /로 말한다.
+  const ckSub = (on: boolean) => (on ? ck(true) : '[/]')
+  const grp = (i: number) => ckSub(EVAC_FORM3_GROUPS[i].some(t => evacTypes.has(t)))
   const fireExt: P3Item = {
-    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[0]))}소화기구(소화기, 자확, 간이)<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[1]))}주거용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[2]))}상업용주방자동소화장치<br>   ${ck(ledger.has(FIRE_SUB_ITEMS[3]))}캐비닛형자동소화장치<br>  ${ck(ledger.has(FIRE_SUB_ITEMS[4]))}가스ㆍ분말ㆍ고체자동소화장치`,
+    html: ` ${ck(d.facilityChecks.includes('소화기구 및 자동소화장치'))}소화기구 및 자동소화장치<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[0]))}소화기구(소화기, 자확, 간이)<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[1]))}주거용주방자동소화장치<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[2]))}상업용주방자동소화장치<br>   ${ckSub(ledger.has(FIRE_SUB_ITEMS[3]))}캐비닛형자동소화장치<br>  ${ckSub(ledger.has(FIRE_SUB_ITEMS[4]))}가스ㆍ분말ㆍ고체자동소화장치`,
     mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
   }
   const escapeEquip: P3Item = {
@@ -392,9 +399,15 @@ export function facilityResultSection(
     mark: resultMark(d.resultMarks['피난기구']),
   }
   // B-3(소방계획서_19 K-3): '기타' 3항목 — 31번 기타사항 점검표 롤업 반영(별지4호 1쪽·별지9호 3쪽 공용).
-  // ○/×는 체크(√)+결과, ／는 결과만(muResultSection 규약과 동일), 무응답·미공급이면 종전 ☐+공란.
+  // ○/×는 체크(√)+결과, ／는 결과만(muResultSection 규약과 동일).
+  //
+  // 2026-08-20 사용자 확정 — **무응답도 ／로 채운다**(종전엔 공란). 2절 안전시설등의
+  // fillNonApplicableMu와 같은 결정이되, 근거는 다르다: 2절은 '다중이용업소 비대상'이라는 사실이
+  // 있었고 여기는 그냥 응답이 없는 것이다. 즉 이 ／는 "점검해 보니 해당없음"이 아니라
+  // "표기 규약상 빈칸을 남기지 않는다"에 가깝다. 31번 점검표를 채우면 그 값(○/×)이 항상 이긴다.
+  // (실측 2026-08-20: STD-31 시트 응답이 스테이징 전체 0건 — 자체점검 39건 모두 이 경로로 인쇄됐다)
   const etcItem = (key: 'door' | 'exit' | 'flame', label: string): P3Item => {
-    const r = d.etcMarks?.[key]
+    const r = d.etcMarks?.[key] ?? 'N'
     return { html: ` ${ck(r === 'O' || r === 'X')}${esc(label)}`, mark: resultMark(r) }
   }
 
