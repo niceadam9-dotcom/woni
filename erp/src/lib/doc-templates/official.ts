@@ -17,8 +17,11 @@ export type OfficialData = {
   recipient: string
   /** 참조 — 기본 '소방안전관리자 및 관계인' */
   reference: string
-  /** 발신 — '㈜승진소방 ENG' */
+  /** 발신 — '㈜승진소방 ENG' (상단 메타의 '발 신 :' 칸) */
   sender: string
+  /** 하단 발신 명의 (147) — 사내 서식 재현. 상단 레터헤드와 **다른 값일 수 있다**:
+   *  레터헤드는 약식 상호, 명의는 법인 정식 상호(주식회사 …). 회사정보에서 따로 관리한다. */
+  senderSign: { name: string; title: string; rep: string }
   year: number
   /** 점검종류 라벨 — 제목·붙임 문구 가변(S7-1, S5-10과 동일 원리) */
   typeLabel: string
@@ -43,6 +46,8 @@ const CSS = `
   .of-body p { margin: 0 0 3mm; text-indent: 2em; }
   .of-attach { font-size: 11pt; margin-top: 12mm; }
   .of-end { text-align: center; margin-top: 4mm; letter-spacing: 1em; font-size: 11pt; }
+  /* 발신 명의 — 사내 서식(갑지 공문)은 본문보다 크고 굵게, 가운데. '끝.' 아래로 충분히 띄운다 */
+  .of-sign { text-align: center; margin-top: 26mm; font-size: 14pt; font-weight: bold; line-height: 1.7; }
 `
 
 /** 결재란 — image-66: 선결/지시 상단, 접수(일자·시간/번호)+결재, 처리과/담당자+공람. 전부 빈 칸 */
@@ -55,6 +60,18 @@ function approvalBox(): string {
   <tr><th colspan="2">처 리 과</th><td></td><th rowspan="2">공람</th><td rowspan="2" colspan="2"></td></tr>
   <tr><th colspan="2">담 당 자</th><td style="height:7mm"></td></tr>
 </table>`
+}
+
+/** 하단 발신 명의 — '주식회사 승진소방ENG / 대표이사 김흥준(직인생략)' 2줄.
+ *  상호가 아예 없으면(회사정보 미등록) 블록을 만들지 않는다 — 이름 없는 명의를 찍는 것보다 낫다.
+ *  (직인생략)은 고정 문구다: 직인 이미지 기능이 없어 실제로 생략하고 있고, 생기면 그때 갈린다. */
+function signBlock(s: OfficialData['senderSign']): string {
+  if (!s.name.trim()) return ''
+  // 둘째 줄은 **대표자 이름이 있을 때만**. 직함만 남으면 '대표이사(직인생략)'처럼
+  // 사람 없는 명의가 찍힌다 — 상호 한 줄로 끝내는 편이 낫다(조립부가 missing으로 알린다).
+  const rep = s.rep.trim()
+  const line2 = rep ? `${[s.title.trim(), rep].filter(Boolean).join(' ')}(직인생략)` : ''
+  return `<div class="of-sign">${esc(s.name)}${line2 ? `<br>${esc(line2)}` : ''}</div>`
 }
 
 export function renderOfficial(d: OfficialData): string {
@@ -89,6 +106,7 @@ export function renderOfficial(d: OfficialData): string {
   <p>2. 귀 대상물의 소방시설점검에 대한 결과보고서를 아래의 붙임과 같이 제출하는 바입니다.</p>
 </div>
 <div class="of-attach">붙 임 : 1. 소방시설 ${esc(d.typeLabel)} 결과보고서 1부</div>
-<div class="of-end">끝.</div>`],
+<div class="of-end">끝.</div>
+${signBlock(d.senderSign)}`],
   })
 }

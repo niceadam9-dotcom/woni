@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
+import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 
 export type UpsertCompanyInput = {
   company_name: string
@@ -18,6 +19,9 @@ export type UpsertCompanyInput = {
   industry?: string
   established_date?: string
   logo_url?: string
+  /** 공문 발신 명의 (147) — 비우면 company_name / '대표이사'로 폴백(렌더 규약) */
+  official_sender_name?: string
+  official_rep_title?: string
 }
 
 export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ error?: string }> {
@@ -32,7 +36,11 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
     fax: input.fax ? formatTel(input.fax) : input.fax,
   }
 
-  const { data: existing } = await admin.from('company_profile').select('id').limit(1).single()
+  // ⚠ 정렬을 반드시 고정한다 — 이 테이블은 '단일 행' 전제지만 실제로 **2행**이 있다(스테이징 실측 2026-08-20).
+  // 종전엔 여기만 ORDER BY가 없어, 읽는 쪽(getCompanyProfile, COMPANY_PROFILE_ORDER)과 다른 행을 고칠 수 있었다.
+  // 그러면 저장은 성공했는데 문서에는 옛 값이 나가는 **조용한 실패**가 된다(소방계획서_24에서 겪은 것과 같은 사고).
+  const { data: existing } = await admin.from('company_profile')
+    .select('id').order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
 
   if (existing) {
     const { error } = await admin
@@ -49,6 +57,8 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
         industry: input.industry || null,
         established_date: input.established_date || null,
         logo_url: input.logo_url || null,
+        official_sender_name: input.official_sender_name || null,
+        official_rep_title: input.official_rep_title || null,
         updated_at: new Date().toISOString(),
       } as Record<string, unknown>)
       .eq('id', existing.id)
@@ -68,6 +78,8 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
         industry: input.industry || null,
         established_date: input.established_date || null,
         logo_url: input.logo_url || null,
+        official_sender_name: input.official_sender_name || null,
+        official_rep_title: input.official_rep_title || null,
       } as Record<string, unknown>)
     if (error) return { error: error.message }
   }

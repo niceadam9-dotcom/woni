@@ -24,6 +24,8 @@ type CompanyInfo = {
   management_reg_no: string | null
   phone: string | null; fax: string | null; email: string | null; address: string | null
   industry: string | null; established_date: string | null; logo_url: string | null
+  /** 공문 발신 명의 (147) — 레터헤드·표지·위임장과 별개 축 */
+  official_sender_name?: string | null; official_rep_title?: string | null
 }
 
 export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
@@ -45,6 +47,8 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
     industry: existing?.industry ?? '',
     established_date: existing?.established_date ?? '',
     logo_url: existing?.logo_url ?? '',
+    official_sender_name: existing?.official_sender_name ?? '',
+    official_rep_title: existing?.official_rep_title ?? '',
   })
 
   function setField(key: keyof typeof form, value: string) {
@@ -68,6 +72,8 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         industry: form.industry.trim() || undefined,
         established_date: form.established_date || undefined,
         logo_url: form.logo_url.trim() || undefined,
+        official_sender_name: form.official_sender_name.trim() || undefined,
+        official_rep_title: form.official_rep_title.trim() || undefined,
       })
       if (result.error) { setError(result.error); return }
       setSaved(true)
@@ -156,6 +162,44 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
               placeholder="본사 주소" className={`${inputCls} pl-8`} />
           </div>
         </Field>
+      </section>
+
+      {/* 공문 발신 명의 (147) — 회사명과 **일부러 분리**한 축.
+          회사명은 공문 레터헤드·표지·위임장이 함께 읽으므로, 거기에 법인격을 붙이면 세 곳이 같이 바뀐다. */}
+      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-[#090c1d]">공문 발신 명의</h2>
+          <p className="mt-1 text-xs text-[#847ba8]">
+            결과보고서 제출 공문 맨 아래에 찍히는 이름입니다. 상단 레터헤드·표지·위임장은 위 [회사명]을 그대로 씁니다.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="상호 (법인 정식 상호)">
+            <div className="relative">
+              <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <input value={form.official_sender_name} onChange={e => setField('official_sender_name', e.target.value)}
+                placeholder="예: 주식회사 승진소방ENG" className={`${inputCls} pl-8`} />
+            </div>
+          </Field>
+          <Field label="대표 직함">
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <input value={form.official_rep_title} onChange={e => setField('official_rep_title', e.target.value)}
+                placeholder="대표이사" className={`${inputCls} pl-8`} />
+            </div>
+          </Field>
+        </div>
+        {/* 비워도 되는 칸이라는 걸 미리보기로 말한다 — 폴백 규약을 글로만 적으면 안 읽는다 */}
+        <div className="rounded-lg border border-[#e0ddf5] bg-[#fafaff] px-4 py-3">
+          <p className="text-[11px] font-medium text-[#514b81]">공문에 이렇게 찍힙니다</p>
+          <p className="mt-1.5 text-center text-sm font-bold leading-relaxed text-[#090c1d]">
+            {form.official_sender_name.trim() || form.company_name.trim() || '회사명'}<br />
+            {(form.official_rep_title.trim() || '대표이사')} {form.representative.trim() || '대표자'}(직인생략)
+          </p>
+          <p className="mt-1.5 text-[11px] text-[#b0acd6]">
+            비워두면 상호는 [회사명], 직함은 &lsquo;대표이사&rsquo;로 나갑니다 · 대표자 이름은 위 [대표자] 칸을 씁니다
+          </p>
+        </div>
       </section>
 
       {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>}

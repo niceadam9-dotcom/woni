@@ -186,11 +186,20 @@ export async function assembleOfficial(
     recipient: fstr('recipient') || (insp.customer?.customer_name ?? ''),
     reference: fstr('reference') || '소방안전관리자 및 관계인',
     sender: company?.company_name ?? '',
+    // 147: 하단 발신 명의 — 회사정보 [공문 발신 명의]. 비우면 상호는 회사명, 직함은 '대표이사'.
+    // 레터헤드(위 company.name)와 **일부러 다른 값**을 쓸 수 있다: 약식 상호 vs 법인 정식 상호.
+    senderSign: {
+      name: (company?.official_sender_name ?? '').trim() || (company?.company_name ?? ''),
+      title: (company?.official_rep_title ?? '').trim() || '대표이사',
+      rep: company?.representative ?? '',
+    },
     year: insp.year,
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial),
   }
   if (!data.recipient) missing.push('수신(고객명) 없음')
   if (!company?.fax) missing.push('회사 팩스 미등록 — 레터헤드에서 생략 (본사 정보에서 입력)')
+  // 대표자가 없으면 명의가 상호 한 줄로만 나간다 — 조용히 반쪽으로 찍히지 않게 알린다
+  if (!data.senderSign.rep) missing.push('대표자 미등록 — 공문 발신 명의가 상호 한 줄로만 인쇄됨 (본사 정보에서 입력)')
   return { data, missing }
 }
 
