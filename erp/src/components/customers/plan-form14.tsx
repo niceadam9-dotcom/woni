@@ -202,6 +202,20 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   function toggle(code: string) {
     if (!canManage) return
     const turningOn = !fac[code].installed
+    // 피난기구 부모 해제 → 하위 종류도 비운다. 소화기구는 이미 부모 해제 시 하위를 내리는데(아래)
+    // 피난기구만 빠져 있어, 부모 ☐ + 하위 √로 남으면 별지 3쪽에 '부모 빈칸 + 하위 √'가 인쇄됐다
+    // (소방계획서_12 K-2에서 지적된 모양). 하위 저장소가 fire_facilities가 아니라 세부제원이라
+    // 같은 자리에서 못 지웠던 것 — 여기서 미러 경로로 지운다.
+    // ⚠ 세부제원 삭제라 되돌릴 수 없다. 값이 있을 때만 확인을 받고, 취소하면 해제 자체를 접는다.
+    if (code === '피난기구' && !turningOn && evacTypes.length > 0) {
+      const ok = window.confirm(
+        `피난기구를 해제하면 입력한 종류 ${evacTypes.length}개(${evacTypes.join(', ')})가 함께 지워집니다.\n\n`
+        + '해제할까요?',
+      )
+      if (!ok) return
+      onMirrorChange(EVAC_TYPES_PATH, [])
+      specsMarkDirtyRef.current?.(EVAC_TYPES_PATH.split('.')[0])
+    }
     setFac(p => {
       const on = !p[code].installed
       const next = { ...p, [code]: { ...p[code], installed: on } }
