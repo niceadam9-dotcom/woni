@@ -146,6 +146,14 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   function handleSave(confirmedDecision?: 'unconfirm' | 'keep') {
     if (!form.customer_name.trim()) { setError('고객명은 필수입니다'); return }
     if (!form.plan_anchor_date) { setError('점검계획일은 필수입니다 — 연간 점검계획의 기산일을 입력해주세요.'); return }
+    // 관할 소방서 필수 — 다만 **주소가 있으면 서버가 자동 지정**(actions.ts D-3)하므로 여기서 막지 않는다.
+    // 둘 다 비어 있을 때만 즉시 막는다: 서버도 채울 근거가 없어 어차피 실패하니 왕복을 아낀다.
+    // 실측(2026-08-20, 스테이징): 소방서 공란 28건 중 주소 있는 17건은 자동 지정 17/17 성공 —
+    // 여기서 공란이라는 이유만으로 일괄로 막으면 그 17건까지 손입력을 강요하게 된다.
+    if (!form.fire_station.trim() && !form.address.trim()) {
+      setError('관할 소방서는 필수입니다 — 주소를 입력하면 자동 지정되고, 아니면 직접 입력해주세요.')
+      return
+    }
     for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
@@ -226,7 +234,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         {field('사용승인일',
           <DateInput id="cf-approval" value={form.use_approval_date} onChange={e => set('use_approval_date', e.target.value)} disabled={dis} className={inputCls} />
         )}
-        {field('관할 소방서',
+        {field(<>관할 소방서 {req}</>,
           <input id="cf-station" type="text" value={form.fire_station} onChange={e => set('fire_station', e.target.value)} disabled={dis} placeholder="예: 양평소방서" className={inputCls} />
         )}
         {field(<>점검료 <span className="text-[10px] text-[#b0acd6] font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,

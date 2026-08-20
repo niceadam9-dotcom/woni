@@ -621,6 +621,14 @@ export async function updateCustomerAction(
     updateFields.fire_station_source = null
   }
 
+  // 관할 소방서는 필수값 (2026-08-20 사용자 확정) — 위 자동 지정까지 끝난 **최종 값**으로 판정한다.
+  // 자동 지정 앞에 두면 '주소는 있고 소방서만 빈' 저장이 매핑 기회를 잃는다(실측: 그런 17건이 17/17 성공).
+  // 소방서를 아예 안 보내는 부분 호출(점검유형 변경 모달 등)은 대상이 아니다 — 건드리지도 않은 값 때문에
+  // 기존 공란 고객이 무관한 수정에서까지 막히면 안 된다([[feedback_guard_blast_radius]]).
+  if (input.fire_station !== undefined && !String(updateFields.fire_station ?? '').trim()) {
+    return { error: '관할 소방서는 필수값입니다 — 주소 검색으로 자동 입력하거나 직접 입력해주세요.' }
+  }
+
   // 기준일(점검계획일) 변경 판정 — 사용승인일은 기준일이 아니므로 계획 재계산과 무관 (2026-07-14 폴백 제거)
   const newAnchorDate = input.plan_anchor_date !== undefined ? input.plan_anchor_date : prevAnchorDate
   const anchorChanged = newAnchorDate !== prevAnchorDate
