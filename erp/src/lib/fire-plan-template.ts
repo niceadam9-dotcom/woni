@@ -615,7 +615,7 @@ ${(d.autoFilled?.length ?? 0) > 0
           1.10.3을 아예 저장 안 한 건에서 '해당'·'해당없음'을 둘 다 비워, 같은 원천을 놓고
           별지 9호 3쪽은 '비대상'으로 단정하는데 여기서는 미기재로 보였다. */''}
     <tr><th style="width:90px">해당 여부</th><td class="l" colspan="3">${ck(isMultiUseApplicable(mu), '해당')} ${ck(isMultiUseNone(mu), '해당없음')}</td></tr>
-    ${isMultiUseApplicable(mu) ? `
+    ${mu && isMultiUseApplicable(mu) ? `
     <tr><th>사업장명</th><td class="l">${v(mu.bizName)}</td><th style="width:90px">업종(개소)</th><td class="l">${v(muCats)}</td></tr>
     <tr><th>위치</th><td class="l">${v(mu.location)}</td><th>영업주</th><td class="l">${v(mu.owner)}</td></tr>
     ${/* M-16(소방계획서_15): 영업시간 평일/휴일×주간/야간 세분 + 이용자 유형 체크 — 구조화 값 우선, 자유 텍스트는 폴백·병기 */''}

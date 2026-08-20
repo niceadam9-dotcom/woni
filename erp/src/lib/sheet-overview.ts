@@ -184,7 +184,7 @@ export async function buildSheetOverviews(
   for (const row of (formRaw ?? []) as Array<{ customer_id: string; sections: Record<string, unknown> | null }>) {
     const mu = (row.sections?.['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
     // 해당 여부 판정은 lib/multi-use 한 곳 — 여기는 거기에 '업종 개소 ≥1'을 더 요구하는 축이다
-    if (isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim()))
+    if (mu && isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim()))
       multiUseByCustomer.set(row.customer_id, true)
   }
 

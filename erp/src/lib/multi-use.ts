@@ -20,7 +20,12 @@
 
 export type MultiUseSectionLike = { applicable?: boolean } | null | undefined
 
-/** 다중이용업소 대상 — 1.10.3에서 '해당'을 명시적으로 켠 경우에만 참 */
+/** 다중이용업소 대상 — 1.10.3에서 '해당'을 명시적으로 켠 경우에만 참.
+ *
+ *  ⚠ 일부러 타입 술어(`mu is T`)로 만들지 않았다. 참일 때 mu가 non-null인 건 맞지만,
+ *  술어는 양방향이라 **거짓 분기에서 mu를 null|undefined로 좁혀버린다** — `{applicable:false}`도
+ *  거짓이므로 거짓말이 된다. 대신 호출부가 `mu && isMultiUseApplicable(mu)`처럼 null을 직접
+ *  좁힌다(판정 규칙은 여전히 여기 하나뿐이고, 좁히기만 호출부 몫). */
 export function isMultiUseApplicable(mu: MultiUseSectionLike): boolean {
   return mu?.applicable === true
 }

@@ -78,7 +78,10 @@ console.log('\n=== B. MU 16칸 (별지 9호 3쪽 2절 = 별지 4호 2쪽)')
 const allSlashed = (section: { applicable?: boolean } | null | undefined) => {
   const res = map.fillNonApplicableMu({}, mu.isMultiUseApplicable(section))
   const html = r9.muResultSection({ muResults: res })
-  return [...html.matchAll(/class="center"[^>]*>([^<]*)</g)].filter(m => m[1].trim() === '/').length === 16
+  // 결과 셀은 class="center"에 다른 클래스가 붙을 수 있다(2026-08-20 'mk' 추가) —
+  // 클래스 문자열 전체 일치로 잡으면 무관한 스타일 변경에 프로브가 깨진다.
+  return [...html.matchAll(/class="[^"]*\bcenter\b[^"]*"[^>]*>([^<]*)</g)]
+    .filter(m => m[1].trim() === '/').length === 16
 }
 for (const s of SHAPES) check(`${s.label} → 16칸 전부 ／ = ${s.none}`, allSlashed(s.mu) === s.none)
 

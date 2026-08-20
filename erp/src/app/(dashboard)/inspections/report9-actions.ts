@@ -373,7 +373,7 @@ async function assembleReport9(
   // 다중이용업소현황 — 서식 1.10.3(sections.multiUse)과 공유 원본 (별지9호.MD §2 MULTI_USE_CATEGORIES)
   const muSection = (sections['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null
   const multiUseCounts: Record<string, string> = {}
-  if (isMultiUseApplicable(muSection)) {
+  if (muSection && isMultiUseApplicable(muSection)) {
     for (const [cat, cnt] of Object.entries(muSection.categories ?? {})) {
       if (String(cnt ?? '').trim()) multiUseCounts[cat] = String(cnt).trim()
     }
