@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { FileText, FileType2, Eye, Download, ChevronDown, ChevronRight } from 'lucide-react'
-import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
+import { groupFiles, type DocGroup, type GeneratedDocFile } from '@/lib/generated-docs'
 
 /** 생성물 목록 — 문서 단위 1행 그룹핑 (소방계획서_5 ⑩ R11, §3-6 공용 컴포넌트)
  *  같은 생성 타임스탬프의 hwp/pdf/html을 "문서명 · 시각 [최신] [HWP][PDF][미리보기]" 1행으로.
@@ -13,47 +13,8 @@ import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
  *  점검 유형에 걸려 있어 서버에서 붙인다(lib/annex-filename 단일 출처). 화면은 이름을 만들지 않는다.
  *  html 미리보기와 규약 밖 파일만 종전 onOpen(서명 URL)을 탄다. */
 
-export type GeneratedDocFile = { name: string; path: string; createdAt: string | null }
-
-type DocGroup = {
-  key: string            // kind_stamp
-  kind: string           // report9 | report10 | report11 | exterior | …
-  label: string
-  full: string           // 풀네임 툴팁
-  createdAt: string | null
-  hwp?: GeneratedDocFile
-  pdf?: GeneratedDocFile
-  html?: GeneratedDocFile
-  others: GeneratedDocFile[]
-}
-
-function groupFiles(files: GeneratedDocFile[]): DocGroup[] {
-  const map = new Map<string, DocGroup>()
-  for (const f of files) {
-    const m = f.name.match(/^([a-z0-9_]+?)_(\d+)\.(hwpx?|pdf|html?)$/i)
-    if (!m) {
-      // 규칙 밖 파일 — 자체 그룹으로 (업로드 슬롯 등은 호출부에서 이미 제외)
-      const g: DocGroup = { key: f.name, kind: '', label: f.name, full: f.name, createdAt: f.createdAt, others: [f] }
-      map.set(f.name, g)
-      continue
-    }
-    const [, kind, stamp, extRaw] = m
-    const ext = extRaw.toLowerCase().startsWith('htm') ? 'html' : extRaw.toLowerCase().startsWith('hwp') ? 'hwp' : 'pdf'
-    const key = `${kind}_${stamp}`
-    const known = GENERATED_DOC_KINDS[kind]
-    let g = map.get(key)
-    if (!g) {
-      g = { key, kind, label: known?.label ?? kind, full: known?.full ?? kind, createdAt: f.createdAt, others: [] }
-      map.set(key, g)
-    }
-    if (f.createdAt && (!g.createdAt || f.createdAt > g.createdAt)) g.createdAt = f.createdAt
-    if (ext === 'hwp') g.hwp = f
-    else if (ext === 'pdf') g.pdf = f
-    else g.html = f
-  }
-  // 최신 우선 정렬 (stamp 내림차순 → createdAt 보조)
-  return [...map.values()].sort((a, b) => (b.key > a.key ? 1 : b.key < a.key ? -1 : 0))
-}
+/** 그룹핑·정렬은 lib/generated-docs (순수 로직, 프로브가 고정). 여기서는 그리기만 한다. */
+export type { GeneratedDocFile } from '@/lib/generated-docs'
 
 const fmtTime = (iso: string | null) => (iso ? iso.slice(0, 16).replace('T', ' ') : '')
 

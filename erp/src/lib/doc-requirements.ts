@@ -106,6 +106,30 @@ export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }
   fire_plan: { label: '소방계획서', full: DOC_TERMS.firePlan },
 }
 
+/** 생성물 목록 **조회 순서** (2026-08-20).
+ *
+ *  종전 generated-doc-list는 `kind_stamp` 문자열 내림차순으로 정렬했다. 주석은 "최신 우선"이라
+ *  적혀 있었지만 키가 종류로 시작하므로 실제로는 **종류 알파벳 역순**이 먼저 걸려
+ *  `report9 → report4 → report11 → report10 → official → fire_plan → exterior → delegation → cover`
+ *  가 됐다 — 위임장·소방계획서가 이행계획서(10호) 아래로 밀리던 원인.
+ *
+ *  그래서 순서를 명시한다. 축은 **인쇄 번들 순서**(bundle/route TYPE_ORDER: 공문 → 위임장 → 표지 →
+ *  9호 → 4호 → 10호 → 11호 → 외관)와 같게 두고, 소방계획서만 맨 앞에 얹는다 — 점검 산출물이 아니라
+ *  고객 단위 문서이고 보고서 센터의 고정 행 순서도 소방계획서가 먼저다(customer-docs).
+ *  같은 종류가 여러 번 생성된 건의 '최신' 판정은 이 순서와 무관하게 생성 시각으로 한다.
+ *
+ *  ⚠ 인쇄 순서와 어긋나면 "화면에서 본 차례"와 "인쇄물의 차례"가 달라진다 —
+ *     두 배열이 같은 축인지는 scripts/_probe-doc-order.mjs가 고정한다. */
+export const GENERATED_DOC_ORDER: readonly string[] = [
+  'fire_plan', 'official', 'delegation', 'cover', 'report9', 'report4', 'report10', 'report11', 'exterior',
+]
+
+/** 정렬 키 — 모르는 종류(규칙 밖 파일 포함)는 맨 뒤로 보낸다(순서를 지어내지 않는다) */
+export function generatedDocRank(kind: string): number {
+  const i = GENERATED_DOC_ORDER.indexOf(kind)
+  return i < 0 ? GENERATED_DOC_ORDER.length : i
+}
+
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.
  *  일반관리 포함 전 유형 동일 18개(소방계획서_6 W-14·D-6 — 미입력 노출은 '할 일'로서 정상).
  *  경사로·계단·피난용승강기 등 컬럼 미비 항목은 P4 서식 확장에서 추가. */

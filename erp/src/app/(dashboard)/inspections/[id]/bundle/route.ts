@@ -18,6 +18,9 @@ import { mergePdfs } from '@/lib/pdf'
 const BUCKET = 'fire-plans'
 // 병합 순서(소방계획서_22 S7-3·S8) — 공문이 최선두(통상 공문이 문서 앞장), 위임장(제출용 행정 서류),
 // 표지, 이어서 보고서(9호)·점검표(4호)·계획서(10호)·이행계획(11호)·외관. 앞장류 미생성 회차는 종전대로 본문부터.
+// ⚠ 화면 조회 순서(lib/doc-requirements GENERATED_DOC_ORDER)와 **같은 축**이어야 한다 — 어긋나면
+//    "화면에서 본 차례"와 "인쇄물의 차례"가 달라진다. 일치는 scripts/_probe-doc-order.mjs가 고정한다.
+//    이 배열은 `?types=` 화이트리스트도 겸하므로 번들 대상이 아닌 종류(소방계획서)는 넣지 않는다.
 const TYPE_ORDER = ['official', 'delegation', 'cover', 'report9', 'report4', 'report10', 'report11', 'exterior'] as const
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
