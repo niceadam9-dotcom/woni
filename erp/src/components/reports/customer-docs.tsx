@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Camera, Loader2, Pencil, Eye } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Loader2, Pencil, Eye } from 'lucide-react'
 import { getDocUrlAction, type CustomerDocs, type DocGroupRef, type InspectionDocs } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
@@ -267,23 +267,9 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             </>)}
             {feedback(k('contract'))}
           </div>
-          {/* 전/후 사진 */}
-          <div className={rowCls}>
-            {i.defects.total === 0 ? (<>
-              <StatusIcon state="na" />
-              <span className="font-medium text-[#b0acd6] w-44">전/후 사진</span>
-              <span className="text-[#b0acd6]">해당없음 — 불량 0건</span>
-            </>) : (<>
-              <StatusIcon state={i.defects.photoPairs >= i.defects.total ? 'have' : 'warn'} />
-              <span className="font-medium text-[#090c1d] w-44" title="전/후 사진 — 선택 증빙 (별지 11호 패키지 자동 첨부)">전/후 사진 (선택)</span>
-              <span className={i.defects.photoPairs >= i.defects.total ? 'text-[#514b81]' : 'text-amber-600'}>
-                {i.defects.photoPairs}/{i.defects.total}쌍
-              </span>
-              <Link href={`/inspections/${i.inspectionId}#photos`} className={`ml-auto ${subBtn}`}>
-                <Camera className="size-3" /> 사진 보기
-              </Link>
-            </>)}
-          </div>
+          {/* 전/후 사진 행 폐지 (2026-08-20 사용자 지시) — 별지 서식에서는 조회할 일이 없다.
+              사진 자체는 그대로다: 등록·조회는 불량내역([전/후 사진 모아보기])과 타임라인 ⑤에 있고,
+              별지 11호 제출 패키지에도 종전대로 자동 첨부된다. 여기서 한 줄 덜어낼 뿐이다. */}
           {/* 10·11호 */}
           {i.defects.total === 0 ? (
             <div className={rowCls}>

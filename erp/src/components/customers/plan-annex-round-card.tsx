@@ -138,7 +138,8 @@ export function PlanAnnexRoundCard({
                 </span>
                 {feedback(`${r.docs.inspectionId}:r4`)}
               </div>
-              {/* 문서 행 — 보고서 센터 InspectionDocRows 재사용 (9호·배치확인서·계약서·사진·10·11호) */}
+              {/* 문서 행 — 보고서 센터 InspectionDocRows 재사용 (9호·배치확인서·계약서·10·11호).
+                  전/후 사진 행은 2026-08-20 폐지 — 별지 서식에서는 조회할 일이 없다 */}
               <InspectionDocRows
                 i={r.docs} customerName={customerName}
                 isPending={isPending} open={onOpenFile} generate={onGenerate} upload={onUpload} feedback={feedback}
