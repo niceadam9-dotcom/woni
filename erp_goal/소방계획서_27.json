@@ -157,9 +157,12 @@
 
     { "id": "S10", "title": "Phase 5 — 설비별 점검표 시트 결합 (Q-1 포함 확정)", "status": "pending_order", "phase": "5",
       "note": "2026-08-21 사용자 확정으로 deferred 해제. 경계: 원천은 여전히 DB·별지 4호이고, 여기서는 전체 보고서.xls의 설비별 점검표 시트를 워크북에 **동봉**하는 것(경복빌딩 실물 형태 — 목 차 + 소화기구·자탐1·자탐2·피난기구·유도등·기타 등 그 고객 설치 설비만)",
+      "feasibility": { "date": "2026-08-21", "probe": "scripts/_probe-sheet-transplant.mts 6/6", "found": [
+        "① 시트 제거 성립 — workbook.xml <sheet> + rels + [Content_Types] 3곳 정리 + 파트 삭제로 다수동일때·다수동 제거 → 24시트로 열리고 PDF 25쪽 정상. definedNames 981건은 잔존(제거 시트 참조분 #REF!화 — Excel 육안 시 확인 항목)",
+        "② 시트 이식 구조 성립 — 전체 보고서의 '소' 시트(2,648셀·공유문자열 89건)를 인라인 문자열로 풀고 파트 추가 → 27시트로 열림·PDF 28쪽. 단 이 프로브는 스타일을 기본으로 강등했다 — 실서식 이식은 기증 시트의 스타일 인덱스 22종을 대상 styles.xml에 병합·재번호해야 한다(종류가 22뿐이라 규모 작음)" ] },
       "criteria": [
-        { "id": "S10-1", "desc": "전체 보고서.xls(43시트)에서 설비별 점검표 시트를 추출해 자산화 — 시트 전체를 zip 파트로 이식(스타일 테이블 병합 필요 여부 실측 선행)", "status": "pending_order" },
-        { "id": "S10-2", "desc": "고객 설치 설비(fire_facilities)에 맞는 시트만 동봉 — 경복빌딩(31시트)처럼 미설치 설비 시트는 뺀다", "status": "pending_order" },
+        { "id": "S10-1", "desc": "전체 보고서.xls(43시트)에서 설비별 점검표 시트를 추출해 자산화 — 시트 전체를 zip 파트로 이식. **잔여 난제는 스타일 병합·재번호뿐**(기증 시트당 인덱스 22종 실측, 공유문자열은 인라인 전개로 해소 확인)", "status": "pending_order" },
+        { "id": "S10-2", "desc": "고객 설치 설비(fire_facilities)에 맞는 시트만 동봉 — 경복빌딩(31시트)처럼 미설치 설비 시트는 뺀다. 제거 수술은 프로브로 성립 확인(3곳 정리 + 파트 삭제)", "status": "pending_order" },
         { "id": "S10-3", "desc": "점검 결과(inspection_sheet_responses)를 각 시트의 결과 칸에 주입 — Phase 4의 반복 행 매핑과 같은 축이라 함께 재견적", "status": "pending_order" }
       ] }
   ]
