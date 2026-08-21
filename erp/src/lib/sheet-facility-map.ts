@@ -74,8 +74,30 @@ export function form3ItemMatchesFacility(form3Item: string, facilityCode: string
   return norm(form3Item) === norm(facilityCode)
 }
 
-/** 시트별 점검 응답 통계 — 시트명 → { any: 응답 있음, x: 불량 있음 } */
-export type SheetStat = { any: boolean; x: boolean }
+/** 시트별 점검 응답 통계 — 시트명 → 그 시트에 무엇이 들어왔는가.
+ *
+ *  ⚠ `o`는 선택 필드가 아니다(소방계획서_26 S1). 종전 `{any, x}` 두 축으로는 '응답은 있는데 전부 ／'를
+ *  표현할 수 없었고, any=true·x=false가 곧 ○로 해석돼 **해당없음이 양호로 인쇄**됐다
+ *  (재현: scripts/_probe-na-only-becomes-good.mts — [／ 전체] 버튼 하나로 만들 수 있는 상태였다).
+ *  필수로 두는 이유: 구성 지점이 여럿이라(별지 조립·1.4 배지·프로브) 하나만 빠뜨리면 문서와 화면이
+ *  갈린다. src/ 쪽 누락은 컴파일러가 잡고, scripts/는 tsconfig exclude라 프로브 갱신은 수동이다. */
+export type SheetStat = {
+  /** 응답이 하나라도 있는가 — ／(N)도 응답이다. 무응답(공란)과 구별하는 축 */
+  any: boolean
+  /** ✕(불량)가 있는가 */
+  x: boolean
+  /** ○(양호)가 있는가. any && !x && !o = 전부 해당없음 → ／ */
+  o: boolean
+}
+
+/** 응답 1건을 시트 통계에 접는다 — 구성 로직을 한 곳에 두어 o 누락 재발을 막는다. */
+export function foldSheetResult(cur: SheetStat | undefined, result: string): SheetStat {
+  return {
+    any: true,
+    x: (cur?.x ?? false) || result === 'X',
+    o: (cur?.o ?? false) || result === 'O',
+  }
+}
 
 /** 두 축(설치 √ / 점검결과 ○×) 어긋남 — 인쇄 전 경고(missing)용. 어느 쪽도 조용히 넘기지 않는다. */
 export type Form3AxisWarnings = {
@@ -92,7 +114,8 @@ export type Form3AxisWarnings = {
  *  T-3 프로브가 DB 없이 실제 코드를 검증할 수 있고, T-2a(세부제원 패널 점검 결과 배지)가
  *  같은 함수를 재사용해 문서와 화면이 어긋나지 않는다.
  *
- *  규약: 응답 있으면 X 유무로 ○/×, 응답이 없고 미설치면 해당없음 ／, 응답도 설치도 없으면 공란(키 없음).
+ *  규약(소방계획서_26 S1에서 3축화): ✕ 있으면 × → ○ 있으면 ○ → 응답이 전부 ／면 ／ →
+ *  무응답+미설치 ／ → 무응답+설치 공란(키 없음). 종전엔 '전부 ／'를 표현할 수 없어 ○로 인쇄됐다.
  *  한 시트가 FORM3 여러 항목을 덮을 수 있어(예: '소화용수설비' → 상수도·소화수조) 항목별로 합산한다.
  *
  *  ── 귀속 규칙(2026-08-21) ────────────────────────────────────────────────
@@ -124,19 +147,26 @@ export function rollUpForm3Results(
     const installedHere = items.filter(it => installed.has(it))
     // 설치된 형제가 있으면 응답은 그쪽 것 — 나머지로 번지지 않는다. 전부 미설치면 종전대로 전개.
     for (const it of installedHere.length > 0 ? installedHere : items) {
-      const cur = statByItem.get(it) ?? { any: false, x: false }
-      statByItem.set(it, { any: cur.any || st.any, x: cur.x || st.x })
+      const cur = statByItem.get(it) ?? { any: false, x: false, o: false }
+      statByItem.set(it, { any: cur.any || st.any, x: cur.x || st.x, o: cur.o || st.o })
     }
   }
   const resultMarks: Record<string, 'O' | 'X' | 'N'> = {}
   for (const it of form3Items) {
     const st = statByItem.get(it)
-    if (st?.any) resultMarks[it] = st.x ? 'X' : 'O'
+    // 순서가 규약이다: 불량 하나면 × → 양호 하나면 ○ → 응답은 있는데 전부 ／면 ／ → 무응답은 미설치일 때만 ／.
+    // 세 번째 줄이 소방계획서_26 S1에서 생겼다 — 그전엔 '전부 ／'가 ○로 인쇄돼 해당없음이 양호로 둔갑했다.
+    if (st?.x) resultMarks[it] = 'X'
+    else if (st?.o) resultMarks[it] = 'O'
+    else if (st?.any) resultMarks[it] = 'N'
     else if (!installed.has(it)) resultMarks[it] = 'N'
   }
+  // 대장 누락 의심은 **실제 점검 흔적(○·×)이 있을 때만**이다. 전부 ／인 시트는 그 설비를 점검했다는
+  // 근거가 아니라 '해당 없다'는 진술이라, 대장에 설치를 넣으라고 권할 이유가 없다.
   const axisWarnings: Form3AxisWarnings = {
     spillSuppressed: [...touched].filter(it => !installed.has(it) && !statByItem.has(it)),
-    respondedNotInstalled: [...statByItem.keys()].filter(it => !installed.has(it)),
+    respondedNotInstalled: [...statByItem]
+      .filter(([it, st]) => !installed.has(it) && (st.o || st.x)).map(([it]) => it),
   }
   return { facilityChecks, resultMarks, axisWarnings }
 }

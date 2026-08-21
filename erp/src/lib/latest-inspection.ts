@@ -30,22 +30,28 @@ const labelOf = (year: number, seq: number) => `${year}년 ${seq}차`
 
 /** 최신 자체점검 건. requireResponses=true면 **응답이 있는** 최신 건을 고른다
  *  (교차 검증 칩의 종전 동작 — "점검은 했는데 제원 미입력" 판정 근거라 빈 회차를 잡으면 안 된다).
- *  scanLimit는 응답 유무를 거슬러 확인할 최대 회차 수(종전 6건과 동일). */
+ *  scanLimit는 응답 유무를 거슬러 확인할 최대 회차 수(종전 6건과 동일).
+ *
+ *  requireActive=true면 **최신 1건이 completed일 때 null** (소방계획서_26 D-2 — 1.4 설비별 결과 입력의
+ *  회차 축). 더 옛 회차로 내려가지 않는다: 끝난 회차에 결과를 쓰는 사고를 막는 것이 목적이지,
+ *  아무 회차나 찾아 주는 것이 아니다. scheduled·in_progress·overdue는 허용 — 점검표 첫 응답이
+ *  단계 동기화로 시작 처리되는 구조라 '시작 전'을 막을 이유가 없다. */
 export async function getLatestSpecialInspection(
   admin: Admin,
   customerId: string,
-  opts: { requireResponses?: boolean; scanLimit?: number } = {},
+  opts: { requireResponses?: boolean; scanLimit?: number; requireActive?: boolean } = {},
 ): Promise<LatestInspection | null> {
-  const { requireResponses = false, scanLimit = 6 } = opts
+  const { requireResponses = false, scanLimit = 6, requireActive = false } = opts
   const { data } = await admin.from('inspections')
-    .select('id, year, sequence_num')
+    .select('id, year, sequence_num, status')
     .eq('customer_id', customerId)
     .or('plan_type.is.null,plan_type.like.special_*')
     .order('year', { ascending: false })
     .order('sequence_num', { ascending: false })
     .limit(requireResponses ? scanLimit : 1)
-  const rows = (data ?? []) as Array<{ id: string; year: number; sequence_num: string | number }>
+  const rows = (data ?? []) as Array<{ id: string; year: number; sequence_num: string | number; status: string | null }>
   if (rows.length === 0) return null
+  if (requireActive && rows[0].status === 'completed') return null
 
   const pick = (r: (typeof rows)[number]): LatestInspection => ({
     id: r.id, year: r.year, sequenceNum: Number(r.sequence_num),

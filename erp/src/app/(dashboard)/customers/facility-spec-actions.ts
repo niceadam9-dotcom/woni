@@ -10,7 +10,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { FACILITY_SPEC_SECTIONS } from '@/lib/facility-spec-schema'
 import { FACILITY_STANDARD } from '@/lib/facility-codes'
-import { facilitiesForSheet } from '@/lib/sheet-facility-map'
+import { facilitiesForSheet, foldSheetResult, type SheetStat } from '@/lib/sheet-facility-map'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 import { combinedRangeError } from '@/lib/date-range'
 import { assembleOfficial } from '@/lib/annex-cover-official'
@@ -142,8 +142,8 @@ export async function getInspectedFacilityCodesAction(
 ): Promise<{
   codes: string[]
   roundLabel: string | null
-  /** 시트명 → { any: 응답 있음, x: 불량 있음 } — rollUpForm3Results 입력 */
-  sheetStats: Array<[string, { any: boolean; x: boolean }]>
+  /** 시트명 → { any, x, o } — rollUpForm3Results 입력 (o 축은 소방계획서_26 S1 — '전부 ／' 표현용) */
+  sheetStats: Array<[string, SheetStat]>
   /** 시트명 → 불량(X) 응답 수 — 배지의 "불량 n건" */
   defectsBySheet: Record<string, number>
   error?: string
@@ -185,13 +185,14 @@ export async function getInspectedFacilityCodesAction(
   const nameById = new Map(((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
     .map(s => [s.id, s.sheet_name]))
 
-  const stat = new Map<string, { any: boolean; x: boolean }>()
+  // 구성은 foldSheetResult 한 곳으로(소방계획서_26 S1) — 별지 조립(report9-actions)과 같은 함수를 써야
+  // '전부 ／' 시트가 화면 배지에선 ／, 문서에선 ○로 갈라지는 일이 없다.
+  const stat = new Map<string, SheetStat>()
   const defectsBySheet: Record<string, number> = {}
   for (const [itemCode, result] of resultByItem) {
     const name = nameById.get(sheetIdByItem.get(itemCode) ?? '')
     if (!name) continue
-    const cur = stat.get(name) ?? { any: false, x: false }
-    stat.set(name, { any: true, x: cur.x || result === 'X' })
+    stat.set(name, foldSheetResult(stat.get(name), result))
     if (result === 'X') defectsBySheet[name] = (defectsBySheet[name] ?? 0) + 1
   }
 
@@ -201,6 +202,27 @@ export async function getInspectedFacilityCodesAction(
     for (const c of facilitiesForSheet(name, allFacilities)) codes.add(c)
   }
   return { codes: [...codes], roundLabel, sheetStats: [...stat], defectsBySheet }
+}
+
+/** 1.4 설비별 결과 입력의 회차 축 (소방계획서_26 S2) — **진행 중(미완료)** 최신 자체점검 회차.
+ *
+ *  getInspectedFacilityCodesAction과 회차 축이 다르다: 그쪽은 '응답이 있는 최신'(조회·배지용,
+ *  완료 회차 포함), 이쪽은 '쓸 수 있는 회차'다. 최신 회차가 completed면 null — 더 옛 회차로
+ *  내려가 끝난 문서를 바꾸는 사고를 막는다. */
+export async function getActiveSpecialInspectionAction(customerId: string): Promise<{
+  inspection: { id: string; label: string } | null
+  reason?: string
+}> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const t = await getLatestSpecialInspection(admin, customerId, { requireActive: true })
+  if (!t) {
+    return {
+      inspection: null,
+      reason: '진행 중인 자체점검 회차가 없습니다 — 점검업무에서 회차를 시작하면 결과를 입력할 수 있습니다.',
+    }
+  }
+  return { inspection: { id: t.id, label: t.label } }
 }
 
 // ── 별지 서식 고유 값 (점검 건 단위) ────────────────────────────────────────

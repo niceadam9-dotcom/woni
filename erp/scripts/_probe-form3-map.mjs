@@ -91,9 +91,9 @@ console.log('\n── 6) 실제 롤업 함수(rollUpForm3Results) — assembleRe
 {
   // 시트 3개 응답 + 설치 2종. '소화용수설비' 시트 하나가 FORM3 2항목을 덮는 케이스가 핵심
   const stat = new Map([
-    ['옥내소화전설비', { any: true, x: false }],          // 양호 → ○
-    ['소화기구 및 자동소화장치', { any: true, x: true }], // 불량 → ×
-    ['소화용수설비', { any: true, x: false }],            // 항목 2개로 전개 → 둘 다 ○
+    ['옥내소화전설비', { any: true, x: false, o: true }],          // 양호 → ○
+    ['소화기구 및 자동소화장치', { any: true, x: true, o: false }], // 불량 → ×
+    ['소화용수설비', { any: true, x: false, o: true }],            // 항목 2개로 전개 → 둘 다 ○
   ])
   const installed = ['옥내소화전설비', '소화기구 및 자동소화장치', '스프링클러설비']
   const { facilityChecks, resultMarks } = rollUpForm3Results(stat, FORM3_ITEMS, installed)

@@ -9,7 +9,7 @@ import {
   renderReport9, FORM3_ITEMS, form3Group, parseParkingSummary,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
-import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetResult, type SheetStat } from '@/lib/sheet-facility-map'
 import { renderReport4, type Report4Data, type Report4SheetSection, type Report4PumpRow } from '@/lib/doc-templates/report4'
 import { annexDownloadName } from '@/lib/annex-filename'
 import { judgePumpTest, PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, type PumpTestRow } from '@/lib/pump-test'
@@ -296,14 +296,13 @@ async function assembleReport9(
   const sheetNameById = new Map(sheets.map(s => [s.id, s.sheet_name]))
   const sheetByItem = new Map(items.map(i => [i.item_code, sheetNameById.get(i.sheet_id) ?? '']))
   const itemNameByCode = new Map(items.map(i => [i.item_code, i.item_name]))
-  const sheetStat = new Map<string, { any: boolean; x: boolean }>()
+  // ⚠ 구성은 foldSheetResult 한 곳으로(소방계획서_26 S1) — 종전 {any,x} 수기 구성은 o를 표현할 수 없어
+  // **전부 ／인 시트가 ○로 인쇄**됐다. 같은 통계를 만드는 1.4 배지(facility-spec-actions.ts)와 함께 통일.
+  const sheetStat = new Map<string, SheetStat>()
   for (const r of responses) {
     const name = sheetByItem.get(r.item_code)
     if (!name) continue
-    const st = sheetStat.get(name) ?? { any: false, x: false }
-    st.any = true
-    st.x = st.x || r.result === 'X'
-    sheetStat.set(name, st)
+    sheetStat.set(name, foldSheetResult(sheetStat.get(name), r.result))
   }
 
   const codes = b

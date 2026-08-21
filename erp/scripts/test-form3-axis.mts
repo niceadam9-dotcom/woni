@@ -10,7 +10,7 @@
  *
  *  어휘는 리터럴로 쓴다 — FORM3_ITEMS(report9.ts)를 끌어오면 서식 템플릿 편집이 이 검사를 흔든다.
  *  대신 그 어휘가 표준 42종에 실재하는지를 마지막에 대조해, 오타로 검사가 헛도는 걸 막는다. */
-import { rollUpForm3Results, SHEET_FACILITY_MAP } from '../src/lib/sheet-facility-map.ts'
+import { rollUpForm3Results, foldSheetResult, SHEET_FACILITY_MAP } from '../src/lib/sheet-facility-map.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 
 let pass = 0, fail = 0
@@ -18,9 +18,10 @@ const check = (name: string, ok: boolean, extra = '') => {
   console.log(`  ${ok ? '✅' : '❌'} ${name}${ok || !extra ? '' : `\n       ${extra}`}`)
   ok ? pass++ : fail++
 }
-type Stat = { any: boolean; x: boolean }
-const ok1: Stat = { any: true, x: false }
-const bad: Stat = { any: true, x: true }
+type Stat = { any: boolean; x: boolean; o: boolean }
+const ok1: Stat = { any: true, x: false, o: true }    // ○ 응답 있음
+const bad: Stat = { any: true, x: true, o: false }    // ✕ 응답 있음
+const naOnly: Stat = { any: true, x: false, o: false } // 응답은 있는데 전부 ／ (소방계획서_26 S1)
 
 // 검사에 쓰는 어휘 — SHEET_FACILITY_MAP의 값 어휘와 같아야 한다
 const 자탐 = '자동화재탐지설비 및 시각경보기'
@@ -105,6 +106,31 @@ console.log('\n── 5) 두 경고는 서로 배타 — 같은 항목이 양쪽
   check('한 건에서 두 갈래가 함께 잡힌다 (번짐 1 · 누락 1)',
     r.axisWarnings.spillSuppressed.length === 1 && r.axisWarnings.respondedNotInstalled.length === 1,
     JSON.stringify(r.axisWarnings))
+}
+
+console.log('\n── 5b) 전부 ／ 시트 — 해당없음이 양호로 둔갑하지 않는다 (소방계획서_26 S1)')
+{
+  // 종전 {any,x} 두 축은 '전부 ／'를 표현할 수 없어 any=true·x=false = ○로 인쇄됐다.
+  // [／ 전체] 버튼 하나로 만들 수 있는 상태였다 — 이 검사가 그 결함의 재발을 막는다.
+  const r = rollUpForm3Results([['옥내소화전설비', naOnly]], ITEMS, [옥내])
+  check('설치 + 전부 ／ → ／ (○가 아니다)', r.resultMarks[옥내] === 'N', `실제: ${r.resultMarks[옥내]}`)
+  // 같은 시트에 ／와 ○가 섞이면 ○ — foldSheetResult가 접은 {any,x:false,o:true}로 표현된다
+  const mixed = rollUpForm3Results([['옥내소화전설비', { any: true, x: false, o: true }]], ITEMS, [옥내])
+  check('／+○ 혼합 → ○', mixed.resultMarks[옥내] === 'O')
+  const mixedX = rollUpForm3Results([['옥내소화전설비', { any: true, x: true, o: true }]], ITEMS, [옥내])
+  check('／+○+✕ 혼합 → ×', mixedX.resultMarks[옥내] === 'X')
+  // 미설치 설비의 전용 시트가 전부 ／ — '해당 없다'는 진술이지 점검 흔적이 아니므로 대장 누락 경고 제외
+  const rn = rollUpForm3Results([['소화기구 및 자동소화장치', naOnly]], ITEMS, [])
+  check('미설치 + 전부 ／ → ／ 유지', rn.resultMarks[소화기구] === 'N', `실제: ${rn.resultMarks[소화기구]}`)
+  check('전부 ／ 시트는 대장 누락 경고에 들어가지 않는다',
+    !rn.axisWarnings.respondedNotInstalled.includes(소화기구), JSON.stringify(rn.axisWarnings))
+
+  // foldSheetResult — 구성 지점(별지 조립·1.4 배지)이 쓰는 단일 접기 함수. N은 any만 올린다.
+  const f0 = foldSheetResult(undefined, 'N')
+  const f1 = foldSheetResult(f0, 'O')
+  const f2 = foldSheetResult(f1, 'X')
+  check('fold: N → {any,!x,!o} / +O → o / +X → x',
+    f0.any && !f0.x && !f0.o && f1.o && !f1.x && f2.x && f2.o, JSON.stringify({ f0, f1, f2 }))
 }
 
 console.log('\n── 6) 어휘 실재 확인 — 오타로 검사가 헛돌지 않게')

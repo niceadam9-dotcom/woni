@@ -163,6 +163,51 @@ export async function bulkSheetNAAction(
   return { applied: payload.length, total: codes.length }
 }
 
+/** 시트(대분류) 단위 ○ 일괄 (소방계획서_26 S3) — bulkSheetNAAction apply 분기의 거울.
+ *  그 시트의 **공란 항목에만** O 기록 — 기존 ○/✕/／ 절대 무변경(bulkAllGood·bulkSheetNA와 같은 규약).
+ *  release 모드는 없다: ○ 일괄 해제는 요구 밖이고, 잘못 눌렀으면 항목 단위로 고치는 것이 맞다.
+ *  1.4 설비별 결과 입력 패널이 쓴다 — 호출부는 반드시 개수·형제 설비를 고지하는 확인창을 거친다. */
+export async function bulkSheetGoodAction(
+  inspectionId: string, sheetId: string, month = 0,
+): Promise<{ error?: string; applied?: number; kept?: number; total?: number }> {
+  const profile = await requirePermission('inspection_register')
+  if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
+  const admin = createAdminClient()
+
+  const [insp, catalog] = await Promise.all([
+    loadScope(admin, inspectionId),
+    getSheetItems(sheetId),
+  ])
+  if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+
+  const seen = new Set<string>()
+  const codes = catalog
+    .filter(i => isItemInScope(i, insp.scope))
+    .filter(i => !seen.has(i.item_code) && (seen.add(i.item_code), true))
+    .map(i => i.item_code)
+  if (codes.length === 0) return { error: '이 시트에 입력 대상 항목이 없습니다.' }
+  const monthOf = (code: string) => (code.startsWith('X') ? month : 0)
+
+  const { data: resp } = await admin.from('inspection_sheet_responses')
+    .select('item_code, month').eq('inspection_id', inspectionId).in('item_code', codes)
+  const have = new Set(((resp ?? []) as Array<{ item_code: string; month: number | null }>)
+    .map(r => `${r.item_code}@${r.month ?? 0}`))
+  const payload = codes
+    .filter(c => !have.has(`${c}@${monthOf(c)}`))
+    .map(c => ({
+      inspection_id: inspectionId, item_code: c, result: 'O', month: monthOf(c),
+      updated_by: profile.id, updated_at: new Date().toISOString(),
+    }))
+  if (payload.length > 0) {
+    const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
+    if (error) return { error: `일괄 저장 실패: ${error.message}` }
+  }
+  await syncInspectionSteps(admin, inspectionId, profile.id)
+  revalidatePath(`/inspections/${inspectionId}`)
+  revalidatePath('/inspections')
+  return { applied: payload.length, kept: codes.length - payload.length, total: codes.length }
+}
+
 /** 트리 인라인 확장 — 한 시트의 항목 + 현재 응답을 지연 로드.
  *  loadSheetItemsAction과 달리 이 점검 건의 범위(작동=종합전용 제외)를 서버에서 적용해 내려준다. */
 export async function loadSheetEditorAction(inspectionId: string, sheetId: string): Promise<{

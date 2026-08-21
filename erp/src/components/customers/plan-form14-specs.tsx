@@ -12,7 +12,7 @@ import {
   type SpecBlock, type SpecField, type SpecSection, type SpecColumn, type SpecRow, type DerivedCtx,
 } from '@/lib/facility-spec-schema'
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
-import { rollUpForm3Results, form3ItemsForSheet } from '@/lib/sheet-facility-map'
+import { rollUpForm3Results, form3ItemsForSheet, type SheetStat } from '@/lib/sheet-facility-map'
 import { bumpNumber } from '@/components/ui/fields'
 
 /** ± 스테퍼를 붙일 수량형 단위 (S4-4) — 용량·치수(㎥·㎾·MPa·ℓ·ℓ/min·m·㎜·㎡ 등)는 ±1이 무의미해 제외 */
@@ -157,7 +157,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   const [inspected, setInspected] = useState<{ codes: Set<string>; label: string } | null>(null)
   const inspectedFetched = useRef(false)
   // T-2a — 같은 회차의 시트별 응답 통계·불량 수. 섹션 헤더 점검 결과 배지가 쓴다
-  const [sheetStats, setSheetStats] = useState<Array<[string, { any: boolean; x: boolean }]>>([])
+  const [sheetStats, setSheetStats] = useState<Array<[string, SheetStat]>>([])
   const [defectsBySheet, setDefectsBySheet] = useState<Record<string, number>>({})
 
   function loadSplit(inspId: string) {

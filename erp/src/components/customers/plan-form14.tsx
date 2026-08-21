@@ -3,7 +3,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
-import { FACILITY_STANDARD, EVAC_TYPES, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
+import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import {
+  getInspectionSheetOverviewAction, loadSheetEditorAction, saveSheetResponsesAction,
+  createDefectsFromXAction, bulkSheetGoodAction, bulkSheetNAAction,
+} from '@/app/(dashboard)/inspections/sheet-actions'
+import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
+import { rollUpForm3Results, sheetMatchesFacilities, facilitiesForSheet, type SheetStat } from '@/lib/sheet-facility-map'
+import type { SheetOverview } from '@/lib/sheet-overview'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
 import { NumField } from '@/components/ui/fields'
 import { usePlanSaveHandler, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
@@ -71,8 +78,11 @@ type Building = {
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
-export function PlanForm14({ customerId, buildings, canManage, specsByBuilding = {} }: {
+export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {} }: {
   customerId: string; buildings: Building[]; canManage: boolean
+  /** 소방계획서_26 S4 — 설비별 점검결과 입력 권한. 1.4의 canManage(customer_manage)와 축이 다르다:
+   *  결과 쓰기 액션은 전부 inspection_register라 이 값이 없으면 배지·패널을 아예 그리지 않는다. */
+  canRegister?: boolean
   /** H-19 설비 대장 — 건물별 세부 제원 초기값 (customer_facility_specs, '' = 대표/공통 폴백) */
   specsByBuilding?: Record<string, Record<string, Record<string, unknown>>>
 }) {
@@ -113,6 +123,155 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
   // 대장 쪽 미러 토글을 자식의 dirty에 반영하기 위한 등록 지점 (저장 누락 방지)
   const specsMarkDirtyRef = useRef<((sectionKey: string) => void) | null>(null)
   const registerSpecsMarkDirty = useCallback((fn: (sectionKey: string) => void) => { specsMarkDirtyRef.current = fn }, [])
+
+  // ── 소방계획서_26 S4 — 설비별 점검결과(○×／) 입력 ──────────────────────────
+  // 결과의 단일 원천은 점검표 응답(회차 단위)이다. 여기는 그 시트의 항목들을 쓰는 **단축 입력기**로,
+  // 별도 저장소를 만들지 않는다(3쪽 ×인데 불량내역 0건 같은 모순 문서 방지 — 26.md Q-1·C안 기각).
+  const [resultCtx, setResultCtx] = useState<{ inspection: { id: string; label: string } | null; reason?: string } | null>(null)
+  const [overview, setOverview] = useState<SheetOverview | null>(null)
+  const resultFetched = useRef(false)
+  const [panelCode, setPanelCode] = useState<string | null>(null)
+  const [panelSheet, setPanelSheet] = useState<{ sheetId: string; sheetName: string } | null>(null)
+  const [panelItems, setPanelItems] = useState<Array<{ item_code: string; item_name: string }>>([])
+  const [panelResp, setPanelResp] = useState<Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>>({})
+  const [panelBusy, setPanelBusy] = useState(false)
+  const [panelMsg, setPanelMsg] = useState('')
+
+  useEffect(() => {
+    if (!canRegister || resultFetched.current) return
+    resultFetched.current = true
+    // 실패(권한·네트워크)는 조용히 생략 — 배지는 보조 정보고 1.4 본연의 입력은 그대로 동작해야 한다
+    getActiveSpecialInspectionAction(customerId)
+      .then(async ctx => {
+        setResultCtx(ctx)
+        if (!ctx.inspection) return
+        const ov = await getInspectionSheetOverviewAction([ctx.inspection.id])
+        const o = ov.overviews?.[ctx.inspection.id]
+        if (o) setOverview(o)
+      })
+      .catch(() => {})
+  }, [canRegister, customerId])
+
+  // 마크 판정 — 별지 3쪽·세부제원 배지와 **같은 함수**(rollUpForm3Results). 설치 여부는 화면의
+  // 현재 체크 상태를 넘긴다(방금 켠 미저장 설비가 ／로 보이면 거짓말 — plan-form14-specs와 같은 이유).
+  const resultMarks = useMemo(() => {
+    if (!overview) return {} as Record<string, 'O' | 'X' | 'N'>
+    const stats: Array<[string, SheetStat]> = overview.sheets
+      .filter(s => s.responded > 0)
+      .map(s => [s.sheetName, { any: true, x: s.counts.X > 0, o: s.counts.O > 0 }])
+    const installedNow = ALL_STANDARD_CODES.filter(c => fac[c]?.installed)
+    return rollUpForm3Results(stats, ALL_STANDARD_CODES, installedNow).resultMarks
+  }, [overview, fac])
+
+  const canInputResult = canRegister && !!resultCtx?.inspection && (overview?.canEdit ?? false)
+
+  async function refreshResults(reloadItems: boolean) {
+    const inspId = resultCtx?.inspection?.id
+    if (!inspId) return
+    const ov = await getInspectionSheetOverviewAction([inspId])
+    const o = ov.overviews?.[inspId]
+    if (o) setOverview(o)
+    if (reloadItems && panelSheet) {
+      const res = await loadSheetEditorAction(inspId, panelSheet.sheetId)
+      if (!res.error) {
+        setPanelItems((res.items ?? []).map(i => ({ item_code: i.item_code, item_name: i.item_name })))
+        setPanelResp(res.responses ?? {})
+      }
+    }
+  }
+
+  function openResultPanel(code: string) {
+    if (panelCode === code) { setPanelCode(null); return }
+    setPanelCode(code); setPanelMsg(''); setPanelItems([]); setPanelResp({})
+    const inspId = resultCtx?.inspection?.id
+    // 설비→시트는 명시 매핑(sheet-facility-map). 보통 1:1이고, 복수 매칭이면 첫 시트(카탈로그 순).
+    const sheet = overview?.sheets.find(s => sheetMatchesFacilities(s.sheetName, [code]))
+    if (!inspId || !sheet) { setPanelSheet(null); return }
+    setPanelSheet({ sheetId: sheet.sheetId, sheetName: sheet.sheetName })
+    setPanelBusy(true)
+    loadSheetEditorAction(inspId, sheet.sheetId)
+      .then(res => {
+        setPanelBusy(false)
+        if (res.error) { setPanelMsg(res.error); return }
+        setPanelItems((res.items ?? []).map(i => ({ item_code: i.item_code, item_name: i.item_name })))
+        setPanelResp(res.responses ?? {})
+      })
+      .catch(() => setPanelBusy(false))
+  }
+
+  /** 항목 1건 저장 — ✕는 메모(선택)를 받고 불량내역 자동 등록까지(별지 10호·⑤⑥단계의 원천).
+   *  plan-annex-sheet-tree의 saveQuickDefect와 같은 체인이다. */
+  function setItemResult(code: string, result: 'O' | 'X' | 'N') {
+    const inspId = resultCtx?.inspection?.id
+    if (!inspId || panelBusy) return
+    let memo: string | null = null
+    if (result === 'X') {
+      const m = window.prompt('불량 메모(선택) — 불량내역 상세로 들어갑니다. [취소]하면 기록하지 않습니다.', panelResp[code]?.memo ?? '')
+      if (m === null) return
+      memo = m.trim() || null
+    }
+    setPanelBusy(true)
+    saveSheetResponsesAction(inspId, [{ item_code: code, result, memo }])
+      .then(async res => {
+        if (res.error) { setPanelBusy(false); setPanelMsg(res.error); return }
+        if (result === 'X') await createDefectsFromXAction(inspId)
+        setPanelResp(p => ({ ...p, [code]: { result, memo } }))
+        setPanelBusy(false)
+        await refreshResults(false)
+      })
+      .catch(() => setPanelBusy(false))
+  }
+
+  /** 일괄 ○/／ — 미입력 항목에만 쓴다(기존 응답 무덮음, 서버 규약과 동일). 확인창이 개수·형제·회차를 고지한다. */
+  function bulkPanel(kind: 'good' | 'na' | 'naRelease') {
+    const inspId = resultCtx?.inspection?.id
+    const sh = panelSheet
+    if (!inspId || !sh || panelBusy) return
+    const blank = panelItems.filter(i => !panelResp[i.item_code]).length
+    const sibs = facilitiesForSheet(sh.sheetName, ALL_STANDARD_CODES)
+    const sibNote = sibs.length > 1 ? `\n이 시트는 ${sibs.join('·')}의 결과에 함께 반영됩니다.` : ''
+    const tail = `\n${resultCtx!.inspection!.label} 회차에 즉시 기록됩니다 — 이 화면 아래의 [저장]과는 무관하며, 설치(√) 변경은 [저장]을 눌러야 문서에 반영됩니다.\n진행할까요?`
+    if (kind === 'naRelease') {
+      if (!window.confirm(`『${sh.sheetName}』의 ／(해당없음)를 해제합니다. ○/✕는 유지됩니다.${tail}`)) return
+    } else if (blank === 0) {
+      setPanelMsg('미입력 항목이 없습니다 — 개별 항목 버튼으로 고쳐주세요.')
+      return
+    } else if (kind === 'good') {
+      if (!window.confirm(`『${sh.sheetName}』의 미입력 ${blank}개 항목을 ○(양호)로 채웁니다.\n이미 입력한 ${panelItems.length - blank}건은 그대로 유지됩니다.${sibNote}${tail}`)) return
+    } else {
+      if (!window.confirm(`『${sh.sheetName}』의 미입력 ${blank}개 항목을 ／(해당없음)로 표시합니다.\n이미 입력한 ${panelItems.length - blank}건은 그대로 유지됩니다.${sibNote}${tail}`)) return
+    }
+    setPanelBusy(true)
+    const run = kind === 'good'
+      ? bulkSheetGoodAction(inspId, sh.sheetId)
+      : bulkSheetNAAction(inspId, sh.sheetId, 0, kind === 'naRelease' ? 'release' : 'apply')
+    run.then(async (res: { error?: string; applied?: number; released?: number }) => {
+      setPanelBusy(false)
+      if (res.error) { setPanelMsg(res.error); return }
+      setPanelMsg(kind === 'good' ? `○ ${res.applied ?? 0}건 기록`
+        : kind === 'na' ? `／ ${res.applied ?? 0}건 기록` : `／ ${res.released ?? 0}건 해제`)
+      await refreshResults(true)
+    }).catch(() => setPanelBusy(false))
+  }
+
+  /** 설치 행의 결과 배지 — ○(녹)/×(적)/／(회)/미입력(호박). 클릭 = 입력 패널 토글.
+   *  진행 중 회차가 없으면(입력 불가) 배지를 그리지 않는다 — 이유는 표 위 안내줄이 말한다. */
+  const resultBadge = (code: string) => {
+    if (!fac[code]?.installed || !canInputResult) return null
+    const mk = resultMarks[code]
+    const lbl = mk === 'O' ? '○' : mk === 'X' ? '×' : mk === 'N' ? '／' : '미입력'
+    const cls = mk === 'O' ? 'text-green-600 border-green-300 bg-green-50'
+      : mk === 'X' ? 'text-red-600 border-red-300 bg-red-50'
+      : mk === 'N' ? 'text-[#847ba8] border-[#d0ccf5] bg-[#fafaff]'
+      : 'text-amber-700 border-amber-300 bg-amber-50'
+    return (
+      <button onClick={e => { e.stopPropagation(); openResultPanel(code) }}
+        title={`점검결과 — ${resultCtx?.inspection?.label}에 기록 (클릭하여 입력)`}
+        className={`ml-auto shrink-0 h-5 min-w-7 px-1.5 rounded-full border text-[10px] font-bold ${cls} ${panelCode === code ? 'ring-1 ring-[#7b68ee]' : ''}`}>
+        {lbl}
+      </button>
+    )
+  }
 
   // 피난기구 종류 — 저장소는 세부제원 한 곳이지만 **1.4 하위 체크박스와 세부제원 화면이 함께 쓴다**.
   // 두 화면이 같은 값을 보도록 부모가 상태를 들고 양쪽에 내려준다(2026-08-08 중복 입력 제거).
@@ -198,6 +357,10 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
     clearDirty()
     setSpecsDirtyCount(0)
     setVerifiedAt(null)  // S1-4 — 이전 건물의 확인일이 새 건물 푸터에 잔류하면 안 됨
+    // 소방계획서_26 — 결과 입력 패널은 **그 건물에 설치된 설비**에 매여 있다. 안 닫으면 새 건물에
+    // 없는 설비의 항목 목록이 그대로 떠 있고(배지는 사라졌는데 패널만 남는다) 거기서 기록까지 된다.
+    // overview는 건드리지 않는다 — 점검표 응답은 회차(고객) 축이라 건물이 바뀌어도 그대로 유효하다.
+    setPanelCode(null); setPanelSheet(null); setPanelItems([]); setPanelResp({}); setPanelMsg('')
   }
   function toggle(code: string) {
     if (!canManage) return
@@ -335,6 +498,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
           <span className="text-sm leading-none">{st.installed ? '☑' : '☐'}</span>
           <span className={`text-xs ${st.installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>{code}</span>
           {st.note && <span className="text-[10px] text-amber-600 truncate max-w-24" title={st.note}>({st.note})</span>}
+          {resultBadge(code)}
         </div>
       </td>
     )
@@ -347,6 +511,10 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-semibold text-[#090c1d]">서식 1.4 소방시설 현황</span>
         <span className="text-[11px] text-[#b0acd6]">※ 해당되는 곳을 클릭해 √ 표시합니다</span>
+        {/* 소방계획서_26 S4 — 결과 배지의 회차 축 안내. 진행 중 회차가 없으면 왜 배지가 없는지 여기서 말한다 */}
+        {canRegister && resultCtx && (resultCtx.inspection
+          ? <span className="text-[10px] text-[#7b68ee]">점검결과(○×／)는 {resultCtx.inspection.label}에 기록됩니다</span>
+          : <span className="text-[10px] text-[#b0acd6]" title={resultCtx.reason}>점검결과 입력 불가 — {resultCtx.reason}</span>)}
         {buildings.length > 1 && (
           <select value={bidx} onChange={e => switchBuilding(parseInt(e.target.value, 10))}
             className="ml-auto h-7 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none">
@@ -376,6 +544,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
                       className="flex items-center gap-1.5 cursor-pointer select-none hover:bg-[#f5f4ff] rounded px-1">
                       <span className="text-sm leading-none">{fac['소화기구 및 자동소화장치'].installed ? '☑' : '☐'}</span>
                       <span className={`text-xs ${fac['소화기구 및 자동소화장치'].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>소화기구 및 자동소화장치</span>
+                      {resultBadge('소화기구 및 자동소화장치')}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
                       {FIRE_SUB_ITEMS.map(sname => {
@@ -401,6 +570,7 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
                       className="flex items-center gap-1.5 cursor-pointer select-none hover:bg-[#f5f4ff] rounded px-1">
                       <span className="text-sm leading-none">{fac['피난기구'].installed ? '☑' : '☐'}</span>
                       <span className={`text-xs ${fac['피난기구'].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>피난기구</span>
+                      {resultBadge('피난기구')}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
                       {/* 통합 어휘 11종 — 저장소는 세부제원 s36_evac.evac_equipment.types 하나다.
@@ -429,6 +599,94 @@ export function PlanForm14({ customerId, buildings, canManage, specsByBuilding =
         </tbody>
       </table>
       <p className="text-[10px] text-[#b0acd6]">※ 비고 1. 설치장소·규격 등은 자체점검표 참조 2. 건물군은 대상명을 바꿔 대상물별로 작성</p>
+
+      {/* ── 소방계획서_26 S4 — 설비별 점검결과 패널 (배지 클릭 시) ─────────────────
+          Q-1 결정(A+B 하이브리드): 항목 목록을 그대로 펼쳐 보여주고, 일괄 ○/／는 그 위의 단축이다.
+          항목이 눈앞에 보이는 상태에서 일괄을 누르므로 "안 보고 ○"가 아니라 "보고 나서 한 번에 ○".
+          ⚠ 문구에 '점검표 입력'을 쓰지 않는다 — test-annex-interaction이 그 문자열 개수로 판정한다. */}
+      {panelCode && canInputResult && (
+        <div className="rounded-xl border border-[#d0ccf5] bg-[#fafaff] p-3 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[#090c1d]">{panelCode} — 점검결과</span>
+            {panelSheet && <span className="text-[10px] text-[#847ba8]">『{panelSheet.sheetName}』 · {resultCtx?.inspection?.label}에 기록</span>}
+            {panelBusy && <Loader2 className="size-3 animate-spin text-[#7b68ee]" />}
+            <button onClick={() => setPanelCode(null)} className="ml-auto h-6 px-2 rounded-lg border border-[#c8c4d0] text-[10px] text-[#514b81]">닫기</button>
+          </div>
+          {/* F-1(소방계획서_26): 표준 42종 중 9종(물분무·미분무·포·분말·강화액·고체에어로졸·누전경보기·
+              거실제연·연소방지)은 v2025 카탈로그에 덮는 STD 시트가 없다 — 결과를 만들 경로 자체가 없어
+              결과칸이 공란으로 남는다. 어느 시트를 준용할지는 고시 원문 확인이 필요한 별도 결정. */}
+          {!panelSheet && (
+            <p className="text-[11px] text-amber-700">
+              이 설비를 다루는 점검표 시트가 카탈로그에 없어 결과를 기록할 수 없습니다 — 별지 결과칸은 공란으로 남습니다.
+            </p>
+          )}
+          {panelSheet && (() => {
+            const sibs = facilitiesForSheet(panelSheet.sheetName, ALL_STANDARD_CODES)
+            const blank = panelItems.filter(i => !panelResp[i.item_code]).length
+            const naCount = panelItems.filter(i => panelResp[i.item_code]?.result === 'N').length
+            return (
+              <>
+                {sibs.length > 1 && (
+                  <p className="text-[10px] text-amber-700">
+                    ⚠ 이 시트는 여러 설비를 함께 다룹니다 — {sibs.map(c => `${fac[c]?.installed ? '☑' : '☐'}${c}`).join(' · ')}.
+                    여기 기록하면 형제 설비의 결과에도 함께 반영됩니다.
+                  </p>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button onClick={() => bulkPanel('good')} disabled={panelBusy}
+                    className="h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                    미입력 {blank}개 전부 ○
+                  </button>
+                  <button onClick={() => bulkPanel('na')} disabled={panelBusy}
+                    className="h-7 px-2.5 rounded-lg border border-[#c8c4d0] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50">
+                    미입력 {blank}개 전부 ／
+                  </button>
+                  {naCount > 0 && (
+                    <button onClick={() => bulkPanel('naRelease')} disabled={panelBusy}
+                      className="h-7 px-2.5 rounded-lg border border-[#c8c4d0] text-[11px] text-[#847ba8] hover:bg-[#f5f4ff] disabled:opacity-50">
+                      ／ {naCount}건 해제
+                    </button>
+                  )}
+                  {panelMsg && <span className="text-[11px] text-[#7b68ee]">{panelMsg}</span>}
+                </div>
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-[#e0ddf5] bg-white divide-y divide-[#f3f1fb]">
+                  {panelItems.map(it => {
+                    const cur = panelResp[it.item_code]?.result
+                    const btn = (r: 'O' | 'X' | 'N', label: string, activeCls: string) => (
+                      <button onClick={() => setItemResult(it.item_code, r)} disabled={panelBusy}
+                        className={`h-6 w-7 rounded border text-[11px] font-bold disabled:opacity-50 ${
+                          cur === r ? activeCls : 'border-[#e0ddf5] text-[#c8c4d0] hover:border-[#7b68ee] hover:text-[#7b68ee]'}`}>
+                        {label}
+                      </button>
+                    )
+                    return (
+                      <div key={it.item_code} className="flex items-center gap-2 px-2.5 py-1">
+                        <span className="text-[10px] text-[#b0acd6] w-16 shrink-0">{it.item_code}</span>
+                        <span className="text-[11px] text-[#090c1d] flex-1 min-w-0 truncate" title={it.item_name}>{it.item_name}</span>
+                        {panelResp[it.item_code]?.memo && (
+                          <span className="text-[10px] text-red-400 truncate max-w-28" title={panelResp[it.item_code].memo ?? ''}>
+                            {panelResp[it.item_code].memo}
+                          </span>
+                        )}
+                        {btn('O', '○', 'border-green-400 bg-green-50 text-green-600')}
+                        {btn('X', '✕', 'border-red-400 bg-red-50 text-red-600')}
+                        {btn('N', '／', 'border-[#847ba8] bg-[#fafaff] text-[#847ba8]')}
+                      </div>
+                    )
+                  })}
+                  {panelItems.length === 0 && !panelBusy && (
+                    <p className="px-2.5 py-2 text-[11px] text-[#b0acd6]">항목이 없습니다.</p>
+                  )}
+                </div>
+                <p className="text-[10px] text-[#b0acd6]">
+                  ✕는 메모(선택)와 함께 불량내역에 자동 등록됩니다(별지 10호 이행계획의 원천).
+                  기록은 즉시 저장되며 아래 [저장] 버튼과 무관합니다.
+                </p>
+              </>
+            )
+          })()}
+        </div>
+      )}
 
       {/* 층별 수량 접기 (fire_facility_floors) */}
       <details className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-2">

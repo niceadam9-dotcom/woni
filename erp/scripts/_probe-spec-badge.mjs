@@ -41,7 +41,7 @@ check('배지를 달 수 있는 섹션이 있다(facilityHint 보유)', withHint
 const noHint = FACILITY_SPEC_SECTIONS.filter(s => !s.blocks.some(b => b.facilityHint))
 console.log(`  · 배지 없음(공통사항 섹션): ${noHint.map(s => `${s.no} ${s.label}`).join(' / ') || '없음'}`)
 check('hint 없는 섹션은 배지를 만들지 않는다(공통사항에 ○/×를 붙이면 거짓말)',
-  noHint.every(s => sectionBadge(s, [['옥내소화전설비', { any: true, x: false }]], {}, []) === null))
+  noHint.every(s => sectionBadge(s, [['옥내소화전설비', { any: true, x: false, o: true }]], {}, []) === null))
 
 console.log('\n── 2) 마크 판정 ──')
 const s31 = secOf('s31_extinguisher')   // 소화기구 및 자동소화장치
@@ -50,22 +50,22 @@ check('설비 준비 — 3-1이 소화기구를 가리킨다',
 
 check('불량 응답 → × + 불량 건수',
   (() => {
-    const b = sectionBadge(s31, [['소화기구 및 자동소화장치', { any: true, x: true }]],
+    const b = sectionBadge(s31, [['소화기구 및 자동소화장치', { any: true, x: true, o: false }]],
       { '소화기구 및 자동소화장치': 3 }, ['소화기구 및 자동소화장치'])
     return b.mark === 'X' && b.defects === 3
   })())
 check('양호 응답 → ○',
-  sectionBadge(s31, [['소화기구 및 자동소화장치', { any: true, x: false }]], {}, ['소화기구 및 자동소화장치']).mark === 'O')
+  sectionBadge(s31, [['소화기구 및 자동소화장치', { any: true, x: false, o: true }]], {}, ['소화기구 및 자동소화장치']).mark === 'O')
 check('미설치 + 무응답 → ／ 해당없음',
-  sectionBadge(s31, [['옥내소화전설비', { any: true, x: false }]], {}, ['옥내소화전설비']).mark === 'N')
+  sectionBadge(s31, [['옥내소화전설비', { any: true, x: false, o: true }]], {}, ['옥내소화전설비']).mark === 'N')
 check('설치했는데 응답 없음 → 미입력(mark=null) — 양호로 단정하지 않는다',
-  sectionBadge(s31, [['옥내소화전설비', { any: true, x: false }]], {}, ['소화기구 및 자동소화장치', '옥내소화전설비']).mark === null)
+  sectionBadge(s31, [['옥내소화전설비', { any: true, x: false, o: true }]], {}, ['소화기구 및 자동소화장치', '옥내소화전설비']).mark === null)
 check('응답이 하나도 없으면(회차 없음) 배지 자체가 없다', sectionBadge(s31, [], {}, ['소화기구 및 자동소화장치']) === null)
 
 console.log('\n── 3) 화면 설치 상태가 판정에 반영되는가 (미저장 토글 즉시성) ──')
 {
   // 같은 응답인데 설치 목록만 다르다 — 방금 켠 설비가 ／로 보이면 거짓말
-  const stats = [['옥내소화전설비', { any: true, x: false }]]
+  const stats = [['옥내소화전설비', { any: true, x: false, o: true }]]
   const off = sectionBadge(s31, stats, {}, [])                              // 소화기구 미설치
   const on = sectionBadge(s31, stats, {}, ['소화기구 및 자동소화장치'])      // 방금 체크(미저장)
   check('미설치일 때 ／', off.mark === 'N')
@@ -74,7 +74,7 @@ console.log('\n── 3) 화면 설치 상태가 판정에 반영되는가 (미�
 
 console.log('\n── 4) 문서와 같은 판정인가 (T-2a-1 공용 함수) ──')
 {
-  const stats = [['소화용수설비', { any: true, x: false }]]
+  const stats = [['소화용수설비', { any: true, x: false, o: true }]]
   const marks = rollUpForm3Results(stats, ALL_STANDARD_CODES, []).resultMarks
   check('시트 1개 → 설비 2종 전개가 배지 경로에서도 동일(상수도·소화수조 모두 ○)',
     marks['상수도소화용수설비'] === 'O' && marks['소화수조 및 저수조'] === 'O',

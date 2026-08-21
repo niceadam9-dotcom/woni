@@ -79,7 +79,7 @@ console.log(`  (item_code→시트 ${sheetOfItem.size}개 · 점검 ${rows.lengt
 const { data: custs } = await admin.from('customers').select('id, customer_name')
 const nameOf = new Map(((custs ?? []) as Array<{ id: string; customer_name: string }>).map(c => [c.id, c.customer_name]))
 
-let blank = 0, legacyMarked = 0, nowSuppressed = 0, nowKept = 0, seen = 0, changedCases = 0
+let blank = 0, legacyMarked = 0, nowSuppressed = 0, nowKept = 0, seen = 0, changedCases = 0, naFixed = 0
 const detail: string[] = []
 for (const i of rows) {
   const [{ data: resp }, { data: blds }] = await Promise.all([
@@ -89,12 +89,12 @@ for (const i of rows) {
   const rs = (resp ?? []) as Array<{ item_code: string; result: string }>
   if (rs.length === 0) continue
   seen++
-  const stat = new Map<string, { any: boolean; x: boolean }>()
+  const stat = new Map<string, { any: boolean; x: boolean; o: boolean }>()
   for (const r of rs) {
     const nm = sheetOfItem.get(r.item_code)
     if (!nm) continue
-    const cur = stat.get(nm) ?? { any: false, x: false }
-    stat.set(nm, { any: true, x: cur.x || r.result === 'X' })
+    const cur = stat.get(nm) ?? { any: false, x: false, o: false }
+    stat.set(nm, { any: true, x: cur.x || r.result === 'X', o: cur.o || r.result === 'O' })
   }
   const bIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
   const { data: facs } = bIds.length
@@ -123,13 +123,17 @@ for (const i of rows) {
       + (axisWarnings.respondedNotInstalled.length
         ? `\n    ②b 대장 누락 의심(○ 유지) ${axisWarnings.respondedNotInstalled.length}: ${axisWarnings.respondedNotInstalled.join(', ')}` : ''))
   }
-  // 설치 항목의 마크는 규칙 변경으로 절대 달라지면 안 된다 — 달라지면 실점검이 지워진 것이다
+  // 설치 항목의 마크는 규칙 변경으로 달라지면 안 된다 — 단 하나의 예외: 소방계획서_26 S1의
+  // '전부 ／ 시트 → ／'는 **의도된 변화**다(종전엔 ○로 둔갑). O→N만 허용하고 그 외는 실점검 유실로 판정.
   for (const it of facilityChecks) {
-    if (before.resultMarks[it] !== resultMarks[it]) {
-      console.log(`  ❌ 설치 항목의 결과가 바뀌었다: ${nameOf.get(i.customer_id)} ${i.year} ${it} `
-        + `${before.resultMarks[it]} → ${resultMarks[it]}`)
-      process.exitCode = 1
+    if (before.resultMarks[it] === resultMarks[it]) continue
+    if (before.resultMarks[it] === 'O' && resultMarks[it] === 'N') {
+      naFixed++
+      continue
     }
+    console.log(`  ❌ 설치 항목의 결과가 바뀌었다: ${nameOf.get(i.customer_id)} ${i.year} ${it} `
+      + `${before.resultMarks[it]} → ${resultMarks[it]}`)
+    process.exitCode = 1
   }
 }
 console.log(detail.slice(0, 10).join('\n') || '  (어긋남 없음)')
@@ -138,3 +142,4 @@ console.log(`  ① [√]인데 공란            ${blank}칸  (규약상 정상 
 console.log(`  ② 종전 [ ]인데 ○/×        ${legacyMarked}칸`)
 console.log(`     ├ ②a 번짐 → ／로 정정   ${nowSuppressed}칸  (설치된 형제 시트의 응답이 번지던 것)`)
 console.log(`     └ ②b 대장 누락 의심 유지 ${nowKept}칸  (실점검일 수 있어 지우지 않는다)`)
+console.log(`  ③ 전부 ／ 시트 정정(○→／)    ${naFixed}칸  (소방계획서_26 S1 — 해당없음이 양호로 둔갑하던 것)`)

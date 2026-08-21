@@ -1,0 +1,123 @@
+{
+  "doc": "소방계획서_26 — 소방시설(1.4)에서 설비별 점검결과 ○×／ 직접 입력",
+  "design": "erp_goal/소방계획서_26.md (2026-08-21 작성)",
+  "created": "2026-08-21",
+  "updated": "2026-08-21 구현 1차 — S1~S4 code_present. 요구는 '소방계획서에서 설비를 체크하면 별지 결과칸에 반드시 ○/×/／가 찍히게'(공란 재발방지)이고, 기존 데이터 정리는 사용자 지시로 범위 밖(테스트 데이터). Q-1(‘○=시트 미입력 일괄 ○’ 재검토)은 **A+B 하이브리드**로 확정 — 항목 목록을 펼쳐 보여주고 그 위에 일괄 버튼을 둔다(안 보고 ○가 아니라 보고 나서 한 번에 ○). 착수 직후 **F-1 발견**: 표준 42종 중 9종은 덮는 STD 시트가 카탈로그에 없어 어떤 경로로도 결과를 만들 수 없다 — 서림사·별그리다 공란의 상당수가 이것이었다. 거짓 입력 경로를 만들지 않고 패널에 사실을 표기했다(별도 결정 대기)",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "결정 확정(구현 대상 아님)",
+    "deferred": "보류"
+  },
+  "key_evidence": "scripts/_probe-na-only-becomes-good.mts — 점검표입력을 전부 ／(해당없음)로 채우면 별지 3쪽에 ○(양호)로 인쇄되던 결함. SheetStat이 {any,x} 두 축뿐이라 '전부 해당없음'을 표현하지 못하고 st.any=true가 곧 ○로 해석됐다. 화면에는 [／ 전체] 버튼(inspection-sheet-client.tsx:507)이 있어 누구나 그 상태를 만들 수 있었다. 스테이징 실측 5칸이 실제로 그렇게 인쇄되고 있었다(_probe-form3-axis-mismatch ③).",
+
+  "decisions": [
+    { "id": "Q-1", "title": "'○ = 그 설비 시트의 미입력 항목 일괄 ○' 재검토", "status": "confirmed",
+      "desc": "쟁점: 설비 행에서 ○ 한 번 = 시트 항목 수십 개가 한꺼번에 ○ — 항목을 안 보고 ○를 깔 위험. A(일괄 유지)·B(항목 확인 강제)·C(설비 단위 별도 저장소) 중 **A+B 하이브리드** 채택. 패널이 항목 목록을 그대로 펼쳐 보여주고(항목별 ○✕／) 그 위에 일괄 버튼을 둔다. C는 기각 — 3쪽 ×인데 불량내역 0건(별지 10호 공백) 같은 모순 문서가 생긴다." },
+    { "id": "D-1", "title": "단일 원천 유지", "status": "confirmed",
+      "desc": "1.4의 설비별 입력은 별도 저장소가 아니라 그 시트의 항목들을 쓰는 단축 입력기다. 문서·화면·점검표가 같은 데이터(inspection_sheet_responses)를 본다." },
+    { "id": "D-2", "title": "회차 축 = 진행 중 최신 자체점검", "status": "confirmed",
+      "desc": "1.4는 고객 마스터라 회차가 없다. 최신 1건이 completed면 null — 더 옛 회차로 내려가지 않는다(끝난 회차에 쓰는 사고 방지). 없으면 입력 비활성 + 사유 표기." },
+    { "id": "D-3", "title": "×는 항목 지정 필수", "status": "confirmed",
+      "desc": "✕ 저장 → createDefectsFromXAction(불량내역 자동 등록 — 별지 10호·⑤⑥단계의 원천)까지 기존 체인 그대로. 설비 통째 X는 불량 수십 건 오염 또는 10호 모순이라 금지." },
+    { "id": "D-4", "title": "일괄은 미입력 항목에만", "status": "confirmed",
+      "desc": "기존 ○/✕/／ 절대 무덮음(bulkAllGood·bulkSheetNA 규약 승계). 확인창이 개수·형제 설비·회차 라벨·'[저장]과 무관'을 고지." },
+    { "id": "D-5", "title": "형제 설비 고지", "status": "confirmed",
+      "desc": "한 시트가 여러 설비를 덮는다(예: '유도등 및 유도표지' = 유도등·유도표지·피난유도선). 패널이 형제와 설치 상태를 함께 표시 — 형제 배지도 함께 바뀐다는 사실을 숨기지 않는다." },
+    { "id": "D-6", "title": "／ 금지하지 않음", "status": "confirmed",
+      "desc": "작동점검 회차에서 종합점검 범위 설비는 정당하게 ／다(isItemInScope가 회차별 범위를 거른다). '설치인데 ／ 금지'는 정상 케이스를 막으므로 채택하지 않는다." }
+  ],
+
+  "sections": [
+    { "id": "S1", "title": "선행 결함 수정 — SheetStat 3축화(／만 입력 → ／로)", "status": "code_present",
+      "evidence": [
+        "src/lib/sheet-facility-map.ts:77-98 — SheetStat {any,x,o} (o **필수 필드**) + foldSheetResult 헬퍼",
+        "src/lib/sheet-facility-map.ts — rollUpForm3Results 판정: X→× / O→○ / 전부N→／ / 무응답+미설치→／ / 무응답+설치→공란",
+        "src/app/(dashboard)/inspections/report9-actions.ts:299-307 — 별지 9호·4호 공용 구성 지점을 foldSheetResult로",
+        "src/app/(dashboard)/customers/facility-spec-actions.ts:188-196 — 1.4 섹션 배지 구성 지점 동일 통일"
+      ],
+      "criteria": [
+        { "id": "S1-1", "desc": "SheetStat에 o(양호 있음) 축 추가 — **필수 필드**로 두어 src/ 구성 지점 누락을 tsc가 잡게(scripts/는 tsconfig exclude라 프로브는 수동)", "status": "code_present" },
+        { "id": "S1-2", "desc": "foldSheetResult(cur, result) 단일 헬퍼 — 구성 로직 복사 금지", "status": "code_present" },
+        { "id": "S1-3", "desc": "응답이 전부 N인 시트 → 결과 ／ (종전 ○ 둔갑 제거)", "status": "code_present" },
+        { "id": "S1-4", "desc": "구성 지점 2곳(별지 조립·1.4 배지) 동시 수정 — 한 곳만 고치면 문서와 화면이 갈린다", "status": "code_present" },
+        { "id": "S1-5", "desc": "axisWarnings.respondedNotInstalled는 O·X 있는 시트만 — 전부-N은 '해당 없다'는 진술이지 대장 누락 근거가 아니다", "status": "code_present" },
+        { "id": "S1-6", "desc": "프로브 7곳 갱신(test-form3-axis·_probe-na-only-becomes-good·_probe-form3-axis-mismatch·_recon-required-mark-blast·_recon-seorimsa-guide-light·_probe-spec-badge.mjs·_probe-form3-map.mjs)", "status": "code_present" },
+        { "id": "S1-7", "desc": "_probe-form3-axis-mismatch의 '설치 항목 마크 불변' 가드는 O→N만 예외 허용(S1의 의도된 변화), 그 외는 실점검 유실로 판정", "status": "code_present" }
+      ] },
+
+    { "id": "S2", "title": "회차 해석 — 진행 중 최신 자체점검", "status": "code_present",
+      "evidence": [
+        "src/lib/latest-inspection.ts — getLatestSpecialInspection opts.requireActive (select에 status 포함, 최신 1건이 completed면 null)",
+        "src/app/(dashboard)/customers/facility-spec-actions.ts — getActiveSpecialInspectionAction(customerId) 신설"
+      ],
+      "criteria": [
+        { "id": "S2-1", "desc": "requireActive=true면 최신 1건이 completed일 때 null — 더 옛 회차로 내려가지 않는다", "status": "code_present", "depends": ["D-2"] },
+        { "id": "S2-2", "desc": "회차 없음 사유 문구 반환 — 화면이 '왜 입력 못 하는지'를 말한다", "status": "code_present" },
+        { "id": "S2-3", "desc": "기존 getInspectedFacilityCodesAction(응답 있는 최신 회차)과 축이 다름을 주석 명시", "status": "code_present" }
+      ] },
+
+    { "id": "S3", "title": "bulkSheetGoodAction — 시트 미입력 항목 일괄 ○", "status": "code_present",
+      "evidence": ["src/app/(dashboard)/inspections/sheet-actions.ts — bulkSheetNAAction apply 분기의 거울"],
+      "criteria": [
+        { "id": "S3-1", "desc": "requirePermission('inspection_register') · isItemInScope 회차 범위 필터 · month 축(외관만)", "status": "code_present" },
+        { "id": "S3-2", "desc": "미입력 항목에만 'O' insert — 기존 O/X/N 절대 무덮음", "status": "code_present", "depends": ["D-4"] },
+        { "id": "S3-3", "desc": "syncInspectionSteps + revalidatePath 2경로 — NA 액션과 동형", "status": "code_present" },
+        { "id": "S3-4", "desc": "release 모드 없음 — ○ 일괄 해제는 요구 밖이고, 잘못 눌렀으면 항목 단위로 고친다", "status": "code_present" },
+        { "id": "S3-5", "desc": "반환에 kept(기존 응답 수) — 확인창 문구용", "status": "code_present" }
+      ] },
+
+    { "id": "S4", "title": "1.4 화면 — 결과 배지 + 입력 패널", "status": "code_present",
+      "evidence": [
+        "src/components/customers/plan-form14.tsx — resultBadge()(설치 행 ○/×/／/미입력), openResultPanel, setItemResult, bulkPanel, 패널 JSX",
+        "src/app/(dashboard)/customers/[id]/page.tsx:703 — canRegister={can(role,'inspection_register')} 배선",
+        "src/components/customers/plan-form14-specs.tsx:160 — sheetStats 타입을 SheetStat로"
+      ],
+      "criteria": [
+        { "id": "S4-1", "desc": "설치 체크된 표준 42종 행에 결과 배지(○ 녹/× 적/／ 회/미입력 호박) — 소화기구·피난기구 부모 행 포함", "status": "code_present" },
+        { "id": "S4-2", "desc": "마크 판정은 rollUpForm3Results 공용 함수 + **화면의 현재 체크 상태**(미저장 토글 즉시 반영)", "status": "code_present" },
+        { "id": "S4-3", "desc": "배지 클릭 stopPropagation — 셀 클릭(설치 토글)과 충돌하지 않는다", "status": "code_present" },
+        { "id": "S4-4", "desc": "패널: 항목 목록 전개(항목별 ○✕／ 버튼) + 상단 일괄 [미입력 N개 전부 ○]/[전부 ／]/[／ 해제]", "status": "code_present", "depends": ["Q-1"] },
+        { "id": "S4-5", "desc": "형제 설비 고지 — facilitiesForSheet로 그 시트가 덮는 설비를 설치 상태와 함께 표시", "status": "code_present", "depends": ["D-5"] },
+        { "id": "S4-6", "desc": "확인창이 개수·기존 유지 건수·형제·회차 라벨·'[저장]과 무관, 설치 변경은 [저장] 필요'를 고지", "status": "code_present", "depends": ["D-4"] },
+        { "id": "S4-7", "desc": "✕는 메모 prompt(취소 시 미기록) → saveSheetResponsesAction → createDefectsFromXAction 체인", "status": "code_present", "depends": ["D-3"] },
+        { "id": "S4-8", "desc": "회차 라벨 안내줄 — 없으면 사유 표기(배지 자체를 그리지 않는 이유를 말한다)", "status": "code_present", "depends": ["S2-2"] },
+        { "id": "S4-9", "desc": "저장 후 overview 재조회로 배지 재수렴(형제 배지 포함)", "status": "code_present" },
+        { "id": "S4-10", "desc": "canRegister 없으면 배지·패널 미렌더 — 1.4의 canManage(customer_manage)와 쓰기 권한 축이 다르다", "status": "code_present" },
+        { "id": "S4-11", "desc": "'점검표 입력' 문구 미사용 — test-annex-interaction이 그 문자열 개수로 회차 펼침을 판정", "status": "code_present" },
+        { "id": "S4-12", "desc": "건물 전환 시 결과 패널 초기화 — 패널은 그 건물 설치 설비에 매여 있어, 안 닫으면 새 건물에 없는 설비의 항목 목록이 그대로 떠 있고 거기서 기록까지 된다(배지는 사라졌는데 패널만 남는다). overview는 건드리지 않는다 — 점검표 응답은 회차 축이라 건물이 바뀌어도 유효하다", "status": "code_present",
+          "note": "**독립 검증에서 발견된 실결함**(2026-08-21). 판정자는 setOverview(null)도 권했으나 과함 — 회차 축이라 유효하고, null로 만들면 배지가 사라졌다 다시 로드된다. 원인인 패널 상태만 정리했다" }
+      ] },
+
+    { "id": "S5", "title": "검증", "status": "code_present",
+      "criteria": [
+        { "id": "S5-1", "desc": "test-form3-axis 27/27 — 전부／→／·／+○→○·／+○+✕→×·전부／는 대장누락 경고 제외·foldSheetResult 단위", "status": "code_present",
+          "verified": "npx tsx scripts/test-form3-axis.mts 27/27 (2026-08-21)" },
+        { "id": "S5-2", "desc": "돌연변이 양방향 — 판정을 종전 2축으로 되돌리면 검사 2건 + _probe-na-only 실패", "status": "code_present",
+          "verified": "MUTANT 주입 시 25/27(2건 실패) + _probe-na-only exit=1, 원복 후 전건 통과" },
+        { "id": "S5-3", "desc": "회귀 — _probe-na-only 3/3 · _probe-form3-map 13/13 · _probe-spec-badge 12/12 · test-spec-derive · test-annex-overrides · tsc 0오류", "status": "code_present" },
+        { "id": "S5-4", "desc": "스테이징 실측 — _probe-form3-axis-mismatch에 ③축 추가, '전부 ／ 시트 정정(○→／) 5칸' 계량", "status": "code_present",
+          "verified": "①26칸 · ②a 8칸 · ②b 0칸 · ③ 5칸 (2026-08-21)" },
+        { "id": "S5-5", "desc": "라이브 E2E 18/18 — 배지 4상태·회차 라벨·패널 전개·일괄 ○ 실주행(28건)·배지 전환·항목 ✕→불량 자동 등록·건물 전환 패널 초기화. 쓰기는 전용 TEST 픽스처에서만(실고객 무변경)", "status": "code_present",
+          "verified": "npx tsx scripts/_probe-form14-result-badge.mts 18/18 · 픽스처 잔재 0건 · INV 전건 통과 (2026-08-21)" },
+        { "id": "S5-6", "desc": "test:all 게이트 편입 — '1.4 설비별 결과 입력(E2E)'", "status": "code_present" },
+        { "id": "S5-7", "desc": "독립 검증(구현자≠판정자) 1회 — Json_Rule 규칙 3. 결함 1건 발견(S4-12 건물 전환 패널 잔류) → 수정 + 회귀 검사 추가 + 돌연변이로 이빨 확인(수정 되돌리면 그 검사만 실패)", "status": "code_present",
+          "verified": "판정 결과: S1·S2·S3 전건 ✅(bulkSheetGoodAction은 NA 액션과 8개 축 한 줄씩 대조 동형), S4 결함 1건. 외관 month 축 오입·응답0 시트 필터는 의도대로 판정" }
+      ] },
+
+    { "id": "F-1", "title": "표준 42종 중 9종은 덮는 STD 시트가 없다 — 결과를 만들 경로 자체가 없음", "status": "pending_order",
+      "evidence": ["scripts/_recon-std-sheet-coverage.mts — 실측: 물분무·미분무·포·분말·강화액·고체에어로졸·누전경보기·거실제연·연소방지 9종"],
+      "criteria": [
+        { "id": "F-1a", "desc": "패널에 사실 표기 — '이 설비를 다루는 점검표 시트가 카탈로그에 없어 결과를 기록할 수 없습니다'. 거짓 입력 경로를 만들지 않는다", "status": "code_present" },
+        { "id": "F-1b", "desc": "9종을 어느 시트로 준용할지(또는 시트 신설) — **고시 원문 확인 필요, 사용자 결정 대기**. 서림사·별그리다 공란의 상당수가 이 원인이다", "status": "pending_order" }
+      ] }
+  ],
+
+  "out_of_scope": [
+    "기존 공란 44칸·잘못 인쇄분 정리 — 사용자 지시(테스트 데이터, 무시)",
+    "①단계 완료 판정 강화(공란이면 미완료) — 이 기능으로 공란이 줄어드는 것을 본 뒤 별도 결정"
+  ]
+}

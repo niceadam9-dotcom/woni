@@ -700,7 +700,8 @@ export default async function CustomerDetailPage({
         autoFireStation={s(cRec.fire_station)}
         fireStationEstimated={s(cRec.fire_station_source) === 'estimate'}
         stationCandidates={stationCandidates} />}
-      form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage} specsByBuilding={specsByBuilding} />}
+      form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage}
+        canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
         presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}
