@@ -132,7 +132,9 @@
       ] },
 
     { "id": "S7", "title": "Phase 2 — 별지 9호 1·2쪽 + 표지", "status": "pending_order", "phase": "2",
+      "note": "⚠ 선행 조건 발견(2026-08-21): assembleReport9는 report9-actions.ts('use server')의 **비공개 함수**고, 그 파일의 export 중 Report9Data를 돌려주는 것이 없다(전부 html·url·status). export하면 공개 엔드포인트가 된다(소방계획서_17 교훈). 중복 조회는 D-7 위반이자 PDF와 값이 갈라지는 통로(등급·선임자 해석이 resolveFireSafetyManager를 타야 한다). → **S7-0 lib 추출 리팩터링이 선행**",
       "criteria": [
+        { "id": "S7-0", "desc": "★ 선행 — assembleReport9(+지역 헬퍼)를 report9-actions.ts에서 lib로 추출(annex-cover-official.ts 패턴 — 'server-only' lib). report9-actions는 추출본을 import해 종전 그대로 동작. 1,100줄 파일 수술이라 tsc + 별지 9호 실PDF 대조 + test-doc-generation 회귀가 함께 가야 한다", "status": "pending_order" },
         { "id": "S7-1", "desc": "보고서!A2 체크박스 리터럴 — 작동/종합/최초/그 밖의 √ 위치를 Report9Data.ckOp·ckInitial·ckCompEtc(report9.ts:60-62)로 조립. 수식이 아니라 통문자열이다", "status": "pending_order" },
         { "id": "S7-2", "desc": "보고서!B9~B11(점검자 구분) · C13(전자우편 동의) · 정보!B5(소유자/관리자/점유자 repRole)", "status": "pending_order" },
         { "id": "S7-3", "desc": "대상처(표지) — assembleCover의 값. 사진·로고는 이번 차수 범위 밖(그림 삽입은 별건)", "status": "pending_order" }
