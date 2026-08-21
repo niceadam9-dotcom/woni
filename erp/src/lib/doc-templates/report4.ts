@@ -108,7 +108,7 @@ ${pageHeader('소방시설 자체점검사항 등에 관한 고시[별지 제4�
   <tr><td colspan="2" class="pre">소 재 지 :  ${val(d.address, { highlight: h })}</td></tr>
 </table>
 <div class="sec-title">□ 소방시설등 점검결과</div>
-${facilityResultSection(d)}
+${facilityResultSection(d, { form: 'annex4' })}
 ${pageFooter()}`
 }
 
@@ -132,7 +132,7 @@ function page2(d: Report4Data, h: boolean): string {
   return `
 ${pageHeader(null, '(7쪽 중 2쪽)')}
 <div class="sec-title">□ 다중이용업소 안전시설등 점검결과</div>
-${muResultSection(d)}
+${muResultSection(d, { form: 'annex4' })}
 <div class="sec-title">□ 점검업체(점검인력) 현황</div>
 <table class="form tight">
   <colgroup><col style="width:20mm"><col style="width:22mm"><col style="width:26mm"><col style="width:30mm"><col><col style="width:16mm"></colgroup>
@@ -376,7 +376,7 @@ ${pageFooter()}`]
 export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): string {
   const h = !!opts.highlight
   const secs = renderSpecSections(d.specs ?? {}, {
-    highlight: h, numbering: 'annex4',
+    highlight: h, form: 'annex4',
     derived: { installed: d.ledgerCodes ?? [], building: d.building },
   })
   return renderDocument({

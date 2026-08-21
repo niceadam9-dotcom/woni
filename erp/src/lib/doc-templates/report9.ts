@@ -9,6 +9,7 @@
 
 import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from './base'
 import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections'
+import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS } from '../facility-codes'
 
 /** 3쪽 1절 점검 결과 항목 — scripts/make-report9.py FORM3_ITEMS와 1:1 (순서 = 설비 구분 경계) */
@@ -379,14 +380,23 @@ export function parseParkingSummary(pk: string): Pick<Report9Data, 'pkIn' | 'pkI
   }
 }
 
-/** 1절 소방시설등 점검 결과(설비 √ + ○/×//) 2열 표 — 별지 9호 3쪽 = 별지 4호 1쪽 공용(H-21) */
+/** 1절 소방시설등 점검 결과(설비 √ + ○/×//) 2열 표 — 별지 9호 3쪽 = 별지 4호 1쪽 공용(H-21)
+ *
+ *  두 서식은 개정 단계가 달라 같은 항목의 표기가 다르다(A4-6) — form으로 분기한다.
+ *  **조회 키는 언제나 FORM3_ITEMS(별지9호 표기)**이고 분기는 찍는 순간에만 건다.
+ *  키까지 바꾸면 facilityChecks·resultMarks가 안 맞아 체크·결과가 조용히 빈칸이 된다. */
 export function facilityResultSection(
   d: Pick<Report9Data, 'facilityChecks' | 'resultMarks'> & Partial<Pick<Report9Data, 'ledgerCodes' | 'specs' | 'etcMarks'>>,
+  opts: { form?: AnnexForm } = {},
 ): string {
+  const form = opts.form ?? 'annex9'
   const f3 = (item: string): P3Item => ({
-    html: ` ${ck(d.facilityChecks.includes(item))}${esc(item)}`,
+    html: ` ${ck(d.facilityChecks.includes(item))}${esc(annexLabel(form, item))}`,
     mark: resultMark(d.resultMarks[item]),
   })
+  /** 그 서식 원문에 행이 있는 항목만 — 별지4호엔 화재알림설비 행이 아예 없다 */
+  const f3s = (from: number, to: number): P3Item[] =>
+    FORM3_ITEMS.slice(from, to).filter(i => annexHasItem(form, i)).map(f3)
   // 2026-08-08: 소화기구·피난기구 하위 항목은 그동안 ck(false) 하드코딩이라 **입력해도 늘 빈 칸**으로 인쇄됐다.
   //   소화기구 하위 5종 → 1.4 대장(fire_facilities 개별 행)이 원천
   //   피난기구 하위     → 세부제원 통합 어휘 11종이 원천. 3쪽 원문은 그 11종을 체크박스 3칸으로 묶는다.
@@ -437,11 +447,11 @@ export function facilityResultSection(
       mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
     },
     [
-      { label: '소화기구(소화기, 자확, 간이)', installed: ledger.has(FIRE_SUB_ITEMS[0]) },
+      { label: annexLabel(form, '소화기구(소화기, 자확, 간이)'), installed: ledger.has(FIRE_SUB_ITEMS[0]) },
       { label: '주거용주방자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[1]) },
       { label: '상업용주방자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[2]) },
       { label: '캐비닛형자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[3]) },
-      { label: '가스ㆍ분말ㆍ고체자동소화장치', installed: ledger.has(FIRE_SUB_ITEMS[4]) },
+      { label: annexLabel(form, '가스ㆍ분말ㆍ고체자동소화장치'), installed: ledger.has(FIRE_SUB_ITEMS[4]) },
     ])
 
   const escapeEquipRows = subRows(
@@ -451,7 +461,8 @@ export function facilityResultSection(
       mark: resultMark(d.resultMarks['피난기구']),
     },
     [
-      { label: '공기안전매트ㆍ피난사다리<br>       (간이)완강기ㆍ미끄럼대ㆍ구조대', installed: grpOn(0) },
+      // 첫 줄 구분자는 양쪽 원문 모두 U+318D, 둘째 줄만 4호가 U+00B7이다(자리별 축자 — 전역 치환 금지)
+      { label: `공기안전매트ㆍ피난사다리<br>       ${annexLabel(form, '(간이)완강기ㆍ미끄럼대ㆍ구조대')}`, installed: grpOn(0) },
       { label: '다수인피난장비', installed: grpOn(1) },
       { label: '승강식피난기<br>       하향식피난구용내림식사다리', installed: grpOn(2) },
     ])
@@ -469,13 +480,13 @@ export function facilityResultSection(
   }
 
   const left1 = p3Table([
-    { name: '소화<br>설비', items: [...fireExtRows, ...FORM3_ITEMS.slice(1, 15).map(f3)] },
-    { name: '경보<br>설비', items: FORM3_ITEMS.slice(15, 24).map(f3) },
+    { name: '소화<br>설비', items: [...fireExtRows, ...f3s(1, 15)] },
+    { name: '경보<br>설비', items: f3s(15, 24) },
   ])
   const right1 = p3Table([
-    { name: '피난구조설비', items: [...escapeEquipRows, ...FORM3_ITEMS.slice(25, 31).map(f3)] },
-    { name: '소화용수설비', items: FORM3_ITEMS.slice(31, 33).map(f3) },
-    { name: '소화활동설비', items: FORM3_ITEMS.slice(33, 40).map(f3) },
+    { name: '피난구조설비', items: [...escapeEquipRows, ...f3s(25, 31)] },
+    { name: '소화용수설비', items: f3s(31, 33) },
+    { name: '소화활동설비', items: f3s(33, 40) },
     { name: '기타', items: [etcItem('door', '방화문, 자동방화셔터'), etcItem('exit', '비상구, 피난통로'), etcItem('flame', '방  염')] },
     { name: '비고', items: [{ html: '&nbsp;', mark: '' }] },
   ], { fillLast: true })
@@ -487,11 +498,15 @@ export function facilityResultSection(
  *
  *  순서·구분은 법정 서식 축자(소방계획서_23 P-4·P-5 정정, 원천 _별지4호_현행판_추출.txt:93-123):
  *  MU-007 피난안내도는 피난구조설비가 아니라 **기타의 5번째**(창 문 다음·방염 앞)다.
- *  라벨 구분자 ㆍ는 U+318D 축자(P-8 — 전역 치환 금지, 마이그레이션 133 선례). */
-export function muResultSection(d: Pick<Report9Data, 'muResults'>): string {
+ *  라벨 구분자 ㆍ는 U+318D 축자(P-8 — 전역 치환 금지, 마이그레이션 133 선례).
+ *
+ *  A4-6: MU-007만 두 서식의 표기가 다르다 — 4호 '피난안내도ㆍ피난안내영상물' / 9호 '피난안내도, 피난안내영상물'.
+ *  종전엔 4호 표기 하나로 양쪽을 찍어 **9호 쪽이 틀려** 있었다(순서·구분 판정만 4호 원문으로 했던 탓). */
+export function muResultSection(d: Pick<Report9Data, 'muResults'>, opts: { form?: AnnexForm } = {}): string {
+  const form = opts.form ?? 'annex9'
   const mu = (code: string, label: string): P3Item => {
     const r = d.muResults[code]
-    return { html: ` ${ck(r === 'O' || r === 'X')}${label}`, mark: resultMark(r) }
+    return { html: ` ${ck(r === 'O' || r === 'X')}${annexLabel(form, label)}`, mark: resultMark(r) }
   }
   const left2 = p3Table([
     { name: '소화설비', items: [mu('MU-001', '소화기 또는 자동확산소화기'), mu('MU-002', '간이스프링클러설비')] },
@@ -507,7 +522,7 @@ export function muResultSection(d: Pick<Report9Data, 'muResults'>): string {
     {
       name: '기타',
       items: [mu('MU-013', '영업장 내부 피난통로'), mu('MU-014', '영상음향차단장치'), mu('MU-015', '누전차단기'),
-        mu('MU-010', '창 문'), mu('MU-007', '피난안내도ㆍ피난안내영상물'), mu('MU-016', '방염대상물품')],
+        mu('MU-010', '창 문'), mu('MU-007', '피난안내도, 피난안내영상물'), mu('MU-016', '방염대상물품')],
     },
     { name: '비고', items: [{ html: '&nbsp;', mark: '' }] },
   ], { fillLast: true })
@@ -564,7 +579,7 @@ ${pageHeader(null, '(8쪽 중 제8쪽)')}
 export function renderReport9(d: Report9Data, opts: Report9RenderOpts = {}): string {
   const h = !!opts.highlight
   const secs = renderSpecSections(d.specs ?? {}, {
-    highlight: h, numbering: 'annex9',
+    highlight: h, form: 'annex9',
     derived: { installed: d.ledgerCodes ?? [], building: d.building },
   })
   return renderDocument({

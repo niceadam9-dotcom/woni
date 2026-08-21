@@ -8,6 +8,7 @@
  *  섹션 순서·라벨은 카탈로그(FACILITY_SPEC_SECTIONS) 순회 기준, 필드 key도 카탈로그와 1:1. */
 
 import { esc } from './base'
+import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
 import {
   FACILITY_SPEC_SECTIONS, applyDerived, S31_COLUMNS,
   normalizeRows, rowIsEmpty, rowsHaveValue, columnTotal, s31LegacyRow,
@@ -19,8 +20,11 @@ export type SpecMap = Record<string, Record<string, unknown>>
 
 export type SpecRenderOpts = {
   highlight?: boolean
-  /** 섹션 제목 번호 — 별지 9호 '3-1.' / 별지 4호 ' 1.' (서식 원문 표기 차이) */
-  numbering?: 'annex9' | 'annex4'
+  /** 어느 서식으로 찍는가 — 별지 9호(시행규칙) / 별지 4호(고시). 기본 annex9.
+   *
+   *  종전 이름은 `numbering`이었다(섹션 제목 번호 '3-1.' vs ' 1.'만 갈랐다). 두 서식은 개정 단계가
+   *  달라 번호뿐 아니라 **라벨 문구와 항목 존재**까지 다르다는 게 드러나(A4-6) 축의 이름을 사실에 맞췄다. */
+  form?: AnnexForm
   /** 파생 필드(가스계 설비 종류·유도표지·피난유도선·비상용승강기)의 원천 —
    *  세부제원에 저장하지 않고 인쇄 직전에 얹는다(2026-08-08 중복 입력 제거). 미지정이면 저장분 그대로. */
   derived?: DerivedCtx
@@ -183,7 +187,7 @@ function renderS31(sec: Vals, h: boolean): string {
 }
 
 // ── 3-2. 수계소화설비(공통사항) ─────────────────────────────────────────────
-function renderS32(sec: Vals, h: boolean): string {
+function renderS32(sec: Vals, h: boolean, form: AnnexForm = 'annex9'): string {
   const mw = blk(sec, 'main_water')
   const aw = blk(sec, 'aux_water')
   const el = blk(sec, 'pump_elevated')
@@ -216,7 +220,7 @@ function renderS32(sec: Vals, h: boolean): string {
     `◦ 충압펌프  전양정:${pv(pm['jockey_head'], 9, h)}m, 토출량:${pv(pm['jockey_flow'], 9, h)}ℓ/min`,
     `◦ ${cb(has(pm['priming']))}물올림장치(유효수량: ${pv(pm['priming_capacity'], 9, h)}ℓ, 급수배관: ${pv(pm['priming_pipe'], 9, h)}㎜`,
     `◦ 기동장치: ${mc(pm['starter'], '기동용수압개폐장치')}기동용수압개폐장치, ${mc(pm['starter'], 'ON/OFF 방식')}ON/OFF 방식`,
-    `  ${cb(has(pm['chamber']))}압력체임버(용량:${pv(pm['chamber_capacity'], 9, h)}ℓ, 사용압력:${pv(pm['chamber_pressure'], 9, h)}MPa`,
+    `  ${cb(has(pm['chamber']))}${annexLabel(form, '압력체임버')}(용량:${pv(pm['chamber_capacity'], 9, h)}ℓ, 사용압력:${pv(pm['chamber_pressure'], 9, h)}MPa`,
     `  ${cb(has(pm['pressure_switch']))}기동용압력스위치(${sel(pm['pressure_switch'], '부르동관식')}부르동관식 ${sel(pm['pressure_switch'], '전자식')}전자식 ${sel(pm['pressure_switch'], '그 밖의 것')}그 밖의 것)`,
     `◦ ${cb(has(pm['decompress']))}감압장치 ${gsel(pm['decompress_ground'])} (${slot(pm['decompress_floor'], '   ', h)})층, 설치장소:(${slot(pm['decompress_place'], '                  ', h)})`,
   ]
@@ -327,7 +331,7 @@ function detectionLines(b: Vals, h: boolean, second = false): string[] {
   ]
 }
 
-function renderS35(sec: Vals, h: boolean): string {
+function renderS35(sec: Vals, h: boolean, form: AnnexForm = 'annex9'): string {
   const sd = blk(sec, 'standalone_detector')
   const eb = blk(sec, 'emergency_bell')
   const fd = blk(sec, 'fire_detection')
@@ -347,7 +351,7 @@ function renderS35(sec: Vals, h: boolean): string {
     `◦ 설치장소: ${rangeLine(eb, h)}`,
     `◦ 조작장치 설치장소: 동명(${slot(eb['panel_dong'], '            ', h)}) ${gsel(eb['panel_ground'])} (${slot(eb['panel_floor'], '   ', h)})층 실명(${slot(eb['panel_room'], '              ', h)})`])}
   ${specRow(`${cb(blockHas(fd))} 자동화재<br>탐지설비`, detectionLines(fd, h, true))}
-  ${specRow(`${cb(blockHas(fa))} 화재알림설비`, detectionLines(fa, h, true))}
+  ${annexHasItem(form, '화재알림설비') ? specRow(`${cb(blockHas(fa))} 화재알림설비`, detectionLines(fa, h, true)) : ''}
   ${specRow(`${cb(blockHas(bc))} 비상방송설비`, [
     `${sel(bc['usage'], '전용')}전용 ${sel(bc['usage'], '겸용')}겸용 / ${sel(bc['alarm_mode'], '전층경보')}전층경보 ${sel(bc['alarm_mode'], '우선경보')}우선경보`,
     `◦ 증폭기 설치장소: ${locLine(bc, 'amp', h)}`])}
@@ -367,7 +371,7 @@ function renderS35(sec: Vals, h: boolean): string {
 }
 
 // ── 3-6. 피난구조설비 ───────────────────────────────────────────────────────
-function renderS36(sec: Vals, h: boolean): string {
+function renderS36(sec: Vals, h: boolean, form: AnnexForm = 'annex9'): string {
   const ev = blk(sec, 'evac_equipment')
   const re = blk(sec, 'rescue_equipment')
   const gl = blk(sec, 'guide_light')
@@ -387,7 +391,8 @@ function renderS36(sec: Vals, h: boolean): string {
     `◦ 종류: ${mc(re['types'], '방열복/방화복')}방열복/ 방화복 ${mc(re['types'], '공기호흡기')}공기호흡기 ${mc(re['types'], '인공소생기')}인공소생기`,
     ...rangeLines2(re, h),
     `◦ 대상물의 용도: ${mc(re['target_usage'], '5층이상 병원')} 5층이상 병원  ${mc(re['target_usage'], '7층이상 관광호텔')} 7층이상 관광호텔 ${mc(re['target_usage'], '이산화탄소소화설비 설치')} 이산화탄소소화설비 설치`,
-    `${mc(re['target_usage'], '지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관')} 지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관`])}
+    // 체크 판정은 저장 어휘(9호 표기)로, 인쇄는 그 서식 원문 표기로 — 키까지 바꾸면 체크가 조용히 풀린다
+    `${mc(re['target_usage'], '지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관')} ${annexLabel(form, '지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관')}`])}
   ${specRow(`${cb(blockHas(gl))} 유도등`, [
     `◦ 종류: ${glT('피난구')} ${glT('통로')} ${glT('객석유도등')} ${glT('유도표지')} ${glT('피난유도선')}`,
     `◦ 설치장소: ${rangeLine(gl, h)}`])}
@@ -414,7 +419,7 @@ function renderS37(sec: Vals, h: boolean): string {
 }
 
 // ── 3-8. 소화활동설비 ───────────────────────────────────────────────────────
-function renderS38(sec: Vals, h: boolean): string {
+function renderS38(sec: Vals, h: boolean, form: AnnexForm = 'annex9'): string {
   const rm = blk(sec, 'smoke_room')
   const lb = blk(sec, 'smoke_lobby')
   const ri = blk(sec, 'riser')
@@ -447,7 +452,7 @@ function renderS38(sec: Vals, h: boolean): string {
     ...fanLines(lb, 'exhaust_fan', '배출용송풍기', h),
     `◦ 제연구역 출입문 ${sel(lb['door'], '상시폐쇄(자동폐쇄장치)')}상시폐쇄(자동폐쇄장치) ${sel(lb['door'], '상시개방(연기감지기에 의한 닫힘)')}상시개방(연기감지기에 의한 닫힘)`,
     `◦ 유입공기배출 ${mc(lb['air_exhaust'], '자연배출')}자연배출 ${mc(lb['air_exhaust'], '기계배출')}기계배출 ${mc(lb['air_exhaust'], '배출구')}배출구 ${mc(lb['air_exhaust'], '제연설비')}제연설비`,
-    `◦ 과압방지장치 ${sel(lb['overpressure'], '플랩댐퍼')}플랩댐퍼 ${sel(lb['overpressure'], '자동차압(과압조절형)댐퍼')}자동차압(과압조절형)댐퍼 ${sel(lb['overpressure'], '그 밖의 것')}그 밖의 것 ${sel(lb['overpressure'], '해당없음')}해당없음`,
+    `◦ 과압방지장치 ${sel(lb['overpressure'], '플랩댐퍼')}플랩댐퍼 ${sel(lb['overpressure'], '자동차압(과압조절형)댐퍼')}${annexLabel(form, '자동차압(과압조절형)댐퍼')} ${sel(lb['overpressure'], '그 밖의 것')}그 밖의 것 ${sel(lb['overpressure'], '해당없음')}해당없음`,
   ]
 
   const riserLines = [
@@ -499,7 +504,7 @@ function renderS38(sec: Vals, h: boolean): string {
 
 // ── 조립 ────────────────────────────────────────────────────────────────────
 
-const RENDERERS: Record<string, (sec: Vals, h: boolean) => string> = {
+const RENDERERS: Record<string, (sec: Vals, h: boolean, form: AnnexForm) => string> = {
   s31_extinguisher: renderS31,
   s32_water_common: renderS32,
   s33_water_each: renderS33,
@@ -532,15 +537,16 @@ function withInstalledMarks(sectionKey: string, vals: Vals, ctx?: DerivedCtx): V
 /** 세부현황 3-1~3-8 섹션 HTML 배열 — 카탈로그 순서·라벨 기준, 쪽 묶음은 호출부(템플릿)가 결정 */
 export function renderSpecSections(specs: SpecMap, opts: SpecRenderOpts = {}): string[] {
   const h = !!opts.highlight
+  const form: AnnexForm = opts.form ?? 'annex9'
   return FACILITY_SPEC_SECTIONS.map((s, i) => {
-    const no = opts.numbering === 'annex4' ? `${i + 1}.` : `${s.no}.`
+    const no = form === 'annex4' ? `${i + 1}.` : `${s.no}.`
     const raw = (specs[s.key] ?? {}) as Vals
     const derivedVals = opts.derived ? applyDerived(s.key, raw, opts.derived) as Vals : raw
     // 설치(√) 마커 주입 — 블록의 facilityHint(표준 42종 코드, 복수는 쉼표)가 1.4 대장의 설치 목록과
     // 겹치면 그 블록은 '해당 시설'이다. 저장분을 건드리지 않도록 사본에만 얹는다.
     // hint가 없는 블록(3-2 수계 공통 등)은 특정 설비에 매이지 않으므로 종전대로 입력값만 본다.
     const vals = withInstalledMarks(s.key, derivedVals, opts.derived)
-    const body = RENDERERS[s.key]?.(vals, h) ?? ''
+    const body = RENDERERS[s.key]?.(vals, h, form) ?? ''
     return `<div class="sec-title"> ${no} ${esc(s.label)}</div>\n${body}`
   })
 }
