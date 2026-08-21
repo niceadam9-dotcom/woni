@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false, // SEC-F: X-Powered-By 숨김
+  // 갑지 워크북 템플릿(소방계획서_27) — standalone은 파일 추적 기반이라 fs로만 읽는 바이너리가
+  // 번들에서 빠진다. 이 라우트에 명시로 딸려 보낸다 (번들 문서 output.md — 키는 라우트 경로).
+  outputFileTracingIncludes: {
+    '/inspections/[id]/workbook': ['./templates/**/*'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '20mb',

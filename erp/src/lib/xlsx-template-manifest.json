@@ -1,0 +1,8 @@
+{
+  "source": "보고서 갑지.xls",
+  "builtAt": "2026-08-21",
+  "sha256": "e44cc294fb933d48b3e7d362ddc4f62e3537b88ad997fb6326ef5c589787d26d",
+  "sheetCount": 26,
+  "mergeTotal": 1586,
+  "note": "갑지 서식 갱신 시 npx tsx scripts/build-workbook-template.mts 재실행(Q-4) — 지문이 바뀌면 test-xlsx-anchors가 먼저 붉어진다"
+}

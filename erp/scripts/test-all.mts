@@ -15,6 +15,12 @@ const steps: Step[] = [
   // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
   // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
   { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
+  // 갑지 워크북(소방계획서_27) — 템플릿 지문·앵커 라벨·완전 덮어쓰기 불변식(실고객 흔적 0).
+  // 여기가 붉으면 갑지 서식이 갱신된 것 — build-workbook-template 재실행 + 앵커 재실측(Q-4)
+  { name: '갑지 워크북 앵커·템플릿',    cmd: 'npx tsx scripts/test-xlsx-anchors.mts' },
+  // 주입 후 서식 무손상(styles.xml 바이트 동일·병합 불변)·값 정확성·폐포 전파.
+  // 폐포가 깨지면 옛 값이 스포크에 남는다 — 다른 고객 문서에 남의 상호가 인쇄되는 부류의 결함
+  { name: '갑지 워크북 주입',          cmd: 'npx tsx scripts/test-xlsx-inject.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을
@@ -44,6 +50,8 @@ const steps: Step[] = [
   { name: '게이트 정합성(E2E)',        cmd: 'npx tsx scripts/test-gate-consistency.mts', needServer: true },
   { name: '일반관리 자체점검 통주행(E2E)', cmd: 'npx tsx scripts/test-general-selfinspection.mts', needServer: true },
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },
+  // 갑지 워크북 실주행 — 라우트는 공개 엔드포인트라 인증 차단·실바이트·주입 값까지 실제로 태운다
+  { name: '갑지 워크북 다운로드(E2E)',      cmd: 'npx tsx scripts/test-workbook-e2e.mts',   needServer: true },
   { name: '클릭 예산(E2E)',           cmd: 'npx tsx scripts/test-click-budget.mts',     needServer: true },
   { name: 'EX-V1 음수전표(E2E)',      cmd: 'npx tsx scripts/test-ex-v1.mts',            needServer: true },
   // 소방계획서_16 S6-4 — 점검표 축·트리 인라인 입력(Realtime 포함) 상시 회귀

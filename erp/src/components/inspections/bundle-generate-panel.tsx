@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle2, ChevronDown, Loader2, Package } from 'lucide-react'
+import { CheckCircle2, ChevronDown, FileSpreadsheet, Loader2, Package } from 'lucide-react'
 import { getBundleChecklistAction, generateBundleAction } from '@/app/(dashboard)/inspections/bundle-actions'
 import type { BundleChecklist, BundleGenResult } from '@/lib/bundle-status'
 import type { AnnexType } from '@/app/(dashboard)/inspections/report9-actions'
@@ -103,6 +103,14 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
               <a href={`/inspections/${inspectionId}/bundle`} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1 rounded-lg border border-[#d0ccf5] px-2.5 py-1 text-[#514b81] hover:border-[#7b68ee]">
                 <CheckCircle2 className="size-3" /> 번들 열기
+              </a>
+              {/* 소방계획서_27 — 고쳐 쓸 수 있는 엑셀(갑지 서식). PDF와 같은 값에서 출발하되
+                  담당자가 Excel에서 수정·보완한 뒤 인쇄한다. 생성물은 저장하지 않는다(D-5) */}
+              <a href={`/inspections/${inspectionId}/workbook`}
+                title="갑지 서식 통합 워크북 — PDF와 달리 받은 뒤 고칠 수 있습니다"
+                className="inline-flex items-center gap-1 rounded-lg border border-[#d0ccf5] px-2.5 py-1 text-[#514b81] hover:border-[#7b68ee]"
+                data-testid="workbook-download">
+                <FileSpreadsheet className="size-3" /> 엑셀로 받기
               </a>
               <button onClick={load} disabled={isPending} className="text-[10px] text-[#b0acd6] underline">새로고침</button>
             </div>
