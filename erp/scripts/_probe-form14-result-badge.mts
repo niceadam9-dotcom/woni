@@ -88,10 +88,17 @@ try {
   await page.click('button:has-text("닫기")')
   check('패널 닫힘', !(await page.isVisible('text=/『.*』 · .*에 기록/')))
 
-  // 패널 B — '미입력' 배지(미분무 = 시트 공백 9종): 공란으로 남는다는 정직한 안내가 떠야 한다
+  // 패널 B — 별그리다 미분무: 148 편입 전엔 '시트 없음' 안내였다. 이제 STD-07이 있으므로
+  // **진짜 패널이 열려야** 한다 — F-1 해소의 라이브 증거.
   await badges.filter({ hasText: '미입력' }).first().click()
-  await page.waitForSelector('text=점검표 시트가 카탈로그에 없어')
-  check('F-1 시트 공백 안내 노출 (거짓 입력 경로를 만들지 않는다)', true)
+  await page.waitForSelector('text=/『미분무소화설비』 · .*에 기록/')
+  check('148 편입 시트 패널 열림 (미분무 — 종전엔 시트 없음 안내였다)', true)
+  await page.waitForSelector('button:text-is("✕")', { timeout: 15_000 })
+  // 원문 61항목 중 ● 종합전용 27건은 작동점검 회차에서 isItemInScope로 제외된다(의도) —
+  // 종합 회차면 61, 작동 회차면 34. 그 외 값이면 시딩·범위 필터 어느 쪽이 틀린 것.
+  const mist = await page.locator('button:text-is("✕")').count()
+  check(`미분무 항목 목록 전개 — 61(종합) 또는 34(작동), 실제 ${mist}`, mist === 61 || mist === 34)
+  await page.click('button:has-text("닫기")')
 
   // ── 쓰기 경로 — 전용 픽스처(TEST 고객)에서만. 실고객 데이터에는 쓰지 않는다 ──
   // inspection_type은 enum('종합·최초·기타·작동' — 002/034)이고 '소방안전관리'는 category 축 값이다.
@@ -111,10 +118,11 @@ try {
     .insert({ customer_id: fixtureCustId, is_active: true, created_by: userId, building_name: '본관', purpose: '근린생활시설' })
     .select('id').single()
   if (nbErr || !nb) throw new Error(`픽스처 건물 생성 실패: ${nbErr?.message}`)
-  await raw.from('fire_facilities').insert({
-    building_id: nb.id, category: '소화설비', facility_code: '옥내소화전설비', installed: true,
-    detail: { note: 'E2E 픽스처' },
-  })
+  await raw.from('fire_facilities').insert([
+    { building_id: nb.id, category: '소화설비', facility_code: '옥내소화전설비', installed: true, detail: { note: 'E2E 픽스처' } },
+    // 고시 별지4에 점검표가 없는 설비(F-1 잔존 2종의 하나) — 패널이 사실을 안내해야 한다
+    { building_id: nb.id, category: '소화설비', facility_code: '고체에어로졸소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
+  ])
   const { data: ni, error: niErr } = await raw.from('inspections').insert({
     customer_id: fixtureCustId, inspection_type: '작동', sequence_num: 1,
     plan_type: 'special_작동', inspection_start_date: new Date().toISOString().slice(0, 10),
@@ -162,6 +170,12 @@ try {
   const { data: defRows } = await raw.from('inspection_defects')
     .select('id').eq('inspection_id', fixtureInspId)
   check(`불량내역 자동 등록 ${((defRows ?? []) as unknown[]).length}건 ≥ 1 (별지 10호 원천)`, ((defRows ?? []) as unknown[]).length >= 1)
+
+  // F-1 잔존 2종 — 고체에어로졸은 고시 별지4에 점검표가 없다. 거짓 입력 경로 대신 사실 안내가 떠야 한다
+  await page.locator('td:has-text("고체에어로졸소화설비") button[title*="점검결과"]').click()
+  await page.waitForSelector('text=점검표 시트가 카탈로그에 없어')
+  check('F-1 잔존 설비(고체에어로졸) — 시트 없음 안내 유지', true)
+  await page.click('button:has-text("닫기")')
 
   // 건물 전환 — 패널은 그 건물 설치 설비에 매여 있다. 안 닫으면 새 건물에 없는 설비의 항목 목록이
   // 그대로 떠 있고 거기서 기록까지 된다(독립 검증 지적, 2026-08-21).
