@@ -3,11 +3,11 @@
   "design": "erp_goal/소방계획서_17.md",
   "origin": "소방계획서_14.md #19(개정이력 연도별 히스토리·나열·추가 서술) · #16(별지 노드 위치 — §6 부수 제안)",
   "created": "2026-08-10",
-  "updated": "2026-08-10",
+  "updated": "2026-08-21 상태 정합 패스 — A-4a를 pending_order→partial로 정정(운영 DB 120은 2026-08-12에 이미 적용됐는데 문서가 '미착수'로 남아 잔여 집계를 부풀리고 있었다). 원본: 2026-08-10",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · implemented는 독립 검증(구현자≠판정자) 통과 + verified 증거 동반",
   "scope_note": "Q-1~Q-4 **권장안 그대로 확정**(2026-08-10 사용자) 후 A-0~A-3 구현 완료. **독립 검증 패스 통과(2026-08-10, 구현자≠판정자) — 전 criteria implemented 승격**. A-4(운영 반영)만 pending_order",
   "commit_state": "**커밋 완료 e8cc66e**(2026-08-10) — 푸시·운영 반영은 진행 승인 후 (feedback_no_auto_proceed 단계마다 대기)",
-  "migration_state": "120_fire_plan_revisions.sql **스테이징 적용 완료**(2026-08-10, 백필 9행 = fire_plans 9행) · 운영 미적용",
+  "migration_state": "120_fire_plan_revisions.sql **스테이징 적용 완료**(2026-08-10, 백필 9행 = fire_plans 9행) · **운영 적용 완료**(2026-08-12 따라잡기 실측)",
 
   "independent_verification": {
     "date": "2026-08-10",
@@ -124,9 +124,10 @@
           "evidence": ["fire-plan-generate.ts appendGeneratedRevision 호출"], "note": "실제 생성 경로(Gotenberg 필요)는 프로브 미커버 — 독립 검증 시 확인 필요" }
       ] },
 
-    { "id": "A-4", "title": "운영 반영", "status": "pending_order",
+    { "id": "A-4", "title": "운영 반영", "status": "partial",
       "criteria": [
-        { "id": "A-4a", "desc": "120 스테이징 적용·백필 검증 후 운영 적용 → staging→main (진행 승인 규칙, 단계마다 대기)", "status": "pending_order" }
+        { "id": "A-4a", "desc": "120 스테이징 적용·백필 검증 후 운영 적용 → staging→main (진행 승인 규칙, 단계마다 대기)", "status": "partial",
+          "note": "**DB는 끝났다** — 120 운영 적용 완료(2026-08-12 따라잡기 실측). 남은 것은 코드 배포와 **재기동 후 런타임 공백 3건 확인**뿐이며 서버 정지(2026-08-18)로 대기 중. 2026-08-21 정정 전까지 pending_order라 '미착수'로 읽혔다" }
       ] }
   ],
 
