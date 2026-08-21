@@ -1,0 +1,160 @@
+{
+  "doc": "소방계획서_27 — 엑셀 산출물(손으로 고쳐 쓰는 통합 워크북)",
+  "design": "erp_goal/소방계획서_27.md (2026-08-21 작성)",
+  "created": "2026-08-21",
+  "updated": "2026-08-21 **Phase 0 게이트 통과(23/0, scripts/_probe-xlsx-gate.mts)** — 접근법 성립 확인. 실측이 결정 하나를 뒤집었다: **D-4(fullCalcOnLoad로 재계산)는 폐기**한다. LibreOffice가 그 플래그를 무시하고 옛 캐시값을 그대로 보여준다(공문!B8·보고서!C4가 패치 후에도 '정내과의원'). 대신 **캐시값 <v>를 함께 주입**하되 <f>는 보존하는 방식(D-9)이 답이다. 그리고 전파는 **이행 폐포**여야 한다 — 1단계만 하면 옛 값이 4회, 같은 시트 내 참조(계약서!D24='A3')를 빼면 2회 잔존했고, 둘 다 넣어 **0회**가 됐다. 부수 확인: LibreOffice 변환이 인쇄여백 header/footer를 1.3cm로 정규화하므로 복원이 필요하다(S1-1b). PII 리터럴은 개요 4칸(D13·B14·B17·B19)뿐이고 나머지 41건은 수식이라 허브를 채우면 따라온다. || 이하 기안 시점 기록 — 전 criteria pending_order. 요구는 '소방계획서·별지 4/9/10/11호·위임장·공문을 엑셀로'이고 용도는 **손으로 고쳐 쓰기**(PDF는 고칠 수 없다). 착수 전 실측 2건이 접근법을 확정했다: ①SheetJS 왕복은 셀 11,138→1,977·빈 서식 셀 9,162 소멸로 갑지를 '병합만 남은 백지'로 만든다 → 산출물 생성 경로에서 배제 ②갑지는 이미 허브-스포크(개요 40셀 → 117수식)라 앵커를 26시트에 흩을 필요가 없다. 지뢰 2개 발견: 템플릿에 실고객 개인정보(정내과의원·김미진·전화·생년월일)가 박혀 있고, 위임장!N6~N9가 존재하지 않는 시트를 참조해 재계산을 켜면 #REF!가 된다",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "scope_note": "2026-08-13의 엑셀 생성 폐지(소방계획서_21 R5-6 / _7 D-9)를 되돌리지 않는다. 그때 없앤 것은 37시트 **점검표**(operational_v2026.xlsx) 생성기이고 이번 것은 **결과보고서 묶음**이다. 설비별 점검표 시트 결합(Phase 5)은 범위 밖",
+  "key_evidence": "실측 — 보고서 갑지.xls를 SheetJS 0.18.5(cellStyles:true)로 읽고 다시 쓴 뒤 재독하면 총 셀 11,138→1,977, 빈 서식 셀(t:'z') 9,162→0. border·font·alignment 키는 원본 읽기 단계에서 이미 0건(11,138셀 전수). 법정 서식의 격자는 대부분 값 없는 칸이라 이 손실은 서식 전멸과 같다. 참고: scripts/_probe-xlsx-rebuild.mjs가 검증하던 것은 '열리는가'였지 '서식이 사는가'가 아니었다",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "결정 확정(구현 대상 아님)",
+    "deferred": "보류"
+  },
+
+  "decisions": [
+    { "id": "D-1", "title": "도구 = JSZip 바이트 패치 (exceljs 아님)", "status": "confirmed",
+      "desc": "①jszip@3.10.1은 이미 설치돼 있고(package.json:27, timeline-actions.ts:4 사용 중) exceljs는 미설치 ②exceljs는 워크북을 재방출하므로 모델링 안 된 요소가 조용히 탈락하지만, JSZip 패치는 손대지 않은 바이트가 그대로 남아 병합·인쇄여백·인쇄영역·그림·조건부서식 무손상이 구성적으로 보장된다 ③lib/doc-overrides.ts:11('파서를 쓰지 않는다 — 의존성 0')과 같은 철학" },
+    { "id": "D-2", "title": "템플릿 자산화는 LibreOffice로 1회", "status": "confirmed",
+      "desc": "어떤 주입기든 .xlsx가 필요한데 SheetJS로 변환하면 key_evidence의 손실이 그대로 재현된다(scripts/_upload-report-template.mjs:7이 정확히 그 실수를 했다). 로컬 soffice.com으로 변환해 커밋된 자산으로 고정" },
+    { "id": "D-3", "title": "주입은 개요 허브에만", "status": "confirmed",
+      "desc": "'개요'!를 참조하는 수식이 약 117개(보고서 46·정보 16·계획서 12·대상물2 11·위임장 9·계약서 8·완료보고서 5·공문 4·대상물 3·대상처 3). 스포크마다 셀을 하드코딩하면 이미 있는 배선을 중복 구현하고 어긋날 지점을 117개 만든다. 허브만 채우면 40개" },
+    { "id": "D-4", "title": "재계산에 기대지 않는다 (fullCalcOnLoad는 보조)", "status": "confirmed",
+      "superseded_by": "D-9",
+      "desc": "기안 시점 결정은 '<calcPr fullCalcOnLoad=\"1\">을 켜면 스포크가 따라온다'였으나 **실측으로 틀렸다**. LibreOffice는 이 플래그를 무시하고 옛 <v>를 그대로 보여준다(_probe-xlsx-gate S0-4: 패치 후에도 공문!B8·보고서!C4 = '정내과의원'). 뷰어가 재계산해 주기를 바라는 설계는 성립하지 않는다. 플래그 자체는 남긴다 — Excel에서 사용자가 허브를 고치는 순간부터는 수식이 살아 움직이는 편이 낫다(<f> 보존과 짝)" },
+    { "id": "D-9", "title": "캐시값 동시 주입 + 이행 폐포", "status": "confirmed",
+      "desc": "허브 셀을 바꿀 때 그 값을 참조하는 셀의 **캐시값 <v>도 함께 갱신**한다. <f>는 남긴다(사용자가 Excel에서 고치면 그때부터 수식이 산다). 전파 범위는 **이행 폐포**여야 한다 — 간선이 두 종류(시트 넘김 `'개요'!B14`, 같은 시트 안 `A3`)이고 스포크가 스포크를 참조하는 사슬(완료보고서!B5='계획서'!B5, 계약서!D24='A3')이 있어서다. 실측: 1단계만 4회 잔존 → 폐포만 2회 → 시트 내 참조까지 0회. 개요!B14 하나의 폐포가 8셀(보고서!C4·대상처!B10·공문!B8·대상물!E6·계획서!B5·계약서!A3·완료보고서!B5·계약서!D24)" },
+    { "id": "D-10", "title": "모르면 비운다 — 복합 수식 잔재 처리", "status": "confirmed",
+      "desc": "기계적으로 전파할 수 없는 셀(단일 참조가 아닌 복합 수식)의 캐시값이 스크럽 대상 값을 물고 있으면 **<v>를 비운다**. 빈칸이 남는 것이 남의 상호·이름이 남는 것보다 낫다. 갑지 현 상태에서는 폐포로 0회가 됐지만, 템플릿이 갱신되면 다시 생길 수 있는 부류라 안전망으로 둔다" },
+    { "id": "D-5", "title": "저장하지 않는다 — 즉석 생성", "status": "confirmed",
+      "desc": "bundle/route.ts:9의 선례 '저장하면 그 자체가 새 가비지'. 엑셀은 사용자가 받아 고치는 순간 서버 사본이 낡는다. inspections/[id]/workbook/route.ts로 응답만" },
+    { "id": "D-6", "title": "fire_plan_gen_jobs에 기록하지 않는다", "status": "confirmed",
+      "desc": "그 테이블은 {type}_{stamp}.pdf 파일 규약과 짝이다(bundle-actions.ts:74·bundle/route.ts:57). 파일 없는 엑셀을 잡으로 넣으면 문서 현황·번들 체크리스트가 '생성됐는데 파일이 없다'로 어긋난다" },
+    { "id": "D-7", "title": "조회 코드는 새로 쓰지 않는다", "status": "confirmed",
+      "desc": "기존 assemble*(assembleReport9:202 · assembleReport4 · assembleAnnex1011:83 · assembleCover/Official/Delegation)의 반환을 그대로 앵커 값으로 변환한다. annex_inputs 수동 오버레이(report9-actions.ts:180-195)가 공짜로 따라오고, PDF와 엑셀이 같은 값을 쓴다는 것이 구조적으로 보장된다" },
+    { "id": "D-8", "title": "SheetJS는 읽기·검증 전용", "status": "confirmed",
+      "desc": "앞으로 이 저장소에서 XLSX.write로 산출물을 만들면 key_evidence의 손실이 조용히 재발한다. lib/xlsx-inject.ts 머리에 묘비 주석으로 못 박는다" },
+
+    { "id": "Q-1", "title": "설비별 점검표 시트(Phase 5) 포함 여부", "status": "pending_order",
+      "desc": "경복빌딩 실물에는 전체 보고서.xls에서 끌어온 설비별 점검표 6시트가 붙어 있다. 그러나 이 영역이 R5-6/D-9로 폐지한 37시트 생성기와 겹친다. **제외 제안** — 필요하면 별건 재발의" },
+    { "id": "Q-2", "title": "계약서 시트 처리", "status": "pending_order",
+      "desc": "ERP에 대응 데이터가 없다. 공란으로 남길지, 시트를 뺄지(뺄 경우 XML 난이도 급증)" },
+    { "id": "Q-3", "title": "저장 vs 즉석 생성", "status": "pending_order",
+      "desc": "D-5로 즉석을 권했으나 '누가 언제 엑셀을 받았는가'를 남겨야 한다면 감사 로그만 별도로 두는 절충이 필요. 저장을 택하면 generated-docs.ts:39 groupFiles가 hwpx?|pdf|html?만 받아 xlsx가 '규칙 밖 파일'로 뜬다 — 슬롯 추가가 정공법" },
+    { "id": "Q-4", "title": "템플릿 갱신 운영 규약", "status": "pending_order",
+      "desc": "갑지 서식이 바뀌면 앵커 테스트가 먼저 붉어진다. 누가 재변환·재승인하는가" },
+    { "id": "Q-5", "title": "다수동일때·다수동 시트의 정체", "status": "pending_order",
+      "desc": "갑지엔 있고 경복빌딩 실물엔 없다. 다중 동(棟) 대상물 전용으로 **추정** — 미확인" }
+  ],
+
+  "sections": [
+    { "id": "S0", "title": "Phase 0 — 실측 게이트 (통과 못 하면 착수 금지)", "status": "code_present", "phase": "0",
+      "note": "다섯 검사가 한 줄기(변환→서식 생존→패치→재계산→앵커 실재)라 파일 하나로 묶었다: scripts/_probe-xlsx-gate.mts. 최종 23 통과 / 0 실패",
+      "criteria": [
+        { "id": "S0-1", "desc": "soffice.com으로 보고서 갑지.xls → xlsx 변환. 26시트 유지 · 병합 1,586 · 파일 열림", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행", "evidence": ["_probe-xlsx-gate.mts S0-1 — 시트 26→26 · 병합 1586→1586 · PDF 28쪽 926KB"] } },
+        { "id": "S0-1b", "desc": "★ 인쇄여백 복원 — LibreOffice가 header/footer를 0.3in → 0.511811in(1.3cm)로 정규화한다. left/right/top/bottom은 보존. 법정 서식은 인쇄물이 곧 결과라 <pageMargins/> 태그를 원본 값으로 되돌린다", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행", "evidence": ["_probe-xlsx-gate.mts S0-1b — 26/26 시트 복원 · 개요 여백이 원본과 일치 · 병합 1,586 불변"] } },
+        { "id": "S0-2", "desc": "서식 생존 실측 — 변환본 zip의 xl/styles.xml에서 borders·fonts count가 기본값보다 큰가. 그림·정의된이름도 기록", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행", "evidence": ["_probe-xlsx-gate.mts S0-2 — borders=109 · fonts=117 · fills=9 · cellXfs=712 · definedNames=981 · drawing 파트 8 · media 1. SheetJS 왕복(빈 서식 셀 9,162 소멸)과 정반대로 서식이 살아 있다"] } },
+        { "id": "S0-3", "desc": "JSZip 바이트 패치 — 개요!B14 교체 후 재압축. 열림 · 서식 불변 · 값 반영", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행", "evidence": ["_probe-xlsx-gate.mts S0-3 — 병합 1,586 불변 · **styles.xml 바이트 동일** · 패치값 반영 · PDF 28쪽으로 템플릿과 동일"] } },
+        { "id": "S0-4", "desc": "fullCalcOnLoad 유효성 판정 — **기대값은 '전파 안 됨'이다**. 이 플래그에 기대도 되는지를 가리는 검사이며, 뒤집혀 붉어지면 설계를 다시 본다", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행", "evidence": ["_probe-xlsx-gate.mts S0-4 — 플래그 부여·재계산본 생성에도 공문!B8·보고서!C4가 옛 값 '정내과의원' 유지. LibreOffice는 이 플래그를 무시한다 → D-4 폐기, D-9 채택"] } },
+        { "id": "S0-4b", "desc": "캐시값 동시 주입 + 이행 폐포 — 허브 참조 셀의 <v>를 함께 갱신(<f> 보존). 뷰어 렌더 결과에 주입값이 보이고 옛 값이 사라지는가", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행(soffice html 렌더 대조)", "evidence": ["_probe-xlsx-gate.mts S0-4b — 간선 755건 · 개요!B14 폐포 8건 갱신 · 렌더 결과에 주입값 18회 · **옛 값 0회** · 페이지 수 28로 동일"] } },
+        { "id": "S0-5", "desc": "앵커 실재 — 개요의 값 보유 셀이 sheet XML에 <c r=\"…\">로 실재하는가(없는 셀 삽입 난제가 파일럿 범위에서 소멸하는지)", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "프로브 실행", "evidence": ["_probe-xlsx-gate.mts S0-5 — 개요 값 셀 112개 전부 XML에 실재 · 부재 0건"] } },
+        { "id": "S0-6", "desc": "게이트 판정 기록 — 통과/불가와 근거를 updated에 남긴다", "status": "code_present",
+          "verified": { "date": "2026-08-21", "method": "문서 기록", "evidence": ["27.json updated — D-4 폐기·D-9/D-10 신설 경위 기록", "_probe-pii-scrub.mjs — PII 리터럴 4셀(개요!D13·B14·B17·B19) 확정, 수식 41건은 허브 종속"] } }
+      ] },
+
+    { "id": "S1", "title": "템플릿 자산 확정 (전처리 1회)", "status": "pending_order", "phase": "1",
+      "criteria": [
+        { "id": "S1-1", "desc": "🚨 샘플 개인정보 스크럽 — **리터럴 4셀 확정**(_probe-pii-scrub.mjs 실측): 개요!D13(721227 생년월일)·B14(정내과의원)·B17(김미진)·B19(010-7565-3271). 나머지 41건은 수식이라 허브를 채우면 따라온다. 주입 누락 시 남의 개인정보가 인쇄되는 것을 원천 차단", "status": "pending_order", "severity": "critical" },
+        { "id": "S1-1b", "desc": "인쇄여백 복원을 전처리에 포함 — LibreOffice가 header/footer를 1.3cm로 정규화한다(S0-1b)", "status": "pending_order" },
+        { "id": "S1-2", "desc": "'1번 입력'!(존재하지 않는 시트) 참조 셀 처리 — 위임장!N8(대리인 전화 010-3154-2510)·완료보고서!I12(사업자번호 586-86-00740) 등. 우리 회사 정보이므로 company_profile에서 채운다(formula-replace). ※ 재계산을 안 켜면 #REF!로 드러나지 않으므로 **캐시값만 보고 지나치기 쉽다**", "status": "pending_order" },
+        { "id": "S1-3", "desc": "xl/workbook.xml에 fullCalcOnLoad=\"1\" 부여 — 값 반영 수단이 아니라(D-4 폐기) 사용자가 Excel에서 허브를 고쳤을 때를 위한 보조", "status": "pending_order" },
+        { "id": "S1-7", "desc": "계약서!E11·E14의 #NAME? 오류 2건 처리 — 재계산 시 드러난다(오류코드 29). 계약서 시트 자체가 Q-2 대상이라 그 결정과 함께", "status": "pending_order" },
+        { "id": "S1-4", "desc": "전처리 스크립트 1회분을 저장소에 남긴다 — 갑지가 갱신되면 같은 절차를 재실행할 수 있어야 한다(Q-4)", "status": "pending_order" },
+        { "id": "S1-5", "desc": "lib/xlsx-template-manifest.json — 템플릿 sha256 + 시트명 26개 + 병합 총수 1,586. 누가 갑지를 갱신하면 테스트가 먼저 붉어진다", "status": "pending_order" },
+        { "id": "S1-6", "desc": "자산 배치 — standalone 빌드(next.config.ts output:'standalone')는 파일 추적 기반이라 fs로만 읽는 바이너리가 누락된다. outputFileTracingIncludes 또는 public/templates/ 중 택. **Next 16 문법은 node_modules/next/dist/docs/ 확인 후**(AGENTS.md)", "status": "pending_order" }
+      ] },
+
+    { "id": "S2", "title": "lib/xlsx-inject.ts — 주입 코어 (순수)", "status": "pending_order", "phase": "1",
+      "criteria": [
+        { "id": "S2-1", "desc": "injectWorkbook(templateBytes, values) — JSZip으로 열어 대상 <c>의 자식만 갈아끼우고 재압축. 조회·부작용 0", "status": "pending_order" },
+        { "id": "S2-2", "desc": "s=(스타일 인덱스)를 보존한다 — 셀 서식이 스타일 테이블 참조로 유지되므로 이 속성을 잃으면 그 칸만 서식이 빠진다", "status": "pending_order" },
+        { "id": "S2-3", "desc": "inlineStr/sharedStrings 축 판정 — 값 교체 시 t 속성과 sharedStrings.xml 정합을 지킨다(잘못 쓰면 다른 셀 문자열이 바뀐다)", "status": "pending_order" },
+        { "id": "S2-4", "desc": "formula-replace 종류 — <f>를 제거하고 <v>만 남긴다(깨진 참조 셀용)", "status": "pending_order" },
+        { "id": "S2-6", "desc": "★ 전파 엔진(D-9) — 워크북의 단일 셀 참조 수식으로 의존 그래프를 만들고(간선 두 종류: 시트 넘김 `'개요'!B14`, 같은 시트 안 `A3`), 허브 주입 시 **이행 폐포**의 <v>를 함께 갱신한다. <f>는 보존. 프로브 실측으로 755간선·개요!B14 폐포 8셀", "status": "pending_order" },
+        { "id": "S2-7", "desc": "★ 안전망(D-10) — 주입 후에도 스크럽 대상 값을 물고 있는 캐시 셀이 있으면 <v>를 **비운다**. 빈칸이 남의 이름보다 낫다. 프로브가 잔존 0을 단언해도 템플릿 갱신 시 다시 생길 수 있는 부류다", "status": "pending_order", "severity": "critical" },
+        { "id": "S2-5", "desc": "D-8 묘비 주석 — 이 저장소에서 SheetJS는 읽기·검증 전용이며 XLSX.write로 산출물을 만들면 서식이 전멸한다는 근거를 파일 머리에", "status": "pending_order" }
+      ] },
+
+    { "id": "S3", "title": "lib/xlsx-anchors.ts — 앵커 맵 + 3겹 방어", "status": "pending_order", "phase": "1",
+      "criteria": [
+        { "id": "S3-1", "desc": "앵커 스키마 {field, sheet, cell, labelCell, label, kind} — doc-overrides.ts:315의 '좌표만 믿지 않는다' 발상 이식", "status": "pending_order" },
+        { "id": "S3-2", "desc": "로드 시 전수 검증 — labelCell 실값 ≠ label이면 **생성 실패**. 조용한 오적용 금지(doc-overrides.ts:329 철학)", "status": "pending_order" },
+        { "id": "S3-3", "desc": "자가치유 — 불일치 시 같은 시트에서 label을 가진 셀 재탐색, 유일하면 오른쪽 셀로 이동 + 경고. 서식 행이 밀려도 살아남는다", "status": "pending_order" },
+        { "id": "S3-4", "desc": "★ 완전 덮어쓰기 불변식 — 개요의 **모든 입력 셀**이 (주입값 | 명시적 공란) 둘 중 하나. 앵커에 없는 입력 셀이 있으면 실패. S1-1과 함께 개인정보 인쇄를 막는 유일한 장치", "status": "pending_order", "severity": "critical" },
+        { "id": "S3-5", "desc": "개요 입력 칸 약 40개 전수 앵커화 — 점검인력 8행·년도·발신일자·문서번호·점검일자·상호·용도·소재지·관리자 성명/등급/전화·교육이수일·높이·지상/지하·관할소방서·동수·연면적·건축면적·사용승인일 등", "status": "pending_order" }
+      ] },
+
+    { "id": "S4", "title": "조립 → 앵커 값 변환 + 서버 액션·라우트", "status": "pending_order", "phase": "1",
+      "criteria": [
+        { "id": "S4-1", "desc": "lib/xlsx-bundle.ts toAnchorValues() — assemble* 반환을 앵커 값 맵으로 바꾸는 **순수 변환**(조회 0). 새 조회 코드 금지(D-7)", "status": "pending_order" },
+        { "id": "S4-2", "desc": "workbook-actions.ts requestWorkbookAction — 'use server' 파일에 async 함수만 export(bundle-actions.ts:15 규약). report9-actions.ts는 1,100줄이 넘어 분리한다", "status": "pending_order" },
+        { "id": "S4-3", "desc": "권한 — 기존 번들 생성과 같은 축으로 requirePermission. 'use server' export는 공개 엔드포인트라 화면 가드만으로는 새어나간다", "status": "pending_order" },
+        { "id": "S4-4", "desc": "inspections/[id]/workbook/route.ts — 즉석 생성·무저장(D-5). MIME·파일명(고객명_점검종류_연도.xlsx) 지정", "status": "pending_order" },
+        { "id": "S4-5", "desc": "missing 전달 — 조립 함수가 돌려주는 missing[]을 응답 헤더나 화면에 노출한다. 공란인 채로 인쇄되는 것을 사용자가 알아야 한다", "status": "pending_order" }
+      ] },
+
+    { "id": "S5", "title": "진입점 — [엑셀로 받기]", "status": "pending_order", "phase": "1",
+      "criteria": [
+        { "id": "S5-1", "desc": "bundle-generate-panel.tsx:103 [번들 열기] 옆에 [엑셀로 받기] 추가. PDF 번들은 그대로 둔다(병행)", "status": "pending_order" },
+        { "id": "S5-2", "desc": "버튼 문구가 용도를 말한다 — '고쳐 쓸 수 있는 엑셀'. PDF와 무엇이 다른지 한 줄", "status": "pending_order" }
+      ] },
+
+    { "id": "S6", "title": "검증 스크립트 (test:all 등록)", "status": "pending_order", "phase": "1",
+      "criteria": [
+        { "id": "S6-1", "desc": "test-xlsx-anchors.mts — 앵커 전수 labelCell==label · 템플릿 sha256·시트 26·병합 1,586 · **개요 입력 셀 전수가 앵커에 덮인다(샘플 데이터 잔존 = 실패)** · 앵커 셀 XML 실재", "status": "pending_order" },
+        { "id": "S6-2", "desc": "test-xlsx-inject.mts — 주입 후 병합 1,586 불변 · xl/styles.xml **바이트 동일** · !margins 6값 동일 · <c> 총 개수 불변(셀 유실 0) · 대상 셀 외 diff 0", "status": "pending_order" },
+        { "id": "S6-3", "desc": "test-xlsx-values.mts — 고정 픽스처 주입 후 SheetJS로 **읽어** 공문!B8·보고서!C4·위임장!C6 기대값(_verify-sheet-inject.mjs의 역산→비우기→재주입→대조 기법)", "status": "pending_order" },
+        { "id": "S6-4", "desc": "_probe-xlsx-opens.mts — 주입본을 soffice로 PDF 3회 · 페이지 수가 템플릿과 동일(_probe-xlsx-rebuild.mjs:12-26의 lo() 재사용)", "status": "pending_order" },
+        { "id": "S6-5", "desc": "test-workbook-e2e.mts — 실 점검 건에서 [엑셀로 받기] 응답 MIME·크기·시트 수", "status": "pending_order" },
+        { "id": "S6-6", "desc": "scripts/test-all.mts 무서버 구간에 등록", "status": "pending_order" },
+        { "id": "S6-7", "desc": "★ 수동 인수 1회 — **Excel에서 직접 열어 인쇄 미리보기**. LibreOffice PDF가 통과해도 Excel의 페이지 나눔은 다를 수 있고, 사용자의 실제 도구가 Excel이다. 담당자가 '고쳐서 인쇄'해 보는 것이 진짜 인수 시험", "status": "pending_order" }
+      ] },
+
+    { "id": "S7", "title": "Phase 2 — 별지 9호 1·2쪽 + 표지", "status": "pending_order", "phase": "2",
+      "criteria": [
+        { "id": "S7-1", "desc": "보고서!A2 체크박스 리터럴 — 작동/종합/최초/그 밖의 √ 위치를 Report9Data.ckOp·ckInitial·ckCompEtc(report9.ts:60-62)로 조립. 수식이 아니라 통문자열이다", "status": "pending_order" },
+        { "id": "S7-2", "desc": "보고서!B9~B11(점검자 구분) · C13(전자우편 동의) · 정보!B5(소유자/관리자/점유자 repRole)", "status": "pending_order" },
+        { "id": "S7-3", "desc": "대상처(표지) — assembleCover의 값. 사진·로고는 이번 차수 범위 밖(그림 삽입은 별건)", "status": "pending_order" }
+      ] },
+
+    { "id": "S8", "title": "Phase 3 — 별지 10·11호", "status": "pending_order", "phase": "3",
+      "criteria": [
+        { "id": "S8-1", "desc": "Annex1011Data.rows[]를 계획서·완료보고서의 고정 행 범위에 채운다", "status": "pending_order" },
+        { "id": "S8-2", "desc": "넘치는 행은 **자르되 missing에 남긴다**(report9-actions.ts:150-177 기존 규약). 행 삽입은 하지 않는다 — XML 난이도가 급증하고 사용자가 손으로 고치는 문서다", "status": "pending_order" },
+        { "id": "S8-3", "desc": "완료보고서!B5 = '계획서'!B5 처럼 스포크가 스포크를 참조하는 사슬이 재계산으로 이어지는지 확인", "status": "pending_order" }
+      ] },
+
+    { "id": "S9", "title": "Phase 4 — 별지 4호 + 9호 3~8쪽 (별도 재견적)", "status": "pending_order", "phase": "4",
+      "criteria": [
+        { "id": "S9-1", "desc": "현황·현1~현5 — 설비별 결과 롤업 반복 행 매핑(현황만 1,980셀·64수식)", "status": "pending_order" },
+        { "id": "S9-2", "desc": "대상물·대상물2·세1~세5 — assembleReport4의 sheetSections·specs 매핑(세1만 104수식)", "status": "pending_order" },
+        { "id": "S9-3", "desc": "설비별 표시/숨김 축 — 미설치 설비 행 처리 규약을 별지 4호 PDF와 일치시킨다", "status": "pending_order" },
+        { "id": "S9-4", "desc": "착수 전 재견적 — Phase 1~3 전체보다 클 수 있다", "status": "pending_order" }
+      ] },
+
+    { "id": "S10", "title": "Phase 5 — 설비별 점검표 시트 결합", "status": "deferred", "phase": "5",
+      "deferred_reason": "R5-6/D-9로 폐지한 37시트 점검표 생성기의 영역과 겹친다. 사용자가 '폐지 결정을 되돌리지 않는다'고 확정했으므로 범위 밖. 필요하면 별건으로 재발의(Q-1)",
+      "criteria": [] }
+  ]
+}
