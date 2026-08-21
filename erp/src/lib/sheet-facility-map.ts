@@ -77,6 +77,15 @@ export function form3ItemMatchesFacility(form3Item: string, facilityCode: string
 /** 시트별 점검 응답 통계 — 시트명 → { any: 응답 있음, x: 불량 있음 } */
 export type SheetStat = { any: boolean; x: boolean }
 
+/** 두 축(설치 √ / 점검결과 ○×) 어긋남 — 인쇄 전 경고(missing)용. 어느 쪽도 조용히 넘기지 않는다. */
+export type Form3AxisWarnings = {
+  /** 설치된 형제 항목이 있는 시트의 응답이 **미설치 항목까지 번지던** 것 — 이제 ／로 인쇄된다.
+   *  (예: '자동화재탐지설비 및 시각경보장치' 시트 하나에 응답 → 미설치 화재알림설비까지 ○였다) */
+  spillSuppressed: string[]
+  /** 미설치인데 그 항목을 겨눈 응답이 있다 — 대장 누락 의심. 결과는 **지우지 않는다**(실점검일 수 있다). */
+  respondedNotInstalled: string[]
+}
+
 /** 별지9호 3쪽 롤업 — 시트 통계 + 설치 설비 → FORM3 항목별 설치 체크·점검결과 마크.
  *
  *  assembleReport9(서버 액션 파일이라 외부에서 호출 불가)에서 순수 로직만 뽑아낸 것.
@@ -84,16 +93,37 @@ export type SheetStat = { any: boolean; x: boolean }
  *  같은 함수를 재사용해 문서와 화면이 어긋나지 않는다.
  *
  *  규약: 응답 있으면 X 유무로 ○/×, 응답이 없고 미설치면 해당없음 ／, 응답도 설치도 없으면 공란(키 없음).
- *  한 시트가 FORM3 여러 항목을 덮을 수 있어(예: '소화용수설비' → 상수도·소화수조) 항목별로 합산한다. */
+ *  한 시트가 FORM3 여러 항목을 덮을 수 있어(예: '소화용수설비' → 상수도·소화수조) 항목별로 합산한다.
+ *
+ *  ── 귀속 규칙(2026-08-21) ────────────────────────────────────────────────
+ *  종전엔 시트에 응답이 있으면 **그 시트가 덮는 항목 전부**에 ○를 찍었다. 설치 여부를 보지 않아
+ *  '설치도 안 한 설비를 점검해 양호'라는, 서식상 성립하지 않는 칸이 인쇄됐다(2026-08-20 사용자 지적:
+ *  체크 없는 화재조기진압용·할론·화재알림설비에 ○). 실측 7건에서 12칸.
+ *
+ *  그렇다고 '미설치면 무조건 ／'로 덮으면 반대쪽이 깨진다 — 대장에 체크를 빠뜨렸을 뿐 **실제로 점검한**
+ *  결과까지 해당없음으로 지워지고, 그건 법정 문서에 다른 방향의 거짓을 찍는 일이다.
+ *
+ *  두 원인은 구분할 수 있다. 시트의 응답은 **그 시트가 덮는 설치 항목의 것**이다:
+ *    · 설치된 형제가 하나라도 있으면 → 응답은 그 형제 것. 미설치 항목으로 번지지 않는다(→ ／)
+ *    · 형제가 전부 미설치면 → 그 응답을 귀속시킬 데가 없다. 대장 누락일 가능성이 크므로
+ *      **결과를 지우지 않고** 종전대로 ○/×를 두되 경고로 표면화한다(대장을 고치는 건 사람 몫)
+ *  판정은 항목별이 아니라 시트별로 한 번 하고, 그 결과를 항목에 나눠 준다. */
 export function rollUpForm3Results(
   sheetStat: Map<string, SheetStat> | Array<[string, SheetStat]>,
   form3Items: string[],
   installedCodes: string[],
-): { facilityChecks: string[]; resultMarks: Record<string, 'O' | 'X' | 'N'> } {
+): { facilityChecks: string[]; resultMarks: Record<string, 'O' | 'X' | 'N'>; axisWarnings: Form3AxisWarnings } {
   const facilityChecks = form3Items.filter(it => installedCodes.some(c => form3ItemMatchesFacility(it, c)))
+  const installed = new Set(facilityChecks)
   const statByItem = new Map<string, SheetStat>()
+  const touched = new Set<string>()      // 응답 있는 시트가 덮는 항목 전체(종전 규칙이 마크를 찍던 범위)
   for (const [sheetName, st] of sheetStat) {
-    for (const it of form3ItemsForSheet(sheetName, form3Items)) {
+    if (!st.any) continue
+    const items = form3ItemsForSheet(sheetName, form3Items)
+    for (const it of items) touched.add(it)
+    const installedHere = items.filter(it => installed.has(it))
+    // 설치된 형제가 있으면 응답은 그쪽 것 — 나머지로 번지지 않는다. 전부 미설치면 종전대로 전개.
+    for (const it of installedHere.length > 0 ? installedHere : items) {
       const cur = statByItem.get(it) ?? { any: false, x: false }
       statByItem.set(it, { any: cur.any || st.any, x: cur.x || st.x })
     }
@@ -102,9 +132,13 @@ export function rollUpForm3Results(
   for (const it of form3Items) {
     const st = statByItem.get(it)
     if (st?.any) resultMarks[it] = st.x ? 'X' : 'O'
-    else if (!facilityChecks.includes(it)) resultMarks[it] = 'N'
+    else if (!installed.has(it)) resultMarks[it] = 'N'
   }
-  return { facilityChecks, resultMarks }
+  const axisWarnings: Form3AxisWarnings = {
+    spillSuppressed: [...touched].filter(it => !installed.has(it) && !statByItem.has(it)),
+    respondedNotInstalled: [...statByItem.keys()].filter(it => !installed.has(it)),
+  }
+  return { facilityChecks, resultMarks, axisWarnings }
 }
 
 // ── '설치 설비만' 필터의 단일 규칙 (2026-08-20) ──────────────────────────────

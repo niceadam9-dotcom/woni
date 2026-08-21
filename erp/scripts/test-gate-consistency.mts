@@ -39,10 +39,11 @@ try {
   for (const [label, id] of [['소방 자체점검', inspSpecial], ['일반관리 자체점검', inspGenSpecial]] as const) {
     await page.goto(`${BASE}/inspections/${id}`)
     await page.waitForSelector('[data-testid="workbench-stepbar"]')
-    // 별지 9호 생성은 작업대 ④ 칸에 있다(R6-2)
+    // 별지 9호 생성은 작업대 ④ 칸에 있다(R6-2). 어포던스는 2026-08-20(d538280)부터 **문서 칩**이다 —
+    // 전용 [별지 9호 생성] 버튼은 폐지되고 '칩으로 고르고 → [PDF 생성]'으로 바뀌었다.
     await page.click('[data-testid="workbench-stepbar"] button[data-step="submit9"]')
     await page.waitForSelector('text=제출 전제')
-    check(`${label} → 별지 9호 생성 어포던스 노출`, await page.isVisible('text=별지 9호 생성'))
+    check(`${label} → 별지 9호 생성 어포던스 노출`, await page.isVisible('[data-doc-chip="report9"]'))
     check(`${label} → 외관점검표 미노출`, !(await page.isVisible('text=외관점검 (별지 6호)')))
   }
 
@@ -51,13 +52,13 @@ try {
   await page.waitForSelector('h1, h2')
   await page.waitForTimeout(800)
   check('레거시 event → 외관점검표 노출', await page.isVisible('text=외관점검표'))
-  check('레거시 event → 별지 9호 생성 미노출(게이트)', !(await page.isVisible('text=별지 9호 생성')))
+  check('레거시 event → 별지 9호 생성 미노출(게이트)', !(await page.isVisible('[data-doc-chip="report9"]')))
 
   // 정기(monthly): 비자체점검 → 별지 9호 생성 미노출
   await page.goto(`${BASE}/inspections/${inspMonthly}`)
   await page.waitForSelector('h1, h2')
   await page.waitForTimeout(800)
-  check('정기(monthly) → 별지 9호 생성 미노출(게이트)', !(await page.isVisible('text=별지 9호 생성')))
+  check('정기(monthly) → 별지 9호 생성 미노출(게이트)', !(await page.isVisible('[data-doc-chip="report9"]')))
 
   // 보고 절차 게이트 — R5-2·R6에서 '단계별 보고서' 2열 카드를 걷어내고 작업대 스텝바로 단일화했다.
   // 자체점검(소방·일반) = 6단계 / 레거시 event·정기 = ① 하나 + '보고 의무 없음' 안내

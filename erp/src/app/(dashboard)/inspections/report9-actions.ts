@@ -326,7 +326,7 @@ async function assembleReport9(
   //   오검 — 설치 '스프링클러설비'가 '간이·화재조기진압용' 항목까지 켬 / '비상조명등'이 '휴대용비상조명등'까지 켬
   //   누락 — 시트 '…시각경보장치' ↔ 항목 '…시각경보기', 시트 '소화용수설비' ↔ 항목 2종, '부속실 등 제연설비' 등
   // 설비→항목은 정규화 정확 매칭, 시트→항목은 명시 매핑(미등재 시트만 퍼지 폴백). _probe-form3-map.mjs가 차이를 고정.
-  const { facilityChecks, resultMarks } = rollUpForm3Results(sheetStat, FORM3_ITEMS, codes)
+  const { facilityChecks, resultMarks, axisWarnings } = rollUpForm3Results(sheetStat, FORM3_ITEMS, codes)
 
   // B-3(소방계획서_19 K-3): '기타' 3항목(방화문·자동방화셔터 / 비상구·피난통로 / 방염) —
   // 31번 '기타사항' 점검표(STD-31) 응답을 명시 매핑으로 반영(T-3 교훈 — 퍼지 금지).
@@ -652,6 +652,18 @@ async function assembleReport9(
   // 하므로, 공란이 남는 원인을 missing으로 표면화한다.
   const unanswered = facilityChecks.filter(item => !resultMarks[item]).length
   if (unanswered > 0) missing.push(`설치 설비 중 점검표 무응답 ${unanswered}건 — 3쪽 결과칸 공란`)
+  // 반대 방향(2026-08-21) — 설치 축 밖인데 결과가 찍히던 두 갈래. ①만 세면 절반만 보인다.
+  //  ②b는 결과를 지우지 않으므로(실점검일 수 있다) **여기서 말하지 않으면 아무도 모른다** — 서식상
+  //  성립하지 않는 칸이 그대로 인쇄된다. 고칠 곳은 문서가 아니라 1.4 대장이다.
+  if (axisWarnings.respondedNotInstalled.length > 0) {
+    missing.push(`대장 미체크인데 점검표 응답 있음 ${axisWarnings.respondedNotInstalled.length}건`
+      + `(${axisWarnings.respondedNotInstalled.join('·')}) — 3쪽에 [ ]+○로 인쇄됨, 1.4 설비 대장 확인 필요`)
+  }
+  //  ②a는 자동 정정된 쪽이라 인쇄물은 옳지만, '점검한 줄 알았는데 ／'로 읽힐 수 있어 사실을 남긴다.
+  if (axisWarnings.spillSuppressed.length > 0) {
+    missing.push(`미설치 항목 ${axisWarnings.spillSuppressed.length}건`
+      + `(${axisWarnings.spillSuppressed.join('·')}) — 같은 시트의 설치 설비 응답이 번지지 않도록 ／로 인쇄됨`)
+  }
   // 22 S3 — 설치 축 밖인데 응답이 있어 부속에 편입된 시트는 조용히 넘기지 않는다(대장 정비 유도)
   if (respOnlySheetNames.length > 0) {
     missing.push(`설비 대장 미등록 시트 ${respOnlySheetNames.join('·')} — 점검표 응답이 있어 부속 점검표·목차에 포함됨`)

@@ -67,7 +67,8 @@ async function jobDone(inspectionId: string, reportType: string): Promise<boolea
 async function clickAndWait(
   page: Page, label: string, buttonText: string, inspectionId: string, reportType: string, prefix: string, re: RegExp,
 ): Promise<void> {
-  await page.click(`button:has-text("${buttonText}")`)
+  // :text-is — '10호 PDF 생성'·'11호 PDF 생성'이 'PDF 생성'을 포함하므로 부분일치면 여러 개가 걸린다
+  await page.click(`button:text-is("${buttonText}")`)
   const ok = await pollUntil(async () => (await jobDone(inspectionId, reportType))
     && ((await raw.storage.from(BUCKET).list(prefix, { limit: 100 })).data ?? []).some((o: { name: string }) => re.test(o.name)), 60_000)
   check(`${label}: 잡 done + 파일 생성`, ok)
@@ -204,7 +205,10 @@ try {
   }
 
   await goStep('submit9')
-  await clickAndWait(page, '별지 9호', '별지 9호 생성', inspAid, 'report9', prefA, /^report9_\d+\.pdf$/)
+  // ④ 칸은 2026-08-20(d538280)부터 '문서 칩으로 고르고 → [PDF 생성]'이다 — 전용 [별지 9호 생성]은 폐지.
+  // 칩은 스위치일 뿐 생성 동작이 없으므로, 눌러서 3칸을 별지 9호로 맞춘 뒤 생성 버튼을 누른다.
+  await page.click('[data-doc-chip="report9"]')
+  await clickAndWait(page, '별지 9호', 'PDF 생성', inspAid, 'report9', prefA, /^report9_\d+\.pdf$/)
   await goStep('repair')
   await clickAndWait(page, '별지 10호', '10호 PDF 생성', inspAid, 'report10', prefA, /^report10_\d+\.pdf$/)
   await goStep('submit11')
