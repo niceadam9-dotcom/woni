@@ -11,7 +11,8 @@
 import { readFileSync } from 'node:fs'
 import JSZip from 'jszip'
 import XLSX from 'xlsx'
-import { injectWorkbook, isoToSerial } from '../src/lib/xlsx-inject.ts'
+import { injectWorkbook, isoToSerial, sheetFileMap } from '../src/lib/xlsx-inject.ts'
+import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { buildWorkbookValues, toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import type { OfficialData } from '../src/lib/doc-templates/official.ts'
 import type { DelegationData } from '../src/lib/doc-templates/delegation.ts'
@@ -110,6 +111,107 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
   const wb2 = XLSX.read(r2.bytes)
   const n6 = (wb2.Sheets['위임장']?.['N6'] as XLSX.CellObject | undefined)?.v
   check('위임장!N6 공란(잔재 없음)', n6 === undefined || String(n6).trim() === '', JSON.stringify(n6))
+}
+
+// ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
+console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
+{
+  // 오염된 템플릿을 연출: 폐포 밖 셀(완료보고서!I12 — 수식 없음·어떤 앵커의 폐포에도 없음)에
+  // 표본 상호를 심는다. 템플릿 갱신이 표본 값을 복합 수식 캐시에 되살리는 상황의 대역이다
+  const stain = await injectWorkbook(template, [
+    { sheet: '완료보고서', cell: 'I12', value: '표본 잔존 정내과의원' },
+  ])
+  check('오염 연출 성공', stain.missed.length === 0)
+
+  const r5 = await injectWorkbook(stain.bytes, targets, { forbidden: SCRUB_NEEDLES })
+  check('니들 캐시 소거 1칸', r5.scrubbed.length === 1 && r5.scrubbed[0] === '완료보고서!I12',
+    r5.scrubbed.join(', '))
+  const wb5 = XLSX.read(r5.bytes)
+  const i12 = (wb5.Sheets['완료보고서']?.['I12'] as XLSX.CellObject | undefined)?.v
+  check('완료보고서!I12 비워짐', i12 === undefined || String(i12).trim() === '', JSON.stringify(i12))
+  // 소거도 바이트 패치다 — 서식 무손상 축이 그대로 성립해야 한다
+  const zb5 = await JSZip.loadAsync(template)
+  const za5 = await JSZip.loadAsync(r5.bytes)
+  check('소거 후에도 styles.xml 바이트 동일',
+    (await zb5.file('xl/styles.xml')!.async('string')) === (await za5.file('xl/styles.xml')!.async('string')))
+
+  // 표본과 같은 이름의 실고객(정내과의원 본인) — 이번 주입이 쓴 값은 지우면 안 된다
+  const asSample = buildWorkbookValues({
+    official: { ...official, recipient: '정내과의원' }, delegation,
+    customerAddress: '경기도 양평군 용문로 376-1', startISO: '2026-08-20', endISO: '2026-08-21',
+  })
+  const r6 = await injectWorkbook(template, toInjectTargets(asSample).targets, { forbidden: SCRUB_NEEDLES })
+  const wb6 = XLSX.read(r6.bytes)
+  check('주입 셀은 보호 — 개요!B14 유지', (wb6.Sheets['개요']['B14'] as XLSX.CellObject).v === '정내과의원')
+  check('폐포 전파 셀도 보호 — 공문!B8 유지', (wb6.Sheets['공문']['B8'] as XLSX.CellObject).v === '정내과의원',
+    String((wb6.Sheets['공문']['B8'] as XLSX.CellObject | undefined)?.v))
+  check('깨끗한 템플릿에선 소거 0칸', r6.scrubbed.length === 0, r6.scrubbed.join(', '))
+}
+
+// ── ⑥ 안전망 사각 축 — t="s"·분할 런·원시 바이트 (2026-08-22 판정이 잡은 우회로) ──
+console.log('[6] 안전망 — 공유문자열 인덱스·분할 런까지 본다')
+{
+  // 오염 연출: sharedStrings에 **서식 런으로 쪼개진** 표본 상호를 추가하고('정내'+'과의원' —
+  // 첫 <t>만 보는 검사는 못 잡는다), 완료보고서!I12를 그 항목을 가리키는 t="s" 셀로 바꾼다
+  const zip = await JSZip.loadAsync(template)
+  const files = await sheetFileMap(zip)
+  let sst = await zip.file('xl/sharedStrings.xml')!.async('string')
+  const siIndex = [...sst.matchAll(/<si>/g)].length
+  sst = sst.replace('</sst>', '<si><r><t>정내</t></r><r><t>과의원</t></r></si></sst>')
+  zip.file('xl/sharedStrings.xml', sst)
+  const path = files.get('완료보고서')!
+  let xml = await zip.file(path)!.async('string')
+  xml = xml.replace(/<c r="I12"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/, `<c r="I12" t="s"><v>${siIndex}</v></c>`)
+  zip.file(path, xml)
+  const stained = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+
+  const r = await injectWorkbook(stained, targets, { forbidden: SCRUB_NEEDLES })
+  check('t="s" 셀 소거(인덱스 너머의 원문 대조)', r.scrubbed.includes('완료보고서!I12'), r.scrubbed.join(', '))
+  check('공유문자열 텍스트 자체 소거(분할 런 연결 판정)', r.scrubbed.includes(`sharedStrings!si${siIndex}`))
+  const za = await JSZip.loadAsync(r.bytes)
+  const sstAfter = await za.file('xl/sharedStrings.xml')!.async('string')
+  const joined = [...sstAfter.matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => t[1]).join(''))
+  check('소거 후 공유문자열 원문에 니들 0', joined.every(t => !SCRUB_NEEDLES.some(n => t.includes(n))))
+}
+
+// ── ⑦ 주입 견고성 — 치환 패턴·타깃 순서 (판정 실측 결함의 회귀 고정) ──
+console.log('[7] 주입 견고성')
+{
+  // $' 같은 치환 패턴이 값에 있으면 종전 구현은 문서 꼬리를 셀 안으로 복제하고 값을 유실했다(무음)
+  const odd = "가$'나$&다$`라"
+  const r7 = await injectWorkbook(template, [{ sheet: '개요', cell: 'B14', value: odd }])
+  const wb7 = XLSX.read(r7.bytes)
+  check("값의 $'·$&·$` 무해(치환 소독)", (wb7.Sheets['개요']['B14'] as XLSX.CellObject).v === odd,
+    String((wb7.Sheets['개요']['B14'] as XLSX.CellObject | undefined)?.v))
+
+  // 템플릿에 B10→B11 간선이 있어 발신일자 전파가 문서번호 칸을 지나간다 — 직접 타깃이
+  // 배열 순서와 무관하게 이겨야 한다(종전엔 ANCHORS 순서 덕에 우연히 맞았다)
+  const rev = await injectWorkbook(template, [...targets].reverse())
+  const wbRev = XLSX.read(rev.bytes)
+  check('타깃 순서 뒤집어도 개요!B11 = 문서번호', (wbRev.Sheets['개요']['B11'] as XLSX.CellObject).v === '2608-7',
+    String((wbRev.Sheets['개요']['B11'] as XLSX.CellObject | undefined)?.v))
+
+  // 비대상 무변경 — 주입·전파가 닿지 않은 셀은 원시 <c> 문자열까지 동일(S6-2 '대상 셀 외 diff 0')
+  const touched = new Set(result.touched)
+  const zb = await JSZip.loadAsync(template)
+  const za = await JSZip.loadAsync(result.bytes)
+  const filesB = await sheetFileMap(zb)
+  const cellMap = (x: string) => {
+    const m = new Map<string, string>()
+    for (const c of x.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)) m.set(c[1], c[0])
+    return m
+  }
+  const diffs: string[] = []
+  for (const [s, p] of filesB) {
+    const before = cellMap(await zb.file(p)!.async('string'))
+    const after = cellMap(await za.file(p)!.async('string'))
+    for (const [ref, rawB] of before) {
+      if (touched.has(`${s}!${ref}`)) continue
+      if (after.get(ref) !== rawB) diffs.push(`${s}!${ref}`)
+    }
+  }
+  check(`비대상 셀 diff 0 (touched ${touched.size}칸 외 전수)`, diffs.length === 0, diffs.slice(0, 5).join(', '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
-import { validateAnchors } from '@/lib/xlsx-anchors'
+import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
 import { injectWorkbook } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
 
@@ -60,6 +60,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       { error: `서식 앵커 불일치 — 갑지가 갱신된 듯합니다. 템플릿 재빌드·앵커 재승인이 필요합니다: ${check.failures.join(' · ')}` },
       { status: 500 })
   }
+  if (check.healed.length > 0) {
+    // 자가치유(S3-3)로 살아났다 = 서식이 밀렸다는 신호 — 산출은 계속하되 재승인을 재촉한다
+    console.warn(`[workbook] 앵커 자가치유 ${check.healed.length}건 — 템플릿 재빌드·재실측 권장: ${check.healed.join(' · ')}`)
+  }
 
   // 값의 원천은 PDF와 동일한 조립 함수 — annex_inputs 수동 오버레이까지 그대로 따라온다
   const [official, delegation] = await Promise.all([
@@ -74,20 +78,26 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     startISO: row.inspection_start_date,
     endISO: row.inspection_end_date,
   })
-  const { targets, unmapped } = toInjectTargets(values)
+  const { targets, unmapped } = toInjectTargets(values, check.anchors)
   if (unmapped.length > 0) {
     // 앵커에 있는데 값 맵에 없다 = 코드 결함(누락) — 공란으로 조용히 내보내지 않는다
     return NextResponse.json(
       { error: `주입 값 누락(코드 결함): ${unmapped.map(a => a.field).join(', ')}` }, { status: 500 })
   }
 
-  const result = await injectWorkbook(template, targets)
+  // 안전망(S2-7/D-10) — 주입이 안 닿은 캐시에 표본 고객 흔적이 남았으면 비워서 내보낸다.
+  // 지금 템플릿은 잔존 0이 검증돼 있지만(빌드 ⑥), 갱신된 템플릿이 이 부류를 되살릴 수 있다
+  const result = await injectWorkbook(template, targets, { forbidden: SCRUB_NEEDLES })
   if (result.missed.length > 0) {
     return NextResponse.json(
       { error: `주입 대상 셀 미발견 — 서식 변경 의심: ${result.missed.join(', ')}` }, { status: 500 })
   }
+  if (result.scrubbed.length > 0) {
+    console.warn(`[workbook] 표본 흔적 캐시 ${result.scrubbed.length}칸 소거(D-10) — 템플릿 재점검 필요: ${result.scrubbed.join(', ')}`)
+  }
 
-  const name = `${(cust as { customer_name: string } | null)?.customer_name ?? '점검'}_점검결과보고서_${row.year}.xlsx`
+  // 파일명 규약: 고객명_점검종류_연도(S4-4). 종류 라벨은 위임장 조립이 이미 판정한 것을 재사용
+  const name = `${(cust as { customer_name: string } | null)?.customer_name ?? '점검'}_${delegation.data.typeLabel}결과보고서_${row.year}.xlsx`
   return new NextResponse(Buffer.from(result.bytes), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -78,23 +78,54 @@ export const HUB_INPUT_CELLS: string[] = [
   'B21', 'B22', 'B23',
 ]
 
+/** 표본 고객 흔적 니들 — 템플릿에도 산출물 캐시에도 남으면 안 되는 값(S1-1 스크럽 · S2-7 안전망).
+ *  빌드 사후검증(build-workbook-template ⑥)·테스트(test-xlsx-anchors)·런타임 안전망(injectWorkbook
+ *  forbidden)이 **이 한 목록**을 본다 — 축이 갈라지면 좁은 쪽이 결함을 통과시킨다(2026-08-21에
+ *  PII 4종만 보다가 주소·연면적 잔존을 놓칠 뻔한 실측). 주소·연면적도 표본 고객을 특정하는 값이다 */
+export const SCRUB_NEEDLES = ['정내과의원', '김미진', '010-7565-3271', '721227', '7565-3271', '용문로 376-1', '845.75']
+
 /** 라벨 비교 정규화 — 서식의 라벨엔 장식 공백·콜론이 섞여 있다('상호 '·'직  위'·'대 표 자 :') */
 const normLabel = (s: string) => s.replace(/[\s:：]/g, '')
 
-export type AnchorCheck = { ok: true } | { ok: false; failures: string[] }
+export type AnchorCheck =
+  | { ok: true; anchors: Anchor[]; healed: string[] }
+  | { ok: false; failures: string[] }
 
-/** 앵커 전수 검증 — 하나라도 어긋나면 주입을 시작하지 않는다(조용한 오적용 금지).
- *  SheetJS **읽기**만 쓴다. */
-export function validateAnchors(templateBytes: Uint8Array): AnchorCheck {
+/** 앵커 전수 검증 + 자가치유(S3-3) — 어긋난 채로는 주입을 시작하지 않는다(조용한 오적용 금지).
+ *
+ *  라벨이 어긋난 앵커는 같은 시트에서 그 라벨을 가진 셀을 재탐색한다. **유일하게** 찾히면
+ *  원래의 라벨→값 오프셋(위임장 K6→N6처럼 옆 칸이 아닌 경우도 있다)을 유지해 좌표를 옮기고
+ *  경고로 남긴다 — 서식에 행이 끼어들어도 살아남는다. 0곳이거나 여러 곳이면 치유하지 않고
+ *  실패한다(추측 주입 금지). SheetJS **읽기**만 쓴다. */
+export function validateAnchors(templateBytes: Uint8Array, anchors: Anchor[] = ANCHORS): AnchorCheck {
   const wb = XLSX.read(templateBytes, { cellStyles: false })
   const failures: string[] = []
-  for (const a of ANCHORS) {
+  const healed: string[] = []
+  const out: Anchor[] = []
+  for (const a of anchors) {
     const ws = wb.Sheets[a.sheet]
     if (!ws) { failures.push(`${a.field}: 시트 '${a.sheet}' 없음`); continue }
     const lv = String(ws[a.labelCell]?.v ?? '')
-    if (normLabel(lv) !== normLabel(a.label)) {
-      failures.push(`${a.field}: ${a.sheet}!${a.labelCell} 라벨 불일치 — 기대 '${a.label}', 실제 '${lv || '(빈칸)'}'`)
+    if (normLabel(lv) === normLabel(a.label)) { out.push(a); continue }
+    // 자가치유 — 같은 시트에서 라벨 재탐색(원래 자리는 이미 불일치이므로 제외)
+    const found = Object.keys(ws).filter(k =>
+      !k.startsWith('!') && k !== a.labelCell &&
+      normLabel(String((ws[k] as XLSX.CellObject).v ?? '')) === normLabel(a.label))
+    if (found.length !== 1) {
+      failures.push(
+        `${a.field}: ${a.sheet}!${a.labelCell} 라벨 불일치 — 기대 '${a.label}', 실제 '${lv || '(빈칸)'}'` +
+        (found.length ? ` (후보 ${found.length}곳이라 자가치유 불가: ${found.join(',')})` : ' (재탐색 0곳)'))
+      continue
     }
+    const oldLabel = XLSX.utils.decode_cell(a.labelCell)
+    const oldCell = XLSX.utils.decode_cell(a.cell)
+    const newLabel = XLSX.utils.decode_cell(found[0])
+    const newCell = XLSX.utils.encode_cell({
+      c: newLabel.c + (oldCell.c - oldLabel.c),
+      r: newLabel.r + (oldCell.r - oldLabel.r),
+    })
+    out.push({ ...a, labelCell: found[0], cell: newCell })
+    healed.push(`${a.field}: ${a.sheet}!${a.cell}→${newCell} (라벨 ${a.labelCell}→${found[0]})`)
   }
-  return failures.length ? { ok: false, failures } : { ok: true }
+  return failures.length ? { ok: false, failures } : { ok: true, anchors: out, healed }
 }

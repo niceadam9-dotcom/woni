@@ -81,6 +81,47 @@ export async function buildRefGraph(zip: JSZip, files: Map<string, string>): Pro
   return edges
 }
 
+/** **복합 수식 포함** 전체 참조 그래프 — 단일 참조 그래프(buildRefGraph)는 값을 전파할 수 있는
+ *  간선만 담지만, 이것은 `개요!G10+5`·`SUM(개요!B1:B8)`·교차 연산 같은 복합 수식의 참조도 담는다.
+ *  값 전파에는 못 쓰고(계산 불가) **낡은 캐시 색출**에 쓴다: 허브에서 이 그래프로 닿는데 단일 참조
+ *  폐포 밖인 셀의 캐시는 표본 잔재다(2026-08-21 판정 실측 — 정보!I16 교차 수식이 표본 교육이수일
+ *  40719를, 완료보고서!G25 `개요!G10+5`가 표본 이행조치일 46237을 전 고객 문서에 인쇄할 뻔했다).
+ *  범위(B1:B8)는 사각형 전개(2,000셀 상한). 함수명 오인(LOG10→G10)은 lookbehind로 차단 */
+export async function buildFullRefGraph(zip: JSZip, files: Map<string, string>): Promise<Map<string, Array<{ sheet: string; cell: string }>>> {
+  const edges = new Map<string, Array<{ sheet: string; cell: string }>>()
+  const REF = /(?<![A-Za-z0-9가-힣_$.!])(?:'([^'!]+)'!|([A-Za-z가-힣][A-Za-z0-9가-힣_. ]*)!)?(\$?[A-Z]{1,3}\$?\d{1,7})(?::(\$?[A-Z]{1,3}\$?\d{1,7}))?/g
+  const colNum = (s: string) => s.split('').reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0)
+  const colStr = (n: number) => { let s = ''; while (n > 0) { s = String.fromCharCode(65 + ((n - 1) % 26)) + s; n = Math.floor((n - 1) / 26) } return s }
+  for (const [sheet, path] of files) {
+    const file = zip.file(path)
+    if (!file) continue
+    const xml = await file.async('string')
+    for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(m[2] ?? '')?.[1]
+      if (!f) continue
+      for (const r of f.matchAll(REF)) {
+        const refSheet = r[1] ?? r[2] ?? sheet
+        const cells: string[] = []
+        if (r[4]) {
+          const a = /(\$?)([A-Z]+)(\$?)(\d+)/.exec(r[3])!, b = /(\$?)([A-Z]+)(\$?)(\d+)/.exec(r[4])!
+          const c1 = colNum(a[2]), c2 = colNum(b[2]), r1 = Number(a[4]), r2 = Number(b[4])
+          if ((Math.abs(c2 - c1) + 1) * (Math.abs(r2 - r1) + 1) <= 2000) {
+            for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++)
+              for (let row = Math.min(r1, r2); row <= Math.max(r1, r2); row++) cells.push(`${colStr(c)}${row}`)
+          } else { cells.push(r[3].replace(/\$/g, ''), r[4].replace(/\$/g, '')) }
+        } else cells.push(r[3].replace(/\$/g, ''))
+        for (const c of cells) {
+          const from = `${refSheet}!${c}`
+          const arr = edges.get(from) ?? []
+          arr.push({ sheet, cell: m[1] })
+          edges.set(from, arr)
+        }
+      }
+    }
+  }
+  return edges
+}
+
 /** from 셀에서 출발하는 이행 폐포 */
 export function transitiveClosure(
   edges: Map<string, Array<{ sheet: string; cell: string }>>, sheet: string, cell: string,
@@ -117,7 +158,9 @@ function setCell(xml: string, ref: string, value: CellValue, dropFormula: boolea
       ? `<c r="${ref}"${attrs} t="str">${f}<v>${escXml(value)}</v></c>`
       : `<c r="${ref}"${attrs} t="inlineStr"><is><t xml:space="preserve">${escXml(value)}</t></is></c>`
   }
-  return { xml: xml.replace(re, repl), hit: true }
+  // ⚠ 함수 치환 필수 — repl에 사용자 값이 들어가므로 문자열로 주면 `$'`·`$&` 같은 치환 패턴이
+  //   해석돼 문서 꼬리가 셀 안으로 복제되고 값이 유실된다(2026-08-22 판정 실측, missed=0 무음)
+  return { xml: xml.replace(re, () => repl), hit: true }
 }
 
 export type InjectResult = {
@@ -126,10 +169,22 @@ export type InjectResult = {
   missed: string[]
   /** 전파로 함께 갱신된 캐시 셀 수 */
   propagated: number
+  /** 안전망(D-10)이 비운 곳 — 셀(`시트!셀`) 또는 공유문자열(`sharedStrings!si<i>`) */
+  scrubbed: string[]
+  /** 이번 주입이 실제로 쓴 셀 전부(직접 + 전파) — 검증이 '비대상 무변경'을 단언하는 축 */
+  touched: string[]
 }
 
-/** 값 주입 + 폐포 전파. 원본 bytes는 변형하지 않는다. */
-export async function injectWorkbook(templateBytes: Uint8Array, targets: InjectTarget[]): Promise<InjectResult> {
+/** 값 주입 + 폐포 전파. 원본 bytes는 변형하지 않는다.
+ *
+ *  opts.forbidden(D-10 안전망): 주입이 끝난 뒤에도 이 니들을 물고 있는 캐시 셀이 남아 있으면
+ *  <v>·<is>를 **비운다**(<f>·스타일은 보존). 폐포는 단일 참조 수식만 따라가므로 복합 수식의
+ *  캐시는 기계적으로 전파할 수 없고, 템플릿이 갱신되면 표본 값이 그런 캐시에 되살아날 수 있다 —
+ *  빈칸이 남의 상호·이름보다 낫다. 단 **이번 주입이 쓴 셀은 건드리지 않는다**: 표본과 같은
+ *  이름의 실고객(정내과의원 본인 등)의 정당한 값을 지우면 안 된다. */
+export async function injectWorkbook(
+  templateBytes: Uint8Array, targets: InjectTarget[], opts?: { forbidden?: string[] },
+): Promise<InjectResult> {
   const zip = await JSZip.loadAsync(templateBytes)
   const files = await sheetFileMap(zip)
   const edges = await buildRefGraph(zip, files)
@@ -141,16 +196,22 @@ export async function injectWorkbook(templateBytes: Uint8Array, targets: InjectT
     arr.push({ cell, value, dropFormula })
     bySheet.set(sheet, arr)
   }
+  // ⚠ 직접 타깃이 전파를 이긴다 — 템플릿에 B10→B11(발신일자→문서번호 칸) 같은 간선이 있어,
+  //   전파가 직접 타깃 칸을 덮으면 배열 순서에 따라 문서번호 칸에 날짜 시리얼이 남는다
+  //   (종전엔 ANCHORS 순서 덕에 우연히 맞았다 — 순서 의존 제거, 2026-08-22 판정 관찰)
+  const direct = new Set(targets.map(t => `${t.sheet}!${t.cell}`))
   let propagated = 0
   for (const t of targets) {
     push(t.sheet, t.cell, t.value, t.dropFormula ?? false)
     for (const d of transitiveClosure(edges, t.sheet, t.cell)) {
+      if (direct.has(`${d.sheet}!${d.cell}`)) continue
       push(d.sheet, d.cell, t.value, false)   // 캐시만 갱신, <f> 보존
       propagated++
     }
   }
 
   const missed: string[] = []
+  const written = new Set<string>()
   for (const [sheet, patches] of bySheet) {
     const path = files.get(sheet)
     if (!path || !zip.file(path)) { missed.push(...patches.map(p => `${sheet}!${p.cell}`)); continue }
@@ -159,10 +220,60 @@ export async function injectWorkbook(templateBytes: Uint8Array, targets: InjectT
       const r = setCell(xml, p.cell, p.value, p.dropFormula)
       if (!r.hit) { missed.push(`${sheet}!${p.cell}`); continue }
       xml = r.xml
+      written.add(`${sheet}!${p.cell}`)
     }
     zip.file(path, xml)
   }
 
+  // ── 안전망(D-10) — 주입이 안 닿은 캐시에 니들이 남았으면 비운다 ──
+  // 판정 실측(2026-08-22)으로 막은 사각 두 축: ① t="s" 셀은 <v>가 공유문자열 **인덱스**라
+  // 원문을 대조해야 보인다(LibreOffice 재변환 템플릿은 t="s"가 기본) ② <is>가 서식 런으로
+  // 쪼개지면(<r><t>정내</t></r><r><t>과의원</t></r>) 첫 <t>만 봐서는 못 잡는다 — 전 <t> 연결로 판정
+  const scrubbed: string[] = []
+  const forbidden = opts?.forbidden ?? []
+  if (forbidden.length) {
+    const joinT = (s: string) => [...s.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(m => m[1]).join('')
+    // 공유문자열 원문 — 니들을 문 si는 텍스트 자체를 비운다(고아든 참조든: .xlsx는 zip이라
+    // 셀에 안 보여도 파트 바이트에 실려 나간다). 참조 셀은 아래 셀 스캔이 함께 비운다
+    const sstPath = 'xl/sharedStrings.xml'
+    const sst: string[] = []
+    const sstFile = zip.file(sstPath)
+    if (sstFile) {
+      let sstXml = await sstFile.async('string')
+      let idx = 0, dirty = false
+      sstXml = sstXml.replace(/<si>([\s\S]*?)<\/si>/g, (whole, inner: string) => {
+        const text = joinT(inner)
+        sst.push(text)
+        const i = idx++
+        if (!forbidden.some(n => text.includes(n))) return whole
+        dirty = true
+        scrubbed.push(`sharedStrings!si${i}`)
+        return '<si><t/></si>'
+      })
+      if (dirty) zip.file(sstPath, sstXml)
+    }
+    for (const [sheet, path] of files) {
+      const file = zip.file(path)
+      if (!file) continue
+      let xml = await file.async('string')
+      let dirty = false
+      for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const key = `${sheet}!${m[1]}`
+        if (written.has(key)) continue
+        const inner = m[3] ?? ''
+        const v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1]
+        let cached: string | undefined
+        if (/\st="s"/.test(m[2] ?? '') && v !== undefined) cached = sst[Number(v)] ?? v
+        else if (inner.includes('<is>')) cached = joinT(inner)
+        else cached = v
+        if (cached === undefined || !forbidden.some(n => cached.includes(n))) continue
+        const r = setCell(xml, m[1], null, false)
+        if (r.hit) { xml = r.xml; dirty = true; scrubbed.push(key) }
+      }
+      if (dirty) zip.file(path, xml)
+    }
+  }
+
   const bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
-  return { bytes, missed, propagated }
+  return { bytes, missed, propagated, scrubbed, touched: [...written] }
 }

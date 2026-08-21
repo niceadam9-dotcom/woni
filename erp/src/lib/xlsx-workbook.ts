@@ -49,11 +49,14 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
 }
 
 /** 앵커 × 값 → 주입 대상. 값이 없는 앵커는 **명시적 공란**(null)으로 넣는다 —
- *  완전 덮어쓰기 불변식(S3-4): 템플릿 잔재도, 조용한 생략도 없다. */
-export function toInjectTargets(values: Map<string, CellValue>): { targets: InjectTarget[]; unmapped: Anchor[] } {
+ *  완전 덮어쓰기 불변식(S3-4): 템플릿 잔재도, 조용한 생략도 없다.
+ *  anchors는 validateAnchors가 돌려준(자가치유 반영) 목록을 넣는 것이 정본 — 기본값은 원본 좌표 */
+export function toInjectTargets(
+  values: Map<string, CellValue>, anchors: Anchor[] = ANCHORS,
+): { targets: InjectTarget[]; unmapped: Anchor[] } {
   const targets: InjectTarget[] = []
   const unmapped: Anchor[] = []
-  for (const a of ANCHORS) {
+  for (const a of anchors) {
     if (!values.has(a.field)) { unmapped.push(a); continue }
     const v = values.get(a.field)!
     targets.push({ sheet: a.sheet, cell: a.cell, value: v === '' ? null : v, dropFormula: a.dropFormula })

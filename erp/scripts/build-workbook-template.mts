@@ -25,8 +25,8 @@ import { join, basename } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { injectWorkbook, sheetFileMap } from '../src/lib/xlsx-inject.ts'
-import { HUB_INPUT_CELLS } from '../src/lib/xlsx-anchors.ts'
+import { injectWorkbook, sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
+import { HUB_INPUT_CELLS, SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
@@ -137,10 +137,41 @@ console.log('④ 샘플 데이터 스크럽(개요 전 입력 칸 + 이행 폐�
       value: b.keepValue ? String((scanWb.Sheets[b.sheet][b.cell] as XLSX.CellObject).v ?? '') : null,
     })),
   ]
-  const r = await injectWorkbook(bytes, targets)
+  // forbidden까지 걸어 니들을 문 캐시·공유문자열 텍스트를 함께 소거 — 판정 실측(2026-08-22):
+  // 고아 si 5건(정내과의원·주소·김미진·845.75·전화)이 셀에는 안 보여도 산출물 바이트에 실려 나갔다
+  const r = await injectWorkbook(bytes, targets, { forbidden: SCRUB_NEEDLES })
   if (r.missed.length) throw new Error(`스크럽 대상 미발견: ${r.missed.join(', ')}`)
-  console.log(`   대상 ${targets.length}칸 + 폐포 전파 ${r.propagated}칸`)
+  console.log(`   대상 ${targets.length}칸 + 폐포 전파 ${r.propagated}칸 + 니들 소거 ${r.scrubbed.length}곳`)
   bytes = r.bytes
+}
+
+// ── ④c 허브 영향 복합 수식의 잔존 캐시 소거 ─────────────────────────
+// 단일 참조 폐포(④)는 값을 전파할 수 있는 간선만 비운다. 교차 연산(정보!I16 = 개요!D19 개요!D19)·
+// 산술(완료보고서!G25 = 개요!G10+5) 같은 복합 수식은 폐포 밖이라 표본 캐시(교육이수일 40719·
+// 이행조치일 46237 — 날짜 시리얼이라 문자 니들로도 안 잡힌다)가 남아 전 고객 문서에 인쇄된다.
+// 허브에서 전체 그래프로 닿는 셀 중 캐시가 남은 것을 전수 소거한다(<f>는 보존 — Excel이 재계산)
+console.log('④c 허브 영향 복합 수식 캐시 소거')
+{
+  const zip = await JSZip.loadAsync(bytes)
+  const files = await sheetFileMap(zip)
+  const full = await buildFullRefGraph(zip, files)
+  const affected = new Map<string, { sheet: string; cell: string }>()
+  for (const c of HUB_INPUT_CELLS)
+    for (const d of transitiveClosure(full, HUB, c)) affected.set(`${d.sheet}!${d.cell}`, d)
+  const stale: Array<{ sheet: string; cell: string; value: null }> = []
+  for (const [sheet, path] of files) {
+    const xml = await zip.file(path)!.async('string')
+    for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      if (!affected.has(`${sheet}!${m[1]}`)) continue
+      if (/<v>[\s\S]*?<\/v>|<is>/.test(m[2] ?? '')) stale.push({ sheet, cell: m[1], value: null })
+    }
+  }
+  if (stale.length) {
+    console.log(`   잔존 캐시 ${stale.length}칸 소거: ${stale.map(s => `${s.sheet}!${s.cell}`).join(', ')}`)
+    const rc = await injectWorkbook(bytes, stale)
+    if (rc.missed.length) throw new Error(`캐시 소거 실패: ${rc.missed.join(', ')}`)
+    bytes = rc.bytes
+  } else console.log('   잔존 캐시 0칸')
 }
 
 // ── ④b LibreOffice가 파괴한 수식 복원 ────────────────────────────────
@@ -185,15 +216,40 @@ console.log('⑥ 사후 검증')
     fails.push(`시트 수 ${origWb.SheetNames.length} → ${wb.SheetNames.length}`)
   if (mergeCount(wb) !== origMerges) fails.push(`병합 ${origMerges} → ${mergeCount(wb)}`)
   // 실고객 흔적 전수 부재 — 리터럴이든 캐시든 남으면 실패.
-  // 주소·연면적도 표본 고객을 특정하는 값이다 — PII 4종만 보다가 폐포 결함(자기닫힘 셀 삼킴)이
-  // 남긴 잔존을 놓칠 뻔했다(2026-08-21)
-  const NEEDLES = ['정내과의원', '김미진', '010-7565-3271', '721227', '7565-3271', '용문로 376-1', '845.75']
+  // 니들 목록은 xlsx-anchors.ts SCRUB_NEEDLES 단일 원천 — 런타임 안전망(D-10)과 같은 축
+  const NEEDLES = SCRUB_NEEDLES
   for (const s of wb.SheetNames) {
     const ws = wb.Sheets[s]
     for (const k of Object.keys(ws)) {
       if (k.startsWith('!')) continue
       const v = String((ws[k] as XLSX.CellObject).v ?? '')
       for (const n of NEEDLES) if (v.includes(n)) fails.push(`실고객 흔적 잔존: ${s}!${k} = ${v}`)
+    }
+  }
+  // 원시 바이트 축 — 셀 값 스캔은 sharedStrings 고아 항목을 못 본다(.xlsx는 zip이라 셀에 안
+  // 보여도 파트 안에 원문이 실린다 — 판정 실측 5건). 전 파트를 문자열로 풀어 니들 전수 검사
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    for (const name of Object.keys(zip.files)) {
+      if (zip.files[name].dir) continue
+      const raw = await zip.file(name)!.async('string')
+      for (const n of NEEDLES) if (raw.includes(n)) fails.push(`원시 바이트 니들 잔존: ${name} ⊃ '${n}'`)
+    }
+  }
+  // 허브 영향 셀(복합 수식 포함) 캐시 전무 — ④c가 소거한 부류가 되살아나면 여기서 붉어진다
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    const files = await sheetFileMap(zip)
+    const full = await buildFullRefGraph(zip, files)
+    const affected = new Set<string>()
+    for (const c of HUB_INPUT_CELLS)
+      for (const d of transitiveClosure(full, HUB, c)) affected.add(`${d.sheet}!${d.cell}`)
+    for (const [sheet, path] of files) {
+      const xml = await zip.file(path)!.async('string')
+      for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        if (!affected.has(`${sheet}!${m[1]}`)) continue
+        if (/<v>[\s\S]*?<\/v>|<is>/.test(m[2] ?? '')) fails.push(`허브 영향 셀 캐시 잔존: ${sheet}!${m[1]}`)
+      }
     }
   }
   // 개요 입력 칸 전부 공란(완전 덮어쓰기 불변식의 템플릿 측).
