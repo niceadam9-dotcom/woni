@@ -2,7 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 
 /** 점검표 카탈로그 캐시 — `inspection_sheet_items`·`inspection_sheets` 단일 로더 (2026-08-20).
  *

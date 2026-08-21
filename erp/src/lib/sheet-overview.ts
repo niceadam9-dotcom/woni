@@ -5,7 +5,7 @@ import type { UserRole } from '@/types'
 import { sheetScope, isItemInScope, sheetItemGroupRef, type SheetScope } from '@/lib/sheet-scope'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
-import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { isMultiUseApplicable } from '@/lib/multi-use'
 import { getAllSheetItems, getSheets, type SheetCatalogItem, type SheetRow } from '@/lib/sheet-catalog'
 

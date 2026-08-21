@@ -4,23 +4,8 @@ import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadAnchorDates } from '@/lib/inspection-plan-generator'
 import { InspectionPlansClient } from '@/components/inspection-plans/inspection-plans-client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import type { InspectionPlan, UserRole } from '@/types'
-
-/** Supabase 기본 응답 한도(1,000행)를 넘는 목록 전량 조회 — 연간 항목이 한도를 넘으면
- *  나중에 삽입된 항목이 잘려 초과 판정에서 미처리로 재등장했음 (승인 무한 반복, 2026-07-14) */
-async function fetchAllRows<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: unknown }>,
-): Promise<T[]> {
-  const pageSize = 1000
-  const rows: T[] = []
-  for (let from = 0; ; from += pageSize) {
-    const { data } = await build(from, from + pageSize - 1)
-    const page = (data ?? []) as T[]
-    rows.push(...page)
-    if (page.length < pageSize) break
-  }
-  return rows
-}
 
 export type OverdueItem = {
   customer_id: string
@@ -86,7 +71,8 @@ export default async function InspectionPlansPage({
   const yearPlanIds = Object.keys(planMonthMap)
 
   // ── Wave 2: wave1 결과에 의존하는 쿼리 병렬 실행 ─────────────
-  const [items, yearPlanItems, anchorMap] = await Promise.all([
+  const emptyPage = <T,>() => Promise.resolve({ rows: [] as T[], error: null, truncated: false })
+  const [itemsPage, yearPlanItemsPage, anchorMap] = await Promise.all([
     currentPlan
       ? fetchAllRows<Record<string, unknown>>((from, to) =>
           admin.from('inspection_plan_items')
@@ -95,7 +81,7 @@ export default async function InspectionPlansPage({
             .order('scheduled_date', { ascending: true, nullsFirst: false })
             .order('id')
             .range(from, to))
-      : Promise.resolve([] as Record<string, unknown>[]),
+      : emptyPage<Record<string, unknown>>(),
     yearPlanIds.length > 0
       ? fetchAllRows<{ customer_id: string; sequence_num: number; plan_id: string }>((from, to) =>
           admin.from('inspection_plan_items')
@@ -104,10 +90,18 @@ export default async function InspectionPlansPage({
             .in('plan_id', yearPlanIds)
             .order('id')
             .range(from, to))
-      : Promise.resolve([] as { customer_id: string; sequence_num: number; plan_id: string }[]),
+      : emptyPage<{ customer_id: string; sequence_num: number; plan_id: string }>(),
     // 기준일: 점검계획일(수동) → 최초 점검시작일 (초과 판정도 생성과 동일 기준)
     loadAnchorDates(admin, (customersRes.data ?? []) as Array<{ id: string; plan_anchor_date: string | null }>),
   ])
+
+  // 조용한 결손 금지 — 여기가 잘리면 이미 처리된 항목이 '미처리'로 되살아나 승인 무한 반복이 된다
+  // (2026-07-14 실사고). 종전 로컬 헬퍼는 오류를 통째로 삼켜 부분 결과를 전량인 척 돌려줬다.
+  if (itemsPage.error) console.error(`[inspection-plans] 계획 항목 조회 실패: ${itemsPage.error}`)
+  if (yearPlanItemsPage.error) console.error(`[inspection-plans] 연간 계획 항목 조회 실패 — 초과 판정이 부정확할 수 있다: ${yearPlanItemsPage.error}`)
+  if (itemsPage.truncated || yearPlanItemsPage.truncated) console.error('[inspection-plans] 조회가 상한(20,000행)에서 잘렸다')
+  const items = itemsPage.rows
+  const yearPlanItems = yearPlanItemsPage.rows
 
   // ── 초과 점검 대상 계산 ──────────────────────────────────────
   const handledKey = new Set(
