@@ -10,6 +10,7 @@
     "test:all": "tsx scripts/test-all.mts",
     "pdf:local": "node scripts/local-gotenberg.mjs",
     "test:invariants": "node scripts/check-data-invariants.mjs",
+    "test:clean": "node scripts/cleanup-test-leftovers.mjs",
     "seed": "node seed/seed.js",
     "seed:reset": "node seed/seed.js --reset"
   },

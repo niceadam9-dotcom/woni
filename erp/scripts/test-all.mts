@@ -4,8 +4,17 @@ import { execSync } from 'child_process'
 
 type Step = { name: string; cmd: string; needServer?: boolean }
 const steps: Step[] = [
+  // 맨 앞에 둔다 — E2E가 중간에 죽으면 픽스처가 남고, 그중 하나가 `일반관리 sub_type null`이라
+  // **바로 다음 단계인 불변식 검사**를 붉게 만든다(2026-08-21 실측: 고객 19건·계정 17건 적체).
+  // 경고가 상시화되면 진짜 위반이 그 안에 묻히므로 회귀를 깨끗한 상태에서 시작한다.
+  // 2시간 이내 픽스처는 건드리지 않는다 — 다른 세션이 지금 돌리는 스위트를 무너뜨리지 않기 위해서다.
+  // 그래서 이 청소가 걷어내는 것은 **직전 회귀가 흘린 것**이다(이번 실행분은 다음 회귀가 치운다).
+  { name: '테스트 잔재 청소',          cmd: 'node scripts/cleanup-test-leftovers.mjs --apply' },
   { name: '빌드(타입체크)',            cmd: 'npm run build' },
   { name: '데이터 불변식(스테이징)',    cmd: 'node scripts/check-data-invariants.mjs' },
+  // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
+  // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
+  { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을

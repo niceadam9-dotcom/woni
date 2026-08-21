@@ -95,16 +95,35 @@ const cachedItems = unstable_cache(fetchAllItems, ['sheet-catalog', 'items'],
 const cachedSheets = unstable_cache(fetchAllSheets, ['sheet-catalog', 'sheets'],
   { tags: [SHEET_CATALOG_TAG], revalidate: 3600 })
 
+/** `unstable_cache`는 Next 런타임 밖에서 호출되면 캐시 저장소가 없어
+ *  `Invariant: incrementalCache missing in unstable_cache`로 **던진다**.
+ *  집계 엔진을 직접 부르는 검증 스크립트(tsx --conditions=react-server)가 여기 걸려
+ *  test-sheet-overview가 2026-08-20(ee1d290)부터 레드였다 — 제품 결함이 아니라 실행 환경 차이다.
+ *
+ *  이 폴백은 **캐시를 건너뛸 뿐 결과가 같다**(같은 로더를 직접 부른다). 그래서 스크립트에서는
+ *  매번 DB를 읽고, Next 안에서는 종전대로 캐시가 산다. invariant 문구를 특정해 좁게 잡는다 —
+ *  넓게 잡으면 진짜 캐시 오류까지 삼켜 캐시가 죽은 걸 아무도 모르게 된다. */
+async function orDirect<T>(cached: () => Promise<T>, direct: () => Promise<T>): Promise<T> {
+  try {
+    return await cached()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('incrementalCache')) return direct()
+    throw e
+  }
+}
+
 /** 전 시트의 항목 카탈로그 (정렬 고정). 반환 배열을 **호출부에서 정렬·변형하지 말 것** —
  *  같은 요청 안에서 공유되는 객체다. 필터는 새 배열을 만드는 `.filter()`로. */
-export const getAllSheetItems = cache(async (): Promise<SheetCatalogItem[]> => cachedItems())
+export const getAllSheetItems = cache(async (): Promise<SheetCatalogItem[]> =>
+  orDirect(cachedItems, fetchAllItems))
 
 /** 시트 1개의 항목 — 전건 캐시를 메모리에서 거른다(DB 왕복 0회). */
 export const getSheetItems = cache(async (sheetId: string): Promise<SheetCatalogItem[]> =>
-  (await cachedItems()).filter(i => i.sheet_id === sheetId))
+  (await orDirect(cachedItems, fetchAllItems)).filter(i => i.sheet_id === sheetId))
 
 /** 점검표 시트 목록. version을 주면 그 버전만(v2025=자체점검 / v2022=외관). */
 export const getSheets = cache(async (version?: string): Promise<SheetRow[]> => {
-  const all = await cachedSheets()
+  const all = await orDirect(cachedSheets, fetchAllSheets)
   return version ? all.filter(s => s.version === version) : all
 })
