@@ -120,7 +120,8 @@
           "verified": "라이브 E2E 20/20 — 미분무 패널 열림(작동 회차 34항 전개=●27 제외 정합)·고체에어로졸 안내 유지·커버리지 9종→2종" },
         { "id": "F-1e", "desc": "잔존 2종(강화액·고체에어로졸)은 고시 별지4에 점검표가 없다(원문 등장 0회) — 시트를 만들 법적 근거 없음, 패널 안내 유지가 정답", "status": "confirmed" },
         { "id": "F-1f", "desc": "조기진압(5)·할론(10)은 원문상 독립 시트지만 현행 묶음 매핑 유지 — 기존 응답 재귀속이 필요해 별도 결정 사안", "status": "deferred" },
-        { "id": "F-1g", "desc": "운영 DB 148 적용 — 서버 재기동 시", "status": "pending_order" }
+        { "id": "F-1g", "desc": "운영 DB 148 적용", "status": "code_present",
+          "verified": "scripts/_probe-prod-148.mts 8/8 (2026-08-21, 운영 ryuozdhnilfjlahorizh 실측) — 7시트·302항목·● 수까지 스테이징과 동일. 사용자 직접 SQL Editor 실행. 잔여: 재기동 시 서버 fetch-cache 확인만" }
       ] }
   ],
 
