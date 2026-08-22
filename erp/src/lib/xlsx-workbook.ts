@@ -45,6 +45,9 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     ['agentPhone', d.agent.phone],
     ['agentBirth', d.agent.birth],
     ['repName', o.senderSign.rep],
+    // 표지 제목(S7-3) — typeLabel은 표지 PDF(assembleCover)와 같은 inspectionTypeLabel 축에서
+    // 파생된 delegation 값이라 두 산출물이 갈라지지 않는다(D-7)
+    ['coverTitle', `소방시설 ${d.typeLabel} 결과보고서`],
   ])
 }
 

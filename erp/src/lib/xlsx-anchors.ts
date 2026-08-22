@@ -51,6 +51,10 @@ export const ANCHORS: Anchor[] = [
   // 보수금액 E11·E14의 NUMBERSTRING은 한국어 Excel 전용 함수다: LibreOffice에선 #NAME?지만
   // 사용자의 실제 도구인 Excel에서는 J11·J14에 금액을 넣으면 한글 금액이 자동으로 살아난다 — 남긴다.
   { field: 'repName',         sheet: '계약서', cell: 'D29', labelCell: 'C29', label: '대표자', dropFormula: true },
+  // 대상처(표지, S7-3) — 제목이 '종합점검' **리터럴**이라 작동점검 건에도 종합으로 인쇄되던 것을
+  // 점검종류 가변으로. 인접 라벨이 없어 자기 라벨로 검증한다 — 서식이 밀리면 이 문구를 재탐색해
+  // 오프셋 0으로 치유된다. 연도(F5)·건물명(B10)·발행일(B29)은 허브 수식이라 폐포가 채운다.
+  { field: 'coverTitle',      sheet: '대상처', cell: 'B7', labelCell: 'B7', label: '소방시설 종합점검 결과보고서' },
 ]
 
 /** 개요 시트의 **모든 입력 칸** — 완전 덮어쓰기 불변식의 축 (S3-4).

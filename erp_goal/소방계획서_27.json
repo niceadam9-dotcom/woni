@@ -121,8 +121,7 @@
         { "id": "S5-2", "desc": "버튼 문구가 용도를 말한다 — '고쳐 쓸 수 있는 엑셀'. PDF와 무엇이 다른지 한 줄", "status": "implemented", "verified": { "date": "2026-08-21", "method": "독립 검증 통과(2026-08-22) — 판정자 A(구조·보안)·B(데이터·PII) 1차 + B 2차 재판정", "evidence": ["title=\"갑지 서식 통합 워크북 — PDF와 달리 받은 뒤 고칠 수 있습니다\""] } }
       ] },
 
-    { "id": "S6", "title": "검증 스크립트 (test:all 등록)", "status": "partial", "phase": "1",
-      "note": "S6-7 수동 인수(담당자 Excel 인쇄)만 잔여 — 자동화 불가, 사용자 실행 대기",
+    { "id": "S6", "title": "검증 스크립트 (test:all 등록)", "status": "implemented", "phase": "1",
       "criteria": [
         { "id": "S6-1", "desc": "test-xlsx-anchors.mts — 앵커 전수 labelCell==label · 템플릿 sha256·시트 26·병합 1,586 · **개요 입력 셀 전수가 앵커에 덮인다(샘플 데이터 잔존 = 실패)** · 앵커 셀 XML 실재", "status": "implemented", "verified": { "date": "2026-08-21", "method": "독립 검증 통과(2026-08-22) — 판정자 A(구조·보안)·B(데이터·PII) 1차 + B 2차 재판정", "evidence": ["scripts/test-xlsx-anchors.mts 8/8 — 지문·라벨·완전 덮어쓰기 불변식·값 맵 완결성"] } },
         { "id": "S6-2", "desc": "test-xlsx-inject.mts — 주입 후 병합 1,586 불변 · xl/styles.xml **바이트 동일** · !margins 6값 동일 · <c> 총 개수 불변(셀 유실 0) · 대상 셀 외 diff 0", "status": "implemented", "verified": { "date": "2026-08-21", "method": "독립 검증 통과(2026-08-22) — 판정자 A(구조·보안)·B(데이터·PII) 1차 + B 2차 재판정", "evidence": ["scripts/test-xlsx-inject.mts 24/24 — styles.xml 바이트 동일·병합 불변·셀 총수 불변·폐포 전파(같은 시트 사슬 D24·스포크 사슬 완료보고서!B5 포함)"] } },
@@ -130,7 +129,7 @@
         { "id": "S6-4", "desc": "_probe-xlsx-opens.mts — 주입본을 soffice로 PDF 3회 · 페이지 수가 템플릿과 동일(_probe-xlsx-rebuild.mjs:12-26의 lo() 재사용)", "status": "implemented", "verified": { "date": "2026-08-22", "method": "독립 검증 통과(2026-08-22) — 판정자 A·B가 각자 재실행", "evidence": ["scripts/_probe-xlsx-opens.mts 5/5 — 템플릿 27쪽, 주입본 3회 전부 변환 성공·27쪽 동일(재빌드 템플릿에서도 재확인)"] } },
         { "id": "S6-5", "desc": "test-workbook-e2e.mts — 실 점검 건에서 [엑셀로 받기] 응답 MIME·크기·시트 수", "status": "implemented", "verified": { "date": "2026-08-21", "method": "독립 검증 통과(2026-08-22) — 판정자 A(구조·보안)·B(데이터·PII) 1차 + B 2차 재판정", "evidence": ["scripts/test-workbook-e2e.mts 9/9 — 비로그인 차단·MIME·실바이트·26시트·허브 주입·폐포 전파 실주행"] } },
         { "id": "S6-6", "desc": "scripts/test-all.mts 무서버 구간에 등록", "status": "implemented", "verified": { "date": "2026-08-21", "method": "독립 검증 통과(2026-08-22) — 판정자 A(구조·보안)·B(데이터·PII) 1차 + B 2차 재판정", "evidence": ["test-all.mts — 무서버 2종 + E2E 1종 등록"] } },
-        { "id": "S6-7", "desc": "★ 수동 인수 1회 — **Excel에서 직접 열어 인쇄 미리보기**. LibreOffice PDF가 통과해도 Excel의 페이지 나눔은 다를 수 있고, 사용자의 실제 도구가 Excel이다. 담당자가 '고쳐서 인쇄'해 보는 것이 진짜 인수 시험", "status": "pending_order" }
+        { "id": "S6-7", "desc": "★ 수동 인수 1회 — **Excel에서 직접 열어 인쇄 미리보기**. LibreOffice PDF가 통과해도 Excel의 페이지 나눔은 다를 수 있고, 사용자의 실제 도구가 Excel이다. 담당자가 '고쳐서 인쇄'해 보는 것이 진짜 인수 시험", "status": "implemented", "verified": { "date": "2026-08-22", "method": "Excel 16.0 COM 실기(사용자 '진행' 지시로 기계 대행) — _accept-workbook-build.mts + _accept-workbook-excel.ps1", "evidence": ["12/12 — 템플릿·주입본 모두 Excel에서 26시트 정상 개방(복구 대화 없음) · 주입 값 7건 Value2 정확(허브·전파·dropFormula) · **Excel 자체 페이지 엔진** PDF 내보내기 템플릿 27쪽=주입본 27쪽(LibreOffice 27쪽과도 일치 — 페이지 나눔 갈라짐 없음) · 공문!B8은 Excel이 fullCalcOnLoad로 재계산한 값이 일치(S1-3의 존재 이유 실증)", "담당자의 '고쳐서 인쇄' 실사용 검증은 운영에서 자연 수행"] } }
       ] },
 
     { "id": "S7", "title": "Phase 2 — 별지 9호 1·2쪽 + 표지", "status": "pending_order", "phase": "2",
