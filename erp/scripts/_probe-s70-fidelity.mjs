@@ -4,7 +4,11 @@ import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
 const GIT = 'C:/Users/dwhwang/Tools/MinGit/cmd/git.exe'
-const head = execFileSync(GIT, ['-C', 'F:/AI/ERP', 'show', 'HEAD:erp/src/app/(dashboard)/inspections/report9-actions.ts'],
+// ⚠ 기준은 HEAD가 아니라 **추출 직전 리비전**으로 고정한다. HEAD로 두면 추출이 커밋되는 순간
+// 원문이 사라져 프로브가 marker fail로 영구히 깨진다(2026-08-23 독립 판정에서 실측) —
+// 1회용 검사가 되어 회귀 가치를 잃는다. 131af61 = report9-actions.ts를 마지막으로 만진 추출 전 커밋.
+const BASE = '131af61:erp/src/app/(dashboard)/inspections/report9-actions.ts'
+const head = execFileSync(GIT, ['-C', 'F:/AI/ERP', 'show', BASE],
   { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).replace(/\r\n/g, '\n')
 const lib = readFileSync('src/lib/report9-assemble.ts', 'utf8').replace(/\r\n/g, '\n')
 
