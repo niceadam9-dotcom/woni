@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
-import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
+import { generateRollingPlanItems } from '@/lib/inspection-plan-generator'
 import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
 import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
@@ -126,15 +126,15 @@ export async function createInspectionAction(
   } | null
   if (cust && cust.is_active && !cust.plan_anchor_date) {
     const targetYear = Math.max(year, new Date().getFullYear())
-    const hdSet = await loadHolidaySet(admin, targetYear)
-    await generateYearlyPlanItems(
+    // 롤링: 최초 점검 기준으로도 올해+내년을 함께 생성 (등록 경로와 동일 규약)
+    await generateRollingPlanItems(
       admin,
       {
         id: input.customer_id, inspection_type: cust.inspection_type,
         inspection_category: cust.inspection_category, inspection_sub_type: cust.inspection_sub_type,
         plan_anchor_date: null, assigned_employee_id: cust.assigned_employee_id,
       },
-      targetYear, profile.id, hdSet,
+      targetYear, profile.id,
     )
     revalidatePath('/inspection-plans')
   }

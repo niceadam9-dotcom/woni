@@ -31,8 +31,12 @@ MAILTO=""
 # 화재보험 만기 알림 — 매일 00:15
 15 0 * * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/insurance-expiry-notify >> /var/log/sjfire-cron.log 2>&1
 
-# 연간 점검계획 생성 — 12/1(내년분)·1/1(올해분) 00:20
-20 0 1 1,12 * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/generate-yearly-plans >> /var/log/sjfire-cron.log 2>&1
+# 연간 점검계획 생성 — 매월 1일 00:20   ★ 종전 12/1·1/1 연 2회에서 상향 (롤링 생성, 2026-08-22)
+#   라우트가 호출 시점과 무관하게 올해+내년을 함께 생성한다(멱등). 연 2회 체계에서는 1~11월 내내
+#   내년분이 비어 "기준일부터 1년치"의 후반부 정기가 조회되지 않았다. 월 1회로 돌리면
+#   서버 중단·발화 누락이 있어도 다음 달 발화가 자동 복구하고, 그 사이 신규 고객의 내년분은
+#   등록 시점 생성이 커버한다.
+20 0 1 * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/generate-yearly-plans >> /var/log/sjfire-cron.log 2>&1
 
 # 월정액 청구 생성 — 매월 1일 12:00 (2026-08-20 사용자 지정 · 낮 12시)
 #   ★ 신규 등록이다. 라우트는 "Cron: 매월 1일 호출 권장"으로 쓰여 있었는데 등록된 적이 없어

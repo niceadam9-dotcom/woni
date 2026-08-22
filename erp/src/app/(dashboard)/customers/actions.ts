@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress, extractRoadName, addressDupKey } from '@/lib/address-parser'
 import { resolveFireStation } from '@/lib/fire-station'
-import { generateYearlyPlanItems, loadHolidaySet, loadAnchorDates } from '@/lib/inspection-plan-generator'
+import { generateRollingPlanItems, loadAnchorDates } from '@/lib/inspection-plan-generator'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
 import type { ContactRole, InspectionType } from '@/types'
@@ -315,9 +315,8 @@ async function _autoCreatePlanItemsForNewCustomer(
     ? anchorDate.getFullYear()
     : now.getFullYear()
 
-  // 이후 연도는 크론(/api/cron/generate-yearly-plans)이 매년 반복 생성
-  const hdSet = await loadHolidaySet(admin, targetYear)
-  await generateYearlyPlanItems(admin, { id: customerId, ...info }, targetYear, createdBy, hdSet)
+  // 롤링: 등록 즉시 올해+내년 생성 — 이후 연도는 매월 크론이 이어받는다
+  await generateRollingPlanItems(admin, { id: customerId, ...info }, targetYear, createdBy)
 }
 
 // (소방계획서_6 W-26) 일반관리 event 생성·동기화 헬퍼(_ensureMonthPlan·_createGeneralEventItem·
@@ -537,12 +536,12 @@ async function _syncInspectionTypeToPlanItems(
     .eq('id', customerId).single()
   if (custRaw) {
     const cust = custRaw as { plan_anchor_date: string | null; assigned_employee_id: string | null }
-    const targetYear = new Date().getFullYear()
-    const hdSet = await loadHolidaySet(admin, targetYear)
-    await generateYearlyPlanItems(
+    // 롤링: 내년분이 이미 생성돼 있으므로 보충도 올해+내년 양쪽에 — 올해만 보충하면
+    // 작동→종합 전환 시 내년 2차 특별점검이 빠진 채 남는다
+    await generateRollingPlanItems(
       admin,
       { id: customerId, inspection_type: newType, inspection_category: newCategory, inspection_sub_type: newSubType, ...cust },
-      targetYear, actorId, hdSet,
+      new Date().getFullYear(), actorId,
     )
   }
 }
@@ -750,11 +749,15 @@ async function _resetPlanItemsForCustomer(
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   }
 
-  // 영향 범위 내 공휴일 일괄 조회 (현재 이후 ~8개월)
+  // 영향 범위 내 공휴일 일괄 조회 — 롤링 생성으로 내년 12월 항목까지 존재하므로
+  // 항목이 걸친 마지막 연도 말까지 커버 (종전 +8개월 창은 내년 후반 항목이 공휴일을 놓쳤다)
   const now = new Date()
-  const endDate = new Date(now); endDate.setMonth(endDate.getMonth() + 8)
+  const maxItemYear = Math.max(
+    now.getFullYear(),
+    ...items.map(it => ((it as Record<string, unknown>).inspection_plans as { year: number } | null)?.year ?? 0),
+  )
   const startStr = toDateStr(now)
-  const endStr = toDateStr(endDate)
+  const endStr = `${maxItemYear}-12-31`
   const { data: holidayData } = await admin
     .from('holidays').select('date')
     .gte('date', startStr).lte('date', endStr)

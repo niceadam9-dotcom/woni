@@ -4,8 +4,10 @@ import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-g
 import type { InspectionType } from '@/types'
 
 // 활성 고객(소방안전관리·일반관리)의 연간 점검계획을 매년 반복 생성 — 비활성/삭제 전까지 계속
-// Vercel Cron: 매년 12월 1일(내년 계획 선행 생성) + 1월 1일(올해 보정) 호출
-// 수동 테스트: GET /api/cron/generate-yearly-plans?year=2027
+// 롤링 생성(2026-08-22): 호출 시점과 무관하게 항상 올해+내년을 생성한다. 종전 12/1(내년)·1/1(올해)
+// 이원 체계는 1~11월 내내 내년분이 비어 "기준일부터 1년치" 후반부가 조회되지 않았다.
+// 크론: 매월 1일 호출(deploy/cron/sjfire-erp.cron) — 멱등이라 반복 실행 안전
+// 수동 테스트: GET /api/cron/generate-yearly-plans?year=2027 (해당 연도만 단독 생성)
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -18,10 +20,9 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date()
-  // 컨테이너 TZ가 UTC라 연말·연초 발화 시 날짜가 밀림 — +9h 시프트 후 UTC 게터로 KST 연·월 추출
+  // 컨테이너 TZ가 UTC라 연말·연초 발화 시 날짜가 밀림 — +9h 시프트 후 UTC 게터로 KST 연 추출
   const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
-  const currentYear  = kstNow.getUTCFullYear()
-  const currentMonth = kstNow.getUTCMonth() + 1
+  const currentYear = kstNow.getUTCFullYear()
 
   const paramYear = req.nextUrl.searchParams.get('year')
   let targetYears: number[]
@@ -31,12 +32,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 연도입니다.' }, { status: 400 })
     }
     targetYears = [y]
-  } else if (currentMonth === 12) {
-    // 12월: 내년 계획 선행 생성 (+올해 보정)
-    targetYears = [currentYear, currentYear + 1]
   } else {
-    // 그 외(1월 1일 정기 실행 포함): 올해 보정 — 멱등이라 중복 실행 안전
-    targetYears = [currentYear]
+    // 롤링: 올해 보정 + 내년 선행 생성 — 어느 달에 돌아도 향후 12개월 이상이 항상 존재
+    targetYears = [currentYear, currentYear + 1]
   }
 
   // 계획 생성자 — 시스템 계정 우선, 없으면 활성 관리자

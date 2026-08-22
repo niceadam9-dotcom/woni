@@ -36,6 +36,29 @@ export async function loadAnchorDates(
   return map
 }
 
+/** 올해+내년 롤링 생성 — 어느 시점에 호출돼도 향후 12개월 이상의 계획이 항상 존재하게 한다.
+ *  종전에는 내년분이 12/1 크론에서만 생겨 1~11월 내내 "기준일부터 1년치"의 후반부가
+ *  조회되지 않았다(예: 8월에 내년 상반기 정기가 안 보임). baseYear와 baseYear+1을 함께
+ *  생성하며 멱등이라 반복 호출 안전. 공휴일 셋은 loadHolidaySet이 baseYear~익년을 커버하므로
+ *  한 번만 로드해 두 해에 공용한다. */
+export async function generateRollingPlanItems(
+  admin: Admin,
+  customer: {
+    id: string; inspection_type: InspectionType
+    inspection_category?: string | null; inspection_sub_type?: string | null
+    plan_anchor_date?: string | null; assigned_employee_id: string | null
+  },
+  baseYear: number,
+  createdBy: string,
+): Promise<number> {
+  const hdSet = await loadHolidaySet(admin, baseYear)
+  let created = 0
+  for (const y of [baseYear, baseYear + 1]) {
+    created += await generateYearlyPlanItems(admin, customer, y, createdBy, hdSet)
+  }
+  return created
+}
+
 /** 고객의 연간 점검계획 항목 생성 — 소방안전관리 연 12건 / 일반관리 연 1~2건 (자체점검만, 정기 없음)
  *  - 기준일: 점검계획일(수동) → 최초 점검시작일(loadAnchorDates) — 모두 없으면 생성 없음
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
