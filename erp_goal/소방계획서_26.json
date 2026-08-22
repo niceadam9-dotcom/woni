@@ -2,7 +2,7 @@
   "doc": "소방계획서_26 — 소방시설(1.4)에서 설비별 점검결과 ○×／ 직접 입력",
   "design": "erp_goal/소방계획서_26.md (2026-08-21 작성)",
   "created": "2026-08-21",
-  "updated": "2026-08-22(2차) F-1f 독립 판정 통과·F-1f-1~4 implemented 승격 — 별도 판정자(Explore)가 150 SQL 126항 전수·호출부 5파일 전수 grep·프로브 동어반복 구조 부재까지 대조해 전건 ✅·결함 0건. 기계검증 전건 재실행 그린(form3-axis 27/27 · form3-map 24/24 · 150대조 17/17 · na-only 3/3 · spec-badge 12/12 · 라이브 E2E 24/24 — dev 신규 기동 후). tsc 잔존 8건은 전부 workbook/route.ts(소방계획서_27 세션 진행 중 작업)로 26 무관. 같은 날 운영 DB 150 적용(사용자 승인, STD-05 73·STD-10 53, 운영 실측 17/17) — F-1 섹션 전체 implemented. 잔여: 재기동 시 fetch-cache 확인만",
+  "updated": "2026-08-23 타 세션(27·23 S9-1) 커밋 이후 26 회귀 재검증 — 전 suite 그린(form3-axis 27/27 · na-only 3/3 · form3-map 24/24 · spec-badge 12/12 · 150대조 17/17 · 라이브 E2E 24/24 · tsc **0오류**, 어제 잔존하던 workbook/route.ts 8건도 27 세션이 해소). 27 세션 `37403f8`이 26의 두 파일을 건드렸으나 **26 불변식 무손상 확인**: ①report9-actions.ts에서 별지 조립 570줄이 report9-assemble.ts로 이관 — S1-4의 두 구성 지점(foldSheetResult)은 새 파일에 그대로 ②sheet-actions.ts에 stampSheetProtocol 호출 5곳 추가(23 S9-1) — bulkSheetGoodAction 본문은 불변, 추가 호출은 반환값을 쓰지 않아 149 미적용 환경에서도 26 경로에 무영향. 아래 evidence 줄번호를 현재 HEAD로 재대조·정정. | 2026-08-22(2차) F-1f 독립 판정 통과·F-1f-1~4 implemented 승격 — 별도 판정자(Explore)가 150 SQL 126항 전수·호출부 5파일 전수 grep·프로브 동어반복 구조 부재까지 대조해 전건 ✅·결함 0건. 기계검증 전건 재실행 그린(form3-axis 27/27 · form3-map 24/24 · 150대조 17/17 · na-only 3/3 · spec-badge 12/12 · 라이브 E2E 24/24 — dev 신규 기동 후). tsc 잔존 8건은 전부 workbook/route.ts(소방계획서_27 세션 진행 중 작업)로 26 무관. 같은 날 운영 DB 150 적용(사용자 승인, STD-05 73·STD-10 53, 운영 실측 17/17) — F-1 섹션 전체 implemented. 잔여: 재기동 시 fetch-cache 확인만",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -18,7 +18,8 @@
     "judge": "독립 판정자(Explore 에이전트, 구현자≠판정자) — S1~S4·F-1a·F-1d 전 criterion 파일:라인 대조 ✅, 결함 0건. 특별 각도 4종(S4-12 이웃 잔류·S3-2 무덮음 줄단위·S4-7 취소 미기록·S1-5 전부-N 제외) 모두 실물 확인",
     "judge_f1f": "F-1f 별도 독립 판정(2026-08-22, Explore) — F-1f-1~4 전건 ✅·결함 0건: ①150 SQL 5번 73항·10번 53항 전수 대조 + 5-L-000 최소 보정(원문 중복 2회 전제) 실물 확인 ②맵 호출부 5파일 전수 grep — 선택(sheetMatchesFacilities: report9·sheet-overview·xlsx-donor-map)은 레거시 미참조, 롤업·형제 고지(form3ItemsForSheet·facilitiesForSheet)만 withLegacy 합산 ③프로브 1부=원문 독립 재파싱·2부=DB 직접 조회로 생성기와 동어반복 아님 ④E2E 4건 이빨 확인(기대 상태 전환 단언)",
     "suites": "test-form3-axis 27/27 · _probe-na-only 3/3 · _probe-form3-map 24/24(7절 F-1f) · _probe-spec-badge 12/12 · _probe-148-vs-source 50/50 · _probe-150-vs-source 17/17(1부+2부 DB) · _probe-form14-result-badge(라이브 E2E) 24/24 — 전부 2026-08-22 재실행(E2E는 dev 신규 기동 후). tsc: 26 관련 파일 0오류(잔존 8건은 workbook/route.ts — 27 세션 소관)",
-    "commits": "131af61(본체) · 7cb0b15(F-1 148) · 97f4e49(운영 148 실측 8/8) — 26bb457로 푸시 완료. F-1f 코드는 미커밋(커밋 승인 대기)"
+    "commits": "131af61(본체) · 7cb0b15(F-1 148) · 97f4e49(운영 148 실측 8/8) — 26bb457로 푸시 완료. F-1f는 ea78af6(13파일) — 푸시 완료(2026-08-22, 게이트 그린: 빌드·INV 15건)",
+    "recheck_2026_08_23": "타 세션 커밋 3건(ea78af6 이후: 8e9bdf1·315b8c6·37403f8) 반영 상태에서 26 전 suite 재실행 — test-form3-axis 27/27 · _probe-na-only 3/3 · _probe-form3-map 24/24 · _probe-spec-badge 12/12 · _probe-150-vs-source 17/17(스테이징 DB) · _probe-form14-result-badge 라이브 E2E 24/24 · `npx tsc --noEmit` **0오류**. 26 파일에 대한 타 세션 변경 2건은 무손상 확인(별지 조립 이관 = 함수 동일 / stampSheetProtocol 삽입 = 반환값 미사용). 이 재검증은 evidence 줄번호 정정만 낳았고 코드 변경 없음"
   },
 
   "decisions": [
@@ -41,22 +42,22 @@
   "sections": [
     { "id": "S1", "title": "선행 결함 수정 — SheetStat 3축화(／만 입력 → ／로)", "status": "implemented",
       "evidence": [
-        "src/lib/sheet-facility-map.ts:77-98 — SheetStat {any,x,o} (o **필수 필드**) + foldSheetResult 헬퍼",
-        "src/lib/sheet-facility-map.ts — rollUpForm3Results 판정: X→× / O→○ / 전부N→／ / 무응답+미설치→／ / 무응답+설치→공란",
-        "src/app/(dashboard)/inspections/report9-actions.ts:299-307 — 별지 9호·4호 공용 구성 지점을 foldSheetResult로",
+        "src/lib/sheet-facility-map.ts:121-137 — SheetStat {any,x,o} (o **필수 필드**) + foldSheetResult 헬퍼",
+        "src/lib/sheet-facility-map.ts:191-199 — rollUpForm3Results 판정: X→× / O→○ / 전부N→／ / 무응답+미설치→／ / 무응답+설치→공란",
+        "src/lib/report9-assemble.ts:168-174 — 별지 9호·4호 공용 구성 지점을 foldSheetResult로 (**2026-08-23 정정**: 종전 report9-actions.ts:299-307 — 27 세션 `37403f8`이 조립부 570줄을 이 파일로 이관했다. 함수·구성 순서 불변)",
         "src/app/(dashboard)/customers/facility-spec-actions.ts:188-196 — 1.4 섹션 배지 구성 지점 동일 통일"
       ],
       "criteria": [
         { "id": "S1-1", "desc": "SheetStat에 o(양호 있음) 축 추가 — **필수 필드**로 두어 src/ 구성 지점 누락을 tsc가 잡게(scripts/는 tsconfig exclude라 프로브는 수동)", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:94-101 · tsc 0오류" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:121-128(2026-08-23 재대조, 종전 94-101) · tsc 0오류" },
         { "id": "S1-2", "desc": "foldSheetResult(cur, result) 단일 헬퍼 — 구성 로직 복사 금지", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:104-110 (중복 구성 로직 없음)" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:130-137(2026-08-23 재대조, 종전 104-110) — 중복 구성 로직 없음(src/ 구성 지점 2곳 모두 이 헬퍼 호출)" },
         { "id": "S1-3", "desc": "응답이 전부 N인 시트 → 결과 ／ (종전 ○ 둔갑 제거)", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:171 · _probe-na-only 3/3 · test-form3-axis 5b절" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:198(2026-08-23 재대조 — 판정 순서 :196-199) · _probe-na-only 3/3 · test-form3-axis 5b절" },
         { "id": "S1-4", "desc": "구성 지점 2곳(별지 조립·1.4 배지) 동시 수정 — 한 곳만 고치면 문서와 화면이 갈린다", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ report9-actions.ts:299-306 + facility-spec-actions.ts:190-196 동일 foldSheetResult" },
+          "verified": "독립판정 2026-08-22 ✅ report9-assemble.ts:170-174 + facility-spec-actions.ts:190-195 동일 foldSheetResult (2026-08-23 재대조 — 조립부가 report9-actions.ts에서 이관됐어도 두 지점이 같은 헬퍼를 쓰는 사실은 불변)" },
         { "id": "S1-5", "desc": "axisWarnings.respondedNotInstalled는 O·X 있는 시트만 — 전부-N은 '해당 없다'는 진술이지 대장 누락 근거가 아니다", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:175-180 (st.o||st.x 필터 실물 확인)" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-facility-map.ts:203-207(2026-08-23 재대조, 종전 175-180) — st.o||st.x 필터 실물 확인" },
         { "id": "S1-6", "desc": "프로브 7곳 갱신(test-form3-axis·_probe-na-only-becomes-good·_probe-form3-axis-mismatch·_recon-required-mark-blast·_recon-seorimsa-guide-light·_probe-spec-badge.mjs·_probe-form3-map.mjs)", "status": "implemented",
           "verified": "2026-08-22 재실행 — form3-axis 27/27 · na-only 3/3 · form3-map 13/13 · spec-badge 12/12" },
         { "id": "S1-7", "desc": "_probe-form3-axis-mismatch의 '설치 항목 마크 불변' 가드는 O→N만 예외 허용(S1의 의도된 변화), 그 외는 실점검 유실로 판정", "status": "implemented",
@@ -81,11 +82,11 @@
       "evidence": ["src/app/(dashboard)/inspections/sheet-actions.ts — bulkSheetNAAction apply 분기의 거울"],
       "criteria": [
         { "id": "S3-1", "desc": "requirePermission('inspection_register') · isItemInScope 회차 범위 필터 · month 축(외관만)", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ sheet-actions.ts:183-189" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-actions.ts:186-202(2026-08-23 재대조, 종전 183-189) — requirePermission :186 · month 가드 :187 · isItemInScope :198 · monthOf(X 코드만 month) :202" },
         { "id": "S3-2", "desc": "미입력 항목에만 'O' insert — 기존 O/X/N 절대 무덮음", "status": "implemented", "depends": ["D-4"],
-          "verified": "독립판정 2026-08-22 ✅ sheet-actions.ts:204-213 줄단위 — have Set 필터·insert만(upsert/delete 경로 없음) · E2E 응답 28건 전부 O" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-actions.ts:204-216 줄단위(2026-08-23 재대조, 종전 204-213) — have Set 필터 :206-209·insert만 :215(upsert/delete 경로 없음) · E2E 응답 28건 전부 O" },
         { "id": "S3-3", "desc": "syncInspectionSteps + revalidatePath 2경로 — NA 액션과 동형", "status": "implemented",
-          "verified": "독립판정 2026-08-22 ✅ sheet-actions.ts:218-221" },
+          "verified": "독립판정 2026-08-22 ✅ sheet-actions.ts:219-221(2026-08-23 재대조, 종전 218-221). ⚠같은 날 23 세션이 :218에 stampSheetProtocol을 끼워 넣었다(S9-1) — 반환값을 쓰지 않는 fire-and-forget이라 149 미적용 환경에서도 이 액션의 결과·오류 경로에 영향 없음(무영향 확인 2026-08-23)" },
         { "id": "S3-4", "desc": "release 모드 없음 — ○ 일괄 해제는 요구 밖이고, 잘못 눌렀으면 항목 단위로 고친다", "status": "implemented",
           "verified": "독립판정 2026-08-22 ✅ 시그니처에 mode 파라미터 부재" },
         { "id": "S3-5", "desc": "반환에 kept(기존 응답 수) — 확인창 문구용", "status": "implemented",
