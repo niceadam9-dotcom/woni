@@ -55,17 +55,72 @@ export const ANCHORS: Anchor[] = [
   // 점검종류 가변으로. 인접 라벨이 없어 자기 라벨로 검증한다 — 서식이 밀리면 이 문구를 재탐색해
   // 오프셋 0으로 치유된다. 연도(F5)·건물명(B10)·발행일(B29)은 허브 수식이라 폐포가 채운다.
   { field: 'coverTitle',      sheet: '대상처', cell: 'B7', labelCell: 'B7', label: '소방시설 종합점검 결과보고서' },
+  // 허브 — 건축물 현황(S3-5 1차 확장). 값의 원천은 customers.use_approval_date + buildings 한 행
+  // (report9-actions와 같은 '활성·최고참 1동' 축). 전부 정보 시트가 단일 참조 수식으로 끌어가므로
+  // 폐포 전파가 그대로 작동한다(정보!B17='개요'!D17 등 실측 — _probe-hub-sample-values.mts).
+  // 등급(B18)·교육이수일(B20)·점검인력 보조 명단은 resolveFireSafetyManager·participants 해석이
+  // 필요해 S7-0(assembleReport9 lib 추출) 후 2차 확장 — 여기서 단순 컬럼 읽기로 채우면 PDF와 갈라진다.
+  { field: 'households',        sheet: HUB, cell: 'B13', labelCell: 'A13', label: '세대수' },
+  { field: 'purpose',           sheet: HUB, cell: 'B15', labelCell: 'A15', label: '대상물구분(용도)' },
+  { field: 'buildingCount',     sheet: HUB, cell: 'D15', labelCell: 'C15', label: '건물동수' },
+  { field: 'totalArea',         sheet: HUB, cell: 'D17', labelCell: 'C17', label: '연면적' },
+  { field: 'buildingArea',      sheet: HUB, cell: 'D18', labelCell: 'C18', label: '건축면적' },
+  { field: 'useApprovalSerial', sheet: HUB, cell: 'D19', labelCell: 'C19', label: '사용승인일' },
+  { field: 'permitDateSerial',  sheet: HUB, cell: 'D20', labelCell: 'C20', label: '건축허가일' },
+  { field: 'heightM',           sheet: HUB, cell: 'B21', labelCell: 'A21', label: '높이' },
+  { field: 'floorsAbove',       sheet: HUB, cell: 'B22', labelCell: 'A22', label: '지상' },
+  { field: 'floorsBelow',       sheet: HUB, cell: 'B23', labelCell: 'A23', label: '지하' },
+  // ── S3-5 2차 확장(S7-0 후 개통) — 등급·교육이수일·점검인력 명단. 값은 assembleReport9
+  // (lib/report9-assemble)의 main·assistants·managerGrade·mgrEduDate — PDF와 같은 해석기라
+  // 대상물 등급(building_grade) vs 사람 자격(license_grade) 축 혼동이 구조적으로 불가능하다(D-7).
+  { field: 'managerGrade',   sheet: HUB, cell: 'B18', labelCell: 'A18', label: '소방안전관리등급' },
+  // B20은 날짜 서식(yyyy"년" m"월" d일;@)이되 ;@ 텍스트 통과라 kdate 문자열이 그대로 산다
+  { field: 'managerEduDate', sheet: HUB, cell: 'B20', labelCell: 'A20', label: '최근 교육이수일' },
+  // 주된 점검인력 — 성명(B1)은 기존 mainInspector. 자격구분(C1)·자격번호(D1)는 표본이
+  // '점검자경력수첩' 등을 남겨둔 **입력 칸**이다(HUB_INPUT_CELLS 주석의 '고정 라벨' 전제가
+  // 틀렸었다 — 보고서!D18~D24가 개요!C2~C8을 수식으로 끌어간다, 2026-08-22 실측)
+  { field: 'mainGrade',     sheet: HUB, cell: 'C1', labelCell: 'A1', label: '주된 점검인력' },
+  { field: 'mainLicenseNo', sheet: HUB, cell: 'D1', labelCell: 'A1', label: '주된 점검인력' },
+  // 보조 점검인력 7행 — 성명 B·자격구분 C·자격번호 D·참여기간 E. 보고서 18~24행이 전부
+  // 수식으로 끌어가므로 허브 주입 + 폐포 전파로 간다. 라벨이 7행 동일이라 서식이 밀리면
+  // 자가치유는 후보 복수로 실패한다(fail-loud — 재실측이 정답).
+  ...[2, 3, 4, 5, 6, 7, 8].flatMap<Anchor>(n => [
+    { field: `assist${n - 1}Name`,      sheet: HUB, cell: `B${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
+    { field: `assist${n - 1}Grade`,     sheet: HUB, cell: `C${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
+    { field: `assist${n - 1}LicenseNo`, sheet: HUB, cell: `D${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
+    { field: `assist${n - 1}Period`,    sheet: HUB, cell: `E${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
+  ]),
+  // ── S7-1·S7-2: 보고서 1·2쪽 — 점검 구분·점검자·전자우편 동의·대표자 구분 ──
+  // 전부 √ 위치가 든 **통문자열**(수식 아님)이라 buildWorkbookValues가 서식 원문
+  // (_probe-s7-raw-literals 실측)과 자구 동일하게 조립한다. B9~B11은 자기 라벨 검증 —
+  // 갑지가 갱신돼 √ 위치·문구가 바뀌면 생성이 붉어진다(조용한 오적용 금지).
+  { field: 'reportTypeHeader',    sheet: '보고서', cell: 'A2',  labelCell: 'A3',  label: '※ [  ]에는 해당되는 곳에 √ 표기를 합니다.' },
+  { field: 'inspectorOwnerRow',   sheet: '보고서', cell: 'B9',  labelCell: 'B9',  label: '[  ]관계인            (성명:' },
+  { field: 'inspectorManagerRow', sheet: '보고서', cell: 'B10', labelCell: 'B10', label: '[  ]소방안전관리자    (성명:' },
+  { field: 'inspectorCompanyRow', sheet: '보고서', cell: 'B11', labelCell: 'B11', label: '[√]소방시설관리업자  (업체명:' },
+  { field: 'emailConsent',        sheet: '보고서', cell: 'C13', labelCell: 'C12', label: '「행정절차법」 제14조에 따라 정보통신망을 이용한 문서 송달에 동의합니다.' },
+  { field: 'repRoleLine',         sheet: '정보',   cell: 'B5',  labelCell: 'A5',  label: '대표자' },
+  // 보고서 점검인력 '주된' 행 — **유일하게 허브 미배선 리터럴**이었다(표본: 김흥준·소방시설관리사·
+  // 제2005-60호 = 자사 대표이사라 PII 니들엔 안 걸렸지만, 담당은 건마다 다르다). 직접 앵커로
+  // 상시 덮는다(값 또는 명시적 공란). 라벨 B17은 수식 캐시('주된 점검인력')지만 검증엔 충분하다.
+  { field: 'mainInspector', sheet: '보고서', cell: 'C17', labelCell: 'B17', label: '주된 점검인력' },
+  { field: 'mainGrade',     sheet: '보고서', cell: 'D17', labelCell: 'B17', label: '주된 점검인력' },
+  { field: 'mainLicenseNo', sheet: '보고서', cell: 'E17', labelCell: 'B17', label: '주된 점검인력' },
 ]
 
 /** 개요 시트의 **모든 입력 칸** — 완전 덮어쓰기 불변식의 축 (S3-4).
  *  템플릿에는 이 칸 전부가 비어 있어야 하고(잔존 = 다른 고객 문서에 남의 값이 인쇄된다),
  *  런타임 주입은 앵커에 있는 칸만 채우며 나머지는 빈 채로 남는 것이 정상이다.
- *  좌표는 _probe-hub-layout.mjs 실측 — 라벨 칸(A열·C열 등)은 여기 넣지 않는다. */
+ *  좌표는 _probe-hub-layout.mjs 실측 — 라벨 칸(A열 등)은 여기 넣지 않는다.
+ *  ⚠ C1~C8(자격구분)은 입력 칸이지만 여기 안 넣는다: 템플릿에 표본값('점검자경력수첩')이
+ *  남아 있어 공란 검증 축이 성립하지 않고, 대신 앵커(mainGrade·assist*Grade)가 **상시 덮는다**
+ *  (값 또는 명시적 공란) — 잔존 경로가 없다. 템플릿 재빌드 시 공란화 + 목록 편입이 정본. */
 export const HUB_INPUT_CELLS: string[] = [
-  // 점검인력 블록(1~8행): 이름·자격번호·기간·일수. C열(점검자경력수첩)은 고정 라벨이라 제외
+  // 점검인력 블록(1~8행): 이름(B)·자격번호(D)·참여기간(E)·일수(F1)
   'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8',
   'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8',
-  'E1', 'F1',
+  'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8',
+  'F1',
   // 9~23행 값 칸
   'B9', 'G9', 'I9', 'J9',
   'B10', 'D10', 'G10',

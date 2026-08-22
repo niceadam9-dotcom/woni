@@ -8,10 +8,11 @@ import type { Page } from 'playwright'
 // @ts-expect-error mjs 헬퍼
 import { raw, BASE, mkUser, delUser, mkCustomer, cleanupCustomer, launch, login, check, summary } from './_e2e-helpers.mjs'
 import * as XLSX from 'xlsx'
+import { DONOR_TOC_BODY_CELLS } from '../src/lib/xlsx-donors.ts'
 
 const SUF = Math.random().toString(36).slice(2, 6).toUpperCase()
 const EMAIL = `workbook.${SUF}@e2e.test`
-let userId = '', custId = '', inspId = ''
+let userId = '', custId = '', inspId = '', bldId = ''
 let browser: import('playwright').Browser | null = null
 
 try {
@@ -51,15 +52,49 @@ try {
 
   console.log('[3] 받은 파일이 실제로 열린다')
   const wb = XLSX.read(new Uint8Array(body))
-  check('26시트', wb.SheetNames.length === 26, `${wb.SheetNames.length}`)
+  // Phase 5(S10): 기저 26 + 목차 + 기타(상시) — 설비 미등록 고객은 설비 시트가 전부 빠진다
+  check('28시트(기저 26 + 목차 + 기타)', wb.SheetNames.length === 28, `${wb.SheetNames.length}`)
+  check('상시 시트 동봉 — 기타·목 차', wb.SheetNames.includes('기타') && wb.SheetNames.includes('목 차'))
+  check('미설치 설비 시트 부재 — 소·자탐1', !wb.SheetNames.includes('소') && !wb.SheetNames.includes('자탐1'))
+  check('비다중 고객 — 다중1·2 부재', !wb.SheetNames.includes('다중1') && !wb.SheetNames.includes('다중2'))
   const v = (s: string, c: string) => String((wb.Sheets[s]?.[c] as XLSX.CellObject | undefined)?.v ?? '')
+  const [toc1, toc2] = DONOR_TOC_BODY_CELLS
+  check('목차 재작성 — 첫 칸 = 기타 제목', v('목 차', toc1).startsWith('31.'), v('목 차', toc1))
+  check('목차 재작성 — 둘째 칸 공란', v('목 차', toc2) === '', v('목 차', toc2))
   check('개요!B14 = 고객명(허브 주입)', v('개요', 'B14') === `워크북검증사${SUF}`, v('개요', 'B14'))
   check('공문!B8 = 고객명(폐포 전파 실주행)', v('공문', 'B8') === `워크북검증사${SUF}`, v('공문', 'B8'))
   check('개요!D14 = 관할소방서', v('개요', 'D14') === '양평', v('개요', 'D14'))
   check('실고객 표본 흔적 없음', !JSON.stringify(wb.Sheets['개요']).includes('정내과의원'))
+  // S7-1·2 + S3-5 2차 — 별지 9호 조립(assembleReport9) 실주행 배선
+  check('보고서!A2 점검 구분 — 작동 √', v('보고서', 'A2').startsWith('[√] 작동점검'), v('보고서', 'A2').slice(0, 30))
+  check('보고서!C17 주된 점검인력 = 담당 직원(표본 김흥준 아님)', v('보고서', 'C17') === `워크북${SUF}`,
+    v('보고서', 'C17'))
+
+  console.log('[4] 설치 설비 반영(S10-2) — 소화기구 등록 후 재다운로드')
+  const { data: bldIns, error: bldErr } = await raw.from('buildings').insert({
+    customer_id: custId, building_name: `본관${SUF}`, created_by: userId,
+  }).select('id').single()
+  if (bldErr) throw new Error(`건물 생성 실패: ${bldErr.message}`)
+  bldId = bldIns!.id
+  const { error: facErr } = await raw.from('fire_facilities').insert({
+    building_id: bldId, category: '소화설비', facility_code: '소화기구 및 자동소화장치', installed: true,
+  })
+  if (facErr) throw new Error(`설비 등록 실패: ${facErr.message}`)
+  const res2 = await page.request.get(`${BASE}/inspections/${inspId}/workbook`)
+  const wb2 = XLSX.read(new Uint8Array(await res2.body()))
+  const v2 = (s: string, c: string) => String((wb2.Sheets[s]?.[c] as XLSX.CellObject | undefined)?.v ?? '')
+  check('설치 설비 시트 동봉 — 소', wb2.SheetNames.includes('소'), wb2.SheetNames.filter(n => !wb.SheetNames.includes(n)).join(','))
+  check('29시트(+소화기구 1면)', wb2.SheetNames.length === 29, `${wb2.SheetNames.length}`)
+  check('목차 — 첫 칸 소화기구·둘째 칸 기타', v2('목 차', toc1).startsWith('1.') && v2('목 차', toc2).startsWith('31.'),
+    `${v2('목 차', toc1)} | ${v2('목 차', toc2)}`)
+  check('여전히 미설치 시트 부재 — 자탐1', !wb2.SheetNames.includes('자탐1'))
 } finally {
   if (browser) await browser.close()
   if (inspId) await raw.from('inspections').delete().eq('id', inspId)
+  if (bldId) {
+    await raw.from('fire_facilities').delete().eq('building_id', bldId)
+    await raw.from('buildings').delete().eq('id', bldId)
+  }
   if (custId) await cleanupCustomer(custId)
   if (userId) await delUser(userId)
 }

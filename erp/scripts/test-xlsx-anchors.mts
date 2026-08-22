@@ -126,6 +126,15 @@ console.log('[4] buildWorkbookValues가 앵커 field 전수를 낸다')
       periodLabel: 'X', daysLabel: '1일', submitDate: 'X', station: 'X',
     },
     customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21',
+    useApprovalISO: '2011-06-25',
+    building: {
+      purpose: 'X', totalArea: 1, buildingArea: 1, floorsAbove: 1, floorsBelow: 1,
+      height: 1, households: 1, buildingCount: 1, permitDateISO: '2009-04-25',
+    },
+    report9: {
+      ckOp: true, ckInitial: false, ckCompEtc: false, consent: null, repRole: '',
+      managerGrade: '', mgrEduDate: '', main: null, assistants: [],
+    },
   })
   const missing = ANCHORS.filter(a => !values.has(a.field)).map(a => a.field)
   check(`앵커 ${ANCHORS.length}개 field 전부 값 맵에 존재`, missing.length === 0, missing.join(', '))

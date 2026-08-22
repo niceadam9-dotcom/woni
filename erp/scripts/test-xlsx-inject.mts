@@ -39,9 +39,24 @@ const delegation: DelegationData = {
   periodLabel: '2026.08.20 부터 ~ 2026.08.21 까지', daysLabel: '2일', submitDate: '2026년 8월 21일', station: '양평',
 }
 
+const report9 = {
+  ckOp: true, ckInitial: false, ckCompEtc: false,
+  consent: true, repRole: '관리자',
+  managerGrade: '2급', mgrEduDate: '2024년 5월 2일',
+  main: { name: '김주된', grade: '소방시설관리사', licenseNo: '제2026-1호' },
+  assistants: [
+    { name: '이보조', grade: '점검자경력수첩', licenseNo: '수첩-77', period: '2026.08.20 부터 ~ 2026.08.21 까지' },
+  ],
+}
 const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
   startISO: '2026-08-20', endISO: '2026-08-21',
+  useApprovalISO: '2011-06-25',
+  building: {
+    purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5, floorsBelow: 2,
+    height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',
+  },
+  report9,
 })
 const { targets, unmapped } = toInjectTargets(values)
 check('앵커-값 매핑 누락 0', unmapped.length === 0, unmapped.map(a => a.field).join(', '))
@@ -89,6 +104,28 @@ check('계약서!D29 대표자', cellV('계약서', 'D29') === '홍대표', Stri
 check('개요!F1 일수(닫는 괄호 포함 — 위임장 S10 여는 괄호와 짝)', cellV('개요', 'F1') === '2일   )', String(cellV('개요', 'F1')))
 check('대상처!B7 표지 제목 점검종류 가변(S7-3 — 종전 종합점검 리터럴)',
   cellV('대상처', 'B7') === '소방시설 작동점검 결과보고서', String(cellV('대상처', 'B7')))
+// S7-1·S7-2 — 보고서 1·2쪽 √ 통문자열 + 주된 점검인력 리터럴 교체
+check('보고서!A2 점검 구분 — 작동 √', String(cellV('보고서', 'A2')).startsWith('[√] 작동점검, 종합점검(［  ］최초점검'),
+  String(cellV('보고서', 'A2')).slice(0, 40))
+check('보고서!C13 전자우편 동의 √', cellV('보고서', 'C13') === '[√] 동의함      [  ] 동의하지 않음',
+  String(cellV('보고서', 'C13')))
+check('정보!B5 대표자 구분 — 관리자 √', cellV('정보', 'B5') === '[  ]소유자, [√]관리자, [  ]점유자',
+  String(cellV('정보', 'B5')))
+check('보고서!C17 주된 성명(표본 김흥준 교체)', cellV('보고서', 'C17') === '김주된', String(cellV('보고서', 'C17')))
+check('보고서!D17 자격구분', cellV('보고서', 'D17') === '소방시설관리사', String(cellV('보고서', 'D17')))
+check('보고서!E17 자격번호(표본 제2005-60호 교체)', cellV('보고서', 'E17') === '제2026-1호', String(cellV('보고서', 'E17')))
+// S3-5 2차 — 등급·교육이수일·보조 명단(허브)
+check('개요!B18 소방안전관리등급', cellV('개요', 'B18') === '2급', String(cellV('개요', 'B18')))
+check('개요!B20 교육이수일(;@ 서식 — 문자열 그대로)', cellV('개요', 'B20') === '2024년 5월 2일', String(cellV('개요', 'B20')))
+check('개요!B2 보조 성명', cellV('개요', 'B2') === '이보조', String(cellV('개요', 'B2')))
+check('개요!D2 보조 자격번호', cellV('개요', 'D2') === '수첩-77', String(cellV('개요', 'D2')))
+// S3-5 1차 확장 — 건축물 현황 축(용도·면적·층수·날짜 시리얼)
+check('개요!B15 대상물 구분(용도)', cellV('개요', 'B15') === '근린생활시설', String(cellV('개요', 'B15')))
+check('개요!D17 연면적(숫자)', cellV('개요', 'D17') === 999.99, String(cellV('개요', 'D17')))
+check('개요!D19 사용승인일(시리얼 — 날짜 서식 보존)', cellV('개요', 'D19') === isoToSerial('2011-06-25'),
+  String(cellV('개요', 'D19')))
+check('개요!D20 건축허가일(시리얼)', cellV('개요', 'D20') === isoToSerial('2009-04-25'), String(cellV('개요', 'D20')))
+check('개요!B22 지상 층수', cellV('개요', 'B22') === 5, String(cellV('개요', 'B22')))
 
 // ── ③ 폐포 전파 ─────────────────────────────────────────────────────
 console.log('[3] 폐포 전파 — 허브만 넣어도 스포크 캐시가 바뀐다')
@@ -100,7 +137,21 @@ check('계약서!D24 상호(같은 시트 참조 사슬 A3→D24)', cellV('계�
 check('완료보고서!B5 상호(스포크→스포크 사슬 계획서!B5 경유)', cellV('완료보고서', 'B5') === '검증대상빌딩')
 check('위임장!C6 관계인(개요!D10 경유)', cellV('위임장', 'C6') === '박관계', String(cellV('위임장', 'C6')))
 check('위임장!C10 점검일자(개요!E1 경유)', cellV('위임장', 'C10') === delegation.periodLabel)
-check('위임장!P19 관할소방서', cellV('위임장', 'P19') === '양평')
+// S3-5 1차 확장의 스포크 — 정보 시트가 단일 참조로 끌어간다(실측: 정보!B17='개요'!D17)
+check('정보!B17 연면적(개요!D17 경유)', cellV('정보', 'B17') === 999.99, String(cellV('정보', 'B17')))
+check('정보!C18 지상 층수(개요!B22 경유)', cellV('정보', 'C18') === 5, String(cellV('정보', 'C18')))
+check('위임장!P19 관할소방서',cellV('위임장', 'P19') === '양평')
+// S3-5 2차의 스포크 — 보고서 점검인력 보조 행(18행~)이 개요!B2~E8을 수식으로 끌어간다
+check('보고서!C18 보조 성명(개요!B2 경유)', cellV('보고서', 'C18') === '이보조', String(cellV('보고서', 'C18')))
+check('보고서!F18 보조 기간(개요!E2 경유)', cellV('보고서', 'F18') === report9.assistants[0].period,
+  String(cellV('보고서', 'F18')))
+// 빈 보조 행 — 명시적 공란 전파가 표본 캐시('0'·'점검자경력수첩')를 지운다
+const c19 = cellV('보고서', 'C19')
+check('보고서!C19 빈 보조 행 성명 공란(캐시 0 잔재 소거)', c19 === undefined || String(c19).trim() === '',
+  JSON.stringify(c19))
+const d19 = cellV('보고서', 'D19')
+check('보고서!D19 빈 보조 행 자격구분 공란(점검자경력수첩 잔재 소거)', d19 === undefined || String(d19).trim() === '',
+  JSON.stringify(d19))
 
 // ── ④ 명시적 공란 ───────────────────────────────────────────────────
 console.log('[4] 값 없는 앵커 = 명시적 공란')
@@ -108,6 +159,8 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
   const blankDelegation = { ...delegation, agent: { name: '', position: '', phone: '', birth: '' } }
   const v2 = buildWorkbookValues({
     official, delegation: blankDelegation, customerAddress: '', startISO: null, endISO: null,
+    useApprovalISO: null, building: null,
+    report9: { ckOp: false, ckInitial: false, ckCompEtc: false, consent: null, repRole: '', managerGrade: '', mgrEduDate: '', main: null, assistants: [] },
   })
   const r2 = await injectWorkbook(template, toInjectTargets(v2).targets)
   const wb2 = XLSX.read(r2.bytes)
@@ -141,6 +194,7 @@ console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
   const asSample = buildWorkbookValues({
     official: { ...official, recipient: '정내과의원' }, delegation,
     customerAddress: '경기도 양평군 용문로 376-1', startISO: '2026-08-20', endISO: '2026-08-21',
+    useApprovalISO: null, building: null, report9,
   })
   const r6 = await injectWorkbook(template, toInjectTargets(asSample).targets, { forbidden: SCRUB_NEEDLES })
   const wb6 = XLSX.read(r6.bytes)

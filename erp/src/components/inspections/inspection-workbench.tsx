@@ -24,6 +24,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { evidenceDone, activeStepNums, stepProgress, type StepNum } from '@/lib/inspection-step-status'
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
+import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
@@ -60,11 +61,13 @@ const PREVIEW_STEPS = new Set<StepKey>(['submit9', 'repair', 'submit11'])
 
 export function InspectionWorkbench({
   inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots, defectRows,
-  initialStepNum = null,
+  initialStepNum = null, isAdmin = false,
 }: {
   inspectionId: string
   canManage: boolean
   canComplete: boolean
+  /** S9-1 — 규약 미상 회차의 [신규약 확정] 버튼 노출 축(서버 액션이 재검사하므로 표시용) */
+  isAdmin?: boolean
   today: string
   data: TimelineData
   initialJob: Report9Job | null
@@ -118,11 +121,12 @@ export function InspectionWorkbench({
   const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
-  // 22 S15(Q-12) — 과거 건 재생성 차단. 서버(requestReport9Action)와 같은 순수 함수로 판정해
-  // 화면 비활성과 서버 거부가 갈라지지 않는다. 기준일 축도 서버와 동일(종료일 → 시작일 폴백)
-  const regenBlocked = isRegenBlocked({
-    inspection_end_date: data.period?.end ?? null,
-    inspection_start_date: data.period?.start ?? null,
+  // S9-1(2026-08-21) — 재생성 차단은 규약 버전 축. 서버(requestReport9Action)와 같은 순수 함수로
+  // 판정해 화면 비활성과 서버 거부가 갈라지지 않는다. 관리자 확정 직후엔 로컬 선반영으로 즉시 열린다.
+  const [protocolConfirmed, setProtocolConfirmed] = useState(false)
+  const regenBlocked = !protocolConfirmed && isRegenBlocked({
+    sheetProtocol: data.sheetProtocol ?? null,
+    respondedCount: data.responded,
   })
 
   /* ── 판정 — 서버(syncInspectionSteps)와 **같은 함수**를 쓴다 (R4-1).
@@ -675,15 +679,34 @@ export function InspectionWorkbench({
           </Pane>
           <Pane title="별지 9·10호 생성·제출" cls={paneCls} head={paneHead}>
             <div className="space-y-2 px-3 py-2">
-              {/* 22 S15(Q-12) — 규약 전환일 이전 건은 재생성 차단(서버 가드와 같은 판정 함수).
-                  CUTOFF가 null인 동안은 아무 건도 막지 않으므로 이 배너는 안 뜬다 */}
+              {/* S9-1 — 구규약(legacy_na)·규약 미상+응답 있음은 재생성 차단(서버 가드와 같은 판정 함수).
+                  미상 회차는 사실을 아는 관리자가 [신규약 확정]으로 해제한다 — 자동 추정은 쓰지 않는다. */}
               {regenBlocked && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
-                  구 규약(미선택=해당없음)으로 작성된 점검 — 재생성하면 결과 표기가 달라져 생성이 차단됩니다. 보관함 원본을 사용하세요.
+                  {data.sheetProtocol === 'legacy_na'
+                    ? '구 규약(무응답=해당없음)으로 작성된 점검 — 재생성하면 결과 표기가 달라져 생성이 차단됩니다. 보관함 원본을 사용하세요.'
+                    : '규약 미상 회차(무응답 표기 규약 전환 전 생성) — 재생성하면 결과 표기가 달라질 수 있어 차단됩니다. 보관함 원본을 사용하세요.'}
                   {customerId && (
                     <NextLink href={`/customers/${customerId}`} className="ml-1 underline hover:text-amber-900">고객 문서 보관함 열기</NextLink>
                   )}
-                  <span className="ml-1">원본이 없으면 관리자에게 문의해주세요.</span>
+                  {data.sheetProtocol !== 'legacy_na' && isAdmin && (
+                    <button
+                      onClick={() => {
+                        if (!window.confirm('이 회차가 신규약(무응답=공란)으로 입력됐음을 확정합니다.\n확정하면 재생성이 열리고, 확정 기록이 활동 로그에 남습니다.\n확실할 때만 진행하세요 — 구규약 입력이면 재생성물의 결과 표기가 달라집니다.')) return
+                        startTransition(async () => {
+                          const res = await confirmSheetProtocolAction(inspectionId)
+                          if (res.error) { alert(res.error); return }
+                          setProtocolConfirmed(true)
+                        })
+                      }}
+                      disabled={isPending}
+                      className="ml-2 h-6 px-2 rounded border border-amber-400 bg-white text-[11px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+                      신규약으로 입력된 회차 — 확정
+                    </button>
+                  )}
+                  {data.sheetProtocol !== 'legacy_na' && !isAdmin && (
+                    <span className="ml-1">신규약 입력이 확실하면 관리자에게 확정을 요청하세요.</span>
+                  )}
                 </div>
               )}
               {/* 문서 칩 = **무엇을 작업할지 고르는 스위치**(2026-08-20 사용자 확정).

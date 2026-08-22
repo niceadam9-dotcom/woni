@@ -77,6 +77,8 @@ export type TimelineData = {
   /** R5-8: ④ 기한의 기산 근거 — '왜 이 날짜인지'를 ④에서 바로 보고 고칠 수 있어야 한다.
    *  end가 없으면 시작일이 기산일이다(page.tsx의 due9 계산과 같은 규칙). */
   period?: { start: string | null; end: string | null; days: number }
+  /** S9-1(149) — 점검표 입력 규약. null=미상(149 도입 전 생성) → 응답 있으면 재생성 차단 */
+  sheetProtocol?: 'legacy_na' | 'blank_unanswered' | null
   submit11: { due: string | null; dday: number | null; submittedAt: string | null }
   defects: { total: number; planned: number; done: number; photoPairs: number }
   prereqs: PrereqRow[]                  // ④ 전제 체크 (§9-6⑦)

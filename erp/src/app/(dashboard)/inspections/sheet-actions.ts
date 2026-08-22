@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
 import { getAllSheetItems, getSheetItems, getSheets } from '@/lib/sheet-catalog'
 import type { UserRole } from '@/types'
@@ -25,6 +26,16 @@ async function loadScope(admin: ReturnType<typeof createAdminClient>, inspection
     assignedEmployeeId: row.assigned_employee_id,
     scope: sheetScope(row.plan_type, row.customer?.inspection_type ?? null),
   }
+}
+
+/** S9-1(2026-08-21) — 첫 점검표 입력이 규약을 확정한다. 규약 미상(NULL, 149 도입 전 생성) 회차에
+ *  이 파일의 쓰기 액션이 손을 대는 순간 현재 규약을 스탬프한다 — 규약은 점검 실시일이 아니라
+ *  **입력 행위**의 속성이라는 원칙. WHERE ... IS NULL이라 확정된 값(legacy_na 포함)은 절대 안 덮는다.
+ *  ⚠ syncInspectionSteps 안에 넣지 않는 이유: 그 함수는 파일 업로드·발송 경로에서도 돌아서,
+ *  점검표에 손대지 않은 회차까지 스탬프하게 된다. */
+async function stampSheetProtocol(admin: ReturnType<typeof createAdminClient>, inspectionId: string) {
+  await admin.from('inspections').update({ sheet_protocol: CURRENT_SHEET_PROTOCOL })
+    .eq('id', inspectionId).is('sheet_protocol', null)
 }
 
 /** 회차별 작성·조회 트리의 설비별 요약 행 — 회차(들)의 시트별 진행률 일괄 조회.
@@ -136,6 +147,7 @@ export async function bulkSheetNAAction(
         if (error) return { error: `해제 실패: ${error.message}` }
       }
     }
+    await stampSheetProtocol(admin, inspectionId)   // ／ 해제도 입력 행위다 (S9-1)
     await syncInspectionSteps(admin, inspectionId, profile.id)
     revalidatePath(`/inspections/${inspectionId}`)
     revalidatePath('/inspections')
@@ -157,6 +169,7 @@ export async function bulkSheetNAAction(
     const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
     if (error) return { error: `일괄 저장 실패: ${error.message}` }
   }
+  await stampSheetProtocol(admin, inspectionId)   // 첫 입력이 규약을 확정한다 (S9-1)
   await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
@@ -202,6 +215,7 @@ export async function bulkSheetGoodAction(
     const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
     if (error) return { error: `일괄 저장 실패: ${error.message}` }
   }
+  await stampSheetProtocol(admin, inspectionId)   // 첫 입력이 규약을 확정한다 (S9-1)
   await syncInspectionSteps(admin, inspectionId, profile.id)
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
@@ -336,6 +350,7 @@ export async function saveSheetResponsesAction(
 
   // R4-6: ① 점검표 응답이 곧 근거 — 저장 즉시 단계가 스스로 완료된다(버튼 불필요).
   // 해제만 있어도 근거가 줄었으므로 동기화는 항상 돈다.
+  await stampSheetProtocol(admin, inspectionId)   // 첫 입력이 규약을 확정한다 (S9-1)
   const sync = await syncInspectionSteps(admin, inspectionId, profile.id)
   const stepsChanged = sync.changed > 0 || !!sync.justCompleted
   if (stepsChanged) {
@@ -394,6 +409,7 @@ export async function bulkAllGoodAction(inspectionId: string, month = 0): Promis
     const { error } = await admin.from('inspection_sheet_responses').insert(payload as Record<string, unknown>[])
     if (error) return { error: `일괄 저장 실패: ${error.message}` }
   }
+  await stampSheetProtocol(admin, inspectionId)                // 첫 입력이 규약을 확정한다 (S9-1)
   await syncInspectionSteps(admin, inspectionId, profile.id)   // R4-6: ①
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
@@ -469,7 +485,10 @@ export async function copyPreviousRoundResponsesAction(inspectionId: string): Pr
 
   // R4-6(독립 검증 D4): 응답을 대량으로 넣는 경로인데 동기화가 빠져 있었다 —
   // ①이 완료로 올라가는 시점이 다음 상세 진입까지 미뤄졌다(R4-7이 늦게 맞추는 지연 정합)
-  if (payload.length > 0) await syncInspectionSteps(admin, inspectionId, profile.id)
+  if (payload.length > 0) {
+    await stampSheetProtocol(admin, inspectionId)   // 복사도 입력 행위다 — 사용자 검토 전제 (S9-1)
+    await syncInspectionSteps(admin, inspectionId, profile.id)
+  }
 
   revalidatePath(`/inspections/${inspectionId}`)
   return {
@@ -556,4 +575,29 @@ export async function createDefectsFromXAction(
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
   return { added: toInsert.length }
+}
+
+/** S9-1(2026-08-21) — 규약 미상(NULL) 회차를 관리자가 '신규약으로 입력된 회차'로 확정한다.
+ *
+ *  미상 + 응답 있음은 재생성이 차단되는데(isRegenBlocked — 구규약 입력이면 재생성이 표기를
+ *  바꾸므로), 실제로 신규약 하에 입력됐음을 **아는 사람**이 해제하는 통로다. 자동 추정(응답
+ *  updated_at 등)을 쓰지 않는 이유: 사실 확인은 사람 몫이고, 추정이 틀리면 법정 문서 표기가
+ *  바뀐다. 확정은 activity_logs에 남는다 — 누가 언제 무엇을 근거로 열었는지 추적 가능해야 한다.
+ *  legacy_na로 이미 확정된 건은 건드리지 않는다(WHERE IS NULL). */
+export async function confirmSheetProtocolAction(inspectionId: string): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  if (profile.role !== 'admin') return { error: '관리자만 확정할 수 있습니다.' }
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('inspections')
+    .update({ sheet_protocol: CURRENT_SHEET_PROTOCOL })
+    .eq('id', inspectionId).is('sheet_protocol', null)
+    .select('id')
+  if (error) return { error: `확정 실패: ${error.message}` }
+  if (!data || data.length === 0) return { error: '이미 규약이 확정된 회차입니다 — 새로고침해주세요.' }
+  await admin.from('activity_logs').insert({
+    user_id: profile.id, action: 'SHEET_PROTOCOL_CONFIRM', entity_type: 'inspection', entity_id: inspectionId,
+    details: { to: CURRENT_SHEET_PROTOCOL, reason: '관리자 확정 — 신규약 입력 회차로 판단(재생성 차단 해제)' },
+  } as Record<string, unknown>)
+  revalidatePath(`/inspections/${inspectionId}`)
+  return {}
 }

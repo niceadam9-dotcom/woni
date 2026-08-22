@@ -21,6 +21,9 @@ const steps: Step[] = [
   // 주입 후 서식 무손상(styles.xml 바이트 동일·병합 불변)·값 정확성·폐포 전파.
   // 폐포가 깨지면 옛 값이 스포크에 남는다 — 다른 고객 문서에 남의 상호가 인쇄되는 부류의 결함
   { name: '갑지 워크북 주입',          cmd: 'npx tsx scripts/test-xlsx-inject.mts' },
+  // 설비별 점검표 동봉 자산(Phase 5) — 지문·매핑·표본 흔적 0·제거 수술·선별 규칙.
+  // 여기가 붉으면 갑지 또는 전체 보고서가 갱신된 것 — build-workbook-full 재실행(Q-4)
+  { name: '갑지 워크북 도너 자산',      cmd: 'npx tsx scripts/test-xlsx-donors.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을

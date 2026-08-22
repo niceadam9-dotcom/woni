@@ -39,6 +39,8 @@ export type InspectionDocs = {
   endDate: string | null
   /** 점검표 응답 수 — 트리 점검표 행 진행 표시용 (소방계획서_8 H-2) */
   sheetResponses: number
+  /** S9-1(149) — 점검표 입력 규약. null=미상 → 응답 있으면 재생성 차단(회차 카드 배너의 판정 재료) */
+  sheetProtocol: 'legacy_na' | 'blank_unanswered' | null
   defects: { total: number; done: number; photoPairs: number }
   report4: DocGroupRef | null
   report9: DocGroupRef | null
@@ -86,6 +88,7 @@ function latestGroup(objects: Array<{ name: string; created_at?: string | null }
 type InspRow = {
   id: string; year: number; sequence_num: number; inspection_type: string; status: string
   plan_type: string | null; inspection_start_date: string | null; inspection_end_date: string | null
+  sheet_protocol?: 'legacy_na' | 'blank_unanswered' | null   // S9-1(149)
 }
 
 /** 점검 1건의 문서 상태 조립 — getCustomerDocsAction·getCustomerRoundsAction 공용 (소방계획서_8 H-1) */
@@ -110,6 +113,7 @@ async function buildInspectionDocs(
     inspectionType: i.inspection_type, planType: i.plan_type, status: i.status,
     startDate: i.inspection_start_date, endDate: i.inspection_end_date,
     sheetResponses: respRes.count ?? 0,
+    sheetProtocol: i.sheet_protocol ?? null,
     defects: {
       total: defects.length,
       done: defects.filter(d => d.action_completed_at).length,

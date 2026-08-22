@@ -5,9 +5,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
+import { assembleReport9 } from '@/lib/report9-assemble'
 import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
-import { injectWorkbook } from '@/lib/xlsx-inject'
+import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
+import { donorGroupsToKeep, allDonorSheets, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
+import { removeSheets } from '@/lib/xlsx-sheet-surgery'
+import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { isMultiUseApplicable } from '@/lib/multi-use'
 
 /** 갑지 통합 워크북(엑셀) 즉석 생성 (소방계획서_27 S4 — Phase 1: 개요 허브 + 공문·위임장·계약서)
  *
@@ -20,7 +25,9 @@ import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
  *
  *  라우트 핸들러 = 공개 엔드포인트(소방계획서_17 교훈) — 세션·권한을 여기서 직접 검사한다. */
 
-const TEMPLATE_PATH = join(process.cwd(), 'templates', 'report-workbook.xlsx')
+// Phase 5(S10)부터 전체 자산은 기저 26시트 + 목차 + 설비별 점검표 40시트(다중 포함) — 런타임은
+// 고객 미설치 설비의 시트를 **제거**만 한다(이식은 스타일 병합이 걸린 빌드 1회 수술)
+const TEMPLATE_PATH = join(process.cwd(), 'templates', 'report-workbook-full.xlsx')
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()
@@ -41,8 +48,46 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     customer_id: string; year: number
     inspection_start_date: string | null; inspection_end_date: string | null
   }
-  const { data: cust } = await admin.from('customers')
-    .select('customer_name, address').eq('id', row.customer_id).maybeSingle()
+  // 소재지·사용승인일은 조립 데이터에 없어 라우트가 직접 보탠다. 건축물 현황(S3-5 1차 확장)은
+  // buildings 활성·최고참 1동 — report9-actions:225와 같은 축이라 별지 9호 PDF와 같은 동을 본다.
+  // 전 동 id는 설치 설비(도너 시트 선별) 조회에 쓴다 — sheet-overview와 같은 고객 단위 축
+  const [{ data: cust }, { data: blds, error: bldErr }, { data: formRow }] = await Promise.all([
+    admin.from('customers')
+      .select('customer_name, address, use_approval_date').eq('id', row.customer_id).maybeSingle(),
+    admin.from('buildings')
+      .select('id, purpose, total_area, building_area, floors_above, floors_below, height, households, building_count, permit_date')
+      .eq('customer_id', row.customer_id).eq('is_active', true)
+      .order('created_at', { ascending: true }),
+    // 다중이용업소 판별 원천(1.10.3) — 다중1·2 시트 동봉 여부(S10-2 multiUse 축)
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', row.customer_id).limit(1).maybeSingle(),
+  ])
+  if (bldErr) {
+    // error를 안 보면 없는 컬럼 하나가 '조용한 0행'이 된다 — 공란 인쇄로 새지 않게 여기서 끊는다
+    return NextResponse.json({ error: `건축물 현황 조회 실패: ${bldErr.message}` }, { status: 500 })
+  }
+  type BldRow = {
+    id: string; purpose: string | null; total_area: number | null; building_area: number | null
+    floors_above: number | null; floors_below: number | null; height: number | null
+    households: number | null; building_count: number | null; permit_date: string | null
+  }
+  const bldRows = (blds ?? []) as BldRow[]
+  const bld = bldRows[0] ?? null
+
+  // 설치 설비 — 도너 시트 선별 축(S10-2). 판정은 sheetMatchesFacilities 단일 원천(selectDonorGroups)
+  const { data: facRaw, error: facErr } = bldRows.length
+    ? await admin.from('fire_facilities').select('facility_code')
+        .in('building_id', bldRows.map(b => b.id)).eq('installed', true)
+    : { data: [], error: null }
+  if (facErr) {
+    return NextResponse.json({ error: `설치 설비 조회 실패: ${facErr.message}` }, { status: 500 })
+  }
+  const installedCodes = [...new Set((facRaw ?? []).map(f => (f as { facility_code: string }).facility_code))]
+
+  // 다중이용업소 — sheet-overview ⑦·bundle-actions와 같은 판별 축(isMultiUseApplicable + 업종 개소 ≥1).
+  // 비대상 고객에 다중1·2가 인쇄되면 안 되는 시트라 설비 코드가 아닌 이 축으로 가린다
+  const mu = (((formRow as { sections: Record<string, unknown> | null } | null)?.sections)?.['multiUse'] ?? null) as
+    { applicable?: boolean; categories?: Record<string, string> } | null
+  const hasMultiUse = !!mu && isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim())
 
   // 템플릿 로드 + 앵커 전수 검증 — 라벨이 하나라도 어긋나면 만들지 않는다(조용한 오적용 금지).
   // 서식이 갱신됐다는 신호이므로 scripts/build-workbook-template.mts 재실행(Q-4)을 안내한다.
@@ -51,9 +96,24 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     template = new Uint8Array(readFileSync(TEMPLATE_PATH))
   } catch {
     return NextResponse.json(
-      { error: '워크북 템플릿이 없습니다 — scripts/build-workbook-template.mts를 먼저 실행하세요.' },
+      { error: '워크북 템플릿이 없습니다 — scripts/build-workbook-template.mts → build-workbook-full.mts를 먼저 실행하세요.' },
       { status: 500 })
   }
+
+  // 설비별 점검표 선별(S10-2) — 자산은 전 설비를 싣고 있고, 여기서 비대상 그룹을 **제거**한다.
+  // 기타(always)는 상시 동봉이라 목차와 함께 항상 남고, 다중(multiUse)은 판별 플래그를 따른다
+  const keptGroups = donorGroupsToKeep(k => sheetMatchesFacilities(k, installedCodes), hasMultiUse)
+  const keptSheets = new Set(keptGroups.flatMap(g => g.sheets))
+  try {
+    const cut = await removeSheets(template,
+      allDonorSheets().filter(s => s !== DONOR_TOC_SHEET && !keptSheets.has(s)))
+    template = cut.bytes
+  } catch (e) {
+    return NextResponse.json(
+      { error: `설비 시트 선별 실패 — 자산·매핑 불일치 의심(build-workbook-full.mts 재실행): ${e instanceof Error ? e.message : String(e)}` },
+      { status: 500 })
+  }
+
   const check = validateAnchors(template)
   if (!check.ok) {
     return NextResponse.json(
@@ -65,18 +125,27 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     console.warn(`[workbook] 앵커 자가치유 ${check.healed.length}건 — 템플릿 재빌드·재실측 권장: ${check.healed.join(' · ')}`)
   }
 
-  // 값의 원천은 PDF와 동일한 조립 함수 — annex_inputs 수동 오버레이까지 그대로 따라온다
-  const [official, delegation] = await Promise.all([
+  // 값의 원천은 PDF와 동일한 조립 함수 — annex_inputs 수동 오버레이까지 그대로 따라온다.
+  // r9(별지 9호 조립, S7-0 추출본)는 점검 구분·점검자·동의·등급·교육이수일·점검인력 명단의 원천
+  const [official, delegation, r9] = await Promise.all([
     assembleOfficial(admin, row.customer_id, id),
     assembleDelegation(admin, row.customer_id, id),
+    assembleReport9(admin, row.customer_id, id),
   ])
 
   const values = buildWorkbookValues({
     official: official.data,
     delegation: delegation.data,
+    report9: r9.data,
     customerAddress: (cust as { address: string | null } | null)?.address ?? '',
     startISO: row.inspection_start_date,
     endISO: row.inspection_end_date,
+    useApprovalISO: (cust as { use_approval_date: string | null } | null)?.use_approval_date ?? null,
+    building: bld && {
+      purpose: bld.purpose, totalArea: bld.total_area, buildingArea: bld.building_area,
+      floorsAbove: bld.floors_above, floorsBelow: bld.floors_below, height: bld.height,
+      households: bld.households, buildingCount: bld.building_count, permitDateISO: bld.permit_date,
+    },
   })
   const { targets, unmapped } = toInjectTargets(values, check.anchors)
   if (unmapped.length > 0) {
@@ -84,6 +153,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json(
       { error: `주입 값 누락(코드 결함): ${unmapped.map(a => a.field).join(', ')}` }, { status: 500 })
   }
+
+  // 목차 재작성(S10-2) — 자산의 목차는 표본 구성이라 이 고객의 동봉 시트와 다르다.
+  // 항목 칸(실측 22칸)을 남은 그룹의 tocLabel로 채우고 나머지는 명시적 공란으로 지운다.
+  // 넘침(전 그룹 동봉 시 1건)은 자르되 경고 + missing 헤더에 남긴다(S8-2 규약과 같은 축)
+  const tocTitles = keptGroups.map(g => g.tocLabel)
+  const tocOverflow = tocTitles.slice(DONOR_TOC_BODY_CELLS.length)
+  if (tocOverflow.length) {
+    console.warn(`[workbook] 목차 항목 칸 부족 — ${tocTitles.length}/${DONOR_TOC_BODY_CELLS.length}, 미표기: ${tocOverflow.join(' | ')}`)
+  }
+  const tocTargets: InjectTarget[] = DONOR_TOC_BODY_CELLS.map((cell, i) => ({
+    sheet: DONOR_TOC_SHEET, cell, value: tocTitles[i] ?? null,
+  }))
+  targets.push(...tocTargets)
 
   // 안전망(S2-7/D-10) — 주입이 안 닿은 캐시에 표본 고객 흔적이 남았으면 비워서 내보낸다.
   // 지금 템플릿은 잔존 0이 검증돼 있지만(빌드 ⑥), 갱신된 템플릿이 이 부류를 되살릴 수 있다
@@ -102,8 +184,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
-      // 조립 함수가 알린 공란·누락 — 화면이 안내에 쓸 수 있게 헤더로 전달(S4-5)
-      'X-Workbook-Missing': encodeURIComponent([...official.missing, ...delegation.missing].join(' | ')),
+      // 조립 함수가 알린 공란·누락 + 목차 미표기 — 화면이 안내에 쓸 수 있게 헤더로 전달(S4-5).
+      // r9.missing까지 실으면 길어질 수 있어 헤더 한도 보호로 600자에서 자른다
+      'X-Workbook-Missing': encodeURIComponent(
+        [...official.missing, ...delegation.missing, ...r9.missing,
+          ...(r9.data.assistants.length > 7
+            ? [`보조 점검인력 ${r9.data.assistants.length}명 중 8번째부터 미표기(허브 7행)`] : []),
+          ...tocOverflow.map(t => `목차 미표기: ${t}`)].join(' | ').slice(0, 600)),
     },
   })
 }

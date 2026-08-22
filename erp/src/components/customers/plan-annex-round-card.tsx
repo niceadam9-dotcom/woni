@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronDown, ChevronRight, Eye, PlayCircle } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, ChevronRight, Eye, PlayCircle, FileSpreadsheet, Loader2 } from 'lucide-react'
 import type { CustomerRound } from '@/app/(dashboard)/reports/docs-actions'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { InspectionDocRows } from '@/components/reports/customer-docs'
@@ -23,6 +24,12 @@ const chipCls = 'text-[11px] text-[#7b68ee] border border-[#d0ccf5] rounded-lg p
  *  bundle 라우트의 TYPE_ORDER와 같은 축. */
 function hasBundlePdf(d: NonNullable<CustomerRound['docs']>): boolean {
   return [d.report9, d.report4, d.report10, d.report11, d.exterior].some(g => !!g?.pdf)
+}
+
+/** 서버가 정한 저장명(`filename*=UTF-8''…`)을 그대로 쓴다 — 이름 규약을 화면이 다시 짜지 않는다 */
+function fileNameOf(res: Response): string | null {
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(res.headers.get('Content-Disposition') ?? '')
+  return m ? decodeURIComponent(m[1]) : null
 }
 
 export function statePill(r: CustomerRound): { label: string; cls: string } {
@@ -63,6 +70,36 @@ export function PlanAnnexRoundCard({
   const pill = statePill(r)
   const done = r.state === 'completed'
   const label = `${r.year}년 ${r.sequenceNum}차`
+  // 소방계획서_27 — 갑지 통합 워크북 내려받기 상태(이 카드 안에서만 쓴다)
+  const [xlsx, setXlsx] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
+
+  /** 엑셀(갑지 워크북) 즉석 생성 — 저장하지 않으므로 받는 순간이 곧 생성이다.
+   *
+   *  `location.assign`으로 바로 열지 않는 이유: 이 라우트는 실패를 **JSON 안내문**으로 돌려준다
+   *  (권한 없음·템플릿 없음·앵커 불일치·주입 값 누락). 통째로 이동시키면 사용자는 회차 목록을 잃고
+   *  날 JSON을 보게 된다. 받아서 성공일 때만 내려받고, 실패는 서버 문장 그대로 보여준다
+   *  (print-pdf-client.tsx:18과 같은 규약 — 서버가 담아 보낸 안내를 버리지 않는다).
+   *  성공 응답의 `X-Workbook-Missing`은 조립 함수가 알린 공란 목록이다(S4-5). */
+  async function downloadWorkbook(inspectionId: string) {
+    setXlsx({ busy: true, msg: '', ok: true })
+    try {
+      const res = await fetch(`/inspections/${inspectionId}/workbook`)
+      if (!res.ok) {
+        const m = await res.json().then(j => j?.error as string | undefined).catch(() => undefined)
+        throw new Error(m ?? `HTTP ${res.status}`)
+      }
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileNameOf(res) ?? `${customerName}_점검결과보고서_${r.year}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      const blanks = decodeURIComponent(res.headers.get('X-Workbook-Missing') ?? '').trim()
+      setXlsx({ busy: false, ok: true, msg: blanks ? `받았습니다 — 공란으로 나간 항목: ${blanks}` : '엑셀을 받았습니다.' })
+    } catch (e) {
+      setXlsx({ busy: false, ok: false, msg: `엑셀을 만들지 못했습니다 — ${(e as Error).message}` })
+    }
+  }
 
   return (
     <div className={`rounded-xl border ${isOpen ? 'border-[#d0ccf5]' : 'border-[#e8e6f5]'} ${done ? 'bg-[#fafafa]' : 'bg-white'}`}>
@@ -90,6 +127,22 @@ export function PlanAnnexRoundCard({
             🖨 전체 인쇄
           </span>
         )}
+        {/* 소방계획서_27 — 갑지 통합 워크북. 전체 인쇄(PDF)와 같은 회차 단위 산출물이라 나란히 둔다.
+            ⚠ hasBundlePdf로 막지 않는다 — 이건 생성된 별지 PDF를 묶는 게 아니라 갑지 서식에
+            값을 주입해 즉석으로 만든다. 별지가 하나도 없어도 만들어진다(그래서 '작성 전'에도 쓸 수 있다).
+            권한은 라우트가 inspection_register를 요구하므로 화면에서도 같은 축으로 가린다 —
+            안 그러면 눌러 봐야 403 JSON이다. */}
+        {r.docs && isOpen && canRegister && (
+          <span role="button" tabIndex={xlsx.busy ? -1 : 0}
+            title="이 회차를 갑지 서식 엑셀로 받기 — PDF와 달리 받은 뒤 고쳐 쓸 수 있습니다"
+            onClick={e => { e.stopPropagation(); if (!xlsx.busy) void downloadWorkbook(r.docs!.inspectionId) }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); if (!xlsx.busy) void downloadWorkbook(r.docs!.inspectionId) } }}
+            className={`${chipCls} inline-flex items-center gap-1 ${xlsx.busy ? 'opacity-50 cursor-default' : ''}`}
+            data-testid="round-workbook-download">
+            {xlsx.busy ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />}
+            엑셀
+          </span>
+        )}
         <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
         {r.docs && (
           <span className="text-[10px] text-[#b0acd6] shrink-0">
@@ -102,6 +155,11 @@ export function PlanAnnexRoundCard({
 
       {isOpen && (
         <div className="px-4 pb-3">
+          {/* 엑셀 내려받기 결과 — 헤더는 <button>이라 그 안에 안내를 키울 수 없어 본문 머리에 둔다 */}
+          {xlsx.msg && (
+            <p className={`mb-1 rounded-lg px-2 py-1 text-[11px] ${xlsx.ok ? 'bg-[#f5f4ff] text-[#514b81]' : 'bg-red-50 text-red-600'}`}
+              data-testid="round-workbook-msg">{xlsx.msg}</p>
+          )}
           {r.docs ? (
             <>
               <p className={blockTitleCls}>① 점검표 <span className="font-normal text-[#b0acd6]">— 현장 결과를 설비별로 입력</span></p>

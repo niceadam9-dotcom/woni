@@ -274,6 +274,8 @@ export default async function InspectionDetailPage({
       steps: stepDocs({ isSpecial: false }),
       isGeneral: true,
       responded: respRows.length,
+      // S9-1(149) — 외관 건도 같은 축(재생성 가드가 데이터 미지정을 미상+응답으로 오판하지 않게)
+      sheetProtocol: (inspection as { sheet_protocol?: 'legacy_na' | 'blank_unanswered' | null }).sheet_protocol ?? null,
       certFile: null,
       contractFile: null,
       delivery: null,
@@ -394,6 +396,8 @@ export default async function InspectionDetailPage({
         end: (iRec.inspection_end_date as string | null) ?? null,
         days: (iRec.inspection_days as number | null) ?? 1,
       },
+      // S9-1(149) — 재생성 차단 판정 축. select('*')라 149 미적용 DB에서는 undefined → null로 정규화
+      sheetProtocol: (iRec.sheet_protocol as 'legacy_na' | 'blank_unanswered' | null | undefined) ?? null,
       submit11: {
         due: due11, submittedAt: (iRec.report11_submitted_at as string | null) ?? null,
         dday: (iRec.report11_submitted_at as string | null) ? null : ddayOf(due11),
@@ -465,6 +469,7 @@ export default async function InspectionDetailPage({
           inspectionId={id}
           canManage={canEdit}
           canComplete={canComplete}
+          isAdmin={profile.role === 'admin'}
           today={today}
           data={timelineData}
           initialJob={report9Job}

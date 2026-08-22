@@ -57,6 +57,19 @@ const delegation: DelegationData = {
 const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
   startISO: '2026-08-20', endISO: '2026-08-21',
+  useApprovalISO: '2011-06-25',
+  building: {
+    purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5, floorsBelow: 2,
+    height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',
+  },
+  report9: {
+    ckOp: true, ckInitial: false, ckCompEtc: false, consent: true, repRole: '관리자',
+    managerGrade: '2급', mgrEduDate: '2024년 5월 2일',
+    main: { name: '김주된', grade: '소방시설관리사', licenseNo: '제2026-1호' },
+    assistants: [
+      { name: '이보조', grade: '점검자경력수첩', licenseNo: '수첩-77', period: '2026.08.20 부터 ~ 2026.08.21 까지' },
+    ],
+  },
 })
 const result = await injectWorkbook(template, toInjectTargets(values).targets, { forbidden: SCRUB_NEEDLES })
 check('주입 대상 미발견 0', result.missed.length === 0, result.missed.join(', '))

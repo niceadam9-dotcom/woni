@@ -54,10 +54,14 @@ export async function getBundleChecklistAction(inspectionId: string): Promise<{ 
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections')
-    .select('customer_id, plan_type, inspection_start_date, inspection_end_date')
+    .select('customer_id, plan_type, inspection_start_date, inspection_end_date, sheet_protocol')
     .eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
-  const ins = insp as { customer_id: string; plan_type: string | null; inspection_start_date: string | null; inspection_end_date: string | null }
+  const ins = insp as {
+    customer_id: string; plan_type: string | null
+    inspection_start_date: string | null; inspection_end_date: string | null
+    sheet_protocol: 'legacy_na' | 'blank_unanswered' | null
+  }
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
 
   const [targets, dataMaxAt] = await Promise.all([
@@ -107,10 +111,17 @@ export async function getBundleChecklistAction(inspectionId: string): Promise<{ 
     }
   }
 
+  // S9-1 재설계(2026-08-21) — 규약 버전 축. 응답 수는 미상(null)일 때만 판정에 쓰이므로 그때만 센다
+  let respondedCount = 0
+  if (ins.sheet_protocol === null) {
+    const { count } = await admin.from('inspection_sheet_responses')
+      .select('id', { count: 'exact', head: true }).eq('inspection_id', inspectionId)
+    respondedCount = count ?? 0
+  }
   return {
     checklist: {
       items, dataMaxAt, blanks,
-      regenBlocked: isRegenBlocked(ins),
+      regenBlocked: isRegenBlocked({ sheetProtocol: ins.sheet_protocol, respondedCount }),
     },
   }
 }
@@ -125,9 +136,16 @@ export async function generateBundleAction(
   // 차단 사유가 부분 실패 N건으로 흩어져 보인다. 번들 진입에서 한 번에 선제 차단.
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections')
-    .select('inspection_start_date, inspection_end_date').eq('id', inspectionId).single()
+    .select('sheet_protocol').eq('id', inspectionId).single()
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
-  if (isRegenBlocked(insp)) return { error: REGEN_BLOCKED_MESSAGE }
+  const proto = (insp as { sheet_protocol: 'legacy_na' | 'blank_unanswered' | null }).sheet_protocol
+  let respondedCount = 0
+  if (proto === null) {
+    const { count } = await admin.from('inspection_sheet_responses')
+      .select('id', { count: 'exact', head: true }).eq('inspection_id', inspectionId)
+    respondedCount = count ?? 0
+  }
+  if (isRegenBlocked({ sheetProtocol: proto, respondedCount })) return { error: REGEN_BLOCKED_MESSAGE }
   const results = await Promise.all(types.map(async (t): Promise<BundleGenResult> => {
     const label = GENERATED_DOC_KINDS[t]?.label ?? t
     try {
