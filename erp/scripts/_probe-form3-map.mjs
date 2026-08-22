@@ -113,5 +113,58 @@ console.log('\n── 6) 실제 롤업 함수(rollUpForm3Results) — assembleRe
   check('6) 미설치 항목이 설치 체크에 들어가지 않는다', !facilityChecks.includes('옥외소화전설비'))
 }
 
+// ── 7) F-1f 이중 귀속 — 전용 시트 분리 + 레거시 간선 (2026-08-22, 마이그레이션 150과 짝) ──
+//
+// 고정하는 것: ①서림사 무퇴행(할론 단독 설치 + 과거 묶음 시트 응답 → 할론 ○ 유지)
+// ②선택 분리(묶음 시트는 조기진압·할론 '설치'만으로는 안 잡힌다 — 신규 입력은 전용 시트로)
+// ③전용 시트 정방향. 레거시 간선을 지우면 ①이, LEGACY를 선택에 합치면 ②가 깨진다(돌연변이 양방향).
+{
+  console.log('\n── 7) F-1f 이중 귀속 — 전용 시트 분리 + 레거시 간선 ──')
+  const { sheetMatchesFacilities, facilitiesForSheet, LEGACY_ROLLUP_MAP } = await import('../src/lib/sheet-facility-map.ts')
+  // resultMarks의 키는 FORM3 표기다(예: '화재조기진압용스프링클러설비' — 공백 없음) — 표기 축을 지우지 않고 해석만
+  const f3key = name => FORM3_ITEMS.find(i => norm(i) === norm(name)) ?? `(FORM3에 없음: ${name})`
+
+  const legacyStray = [...new Set(Object.values(LEGACY_ROLLUP_MAP).flat())].filter(v => !form3Norm.has(norm(v)))
+  check('7) LEGACY_ROLLUP_MAP 값도 전부 FORM3 어휘', legacyStray.length === 0, JSON.stringify(legacyStray))
+  const legacyKeysInMain = Object.keys(LEGACY_ROLLUP_MAP).every(k => k in SHEET_FACILITY_MAP)
+  check('7) 레거시 키는 전부 본 매핑의 시트 (없는 시트에 간선을 걸지 않는다)', legacyKeysInMain)
+
+  // ① 무퇴행 — 서림사 실측 시나리오: 할론 단독 설치, 응답은 옛 묶음 시트(할로겐)에만
+  const seorimsa = rollUpForm3Results(
+    new Map([['할로겐화합물 및 불활성기체소화설비', { any: true, x: false, o: true }]]),
+    FORM3_ITEMS, ['할론소화설비'])
+  check('7) 서림사 무퇴행 — 묶음 시트 응답이 할론 결과칸에 계속 귀속(○)',
+    seorimsa.resultMarks[f3key('할론소화설비')] === 'O', JSON.stringify(seorimsa.resultMarks[f3key('할론소화설비')]))
+  check('7) 그 응답이 미설치 할로겐화합물로는 번지지 않는다(／)',
+    seorimsa.resultMarks[f3key('할로겐화합물 및 불활성기체소화설비')] === 'N',
+    JSON.stringify(seorimsa.resultMarks[f3key('할로겐화합물 및 불활성기체소화설비')]))
+  check('7) 대장 누락 경고 아님 — 설치된 레거시 형제(할론)가 응답 주인',
+    !seorimsa.axisWarnings.respondedNotInstalled.includes(f3key('할론소화설비')))
+
+  // ① 조기진압 방향 — 스프링클러 시트 과거 응답이 조기진압 단독 설치에 귀속
+  const early = rollUpForm3Results(
+    new Map([['스프링클러설비', { any: true, x: true, o: false }]]),
+    FORM3_ITEMS, ['화재조기진압용 스프링클러설비'])
+  check('7) 조기진압 무퇴행 — 스프링클러 시트 과거 불량이 조기진압 ×로 귀속',
+    early.resultMarks[f3key('화재조기진압용 스프링클러설비')] === 'X',
+    JSON.stringify(early.resultMarks[f3key('화재조기진압용 스프링클러설비')]))
+
+  // ② 선택 분리 — 설치만으로는 묶음 시트가 잡히지 않는다(전용 시트가 잡힌다)
+  check('7) 선택 분리 — 할론 설치로 묶음 시트(할로겐)가 잡히지 않는다',
+    !sheetMatchesFacilities('할로겐화합물 및 불활성기체소화설비', ['할론소화설비']))
+  check('7) 선택 분리 — 조기진압 설치로 묶음 시트(스프링클러)가 잡히지 않는다',
+    !sheetMatchesFacilities('스프링클러설비', ['화재조기진압용 스프링클러설비']))
+  check('7) 전용 시트 정방향 — 할론 설치 → 할론소화설비 시트',
+    sheetMatchesFacilities('할론소화설비', ['할론소화설비'])
+    && sheetMatchesFacilities('화재조기진압용 스프링클러설비', ['화재조기진압용 스프링클러설비']))
+  check('7) 전용 시트 롤업 — 할론 시트 응답 → 할론 ○',
+    rollUpForm3Results(new Map([['할론소화설비', { any: true, x: false, o: true }]]),
+      FORM3_ITEMS, ['할론소화설비']).resultMarks[f3key('할론소화설비')] === 'O')
+
+  // ③ 형제 고지는 간선을 숨기지 않는다(D-5) — 묶음 시트에 쓰면 할론 배지도 바뀐다는 사실
+  check('7) 형제 고지 — 묶음 시트(할로겐)가 레거시 형제(할론)를 함께 표시',
+    facilitiesForSheet('할로겐화합물 및 불활성기체소화설비', ALL_STANDARD_CODES).some(c => norm(c) === '할론소화설비'))
+}
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

@@ -9,13 +9,15 @@
 export const SHEET_FACILITY_MAP: Record<string, string[]> = {
   '소화기구 및 자동소화장치': ['소화기구 및 자동소화장치'],
   '옥내소화전설비': ['옥내소화전설비'],
-  '스프링클러설비': ['스프링클러설비', '화재조기진압용 스프링클러설비'],
+  '스프링클러설비': ['스프링클러설비'],
+  '화재조기진압용 스프링클러설비': ['화재조기진압용 스프링클러설비'],
   '간이스프링클러설비': ['간이스프링클러설비'],
   '이산화탄소소화설비': ['이산화탄소소화설비'],
-  '할로겐화합물 및 불활성기체소화설비': ['할로겐화합물 및 불활성기체소화설비', '할론소화설비'],
+  '할로겐화합물 및 불활성기체소화설비': ['할로겐화합물 및 불활성기체소화설비'],
+  '할론소화설비': ['할론소화설비'],
   // ── 148 편입 7종(소방계획서_26 F-1) — 고시 별지4에 독립 점검표가 있는데 시딩에서 빠져 있던 시트들.
   //    '제연설비'는 고시 24번 제목 축자이고 ERP 어휘로는 거실제연설비다(부속실 제연은 25번 별도).
-  //    조기진압(5)·할론(10)도 원문상 독립 시트지만 기존 응답 데이터 연속성 때문에 위 묶음 매핑 유지.
+  //    조기진압(5)·할론(10)은 150에서 전용 시트로 분리(F-1f) — 과거 응답 귀속은 LEGACY_ROLLUP_MAP.
   '물분무소화설비': ['물분무소화설비'],
   '미분무소화설비': ['미분무소화설비'],
   '포소화설비': ['포소화설비'],
@@ -40,10 +42,33 @@ export const SHEET_FACILITY_MAP: Record<string, string[]> = {
   '무선통신보조설비': ['무선통신보조설비'],
 }
 
+/** F-1f 이중 귀속(2026-08-22, 마이그레이션 150과 짝) — 과거 회차가 묶음 시트에 남긴 응답의
+ *  **귀속만** 유지하는 레거시 간선. 150이 전용 시트(STD-05 조기진압·STD-10 할론)를 신설하면서
+ *  신규 입력·시트 노출·[전체 양호]·인쇄 대상 선정(sheetMatchesFacilities)은 전용 시트로 갔다.
+ *  그러나 기존 회차의 응답은 묶음 시트에 있고(실측: 스테이징 서림사 2026 완료 회차 27건),
+ *  재귀속(이관)은 문항이 1:1이 아니라 위험하다 — 옮기지 않고 간선으로 남긴다.
+ *
+ *  방향이 갈리는 이유: 롤업(form3ItemsForSheet)과 형제 고지(facilitiesForSheet)는 이 간선을
+ *  **합쳐서** 본다 — 묶음 시트의 응답이 종전대로 조기진압·할론 결과칸에 귀속되고(무퇴행),
+ *  화면은 그 사실을 숨기지 않는다(D-5). 선택(sheetMatchesFacilities)에서만 빠진다 —
+ *  신규 입력 경로가 전용 시트로 수렴하도록. 여기서 빼면 과거 회차 결과칸이 공란으로 퇴행한다. */
+export const LEGACY_ROLLUP_MAP: Record<string, string[]> = {
+  '스프링클러설비': ['화재조기진압용 스프링클러설비'],
+  '할로겐화합물 및 불활성기체소화설비': ['할론소화설비'],
+}
+
 const norm = (s: string) => s.replace(/\s+/g, '')
 const MAP_BY_NORM = new Map(Object.entries(SHEET_FACILITY_MAP).map(([k, v]) => [norm(k), v.map(norm)]))
+const LEGACY_BY_NORM = new Map(Object.entries(LEGACY_ROLLUP_MAP).map(([k, v]) => [norm(k), v.map(norm)]))
+/** 정규화 시트명 → 매핑 + 레거시 간선 합산(귀속·고지용). 레거시 키는 전부 본 매핑에 있는 시트다. */
+const withLegacy = (sn: string, mapped: string[]): string[] => {
+  const extra = LEGACY_BY_NORM.get(sn)
+  return extra ? [...mapped, ...extra] : mapped
+}
 
-/** 시트가 설치 시설 목록과 매칭되는가 — 명시 매핑 우선, 미등재 시트는 퍼지 폴백 */
+/** 시트가 설치 시설 목록과 매칭되는가 — 명시 매핑 우선, 미등재 시트는 퍼지 폴백.
+ *  ⚠ 레거시 간선은 여기 없다(F-1f) — 노출·[전체 양호]·인쇄 대상 선정은 전용 시트만 잡아야
+ *  신규 입력이 전용 시트로 간다. 응답이 이미 있는 묶음 시트는 responded>0 규칙이 계속 보여준다. */
 export function sheetMatchesFacilities(sheetName: string, facilityCodes: string[]): boolean {
   const sn = norm(sheetName)
   const codes = facilityCodes.map(norm)
@@ -52,12 +77,13 @@ export function sheetMatchesFacilities(sheetName: string, facilityCodes: string[
   return codes.some(c => c.includes(sn) || sn.includes(c))
 }
 
-/** 시트명 → 커버하는 설비 코드 목록 (역방향, 소방계획서_8 H-5e·D-17 교차 검증 칩) —
- *  후보(candidates) 중 이 시트가 다루는 설비만 반환. 명시 매핑 우선, 미등재 시트는 퍼지 폴백. */
+/** 시트명 → 커버하는 설비 코드 목록 (역방향, 소방계획서_8 H-5e·D-17 교차 검증 칩 · S4-5 형제 고지) —
+ *  후보(candidates) 중 이 시트가 다루는 설비만 반환. 명시 매핑 우선, 미등재 시트는 퍼지 폴백.
+ *  레거시 간선 포함 — 이 시트에 쓰면 조기진압·할론 배지도 바뀐다는 사실을 숨기지 않는다(D-5). */
 export function facilitiesForSheet(sheetName: string, candidates: string[]): string[] {
   const sn = norm(sheetName)
   const mapped = MAP_BY_NORM.get(sn)
-  if (mapped) return candidates.filter(c => mapped.includes(norm(c)))
+  if (mapped) { const all = withLegacy(sn, mapped); return candidates.filter(c => all.includes(norm(c))) }
   return candidates.filter(c => { const cn = norm(c); return cn.includes(sn) || sn.includes(cn) })
 }
 
@@ -69,11 +95,12 @@ export function facilitiesForSheet(sheetName: string, candidates: string[]): str
  *
  *  종전에는 assembleReport9가 자체 퍼지(nameMatch: 공백 제거 양방향 includes)로 시트↔FORM3를 이었고,
  *  그 결과 이 파일 상단 주석의 두 결함(오검·누락)이 **문서 생성 경로에만** 남아 있었다.
- *  미등재 시트(EXT 등)는 종전과 같이 퍼지 폴백 — 카탈로그 밖 시트를 떨어뜨리지 않기 위해서다. */
+ *  미등재 시트(EXT 등)는 종전과 같이 퍼지 폴백 — 카탈로그 밖 시트를 떨어뜨리지 않기 위해서다.
+ *  레거시 간선 포함(F-1f) — 묶음 시트에 남은 과거 응답이 조기진압·할론 결과칸에 계속 귀속된다. */
 export function form3ItemsForSheet(sheetName: string, form3Items: string[]): string[] {
   const sn = norm(sheetName)
   const mapped = MAP_BY_NORM.get(sn)
-  if (mapped) return form3Items.filter(i => mapped.includes(norm(i)))
+  if (mapped) { const all = withLegacy(sn, mapped); return form3Items.filter(i => all.includes(norm(i))) }
   return form3Items.filter(i => { const inm = norm(i); return inm.includes(sn) || sn.includes(inm) })
 }
 

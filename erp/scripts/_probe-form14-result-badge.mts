@@ -122,6 +122,8 @@ try {
     { building_id: nb.id, category: '소화설비', facility_code: '옥내소화전설비', installed: true, detail: { note: 'E2E 픽스처' } },
     // 고시 별지4에 점검표가 없는 설비(F-1 잔존 2종의 하나) — 패널이 사실을 안내해야 한다
     { building_id: nb.id, category: '소화설비', facility_code: '고체에어로졸소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
+    // F-1f 전용 시트 분리 — 할론은 150 편입 STD-10을 열어야 한다(묶음 할로겐 시트가 아니라)
+    { building_id: nb.id, category: '소화설비', facility_code: '할론소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
   ])
   const { data: ni, error: niErr } = await raw.from('inspections').insert({
     customer_id: fixtureCustId, inspection_type: '작동', sequence_num: 1,
@@ -177,6 +179,26 @@ try {
   check('F-1 잔존 설비(고체에어로졸) — 시트 없음 안내 유지', true)
   await page.click('button:has-text("닫기")')
 
+  // ── F-1f — 할론 행이 전용 시트(150 편입 STD-10)를 연다. 150 적용 전엔 '시트 없음' 안내,
+  //    분리 전엔 묶음 시트(할로겐)가 열렸을 자리다 — 이중 귀속의 '선택은 전용 시트' 축 라이브 증거.
+  await page.locator('td:has-text("할론소화설비") button[title*="점검결과"]').click()
+  // DIAG — 실패 원인 덤프
+  try {
+    await page.waitForSelector('text=/『할론소화설비』 · .*에 기록/', { timeout: 10_000 })
+  } catch {
+    await page.screenshot({ path: 'scripts/_shots/f1f-hallon-fail.png', fullPage: true })
+    const body = await page.locator('body').innerText()
+    const idx = body.indexOf('할론')
+    console.log('DIAG 패널 주변 텍스트:', JSON.stringify(body.slice(Math.max(0, idx - 200), idx + 400)))
+    throw new Error('할론 패널 미노출 — DIAG 덤프 참조')
+  }
+  check('F-1f: 할론 행 패널이 전용 시트를 연다 (묶음 할로겐 시트 아님)', true)
+  await page.waitForSelector('button:text-is("✕")', { timeout: 15_000 })
+  // 원문 53항목 중 ● 종합전용 24건은 작동 회차에서 제외 — 종합 53, 작동 29. 그 외면 시딩·범위 어느 쪽이 틀린 것
+  const hallonN = await page.locator('button:text-is("✕")').count()
+  check(`F-1f: 할론 항목 전개 — 53(종합) 또는 29(작동), 실제 ${hallonN}`, hallonN === 53 || hallonN === 29)
+  await page.click('button:has-text("닫기")')
+
   // 건물 전환 — 패널은 그 건물 설치 설비에 매여 있다. 안 닫으면 새 건물에 없는 설비의 항목 목록이
   // 그대로 떠 있고 거기서 기록까지 된다(독립 검증 지적, 2026-08-21).
   await raw.from('buildings').insert({
@@ -198,6 +220,53 @@ try {
   await page.waitForTimeout(500)
   check('건물 전환 시 결과 패널이 닫힌다 (이전 건물 설비의 입력창 잔류 금지)',
     !(await page.isVisible('text=/『.*』 · \\d{4}년 1차에 기록/')))
+
+  // ── F-1f 무퇴행 — 서림사(할론 단독 설치, 응답은 2026 완료 회차의 묶음 할로겐 시트 27건뿐).
+  //    ⚠ 서림사는 진행 중 회차가 없어 **설계상 입력 배지를 그리지 않는다**(resultBadge 규약) —
+  //    배지를 기다리면 soban24의 '없는 DOM 대기' 오검이 된다. 무퇴행은 실데이터를 실코드
+  //    (foldSheetResult·rollUpForm3Results — 문서·배지가 쓰는 그 함수)로 굴려 단언하고,
+  //    UI는 '입력 배지 없음 + 사유 안내'라는 설계 사실을 단언한다.
+  {
+    const { foldSheetResult, rollUpForm3Results } = await import('../src/lib/sheet-facility-map.ts')
+    const { ALL_STANDARD_CODES } = await import('../src/lib/facility-codes.ts')
+    const { data: sr } = await raw.from('customers').select('id').eq('customer_name', '서림사')
+    const srId = ((sr ?? []) as Array<{ id: string }>)[0]?.id
+    if (!srId) throw new Error('서림사 고객 없음')
+    const { data: srInsp } = await raw.from('inspections').select('id').eq('customer_id', srId)
+    const { data: srResp } = await raw.from('inspection_sheet_responses')
+      .select('item_code, result').eq('inspection_id', ((srInsp ?? []) as Array<{ id: string }>)[0].id)
+    const rrows = (srResp ?? []) as Array<{ item_code: string; result: string }>
+    const { data: srItems } = await raw.from('inspection_sheet_items')
+      .select('item_code, sheet_id').in('item_code', [...new Set(rrows.map(r => r.item_code))])
+    const { data: srSheets } = await raw.from('inspection_sheets').select('id, sheet_name')
+      .in('id', [...new Set(((srItems ?? []) as Array<{ sheet_id: string }>).map(i => i.sheet_id))])
+    const shName = new Map(((srSheets ?? []) as Array<{ id: string; sheet_name: string }>).map(s => [s.id, s.sheet_name]))
+    const shOf = new Map(((srItems ?? []) as Array<{ item_code: string; sheet_id: string }>)
+      .map(i => [i.item_code, shName.get(i.sheet_id)!]))
+    const stats = new Map<string, ReturnType<typeof foldSheetResult>>()
+    for (const r of rrows) {
+      const sh = shOf.get(r.item_code)
+      if (sh) stats.set(sh, foldSheetResult(stats.get(sh), r.result))
+    }
+    const { data: srBld } = await raw.from('buildings').select('id').eq('customer_id', srId).eq('is_active', true)
+    const { data: srFac } = await raw.from('fire_facilities').select('facility_code')
+      .in('building_id', ((srBld ?? []) as Array<{ id: string }>).map(b => b.id)).eq('installed', true)
+    const installedSr = ((srFac ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
+    const { resultMarks } = rollUpForm3Results(stats, ALL_STANDARD_CODES, installedSr)
+    // 서림사 할로겐 시트 27건은 실측 **전부 N(해당없음)** — 분리 전에도 이 칸은 ／였다.
+    // 퇴행의 방향은 '공란'(레거시 간선이 끊겨 귀속 자체가 사라짐 — 설치+무응답)이다.
+    // 그래서 단언은 'N 유지'(키 존재 = 귀속 유지)이지 ○가 아니다 — ○ 가정은 데이터 미확인 오검이었다.
+    check('F-1f 무퇴행: 서림사 실데이터 롤업 — 할론 ／ 유지(귀속 유지, 공란 아님)',
+      resultMarks['할론소화설비'] === 'N', `실제 ${JSON.stringify(resultMarks['할론소화설비'] ?? '(공란=퇴행)')}`)
+
+    await page.goto(`${BASE}/customers/${srId}`)
+    await page.click('text=소방계획서')
+    await page.click('button:has-text("1.4 소방시설")')
+    await page.waitForSelector('text=서식 1.4 소방시설 현황')
+    await page.waitForSelector('text=/진행 중인 자체점검 회차가 없/', { timeout: 15_000 })
+    check('F-1f: 서림사는 진행 중 회차 없음 — 입력 배지 미렌더 + 사유 안내(설계 사실)',
+      (await page.locator('button[title*="점검결과 — "]').count()) === 0)
+  }
 
   await page.screenshot({ path: 'scripts/_shots/form14-result-badge.png', fullPage: false })
   console.log('  (스크린샷: scripts/_shots/form14-result-badge.png)')
