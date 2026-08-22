@@ -5,8 +5,10 @@ import { createClient } from '@supabase/supabase-js'
 import { generateYearlyPlanItems, loadHolidaySet } from '../src/lib/inspection-plan-generator'
 import type { InspectionType } from '../src/types'
 
+// 인자로 env 파일 지정 가능(기본 .env.local=스테이징) — 운영은 .env.local.prod-backup
+const envFile = process.argv[2] ?? '.env.local'
 const env = Object.fromEntries(
-  readFileSync(new URL('../.env.local', import.meta.url), 'utf8')
+  readFileSync(new URL(`../${envFile}`, import.meta.url), 'utf8')
     .split(/\r?\n/).filter(l => l.includes('=') && !l.startsWith('#'))
     .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])
 )
