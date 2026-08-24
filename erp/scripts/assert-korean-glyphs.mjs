@@ -187,7 +187,12 @@ for (const want of EXPECTED) {
 // ── 축 1b: Dockerfile 규약 — 배포판 패키지로 되돌아가는 회귀를 막는다 ────────
 // 다음에 폰트가 깨졌을 때 `apk add font-무엇`으로 때우면 이 자립이 조용히 풀린다.
 // 그 유혹이 정확히 2026-08-24에 우리가 한 일이었다(font-nanum → font-noto-cjk).
-{
+//
+// ⚠ **저장소 축이라 --files-only에서만 돈다.** 같은 스크립트가 이미지 안에서도 돌지만
+//   runner는 이 스크립트만 COPY하므로 Dockerfile·compose가 거기 없다. 조건 없이 검사했다가
+//   폰트가 멀쩡한 운영 빌드를 3건 실패로 세웠다(2026-08-24 VPS 실측).
+//   '파일이 없으면 통과'로 무마하면 저장소에서도 가드가 사라지므로, 축 자체를 나눈다.
+if (filesOnly) {
   console.log('\n[축 1b] Dockerfile 규약')
   const dockerfile = join(root, 'Dockerfile')
   if (!existsSync(dockerfile)) {
@@ -209,13 +214,28 @@ for (const want of EXPECTED) {
     if (!code.includes('assert-korean-glyphs.mjs')) bad('Dockerfile이 렌더 단언을 실행하지 않는다 — 두부가 빌드를 통과한다')
     else ok('빌드가 렌더 단언을 실행한다')
   }
+
+  // .dockerignore의 실수는 전부 '조용한 실패'다 — 빌드는 성공하고 런타임에만 죽는다.
+  //   assets/fonts를 빼면 COPY가 실패하거나 폰트 없는 이미지가 나오고,
+  //   .env를 빼면 next build가 NEXT_PUBLIC_*를 인라인하지 못해 클라이언트 Supabase만 죽는다.
+  const dockerignore = join(root, '.dockerignore')
+  if (existsSync(dockerignore)) {
+    const rules = readFileSync(dockerignore, 'utf8').split('\n')
+      .map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+    // 접두 일치로 본다 — `.env`도 `.env*`도 `.env.production`도 전부 걸린다.
+    const mustKeep = ['.env', 'assets', 'templates', 'scripts', 'src', 'public', 'package.json']
+    const offenders = rules.filter(r => mustKeep.some(k => r.replace(/^\/+/, '').startsWith(k)))
+    if (offenders.length) bad(`.dockerignore가 빌드에 필요한 것을 배제한다: ${offenders.join(', ')}`)
+    else ok(`.dockerignore — 필수 경로 배제 없음 (규칙 ${rules.length}건)`)
+  }
 }
 
 // ── 축 1c: Gotenberg 태그 고정 — 한글 PDF를 찍는 건 앱이 아니라 그 컨테이너다 ──
 // 별지 서식 6종의 한글은 전부 Gotenberg 안의 폰트로 렌더된다. 그래서 `:8` 같은 떠다니는
 // 태그는 앱 이미지보다 노출이 크다 — 우리 코드가 그대로여도 다음 pull이 서식을 두부로 만든다.
 // 운영·스테이징이 서로 다른 버전을 보면 '여기선 됐는데'가 성립해 검증이 무의미해지므로 함께 본다.
-{
+// (축 1b와 같은 이유로 저장소 축 — 이미지 안엔 compose 파일이 없다)
+if (filesOnly) {
   console.log('\n[축 1c] Gotenberg 태그 고정')
   const pinned = new RegExp('gotenberg/gotenberg:(\\d+\\.\\d+\\.\\d+)')
   const anyTag = new RegExp('gotenberg/gotenberg:(\\S+)')
@@ -246,7 +266,7 @@ for (const want of EXPECTED) {
 if (filesOnly) {
   console.log()
   if (failures) { console.error(`한글 렌더 단언 실패 — ${failures}건`); process.exit(1) }
-  console.log('한글 렌더 단언 통과 (축 1만 — fontconfig·래스터는 이미지 안에서 검사된다)')
+  console.log('한글 렌더 단언 통과 (저장소 축 1·1b·1c — fontconfig·래스터는 이미지 안에서 검사된다)')
   process.exit(0)
 }
 
@@ -259,7 +279,8 @@ try {
   if (!koList) bad('fc-list :lang=ko — 한글 폰트가 하나도 없다')
   else ok(`fc-list :lang=ko — ${koList.split('\n').length}종`)
 
-  const file = execFileSync('fc-match', ['NanumGothic:lang=ko', 'file'], { encoding: 'utf8' }).trim()
+  // `fc-match ... file`은 ':file=/경로' 꼴로 뱉으므로 --format으로 경로만 받는다.
+  const file = execFileSync('fc-match', ['--format=%{file}', 'NanumGothic:lang=ko'], { encoding: 'utf8' }).trim()
   if (!file.includes('NanumGothic')) bad(`fc-match NanumGothic → '${file}' (우리 폰트가 아닌 파일로 폴백됐다)`)
   else ok(`fc-match NanumGothic → '${file}'`)
 } catch (e) {
