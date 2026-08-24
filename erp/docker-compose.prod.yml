@@ -18,8 +18,14 @@ services:
 
   # PDF 변환 (소방계획서 생성·xlsx→PDF) — LibreOffice 기반. 앱이 GOTENBERG_URL(http://gotenberg-prod:3000)로 호출.
   # ⚠️ 서비스명은 스테이징(gotenberg-staging)과 겹치지 않게 gotenberg-prod 고정 — 공유 네트워크 별칭 충돌 방지(2026-07-13 인시던트).
+  # ⚠ 태그는 패치까지 고정한다 — `gotenberg/gotenberg:8`은 떠다니는 포인터였다.
+  #   앱 이미지가 2026-08-24에 정확히 이 방식으로 깨졌는데(떠다니는 `node:20-alpine` →
+  #   Alpine 3.23 → `font-nanum` 소멸), **폰트 노출은 여기가 더 크다**: 소방계획서 6종 PDF
+  #   전부가 이 컨테이너의 폰트로 찍힌다. 2026-08-24에 확인한 '한글 폰트 30종'은 그날의
+  #   8.x에 대한 실측이지 다음 pull에 대한 보장이 아니다.
+  #   올릴 때는 의도적으로: 태그를 바꾸고 → 별지 4호·9호 PDF를 실제로 뽑아 한글을 눈으로 볼 것.
   gotenberg-prod:
-    image: gotenberg/gotenberg:8
+    image: gotenberg/gotenberg:8.36.0
     container_name: gotenberg-prod
     command:
       - gotenberg
@@ -27,7 +33,8 @@ services:
     restart: always
 
   caddy:
-    image: caddy:2-alpine
+    # 폰트와는 무관하지만 같은 표류 위험이라 함께 고정한다(HTTPS 인증서 갱신이 걸려 있다).
+    image: caddy:2.11.4-alpine
     ports:
       - "80:80"
       - "443:443"

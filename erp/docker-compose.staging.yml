@@ -29,8 +29,10 @@ services:
 
   # xlsx→PDF 변환 (P32-1) — LibreOffice 기반. 앱이 http://gotenberg-staging:3000 으로 호출.
   # ⚠️ 고유 이름 유지 — 운영에도 gotenberg 추가 시 별칭 충돌 방지(2026-07-13 인시던트 교훈).
+  # ⚠ 패치까지 고정 — 운영(docker-compose.prod.yml)과 **같은 버전**을 쓴다.
+  #   스테이징이 다른 버전을 보면 '여기선 됐는데'가 성립해 검증이 무의미해진다.
   gotenberg-staging:
-    image: gotenberg/gotenberg:8
+    image: gotenberg/gotenberg:8.36.0
     container_name: gotenberg-staging
     command:
       - gotenberg

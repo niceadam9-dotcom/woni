@@ -14,6 +14,11 @@ run() {
 echo "[pre-push] 빌드(타입체크) 검사…"
 run "cd erp && npm run build" || { echo "❌ [pre-push] 빌드 실패 — push 중단"; exit 1; }
 
+# 한글 폰트 자립 — 저장소가 폰트의 단일 원천이라는 규약을 차단급으로 고정한다.
+# 파일 축만 보므로 환경에 기대지 않고 1초 내에 끝난다. 깨지면 운영 이미지가 두부로 인쇄된다.
+echo "[pre-push] 한글 폰트 자산 검사…"
+run "cd erp && node scripts/assert-korean-glyphs.mjs --files-only" || { echo "❌ [pre-push] 한글 폰트 자산 결함 — push 중단"; exit 1; }
+
 echo "[pre-push] 데이터 불변식 검사(경고, 비차단)…"
 run "cd erp && node scripts/check-data-invariants.mjs" || echo "⚠ [pre-push] 불변식 위반 감지 — 배포 전 확인 권장(push는 허용)"
 

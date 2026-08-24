@@ -12,6 +12,10 @@ const steps: Step[] = [
   { name: '테스트 잔재 청소',          cmd: 'node scripts/cleanup-test-leftovers.mjs --apply' },
   { name: '빌드(타입체크)',            cmd: 'npm run build' },
   { name: '데이터 불변식(스테이징)',    cmd: 'node scripts/check-data-invariants.mjs' },
+  // 한글 폰트 자립(소방계획서_서버.md §15.3) — 저장소가 폰트의 단일 원천임을 상시 고정한다.
+  //   여기선 파일 축만 본다(sha256·패밀리명·글리프 커버리지) — 환경에 기대지 않아 어디서 돌려도 같은 답.
+  //   fontconfig 해석·실제 래스터 구조(두부 판정)는 Alpine 안에서만 의미가 있어 Dockerfile이 검사한다.
+  { name: '한글 폰트 자산(파일 축)',    cmd: 'node scripts/assert-korean-glyphs.mjs --files-only' },
   // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
   // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
   { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
