@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import JSZip from 'jszip'
 import XLSX from 'xlsx'
-import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, MARK_CHECKED_RE, validateAnchors } from '../src/lib/xlsx-anchors.ts'
+import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, MARK_CHECKED_RE, VERDICT_MARKS, SAMPLE_OPINION_NEEDLES, validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { allDonorSheets } from '../src/lib/xlsx-donors.ts'
 import { sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
@@ -411,18 +411,27 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
   //   복붙돼 있었고 둘 다 공백 1칸 `[ ]`를 빠뜨려 **덮개와 그 자기검사가 같은 사각을 공유**했다.
   // 빈 마크(`[  ]`)는 손으로 채우는 백지 서식이라 정상 — 체크된 것만 본다.
   const anchored = new Set(ANCHORS.map(a => `${a.sheet}!${a.cell}`))
-  const uncovered: string[] = []
-  for (const sheet of fwb.SheetNames) {
-    const ws = fwb.Sheets[sheet]
-    for (const k of Object.keys(ws)) {
-      if (k.startsWith('!')) continue
-      const c = ws[k] as XLSX.CellObject
-      if (c.f) continue                                   // 수식 캐시는 폐포(D-9)·빌드 ④f 몫
-      if (!MARK_CHECKED_RE.test(String(c.v ?? ''))) continue
-      if (!anchored.has(`${sheet}!${k}`)) uncovered.push(`${sheet}!${k}`)
+  // ⚠ **판정기는 하나뿐이어야 한다.** (d) 자기검사가 이 로직을 인라인 복제하면, 이 루프를 죽여도
+  //   (d)가 초록이라 **덮개를 통째로 되돌려도 통과**한다(2026-08-24 독립 판정 실측 — 게이트
+  //   카나리아에서 고쳤다던 결함을 내가 (d)에 그대로 재현했다). 그래서 함수로 뽑아 둘이 공유한다.
+  // ⚠ **수식 캐시도 본다.** 종전엔 `if (c.f) continue`로 건너뛰었는데, 그러면 캐시에 새로 생긴
+  //   표본 답은 `SAMPLE_ANSWERS` **손목록에만** 의존하게 된다 — 리터럴 축에서만 참인 불변식이었다.
+  //   현 자산의 캐시 체크마크는 실측 0칸이라 포함해도 오탐이 없다(포함이 곧 강화).
+  const uncoveredMarks = (w: XLSX.WorkBook): string[] => {
+    const out: string[] = []
+    for (const sheet of w.SheetNames) {
+      const ws = w.Sheets[sheet]
+      for (const k of Object.keys(ws)) {
+        if (k.startsWith('!')) continue
+        const c = ws[k] as XLSX.CellObject
+        if (!MARK_CHECKED_RE.test(String(c.v ?? ''))) continue
+        if (!anchored.has(`${sheet}!${k}`)) out.push(`${sheet}!${k}${c.f ? '(캐시)' : ''}`)
+      }
     }
+    return out
   }
-  check(`전 ${fwb.SheetNames.length}시트 — 앵커 없는 체크 마크(√) 0칸`, uncovered.length === 0,
+  const uncovered = uncoveredMarks(fwb)
+  check(`전 ${fwb.SheetNames.length}시트 — 앵커 없는 체크 마크(√) 0칸(리터럴+캐시)`, uncovered.length === 0,
     uncovered.slice(0, 10).join(', '))
 
   // 표본 점검 소견 — 마크가 아니라 자유 텍스트라 위 덮개에 안 걸린다(축이 다르다).
@@ -434,7 +443,7 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
     for (const k of Object.keys(ws)) {
       if (k.startsWith('!')) continue
       const v = String((ws[k] as XLSX.CellObject).v ?? '')
-      for (const n of ['이상없음', '별첨참조', '직원실']) if (v.includes(n)) opinions.push(`${sheet}!${k}⊃'${n}'`)
+      for (const n of SAMPLE_OPINION_NEEDLES) if (v.includes(n)) opinions.push(`${sheet}!${k}⊃'${n}'`)
     }
   }
   check('표본 점검 소견·실내 위치 0건(리터럴·캐시 모두)', opinions.length === 0, opinions.slice(0, 6).join(', '))
@@ -451,7 +460,7 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
       for (const k of Object.keys(ws)) {
         if (k.startsWith('!')) continue
         const t = String((ws[k] as XLSX.CellObject).v ?? '').trim()
-        if (t === '○' || t === '×' || t === '/' || t === '／') verdicts.push(`${sheet}!${k}='${t}'`)
+        if ((VERDICT_MARKS as readonly string[]).includes(t)) verdicts.push(`${sheet}!${k}='${t}'`)
       }
     }
     check('갑지 26시트 — 점검 판정 마크 캐시 0칸', verdicts.length === 0, verdicts.slice(0, 8).join(', '))
@@ -479,13 +488,27 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
     check(`(a) 왕복 대조가 입력 변화 ${perturb.length}종을 전부 감지`, blind.length === 0,
       blind.map(([n]) => n).join(', '))
 
-    // (c) 덮개가 '앵커 없는 √'를 실제로 걸러내는가 — 합성 셀로 분류기만 태운다(자산은 안 건드린다)
-    const classify = (sheet: string, cell: string, text: string) =>
-      MARK_CHECKED_RE.test(text) && !anchored.has(`${sheet}!${cell}`)
-    check('(c) 덮개 분류기 — 앵커 없는 √는 걸리고, 앵커·빈 마크는 안 걸린다',
-      classify('현황', 'ZZ999', '[√]') === true &&
-      classify('정보', 'B19', ' [√]철근콘크리트구조') === false &&   // 앵커라 통과
-      classify('현황', 'ZZ998', '[  ]') === false)                  // 빈 마크는 백지 서식
+    // (c) 덮개가 '앵커 없는 √'를 실제로 잡는가 — **같은 함수(uncoveredMarks)에** 결함을 심어 태운다.
+    //     ⚠ 분류 로직을 여기서 다시 쓰면 (c)를 죽여도 (d)가 초록이라 **아무것도 지키지 못한다**
+    //       (2026-08-24 독립 판정이 실제로 (c)를 3시트 손목록으로 되돌리고 `[√]`를 심어 우회했다).
+    //     자산은 건드리지 않는다 — 워크북 객체의 얕은 사본에 합성 셀만 얹는다.
+    const planted = (cells: Record<string, XLSX.CellObject>): XLSX.WorkBook => ({
+      SheetNames: fwb.SheetNames,
+      Sheets: { ...fwb.Sheets, 현황: { ...fwb.Sheets['현황'], ...cells } },
+    } as XLSX.WorkBook)
+    const cases: Array<[string, XLSX.CellObject, boolean]> = [
+      ['앵커 없는 반각 √', { t: 's', v: '[√]소화기구' } as XLSX.CellObject, true],
+      ['앵커 없는 전각 √', { t: 's', v: '［√］' } as XLSX.CellObject, true],
+      ['공백 낀 [ √ ]', { t: 's', v: '[ √ ]' } as XLSX.CellObject, true],
+      ['수식 캐시 √(f 보존)', { t: 's', v: '[√]종합점검', f: '대상물!G3' } as XLSX.CellObject, true],
+      ['빈 마크(백지 서식)', { t: 's', v: '[  ]' } as XLSX.CellObject, false],
+    ]
+    const blindCases = cases.filter(([, cell, shouldCatch]) =>
+      (uncoveredMarks(planted({ ZZ999: cell })).some(x => x.startsWith('현황!ZZ999'))) !== shouldCatch)
+    check(`(c) 덮개가 심은 결함 ${cases.length}종을 정확히 판정(빈 마크는 통과)`,
+      blindCases.length === 0, blindCases.map(([n]) => n).join(', '))
+    // 앵커 칸에 √가 있는 것은 정상 — 덮개가 앵커를 오탐하지 않는지도 같은 함수로 확인
+    check('(c) 앵커 칸의 √는 오탐하지 않는다', uncoveredMarks(fwb).length === 0)
   }
 
   // 다수동일때 — 주입값이 **전부 빈 마크**인가(값을 지어내지 않았다는 단언). 반대로 표본 답이

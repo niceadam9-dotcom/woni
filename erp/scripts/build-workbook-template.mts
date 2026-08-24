@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { injectWorkbook, sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
-import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS, MARK_CHECKED_RE } from '../src/lib/xlsx-anchors.ts'
+import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS, MARK_CHECKED_RE, VERDICT_MARKS, SAMPLE_OPINION_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
@@ -284,7 +284,7 @@ console.log('④f 표본 답 파생 복합 수식 캐시 소거')
 console.log('④g 점검 판정 마크 캐시 소거(설치 여부 미해석 → 백지)')
 {
   const w = XLSX.read(bytes, { cellFormula: true })
-  const VERDICT = new Set(['○', '×', 'X', '/', '／'])
+  const VERDICT = new Set<string>(VERDICT_MARKS)
   const stale: Array<{ sheet: string; cell: string; value: null }> = []
   for (const s of w.SheetNames) {
     const ws = w.Sheets[s]
@@ -417,9 +417,11 @@ console.log('⑥ 사후 검증')
       for (const k of Object.keys(ws)) {
         if (k.startsWith('!')) continue
         const c = ws[k] as XLSX.CellObject
-        if (c.f) continue                       // 수식 캐시는 폐포(④e·④f)가 담당
+        // ⚠ **수식 캐시도 본다**(종전엔 `if (c.f) continue`로 건너뛰었다). 건너뛰면 캐시에 새로
+        //   생긴 표본 답은 SAMPLE_ANSWERS 손목록에만 의존하게 돼, 이 불변식이 리터럴 축에서만
+        //   참이 된다(2026-08-24 독립 판정). ④e·④f·④g 후 캐시 체크마크는 실측 0칸이다
         if (!MARK_CHECKED_RE.test(String(c.v ?? ''))) continue
-        if (!anchored.has(`${s}!${k}`)) fails.push(`표본 답(√) 잔존: ${s}!${k} = ${String(c.v).slice(0, 60)}`)
+        if (!anchored.has(`${s}!${k}`)) fails.push(`표본 답(√) 잔존: ${s}!${k}${c.f ? '(캐시)' : ''} = ${String(c.v).slice(0, 60)}`)
       }
     }
   }
@@ -430,7 +432,7 @@ console.log('⑥ 사후 검증')
     for (const k of Object.keys(ws)) {
       if (k.startsWith('!')) continue
       const v = String((ws[k] as XLSX.CellObject).v ?? '')
-      for (const n of ['이상없음', '별첨참조', '직원실']) if (v.includes(n)) fails.push(`표본 소견 잔존: ${s}!${k} ⊃ '${n}'`)
+      for (const n of SAMPLE_OPINION_NEEDLES) if (v.includes(n)) fails.push(`표본 소견 잔존: ${s}!${k} ⊃ '${n}'`)
     }
   }
   // 점검 판정 마크 — 리터럴이든 캐시든 갑지 26시트에 남으면 안 된다(④g). 남으면 설치 여부와
@@ -440,7 +442,7 @@ console.log('⑥ 사후 검증')
     for (const k of Object.keys(ws)) {
       if (k.startsWith('!')) continue
       const t = String((ws[k] as XLSX.CellObject).v ?? '').trim()
-      if (t === '○' || t === '×' || t === '/' || t === '／') fails.push(`판정 마크 잔존: ${s}!${k} = '${t}'`)
+      if ((VERDICT_MARKS as readonly string[]).includes(t)) fails.push(`판정 마크 잔존: ${s}!${k} = '${t}'`)
     }
   }
   // 허브 영향 셀(복합 수식 포함) 캐시 전무 — ④c가 소거한 부류가 되살아나면 여기서 붉어진다
