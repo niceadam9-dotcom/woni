@@ -43,10 +43,25 @@ const report9 = {
   ckOp: true, ckInitial: false, ckCompEtc: false,
   consent: true, repRole: '관리자',
   managerGrade: '2급', mgrEduDate: '2024년 5월 2일',
+  rampCount: '2',
   main: { name: '김주된', grade: '소방시설관리사', licenseNo: '제2026-1호' },
   assistants: [
     { name: '이보조', grade: '점검자경력수첩', licenseNo: '수첩-77', period: '2026.08.20 부터 ~ 2026.08.21 까지' },
   ],
+  // 정보 시트 12칸(별지 9호 2쪽) — 표본과 **다른** 답을 골라 둔다: 표본 잔재가 살아 있으면
+  // 아래 [2]의 정보 시트 단언이 붉어진다(2026-08-23 F세대 판정 §1-②)
+  mgrAppointType: '소방기술자격',
+  hasFirePlan: true, firePlanStored: false, firePlanUnstored: true,
+  prevOpDone: false, prevOpNone: true, prevCompDone: true,
+  eduDone: true, drillDone: false, drillNone: true,
+  insuranceJoined: true, insCompany: '현대해상', insPeriod: '2026년 4월 1일 ~ 2027년 3월 31일',
+  multiUseNone: false, multiUseCounts: { '일반음식점영업': '2', '비디오물감상실업': '1' },
+  stCon: false, stSteel: true, stBrick: false, stWood: false, stEtc: false,
+  rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,
+  stairsCount: '3', specialStairCount: '1',
+  elvR: '2', elvE: '', elvV: '',
+  pkIn: true, pkInUg: true, pkInGround: false, pkInPiloti: false,
+  pkMech: false, pkRoof: false, pkOut: false,
 }
 const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
@@ -111,6 +126,52 @@ check('보고서!C13 전자우편 동의 √', cellV('보고서', 'C13') === '[�
   String(cellV('보고서', 'C13')))
 check('정보!B5 대표자 구분 — 관리자 √', cellV('정보', 'B5') === '[  ]소유자, [√]관리자, [  ]점유자',
   String(cellV('정보', 'B5')))
+// 정보 시트 12칸 — **주입 축**(test-xlsx-anchors [7]은 조립 문자열만 본다. 여기는 실제 바이트를
+// 왕복해 읽으므로, XML 이스케이프·개행 손실 같은 주입 층 결함이 여기서 잡힌다:
+// '열리는가'와 '텍스트가 사는가'는 다른 검사다 — 2026-08-23 판정의 이중 이스케이프 67칸 교훈)
+{
+  const t = (c: string) => String(cellV('정보', c) ?? '')
+  check('정보!B8 선임구분 — 소방기술자격 √(표본 수첩 √ 소거)',
+    t('B8').startsWith('[√]소방기술자격,') && !t('B8').includes('[√]소방안전관리자수첩'), t('B8'))
+  check('정보!B10 소방계획서 — 작성 √ + 미보관 √', t('B10') === '[√]작성 ([  ]보관 [√]미보관),          [  ]미작성', t('B10'))
+  check('정보!B11 전년도 — 작동 미실시 √ · 종합 실시 √',
+    t('B11') === '작동기능점검 ([  ]실시 [√]미실시),     종합정밀점검 ([√]실시 [  ]미실시)', t('B11'))
+  check('정보!B12 교육훈련 — 교육 실시 √ · 훈련 미실시 √',
+    t('B12') === '소방안전교육 ([√]실시 [  ]미실시),      소방훈련 ([  ]실시 [√]미실시)', t('B12'))
+  // 개행 3줄 구조 + 표본 2024년 날짜 소거 + 가입금액 줄은 원문 유지(단위 불일치로 미주입)
+  const b13 = t('B13').split('\n')
+  check('정보!B13 화재보험 — 3줄 구조 유지·개행 생존', b13.length === 3, `${b13.length}줄`)
+  check('정보!B13 보험사·가입기간 반영 + 표본 2024년 소거',
+    b13[1] === '보험사: 현대해상 ,  가입기간:  2026년 4월 1일 ~ 2027년 3월 31일', JSON.stringify(b13[1]))
+  check('정보!B13 가입금액 줄 원문 유지(ERP 천만원 vs 서식 만원 — 의도적 미주입)',
+    b13[2] === '가입금액:  대인(                  만원 )    대물(                  만원 )', JSON.stringify(b13[2]))
+  // 다중이용업소 — 표본 '[√]해당없음'이 전 고객에게 찍히던 칸
+  check('정보!B14 해당없음 √ 소거 + 개소 반영(2줄 쪼개진 업종)',
+    t('B14').includes('[  ]해당없음') && t('B14').includes('[√]비디오물감상실업\n    ( 1 개소)'), t('B14').slice(0, 60))
+  check('정보!I14 3열 개소 반영', t('I14').includes('[√]일반음식점영업( 2 개소)'), t('I14').slice(0, 40))
+  check('정보!I14 꼬리 빈 줄 3개 유지(서식 높이)', /\n\n\n$/.test(t('I14')), JSON.stringify(t('I14').slice(-6)))
+  check('정보!B19 구조 — 철골 √(표본 철근콘크리트 소거)',
+    t('B19') === ' [  ]철근콘크리트구조, [√]철골구조, [  ]조적조, [  ]목구조, [  ]기타', t('B19'))
+  check('정보!B20 지붕 — 슬라브 √(표본 기타 소거)',
+    t('B20') === ' [√]슬라브, [  ]기와, [  ]슬레이트, [  ]기타', t('B20'))
+  check('정보!B21 계단 — 3개소·특별 1개소(표본 1개소 소거)',
+    t('B21') === ' [√]직통(또는 피난계단) ( 3 개소 ), [√]특별피난계단 ( 1 개소)', t('B21'))
+  check('정보!B22 승강기 — 승용 2대만 √',
+    t('B22') === ' [√]승용( 2 대 ), [  ]비상용(    대), [  ]피난용(    대)', t('B22'))
+  check('정보!B23 주차장 — 옥내·지하 √(표본 옥외 소거)',
+    t('B23') === ' [√]옥내([√]지하 [  ]지상 [  ]필로티 [  ]기계식), [  ]옥상, [  ]옥외', t('B23'))
+  // 경사로(개요!D21 → 정보!J20 폐포) — F세대 §1-① 수리분 회귀
+  check('정보!J20 경사로(개요!D21 경유 — 종전 전 고객 0)', cellV('정보', 'J20') === '2', String(cellV('정보', 'J20')))
+
+  // 이중 XML 이스케이프 — 개행이 리터럴 `&#10;`로 인쇄되던 부류(2026-08-23 판정 67칸).
+  // SheetJS 왕복만 보면 못 잡는 경우가 있으므로 **원시 바이트**에서 직접 금한다
+  const zi = await JSZip.loadAsync(result.bytes)
+  const ifiles = await sheetFileMap(zi)
+  const infoXml = await zi.file(ifiles.get('정보')!)!.async('string')
+  check('정보 시트 XML에 이중 이스케이프(&amp;#10;) 0건', !infoXml.includes('&amp;#10;'))
+  check('주입한 개행이 원시 XML에서 실개행으로 살아 있다',
+    /<is><t[^>]*>[^<]*\n[^<]*<\/t><\/is>/.test(infoXml))
+}
 check('보고서!C17 주된 성명(표본 김흥준 교체)', cellV('보고서', 'C17') === '김주된', String(cellV('보고서', 'C17')))
 check('보고서!D17 자격구분', cellV('보고서', 'D17') === '소방시설관리사', String(cellV('보고서', 'D17')))
 check('보고서!E17 자격번호(표본 제2005-60호 교체)', cellV('보고서', 'E17') === '제2026-1호', String(cellV('보고서', 'E17')))
@@ -160,7 +221,20 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
   const v2 = buildWorkbookValues({
     official, delegation: blankDelegation, customerAddress: '', startISO: null, endISO: null,
     useApprovalISO: null, building: null,
-    report9: { ckOp: false, ckInitial: false, ckCompEtc: false, consent: null, repRole: '', managerGrade: '', mgrEduDate: '', main: null, assistants: [] },
+    report9: {
+      ...report9,
+      ckOp: false, consent: null, repRole: '', managerGrade: '', mgrEduDate: '', rampCount: '',
+      main: null, assistants: [],
+      // 정보 12칸도 '답 없음'으로 — 전부 ☐ + 빈 슬롯이 정상(부정을 단정하지 않는다, A9-6)
+      mgrAppointType: '', hasFirePlan: false, firePlanStored: false, firePlanUnstored: false,
+      prevOpDone: false, prevOpNone: false, prevCompDone: false,
+      eduDone: false, drillDone: false, drillNone: false,
+      insuranceJoined: null, insCompany: '', insPeriod: '',
+      multiUseNone: false, multiUseCounts: {},
+      stSteel: false, rfSlab: false,
+      stairsCount: '', specialStairCount: '', elvR: '',
+      pkIn: false, pkInUg: false,
+    },
   })
   const r2 = await injectWorkbook(template, toInjectTargets(v2).targets)
   const wb2 = XLSX.read(r2.bytes)

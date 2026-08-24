@@ -64,11 +64,24 @@ const values = buildWorkbookValues({
   },
   report9: {
     ckOp: true, ckInitial: false, ckCompEtc: false, consent: true, repRole: '관리자',
-    managerGrade: '2급', mgrEduDate: '2024년 5월 2일',
+    managerGrade: '2급', mgrEduDate: '2024년 5월 2일', rampCount: '2',
     main: { name: '김주된', grade: '소방시설관리사', licenseNo: '제2026-1호' },
     assistants: [
       { name: '이보조', grade: '점검자경력수첩', licenseNo: '수첩-77', period: '2026.08.20 부터 ~ 2026.08.21 까지' },
     ],
+    // 정보 시트 12칸 — 여러 줄 문자열(B13·B14·E14·I14)이 들어가므로 **페이지 나눔이 흔들리는지**가
+    // 이 프로브의 관심사다. 개행 4칸이 늘어난 만큼 행 높이가 바뀌면 여기서 쪽수로 드러난다
+    mgrAppointType: '소방기술자격',
+    hasFirePlan: true, firePlanStored: false, firePlanUnstored: true,
+    prevOpDone: false, prevOpNone: true, prevCompDone: true,
+    eduDone: true, drillDone: false, drillNone: true,
+    insuranceJoined: true, insCompany: '현대해상', insPeriod: '2026년 4월 1일 ~ 2027년 3월 31일',
+    multiUseNone: false, multiUseCounts: { '일반음식점영업': '2', '비디오물감상실업': '1' },
+    stCon: false, stSteel: true, stBrick: false, stWood: false, stEtc: false,
+    rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,
+    stairsCount: '3', specialStairCount: '1',
+    elvR: '2', elvE: '', elvV: '',
+    pkIn: true, pkInUg: true, pkMech: false, pkRoof: false, pkOut: false,
   },
 })
 const result = await injectWorkbook(template, toInjectTargets(values).targets, { forbidden: SCRUB_NEEDLES })

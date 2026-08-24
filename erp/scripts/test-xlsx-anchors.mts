@@ -26,6 +26,35 @@ const check = (name: string, ok: boolean, detail = '') => {
 
 const bytes = new Uint8Array(readFileSync(TPL))
 
+/** report9 픽스처 기본형 — 전부 '답 없음'. 정보 시트 12칸(§7)이 이 위에 답을 얹어 쓴다 */
+type R9 = Parameters<typeof buildWorkbookValues>[0]['report9']
+const R9_BLANK: R9 = {
+  ckOp: true, ckInitial: false, ckCompEtc: false, consent: null, repRole: '',
+  managerGrade: '', mgrEduDate: '', rampCount: '', main: null, assistants: [],
+  hasFirePlan: false, prevOpDone: false, prevCompDone: false, eduDone: false, drillDone: false,
+  insuranceJoined: null, insCompany: '', insPeriod: '',
+  multiUseNone: false, multiUseCounts: {},
+  stCon: false, stSteel: false, stBrick: false, stWood: false, stEtc: false,
+  rfSlab: false, rfTile: false, rfSlate: false, rfEtc: false,
+  stairsCount: '', elvR: '', elvE: '', elvV: '',
+  pkIn: false, pkMech: false, pkRoof: false, pkOut: false,
+}
+/** 값 1건 뽑기 — 픽스처 조립을 짧게 유지한다 */
+const oneValue = (report9: R9, field: string): string => String(buildWorkbookValues({
+  official: {
+    company: { name: 'X', address: 'X', phone: 'X', fax: 'X' },
+    docNo: '승 진 2608-1', sendDate: 'X', recipient: 'X', reference: 'X', sender: 'X',
+    senderSign: { name: 'X', title: 'X', rep: 'X' }, year: 2026, typeLabel: 'X',
+  },
+  delegation: {
+    typeLabel: 'X', owner: { name: 'X', position: 'X', phone: 'X', birth: 'X' },
+    agent: { name: 'X', position: 'X', phone: 'X', birth: 'X' },
+    periodLabel: 'X', daysLabel: '1일', submitDate: 'X', station: 'X',
+  },
+  customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21', useApprovalISO: null,
+  building: null, report9,
+}).get(field) ?? '(없음)')
+
 // ── ① 템플릿 지문 ────────────────────────────────────────────────────
 console.log('[1] 템플릿 지문(manifest 대조)')
 const sha = createHash('sha256').update(bytes).digest('hex')
@@ -131,10 +160,7 @@ console.log('[4] buildWorkbookValues가 앵커 field 전수를 낸다')
       purpose: 'X', totalArea: 1, buildingArea: 1, floorsAbove: 1, floorsBelow: 1,
       height: 1, households: 1, buildingCount: 1, permitDateISO: '2009-04-25',
     },
-    report9: {
-      ckOp: true, ckInitial: false, ckCompEtc: false, consent: null, repRole: '',
-      managerGrade: '', mgrEduDate: '', rampCount: '', main: null, assistants: [],
-    },
+    report9: { ...R9_BLANK },
   })
   const missing = ANCHORS.filter(a => !values.has(a.field)).map(a => a.field)
   check(`앵커 ${ANCHORS.length}개 field 전부 값 맵에 존재`, missing.length === 0, missing.join(', '))
@@ -241,6 +267,137 @@ console.log('[6] 배포 자산(report-workbook-full.xlsx)에 같은 불변식')
   const uncovered = [...referenced].filter(c => !covered.has(c) && !PHASE3_PENDING.has(c))
   check(`스포크가 읽는 개요 ${referenced.size}좌표 전부 덮임(유예 목록 제외)`,
     uncovered.length === 0, uncovered.join(', '))
+}
+
+// ── ⑦ 정보 시트 √ 통문자열 — 자구 왕복 · 오염 · 마크 닫힌 덮개 ─────────────────
+// 종전에 S7-2가 정보!B5 하나만 고쳐, 같은 시트의 나머지 12칸이 **표본 고객의 답을 전 고객
+// 문서에 인쇄**하고 있었다(2026-08-23 F세대 판정 §1-②). 검사 축이 세 개다:
+//  (a) 왕복 — 표본과 같은 답을 넣으면 서식 원문과 **바이트 동일**(자구·공백 런까지)
+//  (b) 오염 — 다른 답을 넣으면 표본의 √·숫자·날짜가 **하나도 남지 않는다**
+//  (c) 닫힌 덮개 — 마크(`[√]`·`[  ]`)를 든 리터럴 칸은 전부 앵커거나 명시 정적 칸이다.
+//      (a)·(b)는 아는 칸만 보고, (c)는 **모르는 칸**을 잡는다 — 이번 결함의 정체가 그것이었다
+console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫힌 덮개')
+{
+  const fullBytes = new Uint8Array(readFileSync('templates/report-workbook-full.xlsx'))
+  const fwb = XLSX.read(fullBytes, { cellFormula: true })
+  const cellText = (sheet: string, ref: string) =>
+    String((fwb.Sheets[sheet]?.[ref] as XLSX.CellObject | undefined)?.v ?? '')
+
+  // (a) 표본 답 — 서식에 이미 찍혀 있던 √ 위치·숫자·날짜가 곧 '표본 고객의 답'이다
+  const SAMPLE: R9 = {
+    ...R9_BLANK,
+    repRole: '관리자',
+    mgrAppointType: '소방안전관리자수첩',
+    hasFirePlan: true, firePlanStored: true,
+    prevOpDone: true, eduDone: true, drillDone: true,
+    insuranceJoined: true, insPeriod: '2024년  1월  1일 ~  2024년  12월  31일',
+    multiUseNone: true,
+    stCon: true, rfEtc: true,
+    stairsCount: '1',
+    pkOut: true,
+  }
+  const ROUNDTRIP: Array<[string, string]> = [
+    ['repRoleLine', 'B5'], ['mgrAppointLine', 'B8'], ['firePlanLine', 'B10'],
+    ['prevInspectLine', 'B11'], ['trainingLine', 'B12'], ['insuranceLine', 'B13'],
+    ['multiUseCol1', 'B14'], ['multiUseCol2', 'E14'], ['multiUseCol3', 'I14'],
+    ['structureLine', 'B19'], ['roofLine', 'B20'], ['stairsLine', 'B21'],
+    ['elevatorLine', 'B22'], ['parkingLine', 'B23'],
+  ]
+  const diff: string[] = []
+  for (const [field, ref] of ROUNDTRIP) {
+    const got = oneValue(SAMPLE, field)
+    const want = cellText('정보', ref)
+    if (got !== want) diff.push(`${ref}: 기대 ${JSON.stringify(want)} / 실제 ${JSON.stringify(got)}`)
+  }
+  check(`정보 ${ROUNDTRIP.length}칸 자구 왕복 — 표본 답 → 서식 원문과 바이트 동일`,
+    diff.length === 0, diff.slice(0, 2).join(' | '))
+
+  // (b) 오염 — 다른 고객의 답을 넣으면 표본 흔적이 남지 않는다
+  const OTHER: R9 = {
+    ...R9_BLANK,
+    repRole: '소유자',
+    mgrAppointType: '겸직',
+    hasFirePlan: false, firePlanNone: true, firePlanStored: false,
+    prevOpDone: false, prevOpNone: true, prevCompDone: true,
+    eduDone: false, eduNone: true, drillDone: false, drillNone: true,
+    insuranceJoined: false, insCompany: '삼성화재', insPeriod: '2026년 3월 1일 ~ 2027년 2월 28일',
+    multiUseNone: false, multiUseCounts: { '휴게음식점영업': '3', '인터넷컴퓨터게임시설제공업': '2' },
+    stSteel: true, rfSlab: true,
+    stairsCount: '7', specialStairCount: '2',
+    elvR: '4', elvE: '1',
+    pkIn: true, pkInUg: true, pkMech: true,
+  }
+  const residue: string[] = []
+  const noSample = (field: string, needles: string[]) => {
+    const s = oneValue(OTHER, field)
+    for (const n of needles) if (s.includes(n)) residue.push(`${field}⊃'${n}'`)
+  }
+  noSample('mgrAppointLine', ['[√]소방안전관리자수첩'])
+  noSample('firePlanLine', ['[√]작성', '[√]보관'])
+  noSample('prevInspectLine', ['([√]실시 [  ]미실시),     종합정밀점검 ([  ]실시'])
+  noSample('trainingLine', ['소방안전교육 ([√]실시'])
+  noSample('insuranceLine', ['2024년', '[√]가입,'])
+  noSample('multiUseCol1', ['[√]해당없음'])
+  noSample('structureLine', ['[√]철근콘크리트구조'])
+  noSample('roofLine', ['[√]기타'])
+  noSample('stairsLine', [' 1 개소'])
+  noSample('parkingLine', ['[√]옥외'])
+  check('오염 축 — 다른 답 주입 시 표본 √·날짜·개소 잔존 0', residue.length === 0, residue.join(', '))
+
+  // 다른 고객의 답이 실제로 반영되는가(오염 0이 '전부 공란'으로 달성되면 안 된다 — 반대 방향 단언)
+  const applied: string[] = []
+  const must = (field: string, needle: string) => {
+    if (!oneValue(OTHER, field).includes(needle)) applied.push(`${field}⊅'${needle}'`)
+  }
+  must('mgrAppointLine', '[√]겸직')
+  must('firePlanLine', '[√]미작성')
+  must('prevInspectLine', '종합정밀점검 ([√]실시')
+  must('insuranceLine', '삼성화재')
+  must('insuranceLine', '2026년 3월 1일 ~ 2027년 2월 28일')
+  must('multiUseCol1', '[√]휴게음식점영업( 3 개소)')
+  must('multiUseCol1', '[  ]해당없음')
+  must('multiUseCol3', '[√]인터넷컴퓨터게임시설\n    제공업( 2 개소)')
+  must('structureLine', '[√]철골구조')
+  must('stairsLine', '( 7 개소 )')
+  must('stairsLine', '[√]특별피난계단 ( 2 개소)')
+  must('elevatorLine', '[√]승용( 4 대 )')
+  must('parkingLine', '[√]옥내([√]지하')
+  check('반영 축 — 다른 답이 실제로 찍힌다(공란으로 달성 금지)', applied.length === 0, applied.join(', '))
+
+  // 가입금액 줄은 의도적 미주입(단위 불일치: ERP 천만원 vs 서식 '만원') — 원문 그대로 남는가
+  check('가입금액 줄은 서식 원문 유지(단위 불일치로 의도적 미주입)',
+    oneValue(OTHER, 'insuranceLine').includes('가입금액:  대인(                  만원 )'))
+
+  // (c) 닫힌 덮개 — 마크를 든 **리터럴** 칸이 전부 앵커거나 명시 정적 칸인가.
+  //     '※ [  ]에는 … √ 표기를 합니다'는 서식 안내문이라 정적이 정답이다(유일 예외).
+  const STATIC_MARKS = new Set(['정보!A3', '보고서!A3'])
+  const anchored = new Set(ANCHORS.map(a => `${a.sheet}!${a.cell}`))
+  const uncovered: string[] = []
+  // 다수동일때를 함께 본다 — 정보 12칸을 고치고 나서야 **같은 서식의 이웃 시트**에 표본 답
+  // 15칸이 그대로 있는 것이 드러났다(코드가 이 시트를 한 번도 언급하지 않아 아무도 안 봤다).
+  // 한 칸을 고치면 같은 형태의 이웃을 함께 볼 것([[feedback_fix_the_sibling_too]])
+  for (const sheet of ['정보', '보고서', '다수동일때']) {
+    const ws = fwb.Sheets[sheet]
+    for (const k of Object.keys(ws)) {
+      if (k.startsWith('!')) continue
+      const c = ws[k] as XLSX.CellObject
+      if (c.f) continue                                   // 수식 칸은 폐포(D-9) 몫
+      if (!/\[√\]|\[ {2}\]|［√］|［ {2}］/.test(String(c.v ?? ''))) continue
+      const key = `${sheet}!${k}`
+      if (!anchored.has(key) && !STATIC_MARKS.has(key)) uncovered.push(key)
+    }
+  }
+  check('마크 든 리터럴 칸 전부 (앵커|명시 정적)로 분류', uncovered.length === 0, uncovered.join(', '))
+
+  // 다수동일때 — 주입값이 **전부 빈 마크**인가(값을 지어내지 않았다는 단언). 반대로 표본 답이
+  // 하나라도 살아 있으면 붉어진다. `[√]`가 0개, 표본 개소 ' 1 '이 0개
+  const MB_FIELDS = ['mbStructureBlank', 'mbRoofBlank', 'mbStairsBlank', 'mbElevatorBlank', 'mbParkingBlank']
+  const notBlank = MB_FIELDS.filter(f => {
+    const s = oneValue(SAMPLE, f)   // 표본 답을 줘도 빈 서식이어야 한다(입력과 무관한 상수)
+    return s.includes('[√]') || /\( 1 /.test(s)
+  })
+  check(`다수동일때 ${MB_FIELDS.length}필드가 입력과 무관한 빈 서식(값 지어내지 않음)`,
+    notBlank.length === 0, notBlank.join(', '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

@@ -30,6 +30,28 @@ const delegation: DelegationData = {
 const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
   startISO: '2026-08-20', endISO: '2026-08-21',
+  // ⚠ 종전엔 report9·building·useApprovalISO를 아예 안 넘겨 S7-1 이후로 실행 즉시 죽었다
+  //   (scripts는 next build 타입체크 밖이라 tsc가 안 잡는다 — 수동 인수용이라 아무도 안 돌렸다)
+  useApprovalISO: '2011-06-25',
+  building: {
+    purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5, floorsBelow: 2,
+    height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',
+  },
+  report9: {
+    ckOp: true, ckInitial: false, ckCompEtc: false, consent: true, repRole: '관리자',
+    managerGrade: '2급', mgrEduDate: '2024년 5월 2일', rampCount: '2',
+    main: { name: '김주된', grade: '소방시설관리사', licenseNo: '제2026-1호' }, assistants: [],
+    mgrAppointType: '소방기술자격',
+    hasFirePlan: true, firePlanStored: true,
+    prevOpDone: true, prevCompDone: false, eduDone: true, drillDone: true,
+    insuranceJoined: true, insCompany: '현대해상', insPeriod: '2026년 4월 1일 ~ 2027년 3월 31일',
+    multiUseNone: true, multiUseCounts: {},
+    stCon: true, stSteel: false, stBrick: false, stWood: false, stEtc: false,
+    rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,
+    stairsCount: '3', specialStairCount: '',
+    elvR: '2', elvE: '', elvV: '',
+    pkIn: true, pkInUg: true, pkMech: false, pkRoof: false, pkOut: false,
+  },
 })
 
 const template = new Uint8Array(readFileSync('templates/report-workbook.xlsx'))

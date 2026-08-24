@@ -104,6 +104,44 @@ export const ANCHORS: Anchor[] = [
   { field: 'inspectorCompanyRow', sheet: '보고서', cell: 'B11', labelCell: 'B11', label: '[√]소방시설관리업자  (업체명:' },
   { field: 'emailConsent',        sheet: '보고서', cell: 'C13', labelCell: 'C12', label: '「행정절차법」 제14조에 따라 정보통신망을 이용한 문서 송달에 동의합니다.' },
   { field: 'repRoleLine',         sheet: '정보',   cell: 'B5',  labelCell: 'A5',  label: '대표자' },
+  // ── 정보 시트(별지 9호 2쪽) 나머지 √ 통문자열 12칸 ──
+  // S7-2가 B5 하나만 고쳐, 같은 시트의 나머지는 **표본 고객의 답이 전 고객 문서에 인쇄**되고 있었다
+  // (2026-08-23 F세대 판정 §1-②): 남의 대상물이 '다중이용업소 해당없음 √'·'철근콘크리트구조 √'·
+  // '계단 직통 ( 1 개소 )'·'화재보험 가입기간 2024년 1월 1일~'로 찍혔다. 문장 안 판정 마크가
+  // 살아남은 것과 **같은 부류**다(셀 값 전체가 마크가 아니라 문장이라 스크럽 축에도 안 걸렸다).
+  // 값은 전부 assembleReport9 — PDF 2쪽(report9.ts:268~343)과 같은 해석기라 갈라질 수 없다(D-7).
+  { field: 'mgrAppointLine',  sheet: '정보', cell: 'B8',  labelCell: 'A8',  label: '소방안전관리자' },
+  { field: 'firePlanLine',    sheet: '정보', cell: 'B10', labelCell: 'A10', label: '소방계획서' },
+  { field: 'prevInspectLine', sheet: '정보', cell: 'B11', labelCell: 'A11', label: '자체점검(전년도)' },
+  { field: 'trainingLine',    sheet: '정보', cell: 'B12', labelCell: 'A12', label: '교육훈련' },
+  { field: 'insuranceLine',   sheet: '정보', cell: 'B13', labelCell: 'A13', label: '화재보험' },
+  // 다중이용업소 3열 — 라벨 칸이 A14 하나(B14:D14·E14:H14·I14:K14 병합 실측)라 셋이 공유한다.
+  // 자가치유는 라벨 '다중이용업소현황'이 유일하므로 셋 다 각자의 오프셋으로 따라 옮겨진다
+  { field: 'multiUseCol1',    sheet: '정보', cell: 'B14', labelCell: 'A14', label: '다중이용업소현황' },
+  { field: 'multiUseCol2',    sheet: '정보', cell: 'E14', labelCell: 'A14', label: '다중이용업소현황' },
+  { field: 'multiUseCol3',    sheet: '정보', cell: 'I14', labelCell: 'A14', label: '다중이용업소현황' },
+  { field: 'structureLine',   sheet: '정보', cell: 'B19', labelCell: 'A19', label: '건축물구조' },
+  { field: 'roofLine',        sheet: '정보', cell: 'B20', labelCell: 'A20', label: '지붕구조' },
+  { field: 'stairsLine',      sheet: '정보', cell: 'B21', labelCell: 'A21', label: '계단' },
+  { field: 'elevatorLine',    sheet: '정보', cell: 'B22', labelCell: 'A22', label: '승강기' },
+  { field: 'parkingLine',     sheet: '정보', cell: 'B23', labelCell: 'A23', label: '주차장' },
+  // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
+  // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
+  // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·
+  // 직통 ( 1 개소 )·옥외 ×3블록 = 12칸). 정보 12칸과 같은 부류이고, 숫자는 비웠는데 마크는
+  // 놓쳤다는 점까지 판정 마크 결함과 같다.
+  // ERP는 이 파이프라인에서 **1동(활성·최고참)만** 해석하므로 2·3·4동 값은 없다 — 그러니
+  // 채우는 것이 아니라 **비운다**: 서식 원문의 마크를 전부 `[  ]`로, 개소 슬롯을 공란으로.
+  // 값을 지어내지 않고(D-7), 용도(손으로 고쳐 쓰기)에 맞는 백지 서식이 된다.
+  // 이미 공란인 승강기 행도 앵커에 넣는다 — 그래야 이 시트의 마크 든 리터럴이 **전부** 덮여
+  // 닫힌 덮개(test-xlsx-anchors [7]-c)에 예외가 남지 않는다.
+  ...[0, 10, 20].flatMap<Anchor>(off => [
+    { field: 'mbStructureBlank', sheet: '다수동일때', cell: `B${6 + off}`,  labelCell: `A${6 + off}`,  label: '건축물구조' },
+    { field: 'mbRoofBlank',      sheet: '다수동일때', cell: `B${7 + off}`,  labelCell: `A${7 + off}`,  label: '지붕구조' },
+    { field: 'mbStairsBlank',    sheet: '다수동일때', cell: `B${8 + off}`,  labelCell: `A${8 + off}`,  label: '계단' },
+    { field: 'mbElevatorBlank',  sheet: '다수동일때', cell: `B${9 + off}`,  labelCell: `A${9 + off}`,  label: '승강기' },
+    { field: 'mbParkingBlank',   sheet: '다수동일때', cell: `B${10 + off}`, labelCell: `A${10 + off}`, label: '주차장' },
+  ]),
   // 보고서 점검인력 '주된' 행 — **유일하게 허브 미배선 리터럴**이었다(표본: 김흥준·소방시설관리사·
   // 제2005-60호 = 자사 대표이사라 PII 니들엔 안 걸렸지만, 담당은 건마다 다르다). 직접 앵커로
   // 상시 덮는다(값 또는 명시적 공란). 라벨 B17은 수식 캐시('주된 점검인력')지만 검증엔 충분하다.

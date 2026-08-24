@@ -126,15 +126,68 @@ check('개요 인쇄여백 원본과 일치',
   JSON.stringify(tplWb.Sheets[HUB]?.['!margins'] ?? null))
 check('복원본 병합셀 불변', mergeCount(tplWb) === origMerges, `${mergeCount(tplWb)}`)
 
-// ── S0-5. 앵커 후보 셀이 XML에 실재하는가 ─────────────────────────────
-console.log('\n[S0-5] 앵커 실재 — 개요 입력 칸이 <c r="…">로 있는가')
-const hubXml = await zip0.file(sheetFile.get(HUB)!)!.async('string')
-const hubCells = new Set([...hubXml.matchAll(/<c r="([A-Z]+\d+)"/g)].map(m => m[1]))
-const hubSheet = convWb.Sheets[HUB]
-const valued = Object.keys(hubSheet).filter(k => !k.startsWith('!') && hubSheet[k].v !== undefined)
-const missing = valued.filter(c => !hubCells.has(c))
-check('개요 값 보유 셀이 전부 XML에 실재', missing.length === 0,
-  `값 셀 ${valued.length} · XML 부재 ${missing.length}${missing.length ? ` (${missing.slice(0, 8).join(',')})` : ''}`)
+// ── S0-5. 앵커 실재 — **실제로 주입할 좌표**가 XML에 있는가 ────────────
+// ⚠ 종전 검사는 반증 불가였다: 'SheetJS가 값을 읽은 셀 ⊆ 같은 파일의 <c r>'인데 SheetJS는
+//   바로 그 <c r>에서 값을 뽑으므로 어떤 입력에도 부재 0이었다(2026-08-23 F세대 판정 §1-④).
+//   게이트란 '통과 못 하면 착수 금지'인데 **절대 붉어지지 않는 칸**이 통과 수를 부풀렸다.
+//   실질 축으로 교체한다: 주입 대상(앵커의 값 칸 + 라벨 칸)과 완전 덮어쓰기 대상(HUB_INPUT_CELLS)이
+//   ① 새 변환본 ② 커밋된 배포 자산 **양쪽 모두**에 실재하는가. 서식이 갱신돼 칸이 사라지면
+//   여기가 먼저 붉어진다(=Q-4 재실측 신호). 없는 셀에는 삽입하지 않으므로 실재가 전제다.
+console.log('\n[S0-5] 앵커 실재 — 주입 좌표가 실제로 있는가(새 변환본 + 커밋 자산)')
+{
+  const { ANCHORS, HUB_INPUT_CELLS } = await import('../src/lib/xlsx-anchors.ts')
+  /** 시트별 요구 좌표 — 앵커는 값 칸과 라벨 칸 둘 다 필요하다(라벨 검증이 주입의 전제) */
+  const want = new Map<string, Set<string>>()
+  const add = (sheet: string, cell: string) => {
+    const s = want.get(sheet) ?? new Set<string>()
+    s.add(cell); want.set(sheet, s)
+  }
+  for (const a of ANCHORS) { add(a.sheet, a.cell); add(a.sheet, a.labelCell) }
+  for (const c of HUB_INPUT_CELLS) add(HUB, c)
+  const total = [...want.values()].reduce((n, s) => n + s.size, 0)
+
+  const absentIn = async (zip: JSZip, files: Map<string, string>) => {
+    const out: string[] = []
+    for (const [sheet, cells] of want) {
+      const path = files.get(sheet)
+      if (!path || !zip.file(path)) { out.push(`${sheet}!(시트없음)`); continue }
+      const xml = await zip.file(path)!.async('string')
+      const present = new Set([...xml.matchAll(/<c r="([A-Z]+\d+)"/g)].map(m => m[1]))
+      for (const c of cells) if (!present.has(c)) out.push(`${sheet}!${c}`)
+    }
+    return out
+  }
+
+  const a1 = await absentIn(zip0, sheetFile)
+  check(`새 변환본 — 요구 좌표 ${total}개 전부 실재`, a1.length === 0,
+    a1.length ? `부재 ${a1.length}: ${a1.slice(0, 8).join(',')}` : `시트 ${want.size}개`)
+
+  // 커밋 자산 축 — 라우트가 실제로 읽는 파일이다(빌드가 좌표를 지웠는지 여기서만 드러난다)
+  const assetPath = 'templates/report-workbook-full.xlsx'
+  if (existsSync(assetPath)) {
+    const az = await JSZip.loadAsync(readFileSync(assetPath))
+    const awb = await az.file('xl/workbook.xml')!.async('string')
+    const arels = await az.file('xl/_rels/workbook.xml.rels')!.async('string')
+    const arel = new Map([...arels.matchAll(/Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map(m => [m[1], m[2]]))
+    const afiles = new Map<string, string>()
+    for (const m of awb.matchAll(/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
+      const t = arel.get(m[2]) ?? ''
+      afiles.set(m[1], t.startsWith('/') ? t.slice(1) : `xl/${t.replace(/^\.\//, '')}`)
+    }
+    const a2 = await absentIn(az, afiles)
+    check(`커밋 자산 — 요구 좌표 ${total}개 전부 실재`, a2.length === 0,
+      a2.length ? `부재 ${a2.length}: ${a2.slice(0, 8).join(',')}` : basename(assetPath))
+  } else {
+    check('커밋 자산 존재', false, `${assetPath} 없음`)
+  }
+
+  // 반증 가능성 자기검사 — 있을 수 없는 좌표를 넣으면 반드시 붉어져야 한다(항진명제 재발 방지)
+  const canary = await (async () => {
+    const xml = await zip0.file(sheetFile.get(HUB)!)!.async('string')
+    return !new RegExp('<c r="ZZ9999"').test(xml)
+  })()
+  check('자기검사 — 없는 좌표(ZZ9999)는 부재로 판정된다', canary)
+}
 
 // ── S0-3. JSZip 셀 패치 → 열리는가 + 서식 유지되는가 ──────────────────
 console.log('\n[S0-3] JSZip 바이트 패치 — 개요!B14 교체')
