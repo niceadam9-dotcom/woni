@@ -9,7 +9,7 @@ import { assembleReport9 } from '@/lib/report9-assemble'
 import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
-import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
+import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets } from '@/lib/xlsx-sheet-surgery'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { isMultiUseApplicable } from '@/lib/multi-use'
@@ -168,9 +168,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (tocOverflow.length) {
     console.warn(`[workbook] 목차 항목 칸 부족 — ${tocTitles.length}/${DONOR_TOC_BODY_CELLS.length}, 미표기: ${tocOverflow.join(' | ')}`)
   }
-  const tocTargets: InjectTarget[] = DONOR_TOC_BODY_CELLS.map((cell, i) => ({
-    sheet: DONOR_TOC_SHEET, cell, value: tocTitles[i] ?? null,
-  }))
+  // ⚠ 갑지의 기저 '목차'는 도너 '목 차'의 **복제본**이라 둘을 같이 채운다. 종전엔 도너 쪽만
+  //   고쳐서, 소화기 하나만 설치한 고객 파일에도 기저 목차가 표본 구성 22항목을 그대로 나열했다
+  //   (2026-08-24 독립 판정 — 코드가 이 시트를 한 번도 언급하지 않아 grep으로도 안 잡혔다)
+  const tocTargets: InjectTarget[] = [DONOR_TOC_SHEET, BASE_TOC_SHEET].flatMap(sheet =>
+    DONOR_TOC_BODY_CELLS.map((cell, i) => ({ sheet, cell, value: tocTitles[i] ?? null })))
   targets.push(...tocTargets)
 
   // 안전망(S2-7/D-10) — 주입이 안 닿은 캐시에 표본 고객 흔적이 남았으면 비워서 내보낸다.

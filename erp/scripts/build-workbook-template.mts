@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { injectWorkbook, sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
-import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS } from '../src/lib/xlsx-anchors.ts'
+import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS, MARK_CHECKED_RE } from '../src/lib/xlsx-anchors.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
@@ -48,6 +48,52 @@ const KNOWN_BROKEN: Record<string, { keepValue: boolean; why: string }> = {
   '완료보고서!F14': { keepValue: true, why: '회사 전화(고정값)' },
   '완료보고서!B16': { keepValue: true, why: '회사 주소(고정값)' },
 }
+
+/** 🚨 **허브 밖에 있는 표본 고객의 '답'** — ④의 스크럽 축은 `HUB_INPUT_CELLS`의 폐포라서
+ *  개요와 무관한 시트에 박힌 표본 답이 **아예 보이지 않았다**(2026-08-24 독립 판정 3인 교차 확인).
+ *  갑지는 실제 고객 하나(정내과의원)의 **완성된 문서**이므로, 별지 4호 쪽 시트는 그 고객의
+ *  설비 목록·점검 결과·수신기 위치·점검 소견이 전부 채워진 채로 들어 있다.
+ *
+ *  ERP는 이 값들의 원천을 이 파이프라인에서 해석하지 않는다(별지 4호 값 배선은 Phase 3 몫).
+ *  그러니 **채우지 않고 비운다** — 값을 지어내지 않고(D-7), 손으로 채워 쓰는 백지 서식이 된다.
+ *  남의 점검 결과가 '양호'로 인쇄되는 것보다 빈칸이 낫다(D-10과 같은 판단).
+ *
+ *  ⚠ 이 표는 **손목록**이므로 그 자체로는 다음 사각을 못 막는다. 막는 것은 빌드 사후검증과
+ *  test-xlsx-anchors의 **전 시트 덮개 불변식**이다: '앵커에 없는 리터럴 셀에 체크된 마크가
+ *  하나라도 있으면 실패'. 갑지가 갱신돼 새 표본 답이 들어오면 그 불변식이 먼저 붉어진다.
+ *  파생 수식 캐시(현1!C3·대상물!B10·세3!C17·위임장!D2 등 19칸)는 폐포가 따라오고,
+ *  복합 수식 캐시(현황!S7의 `IF(C6="[  ]","/","○")` 등)는 ④f가 함께 비운다. */
+const blankMarks = (s: string) => s.replace(/\[√\]/g, '[  ]').replace(/［√］/g, '［  ］')
+const SAMPLE_ANSWERS: Array<{ sheet: string; cell: string; to: (orig: string) => string | null; why: string }> = [
+  // 별지 4호 1쪽 — 표본이 설치한 설비 5종. 이 5칸이 `IF(…="[  ]","/","○")` 수식 88칸을 구동해
+  // '○'(양호) 8칸·'/'(해당없음) 120칸을 만든다 → 안 한 점검이 양호로 인쇄되던 원천
+  { sheet: '현황', cell: 'C6', to: blankMarks, why: '소화기구 및 자동소화장치 설치 √' },
+  { sheet: '현황', cell: 'D7', to: blankMarks, why: '소화기구(소화기·자확·간이) √' },
+  { sheet: '현황', cell: 'Y13', to: blankMarks, why: '유도등 √' },
+  { sheet: '현황', cell: 'C28', to: blankMarks, why: '자동화재탐지설비 및 시각경보기 √' },
+  { sheet: '현황', cell: 'Y28', to: blankMarks, why: '비상구·피난통로 √' },
+  { sheet: '현1', cell: 'B4', to: blankMarks, why: '소화기구 세부 — 분말 √' },
+  { sheet: '다수동', cell: 'C3', to: blankMarks, why: '소화기 √' },
+  { sheet: '다수동', cell: 'B4', to: blankMarks, why: '분말 √' },
+  // 점검 구분 — 표지(대상처!B7)는 앵커라 점검종류가 가변인데 여기는 표본의 '종합점검(최초점검)'
+  // 고정이라 **한 파일 안에서 모순**됐다. 위임장!D2가 이 칸을 캐시로 끌어간다
+  { sheet: '대상물', cell: 'G3', to: blankMarks, why: '점검 구분 종합점검(최초점검) √ — 표지와 모순' },
+  // 별지 4호 5쪽 세부현황 — 마크 + **표본 고객의 실내 위치**(3층 직원실). 세3·세4가 캐시로 복제
+  {
+    sheet: '현3', cell: 'C8', why: '수신기 위치 — 층·실명이 표본 고객 것',
+    to: o => blankMarks(o).replace('( 3 )층', '(   )층').replace('( 직원실 )', '(     )'),
+  },
+  { sheet: '현3', cell: 'C9', to: blankMarks, why: '경보방식·시각경보기 √' },
+  { sheet: '현3', cell: 'C10', to: blankMarks, why: '설치장소 √' },
+  { sheet: '현3', cell: 'C12', to: blankMarks, why: '감지기종류 √' },
+  { sheet: '현3', cell: 'C34', to: blankMarks, why: '유도등 종류 √' },
+  { sheet: '현3', cell: 'C35', to: blankMarks, why: '유도등 설치장소 √' },
+  // 별지 4호 8쪽 불량 세부 — **남의 점검 소견**이 전 고객의 법정 서식에. 계획서!H12~H24가 캐시 복제
+  ...['C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10'].map(cell => ({
+    sheet: '현5', cell, to: () => null, why: '점검 소견(이상없음·별첨참조) — 표본 고객의 판단',
+  })),
+  { sheet: '완료보고서', cell: 'B20', to: () => null, why: '이행조치 결과 별첨참조 — 표본 답' },
+]
 
 /** LibreOffice가 파괴한 수식 복원 — NUMBERSTRING(한국어 Excel 전용)은 LO가 몰라 #REF!로
  *  바꿔 버린다(2026-08-21 실측: 원본 .xls엔 멀쩡히 있었다). 사용자의 실제 도구는 Excel이므로
@@ -174,6 +220,89 @@ console.log('④c 허브 영향 복합 수식 캐시 소거')
   } else console.log('   잔존 캐시 0칸')
 }
 
+// ── ④e 표본 고객의 '답' 스크럽 (허브 밖 축) ──────────────────────────
+// ④·④c의 축은 전부 `개요` 허브의 폐포다. 갑지는 실고객의 **완성 문서**라 별지 4호 쪽 시트에
+// 허브와 무관한 답이 채워져 있었고, 그래서 기존 검사가 전부 초록인 채로 남의 설비 목록·점검
+// 결과·수신기 위치·점검 소견이 전 고객 산출물에 인쇄됐다(2026-08-24 독립 판정 3인 교차 확인)
+console.log('④e 표본 답 스크럽(허브 밖 — 별지 4호 설비·판정·세부현황·소견)')
+{
+  const w = XLSX.read(bytes, { cellFormula: true })
+  const targets = SAMPLE_ANSWERS.map(s => {
+    const c = w.Sheets[s.sheet]?.[s.cell] as XLSX.CellObject | undefined
+    if (c === undefined) throw new Error(`④e 대상 없음: ${s.sheet}!${s.cell} — 갑지가 갱신됐다면 좌표를 재실측할 것`)
+    if (c.f) throw new Error(`④e 대상이 수식이다: ${s.sheet}!${s.cell} f=${c.f} — 원천 리터럴을 고쳐야 한다`)
+    const orig = String(c.v ?? '')
+    const to = s.to(orig)
+    // 바뀌지 않으면 좌표가 밀렸거나 이미 고쳐진 것 — 조용히 지나가면 다시 사각이 된다
+    if (to !== null && to === orig) throw new Error(`④e 변화 없음: ${s.sheet}!${s.cell} = ${JSON.stringify(orig)}`)
+    return { sheet: s.sheet, cell: s.cell, value: to }
+  })
+  const r = await injectWorkbook(bytes, targets)
+  if (r.missed.length) throw new Error(`④e 미발견: ${r.missed.join(', ')}`)
+  console.log(`   ${targets.length}칸 + 폐포 전파 ${r.propagated}칸`)
+  bytes = r.bytes
+}
+
+// ── ④f 표본 답에 딸린 복합 수식 캐시 소거 ────────────────────────────
+// ④e가 고친 칸을 참조하는 **복합** 수식(현황!S7 = `IF(C6="[  ]","/","○")` 등)은 단일 참조
+// 폐포 밖이라 옛 캐시 '○'(양호)·'/'가 그대로 남는다. LibreOffice는 재계산하지 않으므로
+// 그 캐시가 곧 인쇄물이다 — 비운다(<f> 보존: Excel에서 열면 제대로 계산된다). ④c와 같은 수법,
+// 다른 씨앗(허브가 아니라 ④e 대상)
+console.log('④f 표본 답 파생 복합 수식 캐시 소거')
+{
+  const zip = await JSZip.loadAsync(bytes)
+  const files = await sheetFileMap(zip)
+  const full = await buildFullRefGraph(zip, files)
+  const affected = new Map<string, { sheet: string; cell: string }>()
+  for (const s of SAMPLE_ANSWERS)
+    for (const d of transitiveClosure(full, s.sheet, s.cell)) affected.set(`${d.sheet}!${d.cell}`, d)
+  const stale: Array<{ sheet: string; cell: string; value: null }> = []
+  for (const [sheet, path] of files) {
+    const xml = await zip.file(path)!.async('string')
+    for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      if (!affected.has(`${sheet}!${m[1]}`)) continue
+      if (/<v>[\s\S]*?<\/v>|<is>/.test(m[2] ?? '')) stale.push({ sheet, cell: m[1], value: null })
+    }
+  }
+  if (stale.length) {
+    console.log(`   잔존 캐시 ${stale.length}칸 소거`)
+    const rc = await injectWorkbook(bytes, stale)
+    if (rc.missed.length) throw new Error(`④f 캐시 소거 실패: ${rc.missed.join(', ')}`)
+    bytes = rc.bytes
+  } else console.log('   잔존 캐시 0칸')
+}
+
+// ── ④g 점검 판정 마크 캐시 전수 소거 ─────────────────────────────────
+// 별지 4호 1쪽의 점검결과 칸은 `IF(설치칸="[  ]","/","○")` 부류의 수식이고, 그 **캐시**가 곧
+// 인쇄물이다(LibreOffice는 재계산하지 않는다). ④f는 ④e가 고친 칸에서 닿는 것만 비우는데,
+// 표본이 **설치하지 않은** 설비의 칸은 이미 `[  ]`라 씨앗에 없고 캐시 '/'(해당없음)가 남는다.
+// 그 결과 **실제로 설치한 고객에게도 '해당없음'이 인쇄**된다(2026-08-24 판정 실측).
+// 설비 설치 여부는 이 파이프라인이 해석하지 않으므로(Phase 3) 판정 칸은 전부 비운다 —
+// 백지 서식이 남의 판정보다 낫다. <f>는 보존하므로 Excel에서 열면 제대로 계산된다.
+// ⚠ 이 단계는 갑지 26시트에만 돈다(도너 이식 전). 도너의 세로 3연속 ○/×/／ 범례는
+//    build-workbook-full의 몫이고 거기서 보존된다 — 축이 겹치지 않는다.
+console.log('④g 점검 판정 마크 캐시 소거(설치 여부 미해석 → 백지)')
+{
+  const w = XLSX.read(bytes, { cellFormula: true })
+  const VERDICT = new Set(['○', '×', 'X', '/', '／'])
+  const stale: Array<{ sheet: string; cell: string; value: null }> = []
+  for (const s of w.SheetNames) {
+    const ws = w.Sheets[s]
+    for (const k of Object.keys(ws)) {
+      if (k.startsWith('!')) continue
+      const c = ws[k] as XLSX.CellObject
+      if (!c.f) continue                       // 리터럴 판정 마크는 ⑥ 사후검증이 잡는다
+      if (VERDICT.has(String(c.v ?? '').trim())) stale.push({ sheet: s, cell: k, value: null })
+    }
+  }
+  if (stale.length) {
+    console.log(`   판정 캐시 ${stale.length}칸 소거`)
+    const rg = await injectWorkbook(bytes, stale)
+    if (rg.missed.length) throw new Error(`④g 소거 실패: ${rg.missed.join(', ')}`)
+    bytes = rg.bytes
+  } else console.log('   판정 캐시 0칸')
+}
+
 // ── ④b LibreOffice가 파괴한 수식 복원 ────────────────────────────────
 console.log('④b NUMBERSTRING 수식 복원(계약서 보수금액·잔금)')
 {
@@ -273,6 +402,45 @@ console.log('⑥ 사후 검증')
       if (zip.files[name].dir) continue
       const raw = await zip.file(name)!.async('string')
       for (const n of NEEDLES) if (raw.includes(n)) fails.push(`원시 바이트 니들 잔존: ${name} ⊃ '${n}'`)
+    }
+  }
+  // ★ **전 시트 덮개 불변식** — 앵커에 없는 **리터럴** 셀에 체크된 마크(√)가 하나라도 있으면 실패.
+  // ④e의 SAMPLE_ANSWERS는 손목록이라 그 자체로는 다음 사각을 못 막는다. 막는 것은 이 불변식이다:
+  // 갑지가 갱신돼 새 표본 답이 들어오면 목록이 아니라 **여기가** 먼저 붉어진다.
+  // 종전 검사는 '정보·보고서·다수동일때' 3시트만 봐서 나머지 64시트의 √ 15칸이 영구히 안 보였다
+  // (2026-08-24 독립 판정 3인 교차). 마크 정규식은 xlsx-anchors.MARK_CHECKED_RE 단일 원천 —
+  // 두 파일에 복붙돼 있던 종전 정규식은 공백 1칸 `[ ]`를 양쪽 다 빠뜨려 사각을 공유했다.
+  {
+    const anchored = new Set(ANCHORS.map(a => `${a.sheet}!${a.cell}`))
+    for (const s of wb.SheetNames) {
+      const ws = wb.Sheets[s]
+      for (const k of Object.keys(ws)) {
+        if (k.startsWith('!')) continue
+        const c = ws[k] as XLSX.CellObject
+        if (c.f) continue                       // 수식 캐시는 폐포(④e·④f)가 담당
+        if (!MARK_CHECKED_RE.test(String(c.v ?? ''))) continue
+        if (!anchored.has(`${s}!${k}`)) fails.push(`표본 답(√) 잔존: ${s}!${k} = ${String(c.v).slice(0, 60)}`)
+      }
+    }
+  }
+  // 표본 점검 소견 — 마크가 아니라 자유 텍스트라 위 덮개에 안 걸린다. 템플릿(백지 서식)에는
+  // 어떤 소견도 있어서는 안 된다 — 있으면 남의 판단이 전 고객 문서에 인쇄된다
+  for (const s of wb.SheetNames) {
+    const ws = wb.Sheets[s]
+    for (const k of Object.keys(ws)) {
+      if (k.startsWith('!')) continue
+      const v = String((ws[k] as XLSX.CellObject).v ?? '')
+      for (const n of ['이상없음', '별첨참조', '직원실']) if (v.includes(n)) fails.push(`표본 소견 잔존: ${s}!${k} ⊃ '${n}'`)
+    }
+  }
+  // 점검 판정 마크 — 리터럴이든 캐시든 갑지 26시트에 남으면 안 된다(④g). 남으면 설치 여부와
+  // 무관하게 '해당없음'·'양호'가 전 고객 문서에 인쇄된다
+  for (const s of wb.SheetNames) {
+    const ws = wb.Sheets[s]
+    for (const k of Object.keys(ws)) {
+      if (k.startsWith('!')) continue
+      const t = String((ws[k] as XLSX.CellObject).v ?? '').trim()
+      if (t === '○' || t === '×' || t === '/' || t === '／') fails.push(`판정 마크 잔존: ${s}!${k} = '${t}'`)
     }
   }
   // 허브 영향 셀(복합 수식 포함) 캐시 전무 — ④c가 소거한 부류가 되살아나면 여기서 붉어진다

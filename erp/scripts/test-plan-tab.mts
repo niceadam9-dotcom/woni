@@ -67,7 +67,11 @@ try {
   await page.waitForSelector('text=대인 가입금액')
   check('화재보험 — 라벨 노출(보험사·기간·대인/대물)',
     await page.isVisible('text=대물 가입금액') && await page.isVisible('text=가입기간'))
-  check('화재보험 — 금액 단위(천만원) 표시', (await page.locator('text=천만원').count()) >= 2)
+  // 단위는 **만원**(2026-08-24 확정). 종전 '천만원'은 별지 9호 원문에 없는 단위였다 —
+  // 별지 9호 PDF·갑지 엑셀·소방계획서 서식과 **한 단위**여야 한다. `만원`은 `천만원`의 부분
+  // 문자열이므로 '천만원 0건'을 함께 단언해야 옛 단위 잔재를 잡는다(포함 관계 주의)
+  check('화재보험 — 금액 단위(만원) 표시', (await page.locator('text=만원').count()) >= 2)
+  check('화재보험 — 옛 단위(천만원) 잔재 0', (await page.locator('text=천만원').count()) === 0)
 
   // ── 3) 송달 동의 + 화재보험을 1.1 [저장] 하나로 저장 (098 §9-6① · 라벨 복구분) ──
   await page.click('#consent-section button:has-text("동의")')

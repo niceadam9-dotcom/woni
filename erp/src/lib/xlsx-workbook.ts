@@ -84,16 +84,24 @@ const MU_BREAK: Record<string, string> = {
 /** 손으로 채우는 빈 칸(write-in slot) — 갑지의 용도는 **손으로 고쳐 쓰기**라, 값이 없으면
  *  0이나 공백 1칸이 아니라 서식 원문의 빈 슬롯을 그대로 남긴다(원문 공백 런 실측:
  *  scripts/_probe-info-spaces.mts). 값이 있으면 그 슬롯 자리에 값을 넣는다. */
-const BLANK_INS_CO = '            '      // 보험사 12칸
-const BLANK_INS_PERIOD = '                            '  // 가입기간 — 표본 날짜 자리(28칸)
+/** 화재보험 줄(정보!B13)의 슬롯 폭 — **원문 실측**(`_verify-afind.mts`):
+ *  줄2 58자 = 고정부 14 + 보험사 12 + 가입기간 32 · 줄3 61자 = 고정부 25 + 대인 18 + 대물 18.
+ *  ⚠ 종전 가입기간 상수는 28칸이었다(주석엔 '28칸'이라 적고 실제 원문은 32칸) — 미입력 고객의
+ *  줄2가 원문보다 4칸 짧게 나갔다(2026-08-24 독립 판정 실측). 눈대중한 상수는 이렇게 썩는다. */
+const INS_SLOT_CO = 12, INS_SLOT_PERIOD = 32, INS_SLOT_AMOUNT = 18
 
-/** 폭 18칸 write-in 슬롯(가입금액) — 값이 있으면 **폭을 지키며 가운데 맞춤**한다.
- *  폭을 지키는 이유: 대인·대물이 한 줄에 나란히 있어 왼쪽이 밀리면 오른쪽 열이 따라 밀린다. */
-const slot18 = (v: string) => {
+/** 폭 고정 write-in 슬롯 — 값이 있으면 **폭을 지키며 가운데 맞춤**한다.
+ *  폭을 지키는 이유: 한 줄에 두 칸(보험사·가입기간 / 대인·대물)이 나란히 있어 왼쪽이 밀리면
+ *  오른쪽이 따라 밀린다. 폭보다 긴 값은 **자르지 않는다** — 법정 서식에서 값을 잃는 것이
+ *  정렬이 틀어지는 것보다 나쁘다(그 경우에만 줄이 길어진다).
+ *  ⚠ 경계는 `> w`다. `>= w`이면 **정확히 w자일 때** 폭을 지킬 수 있는데도 초과 분기로 새어
+ *  w+2를 낸다(2026-08-24 독립 판정 실측: 18자 입력 → 슬롯 20칸·줄3 63자). 검사 픽스처가
+ *  5·6자뿐이라 경계를 한 번도 밟지 않아 초록이었다 — 경계값을 검사에 넣어 고정한다. */
+const slot = (v: string, w: number) => {
   const s = v.trim()
-  if (!s) return ' '.repeat(18)
-  if (s.length >= 18) return ` ${s} `
-  const pad = 18 - s.length, left = Math.floor(pad / 2)
+  if (!s) return ' '.repeat(w)
+  if (s.length > w) return ` ${s} `
+  const pad = w - s.length, left = Math.floor(pad / 2)
   return ' '.repeat(left) + s + ' '.repeat(pad - left)
 }
 
@@ -106,7 +114,7 @@ const slot18 = (v: string) => {
  *  문서마다 10배씩 달라진다. 입력값은 자유 텍스트라 '1억'처럼 단위를 적으면 '1억 만원'이 되므로
  *  입력 UI가 title로 경고한다(데이터 정정은 사용자 몫). */
 const insAmountLine = (person: string, property: string) =>
-  `가입금액:  대인(${slot18(person)}만원 )    대물(${slot18(property)}만원 )`
+  `가입금액:  대인(${slot(person, INS_SLOT_AMOUNT)}만원 )    대물(${slot(property, INS_SLOT_AMOUNT)}만원 )`
 
 /** √ 통문자열의 체크 표기 — 반각 `[  ]`/`[√]`(전각 ［ ］는 보고서 A2 한 곳뿐) */
 const ck = (on: boolean) => (on ? '[√]' : '[  ]')
@@ -199,7 +207,7 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     ['prevInspectLine', `작동기능점검 (${ck(p.prevOpDone)}실시 ${ck(!!p.prevOpNone)}미실시),     종합정밀점검 (${ck(p.prevCompDone)}실시 ${ck(!!p.prevCompNone)}미실시)`],
     ['trainingLine', `소방안전교육 (${ck(p.eduDone)}실시 ${ck(!!p.eduNone)}미실시),      소방훈련 (${ck(p.drillDone)}실시 ${ck(!!p.drillNone)}미실시)`],
     ['insuranceLine', `${ck(p.insuranceJoined === true)}가입, ${ck(p.insuranceJoined === false)}미가입\n`
-      + `보험사:${p.insCompany.trim() ? ` ${p.insCompany.trim()} ` : BLANK_INS_CO},  가입기간:  ${p.insPeriod.trim() || BLANK_INS_PERIOD}\n`
+      + `보험사:${slot(p.insCompany, INS_SLOT_CO)},  가입기간:  ${slot(p.insPeriod, INS_SLOT_PERIOD)}\n`
       + insAmountLine(p.insPerson, p.insProperty)],
     ['multiUseCol1', muColumn(0, p.multiUseCounts, p.multiUseNone)],
     ['multiUseCol2', muColumn(1, p.multiUseCounts, p.multiUseNone)],

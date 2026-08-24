@@ -181,12 +181,18 @@ console.log('\n[S0-5] 앵커 실재 — 주입 좌표가 실제로 있는가(새
     check('커밋 자산 존재', false, `${assetPath} 없음`)
   }
 
-  // 반증 가능성 자기검사 — 있을 수 없는 좌표를 넣으면 반드시 붉어져야 한다(항진명제 재발 방지)
-  const canary = await (async () => {
-    const xml = await zip0.file(sheetFile.get(HUB)!)!.async('string')
-    return !new RegExp('<c r="ZZ9999"').test(xml)
-  })()
-  check('자기검사 — 없는 좌표(ZZ9999)는 부재로 판정된다', canary)
+  // 반증 가능성 자기검사 — **판정기 자체(absentIn)를** 태운다.
+  // ⚠ 종전 카나리아는 정규식을 인라인으로 복제해 별도로 검사했다. 그러면 absentIn이 고장 나도
+  //   카나리아는 초록이라 **검사의 민감도를 증명하지 못한다**(2026-08-24 독립 판정 지적).
+  //   같은 함수에 '있을 수 없는 좌표'를 먹여, 실제로 부재로 잡히는지 본다
+  const canaryWant = new Map(want)
+  canaryWant.set(HUB, new Set([...(want.get(HUB) ?? []), 'ZZ9999']))
+  const savedWant = new Map(want)
+  want.clear(); for (const [k, v] of canaryWant) want.set(k, v)
+  const canary = await absentIn(zip0, sheetFile)
+  want.clear(); for (const [k, v] of savedWant) want.set(k, v)
+  check('자기검사 — 같은 판정기(absentIn)가 없는 좌표(ZZ9999)를 부재로 잡는다',
+    canary.length === 1 && canary[0] === `${HUB}!ZZ9999`, canary.join(', ') || '(부재 0 — 판정기가 눈이 멀었다)')
 }
 
 // ── S0-3. JSZip 셀 패치 → 열리는가 + 서식 유지되는가 ──────────────────

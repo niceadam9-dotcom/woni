@@ -12,7 +12,8 @@ import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import JSZip from 'jszip'
 import XLSX from 'xlsx'
-import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, validateAnchors } from '../src/lib/xlsx-anchors.ts'
+import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, MARK_CHECKED_RE, validateAnchors } from '../src/lib/xlsx-anchors.ts'
+import { allDonorSheets } from '../src/lib/xlsx-donors.ts'
 import { sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
 import manifest from '../src/lib/xlsx-template-manifest.json' with { type: 'json' }
@@ -39,8 +40,16 @@ const R9_BLANK: R9 = {
   stairsCount: '', elvR: '', elvE: '', elvV: '',
   pkIn: false, pkMech: false, pkRoof: false, pkOut: false,
 }
-/** 값 1건 뽑기 — 픽스처 조립을 짧게 유지한다 */
-const oneValue = (report9: R9, field: string): string => String(buildWorkbookValues({
+/** 값 1건 뽑기 — 픽스처 조립을 짧게 유지한다.
+ *  ⚠ 없는 field는 **던진다**. 종전엔 `?? '(없음)'`을 돌려줘, field 이름이 바뀌거나 오타가 나면
+ *  "니들이 없다"는 단언이 **자동으로 참**이 됐다(공허참 — 2026-08-24 독립 판정 실측: 오타 field
+ *  3건을 넣어도 오염 축·백지 축이 전부 통과). 검사가 없는 것을 검사하고 있으면 안 된다. */
+const oneValue = (report9: R9, field: string): string => {
+  const v = valueMap(report9).get(field)
+  if (v === undefined) throw new Error(`buildWorkbookValues에 field '${field}'가 없다 — 오타이거나 이름이 바뀌었다`)
+  return String(v ?? '')
+}
+const valueMap = (report9: R9) => buildWorkbookValues({
   official: {
     company: { name: 'X', address: 'X', phone: 'X', fax: 'X' },
     docNo: '승 진 2608-1', sendDate: 'X', recipient: 'X', reference: 'X', sender: 'X',
@@ -53,7 +62,7 @@ const oneValue = (report9: R9, field: string): string => String(buildWorkbookVal
   },
   customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21', useApprovalISO: null,
   building: null, report9,
-}).get(field) ?? '(없음)')
+})
 
 // ── ① 템플릿 지문 ────────────────────────────────────────────────────
 console.log('[1] 템플릿 지문(manifest 대조)')
@@ -376,29 +385,108 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
     check('가입금액 폭 불변(대물 열 밀림 없음)', line.length === blankLine.length,
       `주입 ${line.length}자 vs 서식 ${blankLine.length}자`)
     check('두 슬롯이 정확히 18칸', /대인\((.{18})만원 \) {4}대물\((.{18})만원 \)$/.test(line), JSON.stringify(line))
+    // ⚠**경계값**을 반드시 밟는다 — 종전 픽스처가 5·6자뿐이라 `>= w` off-by-one(정확히 18자에서
+    //   슬롯이 20칸이 되던 결함)을 한 번도 못 밟았다(2026-08-24 독립 판정). 성립하는 구역에서만
+    //   검사하면 불변식을 선언만 하고 지키지 못한다
+    const widthAt = (n: number) => {
+      const s = oneValue({ ...OTHER, insPerson: 'X'.repeat(n), insProperty: '' }, 'insuranceLine').split('\n')[2]
+      return /대인\((.*?)만원 \)/.exec(s)![1].length
+    }
+    const boundary = [0, 1, 17, 18].map(n => [n, widthAt(n)] as const).filter(([, w]) => w !== 18)
+    check('슬롯 폭 경계(0·1·17·18자) 전부 18칸 유지', boundary.length === 0,
+      boundary.map(([n, w]) => `${n}자→${w}칸`).join(', '))
+    // 19자 이상은 **자르지 않고 넘친다**가 규약 — 값을 잃는 것이 정렬보다 나쁘다
+    check('19자는 넘치되 값 보존', widthAt(19) === 21 && oneValue({ ...OTHER, insPerson: 'X'.repeat(19) }, 'insuranceLine').includes('X'.repeat(19)))
     check('가입금액 단위는 만원(천만원 잔재 0)', !line.includes('천만원') && (line.match(/만원/g) ?? []).length === 2, line)
   }
 
-  // (c) 닫힌 덮개 — 마크를 든 **리터럴** 칸이 전부 앵커거나 명시 정적 칸인가.
-  //     '※ [  ]에는 … √ 표기를 합니다'는 서식 안내문이라 정적이 정답이다(유일 예외).
-  const STATIC_MARKS = new Set(['정보!A3', '보고서!A3'])
+  // (c) 닫힌 덮개 — **전 시트**에서, 체크된 마크(√)를 든 리터럴 칸은 전부 앵커여야 한다.
+  //
+  // ⚠ 종전엔 시트 목록이 `['정보','보고서','다수동일때']` **손목록**이었다. 그래서 나머지 64시트에
+  //   앵커 없는 √ 15칸(현황 설비 5·현3 세부현황 6·현1·다수동 2·대상물 점검구분 1)이 **영구히
+  //   안 보였고**, 남의 설비 목록·점검 결과·수신기 위치가 전 고객 산출물에 인쇄됐다
+  //   (2026-08-24 독립 판정 3인이 서로 다른 축에서 같은 결론). 목록을 넓힌 게 아니라 **없앴다** —
+  //   축이 손목록이면 그 목록 밖은 언제나 사각이다.
+  // ⚠ 마크 정규식은 `MARK_CHECKED_RE` **단일 원천**. 종전엔 이 파일과 _probe-info-mutants에
+  //   복붙돼 있었고 둘 다 공백 1칸 `[ ]`를 빠뜨려 **덮개와 그 자기검사가 같은 사각을 공유**했다.
+  // 빈 마크(`[  ]`)는 손으로 채우는 백지 서식이라 정상 — 체크된 것만 본다.
   const anchored = new Set(ANCHORS.map(a => `${a.sheet}!${a.cell}`))
   const uncovered: string[] = []
-  // 다수동일때를 함께 본다 — 정보 12칸을 고치고 나서야 **같은 서식의 이웃 시트**에 표본 답
-  // 15칸이 그대로 있는 것이 드러났다(코드가 이 시트를 한 번도 언급하지 않아 아무도 안 봤다).
-  // 한 칸을 고치면 같은 형태의 이웃을 함께 볼 것([[feedback_fix_the_sibling_too]])
-  for (const sheet of ['정보', '보고서', '다수동일때']) {
+  for (const sheet of fwb.SheetNames) {
     const ws = fwb.Sheets[sheet]
     for (const k of Object.keys(ws)) {
       if (k.startsWith('!')) continue
       const c = ws[k] as XLSX.CellObject
-      if (c.f) continue                                   // 수식 칸은 폐포(D-9) 몫
-      if (!/\[√\]|\[ {2}\]|［√］|［ {2}］/.test(String(c.v ?? ''))) continue
-      const key = `${sheet}!${k}`
-      if (!anchored.has(key) && !STATIC_MARKS.has(key)) uncovered.push(key)
+      if (c.f) continue                                   // 수식 캐시는 폐포(D-9)·빌드 ④f 몫
+      if (!MARK_CHECKED_RE.test(String(c.v ?? ''))) continue
+      if (!anchored.has(`${sheet}!${k}`)) uncovered.push(`${sheet}!${k}`)
     }
   }
-  check('마크 든 리터럴 칸 전부 (앵커|명시 정적)로 분류', uncovered.length === 0, uncovered.join(', '))
+  check(`전 ${fwb.SheetNames.length}시트 — 앵커 없는 체크 마크(√) 0칸`, uncovered.length === 0,
+    uncovered.slice(0, 10).join(', '))
+
+  // 표본 점검 소견 — 마크가 아니라 자유 텍스트라 위 덮개에 안 걸린다(축이 다르다).
+  // 백지 서식에 남의 판단이 있으면 안 된다: '이상없음'·'별첨참조'는 점검자가 쓰는 말이고
+  // '직원실'은 표본 고객의 실내 위치다
+  const opinions: string[] = []
+  for (const sheet of fwb.SheetNames) {
+    const ws = fwb.Sheets[sheet]
+    for (const k of Object.keys(ws)) {
+      if (k.startsWith('!')) continue
+      const v = String((ws[k] as XLSX.CellObject).v ?? '')
+      for (const n of ['이상없음', '별첨참조', '직원실']) if (v.includes(n)) opinions.push(`${sheet}!${k}⊃'${n}'`)
+    }
+  }
+  check('표본 점검 소견·실내 위치 0건(리터럴·캐시 모두)', opinions.length === 0, opinions.slice(0, 6).join(', '))
+
+  // 판정 캐시 — 표본이 설치한 설비에 딸린 '○'(양호)·'／'(해당없음)이 남으면 **하지 않은 점검이
+  // 양호로 인쇄**된다(어제 펌프성능시험 15칸과 같은 부류, 다른 시트). 도너 시트의 세로 3연속
+  // 범례(○/×/／)는 서식 정본이라 제외하고 갑지 26시트만 본다
+  {
+    const donorSet = new Set(allDonorSheets())
+    const verdicts: string[] = []
+    for (const sheet of fwb.SheetNames) {
+      if (donorSet.has(sheet)) continue
+      const ws = fwb.Sheets[sheet]
+      for (const k of Object.keys(ws)) {
+        if (k.startsWith('!')) continue
+        const t = String((ws[k] as XLSX.CellObject).v ?? '').trim()
+        if (t === '○' || t === '×' || t === '/' || t === '／') verdicts.push(`${sheet}!${k}='${t}'`)
+      }
+    }
+    check('갑지 26시트 — 점검 판정 마크 캐시 0칸', verdicts.length === 0, verdicts.slice(0, 8).join(', '))
+  }
+
+  // (d) **자기 민감도** — 위 단언들이 결함을 실제로 잡는지 매 실행마다 스스로 증명한다.
+  //
+  // ⚠ 종전엔 이 역할을 별도 프로브(_probe-info-mutants)가 맡았는데 **반증 불가**였다: 그 프로브는
+  //   자기가 만든 `mutate()` 함수만 검사할 뿐 [7]의 비교를 한 번도 태우지 않아, **[7]을 통째로
+  //   지워도 6 PASS**였다(2026-08-24 독립 판정). 검사의 민감도는 검사 **밖**에서 증명할 수 없다.
+  // 그래서 여기서는 **입력을 흔든다** — 기대 문자열을 손으로 변형하는 게 아니라 조립기에 다른
+  //   답을 먹여, (a)의 실제 비교가 붉어지는지 본다. 조립기·비교기 둘 다 진짜 경로다.
+  {
+    const perturb: Array<[string, string, R9]> = [
+      ['구조 √ 위치', 'B19', { ...SAMPLE, stCon: false, stSteel: true }],
+      ['계단 개소', 'B21', { ...SAMPLE, stairsCount: '7' }],
+      ['보험 가입기간', 'B13', { ...SAMPLE, insPeriod: '2030년 1월 1일' }],
+      ['다중이용업 해당없음', 'B14', { ...SAMPLE, multiUseNone: false }],
+      ['선임구분', 'B8', { ...SAMPLE, mgrAppointType: '기타' }],
+    ]
+    const blind = perturb.filter(([, ref, r9]) => {
+      const field = ROUNDTRIP.find(([, c]) => c === ref)![0]
+      return oneValue(r9, field) === cellText('정보', ref)   // 흔들었는데 원문과 같다 = 못 본다
+    })
+    check(`(a) 왕복 대조가 입력 변화 ${perturb.length}종을 전부 감지`, blind.length === 0,
+      blind.map(([n]) => n).join(', '))
+
+    // (c) 덮개가 '앵커 없는 √'를 실제로 걸러내는가 — 합성 셀로 분류기만 태운다(자산은 안 건드린다)
+    const classify = (sheet: string, cell: string, text: string) =>
+      MARK_CHECKED_RE.test(text) && !anchored.has(`${sheet}!${cell}`)
+    check('(c) 덮개 분류기 — 앵커 없는 √는 걸리고, 앵커·빈 마크는 안 걸린다',
+      classify('현황', 'ZZ999', '[√]') === true &&
+      classify('정보', 'B19', ' [√]철근콘크리트구조') === false &&   // 앵커라 통과
+      classify('현황', 'ZZ998', '[  ]') === false)                  // 빈 마크는 백지 서식
+  }
 
   // 다수동일때 — 주입값이 **전부 빈 마크**인가(값을 지어내지 않았다는 단언). 반대로 표본 답이
   // 하나라도 살아 있으면 붉어진다. `[√]`가 0개, 표본 개소 ' 1 '이 0개

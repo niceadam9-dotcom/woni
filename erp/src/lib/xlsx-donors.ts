@@ -36,6 +36,12 @@ export type DonorGroup = {
 
 /** 목차 시트명 — 고시 번호 체계 쪽('목 차'). 일련번호 재부여본('목차')·빈 시트('Sheet1')는 이식하지 않는다 */
 export const DONOR_TOC_SHEET = '목 차'
+/** 갑지가 원래 갖고 있던 목차 시트 — 도너 '목 차'와 **같은 서식의 복제본**이다(제목·항목 문자열·
+ *  dimension A1:A35까지 동일, 2026-08-24 실측). 종전엔 라우트가 도너 쪽만 재작성해서, 소화기 하나만
+ *  설치한 고객의 산출물에도 이 시트가 표본 구성 22항목('3. 스프링클러소화설비 점검표' 등)을 그대로
+ *  나열했다 — **한 파일 안에 서로 다른 목차 두 장**(2026-08-24 독립 판정). 둘을 같은 목록으로 채운다.
+ *  코드가 이 시트를 한 번도 언급하지 않아 grep으로도 안 잡히던 부류다([[feedback_fix_the_sibling_too]]) */
+export const BASE_TOC_SHEET = '목차'
 
 export const DONOR_GROUPS: DonorGroup[] = [
   { matchKey: '소화기구 및 자동소화장치', gosiNo: 1, sheets: ['소'], kind: 'facility',

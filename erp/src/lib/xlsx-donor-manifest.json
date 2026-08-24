@@ -1,8 +1,8 @@
 {
   "source": "전체 보고서.xls",
-  "builtAt": "2026-08-22",
-  "sha256": "363f9474203f981da35e016cb28f9002252fee3d39e25b6aedd274ae49db8e29",
-  "baseSha256": "82de2c71334c48ee4acf644adcb122b41d9bf13d33d292dc79f1b3d9db5f9539",
+  "builtAt": "2026-08-24",
+  "sha256": "2975f62015b70cd80329f68facbeb65c6065d35edff99c48b34ae9dfa0c2dc8c",
+  "baseSha256": "842afd59b25c68f151e88b65e232ca74e69aeda21b6b316b94dff807acbaed62",
   "sheetCount": 67,
   "donorSheetCount": 41,
   "pdfPages": 72,

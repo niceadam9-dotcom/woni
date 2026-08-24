@@ -25,8 +25,20 @@ export type InjectTarget = {
   dropFormula?: boolean
 }
 
+/** XML 1.0이 **표현할 수 없는** 문자 — 탭·개행·복귀(0x09·0x0A·0x0D)만 합법이고 나머지 C0 제어문자,
+ *  DEL~0x9F 구간, 서로게이트 반쪽, 비문자(U+FFFE·U+FFFF)는 어떤 이스케이프로도 담을 수 없다.
+ *  ⚠ 그냥 두면 **파일이 열리는데 글자가 안 그려진다**: LibreOffice가 2MB짜리 워크북을 멀쩡히
+ *  열면서 고객 상호를 한 글자도 표시하지 않았다(2026-08-24 독립 판정 실측 — 폐포로 전파된
+ *  공문 수신 칸까지 전부 공란인데 `missed=0`이고 SheetJS 왕복도 정상이라 기존 검사가 전부 초록).
+ *  DB 자유 텍스트에 붙어 들어올 수 있는 부류이므로 **버리지 말고 지운다** — 값을 잃는 것보다
+ *  제어문자 한 글자를 잃는 편이 낫다(사용자에게는 보이지도 않는 글자다). */
+// ⚠ 문자 클래스를 **이스케이프 문자열**로만 쓴다 — 날 제어문자를 소스에 박으면 에디터·git·복붙이
+//    언젠가 조용히 뭉갠다(첫 작성본에 실제로 8개가 박혀 `_verify-ctrl.mts`가 잡았다).
+const XML_ILLEGAL_RE = new RegExp(
+  '[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF\\uFFFE\\uFFFF]', 'g')
+const stripIllegal = (s: string) => s.replace(XML_ILLEGAL_RE, '')
 const escXml = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  stripIllegal(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** ISO 날짜 → 엑셀 시리얼(1900 체계). 셀의 날짜 서식이 그대로 살도록 숫자로 주입할 때 쓴다 */
 export function isoToSerial(iso: string | null | undefined): number | null {
