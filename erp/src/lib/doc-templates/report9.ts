@@ -295,7 +295,12 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th class="lbl">화재보험</th>
-    <td class="pre"> ${ck(d.insuranceJoined === true)}가입, ${ck(d.insuranceJoined === false)}미가입<br>보험사: ${val(d.insCompany, { highlight: h })}, 가입기간: ${val(d.insPeriod, { highlight: h })}<br>가입금액:  대인( ${val(d.insPerson, { highlight: h })} 천만원)    대물( ${val(d.insProperty, { highlight: h })} 천만원)</td>
+    ${/* ⚠2026-08-24 단위 정정: 종전 '천만원'은 **원문에 없는 단위를 발명한 것**이었다.
+        _form/별지9호-placeholder.hwpx 본문은 `가입금액: 대인( {{ins_person}} ) 대물( {{ins_property}} )`로
+        단위 표기가 없고, '천만원'은 벌금 조항('1천만원 이하의 벌금')에만 나온다. 실무 서식(보고서 갑지)이
+        '만원'이라 사용자가 만원으로 확정(2026-08-24). 입력 UI 라벨·갑지 엑셀 접미와 **한 단위여야 한다** —
+        갈라지면 같은 값이 문서마다 10배씩 달라진다 */''}
+    <td class="pre"> ${ck(d.insuranceJoined === true)}가입, ${ck(d.insuranceJoined === false)}미가입<br>보험사: ${val(d.insCompany, { highlight: h })}, 가입기간: ${val(d.insPeriod, { highlight: h })}<br>가입금액:  대인( ${val(d.insPerson, { highlight: h })} 만원)    대물( ${val(d.insProperty, { highlight: h })} 만원)</td>
   </tr>
   <tr>
     <th class="lbl">다중이용<br>업소현황</th>

@@ -53,6 +53,9 @@ export type WorkbookSource = {
     insuranceJoined: boolean | null
     insCompany: string
     insPeriod: string
+    /** 가입금액 — 단위는 **만원**(2026-08-24 확정, insAmountLine 주석 참조) */
+    insPerson: string
+    insProperty: string
     multiUseNone: boolean
     multiUseCounts: Record<string, string>
     stCon: boolean; stSteel: boolean; stBrick: boolean; stWood: boolean; stEtc: boolean
@@ -83,10 +86,27 @@ const MU_BREAK: Record<string, string> = {
  *  scripts/_probe-info-spaces.mts). 값이 있으면 그 슬롯 자리에 값을 넣는다. */
 const BLANK_INS_CO = '            '      // 보험사 12칸
 const BLANK_INS_PERIOD = '                            '  // 가입기간 — 표본 날짜 자리(28칸)
-/** 가입금액 줄은 **주입하지 않는다** — ERP 입력 단위는 천만원(fire-plan-info-panel:407 '천만원',
- *  placeholder '예: 10')인데 갑지 서식 리터럴은 `만원`이라 그대로 넣으면 10배로 오인쇄된다.
- *  표본 잔재도 없는 빈 슬롯이므로 서식 원문을 그대로 남기는 것이 정답이다(단위 통일은 사용자 결정 몫). */
-const INS_AMOUNT_LINE = '가입금액:  대인(                  만원 )    대물(                  만원 )'
+
+/** 폭 18칸 write-in 슬롯(가입금액) — 값이 있으면 **폭을 지키며 가운데 맞춤**한다.
+ *  폭을 지키는 이유: 대인·대물이 한 줄에 나란히 있어 왼쪽이 밀리면 오른쪽 열이 따라 밀린다. */
+const slot18 = (v: string) => {
+  const s = v.trim()
+  if (!s) return ' '.repeat(18)
+  if (s.length >= 18) return ` ${s} `
+  const pad = 18 - s.length, left = Math.floor(pad / 2)
+  return ' '.repeat(left) + s + ' '.repeat(pad - left)
+}
+
+/** 가입금액 줄 — 단위는 **만원**(2026-08-24 사용자 확정).
+ *  ⚠경위: 종전엔 미주입이었다. ERP 입력 UI가 '천만원'이라 갑지의 `만원` 슬롯에 넣으면 10배
+ *  오인쇄였기 때문이다. 그런데 **법정 서식 원문에는 단위가 아예 없다**(_form/별지9호-placeholder.hwpx:
+ *  `가입금액: 대인( {{ins_person}} ) 대물( {{ins_property}} )` — '천만원'은 벌금 조항에만 나온다).
+ *  PDF가 원문에 없는 단위를 발명했던 것이고, 실무 서식인 갑지의 `만원`이 옳다. 세 곳(PDF report9.ts
+ *  page2 · 입력 UI fire-plan-info-panel · 이 파일)이 **한 단위**여야 한다 — 갈라지면 같은 값이
+ *  문서마다 10배씩 달라진다. 입력값은 자유 텍스트라 '1억'처럼 단위를 적으면 '1억 만원'이 되므로
+ *  입력 UI가 title로 경고한다(데이터 정정은 사용자 몫). */
+const insAmountLine = (person: string, property: string) =>
+  `가입금액:  대인(${slot18(person)}만원 )    대물(${slot18(property)}만원 )`
 
 /** √ 통문자열의 체크 표기 — 반각 `[  ]`/`[√]`(전각 ［ ］는 보고서 A2 한 곳뿐) */
 const ck = (on: boolean) => (on ? '[√]' : '[  ]')
@@ -180,7 +200,7 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     ['trainingLine', `소방안전교육 (${ck(p.eduDone)}실시 ${ck(!!p.eduNone)}미실시),      소방훈련 (${ck(p.drillDone)}실시 ${ck(!!p.drillNone)}미실시)`],
     ['insuranceLine', `${ck(p.insuranceJoined === true)}가입, ${ck(p.insuranceJoined === false)}미가입\n`
       + `보험사:${p.insCompany.trim() ? ` ${p.insCompany.trim()} ` : BLANK_INS_CO},  가입기간:  ${p.insPeriod.trim() || BLANK_INS_PERIOD}\n`
-      + INS_AMOUNT_LINE],
+      + insAmountLine(p.insPerson, p.insProperty)],
     ['multiUseCol1', muColumn(0, p.multiUseCounts, p.multiUseNone)],
     ['multiUseCol2', muColumn(1, p.multiUseCounts, p.multiUseNone)],
     ['multiUseCol3', muColumn(2, p.multiUseCounts, p.multiUseNone)],

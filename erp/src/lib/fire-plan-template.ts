@@ -279,9 +279,12 @@ export function buildFirePlanHtml(
     ? `운영시간: ${ck(!!ops.opHoursWeekday, '평일')}${ops.opHoursWeekday ? `(${esc(ops.opHoursWeekday)})` : ''} ${ck(!!ops.opHoursHoliday, '휴일')}${ops.opHoursHoliday ? `(${esc(ops.opHoursHoliday)})` : ''} &nbsp;/&nbsp; `
       + `인원현황: ${ck(!!ops.headcountWorker, '근무인원')} (${v(ops.headcountWorker)}명) ${ck(!!ops.headcountResident, '거주인원')} (${v(ops.headcountResident)}명) ${ck(!!ops.headcountMax, '최대수용인원')} (${v(ops.headcountMax)}명)`
     : '운영시간: ☐ 평일 ☐ 휴일 &nbsp;/&nbsp; 인원현황: ☐ 근무인원 (&nbsp;&nbsp;&nbsp;명) ☐ 거주인원 (&nbsp;&nbsp;&nbsp;명) ☐ 최대수용인원 (&nbsp;&nbsp;&nbsp;명)'
+  // 가입금액 단위는 **만원** — 별지 9호 PDF(report9.ts page2)·갑지 엑셀(xlsx-workbook insAmountLine)·
+  // 입력 UI와 한 단위여야 한다. 종전엔 값 줄에 단위가 없고 빈 줄만 '원'이라 같은 값이 문서마다
+  // 다르게 읽혔다(2026-08-24 단위 통일)
   const insRow = ops
-    ? `${ck(ops.insuranceJoined === true, '가입')} ${ck(ops.insuranceJoined === false, '미가입')} &nbsp; 보험사: ${v(ops.insuranceCompany)} &nbsp; 가입기간: ${v(ops.insurancePeriod)} &nbsp; 가입금액: 대인 ${v(ops.insuranceAmountPerson)} / 대물 ${v(ops.insuranceAmountProperty)}`
-    : '☐ 가입 ☐ 미가입 &nbsp; 보험사: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 가입기간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 가입금액: 대인&nbsp;&nbsp;&nbsp;&nbsp;원 / 대물&nbsp;&nbsp;&nbsp;&nbsp;원'
+    ? `${ck(ops.insuranceJoined === true, '가입')} ${ck(ops.insuranceJoined === false, '미가입')} &nbsp; 보험사: ${v(ops.insuranceCompany)} &nbsp; 가입기간: ${v(ops.insurancePeriod)} &nbsp; 가입금액: 대인 ${v(ops.insuranceAmountPerson)} 만원 / 대물 ${v(ops.insuranceAmountProperty)} 만원`
+    : '☐ 가입 ☐ 미가입 &nbsp; 보험사: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 가입기간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 가입금액: 대인&nbsp;&nbsp;&nbsp;&nbsp;만원 / 대물&nbsp;&nbsp;&nbsp;&nbsp;만원'
 
   // ── 1.3 위치·진입 (forms.location / forms.fireAccess) ──
   const loc = f.location

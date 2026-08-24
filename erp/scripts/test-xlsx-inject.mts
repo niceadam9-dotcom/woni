@@ -55,6 +55,7 @@ const report9 = {
   prevOpDone: false, prevOpNone: true, prevCompDone: true,
   eduDone: true, drillDone: false, drillNone: true,
   insuranceJoined: true, insCompany: '현대해상', insPeriod: '2026년 4월 1일 ~ 2027년 3월 31일',
+  insPerson: '5000', insProperty: '50000',
   multiUseNone: false, multiUseCounts: { '일반음식점영업': '2', '비디오물감상실업': '1' },
   stCon: false, stSteel: true, stBrick: false, stWood: false, stEtc: false,
   rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,
@@ -143,8 +144,10 @@ check('정보!B5 대표자 구분 — 관리자 √', cellV('정보', 'B5') === 
   check('정보!B13 화재보험 — 3줄 구조 유지·개행 생존', b13.length === 3, `${b13.length}줄`)
   check('정보!B13 보험사·가입기간 반영 + 표본 2024년 소거',
     b13[1] === '보험사: 현대해상 ,  가입기간:  2026년 4월 1일 ~ 2027년 3월 31일', JSON.stringify(b13[1]))
-  check('정보!B13 가입금액 줄 원문 유지(ERP 천만원 vs 서식 만원 — 의도적 미주입)',
-    b13[2] === '가입금액:  대인(                  만원 )    대물(                  만원 )', JSON.stringify(b13[2]))
+  // 가입금액 — 단위 만원 통일(2026-08-24). 값이 슬롯 폭 18칸을 지키며 들어간다
+  check('정보!B13 가입금액 주입 + 만원 단위',
+    /대인\( +5000 +만원 \) {4}대물\( +50000 +만원 \)$/.test(b13[2]) && !b13[2].includes('천만원'),
+    JSON.stringify(b13[2]))
   // 다중이용업소 — 표본 '[√]해당없음'이 전 고객에게 찍히던 칸
   check('정보!B14 해당없음 √ 소거 + 개소 반영(2줄 쪼개진 업종)',
     t('B14').includes('[  ]해당없음') && t('B14').includes('[√]비디오물감상실업\n    ( 1 개소)'), t('B14').slice(0, 60))

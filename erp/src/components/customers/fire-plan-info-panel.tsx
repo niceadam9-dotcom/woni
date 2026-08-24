@@ -374,7 +374,11 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
           <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
           {/* 2026-08-06: placeholder만 있어 값 입력 시 항목명이 사라지던 문제 수정 — ①②와 동일하게 라벨 부여.
-              가입금액 단위는 별지 9호 원문이 '천만원'이라(report9.ts page2) 라벨·접미에 명시한다. */}
+              ⚠2026-08-24 단위 정정: **만원**이다. 종전 주석은 "별지 9호 원문이 '천만원'"이라 적었으나
+              원문(_form/별지9호-placeholder.hwpx) 본문은 `가입금액: 대인( {{ins_person}} ) 대물( {{ins_property}} )`로
+              **단위 표기가 아예 없다** — '천만원'은 벌금 조항('1천만원 이하의 벌금')에만 나온다. PDF가
+              원문에 없는 단위를 발명했던 것이고, 실무 서식(보고서 갑지)이 '만원'이라 사용자가 만원으로
+              확정했다(2026-08-24). 이 라벨은 별지 9호 PDF·갑지 엑셀의 접미와 **한 단위여야 한다**. */}
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>가입 여부</label><br />
               <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden w-fit">
@@ -403,14 +407,14 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               </div>
               <div><label className={labelCls}>대인 가입금액</label><br />
                 <span className="inline-flex items-center gap-1">
-                  <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="예: 10" className={`${inputCls} w-20`} />
-                  <span className="text-[11px] text-[#847ba8] shrink-0">천만원</span>
+                  <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="예: 10000" className={`${inputCls} w-20`} title="만원 단위 숫자만 — '1억'처럼 단위를 적으면 서식에 '1억 만원'으로 인쇄됩니다" />
+                  <span className="text-[11px] text-[#847ba8] shrink-0">만원</span>
                 </span>
               </div>
               <div><label className={labelCls}>대물 가입금액</label><br />
                 <span className="inline-flex items-center gap-1">
-                  <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="예: 100" className={`${inputCls} w-20`} />
-                  <span className="text-[11px] text-[#847ba8] shrink-0">천만원</span>
+                  <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="예: 100000" className={`${inputCls} w-20`} title="만원 단위 숫자만 — '10억'처럼 단위를 적으면 서식에 '10억 만원'으로 인쇄됩니다" />
+                  <span className="text-[11px] text-[#847ba8] shrink-0">만원</span>
                 </span>
               </div>
             </>)}

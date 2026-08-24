@@ -76,6 +76,7 @@ const values = buildWorkbookValues({
     prevOpDone: false, prevOpNone: true, prevCompDone: true,
     eduDone: true, drillDone: false, drillNone: true,
     insuranceJoined: true, insCompany: '현대해상', insPeriod: '2026년 4월 1일 ~ 2027년 3월 31일',
+    insPerson: '5000', insProperty: '50000',
     multiUseNone: false, multiUseCounts: { '일반음식점영업': '2', '비디오물감상실업': '1' },
     stCon: false, stSteel: true, stBrick: false, stWood: false, stEtc: false,
     rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,

@@ -32,7 +32,7 @@ const R9_BLANK: R9 = {
   ckOp: true, ckInitial: false, ckCompEtc: false, consent: null, repRole: '',
   managerGrade: '', mgrEduDate: '', rampCount: '', main: null, assistants: [],
   hasFirePlan: false, prevOpDone: false, prevCompDone: false, eduDone: false, drillDone: false,
-  insuranceJoined: null, insCompany: '', insPeriod: '',
+  insuranceJoined: null, insCompany: '', insPeriod: '', insPerson: '', insProperty: '',
   multiUseNone: false, multiUseCounts: {},
   stCon: false, stSteel: false, stBrick: false, stWood: false, stEtc: false,
   rfSlab: false, rfTile: false, rfSlate: false, rfEtc: false,
@@ -321,6 +321,7 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
     prevOpDone: false, prevOpNone: true, prevCompDone: true,
     eduDone: false, eduNone: true, drillDone: false, drillNone: true,
     insuranceJoined: false, insCompany: '삼성화재', insPeriod: '2026년 3월 1일 ~ 2027년 2월 28일',
+    insPerson: '10000', insProperty: '100000',
     multiUseNone: false, multiUseCounts: { '휴게음식점영업': '3', '인터넷컴퓨터게임시설제공업': '2' },
     stSteel: true, rfSlab: true,
     stairsCount: '7', specialStairCount: '2',
@@ -364,9 +365,19 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
   must('parkingLine', '[√]옥내([√]지하')
   check('반영 축 — 다른 답이 실제로 찍힌다(공란으로 달성 금지)', applied.length === 0, applied.join(', '))
 
-  // 가입금액 줄은 의도적 미주입(단위 불일치: ERP 천만원 vs 서식 '만원') — 원문 그대로 남는가
-  check('가입금액 줄은 서식 원문 유지(단위 불일치로 의도적 미주입)',
-    oneValue(OTHER, 'insuranceLine').includes('가입금액:  대인(                  만원 )'))
+  // 가입금액 — 단위 만원 통일(2026-08-24 사용자 확정). 값이 있으면 **폭 18칸을 지키며** 들어가
+  // 대물 열이 밀리지 않는다. 값이 없으면 서식 원문(18칸 공백)과 동일해야 한다(위 왕복 축이 단언)
+  {
+    const line = oneValue(OTHER, 'insuranceLine').split('\n')[2]
+    check('가입금액 주입 — 대인·대물 값 반영', line.includes('10000') && line.includes('100000'), line)
+    // ⚠기대값을 손으로 조립하지 않는다 — 폭 불변은 **길이 속성**으로 단언한다(직접 타이핑하면
+    //   가운데 맞춤의 좌우 배분을 눈대중하게 되고, 실제로 첫 시도가 그렇게 틀렸다)
+    const blankLine = oneValue(SAMPLE, 'insuranceLine').split('\n')[2]
+    check('가입금액 폭 불변(대물 열 밀림 없음)', line.length === blankLine.length,
+      `주입 ${line.length}자 vs 서식 ${blankLine.length}자`)
+    check('두 슬롯이 정확히 18칸', /대인\((.{18})만원 \) {4}대물\((.{18})만원 \)$/.test(line), JSON.stringify(line))
+    check('가입금액 단위는 만원(천만원 잔재 0)', !line.includes('천만원') && (line.match(/만원/g) ?? []).length === 2, line)
+  }
 
   // (c) 닫힌 덮개 — 마크를 든 **리터럴** 칸이 전부 앵커거나 명시 정적 칸인가.
   //     '※ [  ]에는 … √ 표기를 합니다'는 서식 안내문이라 정적이 정답이다(유일 예외).
