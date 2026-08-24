@@ -52,7 +52,12 @@ export async function GET(req: NextRequest) {
     const probe = await fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(ocPrimary)}&target=licbyl&type=XML&query=a`, { cache: 'no-store', signal: AbortSignal.timeout(LAW_API_TIMEOUT_MS) })
     if ((await probe.text()).includes('사용자 정보 검증에 실패')) {
       oc = 'test'
-      ocNote = `주 계정(${ocPrimary}) 검증 실패 — 공용 샘플(test)로 폴백. 법제처 OPEN API 활용신청의 IP(121.78.123.230) 등록·승인 상태를 확인해주세요.`
+      // ⚠ 여기에 IP를 적어두지 말 것. 이 문구가 뜨는 상황은 곧 서버 IP가 바뀐 상황이라,
+      //   하드코딩된 값은 반드시 옛 IP가 된다 — 등록하라고 알려주는 IP가 틀린 IP가 된다
+      //   (2026-08-24 실제로 그랬다: 121.78.123.230 → 1.201.116.205 이전 후에도 옛 IP를 안내했다).
+      ocNote = `주 계정(${ocPrimary}) 검증 실패 — 공용 샘플(test)로 폴백. `
+        + `법제처 OPEN API 활용신청(open.law.go.kr)에 이 서버의 현재 공인 IP가 등록·승인돼 있는지 확인해주세요. `
+        + `거부 내역은 open.law.go.kr/LSO/lab/ipErrorCheck.do 에서 조회할 수 있습니다.`
     }
   } catch { /* probe 실패 시 주 계정으로 진행 — 아래 개별 호출에서 처리 */ }
 
