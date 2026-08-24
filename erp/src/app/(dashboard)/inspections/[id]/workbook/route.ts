@@ -9,7 +9,7 @@ import { assembleReport9 } from '@/lib/report9-assemble'
 import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
-import { donorGroupsToKeep, allDonorSheets, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
+import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets } from '@/lib/xlsx-sheet-surgery'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { isMultiUseApplicable } from '@/lib/multi-use'
@@ -103,6 +103,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // 설비별 점검표 선별(S10-2) — 자산은 전 설비를 싣고 있고, 여기서 비대상 그룹을 **제거**한다.
   // 기타(always)는 상시 동봉이라 목차와 함께 항상 남고, 다중(multiUse)은 판별 플래그를 따른다
   const keptGroups = donorGroupsToKeep(k => sheetMatchesFacilities(k, installedCodes), hasMultiUse)
+  // 설치했는데 기증 자산에 서식이 없는 설비 — 시트가 0장인 채 나가므로 헤더로 고지한다(S4-5 축)
+  const donorGaps = donorGapsForFacilities(installedCodes, (k, code) => sheetMatchesFacilities(k, [code]))
+  if (donorGaps.length) {
+    console.warn(`[workbook] 동봉할 점검표 서식이 자산에 없는 설치 설비 ${donorGaps.length}종: ${donorGaps.join(', ')}`)
+  }
   const keptSheets = new Set(keptGroups.flatMap(g => g.sheets))
   try {
     const cut = await removeSheets(template,
@@ -155,8 +160,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   // 목차 재작성(S10-2) — 자산의 목차는 표본 구성이라 이 고객의 동봉 시트와 다르다.
-  // 항목 칸(실측 22칸)을 남은 그룹의 tocLabel로 채우고 나머지는 명시적 공란으로 지운다.
-  // 넘침(전 그룹 동봉 시 1건)은 자르되 경고 + missing 헤더에 남긴다(S8-2 규약과 같은 축)
+  // 항목 칸(실측 23칸 = 그룹 수)을 남은 그룹의 tocLabel로 채우고 나머지는 명시적 공란으로 지운다.
+  // 칸 수는 빌드 ⑤·test-xlsx-donors가 XML 실재로 고정한다. 그래도 넘치면(자산·그룹 불일치)
+  // 자르되 경고 + missing 헤더에 남긴다(S8-2 규약과 같은 축) — 조용히 빠지지 않게
   const tocTitles = keptGroups.map(g => g.tocLabel)
   const tocOverflow = tocTitles.slice(DONOR_TOC_BODY_CELLS.length)
   if (tocOverflow.length) {
@@ -190,7 +196,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         [...official.missing, ...delegation.missing, ...r9.missing,
           ...(r9.data.assistants.length > 7
             ? [`보조 점검인력 ${r9.data.assistants.length}명 중 8번째부터 미표기(허브 7행)`] : []),
-          ...tocOverflow.map(t => `목차 미표기: ${t}`)].join(' | ').slice(0, 600)),
+          ...tocOverflow.map(t => `목차 미표기: ${t}`),
+          ...(donorGaps.length ? [`점검표 서식 미동봉(자산 없음): ${donorGaps.join(', ')}`] : []),
+        ].join(' | ').slice(0, 600)),
     },
   })
 }

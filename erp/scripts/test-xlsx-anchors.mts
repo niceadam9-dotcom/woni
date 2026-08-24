@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import JSZip from 'jszip'
 import XLSX from 'xlsx'
-import { ANCHORS, HUB_INPUT_CELLS, SCRUB_NEEDLES, validateAnchors } from '../src/lib/xlsx-anchors.ts'
+import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
 import manifest from '../src/lib/xlsx-template-manifest.json' with { type: 'json' }
@@ -133,7 +133,7 @@ console.log('[4] buildWorkbookValues가 앵커 field 전수를 낸다')
     },
     report9: {
       ckOp: true, ckInitial: false, ckCompEtc: false, consent: null, repRole: '',
-      managerGrade: '', mgrEduDate: '', main: null, assistants: [],
+      managerGrade: '', mgrEduDate: '', rampCount: '', main: null, assistants: [],
     },
   })
   const missing = ANCHORS.filter(a => !values.has(a.field)).map(a => a.field)
@@ -174,6 +174,73 @@ console.log('[5] 자가치유 — 라벨 재탐색·오프셋 보존·모호하�
   // 정상 일치면 치유가 개입하지 않는다
   const h5 = validateAnchors(mk([['상호', '값']]), [anchor])
   check('일치 시 원좌표 유지·치유 0건', h5.ok && h5.anchors[0].cell === 'B1' && h5.healed.length === 0)
+}
+
+// ── ⑥ 배포 자산 축 — 라우트가 실제로 내보내는 파일로 같은 불변식을 다시 건다 ──────
+// 종전엔 [1]~[4]가 전부 기저 템플릿(report-workbook.xlsx)만 봤는데 라우트는 full 자산을
+// 읽는다(route.ts TEMPLATE_PATH). 개요 파트가 바이트 복사라 결과가 같을 뿐, **검증되지 않은
+// 축**이었다(2026-08-23 독립 판정). 도너 이식이 개요·니들·닫힌 덮개를 건드리면 여기서 붉어진다.
+console.log('[6] 배포 자산(report-workbook-full.xlsx)에 같은 불변식')
+{
+  const full = new Uint8Array(readFileSync('templates/report-workbook-full.xlsx'))
+  const fz = await JSZip.loadAsync(full)
+  const ffiles = await sheetFileMap(fz)
+
+  const fv = validateAnchors(full)
+  check('앵커 전수 라벨 일치·치유 0건', fv.ok && fv.healed.length === 0,
+    fv.ok ? fv.healed.join(' · ') : (fv as { failures: string[] }).failures.join(' · '))
+
+  const hubXml = await fz.file(ffiles.get('개요')!)!.async('string')
+  const dirty = HUB_INPUT_CELLS.filter(c => {
+    const m = new RegExp(`<c r="${c}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`).exec(hubXml)
+    return /<v>[\s\S]*?<\/v>|<is>/.test(m?.[1] ?? '')
+  })
+  check(`개요 입력 칸 ${HUB_INPUT_CELLS.length}개 전부 공란`, dirty.length === 0, dirty.join(', '))
+
+  // 닫힌 덮개 — 어느 목록에도 없는 값 칸이 있으면 '아무도 안 보는 값'이다(N15 실사고)
+  const covered = new Set([...HUB_INPUT_CELLS, ...HUB_LABEL_CELLS,
+    ...ANCHORS.filter(a => a.sheet === '개요').map(a => a.cell)])
+  const unclassified: string[] = []
+  for (const m of hubXml.matchAll(/<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    const body = m[3] ?? ''
+    if (/<f[ >]/.test(body) || !/<v>[\s\S]*?<\/v>|<is>/.test(body)) continue
+    if (!covered.has(m[1])) unclassified.push(m[1])
+  }
+  check('개요 값 칸이 전부 (앵커|입력|라벨)로 분류됨', unclassified.length === 0, unclassified.join(', '))
+
+  const rawLeaks: string[] = []
+  for (const name of Object.keys(fz.files)) {
+    if (fz.files[name].dir) continue
+    const raw = await fz.file(name)!.async('string')
+    for (const n of SCRUB_NEEDLES) if (raw.includes(n)) rawLeaks.push(`${name}⊃'${n}'`)
+  }
+  check('원시 바이트 니들 0건', rawLeaks.length === 0, rawLeaks.slice(0, 5).join(', '))
+
+  // 외부 통합문서 링크 — 타 고객 상호·직원 휴대전화·내부 경로가 캐시와 rel Target에 실려 있던 축.
+  // 니들 목록으로는 못 잡으므로 **파트 존재 자체**를 금한다(빌드 ④d와 같은 규약)
+  const ext = Object.keys(fz.files).filter(n => n.includes('xl/externalLinks/'))
+  const fwb = await fz.file('xl/workbook.xml')!.async('string')
+  check('외부링크 파트·참조 0건', ext.length === 0 && !/<externalReference/.test(fwb),
+    ext.length ? `파트 ${ext.length}개` : '')
+
+  // ★ **참조 축의 닫힌 덮개** — 스포크 수식이 읽는 개요 좌표가 전부 (앵커 | 입력 칸)에 덮이는가.
+  // [3]의 덮개는 '개요에 값이 남았는가'를 보고, 이건 '개요에서 값을 **꺼내 가는데 아무도 안 채우는**
+  // 칸이 있는가'를 본다 — 방향이 반대라 서로를 대신하지 못한다. 실제로 `정보!J20 = 개요!D21`이
+  // 앵커 없이 남아 전 고객 엑셀에 '경사로 0 개소'가 인쇄됐다(2026-08-23 F세대 판정).
+  // 빈 칸은 캐시가 없어 뷰어가 0을 그리므로 '안 채움'이 곧 오인쇄다.
+  const referenced = new Set<string>()
+  for (const [s, path] of ffiles) {
+    if (s === '개요') continue
+    const xml = await fz.file(path)!.async('string')
+    for (const m of xml.matchAll(/<f[^>]*>([\s\S]*?)<\/f>/g))
+      for (const r of m[1].matchAll(/'?개요'?!\$?([A-Z]+)\$?(\d+)/g)) referenced.add(`${r[1]}${r[2]}`)
+  }
+  // 이행조치 축(별지 10호 값)은 Phase 3 몫이라 지금은 미배선이 정상 — 명시 유예 목록.
+  // 목록이 커지면 '유예'가 '방치'가 되므로 여기 없는 미배선은 실패로 남긴다
+  const PHASE3_PENDING = new Set(['G10', 'I9', 'J9', 'G9', 'H9', 'K9', 'E9', 'E10', 'D10', 'D12'])
+  const uncovered = [...referenced].filter(c => !covered.has(c) && !PHASE3_PENDING.has(c))
+  check(`스포크가 읽는 개요 ${referenced.size}좌표 전부 덮임(유예 목록 제외)`,
+    uncovered.length === 0, uncovered.join(', '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

@@ -33,6 +33,10 @@ export type WorkbookSource = {
     repRole: string
     managerGrade: string
     mgrEduDate: string
+    /** 경사로 개소 — 개요!D21. `정보!J20`이 `=개요!D21`을 읽는데 앵커가 없어 전 고객 엑셀에
+     *  '경사로 0 개소'가 인쇄됐다(2026-08-23 F세대 판정). PDF(report9.ts:329)는 실값을 찍고
+     *  있었으므로 **D-7('PDF와 엑셀이 갈라지지 않는다')이 깨진 유일한 칸**이었다 */
+    rampCount: string
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
   }
@@ -90,6 +94,7 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     // ── S3-5 2차 — 등급(대상물 급수)·교육이수일. B20은 ;@ 서식이라 kdate 문자열 그대로 산다
     ['managerGrade', p.managerGrade || null],
     ['managerEduDate', p.mgrEduDate || null],
+    ['rampCount', p.rampCount || null],
     // ── 보고서 1·2쪽 √ 통문자열(S7-1·S7-2) — 원문(_probe-s7-raw-literals)과 자구 동일 조립.
     // 점검자 3행은 상수(우리는 항상 소방시설관리업자 — renderReport9:204와 같은 축)지만,
     // 갑지 표본이 √ 위치를 바꿔 오면 자기 라벨 검증이 막는다

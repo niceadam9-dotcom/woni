@@ -39,7 +39,11 @@ export type InspectionDocs = {
   endDate: string | null
   /** 점검표 응답 수 — 트리 점검표 행 진행 표시용 (소방계획서_8 H-2) */
   sheetResponses: number
-  /** S9-1(149) — 점검표 입력 규약. null=미상 → 응답 있으면 재생성 차단(회차 카드 배너의 판정 재료) */
+  /** S9-1(149) — 점검표 입력 규약. null=미상 → 응답 있으면 재생성 차단(회차 카드 배너의 판정 재료)
+   *  ⚠ **지금은 항상 null이다** — 이 파일의 inspections select 4곳이 sheet_protocol을 안 가져온다
+   *  (2026-08-23 독립 판정). 149가 스테이징·운영 양쪽 미적용이라 select에 넣는 순간 조회가 통째로
+   *  깨지므로 의도적으로 미배선 상태다. **149 적용 후 select에 컬럼을 보태기 전까지 이 값을 믿지 말 것** —
+   *  믿으면 전건이 '미상'으로 판정돼 재생성 차단이 잘못 걸린다. */
   sheetProtocol: 'legacy_na' | 'blank_unanswered' | null
   defects: { total: number; done: number; photoPairs: number }
   report4: DocGroupRef | null

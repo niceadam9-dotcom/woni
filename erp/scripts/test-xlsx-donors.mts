@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import JSZip from 'jszip'
 import XLSX from 'xlsx'
-import { DONOR_GROUPS, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS, allDonorSheets, donorGroupsToKeep } from '../src/lib/xlsx-donors.ts'
+import { DONOR_GROUPS, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS, allDonorSheets, donorGroupsToKeep, donorGapsForFacilities } from '../src/lib/xlsx-donors.ts'
 import { SHEET_FACILITY_MAP, sheetMatchesFacilities } from '../src/lib/sheet-facility-map.ts'
 import { removeSheets } from '../src/lib/xlsx-sheet-surgery.ts'
 import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
@@ -150,6 +150,68 @@ console.log('[5] 선별 규칙(donorGroupsToKeep)')
   const mu = by([], true)
   check('multiUse → 다중 그룹 편입(설비 축 아님)', mu.some(g => g.sheets[0] === '다중1')
     && !by([], false).some(g => g.kind === 'multiUse'))
+}
+
+console.log('[6] 텍스트 충실도 — 이식이 서식 문구를 훼손하지 않았는가')
+{
+  // 판정 실측(2026-08-23): 병합·마크·페이지 수가 전부 초록인데 인라인 전개의 **이중 이스케이프**로
+  // 줄바꿈 67칸이 리터럴 '&#10;'로 인쇄되고 있었다. '열리는가'와 '텍스트가 사는가'는 다른 검사다.
+  const doubled: string[] = []
+  const noBreak: string[] = []
+  for (const n of GROUP_SHEETS) {
+    const ws = wb.Sheets[n]
+    for (const k of Object.keys(ws).filter(k => !k.startsWith('!'))) {
+      const v = String((ws[k] as XLSX.CellObject).v ?? '')
+      if (/&#\d+;|&#x[0-9a-fA-F]+;|&amp;|&lt;|&gt;/.test(v)) doubled.push(`${n}!${k}`)
+    }
+  }
+  check('엔티티가 리터럴로 남은 셀 0', doubled.length === 0, doubled.slice(0, 6).join(', '))
+  // 여러 줄 서식이 실제로 여러 줄인가 — 위 검사는 '&#10;'을 잡지만 줄바꿈이 통째로 사라지는
+  // 변형은 못 본다. 도너에 다행 텍스트가 실재한다는 하한을 함께 건다
+  const multiline = GROUP_SHEETS.reduce((sum, n) => sum + Object.keys(wb.Sheets[n])
+    .filter(k => !k.startsWith('!') && String((wb.Sheets[n][k] as XLSX.CellObject).v ?? '').includes('\n')).length, 0)
+  check('줄바꿈 보유 셀 실재(다행 서식 생존)', multiline >= 50, `${multiline}칸`)
+  if (noBreak.length) check('줄바꿈 소실 0', false, noBreak.join(', '))
+
+  // 문장 **안**에 박힌 판정 마크 — 셀 전체가 마크일 때만 보던 [3]의 사각.
+  // 원문(별지4호 hwp XML)은 '140% 이하일 것(   )'로 공란이다 — 남의 시험 결과가 인쇄되면 안 된다
+  const parenMarks: string[] = []
+  for (const n of GROUP_SHEETS) {
+    const ws = wb.Sheets[n]
+    for (const k of Object.keys(ws).filter(k => !k.startsWith('!'))) {
+      const v = String((ws[k] as XLSX.CellObject).v ?? '')
+      if (/[(（]\s*[○×X/／]\s*[)）]/.test(v)) parenMarks.push(`${n}!${k}`)
+    }
+  }
+  check('괄호 안 판정 기입 0칸', parenMarks.length === 0, parenMarks.slice(0, 6).join(', '))
+}
+
+console.log('[7] 목차 칸 — 그룹 수만큼 실재하는가(자름 없는 것이 정상)')
+{
+  check(`목차 본문 칸 ${DONOR_TOC_BODY_CELLS.length} ≥ 그룹 ${DONOR_GROUPS.length}`,
+    DONOR_TOC_BODY_CELLS.length >= DONOR_GROUPS.length)
+  const zip = await JSZip.loadAsync(bytes)
+  const files = await sheetFileMap(zip)
+  const tocXml = await zip.file(files.get(DONOR_TOC_SHEET)!)!.async('string')
+  const absent = DONOR_TOC_BODY_CELLS.filter(c => !new RegExp(`<c r="${c}"[ />]`).test(tocXml))
+  check('목차 본문 칸 전부 XML에 실재(없는 셀엔 못 쓴다)', absent.length === 0, absent.join(', '))
+  // 전 설비 + 다중 고객이 한 줄도 안 잘리는가 — 종전 22칸에서 '32. 다중이용업소'가 조용히 빠졌다
+  const all = donorGroupsToKeep(() => true, true)
+  check('전 그룹 고객도 목차 넘침 0', all.length <= DONOR_TOC_BODY_CELLS.length,
+    `${all.length}/${DONOR_TOC_BODY_CELLS.length}`)
+}
+
+console.log('[8] 서식 공백 고지 — 설치했는데 동봉할 시트가 없는 설비를 말해 주는가')
+{
+  const gaps = donorGapsForFacilities(['물분무소화설비', '소화기구 및 자동소화장치'],
+    (k, code) => sheetMatchesFacilities(k, [code]))
+  check('자산에 없는 설비를 공백으로 보고', gaps.length === 1 && gaps[0] === '물분무소화설비', gaps.join(', '))
+  const covered = donorGapsForFacilities(['옥내소화전설비'], (k, code) => sheetMatchesFacilities(k, [code]))
+  check('시트가 있는 설비는 공백이 아니다', covered.length === 0, covered.join(', '))
+  // 고시에 서식이 없는 설비를 '누락'이라 부르면 경고가 무뎌진다
+  const noGosi = donorGapsForFacilities(['강화액소화설비', '고체에어로졸소화설비'],
+    (k, code) => sheetMatchesFacilities(k, [code]))
+  check('고시에 서식 없는 2종은 공백 고지 대상 아님', noGosi.length === 0, noGosi.join(', '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

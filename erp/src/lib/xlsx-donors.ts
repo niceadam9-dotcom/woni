@@ -89,12 +89,14 @@ export const DONOR_GROUPS: DonorGroup[] = [
     tocLabel: '32. 다중이용업소 점검표', verifyToc: true },
 ]
 
-/** 목차 본문 행 — **템플릿 실측 A2~A23(22칸)**. A1 제목('- 목      차 -')은 불변.
- *  그룹 수(23)보다 1칸 적다 — CO2(고시 9)는 원본 목차에 없던 행이라 시트 원본에 칸 자체가 없고,
- *  없는 셀 삽입은 불가(S0-5 전제)라 그룹 수로 계산하면 마지막 칸이 XML 미실재로 500이 난다.
- *  전 그룹 동봉 고객만 1건이 넘치며 라우트가 자르되 경고·헤더에 남긴다(S8-2 규약과 같은 축).
- *  칸 수·실재는 test-xlsx-donors가 템플릿 XML로 고정한다 — 도너 원본 갱신 시 재실측. */
-export const DONOR_TOC_BODY_CELLS: string[] = Array.from({ length: 22 }, (_, i) => `A${i + 2}`)
+/** 목차 본문 행 — **템플릿 실측 A2~A24(23칸 = 그룹 수)**. A1 제목('- 목      차 -')은 불변.
+ *
+ *  ⚠ 종전 22칸 전제('CO2가 원본 목차에 없어 A24가 XML에 부재')는 **틀렸다** — 2026-08-23 독립
+ *  판정이 목차 시트의 dimension이 A1:A35이고 A24~A35가 빈 셀로 전부 실재함을 실측했다. 그래서
+ *  '없는 셀 삽입 불가'로 감수하던 자름은 불필요한 손실이었다(전 설비+다중 고객에서 마지막 줄
+ *  '32. 다중이용업소 점검표'가 시트는 동봉되는데 목차에서만 조용히 빠졌다).
+ *  칸 수·실재는 빌드 ⑤와 test-xlsx-donors가 템플릿 XML로 고정한다 — 도너 원본 갱신 시 재실측. */
+export const DONOR_TOC_BODY_CELLS: string[] = Array.from({ length: 23 }, (_, i) => `A${i + 2}`)
 
 /** 이식되는 기증 시트 전부 — 목차 + 그룹 시트(면 순서 유지) */
 export function allDonorSheets(): string[] {
@@ -109,4 +111,22 @@ export function donorGroupsToKeep(
 ): DonorGroup[] {
   return DONOR_GROUPS.filter(g =>
     g.kind === 'always' || (g.kind === 'multiUse' ? multiUse : matches(g.matchKey)))
+}
+
+/** 고시에 점검표 서식 자체가 없는 설비 — 시트가 없는 것이 정답이라 공백으로 알리지 않는다
+ *  (소방계획서_26 F-1 실측: 고시 정본 7시트 302항목을 축자 편입할 때 이 둘만 서식이 없었다). */
+const NO_GOSI_SHEET_CODES = ['강화액소화설비', '고체에어로졸소화설비']
+
+/** 설치했는데 **동봉할 시트가 없는** 설비 — 기증 원본(전체 보고서.xls)이 안 싣는 서식들이다.
+ *
+ *  자산이 21그룹만 담고 있어 물분무·미분무·포·할론·분말·누전경보기·거실제연·연소방지·조기진압은
+ *  워크북에 점검표가 0장인 채 나간다. 종전에는 **경고조차 없어** 담당자가 빠진 걸 알 길이 없었다
+ *  (2026-08-23 독립 판정). 자산을 늘리는 건 별건이고, 여기서는 최소한 **말은 해 준다**(S4-5 축).
+ *  ※ 고시에 서식이 없는 설비는 제외한다 — 없는 것이 정답인 걸 '누락'이라 부르면 경고가 무뎌진다. */
+export function donorGapsForFacilities(
+  installedCodes: string[], matches: (matchKey: string, code: string) => boolean,
+): string[] {
+  return installedCodes.filter(code =>
+    !NO_GOSI_SHEET_CODES.includes(code)
+    && !DONOR_GROUPS.some(g => g.kind === 'facility' && matches(g.matchKey, code)))
 }

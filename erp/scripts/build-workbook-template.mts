@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { injectWorkbook, sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
-import { HUB_INPUT_CELLS, SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
+import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS } from '../src/lib/xlsx-anchors.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
@@ -193,6 +193,45 @@ console.log('④b NUMBERSTRING 수식 복원(계약서 보수금액·잔금)')
   bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
 }
 
+// ── ④d 외부 통합문서 링크 파트 제거 ──────────────────────────────────
+// 갑지는 예전 견적·양식 파일들과 연결돼 있던 흔적을 xl/externalLinks/*로 안고 있다. 그 안에는
+// **타 고객 상호·직원 개인 휴대전화·내부 NAS 경로**가 캐시값과 rel Target에 박혀 있어(2026-08-23
+// 독립 판정 실측 24건) 산출물마다 함께 배포된다. 셀·공유문자열 스캔에는 잡히지 않는 축이다.
+// 참조하는 수식이 0건임을 먼저 실측했으므로(_fix27-extlinks-scan) 제거는 무손실이다.
+console.log('④d 외부 통합문서 링크 파트 제거')
+{
+  const zip = await JSZip.loadAsync(bytes)
+  const parts = Object.keys(zip.files).filter(n => n.includes('xl/externalLinks/'))
+  // 안전 전제: 이 링크를 쓰는 수식이 하나라도 있으면 값이 죽으므로 지우지 않고 실패한다
+  const files = await sheetFileMap(zip)
+  const users: string[] = []
+  for (const [sheet, path] of files) {
+    const xml = await zip.file(path)!.async('string')
+    for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*>([\s\S]*?)<\/c>/g)) {
+      const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(m[2])?.[1]
+      if (f && /\[\d+\]/.test(f)) users.push(`${sheet}!${m[1]} = ${f.slice(0, 60)}`)
+    }
+  }
+  if (users.length) {
+    console.error(`   ❌ 외부링크 참조 수식 ${users.length}건 — 제거하면 값이 죽는다. 방침을 정한 뒤 다시 빌드할 것`)
+    for (const u of users.slice(0, 10)) console.error(`      ${u}`)
+    process.exit(1)
+  }
+  for (const p of parts) zip.remove(p)
+  let wbXml = await zip.file('xl/workbook.xml')!.async('string')
+  wbXml = wbXml.replace(/<externalReferences>[\s\S]*?<\/externalReferences>/g, '')
+  zip.file('xl/workbook.xml', wbXml)
+  // workbook rels·[Content_Types]에서 고아 항목 제거
+  let rels = await zip.file('xl/_rels/workbook.xml.rels')!.async('string')
+  rels = rels.replace(/<Relationship\b[^>]*Target="externalLinks\/[^"]*"[^>]*\/>/g, '')
+  zip.file('xl/_rels/workbook.xml.rels', rels)
+  let ct = await zip.file('[Content_Types].xml')!.async('string')
+  ct = ct.replace(/<Override\b[^>]*PartName="\/xl\/externalLinks\/[^"]*"[^>]*\/>/g, '')
+  zip.file('[Content_Types].xml', ct)
+  console.log(`   파트 ${parts.length}개 · <externalReferences> 블록 제거 (참조 수식 0건)`)
+  bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+}
+
 // ── ⑤ fullCalcOnLoad ────────────────────────────────────────────────
 console.log('⑤ fullCalcOnLoad 부여')
 {
@@ -265,11 +304,34 @@ console.log('⑥ 사후 검증')
       if (/<v>[\s\S]*?<\/v>|<is>/.test(inner)) fails.push(`개요!${c} 입력 칸에 값 잔존: ${inner.slice(0, 80)}`)
     }
   }
+  // 외부링크 파트가 되살아나지 않았는가(④d) — 니들 목록으로는 못 잡는 축이라 **파트 존재 자체**를 금한다
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    const left = Object.keys(zip.files).filter(n => n.includes('xl/externalLinks/'))
+    if (left.length) fails.push(`외부링크 파트 잔존 ${left.length}개: ${left.slice(0, 3).join(', ')}`)
+    const wbXml = await zip.file('xl/workbook.xml')!.async('string')
+    if (/<externalReference/.test(wbXml)) fails.push('workbook.xml <externalReference> 잔존')
+  }
+  // 개요 **닫힌 덮개**(S3-4) — 값 보유 비수식 칸이 전부 (앵커 | 입력 칸 | 라벨) 셋 중 하나로 분류되는가.
+  // 어느 목록에도 없는 칸은 '아무도 안 보는 값'이라 표본 잔재가 그대로 배포된다(N15 실사고)
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    const files = await sheetFileMap(zip)
+    const hubXml = await zip.file(files.get(HUB)!)!.async('string')
+    const covered = new Set([...HUB_INPUT_CELLS, ...HUB_LABEL_CELLS,
+      ...ANCHORS.filter(a => a.sheet === HUB).map(a => a.cell)])
+    for (const m of hubXml.matchAll(/<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const body = m[3] ?? ''
+      if (/<f[ >]/.test(body)) continue                       // 수식 셀은 폐포(D-9) 담당
+      if (!/<v>[\s\S]*?<\/v>|<is>/.test(body)) continue        // 값 없음
+      if (!covered.has(m[1])) fails.push(`개요!${m[1]} 미분류 값 칸 — HUB_INPUT_CELLS/HUB_LABEL_CELLS 중 하나로 분류할 것`)
+    }
+  }
   if (fails.length) {
     for (const f of fails) console.error(`   ❌ ${f}`)
     process.exit(1)
   }
-  console.log(`   시트 ${wb.SheetNames.length} · 병합 ${mergeCount(wb)} · 실고객 흔적 0 · 개요 입력 칸 전부 공란`)
+  console.log(`   시트 ${wb.SheetNames.length} · 병합 ${mergeCount(wb)} · 실고객 흔적 0 · 개요 입력 칸 전부 공란 · 닫힌 덮개 성립 · 외부링크 0`)
 }
 
 // ── 산출 ─────────────────────────────────────────────────────────────

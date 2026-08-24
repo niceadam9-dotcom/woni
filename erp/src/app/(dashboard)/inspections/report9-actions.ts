@@ -415,9 +415,13 @@ export async function requestReport9Action(
   if (!ANNEX_TYPES.includes(reportType)) return { error: '지원하지 않는 서식입니다.' }
   const admin = createAdminClient()
 
-  const { data: insp } = await admin.from('inspections')
+  // ⚠ error를 함께 본다 — data만 destructure하면 **없는 컬럼 하나가 조용한 0행**이 되어(42703)
+  //   "점검을 찾을 수 없습니다."로 둔갑한다. 실제로 sheet_protocol(마이그레이션 149) 미적용 DB에서
+  //   별지 생성 전건이 이 메시지로 죽어 스키마 문제임을 알 길이 없었다(2026-08-23 독립 판정)
+  const { data: insp, error: inspErr } = await admin.from('inspections')
     .select('id, customer_id, year, inspection_type, plan_type, inspection_start_date, inspection_end_date, sheet_protocol, customer:customers(customer_name)')
-    .eq('id', inspectionId).single()
+    .eq('id', inspectionId).maybeSingle()
+  if (inspErr) return { error: `점검 조회 실패(${inspErr.code ?? '?'}): ${inspErr.message}` }
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const i = insp as unknown as {
     id: string; customer_id: string; year: number; inspection_type: string; plan_type: string | null

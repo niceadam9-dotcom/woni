@@ -53,9 +53,12 @@ async function latestDataAt(admin: Admin, inspectionId: string): Promise<string 
 export async function getBundleChecklistAction(inspectionId: string): Promise<{ checklist?: BundleChecklist; error?: string }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
-  const { data: insp } = await admin.from('inspections')
+  // error를 함께 본다 — 없는 컬럼 하나(예: 149 미적용 sheet_protocol)가 조용한 0행이 되어
+  // '점검을 찾을 수 없습니다.'로 둔갑하면 스키마 문제임을 알 길이 없다
+  const { data: insp, error: inspErr } = await admin.from('inspections')
     .select('customer_id, plan_type, inspection_start_date, inspection_end_date, sheet_protocol')
-    .eq('id', inspectionId).single()
+    .eq('id', inspectionId).maybeSingle()
+  if (inspErr) return { error: `점검 조회 실패(${inspErr.code ?? '?'}): ${inspErr.message}` }
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const ins = insp as {
     customer_id: string; plan_type: string | null
@@ -135,8 +138,9 @@ export async function generateBundleAction(
   // 독립검증 지적(2026-08-15) — 타입별 requestReport9Action 가드(개별 차단)만 있으면
   // 차단 사유가 부분 실패 N건으로 흩어져 보인다. 번들 진입에서 한 번에 선제 차단.
   const admin = createAdminClient()
-  const { data: insp } = await admin.from('inspections')
-    .select('sheet_protocol').eq('id', inspectionId).single()
+  const { data: insp, error: inspErr } = await admin.from('inspections')
+    .select('sheet_protocol').eq('id', inspectionId).maybeSingle()
+  if (inspErr) return { error: `점검 조회 실패(${inspErr.code ?? '?'}): ${inspErr.message}` }
   if (!insp) return { error: '점검을 찾을 수 없습니다.' }
   const proto = (insp as { sheet_protocol: 'legacy_na' | 'blank_unanswered' | null }).sheet_protocol
   let respondedCount = 0

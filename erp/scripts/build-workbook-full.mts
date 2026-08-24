@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { sheetFileMap } from '../src/lib/xlsx-inject.ts'
 import { validateAnchors, SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
-import { DONOR_GROUPS, DONOR_TOC_SHEET, allDonorSheets } from '../src/lib/xlsx-donors.ts'
+import { DONOR_GROUPS, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS, allDonorSheets } from '../src/lib/xlsx-donors.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const DONOR_SRC = 'F:/AI/ERP/erp/전체 보고서.xls'
@@ -27,6 +27,8 @@ const BASE = 'templates/report-workbook.xlsx'
 const OUT = 'templates/report-workbook-full.xlsx'
 const MANIFEST = 'src/lib/xlsx-donor-manifest.json'
 const MARK = /^[○×X\/／]$/
+/** 문장 안 괄호에 기입된 판정 — '( ○ )'. 원문은 공란이라 마크만 공백으로 되돌린다 */
+const PAREN_MARK = /([(（])(\s*)([○×X\/／])(\s*)([)）])/g
 
 const dir = mkdtempSync(join(tmpdir(), 'wbfull-'))
 console.log(`임시: ${dir}`)
@@ -140,16 +142,28 @@ const entriesOf = (inner: string, tag: string): string[] => {
 }
 
 // ── ③ 공유문자열 준비(인라인 전개용) ─────────────────────────────────
+const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** XML 텍스트 노드 → 실제 문자열. **엔티티를 해제하지 않으면** 뒤의 escXml이 '&'를 다시 이스케이프해
+ *  줄바꿈 `&#10;`이 리터럴 '&#10;'로 인쇄된다(2026-08-23 독립 판정 실측 67칸 — 소화기구 범례 포함).
+ *  수치 참조(&#10; · &#x41;)까지 풀고 `&amp;`를 **맨 마지막에** 풀어야 원문의 리터럴 '&'가 산다. */
+const decodeXmlText = (s: string) => s
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+  .replace(/&#x([0-9a-fA-F]+);/g, (_m, h: string) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_m, d: string) => String.fromCodePoint(Number(d)))
+  .replace(/&amp;/g, '&')
+/** 셀 텍스트 재이스케이프 — 줄바꿈은 수치 참조로 되돌린다(Excel이 쓰는 형태이자 공백 정규화에 안전) */
+const escCellText = (s: string) => escXml(s).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;')
+
 const sstTexts: string[] = []
 {
   const sstFile = donorZip.file('xl/sharedStrings.xml')
   if (sstFile) {
     const sstXml = await sstFile.async('string')
     for (const m of sstXml.matchAll(/<si>([\s\S]*?)<\/si>/g))
-      sstTexts.push([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => t[1]).join(''))
+      sstTexts.push([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => decodeXmlText(t[1])).join(''))
   }
 }
-const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const unescXml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
 
 // ── ④ 기증 시트 이식 — 스크럽·s재번호·여백복원·인라인 전개 ───────────
@@ -160,6 +174,7 @@ let ctXml = await outZip.file('[Content_Types].xml')!.async('string')
 let maxRid = Math.max(...[...relsXml.matchAll(/Id="rId(\d+)"/g)].map(m => Number(m[1])))
 let maxSheetId = Math.max(...[...wbXml.matchAll(/sheetId="(\d+)"/g)].map(m => Number(m[1])))
 let scrubTotal = 0
+let parenScrubTotal = 0
 const legendBySheet = new Map<string, string[]>()
 
 for (const name of donorNames) {
@@ -167,7 +182,7 @@ for (const name of donorNames) {
 
   // 공유문자열 → 인라인 전개(자기닫힘 없음 — t="s"는 항상 <v> 보유)
   xml = xml.replace(/<c([^>]*?) t="s"([^>]*)><v>(\d+)<\/v><\/c>/g, (_m, a: string, b: string, idx: string) =>
-    `<c${a}${b} t="inlineStr"><is><t xml:space="preserve">${escXml(sstTexts[Number(idx)] ?? '')}</t></is></c>`)
+    `<c${a}${b} t="inlineStr"><is><t xml:space="preserve">${escCellText(sstTexts[Number(idx)] ?? '')}</t></is></c>`)
   if (/ t="s"/.test(xml)) throw new Error(`${name}: t="s" 잔존 — 인라인 전개 실패`)
 
   // 셀 스타일 인덱스 재번호(cellXfs 증설 오프셋) — <c>·<row>의 s=, <col>의 style=
@@ -209,6 +224,24 @@ for (const name of donorNames) {
       xml = xml.replace(re, `<c r="${k}"${attrs}/>`)
       scrubTotal++
     }
+
+    // ── 문자열 **안**에 박힌 판정 마크 — 셀 값 전체가 마크일 때만 보던 축의 사각(2026-08-23 독립 판정).
+    // 펌프성능시험 3항이 '… 140% 이하 ( ○ )'처럼 문장 안에서 적합 판정을 물고 있어, 하지도 않은
+    // 시험이 전 고객 문서에 '전 항목 적합'으로 인쇄됐다(5칸 × 3 = 15개). 고시 원문은 공란이다
+    // (별지4호 원문 XML 실측: '140% 이하일 것(   )' 9건 · 원문에 괄호 안 마크 0건).
+    // 규칙은 좁게 — 괄호 안이 (공백* 마크1자 공백*)인 경우만, 마크를 공백으로 바꿔 폭을 지킨다.
+    // 범례("양호 “○”, 불량 “×”")·항목 불릿('○ 설치높이 적합 여부')은 괄호가 아니라 손대지 않는다.
+    for (const k of Object.keys(ws).filter(k => !k.startsWith('!'))) {
+      const v = String((ws[k] as XLSX.CellObject).v ?? '')
+      if (!PAREN_MARK.test(v)) continue
+      const fixed = v.replace(PAREN_MARK, (_m, open: string, s1: string, _mk: string, s2: string, close: string) =>
+        `${open}${s1} ${s2}${close}`)
+      const re = new RegExp(`(<c r="${k}"[^>]*><is><t[^>]*>)([\\s\\S]*?)(</t></is></c>)`)
+      const m = re.exec(xml)
+      if (!m) throw new Error(`${name}!${k}: 괄호 마크 스크럽 대상이 인라인 문자열이 아니다`)
+      xml = xml.replace(re, `$1${escCellText(fixed)}$3`)
+      parenScrubTotal++
+    }
   }
 
   // 파트 추가 + 목록 3곳 등록
@@ -224,7 +257,7 @@ for (const name of donorNames) {
 outZip.file('xl/workbook.xml', wbXml)
 outZip.file('xl/_rels/workbook.xml.rels', relsXml)
 outZip.file('[Content_Types].xml', ctXml)
-console.log(`   ${donorNames.length}시트 이식 · 결과 마크 ${scrubTotal}칸 스크럽 · 범례 ${[...legendBySheet.values()].filter(v => v.length).length}곳 보존`)
+console.log(`   ${donorNames.length}시트 이식 · 결과 마크 ${scrubTotal}칸 스크럽 · 괄호 안 판정 ${parenScrubTotal}칸 스크럽 · 범례 ${[...legendBySheet.values()].filter(v => v.length).length}곳 보존`)
 
 let bytes = new Uint8Array(await outZip.generateAsync({ type: 'uint8array' }))
 
@@ -249,6 +282,43 @@ console.log('⑤ 사후 검증')
     const strays = marks.filter(k => !legend.has(k))
     if (strays.length) fails.push(`${n} 마크 잔존: ${strays.join(',')}`)
     if (legend.size && marks.length !== legend.size) fails.push(`${n} 범례 훼손: ${marks.length}/${legend.size}`)
+  }
+
+  // ★ 텍스트 충실도 — '열리는가'와 '텍스트가 사는가'는 다른 검사다. 병합·마크·페이지 수는 전부
+  //   초록인데 인라인 전개가 엔티티를 이중 이스케이프해 줄바꿈 67칸이 리터럴 '&#10;'로 인쇄되고
+  //   있었다(2026-08-23 독립 판정). 원본 셀 텍스트와 산출 셀 텍스트를 **전 도너 셀 전수 대조**하되,
+  //   의도한 변형(빈칸 스크럽 · 괄호 안 판정 공백화)만 예외로 인정한다.
+  for (const n of donorNames) {
+    if (n === DONOR_TOC_SHEET) continue
+    const ows = donorOrig.Sheets[n], nws = wb.Sheets[n] ?? {}
+    for (const k of Object.keys(ows).filter(k => !k.startsWith('!'))) {
+      const before = String((ows[k] as XLSX.CellObject).v ?? '')
+      const after = String((nws[k] as XLSX.CellObject | undefined)?.v ?? '')
+      if (before === after) continue
+      // 예외 ①: 결과 마크 칸은 통째로 비운다
+      if (MARK.test(before.trim()) && after === '') continue
+      // 예외 ②: 괄호 안 판정만 공백으로
+      if (before.replace(PAREN_MARK, (_m, o: string, s1: string, _mk: string, s2: string, c: string) =>
+        `${o}${s1} ${s2}${c}`) === after) continue
+      fails.push(`텍스트 변형: ${n}!${k}\n        원본=${JSON.stringify(before).slice(0, 120)}\n        산출=${JSON.stringify(after).slice(0, 120)}`)
+    }
+  }
+  // 괄호 안 판정 마크 잔존 0 — 위 대조와 축이 겹치지만, 원본에 없던 형태가 생기는 경우까지 막는다
+  for (const n of donorNames) {
+    for (const k of Object.keys(wb.Sheets[n] ?? {}).filter(k => !k.startsWith('!'))) {
+      const v = String((wb.Sheets[n][k] as XLSX.CellObject).v ?? '')
+      if (new RegExp(PAREN_MARK.source).test(v)) fails.push(`괄호 안 판정 잔존: ${n}!${k} = ${v.slice(0, 60)}`)
+    }
+  }
+  // 목차 본문 칸이 XML에 실재하는가 — 없는 셀엔 쓸 수 없다(S0-5 전제). 그룹 수만큼 필요하다
+  {
+    const outZ = await JSZip.loadAsync(bytes)
+    const map = await sheetFileMap(outZ)
+    const tocXml = await outZ.file(map.get(DONOR_TOC_SHEET)!)!.async('string')
+    const missing = DONOR_TOC_BODY_CELLS.filter(c => !new RegExp(`<c r="${c}"`).test(tocXml))
+    if (missing.length) fails.push(`목차 본문 칸 XML 부재: ${missing.join(', ')}`)
+    if (DONOR_TOC_BODY_CELLS.length < DONOR_GROUPS.length)
+      fails.push(`목차 본문 칸 ${DONOR_TOC_BODY_CELLS.length} < 그룹 ${DONOR_GROUPS.length} — 전 설비 고객이 잘린다`)
   }
 
   // 갑지 파트 바이트 불변(스타일·목록 3파트 제외) — 손대지 않은 것은 그대로여야 한다
