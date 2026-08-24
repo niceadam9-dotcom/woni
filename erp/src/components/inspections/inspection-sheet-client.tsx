@@ -14,20 +14,25 @@ import { SheetItemEditor, type SheetItem as Item, type SheetResult as Result } f
 import { SheetGroupBoard } from '@/components/inspections/sheet-group-board'
 import { SheetDrawer } from '@/components/inspections/sheet-drawer'
 import { SheetGroupToc, type TocEntry } from '@/components/inspections/sheet-group-toc'
-import { useUnsavedNavGuard, usePlanSaveHandler } from '@/components/ui/unsaved-nav'
+import { useSheetAutosave } from '@/hooks/use-sheet-autosave'
 import { pickAutoOpenSheet } from '@/lib/inspection-step-links'
 import type { SheetProgress, SheetGroupProgress } from '@/lib/sheet-overview'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 
 type Sheet = { id: string; sheet_code: string; sheet_name: string }
 
-/** 드로어 개폐·dirty 게이트의 단일 소유자 (소방계획서_23 S7-10 오케스트레이터).
+/** 드로어 개폐의 단일 소유자 (소방계획서_23 S7-10 오케스트레이터 · 28 S2-3 자동저장 전환).
  *
  *  구조(개정 1·2판): 왼쪽 = 머더 카드 보드 상시(SheetGroupBoard, 접이 없음 — Q-2) /
  *  오른쪽 = 시트 단위 포털 드로어(SheetDrawer + SheetGroupToc + SheetItemEditor outline — Q-14).
- *  카드 클릭 = 그 시트 전체를 드로어로 열고 해당 머더로 점프. 같은 시트 안 이동은 재로드·확인창 없음(S7-11).
- *  미저장 이동은 unsaved-nav 3버튼 확인창(Q-18 — window.confirm 금지).
- *  보드 진행률은 서버 progress 위에 열린 시트의 로컬 값을 오버레이(G-9) — 저장·일괄 직후 즉시 갱신. */
+ *  카드 클릭 = 그 시트 전체를 드로어로 열고 해당 머더로 점프. 같은 시트 안 이동은 재로드 없음(S7-11).
+ *  보드 진행률은 서버 progress 위에 열린 시트의 로컬 값을 오버레이(G-9) — 저장·일괄 직후 즉시 갱신.
+ *
+ *  ⚠ 저장(소방계획서_28 S2-3): **[저장] 버튼도 미저장 이탈 확인창도 없다.** 저장 규칙은
+ *  `useSheetAutosave` 한 곳이 소유하고, 전용 입력 페이지(sheet-entry-client)와 같은 규칙을 쓴다.
+ *  종전에는 이 화면만 버튼 저장이라 "여기의 [저장]과는 무관하며…" 같은 안내문으로 차이를 메워야 했다.
+ *  전이(시트 전환·닫기·월 전환) 앞에는 반드시 `await autosave.flush()` — 특히 월 전환은
+ *  훅의 month가 ref로 캡처돼 있어 flush가 **옛 달로 끝나야** 3월 입력이 7월 행으로 새지 않는다. */
 export function InspectionSheetClient({ inspectionId, inspectionType, planType, sheets, responses, progress, xCount, canManage, ledgerSubCodes = [], autoOpenSheet = false }: {
   inspectionId: string
   inspectionType: string
@@ -46,9 +51,6 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [sel, setSel] = useState<Sheet | null>(null)
-  const [items, setItems] = useState<Item[]>([])
-  const [local, setLocal] = useState<Record<string, Result>>({})
-  const [base, setBase] = useState<Record<string, Result>>({})   // 편집 기준값 — dirty 판정용 (S5-5)
   const [pendingJump, setPendingJump] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -77,33 +79,47 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const isExterior = planType === 'monthly' || planType === 'event'
   const { month, setMonth } = useExteriorMonth()
 
-  // ── dirty — local ↔ base 차이 ──
-  const dirty = useMemo(() => {
-    for (const k of new Set([...Object.keys(local), ...Object.keys(base)]))
-      if (local[k] !== base[k]) return true
-    return false
-  }, [local, base])
   const selRef = useRef<Sheet | null>(null)
   selRef.current = sel
-  const dirtyRef = useRef(false)
-  dirtyRef.current = dirty
-
-  // ── Realtime (S5) — 편집 중이면 드로어 안 배너, 아니면 RSC 갱신 ──
-  const reinitRef = useRef(false)   // [최신 불러오기] — dirty여도 1회 강제 재초기화
   // 저장속도 개선(2026-08-15): 내 저장의 DELETE 이벤트는 old에 PK만 실려 updated_by 자기 식별이
   // 불가능하다(훅 주석 참조) — 방금 저장한 직후의 이벤트는 에코로 보고 refresh를 건너뛴다
   const lastSaveAtRef = useRef(0)
+  /** 이번 드로어 세션에 저장이 있었는지 — 닫을 때 한 번만 RSC 갱신(단계 배지·요약은 서버 렌더다).
+   *  자동저장마다 refresh하면 종전 doSave가 stepsChanged로 피하려던 1~4초 재렌더가 매 입력마다 돈다. */
+  const savedSinceRefreshRef = useRef(false)
+
+  /** 🔴 저장 규칙의 단일 원천 — 전용 입력 페이지(sheet-entry-client)와 **같은 훅**이다(28 S2-3).
+   *  items·draft·baseline·dirty를 훅이 소유하므로 이 파일에는 local/base/dirtyRef가 없다. */
+  const autosave = useSheetAutosave<Item>({
+    inspectionId,
+    month: isExterior ? month : 0,
+    onSaved: () => { lastSaveAtRef.current = Date.now(); savedSinceRefreshRef.current = true },
+  })
+  // 콜백·이벤트 핸들러가 최신 훅 값을 봐야 한다 — 반환값을 ref로 미러(클로저 고정 방지)
+  const autosaveRef = useRef(autosave)
+  useEffect(() => { autosaveRef.current = autosave })
+  const items = autosave.items
+  const local = autosave.draft
+
+  // ── Realtime (S5) — 편집 중이면 드로어 안 배너, 아니면 RSC 갱신 ──
+  const reinitRef = useRef(false)   // [최신 불러오기] — dirty여도 1회 강제 재초기화
   useSheetResponsesRealtime([inspectionId], () => {
-    // dirty 배너가 항상 우선 — 에코 창이 원격 변경 감지(S5-5·P14)를 삼키면 안 된다
-    if (selRef.current && dirtyRef.current) { setStale(true); return }
+    // dirty 배너가 항상 우선 — 에코 창이 원격 변경 감지(S5-5·P14)를 삼키면 안 된다.
+    // 자동저장이라 dirty 구간이 짧다 → 디바운스 대기·실행 중(hasPending)도 '편집 중'으로 본다
+    if (selRef.current && (autosaveRef.current.dirty || autosaveRef.current.hasPending())) { setStale(true); return }
     if (Date.now() - lastSaveAtRef.current < 2000) return   // 내 저장 에코 — refresh만 건너뜀
     setStale(false)
     router.refresh()
   })
+  // ⚠ 계약 ③ — 원격 변경이 미해소인 동안은 자동저장을 멈춘다. 내 디바운스가 남의 최신 값을 덮지 않게
+  useEffect(() => {
+    if (stale) autosaveRef.current.pause()
+    else autosaveRef.current.resume()
+  }, [stale])
   // router.refresh()로 responses prop이 새로 오면, 편집 중이 아닐 때만 열린 편집기 값을 재초기화
   useEffect(() => {
     if (!selRef.current) return
-    if (dirtyRef.current && !reinitRef.current) return
+    if (autosaveRef.current.dirty && !reinitRef.current) return
     reinitRef.current = false
     if (isExterior) {
       // EX-4 재검증 R-2·R-3: responses prop은 월 무구분 축약(page.tsx가 month 없이 조회)이라
@@ -115,16 +131,15 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         const snap = await loadSheetSnapshotAction(inspectionId, sheetId, month)
         if (seq !== loadSeq.current || snap.error) return
         const visible = snap.items ?? []
-        setItems(visible)
         const init: Record<string, Result> = {}
         for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) init[it.item_code] = r.result }
-        setLocal(init); setBase(init)
+        autosaveRef.current.resetSheet(visible, init)
       })()
       return
     }
     const init: Record<string, Result> = {}
-    for (const it of items) { const r = responses[it.item_code]; if (r) init[it.item_code] = r.result }
-    setLocal(init); setBase(init)
+    for (const it of autosaveRef.current.items) { const r = responses[it.item_code]; if (r) init[it.item_code] = r.result }
+    autosaveRef.current.resetSheet(autosaveRef.current.items, init)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [responses])
 
@@ -139,53 +154,42 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       if (seq !== loadSeq.current) return
       if (snap.error) { setError(snap.error); return }
       const visible = snap.items ?? []
-      setItems(visible)
       const init: Record<string, Result> = {}
       for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) init[it.item_code] = r.result }
-      setLocal(init); setBase(init)
+      // baseline도 함께 갈아끼운다 — 안 그러면 옛 시트의 delta가 새 시트로 새어 엉뚱한 코드가 저장된다
+      autosaveRef.current.resetSheet(visible, init)
       setPendingJump(groupCode ?? (visible[0] ? groupCodeOf(visible[0]) : null))
     })
   }
   function doClose() {
-    setSel(null); setItems([]); setLocal({}); setBase({}); setPendingJump(null)
-    // 편집 중 미뤄둔 원격 변경이 있으면 나가면서 반영
-    if (stale) { setStale(false); router.refresh() }
+    setSel(null); setPendingJump(null)
+    autosaveRef.current.resetSheet([], {})
+    // 편집 중 미뤄둔 원격 변경, 또는 이번 세션의 자동저장분을 나가면서 한 번에 반영
+    if (stale || savedSinceRefreshRef.current) {
+      setStale(false); savedSinceRefreshRef.current = false
+      router.refresh()
+    }
   }
 
-  // ── Q-18 — 미저장 이동은 unsaved-nav 3버튼([저장하고 이동]) 확인창. window.confirm 금지 ──
-  type NavTarget = { kind: 'open'; sheet: Sheet; groupCode: string | null } | { kind: 'close' } | { kind: 'month'; month: number }
-  const guard = useUnsavedNavGuard<NavTarget>({
-    message: '점검표에 저장하지 않은 입력이 있습니다. 저장하지 않고 이동하면 이 시트의 입력이 사라집니다.',
-    onProceed: t => {
-      if (t.kind === 'open') doOpen(t.sheet, t.groupCode)
-      else if (t.kind === 'close') doClose()
-      else applyMonth(t.month)
-    },
-  })
-  // [저장하고 이동] — 드로어의 save를 등록(dirty일 때만 응답)
-  usePlanSaveHandler(() => doSave(), dirty)
-
   /** 카드·시트 헤더 → 열기. 같은 시트면 점프만(재로드 금지 — 종전 open()은 무조건 재로드해
-   *  미저장 입력을 날렸다, S7-11). 다른 시트로는 dirty 게이트를 거친다 */
+   *  미저장 입력을 날렸다, S7-11). 다른 시트로는 flush 후 전환한다(28 S2-3 — 확인창 없음) */
   function requestOpen(sheetId: string, groupCode: string | null) {
-    // canManage 없어도 연다 — 조회 전용 드로어(○/✕ 비활성·[저장] 없음, S8 프로브 17). 편집 게이트는 에디터 canEdit이 갖는다
+    // canManage 없어도 연다 — 조회 전용 드로어(○/✕ 비활성·자동저장 칩 없음, S8 프로브 17). 편집 게이트는 에디터 canEdit이 갖는다
     const sheet = sheets.find(s => s.id === sheetId)
     if (!sheet) return
     if (sel?.id === sheetId) { setPendingJump(groupCode ?? groupEntries[0]?.code ?? null); return }
-    if (dirtyRef.current) { guard.request({ kind: 'open', sheet, groupCode }); return }
-    doOpen(sheet, groupCode)
+    // 🔴 flush가 **먼저** — 훅의 items/baseline이 갈아끼워진 뒤에는 옛 시트의 delta를 계산할 수 없다
+    void (async () => { await autosaveRef.current.flush(); doOpen(sheet, groupCode) })()
   }
-  function requestClose(reason: 'esc' | 'backdrop' | 'button') {
-    if (reason === 'backdrop' && dirtyRef.current) return   // dismissOnBackdrop=false와 이중 방어
-    if (dirtyRef.current) { guard.request({ kind: 'close' }); return }
-    doClose()
+  /** 닫기 3경로(ESC·백드롭·✕) 공통 — 이유를 가리지 않는다. 자동저장이라 확인창이 없고,
+   *  대신 flush로 대기 중인 입력을 반드시 흘려보낸 뒤 닫는다 */
+  function requestClose() {
+    void (async () => { await autosaveRef.current.flush(); doClose() })()
   }
-  /** EX-4: 월 전환 — dirty면 같은 guard(Q-18), 아니면 그 달 값으로 다시 채운다 */
-  function changeMonth(next: number) {
-    if (dirtyRef.current) { guard.request({ kind: 'month', month: next }); return }
-    applyMonth(next)
-  }
-  function applyMonth(next: number) {
+  /** EX-4: 월 전환 — 🔴 flush가 **반드시 먼저**. 훅의 month는 ref 캡처라 flush가 옛 달로 끝나야 한다.
+   *  뒤집으면(setMonth 먼저) 3월에 찍은 입력이 7월 행으로 저장된다 */
+  async function changeMonth(next: number) {
+    await autosaveRef.current.flush()
     setMonth(next)
     if (selRef.current) doOpen(selRef.current, null, next)
   }
@@ -205,29 +209,6 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     if (target) requestOpen(target.sheetId, null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenSheet])
-
-  /** 저장(S7-14) — 시트 전체 rows + 해제분 clearCodes. 저장 후 드로어를 닫지 않고 base=local — 연속 입력 */
-  function doSave(): Promise<boolean> {
-    setError('')
-    const snapshot = local
-    const rows = items.filter(i => snapshot[i.item_code]).map(i => ({ item_code: i.item_code, result: snapshot[i.item_code] }))
-    // 기준값에는 있었는데 지금은 없는 항목 = 미점검(공란)으로 되돌린 것 → DB에서 지운다(Q-19).
-    // 이게 없으면 화면에서만 풀리고 저장된 값이 남아 문서에 그대로 인쇄된다.
-    const clearCodes = items.filter(i => base[i.item_code] && !snapshot[i.item_code]).map(i => i.item_code)
-    return new Promise(resolve => {
-      startTransition(async () => {
-        const res = await saveSheetResponsesAction(inspectionId, rows, isExterior ? month : 0, clearCodes)
-        if (res.error) { setError(res.error); resolve(false); return }
-        setBase(snapshot); setStale(false)
-        lastSaveAtRef.current = Date.now()
-        setNotice('✅ 저장했습니다 — 계속 입력할 수 있습니다.')
-        // 저장속도 개선(2026-08-15): 상세 페이지 재렌더(1~4초)가 저장을 지배했다 — 단계 상태가
-        // 실제로 바뀐 저장(서버가 판정)에만 refresh. 화면 값은 로컬 상태+보드 오버레이가 이미 최신이다
-        if (res.stepsChanged) router.refresh()
-        resolve(true)
-      })
-    })
-  }
 
   function groupCodeOf(it: Item): string {
     return it.group_code ?? (/^[A-Z]/.test(it.item_code) ? (it.group ?? '') : it.item_code.replace(/-\d+$/, ''))
@@ -285,17 +266,18 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const noFacilityInfo = overlaidProgress.length > 0 && overlaidProgress.every(p => !p.installed)
 
   // ── Q-20 — 시트 단위 ／ 일괄 (빈 칸만·토글, Q-21) ──
+  // patchDraft = draft 통째 교체 + schedule() — 자동저장 예약까지가 한 호출이다(28 S1)
   function localSheetNA() {
     const empty = items.filter(i => !local[i.item_code]).map(i => i.item_code)
     if (empty.length > 0) {
       if (!window.confirm(`이 시트의 미입력 ${empty.length}개 항목을 ／(해당없음)로 표시합니다.\n이미 입력한 ○/✕/／ ${selCounts.responded}건은 그대로 유지됩니다. 진행할까요?`)) return
-      setLocal(s => { const n = { ...s }; for (const c of empty) n[c] = 'N'; return n })
+      autosave.patchDraft(s => { const n = { ...s }; for (const c of empty) n[c] = 'N'; return n })
       return
     }
     const ns = items.filter(i => local[i.item_code] === 'N').map(i => i.item_code)
     if (ns.length === 0) return
     if (!window.confirm(`미입력 항목이 없습니다. 이 시트의 ／(해당없음) ${ns.length}건을 해제할까요? (○/✕는 유지)`)) return
-    setLocal(s => { const n = { ...s }; for (const c of ns) delete n[c]; return n })
+    autosave.patchDraft(s => { const n = { ...s }; for (const c of ns) delete n[c]; return n })
   }
   /** 보드의 [／ 전체] — 열린 시트면 로컬 위임(dirty 충돌 방지), 닫힌 시트면 서버 액션 1왕복(S6-6) */
   function boardSheetNA(sheetId: string) {
@@ -309,6 +291,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       startTransition(async () => {
         const res = await bulkSheetNAAction(inspectionId, sheetId, isExterior ? month : 0, 'apply')
         if (res.error) { setError(res.error); return }
+        lastSaveAtRef.current = Date.now()
         setNotice(`✅ [${p.sheetName}] ${res.applied}개 항목을 ／로 기록했습니다.`)
         router.refresh()
       })
@@ -319,6 +302,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     startTransition(async () => {
       const res = await bulkSheetNAAction(inspectionId, sheetId, isExterior ? month : 0, 'release')
       if (res.error) { setError(res.error); return }
+      lastSaveAtRef.current = Date.now()
       setNotice(`✅ [${p.sheetName}] ／ ${res.released}건을 해제했습니다.`)
       router.refresh()
     })
@@ -342,7 +326,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   }, [sel, items, ledgerSubCodes])
   function applyLedgerHint() {
     if (!ledgerHint) return
-    setLocal(s => {
+    autosave.patchDraft(s => {
       const n = { ...s }
       for (const g of ledgerHint) for (const c of g.codes) if (!n[c]) n[c] = 'N'   // 빈 칸만 (Q-21)
       return n
@@ -356,6 +340,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       // EX-4: 외관은 고른 달에 채운다 — 월을 접어 판정하면 3월에 채운 항목이 7월엔 안 채워진다
       const res = await bulkAllGoodAction(inspectionId, isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
+      lastSaveAtRef.current = Date.now()
       setNotice(`✅ 설비 시트 ${res.sheetCount}개 · ${res.filled}개 항목을 ○로 채웠습니다${(res.kept ?? 0) > 0 ? ` (기존 입력 ${res.kept}건 유지)` : ''} — 불량은 아래 검색으로 태깅하세요.`)
       router.refresh()
     })
@@ -368,6 +353,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: picked.item_code, result: 'X', memo: quickMemo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       const reg = await createDefectsFromXAction(inspectionId)
+      lastSaveAtRef.current = Date.now()
       setNotice(`✅ ${picked.item_code} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
       setPicked(null); setQuickMemo(''); setQuickQ(''); setQuickResults([])
       router.refresh()
@@ -388,13 +374,34 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   function registerInlineX(itemCode: string, memo: string) {
     setError(''); setNotice('')
     startTransition(async () => {
+      // 🔴 대기 중인 자동저장을 **먼저** 흘려보낸다. ✕ 자체는 예약되지 않지만(계약 ①) 이미 예약된
+      //    다른 입력의 delta에는 이 ✕도 함께 실린다 — 그 저장이 등록 뒤에 도착하면 memo 없는 X로
+      //    덮어써 메모가 사라진다(실측: P11이 memo=null로 실패). flush로 순서를 고정한다.
+      await autosaveRef.current.flush()
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
       const reg = await createDefectsFromXAction(inspectionId)
+      lastSaveAtRef.current = Date.now()
+      // 이 경로가 ✕의 유일한 저장이다(훅 계약 ① — schedule 대상 아님). 저장된 값을 기준값으로
+      // 승격하지 않으면 dirty가 남아 원격 감지(stale)가 내 쓰기에 반응한다
+      autosaveRef.current.setBaseline(prev => ({ ...prev, [itemCode]: 'X' }))
+      savedSinceRefreshRef.current = true
       setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
-      router.refresh()
     })
   }
+
+  /** 자동저장 상태 칩 — 이 화면의 유일한 저장 피드백([저장] 버튼 대체, 28 S2-3) */
+  const saveChip = autosave.status === 'saving' ? (
+    <span className="text-[10px] text-[#7b68ee] flex items-center gap-1 shrink-0"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
+  ) : autosave.status === 'error' ? (
+    <button onClick={() => void autosave.retry()} className="text-[10px] font-semibold text-red-600 underline shrink-0">저장 실패 — 다시 시도</button>
+  ) : autosave.status === 'paused' ? (
+    <span className="text-[10px] font-semibold text-amber-600 shrink-0">저장 보류 — 원격 변경 확인 필요</span>
+  ) : autosave.status === 'saved' ? (
+    <span className="text-[10px] font-semibold text-green-600 shrink-0">✓ 저장됨</span>
+  ) : (
+    <span className="text-[10px] text-[#b0acd6] shrink-0">자동 저장</span>
+  )
 
   return (
     <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
@@ -412,7 +419,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       {isExterior && canManage && (
         <div className="mb-3 flex items-center gap-2 flex-wrap rounded-lg border border-[#e0ddf5] bg-[#fafaff] px-3 py-2">
           <span className="text-[11px] font-semibold text-[#514b81]">점검 월</span>
-          <select value={month} onChange={e => changeMonth(Number(e.target.value))} disabled={isPending}
+          <select value={month} onChange={e => void changeMonth(Number(e.target.value))} disabled={isPending}
             className="h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]">
             <option value={0}>점검일 기준(기본)</option>
             {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
@@ -492,14 +499,15 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
 
       {/* 머더 카드 보드 — 상시(Q-2, 접이 없음). 드로어가 떠도 사라지지 않는다(포털 오버레이 — Q-4) */}
       <p className="text-[11px] text-[#b0acd6] mb-2">
-        머더(중분류) 카드를 누르면 그 시트 전체가 오른쪽에 열리고 해당 위치로 이동합니다 — ○(정상)/✕(불량), ／(해당없음)는 일괄 버튼.
+        머더(중분류) 카드를 누르면 그 시트 전체가 오른쪽에 열리고 해당 위치로 이동합니다 — ○(정상)/✕(불량), ／(해당없음)는 일괄 버튼. 입력은 자동 저장됩니다.
       </p>
       <SheetGroupBoard progress={overlaidProgress} noFacilityInfo={noFacilityInfo}
         canEdit={canManage} busy={isPending}
         onOpen={requestOpen} onSheetNA={boardSheetNA} />
 
-      {/* 시트 단위 드로어 (Q-14) — 개폐·dirty 게이트는 이 컴포넌트가 소유, 셸은 dirty를 모른다 */}
-      <SheetDrawer open={!!sel} onRequestClose={requestClose} dismissOnBackdrop={!dirty}
+      {/* 시트 단위 드로어 (Q-14) — 개폐는 이 컴포넌트가 소유, 셸은 저장을 모른다.
+          자동저장이라 백드롭 오클릭 보호(dismissOnBackdrop=false)가 필요 없다 — 닫기 전에 flush한다 */}
+      <SheetDrawer open={!!sel} onRequestClose={requestClose} dismissOnBackdrop
         title={sel?.sheet_name ?? ''}
         headerRight={
           <span className="flex items-center gap-2 ml-auto min-w-0">
@@ -513,16 +521,19 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
                 ／ 전체
               </button>
             )}
-            {dirty && <span className="text-[10px] font-semibold text-amber-600 shrink-0" data-testid="drawer-dirty">● 미저장</span>}
+            {canManage && (
+              <span data-testid="drawer-autosave" data-status={autosave.status} className="shrink-0">{saveChip}</span>
+            )}
           </span>
         }
         banner={
           <>
-            {/* S5-5: dirty 중 원격 저장 감지 — 자동 덮어쓰기 금지, 사용자가 선택 (드로어 안 배너 — R-7) */}
+            {/* S5-5: 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 사용자가 선택 (드로어 안 배너 — R-7).
+                이 동안 자동저장은 pause 상태다(훅 계약 ③) */}
             {stale && (
               <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
                 <span className="text-xs text-amber-700 flex-1">
-                  다른 곳에서 이 점검표가 저장되었습니다 — 입력 중이라 자동 갱신을 멈췄습니다.
+                  다른 곳에서 이 점검표가 저장되었습니다 — 입력 중이라 자동 갱신·자동 저장을 멈췄습니다.
                 </span>
                 <button onClick={() => { reinitRef.current = true; setStale(false); router.refresh() }}
                   className="text-xs text-[#7b68ee] font-medium hover:underline shrink-0">
@@ -550,18 +561,13 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
           items={items} loading={isPending && items.length === 0} value={local}
           grouping="outline" scrollBoxRef={scrollBoxRef}
           maxHeight="max-h-[calc(100dvh-260px)] max-sm:max-h-[calc(92dvh-250px)]"
-          // r=null = 해제 → 키를 지운다(미점검 = 값 없음, Q-19). 남겨 두면 저장 시 값이 다시 쓰인다
-          onResult={(code, r) => setLocal(s => {
-            if (r === null) { const n = { ...s }; delete n[code]; return n }
-            return { ...s, [code]: r }
-          })}
+          // 해제(r=null)도 훅이 delta로 본다 — clearCodes로 DB 행까지 지운다(Q-19)
+          onResult={autosave.setResult}
           onRegisterX={registerInlineX}
           canEdit={canManage} busy={isPending} error={sel ? error : undefined} notice={sel ? notice : undefined}
-          onSave={() => { void doSave() }} onCancel={() => requestClose('button')}
+          hideSave onSave={() => {}} onCancel={requestClose}
           cancelLabel="닫기" showFooterHint={false} />
       </SheetDrawer>
-
-      {guard.dialog}
     </div>
   )
 }

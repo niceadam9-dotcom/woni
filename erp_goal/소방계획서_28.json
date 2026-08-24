@@ -70,8 +70,10 @@
           "verified": "use-sheet-autosave.ts:33-100 · 계약 3가지를 주석으로 못박음(✕ 제외 / month를 ref로 / stale이면 pause). E2E 자동저장 4단 + 해제 경로 통과" },
         { "id": "S2-2", "desc": "전용 페이지가 이 훅을 쓴다 — 저장 버튼 없음, 상태 칩이 유일한 피드백", "status": "implemented",
           "verified": "sheet-entry-client.tsx:96-104 · E2E '✓ 저장됨 칩' + 'DB에 O 응답 기록'(칩만 믿지 않고 DB 재확인 루프) 통과" },
-        { "id": "S2-3", "desc": "점검 상세 드로어도 자동저장으로 전환 — [저장] 버튼·미저장 이탈 가드 제거", "status": "pending_order",
-          "note": "미실행. 이것이 남아 있는 한 입력구 2곳의 저장 규칙이 다르다(드로어=버튼 / 전용 페이지=자동). D-2의 미완 잔여." }
+        { "id": "S2-3", "desc": "점검 상세 드로어도 자동저장으로 전환 — [저장] 버튼·미저장 이탈 가드 제거", "status": "implemented",
+          "verified": "독립 구현(에이전트) + 판정 분리 — inspection-sheet-client.tsx가 use-sheet-autosave를 쓴다(:93-100). 제거: doSave·useUnsavedNavGuard/usePlanSaveHandler·guard.request 3곳·dirty useMemo·drawer-dirty 배지 → data-testid='drawer-autosave' 칩. 유지: 월 셀렉터·대장 힌트 배너·보드 오버레이·빠른입력·registerInlineX·stale 배너·?sheet=auto. changeMonth는 flush→setMonth 순서(:34-35 주석에 명문화). tsc 0 · build 0 · test-sheet-mother-drawer 67/0 · test-sheet-entry-page 22/22 유지. **이 전환의 E2E가 실결함 1건을 잡았다**: 인라인 ✕ 메모가 null로 덮이던 문제(✕ 자체는 미예약이나 이미 예약된 delta에 함께 실려 [등록] 뒤 도착하면 덮어쓴다) — registerInlineX 첫머리 flush + baseline 승격으로 수리. **같은 잠복이 sheet-entry-client.tsx에도 있어 동일 수리 적용**" },
+        { "id": "S2-4", "desc": "저장 규칙 통일 완료 — 두 입력구(전용 페이지·드로어)가 같은 훅을 쓴다", "status": "implemented",
+          "verified": "use-sheet-autosave를 sheet-entry-client.tsx:96·inspection-sheet-client.tsx:93 두 곳이 소비. [저장] 버튼·미저장 이탈 확인창은 어느 쪽에도 없다. D-2 달성." }
       ] },
 
     { "id": "S3", "title": "고유 기능 이관", "status": "implemented",
@@ -102,15 +104,20 @@
       "criteria": [
         { "id": "S5-1", "desc": "신규 E2E test-sheet-entry-page.mts — 권한·좌목록·★미입력 강조·딥링크·자동저장·해제·덮는시트없음·비담당 읽기전용", "status": "implemented",
           "verified": "22 통과 / 0 실패 (2026-08-24). test-all.mts에 needServer:true로 편입. ⚠ 첫 실행 2건 실패는 테스트 버그였다 — button:has-text('○')가 헤더의 [설치 설비 전체 양호 ○]를 잡아 87건 일괄 저장이 돌았다. text-is로 교정" },
-        { "id": "S5-2", "desc": "기존 E2E 갱신 — 제거된 입력 UI를 단언하던 스크립트들", "status": "pending_order",
-          "note": "미실행. test-annex-sheet-inline.mts(입력·dirty 단언) · _probe-form14-result-badge.mts(패널 단언) · test-annex-interaction.mts · test-quick-defect.mts 등이 대상. npm run test:all 미실행" },
+        { "id": "S5-2", "desc": "기존 E2E 갱신 — 제거된 입력 UI를 단언하던 스크립트들", "status": "implemented",
+          "verified": "_probe-form14-result-badge.mts **23/0**(종전 9/1) · test-annex-sheet-inline.mts **27/0**(종전 타임아웃 중단) · test-sheet-mother-drawer.mts **67/0**. 회귀 무손상: test-annex-interaction 36/0 · test-quick-defect 7/0 · test-sheet-entry-page 22/22. 계약 재작성이지 셀렉터 교체가 아니다 — 폐기한 입력 단언의 **의도를 새 축으로 이전**했다: 미분무 패널→'?facility=가 STD-07을 실제로 연다'(F-1 퇴행이 즉시 드러남) · 고체에어로졸 안내→'딥링크가 아무 시트도 안 염 + 덮는 점검표 없음 고지' · 건물 전환 패널 닫힘→'배지 집합이 건물 전환을 따라감'. **F-1f 무퇴행은 오히려 강화**(열린 시트명 == 할론소화설비 + 할로겐 미포함 + 형제 고지 부재 = 이중 귀속 재발 조기경보)" },
+        { "id": "S5-4", "desc": "npm run test:all 전체 회귀", "status": "pending_order",
+          "note": "미실행. 개별 스위트는 전부 그린이나 전체는 못 돌렸다. ⚠ test-exterior-ui는 로컬 GOTENBERG_URL 미설정으로 PDF 생성 1건이 환경 실패한다(코드 무관)" },
         { "id": "S5-3", "desc": "게이트 — tsc 0 · build 0", "status": "implemented",
           "verified": "npx tsc --noEmit 0오류 · npm run build exit 0 (2026-08-24, 트리·1.4 수술 후)" }
       ] }
   ],
 
   "out_of_scope": [
-    "드로어 자동저장 전환(S2-3) — 사용자가 Phase 3 건너뛰기를 선택. 저장 규칙 통일은 그때 완성된다",
-    "① 단계 [입력] 버튼·별지 미리보기 경고의 링크 목적지 변경 — Phase 2 항목, 미실행"
+    "① 단계 [입력] 버튼·별지 미리보기 경고(annex-missing-list FIX_LINKS)의 링크 목적지 변경 — Phase 2 항목, 미실행. 현재 ①은 여전히 드로어로 간다(드로어도 자동저장이라 무해)",
+    "superseded_by 기입 — 26.json만 완료. 16·20·23 미기입",
+    "소방계획서_28.md 미작성 (이 json이 참조만 하고 있다)",
+    "plan-form14.tsx refreshResults(reloadItems) — 패널 제거 후 호출부 0곳·인자 미사용. 정리 대상",
+    "_measure-sheet-save.mts·_probe-sheet-ox-only.mjs — 드로어의 'text=저장했습니다'를 기다리는데 그 문구가 사라져 썩었다(둘 다 _ 접두 임시 프로브, test-all 미등록)"
   ]
 }

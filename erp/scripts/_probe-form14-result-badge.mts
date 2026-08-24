@@ -1,8 +1,19 @@
-/** 소방계획서_26 S4 라이브 검증 — 1.4 설비 행 결과 배지 + 입력 패널 (읽기 전용 E2E).
+/** 소방계획서_26 S4 → 28 S4 라이브 검증 — 1.4 설비 행 결과 배지 **딥링크** (읽기 전용 E2E).
  *
  *  대상: 별그리다(추모공원) — 진행 중(in_progress) 자체점검 회차 + 설치 8종 + '전부 ／' 시트 보유라
  *  배지 4상태(○/×/／/미입력)와 회차 라벨을 실데이터로 한 번에 볼 수 있다.
- *  쓰기 버튼(○/✕/／·일괄)은 누르지 않는다 — 배선 검증이지 데이터 생성이 아니다.
+ *
+ *  ⚠ 계약이 바뀌었다(9e45d23) — 1.4의 입력 패널·일괄 버튼·항목 목록은 **삭제됐다**.
+ *     배지는 결과를 보여주고 `/inspections/{id}/sheet?facility={설비}`로 보내는 링크일 뿐이다.
+ *     그래서 이 스위트가 보는 것은 **배지 판정 + 배선**이다:
+ *       ① 배지 라벨이 실데이터와 맞는가  ② 링크가 딥링크 계약을 지키는가
+ *       ③ 눌러서 도착하는가  ④ **지목한 설비가 열린 채로** 도착하는가
+ *     항목 입력·자동저장·불량 등록의 단언은 test-sheet-entry-page.mts(22검사)가 덮는다 — 중복 금지.
+ *     쓰기 버튼은 여전히 누르지 않는다 — 배선 검증이지 데이터 생성이 아니다.
+ *
+ *  ⚠ 1.4 탭은 클라이언트 상태라 goBack·재goto로 복원되지 않는다(둘 다 타임아웃 실측).
+ *     화면을 떠나기 전에 필요한 href를 전부 걷어두고, 이후 블록은 새 goto로 시작한다.
+ *
  *  실행: npx tsx scripts/_probe-form14-result-badge.mts  (dev 서버 필요) */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -77,9 +88,16 @@ try {
   // ── 소방계획서_28 S4-2로 계약이 바뀐 자리 ──────────────────────────────────
   // 종전: 배지 클릭 → 이 화면에서 패널을 열어 직접 입력.
   // 현재: 배지는 **결과를 보여주고** 전용 입력 화면의 그 설비로 보낸다(입력구 단일화).
-  // 항목 입력 자체의 단언은 test-sheet-entry-page.mts가 덮는다 — 여기선 배선만 본다.
+  // 항목 입력 자체의 단언은 test-sheet-entry-page.mts가 덮는다 — 여기선 배선만 본다
+  // (링크가 있는가 · 눌러서 도착하는가 · 지목한 설비가 열려 있는가).
+  //
+  // ⚠ 1.4는 클라이언트 탭 상태라 goBack·재goto로는 복원되지 않는다(둘 다 타임아웃 실측).
+  //    그래서 이 화면을 떠나기 **전에** 뒤에서 쓸 링크를 미리 다 걷어둔다.
   const oBadge = badges.filter({ hasText: '○' }).first()
   const href = await oBadge.getAttribute('href')
+  const mistBadge = page.locator('[data-testid="form14-result-link-미분무소화설비"]')
+  const mistHref = await mistBadge.getAttribute('href')
+  const mistLbl = ((await mistBadge.textContent()) ?? '').trim()
   check('배지가 전용 입력 화면 링크', !!href && /\/inspections\/[0-9a-f-]+\/sheet\?facility=/.test(href), href ?? '(href 없음)')
   await oBadge.click()
   await page.waitForURL(/\/inspections\/[0-9a-f-]+\/sheet/, { timeout: 15_000 })
@@ -88,20 +106,18 @@ try {
   // ?facility=가 서버에서 시트로 해석돼 그 설비가 열려 있어야 한다(매핑 규칙 단일화의 실증)
   const opened = (await page.locator('h2').first().textContent().catch(() => '')) ?? ''
   check('지목한 설비가 열린 상태로 도착', !!opened.trim(), opened.trim())
-  // 1.4로 되돌아가지 않는다 — 아래 F-1f 블록이 어차피 다른 고객으로 새로 goto한다.
-  // (goBack·재goto 둘 다 실패했다: 1.4는 클라이언트 탭 상태라 URL만으론 복원되지 않는다)
+  // 1.4로 되돌아가지 않는다 — 아래 블록들은 전부 새로 goto한다.
 
-  // 패널 B — 별그리다 미분무: 148 편입 전엔 '시트 없음' 안내였다. 이제 STD-07이 있으므로
-  // **진짜 패널이 열려야** 한다 — F-1 해소의 라이브 증거.
-  await badges.filter({ hasText: '미입력' }).first().click()
-  await page.waitForSelector('text=/『미분무소화설비』 · .*에 기록/')
-  check('148 편입 시트 패널 열림 (미분무 — 종전엔 시트 없음 안내였다)', true)
-  await page.waitForSelector('button:text-is("✕")', { timeout: 15_000 })
-  // 원문 61항목 중 ● 종합전용 27건은 작동점검 회차에서 isItemInScope로 제외된다(의도) —
-  // 종합 회차면 61, 작동 회차면 34. 그 외 값이면 시딩·범위 필터 어느 쪽이 틀린 것.
-  const mist = await page.locator('button:text-is("✕")').count()
-  check(`미분무 항목 목록 전개 — 61(종합) 또는 34(작동), 실제 ${mist}`, mist === 61 || mist === 34)
-  await page.click('button:has-text("닫기")')
+  // 미분무(별그리다 설치) — 148 편입 전엔 '시트 없음'이라 입력 자체가 불가능했다.
+  // 종전엔 '패널이 열리는가'로 봤지만 패널이 사라졌으므로, 같은 사실을 **딥링크가 STD-07을 실제로 연다**로 본다.
+  // 시트가 없으면 initialSheetId가 null이 되어 우측이 비고 h2가 아예 없다 — 퇴행이 즉시 드러나는 축이다.
+  check('미분무 배지 = 미입력 (STD-07 응답 0건)', mistLbl === '미입력', mistLbl || '(배지 없음)')
+  check('미입력 배지도 같은 딥링크 계약', !!mistHref && mistHref.includes(encodeURIComponent('미분무소화설비')), mistHref ?? '(href 없음)')
+  await page.goto(`${BASE}${mistHref}`)
+  await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
+  const mistOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
+  check('148 편입 시트(STD-07)가 실제로 열린다 — 종전엔 시트 없음 안내였다',
+    mistOpened === '미분무소화설비', mistOpened || '(열린 시트 없음 = F-1 퇴행)')
 
   // ── 쓰기 경로 — 전용 픽스처(TEST 고객)에서만. 실고객 데이터에는 쓰지 않는다 ──
   // inspection_type은 enum('종합·최초·기타·작동' — 002/034)이고 '소방안전관리'는 category 축 값이다.
@@ -123,7 +139,7 @@ try {
   if (nbErr || !nb) throw new Error(`픽스처 건물 생성 실패: ${nbErr?.message}`)
   await raw.from('fire_facilities').insert([
     { building_id: nb.id, category: '소화설비', facility_code: '옥내소화전설비', installed: true, detail: { note: 'E2E 픽스처' } },
-    // 고시 별지4에 점검표가 없는 설비(F-1 잔존 2종의 하나) — 패널이 사실을 안내해야 한다
+    // 고시 별지4에 점검표가 없는 설비(F-1 잔존 2종의 하나) — 화면이 사실을 안내해야 한다
     { building_id: nb.id, category: '소화설비', facility_code: '고체에어로졸소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
     // F-1f 전용 시트 분리 — 할론은 150 편입 STD-10을 열어야 한다(묶음 할로겐 시트가 아니라)
     { building_id: nb.id, category: '소화설비', facility_code: '할론소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
@@ -136,79 +152,60 @@ try {
   if (niErr || !ni) throw new Error(`픽스처 점검 생성 실패: ${niErr?.message}`)
   fixtureInspId = ni.id as string
 
-  // 확인창·프롬프트 자동 응답 — confirm은 승인, prompt(불량 메모)는 문구 입력
-  page.on('dialog', d => { void (d.type() === 'prompt' ? d.accept('E2E 불량 메모') : d.accept()) })
-
+  // ── 픽스처 — 여기서 보는 것은 **1.4가 만든 링크가 옳은 시트로 보내는가**뿐이다.
+  //    쓰기(일괄 ○ · 항목 ✕ · 불량내역 자동 등록)는 신규 test-sheet-entry-page.mts가 덮으므로
+  //    여기서 중복 단언하지 않는다(입력구가 하나가 된 이상 두 스위트가 같은 것을 볼 이유가 없다).
   await page.goto(`${BASE}/customers/${fixtureCustId}`)
   await page.click('text=소방계획서')
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
-  const fxBadge = page.locator('a[title*="점검결과 — "]')
-  await fxBadge.first().waitFor({ timeout: 15_000 })
-  check('픽스처: 옥내소화전 배지 = 미입력', (await fxBadge.first().textContent()) === '미입력')
+  const hydBadge = page.locator('[data-testid="form14-result-link-옥내소화전설비"]')
+  await hydBadge.waitFor({ timeout: 15_000 })
+  check('픽스처: 옥내소화전 배지 = 미입력', ((await hydBadge.textContent()) ?? '').trim() === '미입력')
+  // 떠나기 전에 나머지 링크를 미리 걷는다 — 1.4는 클라이언트 탭 상태라 되돌아올 수 없다
+  const aeroHref = await page.locator('[data-testid="form14-result-link-고체에어로졸소화설비"]').getAttribute('href')
+  const hallonHref = await page.locator('[data-testid="form14-result-link-할론소화설비"]').getAttribute('href')
 
-  await fxBadge.first().click()
-  await page.waitForSelector('text=/『.*』 · \\d{4}년 1차에 기록/')
-  await page.waitForSelector('button:text-is("✕")', { timeout: 15_000 })
-  // 일괄 ○ — 신규 bulkSheetGoodAction 실주행
-  await page.locator('button:has-text("전부 ○")').first().click()
-  await page.waitForSelector('text=/○ \\d+건 기록/', { timeout: 15_000 })
-  check('일괄 ○ 기록 응답', true)
-  await page.waitForFunction(() => {
-    const b = document.querySelector('a[title*="점검결과 — "]')
-    return b?.textContent === '○'
-  }, undefined, { timeout: 15_000 })
-  check('배지 미입력 → ○ 전환 (overview 재수렴)', true)
-  // DB 검증 — 미입력만 O로, month=0
-  const { data: respRows } = await raw.from('inspection_sheet_responses')
-    .select('item_code, result').eq('inspection_id', fixtureInspId)
-  const rr = (respRows ?? []) as Array<{ item_code: string; result: string }>
-  check(`DB: 응답 ${rr.length}건 전부 O`, rr.length > 0 && rr.every(r => r.result === 'O'))
+  await hydBadge.click()
+  await page.waitForURL(/\/inspections\/[0-9a-f-]+\/sheet/, { timeout: 15_000 })
+  await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
+  const hydOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
+  check('픽스처: 배지 클릭 → 옥내소화전 시트가 열린 채 도착', hydOpened === '옥내소화전설비', hydOpened || '(열린 시트 없음)')
 
-  // 항목 ✕ — 저장 + 불량내역 자동 등록 체인
-  await page.locator('button:text-is("✕")').first().click()
-  await page.waitForFunction(() => {
-    const b = document.querySelector('a[title*="점검결과 — "]')
-    return b?.textContent === '×'
-  }, undefined, { timeout: 15_000 })
-  check('항목 ✕ → 배지 × 전환', true)
-  const { data: defRows } = await raw.from('inspection_defects')
-    .select('id').eq('inspection_id', fixtureInspId)
-  check(`불량내역 자동 등록 ${((defRows ?? []) as unknown[]).length}건 ≥ 1 (별지 10호 원천)`, ((defRows ?? []) as unknown[]).length >= 1)
+  // F-1 잔존 2종 — 고체에어로졸은 고시 별지4에 점검표가 없다(시트를 만들 근거가 없다).
+  // 종전엔 패널이 '시트 없음'을 안내했다. 패널이 사라진 지금의 등가 축은
+  // ①딥링크가 **아무 시트도 열지 않는다**(거짓 입력 경로 없음) ②좌 목록이 그 사실을 고지한다.
+  check('고체에어로졸 배지도 같은 딥링크 계약',
+    !!aeroHref && aeroHref.includes(encodeURIComponent('고체에어로졸소화설비')), aeroHref ?? '(href 없음)')
+  await page.goto(`${BASE}${aeroHref}`)
+  await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
+  check('F-1 잔존 설비(고체에어로졸) — 여는 시트가 없다(거짓 입력 경로 없음)',
+    (await page.locator('h2').count()) === 0)
+  check('F-1 잔존 설비 — 「덮는 점검표 없음」으로 사실 고지 유지',
+    (await page.isVisible('text=덮는 점검표 없음')) && (await page.isVisible('text=고체에어로졸소화설비')))
 
-  // F-1 잔존 2종 — 고체에어로졸은 고시 별지4에 점검표가 없다. 거짓 입력 경로 대신 사실 안내가 떠야 한다
-  await page.locator('td:has-text("고체에어로졸소화설비") button[title*="점검결과"]').click()
-  await page.waitForSelector('text=점검표 시트가 카탈로그에 없어')
-  check('F-1 잔존 설비(고체에어로졸) — 시트 없음 안내 유지', true)
-  await page.click('button:has-text("닫기")')
+  // ── F-1f 무퇴행(이 스위트의 핵심) — 할론은 **전용 시트 STD-10**을 열어야 한다.
+  //    150 적용 전엔 '시트 없음'이었고, 이중 귀속 분리 전엔 묶음 시트(STD-11 할로겐화합물 및
+  //    불활성기체소화설비)가 열렸을 자리다. 패널이 사라져도 '어느 시트가 열리는가'라는 축은 그대로
+  //    살아 있다 — 우측 제목(h2)이 곧 열린 시트명이다.
+  await page.goto(`${BASE}${hallonHref}`)
+  await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
+  const hallonOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
+  check('F-1f: 할론 딥링크가 전용 시트 「할론소화설비」를 연다', hallonOpened === '할론소화설비',
+    hallonOpened || '(열린 시트 없음 = 150 미적용 퇴행)')
+  check('F-1f: 묶음 할로겐 시트가 아니다', !!hallonOpened && !hallonOpened.includes('할로겐'), hallonOpened)
+  // 전용 귀속이면 형제 설비 고지가 붙지 않는다 — 묶음 시트였다면
+  // '이 점검표는 ☑A · ☐B의 결과에 함께 반영됩니다'가 떴을 자리다(이중 귀속 재발의 조기 경보).
+  check('F-1f: 형제 설비 고지 없음 — 할론은 단독 귀속',
+    (await page.locator('text=결과에 함께 반영됩니다').count()) === 0)
 
-  // ── F-1f — 할론 행이 전용 시트(150 편입 STD-10)를 연다. 150 적용 전엔 '시트 없음' 안내,
-  //    분리 전엔 묶음 시트(할로겐)가 열렸을 자리다 — 이중 귀속의 '선택은 전용 시트' 축 라이브 증거.
-  await page.locator('td:has-text("할론소화설비") button[title*="점검결과"]').click()
-  // DIAG — 실패 원인 덤프
-  try {
-    await page.waitForSelector('text=/『할론소화설비』 · .*에 기록/', { timeout: 10_000 })
-  } catch {
-    await page.screenshot({ path: 'scripts/_shots/f1f-hallon-fail.png', fullPage: true })
-    const body = await page.locator('body').innerText()
-    const idx = body.indexOf('할론')
-    console.log('DIAG 패널 주변 텍스트:', JSON.stringify(body.slice(Math.max(0, idx - 200), idx + 400)))
-    throw new Error('할론 패널 미노출 — DIAG 덤프 참조')
-  }
-  check('F-1f: 할론 행 패널이 전용 시트를 연다 (묶음 할로겐 시트 아님)', true)
-  await page.waitForSelector('button:text-is("✕")', { timeout: 15_000 })
-  // 원문 53항목 중 ● 종합전용 24건은 작동 회차에서 제외 — 종합 53, 작동 29. 그 외면 시딩·범위 어느 쪽이 틀린 것
-  const hallonN = await page.locator('button:text-is("✕")').count()
-  check(`F-1f: 할론 항목 전개 — 53(종합) 또는 29(작동), 실제 ${hallonN}`, hallonN === 53 || hallonN === 29)
-  await page.click('button:has-text("닫기")')
-
-  // 건물 전환 — 패널은 그 건물 설치 설비에 매여 있다. 안 닫으면 새 건물에 없는 설비의 항목 목록이
-  // 그대로 떠 있고 거기서 기록까지 된다(독립 검증 지적, 2026-08-21).
+  // 건물 전환 — 배지는 **선택한 건물의 설치 설비**에 매인다. 종전엔 패널이 열린 채 남아 새 건물에
+  // 없는 설비를 그 자리에서 기록할 수 있었다(독립 검증 지적, 2026-08-21). 입력이 전용 화면으로
+  // 빠진 지금의 등가 축은 '배지 집합이 건물 전환을 따라가는가'다 — 설비 0종인 별관엔 배지가 없어야 한다.
   await raw.from('buildings').insert({
     customer_id: fixtureCustId, is_active: true, created_by: userId, building_name: '별관', purpose: '근린생활시설',
   })
-  await page.reload()
-  // 탭 선택은 클라이언트 상태 — reload 후 기본 탭으로 돌아가므로 다시 들어간다
+  await page.goto(`${BASE}/customers/${fixtureCustId}`)
   await page.click('text=소방계획서')
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
@@ -217,12 +214,14 @@ try {
   const bldSel = page.locator('select').filter({ has: page.locator('option', { hasText: '본관' }) }).first()
   await bldSel.selectOption({ label: '본관' })
   await page.locator('a[title*="점검결과 — "]').first().waitFor({ timeout: 15_000 })
-  await page.locator('a[title*="점검결과 — "]').first().click()
-  await page.waitForSelector('text=/『.*』 · \\d{4}년 1차에 기록/')
+  const mainBadges = await page.locator('a[title*="점검결과 — "]').count()
   await bldSel.selectOption({ label: '별관' })
-  await page.waitForTimeout(500)
-  check('건물 전환 시 결과 패널이 닫힌다 (이전 건물 설비의 입력창 잔류 금지)',
-    !(await page.isVisible('text=/『.*』 · \\d{4}년 1차에 기록/')))
+  await page.waitForFunction(
+    () => document.querySelectorAll('a[title*="점검결과 — "]').length === 0,
+    undefined, { timeout: 10_000 },
+  ).catch(() => {})
+  check(`건물 전환 시 배지가 그 건물 설비만 따라간다 (본관 ${mainBadges}종 → 별관 0종)`,
+    (await page.locator('a[title*="점검결과 — "]').count()) === 0)
 
   // ── F-1f 무퇴행 — 서림사(할론 단독 설치, 응답은 2026 완료 회차의 묶음 할로겐 시트 27건뿐).
   //    ⚠ 서림사는 진행 중 회차가 없어 **설계상 입력 배지를 그리지 않는다**(resultBadge 규약) —

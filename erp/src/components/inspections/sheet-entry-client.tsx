@@ -139,8 +139,14 @@ export function SheetEntryClient({
   function registerX(itemCode: string, memo: string) {
     setErr(''); setNotice('')
     startBusy(async () => {
+      // 🔴 반드시 flush가 먼저다. ✕ 자체는 훅이 예약하지 않지만(계약 ①), **이미 예약된 다른 입력의
+      //    delta에 그 ✕가 함께 실린다.** 그 저장이 [등록] 뒤에 도착하면 memo가 null인 X로 덮어써
+      //    방금 적은 불량 메모가 사라진다(드로어에서 실측된 결함 — P11 {"result":"X","memo":null}).
+      await autosaveRef.current.flush()
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }], isExterior ? month : 0)
       if (res.error) { setErr(res.error); return }
+      // 등록분을 기준값으로 승격 — 안 하면 dirty가 남아 다음 저장이 이 X를 memo 없이 재전송한다
+      autosaveRef.current.setBaseline(prev => ({ ...prev, [itemCode]: 'X' }))
       const reg = await createDefectsFromXAction(inspectionId)
       setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
       if (openIdRef.current) void openRow(openIdRef.current)
