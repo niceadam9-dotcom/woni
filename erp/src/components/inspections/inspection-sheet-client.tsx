@@ -401,7 +401,11 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       <div className="flex items-center gap-2 mb-3">
         <ClipboardCheck className="size-4 text-[#7b68ee]" />
         <h2 className="text-sm font-semibold text-[#090c1d]">점검표 입력</h2>
-        <span className="text-xs text-[#b0acd6] ml-auto">{scopeLabel(scope)}</span>
+        {/* 전용 화면(소방계획서_28) — 설치 설비와 진행률을 한 화면에서 보고 채운다.
+            어느 설비가 비었는지 여기 카드에서는 보드를 펼쳐야 보인다. */}
+        <a href={`/inspections/${inspectionId}/sheet`} data-testid="sheet-entry-link"
+          className="text-[11px] text-[#7b68ee] hover:underline ml-auto">전체 화면으로 입력 →</a>
+        <span className="text-xs text-[#b0acd6]">{scopeLabel(scope)}</span>
       </div>
 
       {/* EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 같은 점검 건에 달을 나눠 기록한다 */}

@@ -113,7 +113,7 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
 export function SheetItemEditor({
   items, loading, value, onResult, onRegisterX, canEdit, busy, error, notice,
   onSave, onCancel, maxHeight = 'max-h-[420px]', showFooterHint = true, saveLabel = '저장',
-  hideSave = false, cancelLabel = '취소', grouping = 'flat', scrollBoxRef,
+  hideSave = false, hideCancel = false, cancelLabel = '취소', grouping = 'flat', scrollBoxRef,
 }: {
   items: SheetItem[]                                   // 범위 필터(작동=종합전용 제외)가 이미 적용된 표시 대상
   loading: boolean
@@ -133,6 +133,8 @@ export function SheetItemEditor({
   saveLabel?: string
   /** 자동 저장 화면에서 저장 버튼을 감춘다 (소방계획서_20 S4-6) — 점검 상세는 기본값(false)로 종전 유지 */
   hideSave?: boolean
+  /** 자동저장 + master-detail 화면 — 돌아갈 곳이 없어 [취소]를 숨긴다 (hideSave와 대칭) */
+  hideCancel?: boolean
   cancelLabel?: string
   /** 'outline' = 3층 렌더(중분류 sticky + 소제목 run + [○·／ 모두] 일괄) — 드로어 전용 (23 S7-1) */
   grouping?: 'flat' | 'outline'
@@ -222,9 +224,13 @@ export function SheetItemEditor({
       {body}
       {notice && <p className="text-xs text-green-600 mt-2">{notice}</p>}
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-      {canEdit && (
+      {/* 둘 다 숨기면 푸터 블록 자체를 렌더하지 않는다 — 전용 입력 페이지(28)는 좌 목록이 상시
+          보이는 master-detail이라 '취소/닫기'가 갈 곳이 없고, 자동저장이라 [저장]도 없다. */}
+      {canEdit && !(hideSave && hideCancel) && (
         <div className="flex gap-2 mt-3">
-          <button onClick={onCancel} disabled={busy} className="flex-1 h-9 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">{cancelLabel}</button>
+          {!hideCancel && (
+            <button onClick={onCancel} disabled={busy} className="flex-1 h-9 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">{cancelLabel}</button>
+          )}
           {!hideSave && (
             <button onClick={onSave} disabled={busy} className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-3.5 mr-1" /> {saveLabel}</>}

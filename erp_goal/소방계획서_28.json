@@ -1,0 +1,116 @@
+{
+  "doc": "소방계획서_28 — 점검표 입력구 단일화",
+  "design": "erp_goal/소방계획서_28.md",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+
+  "key_evidence": "2026-08-24 승리주유소 별지 4호에서 [√]물분무소화설비 결과칸이 공란으로 인쇄됐다. 결함이 아니라 STD-06 시트 응답 0건(미입력)이었고, 설계상 무응답은 추측하지 않고 비운다(소방계획서_19 Q-5). 진짜 문제는 **사용자가 어디서 채워야 하는지 알 수 없었다**는 것이다. 실측하니 같은 데이터(inspection_sheet_responses)를 입력하는 화면이 4개였고 저장 규칙이 셋으로 갈려 있었다 — 드로어=[저장] 버튼 / 회차트리=자동저장 / 1.4패널=즉시기록. 가장 뚜렷한 증거는 plan-form14.tsx:233의 확인창 문구다: '즉시 기록됩니다 — 이 화면 아래의 [저장]과는 무관하며…'. 한 화면 안에서 저장 규칙이 갈린 것을 안내문으로 메우고 있었다.",
+
+  "decisions": [
+    { "id": "D-1", "title": "입력의 정본은 전용 페이지", "status": "confirmed",
+      "desc": "/inspections/{id}/sheet — 좌 설비 목록(진행률·미입력 ⚠), 우 항목 입력. 어느 설비가 비었는지 한 화면에서 보이는 것이 이 페이지의 존재 이유다." },
+    { "id": "D-2", "title": "저장은 자동저장 한 규칙", "status": "confirmed",
+      "desc": "규칙을 use-sheet-autosave 한 곳에 둔다(delta·clearCodes·baseline 승격). 화면마다 다시 쓰면 화면마다 저장이 달라진다 — 실제로 그렇게 됐던 것이 이 작업의 이유다." },
+    { "id": "D-3", "title": "조회는 남기고 입력만 걷어낸다", "status": "confirmed",
+      "desc": "회차트리·1.4는 진행률·결과 배지를 계속 보여준다. 그 자리에서 '어디로 가면 채우는지'를 링크로 말한다. 조회까지 없애면 맥락이 사라진다." },
+    { "id": "D-4", "title": "설비→시트 해석은 서버에서 한 번만", "status": "confirmed",
+      "desc": "1.4 배지는 ?facility= 로 보낸다. 링크 생성부에서 sheetMatchesFacilities를 다시 부르면 매핑 규칙이 두 벌이 된다." },
+    { "id": "D-5", "title": "드로어는 남긴다", "status": "confirmed",
+      "desc": "2026-08-24 사용자 결정 — 점검 상세 드로어는 현장용으로 유지. ⚠ 저장 규칙 통일(D-2)은 드로어까지 자동저장으로 바꿔야 완성되며 그 전환은 미실행(S2 참조)." }
+  ],
+
+  "supersedes": [
+    { "ref": "소방계획서_16#S4", "action": "removed",
+      "what": "회차별 작성·조회 트리의 점검표 인라인 입력(항목 펼침·자동저장·빠른입력·stale 배너)",
+      "by": "28#S4-1",
+      "note": "진행률·불량 수·[설치 설비만 보기]·[갱신]·Realtime 반영은 그대로 남았다. 사라진 것은 입력 UI뿐이다." },
+    { "ref": "소방계획서_20#S4-7", "action": "moved",
+      "what": "빠른 입력 — [설치 설비 전체 양호 ○] / 불량 항목 검색",
+      "by": "28#S3-1",
+      "note": "액션(bulkAllGoodAction·searchQuickItemsAction)은 무변경, 호출부만 전용 페이지로." },
+    { "ref": "소방계획서_20#S4-9", "action": "moved",
+      "what": "[지난 회차 결과 불러오기] + 검토 유도(불량 실린 시트 우선 열기)",
+      "by": "28#S3-2",
+      "note": "copyPreviousRoundResponsesAction 무변경. 확인창 문구·검토 유도 로직까지 축자 이관." },
+    { "ref": "소방계획서_23#Q-14", "action": "replaced",
+      "what": "시트 단위 드로어가 유일한 전체 입력 표면이라는 전제",
+      "by": "28#D-1",
+      "note": "드로어는 유지되지만(D-5) 입력의 정본은 전용 페이지다. 드로어의 [저장] 버튼 → 자동저장 전환은 미실행." },
+    { "ref": "소방계획서_26#S4", "action": "removed",
+      "what": "1.4 설비별 결과 입력 패널(항목 목록·일괄 ○/／·✕ 메모·형제 설비 고지)",
+      "by": "28#S4-2",
+      "note": "배지(resultBadge)·롤업(rollUpForm3Results)·판정 축은 전부 유지 — 입력만 링크로 바뀌었다. 형제 설비 고지는 28#S3-3으로 이관." },
+    { "ref": "소방계획서_26#S4-12", "action": "removed",
+      "what": "건물 전환 시 결과 패널 초기화",
+      "by": "28#S4-2",
+      "note": "패널이 사라져 닫을 것이 없다. 원래의 위험(새 건물에 없는 설비의 항목이 떠 있고 거기서 기록됨)은 구조적으로 소멸." }
+  ],
+
+  "sections": [
+    { "id": "S1", "title": "전용 입력 페이지 신설", "status": "implemented",
+      "evidence": "src/app/(dashboard)/inspections/[id]/sheet/page.tsx (신규) · src/components/inspections/sheet-entry-client.tsx (신규)",
+      "criteria": [
+        { "id": "S1-1", "desc": "라우트 /inspections/{id}/sheet — 권한 게이트는 print-bundle/page.tsx와 같은 축(getProfile → can(role,'inspection_register') → redirect)", "status": "implemented",
+          "verified": "sheet/page.tsx:38-40 · E2E test-sheet-entry-page 1건('비로그인 → /login') 통과 · npm run build에서 라우트 등록 확인" },
+        { "id": "S1-2", "desc": "좌 설비 목록 — overview.sheets 원본 순서 그대로(재정렬 금지, sheet-overview.ts:248 규약). 설치인데 responded===0이면 amber + ⚠", "status": "implemented",
+          "verified": "sheet-entry-client.tsx:242-262 · E2E ★검사 3건(0/N 표시·⚠ 표기·헤더 합산 고지) 통과" },
+        { "id": "S1-3", "desc": "우 항목 입력 — SheetItemEditor 재사용(grouping='outline', hideSave·hideCancel). 로더는 loadSheetSnapshotAction(3층 축·월 축 1왕복)", "status": "implemented",
+          "verified": "sheet-entry-client.tsx:318-334 · loadSheetSnapshotAction 사용(:113). loadSheetEditorAction이 아니다 — 후자는 group_code를 안 내려줘 outline이 폴백된다" },
+        { "id": "S1-4", "desc": "sheet-item-editor에 hideCancel 추가 — hideSave와 대칭. 둘 다 참이면 푸터 블록 자체를 렌더하지 않는다", "status": "implemented",
+          "verified": "sheet-item-editor.tsx:116(기본값)·137-139(타입)·227-233(렌더). 에디터 포크 없이 prop 1개" },
+        { "id": "S1-5", "desc": "딥링크 4종 — ?sheet=코드 / ?sheet=auto(pickAutoOpenSheet 재사용) / ?facility=설비명(서버에서 sheetMatchesFacilities로 해석) / ?month=. 값이 이상하면 조용히 무시하고 목록만 연다", "status": "implemented",
+          "verified": "sheet/page.tsx:60-75 · E2E 딥링크 3종 5검사 통과" }
+      ] },
+
+    { "id": "S2", "title": "저장 규칙 단일 원천", "status": "partial",
+      "evidence": "src/hooks/use-sheet-autosave.ts (신규)",
+      "criteria": [
+        { "id": "S2-1", "desc": "use-sheet-autosave 훅 — delta 계산·해제(clearCodes)·baseline 승격. useDebouncedAutosave는 타이밍 원시함수, 이 훅은 그 위의 점검표 도메인 규칙", "status": "implemented",
+          "verified": "use-sheet-autosave.ts:33-100 · 계약 3가지를 주석으로 못박음(✕ 제외 / month를 ref로 / stale이면 pause). E2E 자동저장 4단 + 해제 경로 통과" },
+        { "id": "S2-2", "desc": "전용 페이지가 이 훅을 쓴다 — 저장 버튼 없음, 상태 칩이 유일한 피드백", "status": "implemented",
+          "verified": "sheet-entry-client.tsx:96-104 · E2E '✓ 저장됨 칩' + 'DB에 O 응답 기록'(칩만 믿지 않고 DB 재확인 루프) 통과" },
+        { "id": "S2-3", "desc": "점검 상세 드로어도 자동저장으로 전환 — [저장] 버튼·미저장 이탈 가드 제거", "status": "pending_order",
+          "note": "미실행. 이것이 남아 있는 한 입력구 2곳의 저장 규칙이 다르다(드로어=버튼 / 전용 페이지=자동). D-2의 미완 잔여." }
+      ] },
+
+    { "id": "S3", "title": "고유 기능 이관", "status": "implemented",
+      "evidence": "sheet-entry-client.tsx 헤더 영역",
+      "criteria": [
+        { "id": "S3-1", "desc": "[설치 설비 전체 양호 ○] — 트리에서 이관. 확인창 문구·bulkAllGoodAction 호출 축자 유지", "status": "implemented",
+          "verified": "sheet-entry-client.tsx:151-161 · 액션 무변경(sheet-actions.ts:365)" },
+        { "id": "S3-2", "desc": "[지난 회차 결과 불러오기] — 트리 전용이던 기능. 검토 유도(불량 실린 시트 우선 열기)까지 이관", "status": "implemented",
+          "verified": "sheet-entry-client.tsx:164-190 · copyPreviousRoundResponsesAction 무변경(sheet-actions.ts:429)" },
+        { "id": "S3-3", "desc": "형제 설비 고지 — 1.4 패널에만 있던 기능. facilitiesForSheet + overview.installedFacilityCodes로 ☑/☐ 재현", "status": "implemented",
+          "verified": "sheet-entry-client.tsx:224-231 · F-1f 레거시 간선이 포함된 함수라 조기진압·할론 고지도 무퇴행" },
+        { "id": "S3-4", "desc": "덮는 시트가 없는 설비 고지 — 별지 결과칸이 영구 공란으로 남는 자리를 화면이 말한다", "status": "implemented",
+          "verified": "sheet-overview.ts:66-72(타입)·265-272(계산, 왕복 증가 0) · sheet-entry-client.tsx:265-272(렌더) · E2E 2검사 통과 · 실측: 스테이징 서림사 = 고체에어로졸소화설비 1건(F-1e가 '고시에 점검표 없음'으로 확정한 그 설비), 운영 승리주유소 = 0건" }
+      ] },
+
+    { "id": "S4", "title": "중복 입력 표면 제거", "status": "implemented",
+      "evidence": "plan-annex-sheet-tree.tsx 495→135줄 · plan-form14.tsx 824→664줄",
+      "criteria": [
+        { "id": "S4-1", "desc": "회차트리 인라인 입력 제거 — 에디터·자동저장·빠른입력·stale 배너·dirty 경합 처리 전부. 시트 행은 딥링크로", "status": "implemented",
+          "verified": "plan-annex-sheet-tree.tsx 전면 재작성(135줄). Realtime이 dirty 판정 없이 load 한 줄로 단순화(:68). 시트 행 = Link ?sheet={code}(:117-133). 머리줄 링크 '입력 화면 열기 →'(:150-153) — '점검표 입력' 6글자를 늘리지 않았다(test-annex-interaction이 개수로 판정)" },
+        { "id": "S4-2", "desc": "1.4 결과 입력 패널 제거 — 배지는 Link(?facility=)로. 상태·핸들러·미사용 import까지 걷어냄", "status": "implemented",
+          "verified": "plan-form14.tsx:266-285(배지 Link) · 패널 JSX 87줄 + 핸들러 3종(openResultPanel·setItemResult·bulkPanel) 71줄 + state 6줄 제거 · 쓰기 액션 import 5종 제거(:8-10). tsc 0 · build 0" },
+        { "id": "S4-3", "desc": "회차트리·1.4에 미입력 개수 고지 추가 — 걷어내면서 '왜 비었나'가 더 안 보이면 안 된다", "status": "implemented",
+          "verified": "plan-annex-sheet-tree.tsx:97-99(⚠ 설치 설비 중 미입력 N개)" }
+      ] },
+
+    { "id": "S5", "title": "검증", "status": "partial",
+      "criteria": [
+        { "id": "S5-1", "desc": "신규 E2E test-sheet-entry-page.mts — 권한·좌목록·★미입력 강조·딥링크·자동저장·해제·덮는시트없음·비담당 읽기전용", "status": "implemented",
+          "verified": "22 통과 / 0 실패 (2026-08-24). test-all.mts에 needServer:true로 편입. ⚠ 첫 실행 2건 실패는 테스트 버그였다 — button:has-text('○')가 헤더의 [설치 설비 전체 양호 ○]를 잡아 87건 일괄 저장이 돌았다. text-is로 교정" },
+        { "id": "S5-2", "desc": "기존 E2E 갱신 — 제거된 입력 UI를 단언하던 스크립트들", "status": "pending_order",
+          "note": "미실행. test-annex-sheet-inline.mts(입력·dirty 단언) · _probe-form14-result-badge.mts(패널 단언) · test-annex-interaction.mts · test-quick-defect.mts 등이 대상. npm run test:all 미실행" },
+        { "id": "S5-3", "desc": "게이트 — tsc 0 · build 0", "status": "implemented",
+          "verified": "npx tsc --noEmit 0오류 · npm run build exit 0 (2026-08-24, 트리·1.4 수술 후)" }
+      ] }
+  ],
+
+  "out_of_scope": [
+    "드로어 자동저장 전환(S2-3) — 사용자가 Phase 3 건너뛰기를 선택. 저장 규칙 통일은 그때 완성된다",
+    "① 단계 [입력] 버튼·별지 미리보기 경고의 링크 목적지 변경 — Phase 2 항목, 미실행"
+  ]
+}

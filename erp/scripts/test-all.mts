@@ -44,6 +44,9 @@ const steps: Step[] = [
   // 결과의 단일 원천은 점검표 응답인데 입력 자리가 둘이 됐다. 배선이 끊기면 화면은 멀쩡한데
   // 기록이 안 남거나(배지 그대로) 엉뚱한 회차에 쓰인다 — 둘 다 인쇄물을 봐야 알게 된다.
   { name: '1.4 설비별 결과 입력(E2E)',   cmd: 'npx tsx scripts/_probe-form14-result-badge.mts', needServer: true },
+  // 점검표 입력 전용 페이지(소방계획서_28) — 입력의 정본. ★ 설치인데 응답 0건인 설비가
+  // 화면에 ⚠로 드러나는지가 핵심(2026-08-24 물분무 공란 사고의 회귀 방어).
+  { name: '점검표 입력 전용 페이지(E2E)', cmd: 'npx tsx scripts/test-sheet-entry-page.mts', needServer: true },
   // S9-1 재생성 차단 — 규약 버전 축(149). 날짜 상수(CUTOFF)의 부활, 스탬프 배선 유실,
   // 미상+응답 차단 규칙의 완화를 전부 여기서 잡는다 — 종전 날짜 축은 기입 즉시 전건 차단 사고를 냈다.
   { name: 'S9-1 재생성 규약 축',         cmd: 'npx tsx scripts/test-regen-protocol.mts' },

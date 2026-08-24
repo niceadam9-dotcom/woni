@@ -65,6 +65,13 @@ export type SheetOverview = {
   /** 대장 하위(FIRE_SUB_ITEMS) 중 설치로 등록된 코드 — Q-22 ② 대장 힌트 배너용.
    *  하위 행이 0건이면 빈 배열 → 배너 침묵(P-15). 이미 조회한 facilityCodes에서 거르므로 왕복 추가 0회 */
   ledgerSubCodes: string[]
+  /** 대장에 설치(installed=true)로 등록된 코드 전체 — 형제 설비 고지(facilitiesForSheet)의 인자.
+   *  withFacilityAxis=true에서만 채워진다(트리 8회차 payload 비대화 방지). */
+  installedFacilityCodes?: string[]
+  /** 설치인데 이 회차 범위의 **어느 시트도 덮지 않는** 설비 — 별지 결과칸이 영구 공란으로 남는 자리다.
+   *  화면이 이걸 말해주지 않으면 사용자는 '왜 비었나'를 알 길이 없다(2026-08-24 물분무 사고의 이웃 사례).
+   *  하위 항목(FIRE_SUB_ITEMS)은 제외 — 애초에 전용 시트가 없는 게 정상이라 섞으면 잡음이 된다. */
+  uncoveredFacilityCodes?: string[]
 }
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -79,7 +86,7 @@ export async function buildSheetOverviews(
   admin: Admin,
   inspectionIds: string[],
   viewer: { id: string; role: UserRole },
-  opts: { withGroups?: boolean } = {},
+  opts: { withGroups?: boolean; withFacilityAxis?: boolean } = {},
 ): Promise<{ overviews: Record<string, SheetOverview>; error?: string }> {
   const ids = [...new Set(inspectionIds.filter(Boolean))]
   if (ids.length === 0) return { overviews: {} }
@@ -260,6 +267,14 @@ export async function buildSheetOverviews(
       sheets: progress,
       noFacilityInfo: facilityCodes.length === 0,
       ledgerSubCodes: facilityCodes.filter(c => FIRE_SUB_ITEMS.includes(c)),
+      // 설비 축 — 이미 메모리에 있는 facilityCodes와 progress로만 만든다(추가 조회 0회).
+      // 판정은 시트 노출 필터와 **같은 함수**(sheetMatchesFacilities)를 써야 한다. 여기서 따로 세면
+      // '목록엔 있는데 덮는 시트가 없다고 나오는' 모순이 생긴다.
+      ...(opts.withFacilityAxis ? {
+        installedFacilityCodes: facilityCodes,
+        uncoveredFacilityCodes: facilityCodes.filter(c =>
+          !FIRE_SUB_ITEMS.includes(c) && !progress.some(p => sheetMatchesFacilities(p.sheetName, [c]))),
+      } : {}),
     }
   }
 

@@ -63,7 +63,7 @@ try {
   check('회차 라벨 안내 노출', await label.isVisible(), await label.textContent() ?? '')
 
   // 설치 행 배지 — 별그리다 8종 설치·응답 있는 시트 다수. 배지가 하나 이상 그려져야 한다
-  const badges = page.locator('button[title*="점검결과 — "]')
+  const badges = page.locator('a[title*="점검결과 — "]')
   await badges.first().waitFor({ timeout: 15_000 })
   const n = await badges.count()
   check(`설치 행 결과 배지 ≥ 8 (실제 ${n})`, n >= 8)
@@ -74,19 +74,22 @@ try {
   check('○ 배지 존재 (응답 있는 설치 설비)', dist.o >= 1)
   check('미입력 배지 존재 (별그리다 미분무 — F-1 시트 공백 9종)', dist.blank >= 1)
 
-  // 패널 A — ○ 배지: 항목 목록·일괄 버튼이 펼쳐진다 (쓰기는 안 한다)
-  await badges.filter({ hasText: '○' }).first().click()
-  await page.waitForSelector('text=/『.*』 · .*에 기록/')
-  check('패널 열림 + 시트·회차 표기', true)
-  const goodBtn = page.locator('button:has-text("전부 ○")')
-  const naBtn = page.locator('button:has-text("전부 ／")')
-  check('일괄 ○·／ 버튼 노출', await goodBtn.isVisible() && await naBtn.isVisible())
-  // 항목 목록은 loadSheetEditorAction 지연 로드 — 첫 ✕ 버튼이 그려질 때까지 기다린 뒤 센다
-  await page.waitForSelector('button:text-is("✕")', { timeout: 15_000 })
-  const rows = page.locator('button:text-is("✕")')
-  check(`항목별 ✕ 버튼 ≥ 1 (항목 목록이 펼쳐져 보인다 — Q-1 하이브리드)`, await rows.count() >= 1)
-  await page.click('button:has-text("닫기")')
-  check('패널 닫힘', !(await page.isVisible('text=/『.*』 · .*에 기록/')))
+  // ── 소방계획서_28 S4-2로 계약이 바뀐 자리 ──────────────────────────────────
+  // 종전: 배지 클릭 → 이 화면에서 패널을 열어 직접 입력.
+  // 현재: 배지는 **결과를 보여주고** 전용 입력 화면의 그 설비로 보낸다(입력구 단일화).
+  // 항목 입력 자체의 단언은 test-sheet-entry-page.mts가 덮는다 — 여기선 배선만 본다.
+  const oBadge = badges.filter({ hasText: '○' }).first()
+  const href = await oBadge.getAttribute('href')
+  check('배지가 전용 입력 화면 링크', !!href && /\/inspections\/[0-9a-f-]+\/sheet\?facility=/.test(href), href ?? '(href 없음)')
+  await oBadge.click()
+  await page.waitForURL(/\/inspections\/[0-9a-f-]+\/sheet/, { timeout: 15_000 })
+  await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
+  check('배지 클릭 → 입력 화면 도달', true, page.url())
+  // ?facility=가 서버에서 시트로 해석돼 그 설비가 열려 있어야 한다(매핑 규칙 단일화의 실증)
+  const opened = (await page.locator('h2').first().textContent().catch(() => '')) ?? ''
+  check('지목한 설비가 열린 상태로 도착', !!opened.trim(), opened.trim())
+  // 1.4로 되돌아가지 않는다 — 아래 F-1f 블록이 어차피 다른 고객으로 새로 goto한다.
+  // (goBack·재goto 둘 다 실패했다: 1.4는 클라이언트 탭 상태라 URL만으론 복원되지 않는다)
 
   // 패널 B — 별그리다 미분무: 148 편입 전엔 '시트 없음' 안내였다. 이제 STD-07이 있으므로
   // **진짜 패널이 열려야** 한다 — F-1 해소의 라이브 증거.
@@ -140,7 +143,7 @@ try {
   await page.click('text=소방계획서')
   await page.click('button:has-text("1.4 소방시설")')
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
-  const fxBadge = page.locator('button[title*="점검결과 — "]')
+  const fxBadge = page.locator('a[title*="점검결과 — "]')
   await fxBadge.first().waitFor({ timeout: 15_000 })
   check('픽스처: 옥내소화전 배지 = 미입력', (await fxBadge.first().textContent()) === '미입력')
 
@@ -152,7 +155,7 @@ try {
   await page.waitForSelector('text=/○ \\d+건 기록/', { timeout: 15_000 })
   check('일괄 ○ 기록 응답', true)
   await page.waitForFunction(() => {
-    const b = document.querySelector('button[title*="점검결과 — "]')
+    const b = document.querySelector('a[title*="점검결과 — "]')
     return b?.textContent === '○'
   }, undefined, { timeout: 15_000 })
   check('배지 미입력 → ○ 전환 (overview 재수렴)', true)
@@ -165,7 +168,7 @@ try {
   // 항목 ✕ — 저장 + 불량내역 자동 등록 체인
   await page.locator('button:text-is("✕")').first().click()
   await page.waitForFunction(() => {
-    const b = document.querySelector('button[title*="점검결과 — "]')
+    const b = document.querySelector('a[title*="점검결과 — "]')
     return b?.textContent === '×'
   }, undefined, { timeout: 15_000 })
   check('항목 ✕ → 배지 × 전환', true)
@@ -213,8 +216,8 @@ try {
   // 새 건물이 첫 항목으로 잡히면 설치 0이라 배지 자체가 없다.
   const bldSel = page.locator('select').filter({ has: page.locator('option', { hasText: '본관' }) }).first()
   await bldSel.selectOption({ label: '본관' })
-  await page.locator('button[title*="점검결과 — "]').first().waitFor({ timeout: 15_000 })
-  await page.locator('button[title*="점검결과 — "]').first().click()
+  await page.locator('a[title*="점검결과 — "]').first().waitFor({ timeout: 15_000 })
+  await page.locator('a[title*="점검결과 — "]').first().click()
   await page.waitForSelector('text=/『.*』 · \\d{4}년 1차에 기록/')
   await bldSel.selectOption({ label: '별관' })
   await page.waitForTimeout(500)
@@ -265,7 +268,7 @@ try {
     await page.waitForSelector('text=서식 1.4 소방시설 현황')
     await page.waitForSelector('text=/진행 중인 자체점검 회차가 없/', { timeout: 15_000 })
     check('F-1f: 서림사는 진행 중 회차 없음 — 입력 배지 미렌더 + 사유 안내(설계 사실)',
-      (await page.locator('button[title*="점검결과 — "]').count()) === 0)
+      (await page.locator('a[title*="점검결과 — "]').count()) === 0)
   }
 
   await page.screenshot({ path: 'scripts/_shots/form14-result-badge.png', fullPage: false })
