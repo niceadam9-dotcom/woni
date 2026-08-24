@@ -34,8 +34,16 @@ export type InjectTarget = {
  *  제어문자 한 글자를 잃는 편이 낫다(사용자에게는 보이지도 않는 글자다). */
 // ⚠ 문자 클래스를 **이스케이프 문자열**로만 쓴다 — 날 제어문자를 소스에 박으면 에디터·git·복붙이
 //    언젠가 조용히 뭉갠다(첫 작성본에 실제로 8개가 박혀 `_verify-ctrl.mts`가 잡았다).
+// ⚠ 서로게이트는 **고아만** 지운다. 종전 `\uD800-\uDFFF`는 정상 이모지·CJK 확장B 인명한자의
+//    **두 반쪽 모두**에 매치해 글자를 통째로 삭제했다(2026-08-24 독립 판정 실측:
+//    `김𡬴수`→`김수` · `소방🔥`→`소방`). 파일은 정상 개봉되고 missed=0이라 조용히 사라진다 —
+//    PDF(HTML 렌더러)는 그대로 찍으므로 **D-7이 깨지는 축**이었다. 내가 만든 회귀다.
+// ⚠ 0x7F~0x9F도 뺐다 — XML **1.0에서는 합법**이다(제한문자는 1.1). 과잉 제거였다.
 const XML_ILLEGAL_RE = new RegExp(
-  '[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF\\uFFFE\\uFFFF]', 'g')
+  '[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\uFFFE\\uFFFF]'
+  + '|[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])'   // 짝 없는 상위 서로게이트
+  + '|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]', // 짝 없는 하위 서로게이트
+  'g')
 const stripIllegal = (s: string) => s.replace(XML_ILLEGAL_RE, '')
 const escXml = (s: string) =>
   stripIllegal(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
