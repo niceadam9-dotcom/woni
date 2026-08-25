@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
 import { SheetItemEditor, type SheetItem } from '@/components/inspections/sheet-item-editor'
 import { useSheetAutosave } from '@/hooks/use-sheet-autosave'
+import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 import {
   loadSheetSnapshotAction, saveSheetResponsesAction, createDefectsFromXAction,
   bulkAllGoodAction, copyPreviousRoundResponsesAction, getInspectionSheetOverviewAction,
@@ -21,6 +22,12 @@ import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
  *  목록 순서가 흔들리면 찾기 어렵다(sheet-overview.ts:248 규약). 대신 [미입력만 보기]로 거른다.
  *
  *  저장은 `useSheetAutosave` 한 곳 — 이 화면과 점검 상세 드로어가 같은 규칙을 쓴다.
+ *
+ *  동시 편집 보호도 드로어(inspection-sheet-client)와 **같은 규약·같은 훅**이다
+ *  (`useSheetResponsesRealtime` + 훅 계약 ③ pause/resume). 정책만 화면이 갖는다:
+ *   · 편집 중(dirty·hasPending) 원격 변경 → 배너 + 자동저장 pause. 내 디바운스가 남의 값을 덮지 않는다.
+ *   · 편집 중이 아니면 배너 없이 좌 목록 + **열린 시트**를 조용히 최신으로 되돌린다.
+ *     열린 시트를 빼먹으면 낡은 baseline이 남아, 다음 토글이 clearCodes로 **남이 방금 넣은 행을 지운다**.
  */
 
 const numCls = (r: number, t: number) =>
@@ -47,6 +54,7 @@ export function SheetEntryClient({
   const [err, setErr] = useState(loadError ?? '')
   const [notice, setNotice] = useState('')
   const [blankOnly, setBlankOnly] = useState(false)
+  const [stale, setStale] = useState(false)   // 편집 중 원격 저장 감지 배너 (16 S5-5와 같은 규약)
   const [installedOnly, setInstalledOnly] = useState(!overview.noFacilityInfo)
   // 외관(자체점검이 아닌 건)만 월 축 — 없으면 month=0으로만 써서 다른 달 실적으로 오귀속된다(EX-4)
   const isExterior = !ov.scope.isSpecial
@@ -55,7 +63,12 @@ export function SheetEntryClient({
 
   const openSheet = useMemo(() => ov.sheets.find(s => s.sheetId === openId) ?? null, [ov.sheets, openId])
   const openIdRef = useRef(openId)
-  useEffect(() => { openIdRef.current = openId })
+  const monthRef = useRef(month)
+  useEffect(() => { openIdRef.current = openId; monthRef.current = month })
+  /** 로드 경합 방지 — 사용자의 시트 클릭과 원격 갱신 재로드가 겹치면 마지막 요청만 반영한다 */
+  const loadSeq = useRef(0)
+  /** 내 저장 직후의 Realtime 에코 판정용 — DELETE는 old에 PK만 실려 updated_by 자기 식별이 불가능하다 */
+  const lastSaveAtRef = useRef(0)
 
   /** 저장 직후 좌 목록을 서버 재조회 없이 옮긴다 — 열린 시트만 draft로 다시 세고 합계를 그만큼 이동.
    *  시트 간 중복 코드 dedup까지는 반영 못 하는 근사치라, 시트를 바꾸거나 [갱신]하면 서버 값으로 수렴한다. */
@@ -86,7 +99,10 @@ export function SheetEntryClient({
   const autosave = useSheetAutosave<SheetItem>({
     inspectionId,
     month: isExterior ? month : 0,
-    onSaved: () => patchLocal(autosaveRef.current.draft, autosaveRef.current.items),
+    onSaved: () => {
+      lastSaveAtRef.current = Date.now()
+      patchLocal(autosaveRef.current.draft, autosaveRef.current.items)
+    },
   })
   // onSaved가 최신 draft/items를 봐야 한다 — 훅 반환값을 ref로 미러(클로저 고정 방지)
   const autosaveRef = useRef(autosave)
@@ -99,13 +115,61 @@ export function SheetEntryClient({
     })
   }, [inspectionId])
 
+  /** 열린 시트를 서버 스냅샷으로 다시 채운다 — **시트 전환이 아니다**(flush·URL 동기화 없음).
+   *  [최신 불러오기]와 '편집 중이 아닐 때의 조용한 갱신'이 이 한 곳을 공유한다. */
+  const reloadOpenSheet = useCallback(async () => {
+    const sheetId = openIdRef.current
+    if (!sheetId) return
+    const seq = ++loadSeq.current
+    setLoading(true)
+    const res = await loadSheetSnapshotAction(inspectionId, sheetId, isExterior ? monthRef.current : 0)
+    if (seq !== loadSeq.current) return   // 그 사이 사용자가 다른 시트를 열었다 — 옛 응답을 붓지 않는다
+    setLoading(false)
+    if (res.error) { setErr(res.error); return }
+    const responses: Record<string, 'O' | 'X' | 'N'> = {}
+    for (const [code, v] of Object.entries(res.responses ?? {})) responses[code] = v.result
+    autosaveRef.current.resetSheet(res.items ?? [], responses)
+  }, [inspectionId, isExterior])
+
+  // ── 원격 변경 감지 (16 S5) — 훅은 드로어와 공유하고, 덮어쓰기 정책만 이 화면이 갖는다 ──
+  useSheetResponsesRealtime([inspectionId], () => {
+    // dirty 배너가 항상 우선 — 에코 창이 원격 변경 감지를 삼키면 안 된다(S5-5·P14).
+    // 자동저장이라 dirty 구간이 짧다 → 디바운스 대기·실행 중(hasPending)도 '편집 중'으로 본다
+    if (openIdRef.current && (autosaveRef.current.dirty || autosaveRef.current.hasPending())) { setStale(true); return }
+    if (Date.now() - lastSaveAtRef.current < 2000) return   // 내 저장 에코 — 갱신만 건너뜀
+    setStale(false)
+    refreshOverview()
+    // 좌 목록만 갱신하면 열린 시트의 baseline이 낡은 채 남는다 — 그 상태로 항목을 토글하면
+    // 해제가 clearCodes로 나가 **남이 방금 넣은 행을 지운다**. 편집 중이 아니므로 조용히 되돌린다.
+    void reloadOpenSheet()
+  })
+  // ⚠ 훅 계약 ③ — 원격 변경이 미해소인 동안 자동저장 정지. 내 디바운스가 남의 최신 값을 덮지 않게
+  useEffect(() => {
+    if (stale) autosaveRef.current.pause()
+    else autosaveRef.current.resume()
+  }, [stale])
+
+  /** [최신 불러오기] — 열린 시트·좌 목록을 서버 값으로 되돌린 **뒤에** 재개한다.
+   *  순서가 뒤집히면 resume()이 큐에 남은 옛 입력을 먼저 흘려보내 남의 최신 값을 덮는다
+   *  (resume은 queued가 있으면 즉시 run한다 — use-debounced-autosave.ts:75). */
+  function loadLatest() {
+    void (async () => {
+      await reloadOpenSheet()
+      const fresh = await getInspectionSheetOverviewAction([inspectionId])
+      if (fresh.overviews?.[inspectionId]) setOv(fresh.overviews[inspectionId])
+      setStale(false)
+    })()
+  }
+
   /** 시트 열기 — 월 전환·시트 전환 전에 반드시 flush. 안 그러면 옛 시트/옛 달로 저장이 끝나지 않는다. */
   const openRow = useCallback(async (sheetId: string, m?: number) => {
     await autosaveRef.current.flush()
-    setErr(''); setNotice('')
+    setErr(''); setNotice(''); setStale(false)
     setOpenId(sheetId); openIdRef.current = sheetId
+    const seq = ++loadSeq.current
     setLoading(true)
     const res = await loadSheetSnapshotAction(inspectionId, sheetId, isExterior ? (m ?? month) : 0)
+    if (seq !== loadSeq.current) return
     setLoading(false)
     if (res.error) { setErr(res.error); return }
     const responses: Record<string, 'O' | 'X' | 'N'> = {}
@@ -145,7 +209,9 @@ export function SheetEntryClient({
       await autosaveRef.current.flush()
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }], isExterior ? month : 0)
       if (res.error) { setErr(res.error); return }
+      lastSaveAtRef.current = Date.now()
       // 등록분을 기준값으로 승격 — 안 하면 dirty가 남아 다음 저장이 이 X를 memo 없이 재전송한다
+      // (승격을 빼면 원격 감지(stale)가 **내 쓰기**에 반응해 배너가 뜬다)
       autosaveRef.current.setBaseline(prev => ({ ...prev, [itemCode]: 'X' }))
       const reg = await createDefectsFromXAction(inspectionId)
       setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
@@ -160,6 +226,7 @@ export function SheetEntryClient({
     startBusy(async () => {
       const res = await bulkAllGoodAction(inspectionId)
       if (res.error) { setErr(res.error); return }
+      lastSaveAtRef.current = Date.now()
       setNotice(`✅ 설비 시트 ${res.sheetCount}개 · ${res.filled}개 항목을 ○로 채웠습니다${(res.kept ?? 0) > 0 ? ` (기존 입력 ${res.kept}건 유지)` : ''}`)
       if (openIdRef.current) void openRow(openIdRef.current)
       refreshOverview()
@@ -178,6 +245,7 @@ export function SheetEntryClient({
     startBusy(async () => {
       const res = await copyPreviousRoundResponsesAction(inspectionId)
       if (res.error) { setErr(res.error); return }
+      lastSaveAtRef.current = Date.now()
       const fresh = await getInspectionSheetOverviewAction([inspectionId])
       const next = fresh.overviews?.[inspectionId] ?? null
       if (next) setOv(next)
@@ -235,7 +303,7 @@ export function SheetEntryClient({
             {blankCount > 0 && <span className="text-amber-600 font-medium"> · ⚠ 설치 설비 중 미입력 {blankCount}개</span>}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">{saveChip}</div>
+        <div className="ml-auto flex items-center gap-2" data-testid="sheet-entry-autosave" data-status={autosave.status}>{saveChip}</div>
       </div>
 
       {canEdit && (
@@ -256,6 +324,20 @@ export function SheetEntryClient({
         </div>
       )}
       {!canEdit && <p className="text-xs text-[#b0acd6] mb-3">보기 전용 — 이 점검 건의 담당자·팀장·관리자만 입력할 수 있습니다.</p>}
+      {/* 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 선택은 사용자가 한다(드로어와 같은 문구·같은 규약).
+          이 동안 자동저장은 pause다(훅 계약 ③) — 아래 칩이 '저장 보류'로 바뀐다 */}
+      {stale && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2" data-testid="sheet-entry-stale">
+          <span className="text-xs text-amber-700 flex-1">
+            다른 곳에서 이 점검표가 저장되었습니다 — 입력 중이라 자동 갱신·자동 저장을 멈췄습니다.
+          </span>
+          <button onClick={loadLatest} data-testid="sheet-entry-load-latest"
+            title="열린 시트를 서버 값으로 다시 불러옵니다 — 아직 저장되지 않은 입력은 서버 값으로 대체됩니다"
+            className="text-xs text-[#7b68ee] font-medium hover:underline shrink-0">
+            최신 불러오기
+          </button>
+        </div>
+      )}
       {notice && <p className="text-xs text-green-600 mb-2">{notice}</p>}
       {err && <p className="text-xs text-red-600 mb-2">{err}</p>}
 

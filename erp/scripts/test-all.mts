@@ -47,6 +47,10 @@ const steps: Step[] = [
   // 점검표 입력 전용 페이지(소방계획서_28) — 입력의 정본. ★ 설치인데 응답 0건인 설비가
   // 화면에 ⚠로 드러나는지가 핵심(2026-08-24 물분무 공란 사고의 회귀 방어).
   { name: '점검표 입력 전용 페이지(E2E)', cmd: 'npx tsx scripts/test-sheet-entry-page.mts', needServer: true },
+  // 같은 페이지의 **동시 편집 보호** — 두 사람이 같은 점검을 열면 전용 페이지가 조용히 덮어쓰던 것을
+  // 드로어와 같은 규약(Realtime + 훅 계약 ③ pause/resume)으로 막았다. 코드 존재로는 증명되지 않는
+  // 축이라(이식 전 대조군에서 '차단' 검사가 itemC=O로 붉었다) 브라우저 + DB 실측으로 고정한다
+  { name: '점검표 동시 편집 보호(E2E)',   cmd: 'npx tsx scripts/test-sheet-entry-concurrent.mts', needServer: true },
   // S9-1 재생성 차단 — 규약 버전 축(149). 날짜 상수(CUTOFF)의 부활, 스탬프 배선 유실,
   // 미상+응답 차단 규칙의 완화를 전부 여기서 잡는다 — 종전 날짜 축은 기입 즉시 전건 차단 사고를 냈다.
   { name: 'S9-1 재생성 규약 축',         cmd: 'npx tsx scripts/test-regen-protocol.mts' },
