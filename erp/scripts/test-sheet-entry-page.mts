@@ -151,6 +151,22 @@ try {
     await page.waitForTimeout(300)
   }
   check('해제 — DB 행이 실제로 삭제(화면만 풀리는 것 아님)', cleared < saved, `${saved} → ${cleared}`)
+  // 이 단언은 2026-08-25 기준 **34회 중 1회** `1 → 1`로 붉었고 원인을 찾지 못했다. 배제된 것:
+  //   · 지연 — 실측 2.06~2.17초(편차 ±60ms)에 예산 4800ms. 정상 변동으로 넘길 수 없다
+  //   · 토글 오해석 — 계측 9회 전부 클릭 전 활성 true → 클릭 후 false
+  //   · 콜드 스타트 / HMR 재컴파일 직후 — 둘 다 평시와 같은 지연
+  // 남은 유력 후보는 **일시적 저장 실패**(Supabase·네트워크)다. 그러면 훅이 status='error'로 가고
+  // 화면은 [저장 실패 — 다시 시도] 칩을 띄우는데, 여기서 칩을 안 보면 흔적이 남지 않는다.
+  // → 다음에 붉을 때 스스로 원인을 말하게 한다. 재현을 기다리는 대신 실패를 **이름 붙은 실패**로 만든다.
+  if (!(cleared < saved)) {
+    const chip = page.locator('[data-testid="sheet-entry-autosave"]')   // data-status = 훅 status의 직역
+    const status = await chip.getAttribute('data-status').catch(() => null)
+    const chipTxt = (await chip.textContent().catch(() => '')) ?? ''
+    const { data: rows } = await raw.from('inspection_sheet_responses')
+      .select('item_code, result').eq('inspection_id', inspId)
+    console.log(`  [진단] 자동저장 status=${status} · 칩="${chipTxt.trim()}" · 남은 행=${JSON.stringify(rows)}`)
+    console.log('  [진단] status가 error면 일시적 저장 실패(코드 결함 아님) · saved/idle이면 clearCodes가 안 나간 것 = 훅·delta 축을 봐야 한다')
+  }
 
   // ── 10) 권한(점검 건 축) — 비담당 employee는 읽기 전용 ──
   const l2 = await launch()
