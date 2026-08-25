@@ -74,6 +74,12 @@ const steps: Step[] = [
   // 소방계획서_16 S6-4 — 점검표 축·트리 인라인 입력(Realtime 포함) 상시 회귀
   { name: '점검표 범위 축(E2E)',        cmd: 'npx tsx scripts/test-sheet-scope-axis.mts',    needServer: true },
   { name: '점검표 트리 인라인(E2E)',    cmd: 'npx tsx scripts/test-annex-sheet-inline.mts',  needServer: true },
+  // 드로어(B) — 사용자 결정으로 현장용 입력구를 유지한다(소방계획서_28 D-5). 유지하는 이상 회귀도 막아야
+  // 하는데 이 두 스위트가 **미등록이라 썩어 있었다**: mu-sheet는 `9b43cc0`에서 사라진 [저장] 버튼을
+  // 눌러 15초 타임아웃으로 죽었고(3/1), mother-drawer(67단언)는 아무도 안 돌렸다.
+  // 등재하지 않으면 A만 초록인 채 B가 조용히 썩는다 — 그게 애초에 A에 보호가 빠졌던 경위다.
+  { name: 'MU 시트 드로어(E2E)',        cmd: 'npx tsx scripts/test-mu-sheet.mts',            needServer: true },
+  { name: '머더 카드·드로어(E2E)',      cmd: 'npx tsx scripts/test-sheet-mother-drawer.mts', needServer: true },
   // 고객명 검색은 목록을 거르는 축이라 조용히 깨지면 '검색해도 안 나온다'로만 드러난다
   { name: '점검 고객명 검색(E2E)',      cmd: 'npx tsx scripts/test-inspection-customer-search.mts', needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다

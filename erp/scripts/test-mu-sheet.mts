@@ -37,7 +37,10 @@ try {
   const bulkO = page.locator('[data-bulk-o]')
   const nBulk = await bulkO.count()
   for (let i = 0; i < nBulk; i++) await bulkO.nth(i).click()
-  await page.click('[data-testid="sheet-drawer"] button:has-text("저장")')
+  // 소방계획서_28(`9b43cc0`)에서 드로어가 자동저장으로 바뀌어 [저장] 버튼이 없어졌다.
+  // 종전 `click('[data-testid="sheet-drawer"] button:has-text("저장")')`은 15초 타임아웃으로 죽었다.
+  // bulkO는 항목마다 onResult → setResult를 부르고, ○는 훅 계약 ①에 걸리지 않아 자동저장이 예약된다
+  // (sheet-item-editor.tsx:156-161 · use-sheet-autosave.ts:86). 눌러야 할 버튼이 없으므로 **결과를 기다린다**.
   // 종전에는 '설비 목록 버튼이 다시 나타남'을 저장 완료 신호로 썼다. 점검표가 마스터-디테일이 되면서
   // 목록(레일)이 선택 중에도 사라지지 않아 그 대기가 **즉시 통과**한다 — 저장 전에 DB를 읽어 0건이 나왔다.
   // 화면 전환이 아니라 **결과 자체**를 기다린다.
@@ -54,14 +57,25 @@ try {
 
   // R13-d 인라인 불량 등록 — 행에서 ✕ → 메모 → [등록] (항목 입력부는 회차 트리와 공용 컴포넌트)
   // 23 개편: 저장 후 드로어가 닫히지 않고 유지되므로 다시 열 필요가 없다
+  //
+  // 🔴 여기서 자동저장 완료를 **일부러 기다리지 않는다** — 이 구간이 flush 경합의 회귀 검사다.
+  //    DB에 16행이 보여도 훅의 run() 루프는 아직 살아 있을 수 있다. 그 상태에서 [등록]을 누르면
+  //    종전 flush()는 `running.current`에 막혀 기다리지 않고 큐만 남긴 채 반환했고, 뒤이어 도는
+  //    루프가 delta를 다시 계산해 **memo 없는 X**로 덮어썼다(수리 전 실측: `{"result":"X","memo":null}`).
+  //    2026-08-25 수리로 flush가 진행 중 저장을 실제로 await한다(use-debounced-autosave.ts:47-52).
+  //    ⚠ 여기에 `waitSaved` 류의 대기를 넣으면 경합을 피해 가 **재발해도 영원히 초록**이 된다.
   await page.waitForSelector('text=소화기 또는 자동확산소화기')
-  const firstRow = page.locator('div.border-b:has(span:text-matches("^MU-"))').first()
+  // ⚠ 셀렉터는 **드로어 안으로 한정**한다(test-sheet-mother-drawer.mts:176-188과 같은 규약).
+  // 종전엔 page 전역이라 왼쪽 보드의 행·다른 [등록] 버튼을 집을 수 있었고, 실제로 memo=null로 붉었다.
+  const drawer = '[data-testid="sheet-drawer"]'
+  const firstRow = page.locator(`${drawer} div.border-b:has(span:text-matches("^MU-"))`).first()
   const inlineCode = ((await firstRow.locator('span').first().textContent()) ?? '').trim()
   await firstRow.locator('button:has-text("✕")').click()
-  await page.waitForSelector('input[placeholder="불량 메모 (선택)"]')
+  const memoInput = page.locator(`${drawer} input[placeholder="불량 메모 (선택)"]`)
+  await memoInput.waitFor()
   check('✕ 클릭 → 인라인 메모칸 노출', true)
-  await page.fill('input[placeholder="불량 메모 (선택)"]', '인라인 등록 검증')
-  await page.click('button:has-text("등록")')
+  await memoInput.fill('인라인 등록 검증')
+  await page.click(`${drawer} button:has-text("등록")`)
   await page.waitForSelector('text=불량(✕) 저장')
   const { data: xr } = await raw.from('inspection_sheet_responses')
     .select('result, memo').eq('inspection_id', inspId).eq('item_code', inlineCode).single()
