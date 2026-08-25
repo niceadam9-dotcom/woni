@@ -11,6 +11,7 @@ import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from
 import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections'
 import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '../facility-codes'
+import { distributeSubMarks } from '../sheet-facility-map'
 
 /** 3쪽 1절 점검 결과 항목 — scripts/make-report9.py FORM3_ITEMS와 1:1 (순서 = 설비 구분 경계) */
 export const FORM3_ITEMS: string[] = [
@@ -423,24 +424,23 @@ export function facilityResultSection(
    *  종전엔 부모와 하위를 <br>로 **한 칸에 묶고 점검결과도 하나**만 줬다. 서식 원본은
    *  하위마다 자기 행과 자기 결과칸을 갖고, 부모 결과칸은 비어 있다.
    *
-   *  결과칸 규칙(값을 지어내지 않는다 — 22 Q-8 '자동 기록 금지'를 지킨다):
-   *    · 미설치 하위        → '/'(해당없음). 설비 대장이 말해 주는 사실이다.
-   *    · 설치된 하위        → 부모 롤업 결과를 **첫 설치 행 하나에만** 내린다.
-   *                          지금 부모에 찍히는 값이 곧 그 시트의 점검 결과이므로 새로 만든 값이 아니다.
-   *                          나머지 설치 행은 공란(무응답 = 공란, B-6 규약).
-   *    · 설치된 하위가 없으면 → 롤업을 부모 행에 그대로 둔다. 옮길 자리가 없다고 결과를 버리지 않는다.
+   *  결과칸 규칙(값을 지어내지 않는다 — 22 Q-8 '자동 기록 금지'를 지킨다)은
+   *  **sheet-facility-map.distributeSubMarks 단일 원천**이다(미설치 하위 → ／ · 설치된 하위는
+   *  부모 롤업을 첫 설치 행 하나에만 · 설치 하위가 없으면 부모 행에 그대로).
+   *  갑지 엑셀 `현황`(xlsx-form4.form4VerdictMarks)이 **같은 함수**를 쓴다 — 여기 인라인으로
+   *  되돌리면 같은 점검 건의 PDF와 엑셀이 조용히 갈라진다(D-7).
    *
    *  라벨의 후속 줄(예: '(간이)완강기…')은 앞 항목이 두 줄로 접힌 것이라 같은 행에 둔다(원문 축자). */
-  function subRows(parent: { label: string; checked: boolean; mark: string },
+  function subRows(parent: { label: string; checked: boolean; mark: 'O' | 'X' | 'N' | undefined },
     subs: Array<{ label: string; installed: boolean }>): P3Item[] {
-    const first = subs.findIndex(s => s.installed)
+    const dist = distributeSubMarks(parent.mark, subs.map(s => s.installed))
     const rows: P3Item[] = [{
       html: ` ${ck(parent.checked)}${parent.label}`,
-      mark: first < 0 ? parent.mark : '',
+      mark: resultMark(dist.parent),
     }]
     subs.forEach((s, i) => rows.push({
       html: `   ${ck(s.installed)}${s.label}`,
-      mark: s.installed ? (i === first ? parent.mark : '') : resultMark('N'),
+      mark: resultMark(dist.subs[i]),
     }))
     return rows
   }
@@ -449,7 +449,7 @@ export function facilityResultSection(
     {
       label: '소화기구 및 자동소화장치',
       checked: d.facilityChecks.includes('소화기구 및 자동소화장치'),
-      mark: resultMark(d.resultMarks['소화기구 및 자동소화장치']),
+      mark: d.resultMarks['소화기구 및 자동소화장치'],
     },
     [
       { label: annexLabel(form, '소화기구(소화기, 자확, 간이)'), installed: ledger.has(FIRE_SUB_ITEMS[0]) },
@@ -463,7 +463,7 @@ export function facilityResultSection(
     {
       label: '피난기구',
       checked: d.facilityChecks.includes('피난기구'),
-      mark: resultMark(d.resultMarks['피난기구']),
+      mark: d.resultMarks['피난기구'],
     },
     [
       // 첫 줄 구분자는 양쪽 원문 모두 U+318D, 둘째 줄만 4호가 U+00B7이다(자리별 축자 — 전역 치환 금지)

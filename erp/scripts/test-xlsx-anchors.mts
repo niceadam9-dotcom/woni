@@ -44,6 +44,9 @@ const R9_BLANK: R9 = {
   rfSlab: false, rfTile: false, rfSlate: false, rfEtc: false,
   stairsCount: '', elvR: '', elvE: '', elvV: '',
   pkIn: false, pkMech: false, pkRoof: false, pkOut: false,
+  // 점검 응답 없음 — 별지 4호 1쪽 결과칸은 '미설치 ／ · 설치 공란'만 남는다(폴백 축).
+  // 응답이 있는 축은 아래 ⑧(c)가 따로 얹어 본다.
+  resultMarks: {},
 }
 /** 값 1건 뽑기 — 픽스처 조립을 짧게 유지한다.
  *  ⚠ 없는 field는 **던진다**. 종전엔 `?? '(없음)'`을 돌려줘, field 이름이 바뀌거나 오타가 나면
@@ -607,7 +610,7 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
 
   // (c) 값 축 — 설치 목록이 실제로 칸을 뒤집는가. **양방향**으로 본다:
   //     설치 → 체크 √ · 결과 공란(자동 ○ 없음) / 미설치 → 체크 빈 마크 · 결과 `/`
-  const vals = (codes: string[], evac: string[]) => buildWorkbookValues({
+  const vals = (codes: string[], evac: string[], r9: Partial<R9> = {}) => buildWorkbookValues({
     official: {
       company: { name: 'X', address: 'X', phone: 'X', fax: 'X' },
       docNo: '승 진 2608-1', sendDate: 'X', recipient: 'X', reference: 'X', sender: 'X',
@@ -619,7 +622,7 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
       periodLabel: 'X', daysLabel: '1일', submitDate: 'X', station: 'X',
     },
     customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21', useApprovalISO: null,
-    installedCodes: codes, evacTypes: evac, building: null, report9: { ...R9_BLANK },
+    installedCodes: codes, evacTypes: evac, building: null, report9: { ...R9_BLANK, ...r9 },
   })
   {
     const ON = ['옥내소화전설비', '소화기(소화기·자동확산·간이)']
@@ -647,6 +650,39 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
     const notChecked = FORM4_ROWS.filter(r => all.get(form4InstallField(r)) !== '[√]')
     check(`전 설비 설치면 ${FORM4_ROWS.length}행 전부 [√]`, notChecked.length === 0,
       notChecked.map(r => `${r.cell}(${r.label})`).join(', '))
+  }
+
+  // (c-2) 점검결과 축(2026-08-25 D-7) — ERP가 아는 판정(resultMarks)이 실제로 칸을 뒤집는가.
+  //  ⚠ 이 축의 위험은 양방향이다: 응답을 **안 싣는 것**(PDF와 갈라짐)과, 응답이 없는데
+  //    **○를 만들어내는 것**(점검 사실 위조). 둘 다 여기서 단언한다.
+  {
+    const ON = ['옥내소화전설비', '스프링클러설비', '유도등']
+    const v = vals(ON, [], {
+      // 키는 FORM3_ITEMS(별지9호 표기 = 저장 어휘). '유도등'은 일부러 뺀다 = 무응답
+      resultMarks: { 옥내소화전설비: 'X', 스프링클러설비: 'O' },
+      ledgerCodes: ON,
+    })
+    const at = (cell: string) => v.get(`f4v_${cell}`)
+    check('응답 ×가 실제로 ×로 실린다(S12)', at('S12') === '×', JSON.stringify(at('S12')))
+    check('응답 ○가 실제로 ○로 실린다(S13)', at('S13') === '○', JSON.stringify(at('S13')))
+    check('설치인데 무응답이면 공란(S: 유도등 AO13) — 무응답 → 양호 금지',
+      at('AO13') === null, JSON.stringify(at('AO13')))
+    check("미설치는 종전대로 '/'(S14 간이스프링클러)", at('S14') === '/', JSON.stringify(at('S14')))
+    // 소화기구 하위 — 부모 롤업이 **첫 설치 행 하나에만** 내려간다(distributeSubMarks 공용 규칙)
+    const sub = vals(['소화기구 및 자동소화장치', '주거용주방자동소화장치', '캐비닛형자동소화장치'], [], {
+      resultMarks: { '소화기구 및 자동소화장치': 'X' },
+      ledgerCodes: ['소화기구 및 자동소화장치', '주거용주방자동소화장치', '캐비닛형자동소화장치'],
+    })
+    const sat = (cell: string) => sub.get(`f4v_${cell}`)
+    check('소화기구 하위 — 미설치 D7은 /', sat('S7') === '/', JSON.stringify(sat('S7')))
+    check('소화기구 하위 — 첫 설치 행(D8)에 롤업 ×', sat('S8') === '×', JSON.stringify(sat('S8')))
+    check('소화기구 하위 — 둘째 설치 행(D10)은 공란(같은 값을 두 번 찍지 않는다)',
+      sat('S10') === null, JSON.stringify(sat('S10')))
+    // 민감도 — resultMarks를 비우면 위 칸들이 전부 공란/`/`로 돌아간다(상수 통과 아님)
+    const none = vals(ON, [], { ledgerCodes: ON })
+    check('resultMarks가 비면 ○·×가 0칸(값의 출처가 정말 resultMarks다)',
+      none.get('f4v_S12') === null && none.get('f4v_S13') === null,
+      `${JSON.stringify(none.get('f4v_S12'))}/${JSON.stringify(none.get('f4v_S13'))}`)
   }
 
   // 미배선 칸은 값 맵에 **없어야** 한다 — 있으면 어딘가에서 `／`를 지어내고 있다는 뜻

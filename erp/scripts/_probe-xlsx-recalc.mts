@@ -20,6 +20,8 @@ import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
 import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { buildWorkbookValues, toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { FORM4_ROWS, FORM4_UNWIRED, isForm4Installed } from '../src/lib/xlsx-form4.ts'
+import { facilityResultSection, FORM3_ITEMS } from '../src/lib/doc-templates/report9.ts'
+import { rollUpForm3Results, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
 import type { OfficialData } from '../src/lib/doc-templates/official.ts'
 import type { DelegationData } from '../src/lib/doc-templates/delegation.ts'
 
@@ -59,6 +61,23 @@ const INSTALLED = [
 ]
 const EVAC = ['완강기']
 
+// 점검 응답(2026-08-25 D-7 봉합) — ERP가 이미 아는 판정. 별지 4호 1쪽 PDF가 인쇄하는 그 맵이며,
+// 이제 엑셀 결과칸도 **같은 해석기**로 채워진다. 세 방향을 한 픽스처에 담는다:
+//   ○(양호) · ×(불량) · 그리고 **응답이 없는 설치 설비**(유도등) = 공란(무응답→양호 금지 축)
+const SHEET_RESULTS: Array<[string, Array<'O' | 'X' | 'N'>]> = [
+  ['소화기구 및 자동소화장치', ['O']],
+  ['옥내소화전설비', ['O', 'X']],
+  ['자동화재탐지설비 및 시각경보장치', ['O']],
+  ['피난기구 및 인명구조기구', ['O']],
+  // '유도등 및 유도표지'는 일부러 비운다 — 설치인데 무응답 = 공란이어야 한다
+]
+const sheetStat = new Map<string, SheetStat>()
+for (const [name, rs] of SHEET_RESULTS) for (const r of rs) sheetStat.set(name, foldSheetResult(sheetStat.get(name), r))
+const { facilityChecks, resultMarks } = rollUpForm3Results(sheetStat, FORM3_ITEMS, INSTALLED)
+/** 설치인데 응답이 없어 **공란이 정답**인 행 — 이 픽스처에서는 유도등 하나다(AO13).
+ *  '무응답 → 양호'가 되살아나면 여기가 먼저 붉어진다. */
+const UNANSWERED_INSTALLED = ['유도등']
+
 const official: OfficialData = {
   company: { name: '㈜테스트소방', address: '주소', phone: '031-000-0000', fax: '031-000-0001' },
   docNo: '승 진 2608-7', sendDate: '2026년 8월', recipient: '검증대상빌딩', reference: '소방안전관리자 및 관계인',
@@ -93,6 +112,8 @@ const values = buildWorkbookValues({
     rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,
     stairsCount: '3', elvR: '2', elvE: '', elvV: '',
     pkIn: false, pkMech: false, pkRoof: false, pkOut: true,
+    // ⭐ D-7 — PDF가 인쇄하는 판정을 **그대로** 넘긴다(새로 계산하지 않는다)
+    resultMarks, ledgerCodes: INSTALLED,
   },
 })
 const template = new Uint8Array(readFileSync(TPL))
@@ -109,14 +130,21 @@ const wb = XLSX.read(rtBytes, { cellFormula: true })
 const cell = (sheet: string, ref: string) =>
   String((wb.Sheets[sheet]?.[ref] as XLSX.CellObject | undefined)?.v ?? '').trim()
 
-// ── [1] 설치 설비의 점검결과가 ○로 자동 채워지지 않는가 ────────────────
-console.log('[1] 설치 설비 — 점검결과 자동 ○ 없음(사람이 채우는 칸)')
+// ── [1] 설치 설비 — **무응답은 끝까지 공란**이어야 한다 ─────────────────
+// 종전 이 축은 '설치 행 전부 공란'이었다. 그건 결과를 아예 안 쓰던 때의 단언이고,
+// 지금은 응답이 있으면 PDF와 같은 값이 들어간다([7]). 남은 위험은 **반대 방향** —
+// 점검하지도 않은 칸이 ○로 채워지는 것이라, 그 축만 여기 남긴다.
+console.log('[1] 설치 + 무응답 — 끝까지 공란(무응답 → 양호 금지)')
 {
-  const on = FORM4_ROWS.filter(r => r.verdictCell && isForm4Installed(r, INSTALLED, EVAC))
-  const bad = on.filter(r => cell('현황', r.verdictCell!) !== '')
-  check(`설치 ${on.length}행의 점검결과 칸 전부 공란`, bad.length === 0,
+  const rows = FORM4_ROWS.filter(r => r.verdictCell
+    && (r.codes ?? []).some(c => UNANSWERED_INSTALLED.includes(c)))
+  check(`무응답 설치 행 ${rows.length}개를 실제로 골랐다(공허 통과 아님)`, rows.length > 0,
+    rows.map(r => `${r.verdictCell}(${r.label})`).join(', '))
+  const bad = rows.filter(r => cell('현황', r.verdictCell!) !== '')
+  check('그 행의 점검결과 칸이 공란', bad.length === 0,
     bad.map(r => `${r.verdictCell}(${r.label})='${cell('현황', r.verdictCell!)}'`).join(', '))
   // 설치 체크는 반대로 반드시 √ (공란으로 달성되면 안 된다 — 반대 방향 단언)
+  const on = FORM4_ROWS.filter(r => r.verdictCell && isForm4Installed(r, INSTALLED, EVAC))
   const noCheck = on.filter(r => !cell('현황', r.cell).includes('√'))
   check(`설치 ${on.length}행의 설치 체크칸이 [√]`, noCheck.length === 0,
     noCheck.map(r => `${r.cell}(${r.label})='${cell('현황', r.cell)}'`).join(', '))
@@ -204,6 +232,41 @@ console.log('[6] 판정 수식 잔존 0 — 재계산으로 되살아날 씨앗 
     }
   }
   check('판정 마크를 산출하는 수식 0칸', alive.length === 0, alive.slice(0, 8).join(', '))
+}
+
+// ── [7] ⭐ D-7 — **재계산 뒤에도** PDF와 같은 판정인가 ────────────────────
+// 캐시 층 대조는 `_probe-form4-pdf-parity.mts`가 한다. 여기서 다시 보는 이유는 이 파일이
+// **LibreOffice 왕복본**(= 사용자가 실제로 여는 상태)이기 때문이다. 수식이 한 칸이라도 살아
+// 있으면 열자마자 값이 바뀌는데, 그건 캐시 축에서 영원히 안 보인다(이 프로브의 존재 이유).
+console.log('[7] 재계산 후에도 별지 4호 1쪽 PDF와 같은 판정(D-7)')
+{
+  const html = facilityResultSection(
+    { facilityChecks, resultMarks, ledgerCodes: INSTALLED, specs: { s36_evac: { evac_equipment: { types: EVAC } } } },
+    { form: 'annex4' })
+  const marks = [...html.matchAll(/<td class="pre">([\s\S]*?)<\/td><td class="center mk">([\s\S]*?)<\/td>/g)]
+    .map(m => m[2].replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim())
+  // 서식 배치 실측(좌 28행 + 우 23행) — `_probe-form4-pdf-parity.mts`가 이 배치의 전수성·라벨 정합을
+  // 별도로 단언한다. 여기서는 값만 본다.
+  const SEQ = ['C6', 'D7', 'D8', 'D9', 'D10', 'D11',
+    'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25',
+    'C26', 'C27', 'C28', 'C29', 'C30', 'C31', 'C32', 'C33',
+    'Y6', 'Z7', 'Z9', 'Z10', 'Y12', 'Y13', 'Y14', 'Y15', 'Y16', 'Y17', 'Y18', 'Y19',
+    'Y20', 'Y21', 'Y22', 'Y23', 'Y24', 'Y25', 'Y26', 'Y27', 'Y28', 'Y29', '(비고)']
+  check(`PDF ${marks.length}행 = 배치 ${SEQ.length}칸`, marks.length === SEQ.length)
+  const byCell = new Map(FORM4_ROWS.map(r => [r.cell, r]))
+  const mismatch: string[] = []
+  let compared = 0, nonEmpty = 0
+  SEQ.forEach((c, i) => {
+    const r = byCell.get(c)
+    if (!r?.verdictCell) return
+    compared++
+    if ((marks[i] ?? '') !== '') nonEmpty++
+    const got = cell('현황', r.verdictCell)
+    if (got !== (marks[i] ?? '')) mismatch.push(`${r.verdictCell}(${r.label}) 엑셀='${got}' PDF='${marks[i]}'`)
+  })
+  check(`왕복본 배선 ${compared}칸이 PDF와 일치`, mismatch.length === 0 && compared === 45,
+    mismatch.length ? mismatch.slice(0, 8).join(' | ') : `대조 ${compared}칸`)
+  check('그중 PDF가 실제 마크를 찍는 칸 30칸 이상(둘 다 공란인 공허 통과 아님)', nonEmpty >= 30, `${nonEmpty}칸`)
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패   (왕복본: ${rt})`)

@@ -21,10 +21,23 @@
  *     설비 대장이 말해 주는 사실(미설치=해당없음)만 찍고 나머지는 사람이 채운다.
  *     → 별지 9호 3쪽 PDF(doc-templates/report9.ts 하위 행 규칙)와 **같은 판단**이다.
  *
+ *  ── 점검결과 칸(2026-08-25 — D-7 갈라짐 봉합) ──────────────────────────────
+ *  위 ②는 **절반**이었다. 설치 여부만 보고 '미설치 → ／'를 찍었을 뿐, 설치된 설비의 결과칸은
+ *  비워 뒀다. 그런데 ERP는 그 판정을 **이미 알고 있었다** — assembleReport9의 `resultMarks`를
+ *  별지 9호 3쪽·별지 4호 1쪽 **PDF가 이미 인쇄 중**이었다. 같은 점검 건에서 PDF는 ○/×를 찍고
+ *  엑셀은 공란인, D-7('PDF와 엑셀이 갈라지지 않는다')이 이 칸에서 깨진 상태였다.
+ *
+ *  이제 `form4VerdictMarks`가 **PDF와 같은 해석기**를 쓴다: 값은 새로 계산하지 않고
+ *  `resultMarks`(rollUpForm3Results 산출)를 그대로 조회하고, 부모·하위 배분만
+ *  `sheet-facility-map.distributeSubMarks`(PDF의 subRows와 **같은 함수**)에 맡긴다.
+ *  → 무응답은 여전히 **공란**이다('무응답 → 양호'는 없다). 미설치는 종전대로 ／다.
+ *
  *  ── 배선하지 않은 칸(추측 금지) ────────────────────────────────────────────
  *  FORM4_UNWIRED 참조. ERP에 '설치 여부' 축이 없는 칸들이라 `[  ]`·공란으로 남긴다 —
  *  `／`조차 찍지 않는다(해당없음도 하나의 주장이다). */
 import { ALL_STANDARD_CODES, FIRE_SUB_ITEMS, EVAC_FORM3_GROUPS } from '@/lib/facility-codes'
+import { FORM3_ITEMS } from '@/lib/doc-templates/report9'
+import { distributeSubMarks } from '@/lib/sheet-facility-map'
 
 export const FORM4_SHEET = '현황'
 
@@ -132,6 +145,71 @@ export function isForm4Installed(row: Form4Row, installedCodes: string[], evacTy
 export const form4InstallField = (row: Form4Row) => `f4i_${row.cell}`
 export const form4VerdictField = (row: Form4Row) => `f4v_${row.verdictCell}`
 
+/** 점검결과 마크 — 별지 9호/4호 PDF와 **같은 어휘**(doc-templates/base.resultMark의 정의역) */
+export type Form4Mark = 'O' | 'X' | 'N'
+
+/** 이 행이 겨누는 FORM3 항목(= `resultMarks` 조회 키 = 별지 9호 표기 = 저장 어휘).
+ *
+ *  ⚠ 어휘가 두 벌이다 — 이 표의 `codes`는 설비 대장 어휘(ALL_STANDARD_CODES: '화재조기진압용
+ *  스프링클러설비'·'할로겐화합물 및 불활성기체소화설비')이고, `resultMarks`의 키는 FORM3_ITEMS
+ *  ('화재조기진압용스프링클러설비'·'할로겐화합물 및 불활성기체 소화설비')다. **띄어쓰기만** 다르므로
+ *  정규화 매칭이 성립하지만, 손으로 이은 표를 하나 더 만들면 언젠가 한쪽만 갱신된다 — 기계로 잇는다.
+ *  하위 행(소화기구 5종·피난기구 3칸)은 FORM3에 자기 항목이 없다(부모 하나뿐) → null. */
+export function form4Form3Item(row: Form4Row): string | null {
+  if (row.evacGroup !== undefined) return null
+  const codes = (row.codes ?? []).map(norm)
+  return FORM3_ITEMS.find(i => codes.includes(norm(i))) ?? null
+}
+
+const FIRE_PARENT = '소화기구 및 자동소화장치'
+const EVAC_PARENT = '피난기구'
+
+/** ⭐ 점검결과 칸의 값 — **PDF가 쓰는 것을 그대로 쓴다**(D-7).
+ *
+ *  값을 새로 계산하지 않는다: `resultMarks`는 별지 9호 조립(assembleReport9 → rollUpForm3Results)이
+ *  이미 판정한 것이고, 별지 4호 1쪽 PDF(report9.facilityResultSection, form='annex4')가 인쇄하는
+ *  바로 그 맵이다. 여기서 하는 일은 **어느 칸에 놓을지**뿐이며, 부모·하위 배분마저
+ *  `distributeSubMarks`(PDF의 subRows와 같은 함수)에 맡긴다.
+ *
+ *  ⚠ 설치 축은 **두 개다** — 헷갈리면 조용히 갈라진다:
+ *    · `ledgerCodes` (여기 인자)  = 별지 9호 조립이 본 **대표 1동** 대장. PDF의 하위 행 판정 축.
+ *    · `installedCodes`(라우트)   = **전 동** 합집합. 설치 체크칸·동봉 점검표 선별 축.
+ *    하위 행 배분에 후자를 쓰면 PDF와 다른 행에 마크가 내려간다. 그래서 전자를 받는다.
+ *
+ *  반환값의 `undefined`는 **공란**이다(무응답). 'O'가 아니다 — 이 서식에서 가장 위험한 방향은
+ *  '점검하지도 않았는데 양호'라, 모르는 칸은 사람이 채우도록 비워 둔다. */
+export function form4VerdictMarks(
+  resultMarks: Record<string, Form4Mark>,
+  ledgerCodes: string[],
+  evacTypes: string[],
+): Map<string, Form4Mark | undefined> {
+  const ledger = new Set(ledgerCodes.map(norm))
+  const evac = new Set(evacTypes.map(norm))
+  const out = new Map<string, Form4Mark | undefined>()
+
+  // ① 소화기구 하위 5종 — 설치 축은 대장 개별 행(report9.ts fireExtRows와 같은 원천).
+  //    순서는 **FIRE_SUB_ITEMS를 기준으로 되찾는다** — 표의 선언 순서에 기대면 행을 재배열하는
+  //    순간 마크가 옆 줄로 내려간다(그 상태로도 검사는 초록일 수 있다)
+  const fireRows = FIRE_SUB_ITEMS.map(c =>
+    FORM4_ROWS.find(r => (r.codes ?? []).some(x => norm(x) === norm(c))))
+  const fire = distributeSubMarks(resultMarks[FIRE_PARENT], FIRE_SUB_ITEMS.map(c => ledger.has(norm(c))))
+  fireRows.forEach((r, i) => { if (r?.verdictCell) out.set(r.verdictCell, fire.subs[i]) })
+
+  // ② 피난기구 하위 3칸 — 설치 축은 세부제원 종류 11종의 3묶음(대장이 아니다)
+  const evacRows = EVAC_FORM3_GROUPS.map((_, g) => FORM4_ROWS.find(r => r.evacGroup === g))
+  const escape = distributeSubMarks(resultMarks[EVAC_PARENT],
+    EVAC_FORM3_GROUPS.map(g => g.some(t => evac.has(norm(t)))))
+  evacRows.forEach((r, i) => { if (r?.verdictCell) out.set(r.verdictCell, escape.subs[i]) })
+
+  // ③ 나머지 — FORM3 항목의 롤업을 그대로. 키가 없으면(설치인데 무응답) undefined = 공란.
+  for (const r of FORM4_ROWS) {
+    if (!r.verdictCell || out.has(r.verdictCell)) continue
+    const item = form4Form3Item(r)
+    out.set(r.verdictCell, item ? resultMarks[item] : undefined)
+  }
+  return out
+}
+
 /** 서식에는 점검결과 칸이 있지만 **ERP에 설치 여부 축이 없어 배선하지 않은** 칸(실측 19칸).
  *
  *  ⚠ 배선하지 않는다는 것은 '`／`를 찍는다'가 아니다 — 해당없음도 하나의 주장이라,
@@ -182,5 +260,20 @@ export function form4CodeErrors(): string[] {
   for (const c of new Set(vs)) if (vs.filter(x => x === c).length > 1) out.push(`점검결과 칸 중복: ${c}`)
   const unwired = new Set(FORM4_UNWIRED.map(u => u.verdictCell))
   for (const c of vs) if (unwired.has(c)) out.push(`배선·미배선 양쪽에 등재: ${c}`)
+  // 판정 배선의 전사(全射) — 결과칸을 가진 행은 **반드시** 셋 중 하나에 속해야 한다:
+  // FORM3 항목 · 소화기구 하위 · 피난기구 하위. 어디에도 안 걸리면 그 칸은 영원히 공란이고,
+  // 그건 '무응답'과 구별되지 않아 아무도 모른 채 PDF와 갈라진다(D-7).
+  const fireCells = new Set(FIRE_SUB_ITEMS.map(c =>
+    FORM4_ROWS.find(r => (r.codes ?? []).some(x => norm(x) === norm(c)))?.verdictCell).filter(Boolean))
+  if (fireCells.size !== FIRE_SUB_ITEMS.length) {
+    out.push(`소화기구 하위 ${FIRE_SUB_ITEMS.length}종 중 결과칸이 이어진 행 ${fireCells.size}개뿐`)
+  }
+  for (let g = 0; g < EVAC_FORM3_GROUPS.length; g++) {
+    if (!FORM4_ROWS.some(r => r.evacGroup === g && r.verdictCell)) out.push(`피난기구 그룹 ${g}에 결과칸 행 없음`)
+  }
+  for (const r of FORM4_ROWS) {
+    if (!r.verdictCell || r.evacGroup !== undefined || fireCells.has(r.verdictCell)) continue
+    if (!form4Form3Item(r)) out.push(`${r.verdictCell}(${r.label}) → FORM3 항목에 못 잇는다(결과칸이 늘 공란이 된다)`)
+  }
   return out
 }

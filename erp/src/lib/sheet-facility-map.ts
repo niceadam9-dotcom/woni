@@ -208,6 +208,32 @@ export function rollUpForm3Results(
   return { facilityChecks, resultMarks, axisWarnings }
 }
 
+/** 부모 1행 + 하위 n행의 **점검결과 배분** — 별지 9호 3쪽 = 별지 4호 1쪽 = 갑지 엑셀 `현황` 공용(D-7).
+ *
+ *  소화기구·피난기구는 서식에서 부모 아래 하위 줄을 갖는데, ERP의 점검 결과(resultMarks)는
+ *  **부모(FORM3 항목) 단위**로만 존재한다. 그 한 값을 어느 줄에 내릴지가 이 함수다.
+ *
+ *  규칙(값을 지어내지 않는다 — 22 Q-8 '자동 기록 금지'):
+ *    · 미설치 하위        → 'N'(해당없음). 설비 대장이 말해 주는 사실이다.
+ *    · 설치된 하위        → 부모 롤업을 **첫 설치 행 하나에만** 내린다. 지금 부모에 찍히는 값이
+ *                          곧 그 시트의 점검 결과이므로 새로 만든 값이 아니다.
+ *                          나머지 설치 행은 undefined(공란) — 무응답 = 공란(B-6 규약).
+ *    · 설치된 하위가 없으면 → 롤업을 부모 행에 그대로 둔다(옮길 자리가 없다고 결과를 버리지 않는다).
+ *
+ *  ⚠ 렌더러가 두 벌이다 — HTML 템플릿(doc-templates/report9.ts subRows)과 엑셀 주입
+ *    (xlsx-form4.ts form4VerdictMarks). 이 규칙을 어느 한쪽에 복제하면 한쪽만 고쳐져
+ *    **같은 점검 건의 PDF와 엑셀이 조용히 갈라진다**(D-7). 그래서 규칙은 여기 한 곳이다. */
+export function distributeSubMarks(
+  parentMark: 'O' | 'X' | 'N' | undefined,
+  subsInstalled: boolean[],
+): { parent: 'O' | 'X' | 'N' | undefined; subs: Array<'O' | 'X' | 'N' | undefined> } {
+  const first = subsInstalled.findIndex(Boolean)
+  return {
+    parent: first < 0 ? parentMark : undefined,
+    subs: subsInstalled.map((on, i) => (on ? (i === first ? parentMark : undefined) : 'N')),
+  }
+}
+
 // ── '설치 설비만' 필터의 단일 규칙 (2026-08-20) ──────────────────────────────
 //
 // 종전엔 같은 규칙이 네 곳에 복사돼 있었다: 점검표 보드·스텝 링크·별지 트리·인쇄 번들.
