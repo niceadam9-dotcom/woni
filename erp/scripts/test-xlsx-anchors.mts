@@ -16,6 +16,11 @@ import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, MARK_CHECKED_
 import { allDonorSheets } from '../src/lib/xlsx-donors.ts'
 import { sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
+import {
+  FORM4_ROWS, FORM4_UNWIRED, FORM4_SHEET, FORM4_CODES_WITHOUT_ROW,
+  form4CodeErrors, form4InstallField, form4VerdictField,
+} from '../src/lib/xlsx-form4.ts'
+import { EVAC_FORM3_GROUPS } from '../src/lib/facility-codes.ts'
 import manifest from '../src/lib/xlsx-template-manifest.json' with { type: 'json' }
 
 const TPL = 'templates/report-workbook.xlsx'
@@ -61,6 +66,7 @@ const valueMap = (report9: R9) => buildWorkbookValues({
     periodLabel: 'X', daysLabel: '1일', submitDate: 'X', station: 'X',
   },
   customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21', useApprovalISO: null,
+  installedCodes: [], evacTypes: [],
   building: null, report9,
 })
 
@@ -165,6 +171,7 @@ console.log('[4] buildWorkbookValues가 앵커 field 전수를 낸다')
     },
     customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21',
     useApprovalISO: '2011-06-25',
+    installedCodes: [], evacTypes: [],
     building: {
       purpose: 'X', totalArea: 1, buildingArea: 1, floorsAbove: 1, floorsBelow: 1,
       height: 1, households: 1, buildingCount: 1, permitDateISO: '2009-04-25',
@@ -520,6 +527,140 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
   })
   check(`다수동일때 ${MB_FIELDS.length}필드가 입력과 무관한 빈 서식(값 지어내지 않음)`,
     notBlank.length === 0, notBlank.join(', '))
+}
+
+// ── ⑧ 별지 4호 1쪽(현황) 설치 체크 · 점검결과 ────────────────────────────────
+// 종전엔 이 쪽이 통째로 미배선이라, 서식의 `IF(설치칸="[  ]","/","○")` 64칸이 **전 고객 문서에
+// `／`(해당없음)를 인쇄**했다(옥내소화전을 설치한 고객에게도). 캐시만 비우는 처방은 이 축을 못 막는다 —
+// LibreOffice가 열면서 재계산해 되살린다. 그래서 검사 축이 셋이다:
+//  (a) 표    — 좌표·코드·중복이 성립하고, 서식에 실재하는가
+//  (b) 자산  — 판정 산출 수식이 0칸이고, 그 자리가 `=""`인가(빈 셀이면 복제칸이 0을 인쇄한다)
+//  (c) 값    — 설치/미설치가 실제로 다른 값을 내는가(민감도 — 상수로 통과하면 안 된다)
+// ⚠ '실제로 인쇄되는가'는 여기서 증명할 수 없다 — `scripts/_probe-xlsx-recalc.mts`(LO 왕복)의 몫이다.
+console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자동 ○ 차단')
+{
+  // (a) 표의 자기 검사
+  const errs = form4CodeErrors()
+  check('xlsx-form4 표 무결(코드 실재·좌표 중복 없음·배선/미배선 배타)', errs.length === 0, errs.slice(0, 4).join(' | '))
+
+  const fullBytes = new Uint8Array(readFileSync('templates/report-workbook-full.xlsx'))
+  const fz = await JSZip.loadAsync(fullBytes)
+  const ffiles = await sheetFileMap(fz)
+  const hyunXml = await fz.file(ffiles.get(FORM4_SHEET)!)!.async('string')
+  const cellBody = (ref: string) => {
+    const m = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`).exec(hyunXml)
+    return m === null ? null : (m[1] ?? '')
+  }
+  const absent = [
+    ...FORM4_ROWS.flatMap(r => [r.cell, r.labelCell, ...(r.verdictCell ? [r.verdictCell] : [])]),
+    ...FORM4_UNWIRED.flatMap(u => [u.cell, u.verdictCell]),
+  ].filter(c => cellBody(c) === null)
+  check(`표의 좌표 전부 ${FORM4_SHEET}에 실재`, absent.length === 0, absent.join(', '))
+
+  // (b) 자산 — 판정 산출 수식 0 + 그 자리가 `=""`
+  //  ⚠ 이 두 단언은 짝이어야 한다. '수식 0'만 걸면 **셀을 통째로 비워도 통과**하는데,
+  //    그러면 복제칸(대상물!G11 = `현황!S7`)이 빈 셀 참조로 `0`을 인쇄한다(실측한 함정).
+  const emitters: string[] = []
+  for (const [sheet, path] of ffiles) {
+    const xml = await fz.file(path)!.async('string')
+    for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(m[2] ?? '')?.[1]
+      if (f && /&quot;[○×X/／]&quot;|"[○×X/／]"/.test(f)) emitters.push(`${sheet}!${m[1]}`)
+    }
+  }
+  check('판정 마크를 산출하는 수식 0칸(자동 ○의 씨앗 제거)', emitters.length === 0, emitters.slice(0, 6).join(', '))
+
+  const allVerdicts = [
+    ...FORM4_ROWS.map(r => r.verdictCell).filter(Boolean) as string[],
+    ...FORM4_UNWIRED.map(u => u.verdictCell),
+  ]
+  const notEmptyFormula = allVerdicts.filter(c => !/<f[^>]*>""<\/f>/.test(cellBody(c) ?? ''))
+  check(`점검결과 ${allVerdicts.length}칸이 =""(빈 셀이면 복제칸이 0을 인쇄한다)`,
+    notEmptyFormula.length === 0, notEmptyFormula.slice(0, 6).join(', '))
+
+  // 서식의 판정 칸이 표에 **전부** 분류됐는가 — 손목록 위의 전수가 되지 않도록 XML 실재로 센다.
+  // (현황의 `=""` 칸 전체 = 배선 45 + 미배선 19). 서식이 갱신돼 칸이 늘면 여기가 먼저 붉어진다
+  {
+    // ⚠ 자기닫힘 <c …/>을 함께 받는다 — 안 받으면 [^>]*가 '/'까지 삼켜 **수식이 앞 빈 셀 좌표로
+    //   귀속**된다(xlsx-inject.ts:86의 경고와 같은 부류. 이 검사를 처음 쓸 때 실제로 S7이 G7로 나왔다)
+    const inSheet = [...hyunXml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)]
+      .filter(m => /<f[^>]*>""<\/f>/.test(m[2] ?? '')).map(m => m[1])
+    const unlisted = inSheet.filter(c => !allVerdicts.includes(c))
+    check(`${FORM4_SHEET}의 판정 칸 ${inSheet.length}개가 전부 표에 분류됨(배선 ${FORM4_ROWS.filter(r => r.verdictCell).length} + 미배선 ${FORM4_UNWIRED.length})`,
+      unlisted.length === 0 && inSheet.length === allVerdicts.length,
+      unlisted.length ? `미분류 ${unlisted.join(', ')}` : `${inSheet.length} vs ${allVerdicts.length}`)
+  }
+
+  // 셀 메모 — 내부 업무 지시 9건이 배포본에 실려 LibreOffice가 렌더하던 축. **파트 존재 자체**를 금한다
+  {
+    const parts = Object.keys(fz.files).filter(n =>
+      /xl\/(threadedComments\/)?comments\d*\.xml$/.test(n) || /vmlDrawing/.test(n))
+    check('셀 메모(comments·vmlDrawing) 파트 0', parts.length === 0, parts.slice(0, 4).join(', '))
+    const orphan: string[] = []
+    for (const name of Object.keys(fz.files)) {
+      if (fz.files[name].dir) continue
+      const raw = await fz.file(name)!.async('string')
+      if (/<legacyDrawing\b|Target="[^"]*(?:comments\d*\.xml|vmlDrawing\d*\.vml)"/.test(raw)) orphan.push(name)
+    }
+    check('메모 고아 참조(legacyDrawing·rel) 0', orphan.length === 0, orphan.slice(0, 4).join(', '))
+  }
+
+  // (c) 값 축 — 설치 목록이 실제로 칸을 뒤집는가. **양방향**으로 본다:
+  //     설치 → 체크 √ · 결과 공란(자동 ○ 없음) / 미설치 → 체크 빈 마크 · 결과 `/`
+  const vals = (codes: string[], evac: string[]) => buildWorkbookValues({
+    official: {
+      company: { name: 'X', address: 'X', phone: 'X', fax: 'X' },
+      docNo: '승 진 2608-1', sendDate: 'X', recipient: 'X', reference: 'X', sender: 'X',
+      senderSign: { name: 'X', title: 'X', rep: 'X' }, year: 2026, typeLabel: 'X',
+    },
+    delegation: {
+      typeLabel: 'X', owner: { name: 'X', position: 'X', phone: 'X', birth: 'X' },
+      agent: { name: 'X', position: 'X', phone: 'X', birth: 'X' },
+      periodLabel: 'X', daysLabel: '1일', submitDate: 'X', station: 'X',
+    },
+    customerAddress: 'X', startISO: '2026-08-21', endISO: '2026-08-21', useApprovalISO: null,
+    installedCodes: codes, evacTypes: evac, building: null, report9: { ...R9_BLANK },
+  })
+  {
+    const ON = ['옥내소화전설비', '소화기(소화기·자동확산·간이)']
+    const v = vals(ON, ['완강기'])
+    const expectOn = FORM4_ROWS.filter(r => ['C12', 'D7', 'Z7'].includes(r.cell))
+    const wrongOn = expectOn.filter(r =>
+      v.get(form4InstallField(r)) !== '[√]' || (r.verdictCell && v.get(form4VerdictField(r)) !== null))
+    check('설치 3행 — 체크 [√] · 점검결과 공란(자동 ○ 없음)', wrongOn.length === 0,
+      expectOn.map(r => `${r.cell}=${JSON.stringify(v.get(form4InstallField(r)))}/${JSON.stringify(v.get(form4VerdictField(r)))}`).join(' '))
+
+    const off = FORM4_ROWS.filter(r => !expectOn.includes(r))
+    const wrongOff = off.filter(r =>
+      v.get(form4InstallField(r)) !== '[  ]' || (r.verdictCell && v.get(form4VerdictField(r)) !== '/'))
+    check(`미설치 ${off.length}행 — 체크 빈 마크 · 점검결과 '/'`, wrongOff.length === 0,
+      wrongOff.slice(0, 4).map(r => `${r.cell}(${r.label})`).join(', '))
+
+    // 민감도 — 전부 미설치로 두면 √가 하나도 없어야 한다(위 단언이 상수로 통과하지 않는다는 증명)
+    const none = vals([], [])
+    const strayCheck = FORM4_ROWS.filter(r => none.get(form4InstallField(r)) !== '[  ]')
+    check('설치 0건이면 √ 0칸(상수 통과 아님)', strayCheck.length === 0, strayCheck.map(r => r.cell).join(', '))
+    // 반대로 전 설비 설치면 √가 전 행에 — 두 방향이 다 움직여야 배선이 살아 있다는 뜻이다
+    const all = vals(
+      FORM4_ROWS.flatMap(r => r.codes ?? []),
+      EVAC_FORM3_GROUPS.flatMap(g => g))
+    const notChecked = FORM4_ROWS.filter(r => all.get(form4InstallField(r)) !== '[√]')
+    check(`전 설비 설치면 ${FORM4_ROWS.length}행 전부 [√]`, notChecked.length === 0,
+      notChecked.map(r => `${r.cell}(${r.label})`).join(', '))
+  }
+
+  // 미배선 칸은 값 맵에 **없어야** 한다 — 있으면 어딘가에서 `／`를 지어내고 있다는 뜻
+  {
+    const v = vals([], [])
+    const leaked = FORM4_UNWIRED.filter(u => v.has(`f4v_${u.verdictCell}`) || v.has(`f4i_${u.cell}`))
+    check(`미배선 ${FORM4_UNWIRED.length}칸은 값 맵에 없다(해당없음도 지어내지 않는다)`,
+      leaked.length === 0, leaked.map(u => u.cell).join(', '))
+  }
+
+  // 서식에 줄이 없는 표준 설비 — 반대 방향의 공백. 목록이 커지면 사람이 알아야 한다(침묵 금지)
+  check('서식에 줄 없는 표준 설비는 화재알림설비 1종뿐',
+    FORM4_CODES_WITHOUT_ROW.length === 1 && FORM4_CODES_WITHOUT_ROW[0] === '화재알림설비',
+    FORM4_CODES_WITHOUT_ROW.join(', '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

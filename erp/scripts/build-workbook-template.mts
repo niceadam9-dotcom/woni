@@ -27,6 +27,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { injectWorkbook, sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS, MARK_CHECKED_RE, VERDICT_MARKS, SAMPLE_OPINION_NEEDLES } from '../src/lib/xlsx-anchors.ts'
+import { FORM4_ROWS, FORM4_UNWIRED, FORM4_SHEET, FORM4_CODES_WITHOUT_ROW, form4CodeErrors } from '../src/lib/xlsx-form4.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
@@ -89,9 +90,15 @@ const SAMPLE_ANSWERS: Array<{ sheet: string; cell: string; to: (orig: string) =>
   { sheet: '현3', cell: 'C34', to: blankMarks, why: '유도등 종류 √' },
   { sheet: '현3', cell: 'C35', to: blankMarks, why: '유도등 설치장소 √' },
   // 별지 4호 8쪽 불량 세부 — **남의 점검 소견**이 전 고객의 법정 서식에. 계획서!H12~H24가 캐시 복제
+  //
+  // ⚠ 여기서 비운 뒤 **④g2가 `=""`로 되돌린다.** 그냥 비워 두면 `=현5!C4` 부류 7칸
+  //   (계획서!H12·H14·H16·H18·H20·H22·H24)이 **빈 셀 참조 = 0**이 되어 LibreOffice 재계산 후
+  //   전 고객 문서에 `"0"`이 인쇄된다(2026-08-25 실측 — 그전에는 표본의 '이상없음'이 인쇄됐으니
+  //   결함을 **다른 결함으로** 바꿨던 셈이었다). 참조자는 `_probe-form4-refs.mts`로 실측 1:1.
   ...['C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10'].map(cell => ({
     sheet: '현5', cell, to: () => null, why: '점검 소견(이상없음·별첨참조) — 표본 고객의 판단',
   })),
+  // 참조자 0건이라(실측) 통째로 비워도 0이 새어 나갈 곳이 없다
   { sheet: '완료보고서', cell: 'B20', to: () => null, why: '이행조치 결과 별첨참조 — 표본 답' },
 ]
 
@@ -102,6 +109,32 @@ const RESTORE_FORMULAS: Array<{ sheet: string; cell: string; formula: string }> 
   { sheet: '계약서', cell: 'E11', formula: 'NUMBERSTRING(J11,1)&" 원정"' },
   { sheet: '계약서', cell: 'E14', formula: 'NUMBERSTRING(J14,1)&" 원정"' },
 ]
+
+/** 셀을 **`=""`(빈 문자열 수식)** 로 만든다 — 스타일 인덱스(s=)는 보존.
+ *
+ *  '비어 있어야 하는데 **다른 칸이 단일 참조로 복제**하는' 칸의 유일한 안전한 표현이다.
+ *  빈 셀·빈 inlineStr·빈 `<v>`는 전부 복제칸에서 `0`으로 재계산된다(5종 표현 LO 왕복 실측:
+ *  `scripts/_probe-empty-repr.mts`). injectWorkbook은 값만 쓰고 수식은 못 만들므로 여기서 직접 패치한다. */
+async function toEmptyFormula(src: Uint8Array, cells: Array<{ sheet: string; cell: string }>): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(src)
+  const files = await sheetFileMap(zip)
+  const bySheet = new Map<string, string[]>()
+  for (const c of cells) bySheet.set(c.sheet, [...(bySheet.get(c.sheet) ?? []), c.cell])
+  for (const [sheet, refs] of bySheet) {
+    const path = files.get(sheet)
+    if (!path) throw new Error(`toEmptyFormula: 시트 없음 ${sheet}`)
+    let xml = await zip.file(path)!.async('string')
+    for (const ref of refs) {
+      const re = new RegExp(`<c r="${ref}"([^>]*?)(?:/>|>[\\s\\S]*?</c>)`)
+      const m = re.exec(xml)
+      if (!m) throw new Error(`toEmptyFormula: 셀 없음 ${sheet}!${ref}`)
+      const attrs = (m[1] ?? '').replace(/\st="[^"]*"/, '')
+      xml = xml.replace(re, () => `<c r="${ref}"${attrs} t="str"><f>""</f></c>`)
+    }
+    zip.file(path, xml)
+  }
+  return new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+}
 
 const dir = mkdtempSync(join(tmpdir(), 'wbtpl-'))
 console.log(`임시: ${dir}`)
@@ -243,45 +276,62 @@ console.log('④e 표본 답 스크럽(허브 밖 — 별지 4호 설비·판정
   bytes = r.bytes
 }
 
-// ── ④f 표본 답에 딸린 복합 수식 캐시 소거 ────────────────────────────
-// ④e가 고친 칸을 참조하는 **복합** 수식(현황!S7 = `IF(C6="[  ]","/","○")` 등)은 단일 참조
-// 폐포 밖이라 옛 캐시 '○'(양호)·'/'가 그대로 남는다. LibreOffice는 재계산하지 않으므로
-// 그 캐시가 곧 인쇄물이다 — 비운다(<f> 보존: Excel에서 열면 제대로 계산된다). ④c와 같은 수법,
-// 다른 씨앗(허브가 아니라 ④e 대상)
-console.log('④f 표본 답 파생 복합 수식 캐시 소거')
+// ── ④f 폐지(2026-08-25) ──────────────────────────────────────────────
+// ④e가 고친 칸에서 **전체 참조 그래프**로 닿는 캐시를 전부 비우던 단계였는데, 실측해 보니
+// 순 기여가 0이었다: ④f가 필요했던 8칸(현황!S7·AO13·S28·AO28 · 대상물!G11·N17·G32·N32)은
+// 아래 ④g가 수식째 없애며 덮고, 대신 ④e가 **폐포로 올바르게 채운** `[  ]`·서식 문장 19칸
+// (세3!C17·C18·C19·C21 · 세4!E12·E13 · 위임장!D2 · 대상물!B10·C11·I17·B32·I32 · 현1!C3 ·
+//  현3!A8·A34 · 세1!B5·C4 · 세3!A17 · 세4!A12)을 **되지웠다** — 과잉 삭제였다.
+// 없애면 그 19칸이 살아난다(제거 후 실측으로 확인).
+
+// ── ④g 점검 판정 **수식** 제거 ────────────────────────────────────────
+// 별지 4호 1쪽의 점검결과 칸은 서식 자체가 `IF(설치칸="[  ]","/","○")` 수식 64칸이다.
+//
+// ⚠ 종전엔 **캐시(`<v>`)만** 비우고 `<f>`를 보존했다("LibreOffice는 재계산하지 않으므로
+//   캐시가 곧 인쇄물"이라는 D-9 공리에 기대). 그 공리는 **이 부류에 성립하지 않는다** —
+//   LibreOffice는 파일을 여는 순간 이 수식을 재계산해 `/`·`○`를 되살린다(2026-08-25 실측
+//   `scripts/_probe-xlsx-recalc.mts`). 그래서 '판정 마크 0칸'이라는 종전 보고는 **캐시 층만
+//   잰 가짜 초록**이었고, 실제 인쇄물에는 전 고객에게 `／`(해당없음)가 찍히고 있었다.
+//   SheetJS·XML 축으로는 재계산 결과가 영원히 보이지 않는다 — 축을 하나 더 둔 이유다.
+//
+// 이제 **수식 자체를 없앤다**. 설치 여부는 런타임 앵커(xlsx-form4 · 대장 실값)가 `[√]`로 찍고,
+// 점검결과는 미설치일 때만 `/`를 찍는다 — 설치했다는 사실에서 `○`(양호)를 만들어내지 않는다.
+// ⚠ 이 단계는 갑지 26시트에만 돈다(도너 이식 전). 도너의 세로 3연속 ○/×/／ 범례는
+//    build-workbook-full의 몫이고 거기서 보존된다 — 축이 겹치지 않는다.
+console.log('④g 점검 판정 수식 제거(설치=√ → 자동 ○ 차단)')
 {
   const zip = await JSZip.loadAsync(bytes)
   const files = await sheetFileMap(zip)
-  const full = await buildFullRefGraph(zip, files)
-  const affected = new Map<string, { sheet: string; cell: string }>()
-  for (const s of SAMPLE_ANSWERS)
-    for (const d of transitiveClosure(full, s.sheet, s.cell)) affected.set(`${d.sheet}!${d.cell}`, d)
-  const stale: Array<{ sheet: string; cell: string; value: null }> = []
+  // ⚠ 판정 수식을 지운 자리는 **빈 셀이 아니라 `=""`**로 둔다. 64칸 전부가 `대상물`·`대상물2`에
+  //   `=현황!S7` 같은 **단일 참조 복제칸**을 하나씩 갖고 있어(실측 `_probe-form4-mirrors.mts`),
+  //   원본을 통째로 비우면 복제칸이 **빈 셀 참조 = 0**으로 재계산돼 `0`이 인쇄된다.
+  //   빈 문자열 셀(`<is><t/></is>`)로도 안 된다 — LibreOffice가 blank로 정규화한다
+  //   (5종 표현 왕복 실측 `_probe-empty-repr.mts`: 살아남는 것은 `공백 1칸`과 `=""` 둘뿐).
+  const targets: Array<{ sheet: string; cell: string }> = []
   for (const [sheet, path] of files) {
     const xml = await zip.file(path)!.async('string')
+    // ⚠ 자기닫힘 <c …/>을 함께 받는다 — 안 받으면 수식이 앞 빈 셀 좌표로 귀속된다(xlsx-inject:86)
     for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      if (!affected.has(`${sheet}!${m[1]}`)) continue
-      if (/<v>[\s\S]*?<\/v>|<is>/.test(m[2] ?? '')) stale.push({ sheet, cell: m[1], value: null })
+      const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(m[2] ?? '')?.[1]
+      if (!f) continue
+      // 판정 마크를 **리터럴로 산출**하는 수식만. XML이라 따옴표는 &quot;로도 올 수 있다
+      if (!/&quot;[○×X/／]&quot;|"[○×X/／]"/.test(f)) continue
+      targets.push({ sheet, cell: m[1] })
     }
   }
-  if (stale.length) {
-    console.log(`   잔존 캐시 ${stale.length}칸 소거`)
-    const rc = await injectWorkbook(bytes, stale)
-    if (rc.missed.length) throw new Error(`④f 캐시 소거 실패: ${rc.missed.join(', ')}`)
-    bytes = rc.bytes
-  } else console.log('   잔존 캐시 0칸')
+  // 0칸이면 서식이 갱신됐거나 이 단계가 무력화된 것 — 조용히 지나가면 다시 사각이 된다
+  if (targets.length === 0) throw new Error('④g 대상 0칸 — 갑지의 판정 수식 구조가 바뀌었다. 재실측할 것')
+  console.log(`   판정 수식 ${targets.length}칸 → =""  (${[...new Set(targets.map(t => t.sheet))].join(', ')})`)
+  bytes = await toEmptyFormula(bytes, targets)
 }
 
-// ── ④g 점검 판정 마크 캐시 전수 소거 ─────────────────────────────────
-// 별지 4호 1쪽의 점검결과 칸은 `IF(설치칸="[  ]","/","○")` 부류의 수식이고, 그 **캐시**가 곧
-// 인쇄물이다(LibreOffice는 재계산하지 않는다). ④f는 ④e가 고친 칸에서 닿는 것만 비우는데,
-// 표본이 **설치하지 않은** 설비의 칸은 이미 `[  ]`라 씨앗에 없고 캐시 '/'(해당없음)가 남는다.
-// 그 결과 **실제로 설치한 고객에게도 '해당없음'이 인쇄**된다(2026-08-24 판정 실측).
-// 설비 설치 여부는 이 파이프라인이 해석하지 않으므로(Phase 3) 판정 칸은 전부 비운다 —
-// 백지 서식이 남의 판정보다 낫다. <f>는 보존하므로 Excel에서 열면 제대로 계산된다.
-// ⚠ 이 단계는 갑지 26시트에만 돈다(도너 이식 전). 도너의 세로 3연속 ○/×/／ 범례는
-//    build-workbook-full의 몫이고 거기서 보존된다 — 축이 겹치지 않는다.
-console.log('④g 점검 판정 마크 캐시 소거(설치 여부 미해석 → 백지)')
+// ── ④g-b 판정 마크 **캐시** 소거(복제칸) ─────────────────────────────
+// ④g가 없앤 것은 판정을 **만들어내는** 수식이고, 그 결과를 **복제**하는 칸(대상물!G11 = `현황!S7`,
+// 대상물2!F3 = `현황!S37` … 64칸)은 여전히 표본의 옛 캐시 '○'·'/'를 물고 있다.
+// 종전에는 ④f(표본 답 폐포)가 우연히 이 캐시까지 쓸어 갔는데, ④f는 같은 비질로 ④e가 옳게 채운
+// 서식 문장 19칸까지 되지웠다(순 기여 0·과잉 삭제). 그래서 ④f는 폐지하고, **필요한 것만** 여기서
+// 정확히 겨눈다: 캐시만 비우고 `<f>`는 보존한다(복제 관계가 살아 있어야 런타임 전파가 닿는다).
+console.log('④g-b 판정 마크 캐시 소거(복제칸)')
 {
   const w = XLSX.read(bytes, { cellFormula: true })
   const VERDICT = new Set<string>(VERDICT_MARKS)
@@ -296,11 +346,67 @@ console.log('④g 점검 판정 마크 캐시 소거(설치 여부 미해석 →
     }
   }
   if (stale.length) {
-    console.log(`   판정 캐시 ${stale.length}칸 소거`)
-    const rg = await injectWorkbook(bytes, stale)
-    if (rg.missed.length) throw new Error(`④g 소거 실패: ${rg.missed.join(', ')}`)
-    bytes = rg.bytes
-  } else console.log('   판정 캐시 0칸')
+    console.log(`   복제 캐시 ${stale.length}칸 소거 (${[...new Set(stale.map(s => s.sheet))].join(', ')})`)
+    const rgb = await injectWorkbook(bytes, stale)
+    if (rgb.missed.length) throw new Error(`④g-b 소거 실패: ${rgb.missed.join(', ')}`)
+    bytes = rgb.bytes
+  } else console.log('   복제 캐시 0칸')
+}
+
+// ── ④g2 '참조되는 빈 칸'을 `=""`로 ───────────────────────────────────
+// ④e가 표본 소견을 지운 현5!C4~C10은 계획서!H12~H24가 단일 참조로 복제한다(실측 1:1).
+// 통째로 비웠더니 **빈 셀 참조 = 0**이 되어 전 고객 문서의 계획서에 `"0"`이 인쇄됐다
+// (직전 커밋이 표본 '이상없음'을 지우면서 만든 회귀 — 결함을 다른 결함으로 바꿨던 셈이다).
+// ④g와 같은 처방을 쓴다. 목록이 짧고 명시적인 이유: 개요 입력 칸처럼 **런타임이 값을 채우는**
+// 칸에 `=""`를 두면 주입값이 재계산으로 지워진다 — 그러니 '전부 빈 칸'에 일괄 적용하면 안 된다.
+// 여기 오는 칸은 (ⓐ 런타임 앵커가 아니거나 ⓑ 앵커가 dropFormula를 갖는) 칸뿐이다.
+console.log('④g2 참조되는 빈 칸 → =""')
+{
+  const cells = ['C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10'].map(cell => ({ sheet: '현5', cell }))
+  const anchorNoDrop = new Set(ANCHORS.filter(a => !a.dropFormula).map(a => `${a.sheet}!${a.cell}`))
+  const bad = cells.filter(c => anchorNoDrop.has(`${c.sheet}!${c.cell}`))
+  if (bad.length) throw new Error(`④g2 대상이 dropFormula 없는 앵커다(주입값이 지워진다): ${bad.map(c => `${c.sheet}!${c.cell}`).join(', ')}`)
+  bytes = await toEmptyFormula(bytes, cells)
+  console.log(`   ${cells.length}칸`)
+}
+
+// ── ④h 셀 메모(comments) 파트 제거 ───────────────────────────────────
+// 갑지에는 원 작성자의 **내부 업무 지시** 9건이 셀 메모로 박혀 있었다('이상없는 설비만 날짜를
+// 지울것' · '보고서 제출일자 적을 것' · '숫자만 입력' 등). 셀 값·공유문자열 스캔에는 전혀 안
+// 잡히는 별도 파트(xl/comments*.xml + vmlDrawing)인데 **LibreOffice가 렌더한다** — 즉 고객에게
+// 배포되는 인쇄물에 사내 메모가 그려진다. 외부링크 파트(④d)와 같은 부류라 같은 규약으로 막는다:
+// **파트 존재 자체를 금한다**(내용 니들이 아니라 존재로 판정 — 니들 목록은 다음 메모를 못 본다).
+console.log('④h 셀 메모(comments) 파트 제거')
+{
+  const zip = await JSZip.loadAsync(bytes)
+  const parts = Object.keys(zip.files).filter(n =>
+    /xl\/(threadedComments\/)?comments\d*\.xml$/.test(n) || /vmlDrawing/.test(n) || /xl\/persons?\.xml$/.test(n))
+  for (const p of parts) zip.remove(p)
+  // 시트 본문의 <legacyDrawing>(메모 도형 앵커)과 워크시트 rels의 항목을 함께 거둔다 —
+  // 남기면 없는 파트를 가리키는 고아 참조가 되어 뷰어가 파일을 거부할 수 있다
+  let sheetsTouched = 0, relsTouched = 0
+  const files = await sheetFileMap(zip)
+  for (const [, path] of files) {
+    const xml = await zip.file(path)!.async('string')
+    if (!/<legacyDrawing\b/.test(xml)) continue
+    zip.file(path, xml.replace(/<legacyDrawing[^>]*\/>/g, ''))
+    sheetsTouched++
+  }
+  for (const name of Object.keys(zip.files)) {
+    if (!/worksheets\/_rels\//.test(name)) continue
+    const x = await zip.file(name)!.async('string')
+    const y = x.replace(/<Relationship\b[^>]*Target="[^"]*(?:comments\d*\.xml|vmlDrawing\d*\.vml)"[^>]*\/>/g, '')
+    if (y === x) continue
+    zip.file(name, y)
+    relsTouched++
+  }
+  let ct = await zip.file('[Content_Types].xml')!.async('string')
+  ct = ct.replace(/<Override\b[^>]*PartName="\/xl\/(?:threadedComments\/)?comments\d*\.xml"[^>]*\/>/g, '')
+    .replace(/<Override\b[^>]*PartName="\/xl\/drawings\/vmlDrawing\d*\.vml"[^>]*\/>/g, '')
+    .replace(/<Default\b[^>]*Extension="vml"[^>]*\/>/g, '')
+  zip.file('[Content_Types].xml', ct)
+  console.log(`   파트 ${parts.length}개 · legacyDrawing ${sheetsTouched}시트 · rels ${relsTouched}개 · Content_Types 정리`)
+  bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
 }
 
 // ── ④b LibreOffice가 파괴한 수식 복원 ────────────────────────────────
@@ -482,6 +588,51 @@ console.log('⑥ 사후 검증')
     const wbXml = await zip.file('xl/workbook.xml')!.async('string')
     if (/<externalReference/.test(wbXml)) fails.push('workbook.xml <externalReference> 잔존')
   }
+  // ★ **재계산 축**(④g) — 판정 마크를 산출하는 수식이 하나도 없는가.
+  //   캐시 검사(위 '판정 마크 잔존')는 `<f>`가 살아 있으면 **아무것도 지키지 못한다**: LibreOffice가
+  //   열면서 재계산해 `/`·`○`를 만들어낸다. 캐시가 0이라는 사실과 인쇄물이 비어 있다는 사실은
+  //   다른 명제다(2026-08-25 실측 — 종전 '판정 마크 0칸' 보고가 정확히 이 착각이었다).
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    const files = await sheetFileMap(zip)
+    for (const [sheet, path] of files) {
+      const xml = await zip.file(path)!.async('string')
+      for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(m[2] ?? '')?.[1]
+        if (f && /&quot;[○×X/／]&quot;|"[○×X/／]"/.test(f))
+          fails.push(`판정 산출 수식 잔존: ${sheet}!${m[1]} = ${f.slice(0, 60)}`)
+      }
+    }
+  }
+  // 셀 메모(④h) — 내부 업무 지시가 배포본에 실려 LibreOffice가 렌더하던 축. **파트 존재 자체**를 금한다
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    const parts = Object.keys(zip.files).filter(n =>
+      /xl\/(threadedComments\/)?comments\d*\.xml$/.test(n) || /vmlDrawing/.test(n))
+    if (parts.length) fails.push(`셀 메모 파트 잔존 ${parts.length}개: ${parts.slice(0, 4).join(', ')}`)
+    const orphan: string[] = []
+    for (const name of Object.keys(zip.files)) {
+      if (zip.files[name].dir) continue
+      const raw = await zip.file(name)!.async('string')
+      if (/<legacyDrawing\b/.test(raw)) orphan.push(name)
+      if (/Target="[^"]*(?:comments\d*\.xml|vmlDrawing\d*\.vml)"/.test(raw)) orphan.push(`${name}(rel)`)
+    }
+    if (orphan.length) fails.push(`메모 고아 참조 잔존: ${orphan.slice(0, 4).join(', ')}`)
+  }
+  // 별지 4호 1쪽 표(xlsx-form4)의 자기 검사 — 코드 오타 하나가 '그 설비는 영원히 미설치'가 된다
+  {
+    const errs = form4CodeErrors()
+    if (errs.length) fails.push(`xlsx-form4 표 오류: ${errs.join(' | ')}`)
+    // 표의 좌표가 서식에 실재하는가 — 없는 셀엔 주입할 수 없다
+    const zip = await JSZip.loadAsync(bytes)
+    const files = await sheetFileMap(zip)
+    const xml = await zip.file(files.get(FORM4_SHEET)!)!.async('string')
+    const absent = [
+      ...FORM4_ROWS.flatMap(r => [r.cell, r.labelCell, ...(r.verdictCell ? [r.verdictCell] : [])]),
+      ...FORM4_UNWIRED.flatMap(u => [u.cell, u.verdictCell]),
+    ].filter(c => !new RegExp(`<c r="${c}"[ />]`).test(xml))
+    if (absent.length) fails.push(`xlsx-form4 좌표가 ${FORM4_SHEET}에 없음: ${absent.join(', ')}`)
+  }
   // 개요 **닫힌 덮개**(S3-4) — 값 보유 비수식 칸이 전부 (앵커 | 입력 칸 | 라벨) 셋 중 하나로 분류되는가.
   // 어느 목록에도 없는 칸은 '아무도 안 보는 값'이라 표본 잔재가 그대로 배포된다(N15 실사고)
   {
@@ -501,7 +652,9 @@ console.log('⑥ 사후 검증')
     for (const f of fails) console.error(`   ❌ ${f}`)
     process.exit(1)
   }
-  console.log(`   시트 ${wb.SheetNames.length} · 병합 ${mergeCount(wb)} · 실고객 흔적 0 · 개요 입력 칸 전부 공란 · 닫힌 덮개 성립 · 외부링크 0`)
+  console.log(`   시트 ${wb.SheetNames.length} · 병합 ${mergeCount(wb)} · 실고객 흔적 0 · 개요 입력 칸 전부 공란 · 닫힌 덮개 성립 · 외부링크 0 · 판정 수식 0 · 메모 파트 0`)
+  console.log(`   별지4호 1쪽: 배선 ${FORM4_ROWS.length}행(점검결과 ${FORM4_ROWS.filter(r => r.verdictCell).length}칸) · 미배선 ${FORM4_UNWIRED.length}칸`
+    + (FORM4_CODES_WITHOUT_ROW.length ? ` · 서식에 줄 없는 표준 설비: ${FORM4_CODES_WITHOUT_ROW.join(', ')}` : ''))
 }
 
 // ── 산출 ─────────────────────────────────────────────────────────────

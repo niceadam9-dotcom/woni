@@ -151,8 +151,20 @@ export function SheetEntryClient({
 
   /** [최신 불러오기] — 열린 시트·좌 목록을 서버 값으로 되돌린 **뒤에** 재개한다.
    *  순서가 뒤집히면 resume()이 큐에 남은 옛 입력을 먼저 흘려보내 남의 최신 값을 덮는다
-   *  (resume은 queued가 있으면 즉시 run한다 — use-debounced-autosave.ts:75). */
+   *  (resume은 queued가 있으면 즉시 run한다 — use-debounced-autosave.ts:75).
+   *
+   *  ⚠ 이 버튼은 **미저장 입력을 서버 값으로 대체**한다. 종전에는 그 사실을 title 속성으로만
+   *  적어 두고 **말없이 실행**했다 — 원격 변경 배너가 떠서 자동저장이 pause된 상태(그때가 바로
+   *  이 버튼을 누르는 상황이다)에서는 내가 방금 찍은 ○·✕가 아직 서버에 안 갔을 수 있고,
+   *  그게 되돌아가면 사용자는 **자기 입력이 사라진 줄도 모른다**. 되돌릴 수 없는 삭제는 물어본다.
+   *  미저장이 없을 때는 묻지 않는다 — 잃을 것이 없는데 묻는 확인창은 사람을 무감각하게 만든다. */
   function loadLatest() {
+    // 디바운스 대기·실행 중(hasPending)도 '미저장'이다 — 자동저장이라 dirty 구간이 짧아서
+    // dirty만 보면 "타이머가 아직 안 터진 입력"을 놓친다(원격 감지 :138과 같은 판정)
+    const a = autosaveRef.current
+    if (a.dirty || a.hasPending()) {
+      if (!window.confirm('저장되지 않은 입력이 있습니다.\n서버 값으로 되돌리면 그 입력은 사라집니다. 계속할까요?')) return
+    }
     void (async () => {
       await reloadOpenSheet()
       const fresh = await getInspectionSheetOverviewAction([inspectionId])

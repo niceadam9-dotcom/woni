@@ -50,6 +50,17 @@ export const EVAC_FORM3_GROUPS: string[][] = [
   ['승강식피난기', '하향식피난구용내림식사다리'],
 ]
 
+/** 세부제원(customer_facility_specs) → 피난기구 종류 목록 — **단일 원천**.
+ *  종전엔 이 경로 파고들기가 report9.ts에만 인라인으로 있었다. 갑지 워크북(별지 4호 1쪽)이
+ *  같은 값을 필요로 하면서 두 벌이 될 뻔했고, 저장 경로가 바뀌면 한쪽만 조용히 빈 배열을
+ *  받는 부류다(그러면 그 문서에서만 피난기구가 전부 미설치로 인쇄된다). 한 곳에서 가져다 쓴다. */
+export function evacTypesFromSpecs(specs: Record<string, unknown> | undefined | null): string[] {
+  const s36 = (specs?.['s36_evac'] ?? undefined) as Record<string, unknown> | undefined
+  const eq = (s36?.['evac_equipment'] ?? undefined) as Record<string, unknown> | undefined
+  const types = eq?.['types'] as unknown
+  return Array.isArray(types) ? types.filter((t): t is string => typeof t === 'string') : []
+}
+
 /** 레거시 — 통일 이전에 fire_facilities에 개별 행으로 쌓이던 피난기구 하위 코드.
  *  신규 저장 경로는 없다. 기존 행 이관(scripts/migrate-evac-subitems.mjs)과 잔존 행 무시 판정에만 쓴다. */
 export const EVAC_SUB_ITEMS_LEGACY: string[] = [

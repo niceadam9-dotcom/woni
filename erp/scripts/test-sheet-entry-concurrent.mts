@@ -9,6 +9,9 @@
 //   ② 편집 중 원격 변경 → 배너 + 자동저장 pause
 //   ③ pause 동안 내 입력이 DB로 나가지 않는다 (= 덮어쓰기 차단)
 //   ④ [최신 불러오기] → 원격 값이 화면에 오고 자동저장이 재개된다
+//   ⑤ [최신 불러오기]는 **미저장 입력을 서버 값으로 대체**한다 → 묻고 나서 한다.
+//      종전에는 title 속성에만 적어 두고 말없이 실행해, 내가 방금 찍은 ○·✕가 소리 없이 사라졌다.
+//      [취소]를 눌렀을 때 **아무것도 되돌아가지 않는지**가 핵심 축이다(확인창이 장식이면 안 된다).
 //
 // 실행: npx tsx scripts/test-sheet-entry-concurrent.mts   (로컬 dev + 스테이징 DB)
 // @ts-expect-error mjs 헬퍼
@@ -74,7 +77,14 @@ try {
   const l = await launch()
   browser = l.browser
   const page = l.page
-  page.on('dialog', d => d.accept())
+  // 확인창은 축 ⑤의 관심사라 **삼키지 않고 기록**한다 — 종전처럼 무조건 accept만 하면
+  // '확인창이 뜨는가'와 '취소가 실제로 막는가'를 둘 다 볼 수 없다
+  let dialogMode: 'accept' | 'dismiss' = 'accept'
+  const dialogs: string[] = []
+  page.on('dialog', (d: { message(): string; accept(): Promise<void>; dismiss(): Promise<void> }) => {
+    dialogs.push(d.message())
+    void (dialogMode === 'dismiss' ? d.dismiss() : d.accept())
+  })
   page.on('pageerror', e => console.log('  [pageerror]', String(e).slice(0, 200)))
 
   const URL_ = `${BASE}/inspections/${inspId}/sheet?facility=${encodeURIComponent(F_INPUT)}`
@@ -129,11 +139,30 @@ try {
   check('★ 덮어쓰기 차단 — pause 중 입력이 DB로 새지 않는다', leaked === null, `itemC=${leaked}`)
   check('원격 변경분은 DB에 그대로', (await dbResult(itemB)) === 'O')
 
+  // ── ⑤ 확인창 — 미저장 입력이 있으면 묻고, [취소]는 **아무것도 되돌리지 않는다** ─────────
+  // 지금 상태: itemA=✕(dirty·자동저장 대상 아님) + itemC=○(pause로 큐에 남음) → 둘 다 미저장이다
+  dialogMode = 'dismiss'
+  dialogs.length = 0
+  const clickedCancel = await page.locator('[data-testid="sheet-entry-load-latest"]')
+    .click({ timeout: 10000 }).then(() => true).catch(() => false)
+  check('[최신 불러오기] 버튼이 존재한다', clickedCancel)
+  await sleep(1200)
+  check('★ 미저장 입력이 있으면 확인창을 띄운다(말없이 대체하지 않는다)',
+    dialogs.length === 1 && /저장되지 않은 입력/.test(dialogs[0] ?? ''),
+    `확인창 ${dialogs.length}회 · ${JSON.stringify((dialogs[0] ?? '').slice(0, 40))}`)
+  // 확인창이 장식이 아니라는 증명 — 취소 후 세 가지가 **그대로**여야 한다
+  check('★ [취소] — 배너가 그대로(되돌리기 실행 안 됨)', await staleBanner.isVisible())
+  check('★ [취소] — 내 미저장 ✕가 화면에 남아 있다', await xOn(itemA).isVisible())
+  check('★ [취소] — 원격 값(itemB=○)이 아직 화면에 오지 않았다', !(await oOn(itemB).isVisible()))
+
   // ── ④ [최신 불러오기] → 원격 값 반영 + 자동저장 재개 ──────────────────────────
   // 대조군(이식 전)에서도 나머지 축을 보고 끝내기 위해 클릭 실패를 삼키지 않고 check로 남긴다
+  dialogMode = 'accept'
   const clicked = await page.locator('[data-testid="sheet-entry-load-latest"]')
     .click({ timeout: 10000 }).then(() => true).catch(() => false)
-  check('[최신 불러오기] 버튼이 존재한다', clicked)
+  check('[최신 불러오기] 재클릭 성립', clicked)
+  await sleep(300)
+  check('★ [확인] — 확인창을 한 번 더 거쳐 진행한다', dialogs.length === 2, `확인창 ${dialogs.length}회`)
   const gone = await staleBanner.waitFor({ state: 'hidden', timeout: 20000 }).then(() => true).catch(() => false)
   check('★ [최신 불러오기] 후 배너 해소', gone)
   const showsRemote = await oOn(itemB).waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false)

@@ -175,6 +175,7 @@ let maxRid = Math.max(...[...relsXml.matchAll(/Id="rId(\d+)"/g)].map(m => Number
 let maxSheetId = Math.max(...[...wbXml.matchAll(/sheetId="(\d+)"/g)].map(m => Number(m[1])))
 let scrubTotal = 0
 let parenScrubTotal = 0
+let legacyStripped = 0
 const legendBySheet = new Map<string, string[]>()
 
 for (const name of donorNames) {
@@ -198,6 +199,11 @@ for (const name of donorNames) {
 
   // 활성 탭 흔적 제거(기증 워크북의 선택 상태가 따라오지 않게)
   xml = xml.replace(/\stabSelected="1"/g, '')
+
+  // 셀 메모 앵커 제거 — 이식은 시트 XML만 옮기고 rels는 새로 만들지 않으므로, 남겨 두면
+  // **없는 파트를 가리키는 고아 참조**가 된다(뷰어가 파일을 거부할 수 있다). 기증본의 내부
+  // 메모 역시 우리 배포물에 실릴 이유가 없다 — 갑지 ④h와 같은 규약
+  if (/<legacyDrawing\b/.test(xml)) { xml = xml.replace(/<legacyDrawing[^>]*\/>/g, ''); legacyStripped++ }
 
   // 결과 마크 스크럽 — 원본 값 기준으로 대상 좌표를 정하고(보는 층), XML을 지운다(고치는 층).
   // 범례(세로 ○→/→X 3연속, 시트당 ≤1곳)는 보존한다 — 양식의 일부다.
@@ -257,7 +263,7 @@ for (const name of donorNames) {
 outZip.file('xl/workbook.xml', wbXml)
 outZip.file('xl/_rels/workbook.xml.rels', relsXml)
 outZip.file('[Content_Types].xml', ctXml)
-console.log(`   ${donorNames.length}시트 이식 · 결과 마크 ${scrubTotal}칸 스크럽 · 괄호 안 판정 ${parenScrubTotal}칸 스크럽 · 범례 ${[...legendBySheet.values()].filter(v => v.length).length}곳 보존`)
+console.log(`   ${donorNames.length}시트 이식 · 결과 마크 ${scrubTotal}칸 스크럽 · 괄호 안 판정 ${parenScrubTotal}칸 스크럽 · 범례 ${[...legendBySheet.values()].filter(v => v.length).length}곳 보존 · 메모 앵커 ${legacyStripped}시트 제거`)
 
 let bytes = new Uint8Array(await outZip.generateAsync({ type: 'uint8array' }))
 
@@ -331,6 +337,27 @@ console.log('⑤ 사후 검증')
       const a = await baseZip.file(name)!.async('uint8array')
       const b = outZ.file(name) ? await outZ.file(name)!.async('uint8array') : null
       if (!b || a.length !== b.length || !a.every((v, i) => v === b[i])) fails.push(`갑지 파트 변형: ${name}`)
+    }
+  }
+
+  // 셀 메모 · 판정 산출 수식 — 기저에서 없앤 두 축이 도너 이식으로 되살아나지 않았는가.
+  // 기저 파트는 바이트 복사라 '따라올 리 없다'가 참이지만, 도너 시트가 자기 legacyDrawing을
+  // 달고 올 수 있고(rels 없이 이식되므로 고아 참조가 된다) 도너에도 판정 수식이 있을 수 있다.
+  // 두 축 다 **파트/수식 존재 자체**로 판정한다 — 니들 목록은 다음 것을 못 본다(④d와 같은 규약)
+  {
+    const outZ = await JSZip.loadAsync(bytes)
+    const parts = Object.keys(outZ.files).filter(n =>
+      /xl\/(threadedComments\/)?comments\d*\.xml$/.test(n) || /vmlDrawing/.test(n))
+    if (parts.length) fails.push(`셀 메모 파트 잔존 ${parts.length}개: ${parts.slice(0, 4).join(', ')}`)
+    const map = await sheetFileMap(outZ)
+    for (const [sheet, path] of map) {
+      const xml = await outZ.file(path)!.async('string')
+      if (/<legacyDrawing\b/.test(xml)) fails.push(`legacyDrawing(메모 앵커) 잔존: ${sheet}`)
+      for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(m[2] ?? '')?.[1]
+        if (f && /&quot;[○×X/／]&quot;|"[○×X/／]"/.test(f))
+          fails.push(`판정 산출 수식 잔존: ${sheet}!${m[1]} = ${f.slice(0, 50)}`)
+      }
     }
   }
 

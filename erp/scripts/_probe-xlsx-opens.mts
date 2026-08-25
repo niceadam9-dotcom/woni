@@ -58,6 +58,9 @@ const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
   startISO: '2026-08-20', endISO: '2026-08-21',
   useApprovalISO: '2011-06-25',
+  // 별지 4호 1쪽 설치 축 — 설치/미설치가 섞여야 두 분기(√·[  ] / 공란·'/')가 다 그려진다.
+  // 이 프로브의 관심사는 '그렇게 채운 파일이 열리고 쪽수가 유지되는가'다
+  installedCodes: ['옥내소화전설비', '유도등', '소화기구 및 자동소화장치'], evacTypes: ['완강기'],
   building: {
     purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5, floorsBelow: 2,
     height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',

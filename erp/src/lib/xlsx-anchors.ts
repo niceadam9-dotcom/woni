@@ -7,6 +7,7 @@
  *  전 좌표는 2026-08-21 실측(scripts/_probe-hub-layout.mjs · _probe-delegation-layout.mjs).
  *  서식이 갱신되면 validateAnchors가 먼저 붉어진다 — 그때 재실측해 재승인한다(Q-4: 재변환). */
 import * as XLSX from 'xlsx'
+import { FORM4_ROWS, FORM4_SHEET, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
 
 export type Anchor = {
   field: string
@@ -17,6 +18,18 @@ export type Anchor = {
   label: string
   /** 깨진 참조('1번 입력'! 등) 자리 — <f>를 지우고 값으로 대체 */
   dropFormula?: boolean
+  /** 값이 비었을 때 **서식의 수식을 지우지 않는다**(dropFormula를 그 경우에만 유예).
+   *
+   *  왜 필요한가 — 이 칸을 **다른 시트가 단일 참조로 복제**하는데(별지 4호 점검결과 64칸은
+   *  전부 `대상물`·`대상물2`에 복제칸을 하나씩 갖는다, 실측 `_probe-form4-mirrors.mts`),
+   *  원본이 **빈 셀**이면 복제칸이 재계산으로 **`0`**이 된다. 그래서 빌드가 이 칸들을
+   *  `=""`(빈 문자열 수식)로 만들어 두었고, 값이 없을 때는 그 수식을 살려 둬야 한다.
+   *
+   *  ⚠ 빈 문자열 셀(`<is><t/></is>`)로는 안 된다 — LibreOffice가 blank로 정규화해 역시 0이
+   *  된다(2026-08-25 5종 표현 왕복 실측 `scripts/_probe-empty-repr.mts`: 빈 셀·빈 inlineStr·
+   *  빈 `<v>` 전부 0, 살아남는 것은 `공백 1칸`과 `=""` 둘뿐). 같은 함정을 `계획서!H12`에서
+   *  이미 한 번 밟았다 — 표본 소견을 지웠더니 `"0"`이 인쇄됐다. */
+  keepFormulaWhenEmpty?: boolean
 }
 
 const HUB = '개요'
@@ -148,6 +161,25 @@ export const ANCHORS: Anchor[] = [
   { field: 'mainInspector', sheet: '보고서', cell: 'C17', labelCell: 'B17', label: '주된 점검인력' },
   { field: 'mainGrade',     sheet: '보고서', cell: 'D17', labelCell: 'B17', label: '주된 점검인력' },
   { field: 'mainLicenseNo', sheet: '보고서', cell: 'E17', labelCell: 'B17', label: '주된 점검인력' },
+  // ── 별지 4호 1쪽(현황) 설비 설치 체크 + 점검결과 — 좌표·라벨·코드는 xlsx-form4 단일 원천 ──
+  //
+  // 종전엔 이 쪽 전체가 미배선이라, 서식의 `IF(설치칸="[  ]","/","○")` 64칸이 **전 고객 문서에
+  // `／`(해당없음)를 인쇄**했다(옥내소화전을 설치한 고객에게도). 캐시를 지우는 것으로는 못 막았다 —
+  // LibreOffice가 열면서 재계산해 되살렸기 때문이다(xlsx-form4 머리 주석 참조).
+  //
+  // 설치칸은 대장 실값으로 `[√]`/`[  ]`를 **상시 덮고**(잔존 경로 없음), 점검결과칸은
+  // **미설치일 때만** `／`를 찍고 설치면 비운다(양호는 점검한 사람이 쓴다).
+  // dropFormula: 빌드가 이미 `<f>`를 없애지만(④g), 자산이 옛 빌드로 되돌아가도 런타임에서
+  // 다시 끊기도록 양쪽에 건다 — 이 칸에 수식이 살아 있으면 뷰어가 ○를 만들어낸다.
+  ...FORM4_ROWS.flatMap<Anchor>(r => [
+    { field: form4InstallField(r), sheet: FORM4_SHEET, cell: r.cell, labelCell: r.labelCell, label: r.label },
+    ...(r.verdictCell
+      ? [{
+          field: form4VerdictField(r), sheet: FORM4_SHEET, cell: r.verdictCell,
+          labelCell: r.labelCell, label: r.label, dropFormula: true, keepFormulaWhenEmpty: true,
+        }]
+      : []),
+  ]),
 ]
 
 /** 개요 시트의 **모든 입력 칸** — 완전 덮어쓰기 불변식의 축 (S3-4).

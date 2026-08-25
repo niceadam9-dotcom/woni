@@ -10,7 +10,7 @@
 import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from './base'
 import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections'
 import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
-import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS } from '../facility-codes'
+import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '../facility-codes'
 
 /** 3쪽 1절 점검 결과 항목 — scripts/make-report9.py FORM3_ITEMS와 1:1 (순서 = 설비 구분 경계) */
 export const FORM3_ITEMS: string[] = [
@@ -408,10 +408,8 @@ export function facilityResultSection(
   //   소화기구 하위 5종 → 1.4 대장(fire_facilities 개별 행)이 원천
   //   피난기구 하위     → 세부제원 통합 어휘 11종이 원천. 3쪽 원문은 그 11종을 체크박스 3칸으로 묶는다.
   const ledger = new Set(d.ledgerCodes ?? [])
-  const evacTypes = new Set(
-    (((d.specs?.['s36_evac'] as Record<string, unknown> | undefined)?.['evac_equipment'] as
-      Record<string, unknown> | undefined)?.['types'] as string[] | undefined) ?? [],
-  )
+  // 경로 파고들기는 facility-codes 단일 원천 — 갑지 워크북(별지 4호 1쪽)이 같은 값을 쓴다(D-7)
+  const evacTypes = new Set(evacTypesFromSpecs(d.specs))
   // 2026-08-20(정정) — 하위 항목의 미해당은 **빈 체크박스**로 둔다(사용자 지시).
   //   잠시 이 자리에 [/]를 찍었으나, '/'는 점검결과 칸의 어휘(양호○·불량×·해당없음/)이지
   //   체크박스 어휘가 아니다. 서식 원문에서도 하위 줄은 부모와 똑같은 [ ] 칸이다

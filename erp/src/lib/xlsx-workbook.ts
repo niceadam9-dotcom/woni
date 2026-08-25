@@ -7,6 +7,7 @@ import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import { MULTI_USE_COLS } from '@/lib/doc-templates/report9'
 import { ANCHORS, type Anchor } from '@/lib/xlsx-anchors'
+import { FORM4_ROWS, isForm4Installed, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
 import { isoToSerial, type InjectTarget, type CellValue } from '@/lib/xlsx-inject'
 
 export type WorkbookSource = {
@@ -19,6 +20,13 @@ export type WorkbookSource = {
   endISO: string | null
   /** 사용승인일 ISO — customers.use_approval_date (S3-5 1차 확장) */
   useApprovalISO: string | null
+  /** 설치 설비 코드 — fire_facilities.facility_code (installed=true). 별지 4호 1쪽 설치 체크칸의 원천.
+   *  라우트가 도너 시트 선별(installedCodes)에 쓰는 **바로 그 목록**을 그대로 넘긴다 —
+   *  '동봉된 점검표'와 '현황 쪽의 √'가 한 축이라 갈라질 수 없다. */
+  installedCodes: string[]
+  /** 피난기구 종류 — 세부제원 s36_evac.evac_equipment.types(evacTypesFromSpecs).
+   *  피난기구 하위 3칸만 대장이 아니라 이 축을 본다(별지 9호 3쪽 PDF와 같은 원천) */
+  evacTypes: string[]
   /** 건축물 현황 — buildings 활성·최고참 1동(report9-actions:225와 같은 축). 없으면 전부 공란 */
   building: {
     purpose: string | null; totalArea: number | null; buildingArea: number | null
@@ -231,6 +239,25 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     ['mbElevatorBlank', ` ${ck(false)}승용(${slot4('')}대 ), ${ck(false)}비상용(${slot4('')}대), ${ck(false)}피난용(${slot4('')}대)`],
     ['mbParkingBlank', ` ${ck(false)}옥내(${ck(false)}지하 ${ck(false)}지상 ${ck(false)}필로티 ${ck(false)}기계식), ${ck(false)}옥상, ${ck(false)}옥외`],
   ]
+  // ── 별지 4호 1쪽(현황) 설비 설치 체크 + 점검결과 ──────────────────────────────
+  //
+  // 설치칸: 대장 실값으로 **상시 덮는다**(값 또는 명시적 빈 마크) — 잔존 경로가 없다.
+  // 결과칸: **미설치일 때만** `／`(해당없음). 설치면 `null`(공란)로 두어 사람이 채운다.
+  //
+  // ⚠ 설치=`[√]`에서 `○`(양호)를 만들어내지 않는다. 그건 서식 수식이 하던 일이고,
+  //   **점검을 했는지조차 모르는 채 양호를 인쇄**하는 것이었다(법정 서식에서 가장 위험한 방향).
+  //   설비 대장이 말해 줄 수 있는 사실은 '이 설비는 없다 → 해당없음'까지다.
+  //   별지 9호 3쪽 PDF의 하위 행 규칙(report9.ts: 미설치 → '/', 설치 → 롤업 결과)과 같은 판단이며,
+  //   ERP가 아는 점검 결과(resultMarks)를 여기 내리는 것은 별건이다(설치 배선과 축이 다르다).
+  // ⚠ `／`(전각)가 아니라 `/`(반각)를 쓴다 — 서식 자신의 어휘다(현황!A3 범례 '해당없는 항목은 /표시',
+  //   제거된 수식의 리터럴도 "/"였다). 글리프를 바꾸면 같은 쪽 안에서 표기가 갈린다.
+  for (const r of FORM4_ROWS) {
+    const on = isForm4Installed(r, src.installedCodes, src.evacTypes)
+    entries.push([form4InstallField(r), ck(on)])
+    // ⚠ 설치 시의 빈 칸은 **셀을 비우는 게 아니라** 서식의 `=""`를 살려 두는 것이다
+    //   (앵커가 keepFormulaWhenEmpty). 빈 셀로 두면 `대상물`의 복제칸이 `0`을 인쇄한다
+    if (r.verdictCell) entries.push([form4VerdictField(r), on ? null : '/'])
+  }
   // 보조 점검인력 7행(S3-5 2차) — 허브 B·C·D·E 열. 없는 행은 명시적 공란(S3-4).
   // 8명 이상은 허브 서식상 실을 수 없다 — 라우트가 missing 헤더로 알린다(S8-2 규약과 같은 축)
   for (let i = 0; i < 7; i++) {
@@ -256,7 +283,11 @@ export function toInjectTargets(
   for (const a of anchors) {
     if (!values.has(a.field)) { unmapped.push(a); continue }
     const v = values.get(a.field)!
-    targets.push({ sheet: a.sheet, cell: a.cell, value: v === '' ? null : v, dropFormula: a.dropFormula })
+    const isEmpty = v === null || v === ''
+    // 빈 값인데 `keepFormulaWhenEmpty`면 서식의 수식(`=""`)을 살려 둔다 — 이 칸을 복제하는
+    // 수식이 **빈 셀을 0으로 읽기** 때문이다(Anchor.keepFormulaWhenEmpty 주석)
+    const dropFormula = a.dropFormula === true && !(isEmpty && a.keepFormulaWhenEmpty)
+    targets.push({ sheet: a.sheet, cell: a.cell, value: isEmpty ? null : v, dropFormula })
   }
   return { targets, unmapped }
 }

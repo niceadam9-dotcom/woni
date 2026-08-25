@@ -12,6 +12,7 @@ import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets } from '@/lib/xlsx-sheet-surgery'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { evacTypesFromSpecs } from '@/lib/facility-codes'
 import { isMultiUseApplicable } from '@/lib/multi-use'
 
 /** 갑지 통합 워크북(엑셀) 즉석 생성 (소방계획서_27 S4 — Phase 1: 개요 허브 + 공문·위임장·계약서)
@@ -146,6 +147,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     startISO: row.inspection_start_date,
     endISO: row.inspection_end_date,
     useApprovalISO: (cust as { use_approval_date: string | null } | null)?.use_approval_date ?? null,
+    // 별지 4호 1쪽 설치 체크칸(현황) — 도너 시트 선별과 **같은 목록**을 넘긴다. 두 벌로 조회하면
+    // '점검표는 동봉됐는데 현황 쪽은 미설치'처럼 한 파일 안에서 모순될 수 있다
+    installedCodes,
+    // 피난기구 하위 3칸만 대장이 아니라 세부제원 축 — 별지 9호 3쪽 PDF와 같은 원천(D-7)
+    evacTypes: evacTypesFromSpecs(r9.data.specs),
     building: bld && {
       purpose: bld.purpose, totalArea: bld.total_area, buildingArea: bld.building_area,
       floorsAbove: bld.floors_above, floorsBelow: bld.floors_below, height: bld.height,

@@ -38,6 +38,7 @@ const delegation: DelegationData = {
 const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
   startISO: '2026-08-20', endISO: '2026-08-21', useApprovalISO: '2011-06-25',
+  installedCodes: ['옥내소화전설비'], evacTypes: [],
   building: {
     purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5, floorsBelow: 2,
     height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',

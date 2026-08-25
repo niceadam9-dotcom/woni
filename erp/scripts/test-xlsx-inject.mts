@@ -68,6 +68,9 @@ const values = buildWorkbookValues({
   official, delegation, customerAddress: '경기도 양평군 검증로 1',
   startISO: '2026-08-20', endISO: '2026-08-21',
   useApprovalISO: '2011-06-25',
+  // 별지 4호 1쪽 설치 축 — 이 파일의 관심사는 '주입이 서식을 깨지 않는가'라 목록 내용은 임의다.
+  // 다만 설치/미설치를 섞어 두 분기(√·[  ] / 공란·'/')가 모두 실제로 쓰이게 한다
+  installedCodes: ['옥내소화전설비', '유도등'], evacTypes: ['완강기'],
   building: {
     purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5, floorsBelow: 2,
     height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',
@@ -227,7 +230,7 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
   const blankDelegation = { ...delegation, agent: { name: '', position: '', phone: '', birth: '' } }
   const v2 = buildWorkbookValues({
     official, delegation: blankDelegation, customerAddress: '', startISO: null, endISO: null,
-    useApprovalISO: null, building: null,
+    useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
     report9: {
       ...report9,
       ckOp: false, consent: null, repRole: '', managerGrade: '', mgrEduDate: '', rampCount: '',
@@ -275,7 +278,7 @@ console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
   const asSample = buildWorkbookValues({
     official: { ...official, recipient: '정내과의원' }, delegation,
     customerAddress: '경기도 양평군 용문로 376-1', startISO: '2026-08-20', endISO: '2026-08-21',
-    useApprovalISO: null, building: null, report9,
+    useApprovalISO: null, installedCodes: [], evacTypes: [], building: null, report9,
   })
   const r6 = await injectWorkbook(template, toInjectTargets(asSample).targets, { forbidden: SCRUB_NEEDLES })
   const wb6 = XLSX.read(r6.bytes)
