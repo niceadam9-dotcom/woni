@@ -92,7 +92,10 @@ try {
   const submitPane = page.locator('section:has-text("별지 9·10호 생성·제출")').first()
   await submitPane.locator('input[placeholder="YYYY-MM-DD"]').first().fill(kstShift(0))
   await submitPane.locator('button:has-text("기록")').first().click()
-  await page.waitForSelector('text=제출 기록됨')
+  // ⚠ 앱 문구는 `✅ 제출일 {날짜} 기록됨`(inspection-workbench.tsx:272)이다. 종전 단언 '제출 기록됨'은
+  //    de0c670(2026-08-14)에서 문구가 바뀐 뒤 따라오지 않아 **어떤 상태에서도 매치될 수 없었다**
+  //    (리포지토리에 '제출 기록'이라는 문자열 자체가 없다). 날짜가 끼므로 부분 문구로 잡는다.
+  await page.waitForSelector('text=/제출일 .* 기록됨/')
   const { data: subA } = await raw.from('inspections').select('report9_submitted_at').eq('id', inspA).single()
   check('④ DB report9_submitted_at', subA?.report9_submitted_at === kstShift(0), JSON.stringify(subA))
   // 스텝바 ④가 완료로 바뀐다 — 15일 보고기한 D-3 배지는 소멸
