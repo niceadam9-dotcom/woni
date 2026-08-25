@@ -58,27 +58,37 @@ try {
   const l = await launch(); browser = l.browser; const page = l.page
   await login(page, EMAIL)
 
-  // ── 1. ?sheet=auto — 첫 미완성 시트 드로어가 스스로 열린다 ──────────────────
-  console.log('— 1. 딥링크 자동 오픈')
-  await page.goto(`${BASE}/inspections/${inspId}?step=1&sheet=auto`)
+  // ── 1. ?sheet=auto — 입력 전용 페이지에서 첫 미완성 시트가 스스로 열린다 ────
+  //    2026-08-25: ① [입력]의 목적지가 점검 상세 드로어 → `/inspections/{id}/sheet`(소방계획서_28 S1)로 이관.
+  //    자동 오픈 판정은 같은 pickAutoOpenSheet라 의미가 보존된다.
+  const SHEET_URL = `${BASE}/inspections/${inspId}/sheet?sheet=auto`
+  console.log('— 1. 딥링크 자동 오픈(입력 전용 페이지)')
+  await page.goto(SHEET_URL)
   await page.waitForLoadState('networkidle')
-  const drawer = page.locator('[data-testid="drawer-sheet-na"]')
+  const openTitle = page.locator('h2').first()
   let opened = false
-  try { await drawer.waitFor({ state: 'visible', timeout: 12000 }); opened = true } catch { /* 아래에서 실패로 보고 */ }
-  check('?sheet=auto — 점검표 드로어가 자동으로 열린다', opened)
+  try { await openTitle.waitFor({ state: 'visible', timeout: 12000 }); opened = !!(await openTitle.textContent())?.trim() }
+  catch { /* 아래에서 실패로 보고 */ }
+  check('?sheet=auto — 첫 미완성 시트가 자동으로 열린다', opened)
 
   // 열린 시트가 **미완성**인지 — 다 채운 시트를 열면 규칙이 어긋난 것이다
-  const counter = await page.locator('[data-testid="drawer-sheet-na"]').locator('xpath=preceding-sibling::span[1]').textContent().catch(() => null)
+  const counter = await page.locator('h2 ~ span').first().textContent().catch(() => null)
   const m = counter?.match(/(\d+)\s*\/\s*(\d+)/)
   check('열린 시트가 미완성이다(응답 < 분모)', !!m && Number(m[1]) < Number(m[2]), counter ?? '카운터 못 읽음')
 
   // ── 2. sheet 파라미터가 없으면 열리지 않는다 ───────────────────────────────
   console.log('— 2. 파라미터 없으면 자동 오픈 없음')
-  await page.goto(`${BASE}/inspections/${inspId}?step=1`)
+  await page.goto(`${BASE}/inspections/${inspId}/sheet`)
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1500)
-  check('?step=1만이면 드로어는 닫힌 채다(기존 동작 보존)',
-    !(await page.locator('[data-testid="drawer-sheet-na"]').isVisible().catch(() => false)))
+  check('파라미터가 없으면 아무 시트도 열리지 않는다(목록만)',
+    await page.locator('text=왼쪽에서 설비를 선택하세요').count() > 0)
+  // 옛 목적지도 썩지 않아야 한다 — 북마크·과거 알림 링크 회귀 방지
+  await page.goto(`${BASE}/inspections/${inspId}?step=1&sheet=auto`)
+  await page.waitForLoadState('networkidle')
+  let legacy = false
+  try { await page.locator('[data-testid="drawer-sheet-na"]').waitFor({ state: 'visible', timeout: 12000 }); legacy = true } catch { /* 보고 */ }
+  check('옛 링크(점검 상세 ?sheet=auto)도 그대로 동작한다', legacy)
 
   // ── 3. ?step=5 — ⑤ 칸이 선택되고 #defects 앵커가 렌더된다 ──────────────────
   console.log('— 3. ?step=5 딥링크')
@@ -100,9 +110,11 @@ try {
   check('달력에서 이 점검 건을 열 수 있다', panelOpen)
 
   if (panelOpen) {
-    const inputLink = page.locator(`a[href="/inspections/${inspId}?step=1&sheet=auto"]`)
+    const inputLink = page.locator(`a[href="/inspections/${inspId}/sheet?sheet=auto"]`)
     await inputLink.first().waitFor({ state: 'visible', timeout: 8000 }).catch(() => {})
-    check('① 칸에 [점검표 입력] 링크가 보인다', await inputLink.count() > 0)
+    check('① 칸에 [점검표 입력] 링크가 보인다(입력 전용 페이지행)', await inputLink.count() > 0)
+    check('① 링크가 옛 목적지(점검 상세 드로어)를 가리키지 않는다',
+      await page.locator(`a[href="/inspections/${inspId}?step=1&sheet=auto"]`).count() === 0)
     check('[사유 완료] 버튼도 함께 남아 있다',
       await page.getByRole('button', { name: '사유 완료' }).count() > 0)
     check('옛 단독 [완료] 버튼은 사라졌다',
@@ -114,11 +126,16 @@ try {
 
     // 실제로 눌러서 도착지가 열리는지 — 링크만 있고 안 열리면 의미가 없다
     await inputLink.first().click()
-    await page.waitForURL(u => u.pathname.includes(`/inspections/${inspId}`), { timeout: 15000 }).catch(() => {})
+    await page.waitForURL(u => u.pathname.endsWith(`/inspections/${inspId}/sheet`), { timeout: 15000 }).catch(() => {})
     await page.waitForLoadState('networkidle')
+    check('[점검표 입력] 클릭 → 입력 전용 페이지로 이동', page.url().includes(`/inspections/${inspId}/sheet`), page.url())
     let arrived = false
-    try { await drawer.waitFor({ state: 'visible', timeout: 12000 }); arrived = true } catch { /* 보고 */ }
-    check('[점검표 입력] 클릭 → 상세로 이동하고 드로어가 열린다', arrived)
+    try {
+      await page.waitForSelector('text=점검표 입력 —', { timeout: 12000 })
+      await page.locator('h2').first().waitFor({ state: 'visible', timeout: 12000 })
+      arrived = !!(await page.locator('h2').first().textContent())?.trim()
+    } catch { /* 보고 */ }
+    check('도착 후 첫 미완성 시트가 열려 있다', arrived)
   }
 } finally {
   if (browser) await browser.close()

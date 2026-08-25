@@ -30,8 +30,11 @@ console.log('— 1부 stepInputLink (단계별 정상 경로)')
 {
   const s1 = stepInputLink(ID, 1)
   ok('① 점검표 입력 링크가 있다', s1 !== null)
-  ok('① step=1과 sheet=auto를 함께 싣는다',
-    s1?.href === `/inspections/${ID}?step=1&sheet=auto`, s1?.href)
+  // 입력의 정본은 /inspections/{id}/sheet (소방계획서_28 S1) — 종전 상세 드로어(?step=1&sheet=auto)에서 이관
+  ok('① 입력 전용 페이지 + sheet=auto로 보낸다',
+    s1?.href === `/inspections/${ID}/sheet?sheet=auto`, s1?.href)
+  ok('① 옛 목적지(점검 상세 드로어)로는 더 이상 보내지 않는다',
+    !/\?step=1&sheet=auto$/.test(s1?.href ?? ''), s1?.href)
   ok('① 라벨은 "점검표 입력"', s1?.label === '점검표 입력', s1?.label)
 
   const s5 = stepInputLink(ID, 5)
@@ -76,6 +79,13 @@ console.log('— 2부 pickAutoOpenSheet (첫 미완성 시트 고르기)')
 
 console.log('— 3부 배선 (순수 함수가 맞아도 연결이 없으면 없는 기능이다)')
 {
+  // ① 링크의 새 목적지 — 신설 입력 페이지가 `?sheet=auto`를 같은 함수로 푸는지(의미 보존)
+  const sheetPage = code('app/(dashboard)/inspections/[id]/sheet/page.tsx')
+  ok('입력 전용 페이지가 sheet=auto를 pickAutoOpenSheet로 푼다',
+    /sheetParam === 'auto'/.test(sheetPage) && /pickAutoOpenSheet\(shown\)/.test(sheetPage))
+  ok('입력 전용 페이지가 initialSheetId를 클라이언트에 넘긴다', /initialSheetId=\{initialSheetId\}/.test(sheetPage))
+
+  // 점검 상세의 ?sheet=auto는 그대로 남는다 — 옛 링크·북마크가 썩지 않아야 한다(회귀 방지)
   const page = code('app/(dashboard)/inspections/[id]/page.tsx')
   ok('page.tsx가 searchParams를 받는다', /searchParams\??:\s*Promise</.test(page))
   ok('page.tsx가 step을 1~6으로 검증한다', /stepParam\s*>=\s*1\s*&&\s*stepParam\s*<=\s*6/.test(page))
@@ -106,6 +116,35 @@ console.log('— 3부 배선 (순수 함수가 맞아도 연결이 없으면 없
   ok('계획 패널 강제완료 라벨도 "사유 완료"', /사유 완료/.test(panel))
   ok('계획 패널 [입력]도 순서 강제와 분리(!done 기준)',
     /const inputLink = !done && item\.inspection_id/.test(panel))
+}
+
+console.log('— 4부 별지 "미입력" 경고의 [고치기] 링크 (점검표 계열은 입력 전용 페이지로)')
+{
+  const aml = code('components/inspections/annex-missing-list.tsx')
+  ok('annexFixHref가 inspectionId를 3번째 인자로 받는다',
+    /export function annexFixHref\(item: string, customerId\?: string, inspectionId\?: string\)/.test(aml))
+  ok('점검표 계열 목적지가 /inspections/{id}/sheet', /`\/inspections\/\$\{id\}\/sheet`/.test(aml))
+  // 근거: report9-assemble.ts:522 / :513 / report9-actions.ts:380 의 missing.push 문구
+  for (const m of ['설치 설비 중 점검표 무응답', '외관점검 시트 응답 없음']) {
+    ok(`매칭 접두어 "${m}"가 점검 건 축으로 등재`,
+      new RegExp(`match: '${m}', axis: 'inspection'`).test(aml))
+  }
+  ok("'점검표 응답'은 완전일치 — 대장 축 문구(:527·:537)를 삼키지 않는다",
+    /match: '점검표 응답', exact: true, axis: 'inspection'/.test(aml))
+  // 규칙 행만 센다 — 타입 선언의 `axis: 'customer' | 'inspection'`이 부분일치로 끼어든다
+  ok('고객 축 규칙 3건은 종전 그대로',
+    (aml.match(/axis: 'customer', url:/g) ?? []).length === 3,
+    String((aml.match(/axis: 'customer', url:/g) ?? []).length))
+  ok('축에 맞는 id가 없으면 링크를 걸지 않는다(회귀 금지)',
+    /const id = hit\.axis === 'inspection' \? inspectionId : customerId/.test(aml)
+    && /return id \? hit\.url\(id\) : undefined/.test(aml))
+
+  const wb2 = code('components/inspections/inspection-workbench.tsx')
+  ok('작업대 미리보기 칩 2곳에 inspectionId 전달',
+    (wb2.match(/<AnnexMissingChip missing=\{missing\} customerId=\{customerId\} inspectionId=\{inspectionId\}/g) ?? []).length === 2)
+  const cp = code('components/inspections/annex-compose-panel.tsx')
+  ok('작성 패널 목록에도 inspectionId 전달',
+    /<AnnexMissingList missing=\{missing\} customerId=\{customerId\} inspectionId=\{inspectionId\}/.test(cp))
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} passed, ${fail} failed`)

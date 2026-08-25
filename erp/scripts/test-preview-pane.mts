@@ -133,11 +133,40 @@ try {
   await page.locator('[data-testid="workbench-stepbar"] [data-step="submit9"]').click()
   await page.locator('iframe[title*="미리보기"]').waitFor({ state: 'visible', timeout: 25000 })
   await page.waitForTimeout(1500)
+  await page.locator('[data-annex-fields="report9"]').waitFor({ state: 'visible', timeout: 30000 })
   const m9 = await page.evaluate(() => {
     const f = document.querySelector('iframe[title*="미리보기"]') as HTMLIFrameElement | null
     return f ? Math.round(f.getBoundingClientRect().height) : -1
   })
   check(`④ 9호 미리보기도 min-h에 갇히지 않는다 (실측 ${m9}px)`, m9 > 260, `${m9}px`)
+  // ⚠ 위 높이는 **고유값 칸을 지우면** 거저 얻어진다 — 그건 결함을 결함으로 바꾸는 것이다.
+  //    9호 고유값 8칸(보고일·비고 + select 6)이 전부 살아 있고, 접힌 2열 안에서 실제로 닿을 수
+  //    있는지(스크롤로 보이게 되는지)를 같은 자리에서 함께 고정한다.
+  const f9 = await page.evaluate(() => {
+    const box = document.querySelector('[data-annex-fields="report9"]') as HTMLElement | null
+    if (!box) return null
+    // DateInput은 달력 팝업용 히든 <input type="date">를 하나 더 그린다(aria-hidden) — 사람이 쓰는 칸만 센다
+    const ctrls = [...box.querySelectorAll<HTMLElement>('input, select, textarea')]
+      .filter(c => c.getAttribute('aria-hidden') !== 'true')
+    let worstOvf = 0
+    for (const el of box.querySelectorAll<HTMLElement>('*')) worstOvf = Math.max(worstOvf, el.scrollWidth - el.clientWidth)
+    return {
+      n: ctrls.length,
+      labels: ctrls.map(c => c.getAttribute('aria-label') ?? ''),
+      // display:none·visibility:hidden로 숨겨 높이를 번 것이 아님을 확인
+      hidden: ctrls.filter(c => c.offsetParent === null && getComputedStyle(c).position !== 'fixed').length,
+      boxH: Math.round(box.getBoundingClientRect().height),
+      ovf: worstOvf,
+    }
+  })
+  check('④ 고유값 칸을 측정할 수 있다', !!f9)
+  if (f9) {
+    // annex-fields.tsx FIELD_DEFS.report9 = 8칸 (보고일·비고 + select 6)
+    check(`④ 9호 고유값 8칸이 전부 살아 있다 (실측 ${f9.n}칸)`, f9.n === 8, f9.labels.join('/'))
+    check(`④ 고유값 칸이 숨겨져 높이를 번 것이 아니다 (숨김 ${f9.hidden}칸)`, f9.hidden === 0, `${f9.hidden}칸`)
+    check(`④ 고유값 칸이 미리보기를 밀어내지 않는다 (실측 ${f9.boxH}px ≤ 200)`, f9.boxH <= 200, `${f9.boxH}px`)
+    check(`④ 고유값 칸이 가로로 넘치지 않는다 (${f9.ovf}px)`, f9.ovf <= 12, `${f9.ovf}px`)
+  }
 } finally {
   if (browser) await browser.close()
   if (inspId) await raw.from('inspection_defects').delete().eq('inspection_id', inspId)

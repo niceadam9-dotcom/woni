@@ -140,7 +140,7 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
   rows?: number
 }) {
   if (def.type === 'date') {
-    return <DateInput value={value} aria-label={def.label} onChange={e => onChange(e.target.value)} className={`${inputCls} w-40`} />
+    return <DateInput value={value} aria-label={def.label} onChange={e => onChange(e.target.value)} className={`${inputCls} w-40 min-w-0 max-w-full`} />
   }
   if (def.type === 'daterange') {
     // 가입기간(1.1 일반현황)과 동일 패턴 — "YYYY-MM-DD ~ YYYY-MM-DD"로 저장, 문서 출력 시 한국어 날짜로 변환(report9-actions)
@@ -162,8 +162,11 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
     )
   }
   if (def.type === 'select') {
+    // w-64는 **희망 폭**이다 — 좁은 칸(작업대 ④ 고유값 2열)에서는 칸만큼 줄어야 한다.
+    // max-w-full이 없으면 256px 고정이라 셀 밖으로 삐져나온다(daterange와 같은 규약).
     return (
-      <select value={value} aria-label={def.label} onChange={e => onChange(e.target.value)} className={`${inputBase} w-64 bg-white`}>
+      <select value={value} aria-label={def.label} onChange={e => onChange(e.target.value)}
+        className={`${inputBase} w-64 min-w-0 max-w-full bg-white`}>
         {(def.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     )

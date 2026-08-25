@@ -972,12 +972,16 @@ function DocPane({ files, inspectionId, onOpen }: {
 /** 서식 고유값 인라인 (R6-6) — 3단 슬라이드 패널 대신 미리보기 옆 몇 칸.
  *  정의는 annex-fields.tsx 하나, 저장 액션도 패널과 같은 saveAnnexInputsAction이다.
  *  칸을 벗어나면 저장한다 — 값이 비어 있으면 문서는 자동 계산값을 쓴다(오버레이 규칙 유지). */
-function AnnexFields({ inspectionId, annexNo, canEdit, onSaved }: {
+function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
   inspectionId: string
   annexNo: ComposeAnnexNo
   canEdit: boolean
   /** 저장되면 미리보기가 따라가야 한다 — 고친 값이 문서에 어떻게 나오는지가 이 칸의 존재 이유다 */
   onSaved?: () => void
+  /** ④처럼 **미리보기와 세로를 나눠 쓰는** 자리 전용 — 2열로 접고 높이 상한(12rem) 안에서 스크롤한다.
+   *  칸을 지우지 않는 이유: 8칸(9호)·10칸(위임장) 전부 여기서만 고칠 수 있는 값이다.
+   *  ⑤⑥의 고유값 칸은 미리보기가 **다른 칸**이라 세로 경쟁이 없다 — 거기는 종전 1열 그대로. */
+  compact?: boolean
 }) {
   const defs = FIELD_DEFS[annexNo]
   const [fields, setFields] = useState<Record<string, string>>({})
@@ -1020,14 +1024,21 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved }: {
   if (loading) return <p className="px-1 py-1 text-[10px] text-[#847ba8]">고유값 불러오는 중…</p>
 
   return (
-    <div className="space-y-1.5 px-1" data-annex-fields={annexNo} onBlur={commit}>
-      <p className="flex items-center gap-1.5 text-[10px] text-[#847ba8]">
+    <div className={compact ? 'flex max-h-48 flex-col gap-1.5 overflow-hidden px-1' : 'space-y-1.5 px-1'}
+      data-annex-fields={annexNo} onBlur={commit}>
+      <p className="flex shrink-0 items-center gap-1.5 text-[10px] text-[#847ba8]">
         <span className="inline-flex items-center rounded bg-[#7b68ee] px-1.5 py-0.5 text-[9px] font-medium text-white">입력</span>
         이 서식에서만 쓰는 값 — 비우면 자동 계산값으로 출력
         {state === 'saving' && <Loader2 className="size-3 animate-spin text-[#7b68ee]" />}
         {state === 'saved' && <span className="text-green-600">저장됨</span>}
         {state === 'error' && <span className="text-red-600">저장 실패</span>}
       </p>
+      {/* compact: 2열 + min-h-0 overflow-y-auto — flex 자식이라 상한(12rem) 안으로 **줄어든다**.
+          종전엔 이 블록이 내용만큼 커져 ④ 미리보기를 min-h(237px)까지 밀어냈다(9호에 select 4칸이
+          늘면서 실측 281→237px). 칸을 없애지 않고 접는다 — 스크롤로 8칸 전부에 닿는다. */}
+      <div className={compact
+        ? 'grid min-h-0 grid-cols-2 gap-x-2 gap-y-1.5 overflow-y-auto pr-0.5'
+        : 'space-y-1.5'}>
       {defs.map(d => {
         // 자동값은 **빈 칸일 때만** 회색으로 비춘다(placeholder). 값을 넣는 순간 그 값이 이긴다.
         // 칸에 미리 채워 넣지 않는 이유: 저장되어 원천 변경을 따라가지 못하게 된다.
@@ -1047,6 +1058,7 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved }: {
           </label>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -1071,12 +1083,16 @@ function AnnexPane({ inspectionId, annexNo, canEdit, customerId, onGenerate, gen
 }) {
   const [rev, setRev] = useState(0)
   const hasFields = ANNEX_HAS_FIELDS.has(annexNo)
-  // 고유값 칸은 내용만큼(shrink-0), 남는 높이는 전부 미리보기에 — Pane fill이 물려준 높이를 여기서 흘려보낸다
+  // 고유값 칸은 내용만큼(shrink-0)이되 **상한이 있다**(compact: 2열 + 12rem 스크롤).
+  // 상한이 없던 종전에는 서식에 칸이 하나 늘 때마다 미리보기가 그만큼 깎여, 9호 select 4칸이
+  // 추가되자 미리보기가 min-h 바닥(237px)에 눌러앉았다(test-preview-pane ③이 이 높이를 지킨다).
+  // 남는 높이는 전부 미리보기에 — Pane fill이 물려준 높이를 여기서 흘려보낸다.
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       {hasFields && (
         <div className="shrink-0">
-          <AnnexFields inspectionId={inspectionId} annexNo={annexNo as ComposeAnnexNo} canEdit={canEdit} onSaved={() => setRev(v => v + 1)} />
+          <AnnexFields inspectionId={inspectionId} annexNo={annexNo as ComposeAnnexNo} canEdit={canEdit} compact
+            onSaved={() => setRev(v => v + 1)} />
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col border-t border-[#f3f1fc] pt-2">
@@ -1152,7 +1168,7 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
       <div className="relative flex items-center gap-1.5 px-1">
         {loading && <span className="inline-flex items-center gap-1 text-[10px] text-[#847ba8]"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
         {/* 종전엔 개수만 띄웠다 — 무엇이 왜 비었는지 볼 방법이 없어 조립 쪽에 항목을 더해도 숫자만 올랐다 */}
-        {!loading && !(err && missing.length === 0) && <AnnexMissingChip missing={missing} customerId={customerId} />}
+        {!loading && !(err && missing.length === 0) && <AnnexMissingChip missing={missing} customerId={customerId} inspectionId={inspectionId} />}
         <span className="ml-auto flex items-center gap-2">
           {/* 지금 보고 있는 이 초안을 그대로 PDF로 만든다 — 전제 미충족이어도 막지 않는다(빈 칸으로 인쇄).
               ⚠ 형제 버튼(크게 보기·새로고침)과 **같은 글자 높이**를 지킨다. 알약(h-6)으로 넣었더니
@@ -1186,7 +1202,7 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
             <div className="flex shrink-0 items-center gap-2 border-b border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
               <FileText className="size-4 text-[#7b68ee]" />
               <p className="text-xs font-semibold text-[#514b81]">{ANNEX_PREVIEW_TITLES[reportType]} 미리보기</p>
-              <span className="relative"><AnnexMissingChip missing={missing} customerId={customerId} /></span>
+              <span className="relative"><AnnexMissingChip missing={missing} customerId={customerId} inspectionId={inspectionId} /></span>
               {/* 이 미리보기는 저장된 PDF가 아니라 **현재 데이터로 조립한 초안**이다(위 주석) —
                   그래서 hasPdf=false로 넘겨 '초안 인쇄' 경로를 탄다. 버튼이 확인창으로
                   제출용이 아님을 알리고, 하이라이트를 뺀 HTML로 다시 렌더해 인쇄한다. */}

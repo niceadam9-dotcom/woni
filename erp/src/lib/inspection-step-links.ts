@@ -16,9 +16,12 @@ export function stepInputLink(
 ): { href: string; label: string; title: string } | null {
   switch (stepNum) {
     case 1:
-      // ① 증거 = 점검표 응답 1건 이상 → 첫 미완성 시트 드로어를 자동으로 연다
+      // ① 증거 = 점검표 응답 1건 이상 → **입력 전용 페이지**(소방계획서_28 S1)로 보낸다.
+      //    종전엔 점검 상세(`?step=1&sheet=auto`)의 드로어를 열었지만, 입력의 정본이
+      //    `/inspections/{id}/sheet`로 옮겨졌다(회차트리·1.4 배지도 그리로 간다).
+      //    `?sheet=auto` 의미는 보존된다 — 신설 페이지도 아래 pickAutoOpenSheet로 첫 미완성을 고른다.
       return {
-        href: `/inspections/${inspectionId}?step=1&sheet=auto`,
+        href: `/inspections/${inspectionId}/sheet?sheet=auto`,
         label: '점검표 입력',
         title: '점검표를 입력하면 이 단계는 사유 없이 자동으로 완료됩니다',
       }

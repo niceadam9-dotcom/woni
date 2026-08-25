@@ -221,7 +221,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                       </span>
                     </div>
                   ))}
-                  <AnnexMissingList missing={missing} customerId={customerId} />
+                  <AnnexMissingList missing={missing} customerId={customerId} inspectionId={inspectionId} />
                 </div>
               </section>
 
