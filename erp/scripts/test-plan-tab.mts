@@ -377,10 +377,22 @@ try {
     await page.click('button[aria-label="닫기"]').catch(() => {})
     await page.waitForTimeout(300)
   }
-  await page.click('text=소화기구 및 자동소화장치')
+  // 2026-08-26 — 클릭 의미 분리(☑=토글 / 설비명=대장 열기). 종전 `text=소화기구…`(라벨) 클릭은
+  // 이제 토글이 아니라 대장 열기라 체크가 안 된다. 토글은 체크박스 표적으로 겨눈다.
+  await page.click('[data-testid="form14-check-소화기구 및 자동소화장치"]')
+  check('☑ 클릭 → 소화기구 체크됨', await page.locator('[data-testid="form14-check-소화기구 및 자동소화장치"]').getAttribute('aria-pressed') === 'true')
   await closeSpecPanel()
   await page.click('button:has-text("피난사다리")')
-  check('하위 체크 → 피난기구 자동 체크', await page.locator('div[role="button"]:has-text("피난기구")').first().textContent().then(t => t?.includes('☑') ?? false))
+  check('하위 체크 → 피난기구 자동 체크',
+    await page.locator('[data-testid="form14-check-피난기구"]').getAttribute('aria-pressed') === 'true')
+  await closeSpecPanel()
+
+  // 회귀 방지 — 이 화면이 생긴 이유 그 자체: 체크된 설비의 이름을 눌러도 체크가 풀리지 않아야 한다.
+  const evacBefore = await page.locator('[data-testid="form14-check-피난기구"]').getAttribute('aria-pressed')
+  await page.click('[data-testid="form14-ledger-피난기구"]')
+  const evacAfter = await page.locator('[data-testid="form14-check-피난기구"]').getAttribute('aria-pressed')
+  check('설비명 클릭 → 체크 무변동', evacBefore === 'true' && evacAfter === 'true', `before=${evacBefore} after=${evacAfter}`)
+  check('설비명 클릭 → 설비 대장 패널 열림', await page.isVisible('button[aria-label="닫기"]'))
   await closeSpecPanel()
   // 소방계획서_12 — 수동 [저장] 단일 규약(자동 저장 없음). U2: Ctrl+S 경로로 본문 저장
   check('U1 — 본문 수정 → 푸터 미저장 배지', await page.isVisible('[data-testid="form14-dirty-badge"]'))

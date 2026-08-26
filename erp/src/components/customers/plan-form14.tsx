@@ -316,11 +316,19 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     })
     markDirty()
     // 체크(√) 순간 우측 설비 대장 패널 오픈 + 해당 섹션 펼침 (2026-08-05: 본문 스크롤 대신 옆 패널 — 화면이 밀리지 않음)
-    if (turningOn) {
-      const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치' : code
-      setSpecsOpen(true)
-      setTimeout(() => window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } })), 120)
-    }
+    if (turningOn) openLedger(code)
+  }
+  /** 설비 대장 패널 열기 + 해당 섹션 펼침 — **설치 체크는 건드리지 않는다**.
+   *
+   *  종전엔 이 동작이 toggle()의 부수효과였고 조건이 `if (turningOn)`이라, 이미 체크된 설비의
+   *  대장을 보려면 클릭할 곳이 체크 셀뿐인데 그 클릭이 곧 '해제'로 해석됐다 — 의도를 표현할
+   *  입력 수단 자체가 없었다(피난기구는 해제가 세부제원 종류까지 지우므로 오클릭이 파괴적이다).
+   *  이제 설비명 클릭이 이 함수를 직접 부른다. 패널은 항상 마운트돼 있고 erp:open-spec-section을
+   *  듣고 있으므로(아래 슬라이드 패널) 새 배선은 없다. */
+  function openLedger(code: string) {
+    const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치' : code
+    setSpecsOpen(true)
+    setTimeout(() => window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } })), 120)
   }
   function autoFloors() {
     const fa = b?.floorsAbove ?? 0
@@ -406,21 +414,47 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   // S1-3 — 저장 응답의 확인일이 있으면 우선, 없으면 서버 초기값
   const shownVerifiedAt = verifiedAt ?? b.verified_at
 
-  /** 체크 셀 — 순수 체크형(2026-08-04 사용자 확정): 셀 전체 클릭=√ 토글·자동 저장, 편집(✎) 아이콘 없음.
-   *  비고 값이 기존에 있으면 표시만 유지(입력·수정은 폐지 — 상세 제원은 설비 대장에서). */
+  /** ☑/☐ 만 토글하는 버튼 — 2026-08-26 사용자 확정으로 '셀 전체 = 토글'이 여기로 좁아졌다.
+   *  표적이 좁아진 만큼 **히트박스를 글리프보다 넉넉히**(w-7 h-7) 잡는다. 좁은 채로 두면
+   *  빗맞은 클릭이 설비명(=대장 열기)으로 떨어져 패널이 본문을 덮고, 그 편이 종전보다 나쁘다. */
+  const checkBox = (code: string, disabled = false) => (
+    <button type="button" aria-disabled={disabled} aria-pressed={fac[code].installed}
+      aria-label={`${code} 설치 체크`} data-testid={`form14-check-${code}`}
+      onClick={() => !disabled && toggle(code)}
+      title={disabled ? undefined : `${code} 설치 여부를 체크합니다`}
+      className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded ${
+        disabled ? 'cursor-not-allowed text-[#c8c4d0]' : 'cursor-pointer hover:bg-[#ece9ff]'}`}>
+      <span className="text-sm leading-none">{fac[code].installed ? '☑' : '☐'}</span>
+    </button>
+  )
+  /** 설비명 = 설비 대장 열기. **체크 상태는 바뀌지 않는다** — 종전에 이 자리를 누르면 해제됐다.
+   *  점선 밑줄로 '누를 수 있는 이름'임을 알린다(hover가 없는 태블릿에서도 밑줄은 보인다). */
+  const ledgerLabel = (code: string, disabled = false) => (
+    <button type="button" aria-disabled={disabled} data-testid={`form14-ledger-${code}`}
+      onClick={() => !disabled && openLedger(code)}
+      title={disabled ? undefined : `${code} — 설비 대장에서 세부 제원을 봅니다 (설치 체크는 바뀌지 않습니다)`}
+      className={`min-w-0 truncate text-left text-xs ${
+        disabled ? 'cursor-not-allowed text-[#c8c4d0]'
+          : `cursor-pointer underline decoration-dotted decoration-[#c8c4d0] underline-offset-2 hover:decoration-[#7b68ee] ${
+            fac[code].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}`}>
+      {code}
+    </button>
+  )
+
+  /** 체크 셀 — 2026-08-26 사용자 확정: **☑는 토글 / 설비명은 대장 열기**로 클릭 의미를 분리.
+   *  (종전 2026-08-04 확정은 '셀 전체 클릭=√ 토글'이었으나, 그러면 이미 체크된 설비의 대장을
+   *   여는 방법이 없어 사용자가 체크를 해제해야만 했다.) 편집(✎) 아이콘은 여전히 없다.
+   *  비고 값이 기존에 있으면 표시만 유지(입력·수정은 폐지 — 상세 제원은 설비 대장에서).
+   *  ⚠ resultBadge는 <Link>다 — 버튼 안에 넣으면 중첩 인터랙티브가 되므로 형제로 둔다. */
   const cell = (code: Cell, opts?: { sub?: boolean }) => {
     if (!code) return <td className="border border-[#c8c4d0]" />
     const st = fac[code]
-    const disabled = opts?.sub && !evacOn && !st.installed
+    const disabled = !!(opts?.sub && !evacOn && !st.installed)
     return (
       <td className={`border border-[#c8c4d0] p-0 ${disabled ? 'bg-[#f8f8fb]' : ''}`}>
-        <div role="button" tabIndex={0} aria-disabled={disabled}
-          onClick={() => !disabled && toggle(code)}
-          onKeyDown={e => { if (e.key === 'Enter' && !disabled) toggle(code) }}
-          className={`flex items-center gap-1.5 px-2 py-1 min-h-7 cursor-pointer select-none ${
-            disabled ? 'cursor-not-allowed text-[#c8c4d0]' : 'hover:bg-[#f5f4ff]'}`}>
-          <span className="text-sm leading-none">{st.installed ? '☑' : '☐'}</span>
-          <span className={`text-xs ${st.installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>{code}</span>
+        <div className="flex items-center gap-1 pl-0.5 pr-2 py-1 min-h-7 select-none">
+          {checkBox(code, disabled)}
+          {ledgerLabel(code, disabled)}
           {st.note && <span className="text-[10px] text-amber-600 truncate max-w-24" title={st.note}>({st.note})</span>}
           {resultBadge(code)}
         </div>
@@ -434,7 +468,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       {/* 타이틀 + 대상명 (양식 비고 2 — 대상물별 세트) */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-semibold text-[#090c1d]">서식 1.4 소방시설 현황</span>
-        <span className="text-[11px] text-[#b0acd6]">※ 해당되는 곳을 클릭해 √ 표시합니다</span>
+        {/* 안내문이 조작 규약의 단일 설명이다 — 클릭 의미를 분리했으면 여기도 같이 바꿔야 한다
+            (종전 '해당되는 곳을 클릭해 √' 문구는 이제 설비명 클릭과 모순된다) */}
+        <span className="text-[11px] text-[#b0acd6]">※ ☑ 를 클릭해 √ 표시 · <span className="underline decoration-dotted underline-offset-2">설비명</span>을 클릭하면 설비 대장이 열립니다(체크 유지)</span>
         {/* 소방계획서_26 S4 — 결과 배지의 회차 축 안내. 진행 중 회차가 없으면 왜 배지가 없는지 여기서 말한다 */}
         {canRegister && resultCtx && (resultCtx.inspection
           ? <span className="text-[10px] text-[#7b68ee]">점검결과(○×／)는 {resultCtx.inspection.label}에 기록됩니다</span>
@@ -463,11 +499,10 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
               {r.fireSub && (
                 <td colSpan={2} className="border border-[#c8c4d0] p-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
-                    <div role="button" tabIndex={0} onClick={() => toggle('소화기구 및 자동소화장치')}
-                      onKeyDown={e => { if (e.key === 'Enter') toggle('소화기구 및 자동소화장치') }}
-                      className="flex items-center gap-1.5 cursor-pointer select-none hover:bg-[#f5f4ff] rounded px-1">
-                      <span className="text-sm leading-none">{fac['소화기구 및 자동소화장치'].installed ? '☑' : '☐'}</span>
-                      <span className={`text-xs ${fac['소화기구 및 자동소화장치'].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>소화기구 및 자동소화장치</span>
+                    {/* 부모 행도 셀과 같은 규약 — ☑는 토글, 이름은 대장 열기 (한 곳만 고치면 이웃에서 같은 사고가 난다) */}
+                    <div className="flex items-center gap-1 select-none">
+                      {checkBox('소화기구 및 자동소화장치')}
+                      {ledgerLabel('소화기구 및 자동소화장치')}
                       {resultBadge('소화기구 및 자동소화장치')}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
@@ -489,11 +524,11 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
               {r.evacSub && (
                 <td colSpan={2} className="border border-[#c8c4d0] p-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
-                    <div role="button" tabIndex={0} onClick={() => toggle('피난기구')}
-                      onKeyDown={e => { if (e.key === 'Enter') toggle('피난기구') }}
-                      className="flex items-center gap-1.5 cursor-pointer select-none hover:bg-[#f5f4ff] rounded px-1">
-                      <span className="text-sm leading-none">{fac['피난기구'].installed ? '☑' : '☐'}</span>
-                      <span className={`text-xs ${fac['피난기구'].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}>피난기구</span>
+                    {/* 피난기구는 해제가 세부제원 종류까지 지운다(toggle 참조) — 이름 클릭이 해제로
+                        해석되던 종전 구조에서 특히 위험했다. 여기서도 ☑만 토글한다. */}
+                    <div className="flex items-center gap-1 select-none">
+                      {checkBox('피난기구')}
+                      {ledgerLabel('피난기구')}
                       {resultBadge('피난기구')}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
