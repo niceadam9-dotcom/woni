@@ -445,7 +445,9 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         </section>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => { void save() }} disabled={isPending}
+          {/* 이 화면에 '저장'이라 쓰인 버튼이 여럿이다(소방안전관리자 패널 등) — `button:text-is("저장")`로
+              겨누면 Playwright가 첫 매치(비활성·비가시)를 집어 클릭이 타임아웃난다. 표적을 고정한다. */}
+          <button onClick={() => { void save() }} disabled={isPending} data-testid="fp-info-save"
             className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
             {isPending && <Loader2 className="size-3 animate-spin" />} 저장
           </button>

@@ -76,7 +76,9 @@ try {
   // ── 3) 송달 동의 + 화재보험을 1.1 [저장] 하나로 저장 (098 §9-6① · 라벨 복구분) ──
   await page.click('#consent-section button:has-text("동의")')
   await page.fill('input[placeholder="예: owner@example.com"]', 'owner@example.com')
-  await page.click('button:text-is("저장")')
+  // 2026-08-26 — `button:text-is("저장")`은 이 화면에서 4개를 잡고 첫 매치가 소방안전관리자 패널의
+  // **비활성·비가시** 저장이라 클릭이 타임아웃났다(내 1.4 변경과 무관한 선행 결함). 표적 고정.
+  await page.click('[data-testid="fp-info-save"]')
   await page.waitForSelector('text=저장되었습니다')
   const { data: cRow } = await raw.from('customers')
     .select('email_delivery_consent, report_email').eq('id', customerId).single()
@@ -92,7 +94,7 @@ try {
   // 구 경로(sections.revision 단일 슬롯)는 저장할 때마다 덮어써 이력이 남지 않아 폐기됐다.
   await page.click('button:has-text("개정 추가")')
   await page.fill('input[placeholder="주요 개정내용"]', '개정 E2E 검증')
-  await page.click('button:has-text("저장")')
+  await page.click('[data-testid="revision-save"]')   // 텍스트 셀렉터는 4개를 잡는다(위 fp-info-save 주석 참조)
   await page.waitForSelector('text=개정이력 저장됨', { timeout: 60000 })
   const { data: revRow } = await raw.from('fire_plan_revisions')
     .select('year, seq, content, source').eq('customer_id', customerId).maybeSingle()
@@ -141,7 +143,7 @@ try {
   await page.fill('div:has(> label:text-is("피난용승강기")) input', '1')
   await page.click('div:has(> label:has-text("대표자 구분")) button:has-text("소유자")')
   await page.click('div:has(> label:has-text("관리자 자격구분")) button:has-text("2급")')
-  await page.click('button:text-is("저장")')   // [저장 후 다음 탭 →] 폐기(2026-08-08) — 1.1 [저장] 단일
+  await page.click('[data-testid="fp-info-save"]')   // [저장 후 다음 탭 →] 폐기(2026-08-08) — 1.1 [저장] 단일
   await page.waitForSelector('text=저장되었습니다')
   const { data: bldNew } = await raw.from('buildings').select('stairs_count, evac_elevator_count').eq('customer_id', customerId).limit(1).single()
   const { data: custNew } = await raw.from('customers').select('rep_role, manager_license_grade').eq('id', customerId).single()

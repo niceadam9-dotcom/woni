@@ -127,7 +127,8 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         onChange={e => setDraft(p => ({ ...p, reviewerName: e.target.value }))} className={`${inputCls} w-16`} />
       <input value={draft.approverName} placeholder="승인"
         onChange={e => setDraft(p => ({ ...p, approverName: e.target.value }))} className={`${inputCls} w-16`} />
-      <button onClick={() => { void commit() }} disabled={isPending}
+      {/* 같은 화면에 '저장' 버튼이 여럿이라 텍스트로는 못 겨눈다(소방안전관리자 패널의 비활성 저장이 먼저 잡힌다) */}
+      <button onClick={() => { void commit() }} disabled={isPending} data-testid="revision-save"
         className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-[#7b68ee] text-white text-[11px] font-medium disabled:opacity-50">
         {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
       </button>
