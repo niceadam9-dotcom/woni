@@ -8,7 +8,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
-import { sheetMatchesFacilities } from '../src/lib/sheet-facility-map'
+import { sheetMatchesFacilities, sheetShownWhenInstalledOnly } from '../src/lib/sheet-facility-map'
 import { FIRE_SUB_ITEMS } from '../src/lib/facility-codes'
 
 const tag = process.argv[2] ?? 'run'
@@ -70,7 +70,13 @@ for (const insp of insps) {
   if (codes.length === 0) continue
   const rs = respBySheet.get(insp.id) ?? new Map()
 
-  const hidden = scope.filter(s => !sheetMatchesFacilities(s.sheet_name, codes) && (rs.get(s.id) ?? 0) === 0)
+  // 화면 규칙 **그대로** 써야 한다 — sheetMatchesFacilities만 보면 ALWAYS_SHOWN_SHEET_CODES를
+  // 놓쳐 상시 노출 시트(STD-31·EXT-10~14)까지 '숨김'으로 세는 거짓 수치가 나온다.
+  const hidden = scope.filter(s => !sheetShownWhenInstalledOnly({
+    sheetCode: s.sheet_code,
+    installed: sheetMatchesFacilities(s.sheet_name, codes),
+    responded: rs.get(s.id) ?? 0,
+  }))
   const uncovered = codes.filter(c => !FIRE_SUB_ITEMS.includes(c)
     && !scope.some(s => sheetMatchesFacilities(s.sheet_name, [c])))
 
