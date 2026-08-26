@@ -139,16 +139,34 @@ try {
   await page.waitForSelector('button:has-text("추천값 채우기")')
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
+  // 건물 축은 여전히 1.1에 있다
   await page.fill('div:has(> label:text-is("계단")) input', '2')
   await page.fill('div:has(> label:text-is("피난용승강기")) input', '1')
-  await page.click('div:has(> label:has-text("대표자 구분")) button:has-text("소유자")')
-  await page.click('div:has(> label:has-text("관리자 자격구분")) button:has-text("2급")')
   await page.click('[data-testid="fp-info-save"]')   // [저장 후 다음 탭 →] 폐기(2026-08-08) — 1.1 [저장] 단일
   await page.waitForSelector('text=저장되었습니다')
   const { data: bldNew } = await raw.from('buildings').select('stairs_count, evac_elevator_count').eq('customer_id', customerId).limit(1).single()
-  const { data: custNew } = await raw.from('customers').select('rep_role, manager_license_grade').eq('id', customerId).single()
   check('DB 1.1 신규 필드(buildings)', bldNew?.stairs_count === 2 && bldNew?.evac_elevator_count === 1, JSON.stringify(bldNew))
-  check('DB 1.1 신규 필드(customers)', custNew?.rep_role === '소유자' && custNew?.manager_license_grade === '2급', JSON.stringify(custNew))
+
+  // 사람 축(대표자 구분·관리자 자격구분)은 2026-08-20 `ee1d290`부터 **관계인 탭 [소방안전관리]**로
+  // 이관됐다(fire-plan-info-panel.tsx:306-318 — 1.1엔 안내 링크만 남았다). 이 테스트는 이관을
+  // 따라가지 않아 1.1에서 눌러 왔고, 그 셀렉터가 **다른 탭의 숨은 패널**을 잡아 resolved 된 채
+  // not visible로 15초 타임아웃났다. 입력처를 따라간다 — 검증 대상은 여전히 같은 두 컬럼이다.
+  await page.goto(`${BASE}/customers/${customerId}?tab=contacts`)
+  await page.waitForSelector('#c-fire-safety-manager')
+  await page.click('#c-fire-safety-manager div:has(> label:has-text("대표자 구분")) button:has-text("소유자")')
+  await page.click('#c-fire-safety-manager div:has(> label:has-text("관리자 자격구분")) button:has-text("2급")')
+  await page.click('[data-testid="fsm-save"]')
+  await page.waitForSelector('text=저장됨 — 별지 9호 2쪽')
+  const { data: custNew } = await raw.from('customers').select('rep_role, manager_license_grade').eq('id', customerId).single()
+  check('DB 사람 축(customers) — 관계인 탭 [소방안전관리] 저장',
+    custNew?.rep_role === '소유자' && custNew?.manager_license_grade === '2급', JSON.stringify(custNew))
+
+  // 이관 회귀 — 1.1에는 입력 칸이 아니라 **안내 링크**만 있어야 한다(되돌아오면 두 곳 입력이 갈린다)
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.1`)
+  await page.waitForSelector('text=① 시설현황')
+  check('1.1 — 사람 축 입력칸 없음(관계인 탭으로 이관)',
+    (await page.locator('#fp-manager-date label:text-is("대표자 구분")').count()) === 0)
+  check('1.1 — 관계인 탭 안내 링크 유지', await page.isVisible('a:has-text("관계인 탭")'))
 
   // ── 4.5) 서식 1.2·1.3 (P4-①) — 프리셋·저장·DB 반영 ──
   await page.click('button:has-text("1.2 세부현황")')
@@ -222,8 +240,11 @@ try {
   check('미저장 이동 확인 — [저장하고 이동] 버튼 제공',
     await page.isVisible('[data-testid="unsaved-nav-save"]'))
   await page.click('[data-testid="unsaved-nav-cancel"]')
-  await page.waitForTimeout(400)
-  check('미저장 이동 확인 — 취소 시 잔류', await page.isVisible('text=소방차 세부진입 계획'))
+  // 고정 대기(400ms)는 dev RSC 커밋이 늦으면 그냥 실패한다 — 조건 대기로 바꾼다.
+  // 취소했으니 1.3에 머물러야 하고, 그 증거는 '소방차 세부진입 계획'이 다시 보이는 것이다.
+  const stayed = await page.waitForSelector('text=소방차 세부진입 계획', { timeout: 15000 })
+    .then(() => true).catch(() => false)
+  check('미저장 이동 확인 — 취소 시 잔류', stayed)
   await page.click('button:has-text("서식 1.3 저장")')
   await page.waitForSelector('text=서식 1.3 저장됨')
   const { data: f13 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
@@ -282,13 +303,21 @@ try {
 
   await page.click('button:has-text("1.7 선임현황")')
   await page.waitForSelector('text=1.7.1 소방안전관리(보조)자 선임현황')
+  // 1.7은 **보조자 전용**으로 개편됐다(plan-form17.tsx:68·100·120) — 주 선임자(관리자)는 관계인 탭이
+  // 정본이라 여기선 읽기 전용으로만 보인다. 보조자가 0명이면 표에 행이 아예 없어(`rows.length === 0`
+  // 안내문만 뜬다) 종전처럼 `td input`을 바로 채우면 로케이터가 굶는다. 행을 먼저 만든다.
+  check('1.7 — 주 선임자는 읽기 전용(관계인 탭이 정본)', await page.isVisible('a:has-text("관계인 탭에서 수정")'))
+  check('1.7 — 보조자 0명 안내', await page.isVisible('text=등록된 보조자가 없습니다'))
+  await page.click('button:has-text("보조자 추가")')
   await page.locator('td input').nth(0).fill('승진소방') // 소속
-  await page.locator('td input').nth(1).fill('홍관리')   // 성명 (테스트 고객은 관계인 없음 — 자동값 빈칸)
+  await page.locator('td input').nth(1).fill('홍보조')   // 성명
   await page.click('button:has-text("서식 1.7 저장")')
   await page.waitForSelector('text=서식 1.7 저장됨')
   const { data: f17 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
   const mgrs = (f17?.sections as { managers?: Array<{ role: string; affiliation: string; name: string }> } | null)?.managers
-  check('DB sections.managers 저장', mgrs?.[0]?.role === '관리자' && mgrs?.[0]?.affiliation === '승진소방' && mgrs?.[0]?.name === '홍관리', JSON.stringify(mgrs))
+  // 구분은 '보조자' 고정이다 — 종전 기대값 '관리자'는 이 화면에서 만들 수 없는 값이 됐다
+  check('DB sections.managers 저장(보조자)',
+    mgrs?.[0]?.role === '보조자' && mgrs?.[0]?.affiliation === '승진소방' && mgrs?.[0]?.name === '홍보조', JSON.stringify(mgrs))
 
   // ── 4.65) 서식 1.10·1.11 + 2장 (P4-④) ──
   await page.click('button:has-text("1.10 자체점검")')
@@ -436,7 +465,10 @@ try {
   // '부모 피난기구 빈칸 + 하위 종류 √' 모순이 인쇄될 수 있었다. 이 경로를 E2E가 한 번도 밟지 않아 놓쳤다.
   check('B안 — 패널 닫힘 상태에선 패널 저장 버튼이 DOM에 없다',
     (await page.locator('[data-testid="specs-save"]').count()) === 0)
-  await page.click('text=옥내소화전설비')                 // 본문 체크(= 본문만 dirty) → 패널이 함께 열린다
+  // ⚠ 3c528fc로 클릭 의미가 갈렸다 — `text=옥내소화전설비`(설비명)는 이제 **대장만 열고 토글하지
+  //   않는다**. 그대로 두면 패널은 열리지만 본문이 dirty가 되지 않아 [저장]이 비활성으로 남는다
+  //   (실제로 이 줄 때문에 아래 두 단언이 무너졌다). 이 검사의 의도는 '본문 체크'이므로 ☑를 겨눈다.
+  await page.click('[data-testid="form14-check-옥내소화전설비"]')  // 본문 체크(= 본문만 dirty) → 패널이 함께 열린다
   await page.waitForSelector('[data-testid="specs-save"]')
   check('B안 — 패널에 통합 [저장] 단일 버튼', await page.isVisible('[data-testid="specs-save"]'))
   check('B안 — 구 [모두 저장] 버튼 폐지', (await page.locator('button:has-text("모두 저장")').count()) === 0)

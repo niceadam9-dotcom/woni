@@ -182,8 +182,10 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
+        {/* fsm-save — 이 버튼이 '저장' 텍스트 셀렉터의 첫 매치였다. 비활성(!dirty)·비가시(다른 탭)라
+            소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다. */}
         {canManage && (
-          <button onClick={save} disabled={isPending || !dirty}
+          <button onClick={save} disabled={isPending || !dirty} data-testid="fsm-save"
             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
           </button>
