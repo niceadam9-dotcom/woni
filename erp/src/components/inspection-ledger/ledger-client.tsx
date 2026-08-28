@@ -5,6 +5,7 @@ import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { BookText, Download, Search } from 'lucide-react'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
+import { formatTel } from '@/lib/format-contact'
 
 export type LedgerRow = {
   id: string; name: string; type: string; planDate: string | null
@@ -35,7 +36,7 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
     const data = filtered.map((r, i) => ({
       번호: i + 1, 대상물: r.name, 구분: r.type, 점검계획일: r.planDate ?? '',
       지역: r.region, 연면적: r.area ?? '', 사용승인일: r.useApproval ?? '',
-      관계인: r.contact, 연락처: r.phone, 관할소방서: r.fireStation,
+      관계인: r.contact, 연락처: formatTel(r.phone), 관할소방서: r.fireStation,
       ...(canViewFee ? { 계약료: r.fee ?? '', 과금: r.feeKind } : {}),
     }))
     const ws = XLSX.utils.json_to_sheet(data)
@@ -102,7 +103,7 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
                   <td className="px-2 py-2 text-xs text-[#514b81] whitespace-nowrap">{r.area != null ? `${r.area.toLocaleString()}㎡` : '-'}</td>
                   <td className="px-2 py-2 text-xs text-[#514b81] whitespace-nowrap">{r.useApproval ?? '-'}</td>
                   <td className="px-2 py-2 text-xs text-[#292d34]">{r.contact || '-'}</td>
-                  <td className="px-2 py-2 text-[11px] tracking-tight text-[#514b81] whitespace-nowrap">{r.phone || '-'}</td>
+                  <td className="px-2 py-2 text-[11px] tracking-tight text-[#514b81] whitespace-nowrap">{formatTel(r.phone) || '-'}</td>
                   <td className="px-2 py-2 text-xs text-[#514b81]">{r.fireStation || '-'}</td>
                   {canViewFee && (
                     <td className="px-2 py-2 text-xs text-[#292d34] whitespace-nowrap">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-[10px] text-[#b0acd6] ml-1">{r.feeKind}</span></td>

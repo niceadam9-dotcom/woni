@@ -4,6 +4,7 @@ import { Handshake, ChevronRight } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PartnerFormClient } from '@/components/partners/partner-form-client'
+import { formatTel } from '@/lib/format-contact'
 
 const TYPE_LABELS: Record<string, string> = {
   supplier: '공급업체', subcontractor: '협력업체', client: '고객사', other: '기타',
@@ -49,7 +50,7 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
           <dl className="grid grid-cols-2 gap-4 text-sm">
             <div><dt className="text-xs text-[#514b81]">사업자번호</dt><dd className="mt-1">{p.business_number ?? '-'}</dd></div>
             <div><dt className="text-xs text-[#514b81]">대표자</dt><dd className="mt-1">{p.representative ?? '-'}</dd></div>
-            <div><dt className="text-xs text-[#514b81]">연락처</dt><dd className="mt-1">{p.phone ?? '-'}</dd></div>
+            <div><dt className="text-xs text-[#514b81]">연락처</dt><dd className="mt-1">{p.phone ? formatTel(p.phone) : '-'}</dd></div>
             <div><dt className="text-xs text-[#514b81]">이메일</dt><dd className="mt-1">{p.email ?? '-'}</dd></div>
             <div className="col-span-2"><dt className="text-xs text-[#514b81]">주소</dt><dd className="mt-1">{p.address ?? '-'}</dd></div>
           </dl>

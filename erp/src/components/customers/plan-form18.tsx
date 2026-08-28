@@ -1,4 +1,5 @@
 import { Building2 } from 'lucide-react'
+import { formatTel } from '@/lib/format-contact'
 
 /** 서식 1.8 소방안전관리 업무대행 현황 — 자동 읽기 전용 (소방계획서_4.md §3 3-1.8)
  *  원천: company_profile(대행업체) + customers(계약일·등급·점검유형). 수정은 각 원천 화면에서. */
@@ -32,7 +33,7 @@ export function PlanForm18({ data }: { data: Form18Data }) {
         {row('대표자', data.company?.representative)}
         {row('사업자등록번호', data.company?.bizNo)}
         {row('소재지', data.company?.address)}
-        {row('전화번호', data.company?.phone)}
+        {row('전화번호', formatTel(data.company?.phone))}
         <p className="text-[11px] font-medium text-[#7b68ee] mt-3 mb-1">대행 계약·대상물</p>
         {row('계약일', data.contractDate)}
         {row('소방안전관리 등급', data.grade)}
