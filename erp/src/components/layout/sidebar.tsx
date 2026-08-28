@@ -295,11 +295,22 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt={companyName} className="size-7 rounded-lg object-contain shrink-0" />
         ) : (
-          <div className="size-7 rounded-lg bg-[#7b68ee] flex items-center justify-center shrink-0">
-            <svg className="size-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M4 6h16M4 18h16" />
-            </svg>
-          </div>
+          // 승진(SJ) 모노그램 + 불꽃 점 — J의 점을 불꽃으로 치환 (시안 E, erp_goal/_logo-proposals-sjeng.html)
+          <svg className="size-7 shrink-0" viewBox="0 0 28 28" aria-hidden="true">
+            <defs>
+              <linearGradient id="sj-logo-brand" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#8f7bff" />
+                <stop offset="1" stopColor="#6a52e0" />
+              </linearGradient>
+              <linearGradient id="sj-logo-fire" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#ffb648" />
+                <stop offset="1" stopColor="#ee5253" />
+              </linearGradient>
+            </defs>
+            <rect width="28" height="28" rx="8" fill="url(#sj-logo-brand)" />
+            <text x="13" y="19.5" textAnchor="middle" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize="12.5" fill="#fff" letterSpacing="-0.5">SJ</text>
+            <path d="M20.4 5.2c-1.1 1.3-1.6 2.1-1.6 3a1.6 1.6 0 0 0 3.2 0c0-.9-.5-1.7-1.6-3z" fill="url(#sj-logo-fire)" />
+          </svg>
         )}
         <span className="font-bold text-[#090c1d] text-[14px] tracking-tight truncate">{companyName}</span>
       </div>
