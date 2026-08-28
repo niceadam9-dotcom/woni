@@ -438,7 +438,7 @@ export function InspectionPlansClient({
               >
                 {label}
                 <span className={`text-[11px] font-bold px-1.5 py-px rounded-full min-w-[20px] text-center ${
-                  active ? 'bg-surface/25 text-white' : 'bg-[#f0eefc] text-brand'
+                  active ? 'bg-surface/25 text-white' : 'bg-brand-tint text-brand'
                 }`}>{statusCounts[val]}</span>
               </button>
             )
@@ -606,16 +606,18 @@ function CalendarView({
   const [moveConfirm, setMoveConfirm] = useState<{ item: ItemView; from: string; to: string } | null>(null)
 
   // 점검달력과 동일한 시각 언어 — 상태별 단색 칩 (한 줄, 흰 글자 / 완료·취소는 연회색+취소선)
+  // ⚠ 값은 globals.css의 --chip-* 토큰이다(소방계획서_29 S3-1) — 인라인 style이라 코드모드가
+  //    닿지 않아 리터럴로 두면 다크에서 이 달력만 밝은 블록으로 남는다. 점검 달력과 같은 토큰을 쓴다.
   function chipStyle(item: ItemView, itemOverdue: boolean): React.CSSProperties {
     if (item.customers?.is_active === false || item.status === 'cancelled')
-      return { backgroundColor: '#e5e7eb', color: '#9ca3af', textDecoration: 'line-through' }
+      return { backgroundColor: 'var(--chip-muted-bg)', color: 'var(--chip-done-fg)', textDecoration: 'line-through' }
     if (item.status === 'completed')
-      return { backgroundColor: '#d1fae5', color: '#065f46', textDecoration: 'line-through' }
+      return { backgroundColor: 'var(--chip-ok-bg)', color: 'var(--chip-ok-fg)', textDecoration: 'line-through' }
     if (itemOverdue)
-      return { backgroundColor: '#b91c1c', color: '#fee2e2', fontWeight: 600 }
+      return { backgroundColor: 'var(--chip-over-solid-bg)', color: 'var(--chip-over-solid-fg)', fontWeight: 600 }
     if (item.status === 'confirmed')
-      return { backgroundColor: '#7b68ee', color: '#ffffff' }
-    return { backgroundColor: '#93a5c8', color: '#ffffff' } // planned — 차분한 회청색
+      return { backgroundColor: 'var(--t-brand)', color: '#ffffff' }
+    return { backgroundColor: 'var(--chip-plan-bg)', color: 'var(--chip-plan-fg)' } // planned — 차분한 회청색
   }
 
   return (
@@ -787,10 +789,11 @@ function CalendarView({
 
       {/* 범례 — 점검달력과 동일한 톤 */}
       <div className="flex items-center gap-3 px-4 py-2 border-t border-brand-line-soft text-[10px] text-ink-sub">
-        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#93a5c8' }} />계획</span>
+        {/* 스와치는 실제 칩과 같은 토큰 — 리터럴로 두면 다크에서 안내와 화면이 갈린다 */}
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-plan-bg)' }} />계획</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand" />확정</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#d1fae5' }} />완료</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#b91c1c' }} />지연</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-ok-bg)' }} />완료</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-over-solid-bg)' }} />지연</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300" />취소·비활성</span>
         {canManage && <span className="ml-auto text-ink-faint">빈 날짜 클릭 = 항목 추가 · 정기 칩 드래그 = 일자 이동(확정)</span>}
       </div>

@@ -111,6 +111,21 @@
   --t-paper:           #f8f9fa;
   --t-line:            #c8c4d0;
 
+  /* ── 달력 일정 칩 (소방계획서_29 S3-1) ──
+     칩 색은 **인라인 style**(chipStyle·TYPE_CHIP)이라 클래스 코드모드가 닿지 않는다.
+     리터럴로 두면 다크에서 달력만 밝은 블록으로 남는다(사용자 지적 image-19).
+     여기 값만 바꾸면 점검 달력(월·주·목록)과 점검확정 달력이 함께 따라온다.
+     light는 종전 hex 축자 — 화이트 모드 불변. */
+  --chip-compre-bg: #f0edff;  --chip-compre-fg: #5b4bc4;   /* 종합 */
+  --chip-oper-bg:   #e8f2fe;  --chip-oper-fg:   #1d4ed8;   /* 작동 */
+  --chip-gen-bg:    #e6f6fd;  --chip-gen-fg:    #0369a1;   /* 일반관리 */
+  --chip-done-bg:   #f3f4f6;  --chip-done-fg:   #9ca3af;   /* 완료(흐림) */
+  --chip-muted-bg:  #e5e7eb;  --chip-muted-fg:  #6b7280;   /* 비활성·취소 */
+  --chip-over-bg:   #fef2f2;  --chip-over-fg:   #b91c1c;   /* 지연(연빨강 배경) */
+  --chip-over-solid-bg: #b91c1c; --chip-over-solid-fg: #fee2e2;  /* 지연 집계(단색) */
+  --chip-ok-bg:     #d1fae5;  --chip-ok-fg:     #065f46;   /* 완료(점검확정) */
+  --chip-plan-bg:   #93a5c8;  --chip-plan-fg:   #ffffff;   /* 계획(차분한 회청) */
+
   /* White canvas — Design.md */
   --background: oklch(1 0 0);
   --foreground: oklch(0.09 0.02 275); /* ~#090c1d midnight ink */
@@ -165,6 +180,18 @@
   --t-surface:         #232327;
   --t-paper:           #1b1b1e;
   --t-line:            #3a3a42;
+
+  /* 달력 칩 다크 — 라이트의 '옅은 배경 + 진한 글자'를 **뒤집어** '어두운 틴트 + 밝은 글자'로.
+     색상(hue)은 유지해 유형 구분(보라=종합·파랑=작동·하늘=일반관리)이 그대로 읽힌다. */
+  --chip-compre-bg: #2f2752;  --chip-compre-fg: #bcaaff;
+  --chip-oper-bg:   #1a2b4a;  --chip-oper-fg:   #9dc2f7;
+  --chip-gen-bg:    #143039;  --chip-gen-fg:    #8fd1e8;
+  --chip-done-bg:   #2b2b31;  --chip-done-fg:   #8c8c99;
+  --chip-muted-bg:  #33333a;  --chip-muted-fg:  #b4b4c0;
+  --chip-over-bg:   #3a1b1e;  --chip-over-fg:   #f2848c;
+  --chip-over-solid-bg: #8f1f1f; --chip-over-solid-fg: #ffdfe0;
+  --chip-ok-bg:     #17301e;  --chip-ok-fg:     #6fd18f;
+  --chip-plan-bg:   #3d4a63;  --chip-plan-fg:   #d6e0f0;
 
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

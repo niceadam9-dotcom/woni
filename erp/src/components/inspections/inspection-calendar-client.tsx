@@ -226,11 +226,14 @@ function urgencyBarColor(diff: number, isCompleted: boolean): string {
   return '#22c55e'                    // 여유(3일+) — 초록
 }
 
-/** 유형별 칩 배경·텍스트 (옅은 배경 + 진한 텍스트 — 흰 바탕에 읽히는 칩) */
+/** 유형별 칩 배경·텍스트.
+ *  ⚠ 값을 리터럴 hex로 두지 말 것 — 인라인 style이라 클래스 코드모드가 닿지 않아
+ *  다크에서 달력만 밝은 블록으로 남는다(소방계획서_29 S3-1). 실값은 globals.css의
+ *  --chip-* 토큰이 라이트/다크 각각 정의한다(라이트=옅은 배경+진한 글자, 다크=역전). */
 const TYPE_CHIP: Record<InspectionType, { bg: string; text: string }> = {
-  '종합':    { bg: '#f0edff', text: '#5b4bc4' },
-  '작동':    { bg: '#e8f2fe', text: '#1d4ed8' },
-  '일반관리': { bg: '#e6f6fd', text: '#0369a1' },
+  '종합':    { bg: 'var(--chip-compre-bg)', text: 'var(--chip-compre-fg)' },
+  '작동':    { bg: 'var(--chip-oper-bg)',   text: 'var(--chip-oper-fg)' },
+  '일반관리': { bg: 'var(--chip-gen-bg)',    text: 'var(--chip-gen-fg)' },
 }
 
 /** 칩 스타일 단일 소스 — 월 뷰(eventPropGetter)와 주간 카드 뷰가 공유 */
@@ -239,8 +242,8 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
   if (r.kind === 'plan-group') {
     const allDone = r.planStatus === 'completed'
     return {
-      backgroundColor: r.isOverdue ? '#b91c1c' : allDone ? '#e5e7eb' : r.color,
-      color: r.isOverdue ? '#fee2e2' : allDone ? '#6b7280' : '#ffffff',
+      backgroundColor: r.isOverdue ? 'var(--chip-over-solid-bg)' : allDone ? 'var(--chip-muted-bg)' : r.color,
+      color: r.isOverdue ? 'var(--chip-over-solid-fg)' : allDone ? 'var(--chip-muted-fg)' : '#ffffff',
       border: 'none',
       fontWeight: 600,
     }
@@ -249,9 +252,9 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
   if (r.kind === 'plan') {
     const done = r.planStatus === 'completed'
     return {
-      backgroundColor: done ? '#e5e7eb' : r.color,
-      color: done ? '#6b7280' : '#ffffff',
-      border: r.isOverdue ? '2px solid #b91c1c' : 'none',
+      backgroundColor: done ? 'var(--chip-muted-bg)' : r.color,
+      color: done ? 'var(--chip-muted-fg)' : '#ffffff',
+      border: r.isOverdue ? '2px solid var(--chip-over-solid-bg)' : 'none',
       textDecoration: done ? 'line-through' : 'none',
       fontWeight: 'normal',
     }
@@ -259,8 +262,8 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
   // ADD-11: 비활성/삭제 고객 건은 완료처럼 회색 취소선
   if (r.customerInactive) {
     return {
-      backgroundColor: '#e5e7eb',
-      color: '#9ca3af',
+      backgroundColor: 'var(--chip-muted-bg)',
+      color: 'var(--chip-done-fg)',
       border: 'none',
       opacity: 0.8,
       textDecoration: 'line-through',
@@ -271,8 +274,8 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
   const isDone = r.stepStatus === 'completed'
   const typeChip = TYPE_CHIP[r.inspectionType] ?? TYPE_CHIP['일반관리']
   return {
-    backgroundColor: isDone ? '#f3f4f6' : r.isOverdue ? '#fef2f2' : typeChip.bg,
-    color: isDone ? '#9ca3af' : r.isOverdue ? '#b91c1c' : typeChip.text,
+    backgroundColor: isDone ? 'var(--chip-done-bg)' : r.isOverdue ? 'var(--chip-over-bg)' : typeChip.bg,
+    color: isDone ? 'var(--chip-done-fg)' : r.isOverdue ? 'var(--chip-over-fg)' : typeChip.text,
     border: 'none',
     borderLeft: `4px solid ${r.color}`,
     opacity: 1,
@@ -1344,9 +1347,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {legendOpen && (
               <div className="absolute right-0 top-full mt-1 w-60 bg-surface rounded-xl border border-brand-line shadow-[0_8px_24px_rgba(18,43,165,0.14)] z-30 p-3 space-y-1.5 text-[11px] text-ink-sub">
                 <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">칩 배경 = 점검유형</p>
-                <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: '#f0edff' }} />종합</p>
-                <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: '#e8f2fe' }} />작동</p>
-                <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: '#e6f6fd' }} />일반관리</p>
+                {/* 범례 스와치는 실제 칩과 **같은 토큰**을 써야 한다 — 리터럴로 두면 다크에서 안내와 화면이 갈린다 */}
+                <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-compre-bg)' }} />종합</p>
+                <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-oper-bg)' }} />작동</p>
+                <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-gen-bg)' }} />일반관리</p>
                 <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider pt-1.5">좌측 바 = 마감 긴급도</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-green-500" />여유 (3일 이상)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-orange-500" />1~2일</p>

@@ -74,8 +74,8 @@
     { "id": "S3", "title": "꼬리 처리", "status": "partial",
       "note": "2026-08-28 대부분 실행(자기신고). 실결함 2건 자체 발견·수리: ①globals.css로 옮긴 rbc 스킨이 **라이브러리 CSS에 조용히 짐**(컴포넌트에서 import돼 나중 주입 — 종전 <style> 태그는 DOM 시점이라 우연히 이기고 있었다). 클래스 중복(.rbc-today.rbc-today)으로 명시도 (0,2,0) 확보 ②공휴일 칸이 dayPropGetter **인라인 style 리터럴 #fef2f2**라 다크에서 흰 판 — 두 달력 모두 var(--color-red-50)로. 검증 _probe-29-calendar-cells 6/6(computed style 실측)·tsc 0·theme 19/0·calendar-bulk-move 29/0. ⚠dev 캐시가 CSS 변경을 놓쳐 옛 CSS를 계속 서빙했다 — .next 삭제 후에야 반영(재기동만으론 부족).",
       "criteria": [
-        { "id": "S3-1", "desc": "잔여 희귀색 + 인라인 style={{}} 색 — 파일 단위 개별 처리", "status": "partial",
-          "note": "꼬리 18곳 코드모드 흡수(#6b7280·#d0cce8·#f3f4f6·#eeedf3 등 9색 매핑 추가) + 인라인 style 공휴일 2곳 수리. **잔여 25곳**(1~2건짜리 극소, bg|#b91c1c·#fffbeb·border|#c7e8d4 등 상태색 리터럴)과 점검확정 화면의 이벤트 칩 인라인 색(#d1fae5·#93a5c8 등, 자기완결 칩이라 다크에서도 가독)은 **의도적 보류** — 다음 세션이 육안 후 판단" },
+        { "id": "S3-1", "desc": "잔여 희귀색 + 인라인 style={{}} 색 — 파일 단위 개별 처리", "status": "code_present",
+          "note": "꼬리 18곳 코드모드 흡수 + 인라인 style 공휴일 2곳. **⚠사용자 지적(image-19)으로 달력 일정 칩이 밝게 남은 것을 발견** — chipStyle·TYPE_CHIP의 인라인 리터럴(흰 바탕 전제 '옅은 배경+진한 글자')이 원인. `--chip-*` 토큰 9쌍 신설(globals.css light/dark)해 점검 달력(월·주·목록)·점검확정 달력·범례 스와치가 같은 토큰을 쓰게 했다. **판정은 눈짐작이 아니라 밝기 전수 스캔**(_probe-29-light-scan.mts — computed bg 휘도>0.55인 면적 요소를 뽑는다): 수리 전 6종 → 후 **1종**(사이드바 red-500 알림 뱃지 = 의도된 경고색). '자기완결 칩이라 다크에서도 가독'이라던 종전 판단은 **오판이었다** — 실제로는 어두운 화면에 흰 블록이 떠 있었다" },
         { "id": "S3-2", "desc": "상태색 .dark 변수 재정의 — Tailwind 팔레트 변수, 저휘도 불투명값(투명도 방식 기각)", "status": "code_present",
           "note": "실사용 계조 실측 2,391곳(red 518·amber 217·green 200·blue 74 등) → globals.css .dark에 red/amber/yellow/orange/green/emerald/teal/cyan/lime/blue/sky/indigo/violet/purple/pink/rose + 중립 5종(gray/slate/zinc/neutral/stone) 재정의. **컴포넌트 무수정**(D-8 실증 — 고객 목록 문서 뱃지가 흰 덩어리→어두운 틴트)" },
         { "id": "S3-3", "desc": "그림자 — .dark에서 알파 상향", "status": "code_present",
