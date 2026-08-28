@@ -21,8 +21,8 @@ export function Header({ profile }: HeaderProps) {
       <div className="flex items-center gap-2">
         {/* Ctrl+K 전역 팔레트 (소방계획서_5 R0-4) */}
         {showPalette && <CommandPalette />}
-        {/* 테마 빠른 토글 (소방계획서_29 S1-7) — 토큰 치환(S2) 전까지 관리자만(D-6) */}
-        {profile.role === 'admin' && <ThemeToggle />}
+        {/* 테마 빠른 토글 (소방계획서_29 S1-7) — 전 사용자 노출(S4-3, 2026-08-28 승인) */}
+        <ThemeToggle />
         <NotificationBell userId={profile.id} />
 
         {/* Profile */}

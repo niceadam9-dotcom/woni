@@ -2,7 +2,7 @@
 //
 // 보는 것: ①설정 카드에서 다크 선택 → <html>.dark + DB 정본 + 쿠키 3축 일치
 // ②재로그인해도 유지(쿠키를 지워도 로그인이 DB에서 복원) ③계정 간 격리(A 다크 ≠ B 라이트)
-// ④로그아웃이 쿠키를 지운다(공용 PC) ⑤일반직원에겐 카드·토글이 없다(D-6 롤아웃 전 관리자만)
+// ④로그아웃이 쿠키를 지운다(공용 PC) ⑤일반직원에게도 카드·토글 노출(S4-3 전 사용자 공개, 2026-08-28)
 //
 // ⚠ 선행: 마이그레이션 151(profiles.theme)이 대상 DB에 적용돼 있어야 한다.
 //   시드 검사가 이를 먼저 단언한다 — 미적용이면 첫 check가 원인을 말하고 멈춘다.
@@ -75,7 +75,7 @@ try {
   check('로그아웃 — erp-theme 쿠키 제거', !cookies3.find(c => c.name === 'erp-theme'),
     JSON.stringify(cookies3.filter(c => c.name === 'erp-theme')))
 
-  // ── 5) 계정 간 격리 — B(일반직원)는 라이트 그대로 + 카드·토글 미노출(D-6) ──
+  // ── 5) 계정 간 격리 — B(일반직원)는 라이트 그대로 + 카드·토글 노출(S4-3 전 사용자 공개) ──
   const l2 = await launch()
   try {
     const p2 = l2.page
@@ -83,8 +83,8 @@ try {
     await p2.goto(`${BASE}/settings`)
     await p2.waitForSelector('text=알림 설정')
     check('직원 — A의 다크에 안 물든다(격리)', !(await htmlIsDark(p2)))
-    check('직원 — 테마 카드 미노출(D-6 관리자만)', (await p2.locator('[data-testid="theme-settings-card"]').count()) === 0)
-    check('직원 — 헤더 토글 미노출', (await p2.locator('[data-testid="header-theme-toggle"]').count()) === 0)
+    check('직원 — 테마 카드 노출(S4-3 전 사용자)', (await p2.locator('[data-testid="theme-settings-card"]').count()) === 1)
+    check('직원 — 헤더 토글 노출(S4-3 전 사용자)', (await p2.locator('[data-testid="header-theme-toggle"]').count()) === 1)
     const { data: rowB } = await raw.from('profiles').select('theme').eq('id', staffId).single()
     check('직원 — DB 정본은 light', (rowB as { theme?: string } | null)?.theme === 'light')
   } finally { await l2.browser.close() }

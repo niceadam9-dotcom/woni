@@ -43,9 +43,9 @@ export default async function SettingsPage() {
     ?.notification_prefs ?? {}) as Record<string, boolean>
 
   // 화면 테마 (소방계획서_29) — 관용 조회(151 미적용이면 null → light).
-  // ⚠ 토큰 치환(S2) 완료 전까지 카드는 관리자만(D-6) — 미완성 다크가 사용자 눈에 띄지 않게
+  // 전 사용자 노출(S4-3, 2026-08-28 승인) — 독립 판정·28화면 스캔 통과 후 D-6 게이트 해제
   const theme = (await readProfileTheme(profile.id)) ?? 'light'
-  const showThemeCard = profile.role === 'admin'
+  const showThemeCard = true
 
   const infoRows: Array<[string, string]> = [
     ['이름', profile.name],

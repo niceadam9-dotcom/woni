@@ -2,7 +2,7 @@
   "doc": "소방계획서_29 — 다크 모드 (개인별 화이트/다크 선택)",
   "design": "erp_goal/소방계획서_29.md",
   "created": "2026-08-28",
-  "updated": "2026-08-28 (독립 판정 통과 — S1~S3 전 criteria implemented 승격. 판정자가 실결함 2건(J-1 billing 백드롭·J-2 달력 날짜 숫자 리터럴)을 잡아 수리 후 재실측 그린. R-3 백드롭 49곳+꼬리 17곳+고정 주석, R-1 기계 스캔 28화면 완료. 잔여는 S4 노출 축과 운영 151 — md §11 참조)",
+  "updated": "2026-08-28 밤 (독립 판정 통과 — S1~S3 전 criteria implemented. 커밋 fb65b9c 푸시완료. 사용자 '1~3 진행' 승인으로 ①커밋·푸시 ②운영 151 적용(8행 light·bad 0) ③전 사용자 노출(게이트 2곳 제거·E2E 새 사양 19/0)까지 완료. 잔여: S4-4 test:all·별지 iframe 육안·SMS 2파일 — md §11 참조)",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -48,7 +48,7 @@
       "criteria": [
         { "id": "S1-1", "desc": "151_profile_theme.sql — profiles.theme text not null default 'light' + check('light','dark'). 스테이징·운영 적용은 각각 별도 승인", "status": "implemented",
           "verified": { "date": "2026-08-28", "commit": "b207905+작업트리", "evidence": ["supabase/migrations/151_profile_theme.sql (재실행 안전)", "E2E 시드 검사가 스테이징 적용 실증"], "method": "독립 판정 — 코드 대조 + E2E" },
-          "note": "스테이징 적용 완료(2026-08-28 사용자 승인, _apply-151-staging.mjs — col 1·default 'light'·chk 1·7행 전부 light·bad 0). **운영은 미적용 — 별도 승인 대기**" },
+          "note": "스테이징 적용 완료(2026-08-28, 7행 light). **운영 적용 완료(2026-08-28 사용자 승인, _apply-151-prod.mjs — col 1·default 'light'·chk 1·8행 전부 light·bad 0, ASCII 술어 검증)**" },
         { "id": "S1-2", "desc": "루트 layout.tsx 인라인 스크립트 — 쿠키→html 클래스, 첫 페인트 전(FOUC 없음), 루트 정적 유지(cookies() 미사용)", "status": "implemented",
           "verified": { "date": "2026-08-28", "commit": "b207905", "evidence": ["src/app/layout.tsx:36-42 body 첫 자식 동기 스크립트", "layout.tsx:33 suppressHydrationWarning"], "method": "독립 판정 — 코드 대조 + E2E '새로고침 후 dark 유지'" } },
         { "id": "S1-3", "desc": "테마 저장 서버 액션 — settings/actions.ts에 추가(notification_prefs 패턴), DB+쿠키 동시 기록, 허용값 화이트리스트", "status": "implemented",
@@ -112,8 +112,8 @@
           "note": "기계 축 완료(2026-08-28): 6화면(설정·대시보드·고객목록·점검업무·점검달력·휴가달력) + 22화면(_probe-29-scan-remaining.mts — 작성센터·공통문구·문서·전자결재·세금계산서·재고·게시판·메일·휴가·문의·점검대장·작성현황·보고서센터·문자발송·청구·서명·고객상세4면·점검상세·점검표입력, 스크린샷 _shots/dark2-*.png). 밝은 면은 의도된 경고색(red-500)뿐 — 유일 예외는 문자 발송 12종 = 스킵된 sms-status-client(R-4 잔여). **사용자 육안 확인 잔여**(칩 결함을 잡은 건 사용자 눈이었다 — 스캔만으로 닫지 말 것). 부수 발견: 404 페이지는 다크에서도 라이트(경미)" },
         { "id": "S4-2", "desc": "별지 미리보기·인쇄물이 다크에서도 라이트로 나오는지 육안(문서 축 격리 확인)", "status": "partial",
           "note": "print: 토큰 오염 0 grep 실측(판정 축 ④)·doc-templates 제외 확인·별지 허브 다크 스크린샷 촬영. 허브 화면 자체엔 iframe이 없어(문서를 생성해야 뜸) 미리보기 내부 실측은 잔여 — 육안 1회 필요" },
-        { "id": "S4-3", "desc": "설정 카드 전 사용자 노출(D-6 마지막 단계)", "status": "pending_order",
-          "note": "통과 후 settings/page.tsx·header.tsx의 role==='admin' 게이트 2곳 제거. **사용자 육안 승인 후**" },
+        { "id": "S4-3", "desc": "설정 카드 전 사용자 노출(D-6 마지막 단계)", "status": "code_present",
+          "note": "2026-08-28 사용자 승인('1~3 진행')으로 게이트 2곳 제거 — settings/page.tsx showThemeCard=true·header.tsx ThemeToggle 무조건 렌더. test-theme-settings를 새 사양(직원 카드·토글 노출)으로 갱신 후 19/0. 구현자 자기신고 — 독립 재판정은 다음 판정 패스에서" },
         { "id": "S4-4", "desc": "전체 회귀 test:all + 신규 테마 E2E 그린", "status": "pending_order",
           "note": "test:all 전 dev 재기동 규칙([[risk_dev_postcss_worker_leak]]) 준수할 것" }
       ] }
