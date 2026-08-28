@@ -76,36 +76,36 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
       </div>
 
       <div className="bg-white rounded-xl border border-[#c8c4d0] overflow-hidden">
-        {/* 세로 스크롤이 페이지(main)에 있으면 가로 스크롤바가 테이블 맨 아래(화면 밖)에만
-            그려져 좌우 조회가 불가능했다 — 뷰포트 안에 스크롤 컨테이너를 두고 헤더를 고정한다 */}
+        {/* 가로 스크롤 없이 한 화면에 담는다 — 긴 텍스트(대상물·관계인·관할서)는 줄바꿈으로
+            흡수하고, 날짜·연락처처럼 중간에 끊기면 안 되는 값만 nowrap. 연락처는 폭 절약을 위해 한 단계 작게 */}
         <TableScroll offset={300}>
-          <table className="w-full text-sm whitespace-nowrap">
+          <table className="w-full text-sm">
             <thead className={STICKY_THEAD}>
               <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa] text-xs text-[#514b81]">
                 {['#', '대상물', '구분', '점검계획일', '지역', '연면적', '사용승인일', '관계인', '연락처', '관할서', ...(canViewFee ? ['계약료'] : [])].map(h => (
-                  <th key={h} className="text-left px-3 py-2.5 font-semibold">{h}</th>
+                  <th key={h} className="text-left px-2 py-2.5 font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f0eefb]">
               {filtered.map((r, i) => (
                 <tr key={r.id} className="hover:bg-[#fafafa]">
-                  <td className="px-3 py-2 text-xs text-[#b0acd6]">{i + 1}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-2 text-xs text-[#b0acd6]">{i + 1}</td>
+                  <td className="px-2 py-2">
                     <Link href={`/customers/${r.id}`} className="font-medium text-[#090c1d] hover:text-[#7b68ee]">{r.name}</Link>
                     {/* R15-c: 문서 현황 딥링크 → 소방계획서 트리(소방계획서_8 Phase B) */}
-                    <Link href={`/customers/${r.id}?tab=plan&form=annex`} title="소방계획서 트리 · 회차별 문서 현황" className="block text-[10px] text-[#7b68ee] hover:underline mt-0.5">문서 현황 →</Link>
+                    <Link href={`/customers/${r.id}?tab=plan&form=annex`} title="소방계획서 트리 · 회차별 문서 현황" className="block text-[10px] text-[#7b68ee] hover:underline mt-0.5 whitespace-nowrap">문서 현황 →</Link>
                   </td>
-                  <td className="px-3 py-2"><span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_STYLE[r.type] ?? ''}`}>{r.type}</span></td>
-                  <td className="px-3 py-2 text-xs text-[#292d34]">{mmdd(r.planDate)}</td>
-                  <td className="px-3 py-2 text-xs text-[#514b81]">{r.region || '-'}</td>
-                  <td className="px-3 py-2 text-xs text-[#514b81]">{r.area != null ? `${r.area.toLocaleString()}㎡` : '-'}</td>
-                  <td className="px-3 py-2 text-xs text-[#514b81]">{r.useApproval ?? '-'}</td>
-                  <td className="px-3 py-2 text-xs text-[#292d34]">{r.contact || '-'}</td>
-                  <td className="px-3 py-2 text-xs text-[#514b81]">{r.phone || '-'}</td>
-                  <td className="px-3 py-2 text-xs text-[#514b81]">{r.fireStation || '-'}</td>
+                  <td className="px-2 py-2"><span className={`text-xs font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap ${TYPE_STYLE[r.type] ?? ''}`}>{r.type}</span></td>
+                  <td className="px-2 py-2 text-xs text-[#292d34] whitespace-nowrap">{mmdd(r.planDate)}</td>
+                  <td className="px-2 py-2 text-xs text-[#514b81]">{r.region || '-'}</td>
+                  <td className="px-2 py-2 text-xs text-[#514b81] whitespace-nowrap">{r.area != null ? `${r.area.toLocaleString()}㎡` : '-'}</td>
+                  <td className="px-2 py-2 text-xs text-[#514b81] whitespace-nowrap">{r.useApproval ?? '-'}</td>
+                  <td className="px-2 py-2 text-xs text-[#292d34]">{r.contact || '-'}</td>
+                  <td className="px-2 py-2 text-[11px] tracking-tight text-[#514b81] whitespace-nowrap">{r.phone || '-'}</td>
+                  <td className="px-2 py-2 text-xs text-[#514b81]">{r.fireStation || '-'}</td>
                   {canViewFee && (
-                    <td className="px-3 py-2 text-xs text-[#292d34]">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-[10px] text-[#b0acd6] ml-1">{r.feeKind}</span></td>
+                    <td className="px-2 py-2 text-xs text-[#292d34] whitespace-nowrap">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-[10px] text-[#b0acd6] ml-1">{r.feeKind}</span></td>
                   )}
                 </tr>
               ))}
