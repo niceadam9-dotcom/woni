@@ -159,7 +159,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
   return (
     <>
       {/* 오버레이 */}
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-40" onClick={onClose} />
 
       {/* 우측 슬라이드 패널 — 화면 1개 원칙(§4-A-2b) */}
       <div className="fixed right-0 top-0 h-full w-[560px] max-w-full bg-surface shadow-2xl z-50 flex flex-col" data-annex-panel={annexNo}>

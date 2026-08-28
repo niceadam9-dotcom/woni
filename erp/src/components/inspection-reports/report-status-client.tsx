@@ -82,7 +82,7 @@ function InputModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
       <div className="bg-surface rounded-xl shadow-2xl w-[460px] flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div>

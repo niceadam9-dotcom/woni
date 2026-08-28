@@ -43,7 +43,7 @@ export function PlanAnnexFullPreview({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/40 z-[60]" onClick={close} />
+      <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-[60]" onClick={close} />
       <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-6 bottom-6 md:w-[860px] bg-surface rounded-2xl shadow-2xl z-[70] flex flex-col">
         {/* 요약 바 (고정 상단) — 칩 = 문서 선택기([전체] + 문서별), 단일 모드에서도 닫지 않고 전환 */}
         <div className="px-5 py-3 border-b border-brand-line-soft shrink-0">

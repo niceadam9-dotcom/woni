@@ -91,7 +91,7 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
 
   const dialog: ReactNode = pending && (
     // data-unsaved-dialog: 확인창 버튼의 '저장' 글자가 서식 화면의 미저장 감지 휴리스틱에 걸리지 않도록 하는 표식
-    <div data-unsaved-dialog className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+    <div data-unsaved-dialog className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm">
         <div className="flex items-center gap-2 px-6 py-4 border-b border-line">
           <AlertTriangle className="size-4 text-amber-500" />

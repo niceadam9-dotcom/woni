@@ -176,7 +176,7 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
     }`
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 dark:bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-4xl p-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-2">
           <p className="text-sm font-semibold text-ink">피난안내도 생성 <span className="text-[11px] font-normal text-ink-faint">— 표준 아이콘 개략도 (실측 도면 아님)</span></p>
@@ -211,6 +211,8 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
           className="w-full rounded-lg border border-brand-line-soft cursor-crosshair select-none"
           onClick={handleCanvasClick} onPointerMove={handlePointerMove}
           onPointerUp={() => setDragId(null)} onPointerLeave={() => setDragId(null)}>
+          {/* 흰 배경은 **의도적 라이트 고정**(소방계획서_29 S3-6) — 이 SVG는 그대로 PNG로
+              내보내져 소방계획서에 삽입된다. 다크 모드에서도 문서는 흰 종이가 정본이다. */}
           <rect width={W} height={H} fill="#ffffff" />
           <text x={W / 2} y={42} textAnchor="middle" fontSize={20} fontWeight={700} fill="#111827" fontFamily="sans-serif">
             피난안내도 {floor && `— ${floor}`}

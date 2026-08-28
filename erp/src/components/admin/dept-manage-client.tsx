@@ -40,7 +40,7 @@ function DeptModal({ mode, dept, managers, onClose }: DeptModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="text-base font-semibold text-ink">
@@ -159,7 +159,7 @@ export function DeptManageClient({ depts, managers }: { depts: Dept[]; managers:
 
       {/* 삭제 확인 */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm p-6">
             <h3 className="text-base font-semibold text-ink mb-2">부서 삭제</h3>
             <p className="text-sm text-ink-sub mb-4">

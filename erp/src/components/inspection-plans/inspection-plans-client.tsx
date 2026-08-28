@@ -424,7 +424,7 @@ export function InspectionPlansClient({
       {/* 현황 요약 + 필터 카드 */}
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
         {/* 상태별 현황 칩 — 클릭 = 상태 필터 */}
-        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#eeecfa] flex-wrap">
+        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#eeecfa] dark:border-line flex-wrap">
           <span className="text-xs font-semibold text-ink-soft mr-1.5">현황</span>
           {([['all','전체'],['planned','계획 중'],['confirmed','확정'],['completed','완료'],['cancelled','취소']] as [string, string][]).map(([val, label]) => {
             const active = filterStatus === val
@@ -643,7 +643,7 @@ function CalendarView({
             <div
               key={idx}
               className={`h-32 border-b border-r border-brand-line-soft px-1.5 py-1 cursor-pointer transition-colors ${
-                dragOverDay === dateStr ? 'bg-[#ebe8ff] ring-2 ring-inset ring-brand' :
+                dragOverDay === dateStr ? 'bg-[#ebe8ff] dark:bg-brand-tint ring-2 ring-inset ring-brand' :
                 isToday ? 'bg-brand-tint' : holiday ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-paper'
               }`}
               onClick={() => canManage && onDateClick(dateStr)}
@@ -714,7 +714,7 @@ function CalendarView({
       </div>
       {/* "+N개 더 보기" 팝업 — 해당 날짜 전체 항목 */}
       {moreDay && (
-        <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4" onClick={() => setMoreDay(null)}>
+        <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setMoreDay(null)}>
           <div
             className="bg-surface rounded-xl border border-brand-line shadow-xl w-full max-w-xs max-h-[70vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
@@ -758,7 +758,7 @@ function CalendarView({
           moveConfirm.to < todayStr ? '오늘 이전 날짜라 이동 시 지연⚠으로 표시됩니다.' : null,
         ].filter(Boolean) as string[]
         return (
-          <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4" onClick={() => setMoveConfirm(null)}>
+          <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setMoveConfirm(null)}>
             <div className="bg-surface rounded-xl border border-brand-line shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
               <p className="text-sm font-semibold text-ink mb-1">정기점검 일자 이동</p>
               <p className="text-xs text-ink-sub">
@@ -1136,7 +1136,7 @@ function ListView({
               <tr
                 key={item.id}
                 className={`border-b border-paper last:border-0 transition-colors cursor-pointer ${
-                  isSelected    ? 'bg-brand-tint hover:bg-[#eeebff]' :
+                  isSelected    ? 'bg-brand-tint hover:bg-[#eeebff] dark:hover:bg-brand-line-soft' :
                   isRowOverdue  ? 'bg-red-50/60 hover:bg-red-50' :
                                   'hover:bg-paper'
                 }`}

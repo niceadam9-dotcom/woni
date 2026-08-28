@@ -422,7 +422,7 @@ export function PlanForm13({
           <textarea value={loc.surroundings} data-testid="form13-surroundings"
             onChange={e => { patchLoc({ surroundings: e.target.value }); setSuggested(false) }} disabled={!canManage}
             rows={2} placeholder="예: 북측 마유산로에 접함(왕복 2차로). 동측 5층 근린생활시설, 서측 공지 인접."
-            className={`${taCls} ${suggested ? 'ring-2 ring-[#a78bfa]' : ''}`} />
+            className={`${taCls} ${suggested ? 'ring-2 ring-violet-400' : ''}`} />
           {suggestMsg && <p className="text-[11px] text-ink-soft mt-0.5">{suggestMsg}</p>}
         </div>
         <div>

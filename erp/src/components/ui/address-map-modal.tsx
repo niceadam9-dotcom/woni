@@ -52,7 +52,7 @@ export function AddressMapModal({ customerName, address, onClose }: {
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[10000] bg-black/40 dark:bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
         data-testid="address-map-modal"
         className="bg-surface rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col"

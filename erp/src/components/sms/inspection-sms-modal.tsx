@@ -261,7 +261,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[10000] bg-black/40 dark:bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
         data-testid="sms-modal"
         /* 가로가 남는데 세로로만 쌓아 스크롤이 길었다 — 폭을 넓히고 지역을 2열로 편다 */
@@ -333,7 +333,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                 </div>
               )}
               {result.error && <div className="px-3 py-2 text-[11px] text-red-600 border-t border-brand-line-soft">{result.error}</div>}
-              <ul className="max-h-40 overflow-y-auto divide-y divide-[#f2f0fb]">
+              <ul className="max-h-40 overflow-y-auto divide-y divide-[#f2f0fb] dark:divide-line">
                 {result.rows.map((r, i) => (
                   <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
                     <span className={r.status === 'sent' ? 'text-emerald-600' : r.status === 'failed' ? 'text-red-500' : 'text-amber-600'}>
@@ -446,7 +446,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                                 <span className="w-7 shrink-0">대표</span>
                                 <span>{rep.name}</span>
                                 <span>{rep.phoneMasked}</span>
-                                <span className="text-[#c9c5e0]">(수신 안 함)</span>
+                                <span className="text-[#c9c5e0] dark:text-ink-faint">(수신 안 함)</span>
                               </div>
                             )}
                             {g.recipients.map(r => (

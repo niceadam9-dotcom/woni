@@ -19,7 +19,7 @@ export function ConfirmedDecisionDialog({
     return '정기점검'
   }
   return (
-    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={e => e.stopPropagation()}>
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="text-base font-semibold text-ink flex items-center gap-2">

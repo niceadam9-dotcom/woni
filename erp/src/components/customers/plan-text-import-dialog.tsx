@@ -71,7 +71,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => !isBusy && onClose()} />
+      <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-[60]" onClick={() => !isBusy && onClose()} />
       <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-8 bottom-8 md:w-[760px] bg-surface rounded-2xl shadow-2xl z-[70] flex flex-col">
         <div className="px-5 py-3 border-b border-brand-line-soft shrink-0">
           <div className="flex items-center gap-2">

@@ -78,7 +78,7 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
       </button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-line">
               <h2 className="text-base font-semibold text-ink">점검유형 변경</h2>

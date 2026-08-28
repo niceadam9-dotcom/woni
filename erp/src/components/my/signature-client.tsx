@@ -35,7 +35,8 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
     loadExisting()
   }, [loadExisting])
 
-  // 캔버스 초기화
+  // 캔버스 초기화 — 흰 배경은 **의도적 라이트 고정**(소방계획서_29 S3-6):
+  // 서명은 문서에 찍히는 이미지라 흰 종이가 정본이다. 다크 모드에서도 바꾸지 말 것.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return

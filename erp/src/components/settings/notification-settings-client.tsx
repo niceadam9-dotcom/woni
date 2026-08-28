@@ -45,7 +45,7 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
 
   return (
     <div>
-      <div className="divide-y divide-[#f0eefa]">
+      <div className="divide-y divide-[#f0eefa] dark:divide-line">
         {REQUIRED_ROWS.map(({ label, desc }) => (
           <div key={label} className={rowCls}>
             <div className="flex-1 min-w-0">

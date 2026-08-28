@@ -46,7 +46,7 @@ export function CommandPalette() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4 bg-black/30" onMouseDown={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4 bg-black/30 dark:bg-black/60" onMouseDown={() => setOpen(false)}>
           <div className="w-full max-w-lg" onMouseDown={e => e.stopPropagation()}>
             <div className="rounded-2xl bg-surface shadow-2xl border border-brand-line p-3">
               <DocActionSearch onOpenDocs={openDocs} autoFocus

@@ -133,7 +133,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-brand-line-soft">
           <h2 className="text-sm font-semibold text-ink">점검 항목 추가</h2>
@@ -173,7 +173,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
                         key={c.id}
                         type="button"
                         onClick={() => handleSelect(c)}
-                        className={`w-full text-left px-3 py-2.5 hover:bg-brand-tint transition-colors border-b border-[#f5f5f5] last:border-0 ${
+                        className={`w-full text-left px-3 py-2.5 hover:bg-brand-tint transition-colors border-b border-neutral-100 last:border-0 ${
                           customerId === c.id ? 'bg-brand-tint' : ''
                         }`}
                       >

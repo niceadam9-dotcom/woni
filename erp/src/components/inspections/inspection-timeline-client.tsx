@@ -786,7 +786,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                             <button onClick={() => pickAfter(d.id)} disabled={afterBusy === d.id} className="relative group w-full aspect-square">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={d.after_photo_url} alt="후(조치)" className="w-full h-full object-cover rounded border border-brand-tint" />
-                              <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity">
+                              <span className="absolute inset-0 bg-black/40 dark:bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity">
                                 {afterBusy === d.id ? <Upload size={13} className="text-white animate-pulse" /> : <Camera size={13} className="text-white" />}
                               </span>
                             </button>

@@ -68,7 +68,7 @@ export function MessageTemplateModal({ templateKey, label, sampleVars, buttonCla
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/30 dark:bg-black/60 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="bg-surface rounded-xl border border-line shadow-lg w-full max-w-4xl max-h-[88vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2 px-5 py-3 border-b border-brand-line-soft sticky top-0 bg-surface">
               <PenLine className="size-4 text-brand" />

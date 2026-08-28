@@ -165,7 +165,7 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
                       <button
                         onClick={() => handleDownload(existing)}
                         disabled={!!isDownloading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand bg-brand-tint hover:bg-[#ede9ff] border border-brand-line rounded-lg disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand bg-brand-tint hover:bg-[#ede9ff] dark:hover:bg-brand-line-soft border border-brand-line rounded-lg disabled:opacity-50 transition-colors"
                       >
                         {isDownloading
                           ? <Loader2 className="size-3 animate-spin" />

@@ -669,7 +669,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                             onChange={e => setCell(i, c.key, e.target.value)}
                             className={`h-6 w-full min-w-0 rounded-sm border px-1 text-[11px] outline-none focus:border-brand ${
                               c.wide ? 'text-left' : 'text-center tabular-nums'} ${
-                              on ? 'border-brand-line bg-surface' : 'border-transparent bg-[#f3f2f8] text-ink-faint placeholder:text-[#d5d2e6] cursor-not-allowed'}`} />
+                              on ? 'border-brand-line bg-surface' : 'border-transparent bg-[#f3f2f8] dark:bg-gray-100 text-ink-faint placeholder:text-[#d5d2e6] dark:placeholder:text-ink-faint cursor-not-allowed'}`} />
                         </td>
                       )
                     })}

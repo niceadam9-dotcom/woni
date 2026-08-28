@@ -54,7 +54,7 @@ export function ManageActions({ leaveId }: { leaveId: string }) {
       {error && !showReject && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
       {showReject && (
-        <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-2xl shadow-xl border border-line p-6 w-full max-w-md">
             <h3 className="text-base font-semibold text-ink mb-1">반려 사유 입력</h3>
             <p className="text-xs text-ink-sub mb-4">반려 사유는 신청자에게 전달됩니다.</p>

@@ -125,8 +125,8 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   const prevYearBadge = (
     <p className={`text-[11px] mb-2 rounded-lg px-2 py-1 border ${
       prev.edu && prev.drill
-        ? 'border-[#c7e8d4] bg-[#f2fbf6] text-[#2f7a52]'
-        : 'border-[#f0dcc0] bg-[#fffaf2] text-[#8a6120]'}`}>
+        ? 'border-[#c7e8d4] bg-[#f2fbf6] text-[#2f7a52] dark:border-green-300 dark:bg-green-100 dark:text-green-600'
+        : 'border-[#f0dcc0] bg-[#fffaf2] text-[#8a6120] dark:border-amber-300 dark:bg-amber-100 dark:text-amber-600'}`}>
       전년도({prevYear}년) 실적 {prev.count}건 — 소방안전교육 {mark(prev.edu)} · 소방훈련 {mark(prev.drill)}
       <span className="ml-1 opacity-80">
         {prev.edu && prev.drill

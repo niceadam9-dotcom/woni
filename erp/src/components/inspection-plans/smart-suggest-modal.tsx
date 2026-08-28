@@ -133,7 +133,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
   const allSelected = suggestions.length > 0 && selected.size === suggestions.length
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
 
         {/* 헤더 */}

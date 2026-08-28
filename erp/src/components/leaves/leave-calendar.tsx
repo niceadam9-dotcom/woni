@@ -62,7 +62,8 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
     const iso = format(d, 'yyyy-MM-dd')
     const holiday = holidayMap.get(iso)
     const dow = d.getDay()
-    const color = holiday || dow === 0 ? '#dc2626' : dow === 6 ? '#2563eb' : undefined
+    // 팔레트 var — light는 종전 hex(#dc2626/#2563eb) 그대로, 다크는 .dark 재정의로 헤더 요일 색과 일치
+    const color = holiday || dow === 0 ? 'var(--color-red-600)' : dow === 6 ? 'var(--color-blue-600)' : undefined
     return (
       <div className="flex items-center justify-between gap-1 min-w-0" title={holiday ? `${holiday} (공휴일)` : undefined}>
         {holiday ? <span className="text-[10px] text-red-500 truncate leading-tight">{holiday}</span> : <span />}

@@ -132,7 +132,7 @@ function OrderModal({
   const filteredQuotes = customerId ? quotes.filter(q => q.customer_id === customerId) : quotes
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <span className="font-bold text-ink">수주 등록</span>

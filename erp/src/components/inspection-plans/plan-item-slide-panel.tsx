@@ -128,7 +128,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
   return (
     <>
       {/* 오버레이 */}
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-40" onClick={onClose} />
 
       {/* 패널 */}
       <div className="fixed right-0 top-0 h-full w-80 bg-surface shadow-2xl z-50 flex flex-col">

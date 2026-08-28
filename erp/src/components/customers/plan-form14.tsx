@@ -696,7 +696,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       {/* H-19 설비 대장 — 우측 슬라이드 패널 (2026-08-05 사용자 확정: 본문 하단 인라인 → 옆 패널, 체크해도 화면이 밀리지 않음).
           항상 마운트 — erp:open-spec-section 수신·입력 상태 유지, 닫힘은 CSS 슬라이드. 건물 축은 대상명 선택(bidx)과 동일(key 재적재) */}
       <div className={`fixed inset-0 z-40 ${specsOpen ? '' : 'pointer-events-none'}`}>
-        <div className={`absolute inset-0 bg-black/20 transition-opacity ${specsOpen ? 'opacity-100' : 'opacity-0'}`}
+        <div className={`absolute inset-0 bg-black/20 dark:bg-black/60 transition-opacity ${specsOpen ? 'opacity-100' : 'opacity-0'}`}
           onClick={() => setSpecsOpen(false)} />
         <div className={`absolute top-0 right-0 bottom-0 w-[min(92vw,640px)] bg-surface shadow-2xl flex flex-col transition-transform duration-200 ${specsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-line-soft shrink-0">

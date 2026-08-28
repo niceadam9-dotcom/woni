@@ -97,7 +97,7 @@ export function SheetDrawer({ open, title, headerRight, banner, toc, footer, chi
   return createPortal(
     <div className="fixed inset-0 z-50">
       {/* 백드롭 — dirty면 비활성(오클릭 보호). mousedown 기준: 드래그로 끌려나온 mouseup 오탐 방지 */}
-      <div className="absolute inset-0 bg-black/25"
+      <div className="absolute inset-0 bg-black/25 dark:bg-black/60"
         onMouseDown={() => { if (dismissOnBackdrop) onRequestClose('backdrop') }} />
       <div ref={panelRef} role="dialog" aria-modal="true" tabIndex={-1} onKeyDown={onKeyDown}
         data-testid="sheet-drawer"

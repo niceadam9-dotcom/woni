@@ -376,7 +376,7 @@ export function SheetEntryClient({
                 <button onClick={() => void openRow(s.sheetId)}
                   data-testid={`sheet-row-${s.sheetCode}`}
                   className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center gap-2 ${
-                    openId === s.sheetId ? 'bg-[#efeaff] text-[#3f2fae]'
+                    openId === s.sheetId ? 'bg-[#efeaff] text-[#3f2fae] dark:bg-brand-tint dark:text-brand'
                       : s.installed && s.responded === 0 ? 'bg-amber-50 hover:bg-amber-100'
                         : 'hover:bg-paper'}`}>
                   <span className="flex-1 truncate">{s.sheetName}</span>

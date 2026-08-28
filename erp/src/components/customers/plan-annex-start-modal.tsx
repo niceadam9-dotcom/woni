@@ -16,7 +16,7 @@ export function PlanAnnexStartModal({ label, date, onDateChange, error, isPendin
 }) {
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 z-[60]" onClick={() => !isPending && onCancel()} />
+      <div className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[60]" onClick={() => !isPending && onCancel()} />
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] bg-surface rounded-2xl shadow-2xl z-[70] p-5">
         <p className="font-semibold text-sm text-ink">{label} 점검을 시작합니다</p>
         <p className="text-xs text-ink-sub mt-1">점검일을 확정하면 점검이 자동 시작되고 6단계 마감일이 계산됩니다.</p>

@@ -53,7 +53,7 @@ export function SubmissionWidget({ myId, defaultMine }: { myId: string; defaultM
         </span>
       </button>
       {open && (
-        <div className="border-t border-[#f0eefa] px-5 pb-4 pt-3">
+        <div className="border-t border-[#f0eefa] dark:border-line px-5 pb-4 pt-3">
           {board
             ? <SubmissionBoard rows={board.rows} summary={board.summary} myId={myId} defaultMine={defaultMine} />
             : <p className="text-xs text-ink-faint py-4 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 불러오는 중…</p>}

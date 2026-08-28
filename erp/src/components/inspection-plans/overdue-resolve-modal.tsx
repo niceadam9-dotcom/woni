@@ -68,7 +68,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[88vh]">
 
         {/* 헤더 */}
@@ -107,7 +107,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                       ? selCount > 0
                         ? 'bg-orange-400 border border-orange-400 text-white cursor-pointer hover:bg-orange-500'
                         : 'bg-orange-100 border border-orange-300 text-orange-500 cursor-pointer hover:bg-orange-200'
-                      : 'bg-paper border border-transparent text-[#d0d0d0] cursor-default'
+                      : 'bg-paper border border-transparent text-[#d0d0d0] dark:text-ink-faint cursor-default'
                   }`}
                 >
                   <span className="block text-[11px] font-semibold">{label}</span>

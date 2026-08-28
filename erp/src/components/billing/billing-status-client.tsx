@@ -92,7 +92,7 @@ function CreateBillModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
       <div className="bg-surface rounded-xl shadow-2xl w-[440px] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <span className="font-semibold">청구서 등록</span>
@@ -231,7 +231,7 @@ function PaymentSlidePanel({
 
   return (
     <div className="fixed inset-0 z-40 flex">
-      <div className="flex-1 bg-black/30" onClick={onClose} />
+      <div className="flex-1 bg-black/30 dark:bg-black/60" onClick={onClose} />
       <div className="w-80 bg-surface shadow-xl flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div>
@@ -373,7 +373,7 @@ function DepositMatchModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-surface rounded-xl w-full max-w-lg p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-ink">입금 문자 매칭</h3>

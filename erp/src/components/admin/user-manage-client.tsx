@@ -152,7 +152,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
   // 퇴사 인수인계 단계 화면
   if (handover) {
     return (
-      <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
           <div className="flex items-center justify-between px-6 py-4 border-b border-line">
             <h2 className="text-base font-semibold text-ink">담당 고객 인수인계</h2>
@@ -190,7 +190,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
   }
 
   return (
-    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="text-base font-semibold text-ink">{title}</h2>
@@ -410,7 +410,7 @@ function ResetPasswordModal({ userId, onClose }: { userId: string; onClose: () =
   }
 
   return (
-    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-ink">비밀번호 초기화</h3>
@@ -471,7 +471,7 @@ function LeaveBalanceModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-ink">{userName} 연차 설정</h3>
@@ -527,7 +527,7 @@ function HandoverModal({ user, successors, onClose }: { user: User; successors: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="text-base font-semibold text-ink">담당 고객 이관</h2>

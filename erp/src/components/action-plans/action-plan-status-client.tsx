@@ -83,7 +83,7 @@ function CertificateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
       <div className="bg-surface rounded-xl shadow-2xl w-[640px] max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <span className="font-semibold">시간내용증명</span>
@@ -213,7 +213,7 @@ function ActionPlanModal({
   const cname = row.inspections?.customers?.customer_name ?? ''
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
       <div className="bg-surface rounded-xl shadow-2xl w-[500px] max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div>

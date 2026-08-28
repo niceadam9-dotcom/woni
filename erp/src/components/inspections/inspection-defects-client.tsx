@@ -89,7 +89,7 @@ function PhotoUploadButton({
             <button
               onClick={() => fileRef.current?.click()}
               aria-label={`${kindLabel} 사진 교체`}
-              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity"
+              className="absolute inset-0 bg-black/40 dark:bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity"
             >
               <Camera size={14} className="text-white" />
             </button>

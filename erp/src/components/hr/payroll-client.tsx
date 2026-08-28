@@ -140,7 +140,7 @@ function PayrollModal({
   const net = gross - deductions
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-surface rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="font-bold text-ink">{editing ? '급여 수정' : '급여 등록'}</h2>

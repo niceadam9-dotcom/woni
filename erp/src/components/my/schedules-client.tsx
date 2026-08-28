@@ -90,7 +90,7 @@ function ScheduleModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <span className="font-bold text-ink">{initial ? '일정 수정' : '일정 등록'}</span>

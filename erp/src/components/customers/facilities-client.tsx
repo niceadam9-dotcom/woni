@@ -431,7 +431,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                   </thead>
                   <tbody>
                     {/* §12-2: 열 단위 일괄 입력 — 값 하나로 전 층 채움 */}
-                    <tr className="bg-[#fffbeb]">
+                    <tr className="bg-amber-50">
                       <td className="px-1 py-0.5 text-[10px] text-amber-600">일괄→</td>
                       {FLOOR_COLS.map(c => (
                         <td key={c} className="px-1 py-0.5">

@@ -218,12 +218,13 @@ function getDDayLabel(diff: number): string {
 
 // 2차 색 체계 (2026-07-14): 배경 = 유형(옅은 색), 좌측 4px 바 = 긴급도, 완료 = 흐림
 // — 기존 "긴급도 7색 단색 칩"에서 유형·긴급도를 분리해 한 칩에 둘 다 담는다
+// 값은 팔레트 var — light는 종전 hex와 동일, 다크는 .dark 재정의를 따라 범례(팔레트 클래스)와 일치한다
 function urgencyBarColor(diff: number, isCompleted: boolean): string {
-  if (isCompleted) return '#d1d5db'   // 완료 — 흐림
-  if (diff < 0)    return '#b91c1c'   // 지연 — 진빨강
-  if (diff === 0)  return '#ef4444'   // D-Day — 빨강
-  if (diff <= 2)   return '#f97316'   // D-1~2 — 주황
-  return '#22c55e'                    // 여유(3일+) — 초록
+  if (isCompleted) return 'var(--color-gray-300)'      // 완료 — 흐림 (#d1d5db)
+  if (diff < 0)    return 'var(--chip-over-solid-bg)'  // 지연 — 진빨강 (#b91c1c)
+  if (diff === 0)  return 'var(--color-red-500)'       // D-Day — 빨강 (#ef4444)
+  if (diff <= 2)   return 'var(--color-orange-500)'    // D-1~2 — 주황 (#f97316)
+  return 'var(--color-green-500)'                      // 여유(3일+) — 초록 (#22c55e)
 }
 
 /** 유형별 칩 배경·텍스트.
@@ -989,7 +990,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const iso = format(date, 'yyyy-MM-dd')
     const holiday = holidayMap.get(iso)
     const dow = date.getDay()
-    const color = holiday || dow === 0 ? '#dc2626' : dow === 6 ? '#2563eb' : undefined
+    // 팔레트 var — light는 종전 hex(#dc2626/#2563eb) 그대로, 다크는 .dark 재정의로 헤더 요일 색과 일치
+    const color = holiday || dow === 0 ? 'var(--color-red-600)' : dow === 6 ? 'var(--color-blue-600)' : undefined
     return (
       <div className="flex items-center justify-between gap-1 min-w-0">
         {holiday ? (
@@ -1355,12 +1357,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-green-500" />여유 (3일 이상)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-orange-500" />1~2일</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-red-500" />D-Day</p>
-                <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-[#b91c1c]" />지연 (연빨강 배경 + ⚠)</p>
+                <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-[var(--chip-over-solid-bg)]" />지연 (연빨강 배경 + ⚠)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-gray-300" />완료 (흐림 + ✓)</p>
                 <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider pt-1.5">계획 일정 (일별 집계)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기 N건</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반 N건</p>
-                <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#b91c1c]" />⚠N = 지연 포함</p>
+                <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-[var(--chip-over-solid-bg)]" />⚠N = 지연 포함</p>
                 <p className="text-[10px] text-ink-faint pt-1">담당자 뷰에서는 칩 앞 색 도트가 담당 직원(필터의 직원 색과 동일)입니다. 집계 칩·날짜 숫자를 클릭하면 그날 전체 일정이 열립니다.</p>
               </div>
             )}
@@ -1548,7 +1550,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         // panelSteps·panelPlans·daySearchQ는 컴포넌트 상단 메모에서 계산 ([전체 선택]이 같은 목록을 봐야 한다)
         return (
           <>
-            <div className="fixed inset-0 bg-black/20 z-40" onClick={() => { if (!isBulkMoving) setDayPanelDate(null) }} />
+            <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-40" onClick={() => { if (!isBulkMoving) setDayPanelDate(null) }} />
             <div className="fixed top-0 right-0 bottom-0 w-[400px] bg-surface shadow-2xl z-50 flex flex-col">
               {/* 헤더 */}
               <div className="px-5 py-4 border-b border-brand-line-soft shrink-0">
@@ -1771,7 +1773,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {/* 같은 날 일괄 완료 모달 (2026-08-04) — 기본 체크: 1단계형(정기·일반), 자체점검 단계는 해제 */}
             {bulkOpen && (
               <>
-                <div className="fixed inset-0 bg-black/30 z-[60]" onClick={() => !isBulkRunning && setBulkOpen(false)} />
+                <div className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[60]" onClick={() => !isBulkRunning && setBulkOpen(false)} />
                 <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[80vh] bg-surface rounded-2xl shadow-2xl z-[70] flex flex-col">
                   <div className="px-5 py-4 border-b border-brand-line-soft">
                     <p className="font-semibold text-ink">{format(new Date(dayPanelDate + 'T12:00:00'), 'M월 d일 (EEE)', { locale: ko })} 일괄 완료</p>
@@ -1843,7 +1845,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         const busy = isMoving || isBulkMoving
         const names = moveConfirm.mode === 'bulk' ? moveConfirm.names : [moveConfirm.customerName]
         return (
-          <div className="fixed inset-0 bg-black/20 z-[80] flex items-center justify-center p-4" onClick={() => !busy && setMoveConfirm(null)}>
+          <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-[80] flex items-center justify-center p-4" onClick={() => !busy && setMoveConfirm(null)}>
             <div className="bg-surface rounded-xl border border-brand-line shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
               <p className="text-sm font-semibold text-ink mb-1">
                 {moveConfirm.mode === 'bulk' ? `정기점검 일자 일괄 이동 (${moveConfirm.itemIds.length}건)` : '정기점검 일자 이동'}
@@ -1884,7 +1886,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       {/* ── 슬라이드 패널 backdrop ────────────────────────────── */}
       {selectedInspectionId && (
         <div
-          className="fixed inset-0 bg-black/20 z-40"
+          className="fixed inset-0 bg-black/20 dark:bg-black/60 z-40"
           onClick={() => setSelectedInspectionId(null)}
         />
       )}

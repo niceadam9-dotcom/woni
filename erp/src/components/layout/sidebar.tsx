@@ -338,10 +338,10 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                   'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors mt-0.5',
                   isGroupActive
                     ? 'text-brand bg-brand-tint'
-                    : 'text-[#374151] hover:bg-brand-tint hover:text-brand'
+                    : 'text-gray-700 hover:bg-brand-tint hover:text-brand'
                 )}
               >
-                <group.icon className={cn('size-4 shrink-0', isGroupActive ? 'text-brand' : 'text-[#7c85a0]')} />
+                <group.icon className={cn('size-4 shrink-0', isGroupActive ? 'text-brand' : 'text-[#7c85a0] dark:text-ink-soft')} />
                 <span className="flex-1 text-left">{group.label}</span>
                 {isOpen
                   ? <ChevronDown className="size-3.5 text-ink-soft" />
