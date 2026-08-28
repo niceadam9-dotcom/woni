@@ -22,9 +22,11 @@ export default async function QuotesPage() {
         profiles:created_by ( name )
       `)
       .order('created_at', { ascending: false }),
+    // 신규 견적 선택지 — 삭제(비활성) 고객 제외(소방계획서_30 S2-2). 기존 행 표시는 위 임베드라 무영향
     admin
       .from('customers')
       .select('id, customer_name, customer_code')
+      .eq('is_active', true)
       .order('customer_name'),
   ])
 

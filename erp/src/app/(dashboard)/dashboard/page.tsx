@@ -110,10 +110,13 @@ export default async function DashboardPage() {
   const myDocCount = myDocsRes.count ?? 0
 
   // ── 소방 점검 데이터 조회 ────────────────────────────────────────
+  // 삭제(비활성) 고객 제외(소방계획서_30 S2-2) — 이 목록이 점검현황·마감임박·기한초과의 뿌리라
+  // 여기서 걸러야 사이드바 뱃지(layout.tsx)와 수가 어긋나지 않는다. FK 힌트는 PGRST201 방지
+  const inspCols = 'id, status, customers:customer_id!inner(is_active)'
   const { data: myInspRaw } = await (
     isEmployee
-      ? admin.from('inspections').select('id, status').eq('assigned_employee_id', profile.id)
-      : admin.from('inspections').select('id, status')
+      ? admin.from('inspections').select(inspCols).eq('customers.is_active', true).eq('assigned_employee_id', profile.id)
+      : admin.from('inspections').select(inspCols).eq('customers.is_active', true)
   )
 
   type InspRow = { id: string; status: string }

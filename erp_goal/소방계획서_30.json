@@ -1,0 +1,83 @@
+{
+  "doc": "소방계획서_30 — 고객 삭제·비활성 조회 차단(A) + 소방계획서 동선 직행(B)",
+  "design": "erp_goal/소방계획서_30.md",
+  "created": "2026-08-28",
+  "updated": "2026-08-28 저녁 (A: S1·S2 독립 판정 통과 implemented — S1·S4-3 코드는 타 세션 다크 모드 커밋 b207905에 동반 커밋·푸시돼 있었다(작업트리 실측). S2 잔여 표면 7곳 수리·판정 41/0. S3 제안 대기 / B: S4-6 이웃 2곳 <a> 수리·독립 판정 통과)",
+  "tracks": { "A": "고객 삭제·비활성 — 섹션 S1~S3", "B": "소방계획서 동선 직행 — 섹션 S4 (같은 날 별개 지시, A와 독립)" },
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "설계 확정(구현 아님)",
+    "proposal": "제안 — 사용자 결정 대기",
+    "deferred": "보류"
+  },
+
+  "key_evidence": "2026-08-28 사용자 지시 2건. 실측: 고객 '삭제'=soft delete(is_active=false)+계획 자동취소(deleteCustomerAction, customers/actions.ts:1147·:1060)인데 자동취소는 계획 항목만 만져서, 점검(inspections) 행·완료 계획이 남아 세 화면에 계속 조회됐다. ①점검업무 — 기본 목록이 비활성 고객 건 포함(custJoin이 '취소' 필터일 때만 inner) ②점검달력 — 점검 건은 customer_inactive 마커만 달고 적재, 계획은 cancelled만 제외해 완료 항목 잔존 ③점검확정 — '전체' 칩 matchStatus 무조건 true + 달력 뷰 필터에 비활성 축 없음.",
+
+  "decisions": [
+    { "id": "D-1", "title": "삭제(비활성) 고객 건은 기본 조회 전부 제외, 이력 창구는 '취소' 필터만", "status": "confirmed",
+      "desc": "점검업무 ADD-15 '취소(비활성/삭제)' 필터·점검확정 ADD-9 '취소' 칩이 유일한 조회 경로. 달력(점검달력·점검확정 달력 뷰)은 이력 창구가 아니므로 전면 제외. '전체' 칩 카운트가 상태별 합과 어긋나는 것(전체=활성만)은 수용." },
+    { "id": "D-2", "title": "삭제/비활성 분리는 '조건부 hard delete'로 제안", "status": "proposal",
+      "desc": "비활성=현행 soft delete 유지. 삭제=업무 이력(점검·계획·문서·청구) 0건일 때만 물리 DELETE, 이력 있으면 차단+비활성화 유도. 전면 hard delete 반대 근거: 법정 보존(자체점검 기록)·운영 DB 백업 없음·activity_logs append-only. 2026-08-28 제안 전달 — 사용자 결정 대기." },
+    { "id": "D-3", "title": "[B] 소방계획서 직행은 화면 3곳에 얹는다 — 사이드바 메뉴는 신설하지 않는다", "status": "confirmed",
+      "desc": "2026-08-28 사용자 1~3안 승인. 채택: ①달력 데이 패널 링크(착륙 4→3클릭) ②최근 본 고객 칩 📄(검색 없이 1클릭) ③고객 상세 헤더 상시 버튼. 비채택 — 사이드바 '소방계획서' 메뉴: 계획서는 고객 단위 문서라 고객 선택 화면이 하나 더 생길 뿐 클릭 이득이 없고, '보고서' 대분류 재생성 금지(소방계획서_8 D-8)와 충돌하며, 고객 관리 목록의 문서 스트립이 이미 그 역할을 한다." },
+    { "id": "D-4", "title": "[B] 같은 경로 ?tab= 이동은 <a> 전체 이동으로만 — Link(soft nav)는 서버를 재렌더하지 않는다", "status": "confirmed",
+      "desc": "2026-08-28 실측(_diag-header-plan-link.mts): tab=buildings에서 ?tab=plan&form=annex Link를 눌러도 URL만 바뀌고 activeTab은 건물·시설로 남았다(page.goto 전체 로드는 정상). customer-tabs.tsx:42(initialTab 프롭 동기화)와 plan-tab-view.tsx:122(form= 딥링크 동기화)가 둘 다 그 서버 재렌더를 전제로 쓰여 함께 무력화된다. 헤더 버튼만 <a>로 두어 탭과 form=이 함께 살게 했다(미저장 보호는 beforeunload). 같은 형태 이웃 미검증: page.tsx의 '1.4 소방시설' 안내 Link, fire-safety-manager-panel.tsx:194." }
+  ],
+
+  "sections": [
+    { "id": "S1", "title": "삭제(비활성) 고객 조회 차단 — 3화면", "status": "implemented",
+      "note": "2026-08-28 독립 판정 통과(구현자≠판정자, _judge-s30-block.mts 41/0 — 활성 A·비활성 B 대조군 쌍 + completed 잔재 재현 + '취소' 창구 보존 실측). 코드는 타 세션 다크 모드 커밋 b207905(268파일·푸시완료)에 동반 커밋돼 있었다 — '미커밋' 종전 기록은 낡은 것. 회귀: bulk-move 29/0·recent 17/0·cal-search 18/0·monthly-confirm 13/0(스위트 자체가 §6-B-A 열 숨김으로 낡아 있어 헤더 텍스트 동적 탐색으로 회생).",
+      "criteria": [
+        { "id": "S1-1", "desc": "점검업무 /inspections — 항상 customers!inner, '취소' 필터 외 is_active=true 조건. '취소' 필터는 기존대로 is_active=false 조회(ADD-15 유지)", "status": "implemented",
+          "verified": "판정 E2E: 기본목록 B 제외·A 잔존 / 완료필터에서 B 완료 잔재 제외 / 취소필터 B 유지·A 미포함(ADD-15 생존)",
+          "note": "src/app/(dashboard)/inspections/page.tsx:69-88 — custJoin 상수화 + statusFilter!=='cancelled'일 때 eq('customers.is_active', true)" },
+        { "id": "S1-2", "desc": "점검달력 /inspections/calendar — 점검 건·계획 항목 모두 비활성 고객 제외(완료 계획 포함 상태 무관)", "status": "implemented",
+          "verified": "판정 E2E: B의 점검 건+completed 계획 잔재 전면 제외·A 잔존. 판정 교훈: rbc '+N more' 접힘이 대조군을 가릴 수 있어 ?cust= 검색 축으로 판정",
+          "note": "src/app/(dashboard)/inspections/calendar/page.tsx:54·:121·:162 — calendarData customerMap is_active 필터 + 계획 임베드 is_active 제외" },
+        { "id": "S1-3", "desc": "점검확정 /inspection-plans — '전체' 칩·달력 뷰에서 비활성 고객 항목 제외, '취소' 칩만 조회 창구(ADD-9 유지)", "status": "implemented",
+          "verified": "판정 E2E: 전체칩 B 제외·취소칩 B 유지(ADD-9 생존)·달력뷰 B 제외/A 잔존. 이 화면은 전 항목을 클라이언트로 내리므로 판정은 DOM 텍스트 축으로만(page.content()는 오탐)",
+          "note": "src/components/inspection-plans/inspection-plans-client.tsx:196-199·:232" },
+        { "id": "S1-4", "desc": "무수정 확인 — 문자발송·점검대장(is_active=true 기적용)", "status": "implemented",
+          "verified": "판정: ledger/page.tsx:24 기적용 확인. ⚠종전 '자동취소로 커버' 문구는 부정확 — 후보 조회(lib/sms.ts:135)는 completed도 포함해 자동취소만으론 안 덮이고, 실제 차단자는 sms.ts:180의 명시 필터(c.is_active===false → continue)다. 코드 수정 불요, 근거만 정정",
+          "note": "customers/ledger/page.tsx eq('is_active', true) + lib/sms.ts:180 명시 필터" }
+      ] },
+    { "id": "S2", "title": "잔여 표면 조사·차단 (후속)", "status": "implemented",
+      "note": "2026-08-28 전수 실측(Explore 에이전트 조사 + 직접 재확인) → 7곳 수리, 독립 판정 통과(_judge-s30-block.mts 41/0 — 판정자가 대시보드·/my/schedules 잔존 2건을 실결함으로 적발해 수리 후 재실행 그린). 구현자 프로브 _probe-s30-inactive-surfaces.mts 12/12(전 쿼리 error 축 동반 — 조용한 0행 방지, 활성 대조군 포함).",
+      "criteria": [
+        { "id": "S2-1", "desc": "사이드바 단계 뱃지 getStepBadgeCounts((dashboard)/layout.tsx) — 삭제 고객의 지연 단계가 빨간 뱃지에 잡히는지 실측·차단", "status": "implemented",
+          "verified": "판정 E2E(employee 축): 빨간 뱃지 10 → 비활성 후 5(정확 감산)·PGRST201 미발생. 구현자 프로브 ⑥: employee 뱃지 1 → 소멸(admin 축은 스테이징 99+ 포화라 판정 불가 — employee 축 필수)",
+          "note": "layout.tsx:19-27 — inspections 임베드에 customers:customer_id!inner(is_active) + eq('inspections.customers.is_active', true). FK 힌트가 PGRST201 방지" },
+        { "id": "S2-2", "desc": "잔여 조회 표면 전수 실측·차단 — 수리 7곳 + NONE 판정 기록", "status": "implemented",
+          "verified": "수리: ①제출현황 위젯 docs-actions.ts:544-549 ②③문서할일·9호기한 doc-status.ts findMissingCerts/findDueReport9(주간 브리핑 크론 공유) ④⑤견적·수주 신규 선택지 quotes/orders page.tsx(기존 행 고객명 표시는 별도 임베드라 유지 — 판정 실측) ⑥대시보드 점검현황·마감임박 dashboard/page.tsx:113-121(판정자 적발 — 뿌리 목록에서 필터해 사이드바 뱃지와 수 일치) ⑦/my/schedules 오버레이 my/schedules/page.tsx:45-51(판정자 적발). NONE: monitor(폐지 리다이렉트)·inspection-reports/status·action-plans/status(위젯으로 리다이렉트)·문의 등록 선택지(is_active 기적용, 145 힌트 주석 실재)·by-customer(징검다리 리다이렉트 — 이력 접근 축)·문의 목록(문의 건 자체의 이력이라 유지)·getCustomerRoundsAction(특정 고객 지목 조회라 딥링크 축)",
+          "note": "'할 일'성 목록(위젯·문서할일·9호 독촉)은 조치 가능한 건만 — 삭제 고객 건이 영구 잔존하는 노이즈 제거가 원칙" }
+      ] },
+    { "id": "S3", "title": "삭제/비활성 의미 분리 — 조건부 hard delete", "status": "proposal",
+      "note": "D-2 제안 전달(2026-08-28). 채택 시 착수 항목만 미리 적어둔다.",
+      "criteria": [
+        { "id": "S3-1", "desc": "이력 검사 — inspections·inspection_plan_items·문서·청구 등 참조 카운트 0건 판정 함수", "status": "pending_order" },
+        { "id": "S3-2", "desc": "0건이면 물리 DELETE(관계인·건물 등 기본정보 연쇄, 트랜잭션), 이력 있으면 차단 + 비활성화 유도 모달", "status": "pending_order" },
+        { "id": "S3-3", "desc": "가드 영향 실측(feedback_guard_blast_radius) — 기존 고객 중 물리 삭제 가능 건수 사전 카운트", "status": "pending_order" }
+      ] },
+    { "id": "S4", "title": "[B] 소방계획서 직행 3곳 — 달력·최근 고객 칩·고객 상세 헤더", "status": "code_present",
+      "note": "2026-08-28 구현(자기신고 — S4-1~3은 독립 검증 전까지 code_present, S4-6만 독립 판정 통과 implemented). 검증: tsc 0 · test-recent-customers 17/0 · test-calendar-day-bulk-move 29/0 · _probe-plan-access-paths.mts 9/9. 커밋 실측(2026-08-28 저녁): S4-1·S4-2는 6fc6e28, S4-3은 타 세션 다크 모드 b207905에 동반 — 전부 푸시 완료.",
+      "criteria": [
+        { "id": "S4-1", "desc": "점검 달력 데이 패널 — [상세 페이지로 이동] 옆 [소방계획서 트리] 직행(착륙 화면 4→3클릭)", "status": "code_present",
+          "note": "src/components/inspections/inspection-calendar-client.tsx — data-testid=daypanel-plan-link, href=/customers/{customer_id}?tab=plan&form=annex. 커밋 6fc6e28." },
+        { "id": "S4-2", "desc": "최근 본 고객 칩 — 이름 링크 + 📄 소방계획서 직행으로 분할. 이름 링크의 '그 화면의 표와 같은 곳' 규약(2026-08-18)은 불변", "status": "code_present",
+          "note": "src/components/customers/recent-customers-strip.tsx — span 컨테이너 안에 이름 Link + data-testid=recent-chip-plan-link. ⚠이름 링크가 칩의 첫 <a>여야 한다(test-recent-customers가 링크 순서로 최근순 판정) — 프로브가 이 축을 단언한다. 커밋 6fc6e28." },
+        { "id": "S4-3", "desc": "고객 상세 헤더 — 어느 탭에서든 계획서 탭으로 가는 상시 [소방계획서] 버튼", "status": "code_present",
+          "note": "src/app/(dashboard)/customers/[id]/page.tsx:938 — data-testid=header-plan-link. D-4에 따라 next/link가 아닌 <a> 전체 이동. 2026-08-28 실측: 타 세션 다크 모드 커밋 b207905에 동반 커밋·푸시 완료('미커밋' 종전 기록 해소)." },
+        { "id": "S4-4", "desc": "신규 링크가 실제로 계획서 탭에 도달하는지 프로브로 단언(노출·목적지·클릭 후 탭 활성·form=annex 지목)", "status": "code_present",
+          "note": "scripts/_probe-plan-access-paths.mts 9/9(미추적 — _probe- 관례). 1차 8/9로 S4-3 실결함 적발 → D-4 수리 후 9/9. 기존 스위트는 회귀만 보므로 '새 길이 열렸나'는 이 프로브가 유일한 축이다." },
+        { "id": "S4-5", "desc": "[조사 결과·무수정] test-chip-nav는 낡아서 영구 빨강 — 손대지 말 것", "status": "confirmed",
+          "note": "테스트가 찾는 '층수/높이/연면적 ↗' 칩은 애초에 없다(fire-plan-readiness.ts:29-40은 수신기위치·구조·지붕 등 10종). plan-tab-view.tsx:24-34가 '처음부터 그랬다 / 오래 빨간 채 방치(2026-08-19 정리)'라고 명시. 게이트·test:all 미등록(grep 1건=자기 자신). 내 변경 무관은 대조군(헤더 버튼만 제거한 빌드도 같은 지점 실패)으로 확정." },
+        { "id": "S4-6", "desc": "[후속] D-4와 같은 형태의 이웃 Link 실측·수리 — page.tsx '1.4 소방시설' 안내, fire-safety-manager-panel.tsx(form=1.7)", "status": "implemented",
+          "verified": "2026-08-28 두 곳 <a> 전체 이동으로 수리(page.tsx:614, fsm-panel:197 + useUnsavedWarning(dirty) 배선 — 패널 dirty가 탭 셸에 미배선이라 beforeunload 축 신설). 구현자 프로브 _probe-s30-sibling-links.mts 10/10 + 독립 판정 E2E 도달 확인(계획서 탭+form=1.4/1.7). 제3 이웃 이력 탭 필터 칩(histChip)은 실측 결과 정상(서버 재렌더 수신) — 무수정",
+          "note": "⚠판정자 관찰: 나머지 same-path Link 이웃 3+1곳(fire-plan-info-panel.tsx:312·plan-form17.tsx:77·annex-missing-list.tsx:45-47·plan-form14-specs.tsx:804)은 D-4 증상이 7회 클릭 중 0회 재현(정상 전환) — 현 빌드에서 비차단. 단 1/7 클릭 무시 플레이크(하이드레이션 창 의심) 관측, D-4 규약 일관성 차원의 <a> 통일은 선택적 후속" }
+      ] }
+  ]
+}

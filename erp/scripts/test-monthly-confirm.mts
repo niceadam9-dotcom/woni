@@ -53,6 +53,13 @@ async function waitFor<T>(get: () => Promise<T>, cond: (v: T) => boolean, ms = 1
 function row(page: Page) {
   return page.locator('tr', { has: page.getByText(NAME) }).first()
 }
+/** 열 인덱스를 헤더 텍스트로 찾는다 — §6-B-A(계약일 기본 숨김) 이후 고정 인덱스는 낡는다(2026-08-28 수리) */
+async function colIdx(page: Page, label: string): Promise<number> {
+  const idx = await page.locator('thead th').evaluateAll(
+    (ths, l) => ths.findIndex(t => (t.textContent ?? '').includes(l)), label)
+  if (idx < 0) throw new Error(`열 '${label}'을 헤더에서 못 찾음`)
+  return idx
+}
 
 try {
   console.log('\n[셋업] 작동 고객 + 연간 계획 (신규 생성기)')
@@ -103,8 +110,9 @@ try {
   console.log('\n[2] 점검계획일 인라인 변경 (10일 → 22일)')
   await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-MONTHLY')}&active=all`)
   await row(page).waitFor()
-  await row(page).locator('td').nth(5).locator('[title="클릭하여 수정"]').click()
-  const dateInput = row(page).locator('td').nth(5).locator('input[type=text]')
+  const planCol = await colIdx(page, '점검계획일')
+  await row(page).locator('td').nth(planCol).locator('[title="클릭하여 수정"]').click()
+  const dateInput = row(page).locator('td').nth(planCol).locator('input[type=text]')
   await dateInput.waitFor()
   await dateInput.fill(ANCHOR1)
   await dateInput.press('Enter')
@@ -126,19 +134,20 @@ try {
   console.log('\n[3] 유형 드롭다운 Escape 취소')
   await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-MONTHLY')}&active=all`)
   await row(page).waitFor()
-  await row(page).locator('td').nth(1).locator('[title="클릭하여 수정"]').click()
-  const typeSel = row(page).locator('td').nth(1).locator('select')
+  const typeCol = await colIdx(page, '점검유형')
+  await row(page).locator('td').nth(typeCol).locator('[title="클릭하여 수정"]').click()
+  const typeSel = row(page).locator('td').nth(typeCol).locator('select')
   await typeSel.waitFor()
   await typeSel.press('Escape')
   await page.waitForTimeout(300)
-  check('Escape로 편집 종료 (select 사라짐)', await row(page).locator('td').nth(1).locator('select').count() === 0)
+  check('Escape로 편집 종료 (select 사라짐)', await row(page).locator('td').nth(typeCol).locator('select').count() === 0)
   const { data: cEsc } = await raw.from('customers').select('inspection_type').eq('id', customerId).single()
   check('값 미변경', (cEsc as { inspection_type: string } | null)?.inspection_type === '작동')
 
   // ── 4) 유형 전환 (작동 → 종합): 확정 정기도 동기화 ──
   console.log('\n[4] 유형 드롭다운 (작동 → 종합)')
-  await row(page).locator('td').nth(1).locator('[title="클릭하여 수정"]').click()
-  const typeSel2 = row(page).locator('td').nth(1).locator('select')
+  await row(page).locator('td').nth(typeCol).locator('[title="클릭하여 수정"]').click()
+  const typeSel2 = row(page).locator('td').nth(typeCol).locator('select')
   await typeSel2.waitFor()
   await typeSel2.selectOption('종합')
   await page.locator('h1').click()

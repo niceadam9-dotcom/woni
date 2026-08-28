@@ -611,7 +611,8 @@ export default async function CustomerDetailPage({
 
       {/* 소방시설 현황 패널은 소방계획서 탭 > 1장 > 1.4로 이동 (소방계획서_4.md §4 — 건물목록은 잔류) */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-3 text-xs text-ink-sub">
-        소방시설 현황 입력은 <Link href={`/customers/${customer.id}?tab=plan&form=1.4`} className="text-brand hover:underline">소방계획서 탭 &gt; 1.4 소방시설</Link>로 이동했습니다.
+        {/* D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않아 탭이 안 바뀐다 — <a> 전체 이동 */}
+        소방시설 현황 입력은 <a href={`/customers/${customer.id}?tab=plan&form=1.4`} className="text-brand hover:underline">소방계획서 탭 &gt; 1.4 소방시설</a>로 이동했습니다.
       </div>
     </>
   )

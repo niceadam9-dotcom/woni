@@ -541,9 +541,11 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
   const since = shiftYmd(today, -(opts.sinceDays ?? 90))   // D-9: 기본 최근 90일
 
   // 자체점검 = plan_type 축 단독 — 일반관리 자체점검도 제출 현황판 대상 (소방계획서_6 W-16, 독립 검증 지적 수정)
+  // 삭제(비활성) 고객의 회차 제외(소방계획서_30 S2-2) — FK 힌트(customer_id)는 PGRST201 방지
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customers(customer_name)')
+    .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customer_id!inner(customer_name, is_active)')
     .or(SELF_INSPECTION_OR)
+    .eq('customer.is_active', true)
     .gte('inspection_start_date', since)
     .order('inspection_start_date', { ascending: false, nullsFirst: false })
     .limit(80)

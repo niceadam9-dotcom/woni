@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import Link from 'next/link'
 import { Save, Loader2, ShieldCheck, Sparkles, ExternalLink, Phone } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
+import { useUnsavedWarning } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
 import { suggestGrade } from '@/lib/fire-plan-suggest'
 import { saveFireSafetyManagerAction, type FireSafetyManagerInput } from '@/app/(dashboard)/customers/fire-safety-manager-actions'
@@ -47,6 +47,8 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
 }) {
   const [d, setD] = useState<FireSafetyManagerInput>(initial)
   const [dirty, setDirty] = useState(false)
+  // 이 패널의 dirty는 탭 셸(setTabDirty)에 안 잡힌다 — <a> 전체 이동(보조자 링크 등)의 미저장 보호는 여기서
+  useUnsavedWarning(dirty)
   const [msg, setMsg] = useState('')
   const [gradeReason, setGradeReason] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -190,11 +192,12 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
           </button>
         )}
-        {/* 보조자는 여기 없다 — 어디로 가야 하는지 말해준다 (1.7은 보조자 전용) */}
-        <Link href={`/customers/${customerId}?tab=plan&form=1.7`}
+        {/* 보조자는 여기 없다 — 어디로 가야 하는지 말해준다 (1.7은 보조자 전용).
+            D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않는다 — <a> 전체 이동, 미저장은 beforeunload */}
+        <a href={`/customers/${customerId}?tab=plan&form=1.7`} data-testid="fsm-assistant-link"
           className="text-[11px] text-brand hover:underline inline-flex items-center gap-0.5">
           보조자 선임현황 <ExternalLink className="size-2.5" />
-        </Link>
+        </a>
         {msg && <span className={`text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}`}>{msg}</span>}
       </div>
     </div>

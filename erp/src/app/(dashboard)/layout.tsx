@@ -16,11 +16,13 @@ async function getStepBadgeCounts(profileId: string, role: string) {
   const d3 = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]
 
   function base() {
+    // 삭제(비활성) 고객의 잔존 단계 제외(소방계획서_30 S2-1) — FK 힌트(customer_id)는 PGRST201 방지
     let q = admin
       .from('inspection_steps')
-      .select('id, inspections!inner(assigned_employee_id, status)', { count: 'exact', head: true })
+      .select('id, inspections!inner(assigned_employee_id, status, customers:customer_id!inner(is_active))', { count: 'exact', head: true })
       .eq('status', 'pending')
       .neq('inspections.status', 'completed')
+      .eq('inspections.customers.is_active', true)
     if (role === 'employee') q = q.eq('inspections.assigned_employee_id', profileId)
     return q
   }

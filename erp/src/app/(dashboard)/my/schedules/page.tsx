@@ -42,9 +42,11 @@ export default async function SchedulesPage() {
   // 내 담당 점검 마감일 오버레이
   let inspectionDeadlines: InspectionDeadline[] = []
 
+  // 삭제(비활성) 고객 제외(소방계획서_30 S2-2) — 삭제 고객의 마감 오버레이가 남지 않게
   const { data: inspRaw } = await admin
     .from('inspections')
-    .select('id, customer_id')
+    .select('id, customer_id, customers:customer_id!inner(is_active)')
+    .eq('customers.is_active', true)
     .eq('assigned_employee_id', profile.id)
     .neq('status', 'completed')
 

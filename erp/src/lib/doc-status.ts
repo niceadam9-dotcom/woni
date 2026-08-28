@@ -115,8 +115,10 @@ export async function findMissingCerts(
   admin: SupabaseClient, opts: { sinceDays?: number; limit?: number } = {},
 ): Promise<MissingCertRow[]> {
   const since = addDays(todayKst(), -(opts.sinceDays ?? 90))
+  // 삭제(비활성) 고객 제외(소방계획서_30 S2-2) — '할 일'은 조치 가능한 건만. FK 힌트는 PGRST201 방지
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, customer:customers(customer_name)')
+    .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, customer:customer_id!inner(customer_name, is_active)')
+    .eq('customer.is_active', true)
     .eq('status', 'completed')
     .or(SELF_INSPECTION_OR)
     .gte('inspection_start_date', since)
@@ -147,8 +149,10 @@ export async function findDueReport9(
   admin: SupabaseClient, opts: { sinceDays?: number; withinDays?: number } = {},
 ): Promise<DueReport9Row[]> {
   const since = addDays(todayKst(), -(opts.sinceDays ?? 90))
+  // 삭제(비활성) 고객 제외(소방계획서_30 S2-2) — 9호 기한 독촉도 조치 가능한 건만
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
+    .select('id, customer_id, year, sequence_num, inspection_type, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customer_id!inner(customer_name, is_active)')
+    .eq('customer.is_active', true)
     .or(SELF_INSPECTION_OR)
     .is('report9_submitted_at', null)
     .not('inspection_end_date', 'is', null)
