@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { BookText, Download, Search } from 'lucide-react'
+import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 
 export type LedgerRow = {
   id: string; name: string; type: string; planDate: string | null
@@ -75,9 +76,11 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
       </div>
 
       <div className="bg-white rounded-xl border border-[#c8c4d0] overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* 세로 스크롤이 페이지(main)에 있으면 가로 스크롤바가 테이블 맨 아래(화면 밖)에만
+            그려져 좌우 조회가 불가능했다 — 뷰포트 안에 스크롤 컨테이너를 두고 헤더를 고정한다 */}
+        <TableScroll offset={300}>
           <table className="w-full text-sm whitespace-nowrap">
-            <thead>
+            <thead className={STICKY_THEAD}>
               <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa] text-xs text-[#514b81]">
                 {['#', '대상물', '구분', '점검계획일', '지역', '연면적', '사용승인일', '관계인', '연락처', '관할서', ...(canViewFee ? ['계약료'] : [])].map(h => (
                   <th key={h} className="text-left px-3 py-2.5 font-semibold">{h}</th>
@@ -108,7 +111,7 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       </div>
     </div>
   )
