@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Clock, X } from 'lucide-react'
+import { Clock, FileText, X } from 'lucide-react'
 import { readRecentCustomers, pushRecentCustomer, type RecentCustomer } from '@/lib/recent-customers'
 
 /** 고객 상세를 열면 '최근 본 고객'에 기록한다 (기록 전용 — 아무것도 그리지 않음). */
@@ -50,14 +50,27 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
         <Clock className="size-3" /> 최근 본 고객
       </span>
       {items.map(c => (
-        <Link
-          key={c.id}
-          href={target === 'inspection' ? `/inspections/by-customer/${c.id}` : `/customers/${c.id}`}
-          title={target === 'inspection' ? `${c.name} 최근 점검 상세로 이동` : `${c.name} 상세 조회로 이동`}
-          className="inline-flex items-center h-7 px-2.5 rounded-full border text-xs transition-colors max-w-[12rem] truncate border-[#d0ccf5] bg-white text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]"
-        >
-          {c.name}
-        </Link>
+        /* 칩 = 이름 링크('그 화면의 표와 같은 곳' 규약) + 📄 소방계획서 직행(2026-08-28 동선 검토).
+           📄는 이름과 별개 어포던스라 규약 밖 — "어제 하던 계획서 마저"를 검색 없이 1클릭으로.
+           ⚠ 이름 링크가 칩의 첫 <a>여야 한다 — test-recent-customers가 링크 순서로 최근순을 판정한다 */
+        <span key={c.id} className="inline-flex items-stretch h-7 rounded-full border border-[#d0ccf5] bg-white overflow-hidden shrink-0">
+          <Link
+            href={target === 'inspection' ? `/inspections/by-customer/${c.id}` : `/customers/${c.id}`}
+            title={target === 'inspection' ? `${c.name} 최근 점검 상세로 이동` : `${c.name} 상세 조회로 이동`}
+            className="inline-flex items-center pl-2.5 pr-1.5 text-xs transition-colors max-w-[12rem] truncate text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]"
+          >
+            {c.name}
+          </Link>
+          <Link
+            href={`/customers/${c.id}?tab=plan&form=annex`}
+            aria-label={`${c.name} 소방계획서 트리`}
+            title="소방계획서 트리 · 회차별 별지 작성으로 바로가기"
+            data-testid="recent-chip-plan-link"
+            className="inline-flex items-center pl-1.5 pr-2 border-l border-[#f0eefb] text-[#b0acd6] transition-colors hover:bg-[#f5f4ff] hover:text-[#7b68ee]"
+          >
+            <FileText className="size-3" />
+          </Link>
+        </span>
       ))}
       <button
         type="button"

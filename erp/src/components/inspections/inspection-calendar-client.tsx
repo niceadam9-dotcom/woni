@@ -2035,13 +2035,23 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </div>
             )}
 
-            {/* 상세 페이지 링크 */}
-            <div className="px-5 py-3 border-t border-[#c8c4d0] shrink-0">
+            {/* 상세 페이지·소방계획서 링크 — 계획서는 착륙 화면(달력)에서 가장 잦은 목적지인데
+                종전엔 작업대를 경유해야 했다(4클릭 → 3클릭, 2026-08-28 동선 검토) */}
+            <div className="px-5 py-3 border-t border-[#c8c4d0] shrink-0 flex items-center gap-4">
               <Link
                 href={`/inspections/${selectedInspection.id}`}
                 className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1"
               >
                 상세 페이지로 이동
+                <ChevronRight className="size-3" />
+              </Link>
+              <Link
+                href={`/customers/${selectedInspection.customer_id}?tab=plan&form=annex`}
+                title="소방계획서 트리 · 회차별 별지 작성으로 바로가기"
+                data-testid="daypanel-plan-link"
+                className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1"
+              >
+                소방계획서 트리
                 <ChevronRight className="size-3" />
               </Link>
             </div>
