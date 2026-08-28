@@ -81,12 +81,12 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
     })
   }
 
-  const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]'
+  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
   const chip = (on: boolean) => `h-6 px-2 rounded-full text-[11px] border transition-colors ${
-    on ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`
+    on ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`
   const toggleRow = (label: string, v: { has: boolean; note: string }, set: (nv: { has: boolean; note: string }) => void, ph: string) => (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[11px] font-medium text-[#514b81] w-14">{label}</span>
+      <span className="text-[11px] font-medium text-ink-sub w-14">{label}</span>
       <button onClick={() => canManage && set({ ...v, has: !v.has })} disabled={!canManage} className={chip(v.has)}>
         {v.has ? '설치·해당' : '미설치·해당없음'}
       </button>
@@ -100,20 +100,20 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
   return (
     <div className="space-y-4">
       {/* 1.5.1 일반현황 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-[#514b81]">1.5.1 피난·방화시설 일반현황</p>
+          <p className="text-xs font-semibold text-ink-sub">1.5.1 피난·방화시설 일반현황</p>
           {canManage && presetType && EVAC_PRESETS[presetType] && (
             <button onClick={() => patch(EVAC_PRESETS[presetType])}
               title="용도 기반 기본값 — 채운 뒤 현장 기준으로 수정하세요"
-              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               용도 기본값 ({presetType})
             </button>
           )}
         </div>
         {/* 계단 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-[#514b81] w-14">계단</span>
+          <span className="text-[11px] font-medium text-ink-sub w-14">계단</span>
           {STAIRS.map(s => {
             const on = ef.stairs[s] !== undefined
             return (
@@ -141,7 +141,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
         </div>
         {/* 기타 피난시설 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-[#514b81] w-14">기타</span>
+          <span className="text-[11px] font-medium text-ink-sub w-14">기타</span>
           {ETC_EVAC.map(s => (
             <button key={s} disabled={!canManage} className={chip(ef.etc.includes(s))}
               onClick={() => patch({ etc: ef.etc.includes(s) ? ef.etc.filter(x => x !== s) : [...ef.etc, s] })}>
@@ -153,14 +153,14 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
         </div>
         {/* 피난층 */}
         <div className="flex items-end gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-[#514b81] w-14 pb-1.5">피난층</span>
+          <span className="text-[11px] font-medium text-ink-sub w-14 pb-1.5">피난층</span>
           <div>
-            <label className="text-[10px] text-[#b0acd6] block">위치</label>
+            <label className="text-[10px] text-ink-faint block">위치</label>
             <input value={ef.evacFloor.location} disabled={!canManage}
               onChange={e => patch({ evacFloor: { ...ef.evacFloor, location: e.target.value } })} className={`${inputCls} w-24`} />
           </div>
           <div>
-            <label className="text-[10px] text-[#b0acd6] block">출입구 개소</label>
+            <label className="text-[10px] text-ink-faint block">출입구 개소</label>
             <NumStepper value={ef.evacFloor.exits} disabled={!canManage} label="출입구 개소"
               onChange={v => patch({ evacFloor: { ...ef.evacFloor, exits: v } })}>
               <input value={ef.evacFloor.exits} disabled={!canManage} inputMode="numeric"
@@ -168,14 +168,14 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
             </NumStepper>
           </div>
           <div>
-            <label className="text-[10px] text-[#b0acd6] block">개폐 방법</label>
+            <label className="text-[10px] text-ink-faint block">개폐 방법</label>
             <input value={ef.evacFloor.openMethod} disabled={!canManage} placeholder="예: 자동문, 수동"
               onChange={e => patch({ evacFloor: { ...ef.evacFloor, openMethod: e.target.value } })} className={`${inputCls} w-36`} />
           </div>
         </div>
         {/* 방화구획 — 해당없음 원클릭 (§11-3) */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-[#514b81] w-14">방화구획</span>
+          <span className="text-[11px] font-medium text-ink-sub w-14">방화구획</span>
           {([['area', '면적별'], ['floor', '층별'], ['none', '해당없음']] as Array<[EvacFireSection['compartment'], string]>).map(([v, label]) => (
             <button key={v} disabled={!canManage} className={chip(ef.compartment === v)}
               onClick={() => patch({ compartment: ef.compartment === v ? '' : v })}>
@@ -189,20 +189,20 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
       </div>
 
       {/* 1.5.2 방화·제연구획 현황도 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-[#514b81]">1.5.2 방화·제연구획 현황도</p>
-          <span className="text-[10px] text-[#b0acd6]">연면적 1,000㎡ 이상 작성 권장</span>
+          <p className="text-xs font-semibold text-ink-sub">1.5.2 방화·제연구획 현황도</p>
+          <span className="text-[10px] text-ink-faint">연면적 1,000㎡ 이상 작성 권장</span>
           {canManage && (
             <button onClick={() => { setMaps(p => [...p, { floor: '', image: null, desc: '' }]); setDirty(true) }}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               <Plus className="size-3" /> 구역 추가
             </button>
           )}
         </div>
-        {maps.length === 0 && <p className="text-[11px] text-[#b0acd6]">구역(층)별 평면도와 설명을 등록하세요.</p>}
+        {maps.length === 0 && <p className="text-[11px] text-ink-faint">구역(층)별 평면도와 설명을 등록하세요.</p>}
         {maps.map((m, i) => (
-          <div key={i} className="rounded-lg border border-[#e0ddf5] bg-white p-3 space-y-2">
+          <div key={i} className="rounded-lg border border-brand-line-soft bg-surface p-3 space-y-2">
             <div className="flex items-center gap-2">
               <input value={m.floor} disabled={!canManage} placeholder="층 (예: 지상 1층)"
                 onChange={e => { setMaps(p => p.map((x, j) => j === i ? { ...x, floor: e.target.value } : x)); setDirty(true) }}
@@ -212,7 +212,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
                 className={`${inputCls} flex-1`} />
               {canManage && (
                 <button onClick={() => { setMaps(p => p.filter((_, j) => j !== i)); setDirty(true) }}
-                  className="text-[#b0acd6] hover:text-red-500" aria-label="구역 삭제">
+                  className="text-ink-faint hover:text-red-500" aria-label="구역 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
@@ -227,10 +227,10 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.5 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

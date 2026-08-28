@@ -20,8 +20,8 @@ import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
  *     test-annex-interaction.mts가 그 문자열 개수로 회차 펼침 상태를 판정한다(PlanAnnexSheetHeader가 유일 출처). */
 
 const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
-const blockTitleCls = 'text-[11px] font-semibold text-[#514b81] pt-1 pb-0.5'
-const chipCls = 'text-[11px] text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] shrink-0 cursor-pointer'
+const blockTitleCls = 'text-[11px] font-semibold text-ink-sub pt-1 pb-0.5'
+const chipCls = 'text-[11px] text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint shrink-0 cursor-pointer'
 
 /** 회차 묶음 인쇄(소방계획서_18 S1) 가능 여부 — 병합 대상은 PDF뿐이라 HWP·HTML만 있으면 열지 않는다.
  *  bundle 라우트의 TYPE_ORDER와 같은 축. */
@@ -44,7 +44,7 @@ export function statePill(r: CustomerRound): { label: string; cls: string } {
   }
   if (r.state === 'completed') return { label: '완료', cls: 'bg-green-50 text-green-700' }
   if (r.state === 'overdue') return { label: '기한초과', cls: 'bg-red-50 text-red-600' }
-  return { label: '진행중', cls: 'bg-[#f5f4ff] text-[#7b68ee]' }
+  return { label: '진행중', cls: 'bg-brand-tint text-brand' }
 }
 
 export function PlanAnnexRoundCard({
@@ -109,13 +109,13 @@ export function PlanAnnexRoundCard({
   }
 
   return (
-    <div className={`rounded-xl border ${isOpen ? 'border-[#d0ccf5]' : 'border-[#e8e6f5]'} ${done ? 'bg-[#fafafa]' : 'bg-white'}`}>
+    <div className={`rounded-xl border ${isOpen ? 'border-brand-line' : 'border-brand-line-soft'} ${done ? 'bg-paper' : 'bg-surface'}`}>
       {/* 회차 헤더 — S3: 펼침만으로 미리보기를 렌더하지 않는다([보기]·[전체 미리보기]에서 로드) */}
       <button onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
-        {isOpen ? <ChevronDown className="size-3.5 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
+        {isOpen ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
-        <span className="text-xs font-semibold text-[#090c1d]">{label}</span>
-        {r.plannedDate && <span className="text-[11px] text-[#b0acd6]">{r.plannedDate.slice(5, 10)}</span>}
+        <span className="text-xs font-semibold text-ink">{label}</span>
+        {r.plannedDate && <span className="text-[11px] text-ink-faint">{r.plannedDate.slice(5, 10)}</span>}
         {r.docs && isOpen && (
           <span role="button" tabIndex={0}
             onClick={e => { e.stopPropagation(); onFullPreview() }}
@@ -152,7 +152,7 @@ export function PlanAnnexRoundCard({
         )}
         <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
         {r.docs && (
-          <span className="text-[10px] text-[#b0acd6] shrink-0">
+          <span className="text-[10px] text-ink-faint shrink-0">
             ④{r.docs.report4 ? '✓' : '·'} ⑨{r.docs.report9 ? '✓' : '·'}
             {r.docs.defects.total > 0 && <> ⑩{r.docs.report10 ? '✓' : '·'} ⑪{r.docs.report11 ? '✓' : '·'}</>}
             {' '}불량 {r.docs.defects.total}
@@ -164,31 +164,31 @@ export function PlanAnnexRoundCard({
         <div className="px-4 pb-3">
           {/* 엑셀 내려받기 결과 — 헤더는 <button>이라 그 안에 안내를 키울 수 없어 본문 머리에 둔다 */}
           {xlsx.msg && (
-            <p className={`mb-1 rounded-lg px-2 py-1 text-[11px] ${xlsx.ok ? 'bg-[#f5f4ff] text-[#514b81]' : 'bg-red-50 text-red-600'}`}
+            <p className={`mb-1 rounded-lg px-2 py-1 text-[11px] ${xlsx.ok ? 'bg-brand-tint text-ink-sub' : 'bg-red-50 text-red-600'}`}
               data-testid="round-workbook-msg">{xlsx.msg}</p>
           )}
           {r.docs ? (
             <>
               <p className={blockTitleCls}>
-                별지 생성·확인 <span className="font-normal text-[#b0acd6]">— 입력된 점검표에서 자동 생성</span>
+                별지 생성·확인 <span className="font-normal text-ink-faint">— 입력된 점검표에서 자동 생성</span>
                 {/* 미입력 경고 복제 — 트리가 [생성] 아래로 내려갔으므로 생성 전에 걸릴 신호를 여기 둔다 */}
                 {sheetBlanks > 0 && (
                   <span className="ml-2 font-medium text-amber-600">⚠ 설치 설비 중 미입력 {sheetBlanks}개 — 결과칸이 공란으로 인쇄됩니다</span>
                 )}
               </p>
               {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
-              <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap">
-                <span className="font-medium text-[#090c1d] w-44 pl-5">별지 4호 점검표</span>
+              <div className="flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft flex-wrap">
+                <span className="font-medium text-ink w-44 pl-5">별지 4호 점검표</span>
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">자동</span>
                 {r.docs.report4 ? (
-                  <span className="text-[#514b81]">✓ {(r.docs.report4.at ?? '').slice(5, 10)}</span>
+                  <span className="text-ink-sub">✓ {(r.docs.report4.at ?? '').slice(5, 10)}</span>
                 ) : (
                   <span className="text-amber-600">미생성 — 점검표·설비 대장(1.4)에서 자동</span>
                 )}
                 <span className="ml-auto flex items-center gap-1">
                   <button onClick={() => onPreviewSingle('report4')}
                     title="이 문서만 크게 보기 — 생성 전에도 확인 가능"
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff]">
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint">
                     <Eye className="size-3" /> 보기
                   </button>
                   {r.docs.report4?.pdf && (
@@ -196,7 +196,7 @@ export function PlanAnnexRoundCard({
                       className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50">PDF</button>
                   )}
                   <button onClick={() => onGenerate(r.docs!.inspectionId, 'report4', `${r.docs!.inspectionId}:r4`)} disabled={isPending}
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                     {r.docs.report4 ? '재생성' : '생성'}
                   </button>
                 </span>
@@ -210,7 +210,7 @@ export function PlanAnnexRoundCard({
                 onCompose={onCompose}
                 onPreview={(_id, type) => onPreviewSingle(type)} />
 
-              <p className={`${blockTitleCls} mt-3`}>점검표 진행 <span className="font-normal text-[#b0acd6]">— 현장 결과를 설비별로 입력</span></p>
+              <p className={`${blockTitleCls} mt-3`}>점검표 진행 <span className="font-normal text-ink-faint">— 현장 결과를 설비별로 입력</span></p>
               {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4 → 소방계획서_28 조회 전용) — 머리줄 + 설비별 진행 트리 */}
               <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
                 responded={r.docs.sheetResponses} defects={r.docs.defects.total} from={entryFrom} />
@@ -220,9 +220,9 @@ export function PlanAnnexRoundCard({
           ) : (
             /* 미시작(계획) 회차 (H-3) */
             <div className="flex items-center gap-2 py-2 text-xs">
-              <span className="text-[#514b81]">아직 점검 미시작 — 시작하면 점검표·별지 작성이 열립니다</span>
+              <span className="text-ink-sub">아직 점검 미시작 — 시작하면 점검표·별지 작성이 열립니다</span>
               <button onClick={onStart} disabled={isStarting}
-                className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
                 <PlayCircle className="size-3.5" /> 이 회차 시작
               </button>
             </div>

@@ -97,16 +97,16 @@ export function PlanForm1215({ customerId, canManage, initial }: {
     })
   }
 
-  const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]'
+  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
 
   return (
     <div className="space-y-4">
       {/* §1-2 카드 앵커 점프 */}
       <CardAnchorBar items={CARDS.map(c => ({ id: `c-${c.title.split(' ')[0]}`, label: c.title }))} />
       {CARDS.map(card => (
-        <div key={card.key} id={`c-${card.title.split(' ')[0]}`} className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+        <div key={card.key} id={`c-${card.title.split(' ')[0]}`} className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <p className="text-xs font-semibold text-[#514b81]">{card.title}</p>
+            <p className="text-xs font-semibold text-ink-sub">{card.title}</p>
             {canManage && (
               <span className="ml-auto inline-flex items-center gap-1.5">
                 {/* 공통 서술 라이브러리 — 추가형: 기존 기록 유지 + 템플릿 행 append, 일자는 빈 값 (소방계획서_15_별도라이브러리 §4-1) */}
@@ -118,14 +118,14 @@ export function PlanForm1215({ customerId, canManage, initial }: {
                     setLibMetas(p => ({ ...p, [card.key]: meta }))
                   }} />
                 <button onClick={() => addRow(card)}
-                  className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
                   <Plus className="size-3" /> 기록 추가
                 </button>
               </span>
             )}
           </div>
           {logs[card.key].length === 0 && (
-            <p className="text-[11px] text-[#b0acd6]">기록이 없습니다 — 발생 시 행을 추가해 기록하세요 (2년 보관 대상).</p>
+            <p className="text-[11px] text-ink-faint">기록이 없습니다 — 발생 시 행을 추가해 기록하세요 (2년 보관 대상).</p>
           )}
           <div className="space-y-1.5">
             {logs[card.key].map((row, i) => (
@@ -138,7 +138,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
                     onChange={e => setCell(card.key, i, col.k, e.target.value)} className={`${inputCls} ${col.w}`} />
                 ))}
                 {canManage && (
-                  <button onClick={() => delRow(card.key, i)} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                  <button onClick={() => delRow(card.key, i)} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                 )}
               </div>
             ))}
@@ -149,13 +149,13 @@ export function PlanForm1215({ customerId, canManage, initial }: {
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.12~1.15 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       )}
-      <p className="text-[11px] text-[#b0acd6]">※ 기록은 계획서 생성(HWP) 시 해당 서식 표에 병합됩니다 — 1.12는 13행·1.13은 11행·1.14는 2건까지, 1.15는 양식이 단일 사건 서식이라 첫 행(일자·피해 내용·복구 조치)만 반영됩니다.</p>
+      <p className="text-[11px] text-ink-faint">※ 기록은 계획서 생성(HWP) 시 해당 서식 표에 병합됩니다 — 1.12는 13행·1.13은 11행·1.14는 2건까지, 1.15는 양식이 단일 사건 서식이라 첫 행(일자·피해 내용·복구 조치)만 반영됩니다.</p>
     </div>
   )
 }

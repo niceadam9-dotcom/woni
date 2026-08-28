@@ -28,15 +28,15 @@ export function MailAttachmentList({ messageId, attachments }: {
 
   return (
     <div>
-      <p className="text-xs font-semibold text-[#514b81] mb-2 flex items-center gap-1">
+      <p className="text-xs font-semibold text-ink-sub mb-2 flex items-center gap-1">
         <Paperclip className="size-3.5" /> 첨부파일 {attachments.length}개
       </p>
       <div className="flex flex-wrap gap-2">
         {attachments.map(att => (
           <button key={att.attachmentId} onClick={() => download(att)} disabled={isPending}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
             {isPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
-            {att.filename} <span className="text-[#b0acd6]">({fmtSize(att.size)})</span>
+            {att.filename} <span className="text-ink-faint">({fmtSize(att.size)})</span>
           </button>
         ))}
       </div>

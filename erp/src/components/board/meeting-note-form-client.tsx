@@ -6,7 +6,7 @@ import { Loader2, MapPin, Users } from 'lucide-react'
 import { createMeetingNoteAction, updateMeetingNoteAction } from '@/app/(dashboard)/board/actions'
 import { DateInput } from '@/components/ui/date-input'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 type Note = { id: string; title: string; content: string; meeting_date: string; participants: string | null; location: string | null }
 
@@ -58,31 +58,31 @@ export function MeetingNoteFormClient({ existing }: { existing?: Note }) {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-2 space-y-1.5">
-            <label className="text-xs font-medium text-[#514b81]">제목 <span className="text-red-500">*</span></label>
+            <label className="text-xs font-medium text-ink-sub">제목 <span className="text-red-500">*</span></label>
             <input value={form.title} onChange={e => setField('title', e.target.value)} placeholder="회의 제목" className={inputCls} />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#514b81]">회의일 <span className="text-red-500">*</span></label>
+            <label className="text-xs font-medium text-ink-sub">회의일 <span className="text-red-500">*</span></label>
             <DateInput value={form.meeting_date} onChange={e => setField('meeting_date', e.target.value)} className={inputCls} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#514b81]">장소</label>
+            <label className="text-xs font-medium text-ink-sub">장소</label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.location} onChange={e => setField('location', e.target.value)}
                 placeholder="회의 장소" className={`${inputCls} pl-8`} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#514b81]">참석자</label>
+            <label className="text-xs font-medium text-ink-sub">참석자</label>
             <div className="relative">
-              <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.participants} onChange={e => setField('participants', e.target.value)}
                 placeholder="홍길동, 김철수, ..." className={`${inputCls} pl-8`} />
             </div>
@@ -90,10 +90,10 @@ export function MeetingNoteFormClient({ existing }: { existing?: Note }) {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">내용 <span className="text-red-500">*</span></label>
+          <label className="text-xs font-medium text-ink-sub">내용 <span className="text-red-500">*</span></label>
           <textarea value={form.content} onChange={e => setField('content', e.target.value)}
             placeholder="회의 내용·결정사항을 기록하세요" rows={12}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none" />
+            className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none" />
         </div>
       </section>
 
@@ -101,7 +101,7 @@ export function MeetingNoteFormClient({ existing }: { existing?: Note }) {
 
       <div className="flex gap-3 pb-8">
         <button type="button" onClick={() => router.back()}
-          className="flex-1 h-11 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors">취소</button>
+          className="flex-1 h-11 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors">취소</button>
         <button type="button" onClick={handleSubmit} disabled={isPending}
           className="flex-1 h-11 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
           {isPending ? <Loader2 className="size-4 animate-spin" /> : (existing ? '수정' : '등록')}

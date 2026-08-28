@@ -17,7 +17,7 @@ export function CustomerViewTabs() {
   const pathname = usePathname()
 
   return (
-    <div className="flex items-center gap-1 border-b border-[#c8c4d0]">
+    <div className="flex items-center gap-1 border-b border-line">
       {TABS.map(t => {
         const isActive = pathname === t.href
         return (
@@ -27,8 +27,8 @@ export function CustomerViewTabs() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               isActive
-                ? 'border-[#7b68ee] text-[#7b68ee]'
-                : 'border-transparent text-[#514b81] hover:text-[#7b68ee] hover:border-[#d0ccf5]'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-ink-sub hover:text-brand hover:border-brand-line'
             )}
           >
             <t.icon className="size-4 shrink-0" />

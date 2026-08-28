@@ -44,26 +44,26 @@ export function PlanAnnexFullPreview({
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={close} />
-      <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-6 bottom-6 md:w-[860px] bg-white rounded-2xl shadow-2xl z-[70] flex flex-col">
+      <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-6 bottom-6 md:w-[860px] bg-surface rounded-2xl shadow-2xl z-[70] flex flex-col">
         {/* 요약 바 (고정 상단) — 칩 = 문서 선택기([전체] + 문서별), 단일 모드에서도 닫지 않고 전환 */}
-        <div className="px-5 py-3 border-b border-[#e0ddf5] shrink-0">
+        <div className="px-5 py-3 border-b border-brand-line-soft shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold text-sm text-[#090c1d]">
+            <p className="font-semibold text-sm text-ink">
               {state.label} — {only ? `${only.label} 보기` : '전체 미리보기'}
             </p>
-            <button onClick={close} className="ml-auto text-[#b0acd6] hover:text-[#514b81]">✕</button>
+            <button onClick={close} className="ml-auto text-ink-faint hover:text-ink-sub">✕</button>
           </div>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]">
             <button onClick={() => setState(p => p && { ...p, only: undefined })}
               title="전 별지를 세로로 이어 봅니다"
-              className={`px-2 py-0.5 rounded-full border ${!state.only ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] font-medium' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+              className={`px-2 py-0.5 rounded-full border ${!state.only ? 'border-brand bg-brand-tint text-brand font-medium' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
               전체
             </button>
             {docsForPreview.map(d => (
               <button key={d.type}
                 onClick={() => setState(p => p && { ...p, only: d.type })}
                 title={`${d.label}만 크게 보기`}
-                className={`px-2 py-0.5 rounded-full border ${state.only === d.type ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] font-medium'
+                className={`px-2 py-0.5 rounded-full border ${state.only === d.type ? 'border-brand bg-brand-tint text-brand font-medium'
                   : d.missing.length > 0 ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
                 {d.label.replace(' 점검표', '').replace(' 실시결과 보고서', '').replace(' 이행계획서', '').replace(' 이행완료 보고서', '')} {d.missing.length > 0 ? `⚠${d.missing.length}곳` : '✓'}
               </button>
@@ -77,7 +77,7 @@ export function PlanAnnexFullPreview({
               if (!cert && curRound?.docs?.certArchived) {
                 return (
                   <span title="과거본 정리로 ERP 사본이 삭제되었습니다 — 원본은 종이로 보관 중"
-                    className={`${chipCls} border-[#e0ddf5] bg-[#fafaff] text-[#847ba8]`}>
+                    className={`${chipCls} border-brand-line-soft bg-brand-tint text-ink-soft`}>
                     배치확인서 · 종이 보관
                   </span>
                 )
@@ -110,15 +110,15 @@ export function PlanAnnexFullPreview({
               <span className="text-green-700 font-medium">✅ 제출 준비 완료 — 빈칸 없음</span>
             )}
             {allLoaded && totalMissing > 0 && (
-              <span className="text-[#b0acd6]">미입력 총 {totalMissing}곳 — 본문 노란 하이라이트 확인</span>
+              <span className="text-ink-faint">미입력 총 {totalMissing}곳 — 본문 노란 하이라이트 확인</span>
             )}
           </div>
         </div>
         {/* 본문 — 단일 모드는 문서 1건이 창 높이를 다 쓰고(8쪽짜리 9호 대응), 전체 모드는 종전대로 세로 연결 */}
         {only ? (
-          <div className="flex-1 flex flex-col bg-[#f3f4f6] p-4 min-h-0">
+          <div className="flex-1 flex flex-col bg-paper p-4 min-h-0">
             <div className="flex items-start gap-2 mb-1.5 shrink-0">
-              <p className="text-xs font-semibold text-[#514b81]">
+              <p className="text-xs font-semibold text-ink-sub">
                 ▌{only.label}
                 {only.missing.length > 0 && <span className="text-amber-600"> ⚠ 미입력 {only.missing.length}곳: {only.missing.slice(0, 6).join(' · ')}{only.missing.length > 6 ? ' …' : ''}</span>}
               </p>
@@ -133,27 +133,27 @@ export function PlanAnnexFullPreview({
               </span>
             </div>
             {only.error ? (
-              <p className="text-xs text-red-600 bg-white rounded-lg p-3">{only.error}</p>
+              <p className="text-xs text-red-600 bg-surface rounded-lg p-3">{only.error}</p>
             ) : only.html ? (
-              <iframe srcDoc={only.html} title={only.label} className="flex-1 w-full bg-white rounded-lg border border-[#e0ddf5]" />
+              <iframe srcDoc={only.html} title={only.label} className="flex-1 w-full bg-surface rounded-lg border border-brand-line-soft" />
             ) : (
-              <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 미리보기 렌더 중…</p>
+              <p className="text-xs text-ink-sub inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 미리보기 렌더 중…</p>
             )}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto bg-[#f3f4f6] p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto bg-paper p-4 space-y-4">
             {!allLoaded && (
-              <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 미리보기 렌더 중…</p>
+              <p className="text-xs text-ink-sub inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 미리보기 렌더 중…</p>
             )}
             {docsForPreview.map(d => (
               <div key={d.type} id={`fp-${d.type}`}>
-                <p className="text-xs font-semibold text-[#514b81] mb-1.5">▌{d.label} {d.missing.length > 0 && <span className="text-amber-600">⚠ 미입력 {d.missing.length}곳: {d.missing.slice(0, 4).join(' · ')}{d.missing.length > 4 ? ' …' : ''}</span>}</p>
+                <p className="text-xs font-semibold text-ink-sub mb-1.5">▌{d.label} {d.missing.length > 0 && <span className="text-amber-600">⚠ 미입력 {d.missing.length}곳: {d.missing.slice(0, 4).join(' · ')}{d.missing.length > 4 ? ' …' : ''}</span>}</p>
                 {d.error ? (
-                  <p className="text-xs text-red-600 bg-white rounded-lg p-3">{d.error}</p>
+                  <p className="text-xs text-red-600 bg-surface rounded-lg p-3">{d.error}</p>
                 ) : d.html ? (
-                  <iframe srcDoc={d.html} title={d.label} className="w-full h-[540px] bg-white rounded-lg border border-[#e0ddf5]" />
+                  <iframe srcDoc={d.html} title={d.label} className="w-full h-[540px] bg-surface rounded-lg border border-brand-line-soft" />
                 ) : (
-                  <div className="h-24 bg-white rounded-lg border border-[#e0ddf5] animate-pulse" />
+                  <div className="h-24 bg-surface rounded-lg border border-brand-line-soft animate-pulse" />
                 )}
               </div>
             ))}

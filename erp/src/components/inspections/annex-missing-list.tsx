@@ -57,7 +57,7 @@ export function annexFixHref(item: string, customerId?: string, inspectionId?: s
   return hit.axis === 'inspection' && from ? `${href}?from=${encodeURIComponent(from)}` : href
 }
 
-const fixLinkCls = 'text-[#7b68ee] hover:underline shrink-0 inline-flex items-center gap-0.5'
+const fixLinkCls = 'text-brand hover:underline shrink-0 inline-flex items-center gap-0.5'
 
 /** 항목 목록(항상 펼침) — 작성 패널 1단처럼 세로 공간이 있는 자리 */
 export function AnnexMissingList({ missing, customerId, inspectionId, from }: {
@@ -109,7 +109,7 @@ export function AnnexMissingChip({ missing, customerId, inspectionId }: {
         ⚠ 미입력 {missing.length}곳
       </button>
       {open && (
-        <ul className="absolute left-1 right-1 top-6 z-10 rounded-lg border border-amber-200 bg-white p-2 shadow-lg space-y-0.5 text-[10px] text-amber-700">
+        <ul className="absolute left-1 right-1 top-6 z-10 rounded-lg border border-amber-200 bg-surface p-2 shadow-lg space-y-0.5 text-[10px] text-amber-700">
           {missing.map(m => {
             const href = annexFixHref(m, customerId, inspectionId)
             return (

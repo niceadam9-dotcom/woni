@@ -80,21 +80,21 @@ export default async function LeaveManagePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <ShieldCheck className="size-6 text-[#7b68ee]" />
+        <ShieldCheck className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">{title}</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">{subtitle}</p>
+          <h1 className="text-xl font-bold text-ink">{title}</h1>
+          <p className="text-sm text-ink-sub mt-0.5">{subtitle}</p>
         </div>
       </div>
 
       {leaves.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center">
+        <div className="bg-surface rounded-xl border border-line py-16 text-center">
           <CalendarDays className="size-10 text-[#c4bff5] mx-auto mb-3" />
-          <p className="text-sm text-[#514b81]">대기 중인 휴가 신청이 없습니다</p>
+          <p className="text-sm text-ink-sub">대기 중인 휴가 신청이 없습니다</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
-          <div className="divide-y divide-[#c8c4d0]">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+          <div className="divide-y divide-line">
             {leaves.map(leave => {
               const emp = employeeMap.get(leave.employee_id)
               const s = STATUS_MAP[leave.status] ?? { label: leave.status, className: '' }
@@ -102,30 +102,30 @@ export default async function LeaveManagePage() {
                 <div key={leave.id} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
-                      <CalendarDays className="size-4 text-[#7b68ee] shrink-0 mt-0.5" />
+                      <CalendarDays className="size-4 text-brand shrink-0 mt-0.5" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold text-[#090c1d]">
+                          <p className="text-sm font-semibold text-ink">
                             {emp?.name ?? '알 수 없음'}
                           </p>
                           {emp?.department && (
-                            <span className="text-xs text-[#514b81]">{emp.department}</span>
+                            <span className="text-xs text-ink-sub">{emp.department}</span>
                           )}
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.className}`}>
                             {s.label}
                           </span>
                         </div>
-                        <p className="text-sm text-[#292d34] mt-0.5">
+                        <p className="text-sm text-ink-strong mt-0.5">
                           {LEAVE_LABELS[leave.leave_type] ?? leave.leave_type}
-                          <span className="text-[#514b81] font-normal ml-2">{leave.days_count}일</span>
+                          <span className="text-ink-sub font-normal ml-2">{leave.days_count}일</span>
                         </p>
-                        <p className="text-xs text-[#514b81] mt-0.5">
+                        <p className="text-xs text-ink-sub mt-0.5">
                           {leave.start_date} ~ {leave.end_date}
                           {' · '}
                           신청일 {new Date(leave.created_at).toLocaleDateString('ko-KR')}
                         </p>
                         {leave.reason && (
-                          <p className="text-xs text-[#514b81] mt-1 bg-[#f8f9fa] rounded px-2 py-1">
+                          <p className="text-xs text-ink-sub mt-1 bg-paper rounded px-2 py-1">
                             사유: {leave.reason}
                           </p>
                         )}

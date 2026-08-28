@@ -93,7 +93,7 @@ function CreateBillModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[440px] flex flex-col">
+      <div className="bg-surface rounded-xl shadow-2xl w-[440px] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <span className="font-semibold">청구서 등록</span>
           <button onClick={onClose}><X size={16} /></button>
@@ -171,7 +171,7 @@ function CreateBillModal({
           <button
             onClick={save}
             disabled={pending}
-            className="px-4 py-1.5 text-sm bg-[#7b68ee] text-white rounded disabled:opacity-50"
+            className="px-4 py-1.5 text-sm bg-brand text-white rounded disabled:opacity-50"
           >
             {pending ? '등록 중…' : '등록'}
           </button>
@@ -232,7 +232,7 @@ function PaymentSlidePanel({
   return (
     <div className="fixed inset-0 z-40 flex">
       <div className="flex-1 bg-black/30" onClick={onClose} />
-      <div className="w-80 bg-white shadow-xl flex flex-col">
+      <div className="w-80 bg-surface shadow-xl flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div>
             <div className="font-semibold text-sm">{bill.customers?.customer_name}</div>
@@ -297,7 +297,7 @@ function PaymentSlidePanel({
                 <>
                   <button
                     onClick={() => setShowInvoice(v => !v)}
-                    className="text-xs text-[#7b68ee] underline"
+                    className="text-xs text-brand underline"
                   >
                     세금계산서 발행
                   </button>
@@ -316,7 +316,7 @@ function PaymentSlidePanel({
                       <button
                         onClick={issueInvoice}
                         disabled={invoicePending}
-                        className="w-full border border-[#7b68ee] text-[#7b68ee] rounded py-1.5 text-sm"
+                        className="w-full border border-brand text-brand rounded py-1.5 text-sm"
                       >
                         {invoicePending ? '발행 중…' : '발행'}
                       </button>
@@ -331,7 +331,7 @@ function PaymentSlidePanel({
           <button
             onClick={save}
             disabled={pending}
-            className="w-full bg-[#7b68ee] text-white rounded py-2 text-sm font-medium disabled:opacity-50"
+            className="w-full bg-brand text-white rounded py-2 text-sm font-medium disabled:opacity-50"
           >
             {pending ? '저장 중…' : '저장'}
           </button>
@@ -374,21 +374,21 @@ function DepositMatchModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-lg p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-surface rounded-xl w-full max-w-lg p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-[#090c1d]">입금 문자 매칭</h3>
+          <h3 className="font-bold text-ink">입금 문자 매칭</h3>
           <button onClick={onClose}><X size={16} /></button>
         </div>
         <textarea value={text} onChange={e => setText(e.target.value)} rows={4}
           placeholder="은행 입금 알림 문자를 붙여넣으세요 (예: [Web발신] 홍길동님 100,000원 입금)"
-          className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#7b68ee] resize-none" />
+          className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand resize-none" />
         <button onClick={parse} disabled={pending || !text.trim()}
-          className="mt-2 w-full bg-[#7b68ee] text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+          className="mt-2 w-full bg-brand text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
           {pending ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} 파싱·매칭
         </button>
         {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
         {parsed && (
-          <p className="text-xs text-[#514b81] mt-3">
+          <p className="text-xs text-ink-sub mt-3">
             추출: 금액 <b>{parsed.amount != null ? fmtNum(parsed.amount) : '?'}</b>원 · 입금자 <b>{parsed.name ?? '?'}</b>
           </p>
         )}
@@ -397,12 +397,12 @@ function DepositMatchModal({ onClose }: { onClose: () => void }) {
             {matches.map(m => (
               <div key={m.billId} className="flex items-center gap-2 border rounded-lg px-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[#090c1d] truncate">{m.customerName}</div>
+                  <div className="text-sm font-medium text-ink truncate">{m.customerName}</div>
                   <div className="text-xs text-gray-400">{m.billingMonth} · 미납 {fmtNum(m.unpaid)}원 / 청구 {fmtNum(m.total)}원</div>
                 </div>
                 {m.score >= 4 && <span className="text-[10px] text-green-600 shrink-0">유력</span>}
                 <button onClick={() => confirm(m)} disabled={pending}
-                  className="shrink-0 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">입금 확정</button>
+                  className="shrink-0 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">입금 확정</button>
               </div>
             ))}
           </div>
@@ -475,7 +475,7 @@ export function BillingStatusClient({
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-surface">
         <div>
           <h1 className="text-xl font-bold">정산현황 모니터링</h1>
           <p className="text-xs text-gray-400 mt-0.5">청구서 생성·입금·미납금 현황</p>
@@ -484,7 +484,7 @@ export function BillingStatusClient({
           <button
             onClick={() => setShowDeposit(true)}
             title="은행 입금 알림 문자로 미납 청구 매칭"
-            className="flex items-center gap-2 border border-[#d0ccf5] text-[#514b81] px-3 py-2 rounded-lg text-sm hover:bg-[#f5f4ff]"
+            className="flex items-center gap-2 border border-brand-line text-ink-sub px-3 py-2 rounded-lg text-sm hover:bg-brand-tint"
           >
             <Search size={14} /> 입금 문자
           </button>
@@ -492,26 +492,26 @@ export function BillingStatusClient({
             onClick={generateFixed}
             disabled={genPending}
             title="월 필터의 종합·작동 고객 월정액을 일괄 청구"
-            className="flex items-center gap-2 border border-[#7b68ee] text-[#7b68ee] px-3 py-2 rounded-lg text-sm hover:bg-[#f5f4ff] disabled:opacity-50"
+            className="flex items-center gap-2 border border-brand text-brand px-3 py-2 rounded-lg text-sm hover:bg-brand-tint disabled:opacity-50"
           >
             {genPending ? <Loader2 size={14} className="animate-spin" /> : <CalendarClock size={14} />} 월정액 일괄청구
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-[#7b68ee] text-white px-4 py-2 rounded-lg text-sm"
+            className="flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-lg text-sm"
           >
             <Plus size={14} /> 청구등록
           </button>
         </div>
       </div>
-      {genMsg && <div className="px-6 py-1.5 text-xs text-[#514b81] bg-[#f5f4ff] border-b">{genMsg}</div>}
+      {genMsg && <div className="px-6 py-1.5 text-xs text-ink-sub bg-brand-tint border-b">{genMsg}</div>}
 
       {/* 필터 */}
       <div className="flex items-center gap-3 px-6 py-3 bg-gray-50 border-b flex-wrap">
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm bg-white"
+          className="border rounded px-2 py-1.5 text-sm bg-surface"
         >
           <option value="all">전체</option>
           <option value="pending">입금대기</option>
@@ -591,7 +591,7 @@ export function BillingStatusClient({
                   <td className="border px-2 py-1.5 text-center">
                     <button
                       onClick={() => setSlideItem(row)}
-                      className="w-3.5 h-3.5 rounded-full border-2 border-[#7b68ee] inline-block"
+                      className="w-3.5 h-3.5 rounded-full border-2 border-brand inline-block"
                     />
                   </td>
                 </tr>

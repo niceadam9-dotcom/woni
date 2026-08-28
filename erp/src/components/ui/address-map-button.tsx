@@ -34,7 +34,7 @@ export function AddressMapButton({ customerName, address, className, iconOnly = 
         data-testid={testId}
         onClick={() => setOpen(true)}
         title={`지도에서 보기 — ${addr}`}
-        className={`inline-flex items-center gap-0.5 shrink-0 text-[11px] text-[#7b68ee] hover:underline align-middle ${className ?? ''}`}
+        className={`inline-flex items-center gap-0.5 shrink-0 text-[11px] text-brand hover:underline align-middle ${className ?? ''}`}
       >
         <MapPin className={iconOnly ? 'size-3.5' : 'size-3'} />
         {!iconOnly && '지도'}

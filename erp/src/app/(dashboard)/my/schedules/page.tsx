@@ -96,7 +96,7 @@ export default async function SchedulesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <CalendarDays className="size-5 text-[#7b68ee]" />
+        <CalendarDays className="size-5 text-brand" />
         <h1 className="text-xl font-bold">일정 관리</h1>
       </div>
 

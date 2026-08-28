@@ -71,7 +71,7 @@ function ItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (i: Or
         </div>
       ))}
       <button onClick={() => onChange([...items, { description: '', quantity: 1, unit_price: 0, amount: 0 }])}
-        className="flex items-center gap-1 text-xs text-[#7b68ee] hover:underline mt-1">
+        className="flex items-center gap-1 text-xs text-brand hover:underline mt-1">
         <Plus size={12} /> 항목 추가
       </button>
     </div>
@@ -133,9 +133,9 @@ function OrderModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[#090c1d]">수주 등록</span>
+          <span className="font-bold text-ink">수주 등록</span>
           <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
         </div>
 
@@ -193,7 +193,7 @@ function OrderModal({
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 border rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={submit} disabled={pending}
-            className="flex-1 bg-[#7b68ee] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+            className="flex-1 bg-brand text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
             {pending ? '등록 중…' : '등록'}
           </button>
         </div>
@@ -245,9 +245,9 @@ export function OrdersClient({
           { label: '전체 수주', value: summary.total, color: 'text-gray-700' },
           { label: '진행중', value: summary.진행중, color: 'text-amber-600' },
           { label: '완료', value: summary.완료, color: 'text-emerald-600' },
-          { label: '수주 총액', value: `${fmt(summary.totalAmt)}원`, color: 'text-[#7b68ee]' },
+          { label: '수주 총액', value: `${fmt(summary.totalAmt)}원`, color: 'text-brand' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border p-4">
+          <div key={s.label} className="bg-surface rounded-xl border p-4">
             <p className="text-xs text-gray-400">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
@@ -259,7 +259,7 @@ export function OrdersClient({
           {(['전체', ...STATUSES]).map(f => (
             <button key={f} onClick={() => setStatusFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                statusFilter === f ? 'bg-[#7b68ee] text-white' : 'bg-white border text-gray-500 hover:bg-gray-50'
+                statusFilter === f ? 'bg-brand text-white' : 'bg-surface border text-gray-500 hover:bg-gray-50'
               }`}>{f}</button>
           ))}
         </div>
@@ -268,13 +268,13 @@ export function OrdersClient({
           className="border rounded-lg px-3 py-1.5 text-sm w-48" />
         <div className="ml-auto">
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-[#7b68ee] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#6a5acd]">
+            className="flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-strong">
             <Plus size={15} /> 수주 등록
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-surface rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -309,7 +309,7 @@ export function OrdersClient({
                             className="flex items-center gap-1 border rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 disabled:opacity-50">
                             상태 <ChevronDown size={10} />
                           </button>
-                          <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-10 hidden group-hover:block min-w-[80px]">
+                          <div className="absolute right-0 top-full mt-1 bg-surface border rounded-lg shadow-lg z-10 hidden group-hover:block min-w-[80px]">
                             {STATUSES.filter(s => s !== row.status).map(s => (
                               <button key={s}
                                 onClick={() => startStatus(async () => { await updateOrderStatusAction(row.id, s) })}

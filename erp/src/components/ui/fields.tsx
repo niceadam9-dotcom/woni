@@ -8,7 +8,7 @@ import { usePlanSaveHandler, type PlanSaveHandler } from '@/components/ui/unsave
  *  month picker(MonthField, 'YYYY년 M월' 저장 형식 유지) · 표 모바일 가로 스크롤(TableWrap) ·
  *  미저장 이탈 경고(useUnsavedWarning — 브라우저 이탈, 탭 내 이동은 plan-tab-view 확인과 이중) */
 
-const inputCls = 'h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60'
+const inputCls = 'h-8 rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none focus:border-brand disabled:opacity-60'
 
 /** 숫자 증감 계산 — NumField 스테퍼와 호출부 자체 스테퍼(설비 대장 제원 등)가 공유하는 단일 규칙.
  *  반환 null = 변경 없음(빈 값에서 [−] — 0을 강제로 넣지 않는다). (소방계획서_9 §2-4) */
@@ -56,11 +56,11 @@ export function NumField({ value, onChange, unit, disabled, decimal = false, cla
           onChange(decimal ? v.replace(/(\..*)\./g, '$1') : v)
         }}
         className={`${inputCls} ${className}`} />
-      {unit && <span className="text-[11px] text-[#847ba8] shrink-0">{unit}</span>}
+      {unit && <span className="text-[11px] text-ink-soft shrink-0">{unit}</span>}
     </span>
   )
   if (!stepper) return field
-  const btnCls = 'shrink-0 grid place-items-center size-7 rounded-lg border border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
+  const btnCls = 'shrink-0 grid place-items-center size-7 rounded-lg border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
   return (
     <span className="inline-flex items-center gap-1">
       <button type="button" onClick={() => bump(-1)} disabled={disabled}
@@ -86,7 +86,7 @@ export function NumStepper({ value, onChange, disabled, label, step = 1, min = 0
   decimal?: boolean
   children: ReactNode    // 호출부 입력칸 (클래스·placeholder·title 그대로 유지)
 }) {
-  const btnCls = 'shrink-0 grid place-items-center size-6 rounded border border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
+  const btnCls = 'shrink-0 grid place-items-center size-6 rounded border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
   const btn = (dir: 1 | -1) => (
     <button type="button" disabled={disabled} className={btnCls}
       aria-label={`${label} ${step} ${dir === 1 ? '증가' : '감소'}`}
@@ -167,7 +167,7 @@ export function CardAnchorBar({ items }: { items: Array<{ id: string; label: str
             url.hash = it.id
             window.history.replaceState(null, '', url.toString())
           }}
-          className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border bg-[#f5f4ff] text-[#7b68ee] border-[#d0ccf5] hover:bg-[#eceafd] transition-colors">
+          className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border bg-brand-tint text-brand border-brand-line hover:bg-brand-tint transition-colors">
           {it.label}
         </button>
       ))}

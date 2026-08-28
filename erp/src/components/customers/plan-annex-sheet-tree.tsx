@@ -79,7 +79,7 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
   if (err) return <p className="py-1.5 text-[11px] text-amber-600">{err}</p>
   if (!ov) {
     return (
-      <p className="py-1.5 text-[11px] text-[#b0acd6] inline-flex items-center gap-1">
+      <p className="py-1.5 text-[11px] text-ink-faint inline-flex items-center gap-1">
         {/* 완료 문구('설비별 진행 N/M')와 접두사가 겹치면 상태 구분이 어렵다 — 다른 어휘로 */}
         <Loader2 className="size-3 animate-spin" /> 점검표 설비 목록을 불러오는 중…
       </p>
@@ -98,7 +98,7 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
   return (
     <div className="pl-5 pb-1">
       <div className="flex items-center gap-2 flex-wrap py-1">
-        <span className="text-[11px] text-[#514b81]">
+        <span className="text-[11px] text-ink-sub">
           설비별 진행 {ov.totals.responded}/{ov.totals.total}
           {ov.totals.x > 0 && <span className="text-red-500 ml-1">✕{ov.totals.x}</span>}
         </span>
@@ -108,7 +108,7 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
           <span className="text-[10px] text-amber-600 font-medium">⚠ 설치 설비 중 미입력 {blankCount}개</span>
         )}
         {!ov.noFacilityInfo && (
-          <label className="inline-flex items-center gap-1 text-[10px] text-[#847ba8] cursor-pointer">
+          <label className="inline-flex items-center gap-1 text-[10px] text-ink-soft cursor-pointer">
             <input type="checkbox" checked={installedOnly} onChange={e => setInstalledOnly(e.target.checked)} className="size-3" />
             설치 설비만 보기{hiddenCount > 0 ? ` (${hiddenCount} 숨김)` : ''}
           </label>
@@ -116,23 +116,23 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
         {ov.noFacilityInfo && (
           <span className="text-[10px] text-amber-600">설치 시설 정보가 없어 전체 시트를 표시합니다 — 1.4에서 등록하세요</span>
         )}
-        {!editable && <span className="text-[10px] text-[#b0acd6]">보기 전용 — 담당자·팀장만 입력</span>}
-        <button onClick={load} disabled={isLoading} className="ml-auto text-[10px] text-[#b0acd6] hover:text-[#7b68ee] inline-flex items-center gap-0.5 disabled:opacity-50">
+        {!editable && <span className="text-[10px] text-ink-faint">보기 전용 — 담당자·팀장만 입력</span>}
+        <button onClick={load} disabled={isLoading} className="ml-auto text-[10px] text-ink-faint hover:text-brand inline-flex items-center gap-0.5 disabled:opacity-50">
           <RefreshCw className={`size-2.5 ${isLoading ? 'animate-spin' : ''}`} /> 갱신
         </button>
       </div>
 
-      {rows.length === 0 && <p className="text-[11px] text-[#b0acd6] py-1">표시할 설비 시트가 없습니다.</p>}
+      {rows.length === 0 && <p className="text-[11px] text-ink-faint py-1">표시할 설비 시트가 없습니다.</p>}
 
       {/* 시트 행이 곧 딥링크 — 클릭하면 전용 화면의 그 설비가 열린다("어디서 채우나"가 한 번에 풀린다) */}
       <div className="space-y-0.5">
         {rows.map(p => (
           <Link key={p.sheetId} href={`${entryHref}?sheet=${encodeURIComponent(p.sheetCode)}${fromQ}`}
             data-testid={`annex-sheet-link-${p.sheetCode}`}
-            className={`w-full flex items-center gap-1.5 px-2 py-1 rounded border border-[#f0eefb] hover:bg-[#fafaff] ${
+            className={`w-full flex items-center gap-1.5 px-2 py-1 rounded border border-brand-line-soft hover:bg-brand-tint ${
               p.installed && p.responded === 0 ? 'bg-amber-50' : ''}`}>
-            <ChevronRight className="size-3 text-[#b0acd6] shrink-0" />
-            <span className="text-[11px] text-[#090c1d] flex-1 min-w-0 truncate">{p.sheetName}</span>
+            <ChevronRight className="size-3 text-ink-faint shrink-0" />
+            <span className="text-[11px] text-ink flex-1 min-w-0 truncate">{p.sheetName}</span>
             {p.counts.X > 0 && <span className="text-[10px] text-red-500 shrink-0">✕{p.counts.X}</span>}
             <span className={`text-[10px] shrink-0 ${numCls(p)}`}>{p.responded}/{p.total}</span>
             {p.responded >= p.total ? (
@@ -152,15 +152,15 @@ export function PlanAnnexSheetHeader({ inspectionId, responded, defects, from }:
   inspectionId: string; responded: number; defects: number; from?: string
 }) {
   return (
-    <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc]">
-      <ClipboardList className="size-3.5 text-[#7b68ee] shrink-0" />
-      <span className="font-medium text-[#090c1d] w-44">점검표 입력</span>
-      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#f5f4ff] text-[#7b68ee]">입력</span>
-      <span className="text-[#514b81]">응답 {responded} · 불량 {defects}</span>
+    <div className="flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft">
+      <ClipboardList className="size-3.5 text-brand shrink-0" />
+      <span className="font-medium text-ink w-44">점검표 입력</span>
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-tint text-brand">입력</span>
+      <span className="text-ink-sub">응답 {responded} · 불량 {defects}</span>
       {/* ⚠ 라벨에 '점검표 입력' 6글자를 넣지 말 것 — 위 머리줄과 합쳐 개수가 2배가 되면
           test-annex-interaction의 회차 펼침 판정이 깨진다 */}
       <Link href={`/inspections/${inspectionId}/sheet${from ? `?from=${encodeURIComponent(from)}` : ''}`} data-testid="annex-sheet-entry-link"
-        className="ml-auto text-[11px] text-[#7b68ee] hover:underline">
+        className="ml-auto text-[11px] text-brand hover:underline">
         입력 화면 열기 →
       </Link>
     </div>

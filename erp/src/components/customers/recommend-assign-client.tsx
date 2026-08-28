@@ -24,10 +24,10 @@ export function RecommendAssignClient({ customerId, employeeId, employeeName, re
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-[#514b81]">
-      이 지역({regionLabel}) 담당: <span className="font-medium text-[#090c1d]">{employeeName}</span>
+    <span className="inline-flex items-center gap-1.5 text-xs text-ink-sub">
+      이 지역({regionLabel}) 담당: <span className="font-medium text-ink">{employeeName}</span>
       <button onClick={assign} disabled={isPending}
-        className="inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+        className="inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
         {isPending ? <Loader2 className="size-3 animate-spin" /> : <UserCheck className="size-3" />}
         원클릭 배정
       </button>

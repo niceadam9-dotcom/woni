@@ -46,10 +46,10 @@ export default async function LeaveCalendarPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <CalendarDays className="size-6 text-[#7b68ee]" />
+        <CalendarDays className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">팀 휴가 캘린더</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">승인된 휴가가 표시됩니다</p>
+          <h1 className="text-xl font-bold text-ink">팀 휴가 캘린더</h1>
+          <p className="text-sm text-ink-sub mt-0.5">승인된 휴가가 표시됩니다</p>
         </div>
       </div>
 

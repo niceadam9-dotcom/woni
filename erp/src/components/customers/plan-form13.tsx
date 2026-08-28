@@ -57,23 +57,23 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
 
   return (
     <div>
-      <p className="text-[11px] font-medium text-[#514b81] mb-1">{label}</p>
+      <p className="text-[11px] font-medium text-ink-sub mb-1">{label}</p>
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={label} className="max-h-40 rounded-lg border border-[#e0ddf5]" />
+        <img src={url} alt={label} className="max-h-40 rounded-lg border border-brand-line-soft" />
       ) : (
-        <p className="text-[11px] text-[#b0acd6]">{path ? '미리보기 로딩…' : '이미지 없음'}</p>
+        <p className="text-[11px] text-ink-faint">{path ? '미리보기 로딩…' : '이미지 없음'}</p>
       )}
       {canManage && (
         <div className="flex items-center gap-2 mt-1">
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
           <button onClick={() => fileRef.current?.click()} disabled={busy}
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
             {busy ? <Loader2 className="size-3 animate-spin" /> : <ImagePlus className="size-3" />} {path ? '교체' : '업로드'}
           </button>
           {path && (
-            <button onClick={remove} disabled={busy} className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#e0ddf5] text-[11px] text-[#b0acd6] hover:text-red-500">
+            <button onClick={remove} disabled={busy} className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line-soft text-[11px] text-ink-faint hover:text-red-500">
               <Trash2 className="size-3" /> 삭제
             </button>
           )}
@@ -275,20 +275,20 @@ export function PlanForm13({
     })
   }
 
-  const inputCls = 'h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]'
-  const taCls = 'w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y'
+  const inputCls = 'h-8 rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none focus:border-brand'
+  const taCls = 'w-full rounded-lg border border-brand-line bg-surface px-2 py-1.5 text-xs outline-none focus:border-brand resize-y'
   return (
     <div className="space-y-4">
       {/* ① 관할 소방서·출동 거리 (소방계획서_13 B안) — 1.3의 기준점이라 최상단 독립 카드로 둔다.
           여기서 소방서를 정하면 거리·도착예상이 따라오고, ③의 서술·경로도 초안도 이 결과를 쓴다. */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
+        <p className="text-xs font-semibold text-ink-sub">
           관할 소방서·출동 거리
-          <span className="ml-1.5 font-normal text-[#b0acd6]">소방서를 고르면 거리·도착예상을 자동으로 계산합니다</span>
+          <span className="ml-1.5 font-normal text-ink-faint">소방서를 고르면 거리·도착예상을 자동으로 계산합니다</span>
         </p>
         <div className="flex items-end gap-2 flex-wrap">
           <div>
-            <label className="text-[11px] font-medium text-[#514b81] block mb-1">관할 소방서</label>
+            <label className="text-[11px] font-medium text-ink-sub block mb-1">관할 소방서</label>
             {stationOptions.length > 0 && !stationCustom ? (
               // A-2: 선택 즉시 경로 조회 → 거리·도착예상 자동 기입
               <select value={loc.fireStation} disabled={!canManage} data-testid="form13-station-select"
@@ -306,38 +306,38 @@ export function PlanForm13({
                   placeholder={autoFireStation ? `자동: ${autoFireStation}` : ''} className={`${inputCls} w-36`} />
                 {stationOptions.length > 0 && canManage && (
                   <button type="button" onClick={() => setStationCustom(false)}
-                    className="h-8 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] shrink-0">목록</button>
+                    className="h-8 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint shrink-0">목록</button>
                 )}
               </span>
             )}
           </div>
           <div>
-            <label className="text-[11px] font-medium text-[#514b81] block mb-1">거리</label>
+            <label className="text-[11px] font-medium text-ink-sub block mb-1">거리</label>
             <NumField value={loc.distance} onChange={distance => patchLoc({ distance })} disabled={!canManage} decimal unit="km" className={`${inputCls} w-20`} />
           </div>
           <div>
-            <label className="text-[11px] font-medium text-[#514b81] block mb-1">도착 예상</label>
+            <label className="text-[11px] font-medium text-ink-sub block mb-1">도착 예상</label>
             <NumField value={loc.eta} onChange={eta => patchLoc({ eta })} disabled={!canManage} unit="분" className={`${inputCls} w-16`} />
           </div>
           {/* C-1: 조회 트리거는 여기 하나 — 값(거리·ETA)이 있는 자리에 근거와 재계산을 붙인다 */}
           {canManage && (
             <button type="button" onClick={() => { void runRoute({ refresh: true }) }} disabled={routeBusy !== ''}
               data-testid="form13-fetch-route"
-              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
               {routeBusy === 'fetch' ? <Loader2 className="size-3 animate-spin" /> : '🚒'} 경로 다시 계산
             </button>
           )}
           {routeBusy === 'fetch' && (
-            <span className="inline-flex items-center gap-1 h-8 text-[11px] text-[#7d78a8]">경로 조회 중…</span>
+            <span className="inline-flex items-center gap-1 h-8 text-[11px] text-ink-soft">경로 조회 중…</span>
           )}
         </div>
         {/* 조회 근거 — 거리·도착예상이 어디서 나온 값인지 바로 아래에 붙인다 */}
         {route && (
-          <p className="text-[11px] text-[#514b81]">
+          <p className="text-[11px] text-ink-sub">
             <strong>{route.km}km · {route.min}분</strong>
             {/* stationName = 실제로 좌표를 쓴 출발지(센터 좌표가 있으면 센터명) — '(본서)' 하드코딩 금지 */}
-            <span className="text-[#b0acd6]"> ⓘ {route.stationName || '관할 소방서'}에서 일반 차량 기준</span>
-            {route.mainRoad && <span className="text-[#7d78a8]"> · 진입 도로: {route.mainRoad}</span>}
+            <span className="text-ink-faint"> ⓘ {route.stationName || '관할 소방서'}에서 일반 차량 기준</span>
+            {route.mainRoad && <span className="text-ink-soft"> · 진입 도로: {route.mainRoad}</span>}
             {route.centerFallback && (
               <span className="text-amber-600"> · 선택한 119안전센터는 좌표가 없어 본서 기준입니다</span>
             )}
@@ -356,16 +356,16 @@ export function PlanForm13({
                   setRouteMsg(`✅ ${pending.station} 기준으로 갱신했습니다.`)
                   setPending(null)
                 }}
-                className="ml-1.5 h-5 px-1.5 rounded-md border border-amber-400 bg-white text-[11px] font-medium text-amber-700 hover:bg-amber-100">
+                className="ml-1.5 h-5 px-1.5 rounded-md border border-amber-400 bg-surface text-[11px] font-medium text-amber-700 hover:bg-amber-100">
                 조회 값으로 적용
               </button>
             )}
           </p>
         )}
-        {routeMsg && <p data-testid="form13-route-msg" className="text-[11px] text-[#7d78a8]">{routeMsg}</p>}
+        {routeMsg && <p data-testid="form13-route-msg" className="text-[11px] text-ink-soft">{routeMsg}</p>}
         {/* D-3: 관할 소방서는 주소 저장 시 고객 정보에 자동 지정된다 — 여기서 또 쓰지 않아도 인쇄된다 */}
         {autoFireStation && !loc.fireStation.trim() && (
-          <p className="text-[11px] text-[#7d78a8]">
+          <p className="text-[11px] text-ink-soft">
             비워두면 고객 정보의 관할 소방서(<strong>{autoFireStation}</strong>)가 인쇄됩니다 — 다르면 여기서 직접 고르세요.
           </p>
         )}
@@ -382,8 +382,8 @@ export function PlanForm13({
       </div>
 
       {/* ② 건축물 위치·주변 현황 (2.1+2.2) */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">건축물 위치·주변 현황</p>
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
+        <p className="text-xs font-semibold text-ink-sub">건축물 위치·주변 현황</p>
         {/* 2026-08-08 사용자 확정: 트리의 [지도·사진] 노드를 폐지하고 슬롯 UI(표지·위치도·피난안내도)를 여기로 삽입했다.
             D-1이 여기를 '상태 표시 + 이동 버튼'으로 뒀던 이유(중복 입력 제거)는 그대로다 — 단일 원천이 1.3 안으로 들어왔을 뿐. */}
         {assetsSlot}
@@ -401,19 +401,19 @@ export function PlanForm13({
         {/* D-2: 자동차 도로 기반 초안 — 도로명은 자동, 차로수·인접 건물은 사람이 채운다 */}
         <div>
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <label className="text-[11px] font-medium text-[#514b81]">주변 현황</label>
-            <span className="text-[11px] text-[#b0acd6]">소방차 진입·연소 확대 판단 근거</span>
+            <label className="text-[11px] font-medium text-ink-sub">주변 현황</label>
+            <span className="text-[11px] text-ink-faint">소방차 진입·연소 확대 판단 근거</span>
             {canManage && (
               <>
-                <span className="text-[11px] text-[#b0acd6] ml-1">방위</span>
+                <span className="text-[11px] text-ink-faint ml-1">방위</span>
                 {BEARINGS.map(b => (
                   <button key={b} type="button" onClick={() => setBearing(v => (v === b ? '' : b))}
                     className={`h-6 px-1.5 rounded-md border text-[11px] ${bearing === b
-                      ? 'border-[#7b68ee] bg-[#7b68ee] text-white'
-                      : 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>{b}</button>
+                      ? 'border-brand bg-brand text-white'
+                      : 'border-brand-line text-brand hover:bg-brand-tint'}`}>{b}</button>
                 ))}
                 <button type="button" onClick={suggestSurroundings} disabled={suggesting} data-testid="form13-suggest-surroundings"
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                   {suggesting ? <Loader2 className="size-3 animate-spin" /> : '✨'} 자동 문장 만들기
                 </button>
               </>
@@ -423,74 +423,74 @@ export function PlanForm13({
             onChange={e => { patchLoc({ surroundings: e.target.value }); setSuggested(false) }} disabled={!canManage}
             rows={2} placeholder="예: 북측 마유산로에 접함(왕복 2차로). 동측 5층 근린생활시설, 서측 공지 인접."
             className={`${taCls} ${suggested ? 'ring-2 ring-[#a78bfa]' : ''}`} />
-          {suggestMsg && <p className="text-[11px] text-[#7d78a8] mt-0.5">{suggestMsg}</p>}
+          {suggestMsg && <p className="text-[11px] text-ink-soft mt-0.5">{suggestMsg}</p>}
         </div>
         <div>
-          <label className="text-[11px] font-medium text-[#514b81] block mb-1">운영 개요</label>
+          <label className="text-[11px] font-medium text-ink-sub block mb-1">운영 개요</label>
           <textarea value={loc.operation} onChange={e => patchLoc({ operation: e.target.value })} disabled={!canManage}
             rows={2} placeholder="건물 운영 개요 (용도·운영시간 등)" className={taCls} />
         </div>
       </div>
 
       {/* ③ 소방차 진입 (2.3+2.4) */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">소방차 세부진입 계획</p>
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
+        <p className="text-xs font-semibold text-ink-sub">소방차 세부진입 계획</p>
         {/* D-4′(§9) — 조회·거리·도착예상은 위 카드로 이관(C-1 중복 정리). 여기엔 이 카드의 필드를 채우는 초안 버튼만 둔다 */}
         {canManage && (
-          <div className="flex items-center gap-1.5 flex-wrap rounded-lg border border-[#eceafd] bg-white px-2.5 py-2">
+          <div className="flex items-center gap-1.5 flex-wrap rounded-lg border border-brand-tint bg-surface px-2.5 py-2">
             {route ? (
               <>
-                <span className="text-[11px] text-[#514b81]">{route.stationName || '관할 소방서'} 경로 {route.km}km · {route.min}분 —</span>
+                <span className="text-[11px] text-ink-sub">{route.stationName || '관할 소방서'} 경로 {route.km}km · {route.min}분 —</span>
                 {/* §9-6: 기존 값이 있으면 확인 후 교체 — 조용히 덮어쓰지 않는다(독립검증 지적) */}
                 <button type="button"
                   onClick={() => {
                     if (fa.routeDesc.trim() && !window.confirm('이미 입력된 진입경로 서술을 초안으로 바꿀까요?')) return
                     patchFa({ routeDesc: route.desc }); setDraftMsg('진입경로 서술 초안을 넣었습니다 — 현장 표현으로 다듬어주세요.')
                   }}
-                  className="h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">서술 초안 넣기</button>
+                  className="h-6 px-2 rounded-md border border-brand-line text-[11px] text-brand hover:bg-brand-tint">서술 초안 넣기</button>
                 <button type="button" onClick={applyRouteImage} disabled={routeBusy !== ''}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                   {routeBusy === 'image' ? <Loader2 className="size-3 animate-spin" /> : null} 경로도 초안 만들기
                 </button>
               </>
             ) : (
-              <span className="text-[11px] text-[#b0acd6]">
+              <span className="text-[11px] text-ink-faint">
                 맨 위 <strong>관할 소방서·출동 거리</strong>에서 소방서를 고르면 경로가 조회되고, 여기서 진입경로 서술·경로도 초안을 만들 수 있습니다.
               </span>
             )}
-            {draftMsg && <span className="w-full text-[11px] text-[#7d78a8]">{draftMsg}</span>}
+            {draftMsg && <span className="w-full text-[11px] text-ink-soft">{draftMsg}</span>}
           </div>
         )}
         <div>
-          <label className="text-[11px] font-medium text-[#514b81] block mb-1">진입경로 서술</label>
+          <label className="text-[11px] font-medium text-ink-sub block mb-1">진입경로 서술</label>
           <textarea value={fa.routeDesc} onChange={e => patchFa({ routeDesc: e.target.value })} disabled={!canManage}
             rows={2} placeholder="예: ○○로에서 정문 방면 진입 후 우측 주차장" className={taCls} />
         </div>
         <ImageSlot customerId={customerId} canManage={canManage} path={fa.routeImage}
           onChange={p => patchFa({ routeImage: p })} label="진입 경로도 (이미지)" />
         <div>
-          <label className="text-[11px] font-medium text-[#514b81] block mb-1">진입 장소</label>
+          <label className="text-[11px] font-medium text-ink-sub block mb-1">진입 장소</label>
           <input value={fa.entryPoint} onChange={e => patchFa({ entryPoint: e.target.value })} disabled={!canManage}
             placeholder="예: 정문 앞 도로, 후문 주차장" className={`${inputCls} w-full`} />
         </div>
         <div>
-          <label className="text-[11px] font-medium text-[#514b81] block mb-1">주변 소방시설 현황</label>
+          <label className="text-[11px] font-medium text-ink-sub block mb-1">주변 소방시설 현황</label>
           <textarea value={fa.nearbyFacilities} onChange={e => patchFa({ nearbyFacilities: e.target.value })} disabled={!canManage}
             rows={2} placeholder="예: 정문 앞 지상식 소화전 1개소" className={taCls} />
         </div>
       </div>
 
       {/* ④ 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-        <p className="text-xs font-semibold text-[#514b81]">생성 문서 삽입 사진 <span className="font-normal text-[#b0acd6]">(그 밖의 참고 사진 — PDF·HWP 생성 시 본문에 삽입)</span></p>
-        <p className="text-[11px] text-[#7d78a8]">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
+        <p className="text-xs font-semibold text-ink-sub">생성 문서 삽입 사진 <span className="font-normal text-ink-faint">(그 밖의 참고 사진 — PDF·HWP 생성 시 본문에 삽입)</span></p>
+        <p className="text-[11px] text-ink-soft">
           표지 건물 사진·위치도·피난안내도는 여기가 아니라 위 <strong>[지도·사진]</strong> 칸에서 관리합니다 —
           같은 용도는 <strong>1장만 인쇄</strong>되며, 슬롯에 등록돼 있으면 여기 사진은 인쇄되지 않습니다.
         </p>
         {photos.map((p, i) => {
           const legacyKind = PHOTO_KIND_OPTIONS.find(o => o.value === p.kind && o.legacy)
           return (
-          <div key={i} className="flex items-start gap-2 flex-wrap rounded-lg border border-[#eceafd] bg-white p-2">
+          <div key={i} className="flex items-start gap-2 flex-wrap rounded-lg border border-brand-tint bg-surface p-2">
             <select value={p.kind} disabled={!canManage} data-testid="form13-photo-kind"
               onChange={e => patchPhoto(i, { kind: e.target.value })} className={`${inputCls} w-32`}>
               {/* 신규 선택지는 '기타'만 — 기존 값은 표시·보존을 위해 자기 항목만 남긴다 (D-5) */}
@@ -506,7 +506,7 @@ export function PlanForm13({
             {canManage && (
               <button onClick={() => { setPhotos(rows => rows.filter((_, j) => j !== i)); setDirty(true) }}
                 data-testid="form13-photo-remove"
-                className="text-[#b0acd6] hover:text-red-500 text-xs px-1 mt-1">✕</button>
+                className="text-ink-faint hover:text-red-500 text-xs px-1 mt-1">✕</button>
             )}
             {legacyKind && (
               <p className="w-full text-[11px] text-amber-700">
@@ -518,17 +518,17 @@ export function PlanForm13({
         })}
         {canManage && (
           <button onClick={() => { setPhotos(rows => [...rows, { path: null, kind: 'etc', caption: '' }]); setDirty(true) }}
-            className="text-[11px] text-[#7b68ee] hover:underline">+ 사진 추가</button>
+            className="text-[11px] text-brand hover:underline">+ 사진 추가</button>
         )}
       </div>
 
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.3 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

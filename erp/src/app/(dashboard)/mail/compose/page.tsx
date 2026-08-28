@@ -67,13 +67,13 @@ export default async function MailComposePage({
 
   return (
     <div className="space-y-4">
-      <Link href="/mail" className="inline-flex items-center gap-1 text-sm text-[#7b68ee] hover:underline">
+      <Link href="/mail" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
         <ChevronLeft className="size-4" /> 받은편지함
       </Link>
       <div className="flex items-center gap-2">
-        <PenSquare className="size-5 text-[#7b68ee]" />
-        <h1 className="text-lg font-bold text-[#090c1d]">{reply ? '답장' : fwd ? '전달' : '메일 쓰기'}</h1>
-        <span className="text-xs text-[#b0acd6]">발신: sjfirekorea@gmail.com (공용)</span>
+        <PenSquare className="size-5 text-brand" />
+        <h1 className="text-lg font-bold text-ink">{reply ? '답장' : fwd ? '전달' : '메일 쓰기'}</h1>
+        <span className="text-xs text-ink-faint">발신: sjfirekorea@gmail.com (공용)</span>
       </div>
       <MailComposeClient candidates={candidates} initial={initial} />
     </div>

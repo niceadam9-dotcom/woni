@@ -55,28 +55,28 @@ export function AddressMapModal({ customerName, address, onClose }: {
     <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div
         data-testid="address-map-modal"
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col"
+        className="bg-surface rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-[#eceaf8]">
-          <MapPin className="size-4 text-[#7b68ee] shrink-0" />
-          <h2 className="text-sm font-semibold text-[#090c1d] truncate">{customerName}</h2>
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-brand-line-soft">
+          <MapPin className="size-4 text-brand shrink-0" />
+          <h2 className="text-sm font-semibold text-ink truncate">{customerName}</h2>
           <button onClick={copyAddress}
             title="주소 복사 — 내비에 붙여 넣기"
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] transition-colors shrink-0">
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint transition-colors shrink-0">
             {copied ? <><Check className="size-3 text-emerald-600" /> 복사됨</> : <><Copy className="size-3" /> 주소 복사</>}
           </button>
           <a href={openUrl} target="_blank" rel="noopener noreferrer"
             title="카카오맵에서 열기 — 길찾기는 여기서"
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors shrink-0">
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors shrink-0">
             <ExternalLink className="size-3" /> 새 창
           </a>
-          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-[#f5f4ff] text-[#8b87b8] shrink-0">
+          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-brand-tint text-ink-soft shrink-0">
             <X className="size-4" />
           </button>
         </div>
 
-        <p className="px-5 py-2 text-[11px] text-[#514b81] border-b border-[#f5f4ff] break-all">{address}</p>
+        <p className="px-5 py-2 text-[11px] text-ink-sub border-b border-brand-tint break-all">{address}</p>
 
         <div className="relative h-[460px]">
           <iframe
@@ -86,7 +86,7 @@ export function AddressMapModal({ customerName, address, onClose }: {
             loading="lazy"
           />
           {/* 프레임이 막히면 이 문구가 빈 화면 뒤에 남아 다음 행동을 알려준다 */}
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10px] text-[#b0acd6]">
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10px] text-ink-faint">
             지도가 안 보이면 위 [새 창]으로 열어주세요
           </p>
         </div>

@@ -56,9 +56,9 @@ function TodoModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[#090c1d]">{initial ? 'ToDo 수정' : 'ToDo 등록'}</span>
+          <span className="font-bold text-ink">{initial ? 'ToDo 수정' : 'ToDo 등록'}</span>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
 
@@ -80,7 +80,7 @@ function TodoModal({
                   key={p}
                   onClick={() => setPriority(p)}
                   className={`flex-1 py-1.5 rounded-lg text-xs border font-medium transition-colors ${
-                    priority === p ? PRIORITY_STYLE[p] : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'
+                    priority === p ? PRIORITY_STYLE[p] : 'bg-surface border-gray-200 text-gray-400 hover:bg-gray-50'
                   }`}
                 >
                   {p}
@@ -115,7 +115,7 @@ function TodoModal({
           </button>
           <button
             onClick={submit} disabled={pending}
-            className="flex-1 bg-[#7b68ee] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="flex-1 bg-brand text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {pending ? '저장 중…' : initial ? '수정' : '등록'}
           </button>
@@ -150,7 +150,7 @@ function TodoItem({
 
   return (
     <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
-      todo.completed ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'
+      todo.completed ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-surface border-gray-200'
     }`}>
       <button
         onClick={handleToggle}
@@ -159,12 +159,12 @@ function TodoItem({
       >
         {todo.completed
           ? <CheckCircle2 size={20} className="text-emerald-500" />
-          : <Circle size={20} className="text-gray-300 hover:text-[#7b68ee]" />
+          : <Circle size={20} className="text-gray-300 hover:text-brand" />
         }
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${todo.completed ? 'line-through text-gray-400' : 'text-[#090c1d]'}`}>
+        <p className={`text-sm font-medium ${todo.completed ? 'line-through text-gray-400' : 'text-ink'}`}>
           {todo.title}
         </p>
         {todo.description && (
@@ -190,7 +190,7 @@ function TodoItem({
 
       <div className="flex gap-1 shrink-0">
         {!todo.completed && (
-          <button onClick={() => onEdit(todo)} className="p-1 text-gray-400 hover:text-[#7b68ee] rounded">
+          <button onClick={() => onEdit(todo)} className="p-1 text-gray-400 hover:text-brand rounded">
             <Pencil size={13} />
           </button>
         )}
@@ -244,10 +244,10 @@ export function TodosClient({
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: '전체', value: todos.length, color: 'text-gray-700' },
-          { label: '미완료', value: pending.length, color: 'text-[#7b68ee]' },
+          { label: '미완료', value: pending.length, color: 'text-brand' },
           { label: '기한초과', value: overdue.length, color: 'text-red-500' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border p-4">
+          <div key={s.label} className="bg-surface rounded-xl border p-4">
             <p className="text-xs text-gray-400">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
@@ -263,8 +263,8 @@ export function TodosClient({
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 filter === f
-                  ? 'bg-[#7b68ee] text-white'
-                  : 'bg-white border text-gray-500 hover:bg-gray-50'
+                  ? 'bg-brand text-white'
+                  : 'bg-surface border text-gray-500 hover:bg-gray-50'
               }`}
             >
               {f}
@@ -273,7 +273,7 @@ export function TodosClient({
         </div>
         <button
           onClick={() => { setEditTarget(null); setShowModal(true) }}
-          className="flex items-center gap-1.5 bg-[#7b68ee] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#6a5acd]"
+          className="flex items-center gap-1.5 bg-brand text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-strong"
         >
           <Plus size={15} /> ToDo 추가
         </button>
@@ -282,7 +282,7 @@ export function TodosClient({
       {/* 목록 */}
       <div className="space-y-2">
         {sorted.length === 0 ? (
-          <div className="bg-white rounded-xl border py-16 text-center">
+          <div className="bg-surface rounded-xl border py-16 text-center">
             <p className="text-gray-400 text-sm">{filter === '완료' ? '완료된 항목이 없습니다.' : '할 일을 추가해보세요!'}</p>
           </div>
         ) : (

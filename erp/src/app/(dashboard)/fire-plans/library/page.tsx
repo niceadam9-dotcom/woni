@@ -28,10 +28,10 @@ export default async function PlanTextLibraryRoute({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <BookMarked className="size-6 text-[#7b68ee]" />
+        <BookMarked className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">계획서 공통문구</h1>
-          <p className="mt-0.5 text-sm text-[#514b81]">
+          <h1 className="text-xl font-bold text-ink">계획서 공통문구</h1>
+          <p className="mt-0.5 text-sm text-ink-sub">
             모든 고객이 함께 쓰는 서술 8섹션을 한 장에서 관리합니다 — ⭐ 기본문구는 신규 고객에 자동 주입됩니다
           </p>
         </div>

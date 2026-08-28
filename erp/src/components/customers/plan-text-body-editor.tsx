@@ -16,7 +16,7 @@ const dict = (v: unknown): Record<string, unknown> => (v && typeof v === 'object
 const rows = (v: unknown): Row[] => (Array.isArray(v) ? (v as Row[]) : [])
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
-const inputCls = 'w-full rounded-lg border border-[#d0ccf5] bg-white px-2.5 py-1.5 text-xs text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/15 transition disabled:bg-[#fafafa] disabled:text-[#847ba8]'
+const inputCls = 'w-full rounded-lg border border-brand-line bg-surface px-2.5 py-1.5 text-xs text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 transition disabled:bg-paper disabled:text-ink-soft'
 
 export function PlanTextBodyEditor({ def, value, onChange, disabled }: {
   def: PlanTextSectionDef
@@ -47,7 +47,7 @@ function Field({ f, value, setAt, disabled }: {
     const v = str(dict(value)[f.key])
     return (
       <div className="space-y-1">
-        <label className="text-[11px] font-medium text-[#514b81]">{f.label}</label>
+        <label className="text-[11px] font-medium text-ink-sub">{f.label}</label>
         {f.multiline ? (
           <textarea value={v} disabled={disabled} placeholder={f.placeholder} rows={5}
             onChange={e => setAt(f.key, e.target.value)}
@@ -66,7 +66,7 @@ function Field({ f, value, setAt, disabled }: {
       <div className="space-y-2">
         {f.entries.map(e => (
           <div key={e.key} className="space-y-1">
-            <label className="text-[11px] font-medium text-[#514b81]">{e.label}</label>
+            <label className="text-[11px] font-medium text-ink-sub">{e.label}</label>
             <textarea value={str(d[e.key])} disabled={disabled} rows={2}
               onChange={ev => setAt(undefined, { ...d, [e.key]: ev.target.value })}
               className={`${inputCls} resize-y leading-relaxed`} />
@@ -84,15 +84,15 @@ function Field({ f, value, setAt, disabled }: {
   return (
     <div className="space-y-1.5">
       {list.length === 0 && (
-        <p className="text-[11px] text-[#b0acd6]">등록된 행이 없습니다 — 아래 버튼으로 추가하세요.</p>
+        <p className="text-[11px] text-ink-faint">등록된 행이 없습니다 — 아래 버튼으로 추가하세요.</p>
       )}
       {list.map((r, idx) => (
         <div key={idx} className="flex items-start gap-1.5">
-          <span className="w-5 shrink-0 pt-2 text-[10px] text-[#b0acd6]">{idx + 1}</span>
+          <span className="w-5 shrink-0 pt-2 text-[10px] text-ink-faint">{idx + 1}</span>
           <div className="flex-1 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${f.cols.length}, minmax(0, 1fr))` }}>
             {f.cols.map(c => (
               <div key={c.key} className="space-y-0.5">
-                {idx === 0 && <label className="block text-[10px] text-[#847ba8]">{c.label}</label>}
+                {idx === 0 && <label className="block text-[10px] text-ink-soft">{c.label}</label>}
                 <input value={str(r[c.key])} disabled={disabled} placeholder={c.label}
                   onChange={e => write(list.map((x, j) => (j === idx ? { ...x, [c.key]: e.target.value } : x)))}
                   className={inputCls} />
@@ -101,13 +101,13 @@ function Field({ f, value, setAt, disabled }: {
           </div>
           <button type="button" disabled={disabled} title="행 삭제"
             onClick={() => write(list.filter((_, j) => j !== idx))}
-            className={`shrink-0 rounded p-1 text-[#b0acd6] hover:bg-red-50 hover:text-red-500 disabled:opacity-40 ${idx === 0 ? 'mt-4' : 'mt-1'}`}>
+            className={`shrink-0 rounded p-1 text-ink-faint hover:bg-red-50 hover:text-red-500 disabled:opacity-40 ${idx === 0 ? 'mt-4' : 'mt-1'}`}>
             <Trash2 className="size-3.5" />
           </button>
         </div>
       ))}
       <button type="button" disabled={disabled} onClick={() => write([...list, blank])}
-        className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#c3bdf5] px-2.5 py-1 text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+        className="inline-flex items-center gap-1 rounded-lg border border-dashed border-brand-line px-2.5 py-1 text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
         <Plus className="size-3" /> {f.addLabel ?? '행 추가'}
       </button>
     </div>

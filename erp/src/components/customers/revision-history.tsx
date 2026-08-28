@@ -108,7 +108,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
     })
   }
 
-  const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]'
+  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
   const total = years.reduce((n, g) => n + g.rows.length, 0)
 
   const draftFields = (withDate: boolean) => (
@@ -117,7 +117,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         <DateInput value={draft.revisedOn} title="개정일"
           onChange={e => setDraft(p => ({ ...p, revisedOn: e.target.value }))} className={`${inputCls} w-32`} />
       ) : (
-        <span className="text-[10px] text-[#b0acd6] w-32 shrink-0">일자 고정 (생성 실적)</span>
+        <span className="text-[10px] text-ink-faint w-32 shrink-0">일자 고정 (생성 실적)</span>
       )}
       <input value={draft.content} placeholder="주요 개정내용" autoFocus
         onChange={e => setDraft(p => ({ ...p, content: e.target.value }))} className={`${inputCls} flex-1 min-w-40`} />
@@ -129,82 +129,82 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         onChange={e => setDraft(p => ({ ...p, approverName: e.target.value }))} className={`${inputCls} w-16`} />
       {/* 같은 화면에 '저장' 버튼이 여럿이라 텍스트로는 못 겨눈다(소방안전관리자 패널의 비활성 저장이 먼저 잡힌다) */}
       <button onClick={() => { void commit() }} disabled={isPending} data-testid="revision-save"
-        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-[#7b68ee] text-white text-[11px] font-medium disabled:opacity-50">
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-brand text-white text-[11px] font-medium disabled:opacity-50">
         {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
       </button>
-      <button onClick={cancel} disabled={isPending} className="p-1 text-[#b0acd6] hover:text-[#514b81]" title="취소">
+      <button onClick={cancel} disabled={isPending} className="p-1 text-ink-faint hover:text-ink-sub" title="취소">
         <X className="size-3.5" />
       </button>
     </div>
   )
 
   return (
-    <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+    <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
       <div className="flex items-center gap-2 mb-2">
-        <p className="text-xs font-semibold text-[#514b81]">개정이력
-          <span className="font-normal text-[#b0acd6] ml-2">연도별 · 총 {total}건</span>
+        <p className="text-xs font-semibold text-ink-sub">개정이력
+          <span className="font-normal text-ink-faint ml-2">연도별 · 총 {total}건</span>
         </p>
         {canManage && (
           <button onClick={startAdd} disabled={isPending}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
             <Plus className="size-3" /> 개정 추가
           </button>
         )}
       </div>
 
       {addOpen && (
-        <div className="rounded-lg border border-[#d0ccf5] bg-white px-2 mb-2">
+        <div className="rounded-lg border border-brand-line bg-surface px-2 mb-2">
           <div className="flex items-center gap-1.5 pt-2">
-            <label className="text-[11px] font-medium text-[#514b81]">연도</label>
+            <label className="text-[11px] font-medium text-ink-sub">연도</label>
             <input type="number" value={addYear} inputMode="numeric"
               onChange={e => setAddYear(Number(e.target.value) || currentYear)} className={`${inputCls} w-20`} />
-            <span className="text-[10px] text-[#b0acd6]">문서 생성 없이 일어난 변경도 이력으로 남길 수 있습니다</span>
+            <span className="text-[10px] text-ink-faint">문서 생성 없이 일어난 변경도 이력으로 남길 수 있습니다</span>
           </div>
           {draftFields(true)}
         </div>
       )}
 
       {years.length === 0 && !addOpen && (
-        <p className="text-[11px] text-[#b0acd6] mb-2">개정이력이 없습니다 — 첫 생성 시 1행이 자동 기록되고, [개정 추가]로 직접 남길 수도 있습니다.</p>
+        <p className="text-[11px] text-ink-faint mb-2">개정이력이 없습니다 — 첫 생성 시 1행이 자동 기록되고, [개정 추가]로 직접 남길 수도 있습니다.</p>
       )}
 
       <div className="space-y-1.5">
         {years.map(g => {
           const open = openYears.has(g.year)
           return (
-            <div key={g.year} className="rounded-lg border border-[#e0ddf5] bg-white">
+            <div key={g.year} className="rounded-lg border border-brand-line-soft bg-surface">
               <button onClick={() => setOpenYears(p => {
                 const n = new Set(p); if (n.has(g.year)) n.delete(g.year); else n.add(g.year); return n
-              })} className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left hover:bg-[#f5f4ff] rounded-lg">
-                {open ? <ChevronDown className="size-3.5 text-[#7b68ee]" /> : <ChevronRight className="size-3.5 text-[#b0acd6]" />}
-                <span className="text-xs font-semibold text-[#090c1d]">{g.year}년</span>
-                <span className="text-[10px] text-[#b0acd6]">· {g.rows.length}건</span>
+              })} className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left hover:bg-brand-tint rounded-lg">
+                {open ? <ChevronDown className="size-3.5 text-brand" /> : <ChevronRight className="size-3.5 text-ink-faint" />}
+                <span className="text-xs font-semibold text-ink">{g.year}년</span>
+                <span className="text-[10px] text-ink-faint">· {g.rows.length}건</span>
               </button>
               {open && (
-                <div className="px-2 pb-1.5 border-t border-[#f3f1fb]">
+                <div className="px-2 pb-1.5 border-t border-brand-line-soft">
                   {g.rows.map(r => (
-                    <div key={r.id} data-testid={`rev-row-${r.year}-${r.seq}`} className="border-b border-[#f3f1fb] last:border-0">
+                    <div key={r.id} data-testid={`rev-row-${r.year}-${r.seq}`} className="border-b border-brand-line-soft last:border-0">
                       {editId === r.id ? draftFields(r.source === 'manual') : (
                         <div className="group flex items-start gap-1.5 py-1.5 text-xs">
-                          <span className="w-6 shrink-0 text-[#b0acd6]">{r.seq}</span>
-                          <span className="w-24 shrink-0 text-[#090c1d]">{r.revisedOn || '—'}</span>
-                          <span className="flex-1 min-w-0 text-[#090c1d] break-words">
-                            {r.content || <span className="text-[#b0acd6]">(내용 없음)</span>}
+                          <span className="w-6 shrink-0 text-ink-faint">{r.seq}</span>
+                          <span className="w-24 shrink-0 text-ink">{r.revisedOn || '—'}</span>
+                          <span className="flex-1 min-w-0 text-ink break-words">
+                            {r.content || <span className="text-ink-faint">(내용 없음)</span>}
                           </span>
-                          <span className="w-16 shrink-0 text-[#514b81] truncate" title="작성자">{r.authorName || '—'}</span>
-                          <span className="w-12 shrink-0 text-[#514b81] truncate" title="검토">{r.reviewerName || '—'}</span>
-                          <span className="w-12 shrink-0 text-[#514b81] truncate" title="승인">{r.approverName || '—'}</span>
+                          <span className="w-16 shrink-0 text-ink-sub truncate" title="작성자">{r.authorName || '—'}</span>
+                          <span className="w-12 shrink-0 text-ink-sub truncate" title="검토">{r.reviewerName || '—'}</span>
+                          <span className="w-12 shrink-0 text-ink-sub truncate" title="승인">{r.approverName || '—'}</span>
                           <span className={`shrink-0 h-5 px-1.5 rounded-full text-[10px] leading-5 ${
-                            r.source === 'manual' ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'bg-[#f8f9fa] text-[#847ba8]'}`}>
+                            r.source === 'manual' ? 'bg-brand-tint text-brand' : 'bg-paper text-ink-soft'}`}>
                             {SOURCE_LABEL[r.source]}
                           </span>
                           {canManage && (
                             <span className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => startEdit(r)} title="수정" className="p-0.5 text-[#b0acd6] hover:text-[#514b81]">
+                              <button onClick={() => startEdit(r)} title="수정" className="p-0.5 text-ink-faint hover:text-ink-sub">
                                 <Pencil className="size-3" />
                               </button>
                               {r.source === 'manual' && (
-                                <button onClick={() => remove(r)} title="삭제" className="p-0.5 text-[#b0acd6] hover:text-red-500">
+                                <button onClick={() => remove(r)} title="삭제" className="p-0.5 text-ink-faint hover:text-red-500">
                                   <Trash2 className="size-3" />
                                 </button>
                               )}
@@ -221,8 +221,8 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         })}
       </div>
 
-      {msg && <p className="text-[11px] text-[#514b81] mt-2">{msg}</p>}
-      <p className="text-[10px] text-[#b0acd6] mt-2">
+      {msg && <p className="text-[11px] text-ink-sub mt-2">{msg}</p>}
+      <p className="text-[10px] text-ink-faint mt-2">
         생성(HWP·PDF) 시 이 이력이 문서의 개정이력 표에 전 연도 시계열로 인쇄됩니다 · 생성·업로드 이력은 일자·삭제가 잠깁니다.
       </p>
     </div>

@@ -92,22 +92,22 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
   const dialog: ReactNode = pending && (
     // data-unsaved-dialog: 확인창 버튼의 '저장' 글자가 서식 화면의 미저장 감지 휴리스틱에 걸리지 않도록 하는 표식
     <div data-unsaved-dialog className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-sm">
-        <div className="flex items-center gap-2 px-6 py-4 border-b border-[#c8c4d0]">
+      <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm">
+        <div className="flex items-center gap-2 px-6 py-4 border-b border-line">
           <AlertTriangle className="size-4 text-amber-500" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">저장하지 않은 변경이 있습니다</h2>
+          <h2 className="text-sm font-semibold text-ink">저장하지 않은 변경이 있습니다</h2>
         </div>
         <div className="px-6 py-4">
-          <p className="text-xs text-[#514b81] leading-relaxed">{message}</p>
+          <p className="text-xs text-ink-sub leading-relaxed">{message}</p>
           {error && <p className="mt-2 text-[11px] text-red-600 leading-relaxed">{error}</p>}
         </div>
-        <div className="flex flex-col gap-2 px-6 py-4 border-t border-[#c8c4d0]">
+        <div className="flex flex-col gap-2 px-6 py-4 border-t border-line">
           {canSave && (
             <button
               onClick={() => { void saveAndProceed() }}
               disabled={saving}
               data-testid="unsaved-nav-save"
-              className="h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} {saveLabel}
             </button>
@@ -116,7 +116,7 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
             onClick={proceed}
             disabled={saving}
             data-testid="unsaved-nav-discard"
-            className="h-9 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50"
+            className="h-9 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors disabled:opacity-50"
           >
             {discardLabel}
           </button>
@@ -124,7 +124,7 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
             onClick={close}
             disabled={saving}
             data-testid="unsaved-nav-cancel"
-            className="h-9 rounded-lg text-xs text-[#b0acd6] hover:text-[#514b81] transition-colors disabled:opacity-50"
+            className="h-9 rounded-lg text-xs text-ink-faint hover:text-ink-sub transition-colors disabled:opacity-50"
           >
             취소 (이 화면에 머무르기)
           </button>

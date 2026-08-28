@@ -51,7 +51,7 @@ export default async function InspectionCalendarPage({
   // planned_date는 동점·NULL이 많아 그것만으로 페이지를 나누면 건너뛰거나 중복된다 → id를 2차 정렬로 고정.
   const planItemsQuery = fetchAllRows((from, to) => admin
     .from('inspection_plan_items')
-    .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code, address)')
+    .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code, address, is_active)')
     .in('plan_type', ['monthly', 'event'])
     .neq('status', 'cancelled')
     .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
@@ -117,7 +117,8 @@ export default async function InspectionCalendarPage({
         .map(c => [c.id, c])
     )
 
-    calendarData = rawInspections.map(insp => {
+    // 고객관리에서 삭제(비활성)된 고객의 점검 건은 달력에 싣지 않는다 (2026-08-28)
+    calendarData = rawInspections.filter(insp => customerMap.get(insp.customer_id)?.is_active !== false).map(insp => {
       const cust = customerMap.get(insp.customer_id)
       return {
         id: insp.id,
@@ -152,11 +153,13 @@ export default async function InspectionCalendarPage({
     inspection_sub_type: string | null
     scheduled_date: string | null; planned_date: string | null
     status: string; assigned_employee_id: string | null; inspection_id: string | null
-    customers: { customer_name: string; customer_code: string; address: string | null } | null
+    customers: { customer_name: string; customer_code: string; address: string | null; is_active: boolean } | null
   }
   const planItems: CalendarPlanItem[] = (planItemsRes.rows as unknown as PlanItemRow[]).flatMap(p => {
     const date = p.scheduled_date ?? p.planned_date
     if (!date) return []
+    // 삭제(비활성) 고객의 계획은 상태 무관 제외 — 자동취소를 벗어난 완료 항목도 달력에서 뺀다
+    if (p.customers?.is_active === false) return []
     return [{
       id: p.id,
       customer_id: p.customer_id,

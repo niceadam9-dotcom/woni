@@ -26,21 +26,21 @@ export default async function NewDocumentPage({ searchParams }: Props) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">기안서 작성</h1>
-          <p className="text-sm text-[#514b81] mt-1">사용할 양식을 선택하세요</p>
+          <h1 className="text-xl font-bold text-ink">기안서 작성</h1>
+          <p className="text-sm text-ink-sub mt-1">사용할 양식을 선택하세요</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {TEMPLATES.map(({ value, label, desc, Icon }) => (
             <Link
               key={value}
               href={`/documents/new?template=${value}`}
-              className="bg-white rounded-xl border border-[#c8c4d0] p-6 hover:border-[#7b68ee] hover:shadow-[0_4px_16px_rgba(123,104,238,0.12)] transition-all group"
+              className="bg-surface rounded-xl border border-line p-6 hover:border-brand hover:shadow-[0_4px_16px_rgba(123,104,238,0.12)] transition-all group"
             >
-              <div className="size-10 rounded-lg bg-[#f5f4ff] flex items-center justify-center mb-3 group-hover:bg-[#7b68ee]/10 transition-colors">
-                <Icon className="size-5 text-[#7b68ee]" />
+              <div className="size-10 rounded-lg bg-brand-tint flex items-center justify-center mb-3 group-hover:bg-brand/10 transition-colors">
+                <Icon className="size-5 text-brand" />
               </div>
-              <p className="font-semibold text-[#090c1d]">{label}</p>
-              <p className="text-sm text-[#514b81] mt-1">{desc}</p>
+              <p className="font-semibold text-ink">{label}</p>
+              <p className="text-sm text-ink-sub mt-1">{desc}</p>
             </Link>
           ))}
         </div>
@@ -55,12 +55,12 @@ export default async function NewDocumentPage({ searchParams }: Props) {
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">기안서 작성</h1>
-          <p className="text-sm text-[#514b81] mt-1">작성 후 상신하면 결재가 시작됩니다</p>
+          <h1 className="text-xl font-bold text-ink">기안서 작성</h1>
+          <p className="text-sm text-ink-sub mt-1">작성 후 상신하면 결재가 시작됩니다</p>
         </div>
         <Link
           href="/documents/new"
-          className="text-sm text-[#7b68ee] hover:underline"
+          className="text-sm text-brand hover:underline"
         >
           양식 변경
         </Link>

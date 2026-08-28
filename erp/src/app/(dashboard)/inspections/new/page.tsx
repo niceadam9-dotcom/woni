@@ -32,12 +32,12 @@ export default async function InspectionNewPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/inspections" className="text-[#514b81] hover:text-[#7b68ee] transition-colors">
+        <Link href="/inspections" className="text-ink-sub hover:text-brand transition-colors">
           <ChevronLeft className="size-5" />
         </Link>
         <div className="flex items-center gap-2">
-          <ClipboardList className="size-5 text-[#7b68ee]" />
-          <h1 className="text-xl font-bold text-[#090c1d]">점검 배정</h1>
+          <ClipboardList className="size-5 text-brand" />
+          <h1 className="text-xl font-bold text-ink">점검 배정</h1>
         </div>
       </div>
 

@@ -18,15 +18,15 @@ export default async function BoardNewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-sm text-[#514b81]">
-        <Link href="/board" className="hover:text-[#7b68ee] flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-ink-sub">
+        <Link href="/board" className="hover:text-brand flex items-center gap-1">
           <LayoutList className="size-3.5" />게시판
         </Link>
-        <ChevronRight className="size-3.5 text-[#b0acd6]" />
-        <span className="text-[#090c1d] font-medium">글쓰기</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+        <span className="text-ink font-medium">글쓰기</span>
       </div>
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">게시물 등록</h1>
+        <h1 className="text-xl font-bold text-ink">게시물 등록</h1>
       </div>
       <PostFormClient
         categories={(categories ?? []) as { id: string; name: string }[]}

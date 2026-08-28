@@ -92,19 +92,19 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
   }
 
   if (defects.length === 0) {
-    return <p className="px-1 py-2 text-[11px] text-[#b0acd6]">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
+    return <p className="px-1 py-2 text-[11px] text-ink-faint">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
   }
 
   // min-w-0 — input[type=date]는 UA 고유 최소폭이 있어 w-full이어도 좁은 칸에서 밖으로 삐져나온다.
   // 이게 작업대 3칸 폭 재배분의 남은 병목이었다(실측 2026-08-18: 계획 기간 칸에서 +27px).
-  const cell = 'w-full min-w-0 rounded border border-[#e0ddf5] px-1.5 py-1 text-[11px] focus:outline-none focus:border-[#7b68ee] disabled:bg-[#fafafa]'
+  const cell = 'w-full min-w-0 rounded border border-brand-line-soft px-1.5 py-1 text-[11px] focus:outline-none focus:border-brand disabled:bg-paper'
 
   return (
     <div className="space-y-1">
       {err && <p className="px-1 text-[11px] text-red-600">❌ {err}</p>}
       <table className="w-full table-fixed border-collapse text-[11px]" data-testid="defect-grid">
         <thead>
-          <tr className="text-left text-[10px] text-[#847ba8]">
+          <tr className="text-left text-[10px] text-ink-soft">
             {/* 날짜 열은 'YYYY-MM-DD'(약 78px) + 달력 버튼(28px)이 들어가야 글자가 안 잘린다.
                 종전 26%로는 칸이 좁아지면 날짜가 잘렸다 — 작업대 3칸 폭 재배분의 병목(실측 2026-08-18).
                 불량명은 잘려도 줄바꿈으로 읽히므로 여기서 폭을 내준다. */}
@@ -123,13 +123,13 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
           {defects.map(d => {
             const r = rowOf(d)
             return (
-              <tr key={d.id} className="align-top border-t border-[#f3f1fc]" data-defect-row={d.id}>
+              <tr key={d.id} className="align-top border-t border-brand-line-soft" data-defect-row={d.id}>
                 <td className="px-1 py-1">
-                  <span className={`mr-1 inline-block rounded px-1 py-px text-[9px] ${SEV_CLS[d.severity] ?? 'bg-[#eeedf3] text-[#514b81]'}`}>{d.severity}</span>
-                  <span className="text-[#090c1d]">{d.defect_name}</span>
-                  {d.defect_detail && <span className="block truncate text-[10px] text-[#b0acd6]">{d.defect_detail}</span>}
+                  <span className={`mr-1 inline-block rounded px-1 py-px text-[9px] ${SEV_CLS[d.severity] ?? 'bg-paper text-ink-sub'}`}>{d.severity}</span>
+                  <span className="text-ink">{d.defect_name}</span>
+                  {d.defect_detail && <span className="block truncate text-[10px] text-ink-faint">{d.defect_detail}</span>}
                   <span className="inline-flex h-3 items-center gap-1">
-                    {saving === d.id && <Loader2 className="size-2.5 animate-spin text-[#7b68ee]" />}
+                    {saving === d.id && <Loader2 className="size-2.5 animate-spin text-brand" />}
                     {justSaved[d.id] && saving !== d.id && <span className="text-[9px] text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}
                   </span>
                 </td>
@@ -170,7 +170,7 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
           })}
         </tbody>
       </table>
-      <p className="px-1 text-[10px] text-[#b0acd6]">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
+      <p className="px-1 text-[10px] text-ink-faint">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
     </div>
   )
 }
@@ -206,11 +206,11 @@ function PhotoCell({ defectId, inspectionId, canEdit, field, url, onDone }: {
         aria-label={field === 'before' ? '전(불량) 사진' : '후 사진 추가'}
         title={field === 'before' ? '전(불량) 사진' : '후(조치) 사진'}
         className={`flex size-12 items-center justify-center overflow-hidden rounded border border-dashed disabled:opacity-50
-          ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-[#d0ccf5] hover:border-[#7b68ee]'}`}>
-        {pending ? <Loader2 className="size-3.5 animate-spin text-[#7b68ee]" />
+          ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-brand-line hover:border-brand'}`}>
+        {pending ? <Loader2 className="size-3.5 animate-spin text-brand" />
           /* eslint-disable-next-line @next/next/no-img-element */
           : preview ? <img src={preview} alt="" className="size-full object-cover" />
-            : <Camera className="size-3.5 text-[#b0acd6]" />}
+            : <Camera className="size-3.5 text-ink-faint" />}
       </button>
       {/* 현장은 폰이다 — 슬롯을 탭하면 카메라가 바로 열린다(R6-10과 같은 경로) */}
       <input ref={ref} type="file" accept="image/*" capture="environment" className="hidden" onChange={pick} />

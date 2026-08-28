@@ -38,43 +38,43 @@ export function PlacementReportHelper({ inspectionId }: { inspectionId: string }
   return (
     <span className="relative inline-block">
       <button onClick={openPreview} disabled={pending}
-        className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+        className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[10px] text-brand hover:bg-brand-tint disabled:opacity-50">
         {pending ? <Loader2 className="size-3 animate-spin" /> : <ClipboardCopy className="size-3" />} 신고 정보 복사
       </button>
 
       {open && (
-        <div className="absolute left-0 z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-[#d0ccf5] bg-white shadow-lg p-3 text-left">
+        <div className="absolute left-0 z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-brand-line bg-surface shadow-lg p-3 text-left">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#090c1d]">협회 배치신고 정보</span>
+            <span className="text-xs font-semibold text-ink">협회 배치신고 정보</span>
             <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-700"><X className="size-3.5" /></button>
           </div>
           {err && <p className="text-[11px] text-red-600 mb-1.5">{err}</p>}
           {!fields ? (
-            <p className="text-[11px] text-[#b0acd6] py-3 text-center">불러오는 중…</p>
+            <p className="text-[11px] text-ink-faint py-3 text-center">불러오는 중…</p>
           ) : (
             <>
               <div className="space-y-1 mb-2">
                 {fields.map(f => (
                   <div key={f.label} className="flex items-start gap-1.5 text-[11px]">
-                    <span className="text-[#b0acd6] w-14 shrink-0">{f.label}</span>
+                    <span className="text-ink-faint w-14 shrink-0">{f.label}</span>
                     {f.missing ? (
                       <span className="flex items-center gap-1 text-amber-600 flex-1">
                         <AlertTriangle className="size-3 shrink-0" /> 미입력
-                        {f.href && <Link href={f.href} className="text-[#7b68ee] hover:underline">→ {f.hrefLabel ?? '입력'}</Link>}
+                        {f.href && <Link href={f.href} className="text-brand hover:underline">→ {f.hrefLabel ?? '입력'}</Link>}
                       </span>
                     ) : (
-                      <span className="text-[#090c1d] flex-1 whitespace-pre-wrap break-words">{f.value}</span>
+                      <span className="text-ink flex-1 whitespace-pre-wrap break-words">{f.value}</span>
                     )}
                   </div>
                 ))}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={copy}
-                  className={`inline-flex items-center gap-1 h-7 px-2.5 rounded text-[11px] font-medium ${copied ? 'bg-green-500 text-white' : 'bg-[#7b68ee] hover:bg-[#6647f0] text-white'}`}>
+                  className={`inline-flex items-center gap-1 h-7 px-2.5 rounded text-[11px] font-medium ${copied ? 'bg-green-500 text-white' : 'bg-brand hover:bg-brand-strong text-white'}`}>
                   {copied ? <><Check className="size-3" /> 복사됨</> : <><ClipboardCopy className="size-3" /> 복사</>}
                 </button>
                 <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1 h-7 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#514b81] hover:text-[#7b68ee] hover:border-[#7b68ee]">
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:text-brand hover:border-brand">
                   협회 신고 <ExternalLink className="size-3" />
                 </a>
               </div>

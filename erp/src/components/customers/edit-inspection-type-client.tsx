@@ -24,11 +24,11 @@ const COMBOS: Combo[] = [
 ]
 
 const CATEGORY_COLORS: Record<Combo['category'], string> = {
-  '소방안전관리': 'bg-[#f5f4ff] text-[#7b68ee]',
+  '소방안전관리': 'bg-brand-tint text-brand',
   '일반관리':     'bg-gray-100 text-gray-600',
 }
 const SUB_COLORS: Record<Combo['sub'], string> = {
-  '종합': 'bg-[#f5f4ff] text-[#7b68ee]',
+  '종합': 'bg-brand-tint text-brand',
   '작동': 'bg-blue-50 text-blue-600',
 }
 
@@ -71,7 +71,7 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
     <>
       <button
         onClick={() => setOpen(true)}
-        className="ml-2 inline-flex items-center gap-1 text-xs text-[#514b81] hover:text-[#7b68ee] transition-colors"
+        className="ml-2 inline-flex items-center gap-1 text-xs text-ink-sub hover:text-brand transition-colors"
       >
         <Pencil className="size-3" />
         수정
@@ -79,17 +79,17 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
 
       {open && (
         <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#c8c4d0]">
-              <h2 className="text-base font-semibold text-[#090c1d]">점검유형 변경</h2>
-              <button onClick={() => setOpen(false)} className="text-[#514b81] hover:text-[#090c1d]">
+          <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+              <h2 className="text-base font-semibold text-ink">점검유형 변경</h2>
+              <button onClick={() => setOpen(false)} className="text-ink-sub hover:text-ink">
                 <X className="size-5" />
               </button>
             </div>
 
             <div className="px-6 py-5 space-y-4">
-              <div className="flex items-center gap-2 bg-[#f5f4ff] rounded-lg px-3 py-2.5">
-                <span className="text-xs text-[#514b81]">현재 유형:</span>
+              <div className="flex items-center gap-2 bg-brand-tint rounded-lg px-3 py-2.5">
+                <span className="text-xs text-ink-sub">현재 유형:</span>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[current.category]}`}>
                   {current.category} › {current.sub}
                 </span>
@@ -102,8 +102,8 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
                     key={combo.key}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${
                       selected === combo.key
-                        ? 'border-[#7b68ee] bg-[#f5f4ff]'
-                        : 'border-[#c8c4d0] hover:bg-[#f8f9fa]'
+                        ? 'border-brand bg-brand-tint'
+                        : 'border-line hover:bg-paper'
                     }`}
                   >
                     <input
@@ -112,7 +112,7 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
                       value={combo.key}
                       checked={selected === combo.key}
                       onChange={() => setSelected(combo.key)}
-                      className="accent-[#7b68ee]"
+                      className="accent-brand"
                     />
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[combo.category]}`}>
                       {combo.category}
@@ -120,7 +120,7 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${SUB_COLORS[combo.sub]}`}>
                       {combo.sub}
                     </span>
-                    <span className="text-[11px] text-[#514b81] ml-auto text-right">{combo.cycle}</span>
+                    <span className="text-[11px] text-ink-sub ml-auto text-right">{combo.cycle}</span>
                   </label>
                 ))}
               </div>
@@ -130,17 +130,17 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
               )}
             </div>
 
-            <div className="flex gap-3 px-6 py-4 border-t border-[#c8c4d0]">
+            <div className="flex gap-3 px-6 py-4 border-t border-line">
               <button
                 onClick={() => { setOpen(false); setSelected(current.key) }}
-                className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+                className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleSave}
                 disabled={isPending || selected === current.key}
-                className="flex-1 h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
+                className="flex-1 h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
               >
                 {isPending ? <Loader2 className="size-4 animate-spin" /> : '저장'}
               </button>

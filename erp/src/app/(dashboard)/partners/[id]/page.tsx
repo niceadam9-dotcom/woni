@@ -32,27 +32,27 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-sm text-[#514b81]">
-        <Link href="/partners" className="hover:text-[#7b68ee] flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-ink-sub">
+        <Link href="/partners" className="hover:text-brand flex items-center gap-1">
           <Handshake className="size-3.5" />거래처 관리
         </Link>
-        <ChevronRight className="size-3.5 text-[#b0acd6]" />
-        <span className="text-[#090c1d] font-medium">{p.partner_name}</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+        <span className="text-ink font-medium">{p.partner_name}</span>
       </div>
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">{p.partner_name}</h1>
-        <p className="text-sm text-[#514b81] mt-0.5">{TYPE_LABELS[p.partner_type] ?? p.partner_type}</p>
+        <h1 className="text-xl font-bold text-ink">{p.partner_name}</h1>
+        <p className="text-sm text-ink-sub mt-0.5">{TYPE_LABELS[p.partner_type] ?? p.partner_type}</p>
       </div>
       {canEdit ? (
         <PartnerFormClient existing={p} />
       ) : (
-        <div className="max-w-2xl bg-white rounded-xl border border-[#c8c4d0] p-6">
+        <div className="max-w-2xl bg-surface rounded-xl border border-line p-6">
           <dl className="grid grid-cols-2 gap-4 text-sm">
-            <div><dt className="text-xs text-[#514b81]">사업자번호</dt><dd className="mt-1">{p.business_number ?? '-'}</dd></div>
-            <div><dt className="text-xs text-[#514b81]">대표자</dt><dd className="mt-1">{p.representative ?? '-'}</dd></div>
-            <div><dt className="text-xs text-[#514b81]">연락처</dt><dd className="mt-1">{p.phone ? formatTel(p.phone) : '-'}</dd></div>
-            <div><dt className="text-xs text-[#514b81]">이메일</dt><dd className="mt-1">{p.email ?? '-'}</dd></div>
-            <div className="col-span-2"><dt className="text-xs text-[#514b81]">주소</dt><dd className="mt-1">{p.address ?? '-'}</dd></div>
+            <div><dt className="text-xs text-ink-sub">사업자번호</dt><dd className="mt-1">{p.business_number ?? '-'}</dd></div>
+            <div><dt className="text-xs text-ink-sub">대표자</dt><dd className="mt-1">{p.representative ?? '-'}</dd></div>
+            <div><dt className="text-xs text-ink-sub">연락처</dt><dd className="mt-1">{p.phone ? formatTel(p.phone) : '-'}</dd></div>
+            <div><dt className="text-xs text-ink-sub">이메일</dt><dd className="mt-1">{p.email ?? '-'}</dd></div>
+            <div className="col-span-2"><dt className="text-xs text-ink-sub">주소</dt><dd className="mt-1">{p.address ?? '-'}</dd></div>
           </dl>
         </div>
       )}

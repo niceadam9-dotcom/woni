@@ -76,7 +76,7 @@ export function DateInput({ onChange, className, disabled, ref, ...props }: Omit
           // mousedown 기본동작 차단 — 텍스트 입력의 blur(저장) 트리거 없이 팝업 열기
           onMouseDown={e => e.preventDefault()}
           onClick={openPicker}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-[#b0acd6] hover:text-[#7b68ee] transition-colors"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-ink-faint hover:text-brand transition-colors"
         >
           <Calendar className="size-3.5" />
         </button>

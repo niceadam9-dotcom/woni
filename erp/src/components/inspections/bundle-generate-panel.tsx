@@ -53,15 +53,15 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
   const fmt = (iso: string | null) => (iso ? iso.replace('T', ' ').slice(5, 16) : '')
 
   return (
-    <div className="rounded-lg border border-[#eceafd]">
-      <button onClick={toggle} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]"
+    <div className="rounded-lg border border-brand-tint">
+      <button onClick={toggle} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-ink-sub hover:text-brand"
         data-testid="bundle-panel-toggle">
         <Package className="size-3.5" /> 번들 생성 (공문→표지→본문 일괄)
         <ChevronDown className={`ml-auto size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="space-y-2 border-t border-[#f3f1fc] px-2.5 py-2 text-[11px]">
-          {isPending && !cl && <p className="flex items-center gap-1 text-[#b0acd6]"><Loader2 className="size-3 animate-spin" /> 상태 확인 중…</p>}
+        <div className="space-y-2 border-t border-brand-line-soft px-2.5 py-2 text-[11px]">
+          {isPending && !cl && <p className="flex items-center gap-1 text-ink-faint"><Loader2 className="size-3 animate-spin" /> 상태 확인 중…</p>}
           {cl && (<>
             {/* 구성요소 체크리스트 (S13-4) — [번들 생성]의 대상 미리보기를 겸한다 */}
             <ul className="space-y-0.5" data-testid="bundle-checklist">
@@ -70,8 +70,8 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
                   {i.reason === null
                     ? <span className="text-green-600">✓</span>
                     : i.reason === 'stale' ? <span className="text-amber-600">⚠</span> : <span className="text-red-500">✗</span>}
-                  <span className="text-[#090c1d]">{i.label}</span>
-                  <span className="text-[#b0acd6]">
+                  <span className="text-ink">{i.label}</span>
+                  <span className="text-ink-faint">
                     {i.reason === null && `최신 ${fmt(i.generatedAt)}`}
                     {i.reason === 'stale' && `구본 ${fmt(i.generatedAt)} — 데이터 수정 ${fmt(cl.dataMaxAt)} 이후 재생성 필요`}
                     {i.reason === '미생성' && '미생성'}
@@ -91,28 +91,28 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
             )}
             <div className="flex items-center gap-1.5 flex-wrap">
               <button onClick={() => generate(staleTypes)} disabled={isPending || disabled || cl.regenBlocked}
-                className="inline-flex items-center gap-1 rounded-lg bg-[#7b68ee] px-2.5 py-1 font-medium text-white disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1 font-medium text-white disabled:opacity-40"
                 data-testid="bundle-generate">
                 {isPending ? <Loader2 className="size-3 animate-spin" /> : <Package className="size-3" />}
                 필요분 생성 ({staleTypes.length}건)
               </button>
               <button onClick={() => generate(allTypes)} disabled={isPending || disabled || cl.regenBlocked}
-                className="rounded-lg border border-[#d0ccf5] px-2.5 py-1 text-[#514b81] disabled:opacity-40">
+                className="rounded-lg border border-brand-line px-2.5 py-1 text-ink-sub disabled:opacity-40">
                 전체 재생성
               </button>
               <a href={`/inspections/${inspectionId}/bundle`} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-[#d0ccf5] px-2.5 py-1 text-[#514b81] hover:border-[#7b68ee]">
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-line px-2.5 py-1 text-ink-sub hover:border-brand">
                 <CheckCircle2 className="size-3" /> 번들 열기
               </a>
               {/* 소방계획서_27 — 고쳐 쓸 수 있는 엑셀(갑지 서식). PDF와 같은 값에서 출발하되
                   담당자가 Excel에서 수정·보완한 뒤 인쇄한다. 생성물은 저장하지 않는다(D-5) */}
               <a href={`/inspections/${inspectionId}/workbook`}
                 title="갑지 서식 통합 워크북 — PDF와 달리 받은 뒤 고칠 수 있습니다"
-                className="inline-flex items-center gap-1 rounded-lg border border-[#d0ccf5] px-2.5 py-1 text-[#514b81] hover:border-[#7b68ee]"
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-line px-2.5 py-1 text-ink-sub hover:border-brand"
                 data-testid="workbook-download">
                 <FileSpreadsheet className="size-3" /> 엑셀로 받기
               </a>
-              <button onClick={load} disabled={isPending} className="text-[10px] text-[#b0acd6] underline">새로고침</button>
+              <button onClick={load} disabled={isPending} className="text-[10px] text-ink-faint underline">새로고침</button>
             </div>
             {results && results.some(r => !r.ok) && (
               <ul className="space-y-0.5 text-red-600">

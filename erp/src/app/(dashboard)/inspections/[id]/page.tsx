@@ -48,7 +48,7 @@ import { inspectionTypeLabel } from '@/types'
 import type { ReportType } from '@/app/(dashboard)/inspections/report-constants'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
-  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '종합':   'bg-brand-tint text-brand',
   '작동':   'bg-blue-50 text-blue-600',
   '일반관리': 'bg-gray-100 text-gray-600',
 }
@@ -62,7 +62,7 @@ const STATUS_LABELS: Record<InspectionStatus, string> = {
 
 const STATUS_COLORS: Record<InspectionStatus, string> = {
   scheduled: 'bg-blue-50 text-blue-600',
-  in_progress: 'bg-[#f5f4ff] text-[#7b68ee]',
+  in_progress: 'bg-brand-tint text-brand',
   completed: 'bg-green-50 text-green-700',
   overdue: 'bg-red-50 text-red-600',
 }
@@ -427,17 +427,17 @@ export default async function InspectionDetailPage({
     <div className="flex flex-col gap-3 lg:h-full lg:overflow-hidden">
       {/* 헤더 — 기본정보는 접이식으로 내렸다 (C1 R5-5 / D-1) */}
       <div className="relative flex shrink-0 items-center gap-3">
-        <Link href="/inspections" className="text-[#514b81] hover:text-[#7b68ee] transition-colors">
+        <Link href="/inspections" className="text-ink-sub hover:text-brand transition-colors">
           <ChevronLeft className="size-5" />
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <ClipboardList className="size-4 text-[#7b68ee] shrink-0" />
-            <h1 className="text-xl font-bold text-[#090c1d] truncate">
+            <ClipboardList className="size-4 text-brand shrink-0" />
+            <h1 className="text-xl font-bold text-ink truncate">
               {customer?.customer_name ?? '—'}
             </h1>
-            <span className="text-sm text-[#514b81] shrink-0">{inspection.year}년 {inspection.sequence_num}차</span>
-            <span className="text-xs text-[#b0acd6] shrink-0 truncate">
+            <span className="text-sm text-ink-sub shrink-0">{inspection.year}년 {inspection.sequence_num}차</span>
+            <span className="text-xs text-ink-faint shrink-0 truncate">
               {employee ? `담당 ${employee.name}` : '담당 미배정'} · {inspection.inspection_start_date}
             </span>
           </div>
@@ -552,11 +552,11 @@ export default async function InspectionDetailPage({
       )}
 
       {/* 상시 쓰지 않는 도구는 접어 둔다 — 펼치면 작업대가 그만큼 줄어들 뿐 페이지는 스크롤하지 않는다(R6-9) */}
-      <details className="shrink-0 rounded-xl border border-[#e0ddf5] bg-white">
-        <summary className="cursor-pointer px-3 py-1.5 text-[11px] text-[#847ba8] hover:text-[#7b68ee]">
+      <details className="shrink-0 rounded-xl border border-brand-line-soft bg-surface">
+        <summary className="cursor-pointer px-3 py-1.5 text-[11px] text-ink-soft hover:text-brand">
           기타 도구{genHistory.length > 0 ? ' — 과거 엑셀 점검표' : ''}{canDelete ? ' · 점검 삭제' : ''}
         </summary>
-        <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-[#f3f1fc] p-3">
+        <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-brand-line-soft p-3">
           {/* 소방시설등점검표(엑셀) — **생성 폐지**(소방계획서_21 R5-6 / 소방계획서_7 D-9, 2026-08-13).
               별지 4호 PDF가 대체하고, R5-7 대조로 유실 0을 확인한 뒤 걷어냈다.
               과거 생성물 다운로드만 남는다(이력이 없으면 컴포넌트가 스스로 렌더하지 않는다) */}

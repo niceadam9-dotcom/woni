@@ -49,10 +49,10 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
         {REQUIRED_ROWS.map(({ label, desc }) => (
           <div key={label} className={rowCls}>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#090c1d] font-medium">{label}</p>
-              <p className="text-[11px] text-[#b0acd6]">{desc}</p>
+              <p className="text-sm text-ink font-medium">{label}</p>
+              <p className="text-[11px] text-ink-faint">{desc}</p>
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] text-[#8b87b8] bg-[#f5f4ff] px-2 py-1 rounded-full shrink-0">
+            <span className="inline-flex items-center gap-1 text-[11px] text-ink-soft bg-brand-tint px-2 py-1 rounded-full shrink-0">
               <Lock className="size-3" /> 항상 수신
             </span>
           </div>
@@ -60,8 +60,8 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
         {OPTIONAL_ROWS.map(({ key, label, desc }) => (
           <div key={key} className={rowCls}>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#090c1d] font-medium">{label}</p>
-              <p className="text-[11px] text-[#b0acd6]">{desc}</p>
+              <p className="text-sm text-ink font-medium">{label}</p>
+              <p className="text-[11px] text-ink-faint">{desc}</p>
             </div>
             <button
               type="button"
@@ -70,10 +70,10 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
               aria-label={label}
               onClick={() => toggle(key)}
               className={`relative w-10 h-5.5 rounded-full transition-colors shrink-0 ${
-                prefs[key] ? 'bg-[#7b68ee]' : 'bg-[#d0ccf5]'
+                prefs[key] ? 'bg-brand' : 'bg-[#d0ccf5]'
               }`}
             >
-              <span className={`absolute top-0.5 size-4.5 rounded-full bg-white shadow transition-all ${
+              <span className={`absolute top-0.5 size-4.5 rounded-full bg-surface shadow transition-all ${
                 prefs[key] ? 'left-[calc(100%-1.25rem)]' : 'left-0.5'
               }`} />
             </button>
@@ -90,7 +90,7 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
       <button
         onClick={handleSave}
         disabled={isPending}
-        className="mt-3 inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors disabled:opacity-50"
+        className="mt-3 inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors disabled:opacity-50"
       >
         {isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
         저장

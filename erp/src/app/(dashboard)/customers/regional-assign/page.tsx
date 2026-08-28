@@ -56,27 +56,27 @@ export default async function RegionalAssignPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Users2 className="size-6 text-[#7b68ee]" />
+        <Users2 className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">담당자 배정 · 재배정</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">
+          <h1 className="text-xl font-bold text-ink">담당자 배정 · 재배정</h1>
+          <p className="text-sm text-ink-sub mt-0.5">
             지역별 일괄 배정 또는 담당자별 조회로 담당 직원을 배정·교체·인수인계합니다
           </p>
         </div>
       </div>
 
       {customers.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-20 text-center space-y-3">
-          <MapPin className="size-10 mx-auto text-[#b0acd6]" />
+        <div className="bg-surface rounded-xl border border-line py-20 text-center space-y-3">
+          <MapPin className="size-10 mx-auto text-ink-faint" />
           {!hasRegionCols ? (
             <>
-              <p className="text-sm text-[#514b81]">지역 컬럼이 DB에 아직 적용되지 않았습니다</p>
-              <p className="text-xs text-[#b0acd6]">Supabase SQL Editor에서 <code className="bg-gray-100 px-1 rounded">018_region.sql</code> 마이그레이션을 실행해주세요</p>
+              <p className="text-sm text-ink-sub">지역 컬럼이 DB에 아직 적용되지 않았습니다</p>
+              <p className="text-xs text-ink-faint">Supabase SQL Editor에서 <code className="bg-gray-100 px-1 rounded">018_region.sql</code> 마이그레이션을 실행해주세요</p>
             </>
           ) : (
             <>
-              <p className="text-sm text-[#514b81]">지역 정보(시/군/구)가 등록된 고객이 없습니다</p>
-              <p className="text-xs text-[#b0acd6]">고객 등록 또는 편집 시 주소 검색을 통해 지역 정보를 입력하면 이 화면에서 일괄 배정이 가능합니다</p>
+              <p className="text-sm text-ink-sub">지역 정보(시/군/구)가 등록된 고객이 없습니다</p>
+              <p className="text-xs text-ink-faint">고객 등록 또는 편집 시 주소 검색을 통해 지역 정보를 입력하면 이 화면에서 일괄 배정이 가능합니다</p>
             </>
           )}
         </div>

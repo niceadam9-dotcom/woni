@@ -53,10 +53,10 @@ export default async function ActionPlanDetailPage({
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center gap-3">
-        <Link href="/action-plans" className="text-[#514b81] hover:text-[#7b68ee]">
+        <Link href="/action-plans" className="text-ink-sub hover:text-brand">
           <ChevronLeft className="size-5" />
         </Link>
-        <ClipboardList className="size-4 text-[#7b68ee]" />
+        <ClipboardList className="size-4 text-brand" />
         <h1 className="text-xl font-bold">이행계획서</h1>
       </div>
 

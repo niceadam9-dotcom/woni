@@ -34,6 +34,24 @@
   --radius-badge:  12px;
   --radius-pill:   54px;
 
+  /* ── 소방계획서_29 시맨틱 토큰 — 하드코딩 hex 6,167곳의 치환 대상(S2 코드모드) ──
+     ⚠ @theme inline은 값을 유틸리티에 인라인하므로, .dark 재정의가 먹히려면
+     여기서는 var() 간접 참조만 하고 실값은 :root/.dark에 둔다(--background 패턴과 동일).
+     light 값은 종전 hex 그대로 — 화이트 모드(현재)는 픽셀 단위로 불변이어야 한다(D-3). */
+  --color-brand:           var(--t-brand);
+  --color-brand-strong:    var(--t-brand-strong);
+  --color-brand-tint:      var(--t-brand-tint);
+  --color-brand-line:      var(--t-brand-line);
+  --color-brand-line-soft: var(--t-brand-line-soft);
+  --color-ink:             var(--t-ink);
+  --color-ink-strong:      var(--t-ink-strong);
+  --color-ink-sub:         var(--t-ink-sub);
+  --color-ink-soft:        var(--t-ink-soft);
+  --color-ink-faint:       var(--t-ink-faint);
+  --color-surface:         var(--t-surface);
+  --color-paper:           var(--t-paper);
+  --color-line:            var(--t-line);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -78,6 +96,21 @@
 }
 
 :root {
+  /* 소방계획서_29 토큰 실값 — light는 종전 hex 축자(화이트 모드 불변) */
+  --t-brand:           #7b68ee;
+  --t-brand-strong:    #6647f0;
+  --t-brand-tint:      #f5f4ff;
+  --t-brand-line:      #d0ccf5;
+  --t-brand-line-soft: #e0ddf5;
+  --t-ink:             #090c1d;
+  --t-ink-strong:      #292d34;
+  --t-ink-sub:         #514b81;
+  --t-ink-soft:        #847ba8;
+  --t-ink-faint:       #b0acd6;
+  --t-surface:         #ffffff;
+  --t-paper:           #f8f9fa;
+  --t-line:            #c8c4d0;
+
   /* White canvas — Design.md */
   --background: oklch(1 0 0);
   --foreground: oklch(0.09 0.02 275); /* ~#090c1d midnight ink */
@@ -116,6 +149,23 @@
 }
 
 .dark {
+  /* 소방계획서_29 다크 팔레트 — erp_goal/image-18.png 톤(딥 뉴트럴 + 보라 포인트).
+     본문 대비: ink #ededf0/surface #232327 ≈ 12:1 · ink-sub ≈ 7:1 (WCAG AA 4.5:1 충족).
+     ink-faint는 라이트(#b0acd6, ≈2.1:1)와 동급의 장식용 — AA 비대상. */
+  --t-brand:           #8f7df2;
+  --t-brand-strong:    #7f6cf5;
+  --t-brand-tint:      #2a2542;
+  --t-brand-line:      #4a4460;
+  --t-brand-line-soft: #3a3654;
+  --t-ink:             #ededf0;
+  --t-ink-strong:      #d8d8de;
+  --t-ink-sub:         #a8a5c0;
+  --t-ink-soft:        #8c88a8;
+  --t-ink-faint:       #6e6a8a;
+  --t-surface:         #232327;
+  --t-paper:           #1b1b1e;
+  --t-line:            #3a3a42;
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -147,6 +197,73 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* ── 상태색 다크 재정의 (소방계획서_29 S3-2, D-8) ──
+     Tailwind v4는 `bg-red-50`이 var(--color-red-50)을 참조하므로 **여기서 값만 바꾸면
+     컴포넌트 2,391곳이 무수정으로 따라온다.** 라이트에서 연한 틴트(50~200)였던 것이
+     다크에서는 그대로 두면 흰 덩어리가 되고, 진한 글자색(600~700)은 어두워 안 읽힌다.
+     규칙: 배경 틴트 50~200은 **저휘도 불투명값**으로 낮추고(투명도는 겹침 표면에서 색이 섞인다),
+     텍스트 400~700은 다크 배경 대비를 위해 **밝은 쪽으로** 올린다. 실사용 계조만 정의한다. */
+  --color-red-50:  #2d1618;  --color-red-100: #3a1b1e;  --color-red-200: #4d2226;
+  --color-red-300: #7f3b40;  --color-red-400: #e8767c;  --color-red-500: #f2707a;
+  --color-red-600: #f2848c;  --color-red-700: #f0a0a6;  --color-red-800: #f5c2c6;
+
+  --color-amber-50:  #2b2110;  --color-amber-100: #382a12;  --color-amber-200: #4a3717;
+  --color-amber-300: #7a5c25;  --color-amber-400: #e0a63c;  --color-amber-500: #e5ab41;
+  --color-amber-600: #f0bc5c;  --color-amber-700: #f5cd82;  --color-amber-800: #f7dca8;
+
+  --color-yellow-50:  #2b2410;  --color-yellow-100: #3a3016;  --color-yellow-200: #4d4019;
+  --color-yellow-600: #e8c14a;  --color-yellow-700: #f0d071;  --color-yellow-800: #f5de9c;
+
+  --color-orange-50:  #2d1e12;  --color-orange-100: #3a2617;  --color-orange-200: #4d321c;
+  --color-orange-500: #f09250;  --color-orange-600: #f2a066;  --color-orange-700: #f5b585;
+
+  --color-green-50:  #14271a;  --color-green-100: #17301e;  --color-green-200: #1e3f27;
+  --color-green-300: #356b44;  --color-green-400: #5fbf7d;  --color-green-500: #63c483;
+  --color-green-600: #6fd18f;  --color-green-700: #8dddaa;  --color-green-800: #b0e8c4;
+
+  --color-emerald-50: #12271f; --color-emerald-100: #163024; --color-emerald-200: #1c3f2e;
+  --color-emerald-600: #5fcfa0; --color-emerald-700: #85dcb6;
+
+  --color-teal-50: #12262a; --color-teal-100: #163036; --color-teal-600: #5cccc9; --color-teal-700: #85dbd8;
+  --color-cyan-50: #122730; --color-cyan-100: #16313a; --color-cyan-600: #5cc4dd; --color-cyan-700: #85d4e8;
+  --color-lime-50: #202a12; --color-lime-100: #283416; --color-lime-600: #a9d152; --color-lime-700: #c0de7f;
+
+  --color-blue-50:  #16233a;  --color-blue-100: #1a2b47;  --color-blue-200: #22375c;
+  --color-blue-300: #3a5a91;  --color-blue-400: #6fa3f0;  --color-blue-500: #74a8f2;
+  --color-blue-600: #85b3f5;  --color-blue-700: #a5c8f7;  --color-blue-800: #c4dbfa;
+
+  --color-sky-50: #142634; --color-sky-100: #18303f; --color-sky-600: #6bb8e8; --color-sky-700: #93cdf0;
+
+  --color-indigo-50: #1c1f3d; --color-indigo-100: #22264a; --color-indigo-200: #2c3160;
+  --color-indigo-600: #9098f5; --color-indigo-700: #adb3f7;
+
+  --color-violet-50: #221a3d; --color-violet-100: #29204a; --color-violet-200: #342a60;
+  --color-violet-600: #a893f5; --color-violet-700: #bfaef7;
+  --color-purple-50: #251a3a; --color-purple-100: #2d2047; --color-purple-200: #392a5c;
+  --color-purple-600: #b28ef2; --color-purple-700: #c6acf5;
+
+  --color-pink-50: #2d1626; --color-pink-100: #3a1c2f; --color-pink-600: #f085b8; --color-pink-700: #f5a5cb;
+  --color-rose-50: #2d1620; --color-rose-100: #3a1b28; --color-rose-600: #f0839f; --color-rose-700: #f5a5b9;
+
+  /* 중립(gray/slate/zinc/neutral/stone) — 표면·경계·보조 텍스트 계열은 우리 토큰(surface/line/ink-*)과
+     톤을 맞춘다. 라이트 화면에서 gray-50/100은 옅은 면, 400~600은 보조 글자였다. */
+  --color-gray-50:  #26262b;  --color-gray-100: #2b2b31;  --color-gray-200: #33333a;
+  --color-gray-300: #3f3f47;  --color-gray-400: #8c8c99;  --color-gray-500: #9c9caa;
+  --color-gray-600: #b4b4c0;  --color-gray-700: #c9c9d2;  --color-gray-800: #dcdce2;  --color-gray-900: #ededf0;
+  --color-slate-50: #26262b;  --color-slate-100: #2b2b31; --color-slate-200: #33333a;
+  --color-slate-400: #8c8c99; --color-slate-500: #9c9caa; --color-slate-600: #b4b4c0; --color-slate-700: #c9c9d2;
+  --color-zinc-50: #26262b;   --color-zinc-100: #2b2b31;  --color-zinc-200: #33333a;
+  --color-zinc-500: #9c9caa;  --color-zinc-600: #b4b4c0;  --color-zinc-700: #c9c9d2;
+  --color-neutral-50: #26262b; --color-neutral-100: #2b2b31; --color-neutral-200: #33333a;
+  --color-neutral-500: #9c9caa; --color-neutral-600: #b4b4c0; --color-neutral-700: #c9c9d2;
+  --color-stone-50: #26262b;  --color-stone-100: #2b2b31;  --color-stone-200: #33333a;
+  --color-stone-500: #9c9caa; --color-stone-600: #b4b4c0;  --color-stone-700: #c9c9d2;
+
+  /* 그림자 — 라이트의 검은 그림자는 다크 배경에서 소실된다. 알파를 올려 깊이를 되살린다 */
+  --shadow-subtle:   rgba(0,0,0,0.5) 0px 1px 3px 0px, rgba(0,0,0,0.4) 0px 1px 2px -1px;
+  --shadow-subtle-2: rgba(0,0,0,0.35) 0px 1px 1px -0.5px, rgba(0,0,0,0.35) 0px 3px 3px -1.5px, rgba(0,0,0,0.35) 0px 6px 6px -3px, rgba(0,0,0,0.35) 0px 12px 12px -6px;
+  --shadow-sm:       rgba(0,0,0,0.35) 0px 4px 4px 0px;
 }
 
 @layer base {
@@ -166,20 +283,80 @@
 }
 
 @layer components {
-  /* Primary CTA — carbon black per Design.md */
+  /* Primary CTA — carbon black per Design.md.
+     카본은 테마 불변(소방계획서_29 D-7 화이트리스트) — 다크에서도 어두운 버튼 + 흰 글자 유지 */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-1.5 px-[18px] py-[9px] rounded-[9px] bg-[#202023] hover:bg-[#292d34] text-white text-sm font-semibold transition-colors shadow-[rgba(13,21,48,0.04)_0px_4px_4px_0px] disabled:opacity-50;
   }
   /* Violet CTA — brand-tied actions only */
   .btn-violet {
-    @apply inline-flex items-center justify-center gap-1.5 px-[18px] py-[9px] rounded-[9px] bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-semibold transition-colors shadow-[rgba(13,21,48,0.04)_0px_4px_4px_0px] disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 px-[18px] py-[9px] rounded-[9px] bg-brand hover:bg-brand-strong text-white text-sm font-semibold transition-colors shadow-[rgba(13,21,48,0.04)_0px_4px_4px_0px] disabled:opacity-50;
   }
   /* Ghost button */
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 px-[18px] py-[9px] rounded-[9px] border border-[#c8c4d0] bg-transparent text-[#292d34] hover:bg-[#f8f9fa] text-sm font-medium transition-colors;
+    @apply inline-flex items-center justify-center gap-1.5 px-[18px] py-[9px] rounded-[9px] border border-line bg-transparent text-ink-strong hover:bg-paper text-sm font-medium transition-colors;
   }
   /* Standard card */
   .card-surface {
-    @apply bg-white rounded-[12px] border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px];
+    @apply bg-surface rounded-[12px] border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px];
   }
 }
+
+/* ── react-big-calendar 공용 스킨 (소방계획서_29 S3-4) ──
+   종전에는 leave-calendar.tsx와 inspection-calendar-client.tsx가 **거의 같은 규칙 뭉치를
+   각자 <style> 태그로** 들고 있었다(라이트 hex 하드코딩). 클래스 코드모드가 닿지 않는 축이라
+   다크에서 달력만 흰 판으로 남는다. 규칙을 여기 한 곳으로 모으고 값은 토큰 var()로 쓴다 —
+   .dark 재정의가 그대로 따라오고, 두 화면의 중복도 사라진다.
+   화면 고유 규칙(빈 주 압축 등)은 각 컴포넌트에 남긴다.
+
+   ⚠ **클래스를 두 번 겹쳐 쓴 것은 의도다**(`.rbc-today.rbc-today`).
+   라이브러리 CSS(`react-big-calendar/lib/css/react-big-calendar.css`)는 두 컴포넌트에서
+   import되어 **globals.css보다 나중에 주입**된다. 명시도가 같으면 나중 것이 이기므로
+   여기 규칙이 조용히 진다 — 실측으로 `.rbc-day-bg`가 라이브러리 회색(#e6e6e6),
+   `.rbc-today`가 하늘색(#eaf6ff)으로 남아 다크에서 달력만 흰 판이었다.
+   종전 `<style>` 태그는 DOM 렌더 시점 주입이라 우연히 이기고 있었을 뿐이다.
+   클래스 중복은 명시도만 (0,2,0)으로 올리고 대상은 그대로라, 주입 순서에 의존하지 않는다. */
+.rbc-calendar.rbc-calendar { font-family: inherit; }
+.rbc-header.rbc-header {
+  background: var(--t-paper); border-color: var(--t-line);
+  padding: 8px 4px; font-size: 12px; font-weight: 600; color: var(--t-ink-sub);
+}
+.rbc-header.rbc-header:nth-child(1) { color: var(--color-red-600); }   /* 일 — 일요일 시작 */
+.rbc-header.rbc-header:nth-child(7) { color: var(--color-blue-600); }  /* 토 */
+.rbc-day-bg.rbc-day-bg { background: var(--t-surface); border-color: var(--t-line); }
+.rbc-month-view.rbc-month-view, .rbc-time-view.rbc-time-view, .rbc-agenda-view.rbc-agenda-view {
+  background: var(--t-surface); border-color: var(--t-line);
+}
+.rbc-month-row.rbc-month-row, .rbc-time-content.rbc-time-content,
+.rbc-time-header-content.rbc-time-header-content, .rbc-header + .rbc-header { border-color: var(--t-line); }
+.rbc-today.rbc-today { background: var(--t-brand-tint); }
+.rbc-off-range-bg.rbc-off-range-bg { background: var(--t-paper); }
+.rbc-off-range.rbc-off-range { color: var(--t-ink-faint); }
+.rbc-event.rbc-event { border-radius: 6px; border: none; padding: 2px 6px; font-size: 11px; }
+.rbc-event.rbc-event:focus { outline: none; }
+.rbc-show-more.rbc-show-more { color: var(--t-brand); font-size: 11px; background: transparent; }
+.rbc-overlay.rbc-overlay {
+  background: var(--t-surface); border: 1px solid var(--t-brand-line);
+  border-radius: 12px; box-shadow: var(--shadow-subtle-2); padding: 8px;
+}
+.rbc-overlay-header.rbc-overlay-header {
+  border-bottom: 1px solid var(--t-brand-line-soft); font-size: 12px; font-weight: 600;
+  color: var(--t-ink-sub); padding: 4px 6px 8px; margin: -2px -2px 6px;
+}
+.rbc-overlay .rbc-event.rbc-event { font-size: 11px; border-radius: 5px; padding: 2px 6px; margin-bottom: 3px; }
+.rbc-toolbar.rbc-toolbar { color: var(--t-ink); }
+.rbc-toolbar button.rbc-toolbar-button, .rbc-toolbar.rbc-toolbar button {
+  color: var(--t-ink-sub); border-color: var(--t-line); border-radius: 8px; font-size: 13px; background: transparent;
+}
+.rbc-toolbar.rbc-toolbar button:hover { background: var(--t-brand-tint); color: var(--t-brand); }
+.rbc-toolbar.rbc-toolbar button.rbc-active { background: var(--t-brand); color: #fff; border-color: var(--t-brand); }
+.rbc-toolbar.rbc-toolbar button.rbc-active:hover { background: var(--t-brand-strong); color: #fff; }
+.rbc-date-cell.rbc-date-cell { padding: 4px 6px; font-size: 12px; color: var(--t-ink-strong); }
+.rbc-date-cell.rbc-now.rbc-now { font-weight: 700; color: var(--t-brand); }
+.rbc-button-link.rbc-button-link { color: inherit; }
+.rbc-agenda-date-cell.rbc-agenda-date-cell, .rbc-agenda-time-cell.rbc-agenda-time-cell,
+.rbc-agenda-event-cell.rbc-agenda-event-cell {
+  font-size: 12px; padding: 6px 8px; border-color: var(--t-brand-line-soft); color: var(--t-ink);
+}
+.rbc-agenda-table.rbc-agenda-table, .rbc-agenda-content.rbc-agenda-content { border-color: var(--t-line); }
+.rbc-agenda-empty.rbc-agenda-empty { color: var(--t-ink-faint); }

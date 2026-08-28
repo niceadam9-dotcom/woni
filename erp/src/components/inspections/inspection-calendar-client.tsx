@@ -108,8 +108,8 @@ function PanelMoveButton({ scheduledDate, moving, onPick, label, disabled = fals
           else { p.focus(); p.click() }
         }}
         className={label
-          ? 'h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1'
-          : 'p-1 rounded text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50'}
+          ? 'h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1'
+          : 'p-1 rounded text-ink-faint hover:bg-brand-tint hover:text-brand transition-colors disabled:opacity-50'}
       >
         {moving ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarDays className="size-3.5" />}
         {label}
@@ -173,7 +173,7 @@ const COLORS = [
 ]
 
 const TYPE_COLORS: Record<InspectionType, string> = {
-  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '종합':   'bg-brand-tint text-brand',
   '작동':   'bg-blue-50 text-blue-600',
   '일반관리': 'bg-gray-100 text-gray-600',
 }
@@ -1057,41 +1057,41 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       <div className="flex items-center gap-3">
         <button
           onClick={() => onNavigate('TODAY')}
-          className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs font-medium text-[#514b81] bg-white hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors"
+          className="h-8 px-3 rounded-lg border border-line text-xs font-medium text-ink-sub bg-surface hover:bg-brand-tint hover:text-brand transition-colors"
         >
           오늘
         </button>
         {/* 이번달 요약 — 모니터링 안 가도 현황 파악 */}
-        <span className="text-[11px] text-[#514b81] hidden sm:flex items-center gap-2">
-          이번달 <b className="text-[#090c1d]">{monthStats.total}건</b>
+        <span className="text-[11px] text-ink-sub hidden sm:flex items-center gap-2">
+          이번달 <b className="text-ink">{monthStats.total}건</b>
           <span className="text-green-600">완료 {monthStats.done}</span>
-          <span className={monthStats.overdue > 0 ? 'text-red-600 font-semibold' : 'text-[#b0acd6]'}>지연 {monthStats.overdue}</span>
+          <span className={monthStats.overdue > 0 ? 'text-red-600 font-semibold' : 'text-ink-faint'}>지연 {monthStats.overdue}</span>
         </span>
       </div>
-      <div className="flex items-center gap-0.5 bg-white border border-[#c8c4d0] rounded-lg px-1 py-1 shadow-sm">
+      <div className="flex items-center gap-0.5 bg-surface border border-line rounded-lg px-1 py-1 shadow-sm">
         <button
           onClick={() => onNavigate('PREV')}
-          className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+          className="p-1 hover:bg-brand-tint rounded transition-colors"
           title="이전"
         >
-          <ChevronLeft className="size-4 text-[#514b81]" />
+          <ChevronLeft className="size-4 text-ink-sub" />
         </button>
-        <span className="text-sm font-semibold text-[#090c1d] min-w-[88px] text-center px-1">{label}</span>
+        <span className="text-sm font-semibold text-ink min-w-[88px] text-center px-1">{label}</span>
         <button
           onClick={() => onNavigate('NEXT')}
-          className="p-1 hover:bg-[#f5f4ff] rounded transition-colors"
+          className="p-1 hover:bg-brand-tint rounded transition-colors"
           title="다음"
         >
-          <ChevronRight className="size-4 text-[#514b81]" />
+          <ChevronRight className="size-4 text-ink-sub" />
         </button>
       </div>
-      <div className="flex items-center bg-[#f5f4ff] rounded-lg p-0.5">
+      <div className="flex items-center bg-brand-tint rounded-lg p-0.5">
         {([['month', '월'], ['week', '주'], ['agenda', '목록']] as const).map(([v, l]) => (
           <button
             key={v}
             onClick={() => setCalView(v as View)}
             className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-              calView === v ? 'bg-white text-[#7b68ee] shadow-sm' : 'text-[#514b81] hover:text-[#7b68ee]'
+              calView === v ? 'bg-surface text-brand shadow-sm' : 'text-ink-sub hover:text-brand'
             }`}
           >
             {l}
@@ -1109,7 +1109,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       {/* 페이지 타이틀은 글로벌 바 브레드크럼으로 이동 (2026-07-14 A안) — 본문은 툴바부터 시작 */}
       {/* ── 툴바: 모드 탭 | 퀵필터 | 필터·범례 팝오버 (사이드바 통합 — 달력 중심 1차, 2026-07-14) ── */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1 bg-white border border-[#c8c4d0] rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-1 bg-surface border border-line rounded-lg p-1 w-fit">
           {([
             { key: 'all',     label: '전체' },
             { key: 'comp',    label: '종합' },
@@ -1121,7 +1121,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               key={key}
               onClick={() => setCalMode(key)}
               className={`h-8 px-4 rounded-md text-sm font-medium transition-colors ${
-                calMode === key ? 'bg-[#7b68ee] text-white' : 'text-[#514b81] hover:bg-[#f5f4ff]'
+                calMode === key ? 'bg-brand text-white' : 'text-ink-sub hover:bg-brand-tint'
               }`}
             >
               {label}
@@ -1129,7 +1129,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           ))}
         </div>
         {([
-          { key: 'all',     label: '전체',      color: 'text-[#7b68ee] bg-[#f5f4ff] border-[#c3bdf5]' },
+          { key: 'all',     label: '전체',      color: 'text-brand bg-brand-tint border-brand-line' },
           { key: 'today',   label: '오늘 마감', color: 'text-red-600 bg-red-50 border-red-200' },
           { key: 'week',    label: '이번 주',   color: 'text-amber-600 bg-amber-50 border-amber-200' },
           { key: 'overdue', label: '지연',      color: 'text-gray-500 bg-gray-100 border-gray-200' },
@@ -1137,7 +1137,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           <button
             key={key}
             onClick={() => setQuickFilter(key)}
-            className={`h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${quickFilter === key ? color : 'border-[#c8c4d0] text-[#514b81] bg-white hover:bg-[#f8f9fa]'}`}
+            className={`h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${quickFilter === key ? color : 'border-line text-ink-sub bg-surface hover:bg-paper'}`}
           >
             {label}
           </button>
@@ -1152,7 +1152,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 setSmsSource({ kind: 'range', from: t, to: t, title: '내일 방문 — 사전 안내' })
               }}
               title="내일 방문하는 고객에게 사전 안내 문자를 보냅니다"
-              className="h-8 px-3 rounded-lg border border-[#c8c4d0] bg-white text-xs font-medium text-[#514b81] hover:bg-[#f8f9fa] flex items-center gap-1.5 transition-colors"
+              className="h-8 px-3 rounded-lg border border-line bg-surface text-xs font-medium text-ink-sub hover:bg-paper flex items-center gap-1.5 transition-colors"
             >
               <MessageSquare className="size-3.5" /> 사전안내 문자
             </button>
@@ -1168,27 +1168,27 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           <div ref={filterRef} className="relative">
             <button
               onClick={() => setFilterOpen(v => !v)}
-              className={`h-8 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${filterOpen || activeFilterCount > 0 ? 'border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#c8c4d0] bg-white text-[#514b81] hover:bg-[#f8f9fa]'}`}
+              className={`h-8 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${filterOpen || activeFilterCount > 0 ? 'border-brand-line bg-brand-tint text-brand' : 'border-line bg-surface text-ink-sub hover:bg-paper'}`}
             >
               <SlidersHorizontal className="size-3.5" />
               필터
               {activeFilterCount > 0 && (
-                <span className="min-w-4 h-4 px-1 rounded-full bg-[#7b68ee] text-white text-[10px] font-semibold flex items-center justify-center">{activeFilterCount}</span>
+                <span className="min-w-4 h-4 px-1 rounded-full bg-brand text-white text-[10px] font-semibold flex items-center justify-center">{activeFilterCount}</span>
               )}
             </button>
             {filterOpen && (
-            <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-xl border border-[#d0ccf5] shadow-[0_8px_24px_rgba(18,43,165,0.14)] z-30 overflow-hidden select-none">
+            <div className="absolute right-0 top-full mt-1 w-64 bg-surface rounded-xl border border-brand-line shadow-[0_8px_24px_rgba(18,43,165,0.14)] z-30 overflow-hidden select-none">
             <div className="max-h-[70vh] overflow-y-auto">
 
           {/* 보기 토글 */}
-          <div className="px-4 pt-4 pb-3 border-b border-[#e0ddf5]">
-            <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">보기</p>
+          <div className="px-4 pt-4 pb-3 border-b border-brand-line-soft">
+            <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">보기</p>
             <div className="space-y-1">
               {(['employee', 'customer'] as const).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors text-left ${viewMode === mode ? 'bg-[#f5f4ff] text-[#7b68ee] font-semibold' : 'text-[#514b81] hover:bg-[#f8f9fa]'}`}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors text-left ${viewMode === mode ? 'bg-brand-tint text-brand font-semibold' : 'text-ink-sub hover:bg-paper'}`}
                 >
                   {mode === 'employee'
                     ? <><Users className="size-3.5 shrink-0" />담당자 뷰</>
@@ -1200,24 +1200,24 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           {/* 직원 목록 (담당자 뷰) — B안: 전 직원 표시 (일반직원은 본인만 기본 체크) */}
           {viewMode === 'employee' && (
-            <div className="px-4 py-3 border-b border-[#e0ddf5]">
+            <div className="px-4 py-3 border-b border-brand-line-soft">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider">직원</p>
+                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">직원</p>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => setSelectedEmployeeIds(new Set(employees.map(e => e.id)))}
-                    className="text-[10px] text-[#7b68ee] hover:underline"
+                    className="text-[10px] text-brand hover:underline"
                   >전체</button>
-                  <span className="text-[#b0acd6]">·</span>
+                  <span className="text-ink-faint">·</span>
                   <button
                     onClick={() => setSelectedEmployeeIds(new Set())}
-                    className="text-[10px] text-[#b0acd6] hover:text-[#514b81]"
+                    className="text-[10px] text-ink-faint hover:text-ink-sub"
                   >해제</button>
                 </div>
               </div>
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {employees.map(emp => (
-                  <label key={emp.id} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
+                  <label key={emp.id} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-paper cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedEmployeeIds.has(emp.id)}
@@ -1228,11 +1228,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       className="size-3 rounded-full shrink-0"
                       style={{ backgroundColor: getColor(emp.id) }}
                     />
-                    <span className={`text-xs flex-1 truncate ${selectedEmployeeIds.has(emp.id) ? 'text-[#090c1d]' : 'text-[#b0acd6] line-through'}`}>
+                    <span className={`text-xs flex-1 truncate ${selectedEmployeeIds.has(emp.id) ? 'text-ink' : 'text-ink-faint line-through'}`}>
                       {emp.name}
                     </span>
                     {selectedEmployeeIds.has(emp.id)
-                      ? <Check className="size-3 text-[#7b68ee] shrink-0" />
+                      ? <Check className="size-3 text-brand shrink-0" />
                       : <span className="size-3 shrink-0" />}
                   </label>
                 ))}
@@ -1242,30 +1242,30 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           {/* 고객 목록 (고객 뷰) */}
           {viewMode === 'customer' && (
-            <div className="px-4 py-3 border-b border-[#e0ddf5]">
+            <div className="px-4 py-3 border-b border-brand-line-soft">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider">고객</p>
+                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">고객</p>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => setSelectedCustomerIds(new Set(uniqueCustomers.map(c => c.id)))}
-                    className="text-[10px] text-[#7b68ee] hover:underline"
+                    className="text-[10px] text-brand hover:underline"
                   >전체</button>
-                  <span className="text-[#b0acd6]">·</span>
+                  <span className="text-ink-faint">·</span>
                   <button
                     onClick={() => setSelectedCustomerIds(new Set())}
-                    className="text-[10px] text-[#b0acd6] hover:text-[#514b81]"
+                    className="text-[10px] text-ink-faint hover:text-ink-sub"
                   >해제</button>
                 </div>
               </div>
               {/* 검색 입력은 툴바 하나로 통일 — 여기 있던 입력은 이 목록만 걸러서 달력이 안 바뀌었다 */}
               {custQuery && (
-                <p className="text-[10px] text-[#7b68ee] mb-2">
+                <p className="text-[10px] text-brand mb-2">
                   &lsquo;{custQuery}&rsquo; 검색 중 — 목록도 함께 좁혀졌습니다.
                 </p>
               )}
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {filteredCustomerList.map(cust => (
-                  <label key={cust.id} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
+                  <label key={cust.id} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-paper cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedCustomerIds.has(cust.id)}
@@ -1276,16 +1276,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       className="size-3 rounded-full shrink-0"
                       style={{ backgroundColor: getColor(cust.id) }}
                     />
-                    <span className={`text-xs flex-1 truncate ${selectedCustomerIds.has(cust.id) ? 'text-[#090c1d]' : 'text-[#b0acd6] line-through'}`}>
+                    <span className={`text-xs flex-1 truncate ${selectedCustomerIds.has(cust.id) ? 'text-ink' : 'text-ink-faint line-through'}`}>
                       {cust.name}
                     </span>
                     {selectedCustomerIds.has(cust.id)
-                      ? <Check className="size-3 text-[#7b68ee] shrink-0" />
+                      ? <Check className="size-3 text-brand shrink-0" />
                       : <span className="size-3 shrink-0" />}
                   </label>
                 ))}
                 {filteredCustomerList.length === 0 && (
-                  <p className="text-xs text-[#b0acd6] text-center py-2">결과 없음</p>
+                  <p className="text-xs text-ink-faint text-center py-2">결과 없음</p>
                 )}
               </div>
             </div>
@@ -1293,16 +1293,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           {/* 점검유형 필터 — 전체 탭에서만 (종합/작동/정기/일반 탭은 자체가 유형 필터) */}
           {calMode === 'all' && (
-          <div className="px-4 py-3 border-b border-[#e0ddf5]">
-            <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">점검유형</p>
+          <div className="px-4 py-3 border-b border-brand-line-soft">
+            <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">점검유형</p>
             <div className="space-y-1">
               {(['종합', '작동', '일반관리'] as InspectionType[]).map(type => (
-                <label key={type} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
+                <label key={type} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-paper cursor-pointer">
                   <input type="checkbox" checked={typeFilters.has(type)} onChange={() => toggleType(type)} className="sr-only" />
-                  <span className={`size-3.5 rounded border flex items-center justify-center transition-colors ${typeFilters.has(type) ? 'bg-[#7b68ee] border-[#7b68ee]' : 'border-[#c3bdf5]'}`}>
+                  <span className={`size-3.5 rounded border flex items-center justify-center transition-colors ${typeFilters.has(type) ? 'bg-brand border-brand' : 'border-brand-line'}`}>
                     {typeFilters.has(type) && <Check className="size-2.5 text-white" />}
                   </span>
-                  <span className="text-xs text-[#090c1d]">{inspectionTypeLabel(type)}</span>
+                  <span className="text-xs text-ink">{inspectionTypeLabel(type)}</span>
                 </label>
               ))}
             </div>
@@ -1311,16 +1311,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           {/* 상태 필터 */}
           <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">상태</p>
+            <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">상태</p>
             <div className="space-y-1">
               {[
-                { key: 'incomplete', label: '미완료', color: 'text-[#090c1d]' },
+                { key: 'incomplete', label: '미완료', color: 'text-ink' },
                 { key: 'completed',  label: '완료',   color: 'text-green-700' },
                 { key: 'overdue',    label: '기한초과', color: 'text-red-600' },
               ].map(({ key, label, color }) => (
-                <label key={key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#f8f9fa] cursor-pointer">
+                <label key={key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-paper cursor-pointer">
                   <input type="checkbox" checked={statusFilters.has(key)} onChange={() => toggleStatus(key)} className="sr-only" />
-                  <span className={`size-3.5 rounded border flex items-center justify-center transition-colors ${statusFilters.has(key) ? 'bg-[#7b68ee] border-[#7b68ee]' : 'border-[#c3bdf5]'}`}>
+                  <span className={`size-3.5 rounded border flex items-center justify-center transition-colors ${statusFilters.has(key) ? 'bg-brand border-brand' : 'border-brand-line'}`}>
                     {statusFilters.has(key) && <Check className="size-2.5 text-white" />}
                   </span>
                   <span className={`text-xs ${color}`}>{label}</span>
@@ -1337,27 +1337,27 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             <button
               onClick={() => setLegendOpen(v => !v)}
               title="색상 범례"
-              className="h-8 w-8 rounded-lg border border-[#c8c4d0] bg-white text-[#514b81] hover:bg-[#f8f9fa] flex items-center justify-center transition-colors"
+              className="h-8 w-8 rounded-lg border border-line bg-surface text-ink-sub hover:bg-paper flex items-center justify-center transition-colors"
             >
               <Info className="size-4" />
             </button>
             {legendOpen && (
-              <div className="absolute right-0 top-full mt-1 w-60 bg-white rounded-xl border border-[#d0ccf5] shadow-[0_8px_24px_rgba(18,43,165,0.14)] z-30 p-3 space-y-1.5 text-[11px] text-[#514b81]">
-                <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider">칩 배경 = 점검유형</p>
+              <div className="absolute right-0 top-full mt-1 w-60 bg-surface rounded-xl border border-brand-line shadow-[0_8px_24px_rgba(18,43,165,0.14)] z-30 p-3 space-y-1.5 text-[11px] text-ink-sub">
+                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">칩 배경 = 점검유형</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: '#f0edff' }} />종합</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: '#e8f2fe' }} />작동</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: '#e6f6fd' }} />일반관리</p>
-                <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider pt-1.5">좌측 바 = 마감 긴급도</p>
+                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider pt-1.5">좌측 바 = 마감 긴급도</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-green-500" />여유 (3일 이상)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-orange-500" />1~2일</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-red-500" />D-Day</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-[#b91c1c]" />지연 (연빨강 배경 + ⚠)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-gray-300" />완료 (흐림 + ✓)</p>
-                <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider pt-1.5">계획 일정 (일별 집계)</p>
+                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider pt-1.5">계획 일정 (일별 집계)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기 N건</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반 N건</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#b91c1c]" />⚠N = 지연 포함</p>
-                <p className="text-[10px] text-[#b0acd6] pt-1">담당자 뷰에서는 칩 앞 색 도트가 담당 직원(필터의 직원 색과 동일)입니다. 집계 칩·날짜 숫자를 클릭하면 그날 전체 일정이 열립니다.</p>
+                <p className="text-[10px] text-ink-faint pt-1">담당자 뷰에서는 칩 앞 색 도트가 담당 직원(필터의 직원 색과 동일)입니다. 집계 칩·날짜 숫자를 클릭하면 그날 전체 일정이 열립니다.</p>
               </div>
             )}
           </div>
@@ -1368,16 +1368,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       <div className="space-y-3">
           {/* 검색 중 안내 — 빈 달력이 '일정 없음'으로 보이는 오해를 막고, 해제 수단을 그 자리에 둔다 */}
           {custQuery && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] text-xs text-[#514b81]">
-              <Search className="size-3.5 text-[#7b68ee] shrink-0" />
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-tint border border-brand-line text-xs text-ink-sub">
+              <Search className="size-3.5 text-brand shrink-0" />
               <span>
-                &lsquo;<b className="text-[#090c1d]">{custQuery}</b>&rsquo; 검색 중 — 이 고객의 일정만 표시됩니다.
+                &lsquo;<b className="text-ink">{custQuery}</b>&rsquo; 검색 중 — 이 고객의 일정만 표시됩니다.
                 {events.length + planEvents.length === 0 && ' 이 달에는 해당 일정이 없습니다.'}
               </span>
               <button
                 onClick={() => setCustomerSearch('')}
                 data-testid="cal-clear-search"
-                className="ml-auto shrink-0 underline hover:text-[#7b68ee]"
+                className="ml-auto shrink-0 underline hover:text-brand"
               >
                 검색 해제
               </button>
@@ -1415,7 +1415,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+          <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
           {/* 공휴일 클릭 안내 배너 */}
           {holidayInfo && (
             <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
@@ -1429,30 +1429,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </button>
             </div>
           )}
+          {/* rbc 공용 스킨은 globals.css 한 곳(소방계획서_29 S3-4). 여기 남긴 것은 **이 화면 고유 규칙**뿐 —
+              이벤트 밀도(!important로 공용값 덮기)와 빈 주 압축이다. */}
           <style>{`
-            .rbc-calendar { font-family: inherit; }
-            .rbc-header { background:#f8f9fa; border-color:#c8c4d0; padding:8px 4px; font-size:12px; font-weight:600; color:#514b81; }
-            .rbc-header:nth-child(1) { color:#dc2626; } /* 일 — 일요일 시작 */
-            .rbc-header:nth-child(7) { color:#2563eb; } /* 토 */
-            .rbc-day-bg { border-color:#c8c4d0; }
-            .rbc-month-view,.rbc-time-view,.rbc-agenda-view { border-color:#c8c4d0; }
-            .rbc-today { background:#f5f4ff; }
-            .rbc-off-range-bg { background:#fafafa; }
             .rbc-event { border-radius:5px !important; padding:1px 5px !important; font-size:11px !important; cursor:pointer; }
-            .rbc-event:focus { outline:none; }
             /* 빈 주 압축 — 일정 없는 주는 최소 높이로 (:has 미지원 브라우저는 균등 높이 유지) */
             .rbc-month-row:not(:has(.rbc-event)) { flex: 0 0 88px; }
-            .rbc-show-more { color:#7b68ee; font-size:11px; }
-            .rbc-toolbar button { color:#514b81; border-color:#c8c4d0; border-radius:8px; font-size:13px; }
-            .rbc-toolbar button:hover { background:#f5f4ff; color:#7b68ee; }
-            .rbc-toolbar button.rbc-active { background:#7b68ee; color:white; border-color:#7b68ee; }
-            .rbc-toolbar button.rbc-active:hover { background:#6647f0; }
-            .rbc-date-cell { padding:4px 6px; font-size:12px; color:#292d34; }
-            .rbc-date-cell.rbc-now { font-weight:700; color:#7b68ee; }
-            .rbc-agenda-date-cell,.rbc-agenda-time-cell,.rbc-agenda-event-cell { font-size:12px; padding:6px 8px; border-color:#e0ddf5; }
-            .rbc-overlay { border:1px solid #d0ccf5; border-radius:12px; box-shadow:0 8px 24px rgba(18,43,165,0.14); padding:8px; }
-            .rbc-overlay-header { border-bottom:1px solid #e0ddf5; font-size:12px; font-weight:600; color:#514b81; padding:4px 6px 8px; margin:-2px -2px 6px; }
-            .rbc-overlay .rbc-event { font-size:11px; border-radius:5px; padding:2px 6px; margin-bottom:3px; cursor:pointer; }
+            .rbc-overlay .rbc-event { cursor:pointer; }
           `}</style>
           {calView === 'week' ? (() => {
             // 주간 카드 뷰 — 시간축 대신 요일별 일정 카드 (날짜 단위 점검 업무에 맞춤, 3차 2026-07-14)
@@ -1476,21 +1459,21 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     return (
                       <div
                         key={iso}
-                        className={`rounded-xl border flex flex-col overflow-hidden ${isToday ? 'border-[#7b68ee] ring-1 ring-[#7b68ee]' : 'border-[#e0ddf5]'} ${holiday ? 'bg-red-50/30' : 'bg-white'}`}
+                        className={`rounded-xl border flex flex-col overflow-hidden ${isToday ? 'border-brand ring-1 ring-brand' : 'border-brand-line-soft'} ${holiday ? 'bg-red-50/30' : 'bg-surface'}`}
                       >
                         <button
                           onClick={() => { setDayPanelDate(iso); setDaySearch('') }}
                           title="이 날짜의 전체 일정 보기"
-                          className="px-2 py-1.5 border-b border-[#f0eefb] text-left hover:bg-[#f8f9fa] transition-colors shrink-0"
+                          className="px-2 py-1.5 border-b border-brand-line-soft text-left hover:bg-paper transition-colors shrink-0"
                         >
-                          <span className={`text-xs font-semibold ${holiday || dow === 0 ? 'text-red-600' : dow === 6 ? 'text-blue-600' : isToday ? 'text-[#7b68ee]' : 'text-[#090c1d]'}`}>
+                          <span className={`text-xs font-semibold ${holiday || dow === 0 ? 'text-red-600' : dow === 6 ? 'text-blue-600' : isToday ? 'text-brand' : 'text-ink'}`}>
                             {format(d, 'd일 (EEE)', { locale: ko })}
                           </span>
                           {holiday && <span className="block text-[10px] text-red-500 truncate">{holiday}</span>}
                         </button>
                         <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
                           {dayEvents.length === 0 ? (
-                            <p className="text-[10px] text-[#d5d2ea] text-center pt-6">일정 없음</p>
+                            <p className="text-[10px] text-ink-faint text-center pt-6">일정 없음</p>
                           ) : dayEvents.map(ev => (
                             <button
                               key={ev.id}
@@ -1528,7 +1511,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             components={{ toolbar: CalToolbar, event: EventChip, month: { dateHeader: MonthDateHeader } }}
             dayPropGetter={(date: Date) => {
               const iso = format(date, 'yyyy-MM-dd')
-              return holidayMap.has(iso) ? { style: { backgroundColor: '#fef2f2' } } : {}
+              // 인라인 style은 클래스 코드모드가 닿지 않는 축(소방계획서_29 S3-1) —
+              // 리터럴 #fef2f2를 쓰면 다크에서 공휴일 칸만 흰 판으로 남는다. 팔레트 변수로 건넨다.
+              return holidayMap.has(iso) ? { style: { backgroundColor: 'var(--color-red-50)' } } : {}
             }}
             messages={{
               month: '월', week: '주', day: '일', agenda: '목록',
@@ -1560,22 +1545,22 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         return (
           <>
             <div className="fixed inset-0 bg-black/20 z-40" onClick={() => { if (!isBulkMoving) setDayPanelDate(null) }} />
-            <div className="fixed top-0 right-0 bottom-0 w-[400px] bg-white shadow-2xl z-50 flex flex-col">
+            <div className="fixed top-0 right-0 bottom-0 w-[400px] bg-surface shadow-2xl z-50 flex flex-col">
               {/* 헤더 */}
-              <div className="px-5 py-4 border-b border-[#e0ddf5] shrink-0">
+              <div className="px-5 py-4 border-b border-brand-line-soft shrink-0">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold text-[#090c1d]">
+                  <p className="font-semibold text-ink">
                     {format(d, 'M월 d일 (EEE)', { locale: ko })}
                     {holiday && <span className="ml-2 text-xs text-red-500 font-medium">{holiday}</span>}
                   </p>
                   <button onClick={() => setDayPanelDate(null)} disabled={isBulkMoving}
-                    className="text-[#b0acd6] hover:text-[#514b81] transition-colors disabled:opacity-40">
+                    className="text-ink-faint hover:text-ink-sub transition-colors disabled:opacity-40">
                     <X className="size-5" />
                   </button>
                 </div>
                 {/* 버튼이 셋이라 한 줄에 같이 두면 400px에서 요약 글자가 3줄로 접힌다 → 줄을 나눈다 */}
                 <div className="mt-0.5">
-                  <p className="text-xs text-[#514b81]">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
+                  <p className="text-xs text-ink-sub">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
                   <span className="flex items-center gap-1 flex-wrap mt-1.5">
                     {/* 사전 안내 문자 — **주 발송 경로**(소방계획서_24 Q-14·Q-15).
                         칩을 체크하지 않고 **날짜만 넘긴다**: 서버가 그날 방문 전 건을 계산하므로
@@ -1585,7 +1570,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       <button
                         data-testid="calendar-sms-day"
                         onClick={() => setSmsSource({ kind: 'range', from: dayPanelDate, to: dayPanelDate, title: `${format(d, 'M월 d일', { locale: ko })} 방문 — 사전 안내` })}
-                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                        className="text-[11px] font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap"
                         title="이 날짜에 방문하는 고객에게 사전 안내 문자를 보냅니다">
                         <MessageSquare className="size-3" /> 사전안내 문자
                       </button>
@@ -1594,7 +1579,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       <button
                         onClick={openBulkModal}
                         disabled={moveSelectMode}
-                        className="text-[11px] font-medium text-[#7b68ee] border border-[#d0ccf5] rounded-lg px-2 py-0.5 hover:bg-[#f5f4ff] transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
+                        className="text-[11px] font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
                         title={moveSelectMode ? '날짜 이동 선택 중에는 사용할 수 없습니다' : '이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리'}>
                         <Check className="size-3" /> 이날 전체 완료 ({bulkTotal})
                       </button>
@@ -1611,8 +1596,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         disabled={isBulkMoving}
                         className={`text-[11px] font-medium border rounded-lg px-2 py-0.5 transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-50 ${
                           moveSelectMode
-                            ? 'bg-[#7b68ee] border-[#7b68ee] text-white'
-                            : 'text-[#7b68ee] border-[#d0ccf5] hover:bg-[#f5f4ff]'}`}
+                            ? 'bg-brand border-brand text-white'
+                            : 'text-brand border-brand-line hover:bg-brand-tint'}`}
                         title="정기 일정 여러 건을 같은 달 다른 날짜로 한 번에 옮깁니다">
                         <CalendarDays className="size-3" /> {moveSelectMode ? '이동 취소' : '날짜 이동'}
                       </button>
@@ -1620,12 +1605,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   </span>
                 </div>
                 <div className="relative mt-2">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
                   <input
                     value={daySearch}
                     onChange={e => setDaySearch(e.target.value)}
                     placeholder="고객명 검색..."
-                    className="w-full h-8 pl-8 pr-2 text-xs border border-[#d0ccf5] rounded-lg outline-none focus:border-[#7b68ee] transition"
+                    className="w-full h-8 pl-8 pr-2 text-xs border border-brand-line rounded-lg outline-none focus:border-brand transition"
                   />
                 </div>
               </div>
@@ -1633,12 +1618,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               <div className="flex-1 overflow-y-auto">
                 {/* 단계 일정 (종합·작동 6단계) */}
                 {panelSteps.length > 0 && (
-                  <div className="px-5 py-3 border-b border-[#f0eefb]">
-                    <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">단계 일정 (종합·작동)</p>
+                  <div className="px-5 py-3 border-b border-brand-line-soft">
+                    <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">단계 일정 (종합·작동)</p>
                     <div className="space-y-0.5">
                       {panelSteps.map(e => (
                         // 지도 버튼을 행 버튼 **밖**에 둔다 — button 안의 button은 중첩이 안 된다
-                        <div key={e.id} className="flex items-center gap-1 rounded-lg hover:bg-[#f8f9fa] transition-colors">
+                        <div key={e.id} className="flex items-center gap-1 rounded-lg hover:bg-paper transition-colors">
                           {/* 선택 모드에선 클릭을 막는다 — 이 버튼은 패널을 닫아버려 고른 선택이 날아간다 */}
                           <button
                             disabled={moveSelectMode}
@@ -1646,8 +1631,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                             className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left disabled:opacity-50 disabled:cursor-default"
                           >
                             <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.resource.color }} />
-                            <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{e.title}</span>
-                            <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />
+                            <span className="text-xs text-ink flex-1 min-w-0 truncate">{e.title}</span>
+                            <ChevronRight className="size-3.5 text-ink-faint shrink-0" />
                           </button>
                           <AddressMapButton customerName={e.resource.customerName} address={e.resource.customerAddress} iconOnly className="mr-2" />
                         </div>
@@ -1659,7 +1644,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 {/* 계획 일정 (정기·일반) */}
                 {panelPlans.length > 0 && (
                   <div className="px-5 py-3">
-                    <p className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider mb-2">계획 일정 (정기·일반)</p>
+                    <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">계획 일정 (정기·일반)</p>
                     <div className="space-y-0.5">
                       {panelPlans.map(p => {
                         const isCompleted = p.status === 'completed'
@@ -1668,7 +1653,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         const movable = isMovablePlan(p)
                         return (
                           <div key={p.id}>
-                            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-[#f8f9fa]'}`}>
+                            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-paper'}`}>
                               {/* 선택 모드: 이동 가능한 정기만 체크박스, 나머지는 자리만 비워 이름 정렬을 유지 */}
                               {moveSelectMode && (movable ? (
                                 <input
@@ -1678,7 +1663,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                   disabled={isBulkMoving}
                                   checked={moveChecked.has(p.id)}
                                   onChange={ev => toggleMoveChecked(p.id, ev.target.checked)}
-                                  className="accent-[#7b68ee] shrink-0"
+                                  className="accent-brand shrink-0"
                                 />
                               ) : (
                                 <span className="size-3.5 shrink-0" title="이동 대상이 아닙니다 (정기·미시작 항목만 이동)" />
@@ -1686,7 +1671,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${p.plan_type === 'monthly' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
                                 {p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type)}
                               </span>
-                              <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-[#b0acd6] line-through' : 'text-[#090c1d]'}`} title={`담당 ${p.assigned_employee_name}`}>
+                              <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-ink-faint line-through' : 'text-ink'}`} title={`담당 ${p.assigned_employee_name}`}>
                                 {p.customer_name}
                               </span>
                               {/* 방문 준비 지도(S5-7 확산) — 이름 span 밖에 둔다. 안에 넣으면
@@ -1712,7 +1697,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                     title="점검 시작·완료 처리"
                                     disabled={startingPlanId === p.id}
                                     onClick={() => handleStartFromPanel(p)}
-                                    className="p-1 rounded text-[#b0acd6] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50"
+                                    className="p-1 rounded text-ink-faint hover:bg-brand-tint hover:text-brand transition-colors disabled:opacity-50"
                                   >
                                     {startingPlanId === p.id ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
                                   </button>
@@ -1727,7 +1712,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 )}
 
                 {panelSteps.length === 0 && panelPlans.length === 0 && (
-                  <p className="text-xs text-[#b0acd6] text-center py-10">
+                  <p className="text-xs text-ink-faint text-center py-10">
                     {daySearchQ ? '검색 결과가 없습니다.' : '이 날짜에 표시할 일정이 없습니다.'}
                   </p>
                 )}
@@ -1737,19 +1722,19 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               {moveSelectMode && (() => {
                 const outsideSearch = moveCheckedItems.filter(p => !movableVisibleIds.includes(p.id)).length
                 return (
-                  <div data-testid="day-move-bar" className="px-5 py-2.5 border-t border-[#e0ddf5] bg-[#faf9ff] shrink-0 space-y-1.5">
+                  <div data-testid="day-move-bar" className="px-5 py-2.5 border-t border-brand-line-soft bg-brand-tint shrink-0 space-y-1.5">
                     <div className="flex items-center gap-2">
-                      <p className="text-[11px] text-[#514b81] flex-1 min-w-0">
-                        <strong className="text-[#090c1d]">{moveCheckedItems.length}건</strong> 선택
-                        {outsideSearch > 0 && <span className="text-[#8b87b8]"> (검색 밖 {outsideSearch}건 포함)</span>}
+                      <p className="text-[11px] text-ink-sub flex-1 min-w-0">
+                        <strong className="text-ink">{moveCheckedItems.length}건</strong> 선택
+                        {outsideSearch > 0 && <span className="text-ink-soft"> (검색 밖 {outsideSearch}건 포함)</span>}
                       </p>
                       <button data-testid="day-move-all" onClick={selectAllVisibleForMove} disabled={isBulkMoving}
-                        className="h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-white transition-colors disabled:opacity-50"
+                        className="h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-surface transition-colors disabled:opacity-50"
                         title="화면에 보이는 정기 일정만 선택합니다">
                         전체
                       </button>
                       <button data-testid="day-move-clear" onClick={() => setMoveChecked(new Set())} disabled={isBulkMoving}
-                        className="h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-white transition-colors disabled:opacity-50">
+                        className="h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-surface transition-colors disabled:opacity-50">
                         해제
                       </button>
                       <PanelMoveButton
@@ -1764,7 +1749,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     </div>
                     {bulkMoveResult && (
                       <p data-testid="day-move-result"
-                        className={`text-[11px] whitespace-pre-wrap ${bulkMoveResult.ok ? 'text-[#514b81]' : 'text-red-600'}`}>
+                        className={`text-[11px] whitespace-pre-wrap ${bulkMoveResult.ok ? 'text-ink-sub' : 'text-red-600'}`}>
                         {bulkMoveResult.text}
                       </p>
                     )}
@@ -1772,8 +1757,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 )
               })()}
 
-              <div className="px-5 py-3 border-t border-[#e0ddf5] shrink-0">
-                <Link href="/inspection-plans" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <div className="px-5 py-3 border-t border-brand-line-soft shrink-0">
+                <Link href="/inspection-plans" className="text-xs text-brand hover:underline flex items-center gap-1">
                   점검확정에서 관리 <ChevronRight className="size-3" />
                 </Link>
               </div>
@@ -1783,53 +1768,53 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {bulkOpen && (
               <>
                 <div className="fixed inset-0 bg-black/30 z-[60]" onClick={() => !isBulkRunning && setBulkOpen(false)} />
-                <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[80vh] bg-white rounded-2xl shadow-2xl z-[70] flex flex-col">
-                  <div className="px-5 py-4 border-b border-[#e0ddf5]">
-                    <p className="font-semibold text-[#090c1d]">{format(new Date(dayPanelDate + 'T12:00:00'), 'M월 d일 (EEE)', { locale: ko })} 일괄 완료</p>
-                    <p className="text-xs text-[#514b81] mt-0.5">
+                <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[80vh] bg-surface rounded-2xl shadow-2xl z-[70] flex flex-col">
+                  <div className="px-5 py-4 border-b border-brand-line-soft">
+                    <p className="font-semibold text-ink">{format(new Date(dayPanelDate + 'T12:00:00'), 'M월 d일 (EEE)', { locale: ko })} 일괄 완료</p>
+                    <p className="text-xs text-ink-sub mt-0.5">
                       미완료 {bulkTotal}건 중 <strong>{bulkChecked.size}건</strong> 선택 — 정기·일반은 기본 선택, 자체점검 단계는 확인 후 체크하세요
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto px-5 py-3 space-y-0.5">
                     {/* 미시작 정기·일반 계획 — 시작+완료까지 한 번에 처리 */}
                     {bulkPlanCandidates.map(c => (
-                      <label key={`p:${c.itemId}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] cursor-pointer">
+                      <label key={`p:${c.itemId}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-paper cursor-pointer">
                         <input
                           type="checkbox"
                           checked={bulkChecked.has(`p:${c.itemId}`)}
                           onChange={e => toggleBulkChecked(`p:${c.itemId}`, e.target.checked)}
-                          className="accent-[#7b68ee]"
+                          className="accent-brand"
                         />
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${c.typeLabel === '정기' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
                           {c.typeLabel}
                         </span>
-                        <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{c.label}</span>
-                        <span className="text-[10px] text-[#b0acd6] shrink-0" title="점검 시작과 완료 처리를 함께 진행합니다">시작+완료</span>
+                        <span className="text-xs text-ink flex-1 min-w-0 truncate">{c.label}</span>
+                        <span className="text-[10px] text-ink-faint shrink-0" title="점검 시작과 완료 처리를 함께 진행합니다">시작+완료</span>
                       </label>
                     ))}
                     {bulkCandidates.map(c => (
-                      <label key={`s:${c.stepId}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f8f9fa] cursor-pointer">
+                      <label key={`s:${c.stepId}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-paper cursor-pointer">
                         <input
                           type="checkbox"
                           checked={bulkChecked.has(`s:${c.stepId}`)}
                           onChange={e => toggleBulkChecked(`s:${c.stepId}`, e.target.checked)}
-                          className="accent-[#7b68ee]"
+                          className="accent-brand"
                         />
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${c.oneStep ? 'bg-gray-100 text-gray-600' : 'bg-[#f5f4ff] text-[#7b68ee]'}`}>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${c.oneStep ? 'bg-gray-100 text-gray-600' : 'bg-brand-tint text-brand'}`}>
                           {c.oneStep ? '정기·일반' : '자체점검'}
                         </span>
-                        <span className="text-xs text-[#090c1d] flex-1 min-w-0 truncate">{c.label}</span>
+                        <span className="text-xs text-ink flex-1 min-w-0 truncate">{c.label}</span>
                       </label>
                     ))}
                   </div>
-                  {bulkResult && <p className="px-5 pb-1 text-xs text-[#514b81] whitespace-pre-wrap">{bulkResult}</p>}
-                  <div className="px-5 py-3 border-t border-[#e0ddf5] flex items-center justify-end gap-2">
+                  {bulkResult && <p className="px-5 pb-1 text-xs text-ink-sub whitespace-pre-wrap">{bulkResult}</p>}
+                  <div className="px-5 py-3 border-t border-brand-line-soft flex items-center justify-end gap-2">
                     <button onClick={() => setBulkOpen(false)} disabled={isBulkRunning}
-                      className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+                      className="h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-paper transition-colors disabled:opacity-50">
                       닫기
                     </button>
                     <button onClick={runBulkComplete} disabled={isBulkRunning || bulkChecked.size === 0}
-                      className="h-8 px-3.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1">
+                      className="h-8 px-3.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1">
                       {isBulkRunning ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
                       {bulkChecked.size}건 완료 처리
                     </button>
@@ -1855,18 +1840,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         const names = moveConfirm.mode === 'bulk' ? moveConfirm.names : [moveConfirm.customerName]
         return (
           <div className="fixed inset-0 bg-black/20 z-[80] flex items-center justify-center p-4" onClick={() => !busy && setMoveConfirm(null)}>
-            <div className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
-              <p className="text-sm font-semibold text-[#090c1d] mb-1">
+            <div className="bg-surface rounded-xl border border-brand-line shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
+              <p className="text-sm font-semibold text-ink mb-1">
                 {moveConfirm.mode === 'bulk' ? `정기점검 일자 일괄 이동 (${moveConfirm.itemIds.length}건)` : '정기점검 일자 이동'}
               </p>
-              <p className="text-xs text-[#514b81]">
-                {moveConfirm.from} → <span className="font-semibold text-[#7b68ee]">{moveConfirm.to}</span>
+              <p className="text-xs text-ink-sub">
+                {moveConfirm.from} → <span className="font-semibold text-brand">{moveConfirm.to}</span>
               </p>
               {/* 고객명을 반드시 보여준다 — 검색 밖에서 고른 건이 섞여 있어도 눈으로 확인하고 누르게 */}
-              <p className="text-[11px] text-[#514b81] mt-1 break-keep">
+              <p className="text-[11px] text-ink-sub mt-1 break-keep">
                 {names.slice(0, 10).join(', ')}{names.length > 10 ? ` 외 ${names.length - 10}건` : ''}
               </p>
-              <p className="text-[11px] text-[#b0acd6] mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
+              <p className="text-[11px] text-ink-faint mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
               {warnings.map(w => (
                 <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
               ))}
@@ -1874,7 +1859,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 <button
                   onClick={() => setMoveConfirm(null)}
                   disabled={busy}
-                  className="flex-1 h-8 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50"
+                  className="flex-1 h-8 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors disabled:opacity-50"
                 >
                   취소
                 </button>
@@ -1882,7 +1867,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   data-testid="day-move-confirm"
                   onClick={handleMoveConfirm}
                   disabled={busy}
-                  className="flex-1 h-8 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors flex items-center justify-center disabled:opacity-50"
+                  className="flex-1 h-8 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors flex items-center justify-center disabled:opacity-50"
                 >
                   {busy ? <Loader2 className="size-3.5 animate-spin" /> : '이동 확정'}
                 </button>
@@ -1902,41 +1887,41 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
       {/* ── 슬라이드 패널 ─────────────────────────────────────── */}
       <div
-        className={`fixed top-0 right-0 bottom-0 w-[380px] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${selectedInspectionId ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed top-0 right-0 bottom-0 w-[380px] bg-surface shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${selectedInspectionId ? 'translate-x-0' : 'translate-x-full'}`}
       >
         {selectedInspection && (
           <>
             {/* 패널 헤더 */}
-            <div className="flex items-start justify-between px-5 py-4 border-b border-[#c8c4d0] shrink-0">
+            <div className="flex items-start justify-between px-5 py-4 border-b border-line shrink-0">
               <div className="flex-1 min-w-0 pr-3">
-                <p className="font-semibold text-[#090c1d] truncate">{selectedInspection.customer_name}</p>
+                <p className="font-semibold text-ink truncate">{selectedInspection.customer_name}</p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${TYPE_COLORS[selectedInspection.inspection_type]}`}>
                     {inspectionTypeLabel(selectedInspection.inspection_type)}
                   </span>
-                  <span className="text-xs text-[#514b81]">{selectedInspection.year}년 {selectedInspection.sequence_num}차</span>
-                  <ChevronRight className="size-3 text-[#b0acd6]" />
-                  <span className="text-xs text-[#514b81]">시작 {selectedInspection.inspection_start_date}</span>
+                  <span className="text-xs text-ink-sub">{selectedInspection.year}년 {selectedInspection.sequence_num}차</span>
+                  <ChevronRight className="size-3 text-ink-faint" />
+                  <span className="text-xs text-ink-sub">시작 {selectedInspection.inspection_start_date}</span>
                 </div>
-                <p className="text-xs text-[#514b81] mt-1">담당: {selectedInspection.assigned_employee_name}</p>
+                <p className="text-xs text-ink-sub mt-1">담당: {selectedInspection.assigned_employee_name}</p>
               </div>
               <button
                 onClick={() => setSelectedInspectionId(null)}
-                className="text-[#b0acd6] hover:text-[#514b81] transition-colors shrink-0"
+                className="text-ink-faint hover:text-ink-sub transition-colors shrink-0"
               >
                 <X className="size-5" />
               </button>
             </div>
 
             {/* 진행률 바 */}
-            <div className="px-5 py-3 border-b border-[#e0ddf5] shrink-0">
+            <div className="px-5 py-3 border-b border-brand-line-soft shrink-0">
               <div className="flex justify-between text-xs mb-2">
-                <span className="text-[#514b81]">전체 진행률</span>
-                <span className="font-medium text-[#7b68ee]">{panelCompletedCount}/{panelTotalCount} 단계 ({panelProgressPct}%)</span>
+                <span className="text-ink-sub">전체 진행률</span>
+                <span className="font-medium text-brand">{panelCompletedCount}/{panelTotalCount} 단계 ({panelProgressPct}%)</span>
               </div>
-              <div className="w-full h-2 bg-[#e0ddf5] rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-brand-line-soft rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${panelProgressPct === 100 ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
+                  className={`h-full rounded-full transition-all duration-500 ${panelProgressPct === 100 ? 'bg-green-500' : 'bg-brand'}`}
                   style={{ width: `${panelProgressPct}%` }}
                 />
               </div>
@@ -1962,18 +1947,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 return (
                   <div
                     key={step.id}
-                    className={`flex items-start gap-3 px-5 py-3 border-b border-[#f8f9fa] last:border-0 ${isStepOverdue ? 'bg-red-50/40 border-l-4 border-l-red-400' : isDueSoon ? 'bg-amber-50/30 border-l-4 border-l-amber-400' : ''}`}
+                    className={`flex items-start gap-3 px-5 py-3 border-b border-paper last:border-0 ${isStepOverdue ? 'bg-red-50/40 border-l-4 border-l-red-400' : isDueSoon ? 'bg-amber-50/30 border-l-4 border-l-amber-400' : ''}`}
                   >
-                    <div className={`size-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${step.status === 'completed' ? 'bg-green-100' : isStepOverdue ? 'bg-red-100' : 'bg-[#f5f4ff]'}`}>
+                    <div className={`size-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${step.status === 'completed' ? 'bg-green-100' : isStepOverdue ? 'bg-red-100' : 'bg-brand-tint'}`}>
                       {step.status === 'completed'
                         ? <Check className="size-3 text-green-600" />
                         : isStepOverdue
                         ? <AlertTriangle className="size-3 text-red-500" />
-                        : <span className="text-[10px] font-bold text-[#7b68ee]">{step.step_num}</span>}
+                        : <span className="text-[10px] font-bold text-brand">{step.step_num}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-sm ${step.status === 'completed' ? 'text-[#514b81] line-through' : 'text-[#090c1d]'}`}>
+                        <span className={`text-sm ${step.status === 'completed' ? 'text-ink-sub line-through' : 'text-ink'}`}>
                           {step.name_ko}
                         </span>
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.cls}`}>
@@ -1984,11 +1969,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         )}
                       </div>
                       {step.due_date ? (
-                        <p className={`text-xs mt-0.5 ${isStepOverdue ? 'text-red-500 font-medium' : 'text-[#514b81]'}`}>
+                        <p className={`text-xs mt-0.5 ${isStepOverdue ? 'text-red-500 font-medium' : 'text-ink-sub'}`}>
                           마감: {step.due_date}
                         </p>
                       ) : (
-                        <p className="text-xs text-[#b0acd6] mt-0.5">마감일 없음</p>
+                        <p className="text-xs text-ink-faint mt-0.5">마감일 없음</p>
                       )}
                       {step.completed_at && (
                         <p className="text-xs text-green-600 mt-0.5">완료: {step.completed_at.split('T')[0]}</p>
@@ -2003,7 +1988,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                             href={inputLink.href}
                             title={inputLink.title}
                             onClick={() => setSelectedInspectionId(null)}
-                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#7b68ee] text-white hover:bg-[#6647f0] transition-colors whitespace-nowrap"
+                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-strong transition-colors whitespace-nowrap"
                           >
                             <PenLine className="size-3" />
                             {inputLink.label}
@@ -2014,7 +1999,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                             onClick={() => handleCompleteStep(step.id, selectedInspection.id)}
                             disabled={completingStepId === step.id}
                             title="점검표·파일·제출일 같은 증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
-                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-[#c8c4d0] text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#514b81] disabled:opacity-50 transition-colors whitespace-nowrap"
+                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-line text-ink-soft hover:bg-brand-tint hover:text-ink-sub disabled:opacity-50 transition-colors whitespace-nowrap"
                           >
                             {completingStepId === step.id
                               ? <Loader2 className="size-3 animate-spin" />
@@ -2037,10 +2022,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
             {/* 상세 페이지·소방계획서 링크 — 계획서는 착륙 화면(달력)에서 가장 잦은 목적지인데
                 종전엔 작업대를 경유해야 했다(4클릭 → 3클릭, 2026-08-28 동선 검토) */}
-            <div className="px-5 py-3 border-t border-[#c8c4d0] shrink-0 flex items-center gap-4">
+            <div className="px-5 py-3 border-t border-line shrink-0 flex items-center gap-4">
               <Link
                 href={`/inspections/${selectedInspection.id}`}
-                className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1"
+                className="text-xs text-brand hover:underline flex items-center gap-1"
               >
                 상세 페이지로 이동
                 <ChevronRight className="size-3" />
@@ -2049,7 +2034,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 href={`/customers/${selectedInspection.customer_id}?tab=plan&form=annex`}
                 title="소방계획서 트리 · 회차별 별지 작성으로 바로가기"
                 data-testid="daypanel-plan-link"
-                className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1"
+                className="text-xs text-brand hover:underline flex items-center gap-1"
               >
                 소방계획서 트리
                 <ChevronRight className="size-3" />

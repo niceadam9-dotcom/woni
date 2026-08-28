@@ -46,18 +46,18 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
   // 고객명은 아래 표에도 링크로 나온다 — 스트립 범위를 특정할 수 있게 표식을 남긴다(E2E 셀렉터)
   return (
     <div data-recent-strip className="flex items-center gap-2 flex-wrap">
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#b0acd6] shrink-0">
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-faint shrink-0">
         <Clock className="size-3" /> 최근 본 고객
       </span>
       {items.map(c => (
         /* 칩 = 이름 링크('그 화면의 표와 같은 곳' 규약) + 📄 소방계획서 직행(2026-08-28 동선 검토).
            📄는 이름과 별개 어포던스라 규약 밖 — "어제 하던 계획서 마저"를 검색 없이 1클릭으로.
            ⚠ 이름 링크가 칩의 첫 <a>여야 한다 — test-recent-customers가 링크 순서로 최근순을 판정한다 */
-        <span key={c.id} className="inline-flex items-stretch h-7 rounded-full border border-[#d0ccf5] bg-white overflow-hidden shrink-0">
+        <span key={c.id} className="inline-flex items-stretch h-7 rounded-full border border-brand-line bg-surface overflow-hidden shrink-0">
           <Link
             href={target === 'inspection' ? `/inspections/by-customer/${c.id}` : `/customers/${c.id}`}
             title={target === 'inspection' ? `${c.name} 최근 점검 상세로 이동` : `${c.name} 상세 조회로 이동`}
-            className="inline-flex items-center pl-2.5 pr-1.5 text-xs transition-colors max-w-[12rem] truncate text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee]"
+            className="inline-flex items-center pl-2.5 pr-1.5 text-xs transition-colors max-w-[12rem] truncate text-ink-sub hover:bg-brand-tint hover:text-brand"
           >
             {c.name}
           </Link>
@@ -66,7 +66,7 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
             aria-label={`${c.name} 소방계획서 트리`}
             title="소방계획서 트리 · 회차별 별지 작성으로 바로가기"
             data-testid="recent-chip-plan-link"
-            className="inline-flex items-center pl-1.5 pr-2 border-l border-[#f0eefb] text-[#b0acd6] transition-colors hover:bg-[#f5f4ff] hover:text-[#7b68ee]"
+            className="inline-flex items-center pl-1.5 pr-2 border-l border-brand-line-soft text-ink-faint transition-colors hover:bg-brand-tint hover:text-brand"
           >
             <FileText className="size-3" />
           </Link>
@@ -79,7 +79,7 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
           setItems([])
         }}
         aria-label="최근 본 고객 지우기"
-        className="p-1 rounded text-[#b0acd6] hover:text-[#514b81] transition-colors shrink-0"
+        className="p-1 rounded text-ink-faint hover:text-ink-sub transition-colors shrink-0"
       >
         <X className="size-3" />
       </button>

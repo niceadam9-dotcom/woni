@@ -7,7 +7,7 @@ import { createContactAction, updateContactAction, deleteContactAction } from '@
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
 
-const inputCls = 'w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 type Contact = {
   id: string; name: string; company: string | null; department: string | null
@@ -90,13 +90,13 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#b0acd6]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-ink-faint" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="이름·회사·전화번호 검색" className="w-full h-10 pl-9 pr-3 rounded-lg border border-[#c8c4d0] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition" />
+            placeholder="이름·회사·전화번호 검색" className="w-full h-10 pl-9 pr-3 rounded-lg border border-line bg-surface text-sm text-ink outline-none focus:border-brand transition" />
         </div>
         {groups.length > 0 && (
           <select value={groupFilter} onChange={e => setGroupFilter(e.target.value)}
-            className="h-10 rounded-lg border border-[#c8c4d0] px-2 text-sm text-[#514b81] outline-none bg-white">
+            className="h-10 rounded-lg border border-line px-2 text-sm text-ink-sub outline-none bg-surface">
             <option value="">전체 그룹</option>
             {groups.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
@@ -108,30 +108,30 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
       </div>
 
       {isFormOpen && (
-        <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
+        <div className="bg-paper border border-brand-line rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">이름<span className="text-red-500 ml-0.5">*</span></label><input value={form.name} onChange={set('name')} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">회사</label><input value={form.company} onChange={set('company')} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">그룹</label><input value={form.group_name} onChange={set('group_name')} placeholder="고객사, 협력사 등" className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">이름<span className="text-red-500 ml-0.5">*</span></label><input value={form.name} onChange={set('name')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">회사</label><input value={form.company} onChange={set('company')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">그룹</label><input value={form.group_name} onChange={set('group_name')} placeholder="고객사, 협력사 등" className={inputCls} /></div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">부서</label><input value={form.department} onChange={set('department')} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">직책</label><input value={form.position} onChange={set('position')} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">이메일</label><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">부서</label><input value={form.department} onChange={set('department')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">직책</label><input value={form.position} onChange={set('position')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">이메일</label><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">전화번호</label><input value={form.phone} inputMode="tel" placeholder="010-0000-0000" onChange={e => setForm(s => ({ ...s, phone: formatPhoneKR(e.target.value) }))} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">휴대폰</label><input value={form.mobile} inputMode="tel" placeholder="010-0000-0000" onChange={e => setForm(s => ({ ...s, mobile: formatPhoneKR(e.target.value) }))} className={inputCls} /></div>
-            <div className="space-y-1"><label className="text-xs text-[#514b81]">주소</label><input value={form.address} onChange={set('address')} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">전화번호</label><input value={form.phone} inputMode="tel" placeholder="010-0000-0000" onChange={e => setForm(s => ({ ...s, phone: formatPhoneKR(e.target.value) }))} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">휴대폰</label><input value={form.mobile} inputMode="tel" placeholder="010-0000-0000" onChange={e => setForm(s => ({ ...s, mobile: formatPhoneKR(e.target.value) }))} className={inputCls} /></div>
+            <div className="space-y-1"><label className="text-xs text-ink-sub">주소</label><input value={form.address} onChange={set('address')} className={inputCls} /></div>
           </div>
           <textarea value={form.notes} onChange={set('notes')} placeholder="메모" rows={2}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition resize-none" />
+            className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand transition resize-none" />
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={() => { setShowNew(false); setEditId(null); setError('') }}
-              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center gap-1"><X className="size-3" />취소</button>
+              className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors flex items-center gap-1"><X className="size-3" />취소</button>
             <button onClick={handleSave} disabled={isPending}
-              className="h-8 px-4 rounded-lg bg-[#7b68ee] text-white text-xs font-medium hover:bg-[#6a57dd] transition-colors disabled:opacity-50 flex items-center gap-1">
+              className="h-8 px-4 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-strong transition-colors disabled:opacity-50 flex items-center gap-1">
               {isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}저장</button>
           </div>
         </div>
@@ -139,38 +139,38 @@ export function AddressBookClient({ contacts }: { contacts: Record<string, unkno
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-sm text-[#514b81] bg-white rounded-xl border border-[#c8c4d0]">
+          <div className="col-span-full py-12 text-center text-sm text-ink-sub bg-surface rounded-xl border border-line">
             {search ? '검색 결과가 없습니다' : '등록된 연락처가 없습니다'}
           </div>
         ) : filtered.map(c => (
-          <div key={c.id} className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+          <div key={c.id} className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[#090c1d]">{c.name}</span>
-                  {c.group_name && <span className="text-xs bg-[#f5f4ff] text-[#7b68ee] px-1.5 py-0.5 rounded">{c.group_name}</span>}
+                  <span className="font-semibold text-ink">{c.name}</span>
+                  {c.group_name && <span className="text-xs bg-brand-tint text-brand px-1.5 py-0.5 rounded">{c.group_name}</span>}
                 </div>
                 {(c.company || c.position) && (
-                  <p className="text-xs text-[#514b81] mt-0.5 flex items-center gap-1">
+                  <p className="text-xs text-ink-sub mt-0.5 flex items-center gap-1">
                     <Building2 className="size-3" />{[c.company, c.department, c.position].filter(Boolean).join(' · ')}
                   </p>
                 )}
               </div>
               <div className="flex gap-1 shrink-0">
-                <button onClick={() => startEdit(c)} className="size-7 rounded-lg hover:bg-[#f8f9fa] flex items-center justify-center text-[#b0acd6] hover:text-[#7b68ee] transition-colors">
+                <button onClick={() => startEdit(c)} className="size-7 rounded-lg hover:bg-paper flex items-center justify-center text-ink-faint hover:text-brand transition-colors">
                   <Pencil className="size-3.5" />
                 </button>
-                <button onClick={() => handleDelete(c.id)} disabled={isPending} className="size-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#b0acd6] hover:text-red-500 transition-colors">
+                <button onClick={() => handleDelete(c.id)} disabled={isPending} className="size-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-ink-faint hover:text-red-500 transition-colors">
                   <Trash2 className="size-3.5" />
                 </button>
               </div>
             </div>
             <div className="mt-2 space-y-1">
-              {c.phone && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Phone className="size-3 text-[#b0acd6]" />{formatTel(c.phone)}</p>}
-              {c.mobile && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Phone className="size-3 text-[#b0acd6]" />{formatTel(c.mobile)} (휴대)</p>}
-              {c.email && <p className="text-xs text-[#514b81] flex items-center gap-1.5"><Mail className="size-3 text-[#b0acd6]" />{c.email}</p>}
+              {c.phone && <p className="text-xs text-ink-sub flex items-center gap-1.5"><Phone className="size-3 text-ink-faint" />{formatTel(c.phone)}</p>}
+              {c.mobile && <p className="text-xs text-ink-sub flex items-center gap-1.5"><Phone className="size-3 text-ink-faint" />{formatTel(c.mobile)} (휴대)</p>}
+              {c.email && <p className="text-xs text-ink-sub flex items-center gap-1.5"><Mail className="size-3 text-ink-faint" />{c.email}</p>}
             </div>
-            {c.notes && <p className="text-xs text-[#b0acd6] mt-2 truncate">{c.notes}</p>}
+            {c.notes && <p className="text-xs text-ink-faint mt-2 truncate">{c.notes}</p>}
           </div>
         ))}
       </div>

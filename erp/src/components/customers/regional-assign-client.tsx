@@ -23,7 +23,7 @@ type Props = {
   employees: Employee[]
 }
 
-const inputCls = 'h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 export function RegionalAssignClient({ customers, employees }: Props) {
   const [isPending, startTransition] = useTransition()
@@ -169,15 +169,15 @@ export function RegionalAssignClient({ customers, employees }: Props) {
   return (
     <div className="space-y-6 pb-24">
       {/* 조회 조건 카드 — 모드 탭 + 모드별 필터 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4">
         {/* 조회 모드 탭 */}
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] w-fit">
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-paper border border-brand-line-soft w-fit">
           {([['region', '지역별 조회', MapPin], ['employee', '담당자별 조회', Users]] as const).map(([m, label, Icon]) => (
             <button
               key={m}
               onClick={() => switchMode(m)}
               className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md text-xs font-medium transition-colors ${
-                queryMode === m ? 'bg-white text-[#7b68ee] shadow-sm' : 'text-[#514b81] hover:text-[#7b68ee]'
+                queryMode === m ? 'bg-surface text-brand shadow-sm' : 'text-ink-sub hover:text-brand'
               }`}
             >
               <Icon className="size-3.5" />{label}
@@ -188,14 +188,14 @@ export function RegionalAssignClient({ customers, employees }: Props) {
         {queryMode === 'region' ? (
           <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">시/군/구<span className="text-red-500 ml-0.5">*</span></label>
+              <label className="text-xs font-medium text-ink-sub">시/군/구<span className="text-red-500 ml-0.5">*</span></label>
               <select value={selectedSi} onChange={e => handleSiChange(e.target.value)} className={inputCls}>
                 <option value="">선택</option>
                 {siOptions.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">읍/면/동</label>
+              <label className="text-xs font-medium text-ink-sub">읍/면/동</label>
               <select value={selectedMyeon} onChange={e => handleMyeonChange(e.target.value)}
                 disabled={!selectedSi || myeonOptions.length === 0}
                 className={inputCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}>
@@ -204,7 +204,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">리/동</label>
+              <label className="text-xs font-medium text-ink-sub">리/동</label>
               <select value={selectedRi} onChange={e => handleRiChange(e.target.value)}
                 disabled={!selectedMyeon || riOptions.length === 0}
                 className={inputCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}>
@@ -213,7 +213,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">배정 상태</label>
+              <label className="text-xs font-medium text-ink-sub">배정 상태</label>
               <select value={assignFilter}
                 onChange={e => { setAssignFilter(e.target.value as 'all' | 'unassigned' | 'assigned'); setCheckedIds(new Set()) }}
                 className={inputCls}>
@@ -225,7 +225,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
           </div>
         ) : (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[#514b81]">담당자 선택 <span className="text-[#b0acd6] font-normal">— 교체·인수인계·퇴사 시 해당 담당 건물을 지역 무관하게 조회</span></label>
+            <label className="text-xs font-medium text-ink-sub">담당자 선택 <span className="text-ink-faint font-normal">— 교체·인수인계·퇴사 시 해당 담당 건물을 지역 무관하게 조회</span></label>
             <select value={filterCurrentEmp}
               onChange={e => { setFilterCurrentEmp(e.target.value); setCheckedIds(new Set()); setMessage(null) }}
               className={inputCls + ' min-w-[280px]'}>
@@ -248,53 +248,53 @@ export function RegionalAssignClient({ customers, employees }: Props) {
 
       {/* 대상 고객 목록 */}
       {noQuery ? (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center text-sm text-[#514b81]">
-          <MapPin className="size-8 mx-auto mb-3 text-[#b0acd6]" />
+        <div className="bg-surface rounded-xl border border-line py-16 text-center text-sm text-ink-sub">
+          <MapPin className="size-8 mx-auto mb-3 text-ink-faint" />
           {queryMode === 'region' ? '시/군/구를 선택하면 대상 고객 목록이 표시됩니다' : '담당자를 선택하면 담당 고객 전체가 표시됩니다'}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center text-sm text-[#514b81]">
+        <div className="bg-surface rounded-xl border border-line py-16 text-center text-sm text-ink-sub">
           조건에 해당하는 고객이 없습니다
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#c8c4d0] bg-[#f8f9fa]">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-paper">
             <div className="flex items-center gap-2">
-              <Users className="size-4 text-[#7b68ee]" />
-              <span className="text-sm font-semibold text-[#090c1d]">대상 고객 {filtered.length}건</span>
+              <Users className="size-4 text-brand" />
+              <span className="text-sm font-semibold text-ink">대상 고객 {filtered.length}건</span>
               {checkedIds.size > 0 && (
-                <span className="text-xs text-[#7b68ee] font-medium bg-[#f5f4ff] px-2 py-0.5 rounded-full">{checkedIds.size}건 선택됨</span>
+                <span className="text-xs text-brand font-medium bg-brand-tint px-2 py-0.5 rounded-full">{checkedIds.size}건 선택됨</span>
               )}
             </div>
             <button onClick={toggleAll}
               className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
-                allChecked ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee] hover:bg-[#ebe9ff]' : 'border-[#c8c4d0] bg-white text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee]'}`}>
+                allChecked ? 'border-brand bg-brand-tint text-brand hover:bg-brand-tint' : 'border-line bg-surface text-ink-sub hover:border-brand hover:text-brand'}`}>
               {allChecked ? <><CheckSquare className="size-3.5" />전체취소</> : <><Square className="size-3.5" />전체선택</>}
             </button>
           </div>
 
           {/* 고객 목록 — 상단 필터 고정 / 목록만 스크롤 / 하단 배정 바 고정 3단 구성 */}
           <TableScroll offset={430}>
-          <div className="divide-y divide-[#c8c4d0]">
+          <div className="divide-y divide-line">
             {filtered.map(c => {
               const checked = checkedIds.has(c.id)
               const currentEmp = empName(c.assigned_employee_id)
               return (
                 <label key={c.id}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${checked ? 'bg-[#f5f4ff]' : 'hover:bg-[#f8f9fa]'}`}>
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${checked ? 'bg-brand-tint' : 'hover:bg-paper'}`}>
                   <input type="checkbox" checked={checked} onChange={() => toggleOne(c.id)}
-                    className="size-4 rounded border-[#d0ccf5] text-[#7b68ee] focus:ring-[#7b68ee]/20 cursor-pointer" />
+                    className="size-4 rounded border-brand-line text-brand focus:ring-brand/20 cursor-pointer" />
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-[#090c1d] truncate">{c.customer_name}</span>
+                    <span className="text-sm font-medium text-ink truncate">{c.customer_name}</span>
                     <div className="flex items-center gap-3 mt-0.5">
-                      {c.address && <span className="text-xs text-[#b0acd6] truncate max-w-[200px]">{c.address}</span>}
+                      {c.address && <span className="text-xs text-ink-faint truncate max-w-[200px]">{c.address}</span>}
                       <span className="text-xs">
-                        {currentEmp ? <span className="text-[#514b81]">현 담당: <strong>{currentEmp}</strong></span> : <span className="text-red-500 font-medium">미배정</span>}
+                        {currentEmp ? <span className="text-ink-sub">현 담당: <strong>{currentEmp}</strong></span> : <span className="text-red-500 font-medium">미배정</span>}
                       </span>
                     </div>
                   </div>
                   {checked && selectedEmployee && (
-                    <span className="text-xs text-[#7b68ee] font-medium shrink-0">→ {empMap.get(selectedEmployee) ?? ''}</span>
+                    <span className="text-xs text-brand font-medium shrink-0">→ {empMap.get(selectedEmployee) ?? ''}</span>
                   )}
                 </label>
               )
@@ -306,15 +306,15 @@ export function RegionalAssignClient({ customers, employees }: Props) {
 
       {/* 하단 고정 배정 바 — 선택 건이 있을 때만 슬라이드업 */}
       {checkedIds.size > 0 && (
-        <div className="fixed bottom-0 left-56 right-0 z-30 border-t border-[#c8c4d0] bg-white/95 backdrop-blur shadow-[0_-4px_12px_rgba(18,43,165,0.08)]">
+        <div className="fixed bottom-0 left-56 right-0 z-30 border-t border-line bg-surface/95 backdrop-blur shadow-[0_-4px_12px_rgba(18,43,165,0.08)]">
           <div className="max-w-5xl mx-auto flex items-center gap-4 px-6 py-3.5">
-            <span className="text-sm font-semibold text-[#090c1d]">
-              <span className="text-[#7b68ee]">{checkedIds.size}건</span> 선택됨
+            <span className="text-sm font-semibold text-ink">
+              <span className="text-brand">{checkedIds.size}건</span> 선택됨
             </span>
-            <div className="w-px h-6 bg-[#c8c4d0]" />
-            <label className="text-xs font-medium text-[#514b81] shrink-0">배정 대상<span className="text-red-500 ml-0.5">*</span></label>
+            <div className="w-px h-6 bg-line" />
+            <label className="text-xs font-medium text-ink-sub shrink-0">배정 대상<span className="text-red-500 ml-0.5">*</span></label>
             <div className="flex items-center gap-2">
-              <UserCheck className="size-4 text-[#7b68ee]" />
+              <UserCheck className="size-4 text-brand" />
               <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} className={inputCls + ' min-w-[180px]'}>
                 <option value="">직원 선택</option>
                 {employees.filter(e => e.is_active !== false).map(e => (
@@ -323,11 +323,11 @@ export function RegionalAssignClient({ customers, employees }: Props) {
               </select>
             </div>
             <button onClick={handleAssign} disabled={isPending || !selectedEmployee}
-              className="ml-auto h-9 px-6 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+              className="ml-auto h-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : <UserCheck className="size-4" />}
               {checkedIds.size}건 배정하기
             </button>
-            <button onClick={() => setCheckedIds(new Set())} className="text-[#b0acd6] hover:text-[#514b81] transition-colors" title="선택 해제">
+            <button onClick={() => setCheckedIds(new Set())} className="text-ink-faint hover:text-ink-sub transition-colors" title="선택 해제">
               <Square className="size-4" />
             </button>
           </div>

@@ -25,10 +25,10 @@ export default async function BuildingPurposesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Tag className="size-6 text-[#7b68ee]" />
+        <Tag className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">건물 용도 관리</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">
+          <h1 className="text-xl font-bold text-ink">건물 용도 관리</h1>
+          <p className="text-sm text-ink-sub mt-0.5">
             건물 등록·수정 화면의 용도 선택 목록을 관리합니다 — 삭제해도 기존 건물에 입력된 용도는 유지됩니다
           </p>
         </div>

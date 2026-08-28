@@ -94,7 +94,7 @@ export function ActionPlanDetailClient({
   return (
     <div className="space-y-4">
       {/* 건물정보 카드 */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-surface rounded-xl border p-5">
         <div className="font-semibold text-lg mb-1">{insp?.customers?.customer_name}</div>
         <div className="text-xs text-gray-400 space-y-0.5">
           <p>{inspectionTypeLabel(insp?.inspection_type)} {insp?.year}년 {insp?.sequence_num}차</p>
@@ -104,7 +104,7 @@ export function ActionPlanDetailClient({
       </div>
 
       {/* 불량내역 목록 */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-surface rounded-xl border p-5">
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle size={14} className="text-orange-500" />
           <span className="font-semibold text-sm">불량내역 ({defectList.length}건)</span>
@@ -130,7 +130,7 @@ export function ActionPlanDetailClient({
       </div>
 
       {/* 이행계획서 상태 입력 카드 */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-surface rounded-xl border p-5">
         <div className="font-semibold text-sm mb-4">이행계획서 정보</div>
         <div className="grid grid-cols-2 gap-3">
           {[
@@ -163,7 +163,7 @@ export function ActionPlanDetailClient({
 
       {/* 이행완료보고서 카드 */}
       {planSubmitted && (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-surface rounded-xl border p-5">
           <div className="font-semibold text-sm mb-4">이행완료보고서</div>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -192,7 +192,7 @@ export function ActionPlanDetailClient({
           <button
             onClick={save}
             disabled={pending}
-            className="bg-[#7b68ee] text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+            className="bg-brand text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
           >
             {pending ? '저장 중…' : saved ? '✓ 저장됨' : '저장'}
           </button>

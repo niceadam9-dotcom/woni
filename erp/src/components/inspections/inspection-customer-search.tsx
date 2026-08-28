@@ -75,7 +75,7 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
 
   return (
     <div className="relative" ref={boxRef}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6] pointer-events-none" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint pointer-events-none" />
       <input
         ref={inputRef}
         name="q"
@@ -86,22 +86,22 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
         placeholder="고객명 검색"
         autoComplete="off"
         aria-label="고객명 검색"
-        className="h-9 pl-8 pr-8 rounded-lg border border-[#d0ccf5] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-56"
+        className="h-9 pl-8 pr-8 rounded-lg border border-brand-line bg-surface text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition w-56"
       />
       {value && (
         <button
           type="button"
           onClick={() => { setValue(''); setSug([]); setOpen(false); apply('') }}
           aria-label="고객명 검색어 지우기"
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-[#b0acd6] hover:text-[#514b81] transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-faint hover:text-ink-sub transition-colors"
         >
           <X className="size-3.5" />
         </button>
       )}
 
       {open && sug.length > 0 && (
-        <div className="absolute top-10 left-0 z-40 w-72 bg-white rounded-xl border border-[#d0ccf5] shadow-xl py-2 max-h-80 overflow-y-auto">
-          <p className="px-3 py-1 text-[10px] font-semibold text-[#b0acd6] uppercase flex items-center gap-1">
+        <div className="absolute top-10 left-0 z-40 w-72 bg-surface rounded-xl border border-brand-line shadow-xl py-2 max-h-80 overflow-y-auto">
+          <p className="px-3 py-1 text-[10px] font-semibold text-ink-faint uppercase flex items-center gap-1">
             <Building2 className="size-3" /> 고객 (선택 시 목록 필터)
           </p>
           {sug.map((c, i) => (
@@ -110,10 +110,10 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
               type="button"
               onMouseEnter={() => setActive(i)}
               onClick={() => apply(c.name)}
-              className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-[#f5f4ff]' : 'hover:bg-[#f5f4ff]'}`}
+              className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-brand-tint' : 'hover:bg-brand-tint'}`}
             >
-              <span className="text-sm text-[#090c1d] truncate">{c.name}</span>
-              <span className="text-[10px] text-[#b0acd6] shrink-0">{c.count}건</span>
+              <span className="text-sm text-ink truncate">{c.name}</span>
+              <span className="text-[10px] text-ink-faint shrink-0">{c.count}건</span>
             </button>
           ))}
         </div>

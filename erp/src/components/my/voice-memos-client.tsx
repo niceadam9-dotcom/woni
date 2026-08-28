@@ -211,14 +211,14 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">녹음메모장</h1>
-        <p className="text-sm text-[#514b81] mt-1">현장 점검 음성 메모를 녹음하고 텍스트로 변환합니다.</p>
+        <h1 className="text-xl font-bold text-ink">녹음메모장</h1>
+        <p className="text-sm text-ink-sub mt-1">현장 점검 음성 메모를 녹음하고 텍스트로 변환합니다.</p>
       </div>
 
       {/* 녹음 컨트롤 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] p-6 shadow-sm space-y-4">
+      <div className="bg-surface rounded-xl border border-line p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#090c1d]">새 녹음</h2>
+          <h2 className="text-sm font-semibold text-ink">새 녹음</h2>
           {recording && (
             <div className="flex items-center gap-1.5 text-red-500">
               <span className="size-2 rounded-full bg-red-500 animate-pulse" />
@@ -232,7 +232,7 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
             <button
               onClick={startRecording}
               disabled={saving}
-              className="size-20 rounded-full bg-[#7b68ee] hover:bg-[#6a58d6] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+              className="size-20 rounded-full bg-brand hover:bg-brand-strong text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
             >
               <Mic size={32} />
             </button>
@@ -244,27 +244,27 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
               <Square size={32} />
             </button>
           )}
-          <p className="text-xs text-[#514b81]">
+          <p className="text-xs text-ink-sub">
             {saving ? '저장 중…' : recording ? '클릭하여 녹음 중지 및 저장' : '클릭하여 녹음 시작'}
           </p>
         </div>
 
         {/* 실시간 텍스트 변환 */}
         {(recording || transcript) && (
-          <div className="border border-[#c8c4d0] rounded-lg p-3 bg-[#fafafa] min-h-[60px] text-sm text-[#090c1d]">
-            <p className="text-[10px] text-[#b0acd6] mb-1 font-medium uppercase tracking-wide">
+          <div className="border border-line rounded-lg p-3 bg-paper min-h-[60px] text-sm text-ink">
+            <p className="text-[10px] text-ink-faint mb-1 font-medium uppercase tracking-wide">
               <MicOff size={10} className="inline mr-1" />실시간 텍스트 변환
             </p>
             <span>{transcript}</span>
-            <span className="text-[#b0acd6] italic">{interimTranscript}</span>
+            <span className="text-ink-faint italic">{interimTranscript}</span>
             {!transcript && !interimTranscript && recording && (
-              <span className="text-[#b0acd6] italic">말씀해 주세요…</span>
+              <span className="text-ink-faint italic">말씀해 주세요…</span>
             )}
           </div>
         )}
 
         {saving && (
-          <div className="flex items-center gap-2 text-sm text-[#514b81]">
+          <div className="flex items-center gap-2 text-sm text-ink-sub">
             <Loader2 size={14} className="animate-spin" /> 녹음 저장 중…
           </div>
         )}
@@ -276,46 +276,46 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
       </div>
 
       {/* 녹음 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+      <div className="bg-surface rounded-xl border border-line shadow-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div className="flex items-center gap-2">
-            <FileAudio size={16} className="text-[#7b68ee]" />
-            <h2 className="text-sm font-semibold text-[#090c1d]">저장된 녹음</h2>
-            {!loading && <span className="text-xs text-[#b0acd6]">총 {memos.length}건</span>}
+            <FileAudio size={16} className="text-brand" />
+            <h2 className="text-sm font-semibold text-ink">저장된 녹음</h2>
+            {!loading && <span className="text-xs text-ink-faint">총 {memos.length}건</span>}
           </div>
-          <button onClick={loadMemos} className="text-xs text-[#514b81] hover:text-[#7b68ee] flex items-center gap-1">
+          <button onClick={loadMemos} className="text-xs text-ink-sub hover:text-brand flex items-center gap-1">
             <RefreshCw size={12} /> 새로고침
           </button>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 size={20} className="animate-spin text-[#7b68ee]" />
+            <Loader2 size={20} className="animate-spin text-brand" />
           </div>
         ) : memos.length === 0 ? (
           <div className="py-12 text-center">
-            <FileAudio size={32} className="mx-auto text-[#d0cce8] mb-2" />
-            <p className="text-sm text-[#b0acd6]">저장된 녹음이 없습니다</p>
+            <FileAudio size={32} className="mx-auto text-ink-faint mb-2" />
+            <p className="text-sm text-ink-faint">저장된 녹음이 없습니다</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#e0ddf5]">
+          <div className="divide-y divide-brand-line-soft">
             {memos.map(memo => (
-              <div key={memo.id} className="px-5 py-4 hover:bg-[#fafafa] transition-colors">
+              <div key={memo.id} className="px-5 py-4 hover:bg-paper transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => playPause(memo)}
                       className={`size-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${
                         playingId === memo.id
-                          ? 'bg-[#7b68ee] text-white'
-                          : 'bg-[#f5f4ff] text-[#7b68ee] hover:bg-[#ebe9ff]'
+                          ? 'bg-brand text-white'
+                          : 'bg-brand-tint text-brand hover:bg-brand-tint'
                       }`}
                     >
                       {playingId === memo.id ? <Pause size={16} /> : <Play size={16} />}
                     </button>
                     <div>
-                      <p className="text-sm font-medium text-[#090c1d]">{memo.title}</p>
-                      <p className="text-xs text-[#514b81] mt-0.5">
+                      <p className="text-sm font-medium text-ink">{memo.title}</p>
+                      <p className="text-xs text-ink-sub mt-0.5">
                         {fmtDate(memo.created_at)} · {fmtDuration(memo.duration)}
                       </p>
                     </div>
@@ -323,13 +323,13 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
                   <button
                     onClick={() => deleteMemo(memo)}
                     disabled={deletingId === memo.id}
-                    className="text-[#d0cce8] hover:text-red-500 transition-colors shrink-0 disabled:opacity-50"
+                    className="text-ink-faint hover:text-red-500 transition-colors shrink-0 disabled:opacity-50"
                   >
                     {deletingId === memo.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   </button>
                 </div>
                 {memo.transcript && (
-                  <div className="mt-2 ml-12 p-2 bg-[#fafafa] rounded text-xs text-[#514b81] leading-relaxed border border-[#e0ddf5]">
+                  <div className="mt-2 ml-12 p-2 bg-paper rounded text-xs text-ink-sub leading-relaxed border border-brand-line-soft">
                     {memo.transcript}
                   </div>
                 )}
@@ -339,7 +339,7 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
         )}
       </div>
 
-      <p className="text-xs text-[#b0acd6]">
+      <p className="text-xs text-ink-faint">
         ※ 텍스트 변환은 Chrome/Edge 브라우저에서 지원됩니다. 다른 브라우저에서는 녹음만 가능합니다.
       </p>
     </div>

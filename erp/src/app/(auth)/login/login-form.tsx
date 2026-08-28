@@ -27,24 +27,24 @@ export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt={companyName} className="size-8 rounded-lg object-contain shrink-0" />
           ) : (
-            <div className="size-8 rounded-lg bg-[#7b68ee] flex items-center justify-center">
+            <div className="size-8 rounded-lg bg-brand flex items-center justify-center">
               <svg className="size-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M4 6h16M4 18h16" />
               </svg>
             </div>
           )}
-          <span className="text-xl font-bold text-[#090c1d]">{companyName}</span>
+          <span className="text-xl font-bold text-ink">{companyName}</span>
         </div>
-        <p className="text-sm text-[#514b81]">업무 계정으로 로그인하세요</p>
+        <p className="text-sm text-ink-sub">업무 계정으로 로그인하세요</p>
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(123,104,238,0.08)] border border-[#c8c4d0] p-8">
-        <h1 className="text-lg font-semibold text-[#090c1d] mb-6">로그인</h1>
+      <div className="bg-surface rounded-2xl shadow-[0_4px_24px_rgba(123,104,238,0.08)] border border-line p-8">
+        <h1 className="text-lg font-semibold text-ink mb-6">로그인</h1>
 
         <form action={formAction} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-[#292d34]">
+            <label htmlFor="email" className="text-sm font-medium text-ink-strong">
               이메일
             </label>
             <input
@@ -56,12 +56,12 @@ export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="name@company.com"
-              className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] placeholder:text-[#b0acd6] outline-none transition focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20"
+              className="w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-brand focus:ring-3 focus:ring-brand/20"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-[#292d34]">
+            <label htmlFor="password" className="text-sm font-medium text-ink-strong">
               비밀번호
             </label>
             <input
@@ -71,7 +71,7 @@ export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
               autoComplete="current-password"
               required
               placeholder="••••••••"
-              className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] placeholder:text-[#b0acd6] outline-none transition focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20"
+              className="w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-brand focus:ring-3 focus:ring-brand/20"
             />
           </div>
 
@@ -84,14 +84,14 @@ export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
           <Button
             type="submit"
             disabled={isPending}
-            className="w-full h-10 bg-[#7b68ee] hover:bg-[#6647f0] text-white font-medium rounded-lg transition-colors"
+            className="w-full h-10 bg-brand hover:bg-brand-strong text-white font-medium rounded-lg transition-colors"
           >
             {isPending ? '로그인 중...' : '로그인'}
           </Button>
         </form>
       </div>
 
-      <p className="mt-6 text-center text-xs text-[#514b81]">
+      <p className="mt-6 text-center text-xs text-ink-sub">
         계정 문의는 관리자에게 연락하세요
       </p>
     </div>

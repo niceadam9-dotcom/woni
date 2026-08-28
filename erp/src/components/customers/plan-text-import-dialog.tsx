@@ -72,63 +72,63 @@ export function PlanTextImportDialog({ onClose, onDone }: {
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => !isBusy && onClose()} />
-      <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-8 bottom-8 md:w-[760px] bg-white rounded-2xl shadow-2xl z-[70] flex flex-col">
-        <div className="px-5 py-3 border-b border-[#e0ddf5] shrink-0">
+      <div className="fixed inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 top-8 bottom-8 md:w-[760px] bg-surface rounded-2xl shadow-2xl z-[70] flex flex-col">
+        <div className="px-5 py-3 border-b border-brand-line-soft shrink-0">
           <div className="flex items-center gap-2">
-            <p className="font-semibold text-sm text-[#090c1d]">고객에서 불러오기</p>
-            <button onClick={onClose} disabled={isBusy} className="ml-auto text-[#b0acd6] hover:text-[#514b81] disabled:opacity-50">✕</button>
+            <p className="font-semibold text-sm text-ink">고객에서 불러오기</p>
+            <button onClick={onClose} disabled={isBusy} className="ml-auto text-ink-faint hover:text-ink-sub disabled:opacity-50">✕</button>
           </div>
-          <p className="mt-1 text-[11px] text-[#847ba8]">
+          <p className="mt-1 text-[11px] text-ink-soft">
             잘 작성된 고객의 서술 8섹션을 공통문구로 승격합니다. 일시·장소·인원 같은 고객 고유 값은 자동으로 제외됩니다.
           </p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
             <input value={picked ? picked.name : q} disabled={isBusy}
               onChange={e => { setPicked(null); setRows(null); setQ(e.target.value) }}
               placeholder="고객명 2자 이상 입력"
-              className="h-9 w-full rounded-lg border border-[#d0ccf5] pl-8 pr-3 text-sm outline-none focus:border-[#7b68ee]" />
+              className="h-9 w-full rounded-lg border border-brand-line pl-8 pr-3 text-sm outline-none focus:border-brand" />
           </div>
 
           {!picked && results.length > 0 && (
-            <div className="rounded-lg border border-[#e0ddf5] divide-y divide-[#f5f4ff] max-h-48 overflow-y-auto">
+            <div className="rounded-lg border border-brand-line-soft divide-y divide-brand-tint max-h-48 overflow-y-auto">
               {results.map(c => (
                 <button key={c.id} onClick={() => choose(c)}
-                  className="w-full px-3 py-2 text-left text-xs hover:bg-[#f5f4ff]">{c.name}</button>
+                  className="w-full px-3 py-2 text-left text-xs hover:bg-brand-tint">{c.name}</button>
               ))}
             </div>
           )}
 
-          {isBusy && !rows && <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 불러오는 중…</p>}
+          {isBusy && !rows && <p className="text-xs text-ink-sub inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 불러오는 중…</p>}
 
           {rows && (
             <div className="space-y-1.5">
-              <p className="text-[11px] text-[#847ba8]">
+              <p className="text-[11px] text-ink-soft">
                 서술이 있는 섹션 {selectable.length}개 · 선택 {checkedCount}개
-                {rows.length - selectable.length > 0 && <span className="text-[#b0acd6]"> (빈 섹션 {rows.length - selectable.length}개는 가져올 수 없습니다)</span>}
+                {rows.length - selectable.length > 0 && <span className="text-ink-faint"> (빈 섹션 {rows.length - selectable.length}개는 가져올 수 없습니다)</span>}
               </p>
               {rows.map(r => {
                 const st = state[r.sectionKey]
                 return (
-                  <div key={r.sectionKey} className={`rounded-lg border px-3 py-2 ${r.empty ? 'border-[#f0eefb] bg-[#fafafa]' : 'border-[#e0ddf5]'}`}>
+                  <div key={r.sectionKey} className={`rounded-lg border px-3 py-2 ${r.empty ? 'border-brand-line-soft bg-paper' : 'border-brand-line-soft'}`}>
                     <div className="flex items-center gap-2 flex-wrap">
                       <input type="checkbox" disabled={r.empty || isBusy} checked={!!st?.checked}
                         onChange={e => setState(s => ({ ...s, [r.sectionKey]: { ...s[r.sectionKey], checked: e.target.checked } }))}
                         className="size-3.5" />
-                      <span className="text-xs font-medium text-[#090c1d]">{r.label}</span>
+                      <span className="text-xs font-medium text-ink">{r.label}</span>
                       {r.empty
-                        ? <span className="text-[10px] text-[#b0acd6]">이 고객에 서술 없음</span>
-                        : <span className="text-[11px] text-[#847ba8] truncate max-w-[22rem]">{r.preview}</span>}
+                        ? <span className="text-[10px] text-ink-faint">이 고객에 서술 없음</span>
+                        : <span className="text-[11px] text-ink-soft truncate max-w-[22rem]">{r.preview}</span>}
                     </div>
                     {!r.empty && st?.checked && (
                       <div className="mt-1.5 flex items-center gap-2 flex-wrap pl-6">
                         <input value={st.title} disabled={isBusy}
                           onChange={e => setState(s => ({ ...s, [r.sectionKey]: { ...s[r.sectionKey], title: e.target.value } }))}
                           placeholder="항목 이름"
-                          className="h-7 flex-1 basis-52 min-w-0 rounded border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
-                        <label className="inline-flex items-center gap-1 text-[10px] text-[#847ba8] cursor-pointer">
+                          className="h-7 flex-1 basis-52 min-w-0 rounded border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
+                        <label className="inline-flex items-center gap-1 text-[10px] text-ink-soft cursor-pointer">
                           <input type="checkbox" disabled={isBusy} checked={st.makeDefault}
                             onChange={e => setState(s => ({ ...s, [r.sectionKey]: { ...s[r.sectionKey], makeDefault: e.target.checked } }))}
                             className="size-3" />
@@ -145,12 +145,12 @@ export function PlanTextImportDialog({ onClose, onDone }: {
           {err && <p className="text-xs text-red-600">{err}</p>}
         </div>
 
-        <div className="px-5 py-3 border-t border-[#e0ddf5] shrink-0 flex items-center gap-2">
-          <p className="text-[10px] text-[#b0acd6]">기존 항목을 덮어쓰지 않고 새 항목으로 등록합니다.</p>
+        <div className="px-5 py-3 border-t border-brand-line-soft shrink-0 flex items-center gap-2">
+          <p className="text-[10px] text-ink-faint">기존 항목을 덮어쓰지 않고 새 항목으로 등록합니다.</p>
           <button onClick={onClose} disabled={isBusy}
-            className="ml-auto h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">취소</button>
+            className="ml-auto h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">취소</button>
           <button onClick={run} disabled={isBusy || checkedCount === 0}
-            className="h-8 px-3.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-40 inline-flex items-center gap-1">
+            className="h-8 px-3.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium disabled:opacity-40 inline-flex items-center gap-1">
             {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : null} {checkedCount}개 등록
           </button>
         </div>

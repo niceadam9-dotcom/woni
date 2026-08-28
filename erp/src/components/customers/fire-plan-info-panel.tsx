@@ -28,8 +28,8 @@ const TEAM_DUTY: Record<string, string> = {
   '초기소화': '소화기 이용 초기소화', '피난유도': '피난층 또는 옥상으로 피난유도', '응급구조': '응급환자 구조 및 심폐소생',
 }
 
-const inputCls = 'h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]'
-const labelCls = 'text-[11px] font-medium text-[#514b81]'
+const inputCls = 'h-8 rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none focus:border-brand'
+const labelCls = 'text-[11px] font-medium text-ink-sub'
 
 export type FirePlanInfoInitial = FirePlanInfoInput & {
   height: string
@@ -220,18 +220,18 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff]">
+    <div className="mb-4 rounded-xl border border-brand-line-soft bg-brand-tint">
       {/* 헤더 — 준비율 게이지(입력 즉시 반영). 누락 칩은 상단 생성 바와 완전 중복이라 제거(2026-08-06):
           같은 computeFirePlanReadiness 항목을 두 번 그리고 있었고, 상단 칩은 다른 탭(건물·기본정보 등)까지
           보낼 수 있어 기능이 더 넓다. focusMissing은 상단 칩이 보내는 erp:focus-missing 수신용으로 존치. */}
       <div className="flex items-center gap-2 px-4 py-3">
         <span className="flex items-center gap-2 shrink-0">
-          <span className="text-xs font-semibold text-[#090c1d]">계획서 정보</span>
+          <span className="text-xs font-semibold text-ink">계획서 정보</span>
           <span className="ml-2 flex items-center gap-1.5">
-            <span className="w-24 h-1.5 rounded-full bg-[#e0ddf5] overflow-hidden">
-              <span className="block h-full bg-[#7b68ee]" style={{ width: `${(done / total) * 100}%` }} />
+            <span className="w-24 h-1.5 rounded-full bg-brand-line-soft overflow-hidden">
+              <span className="block h-full bg-brand" style={{ width: `${(done / total) * 100}%` }} />
             </span>
-            <span className="text-[11px] text-[#514b81]">준비율 {done}/{total}</span>
+            <span className="text-[11px] text-ink-sub">준비율 {done}/{total}</span>
           </span>
         </span>
       </div>
@@ -240,10 +240,10 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         {/* §6-D-1 도구 모음 */}
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={applySuggestions}
-            className="h-7 px-3 rounded-lg border border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff] text-[11px] inline-flex items-center gap-1">
+            className="h-7 px-3 rounded-lg border border-brand-line text-brand hover:bg-brand-tint text-[11px] inline-flex items-center gap-1">
             <Sparkles className="size-3" /> 추천값 채우기
           </button>
-          {msg && <span className="text-[11px] text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-[11px] text-ink-sub">{msg}</span>}
         </div>
 
         {/* §1-2 카드 앵커 점프 */}
@@ -253,8 +253,8 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         ]} />
 
         {/* ① 시설현황 (섹션 카드 — §3-1.1) */}
-        <section id="c-1.1.1" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
-          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> ① 시설현황 {!initial.hasBuilding && (
+        <section id="c-1.1.1" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-surface p-3">
+          <p className="text-[11px] font-bold text-brand mb-1.5 flex items-center gap-1"><Building2 className="size-3" /> ① 시설현황 {!initial.hasBuilding && (
             <span className="text-amber-600 font-normal">
               (건물 미등록 —{' '}
               {tabs ? (
@@ -275,16 +275,16 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               <input id="fp-roof" value={d.roof} onChange={e => set('roof', e.target.value)} list="fp-roofs" placeholder="선택/입력" disabled={!initial.hasBuilding} className={`${inputCls} w-28${sgCls('roof')}`} title={sgTitle('roof')} />
               <datalist id="fp-roofs">{ROOFS.map(s => <option key={s} value={s} />)}</datalist>
             </div>
-            {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-xs text-[#514b81]">{initial.height} m</span></div>}
+            {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-xs text-ink-sub">{initial.height} m</span></div>}
             {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 (§11-4 NumField) */}
             <div><label className={labelCls}>계단</label><br /><NumField value={d.stairsCount} onChange={v => set('stairsCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
             <div><label className={labelCls}>경사로</label><br /><NumField value={d.rampCount} onChange={v => set('rampCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
             <div><label className={labelCls}>피난용승강기</label><br /><NumField value={d.evacElevatorCount} onChange={v => set('evacElevatorCount', v)} unit="대" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <p className="text-[10px] text-[#b0acd6]">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
+            <p className="text-[10px] text-ink-faint">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
             <button onClick={refetchLedger} disabled={!initial.hasBuilding || isLedgerPending}
-              className="text-[10px] text-[#7b68ee] hover:underline disabled:opacity-50 inline-flex items-center gap-0.5 shrink-0">
+              className="text-[10px] text-brand hover:underline disabled:opacity-50 inline-flex items-center gap-0.5 shrink-0">
               {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
               건축물대장에서 다시 가져오기
             </button>
@@ -292,14 +292,14 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         </section>
 
         {/* ② 운영현황 (섹션 카드 — §3-1.1: 급수·선임·대표자·자격·교육 + 운영·인원 + 자위소방대) */}
-        <section id="c-1.1.2" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3 space-y-3">
-          <p className="text-[11px] font-bold text-[#7b68ee] flex items-center gap-1"><Clock className="size-3" /> ② 운영현황</p>
+        <section id="c-1.1.2" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-surface p-3 space-y-3">
+          <p className="text-[11px] font-bold text-brand flex items-center gap-1"><Clock className="size-3" /> ② 운영현황</p>
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>급수(대상물 등급)</label><br />
-              <div id="fp-grade" className={`flex rounded-lg border border-[#d0ccf5] overflow-hidden${sgCls('grade')}`} title={sgTitle('grade')}>
+              <div id="fp-grade" className={`flex rounded-lg border border-brand-line overflow-hidden${sgCls('grade')}`} title={sgTitle('grade')}>
                 {GRADES.map(g => (
                   <button key={g} onClick={() => set('grade', d.grade === g ? '' : g)}
-                    className={`px-2.5 h-8 text-xs ${d.grade === g ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{g}</button>
+                    className={`px-2.5 h-8 text-xs ${d.grade === g ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`}>{g}</button>
                 ))}
               </div>
             </div>
@@ -311,7 +311,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               <label className={labelCls}>소방안전관리자 정보</label><br />
               <Link href={`/customers/${customerId}?tab=contacts#c-fire-safety-manager`}
                 id="fp-appoint-type"
-                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] scroll-mt-4">
+                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint scroll-mt-4">
                 <ShieldCheck className="size-3" />
                 선임일·자격구분·교육이수일·선임 형태·대표자 구분 → 관계인 탭
                 <ExternalLink className="size-2.5" />
@@ -331,7 +331,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
 
           {/* 자위소방대 (운영현황 카드 내) */}
           <div id="fp-brigade">
-          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Flame className="size-3" /> 자위소방대 편성</p>
+          <p className="text-[11px] font-bold text-brand mb-1.5 flex items-center gap-1"><Flame className="size-3" /> 자위소방대 편성</p>
           <div className="space-y-1.5">
             {d.brigade.map((m, i) => (
               <div key={i} className="flex gap-1.5 items-center">
@@ -341,26 +341,26 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <input value={m.name} onChange={e => setBrigade(i, 'name', e.target.value)} placeholder="성명" className={`${inputCls} w-24`} />
                 <input value={m.duty} onChange={e => setBrigade(i, 'duty', e.target.value)} placeholder="개별임무 (자동)" className={`${inputCls} flex-1 min-w-40`} />
                 <PhoneField value={m.phone} onChange={v => setBrigade(i, 'phone', v)} placeholder="연락처" className={`${inputCls} w-32`} />
-                <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500 text-xs px-1">✕</button>
+                <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-ink-faint hover:text-red-500 text-xs px-1">✕</button>
               </div>
             ))}
             <div className="flex gap-2 relative">
               <button onClick={() => set('brigade', [...d.brigade, { team: TEAMS[Math.min(d.brigade.length, TEAMS.length - 1)], name: '', duty: '', phone: '' }])}
-                className="text-[11px] text-[#7b68ee] hover:underline">+ 행 추가</button>
-              <button onClick={() => setShowPicker(!showPicker)} className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
+                className="text-[11px] text-brand hover:underline">+ 행 추가</button>
+              <button onClick={() => setShowPicker(!showPicker)} className="text-[11px] text-brand hover:underline inline-flex items-center gap-0.5">
                 <UserPlus className="size-3" /> 가져오기 (관계인·직원)
               </button>
-              <button onClick={autoAssignBrigade} className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
+              <button onClick={autoAssignBrigade} className="text-[11px] text-brand hover:underline inline-flex items-center gap-0.5">
                 <Sparkles className="size-3" /> 자동 편성
               </button>
               {showPicker && (
-                <div className="absolute z-10 top-6 left-0 bg-white border border-[#d0ccf5] rounded-lg shadow-lg max-h-56 overflow-y-auto min-w-64">
-                  {people.length === 0 && <p className="text-[11px] text-[#b0acd6] px-3 py-2">후보 없음</p>}
+                <div className="absolute z-10 top-6 left-0 bg-surface border border-brand-line rounded-lg shadow-lg max-h-56 overflow-y-auto min-w-64">
+                  {people.length === 0 && <p className="text-[11px] text-ink-faint px-3 py-2">후보 없음</p>}
                   {people.map((p, i) => (
                     <button key={i} onClick={() => addFromPerson(p)}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff] flex justify-between gap-3">
-                      <span>{p.name} <span className="text-[#b0acd6]">({p.kind})</span></span>
-                      <span className="text-[#b0acd6]">{formatTel(p.phone)}</span>
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-brand-tint flex justify-between gap-3">
+                      <span>{p.name} <span className="text-ink-faint">({p.kind})</span></span>
+                      <span className="text-ink-faint">{formatTel(p.phone)}</span>
                     </button>
                   ))}
                 </div>
@@ -371,8 +371,8 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         </section>
 
         {/* ③ 화재보험 (섹션 카드 — §3-1.1) */}
-        <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
-          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
+        <section id="c-1.1.3" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-surface p-3">
+          <p className="text-[11px] font-bold text-brand mb-1.5 flex items-center gap-1"><Shield className="size-3" /> ③ 화재보험</p>
           {/* 2026-08-06: placeholder만 있어 값 입력 시 항목명이 사라지던 문제 수정 — ①②와 동일하게 라벨 부여.
               ⚠2026-08-24 단위 정정: **만원**이다. 종전 주석은 "별지 9호 원문이 '천만원'"이라 적었으나
               원문(_form/별지9호-placeholder.hwpx) 본문은 `가입금액: 대인( {{ins_person}} ) 대물( {{ins_property}} )`로
@@ -381,10 +381,10 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               확정했다(2026-08-24). 이 라벨은 별지 9호 PDF·갑지 엑셀의 접미와 **한 단위여야 한다**. */}
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>가입 여부</label><br />
-              <div id="fp-insurance" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden w-fit">
+              <div id="fp-insurance" className="flex rounded-lg border border-brand-line overflow-hidden w-fit">
                 {[['가입', true], ['미가입', false]].map(([label, val]) => (
                   <button key={String(label)} onClick={() => set('insuranceJoined', d.insuranceJoined === val ? null : val as boolean)}
-                    className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
+                    className={`px-3 h-8 text-xs ${d.insuranceJoined === val ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`}>{label as string}</button>
                 ))}
               </div>
             </div>
@@ -395,7 +395,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               <div><label className={labelCls}>가입기간</label><br />
                 <span className="inline-flex flex-wrap items-center gap-1">
                   <DateInput value={insStart} onChange={e => setInsPeriod(e.target.value, insEnd)} className={`${inputCls} w-32`} />
-                  <span className="text-[11px] text-[#847ba8] shrink-0">~</span>
+                  <span className="text-[11px] text-ink-soft shrink-0">~</span>
                   <DateInput value={insEnd} onChange={e => setInsPeriod(insStart, e.target.value)}
                     aria-invalid={isEndBeforeStart(insStart, insEnd)}
                     className={`${inputCls} w-32${isEndBeforeStart(insStart, insEnd) ? ' !border-red-400' : ''}`} />
@@ -408,13 +408,13 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               <div><label className={labelCls}>대인 가입금액</label><br />
                 <span className="inline-flex items-center gap-1">
                   <input value={d.insuranceAmountPerson} onChange={e => set('insuranceAmountPerson', e.target.value)} placeholder="예: 10000" className={`${inputCls} w-20`} title="만원 단위 숫자만 — '1억'처럼 단위를 적으면 서식에 '1억 만원'으로 인쇄됩니다" />
-                  <span className="text-[11px] text-[#847ba8] shrink-0">만원</span>
+                  <span className="text-[11px] text-ink-soft shrink-0">만원</span>
                 </span>
               </div>
               <div><label className={labelCls}>대물 가입금액</label><br />
                 <span className="inline-flex items-center gap-1">
                   <input value={d.insuranceAmountProperty} onChange={e => set('insuranceAmountProperty', e.target.value)} placeholder="예: 100000" className={`${inputCls} w-20`} title="만원 단위 숫자만 — '10억'처럼 단위를 적으면 서식에 '10억 만원'으로 인쇄됩니다" />
-                  <span className="text-[11px] text-[#847ba8] shrink-0">만원</span>
+                  <span className="text-[11px] text-ink-soft shrink-0">만원</span>
                 </span>
               </div>
             </>)}
@@ -423,17 +423,17 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
 
         {/* ④ 자체점검 보고서 전자우편 송달 동의 (098, 별지 9호 1쪽) —
             빠른 입력 폐기로 1.1로 이관된 뒤 저장 버튼이 둘이 되어, 이 폼 상태·[저장]으로 통합(2026-08-06) */}
-        <section id="consent-section" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-white p-3">
-          <p className="text-[11px] font-bold text-[#7b68ee] mb-1.5 flex items-center gap-1">
+        <section id="consent-section" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-surface p-3">
+          <p className="text-[11px] font-bold text-brand mb-1.5 flex items-center gap-1">
             <Mail className="size-3" /> ④ 자체점검 보고서 전자우편 송달 동의
-            <span className="font-normal text-[#b0acd6]">(별지 9호 1쪽 — 관계인 이메일 발송 조건)</span>
+            <span className="font-normal text-ink-faint">(별지 9호 1쪽 — 관계인 이메일 발송 조건)</span>
           </p>
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>동의 여부</label><br />
-              <div id="fp-consent" className="flex rounded-lg border border-[#d0ccf5] overflow-hidden w-fit">
+              <div id="fp-consent" className="flex rounded-lg border border-brand-line overflow-hidden w-fit">
                 {[['동의', true], ['미동의', false]].map(([label, val]) => (
                   <button key={String(label)} onClick={() => set('emailConsent', d.emailConsent === val ? null : val as boolean)}
-                    className={`px-3 h-8 text-xs ${d.emailConsent === val ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`}>{label as string}</button>
+                    className={`px-3 h-8 text-xs ${d.emailConsent === val ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`}>{label as string}</button>
                 ))}
               </div>
             </div>
@@ -448,10 +448,10 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
           {/* 이 화면에 '저장'이라 쓰인 버튼이 여럿이다(소방안전관리자 패널 등) — `button:text-is("저장")`로
               겨누면 Playwright가 첫 매치(비활성·비가시)를 집어 클릭이 타임아웃난다. 표적을 고정한다. */}
           <button onClick={() => { void save() }} disabled={isPending} data-testid="fp-info-save"
-            className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
+            className="h-8 px-5 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
             {isPending && <Loader2 className="size-3 animate-spin" />} 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       </div>
     </div>

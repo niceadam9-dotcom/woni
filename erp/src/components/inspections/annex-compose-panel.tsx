@@ -44,9 +44,9 @@ function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: s
   ]
 }
 
-const stepNo = 'inline-flex items-center justify-center size-5 rounded-full bg-[#7b68ee] text-white text-[11px] font-bold shrink-0'
-const badgeAuto = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#eeedf3] text-[#514b81]'
-const badgeInput = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#7b68ee] text-white'
+const stepNo = 'inline-flex items-center justify-center size-5 rounded-full bg-brand text-white text-[11px] font-bold shrink-0'
+const badgeAuto = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-paper text-ink-sub'
+const badgeInput = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand text-white'
 
 export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onClose, onGenerated }: {
   inspectionId: string
@@ -162,25 +162,25 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
 
       {/* 우측 슬라이드 패널 — 화면 1개 원칙(§4-A-2b) */}
-      <div className="fixed right-0 top-0 h-full w-[560px] max-w-full bg-white shadow-2xl z-50 flex flex-col" data-annex-panel={annexNo}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#e0ddf5] shrink-0">
+      <div className="fixed right-0 top-0 h-full w-[560px] max-w-full bg-surface shadow-2xl z-50 flex flex-col" data-annex-panel={annexNo}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-brand-line-soft shrink-0">
           <div>
-            <p className="text-sm font-semibold text-[#090c1d]">{meta.title} <span className="font-normal text-[#514b81]">— {meta.doc}</span></p>
-            <p className="text-[11px] text-[#b0acd6] mt-0.5">자동 채움 검토 → 고유 값 입력 → 미리보기·생성 — 데이터는 입력하고, 문서는 생성합니다</p>
+            <p className="text-sm font-semibold text-ink">{meta.title} <span className="font-normal text-ink-sub">— {meta.doc}</span></p>
+            <p className="text-[11px] text-ink-faint mt-0.5">자동 채움 검토 → 고유 값 입력 → 미리보기·생성 — 데이터는 입력하고, 문서는 생성합니다</p>
           </div>
-          <button onClick={onClose} aria-label="닫기" className="p-1 hover:bg-[#f5f4ff] rounded-lg transition-colors">
-            <X className="size-4 text-[#514b81]" />
+          <button onClick={onClose} aria-label="닫기" className="p-1 hover:bg-brand-tint rounded-lg transition-colors">
+            <X className="size-4 text-ink-sub" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {loading ? (
-            <p className="text-xs text-[#514b81] inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 불러오는 중…</p>
+            <p className="text-xs text-ink-sub inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" /> 불러오는 중…</p>
           ) : (
             <>
               {/* ── H-5b 전 회차 이어받기 배너 (D-5) — 서술 입력만 복사, 날짜류 제외 ── */}
               {prevOffer && (
-                <div className="flex items-center gap-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] px-3 py-2 text-xs text-[#514b81]">
+                <div className="flex items-center gap-2 rounded-lg bg-brand-tint border border-brand-line px-3 py-2 text-xs text-ink-sub">
                   <span>💡 전 회차({prevOffer.fromLabel}) 입력값이 있습니다 — 비고·요약 등 서술만 복사, 날짜는 새로 계산</span>
                   <span className="ml-auto flex items-center gap-1.5 shrink-0">
                     <button
@@ -190,10 +190,10 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                         setPrevOffer(null)
                         setMsg('✅ 전 회차 입력을 이어받았습니다 — 확인 후 저장하세요')
                       }}
-                      className="h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium">
+                      className="h-6 px-2 rounded bg-brand hover:bg-brand-strong text-white text-[11px] font-medium">
                       이어받기
                     </button>
-                    <button onClick={() => setPrevOffer(null)} className="h-6 px-2 rounded border border-[#d0ccf5] text-[11px] hover:bg-white">
+                    <button onClick={() => setPrevOffer(null)} className="h-6 px-2 rounded border border-brand-line text-[11px] hover:bg-surface">
                       새로 작성
                     </button>
                   </span>
@@ -204,19 +204,19 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
               <section>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={stepNo}>1</span>
-                  <h3 className="text-xs font-semibold text-[#090c1d]">자동 채움 검토</h3>
+                  <h3 className="text-xs font-semibold text-ink">자동 채움 검토</h3>
                   <span className={badgeAuto}>자동</span>
-                  <span className="text-[10px] text-[#b0acd6]">여기서는 못 고칩니다 — 원본 화면에서 수정</span>
+                  <span className="text-[10px] text-ink-faint">여기서는 못 고칩니다 — 원본 화면에서 수정</span>
                 </div>
                 <div className="space-y-1.5 pl-7">
                   {autoRows(annexNo, customerId, inspectionId).map(r => (
                     <div key={r.label} className="flex items-center gap-2 text-xs">
                       <span className={badgeAuto}>자동</span>
-                      <span className="text-[#090c1d]">{r.label}</span>
-                      <span className="text-[10px] text-[#b0acd6] ml-auto text-right">
+                      <span className="text-ink">{r.label}</span>
+                      <span className="text-[10px] text-ink-faint ml-auto text-right">
                         원본: {r.source}
                         {r.href && (
-                          <Link href={r.href} className="text-[#7b68ee] hover:underline ml-1 inline-flex items-center gap-0.5">
+                          <Link href={r.href} className="text-brand hover:underline ml-1 inline-flex items-center gap-0.5">
                             수정 <ExternalLink className="size-2.5" />
                           </Link>
                         )}
@@ -228,12 +228,12 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
               </section>
 
               {/* ── 2단 서식 고유 값 입력 ([입력] 보라 — ③ annex_inputs) ── */}
-              <section className="border-t border-dashed border-[#e0ddf5] pt-4">
+              <section className="border-t border-dashed border-brand-line-soft pt-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={stepNo}>2</span>
-                  <h3 className="text-xs font-semibold text-[#090c1d]">서식 고유 값 입력</h3>
+                  <h3 className="text-xs font-semibold text-ink">서식 고유 값 입력</h3>
                   <span className={badgeInput}>입력</span>
-                  <span className="text-[10px] text-[#b0acd6]">이 서식에서만 쓰는 값 — 여기서만 입력</span>
+                  <span className="text-[10px] text-ink-faint">이 서식에서만 쓰는 값 — 여기서만 입력</span>
                   {dirty && <span className="text-[10px] text-amber-600 font-medium ml-auto">미저장</span>}
                 </div>
                 <div className="space-y-3 pl-7">
@@ -244,51 +244,51 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                     const filled = (fields[d.key] ?? '').trim()
                     return (
                       <div key={d.key}>
-                        <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#514b81] mb-1">
+                        <label className="flex items-center gap-1.5 text-[11px] font-medium text-ink-sub mb-1">
                           <span className={badgeInput}>입력</span> {d.label}
                         </label>
                         <AnnexFieldInput def={a ? { ...d, placeholder: a } : d} value={fields[d.key] ?? ''}
                           onChange={v => setField(d.key, v)} />
                         {a && !filled && (
-                          <p className="text-[10px] text-[#847ba8] mt-0.5">
-                            <span className="inline-flex items-center rounded bg-[#eeecf8] px-1 py-px text-[9px] font-medium text-[#514b81] mr-1">자동</span>
+                          <p className="text-[10px] text-ink-soft mt-0.5">
+                            <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-[9px] font-medium text-ink-sub mr-1">자동</span>
                             이대로 출력됩니다 — 고치면 고친 값이 나갑니다
                           </p>
                         )}
-                        {d.hint && <p className="text-[10px] text-[#b0acd6] mt-0.5">{d.hint}</p>}
+                        {d.hint && <p className="text-[10px] text-ink-faint mt-0.5">{d.hint}</p>}
                       </div>
                     )
                   })}
                   <button onClick={save} disabled={isPending || !dirty}
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] font-medium text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                     {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
                   </button>
                 </div>
               </section>
 
               {/* ── 3단 미리보기 · PDF 생성 ── */}
-              <section className="border-t border-dashed border-[#e0ddf5] pt-4">
+              <section className="border-t border-dashed border-brand-line-soft pt-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={stepNo}>3</span>
-                  <h3 className="text-xs font-semibold text-[#090c1d]">미리보기 · PDF 생성</h3>
-                  <span className="text-[10px] text-[#b0acd6]">미입력 [입력] 항목은 노란 하이라이트 (§4-A-2c)</span>
+                  <h3 className="text-xs font-semibold text-ink">미리보기 · PDF 생성</h3>
+                  <span className="text-[10px] text-ink-faint">미입력 [입력] 항목은 노란 하이라이트 (§4-A-2c)</span>
                 </div>
                 <div className="pl-7 space-y-2">
                   <div className="flex items-center gap-2">
                     <button onClick={preview} disabled={isPending}
-                      className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                      className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs font-medium text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                       {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />} 미리보기
                     </button>
                     <button onClick={generate} disabled={isPending}
-                      className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+                      className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50">
                       {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />} PDF 생성
                     </button>
-                    <span className="text-[10px] text-[#b0acd6]">미저장 입력은 자동 저장 후 반영</span>
+                    <span className="text-[10px] text-ink-faint">미저장 입력은 자동 저장 후 반영</span>
                   </div>
-                  {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
+                  {msg && <p className="text-xs text-ink-sub">{msg}</p>}
                   {previewHtml && (
                     <iframe srcDoc={previewHtml} title={`${meta.doc} 미리보기`} sandbox=""
-                      className="w-full h-[480px] border border-[#e0ddf5] rounded-lg bg-white" />
+                      className="w-full h-[480px] border border-brand-line-soft rounded-lg bg-surface" />
                   )}
                 </div>
               </section>

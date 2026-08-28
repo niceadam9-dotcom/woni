@@ -21,7 +21,7 @@ export function CustomerPrevNext({ prevId, nextId, position }: {
 
   const btnCls = (enabled: boolean) =>
     `inline-flex items-center justify-center size-7 rounded-lg border text-xs transition-colors ${
-      enabled ? 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]' : 'border-[#e8e6f5] text-[#d0ccf5] cursor-default'
+      enabled ? 'border-brand-line text-brand hover:bg-brand-tint' : 'border-brand-line-soft text-[#d0ccf5] cursor-default'
     }`
 
   return (
@@ -29,7 +29,7 @@ export function CustomerPrevNext({ prevId, nextId, position }: {
       <button onClick={() => prevId && go(prevId)} disabled={!prevId} className={btnCls(!!prevId)} title="이전 고객">
         <ChevronLeft className="size-4" />
       </button>
-      <span className="text-[10px] text-[#b0acd6] w-12 text-center">{position}</span>
+      <span className="text-[10px] text-ink-faint w-12 text-center">{position}</span>
       <button onClick={() => nextId && go(nextId)} disabled={!nextId} className={btnCls(!!nextId)} title="다음 고객">
         <ChevronRight className="size-4" />
       </button>

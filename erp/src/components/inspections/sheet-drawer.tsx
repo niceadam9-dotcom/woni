@@ -101,13 +101,13 @@ export function SheetDrawer({ open, title, headerRight, banner, toc, footer, chi
         onMouseDown={() => { if (dismissOnBackdrop) onRequestClose('backdrop') }} />
       <div ref={panelRef} role="dialog" aria-modal="true" tabIndex={-1} onKeyDown={onKeyDown}
         data-testid="sheet-drawer"
-        className="absolute inset-y-0 right-0 w-[min(920px,94vw)] bg-white shadow-2xl border-l border-[#c8c4d0] flex flex-col outline-none
+        className="absolute inset-y-0 right-0 w-[min(920px,94vw)] bg-surface shadow-2xl border-l border-line flex flex-col outline-none
           max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:h-[92vh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#e0ddf5] shrink-0">
-          <h2 className="text-sm font-semibold text-[#090c1d] truncate">{title}</h2>
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-brand-line-soft shrink-0">
+          <h2 className="text-sm font-semibold text-ink truncate">{title}</h2>
           {headerRight}
           <button onClick={() => onRequestClose('button')} aria-label="닫기" data-testid="sheet-drawer-close"
-            className="ml-1 size-8 shrink-0 rounded-lg flex items-center justify-center text-[#514b81] hover:bg-[#f5f4ff]">
+            className="ml-1 size-8 shrink-0 rounded-lg flex items-center justify-center text-ink-sub hover:bg-brand-tint">
             <X className="size-4" />
           </button>
         </div>
@@ -116,7 +116,7 @@ export function SheetDrawer({ open, title, headerRight, banner, toc, footer, chi
           {toc}
           <div className="flex-1 min-w-0 flex flex-col">{children}</div>
         </div>
-        {footer && <div className="px-4 py-2.5 border-t border-[#e0ddf5] shrink-0">{footer}</div>}
+        {footer && <div className="px-4 py-2.5 border-t border-brand-line-soft shrink-0">{footer}</div>}
       </div>
     </div>,
     document.body,

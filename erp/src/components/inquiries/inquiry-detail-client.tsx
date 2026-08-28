@@ -12,8 +12,8 @@ import {
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
-const labelCls = 'text-xs font-medium text-[#514b81]'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const labelCls = 'text-xs font-medium text-ink-sub'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -174,7 +174,7 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
             onChange={e => setResolutionNotes(e.target.value)}
             placeholder="처리 결과를 입력해주세요 (선택)"
             rows={3}
-            className="w-full rounded-lg border border-green-300 bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-green-500 resize-none"
+            className="w-full rounded-lg border border-green-300 bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-green-500 resize-none"
           />
           <div className="flex gap-2">
             <button
@@ -196,13 +196,13 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
       )}
 
       {/* 문의 내용 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#090c1d]">문의 내용</h2>
+          <h2 className="text-sm font-semibold text-ink">문의 내용</h2>
           {inquiry.status === 'pending' && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors"
             >
               <Pencil className="size-3" />
               수정
@@ -212,7 +212,7 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => { setIsEditing(false); setError('') }}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors"
               >
                 <X className="size-3" />
                 취소
@@ -220,7 +220,7 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
               <button
                 onClick={handleSave}
                 disabled={isPending}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium hover:bg-[#6a57dd] transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-strong transition-colors disabled:opacity-50"
               >
                 {isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
                 저장
@@ -252,13 +252,13 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
                 value={form.content}
                 onChange={e => setField('content', e.target.value)}
                 rows={6}
-                className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+                className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
               />
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field label="담당자명">
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
                   <input
                     value={form.contact_name}
                     onChange={e => setField('contact_name', e.target.value)}
@@ -268,7 +268,7 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
               </Field>
               <Field label="연락처">
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
                   <input
                     value={form.contact_phone}
                     onChange={e => setField('contact_phone', formatPhoneKR(e.target.value))}
@@ -282,31 +282,31 @@ export function InquiryDetailClient({ inquiry }: { inquiry: Inquiry }) {
         ) : (
           <div className="space-y-4">
             <div>
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">
                 {TYPE_LABELS[inquiry.inquiry_type] ?? inquiry.inquiry_type}
               </span>
             </div>
             <div>
-              <p className="text-xs text-[#514b81] mb-1">제목</p>
-              <p className="text-sm font-medium text-[#090c1d]">{inquiry.title}</p>
+              <p className="text-xs text-ink-sub mb-1">제목</p>
+              <p className="text-sm font-medium text-ink">{inquiry.title}</p>
             </div>
             <div>
-              <p className="text-xs text-[#514b81] mb-1">내용</p>
-              <p className="text-sm text-[#090c1d] whitespace-pre-wrap">{inquiry.content}</p>
+              <p className="text-xs text-ink-sub mb-1">내용</p>
+              <p className="text-sm text-ink whitespace-pre-wrap">{inquiry.content}</p>
             </div>
             {(inquiry.contact_name || inquiry.contact_phone) && (
-              <div className="pt-3 border-t border-[#c8c4d0]">
-                <p className="text-xs text-[#514b81] mb-2">담당 연락처</p>
+              <div className="pt-3 border-t border-line">
+                <p className="text-xs text-ink-sub mb-2">담당 연락처</p>
                 <div className="flex items-center gap-4 text-sm">
                   {inquiry.contact_name && (
-                    <span className="flex items-center gap-1 text-[#090c1d]">
-                      <User className="size-3.5 text-[#b0acd6]" />
+                    <span className="flex items-center gap-1 text-ink">
+                      <User className="size-3.5 text-ink-faint" />
                       {inquiry.contact_name}
                     </span>
                   )}
                   {inquiry.contact_phone && (
-                    <span className="flex items-center gap-1 text-[#090c1d]">
-                      <Phone className="size-3.5 text-[#b0acd6]" />
+                    <span className="flex items-center gap-1 text-ink">
+                      <Phone className="size-3.5 text-ink-faint" />
                       {formatTel(inquiry.contact_phone)}
                     </span>
                   )}

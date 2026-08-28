@@ -141,9 +141,9 @@ function PayrollModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
+      <div className="bg-surface rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="font-bold text-[#090c1d]">{editing ? '급여 수정' : '급여 등록'}</h2>
+          <h2 className="font-bold text-ink">{editing ? '급여 수정' : '급여 등록'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
         <div className="p-6 space-y-5">
@@ -155,7 +155,7 @@ function PayrollModal({
                 value={form.employee_id}
                 onChange={e => set('employee_id', e.target.value)}
                 disabled={!!editing}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none disabled:bg-gray-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none disabled:bg-gray-50"
               >
                 <option value="">선택</option>
                 {employees.map(emp => (
@@ -170,7 +170,7 @@ function PayrollModal({
                 value={form.pay_year}
                 onChange={e => set('pay_year', parseInt(e.target.value))}
                 disabled={!!editing}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none disabled:bg-gray-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none disabled:bg-gray-50"
               />
             </div>
             <div>
@@ -179,7 +179,7 @@ function PayrollModal({
                 value={form.pay_month}
                 onChange={e => set('pay_month', parseInt(e.target.value))}
                 disabled={!!editing}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none disabled:bg-gray-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none disabled:bg-gray-50"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                   <option key={m} value={m}>{m}월</option>
@@ -204,12 +204,12 @@ function PayrollModal({
                     type="number" min={0}
                     value={form[field]}
                     onChange={e => set(field, num(e.target.value))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none"
                   />
                 </div>
               ))}
             </div>
-            <div className="mt-2 bg-[#f5f4ff] rounded-lg px-4 py-2 flex justify-between text-sm font-semibold text-[#7b68ee]">
+            <div className="mt-2 bg-brand-tint rounded-lg px-4 py-2 flex justify-between text-sm font-semibold text-brand">
               <span>지급 합계 (총지급액)</span>
               <span>{fmt(gross)}원</span>
             </div>
@@ -233,7 +233,7 @@ function PayrollModal({
                     type="number" min={0}
                     value={form[field]}
                     onChange={e => set(field, num(e.target.value))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none"
                   />
                 </div>
               ))}
@@ -259,7 +259,7 @@ function PayrollModal({
               <DateInput
                 value={form.pay_date}
                 onChange={e => set('pay_date', e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none"
               />
             </div>
             <div>
@@ -269,7 +269,7 @@ function PayrollModal({
                 value={form.notes}
                 onChange={e => set('notes', e.target.value)}
                 placeholder="비고 사항"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#7b68ee]/40 outline-none"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/40 outline-none"
               />
             </div>
           </div>
@@ -281,7 +281,7 @@ function PayrollModal({
           <button
             onClick={handleSubmit}
             disabled={pending}
-            className="px-4 py-2 text-sm rounded-lg bg-[#7b68ee] text-white hover:bg-[#6a5acd] disabled:opacity-60"
+            className="px-4 py-2 text-sm rounded-lg bg-brand text-white hover:bg-brand-strong disabled:opacity-60"
           >
             {pending ? '저장 중…' : (editing ? '수정' : '등록')}
           </button>
@@ -338,11 +338,11 @@ export function PayrollClient({
       {/* 요약 카드 */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: '총지급액 합계',   value: totalGross,  color: 'text-[#7b68ee]' },
+          { label: '총지급액 합계',   value: totalGross,  color: 'text-brand' },
           { label: '공제액 합계',     value: totalDeduct, color: 'text-red-500' },
           { label: '실수령액 합계',   value: totalNet,    color: 'text-emerald-600' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border p-4">
+          <div key={s.label} className="bg-surface rounded-xl border p-4">
             <p className="text-xs text-gray-400">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{fmt(s.value)}<span className="text-sm font-normal ml-0.5">원</span></p>
           </div>
@@ -350,17 +350,17 @@ export function PayrollClient({
       </div>
 
       {/* 필터 */}
-      <div className="bg-white rounded-xl border p-4 flex flex-wrap gap-3 items-center">
+      <div className="bg-surface rounded-xl border p-4 flex flex-wrap gap-3 items-center">
         <span className="text-sm font-medium text-gray-500">{year}년</span>
         {/* 월 필터 */}
         <div className="flex gap-1 flex-wrap">
           <button onClick={() => setFilterMonth('all')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium ${filterMonth === 'all' ? 'bg-[#7b68ee] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium ${filterMonth === 'all' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
             전체
           </button>
           {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
             <button key={m} onClick={() => setFilterMonth(m)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium ${filterMonth === m ? 'bg-[#7b68ee] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium ${filterMonth === m ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
               {m}월
             </button>
           ))}
@@ -369,7 +369,7 @@ export function PayrollClient({
         <div className="flex gap-1">
           {['all', '작성중', '확정', '지급완료'].map(s => (
             <button key={s} onClick={() => setFilterStatus(s)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium ${filterStatus === s ? 'bg-[#7b68ee] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium ${filterStatus === s ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
               {s === 'all' ? '전체상태' : s}
             </button>
           ))}
@@ -377,18 +377,18 @@ export function PayrollClient({
         <input
           type="text" placeholder="직원명 검색"
           value={search} onChange={e => setSearch(e.target.value)}
-          className="ml-auto border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#7b68ee]/40 w-40"
+          className="ml-auto border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-brand/40 w-40"
         />
         <button
           onClick={() => { setEditing(null); setShowModal(true) }}
-          className="bg-[#7b68ee] text-white text-sm px-4 py-1.5 rounded-lg hover:bg-[#6a5acd]"
+          className="bg-brand text-white text-sm px-4 py-1.5 rounded-lg hover:bg-brand-strong"
         >
           + 급여 등록
         </button>
       </div>
 
       {/* 테이블 */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-surface rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -411,7 +411,7 @@ export function PayrollClient({
                     <td className="px-4 py-2.5 font-medium">{row.profiles?.full_name ?? '-'}</td>
                     <td className="px-4 py-2.5 text-gray-500 text-xs">{row.profiles?.department ?? '-'}</td>
                     <td className="px-4 py-2.5">{row.pay_year}년 {row.pay_month}월</td>
-                    <td className="px-4 py-2.5 text-right font-medium text-[#7b68ee]">{fmt(row.gross_pay)}</td>
+                    <td className="px-4 py-2.5 text-right font-medium text-brand">{fmt(row.gross_pay)}</td>
                     <td className="px-4 py-2.5 text-right text-red-500">{fmt(row.total_deductions)}</td>
                     <td className="px-4 py-2.5 text-right font-bold text-emerald-600">{fmt(row.net_pay)}</td>
                     <td className="px-4 py-2.5 text-gray-500 text-xs">{row.pay_date ?? '-'}</td>
@@ -451,7 +451,7 @@ export function PayrollClient({
                     </td>
                   </tr>
                   {expanding === row.id && (
-                    <tr key={`${row.id}-detail`} className="bg-[#faf9ff]">
+                    <tr key={`${row.id}-detail`} className="bg-brand-tint">
                       <td colSpan={9} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-6 text-sm">
                           <div>
@@ -469,7 +469,7 @@ export function PayrollClient({
                                     <td className="py-0.5 text-right">{fmt(val as number)}</td>
                                   </tr>
                                 ))}
-                                <tr className="border-t font-semibold text-[#7b68ee]">
+                                <tr className="border-t font-semibold text-brand">
                                   <td className="pt-1">총지급액</td>
                                   <td className="pt-1 text-right">{fmt(row.gross_pay)}</td>
                                 </tr>

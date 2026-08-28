@@ -44,28 +44,28 @@ export function InspectionParticipantsClient({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-3">
-        <Users className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">점검 참여자</h2>
-        <span className="text-xs text-[#b0acd6] ml-auto">보고서 개요에 인쇄</span>
+        <Users className="size-4 text-brand" />
+        <h2 className="text-sm font-semibold text-ink">점검 참여자</h2>
+        <span className="text-xs text-ink-faint ml-auto">보고서 개요에 인쇄</span>
       </div>
 
-      <div className="flex items-center gap-2 py-2 border-b border-[#f0eefb]">
-        <span className="text-xs font-semibold text-[#7b68ee] w-14 shrink-0">주된</span>
-        <span className="text-sm text-[#090c1d]">{mainEmployee?.name ?? '미배정'}</span>
-        {mainEmployee?.license_no && <span className="text-xs text-[#b0acd6]">({mainEmployee.license_no})</span>}
+      <div className="flex items-center gap-2 py-2 border-b border-brand-line-soft">
+        <span className="text-xs font-semibold text-brand w-14 shrink-0">주된</span>
+        <span className="text-sm text-ink">{mainEmployee?.name ?? '미배정'}</span>
+        {mainEmployee?.license_no && <span className="text-xs text-ink-faint">({mainEmployee.license_no})</span>}
       </div>
 
       {aux.map(p => (
-        <div key={p.id} className="flex items-center gap-2 py-2 border-b border-[#f8f9fa]">
-          <span className="text-xs font-medium text-[#514b81] w-14 shrink-0">보조</span>
-          <span className="text-sm text-[#090c1d]">{p.name}</span>
-          {p.license_no && <span className="text-xs text-[#b0acd6]">({p.license_no})</span>}
+        <div key={p.id} className="flex items-center gap-2 py-2 border-b border-paper">
+          <span className="text-xs font-medium text-ink-sub w-14 shrink-0">보조</span>
+          <span className="text-sm text-ink">{p.name}</span>
+          {p.license_no && <span className="text-xs text-ink-faint">({p.license_no})</span>}
           {!p.license_no && <span className="text-[11px] text-amber-500">경력수첩번호 없음</span>}
           {canManage && (
             <button onClick={() => remove(p.id)} disabled={isPending}
-              className="ml-auto p-1 text-[#b0acd6] hover:text-red-500 transition-colors disabled:opacity-40">
+              className="ml-auto p-1 text-ink-faint hover:text-red-500 transition-colors disabled:opacity-40">
               <X className="size-3.5" />
             </button>
           )}
@@ -75,12 +75,12 @@ export function InspectionParticipantsClient({
       {canManage && (
         <div className="flex items-center gap-2 mt-3">
           <select value={pick} onChange={e => setPick(e.target.value)}
-            className="flex-1 h-9 rounded-lg border border-[#d0ccf5] bg-white px-2 text-sm outline-none focus:border-[#7b68ee]">
+            className="flex-1 h-9 rounded-lg border border-brand-line bg-surface px-2 text-sm outline-none focus:border-brand">
             <option value="">보조 인력 추가…</option>
             {options.map(e => <option key={e.id} value={e.id}>{e.name}{e.position ? ` (${e.position})` : ''}</option>)}
           </select>
           <button onClick={add} disabled={!pick || isPending}
-            className="inline-flex items-center gap-1 h-9 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-9 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserPlus className="size-3.5" />} 추가
           </button>
         </div>

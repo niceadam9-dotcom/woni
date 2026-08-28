@@ -97,17 +97,17 @@ export default async function DocumentDetailPage({ params }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <Link href="/documents" className="text-[#514b81] hover:text-[#7b68ee] transition-colors mt-1 shrink-0">
+          <Link href="/documents" className="text-ink-sub hover:text-brand transition-colors mt-1 shrink-0">
             <ArrowLeft className="size-5" />
           </Link>
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="text-xs text-[#514b81]">{TEMPLATE_MAP[doc.template_type] ?? doc.template_type}</span>
+              <span className="text-xs text-ink-sub">{TEMPLATE_MAP[doc.template_type] ?? doc.template_type}</span>
               <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusInfo.className}`}>
                 {statusInfo.label}
               </span>
             </div>
-            <h1 className="text-xl font-bold text-[#090c1d] break-words">{doc.title}</h1>
+            <h1 className="text-xl font-bold text-ink break-words">{doc.title}</h1>
           </div>
         </div>
 
@@ -115,7 +115,7 @@ export default async function DocumentDetailPage({ params }: Props) {
         {isAuthor && doc.status === 'draft' && (
           <Link
             href={`/documents/new?template=${doc.template_type}`}
-            className="shrink-0 text-sm text-[#7b68ee] border border-[#ece9ff] px-3 py-1.5 rounded-lg hover:bg-[#f5f4ff] transition-colors"
+            className="shrink-0 text-sm text-brand border border-brand-tint px-3 py-1.5 rounded-lg hover:bg-brand-tint transition-colors"
           >
             이어서 작성
           </Link>
@@ -123,15 +123,15 @@ export default async function DocumentDetailPage({ params }: Props) {
       </div>
 
       {/* Meta */}
-      <div className="bg-white rounded-xl border border-[#ece9ff] p-5">
+      <div className="bg-surface rounded-xl border border-brand-tint p-5">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-[#514b81] text-xs mb-0.5">기안자</p>
-            <p className="font-medium text-[#090c1d]">{author?.name ?? '-'}</p>
+            <p className="text-ink-sub text-xs mb-0.5">기안자</p>
+            <p className="font-medium text-ink">{author?.name ?? '-'}</p>
           </div>
           <div>
-            <p className="text-[#514b81] text-xs mb-0.5">기안일시</p>
-            <p className="font-medium text-[#090c1d]">
+            <p className="text-ink-sub text-xs mb-0.5">기안일시</p>
+            <p className="font-medium text-ink">
               {doc.submitted_at
                 ? new Date(doc.submitted_at).toLocaleString('ko-KR', {
                     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -144,25 +144,25 @@ export default async function DocumentDetailPage({ params }: Props) {
       </div>
 
       {/* Content */}
-      <div className="bg-white rounded-xl border border-[#ece9ff] p-6">
-        <h2 className="text-sm font-semibold text-[#090c1d] mb-4">내용</h2>
-        <div className="text-sm text-[#292d34] whitespace-pre-wrap leading-relaxed">{doc.content}</div>
+      <div className="bg-surface rounded-xl border border-brand-tint p-6">
+        <h2 className="text-sm font-semibold text-ink mb-4">내용</h2>
+        <div className="text-sm text-ink-strong whitespace-pre-wrap leading-relaxed">{doc.content}</div>
       </div>
 
       {/* Attachments */}
       {attachments.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#ece9ff] p-5">
-          <h2 className="text-sm font-semibold text-[#090c1d] mb-3">첨부파일</h2>
+        <div className="bg-surface rounded-xl border border-brand-tint p-5">
+          <h2 className="text-sm font-semibold text-ink mb-3">첨부파일</h2>
           <div className="space-y-2">
             {attachments.map(att => (
               <div
                 key={att.id}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#f5f4ff] text-sm text-[#514b81]"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-tint text-sm text-ink-sub"
               >
-                <Paperclip className="size-4 text-[#7b68ee] shrink-0" />
+                <Paperclip className="size-4 text-brand shrink-0" />
                 <span className="flex-1 truncate">{att.file_name}</span>
                 {att.file_size != null && (
-                  <span className="text-xs text-[#b0acd6] shrink-0">{(att.file_size / 1024).toFixed(0)}KB</span>
+                  <span className="text-xs text-ink-faint shrink-0">{(att.file_size / 1024).toFixed(0)}KB</span>
                 )}
               </div>
             ))}
@@ -171,12 +171,12 @@ export default async function DocumentDetailPage({ params }: Props) {
       )}
 
       {/* Approval flow */}
-      <div className="bg-white rounded-xl border border-[#ece9ff] p-5">
-        <h2 className="text-sm font-semibold text-[#090c1d] mb-4">결재선</h2>
+      <div className="bg-surface rounded-xl border border-brand-tint p-5">
+        <h2 className="text-sm font-semibold text-ink mb-4">결재선</h2>
         {approversWithProfiles.length > 0 ? (
           <ApprovalFlow approvers={approversWithProfiles} />
         ) : (
-          <p className="text-sm text-[#b0acd6]">결재자가 지정되지 않았습니다.</p>
+          <p className="text-sm text-ink-faint">결재자가 지정되지 않았습니다.</p>
         )}
       </div>
     </div>

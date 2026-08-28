@@ -25,13 +25,13 @@ export function HeaderTitle() {
     <div className="flex items-center gap-1.5 min-w-0 text-sm">
       {best ? (
         <>
-          <span className="text-[#b0acd6] shrink-0">{best.group}</span>
-          <ChevronRight className="size-3.5 text-[#d5d2ea] shrink-0" />
-          {Icon && <Icon className="size-4 text-[#7b68ee] shrink-0" />}
-          <span className="font-semibold text-[#090c1d] truncate">{best.label}</span>
+          <span className="text-ink-faint shrink-0">{best.group}</span>
+          <ChevronRight className="size-3.5 text-ink-faint shrink-0" />
+          {Icon && <Icon className="size-4 text-brand shrink-0" />}
+          <span className="font-semibold text-ink truncate">{best.label}</span>
         </>
       ) : (
-        <span className="font-semibold text-[#090c1d]">대시보드</span>
+        <span className="font-semibold text-ink">대시보드</span>
       )}
     </div>
   )

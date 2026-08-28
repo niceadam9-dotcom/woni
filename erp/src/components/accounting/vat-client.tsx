@@ -95,13 +95,13 @@ export function VatClient({
   return (
     <div className="space-y-4">
       {/* 분기 필터 */}
-      <div className="flex items-center gap-3 bg-white rounded-xl border p-4">
+      <div className="flex items-center gap-3 bg-surface rounded-xl border p-4">
         <span className="text-sm font-medium text-gray-600">{year}년</span>
         <div className="flex gap-1">
           {([['all', '전체'], [1, '1분기'], [2, '2분기'], [3, '3분기'], [4, '4분기']] as const).map(([v, label]) => (
             <button key={label} onClick={() => setQuarter(v as typeof quarter)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                quarter === v ? 'bg-[#7b68ee] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                quarter === v ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}>{label}</button>
           ))}
         </div>
@@ -111,11 +111,11 @@ export function VatClient({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: '공급가액 합계', value: totals.supplyValue, color: 'text-gray-700' },
-          { label: '부가세 합계',   value: totals.taxValue,    color: 'text-[#7b68ee]' },
+          { label: '부가세 합계',   value: totals.taxValue,    color: 'text-brand' },
           { label: '세금계산서 발행', value: `${issuedCount}/${totalInvCount}건`, color: 'text-emerald-600', isText: true },
           { label: '미발행 부가세', value: pendingTax, color: 'text-amber-600' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border p-4">
+          <div key={s.label} className="bg-surface rounded-xl border p-4">
             <p className="text-xs text-gray-400">{s.label}</p>
             {s.isText
               ? <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
@@ -126,9 +126,9 @@ export function VatClient({
       </div>
 
       {/* 월별 부가세 현황 테이블 */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-surface rounded-xl border overflow-hidden">
         <div className="px-5 py-3 border-b bg-gray-50">
-          <h2 className="font-semibold text-sm text-[#090c1d]">월별 부가가치세 현황</h2>
+          <h2 className="font-semibold text-sm text-ink">월별 부가가치세 현황</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -148,7 +148,7 @@ export function VatClient({
                     <td className="px-4 py-2.5 font-medium">{row.month}</td>
                     <td className="px-4 py-2.5 text-center">{row.count}</td>
                     <td className="px-4 py-2.5 text-right">{fmt(row.supplyValue)}</td>
-                    <td className="px-4 py-2.5 text-right font-medium text-[#7b68ee]">{fmt(row.taxValue)}</td>
+                    <td className="px-4 py-2.5 text-right font-medium text-brand">{fmt(row.taxValue)}</td>
                     <td className="px-4 py-2.5 text-right">{fmt(row.totalAmount)}</td>
                     <td className="px-4 py-2.5 text-center">{row.paidCount} / {row.count}</td>
                   </tr>
@@ -157,12 +157,12 @@ export function VatClient({
             </tbody>
             {monthRows.length > 0 && (
               <tfoot>
-                <tr className="bg-[#f5f4ff] font-bold">
-                  <td className="px-4 py-3 text-[#7b68ee]">합계</td>
-                  <td className="px-4 py-3 text-center text-[#7b68ee]">{filteredBills.length}</td>
-                  <td className="px-4 py-3 text-right text-[#7b68ee]">{fmt(totals.supplyValue)}</td>
-                  <td className="px-4 py-3 text-right text-[#7b68ee]">{fmt(totals.taxValue)}</td>
-                  <td className="px-4 py-3 text-right text-[#7b68ee]">{fmt(totals.totalAmount)}</td>
+                <tr className="bg-brand-tint font-bold">
+                  <td className="px-4 py-3 text-brand">합계</td>
+                  <td className="px-4 py-3 text-center text-brand">{filteredBills.length}</td>
+                  <td className="px-4 py-3 text-right text-brand">{fmt(totals.supplyValue)}</td>
+                  <td className="px-4 py-3 text-right text-brand">{fmt(totals.taxValue)}</td>
+                  <td className="px-4 py-3 text-right text-brand">{fmt(totals.totalAmount)}</td>
                   <td className="px-4 py-3" />
                 </tr>
               </tfoot>

@@ -29,7 +29,7 @@ export function SheetCacheClearButton() {
       onClick={handleClear}
       disabled={isPending}
       title="점검표 항목 캐시를 즉시 비웁니다 — 시드·마이그레이션으로 DB를 직접 고친 뒤 사용하세요"
-      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors disabled:opacity-50"
     >
       {isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
       {done ? '비웠습니다' : '캐시 비우기'}

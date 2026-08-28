@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X } from 'lucide-react'
 import { createStockMovementAction, type StockMovementType } from '@/app/(dashboard)/stock/actions'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 type Item = { id: string; item_code: string; item_name: string; unit: string | null; current_stock: number; standard_price: number | null }
 type Movement = {
@@ -56,10 +56,10 @@ export function StockMovementClient({
   return (
     <div className="space-y-4">
       {showNew ? (
-        <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
+        <div className="bg-paper border border-brand-line rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-4 gap-3">
             <div className="space-y-1 col-span-2">
-              <label className="text-xs text-[#514b81]">품목<span className="text-red-500 ml-0.5">*</span></label>
+              <label className="text-xs text-ink-sub">품목<span className="text-red-500 ml-0.5">*</span></label>
               <select value={form.item_id} onChange={e => {
                 const item = items.find(i => i.id === e.target.value)
                 setForm(p => ({ ...p, item_id: e.target.value, unit_price: item?.standard_price?.toString() ?? '' }))
@@ -69,29 +69,29 @@ export function StockMovementClient({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">수량<span className="text-red-500 ml-0.5">*</span> {selectedItem?.unit ? `(${selectedItem.unit})` : ''}</label>
+              <label className="text-xs text-ink-sub">수량<span className="text-red-500 ml-0.5">*</span> {selectedItem?.unit ? `(${selectedItem.unit})` : ''}</label>
               <input type="number" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">단가 (원)</label>
+              <label className="text-xs text-ink-sub">단가 (원)</label>
               <input type="number" value={form.unit_price} onChange={e => setForm(p => ({ ...p, unit_price: e.target.value }))} className={inputCls} />
             </div>
           </div>
           <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="메모" className={inputCls} />
           {movementType === 'adjust' && selectedItem && (
-            <p className="text-xs text-[#514b81]">현재 재고: <strong>{selectedItem.current_stock}</strong> → 조정 후: <strong>{parseFloat(form.quantity) || 0}</strong></p>
+            <p className="text-xs text-ink-sub">현재 재고: <strong>{selectedItem.current_stock}</strong> → 조정 후: <strong>{parseFloat(form.quantity) || 0}</strong></p>
           )}
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <button onClick={() => { setShowNew(false); setError('') }} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center gap-1"><X className="size-3" />취소</button>
-            <button onClick={handleSubmit} disabled={isPending} className="h-8 px-4 rounded-lg bg-[#7b68ee] text-white text-xs font-medium hover:bg-[#6a57dd] transition-colors disabled:opacity-50 flex items-center gap-1">
+            <button onClick={() => { setShowNew(false); setError('') }} className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors flex items-center gap-1"><X className="size-3" />취소</button>
+            <button onClick={handleSubmit} disabled={isPending} className="h-8 px-4 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-strong transition-colors disabled:opacity-50 flex items-center gap-1">
               {isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}{TYPE_LABELS[movementType]} 등록
             </button>
           </div>
         </div>
       ) : (
         <button onClick={() => setShowNew(true)}
-          className="w-full h-10 rounded-xl border-2 border-dashed border-[#d0ccf5] text-sm text-[#b0acd6] hover:border-[#7b68ee] hover:text-[#7b68ee] transition-colors flex items-center justify-center gap-1.5">
+          className="w-full h-10 rounded-xl border-2 border-dashed border-brand-line text-sm text-ink-faint hover:border-brand hover:text-brand transition-colors flex items-center justify-center gap-1.5">
           <Plus className="size-4" />{TYPE_LABELS[movementType]} 등록
         </button>
       )}
@@ -99,27 +99,27 @@ export function StockMovementClient({
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-[#c8c4d0]">
+            <tr className="border-b border-line">
               {['일시', '품목코드', '품목명', '구분', '수량', '단가', '이전재고', '이후재고', '담당자', '메모'].map(h => (
-                <th key={h} className="py-2.5 px-3 text-left font-medium text-[#514b81]">{h}</th>
+                <th key={h} className="py-2.5 px-3 text-left font-medium text-ink-sub">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={10} className="py-12 text-center text-[#514b81]">{TYPE_LABELS[movementType]} 내역이 없습니다</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-ink-sub">{TYPE_LABELS[movementType]} 내역이 없습니다</td></tr>
             ) : rows.map(m => (
-              <tr key={m.id} className="border-b border-[#c8c4d0] hover:bg-[#f8f9fa]">
-                <td className="py-3 px-3 text-[#514b81]">{m.created_at.slice(0, 16)}</td>
-                <td className="py-3 px-3 font-mono text-[#7b68ee]">{m.item?.item_code}</td>
-                <td className="py-3 px-3 font-medium text-[#090c1d]">{m.item?.item_name}</td>
+              <tr key={m.id} className="border-b border-line hover:bg-paper">
+                <td className="py-3 px-3 text-ink-sub">{m.created_at.slice(0, 16)}</td>
+                <td className="py-3 px-3 font-mono text-brand">{m.item?.item_code}</td>
+                <td className="py-3 px-3 font-medium text-ink">{m.item?.item_name}</td>
                 <td className="py-3 px-3"><span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[m.movement_type] ?? ''}`}>{TYPE_LABELS[m.movement_type]}</span></td>
-                <td className="py-3 px-3 text-right text-[#090c1d]">{m.quantity} {m.item?.unit ?? ''}</td>
-                <td className="py-3 px-3 text-right text-[#514b81]">{m.unit_price != null ? m.unit_price.toLocaleString() : '-'}</td>
-                <td className="py-3 px-3 text-right text-[#514b81]">{m.before_stock}</td>
-                <td className="py-3 px-3 text-right font-medium text-[#090c1d]">{m.after_stock}</td>
-                <td className="py-3 px-3 text-[#514b81]">{m.creator?.name ?? '-'}</td>
-                <td className="py-3 px-3 text-[#b0acd6]">{m.notes ?? ''}</td>
+                <td className="py-3 px-3 text-right text-ink">{m.quantity} {m.item?.unit ?? ''}</td>
+                <td className="py-3 px-3 text-right text-ink-sub">{m.unit_price != null ? m.unit_price.toLocaleString() : '-'}</td>
+                <td className="py-3 px-3 text-right text-ink-sub">{m.before_stock}</td>
+                <td className="py-3 px-3 text-right font-medium text-ink">{m.after_stock}</td>
+                <td className="py-3 px-3 text-ink-sub">{m.creator?.name ?? '-'}</td>
+                <td className="py-3 px-3 text-ink-faint">{m.notes ?? ''}</td>
               </tr>
             ))}
           </tbody>

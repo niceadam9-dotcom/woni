@@ -25,14 +25,14 @@ export default async function WorkTasksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ClipboardCheck className="size-6 text-[#7b68ee]" />
+          <ClipboardCheck className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-[#090c1d]">업무지시</h1>
-            <p className="text-sm text-[#514b81] mt-0.5">업무 지시 및 진행 상황을 관리합니다</p>
+            <h1 className="text-xl font-bold text-ink">업무지시</h1>
+            <p className="text-sm text-ink-sub mt-0.5">업무 지시 및 진행 상황을 관리합니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/tasks/journal" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+          <Link href="/tasks/journal" className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
             업무일지
           </Link>
           {canCreate && (

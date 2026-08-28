@@ -6,7 +6,7 @@ import { Loader2, Plus, Check } from 'lucide-react'
 import { createWorkTaskAction, updateWorkTaskStatusAction, type WorkTaskPriority } from '@/app/(dashboard)/tasks/actions'
 import { DateInput } from '@/components/ui/date-input'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 const STATUS_LABELS: Record<string, string> = { pending: '대기', in_progress: '진행중', completed: '완료', cancelled: '취소' }
 const STATUS_COLORS: Record<string, string> = {
@@ -15,7 +15,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 const PRIORITY_LABELS: Record<string, string> = { high: '높음', medium: '보통', low: '낮음' }
 const PRIORITY_COLORS: Record<string, string> = {
-  high: 'bg-red-50 text-red-600', medium: 'bg-[#f5f4ff] text-[#7b68ee]', low: 'bg-gray-100 text-gray-600',
+  high: 'bg-red-50 text-red-600', medium: 'bg-brand-tint text-brand', low: 'bg-gray-100 text-gray-600',
 }
 
 type Task = {
@@ -69,21 +69,21 @@ export function WorkTasksClient({
       <div className="flex items-center gap-2">
         {['', 'pending', 'in_progress', 'completed'].map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
-            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors ${statusFilter === s ? 'bg-[#7b68ee] text-white' : 'border border-[#c8c4d0] text-[#514b81] hover:bg-[#f8f9fa]'}`}>
+            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors ${statusFilter === s ? 'bg-brand text-white' : 'border border-line text-ink-sub hover:bg-paper'}`}>
             {s === '' ? '전체' : STATUS_LABELS[s]}
           </button>
         ))}
-        <span className="text-xs text-[#514b81] ml-auto">총 {rows.length}건</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {rows.length}건</span>
       </div>
 
       {/* 신규 등록 */}
       {showNew && (
-        <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
+        <div className="bg-paper border border-brand-line rounded-xl p-4 space-y-3">
           <input value={newForm.title} onChange={e => setNewForm(p => ({ ...p, title: e.target.value }))}
             placeholder="업무 제목 *" className={inputCls} />
           <textarea value={newForm.description} onChange={e => setNewForm(p => ({ ...p, description: e.target.value }))}
             placeholder="업무 내용" rows={2}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition resize-none" />
+            className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand transition resize-none" />
           <div className="grid grid-cols-3 gap-3">
             <select value={newForm.priority} onChange={e => setNewForm(p => ({ ...p, priority: e.target.value as WorkTaskPriority }))} className={inputCls}>
               <option value="high">높음</option>
@@ -99,9 +99,9 @@ export function WorkTasksClient({
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={() => { setShowNew(false); setError('') }}
-              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors">취소</button>
+              className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors">취소</button>
             <button onClick={handleCreate} disabled={isPending}
-              className="h-8 px-4 rounded-lg bg-[#7b68ee] text-white text-xs font-medium hover:bg-[#6a57dd] transition-colors disabled:opacity-50 flex items-center gap-1">
+              className="h-8 px-4 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-strong transition-colors disabled:opacity-50 flex items-center gap-1">
               {isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}등록
             </button>
           </div>
@@ -110,24 +110,24 @@ export function WorkTasksClient({
 
       {!showNew && canCreate && (
         <button onClick={() => setShowNew(true)}
-          className="w-full h-10 rounded-xl border-2 border-dashed border-[#d0ccf5] text-sm text-[#b0acd6] hover:border-[#7b68ee] hover:text-[#7b68ee] transition-colors flex items-center justify-center gap-1.5">
+          className="w-full h-10 rounded-xl border-2 border-dashed border-brand-line text-sm text-ink-faint hover:border-brand hover:text-brand transition-colors flex items-center justify-center gap-1.5">
           <Plus className="size-4" />업무 추가
         </button>
       )}
 
       <div className="space-y-2">
         {rows.length === 0 ? (
-          <div className="py-12 text-center text-sm text-[#514b81] bg-white rounded-xl border border-[#c8c4d0]">업무가 없습니다</div>
+          <div className="py-12 text-center text-sm text-ink-sub bg-surface rounded-xl border border-line">업무가 없습니다</div>
         ) : rows.map(t => (
-          <div key={t.id} className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+          <div key={t.id} className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${PRIORITY_COLORS[t.priority]}`}>{PRIORITY_LABELS[t.priority]}</span>
-                  <span className="font-medium text-[#090c1d]">{t.title}</span>
+                  <span className="font-medium text-ink">{t.title}</span>
                 </div>
-                {t.description && <p className="text-xs text-[#514b81] mt-1">{t.description}</p>}
-                <div className="flex items-center gap-3 mt-2 text-xs text-[#b0acd6]">
+                {t.description && <p className="text-xs text-ink-sub mt-1">{t.description}</p>}
+                <div className="flex items-center gap-3 mt-2 text-xs text-ink-faint">
                   {t.assignee && <span>담당: {t.assignee.name}</span>}
                   {t.due_date && <span>마감: {t.due_date}</span>}
                   <span>등록: {t.created_at.slice(0, 10)}</span>

@@ -105,14 +105,14 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
   const submittedCount = STEP_REPORT_TYPES.filter(t => reports.some(r => r.report_type === t)).length
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#e0ddf5] flex items-center gap-2">
-        <FileText className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">단계별 보고서</h2>
-        <span className="text-xs text-[#b0acd6] ml-auto">{submittedCount}/6 제출</span>
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+      <div className="px-5 py-4 border-b border-brand-line-soft flex items-center gap-2">
+        <FileText className="size-4 text-brand" />
+        <h2 className="text-sm font-semibold text-ink">단계별 보고서</h2>
+        <span className="text-xs text-ink-faint ml-auto">{submittedCount}/6 제출</span>
       </div>
 
-      <div className="divide-y divide-[#e0ddf5]">
+      <div className="divide-y divide-brand-line-soft">
         {STEP_REPORT_TYPES.map((type, idx) => {
           const existing = reports.find(r => r.report_type === type)
           const isUploading = uploading === type
@@ -125,33 +125,33 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
             <div key={type} className="px-5 py-4">
               <div className="flex items-start gap-3">
                 {/* 단계 번호 */}
-                <div className={`size-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${existing ? 'bg-green-100' : 'bg-[#f5f4ff]'}`}>
+                <div className={`size-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${existing ? 'bg-green-100' : 'bg-brand-tint'}`}>
                   {existing
                     ? <CheckCircle2 className="size-4 text-green-600" />
-                    : <span className="text-xs font-bold text-[#7b68ee]">{idx + 1}</span>}
+                    : <span className="text-xs font-bold text-brand">{idx + 1}</span>}
                 </div>
 
                 {/* 내용 */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#090c1d]">{STEP_REPORT_LABELS[type]}</p>
+                  <p className="text-sm font-medium text-ink">{STEP_REPORT_LABELS[type]}</p>
 
                   {existing ? (
                     <div className="mt-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-[#514b81] truncate max-w-[180px]">{existing.file_name}</span>
+                        <span className="text-xs text-ink-sub truncate max-w-[180px]">{existing.file_name}</span>
                         {existing.file_size && (
-                          <span className="text-xs text-[#b0acd6]">({formatBytes(existing.file_size)})</span>
+                          <span className="text-xs text-ink-faint">({formatBytes(existing.file_size)})</span>
                         )}
                       </div>
                       {existing.submitted_at && (
-                        <p className="text-xs text-[#b0acd6] mt-0.5">
+                        <p className="text-xs text-ink-faint mt-0.5">
                           제출: {existing.submitted_at.split('T')[0]}
                           {existing.submitted_by_name && ` · ${existing.submitted_by_name}`}
                         </p>
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs text-[#b0acd6] mt-0.5">아직 제출된 보고서가 없습니다</p>
+                    <p className="text-xs text-ink-faint mt-0.5">아직 제출된 보고서가 없습니다</p>
                   )}
 
                   {errMsg && <p className="text-xs text-red-500 mt-1">{errMsg}</p>}
@@ -165,7 +165,7 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
                       <button
                         onClick={() => handleDownload(existing)}
                         disabled={!!isDownloading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7b68ee] bg-[#f5f4ff] hover:bg-[#ede9ff] border border-[#c3bdf5] rounded-lg disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand bg-brand-tint hover:bg-[#ede9ff] border border-brand-line rounded-lg disabled:opacity-50 transition-colors"
                       >
                         {isDownloading
                           ? <Loader2 className="size-3 animate-spin" />
@@ -177,7 +177,7 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
                         <button
                           onClick={() => fileRefs.current[type]?.click()}
                           disabled={isUploading || !!isDeleting}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#514b81] bg-white hover:bg-[#f8f9fa] border border-[#c8c4d0] rounded-lg disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-sub bg-surface hover:bg-paper border border-line rounded-lg disabled:opacity-50 transition-colors"
                         >
                           {isUploading
                             ? <Loader2 className="size-3 animate-spin" />
@@ -202,7 +202,7 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
                       <button
                         onClick={() => fileRefs.current[type]?.click()}
                         disabled={isUploading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#7b68ee] hover:bg-[#6a58d6] rounded-lg disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-strong rounded-lg disabled:opacity-50 transition-colors"
                       >
                         {isUploading
                           ? <Loader2 className="size-3 animate-spin" />

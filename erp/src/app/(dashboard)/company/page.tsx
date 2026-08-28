@@ -25,10 +25,10 @@ export default async function CompanyPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Building2 className="size-6 text-[#7b68ee]" />
+        <Building2 className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">본사 정보</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">회사 기본 정보를 등록·관리합니다</p>
+          <h1 className="text-xl font-bold text-ink">본사 정보</h1>
+          <p className="text-sm text-ink-sub mt-0.5">회사 기본 정보를 등록·관리합니다</p>
         </div>
       </div>
 

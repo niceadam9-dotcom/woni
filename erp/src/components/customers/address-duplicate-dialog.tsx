@@ -28,41 +28,41 @@ export function AddressDuplicateDialog({ customer, building, address, onClose, o
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl border border-[#d0ccf5] shadow-xl w-full max-w-sm p-5"
+        className="bg-surface rounded-xl border border-brand-line shadow-xl w-full max-w-sm p-5"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle className="size-4 text-amber-500" />
-          <h3 className="text-sm font-bold text-[#090c1d]">{title}</h3>
+          <h3 className="text-sm font-bold text-ink">{title}</h3>
         </div>
 
         <div className="space-y-2">
           {customer && (
-            <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1 text-sm">
-              <p className="text-[11px] font-medium text-[#7b68ee]">기존 고객</p>
-              <p className="font-medium text-[#090c1d]">{customer.customer_name}</p>
-              <p className="text-xs text-[#514b81]">
+            <div className="rounded-lg bg-paper border border-brand-line-soft p-3 space-y-1 text-sm">
+              <p className="text-[11px] font-medium text-brand">기존 고객</p>
+              <p className="font-medium text-ink">{customer.customer_name}</p>
+              <p className="text-xs text-ink-sub">
                 점검유형: {inspectionTypeLabel(customer.inspection_type)} · 담당: {customer.employee_name ?? '미배정'}
               </p>
               {!customer.exact && customer.address && (
-                <p className="text-xs text-[#b0acd6]">등록된 주소: {customer.address}</p>
+                <p className="text-xs text-ink-faint">등록된 주소: {customer.address}</p>
               )}
             </div>
           )}
 
           {building && (
-            <div className="rounded-lg bg-[#f8f9fa] border border-[#e0ddf5] p-3 space-y-1 text-sm">
-              <p className="text-[11px] font-medium text-[#7b68ee]">기존 건물</p>
-              <p className="font-medium text-[#090c1d]">{building.building_name || '(건물명 없음)'}</p>
-              <p className="text-xs text-[#514b81]">고객: {building.customer_name ?? '-'}</p>
+            <div className="rounded-lg bg-paper border border-brand-line-soft p-3 space-y-1 text-sm">
+              <p className="text-[11px] font-medium text-brand">기존 건물</p>
+              <p className="font-medium text-ink">{building.building_name || '(건물명 없음)'}</p>
+              <p className="text-xs text-ink-sub">고객: {building.customer_name ?? '-'}</p>
               {!building.exact && building.address && (
-                <p className="text-xs text-[#b0acd6]">등록된 주소: {building.address}</p>
+                <p className="text-xs text-ink-faint">등록된 주소: {building.address}</p>
               )}
             </div>
           )}
         </div>
 
-        <p className="text-xs text-[#514b81] mt-3">
+        <p className="text-xs text-ink-sub mt-3">
           {exact
             ? '같은 주소가 이미 있습니다. 기존 정보를 확인하거나, 별도 건이 맞으면 계속 진행할 수 있습니다.'
             : `입력한 주소(${address})는 위와 동/호수만 다른 같은 건물로 보입니다. 별도 건이 맞으면 계속 진행할 수 있습니다.`}
@@ -71,14 +71,14 @@ export function AddressDuplicateDialog({ customer, building, address, onClose, o
         <div className="flex gap-2 mt-4">
           <Link
             href={customer ? `/customers/${customer.id}` : `/customers/${building!.customer_id}`}
-            className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center"
+            className="flex-1 h-9 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors flex items-center justify-center"
           >
             기존 고객 보기
           </Link>
           <button
             type="button"
             onClick={onContinue}
-            className="flex-1 h-9 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+            className="flex-1 h-9 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors"
           >
             {continueLabel}
           </button>

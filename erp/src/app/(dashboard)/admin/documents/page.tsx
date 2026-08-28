@@ -82,10 +82,10 @@ export default async function AdminDocumentsPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <FileText className="size-6 text-[#7b68ee]" />
+        <FileText className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">전체 기안서 현황</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">모든 기안서를 조회하고 검색합니다</p>
+          <h1 className="text-xl font-bold text-ink">전체 기안서 현황</h1>
+          <p className="text-sm text-ink-sub mt-0.5">모든 기안서를 조회하고 검색합니다</p>
         </div>
       </div>
 
@@ -95,12 +95,12 @@ export default async function AdminDocumentsPage({
           name="q"
           defaultValue={q}
           placeholder="제목 검색"
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition w-52"
         />
         <select
           name="status"
           defaultValue={statusFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 상태</option>
           {Object.entries(STATUS_MAP).map(([v, { label }]) => (
@@ -110,7 +110,7 @@ export default async function AdminDocumentsPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -120,47 +120,47 @@ export default async function AdminDocumentsPage({
           검색
         </button>
         {(q || statusFilter) && (
-          <a href="/admin/documents" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+          <a href="/admin/documents" className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper flex items-center">
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">총 {count ?? 0}건</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {count ?? 0}건</span>
       </form>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {docs.length === 0 ? (
           <div className="py-16 text-center">
             <FileText className="size-10 text-[#c4bff5] mx-auto mb-3" />
-            <p className="text-sm text-[#514b81]">기안서가 없습니다</p>
+            <p className="text-sm text-ink-sub">기안서가 없습니다</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {['제목', '양식', '기안자', '상태', '상신일'].map(h => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-[#514b81]">{h}</th>
+                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-ink-sub">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {docs.map(doc => {
                   const s = STATUS_MAP[doc.status] ?? { label: doc.status, className: '' }
                   return (
-                    <tr key={doc.id} className="hover:bg-[#f8f9fa] transition-colors">
+                    <tr key={doc.id} className="hover:bg-paper transition-colors">
                       <td className="px-5 py-3.5">
                         <Link
                           href={`/documents/${doc.id}`}
-                          className="font-medium text-[#090c1d] hover:text-[#7b68ee] hover:underline truncate max-w-xs block"
+                          className="font-medium text-ink hover:text-brand hover:underline truncate max-w-xs block"
                         >
                           {doc.title}
                         </Link>
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-[#514b81] whitespace-nowrap">
+                      <td className="px-5 py-3.5 text-xs text-ink-sub whitespace-nowrap">
                         {TEMPLATE_MAP[doc.template_type] ?? doc.template_type}
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-[#292d34]">
+                      <td className="px-5 py-3.5 text-xs text-ink-strong">
                         {authorMap.get(doc.author_id) ?? '알 수 없음'}
                       </td>
                       <td className="px-5 py-3.5">
@@ -168,7 +168,7 @@ export default async function AdminDocumentsPage({
                           {s.label}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-[#514b81] whitespace-nowrap">
+                      <td className="px-5 py-3.5 text-xs text-ink-sub whitespace-nowrap">
                         {doc.submitted_at
                           ? new Date(doc.submitted_at).toLocaleDateString('ko-KR')
                           : '-'}
@@ -186,13 +186,13 @@ export default async function AdminDocumentsPage({
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           {page > 1 && (
-            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper flex items-center">
               이전
             </a>
           )}
-          <span className="text-sm text-[#514b81] px-2">{page} / {totalPages}</span>
+          <span className="text-sm text-ink-sub px-2">{page} / {totalPages}</span>
           {page < totalPages && (
-            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper flex items-center">
               다음
             </a>
           )}

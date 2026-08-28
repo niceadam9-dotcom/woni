@@ -52,11 +52,11 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
   }
 
   return (
-    <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+    <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-line">
         <div className="flex items-center gap-2">
-          <ClipboardList className="size-4 text-[#7b68ee]" />
-          <h2 className="text-sm font-semibold text-[#090c1d]">문서 할 일</h2>
+          <ClipboardList className="size-4 text-brand" />
+          <h2 className="text-sm font-semibold text-ink">문서 할 일</h2>
           {total > 0 && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">{total}건</span>
           )}
@@ -65,11 +65,11 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
           {/* P-4: '내 담당만' 개인화 필터 — 직원 기본 ON */}
           <button onClick={() => setMine(v => !v)} title="내가 배정된 점검 건만 봅니다"
             className={`inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-[11px] font-medium ${
-              mine ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee]'}`}>
+              mine ? 'border-brand bg-brand-tint text-brand' : 'border-brand-line text-ink-sub hover:border-brand'}`}>
             <User className="size-3" /> 내 담당만
           </button>
           {/* 소방계획서_8 Phase B: 보고서 센터 소멸 — 제출 현황 위젯으로 연결 */}
-          <Link href="#submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+          <Link href="#submissions" className="text-xs text-brand hover:underline flex items-center gap-1">
             제출 현황 <ArrowRight className="size-3" />
           </Link>
         </div>
@@ -83,21 +83,21 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
             <CheckSquare className="size-6 text-green-500" />
           </div>
           <p className="text-sm font-medium text-green-700">처리할 문서가 없습니다</p>
-          <p className="text-xs text-[#514b81]">제출 기한·배치확인서·입력 모두 정상입니다</p>
+          <p className="text-xs text-ink-sub">제출 기한·배치확인서·입력 모두 정상입니다</p>
         </div>
       ) : (
-        <div className="divide-y divide-[#f8f9fa]">
+        <div className="divide-y divide-paper">
           {msg && <p className={`px-5 py-1.5 text-[11px] ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
           {/* 제출 기한 임박 별지 9호 (D-7 이내·초과) */}
           {visibleDue.map(r => (
             <div key={`due-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
               <Clock3 className="size-3.5 text-red-500 shrink-0" />
-              <span className="font-medium text-[#090c1d]">{r.customerName}</span>
-              <span className="text-[#514b81]">{r.year}년 {r.sequenceNum}차 · 별지 9호 제출</span>
+              <span className="font-medium text-ink">{r.customerName}</span>
+              <span className="text-ink-sub">{r.year}년 {r.sequenceNum}차 · 별지 9호 제출</span>
               <span className={`font-semibold ${r.dday < 0 ? 'text-red-600' : 'text-amber-700'}`}>
                 {r.dday < 0 ? `기한 초과 ${-r.dday}일` : `D-${r.dday}`}
               </span>
-              <Link href={`/inspections/${r.inspectionId}`} className="ml-auto text-[11px] text-[#7b68ee] hover:underline shrink-0">
+              <Link href={`/inspections/${r.inspectionId}`} className="ml-auto text-[11px] text-brand hover:underline shrink-0">
                 타임라인에서 →
               </Link>
             </div>
@@ -106,8 +106,8 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
           {visibleCerts.map(r => (
             <div key={`cert-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
               <FileUp className="size-3.5 text-amber-600 shrink-0" />
-              <span className="font-medium text-[#090c1d]">{r.customerName}</span>
-              <span className="text-[#514b81]">{r.year}년 {r.sequenceNum}차 · 배치확인서 미업로드</span>
+              <span className="font-medium text-ink">{r.customerName}</span>
+              <span className="text-ink-sub">{r.year}년 {r.sequenceNum}차 · 배치확인서 미업로드</span>
               {r.daysSince !== null && <span className="text-amber-700">완료 후 {r.daysSince}일 경과</span>}
               <button onClick={() => pick(r)} disabled={isPending}
                 className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 text-[11px] text-amber-800 hover:bg-amber-100 disabled:opacity-50 shrink-0">
@@ -118,10 +118,10 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
           {/* 입력 미완료 (§4-D H-26) — 빈칸 있는 고객 → 소방계획서 탭 딥링크로 바로 보완 */}
           {inputTodo.map(r => (
             <div key={`input-${r.id}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
-              <PencilLine className="size-3.5 text-[#7b68ee] shrink-0" />
-              <span className="font-medium text-[#090c1d]">{r.name}</span>
-              <span className="text-[#514b81]">입력 미완료 · {r.areas.join('·')}</span>
-              <Link href={`/customers/${r.id}?tab=plan`} className="ml-auto text-[11px] text-[#7b68ee] hover:underline shrink-0">
+              <PencilLine className="size-3.5 text-brand shrink-0" />
+              <span className="font-medium text-ink">{r.name}</span>
+              <span className="text-ink-sub">입력 미완료 · {r.areas.join('·')}</span>
+              <Link href={`/customers/${r.id}?tab=plan`} className="ml-auto text-[11px] text-brand hover:underline shrink-0">
                 입력하러 →
               </Link>
             </div>

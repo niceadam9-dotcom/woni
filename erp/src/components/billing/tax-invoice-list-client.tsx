@@ -129,7 +129,7 @@ export function TaxInvoiceListClient({
           { label: '미발행', value: summary.pending, color: 'text-amber-600' },
           { label: '취소', value: summary.canceled, color: 'text-red-500' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border p-4">
+          <div key={s.label} className="bg-surface rounded-xl border p-4">
             <p className="text-xs text-gray-400">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
@@ -152,8 +152,8 @@ export function TaxInvoiceListClient({
               onClick={() => setStatusFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 statusFilter === f
-                  ? 'bg-[#7b68ee] text-white'
-                  : 'bg-white border text-gray-500 hover:bg-gray-50'
+                  ? 'bg-brand text-white'
+                  : 'bg-surface border text-gray-500 hover:bg-gray-50'
               }`}
             >
               {f}
@@ -170,7 +170,7 @@ export function TaxInvoiceListClient({
       </div>
 
       {/* 테이블 — 헤더 고정 + 레코드 스크롤 */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-surface rounded-xl border overflow-hidden">
         <TableScroll offset={280}>
           <table className="w-full text-sm">
             <thead className={STICKY_THEAD}>
@@ -214,7 +214,7 @@ export function TaxInvoiceListClient({
                             {!isIssued && (
                               <Link
                                 href={`/tax-invoices/issue?billId=${row.id}`}
-                                className="bg-[#7b68ee]/10 text-[#7b68ee] hover:bg-[#7b68ee]/20 px-2 py-1 rounded text-xs font-medium"
+                                className="bg-brand/10 text-brand hover:bg-brand/20 px-2 py-1 rounded text-xs font-medium"
                               >
                                 {isCanceled ? '재발행' : '발행'}
                               </Link>

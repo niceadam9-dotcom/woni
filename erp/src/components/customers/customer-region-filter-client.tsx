@@ -15,7 +15,7 @@ type Props = {
   currentRi: string
 }
 
-const selectCls = 'h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition'
+const selectCls = 'h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition'
 
 export function CustomerRegionFilterClient({ regionData, currentSi, currentMyeon, currentRi }: Props) {
   const [si, setSi] = useState(currentSi)

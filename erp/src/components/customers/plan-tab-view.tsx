@@ -287,15 +287,15 @@ export function PlanTabView({
   // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       {/* 생성 바 — 모든 서브탭 상단 고정 (소방계획서_4.md §2) */}
-      <div className="flex items-center gap-3 flex-wrap pb-4 border-b border-[#e0ddf5] mb-4">
+      <div className="flex items-center gap-3 flex-wrap pb-4 border-b border-brand-line-soft mb-4">
         <div className="flex items-center gap-2 min-w-40">
-          <span className="text-sm font-semibold text-[#090c1d]">소방계획서</span>
-          <div className="h-1.5 w-20 rounded-full bg-[#eceafd] overflow-hidden">
-            <div className="h-full rounded-full bg-[#7b68ee]" style={{ width: `${pct}%` }} />
+          <span className="text-sm font-semibold text-ink">소방계획서</span>
+          <div className="h-1.5 w-20 rounded-full bg-brand-tint overflow-hidden">
+            <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-[11px] text-[#514b81]">{readiness.done}/{readiness.total}</span>
+          <span className="text-[11px] text-ink-sub">{readiness.done}/{readiness.total}</span>
         </div>
         {/* 누락 칩 — 빠른 입력 폐기(2026-08-06)로 완성도 카드가 사라져, 입력처 이동은 이 줄이 담당 */}
         {readiness.missing.length > 0 && (
@@ -314,7 +314,7 @@ export function PlanTabView({
             생성 버튼 제거(R2-11) — 조회는 보관함 [현재 내용], 발행은 보관함 [개정 발행]으로 일원화.
             준비율 게이지·누락 칩은 입력처 점프 기능이라 여기 남긴다 */}
       </div>
-      {msg && <p className="text-xs text-[#514b81] mb-3">{msg}</p>}
+      {msg && <p className="text-xs text-ink-sub mb-3">{msg}</p>}
 
       {/* ══ 서식 전체 트리(기본) — ⚡ 빠른 입력을 최상단 노드로 통합. 토글 제거 (2026-08-05) ══ */}
       {(() => {
@@ -324,16 +324,16 @@ export function PlanTabView({
         <div className="space-y-4 mt-4">
           {/* §7-3b: 최초 진입 1회 임포트 배너 — 서식 입력이 없고 구 생성 데이터가 있을 때 */}
           {importCandidate && canManage && !importHidden && (
-            <div className="flex items-center gap-2 rounded-xl border border-[#c3bdf5] bg-[#f5f4ff] px-4 py-2.5">
-              <Info className="size-4 text-[#7b68ee] shrink-0" />
-              <span className="text-xs text-[#514b81]">
+            <div className="flex items-center gap-2 rounded-xl border border-brand-line bg-brand-tint px-4 py-2.5">
+              <Info className="size-4 text-brand shrink-0" />
+              <span className="text-xs text-ink-sub">
                 이전에 생성한 소방계획서의 수기 편집값(구역·취약장소·피난계획·개정이력)을 서식 입력으로 가져올 수 있습니다. (최초 1회)
               </span>
               <button onClick={importLegacy} disabled={isImportPending}
-                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium shrink-0 disabled:opacity-50">
+                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium shrink-0 disabled:opacity-50">
                 {isImportPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 가져오기
               </button>
-              <button onClick={() => setImportHidden(true)} className="h-7 px-2 rounded-lg text-[11px] text-[#b0acd6] hover:text-[#514b81] shrink-0">닫기</button>
+              <button onClick={() => setImportHidden(true)} className="h-7 px-2 rounded-lg text-[11px] text-ink-faint hover:text-ink-sub shrink-0">닫기</button>
             </div>
           )}
 
@@ -350,12 +350,12 @@ export function PlanTabView({
             const full = v.done >= v.total
             return <span className={`ml-auto text-[10px] shrink-0 ${full ? 'text-green-600' : 'text-amber-600'}`}>{full ? '✓' : `${v.done}/${v.total}`}</span>
           }
-          return <span className={`ml-auto text-[10px] shrink-0 ${v ? 'text-green-600' : 'text-[#c8c4d0]'}`}>{v ? '✓' : '○'}</span>
+          return <span className={`ml-auto text-[10px] shrink-0 ${v ? 'text-green-600' : 'text-ink-faint'}`}>{v ? '✓' : '○'}</span>
         }
         const navBtn = (key: string, label: string, indent = false) => (
           <button key={key} onClick={() => select(key)}
             className={`w-full flex items-center gap-1.5 h-7 rounded-lg text-[11px] text-left transition-colors ${indent ? 'pl-5 pr-2' : 'px-2 font-medium'} ${
-              sel === key ? 'bg-[#7b68ee] text-white [&>span]:!text-white' : 'text-[#514b81] hover:bg-[#f5f4ff]'
+              sel === key ? 'bg-brand text-white [&>span]:!text-white' : 'text-ink-sub hover:bg-brand-tint'
             }`}>
             <span className="truncate">{label}</span>
             {dot(key)}
@@ -378,11 +378,11 @@ export function PlanTabView({
         <div className="flex gap-4 items-start">
           {nav.dialog}
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
-          <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-0.5 sticky top-2">
+          <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-0.5 sticky top-2">
             {/* ⚡ 빠른 입력 노드 폐기(2026-08-06) — 랜딩은 1.1 일반현황, 송달 동의는 1.1 하단으로 이관 */}
             <div>
-              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8] flex items-center">📘 소방계획서 본문
-                <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-[#b0acd6]'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
+              <p className="px-2 py-1 text-[10px] font-bold text-ink-soft flex items-center">📘 소방계획서 본문
+                <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-ink-faint'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
               </p>
               {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
               {navBtn('ch2', '2장 자위소방대', true)}
@@ -392,12 +392,12 @@ export function PlanTabView({
             </div>
             {/* 🖼 지도·사진 노드 폐지(2026-08-08 사용자 확정) — 표지·위치도·피난안내도 슬롯은 1.3 안으로 이관 */}
             {/* 14.md #16 — 별지를 보관·이력 아래(맨 아래)로 이동 (2026-08-11 사용자 재확정, 구 Q-4 순서 유지안 대체) */}
-            <div className="pt-2 mt-1.5 border-t border-[#eceafd]">
-              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">🗂 보관·이력</p>
+            <div className="pt-2 mt-1.5 border-t border-brand-tint">
+              <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">🗂 보관·이력</p>
               {navBtn('archive', '보관함·개정이력')}
             </div>
-            <div className="pt-2 mt-1.5 border-t border-[#eceafd]">
-              <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">📑 별지 서식</p>
+            <div className="pt-2 mt-1.5 border-t border-brand-tint">
+              <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">📑 별지 서식</p>
               {navBtn('annex', '회차별 작성·조회', true)}
             </div>
           </aside>
@@ -417,7 +417,7 @@ export function PlanTabView({
             }}>
             {/* 모바일 목차 드롭다운 (7-6) */}
             <select value={sel} data-plan-nav onChange={e => select(e.target.value)}
-              className="md:hidden mb-3 h-8 w-full rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none">
+              className="md:hidden mb-3 h-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none">
               {NAV_ALL.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
             </select>
 
@@ -455,7 +455,7 @@ export function PlanTabView({
       {sel === 'cover' && formCover}
 
       {/* ── 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4) ── */}
-      {sel === 'annex' && (annex ?? <p className="text-xs text-[#b0acd6] py-4">별지 서식을 불러올 수 없습니다.</p>)}
+      {sel === 'annex' && (annex ?? <p className="text-xs text-ink-faint py-4">별지 서식을 불러올 수 없습니다.</p>)}
           </div>
         </div>
         )

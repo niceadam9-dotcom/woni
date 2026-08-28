@@ -32,18 +32,18 @@ export default async function InquiryNewPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-sm text-[#514b81]">
-        <Link href="/inquiries" className="hover:text-[#7b68ee] flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-ink-sub">
+        <Link href="/inquiries" className="hover:text-brand flex items-center gap-1">
           <MessageCircle className="size-3.5" />
           문의요청 관리
         </Link>
-        <ChevronRight className="size-3.5 text-[#b0acd6]" />
-        <span className="text-[#090c1d] font-medium">문의 등록</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+        <span className="text-ink font-medium">문의 등록</span>
       </div>
 
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">문의요청 등록</h1>
-        <p className="text-sm text-[#514b81] mt-0.5">고객 문의·AS 요청을 접수합니다</p>
+        <h1 className="text-xl font-bold text-ink">문의요청 등록</h1>
+        <p className="text-sm text-ink-sub mt-0.5">고객 문의·AS 요청을 접수합니다</p>
       </div>
 
       <InquiryNewClient

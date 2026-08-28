@@ -5,6 +5,8 @@ import { getCompanyProfile } from '@/lib/company-profile'
 import { can } from '@/lib/permissions'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
+import { ThemeSync } from '@/components/layout/theme-sync'
+import { readProfileTheme } from '@/lib/theme'
 import type { UserRole } from '@/types'
 
 // 사이드바 뱃지: 미완료 6단계 중 지연/D-Day(빨강), D-1~3(주황) 건수 (Victory10 §6)
@@ -38,16 +40,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // 실측 497ms(중앙값)인데 이 레이아웃은 모든 화면이 지나므로, 넣으면 화면 전환마다
   // 0.5초가 붙는다. 뱃지는 "할 일이 있다"는 보조 신호일 뿐이라 첫 페인트를 막을 이유가 없다.
   // → Sidebar가 마운트 후 클라이언트에서 가져온다(scripts/_probe-sms-badge-cost.mts가 상한을 고정).
-  const [{ redCount, orangeCount }, company] = await Promise.all([
+  // theme은 PROFILE_COLS(30초 캐시) 밖 — 관용 조회를 기존 병렬 묶음에 태워 왕복 추가 0
+  const [{ redCount, orangeCount }, company, dbTheme] = await Promise.all([
     getStepBadgeCounts(profile.id, profile.role),
     getCompanyProfile(),
+    readProfileTheme(profile.id),
   ])
 
   return (
     /* 인쇄: 사이드바·헤더는 print:hidden으로 빠지지만, 그것만으로는 부족하다 —
        h-screen + overflow 컨테이너 안의 내용은 **첫 화면 분량만 인쇄**되고 나머지가 잘린다.
        인쇄에서는 높이·스크롤 제약을 풀어 본문이 그대로 흐르게 한다(세금계산서·자격증명서 등 공용). */
-    <div className="flex h-screen overflow-hidden bg-[#f8f9fa] print:block print:h-auto print:overflow-visible print:bg-white">
+    /* ⚠ print:bg-white는 리터럴이어야 한다 — 토큰(surface)이면 다크 모드에서 어두운 배경이 인쇄된다 */
+    <div className="flex h-screen overflow-hidden bg-paper print:block print:h-auto print:overflow-visible print:bg-white">
+      <ThemeSync dbTheme={dbTheme} />
       <Sidebar
         role={profile.role}
         redCount={redCount}

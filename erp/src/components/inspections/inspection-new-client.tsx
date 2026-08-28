@@ -10,8 +10,8 @@ import { previewInspectionSteps, stepBaseDate } from '@/lib/step-dates'
 import { formatTel } from '@/lib/format-contact'
 import type { InspectionType } from '@/types'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
-const labelCls = 'text-xs font-medium text-[#514b81]'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const labelCls = 'text-xs font-medium text-ink-sub'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -92,8 +92,8 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
   return (
     <div className="space-y-5">
       {/* 점검 기본정보 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <h2 className="text-sm font-semibold text-[#090c1d] mb-4">점검 기본정보</h2>
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+        <h2 className="text-sm font-semibold text-ink mb-4">점검 기본정보</h2>
         <div className="space-y-4">
           <Field label="고객" required>
             <CustomerCombobox
@@ -110,7 +110,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
               <input
                 readOnly
                 value={selectedCustomer?.inspection_type ?? '—'}
-                className={`${inputCls} bg-[#f8f9fa] cursor-not-allowed text-[#514b81]`}
+                className={`${inputCls} bg-paper cursor-not-allowed text-ink-sub`}
               />
             </Field>
             <Field label="차수" required>
@@ -118,7 +118,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
                 value={sequenceNum}
                 onChange={e => setSequenceNum(parseInt(e.target.value) as 1 | 2)}
                 disabled={!isJongHap}
-                className={`${inputCls} ${!isJongHap ? 'bg-[#f8f9fa] cursor-not-allowed text-[#514b81]' : ''}`}
+                className={`${inputCls} ${!isJongHap ? 'bg-paper cursor-not-allowed text-ink-sub' : ''}`}
               >
                 <option value={1}>1차</option>
                 {isJongHap && <option value={2}>2차</option>}
@@ -128,7 +128,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
 
           <Field label="점검 시작일" required>
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <DateInput
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
@@ -140,8 +140,8 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
       </div>
 
       {/* 담당 정보 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <h2 className="text-sm font-semibold text-[#090c1d] mb-4">담당 정보</h2>
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+        <h2 className="text-sm font-semibold text-ink mb-4">담당 정보</h2>
         <div className="space-y-4">
           <Field label="담당직원" required>
             <select
@@ -163,7 +163,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
               value={contactId}
               onChange={e => setContactId(e.target.value)}
               disabled={!customerId}
-              className={`${inputCls} ${!customerId ? 'bg-[#f8f9fa] cursor-not-allowed text-[#514b81]' : ''}`}
+              className={`${inputCls} ${!customerId ? 'bg-paper cursor-not-allowed text-ink-sub' : ''}`}
             >
               <option value="">관계인 선택 (선택사항)</option>
               {filteredContacts.map(c => (
@@ -180,7 +180,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
               onChange={e => setNotes(e.target.value)}
               placeholder="추가 메모"
               rows={2}
-              className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+              className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
             />
           </Field>
         </div>
@@ -188,9 +188,9 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
 
       {/* 6단계 예상 일정 미리보기 — 등록 후 생성되는 실제 마감일과 같은 산식 */}
       {startDate && stepPreview.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-          <h2 className="text-sm font-semibold text-[#090c1d] mb-1">6단계 예상 일정</h2>
-          <p className="text-xs text-[#b0acd6] mb-4">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+          <h2 className="text-sm font-semibold text-ink mb-1">6단계 예상 일정</h2>
+          <p className="text-xs text-ink-faint mb-4">
             공휴일·주말 제외 작업일 기준으로 자동 계산됩니다 (⑤ 소방보수 완료만 달력일)
             {anchorDate && anchorDate !== startDate && (
               <><br />기준일 {anchorDate} — 이 고객은 사용승인일 응당일이 기준입니다 (점검일 아님)</>
@@ -199,15 +199,15 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
           <div className="space-y-2">
             {stepPreview.map((step, idx) => (
               <div key={step.step_num} className="flex items-center gap-3">
-                <div className="size-6 rounded-full bg-[#f5f4ff] flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-bold text-[#7b68ee]">{step.step_num}</span>
+                <div className="size-6 rounded-full bg-brand-tint flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-bold text-brand">{step.step_num}</span>
                 </div>
                 {idx < stepPreview.length - 1 && (
-                  <ChevronRight className="size-3 text-[#b0acd6] shrink-0 -mx-1.5" />
+                  <ChevronRight className="size-3 text-ink-faint shrink-0 -mx-1.5" />
                 )}
-                <span className="text-xs text-[#090c1d] flex-1">{step.name_ko}</span>
-                <span className="text-xs font-medium text-[#514b81] ml-auto">
-                  {step.due_date ?? <span className="text-[#b0acd6]">마감일 없음</span>}
+                <span className="text-xs text-ink flex-1">{step.name_ko}</span>
+                <span className="text-xs font-medium text-ink-sub ml-auto">
+                  {step.due_date ?? <span className="text-ink-faint">마감일 없음</span>}
                 </span>
               </div>
             ))}
@@ -223,7 +223,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
         <button
           onClick={handleSubmit}
           disabled={isPending}
-          className="flex items-center gap-2 h-10 px-6 rounded-lg bg-[#7b68ee] hover:bg-[#6a58d6] text-white text-sm font-medium transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 h-10 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors disabled:opacity-50"
         >
           {isPending && <Loader2 className="size-4 animate-spin" />}
           점검 배정
@@ -231,7 +231,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
         <button
           type="button"
           onClick={() => router.back()}
-          className="h-10 px-4 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+          className="h-10 px-4 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors"
         >
           취소
         </button>

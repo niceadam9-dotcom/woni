@@ -46,60 +46,60 @@ export function MailComposeClient({ candidates, initial }: {
     })
   }
 
-  const inputCls = 'h-9 w-full rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee]'
+  const inputCls = 'h-9 w-full rounded-lg border border-brand-line bg-surface px-3 text-sm outline-none focus:border-brand'
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] p-6 space-y-3 max-w-3xl">
+    <div className="bg-surface rounded-xl border border-line p-6 space-y-3 max-w-3xl">
       <div>
-        <label className="text-xs font-medium text-[#514b81] block mb-1">받는 사람 <span className="text-red-500">*</span> <span className="text-[#b0acd6] font-normal">(쉼표로 여러 명)</span></label>
+        <label className="text-xs font-medium text-ink-sub block mb-1">받는 사람 <span className="text-red-500">*</span> <span className="text-ink-faint font-normal">(쉼표로 여러 명)</span></label>
         <input value={to} onChange={e => setTo(e.target.value)} list="mail-candidates" placeholder="example@domain.com" className={inputCls} />
       </div>
       <div>
-        <label className="text-xs font-medium text-[#514b81] block mb-1">참조 (CC)</label>
+        <label className="text-xs font-medium text-ink-sub block mb-1">참조 (CC)</label>
         <input value={cc} onChange={e => setCc(e.target.value)} list="mail-candidates" className={inputCls} />
       </div>
       <datalist id="mail-candidates">
         {candidates.map(c => <option key={c.email} value={c.email}>{c.label}</option>)}
       </datalist>
       <div>
-        <label className="text-xs font-medium text-[#514b81] block mb-1">제목 <span className="text-red-500">*</span></label>
+        <label className="text-xs font-medium text-ink-sub block mb-1">제목 <span className="text-red-500">*</span></label>
         <input value={subject} onChange={e => setSubject(e.target.value)} className={inputCls} />
       </div>
       <div>
-        <label className="text-xs font-medium text-[#514b81] block mb-1">본문 <span className="text-red-500">*</span> <span className="text-[#b0acd6] font-normal">(하단에 작성자 서명 자동 부착)</span></label>
+        <label className="text-xs font-medium text-ink-sub block mb-1">본문 <span className="text-red-500">*</span> <span className="text-ink-faint font-normal">(하단에 작성자 서명 자동 부착)</span></label>
         <textarea value={body} onChange={e => setBody(e.target.value)} rows={12}
-          className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm outline-none focus:border-[#7b68ee] resize-y" />
+          className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand resize-y" />
       </div>
 
       {/* 첨부 */}
       <div className="space-y-1.5">
         {files.map((f, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs text-[#514b81]">
-            <Paperclip className="size-3 text-[#b0acd6]" />
+          <div key={i} className="flex items-center gap-2 text-xs text-ink-sub">
+            <Paperclip className="size-3 text-ink-faint" />
             <span className="truncate">{f.name}</span>
-            <span className="text-[#b0acd6]">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
-            <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} className="text-[#b0acd6] hover:text-red-500"><X className="size-3" /></button>
+            <span className="text-ink-faint">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+            <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} className="text-ink-faint hover:text-red-500"><X className="size-3" /></button>
           </div>
         ))}
         <input ref={fileRef} type="file" multiple className="hidden" onChange={addFiles} />
         <button onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
-          <Paperclip className="size-3" /> 파일 첨부 <span className="text-[#b0acd6]">(합계 20MB, 현재 {(totalSize / 1024 / 1024).toFixed(1)}MB)</span>
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+          <Paperclip className="size-3" /> 파일 첨부 <span className="text-ink-faint">(합계 20MB, 현재 {(totalSize / 1024 / 1024).toFixed(1)}MB)</span>
         </button>
       </div>
 
       <div className="flex items-center gap-2 pt-1">
         <button onClick={send} disabled={isPending || !to.trim() || !subject.trim() || !body.trim()}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium disabled:opacity-50">
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium disabled:opacity-50">
           {isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} 발송
         </button>
-        <button onClick={() => router.push('/mail')} className="h-9 px-4 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa]">취소</button>
+        <button onClick={() => router.push('/mail')} className="h-9 px-4 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper">취소</button>
         {/* R7-3: 서명은 발송 시 자동 부착된다 — 고치는 자리를 여기 둔다(전용 페이지 없음) */}
         <MessageTemplateModal templateKey="mail_signature" label="메일 서명"
-          buttonClass="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#7b68ee] hover:bg-[#f5f4ff]" />
-        {msg && <span className="text-sm text-[#514b81]">{msg}</span>}
+          buttonClass="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-brand-line text-sm text-brand hover:bg-brand-tint" />
+        {msg && <span className="text-sm text-ink-sub">{msg}</span>}
       </div>
-      <p className="text-[11px] text-[#b0acd6]">발신 주소는 회사 공용 계정(sjfirekorea@gmail.com)이며, 발송 이력에 작성 직원이 기록됩니다. 서명은 발송 시 자동으로 붙습니다.</p>
+      <p className="text-[11px] text-ink-faint">발신 주소는 회사 공용 계정(sjfirekorea@gmail.com)이며, 발송 이력에 작성 직원이 기록됩니다. 서명은 발송 시 자동으로 붙습니다.</p>
     </div>
   )
 }

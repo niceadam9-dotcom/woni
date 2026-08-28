@@ -172,7 +172,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
     })
   }
 
-  if (!b) return <p className="text-sm text-[#514b81] py-4 text-center">등록된 건물이 없습니다 — 먼저 건물을 등록하세요</p>
+  if (!b) return <p className="text-sm text-ink-sub py-4 text-center">등록된 건물이 없습니다 — 먼저 건물을 등록하세요</p>
 
   const installedList = b.facilities.filter(f => f.installed)
 
@@ -183,7 +183,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
         <div className="flex gap-1 mb-3">
           {buildings.map((bd, i) => (
             <button key={bd.id} onClick={() => reset(i)}
-              className={`h-7 px-2.5 rounded-lg text-xs font-medium transition-colors ${i === bidx ? 'bg-[#7b68ee] text-white' : 'bg-[#f5f4ff] text-[#7b68ee] hover:bg-[#ebe9ff]'}`}>
+              className={`h-7 px-2.5 rounded-lg text-xs font-medium transition-colors ${i === bidx ? 'bg-brand text-white' : 'bg-brand-tint text-brand hover:bg-brand-tint'}`}>
               {bd.building_name}
             </button>
           ))}
@@ -192,19 +192,19 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
 
       <div className="flex items-center gap-2 mb-3 text-xs">
         {/* §6-E: 요약 뱃지 — 열지 않고 상태 파악 */}
-        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">
+        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">
           설치 {installedList.length}종 · 층별 {b.floors.length}층
         </span>
-        <span className="text-[#514b81]">최종 확인:</span>
-        <span className={b.verified_at ? 'text-[#090c1d] font-medium' : 'text-amber-500'}>{b.verified_at ?? '미확인'}</span>
+        <span className="text-ink-sub">최종 확인:</span>
+        <span className={b.verified_at ? 'text-ink font-medium' : 'text-amber-500'}>{b.verified_at ?? '미확인'}</span>
         {canManage && !editing && (
           <div className="ml-auto flex gap-1.5">
             <button onClick={verify} disabled={isPending}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">
               <ShieldCheck className="size-3" /> 변경없음
             </button>
             <button onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] text-white text-xs font-medium hover:bg-[#6647f0]">
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-strong">
               수정
             </button>
           </div>
@@ -215,21 +215,21 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
         /* 읽기 뷰 */
         <div className="space-y-2">
           {installedList.length === 0 ? (
-            <p className="text-sm text-[#b0acd6] py-3 text-center">입력된 소방시설이 없습니다{canManage ? ' — [수정]으로 입력' : ''}</p>
+            <p className="text-sm text-ink-faint py-3 text-center">입력된 소방시설이 없습니다{canManage ? ' — [수정]으로 입력' : ''}</p>
           ) : CATALOG.map(cat => {
             const rows = installedList.filter(f => cat.items.includes(f.facility_code))
             if (!rows.length) return null
             return (
               <div key={cat.category} className="flex gap-2 text-sm">
-                <span className="text-xs font-semibold text-[#514b81] w-20 shrink-0 pt-0.5">{cat.category}</span>
-                <span className="text-[#090c1d]">
+                <span className="text-xs font-semibold text-ink-sub w-20 shrink-0 pt-0.5">{cat.category}</span>
+                <span className="text-ink">
                   {rows.map(r => r.facility_code + (r.detail?.note ? ` (${r.detail.note})` : '')).join(' · ')}
                 </span>
               </div>
             )
           })}
           {b.floors.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-[#f0eefb] text-xs text-[#514b81]">
+            <div className="mt-2 pt-2 border-t border-brand-line-soft text-xs text-ink-sub">
               층별 수량 {b.floors.length}개 층 입력됨
             </div>
           )}
@@ -249,30 +249,30 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
           {/* §6-E: 기본 세트·복사 도구 */}
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={applyPresetSet}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               <Sparkles className="size-3" /> 기본 세트 적용{b.purpose ? ` (${suggestFacilitySet(b.purpose)?.label ?? ''})` : ''}
             </button>
             {buildings.length > 1 && buildings.map((bd, i) => i !== bidx && (
               <button key={bd.id} onClick={() => copyFromBuilding(i)}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
                 <Copy className="size-3" /> {bd.building_name}에서 복사
               </button>
             ))}
-            <span className="text-[10px] text-[#b0acd6]">기본 세트는 체크만 추가 — 해제는 직접</span>
+            <span className="text-[10px] text-ink-faint">기본 세트는 체크만 추가 — 해제는 직접</span>
           </div>
           {/* §12-1: 설치 시설 중심 — 검색으로 추가, 26종 스캔 제거 */}
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-xs font-semibold text-[#7b68ee]">설치 시설 ({installedCodes.length}종)</p>
+              <p className="text-xs font-semibold text-brand">설치 시설 ({installedCodes.length}종)</p>
               <div className="relative">
                 <input value={facSearch} onChange={e => setFacSearch(e.target.value)}
                   placeholder="+ 시설 추가 (이름 검색)"
-                  className="h-7 w-44 rounded border border-[#d0ccf5] px-2 text-xs outline-none focus:border-[#7b68ee]" />
+                  className="h-7 w-44 rounded border border-brand-line px-2 text-xs outline-none focus:border-brand" />
                 {searchMatches.length > 0 && (
-                  <div className="absolute z-10 top-8 left-0 w-64 bg-white border border-[#d0ccf5] rounded-lg shadow-lg max-h-44 overflow-y-auto">
+                  <div className="absolute z-10 top-8 left-0 w-64 bg-surface border border-brand-line rounded-lg shadow-lg max-h-44 overflow-y-auto">
                     {searchMatches.map(code => (
                       <button key={code} onClick={() => addFacility(code)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff]">
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-brand-tint">
                         {code}
                       </button>
                     ))}
@@ -281,7 +281,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               </div>
             </div>
             {installedCodes.length === 0 && (
-              <p className="text-[11px] text-[#b0acd6]">설치 시설 없음 — 검색으로 추가하거나 기본 세트를 적용하세요</p>
+              <p className="text-[11px] text-ink-faint">설치 시설 없음 — 검색으로 추가하거나 기본 세트를 적용하세요</p>
             )}
             {installedCodes.map(code => {
               const presetKinds = DETAIL_TYPE_PRESETS[code]
@@ -306,40 +306,40 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                   <label className="flex items-center gap-1.5 w-40 shrink-0 cursor-pointer h-7">
                     <input type="checkbox" checked
                       onChange={() => setFac(s => ({ ...s, [code]: { ...s[code], installed: false } }))}
-                      className="size-3.5 accent-[#7b68ee]" />
-                    <span className="text-xs text-[#090c1d]">{code}</span>
+                      className="size-3.5 accent-brand" />
+                    <span className="text-xs text-ink">{code}</span>
                   </label>
 
                   {parsed !== null ? (
                     /* §12-A: 종류+수량 칩 편집기 */
                     <div className="flex-1 flex items-center gap-1.5 flex-wrap min-w-0">
                       {parsed.map((ch, i) => (
-                        <span key={i} className="inline-flex items-center gap-0.5 rounded-full border border-[#d0ccf5] bg-[#f5f4ff] pl-2 pr-0.5 h-6 text-[11px] text-[#090c1d]">
+                        <span key={i} className="inline-flex items-center gap-0.5 rounded-full border border-brand-line bg-brand-tint pl-2 pr-0.5 h-6 text-[11px] text-ink">
                           {ch.kind}
                           <button onClick={() => updateChips(code, parsed.map((c, j) => j === i ? { ...c, qty: Math.max(1, c.qty - 1) } : c))}
-                            className="px-0.5 text-[#7b68ee] hover:text-[#6647f0]">−</button>
+                            className="px-0.5 text-brand hover:text-brand-strong">−</button>
                           <input value={ch.qty}
                             onChange={e => updateChips(code, parsed.map((c, j) => j === i ? { ...c, qty: parseInt(e.target.value, 10) || 0 } : c))}
-                            className="w-9 h-5 rounded border border-[#d0ccf5] bg-white text-center outline-none focus:border-[#7b68ee]" />
+                            className="w-9 h-5 rounded border border-brand-line bg-surface text-center outline-none focus:border-brand" />
                           <button onClick={() => updateChips(code, parsed.map((c, j) => j === i ? { ...c, qty: c.qty + 1 } : c))}
-                            className="px-0.5 text-[#7b68ee] hover:text-[#6647f0]">+</button>
+                            className="px-0.5 text-brand hover:text-brand-strong">+</button>
                           <button onClick={() => updateChips(code, parsed.filter((_, j) => j !== i))}
-                            className="px-1 text-[#b0acd6] hover:text-red-500">✕</button>
+                            className="px-1 text-ink-faint hover:text-red-500">✕</button>
                         </span>
                       ))}
                       <div className="relative">
                         <button onClick={() => setAddKindOpen(addKindOpen === code ? null : code)}
-                          className="h-6 px-2 rounded-full border border-dashed border-[#c3bdf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                          className="h-6 px-2 rounded-full border border-dashed border-brand-line text-[11px] text-brand hover:bg-brand-tint">
                           + 종류
                         </button>
                         {addKindOpen === code && (
-                          <div className="absolute z-10 top-7 left-0 min-w-32 bg-white border border-[#d0ccf5] rounded-lg shadow-lg">
+                          <div className="absolute z-10 top-7 left-0 min-w-32 bg-surface border border-brand-line rounded-lg shadow-lg">
                             {presetKinds.filter(k => !parsed.some(c => c.kind === k)).map(k => (
                               <button key={k} onClick={() => addKind(code, parsed, k)}
-                                className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f4ff]">{k}</button>
+                                className="w-full text-left px-3 py-1.5 text-xs hover:bg-brand-tint">{k}</button>
                             ))}
                             <button onClick={() => addKind(code, parsed, window.prompt('종류 이름 입력') ?? '')}
-                              className="w-full text-left px-3 py-1.5 text-xs text-[#514b81] hover:bg-[#f8f9fa] border-t border-[#f0eefb]">
+                              className="w-full text-left px-3 py-1.5 text-xs text-ink-sub hover:bg-paper border-t border-brand-line-soft">
                               직접 입력…
                             </button>
                           </div>
@@ -352,7 +352,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                         </span>
                       )}
                       <button onClick={() => toggleRawMode(code)} title="자유 텍스트로 입력"
-                        className="text-[10px] text-[#b0acd6] hover:text-[#7b68ee]">텍스트</button>
+                        className="text-[10px] text-ink-faint hover:text-brand">텍스트</button>
                     </div>
                   ) : (
                     /* 자유 텍스트 폴백 (패턴 불일치 문구·프리셋 없는 시설·수동 전환) */
@@ -360,11 +360,11 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                       <input value={fac[code].detail ?? ''}
                         onChange={e => setDetail(code, e.target.value)}
                         placeholder="수량·상세 (예: 분말 12, CO2 2)"
-                        className="flex-1 h-7 rounded border border-[#d0ccf5] px-2 text-xs outline-none focus:border-[#7b68ee]" />
+                        className="flex-1 h-7 rounded border border-brand-line px-2 text-xs outline-none focus:border-brand" />
                       {suggestBtn}
                       {presetKinds && rawModeCodes.has(code) && parseDetailChips(fac[code].detail ?? '') !== null && (
                         <button onClick={() => toggleRawMode(code)} title="종류+수량 칩으로 입력"
-                          className="shrink-0 text-[10px] text-[#b0acd6] hover:text-[#7b68ee]">칩 입력</button>
+                          className="shrink-0 text-[10px] text-ink-faint hover:text-brand">칩 입력</button>
                       )}
                     </div>
                   )}
@@ -372,7 +372,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               )
             })}
             <button onClick={() => setShowAllFac(v => !v)}
-              className="text-[11px] text-[#514b81] hover:text-[#7b68ee]">
+              className="text-[11px] text-ink-sub hover:text-brand">
               {showAllFac ? '▾' : '▸'} 미설치 시설 전체 보기
             </button>
             {showAllFac && CATALOG.map(cat => {
@@ -380,14 +380,14 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               if (rest.length === 0) return null
               return (
                 <div key={cat.category} className="pl-2">
-                  <p className="text-[10px] font-semibold text-[#b0acd6] mb-0.5">{cat.category}</p>
+                  <p className="text-[10px] font-semibold text-ink-faint mb-0.5">{cat.category}</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {rest.map(code => (
                       <label key={code} className="flex items-center gap-1.5 cursor-pointer">
                         <input type="checkbox" checked={false}
                           onChange={() => addFacility(code)}
-                          className="size-3.5 accent-[#7b68ee]" />
-                        <span className="text-xs text-[#514b81]">{code}</span>
+                          className="size-3.5 accent-brand" />
+                        <span className="text-xs text-ink-sub">{code}</span>
                       </label>
                     ))}
                   </div>
@@ -399,31 +399,31 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
           {/* 층별 수량 */}
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-xs font-semibold text-[#7b68ee]">층별 수량</p>
+              <p className="text-xs font-semibold text-brand">층별 수량</p>
               <button onClick={() => setFloors(f => [...f, { floor_label: '', sort_order: f.length, counts: {} }])}
-                className="inline-flex items-center gap-0.5 text-[11px] text-[#7b68ee] hover:underline">
+                className="inline-flex items-center gap-0.5 text-[11px] text-brand hover:underline">
                 <Plus className="size-3" /> 층 추가
               </button>
               {/* §6-E: 지상/지하 층수 기반 일괄 생성 */}
               <button onClick={autoFloors}
-                className="inline-flex items-center gap-0.5 text-[11px] text-[#7b68ee] hover:underline">
+                className="inline-flex items-center gap-0.5 text-[11px] text-brand hover:underline">
                 <Layers className="size-3" /> 층 자동 생성
                 {(b.floorsAbove || b.floorsBelow) ? ` (지하${b.floorsBelow ?? 0}~지상${b.floorsAbove ?? 0})` : ''}
               </button>
               {/* §12-2: 대표 층 하나 입력 → 나머지 복사 */}
               {floors.length > 1 && (
                 <button onClick={applyFirstRowToAll}
-                  className="inline-flex items-center gap-0.5 text-[11px] text-[#7b68ee] hover:underline">
+                  className="inline-flex items-center gap-0.5 text-[11px] text-brand hover:underline">
                   <Copy className="size-3" /> 첫 행 전층 적용
                 </button>
               )}
-              <span className="text-[10px] text-[#b0acd6]">셀에서 Enter = 아래 층 이동</span>
+              <span className="text-[10px] text-ink-faint">셀에서 Enter = 아래 층 이동</span>
             </div>
             {floors.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="text-xs">
                   <thead>
-                    <tr className="text-[#514b81]">
+                    <tr className="text-ink-sub">
                       <th className="px-1 py-0.5 text-left">층</th>
                       {FLOOR_COLS.map(c => <th key={c} className="px-1 py-0.5 w-12">{c}</th>)}
                       <th />
@@ -446,17 +446,17 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                       <tr key={i}>
                         <td className="px-1 py-0.5">
                           <input value={fl.floor_label} onChange={e => setFloors(s => s.map((x, j) => j === i ? { ...x, floor_label: e.target.value } : x))}
-                            placeholder="1층" className="w-16 h-6 rounded border border-[#d0ccf5] px-1 outline-none focus:border-[#7b68ee]" />
+                            placeholder="1층" className="w-16 h-6 rounded border border-brand-line px-1 outline-none focus:border-brand" />
                         </td>
                         {FLOOR_COLS.map(c => (
                           <td key={c} className="px-1 py-0.5">
                             <input id={`fl-${i}-${c}`} type="number" min={0} value={fl.counts[c] ?? ''}
                               onChange={e => setFloors(s => s.map((x, j) => j === i ? { ...x, counts: { ...x.counts, [c]: parseInt(e.target.value) || 0 } } : x))}
                               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById(`fl-${i + 1}-${c}`)?.focus() } }}
-                              className="w-11 h-6 rounded border border-[#d0ccf5] px-1 text-center outline-none focus:border-[#7b68ee]" />
+                              className="w-11 h-6 rounded border border-brand-line px-1 text-center outline-none focus:border-brand" />
                           </td>
                         ))}
-                        <td><button onClick={() => setFloors(s => s.filter((_, j) => j !== i))} className="p-0.5 text-[#b0acd6] hover:text-red-500"><X className="size-3" /></button></td>
+                        <td><button onClick={() => setFloors(s => s.filter((_, j) => j !== i))} className="p-0.5 text-ink-faint hover:text-red-500"><X className="size-3" /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -468,9 +468,9 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={() => reset()} disabled={isPending}
-              className="flex-1 h-8 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">취소</button>
+              className="flex-1 h-8 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">취소</button>
             <button onClick={save} disabled={isPending}
-              className="flex-1 h-8 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
+              className="flex-1 h-8 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-3.5 mr-1" /> 저장</>}
             </button>
           </div>

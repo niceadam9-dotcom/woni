@@ -45,7 +45,7 @@ export default async function PayrollPage() {
   return (
     <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">급여 등록</h1>
+        <h1 className="text-xl font-bold text-ink">급여 등록</h1>
         <p className="text-sm text-gray-500 mt-0.5">직원 급여 계산 및 지급 관리</p>
       </div>
       <PayrollClient

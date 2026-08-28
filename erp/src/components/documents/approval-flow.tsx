@@ -23,7 +23,7 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
           approvers.slice(0, i).every(p => p.status === 'approved')
 
         const statusInfo = isActive
-          ? { label: '결재중', className: 'bg-[#f5f4ff] text-[#7b68ee]', dotColor: 'bg-[#7b68ee]' }
+          ? { label: '결재중', className: 'bg-brand-tint text-brand', dotColor: 'bg-brand' }
           : STATUS[a.status] ?? STATUS.pending
 
         return (
@@ -36,8 +36,8 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
                     : a.status === 'rejected'
                     ? 'bg-red-100 text-red-600'
                     : isActive
-                    ? 'bg-[#7b68ee] text-white'
-                    : 'bg-[#f0eeff] text-[#b0acd6]'
+                    ? 'bg-brand text-white'
+                    : 'bg-brand-tint text-ink-faint'
                 }`}
               >
                 {a.order_num}
@@ -45,7 +45,7 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
               {i < approvers.length - 1 && (
                 <div
                   className={`w-px h-5 mt-1 ${
-                    a.status === 'approved' ? 'bg-green-200' : 'bg-[#ece9ff]'
+                    a.status === 'approved' ? 'bg-green-200' : 'bg-brand-tint'
                   }`}
                 />
               )}
@@ -54,8 +54,8 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
             <div className="flex-1 min-w-0 pb-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-[#090c1d] truncate">{a.profile.name}</p>
-                  <p className="text-xs text-[#514b81]">{a.profile.position ?? a.profile.email}</p>
+                  <p className="text-sm font-medium text-ink truncate">{a.profile.name}</p>
+                  <p className="text-xs text-ink-sub">{a.profile.position ?? a.profile.email}</p>
                 </div>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${statusInfo.className}`}>
                   {statusInfo.label}
@@ -69,7 +69,7 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
               )}
 
               {a.processed_at && (
-                <p className="text-[11px] text-[#b0acd6] mt-1">
+                <p className="text-[11px] text-ink-faint mt-1">
                   {new Date(a.processed_at).toLocaleString('ko-KR', {
                     month: '2-digit', day: '2-digit',
                     hour: '2-digit', minute: '2-digit',

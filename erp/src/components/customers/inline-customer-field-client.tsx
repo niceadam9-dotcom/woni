@@ -33,7 +33,7 @@ const TYPE_COMBOS: Array<{ value: string; label: string; type: InspectionType; s
 ]
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
-  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '종합':   'bg-brand-tint text-brand',
   '작동':   'bg-blue-50 text-blue-600',
   '일반관리': 'bg-gray-100 text-gray-600',
 }
@@ -122,16 +122,16 @@ export function InlineCustomerFieldClient({
   function renderValue(): React.ReactNode {
     if (displayVariant === 'employee') {
       return value
-        ? <span className="text-xs font-medium text-[#090c1d]">{displayValue ?? '-'}</span>
+        ? <span className="text-xs font-medium text-ink">{displayValue ?? '-'}</span>
         : <span className="text-xs text-red-500 font-medium">미배정</span>
     }
     if (value == null) {
       return emptyLabel
         ? <span className="text-xs text-red-500 font-medium">{emptyLabel}</span>
-        : <span className="text-[#b0acd6] italic text-xs">—</span>
+        : <span className="text-ink-faint italic text-xs">—</span>
     }
     if (displayVariant === 'name') {
-      return <span className="font-medium text-[#090c1d]">{value}</span>
+      return <span className="font-medium text-ink">{value}</span>
     }
     if (displayVariant === 'type-badge') {
       return (
@@ -149,7 +149,7 @@ export function InlineCustomerFieldClient({
         <button
           onClick={handleEdit}
           title="수정"
-          className="p-0.5 text-[#b0acd6] opacity-0 group-hover:opacity-100 hover:text-[#7b68ee] transition-opacity shrink-0"
+          className="p-0.5 text-ink-faint opacity-0 group-hover:opacity-100 hover:text-brand transition-opacity shrink-0"
         >
           <Pencil className="size-3" />
         </button>
@@ -162,7 +162,7 @@ export function InlineCustomerFieldClient({
         title="클릭하여 수정"
       >
         <span>{renderValue()}</span>
-        <Pencil className="size-3 text-[#b0acd6] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+        <Pencil className="size-3 text-ink-faint opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
       </div>
     )
   }
@@ -186,7 +186,7 @@ export function InlineCustomerFieldClient({
           onKeyDown={handleSelectKeyDown}
           onBlur={() => handleSave()}
           disabled={isPending}
-          className="h-7 px-1 text-xs border border-[#7b68ee] rounded outline-none bg-white"
+          className="h-7 px-1 text-xs border border-brand rounded outline-none bg-surface"
         >
           {TYPE_COMBOS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
@@ -204,7 +204,7 @@ export function InlineCustomerFieldClient({
           onKeyDown={handleSelectKeyDown}
           onBlur={() => handleSave()}
           disabled={isPending}
-          className="h-7 px-1 text-xs border border-[#7b68ee] rounded outline-none bg-white max-w-[120px]"
+          className="h-7 px-1 text-xs border border-brand rounded outline-none bg-surface max-w-[120px]"
         >
           <option value="">미배정</option>
           {(employees ?? []).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -226,7 +226,7 @@ export function InlineCustomerFieldClient({
         onKeyDown={handleKeyDown}
         onBlur={() => handleSave()}
         disabled={isPending}
-        className="h-7 px-1.5 text-xs border border-[#7b68ee] rounded outline-none bg-white min-w-0 w-32"
+        className="h-7 px-1.5 text-xs border border-brand rounded outline-none bg-surface min-w-0 w-32"
       />
       <button
         onMouseDown={e => { e.preventDefault(); handleSave(e) }}
@@ -237,7 +237,7 @@ export function InlineCustomerFieldClient({
       </button>
       <button
         onMouseDown={e => { e.preventDefault(); handleCancel(e) }}
-        className="p-0.5 text-[#b0acd6] hover:text-red-500"
+        className="p-0.5 text-ink-faint hover:text-red-500"
       >
         <X className="size-3.5" />
       </button>

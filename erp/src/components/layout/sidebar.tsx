@@ -288,9 +288,9 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
   const isDashboard = pathname === '/dashboard'
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col h-full bg-white border-r-2 border-[#d4d0f0] print:hidden">
+    <aside className="w-56 shrink-0 flex flex-col h-full bg-surface border-r-2 border-brand-line print:hidden">
       {/* 로고 */}
-      <div className="h-14 flex items-center gap-2.5 px-4 border-b-2 border-[#d4d0f0]">
+      <div className="h-14 flex items-center gap-2.5 px-4 border-b-2 border-brand-line">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt={companyName} className="size-7 rounded-lg object-contain shrink-0" />
@@ -312,7 +312,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
             <path d="M20.4 5.2c-1.1 1.3-1.6 2.1-1.6 3a1.6 1.6 0 0 0 3.2 0c0-.9-.5-1.7-1.6-3z" fill="url(#sj-logo-fire)" />
           </svg>
         )}
-        <span className="font-bold text-[#090c1d] text-[14px] tracking-tight truncate">{companyName}</span>
+        <span className="font-bold text-ink text-[14px] tracking-tight truncate">{companyName}</span>
       </div>
 
       {/* 네비게이션 */}
@@ -337,21 +337,21 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                 className={cn(
                   'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors mt-0.5',
                   isGroupActive
-                    ? 'text-[#7b68ee] bg-[#f5f4ff]'
-                    : 'text-[#374151] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+                    ? 'text-brand bg-brand-tint'
+                    : 'text-[#374151] hover:bg-brand-tint hover:text-brand'
                 )}
               >
-                <group.icon className={cn('size-4 shrink-0', isGroupActive ? 'text-[#7b68ee]' : 'text-[#7c85a0]')} />
+                <group.icon className={cn('size-4 shrink-0', isGroupActive ? 'text-brand' : 'text-[#7c85a0]')} />
                 <span className="flex-1 text-left">{group.label}</span>
                 {isOpen
-                  ? <ChevronDown className="size-3.5 text-[#8b87b8]" />
-                  : <ChevronRight className="size-3.5 text-[#8b87b8]" />
+                  ? <ChevronDown className="size-3.5 text-ink-soft" />
+                  : <ChevronRight className="size-3.5 text-ink-soft" />
                 }
               </button>
 
               {/* 그룹 아이템 */}
               {isOpen && (
-                <div className="ml-3 pl-3 border-l-2 border-[#c4bff5] mt-0.5 mb-1 space-y-0.5">
+                <div className="ml-3 pl-3 border-l-2 border-brand-line mt-0.5 mb-1 space-y-0.5">
                   {visibleItems.map((item, i) => {
                     const exactOnly = item.href === '/dashboard' || item.href === '/admin'
                     const isActive =
@@ -365,8 +365,8 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                       <div key={item.href}>
                       {showSection && (
                         <div className="flex items-center gap-1.5 pl-2.5 pr-1 pt-2 pb-1 select-none">
-                          <span className="text-[10px] font-semibold tracking-wide text-[#b0acd6]">{item.section}</span>
-                          <span className="flex-1 h-px bg-[#e6e3f7]" />
+                          <span className="text-[10px] font-semibold tracking-wide text-ink-faint">{item.section}</span>
+                          <span className="flex-1 h-px bg-brand-line-soft" />
                         </div>
                       )}
                       <Link
@@ -374,11 +374,11 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                         className={cn(
                           'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors',
                           isActive
-                            ? 'bg-[#7b68ee]/10 text-[#7b68ee]'
-                            : 'text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+                            ? 'bg-brand/10 text-brand'
+                            : 'text-ink-sub hover:bg-brand-tint hover:text-brand'
                         )}
                       >
-                        <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-[#7b68ee]' : 'text-[#8b87b8]')} />
+                        <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-brand' : 'text-ink-soft')} />
                         <span className="flex-1">{item.label}</span>
                         {BADGE_HREFS[item.href] === 'red' && redCount > 0 && (
                           <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
@@ -399,7 +399,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                               /* 단위는 배너·위젯과 같은 **건**(고객+방문일) */
                               : `손봐야 할 사전 안내 ${smsCount}건`}
                             className={`shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${
-                              smsCount < 0 ? 'bg-[#b0acd6]' : 'bg-[#7b68ee]'}`}>
+                              smsCount < 0 ? 'bg-[#b0acd6]' : 'bg-brand'}`}>
                             {smsCount < 0 ? '?' : smsCount > 99 ? '99+' : smsCount}
                           </span>
                         )}
@@ -419,24 +419,24 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
           기본 착륙지가 [점검 달력]이 되면서 대시보드는 '홈'이 아니라 지표를 보러 가는 곳이
           됐다(KPI·제출현황·공지). 그런데 맨 위 소방안전관리(17항목)가 펼쳐진 채 시작하므로
           목록 안에 두면 매번 스크롤해야 닿는다 — 설정과 같은 고정 자리로 내린다. */}
-      <div className="px-2 py-2 border-t-2 border-[#d4d0f0] space-y-0.5">
+      <div className="px-2 py-2 border-t-2 border-brand-line space-y-0.5">
         <Link
           href="/dashboard"
           className={cn(
             'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
             isDashboard
-              ? 'bg-[#7b68ee]/10 text-[#7b68ee]'
-              : 'text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee]'
+              ? 'bg-brand/10 text-brand'
+              : 'text-ink-sub hover:bg-brand-tint hover:text-brand'
           )}
         >
-          <LayoutDashboard className={cn('size-4 shrink-0', isDashboard ? 'text-[#7b68ee]' : 'text-[#8b87b8]')} />
+          <LayoutDashboard className={cn('size-4 shrink-0', isDashboard ? 'text-brand' : 'text-ink-soft')} />
           대시보드
         </Link>
         <Link
           href="/settings"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-[#6b7280] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors"
         >
-          <Settings className="size-4 text-[#8b87b8]" />
+          <Settings className="size-4 text-ink-soft" />
           설정
         </Link>
       </div>

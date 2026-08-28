@@ -37,7 +37,7 @@ export default async function VouchersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <BookOpen className="size-5 text-[#7b68ee]" />
+        <BookOpen className="size-5 text-brand" />
         <h1 className="text-xl font-bold">전표 등록</h1>
       </div>
 

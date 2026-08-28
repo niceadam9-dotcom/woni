@@ -9,9 +9,9 @@ import { extractRegionFromAddress } from '@/lib/address-parser'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { formatPhoneKR } from '@/components/ui/fields'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
-const readonlyCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-[#f8f9fa] px-3 text-sm text-[#514b81] outline-none cursor-default'
-const labelCls = 'text-xs font-medium text-[#514b81]'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const readonlyCls = 'w-full h-10 rounded-lg border border-brand-line bg-paper px-3 text-sm text-ink-sub outline-none cursor-default'
+const labelCls = 'text-xs font-medium text-ink-sub'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -147,8 +147,8 @@ export function InquiryNewClient({
   return (
     <div className="max-w-2xl space-y-6">
       {/* 문의 기본정보 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#090c1d]">문의 기본정보</h2>
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">문의 기본정보</h2>
 
         <Field label="고객사" required>
           <CustomerCombobox
@@ -160,9 +160,9 @@ export function InquiryNewClient({
 
         {/* 내부 담당자 표시 */}
         {assignedEmployee && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-[#f5f4ff] rounded-lg text-xs text-[#514b81]">
-            <User className="size-3.5 text-[#7b68ee] shrink-0" />
-            <span>내부 담당자: <strong className="text-[#090c1d]">{assignedEmployee}</strong></span>
+          <div className="flex items-center gap-2 px-3 py-2 bg-brand-tint rounded-lg text-xs text-ink-sub">
+            <User className="size-3.5 text-brand shrink-0" />
+            <span>내부 담당자: <strong className="text-ink">{assignedEmployee}</strong></span>
           </div>
         )}
 
@@ -173,7 +173,7 @@ export function InquiryNewClient({
             <button
               type="button"
               onClick={handleAddressSearch}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5]"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-xs font-medium transition-colors border border-brand-line"
             >
               <Search className="size-3.5" />
               주소 검색
@@ -182,19 +182,19 @@ export function InquiryNewClient({
 
           <div className="grid grid-cols-4 gap-2">
             <div className="space-y-1">
-              <p className="text-xs text-[#b0acd6]">우편번호</p>
+              <p className="text-xs text-ink-faint">우편번호</p>
               <input value={form.zipcode} readOnly placeholder="검색 후 자동입력" className={readonlyCls} />
             </div>
             <div className="col-span-3 space-y-1">
-              <p className="text-xs text-[#b0acd6]">지번주소 (참고)</p>
+              <p className="text-xs text-ink-faint">지번주소 (참고)</p>
               <input value={addrJibun} readOnly placeholder="검색 후 자동입력" className={readonlyCls} />
             </div>
           </div>
 
           <div className="space-y-1">
-            <p className="text-xs text-[#b0acd6]">도로명주소 (상세주소 직접 입력 가능)</p>
+            <p className="text-xs text-ink-faint">도로명주소 (상세주소 직접 입력 가능)</p>
             <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input
                 value={form.address}
                 onChange={e => setField('address', e.target.value)}
@@ -216,7 +216,7 @@ export function InquiryNewClient({
                   const extracted = extractRegionFromAddress(form.address)
                   if (extracted.region_si) setForm(prev => ({ ...prev, ...extracted }))
                 }}
-                className="inline-flex items-center gap-1 h-6 px-2 rounded bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-[11px] font-medium transition-colors border border-[#d0ccf5]"
+                className="inline-flex items-center gap-1 h-6 px-2 rounded bg-brand-tint hover:bg-brand-tint text-brand text-[11px] font-medium transition-colors border border-brand-line"
               >
                 <Wand2 className="size-3" />
                 주소에서 추출
@@ -259,19 +259,19 @@ export function InquiryNewClient({
             onChange={e => setField('content', e.target.value)}
             placeholder="문의 내용을 상세히 입력하세요"
             rows={5}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+            className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
           />
         </Field>
       </section>
 
       {/* 담당 연락처 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#090c1d]">담당 연락처 <span className="text-[#514b81] font-normal">(선택)</span></h2>
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">담당 연락처 <span className="text-ink-sub font-normal">(선택)</span></h2>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="담당자명">
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input
                 value={form.contact_name}
                 onChange={e => setField('contact_name', e.target.value)}
@@ -282,7 +282,7 @@ export function InquiryNewClient({
           </Field>
           <Field label="연락처">
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input
                 value={form.contact_phone}
                 onChange={e => setField('contact_phone', formatPhoneKR(e.target.value))}
@@ -303,7 +303,7 @@ export function InquiryNewClient({
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex-1 h-11 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+          className="flex-1 h-11 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors"
         >
           취소
         </button>

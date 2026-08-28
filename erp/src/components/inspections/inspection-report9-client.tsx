@@ -73,19 +73,19 @@ export function InspectionReport9Client({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-3">
-        <FileText className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]" title={variant === 'exterior' ? DOC_TERMS.checklistExterior : DOC_TERMS.report9Full}>
+        <FileText className="size-4 text-brand" />
+        <h2 className="text-sm font-semibold text-ink" title={variant === 'exterior' ? DOC_TERMS.checklistExterior : DOC_TERMS.report9Full}>
           {variant === 'exterior' ? '외관점검표 (일반용)' : '실시결과 보고서 (별지 9호)'}
         </h2>
-        <span className="text-[11px] text-[#b0acd6]">
+        <span className="text-[11px] text-ink-faint">
           {variant === 'exterior' ? '해당 월 결과 자동 병합 · 작성 후 2년 보관 (보고 없음)' : '1~3·8쪽 자동 병합 · 4~7쪽 세부현황(설비 대장) 주입'}
         </span>
       </div>
       {/* D-6 (a)안: 정기·일반관리는 보고 단계가 없음 — 이유 안내 1줄 */}
       {variant === 'exterior' && (
-        <p className="text-[11px] text-[#b0acd6] -mt-1 mb-3">
+        <p className="text-[11px] text-ink-faint -mt-1 mb-3">
           정기·일반관리는 소방서 보고 단계(②~⑥)가 없습니다 — 외관점검표 작성·2년 보관만 진행합니다
         </p>
       )}
@@ -97,10 +97,10 @@ export function InspectionReport9Client({
             {c.ok
               ? <CheckCircle2 className="size-3.5 text-green-600 shrink-0" />
               : <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />}
-            <span className="text-[#090c1d] font-medium w-28">{c.label}</span>
-            <span className={c.ok ? 'text-[#514b81]' : 'text-amber-600'}>{c.detail}</span>
+            <span className="text-ink font-medium w-28">{c.label}</span>
+            <span className={c.ok ? 'text-ink-sub' : 'text-amber-600'}>{c.detail}</span>
             {c.href && !c.ok && (
-              <Link href={c.href} className="text-[#7b68ee] hover:underline ml-auto">{c.hrefLabel ?? '입력 →'}</Link>
+              <Link href={c.href} className="text-brand hover:underline ml-auto">{c.hrefLabel ?? '입력 →'}</Link>
             )}
           </div>
         ))}
@@ -109,7 +109,7 @@ export function InspectionReport9Client({
       {canManage && (
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => generate(variant === 'exterior' ? 'exterior' : 'report9')} disabled={isPending || busy}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50">
             {busy || isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
             {busy ? '생성 중…'
               : variant === 'exterior' ? '외관점검표 생성 (PDF)'
@@ -119,14 +119,14 @@ export function InspectionReport9Client({
               점검일·비고를 손볼 방법이 아예 없었다(자동값이 틀려도 고칠 수 없음) */}
           <button onClick={() => setCompose(variant === 'exterior' ? 'exterior' : 'report9')} disabled={isPending || busy}
             title="자동 채움 검토 → 고유 값 입력(비고·보고일) → 미리보기·생성 (H-23 작성 패널)"
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs font-medium text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
             <PenLine className="size-3.5" />
             {variant === 'exterior' ? '외관점검표 작성' : '9호 작성'}
           </button>
           {variant !== 'exterior' && (
             <button onClick={() => generate('report4')} disabled={isPending || busy}
               title="소방시설등점검표 (별지 4호) — 1·2쪽·점검결과 자동, 3~7쪽 세부현황은 설비 대장(고객 탭 1.4)에서 입력 (H-21)"
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs font-medium text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
               <FileText className="size-3.5" />
               별지 4호 생성
             </button>
@@ -139,23 +139,23 @@ export function InspectionReport9Client({
 
       {/* ⑤⑥ 불량 생애주기 — 불량 있을 때만 표시 (§9-7, 별지 10·11호). 일반관리(외관)는 해당없음(§9-8) */}
       {canManage && variant !== 'exterior' && defectsInfo.total > 0 && (
-        <div className="mt-3 pt-3 border-t border-dashed border-[#e0ddf5] space-y-1.5">
+        <div className="mt-3 pt-3 border-t border-dashed border-brand-line-soft space-y-1.5">
           <div className="flex items-center gap-2 text-xs">
             {defectsInfo.planned >= defectsInfo.total
               ? <CheckCircle2 className="size-3.5 text-green-600 shrink-0" />
               : <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />}
-            <span className="text-[#090c1d] font-medium w-28">⑤ 이행조치 계획</span>
-            <span className={defectsInfo.planned >= defectsInfo.total ? 'text-[#514b81]' : 'text-amber-600'}>
+            <span className="text-ink font-medium w-28">⑤ 이행조치 계획</span>
+            <span className={defectsInfo.planned >= defectsInfo.total ? 'text-ink-sub' : 'text-amber-600'}>
               불량 {defectsInfo.total}건 중 {defectsInfo.planned}건 계획 입력
             </span>
             <span className="ml-auto inline-flex items-center gap-1.5">
               <button onClick={() => setCompose('report10')} disabled={isPending || busy}
                 title="자동 채움 검토 → 고유 값 입력(제출일·기간 보정·요약) → 미리보기·생성 (H-23 작성 패널)"
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                 <PenLine className="size-3" /> 10호 작성
               </button>
               <button onClick={() => generate('report10')} disabled={isPending || busy}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                 별지 10호 생성
               </button>
             </span>
@@ -164,26 +164,26 @@ export function InspectionReport9Client({
             {defectsInfo.done >= defectsInfo.total
               ? <CheckCircle2 className="size-3.5 text-green-600 shrink-0" />
               : <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />}
-            <span className="text-[#090c1d] font-medium w-28">⑥ 이행완료 처리</span>
-            <span className={defectsInfo.done >= defectsInfo.total ? 'text-[#514b81]' : 'text-amber-600'}>
+            <span className="text-ink font-medium w-28">⑥ 이행완료 처리</span>
+            <span className={defectsInfo.done >= defectsInfo.total ? 'text-ink-sub' : 'text-amber-600'}>
               {defectsInfo.done}/{defectsInfo.total} 완료
             </span>
             <span className="ml-auto inline-flex items-center gap-1.5">
               <button onClick={() => setCompose('report11')} disabled={isPending || busy}
                 title="자동 채움 검토 → 고유 값 입력(제출일·완료 보고 문구) → 미리보기·생성 (H-23 작성 패널)"
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                 <PenLine className="size-3" /> 11호 작성
               </button>
               <button onClick={() => generate('report11')} disabled={isPending || busy}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
                 별지 11호 생성
               </button>
             </span>
           </div>
-          <p className="text-[10px] text-[#b0acd6]">계획·완료 입력은 아래 불량내역의 [이행계획·조치 완료]에서 — 10호는 9호의 법정 첨부, 11호 첨부(전후 사진·계약서)는 불량내역 사진 슬롯 활용</p>
+          <p className="text-[10px] text-ink-faint">계획·완료 입력은 아래 불량내역의 [이행계획·조치 완료]에서 — 10호는 9호의 법정 첨부, 11호 첨부(전후 사진·계약서)는 불량내역 사진 슬롯 활용</p>
         </div>
       )}
-      {msg && <p className="text-xs text-[#514b81] mt-2">{msg}</p>}
+      {msg && <p className="text-xs text-ink-sub mt-2">{msg}</p>}
       {job?.status === 'failed' && (
         <p className="text-xs text-red-600 mt-2">❌ 생성 실패: {job.error ?? '알 수 없는 오류'}</p>
       )}
@@ -193,12 +193,12 @@ export function InspectionReport9Client({
 
       {/* 생성물 목록 — 문서 단위 1행 그룹핑 (⑩ R11 공용 컴포넌트) */}
       {files.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-[#e0ddf5]">
+        <div className="mt-3 pt-3 border-t border-brand-line-soft">
           <GeneratedDocList files={files} onOpen={download} inspectionId={inspectionId} disabled={isPending} />
         </div>
       )}
       {busy && (
-        <p className="text-[11px] text-[#b0acd6] mt-2 inline-flex items-center gap-1">
+        <p className="text-[11px] text-ink-faint mt-2 inline-flex items-center gap-1">
           <RefreshCw className="size-3 animate-spin" /> 자동 새로고침 중 — 서버가 생성하고 있습니다
         </p>
       )}

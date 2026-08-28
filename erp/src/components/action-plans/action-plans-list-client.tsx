@@ -63,7 +63,7 @@ export function ActionPlansListClient({ plans }: { plans: Record<string, unknown
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-surface">
         <div>
           <h1 className="text-xl font-bold">이행계획서 등록</h1>
           <p className="text-xs text-gray-400 mt-0.5">불량내역 기반 이행계획 관리</p>
@@ -83,7 +83,7 @@ export function ActionPlansListClient({ plans }: { plans: Record<string, unknown
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm bg-white"
+          className="border rounded px-2 py-1.5 text-sm bg-surface"
         >
           <option value="all">전체</option>
           <option value="pending">제출대기</option>

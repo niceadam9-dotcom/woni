@@ -65,7 +65,7 @@ export function CustomerFilterSearch({
 
   return (
     <div className="relative" ref={boxRef}>
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6] pointer-events-none" />
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint pointer-events-none" />
       <input
         ref={inputRef}
         value={value}
@@ -76,7 +76,7 @@ export function CustomerFilterSearch({
         autoComplete="off"
         aria-label="고객명 검색"
         data-testid={testId}
-        className={`h-8 pl-7 pr-7 rounded-lg border border-[#c8c4d0] bg-white text-xs text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-1 focus:ring-[#7b68ee] transition ${widthClass}`}
+        className={`h-8 pl-7 pr-7 rounded-lg border border-line bg-surface text-xs text-ink outline-none focus:border-brand focus:ring-1 focus:ring-brand transition ${widthClass}`}
       />
       {value && (
         <button
@@ -84,7 +84,7 @@ export function CustomerFilterSearch({
           onClick={() => { onChange(''); setOpen(false); setActive(-1); inputRef.current?.focus() }}
           aria-label="고객명 검색어 지우기"
           data-testid={testId ? `${testId}-clear` : undefined}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-[#b0acd6] hover:text-[#514b81] transition-colors"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-faint hover:text-ink-sub transition-colors"
         >
           <X className="size-3.5" />
         </button>
@@ -94,7 +94,7 @@ export function CustomerFilterSearch({
         <div
           role="listbox"
           data-testid={testId ? `${testId}-list` : undefined}
-          className="absolute top-9 left-0 z-40 w-64 bg-white rounded-xl border border-[#d0ccf5] shadow-xl py-1.5 max-h-72 overflow-y-auto"
+          className="absolute top-9 left-0 z-40 w-64 bg-surface rounded-xl border border-brand-line shadow-xl py-1.5 max-h-72 overflow-y-auto"
         >
           {matches.map((c, i) => (
             <button
@@ -104,10 +104,10 @@ export function CustomerFilterSearch({
               aria-selected={i === active}
               onMouseEnter={() => setActive(i)}
               onClick={() => apply(c.name)}
-              className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-[#f5f4ff]' : 'hover:bg-[#f5f4ff]'}`}
+              className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-brand-tint' : 'hover:bg-brand-tint'}`}
             >
-              <span className="text-xs text-[#090c1d] truncate">{c.name}</span>
-              {c.sub && <span className="text-[10px] text-[#b0acd6] shrink-0">{c.sub}</span>}
+              <span className="text-xs text-ink truncate">{c.name}</span>
+              {c.sub && <span className="text-[10px] text-ink-faint shrink-0">{c.sub}</span>}
             </button>
           ))}
         </div>

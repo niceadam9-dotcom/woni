@@ -188,7 +188,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     const lbl = mk === 'O' ? '○' : mk === 'X' ? '×' : mk === 'N' ? '／' : '미입력'
     const cls = mk === 'O' ? 'text-green-600 border-green-300 bg-green-50'
       : mk === 'X' ? 'text-red-600 border-red-300 bg-red-50'
-      : mk === 'N' ? 'text-[#847ba8] border-[#d0ccf5] bg-[#fafaff]'
+      : mk === 'N' ? 'text-ink-soft border-brand-line bg-brand-tint'
       : 'text-amber-700 border-amber-300 bg-amber-50'
     const from = encodeURIComponent(`/customers/${customerId}?tab=plan&form=1.4`)
     return (
@@ -409,7 +409,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   }, [])
 
   if (!b) {
-    return <p className="text-sm text-[#514b81] py-6 text-center">등록된 활성 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.</p>
+    return <p className="text-sm text-ink-sub py-6 text-center">등록된 활성 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.</p>
   }
 
   const installedCount = allCodes.filter(c => fac[c].installed).length
@@ -426,7 +426,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       onClick={() => !disabled && toggle(code)}
       title={disabled ? undefined : `${code} 설치 여부를 체크합니다`}
       className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded ${
-        disabled ? 'cursor-not-allowed text-[#c8c4d0]' : 'cursor-pointer hover:bg-[#ece9ff]'}`}>
+        disabled ? 'cursor-not-allowed text-ink-faint' : 'cursor-pointer hover:bg-brand-tint'}`}>
       <span className="text-sm leading-none">{fac[code].installed ? '☑' : '☐'}</span>
     </button>
   )
@@ -437,9 +437,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       onClick={() => !disabled && openLedger(code)}
       title={disabled ? undefined : `${code} — 설비 대장에서 세부 제원을 봅니다 (설치 체크는 바뀌지 않습니다)`}
       className={`min-w-0 truncate text-left text-xs ${
-        disabled ? 'cursor-not-allowed text-[#c8c4d0]'
-          : `cursor-pointer underline decoration-dotted decoration-[#c8c4d0] underline-offset-2 hover:decoration-[#7b68ee] ${
-            fac[code].installed ? 'font-bold text-[#090c1d]' : 'text-[#514b81]'}`}`}>
+        disabled ? 'cursor-not-allowed text-ink-faint'
+          : `cursor-pointer underline decoration-dotted decoration-line underline-offset-2 hover:decoration-brand ${
+            fac[code].installed ? 'font-bold text-ink' : 'text-ink-sub'}`}`}>
       {code}
     </button>
   )
@@ -450,11 +450,11 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  비고 값이 기존에 있으면 표시만 유지(입력·수정은 폐지 — 상세 제원은 설비 대장에서).
    *  ⚠ resultBadge는 <Link>다 — 버튼 안에 넣으면 중첩 인터랙티브가 되므로 형제로 둔다. */
   const cell = (code: Cell, opts?: { sub?: boolean }) => {
-    if (!code) return <td className="border border-[#c8c4d0]" />
+    if (!code) return <td className="border border-line" />
     const st = fac[code]
     const disabled = !!(opts?.sub && !evacOn && !st.installed)
     return (
-      <td className={`border border-[#c8c4d0] p-0 ${disabled ? 'bg-[#f8f8fb]' : ''}`}>
+      <td className={`border border-line p-0 ${disabled ? 'bg-paper' : ''}`}>
         <div className="flex items-center gap-1 pl-0.5 pr-2 py-1 min-h-7 select-none">
           {checkBox(code, disabled)}
           {ledgerLabel(code, disabled)}
@@ -470,21 +470,21 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       {buildingNav.dialog}
       {/* 타이틀 + 대상명 (양식 비고 2 — 대상물별 세트) */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-[#090c1d]">서식 1.4 소방시설 현황</span>
+        <span className="text-xs font-semibold text-ink">서식 1.4 소방시설 현황</span>
         {/* 안내문이 조작 규약의 단일 설명이다 — 클릭 의미를 분리했으면 여기도 같이 바꿔야 한다
             (종전 '해당되는 곳을 클릭해 √' 문구는 이제 설비명 클릭과 모순된다) */}
-        <span className="text-[11px] text-[#b0acd6]">※ ☑ 를 클릭해 √ 표시 · <span className="underline decoration-dotted underline-offset-2">설비명</span>을 클릭하면 설비 대장이 열립니다(체크 유지)</span>
+        <span className="text-[11px] text-ink-faint">※ ☑ 를 클릭해 √ 표시 · <span className="underline decoration-dotted underline-offset-2">설비명</span>을 클릭하면 설비 대장이 열립니다(체크 유지)</span>
         {/* 소방계획서_26 S4 — 결과 배지의 회차 축 안내. 진행 중 회차가 없으면 왜 배지가 없는지 여기서 말한다 */}
         {canRegister && resultCtx && (resultCtx.inspection
-          ? <span className="text-[10px] text-[#7b68ee]">점검결과(○×／)는 {resultCtx.inspection.label}에 기록됩니다</span>
-          : <span className="text-[10px] text-[#b0acd6]" title={resultCtx.reason}>점검결과 입력 불가 — {resultCtx.reason}</span>)}
+          ? <span className="text-[10px] text-brand">점검결과(○×／)는 {resultCtx.inspection.label}에 기록됩니다</span>
+          : <span className="text-[10px] text-ink-faint" title={resultCtx.reason}>점검결과 입력 불가 — {resultCtx.reason}</span>)}
         {buildings.length > 1 && (
           <select value={bidx} onChange={e => switchBuilding(parseInt(e.target.value, 10))}
-            className="ml-auto h-7 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none">
+            className="ml-auto h-7 rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none">
             {buildings.map((bb, i) => <option key={bb.id} value={i}>{bb.building_name}</option>)}
           </select>
         )}
-        {buildings.length === 1 && <span className="ml-auto text-xs text-[#514b81]">대상명: {b.building_name}</span>}
+        {buildings.length === 1 && <span className="ml-auto text-xs text-ink-sub">대상명: {b.building_name}</span>}
       </div>
 
       {/* 양식 재현 표 — 좌측 분류 세로 병합 */}
@@ -493,14 +493,14 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           {LAYOUT.map(g => g.rows.map((r, ri) => (
             <tr key={`${g.category}-${ri}`}>
               {ri === 0 && (
-                <th rowSpan={g.rows.length} className="border border-[#c8c4d0] bg-[#fafaff] w-12 px-1 text-[11px] font-semibold text-[#514b81]">
+                <th rowSpan={g.rows.length} className="border border-line bg-brand-tint w-12 px-1 text-[11px] font-semibold text-ink-sub">
                   {g.category.replace('설비', '').split('').join(' ')}<br />설 비
                 </th>
               )}
               {r.full && cell(r.full)}
-              {r.full && <td className="border border-[#c8c4d0]" />}
+              {r.full && <td className="border border-line" />}
               {r.fireSub && (
-                <td colSpan={2} className="border border-[#c8c4d0] p-0">
+                <td colSpan={2} className="border border-line p-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
                     {/* 부모 행도 셀과 같은 규약 — ☑는 토글, 이름은 대장 열기 (한 곳만 고치면 이웃에서 같은 사고가 난다) */}
                     <div className="flex items-center gap-1 select-none">
@@ -508,14 +508,14 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                       {ledgerLabel('소화기구 및 자동소화장치')}
                       {resultBadge('소화기구 및 자동소화장치')}
                     </div>
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-brand-line-soft">
                       {FIRE_SUB_ITEMS.map(sname => {
                         const on = fac[sname].installed
                         const dim = !fac['소화기구 및 자동소화장치'].installed && !on
                         return (
                           <button key={sname} onClick={() => canManage && toggle(sname)} disabled={!canManage}
                             className={`inline-flex items-center gap-1 text-[11px] ${
-                              on ? 'font-bold text-[#090c1d]' : dim ? 'text-[#c8c4d0] hover:text-[#7b68ee]' : 'text-[#514b81] hover:text-[#7b68ee]'}`}>
+                              on ? 'font-bold text-ink' : dim ? 'text-ink-faint hover:text-brand' : 'text-ink-sub hover:text-brand'}`}>
                             <span>{on ? '☑' : '☐'}</span>{sname}
                           </button>
                         )
@@ -525,7 +525,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                 </td>
               )}
               {r.evacSub && (
-                <td colSpan={2} className="border border-[#c8c4d0] p-0">
+                <td colSpan={2} className="border border-line p-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
                     {/* 피난기구는 해제가 세부제원 종류까지 지운다(toggle 참조) — 이름 클릭이 해제로
                         해석되던 종전 구조에서 특히 위험했다. 여기서도 ☑만 토글한다. */}
@@ -534,7 +534,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                       {ledgerLabel('피난기구')}
                       {resultBadge('피난기구')}
                     </div>
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-[#e0ddf5]">
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-brand-line-soft">
                       {/* 통합 어휘 11종 — 저장소는 세부제원 s36_evac.evac_equipment.types 하나다.
                           여기서 체크하면 그 값이 바뀌고, 세부제원 화면의 '종류'에도 즉시 같은 상태가 보인다. */}
                       {EVAC_TYPES.map(sname => {
@@ -545,7 +545,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                           <button key={sname} onClick={() => toggleEvacType(sname)} disabled={!canManage}
                             title="세부제원 3-6 피난기구 '종류'와 같은 값입니다"
                             className={`inline-flex items-center gap-1 text-[11px] ${
-                              on ? 'font-bold text-[#090c1d]' : dim ? 'text-[#c8c4d0] hover:text-[#7b68ee]' : 'text-[#514b81] hover:text-[#7b68ee]'}`}>
+                              on ? 'font-bold text-ink' : dim ? 'text-ink-faint hover:text-brand' : 'text-ink-sub hover:text-brand'}`}>
                             <span>{on ? '☑' : '☐'}</span>{sname}
                           </button>
                         )
@@ -560,7 +560,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           )))}
         </tbody>
       </table>
-      <p className="text-[10px] text-[#b0acd6]">※ 비고 1. 설치장소·규격 등은 자체점검표 참조 2. 건물군은 대상명을 바꿔 대상물별로 작성</p>
+      <p className="text-[10px] text-ink-faint">※ 비고 1. 설치장소·규격 등은 자체점검표 참조 2. 건물군은 대상명을 바꿔 대상물별로 작성</p>
 
       {/* 소방계획서_28 S4 — 결과 입력 패널은 전용 화면(/inspections/{id}/sheet)으로 옮겼다.
           여기서 직접 입력하던 종전 구조(26 S4)는 "즉시 기록 — 아래 [저장]과 무관"이라는 안내문으로
@@ -568,16 +568,16 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           배지는 결과를 보여주고 그 자리로 보내는 일만 한다(resultBadge). */}
 
       {/* 층별 수량 접기 (fire_facility_floors) */}
-      <details className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
-        <summary className="text-xs font-semibold text-[#514b81] cursor-pointer">층별 수량 입력 (소화기·감지기·유도등 등)</summary>
+      <details className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2">
+        <summary className="text-xs font-semibold text-ink-sub cursor-pointer">층별 수량 입력 (소화기·감지기·유도등 등)</summary>
         <div className="mt-2">
           {canManage && (
             <div className="flex items-center gap-2 mb-2">
-              <button onClick={autoFloors} className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              <button onClick={autoFloors} className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
                 <Layers className="size-3" /> 층 자동 생성
               </button>
               <button onClick={() => { setFloors(p => [...p, { floor_label: '', sort_order: p.length, counts: {} }]); markDirty() }}
-                className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff]">
+                className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint">
                 <Plus className="size-3" /> 행 추가
               </button>
             </div>
@@ -585,7 +585,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           {floors.length > 0 && (
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
+                <tr className="text-left text-[11px] text-ink-sub border-b border-brand-line-soft">
                   <th className="pb-1 pr-1 w-24 font-medium">층</th>
                   {FLOOR_COLS.map(c => <th key={c} className="pb-1 pr-1 font-medium">{c}</th>)}
                   <th className="pb-1 w-7" />
@@ -603,19 +603,19 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                         <button type="button" onClick={() => setOpenFloor(open ? null : i)}
                           aria-label={`${rowName} 수량 ${open ? '접기' : '펼쳐서 ± 입력'}`} aria-expanded={open}
                           title="펼쳐서 ± 버튼으로 입력"
-                          className="shrink-0 text-[#b0acd6] hover:text-[#7b68ee]">
+                          className="shrink-0 text-ink-faint hover:text-brand">
                           {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                         </button>
                         <input value={fl.floor_label} disabled={!canManage}
                           onChange={e => { setFloors(p => p.map((x, j) => j === i ? { ...x, floor_label: e.target.value } : x)); markDirty() }}
-                          className="h-6 w-full min-w-0 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
+                          className="h-6 w-full min-w-0 rounded border border-brand-line bg-surface px-1 text-xs outline-none" />
                       </span>
                     </td>
                     {FLOOR_COLS.map(c => (
                       <td key={c} className="py-0.5 pr-1">
                         <input value={fl.counts[c] || ''} disabled={!canManage} inputMode="numeric"
                           onChange={e => setFloorCount(i, c, e.target.value)}
-                          className="h-6 w-full rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none" />
+                          className="h-6 w-full rounded border border-brand-line bg-surface px-1 text-xs outline-none" />
                       </td>
                     ))}
                     <td className="py-0.5">
@@ -625,7 +625,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                           setOpenFloor(null)   // 인덱스 기준이라 삭제 후 잔류하면 다른 행이 열림
                           markDirty()
                         }}
-                          className="text-[#b0acd6] hover:text-red-500" aria-label="층 삭제">
+                          className="text-ink-faint hover:text-red-500" aria-label="층 삭제">
                           <Trash2 className="size-3.5" />
                         </button>
                       )}
@@ -635,15 +635,15 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                   {open && (
                     <tr>
                       <td colSpan={FLOOR_COLS.length + 2} className="pb-2">
-                        <div className="rounded-lg border border-[#e0ddf5] bg-[#fafaff] p-2.5">
-                          <p className="mb-1.5 text-[11px] font-medium text-[#514b81]">
+                        <div className="rounded-lg border border-brand-line-soft bg-brand-tint p-2.5">
+                          <p className="mb-1.5 text-[11px] font-medium text-ink-sub">
                             {rowName} 수량
-                            <span className="ml-1 font-normal text-[#b0acd6]">— ± 버튼으로 입력합니다 (위 표에 직접 입력해도 됩니다)</span>
+                            <span className="ml-1 font-normal text-ink-faint">— ± 버튼으로 입력합니다 (위 표에 직접 입력해도 됩니다)</span>
                           </p>
                           <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                             {FLOOR_COLS.map(c => (
                               <div key={c} className="flex items-center gap-1.5">
-                                <span className="w-14 shrink-0 text-[11px] text-[#514b81]">{c}</span>
+                                <span className="w-14 shrink-0 text-[11px] text-ink-sub">{c}</span>
                                 <NumField value={fl.counts[c] ? String(fl.counts[c]) : ''} disabled={!canManage}
                                   unit="개" className="w-12"
                                   onChange={v => setFloorCount(i, c, v)} />
@@ -665,7 +665,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
 
       {/* 푸터 — 설치 요약·미저장 배지(U1)·확인 완료·통합 저장(U3) */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] text-[#514b81]">설치 {installedCount}종{shownVerifiedAt ? ` · 마지막 확인 ${shownVerifiedAt.slice(5)}` : ''}</span>
+        <span className="text-[11px] text-ink-sub">설치 {installedCount}종{shownVerifiedAt ? ` · 마지막 확인 ${shownVerifiedAt.slice(5)}` : ''}</span>
         {canManage && (
           <div className="ml-auto flex items-center gap-2">
             {dirty || specsDirty ? (
@@ -673,36 +673,36 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                 ● 미저장 · {[dirty ? '본문' : null, specsDirty ? `제원 ${specsDirtyCount}섹션` : null].filter(Boolean).join(' · ')}
               </span>
             ) : (
-              <span data-testid="form14-clean-badge" className="text-[11px] text-[#b0acd6]">변경 없음</span>
+              <span data-testid="form14-clean-badge" className="text-[11px] text-ink-faint">변경 없음</span>
             )}
             <button onClick={() => setSpecsOpen(true)}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint">
               <PanelRightOpen className="size-3.5" /> 설비 대장
             </button>
             <button onClick={() => { void verifyOnly() }} disabled={saving}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
               <ShieldCheck className="size-3.5" /> 시설 확인 완료
             </button>
             <button data-testid="form14-save" onClick={() => { void save() }} disabled={!(dirty || specsDirty) || saving}
               title="본문(설비·층별)과 설비 대장 제원을 한 번에 저장합니다 (Ctrl+S)"
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
               {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
             </button>
           </div>
         )}
       </div>
-      {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
+      {msg && <p className="text-xs text-ink-sub">{msg}</p>}
 
       {/* H-19 설비 대장 — 우측 슬라이드 패널 (2026-08-05 사용자 확정: 본문 하단 인라인 → 옆 패널, 체크해도 화면이 밀리지 않음).
           항상 마운트 — erp:open-spec-section 수신·입력 상태 유지, 닫힘은 CSS 슬라이드. 건물 축은 대상명 선택(bidx)과 동일(key 재적재) */}
       <div className={`fixed inset-0 z-40 ${specsOpen ? '' : 'pointer-events-none'}`}>
         <div className={`absolute inset-0 bg-black/20 transition-opacity ${specsOpen ? 'opacity-100' : 'opacity-0'}`}
           onClick={() => setSpecsOpen(false)} />
-        <div className={`absolute top-0 right-0 bottom-0 w-[min(92vw,640px)] bg-white shadow-2xl flex flex-col transition-transform duration-200 ${specsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e0ddf5] shrink-0">
-            <p className="text-sm font-semibold text-[#090c1d]">설비 대장 — 세부 제원</p>
-            <span className="text-[10px] text-[#b0acd6]">체크(√)한 설비의 섹션이 자동으로 펼쳐집니다</span>
-            <button onClick={() => setSpecsOpen(false)} className="ml-auto text-[#b0acd6] hover:text-[#514b81]" aria-label="닫기">
+        <div className={`absolute top-0 right-0 bottom-0 w-[min(92vw,640px)] bg-surface shadow-2xl flex flex-col transition-transform duration-200 ${specsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-line-soft shrink-0">
+            <p className="text-sm font-semibold text-ink">설비 대장 — 세부 제원</p>
+            <span className="text-[10px] text-ink-faint">체크(√)한 설비의 섹션이 자동으로 펼쳐집니다</span>
+            <button onClick={() => setSpecsOpen(false)} className="ml-auto text-ink-faint hover:text-ink-sub" aria-label="닫기">
               <X className="size-4" />
             </button>
           </div>
@@ -726,8 +726,8 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           {/* 닫혀 있을 때는 아예 렌더하지 않는다 — 패널은 항상 마운트라 그대로 두면 저장 버튼이 화면 밖에 하나 더
               남아 접근성 트리·테스트에서 '버튼 2개'로 보인다(B안의 취지가 흐려짐). 자식은 계속 마운트된다. */}
           {canManage && specsOpen && (
-            <div className="shrink-0 flex items-center gap-2 border-t border-[#e0ddf5] bg-white px-4 py-2.5">
-              <span className="text-[11px] text-[#514b81]" data-testid="specs-footer-status">
+            <div className="shrink-0 flex items-center gap-2 border-t border-brand-line-soft bg-surface px-4 py-2.5">
+              <span className="text-[11px] text-ink-sub" data-testid="specs-footer-status">
                 {dirty || specsDirty
                   ? <>미저장 {dirty && <b className="text-amber-600">본문</b>}{dirty && specsDirty && ' · '}
                     {specsDirty && <><b className="text-amber-600">제원 {specsDirtyCount}</b>개 섹션</>}</>
@@ -736,12 +736,12 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
               <button type="button" data-testid="specs-save" onClick={() => { void save() }}
                 disabled={!(dirty || specsDirty) || saving}
                 title="본문(설비·층별)과 세부 제원을 한 번에 저장합니다 (Ctrl+S)"
-                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
                 {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
               </button>
             </div>
           )}
-          {specsOpen && msg && <p className="shrink-0 px-4 pb-2 text-[11px] text-[#514b81]">{msg}</p>}
+          {specsOpen && msg && <p className="shrink-0 px-4 pb-2 text-[11px] text-ink-sub">{msg}</p>}
         </div>
       </div>
     </div>

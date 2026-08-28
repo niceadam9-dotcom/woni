@@ -1,0 +1,98 @@
+{
+  "doc": "소방계획서_29 — 다크 모드 (개인별 화이트/다크 선택)",
+  "design": "erp_goal/소방계획서_29.md",
+  "created": "2026-08-28",
+  "updated": "2026-08-28 (S1 구현 — code_present, 독립 검증 전. 151 스테이징·운영 미적용)",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(구현자 자기신고) / implemented(독립 검증 + verified 증거) 구분",
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "설계 확정(구현 아님)",
+    "deferred": "보류"
+  },
+
+  "key_evidence": "2026-08-28 사용자 지시 — 설정 화면에서 개인별로 dark mode / white mode(현재)를 선택. 디자인 기준은 erp_goal/image-18.png(Claude.ai 다크 설정 화면 톤). 실측: 하드코딩 hex 6,322곳/261파일·bg-white 851곳·dark: 변형 4곳뿐이라 .dark를 켜면 화면이 깨진다. 단 팔레트가 극도로 집중(상위 9색 87%·30색 97%)이라 시맨틱 토큰 사전 하나로 덮인다. Tailwind v4 .dark 변수 블록·custom-variant는 globals.css에 기정의. 전 항목 미구현 — 설계만 확정된 상태.",
+
+  "decisions": [
+    { "id": "D-1", "title": "시맨틱 토큰 치환이 정공법", "status": "confirmed",
+      "desc": "6,300곳 dark: 살포 불가. [class*=] 속성 선택자 해킹은 hover 변형 부분일치 오작동으로 기각." },
+    { "id": "D-2", "title": "저장 = DB 정본 + 쿠키, 클래스 부여 = 인라인 스크립트", "status": "confirmed",
+      "desc": "profiles.theme('light'|'dark', default 'light') 정본. 루트 레이아웃은 cookies()를 읽지 않고(정적 유지 — /login·루트 정적 실측) <head> 인라인 스크립트가 첫 페인트 전 쿠키→클래스. 동기화 4경로: 변경/로그인/로그아웃/쿠키 유실 보정. 로그인 화면은 항상 라이트." },
+    { "id": "D-3", "title": "기본값 라이트", "status": "confirmed",
+      "desc": "기존 사용자·E2E·스크린샷 프로브 무영향. E2E에 색/클래스 단언 없음 실측." },
+    { "id": "D-4", "title": "문서·발송 축은 코드모드 제외 목록으로", "status": "confirmed",
+      "desc": "lib/doc-templates·scripts 제외. 인쇄 라우트(PDF/xlsx 바이너리)·메일(plain text)·미리보기(iframe 격리)는 이미 격리 실측 — 추가 방어 불필요." },
+    { "id": "D-5", "title": "설정 화면 2택 — 화이트(현재)/다크", "status": "confirmed",
+      "desc": "라디오 2택, 저장 버튼 없이 클릭 즉시 적용(notification_prefs 패턴). 헤더 빠른 토글. '시스템 따름'은 범위 밖(확장 가능 구조만)." },
+    { "id": "D-6", "title": "롤아웃 순서 — 인프라(숨김) → 치환 → 노출", "status": "confirmed",
+      "desc": "설정 카드는 팔레트 육안 확인 전까지 관리자만. '만들다 만 다크' 노출 사고 방지." },
+    { "id": "D-7", "title": "토큰은 접두사(역할)로 가른다", "status": "confirmed",
+      "desc": "text-[#090c1d]→text-ink vs bg-[#090c1d]→bg-inverse(역전 표면 ~40곳). 카본 버튼 bg-[#202023]→bg-btn-carbon(다크 반전 제외). 치환 단위는 접두사+hex 쌍. text-white 유지, bg-white만 bg-surface." },
+    { "id": "D-8", "title": "상태색·그림자는 변수 재정의", "status": "confirmed",
+      "desc": "Tailwind v4는 bg-green-50이 var(--color-green-50) 참조 — .dark 재정의만으로 상태색 ~1,000곳 컴포넌트 무수정. 그림자는 --shadow-subtle* 토큰 치환 후 .dark 알파 상향." }
+  ],
+
+  "sections": [
+    { "id": "S1", "title": "개인별 테마 인프라 (마이그레이션 151)", "status": "code_present",
+      "note": "2026-08-28 구현(자기신고). tsc 0. 151 미적용 안전성 프로브 7/7(_probe-theme-premigration.mts — 로그인 생존·카드 light 렌더·다크 클릭 명시 오류+원복+쿠키 무생성). 151 스테이징 적용 후 정식 E2E test-theme-settings **19/19**(3축 일치·인라인 스크립트 유지·재로그인 복원·로그아웃 쿠키 제거·계정 격리·D-6 미노출·토글 왕복). implemented 승격은 독립 판정 대기(규칙 3).",
+      "criteria": [
+        { "id": "S1-1", "desc": "151_profile_theme.sql — profiles.theme text not null default 'light' + check('light','dark'). 스테이징·운영 적용은 각각 별도 승인", "status": "code_present",
+          "note": "파일 작성 완료(supabase/migrations/151_profile_theme.sql, 재실행 안전). **스테이징 적용 완료(2026-08-28 사용자 승인, _apply-151-staging.mjs — col 1·default 'light'·chk 1·7행 전부 light·bad 0). 운영은 미적용 — 별도 승인 대기**" },
+        { "id": "S1-2", "desc": "루트 layout.tsx 인라인 스크립트 — 쿠키→html 클래스, 첫 페인트 전(FOUC 없음), 루트 정적 유지(cookies() 미사용)", "status": "code_present",
+          "note": "src/app/layout.tsx — body 첫 자식 동기 스크립트(파싱 중 실행 = 본문 페인트 전)" },
+        { "id": "S1-3", "desc": "테마 저장 서버 액션 — settings/actions.ts에 추가(notification_prefs 패턴), DB+쿠키 동시 기록, 허용값 화이트리스트", "status": "code_present",
+          "note": "updateThemeAction — DB 실패 시 쿠키도 안 만짐(정본·캐시 분리). 공용 모듈 src/lib/theme.ts(THEME_COOKIE·isTheme·readProfileTheme 관용 조회)" },
+        { "id": "S1-4", "desc": "로그인 시 프로필 테마→쿠키 세팅 · 로그아웃 시 쿠키 삭제(공용 PC)", "status": "code_present",
+          "note": "(auth)/login/actions.ts — readProfileTheme null이면 안 만짐 / (dashboard)/actions.ts logoutAction — jar.delete" },
+        { "id": "S1-5", "desc": "쿠키 유실(새 기기) 보정 — 대시보드 레이아웃의 클라이언트 동기화 컴포넌트", "status": "code_present",
+          "note": "components/layout/theme-sync.tsx — dashboard layout 기존 Promise.all에 관용 조회 편승(왕복 추가 0)" },
+        { "id": "S1-6", "desc": "설정 화면 '화면 테마' 카드 — 「화이트(현재)/다크」 2택 라디오, 클릭 즉시 적용. 롤아웃 전 관리자만 노출(D-6)", "status": "code_present",
+          "note": "components/settings/theme-settings-client.tsx — 낙관 적용+실패 원복. settings/page.tsx에서 admin만" },
+        { "id": "S1-7", "desc": "헤더 빠른 토글(달/해) — 같은 액션 재사용", "status": "code_present",
+          "note": "components/layout/theme-toggle.tsx — header.tsx에서 admin만(D-6)" },
+        { "id": "S1-8", "desc": "E2E — 저장 · 재로그인 유지 · 계정 간 격리(A 다크 ≠ B 라이트) · 로그아웃 쿠키 제거 · 직원 미노출(D-6)", "status": "code_present",
+          "note": "scripts/test-theme-settings.mts **19/19 통과(2026-08-28, 151 스테이징 적용 후)**. 151 미적용 축은 _probe-theme-premigration.mts 7/7로 별도 검증" }
+      ] },
+    { "id": "S2", "title": "토큰 사전 + 기계 치환", "status": "code_present",
+      "note": "2026-08-28 실행(자기신고). 센서스 6,167곳/74색(_census-29-hex.mjs — 에이전트 추정 'bg #090c1d ~40곳'은 실측 1곳으로 정정). 코드모드 _codemod-29-tokens.mjs — hex 5,688 + bg-white 551 치환/251파일(동시 세션 편집 중 4파일은 --skip: sms-status-client·sms-actions·inspection-calendar-client·recent-customers-strip — 그 세션 커밋 후 같은 스크립트로 마저). 실결함 1건 자체 발견·수리: print:bg-white가 print:bg-surface로 바뀌면 다크에서 어두운 인쇄물 — 복원 + 코드모드에 print: 변형 제외 규칙. 다크 스크린샷 4장(scripts/_shots/dark-*.png) image-18 톤 정합.",
+      "criteria": [
+        { "id": "S2-1", "desc": "상위 색 × 접두사 조합 시맨틱 명명 확정(D-7)", "status": "code_present",
+          "note": "13토큰(brand/brand-strong/brand-tint/brand-line/brand-line-soft/ink/ink-strong/ink-sub/ink-soft/ink-faint/surface/paper/line). 쌍 예외: text|#090c1d→ink·text|#292d34→ink-strong·text|#c8c4d0→ink-faint. 화이트리스트(불변): bg 카본 79곳·bg|#090c1d 1곳·판정보류 text 18곳. 근사 병합은 배경·경계 계열만(코드모드 헤더에 전량 명시)" },
+        { "id": "S2-2", "desc": "@theme 토큰 등록 + .dark 팔레트 1벌(image-18.png 톤, 본문 대비 WCAG AA)", "status": "code_present",
+          "note": "globals.css — @theme inline은 var() 간접 참조 필수(인라인이라 .dark 재정의 불가)를 --background 패턴으로 준수. light 값은 종전 hex 축자(화이트 모드 픽셀 불변). ink/surface ≈12:1·ink-sub ≈7:1" },
+        { "id": "S2-3", "desc": "코드모드 실행 — 접두사-[#hex] 쌍만, 변형·/불투명도 보존, 제외 목록, 파일별 로그", "status": "code_present",
+          "note": "hex 5,688 치환/251파일. 로그 scripts/_codemod-29-report.txt. print: 변형은 치환 금지(테마 불변— 실결함 1건 수리로 신설)" },
+        { "id": "S2-4", "desc": "bg-white→bg-surface(text-white·print:bg-white 유지) · globals @layer components 토큰화", "status": "code_present",
+          "note": "bg-white 551 치환. btn-violet·btn-ghost·card-surface 토큰화, btn-primary 카본은 의도적 리터럴 유지" },
+        { "id": "S2-5", "desc": "잔여 hex 카운트 게이트 — 재실행 가능", "status": "code_present",
+          "note": "코드모드 드라이런이 곧 게이트 — 재실행 시 hex_replaced=0이면 그린(실측 0). 잔여 = 화이트리스트 100 + 미매핑 꼬리 43(S3-1 대상) + 스킵 4파일" },
+        { "id": "S2-6", "desc": "tsc 0 · build 그린 · 기존 E2E 표본 재실행(라이트 무영향)", "status": "code_present",
+          "note": "tsc 0 · dev 재기동 후 E2E 3종 그린(theme 19/0·sheet-entry 28/0·annex-interaction 37/0 — 전부 라이트 기본값에서 실행 = 라이트 기능 무영향 실증). ⚠ next build는 미실행 — 푸시 게이트에서 확인" }
+      ] },
+    { "id": "S3", "title": "꼬리 처리", "status": "partial",
+      "note": "2026-08-28 대부분 실행(자기신고). 실결함 2건 자체 발견·수리: ①globals.css로 옮긴 rbc 스킨이 **라이브러리 CSS에 조용히 짐**(컴포넌트에서 import돼 나중 주입 — 종전 <style> 태그는 DOM 시점이라 우연히 이기고 있었다). 클래스 중복(.rbc-today.rbc-today)으로 명시도 (0,2,0) 확보 ②공휴일 칸이 dayPropGetter **인라인 style 리터럴 #fef2f2**라 다크에서 흰 판 — 두 달력 모두 var(--color-red-50)로. 검증 _probe-29-calendar-cells 6/6(computed style 실측)·tsc 0·theme 19/0·calendar-bulk-move 29/0. ⚠dev 캐시가 CSS 변경을 놓쳐 옛 CSS를 계속 서빙했다 — .next 삭제 후에야 반영(재기동만으론 부족).",
+      "criteria": [
+        { "id": "S3-1", "desc": "잔여 희귀색 + 인라인 style={{}} 색 — 파일 단위 개별 처리", "status": "partial",
+          "note": "꼬리 18곳 코드모드 흡수(#6b7280·#d0cce8·#f3f4f6·#eeedf3 등 9색 매핑 추가) + 인라인 style 공휴일 2곳 수리. **잔여 25곳**(1~2건짜리 극소, bg|#b91c1c·#fffbeb·border|#c7e8d4 등 상태색 리터럴)과 점검확정 화면의 이벤트 칩 인라인 색(#d1fae5·#93a5c8 등, 자기완결 칩이라 다크에서도 가독)은 **의도적 보류** — 다음 세션이 육안 후 판단" },
+        { "id": "S3-2", "desc": "상태색 .dark 변수 재정의 — Tailwind 팔레트 변수, 저휘도 불투명값(투명도 방식 기각)", "status": "code_present",
+          "note": "실사용 계조 실측 2,391곳(red 518·amber 217·green 200·blue 74 등) → globals.css .dark에 red/amber/yellow/orange/green/emerald/teal/cyan/lime/blue/sky/indigo/violet/purple/pink/rose + 중립 5종(gray/slate/zinc/neutral/stone) 재정의. **컴포넌트 무수정**(D-8 실증 — 고객 목록 문서 뱃지가 흰 덩어리→어두운 틴트)" },
+        { "id": "S3-3", "desc": "그림자 — .dark에서 알파 상향", "status": "code_present",
+          "note": "--shadow-subtle·subtle-2·sm을 .dark에서 rgba(0,0,0,0.35~0.5)로 재정의. ⚠개별 shadow-[rgba(...)] 리터럴 ~80파일은 **미치환**(토큰 참조로 바꾸는 것은 별건) — 다크에서 그림자가 약할 뿐 깨지지 않아 보류" },
+        { "id": "S3-4", "desc": "react-big-calendar 다크 — 두 달력의 중복 <style>을 globals.css 공용 스킨으로", "status": "code_present",
+          "note": "leave-calendar.tsx(21줄 전량 제거)·inspection-calendar-client.tsx(고유 3줄만 잔존 — 이벤트 밀도·빈 주 압축). 공용 스킨은 globals.css, 값은 전부 토큰 var(). 실측: 당월 셀 #232327·오늘 #2a2542·전월 #1b1b1e·헤더 #1b1b1e·라이브러리 기본값(#e6e6e6·#eaf6ff) 잔재 0" },
+        { "id": "S3-5", "desc": "모달 백드롭 bg-black/30~40 다크 알파 상향", "status": "pending_order",
+          "note": "미실행 — 다크에서도 동작하나 대비가 약하다(깨짐 아님). 육안 판단 후 처리" },
+        { "id": "S3-6", "desc": "라이트 고정 표면 명시 — 서명 캔버스·피난도 SVG·지도·사진", "status": "pending_order",
+          "note": "미실행. 현재도 흰 캔버스로 그려져 **동작은 정상**(서명은 흰 종이가 정본) — 남은 일은 '의도적 고정'을 주석으로 못박아 다음 세션이 되돌리지 않게 하는 것" }
+      ] },
+    { "id": "S4", "title": "노출·검증", "status": "pending_order",
+      "criteria": [
+        { "id": "S4-1", "desc": "주요 20화면 다크 스크린샷 육안 — 달력·점검표 입력·소방계획서 작성·대시보드 포함, 사용자 확인", "status": "pending_order" },
+        { "id": "S4-2", "desc": "별지 미리보기·인쇄물이 다크에서도 라이트로 나오는지 육안(문서 축 격리 확인)", "status": "pending_order" },
+        { "id": "S4-3", "desc": "설정 카드 전 사용자 노출(D-6 마지막 단계)", "status": "pending_order" },
+        { "id": "S4-4", "desc": "전체 회귀 test:all + 신규 테마 E2E 그린", "status": "pending_order" }
+      ] }
+  ]
+}

@@ -92,10 +92,10 @@ export default async function ActivityLogsPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <ClipboardList className="size-6 text-[#7b68ee]" />
+        <ClipboardList className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">활동 로그</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">
+          <h1 className="text-xl font-bold text-ink">활동 로그</h1>
+          <p className="text-sm text-ink-sub mt-0.5">
             전체 직원 활동 내역 조회 — 접속기록은 감사 무결성을 위해 수정·삭제할 수 없으며, 2년 보관 후 매월 자동 아카이브·파기됩니다
           </p>
         </div>
@@ -107,7 +107,7 @@ export default async function ActivityLogsPage({
           <select
             name="actor"
             defaultValue={actorFilter}
-            className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition"
+            className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
           >
             <option value="">전체 직원</option>
             {allProfiles.map(p => (
@@ -117,7 +117,7 @@ export default async function ActivityLogsPage({
           <select
             name="per_page"
             defaultValue={String(pageSize)}
-            className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+            className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
           >
             <option value="25">25건</option>
             <option value="50">50건</option>
@@ -132,39 +132,39 @@ export default async function ActivityLogsPage({
           {actorFilter && (
             <a
               href="/admin/logs"
-              className="h-9 px-4 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+              className="h-9 px-4 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center"
             >
               초기화
             </a>
           )}
         </form>
         {count !== null && (
-          <span className="text-xs text-[#514b81] ml-auto">총 {count}건</span>
+          <span className="text-xs text-ink-sub ml-auto">총 {count}건</span>
         )}
       </div>
 
       {/* 로그 테이블 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {logs.length === 0 ? (
           <div className="py-16 text-center">
             <ClipboardList className="size-10 text-[#c4bff5] mx-auto mb-3" />
-            <p className="text-sm text-[#514b81]">활동 로그가 없습니다</p>
+            <p className="text-sm text-ink-sub">활동 로그가 없습니다</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-[#514b81] w-40">시각</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] w-28">직원</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] w-32">액션</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81]">상세</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] w-32 hidden md:table-cell">IP</th>
+                <tr className="border-b border-line bg-paper">
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-ink-sub w-40">시각</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-ink-sub w-28">직원</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-ink-sub w-32">액션</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-ink-sub">상세</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-ink-sub w-32 hidden md:table-cell">IP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {logs.map(log => {
-                  const actionColor = ACTION_COLOR[log.action] ?? 'bg-[#f5f4ff] text-[#514b81]'
+                  const actionColor = ACTION_COLOR[log.action] ?? 'bg-brand-tint text-ink-sub'
                   const actorName = log.actor_id ? (profileMap.get(log.actor_id) ?? '탈퇴 직원') : '시스템'
                   const metaStr = log.metadata
                     ? Object.entries(log.metadata)
@@ -172,15 +172,15 @@ export default async function ActivityLogsPage({
                         .join(', ')
                     : ''
                   return (
-                    <tr key={log.id} className="hover:bg-[#f8f9fa] transition-colors">
-                      <td className="px-5 py-3 text-xs text-[#514b81] whitespace-nowrap">
+                    <tr key={log.id} className="hover:bg-paper transition-colors">
+                      <td className="px-5 py-3 text-xs text-ink-sub whitespace-nowrap">
                         {new Date(log.created_at).toLocaleString('ko-KR', {
                           month: '2-digit', day: '2-digit',
                           hour: '2-digit', minute: '2-digit', second: '2-digit',
                         })}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs font-medium text-[#090c1d]">{actorName}</span>
+                        <span className="text-xs font-medium text-ink">{actorName}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${actionColor}`}>
@@ -188,13 +188,13 @@ export default async function ActivityLogsPage({
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-[#292d34]">
+                        <span className="text-xs text-ink-strong">
                           {log.entity_type}
-                          {metaStr && <span className="text-[#514b81] ml-1">· {metaStr}</span>}
+                          {metaStr && <span className="text-ink-sub ml-1">· {metaStr}</span>}
                         </span>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
-                        <span className="text-xs text-[#b0acd6]">{log.ip_address ?? '-'}</span>
+                        <span className="text-xs text-ink-faint">{log.ip_address ?? '-'}</span>
                       </td>
                     </tr>
                   )
@@ -211,18 +211,18 @@ export default async function ActivityLogsPage({
           {page > 1 && (
             <a
               href={buildUrl(page - 1, actorFilter)}
-              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+              className="h-8 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center"
             >
               이전
             </a>
           )}
-          <span className="text-sm text-[#514b81] px-2">
+          <span className="text-sm text-ink-sub px-2">
             {page} / {totalPages}
           </span>
           {page < totalPages && (
             <a
               href={buildUrl(page + 1, actorFilter)}
-              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+              className="h-8 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center"
             >
               다음
             </a>

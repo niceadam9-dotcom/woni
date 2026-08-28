@@ -79,10 +79,10 @@ export default async function InquiriesPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <MessageCircle className="size-6 text-[#7b68ee]" />
+          <MessageCircle className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-[#090c1d]">문의요청 관리</h1>
-            <p className="text-sm text-[#514b81] mt-0.5">고객 AS·일정·견적 문의를 접수·처리합니다</p>
+            <h1 className="text-xl font-bold text-ink">문의요청 관리</h1>
+            <p className="text-sm text-ink-sub mt-0.5">고객 AS·일정·견적 문의를 접수·처리합니다</p>
           </div>
         </div>
         <Link
@@ -97,18 +97,18 @@ export default async function InquiriesPage({
       {/* 필터 */}
       <form method="GET" action="/inquiries" className="flex flex-wrap items-center gap-2">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
           <input
             name="q"
             defaultValue={q}
             placeholder="제목·고객명·담당자 검색"
-            className="h-9 pl-8 pr-3 rounded-lg border border-[#d0ccf5] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
+            className="h-9 pl-8 pr-3 rounded-lg border border-brand-line bg-surface text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition w-52"
           />
         </div>
         <select
           name="type"
           defaultValue={typeFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 유형</option>
           {Object.entries(TYPE_LABELS).map(([k, v]) => (
@@ -118,7 +118,7 @@ export default async function InquiriesPage({
         <select
           name="status"
           defaultValue={statusFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 상태</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
@@ -134,49 +134,49 @@ export default async function InquiriesPage({
         {(q || statusFilter || typeFilter) && (
           <a
             href="/inquiries"
-            className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+            className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center"
           >
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">총 {rows.length}건</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {rows.length}건</span>
       </form>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {rows.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[#514b81]">문의요청이 없습니다</div>
+          <div className="py-16 text-center text-sm text-ink-sub">문의요청이 없습니다</div>
         ) : (
           <TableScroll offset={300}>
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {['유형', '제목', '고객사', '담당 연락처', '등록자', '접수일', '상태', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {rows.map(r => (
-                  <tr key={r.id} className="hover:bg-[#f8f9fa] transition-colors">
+                  <tr key={r.id} className="hover:bg-paper transition-colors">
                     <td className="px-4 py-3">
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">
                         {TYPE_LABELS[r.inquiry_type] ?? r.inquiry_type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-[#090c1d] max-w-[200px] truncate">{r.title}</td>
-                    <td className="px-4 py-3 text-xs text-[#514b81]">
+                    <td className="px-4 py-3 font-medium text-ink max-w-[200px] truncate">{r.title}</td>
+                    <td className="px-4 py-3 text-xs text-ink-sub">
                       {r.customers?.customer_name ?? '-'}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#514b81]">
+                    <td className="px-4 py-3 text-xs text-ink-sub">
                       {r.contact_name && <p>{r.contact_name}</p>}
-                      {r.contact_phone && <p className="text-[#b0acd6]">{formatTel(r.contact_phone)}</p>}
+                      {r.contact_phone && <p className="text-ink-faint">{formatTel(r.contact_phone)}</p>}
                       {!r.contact_name && !r.contact_phone && '-'}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#514b81]">
+                    <td className="px-4 py-3 text-xs text-ink-sub">
                       {r.creator?.name ?? '-'}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#292d34]">
+                    <td className="px-4 py-3 text-xs text-ink-strong">
                       {r.created_at.slice(0, 10)}
                     </td>
                     <td className="px-4 py-3">
@@ -187,7 +187,7 @@ export default async function InquiriesPage({
                     <td className="px-4 py-3">
                       <Link
                         href={`/inquiries/${r.id}`}
-                        className="text-xs text-[#7b68ee] hover:underline font-medium"
+                        className="text-xs text-brand hover:underline font-medium"
                       >
                         상세보기
                       </Link>

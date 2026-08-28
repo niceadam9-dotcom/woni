@@ -159,21 +159,21 @@ export function FirePlansClient({ customerId, plans, canManage }: {
       {/* ── 현재 내용 + 개정 발행 (소방계획서_21 R2 / #2) ──────────────────────
           조회는 파일과 무관하다: [현재 내용]은 즉석 렌더라 파일도 개정차수도 만들지 않고,
           차수는 [개정 발행]에서만 오른다. 종전 [계획서 생성 (PDF)] 버튼을 대체한다. */}
-      <div className="flex items-center gap-2 flex-wrap pb-3 mb-3 border-b border-[#e0ddf5]">
+      <div className="flex items-center gap-2 flex-wrap pb-3 mb-3 border-b border-brand-line-soft">
         <button onClick={togglePreview} disabled={isPending}
           title="지금 서식 입력값으로 계획서를 그 자리에서 렌더합니다 — 파일을 만들지 않고 개정차수도 오르지 않습니다"
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors disabled:opacity-50">
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs font-medium text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors disabled:opacity-50">
           {preview.loading ? <Loader2 className="size-3.5 animate-spin" /> : preview.open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
           현재 내용
         </button>
         {canManage && (
           <button onClick={issueRevision} disabled={isPending}
             title="지금 내용으로 개정판을 발행합니다 — 보관함에 새 차수로 등록되고 개정이력에 1행이 남습니다"
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50">
             <FileOutput className="size-3.5" /> 개정 발행
           </button>
         )}
-        <span className="text-[11px] text-[#b0acd6]">
+        <span className="text-[11px] text-ink-faint">
           인쇄·PDF는 저장본이 낡았으면 자동으로 갱신됩니다 (차수 불변)
         </span>
       </div>
@@ -186,12 +186,12 @@ export function FirePlansClient({ customerId, plans, canManage }: {
             </p>
           )}
           <iframe srcDoc={preview.html} title="현재 내용 미리보기" sandbox=""
-            className="w-full h-[560px] rounded-lg border border-[#d0ccf5] bg-white" />
+            className="w-full h-[560px] rounded-lg border border-brand-line bg-surface" />
         </div>
       )}
 
       {plans.length === 0 && !showForm && (
-        <p className="text-sm text-[#514b81] py-4 text-center">
+        <p className="text-sm text-ink-sub py-4 text-center">
           등록된 소방계획서가 없습니다
           {canManage && ' — [개정 발행]으로 만들거나, 표준양식 PDF를 업로드하면 ERP에서 바로 인쇄할 수 있습니다'}
         </p>
@@ -202,29 +202,29 @@ export function FirePlansClient({ customerId, plans, canManage }: {
           {/* 2026-08-04 화면 정리 — 좁은 목차 영역에서 글자가 세로로 깨지던 문제: 최소 폭 확보(가로 스크롤)·줄바꿈 금지·본문 폰트 확대 */}
           <table className="w-full min-w-[860px] text-sm">
             <thead>
-              <tr className="border-b border-[#e0ddf5]">
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">연도</th>
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">제목</th>
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">파일</th>
-                <th className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4 whitespace-nowrap">등록</th>
+              <tr className="border-b border-brand-line-soft">
+                <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4 whitespace-nowrap">연도</th>
+                <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4 whitespace-nowrap">제목</th>
+                <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4 whitespace-nowrap">파일</th>
+                <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4 whitespace-nowrap">등록</th>
                 <th className="pb-2" />
               </tr>
             </thead>
             <tbody>
               {plans.map(p => (
                 <Fragment key={p.id}>
-                <tr className="border-b border-[#f8f9fa] last:border-0 hover:bg-[#fafafa] transition-colors">
-                  <td className="py-3 pr-4 font-medium text-[#090c1d] whitespace-nowrap">
-                    <button onClick={() => openDetail(p)} className="inline-flex items-center gap-1 hover:text-[#7b68ee]">
+                <tr className="border-b border-paper last:border-0 hover:bg-paper transition-colors">
+                  <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
+                    <button onClick={() => openDetail(p)} className="inline-flex items-center gap-1 hover:text-brand">
                       {expanded === p.id ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                      {p.year}년{p.revision > 1 ? <span className="text-[11px] text-[#7b68ee] ml-1">개정{p.revision}</span> : ''}
+                      {p.year}년{p.revision > 1 ? <span className="text-[11px] text-brand ml-1">개정{p.revision}</span> : ''}
                     </button>
                   </td>
-                  <td className="py-3 pr-4 text-[#090c1d] whitespace-nowrap max-w-[320px]">
+                  <td className="py-3 pr-4 text-ink whitespace-nowrap max-w-[320px]">
                     <span className="block truncate" title={p.title ?? `${p.year}년 소방계획서`}>{p.title ?? `${p.year}년 소방계획서`}</span>
-                    {p.note && <p className="text-xs text-[#b0acd6] mt-0.5 truncate" title={p.note}>{p.note}</p>}
+                    {p.note && <p className="text-xs text-ink-faint mt-0.5 truncate" title={p.note}>{p.note}</p>}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81] whitespace-nowrap">
+                  <td className="py-3 pr-4 text-xs text-ink-sub whitespace-nowrap">
                     {p.pdf_status === 'ready' ? 'PDF' : p.pdf_status === 'converting'
                       ? <span className="text-amber-600 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" />PDF 변환 중</span>
                       : <span className="text-red-500">PDF 실패</span>}
@@ -237,7 +237,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                       </span>
                     )}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81] whitespace-nowrap">
+                  <td className="py-3 pr-4 text-xs text-ink-sub whitespace-nowrap">
                     {p.created_at.slice(0, 10)}{p.uploader_name ? ` · ${p.uploader_name}` : ''}
                   </td>
                   <td className="py-3">
@@ -246,7 +246,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                           내용만 최신화하는 일은 [인쇄]·[PDF]가 말없이 처리한다 */}
                       {canManage && (
                         <button onClick={() => issueNext(p.id)} disabled={isPending} title="다음 연도로 연차발행 (파일 복제)"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50">
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-brand-tint transition-colors disabled:opacity-50">
                           <CalendarPlus className="size-3" /> 연차
                         </button>
                       )}
@@ -254,7 +254,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                         <button
                           onClick={() => handleDownload(p.id, 'html')}
                           title="이 개정판의 저장본 미리보기 (지금 내용은 위 [현재 내용])"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-brand-tint transition-colors"
                         >
                           <Eye className="size-3" /> 저장본
                         </button>
@@ -266,7 +266,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                           title={p.submitted_at
                             ? '제출본 — 제출 당시 내용 그대로 인쇄합니다 (갱신하지 않음)'
                             : '인쇄 — 저장본이 낡았으면 자동으로 갱신한 뒤 엽니다 (개정차수는 오르지 않습니다)'}
-                          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50"
                         >
                           {busyPlan === p.id ? <Loader2 className="size-3 animate-spin" /> : <Printer className="size-3" />} 인쇄
                         </button>
@@ -276,7 +276,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                           onClick={() => openLatest(p.id, 'download')}
                           disabled={busyPlan === p.id}
                           title={p.submitted_at ? '제출본 PDF 다운로드 (갱신하지 않음)' : 'PDF 다운로드 — 낡았으면 자동 갱신'}
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50"
                         >
                           <Download className="size-3" /> PDF
                         </button>
@@ -285,7 +285,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                         <button
                           onClick={() => handleDownload(p.id, 'hwp')}
                           title="한글 원본 다운로드 (수정 시 사용)"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors"
                         >
                           <Download className="size-3" /> HWP
                         </button>
@@ -295,7 +295,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                           onClick={() => handleDelete(p)}
                           disabled={isPending}
                           title="삭제"
-                          className="p-1.5 rounded-lg text-[#b0acd6] hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                          className="p-1.5 rounded-lg text-ink-faint hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="size-3.5" />
                         </button>
@@ -304,35 +304,35 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                   </td>
                 </tr>
                 {expanded === p.id && (
-                  <tr className="bg-[#fafaff]">
+                  <tr className="bg-brand-tint">
                     <td colSpan={5} className="px-4 py-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs font-semibold text-[#514b81] mb-1.5 flex items-center gap-1"><Send className="size-3.5" /> 제출 추적</p>
+                          <p className="text-xs font-semibold text-ink-sub mb-1.5 flex items-center gap-1"><Send className="size-3.5" /> 제출 추적</p>
                           <div className="flex items-center gap-2 flex-wrap">
                             <DateInput value={subDraft.submittedAt} onChange={e => setSubDraft(s => ({ ...s, submittedAt: e.target.value }))} disabled={!canManage} className="text-sm h-8" />
                             <input value={subDraft.fireStation} onChange={e => setSubDraft(s => ({ ...s, fireStation: e.target.value }))} placeholder="관할 소방서" disabled={!canManage}
-                              className="h-8 rounded-lg border border-[#d0ccf5] px-2 text-sm outline-none focus:border-[#7b68ee]" />
-                            {canManage && <button onClick={() => saveSubmission(p.id)} disabled={isPending} className="h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs disabled:opacity-50">저장</button>}
+                              className="h-8 rounded-lg border border-brand-line px-2 text-sm outline-none focus:border-brand" />
+                            {canManage && <button onClick={() => saveSubmission(p.id)} disabled={isPending} className="h-8 px-3 rounded-lg bg-brand text-white text-xs disabled:opacity-50">저장</button>}
                           </div>
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-[#514b81] mb-1.5 flex items-center gap-1"><Paperclip className="size-3.5" /> 부속자료 (지도·사진)</p>
+                          <p className="text-xs font-semibold text-ink-sub mb-1.5 flex items-center gap-1"><Paperclip className="size-3.5" /> 부속자료 (지도·사진)</p>
                           <div className="space-y-1">
                             {p.attachments.map(a => (
                               <div key={a.id} className="flex items-center gap-2 text-xs">
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f5f4ff] text-[#7b68ee]">{a.kind}</span>
-                                <span className="text-[#090c1d] truncate flex-1">{a.file_name}</span>
-                                {canManage && <button onClick={() => removeAttachment(a.id)} className="text-[#b0acd6] hover:text-red-500"><Trash2 className="size-3" /></button>}
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-tint text-brand">{a.kind}</span>
+                                <span className="text-ink truncate flex-1">{a.file_name}</span>
+                                {canManage && <button onClick={() => removeAttachment(a.id)} className="text-ink-faint hover:text-red-500"><Trash2 className="size-3" /></button>}
                               </div>
                             ))}
-                            {p.attachments.length === 0 && <p className="text-[11px] text-[#b0acd6]">등록된 부속자료 없음</p>}
+                            {p.attachments.length === 0 && <p className="text-[11px] text-ink-faint">등록된 부속자료 없음</p>}
                           </div>
                           {canManage && (
                             <div className="flex gap-3 mt-1.5">
-                              <label className="text-[11px] text-[#7b68ee] cursor-pointer hover:underline">+ 지도<input type="file" className="hidden" onChange={e => uploadAttachment(p.id, e, '지도')} /></label>
-                              <label className="text-[11px] text-[#7b68ee] cursor-pointer hover:underline">+ 사진<input type="file" accept="image/*" className="hidden" onChange={e => uploadAttachment(p.id, e, '사진')} /></label>
-                              <label className="text-[11px] text-[#7b68ee] cursor-pointer hover:underline">+ 기타<input type="file" className="hidden" onChange={e => uploadAttachment(p.id, e, '기타')} /></label>
+                              <label className="text-[11px] text-brand cursor-pointer hover:underline">+ 지도<input type="file" className="hidden" onChange={e => uploadAttachment(p.id, e, '지도')} /></label>
+                              <label className="text-[11px] text-brand cursor-pointer hover:underline">+ 사진<input type="file" accept="image/*" className="hidden" onChange={e => uploadAttachment(p.id, e, '사진')} /></label>
+                              <label className="text-[11px] text-brand cursor-pointer hover:underline">+ 기타<input type="file" className="hidden" onChange={e => uploadAttachment(p.id, e, '기타')} /></label>
                             </div>
                           )}
                         </div>
@@ -353,47 +353,47 @@ export function FirePlansClient({ customerId, plans, canManage }: {
           같은 화면에 생성 버튼이 둘일 이유가 없고, 조회는 [현재 내용]이 파일 없이 담당한다 */}
 
       {canManage && showForm && (
-        <form onSubmit={handleUpload} className="mt-3 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#514b81]">
-            <FileText className="size-3.5 text-[#7b68ee]" /> 소방계획서 업로드
+        <form onSubmit={handleUpload} className="mt-3 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-ink-sub">
+            <FileText className="size-3.5 text-brand" /> 소방계획서 업로드
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">연도 <span className="text-red-500 ml-0.5">*</span></label>
+              <label className="text-xs font-medium text-ink-sub">연도 <span className="text-red-500 ml-0.5">*</span></label>
               <input name="year" type="number" defaultValue={currentYear} min={2000} max={2100} required
-                className="w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee]" />
+                className="w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm outline-none focus:border-brand" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">제목 <span className="text-[11px] text-[#b0acd6] font-normal">(비우면 자동)</span></label>
+              <label className="text-xs font-medium text-ink-sub">제목 <span className="text-[11px] text-ink-faint font-normal">(비우면 자동)</span></label>
               <input name="title" type="text" placeholder={`${currentYear}년 소방계획서`}
-                className="w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee]" />
+                className="w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm outline-none focus:border-brand" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">인쇄용 PDF <span className="text-red-500 ml-0.5">*</span> <span className="text-[11px] text-[#b0acd6] font-normal">— 표준양식으로 작성·변환한 파일</span></label>
+              <label className="text-xs font-medium text-ink-sub">인쇄용 PDF <span className="text-red-500 ml-0.5">*</span> <span className="text-[11px] text-ink-faint font-normal">— 표준양식으로 작성·변환한 파일</span></label>
               <input name="pdf" type="file" accept=".pdf,application/pdf" required
-                className="w-full text-xs text-[#514b81] file:mr-2 file:h-8 file:px-3 file:rounded-lg file:border-0 file:bg-[#f5f4ff] file:text-[#7b68ee] file:text-xs file:font-medium file:cursor-pointer" />
+                className="w-full text-xs text-ink-sub file:mr-2 file:h-8 file:px-3 file:rounded-lg file:border-0 file:bg-brand-tint file:text-brand file:text-xs file:font-medium file:cursor-pointer" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#514b81]">한글 원본 (HWP) <span className="text-[11px] text-[#b0acd6] font-normal">— 선택, 추후 수정용</span></label>
+              <label className="text-xs font-medium text-ink-sub">한글 원본 (HWP) <span className="text-[11px] text-ink-faint font-normal">— 선택, 추후 수정용</span></label>
               <input name="hwp" type="file" accept=".hwp,.hwpx"
-                className="w-full text-xs text-[#514b81] file:mr-2 file:h-8 file:px-3 file:rounded-lg file:border-0 file:bg-[#f5f4ff] file:text-[#7b68ee] file:text-xs file:font-medium file:cursor-pointer" />
+                className="w-full text-xs text-ink-sub file:mr-2 file:h-8 file:px-3 file:rounded-lg file:border-0 file:bg-brand-tint file:text-brand file:text-xs file:font-medium file:cursor-pointer" />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[#514b81]">메모</label>
+            <label className="text-xs font-medium text-ink-sub">메모</label>
             <input name="note" type="text" placeholder="예: 25년 개정 양식 적용"
-              className="w-full h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm outline-none focus:border-[#7b68ee]" />
+              className="w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm outline-none focus:border-brand" />
           </div>
           {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex gap-2">
             <button type="button" onClick={() => { setShowForm(false); setError('') }}
-              className="flex-1 h-9 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-white transition-colors">
+              className="flex-1 h-9 rounded-lg border border-line text-xs text-ink-sub hover:bg-surface transition-colors">
               취소
             </button>
             <button type="submit" disabled={isPending}
-              className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors flex items-center justify-center disabled:opacity-50">
+              className="flex-1 h-9 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors flex items-center justify-center disabled:opacity-50">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : '업로드'}
             </button>
           </div>

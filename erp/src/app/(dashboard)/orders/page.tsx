@@ -37,7 +37,7 @@ export default async function OrdersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <ShoppingCart className="size-5 text-[#7b68ee]" />
+        <ShoppingCart className="size-5 text-brand" />
         <h1 className="text-xl font-bold">수주 관리</h1>
       </div>
 

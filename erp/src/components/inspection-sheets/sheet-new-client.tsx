@@ -6,8 +6,8 @@ import { Loader2, Plus, Trash2, GripVertical, Hash } from 'lucide-react'
 import { createSheetAction, generateSheetCodeAction, type SheetItemInput } from '@/app/(dashboard)/inspection-sheets/actions'
 import type { InspectionType } from '@/types'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
-const labelCls = 'text-xs font-medium text-[#514b81]'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const labelCls = 'text-xs font-medium text-ink-sub'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -106,8 +106,8 @@ export function SheetNewClient() {
   return (
     <div className="max-w-3xl space-y-6">
       {/* 기본정보 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#090c1d]">점검표 기본정보</h2>
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">점검표 기본정보</h2>
 
         <div className="grid grid-cols-3 gap-4">
           <Field label="점검표 코드" required>
@@ -123,7 +123,7 @@ export function SheetNewClient() {
                 onClick={handleGenerateSheetCode}
                 disabled={isGenerating}
                 title="현재 입력값을 접두어로 사용해 다음 번호를 자동 생성합니다"
-                className="h-10 px-3 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium transition-colors border border-[#d0ccf5] whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
+                className="h-10 px-3 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-xs font-medium transition-colors border border-brand-line whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
               >
                 {isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : <Hash className="size-3.5" />}
                 자동생성
@@ -167,19 +167,19 @@ export function SheetNewClient() {
             onChange={e => setField('description', e.target.value)}
             placeholder="점검표 설명 (선택)"
             rows={2}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+            className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
           />
         </Field>
       </section>
 
       {/* 점검 항목 */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#090c1d]">점검 항목</h2>
+          <h2 className="text-sm font-semibold text-ink">점검 항목</h2>
           <button
             type="button"
             onClick={addItem}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors"
           >
             <Plus className="size-3" />
             항목 추가
@@ -188,17 +188,17 @@ export function SheetNewClient() {
 
         <div className="space-y-3">
           {items.map((item, idx) => (
-            <div key={idx} className="border border-[#c8c4d0] rounded-lg p-4 space-y-3">
+            <div key={idx} className="border border-line rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <GripVertical className="size-4 text-[#b0acd6]" />
-                  <span className="text-xs font-semibold text-[#514b81]">항목 {idx + 1}</span>
+                  <GripVertical className="size-4 text-ink-faint" />
+                  <span className="text-xs font-semibold text-ink-sub">항목 {idx + 1}</span>
                 </div>
                 {items.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeItem(idx)}
-                    className="h-6 w-6 flex items-center justify-center rounded text-[#b0acd6] hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="h-6 w-6 flex items-center justify-center rounded text-ink-faint hover:text-red-500 hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="size-3.5" />
                   </button>
@@ -246,7 +246,7 @@ export function SheetNewClient() {
                     onChange={e => setItem(idx, 'inspection_method', e.target.value)}
                     placeholder="점검 방법 기술"
                     rows={2}
-                    className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+                    className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -256,7 +256,7 @@ export function SheetNewClient() {
                     onChange={e => setItem(idx, 'judgment_criteria', e.target.value)}
                     placeholder="양호/불량 판정기준"
                     rows={2}
-                    className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none"
+                    className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
                   />
                 </div>
               </div>
@@ -264,7 +264,7 @@ export function SheetNewClient() {
           ))}
         </div>
 
-        <p className="text-xs text-[#b0acd6]">항목코드·항목명이 없는 행은 저장 시 제외됩니다.</p>
+        <p className="text-xs text-ink-faint">항목코드·항목명이 없는 행은 저장 시 제외됩니다.</p>
       </section>
 
       {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>}
@@ -273,7 +273,7 @@ export function SheetNewClient() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex-1 h-11 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+          className="flex-1 h-11 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors"
         >
           취소
         </button>

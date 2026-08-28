@@ -101,7 +101,7 @@ function PhotoUploadButton({
             onClick={() => fileRef.current?.click()}
             disabled={pending}
             aria-label={`${kindLabel} 사진 추가`}
-            className={`w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center gap-1 transition-colors ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-gray-300 hover:border-[#7b68ee]'}`}
+            className={`w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center gap-1 transition-colors ${field === 'after' ? 'border-amber-300 hover:border-amber-500' : 'border-gray-300 hover:border-brand'}`}
           >
             {pending ? <Upload size={14} className="animate-pulse text-gray-400" /> : <Camera size={14} className={field === 'after' ? 'text-amber-500' : 'text-gray-400'} />}
             <span className={`text-[10px] leading-tight text-center ${field === 'after' ? 'text-amber-600' : 'text-gray-400'}`}>{label ?? '사진 추가'}</span>
@@ -152,7 +152,7 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
   const planned = !!(defect.action_plan || defect.action_start)
   return (
     <div className="mt-2 pt-2 border-t border-dashed">
-      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 text-xs text-[#7b68ee] font-medium">
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 text-xs text-brand font-medium">
         <Wrench size={12} /> 이행계획·조치 완료 {planned && <span className="text-[10px] text-amber-600">계획</span>} {done && <Check size={12} className="text-green-600" />}
         <span className="text-gray-400">{open ? '▲' : '▼'}</span>
       </button>
@@ -180,7 +180,7 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
               {canEdit && (
                 <button onClick={save} disabled={pending || !!rangeErr}
                   title={rangeErr ?? undefined}
-                  className="ml-auto text-xs bg-[#7b68ee] text-white px-3 py-1.5 rounded disabled:opacity-50">
+                  className="ml-auto text-xs bg-brand text-white px-3 py-1.5 rounded disabled:opacity-50">
                   {pending ? '저장…' : '저장'}
                 </button>
               )}
@@ -295,7 +295,7 @@ function AddDefectForm({
           <div className="flex flex-wrap gap-1.5">
             {suggestions.chips.map(c => (
               <button key={c} onClick={() => quickAdd(c)} disabled={pending}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-[#d0ccf5] text-[11px] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee] disabled:opacity-50">
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-brand-line text-[11px] text-ink-sub hover:border-brand hover:text-brand disabled:opacity-50">
                 {chipBusy === c ? <Upload size={10} className="animate-pulse" /> : <Plus size={10} />} {c}
               </button>
             ))}
@@ -350,7 +350,7 @@ function AddDefectForm({
           <div className="flex flex-wrap gap-1 mt-1.5">
             {[...recentMemos, ...suggestions.standard.filter(s => !recentMemos.includes(s))].slice(0, 8).map(m => (
               <button key={m} onClick={() => setDefectDetail(m)}
-                className="px-1.5 py-0.5 rounded border border-gray-200 text-[10px] text-gray-500 hover:border-[#7b68ee] hover:text-[#7b68ee] max-w-[12rem] truncate">
+                className="px-1.5 py-0.5 rounded border border-gray-200 text-[10px] text-gray-500 hover:border-brand hover:text-brand max-w-[12rem] truncate">
                 {m}
               </button>
             ))}
@@ -369,7 +369,7 @@ function AddDefectForm({
           </div>
         ) : (
           <button onClick={() => photoRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-[#7b68ee] hover:text-[#7b68ee]">
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-brand hover:text-brand">
             <Camera size={13} /> 전(불량) 사진
           </button>
         )}
@@ -378,7 +378,7 @@ function AddDefectForm({
       {err && <p className="text-xs text-red-500">{err}</p>}
       <div className="flex items-center gap-2">
         <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
-          <input type="checkbox" checked={keepOpen} onChange={e => setKeepOpen(e.target.checked)} className="accent-[#7b68ee]" />
+          <input type="checkbox" checked={keepOpen} onChange={e => setKeepOpen(e.target.checked)} className="accent-brand" />
           저장 후 계속 입력
         </label>
         <div className="ml-auto flex gap-2">
@@ -386,7 +386,7 @@ function AddDefectForm({
           <button
             onClick={save}
             disabled={pending}
-            className="px-3 py-1.5 text-sm bg-[#7b68ee] text-white rounded disabled:opacity-50"
+            className="px-3 py-1.5 text-sm bg-brand text-white rounded disabled:opacity-50"
           >
             {pending ? '저장 중…' : '저장'}
           </button>
@@ -459,12 +459,12 @@ export function InspectionDefectsClient({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <AlertTriangle className="size-4 text-orange-500" />
-          <span className="text-sm font-semibold text-[#090c1d]">불량내역</span>
+          <span className="text-sm font-semibold text-ink">불량내역</span>
           {initialDefects.length > 0 && (
             <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
               {initialDefects.length}건
@@ -476,7 +476,7 @@ export function InspectionDefectsClient({
           {initialDefects.length > 0 && (
             <button
               onClick={() => setShowGallery(true)}
-              className="flex items-center gap-1.5 text-xs border border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee] px-3 py-1.5 rounded-lg"
+              className="flex items-center gap-1.5 text-xs border border-brand-line text-ink-sub hover:border-brand hover:text-brand px-3 py-1.5 rounded-lg"
             >
               <Images size={13} /> 전/후 사진 모아보기 ({photoPairs}/{initialDefects.length}쌍)
             </button>
@@ -484,7 +484,7 @@ export function InspectionDefectsClient({
           {canEdit && !showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 text-xs bg-[#7b68ee] text-white px-3 py-1.5 rounded-lg"
+              className="flex items-center gap-1.5 text-xs bg-brand text-white px-3 py-1.5 rounded-lg"
             >
               <Plus size={12} /> 불량내역 추가
             </button>
@@ -591,7 +591,7 @@ export function InspectionDefectsClient({
                       <span className="text-[10px] text-gray-400 font-mono">{defect.defect_code}</span>
                     )}
                   </div>
-                  <p className="text-sm font-medium text-[#090c1d] leading-snug">{defect.defect_name}</p>
+                  <p className="text-sm font-medium text-ink leading-snug">{defect.defect_name}</p>
                   {defect.defect_detail && (
                     <p className="text-xs text-gray-500 mt-1 leading-relaxed">{defect.defect_detail}</p>
                   )}

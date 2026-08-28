@@ -18,10 +18,10 @@ export default async function AddressBookPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <BookUser className="size-6 text-[#7b68ee]" />
+        <BookUser className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">주소록</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">고객사·협력업체 담당자 연락처를 관리합니다</p>
+          <h1 className="text-xl font-bold text-ink">주소록</h1>
+          <p className="text-sm text-ink-sub mt-0.5">고객사·협력업체 담당자 연락처를 관리합니다</p>
         </div>
       </div>
       <AddressBookClient contacts={(contacts ?? []) as Record<string, unknown>[]} />

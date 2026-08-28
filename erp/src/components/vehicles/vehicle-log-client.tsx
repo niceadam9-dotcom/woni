@@ -6,7 +6,7 @@ import { Loader2, Plus, Check, X } from 'lucide-react'
 import { createVehicleLogAction } from '@/app/(dashboard)/vehicles/actions'
 import { DateInput } from '@/components/ui/date-input'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 type Vehicle = { id: string; vehicle_number: string; vehicle_name: string }
 type VehicleLog = {
@@ -75,18 +75,18 @@ export function VehicleLogClient({
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <select value={vehicleFilter} onChange={e => setVehicleFilter(e.target.value)}
-          className="h-9 rounded-lg border border-[#c8c4d0] px-2 text-xs text-[#514b81] outline-none bg-white">
+          className="h-9 rounded-lg border border-line px-2 text-xs text-ink-sub outline-none bg-surface">
           <option value="">전체 차량</option>
           {vehicles.map(v => <option key={v.id} value={v.id}>{v.vehicle_number} {v.vehicle_name}</option>)}
         </select>
-        <div className="flex items-center gap-4 ml-auto text-xs text-[#514b81]">
-          <span>총 운행거리: <strong className="text-[#090c1d]">{totalDistance.toLocaleString()} km</strong></span>
-          <span>총 유류비: <strong className="text-[#090c1d]">{totalFuel.toLocaleString()} 원</strong></span>
+        <div className="flex items-center gap-4 ml-auto text-xs text-ink-sub">
+          <span>총 운행거리: <strong className="text-ink">{totalDistance.toLocaleString()} km</strong></span>
+          <span>총 유류비: <strong className="text-ink">{totalFuel.toLocaleString()} 원</strong></span>
         </div>
       </div>
 
       {showNew ? (
-        <div className="bg-[#fafafe] border border-[#d0ccf5] rounded-xl p-4 space-y-3">
+        <div className="bg-paper border border-brand-line rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <select value={form.vehicle_id} onChange={set('vehicle_id')} className={inputCls}>
               <option value="">차량 선택 *</option>
@@ -103,19 +103,19 @@ export function VehicleLogClient({
           </div>
           <div className="grid grid-cols-4 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">출발 계기 (km)</label>
+              <label className="text-xs text-ink-sub">출발 계기 (km)</label>
               <input type="number" value={form.start_mileage} onChange={set('start_mileage')} className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">도착 계기 (km)</label>
+              <label className="text-xs text-ink-sub">도착 계기 (km)</label>
               <input type="number" value={form.end_mileage} onChange={set('end_mileage')} className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">유류비 (원)</label>
+              <label className="text-xs text-ink-sub">유류비 (원)</label>
               <input type="number" value={form.fuel_cost} onChange={set('fuel_cost')} className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-[#514b81]">통행료 (원)</label>
+              <label className="text-xs text-ink-sub">통행료 (원)</label>
               <input type="number" value={form.toll_cost} onChange={set('toll_cost')} className={inputCls} />
             </div>
           </div>
@@ -123,18 +123,18 @@ export function VehicleLogClient({
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={() => { setShowNew(false); setError('') }}
-              className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center gap-1">
+              className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors flex items-center gap-1">
               <X className="size-3" />취소
             </button>
             <button onClick={handleCreate} disabled={isPending}
-              className="h-8 px-4 rounded-lg bg-[#7b68ee] text-white text-xs font-medium hover:bg-[#6a57dd] transition-colors disabled:opacity-50 flex items-center gap-1">
+              className="h-8 px-4 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-strong transition-colors disabled:opacity-50 flex items-center gap-1">
               {isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}저장
             </button>
           </div>
         </div>
       ) : (
         <button onClick={() => setShowNew(true)}
-          className="w-full h-10 rounded-xl border-2 border-dashed border-[#d0ccf5] text-sm text-[#b0acd6] hover:border-[#7b68ee] hover:text-[#7b68ee] transition-colors flex items-center justify-center gap-1.5">
+          className="w-full h-10 rounded-xl border-2 border-dashed border-brand-line text-sm text-ink-faint hover:border-brand hover:text-brand transition-colors flex items-center justify-center gap-1.5">
           <Plus className="size-4" />운행일지 작성
         </button>
       )}
@@ -142,29 +142,29 @@ export function VehicleLogClient({
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-[#c8c4d0]">
+            <tr className="border-b border-line">
               {['날짜', '차량', '운행목적', '출발지 → 도착지', '거리(km)', '유류비', '운전자', '비고'].map(h => (
-                <th key={h} className="py-2.5 px-3 text-left font-medium text-[#514b81]">{h}</th>
+                <th key={h} className="py-2.5 px-3 text-left font-medium text-ink-sub">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={8} className="py-12 text-center text-[#514b81]">운행일지가 없습니다</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-ink-sub">운행일지가 없습니다</td></tr>
             ) : rows.map(l => (
-              <tr key={l.id} className="border-b border-[#c8c4d0] hover:bg-[#f8f9fa]">
-                <td className="py-3 px-3 font-medium text-[#090c1d]">{l.log_date}</td>
-                <td className="py-3 px-3 text-[#514b81]">{l.vehicle?.vehicle_number ?? '-'}</td>
-                <td className="py-3 px-3 text-[#090c1d]">{l.purpose ?? '-'}</td>
-                <td className="py-3 px-3 text-[#514b81]">
+              <tr key={l.id} className="border-b border-line hover:bg-paper">
+                <td className="py-3 px-3 font-medium text-ink">{l.log_date}</td>
+                <td className="py-3 px-3 text-ink-sub">{l.vehicle?.vehicle_number ?? '-'}</td>
+                <td className="py-3 px-3 text-ink">{l.purpose ?? '-'}</td>
+                <td className="py-3 px-3 text-ink-sub">
                   {l.departure_location || l.destination
                     ? `${l.departure_location ?? '-'} → ${l.destination ?? '-'}`
                     : '-'}
                 </td>
-                <td className="py-3 px-3 text-right text-[#090c1d]">{l.distance != null ? l.distance.toLocaleString() : '-'}</td>
-                <td className="py-3 px-3 text-right text-[#090c1d]">{l.fuel_cost != null ? l.fuel_cost.toLocaleString() : '-'}</td>
-                <td className="py-3 px-3 text-[#514b81]">{l.driver?.name ?? '-'}</td>
-                <td className="py-3 px-3 text-[#b0acd6]">{l.notes ?? ''}</td>
+                <td className="py-3 px-3 text-right text-ink">{l.distance != null ? l.distance.toLocaleString() : '-'}</td>
+                <td className="py-3 px-3 text-right text-ink">{l.fuel_cost != null ? l.fuel_cost.toLocaleString() : '-'}</td>
+                <td className="py-3 px-3 text-ink-sub">{l.driver?.name ?? '-'}</td>
+                <td className="py-3 px-3 text-ink-faint">{l.notes ?? ''}</td>
               </tr>
             ))}
           </tbody>

@@ -97,7 +97,7 @@ function LinesEditor({
 
       <button
         onClick={() => onChange([...lines, { account_code_id: '', debit_amount: 0, credit_amount: 0, description: null }])}
-        className="flex items-center gap-1 text-xs text-[#7b68ee] hover:underline"
+        className="flex items-center gap-1 text-xs text-brand hover:underline"
       >
         <Plus size={12} /> 행 추가
       </button>
@@ -143,9 +143,9 @@ function VoucherModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[#090c1d]">전표 등록</span>
+          <span className="font-bold text-ink">전표 등록</span>
           <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
         </div>
 
@@ -161,7 +161,7 @@ function VoucherModal({
               {['입금', '출금', '대체'].map(t => (
                 <button key={t} onClick={() => setVoucherType(t)}
                   className={`flex-1 py-2 rounded-lg text-xs border font-medium transition-colors ${
-                    voucherType === t ? TYPE_STYLE[t] : 'bg-white border-gray-200 text-gray-400'
+                    voucherType === t ? TYPE_STYLE[t] : 'bg-surface border-gray-200 text-gray-400'
                   }`}>{t}</button>
               ))}
             </div>
@@ -183,7 +183,7 @@ function VoucherModal({
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 border rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={submit} disabled={pending}
-            className="flex-1 bg-[#7b68ee] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+            className="flex-1 bg-brand text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
             {pending ? '등록 중…' : '등록'}
           </button>
         </div>
@@ -235,9 +235,9 @@ export function VouchersClient({
           { label: '전체 전표', value: summary.total,    color: 'text-gray-700' },
           { label: '작성중',   value: summary.pending,   color: 'text-amber-600' },
           { label: '승인',     value: summary.approved,  color: 'text-emerald-600' },
-          { label: '승인 합계', value: `${fmt(summary.totalAmt)}원`, color: 'text-[#7b68ee]' },
+          { label: '승인 합계', value: `${fmt(summary.totalAmt)}원`, color: 'text-brand' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border p-4">
+          <div key={s.label} className="bg-surface rounded-xl border p-4">
             <p className="text-xs text-gray-400">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
@@ -249,7 +249,7 @@ export function VouchersClient({
           {['전체', '입금', '출금', '대체'].map(f => (
             <button key={f} onClick={() => setTypeFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                typeFilter === f ? 'bg-[#7b68ee] text-white' : 'bg-white border text-gray-500 hover:bg-gray-50'
+                typeFilter === f ? 'bg-brand text-white' : 'bg-surface border text-gray-500 hover:bg-gray-50'
               }`}>{f}</button>
           ))}
         </div>
@@ -257,7 +257,7 @@ export function VouchersClient({
           {['전체', '작성중', '승인', '취소'].map(f => (
             <button key={f} onClick={() => setStatusFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                statusFilter === f ? 'bg-gray-700 text-white' : 'bg-white border text-gray-500 hover:bg-gray-50'
+                statusFilter === f ? 'bg-gray-700 text-white' : 'bg-surface border text-gray-500 hover:bg-gray-50'
               }`}>{f}</button>
           ))}
         </div>
@@ -266,13 +266,13 @@ export function VouchersClient({
           className="border rounded-lg px-3 py-1.5 text-sm w-48" />
         <div className="ml-auto">
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-[#7b68ee] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#6a5acd]">
+            className="flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-strong">
             <Plus size={15} /> 전표 등록
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-surface rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -307,7 +307,7 @@ export function VouchersClient({
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1">
                           <button onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-                            className="p-1 text-gray-400 hover:text-[#7b68ee]">
+                            className="p-1 text-gray-400 hover:text-brand">
                             <ChevronDown size={13} className={`transition-transform ${expanded === row.id ? 'rotate-180' : ''}`} />
                           </button>
                           {row.status === '작성중' && (

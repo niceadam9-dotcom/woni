@@ -18,10 +18,10 @@ export default async function NotesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <StickyNote className="size-6 text-[#7b68ee]" />
+        <StickyNote className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">노트</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">점검결과·보수내역 등 업무 기록을 남깁니다</p>
+          <h1 className="text-xl font-bold text-ink">노트</h1>
+          <p className="text-sm text-ink-sub mt-0.5">점검결과·보수내역 등 업무 기록을 남깁니다</p>
         </div>
       </div>
       <NotesClient notes={(notes ?? []) as Record<string, unknown>[]} />

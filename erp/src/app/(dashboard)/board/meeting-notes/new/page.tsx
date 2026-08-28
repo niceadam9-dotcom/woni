@@ -10,14 +10,14 @@ export default async function MeetingNoteNewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-sm text-[#514b81]">
-        <Link href="/board/meeting-notes" className="hover:text-[#7b68ee] flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-ink-sub">
+        <Link href="/board/meeting-notes" className="hover:text-brand flex items-center gap-1">
           <BookMarked className="size-3.5" />회의록
         </Link>
-        <ChevronRight className="size-3.5 text-[#b0acd6]" />
-        <span className="text-[#090c1d] font-medium">회의록 작성</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+        <span className="text-ink font-medium">회의록 작성</span>
       </div>
-      <h1 className="text-xl font-bold text-[#090c1d]">회의록 작성</h1>
+      <h1 className="text-xl font-bold text-ink">회의록 작성</h1>
       <MeetingNoteFormClient />
     </div>
   )

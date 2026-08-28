@@ -45,16 +45,16 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
   return (
     <div data-testid="sheet-group-board">
       <div className="mb-2 flex items-center gap-2 flex-wrap">
-        <label className="flex items-center gap-1 text-[11px] text-[#514b81] select-none">
+        <label className="flex items-center gap-1 text-[11px] text-ink-sub select-none">
           <input type="checkbox" checked={installedOnly} onChange={e => setInstalledOnly(e.target.checked)}
-            disabled={noFacilityInfo} className="accent-[#7b68ee]" />
+            disabled={noFacilityInfo} className="accent-brand" />
           설치 설비만
         </label>
         <div className="relative flex-1 min-w-40">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
           {/* 상단 '빠른 결과 입력'(항목 검색→불량 태깅)과 역할 구분 — 여기는 목록 필터 */}
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="설비·중분류 찾기"
-            className="h-8 w-full rounded-lg border border-[#d0ccf5] bg-white pl-7 pr-2 text-xs outline-none focus:border-[#7b68ee]" />
+            className="h-8 w-full rounded-lg border border-brand-line bg-surface pl-7 pr-2 text-xs outline-none focus:border-brand" />
         </div>
       </div>
       {noFacilityInfo && (
@@ -68,23 +68,23 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
         const full = s.total > 0 && s.responded >= s.total
         return (
           <section key={s.sheetId} className="mb-2">
-            <div className="sticky top-0 z-[1] flex items-center gap-1.5 bg-white/95 backdrop-blur-sm border-b border-[#e0ddf5] py-1">
+            <div className="sticky top-0 z-[1] flex items-center gap-1.5 bg-surface/95 backdrop-blur-sm border-b border-brand-line-soft py-1">
               {/* 열기는 조회 전용 계정도 가능(드로어가 읽기 전용으로 뜬다) — 편집 게이트는 에디터 canEdit */}
               <button onClick={() => onOpen(s.sheetId, null)}
                 title={`${s.sheetName} — 시트 전체 열기`} data-board-sheet={s.sheetId}
-                className="flex items-center gap-1.5 min-w-0 text-left text-xs font-semibold text-[#090c1d] hover:text-[#7b68ee]">
+                className="flex items-center gap-1.5 min-w-0 text-left text-xs font-semibold text-ink hover:text-brand">
                 {/* Q-22 ① — 전 항목 처리(○/✕/／) 완료 시 ✓ */}
                 {full && <CircleCheck className="size-3.5 shrink-0 text-green-500" data-sheet-done />}
                 <span className="truncate">{s.sheetName}</span>
               </button>
-              <span className={`ml-auto shrink-0 text-[10px] ${full ? 'text-green-600' : s.responded > 0 ? 'text-amber-600' : 'text-[#b0acd6]'}`}
+              <span className={`ml-auto shrink-0 text-[10px] ${full ? 'text-green-600' : s.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}
                 data-sheet-count={`${s.responded}/${s.total}`}>
                 {s.responded}/{s.total}{s.counts.X > 0 ? ` ✕${s.counts.X}` : ''}
               </span>
               {canEdit && (
                 <button onClick={() => onSheetNA(s.sheetId)} disabled={busy} data-sheet-na={s.sheetId}
                   title="이 시트의 미입력 항목을 전부 ／(해당없음)로 — 입력된 ○/✕는 보존 (재실행 시 ／만 해제)"
-                  className="shrink-0 h-6 px-2 rounded text-[10px] font-medium border border-[#d0ccf5] text-[#514b81] hover:bg-[#ebe9ff] disabled:opacity-40">
+                  className="shrink-0 h-6 px-2 rounded text-[10px] font-medium border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40">
                   ／ 전체
                 </button>
               )}
@@ -95,25 +95,25 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
                 return (
                   <button key={g.groupKey} onClick={() => onOpen(s.sheetId, g.groupCode)}
                     data-group-key={g.groupKey} data-installed={s.installed ? '1' : '0'} data-responded={g.responded}
-                    className={`rounded-lg border border-[#e0ddf5] px-2.5 py-1.5 text-left hover:bg-[#f5f4ff] hover:border-[#c3bdf5] transition-colors ${
+                    className={`rounded-lg border border-brand-line-soft px-2.5 py-1.5 text-left hover:bg-brand-tint hover:border-brand-line transition-colors ${
                       s.installed ? '' : 'opacity-45'}`}>
                     <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] font-bold text-[#7b68ee] shrink-0">[{g.groupCode}]</span>
+                      <span className="text-[10px] font-bold text-brand shrink-0">[{g.groupCode}]</span>
                       {g.groupName !== g.groupCode && (
-                        <span className="text-[11px] text-[#090c1d] truncate flex-1 min-w-0">{g.groupName}</span>
+                        <span className="text-[11px] text-ink truncate flex-1 min-w-0">{g.groupName}</span>
                       )}
-                      <span className={`ml-auto text-[9px] shrink-0 ${gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-[#b0acd6]'}`}>
+                      <span className={`ml-auto text-[9px] shrink-0 ${gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}>
                         {g.responded > 0 || g.total === 0 ? `${g.responded}/${g.total}` : '미입력'}{g.x > 0 ? ` ✕${g.x}` : ''}
                       </span>
                     </span>
-                    <span className="block h-1 mt-1 rounded bg-[#f0eefb] overflow-hidden">
-                      <span className={`block h-full ${gFull ? 'bg-green-400' : 'bg-[#c3bdf5]'}`}
+                    <span className="block h-1 mt-1 rounded bg-brand-line-soft overflow-hidden">
+                      <span className={`block h-full ${gFull ? 'bg-green-400' : 'bg-brand-line'}`}
                         style={{ width: `${g.total > 0 ? Math.round(g.responded / g.total * 100) : 0}%` }} />
                     </span>
                     {g.subgroupNames.length > 0 && (
                       <span className="mt-1 flex flex-wrap gap-1">
                         {g.subgroupNames.map(n => (
-                          <span key={n} className="text-[9px] text-[#b0acd6] bg-[#fafaff] border border-[#f0eefb] rounded px-1 truncate max-w-40">[{n}]</span>
+                          <span key={n} className="text-[9px] text-ink-faint bg-brand-tint border border-brand-line-soft rounded px-1 truncate max-w-40">[{n}]</span>
                         ))}
                       </span>
                     )}
@@ -125,7 +125,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
         )
       })}
       {visible.length === 0 && (
-        <p className="text-[11px] text-[#b0acd6] py-4 text-center">표시할 시트가 없습니다 — 검색어나 [설치 설비만] 필터를 확인하세요.</p>
+        <p className="text-[11px] text-ink-faint py-4 text-center">표시할 시트가 없습니다 — 검색어나 [설치 설비만] 필터를 확인하세요.</p>
       )}
     </div>
   )

@@ -188,7 +188,7 @@ export function InspectionWorkbench({
     if (!due) return null
     const d = Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000)
     if (d < 0) return { text: `초과 ${-d}일 ⚠`, cls: 'text-red-600 font-semibold' }
-    return { text: `D-${d}`, cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-[#b0acd6]' }
+    return { text: `D-${d}`, cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-ink-faint' }
   }
 
   /* ── 서버 동작 — 타임라인과 같은 액션을 그대로 호출 ── */
@@ -239,7 +239,7 @@ export function InspectionWorkbench({
     },
   } : {}
   const dropCls = (slot: 'cert' | 'contract') =>
-    dragOver === slot ? ' bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee]' : ''
+    dragOver === slot ? ' bg-brand-tint outline outline-1 outline-dashed outline-brand' : ''
 
   function saveAnchor() {
     setAnchorMsg('')
@@ -375,8 +375,8 @@ export function InspectionWorkbench({
     })
   }
 
-  const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50'
-  const btnPri = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50'
+  const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50'
+  const btnPri = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50'
 
   /* ── 3칸 구성 — 단계마다 역할이 바뀐다 (R6-2) ──
    *  ① 설비목록·점검표 / 불량 / (참여·기간)   ② 참여인력 / 업로드 / 배치요약
@@ -397,39 +397,39 @@ export function InspectionWorkbench({
     '--wb-2xl': paneCols(PANE_BASE.xl[stepKind], dw),
   } as React.CSSProperties
 
-  const paneCls = 'min-h-0 overflow-y-auto rounded-xl border border-[#e0ddf5] bg-white'
-  const paneHead = 'sticky top-0 z-10 flex items-center gap-1.5 border-b border-[#eceafd] bg-[#fafaff] px-3 py-1.5 text-[11px] font-semibold text-[#514b81]'
+  const paneCls = 'min-h-0 overflow-y-auto rounded-xl border border-brand-line-soft bg-surface'
+  const paneHead = 'sticky top-0 z-10 flex items-center gap-1.5 border-b border-brand-tint bg-brand-tint px-3 py-1.5 text-[11px] font-semibold text-ink-sub'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 lg:overflow-hidden">
       {/* 헤더 1줄 — 진행률·다음 할 일·역링크 */}
-      <div className="flex items-center gap-2 flex-wrap rounded-xl border border-[#c8c4d0] bg-white px-4 py-2 shrink-0">
-        <FileText className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">점검 작업대</h2>
-        <span className="text-[11px] text-[#b0acd6]">
+      <div className="flex items-center gap-2 flex-wrap rounded-xl border border-line bg-surface px-4 py-2 shrink-0">
+        <FileText className="size-4 text-brand" />
+        <h2 className="text-sm font-semibold text-ink">점검 작업대</h2>
+        <span className="text-[11px] text-ink-faint">
           {isSpecial ? '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
         </span>
         {isSpecial && (
           <>
-            <span className="ml-auto text-[11px] font-semibold text-[#7b68ee]" title="해당없음 단계는 분모에서 제외">
+            <span className="ml-auto text-[11px] font-semibold text-brand" title="해당없음 단계는 분모에서 제외">
               {doneCount}/{activeSteps.length} 단계 완료
             </span>
-            <div className="h-1 w-24 overflow-hidden rounded-full bg-[#e0ddf5]">
-              <div className={`h-full rounded-full transition-all ${progressPct === 100 ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
+            <div className="h-1 w-24 overflow-hidden rounded-full bg-brand-line-soft">
+              <div className={`h-full rounded-full transition-all ${progressPct === 100 ? 'bg-green-500' : 'bg-brand'}`}
                 style={{ width: `${progressPct}%` }} />
             </div>
           </>
         )}
         {customerId && (
           <NextLink href={`/customers/${customerId}?tab=plan&form=annex`}
-            className={`${isSpecial ? '' : 'ml-auto'} inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline shrink-0`}>
+            className={`${isSpecial ? '' : 'ml-auto'} inline-flex items-center gap-1 text-[11px] text-brand hover:underline shrink-0`}>
             소방계획서 트리 <ExternalLink className="size-3" />
           </NextLink>
         )}
       </div>
 
       {/* 6단계 가로 스텝바 (R6-1) — 항상 보인다. 월간 건은 ① 하나(R6-11) */}
-      <div className="flex items-stretch gap-1 overflow-x-auto rounded-xl border border-[#c8c4d0] bg-white p-1.5 shrink-0" data-testid="workbench-stepbar">
+      <div className="flex items-stretch gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1.5 shrink-0" data-testid="workbench-stepbar">
         {data.steps.map(k => {
           const na = !hasDefects && (k === 'repair' || k === 'submit11')
           const d = ddayText(k)
@@ -438,13 +438,13 @@ export function InspectionWorkbench({
             <button key={k} onClick={() => setSel(k)} disabled={na}
               title={TIMELINE_STEP_TOOLTIPS[k]} data-step={k}
               className={`flex min-w-[8.5rem] flex-1 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition-colors
-                ${active ? 'bg-[#7b68ee] text-white' : na ? 'bg-[#fafafa] text-[#c8c4d0]' : 'text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+                ${active ? 'bg-brand text-white' : na ? 'bg-paper text-ink-faint' : 'text-ink-sub hover:bg-brand-tint'}`}>
               {done[k] ? <CheckCircle2 className={`size-4 shrink-0 ${active ? 'text-white' : 'text-green-600'}`} />
                 : na ? <Circle className="size-4 shrink-0 text-[#e0ddf5]" />
                   : <AlertTriangle className={`size-4 shrink-0 ${active ? 'text-white' : 'text-amber-500'}`} />}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[11px] font-semibold">{TIMELINE_STEP_LABELS[k]}</span>
-                <span className={`block truncate text-[10px] ${active ? 'text-white/80' : na ? 'text-[#c8c4d0]' : d?.cls ?? 'text-[#b0acd6]'}`}>
+                <span className={`block truncate text-[10px] ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-faint'}`}>
                   {na ? '해당없음 — 불량 0건' : d?.text ?? (done[k] ? '완료' : '진행 전')}
                 </span>
               </span>
@@ -473,20 +473,20 @@ export function InspectionWorkbench({
             {i === 2 && paneAdjusted && (
               <button onClick={() => writePaneW(PANE_W_DEFAULT)} title="칸 폭을 기본값으로 되돌립니다"
                 aria-label="칸 폭 초기화" data-testid="pane-w-reset"
-                className="mr-1 inline-flex items-center gap-1 rounded px-1 text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                className="mr-1 inline-flex items-center gap-1 rounded px-1 text-[10px] text-brand hover:bg-brand-tint">
                 <RotateCcw className="size-3" /> 초기화
               </button>
             )}
-            <span className="text-[10px] text-[#b0acd6]">{label}</span>
+            <span className="text-[10px] text-ink-faint">{label}</span>
             <button onClick={() => nudgePane(i, -1)} disabled={!nudgePaneW(dw, i, -1)}
               title={`${label}을 좁힙니다`} aria-label={`${label} 좁게`} data-testid={`pane-w-${i}-narrow`}
-              className="inline-flex size-5 items-center justify-center rounded text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#7b68ee] disabled:opacity-30 disabled:hover:bg-transparent">
+              className="inline-flex size-5 items-center justify-center rounded text-ink-soft hover:bg-brand-tint hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent">
               <ChevronLeft className="size-3.5" />
             </button>
             <button onClick={() => nudgePane(i, 1)} disabled={!nudgePaneW(dw, i, 1)}
               title={`${label}을 넓힙니다 — 나머지 두 칸이 절반씩 양보합니다`} aria-label={`${label} 넓게`}
               data-testid={`pane-w-${i}-wide`}
-              className="inline-flex size-5 items-center justify-center rounded text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#7b68ee] disabled:opacity-30 disabled:hover:bg-transparent">
+              className="inline-flex size-5 items-center justify-center rounded text-ink-soft hover:bg-brand-tint hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent">
               <ChevronRight className="size-3.5" />
             </button>
           </div>
@@ -536,7 +536,7 @@ export function InspectionWorkbench({
           <Pane title="배치확인서 업로드" cls={paneCls} head={paneHead}>
             <div className={`space-y-2 rounded-lg px-3 py-2${dropCls('cert')}`} {...dropProps('cert')}
               title={canManage ? '클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
-              <p className={`text-xs ${done.cert ? 'text-[#514b81]' : 'text-amber-600'}`}>
+              <p className={`text-xs ${done.cert ? 'text-ink-sub' : 'text-amber-600'}`}>
                 {data.certFile ? `업로드됨: ${data.certFile.name}`
                   : data.certPaper
                     ? `종이 보관 중 — ${data.certPaper.date} 수령 · ${data.certPaper.location}`
@@ -546,7 +546,7 @@ export function InspectionWorkbench({
               <div className="flex items-center gap-1.5 flex-wrap">
                 {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
                 <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[10px] text-[#b0acd6] hover:text-[#7b68ee]">협회 <ExternalLink className="size-2.5" /></a>
+                  className="inline-flex items-center gap-0.5 text-[10px] text-ink-faint hover:text-brand">협회 <ExternalLink className="size-2.5" /></a>
                 {data.certFile && <button onClick={() => download(data.certFile!.path)} className={btn}><Download className="size-3" /> 보기</button>}
                 {canManage && (<>
                   <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={uploadCert} />
@@ -567,19 +567,19 @@ export function InspectionWorkbench({
               </div>
 
               {canManage && paperOpen && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-[#f3f1fc] pt-2">
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2">
                   <DateInput value={paperDate} onChange={e => setPaperDate(e.target.value)}
-                    className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-[11px]" />
                   <input value={paperLocation} onChange={e => setPaperLocation(e.target.value)}
                     placeholder="보관 위치 (예: 사무실 캐비닛 A)" data-testid="cert-paper-location"
-                    className="h-7 w-52 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                    className="h-7 w-52 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
                   <input value={paperMemo} onChange={e => setPaperMemo(e.target.value)}
                     placeholder="메모 (선택)"
-                    className="h-7 w-40 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                    className="h-7 w-40 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
                   <button onClick={savePaper} disabled={isPending} data-testid="cert-paper-save"
-                    className="h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">기록</button>
-                  <button onClick={() => setPaperOpen(false)} className="h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81]">취소</button>
-                  <p className="w-full text-[10px] text-[#b0acd6]">
+                    className="h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">기록</button>
+                  <button onClick={() => setPaperOpen(false)} className="h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub">취소</button>
+                  <p className="w-full text-[10px] text-ink-faint">
                     스캔본이 없어도 종이로 갖고 있으면 이 단계는 완료입니다 — 나중에 업로드하면 파일이 우선 근거가 됩니다.
                   </p>
                 </div>
@@ -605,7 +605,7 @@ export function InspectionWorkbench({
           </Pane>
           <Pane title="발송" cls={paneCls} head={paneHead}>
             <div className="space-y-2 px-3 py-2">
-              <p className={`text-xs ${done.ownerReport ? 'text-[#514b81]' : 'text-amber-600'}`}>
+              <p className={`text-xs ${done.ownerReport ? 'text-ink-sub' : 'text-amber-600'}`}>
                 {data.delivery ? '발송 완료 — 필요 시 재발송'
                   : data.evidence?.offlineReport ? '방문·유선으로 보고함 (오프라인 기록됨)'
                   : '별지 9호 생성 후 이메일로 보고합니다'}
@@ -614,15 +614,15 @@ export function InspectionWorkbench({
               {canManage && (offlineOpen ? (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
-                    className="h-7 w-32 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-[11px]" />
                   <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
-                    className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]">
+                    className="h-7 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand">
                     <option>방문 설명</option><option>유선 통보</option><option>대면 전달</option><option>기타</option>
                   </select>
                   <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
-                    className="h-7 w-40 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+                    className="h-7 w-40 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
                   <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
-                  <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-[#b0acd6]">취소</button>
+                  <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-ink-faint">취소</button>
                 </div>
               ) : (
                 <button onClick={() => setOfflineOpen(true)} className={btn}>방문·유선 보고 기록</button>
@@ -646,28 +646,28 @@ export function InspectionWorkbench({
             <div className="px-3 py-2 space-y-1">
               {data.prereqs.length === 0 && <Empty>전제 항목이 없습니다.</Empty>}
               {data.prereqs.map((p, i) => (
-                <p key={i} className={`text-[11px] ${p.ok ? 'text-[#514b81]' : 'text-amber-600'}`}>
+                <p key={i} className={`text-[11px] ${p.ok ? 'text-ink-sub' : 'text-amber-600'}`}>
                   {p.ok ? '✓' : '⚠'} {p.label}
                 </p>
               ))}
               {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
                   종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
               {data.period && (data.period.end || data.period.start) && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-[#f3f1fc] pt-2 text-[10px] text-[#b0acd6]">
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2 text-[10px] text-ink-faint">
                   <span>
                     기산: {data.period.end
-                      ? <>종료일 <b className="text-[#514b81]">{data.period.end}</b></>
-                      : <>시작일 <b className="text-[#514b81]">{data.period.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어야 기한이 맞습니다)</span></>
-                    } + 15일 = 기한 <b className="text-[#514b81]">{data.submit9.due ?? '—'}</b>
+                      ? <>종료일 <b className="text-ink-sub">{data.period.end}</b></>
+                      : <>시작일 <b className="text-ink-sub">{data.period.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어야 기한이 맞습니다)</span></>
+                    } + 15일 = 기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b>
                   </span>
                   {canManage && !anchorEdit && (
                     <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
-                      className="underline hover:text-[#7b68ee]">종료일 고치기</button>
+                      className="underline hover:text-brand">종료일 고치기</button>
                   )}
                   {canManage && anchorEdit && (
                     <span className="inline-flex items-center gap-1">
                       <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
-                        className="h-6 w-28 rounded-lg border border-[#d0ccf5] px-1.5 text-[10px]" />
+                        className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-[10px]" />
                       <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
                       <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
                     </span>
@@ -700,7 +700,7 @@ export function InspectionWorkbench({
                         })
                       }}
                       disabled={isPending}
-                      className="ml-2 h-6 px-2 rounded border border-amber-400 bg-white text-[11px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+                      className="ml-2 h-6 px-2 rounded border border-amber-400 bg-surface text-[11px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
                       신규약으로 입력된 회차 — 확정
                     </button>
                   )}
@@ -721,10 +721,10 @@ export function InspectionWorkbench({
                       aria-pressed={on}
                       title={`${c.label} — 3칸에서 내용을 확인하고 생성합니다`}
                       className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] transition-colors ${
-                        on ? 'border-[#7b68ee] bg-[#7b68ee] text-white font-medium' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+                        on ? 'border-brand bg-brand text-white font-medium' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
                       <FileText className="size-3" /> {c.label}
                       {/* 생성 여부 — 칩만 보고도 무엇이 남았는지 안다 */}
-                      <span className={on ? 'text-white/80' : 'text-[#b0acd6]'}>{genKinds.has(c.type) ? '✓' : '·'}</span>
+                      <span className={on ? 'text-white/80' : 'text-ink-faint'}>{genKinds.has(c.type) ? '✓' : '·'}</span>
                     </button>
                   )
                 })}
@@ -734,36 +734,36 @@ export function InspectionWorkbench({
               </div>
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] pt-2">
-                <span className="text-[11px] text-[#514b81]">소방서 제출일</span>
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
+                <span className="text-[11px] text-ink-sub">소방서 제출일</span>
                 <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
-                  className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                  className="h-7 rounded-lg border border-brand-line px-2 text-[11px]" />
                 {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
                 {submit9At
                   ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
                   : data.submit9.due && (
-                    <span className="text-[10px] text-[#b0acd6]">기한 {data.submit9.due} (점검 종료일 +15일)</span>
+                    <span className="text-[10px] text-ink-faint">기한 {data.submit9.due} (점검 종료일 +15일)</span>
                   )}
               </div>
-              <div className="border-t border-[#f3f1fc] pt-2">
+              <div className="border-t border-brand-line-soft pt-2">
                 <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
               </div>
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
-                <details className="border-t border-[#f3f1fc] pt-2">
-                  <summary className="cursor-pointer text-[11px] font-medium text-[#514b81] hover:text-[#7b68ee]">
+                <details className="border-t border-brand-line-soft pt-2">
+                  <summary className="cursor-pointer text-[11px] font-medium text-ink-sub hover:text-brand">
                     제출 보고서 파일 ({data.reports.length}건)
                   </summary>
                   <div className="mt-1.5 space-y-1">
                     {data.reports.map(r => (
-                      <div key={r.id} className="flex items-center gap-1.5 rounded-lg border border-[#eceafd] px-2 py-1 text-[10px]">
-                        <span className="shrink-0 font-medium text-[#090c1d]">
+                      <div key={r.id} className="flex items-center gap-1.5 rounded-lg border border-brand-tint px-2 py-1 text-[10px]">
+                        <span className="shrink-0 font-medium text-ink">
                           {STEP_REPORT_TYPES.includes(r.report_type as StepReportType) ? STEP_REPORT_LABELS[r.report_type as StepReportType] : r.report_type}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-[#514b81]">{r.file_name}</span>
-                        {r.submitted_at && <span className="shrink-0 text-[#b0acd6]">{r.submitted_at.split('T')[0]}</span>}
+                        <span className="min-w-0 flex-1 truncate text-ink-sub">{r.file_name}</span>
+                        {r.submitted_at && <span className="shrink-0 text-ink-faint">{r.submitted_at.split('T')[0]}</span>}
                         <button onClick={() => downloadReport(r.id, r.file_name)} disabled={isPending}
-                          className="shrink-0 text-[#7b68ee] hover:underline">다운로드</button>
+                          className="shrink-0 text-brand hover:underline">다운로드</button>
                       </div>
                     ))}
                   </div>
@@ -796,10 +796,10 @@ export function InspectionWorkbench({
               ['전·후 사진 쌍', `${data.defects.photoPairs}/${data.defects.total}쌍 완료`],
             ]} />
             {/* 수리 계약서 — 선택 증빙(R10-a). ⑤ 완료 조건은 불량 전건 조치이지 계약서가 아니다 */}
-            <div className={`flex flex-wrap items-center gap-1.5 rounded-lg border-t border-[#f3f1fc] px-1 pt-2${dropCls('contract')}`}
+            <div className={`flex flex-wrap items-center gap-1.5 rounded-lg border-t border-brand-line-soft px-1 pt-2${dropCls('contract')}`}
               {...dropProps('contract')}
               title={canManage ? '수리 계약서 — 클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
-              <span className="text-[10px] text-[#b0acd6]">
+              <span className="text-[10px] text-ink-faint">
                 (사진·계약서는 선택){data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
               </span>
               {data.contractFile && (
@@ -817,16 +817,16 @@ export function InspectionWorkbench({
                 )}
               </>)}
             </div>
-            <div className="border-t border-[#f3f1fc] pt-2">
+            <div className="border-t border-brand-line-soft pt-2">
               <AnnexFields inspectionId={inspectionId} annexNo="report10" canEdit={canManage}
                 onSaved={() => setDefectRev(v => v + 1)} />
             </div>
             {canManage && (
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] px-1 pt-2">
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft px-1 pt-2">
                 <button onClick={() => generate('report10')} disabled={isPending || busy} className={btnPri}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 10호 PDF 생성
                 </button>
-                <span className="text-[10px] text-[#b0acd6]">확정 시 1회 — 생성물은 문서 목록에 쌓입니다</span>
+                <span className="text-[10px] text-ink-faint">확정 시 1회 — 생성물은 문서 목록에 쌓입니다</span>
               </div>
             )}
           </Pane>
@@ -852,12 +852,12 @@ export function InspectionWorkbench({
               ['전·후 사진 쌍', `${data.defects.photoPairs}건`],
               ['9호 제출', data.submit9.submittedAt ?? '미제출'],
             ]} />
-            <div className="border-t border-[#f3f1fc] pt-2">
+            <div className="border-t border-brand-line-soft pt-2">
               <AnnexFields inspectionId={inspectionId} annexNo="report11" canEdit={canManage}
                 onSaved={() => setDefectRev(v => v + 1)} />
             </div>
             <div className="space-y-2 px-1 pt-2">
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] pt-2">
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
                 {canManage && (<>
                   <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>
                     {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 11호 PDF 생성
@@ -865,19 +865,19 @@ export function InspectionWorkbench({
                   <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
                 </>)}
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-[#f3f1fc] pt-2">
-                <span className="text-[11px] text-[#514b81]">이행완료 제출일</span>
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
+                <span className="text-[11px] text-ink-sub">이행완료 제출일</span>
                 <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)}
-                  className="h-7 rounded-lg border border-[#d0ccf5] px-2 text-[11px]" />
+                  className="h-7 rounded-lg border border-brand-line px-2 text-[11px]" />
                 {canManage && <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btn}>기록</button>}
                 {/* 기록 여부를 그 자리에서 — ⑥ 완료 조건은 이 날짜뿐이다(위 표의 조치 수가 아니라) */}
                 {submit11At
                   ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit11At} — ⑥ 완료</span>
-                  : <span className="text-[10px] text-[#b0acd6]">
+                  : <span className="text-[10px] text-ink-faint">
                       미기록 — 이 날짜가 ⑥ 완료 조건{data.submit11.due ? ` · 기한 ${data.submit11.due}` : ''}
                     </span>}
               </div>
-              <div className="border-t border-[#f3f1fc] pt-2">
+              <div className="border-t border-brand-line-soft pt-2">
                 <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
               </div>
             </div>
@@ -897,7 +897,7 @@ export function InspectionWorkbench({
         <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-1.5">
           <span className="text-[10px] text-amber-700">사유로 완료한 단계입니다 — 철회하면 증거만으로 다시 판정합니다.</span>
           <button onClick={() => undoForce(sel)} disabled={completing === stepOf(sel)!.id}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-white text-[11px] text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-surface text-[11px] text-amber-700 hover:bg-amber-50 disabled:opacity-50">
             {completing === stepOf(sel)!.id ? <Loader2 className="size-3 animate-spin" /> : null} 사유 완료 철회
           </button>
         </div>
@@ -905,10 +905,10 @@ export function InspectionWorkbench({
 
       {/* 예외 완료 — 증거가 생기면 자동 완료되므로 여기는 예외 경로다 */}
       {isSpecial && canComplete && !done[sel] && stepOf(sel) && stepOf(sel)!.status !== 'completed' && (
-        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-[#e0ddf5] bg-[#fafaff] px-3 py-1.5">
-          <span className="text-[10px] text-[#847ba8]">증거가 생기면 이 단계는 자동 완료됩니다 — 예외 상황에서만 사유를 남기고 완료하세요.</span>
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-brand-line-soft bg-brand-tint px-3 py-1.5">
+          <span className="text-[10px] text-ink-soft">증거가 생기면 이 단계는 자동 완료됩니다 — 예외 상황에서만 사유를 남기고 완료하세요.</span>
           <button onClick={() => forceComplete(sel)} disabled={completing === stepOf(sel)!.id}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] bg-white text-[11px] text-[#847ba8] hover:bg-[#f5f4ff] disabled:opacity-50">
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line bg-surface text-[11px] text-ink-soft hover:bg-brand-tint disabled:opacity-50">
             {completing === stepOf(sel)!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 사유 완료
           </button>
         </div>
@@ -943,7 +943,7 @@ function Pane({ title, children, cls, head, fill = false }: {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="px-1 py-2 text-[11px] text-[#b0acd6]">{children}</p>
+  return <p className="px-1 py-2 text-[11px] text-ink-faint">{children}</p>
 }
 
 function Summary({ rows }: { rows: Array<[string, string]> }) {
@@ -951,8 +951,8 @@ function Summary({ rows }: { rows: Array<[string, string]> }) {
     <dl className="px-3 py-2 space-y-1">
       {rows.map(([k, v]) => (
         <div key={k} className="flex items-start gap-2 text-[11px]">
-          <dt className="w-28 shrink-0 text-[#847ba8]">{k}</dt>
-          <dd className="min-w-0 flex-1 text-[#090c1d]">{v}</dd>
+          <dt className="w-28 shrink-0 text-ink-soft">{k}</dt>
+          <dd className="min-w-0 flex-1 text-ink">{v}</dd>
         </div>
       ))}
     </dl>
@@ -1021,15 +1021,15 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
     })
   }
 
-  if (loading) return <p className="px-1 py-1 text-[10px] text-[#847ba8]">고유값 불러오는 중…</p>
+  if (loading) return <p className="px-1 py-1 text-[10px] text-ink-soft">고유값 불러오는 중…</p>
 
   return (
     <div className={compact ? 'flex max-h-48 flex-col gap-1.5 overflow-hidden px-1' : 'space-y-1.5 px-1'}
       data-annex-fields={annexNo} onBlur={commit}>
-      <p className="flex shrink-0 items-center gap-1.5 text-[10px] text-[#847ba8]">
-        <span className="inline-flex items-center rounded bg-[#7b68ee] px-1.5 py-0.5 text-[9px] font-medium text-white">입력</span>
+      <p className="flex shrink-0 items-center gap-1.5 text-[10px] text-ink-soft">
+        <span className="inline-flex items-center rounded bg-brand px-1.5 py-0.5 text-[9px] font-medium text-white">입력</span>
         이 서식에서만 쓰는 값 — 비우면 자동 계산값으로 출력
-        {state === 'saving' && <Loader2 className="size-3 animate-spin text-[#7b68ee]" />}
+        {state === 'saving' && <Loader2 className="size-3 animate-spin text-brand" />}
         {state === 'saved' && <span className="text-green-600">저장됨</span>}
         {state === 'error' && <span className="text-red-600">저장 실패</span>}
       </p>
@@ -1046,12 +1046,12 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
         const shown = a ? { ...d, placeholder: a } : d
         return (
           <label key={d.key} className="block">
-            <span className="block text-[10px] font-medium text-[#514b81]">{d.label}</span>
+            <span className="block text-[10px] font-medium text-ink-sub">{d.label}</span>
             <AnnexFieldInput def={shown} value={fields[d.key] ?? ''} rows={1}
               onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))} />
             {a && !(fields[d.key] ?? '').trim() && (
-              <span className="mt-0.5 flex items-center gap-1 text-[10px] text-[#847ba8]">
-                <span className="inline-flex items-center rounded bg-[#eeecf8] px-1 py-px text-[9px] font-medium text-[#514b81]">자동</span>
+              <span className="mt-0.5 flex items-center gap-1 text-[10px] text-ink-soft">
+                <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-[9px] font-medium text-ink-sub">자동</span>
                 이대로 출력됩니다 — 고치면 고친 값이 나갑니다
               </span>
             )}
@@ -1095,7 +1095,7 @@ function AnnexPane({ inspectionId, annexNo, canEdit, customerId, onGenerate, gen
             onSaved={() => setRev(v => v + 1)} />
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col border-t border-[#f3f1fc] pt-2">
+      <div className="flex min-h-0 flex-1 flex-col border-t border-brand-line-soft pt-2">
         <AnnexPreview inspectionId={inspectionId} reportType={annexNo} watch={rev === 0 ? undefined : String(rev)}
           customerId={customerId}
           onGenerate={canEdit ? onGenerate : undefined} generating={generating}
@@ -1166,7 +1166,7 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
     <div className="flex h-full min-h-[16rem] flex-col gap-1">
       {/* 머리줄 — relative는 미입력 목록 팝오버(AnnexMissingChip)의 기준이다 */}
       <div className="relative flex items-center gap-1.5 px-1">
-        {loading && <span className="inline-flex items-center gap-1 text-[10px] text-[#847ba8]"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
+        {loading && <span className="inline-flex items-center gap-1 text-[10px] text-ink-soft"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
         {/* 종전엔 개수만 띄웠다 — 무엇이 왜 비었는지 볼 방법이 없어 조립 쪽에 항목을 더해도 숫자만 올랐다 */}
         {!loading && !(err && missing.length === 0) && <AnnexMissingChip missing={missing} customerId={customerId} inspectionId={inspectionId} />}
         <span className="ml-auto flex items-center gap-2">
@@ -1176,7 +1176,7 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
           {onGenerate && (
             <button onClick={onGenerate} disabled={generating || genBlocked} data-testid="annex-generate"
               title={generated ? '이미 생성됨 — 다시 만들면 최신본이 됩니다' : '이 미리보기 내용 그대로 PDF를 만듭니다'}
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-[#7b68ee] hover:underline disabled:opacity-50">
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-brand hover:underline disabled:opacity-50">
               {generating ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />}
               {generated ? '재생성' : 'PDF 생성'}
             </button>
@@ -1184,24 +1184,24 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
           {html && (
             <button onClick={() => setZoom(true)} data-testid="preview-zoom"
               title="화면 전체로 크게 보기 — 스크롤 없이 한 장을 봅니다 (ESC로 닫기)"
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-[#7b68ee] hover:underline">
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-brand hover:underline">
               <Maximize2 className="size-3" /> 크게 보기
             </button>
           )}
-          <button onClick={load} className="text-[10px] text-[#7b68ee] hover:underline">새로고침</button>
+          <button onClick={load} className="text-[10px] text-brand hover:underline">새로고침</button>
         </span>
       </div>
       {err ? <p className="px-1 text-[11px] text-red-600">{err}</p>
-        : html ? frame('min-h-[14rem] flex-1 rounded-lg border border-[#e0ddf5] bg-white')
+        : html ? frame('min-h-[14rem] flex-1 rounded-lg border border-brand-line-soft bg-surface')
           : !loading ? <Empty>미리보기를 만들 수 없습니다.</Empty> : null}
 
       {mounted && zoom && html && createPortal(
         <div className="fixed inset-0 z-[60] flex flex-col bg-black/50 p-4" data-testid="preview-zoom-overlay"
           onClick={e => { if (e.target === e.currentTarget) setZoom(false) }}>
-          <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div className="flex shrink-0 items-center gap-2 border-b border-[#e0ddf5] bg-[#fafaff] px-4 py-2">
-              <FileText className="size-4 text-[#7b68ee]" />
-              <p className="text-xs font-semibold text-[#514b81]">{ANNEX_PREVIEW_TITLES[reportType]} 미리보기</p>
+          <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col overflow-hidden rounded-xl bg-surface shadow-2xl">
+            <div className="flex shrink-0 items-center gap-2 border-b border-brand-line-soft bg-brand-tint px-4 py-2">
+              <FileText className="size-4 text-brand" />
+              <p className="text-xs font-semibold text-ink-sub">{ANNEX_PREVIEW_TITLES[reportType]} 미리보기</p>
               <span className="relative"><AnnexMissingChip missing={missing} customerId={customerId} inspectionId={inspectionId} /></span>
               {/* 이 미리보기는 저장된 PDF가 아니라 **현재 데이터로 조립한 초안**이다(위 주석) —
                   그래서 hasPdf=false로 넘겨 '초안 인쇄' 경로를 탄다. 버튼이 확인창으로
@@ -1209,11 +1209,11 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
               <AnnexPrintButton inspectionId={inspectionId} type={reportType}
                 label={ANNEX_PREVIEW_TITLES[reportType]} hasPdf={false} />
               <button onClick={() => setZoom(false)} data-testid="preview-zoom-close"
-                className="ml-auto text-[#847ba8] hover:text-[#514b81]" title="닫기 (ESC)">
+                className="ml-auto text-ink-soft hover:text-ink-sub" title="닫기 (ESC)">
                 <X className="size-4" />
               </button>
             </div>
-            {frame('min-h-0 flex-1 bg-white')}
+            {frame('min-h-0 flex-1 bg-surface')}
           </div>
         </div>,
         document.body,

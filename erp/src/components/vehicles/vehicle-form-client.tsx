@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'
 import { createVehicleAction, updateVehicleAction } from '@/app/(dashboard)/vehicles/actions'
 import { DateInput } from '@/components/ui/date-input'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 const FUEL_TYPES = [
   { value: 'gasoline', label: '휘발유' },
@@ -79,27 +79,27 @@ export function VehicleFormClient({ vehicle }: { vehicle?: Vehicle }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5 max-w-2xl">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-5 max-w-2xl">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">차량번호<span className="text-red-500 ml-0.5">*</span></label>
+          <label className="text-xs font-medium text-ink-sub">차량번호<span className="text-red-500 ml-0.5">*</span></label>
           <input value={form.vehicle_number} onChange={set('vehicle_number')} placeholder="예: 12가 3456" className={inputCls} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">차량명<span className="text-red-500 ml-0.5">*</span></label>
+          <label className="text-xs font-medium text-ink-sub">차량명<span className="text-red-500 ml-0.5">*</span></label>
           <input value={form.vehicle_name} onChange={set('vehicle_name')} placeholder="예: 소나타" className={inputCls} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">차종</label>
+          <label className="text-xs font-medium text-ink-sub">차종</label>
           <select value={form.vehicle_type} onChange={set('vehicle_type')} className={inputCls}>
             <option value="">선택</option>
             {VEHICLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">연료</label>
+          <label className="text-xs font-medium text-ink-sub">연료</label>
           <select value={form.fuel_type} onChange={set('fuel_type')} className={inputCls}>
             <option value="">선택</option>
             {FUEL_TYPES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
@@ -108,51 +108,51 @@ export function VehicleFormClient({ vehicle }: { vehicle?: Vehicle }) {
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">제조사</label>
+          <label className="text-xs font-medium text-ink-sub">제조사</label>
           <input value={form.maker} onChange={set('maker')} placeholder="현대, 기아 등" className={inputCls} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">연식</label>
+          <label className="text-xs font-medium text-ink-sub">연식</label>
           <input type="number" value={form.model_year} onChange={set('model_year')} placeholder="2023" className={inputCls} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">색상</label>
+          <label className="text-xs font-medium text-ink-sub">색상</label>
           <input value={form.color} onChange={set('color')} placeholder="흰색" className={inputCls} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">보험 만료일</label>
+          <label className="text-xs font-medium text-ink-sub">보험 만료일</label>
           <DateInput value={form.insurance_expiry} onChange={set('insurance_expiry')} className={inputCls} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#514b81]">자동차 검사 만료일</label>
+          <label className="text-xs font-medium text-ink-sub">자동차 검사 만료일</label>
           <DateInput value={form.inspection_expiry} onChange={set('inspection_expiry')} className={inputCls} />
         </div>
       </div>
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-[#514b81]">메모</label>
+        <label className="text-xs font-medium text-ink-sub">메모</label>
         <textarea value={form.notes} onChange={set('notes')} rows={3}
-          className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition resize-none" />
+          className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand transition resize-none" />
       </div>
       {vehicle && (
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-[#514b81]">사용 여부</span>
+          <span className="text-xs font-medium text-ink-sub">사용 여부</span>
           <button type="button" onClick={() => setIsActive(p => !p)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-[#7b68ee]' : 'bg-[#c8c4d0]'}`}>
-            <span className={`inline-block size-3.5 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-brand' : 'bg-line'}`}>
+            <span className={`inline-block size-3.5 rounded-full bg-surface shadow transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
           </button>
-          <span className="text-xs text-[#514b81]">{isActive ? '활성' : '비활성'}</span>
+          <span className="text-xs text-ink-sub">{isActive ? '활성' : '비활성'}</span>
         </div>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={() => router.back()}
-          className="h-10 px-4 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors">
+          className="h-10 px-4 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors">
           취소
         </button>
         <button type="button" onClick={handleSubmit} disabled={isPending}
-          className="h-10 px-6 rounded-lg bg-[#7b68ee] text-white text-sm font-medium hover:bg-[#6a57dd] transition-colors disabled:opacity-50 flex items-center gap-2">
+          className="h-10 px-6 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-strong transition-colors disabled:opacity-50 flex items-center gap-2">
           {isPending && <Loader2 className="size-4 animate-spin" />}
           {vehicle ? '수정 완료' : '차량 등록'}
         </button>

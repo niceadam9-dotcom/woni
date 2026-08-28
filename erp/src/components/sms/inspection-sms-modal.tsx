@@ -46,8 +46,8 @@ type Prep = {
 }
 type SendRow = { customerName: string; phoneMasked: string; contactName: string | null; status: string; error: string | null }
 
-const btn = 'h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors disabled:opacity-40'
-const btnPri = 'h-9 px-4 rounded-lg bg-[#7b68ee] text-white text-xs font-semibold hover:bg-[#6a57dd] transition-colors disabled:opacity-40'
+const btn = 'h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-brand-tint transition-colors disabled:opacity-40'
+const btnPri = 'h-9 px-4 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand-strong transition-colors disabled:opacity-40'
 
 export function InspectionSmsModal({ source, onClose, onSent }: {
   source: SmsModalSource
@@ -234,7 +234,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           // special_종합 / special_작동 / null(레거시 자체점검) — 무엇을 점검하는지로 가른다
           : {
             label: pt?.startsWith('special_') ? pt.slice('special_'.length) : (n.inspectionType ?? '자체'),
-            className: 'bg-[#f5f4ff] text-[#7b68ee]', self: true,
+            className: 'bg-brand-tint text-brand', self: true,
           }
       if (seen.has(b.label)) continue
       seen.add(b.label)
@@ -265,14 +265,14 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
       <div
         data-testid="sms-modal"
         /* 가로가 남는데 세로로만 쌓아 스크롤이 길었다 — 폭을 넓히고 지역을 2열로 편다 */
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col"
+        className="bg-surface rounded-2xl shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#eceaf8]">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-[#090c1d]">
-            <MessageSquare className="size-4 text-[#7b68ee]" /> {title}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-brand-line-soft">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <MessageSquare className="size-4 text-brand" /> {title}
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-[#f5f4ff] text-[#8b87b8]"><X className="size-4" /></button>
+          <button onClick={onClose} className="p-1 rounded hover:bg-brand-tint text-ink-soft"><X className="size-4" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
@@ -298,21 +298,21 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
           {/* adhoc — 방문일부터 묻는다(고객은 이미 정해져 있다) */}
           {source.kind === 'adhoc' && (
-            <div className="flex items-end gap-2 rounded-xl border border-[#eceaf8] p-3">
-              <label className="text-[11px] text-[#514b81]">
+            <div className="flex items-end gap-2 rounded-xl border border-brand-line-soft p-3">
+              <label className="text-[11px] text-ink-sub">
                 방문일<span className="text-red-500">*</span>
                 <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)}
                   data-testid="adhoc-date"
-                  className="block mt-1 h-8 px-2 rounded-lg border border-[#d0ccf5] text-xs" />
+                  className="block mt-1 h-8 px-2 rounded-lg border border-brand-line text-xs" />
               </label>
               <button className={btn} disabled={!visitDate || isPending}
                 onClick={() => { setLoaded(false); load(body ?? undefined, visitDate) }}>대상 확인</button>
-              <p className="text-[10px] text-[#8b87b8] pb-1.5">재방문·불량 보수·AS 등 계획에 없는 방문. <b>점검 회차로 잡히지 않습니다.</b></p>
+              <p className="text-[10px] text-ink-soft pb-1.5">재방문·불량 보수·AS 등 계획에 없는 방문. <b>점검 회차로 잡히지 않습니다.</b></p>
             </div>
           )}
 
           {isPending && !prep && (
-            <div className="flex items-center justify-center gap-2 py-10 text-xs text-[#514b81]">
+            <div className="flex items-center justify-center gap-2 py-10 text-xs text-ink-sub">
               <Loader2 className="size-4 animate-spin" /> 대상을 계산하는 중…
             </div>
           )}
@@ -320,27 +320,27 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
           {/* 결과 — 발송 후에도 닫지 않는다 */}
           {result && (
-            <div data-testid="sms-result" className="rounded-xl border border-[#eceaf8] overflow-hidden">
+            <div data-testid="sms-result" className="rounded-xl border border-brand-line-soft overflow-hidden">
               {/* 리허설은 **'발송됨'이라는 말을 쓰지 않는다** — 한 통도 안 나갔는데 성공으로 읽힌다 */}
               {result.dryRunPlanned != null ? (
                 <div data-testid="sms-result-dryrun" className="px-3 py-2 bg-amber-50 text-[11px] font-semibold text-amber-800">
                   리허설 — 실제 발송 0통 (보내면 {result.dryRunPlanned}통)
                 </div>
               ) : (
-                <div className="px-3 py-2 bg-[#faf9ff] text-[11px] font-semibold text-[#090c1d]">
+                <div className="px-3 py-2 bg-brand-tint text-[11px] font-semibold text-ink">
                   발송됨 {result.sent} · 실패 {result.failed} · 확인불가 {result.unverified} · 번호없음 {result.noPhone}
                   {result.skipped > 0 && ` · 제외 ${result.skipped}`}
                 </div>
               )}
-              {result.error && <div className="px-3 py-2 text-[11px] text-red-600 border-t border-[#eceaf8]">{result.error}</div>}
+              {result.error && <div className="px-3 py-2 text-[11px] text-red-600 border-t border-brand-line-soft">{result.error}</div>}
               <ul className="max-h-40 overflow-y-auto divide-y divide-[#f2f0fb]">
                 {result.rows.map((r, i) => (
                   <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
                     <span className={r.status === 'sent' ? 'text-emerald-600' : r.status === 'failed' ? 'text-red-500' : 'text-amber-600'}>
                       {r.status === 'sent' ? '발송' : r.status === 'failed' ? '실패' : r.status === 'dry_run' ? '리허설' : '확인불가'}
                     </span>
-                    <span className="text-[#090c1d]">{r.customerName}</span>
-                    <span className="text-[#8b87b8]">{r.contactName} {r.phoneMasked}</span>
+                    <span className="text-ink">{r.customerName}</span>
+                    <span className="text-ink-soft">{r.contactName} {r.phoneMasked}</span>
                     {r.error && <span className="text-red-500 truncate">{r.error}</span>}
                   </li>
                 ))}
@@ -349,8 +349,8 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                   링크가 없으면 달력에서 보낸 사용자의 확인 동선이 끊긴다 (S8-10) */}
               <Link href="/inspections/sms"
                 data-testid="sms-result-link"
-                className={`flex items-center justify-center gap-1 px-3 py-2 border-t border-[#eceaf8] text-[11px] ${
-                  result.failed > 0 ? 'bg-red-50 text-red-700 font-semibold' : 'text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>
+                className={`flex items-center justify-center gap-1 px-3 py-2 border-t border-brand-line-soft text-[11px] ${
+                  result.failed > 0 ? 'bg-red-50 text-red-700 font-semibold' : 'text-brand hover:bg-brand-tint'}`}>
                 {result.failed > 0 ? '실패한 건을 확인하고 재발송하기' : '발송 결과 전체 보기'} <ExternalLink className="size-3" />
               </Link>
             </div>
@@ -358,19 +358,19 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
           {/* 대상 목록 */}
           {!result && prep && groups.length === 0 && !isPending && (
-            <p className="py-8 text-center text-xs text-[#8b87b8]">보낼 대상이 없습니다.</p>
+            <p className="py-8 text-center text-xs text-ink-soft">보낼 대상이 없습니다.</p>
           )}
           {/* 목록 헤더 — 전체 선택·유형 요약·공통 방문일을 한 줄에 모은다 */}
           {!result && groups.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap rounded-lg bg-[#faf9ff] border border-[#eceaf8] px-3 py-2">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[#090c1d] cursor-pointer">
+            <div className="flex items-center gap-2 flex-wrap rounded-lg bg-brand-tint border border-brand-line-soft px-3 py-2">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink cursor-pointer">
                 <input type="checkbox" data-testid="sms-select-all"
                   checked={all.all} ref={triRef(all.some, all.all)}
-                  onChange={() => toggleMany(groups)} className="accent-[#7b68ee]" />
+                  onChange={() => toggleMany(groups)} className="accent-brand" />
                 전체 선택
               </label>
-              {singleDate && <span className="text-[11px] text-[#514b81]">{singleDate} 방문</span>}
-              {natureSummary && <span className="text-[10px] text-[#8b87b8]">{natureSummary}</span>}
+              {singleDate && <span className="text-[11px] text-ink-sub">{singleDate} 방문</span>}
+              {natureSummary && <span className="text-[10px] text-ink-soft">{natureSummary}</span>}
               {dupCount > 0 && (
                 <button onClick={dropAlreadySent} className="ml-auto text-[10px] text-amber-700 hover:underline">
                   이미 보낸 {dupCount}곳 빼기
@@ -387,15 +387,15 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           ].filter(s => s.list.length > 0).map(section => {
             const ssel = selectionOf(section.list)
             return (
-              <div key={section.key} className="rounded-xl border border-[#eceaf8] overflow-hidden">
-                <div className="flex items-center gap-2 bg-[#faf9ff] px-3 py-1.5 border-b border-[#eceaf8]">
+              <div key={section.key} className="rounded-xl border border-brand-line-soft overflow-hidden">
+                <div className="flex items-center gap-2 bg-brand-tint px-3 py-1.5 border-b border-brand-line-soft">
                   <input type="checkbox" checked={ssel.all} ref={triRef(ssel.some, ssel.all)}
                     disabled={ssel.total === 0}
-                    onChange={() => toggleMany(section.list)} className="accent-[#7b68ee]" />
-                  <span className="text-[10px] font-semibold text-[#b0acd6] uppercase tracking-wider">{section.label}</span>
-                  <span className="ml-auto text-[10px] text-[#8b87b8]">{section.list.length}곳</span>
+                    onChange={() => toggleMany(section.list)} className="accent-brand" />
+                  <span className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">{section.label}</span>
+                  <span className="ml-auto text-[10px] text-ink-soft">{section.list.length}곳</span>
                 </div>
-                <div className="divide-y divide-[#f5f4ff]">
+                <div className="divide-y divide-brand-tint">
                   {section.list.map(g => {
                     const sel = picked[key(g)] ?? []
                     const rep = g.representative
@@ -403,38 +403,38 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                     const inlineOne = g.sendable && g.recipients.length === 1 && rep?.isRecipient === true
                     return (
                       <div key={key(g)} data-testid="sms-group"
-                        className={`px-3 py-1.5 ${g.sendable ? 'hover:bg-[#faf9ff]' : 'bg-[#fafafa]'}`}>
+                        className={`px-3 py-1.5 ${g.sendable ? 'hover:bg-brand-tint' : 'bg-paper'}`}>
                         <div className="flex items-center gap-2">
                           <input type="checkbox" disabled={!g.sendable} checked={sel.length > 0}
-                            onChange={() => toggleGroup(g)} className="accent-[#7b68ee] shrink-0" />
+                            onChange={() => toggleGroup(g)} className="accent-brand shrink-0" />
                           {badgesOf(g).map(b => (
                             <span key={b.label}
                               className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${b.className}`}>{b.label}</span>
                           ))}
-                          <span className={`text-xs flex-1 min-w-0 truncate ${g.sendable ? 'text-[#090c1d]' : 'text-[#b0acd6]'}`}>
+                          <span className={`text-xs flex-1 min-w-0 truncate ${g.sendable ? 'text-ink' : 'text-ink-faint'}`}>
                             {g.customerName}
                           </span>
-                          {!singleDate && <span className="text-[10px] text-[#514b81] shrink-0">{shortDate(g.visitDate)}</span>}
+                          {!singleDate && <span className="text-[10px] text-ink-sub shrink-0">{shortDate(g.visitDate)}</span>}
                           {g.planItemIds.length > 1 && (
-                            <span className="text-[10px] text-[#8b87b8] shrink-0">계획 {g.planItemIds.length}건 · 1통</span>
+                            <span className="text-[10px] text-ink-soft shrink-0">계획 {g.planItemIds.length}건 · 1통</span>
                           )}
                           {g.alreadySent && (
                             <span data-testid="badge-already-sent" className="px-1.5 py-0.5 rounded-full bg-amber-50 text-[10px] text-amber-700 border border-amber-200 shrink-0">이미 발송됨</span>
                           )}
                           {inlineOne && (
                             <span className="flex items-center gap-1.5 text-[10px] shrink-0">
-                              <span className="text-[#8b87b8]">대표</span>
-                              <span className="text-[#090c1d]">{g.recipients[0].name}</span>
-                              <span className="text-[#8b87b8]">{g.recipients[0].phoneMasked}</span>
+                              <span className="text-ink-soft">대표</span>
+                              <span className="text-ink">{g.recipients[0].name}</span>
+                              <span className="text-ink-soft">{g.recipients[0].phoneMasked}</span>
                             </span>
                           )}
                         </div>
 
                         {/* 미확정 건 — 목록에서 빼지 않는다. 조용히 빼면 '달력엔 있는데 여긴 없다'가 된다 (S8-11) */}
                         {!g.sendable && (
-                          <div data-testid="sms-unsendable" className="mt-0.5 flex items-center gap-1.5 pl-6 text-[10px] text-[#8b87b8]">
+                          <div data-testid="sms-unsendable" className="mt-0.5 flex items-center gap-1.5 pl-6 text-[10px] text-ink-soft">
                             <Ban className="size-3 shrink-0" /> {g.unsendableReason ?? '발송할 수 없습니다'}
-                            <Link href="/inspection-plans" className="text-[#7b68ee] hover:underline shrink-0">점검확정으로 이동 →</Link>
+                            <Link href="/inspection-plans" className="text-brand hover:underline shrink-0">점검확정으로 이동 →</Link>
                           </div>
                         )}
 
@@ -442,7 +442,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                         {g.sendable && !inlineOne && (
                           <div className="mt-0.5 pl-6 space-y-0.5">
                             {rep && !rep.isRecipient && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-[#b0acd6]">
+                              <div className="flex items-center gap-1.5 text-[10px] text-ink-faint">
                                 <span className="w-7 shrink-0">대표</span>
                                 <span>{rep.name}</span>
                                 <span>{rep.phoneMasked}</span>
@@ -452,10 +452,10 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                             {g.recipients.map(r => (
                               <label key={r.phone ?? r.name} className="flex items-center gap-1.5 text-[10px] cursor-pointer">
                                 <input type="checkbox" checked={sel.includes(r.phone ?? '')}
-                                  onChange={() => toggleRecipient(g, r.phone ?? '')} className="accent-[#7b68ee]" />
-                                <span className="w-7 shrink-0 text-[#8b87b8]">{rep?.isRecipient && r.phoneMasked === rep.phoneMasked ? '대표' : '수신'}</span>
-                                <span className="text-[#090c1d]">{r.name}</span>
-                                <span className="text-[#8b87b8]">{r.phoneMasked}</span>
+                                  onChange={() => toggleRecipient(g, r.phone ?? '')} className="accent-brand" />
+                                <span className="w-7 shrink-0 text-ink-soft">{rep?.isRecipient && r.phoneMasked === rep.phoneMasked ? '대표' : '수신'}</span>
+                                <span className="text-ink">{r.name}</span>
+                                <span className="text-ink-soft">{r.phoneMasked}</span>
                               </label>
                             ))}
                             {g.recipients.length === 0 && (
@@ -484,11 +484,11 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
           {/* 문구 */}
           {!result && prep && groups.length > 0 && (
-            <div className="rounded-xl border border-[#eceaf8] p-3">
+            <div className="rounded-xl border border-brand-line-soft p-3">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-semibold text-[#090c1d]">문구</span>
+                <span className="text-[11px] font-semibold text-ink">문구</span>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] ${smsKind(body ?? prep.body) === 'LMS' ? 'text-amber-600 font-semibold' : 'text-[#b0acd6]'}`}>
+                  <span className={`text-[10px] ${smsKind(body ?? prep.body) === 'LMS' ? 'text-amber-600 font-semibold' : 'text-ink-faint'}`}>
                     {smsByteLength(body ?? prep.body)}바이트 · {smsKind(body ?? prep.body)}
                     {smsKind(body ?? prep.body) === 'LMS' && ' (요금 2~3배)'}
                   </span>
@@ -500,7 +500,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                 value={body ?? prep.body}
                 onChange={e => setBody(e.target.value)}
                 rows={2}
-                className="w-full rounded-lg border border-[#d0ccf5] px-2 py-1.5 text-xs"
+                className="w-full rounded-lg border border-brand-line px-2 py-1.5 text-xs"
               />
               {unresolvedInSelection.length > 0 && (
                 <p data-testid="sms-unresolved-warn"
@@ -525,11 +525,11 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                   </span>
                 </p>
               )}
-              <p className="mt-1 text-[10px] text-[#8b87b8]">
+              <p className="mt-1 text-[10px] text-ink-soft">
                 여기서 고친 문구는 <b>이번 발송에만</b> 적용됩니다. 기본 문구를 바꾸려면 [문구 편집].
               </p>
               {body !== null && (
-                <button className="mt-1 text-[10px] text-[#7b68ee] hover:underline"
+                <button className="mt-1 text-[10px] text-brand hover:underline"
                   onClick={() => { setBody(null); setLoaded(false); load() }}>기본 문구로 되돌리기</button>
               )}
             </div>
@@ -538,10 +538,10 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
         {/* 하단 — 비용이 눌리기 전에 보인다 */}
         {!result && (
-          <div className="px-5 py-3 border-t border-[#eceaf8] flex items-center gap-3">
-            <div className="text-[11px] text-[#514b81]">
-              <b className="text-[#090c1d]">{selectedCount}곳</b> 선택 · 예상 <b className="text-[#090c1d]">{messageCount}통</b>
-              {blockedCount > 0 && <span className="text-[#8b87b8]"> · 발송 불가 {blockedCount}곳</span>}
+          <div className="px-5 py-3 border-t border-brand-line-soft flex items-center gap-3">
+            <div className="text-[11px] text-ink-sub">
+              <b className="text-ink">{selectedCount}곳</b> 선택 · 예상 <b className="text-ink">{messageCount}통</b>
+              {blockedCount > 0 && <span className="text-ink-soft"> · 발송 불가 {blockedCount}곳</span>}
             </div>
             <div className="ml-auto flex items-center gap-2">
               {confirmDup && (
@@ -562,7 +562,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           </div>
         )}
         {result && (
-          <div className="px-5 py-3 border-t border-[#eceaf8] flex items-center justify-end gap-2">
+          <div className="px-5 py-3 border-t border-brand-line-soft flex items-center justify-end gap-2">
             <span className="mr-auto flex items-center gap-1 text-[11px] text-emerald-600">
               <CheckCircle2 className="size-3.5" /> 발송 처리를 마쳤습니다.
             </span>

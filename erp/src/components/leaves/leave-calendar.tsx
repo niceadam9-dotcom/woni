@@ -88,29 +88,9 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
   [leaves])
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
-      <style>{`
-        .rbc-calendar { font-family: inherit; }
-        .rbc-header { background: #f8f9fa; border-color: #c8c4d0; padding: 8px 4px; font-size: 12px; font-weight: 600; color: #514b81; }
-        .rbc-header:nth-child(1) { color: #dc2626; } /* 일 — 일요일 시작 */
-        .rbc-header:nth-child(7) { color: #2563eb; } /* 토 */
-        .rbc-day-bg { border-color: #c8c4d0; }
-        .rbc-month-view, .rbc-time-view, .rbc-agenda-view { border-color: #c8c4d0; }
-        .rbc-today { background: #f5f4ff; }
-        .rbc-off-range-bg { background: #fafafa; }
-        .rbc-event { border-radius: 6px; border: none; padding: 2px 6px; font-size: 11px; }
-        .rbc-event:focus { outline: none; }
-        .rbc-show-more { color: #7b68ee; font-size: 11px; }
-        .rbc-overlay { border: 1px solid #d0ccf5; border-radius: 12px; box-shadow: 0 8px 24px rgba(18,43,165,0.14); padding: 8px; }
-        .rbc-overlay-header { border-bottom: 1px solid #e0ddf5; font-size: 12px; font-weight: 600; color: #514b81; padding: 4px 6px 8px; margin: -2px -2px 6px; }
-        .rbc-overlay .rbc-event { font-size: 11px; border-radius: 5px; padding: 2px 6px; margin-bottom: 3px; }
-        .rbc-toolbar button { color: #514b81; border-color: #c8c4d0; border-radius: 8px; font-size: 13px; }
-        .rbc-toolbar button:hover { background: #f5f4ff; color: #7b68ee; }
-        .rbc-toolbar button.rbc-active { background: #7b68ee; color: white; border-color: #7b68ee; }
-        .rbc-toolbar button.rbc-active:hover { background: #6647f0; }
-        .rbc-date-cell { padding: 4px 6px; font-size: 12px; color: #292d34; }
-        .rbc-date-cell.rbc-now { font-weight: 700; color: #7b68ee; }
-      `}</style>
+    <div className="bg-surface rounded-xl border border-line p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
+      {/* rbc 스킨은 globals.css 공용 1곳(소방계획서_29 S3-4) — 여기서 다시 쓰면 규칙이 두 벌이 되고
+          다크 대응이 화면마다 갈린다. 이 화면 고유 규칙이 생기면 그때만 <style>을 되살릴 것. */}
       <Calendar
         localizer={localizer}
         events={events}
@@ -124,7 +104,8 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
         components={{ month: { dateHeader: MonthDateHeader } }}
         dayPropGetter={(d: Date) => {
           const iso = format(d, 'yyyy-MM-dd')
-          return holidayMap.has(iso) ? { style: { backgroundColor: '#fef2f2' } } : {}
+          // 점검 달력과 같은 규약(소방계획서_29 S3-1) — 인라인 리터럴은 다크에서 흰 판이 된다
+          return holidayMap.has(iso) ? { style: { backgroundColor: 'var(--color-red-50)' } } : {}
         }}
         messages={{
           month: '월', week: '주', day: '일', agenda: '목록',

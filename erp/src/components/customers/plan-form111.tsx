@@ -114,7 +114,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
     })
   }
 
-  const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]'
+  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
 
   /** D: 전년도 실적 현황 배지 — 별지 9호 2쪽 «교육훈련»이 **여기 있는 것만** 자동 체크한다.
    *  판정은 report9-actions와 같은 함수(trainingDoneIn)를 쓴다 — 화면과 서식이 어긋날 수 없다.
@@ -138,11 +138,11 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
 
   const monthGrid = (label: string, key: 'eduMonths' | 'drillMonths') => (
     <div className="flex items-center gap-1 flex-wrap">
-      <span className="text-[11px] font-medium text-[#514b81] w-10">{label}</span>
+      <span className="text-[11px] font-medium text-ink-sub w-10">{label}</span>
       {MONTHS.map(m => (
         <button key={m} disabled={!canManage} onClick={() => toggleMonth(key, m)}
           className={`size-7 rounded text-[11px] border transition-colors ${
-            t[key].includes(m) ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
+            t[key].includes(m) ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
           {m}
         </button>
       ))}
@@ -152,12 +152,12 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   return (
     <div className="space-y-4">
       {/* 1.11.1 연간계획 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-[#514b81]">1.11.1 연간 훈련·교육 계획</p>
+          <p className="text-xs font-semibold text-ink-sub">1.11.1 연간 훈련·교육 계획</p>
           {canManage && (
             <button onClick={standardPattern}
-              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               <Wand2 className="size-3" /> 표준 패턴 (5·11월)
             </button>
           )}
@@ -165,7 +165,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
         <div className="flex items-end gap-2 flex-wrap">
           {([['worker', '근무 인원'], ['resident', '거주 인원'], ['brigade', '자위소방대']] as const).map(([k, label]) => (
             <div key={k}>
-              <label className="text-[10px] text-[#b0acd6] block">{label}</label>
+              <label className="text-[10px] text-ink-faint block">{label}</label>
               <NumStepper value={t.headcount[k]} disabled={!canManage} label={label}
                 onChange={v => patch({ headcount: { ...t.headcount, [k]: v } })}>
                 <input value={t.headcount[k]} disabled={!canManage} inputMode="numeric"
@@ -179,17 +179,17 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
       </div>
 
       {/* 1.11.2 세부계획 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs font-semibold text-[#514b81]">1.11.2 차수별 세부계획</p>
+          <p className="text-xs font-semibold text-ink-sub">1.11.2 차수별 세부계획</p>
           {canManage && (
             <button onClick={() => { patch({ details: [...t.details, { name: '', at: '', place: '', target: '', kind: '이론', form: '자체', materials: '', plan: '' }] }) }}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               <Plus className="size-3" /> 차수 추가
             </button>
           )}
         </div>
-        {t.details.length === 0 && <p className="text-[11px] text-[#b0acd6]">차수별 계획(명칭·일시·장소 등)을 추가하세요.</p>}
+        {t.details.length === 0 && <p className="text-[11px] text-ink-faint">차수별 계획(명칭·일시·장소 등)을 추가하세요.</p>}
         <div className="space-y-1.5">
           {t.details.map((d, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
@@ -200,17 +200,17 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               {/* M-19(소방계획서_15, 2026-08-11 보강): 종류·형태 구조화 — 미선택 행은 구 kind·form 자유 값으로 인쇄 */}
               <select value={d.kindPractice ?? ''} disabled={!canManage} title="실습 종류"
                 onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, kindPractice: e.target.value as TrainingDetailRow['kindPractice'] } : x) })}
-                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none">
                 <option value="">실습 없음</option><option value="기본">실습(기본)</option><option value="부분">실습(부분)</option><option value="종합">실습(종합)</option>
               </select>
               <select value={d.kindTheory ?? ''} disabled={!canManage} title="이론 종류"
                 onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, kindTheory: e.target.value as TrainingDetailRow['kindTheory'] } : x) })}
-                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none">
                 <option value="">이론 없음</option><option value="강의">이론(강의)</option><option value="세미나">이론(세미나)</option>
               </select>
               <select value={d.formType ?? (d.form === '자체' || d.form === '합동' ? d.form : '')} disabled={!canManage} title="형태"
                 onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, formType: e.target.value as TrainingDetailRow['formType'] } : x) })}
-                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none">
                 <option value="">형태 선택</option><option value="자체">자체</option><option value="합동">합동</option>
               </select>
               {(d.formType ?? d.form) === '합동' && (
@@ -220,7 +220,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <input value={d.materials} disabled={!canManage} placeholder="교보재" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, materials: e.target.value } : x) })} className={`${inputCls} w-24`} />
               <input value={d.plan} disabled={!canManage} placeholder="훈련·교육·평가 계획" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, plan: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               {canManage && (
-                <button onClick={() => patch({ details: t.details.filter((_, j) => j !== i) })} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => patch({ details: t.details.filter((_, j) => j !== i) })} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
@@ -230,13 +230,13 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
       </div>
 
       {/* 1.11.3 시나리오 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-xs font-semibold text-[#514b81]">1.11.3 훈련 시나리오</p>
+          <p className="text-xs font-semibold text-ink-sub">1.11.3 훈련 시나리오</p>
           {canManage && Object.keys(SCENARIO_PRESETS).map(type => (
             <button key={type} onClick={() => loadScenario(type)}
               className={`h-6 px-2 rounded-full text-[11px] border transition-colors ${
-                t.scenarioType === type ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#7b68ee] hover:bg-[#f5f4ff]'}`}>
+                t.scenarioType === type ? 'bg-brand text-white border-brand' : 'border-brand-line text-brand hover:bg-brand-tint'}`}>
               {type}{type === presetType ? ' ★' : ''}
             </button>
           ))}
@@ -252,24 +252,24 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
         <textarea value={t.scenario} disabled={!canManage} rows={4}
           onChange={e => patch({ scenario: e.target.value })}
           placeholder="유형 프리셋을 불러온 뒤 고객 상황에 맞게 수정하세요."
-          className="w-full rounded-lg border border-[#d0ccf5] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#7b68ee] resize-y" />
+          className="w-full rounded-lg border border-brand-line bg-surface px-2 py-1.5 text-xs outline-none focus:border-brand resize-y" />
       </div>
 
       {/* 1.11.4 결과 기록부 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs font-semibold text-[#514b81]">1.11.4 훈련·교육 실시 결과 기록부
-            <span className="font-normal text-[#b0acd6] ml-2">별지 28호 — 2년 보관 · 별지 9호 실시 판정 소스 · 2장 2.14와 공용</span>
+          <p className="text-xs font-semibold text-ink-sub">1.11.4 훈련·교육 실시 결과 기록부
+            <span className="font-normal text-ink-faint ml-2">별지 28호 — 2년 보관 · 별지 9호 실시 판정 소스 · 2장 2.14와 공용</span>
           </p>
           {canManage && (
             <button onClick={() => patch({ records: [...t.records, { at: '', year: RECORD_YEARS[0], kind: '훈련', attendees: '', content: '', evaluation: '' }] })}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               <Plus className="size-3" /> 행 추가
             </button>
           )}
         </div>
         {prevYearBadge}
-        {t.records.length === 0 && <p className="text-[11px] text-[#b0acd6]">실시 후 결과를 기록하세요.</p>}
+        {t.records.length === 0 && <p className="text-[11px] text-ink-faint">실시 후 결과를 기록하세요.</p>}
         <div className="space-y-1.5">
           {t.records.map((r, i) => {
             // 구 데이터는 year가 없다 — 실시일에서 파생해 보여주고, 목록에 없는 연도면 선택지에 얹는다
@@ -281,12 +281,12 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               {/* D: 실적 연도 — 별지 9호 2쪽 자동 체크의 1순위 축 */}
               <select value={yr} disabled={!canManage} title="실적 연도 — 별지 9호 2쪽 판정 축"
                 onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, year: e.target.value } : x) })}
-                className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+                className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none">
                 <option value="">연도</option>
                 {yearOpts.map(y => <option key={y} value={y}>{y}년</option>)}
               </select>
               <input value={r.at} disabled={!canManage} placeholder="실시일" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, at: e.target.value } : x) })} className={`${inputCls} w-28`} />
-              <select value={r.kind} disabled={!canManage} onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, kind: e.target.value } : x) })} className="h-7 rounded border border-[#d0ccf5] bg-white px-1 text-xs outline-none">
+              <select value={r.kind} disabled={!canManage} onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, kind: e.target.value } : x) })} className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none">
                 <option value="훈련">훈련</option><option value="교육">교육</option><option value="교육·훈련">교육·훈련</option>
               </select>
               <NumStepper value={r.attendees} disabled={!canManage} label="참여인원"
@@ -296,7 +296,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <input value={r.content} disabled={!canManage} placeholder="내용" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, content: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               <input value={r.evaluation} disabled={!canManage} placeholder="평가" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, evaluation: e.target.value } : x) })} className={`${inputCls} w-32`} />
               {canManage && (
-                <button onClick={() => removeRecord(i)} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => removeRecord(i)} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
@@ -309,10 +309,10 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.11 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

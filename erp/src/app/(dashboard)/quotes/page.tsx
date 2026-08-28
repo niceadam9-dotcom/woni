@@ -33,7 +33,7 @@ export default async function QuotesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <FileText className="size-5 text-[#7b68ee]" />
+        <FileText className="size-5 text-brand" />
         <h1 className="text-xl font-bold">견적 관리</h1>
       </div>
 

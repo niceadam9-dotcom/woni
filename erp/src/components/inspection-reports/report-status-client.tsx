@@ -83,7 +83,7 @@ function InputModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[460px] flex flex-col max-h-[90vh]">
+      <div className="bg-surface rounded-xl shadow-2xl w-[460px] flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div>
             <span className="font-semibold">보고서 제출현황 입력</span>
@@ -149,7 +149,7 @@ function InputModal({
             <button
               onClick={save}
               disabled={pending}
-              className="px-4 py-1.5 text-sm bg-[#7b68ee] text-white rounded disabled:opacity-50"
+              className="px-4 py-1.5 text-sm bg-brand text-white rounded disabled:opacity-50"
             >
               {pending ? '저장 중…' : '저장'}
             </button>
@@ -234,7 +234,7 @@ export function ReportStatusClient({
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-surface">
         <h1 className="text-xl font-bold">점검보고서 제출현황 모니터링</h1>
         <div className="flex items-center gap-4 text-sm">
           <span className="text-gray-500">전체 <strong className="text-gray-800">{totalCount}</strong></span>
@@ -245,7 +245,7 @@ export function ReportStatusClient({
 
       {/* 필터 */}
       <div className="flex items-center gap-3 px-6 py-3 bg-gray-50 border-b flex-wrap">
-        <div className="relative flex items-center gap-1 border rounded bg-white" ref={monthPickerRef}>
+        <div className="relative flex items-center gap-1 border rounded bg-surface" ref={monthPickerRef}>
           <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-gray-100 rounded-l" title="이전 달">
             <ChevronLeft size={14} />
           </button>
@@ -260,7 +260,7 @@ export function ReportStatusClient({
             <ChevronRight size={14} />
           </button>
           {showMonthPicker && (
-            <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-[#d0ccf5] rounded-xl shadow-xl p-3 w-52">
+            <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-brand-line rounded-xl shadow-xl p-3 w-52">
               <div className="flex items-center justify-between mb-3">
                 <button onClick={() => setPickerYear(y => y - 1)} className="p-1 hover:bg-gray-100 rounded">
                   <ChevronLeft size={14} />
@@ -280,7 +280,7 @@ export function ReportStatusClient({
                         setYearMonth(`${pickerYear}-${String(mo).padStart(2, '0')}`)
                         setShowMonthPicker(false)
                       }}
-                      className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${isActive ? 'bg-[#7b68ee] text-white' : 'hover:bg-[#f5f4ff] text-gray-800'}`}
+                      className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${isActive ? 'bg-brand text-white' : 'hover:bg-brand-tint text-gray-800'}`}
                     >
                       {mo}월
                     </button>
@@ -294,7 +294,7 @@ export function ReportStatusClient({
         <select
           value={empFilter}
           onChange={e => setEmpFilter(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm bg-white"
+          className="border rounded px-2 py-1.5 text-sm bg-surface"
         >
           <option value="">전체 담당자</option>
           {employees.map(e => (
@@ -315,7 +315,7 @@ export function ReportStatusClient({
         <select
           value={submitFilter}
           onChange={e => setSubmitFilter(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm bg-white"
+          className="border rounded px-2 py-1.5 text-sm bg-surface"
         >
           <option value="all">전체</option>
           <option value="submitted">제출완료</option>
@@ -422,7 +422,7 @@ export function ReportStatusClient({
                   <td className="border px-2 py-1.5 text-center">
                     <button
                       onClick={() => setModalItem(row)}
-                      className="text-[#7b68ee] hover:underline text-[11px] font-medium"
+                      className="text-brand hover:underline text-[11px] font-medium"
                     >
                       [입력]
                     </button>

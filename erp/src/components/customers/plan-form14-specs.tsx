@@ -527,15 +527,15 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     const dis = !canManage || !blockOn || derivedAll
     const auto = autoFilled.has(`${secKey}.${bl.key}.${f.key}`)
     // min-w-0 = 스테퍼(±) 형제와 같은 flex 행에서 입력칸이 정상 축소되도록 (S4-4)
-    const box = `h-7 w-full min-w-0 rounded border px-1.5 text-xs outline-none focus:border-[#7b68ee] disabled:opacity-60 ${
+    const box = `h-7 w-full min-w-0 rounded border px-1.5 text-xs outline-none focus:border-brand disabled:opacity-60 ${
       empty ? 'border-amber-200 bg-amber-50/40'
-        : auto ? 'border-[#7b68ee] bg-[#f5f4ff] ring-1 ring-[#7b68ee]/40'
-        : 'border-[#d0ccf5] bg-white'}`
+        : auto ? 'border-brand bg-brand-tint ring-1 ring-brand/40'
+        : 'border-brand-line bg-surface'}`
     if (f.type === 'check') {
       return (
         <button type="button" disabled={dis} onClick={() => setField(secKey, bl.key, f.key, !(v as boolean))}
           aria-label={f.label}
-          className={`inline-flex items-center gap-1 h-7 text-xs ${v ? 'font-bold text-[#090c1d]' : 'text-[#514b81] hover:text-[#7b68ee]'} disabled:opacity-60`}>
+          className={`inline-flex items-center gap-1 h-7 text-xs ${v ? 'font-bold text-ink' : 'text-ink-sub hover:text-brand'} disabled:opacity-60`}>
           <span className="text-sm leading-none">{v ? '☑' : '☐'}</span> 해당
         </button>
       )
@@ -578,9 +578,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
               <button key={o} type="button" disabled={lock} title={title}
                 onClick={() => toggleOpt(o, on)}
                 className={`inline-flex items-center gap-1 text-[11px] ${
-                  on ? 'font-bold text-[#090c1d]' : 'text-[#514b81] hover:text-[#7b68ee]'
-                } ${optDerived ? '!text-[#847ba8] cursor-default' : ''} disabled:opacity-60`}>
-                <span>{on ? '☑' : '☐'}</span>{o}{optDerived && <span className="text-[9px] text-[#b0acd6]">(대장)</span>}
+                  on ? 'font-bold text-ink' : 'text-ink-sub hover:text-brand'
+                } ${optDerived ? '!text-ink-soft cursor-default' : ''} disabled:opacity-60`}>
+                <span>{on ? '☑' : '☐'}</span>{o}{optDerived && <span className="text-[9px] text-ink-faint">(대장)</span>}
               </button>
             )
           })}
@@ -612,8 +612,8 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         if (c.group && last?.group === c.group) last.cols.push(c)
         else groups.push({ group: c.group, cols: [c] })
       }
-      const th = 'border border-[#e0ddf5] bg-[#f8f8fb] px-0.5 py-1 text-[9px] font-medium leading-tight'
-      const td = 'border border-[#e0ddf5] p-0.5 align-middle'
+      const th = 'border border-brand-line-soft bg-paper px-0.5 py-1 text-[9px] font-medium leading-tight'
+      const td = 'border border-brand-line-soft p-0.5 align-middle'
       const dlId = `dongopt-${secKey}-${bl.key}-${f.key}`
       const usedDongs = new Set(shown.map(r => (r.dong ?? '').trim()).filter(Boolean))
       const nextDong = dongChips.find(nm => !usedDongs.has(nm)) ?? ''
@@ -629,14 +629,14 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                 <tr>
                   {groups.map(g => g.group
                     ? <th key={g.group} colSpan={g.cols.length}
-                        className={`${th} ${g.cols.some(colOn) ? 'text-[#514b81]' : 'text-[#c4c0dd]'}`}>{g.group}</th>
-                    : <th key={g.cols[0].key} rowSpan={2} className={`${th} text-[#514b81]`}>{g.cols[0].short ?? g.cols[0].label}</th>)}
+                        className={`${th} ${g.cols.some(colOn) ? 'text-ink-sub' : 'text-ink-faint'}`}>{g.group}</th>
+                    : <th key={g.cols[0].key} rowSpan={2} className={`${th} text-ink-sub`}>{g.cols[0].short ?? g.cols[0].label}</th>)}
                   {!dis && <th rowSpan={2} className={th} />}
                 </tr>
                 <tr>
                   {groups.filter(g => g.group).flatMap(g => g.cols).map(c => (
                     <th key={c.key} title={colOn(c) ? c.label : `${c.label} — 위 ‘설치 종류’에서 체크해야 입력할 수 있습니다`}
-                      className={`${th} ${colOn(c) ? 'text-[#090c1d]' : 'text-[#c4c0dd] font-normal'}`}>
+                      className={`${th} ${colOn(c) ? 'text-ink' : 'text-ink-faint font-normal'}`}>
                       {colOn(c) ? '☑' : '☐'} {c.short ?? c.label}
                     </th>
                   ))}
@@ -644,12 +644,12 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
               </thead>
               <tbody>
                 {/* 합계 — 아래 동별 행의 세로 합. 직접 입력하지 않는다(동을 더해도 늘 맞는다) */}
-                <tr data-testid="rowtable-total" className="bg-[#f5f4ff]">
+                <tr data-testid="rowtable-total" className="bg-brand-tint">
                   {cols.map((c, ci) => {
-                    if (ci === 0) return <td key={c.key} className={`${td} text-center text-[11px] font-semibold text-[#514b81]`}>합계</td>
+                    if (ci === 0) return <td key={c.key} className={`${td} text-center text-[11px] font-semibold text-ink-sub`}>합계</td>
                     const t = c.total && colOn(c) ? columnTotal(shown, c.key) : null
                     return <td key={c.key} data-total={c.key}
-                      className={`${td} text-center text-[11px] font-semibold tabular-nums text-[#090c1d]`}>{t ?? ''}</td>
+                      className={`${td} text-center text-[11px] font-semibold tabular-nums text-ink`}>{t ?? ''}</td>
                   })}
                   {!dis && <td className={td} />}
                 </tr>
@@ -667,9 +667,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                             title={on ? undefined : `‘${c.enabledBy}’를 체크해야 입력할 수 있습니다`}
                             placeholder={on ? undefined : '—'}
                             onChange={e => setCell(i, c.key, e.target.value)}
-                            className={`h-6 w-full min-w-0 rounded-sm border px-1 text-[11px] outline-none focus:border-[#7b68ee] ${
+                            className={`h-6 w-full min-w-0 rounded-sm border px-1 text-[11px] outline-none focus:border-brand ${
                               c.wide ? 'text-left' : 'text-center tabular-nums'} ${
-                              on ? 'border-[#d0ccf5] bg-white' : 'border-transparent bg-[#f3f2f8] text-[#c4c0dd] placeholder:text-[#d5d2e6] cursor-not-allowed'}`} />
+                              on ? 'border-brand-line bg-surface' : 'border-transparent bg-[#f3f2f8] text-ink-faint placeholder:text-[#d5d2e6] cursor-not-allowed'}`} />
                         </td>
                       )
                     })}
@@ -678,7 +678,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                         <button type="button" aria-label={`${i + 1}행 삭제`} title="이 동 삭제"
                           disabled={shown.length <= 1 && rowIsEmpty(r)}
                           onClick={() => write(shown.filter((_, j) => j !== i))}
-                          className="text-[11px] leading-none text-[#b0acd6] hover:text-red-500 disabled:opacity-30">✕</button>
+                          className="text-[11px] leading-none text-ink-faint hover:text-red-500 disabled:opacity-30">✕</button>
                       </td>
                     )}
                   </tr>
@@ -692,10 +692,10 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           {!dis && (
             <div className="mt-1 flex items-center gap-2">
               <button type="button" onClick={() => write([...shown, nextDong ? { dong: nextDong } : {}])}
-                className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[10px] font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors">
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-brand-line text-[10px] font-medium text-brand hover:bg-brand-tint transition-colors">
                 + 동 추가{nextDong ? ` (${nextDong})` : ''}
               </button>
-              <span className="text-[10px] text-[#b0acd6]">
+              <span className="text-[10px] text-ink-faint">
                 합계는 동별 행의 자동 합산입니다 · 체크한 종류의 칸만 열립니다
               </span>
             </div>
@@ -715,11 +715,11 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
     // 소방계획서_9: 동명·층 텍스트 필드는 칩 클릭만으로 입력 (직접 타이핑 병행)
     const isDongField = f.type === 'text' && (f.key === 'dong' || f.key.endsWith('_dong'))
     const isFloorField = f.type === 'text' && (f.key === 'floor' || f.key.endsWith('_floor'))
-    const chipCls = 'h-5 px-1.5 rounded border border-[#d0ccf5] text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors'
+    const chipCls = 'h-5 px-1.5 rounded border border-brand-line text-[10px] text-brand hover:bg-brand-tint transition-colors'
     // S4-4: 수량형 숫자 필드만 ± 스테퍼 — 용량·치수(㎥·㎾·MPa·ℓ·m 등)는 ±1이 무의미해 직접 입력 유지.
     // 강조 링(box)을 건드리지 않도록 NumField 대신 같은 증감 규칙(bumpNumber)으로 좌우 버튼만 붙인다.
     const isCountField = f.type === 'number' && !!f.unit && COUNT_UNITS.has(f.unit)
-    const stepBtnCls = 'shrink-0 grid place-items-center size-6 rounded border border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
+    const stepBtnCls = 'shrink-0 grid place-items-center size-6 rounded border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40 disabled:hover:bg-transparent text-sm leading-none select-none'
     const stepBtn = (dir: 1 | -1) => (
       <button type="button" disabled={dis} className={stepBtnCls}
         aria-label={`${f.label} ${dir === 1 ? '1 증가' : '1 감소'}`}
@@ -735,7 +735,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           <input value={v as string} disabled={dis} aria-label={f.label}
             inputMode={f.type === 'number' ? 'decimal' : undefined}
             onChange={e => setField(secKey, bl.key, f.key, e.target.value)} className={box} />
-          {f.unit && <span className="text-[10px] text-[#b0acd6] shrink-0">{f.unit}</span>}
+          {f.unit && <span className="text-[10px] text-ink-faint shrink-0">{f.unit}</span>}
           {isCountField && stepBtn(1)}
         </div>
         {!dis && isDongField && dongChips.length > 0 && (
@@ -763,39 +763,39 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   }
 
   return (
-    <details ref={detailsRef} className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] px-4 py-2"
+    <details ref={detailsRef} className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2"
       onToggle={e => { if ((e.target as HTMLDetailsElement).open) fetchInspected() }}>
-      <summary className="text-xs font-semibold text-[#514b81] cursor-pointer select-none">
+      <summary className="text-xs font-semibold text-ink-sub cursor-pointer select-none">
         설비 대장 — 별지 3. 소방시설등의 세부현황
-        <span className="ml-1.5 font-normal text-[#b0acd6]">(섹션 3-1~3-8 = 별지 4호 3~7쪽·9호 4~7쪽과 번호 동일)</span>
+        <span className="ml-1.5 font-normal text-ink-faint">(섹션 3-1~3-8 = 별지 4호 3~7쪽·9호 4~7쪽과 번호 동일)</span>
         {/* D-17 완성도 게이지 클릭 = 빈칸만 보기 토글 */}
         <button type="button"
           onClick={e => { e.preventDefault(); e.stopPropagation(); detailsRef.current?.setAttribute('open', ''); toggleEmptyOnly() }}
           title="클릭하면 미입력 칸만 모아 봅니다 (다시 클릭 = 전체 보기)"
-          className={`ml-2 font-normal hover:underline ${emptySnap ? 'text-amber-600 font-semibold' : 'text-[#7b68ee]'}`}>
+          className={`ml-2 font-normal hover:underline ${emptySnap ? 'text-amber-600 font-semibold' : 'text-brand'}`}>
           제원 입력 {gauge.filledAll}/{CATALOG_TOTAL} — 설치 설비 기준 {gauge.filledOn}/{gauge.totalOn}
         </button>
       </summary>
 
       <div className="mt-2 space-y-2">
-        <p className="text-[11px] text-[#514b81]">
-          <span className="inline-flex items-center rounded bg-[#7b68ee]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#7b68ee] mr-1">입력</span>
+        <p className="text-[11px] text-ink-sub">
+          <span className="inline-flex items-center rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand mr-1">입력</span>
           이 영역이 설비 제원의 단일 원본입니다 — 별지 4호 1·2쪽 대상물·점검결과는
-          <span className="inline-flex items-center rounded bg-[#eeecf8] px-1.5 py-0.5 text-[10px] font-semibold text-[#514b81] mx-1">자동</span>
+          <span className="inline-flex items-center rounded bg-brand-line-soft px-1.5 py-0.5 text-[10px] font-semibold text-ink-sub mx-1">자동</span>
           (고객정보·점검표에서 채움). 설치(√)한 설비 블록만 펼쳐 입력합니다.
         </p>
         {/* 여기 넣은 제원이 소방계획서 본문에 안 보인다는 문의가 반복된다(2026-08-20) —
             소방계획서 템플릿은 customer_facility_specs를 아예 읽지 않는다(설비 체크 목록만 인쇄).
             같은 '1.4' 카드 안에서 두 층위가 서로 다른 문서로 가는 게 원인이라 인쇄처를 못박아 둔다. */}
-        <p className="rounded-lg border border-[#d0ccf5] bg-[#f5f4ff] px-3 py-1.5 text-[11px] text-[#514b81]">
-          <span className="inline-flex items-center rounded bg-[#7b68ee]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#7b68ee] mr-1">인쇄처</span>
+        <p className="rounded-lg border border-brand-line bg-brand-tint px-3 py-1.5 text-[11px] text-ink-sub">
+          <span className="inline-flex items-center rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand mr-1">인쇄처</span>
           여기 입력한 제원(설치장소·수량·규격 등)은 <b>별지 9호 4~7쪽 · 별지 4호 3~7쪽</b>에 인쇄됩니다.
           <b> 소방계획서 본문(서식 1.4)에는 설비 체크 목록만</b> 나가고 제원은 실리지 않습니다.
         </p>
 
         {/* D-17 9호發 복귀 바 — 안내칩으로 넘어온 경우에만 */}
         {fromReport9 && (
-          <div className="flex items-center gap-2 rounded-lg bg-[#f5f4ff] border border-[#d0ccf5] px-3 py-1.5 text-[11px] text-[#514b81]">
+          <div className="flex items-center gap-2 rounded-lg bg-brand-tint border border-brand-line px-3 py-1.5 text-[11px] text-ink-sub">
             <span>별지 9호에서 넘어왔습니다 — 세부현황(4~7쪽)은 여기서만 입력하고, 저장하면 9호에 바로 반영됩니다</span>
             <button type="button"
               onClick={() => {
@@ -803,7 +803,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                 if (window.history.length > 1) router.back()
                 else router.push(`/customers/${customerId}?tab=plan&form=annex`)
               }}
-              className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium shrink-0">
+              className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium shrink-0">
               <CornerUpLeft className="size-3" /> ⑨ 9호로 돌아가기
             </button>
           </div>
@@ -811,10 +811,10 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
 
         {/* 소방계획서_8 D-13·D-18: 사용처 칩 + 스플릿 토글 — 이 입력이 어느 문서에 쓰이는지 */}
         <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
-          <span className="text-[#b0acd6] font-medium">사용처:</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-[#eeecf8] text-[#514b81] font-medium">④ 별지 4호 3~7쪽</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-[#eeecf8] text-[#514b81] font-medium">⑨ 별지 9호 4~7쪽</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-[#eeecf8] text-[#514b81] font-medium">📘 계획서 1.4</span>
+          <span className="text-ink-faint font-medium">사용처:</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-brand-line-soft text-ink-sub font-medium">④ 별지 4호 3~7쪽</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-brand-line-soft text-ink-sub font-medium">⑨ 별지 9호 4~7쪽</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-brand-line-soft text-ink-sub font-medium">📘 계획서 1.4</span>
           {/* D-17 교차 검증 칩 — 점검표엔 응답이 있는데 제원이 전부 빈 설비 블록 */}
           {crossWarnCount > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-700 font-medium"
@@ -824,20 +824,20 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           )}
           {canManage && (
             <button type="button" onClick={fillDefaults}
-              className="ml-auto md:ml-0 inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-[#d0ccf5] text-[11px] font-medium text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+              className="ml-auto md:ml-0 inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-brand-line text-[11px] font-medium text-brand hover:bg-brand-tint transition-colors"
               title="동명(건물명)·층 범위(전체층)·소화기 수량(1.4 층별 표 합계)을 빈 칸에만 자동 입력합니다 — 기존 입력은 건드리지 않음">
               <Wand2 className="size-3" /> 기본값 채우기
             </button>
           )}
           <button type="button" onClick={toggleEmptyOnly}
             className={`${canManage ? '' : 'ml-auto md:ml-0 '}inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-[11px] font-medium transition-colors ${
-              emptySnap ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}
+              emptySnap ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}
             title="미입력 칸만 모아 보기 — 마무리 단계에서 빠르게 소진 (완성도 게이지 클릭과 동일)">
             {emptySnap ? '전체 보기' : '빈칸만 보기'}
           </button>
           <button type="button" onClick={toggleSplit}
             className={`hidden md:inline-flex items-center gap-1 md:ml-auto h-6 px-2 rounded-lg border text-[11px] font-medium transition-colors ${
-              splitOn ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}
+              splitOn ? 'border-brand bg-brand-tint text-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}
             title="입력하면서 별지 9호 세부현황(4~7쪽)에 어떻게 찍히는지 나란히 확인 — 저장 시 실시간 갱신">
             <Eye className="size-3" /> {splitOn ? '미리보기 닫기' : '문서 미리보기 나란히'}
           </button>
@@ -861,12 +861,12 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           const secOpen = secSnap ? true : openSec === sec.key
           const pct = g.total > 0 ? Math.round((g.filled / g.total) * 100) : 0
           return (
-            <div key={sec.key} data-spec-section={sec.key} className="rounded-lg border border-[#e0ddf5] bg-white">
+            <div key={sec.key} data-spec-section={sec.key} className="rounded-lg border border-brand-line-soft bg-surface">
               <div className="flex items-center gap-2 px-3 py-1.5">
                 <button type="button" onClick={() => { setOpenSec(secOpen ? null : sec.key); setNotice(null) }}
                   className="flex flex-1 items-center gap-2 text-left min-w-0">
-                  {secOpen ? <ChevronDown className="size-3.5 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3.5 text-[#b0acd6] shrink-0" />}
-                  <span className="text-xs font-semibold text-[#090c1d] truncate">{sec.no} {sec.label}</span>
+                  {secOpen ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
+                  <span className="text-xs font-semibold text-ink truncate">{sec.no} {sec.label}</span>
                   {dirty[sec.key] && <span className="text-[10px] text-amber-500">● 미저장</span>}
                   {/* T-2a 점검 결과 배지 — 최신 자체점검 회차 기준, 읽기 전용. 별지9호 3쪽과 같은 판정 로직 */}
                   {(() => {
@@ -884,7 +884,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                     )
                     if (badge.mark === 'N') return (
                       <span data-testid={`spec-mark-${sec.key}`} title={`미설치로 해당없음 — ${codes}`}
-                        className="shrink-0 text-[10px] text-[#b0acd6]">／ 해당없음</span>
+                        className="shrink-0 text-[10px] text-ink-faint">／ 해당없음</span>
                     )
                     return (
                       <span data-testid={`spec-mark-${sec.key}`} title={`${round}점검표에 이 설비 응답이 없습니다 — ${codes}`}
@@ -892,16 +892,16 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                     )
                   })()}
                   <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                    <span className="h-1 w-16 rounded bg-[#eeecf8] overflow-hidden">
-                      <span className="block h-full bg-[#7b68ee]" style={{ width: `${pct}%` }} />
+                    <span className="h-1 w-16 rounded bg-brand-line-soft overflow-hidden">
+                      <span className="block h-full bg-brand" style={{ width: `${pct}%` }} />
                     </span>
-                    <span className="text-[10px] text-[#514b81] tabular-nums">{g.total > 0 ? `${g.filled}/${g.total}` : '—'}</span>
+                    <span className="text-[10px] text-ink-sub tabular-nums">{g.total > 0 ? `${g.filled}/${g.total}` : '—'}</span>
                   </span>
                 </button>
               </div>
 
               {secOpen && (
-                <div className="border-t border-[#eeecf8] px-3 py-2 space-y-2">
+                <div className="border-t border-brand-line-soft px-3 py-2 space-y-2">
                   {sec.blocks.map(bl => {
                     const on = enabled(bl)
                     const bid = `${sec.key}.${bl.key}`
@@ -912,7 +912,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                     const warn = crossWarn(sec.key, bl)
                     return (
                       <div key={bl.key} data-spec-block={bl.key}
-                        className={`rounded-lg border ${on ? 'border-[#e0ddf5]' : 'border-[#eeecf8] bg-[#f8f8fb]'}`}>
+                        className={`rounded-lg border ${on ? 'border-brand-line-soft' : 'border-brand-line-soft bg-paper'}`}>
                         <button type="button"
                           onClick={() => {
                             if (!on) { setNotice(notice === bid ? null : bid); return }
@@ -920,9 +920,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                           }}
                           className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left">
                           {on
-                            ? (blOpen ? <ChevronDown className="size-3 text-[#b0acd6] shrink-0" /> : <ChevronRight className="size-3 text-[#b0acd6] shrink-0" />)
-                            : <span className="inline-flex items-center rounded bg-[#eeecf8] px-1.5 py-0.5 text-[10px] text-[#b0acd6] shrink-0">미설치</span>}
-                          <span className={`text-[11px] ${on ? 'font-medium text-[#090c1d]' : 'text-[#b0acd6]'}`}>{bl.label}</span>
+                            ? (blOpen ? <ChevronDown className="size-3 text-ink-faint shrink-0" /> : <ChevronRight className="size-3 text-ink-faint shrink-0" />)
+                            : <span className="inline-flex items-center rounded bg-brand-line-soft px-1.5 py-0.5 text-[10px] text-ink-faint shrink-0">미설치</span>}
+                          <span className={`text-[11px] ${on ? 'font-medium text-ink' : 'text-ink-faint'}`}>{bl.label}</span>
                           {/* D-17 교차 검증 칩 — 점검표 응답은 있는데 제원이 전부 빈 블록 */}
                           {warn && (
                             <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-300 rounded-full px-1.5 py-px font-medium shrink-0"
@@ -930,18 +930,18 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                               ⚠ 점검함·제원 미입력
                             </span>
                           )}
-                          {on && blFilled > 0 && <span className="ml-auto text-[10px] text-[#7b68ee] tabular-nums">{blFilled}/{bl.fields.length}</span>}
+                          {on && blFilled > 0 && <span className="ml-auto text-[10px] text-brand tabular-nums">{blFilled}/{bl.fields.length}</span>}
                         </button>
                         {!on && notice === bid && (
-                          <p className="px-2.5 pb-1.5 text-[10px] text-[#514b81]">
+                          <p className="px-2.5 pb-1.5 text-[10px] text-ink-sub">
                             1.4 설비 표에서 &lsquo;{hintCodes(bl)[0]}&rsquo;{hintCodes(bl).length > 1 ? ' 등' : ''} 설치 체크 후 입력할 수 있습니다.
                           </p>
                         )}
                         {blOpen && (
-                          <div className="border-t border-[#eeecf8] px-2.5 py-2">
+                          <div className="border-t border-brand-line-soft px-2.5 py-2">
                             {receiverLocation && (bl.key === 'fire_detection' || bl.key === 'fire_alert') && (
-                              <p className="mb-1.5 text-[10px] text-[#b0acd6]">
-                                <span className="inline-flex items-center rounded bg-[#eeecf8] px-1 py-px font-semibold text-[#514b81] mr-1">자동</span>
+                              <p className="mb-1.5 text-[10px] text-ink-faint">
+                                <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px font-semibold text-ink-sub mr-1">자동</span>
                                 빠른 입력의 수신기 위치: {receiverLocation} — 수정은 계획서 정보(1.1)에서
                               </p>
                             )}
@@ -967,8 +967,8 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                     return [
                                       <button key={gid} type="button" disabled={!on}
                                         onClick={() => setOpenGroups(p => ({ ...p, [gid]: true }))}
-                                        className="col-span-full mt-1 justify-self-start rounded border border-dashed border-[#d0ccf5] px-2 py-0.5 text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
-                                        + {run.group} 입력 <span className="text-[#b0acd6]">(동이 둘 이상일 때만)</span>
+                                        className="col-span-full mt-1 justify-self-start rounded border border-dashed border-brand-line px-2 py-0.5 text-[10px] text-brand hover:bg-brand-tint disabled:opacity-50">
+                                        + {run.group} 입력 <span className="text-ink-faint">(동이 둘 이상일 때만)</span>
                                       </button>,
                                     ]
                                   }
@@ -976,7 +976,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                     ...(run.group
                                       ? [
                                         <p key={gid}
-                                          className="col-span-full mt-1 mb-0 text-[10px] font-semibold text-[#514b81]">
+                                          className="col-span-full mt-1 mb-0 text-[10px] font-semibold text-ink-sub">
                                           ◦ {run.group}
                                         </p>,
                                       ]
@@ -984,7 +984,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                     ...run.fields.map(f => (
                                       <div key={f.key} data-spec-field={`${bid}.${f.key}`}
                                         className={f.type === 'multicheck' || f.type === 'rowtable' ? 'col-span-full' : ''}>
-                                        <p className="mb-0.5 text-[10px] text-[#514b81]">
+                                        <p className="mb-0.5 text-[10px] text-ink-sub">
                                           {f.label}{f.unit ? ` (${f.unit})` : ''}
                                           {secSnap && filledAt(sec.key, bl, f) && <span className="ml-1 text-green-600">✓</span>}
                                         </p>
@@ -1005,7 +1005,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
             </div>
           )
         })}
-        {msg && <p className="text-xs text-[#514b81]">{msg}</p>}
+        {msg && <p className="text-xs text-ink-sub">{msg}</p>}
         {/* 2026-08-08(B안): 여기 있던 sticky [모두 저장]을 폐지했다. 제원만 저장해 본문(1.4 표)이 남는 바람에
             별지 9호 3쪽에 '부모 피난기구 빈칸 + 하위 종류 √' 같은 모순이 인쇄될 수 있었다(소방계획서_12 K-2의 잔반).
             저장 버튼은 패널 푸터의 통합 [저장] 하나뿐이고, 소유자는 부모(plan-form14)다. */}
@@ -1014,16 +1014,16 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         {/* D-13 스플릿 우측 — 별지 9호 세부현황 실시간 미리보기 (저장 시 재렌더, 데스크톱 전용) */}
         {splitOn && (
           <div className="hidden md:block md:w-1/2 sticky top-2">
-            <p className="text-[10px] text-[#b0acd6] mb-1">
+            <p className="text-[10px] text-ink-faint mb-1">
               ⑨ 별지 9호 미리보기 — 제원 저장 시 즉시 갱신 · 빈칸은 노란 하이라이트
               {splitLoading && <Loader2 className="inline size-3 animate-spin ml-1" />}
             </p>
             {splitErr ? (
-              <p className="text-[11px] text-amber-600 bg-white rounded-lg border border-[#e0ddf5] p-3">{splitErr}</p>
+              <p className="text-[11px] text-amber-600 bg-surface rounded-lg border border-brand-line-soft p-3">{splitErr}</p>
             ) : splitHtml ? (
-              <iframe srcDoc={splitHtml} title="별지 9호 미리보기" className="w-full h-[640px] bg-white rounded-lg border border-[#e0ddf5]" />
+              <iframe srcDoc={splitHtml} title="별지 9호 미리보기" className="w-full h-[640px] bg-surface rounded-lg border border-brand-line-soft" />
             ) : (
-              <div className="h-64 bg-white rounded-lg border border-[#e0ddf5] animate-pulse" />
+              <div className="h-64 bg-surface rounded-lg border border-brand-line-soft animate-pulse" />
             )}
           </div>
         )}

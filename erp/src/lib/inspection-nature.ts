@@ -17,7 +17,7 @@ export function inspectionNatureBadge(
     : inspectionType === '일반관리' ? '일반관리' : inspectionType // 작동/종합
   const isSelf = planType == null || planType.startsWith('special_')
   if (isSelf) {
-    return { label: `${typeLabel}(자체)`, className: 'bg-[#f5f4ff] text-[#7b68ee]' }
+    return { label: `${typeLabel}(자체)`, className: 'bg-brand-tint text-brand' }
   }
   return { label: `${typeLabel}(정기)`, className: 'bg-gray-100 text-gray-600' } // monthly
 }

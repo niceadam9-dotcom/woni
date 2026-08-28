@@ -78,13 +78,13 @@ export function IncomeStatementClient({
   return (
     <div className="space-y-4">
       {/* 연도 선택 */}
-      <div className="flex items-center gap-3 bg-white rounded-xl border p-4">
+      <div className="flex items-center gap-3 bg-surface rounded-xl border p-4">
         <span className="text-sm font-medium text-gray-600">기준 연도</span>
         <div className="flex gap-1">
           {[year - 1, year].map(y => (
             <button key={y} onClick={() => setViewYear(y)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                viewYear === y ? 'bg-[#7b68ee] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                viewYear === y ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}>{y}년</button>
           ))}
         </div>
@@ -92,11 +92,11 @@ export function IncomeStatementClient({
       </div>
 
       {/* bills 기반 매출 현황 */}
-      <div className="bg-white rounded-xl border p-5">
-        <h2 className="font-semibold text-sm mb-4 text-[#090c1d]">청구 기반 매출 현황</h2>
+      <div className="bg-surface rounded-xl border p-5">
+        <h2 className="font-semibold text-sm mb-4 text-ink">청구 기반 매출 현황</h2>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: '총 청구금액',  value: billRevenue, color: 'text-[#7b68ee]' },
+            { label: '총 청구금액',  value: billRevenue, color: 'text-brand' },
             { label: '입금 완료',    value: billPaid,    color: 'text-emerald-600' },
             { label: '미수금 (미납)', value: billUnpaid,  color: 'text-red-500' },
           ].map(s => (
@@ -109,9 +109,9 @@ export function IncomeStatementClient({
       </div>
 
       {/* 전표 기반 손익계산서 */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-surface rounded-xl border overflow-hidden">
         <div className="px-5 py-4 border-b bg-gray-50">
-          <h2 className="font-semibold text-sm text-[#090c1d]">손익계산서 (승인 전표 기준)</h2>
+          <h2 className="font-semibold text-sm text-ink">손익계산서 (승인 전표 기준)</h2>
           {!hasVoucherData && (
             <p className="text-xs text-gray-400 mt-1">승인된 전표 데이터가 없습니다. 전표를 등록·승인하면 자동으로 집계됩니다.</p>
           )}

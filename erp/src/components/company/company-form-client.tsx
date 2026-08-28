@@ -8,12 +8,12 @@ import { DateInput } from '@/components/ui/date-input'
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatBizNo, formatBizNoKR, formatTel } from '@/lib/format-contact'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-[#514b81]">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+      <label className="text-xs font-medium text-ink-sub">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
       {children}
     </div>
   )
@@ -83,12 +83,12 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#090c1d]">본사 기본정보</h2>
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">본사 기본정보</h2>
 
         <Field label="회사명" required>
           <div className="relative">
-            <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+            <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
             <input value={form.company_name} onChange={e => setField('company_name', e.target.value)}
               placeholder="(주)승진소방" className={`${inputCls} pl-8`} />
           </div>
@@ -97,14 +97,14 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="사업자등록번호">
             <div className="relative">
-              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.business_number} onChange={e => setField('business_number', formatBizNoKR(e.target.value))}
                 inputMode="numeric" placeholder="000-00-00000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="대표자">
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.representative} onChange={e => setField('representative', e.target.value)}
                 placeholder="대표자명" className={`${inputCls} pl-8`} />
             </div>
@@ -114,14 +114,14 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="대표전화">
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.phone} onChange={e => setField('phone', formatPhoneKR(e.target.value))}
                 inputMode="tel" placeholder="02-0000-0000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="팩스">
             <div className="relative">
-              <Printer className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Printer className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.fax} onChange={e => setField('fax', formatPhoneKR(e.target.value))}
                 inputMode="tel" placeholder="02-0000-0001" className={`${inputCls} pl-8`} />
             </div>
@@ -131,7 +131,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="이메일">
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input type="email" value={form.email} onChange={e => setField('email', e.target.value)}
                 placeholder="info@company.com" className={`${inputCls} pl-8`} />
             </div>
@@ -148,7 +148,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
           </Field>
           <Field label="관리업 등록번호">
             <div className="relative">
-              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.management_reg_no} onChange={e => setField('management_reg_no', e.target.value)}
                 placeholder="예: 2026-15 → 별지4호 (제 2026-15 호)" className={`${inputCls} pl-8`} />
             </div>
@@ -157,7 +157,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
 
         <Field label="주소">
           <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
             <input value={form.address} onChange={e => setField('address', e.target.value)}
               placeholder="본사 주소" className={`${inputCls} pl-8`} />
           </div>
@@ -166,37 +166,37 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
 
       {/* 공문 발신 명의 (147) — 회사명과 **일부러 분리**한 축.
           회사명은 공문 레터헤드·표지·위임장이 함께 읽으므로, 거기에 법인격을 붙이면 세 곳이 같이 바뀐다. */}
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-[#090c1d]">공문 발신 명의</h2>
-          <p className="mt-1 text-xs text-[#847ba8]">
+          <h2 className="text-sm font-semibold text-ink">공문 발신 명의</h2>
+          <p className="mt-1 text-xs text-ink-soft">
             결과보고서 제출 공문 맨 아래에 찍히는 이름입니다. 상단 레터헤드·표지·위임장은 위 [회사명]을 그대로 씁니다.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Field label="상호 (법인 정식 상호)">
             <div className="relative">
-              <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.official_sender_name} onChange={e => setField('official_sender_name', e.target.value)}
                 placeholder="예: 주식회사 승진소방ENG" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="대표 직함">
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.official_rep_title} onChange={e => setField('official_rep_title', e.target.value)}
                 placeholder="대표이사" className={`${inputCls} pl-8`} />
             </div>
           </Field>
         </div>
         {/* 비워도 되는 칸이라는 걸 미리보기로 말한다 — 폴백 규약을 글로만 적으면 안 읽는다 */}
-        <div className="rounded-lg border border-[#e0ddf5] bg-[#fafaff] px-4 py-3">
-          <p className="text-[11px] font-medium text-[#514b81]">공문에 이렇게 찍힙니다</p>
-          <p className="mt-1.5 text-center text-sm font-bold leading-relaxed text-[#090c1d]">
+        <div className="rounded-lg border border-brand-line-soft bg-brand-tint px-4 py-3">
+          <p className="text-[11px] font-medium text-ink-sub">공문에 이렇게 찍힙니다</p>
+          <p className="mt-1.5 text-center text-sm font-bold leading-relaxed text-ink">
             {form.official_sender_name.trim() || form.company_name.trim() || '회사명'}<br />
             {(form.official_rep_title.trim() || '대표이사')} {form.representative.trim() || '대표자'}(직인생략)
           </p>
-          <p className="mt-1.5 text-[11px] text-[#b0acd6]">
+          <p className="mt-1.5 text-[11px] text-ink-faint">
             비워두면 상호는 [회사명], 직함은 &lsquo;대표이사&rsquo;로 나갑니다 · 대표자 이름은 위 [대표자] 칸을 씁니다
           </p>
         </div>

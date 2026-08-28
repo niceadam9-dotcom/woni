@@ -19,14 +19,14 @@ export default async function WorkJournalPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <NotebookPen className="size-6 text-[#7b68ee]" />
+          <NotebookPen className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-[#090c1d]">업무일지</h1>
-            <p className="text-sm text-[#514b81] mt-0.5">일별 업무 수행 내용을 기록합니다</p>
+            <h1 className="text-xl font-bold text-ink">업무일지</h1>
+            <p className="text-sm text-ink-sub mt-0.5">일별 업무 수행 내용을 기록합니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/tasks" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+          <Link href="/tasks" className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
             업무지시
           </Link>
         </div>

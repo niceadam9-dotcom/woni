@@ -9,7 +9,7 @@ import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
 const TYPE_COLORS: Record<string, string> = {
-  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '종합':   'bg-brand-tint text-brand',
   '작동':   'bg-blue-50 text-blue-600',
   '일반관리': 'bg-gray-100 text-gray-600',
 }
@@ -87,10 +87,10 @@ export default async function InspectionSheetsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ClipboardList className="size-6 text-[#7b68ee]" />
+          <ClipboardList className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-[#090c1d]">점검표 관리</h1>
-            <p className="text-sm text-[#514b81] mt-0.5">소방시설별 점검 체크리스트 양식을 관리합니다</p>
+            <h1 className="text-xl font-bold text-ink">점검표 관리</h1>
+            <p className="text-sm text-ink-sub mt-0.5">소방시설별 점검 체크리스트 양식을 관리합니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -110,18 +110,18 @@ export default async function InspectionSheetsPage({
 
       <form method="GET" action="/inspection-sheets" className="flex flex-wrap items-center gap-2">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
           <input
             name="q"
             defaultValue={q}
             placeholder="점검표명·코드 검색"
-            className="h-9 pl-8 pr-3 rounded-lg border border-[#d0ccf5] bg-white text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-48"
+            className="h-9 pl-8 pr-3 rounded-lg border border-brand-line bg-surface text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition w-48"
           />
         </div>
         <select
           name="type"
           defaultValue={typeFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 점검유형</option>
           <option value="종합">종합</option>
@@ -131,7 +131,7 @@ export default async function InspectionSheetsPage({
         <select
           name="active"
           defaultValue={activeFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="all">전체 상태</option>
           <option value="active">활성</option>
@@ -140,7 +140,7 @@ export default async function InspectionSheetsPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -150,41 +150,41 @@ export default async function InspectionSheetsPage({
           검색
         </button>
         {(q || typeFilter || activeFilter !== 'active' || pageSize !== 25) && (
-          <a href="/inspection-sheets" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+          <a href="/inspection-sheets" className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">
+        <span className="text-xs text-ink-sub ml-auto">
           총 {totalCount}개{totalPages > 1 && ` · ${page}/${totalPages} 페이지`}
         </span>
       </form>
 
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {rows.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[#514b81]">등록된 점검표가 없습니다</div>
+          <div className="py-16 text-center text-sm text-ink-sub">등록된 점검표가 없습니다</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {['점검표 코드', '점검표명', '점검유형', '버전', '항목 수', '상태', '등록일', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {rows.map(r => (
-                  <tr key={r.id} className="hover:bg-[#f8f9fa] transition-colors">
+                  <tr key={r.id} className="hover:bg-paper transition-colors">
                     <td className="px-4 py-3">
-                      <Link href={`/inspection-sheets/${r.id}`} className="text-xs font-mono text-[#514b81] hover:text-[#7b68ee] hover:underline transition-colors">
+                      <Link href={`/inspection-sheets/${r.id}`} className="text-xs font-mono text-ink-sub hover:text-brand hover:underline transition-colors">
                         {r.sheet_code}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/inspection-sheets/${r.id}`} className="font-medium text-[#090c1d] hover:text-[#7b68ee] hover:underline transition-colors">
+                      <Link href={`/inspection-sheets/${r.id}`} className="font-medium text-ink hover:text-brand hover:underline transition-colors">
                         {r.sheet_name}
                       </Link>
-                      {r.description && <p className="text-xs text-[#b0acd6] mt-0.5 truncate max-w-[180px]">{r.description}</p>}
+                      {r.description && <p className="text-xs text-ink-faint mt-0.5 truncate max-w-[180px]">{r.description}</p>}
                     </td>
                     <td className="px-4 py-3">
                       {r.inspection_type ? (
@@ -192,11 +192,11 @@ export default async function InspectionSheetsPage({
                           {inspectionTypeLabel(r.inspection_type)}
                         </span>
                       ) : (
-                        <span className="text-xs text-[#b0acd6]">공통</span>
+                        <span className="text-xs text-ink-faint">공통</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#514b81]">v{r.version}</td>
-                    <td className="px-4 py-3 text-xs text-[#514b81]">
+                    <td className="px-4 py-3 text-xs text-ink-sub">v{r.version}</td>
+                    <td className="px-4 py-3 text-xs text-ink-sub">
                       {r.item_count?.[0]?.count ?? 0}개
                     </td>
                     <td className="px-4 py-3">
@@ -204,10 +204,10 @@ export default async function InspectionSheetsPage({
                         {r.is_active ? '활성' : '비활성'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#292d34]">{r.created_at.slice(0, 10)}</td>
+                    <td className="px-4 py-3 text-xs text-ink-strong">{r.created_at.slice(0, 10)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Link href={`/inspection-sheets/${r.id}`} className="text-xs text-[#7b68ee] hover:underline font-medium">
+                        <Link href={`/inspection-sheets/${r.id}`} className="text-xs text-brand hover:underline font-medium">
                           상세보기
                         </Link>
                         {canCreate && <SheetDeleteButton sheetId={r.id} sheetName={r.sheet_name} />}
@@ -225,14 +225,14 @@ export default async function InspectionSheetsPage({
         <div className="flex items-center justify-center gap-2 pt-2">
           {page > 1 && (
             <a href={buildPageUrl(page - 1)}
-              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
               이전
             </a>
           )}
-          <span className="text-sm text-[#514b81]">{page} / {totalPages}</span>
+          <span className="text-sm text-ink-sub">{page} / {totalPages}</span>
           {page < totalPages && (
             <a href={buildPageUrl(page + 1)}
-              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
               다음
             </a>
           )}

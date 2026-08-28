@@ -21,9 +21,9 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
 
   if (!canAssign) {
     return current ? (
-      <p className="text-sm font-semibold text-[#090c1d]">
+      <p className="text-sm font-semibold text-ink">
         {current.name}
-        {current.position && <span className="text-xs text-[#b0acd6] font-normal ml-1.5">({current.position})</span>}
+        {current.position && <span className="text-xs text-ink-faint font-normal ml-1.5">({current.position})</span>}
       </p>
     ) : (
       <p className="text-sm font-semibold text-red-500">미배정</p>
@@ -45,16 +45,16 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
         value={currentEmployeeId ?? ''}
         onChange={e => change(e.target.value)}
         disabled={isPending}
-        className={`h-8 rounded-lg border bg-white px-2 text-sm outline-none focus:border-[#7b68ee] min-w-[150px] ${
-          unassigned ? 'border-red-300 text-red-500 font-medium' : 'border-[#d0ccf5] text-[#090c1d]'}`}
+        className={`h-8 rounded-lg border bg-surface px-2 text-sm outline-none focus:border-brand min-w-[150px] ${
+          unassigned ? 'border-red-300 text-red-500 font-medium' : 'border-brand-line text-ink'}`}
       >
         <option value="">미배정</option>
         {employees.map(e => (
           <option key={e.id} value={e.id}>{e.name}{e.position ? ` (${e.position})` : ''}</option>
         ))}
       </select>
-      {isPending && <Loader2 className="size-3.5 animate-spin text-[#7b68ee]" />}
-      <span className="text-[10px] text-[#b0acd6]">선택 즉시 저장 · 배정 알림 발송</span>
+      {isPending && <Loader2 className="size-3.5 animate-spin text-brand" />}
+      <span className="text-[10px] text-ink-faint">선택 즉시 저장 · 배정 알림 발송</span>
       {err && <span className="text-[11px] text-red-500">{err}</span>}
     </span>
   )

@@ -31,7 +31,7 @@ import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
  */
 
 const numCls = (r: number, t: number) =>
-  t === 0 ? 'text-[#b0acd6]' : r === 0 ? 'text-amber-600 font-semibold' : r < t ? 'text-[#514b81]' : 'text-green-600 font-medium'
+  t === 0 ? 'text-ink-faint' : r === 0 ? 'text-amber-600 font-semibold' : r < t ? 'text-ink-sub' : 'text-green-600 font-medium'
 
 export function SheetEntryClient({
   inspectionId, customerName, roundLabel, overview,
@@ -298,11 +298,11 @@ export function SheetEntryClient({
 
   const saveChip = (() => {
     switch (autosave.status) {
-      case 'saving': return <span className="text-[11px] text-[#7b68ee] flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
+      case 'saving': return <span className="text-[11px] text-brand flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
       case 'saved': return <span className="text-[11px] text-green-600" data-testid="sheet-autosave">✓ 저장됨</span>
       case 'error': return <button onClick={() => void autosave.retry()} className="text-[11px] text-red-600 underline">저장 실패 — 다시 시도</button>
       case 'paused': return <span className="text-[11px] text-amber-600">저장 보류 — 원격 변경 확인 필요</span>
-      default: return <span className="text-[11px] text-[#b0acd6]" data-testid="sheet-autosave-idle">자동 저장</span>
+      default: return <span className="text-[11px] text-ink-faint" data-testid="sheet-autosave-idle">자동 저장</span>
     }
   })()
 
@@ -310,12 +310,12 @@ export function SheetEntryClient({
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 mb-4">
         <Link href={backHref ?? `/inspections/${inspectionId}`} data-testid="sheet-entry-back"
-          className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81]" aria-label={backHref ? '이전 화면으로' : '점검 상세로'}>
+          className="p-1.5 rounded-lg hover:bg-paper text-ink-sub" aria-label={backHref ? '이전 화면으로' : '점검 상세로'}>
           <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-[#090c1d] truncate">점검표 입력 — {customerName}</h1>
-          <p className="text-xs text-[#514b81]">{roundLabel} · 전체 {ov.totals.responded}/{ov.totals.total}
+          <h1 className="text-lg font-semibold text-ink truncate">점검표 입력 — {customerName}</h1>
+          <p className="text-xs text-ink-sub">{roundLabel} · 전체 {ov.totals.responded}/{ov.totals.total}
             {blankCount > 0 && <span className="text-amber-600 font-medium"> · ⚠ 설치 설비 중 미입력 {blankCount}개</span>}
           </p>
         </div>
@@ -324,22 +324,22 @@ export function SheetEntryClient({
 
       {canEdit && (
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <button onClick={bulkGood} disabled={busy} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">설치 설비 전체 양호 ○</button>
-          <button onClick={copyPrevious} disabled={busy} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">지난 회차 결과 불러오기</button>
+          <button onClick={bulkGood} disabled={busy} className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">설치 설비 전체 양호 ○</button>
+          <button onClick={copyPrevious} disabled={busy} className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">지난 회차 결과 불러오기</button>
           {isExterior && (
-            <label className="text-xs text-[#514b81] flex items-center gap-1.5 ml-1">점검 월
+            <label className="text-xs text-ink-sub flex items-center gap-1.5 ml-1">점검 월
               <select value={month} onChange={e => void changeMonth(Number(e.target.value))} disabled={busy}
-                className="h-8 px-2 rounded-lg border border-[#c8c4d0] text-xs" data-testid="sheet-entry-month">
+                className="h-8 px-2 rounded-lg border border-line text-xs" data-testid="sheet-entry-month">
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}월</option>)}
               </select>
             </label>
           )}
-          <button onClick={refreshOverview} disabled={busy} className="h-8 px-2.5 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50 flex items-center gap-1">
+          <button onClick={refreshOverview} disabled={busy} className="h-8 px-2.5 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50 flex items-center gap-1">
             <RefreshCw className="size-3" /> 갱신
           </button>
         </div>
       )}
-      {!canEdit && <p className="text-xs text-[#b0acd6] mb-3">보기 전용 — 이 점검 건의 담당자·팀장·관리자만 입력할 수 있습니다.</p>}
+      {!canEdit && <p className="text-xs text-ink-faint mb-3">보기 전용 — 이 점검 건의 담당자·팀장·관리자만 입력할 수 있습니다.</p>}
       {/* 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 선택은 사용자가 한다(드로어와 같은 문구·같은 규약).
           이 동안 자동저장은 pause다(훅 계약 ③) — 아래 칩이 '저장 보류'로 바뀐다 */}
       {stale && (
@@ -349,7 +349,7 @@ export function SheetEntryClient({
           </span>
           <button onClick={loadLatest} data-testid="sheet-entry-load-latest"
             title="열린 시트를 서버 값으로 다시 불러옵니다 — 아직 저장되지 않은 입력은 서버 값으로 대체됩니다"
-            className="text-xs text-[#7b68ee] font-medium hover:underline shrink-0">
+            className="text-xs text-brand font-medium hover:underline shrink-0">
             최신 불러오기
           </button>
         </div>
@@ -359,13 +359,13 @@ export function SheetEntryClient({
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,360px)_1fr] gap-4">
         {/* ── 좌: 설비 목록 ── */}
-        <div className="rounded-xl border border-[#e8e6f0] bg-white p-3">
+        <div className="rounded-xl border border-brand-line-soft bg-surface p-3">
           <div className="flex items-center gap-3 mb-2 text-[11px]">
-            <label className="flex items-center gap-1 text-[#514b81]">
+            <label className="flex items-center gap-1 text-ink-sub">
               <input type="checkbox" checked={installedOnly} onChange={e => setInstalledOnly(e.target.checked)} disabled={ov.noFacilityInfo} />
               설치 설비만
             </label>
-            <label className="flex items-center gap-1 text-[#514b81]">
+            <label className="flex items-center gap-1 text-ink-sub">
               <input type="checkbox" checked={blankOnly} onChange={e => setBlankOnly(e.target.checked)} data-testid="sheet-entry-blank-only" />
               미입력만
             </label>
@@ -378,7 +378,7 @@ export function SheetEntryClient({
                   className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center gap-2 ${
                     openId === s.sheetId ? 'bg-[#efeaff] text-[#3f2fae]'
                       : s.installed && s.responded === 0 ? 'bg-amber-50 hover:bg-amber-100'
-                        : 'hover:bg-[#f8f9fa]'}`}>
+                        : 'hover:bg-paper'}`}>
                   <span className="flex-1 truncate">{s.sheetName}</span>
                   {s.counts.X > 0 && <span className="text-red-600">✕{s.counts.X}</span>}
                   <span className={numCls(s.responded, s.total)}>{s.responded}/{s.total}</span>
@@ -386,33 +386,33 @@ export function SheetEntryClient({
                 </button>
               </li>
             ))}
-            {visible.length === 0 && <li className="text-xs text-[#b0acd6] px-2 py-3">조건에 맞는 설비가 없습니다.</li>}
+            {visible.length === 0 && <li className="text-xs text-ink-faint px-2 py-3">조건에 맞는 설비가 없습니다.</li>}
           </ul>
 
           {uncovered.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-[#e8e6f0]">
-              <p className="text-[11px] text-[#b0acd6] mb-1">덮는 점검표 없음 — 별지 결과칸은 공란으로 남습니다</p>
+            <div className="mt-3 pt-3 border-t border-brand-line-soft">
+              <p className="text-[11px] text-ink-faint mb-1">덮는 점검표 없음 — 별지 결과칸은 공란으로 남습니다</p>
               <ul className="space-y-0.5">
-                {uncovered.map(c => <li key={c} className="text-[11px] text-[#b0acd6] px-2.5 py-1">{c}</li>)}
+                {uncovered.map(c => <li key={c} className="text-[11px] text-ink-faint px-2.5 py-1">{c}</li>)}
               </ul>
             </div>
           )}
         </div>
 
         {/* ── 우: 항목 입력 ── */}
-        <div className="rounded-xl border border-[#e8e6f0] bg-white p-4 min-h-[320px]">
+        <div className="rounded-xl border border-brand-line-soft bg-surface p-4 min-h-[320px]">
           {!openSheet ? (
-            <p className="text-sm text-[#b0acd6]">왼쪽에서 설비를 선택하세요.
+            <p className="text-sm text-ink-faint">왼쪽에서 설비를 선택하세요.
               {blankCount > 0 && <> 미입력 {blankCount}개가 <span className="text-amber-600">⚠</span>로 표시돼 있습니다.</>}
             </p>
           ) : (
             <>
               <div className="flex items-baseline gap-2 mb-1">
-                <h2 className="text-sm font-semibold text-[#090c1d]">{openSheet.sheetName}</h2>
+                <h2 className="text-sm font-semibold text-ink">{openSheet.sheetName}</h2>
                 <span className={`text-xs ${numCls(openSheet.responded, openSheet.total)}`}>{openSheet.responded}/{openSheet.total}</span>
               </div>
               {siblings.length > 0 && (
-                <p className="text-[11px] text-[#514b81] mb-2">
+                <p className="text-[11px] text-ink-sub mb-2">
                   이 점검표는 {siblings.map(s => `${s.installed ? '☑' : '☐'}${s.name}`).join(' · ')}의 결과에 함께 반영됩니다.
                 </p>
               )}

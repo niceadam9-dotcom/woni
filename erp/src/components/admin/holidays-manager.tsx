@@ -78,24 +78,24 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
   return (
     <div className="space-y-6">
       {/* 연도 선택 + 국가공휴일 자동 동기화 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
-        <h2 className="text-sm font-semibold text-[#090c1d] mb-4">국가공휴일 자동 동기화</h2>
-        <p className="text-xs text-[#514b81] mb-4">
+      <div className="bg-surface rounded-xl border border-line p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
+        <h2 className="text-sm font-semibold text-ink mb-4">국가공휴일 자동 동기화</h2>
+        <p className="text-xs text-ink-sub mb-4">
           대한민국 공휴일(대체공휴일 포함)을 공공데이터포털에서 불러옵니다.
-          <strong className="text-[#514b81]"> 아래에서 직접 추가한 날짜는 덮어쓰지 않고 그대로 둡니다.</strong>{' '}
+          <strong className="text-ink-sub"> 아래에서 직접 추가한 날짜는 덮어쓰지 않고 그대로 둡니다.</strong>{' '}
           임시공휴일·선거일처럼 자동으로 받아오지 못하는 날은 직접 추가해 주세요.
-          직접 추가한 날을 다시 자동 관리로 되돌리려면 <strong className="text-[#514b81]">삭제 후 동기화</strong>하시면 됩니다.
+          직접 추가한 날을 다시 자동 관리로 되돌리려면 <strong className="text-ink-sub">삭제 후 동기화</strong>하시면 됩니다.
         </p>
-        <p className="text-xs text-[#b0acd6] mb-4">
-          자동 동기화: 매년 <strong className="text-[#514b81]">1월 1일</strong> · <strong className="text-[#514b81]">12월 1일</strong> 에{' '}
-          <strong className="text-[#514b81]">올해·내년·내후년</strong> 공휴일이 자동 갱신됩니다.
+        <p className="text-xs text-ink-faint mb-4">
+          자동 동기화: 매년 <strong className="text-ink-sub">1월 1일</strong> · <strong className="text-ink-sub">12월 1일</strong> 에{' '}
+          <strong className="text-ink-sub">올해·내년·내후년</strong> 공휴일이 자동 갱신됩니다.
           연말 점검은 6단계 마감일이 다음 해로 넘어가므로 미리 받아 둡니다.
         </p>
         <div className="flex items-center gap-3">
           <select
             value={year}
             onChange={e => setYear(Number(e.target.value))}
-            className="h-9 rounded-lg border border-[#c8c4d0] px-3 text-sm text-[#090c1d] focus:outline-none focus:ring-2 focus:ring-[#7b68ee]/30"
+            className="h-9 rounded-lg border border-line px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/30"
           >
             {yearOptions.map(y => (
               <option key={y} value={y}>{y}년</option>
@@ -104,7 +104,7 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
           <button
             onClick={handleSync}
             disabled={isPending}
-            className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[#7b68ee] text-white text-sm font-medium hover:bg-[#6647f0] disabled:opacity-60 transition-colors"
+            className="flex items-center gap-2 h-9 px-4 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-strong disabled:opacity-60 transition-colors"
           >
             {isPending ? (
               <Loader2 className="size-4 animate-spin" />
@@ -122,14 +122,14 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
       </div>
 
       {/* 회사 자체 휴무일 추가 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
-        <h2 className="text-sm font-semibold text-[#090c1d] mb-4">회사 자체 휴무일 추가</h2>
+      <div className="bg-surface rounded-xl border border-line p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
+        <h2 className="text-sm font-semibold text-ink mb-4">회사 자체 휴무일 추가</h2>
         <form onSubmit={handleAdd} className="flex items-start gap-3">
           <DateInput
             value={addDate}
             onChange={e => setAddDate(e.target.value)}
             required
-            className="h-9 rounded-lg border border-[#c8c4d0] px-3 text-sm text-[#090c1d] focus:outline-none focus:ring-2 focus:ring-[#7b68ee]/30"
+            className="h-9 rounded-lg border border-line px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           <input
             type="text"
@@ -137,7 +137,7 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
             onChange={e => setAddName(e.target.value)}
             placeholder="휴무일 이름 (예: 창립기념일)"
             required
-            className="flex-1 h-9 rounded-lg border border-[#c8c4d0] px-3 text-sm text-[#090c1d] placeholder:text-[#b0acd6] focus:outline-none focus:ring-2 focus:ring-[#7b68ee]/30"
+            className="flex-1 h-9 rounded-lg border border-line px-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           <button
             type="submit"
@@ -152,28 +152,28 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
       </div>
 
       {/* 공휴일 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
-          <h2 className="text-sm font-semibold text-[#090c1d]">{year}년 등록 공휴일</h2>
-          <span className="text-xs text-[#514b81]">{yearHolidays.length}건</span>
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h2 className="text-sm font-semibold text-ink">{year}년 등록 공휴일</h2>
+          <span className="text-xs text-ink-sub">{yearHolidays.length}건</span>
         </div>
         {yearHolidays.length === 0 ? (
-          <p className="text-sm text-[#514b81] text-center py-10">
+          <p className="text-sm text-ink-sub text-center py-10">
             등록된 공휴일이 없습니다. 위에서 동기화하거나 직접 추가하세요.
           </p>
         ) : (
-          <ul className="divide-y divide-[#c8c4d0]">
+          <ul className="divide-y divide-line">
             {yearHolidays.map(h => {
               const d = new Date(h.date)
               const dow = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
               return (
                 <li key={h.id} className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-mono text-[#090c1d]">
+                    <span className="text-sm font-mono text-ink">
                       {h.date}
                     </span>
-                    <span className="text-xs text-[#514b81]">({dow})</span>
-                    <span className="text-sm text-[#090c1d]">{h.name}</span>
+                    <span className="text-xs text-ink-sub">({dow})</span>
+                    <span className="text-sm text-ink">{h.name}</span>
                     {/* 출처 배지 — 사용자에게 중요한 건 '이 값이 어디서 왔고 동기화에 지워지는가'다.
                         수동 등록분만 자동 동기화에서 보존된다(마이그레이션 139) */}
                     {h.source === 'manual' ? (
@@ -183,7 +183,7 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
                       </span>
                     ) : h.source === 'api' ? (
                       <span title="공공데이터포털 특일 정보 — 대체공휴일까지 확정된 값"
-                        className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#7b68ee]/10 text-[#7b68ee]">
+                        className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand/10 text-brand">
                         확정(공공API)
                       </span>
                     ) : (
@@ -193,13 +193,13 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
                       </span>
                     )}
                     {!h.is_national && (
-                      <span className="text-xs text-[#b0acd6]">자체휴무</span>
+                      <span className="text-xs text-ink-faint">자체휴무</span>
                     )}
                   </div>
                   <button
                     onClick={() => handleDelete(h.id)}
                     disabled={isPending}
-                    className="p-1.5 rounded-lg text-[#b0acd6] hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                    className="p-1.5 rounded-lg text-ink-faint hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
                     title="삭제"
                   >
                     <Trash2 className="size-4" />

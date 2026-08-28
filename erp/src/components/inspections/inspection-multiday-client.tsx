@@ -29,20 +29,20 @@ export function InspectionMultidayClient({ inspectionId, startDate, endDate, day
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
       <div className="flex items-center gap-2 mb-2">
-        <CalendarRange className="size-4 text-[#7b68ee]" />
-        <h3 className="text-sm font-semibold text-[#090c1d]">점검 기간 <span className="text-xs font-normal text-[#b0acd6]">다일 점검 시 종료일</span></h3>
-        <span className="ml-auto text-xs text-[#514b81]">시작 {startDate}{end ? ` ~ 종료 ${end}` : ''}</span>
+        <CalendarRange className="size-4 text-brand" />
+        <h3 className="text-sm font-semibold text-ink">점검 기간 <span className="text-xs font-normal text-ink-faint">다일 점검 시 종료일</span></h3>
+        <span className="ml-auto text-xs text-ink-sub">시작 {startDate}{end ? ` ~ 종료 ${end}` : ''}</span>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-[#514b81]">종료일</span>
+        <span className="text-xs text-ink-sub">종료일</span>
         <DateInput value={end} onChange={e => setEnd(e.target.value)} disabled={!canManage} className="text-sm h-8" />
-        <span className="text-xs text-[#514b81] ml-2">일수</span>
+        <span className="text-xs text-ink-sub ml-2">일수</span>
         <input value={d} onChange={e => setD(e.target.value.replace(/\D/g, ''))} disabled={!canManage}
-          className="h-8 w-14 rounded-lg border border-[#d0ccf5] px-2 text-sm outline-none focus:border-[#7b68ee]" />
+          className="h-8 w-14 rounded-lg border border-brand-line px-2 text-sm outline-none focus:border-brand" />
         {canManage && (
-          <button onClick={save} disabled={isPending} className="h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1">
+          <button onClick={save} disabled={isPending} className="h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1">
             {isPending && <Loader2 className="size-3.5 animate-spin" />} 저장
           </button>
         )}

@@ -15,9 +15,9 @@ type FilterKey = 'all' | 'r9NotSubmitted' | 'overdue' | 'certMissing' | 'complet
 const cell = 'px-2 py-2 text-xs'
 
 function Mark({ ok, na, warn, label }: { ok?: boolean; na?: boolean; warn?: boolean; label: string }) {
-  if (na) return <span className="inline-flex items-center gap-1 text-[#b0acd6]"><Circle className="size-3" /> {label}</span>
+  if (na) return <span className="inline-flex items-center gap-1 text-ink-faint"><Circle className="size-3" /> {label}</span>
   if (ok) return <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="size-3" /> {label}</span>
-  return <span className={`inline-flex items-center gap-1 ${warn ? 'text-amber-600' : 'text-[#b0acd6]'}`}><AlertTriangle className="size-3" /> {label}</span>
+  return <span className={`inline-flex items-center gap-1 ${warn ? 'text-amber-600' : 'text-ink-faint'}`}><AlertTriangle className="size-3" /> {label}</span>
 }
 
 /** R10-c: 배치확인서 누락 셀 — ✅보유 / ⚠누락+[업로드] 그 자리 실행 (판정=hasCertFile 공유, 업로드=타임라인 액션 재사용) */
@@ -113,7 +113,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
   } : summary
 
   const strip: Array<{ key: FilterKey; label: string; value: number; tone: string }> = [
-    { key: 'completed', label: '이번 달 자체점검', value: effSummary.monthSelf, tone: 'text-[#514b81]' },
+    { key: 'completed', label: '이번 달 자체점검', value: effSummary.monthSelf, tone: 'text-ink-sub' },
     { key: 'completed', label: '완료', value: effSummary.completed, tone: 'text-green-700' },
     { key: 'r9NotSubmitted', label: '9호 미제출', value: effSummary.r9NotSubmitted, tone: 'text-amber-600' },
     { key: 'overdue', label: '기한 초과', value: effSummary.overdue, tone: 'text-red-600' },
@@ -121,21 +121,21 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
   ]
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-1">
-        <h2 className="text-sm font-semibold text-[#090c1d]">제출 현황</h2>
-        <span className="text-[11px] text-[#b0acd6]">타임라인에서 일하면 저절로 채워집니다 · 최근 90일</span>
+        <h2 className="text-sm font-semibold text-ink">제출 현황</h2>
+        <span className="text-[11px] text-ink-faint">타임라인에서 일하면 저절로 채워집니다 · 최근 90일</span>
         <div className="ml-auto flex items-center gap-2">
           {/* P-4: '내 담당만' 개인화 필터 — 직원 기본 ON */}
           <button onClick={() => setMine(v => !v)} title="내가 배정된 점검 건만 봅니다"
             className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] font-medium ${
-              mine ? 'border-[#7b68ee] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:border-[#7b68ee]'}`}>
+              mine ? 'border-brand bg-brand-tint text-brand' : 'border-brand-line text-ink-sub hover:border-brand'}`}>
             <User className="size-3" /> 내 담당만
           </button>
           {/* P-5·R14-f: 엑셀 내보내기 — 현재 화면(필터 반영) 기준 */}
           <button onClick={() => startExport(() => { void exportRows(filtered) })} disabled={exporting || filtered.length === 0}
             title="현재 표시 중인 목록을 엑셀로 내보냅니다"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] font-medium text-[#514b81] hover:border-[#7b68ee] hover:text-[#7b68ee] disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] font-medium text-ink-sub hover:border-brand hover:text-brand disabled:opacity-50">
             {exporting ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 엑셀
           </button>
         </div>
@@ -150,24 +150,24 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
           const active = filter === s.key && (s.key !== 'completed' || s.label === '완료')
           return (
             <button key={idx} onClick={() => setFilter(f => (f === s.key ? 'all' : s.key))}
-              className={`px-3 py-1.5 rounded-lg border text-left ${active ? 'border-[#7b68ee] bg-[#f5f4ff]' : 'border-[#e0ddf5] hover:border-[#7b68ee]'}`}>
+              className={`px-3 py-1.5 rounded-lg border text-left ${active ? 'border-brand bg-brand-tint' : 'border-brand-line-soft hover:border-brand'}`}>
               <span className={`text-lg font-bold ${s.tone}`}>{s.value}</span>
-              <span className="text-[10px] text-[#514b81] ml-1.5">{s.label}</span>
+              <span className="text-[10px] text-ink-sub ml-1.5">{s.label}</span>
             </button>
           )
         })}
         {filter !== 'all' && (
-          <button onClick={() => setFilter('all')} className="text-[11px] text-[#7b68ee] hover:underline self-center">전체 보기</button>
+          <button onClick={() => setFilter('all')} className="text-[11px] text-brand hover:underline self-center">전체 보기</button>
         )}
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-[#b0acd6] py-6 text-center">최근 90일 자체점검 건이 없습니다</p>
+        <p className="text-sm text-ink-faint py-6 text-center">최근 90일 자체점검 건이 없습니다</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px]">
             <thead>
-              <tr className="text-[10px] text-[#b0acd6] border-b border-[#eceafd]">
+              <tr className="text-[10px] text-ink-faint border-b border-brand-tint">
                 <th className={`${cell} text-left`}>고객 · 차수</th>
                 <th className={`${cell} text-left`}>담당자</th>
                 <th className={`${cell} text-left`}>9호 생성</th>
@@ -183,23 +183,23 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                 const submitted = r.report9SubmittedAt
                 const overdue = r.due9Dday !== null && r.due9Dday < 0
                 return (
-                  <tr key={r.inspectionId} className="border-b border-[#f8f9fa] hover:bg-[#fafaff]">
+                  <tr key={r.inspectionId} className="border-b border-paper hover:bg-brand-tint">
                     <td className={cell}>
-                      <Link href={`/customers/${r.customerId}?tab=plan&form=annex`} className="font-medium text-[#090c1d] hover:text-[#7b68ee]">{r.customerName}</Link>
-                      <span className="text-[#b0acd6] ml-1">{r.year}-{r.sequenceNum}차</span>
+                      <Link href={`/customers/${r.customerId}?tab=plan&form=annex`} className="font-medium text-ink hover:text-brand">{r.customerName}</Link>
+                      <span className="text-ink-faint ml-1">{r.year}-{r.sequenceNum}차</span>
                       {r.status !== 'completed' && <span className="ml-1 text-[10px] text-blue-500">진행중</span>}
                     </td>
                     <td className={cell}>
                       {r.assigneeName
-                        ? <span className={`text-[#514b81] ${r.assigneeId === myId ? 'font-semibold text-[#7b68ee]' : ''}`}>{r.assigneeName}</span>
-                        : <span className="text-[#b0acd6]">미배정</span>}
+                        ? <span className={`text-ink-sub ${r.assigneeId === myId ? 'font-semibold text-brand' : ''}`}>{r.assigneeName}</span>
+                        : <span className="text-ink-faint">미배정</span>}
                     </td>
                     <td className={cell}><Mark ok={r.report9Gen} warn={!r.report9Gen} label={r.report9Gen ? '생성' : '미생성'} /></td>
                     <td className={cell}><Mark ok={r.report9Sent} warn={r.report9Gen && !r.report9Sent} label={r.report9Sent ? '발송' : '미발송'} /></td>
                     <td className={cell}>
                       {submitted
                         ? <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="size-3" /> {submitted}</span>
-                        : <span className={`inline-flex items-center gap-1 font-semibold ${overdue ? 'text-red-600' : (r.due9Dday ?? 99) <= 7 ? 'text-amber-700' : 'text-[#b0acd6]'}`}>
+                        : <span className={`inline-flex items-center gap-1 font-semibold ${overdue ? 'text-red-600' : (r.due9Dday ?? 99) <= 7 ? 'text-amber-700' : 'text-ink-faint'}`}>
                             <Clock3 className="size-3" /> {r.due9Dday === null ? '기한 미정' : overdue ? `초과 ${-r.due9Dday!}일` : `D-${r.due9Dday}`}
                           </span>}
                     </td>
@@ -211,7 +211,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
               })}
             </tbody>
           </table>
-          {filtered.length === 0 && <p className="text-xs text-[#b0acd6] py-4 text-center">해당 조건의 건이 없습니다</p>}
+          {filtered.length === 0 && <p className="text-xs text-ink-faint py-4 text-center">해당 조건의 건이 없습니다</p>}
         </div>
       )}
     </div>

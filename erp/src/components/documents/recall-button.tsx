@@ -35,7 +35,7 @@ export function RecallButton({ documentId }: { documentId: string }) {
         {confirm ? '확인 (회수)' : '문서 회수'}
       </button>
       {confirm && !isPending && (
-        <button onClick={() => setConfirm(false)} className="text-xs text-[#514b81] hover:underline">
+        <button onClick={() => setConfirm(false)} className="text-xs text-ink-sub hover:underline">
           취소
         </button>
       )}

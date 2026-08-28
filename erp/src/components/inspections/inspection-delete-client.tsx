@@ -38,7 +38,7 @@ export function InspectionDeleteClient({ inspectionId }: { inspectionId: string 
               {isDeleting && <Loader2 className="size-3 animate-spin" />} 삭제
             </button>
             <button onClick={() => setShowConfirm(false)}
-              className="px-3 py-1.5 border border-[#c8c4d0] text-xs text-[#514b81] rounded-lg hover:bg-white transition-colors">
+              className="px-3 py-1.5 border border-line text-xs text-ink-sub rounded-lg hover:bg-surface transition-colors">
               취소
             </button>
           </div>

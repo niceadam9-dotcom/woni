@@ -109,10 +109,10 @@ export function TaxInvoiceIssueClient({
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <CheckCircle className="size-16 text-emerald-500" />
-        <p className="text-xl font-bold text-[#090c1d]">세금계산서가 발행 처리되었습니다.</p>
+        <p className="text-xl font-bold text-ink">세금계산서가 발행 처리되었습니다.</p>
         <button
           onClick={() => router.push('/tax-invoices')}
-          className="flex items-center gap-2 mt-4 bg-[#7b68ee] text-white px-6 py-2.5 rounded-lg text-sm font-medium"
+          className="flex items-center gap-2 mt-4 bg-brand text-white px-6 py-2.5 rounded-lg text-sm font-medium"
         >
           <ArrowLeft size={14} /> 목록으로 돌아가기
         </button>
@@ -149,7 +149,7 @@ export function TaxInvoiceIssueClient({
       </div>
 
       {/* 세금계산서 양식 */}
-      <div className="bg-white border-2 border-gray-800 p-0 print:border-black" id="tax-invoice-form">
+      <div className="bg-surface border-2 border-gray-800 p-0 print:border-black" id="tax-invoice-form">
         {/* 제목 */}
         <div className="border-b-2 border-gray-800 text-center py-2">
           <h1 className="text-lg font-bold tracking-widest">전 자 세 금 계 산 서</h1>
@@ -283,7 +283,7 @@ export function TaxInvoiceIssueClient({
           </div>
           <div className="px-3 py-2">
             <span className="text-gray-500">합계 금액</span>
-            <p className="font-bold text-base mt-0.5 text-[#7b68ee]">{fmt(totalAmount)}</p>
+            <p className="font-bold text-base mt-0.5 text-brand">{fmt(totalAmount)}</p>
           </div>
         </div>
 
@@ -301,7 +301,7 @@ export function TaxInvoiceIssueClient({
       </div>
 
       {/* 발행 처리 폼 */}
-      <div className="bg-white rounded-xl border p-5 space-y-4 print:hidden">
+      <div className="bg-surface rounded-xl border p-5 space-y-4 print:hidden">
         <h2 className="font-semibold text-sm">발행 처리</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -334,14 +334,14 @@ export function TaxInvoiceIssueClient({
             href="https://www.hometax.go.kr"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-[#7b68ee] hover:underline"
+            className="flex items-center gap-1 text-xs text-brand hover:underline"
           >
             <ExternalLink size={11} /> 홈택스 발행하기
           </a>
           <button
             onClick={handleSubmit}
             disabled={pending}
-            className="bg-[#7b68ee] text-white rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-50"
+            className="bg-brand text-white rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-50"
           >
             {pending ? '저장 중…' : inv?.issued ? '수정 저장' : '발행 완료 처리'}
           </button>

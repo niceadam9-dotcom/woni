@@ -61,35 +61,35 @@ export function PlanForm16({ customerId, canManage, initial }: {
     })
   }
 
-  const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]'
+  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
   const chip = (on: boolean) => `h-6 px-2 rounded-full text-[11px] border transition-colors ${
-    on ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`
+    on ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`
   const field = (label: string, node: React.ReactNode) => (
-    <div><label className="text-[10px] text-[#b0acd6] block">{label}</label>{node}</div>
+    <div><label className="text-[10px] text-ink-faint block">{label}</label>{node}</div>
   )
 
   return (
     <div className="space-y-4">
       {/* 전기 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-[#514b81]">전기 시설</p>
+          <p className="text-xs font-semibold text-ink-sub">전기 시설</p>
         </div>
         <div className="flex items-end gap-2 flex-wrap">
-          {field('수전 용량', <NumField value={v.electric.kw} disabled={!canManage} decimal unit="kW" onChange={kw => pe({ kw })} className="h-7 w-24 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
-          {field('변압기', <NumField value={v.electric.kva} disabled={!canManage} decimal unit="kVA" onChange={kva => pe({ kva })} className="h-7 w-24 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
+          {field('수전 용량', <NumField value={v.electric.kw} disabled={!canManage} decimal unit="kW" onChange={kw => pe({ kw })} className="h-7 w-24 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />)}
+          {field('변압기', <NumField value={v.electric.kva} disabled={!canManage} decimal unit="kVA" onChange={kva => pe({ kva })} className="h-7 w-24 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />)}
           {field('위치', <input value={v.electric.location} disabled={!canManage} onChange={e => pe({ location: e.target.value })} className={`${inputCls} w-32`} />)}
-          {field('수량', <NumField value={v.electric.qty} disabled={!canManage} unit="개" onChange={qty => pe({ qty })} className="h-7 w-16 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />)}
+          {field('수량', <NumField value={v.electric.qty} disabled={!canManage} unit="개" onChange={qty => pe({ qty })} className="h-7 w-16 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />)}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-[#514b81]">비상발전기</span>
+          <span className="text-[11px] font-medium text-ink-sub">비상발전기</span>
           <button disabled={!canManage} className={chip(v.electric.generator)} onClick={() => pe({ generator: !v.electric.generator })}>
             {v.electric.generator ? '있음' : '없음'}
           </button>
           {v.electric.generator && (<>
-            <NumField value={v.electric.genKw ?? ''} disabled={!canManage} decimal unit="kW" onChange={genKw => pe({ genKw })} className="h-7 w-20 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />
+            <NumField value={v.electric.genKw ?? ''} disabled={!canManage} decimal unit="kW" onChange={genKw => pe({ genKw })} className="h-7 w-20 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />
             <input value={v.electric.genLocation ?? ''} disabled={!canManage} placeholder="위치" onChange={e => pe({ genLocation: e.target.value })} className={`${inputCls} w-28`} />
-            <NumField value={v.electric.genQty ?? ''} disabled={!canManage} unit="대" onChange={genQty => pe({ genQty })} className="h-7 w-16 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />
+            <NumField value={v.electric.genQty ?? ''} disabled={!canManage} unit="대" onChange={genQty => pe({ genQty })} className="h-7 w-16 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />
             {v.electric.generatorNote.trim() !== '' && (
               <input value={v.electric.generatorNote} disabled={!canManage} placeholder="비고(구 자유입력)" onChange={e => pe({ generatorNote: e.target.value })} className={`${inputCls} w-36`} />
             )}
@@ -99,11 +99,11 @@ export function PlanForm16({ customerId, canManage, initial }: {
       </div>
 
       {/* 가스 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4 space-y-2">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-[#514b81]">가스 시설</p>
+          <p className="text-xs font-semibold text-ink-sub">가스 시설</p>
           {canManage && (
-            <button onClick={lpgPreset} className="h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+            <button onClick={lpgPreset} className="h-6 px-2 rounded-full border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               + LPG 프리셋
             </button>
           )}
@@ -114,12 +114,12 @@ export function PlanForm16({ customerId, canManage, initial }: {
           {field('용도', <input value={v.gas.usage} disabled={!canManage} placeholder="취사·난방" onChange={e => pg({ usage: e.target.value })} className={`${inputCls} w-28`} />)}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-[#514b81]">정압기</span>
+          <span className="text-[11px] font-medium text-ink-sub">정압기</span>
           <button disabled={!canManage} className={chip(v.gas.regulator)} onClick={() => pg({ regulator: !v.gas.regulator })}>{v.gas.regulator ? '있음' : '없음'}</button>
           {v.gas.regulator && (
             <input value={v.gas.regulatorLocation ?? ''} disabled={!canManage} placeholder="정압기 위치" onChange={e => pg({ regulatorLocation: e.target.value })} className={`${inputCls} w-36`} />
           )}
-          <span className="text-[11px] font-medium text-[#514b81]">차단기구</span>
+          <span className="text-[11px] font-medium text-ink-sub">차단기구</span>
           <button disabled={!canManage} className={chip(v.gas.shutoff)} onClick={() => pg({ shutoff: !v.gas.shutoff })}>{v.gas.shutoff ? '있음' : '없음'}</button>
           {v.gas.shutoff && (
             <input value={v.gas.shutoffLocation} disabled={!canManage} placeholder="차단기 위치" onChange={e => pg({ shutoffLocation: e.target.value })} className={`${inputCls} w-36`} />
@@ -128,9 +128,9 @@ export function PlanForm16({ customerId, canManage, initial }: {
       </div>
 
       {/* 위험물 — 해당없음 원클릭 (§11-3) */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-xs font-semibold text-[#514b81]">위험물</p>
+          <p className="text-xs font-semibold text-ink-sub">위험물</p>
           <button disabled={!canManage} className={chip(v.hazmat.none)} onClick={() => ph({ none: !v.hazmat.none })}>해당없음</button>
           {!v.hazmat.none && (
             <input value={v.hazmat.note} disabled={!canManage} placeholder="품명·수량·저장 위치" onChange={e => ph({ note: e.target.value })} className={`${inputCls} flex-1 min-w-48`} />
@@ -141,10 +141,10 @@ export function PlanForm16({ customerId, canManage, initial }: {
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.6 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

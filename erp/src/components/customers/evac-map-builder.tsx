@@ -172,21 +172,21 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
 
   const toolBtn = (active: boolean) =>
     `inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] transition-colors ${
-      active ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'
+      active ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'
     }`
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl border border-[#c8c4d0] w-full max-w-4xl p-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-4xl p-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-sm font-semibold text-[#090c1d]">피난안내도 생성 <span className="text-[11px] font-normal text-[#b0acd6]">— 표준 아이콘 개략도 (실측 도면 아님)</span></p>
-          <button onClick={onClose} className="ml-auto text-[#b0acd6] hover:text-[#514b81]"><X className="size-4" /></button>
+          <p className="text-sm font-semibold text-ink">피난안내도 생성 <span className="text-[11px] font-normal text-ink-faint">— 표준 아이콘 개략도 (실측 도면 아님)</span></p>
+          <button onClick={onClose} className="ml-auto text-ink-faint hover:text-ink-sub"><X className="size-4" /></button>
         </div>
 
         {/* 팔레트·도구 */}
         <div className="flex items-center gap-1.5 flex-wrap mb-2">
           <input value={floor} onChange={e => setFloor(e.target.value)} placeholder="층 표기 (예: 1층)"
-            className="h-7 w-24 rounded-lg border border-[#d0ccf5] px-2 text-[11px] outline-none focus:border-[#7b68ee]" />
+            className="h-7 w-24 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
           <button onClick={() => setMode('move')} className={toolBtn(mode === 'move')} title="배치된 항목 드래그 이동 · 화살표 더블클릭 = 45° 회전">
             <MousePointer2 className="size-3" /> 이동
           </button>
@@ -208,7 +208,7 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
 
         {/* 도면 캔버스 */}
         <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg"
-          className="w-full rounded-lg border border-[#e0ddf5] cursor-crosshair select-none"
+          className="w-full rounded-lg border border-brand-line-soft cursor-crosshair select-none"
           onClick={handleCanvasClick} onPointerMove={handlePointerMove}
           onPointerUp={() => setDragId(null)} onPointerLeave={() => setDragId(null)}>
           <rect width={W} height={H} fill="#ffffff" />
@@ -252,15 +252,15 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
         </svg>
 
         <div className="flex items-center gap-2 mt-3">
-          <p className="text-[10px] text-[#b0acd6]">
+          <p className="text-[10px] text-ink-faint">
             팔레트 선택 후 도면을 클릭해 배치 · [이동]에서 드래그, 화살표 더블클릭 = 회전 · [구획선]은 두 점 클릭 · 그리던 내용은 자동 저장됩니다
           </p>
           <button onClick={onClose} disabled={saving}
-            className="ml-auto h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+            className="ml-auto h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-paper transition-colors disabled:opacity-50">
             취소
           </button>
           <button onClick={exportPng} disabled={saving || items.length === 0}
-            className="inline-flex items-center gap-1 h-8 px-3.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50">
             {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} PNG로 등록
           </button>
         </div>

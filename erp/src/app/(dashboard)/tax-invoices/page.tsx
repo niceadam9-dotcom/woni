@@ -25,7 +25,7 @@ export default async function TaxInvoicesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Receipt className="size-5 text-[#7b68ee]" />
+        <Receipt className="size-5 text-brand" />
         <h1 className="text-xl font-bold">세금계산서 발행</h1>
       </div>
 

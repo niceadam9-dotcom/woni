@@ -38,13 +38,13 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <div className="flex items-center gap-3 pb-3">
-        <h1 className="text-sm font-semibold text-[#090c1d] truncate">{title}</h1>
-        <span className="text-xs text-[#b0acd6] truncate">{fileName}</span>
+        <h1 className="text-sm font-semibold text-ink truncate">{title}</h1>
+        <span className="text-xs text-ink-faint truncate">{fileName}</span>
         <div className="ml-auto flex gap-2 shrink-0">
           <button
             onClick={doPrint}
             disabled={!blobUrl}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50"
           >
             <Printer className="size-3.5" /> 인쇄
           </button>
@@ -52,7 +52,7 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
             <a
               href={blobUrl}
               download={fileName}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors"
             >
               <Download className="size-3.5" /> PDF 저장
             </a>
@@ -63,7 +63,7 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
       {error ? (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>
       ) : !blobUrl ? (
-        <div className="flex-1 flex items-center justify-center text-[#514b81] text-sm gap-2">
+        <div className="flex-1 flex items-center justify-center text-ink-sub text-sm gap-2">
           <Loader2 className="size-4 animate-spin" /> PDF 불러오는 중…
         </div>
       ) : (
@@ -71,7 +71,7 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
           ref={iframeRef}
           src={blobUrl}
           title={title}
-          className="flex-1 w-full rounded-xl border border-[#c8c4d0] bg-white"
+          className="flex-1 w-full rounded-xl border border-line bg-surface"
           onLoad={() => {
             // 자동 인쇄는 1회만 — 이후엔 상단 [인쇄] 버튼으로
             if (printedRef.current) return

@@ -1,9 +1,11 @@
 'use server'
 
+import { cookies } from 'next/headers'
 import { getSessionUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createVerifierClient } from '@supabase/supabase-js'
 import type { NotifyCategory } from '@/lib/notify'
+import { THEME_COOKIE, THEME_COOKIE_OPTIONS, isTheme } from '@/lib/theme'
 
 const PREF_KEYS: NotifyCategory[] = ['approval_result', 'leave_result', 'assignment', 'deadline']
 
@@ -26,6 +28,25 @@ export async function updateNotificationPrefsAction(
     .update({ notification_prefs: clean } as Record<string, unknown>)
     .eq('id', user.id)
   if (error) return { error: '알림 설정 저장에 실패했습니다.' }
+  return {}
+}
+
+/** 개인 화면 테마 저장 (소방계획서_29 S1-3) — 정본 profiles.theme + 쿠키(첫 페인트 캐시) 동시 기록.
+ *  DB가 실패하면(151 미적용 등) 쿠키도 안 만진다 — 정본과 캐시가 갈라지면 기기마다 다른 화면이 된다. */
+export async function updateThemeAction(theme: string): Promise<{ error?: string }> {
+  if (!isTheme(theme)) return { error: '허용되지 않는 테마 값입니다.' }
+  const user = await getSessionUser()
+  if (!user) return { error: '인증이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ theme } as Record<string, unknown>)
+    .eq('id', user.id)
+  if (error) return { error: '테마 저장에 실패했습니다.' }
+
+  const jar = await cookies()
+  jar.set(THEME_COOKIE, theme, THEME_COOKIE_OPTIONS)
   return {}
 }
 

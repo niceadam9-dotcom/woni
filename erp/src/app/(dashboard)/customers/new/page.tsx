@@ -29,10 +29,10 @@ export default async function CustomersNewPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <UserPlus className="size-6 text-[#7b68ee]" />
+        <UserPlus className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">고객 등록</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">새 고객과 관계인 정보를 등록합니다</p>
+          <h1 className="text-xl font-bold text-ink">고객 등록</h1>
+          <p className="text-sm text-ink-sub mt-0.5">새 고객과 관계인 정보를 등록합니다</p>
         </div>
       </div>
       <CustomerNewClient employees={employees} defaultRegionSi={defaultRegionSi} purposes={purposes} />

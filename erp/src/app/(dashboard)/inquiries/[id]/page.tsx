@@ -51,20 +51,20 @@ export default async function InquiryDetailPage({
   return (
     <div className="space-y-6">
       {/* 브레드크럼 */}
-      <div className="flex items-center gap-1.5 text-sm text-[#514b81]">
-        <Link href="/inquiries" className="hover:text-[#7b68ee] flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-ink-sub">
+        <Link href="/inquiries" className="hover:text-brand flex items-center gap-1">
           <MessageCircle className="size-3.5" />
           문의요청 관리
         </Link>
-        <ChevronRight className="size-3.5 text-[#b0acd6]" />
-        <span className="text-[#090c1d] font-medium truncate max-w-[200px]">{inq.title}</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+        <span className="text-ink font-medium truncate max-w-[200px]">{inq.title}</span>
       </div>
 
       {/* 헤더 */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">{inq.title}</h1>
-          <div className="flex items-center gap-3 mt-1 text-xs text-[#514b81]">
+          <h1 className="text-xl font-bold text-ink">{inq.title}</h1>
+          <div className="flex items-center gap-3 mt-1 text-xs text-ink-sub">
             {inq.customers && <span>{inq.customers.customer_name}</span>}
             <span>등록자: {inq.creator?.name ?? '-'}</span>
             <span>접수일: {inq.created_at.slice(0, 10)}</span>
@@ -74,7 +74,7 @@ export default async function InquiryDetailPage({
         {inq.customers && (
           <Link
             href={`/customers/${inq.customers.id}`}
-            className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors flex items-center shrink-0"
+            className="h-8 px-3 rounded-lg border border-line text-xs text-brand hover:bg-brand-tint transition-colors flex items-center shrink-0"
           >
             고객사 상세보기
           </Link>

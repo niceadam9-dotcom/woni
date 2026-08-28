@@ -7,8 +7,8 @@ import { createPartnerAction, updatePartnerAction, type PartnerType } from '@/ap
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatBizNo, formatBizNoKR, formatTel } from '@/lib/format-contact'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
-const labelCls = 'text-xs font-medium text-[#514b81]'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const labelCls = 'text-xs font-medium text-ink-sub'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -94,13 +94,13 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <section className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#090c1d]">거래처 기본정보</h2>
+      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">거래처 기본정보</h2>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="업체명" required>
             <div className="relative">
-              <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.partner_name} onChange={e => setField('partner_name', e.target.value)}
                 placeholder="업체명" className={`${inputCls} pl-8`} />
             </div>
@@ -115,14 +115,14 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="사업자등록번호">
             <div className="relative">
-              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.business_number} onChange={e => setField('business_number', formatBizNoKR(e.target.value))}
                 inputMode="numeric" placeholder="000-00-00000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="대표자">
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.representative} onChange={e => setField('representative', e.target.value)}
                 placeholder="대표자명" className={`${inputCls} pl-8`} />
             </div>
@@ -132,14 +132,14 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="연락처">
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={form.phone} onChange={e => setField('phone', formatPhoneKR(e.target.value))}
                 inputMode="tel" placeholder="02-0000-0000" className={`${inputCls} pl-8`} />
             </div>
           </Field>
           <Field label="이메일">
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input type="email" value={form.email} onChange={e => setField('email', e.target.value)}
                 placeholder="example@company.com" className={`${inputCls} pl-8`} />
             </div>
@@ -148,7 +148,7 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
 
         <Field label="주소">
           <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6]" />
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
             <input value={form.address} onChange={e => setField('address', e.target.value)}
               placeholder="사업장 주소" className={`${inputCls} pl-8`} />
           </div>
@@ -157,17 +157,17 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
         <Field label="비고">
           <textarea value={form.notes} onChange={e => setField('notes', e.target.value)}
             placeholder="특이사항" rows={2}
-            className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition resize-none" />
+            className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none" />
         </Field>
 
         {existing && (
           <div className="flex items-center gap-3">
             <span className={labelCls}>활성 상태</span>
             <button type="button" onClick={() => setField('is_active', !form.is_active)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.is_active ? 'bg-[#7b68ee]' : 'bg-gray-200'}`}>
-              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${form.is_active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.is_active ? 'bg-brand' : 'bg-gray-200'}`}>
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface transition-transform ${form.is_active ? 'translate-x-4' : 'translate-x-0.5'}`} />
             </button>
-            <span className="text-xs text-[#514b81]">{form.is_active ? '활성' : '비활성'}</span>
+            <span className="text-xs text-ink-sub">{form.is_active ? '활성' : '비활성'}</span>
           </div>
         )}
       </section>
@@ -176,7 +176,7 @@ export function PartnerFormClient({ existing }: { existing?: Partner }) {
 
       <div className="flex gap-3 pb-8">
         <button type="button" onClick={() => router.back()}
-          className="flex-1 h-11 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors">
+          className="flex-1 h-11 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors">
           취소
         </button>
         <button type="button" onClick={handleSubmit} disabled={isPending}

@@ -22,9 +22,9 @@ const GRADES = ['특급', '1급', '2급', '3급']
 const REP_ROLES = ['소유자', '관리자', '점유자']
 const APPOINT_TYPES = ['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타']
 
-const labelCls = 'text-[11px] font-medium text-[#514b81]'
-const inputCls = 'h-8 rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]'
-const segBtn = (on: boolean) => `px-2.5 h-8 text-xs ${on ? 'bg-[#7b68ee] text-white' : 'bg-white text-[#514b81] hover:bg-[#f5f4ff]'}`
+const labelCls = 'text-[11px] font-medium text-ink-sub'
+const inputCls = 'h-8 rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none focus:border-brand'
+const segBtn = (on: boolean) => `px-2.5 h-8 text-xs ${on ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`
 
 export type FireSafetyManagerInitial = FireSafetyManagerInput
 
@@ -85,11 +85,11 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
   }
 
   return (
-    <div id="c-fire-safety-manager" className="scroll-mt-4 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-3.5 space-y-3">
+    <div id="c-fire-safety-manager" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-3.5 space-y-3">
       <div className="flex items-center gap-1.5">
-        <ShieldCheck className="size-3.5 text-[#7b68ee]" />
-        <p className="text-xs font-semibold text-[#090c1d]">소방안전관리</p>
-        <span className="text-[10px] text-[#b0acd6]">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
+        <ShieldCheck className="size-3.5 text-brand" />
+        <p className="text-xs font-semibold text-ink">소방안전관리</p>
+        <span className="text-[10px] text-ink-faint">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
         {dirty && <span className="ml-auto text-[10px] text-amber-600 font-medium">미저장</span>}
       </div>
 
@@ -106,14 +106,14 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             ))}
           </select>
           {picked ? (
-            <span className="inline-flex items-center gap-1 text-[11px] text-[#514b81]">
-              <Phone className="size-3 text-[#b0acd6]" />
+            <span className="inline-flex items-center gap-1 text-[11px] text-ink-sub">
+              <Phone className="size-3 text-ink-faint" />
               {picked.phone
                 ? formatTel(picked.phone)
                 : <span className="text-amber-600">전화 없음 — 위 관계인 카드에서 번호를 채우면 문서에 실립니다</span>}
             </span>
           ) : (
-            <span className="text-[11px] text-[#b0acd6]">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
+            <span className="text-[11px] text-ink-faint">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
           )}
         </div>
       </div>
@@ -121,9 +121,9 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       <div className="flex flex-wrap gap-3 items-end">
         {/* ② 대상물 등급 — 사람이 아니라 건물 속성이라는 걸 라벨에 못박는다 */}
         <div>
-          <label className={labelCls}>소방안전관리등급 <span className="text-[#b0acd6]">(대상물 급수 · 별표4)</span></label>
+          <label className={labelCls}>소방안전관리등급 <span className="text-ink-faint">(대상물 급수 · 별표4)</span></label>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden">
+            <div className="flex rounded-lg border border-brand-line overflow-hidden">
               {GRADES.map(g => (
                 <button key={g} disabled={!canManage} onClick={() => toggle('buildingGrade', g)}
                   className={segBtn(d.buildingGrade === g)}>{g}</button>
@@ -131,18 +131,18 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             </div>
             {canManage && (
               <button onClick={applySuggest} title="연면적·층수·높이·설비로 별표4 등급을 계산합니다 (제안 — 저장은 직접)"
-                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
                 <Sparkles className="size-3" /> 자동 산정
               </button>
             )}
           </div>
-          {gradeReason && <p className="text-[10px] text-[#7b68ee] mt-0.5">근거: {gradeReason}</p>}
+          {gradeReason && <p className="text-[10px] text-brand mt-0.5">근거: {gradeReason}</p>}
         </div>
 
         {/* ③ 사람의 자격구분 — 위 등급과 다른 축임을 표시 */}
         <div>
-          <label className={labelCls}>관리자 자격구분 <span className="text-[#b0acd6]">(사람 · 등급과 별개)</span></label>
-          <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden mt-0.5">
+          <label className={labelCls}>관리자 자격구분 <span className="text-ink-faint">(사람 · 등급과 별개)</span></label>
+          <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
             {GRADES.map(g => (
               <button key={g} disabled={!canManage} onClick={() => toggle('managerLicenseGrade', g)}
                 className={segBtn(d.managerLicenseGrade === g)}>{g}</button>
@@ -162,7 +162,7 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
         </div>
         <div>
           <label className={labelCls}>대표자 구분</label>
-          <div className="flex rounded-lg border border-[#d0ccf5] overflow-hidden mt-0.5">
+          <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
             {REP_ROLES.map(r => (
               <button key={r} disabled={!canManage} onClick={() => toggle('repRole', r)}
                 className={segBtn(d.repRole === r)}>{r}</button>
@@ -173,7 +173,7 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
 
       <div>
         <label className={labelCls}>선임 형태</label>
-        <div className="flex flex-wrap rounded-lg border border-[#d0ccf5] overflow-hidden mt-0.5 w-fit">
+        <div className="flex flex-wrap rounded-lg border border-brand-line overflow-hidden mt-0.5 w-fit">
           {APPOINT_TYPES.map(t => (
             <button key={t} disabled={!canManage} onClick={() => toggle('managerAppointType', t)}
               className={segBtn(d.managerAppointType === t)}>{t}</button>
@@ -186,16 +186,16 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다. */}
         {canManage && (
           <button onClick={save} disabled={isPending || !dirty} data-testid="fsm-save"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
           </button>
         )}
         {/* 보조자는 여기 없다 — 어디로 가야 하는지 말해준다 (1.7은 보조자 전용) */}
         <Link href={`/customers/${customerId}?tab=plan&form=1.7`}
-          className="text-[11px] text-[#7b68ee] hover:underline inline-flex items-center gap-0.5">
+          className="text-[11px] text-brand hover:underline inline-flex items-center gap-0.5">
           보조자 선임현황 <ExternalLink className="size-2.5" />
         </Link>
-        {msg && <span className={`text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-[#514b81]'}`}>{msg}</span>}
+        {msg && <span className={`text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}`}>{msg}</span>}
       </div>
     </div>
   )

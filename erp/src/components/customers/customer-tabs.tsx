@@ -118,7 +118,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
       {linkNav.dialog}
       <div className="flex gap-6 items-start">
         <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
-          <div role="tablist" className="flex flex-wrap gap-1 border-b border-[#c8c4d0]">
+          <div role="tablist" className="flex flex-wrap gap-1 border-b border-line">
             {tabs.map(t => (
               <button
                 key={t.key}
@@ -127,13 +127,13 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
                 onClick={() => switchTab(t.key)}
                 className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
                   active === t.key
-                    ? 'border-[#7b68ee] text-[#7b68ee] font-semibold bg-[#f5f4ff]'
-                    : 'border-transparent text-[#514b81] hover:text-[#090c1d] hover:bg-[#f8f9fa]'
+                    ? 'border-brand text-brand font-semibold bg-brand-tint'
+                    : 'border-transparent text-ink-sub hover:text-ink hover:bg-paper'
                 }`}
               >
                 {t.label}
                 {t.badge && (
-                  <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-[#b0acd6]'}`}>{t.badge}</span>
+                  <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-ink-faint'}`}>{t.badge}</span>
                 )}
                 {t.warn && !t.badge && <span className="text-[10px] text-amber-500">⚠</span>}
               </button>

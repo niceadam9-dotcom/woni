@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { KeyRound, Loader2, Check } from 'lucide-react'
 import { changePasswordAction } from '@/app/(dashboard)/settings/actions'
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 export function PasswordChangeClient() {
   const [current, setCurrent] = useState('')
@@ -31,18 +31,18 @@ export function PasswordChangeClient() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-[#514b81] mb-1 block">현재 비밀번호<span className="text-red-500 ml-0.5">*</span></label>
+        <label className="text-xs font-medium text-ink-sub mb-1 block">현재 비밀번호<span className="text-red-500 ml-0.5">*</span></label>
         <input type="password" autoComplete="current-password" value={current}
           onChange={e => setCurrent(e.target.value)} className={inputCls} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-[#514b81] mb-1 block">새 비밀번호 (6자 이상)<span className="text-red-500 ml-0.5">*</span></label>
+          <label className="text-xs font-medium text-ink-sub mb-1 block">새 비밀번호 (6자 이상)<span className="text-red-500 ml-0.5">*</span></label>
           <input type="password" autoComplete="new-password" value={next}
             onChange={e => setNext(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="text-xs font-medium text-[#514b81] mb-1 block">새 비밀번호 확인<span className="text-red-500 ml-0.5">*</span></label>
+          <label className="text-xs font-medium text-ink-sub mb-1 block">새 비밀번호 확인<span className="text-red-500 ml-0.5">*</span></label>
           <input type="password" autoComplete="new-password" value={confirm}
             onChange={e => setConfirm(e.target.value)} className={inputCls} />
         </div>
@@ -54,7 +54,7 @@ export function PasswordChangeClient() {
         </p>
       )}
       <button type="submit" disabled={isPending}
-        className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors disabled:opacity-50">
+        className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors disabled:opacity-50">
         {isPending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
         비밀번호 변경
       </button>

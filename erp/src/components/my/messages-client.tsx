@@ -61,9 +61,9 @@ function ComposeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-4">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[#090c1d]">새 쪽지</span>
+          <span className="font-bold text-ink">새 쪽지</span>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
 
@@ -110,7 +110,7 @@ function ComposeModal({
           </button>
           <button
             onClick={submit} disabled={pending}
-            className="flex-1 flex items-center justify-center gap-2 bg-[#7b68ee] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 bg-brand text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             <Send size={14} />
             {pending ? '발송 중…' : '발송'}
@@ -146,7 +146,7 @@ function MessageDetail({
         <span className="font-semibold text-sm truncate">{message.subject}</span>
       </div>
 
-      <div className="bg-white rounded-xl border p-5 flex-1 space-y-4">
+      <div className="bg-surface rounded-xl border p-5 flex-1 space-y-4">
         <div className="flex items-start justify-between gap-4 pb-3 border-b">
           <div className="space-y-1">
             <p className="text-xs text-gray-400">{label}</p>
@@ -166,7 +166,7 @@ function MessageDetail({
         {tab === 'inbox' && (
           <button
             onClick={onReply}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#7b68ee] text-white rounded-lg text-sm font-medium hover:bg-[#6a5acd]"
+            className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-strong"
           >
             <Send size={13} /> 답장
           </button>
@@ -232,13 +232,13 @@ export function MessagesClient({
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[600px]">
         {/* 왼쪽: 탭 + 목록 */}
-        <div className="lg:col-span-1 bg-white rounded-xl border flex flex-col overflow-hidden">
+        <div className="lg:col-span-1 bg-surface rounded-xl border flex flex-col overflow-hidden">
           {/* 탭 헤더 */}
           <div className="flex border-b">
             <button
               onClick={() => { setTab('inbox'); setSelected(null) }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
-                tab === 'inbox' ? 'text-[#7b68ee] border-b-2 border-[#7b68ee]' : 'text-gray-400 hover:text-gray-600'
+                tab === 'inbox' ? 'text-brand border-b-2 border-brand' : 'text-gray-400 hover:text-gray-600'
               }`}
             >
               <Mail size={14} />
@@ -252,7 +252,7 @@ export function MessagesClient({
             <button
               onClick={() => { setTab('sent'); setSelected(null) }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
-                tab === 'sent' ? 'text-[#7b68ee] border-b-2 border-[#7b68ee]' : 'text-gray-400 hover:text-gray-600'
+                tab === 'sent' ? 'text-brand border-b-2 border-brand' : 'text-gray-400 hover:text-gray-600'
               }`}
             >
               <Send size={14} />
@@ -264,7 +264,7 @@ export function MessagesClient({
           <div className="p-3 border-b">
             <button
               onClick={() => { setReplyTarget(null); setShowCompose(true) }}
-              className="w-full flex items-center justify-center gap-2 bg-[#7b68ee] text-white rounded-lg py-2 text-sm font-medium hover:bg-[#6a5acd]"
+              className="w-full flex items-center justify-center gap-2 bg-brand text-white rounded-lg py-2 text-sm font-medium hover:bg-brand-strong"
             >
               <Plus size={15} /> 새 쪽지 쓰기
             </button>
@@ -287,21 +287,21 @@ export function MessagesClient({
                   <button
                     key={msg.id}
                     onClick={() => openMessage(msg)}
-                    className={`w-full text-left px-4 py-3 hover:bg-[#f8f8ff] transition-colors ${isSelected ? 'bg-[#f0eeff]' : ''}`}
+                    className={`w-full text-left px-4 py-3 hover:bg-brand-tint transition-colors ${isSelected ? 'bg-brand-tint' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         {tab === 'inbox'
                           ? (isUnread
-                              ? <Mail size={13} className="text-[#7b68ee] shrink-0" />
+                              ? <Mail size={13} className="text-brand shrink-0" />
                               : <MailOpen size={13} className="text-gray-300 shrink-0" />)
                           : <Send size={13} className="text-gray-300 shrink-0" />
                         }
                         <div className="min-w-0">
-                          <p className={`text-xs truncate ${isUnread ? 'font-semibold text-[#090c1d]' : 'text-gray-500'}`}>
+                          <p className={`text-xs truncate ${isUnread ? 'font-semibold text-ink' : 'text-gray-500'}`}>
                             {person?.name ?? '—'}
                           </p>
-                          <p className={`text-sm truncate ${isUnread ? 'font-medium text-[#090c1d]' : 'text-gray-700'}`}>
+                          <p className={`text-sm truncate ${isUnread ? 'font-medium text-ink' : 'text-gray-700'}`}>
                             {msg.subject}
                           </p>
                           <p className="text-xs text-gray-400 truncate">{msg.body.slice(0, 30)}</p>

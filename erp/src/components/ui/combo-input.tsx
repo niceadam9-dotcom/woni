@@ -106,7 +106,7 @@ export function ComboInput({
           data-combo-toggle
           // mousedown 기본동작 차단 — 입력 포커스를 잃지 않고 토글만 한다
           onMouseDown={e => { e.preventDefault(); setOpen(o => !o); inputRef.current?.focus() }}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-[#b0acd6] transition-colors hover:text-[#7b68ee]"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-ink-faint transition-colors hover:text-brand"
         >
           <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
@@ -116,10 +116,10 @@ export function ComboInput({
           id={listId}
           role="listbox"
           data-combo-list
-          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-[#d0ccf5] bg-white py-1 shadow-lg"
+          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-brand-line bg-surface py-1 shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-2.5 py-1.5 text-[11px] text-[#b0acd6]">
+            <li className="px-2.5 py-1.5 text-[11px] text-ink-faint">
               {emptyHint ?? '목록에 없는 값입니다 — 입력한 그대로 저장됩니다.'}
             </li>
           ) : filtered.map((o, i) => (
@@ -133,7 +133,7 @@ export function ComboInput({
                 onClick={() => pick(o)}
                 onMouseEnter={() => setHi(i)}
                 className={`block w-full px-2.5 py-1.5 text-left text-xs transition-colors ${
-                  i === hi ? 'bg-[#f5f4ff] text-[#7b68ee]' : 'text-[#514b81] hover:bg-[#f5f4ff]'
+                  i === hi ? 'bg-brand-tint text-brand' : 'text-ink-sub hover:bg-brand-tint'
                 } ${o === value ? 'font-semibold' : ''}`}
               >
                 {o}

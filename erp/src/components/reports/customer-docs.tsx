@@ -12,17 +12,17 @@ import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
 /** 별지 작성 진입 버튼 (H-24 문서 작업대 §4-B) — 문서 현황에서 이동 없이 작성 패널 오픈 */
-const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50'
+const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50'
 
 /** ① 고객 문서 현황 (소방계획서_5 R2) — 생성+업로드 통합 조회.
  *  행 정렬 고정: 소방계획서 → 점검 건(최신 차수 먼저) → 9호→배치확인서→계약서→사진→10·11호.
  *  색 규약(R0-1): ✅초록 보유 / ⚠앰버 필요한데 없음 / 회색 흐림 해당없음. 업로드는 그 자리 실행+드롭존(R0-6). */
 
-const rowCls = 'flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] last:border-0 flex-wrap'
+const rowCls = 'flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft last:border-0 flex-wrap'
 const hwpBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-[11px] text-blue-600 hover:bg-blue-50 disabled:opacity-50'
 const pdfBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50'
-const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50'
-const priBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-50'
+const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50'
+const priBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50'
 
 const fmtD = (iso: string | null | undefined) => (iso ? iso.slice(5, 10) : '')
 
@@ -80,18 +80,18 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
   )
 
   return (
-    <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       {/* 상단 요약 게이지 (R2-c) */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <h2 className="text-sm font-semibold text-[#090c1d]">{docs.customerName}</h2>
-        <span className="text-[11px] text-[#514b81]">· {docs.inspectionType}</span>
-        <span className="text-[11px] font-medium text-[#7b68ee]">
+        <h2 className="text-sm font-semibold text-ink">{docs.customerName}</h2>
+        <span className="text-[11px] text-ink-sub">· {docs.inspectionType}</span>
+        <span className="text-[11px] font-medium text-brand">
           필요 문서 {docs.summary.need}종 중 {docs.summary.have}종 보유
         </span>
         {docs.summary.warns > 0 && (
           <span className="text-[11px] text-amber-600 font-medium">⚠ {docs.summary.warns}건 처리 필요</span>
         )}
-        <Link href={`/customers/${docs.customerId}?tab=plan`} className="ml-auto text-[11px] text-[#7b68ee] hover:underline">
+        <Link href={`/customers/${docs.customerId}?tab=plan`} className="ml-auto text-[11px] text-brand hover:underline">
           고객 소방계획서 탭 →
         </Link>
       </div>
@@ -100,8 +100,8 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
       <div className={rowCls}>
         {docs.firePlan ? (<>
           <StatusIcon state="have" />
-          <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
-          <span className="text-[#514b81]">
+          <span className="font-medium text-ink w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
+          <span className="text-ink-sub">
             ✓ {docs.firePlan.year}{docs.firePlan.revision ? ` (개정${docs.firePlan.revision})` : ''} {fmtD(docs.firePlan.updatedAt)}
           </span>
           <span className="ml-auto flex items-center gap-1">
@@ -118,7 +118,7 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
           </span>
         </>) : (<>
           <StatusIcon state="warn" />
-          <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
+          <span className="font-medium text-ink w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
           {/* 배치 발행 폐지(2026-08-19) — 생성 창구가 고객 소방계획서 탭 하나로 좁아졌다.
               종전엔 전 고객 일괄 생성 화면으로 보냈는데, 그 화면은 이 고객을 다시 찾게 만들었다 */}
           <span className="text-amber-600">미생성 — 소방계획서 탭에서 생성</span>
@@ -128,7 +128,7 @@ export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onCh
       </div>
 
       {docs.inspections.length === 0 && (
-        <p className="text-xs text-[#b0acd6] py-4 text-center">
+        <p className="text-xs text-ink-faint py-4 text-center">
           자체점검 건이 없습니다 — 점검 일정은 점검계획에서 확정하세요
         </p>
       )}
@@ -194,23 +194,23 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
   return (
     <div className="mt-2">
       <div className="flex items-center gap-2 text-xs py-1">
-        <span className="font-semibold text-[#090c1d]">점검 {i.year}-{i.sequenceNum}차</span>
-        <span className="text-[#b0acd6]">{date ? `(${fmtD(date)} ${statusLabel})` : `(${statusLabel})`}</span>
-        <Link href={`/inspections/${i.inspectionId}`} className="ml-auto text-[11px] text-[#7b68ee] hover:underline">
+        <span className="font-semibold text-ink">점검 {i.year}-{i.sequenceNum}차</span>
+        <span className="text-ink-faint">{date ? `(${fmtD(date)} ${statusLabel})` : `(${statusLabel})`}</span>
+        <Link href={`/inspections/${i.inspectionId}`} className="ml-auto text-[11px] text-brand hover:underline">
           타임라인에서 →
         </Link>
       </div>
-      <div className="pl-4 border-l border-[#eceafd]">
+      <div className="pl-4 border-l border-brand-tint">
         <>
           {/* 9호 */}
           <div className={rowCls}>
             <StatusIcon state={i.report9 ? 'have' : 'warn'} />
-            <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report9Full}>실시결과 보고서 (9호)</span>
+            <span className="font-medium text-ink w-44" title={DOC_TERMS.report9Full}>실시결과 보고서 (9호)</span>
             <button onClick={() => onCompose(i.inspectionId, 'report9')} disabled={isPending} className={composeBtn}
               title="작성 — 보고일·비고 입력 후 미리보기·생성 (이동 없이)"><Pencil className="size-3" /> 작성</button>
             {previewBtn('report9')}
             {i.report9 ? (<>
-              <span className="text-[#514b81]">✓ {fmtD(i.report9.at)}</span>
+              <span className="text-ink-sub">✓ {fmtD(i.report9.at)}</span>
               <span className="ml-auto flex items-center gap-1">
                 {genButtons9(i.report9, i.inspectionId, isPending)}
               </span>
@@ -223,11 +223,11 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             {feedback(k('r9'))}
           </div>
           {/* 배치확인서 */}
-          <div className={`${rowCls} ${dragOver === 'cert' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('cert')}>
+          <div className={`${rowCls} ${dragOver === 'cert' ? 'bg-brand-tint outline outline-1 outline-dashed outline-brand rounded' : ''}`} {...dropProps('cert')}>
             <StatusIcon state={i.cert || i.certArchived ? 'have' : 'warn'} />
-            <span className="font-medium text-[#090c1d] w-44" title={`${DOC_TERMS.certFull} — 협회 발급본 (자체점검 대행 시 필수)`}>배치확인서</span>
+            <span className="font-medium text-ink w-44" title={`${DOC_TERMS.certFull} — 협회 발급본 (자체점검 대행 시 필수)`}>배치확인서</span>
             {i.cert ? (<>
-              <span className="text-[#514b81]">✓ {fmtD(i.cert.at)}</span>
+              <span className="text-ink-sub">✓ {fmtD(i.cert.at)}</span>
               <span className="ml-auto flex items-center gap-1">
                 <button onClick={() => open(i.cert!.path, `${customerName}_점검인력 배치확인서_${(i.cert!.at ?? '').slice(0, 10)}.${i.cert!.path.split('.').pop()}`)} disabled={isPending} className={subBtn}>
                   <Download className="size-3" /> 받기
@@ -235,7 +235,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               </span>
             </>) : i.certArchived ? (
               // 종이 보관 후 정리된 회차 — 누락이 아니다 (소방계획서_18 D-7 ⚠)
-              <span className="text-[#847ba8]">종이 보관됨 — 과거본 정리로 ERP 사본 삭제</span>
+              <span className="text-ink-soft">종이 보관됨 — 과거본 정리로 ERP 사본 삭제</span>
             ) : (<>
               <span className="text-amber-600">미업로드 — 협회 발급본 (파일을 끌어다 놓아도 됩니다)</span>
               <span className="ml-auto flex items-center gap-1">
@@ -247,18 +247,18 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             {feedback(k('cert'))}
           </div>
           {/* 수리 계약서 (선택) */}
-          <div className={`${rowCls} ${dragOver === 'contract' ? 'bg-[#f5f4ff] outline outline-1 outline-dashed outline-[#7b68ee] rounded' : ''}`} {...dropProps('contract')}>
+          <div className={`${rowCls} ${dragOver === 'contract' ? 'bg-brand-tint outline outline-1 outline-dashed outline-brand rounded' : ''}`} {...dropProps('contract')}>
             <StatusIcon state={i.contract ? 'have' : 'na'} />
-            <span className={`font-medium w-44 ${i.contract ? 'text-[#090c1d]' : 'text-[#b0acd6]'}`} title="수리 계약서 — 선택 증빙 (⑤ 완료 조건 아님)">수리 계약서 (선택)</span>
+            <span className={`font-medium w-44 ${i.contract ? 'text-ink' : 'text-ink-faint'}`} title="수리 계약서 — 선택 증빙 (⑤ 완료 조건 아님)">수리 계약서 (선택)</span>
             {i.contract ? (<>
-              <span className="text-[#514b81]">✓ {fmtD(i.contract.at)}</span>
+              <span className="text-ink-sub">✓ {fmtD(i.contract.at)}</span>
               <span className="ml-auto flex items-center gap-1">
                 <button onClick={() => open(i.contract!.path, `${customerName}_수리 계약서_${(i.contract!.at ?? '').slice(0, 10)}.${i.contract!.path.split('.').pop()}`)} disabled={isPending} className={subBtn}>
                   <Download className="size-3" /> 받기
                 </button>
               </span>
             </>) : (<>
-              <span className="text-[#b0acd6]">없음 (선택 증빙)</span>
+              <span className="text-ink-faint">없음 (선택 증빙)</span>
               <span className="ml-auto flex items-center gap-1">
                 <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) upload(i.inspectionId, 'contract', f, k('contract')); e.target.value = '' }} />
@@ -274,18 +274,18 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
           {i.defects.total === 0 ? (
             <div className={rowCls}>
               <StatusIcon state="na" />
-              <span className="font-medium text-[#b0acd6] w-44" title={`${DOC_TERMS.report10Full} · ${DOC_TERMS.report11Full}`}>이행계획·완료 (10·11호)</span>
-              <span className="text-[#b0acd6]">해당없음 — 불량 0건</span>
+              <span className="font-medium text-ink-faint w-44" title={`${DOC_TERMS.report10Full} · ${DOC_TERMS.report11Full}`}>이행계획·완료 (10·11호)</span>
+              <span className="text-ink-faint">해당없음 — 불량 0건</span>
             </div>
           ) : (<>
             <div className={rowCls}>
               <StatusIcon state={i.report10 ? 'have' : 'warn'} />
-              <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report10Full}>이행계획서 (10호)</span>
+              <span className="font-medium text-ink w-44" title={DOC_TERMS.report10Full}>이행계획서 (10호)</span>
               <button onClick={() => onCompose(i.inspectionId, 'report10')} disabled={isPending} className={composeBtn}
                 title="작성 — 제출일·이행기간·계획 요약 입력 후 생성"><Pencil className="size-3" /> 작성</button>
               {previewBtn('report10')}
               {i.report10 ? (<>
-                <span className="text-[#514b81]">✓ {fmtD(i.report10.at)}</span>
+                <span className="text-ink-sub">✓ {fmtD(i.report10.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
                   {genButtons9(i.report10, i.inspectionId, isPending)}
                 </span>
@@ -297,12 +297,12 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             </div>
             <div className={rowCls}>
               <StatusIcon state={i.report11 ? 'have' : 'warn'} />
-              <span className="font-medium text-[#090c1d] w-44" title={DOC_TERMS.report11Full}>이행완료 보고서 (11호)</span>
+              <span className="font-medium text-ink w-44" title={DOC_TERMS.report11Full}>이행완료 보고서 (11호)</span>
               <button onClick={() => onCompose(i.inspectionId, 'report11')} disabled={isPending} className={composeBtn}
                 title="작성 — 제출일·완료 보고 문구 입력 후 생성"><Pencil className="size-3" /> 작성</button>
               {previewBtn('report11')}
               {i.report11 ? (<>
-                <span className="text-[#514b81]">✓ {fmtD(i.report11.at)}</span>
+                <span className="text-ink-sub">✓ {fmtD(i.report11.at)}</span>
                 <span className="ml-auto flex items-center gap-1">
                   {genButtons9(i.report11, i.inspectionId, isPending)}
                 </span>

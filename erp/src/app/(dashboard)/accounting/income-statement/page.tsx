@@ -36,7 +36,7 @@ export default async function IncomeStatementPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <TrendingUp className="size-5 text-[#7b68ee]" />
+        <TrendingUp className="size-5 text-brand" />
         <h1 className="text-xl font-bold">손익계산서</h1>
       </div>
 

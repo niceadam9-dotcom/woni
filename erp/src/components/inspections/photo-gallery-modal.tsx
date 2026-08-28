@@ -82,7 +82,7 @@ export function PhotoGalleryModal({ inspectionId, defects, canEdit, onClose, onC
       return (
         <button onClick={() => setLightbox(idx)} className="relative group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={label} className="w-full aspect-square object-cover rounded-lg border border-[#eceafd]" />
+          <img src={url} alt={label} className="w-full aspect-square object-cover rounded-lg border border-brand-tint" />
           <span className="absolute bottom-1 left-1 text-[9px] px-1 py-0.5 rounded bg-black/50 text-white">{label}</span>
         </button>
       )
@@ -100,22 +100,22 @@ export function PhotoGalleryModal({ inspectionId, defects, canEdit, onClose, onC
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onMouseDown={onClose}>
-      <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-2xl" onMouseDown={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#eceafd] sticky top-0 bg-white">
-          <h2 className="text-sm font-semibold text-[#090c1d]">전/후 사진 ({doneCount}/{pairCount}쌍)</h2>
+      <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-surface shadow-2xl" onMouseDown={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-brand-tint sticky top-0 bg-surface">
+          <h2 className="text-sm font-semibold text-ink">전/후 사진 ({doneCount}/{pairCount}쌍)</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
         {defects.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-[#b0acd6]">불량내역이 없습니다 — 사진은 불량 등록 후 첨부합니다</p>
+          <p className="px-5 py-10 text-center text-sm text-ink-faint">불량내역이 없습니다 — 사진은 불량 등록 후 첨부합니다</p>
         ) : (
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {defects.map(d => {
               const done = !!d.action_completed_at
               const planned = !!(d.action_plan || d.action_start)
               return (
-                <div key={d.id} className="rounded-xl border border-[#eceafd] p-3">
+                <div key={d.id} className="rounded-xl border border-brand-tint p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium text-[#090c1d] truncate">{d.defect_name}</span>
+                    <span className="text-xs font-medium text-ink truncate">{d.defect_name}</span>
                     {done ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700">조치완료</span>
                       : planned ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">계획</span>
                       : <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미조치</span>}

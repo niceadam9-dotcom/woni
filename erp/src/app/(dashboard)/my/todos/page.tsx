@@ -20,7 +20,7 @@ export default async function TodosPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <CheckSquare className="size-5 text-[#7b68ee]" />
+        <CheckSquare className="size-5 text-brand" />
         <h1 className="text-xl font-bold">ToDo 목록</h1>
       </div>
 

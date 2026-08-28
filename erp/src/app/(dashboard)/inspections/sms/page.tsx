@@ -17,8 +17,8 @@ export default async function InspectionSmsPage() {
   return (
     <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-lg font-bold text-[#090c1d]">문자 발송</h1>
-        <p className="mt-0.5 text-xs text-[#8b87b8]">
+        <h1 className="text-lg font-bold text-ink">문자 발송</h1>
+        <p className="mt-0.5 text-xs text-ink-soft">
           방문 전 사전 안내 문자를 보내고, 발송 결과를 확인합니다. 발송은 점검달력에서도 할 수 있습니다.
         </p>
       </div>

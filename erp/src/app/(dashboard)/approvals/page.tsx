@@ -31,12 +31,12 @@ export default async function ApprovalsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">결재함</h1>
-          <p className="text-sm text-[#514b81] mt-1">결재 요청된 문서 목록</p>
+          <h1 className="text-xl font-bold text-ink">결재함</h1>
+          <p className="text-sm text-ink-sub mt-1">결재 요청된 문서 목록</p>
         </div>
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center">
+        <div className="bg-surface rounded-xl border border-line py-16 text-center">
           <CheckSquare className="size-10 text-[#c4bff5] mx-auto mb-3" />
-          <p className="text-sm text-[#514b81]">결재 대기 중인 문서가 없습니다</p>
+          <p className="text-sm text-ink-sub">결재 대기 중인 문서가 없습니다</p>
         </div>
       </div>
     )
@@ -90,29 +90,29 @@ export default async function ApprovalsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">결재함</h1>
-        <p className="text-sm text-[#514b81] mt-1">결재 요청된 문서 목록</p>
+        <h1 className="text-xl font-bold text-ink">결재함</h1>
+        <p className="text-sm text-ink-sub mt-1">결재 요청된 문서 목록</p>
       </div>
 
       {docs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center">
+        <div className="bg-surface rounded-xl border border-line py-16 text-center">
           <CheckSquare className="size-10 text-[#c4bff5] mx-auto mb-3" />
-          <p className="text-sm text-[#514b81]">결재 대기 중인 문서가 없습니다</p>
+          <p className="text-sm text-ink-sub">결재 대기 중인 문서가 없습니다</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
-          <div className="divide-y divide-[#c8c4d0]">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+          <div className="divide-y divide-line">
             {docs.map(doc => (
               <Link
                 key={doc.id}
                 href={`/approvals/${doc.id}`}
-                className="flex items-center justify-between px-5 py-4 hover:bg-[#f8f9fa] transition-colors"
+                className="flex items-center justify-between px-5 py-4 hover:bg-paper transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <FileText className="size-4 text-[#7b68ee] shrink-0" />
+                  <FileText className="size-4 text-brand shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#090c1d] truncate">{doc.title}</p>
-                    <p className="text-xs text-[#514b81] mt-0.5">
+                    <p className="text-sm font-medium text-ink truncate">{doc.title}</p>
+                    <p className="text-xs text-ink-sub mt-0.5">
                       {doc.author_name ?? '알 수 없음'}
                       {' · '}
                       {TEMPLATE_MAP[doc.template_type] ?? doc.template_type}
@@ -120,7 +120,7 @@ export default async function ApprovalsPage() {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#f5f4ff] text-[#7b68ee] shrink-0 ml-4">
+                <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-brand-tint text-brand shrink-0 ml-4">
                   결재 요청
                 </span>
               </Link>

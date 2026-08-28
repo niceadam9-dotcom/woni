@@ -88,27 +88,27 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative size-9 flex items-center justify-center rounded-lg text-[#514b81] hover:bg-[#f8f9fa] hover:text-[#7b68ee] transition-colors"
+        className="relative size-9 flex items-center justify-center rounded-lg text-ink-sub hover:bg-paper hover:text-brand transition-colors"
         aria-label="알림"
       >
         <Bell className="size-5" />
         {unread > 0 && (
-          <span className="absolute top-1.5 right-1.5 size-4 flex items-center justify-center rounded-full bg-[#7b68ee] text-[10px] font-bold text-white leading-none">
+          <span className="absolute top-1.5 right-1.5 size-4 flex items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white leading-none">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-80 bg-white rounded-xl shadow-[0_8px_32px_rgba(123,104,238,0.12)] border border-[#c8c4d0] z-50 overflow-hidden">
+        <div className="absolute right-0 top-11 w-80 bg-surface rounded-xl shadow-[0_8px_32px_rgba(123,104,238,0.12)] border border-line z-50 overflow-hidden">
           {/* 헤더 */}
           <div className="px-4 pt-4 pb-0">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-[#090c1d]">나의 알림</span>
+              <span className="text-sm font-semibold text-ink">나의 알림</span>
               {unread > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-[#7b68ee] hover:underline"
+                  className="text-xs text-brand hover:underline"
                 >
                   모두 읽음
                 </button>
@@ -116,14 +116,14 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             </div>
 
             {/* 탭 */}
-            <div className="flex gap-1 border-b border-[#e0ddf5]">
+            <div className="flex gap-1 border-b border-brand-line-soft">
               <button
                 onClick={() => setTab('all')}
                 className={cn(
                   'px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors',
                   tab === 'all'
-                    ? 'border-[#7b68ee] text-[#7b68ee]'
-                    : 'border-transparent text-[#514b81] hover:text-[#7b68ee]'
+                    ? 'border-brand text-brand'
+                    : 'border-transparent text-ink-sub hover:text-brand'
                 )}
               >
                 전체
@@ -133,13 +133,13 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                 className={cn(
                   'px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5',
                   tab === 'unread'
-                    ? 'border-[#7b68ee] text-[#7b68ee]'
-                    : 'border-transparent text-[#514b81] hover:text-[#7b68ee]'
+                    ? 'border-brand text-brand'
+                    : 'border-transparent text-ink-sub hover:text-brand'
                 )}
               >
                 읽지않은 알림
                 {unread > 0 && (
-                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#7b68ee] text-[10px] font-bold text-white leading-none">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-brand text-[10px] font-bold text-white leading-none">
                     {unread > 9 ? '9+' : unread}
                   </span>
                 )}
@@ -148,9 +148,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           </div>
 
           {/* 목록 */}
-          <div className="max-h-72 overflow-y-auto divide-y divide-[#e0ddf5]">
+          <div className="max-h-72 overflow-y-auto divide-y divide-brand-line-soft">
             {displayed.length === 0 ? (
-              <p className="py-8 text-center text-sm text-[#b0acd6]">
+              <p className="py-8 text-center text-sm text-ink-faint">
                 {tab === 'unread' ? '읽지않은 알림이 없습니다' : '알림이 없습니다'}
               </p>
             ) : (
@@ -159,17 +159,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   key={n.id}
                   className={cn(
                     'px-4 py-3',
-                    !n.is_read && 'bg-[#faf9ff]'
+                    !n.is_read && 'bg-brand-tint'
                   )}
                 >
                   <div className="flex items-start gap-2">
                     {!n.is_read && (
-                      <span className="mt-1.5 size-1.5 rounded-full bg-[#7b68ee] shrink-0" />
+                      <span className="mt-1.5 size-1.5 rounded-full bg-brand shrink-0" />
                     )}
                     <div className={cn('min-w-0', !n.is_read ? '' : 'pl-3.5')}>
-                      <p className="text-sm font-medium text-[#090c1d] truncate">{n.title}</p>
-                      <p className="text-xs text-[#514b81] mt-0.5 line-clamp-2">{n.message}</p>
-                      <p className="text-[11px] text-[#b0acd6] mt-1">
+                      <p className="text-sm font-medium text-ink truncate">{n.title}</p>
+                      <p className="text-xs text-ink-sub mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className="text-[11px] text-ink-faint mt-1">
                         {new Date(n.created_at).toLocaleString('ko-KR', {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}

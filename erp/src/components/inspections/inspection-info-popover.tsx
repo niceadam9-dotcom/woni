@@ -40,7 +40,7 @@ export function InspectionInfoPopover({ info }: { info: InspectionInfo }) {
       <button
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] hover:text-[#7b68ee] transition-colors"
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors"
         title="고객·담당자·관계인·주소 등 기본정보"
       >
         기본정보
@@ -49,27 +49,27 @@ export function InspectionInfoPopover({ info }: { info: InspectionInfo }) {
 
       {open && (
         <div className="absolute left-0 right-0 mt-2 z-10 px-0">
-          <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] p-4">
+          <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] p-4">
             <div className="grid grid-cols-2 gap-3">
               {rows.map(r => (
                 <div key={r.label} className="flex items-center gap-2 min-w-0">
-                  <span className="text-[#b0acd6] shrink-0">{r.icon}</span>
-                  <span className="text-xs text-[#514b81] shrink-0">{r.label}</span>
-                  <span className="text-sm text-[#090c1d] truncate">{r.value}</span>
+                  <span className="text-ink-faint shrink-0">{r.icon}</span>
+                  <span className="text-xs text-ink-sub shrink-0">{r.label}</span>
+                  <span className="text-sm text-ink truncate">{r.value}</span>
                 </div>
               ))}
               {info.address && (
                 <div className="col-span-2 flex items-start gap-2">
-                  <span className="text-xs text-[#514b81] shrink-0 mt-0.5">주소</span>
-                  <span className="text-xs text-[#514b81]">{info.address}</span>
+                  <span className="text-xs text-ink-sub shrink-0 mt-0.5">주소</span>
+                  <span className="text-xs text-ink-sub">{info.address}</span>
                   {/* 방문 준비 — 주소를 읽는 것과 "거기가 어디쯤인가"는 다른 일이다(S5-7 확산) */}
                   <AddressMapButton customerName={info.customerName} address={info.address} className="mt-0.5" />
                 </div>
               )}
               {info.notes && (
                 <div className="col-span-2 flex items-start gap-2">
-                  <span className="text-xs text-[#514b81] shrink-0 mt-0.5">비고</span>
-                  <span className="text-xs text-[#514b81]">{info.notes}</span>
+                  <span className="text-xs text-ink-sub shrink-0 mt-0.5">비고</span>
+                  <span className="text-xs text-ink-sub">{info.notes}</span>
                 </div>
               )}
             </div>

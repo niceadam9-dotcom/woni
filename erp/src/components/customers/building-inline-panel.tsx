@@ -78,8 +78,8 @@ export const BUILDING_FIELD_IDS: Record<string, string> = {
   '건물 용도': 'bf-purpose', '연면적': 'bf-total-area', '층수': 'bf-floors-above',
 }
 
-const inputCls = 'h-8 w-full rounded-lg border border-[#d0ccf5] bg-white px-2 text-xs outline-none focus:border-[#7b68ee]'
-const labelCls = 'text-[11px] font-medium text-[#514b81]'
+const inputCls = 'h-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none focus:border-brand'
+const labelCls = 'text-[11px] font-medium text-ink-sub'
 
 export function BuildingListPanel({ customerId, customerName, customerAddress, buildings, canManage, initialOpenId, initialNew, purposes = [] }: {
   customerId: string
@@ -346,14 +346,14 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   }
 
   return (
-    <div id="buildings-panel" className="scroll-mt-4 bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div id="buildings-panel" className="scroll-mt-4 bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Building2 className="size-4 text-[#7b68ee]" />
-        <h2 className="text-sm font-semibold text-[#090c1d]">건물 목록</h2>
-        <span className="text-xs text-[#b0acd6] ml-auto">{buildings.length}개</span>
+        <Building2 className="size-4 text-brand" />
+        <h2 className="text-sm font-semibold text-ink">건물 목록</h2>
+        <span className="text-xs text-ink-faint ml-auto">{buildings.length}개</span>
         {canManage && editing !== 'new' && (
           <button onClick={openNew}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors">
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors">
             <Plus className="size-3" />
             건물 등록
           </button>
@@ -361,14 +361,14 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       </div>
 
       {buildings.length === 0 && editing !== 'new' ? (
-        <p className="text-sm text-[#514b81] py-6 text-center">등록된 건물이 없습니다</p>
+        <p className="text-sm text-ink-sub py-6 text-center">등록된 건물이 없습니다</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#e0ddf5]">
+              <tr className="border-b border-brand-line-soft">
                 {['건물명', '주소', '용도', '연면적', '층수', '준공', '상태'].map(h => (
-                  <th key={h} className="text-left text-xs font-medium text-[#514b81] pb-2 pr-4">{h}</th>
+                  <th key={h} className="text-left text-xs font-medium text-ink-sub pb-2 pr-4">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -376,21 +376,21 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
               {buildings.map(b => (
                 <tr key={b.id}
                   onClick={() => editing === b.id ? close() : openEdit(b)}
-                  className={`border-b border-[#f8f9fa] last:border-0 cursor-pointer transition-colors ${editing === b.id ? 'bg-[#f5f4ff]' : 'hover:bg-[#fafafa]'}`}>
-                  <td className="py-3 pr-4 font-medium text-[#090c1d]">{b.building_name}</td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81] max-w-[140px] truncate">{b.address ?? '-'}</td>
+                  className={`border-b border-paper last:border-0 cursor-pointer transition-colors ${editing === b.id ? 'bg-brand-tint' : 'hover:bg-paper'}`}>
+                  <td className="py-3 pr-4 font-medium text-ink">{b.building_name}</td>
+                  <td className="py-3 pr-4 text-xs text-ink-sub max-w-[140px] truncate">{b.address ?? '-'}</td>
                   <td className="py-3 pr-4">
                     {b.purpose ? (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">{b.purpose}</span>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">{b.purpose}</span>
                     ) : (
-                      <span className="text-xs text-[#b0acd6]">-</span>
+                      <span className="text-xs text-ink-faint">-</span>
                     )}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81]">{b.total_area != null ? `${b.total_area.toLocaleString()}㎡` : '-'}</td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81]">
+                  <td className="py-3 pr-4 text-xs text-ink-sub">{b.total_area != null ? `${b.total_area.toLocaleString()}㎡` : '-'}</td>
+                  <td className="py-3 pr-4 text-xs text-ink-sub">
                     {b.floors_above != null ? `지상 ${b.floors_above}층${b.floors_below ? ` / 지하 ${b.floors_below}층` : ''}` : '-'}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-[#514b81]">{b.year_built ?? '-'}</td>
+                  <td className="py-3 pr-4 text-xs text-ink-sub">{b.year_built ?? '-'}</td>
                   <td className="py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${b.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {b.is_active ? '활성' : '비활성'}
@@ -405,29 +405,29 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
 
       {/* 인라인 등록·수정 패널 */}
       {editing && (
-        <div className="mt-4 rounded-xl border border-[#d0ccf5] bg-[#fafaff] p-4 space-y-3">
+        <div className="mt-4 rounded-xl border border-brand-line bg-brand-tint p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-[#7b68ee]">{editing === 'new' ? '건물 등록' : '건물 수정'}</p>
-            <button onClick={close} className="text-[#b0acd6] hover:text-[#514b81]"><X className="size-4" /></button>
+            <p className="text-xs font-bold text-brand">{editing === 'new' ? '건물 등록' : '건물 수정'}</p>
+            <button onClick={close} className="text-ink-faint hover:text-ink-sub"><X className="size-4" /></button>
           </div>
 
           <div className="flex flex-wrap gap-2 items-end">
             <div className="w-52"><label className={labelCls}>건물명 *</label>
               <input value={form.building_name} onChange={e => setField('building_name', e.target.value)} disabled={!canManage} className={inputCls} /></div>
             <div className="flex-1 min-w-64"><label className={labelCls}>주소</label>
-              <input value={form.address} readOnly placeholder="주소 검색 또는 고객 주소 상속" className={`${inputCls} bg-[#f8f9fa]`} /></div>
+              <input value={form.address} readOnly placeholder="주소 검색 또는 고객 주소 상속" className={`${inputCls} bg-paper`} /></div>
             <div className="w-24"><label className={labelCls}>우편번호</label>
-              <input value={form.zipcode} readOnly className={`${inputCls} bg-[#f8f9fa]`} /></div>
+              <input value={form.zipcode} readOnly className={`${inputCls} bg-paper`} /></div>
             {canManage && (
               <button onClick={handleAddressSearch}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#f5f4ff] hover:bg-[#ebe9ff] text-[#7b68ee] text-xs font-medium border border-[#d0ccf5]">
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-xs font-medium border border-brand-line">
                 <Search className="size-3.5" /> 주소 검색
               </button>
             )}
           </div>
           {editing === 'new' && customerAddress && (
-            <label className="flex items-center gap-1.5 text-[11px] text-[#514b81]">
-              <input type="checkbox" checked={sameAsCustomer} onChange={e => toggleSameAsCustomer(e.target.checked)} className="accent-[#7b68ee]" />
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-sub">
+              <input type="checkbox" checked={sameAsCustomer} onChange={e => toggleSameAsCustomer(e.target.checked)} className="accent-brand" />
               고객 주소와 동일 ({customerAddress})
             </label>
           )}
@@ -450,18 +450,18 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             <div className="flex-1 min-w-40"><label className={labelCls}>비고</label>
               <input value={form.notes} onChange={e => setField('notes', e.target.value)} disabled={!canManage} className={inputCls} /></div>
             {editing !== 'new' && canManage && (
-              <label className="flex items-center gap-1.5 text-[11px] text-[#514b81] h-8">
-                <input type="checkbox" checked={form.is_active} onChange={e => setField('is_active', e.target.checked)} className="accent-[#7b68ee]" />
+              <label className="flex items-center gap-1.5 text-[11px] text-ink-sub h-8">
+                <input type="checkbox" checked={form.is_active} onChange={e => setField('is_active', e.target.checked)} className="accent-brand" />
                 활성
               </label>
             )}
           </div>
 
           {/* 별지 9호 2쪽 "건축물 정보" 항목 (소방계획서_9 B안) — 대장이 값을 주지 않는 건물도 서식을 채울 수 있게 수기 입력 */}
-          <div className="rounded-lg border border-[#e0ddf5] bg-white p-3 space-y-2">
-            <p className="text-[11px] font-semibold text-[#514b81]">
+          <div className="rounded-lg border border-brand-line-soft bg-surface p-3 space-y-2">
+            <p className="text-[11px] font-semibold text-ink-sub">
               별지 9호 2쪽 건축물 정보
-              <span className="ml-1 font-normal text-[#b0acd6]">— 주소 검색 시 건축물대장에서 빈 칸만 자동 채움, 대장에 없으면 직접 입력</span>
+              <span className="ml-1 font-normal text-ink-faint">— 주소 검색 시 건축물대장에서 빈 칸만 자동 채움, 대장에 없으면 직접 입력</span>
             </p>
             <div className="flex flex-wrap gap-2 items-end">
               <div className="w-32"><label className={labelCls}>건축허가일</label>
@@ -484,16 +484,16 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             </div>
           </div>
 
-          {ledgerNote && <p className="text-[11px] text-[#7b68ee]">{ledgerNote}</p>}
+          {ledgerNote && <p className="text-[11px] text-brand">{ledgerNote}</p>}
           {error && <p className="text-[11px] text-red-500">{error}</p>}
 
           {canManage && (
             <div className="flex items-center gap-2">
               <button onClick={save} disabled={isPending}
-                className="h-8 px-5 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
+                className="h-8 px-5 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
                 {isPending && <Loader2 className="size-3 animate-spin" />} 저장
               </button>
-              <button onClick={close} className="h-8 px-4 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa]">취소</button>
+              <button onClick={close} className="h-8 px-4 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper">취소</button>
               {editing !== 'new' && form.is_active && (() => {
                 const cur = buildings.find(b => b.id === editing)
                 return cur ? (

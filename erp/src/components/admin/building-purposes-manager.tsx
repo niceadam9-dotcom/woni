@@ -56,7 +56,7 @@ export function BuildingPurposesManager({ purposes }: Props) {
   return (
     <div className="max-w-xl space-y-4">
       {/* 추가 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
         <div className="flex gap-2">
           <input
             type="text"
@@ -65,12 +65,12 @@ export function BuildingPurposesManager({ purposes }: Props) {
             onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
             placeholder="추가할 용도명 (예: 노유자시설)"
             maxLength={30}
-            className="flex-1 h-9 px-3 text-sm border border-[#d0ccf5] rounded-lg outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition"
+            className="flex-1 h-9 px-3 text-sm border border-brand-line rounded-lg outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
           />
           <button
             onClick={handleAdd}
             disabled={isPending || !name.trim()}
-            className="flex items-center gap-1.5 h-9 px-4 bg-[#7b68ee] text-white text-sm font-medium rounded-lg hover:bg-[#6a58d6] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 h-9 px-4 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-strong disabled:opacity-50 transition-colors"
           >
             {isPending && !deletingId ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
             추가
@@ -80,11 +80,11 @@ export function BuildingPurposesManager({ purposes }: Props) {
       </div>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
         {purposes.length === 0 ? (
-          <p className="py-10 text-center text-sm text-[#514b81]">등록된 용도가 없습니다</p>
+          <p className="py-10 text-center text-sm text-ink-sub">등록된 용도가 없습니다</p>
         ) : (
-          <ul className="divide-y divide-[#e0ddf5]">
+          <ul className="divide-y divide-brand-line-soft">
             {purposes.map((p, i) => (
               <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="flex flex-col -my-1">
@@ -92,7 +92,7 @@ export function BuildingPurposesManager({ purposes }: Props) {
                     onClick={() => handleMove(p.id, 'up')}
                     disabled={isPending || i === 0}
                     title="위로"
-                    className="p-0.5 rounded text-[#b0acd6] hover:text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    className="p-0.5 rounded text-ink-faint hover:text-brand hover:bg-brand-tint disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                   >
                     <ChevronUp className="size-3.5" />
                   </button>
@@ -100,13 +100,13 @@ export function BuildingPurposesManager({ purposes }: Props) {
                     onClick={() => handleMove(p.id, 'down')}
                     disabled={isPending || i === purposes.length - 1}
                     title="아래로"
-                    className="p-0.5 rounded text-[#b0acd6] hover:text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    className="p-0.5 rounded text-ink-faint hover:text-brand hover:bg-brand-tint disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                   >
                     <ChevronDown className="size-3.5" />
                   </button>
                 </span>
-                <span className="text-sm text-[#090c1d] flex-1">{p.name}</span>
-                <span className="text-xs text-[#b0acd6]">
+                <span className="text-sm text-ink flex-1">{p.name}</span>
+                <span className="text-xs text-ink-faint">
                   {p.count > 0 ? `건물 ${p.count}동 사용 중` : '미사용'}
                 </span>
                 {confirmId === p.id ? (
@@ -121,7 +121,7 @@ export function BuildingPurposesManager({ purposes }: Props) {
                     </button>
                     <button
                       onClick={() => setConfirmId(null)}
-                      className="text-xs px-2 py-1 rounded-md border border-[#c8c4d0] text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+                      className="text-xs px-2 py-1 rounded-md border border-line text-ink-sub hover:bg-paper transition-colors"
                     >
                       취소
                     </button>
@@ -130,7 +130,7 @@ export function BuildingPurposesManager({ purposes }: Props) {
                   <button
                     onClick={() => setConfirmId(p.id)}
                     title="삭제"
-                    className="p-1.5 rounded-lg text-[#b0acd6] hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-lg text-ink-faint hover:text-red-500 hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="size-3.5" />
                   </button>
@@ -140,7 +140,7 @@ export function BuildingPurposesManager({ purposes }: Props) {
           </ul>
         )}
       </div>
-      <p className="text-xs text-[#b0acd6]">
+      <p className="text-xs text-ink-faint">
         삭제해도 이미 그 용도로 등록된 건물의 값은 바뀌지 않으며, 선택 목록에서만 사라집니다.
       </p>
     </div>

@@ -140,7 +140,7 @@ export function CustomerCombobox({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#b0acd6] pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint pointer-events-none" />
         <input
           ref={inputRef}
           value={query}
@@ -149,15 +149,15 @@ export function CustomerCombobox({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoComplete="off"
-          className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white pl-8 pr-14 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition"
+          className="w-full h-10 rounded-lg border border-brand-line bg-surface pl-8 pr-14 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
           {value && (
             <button type="button" onClick={clear} className="p-1 rounded hover:bg-gray-100">
-              <X className="size-3 text-[#b0acd6]" />
+              <X className="size-3 text-ink-faint" />
             </button>
           )}
-          <ChevronDown className={cn('size-3.5 text-[#b0acd6] transition-transform duration-150', open && 'rotate-180')} />
+          <ChevronDown className={cn('size-3.5 text-ink-faint transition-transform duration-150', open && 'rotate-180')} />
         </div>
       </div>
 
@@ -165,7 +165,7 @@ export function CustomerCombobox({
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-50 mt-1 w-full bg-white border border-[#d0ccf5] rounded-lg shadow-lg max-h-56 overflow-y-auto"
+          className="absolute z-50 mt-1 w-full bg-surface border border-brand-line rounded-lg shadow-lg max-h-56 overflow-y-auto"
         >
           {filtered.length === 0 ? (
             <li className="px-3 py-3 text-xs text-gray-400 text-center">검색 결과 없음</li>
@@ -183,13 +183,13 @@ export function CustomerCombobox({
                   onMouseEnter={() => setActiveIndex(idx)}
                   className={cn(
                     'px-3 py-2.5 cursor-pointer text-sm flex items-center justify-between select-none',
-                    isActive   && 'bg-[#7b68ee] text-white',
-                    isSelected && 'bg-[#f5f4ff] text-[#7b68ee] font-medium',
-                    !isActive && !isSelected && 'text-[#090c1d] hover:bg-[#f5f4ff]'
+                    isActive   && 'bg-brand text-white',
+                    isSelected && 'bg-brand-tint text-brand font-medium',
+                    !isActive && !isSelected && 'text-ink hover:bg-brand-tint'
                   )}
                 >
                   <span>{c.customer_name}</span>
-                  <span className={cn('text-xs ml-2 shrink-0', isActive ? 'text-white/70' : 'text-[#b0acd6]')}>
+                  <span className={cn('text-xs ml-2 shrink-0', isActive ? 'text-white/70' : 'text-ink-faint')}>
                     {sub(c)}
                   </span>
                 </li>

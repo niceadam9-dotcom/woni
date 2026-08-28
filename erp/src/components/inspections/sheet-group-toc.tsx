@@ -84,18 +84,18 @@ export function SheetGroupToc({ entries, scrollBoxRef, pendingJump, onJumpConsum
             data-toc-group={e.code} data-toc-active={on ? '1' : undefined}
             title={e.name !== e.code ? `${e.code}. ${e.name}` : e.code}
             className={`shrink-0 lg:shrink lg:w-full text-left rounded-lg border px-2 py-1 transition-colors ${
-              on ? 'border-[#7b68ee] bg-[#f5f4ff]' : 'border-[#e0ddf5] hover:bg-[#fafaff]'}`}>
+              on ? 'border-brand bg-brand-tint' : 'border-brand-line-soft hover:bg-brand-tint'}`}>
             <span className="flex items-center gap-1">
-              <span className={`text-[10px] font-bold ${on ? 'text-[#7b68ee]' : 'text-[#514b81]'}`}>{e.code}</span>
-              <span className={`ml-auto text-[9px] shrink-0 ${full ? 'text-green-600' : e.responded > 0 ? 'text-amber-600' : 'text-[#b0acd6]'}`}>
+              <span className={`text-[10px] font-bold ${on ? 'text-brand' : 'text-ink-sub'}`}>{e.code}</span>
+              <span className={`ml-auto text-[9px] shrink-0 ${full ? 'text-green-600' : e.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}>
                 {e.responded}/{e.total}{e.x > 0 ? ` ✕${e.x}` : ''}
               </span>
             </span>
             {e.name !== e.code && (
-              <span className="hidden lg:block text-[9px] text-[#b0acd6] truncate">{e.name}</span>
+              <span className="hidden lg:block text-[9px] text-ink-faint truncate">{e.name}</span>
             )}
-            <span className="hidden lg:block h-1 mt-0.5 rounded bg-[#f0eefb] overflow-hidden">
-              <span className={`block h-full ${full ? 'bg-green-400' : 'bg-[#c3bdf5]'}`}
+            <span className="hidden lg:block h-1 mt-0.5 rounded bg-brand-line-soft overflow-hidden">
+              <span className={`block h-full ${full ? 'bg-green-400' : 'bg-brand-line'}`}
                 style={{ width: `${e.total > 0 ? Math.round(e.responded / e.total * 100) : 0}%` }} />
             </span>
           </button>

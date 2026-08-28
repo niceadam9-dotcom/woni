@@ -91,9 +91,9 @@ function ScheduleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[#090c1d]">{initial ? '일정 수정' : '일정 등록'}</span>
+          <span className="font-bold text-ink">{initial ? '일정 수정' : '일정 등록'}</span>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
 
@@ -115,7 +115,7 @@ function ScheduleModal({
                   key={t}
                   onClick={() => setType(t)}
                   className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                    type === t ? TYPE_COLORS[t] : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    type === t ? TYPE_COLORS[t] : 'bg-surface border-gray-200 text-gray-500 hover:bg-gray-50'
                   }`}
                 >
                   {t}
@@ -176,7 +176,7 @@ function ScheduleModal({
           </button>
           <button
             onClick={submit} disabled={pending}
-            className="flex-1 bg-[#7b68ee] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="flex-1 bg-brand text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {pending ? '저장 중…' : initial ? '수정' : '등록'}
           </button>
@@ -281,7 +281,7 @@ export function SchedulesClient({
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* 캘린더 */}
-        <div className="lg:col-span-2 bg-white rounded-xl border p-5">
+        <div className="lg:col-span-2 bg-surface rounded-xl border p-5">
           {/* 헤더 */}
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded-lg" title="이전 달">
@@ -296,7 +296,7 @@ export function SchedulesClient({
                 {year}년 {month + 1}월
               </button>
               {showMonthPicker && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-white border border-[#d0ccf5] rounded-xl shadow-xl p-3 w-52">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-surface border border-brand-line rounded-xl shadow-xl p-3 w-52">
                   <div className="flex items-center justify-between mb-3">
                     <button onClick={() => setPickerYear(y => y - 1)} className="p-1 hover:bg-gray-100 rounded">
                       <ChevronLeft size={14} />
@@ -317,7 +317,7 @@ export function SchedulesClient({
                             setMonth(mo)
                             setShowMonthPicker(false)
                           }}
-                          className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${isActive ? 'bg-[#7b68ee] text-white' : 'hover:bg-[#f5f4ff] text-gray-800'}`}
+                          className={`py-1.5 text-xs font-medium rounded-lg transition-colors ${isActive ? 'bg-brand text-white' : 'hover:bg-brand-tint text-gray-800'}`}
                         >
                           {mo + 1}월
                         </button>
@@ -344,7 +344,7 @@ export function SchedulesClient({
           {/* 날짜 셀 */}
           <div className="grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden">
             {cells.map((d, idx) => {
-              if (d === null) return <div key={idx} className="bg-white min-h-[72px]" />
+              if (d === null) return <div key={idx} className="bg-surface min-h-[72px]" />
               const ds = dateStr(d)
               const daySchedules = schedulesForDate(ds)
               const dayDeadlines = deadlinesForDate(ds)
@@ -360,12 +360,12 @@ export function SchedulesClient({
                 <div
                   key={idx}
                   onClick={() => setSelectedDate(ds === selectedDate ? null : ds)}
-                  className={`bg-white min-h-[72px] p-1 cursor-pointer transition-colors hover:bg-[#f5f4ff] ${isSelected ? 'bg-[#f0eeff]' : ''}`}
+                  className={`bg-surface min-h-[72px] p-1 cursor-pointer transition-colors hover:bg-brand-tint ${isSelected ? 'bg-brand-tint' : ''}`}
                   title={holiday ? `${holiday} (공휴일)` : undefined}
                 >
                   <div className="flex items-center gap-1 mb-0.5 min-w-0">
                     <div className={`text-xs font-medium w-6 h-6 shrink-0 flex items-center justify-center rounded-full
-                      ${isToday ? 'bg-[#7b68ee] text-white' : holiday || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700'}`}>
+                      ${isToday ? 'bg-brand text-white' : holiday || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700'}`}>
                       {d}
                     </div>
                     {holiday && <span className="text-[9px] text-red-500 truncate">{holiday}</span>}
@@ -415,13 +415,13 @@ export function SchedulesClient({
         <div className="space-y-3">
           <button
             onClick={() => { setEditTarget(null); setShowModal(true) }}
-            className="w-full flex items-center justify-center gap-2 bg-[#7b68ee] text-white rounded-xl py-2.5 text-sm font-medium hover:bg-[#6a5acd]"
+            className="w-full flex items-center justify-center gap-2 bg-brand text-white rounded-xl py-2.5 text-sm font-medium hover:bg-brand-strong"
           >
             <Plus size={16} /> 일정 등록
           </button>
 
           {selectedDate ? (
-            <div className="bg-white rounded-xl border p-4">
+            <div className="bg-surface rounded-xl border p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-semibold text-sm">{selectedDate}</span>
                 <span className="text-xs text-gray-400">{selectedSchedules.length + selectedDeadlines.length}건</span>
@@ -471,14 +471,14 @@ export function SchedulesClient({
                           <div className="flex gap-1 shrink-0">
                             <button
                               onClick={() => { setEditTarget(s); setShowModal(true) }}
-                              className="p-1 hover:bg-white/50 rounded"
+                              className="p-1 hover:bg-surface/50 rounded"
                             >
                               <Pencil size={12} />
                             </button>
                             <button
                               onClick={() => handleDelete(s.id)}
                               disabled={deletePending}
-                              className="p-1 hover:bg-white/50 rounded"
+                              className="p-1 hover:bg-surface/50 rounded"
                             >
                               <Trash2 size={12} />
                             </button>
@@ -495,13 +495,13 @@ export function SchedulesClient({
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl border p-4">
+            <div className="bg-surface rounded-xl border p-4">
               <p className="text-xs text-gray-400 text-center py-6">날짜를 클릭하면<br/>해당 일정을 확인합니다.</p>
             </div>
           )}
 
           {/* 이번 달 일정 요약 */}
-          <div className="bg-white rounded-xl border p-4">
+          <div className="bg-surface rounded-xl border p-4">
             <p className="text-xs font-semibold text-gray-500 mb-2">{month + 1}월 일정 목록</p>
             {(() => {
               const ms = `${year}-${String(month + 1).padStart(2, '0')}`

@@ -129,7 +129,7 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   ],
 }
 
-const inputBase = 'text-xs border border-[#c8c4d0] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#7b68ee]'
+const inputBase = 'text-xs border border-line rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-brand'
 const inputCls = `w-full ${inputBase}`
 
 /** ③ 값 입력 위젯 — 라벨은 호출부가 그린다(패널은 세로 폼, 작업대는 압축 행) */
@@ -154,7 +154,7 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
     return (
       <span className="flex flex-wrap items-center gap-1.5">
         <DateInput value={ps} aria-label={`${def.label} 시작일`} onChange={e => join(e.target.value, pe)} className={`${inputBase} w-36 min-w-0 max-w-full`} />
-        <span className="text-xs text-[#847ba8] shrink-0">~</span>
+        <span className="text-xs text-ink-soft shrink-0">~</span>
         <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)}
           aria-invalid={bad} className={`${inputBase} w-36 min-w-0 max-w-full${bad ? ' !border-red-400' : ''}`} />
         {bad && <span className="w-full text-[10px] text-red-600" data-testid="annex-range-error">❌ {DATE_RANGE_ERROR}</span>}
@@ -166,7 +166,7 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
     // max-w-full이 없으면 256px 고정이라 셀 밖으로 삐져나온다(daterange와 같은 규약).
     return (
       <select value={value} aria-label={def.label} onChange={e => onChange(e.target.value)}
-        className={`${inputBase} w-64 min-w-0 max-w-full bg-white`}>
+        className={`${inputBase} w-64 min-w-0 max-w-full bg-surface`}>
         {(def.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     )

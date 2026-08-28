@@ -19,8 +19,8 @@ export default async function MessageTemplateSettingsPage() {
   return (
     <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-lg font-bold text-[#090c1d]">발송 문구</h1>
-        <p className="mt-0.5 text-xs text-[#8b87b8]">
+        <h1 className="text-lg font-bold text-ink">발송 문구</h1>
+        <p className="mt-0.5 text-xs text-ink-soft">
           사전 안내 문자의 시점과, 고객에게 나가는 문구를 관리합니다.
         </p>
       </div>

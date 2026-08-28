@@ -53,12 +53,12 @@ type RowCtx = {
 function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
   const { value, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX } = ctx
   return (
-    <div className="border-b border-[#f8f9fa]">
+    <div className="border-b border-paper">
       {/* S4-8: O/X는 현장에서 장갑 낀 손으로 누르는 버튼이다 — 28px는 오탭이 잦아 40px로 키우고
           행 간격도 넓혔다. 메모 입력은 좁은 화면에서 넘치지 않게 아래 줄로 흐르게 한다. */}
       <div className="flex items-center gap-2 py-1.5">
-        <span className="text-[10px] text-[#b0acd6] w-14 shrink-0">{it.item_code}</span>
-        <span className="text-xs text-[#090c1d] flex-1 min-w-0">{it.item_name}</span>
+        <span className="text-[10px] text-ink-faint w-14 shrink-0">{it.item_code}</span>
+        <span className="text-xs text-ink flex-1 min-w-0">{it.item_name}</span>
         <div className="flex items-center gap-1 shrink-0">
           {/* ／(해당없음)는 그룹 일괄로만 기록된다(Q-19) — 기록된 항목엔 진회색 ／ 표식.
               미선택은 미점검(공란) — 표식 없음(인쇄 시 결과란이 비어 나간다) */}
@@ -85,7 +85,7 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
                 title={on ? '다시 누르면 미점검(공란)으로' : undefined}
                 className={`w-10 h-10 rounded-lg text-sm font-bold transition-colors ${on
                   ? activeCls(r)
-                  : 'bg-[#f5f4ff] text-[#b0acd6] hover:bg-[#ebe9ff]'}`}>
+                  : 'bg-brand-tint text-ink-faint hover:bg-brand-tint'}`}>
                 {mark(r)}
               </button>
             )
@@ -98,12 +98,12 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
             // ESC 우선순위(23 S7-8) — 드로어보다 인라인 폼이 먼저 소비한다. 안 그러면 메모 입력 중
             // ESC 한 번에 드로어째 닫혀 입력이 날아간다(드로어는 패널 onKeyDown이라 전파 차단이 닿는다)
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setInlineX(null) } }}
-            placeholder="불량 메모 (선택)" className="h-9 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-white px-2 text-[11px] outline-none focus:border-red-400" />
+            placeholder="불량 메모 (선택)" className="h-9 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-surface px-2 text-[11px] outline-none focus:border-red-400" />
           <button onClick={() => { onRegisterX(it.item_code, inlineMemo); setInlineX(null); setInlineMemo('') }} disabled={busy}
             className="h-9 px-3 rounded bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium disabled:opacity-50">
             {busy ? <Loader2 className="size-3 animate-spin" /> : '등록'}
           </button>
-          <button onClick={() => setInlineX(null)} className="h-9 px-3 rounded border border-[#c8c4d0] text-[11px] text-[#514b81]">닫기</button>
+          <button onClick={() => setInlineX(null)} className="h-9 px-3 rounded border border-line text-[11px] text-ink-sub">닫기</button>
         </div>
       )}
     </div>
@@ -160,15 +160,15 @@ export function SheetItemEditor({
     for (const c of codes) if (value[c] === 'O') onResult(c, null)
   }
 
-  const bulkBtnCls = 'h-6 px-2 rounded text-[10px] font-medium shrink-0 bg-white/80 border border-[#d0ccf5] text-[#514b81] hover:bg-[#ebe9ff] disabled:opacity-40'
+  const bulkBtnCls = 'h-6 px-2 rounded text-[10px] font-medium shrink-0 bg-surface/80 border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40'
 
   const body = loading && items.length === 0 ? (
-    <div className="py-6 text-center text-[#514b81] text-sm flex items-center justify-center gap-2"><Loader2 className="size-4 animate-spin" /> 항목 로드 중…</div>
+    <div className="py-6 text-center text-ink-sub text-sm flex items-center justify-center gap-2"><Loader2 className="size-4 animate-spin" /> 항목 로드 중…</div>
   ) : grouping === 'flat' ? (
     <div className={`${maxHeight} overflow-y-auto pr-1 space-y-2`}>
       {Object.entries(items.reduce<Record<string, SheetItem[]>>((acc, i) => { (acc[i.group] ??= []).push(i); return acc }, {})).map(([g, its]) => (
         <div key={g}>
-          <p className="text-[11px] font-semibold text-[#7b68ee] sticky top-0 bg-white py-0.5">{g}</p>
+          <p className="text-[11px] font-semibold text-brand sticky top-0 bg-surface py-0.5">{g}</p>
           {its.map(it => <ItemRow key={it.item_code} it={it} ctx={ctx} />)}
         </div>
       ))}
@@ -179,9 +179,9 @@ export function SheetItemEditor({
     <div ref={scrollBoxRef} className={`${maxHeight} overflow-y-auto pr-1`}>
       {buildSheetOutline(items).map(g => (
         <div key={g.code} data-outline-group={g.code}>
-          <div className="sticky top-0 z-[2] h-[22px] flex items-center gap-1.5 bg-[#f5f4ff] rounded px-1.5">
-            <span className="text-[11px] font-bold text-[#7b68ee] shrink-0">[{g.code}]</span>
-            {g.name !== g.code && <span className="text-[11px] font-semibold text-[#514b81] truncate flex-1 min-w-0">{g.name}</span>}
+          <div className="sticky top-0 z-[2] h-[22px] flex items-center gap-1.5 bg-brand-tint rounded px-1.5">
+            <span className="text-[11px] font-bold text-brand shrink-0">[{g.code}]</span>
+            {g.name !== g.code && <span className="text-[11px] font-semibold text-ink-sub truncate flex-1 min-w-0">{g.name}</span>}
             {/* Q-17 — 일괄 대상은 이 중분류뿐임을 라벨에 명시. 시트 전체 일괄은 드로어 헤더 [／ 전체]가 담당 */}
             {canEdit && (
               <span className="ml-auto flex items-center gap-1">
@@ -197,9 +197,9 @@ export function SheetItemEditor({
           {g.runs.map((run, ri) => (
             <div key={ri}>
               {run.subgroup ? (
-                <div className="sticky top-[22px] z-[1] flex items-center gap-1.5 bg-white border-l-2 border-[#c3bdf5] pl-2 py-0.5"
+                <div className="sticky top-[22px] z-[1] flex items-center gap-1.5 bg-surface border-l-2 border-brand-line pl-2 py-0.5"
                   data-subgroup={run.subgroup}>
-                  <span className="text-[11px] font-semibold text-[#514b81]">[{run.subgroup}]</span>
+                  <span className="text-[11px] font-semibold text-ink-sub">[{run.subgroup}]</span>
                   {/* Q-19 T-2 — 대괄호 그룹 단위 ／. 1-B 하나가 별지4호 1쪽 체크박스 4개로 쪼개져
                       중분류 단위만으로는 '주거용만 설치'를 표현할 수 없다 */}
                   {canEdit && (
@@ -208,8 +208,8 @@ export function SheetItemEditor({
                       className={`${bulkBtnCls} ml-auto`} disabled={busy}>／ 이 그룹</button>
                   )}
                 </div>
-              ) : ri > 0 ? <div className="border-t border-[#f0eefb] mt-0.5" /> : null}
-              <div className={run.subgroup ? 'pl-2 border-l-2 border-[#f0eefb]' : ''}>
+              ) : ri > 0 ? <div className="border-t border-brand-line-soft mt-0.5" /> : null}
+              <div className={run.subgroup ? 'pl-2 border-l-2 border-brand-line-soft' : ''}>
                 {run.items.map(it => <ItemRow key={it.item_code} it={it} ctx={ctx} />)}
               </div>
             </div>
@@ -229,17 +229,17 @@ export function SheetItemEditor({
       {canEdit && !(hideSave && hideCancel) && (
         <div className="flex gap-2 mt-3">
           {!hideCancel && (
-            <button onClick={onCancel} disabled={busy} className="flex-1 h-9 rounded-lg border border-[#c8c4d0] text-xs text-[#514b81] hover:bg-[#f8f9fa] disabled:opacity-50">{cancelLabel}</button>
+            <button onClick={onCancel} disabled={busy} className="flex-1 h-9 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">{cancelLabel}</button>
           )}
           {!hideSave && (
-            <button onClick={onSave} disabled={busy} className="flex-1 h-9 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
+            <button onClick={onSave} disabled={busy} className="flex-1 h-9 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-3.5 mr-1" /> {saveLabel}</>}
             </button>
           )}
         </div>
       )}
       {showFooterHint && (
-        <p className="text-[11px] text-[#b0acd6] mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
+        <p className="text-[11px] text-ink-faint mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
       )}
     </>
   )

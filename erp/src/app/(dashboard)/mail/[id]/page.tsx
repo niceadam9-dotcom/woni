@@ -27,27 +27,27 @@ export default async function MailDetailPage({
 
   return (
     <div className="space-y-4">
-      <Link href="/mail" className="inline-flex items-center gap-1 text-sm text-[#7b68ee] hover:underline">
+      <Link href="/mail" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
         <ChevronLeft className="size-4" /> 받은편지함
       </Link>
 
-      <div className="bg-white rounded-xl border border-[#c8c4d0] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#e0ddf5]">
+      <div className="bg-surface rounded-xl border border-line overflow-hidden">
+        <div className="px-6 py-4 border-b border-brand-line-soft">
           <div className="flex items-start gap-3">
-            <Mail className="size-5 text-[#7b68ee] mt-0.5 shrink-0" />
+            <Mail className="size-5 text-brand mt-0.5 shrink-0" />
             <div className="min-w-0 flex-1">
-              <h1 className="text-base font-bold text-[#090c1d]">{mail.subject}</h1>
-              <p className="text-xs text-[#514b81] mt-1">보낸사람: {mail.from}</p>
-              {mail.to && <p className="text-xs text-[#b0acd6]">받는사람: {mail.to}</p>}
-              <p className="text-xs text-[#b0acd6]">{dateStr}</p>
+              <h1 className="text-base font-bold text-ink">{mail.subject}</h1>
+              <p className="text-xs text-ink-sub mt-1">보낸사람: {mail.from}</p>
+              {mail.to && <p className="text-xs text-ink-faint">받는사람: {mail.to}</p>}
+              <p className="text-xs text-ink-faint">{dateStr}</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <Link href={`/mail/compose?reply=${mail.id}`}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-xs font-medium transition-colors">
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors">
                 <Reply className="size-3.5" /> 답장
               </Link>
               <Link href={`/mail/compose?fwd=${mail.id}`}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors">
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors">
                 <Forward className="size-3.5" /> 전달
               </Link>
             </div>
@@ -59,19 +59,19 @@ export default async function MailDetailPage({
             <iframe
               sandbox=""
               srcDoc={mail.html}
-              className="w-full border-0 rounded-lg bg-white"
+              className="w-full border-0 rounded-lg bg-surface"
               style={{ minHeight: '60vh' }}
               title="메일 본문"
             />
           ) : mail.text ? (
-            <pre className="whitespace-pre-wrap text-sm text-[#292d34] p-4 font-sans">{mail.text}</pre>
+            <pre className="whitespace-pre-wrap text-sm text-ink-strong p-4 font-sans">{mail.text}</pre>
           ) : (
-            <p className="text-sm text-[#b0acd6] p-4">본문이 없습니다</p>
+            <p className="text-sm text-ink-faint p-4">본문이 없습니다</p>
           )}
         </div>
 
         {mail.attachments.length > 0 && (
-          <div className="px-6 py-4 border-t border-[#e0ddf5]">
+          <div className="px-6 py-4 border-t border-brand-line-soft">
             <MailAttachmentList messageId={mail.id} attachments={mail.attachments} />
           </div>
         )}

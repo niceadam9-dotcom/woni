@@ -100,10 +100,10 @@ export default async function AdminLeavesPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <CalendarDays className="size-6 text-[#7b68ee]" />
+        <CalendarDays className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">전체 휴가 현황</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">모든 휴가 신청을 조회하고 검색합니다</p>
+          <h1 className="text-xl font-bold text-ink">전체 휴가 현황</h1>
+          <p className="text-sm text-ink-sub mt-0.5">모든 휴가 신청을 조회하고 검색합니다</p>
         </div>
       </div>
 
@@ -113,12 +113,12 @@ export default async function AdminLeavesPage({
           name="q"
           defaultValue={q}
           placeholder="직원 이름 검색"
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-44"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition w-44"
         />
         <select
           name="status"
           defaultValue={statusFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 상태</option>
           {Object.entries(STATUS_MAP).map(([v, { label }]) => (
@@ -128,7 +128,7 @@ export default async function AdminLeavesPage({
         <select
           name="leave_type"
           defaultValue={typeFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 유형</option>
           {Object.entries(LEAVE_LABELS).map(([v, label]) => (
@@ -138,7 +138,7 @@ export default async function AdminLeavesPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -148,47 +148,47 @@ export default async function AdminLeavesPage({
           검색
         </button>
         {(q || statusFilter || typeFilter) && (
-          <a href="/admin/leaves" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+          <a href="/admin/leaves" className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper flex items-center">
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">총 {count ?? 0}건</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {count ?? 0}건</span>
       </form>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {leaves.length === 0 ? (
           <div className="py-16 text-center">
             <CalendarDays className="size-10 text-[#c4bff5] mx-auto mb-3" />
-            <p className="text-sm text-[#514b81]">휴가 신청이 없습니다</p>
+            <p className="text-sm text-ink-sub">휴가 신청이 없습니다</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {['직원', '부서', '유형', '기간', '일수', '상태', '신청일'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {leaves.map(l => {
                   const s = STATUS_MAP[l.status] ?? { label: l.status, className: '' }
                   const emp = empMap.get(l.employee_id)
                   return (
-                    <tr key={l.id} className="hover:bg-[#f8f9fa] transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-[#090c1d]">
+                    <tr key={l.id} className="hover:bg-paper transition-colors">
+                      <td className="px-4 py-3 text-sm font-medium text-ink">
                         {emp?.name ?? '알 수 없음'}
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#514b81]">{emp?.dept ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs text-[#292d34]">
+                      <td className="px-4 py-3 text-xs text-ink-sub">{emp?.dept ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-ink-strong">
                         {LEAVE_LABELS[l.leave_type] ?? l.leave_type}
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#292d34] whitespace-nowrap">
+                      <td className="px-4 py-3 text-xs text-ink-strong whitespace-nowrap">
                         {l.start_date} ~ {l.end_date}
                       </td>
-                      <td className="px-4 py-3 text-xs text-center font-semibold text-[#7b68ee]">
+                      <td className="px-4 py-3 text-xs text-center font-semibold text-brand">
                         {l.days_count}일
                       </td>
                       <td className="px-4 py-3">
@@ -196,7 +196,7 @@ export default async function AdminLeavesPage({
                           {s.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#514b81] whitespace-nowrap">
+                      <td className="px-4 py-3 text-xs text-ink-sub whitespace-nowrap">
                         {new Date(l.created_at).toLocaleDateString('ko-KR')}
                       </td>
                     </tr>
@@ -212,13 +212,13 @@ export default async function AdminLeavesPage({
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           {page > 1 && (
-            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page - 1)} className="h-8 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper flex items-center">
               이전
             </a>
           )}
-          <span className="text-sm text-[#514b81] px-2">{page} / {totalPages}</span>
+          <span className="text-sm text-ink-sub px-2">{page} / {totalPages}</span>
           {page < totalPages && (
-            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] flex items-center">
+            <a href={buildUrl(page + 1)} className="h-8 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper flex items-center">
               다음
             </a>
           )}

@@ -43,14 +43,14 @@ export function GeneratedDocList({ files, onOpen, inspectionId, disabled }: {
   // R11-b: HWP=파란 아이콘(편집 원본) / PDF=빨간 아이콘(열람·인쇄) — 전 화면 동일 스타일
   const hwpBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-[11px] text-blue-600 hover:bg-blue-50 disabled:opacity-50'
   const pdfBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50'
-  const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50'
+  const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50'
 
   const row = (g: DocGroup, isLatest: boolean) => (
     <div key={g.key} className="flex items-center gap-2 text-xs py-1">
-      <span className="text-[#090c1d] font-medium truncate" title={g.full}>{g.label}</span>
-      {g.createdAt && <span className="text-[11px] text-[#b0acd6] shrink-0">{fmtTime(g.createdAt)}</span>}
+      <span className="text-ink font-medium truncate" title={g.full}>{g.label}</span>
+      {g.createdAt && <span className="text-[11px] text-ink-faint shrink-0">{fmtTime(g.createdAt)}</span>}
       {isLatest && g.kind && (
-        <span className="px-1 py-0.5 rounded bg-[#f5f4ff] text-[#7b68ee] text-[10px] font-medium shrink-0">최신</span>
+        <span className="px-1 py-0.5 rounded bg-brand-tint text-brand text-[10px] font-medium shrink-0">최신</span>
       )}
       <span className="ml-auto flex items-center gap-1 shrink-0">
         {isLatest ? (<>
@@ -100,11 +100,11 @@ export function GeneratedDocList({ files, onOpen, inspectionId, disabled }: {
       {old.length > 0 && (
         <div>
           <button onClick={() => setShowOld(v => !v)}
-            className="inline-flex items-center gap-1 text-[11px] text-[#b0acd6] hover:text-[#7b68ee] py-0.5">
+            className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-brand py-0.5">
             {showOld ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
             이전 생성 {old.length}건
           </button>
-          {showOld && <div className="pl-4 border-l border-[#eceafd]">{old.map(g => row(g, false))}</div>}
+          {showOld && <div className="pl-4 border-l border-brand-tint">{old.map(g => row(g, false))}</div>}
         </div>
       )}
     </div>

@@ -85,10 +85,10 @@ export default async function CustomersPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Users className="size-6 text-[#7b68ee]" />
+          <Users className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-[#090c1d]">고객 관리</h1>
-            <p className="text-sm text-[#514b81] mt-0.5">소방 점검 계약 고객을 관리합니다 — 행을 클릭하면 상세로 이동</p>
+            <h1 className="text-xl font-bold text-ink">고객 관리</h1>
+            <p className="text-sm text-ink-sub mt-0.5">소방 점검 계약 고객을 관리합니다 — 행을 클릭하면 상세로 이동</p>
           </div>
         </div>
       </div>
@@ -103,7 +103,7 @@ export default async function CustomersPage({
       <form method="GET" action="/customers" className="flex flex-wrap items-center gap-2">
         <CustomerSearchBox defaultValue={filter.q ?? ''} />
         <select name="type" defaultValue={filter.type}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition">
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition">
           <option value="">전체 점검유형</option>
           <option value="종합">종합</option>
           <option value="작동">작동</option>
@@ -111,21 +111,21 @@ export default async function CustomersPage({
           <option value="일반작동">일반(작동)</option>
         </select>
         <select name="active" defaultValue={filter.active}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition">
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition">
           <option value="all">전체 상태</option>
           <option value="active">활성</option>
           <option value="inactive">비활성</option>
         </select>
         {/* 입력 미완료 필터 (§6-C-3·§6-D-5) — 상세 [다음 ▶] 컨베이어와 결합 */}
         <select name="inc" defaultValue={filter.inc}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition">
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition">
           <option value="">입력상태 전체</option>
           <option value="any">입력 미완료</option>
           <option value="plan">계획서 미완료</option>
           <option value="doc">문서 미비만</option>
         </select>
         <select name="per_page" defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition">
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition">
           <option value="25">25건</option>
           <option value="50">50건</option>
           <option value="0">전체</option>
@@ -137,21 +137,21 @@ export default async function CustomersPage({
         </button>
         {isFiltered && (
           <Link href="/customers"
-            className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+            className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
             초기화
           </Link>
         )}
         {/* §6-B-A: 계약일·사용승인일은 기본 숨김 — 전체 컬럼 토글 */}
         <Link href={buildUrl({ cols: fullCols ? '' : 'full' })}
-          className="h-9 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors flex items-center">
+          className="h-9 px-3 rounded-lg border border-brand-line text-sm text-brand hover:bg-brand-tint transition-colors flex items-center">
           {fullCols ? '기본 컬럼' : '전체 컬럼'}
         </Link>
-        <span className="text-xs text-[#514b81] ml-auto">총 {totalCount}개사</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {totalCount}개사</span>
         {/* 고객 등록 — 검색줄 맨 오른쪽 배치 + 브랜드 보라 강조 (2026-08-05 사용자 확정: 우측 상단 구석 → 작업 영역 가까이) */}
         {canCreate && (
           <Link
             href="/customers/new"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors"
           >
             <Plus className="size-4" />
             고객 등록
@@ -160,35 +160,35 @@ export default async function CustomersPage({
       </form>
 
       {/* 목록 테이블 — 기본 6컬럼 (§6-B-A) */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {customers.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[#514b81]">
+          <div className="py-16 text-center text-sm text-ink-sub">
             검색된 고객이 없습니다
           </div>
         ) : (
           <TableScroll offset={300}>
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {headers.map(h => (
-                    <th key={h || '_actions'} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
+                    <th key={h || '_actions'} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {customers.map(c => {
                   const bld = c.buildings.find(b => b.is_active)
                   const bldIncomplete = c.incompleteAreas.includes('건물')
                   const planIncomplete = c.planDone < c.planTotal
                   return (
                     <ClickableRow key={c.id} href={detailHref(c.id)}
-                      className="hover:bg-[#f8f9fa] transition-colors cursor-pointer">
+                      className="hover:bg-paper transition-colors cursor-pointer">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 group">
                           {/* §6-B-B2: 이름 클릭 = 상세, 편집은 연필 아이콘 */}
-                          <Link href={detailHref(c.id)} className="font-medium text-[#090c1d] hover:text-[#7b68ee]">
+                          <Link href={detailHref(c.id)} className="font-medium text-ink hover:text-brand">
                             {c.customer_name}
                           </Link>
                           {canCreate && (
@@ -202,11 +202,11 @@ export default async function CustomersPage({
                         {c.address && (
                           <div className="flex items-center gap-1 mt-0.5 max-w-[180px]">
                             <AddressMapButton customerName={c.customer_name} address={c.address} iconOnly />
-                            <p className="text-xs text-[#b0acd6] truncate">{c.address}</p>
+                            <p className="text-xs text-ink-faint truncate">{c.address}</p>
                           </div>
                         )}
                         {bld ? (
-                          <p className="text-[10px] text-[#7b68ee] mt-0.5 truncate max-w-[180px]">
+                          <p className="text-[10px] text-brand mt-0.5 truncate max-w-[180px]">
                             🏢 {[bld.purpose, bld.total_area != null && `${bld.total_area}㎡`,
                               bld.floors_above != null && `지상${bld.floors_above}층`,
                             ].filter(Boolean).join(' · ') || bld.building_name}
@@ -221,28 +221,28 @@ export default async function CustomersPage({
                             <InlineCustomerFieldClient customerId={c.id} field="inspection_type" value={c.inspection_type}
                               subType={c.inspection_sub_type} displayVariant="type-badge" />
                           ) : (
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">
                               {c.inspection_type === '일반관리' ? `일반(${c.inspection_sub_type ?? '작동'})` : c.inspection_type}
                             </span>
                           )}
-                          <span className="text-[10px] text-[#b0acd6] whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
+                          <span className="text-[10px] text-ink-faint whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
                         </div>
                       </td>
                       {fullCols && (
-                        <td className="px-4 py-3 text-xs text-[#292d34]">
+                        <td className="px-4 py-3 text-xs text-ink-strong">
                           {canCreate ? (
                             <InlineCustomerFieldClient customerId={c.id} field="contract_date" value={c.contract_date} />
                           ) : (c.contract_date ?? '-')}
                         </td>
                       )}
                       {fullCols && (
-                        <td className="px-4 py-3 text-xs text-[#514b81]">
+                        <td className="px-4 py-3 text-xs text-ink-sub">
                           {canCreate ? (
                             <InlineCustomerFieldClient customerId={c.id} field="use_approval_date" value={c.use_approval_date} />
                           ) : (c.use_approval_date ?? '-')}
                         </td>
                       )}
-                      <td className="px-4 py-3 text-xs text-[#514b81]">
+                      <td className="px-4 py-3 text-xs text-ink-sub">
                         {canCreate ? (
                           <InlineCustomerFieldClient customerId={c.id} field="plan_anchor_date" value={c.plan_anchor_date} emptyLabel="미입력" />
                         ) : (c.plan_anchor_date ?? '-')}
@@ -258,7 +258,7 @@ export default async function CustomersPage({
                             displayValue={c.assigned_employee_id ? (empMap.get(c.assigned_employee_id) ?? '-') : undefined}
                           />
                         ) : c.assigned_employee_id ? (
-                          <span className="text-xs font-medium text-[#090c1d]">{empMap.get(c.assigned_employee_id) ?? '-'}</span>
+                          <span className="text-xs font-medium text-ink">{empMap.get(c.assigned_employee_id) ?? '-'}</span>
                         ) : (
                           <span className="text-xs text-red-500 font-medium">미배정</span>
                         )}
@@ -294,17 +294,17 @@ export default async function CustomersPage({
                         {/* §6-B-B3: 탭 딥링크 바로가기 — 🏢 건물·시설 / 📄 소방계획서(준비율) / › 상세 */}
                         <div className="flex items-center gap-1.5">
                           <Link href={detailHref(c.id, 'buildings')} title="건물·시설 탭"
-                            className={`relative p-1 rounded hover:bg-[#f5f4ff] ${bldIncomplete ? 'text-amber-500' : 'text-[#b0acd6] hover:text-[#7b68ee]'}`}>
+                            className={`relative p-1 rounded hover:bg-brand-tint ${bldIncomplete ? 'text-amber-500' : 'text-ink-faint hover:text-brand'}`}>
                             <Building2 className="size-3.5" />
                             {bldIncomplete && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" />}
                           </Link>
                           <Link href={detailHref(c.id, 'plan')} title={`소방계획서 탭 (준비율 ${c.planDone}/${c.planTotal})`}
-                            className={`relative p-1 rounded hover:bg-[#f5f4ff] ${planIncomplete ? 'text-amber-500' : 'text-[#b0acd6] hover:text-[#7b68ee]'}`}>
+                            className={`relative p-1 rounded hover:bg-brand-tint ${planIncomplete ? 'text-amber-500' : 'text-ink-faint hover:text-brand'}`}>
                             <FileText className="size-3.5" />
                             {planIncomplete && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" />}
                           </Link>
                           <Link href={detailHref(c.id)} title="상세보기"
-                            className="p-1 rounded text-[#7b68ee] hover:bg-[#f5f4ff]">
+                            className="p-1 rounded text-brand hover:bg-brand-tint">
                             <ChevronRight className="size-4" />
                           </Link>
                           {canDelete && (
@@ -325,14 +325,14 @@ export default async function CustomersPage({
         <div className="flex items-center justify-center gap-2 pt-2">
           {page > 1 && (
             <Link href={buildUrl({ page: String(page - 1) })}
-              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
               이전
             </Link>
           )}
-          <span className="text-sm text-[#514b81]">{page} / {totalPages}</span>
+          <span className="text-sm text-ink-sub">{page} / {totalPages}</span>
           {page < totalPages && (
             <Link href={buildUrl({ page: String(page + 1) })}
-              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
               다음
             </Link>
           )}

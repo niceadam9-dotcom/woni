@@ -131,29 +131,29 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
 
       {/* 패널 */}
-      <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col">
+      <div className="fixed right-0 top-0 h-full w-80 bg-surface shadow-2xl z-50 flex flex-col">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#e0ddf5]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-brand-line-soft">
           <div>
-            <p className="text-sm font-semibold text-[#090c1d]">{customerName}</p>
-            <p className="text-xs text-[#514b81] mt-0.5">
+            <p className="text-sm font-semibold text-ink">{customerName}</p>
+            <p className="text-xs text-ink-sub mt-0.5">
               {inspectionTypeLabel(item.inspection_type)} · {item.sequence_num}차
             </p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-[#f5f4ff] rounded-lg transition-colors">
-            <X className="size-4 text-[#514b81]" />
+          <button onClick={onClose} className="p-1 hover:bg-brand-tint rounded-lg transition-colors">
+            <X className="size-4 text-ink-sub" />
           </button>
         </div>
 
         {/* 탭 헤더 — 점검 있는 경우에만 표시 */}
         {item.inspection_id && (
-          <div className="flex border-b border-[#e0ddf5]">
+          <div className="flex border-b border-brand-line-soft">
             <button
               onClick={() => setActiveTab('plan')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
                 activeTab === 'plan'
-                  ? 'text-[#7b68ee] border-b-2 border-[#7b68ee] -mb-px'
-                  : 'text-[#514b81] hover:text-[#7b68ee]'
+                  ? 'text-brand border-b-2 border-brand -mb-px'
+                  : 'text-ink-sub hover:text-brand'
               }`}
             >
               <CalendarDays className="size-3.5" />
@@ -163,8 +163,8 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
               onClick={() => setActiveTab('work')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
                 activeTab === 'work'
-                  ? 'text-[#7b68ee] border-b-2 border-[#7b68ee] -mb-px'
-                  : 'text-[#514b81] hover:text-[#7b68ee]'
+                  ? 'text-brand border-b-2 border-brand -mb-px'
+                  : 'text-ink-sub hover:text-brand'
               }`}
             >
               <ClipboardList className="size-3.5" />
@@ -179,10 +179,10 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {/* 고객 단위 필드 — 고객관리 > 점검계획일과 단일 소스 동기화 */}
               <div>
-                <label className="text-xs font-medium text-[#514b81] mb-1 block">
-                  점검계획일 <span className="text-[10px] text-[#b0acd6] font-normal">(계획 기산일 · 고객관리와 동기화)</span>
+                <label className="text-xs font-medium text-ink-sub mb-1 block">
+                  점검계획일 <span className="text-[10px] text-ink-faint font-normal">(계획 기산일 · 고객관리와 동기화)</span>
                 </label>
-                <div className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 bg-[#fafafa]">
+                <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper">
                   {canManage ? (
                     <InlineCustomerFieldClient
                       customerId={item.customer_id}
@@ -191,7 +191,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                       emptyLabel="미입력"
                     />
                   ) : planAnchorDate ? (
-                    <span className="text-[#090c1d]">{planAnchorDate}</span>
+                    <span className="text-ink">{planAnchorDate}</span>
                   ) : (
                     <span className="text-red-500 font-medium text-xs">미입력</span>
                   )}
@@ -200,9 +200,9 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-[#514b81]">점검일</label>
+                  <label className="text-xs font-medium text-ink-sub">점검일</label>
                   {!item.scheduled_date && canEdit && (
-                    <span className="text-[10px] text-[#7b68ee] bg-[#f5f4ff] px-1.5 py-0.5 rounded-full font-medium">
+                    <span className="text-[10px] text-brand bg-brand-tint px-1.5 py-0.5 rounded-full font-medium">
                       자동 — 오늘 날짜
                     </span>
                   )}
@@ -211,35 +211,35 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   value={scheduledDate}
                   onChange={e => setScheduledDate(e.target.value)}
                   disabled={!canEdit || !statusEditable}
-                  className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand disabled:bg-paper"
                 />
                 {canEdit && statusEditable && (
-                  <p className="text-[11px] text-[#b0acd6] mt-1">
-                    점검일 저장 시 자동으로 <b className="text-[#7b68ee]">확정</b>되고 1~6단계 일정이 재계산됩니다
+                  <p className="text-[11px] text-ink-faint mt-1">
+                    점검일 저장 시 자동으로 <b className="text-brand">확정</b>되고 1~6단계 일정이 재계산됩니다
                   </p>
                 )}
               </div>
 
               {/* 담당은 고객관리와 단일 소스 — 여기서 바꾸면 고객관리로 전파되지 않아 편집 제거 (2026-07-14) */}
               <div>
-                <label className="text-xs font-medium text-[#514b81] mb-1 block">담당직원</label>
-                <div className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 bg-[#fafafa] flex items-center justify-between">
-                  <span className="text-[#090c1d]">
-                    {(item.profiles as { name: string } | null)?.name ?? <span className="text-[#b0acd6]">미배정</span>}
+                <label className="text-xs font-medium text-ink-sub mb-1 block">담당직원</label>
+                <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper flex items-center justify-between">
+                  <span className="text-ink">
+                    {(item.profiles as { name: string } | null)?.name ?? <span className="text-ink-faint">미배정</span>}
                   </span>
-                  <span className="text-[10px] text-[#b0acd6]">고객관리에서 변경</span>
+                  <span className="text-[10px] text-ink-faint">고객관리에서 변경</span>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-[#514b81] mb-1 block">상태</label>
+                <label className="text-xs font-medium text-ink-sub mb-1 block">상태</label>
                 {statusEditable ? (
                   <>
                     <select
                       value={status}
                       onChange={e => setStatus(e.target.value as PlanItemStatus)}
                       disabled={!canEdit}
-                      className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
+                      className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand disabled:bg-paper"
                     >
                       {STATUS_OPTIONS.map(o => (
                         // 점검이 시작된 항목은 계획으로 되돌릴 수 없음
@@ -249,7 +249,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                       ))}
                     </select>
                     {item.inspection_id ? (
-                      <p className="text-[11px] text-[#b0acd6] mt-1">
+                      <p className="text-[11px] text-ink-faint mt-1">
                         점검이 시작된 항목은 <b>계획</b>으로 되돌릴 수 없습니다
                       </p>
                     ) : item.status === 'confirmed' && status === 'planned' ? (
@@ -258,15 +258,15 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                         저장 시 확정이 해제되고 1~6단계 일정이 초기화됩니다
                       </p>
                     ) : item.status === 'confirmed' ? (
-                      <p className="text-[11px] text-[#b0acd6] mt-1">
+                      <p className="text-[11px] text-ink-faint mt-1">
                         점검 시작 전에는 <b>계획</b>으로 되돌릴 수 있습니다 (해제 시 1~6단계 일정 초기화)
                       </p>
                     ) : null}
                   </>
                 ) : (
-                  <div className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 bg-[#fafafa] flex items-center justify-between">
-                    <span className="text-[#090c1d]">{STATUS_READONLY_LABEL[item.status]}</span>
-                    <span className="text-[10px] text-[#b0acd6]">
+                  <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper flex items-center justify-between">
+                    <span className="text-ink">{STATUS_READONLY_LABEL[item.status]}</span>
+                    <span className="text-[10px] text-ink-faint">
                       {item.status === 'completed' ? '점검 완료 시 자동 전환' : '수동 변경 불가'}
                     </span>
                   </div>
@@ -274,20 +274,20 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
               </div>
 
               <div>
-                <label className="text-xs font-medium text-[#514b81] mb-1 block">메모</label>
+                <label className="text-xs font-medium text-ink-sub mb-1 block">메모</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   disabled={!canEdit}
                   rows={3}
-                  className="w-full text-sm border border-[#c8c4d0] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#7b68ee] disabled:bg-[#fafafa]"
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-brand disabled:bg-paper"
                 />
               </div>
 
               {error && <p className="text-xs text-red-500">{error}</p>}
             </div>
 
-            <div className="p-5 border-t border-[#e0ddf5] space-y-2">
+            <div className="p-5 border-t border-brand-line-soft space-y-2">
               {item.inspection_id ? (
                 <button
                   onClick={() => setActiveTab('work')}
@@ -335,7 +335,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 <button
                   onClick={handleSave}
                   disabled={isPending}
-                  className="w-full flex items-center justify-center gap-2 bg-[#7b68ee] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#6a5acd] transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 bg-brand text-white text-sm font-medium py-2.5 rounded-lg hover:bg-brand-strong transition-colors disabled:opacity-50"
                 >
                   <Save className="size-4" />
                   {isPending ? '저장 중…' : '저장'}
@@ -350,10 +350,10 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
           <>
             <div className="flex-1 overflow-y-auto p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-[#090c1d]">6단계 업무체크리스트</p>
+                <p className="text-xs font-semibold text-ink">6단계 업무체크리스트</p>
                 <Link
                   href={`/inspections/${item.inspection_id}`}
-                  className="flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline"
+                  className="flex items-center gap-1 text-[11px] text-brand hover:underline"
                 >
                   <ExternalLink className="size-3" />
                   상세보기
@@ -362,7 +362,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
 
               {loadingSteps ? (
                 <div className="flex items-center justify-center py-10">
-                  <Loader2 className="size-5 animate-spin text-[#7b68ee]" />
+                  <Loader2 className="size-5 animate-spin text-brand" />
                 </div>
               ) : steps && steps.length > 0 ? (
                 <div className="space-y-2">
@@ -383,21 +383,21 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                             ? 'bg-green-50 border-green-200'
                             : overdue
                             ? 'bg-red-50 border-red-200'
-                            : 'bg-white border-[#e0ddf5]'
+                            : 'bg-surface border-brand-line-soft'
                         }`}
                       >
                         <div className="flex items-start gap-2">
                           <span className={`mt-0.5 size-4 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                            done ? 'bg-green-500 text-white' : overdue ? 'bg-red-400 text-white' : 'bg-[#e0ddf5] text-[#7b68ee]'
+                            done ? 'bg-green-500 text-white' : overdue ? 'bg-red-400 text-white' : 'bg-brand-line-soft text-brand'
                           }`}>
                             {step.step_num}
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-medium leading-tight ${done ? 'text-green-700 line-through' : overdue ? 'text-red-700' : 'text-[#090c1d]'}`}>
+                            <p className={`text-xs font-medium leading-tight ${done ? 'text-green-700 line-through' : overdue ? 'text-red-700' : 'text-ink'}`}>
                               {step.name_ko}
                             </p>
                             {step.due_date && (
-                              <p className={`text-[10px] mt-0.5 ${done ? 'text-green-500' : overdue ? 'text-red-500' : 'text-[#514b81]'}`}>
+                              <p className={`text-[10px] mt-0.5 ${done ? 'text-green-500' : overdue ? 'text-red-500' : 'text-ink-sub'}`}>
                                 {done ? `완료: ${step.completed_at?.split('T')[0] ?? '—'}` : `마감: ${step.due_date}`}
                               </p>
                             )}
@@ -409,7 +409,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                                 <Link
                                   href={inputLink.href}
                                   title={inputLink.title}
-                                  className="text-[10px] px-2 py-1 rounded-md bg-[#7b68ee] text-white hover:bg-[#6a5acd] transition-colors text-center whitespace-nowrap"
+                                  className="text-[10px] px-2 py-1 rounded-md bg-brand text-white hover:bg-brand-strong transition-colors text-center whitespace-nowrap"
                                 >
                                   {inputLink.label}
                                 </Link>
@@ -418,7 +418,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                                 <button
                                   onClick={() => handleCompleteStep(step.id)}
                                   title="증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
-                                  className="text-[10px] px-2 py-1 rounded-md border border-[#c8c4d0] text-[#847ba8] hover:bg-[#f5f4ff] hover:text-[#514b81] transition-colors whitespace-nowrap"
+                                  className="text-[10px] px-2 py-1 rounded-md border border-line text-ink-soft hover:bg-brand-tint hover:text-ink-sub transition-colors whitespace-nowrap"
                                 >
                                   사유 완료
                                 </button>
@@ -431,16 +431,16 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-[#514b81] text-center py-8">단계 정보가 없습니다.</p>
+                <p className="text-xs text-ink-sub text-center py-8">단계 정보가 없습니다.</p>
               )}
 
               {completeErr && <p className="text-xs text-red-500 mt-2">{completeErr}</p>}
             </div>
 
-            <div className="p-5 border-t border-[#e0ddf5]">
+            <div className="p-5 border-t border-brand-line-soft">
               <Link
                 href={`/inspections/${item.inspection_id}`}
-                className="w-full flex items-center justify-center gap-2 bg-[#7b68ee] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#6a5acd] transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-brand text-white text-sm font-medium py-2.5 rounded-lg hover:bg-brand-strong transition-colors"
               >
                 <ExternalLink className="size-4" />
                 점검 상세 페이지

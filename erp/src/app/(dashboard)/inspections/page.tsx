@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<InspectionStatus, string> = {
 
 const STATUS_COLORS: Record<InspectionStatus, string> = {
   scheduled: 'bg-blue-50 text-blue-600',
-  in_progress: 'bg-[#f5f4ff] text-[#7b68ee]',
+  in_progress: 'bg-brand-tint text-brand',
   completed: 'bg-green-50 text-green-700',
   overdue: 'bg-red-50 text-red-600',
 }
@@ -65,8 +65,8 @@ export default async function InspectionsPage({
   }
 
   // 검색 쿼리 구성 — 필터는 DB에서, 페이지 단위로만 가져옴
-  // ADD-15: '취소(비활성/삭제)' 필터는 고객 is_active 기준 → inner join 필요
-  const custJoin = statusFilter === 'cancelled' ? 'customers:customer_id!inner' : 'customers:customer_id'
+  // 삭제(비활성) 고객 건은 기본 조회에서 제외하고 '취소' 필터로만 조회 (ADD-15) → 항상 inner join
+  const custJoin = 'customers:customer_id!inner'
   let query = admin.from('inspections').select(
     `id, year, sequence_num, inspection_type, plan_type, inspection_start_date, status, assigned_employee_id, customer_id,
      ${custJoin} (id, customer_name, customer_code, is_active)`,
@@ -82,6 +82,10 @@ export default async function InspectionsPage({
     query = query.eq('customers.is_active', false) as typeof query
   } else if (statusFilter) {
     query = query.eq('status', statusFilter) as typeof query
+  }
+  // 고객관리에서 삭제된 고객의 점검 건은 '취소' 필터 외 어디에도 싣지 않는다 (2026-08-28)
+  if (statusFilter !== 'cancelled') {
+    query = query.eq('customers.is_active', true) as typeof query
   }
 
   const [inspRes, profilesRes] = await Promise.all([
@@ -161,10 +165,10 @@ export default async function InspectionsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ClipboardList className="size-6 text-[#7b68ee]" />
+          <ClipboardList className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-[#090c1d]">점검 업무</h1>
-            <p className="text-sm text-[#514b81] mt-0.5">소방 점검 업무 현황을 관리합니다</p>
+            <h1 className="text-xl font-bold text-ink">점검 업무</h1>
+            <p className="text-sm text-ink-sub mt-0.5">소방 점검 업무 현황을 관리합니다</p>
           </div>
         </div>
       </div>
@@ -180,7 +184,7 @@ export default async function InspectionsPage({
         <select
           name="year"
           defaultValue={yearFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 연도</option>
           {yearOptions.map(y => (
@@ -190,7 +194,7 @@ export default async function InspectionsPage({
         <select
           name="status"
           defaultValue={statusFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 상태</option>
           <option value="incomplete">비완료 (예정·진행중)</option>
@@ -203,7 +207,7 @@ export default async function InspectionsPage({
         <select
           name="employee"
           defaultValue={employeeFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 담당자</option>
           {employees.map(e => (
@@ -213,7 +217,7 @@ export default async function InspectionsPage({
         <select
           name="per_page"
           defaultValue={String(pageSize)}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="25">25건</option>
           <option value="50">50건</option>
@@ -228,33 +232,33 @@ export default async function InspectionsPage({
         {(q || yearFilter || statusFilter || employeeFilter) && (
           <a
             href="/inspections"
-            className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center"
+            className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center"
           >
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">총 {totalCount}건</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {totalCount}건</span>
       </form>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {inspections.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[#514b81]">
+          <div className="py-16 text-center text-sm text-ink-sub">
             {q ? `'${q}'에 해당하는 점검 업무가 없습니다` : '검색된 점검 업무가 없습니다'}
           </div>
         ) : (
           <TableScroll offset={300}>
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {inspections.map(insp => {
                   const customer = insp.customers
                   const emp = empMap.get(insp.assigned_employee_id)
@@ -262,12 +266,12 @@ export default async function InspectionsPage({
                   const pct = steps.total > 0 ? (steps.completed / steps.total) * 100 : 0
 
                   return (
-                    <tr key={insp.id} className="hover:bg-[#f8f9fa] transition-colors">
+                    <tr key={insp.id} className="hover:bg-paper transition-colors">
                       <td className="px-4 py-3">
                         {/* 고객명 클릭 = 상세보기와 동일 진입 (2026-08-03 사용자 요청) */}
                         <Link
                           href={`/inspections/${insp.id}`}
-                          className={`font-medium hover:underline ${customer && !customer.is_active ? 'text-gray-400 line-through' : 'text-[#090c1d] hover:text-[#7b68ee]'}`}
+                          className={`font-medium hover:underline ${customer && !customer.is_active ? 'text-gray-400 line-through' : 'text-ink hover:text-brand'}`}
                         >
                           {customer?.customer_name ?? '—'}
                           {customer && !customer.is_active && (
@@ -281,17 +285,17 @@ export default async function InspectionsPage({
                             const nb = inspectionNatureBadge(insp.inspection_type, insp.plan_type)
                             return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${nb.className}`}>{nb.label}</span>
                           })()}
-                          <span className="text-xs text-[#514b81]">{insp.sequence_num}차</span>
+                          <span className="text-xs text-ink-sub">{insp.sequence_num}차</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#292d34] whitespace-nowrap">
+                      <td className="px-4 py-3 text-xs text-ink-strong whitespace-nowrap">
                         {insp.inspection_start_date}
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#090c1d]">
+                      <td className="px-4 py-3 text-xs text-ink">
                         {emp ? (
                           <span>
                             {emp.name}
-                            {emp.position ? <span className="text-[#b0acd6] ml-1">({emp.position})</span> : null}
+                            {emp.position ? <span className="text-ink-faint ml-1">({emp.position})</span> : null}
                             {!emp.is_active && <span className="text-red-500 ml-1">(퇴사)</span>}
                           </span>
                         ) : (
@@ -304,18 +308,18 @@ export default async function InspectionsPage({
                             {(steps.hasOverdue || steps.hasDueSoon) && (
                               <AlertTriangle className={`size-3.5 shrink-0 ${steps.hasOverdue ? 'text-red-500' : 'text-amber-500'}`} />
                             )}
-                            <div className="w-20 h-1.5 bg-[#e0ddf5] rounded-full overflow-hidden">
+                            <div className="w-20 h-1.5 bg-brand-line-soft rounded-full overflow-hidden">
                               <div
-                                className={`h-full rounded-full ${steps.completed === steps.total ? 'bg-green-500' : 'bg-[#7b68ee]'}`}
+                                className={`h-full rounded-full ${steps.completed === steps.total ? 'bg-green-500' : 'bg-brand'}`}
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <span className="text-xs text-[#514b81] whitespace-nowrap">
+                            <span className="text-xs text-ink-sub whitespace-nowrap">
                               {steps.completed}/{steps.total}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-[#b0acd6]">—</span>
+                          <span className="text-xs text-ink-faint">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -336,14 +340,14 @@ export default async function InspectionsPage({
         <div className="flex items-center justify-center gap-2 pt-2">
           {page > 1 && (
             <a href={buildPageUrl(page - 1)}
-              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
               이전
             </a>
           )}
-          <span className="text-sm text-[#514b81]">{page} / {totalPages}</span>
+          <span className="text-sm text-ink-sub">{page} / {totalPages}</span>
           {page < totalPages && (
             <a href={buildPageUrl(page + 1)}
-              className="h-8 px-3 rounded-lg border border-[#d0ccf5] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+              className="h-8 px-3 rounded-lg border border-brand-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
               다음
             </a>
           )}

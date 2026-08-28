@@ -23,10 +23,10 @@ export default async function CertificatesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Award className="size-6 text-[#7b68ee]" />
+        <Award className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">증명서 발급</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">재직·경력·급여 증명서를 발급하고 이력을 관리합니다</p>
+          <h1 className="text-xl font-bold text-ink">증명서 발급</h1>
+          <p className="text-sm text-ink-sub mt-0.5">재직·경력·급여 증명서를 발급하고 이력을 관리합니다</p>
         </div>
       </div>
       <CertificatesClient

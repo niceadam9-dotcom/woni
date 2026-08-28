@@ -106,29 +106,29 @@ export default async function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <TrendingUp className="size-6 text-[#7b68ee]" />
+        <TrendingUp className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">관리자 현황</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">전체 현황을 한눈에 확인하세요</p>
+          <h1 className="text-xl font-bold text-ink">관리자 현황</h1>
+          <p className="text-sm text-ink-sub mt-0.5">전체 현황을 한눈에 확인하세요</p>
         </div>
       </div>
 
       {/* 상단 KPI 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: '전체 기안서', value: totalDocs, icon: FileText, sub: '건', color: 'text-[#7b68ee]' },
-          { label: '활성 직원', value: totalEmployees, icon: Users, sub: '명', color: 'text-[#090c1d]' },
+          { label: '전체 기안서', value: totalDocs, icon: FileText, sub: '건', color: 'text-brand' },
+          { label: '활성 직원', value: totalEmployees, icon: Users, sub: '명', color: 'text-ink' },
           { label: '승인된 휴가', value: totalApprovedLeaves, icon: CalendarDays, sub: '건', color: 'text-green-600' },
           { label: '승인 대기 휴가', value: totalPendingLeaves, icon: ClipboardList, sub: '건', color: 'text-orange-500' },
         ].map(card => (
-          <div key={card.label} className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
+          <div key={card.label} className="bg-surface rounded-xl border border-line p-5 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-[#514b81]">{card.label}</p>
+              <p className="text-xs font-medium text-ink-sub">{card.label}</p>
               <card.icon className="size-4 text-[#c4bff5]" />
             </div>
             <p className={`text-2xl font-bold ${card.color}`}>
               {card.value}
-              <span className="text-sm font-normal ml-1 text-[#514b81]">{card.sub}</span>
+              <span className="text-sm font-normal ml-1 text-ink-sub">{card.sub}</span>
             </p>
           </div>
         ))}
@@ -136,16 +136,16 @@ export default async function AdminPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 문서 상태별 현황 */}
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div className="flex items-center gap-2">
-              <FileText className="size-4 text-[#7b68ee]" />
-              <h2 className="text-sm font-semibold text-[#090c1d]">전체 문서 현황</h2>
+              <FileText className="size-4 text-brand" />
+              <h2 className="text-sm font-semibold text-ink">전체 문서 현황</h2>
             </div>
           </div>
           <div className="px-5 py-4 space-y-3">
             {docStatusCounts.length === 0 ? (
-              <p className="text-sm text-[#514b81] text-center py-6">문서가 없습니다</p>
+              <p className="text-sm text-ink-sub text-center py-6">문서가 없습니다</p>
             ) : (
               <>
                 {docStatusCounts.map(({ status, count }) => {
@@ -155,11 +155,11 @@ export default async function AdminPage() {
                     <div key={status} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span className={`px-2 py-0.5 rounded-full font-medium ${s.color}`}>{s.label}</span>
-                        <span className="text-[#514b81]">{count}건 ({pct}%)</span>
+                        <span className="text-ink-sub">{count}건 ({pct}%)</span>
                       </div>
-                      <div className="h-1.5 bg-[#c8c4d0] rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-line rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-[#7b68ee] rounded-full transition-all"
+                          className="h-full bg-brand rounded-full transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -172,25 +172,25 @@ export default async function AdminPage() {
         </div>
 
         {/* 부서별 휴가 현황 */}
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-[#7b68ee]" />
-              <h2 className="text-sm font-semibold text-[#090c1d]">부서별 휴가 현황</h2>
+              <CalendarDays className="size-4 text-brand" />
+              <h2 className="text-sm font-semibold text-ink">부서별 휴가 현황</h2>
             </div>
-            <Link href="/leaves/manage" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+            <Link href="/leaves/manage" className="text-xs text-brand hover:underline flex items-center gap-1">
               승인관리 <ArrowRight className="size-3" />
             </Link>
           </div>
-          <div className="divide-y divide-[#c8c4d0]">
+          <div className="divide-y divide-line">
             {deptLeaves.length === 0 ? (
-              <p className="text-sm text-[#514b81] text-center py-8">휴가 신청이 없습니다</p>
+              <p className="text-sm text-ink-sub text-center py-8">휴가 신청이 없습니다</p>
             ) : (
               deptLeaves.map(row => (
                 <div key={row.dept_id ?? 'none'} className="flex items-center justify-between px-5 py-3">
-                  <span className="text-sm font-medium text-[#090c1d]">{row.dept_name}</span>
+                  <span className="text-sm font-medium text-ink">{row.dept_name}</span>
                   <div className="flex items-center gap-3 text-xs">
-                    <span className="text-[#514b81]">전체 {row.total}건</span>
+                    <span className="text-ink-sub">전체 {row.total}건</span>
                     <span className="text-green-600 font-medium">승인 {row.approved}</span>
                     {row.pending > 0 && (
                       <span className="text-orange-500 font-medium">대기 {row.pending}</span>
@@ -204,19 +204,19 @@ export default async function AdminPage() {
       </div>
 
       {/* 최근 기안서 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div className="flex items-center gap-2">
-            <ClipboardList className="size-4 text-[#7b68ee]" />
-            <h2 className="text-sm font-semibold text-[#090c1d]">최근 기안서</h2>
+            <ClipboardList className="size-4 text-brand" />
+            <h2 className="text-sm font-semibold text-ink">최근 기안서</h2>
           </div>
-          <Link href="/admin/logs" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+          <Link href="/admin/logs" className="text-xs text-brand hover:underline flex items-center gap-1">
             활동 로그 <ArrowRight className="size-3" />
           </Link>
         </div>
-        <div className="divide-y divide-[#c8c4d0]">
+        <div className="divide-y divide-line">
           {recentDocs.length === 0 ? (
-            <p className="text-sm text-[#514b81] text-center py-8">기안서가 없습니다</p>
+            <p className="text-sm text-ink-sub text-center py-8">기안서가 없습니다</p>
           ) : (
             recentDocs.map(doc => {
               const s = DOC_STATUS_MAP[doc.status] ?? { label: doc.status, color: '' }
@@ -224,11 +224,11 @@ export default async function AdminPage() {
                 <Link
                   key={doc.id}
                   href={`/documents/${doc.id}`}
-                  className="flex items-center justify-between px-5 py-3.5 hover:bg-[#f8f9fa] transition-colors"
+                  className="flex items-center justify-between px-5 py-3.5 hover:bg-paper transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#090c1d] truncate">{doc.title}</p>
-                    <p className="text-xs text-[#514b81] mt-0.5">
+                    <p className="text-sm font-medium text-ink truncate">{doc.title}</p>
+                    <p className="text-xs text-ink-sub mt-0.5">
                       {authorMap.get(doc.author_id) ?? '알 수 없음'}
                       {doc.submitted_at && ` · ${new Date(doc.submitted_at).toLocaleDateString('ko-KR')}`}
                     </p>

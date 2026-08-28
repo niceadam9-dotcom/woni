@@ -22,8 +22,8 @@ export function BulkExtractRegionsClient({ missingCount }: { missingCount: numbe
   if (!isPending || missingCount === 0) return null
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-[#514b81]">
-      <Loader2 className="size-3.5 animate-spin text-[#7b68ee]" />
+    <span className="inline-flex items-center gap-1.5 text-xs text-ink-sub">
+      <Loader2 className="size-3.5 animate-spin text-brand" />
       지역 정보 자동 추출 중 ({missingCount}건)...
     </span>
   )

@@ -61,10 +61,10 @@ export default async function AdminUsersPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Users className="size-6 text-[#7b68ee]" />
+        <Users className="size-6 text-brand" />
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">직원 관리</h1>
-          <p className="text-sm text-[#514b81] mt-0.5">직원 계정을 생성하고 관리합니다</p>
+          <h1 className="text-xl font-bold text-ink">직원 관리</h1>
+          <p className="text-sm text-ink-sub mt-0.5">직원 계정을 생성하고 관리합니다</p>
         </div>
       </div>
 
@@ -74,12 +74,12 @@ export default async function AdminUsersPage({
           name="q"
           defaultValue={q}
           placeholder="이름, 이메일, 사번 검색"
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition w-52"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition w-52"
         />
         <select
           name="role"
           defaultValue={roleFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 역할</option>
           <option value="employee">일반직원</option>
@@ -89,7 +89,7 @@ export default async function AdminUsersPage({
         <select
           name="dept"
           defaultValue={deptFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="">전체 부서</option>
           {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -97,7 +97,7 @@ export default async function AdminUsersPage({
         <select
           name="active"
           defaultValue={activeFilter}
-          className="h-9 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] transition"
+          className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition"
         >
           <option value="all">전체 상태</option>
           <option value="active">활성</option>
@@ -110,11 +110,11 @@ export default async function AdminUsersPage({
           검색
         </button>
         {(q || roleFilter || deptFilter || activeFilter !== 'all') && (
-          <a href="/admin/users" className="h-9 px-3 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors flex items-center">
+          <a href="/admin/users" className="h-9 px-3 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors flex items-center">
             초기화
           </a>
         )}
-        <span className="text-xs text-[#514b81] ml-auto">총 {usersWithBalance.length}명</span>
+        <span className="text-xs text-ink-sub ml-auto">총 {usersWithBalance.length}명</span>
       </form>
 
       <UserManageClient users={usersWithBalance} depts={depts} />

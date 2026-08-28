@@ -219,7 +219,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
 
   if (err) return <p className="py-6 text-sm text-red-600">{err} — 권한이 없거나 일시 오류입니다.</p>
   if (!entries) {
-    return <p className="py-6 text-sm text-[#b0acd6] inline-flex items-center gap-1.5"><Loader2 className="size-4 animate-spin" /> 공통문구를 불러오는 중…</p>
+    return <p className="py-6 text-sm text-ink-faint inline-flex items-center gap-1.5"><Loader2 className="size-4 animate-spin" /> 공통문구를 불러오는 중…</p>
   }
 
   const emptyCount = noDefault.length
@@ -227,19 +227,19 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
   return (
     <div className="flex gap-5 items-start">
       {/* 좌측 목차 — 장 → 섹션 2단 점프 (R1-2). ⭐/○로 기본문구 유무를 한눈에 (R1-3) */}
-      <aside className="hidden lg:block w-56 shrink-0 sticky top-2 rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-2 space-y-2">
+      <aside className="hidden lg:block w-56 shrink-0 sticky top-2 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-2">
         {PLAN_TEXT_CHAPTERS.map(g => (
           <div key={g.chapter}>
-            <p className="px-2 py-1 text-[10px] font-bold text-[#847ba8]">{g.chapter}</p>
+            <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">{g.chapter}</p>
             {g.sections.map(def => {
               const has = !noDefault.includes(def.key)
               const n = (bySection[def.key] ?? []).length
               return (
                 <a key={def.key} href={`#sec-${def.key}`}
-                  className="flex items-center gap-1.5 h-7 px-2 rounded-lg text-[11px] text-[#514b81] hover:bg-[#f5f4ff]">
-                  <span className={has ? 'text-amber-500' : 'text-[#c8c4d0]'}>{has ? '⭐' : '○'}</span>
+                  className="flex items-center gap-1.5 h-7 px-2 rounded-lg text-[11px] text-ink-sub hover:bg-brand-tint">
+                  <span className={has ? 'text-amber-500' : 'text-ink-faint'}>{has ? '⭐' : '○'}</span>
                   <span className="truncate">{def.label}</span>
-                  <span className="ml-auto text-[10px] text-[#b0acd6]">{n}</span>
+                  <span className="ml-auto text-[10px] text-ink-faint">{n}</span>
                 </a>
               )
             })}
@@ -251,29 +251,29 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
         {/* 요약 바 — 이 화면의 최대 가치를 맨 위에 (R1-3) */}
         {/* 버튼 3종을 한 줄에 나란히, 안내 문구는 그 아래로 (2026-08-13 사용자 요청) —
             종전에는 문구와 버튼이 같은 줄이라 문구가 길면 버튼이 줄바꿈돼 흩어졌다 */}
-        <div className="rounded-xl border border-[#e0ddf5] bg-white px-4 py-3 space-y-2">
+        <div className="rounded-xl border border-brand-line-soft bg-surface px-4 py-3 space-y-2">
           <div className="flex items-center gap-2">
             {/* 도입 동선 두 갈래를 나란히 — 가져와서 시작 / 빈 문서로 시작. 둘 다 여러 섹션을 한 번에 다룬다 */}
             <button onClick={() => setImportOpen(true)} disabled={isBusy}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium whitespace-nowrap disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium whitespace-nowrap disabled:opacity-50">
               <Download className="size-3.5" /> 고객에서 불러오기
             </button>
             <button onClick={createAll} disabled={isBusy || emptySections.length === 0}
               title={emptySections.length === 0
                 ? '모든 섹션에 문구가 있습니다 — 하나 더 추가하려면 섹션의 [새로 만들기]를 쓰세요'
                 : `문구가 없는 ${emptySections.length}개 섹션에 빈 문서를 한 번에 만듭니다`}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-[#d0ccf5] text-[11px] font-medium text-[#514b81] hover:bg-[#f5f4ff] whitespace-nowrap disabled:opacity-40">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-[11px] font-medium text-ink-sub hover:bg-brand-tint whitespace-nowrap disabled:opacity-40">
               <Plus className="size-3.5" /> 새로 만들기{emptySections.length > 0 ? ` (${emptySections.length})` : ''}
             </button>
             <button onClick={() => load()} disabled={isLoading}
-              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] whitespace-nowrap disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint whitespace-nowrap disabled:opacity-50">
               <RefreshCw className={`size-3 ${isLoading ? 'animate-spin' : ''}`} /> 새로고침
             </button>
           </div>
           {emptyCount > 0 ? (
             <p className="text-xs text-amber-700">
               ⚠ 기본문구가 없는 섹션 <b>{emptyCount}개</b> — 이 섹션은 신규 고객이 들어와도 자동으로 채워지지 않습니다.
-              <span className="text-[#847ba8]"> ({noDefault.map(k => sectionLabel(k)).join(' · ')})</span>
+              <span className="text-ink-soft"> ({noDefault.map(k => sectionLabel(k)).join(' · ')})</span>
             </p>
           ) : (
             <p className="text-xs text-green-700">✅ 8섹션 모두 기본문구가 있습니다 — 신규 고객 진입 시 자동 주입됩니다.</p>
@@ -282,7 +282,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
 
         {PLAN_TEXT_CHAPTERS.map(g => (
           <div key={g.chapter} className="space-y-4">
-            <p className="text-[11px] font-bold text-[#847ba8] pt-1">{g.chapter}</p>
+            <p className="text-[11px] font-bold text-ink-soft pt-1">{g.chapter}</p>
             {g.sections.map(def => {
               const list = bySection[def.key] ?? []
               const cur = currentEntry(def.key)
@@ -290,23 +290,23 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
               const dirty = isDirty(def.key)
               const hasDefault = !noDefault.includes(def.key)
               return (
-                <section key={def.key} id={`sec-${def.key}`} className="scroll-mt-4 rounded-xl border border-[#c8c4d0] bg-white">
+                <section key={def.key} id={`sec-${def.key}`} className="scroll-mt-4 rounded-xl border border-line bg-surface">
                   {/* 섹션 헤더 — 대안 문구 드롭다운 + ⭐ 승격 (R1-6) */}
-                  <div className="flex items-center gap-2 flex-wrap border-b border-[#eceafd] px-4 py-2.5">
-                    <span className={hasDefault ? 'text-amber-500' : 'text-[#c8c4d0]'}>{hasDefault ? '⭐' : '○'}</span>
-                    <h2 className="text-sm font-semibold text-[#090c1d]">{def.label}</h2>
+                  <div className="flex items-center gap-2 flex-wrap border-b border-brand-tint px-4 py-2.5">
+                    <span className={hasDefault ? 'text-amber-500' : 'text-ink-faint'}>{hasDefault ? '⭐' : '○'}</span>
+                    <h2 className="text-sm font-semibold text-ink">{def.label}</h2>
                     {!hasDefault && <span className="text-[10px] text-amber-600">기본문구 없음 — 자동주입 대상 아님</span>}
 
                     {list.length > 0 && (
                       <div className="relative ml-2">
                         <select value={selected[def.key] ?? ''}
                           onChange={e => { setSelected(s => ({ ...s, [def.key]: e.target.value })); setDraft(x => { const n = { ...x }; delete n[def.key]; return n }) }}
-                          className="h-7 appearance-none rounded-lg border border-[#d0ccf5] bg-white pl-2 pr-6 text-[11px] text-[#514b81] outline-none focus:border-[#7b68ee]">
+                          className="h-7 appearance-none rounded-lg border border-brand-line bg-surface pl-2 pr-6 text-[11px] text-ink-sub outline-none focus:border-brand">
                           {list.map(e => (
                             <option key={e.id} value={e.id}>{e.isDefault ? '⭐ ' : ''}{e.title} (v{e.version})</option>
                           ))}
                         </select>
-                        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 size-3 text-[#b0acd6]" />
+                        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 size-3 text-ink-faint" />
                       </div>
                     )}
 
@@ -314,7 +314,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                     {list.length > 0 && (
                       <button onClick={() => create(def)} disabled={isBusy}
                         title="이 섹션에 대안 문구를 하나 더 만듭니다 (빈 문서로 시작)"
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50">
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50">
                         <Plus className="size-3" /> 새로 만들기
                       </button>
                     )}
@@ -330,11 +330,11 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                       <>
                         <button onClick={() => duplicate(def.key)} disabled={isBusy}
                           title="현재 본문을 새 이름으로 복제 — 원본 개정은 올라가지 않습니다"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] disabled:opacity-50">
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50">
                           <Copy className="size-3" /> 복제
                         </button>
                         <button onClick={() => remove(def.key, cur)} disabled={isBusy}
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
                           <Trash2 className="size-3" /> 삭제
                         </button>
                       </>
@@ -348,18 +348,18 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                       <p className={`text-[11px] ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
                     )}
                     {!cur ? (
-                      <p className="text-xs text-[#847ba8]">
-                        등록된 문구가 없습니다 — 맨 위 <b className="text-[#7b68ee]">[새로 만들기]</b>로 빈 섹션을 한 번에 만들거나,
-                        <b className="text-[#7b68ee]">[고객에서 불러오기]</b>로 잘 작성된 고객에서 가져오세요. 서식 화면의 [공통으로 등록]으로 올릴 수도 있습니다.
+                      <p className="text-xs text-ink-soft">
+                        등록된 문구가 없습니다 — 맨 위 <b className="text-brand">[새로 만들기]</b>로 빈 섹션을 한 번에 만들거나,
+                        <b className="text-brand">[고객에서 불러오기]</b>로 잘 작성된 고객에서 가져오세요. 서식 화면의 [공통으로 등록]으로 올릴 수도 있습니다.
                       </p>
                     ) : (
                       <>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <label className="text-[11px] font-medium text-[#514b81]">항목 이름</label>
+                          <label className="text-[11px] font-medium text-ink-sub">항목 이름</label>
                           <input value={d?.title ?? ''} disabled={isBusy}
                             onChange={e => setDraftFor(def.key, { title: e.target.value })}
-                            className="h-8 flex-1 basis-48 min-w-0 rounded-lg border border-[#d0ccf5] px-2.5 text-xs outline-none focus:border-[#7b68ee]" />
-                          <span className="text-[10px] text-[#b0acd6]">개정 v{cur.version} · {cur.updatedAt}</span>
+                            className="h-8 flex-1 basis-48 min-w-0 rounded-lg border border-brand-line px-2.5 text-xs outline-none focus:border-brand" />
+                          <span className="text-[10px] text-ink-faint">개정 v{cur.version} · {cur.updatedAt}</span>
                         </div>
 
                         <PlanTextBodyEditor def={def} value={d?.body} disabled={isBusy}
@@ -371,36 +371,36 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
 
                         <div className="flex items-center gap-2 flex-wrap">
                           <button onClick={() => save(def.key)} disabled={isBusy || !dirty}
-                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] hover:bg-[#6647f0] text-white text-[11px] font-medium disabled:opacity-40">
+                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-40">
                             {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />} 이 섹션 저장
                           </button>
                           {dirty && <span className="text-[11px] text-amber-600">저장하지 않은 변경이 있습니다</span>}
                           <button onClick={() => toggleUsage(cur.id)} disabled={isBusy}
-                            className="ml-auto text-[11px] text-[#7b68ee] hover:underline disabled:opacity-50">
+                            className="ml-auto text-[11px] text-brand hover:underline disabled:opacity-50">
                             사용처 {cur.usageCount}곳{cur.staleCount > 0 ? ` · 개정됨 ${cur.staleCount}` : ''} {usage[cur.id] ? '접기' : '보기'}
                           </button>
                         </div>
 
                         {/* 사용처 목록 (R1-7) — 조회 전용. 일괄 반영 버튼은 만들지 않는다(D1-4) */}
                         {usage[cur.id] && (
-                          <div className="rounded-lg border border-[#eceafd] bg-[#fafaff] p-2">
+                          <div className="rounded-lg border border-brand-tint bg-brand-tint p-2">
                             {usage[cur.id].length === 0 ? (
-                              <p className="text-[11px] text-[#b0acd6]">아직 가져간 고객이 없습니다.</p>
+                              <p className="text-[11px] text-ink-faint">아직 가져간 고객이 없습니다.</p>
                             ) : (
                               <div className="space-y-1">
                                 {usage[cur.id].map(u => (
                                   <div key={`${u.customerId}-${u.appliedAt}`} className="flex items-center gap-2 text-[11px]">
                                     <Link href={`/customers/${u.customerId}?tab=plan&form=${formAnchor(def.key)}`}
-                                      className="text-[#7b68ee] hover:underline truncate max-w-[14rem]">{u.customerName}</Link>
-                                    <span className="text-[10px] text-[#847ba8]">{u.source === 'default' ? '자동주입' : '가져오기'}</span>
-                                    <span className="text-[10px] text-[#b0acd6]">v{u.version} · {u.appliedAt}</span>
+                                      className="text-brand hover:underline truncate max-w-[14rem]">{u.customerName}</Link>
+                                    <span className="text-[10px] text-ink-soft">{u.source === 'default' ? '자동주입' : '가져오기'}</span>
+                                    <span className="text-[10px] text-ink-faint">v{u.version} · {u.appliedAt}</span>
                                     {u.stale && (
                                       <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700"
                                         title="가져간 뒤 공통문구가 개정되었습니다 — 반영은 고객 화면에서 개별로">개정됨</span>
                                     )}
                                   </div>
                                 ))}
-                                <p className="pt-1 text-[10px] text-[#b0acd6]">조회 전용 — 일괄 덮어쓰기는 제공하지 않습니다(제출 문서·고객 수정분 보호).</p>
+                                <p className="pt-1 text-[10px] text-ink-faint">조회 전용 — 일괄 덮어쓰기는 제공하지 않습니다(제출 문서·고객 수정분 보호).</p>
                               </div>
                             )}
                           </div>

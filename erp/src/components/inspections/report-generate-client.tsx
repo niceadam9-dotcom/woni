@@ -32,22 +32,22 @@ export function ReportGenerateClient({ history }: {
   if (history.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-[#c8c4d0] bg-white p-4">
+    <div className="rounded-xl border border-line bg-surface p-4">
       <div className="mb-2 flex items-center gap-2">
-        <FileSpreadsheet className="size-4 text-[#b0acd6]" />
-        <h2 className="text-sm font-semibold text-[#514b81]">소방시설등점검표 (엑셀) — 과거 생성물</h2>
-        <span className="text-[10px] text-[#b0acd6]">엑셀 생성은 폐지됐습니다 — 별지 4호 PDF로 대체</span>
+        <FileSpreadsheet className="size-4 text-ink-faint" />
+        <h2 className="text-sm font-semibold text-ink-sub">소방시설등점검표 (엑셀) — 과거 생성물</h2>
+        <span className="text-[10px] text-ink-faint">엑셀 생성은 폐지됐습니다 — 별지 4호 PDF로 대체</span>
       </div>
 
       {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
       <div className="space-y-1">
         {history.map(h => (
-          <div key={h.id} className="flex items-center gap-2 border-b border-[#f8f9fa] py-1.5 text-xs last:border-0">
-            <span className="text-[#090c1d]">{h.file_name}</span>
-            <span className="text-[#b0acd6]">{h.generated_at.slice(0, 16).replace('T', ' ')}{h.by_name ? ` · ${h.by_name}` : ''}</span>
+          <div key={h.id} className="flex items-center gap-2 border-b border-paper py-1.5 text-xs last:border-0">
+            <span className="text-ink">{h.file_name}</span>
+            <span className="text-ink-faint">{h.generated_at.slice(0, 16).replace('T', ' ')}{h.by_name ? ` · ${h.by_name}` : ''}</span>
             <button onClick={() => redownload(h.id)} disabled={isPending}
-              className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-[#d0ccf5] px-2 text-[#7b68ee] hover:bg-[#f5f4ff] disabled:opacity-50">
+              className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-brand-line px-2 text-brand hover:bg-brand-tint disabled:opacity-50">
               <Download className="size-3" /> 다운로드
             </button>
           </div>

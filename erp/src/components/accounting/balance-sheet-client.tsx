@@ -89,14 +89,14 @@ export function BalanceSheetClient({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl border p-4 flex items-center gap-3">
+      <div className="bg-surface rounded-xl border p-4 flex items-center gap-3">
         <span className="text-sm font-medium text-gray-600">기준일</span>
-        <span className="text-sm font-bold text-[#090c1d]">{asOf}</span>
+        <span className="text-sm font-bold text-ink">{asOf}</span>
         <span className="text-xs text-gray-400 ml-2">승인된 전표 누적 기준</span>
       </div>
 
       {!hasData && (
-        <div className="bg-white rounded-xl border p-8 text-center">
+        <div className="bg-surface rounded-xl border p-8 text-center">
           <p className="text-gray-400 text-sm">승인된 전표 데이터가 없습니다.</p>
           <p className="text-gray-300 text-xs mt-1">전표를 등록하고 승인하면 재무상태표가 자동으로 집계됩니다.</p>
         </div>
@@ -105,8 +105,8 @@ export function BalanceSheetClient({
       {hasData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* 자산 */}
-          <div className="bg-white rounded-xl border p-5 space-y-4">
-            <h2 className="font-semibold text-[#090c1d] border-b pb-2">자산</h2>
+          <div className="bg-surface rounded-xl border p-5 space-y-4">
+            <h2 className="font-semibold text-ink border-b pb-2">자산</h2>
             <Section title="자산" items={assets} total={totalAssets} colorClass="bg-blue-50 text-blue-700" />
             <div className="border-t-2 border-blue-300 pt-2">
               <div className="flex justify-between font-bold text-blue-700 text-sm">
@@ -117,8 +117,8 @@ export function BalanceSheetClient({
           </div>
 
           {/* 부채 + 자본 */}
-          <div className="bg-white rounded-xl border p-5 space-y-4">
-            <h2 className="font-semibold text-[#090c1d] border-b pb-2">부채 및 자본</h2>
+          <div className="bg-surface rounded-xl border p-5 space-y-4">
+            <h2 className="font-semibold text-ink border-b pb-2">부채 및 자본</h2>
             <Section title="부채" items={liabilities} total={totalLiabilities} colorClass="bg-red-50 text-red-600" />
             <Section title="자본" items={equities} total={totalEquities} colorClass="bg-emerald-50 text-emerald-700" />
             <div className="border-t-2 border-gray-300 pt-2">

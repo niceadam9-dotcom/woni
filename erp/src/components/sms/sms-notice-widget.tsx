@@ -42,27 +42,27 @@ export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, er
       data-testid="dash-sms-widget"
       className={`flex items-center gap-3 rounded-xl border px-5 py-4 transition-colors ${
         has
-          ? 'bg-white border-[#c3bdf5] hover:bg-[#faf9ff]'
-          : 'bg-white border-[#c8c4d0] hover:bg-[#fafafa]'
+          ? 'bg-surface border-brand-line hover:bg-brand-tint'
+          : 'bg-surface border-line hover:bg-paper'
       }`}
     >
       {has
-        ? <MessageSquare className="size-4 text-[#7b68ee] shrink-0" />
+        ? <MessageSquare className="size-4 text-brand shrink-0" />
         : <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />}
 
       <div className="flex-1 min-w-0">
         {has ? (
           <>
-            <p className="text-sm font-semibold text-[#090c1d]">
+            <p className="text-sm font-semibold text-ink">
               {/* 단위는 배너·뱃지와 같은 **건**(고객+방문일). 세 화면이 다른 단위를 쓰면
                   같은 값을 다르게 말하게 되고, 사용자는 어느 쪽을 믿을지 모른다. */}
-              보낼 사전 안내 <span className="text-[#7b68ee]">{count}건</span>
-              <span className="text-[#b0acd6] font-normal"> · {messages}통</span>
+              보낼 사전 안내 <span className="text-brand">{count}건</span>
+              <span className="text-ink-faint font-normal"> · {messages}통</span>
               {blockedCount > 0 && (
                 <span className="text-amber-600 font-normal"> · 보낼 수 없음 {blockedCount}건</span>
               )}
             </p>
-            <p className="text-xs text-[#b0acd6] mt-0.5">
+            <p className="text-xs text-ink-faint mt-0.5">
               {blockedCount > 0
                 ? '번호가 없거나 점검일이 미확정인 곳이 있습니다 — 그대로 두면 연락 없이 방문하게 됩니다'
                 : nearest
@@ -72,18 +72,18 @@ export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, er
           </>
         ) : (
           <>
-            <p className="text-sm font-semibold text-[#090c1d]">오늘 보낼 사전 안내가 없습니다</p>
-            <p className="text-xs text-[#b0acd6] mt-0.5">
+            <p className="text-sm font-semibold text-ink">오늘 보낼 사전 안내가 없습니다</p>
+            <p className="text-xs text-ink-faint mt-0.5">
               {nearest ? `${nearest.label} ${nearest.totalCount}건은 안내를 마쳤습니다` : '설정한 시점에 해당하는 방문이 없습니다'}
             </p>
           </>
         )}
       </div>
 
-      <span className={`shrink-0 text-xs font-medium ${has ? 'text-[#7b68ee]' : 'text-[#b0acd6]'}`}>
+      <span className={`shrink-0 text-xs font-medium ${has ? 'text-brand' : 'text-ink-faint'}`}>
         {has ? '확인하고 발송' : '발송 내역'}
       </span>
-      <ChevronRight className="size-4 text-[#b0acd6] shrink-0" />
+      <ChevronRight className="size-4 text-ink-faint shrink-0" />
     </Link>
   )
 }

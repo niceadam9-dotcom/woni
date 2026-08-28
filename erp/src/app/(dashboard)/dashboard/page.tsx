@@ -292,8 +292,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">안녕하세요, {profile.name}님</h1>
-        <p className="text-sm text-[#514b81] mt-1">오늘의 업무 현황입니다.</p>
+        <h1 className="text-xl font-bold text-ink">안녕하세요, {profile.name}님</h1>
+        <p className="text-sm text-ink-sub mt-1">오늘의 업무 현황입니다.</p>
       </div>
 
       {/* ── 소방업무 KPI 카드 (manager/admin) ──────────── */}
@@ -314,16 +314,16 @@ export default async function DashboardPage() {
             },
             {
               label: '이행보고서 대기', value: `${pendingActions.length}건`,
-              sub: '소방서 제출 전', icon: BarChart2, color: 'text-[#7b68ee]',
+              sub: '소방서 제출 전', icon: BarChart2, color: 'text-brand',
             },
           ].map(k => (
-            <div key={k.label} className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow}`}>
+            <div key={k.label} className={`bg-surface rounded-xl border border-line p-5 ${cardShadow}`}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">{k.label}</p>
+                <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">{k.label}</p>
                 <k.icon className={`size-4 ${k.color}`} />
               </div>
               <p className={`text-3xl font-bold ${k.color} mt-1`}>{k.value}</p>
-              <p className="text-xs text-[#b0acd6] mt-1">{k.sub}</p>
+              <p className="text-xs text-ink-faint mt-1">{k.sub}</p>
             </div>
           ))}
         </div>
@@ -334,29 +334,29 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-2 gap-4">
           <Link
             href="/inspections/calendar?filter=today"
-            className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow} hover:border-orange-200 transition-colors`}
+            className={`bg-surface rounded-xl border border-line p-5 ${cardShadow} hover:border-orange-200 transition-colors`}
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">오늘 마감</p>
-              <Clock className={`size-4 ${todayStepCount > 0 ? 'text-orange-500' : 'text-[#b0acd6]'}`} />
+              <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">오늘 마감</p>
+              <Clock className={`size-4 ${todayStepCount > 0 ? 'text-orange-500' : 'text-ink-faint'}`} />
             </div>
-            <p className={`text-3xl font-bold mt-1 ${todayStepCount > 0 ? 'text-orange-500' : 'text-[#b0acd6]'}`}>
+            <p className={`text-3xl font-bold mt-1 ${todayStepCount > 0 ? 'text-orange-500' : 'text-ink-faint'}`}>
               {todayStepCount}<span className="text-base font-medium ml-1">건</span>
             </p>
-            <p className="text-xs text-[#b0acd6] mt-1">오늘 마감 미완료 단계</p>
+            <p className="text-xs text-ink-faint mt-1">오늘 마감 미완료 단계</p>
           </Link>
           <Link
             href="/inspections/calendar?filter=overdue"
-            className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow} hover:border-red-200 transition-colors`}
+            className={`bg-surface rounded-xl border border-line p-5 ${cardShadow} hover:border-red-200 transition-colors`}
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">지연</p>
-              <AlertTriangle className={`size-4 ${overdueStepCount > 0 ? 'text-red-500' : 'text-[#b0acd6]'}`} />
+              <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">지연</p>
+              <AlertTriangle className={`size-4 ${overdueStepCount > 0 ? 'text-red-500' : 'text-ink-faint'}`} />
             </div>
-            <p className={`text-3xl font-bold mt-1 ${overdueStepCount > 0 ? 'text-red-500' : 'text-[#b0acd6]'}`}>
+            <p className={`text-3xl font-bold mt-1 ${overdueStepCount > 0 ? 'text-red-500' : 'text-ink-faint'}`}>
               {overdueStepCount}<span className="text-base font-medium ml-1">건</span>
             </p>
-            <p className="text-xs text-[#b0acd6] mt-1">기한 초과 미완료 단계</p>
+            <p className="text-xs text-ink-faint mt-1">기한 초과 미완료 단계</p>
           </Link>
         </div>
       )}
@@ -378,60 +378,60 @@ export default async function DashboardPage() {
 
       {/* ── 상단 ERP 카드 ─────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow}`}>
-          <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">내 문서</p>
-          <p className="text-3xl font-bold text-[#7b68ee] mt-2">{myDocCount}</p>
-          <p className="text-xs text-[#b0acd6] mt-1">기안서 전체</p>
+        <div className={`bg-surface rounded-xl border border-line p-5 ${cardShadow}`}>
+          <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">내 문서</p>
+          <p className="text-3xl font-bold text-brand mt-2">{myDocCount}</p>
+          <p className="text-xs text-ink-faint mt-1">기안서 전체</p>
         </div>
 
         {isManagerOrAdmin && (
-          <div className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow}`}>
-            <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">미결재</p>
-            <p className="text-3xl font-bold text-[#7b68ee] mt-2">{pendingCount}</p>
-            <p className="text-xs text-[#b0acd6] mt-1">결재 대기 건</p>
+          <div className={`bg-surface rounded-xl border border-line p-5 ${cardShadow}`}>
+            <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">미결재</p>
+            <p className="text-3xl font-bold text-brand mt-2">{pendingCount}</p>
+            <p className="text-xs text-ink-faint mt-1">결재 대기 건</p>
           </div>
         )}
 
-        <div className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow}`}>
-          <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">내 휴가</p>
-          <p className="text-3xl font-bold text-[#7b68ee] mt-2">{myLeaves.length}</p>
-          <p className="text-xs text-[#b0acd6] mt-1">최근 신청</p>
+        <div className={`bg-surface rounded-xl border border-line p-5 ${cardShadow}`}>
+          <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">내 휴가</p>
+          <p className="text-3xl font-bold text-brand mt-2">{myLeaves.length}</p>
+          <p className="text-xs text-ink-faint mt-1">최근 신청</p>
         </div>
 
         {isAdmin && adminStats && (
-          <div className={`bg-white rounded-xl border border-[#c8c4d0] p-5 ${cardShadow}`}>
-            <p className="text-xs font-medium text-[#514b81] uppercase tracking-wide">전체 직원</p>
-            <p className="text-3xl font-bold text-[#7b68ee] mt-2">{adminStats.totalEmployees}</p>
-            <p className="text-xs text-[#b0acd6] mt-1">활성 계정</p>
+          <div className={`bg-surface rounded-xl border border-line p-5 ${cardShadow}`}>
+            <p className="text-xs font-medium text-ink-sub uppercase tracking-wide">전체 직원</p>
+            <p className="text-3xl font-bold text-brand mt-2">{adminStats.totalEmployees}</p>
+            <p className="text-xs text-ink-faint mt-1">활성 계정</p>
           </div>
         )}
       </div>
 
       {/* ── 나의 점검 현황 ────────────────────────────── */}
-      <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow} overflow-hidden`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+      <div className={`bg-surface rounded-xl border border-line ${cardShadow} overflow-hidden`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div className="flex items-center gap-2">
-            <Flame className="size-4 text-[#7b68ee]" />
-            <h2 className="text-sm font-semibold text-[#090c1d]">{inspLabel} 현황</h2>
-            <span className="text-xs text-[#b0acd6]">전체 {totalInsp}건</span>
+            <Flame className="size-4 text-brand" />
+            <h2 className="text-sm font-semibold text-ink">{inspLabel} 현황</h2>
+            <span className="text-xs text-ink-faint">전체 {totalInsp}건</span>
           </div>
-          <Link href="/inspections" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+          <Link href="/inspections" className="text-xs text-brand hover:underline flex items-center gap-1">
             전체보기 <ArrowRight className="size-3" />
           </Link>
         </div>
-        <div className="grid grid-cols-4 divide-x divide-[#e0ddf5]">
+        <div className="grid grid-cols-4 divide-x divide-brand-line-soft">
           {[
             { label: '예정', value: inspStats.scheduled, color: 'text-blue-600' },
-            { label: '진행중', value: inspStats.in_progress, color: 'text-[#7b68ee]' },
+            { label: '진행중', value: inspStats.in_progress, color: 'text-brand' },
             { label: '완료', value: inspStats.completed, color: 'text-green-700' },
             { label: '기한초과', value: inspStats.overdue, color: 'text-red-600', isAlert: true },
           ].map(({ label, value, color, isAlert }) => (
             <Link
               key={label}
               href={label === '기한초과' ? '/inspections/calendar?filter=overdue' : `/inspections?status=${label === '예정' ? 'scheduled' : label === '진행중' ? 'in_progress' : 'completed'}`}
-              className="flex flex-col items-center py-5 hover:bg-[#fafafa] transition-colors"
+              className="flex flex-col items-center py-5 hover:bg-paper transition-colors"
             >
-              <p className="text-xs text-[#514b81] mb-2">{label}</p>
+              <p className="text-xs text-ink-sub mb-2">{label}</p>
               <p className={`text-3xl font-bold ${color}`}>{value}</p>
               {isAlert && value > 0 && (
                 <span className="text-[10px] text-red-500 mt-1 font-medium flex items-center gap-0.5">
@@ -447,25 +447,25 @@ export default async function DashboardPage() {
       {isManagerOrAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* 점검보고서 제출대기 */}
-          <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+          <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
               <div className="flex items-center gap-2">
                 <FileCheck2 className="size-4 text-blue-500" />
-                <h2 className="text-sm font-semibold text-[#090c1d]">점검보고서 제출대기</h2>
+                <h2 className="text-sm font-semibold text-ink">점검보고서 제출대기</h2>
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">
                   {pendingReports.length}건
                 </span>
               </div>
-              <Link href="#submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="#submissions" className="text-xs text-brand hover:underline flex items-center gap-1">
                 전체보기 <ArrowRight className="size-3" />
               </Link>
             </div>
             {pendingReports.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <p className="text-sm text-[#b0acd6]">제출 대기 건이 없습니다</p>
+                <p className="text-sm text-ink-faint">제출 대기 건이 없습니다</p>
               </div>
             ) : (
-              <div className="divide-y divide-[#f8f9fa]">
+              <div className="divide-y divide-paper">
                 {pendingReports.map(r => {
                   const item = r.inspection_plan_items
                   const isOverdue = r.notification_due_date && r.notification_due_date < todayStr
@@ -493,25 +493,25 @@ export default async function DashboardPage() {
           </div>
 
           {/* 이행보고서 제출대기 */}
-          <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+          <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
               <div className="flex items-center gap-2">
                 <ClipboardCheck className="size-4 text-amber-500" />
-                <h2 className="text-sm font-semibold text-[#090c1d]">이행계획 제출대기</h2>
+                <h2 className="text-sm font-semibold text-ink">이행계획 제출대기</h2>
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
                   {pendingActions.length}건
                 </span>
               </div>
-              <Link href="#submissions" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="#submissions" className="text-xs text-brand hover:underline flex items-center gap-1">
                 전체보기 <ArrowRight className="size-3" />
               </Link>
             </div>
             {pendingActions.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <p className="text-sm text-[#b0acd6]">제출 대기 건이 없습니다</p>
+                <p className="text-sm text-ink-faint">제출 대기 건이 없습니다</p>
               </div>
             ) : (
-              <div className="divide-y divide-[#f8f9fa]">
+              <div className="divide-y divide-paper">
                 {pendingActions.map(a => {
                   type InspJoin = { inspection_start_date: string | null; customers: { customer_name: string } | null } | null
                   const insp = a.inspections as InspJoin
@@ -545,24 +545,24 @@ export default async function DashboardPage() {
 
       {/* ── 이번 주 마감 임박 + 기한 초과 ────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+        <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div className="flex items-center gap-2">
               <Clock className="size-4 text-amber-500" />
-              <h2 className="text-sm font-semibold text-[#090c1d]">마감 임박</h2>
+              <h2 className="text-sm font-semibold text-ink">마감 임박</h2>
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">D-7 이내</span>
             </div>
-            <Link href="/inspections/calendar?filter=week" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+            <Link href="/inspections/calendar?filter=week" className="text-xs text-brand hover:underline flex items-center gap-1">
               달력 <ArrowRight className="size-3" />
             </Link>
           </div>
 
           {dueSoonList.length === 0 ? (
             <div className="px-5 py-8 text-center">
-              <p className="text-sm text-[#b0acd6]">이번 주 마감 예정 단계가 없습니다</p>
+              <p className="text-sm text-ink-faint">이번 주 마감 예정 단계가 없습니다</p>
             </div>
           ) : (
-            <div className="divide-y divide-[#f8f9fa]">
+            <div className="divide-y divide-paper">
               {dueSoonList.map(item => {
                 const dLabel = item.dDays === 0 ? 'D-Day' : `D-${item.dDays}`
                 const urgentCls = item.dDays === 0
@@ -577,16 +577,16 @@ export default async function DashboardPage() {
                   <Link
                     key={item.stepId}
                     href={`/inspections/${item.inspectionId}`}
-                    className="flex items-center gap-3 px-5 py-3 hover:bg-[#fafafa] transition-colors"
+                    className="flex items-center gap-3 px-5 py-3 hover:bg-paper transition-colors"
                   >
-                    <div className="size-6 rounded-full bg-[#f5f4ff] flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-[#7b68ee]">{item.stepNum}</span>
+                    <div className="size-6 rounded-full bg-brand-tint flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-bold text-brand">{item.stepNum}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#090c1d] truncate">{item.stepName}</p>
-                      <p className="text-xs text-[#514b81] truncate">
+                      <p className="text-sm font-medium text-ink truncate">{item.stepName}</p>
+                      <p className="text-xs text-ink-sub truncate">
                         {item.customerName}
-                        <span className="text-[#b0acd6] mx-1">·</span>
+                        <span className="text-ink-faint mx-1">·</span>
                         {item.year}년 {item.sequenceNum}차
                       </p>
                     </div>
@@ -594,7 +594,7 @@ export default async function DashboardPage() {
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${urgentCls}`}>
                         {dLabel}
                       </span>
-                      <span className="text-[10px] text-[#b0acd6]">{item.dueDate}</span>
+                      <span className="text-[10px] text-ink-faint">{item.dueDate}</span>
                     </div>
                   </Link>
                 )
@@ -603,13 +603,13 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow} flex flex-col`}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+        <div className={`bg-surface rounded-xl border border-line ${cardShadow} flex flex-col`}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div className="flex items-center gap-2">
               <AlertTriangle className="size-4 text-red-500" />
-              <h2 className="text-sm font-semibold text-[#090c1d]">기한 초과</h2>
+              <h2 className="text-sm font-semibold text-ink">기한 초과</h2>
             </div>
-            <Link href="/inspections/calendar?filter=overdue" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+            <Link href="/inspections/calendar?filter=overdue" className="text-xs text-brand hover:underline flex items-center gap-1">
               확인하기 <ArrowRight className="size-3" />
             </Link>
           </div>
@@ -624,8 +624,8 @@ export default async function DashboardPage() {
                     <AlertTriangle className="size-3 text-white" />
                   </span>
                 </div>
-                <p className="text-sm font-medium text-[#090c1d]">{overdueStepCount}개 단계가 기한을 초과했습니다</p>
-                <p className="text-xs text-[#514b81] text-center px-4">
+                <p className="text-sm font-medium text-ink">{overdueStepCount}개 단계가 기한을 초과했습니다</p>
+                <p className="text-xs text-ink-sub text-center px-4">
                   {isEmployee ? '담당 점검' : '전체 점검'} 중 미완료 단계 기준
                 </p>
                 <Link
@@ -641,7 +641,7 @@ export default async function DashboardPage() {
                   <CheckSquare className="size-8 text-green-500" />
                 </div>
                 <p className="text-sm font-medium text-green-700">기한 초과 단계 없음</p>
-                <p className="text-xs text-[#514b81]">모든 단계가 정상 진행 중입니다</p>
+                <p className="text-xs text-ink-sub">모든 단계가 정상 진행 중입니다</p>
               </>
             )}
           </div>
@@ -651,46 +651,46 @@ export default async function DashboardPage() {
       {/* ── 관리자 전용 요약 현황 ────────────────────── */}
       {isAdmin && adminStats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+          <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
               <div className="flex items-center gap-2">
-                <FileText className="size-4 text-[#7b68ee]" />
-                <h2 className="text-sm font-semibold text-[#090c1d]">전체 문서 현황</h2>
+                <FileText className="size-4 text-brand" />
+                <h2 className="text-sm font-semibold text-ink">전체 문서 현황</h2>
               </div>
-              <Link href="/admin" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="/admin" className="text-xs text-brand hover:underline flex items-center gap-1">
                 더 보기 <ArrowRight className="size-3" />
               </Link>
             </div>
             <div className="px-5 py-4 grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-[#514b81]">전체 기안서</p>
-                <p className="text-xl font-bold text-[#090c1d] mt-0.5">{adminStats.totalDocs}<span className="text-sm font-normal ml-1">건</span></p>
+                <p className="text-xs text-ink-sub">전체 기안서</p>
+                <p className="text-xl font-bold text-ink mt-0.5">{adminStats.totalDocs}<span className="text-sm font-normal ml-1">건</span></p>
               </div>
               <div>
-                <p className="text-xs text-[#514b81]">결재 대기</p>
+                <p className="text-xs text-ink-sub">결재 대기</p>
                 <p className="text-xl font-bold text-blue-600 mt-0.5">{adminStats.pendingDocs}<span className="text-sm font-normal ml-1">건</span></p>
               </div>
             </div>
           </div>
 
-          <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+          <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
               <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-[#7b68ee]" />
-                <h2 className="text-sm font-semibold text-[#090c1d]">금주 휴가 현황</h2>
+                <CalendarDays className="size-4 text-brand" />
+                <h2 className="text-sm font-semibold text-ink">금주 휴가 현황</h2>
               </div>
-              <Link href="/admin" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+              <Link href="/admin" className="text-xs text-brand hover:underline flex items-center gap-1">
                 더 보기 <ArrowRight className="size-3" />
               </Link>
             </div>
             <div className="px-5 py-4 grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-[#514b81]">승인 대기 휴가</p>
+                <p className="text-xs text-ink-sub">승인 대기 휴가</p>
                 <p className="text-xl font-bold text-orange-500 mt-0.5">{adminStats.pendingLeaves}<span className="text-sm font-normal ml-1">건</span></p>
               </div>
               <div>
-                <p className="text-xs text-[#514b81]">바로가기</p>
-                <Link href="/leaves/manage" className="text-sm font-medium text-[#7b68ee] hover:underline mt-0.5 block">
+                <p className="text-xs text-ink-sub">바로가기</p>
+                <Link href="/leaves/manage" className="text-sm font-medium text-brand hover:underline mt-0.5 block">
                   휴가 승인 →
                 </Link>
               </div>
@@ -701,31 +701,31 @@ export default async function DashboardPage() {
 
       {/* ── 최근 휴가 신청 ───────────────────────────── */}
       {myLeaves.length > 0 && (
-        <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+        <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-[#7b68ee]" />
-              <h2 className="text-sm font-semibold text-[#090c1d]">최근 휴가 신청</h2>
+              <CalendarDays className="size-4 text-brand" />
+              <h2 className="text-sm font-semibold text-ink">최근 휴가 신청</h2>
             </div>
-            <Link href="/leaves" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+            <Link href="/leaves" className="text-xs text-brand hover:underline flex items-center gap-1">
               전체보기 <ArrowRight className="size-3" />
             </Link>
           </div>
-          <div className="divide-y divide-[#c8c4d0]">
+          <div className="divide-y divide-line">
             {myLeaves.map((leave) => (
               <div key={leave.id} className="flex items-center justify-between px-5 py-3">
                 <div>
-                  <span className="text-sm font-medium text-[#090c1d]">
+                  <span className="text-sm font-medium text-ink">
                     {leaveTypeLabel[leave.leave_type] ?? leave.leave_type}
                   </span>
-                  <span className="text-xs text-[#514b81] ml-2">
+                  <span className="text-xs text-ink-sub ml-2">
                     {leave.start_date} ~ {leave.end_date}
                   </span>
                 </div>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                   leave.status === 'approved' ? 'bg-green-50 text-green-700'
                   : leave.status === 'rejected' ? 'bg-red-50 text-red-600'
-                  : 'bg-[#f5f4ff] text-[#7b68ee]'
+                  : 'bg-brand-tint text-brand'
                 }`}>
                   {leaveStatusLabel[leave.status] ?? leave.status}
                 </span>
@@ -736,40 +736,40 @@ export default async function DashboardPage() {
       )}
 
       {/* ── 공지사항 위젯 ────────────────────────────── */}
-      <div className={`bg-white rounded-xl border border-[#c8c4d0] ${cardShadow}`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#c8c4d0]">
+      <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div className="flex items-center gap-2">
-            <Megaphone className="size-4 text-[#7b68ee]" />
-            <h2 className="text-sm font-semibold text-[#090c1d]">공지사항</h2>
+            <Megaphone className="size-4 text-brand" />
+            <h2 className="text-sm font-semibold text-ink">공지사항</h2>
             {boardNotices.length > 0 && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#f5f4ff] text-[#7b68ee]">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-tint text-brand">
                 {boardNotices.length}건
               </span>
             )}
           </div>
-          <Link href="/board" className="text-xs text-[#7b68ee] hover:underline flex items-center gap-1">
+          <Link href="/board" className="text-xs text-brand hover:underline flex items-center gap-1">
             전체보기 <ArrowRight className="size-3" />
           </Link>
         </div>
         {boardNotices.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <p className="text-sm text-[#b0acd6]">등록된 공지사항이 없습니다</p>
+            <p className="text-sm text-ink-faint">등록된 공지사항이 없습니다</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#f8f9fa]">
+          <div className="divide-y divide-paper">
             {boardNotices.map(n => (
               <Link
                 key={n.id}
                 href={`/board/${n.id}`}
-                className="flex items-center justify-between px-5 py-3 hover:bg-[#fafafa] transition-colors"
+                className="flex items-center justify-between px-5 py-3 hover:bg-paper transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Pin className="size-3 text-[#7b68ee] shrink-0" />
-                  <p className="text-sm font-medium text-[#090c1d] truncate">{n.title}</p>
+                  <Pin className="size-3 text-brand shrink-0" />
+                  <p className="text-sm font-medium text-ink truncate">{n.title}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 ml-3">
-                  <span className="text-xs text-[#514b81]">{n.author?.name ?? '—'}</span>
-                  <span className="text-xs text-[#b0acd6]">{n.created_at.slice(0, 10)}</span>
+                  <span className="text-xs text-ink-sub">{n.author?.name ?? '—'}</span>
+                  <span className="text-xs text-ink-faint">{n.created_at.slice(0, 10)}</span>
                 </div>
               </Link>
             ))}
@@ -779,14 +779,14 @@ export default async function DashboardPage() {
 
       {/* ── 결재 대기 배너 ───────────────────────────── */}
       {isManagerOrAdmin && pendingCount > 0 && (
-        <div className="bg-[#f5f4ff] border border-[#c8c4d0] rounded-xl px-5 py-4 flex items-center justify-between">
+        <div className="bg-brand-tint border border-line rounded-xl px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CheckSquare className="size-5 text-[#7b68ee]" />
-            <span className="text-sm font-medium text-[#090c1d]">
-              결재 대기 중인 문서가 <span className="text-[#7b68ee] font-bold">{pendingCount}건</span> 있습니다.
+            <CheckSquare className="size-5 text-brand" />
+            <span className="text-sm font-medium text-ink">
+              결재 대기 중인 문서가 <span className="text-brand font-bold">{pendingCount}건</span> 있습니다.
             </span>
           </div>
-          <Link href="/approvals" className="text-sm font-medium text-[#7b68ee] hover:underline flex items-center gap-1">
+          <Link href="/approvals" className="text-sm font-medium text-brand hover:underline flex items-center gap-1">
             결재하러 가기 <ArrowRight className="size-3" />
           </Link>
         </div>

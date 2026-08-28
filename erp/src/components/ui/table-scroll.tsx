@@ -17,4 +17,4 @@ export function TableScroll({
 
 // sticky 시 tr의 border-b가 스크롤과 함께 사라지므로 shadow로 하단 경계선을 대신한다
 export const STICKY_THEAD =
-  'sticky top-0 z-10 bg-[#f8f9fa] shadow-[0_1px_0_0_#c8c4d0]'
+  'sticky top-0 z-10 bg-paper shadow-[0_1px_0_0_#c8c4d0]'

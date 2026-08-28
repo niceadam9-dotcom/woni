@@ -91,28 +91,28 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       {/* 잔여 연차 표시 */}
-      <div className="flex items-center justify-between bg-[#f5f4ff] border border-[#c8c4d0] rounded-xl px-5 py-4">
+      <div className="flex items-center justify-between bg-brand-tint border border-line rounded-xl px-5 py-4">
         <div>
-          <p className="text-xs text-[#514b81]">잔여 연차</p>
-          <p className="text-2xl font-bold text-[#7b68ee] mt-0.5">
+          <p className="text-xs text-ink-sub">잔여 연차</p>
+          <p className="text-2xl font-bold text-brand mt-0.5">
             {remaining}
             <span className="text-sm font-normal ml-1">일</span>
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-[#514b81]">총 연차</p>
-          <p className="text-sm font-semibold text-[#090c1d]">{totalDays}일</p>
+          <p className="text-xs text-ink-sub">총 연차</p>
+          <p className="text-sm font-semibold text-ink">{totalDays}일</p>
         </div>
       </div>
 
       {/* 휴가 종류 */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-[#292d34]">휴가 종류<span className="text-red-500 ml-0.5">*</span></label>
+        <label className="text-sm font-medium text-ink-strong">휴가 종류<span className="text-red-500 ml-0.5">*</span></label>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {LEAVE_TYPES.map(t => (
             <label key={t.value} className="cursor-pointer">
               <input type="radio" {...register('leave_type')} value={t.value} className="sr-only peer" />
-              <div className="text-center px-2 py-2.5 rounded-lg border border-[#d0ccf5] text-xs font-medium text-[#514b81] peer-checked:border-[#7b68ee] peer-checked:bg-[#f5f4ff] peer-checked:text-[#7b68ee] hover:bg-[#f8f9fa] transition-all">
+              <div className="text-center px-2 py-2.5 rounded-lg border border-brand-line text-xs font-medium text-ink-sub peer-checked:border-brand peer-checked:bg-brand-tint peer-checked:text-brand hover:bg-paper transition-all">
                 {t.label}
               </div>
             </label>
@@ -123,20 +123,20 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
       {/* 날짜 */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-[#292d34]">시작일<span className="text-red-500 ml-0.5">*</span></label>
+          <label className="text-sm font-medium text-ink-strong">시작일<span className="text-red-500 ml-0.5">*</span></label>
           <DateInput
             {...register('start_date')}
-            className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20 transition"
+            className="w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-3 focus:ring-brand/20 transition"
           />
           {errors.start_date && <p className="text-xs text-red-500">{errors.start_date.message}</p>}
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-[#292d34]">종료일<span className="text-red-500 ml-0.5">*</span></label>
+          <label className="text-sm font-medium text-ink-strong">종료일<span className="text-red-500 ml-0.5">*</span></label>
           <DateInput
             {...register('end_date')}
             disabled={isHalf}
             min={startDate || undefined}
-            className="w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-3 focus:ring-brand/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
           />
           {errors.end_date && <p className="text-xs text-red-500">{errors.end_date.message}</p>}
         </div>
@@ -144,12 +144,12 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
 
       {/* 신청 일수 미리보기 */}
       {daysCount > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#f8f9fa] rounded-lg">
-          <CalendarDays className="size-4 text-[#7b68ee]" />
-          <span className="text-sm text-[#514b81]">신청 일수:</span>
-          <span className="text-sm font-semibold text-[#090c1d]">{daysCount}일</span>
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-paper rounded-lg">
+          <CalendarDays className="size-4 text-brand" />
+          <span className="text-sm text-ink-sub">신청 일수:</span>
+          <span className="text-sm font-semibold text-ink">{daysCount}일</span>
           {['annual', 'half_am', 'half_pm'].includes(leaveType) && (
-            <span className="text-xs text-[#514b81] ml-auto">
+            <span className="text-xs text-ink-sub ml-auto">
               차감 후 잔여: {remaining - daysCount}일
             </span>
           )}
@@ -158,12 +158,12 @@ export function LeaveForm({ remaining, totalDays, holidays = [] }: LeaveFormProp
 
       {/* 사유 */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-[#292d34]">사유</label>
+        <label className="text-sm font-medium text-ink-strong">사유</label>
         <textarea
           {...register('reason')}
           rows={3}
           placeholder="사유를 입력해주세요 (선택)"
-          className="w-full rounded-lg border border-[#d0ccf5] bg-white px-3 py-2.5 text-sm text-[#090c1d] placeholder:text-[#b0acd6] outline-none focus:border-[#7b68ee] focus:ring-3 focus:ring-[#7b68ee]/20 transition resize-none"
+          className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint outline-none focus:border-brand focus:ring-3 focus:ring-brand/20 transition resize-none"
         />
       </div>
 

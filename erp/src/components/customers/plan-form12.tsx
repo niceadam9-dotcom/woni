@@ -88,15 +88,15 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
     })
   }
 
-  const inputCls = 'h-7 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee] w-full'
+  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand w-full'
   return (
     <div className="space-y-4">
       {/* 1.2.1 구역별 세부현황 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs font-semibold text-[#514b81]">1.2.1 구역별 세부현황</p>
+          <p className="text-xs font-semibold text-ink-sub">1.2.1 구역별 세부현황</p>
           {canManage && (
-            <button onClick={autoFloors} className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+            <button onClick={autoFloors} className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               <Layers className="size-3" /> 층 자동 생성
             </button>
           )}
@@ -105,12 +105,12 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
           <thead>
             {/* 머리글은 서식 1.2.1 원문 표기에 맞춤 — 인원은 '주간/야간' 두 값을 한 칸에 적는 서식이다
                 (fire-plan-template.ts: 인원 평일(주간/야간)). 기존 '평일(명)'은 단일 숫자로 오해를 유발했다. */}
-            <tr className="text-left text-[11px] text-[#514b81] border-b border-[#e0ddf5]">
+            <tr className="text-left text-[11px] text-ink-sub border-b border-brand-line-soft">
               <th className="pb-1 pr-1 w-24 font-medium">구역별(동/층)</th>
               <th className="pb-1 pr-1 font-medium">명칭/용도</th>
               <th className="pb-1 pr-1 w-20 font-medium">(바닥)면적</th>
-              <th className="pb-1 pr-1 w-20 font-medium">평일 인원<br /><span className="font-normal text-[#b0acd6]">주간/야간</span></th>
-              <th className="pb-1 pr-1 w-20 font-medium">휴일 인원<br /><span className="font-normal text-[#b0acd6]">주간/야간</span></th>
+              <th className="pb-1 pr-1 w-20 font-medium">평일 인원<br /><span className="font-normal text-ink-faint">주간/야간</span></th>
+              <th className="pb-1 pr-1 w-20 font-medium">휴일 인원<br /><span className="font-normal text-ink-faint">주간/야간</span></th>
               <th className="pb-1 pr-1 font-medium">관리주체(입주사)</th>
               <th className="pb-1 pr-1 w-32 font-medium">담당자(연락처)</th>
               <th className="pb-1 w-7" />
@@ -130,7 +130,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
                 <td className="py-0.5 pr-1"><input value={z.phone} onChange={e => setZone(i, { phone: e.target.value })} disabled={!canManage} placeholder="예: 홍길동 031-000-0000" className={inputCls} /></td>
                 <td className="py-0.5">
                   {canManage && (
-                    <button onClick={() => { setZones(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
+                    <button onClick={() => { setZones(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
                       <Trash2 className="size-3.5" />
                     </button>
                   )}
@@ -141,42 +141,42 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
         </table></TableWrap>
         {canManage && (
           <button onClick={() => { setZones(p => [...p, { ...EMPTY_ZONE }]); setDirty(true) }}
-            className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
+            className="mt-2 inline-flex items-center gap-1 text-[11px] text-brand hover:underline">
             <Plus className="size-3" /> 행 추가
           </button>
         )}
       </div>
 
       {/* 1.2.2 화재취약장소 */}
-      <div className="rounded-xl border border-[#e0ddf5] bg-[#fafaff] p-4">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <p className="text-xs font-semibold text-[#514b81]">1.2.2 화재취약장소</p>
+          <p className="text-xs font-semibold text-ink-sub">1.2.2 화재취약장소</p>
           {canManage && HAZARD_PRESETS.map(pz => (
             <button key={pz.place}
               onClick={() => { setHazards(p => [...p, { ...pz, risks: [...pz.risks] }]); setDirty(true) }}
-              className="h-6 px-2 rounded-full border border-[#d0ccf5] text-[11px] text-[#7b68ee] hover:bg-[#f5f4ff]">
+              className="h-6 px-2 rounded-full border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
               + {pz.place}
             </button>
           ))}
         </div>
-        {hazards.length === 0 && <p className="text-[11px] text-[#b0acd6]">프리셋 버튼 또는 [행 추가]로 화재취약장소를 등록하세요.</p>}
+        {hazards.length === 0 && <p className="text-[11px] text-ink-faint">프리셋 버튼 또는 [행 추가]로 화재취약장소를 등록하세요.</p>}
         <div className="space-y-1.5">
           {hazards.map((h, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
               <input value={h.place} onChange={e => setHazard(i, { place: e.target.value })} disabled={!canManage}
-                placeholder="장소" className="h-7 w-28 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />
+                placeholder="장소" className="h-7 w-28 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />
               <input value={h.loc} onChange={e => setHazard(i, { loc: e.target.value })} disabled={!canManage}
-                placeholder="위치 (예: 지하 1층)" className="h-7 w-32 rounded border border-[#d0ccf5] bg-white px-1.5 text-xs outline-none focus:border-[#7b68ee]" />
+                placeholder="위치 (예: 지하 1층)" className="h-7 w-32 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand" />
               {RISKS.map(r => (
                 <button key={r} onClick={() => canManage && toggleRisk(i, r)} disabled={!canManage}
                   className={`h-6 px-2 rounded-full text-[11px] border transition-colors ${
-                    h.risks.includes(r) ? 'bg-[#7b68ee] text-white border-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'
+                    h.risks.includes(r) ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'
                   }`}>
                   {r}
                 </button>
               ))}
               {canManage && (
-                <button onClick={() => { setHazards(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-[#b0acd6] hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => { setHazards(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
@@ -185,7 +185,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
         </div>
         {canManage && (
           <button onClick={() => { setHazards(p => [...p, { place: '', loc: '', risks: [] }]); setDirty(true) }}
-            className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#7b68ee] hover:underline">
+            className="mt-2 inline-flex items-center gap-1 text-[11px] text-brand hover:underline">
             <Plus className="size-3" /> 행 추가
           </button>
         )}
@@ -194,10 +194,10 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#7b68ee] text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.2 저장
           </button>
-          {msg && <span className="text-xs text-[#514b81]">{msg}</span>}
+          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

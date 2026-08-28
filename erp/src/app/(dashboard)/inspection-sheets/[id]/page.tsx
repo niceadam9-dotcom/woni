@@ -7,7 +7,7 @@ import { SheetDetailClient } from '@/components/inspection-sheets/sheet-detail-c
 import { inspectionTypeLabel } from '@/types'
 
 const TYPE_COLORS: Record<string, string> = {
-  '종합':   'bg-[#f5f4ff] text-[#7b68ee]',
+  '종합':   'bg-brand-tint text-brand',
   '작동':   'bg-blue-50 text-blue-600',
   '일반관리': 'bg-gray-100 text-gray-600',
 }
@@ -50,20 +50,20 @@ export default async function InspectionSheetDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-sm text-[#514b81]">
-        <Link href="/inspection-sheets" className="hover:text-[#7b68ee] flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-ink-sub">
+        <Link href="/inspection-sheets" className="hover:text-brand flex items-center gap-1">
           <ClipboardList className="size-3.5" />
           점검표 관리
         </Link>
-        <ChevronRight className="size-3.5 text-[#b0acd6]" />
-        <span className="text-[#090c1d] font-medium">{s.sheet_name}</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+        <span className="text-ink font-medium">{s.sheet_name}</span>
       </div>
 
       <div className="flex items-start gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[#090c1d]">{s.sheet_name}</h1>
-            <span className="text-sm font-mono text-[#514b81] bg-[#f8f9fa] border border-[#c8c4d0] px-2 py-0.5 rounded">v{s.version}</span>
+            <h1 className="text-xl font-bold text-ink">{s.sheet_name}</h1>
+            <span className="text-sm font-mono text-ink-sub bg-paper border border-line px-2 py-0.5 rounded">v{s.version}</span>
             {s.inspection_type && (
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[s.inspection_type] ?? 'bg-gray-100 text-gray-600'}`}>
                 {inspectionTypeLabel(s.inspection_type)}
@@ -73,7 +73,7 @@ export default async function InspectionSheetDetailPage({
               {s.is_active ? '활성' : '비활성'}
             </span>
           </div>
-          <p className="text-xs text-[#b0acd6] font-mono mt-1">{s.sheet_code} · 등록일 {s.created_at.slice(0, 10)}</p>
+          <p className="text-xs text-ink-faint font-mono mt-1">{s.sheet_code} · 등록일 {s.created_at.slice(0, 10)}</p>
         </div>
       </div>
 
@@ -83,8 +83,8 @@ export default async function InspectionSheetDetailPage({
           items={its}
         />
       ) : (
-        <div className="max-w-3xl bg-white rounded-xl border border-[#c8c4d0] p-6">
-          <p className="text-sm text-[#514b81]">열람 전용 - 수정 권한이 없습니다.</p>
+        <div className="max-w-3xl bg-surface rounded-xl border border-line p-6">
+          <p className="text-sm text-ink-sub">열람 전용 - 수정 권한이 없습니다.</p>
         </div>
       )}
     </div>

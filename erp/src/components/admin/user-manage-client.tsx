@@ -35,15 +35,15 @@ const ROLE_LABELS = { employee: '일반직원', manager: '팀장', admin: '관�
 const ROLE_COLORS = {
   employee: 'bg-gray-50 text-gray-600',
   manager: 'bg-blue-50 text-blue-600',
-  admin: 'bg-[#f5f4ff] text-[#7b68ee]',
+  admin: 'bg-brand-tint text-brand',
 }
 
-const inputCls = 'w-full h-10 rounded-lg border border-[#d0ccf5] bg-white px-3 text-sm text-[#090c1d] outline-none focus:border-[#7b68ee] focus:ring-2 focus:ring-[#7b68ee]/20 transition'
+const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-[#514b81]">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+      <label className="text-xs font-medium text-ink-sub">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
       {children}
     </div>
   )
@@ -153,14 +153,14 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
   if (handover) {
     return (
       <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-md">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[#c8c4d0]">
-            <h2 className="text-base font-semibold text-[#090c1d]">담당 고객 인수인계</h2>
-            <button onClick={() => handleHandover(true)} className="text-[#514b81] hover:text-[#090c1d]"><X className="size-5" /></button>
+        <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+            <h2 className="text-base font-semibold text-ink">담당 고객 인수인계</h2>
+            <button onClick={() => handleHandover(true)} className="text-ink-sub hover:text-ink"><X className="size-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4">
-            <p className="text-sm text-[#514b81]">
-              <span className="font-semibold text-[#090c1d]">{user?.name}</span> 직원이 비활성(퇴사) 처리되었습니다.
+            <p className="text-sm text-ink-sub">
+              <span className="font-semibold text-ink">{user?.name}</span> 직원이 비활성(퇴사) 처리되었습니다.
               현재 담당 중인 고객 <span className="font-semibold text-red-600">{handover.count}건</span>을 후임 직원에게 인수인계할 수 있습니다.
             </p>
             <Field label="후임 직원" required>
@@ -171,16 +171,16 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
                 ))}
               </select>
             </Field>
-            <p className="text-xs text-[#b0acd6]">인수인계 시 월간계획·점검업무·점검이력의 담당자가 함께 변경됩니다.</p>
+            <p className="text-xs text-ink-faint">인수인계 시 월간계획·점검업무·점검이력의 담당자가 함께 변경됩니다.</p>
             {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-[#c8c4d0]">
+          <div className="flex gap-3 px-6 py-4 border-t border-line">
             <button onClick={() => handleHandover(true)} disabled={isPending}
-              className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+              className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors disabled:opacity-50">
               나중에 (건너뛰기)
             </button>
             <button onClick={() => handleHandover(false)} disabled={isPending}
-              className="flex-1 h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
+              className="flex-1 h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : `${handover.count}건 인수인계`}
             </button>
           </div>
@@ -191,10 +191,10 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
 
   return (
     <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#c8c4d0]">
-          <h2 className="text-base font-semibold text-[#090c1d]">{title}</h2>
-          <button onClick={onClose} className="text-[#514b81] hover:text-[#090c1d]">
+      <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+          <h2 className="text-base font-semibold text-ink">{title}</h2>
+          <button onClick={onClose} className="text-ink-sub hover:text-ink">
             <X className="size-5" />
           </button>
         </div>
@@ -325,7 +325,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               />
             </Field>
           </div>
-          <p className="-mt-2 text-[11px] text-[#b0acd6]">
+          <p className="-mt-2 text-[11px] text-ink-faint">
             직책·연락처·생년월일은 <b>점검결과 보고서 제출용 위임장</b>의 대리인 칸에 자동으로 들어갑니다.
           </p>
 
@@ -336,9 +336,9 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
                 id="is_active"
                 checked={form.is_active}
                 onChange={e => set('is_active', e.target.checked)}
-                className="size-4 accent-[#7b68ee] rounded"
+                className="size-4 accent-brand rounded"
               />
-              <label htmlFor="is_active" className="text-sm text-[#292d34]">
+              <label htmlFor="is_active" className="text-sm text-ink-strong">
                 계정 활성화
               </label>
             </div>
@@ -350,7 +350,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-red-700">계정 삭제</p>
-                  <p className="text-[11px] text-[#514b81] mt-0.5">
+                  <p className="text-[11px] text-ink-sub mt-0.5">
                     {eligibility.deletable
                       ? '업무 이력이 없는 계정입니다. 잘못 등록된 계정만 삭제하세요 — 퇴사는 비활성 처리를 사용합니다.'
                       : `업무 이력이 있어 삭제할 수 없습니다 (${eligibility.reasons.join(', ')}). 퇴사(비활성) 처리를 사용하세요.`}
@@ -374,10 +374,10 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
           )}
         </div>
 
-        <div className="flex gap-3 px-6 py-4 border-t border-[#c8c4d0]">
+        <div className="flex gap-3 px-6 py-4 border-t border-line">
           <button
             onClick={onClose}
-            className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+            className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors"
           >
             취소
           </button>
@@ -411,15 +411,15 @@ function ResetPasswordModal({ userId, onClose }: { userId: string; onClose: () =
 
   return (
     <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-sm p-6">
+      <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-[#090c1d]">비밀번호 초기화</h3>
-          <button onClick={onClose}><X className="size-5 text-[#514b81]" /></button>
+          <h3 className="text-base font-semibold text-ink">비밀번호 초기화</h3>
+          <button onClick={onClose}><X className="size-5 text-ink-sub" /></button>
         </div>
         {done ? (
           <div className="text-center py-4">
             <p className="text-sm font-medium text-green-600">비밀번호가 변경되었습니다.</p>
-            <button onClick={onClose} className="mt-4 px-4 py-2 rounded-lg bg-[#7b68ee] text-white text-sm">
+            <button onClick={onClose} className="mt-4 px-4 py-2 rounded-lg bg-brand text-white text-sm">
               닫기
             </button>
           </div>
@@ -434,11 +434,11 @@ function ResetPasswordModal({ userId, onClose }: { userId: string; onClose: () =
             />
             {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81]">취소</button>
+              <button onClick={onClose} className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub">취소</button>
               <button
                 onClick={handleReset}
                 disabled={isPending}
-                className="flex-1 h-10 rounded-lg bg-[#7b68ee] text-white text-sm flex items-center justify-center disabled:opacity-50"
+                className="flex-1 h-10 rounded-lg bg-brand text-white text-sm flex items-center justify-center disabled:opacity-50"
               >
                 {isPending ? <Loader2 className="size-4 animate-spin" /> : '변경'}
               </button>
@@ -472,10 +472,10 @@ function LeaveBalanceModal({
 
   return (
     <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-sm p-6">
+      <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-[#090c1d]">{userName} 연차 설정</h3>
-          <button onClick={onClose}><X className="size-5 text-[#514b81]" /></button>
+          <h3 className="text-base font-semibold text-ink">{userName} 연차 설정</h3>
+          <button onClick={onClose}><X className="size-5 text-ink-sub" /></button>
         </div>
         <div className="space-y-3">
           <Field label="연도">
@@ -487,11 +487,11 @@ function LeaveBalanceModal({
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81]">취소</button>
+          <button onClick={onClose} className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub">취소</button>
           <button
             onClick={handleSave}
             disabled={isPending}
-            className="flex-1 h-10 rounded-lg bg-[#7b68ee] text-white text-sm flex items-center justify-center disabled:opacity-50"
+            className="flex-1 h-10 rounded-lg bg-brand text-white text-sm flex items-center justify-center disabled:opacity-50"
           >
             {isPending ? <Loader2 className="size-4 animate-spin" /> : '저장'}
           </button>
@@ -528,20 +528,20 @@ function HandoverModal({ user, successors, onClose }: { user: User; successors: 
 
   return (
     <div className="fixed inset-0 bg-black/25 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-[#c8c4d0] w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#c8c4d0]">
-          <h2 className="text-base font-semibold text-[#090c1d]">담당 고객 이관</h2>
-          <button onClick={onClose} className="text-[#514b81] hover:text-[#090c1d]"><X className="size-5" /></button>
+      <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+          <h2 className="text-base font-semibold text-ink">담당 고객 이관</h2>
+          <button onClick={onClose} className="text-ink-sub hover:text-ink"><X className="size-5" /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
-          <p className="text-sm text-[#514b81]">
-            <span className="font-semibold text-[#090c1d]">{user.name}</span> 직원의 담당 고객
+          <p className="text-sm text-ink-sub">
+            <span className="font-semibold text-ink">{user.name}</span> 직원의 담당 고객
             {count === null ? ' 건수를 조회 중…' : (
-              <> <span className="font-semibold text-[#7b68ee]">{count}건</span>을 다른 직원에게 이관합니다.</>
+              <> <span className="font-semibold text-brand">{count}건</span>을 다른 직원에게 이관합니다.</>
             )}
           </p>
           {count === 0 ? (
-            <p className="text-sm text-[#b0acd6]">이관할 담당 고객이 없습니다.</p>
+            <p className="text-sm text-ink-faint">이관할 담당 고객이 없습니다.</p>
           ) : (
             <>
               <Field label="이관받을 직원" required>
@@ -552,19 +552,19 @@ function HandoverModal({ user, successors, onClose }: { user: User; successors: 
                   ))}
                 </select>
               </Field>
-              <p className="text-xs text-[#b0acd6]">이관 시 월간계획·점검업무·점검이력의 담당자가 함께 변경됩니다.</p>
+              <p className="text-xs text-ink-faint">이관 시 월간계획·점검업무·점검이력의 담당자가 함께 변경됩니다.</p>
             </>
           )}
           {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         </div>
-        <div className="flex gap-3 px-6 py-4 border-t border-[#c8c4d0]">
+        <div className="flex gap-3 px-6 py-4 border-t border-line">
           <button onClick={onClose} disabled={isPending}
-            className="flex-1 h-10 rounded-lg border border-[#c8c4d0] text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors disabled:opacity-50">
+            className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors disabled:opacity-50">
             닫기
           </button>
           {(count ?? 0) > 0 && (
             <button onClick={handleHandover} disabled={isPending}
-              className="flex-1 h-10 rounded-lg bg-[#7b68ee] hover:bg-[#6355d4] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
+              className="flex-1 h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : `${count}건 이관`}
             </button>
           )}
@@ -598,29 +598,29 @@ export function UserManageClient({
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {users.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[#514b81]">검색된 직원이 없습니다</div>
+          <div className="py-16 text-center text-sm text-ink-sub">검색된 직원이 없습니다</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#c8c4d0] bg-[#f8f9fa]">
+                <tr className="border-b border-line bg-paper">
                   {['사번', '이름', '역할', '부서', '직책', '잔여연차', '상태', '관리'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#514b81] whitespace-nowrap">
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c8c4d0]">
+              <tbody className="divide-y divide-line">
                 {users.map(u => {
                   const remaining = (u.total_days ?? 15) - (u.used_days ?? 0)
                   return (
-                    <tr key={u.id} className="hover:bg-[#f8f9fa] transition-colors">
-                      <td className="px-4 py-3 text-xs text-[#514b81] font-mono">{u.employee_id}</td>
+                    <tr key={u.id} className="hover:bg-paper transition-colors">
+                      <td className="px-4 py-3 text-xs text-ink-sub font-mono">{u.employee_id}</td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-[#090c1d] flex items-center gap-1.5">
+                        <p className="font-medium text-ink flex items-center gap-1.5">
                           {u.name}
                           {u.is_system && (
                             <span title="업무 화면(달력·담당자 선택·통계)에는 표시되지 않는 계정입니다" className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
@@ -628,20 +628,20 @@ export function UserManageClient({
                             </span>
                           )}
                         </p>
-                        <p className="text-xs text-[#b0acd6]">{u.email}</p>
+                        <p className="text-xs text-ink-faint">{u.email}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[u.role]}`}>
                           {ROLE_LABELS[u.role]}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#292d34]">
+                      <td className="px-4 py-3 text-xs text-ink-strong">
                         {depts.find(d => d.id === u.department_id)?.name ?? '-'}
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#292d34]">{u.position ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-ink-strong">{u.position ?? '-'}</td>
                       <td className="px-4 py-3 text-xs">
-                        <span className="font-semibold text-[#7b68ee]">{remaining}</span>
-                        <span className="text-[#514b81]">/{u.total_days ?? 15}일</span>
+                        <span className="font-semibold text-brand">{remaining}</span>
+                        <span className="text-ink-sub">/{u.total_days ?? 15}일</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${u.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -653,28 +653,28 @@ export function UserManageClient({
                           <button
                             onClick={() => setEditUser(u)}
                             title="수정"
-                            className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81] hover:text-[#7b68ee] transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-paper text-ink-sub hover:text-brand transition-colors"
                           >
                             <Pencil className="size-3.5" />
                           </button>
                           <button
                             onClick={() => setResetPwUser(u.id)}
                             title="비밀번호 초기화"
-                            className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81] hover:text-[#7b68ee] transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-paper text-ink-sub hover:text-brand transition-colors"
                           >
                             <KeyRound className="size-3.5" />
                           </button>
                           <button
                             onClick={() => setLeaveUser(u)}
                             title="연차 설정"
-                            className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81] hover:text-[#7b68ee] transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-paper text-ink-sub hover:text-brand transition-colors"
                           >
                             <CalendarDays className="size-3.5" />
                           </button>
                           <button
                             onClick={() => setHandoverUser(u)}
                             title="담당 고객 이관"
-                            className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81] hover:text-[#7b68ee] transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-paper text-ink-sub hover:text-brand transition-colors"
                           >
                             <ArrowRightLeft className="size-3.5" />
                           </button>

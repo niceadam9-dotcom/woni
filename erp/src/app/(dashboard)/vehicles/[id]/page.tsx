@@ -29,14 +29,14 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
     return (
       <div className="space-y-6">
         <div>
-          <nav className="flex items-center gap-1.5 text-xs text-[#514b81] mb-4">
-            <Link href="/vehicles" className="hover:text-[#7b68ee]">차량 관리</Link>
+          <nav className="flex items-center gap-1.5 text-xs text-ink-sub mb-4">
+            <Link href="/vehicles" className="hover:text-brand">차량 관리</Link>
             <ChevronRight className="size-3" />
-            <span className="text-[#090c1d] font-medium">{v.vehicle_number as string}</span>
+            <span className="text-ink font-medium">{v.vehicle_number as string}</span>
           </nav>
           <div className="flex items-center gap-3">
-            <Car className="size-6 text-[#7b68ee]" />
-            <h1 className="text-xl font-bold text-[#090c1d]">차량 상세</h1>
+            <Car className="size-6 text-brand" />
+            <h1 className="text-xl font-bold text-ink">차량 상세</h1>
           </div>
         </div>
         <VehicleFormClient vehicle={v as Parameters<typeof VehicleFormClient>[0]['vehicle']} />
@@ -48,17 +48,17 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
   return (
     <div className="space-y-6">
       <div>
-        <nav className="flex items-center gap-1.5 text-xs text-[#514b81] mb-4">
-          <Link href="/vehicles" className="hover:text-[#7b68ee]">차량 관리</Link>
+        <nav className="flex items-center gap-1.5 text-xs text-ink-sub mb-4">
+          <Link href="/vehicles" className="hover:text-brand">차량 관리</Link>
           <ChevronRight className="size-3" />
-          <span className="text-[#090c1d] font-medium">{v.vehicle_number as string}</span>
+          <span className="text-ink font-medium">{v.vehicle_number as string}</span>
         </nav>
         <div className="flex items-center gap-3">
-          <Car className="size-6 text-[#7b68ee]" />
-          <h1 className="text-xl font-bold text-[#090c1d]">{v.vehicle_number as string}</h1>
+          <Car className="size-6 text-brand" />
+          <h1 className="text-xl font-bold text-ink">{v.vehicle_number as string}</h1>
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-[#c8c4d0] p-6 max-w-2xl">
+      <div className="bg-surface rounded-xl border border-line p-6 max-w-2xl">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
           {[
             ['차량번호', v.vehicle_number], ['차량명', v.vehicle_name],
@@ -68,15 +68,15 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
             ['검사만료', v.inspection_expiry], ['상태', (v.is_active as boolean) ? '활성' : '비활성'],
           ].map(([k, val]) => val ? (
             <div key={k as string}>
-              <dt className="text-xs text-[#b0acd6]">{k as string}</dt>
-              <dd className="text-sm font-medium text-[#090c1d] mt-0.5">{String(val)}</dd>
+              <dt className="text-xs text-ink-faint">{k as string}</dt>
+              <dd className="text-sm font-medium text-ink mt-0.5">{String(val)}</dd>
             </div>
           ) : null)}
         </dl>
         {v.notes ? (
-          <div className="mt-4 pt-4 border-t border-[#c8c4d0]">
-            <p className="text-xs text-[#b0acd6]">메모</p>
-            <p className="text-sm text-[#090c1d] mt-1 whitespace-pre-wrap">{v.notes as string}</p>
+          <div className="mt-4 pt-4 border-t border-line">
+            <p className="text-xs text-ink-faint">메모</p>
+            <p className="text-sm text-ink mt-1 whitespace-pre-wrap">{v.notes as string}</p>
           </div>
         ) : null}
       </div>

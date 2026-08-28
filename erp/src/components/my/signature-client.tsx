@@ -165,19 +165,19 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-xl font-bold text-[#090c1d]">나의결재 서명 등록</h1>
-        <p className="text-sm text-[#514b81] mt-1">{userName}님의 전자결재 서명을 등록합니다.</p>
+        <h1 className="text-xl font-bold text-ink">나의결재 서명 등록</h1>
+        <p className="text-sm text-ink-sub mt-1">{userName}님의 전자결재 서명을 등록합니다.</p>
       </div>
 
       {/* 현재 등록된 서명 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] p-5 shadow-sm">
+      <div className="bg-surface rounded-xl border border-line p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[#090c1d]">현재 등록된 서명</h2>
+          <h2 className="text-sm font-semibold text-ink">현재 등록된 서명</h2>
           {savedUrl && (
             <div className="flex items-center gap-2">
               <button
                 onClick={loadExisting}
-                className="flex items-center gap-1 text-xs text-[#514b81] hover:text-[#7b68ee]"
+                className="flex items-center gap-1 text-xs text-ink-sub hover:text-brand"
               >
                 <RefreshCw size={12} /> 새로고침
               </button>
@@ -191,7 +191,7 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
           )}
         </div>
         {savedUrl ? (
-          <div className="border border-[#c8c4d0] rounded-lg p-3 bg-[#fafafa] flex items-center justify-center" style={{ minHeight: 100 }}>
+          <div className="border border-line rounded-lg p-3 bg-paper flex items-center justify-center" style={{ minHeight: 100 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={savedUrl}
@@ -201,23 +201,23 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
             />
           </div>
         ) : (
-          <div className="border border-dashed border-[#c8c4d0] rounded-lg p-6 text-center text-sm text-[#b0acd6]">
+          <div className="border border-dashed border-line rounded-lg p-6 text-center text-sm text-ink-faint">
             등록된 서명이 없습니다
           </div>
         )}
       </div>
 
       {/* 서명 등록 탭 */}
-      <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-sm overflow-hidden">
-        <div className="flex border-b border-[#c8c4d0]">
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
+        <div className="flex border-b border-line">
           {(['draw', 'upload'] as const).map(t => (
             <button
               key={t}
               onClick={() => { setTab(t); setStatus(null) }}
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 tab === t
-                  ? 'text-[#7b68ee] border-b-2 border-[#7b68ee] bg-white'
-                  : 'text-[#514b81] hover:bg-[#f8f9fa]'
+                  ? 'text-brand border-b-2 border-brand bg-surface'
+                  : 'text-ink-sub hover:bg-paper'
               }`}
             >
               {t === 'draw' ? (
@@ -232,8 +232,8 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
         <div className="p-5">
           {tab === 'draw' ? (
             <div className="space-y-3">
-              <p className="text-xs text-[#514b81]">아래 영역에 마우스(또는 터치)로 서명을 작성하세요.</p>
-              <div className="relative border border-[#c8c4d0] rounded-lg overflow-hidden bg-white" style={{ touchAction: 'none' }}>
+              <p className="text-xs text-ink-sub">아래 영역에 마우스(또는 터치)로 서명을 작성하세요.</p>
+              <div className="relative border border-line rounded-lg overflow-hidden bg-surface" style={{ touchAction: 'none' }}>
                 <canvas
                   ref={canvasRef}
                   width={560}
@@ -249,21 +249,21 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
                 />
                 {!hasStrokes && (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm text-[#d0cce8] select-none">여기에 서명하세요</span>
+                    <span className="text-sm text-ink-faint select-none">여기에 서명하세요</span>
                   </div>
                 )}
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={clearCanvas}
-                  className="flex items-center gap-1.5 h-9 px-4 border border-[#c8c4d0] rounded-lg text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+                  className="flex items-center gap-1.5 h-9 px-4 border border-line rounded-lg text-sm text-ink-sub hover:bg-paper transition-colors"
                 >
                   <Trash2 size={14} /> 지우기
                 </button>
                 <button
                   onClick={saveSignature}
                   disabled={!hasStrokes || saving}
-                  className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6a58d6] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Save size={14} /> {saving ? '저장 중…' : '서명 저장'}
                 </button>
@@ -271,16 +271,16 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-[#514b81]">서명 이미지 파일(PNG, JPG)을 업로드하세요.</p>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-[#c8c4d0] rounded-lg p-8 cursor-pointer hover:border-[#7b68ee] transition-colors bg-[#fafafa]">
+              <p className="text-xs text-ink-sub">서명 이미지 파일(PNG, JPG)을 업로드하세요.</p>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-line rounded-lg p-8 cursor-pointer hover:border-brand transition-colors bg-paper">
                 {uploadPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={uploadPreview} alt="미리보기" className="max-h-32 object-contain" />
                 ) : (
                   <>
-                    <Upload size={28} className="text-[#b0acd6] mb-2" />
-                    <span className="text-sm text-[#514b81]">파일 선택 또는 드래그</span>
-                    <span className="text-xs text-[#b0acd6] mt-1">PNG, JPG (최대 2MB)</span>
+                    <Upload size={28} className="text-ink-faint mb-2" />
+                    <span className="text-sm text-ink-sub">파일 선택 또는 드래그</span>
+                    <span className="text-xs text-ink-faint mt-1">PNG, JPG (최대 2MB)</span>
                   </>
                 )}
                 <input
@@ -294,7 +294,7 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
                 {uploadPreview && (
                   <button
                     onClick={() => { setUploadFile(null); setUploadPreview(null) }}
-                    className="flex items-center gap-1.5 h-9 px-4 border border-[#c8c4d0] rounded-lg text-sm text-[#514b81] hover:bg-[#f8f9fa] transition-colors"
+                    className="flex items-center gap-1.5 h-9 px-4 border border-line rounded-lg text-sm text-ink-sub hover:bg-paper transition-colors"
                   >
                     <Trash2 size={14} /> 취소
                   </button>
@@ -302,7 +302,7 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
                 <button
                   onClick={saveSignature}
                   disabled={!uploadFile || saving}
-                  className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#7b68ee] hover:bg-[#6a58d6] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Save size={14} /> {saving ? '저장 중…' : '서명 저장'}
                 </button>
@@ -321,7 +321,7 @@ export function SignatureClient({ userId, userName }: { userId: string; userName
         </div>
       </div>
 
-      <div className="text-xs text-[#b0acd6] space-y-1">
+      <div className="text-xs text-ink-faint space-y-1">
         <p>• 등록된 서명은 전자결재 문서 결재 시 자동으로 사용됩니다.</p>
         <p>• 서명 이미지는 Supabase Storage에 안전하게 저장됩니다.</p>
         <p>• 서명 변경 시 기존 서명을 덮어쓰기합니다.</p>

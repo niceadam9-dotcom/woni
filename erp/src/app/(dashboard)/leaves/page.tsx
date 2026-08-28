@@ -59,13 +59,13 @@ export default async function LeavesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#090c1d]">휴가 신청</h1>
-          <p className="text-sm text-[#514b81] mt-1">내 휴가 신청 현황</p>
+          <h1 className="text-xl font-bold text-ink">휴가 신청</h1>
+          <p className="text-sm text-ink-sub mt-1">내 휴가 신청 현황</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/leaves/calendar"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-[#c8c4d0] text-[#514b81] hover:bg-[#f8f9fa] text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-line text-ink-sub hover:bg-paper text-sm font-medium transition-colors"
           >
             <CalendarDays className="size-4" />
             팀 캘린더
@@ -83,15 +83,15 @@ export default async function LeavesPage() {
       {/* 연차 현황 */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: '총 연차', value: totalDays, unit: '일', color: 'text-[#090c1d]' },
+          { label: '총 연차', value: totalDays, unit: '일', color: 'text-ink' },
           { label: '사용 연차', value: usedDays, unit: '일', color: 'text-orange-500' },
-          { label: '잔여 연차', value: remaining, unit: '일', color: 'text-[#7b68ee]' },
+          { label: '잔여 연차', value: remaining, unit: '일', color: 'text-brand' },
         ].map(item => (
           <div
             key={item.label}
-            className="bg-white rounded-xl border border-[#c8c4d0] px-5 py-4 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]"
+            className="bg-surface rounded-xl border border-line px-5 py-4 shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]"
           >
-            <p className="text-xs text-[#514b81]">{item.label}</p>
+            <p className="text-xs text-ink-sub">{item.label}</p>
             <p className={`text-2xl font-bold mt-1 ${item.color}`}>
               {item.value}
               <span className="text-sm font-normal ml-1">{item.unit}</span>
@@ -101,16 +101,16 @@ export default async function LeavesPage() {
       </div>
 
       {leaves.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] py-16 text-center">
+        <div className="bg-surface rounded-xl border border-line py-16 text-center">
           <CalendarDays className="size-10 text-[#c4bff5] mx-auto mb-3" />
-          <p className="text-sm text-[#514b81]">신청한 휴가가 없습니다</p>
-          <Link href="/leaves/new" className="mt-3 inline-block text-sm text-[#7b68ee] hover:underline">
+          <p className="text-sm text-ink-sub">신청한 휴가가 없습니다</p>
+          <Link href="/leaves/new" className="mt-3 inline-block text-sm text-brand hover:underline">
             휴가 신청하기
           </Link>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-[#c8c4d0] shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
-          <div className="divide-y divide-[#c8c4d0]">
+        <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
+          <div className="divide-y divide-line">
             {leaves.map(leave => {
               const s = STATUS_MAP[leave.status] ?? { label: leave.status, className: '' }
               return (
@@ -119,15 +119,15 @@ export default async function LeavesPage() {
                   className="flex items-center justify-between px-5 py-4"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <CalendarDays className="size-4 text-[#7b68ee] shrink-0" />
+                    <CalendarDays className="size-4 text-brand shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#090c1d]">
+                      <p className="text-sm font-medium text-ink">
                         {LEAVE_LABELS[leave.leave_type] ?? leave.leave_type}
-                        <span className="ml-2 text-[#514b81] font-normal">
+                        <span className="ml-2 text-ink-sub font-normal">
                           {leave.days_count}일
                         </span>
                       </p>
-                      <p className="text-xs text-[#514b81] mt-0.5">
+                      <p className="text-xs text-ink-sub mt-0.5">
                         {leave.start_date} ~ {leave.end_date}
                         {' · '}
                         신청일 {new Date(leave.created_at).toLocaleDateString('ko-KR')}

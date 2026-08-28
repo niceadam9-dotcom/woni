@@ -84,13 +84,13 @@ function CertificateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[640px] max-h-[90vh] flex flex-col">
+      <div className="bg-surface rounded-xl shadow-2xl w-[640px] max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <span className="font-semibold">시간내용증명</span>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#7b68ee] text-white rounded hover:bg-[#6a58d6] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand text-white rounded hover:bg-brand-strong transition-colors"
             >
               <Printer size={14} /> 인쇄
             </button>
@@ -214,7 +214,7 @@ function ActionPlanModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[500px] max-h-[90vh] flex flex-col">
+      <div className="bg-surface rounded-xl shadow-2xl w-[500px] max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div>
             <span className="font-semibold">이행계획 입력</span>
@@ -279,7 +279,7 @@ function ActionPlanModal({
             <button
               onClick={save}
               disabled={pending}
-              className="px-4 py-1.5 text-sm bg-[#7b68ee] text-white rounded disabled:opacity-50"
+              className="px-4 py-1.5 text-sm bg-brand text-white rounded disabled:opacity-50"
             >
               {pending ? '저장 중…' : '저장'}
             </button>
@@ -352,7 +352,7 @@ export function ActionPlanStatusClient({
   return (
     <div className="flex flex-col h-full overflow-auto">
       {/* ── 상단: 이행계획 제출현황 ──────────────────────────────── */}
-      <div className="px-6 py-4 border-b bg-white">
+      <div className="px-6 py-4 border-b bg-surface">
         <h1 className="text-xl font-bold">이행계획 제출현황 모니터링</h1>
         <p className="text-xs text-gray-400 mt-0.5">불량내역 1건 이상인 점검건의 이행계획 제출 현황</p>
       </div>
@@ -407,7 +407,7 @@ export function ActionPlanStatusClient({
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm bg-white"
+          className="border rounded px-2 py-1.5 text-sm bg-surface"
         >
           <option value="all">전체</option>
           <option value="unsubmitted">제출대기</option>
@@ -489,7 +489,7 @@ export function ActionPlanStatusClient({
                     {canManage && (
                       <button
                         onClick={() => setModalRow(row)}
-                        className="text-[#7b68ee] hover:underline text-[11px] font-medium"
+                        className="text-brand hover:underline text-[11px] font-medium"
                       >
                         [입력]
                       </button>
@@ -503,7 +503,7 @@ export function ActionPlanStatusClient({
       </div>
 
       {/* ── 하단: 이행완료보고서 제출현황 ─────────────────────────── */}
-      <div className="px-6 py-4 border-b bg-white mt-4">
+      <div className="px-6 py-4 border-b bg-surface mt-4">
         <h2 className="text-lg font-bold">이행완료보고서 제출현황 모니터링</h2>
         <p className="text-xs text-gray-400 mt-0.5">이행계획 제출 완료 건의 이행완료보고서 제출 현황</p>
       </div>
@@ -512,7 +512,7 @@ export function ActionPlanStatusClient({
         <select
           value={statusFilter2}
           onChange={e => setStatusFilter2(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm bg-white"
+          className="border rounded px-2 py-1.5 text-sm bg-surface"
         >
           <option value="all">전체</option>
           <option value="unsubmitted">제출대기</option>
