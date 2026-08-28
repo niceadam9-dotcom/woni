@@ -171,6 +171,10 @@ try {
   await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
   const hydOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
   check('픽스처: 배지 클릭 → 옥내소화전 시트가 열린 채 도착', hydOpened === '옥내소화전설비', hydOpened || '(열린 시트 없음)')
+  // 뒤로가기 복귀(?from=) — 1.4에서 왔으면 1.4로 돌아가야 한다(종전엔 점검 상세로 떨어졌다, 2026-08-28)
+  const backHref = await page.locator('[data-testid="sheet-entry-back"]').getAttribute('href')
+  check('픽스처: 뒤로가기 = 1.4 소방시설로 복귀', backHref === `/customers/${fixtureCustId}?tab=plan&form=1.4`,
+    backHref ?? '(back 링크 없음)')
 
   // F-1 잔존 2종 — 고체에어로졸은 고시 별지4에 점검표가 없다(시트를 만들 근거가 없다).
   // 종전엔 패널이 '시트 없음'을 안내했다. 패널이 사라진 지금의 등가 축은

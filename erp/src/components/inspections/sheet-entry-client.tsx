@@ -35,7 +35,7 @@ const numCls = (r: number, t: number) =>
 
 export function SheetEntryClient({
   inspectionId, customerName, roundLabel, overview,
-  canEdit, initialSheetId, initialGroupCode, initialMonth, loadError,
+  canEdit, initialSheetId, initialGroupCode, initialMonth, backHref, loadError,
 }: {
   inspectionId: string
   customerName: string
@@ -45,6 +45,8 @@ export function SheetEntryClient({
   initialSheetId: string | null
   initialGroupCode: string | null
   initialMonth: number | null
+  /** ?from= 복귀 경로(page.tsx가 검증) — 없으면 점검 상세. 진입점이 여럿이라 고정 목적지는 틀린다 */
+  backHref: string | null
   loadError: string | null
 }) {
   const [ov, setOv] = useState<SheetOverview>(overview)
@@ -187,7 +189,8 @@ export function SheetEntryClient({
     const responses: Record<string, 'O' | 'X' | 'N'> = {}
     for (const [code, v] of Object.entries(res.responses ?? {})) responses[code] = v.result
     autosaveRef.current.resetSheet(res.items ?? [], responses)
-    // URL 동기화는 replaceState — router.push는 클릭마다 RSC 왕복이 돈다
+    // URL 동기화는 replaceState — router.push는 클릭마다 RSC 왕복이 돈다.
+    // sheet·facility·month만 만진다 — ?from= 복귀 경로는 시트를 갈아타도 살아남아야 한다
     const code = ov.sheets.find(s => s.sheetId === sheetId)?.sheetCode
     if (code) {
       const u = new URL(window.location.href)
@@ -306,7 +309,8 @@ export function SheetEntryClient({
   return (
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 mb-4">
-        <Link href={`/inspections/${inspectionId}`} className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81]" aria-label="점검 상세로">
+        <Link href={backHref ?? `/inspections/${inspectionId}`} data-testid="sheet-entry-back"
+          className="p-1.5 rounded-lg hover:bg-[#f8f9fa] text-[#514b81]" aria-label={backHref ? '이전 화면으로' : '점검 상세로'}>
           <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0">

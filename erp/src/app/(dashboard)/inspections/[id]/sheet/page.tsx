@@ -21,12 +21,15 @@ import { SheetEntryClient } from '@/components/inspections/sheet-entry-client'
  *                           설비→시트 매핑을 링크 생성부에서 다시 하면 규칙이 두 벌이 되므로 여기서만 푼다.
  *    ?group=2-F             열린 시트 안 중분류로 점프
  *    ?month=7               외관(EX-4) 월 축 초기값 — 자체점검 건에서는 무시된다
+ *    ?from=/customers/…     뒤로가기 복귀 경로 — 진입점이 여럿이라(소방계획서 1.4·별지 트리·점검 상세)
+ *                           고정 목적지로는 소방계획서에서 온 사용자가 점검 상세로 떨어진다.
+ *                           내부 경로만 허용('/' 시작·'//' 금지 — open redirect 차단), 아니면 버린다.
  */
 export default async function SheetEntryPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ sheet?: string; facility?: string; group?: string; month?: string }>
+  searchParams?: Promise<{ sheet?: string; facility?: string; group?: string; month?: string; from?: string }>
 }) {
   const { id } = await params
   const sp = (await searchParams) ?? {}
@@ -71,6 +74,9 @@ export default async function SheetEntryPage({
   const monthRaw = Number(sp.month)
   const initialMonth = Number.isInteger(monthRaw) && monthRaw >= 1 && monthRaw <= 12 ? monthRaw : null
 
+  const fromRaw = sp.from?.trim() ?? ''
+  const backHref = fromRaw.startsWith('/') && !fromRaw.startsWith('//') ? fromRaw : null
+
   return (
     <SheetEntryClient
       inspectionId={id}
@@ -81,6 +87,7 @@ export default async function SheetEntryPage({
       initialSheetId={initialSheetId}
       initialGroupCode={sp.group?.trim() || null}
       initialMonth={initialMonth}
+      backHref={backHref}
       loadError={error ?? null}
     />
   )

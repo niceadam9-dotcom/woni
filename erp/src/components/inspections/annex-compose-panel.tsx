@@ -48,10 +48,12 @@ const stepNo = 'inline-flex items-center justify-center size-5 rounded-full bg-[
 const badgeAuto = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#eeedf3] text-[#514b81]'
 const badgeInput = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#7b68ee] text-white'
 
-export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, onGenerated }: {
+export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onClose, onGenerated }: {
   inspectionId: string
   annexNo: ComposeAnnexNo
   customerId?: string
+  /** 미비 항목 '고치기'(점검표 입력 화면)의 뒤로가기 복귀 경로 — 이 패널이 떠 있는 화면의 딥링크 */
+  from?: string
   onClose: () => void
   onGenerated?: () => void
 }) {
@@ -221,7 +223,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, onClose, 
                       </span>
                     </div>
                   ))}
-                  <AnnexMissingList missing={missing} customerId={customerId} inspectionId={inspectionId} />
+                  <AnnexMissingList missing={missing} customerId={customerId} inspectionId={inspectionId} from={from} />
                 </div>
               </section>
 

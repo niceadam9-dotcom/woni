@@ -12,7 +12,10 @@ import type { InspectionType, PlanType } from '@/types'
 import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
 
 /** 회차 카드 1건 (소방계획서_8 H-2 → 소방계획서_20 S3에서 분리).
- *  본문은 작업 순서 2블록: ① 점검표 입력 → ② 별지 생성·확인.
+ *  본문 2블록: 별지 생성·확인(고정 6~8행, 회차 수명 대부분의 용무) → 점검표 진행(설비 수만큼 가변).
+ *  화면 순서가 작업 순서(점검표 → 별지)와 반대인 이유(2026-08-28): 긴 가변 블록이 위에 오면
+ *  별지 행들이 매번 스크롤 밖으로 밀린다. 대신 번호(①②)를 떼 순서 오독을 막고,
+ *  미입력 경고는 별지 블록 제목에 복제한다 — [생성]을 누르기 전에 눈에 걸려야 한다(물분무 공란 사고 가드).
  *  ⚠ 블록 제목에 '점검표 입력' 문자열을 쓰지 말 것 —
  *     test-annex-interaction.mts가 그 문자열 개수로 회차 펼침 상태를 판정한다(PlanAnnexSheetHeader가 유일 출처). */
 
@@ -45,7 +48,7 @@ export function statePill(r: CustomerRound): { label: string; cls: string } {
 }
 
 export function PlanAnnexRoundCard({
-  r, isOpen, inspectionType, customerName, canRegister, isPending, isStarting,
+  r, isOpen, inspectionType, customerName, canRegister, isPending, isStarting, entryFrom,
   onToggle, onFullPreview, onPreviewSingle, onOpenFile, onGenerate, onUpload, onCompose, onSheetSaved, onStart, feedback,
 }: {
   r: CustomerRound
@@ -55,6 +58,8 @@ export function PlanAnnexRoundCard({
   canRegister: boolean
   isPending: boolean
   isStarting: boolean
+  /** 점검표 입력 화면의 뒤로가기 복귀 경로(?from=) — 이 카드가 그려진 화면의 딥링크 */
+  entryFrom?: string
   onToggle: () => void
   onFullPreview: () => void
   onPreviewSingle: (type: PreviewDoc['type']) => void
@@ -72,6 +77,8 @@ export function PlanAnnexRoundCard({
   const label = `${r.year}년 ${r.sequenceNum}차`
   // 소방계획서_27 — 갑지 통합 워크북 내려받기 상태(이 카드 안에서만 쓴다)
   const [xlsx, setXlsx] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
+  // 설치 설비 중 응답 0건 수 — 아래 점검표 트리가 조회한 값을 위 별지 블록 제목에 복제한다
+  const [sheetBlanks, setSheetBlanks] = useState(0)
 
   /** 엑셀(갑지 워크북) 즉석 생성 — 저장하지 않으므로 받는 순간이 곧 생성이다.
    *
@@ -162,14 +169,13 @@ export function PlanAnnexRoundCard({
           )}
           {r.docs ? (
             <>
-              <p className={blockTitleCls}>① 점검표 <span className="font-normal text-[#b0acd6]">— 현장 결과를 설비별로 입력</span></p>
-              {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4) — 머리줄 + 설비별 인라인 입력 */}
-              <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
-                responded={r.docs.sheetResponses} defects={r.docs.defects.total} />
-              <PlanAnnexSheetTree inspectionId={r.docs.inspectionId} canRegister={canRegister}
-                onSaved={onSheetSaved} />
-
-              <p className={`${blockTitleCls} mt-3`}>② 별지 생성·확인 <span className="font-normal text-[#b0acd6]">— 입력한 데이터로 자동 생성</span></p>
+              <p className={blockTitleCls}>
+                별지 생성·확인 <span className="font-normal text-[#b0acd6]">— 입력된 점검표에서 자동 생성</span>
+                {/* 미입력 경고 복제 — 트리가 [생성] 아래로 내려갔으므로 생성 전에 걸릴 신호를 여기 둔다 */}
+                {sheetBlanks > 0 && (
+                  <span className="ml-2 font-medium text-amber-600">⚠ 설치 설비 중 미입력 {sheetBlanks}개 — 결과칸이 공란으로 인쇄됩니다</span>
+                )}
+              </p>
               {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
               <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc] flex-wrap">
                 <span className="font-medium text-[#090c1d] w-44 pl-5">별지 4호 점검표</span>
@@ -203,6 +209,13 @@ export function PlanAnnexRoundCard({
                 isPending={isPending} open={onOpenFile} generate={onGenerate} upload={onUpload} feedback={feedback}
                 onCompose={onCompose}
                 onPreview={(_id, type) => onPreviewSingle(type)} />
+
+              <p className={`${blockTitleCls} mt-3`}>점검표 진행 <span className="font-normal text-[#b0acd6]">— 현장 결과를 설비별로 입력</span></p>
+              {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4 → 소방계획서_28 조회 전용) — 머리줄 + 설비별 진행 트리 */}
+              <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
+                responded={r.docs.sheetResponses} defects={r.docs.defects.total} from={entryFrom} />
+              <PlanAnnexSheetTree inspectionId={r.docs.inspectionId} canRegister={canRegister}
+                onSaved={onSheetSaved} onBlankCount={setSheetBlanks} from={entryFrom} />
             </>
           ) : (
             /* 미시작(계획) 회차 (H-3) */

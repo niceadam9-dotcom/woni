@@ -179,7 +179,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  입력은 정본 화면으로 보낸다.
    *
    *  ⚠ `?facility=` 로 보낸다 — 설비→시트 매핑(sheetMatchesFacilities)을 링크 생성부에서 다시 하면
-   *     규칙이 두 벌이 된다. 해석은 전용 페이지가 서버에서 한 번만 한다. */
+   *     규칙이 두 벌이 된다. 해석은 전용 페이지가 서버에서 한 번만 한다.
+   *  `?from=` — 입력 화면의 뒤로가기가 이 서식(1.4)으로 돌아오게 한다. 현재 URL 캡처가 아니라
+   *     정적 딥링크다: 배지는 항상 ?tab=plan&form=1.4 화면에만 그려지므로 목적지가 결정적이다. */
   const resultBadge = (code: string) => {
     if (!fac[code]?.installed || !canInputResult) return null
     const mk = resultMarks[code]
@@ -188,8 +190,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       : mk === 'X' ? 'text-red-600 border-red-300 bg-red-50'
       : mk === 'N' ? 'text-[#847ba8] border-[#d0ccf5] bg-[#fafaff]'
       : 'text-amber-700 border-amber-300 bg-amber-50'
+    const from = encodeURIComponent(`/customers/${customerId}?tab=plan&form=1.4`)
     return (
-      <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(code)}`}
+      <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(code)}&from=${from}`}
         onClick={e => e.stopPropagation()}
         data-testid={`form14-result-link-${code}`}
         title={`점검결과 — ${resultCtx?.inspection?.label} (클릭하면 점검표 입력 화면이 열립니다)`}

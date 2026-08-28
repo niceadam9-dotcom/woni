@@ -28,12 +28,21 @@ type Props = {
   canRegister: boolean
   /** 원격 저장이 반영되면 상위 회차 카드의 응답 수 표시를 갱신 */
   onSaved?: (respondedTotal: number, defectDelta: number) => void
+  /** 미입력(설치·응답 0) 설비 수 통지 — 회차 카드가 별지 블록 제목에 경고를 복제한다
+   *  (2026-08-28 블록 순서 반전으로 이 트리가 [생성] 버튼 아래로 내려간 것의 보완) */
+  onBlankCount?: (n: number) => void
+  /** 입력 화면 뒤로가기 복귀 경로(?from=) — 미지정이면 종전대로 점검 상세로 돌아간다 */
+  from?: string
 }
+
+/** 설치인데 응답 0건 — 별지 결과칸이 공란으로 인쇄될 설비 수.
+ *  요약줄과 onBlankCount가 같은 정의를 쓰도록 한 곳에 둔다. */
+const countBlanks = (sheets: SheetProgress[]) => sheets.filter(s => s.installed && s.responded === 0).length
 
 const numCls = (p: SheetProgress) =>
   p.responded === 0 ? 'text-amber-600' : p.responded >= p.total ? 'text-green-600' : 'text-amber-600'
 
-export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props) {
+export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlankCount, from }: Props) {
   const [ov, setOv] = useState<SheetOverview | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [installedOnly, setInstalledOnly] = useState(true)
@@ -47,7 +56,10 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
         setErr(null)
         const next = res.overviews?.[inspectionId] ?? null
         setOv(next)
-        if (next) onSaved?.(next.totals.responded, 0)
+        if (next) {
+          onSaved?.(next.totals.responded, 0)
+          onBlankCount?.(countBlanks(next.sheets))
+        }
       } catch {
         // requirePermission 리다이렉트 등 — 카드 전체가 죽지 않게 (plan-annex-section의 기존 패턴)
         setErr('점검표 진행률을 불러오지 못했습니다 — 권한이 없거나 일시 오류입니다.')
@@ -79,8 +91,9 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
   // 규칙은 lib/sheet-facility-map 한 곳(보드·스텝 링크·인쇄 번들과 동일).
   const rows = filterOn ? ov.sheets.filter(sheetShownWhenInstalledOnly) : ov.sheets
   const hiddenCount = ov.sheets.length - rows.length
-  const blankCount = ov.sheets.filter(s => s.installed && s.responded === 0).length
+  const blankCount = countBlanks(ov.sheets)
   const entryHref = `/inspections/${inspectionId}/sheet`
+  const fromQ = from ? `&from=${encodeURIComponent(from)}` : ''
 
   return (
     <div className="pl-5 pb-1">
@@ -114,7 +127,7 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
       {/* 시트 행이 곧 딥링크 — 클릭하면 전용 화면의 그 설비가 열린다("어디서 채우나"가 한 번에 풀린다) */}
       <div className="space-y-0.5">
         {rows.map(p => (
-          <Link key={p.sheetId} href={`${entryHref}?sheet=${encodeURIComponent(p.sheetCode)}`}
+          <Link key={p.sheetId} href={`${entryHref}?sheet=${encodeURIComponent(p.sheetCode)}${fromQ}`}
             data-testid={`annex-sheet-link-${p.sheetCode}`}
             className={`w-full flex items-center gap-1.5 px-2 py-1 rounded border border-[#f0eefb] hover:bg-[#fafaff] ${
               p.installed && p.responded === 0 ? 'bg-amber-50' : ''}`}>
@@ -135,8 +148,8 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved }: Props
 }
 
 /** 점검표 노드 머리줄 — 아이콘·라벨·딥링크. 트리 본체와 분리해 호출부가 배치를 정한다 */
-export function PlanAnnexSheetHeader({ inspectionId, responded, defects }: {
-  inspectionId: string; responded: number; defects: number
+export function PlanAnnexSheetHeader({ inspectionId, responded, defects, from }: {
+  inspectionId: string; responded: number; defects: number; from?: string
 }) {
   return (
     <div className="flex items-center gap-2 py-1.5 text-xs border-b border-[#f3f1fc]">
@@ -146,7 +159,7 @@ export function PlanAnnexSheetHeader({ inspectionId, responded, defects }: {
       <span className="text-[#514b81]">응답 {responded} · 불량 {defects}</span>
       {/* ⚠ 라벨에 '점검표 입력' 6글자를 넣지 말 것 — 위 머리줄과 합쳐 개수가 2배가 되면
           test-annex-interaction의 회차 펼침 판정이 깨진다 */}
-      <Link href={`/inspections/${inspectionId}/sheet`} data-testid="annex-sheet-entry-link"
+      <Link href={`/inspections/${inspectionId}/sheet${from ? `?from=${encodeURIComponent(from)}` : ''}`} data-testid="annex-sheet-entry-link"
         className="ml-auto text-[11px] text-[#7b68ee] hover:underline">
         입력 화면 열기 →
       </Link>

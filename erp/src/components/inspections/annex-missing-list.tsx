@@ -47,18 +47,21 @@ const FIX_LINKS: FixRule[] = [
   { match: '소방안전관리자', axis: 'customer', url: id => `/customers/${id}?tab=contacts#c-fire-safety-manager` },
 ]
 
-export function annexFixHref(item: string, customerId?: string, inspectionId?: string): string | undefined {
+export function annexFixHref(item: string, customerId?: string, inspectionId?: string, from?: string): string | undefined {
   const hit = FIX_LINKS.find(l => (l.exact ? item === l.match : item.includes(l.match)))
   if (!hit) return undefined
   const id = hit.axis === 'inspection' ? inspectionId : customerId
-  return id ? hit.url(id) : undefined
+  if (!id) return undefined
+  const href = hit.url(id)
+  // 복귀 경로는 점검표 입력 화면만 받는다 — 고객 축 링크는 하던 대로(자체 앵커·탭 딥링크가 있다)
+  return hit.axis === 'inspection' && from ? `${href}?from=${encodeURIComponent(from)}` : href
 }
 
 const fixLinkCls = 'text-[#7b68ee] hover:underline shrink-0 inline-flex items-center gap-0.5'
 
 /** 항목 목록(항상 펼침) — 작성 패널 1단처럼 세로 공간이 있는 자리 */
-export function AnnexMissingList({ missing, customerId, inspectionId }: {
-  missing: string[]; customerId?: string; inspectionId?: string
+export function AnnexMissingList({ missing, customerId, inspectionId, from }: {
+  missing: string[]; customerId?: string; inspectionId?: string; from?: string
 }) {
   if (missing.length === 0) {
     return (
@@ -74,7 +77,7 @@ export function AnnexMissingList({ missing, customerId, inspectionId }: {
         <span>미비 항목: 빈 칸으로 출력됩니다 (생성은 막지 않음)</span>
         <ul className="mt-0.5 space-y-0.5">
           {missing.map(m => {
-            const href = annexFixHref(m, customerId, inspectionId)
+            const href = annexFixHref(m, customerId, inspectionId, from)
             return (
               <li key={m} className="flex items-start gap-1">
                 <span>· {m}</span>

@@ -136,7 +136,9 @@ try {
   check('머리줄 입력 화면 링크 1개(시작된 회차에만)', (await entry.count()) === 1, `${await entry.count()}개`)
   check('머리줄 링크 문구', ((await entry.first().textContent()) ?? '').includes('입력 화면 열기'),
     ((await entry.first().textContent()) ?? '').trim())
-  check('머리줄 링크 href = 전용 화면', (await entry.first().getAttribute('href')) === `/inspections/${inspId}/sheet`,
+  // ?from= — 입력 화면의 뒤로가기가 이 별지 화면으로 돌아오게 하는 복귀 경로 (2026-08-28)
+  const FROM_Q = `from=${encodeURIComponent(`/customers/${customerId}?tab=plan&form=annex`)}`
+  check('머리줄 링크 href = 전용 화면 + 복귀 경로', (await entry.first().getAttribute('href')) === `/inspections/${inspId}/sheet?${FROM_Q}`,
     (await entry.first().getAttribute('href')) ?? '')
 
   // 두 회차를 모두 펼쳐도 점검표 노드는 시작된 회차에만 (요약 1세트 유지)
@@ -159,8 +161,8 @@ try {
 
   // ── 7) ★ 시트 행 딥링크 — 이 트리가 존재하는 이유. 눌러서 **그 설비가 열린 채** 도착해야 한다 ──
   const rowHref = await sheetRow.getAttribute('href')
-  check('시트 행 href = ?sheet=코드 딥링크 계약',
-    rowHref === `/inspections/${inspId}/sheet?sheet=${SHEET_CODE}`, rowHref ?? '(href 없음)')
+  check('시트 행 href = ?sheet=코드 + 복귀 경로 딥링크 계약',
+    rowHref === `/inspections/${inspId}/sheet?sheet=${SHEET_CODE}&${FROM_Q}`, rowHref ?? '(href 없음)')
   await sheetRow.click()
   await page.waitForURL(u => u.pathname === `/inspections/${inspId}/sheet`, { timeout: 20000 })
   await page.waitForSelector('text=점검표 입력 —', { timeout: 20000 })

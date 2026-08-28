@@ -110,6 +110,33 @@ try {
     if (wantCode) check(`딥링크 ${label} — 지목한 설비가 열렸다`, (opened ?? '').includes(F_BLANK), opened ?? '')
   }
 
+  // ── 6b) 뒤로가기 복귀 경로(?from=) — 소방계획서에서 온 사용자가 점검 상세로 떨어지던 결함 ──
+  const backLoc = page.locator('[data-testid="sheet-entry-back"]')
+  await page.goto(URL_)
+  await page.waitForSelector('text=점검표 입력 —')
+  check('뒤로가기 기본 — 점검 상세로', (await backLoc.getAttribute('href')) === `/inspections/${inspId}`,
+    (await backLoc.getAttribute('href')) ?? '(없음)')
+
+  const fromPath = `/customers/${customerId}?tab=plan&form=1.4`
+  await page.goto(`${URL_}?from=${encodeURIComponent(fromPath)}`)
+  await page.waitForSelector('text=점검표 입력 —')
+  check('뒤로가기 ?from= — 소방계획서 1.4로', (await backLoc.getAttribute('href')) === fromPath,
+    (await backLoc.getAttribute('href')) ?? '(없음)')
+  check('뒤로가기 ?from= — 라벨이 이전 화면', (await backLoc.getAttribute('aria-label')) === '이전 화면으로')
+
+  // 시트를 갈아타도 from이 살아남는가 — replaceState가 sheet만 만지고 from을 보존해야 한다
+  await page.locator(`[data-testid="sheet-row-${shInput!.sheet_code}"]`).click()
+  await page.waitForTimeout(500)
+  check('시트 전환 후 URL에 from 보존', page.url().includes('from='), page.url())
+
+  // 외부 URL 주입은 조용히 버린다 — 딥링크 계약(링크가 썩어도 페이지는 열려야 한다)과 같은 축
+  for (const bad of ['https://evil.example/x', '//evil.example/x']) {
+    await page.goto(`${URL_}?from=${encodeURIComponent(bad)}`)
+    await page.waitForSelector('text=점검표 입력 —')
+    check(`뒤로가기 외부 경로 거부(${bad.slice(0, 12)}…)`, (await backLoc.getAttribute('href')) === `/inspections/${inspId}`,
+      (await backLoc.getAttribute('href')) ?? '(없음)')
+  }
+
   // ── 7) 자동 저장 4단 (플레이크 방지: 렌더 커밋 → 칩 → DB 재확인) ──
   await page.goto(`${URL_}?facility=${encodeURIComponent(F_INPUT)}`)
   await page.waitForSelector('text=점검표 입력 —')

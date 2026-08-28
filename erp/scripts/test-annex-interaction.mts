@@ -98,8 +98,13 @@ try {
 
   // D-7 호버 퀵뷰는 소방계획서_20 S3에서 폐지 — 프리페치 지연화로 캐시가 비어 빈 팝업만 뜨던 기능.
   // 같은 일을 행 [보기](단일 문서 모달)가 하며, 아래 2-c에서 검증한다.
-  // 카드 본문 2블록(S3) — 작업 순서가 화면에 드러나는지
-  check('카드 2블록 — ① 점검표 / ② 별지 생성·확인', await page.isVisible('text=① 점검표') && await page.isVisible('text=② 별지 생성·확인'))
+  // 카드 본문 2블록(S3 → 2026-08-28 순서 반전) — 별지 블록이 위, 점검표 진행 트리가 아래.
+  // 제목 문자열이 아니라 부제로 잡는다('점검표 진행'은 오류 문구와 접두가 겹친다).
+  const annexTitle = page.locator('text=입력된 점검표에서 자동 생성').first()
+  const sheetTitle = page.locator('text=현장 결과를 설비별로 입력').first()
+  check('카드 2블록 — 별지 생성·확인 / 점검표 진행', await annexTitle.isVisible() && await sheetTitle.isVisible())
+  const [annexBox, sheetBox] = [await annexTitle.boundingBox(), await sheetTitle.boundingBox()]
+  check('블록 순서 — 별지 블록이 점검표 진행보다 위', !!annexBox && !!sheetBox && annexBox.y < sheetBox.y)
 
   // ── 2) 전체 미리보기(H-5c) — 요약 바·세로 연결 렌더·⑩⑪ 축약 ──
   await page.locator('text=🔍 전체 미리보기').first().click()
