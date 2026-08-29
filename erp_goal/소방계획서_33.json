@@ -2,7 +2,7 @@
   "doc": "소방계획서_33 — 종합 대상 2차 점검을 '작동'으로 (용어 아닌 데이터 축 교정)",
   "design": "erp_goal/소방계획서_33.md",
   "created": "2026-08-29",
-  "updated": "2026-08-29 (구현 완료 · 스테이징+운영 DB 적용 완료 · 게이트 그린 — **커밋/푸시는 미실행, 사용자 승인 대기**)",
+  "updated": "2026-08-29 (**전건 완결** — 구현·검증·커밋 `f54f850`+`563e341` 푸시·스테이징+운영 DB 적용·운영 배포·운영 Gotenberg 육안까지. criteria 26/26 implemented, 잔여 없음)",
   "related": ["소방계획서_6", "소방계획서_27"],
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(자기신고) / implemented(독립 검증 + verified) 구분",
   "status_legend": {
@@ -91,6 +91,8 @@
           "verified": "**내 변경으로 깨져 수리한 4건(전부 재실행 그린)**: ①test-sheet-overview[등재] 34/0 — 비교용 행이 seq2+special_종합이라 새 규약 위반. 설계 권고(픽스처에 sub_type 종합 추가)를 **버렸다**: 그러면 INV-D12a 위반 행을 테스트가 만들게 된다. 차수는 이 테스트의 관심사가 아니었으므로(유니크 회피용) **연도를 갈라 seq1**로 전환 ②test-general-selfinspection[등재] 16/0 — 단정을 1차=종합·2차=작동으로 분리 ③test-timeline 29/0 — 픽스처 고객을 종합 대상으로(2차를 만드는 테스트니 그게 정직하다) + 2차 행을 작동으로 ④_probe-s30-inactive-surfaces 12/0 — 동일. **선재 결함 동반 수리**: test-fire-s1(23/0)의 `plan_type==='special_종합'` 필터가 2차를 아예 못 보게 해 '2차 생성 안 됨' 단정이 **항진명제**였다 → special_* 전체로 넓히고 1차/2차 plan_type 단정 신설. **안 깨진 1건**: test-monthly-confirm(13/0) — seq1 단정이라 무관(첫 실행 실패는 2026-08-28자 잔여 테스트 계정 탓, test:clean 후 그린). **33과 무관한 선재 실패 3건(미수리·보고만)**: test-anchor(‘점검유형 변경’ 라디오 UI가 코드베이스에 0건 — select로 바뀐 뒤 미갱신) · test-fire-s2-s3 / _verify-auto-assign(픽스처가 use_approval_date만 줘 anchorDate=null → 계획 0건 생성. _probe-33-gen으로 실증). 셋 다 test:all 미등재라 게이트에 영향 없음." },
         { "id": "S5-5", "desc": "실인쇄물 육안 확인 — 스테이징 실데이터로 표지·공문·별지 9호를 실제로 조립·렌더", "status": "implemented",
           "verified": "_verify-33-print.mts **11/0** + _shot-33-print.mts로 PNG 생성(erp/.test-shots/soban33/). **1차를 대조군으로 나란히 뽑았다** — 대조 없는 초록은 '전부 작동이 됐다'와 구별되지 않기 때문이다(대조군을 못 찾으면 통과가 아니라 실패로 세도록 짰다). 실측 대조: 2차(삼보사법당) 표지 '소방시설 **작동점검** 결과보고서'·별지9호 `[√] 작동점검, 종합점검([ ]최초점검, [ ]그 밖의 종합점검)`·파일명 '2026_소방시설_작동점검 결과보고서_삼보사법당.pdf' / 1차(지평5) 표지 '소방시설 **종합점검** 결과보고서'·별지9호 `[ ] 작동점검, 종합점검([ ]최초점검, [√]그 밖의 종합점검)`. 공문 typeLabel도 '작동점검'. 한글 렌더 정상(두부 0). ⚠렌더는 Playwright Chromium 축이다 — 운영 Gotenberg 픽셀은 별개 축이나, 폰트 체인은 배포 시 이미 검증돼 있다(project_deployment)." },
+        { "id": "S5-6", "desc": "운영 Gotenberg 픽셀 육안 — 실제 인쇄 경로의 폰트·글리프", "status": "implemented",
+          "verified": "2026-08-29 운영 배포 후. PII 없는 조작 픽스처(_fixtures-doc-templates)로 별지 9호·표지를 **작동/종합 두 벌** 렌더해 운영 `gotenberg-prod`(8.36.0)에 넣고 PNG 확인. PDF는 로컬에 pdftoppm이 없어 `/forms/chromium/screenshot/html`로 우회(PDF와 **같은 Chromium·같은 fontconfig**). 결과: 2차 `[√] 작동점검, 종합점검([ ]최초점검, [ ]그 밖의 종합점검)` / 1차 `[ ] 작동점검, 종합점검([ ]최초점검, [√]그 밖의 종합점검)` · 표지 '소방시설 **작동점검** 결과보고서' vs '**종합점검**'. **두부 0** — 한글 명조 실글리프, `√ ※ ㈜` 정상. 축소본은 두부 구별이 안 되므로 체크칸 줄을 crop 후 2배 확대해 판정. 증거 `F:\\AI\\ERP\\_shots33\\`. ⚠두 벌 모두 바이트 길이가 같아(체크 √↔공백이 두 칸에서 상쇄) 길이로는 구별 불가 — MD5로 실제로 다름을 먼저 확인했다." },
         { "id": "S5-4", "desc": "게이트 — tsc·프로덕션 빌드", "status": "implemented",
           "verified": "npx tsc --noEmit EXIT=0 · npm run build EXIT=0(Compiled successfully 25.6s, 정적 98/98). PS 5.1이 파이프로 출력을 삼키므로 파일 리다이렉트+종료코드로 판정." }
       ] },
