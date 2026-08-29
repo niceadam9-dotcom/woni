@@ -105,6 +105,19 @@ const steps: Step[] = [
   // 소방계획서_16 S6-4 — 점검표 축·트리 인라인 입력(Realtime 포함) 상시 회귀
   { name: '점검표 범위 축(E2E)',        cmd: 'npx tsx scripts/test-sheet-scope-axis.mts',    needServer: true },
   { name: '점검표 트리 인라인(E2E)',    cmd: 'npx tsx scripts/test-annex-sheet-inline.mts',  needServer: true },
+  // 별지 서식이 소방계획서 탭 **안**에서 최상위 탭으로 갈라졌다(소방계획서_34). 4종을 함께 등재한다.
+  //   앞의 둘은 34 이전부터 미등재라 조용히 썩고 있던 것 — 등재하지 않으면 아무도 안 돌린다(드로어 2종의 전례).
+  //   신규 둘은 갈라진 탭이 소리 없이 무너지는 자리를 붙든다:
+  //     ① 하위호환 정규화(?tab=plan&form=annex → 별지 탭)를 누가 지우면 사용자 북마크와 무수정 통과
+  //        프로브 11종이 **함께** 죽는데, 그 11종은 goto만 하므로 스스로는 초록으로 죽는다
+  //     ② lazyKeys가 끊기면 기본정보만 열어도 별지 회차 조회가 돌아 모든 고객 상세가 왕복 하나씩 늘어난다 —
+  //        증상이 '좀 느려졌다'뿐이라 화면으로는 영영 모른다
+  //     ③ 같은 pathname으로 ?tab=만 바꾸는 이동은 서버를 재렌더하지 않는다. 실패하면 사용자는 화면에
+  //        그대로 남고 **아무 일도 안 일어난 것처럼 보인다**(에러도 로그도 없다)
+  { name: '소방계획서 탭(E2E)',         cmd: 'npx tsx scripts/test-plan-tab.mts',             needServer: true },
+  { name: '별지 상호작용(E2E)',         cmd: 'npx tsx scripts/test-annex-interaction.mts',    needServer: true },
+  { name: '별지 탭 승격(프로브)',        cmd: 'npx tsx scripts/_probe-annex-tab.mts',          needServer: true },
+  { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },
   // 드로어(B) — 사용자 결정으로 현장용 입력구를 유지한다(소방계획서_28 D-5). 유지하는 이상 회귀도 막아야
   // 하는데 이 두 스위트가 **미등록이라 썩어 있었다**: mu-sheet는 `9b43cc0`에서 사라진 [저장] 버튼을
   // 눌러 15초 타임아웃으로 죽었고(3/1), mother-drawer(67단언)는 아무도 안 돌렸다.

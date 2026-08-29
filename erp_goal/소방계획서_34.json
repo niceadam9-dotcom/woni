@@ -2,7 +2,7 @@
   "doc": "소방계획서_34 — 별지 서식을 최상위 탭으로 승격 ([소방계획서] 옆 [별지서식])",
   "design": "erp_goal/소방계획서_34.md",
   "created": "2026-08-29",
-  "updated": "2026-08-29 (설계 확정 · 코드/커밋 전부 미실행 — 사용자 지시로 문서 작성 후 중단)",
+  "updated": "2026-08-30 (S7-7 test-all.mts 등재로 잔여 해소 — 8/29 '설계 확정 · 코드 미실행' 표기는 그 뒤 구현·판정·커밋 4c38e27로 무효화됐다)",
   "related": ["소방계획서_8", "소방계획서_14", "소방계획서_20", "소방계획서_30"],
   "supersedes": [
     { "doc": "소방계획서_8", "id": "D-12", "action": "moved", "reason": "3그룹 재편의 '📑 별지 서식' 그룹이 트리에서 최상위 탭으로 이동. 기능은 살아 있고 자리만 바뀐다 — 구현 시 8.json 해당 criteria에 superseded_by를 붙이고 34의 새 파일:라인으로 사슬을 잇는다" },
@@ -99,7 +99,8 @@
         { "id": "S7-4", "desc": "신규 _probe-annex-samepath-nav.mts — 같은 경로 함정 3동선: ①?tab=info에서 헤더 [data-testid=header-plan-link] ②?tab=plan&form=1.4&from=report9에서 [⑨ 9호로 돌아가기] ③Ctrl+K 팔레트에서 지금 보고 있는 그 고객 선택(기존 스위트에 없는 신설 축)", "status": "implemented" },
         { "id": "S7-5", "desc": "신규 _probe-annex-lazy-mount.mts — page.on('request')로 서버액션 POST 카운트: ?tab=info 로드 후 getCustomerRoundsAction 0건, 별지 탭 클릭 시 1건. 이게 없으면 S2 배선이 조용히 끊겨도 아무도 모른다", "status": "implemented" },
         { "id": "S7-6", "desc": "신규 _probe-annex-roundtrip.mts — 별지→9호[작성]→1단[수정]→소방계획서 탭+data-plan-node=1.4+복귀 바+대장 <details> open →[9호로 돌아가기]→별지 탭 복귀. 그리고 별지→점검표 입력→뒤로→별지 탭 복귀", "status": "implemented" },
-        { "id": "S7-7", "desc": "test-all.mts 등재 — test-plan-tab.mts·test-annex-interaction.mts가 미등재라 지금도 조용히 썩고 있다. 이번에 손대는 김에 신규 프로브 4종과 함께 등재", "status": "implemented" },
+        { "id": "S7-7", "desc": "test-all.mts 등재 — test-plan-tab.mts·test-annex-interaction.mts가 미등재라 지금도 조용히 썩고 있다. 이번에 손대는 김에 신규 프로브 4종과 함께 등재", "status": "implemented",
+          "verified": "2026-08-30 — test-all.mts:108-120에 4종 등재(test-plan-tab · test-annex-interaction · _probe-annex-tab · _probe-annex-samepath-nav). 설계가 이름 붙인 신규 4종 중 실재하는 것은 2종뿐이다: S7-5(지연 마운트)는 probe_self_correction대로 _probe-annex-tab ④로 흡수됐고, S7-6(왕복)은 _probe-annex-samepath-nav ②와 test-annex-interaction '복귀 — 별지 서식 화면으로 돌아감'에 들어 있다 — 별도 _probe-annex-roundtrip.mts는 만들어진 적이 없다(scripts 실측). 등재 직전 4종 재실행: _probe-annex-tab 14/0 · _probe-annex-samepath-nav 13/0 · test-annex-interaction 37/0 · test-plan-tab은 환경 축으로 보류(아래 measured.env_blocked)" },
         { "id": "S7-8", "desc": "npm run build(annex prop 제거의 호출부 누락을 여기서 잡는다) + npm run test:all + 수동 스위트(test-plan-tab · test-annex-interaction · test-chip-nav · _probe-form14-result-badge)", "status": "implemented" }
       ] }
   ],
@@ -127,7 +128,7 @@
     { "id": "R8", "level": "low", "desc": "탭 개수 변경으로 nth 기반 셀렉터 파손", "mitigation": "plan은 index 3 유지(annex를 4에) — _diag-header-plan-link.mts:35 확인 완료" }
   ],
 
-  "current_state": "완결 — 구현·독립 판정·커밋·푸시 전부 완료(2026-08-29). 커밋 4c38e27(27파일 +1237/-79), 푸시 완료(게이트 그린·INV 전건 0건). 마이그레이션 없음(DB 무관). 전 36 criteria implemented.",
+  "current_state": "완결 — 구현·독립 판정·커밋·푸시 전부 완료(2026-08-29). 커밋 4c38e27(27파일 +1237/-79), 푸시 완료(게이트 그린·INV 전건 0건). 마이그레이션 없음(DB 무관). 전 36 criteria implemented. **잔여였던 S7-7(test-all.mts 등재)도 2026-08-30 완료 — test-all.mts:108-120에 4종 등재.** 남은 것은 test-plan-tab 초록 재확인 1건뿐이고, 그건 34의 축이 아니라 환경(dev 3.1GB·여유 652MB)과 타 세션 미커밋 35 작업이 겹친 자리다(measured.env_blocked).",
 
   "verified": {
     "date": "2026-08-29",
@@ -166,8 +167,16 @@
       "npm run test:all — 미실행. 타 세션이 scripts/test-all.mts를 수정 중이라 회피했다(공유 인덱스·동시 편집 충돌 방지). 다만 pre-push 게이트가 빌드 + INV 전건을 돌려 통과했다."
     ],
     "not_done": [
-      "S7-7 test-all.mts 등재 — 타 세션이 그 파일을 미커밋 수정 중이라 이번에 손대지 않았다. 신규 프로브 2종(_probe-annex-tab·_probe-annex-samepath-nav)과 test-plan-tab·test-annex-interaction 등재는 여전히 잔여. 후자 둘은 34 이전부터 미등재라 조용히 썩고 있던 것이다."
+      "해소(2026-08-30) — S7-7 test-all.mts 등재 완료. 8/29에 회피한 사유(타 세션이 그 파일을 미커밋 수정 중)는 `0775700`으로 그쪽이 커밋을 마쳐 사라졌다. ⚠기록 정정: 8/29 시점의 S7-7 status는 `implemented`인데 not_done에는 '미실행'이라 적혀 있었다 — 같은 항목을 두 곳이 반대로 말하는 과대 표기였다(Json_Rule 규칙 2)."
     ],
+    "env_blocked": {
+      "date": "2026-08-30",
+      "item": "test-plan-tab.mts 96/2 → 재실행 32/1(다른 지점)",
+      "desc": "등재 직전 재실측에서 test-plan-tab만 붉었다. **34와 무관하다** — ①실패 2건이 전부 소방계획서 본문 축(2장 자위소방대 fire_brigade_members 0행 · 1.4 ☑ aria-pressed)이고 별지·탭 축이 아니다 ②이번에 내가 바꾼 것은 test-all.mts의 러너 목록뿐인데 그 파일은 test-plan-tab이 import하지 않는다(인과 없음).",
+      "root_cause": "환경 축. 재실행이 **다른 지점**에서 죽었고(단언 33 page.click 15초 타임아웃, disabled 버튼이 안 풀림) 그때 dev 서버(PID 3628)가 단독 3.1GB · 시스템 여유 652MB였다. '실행마다 다른 테스트가 무작위 실패'는 코드가 아니라 메모리 고갈의 서명이다. 대조군: 같은 서버·같은 시각에 별지 3종은 14/0·13/0·37/0로 초록이었다 — 서버가 통째로 죽은 게 아니라 무거운 스위트만 타임아웃에 걸린다.",
+      "suspect": "1.4 ☑ 실패는 타 세션의 **미커밋** 소방계획서_35 작업과 같은 자리다(plan-form14.tsx:494 분류 열 w-12 → calc(var(--fs-col-cat)*var(--fs-scale)), globals.css:191 토큰 신설). 토큰은 정의돼 있어 배선 자체는 성립한다. 환경과 남의 미커밋이 겹쳐 있어 **원인을 하나로 특정하지 못했다** — 단정하지 않고 남긴다.",
+      "not_resolved": "dev 서버는 내가 띄운 것이 아니라(내 npm run dev는 포트 충돌로 죽었고 PID 3628은 그 전부터 있었다) 사용자 결정으로 재기동하지 않았다. 따라서 test-plan-tab의 초록 재확인은 **미완**이다. 다음에 dev를 새로 띄운 세션이 단독 실행해 볼 것 — 그때도 같은 2건이 재현되면 그건 소방계획서_35 축이지 34가 아니다."
+    },
     "review_note": "판정자 A가 지적한 render-phase ref mutation(customer-tabs.tsx:56-57 visitedRef.current.add(active))은 엄격한 React 규칙상 권장되지 않는다. 다만 ①같은 파일이 이미 :45-48에서 렌더 중 setActive를, :66-67에서 linkNavRef 대입을 하고 있어 기존 패턴과 일관되고 ②버려진 렌더가 Set에 키를 넣어도 결과는 '그 탭이 조금 일찍 마운트된다'뿐이라 정합성 결함이 아니다. 수정하지 않되 기록으로 남긴다.",
     "scope_additions": [
       "헤더 상시 버튼 라벨을 '소방계획서' → '별지서식'으로 변경. 설계에는 href·testid만 적혀 있었으나, 목적지가 별지서식 탭이 된 이상 라벨이 거짓이 된다. 프로브 5종이 전부 data-testid로 잡으므로 텍스트 변경은 무해함을 확인했다.",
