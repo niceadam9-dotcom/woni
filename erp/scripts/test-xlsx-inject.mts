@@ -354,5 +354,66 @@ console.log('[7] 주입 견고성')
   check(`비대상 셀 diff 0 (touched ${touched.size}칸 외 전수)`, diffs.length === 0, diffs.slice(0, 5).join(', '))
 }
 
+// ── ⑧ 구조 안전망 — 참조 0인 공유문자열(고아 si) ────────────────────
+// 2026-08-30 독립 판정 C·D가 **서로 다른 축에서** 같은 결함에 도달했다: 앵커가 셀을 덮어도
+// 그 셀이 가리키던 si는 참조 0인 고아로 파트에 남아 압축만 풀면 읽혔다(직원 9명 성명·자격번호
+// 7건·표본 소견·'( 3 )층 실명( 직원실 )'·표본 답 15종). ⑤⑥의 니들 축이 전부 초록이었던 이유는
+// **니들이 표본 고객 하나만 인코딩**하기 때문이다 — 직원 이름은 어떤 니들에도 없다.
+// 그래서 여기는 내용이 아니라 **구조**로 단언한다(externalLinks를 '파트 존재 금지'로 닫은 규약).
+console.log('[8] 구조 안전망 — 고아 공유문자열')
+{
+  const orphansOf = async (bytes: Uint8Array) => {
+    const z = await JSZip.loadAsync(bytes)
+    const sstXml = await z.file('xl/sharedStrings.xml')?.async('string')
+    if (!sstXml) return []
+    const referenced = new Set<number>()
+    for (const name of Object.keys(z.files)) {
+      if (!/^xl\/worksheets\/[^/]+\.xml$/.test(name)) continue
+      const wx = await z.file(name)!.async('string')
+      for (const m of wx.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        if (!/\st="s"/.test(m[1] ?? '')) continue
+        const v = /<v>(\d+)<\/v>/.exec(m[2] ?? '')
+        if (v) referenced.add(Number(v[1]))
+      }
+    }
+    const out: string[] = []
+    let at = 0
+    for (const m of sstXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+      const i = at++
+      const text = [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => t[1]).join('')
+      if (referenced.has(i) || !text) continue
+      out.push(`si${i}='${text.slice(0, 30)}'`)
+    }
+    return out
+  }
+
+  // 대조군 먼저 — 판정기가 실제로 붉어지는가. 참조되지 않는 si를 하나 심는다.
+  // 이게 없으면 아래 '0건'이 '검사가 아무것도 못 본다'와 구별되지 않는다.
+  const zc = await JSZip.loadAsync(template)
+  let sstC = await zc.file('xl/sharedStrings.xml')!.async('string')
+  sstC = sstC.replace('</sst>', '<si><t>ZZ고아판정용문자열ZZ</t></si></sst>')
+  zc.file('xl/sharedStrings.xml', sstC)
+  const planted = new Uint8Array(await zc.generateAsync({ type: 'uint8array' }))
+  const ctl = await orphansOf(planted)
+  check('대조군 — 심은 고아 si를 판정기가 잡는다',
+    ctl.some(o => o.includes('ZZ고아판정용문자열ZZ')), `고아 ${ctl.length}건`)
+
+  // 본검사 — 심은 고아가 주입을 거치면 사라진다(구조 안전망이 실제로 지운다)
+  const rp = await injectWorkbook(planted, targets)
+  const after = await orphansOf(rp.bytes)
+  check('심은 고아 si가 주입 후 소멸', !after.some(o => o.includes('ZZ고아판정용문자열ZZ')),
+    after.slice(0, 3).join(' · '))
+  check('주입 산출물에 고아 공유문자열 0건', after.length === 0,
+    `${after.length}건: ${after.slice(0, 4).join(' · ')}`)
+  check('고아 소거는 니들 축과 분리 보고', rp.scrubbedOrphans.length > 0 && rp.scrubbed.length === 0,
+    `orphans=${rp.scrubbedOrphans.length} needles=${rp.scrubbed.length}`)
+
+  // si 개수 불변 — 자리를 유지한 채 텍스트만 비워야 한다. 개수가 밀리면 전 시트의 t="s"가 어긋난다
+  const nSi = async (b: Uint8Array) => [...(await (await JSZip.loadAsync(b))
+    .file('xl/sharedStrings.xml')!.async('string')).matchAll(/<si>/g)].length
+  check('소거가 si 개수를 바꾸지 않는다(인덱스 보존)', await nSi(planted) === await nSi(rp.bytes),
+    `${await nSi(planted)} → ${await nSi(rp.bytes)}`)
+}
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

@@ -18,7 +18,13 @@ const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
 const HUB = '개요'
 const SENTINEL = 'ZZ테스트상호ZZ'          // 스포크 전파를 눈으로 구분하기 위한 표지값
 const HUB_CELL = 'B14'                      // 개요!B14 = 상호 (스포크 6곳이 참조)
-const SPOKES: Array<[string, string]> = [['공문', 'B8'], ['보고서', 'C4'], ['정보', 'B4']]
+// ⚠ 이 검사는 **기대값이 '전파 안 됨'** 이라 상류가 깨져도 통과한다 — 그래서 SPOKE가 실제로
+//   HUB_CELL에 의존하는 셀이어야만 의미가 있다. 종전 3번째 원소 `정보!B4`는 원본 .xls·기저 자산·
+//   full 자산 어디에도 값·수식이 없는 **빈 셀**이었고 정보 시트는 개요!B14를 한 번도 참조하지
+//   않는다(2026-08-30 판정 B 실측) — 어떤 결과에도 '전파 안 됨'으로 세어져 1/3이 항진 지분이었다.
+//   폐포 실측 8칸 중 **2단계 사슬**인 계약서!D24로 교체한다: 1단계 전파만 했을 때 옛 값이 남았던
+//   바로 그 자리라 검사가 종전보다 강해진다.
+const SPOKES: Array<[string, string]> = [['공문', 'B8'], ['보고서', 'C4'], ['계약서', 'D24']]
 
 const dir = mkdtempSync(join(tmpdir(), 'x27-'))
 let pass = 0, fail = 0
@@ -29,11 +35,15 @@ const check = (name: string, ok: boolean, detail = '') => {
 
 /** soffice로 변환. 산출 경로를 돌려준다(실패면 null).
  *  ⚠ outDir을 반드시 원본과 다르게 줄 것 — 같은 경로로 xlsx→xlsx를 시키면 soffice가
- *  자기 원본을 덮어쓰지 못해 `impl_store failed 0x4c0c`로 죽는다(2026-08-21 실측). */
+ *  자기 원본을 덮어쓰지 못해 `impl_store failed 0x4c0c`로 죽는다(2026-08-21 실측).
+ *  ⚠ 프로필 격리 필수 — LibreOffice는 단일 프로필이라 다른 세션이 soffice를 쓰는 중이면
+ *  변환이 ETIMEDOUT/status -1로 죽는다. 실제로 이 게이트가 그 이유로 중단돼 S0 승격이
+ *  오래 막혀 있었다(코드 결함이 아니라 환경 경합이었다 — 2026-08-30 판정 A). */
 function convert(src: string, to: 'pdf' | 'xlsx', outDir = dir): string | null {
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true })
   try {
-    execFileSync(SOFFICE, ['--headless', '--norestore', '--convert-to', to, '--outdir', outDir, src],
+    execFileSync(SOFFICE, [`-env:UserInstallation=file:///${join(dir, 'loprofile').replace(/\\/g, '/')}`,
+      '--headless', '--norestore', '--convert-to', to, '--outdir', outDir, src],
       { timeout: 300_000, windowsHide: true, stdio: 'pipe' })
   } catch (e: any) {
     console.log(`     soffice 오류: ${((e.stderr || e.stdout || '').toString().trim() || e.message).split('\n')[0]}`)

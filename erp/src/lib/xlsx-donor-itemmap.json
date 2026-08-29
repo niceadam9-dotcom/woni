@@ -1,7 +1,7 @@
 {
  "note": "빌드 생성물 — 손으로 고치지 말 것. scripts/build-workbook-full.mts ⑤b가 자산에서 뽑는다.",
  "builtAt": "2026-08-29",
- "assetSha256": "0e38e1db8bd61b2eac64f01c2219784c4f53ad3f6bd9b437d21ff5d1f941ec5d",
+ "assetSha256": "1a55fe0277e48ca6a591f20589c90eac8302807a3de059fe3be8c699d43f2b3c",
  "counts": {
   "codes": 720,
   "sheets": 37,

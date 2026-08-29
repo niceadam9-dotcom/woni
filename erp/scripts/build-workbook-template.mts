@@ -510,6 +510,36 @@ console.log('⑥ 사후 검증')
       for (const n of NEEDLES) if (raw.includes(n)) fails.push(`원시 바이트 니들 잔존: ${name} ⊃ '${n}'`)
     }
   }
+  // ★ **고아 공유문자열 0** — 위 니들 검사는 **목록에 적힌 문자열만** 본다. 니들은 표본 고객
+  // 하나만 인코딩하므로 직원 실명·자격번호처럼 목록 밖 원문은 통과했다. 실제로 앵커가 셀을
+  // 덮은 뒤에도 그 셀이 가리키던 si가 참조 0으로 남아, **압축만 풀면 읽히는 상태로** 자산과
+  // 전 산출물에 실려 나갔다(2026-08-30 독립 판정 C·D가 서로 다른 축에서 같은 결론).
+  // 니들을 늘리는 대신 **구조**로 닫는다 — externalLinks를 '파트 존재 자체 금지'로 막은 규약과 같다.
+  {
+    const zip = await JSZip.loadAsync(bytes)
+    const sstRaw = await zip.file('xl/sharedStrings.xml')?.async('string')
+    if (sstRaw) {
+      const referenced = new Set<number>()
+      for (const name of Object.keys(zip.files)) {
+        if (!/^xl\/worksheets\/[^/]+\.xml$/.test(name)) continue
+        const wx = await zip.file(name)!.async('string')
+        for (const m of wx.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+          if (!/\st="s"/.test(m[1] ?? '')) continue
+          const v = /<v>(\d+)<\/v>/.exec(m[2] ?? '')
+          if (v) referenced.add(Number(v[1]))
+        }
+      }
+      const orphans: string[] = []
+      let at = 0
+      for (const m of sstRaw.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+        const i = at++
+        const text = [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')
+        if (referenced.has(i) || !text) continue
+        orphans.push(`si${i}='${text.slice(0, 40)}'`)
+      }
+      if (orphans.length) fails.push(`고아 공유문자열 ${orphans.length}건 잔존: ${orphans.slice(0, 4).join(' · ')}`)
+    }
+  }
   // ★ **전 시트 덮개 불변식** — 앵커에 없는 **리터럴** 셀에 체크된 마크(√)가 하나라도 있으면 실패.
   // ④e의 SAMPLE_ANSWERS는 손목록이라 그 자체로는 다음 사각을 못 막는다. 막는 것은 이 불변식이다:
   // 갑지가 갱신돼 새 표본 답이 들어오면 목록이 아니라 **여기가** 먼저 붉어진다.

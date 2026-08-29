@@ -189,8 +189,12 @@ export type InjectResult = {
   missed: string[]
   /** 전파로 함께 갱신된 캐시 셀 수 */
   propagated: number
-  /** 안전망(D-10)이 비운 곳 — 셀(`시트!셀`) 또는 공유문자열(`sharedStrings!si<i>`) */
+  /** 니들 안전망(D-10)이 비운 곳 — 셀(`시트!셀`) 또는 공유문자열(`sharedStrings!si<i>`) */
   scrubbed: string[]
+  /** 구조 안전망이 비운 **참조 0인** 공유문자열(`sharedStrings!si<i>`).
+   *  ⚠ scrubbed와 **합치지 말 것** — 니들 축(목록에 적힌 것)과 구조 축(참조 여부)은 다른 축이고,
+   *  섞으면 '니들이 N칸 지웠다'는 단언이 고아 수에 오염돼 조용히 무의미해진다 */
+  scrubbedOrphans: string[]
   /** 이번 주입이 실제로 쓴 셀 전부(직접 + 전파) — 검증이 '비대상 무변경'을 단언하는 축 */
   touched: string[]
 }
@@ -251,27 +255,28 @@ export async function injectWorkbook(
   // 쪼개지면(<r><t>정내</t></r><r><t>과의원</t></r>) 첫 <t>만 봐서는 못 잡는다 — 전 <t> 연결로 판정
   const scrubbed: string[] = []
   const forbidden = opts?.forbidden ?? []
+  const joinT = (s: string) => [...s.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(m => m[1]).join('')
+  // 공유문자열 원문 — 니들을 문 si는 텍스트 자체를 비운다(고아든 참조든: .xlsx는 zip이라
+  // 셀에 안 보여도 파트 바이트에 실려 나간다). 참조 셀은 아래 셀 스캔이 함께 비운다
+  const sstPath = 'xl/sharedStrings.xml'
+  const sst: string[] = []
+  let sstXml: string | null = null
+  let sstDirty = false
+  const sstFile = zip.file(sstPath)
+  if (sstFile) {
+    sstXml = await sstFile.async('string')
+    let idx = 0
+    sstXml = sstXml.replace(/<si>([\s\S]*?)<\/si>/g, (whole, inner: string) => {
+      const text = joinT(inner)
+      sst.push(text)
+      const i = idx++
+      if (!forbidden.some(n => text.includes(n))) return whole
+      sstDirty = true
+      scrubbed.push(`sharedStrings!si${i}`)
+      return '<si><t/></si>'
+    })
+  }
   if (forbidden.length) {
-    const joinT = (s: string) => [...s.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(m => m[1]).join('')
-    // 공유문자열 원문 — 니들을 문 si는 텍스트 자체를 비운다(고아든 참조든: .xlsx는 zip이라
-    // 셀에 안 보여도 파트 바이트에 실려 나간다). 참조 셀은 아래 셀 스캔이 함께 비운다
-    const sstPath = 'xl/sharedStrings.xml'
-    const sst: string[] = []
-    const sstFile = zip.file(sstPath)
-    if (sstFile) {
-      let sstXml = await sstFile.async('string')
-      let idx = 0, dirty = false
-      sstXml = sstXml.replace(/<si>([\s\S]*?)<\/si>/g, (whole, inner: string) => {
-        const text = joinT(inner)
-        sst.push(text)
-        const i = idx++
-        if (!forbidden.some(n => text.includes(n))) return whole
-        dirty = true
-        scrubbed.push(`sharedStrings!si${i}`)
-        return '<si><t/></si>'
-      })
-      if (dirty) zip.file(sstPath, sstXml)
-    }
     for (const [sheet, path] of files) {
       const file = zip.file(path)
       if (!file) continue
@@ -294,6 +299,42 @@ export async function injectWorkbook(
     }
   }
 
+  // ── 구조 안전망 — 참조 0인 공유문자열(고아 si)을 비운다 ──
+  // 위 니들 축은 **목록에 적힌 문자열만** 지운다. 니들은 표본 고객 하나만 인코딩하므로 직원
+  // 실명·자격번호처럼 목록 밖 원문은 그대로 남았다. 앵커가 셀을 덮어도 그 셀이 가리키던 si는
+  // 참조 0인 고아로 파트에 남아 **압축만 풀면 읽히는 상태로** 매 산출물에 실려 나갔다
+  // (2026-08-30 독립 판정 C·D가 서로 다른 축에서 같은 결론에 도달 — 직원 9명 성명·자격번호
+  //  7건·표본 소견·'( 3 )층 실명( 직원실 )'). externalLinks를 니들이 아니라 '파트 존재 자체
+  // 금지'로 닫은 것과 같은 규약이다 — 내용이 아니라 **구조**로 판정한다.
+  // ⚠ 참조 집합은 zip의 worksheet 파트를 **직접** 훑는다. workbook.xml 등재 목록(sheetFileMap)을
+  //   쓰면 등재 밖 파트가 참조하는 si를 고아로 오판해 살아 있는 텍스트를 지운다 — 이 검사는
+  //   **과소 소거가 과대 소거보다 안전**하므로 참조 판정을 넓게 잡는다.
+  // ⚠ si 개수는 바꾸지 않는다(인덱스가 밀리면 전 시트의 t="s" 참조가 어긋난다). 자리를 유지한
+  //   채 텍스트만 비우므로 <sst count·uniqueCount>도 그대로 유효하다.
+  const scrubbedOrphans: string[] = []
+  if (sstXml !== null) {
+    const referenced = new Set<number>()
+    for (const name of Object.keys(zip.files)) {
+      if (!/^xl\/worksheets\/[^/]+\.xml$/.test(name)) continue
+      const wx = await zip.file(name)!.async('string')
+      for (const m of wx.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        if (!/\st="s"/.test(m[1] ?? '')) continue
+        const v = /<v>(\d+)<\/v>/.exec(m[2] ?? '')
+        if (v) referenced.add(Number(v[1]))
+      }
+    }
+    let at = 0
+    sstXml = sstXml.replace(/<si>([\s\S]*?)<\/si>/g, (whole, inner: string) => {
+      const i = at++
+      // 이미 빈 항목은 건드리지 않는다 — scrubbed가 잡음으로 부풀면 실제 소거를 못 읽는다
+      if (referenced.has(i) || !joinT(inner)) return whole
+      sstDirty = true
+      scrubbedOrphans.push(`sharedStrings!si${i}`)
+      return '<si><t/></si>'
+    })
+  }
+  if (sstDirty && sstXml !== null) zip.file(sstPath, sstXml)
+
   const bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
-  return { bytes, missed, propagated, scrubbed, touched: [...written] }
+  return { bytes, missed, propagated, scrubbed, scrubbedOrphans, touched: [...written] }
 }

@@ -2,7 +2,7 @@
   "doc": "소방계획서_33 — 종합 대상 2차 점검을 '작동'으로 (용어 아닌 데이터 축 교정)",
   "design": "erp_goal/소방계획서_33.md",
   "created": "2026-08-29",
-  "updated": "2026-08-29 (**전건 완결** — 구현·검증·커밋 `f54f850`+`563e341` 푸시·스테이징+운영 DB 적용·운영 배포·운영 Gotenberg 육안까지. criteria 26/26 implemented, 잔여 없음)",
+  "updated": "2026-08-30 (**전건 완결·회귀 재확인**. 2026-08-29 구현·검증·커밋 `f54f850`+`563e341`+`fead9e5` 푸시·스테이징+운영 DB 적용·운영 배포·운영 Gotenberg 육안까지, criteria 26/26 implemented. 2026-08-30 타 세션 커밋 다수가 얹힌 뒤 현 HEAD에서 재실측 — test-second-round-operational **37/0** · INV 스테이징 **18/18** · INV 운영 **18/18**(D12a 2벌·D12b 위반 0). 잔여 없음)",
   "related": ["소방계획서_6", "소방계획서_27"],
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(자기신고) / implemented(독립 검증 + verified) 구분",
   "status_legend": {
@@ -162,9 +162,7 @@
       "tsc 0 · next build 성공"
     ],
     "not_done": [
-      "커밋 0건 · 푸시 0건 (사용자 승인 대기)",
-      "S4-4 초과 판정 sub_type 확장(동작 변경이라 의도적 제외)",
-      "브라우저로 실제 별지 9호/표지 PDF 육안 확인 — 순수 함수 축과 데이터 축까지만 검증했다"
+      "🚫 이 항목들은 **전부 이후 세션에서 해소됐다**(2026-08-30 재확인 시 정정 — 아래는 당시 시점 기록): 커밋 0건·푸시 0건 → `f54f850`+`563e341`+`fead9e5` 푸시 완료 / S4-4 의도적 제외 → `563e341`로 구현·영향범위 실측(+0건) / 브라우저 육안 미완 → S5-5(Playwright 11/0)·S5-6(운영 Gotenberg 픽셀)로 완료. 잔여 없음"
     ],
     "notes_for_next": [
       "⚠ 작업트리에 **타 세션의 미커밋 변경**이 상존한다(2026-08-28 밤 soban30/32 hard delete — customers/actions.ts +85줄·delete-customer-client.tsx +147줄·sms 2파일·.gitignore). customers/actions.ts는 내가 S2-4로 함께 고친 파일이라 **커밋 시 그 세션 작업이 딸려 들어간다**. pathspec 명시 필수이고, 그래도 이 파일은 섞인다는 점을 사용자에게 알릴 것",
