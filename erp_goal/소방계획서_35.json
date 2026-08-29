@@ -1,0 +1,227 @@
+{
+  "doc": "소방계획서_35 — 소방계획서 화면 가독성(글씨 확대·선명화)",
+  "design": "erp_goal/소방계획서_35.md",
+  "created": "2026-08-29",
+  "updated": "2026-08-29 (설계 문서 작성 — 코드 0줄, 전 criteria pending_order)",
+  "related": ["소방계획서_29", "소방계획서_34", "소방계획서_28"],
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정. 구현이 0줄이므로 code_present 이상으로 올리지 말 것(규칙 3: 구현자는 code_present까지, implemented 승격은 독립 판정 패스만).",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "설계 확정(구현 아님)",
+    "proposal": "제안 — 사용자 결정 대기",
+    "deferred": "보류"
+  },
+
+  "numbering_note": "사용자는 '소방계획서_34'를 요청했으나 2026-08-29 21:13~21:15에 다른 세션이 34(별지 서식 최상위 탭 승격)를 이미 생성했다. 덮어쓰면 그 설계가 소실되므로 35로 전환 — 사용자 승인 완료('35 사용해줘'). 34와 35는 같은 파일(plan-tab-view.tsx)을 만지므로 착수 순서 조율 필요(R-8).",
+
+  "key_evidence": "요구는 '1.4 세부제원 글씨를 확대하고 선명하게' 한 문장이지만 원인은 둘이고, 그 분리가 이 설계의 핵심이다. ①선명함 축 = 한글 웹폰트 부재. layout.tsx:5-15가 Plus Jakarta Sans·Inter를 subsets:['latin']로만 로드하는데 두 폰트에 한글 글리프가 없어, globals.css:302 스택의 모든 한글이 system-ui(Windows=맑은 고딕)로 폴백된다. 저장소 @font-face 0건·public/ 폰트 0개로 두 축 확인. erp/assets/fonts/NanumGothic-*.ttf는 Dockerfile:54-55·static-map-compose.ts:101이 쓰는 서버 렌더 전용이라 웹에 안 나간다. 여기에 globals.css:303의 letter-spacing:-0.01em이 한글 자간까지 좁힌다. 크기를 아무리 키워도 맑은 고딕은 맑은 고딕이다. ②크기 축 = px 하드코딩 확산. text-[11px] 122·text-xs 92·text-[10px] 43·text-[9px] 2곳이 흩어져 있고 Tailwind v4 @theme에 fontSize 커스터마이즈가 없어 조정할 단일 지점이 없다. 중요한 부수 사실: text-[11px] 같은 임의값은 line-height를 설정하지 않고(preflight 1.5 상속) text-xs는 calc(1/0.75)를 함께 건다 — 이 비대칭을 보존하지 않으면 '크기만 바꿨는데 줄간격이 변하는' 회귀가 난다.",
+
+  "decisions": [
+    {
+      "id": "D35-1",
+      "title": "적용 범위는 plan-form* 12파일이 아니라 16파일",
+      "status": "confirmed",
+      "desc": "사용자 결정은 '소방계획서 서식 전체'. plan-tab-view.tsx:76-108 + customers/[id]/page.tsx:686-762 역추적 결과 12개는 부분집합이다 — 1.1=fire-plan-info-panel.tsx(30곳), 2장=plan-ch2.tsx(15곳), 3장=plan-ch3.tsx(43곳), 목차 트리=plan-tab-view.tsx(16곳)이 빠진다. 12파일만 하면 목차를 오르내릴 때마다 글씨가 커졌다 작아졌다 한다. 별지 4파일(plan-annex-*, 53곳)은 인쇄 미리보기를 품어 결정 4와 충돌하므로 제외하고 격리 여부만 계측한다(W-8)."
+    },
+    {
+      "id": "D35-2",
+      "title": "배율은 html{font-size} 루트 리사이즈가 아니라 CSS 변수(--fs-scale)",
+      "status": "confirmed",
+      "desc": "루트 리사이즈는 두 가지로 실패한다. ①안 먹는다 — 259곳 중 167곳(text-[9/10/11px])이 px 리터럴이라 루트 크기와 무관하고 rem 기반인 text-xs 92곳만 커진다. ②위계가 뒤섞인다 — text-xs만 12→13.8px가 되면 원래의 크기 순서가 무너진다. ③ERP 전역(사이드바·헤더·달력)에 번져 '소방계획서만'이라는 결정 1을 위반한다. 변수는 <html data-fs>에 건다 — 1.4 세부제원 패널이 fixed inset-0(plan-form14.tsx:698)이고 미저장 확인창(unsaved-nav.tsx:94)도 그래서 컨테이너 스코프는 향후 createPortal 도입 시 확실히 샌다. <html>에 걸어도 안전한 이유는 text-form-* 유틸리티를 쓰는 화면 밖에서 변수가 소비되지 않기 때문 — 스코프를 위치가 아니라 이름으로 보장한다."
+    },
+    {
+      "id": "D35-3",
+      "title": "시맨틱 토큰 코드모드 — 단 1단계는 값을 바꾸지 않는 항등(identity) 치환",
+      "status": "confirmed",
+      "desc": "컨테이너 상속은 작동하지 않는다(259곳 전부가 자식에 명시적 font-size 유틸리티를 갖고 있어 상속이 도달하지 않는다). 명시도로 덮는 변종([data-fs] .text-\\[11px\\])은 파일 수정 0이라 되돌리기 쉽지만 'text-[11px]이라는 문자열이 곧 의미'인 암묵 결합을 만든다 — 앞으로 text-[11.5px]을 쓰면 조용히 배율에서 빠지고, 다른 화면 코드를 복사해 오면 의도치 않게 커지며, 두 경우 다 회귀가 '화면을 봐야만 아는' 종류로 남는다. 시맨틱 토큰의 결정적 이점은 되돌리기가 아니라 증명 가능성이다: 토큰 초기값을 구 값 그대로(--fs-3: 11px) 두고 코드모드를 돌리면 S2의 수용 기준이 '픽셀이 하나도 안 변했다'가 되고 이건 computed font-size 다중집합·스크린샷으로 기계가 증명한다. 그 다음 CSS 6줄의 값만 올려 확대를 켠다 — 회귀 시 git revert(16파일)가 아니라 변수 한 줄 되돌리기로 끝난다. 명시도 덮기 안은 치환과 확대가 같은 한 줄이라 이 분리를 흉내낼 수 없다. 선례: 소방계획서_29의 '라이트 모드 픽셀 불변' 규약."
+    },
+    {
+      "id": "D35-4",
+      "title": "Pretendard 셀프호스팅 — 폰트 스택의 후미에 넣는다",
+      "status": "confirmed",
+      "desc": "font-family: PJS, Inter, 'Pretendard Variable', ui-sans-serif, system-ui. 후미 배치가 이 설계의 핵심 안전장치다 — 라틴·숫자는 PJS/Inter가 먼저 잡고 한글만 Pretendard로 내려오므로 ①tabular-nums 숫자 폭이 안 변해 §2-4의 표 폭 계산이 유지되고 ②ERP 전 화면 영문 UI가 픽셀 불변이며 ③그러면서 사용자 체감('선명해졌다')은 그대로 얻는다(화면의 한글은 전부 바뀌므로). 맨 앞에 두면 ERP 전 화면 영문·숫자 폭이 동시에 바뀌어 회귀 표면이 몇 배가 된다. Variable + dynamic-subset(woff2)을 고르는 이유: 한글은 사용자 데이터(건물명·주소·비고)가 무제한이라 UI 어휘 기반 정적 서브셋은 두부를 낸다. font-display는 swap 유지(optional은 느린 첫 로드에서 영영 적용 안 돼 요구를 배신) + 흔한 조각 2~3개 preload. letter-spacing:normal은 body 전역이 아니라 text-form-* 유틸리티에만 넣고, 항등이 아니므로 S3에 묶고 S2에는 넣지 않는다. next/font 2종과는 이름 참조라 충돌 없음. OFL 1.1 동봉(선례 erp/assets/fonts/OFL.txt)."
+    },
+    {
+      "id": "D35-5",
+      "title": "인쇄물(PDF 별지·소방계획서 출력)은 대상 아님 — @media print 역치환 한 블록으로 닫는다",
+      "status": "confirmed",
+      "desc": "사용자 결정 4. 법정 서식 규격이라 글자 크기를 바꾸면 칸을 넘치거나 쪽수가 틀어진다. 두 축으로 확인한 결과 화면 배율이 PDF에 샐 물리적 경로가 없다 — ①Grep 'print:' src/components/customers = 0건(소방계획서 서식 16파일에 인쇄 변형이 아예 없다) ②PDF는 화면 컴포넌트를 전혀 쓰지 않는다: lib/fire-plan-template.ts는 plan-form에서 타입만 import하고 :372-377에서 자체 HTML 문자열(@page size:A4 + font-family:'Malgun Gothic' + font-size:10.5px)을 만들며 lib/pdf.ts가 그걸 Gotenberg로 보낸다(lib/doc-templates/base.ts:12,16도 동일 구조). 남는 인쇄면은 브라우저 Ctrl+P 하나뿐이므로 @media print에서 토큰을 구 값으로 되돌리는 블록 하나면 된다. 이건 '대충 리셋'이 아니라 검증 가능한 항등이다 — E-2가 S0에서 뽑아 커밋한 고정 기준선 JSON과 대조한다."
+    },
+    {
+      "id": "D35-6",
+      "title": "배율 인프라는 다크 모드 4경로를 복제한다 (신규 설계 금지)",
+      "status": "confirmed",
+      "desc": "소방계획서_29가 이미 운영 배포로 검증한 구조를 그대로 쓴다: DB 정본 profiles(151_profile_theme.sql:13-18 → 154_profile_font_scale) · 관용 조회(lib/theme.ts:30-37 → lib/font-scale.ts) · 첫 페인트 인라인 스크립트(layout.tsx:40-42 확장, 값 없으면 속성 자체가 없어 --fs-scale:1) · 4경로 동기화(변경 settings/actions.ts:36-51 · 로그인 (auth)/login/actions.ts:101-107 · 로그아웃 (dashboard)/actions.ts:11-13 · 유실보정 components/layout/theme-sync.tsx:11-24) · 조회는 (dashboard)/layout.tsx:46-58의 기존 Promise.all에 태워 왕복 추가 0 · E2E는 scripts/test-theme-settings.mts의 3축 대조·격리·로그아웃 패턴. ⚠ form_font_scale을 PROFILE_COLS(lib/auth.ts)에 절대 넣지 않는다 — lib/theme.ts:10-12가 명시한 배포 순서 자유 규약이고, 없는 컬럼 select는 조용한 0행이 되어 로그인 전멸로 번진다."
+    },
+    {
+      "id": "D35-7",
+      "title": "토글 자리는 전역 헤더가 아니라 소방계획서 화면 안 + 설정 카드",
+      "status": "confirmed",
+      "desc": "권장 위치 plan-tab-view.tsx:292-316 생성 바 우측(data-testid='plan-font-scale') + settings/page.tsx:109 뒤 카드. 근거: 배율은 이 화면에서만 눈에 보인다(text-form-*이 16파일에만 있으므로). header.tsx:25의 전역 헤더에 넣으면 '눌러도 대부분 화면에서 아무 일이 없는 버튼'이 된다. 또 3상태 순환 버튼은 다크(2상태) 토글과 달리 현재 상태가 안 읽히므로 라디오그룹으로 만든다."
+    }
+  ],
+
+  "sections": [
+    {
+      "id": "S0",
+      "title": "계측 기준선 (코드 변경 0)",
+      "status": "pending_order",
+      "note": "이후 모든 단계의 판정 기준. 기준을 'HEAD:'로 잡으면 커밋되는 순간 원문이 사라져 영구히 깨진다(feedback_probe_baseline_pin) — 고정 JSON으로 커밋할 것.",
+      "criteria": [
+        { "id": "S0-1", "desc": "scripts/_probe-35-baseline.mts 신설 — 1.1/1.2/1.3/1.4/세부제원 패널/2장/3장의 전 텍스트 computed font-size 히스토그램을 scripts/_out/35-base/에 기록", "status": "pending_order" },
+        { "id": "S0-2", "desc": "표별 scrollWidth/clientWidth + 스크린샷 기준선 기록", "status": "pending_order" },
+        { "id": "S0-3", "desc": "PDF 소스 HTML sha256 기록 — S3~S7 내내 불변이어야 한다(E-1의 기준)", "status": "pending_order" },
+        { "id": "S0-4", "desc": "scripts/_fixtures/35-print-baseline.json 커밋 — print 미디어 computed 값 고정 기준선(E-2). '지금 화면끼리' 비교하지 않기 위함", "status": "pending_order" },
+        { "id": "S0-5", "desc": "별지(plan-annex-full-preview) iframe이 배율 스코프 밖임을 확인 — W-8", "status": "pending_order" },
+        { "id": "S0-6", "desc": "FOUT/CLS 기준선 기록 — S1의 swap 리플로우 대조용(W-7)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S1",
+      "title": "Pretendard 도입 (배율과 무관 — 단독 배포 가능)",
+      "status": "pending_order",
+      "note": "S1만으로 사용자 요구가 충족될 실질 가능성이 있다(원인의 절반이 폰트 폴백). 완료 후 사용자 확인을 받고 S3 상향폭을 결정한다.",
+      "criteria": [
+        { "id": "S1-1", "desc": "public/fonts/pretendard/** 배치 (woff2 dynamic-subset + OFL.txt + README.md에 버전·출처·서브셋 생성법)", "status": "pending_order" },
+        { "id": "S1-2", "desc": "src/app/pretendard.css 신설 + globals.css에서 @import", "status": "pending_order" },
+        { "id": "S1-3", "desc": "globals.css:302 body 스택과 :306 h1~h6 스택의 후미(ui-sans-serif 앞)에 'Pretendard Variable' 삽입 — 맨 앞이 아님(D35-4)", "status": "pending_order" },
+        { "id": "S1-4", "desc": "next.config.ts headers()에 /fonts/:path* Cache-Control immutable 추가 (public/ 기본은 max-age=0)", "status": "pending_order" },
+        { "id": "S1-5", "desc": "layout.tsx에 흔한 한글 조각 2~3개 preload link — 대상은 실제 화면 텍스트로 실측해 고를 것", "status": "pending_order" },
+        { "id": "S1-6", "desc": "scripts/assert-web-korean-font.mjs 신설 — 파일 축(존재·sha256·패밀리명·글리프 커버리지) + 서빙 축(HEAD 200 + content-type: font/woff2). assert-korean-glyphs.mjs의 --files-only 규약 준용", "status": "pending_order" },
+        { "id": "S1-7", "desc": "A-2 판정 스크립트 — 3중 폭 대조(실요소 Range 폭 ≈ Pretendard 강제 프로브 AND 맑은고딕 강제 프로브와 1px 초과 차이). document.fonts.check()나 getComputedStyle().fontFamily는 항진명제라 금지", "status": "pending_order" },
+        { "id": "S1-8", "desc": "S1-7의 변이 검증 — page.route('**/fonts/**', abort) 실행에서 동일 단언이 FAIL해야 한다. FAIL하지 않으면 스크립트 자체를 붉게 만든다", "status": "pending_order" },
+        { "id": "S1-9", "desc": "A-4 라틴·숫자 렌더 폭 불변 — rowtable 숫자 셀 Range 폭이 S0과 동일(후미 배치의 실증)", "status": "pending_order" },
+        { "id": "S1-10", "desc": "R-2 실측: woff2 실용량·파일 수 → .gitattributes/LFS 필요 여부 판단(W-6)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "항등 코드모드 — 수용 기준은 '픽셀이 하나도 안 변했다'",
+      "status": "pending_order",
+      "note": "토큰 초기값을 구 값 그대로 두는 것이 이 단계의 전부다. 값을 함께 올리면 증명 구조가 무너진다.",
+      "criteria": [
+        { "id": "S2-1", "desc": "globals.css :root에 --fs-scale/--fs-1..6/--fs-h6..8/--fs-col-num 정의. 초기값은 구 값 그대로(9/10/11/12/14/16px, 24/28/32px, 44px)", "status": "pending_order" },
+        { "id": "S2-2", "desc": "@utility text-form-{3xs,2xs,xs,sm,base,lg} + h-form-{6,7,8} 정의. ⚠ px 계열(3xs/2xs/xs)은 line-height를 정하지 않는다 — text-[11px]의 원래 동작(preflight 1.5 상속)을 보존해야 항등이 성립한다", "status": "pending_order" },
+        { "id": "S2-3", "desc": "scripts/codemod-35-font-tokens.mjs 신설 — 16파일 한정, 전단사 매핑(text-[9px]→3xs, [10px]→2xs, [11px]→xs, text-xs→sm, text-sm→base, text-base→lg, h-6/7/8→h-form-*). 경계 (?<![\\w-])!?text-…(?![\\w-]). text-2xl 1건은 화이트리스트", "status": "pending_order" },
+        { "id": "S2-4", "desc": "plan-form14-specs.tsx:625 colgroup '44px' → calc(var(--fs-col-num) * var(--fs-scale))", "status": "pending_order" },
+        { "id": "S2-5", "desc": "plan-form14.tsx:586 층별 수량표를 TableWrap으로 감싼다 — overflow-x-auto 래퍼가 없어 페이지 전체를 가로로 민다(W-2). TableWrap은 plan-tab-view.tsx:10에서 이미 import 중", "status": "pending_order" },
+        { "id": "S2-6", "desc": "plan-form14.tsx:496 w-12 → scale 연동", "status": "pending_order" },
+        { "id": "S2-7", "desc": "B-1 수용: S0 대비 computed font-size 다중집합 완전 일치 + 스크린샷 diff 0", "status": "pending_order" },
+        { "id": "S2-8", "desc": "B-3 코드모드 완전성 — 16파일에 text-[Npx]/text-xs/text-sm/text-base 잔존 0. ⚠ 항진 차단: 스캔한 파일 개수 = 16을 함께 단언 + 각 파일에 text-form- 최소 1회 + 16파일 밖 text-form- 사용 0건", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "고정 상향 + 인쇄 역치환 (CSS 한 블록)",
+      "status": "pending_order",
+      "note": "완료 후 사용자 확인('크기 적당한가?')을 받는다. 되돌리기는 값 6줄.",
+      "criteria": [
+        { "id": "S3-1", "desc": "--fs-1..6을 11/12/13/14/15/17px로, --fs-h6..8을 28/32/36px로, --fs-col-num을 52px로 상향", "status": "pending_order" },
+        { "id": "S3-2", "desc": "text-form-* 유틸리티에 letter-spacing: normal 추가 — body 전역(globals.css:303)은 건드리지 않는다(ERP 전 화면 텍스트 폭이 흔들린다)", "status": "pending_order" },
+        { "id": "S3-3", "desc": "@media print 역치환 블록 추가 — :root와 html[data-fs] 양쪽에서 --fs-scale:1 + 전 토큰 구 값 복원", "status": "pending_order" },
+        { "id": "S3-4", "desc": "B-2 수용: 1.4 세부제원 최소 font-size ≥ 11px, 본문 라벨 ≥ 13px", "status": "pending_order" },
+        { "id": "S3-5", "desc": "E-1: 배율 md/lg/xl 어느 상태에서도 생성 PDF 소스 HTML sha256이 S0과 동일", "status": "pending_order" },
+        { "id": "S3-6", "desc": "E-2: emulateMedia({media:'print'})에서 1.4 computed font-size 다중집합이 S0 고정 기준선 JSON과 동일", "status": "pending_order" },
+        { "id": "S3-7", "desc": "E-2의 변이 검증 — @media print 블록을 임시로 지운 빌드에서 FAIL해야 한다", "status": "pending_order" },
+        { "id": "S3-8", "desc": "E-3: Grep 'print:' src/components/customers = 0건 유지(격리 가정의 전제)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "표 기하 보정 (S3 실측 후 필요한 것만)",
+      "status": "pending_order",
+      "note": "순서상 S3 다음, S4 앞. 계측 결과가 요구하는 항목만 실행한다.",
+      "criteria": [
+        { "id": "S6-1", "desc": "C-1: 배율 md·lg에서 1.1~3장 모든 표·overflow-x-auto 래퍼가 scrollWidth ≤ clientWidth + 1", "status": "pending_order" },
+        { "id": "S6-2", "desc": "C-2: 배율 xl에서 표 가로 스크롤은 허용하되 document.documentElement.scrollWidth ≤ clientWidth(페이지 전체는 전 배율 금지)", "status": "pending_order" },
+        { "id": "S6-3", "desc": "C-3: 전 배율에서 rowtable 숫자 input에 '12345'를 실제로 타이핑해 넣은 뒤 scrollWidth ≤ clientWidth. ⚠ 빈 칸은 절대 안 넘치므로 입력 없는 검사는 항진명제다", "status": "pending_order" },
+        { "id": "S6-4", "desc": "C-4: 전 배율에서 input clientHeight ≥ lineHeight (xl에서 13×1.3×1.5=25.4px > h-6 24px로 잘리던 것 — W-3)", "status": "pending_order" },
+        { "id": "S6-5", "desc": "C-1~C-3 검사의 항진 차단 — 검사한 표 개수를 상수와 대조 단언 + clientWidth > 50인 표만 계수 + 걸러진 개수 리포트", "status": "pending_order" },
+        { "id": "S6-6", "desc": "C-1의 변이 검증 — --fs-scale: 2 강제 주입 실행에서 FAIL해야 한다", "status": "pending_order" },
+        { "id": "S6-7", "desc": "plan-form14.tsx:701 슬라이드 패널 폭 w-[min(92vw,640px)]을 scale 연동 (W-4, 가용 608px 포화)", "status": "pending_order" },
+        { "id": "S6-8", "desc": "facility-spec-schema.ts의 short 라벨 축약 재검토 — '확산소화기' 5자가 9px에서도 45px > 40px로 이미 2줄, 11px에서 3줄 위험(W-5)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "배율 인프라 — 다크 모드 4경로 복제 + 마이그레이션 154",
+      "status": "pending_order",
+      "note": "R-1 재실측 필수(현재 최대 153_second_round_operational.sql).",
+      "criteria": [
+        { "id": "S4-1", "desc": "supabase/migrations/154_profile_font_scale.sql — profiles.form_font_scale ('md'|'lg'|'xl'), CHECK 제약, 재실행 안전. 151_profile_theme.sql:13-18 축자 복제", "status": "pending_order" },
+        { "id": "S4-2", "desc": "src/lib/font-scale.ts — FS_COOKIE='erp-fs', FS_COOKIE_OPTIONS(httpOnly:false, maxAge 1년), isFontScale, readProfileFontScale(관용 조회: 컬럼 미적용·행 없음·오류 전부 null)", "status": "pending_order" },
+        { "id": "S4-3", "desc": "⚠ form_font_scale을 PROFILE_COLS(lib/auth.ts)에 넣지 않는다 — lib/theme.ts:10-12 배포 순서 자유 규약. 위반 시 없는 컬럼 select가 조용한 0행으로 로그인 전멸", "status": "pending_order" },
+        { "id": "S4-4", "desc": "layout.tsx:40-42 인라인 스크립트 확장 — 같은 <script> 안에 erp-fs 정규식 한 줄 추가. 값 없으면 data-fs 속성 자체가 없다(=--fs-scale:1=S3 상태)", "status": "pending_order" },
+        { "id": "S4-5", "desc": "4경로 동기화 — 변경(settings/actions.ts) · 로그인((auth)/login/actions.ts:101-107) · 로그아웃((dashboard)/actions.ts:11-13) · 유실보정(components/layout/theme-sync.tsx:11-24 → UiPrefSync 확장)", "status": "pending_order" },
+        { "id": "S4-6", "desc": "(dashboard)/layout.tsx:46-58 기존 Promise.all에 readProfileFontScale 추가 — 조회 왕복 추가 0", "status": "pending_order" },
+        { "id": "S4-7", "desc": "D-1: '크게' 선택 시 <html data-fs='lg'> + profiles.form_font_scale='lg' + 쿠키 erp-fs=lg 3축 일치", "status": "pending_order" },
+        { "id": "S4-8", "desc": "D-2: 새로고침 후 첫 페인트부터 유지(FOUC 없음)", "status": "pending_order" },
+        { "id": "S4-9", "desc": "D-3: 쿠키 삭제 후 재로그인 → DB에서 복원 / D-4: 로그아웃 시 erp-fs 쿠키 제거", "status": "pending_order" },
+        { "id": "S4-10", "desc": "D-5: 계정 간 격리(A=xl, B=md) — scripts/test-theme-settings.mts의 mkUser/delUser 패턴", "status": "pending_order" },
+        { "id": "S4-11", "desc": "D-6: 154 미적용 DB에서도 로그인·화면 정상(관용 조회 실증, W-9)", "status": "pending_order" },
+        { "id": "S4-12", "desc": "B-4: 동일 요소를 md/lg/xl에서 측정해 font-size 비 1:1.15:1.3(±0.5px). ⚠ 항진 차단: 절대값('13px 이상')이 아니라 비를 볼 것 — 원래 14px인 text-sm 하나로 통과한다. 요소를 못 찾으면 SKIP이 아니라 FAIL", "status": "pending_order" },
+        { "id": "S4-13", "desc": "B-4의 변이 검증 — --fs-scale을 1로 강제 고정한 실행에서 FAIL해야 한다", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "배율 토글 UI",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S5-1", "desc": "components/settings/font-scale-settings-client.tsx — 보통/크게/아주 크게 3택 라디오그룹(순환 버튼 아님 — 상태가 안 읽힌다)", "status": "pending_order" },
+        { "id": "S5-2", "desc": "settings/page.tsx:109 뒤 카드 추가, data-testid='font-scale-settings-card'", "status": "pending_order" },
+        { "id": "S5-3", "desc": "plan-tab-view.tsx:292-316 생성 바 우측 토글, data-testid='plan-font-scale' — 전역 헤더(header.tsx:25)에 넣지 않는 이유는 D35-7", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "회귀 검사 등재",
+      "status": "pending_order",
+      "note": "전체 회귀 전 dev 서버 재기동(risk_dev_postcss_worker_leak — 단일 프로세스 비대는 실행마다 다른 테스트를 무작위로 떨어뜨린다).",
+      "criteria": [
+        { "id": "S7-1", "desc": "scripts/test-all.mts에 3건 등재 — assert-web-korean-font.mjs(무서버) / test-plan-readability.mts(needServer) / test-font-scale.mts(needServer)", "status": "pending_order" },
+        { "id": "S7-2", "desc": "E2E 헬퍼는 scripts/_e2e-helpers.mjs의 raw/BASE/check/summary/mkUser/delUser/launch/login/mkCustomer/cleanupCustomer를 재사용(신규 작성 금지)", "status": "pending_order" },
+        { "id": "S7-3", "desc": "변이 검증 4종(S1-8·S3-7·S4-13·S6-6)이 전부 '기대대로 FAIL'함을 한 번 실행해 확인 — 통과해버리면 그 검사는 항진명제다", "status": "pending_order" },
+        { "id": "S7-4", "desc": "A-1/A-3/A-5: woff2 sha256·서빙 content-type·Cache-Control immutable·OFL.txt 동봉 단언", "status": "pending_order" }
+      ]
+    }
+  ],
+
+  "recheck_before_start": [
+    { "id": "R-1", "item": "다음 마이그레이션 번호", "how": "① 디렉터리 최대값 ② git log -- supabase/migrations", "value_2026_08_29": "153_second_round_operational.sql → 154" },
+    { "id": "R-2", "item": "Pretendard 실용량·파일 수", "how": "① 다운로드 후 Measure-Object Length ② git count-objects -vH 전후 대조", "value_2026_08_29": "미실측 — LFS 필요 여부가 여기서 갈린다" },
+    { "id": "R-3", "item": "세부제원 패널 실가용 폭", "how": "① CSS 계산 ② getBoundingClientRect()", "value_2026_08_29": "계산상 608px (640 − p-4 32)" },
+    { "id": "R-4", "item": "44px 칸 실수용 자릿수", "how": "① 계산 ② Playwright scrollWidth", "value_2026_08_29": "계산상 content 28px → 11px에서 4자리, 13px에서 3자리" },
+    { "id": "R-5", "item": "pre-push 게이트 실재", "how": "① .git/hooks ② .githooks + git config core.hooksPath", "value_2026_08_29": ".git/hooks·.husky 둘 다 없음. 메모리는 core.hooksPath=.githooks라 기록 — 재확인 필요" },
+    { "id": "R-6", "item": "범위 16파일 확정", "how": "① 글롭 ② plan-tab-view 주입 ReactNode 전수", "value_2026_08_29": "16 (별지 4파일 제외)" },
+    { "id": "R-7", "item": "text-form-* 이름 충돌", "how": "① Grep ② 빌드 산출 CSS", "value_2026_08_29": "0건" },
+    { "id": "R-8", "item": "⚠ 소방계획서_34와의 충돌", "how": "소방계획서_34.md §2·§5 대조 + git log + 작업트리 mtime 실측", "value_2026_08_29": "34는 별지를 최상위 탭으로 분리한다 — plan-tab-view.tsx가 컨테이너라는 35의 전제와 lazyKeys 신설이 겹친다. 착수 순서 조율 필수(feedback_check_concurrent_session)" }
+  ],
+
+  "risks": [
+    { "id": "W-1", "desc": "rowtable 숫자칸 3자리 절단", "evidence": "plan-form14-specs.tsx:625 col 44px · :670 input px-1 text-[11px] → content 28px", "mitigation": "--fs-col-num: 52px + S6-3" },
+    { "id": "W-2", "desc": "층별 수량표가 페이지를 가로로 민다", "evidence": "plan-form14.tsx:586 w-full text-xs auto-layout에 overflow-x-auto 래퍼 없음", "mitigation": "TableWrap(S2-5) + S6-2" },
+    { "id": "W-3", "desc": "xl에서 input 글자 잘림", "evidence": "h-6=24px vs 13×1.3×1.5=25.4px", "mitigation": "h-form-6=28px×scale + S6-4" },
+    { "id": "W-4", "desc": "슬라이드 패널 608px 포화", "evidence": "plan-form14.tsx:701 w-[min(92vw,640px)] · :709 p-4", "mitigation": "S6-7" },
+    { "id": "W-5", "desc": "th 라벨 3줄 감김", "evidence": "plan-form14-specs.tsx:615 text-[9px] px-0.5, '확산소화기' 45px > 40px — 지금도 2줄", "mitigation": "S6-8" },
+    { "id": "W-6", "desc": "저장소 용량 급증", "evidence": "woff2 dynamic-subset ~120파일, .gitattributes 없음(LFS 미사용)", "mitigation": "R-2 실측 후 판단(S1-10)" },
+    { "id": "W-7", "desc": "FOUT 리플로우(맑은 고딕 → Pretendard)", "evidence": "font-display: swap", "mitigation": "preload 2~3조각(S1-5) + S0-6 CLS 대조" },
+    { "id": "W-8", "desc": "별지 미리보기에 배율이 샘", "evidence": "plan-annex-full-preview 미실측", "mitigation": "별지 코드모드 제외 + S0-5 iframe 격리 확인" },
+    { "id": "W-9", "desc": "154 미적용 DB 배포", "evidence": "lib/theme.ts:10-12 규약", "mitigation": "S4-3 PROFILE_COLS 금지 + S4-11" },
+    { "id": "W-10", "desc": "text-form-*을 다른 화면이 복사해 씀", "evidence": "—", "mitigation": "S2-8에 '16파일 밖 사용 0건' 포함" }
+  ],
+
+  "checks": [
+    { "file": "erp/src/app/globals.css", "pattern": "--fs-scale" },
+    { "file": "erp/src/app/globals.css", "pattern": "@utility text-form-xs" },
+    { "file": "erp/src/app/globals.css", "pattern": "Pretendard Variable" },
+    { "file": "erp/src/lib/font-scale.ts", "pattern": "readProfileFontScale" },
+    { "file": "erp/src/app/layout.tsx", "pattern": "erp-fs" },
+    { "file": "erp/supabase/migrations/154_profile_font_scale.sql", "pattern": "form_font_scale" },
+    { "file": "erp/scripts/test-all.mts", "pattern": "test-plan-readability" }
+  ]
+}
