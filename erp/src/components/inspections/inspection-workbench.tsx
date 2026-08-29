@@ -24,6 +24,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { evidenceDone, activeStepNums, stepProgress, type StepNum } from '@/lib/inspection-step-status'
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
+import { kstDate } from '@/lib/kst-date'
 import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
@@ -178,7 +179,8 @@ export function InspectionWorkbench({
 
   const ddayText = (k: StepKey) => {
     const st = stepOf(k)
-    if (st?.status === 'completed') return { text: `완료 ${st.completed_at?.split('T')[0] ?? ''}`, cls: 'text-green-600' }
+    // F-14: completed_at은 UTC라 split('T')[0]이면 00:00~09:00 KST에 완료한 단계가 어제로 보인다
+    if (st?.status === 'completed') return { text: `완료 ${kstDate(st.completed_at)}`, cls: 'text-green-600' }
     // ④⑥ 기한은 법정 규칙(9호 = 점검 종료일+15일 / 11호 = 이행기간 종료)이 원천이고
     // inspection_steps.due_date는 그 사본이라 어긋날 수 있다 — 지켜야 하는 날짜를 보여준다
     const legal = k === 'submit9' ? data.submit9 : k === 'submit11' ? data.submit11 : null
@@ -761,7 +763,7 @@ export function InspectionWorkbench({
                           {STEP_REPORT_TYPES.includes(r.report_type as StepReportType) ? STEP_REPORT_LABELS[r.report_type as StepReportType] : r.report_type}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-ink-sub">{r.file_name}</span>
-                        {r.submitted_at && <span className="shrink-0 text-ink-faint">{r.submitted_at.split('T')[0]}</span>}
+                        {r.submitted_at && <span className="shrink-0 text-ink-faint">{kstDate(r.submitted_at)}</span>}
                         <button onClick={() => downloadReport(r.id, r.file_name)} disabled={isPending}
                           className="shrink-0 text-brand hover:underline">다운로드</button>
                       </div>

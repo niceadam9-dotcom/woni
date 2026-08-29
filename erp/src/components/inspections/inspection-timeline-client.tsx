@@ -20,6 +20,7 @@ import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/ac
 import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { kstDate } from '@/lib/kst-date'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
@@ -417,7 +418,8 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     const st = stepOf(k)
     if (!st || !st.due_date) return null
     if (st.status === 'completed') {
-      return <span className="text-[10px] text-green-600">완료 {st.completed_at?.split('T')[0] ?? ''}</span>
+      // F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다
+      return <span className="text-[10px] text-green-600">완료 {kstDate(st.completed_at)}</span>
     }
     const d = Math.round((new Date(st.due_date).getTime() - new Date(today).getTime()) / 86400000)
     if (d < 0) return <span className="text-[10px] font-semibold text-red-600">단계 마감 초과 {-d}일 ⚠</span>
@@ -895,7 +897,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                     {STEP_REPORT_TYPES.includes(r.report_type as StepReportType) ? STEP_REPORT_LABELS[r.report_type as StepReportType] : r.report_type}
                   </span>
                   <span className="text-ink-sub truncate flex-1">{r.file_name}</span>
-                  {r.submitted_at && <span className="text-ink-faint shrink-0 inline-flex items-center gap-0.5"><Clock className="size-2.5" />{r.submitted_at.split('T')[0]}{r.submitted_by_name ? ` · ${r.submitted_by_name}` : ''}</span>}
+                  {r.submitted_at && <span className="text-ink-faint shrink-0 inline-flex items-center gap-0.5"><Clock className="size-2.5" />{kstDate(r.submitted_at)}{r.submitted_by_name ? ` · ${r.submitted_by_name}` : ''}</span>}
                   <button onClick={() => downloadReport(r.id, r.file_name)} disabled={isPending} className={`${btn} shrink-0`}><Download className="size-3" /> 다운로드</button>
                 </div>
               ))}

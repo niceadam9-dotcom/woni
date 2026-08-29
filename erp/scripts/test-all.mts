@@ -45,6 +45,13 @@ const steps: Step[] = [
   // 인쇄물 라벨·점검표 범위·재생성 멱등을 한 번에 고정한다. 2차를 종합으로 되돌리는 경로가
   // 5개(생성기·수동추가·초과해결·고객동기화·수동등록)라 결과 축에서 감시하는 편이 싸다.
   { name: '2차=작동 규약(소방계획서_33)', cmd: 'npx tsx scripts/test-second-round-operational.mts' },
+  // 소방계획서_36 — 단계 완료일·제출일이 UTC로 찍히던 결함(F-14). KST는 UTC+9라 00:00~09:00에
+  // 완료한 건이 **어제 날짜**로 보였다. ⚠ 하루 중 9시간 창에서만 재현되므로 '지금'으로 재면
+  // 낮에 돌린 검사는 영원히 초록이다 — 고정 입력으로만 판정하고, 되살아남은 정적 가드로 막는다.
+  { name: 'KST 날짜 변환(소방계획서_36)', cmd: 'npx tsx scripts/test-kst-date.mts' },
+  // revalidate 축이 헬퍼 한 곳에 모여 있는가(S2-7). 가드를 9곳에 복붙하면 8곳이 깨지므로(F-1)
+  // '가드 생략은 정확히 2곳'을 수로 고정한다 — 늘면 단계 외 서버 prop이 안 갱신된다.
+  { name: 'revalidate 축(소방계획서_36)', cmd: 'npx tsx scripts/test-36-revalidate-axis.mts' },
   // 갑지 워크북(소방계획서_27) — 템플릿 지문·앵커 라벨·완전 덮어쓰기 불변식(실고객 흔적 0).
   // 여기가 붉으면 갑지 서식이 갱신된 것 — build-workbook-template 재실행 + 앵커 재실측(Q-4)
   { name: '갑지 워크북 앵커·템플릿',    cmd: 'npx tsx scripts/test-xlsx-anchors.mts' },

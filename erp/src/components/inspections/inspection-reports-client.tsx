@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { FileText, Upload, Download, Trash2, Loader2, CheckCircle2 } from 'lucide-react'
+import { kstDate } from '@/lib/kst-date'
 import {
   uploadReportAction,
   deleteReportAction,
@@ -145,7 +146,7 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
                       </div>
                       {existing.submitted_at && (
                         <p className="text-xs text-ink-faint mt-0.5">
-                          제출: {existing.submitted_at.split('T')[0]}
+                          제출: {kstDate(existing.submitted_at)}
                           {existing.submitted_by_name && ` · ${existing.submitted_by_name}`}
                         </p>
                       )}

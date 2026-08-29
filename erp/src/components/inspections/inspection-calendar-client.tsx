@@ -22,6 +22,7 @@ import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/ac
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { hangulMatch } from '@/lib/hangul'
+import { kstDate } from '@/lib/kst-date'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -1969,8 +1970,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       ) : (
                         <p className="text-xs text-ink-faint mt-0.5">마감일 없음</p>
                       )}
+                      {/* F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다 */}
                       {step.completed_at && (
-                        <p className="text-xs text-green-600 mt-0.5">완료: {step.completed_at.split('T')[0]}</p>
+                        <p className="text-xs text-green-600 mt-0.5">완료: {kstDate(step.completed_at)}</p>
                       )}
                     </div>
                     {/* 정상 경로가 위(채움), 예외 경로가 아래(테두리만) — 위계를 색으로 드러낸다.

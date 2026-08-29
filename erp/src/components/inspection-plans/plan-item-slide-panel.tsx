@@ -11,6 +11,7 @@ import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { stepInputLink } from '@/lib/inspection-step-links'
+import { kstDate } from '@/lib/kst-date'
 
 type StepInfo = {
   id: string; step_num: number; name_ko: string
@@ -398,7 +399,8 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                             </p>
                             {step.due_date && (
                               <p className={`text-[10px] mt-0.5 ${done ? 'text-green-500' : overdue ? 'text-red-500' : 'text-ink-sub'}`}>
-                                {done ? `완료: ${step.completed_at?.split('T')[0] ?? '—'}` : `마감: ${step.due_date}`}
+                                {/* F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다 */}
+                                {done ? `완료: ${kstDate(step.completed_at) || '—'}` : `마감: ${step.due_date}`}
                               </p>
                             )}
                           </div>
