@@ -329,8 +329,14 @@
           "note": "⚠**2차 세션이 '커밋 미실행'이라 적은 것은 사실과 달랐다** — 실제로는 커밋·푸시가 끝나 있었다. 착수 전 `git log`로 확인하지 않았으면 같은 커밋을 다시 만들 뻔했다([[feedback_check_concurrent_session]])." },
         { "id": "S9-4", "desc": "운영 DB 152 적용 — T1·T2 선행 + 운영 가드 영향 재측정 후에만", "status": "pending_order",
           "note": "2026-08-30 — **T1·T2 선행 조건은 충족됐다**(S10-5·S10-6 런타임 통과). 남은 조건은 **운영 가드 영향 재측정(S8-2)**과 사용자 승인(S9-2)이다. 운영은 업무데이터 0건이라 전 고객이 삭제 가능으로 나올 공산이 크므로, 적용 자체보다 **적용 후 그 화면을 누가 쓰는가**가 결정 사항이다." },
-        { "id": "S9-5", "desc": "3차 세션 산출물 커밋 — 신규 프로브 4종 + 32.json 갱신", "status": "pending_order",
-          "note": "미커밋 신규 파일: erp/scripts/_probe-152-live.mjs · _probe-152-blast.mjs · _probe-s32-storage-purge.mts · _probe-s32-storage-diag.mjs · _probe-s32-fixtures.mjs · _probe-s32-fixture-who.mjs + erp_goal/소방계획서_32.json. **`_` 접두 스크립트는 미추적 관례지만 이 문서의 verified 근거이므로 지우지 말 것.** 커밋 시 파일 명시 지정 필수 — 타 세션이 동시에 `next build`를 돌리고 있었다(risk_shared_index_commit)." }
+        { "id": "S9-5", "desc": "3차 세션 산출물 커밋 — 신규 프로브 6종 + 32.json·32.md", "status": "implemented",
+          "verified": { "date": "2026-08-30", "method": "파일 명시 지정 커밋 + pre-push 게이트",
+            "evidence": [
+              "커밋 `e4f6ce6` 9파일(+1180/−34) — 신규 프로브 6종 · _judge-s30-harddel.mts 추적 편입 · 32.json · 32.md(신규 추적)",
+              "**푸시 완료** `714404f..e4f6ce6`",
+              "pre-push 게이트 그린 — next build 컴파일 26.6s · TypeScript 39.5s · 98 페이지 · 한글 폰트 자산 3축 · **INV 불변식 18건 전건 0위반**"
+            ] },
+          "note": "⚠**'`_` 접두 스크립트는 미추적 관례'는 사실이 아니었다** — 실측 결과 `erp/scripts/_*`는 이미 **330개가 추적 중**이고 `erp_goal/*.md`도 78개가 추적 중이다(32.md·33.md만 빠져 있었다). 즉 관례가 아니라 누락이었다. 그래서 이번에 32.md와 판정 스크립트를 추적으로 편입했다 — **미추적이면 verified 근거가 `git clean` 한 번에 사라진다.**\n\n⚠**한글 경로를 PowerShell로 git에 넘기지 않았다**(feedback_no_powershell_text_edit) — `erp_goal/*_32.json`·`erp_goal/*_32.md` 같은 **ASCII pathspec**으로 지정하고 `git add -n`으로 잡히는 파일 목록을 먼저 확인한 뒤 실행했다(9개 정확히 일치, 타 세션 파일 0). 메시지는 Write로 UTF-8 파일 작성 후 `-F`(feedback_git_commit_msg_file).\n\n⚠**빌드 게이트가 불필요하다는 내 판단은 틀렸다** — '소스 파일 0개라 게이트가 커밋이 아니라 타 세션 미커밋분을 판정하게 된다'고 봤으나, pre-push 훅이 자동으로 돌려 그대로 그린이었다. 게이트는 내가 고를 수 있는 것이 아니다." }
       ] }
   ]
 }
