@@ -75,7 +75,10 @@ export default async function InspectionsPage({
   )
   if (custIdFilter) query = query.in('customer_id', custIdFilter) as typeof query
   if (employeeFilter) query = query.eq('assigned_employee_id', employeeFilter) as typeof query
-  if (yearFilter) query = query.eq('year', parseInt(yearFilter)) as typeof query
+  // year도 status와 같은 22P02 축이다 — ?year=abc면 parseInt가 NaN을 주고 `year=eq.NaN`이
+  // 정수 컬럼과 대조돼 0건이 아니라 500으로 깨진다. 정수일 때만 건다.
+  const yearNum = parseInt(yearFilter, 10)
+  if (yearFilter && Number.isInteger(yearNum)) query = query.eq('year', yearNum) as typeof query
   // ADD-15: 비완료/완료 구분 필터
   // ⚠status는 Postgres enum(inspection_status)이라 목록에 없는 값을 그대로 넘기면 0건이 아니라
   //   22P02 오류로 페이지가 깨진다. '취소' 필터 폐지(D-8) 후 남은 북마크·뒤로가기가 ?status=cancelled를

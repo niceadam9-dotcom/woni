@@ -467,7 +467,10 @@ export async function getInspectionWithSteps(inspectionId: string) {
 /** 점검 업무 목록의 고객명 자동완성.
  *
  *  고객 마스터 전체가 아니라 **점검 건이 있는 고객만** 제안한다 — 목록을 거를 검색어이므로
- *  고르는 순간 0건이 되는 이름이 뜨면 안 된다. 비활성 고객도 포함한다(취소 필터로 조회 가능).
+ *  고르는 순간 0건이 되는 이름이 뜨면 안 된다. 그래서 **비활성 고객도 제외한다**(D-8, 2026-08-29):
+ *  목록 쿼리가 is_active=true를 무조건 걸므로(page.tsx:90), 비활성 고객을 제안하면 고르는 순간
+ *  0건이 되어 위 규약을 정면으로 깬다. 종전 주석의 '취소 필터로 조회 가능'은 그 필터가 폐지돼
+ *  더는 성립하지 않는다.
  *
  *  제안은 **고객이 아니라 이름 단위**다 — 고르면 그 이름으로 목록을 거르므로, 동명이 둘이면
  *  둘 다 걸린다. 고객별로 나눠 보여주면 특정 고객만 골라지는 것처럼 오해된다. 건수도 합산. */
@@ -482,6 +485,7 @@ export async function searchInspectionCustomersAction(q: string): Promise<{
   const { data: matched } = await admin.from('customers')
     .select('id, customer_name, customer_code, is_active')
     .ilike('customer_name', `%${query}%`)
+    .eq('is_active', true)                 // D-8 — 비활성 고객은 제안하지 않는다
     .order('customer_name')
     .limit(50)
   const rows = (matched ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean }>

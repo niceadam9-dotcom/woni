@@ -221,7 +221,9 @@ export default async function DashboardPage() {
     id: string
     notification_due_date: string | null
     inspection_plan_items: {
-      inspection_date: string | null
+      // ⚠ 종전 이름은 inspection_date였는데 그런 컬럼은 없다 — 아래 쿼리가 42703으로 통째로
+      //   실패해 이 위젯이 **줄곧 비어 있었다**(2026-08-29 실측). 실제 컬럼은 scheduled_date.
+      scheduled_date: string | null
       customers: { customer_name: string } | null
     } | null
   }
@@ -247,26 +249,32 @@ export default async function DashboardPage() {
         .lte('bill_date', yearEnd),
       admin
         .from('inspection_report_status')
+        // D-8: 비활성 고객 제외. 자동취소는 planned/confirmed만 만지므로 **완료·미제출** 행은
+        // 그대로 남는다 — 이 위젯이 고르는 상태가 정확히 그것이라 필터 없이는 되살아난다.
+        // 중첩 임베드는 층마다 !inner여야 필터가 걸린다(FK 힌트 유지로 PGRST201 방지).
         .select(`
           id, notification_due_date,
-          inspection_plan_items:plan_item_id (
-            inspection_date,
-            customers:customer_id ( customer_name )
+          inspection_plan_items:plan_item_id!inner (
+            scheduled_date,
+            customers:customer_id!inner ( customer_name, is_active )
           )
         `)
+        .eq('inspection_plan_items.customers.is_active', true)
         .eq('fire_station_submitted', false)
         .not('inspection_completed_at', 'is', null)
         .order('notification_due_date', { ascending: true })
         .limit(5),
       admin
         .from('action_plans')
+        // D-8: 위와 같은 축 — 미제출 이행계획도 비활성 고객 것이 남는다
         .select(`
           id, completion_target_date,
-          inspections:inspection_id (
+          inspections:inspection_id!inner (
             inspection_start_date,
-            customers:customer_id ( customer_name )
+            customers:customer_id!inner ( customer_name, is_active )
           )
         `)
+        .eq('inspections.customers.is_active', true)
         .is('submitted_at', null)
         .order('completion_target_date', { ascending: true })
         .limit(5),
@@ -476,7 +484,7 @@ export default async function DashboardPage() {
                     <div key={r.id} className="flex items-center justify-between px-5 py-3">
                       <div>
                         <p className="text-sm font-medium">{item?.customers?.customer_name ?? '—'}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">점검일: {item?.inspection_date ?? '—'}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">점검일: {item?.scheduled_date ?? '—'}</p>
                       </div>
                       <div className="text-right">
                         <p className={`text-xs font-medium ${isOverdue ? 'text-red-500' : 'text-gray-500'}`}>

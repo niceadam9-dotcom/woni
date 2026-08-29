@@ -239,7 +239,10 @@ export async function listSmsStatusAction(filters: {
   // created_at은 동점이 날 수 있어 id를 2차 정렬로 고정한다(페이지가 밀리면 건너뛴다).
   const logPage = await fetchAllRows((f, t) => admin
     .from('sms_send_log')
-    .select('id, kind, customer_id, visit_date, status, error, contact_name, contact_role, to_phone, created_at, customers:customer_id ( customer_name, address, region_si, region_myeon, region_ri )')
+    // D-8: 축 A(후보)는 sms.ts:180이 이미 비활성을 막는데 축 B(발송 이력)는 안 막고 있어,
+    // 발송 뒤 비활성된 고객이 이력 행으로 되살아났다 — 같은 '이력 창구'라 함께 닫는다.
+    .select('id, kind, customer_id, visit_date, status, error, contact_name, contact_role, to_phone, created_at, customers:customer_id!inner ( customer_name, address, region_si, region_myeon, region_ri, is_active )')
+    .eq('customers.is_active', true)
     .gte('visit_date', from).lte('visit_date', to)
     .order('created_at', { ascending: false })
     .order('id')

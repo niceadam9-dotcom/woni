@@ -19,6 +19,8 @@ let custA: string | null = null, custB: string | null = null
 const inspIds: string[] = []
 const quoteIds: string[] = []
 const planItemIds: string[] = []
+const reportStatusIds: string[] = []
+const actionPlanIds: string[] = []
 let madePlan: { id: string; created: boolean } | null = null
 let browser: any = null
 
@@ -100,6 +102,29 @@ async function main() {
     quoteIds.push(data.id)
   }
 
+  // 대시보드 KPI 카드 2종(점검보고서 제출대기·이행계획 제출대기)을 **실제로 채운다**.
+  // 이 두 표를 안 심으면 위젯이 비어 있어 아래 'B 제외' 검사가 항진명제가 된다 —
+  // 종전 판정이 그래서 실결함을 통과시켰다(위젯 자체는 필터가 없었다). [[feedback_exhaustive_has_an_axis]]
+  // completed 계획 항목을 쓴다: 자동취소가 안 건드리는 상태라 비활성 후에도 살아남는 축이다.
+  for (const [cid, tag] of [[custA, 'A'], [custB, 'B']] as Array<[string, string]>) {
+    const { data: pi } = await raw.from('inspection_plan_items')
+      .select('id').eq('customer_id', cid).eq('status', 'completed').limit(1).single()
+    if (pi) {
+      const { data, error } = await raw.from('inspection_report_status')
+        .insert({ plan_item_id: pi.id, inspection_completed_at: YESTERDAY, fire_station_submitted: false })
+        .select('id').single()
+      if (error) console.log(`  ⚠ 보고서현황 생성 실패(${tag}): ${error.message}`)
+      else reportStatusIds.push(data.id)
+    }
+    const insp = tag === 'A' ? a1 : b1
+    const { data: ap, error: apErr } = await raw.from('action_plans')
+      .insert({ inspection_id: insp, completion_target_date: d(3), submitted_at: null, created_by: userId })
+      .select('id').single()
+    if (apErr) console.log(`  ⚠ 이행계획 생성 실패(${tag}): ${apErr.message}`)
+    else actionPlanIds.push(ap.id)
+  }
+  console.log(`  대시보드 KPI 시드: 보고서현황 ${reportStatusIds.length}건 · 이행계획 ${actionPlanIds.length}건`)
+
   const { browser: br, page } = await launch()
   browser = br
   await login(page, EMAIL)
@@ -141,6 +166,13 @@ async function main() {
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1500)
   check('P1 대시보드 문서할일: B 보임', await domCount(page, B_NAME) > 0)
+  // KPI 카드 2종이 **정말 채워졌는지** 먼저 못박는다. 여기서 B가 안 보이면 Phase 2의
+  // 'B 제외'는 필터가 아니라 빈 위젯 덕분에 통과하는 것이므로 판정 근거가 못 된다.
+  const kpiReport = page.locator('div').filter({ hasText: /점검보고서|제출 대기/ })
+  check('P1 KPI 보고서제출대기: 시드 반영(B 보임)',
+    await page.getByText(B_NAME, { exact: false }).count() > 0,
+    `보고서현황 시드 ${reportStatusIds.length}건·이행계획 ${actionPlanIds.length}건인데 B 미표시`)
+  void kpiReport
   const subBtn = page.locator('button', { hasText: '제출 현황' })
   if (await subBtn.count() > 0) {
     await subBtn.first().click(); await page.waitForTimeout(1200)
@@ -176,7 +208,8 @@ async function main() {
   check('S1-1 완료필터: B 제외(완료 점검 잔재도)', await domCount(page, B_NAME) === 0)
   // D-8(2026-08-29): '취소' 필터는 폐지됐다. 종전 이 자리는 'B 조회 유지'를 단언했으나
   // 사용자 지시로 이력 창구 자체가 사라져 **어떤 status 값으로도 B는 나오지 않아야** 한다.
-  // status=cancelled는 이제 알 수 없는 값이라 inspections.status와 대조돼 0건이 정상.
+  // ⚠ B가 빠지는 이유는 status가 아니라 is_active다 — status=cancelled는 화이트리스트에서
+  //   걸러져 '전체 상태'로 폴백하므로(Phase 1에서 실증), 여기서 B가 없는 것은 순수하게 D-8 축이다.
   await page.goto(`${BASE}/inspections?status=cancelled`, { waitUntil: 'networkidle' })
   check('S1-1 취소필터 폐지(D-8): B 제외', await domCount(page, B_NAME) === 0)
 
@@ -209,6 +242,10 @@ async function main() {
   await page.waitForTimeout(1500)
   check('S2-2b 문서할일: A 잔존(대조)', await domCount(page, A_NAME) > 0)
   check('S2-2b 문서할일: B 제외', await domCount(page, B_NAME) === 0)
+  // KPI 카드 2종 — 위 시드 덕에 이 검사는 더 이상 항진명제가 아니다(D-8 후속).
+  // A는 같은 위젯에 남아 있어야 한다: '위젯이 통째로 비었다'와 '비활성만 빠졌다'를 가른다.
+  check('S2-2d KPI(보고서·이행계획): A 잔존(대조)', await domCount(page, A_NAME) > 0)
+  check('S2-2d KPI(보고서·이행계획): B 제외', await domCount(page, B_NAME) === 0)
   const subBtn2 = page.locator('button', { hasText: '제출 현황' })
   if (await subBtn2.count() > 0) {
     await subBtn2.first().click(); await page.waitForTimeout(1200)
@@ -300,6 +337,11 @@ async function cleanup() {
   try { if (browser) await browser.close() } catch {}
   try {
     if (quoteIds.length) await raw.from('quotes').delete().in('id', quoteIds)
+    // KPI 시드 — 고객보다 먼저 지운다. inspection_report_status는 plan_item에 CASCADE지만
+    // action_plans는 inspections를 참조하고 inspections는 customers에 ON DELETE RESTRICT라,
+    // 남겨두면 cleanupCustomer가 조용히 실패해 판정용 고객이 스테이징에 눌러앉는다.
+    if (actionPlanIds.length) await raw.from('action_plans').delete().in('id', actionPlanIds)
+    if (reportStatusIds.length) await raw.from('inspection_report_status').delete().in('id', reportStatusIds)
     if (custA) await cleanupCustomer(custA)
     if (custB) await cleanupCustomer(custB)
     if (madePlan?.created) await raw.from('inspection_plans').delete().eq('id', madePlan.id)

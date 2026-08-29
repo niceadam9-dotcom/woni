@@ -1,5 +1,21 @@
 /** FIRE-S4 시스템 테스트 (브라우저 구동): 고객 비활성 → 미완료 계획 자동취소(마커 보존) → 재활성 → 원상태 복원 (ADD-16)
  *  실행: npx tsx scripts/test-fire-s4.mts  (dev 서버 localhost:3000 필요, 테스트 데이터 자동 정리)
+ *
+ *  ⚠⚠ 현재 이 스위트는 **빨강이다. D-8(소방계획서_30 S6)과 무관한 선행 부패**다 —
+ *      2026-08-29 실측으로 원인 3중을 확인했고, 그중 ①만 고쳐 두었다(test:all 미등록이라
+ *      오래 방치돼 있었다. S4-5 test-chip-nav와 같은 계열).
+ *
+ *    ① [수리함] 기준일 부재 → 계획 0건 → 셋업에서 즉사.
+ *       2026-07-14에 '사용승인일 폴백'이 제거됐는데(inspection-plan-generator.ts:17)
+ *       픽스처는 use_approval_date만 줬다. plan_anchor_date를 넣어 해소.
+ *    ② [미수리] 정기(monthly)는 **생성 즉시 자동 확정**된다(generator:71). 그래서 생성 직후
+ *       planned가 0건이고, '나머지는 planned'라는 셋업 전제가 성립하지 않는다.
+ *    ③ [미수리] getItems()에 안정 정렬이 없다. :101에서 items를 재조회·재대입하는데 순서가
+ *       바뀌므로, 이후 items[0..2].id가 셋업에서 상태를 지정한 그 행을 더는 가리키지 않는다.
+ *       (②만 고치면 ③ 때문에 completed·수동취소 단언이 엉뚱한 행을 본다 — 함께 고쳐야 한다.)
+ *
+ *    D-8이 바꾼 것은 :140대 '계획 목록 UI' 단언 하나뿐이고, 그 검사는 지금도 통과한다.
+ *    ②③ 수리는 별도 작업으로 분리한다(30.json S6-13).
  */
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, mkdirSync } from 'fs'
@@ -76,6 +92,11 @@ try {
     customer_code: `TEST-S4-${Math.random().toString(36).slice(2, 8)}`,
     customer_name: CUSTOMER_NAME,
     inspection_type: '종합', inspection_category: '소방안전관리', inspection_sub_type: '종합',
+    // ⚠ plan_anchor_date가 없으면 계획이 0건 생성돼 셋업에서 죽는다.
+    //   2026-07-14에 '사용승인일 폴백'이 제거돼(inspection-plan-generator.ts:17) 기준일은
+    //   점검계획일(수동) 또는 최초 점검시작일뿐이다. 이 픽스처는 use_approval_date만 줘서
+    //   그날 이후로 계속 셋업 실패였다(영구 빨강 — test:all 미등록이라 아무도 몰랐다).
+    plan_anchor_date: `${YEAR}-01-10`,
     use_approval_date: '2018-07-15', contract_date: '2026-01-05',
     is_active: true, created_by: testUserId, assigned_employee_id: testUserId,
   }).select('id').single()
@@ -84,7 +105,7 @@ try {
 
   const hdSet = await loadHolidaySet(admin, YEAR)
   await generateYearlyPlanItems(admin,
-    { id: customerId, inspection_type: '종합', use_approval_date: '2018-07-15', assigned_employee_id: testUserId },
+    { id: customerId, inspection_type: '종합', plan_anchor_date: `${YEAR}-01-10`, assigned_employee_id: testUserId },
     YEAR, testUserId, hdSet)
 
   let items = await getItems()
@@ -136,13 +157,16 @@ try {
   check('🔍 비활성: completed는 불변', c1.status === 'completed' && !(c1.notes ?? '').includes('자동취소'), JSON.stringify(c1))
   check('🔍 비활성: 기존 수동취소는 마커 미부착', c2.status === 'cancelled' && c2.notes === '수동 취소', JSON.stringify(c2))
 
-  // 계획 목록 UI에서 취소 표시 확인
+  // 계획 목록 UI — D-8(소방계획서_30 S6, 2026-08-29)로 기대가 뒤집혔다.
+  // 종전엔 '취소 상태로 표시되는가'를 봤지만, 이제 비활성 고객은 '취소' 칩을 포함해 **어느 칩에도
+  // 실리지 않는다**. 그래서 행의 부재를 단언한다.
+  // ⚠ waitFor()로 기다리면 안 된다 — 없는 것이 정답이라 15초 타임아웃 후 throw로 스위트가
+  //   중단되고 아래 ②재활성 복원·③2회차 검사가 통째로 실행되지 않는다(부재 판정은 count로).
   await page.goto(`${BASE}/inspection-plans?year=${YEAR}&month=7&view=list`)
   await page.getByRole('button', { name: /^전체/ }).first().click()
-  const planRow = page.locator('tr', { has: page.getByText(CUSTOMER_NAME) }).first()
-  await planRow.waitFor()
-  const planRowText = await planRow.textContent()
-  check('계획 목록 UI: 취소 상태 표시', (planRowText ?? '').includes('취소'), planRowText?.slice(0, 150))
+  await page.waitForTimeout(800)
+  const planRowCount = await page.locator('tr', { has: page.getByText(CUSTOMER_NAME) }).count()
+  check('계획 목록 UI: 비활성 고객 행 제외 (D-8)', planRowCount === 0, `행 ${planRowCount}건 잔존`)
   await shot(page, '03-plans-cancelled')
 
   // ── ② 재활성 전환 → 원상태 복원 ─────────────────────────────

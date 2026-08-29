@@ -63,8 +63,25 @@ async function colIdx(page: Page, label: string): Promise<number> {
 
 try {
   console.log('\n[셋업] 작동 고객 + 연간 계획 (신규 생성기)')
-  const { data: existing } = await raw.auth.admin.listUsers()
-  for (const u of existing?.users ?? []) if (u.email === EMAIL) await raw.auth.admin.deleteUser(u.id)
+  // 잔재 정리는 **의존 순서대로, error를 보면서** 한다.
+  // 종전에는 곧장 deleteUser만 불렀는데, 이 계정이 만든 customers 행이 남아 있으면
+  //   customers.created_by → profiles.id → auth.users.id
+  // 사슬이 걸려 deleteUser가 **500으로 조용히 실패**한다. 반환값을 안 보니 셋업은 그대로
+  // 진행하고, 다음 줄 createUser가 'already registered'로 죽는다 — 즉 이 스위트는
+  // 성공한 다음 실행이 반드시 실패하는 상태였다(2026-08-29 실측). [[feedback_supabase_check_error]]
+  const { data: existing } = await raw.auth.admin.listUsers({ page: 1, perPage: 100 })
+  for (const u of existing?.users ?? []) {
+    if (u.email !== EMAIL) continue
+    const { data: stale } = await raw.from('customers').select('id').eq('created_by', u.id)
+    for (const c of stale ?? []) {
+      await raw.from('inspection_plan_items').delete().eq('customer_id', c.id)
+      const { error } = await raw.from('customers').delete().eq('id', c.id)
+      if (error) console.log(`  ⚠ 잔재 고객 삭제 실패: ${error.message}`)
+    }
+    await raw.from('profiles').delete().eq('id', u.id)
+    const { error: dErr } = await raw.auth.admin.deleteUser(u.id)
+    if (dErr) throw new Error(`잔재 계정 삭제 실패(${(dErr as { status?: number }).status}) — 수동 정리 필요: ${EMAIL}`)
+  }
   const { data: nu, error: uErr } = await raw.auth.admin.createUser({ email: EMAIL, password: PW, email_confirm: true })
   if (uErr || !nu?.user) throw new Error(`계정 생성 실패: ${uErr?.message}`)
   userId = nu.user.id

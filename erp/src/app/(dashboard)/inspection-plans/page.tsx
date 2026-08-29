@@ -76,7 +76,12 @@ export default async function InspectionPlansPage({
     currentPlan
       ? fetchAllRows<Record<string, unknown>>((from, to) =>
           admin.from('inspection_plan_items')
-            .select(`*, customers:customer_id (customer_name, customer_code, is_active), profiles:assigned_employee_id (name)`)
+            // D-8: 비활성 고객 항목은 **서버에서** 뺀다. 종전엔 클라이언트 visibleItems만 걸렀는데
+            // ①임베드가 null이면 `undefined !== false`가 참이라 fail-open으로 새고 ②비활성 고객
+            // 이름이 RSC 페이로드에 실려 나갔다. !inner로 fail-closed 전환(FK 힌트 유지 = PGRST201 방지).
+            // 클라이언트 필터는 이중 방어로 남긴다.
+            .select(`*, customers:customer_id!inner (customer_name, customer_code, is_active), profiles:assigned_employee_id (name)`)
+            .eq('customers.is_active', true)
             .eq('plan_id', currentPlan.id)
             .order('scheduled_date', { ascending: true, nullsFirst: false })
             .order('id')

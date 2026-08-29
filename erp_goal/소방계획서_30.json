@@ -102,18 +102,25 @@
           "verified": "2026-08-28 두 곳 <a> 전체 이동으로 수리(page.tsx:614, fsm-panel:197 + useUnsavedWarning(dirty) 배선 — 패널 dirty가 탭 셸에 미배선이라 beforeunload 축 신설). 구현자 프로브 _probe-s30-sibling-links.mts 10/10 + 독립 판정 E2E 도달 확인(계획서 탭+form=1.4/1.7). 제3 이웃 이력 탭 필터 칩(histChip)은 실측 결과 정상(서버 재렌더 수신) — 무수정",
           "note": "⚠판정자 관찰: 나머지 same-path Link 이웃 3+1곳(fire-plan-info-panel.tsx:312·plan-form17.tsx:77·annex-missing-list.tsx:45-47·plan-form14-specs.tsx:804)은 D-4 증상이 7회 클릭 중 0회 재현(정상 전환) — 현 빌드에서 비차단. 단 1/7 클릭 무시 플레이크(하이드레이션 창 의심) 관측, D-4 규약 일관성 차원의 <a> 통일은 선택적 후속" }
       ] },
-    { "id": "S5", "title": "[C] 갑지 엑셀 — 설비별 점검표 시트에 점검 응답 주입 (소방계획서_27 S10-3 이관)", "status": "pending_order",
+    { "id": "S5", "title": "[C] 갑지 엑셀 — 설비별 점검표 시트에 점검 응답 주입 (소방계획서_27 S10-3 이관)", "status": "code_present",
+      "updated_note": "⚠**2026-08-29 착수·구현 완료(구현자 자기신고). 판정 기록·전제 정정은 소방계획서_32 S11(D트랙)이 정본이다.** 착수 계기는 같은 날 사용자 재신고(고객 서림사 C330, image-21.png) — '나중에 실행' 보류가 해제됐다. 아래 S5-1·S5-2의 원래 서술은 **두 군데가 실측으로 뒤집혔다**(결과열 C 고정 · dv 결손 4시트) — 각 note 참조. 이 문서의 진단 수치는 별그리다 고객 기준이고, 구현·검증은 서림사 기준이다.",
       "note": "2026-08-29 진단 완료·구현 미착수(사용자 '나중에 실행'). 신고 '엑셀 리포트에 입력된 내용이 없다'의 정체는 회귀가 아니라 미구현이다. 실데이터 재현(별그리다(추모공원) 2026, inspection_sheet_responses 138건 O137/X1 · 44시트 수신): 갑지 앞부분은 정상 주입(개요 59값·보고서 62·정보 59·현황 208값에 설치√7·판정 27칸)인데 **도너 18장의 C열 「점검결과」가 전부 공란 — 138건 중 0건 반영**. 원인은 배선 부재: erp/src/lib/xlsx-* 전체에서 item_code 참조 0건, 주입 대상은 앵커+목차뿐(workbook/route.ts:161·180-182), 도너는 시트 선별·제거만(route.ts:106-121). 27 Q-1(:43)이 '동봉이지 원천 아님'으로 확정한 범위 밖이었다. 기존 검사 전건 초록인 이유: E2E 27/0·앵커·주입·충실도 어느 것도 이 축을 본 적이 없다 — 검사는 '넣은 것이 들어갔나'를 보지 '넣었어야 할 것이 빠졌나'를 보지 않는다. 설계 상세는 소방계획서_30.md §8.",
       "key_evidence": "커버리지 실측: 응답 138건 중 137건이 자산에 좌표를 갖는다(스1 11·스2 11·스3 14·소 1·CO2-1 15·CO2-2 12·CO2-3 5·할1 18·할2 9·자탐1 9·자탐2 8·비상경보 11·소화용수 13). 미착지 1건의 정체는 자산 결함(스1 A5 코드 중복)이다. 프로브: scripts/_probe-wb-empty.mts(재현·시트별 값 셀 계측)·scripts/_probe-wb-itemmap.mts(두 축 추출·커버리지)·scripts/_probe-wb-donor.mts(도너 공란 확인).",
       "criteria": [
-        { "id": "S5-1", "desc": "item_code → {sheet, cell} 매핑을 자산에서 빌드 타임에 추출 — A열 코드 축과 dataValidation sqref 축을 함께 뽑고, 두 축 불일치·중복 귀속·미착지를 빌드 실패로 고정(D-5). 런타임 XML 파싱 금지(도너는 인라인 문자열이라 비싸다)", "status": "pending_order" },
-        { "id": "S5-2", "desc": "자산 결함 수리 — ⚠스1 A5가 3-A-001 중복(정답 3-A-002: '보조수원(옥상)의 유효수량 적정 여부'). 그대로 구현하면 한 응답이 사라지고 다른 응답이 옆 행에 찍힌다. 함께: dv 결손 4시트(옥3·스4·옥외3·다중1 — ②만 축으로 삼으면 다중1 18행이 통째로 빠진다)·소 C4의 formula1=#REF!. 수리는 build-workbook-full.mts 축에서만(수기 편집은 재빌드 때 되돌아간다)", "status": "pending_order" },
-        { "id": "S5-3", "desc": "주입 구현 — assembleReport9가 이미 읽는 응답을 재조회하지 않고 같은 조립 결과를 쓴다(D-7). 마크는 resultMark() 단일 원천(반각 ○·×·/), 무응답은 공란(D-6)", "status": "pending_order" },
-        { "id": "S5-4", "desc": "닫힌 덮개 — 착지 못 한 응답이 1건이라도 있으면 X-Workbook-Missing에 고지(조용한 누락 금지). S4-5 고지 규약과 같은 축", "status": "pending_order" },
-        { "id": "S5-5", "desc": "회귀 축 — 실데이터 왕복 단언(응답 N건 → 산출 워크북의 같은 N칸이 같은 마크). _probe-wb-itemmap.mts를 테스트로 승격·test:all 등록", "status": "pending_order" },
+        { "id": "S5-1", "desc": "item_code → {sheet, cell} 매핑을 자산에서 빌드 타임에 추출 — 두 축 불일치·중복 귀속·미착지를 빌드 실패로 고정(D-5). 런타임 XML 파싱 금지", "status": "code_present",
+          "note": "⚠**전제 정정(소방계획서_32 D2 = C-1)**: 두 축이 아니라 **세 축**이다. 결과칸을 C열로 고정하면 안 된다 — 넓은 서식 4시트(옥3·스4·옥외3·다중1)는 J열(J:K 병합)이라, C에 쓰면 **점검항목 문구 30칸을 마크로 덮어쓴다**(파일은 정상 개봉·missed 0으로 조용히 통과). 결과열은 시트의 「점검결과」 헤더에서 도출할 것. 구현: erp/src/lib/xlsx-donor-itemmap-extract.ts + build ⑤b → src/lib/xlsx-donor-itemmap.json(720코드·C33/J4)." },
+        { "id": "S5-2", "desc": "자산 결함 수리 — ⚠스1 A5가 3-A-001 중복(정답 3-A-002) · 소 C4의 formula1=#REF!. 수리는 build-workbook-full.mts 축에서만(수기 편집은 재빌드 때 되돌아간다)", "status": "code_present",
+          "note": "⚠**「dv 결손 4시트」 항목은 범위에서 삭제한다(32 D2 = C-2).** 실측하면 옥3·스4·옥외3·다중1 넷 다 dv를 갖고 있다(옥3 `J4:K9` · 스4 `J4:K9 J11:K12` · 옥외3 `J4:K4 J6:K6` · 다중1 `J4:K18 J27:K32 J34:K35`) — 자기 결과열(J)에 걸려 있을 뿐이다. '결손'은 프로브가 단일 열 범위만 받아 생긴 착시였고, 보강하면 **이미 dv가 있는 시트의 잘못된 열에 dv를 다는** 순수한 손해다. 실제 자산 결함은 스1 A5와 소 C4 둘뿐이며, 여기에 D-1(범례 X→× 37칸)이 추가됐다. 결과: 고유 코드 719→720 · 중복 0 · PDF 72쪽 유지." },
+        { "id": "S5-3", "desc": "주입 구현 — assembleReport9가 이미 읽는 응답을 재조회하지 않고 같은 조립 결과를 쓴다(D-7). 마크는 resultMark() 단일 원천(반각 ○·×·/), 무응답은 공란(D-6)", "status": "code_present",
+          "note": "erp/src/lib/xlsx-donor-inject.ts + workbook/route.ts. 서림사 실측 243건 중 182건 착지(불량 3건 × 인쇄 확인)." },
+        { "id": "S5-4", "desc": "닫힌 덮개 — 착지 못 한 응답이 1건이라도 있으면 X-Workbook-Missing에 고지(조용한 누락 금지). S4-5 고지 규약과 같은 축", "status": "code_present",
+          "note": "사유별 분류(sheetRemoved·noDonorRow·duplicated) + **집계로** 고지 — 코드를 나열하면 600자에서 잘려 고지가 통째로 사라진다(실측 49자). 이 분류가 없으면 정상 시나리오(응답은 있고 설비는 미설치)가 route.ts:187에서 500이 된다." },
+        { "id": "S5-5", "desc": "회귀 축 — 실데이터 왕복 단언(응답 N건 → 산출 워크북의 같은 N칸이 같은 마크). 테스트로 승격·test:all 등록", "status": "partial",
+          "note": "`_probe-d5-roundtrip.mts` 8/0 + 변이 M1·M3·M4 전건 빨강 확인. **정식 승격·test:all 등록은 미실행**(32.json D11). ⚠기대값을 plan.targets에서 뽑으면 안 된다 — 첫 판이 그래서 M3(매핑 1건 삭제)에 초록이었다(검사가 자기 자신과 대조). 기대는 DB 응답 × 매핑 × 남은 시트라는 독립 축에서 세울 것." },
         { "id": "S5-6", "desc": "[경계·무수정] 서식 자산이 없는 설비는 주입을 붙여도 여전히 0장이다 — 이 고객 실측에서 미분무소화설비가 그렇다(X-Workbook-Missing이 '점검표 서식 미동봉(자산 없음)'으로 고지 중). 자산 확충은 소방계획서_27 S10-2 잔여이지 S5 범위가 아니다", "status": "confirmed" }
       ] },
-    { "id": "S6", "title": "[A] '취소' 이력 창구 폐지 — 비활성 고객 전면 제외 + 취소선 제거 (D-8)", "status": "code_present",
+    { "id": "S6", "title": "[A] '취소' 이력 창구 폐지 — 비활성 고객 전면 제외 + 취소선 제거 (D-8)", "status": "partial",
+      "rollup": "S6-1~S6-10(본체)은 독립 적대적 리뷰 + E2E 45/0 통과 — S6-11 verified 참조. S6-12·S6-14(리뷰 지적 수리·테스트 기반시설)는 자기신고라 code_present, S6-15·S6-16 미착수. 그래서 섹션은 partial이다.",
       "note": "2026-08-29 사용자 지시로 D-1 번복. 착수 전 실측에서 밝혀진 전제: S1이 이미 대부분을 막고 있었고 **살아 있는 취소선은 점검업무 '취소' 필터·점검확정 '취소' 칩 두 곳뿐**이었다(점검 달력·점검확정 달력뷰의 취소선 분기는 서버·클라이언트 필터 뒤라 도달 불가). 사용자에게 이 실측을 제시하고 '두 창구를 닫는 것이 맞다'를 확인받은 뒤 착수했다. 자기신고 code_present — 독립 검증 전.",
       "criteria": [
         { "id": "S6-1", "desc": "점검업무 목록 — '취소 (비활성/삭제)' 필터 옵션·쿼리 분기 삭제, is_active=true 무조건 적용", "status": "code_present",
@@ -142,8 +149,27 @@
               "낡은 URL 축 신설 3건 통과: ?status=cancelled가 200 + '전체 상태' 폴백(enum 22P02 방지 실증)"
             ] },
           "note": "종전 프로브는 D-1을 인코딩해 'B 조회 유지'를 단언하고 있었다 — 그대로 두면 영구 빨강이 된다(S4-5 test-chip-nav와 같은 함정). ⚠유일한 실패 1건은 [이웃] same-path Link로, **두 번 실행에서 1.7↔1.1이 번갈아 실패**해 S4-6 note가 기록한 '1/7 클릭 무시 플레이크'와 일치한다 — 내 변경과 무관(해당 파일 미변경)." },
-        { "id": "S6-11", "desc": "[잔여] 독립 검증 — 구현자≠판정자 축으로 재판정 후 implemented 승격", "status": "pending_order",
-          "note": "Json_Rule 규칙: code_present는 자기신고다. 특히 S6-3의 '칩 의미 축소'가 항목 취소(status='cancelled') 조회를 망가뜨리지 않았는지는 별도 축으로 봐야 한다." }
+        { "id": "S6-11", "desc": "독립 검증 — 구현자≠판정자 축 적대적 리뷰 + 지적사항 수리", "status": "implemented",
+          "verified": { "date": "2026-08-29", "method": "독립 리뷰어(별도 컨텍스트) 5축 적대적 정적 검토 → 실결함 6건 지적 → 수리 후 런타임·E2E 재실측",
+            "evidence": [
+              "판정 결과: S6-3 '취소' 칩 의미 축소는 회귀 없음(matchStatus·visibleItems·statusCounts·filteredItems·calendarItems·canDragItem 전 사슬 추적) · enum 화이트리스트 정확·완전(마이그레이션 전수에 ALTER TYPE 없음) · customer_inactive 배선 제거 후 잔존 참조 0건(erp/ 전체)",
+              "_judge-s30-block.mts 45/0 (KPI 시드 추가 후 재실행)",
+              "_probe-d8-embeds.mts 8/0 (신규 !inner 4곳 런타임)",
+              "test-inspection-customer-search 18/0 · test-monthly-confirm 13/0 ×2연속 · test-inspection-sms 84/0 · tsc 0"
+            ] },
+          "note": "리뷰어 지적 6건 중 5건 수리(S6-12), 1건(H2)은 **내 재실측으로 전제가 틀렸음을 확인**(S6-13). 리뷰어가 코드만 읽고 실행하지 않아 생긴 오판이 하나 더 있었다 — 아래 S6-12 ①." },
+        { "id": "S6-12", "desc": "[독립 판정 지적 수리] 비활성 고객이 남아 있던 표면 5곳 + 이웃 결함", "status": "code_present",
+          "note": "①**점검업무 고객명 자동완성**(inspections/actions.ts:482) — 사용자가 지목한 바로 그 화면인데 비활성 고객을 계속 제안했고, 목록은 D-8로 is_active=true 무조건이라 **고르는 순간 0건**이 됐다(그 함수 자신의 주석이 '0건 되는 이름이 뜨면 안 된다'고 규정). eq('is_active',true) + 낡은 주석 정정. ②③**대시보드 KPI 2종**(dashboard/page.tsx:248·261 보고서·이행계획 제출대기) — 자동취소가 안 건드리는 '완료·미제출'이 정확히 이 위젯의 대상이라 비활성 고객이 남았다. 2단 중첩 !inner + eq로 차단. ④**점검확정 서버 필터**(inspection-plans/page.tsx:79) — 종전엔 클라이언트 visibleItems만 걸러 임베드 null 시 `undefined !== false`로 fail-open이었고 비활성 고객명이 RSC 페이로드에 실렸다. !inner로 fail-closed 전환(클라 필터는 이중 방어로 존치). ⑤**문자 발송 축 B**(sms-actions.ts:243) — 축 A(sms.ts:180)만 막혀 있고 발송 이력 축은 안 막혀, 발송 뒤 비활성된 고객이 이력 행으로 되살아났다. ⑥**이웃 22P02**(inspections/page.tsx:78) — status만 화이트리스트하고 바로 위 year는 안 해서 ?year=abc가 NaN→500. Number.isInteger 가드([[feedback_fix_the_sibling_too]] 그대로).",
+          "verified": "_probe-d8-embeds.mts 8/0 — 신규 !inner 4곳을 **런타임으로** 쏴 PGRST201·42703 부재 + 필터 실효(임베드 전건 활성) 확인. 대조군: 스테이징 비활성 고객 1명·해당 계획 항목 2건이 실재해 항진명제 아님([[risk_postgrest_embed_ambiguity]] — 이 축은 tsc·build에 안 나온다)" },
+        { "id": "S6-13", "desc": "[판정 지적 기각·정정] 리뷰어의 '대시보드 보고서 위젯이 비활성 고객을 렌더한다'와 'test-fire-s4를 이 커밋이 빨갛게 만든다'는 둘 다 전제가 틀렸다", "status": "confirmed",
+          "note": "⚠**리뷰어는 코드를 읽었을 뿐 실행하지 않았다.** 내 런타임 대조군이 뒤집었다. ①보고서 제출대기 위젯 쿼리는 `inspection_plan_items.inspection_date`를 고르는데 **그런 컬럼이 없다**(실제는 scheduled_date). !inner를 빼고 원본 그대로 쏴도 42703 — 즉 이 위젯은 **줄곧 조용히 비어 있었다**. '비활성 고객을 렌더한다'는 성립할 수 없었다(다만 필터가 없었던 것 자체는 사실이라 S6-12에서 함께 수리, 컬럼도 정정해 위젯을 되살림). ②test-fire-s4는 이 커밋 이전부터 **셋업에서 즉사**(계획 0건)라 문제의 :140 단언에 도달조차 못 했다 — 원인은 2026-07-14 '사용승인일 폴백 제거'(generator:17)인데 픽스처가 use_approval_date만 줬기 때문. D-8과 무관한 선행 부패다." },
+        { "id": "S6-14", "desc": "[동반 수리] 테스트 기반시설 — 스위트가 '성공한 다음 실행에 반드시 실패'하던 사슬", "status": "code_present",
+          "note": "test-monthly-confirm이 성공 후 다음 실행에서 'already registered'로 죽었다. 사슬 실측: 정리 코드가 **error를 안 봐서**([[feedback_supabase_check_error]]) `customers.created_by → profiles.id → auth.users.id`에 걸린 deleteUser의 **500을 삼키고 '삭제 완료'를 출력**했고, 잔재 고객 1건이 남아 다음 실행의 계정 생성을 막았다. 셋업을 의존 순서대로(plan_items→customers→profiles→auth) error 확인하며 자가 치유하도록 고쳐 **2연속 13/0** 확인. 내 첫 실행이 13/0이었다가 이후 0/1이 된 것이 이 사슬이며 D-8 회귀가 아니었다.",
+          "verified": "test-monthly-confirm 13/0 연속 2회(종전에는 2회차가 반드시 셋업 실패)" },
+        { "id": "S6-15", "desc": "[잔여] test-fire-s4 완전 회생 — 부패 3중 중 ②③ 미수리", "status": "pending_order",
+          "note": "①기준일 부재는 plan_anchor_date로 수리했고 D-8 단언은 통과한다. 남은 것: ②정기는 생성 즉시 자동 확정이라 planned가 0건이므로 '나머지는 planned' 셋업 전제가 깨진다 ③getItems()에 안정 정렬이 없어 :101 재조회 후 items[0..2]가 셋업에서 지정한 행을 더는 가리키지 않는다(②만 고치면 ③이 엉뚱한 행을 단언한다 — 함께 고쳐야 한다). 현재 4/8. 파일 머리에 진단을 박아 뒀다. test:all 미등록이라 게이트는 영향 없음." },
+        { "id": "S6-16", "desc": "[잔여] 커밋·푸시", "status": "pending_order",
+          "note": "S6-12·S6-14 수리분은 커밋 전(2026-08-29). D-8 본체는 `08701f0`으로 커밋·푸시됨." }
       ] }
   ]
 }
