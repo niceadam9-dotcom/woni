@@ -100,8 +100,8 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
     })
   }
 
-  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
-  const chip = (on: boolean) => `h-6 px-2 rounded-full text-[11px] border transition-colors ${
+  const inputCls = 'h-form-7 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand'
+  const chip = (on: boolean) => `h-form-6 px-2 rounded-full text-form-xs border transition-colors ${
     on ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`
   const inspectorSeg = (v: '자체' | '외주' | '', on: (nv: '자체' | '외주') => void) => (
     <span className="inline-flex gap-1">
@@ -120,48 +120,48 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       ]} />
       {/* 1.10.1 연간 점검 계획 */}
       <div id="c-1.10.1" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
-        <p className="text-xs font-semibold text-ink-sub">1.10.1 연간 자체점검 계획
+        <p className="text-form-sm font-semibold text-ink-sub">1.10.1 연간 자체점검 계획
           <span className="font-normal text-ink-faint ml-2">시기는 점검계획일 기준 자동 — 수정 가능</span>
         </p>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-ink-sub w-16">작동점검</span>
+          <span className="text-form-xs font-medium text-ink-sub w-16">작동점검</span>
           <MonthField value={insp.opMonth} disabled={!canManage} onChange={opMonth => pi({ opMonth })} className={`${inputCls} w-36`} />
-          <span className="text-[11px] text-ink-sub">점검자</span>
+          <span className="text-form-xs text-ink-sub">점검자</span>
           {inspectorSeg(insp.opInspector, v => pi({ opInspector: v }))}
         </div>
         {isComprehensive && (
           <>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-medium text-ink-sub w-16">종합점검</span>
+              <span className="text-form-xs font-medium text-ink-sub w-16">종합점검</span>
               <button disabled={!canManage} className={chip(insp.isInitial)} onClick={() => pi({ isInitial: !insp.isInitial })}>최초점검</button>
               {insp.isInitial && (
-                <span className="inline-flex items-center gap-1"><span className="text-[10px] text-ink-faint">최초</span>
+                <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-faint">최초</span>
                   <MonthField value={insp.initialMonth} disabled={!canManage} onChange={initialMonth => pi({ initialMonth })} className={`${inputCls} w-36`} /></span>
               )}
-              <span className="inline-flex items-center gap-1"><span className="text-[10px] text-ink-faint">종합</span>
+              <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-faint">종합</span>
                 <MonthField value={insp.compMonth} disabled={!canManage} onChange={compMonth => pi({ compMonth })} className={`${inputCls} w-36`} /></span>
-              <span className="inline-flex items-center gap-1"><span className="text-[10px] text-ink-faint">2차(특급)</span>
+              <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-faint">2차(특급)</span>
                 <MonthField value={insp.comp2Month} disabled={!canManage} onChange={comp2Month => pi({ comp2Month })} className={`${inputCls} w-36`} /></span>
-              <span className="text-[11px] text-ink-sub">점검자</span>
+              <span className="text-form-xs text-ink-sub">점검자</span>
               {inspectorSeg(insp.compInspector, v => pi({ compInspector: v }))}
             </div>
           </>
         )}
-        <p className="text-[11px] text-ink-faint">사용승인일 {useApprovalDate || '—'} · 제출처 {fireStation ? `${fireStation}장` : '관할 소방서장'} (자동)</p>
+        <p className="text-form-xs text-ink-faint">사용승인일 {useApprovalDate || '—'} · 제출처 {fireStation ? `${fireStation}장` : '관할 소방서장'} (자동)</p>
       </div>
 
       {/* 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리) */}
       <div id="c-1.10.2" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs font-semibold text-ink-sub">1.10.2 소방안전관리자 업무수행 기록</p>
+          <p className="text-form-sm font-semibold text-ink-sub">1.10.2 소방안전관리자 업무수행 기록</p>
           {canManage && (
             <button onClick={() => { setDuty(p => [...p, { date: '', content: '', action: '', note: '' }]); setDirty(true) }}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+              className="ml-auto inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
               <Plus className="size-3" /> 기록 추가
             </button>
           )}
         </div>
-        {duty.length === 0 && <p className="text-[11px] text-ink-faint">수행 일자·업무 내용·조치사항을 기록하세요 — 업무수행 기록표는 계획서와 별도 보관 서류(2년)라 HWP에는 병합되지 않고 ERP에 기록·보관됩니다.</p>}
+        {duty.length === 0 && <p className="text-form-xs text-ink-faint">수행 일자·업무 내용·조치사항을 기록하세요 — 업무수행 기록표는 계획서와 별도 보관 서류(2년)라 HWP에는 병합되지 않고 ERP에 기록·보관됩니다.</p>}
         <div className="space-y-1.5">
           {duty.map((d, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
@@ -184,7 +184,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       {/* 1.10.3 다중이용업소 */}
       <div id="c-1.10.3" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-ink-sub">1.10.3 다중이용업소 현황</p>
+          <p className="text-form-sm font-semibold text-ink-sub">1.10.3 다중이용업소 현황</p>
           <button disabled={!canManage} className={chip(mu.applicable)} onClick={() => pm({ applicable: !mu.applicable })}>
             {mu.applicable ? '해당' : '해당없음'}
           </button>
@@ -228,13 +228,13 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             </div>
             {/* M-16(소방계획서_15, 2026-08-11 보강): 영업시간 평일/휴일 × 주간/야간 세분 — 자유 텍스트(hours)는 레거시 폴백 */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-medium text-ink-sub">영업시간</span>
-              <span className="text-[10px] text-ink-faint">평일</span>
+              <span className="text-form-xs font-medium text-ink-sub">영업시간</span>
+              <span className="text-form-2xs text-ink-faint">평일</span>
               <input value={mu.hoursDetail?.wkDay ?? ''} disabled={!canManage} placeholder="주간 09:00~18:00"
                 onChange={e => pm({ hoursDetail: { wkDay: e.target.value, wkNight: mu.hoursDetail?.wkNight ?? '', holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-36`} />
               <input value={mu.hoursDetail?.wkNight ?? ''} disabled={!canManage} placeholder="야간"
                 onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: e.target.value, holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
-              <span className="text-[10px] text-ink-faint">휴일</span>
+              <span className="text-form-2xs text-ink-faint">휴일</span>
               <input value={mu.hoursDetail?.holDay ?? ''} disabled={!canManage} placeholder="주간"
                 onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: mu.hoursDetail?.wkNight ?? '', holDay: e.target.value, holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
               <input value={mu.hoursDetail?.holNight ?? ''} disabled={!canManage} placeholder="야간"
@@ -245,7 +245,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             </div>
             {/* M-16: 이용자 유형 체크 — 자유 텍스트(users)는 레거시 병기 */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-medium text-ink-sub">이용자</span>
+              <span className="text-form-xs font-medium text-ink-sub">이용자</span>
               {MULTI_USE_USER_TYPES.map(t => {
                 const on = (mu.userTypes ?? []).includes(t)
                 return (
@@ -264,15 +264,15 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       {/* 1.10.4 화재/비화재보 이력 */}
       <div id="c-1.10.4" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs font-semibold text-ink-sub">1.10.4 화재·비화재보 발생 이력</p>
+          <p className="text-form-sm font-semibold text-ink-sub">1.10.4 화재·비화재보 발생 이력</p>
           {canManage && (
             <button onClick={() => { setHist(p => [...p, { kind: '비화재보', at: '', place: '', cause: '', action: '' }]); setDirty(true) }}
-              className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+              className="ml-auto inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
               <Plus className="size-3" /> 행 추가
             </button>
           )}
         </div>
-        {hist.length === 0 && <p className="text-[11px] text-ink-faint">발생 이력이 없으면 비워둡니다.</p>}
+        {hist.length === 0 && <p className="text-form-xs text-ink-faint">발생 이력이 없으면 비워둡니다.</p>}
         <div className="space-y-1.5">
           {hist.map((h, i) => {
             const [atDate, atTime] = splitAt(h.at)
@@ -281,7 +281,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
               <select value={h.kind} disabled={!canManage}
                 onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, kind: e.target.value as FireHistoryRow['kind'] } : x)); setDirty(true) }}
-                className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none">
+                className="h-form-7 rounded border border-brand-line bg-surface px-1 text-form-sm outline-none">
                 <option value="화재">화재</option>
                 <option value="비화재보">비화재보</option>
               </select>
@@ -305,10 +305,10 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.10 저장
           </button>
-          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
+          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

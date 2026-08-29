@@ -11,6 +11,7 @@ import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { RevisionHistory } from '@/components/customers/revision-history'
+import { FontScaleSettingsClient } from '@/components/settings/font-scale-settings-client'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 
 /** 소방계획서 탭 (§1 개정 구조 — P6: 좌측 목차 트리 + 서식 화면, 소방계획서_4.md §1·§1-1·§2·§9-8)
@@ -292,20 +293,20 @@ export function PlanTabView({
       {/* 생성 바 — 모든 서브탭 상단 고정 (소방계획서_4.md §2) */}
       <div className="flex items-center gap-3 flex-wrap pb-4 border-b border-brand-line-soft mb-4">
         <div className="flex items-center gap-2 min-w-40">
-          <span className="text-sm font-semibold text-ink">소방계획서</span>
+          <span className="text-form-base font-semibold text-ink">소방계획서</span>
           <div className="h-1.5 w-20 rounded-full bg-brand-tint overflow-hidden">
             <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-[11px] text-ink-sub">{readiness.done}/{readiness.total}</span>
+          <span className="text-form-xs text-ink-sub">{readiness.done}/{readiness.total}</span>
         </div>
         {/* 누락 칩 — 빠른 입력 폐기(2026-08-06)로 완성도 카드가 사라져, 입력처 이동은 이 줄이 담당 */}
         {readiness.missing.length > 0 && (
           <span className="flex items-center gap-1 flex-wrap min-w-0">
-            <span className="text-[11px] text-amber-600 shrink-0">누락:</span>
+            <span className="text-form-xs text-amber-600 shrink-0">누락:</span>
             {readiness.missing.map(m2 => (
               <button key={m2} onClick={() => gotoMissing(m2)}
                 title={`클릭 → ${CHIP_TARGET_LABEL[CHIP_TARGET[m2] ?? 'form11']}에서 입력`}
-                className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-[10px] border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors">
+                className="inline-flex items-center h-5 px-1.5 rounded bg-amber-50 text-amber-700 text-form-2xs border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors">
                 {m2} ↗
               </button>
             ))}
@@ -314,8 +315,13 @@ export function PlanTabView({
         {/* 구 보고서 센터 역링크 제거 — 문서 현황의 단일 허브는 [별지서식] 탭 (소방계획서_8 Phase B → _34로 탭 승격)
             생성 버튼 제거(R2-11) — 조회는 보관함 [현재 내용], 발행은 보관함 [개정 발행]으로 일원화.
             준비율 게이지·누락 칩은 입력처 점프 기능이라 여기 남긴다 */}
+        {/* 글자 크기 (소방계획서_35 S5-3) — 배율이 **실제로 보이는 유일한 화면**이라 여기 둔다.
+            전역 헤더에 두면 대부분의 화면에서 눌러도 아무 일이 없는 버튼이 된다. */}
+        <span className="ml-auto shrink-0">
+          <FontScaleSettingsClient variant="compact" />
+        </span>
       </div>
-      {msg && <p className="text-xs text-ink-sub mb-3">{msg}</p>}
+      {msg && <p className="text-form-sm text-ink-sub mb-3">{msg}</p>}
 
       {/* ══ 서식 전체 트리(기본) — ⚡ 빠른 입력을 최상단 노드로 통합. 토글 제거 (2026-08-05) ══ */}
       {(() => {
@@ -327,14 +333,14 @@ export function PlanTabView({
           {importCandidate && canManage && !importHidden && (
             <div className="flex items-center gap-2 rounded-xl border border-brand-line bg-brand-tint px-4 py-2.5">
               <Info className="size-4 text-brand shrink-0" />
-              <span className="text-xs text-ink-sub">
+              <span className="text-form-sm text-ink-sub">
                 이전에 생성한 소방계획서의 수기 편집값(구역·취약장소·피난계획·개정이력)을 서식 입력으로 가져올 수 있습니다. (최초 1회)
               </span>
               <button onClick={importLegacy} disabled={isImportPending}
-                className="ml-auto inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium shrink-0 disabled:opacity-50">
+                className="ml-auto inline-flex items-center gap-1 h-form-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium shrink-0 disabled:opacity-50">
                 {isImportPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 가져오기
               </button>
-              <button onClick={() => setImportHidden(true)} className="h-7 px-2 rounded-lg text-[11px] text-ink-faint hover:text-ink-sub shrink-0">닫기</button>
+              <button onClick={() => setImportHidden(true)} className="h-form-7 px-2 rounded-lg text-form-xs text-ink-faint hover:text-ink-sub shrink-0">닫기</button>
             </div>
           )}
 
@@ -349,9 +355,9 @@ export function PlanTabView({
           if (v === undefined) return null
           if (typeof v === 'object') {
             const full = v.done >= v.total
-            return <span className={`ml-auto text-[10px] shrink-0 ${full ? 'text-green-600' : 'text-amber-600'}`}>{full ? '✓' : `${v.done}/${v.total}`}</span>
+            return <span className={`ml-auto text-form-2xs shrink-0 ${full ? 'text-green-600' : 'text-amber-600'}`}>{full ? '✓' : `${v.done}/${v.total}`}</span>
           }
-          return <span className={`ml-auto text-[10px] shrink-0 ${v ? 'text-green-600' : 'text-ink-faint'}`}>{v ? '✓' : '○'}</span>
+          return <span className={`ml-auto text-form-2xs shrink-0 ${v ? 'text-green-600' : 'text-ink-faint'}`}>{v ? '✓' : '○'}</span>
         }
         // data-plan-node/aria-current: 어느 노드가 실제로 선택됐는지 보이는 구조적 표식.
         // 없을 때는 딥링크 검사가 URL 문자열(?form=annex)밖에 볼 수 없어, 링크의 form 값을
@@ -359,7 +365,7 @@ export function PlanTabView({
         const navBtn = (key: string, label: string, indent = false) => (
           <button key={key} onClick={() => select(key)}
             data-plan-node={key} aria-current={sel === key ? 'true' : undefined}
-            className={`w-full flex items-center gap-1.5 h-7 rounded-lg text-[11px] text-left transition-colors ${indent ? 'pl-5 pr-2' : 'px-2 font-medium'} ${
+            className={`w-full flex items-center gap-1.5 h-form-7 rounded-lg text-form-xs text-left transition-colors ${indent ? 'pl-5 pr-2' : 'px-2 font-medium'} ${
               sel === key ? 'bg-brand text-white [&>span]:!text-white' : 'text-ink-sub hover:bg-brand-tint'
             }`}>
             <span className="truncate">{label}</span>
@@ -386,7 +392,7 @@ export function PlanTabView({
           <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-0.5 sticky top-2">
             {/* ⚡ 빠른 입력 노드 폐기(2026-08-06) — 랜딩은 1.1 일반현황, 송달 동의는 1.1 하단으로 이관 */}
             <div>
-              <p className="px-2 py-1 text-[10px] font-bold text-ink-soft flex items-center">📘 소방계획서 본문
+              <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft flex items-center">📘 소방계획서 본문
                 <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-ink-faint'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
               </p>
               {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
@@ -399,7 +405,7 @@ export function PlanTabView({
             {/* 📑 별지 서식 그룹 폐지(2026-08-29 사용자 확정, 소방계획서_34 D34-2) — 최상위 [별지서식] 탭으로 승격.
                 안내 문구도 남기지 않는다. 구 딥링크 ?tab=plan&form=annex는 page.tsx가 서버에서 새 탭으로 해석한다. */}
             <div className="pt-2 mt-1.5 border-t border-brand-tint">
-              <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">🗂 보관·이력</p>
+              <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft">🗂 보관·이력</p>
               {navBtn('archive', '보관함·개정이력')}
             </div>
           </aside>
@@ -419,7 +425,7 @@ export function PlanTabView({
             }}>
             {/* 모바일 목차 드롭다운 (7-6) */}
             <select value={sel} data-plan-nav onChange={e => select(e.target.value)}
-              className="md:hidden mb-3 h-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none">
+              className="md:hidden mb-3 h-form-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-form-sm outline-none">
               {NAV_ALL.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
             </select>
 

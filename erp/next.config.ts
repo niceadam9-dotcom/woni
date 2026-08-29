@@ -25,7 +25,16 @@ const nextConfig: NextConfig = {
         ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }]
         : []),
     ]
-    return [{ source: '/:path*', headers: securityHeaders }]
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      // 셀프호스팅 폰트 캐시 (소방계획서_35 S1-4). public/ 정적파일의 기본은
+      // max-age=0이라 92조각을 매 요청 재검증한다 — 파일명에 버전이 박혀 있고
+      // 내용이 불변이므로 1년 immutable로 못 박는다.
+      {
+        source: '/fonts/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ]
   },
 };
 

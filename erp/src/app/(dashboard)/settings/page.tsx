@@ -2,14 +2,16 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   Settings, User, KeyRound, PenLine, Building2, Users, Network,
-  CalendarDays, Warehouse, ScrollText, ChevronRight, Bell, MessageSquare, Palette,
+  CalendarDays, Warehouse, ScrollText, ChevronRight, Bell, MessageSquare, Palette, Type,
 } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { readProfileTheme } from '@/lib/theme'
+import { readProfileFontScale } from '@/lib/font-scale'
 import { PasswordChangeClient } from '@/components/settings/password-change-client'
 import { NotificationSettingsClient } from '@/components/settings/notification-settings-client'
 import { ThemeSettingsClient } from '@/components/settings/theme-settings-client'
+import { FontScaleSettingsClient } from '@/components/settings/font-scale-settings-client'
 
 const ROLE_LABELS: Record<string, string> = { employee: '일반직원', manager: '팀장', admin: '관리자' }
 
@@ -44,7 +46,14 @@ export default async function SettingsPage() {
 
   // 화면 테마 (소방계획서_29) — 관용 조회(151 미적용이면 null → light).
   // 전 사용자 노출(S4-3, 2026-08-28 승인) — 독립 판정·28화면 스캔 통과 후 D-6 게이트 해제
-  const theme = (await readProfileTheme(profile.id)) ?? 'light'
+  // 소방계획서 글자 배율(소방계획서_35) — 같은 관용 조회 규약(154 미적용이면 null → md).
+  // 두 조회를 병렬로 — 순차면 설정 화면 진입에 왕복 2개가 직렬로 붙는다.
+  const [themeRaw, fsRaw] = await Promise.all([
+    readProfileTheme(profile.id),
+    readProfileFontScale(profile.id),
+  ])
+  const theme = themeRaw ?? 'light'
+  const fontScale = fsRaw ?? 'md'
   const showThemeCard = true
 
   const infoRows: Array<[string, string]> = [
@@ -107,6 +116,20 @@ export default async function SettingsPage() {
           </div>
         </section>
       )}
+
+      {/* 소방계획서 글자 크기 (소방계획서_35 S5-2)
+          ⚠ 테마 카드와 달리 관리자 제한을 두지 않는다 — 이 기능이 필요한 사람이
+          바로 현장 실무자(시니어)이고, 숨기면 기능이 없는 것과 같기 때문이다. */}
+      <section className={cardCls} data-testid="font-scale-settings-card">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-brand-line-soft">
+          <Type className="size-4 text-brand" />
+          <h2 className="text-sm font-semibold text-ink">소방계획서 글자 크기</h2>
+          <span className="ml-auto text-[11px] text-ink-faint">이 계정의 모든 기기에 적용됩니다</span>
+        </div>
+        <div className="px-5 py-4">
+          <FontScaleSettingsClient initialScale={fontScale} />
+        </div>
+      </section>
 
       {/* 알림 수신 설정 */}
       <section className={cardCls}>

@@ -6,7 +6,9 @@ import { can } from '@/lib/permissions'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { ThemeSync } from '@/components/layout/theme-sync'
+import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { readProfileTheme } from '@/lib/theme'
+import { readProfileFontScale } from '@/lib/font-scale'
 import type { UserRole } from '@/types'
 
 // 사이드바 뱃지: 미완료 6단계 중 지연/D-Day(빨강), D-1~3(주황) 건수 (Victory10 §6)
@@ -42,11 +44,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // 실측 497ms(중앙값)인데 이 레이아웃은 모든 화면이 지나므로, 넣으면 화면 전환마다
   // 0.5초가 붙는다. 뱃지는 "할 일이 있다"는 보조 신호일 뿐이라 첫 페인트를 막을 이유가 없다.
   // → Sidebar가 마운트 후 클라이언트에서 가져온다(scripts/_probe-sms-badge-cost.mts가 상한을 고정).
-  // theme은 PROFILE_COLS(30초 캐시) 밖 — 관용 조회를 기존 병렬 묶음에 태워 왕복 추가 0
-  const [{ redCount, orangeCount }, company, dbTheme] = await Promise.all([
+  // theme·form_font_scale은 PROFILE_COLS(30초 캐시) 밖 — 관용 조회를 기존 병렬 묶음에
+  // 태워 **왕복 추가 0**. 컬럼이 없으면 둘 다 null이라 화면은 기본값으로 그려진다.
+  const [{ redCount, orangeCount }, company, dbTheme, dbFontScale] = await Promise.all([
     getStepBadgeCounts(profile.id, profile.role),
     getCompanyProfile(),
     readProfileTheme(profile.id),
+    readProfileFontScale(profile.id),
   ])
 
   return (
@@ -56,6 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     /* ⚠ print:bg-white는 리터럴이어야 한다 — 토큰(surface)이면 다크 모드에서 어두운 배경이 인쇄된다 */
     <div className="flex h-screen overflow-hidden bg-paper print:block print:h-auto print:overflow-visible print:bg-white">
       <ThemeSync dbTheme={dbTheme} />
+      <FontScaleSync dbScale={dbFontScale} />
       <Sidebar
         role={profile.role}
         redCount={redCount}

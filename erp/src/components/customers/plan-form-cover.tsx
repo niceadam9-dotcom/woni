@@ -44,7 +44,7 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
     })
   }
 
-  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
+  const inputCls = 'h-form-7 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand'
   const shownYear = (v.year ?? '').trim() || defaults.year
   const shownCompany = (v.company ?? '').trim() || defaults.company
 
@@ -53,23 +53,23 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
         <div className="flex items-center gap-2">
           <BookMarked className="size-4 text-brand" />
-          <p className="text-xs font-semibold text-ink-sub">보고서 커버</p>
-          <span className="text-[11px] text-ink-faint ml-auto">생성 문서 마지막 페이지 — 비워 두면 자동값</span>
+          <p className="text-form-sm font-semibold text-ink-sub">보고서 커버</p>
+          <span className="text-form-xs text-ink-faint ml-auto">생성 문서 마지막 페이지 — 비워 두면 자동값</span>
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           <div>
-            <label className="text-[10px] text-ink-faint block">업체명 (기본: 고객명)</label>
+            <label className="text-form-2xs text-ink-faint block">업체명 (기본: 고객명)</label>
             <input id="cover-company" value={v.company ?? ''} disabled={!canManage} placeholder={defaults.company}
               onChange={e => patch({ company: e.target.value })} className={`${inputCls} w-64`} />
           </div>
           <div>
-            <label className="text-[10px] text-ink-faint block">연도 (기본: 생성 연도)</label>
+            <label className="text-form-2xs text-ink-faint block">연도 (기본: 생성 연도)</label>
             <input id="cover-year" value={v.year ?? ''} disabled={!canManage} placeholder={defaults.year}
               inputMode="numeric" onChange={e => patch({ year: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) })}
               className={`${inputCls} w-20`} />
           </div>
           <div className="flex-1 min-w-48">
-            <label className="text-[10px] text-ink-faint block">부기 문구 (선택 — 비우면 업무대행 회사명)</label>
+            <label className="text-form-2xs text-ink-faint block">부기 문구 (선택 — 비우면 업무대행 회사명)</label>
             <input id="cover-sub" value={v.sub ?? ''} disabled={!canManage} placeholder="예: 소방안전관리 업무대행 ○○소방(주)"
               onChange={e => patch({ sub: e.target.value })} className={`${inputCls} w-full`} />
           </div>
@@ -78,19 +78,19 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
 
       {/* 미리보기 — 생성 커버 페이지와 같은 배치(중앙 대형 타이포) */}
       <div className="rounded-xl border border-dashed border-brand-line bg-surface px-4 py-8 text-center">
-        <p className="text-sm text-ink-sub">{shownYear}년도</p>
+        <p className="text-form-base text-ink-sub">{shownYear}년도</p>
         <p className="text-2xl font-bold tracking-[0.4em] text-ink my-3">소방계획서</p>
-        <p className="text-base text-ink">[ {shownCompany} ]</p>
-        {(v.sub ?? '').trim() && <p className="text-xs text-ink-sub mt-2">{(v.sub ?? '').trim()}</p>}
+        <p className="text-form-lg text-ink">[ {shownCompany} ]</p>
+        {(v.sub ?? '').trim() && <p className="text-form-sm text-ink-sub mt-2">{(v.sub ?? '').trim()}</p>}
       </div>
 
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 보고서 커버 저장
           </button>
-          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
+          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

@@ -1,6 +1,9 @@
 ﻿@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* 한글 웹폰트 (소방계획서_35 S1) — 아래 body/heading 스택의 'Pretendard Variable'이 여기서 온다.
+   @import는 다른 규칙보다 앞서야 하므로 이 자리 고정. */
+@import "./pretendard.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -161,7 +164,68 @@
   --sidebar-accent-foreground: oklch(0.58 0.18 277);
   --sidebar-border: oklch(0.92 0.005 277);
   --sidebar-ring: oklch(0.58 0.18 277);
+
+  /* ── 소방계획서 서식 글자 크기 (소방계획서_35) ────────────────────────────────
+     실값은 **여기 한 곳**이다. 화면 16파일은 text-form-… · h-form-… 유틸리티만 쓴다.
+     (주석 안에 `*` 바로 뒤 `/`를 쓰지 말 것 — CSS 주석이 거기서 끊긴다. 실제로 한 번 깨뜨렸다.)
+
+     ⚠ S2(코드모드) 시점의 값은 **구 값 그대로**다. 그래야 치환이 항등이 되어
+       "픽셀이 하나도 안 변했다"를 computed 값으로 증명할 수 있다(test-plan-readability
+       --identity). 확대는 S3에서 **이 6줄만** 올려서 켠다 — 회귀 시 16파일 revert가
+       아니라 변수 한 줄 되돌리기로 끝난다.
+
+     ⚠ 배율(--fs-scale)은 <html data-fs>가 정한다. 컨테이너가 아니라 <html>인 이유:
+       1.4 세부제원 패널이 fixed inset-0라 컨테이너 스코프를 벗어난다. <html>에 걸어도
+       text-form-*을 쓰는 화면 밖에서는 변수가 소비되지 않아 스코프는 이름으로 보장된다. */
+  --fs-scale: 1;
+  --fs-1: 11px;   /* 구  9px — rowtable 헤더 */
+  --fs-2: 12px;   /* 구 10px */
+  --fs-3: 13px;   /* 구 11px — 최다(122곳) */
+  --fs-4: 14px;   /* 구 12px (text-xs) */
+  --fs-5: 15px;   /* 구 14px (text-sm) */
+  --fs-6: 17px;   /* 구 16px (text-base) */
+  --fs-h6: 28px;  /* 구 24px — rowtable input. ⚠ 글자만 키우면 xl 배율에서 잘린다
+                     (13×1.3×1.5 = 25.4px > 24px) */
+  --fs-h7: 32px;  /* 구 28px */
+  --fs-h8: 36px;  /* 구 32px */
+  --fs-col-num: 52px;  /* 구 44px — 숫자열 colgroup. ⚠ 글자와 **함께** 키워야 한다.
+                          44px 열의 실제 입력 폭은 border·padding을 빼면 28px뿐이라
+                          글자만 11→13px로 올리면 자릿수가 줄어든다(W-1). */
 }
+
+/* 배율 단계. 값이 없으면 속성 자체가 없다 = --fs-scale:1 = 손댄 적 없는 사용자의 기본. */
+html[data-fs="lg"] { --fs-scale: 1.15 }
+html[data-fs="xl"] { --fs-scale: 1.3 }
+
+/* ⚠ 인쇄는 배율·확대를 전부 되돌린다 (소방계획서_35 D35-5 — 사용자 결정: 화면만).
+   법정 서식은 규격이라 글자가 커지면 칸을 넘치거나 쪽수가 틀어진다.
+   PDF 생성은 애초에 별도 HTML 템플릿(lib/fire-plan-template.ts)이라 이 경로와 무관하고,
+   여기서 닫는 것은 브라우저 Ctrl+P 하나다. '대충 리셋'이 아니라 **검증 가능한 항등**이다 —
+   test-plan-readability가 S0 고정 기준선과 대조한다. */
+@media print {
+  :root, html[data-fs] {
+    --fs-scale: 1;
+    --fs-1: 9px;  --fs-2: 10px; --fs-3: 11px; --fs-4: 12px; --fs-5: 14px; --fs-6: 16px;
+    --fs-h6: 24px; --fs-h7: 28px; --fs-h8: 32px; --fs-col-num: 44px;
+  }
+}
+
+/* ⚠ px 계열(3xs·2xs·xs)은 line-height를 **정하지 않는다**.
+   구 text-[11px] 같은 임의값은 line-height를 안 걸어 preflight의 1.5를 상속했고,
+   text-xs는 --text-xs--line-height: calc(1/0.75)를 함께 걸었다. 이 비대칭을 그대로
+   옮겨야 항등이 성립한다 — 편의로 통일하면 S2의 픽셀 불변이 깨지고 증명 구조가 무너진다. */
+/* letter-spacing: normal — body 전역(-0.01em)은 라틴 디스플레이용 조임인데 한글 자간까지
+   좁힌다. body를 고치면 ERP 전 화면 텍스트 폭이 흔들리므로 **이 유틸리티에만** 되돌린다.
+   ⚠ 항등이 아니므로 S2(코드모드)가 아니라 S3(상향)에 묶었다. */
+@utility text-form-3xs  { font-size: calc(var(--fs-1) * var(--fs-scale)); letter-spacing: normal; }
+@utility text-form-2xs  { font-size: calc(var(--fs-2) * var(--fs-scale)); letter-spacing: normal; }
+@utility text-form-xs   { font-size: calc(var(--fs-3) * var(--fs-scale)); letter-spacing: normal; }
+@utility text-form-sm   { font-size: calc(var(--fs-4) * var(--fs-scale)); line-height: calc(1 / 0.75);     letter-spacing: normal; }
+@utility text-form-base { font-size: calc(var(--fs-5) * var(--fs-scale)); line-height: calc(1.25 / 0.875); letter-spacing: normal; }
+@utility text-form-lg   { font-size: calc(var(--fs-6) * var(--fs-scale)); line-height: calc(1.5 / 1);      letter-spacing: normal; }
+@utility h-form-6 { height: calc(var(--fs-h6) * var(--fs-scale)); }
+@utility h-form-7 { height: calc(var(--fs-h7) * var(--fs-scale)); }
+@utility h-form-8 { height: calc(var(--fs-h8) * var(--fs-scale)); }
 
 .dark {
   /* 소방계획서_29 다크 팔레트 — erp_goal/image-18.png 톤(딥 뉴트럴 + 보라 포인트).
@@ -299,11 +363,15 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-plus-jakarta-sans), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    /* ⚠ 'Pretendard Variable'은 **후미**다(소방계획서_35 D35-4). 앞의 두 폰트는
+       subsets:["latin"]이라 한글 글리프가 없어 한글만 여기로 내려온다 —
+       라틴·숫자는 여전히 PJS/Inter가 잡으므로 tabular-nums 폭과 영문 UI가 불변이다.
+       맨 앞에 두면 ERP 전 화면의 영문·숫자 폭이 동시에 바뀐다(회귀 표면 몇 배). */
+    font-family: var(--font-plus-jakarta-sans), var(--font-inter), 'Pretendard Variable', ui-sans-serif, system-ui, sans-serif;
     letter-spacing: -0.01em;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-plus-jakarta-sans), 'Pretendard Variable', ui-sans-serif, system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
   }

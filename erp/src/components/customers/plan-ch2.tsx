@@ -74,20 +74,20 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
     })
   }
 
-  const inputCls = 'h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand'
+  const inputCls = 'h-form-7 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand'
   return (
     <div className="space-y-4">
       {/* 2.1 일반현황 — Type 선택 */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
-        <p className="text-xs font-semibold text-ink-sub mb-2">2.1 자위소방대 및 초기대응체계 일반현황</p>
+        <p className="text-form-sm font-semibold text-ink-sub mb-2">2.1 자위소방대 및 초기대응체계 일반현황</p>
         <div className="flex items-stretch gap-2 flex-wrap">
           {TYPES.map(tp => (
             <button key={tp.key} disabled={!canManage}
               onClick={() => { setType(type === tp.key ? '' : tp.key); setDirty(true) }}
               className={`rounded-lg border px-3 py-2 text-left transition-colors ${
                 type === tp.key ? 'border-brand bg-brand-tint' : 'border-brand-line hover:bg-brand-tint'}`}>
-              <span className={`text-xs font-semibold ${type === tp.key ? 'text-brand' : 'text-ink'}`}>{tp.label}</span>
-              <span className="block text-[10px] text-ink-sub mt-0.5">{tp.desc}</span>
+              <span className={`text-form-sm font-semibold ${type === tp.key ? 'text-brand' : 'text-ink'}`}>{tp.label}</span>
+              <span className="block text-form-2xs text-ink-sub mt-0.5">{tp.desc}</span>
             </button>
           ))}
         </div>
@@ -96,17 +96,17 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
       {/* 2.2 편성표 */}
       <div id="c-2.2" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs font-semibold text-ink-sub">2.2 편성표
+          <p className="text-form-sm font-semibold text-ink-sub">2.2 편성표
             <span className="font-normal text-ink-faint ml-2">1.1 계획서 정보 패널의 자위소방대와 동일 데이터</span>
           </p>
           {canManage && (
             <div className="ml-auto flex items-center gap-2">
               <button onClick={() => setShowPeople(v => !v)}
-                className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+                className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
                 <Users className="size-3" /> 관계인·직원 가져오기
               </button>
               <button onClick={() => { setRows(p => [...p, { team: '반원', name: '', duty: '', phone: '' }]); setDirty(true) }}
-                className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint">
+                className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint">
                 <Plus className="size-3" /> 행 추가
               </button>
             </div>
@@ -117,7 +117,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
             {people.slice(0, 12).map((p, i) => (
               <button key={i}
                 onClick={() => { setRows(prev => [...prev, { team: '반원', name: p.name, duty: '', phone: p.phone }]); setDirty(true) }}
-                className="h-6 px-2 rounded-full border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint"
+                className="h-form-6 px-2 rounded-full border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint"
                 title={p.kind}>
                 + {p.name} <span className="text-ink-faint">({p.kind})</span>
               </button>
@@ -129,7 +129,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
               <select value={r.team} disabled={!canManage}
                 onChange={e => { setRows(p => p.map((x, j) => j === i ? { ...x, team: e.target.value } : x)); setDirty(true) }}
-                className="h-7 rounded border border-brand-line bg-surface px-1 text-xs outline-none w-28">
+                className="h-form-7 rounded border border-brand-line bg-surface px-1 text-form-sm outline-none w-28">
                 {TEAM_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
               <input value={r.name} disabled={!canManage} placeholder="성명"
@@ -151,7 +151,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
       {/* 팀별 임무 (2.5~2.13) — 표준 문구 + 수정 (v1 프리셋) */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-xs font-semibold text-ink-sub">팀별 임무 (2.5~2.13)
+          <p className="text-form-sm font-semibold text-ink-sub">팀별 임무 (2.5~2.13)
             <span className="font-normal text-ink-faint ml-2">표준 문구 기본 — 필요 시 수정 (빈 칸이면 표준 문구로 출력)</span>
           </p>
           {/* 공통 서술 라이브러리 — 7팀 Record 치환, 빈 키의 기존 입력은 유지 (소방계획서_15_별도라이브러리) */}
@@ -165,23 +165,23 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
         </div>
         {TEAMS.map(tm => (
           <div key={tm.key}>
-            <label className="text-[11px] font-medium text-ink-sub block mb-0.5">{tm.label}</label>
+            <label className="text-form-xs font-medium text-ink-sub block mb-0.5">{tm.label}</label>
             <textarea value={teams[tm.key]} disabled={!canManage} rows={1} placeholder={tm.preset}
               onChange={e => { setTeams(p => ({ ...p, [tm.key]: e.target.value })); setDirty(true) }}
-              className="w-full rounded-lg border border-brand-line bg-surface px-2 py-1 text-xs outline-none focus:border-brand resize-y" />
+              className="w-full rounded-lg border border-brand-line bg-surface px-2 py-1 text-form-sm outline-none focus:border-brand resize-y" />
           </div>
         ))}
       </div>
 
-      <p className="text-[11px] text-ink-faint">2.14 교육·훈련 실시 결과 기록부는 서식 1.11.4와 공용입니다 — 1장 &gt; 1.11에서 기록하세요.</p>
+      <p className="text-form-xs text-ink-faint">2.14 교육·훈련 실시 결과 기록부는 서식 1.11.4와 공용입니다 — 1장 &gt; 1.11에서 기록하세요.</p>
 
       {canManage && (
         <div className="flex items-center gap-2">
           <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 2장 저장
           </button>
-          {msg && <span className="text-xs text-ink-sub">{msg}</span>}
+          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
         </div>
       )}
     </div>

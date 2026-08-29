@@ -1,0 +1,330 @@
+{
+  "note": "소방계획서_35 S0 기준선 — 손으로 고치지 말 것",
+  "screens": {
+    "1.1": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 47,
+        "13px": 56,
+        "10px": 12,
+        "12px": 23,
+        "11px": 11,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 154,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.2": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 26,
+        "13px": 45,
+        "10px": 12,
+        "12px": 21,
+        "11px": 1,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 110,
+      "tables": [
+        {
+          "tag": "div",
+          "testid": "",
+          "sw": 1052,
+          "cw": 1052
+        },
+        {
+          "tag": "table",
+          "testid": "",
+          "sw": 1044,
+          "cw": 1044
+        }
+      ],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.3": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 34,
+        "13px": 54,
+        "10px": 13,
+        "12px": 21,
+        "11px": 23,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 150,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.4": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 80,
+        "13px": 79,
+        "10px": 12,
+        "12px": 39,
+        "11px": 1,
+        "20px": 1,
+        "15px": 43,
+        "17px": 1
+      },
+      "counted": 257,
+      "tables": [
+        {
+          "tag": "table",
+          "testid": "",
+          "sw": 1078,
+          "cw": 1078
+        }
+      ],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.5": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 30,
+        "13px": 53,
+        "10px": 12,
+        "12px": 25,
+        "11px": 1,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 126,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.6": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 33,
+        "13px": 37,
+        "10px": 12,
+        "12px": 28,
+        "11px": 4,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 119,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.7": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 31,
+        "13px": 39,
+        "10px": 12,
+        "12px": 21,
+        "11px": 1,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 109,
+      "tables": [
+        {
+          "tag": "div",
+          "testid": "",
+          "sw": 1052,
+          "cw": 1052
+        },
+        {
+          "tag": "table",
+          "testid": "",
+          "sw": 1044,
+          "cw": 1044
+        }
+      ],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.8": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 34,
+        "13px": 43,
+        "10px": 12,
+        "12px": 21,
+        "11px": 1,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 116,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.10": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 29,
+        "13px": 39,
+        "10px": 12,
+        "12px": 21,
+        "11px": 5,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 111,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.11": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 35,
+        "13px": 65,
+        "10px": 12,
+        "12px": 24,
+        "11px": 3,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 144,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.12": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 28,
+        "13px": 38,
+        "10px": 12,
+        "12px": 21,
+        "11px": 13,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 117,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "ch2": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 32,
+        "13px": 39,
+        "10px": 12,
+        "12px": 24,
+        "11px": 3,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 115,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "ch3": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 64,
+        "13px": 57,
+        "10px": 12,
+        "12px": 22,
+        "11px": 12,
+        "20px": 1,
+        "15px": 2,
+        "17px": 1
+      },
+      "counted": 172,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "cover": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 25,
+        "13px": 30,
+        "10px": 12,
+        "12px": 24,
+        "11px": 1,
+        "20px": 1,
+        "15px": 3,
+        "17px": 2,
+        "24px": 1
+      },
+      "counted": 100,
+      "tables": [],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600
+    },
+    "1.4-specs": {
+      "hist": {
+        "12.5px": 1,
+        "14px": 80,
+        "13px": 100,
+        "10px": 12,
+        "12px": 52,
+        "11px": 12,
+        "20px": 1,
+        "15px": 43,
+        "17px": 1
+      },
+      "counted": 302,
+      "tables": [
+        {
+          "tag": "table",
+          "testid": "",
+          "sw": 1078,
+          "cw": 1078
+        },
+        {
+          "tag": "div",
+          "testid": "",
+          "sw": 526,
+          "cw": 526
+        },
+        {
+          "tag": "table",
+          "testid": "rowtable-s31_extinguisher-dong_rows",
+          "sw": 526,
+          "cw": 526
+        }
+      ],
+      "skippedNarrow": 4,
+      "docScrollW": 1600,
+      "docClientW": 1600,
+      "panelOpened": true,
+      "rowtables": 2
+    }
+  }
+}

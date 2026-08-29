@@ -76,6 +76,14 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // ⚠ fonts/ 와 woff2를 반드시 제외한다 (소방계획서_35 S1, 2026-08-29 실측 결함).
+    //   셀프호스팅 한글폰트(public/fonts/pretendard)는 브라우저가 **CORS 모드**로 받는다
+    //   — 폰트는 crossorigin 없이는 @font-face에 쓸 수 없고, crossorigin이 붙으면
+    //   **쿠키가 실리지 않는다**. 그래서 이 게이트를 통과할 세션이 원리적으로 없고,
+    //   전부 /login으로 리다이렉트돼 한글이 영영 맑은 고딕으로 남는다.
+    //   ⚠ 그 리다이렉트는 fetch가 따라가 **HTTP 200 + HTML**로 보인다 —
+    //   상태코드만 보는 검사는 초록이다(assert-web-korean-font.mjs가 본문 매직을 보는 이유).
+    //   부수 효과로 92조각마다 Supabase auth.getUser() 왕복이 붙던 것도 사라진다.
+    '/((?!_next/static|_next/image|favicon.ico|fonts/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf)$).*)',
   ],
 }

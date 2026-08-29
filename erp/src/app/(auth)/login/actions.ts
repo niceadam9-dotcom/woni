@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { HOME_PATH } from '@/lib/routes'
 import { THEME_COOKIE, THEME_COOKIE_OPTIONS, readProfileTheme } from '@/lib/theme'
+import { FS_COOKIE, FS_COOKIE_OPTIONS, readProfileFontScale } from '@/lib/font-scale'
 import type { Profile } from '@/types'
 
 const MAX_FAILED_LOGINS = 5
@@ -100,10 +101,16 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
     // 개인 테마 → 쿠키 (소방계획서_29 S1-4) — 새 기기에서도 첫 화면부터 내 테마.
     // null(151 미적용·미설정)이면 안 만진다 — 기본값 light는 쿠키 부재가 곧 표현이다.
-    const theme = await readProfileTheme(profile.id)
-    if (theme) {
+    // 개인 글자 배율 → 쿠키 (소방계획서_35 S4-5). 같은 규약: null(154 미적용·미설정)이면
+    // 안 만진다 — 기본값 md는 쿠키 부재가 곧 표현이다.
+    const [theme, fontScale] = await Promise.all([
+      readProfileTheme(profile.id),
+      readProfileFontScale(profile.id),
+    ])
+    if (theme || fontScale) {
       const jar = await cookies()
-      jar.set(THEME_COOKIE, theme, THEME_COOKIE_OPTIONS)
+      if (theme) jar.set(THEME_COOKIE, theme, THEME_COOKIE_OPTIONS)
+      if (fontScale) jar.set(FS_COOKIE, fontScale, FS_COOKIE_OPTIONS)
     }
   }
 
