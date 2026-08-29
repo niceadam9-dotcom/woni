@@ -1175,6 +1175,163 @@ export async function deleteCustomerAction(
   return {}
 }
 
+// ── 조건부 hard delete (소방계획서_30 S3, D-2 채택 / 소방계획서_32 DEF-1 확대) ──
+// '실이력' 축 — 마이그레이션 152 hard_delete_customer()의 검사 목록·순서와 반드시 일치시킬 것.
+//
+// 축은 눈대중이 아니라 customers 참조 FK 전수에서 뺄셈으로 만든다(152 주석 '축을 어떻게 골랐나').
+// 명시 DELETE 되는 비계 2표(inspection_plan_items·buildings)와 등록 기본정보(customer_contacts)만
+// 빼고 나머지 전부가 차단축이다. 종전 13축은 CASCADE 6표를 빠뜨려, 소방계획서·자위소방대·세부현황만
+// 가진 고객을 '이력 없음'으로 판정해 되돌릴 수 없이 지웠다(DEF-1).
+//
+// 계획 항목 전부가 아니라 '완료됐거나 점검에 연결된 것'만 세는 이유: 등록 시 연간 계획이
+// 자동 생성되므로(generateRollingPlanItems) 전부를 세면 전 고객이 차단돼 기능이 공집합이 된다.
+// 확대 후 실측(2026-08-29 스테이징 312명): 삭제 가능 93명 → 92명.
+const HISTORY_AXES: Array<{ key: string; label: string; table: string; real?: boolean; ledger?: boolean }> = [
+  { key: 'inspections', label: '점검', table: 'inspections' },
+  { key: 'plan_items_real', label: '완료·점검연결 계획', table: 'inspection_plan_items', real: true },
+  { key: 'bills', label: '청구서', table: 'bills' },
+  { key: 'quotes', label: '견적', table: 'quotes' },
+  { key: 'orders', label: '수주', table: 'orders' },
+  { key: 'inquiries', label: '문의', table: 'inquiries' },
+  { key: 'fire_plans', label: '소방계획서', table: 'fire_plans' },
+  { key: 'fire_plan_forms', label: '소방계획서 서식', table: 'fire_plan_forms' },
+  { key: 'fire_plan_gen_jobs', label: '문서 생성', table: 'fire_plan_gen_jobs' },
+  { key: 'fire_plan_revisions', label: '개정이력', table: 'fire_plan_revisions' },
+  { key: 'fire_brigade_members', label: '자위소방대', table: 'fire_brigade_members' },
+  { key: 'customer_facility_specs', label: '세부현황', table: 'customer_facility_specs' },
+  { key: 'plan_text_applied', label: '공통문구 적용', table: 'plan_text_applied' },
+  // 설비 대장 — buildings 경유(자식에 customer_id가 없다). 건물 자체는 비계라 세지 않고,
+  // 사용자가 직접 저장한 설비/층별 값이 하나라도 있는 건물만 센다(152의 EXISTS와 같은 술어).
+  { key: 'facility_ledger', label: '설비 대장', table: 'buildings', ledger: true },
+  { key: 'billing_profiles', label: '청구 프로필', table: 'billing_profiles' },
+  { key: 'billing_autopay', label: '자동이체', table: 'billing_autopay' },
+  { key: 'report_deliveries', label: '보고서 발송', table: 'report_deliveries' },
+  { key: 'sms_send_log', label: '문자 발송', table: 'sms_send_log' },
+  { key: 'mobile_documents', label: '모바일 문서', table: 'mobile_documents' },
+  { key: 'account_access_log', label: '계좌 접근', table: 'account_access_log' },
+]
+
+/** 설비 대장 축 — buildings!inner 임베드로 '설비 또는 층별 값을 가진 건물'을 센다.
+ *  두 갈래를 따로 세고 합치는 이유: PostgREST 임베드는 서로 다른 자식 두 개를 OR로 묶지 못한다
+ *  (하나의 select에 둘 다 !inner를 걸면 AND가 된다 — 층별만 있는 건물을 놓친다). */
+async function _countFacilityLedger(
+  admin: ReturnType<typeof createAdminClient>, customerId: string,
+): Promise<number> {
+  const one = async (child: string) => {
+    const { count, error } = await admin
+      .from(child).select('building_id, buildings!inner(customer_id)', { count: 'exact', head: true })
+      .eq('buildings.customer_id', customerId)
+    if (error) throw new Error(`${child} 조회 실패: ${error.message}`)
+    return count ?? 0
+  }
+  const [fac, flr] = await Promise.all([one('fire_facilities'), one('fire_facility_floors')])
+  return fac + flr
+}
+
+/** 물리 삭제 뒤 남는 스토리지 고아 정리 (소방계획서_32 DEF-2).
+ *  fire-plans 버킷의 고객 파일은 전부 `{customerId}/` 아래에 있다 — 표지·위치도·피난안내도
+ *  (`assets/`)는 **DB 행이 아예 없어** 어떤 FK로도 따라갈 수 없다. 접두사째 비우는 이유가 이것.
+ *  list()는 재귀하지 않으므로(폴더는 id=null로 온다) 직접 훑는다. */
+async function _purgeCustomerStorage(
+  admin: ReturnType<typeof createAdminClient>, customerId: string,
+): Promise<{ removed: number; error?: string }> {
+  const BUCKET = 'fire-plans'
+  const files: string[] = []
+  const queue = [customerId]
+  while (queue.length) {
+    const prefix = queue.shift()!
+    const { data, error } = await admin.storage.from(BUCKET).list(prefix, { limit: 1000 })
+    // 조회 실패를 빈 목록으로 오인하면 '지울 게 없었다'와 구별되지 않는다
+    if (error) return { removed: files.length, error: `${prefix} 목록 조회 실패: ${error.message}` }
+    for (const o of data ?? []) {
+      if (o.id === null) queue.push(`${prefix}/${o.name}`)   // 폴더
+      else files.push(`${prefix}/${o.name}`)
+    }
+  }
+  if (files.length === 0) return { removed: 0 }
+  const { error } = await admin.storage.from(BUCKET).remove(files)
+  if (error) return { removed: 0, error: `파일 삭제 실패: ${error.message}` }
+  return { removed: files.length }
+}
+
+export type CustomerDeleteCheck = {
+  deletable: boolean
+  name: string
+  /** 0건 축은 제외 — 모달에 보일 것만 */
+  history: Array<{ label: string; count: number }>
+  error?: string
+}
+
+/** 완전 삭제 가능 여부 사전 검사 (모달 표시용) — 확정 판정은 RPC가 트랜잭션 안에서 다시 한다 */
+export async function checkCustomerDeleteAction(customerId: string): Promise<CustomerDeleteCheck> {
+  await requirePermission('customer_delete')
+  const admin = createAdminClient()
+
+  const { data: cust, error: cErr } = await admin
+    .from('customers').select('customer_name').eq('id', customerId).single()
+  if (cErr || !cust) return { deletable: false, name: '', history: [], error: '고객을 찾을 수 없습니다.' }
+
+  const counts = await Promise.all(HISTORY_AXES.map(async ax => {
+    if (ax.ledger) return { label: ax.label, count: await _countFacilityLedger(admin, customerId) }
+    // select('*'): fire_plan_forms는 id 컬럼이 없다(PK=customer_id) — head:true count는 컬럼 목록이 필요 없다
+    let q = admin.from(ax.table).select('*', { count: 'exact', head: true }).eq('customer_id', customerId)
+    if (ax.real) q = q.or('status.eq.completed,inspection_id.not.is.null')
+    const { count, error } = await q
+    // error를 함께 본다 — 임베드·컬럼 오류가 '조용한 0행'으로 둔갑하면 삭제 가능으로 오판한다
+    if (error) throw new Error(`${ax.table} 조회 실패: ${error.message}`)
+    return { label: ax.label, count: count ?? 0 }
+  })).catch((e: Error) => e)
+  if (counts instanceof Error) return { deletable: false, name: (cust as { customer_name: string }).customer_name, history: [], error: counts.message }
+
+  const nonzero = counts.filter(c => c.count > 0)
+  return { deletable: nonzero.length === 0, name: (cust as { customer_name: string }).customer_name, history: nonzero }
+}
+
+/** 완전 삭제(물리 DELETE) — 실이력 0건일 때만. 검사·삭제는 DB 함수 한 트랜잭션(152).
+ *  warning: 행은 지워졌으나 스토리지 정리가 남은 경우 — 실패가 아니므로 error와 구분한다. */
+export async function hardDeleteCustomerAction(customerId: string): Promise<{ error?: string; warning?: string }> {
+  const profile = await requirePermission('customer_delete')
+  const admin = createAdminClient()
+
+  const { data, error } = await admin.rpc('hard_delete_customer', { p_customer_id: customerId })
+  if (error) return { error: error.message }
+
+  const res = data as { ok: boolean; reason?: string; name?: string; code?: string }
+  if (!res.ok) {
+    return {
+      error: res.reason === 'not_found'
+        ? '고객을 찾을 수 없습니다.'
+        : '업무 이력이 있어 완전 삭제할 수 없습니다 — 비활성화를 사용해주세요.',
+    }
+  }
+
+  // 파일 정리는 RPC **뒤**에 한다 — 앞에서 지우면 RPC가 has_history로 차단될 때
+  // 살아남은 고객의 표지·위치도를 이미 파괴한 뒤가 된다(deleteFirePlanAction과 순서가 반대인 이유:
+  // 그쪽은 경로가 행에만 있어 행을 먼저 지우면 못 찾지만, 여기 경로는 customerId만으로 정해진다).
+  const purge = await _purgeCustomerStorage(admin, customerId)
+
+  // 고객 행이 사라진 뒤에도 누가 지웠는지는 남긴다 (activity_logs는 FK가 아니라 남는다)
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id,
+    action: 'customer_hard_deleted',
+    entity_type: 'customer',
+    entity_id: customerId,
+    metadata: {
+      customer_name: res.name, customer_code: res.code,
+      storage_removed: purge.removed,
+      ...(purge.error ? { storage_error: purge.error } : {}),
+    },
+  } as Record<string, unknown>)
+
+  revalidatePath('/customers')
+  revalidatePath('/buildings')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections/calendar')
+  return purge.error
+    ? { warning: `고객은 삭제됐으나 첨부 파일 정리에 실패했습니다 — 관리자에게 알려주세요. (${purge.error})` }
+    : {}
+}
+
 export type AddressDuplicateCustomer = {
   id: string
   customer_name: string

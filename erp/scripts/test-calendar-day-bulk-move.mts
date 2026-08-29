@@ -26,12 +26,16 @@ const TAG = `ZDM${SUF}`
 // KST 기준 오늘 — 이동 목표일은 오늘 이후여야 한다(서버 가드)
 const now = new Date(Date.now() + 9 * 3600_000)
 const Y = now.getUTCFullYear(), M = now.getUTCMonth() + 1
-const lastDay = new Date(Date.UTC(Y, M, 0)).getUTCDate()
+const curLastDay = new Date(Date.UTC(Y, M, 0)).getUTCDate()
 const todayDay = now.getUTCDate()
 // 같은 달 안에 '오늘 이후' 날짜가 3개 필요하다 — 없으면(월말) 다음 달로 넘겨 검사한다
-const useCurrentMonth = todayDay + 3 <= lastDay
+const useCurrentMonth = todayDay + 3 <= curLastDay
 const base = useCurrentMonth ? new Date(Date.UTC(Y, M - 1, 1)) : new Date(Date.UTC(Y, M, 1))
 const PY = base.getUTCFullYear(), PM = base.getUTCMonth() + 1
+// ⚠ 말일은 **검사 대상 달(PY/PM)** 기준으로 구한다 — 이번 달(8월=31) 기준을 다음 달(9월)에 쓰면
+//   2026-09-31 같은 없는 날짜가 만들어지고, PostgREST가 date 파싱 실패로 질의를 통째로 거절한다
+//   (소방계획서_32 F-2). 종전 코드는 그 error를 안 봐서 '공집합'으로 둔갑했다.
+const lastDay = new Date(Date.UTC(PY, PM, 0)).getUTCDate()
 const D = (d: number) => `${PY}-${String(PM).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 
 const SRC = useCurrentMonth ? todayDay + 2 : 12   // 계획이 몰려 있는 날
@@ -79,8 +83,11 @@ async function main() {
   await raw.from('inspection_plan_items').update({ inspection_id: (insp as { id: string }).id }).eq('id', started.itemId)
 
   // 계획이 하나도 없는 날 — [날짜 이동] 미노출 확인용 (실데이터가 있는 DB에서도 성립하게 DB로 고른다)
-  const { data: monthRows } = await raw.from('inspection_plan_items')
+  const { data: monthRows, error: mErr } = await raw.from('inspection_plan_items')
     .select('scheduled_date').gte('scheduled_date', D(1)).lte('scheduled_date', D(lastDay))
+  // error를 함께 본다 — 안 보면 질의 거절이 '그 달엔 계획이 하나도 없다'로 둔갑해
+  // emptyDay=1이 되고, 실제로는 계획이 있는 날을 '빈 날'로 골라 엉뚱한 곳에서 실패한다
+  if (mErr) throw new Error(`월 계획 조회 실패: ${mErr.message}`)
   const busy = new Set(((monthRows ?? []) as Array<{ scheduled_date: string }>).map(r => r.scheduled_date))
   let emptyDay = 0
   for (let d = 1; d <= lastDay; d++) if (!busy.has(D(d))) { emptyDay = d; break }
