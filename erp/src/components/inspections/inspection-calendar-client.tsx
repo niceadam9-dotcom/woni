@@ -258,7 +258,7 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
       fontWeight: 'normal',
     }
   }
-  // ADD-11 폐지(D-7, 2026-08-29): 비활성/삭제 고객 건은 calendar/page.tsx에서 아예 실리지 않으므로
+  // ADD-11 폐지(D-8, 2026-08-29): 비활성/삭제 고객 건은 calendar/page.tsx에서 아예 실리지 않으므로
   // '회색 취소선' 분기는 도달 불가 죽은 코드였다 — 제거. 취소선으로 흐리는 게 아니라 조회 자체가 없다.
   // 단계 칩 — 배경=유형(옅은 색), 좌측 4px 바=긴급도, 완료=흐림, 지연=연빨강 배경 강조
   const isDone = r.stepStatus === 'completed'

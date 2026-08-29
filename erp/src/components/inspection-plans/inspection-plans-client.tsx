@@ -190,13 +190,12 @@ export function InspectionPlansClient({
     })
   }
 
-  // 상태 매칭 (ADD-9: '취소' = 항목 취소 + 고객 비활성/삭제 포함)
-  // 삭제(비활성) 고객 항목은 '취소' 칩에서만 조회 — '전체'에도 싣지 않는다 (2026-08-28)
+  // 상태 매칭 — 순수하게 항목 상태만 본다.
+  // '취소' 칩은 **항목 자체가 취소된 계획**(status='cancelled') 전용이다. 종전에는 고객 비활성/삭제도
+  // 여기 섞어 '취소' 칩을 이력 창구로 썼으나, 비활성 고객은 어느 칩에서도 조회되지 않는다(D-8).
   function matchStatus(item: ItemView, status: string) {
-    const isCancelledLike = item.status === 'cancelled' || item.customers?.is_active === false
-    if (status === 'all') return item.customers?.is_active !== false
-    if (status === 'cancelled') return isCancelledLike
-    return item.status === status && item.customers?.is_active !== false
+    if (status === 'all') return true
+    return item.status === status
   }
 
   // 고객명 검색 — 부분 일치 + 초성(lib/hangul). 검색어가 비면 통과시켜 종전 동작 그대로.
@@ -209,7 +208,12 @@ export function InspectionPlansClient({
 
   // 담당자 + 점검유형 + 고객명까지 적용한 기준 집합 (상태별 현황 카운트는 이 위에서 계산 —
   // 검색 중에는 칩 숫자도 검색 결과 기준이어야 "확정 3건"이 목록과 어긋나지 않는다)
-  const baseItems = items.filter(item => {
+  // 삭제(비활성) 고객의 항목은 목록·달력·칩 카운트 어디에도 싣지 않는다 (D-8, 2026-08-29).
+  // 상태 필터보다 앞에서 한 번에 걸러야 '전체' 카운트(baseItems.length)와 목록이 어긋나지 않는다 —
+  // 종전에는 matchStatus가 걸러 목록에선 빠졌는데 카운트는 baseItems.length라 숫자만 남았다.
+  const visibleItems = items.filter(item => item.customers?.is_active !== false)
+
+  const baseItems = visibleItems.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
     if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
     if (!matchCustomer(item)) return false
@@ -228,8 +232,7 @@ export function InspectionPlansClient({
   const filteredItems = baseItems.filter(item => matchStatus(item, filterStatus))
 
   // 달력 뷰 필터 (담당자 + 점검유형 + 고객명 적용, 상태 필터만 무시 — 달력은 전체 일정을 보여줌)
-  const calendarItems = items.filter(item => {
-    if (item.customers?.is_active === false) return false  // 삭제(비활성) 고객은 달력 뷰에서도 제외
+  const calendarItems = visibleItems.filter(item => {
     if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
     if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
     if (!matchCustomer(item)) return false
@@ -609,7 +612,7 @@ function CalendarView({
   // ⚠ 값은 globals.css의 --chip-* 토큰이다(소방계획서_29 S3-1) — 인라인 style이라 코드모드가
   //    닿지 않아 리터럴로 두면 다크에서 이 달력만 밝은 블록으로 남는다. 점검 달력과 같은 토큰을 쓴다.
   function chipStyle(item: ItemView, itemOverdue: boolean): React.CSSProperties {
-    if (item.customers?.is_active === false || item.status === 'cancelled')
+    if (item.status === 'cancelled')
       return { backgroundColor: 'var(--chip-muted-bg)', color: 'var(--chip-done-fg)', textDecoration: 'line-through' }
     if (item.status === 'completed')
       return { backgroundColor: 'var(--chip-ok-bg)', color: 'var(--chip-ok-fg)', textDecoration: 'line-through' }
@@ -794,7 +797,7 @@ function CalendarView({
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand" />확정</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-ok-bg)' }} />완료</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-over-solid-bg)' }} />지연</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300" />취소·비활성</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300" />취소</span>
         {canManage && <span className="ml-auto text-ink-faint">빈 날짜 클릭 = 항목 추가 · 정기 칩 드래그 = 일자 이동(확정)</span>}
       </div>
     </div>
@@ -1165,11 +1168,9 @@ function ListView({
                     holidays={holidays}
                   />
                 </td>
-                <td className={`px-3 py-2.5 font-medium truncate ${item.customers?.is_active === false ? 'text-gray-400 line-through' : 'text-ink'}`}>
+                {/* 비활성/삭제 고객은 visibleItems에서 이미 빠진다 — 취소선·뱃지 분기 없음 (D-8) */}
+                <td className="px-3 py-2.5 font-medium truncate text-ink">
                   {(item.customers as { customer_name: string } | null)?.customer_name ?? '—'}
-                  {item.customers?.is_active === false && (
-                    <span className="ml-1.5 text-[9px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500 inline-block align-middle">비활성/삭제</span>
-                  )}
                 </td>
                 <td className="px-3 py-2.5 text-ink-sub whitespace-nowrap text-xs" onClick={e => e.stopPropagation()}>
                   {canManage && isKnownCustomer

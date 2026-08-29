@@ -1145,6 +1145,7 @@ export async function toggleCustomerActiveAction(
   } as Record<string, unknown>)
 
   revalidatePath('/customers')
+  revalidatePath('/inspections')          // 점검업무 목록도 즉시 반영 (D-8 — 종전 누락)
   revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return {}
@@ -1168,6 +1169,7 @@ export async function deleteCustomerAction(
 
   revalidatePath('/customers')
   revalidatePath('/buildings')
+  revalidatePath('/inspections')          // 점검업무 목록도 즉시 반영 (D-8 — 종전 누락)
   revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return {}

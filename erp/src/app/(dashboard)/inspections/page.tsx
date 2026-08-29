@@ -65,7 +65,8 @@ export default async function InspectionsPage({
   }
 
   // 검색 쿼리 구성 — 필터는 DB에서, 페이지 단위로만 가져옴
-  // 삭제(비활성) 고객 건은 기본 조회에서 제외하고 '취소' 필터로만 조회 (ADD-15) → 항상 inner join
+  // 삭제(비활성) 고객 건은 **어떤 필터에서도** 조회되지 않는다 (D-8, 2026-08-29) → 항상 inner join.
+  // 종전 '취소' 필터가 유일한 이력 창구였으나 사용자 지시로 폐지했다.
   const custJoin = 'customers:customer_id!inner'
   let query = admin.from('inspections').select(
     `id, year, sequence_num, inspection_type, plan_type, inspection_start_date, status, assigned_employee_id, customer_id,
@@ -75,18 +76,18 @@ export default async function InspectionsPage({
   if (custIdFilter) query = query.in('customer_id', custIdFilter) as typeof query
   if (employeeFilter) query = query.eq('assigned_employee_id', employeeFilter) as typeof query
   if (yearFilter) query = query.eq('year', parseInt(yearFilter)) as typeof query
-  // ADD-15: 비완료/완료/취소(비활성·삭제) 구분 필터
+  // ADD-15: 비완료/완료 구분 필터
+  // ⚠status는 Postgres enum(inspection_status)이라 목록에 없는 값을 그대로 넘기면 0건이 아니라
+  //   22P02 오류로 페이지가 깨진다. '취소' 필터 폐지(D-8) 후 남은 북마크·뒤로가기가 ?status=cancelled를
+  //   실어 오므로 반드시 화이트리스트로 거른다 — 모르는 값은 '전체 상태'로 떨어뜨린다.
+  const INSPECTION_STATUSES = ['scheduled', 'in_progress', 'completed', 'overdue'] as const
   if (statusFilter === 'incomplete') {
     query = query.in('status', ['scheduled', 'in_progress', 'overdue']) as typeof query
-  } else if (statusFilter === 'cancelled') {
-    query = query.eq('customers.is_active', false) as typeof query
-  } else if (statusFilter) {
+  } else if ((INSPECTION_STATUSES as readonly string[]).includes(statusFilter)) {
     query = query.eq('status', statusFilter) as typeof query
   }
-  // 고객관리에서 삭제된 고객의 점검 건은 '취소' 필터 외 어디에도 싣지 않는다 (2026-08-28)
-  if (statusFilter !== 'cancelled') {
-    query = query.eq('customers.is_active', true) as typeof query
-  }
+  // 고객관리에서 삭제·비활성된 고객의 점검 건은 무조건 제외 — 예외 필터 없음 (D-8)
+  query = query.eq('customers.is_active', true) as typeof query
 
   const [inspRes, profilesRes] = await Promise.all([
     // ADD-14: 최신 등록 건 최상위
@@ -199,7 +200,6 @@ export default async function InspectionsPage({
           <option value="">전체 상태</option>
           <option value="incomplete">비완료 (예정·진행중)</option>
           <option value="completed">완료</option>
-          <option value="cancelled">취소 (비활성/삭제)</option>
           <option value="scheduled">예정</option>
           <option value="in_progress">진행중</option>
           <option value="overdue">기한초과</option>
@@ -269,14 +269,12 @@ export default async function InspectionsPage({
                     <tr key={insp.id} className="hover:bg-paper transition-colors">
                       <td className="px-4 py-3">
                         {/* 고객명 클릭 = 상세보기와 동일 진입 (2026-08-03 사용자 요청) */}
+                        {/* 비활성/삭제 고객은 쿼리에서 이미 빠진다 — 취소선·뱃지 분기 없음 (D-8) */}
                         <Link
                           href={`/inspections/${insp.id}`}
-                          className={`font-medium hover:underline ${customer && !customer.is_active ? 'text-gray-400 line-through' : 'text-ink hover:text-brand'}`}
+                          className="font-medium hover:underline text-ink hover:text-brand"
                         >
                           {customer?.customer_name ?? '—'}
-                          {customer && !customer.is_active && (
-                            <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 no-underline inline-block align-middle">비활성/삭제</span>
-                          )}
                         </Link>
                       </td>
                       <td className="px-4 py-3">

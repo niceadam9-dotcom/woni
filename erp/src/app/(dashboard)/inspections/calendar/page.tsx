@@ -98,7 +98,12 @@ export default async function InspectionCalendarPage({
         .select('id, inspection_id, step_num, name_ko, due_date, status, completed_at')
         .in('inspection_id', inspIds)
         .order('step_num'),
-      admin.from('customers').select('id, customer_name, customer_code, is_active, address').in('id', custIds),
+      // ⚠fetchAllRows 필수 — 1000행 상한에 걸려 고객이 map에서 빠지면 아래 is_active 필터가
+      // `undefined !== false`로 통과해 **비활성 고객이 달력에 되살아난다**(조용한 실패). D-8의 보장이
+      // 고객 수에 따라 깨지지 않도록 전량을 싣는다. [[risk_supabase_1000row_cap]]
+      fetchAllRows((from, to) => admin
+        .from('customers').select('id, customer_name, customer_code, is_active, address')
+        .in('id', custIds).order('id').range(from, to)),
     ])
 
     type StepRow = {
@@ -113,7 +118,7 @@ export default async function InspectionCalendarPage({
     }
 
     const customerMap = new Map(
-      ((customersRes.data ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean; address: string | null }>)
+      ((customersRes.rows ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean; address: string | null }>)
         .map(c => [c.id, c])
     )
 
@@ -133,7 +138,6 @@ export default async function InspectionCalendarPage({
         status: insp.status as InspectionStatus,
         assigned_employee_id: insp.assigned_employee_id,
         assigned_employee_name: empName(insp.assigned_employee_id),
-        customer_inactive: cust ? cust.is_active === false : false,
         steps: (stepsMap.get(insp.id) ?? []).map(s => ({
           id: s.id,
           step_num: s.step_num,
