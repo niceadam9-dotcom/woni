@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { syncStepsAndRevalidate } from './step-revalidate'
 import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
 import { getAllSheetItems, getSheetItems, getSheets } from '@/lib/sheet-catalog'
@@ -351,12 +352,9 @@ export async function saveSheetResponsesAction(
   // R4-6: ① 점검표 응답이 곧 근거 — 저장 즉시 단계가 스스로 완료된다(버튼 불필요).
   // 해제만 있어도 근거가 줄었으므로 동기화는 항상 돈다.
   await stampSheetProtocol(admin, inspectionId)   // 첫 입력이 규약을 확정한다 (S9-1)
-  const sync = await syncInspectionSteps(admin, inspectionId, profile.id)
-  const stepsChanged = sync.changed > 0 || !!sync.justCompleted
-  if (stepsChanged) {
-    revalidatePath(`/inspections/${inspectionId}`)
-    revalidatePath('/inspections')
-  }
+  // 36 S2-2 — 가드째로 헬퍼에 위임. alsoChanged 생략 = 단계가 바뀐 저장에만 무효화(종전과 동일).
+  // 이 경로만 가드를 쓸 수 있는 이유는 위 :319-320 주석이 밝힌 전제 때문이다(소비처가 없다).
+  const { stepsChanged } = await syncStepsAndRevalidate(admin, inspectionId, profile.id)
   return { stepsChanged }
 }
 

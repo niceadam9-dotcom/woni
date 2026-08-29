@@ -1,9 +1,8 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole, getSessionUser, requirePermission } from '@/lib/auth'
-import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
 import { extractStoragePath } from '@/lib/defect-photos'
 import { dateRangeError } from '@/lib/date-range'
 
@@ -36,9 +35,9 @@ export async function addDefectAction(input: {
 
   if (error) return { error: '불량내역 저장에 실패했습니다.' }
   // R4-6: ⑤ 불량이 생기면 분모가 6으로 늘고 ⑤가 미완료로 열린다 (증거 기반 동기화)
-  await syncInspectionSteps(admin, input.inspectionId, user.id)
-  revalidatePath(`/inspections/${input.inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-5(이웃) — 바뀌는 서버 prop: defects.total(칸 제목 분모)·불량 목록 자체.
+  // ⚠ 설계 §2.1은 이 자리를 세지 않았다(:148만 적혀 있었다) — 같은 파일·같은 형태라 함께 옮긴다.
+  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
   return { id: (data as { id: string }).id }
 }
 
@@ -108,7 +107,10 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
     .from('inspection-defects')
     .createSignedUrl(path, 3600)
 
-  revalidatePath(`/inspections/${inspectionId}`)
+  // 36 S2-6 — 고립 호출 흡수. 종전엔 상세 경로만 무효화해 **목록(/inspections)의 진행률이
+  // 조용히 낡았다** — 사진도 ⑤ 증빙(전·후 쌍)이라 목록 집계에 들어간다.
+  // sync는 부르지 않는다: 사진은 photoPairs를 바꿀 뿐 단계 판정 근거가 아니다(완료 조건은 조치).
+  revalidateInspection(inspectionId)
   return { url: signed?.signedUrl }
 }
 
@@ -144,9 +146,10 @@ export async function updateDefectActionAction(input: {
     .eq('id', input.defectId)
   if (error) return { error: '조치 내용 저장에 실패했습니다.' }
   // R4-6: ⑤ 조치완료·해제가 곧 근거 — 완료일을 지우면 ⑤도 되돌아간다(예외 없음)
-  await syncInspectionSteps(admin, input.inspectionId, user.id)
-  revalidatePath(`/inspections/${input.inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-5 — 바뀌는 서버 prop: defects.planned/done/total(칸 제목 'N/M'·10호 미리보기 watch).
+  // ⚠ 현시점 alsoChanged: true 고정. **S3-5(로컬 집계 미러) 완료 후에만** 내릴 수 있다 —
+  // 지금 내리면 칸 제목이 굳어 "데이터가 갈라진 것처럼" 보인다(위험 ①).
+  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
   return {}
 }
 
@@ -177,8 +180,7 @@ export async function deleteDefectAction(defectId: string, inspectionId: string)
 
   if (error) return { error: '삭제에 실패했습니다.' }
   // R4-6: 마지막 불량을 지우면 ⑤⑥이 '해당없음'이 되어 분모가 4로 줄어든다
-  await syncInspectionSteps(admin, inspectionId, null)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-5(이웃) — 바뀌는 서버 prop: defects.total·활성 단계 집합. 설계 §2.1 미기재 자리.
+  await syncStepsAndRevalidate(admin, inspectionId, null, { alsoChanged: true })
   return {}
 }

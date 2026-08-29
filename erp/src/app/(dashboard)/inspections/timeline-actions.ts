@@ -1,13 +1,12 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import JSZip from 'jszip'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
 import { CERT_FILE_RE, CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections } from '@/lib/doc-status'
-import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
 import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
 import { annexDownloadName } from '@/lib/annex-filename'
@@ -123,9 +122,11 @@ export async function uploadTimelineFileAction(
     metadata: { slot, customerId, customerName: (cust as { customer_name: string } | null)?.customer_name ?? '—', fileName: file.name },
   } as Record<string, unknown>)
   // R4-6: ② 배치확인서 업로드가 곧 근거 — 파일이 생기면 단계가 스스로 완료된다
-  if (slot === 'cert') await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3·S2-4 — 바뀌는 서버 prop: certFile·contractFile **파일칩**. 단계와 무관하게 바뀌므로
+  // alsoChanged: true. sync는 종전대로 cert에서만 돌지만 **revalidate는 양쪽 다** 해야 한다 —
+  // contract에서 무효화를 잃으면 계약서 칩이 안 뜬다(S2-4).
+  if (slot === 'cert') await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+  else revalidateInspection(inspectionId)
   return {}
 }
 
@@ -157,9 +158,9 @@ export async function deleteTimelineFileAction(
     metadata: { slot, customerId, files: targets.map(t => t.split('/').pop()) },
   } as Record<string, unknown>)
   // 근거가 사라졌으므로 다시 판정한다 — 지웠는데 완료로 남아 있으면 업로드 경로와 어긋난다
-  if (slot === 'cert') await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3 — 바뀌는 서버 prop: 파일칩이 **사라져야** 한다. 가드만 걸면 지운 파일이 화면에 남는다.
+  if (slot === 'cert') await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+  else revalidateInspection(inspectionId)
   return { deleted: targets.length }
 }
 
@@ -184,9 +185,8 @@ export async function recordCertPaperAction(
     entity_type: 'inspection', entity_id: inspectionId,
     metadata: { date: input.date, location, memo: (input.memo ?? '').trim().slice(0, 300) },
   } as Record<string, unknown>)
-  await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3 — 바뀌는 서버 prop: evidence.certArchived(종이 보관 마커). 단계와 별개로 화면에 뜬다.
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
 }
 
@@ -265,9 +265,8 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
       }
     }
     // R4-6: ③ 발송 이력이 곧 근거
-    await syncInspectionSteps(admin, inspectionId, profile.id)
-    revalidatePath(`/inspections/${inspectionId}`)
-    revalidatePath('/inspections')
+    // 36 S2-3 — 바뀌는 서버 prop: evidence.delivery(발송 이력·수신처). 단계가 안 바뀌어도 떠야 한다.
+    await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
     return { sentTo: i.customer.report_email }
   } catch (e) {
     const msg = (e as Error).message
@@ -295,9 +294,11 @@ export async function recordSubmissionAction(
     entity_type: 'inspection', entity_id: inspectionId,
     metadata: { kind, date },
   } as Record<string, unknown>)
-  await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3 — **여기만 alsoChanged를 쓰지 않는다**(F-1이 가려낸 유일한 순수 후보).
+  // 제출일은 클라이언트가 justSubmitted로 선반영하므로(inspection-workbench.tsx:141-144)
+  // 단계가 안 바뀐 정정(이미 완료인 채 날짜만 수정)에서는 서버 무효화가 없어도 화면이 맞다.
+  // 날짜를 지우면 ④가 미완료로 돌아가 stepsChanged가 참이 되므로 그때는 무효화가 돈다.
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id)
   return {}
 }
 
@@ -321,9 +322,8 @@ export async function recordOwnerReportOfflineAction(
     entity_type: 'inspection', entity_id: inspectionId,
     metadata: { date: input.date, method, memo: (input.memo ?? '').trim().slice(0, 300) },
   } as Record<string, unknown>)
-  await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3 — 바뀌는 서버 prop: evidence.offlineReport(방문·유선 보고 마커)
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
 }
 
@@ -345,9 +345,9 @@ export async function forceCompleteStepAction(
     entity_type: 'inspection', entity_id: inspectionId,
     metadata: { step_num: stepNum, reason: trimmed },
   } as Record<string, unknown>)
-  await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3 — 바뀌는 서버 prop: evidence.forced(사유 완료 집합) = **[철회] 버튼 노출축**.
+  // 가드만 걸면 사유 완료 직후 철회 버튼이 안 뜬다.
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
 }
 
@@ -370,9 +370,8 @@ export async function undoForceCompleteStepAction(
     entity_type: 'inspection', entity_id: inspectionId,
     metadata: { step_num: stepNum, reason: trimmed },
   } as Record<string, unknown>)
-  await syncInspectionSteps(admin, inspectionId, profile.id)
-  revalidatePath(`/inspections/${inspectionId}`)
-  revalidatePath('/inspections')
+  // 36 S2-3 — 바뀌는 서버 prop: evidence.forced에서 **빠진다** = 철회 버튼이 사라져야 한다.
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
 }
 
