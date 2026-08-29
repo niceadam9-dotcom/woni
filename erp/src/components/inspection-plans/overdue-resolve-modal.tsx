@@ -5,6 +5,8 @@ import { X, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import type { OverdueItem } from '@/app/(dashboard)/inspection-plans/page'
 import { resolveOverdueItemsAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { inspectionTypeLabel } from '@/types'
+import type { InspectionType } from '@/types'
+import { rowInspectionType } from '@/lib/inspection-round'
 
 const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -194,11 +196,21 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                                 <span className="text-sm font-medium text-ink truncate">
                                   {item.customer_name}
                                 </span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
-                                  item.inspection_type === '종합' ? 'bg-brand-tint text-brand' :
-                                  item.inspection_type === '작동' ? 'bg-blue-50 text-blue-600' :
-                                  'bg-gray-100 text-gray-600'
-                                }`}>{inspectionTypeLabel(item.inspection_type)}</span>
+                                {/* 저장될 종류(행 축) — 2차는 작동으로 등록된다 (소방계획서_33 D33-1).
+                                    item.inspection_type은 고객 축이라 그대로 찍으면 화면이 거짓말을 한다. */}
+                                {(() => {
+                                  const rowType = rowInspectionType(
+                                    item.inspection_type as InspectionType,
+                                    item.inspection_type === '종합' ? '종합' : '작동',
+                                    item.sequence_num)
+                                  return (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
+                                      rowType === '종합' ? 'bg-brand-tint text-brand' :
+                                      rowType === '작동' ? 'bg-blue-50 text-blue-600' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>{inspectionTypeLabel(rowType)}</span>
+                                  )
+                                })()}
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
                                   {item.sequence_num}차
                                 </span>

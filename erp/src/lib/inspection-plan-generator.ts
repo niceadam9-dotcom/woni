@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
+import { rowInspectionType, rowPlanType, rowSubType } from '@/lib/inspection-round'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -62,7 +63,9 @@ export async function generateRollingPlanItems(
 /** 고객의 연간 점검계획 항목 생성 — 소방안전관리 연 12건 / 일반관리 연 1~2건 (자체점검만, 정기 없음)
  *  - 기준일: 점검계획일(수동) → 최초 점검시작일(loadAnchorDates) — 모두 없으면 생성 없음
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
- *  - 종합: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치)
+ *  - 종합 대상: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치).
+ *    2차 행은 **작동**으로 저장한다(special_작동) — 종합 대상의 2차는 법적으로 작동점검이다.
+ *    '종합 대상인가'는 고객 축(inspection_sub_type), '이 행이 무슨 점검인가'는 행 축으로 갈린다 (소방계획서_33)
  *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응).
  *    일반관리는 정기 미생성 (소방계획서_6 D-1 — 유일한 관리유형 분기)
  *  - 정기(monthly)는 생성 즉시 자동 확정(confirmed, scheduled=planned) — 기준일 규칙으로 날짜가
@@ -115,22 +118,36 @@ export async function generateYearlyPlanItems(
     return toStr(base)
   }
 
+  // 행 단위 유형 — 고객 단위 값을 전 행에 그대로 주입하면 2차가 종합으로 저장된다.
+  // **2차는 법적으로 작동점검**이므로 행마다 실제 유형을 실어 보낸다 (소방계획서_33 D33-1, lib/inspection-round).
+  // 관리유형 판정은 category 축(isGeneral)이 정본이라 inspection_type 대신 그것으로 넘긴다.
+  const rowTypeFor = (seq: 1 | 2): InspectionType =>
+    isGeneral ? inspection_type : rowInspectionType(inspection_sub_type, inspection_sub_type, seq)
+
   // 특별점검 월 정의
   const specialKey = new Set<string>()
-  const toCreate: Array<{ year: number; month: number; sequence_num: 1 | 2; planType: string }> = []
+  const toCreate: Array<{
+    year: number; month: number; sequence_num: 1 | 2; planType: string
+    rowType: InspectionType; rowSub: '종합' | '작동'
+  }> = []
 
-  // 1차 특별점검 (사용승인월)
+  // 1차 특별점검 (사용승인월) — 고객의 점검 종류 그대로
   specialKey.add(`${targetYear}-${approvalMonth}`)
   toCreate.push({
     year: targetYear, month: approvalMonth, sequence_num: 1,
-    planType: `special_${inspection_sub_type}`,
+    planType: rowPlanType(inspection_sub_type, 1),
+    rowType: rowTypeFor(1), rowSub: rowSubType(inspection_sub_type, 1),
   })
 
-  // 종합: +6개월 2차 특별점검
+  // 종합 대상: +6개월 2차 특별점검 — 2차 자체는 **작동**점검이다.
+  // (판정은 고객 축 inspection_sub_type으로, 저장은 행 축 '작동'으로 — 두 축이 다르다)
   if (inspection_sub_type === '종합') {
     const mo2 = ((approvalMonth - 1 + 6) % 12) + 1
     specialKey.add(`${targetYear}-${mo2}`)
-    toCreate.push({ year: targetYear, month: mo2, sequence_num: 2, planType: 'special_종합' })
+    toCreate.push({
+      year: targetYear, month: mo2, sequence_num: 2, planType: rowPlanType(inspection_sub_type, 2),
+      rowType: rowTypeFor(2), rowSub: rowSubType(inspection_sub_type, 2),
+    })
   }
 
   // targetYear 나머지 월: monthly 정기점검 (특별월 제외) — 일반관리는 정기 미생성(D-1)
@@ -143,7 +160,10 @@ export async function generateYearlyPlanItems(
     for (let m = 1; m <= 12; m++) {
       if (specialKey.has(`${targetYear}-${m}`)) continue
       if (targetYear < curYear || (targetYear === curYear && m < curMonth)) continue
-      toCreate.push({ year: targetYear, month: m, sequence_num: 1, planType: 'monthly' })
+      toCreate.push({
+        year: targetYear, month: m, sequence_num: 1, planType: 'monthly',
+        rowType: inspection_type, rowSub: inspection_sub_type,
+      })
     }
   }
 
@@ -176,7 +196,7 @@ export async function generateYearlyPlanItems(
   }
 
   const rows: Record<string, unknown>[] = []
-  for (const { year, month, sequence_num, planType } of toCreate) {
+  for (const { year, month, sequence_num, planType, rowType, rowSub } of toCreate) {
     const planId = planIdOf.get(`${year}-${month}`) ?? null
     if (!planId) continue
 
@@ -199,9 +219,9 @@ export async function generateYearlyPlanItems(
     rows.push({
       plan_id: planId,
       customer_id: customer.id,
-      inspection_type,
+      inspection_type: rowType,
       inspection_category,
-      inspection_sub_type,
+      inspection_sub_type: rowSub,
       sequence_num,
       assigned_employee_id: assigned_employee_id || null,
       planned_date: planned,

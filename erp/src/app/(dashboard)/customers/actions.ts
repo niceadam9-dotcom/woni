@@ -6,6 +6,7 @@ import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress, extractRoadName, addressDupKey } from '@/lib/address-parser'
 import { resolveFireStation } from '@/lib/fire-station'
 import { generateRollingPlanItems, loadAnchorDates } from '@/lib/inspection-plan-generator'
+import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
 import type { ContactRole, InspectionType } from '@/types'
@@ -480,8 +481,10 @@ async function _getUnconfirmablePlanItems(
 /** 점검유형 변경 시 계획 항목 동기화 — 대상: planned + 자동 확정 정기(confirmed monthly, 미시작).
  *  사람이 확정한 특별점검(confirmed special)·완료·취소는 불변 (변경전파맵 1-11)
  *  소방계획서_6: 일반관리도 특별(special_*) 파이프라인 — 전 유형 공통 로직으로 통일.
- *  - 종합/작동 간 전환: inspection_type·sub_type·plan_type(special_종합↔special_작동) 갱신
+ *  - 종합/작동 간 전환: inspection_type·sub_type·plan_type(special_종합↔special_작동) 갱신.
+ *    단 **행 축으로 내려서** 적용한다 — 2차 행은 고객이 종합이어도 작동이다 (소방계획서_33 D33-1)
  *  - 작동 전환: 미확정 2차 특별점검 삭제 (연 1회) / 종합 전환: 연간 항목 보충 생성(멱등, 2차 포함)
+ *    ※ 이 2차 삭제·보충 판정은 **고객 축**(newSubType)이 맞다 — 2차가 존재해야 하는지는 고객이 정한다
  *  - 일반관리 전환: 미시작 정기(monthly) 삭제 (일반관리는 정기 미생성 — 유일한 차이)
  *  - 레거시 event(미시작)는 새 체계와 무관 — 항상 삭제 (완료 건은 보존) */
 async function _syncInspectionTypeToPlanItems(
@@ -507,20 +510,24 @@ async function _syncInspectionTypeToPlanItems(
       .is('inspection_id', null).in('status', ['planned', 'confirmed'])
   }
 
+  // sequence_num을 함께 읽는다 — 이게 없으면 아래 루프가 2차 행까지 고객 축 값으로 덮어써서
+  // **고객 정보를 다시 저장하기만 해도 2차가 종합으로 원복된다**(소방계획서_33 S2-4의 조용한 회귀).
   const { data: items } = await admin
     .from('inspection_plan_items')
-    .select('id, plan_type')
+    .select('id, plan_type, sequence_num')
     .eq('customer_id', customerId)
     .is('inspection_id', null)
     .or(UNSTARTED_OR)
-  for (const it of (items ?? []) as Array<{ id: string; plan_type: string | null }>) {
+  for (const it of (items ?? []) as Array<{ id: string; plan_type: string | null; sequence_num: number }>) {
+    // 행 축으로 내려 적용 — 2차는 고객이 종합이어도 작동이다
+    const rowSub = rowSubType(newSubType, it.sequence_num)
     // plan_type null 레거시는 특별점검 — special_*와 함께 새 서브로 이관
-    const newPlanType = (!it.plan_type || it.plan_type.startsWith('special_')) ? `special_${newSubType}` : it.plan_type
+    const newPlanType = (!it.plan_type || it.plan_type.startsWith('special_')) ? `special_${rowSub}` : it.plan_type
     await admin.from('inspection_plan_items')
       .update({
-        inspection_type: newType,
+        inspection_type: rowInspectionType(newType, newSubType, it.sequence_num),
         inspection_category: newCategory,
-        inspection_sub_type: newSubType,
+        inspection_sub_type: rowSub,
         plan_type: newPlanType,
       } as Record<string, unknown>)
       .eq('id', it.id)

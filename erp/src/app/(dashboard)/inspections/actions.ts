@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { generateRollingPlanItems } from '@/lib/inspection-plan-generator'
+import { rowInspectionType } from '@/lib/inspection-round'
 import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
 import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
@@ -64,9 +65,32 @@ export async function createInspectionAction(
     .find(r => !['monthly', 'event'].includes(r.plan_type ?? ''))
   if (dup) return { error: `${year}년 ${input.sequence_num}차 점검이 이미 존재합니다.` }
 
-  // 최초점검 자동판정 (P32-8): 종합 유형이고 이전 종합점검 이력이 전무하면 최초점검
+  // 차수 정규화 (소방계획서_33 S2-5) — 2차는 법적으로 작동점검이다. 화면(inspection-new-client)이
+  // 차수와 무관하게 고객 유형을 실어 보내는데, 고객이 종합이면 새 트리거도 막지 않으므로
+  // 여기서 내리지 않으면 수동 등록만 조용히 옛 축(종합) 행을 만든다.
+  // 아래 연간 계획 자동 생성(:135 부근)도 같은 고객 행을 읽고 있었다 — 한 번만 읽어 함께 쓴다.
+  const { data: custRaw } = await admin
+    .from('customers')
+    .select('inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, assigned_employee_id, is_active')
+    .eq('id', input.customer_id)
+    .single()
+  const cust = custRaw as {
+    inspection_type: InspectionType; inspection_category: string | null; inspection_sub_type: string | null
+    plan_anchor_date: string | null; assigned_employee_id: string | null; is_active: boolean
+  } | null
+  const custSubType: '종합' | '작동' =
+    cust?.inspection_sub_type === '종합' ? '종합'
+    : cust?.inspection_sub_type === '작동' ? '작동'
+    : cust?.inspection_type === '종합' ? '종합' : '작동'
+  const rowType = rowInspectionType(input.inspection_type, custSubType, input.sequence_num)
+
+  // 최초점검 자동판정 (P32-8): 종합 유형이고 이전 종합점검 이력이 전무하면 최초점검.
+  // 판정 축을 rowType으로 바꿔 2차 등록이 최초점검 후보에 들지 않게 한다 —
+  // 2차는 작동이므로 애초에 최초 종합점검일 수 없다.
+  // 카운트 술어 `inspection_type='종합'`은 백필 이후 **정확히 '지난 종합점검'만** 세게 됐다
+  // (종전에는 2차 행까지 종합으로 세고 있었다).
   let isInitial = false
-  if (input.inspection_type === '종합') {
+  if (rowType === '종합') {
     const { count } = await admin.from('inspections')
       .select('id', { count: 'exact', head: true })
       .eq('customer_id', input.customer_id)
@@ -80,7 +104,7 @@ export async function createInspectionAction(
       customer_id: input.customer_id,
       contact_id: input.contact_id || null,
       assigned_employee_id: input.assigned_employee_id,
-      inspection_type: input.inspection_type,
+      inspection_type: rowType,
       inspection_start_date: input.inspection_start_date,
       sequence_num: input.sequence_num,
       is_initial: isInitial,
@@ -115,15 +139,6 @@ export async function createInspectionAction(
   // 연간 계획 자동 생성 — 멱등이라 중복 실행 안전. 일반관리도 동일 경로 (소방계획서_6 D-1 — 정기만 미생성).
   // 점검계획일이 있는 고객은 등록 시 이미 생성됨 — 여기서 점검시작일 기준으로 재생성하면
   // 2차 특별점검이 다른 달에 중복 생성되므로 제외 (기준일 규칙: 점검계획일 최우선)
-  const { data: custRaw } = await admin
-    .from('customers')
-    .select('inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, assigned_employee_id, is_active')
-    .eq('id', input.customer_id)
-    .single()
-  const cust = custRaw as {
-    inspection_type: InspectionType; inspection_category: string | null; inspection_sub_type: string | null
-    plan_anchor_date: string | null; assigned_employee_id: string | null; is_active: boolean
-  } | null
   if (cust && cust.is_active && !cust.plan_anchor_date) {
     const targetYear = Math.max(year, new Date().getFullYear())
     // 롤링: 최초 점검 기준으로도 올해+내년을 함께 생성 (등록 경로와 동일 규약)

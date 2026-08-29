@@ -6,8 +6,11 @@
  *  assets 멀티파트 + <img src="상대명"> / 미리보기는 서명 URL을 src에 직접(iframe이 브라우저에서 fetch).
  *  서명 URL을 PDF HTML에 박지 않는다 — Gotenberg 컨테이너의 외부 네트워크 의존·TTL 만료 위험. */
 
-import { createAdminClient } from '@/lib/supabase/admin'
+// 타입 위치에서만 쓴다(아래 Admin) — 값으로 가져오면 server-only 모듈이 딸려 들어와
+// 이 파일의 순수 함수(inspectionTypeLabel)를 테스트 스크립트에서 불러올 수 없다.
+import type { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/paginate'
+import { inspectionTypeLabel } from '@/lib/inspection-round'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { formatTel } from '@/lib/format-contact'
 import { listCustomerAssetEntries, ASSET_BUCKET, ASSET_URL_TTL } from '@/lib/customer-assets'
@@ -20,14 +23,10 @@ import type { ManagerRow } from '@/components/customers/plan-form17'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-/** 점검종류 라벨 — 표지 제목·공문 제목 가변(S5-10·S7-1). report9-actions ckOp/ckInitial과 같은 축:
- *  '작동' → 작동점검 / '최초' 또는 (종합 && is_initial) → 최초점검 / 그 외 → 종합점검 */
-export function inspectionTypeLabel(inspectionType: string | null, isInitial: boolean): string {
-  const t = inspectionType ?? ''
-  if (t === '작동') return '작동점검'
-  if (t === '최초' || (t === '종합' && isInitial)) return '최초점검'
-  return '종합점검'
-}
+/** 점검종류 라벨 — 표지 제목·공문 제목 가변(S5-10·S7-1).
+ *  구현은 순수 모듈 lib/inspection-round에 있다(이 파일은 server-only 모듈을 끌어와
+ *  테스트에서 못 부른다). 기존 호출부 호환을 위해 여기서 re-export한다. */
+export { inspectionTypeLabel } from '@/lib/inspection-round'
 
 function ymLabel(iso: string | null | undefined): string {
   const d = iso ? new Date(iso) : new Date()
@@ -36,11 +35,11 @@ function ymLabel(iso: string | null | undefined): string {
 
 async function loadInspection(admin: Admin, inspectionId: string) {
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, inspection_type, is_initial, inspection_start_date, inspection_end_date, assigned_employee_id, customer:customers(customer_name)')
+    .select('id, customer_id, year, inspection_type, plan_type, is_initial, inspection_start_date, inspection_end_date, assigned_employee_id, customer:customers(customer_name)')
     .eq('id', inspectionId).single()
   return data as unknown as {
     id: string; customer_id: string; year: number
-    inspection_type: string | null; is_initial: boolean | null
+    inspection_type: string | null; plan_type: string | null; is_initial: boolean | null
     inspection_start_date: string | null; inspection_end_date: string | null
     assigned_employee_id: string | null
     customer: { customer_name: string } | null
@@ -105,7 +104,7 @@ export async function assembleCover(
 
   const data: CoverData = {
     year: insp.year,
-    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial),
+    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
     buildingName: insp.customer?.customer_name ?? '',
     photoSrc,
     issueLabel: ymLabel(insp.inspection_end_date ?? insp.inspection_start_date),
@@ -194,7 +193,7 @@ export async function assembleOfficial(
       rep: company?.representative ?? '',
     },
     year: insp.year,
-    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial),
+    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
   }
   if (!data.recipient) missing.push('수신(고객명) 없음')
   if (!company?.fax) missing.push('회사 팩스 미등록 — 레터헤드에서 생략 (본사 정보에서 입력)')
@@ -309,7 +308,7 @@ export async function assembleDelegation(
   const kstToday = new Date(Date.now() + 9 * 3_600_000).toISOString().split('T')[0]
   const [sy, sm, sdd] = (/^\d{4}-\d{2}-\d{2}$/.test(r9Date) ? r9Date : kstToday).split('-').map(Number)
   const data: DelegationData = {
-    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial),
+    typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
     owner, agent, periodLabel, daysLabel,
     submitDate: fstr('submitDate') || `${sy}년 ${sm}월 ${sdd}일`,
     station,

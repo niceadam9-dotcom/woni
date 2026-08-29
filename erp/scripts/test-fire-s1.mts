@@ -71,10 +71,16 @@ try {
   const c2 = await createCustomer({ customer_name: 'TEST-FIRE-S1-종합', inspection_type: '종합', inspection_category: '소방안전관리', inspection_sub_type: '종합', use_approval_date: '2018-01-10', plan_anchor_date: '2018-01-10' })
   await generateYearlyPlanItems(admin, { id: c2, inspection_type: '종합', plan_anchor_date: '2018-01-10', assigned_employee_id: null }, curYear, createdBy, hdSet)
   const i2 = await getItems(c2)
-  const special2 = i2.filter(i => i.plan_type === 'special_종합').map(i => `${i.inspection_plans.month}월/${i.sequence_num}차`).sort()
+  // 소방계획서_33 — 1차는 special_종합, 2차는 special_작동(2차는 법적으로 작동점검).
+  // 'special_종합'으로만 거르면 2차가 목록에서 통째로 빠져 아래 단정이 조용히 항진명제가 된다.
+  const specialRows2 = i2.filter(i => (i.plan_type ?? '').startsWith('special_'))
+  const special2 = specialRows2.map(i => `${i.inspection_plans.month}월/${i.sequence_num}차`).sort()
   const monthly2 = i2.filter(i => i.plan_type === 'monthly').map(i => i.inspection_plans.month).sort((a, b) => a - b)
   const expMonthly2 = Array.from({ length: 12 - curMonth + 1 }, (_, k) => curMonth + k).filter(m => m !== 1 && m !== 7)
-  check('특별(종합) 2건 — 1월 1차 + 7월 2차', JSON.stringify(special2) === JSON.stringify(['1월/1차', '7월/2차']), `실제: ${JSON.stringify(special2)}`)
+  check('특별 2건 — 1월 1차 + 7월 2차', JSON.stringify(special2) === JSON.stringify(['1월/1차', '7월/2차']), `실제: ${JSON.stringify(special2)}`)
+  const bySeq2 = Object.fromEntries(specialRows2.map(i => [i.sequence_num, i.plan_type]))
+  check('1차=special_종합 · 2차=special_작동 (소방계획서_33)',
+    bySeq2[1] === 'special_종합' && bySeq2[2] === 'special_작동', JSON.stringify(bySeq2))
   check(`정기 ${expMonthly2.length}건 — 특별월(1·7월) 제외`, JSON.stringify(monthly2) === JSON.stringify(expMonthly2), `실제: ${JSON.stringify(monthly2)}`)
 
   // ── 케이스 3: 사용승인일 없음 + 점검시작일 있음 — 점검시작일 기준 생성 (이번 수정의 핵심)
@@ -140,7 +146,9 @@ try {
   })
   await generateYearlyPlanItems(admin, { id: c8, inspection_type: '종합', use_approval_date: null, assigned_employee_id: null }, curYear, createdBy, hdSet)
   const i8 = await getItems(c8)
-  const special8 = i8.filter(i => i.plan_type === 'special_종합')
+  // special_* 전체로 거른다 — 'special_종합' 한정이면 2차(special_작동)가 안 보여
+  // 아래 '2차 생성 안 됨' 단정이 무조건 참이 된다(항진명제).
+  const special8 = i8.filter(i => (i.plan_type ?? '').startsWith('special_'))
   const seq2_8 = special8.filter(i => i.sequence_num === 2)
   const monthly8 = i8.filter(i => i.plan_type === 'monthly').map(i => i.inspection_plans.month).sort((a, b) => a - b)
   const expMonthly8 = Array.from({ length: 12 }, (_, k) => k + 1).filter(m => m >= Math.max(curMonth, 8) && m !== 1 && m !== 7)
@@ -157,7 +165,8 @@ try {
   const hdSetNext = await loadHolidaySet(admin, curYear + 1)
   await generateYearlyPlanItems(admin, { id: c8, inspection_type: '종합', use_approval_date: null, assigned_employee_id: null }, curYear + 1, createdBy, hdSetNext)
   const i8next = (await getItems(c8)).filter(i => i.inspection_plans.year === curYear + 1)
-  const seq2next = i8next.filter(i => i.plan_type === 'special_종합' && i.sequence_num === 2)
+  // 2차는 special_작동이다 (소방계획서_33)
+  const seq2next = i8next.filter(i => i.plan_type === 'special_작동' && i.sequence_num === 2)
   check(`다음 해(${curYear + 1}) 2차는 1월에 정상 생성`, seq2next.length === 1 && seq2next[0].inspection_plans.month === 1, JSON.stringify(seq2next))
 
   // ── 케이스 9: 점검계획일(수동) 최우선 — 점검시작일·사용승인일보다 우선 (2026-07-12 추가)

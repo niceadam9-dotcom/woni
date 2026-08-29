@@ -92,12 +92,25 @@ try {
     JSON.stringify(a0.map(i => [i.plan_type, i.status])))
   check('작동: 정기(monthly)·event 0건', !a0.some(i => i.plan_type === 'monthly' || i.plan_type === 'event'))
   const b0 = await itemsOf(custB)
-  const b0Special = b0.filter(i => i.plan_type === 'special_종합')
-  check('종합: special_종합 1~2건(연내 2차는 +6개월) + 정기 0건',
+  // 소방계획서_33 — 종합 대상의 **1차만 종합**이고 2차는 작동이다(2차는 법적으로 작동점검).
+  // 종전 단정은 seq2까지 special_종합이길 요구해 옛 축을 고정하고 있었다.
+  const b0Special = b0.filter(i => (i.plan_type ?? '').startsWith('special_'))
+  const b1 = b0.filter(i => i.sequence_num === 1)
+  const b2 = b0.filter(i => i.sequence_num === 2)
+  check('종합: 특별점검 1~2건(연내 2차는 +6개월) + 정기 0건',
     b0Special.length >= 1 && b0Special.length === b0.length && !b0.some(i => i.plan_type === 'monthly' || i.plan_type === 'event'),
     JSON.stringify(b0.map(i => [i.plan_type, i.sequence_num])))
-  check('생성 항목 sub_type 저장(작동/종합)',
-    a0.every(i => i.inspection_sub_type === '작동') && b0.every(i => i.inspection_sub_type === '종합'))
+  check('종합: 1차는 special_종합',
+    b1.length >= 1 && b1.every(i => i.plan_type === 'special_종합'),
+    JSON.stringify(b1.map(i => [i.plan_type, i.sequence_num])))
+  check('종합: 2차는 special_작동 (2차는 작동점검 — 소방계획서_33)',
+    b2.every(i => i.plan_type === 'special_작동'),
+    JSON.stringify(b2.map(i => [i.plan_type, i.sequence_num])))
+  check('생성 항목 sub_type 저장(작동/종합) — 2차는 행 축이 작동',
+    a0.every(i => i.inspection_sub_type === '작동')
+    && b1.every(i => i.inspection_sub_type === '종합')
+    && b2.every(i => i.inspection_sub_type === '작동'),
+    JSON.stringify(b0.map(i => [i.sequence_num, i.inspection_sub_type])))
 
   // ── 2) UI: 점검확정 화면에서 점검일 확정 → 자체점검 자동 시작 ──
   browser = await chromium.launch()

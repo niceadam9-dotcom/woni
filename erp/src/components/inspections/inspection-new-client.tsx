@@ -7,6 +7,7 @@ import { createInspectionAction } from '@/app/(dashboard)/inspections/actions'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { previewInspectionSteps, stepBaseDate } from '@/lib/step-dates'
+import { rowInspectionType } from '@/lib/inspection-round'
 import { formatTel } from '@/lib/format-contact'
 import type { InspectionType } from '@/types'
 
@@ -51,6 +52,12 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
   const selectedCustomer = customers.find(c => c.id === customerId) ?? null
   const filteredContacts = contacts.filter(c => c.customer_id === customerId)
   const isJongHap = selectedCustomer?.inspection_type === '종합'
+  // 2차는 법적으로 작동점검이다 (소방계획서_33 D33-1). 서버가 같은 규칙으로 정규화해 저장하므로
+  // 화면도 그 값을 보여야 한다 — 종전에는 '종합'으로 보여주고 '작동'으로 저장돼 화면이 거짓말을 했다.
+  const effectiveType = selectedCustomer
+    ? rowInspectionType(selectedCustomer.inspection_type as InspectionType,
+        isJongHap ? '종합' : '작동', sequenceNum)
+    : null
 
   // 마감일은 DB 트리거가 만든다 — 미리보기도 같은 산식(lib/step-dates)을 쓴다.
   // 사용승인일이 있는 고객은 트리거가 그 응당일을 기준일로 삼으므로 점검일과 다를 수 있어 아래에 근거를 표시한다.
@@ -76,7 +83,8 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
         customer_id: customerId,
         contact_id: contactId || undefined,
         assigned_employee_id: assignedEmployeeId,
-        inspection_type: (selectedCustomer?.inspection_type ?? '작동') as InspectionType,
+        // 서버가 차수 축으로 다시 정규화한다 — 화면 값은 신뢰 경계 밖이므로 여기서만 맞추면 안 된다
+        inspection_type: (effectiveType ?? '작동') as InspectionType,
         inspection_start_date: startDate,
         sequence_num: sequenceNum,
         notes: notes.trim() || undefined,
@@ -109,7 +117,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
             <Field label="점검유형">
               <input
                 readOnly
-                value={selectedCustomer?.inspection_type ?? '—'}
+                value={effectiveType ?? '—'}
                 className={`${inputCls} bg-paper cursor-not-allowed text-ink-sub`}
               />
             </Field>

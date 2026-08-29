@@ -139,7 +139,10 @@ export default async function InspectionPlansPage({
       })
     }
 
-    // 2차(+6개월)는 종합만 — 작동은 연 1회(2차 없음), 일반관리는 1회성 event라 2차 판정 제외
+    // 2차(+6개월)는 종합 대상만 — 작동은 연 1회(2차 없음), 일반관리는 1회성 event라 2차 판정 제외.
+    // ※ 이 술어는 **고객 축**이라 소방계획서_33(2차 행을 작동으로 저장) 이후에도 그대로 옳다 —
+    //   cust는 customers 행이지 계획 항목이 아니다. 등록되는 2차 항목 자체는 작동으로 저장된다.
+    //   (선재 공백: sub_type을 안 봐 일반관리 sub=종합 고객의 2차 초과는 여기서 안 잡힌다 — 33 S4-4)
     if (cust.inspection_type === '종합' && !wraps && secondMonth < month && !handledKey.has(`${cust.id}-2-${secondMonth}`)) {
       overdueItems.push({
         customer_id: cust.id, customer_name: cust.customer_name,

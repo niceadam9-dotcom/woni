@@ -25,7 +25,10 @@ function kstShift(days: number): string {
 
 try {
   userId = await mkUser({ email: EMAIL, name: '타임라인E2E', employeeId: 'E2E-TML' })
-  custA = await mkCustomer({ customer_name: '타임라인E2E특별', created_by: userId })
+  // 아래 3)이 이 고객에 2차 점검을 만든다 — 153 트리거는 **종합 대상 고객만** 2차를 허용하므로
+  // 픽스처도 종합 대상이어야 한다 (mkCustomer 기본값은 작동/작동, 소방계획서_33 S5-3)
+  custA = await mkCustomer({ customer_name: '타임라인E2E특별', created_by: userId,
+    inspection_type: '종합', inspection_sub_type: '종합' })
   custB = await mkCustomer({ customer_name: '타임라인E2E정기', created_by: userId })
   // 특별점검 — 종료 = 12일 전 → 보고기한 = D+3 (크론 D-3 규칙 대상)
   const { data: iA, error: eA } = await raw.from('inspections').insert({
@@ -136,8 +139,9 @@ try {
   check('정기 — 별지 9호 타임라인 미노출', !(await page.isVisible('text=④ 소방서 제출')))
 
   // ── 3) 크론 — 별지 9호 15일 기한 (D-3 대상 = 제출일 기록 전 상태 필요 → 새 점검 건) ──
+  // 2차는 작동점검이다 (소방계획서_33 D33-1) — 종전 '종합'은 새 규약과 모순된다
   const { data: iC } = await raw.from('inspections').insert({
-    customer_id: custA, inspection_type: '종합', sequence_num: 2,
+    customer_id: custA, inspection_type: '작동', sequence_num: 2,
     inspection_start_date: kstShift(-12), inspection_end_date: kstShift(-12),
     status: 'in_progress', assigned_employee_id: userId, created_by: userId,
   }).select('id').single()

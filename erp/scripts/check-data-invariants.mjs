@@ -14,6 +14,8 @@
 // INV-D9: 소방계획서_23 — MU-007·MU-010 facility_type='기타' (법정 구분 이탈 재발 차단, 135)
 // INV-D10: 소방계획서_25 — holidays.source가 api/library/manual 범위 안 (139)
 // INV-D11: 소방계획서_25 — 대체공휴일이 토·일에 앉아 있지 않음 (「관공서의 공휴일에 관한 규정」제3조③)
+// INV-D12: 소방계획서_33 — 종합 대상의 2차는 작동점검 (153) ⓐ seq2 special_* 는 전부 special_작동
+//          ⓑ 종합 대상이 아닌 고객의 seq2 점검 0건 (트리거 축 이동 후 가드 생존을 결과로 감시)
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -209,6 +211,43 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
     return d === 0 || d === 6
   })
   report('INV-D11 대체공휴일이 주말(제3조③ 위반)', weekendSubs, r => `${r.date} ${r.name}`)
+}
+
+// ── INV-D12: 소방계획서_33 — 종합 대상의 2차는 작동점검이다 (153) ──
+// 종합점검 대상 건물은 사용승인월에 종합(1차), +6개월에 작동(2차)을 한다. 2차를 '종합'으로
+// 저장하면 별지 9호 체크박스·표지 제목·갑지 A2·점검표 범위가 전부 2차를 종합으로 인쇄한다.
+// 되돌리는 경로가 많아(생성기·수동추가·초과해결·고객동기화·수동등록) **결과 축에서** 감시한다.
+{
+  // 한글 리터럴은 코드포인트로 만든다 — 소스 인코딩이 깨져도 술어가 조용히 0건이 되지 않게.
+  const JONGHAP = String.fromCodePoint(0xC885, 0xD569)
+  const JAKDONG = String.fromCodePoint(0xC791, 0xB3D9)
+  const SPECIAL_OP = `special_${JAKDONG}`
+
+  // D12a: seq2 + special_* 인데 special_작동이 아닌 행 (plan_items·inspections 양쪽).
+  // monthly/event의 seq2는 작동 고객의 정상 데이터라 제외한다.
+  const { data: piRows } = await admin.from('inspection_plan_items')
+    .select('id, customer_id, plan_type, inspection_sub_type').eq('sequence_num', 2)
+  const a1 = (piRows ?? []).filter(r => (r.plan_type ?? '').startsWith('special') && r.plan_type !== SPECIAL_OP)
+  report('INV-D12a 2차 계획항목이 작동이 아님', a1,
+    r => `item=${r.id} plan_type=${r.plan_type} sub=${r.inspection_sub_type}`)
+
+  const { data: insRows } = await admin.from('inspections')
+    .select('id, customer_id, plan_type, inspection_type').eq('sequence_num', 2)
+  const a2 = (insRows ?? []).filter(r => (r.plan_type ?? '').startsWith('special') && r.plan_type !== SPECIAL_OP)
+  report('INV-D12a 2차 점검이 작동이 아님', a2,
+    r => `insp=${r.id} plan_type=${r.plan_type} type=${r.inspection_type}`)
+
+  // D12b: 2차인데 고객이 종합 대상이 아닌 행 — 153 트리거 생존을 **결과 축에서** 감시.
+  // 트리거는 inspections에만 걸려 있다(계획 항목엔 작동 고객의 정상 monthly seq2가 있다).
+  const { data: allCust } = await admin.from('customers')
+    .select('id, inspection_type, inspection_sub_type')
+  const compIds = new Set((allCust ?? [])
+    .filter(c => c.inspection_sub_type === JONGHAP
+      || (c.inspection_sub_type == null && c.inspection_type === JONGHAP))
+    .map(c => c.id))
+  const b = (insRows ?? []).filter(r => !compIds.has(r.customer_id))
+  report('INV-D12b 종합 대상이 아닌 고객의 2차 점검', b,
+    r => `insp=${r.id} customer=${r.customer_id} plan_type=${r.plan_type}`)
 }
 
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)

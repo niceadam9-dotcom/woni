@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
 import { loadAnchorDates } from '@/lib/inspection-plan-generator'
+import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
 
@@ -83,16 +84,19 @@ export async function addPlanItemAction(input: {
   const { data: custSubRaw } = await admin.from('customers')
     .select('inspection_sub_type').eq('id', input.customerId).single()
   const custSub = (custSubRaw as { inspection_sub_type: string | null } | null)?.inspection_sub_type
-  const subType: '종합' | '작동' = input.inspectionType === '종합' ? '종합'
+  const custSubType: '종합' | '작동' = input.inspectionType === '종합' ? '종합'
     : input.inspectionType === '작동' ? '작동'
     : custSub === '종합' ? '종합' : '작동'
+  // 위까지는 **고객 축**(종합 대상인가) — 여기서 **행 축**으로 내린다.
+  // 차수를 안 보면 수동으로 만든 2차가 종합으로 저장돼 생성기만 고친 게 무의미해진다 (소방계획서_33 S2-2)
+  const subType = rowSubType(custSubType, input.sequenceNum)
 
   const { data, error } = await admin
     .from('inspection_plan_items')
     .insert({
       plan_id: input.planId,
       customer_id: input.customerId,
-      inspection_type: input.inspectionType,
+      inspection_type: rowInspectionType(input.inspectionType, custSubType, input.sequenceNum),
       inspection_category: input.inspectionType === '일반관리' ? '일반관리' : '소방안전관리',
       inspection_sub_type: subType,
       sequence_num: input.sequenceNum,
@@ -768,15 +772,18 @@ export async function resolveOverdueItemsAction(
     let added = 0
     for (const item of monthItems) {
       // 초과 해결 항목도 자체점검(special_*) — 일반관리는 고객 sub_type으로 종류 유도 (W-10, event 특례 삭제)
-      const subType: '종합' | '작동' = item.inspection_type === '종합' ? '종합'
+      const custSubType: '종합' | '작동' = item.inspection_type === '종합' ? '종합'
         : item.inspection_type === '작동' ? '작동'
         : subById.get(item.customer_id) === '종합' ? '종합' : '작동'
+      // 초과 해결로 다시 등록되는 2차도 작동이다 — 여기를 빼면 지연 건을 해결할 때마다
+      // 옛 축(종합) 행이 새로 생긴다 (소방계획서_33 S2-3)
+      const subType = rowSubType(custSubType, item.sequence_num)
       const { error } = await admin
         .from('inspection_plan_items')
         .insert({
           plan_id: planId,
           customer_id: item.customer_id,
-          inspection_type: item.inspection_type,
+          inspection_type: rowInspectionType(item.inspection_type as InspectionType, custSubType, item.sequence_num),
           inspection_category: item.inspection_type === '일반관리' ? '일반관리' : '소방안전관리',
           inspection_sub_type: subType,
           sequence_num: item.sequence_num,

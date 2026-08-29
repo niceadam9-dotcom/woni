@@ -11,6 +11,7 @@ import {
 } from '@/app/(dashboard)/inspection-plans/actions'
 import type { InspectionType, PlanItemStatus } from '@/types'
 import { inspectionTypeLabel } from '@/types'
+import { rowInspectionType } from '@/lib/inspection-round'
 import { DateInput } from '@/components/ui/date-input'
 
 type CustomerRow = {
@@ -284,13 +285,19 @@ export function AutoGenerateWizard({
                 </tr>
               </thead>
               <tbody>
-                {draftItems.map((item, idx) => (
+                {draftItems.map((item, idx) => {
+                  // 미리보기는 **실제로 저장될 종류**를 보여야 한다 — 종합 대상의 2차는 작동으로
+                  // 저장된다(소방계획서_33 D33-1). item.inspection_type은 고객 축이라 그대로 찍으면
+                  // '종합'이라고 보여주고 '작동'으로 저장돼 화면이 거짓말을 한다.
+                  const rowType = rowInspectionType(
+                    item.inspection_type, item.inspection_type === '종합' ? '종합' : '작동', item.sequence_num)
+                  return (
                   <tr key={idx} className="border-b border-paper last:border-0">
                     <td className="px-4 py-2 font-medium text-ink">{item.customer_name}</td>
                     <td className="px-4 py-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        item.inspection_type === '종합' ? 'bg-brand-tint text-brand' : 'bg-blue-50 text-blue-600'
-                      }`}>{inspectionTypeLabel(item.inspection_type)}</span>
+                        rowType === '종합' ? 'bg-brand-tint text-brand' : 'bg-blue-50 text-blue-600'
+                      }`}>{inspectionTypeLabel(rowType)}</span>
                     </td>
                     <td className="px-4 py-2 text-ink-sub">{item.sequence_num}차</td>
                     <td className="px-4 py-2">
@@ -313,7 +320,8 @@ export function AutoGenerateWizard({
                       </select>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

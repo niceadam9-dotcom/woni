@@ -94,9 +94,14 @@ try {
   check('작동 분모 < 전체 항목 수', p1!.total < allCodes.size, `total=${p1?.total} all=${allCodes.size}`)
 
   // 3b) 같은 고객·같은 시트라도 종합점검이면 분모가 전체가 된다 (범위 필터 차등 확인)
+  // ⚠ 이 행은 종전에 sequence_num=2 였다. 소방계획서_33 이후 **2차 종합은 만들 수 없다** —
+  //   153 트리거는 종합 대상 고객만 2차를 허용하고(이 픽스처는 일반관리),
+  //   INV-D12a는 seq2 special_종합 자체를 위반으로 잡는다.
+  //   차수는 이 테스트의 관심사가 아니었다(유니크 회피용이었다) — **연도**를 갈라 seq1로 만든다.
+  //   uq_inspections_special_year_seq가 (customer_id, year, sequence_num)이라 연도가 다르면 충돌하지 않는다.
   const { data: inspComp } = await raw.from('inspections').insert({
-    customer_id: custId, inspection_type: '종합', plan_type: 'special_종합', sequence_num: 2,
-    inspection_start_date: '2026-08-11', status: 'in_progress',
+    customer_id: custId, inspection_type: '종합', plan_type: 'special_종합', sequence_num: 1,
+    inspection_start_date: '2025-08-11', status: 'in_progress',
     assigned_employee_id: userId, created_by: userId,
   }).select('id').single()
   compInspId = inspComp!.id

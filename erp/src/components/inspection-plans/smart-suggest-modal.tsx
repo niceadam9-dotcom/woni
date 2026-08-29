@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from 'react'
 import { X, Lightbulb, AlertCircle } from 'lucide-react'
 import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
+import { rowInspectionType } from '@/lib/inspection-round'
 import {
   getSuggestedItemsAction,
   addPlanItemAction,
@@ -178,7 +179,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
                     이번달 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 1).length}건</span>
                   </span>
                   <span>
-                    종합 2차 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 2).length}건</span>
+                    2차(작동) <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 2).length}건</span>
                   </span>
                 </div>
                 <button
@@ -212,7 +213,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
               {suggestions.some(s => s.sequence_num === 2) && (
                 <div>
                   <p className="text-xs font-semibold text-ink-sub mb-1.5 mt-3">
-                    2차 점검 — 점검계획월 {((month - 1 + 6) % 12) + 1}월 고객 (+6개월)
+                    2차 점검(작동) — 점검계획월 {((month - 1 + 6) % 12) + 1}월 고객 (+6개월)
                   </p>
                   <div className="space-y-1.5">
                     {suggestions.filter(s => s.sequence_num === 2).map(item => (
@@ -267,6 +268,8 @@ function SuggestRow({
   checked: boolean
   onToggle: () => void
 }) {
+  const rowType = rowInspectionType(
+    item.inspection_type, item.inspection_type === '종합' ? '종합' : '작동', item.sequence_num)
   return (
     <label
       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
@@ -284,8 +287,10 @@ function SuggestRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-medium text-ink truncate">{item.customer_name}</span>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${TYPE_STYLE[item.inspection_type]}`}>
-            {inspectionTypeLabel(item.inspection_type)}
+          {/* 배지는 저장될 종류(행 축) — 종합 대상의 2차는 작동으로 저장된다 (소방계획서_33 D33-1).
+              아래 차수/연1회 분기는 **고객 축** 그대로다: 2차가 있는지는 고객이 정한다. */}
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${TYPE_STYLE[rowType]}`}>
+            {inspectionTypeLabel(rowType)}
           </span>
           {item.inspection_type === '종합' ? (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium shrink-0">

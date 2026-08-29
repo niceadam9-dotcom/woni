@@ -19,6 +19,10 @@ const steps: Step[] = [
   // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
   // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
   { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
+  // 소방계획서_33 — 종합 대상의 2차는 작동점검. 생성 3축·가드 3케이스(축은 옮기되 없애지 않는다)·
+  // 인쇄물 라벨·점검표 범위·재생성 멱등을 한 번에 고정한다. 2차를 종합으로 되돌리는 경로가
+  // 5개(생성기·수동추가·초과해결·고객동기화·수동등록)라 결과 축에서 감시하는 편이 싸다.
+  { name: '2차=작동 규약(소방계획서_33)', cmd: 'npx tsx scripts/test-second-round-operational.mts' },
   // 갑지 워크북(소방계획서_27) — 템플릿 지문·앵커 라벨·완전 덮어쓰기 불변식(실고객 흔적 0).
   // 여기가 붉으면 갑지 서식이 갱신된 것 — build-workbook-template 재실행 + 앵커 재실측(Q-4)
   { name: '갑지 워크북 앵커·템플릿',    cmd: 'npx tsx scripts/test-xlsx-anchors.mts' },
