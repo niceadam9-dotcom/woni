@@ -1,0 +1,169 @@
+{
+  "doc": "소방계획서_36 — 점검 작업대 저장 지연 해소 + 점검업무 대비(contrast)",
+  "design": "erp_goal/소방계획서_36.md",
+  "related": ["소방계획서_35"],
+  "related_note": "요구 ②③(글씨 확대·선명화)이 소방계획서_35와 겹쳐 2026-08-29 사용자 결정으로 축을 갈랐다. 크기·한글 웹폰트·배율 인프라(마이그레이션 154 profiles.form_font_scale)는 35 주관, 대비(contrast)·대비 검사기·저장 지연은 36 주관. 36은 DB 변경이 없다. 35가 잡은 '선명도'의 지배 원인은 대비가 아니라 layout.tsx:5-15의 subsets:['latin'] — 한글 글리프가 없어 전부 system-ui로 폴백된다. 36의 대비 개선은 그 위에 얹히는 보완 축이지 대체가 아니다.",
+  "created": "2026-08-29",
+  "updated": "2026-08-29 최초 작성 후 같은 날 범위 축소 — 소방계획서_35(커밋 254e38c)와 크기·배율 축이 충돌해 D-6을 '35에 위임'으로 교체, profiles.density·마이그레이션 154 주장 철회, S5·S7을 색 토큰 전용으로 재작성. 구현 0줄",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 status, implemented는 verified 필수, 구현자 자기 신고는 code_present까지",
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "설계 확정(구현 아님)",
+    "deferred": "보류"
+  },
+  "key_evidence": "저장 지연의 원인은 이미 밝혀져 문서화까지 돼 있었다 — sheet-actions.ts:316-320이 2026-08-15 실측을 기록한다(저장 1회 완전 종료 5.8초, 지배 요인은 DB가 아니라 revalidatePath가 실어 보내는 상세 RSC 재렌더 + 클라이언트 중복 refresh). 드로어는 sheet-actions.ts:354-360 가드로 5.8s→1.2s가 됐으나 작업대에는 미적용. 2026-08-18 작업대 수정은 낙관적 선반영(justSubmitted)으로 체감만 가리고 재렌더는 남겼다 — inspection-workbench.tsx:270 주석이 'router.refresh()는 느리다'라 적고 :273이 그것을 호출한다. 무조건 revalidate 9곳(timeline-actions.ts:127·161·188·269·299·325·349·374 + defect-actions.ts:148) + 고립 1곳(defect-actions.ts:111, 목록 경로 누락). router.refresh() 11곳(inspection-workbench.tsx:221·253·262·273·317·336·349·362·374·789·847), 그중 :789/:847은 defect-grid.tsx:90의 칸 blur마다 호출. 대비 실측(WCAG 정식식 직접 계산): ink-faint 라이트 2.16:1·다크 3.14:1로 AA 실패인데 globals.css:167-169가 스스로 '장식용·AA 비대상'이라 적은 그 토큰이 sheet-item-editor.tsx:60 항목코드(점검표 참조 키)와 :242 안내문에 쓰이고 있다. 저장소에 텍스트 대비율 검사기가 없다 — _probe-29-light-scan.mts는 배경 휘도(lum=(0.2126R+0.7152G+0.0722B)/255, 임계 0.55)만 본다. 이것이 이 결함이 소방계획서_29 다크 모드 판정을 통과한 이유다.",
+  "design_corrections": [
+    { "id": "F-1", "desc": "stepsChanged 가드를 9곳에 복붙하면 8곳이 깨진다. 드로어가 revalidate를 건너뛴 전제는 가드가 아니라 sheet-actions.ts:319-320이 밝힌 '이 액션이 바꾼 것을 클라이언트가 스스로 책임진다 — 낡아도 소비처가 없다'이다. 나머지는 단계 외에 서버 렌더 props도 바꾼다(:127 파일칩·:161 칩 소멸·:269 evidence.delivery·:349/:374 evidence.forced 철회버튼 노출축·defect:148 칸 제목 집계). 순수 후보는 timeline-actions.ts:299 하나뿐(이미 justSubmitted 선반영 존재)" },
+    { "id": "F-2", "desc": "router.refresh()는 11곳이지 13곳이 아니다. 최초에 센 13은 주석 2줄(:137·:270 — 둘 다 'router.refresh()가 느리다'는 서술)을 정규식이 함께 잡은 수였다" },
+    { "id": "F-3", "desc": "진짜 병목은 router.refresh() 자체가 아니라 startTransition 안에 있다는 것. 11곳 전부 startTransition(async () => { …; router.refresh() }) 꼴이라 RSC 페이로드 도착까지 isPending이 참으로 남고 그것이 버튼 disabled를 잡는다(_measure-sheet-save.mts의 tIdle이 이 값). 대부분은 '제거'가 아니라 'transition 밖으로 이동'이 정답 — 신선도 손실 0" },
+    { "id": "F-4", "desc": "'선명하지 않음'의 지배 원인은 대비가 아니라 한글 웹폰트 부재였다. 36 최초안은 흐릿함을 대비 축으로만 진단했으나, 소방계획서_35가 layout.tsx:5-15의 subsets:['latin']을 잡아내 한글이 전부 system-ui(맑은 고딕)로 폴백된다는 사실이 드러났다(저장소 @font-face 0건). 대비 개선만으로는 요구의 절반만 풀린다 — 36은 보완 축으로 스스로를 재정의했다" },
+    { "id": "F-5", "desc": "globals.css:168의 다크 ink-sub '≈7:1'은 실제 계산값 6.76:1. 오도 수준은 아니나 정확값을 기록해 다음 세션의 재계산을 없앤다" }
+  ],
+  "user_decisions": [
+    { "date": "2026-08-29", "axis": "글자 확대 방식", "choice": "밀도 토글(보통/크게) — 개인별 설정", "superseded": "같은 날 35와의 중복이 드러나 D-6으로 교체 — 크기·배율은 35 주관, 36은 DB 변경 없음" },
+    { "date": "2026-08-29", "axis": "저장 속도 범위", "choice": "작업대만 — 이웃 파일은 의도적 제외", "rejected": ["점검표·타임라인까지 확대"] },
+    { "date": "2026-08-29", "axis": "대비 게이트 강도", "choice": "래칫(악화만 차단)", "rejected": ["보고서 전용(비차단)", "지정 화면 FAIL 0 요구"] },
+    { "date": "2026-08-29", "axis": "35와의 중복 정리", "choice": "36에서 크기·밀도 제거 — 36은 저장 속도 + 대비만", "rejected": ["36은 저장 속도만", "36 그대로 두고 마이그레이션만 155로"] }
+  ],
+  "decisions": [
+    { "id": "D-1", "title": "대조군 선행 — S1 완료 전 소스 무변경", "status": "confirmed", "desc": "이번에 고칠 경로(불량표 셀·④⑥ 기록·업로드)는 한 번도 측정된 적이 없다. _measure-sheet-save.mts는 드로어 경로만 잰다. 대조군 없이는 개선을 증명할 수 없고, '빨라졌다'는 주장이 무효가 된다." },
+    { "id": "D-2", "title": "revalidate는 헬퍼로 중앙집중 (가드 복붙 아님)", "status": "confirmed", "desc": "F-1 때문에 9회 복붙은 8곳 회귀를 낳는다. syncStepsAndRevalidate(admin, inspectionId, actorId, opts?: { alsoChanged?: boolean })를 신설하고, 각 호출부가 alsoChanged: true + '무엇이 바뀌는지' 한 줄 주석으로 판단을 문서화한다. 부수 효과로 기계 검증이 가능해진다(액션 파일에서 revalidatePath( 0회). 집은 src/app/(dashboard)/inspections/step-revalidate.ts — lib/inspection-step-sync.ts에 두면 --conditions=react-server로 Next 밖에서 도는 스크립트들이 next/cache를 끌어들여 터진다." },
+    { "id": "D-3", "title": "router.refresh()는 제거가 아니라 transition 밖으로", "status": "confirmed", "desc": "F-3에 따라 이동이 기본 전략. 신선도 손실 0으로 체감 지연만 사라지며 삭제보다 회귀 위험이 훨씬 낮다. 완전 제거는 :273(선반영 존재)과 :789/:847(로컬 미러 후) 두 축만." },
+    { "id": "D-4", "title": "불량표는 로컬 집계 미러", "status": "confirmed", "desc": "DefectGrid가 onSaved({planned,done,total})로 집계를 올리고 칸 제목·스텝바 ⑤가 그 값을 쓴다. inspection-workbench.tsx:141-144의 submit9At 선반영과 완전히 같은 패턴을 재사용한다 — 새 기법 발명 금지." },
+    { "id": "D-5", "title": "토큰은 신설만 — ink-faint / ink-meta 의미 분화", "status": "confirmed", "desc": "globals.css:40의 29 D-3 라이트 불변 규약 때문에 값 변경은 금지(ink-faint 값을 올리면 라이트 397곳 이상이 한꺼번에 바뀐다). --t-ink-meta를 신설해 ink-faint=순수 장식(AA 비대상) / ink-meta=정보를 담은 보조 텍스트(AA 대상)로 쪼갠다. 기존 토큰 값 0개 변경." },
+    { "id": "D-6", "title": "크기·폰트·밀도는 소방계획서_35에 위임 — 36은 DB 변경 없음", "status": "confirmed", "desc": "사용자 확정 2026-08-29. 35가 --fs-scale 변수 + profiles.form_font_scale(마이그레이션 154_profile_font_scale.sql, 쿠키 erp-fs) 인프라를 이미 설계·커밋(254e38c)했다. 36이 profiles.density를 따로 만들면 같은 개념에 컬럼 2개·마이그레이션 2개가 생긴다. 36의 치환은 색 토큰만이라 35의 크기 코드모드와 논리적 충돌이 없다(편집 충돌은 S7-5로 조율). 점검업무 화면군의 text-[Npx] 분포는 35의 배율 범위 확장 근거로 인계한다(S8-3)." },
+    { "id": "D-7", "title": "대비 프로브 신설 — WCAG 정식식, 래칫 게이트", "status": "confirmed", "desc": "_probe-29-light-scan.mts의 lum=(0.2126R+0.7152G+0.0722B)/255는 감마 보정이 빠진 근사라 배경 밝기 분류에는 충분했지만 대비비로 쓰면 틀린 값이 나온다 — 복사 금지. 감마 선형화(c<=0.03928?c/12.92:((c+0.055)/1.055)^2.4) 후 (L1+0.05)/(L2+0.05). 게이트는 래칫(FAIL수 > baseline이면 실패) — 사용자 확정. 처음부터 0을 요구하면 아무도 못 켜고 게이트가 꺼진다." },
+    { "id": "D-8", "title": "저장 속도 범위는 작업대만", "status": "confirmed", "desc": "사용자 확정 2026-08-29. inspection-sheet-client.tsx(9곳)·inspection-timeline-client.tsx(8곳)·inspection-participants-client.tsx(2곳)는 의도적 제외 — 한 차수가 검증 가능한 크기로 유지된다. 작업대 정착 후 같은 처방을 이식한다." }
+  ],
+  "sections": [
+    {
+      "id": "S1",
+      "title": "대조군 실측 (소스 무변경 · 선행 필수)",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S1-1", "desc": "_measure-sheet-save.mts 현행 3회 실행 → 이미 고쳐진 드로어 경로의 기준선 기록", "status": "pending_order" },
+        { "id": "S1-2", "desc": "scripts/_measure-workbench-save.mts 신설(템플릿 _measure-sheet-save.mts). 불량 2건 픽스처 + ⑤ 단계. 3구간: ⓐ셀 blur→저장 표시 ⓑ셀 blur→칸 제목 N/M 증가 ⓒ④⑥ [기록]→버튼 재활성", "status": "pending_order" },
+        { "id": "S1-3", "desc": "next-action 헤더 훅(_measure-sheet-save.mts:36-46) 이식 → 서버 액션 POST 왕복 단독값 분리. DB가 병목이 아님을 이 경로에서도 재확인", "status": "pending_order" },
+        { "id": "S1-4", "desc": "업로드·삭제 경로(inspection-workbench.tsx:221·374) 1회 측정 — 희소 경로임을 수치로 확정해 우선순위 근거로", "status": "pending_order" },
+        { "id": "S1-5", "desc": "S6 프로브를 보고 전용으로 1회 실행 → 라이트·다크 FAIL 노드 수 baseline 기록(S6-9 래칫의 분모)", "status": "pending_order" },
+        { "id": "S1-6", "desc": "위 수치를 소방계획서_36.md §대조군 표에 날짜·커밋 해시와 함께 확정 기재. 이 표 없이 S2~S7 착수 금지", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "서버 revalidate 축 중앙집중",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S2-1", "desc": "헬퍼 syncStepsAndRevalidate 신설 — src/app/(dashboard)/inspections/step-revalidate.ts ('use server' 없음). lib/inspection-step-sync.ts에 두지 않는 이유는 react-server 조건 스크립트가 next/cache를 끌어들여 터지기 때문", "status": "pending_order" },
+        { "id": "S2-2", "desc": "sheet-actions.ts:354-360을 헬퍼로 치환 — 동작 무변경이 수용 기준(헬퍼가 틀렸는지 판정하는 기준점). 억지가 나면 그대로 둔다", "status": "pending_order" },
+        { "id": "S2-3", "desc": "timeline-actions.ts 8곳(127·161·188·269·299·325·349·374) 치환. :299 외 전부 alsoChanged:true + 각 자리에 어떤 서버 prop이 바뀌는지 한 줄 주석", "status": "pending_order" },
+        { "id": "S2-4", "desc": "timeline-actions.ts:126의 slot==='cert' 조건부 sync 유지 — contract 경로의 revalidate를 잃으면 계약서 칩이 안 뜬다(F-1 파생)", "status": "pending_order" },
+        { "id": "S2-5", "desc": "defect-actions.ts:147-149 치환. 현시점 alsoChanged:true. S3-5(로컬 집계 미러) 완료 후에만 false로 내릴 수 있다 — 의존 순서 명시", "status": "pending_order" },
+        { "id": "S2-6", "desc": "defect-actions.ts:111 고립 호출 흡수 — 목록 경로(/inspections)가 빠져 있어 점검 목록 진행률만 조용히 낡는다", "status": "pending_order" },
+        { "id": "S2-7", "desc": "기계 검증: revalidatePath( 가 inspections/*-actions.ts에서 0회, 헬퍼 파일에서만 2회 (Json_Rule 규칙 4 checks)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "클라이언트 refresh 축",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S3-1", "desc": "deferredRefresh() 지역 헬퍼 — startTransition 바깥에서 router.refresh(). 전 호출부가 이걸 쓴다(F-3)", "status": "pending_order" },
+        { "id": "S3-2", "desc": "inspection-workbench.tsx:273 submit → deferredRefresh(). justSubmitted 선반영이 이미 있어 즉시 반응 + 배경 정합", "status": "pending_order" },
+        { "id": "S3-3", "desc": ":221·:374 업로드·삭제 → deferredRefresh(). 삭제는 파일 칩이 사라져야 하므로 제거 금지", "status": "pending_order" },
+        { "id": "S3-4", "desc": ":253·:262·:317·:336·:349·:362 → deferredRefresh() 일괄. 전부 희소 경로라 로컬 미러 불필요", "status": "pending_order" },
+        { "id": "S3-5", "desc": "최우선 — :789·:847. DefectGrid가 onSaved({planned,done,total})로 로컬 집계를 올리고 칸 제목 '이행계획 N/M'·'불량 조치 N/M'이 이 값을 쓴다", "status": "pending_order" },
+        { "id": "S3-6", "desc": "S3-5 값을 evidenceDone({ ...data.evidence, submit9At, submit11At, defectsDone })에 주입 — inspection-workbench.tsx:141-144 패턴 재사용", "status": "pending_order" },
+        { "id": "S3-7", "desc": ":789·:847의 셀당 router.refresh() 제거, 표 이탈 또는 idle 시 1회 deferredRefresh()", "status": "pending_order" },
+        { "id": "S3-8", "desc": "defect-grid.tsx:90 onSaved 시그니처 변경에 따른 다른 호출부 배선 확인(defect-grid.tsx:164·166 사진 onDone 포함)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "저장 속도 회귀 게이트",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S4-1", "desc": "S1-2를 예산 단언 테스트로 승격(test-workbench-save-budget.mts). 예산 = S1 실측 관측 최댓값 × 0.5 — 임의 상수 금지", "status": "pending_order" },
+        { "id": "S4-2", "desc": "test-workbench-defect-live.mts 신설 — 조치계획 입력 후 새로고침 없이 칸 제목이 0/2→1/2가 되는지. S3-5 착수 전에 작성해 현행에서 초록임을 먼저 확인(대조군 테스트)", "status": "pending_order" },
+        { "id": "S4-3", "desc": "S4-2에 reload 후 DB 대조 절 추가 — 화면만 앞서가지 않았는지 단언", "status": "pending_order" },
+        { "id": "S4-4", "desc": "test-step-submit-feedback.mts 무수정 통과 — S3-2 회귀 방어선", "status": "pending_order" },
+        { "id": "S4-5", "desc": "test-cert-paper-delete.mts 무수정 통과 — S3-3 회귀 방어선(업로드 칩 존재 + 삭제 후 부재)", "status": "pending_order" },
+        { "id": "S4-6", "desc": "test-all.mts에 needServer:true로 등재. pre-push에는 넣지 않는다 — .githooks/pre-push는 무서버 게이트", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "점검표 입력 상세정보 대비 (색 축만 · 레이아웃 위험 0)",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S5-1", "desc": "--t-ink-meta 신설(라이트·다크 각각 AA 4.5:1 통과값) + @theme inline에 --color-ink-meta 등록. 기존 토큰 값 0개 변경", "status": "pending_order" },
+        { "id": "S5-2", "desc": "globals.css:167-169 주석 갱신 — ink-faint=순수 장식(AA 비대상) / ink-meta=정보를 담은 보조 텍스트(AA 대상) 경계를 규약으로 기록 + 실측 대비값(2.16·3.14·4.76·6.76) 기재", "status": "pending_order" },
+        { "id": "S5-3", "desc": "sheet-item-editor.tsx:60 항목코드 text-ink-faint → text-ink-meta. text-[10px] 크기는 그대로 둔다(크기는 소방계획서_35 소관, D-6)", "status": "pending_order" },
+        { "id": "S5-4", "desc": "sheet-item-editor.tsx:242 안내문('저장 후 설비 목록 상단의 [불량 등록] 버튼으로…') text-ink-faint → text-ink-meta. 읽으라고 쓴 문장", "status": "pending_order" },
+        { "id": "S5-5", "desc": "sheet-item-editor.tsx:88 미선택 O/X 버튼의 text-ink-faint는 유지 — 진짜 비활성 표현이며 40px 버튼 안 큰 글리프라 장식이 맞다(무엇을 안 바꾸는지도 criteria로 남긴다)", "status": "pending_order" },
+        { "id": "S5-6", "desc": "라이트·다크 양쪽에서 S5-3·S5-4 노드가 프로브 FAIL 목록에서 사라졌는지 — 눈이 아니라 프로브 출력으로 판정", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "대비 검사 프로브 신설",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S6-1", "desc": "scripts/_probe-36-contrast.mts 신설. _e2e-helpers.mjs(mkUser·launch·login·cleanup) + _probe-29-light-scan.mts의 다크 전환 절차(theme-option-dark) 재사용", "status": "pending_order" },
+        { "id": "S6-2", "desc": "전경 color + 조상을 거슬러 합성한 실효 배경(alpha 컴포지팅). 부모 배경 상속을 무시하면 전부 오탐", "status": "pending_order" },
+        { "id": "S6-3", "desc": "WCAG 2.1 정식식 — c<=0.03928?c/12.92:((c+0.055)/1.055)^2.4 선형화 후 L=0.2126R+0.7152G+0.0722B, (L1+0.05)/(L2+0.05). _probe-29-light-scan.mts의 감마 미보정 근사식 복사 금지(D-7)", "status": "pending_order" },
+        { "id": "S6-4", "desc": "임계 — 일반 텍스트 4.5:1, 큰 텍스트(≥24px 또는 ≥18.66px+bold) 3.0:1", "status": "pending_order" },
+        { "id": "S6-5", "desc": "실효 fontSize도 함께 기록하되 판정은 하지 않고 보고만 — 크기 판정은 35 소관이나 대비 임계가 크기에 따라 갈리므로 같은 프로브가 재야 한다", "status": "pending_order" },
+        { "id": "S6-6", "desc": "제외 규칙을 좁고 명시적으로 — aria-hidden='true'·disabled·opacity<0.5·0-size·visibility:hidden. placeholder는 별도 WARN 버킷(FAIL에 섞으면 목록이 못 쓰게 된다)", "status": "pending_order" },
+        { "id": "S6-7", "desc": "출력 — ratio 오름차순 + class 서명 그룹핑(한 번 고치면 몇 개가 낫는지 보인다)", "status": "pending_order" },
+        { "id": "S6-8", "desc": "라우트 — /inspections/[id](6단계 각각) · 점검표 드로어 열린 상태 · /inspections · /inspections/calendar. 라이트·다크 2회 순회", "status": "pending_order" },
+        { "id": "S6-9", "desc": "게이트 = 래칫(사용자 확정) — FAIL수 > S1-5 baseline이면 실패. S7 완료 후에만 지정 라우트에 FAIL수 > 0으로 조인다", "status": "pending_order" },
+        { "id": "S6-10", "desc": "알려진 쌍(ink-faint 2.16/3.14, ink-sub 6.76)으로 프로브 자가 검증 — 프로브 자체가 스펙 위험이다(위험 ④)", "status": "pending_order" },
+        { "id": "S6-11", "desc": "test-all.mts에 needServer:true로 등재", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "대비 축 확산 (색 토큰만)",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S7-1", "desc": "프로브 FAIL ∩ 정보 노드만 ink-faint→ink-meta. 대상을 소방계획서_36.md에 파일:라인으로 전부 열거하고 목록 밖은 안 건드린다. 크기 무변경이라 레이아웃 위험 0", "status": "pending_order" },
+        { "id": "S7-2", "desc": "장식으로 남길 자리(비활성·플레이스홀더·구분선)를 함께 열거 — 무엇을 안 바꾸는지가 다음 세션의 판단 근거가 된다", "status": "pending_order" },
+        { "id": "S7-3", "desc": "print: 변형 불간섭 — 치환 대상에서 기계적으로 배제하고 배제됐음을 검사로 고정(29 규약)", "status": "pending_order" },
+        { "id": "S7-4", "desc": "신규 코드 hex 리터럴 0 — var(--t-*) 경유만(29 규약)", "status": "pending_order" },
+        { "id": "S7-5", "desc": "소방계획서_35의 크기 코드모드와 충돌 0 확인 — 36은 색 클래스만, 35는 크기 클래스만 만진다. 착수 순서를 조율하고 같은 파일을 동시에 열지 않는다(위험 ③)", "status": "pending_order" }
+      ]
+    },
+    {
+      "id": "S8",
+      "title": "문서·게이트 정리",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S8-1", "desc": "Json_Rule 규칙 4 checks 등재 — S2-7(revalidatePath 0회) · S7-4(hex 0곳)", "status": "pending_order" },
+        { "id": "S8-2", "desc": "실측 criteria의 증거 형식 규정 — 지연·대비 항목은 verified.evidence에 파일:라인만 적을 수 없다. '실행 로그 1줄 + 파일:라인 1줄'을 함께 요구한다. 예: ['_measure-workbench-save.mts 2026-XX-XX: ⓑ 5,240ms → 940ms', 'inspection-workbench.tsx:789 배선']", "status": "pending_order" },
+        { "id": "S8-3", "desc": "소방계획서_35에 인계 — 점검업무 화면군의 text-[Npx] 분포(저장소 전체 9px 24·10px 397·11px 584 / inspection-workbench.tsx는 59칸이 ≤11px·≥12px는 4칸)를 35의 배율 범위 확장 근거로 넘기고 35 문서에 역참조를 남긴다", "status": "pending_order" },
+        { "id": "S8-4", "desc": "구현 세션은 code_present까지. implemented 승격은 별도 독립 검증 패스(Json_Rule 규칙 3)", "status": "pending_order" }
+      ]
+    }
+  ],
+  "out_of_scope": [
+    "크기·폰트·밀도 전부 → 소방계획서_35(D-6). text-[9px] 24곳 정리도 35 소관. 36은 DB 변경 없음(마이그레이션 154는 35가 선점)",
+    "inspection-sheet-client.tsx(9)·inspection-timeline-client.tsx(8)·inspection-participants-client.tsx(2)의 router.refresh() — D-8 의도적 제외, 작업대 정착 후 이식",
+    "[id]/page.tsx의 13+6 DB 쿼리 — Promise.all 병렬이고 sheet-actions.ts:316이 '지배 요인은 DB가 아니다'를 이미 실측 확정. 건드리면 엉뚱한 축을 최적화하는 것",
+    "점검업무 밖 화면의 대비 정리(components/customers/ 등) — 프로브가 서고 나서 후속"
+  ],
+  "verification_plan": [
+    "S1 대조군 수치 → S4 예산 단언으로 개선 증명. 대조군 없는 '빨라졌다'는 주장은 무효",
+    "드로어 저장 경로 무회귀 — sheet-actions.ts 치환 후 _measure-sheet-save.mts 수치가 기준선과 동일",
+    "S3 방어선 — test-step-submit-feedback.mts · test-cert-paper-delete.mts 무수정 통과",
+    "신규 test-workbench-defect-live.mts — 무-새로고침 갱신 + reload 후 DB 대조",
+    "_probe-36-contrast.mts 라이트·다크 2회, FAIL 수가 S1-5 baseline 이하 + S6-10 자가 검증 통과",
+    "npm run test:all (Tier1 build+INV / Tier2 E2E). 전체 회귀 전 dev 재기동(위험 ⑥)",
+    "pre-push 게이트(core.hooksPath=.githooks, 저장소 루트) — build + 한글 폰트 자산 + 불변식 경고",
+    "DB 변경 없음 — 마이그레이션 적용 절차 불필요(D-6)",
+    "⚠ 36 단독 완료로 요구 ②③이 닫혔다고 보고하지 않는다 — '선명도'의 지배 원인은 한글 웹폰트 부재(소방계획서_35 S1)다(위험 ⑤)"
+  ]
+}
