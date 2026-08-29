@@ -101,11 +101,14 @@ try {
   check('DB fire_plan_revisions 저장(수동 행)',
     revRow?.content === '개정 E2E 검증' && revRow?.source === 'manual', JSON.stringify(revRow))
 
-  // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 (소방계획서_8 D-12: 3그룹 재편) ──
-  check('목차 트리 — 3그룹(본문·별지 서식·보관함)',
+  // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 ──
+  // 소방계획서_8 D-12는 3그룹이었으나 _34(2026-08-29)가 📑 별지 서식을 최상위 [별지서식] 탭으로
+  // 승격하며 **2그룹**이 됐다. 별지 노드가 트리에 없다는 것까지 함께 단언한다(되살아나면 이중 마운트).
+  check('목차 트리 — 2그룹(본문·보관함)',
     await page.isVisible('text=소방계획서 본문')
-    && await page.isVisible('text=별지 서식')
     && await page.isVisible('text=보관함·개정이력'))
+  check('목차 트리 — 별지 노드는 탭으로 나가서 없다',
+    (await page.locator('[data-plan-node="annex"]').count()) === 0)
   await page.click('button:has-text("1.1 일반현황")')
   await page.waitForSelector('text=계획서 정보')
   check('목차 1.1 클릭 → 계획서 정보 패널', true)

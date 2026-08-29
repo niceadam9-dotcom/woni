@@ -14,6 +14,7 @@ import {
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
 import { rollUpForm3Results, form3ItemsForSheet, type SheetStat } from '@/lib/sheet-facility-map'
 import { bumpNumber } from '@/components/ui/fields'
+import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
 /** ± 스테퍼를 붙일 수량형 단위 (S4-4) — 용량·치수(㎥·㎾·MPa·ℓ·ℓ/min·m·㎜·㎡ 등)는 ±1이 무의미해 제외 */
 const COUNT_UNITS = new Set(['개', '대', '개소', '개층', '구역'])
@@ -143,6 +144,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   useEffect(() => { onDirtyChangeRef.current = onDirtyChange })
   useEffect(() => { onDirtyChangeRef.current?.(dirtyCount) }, [dirtyCount])
   const router = useRouter()
+  const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null — [9호로 돌아가기]의 같은 경로 전환용 (소방계획서_34 S4-4)
   // 소방계획서_8 D-13 스플릿 입력 — 우측에 별지 9호 4~7쪽 실시간 미리보기 (저장 시 재렌더, 데스크톱)
   const [splitOn, setSplitOn] = useState(false)
   const [splitInspId, setSplitInspId] = useState<string | null>(null)
@@ -799,9 +801,13 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
             <span>별지 9호에서 넘어왔습니다 — 세부현황(4~7쪽)은 여기서만 입력하고, 저장하면 9호에 바로 반영됩니다</span>
             <button type="button"
               onClick={() => {
-                // 새 탭(ctrl-click) 진입은 히스토리가 없어 back이 무동작 — 별지 트리로 폴백 (독립 검증 비차단 후속)
-                if (window.history.length > 1) router.back()
-                else router.push(`/customers/${customerId}?tab=plan&form=annex`)
+                // 새 탭(ctrl-click) 진입은 히스토리가 없어 back이 무동작 — 별지서식 탭으로 폴백
+                if (window.history.length > 1) { router.back(); return }
+                // ⚠ 여기는 고객 상세 = **같은 경로**다. router.push로 ?tab=annex를 밀어도 서버가
+                //   재렌더되지 않아 활성 탭이 소방계획서인 채로 남는다(소방계획서_34 S4-4).
+                //   탭 셸 컨텍스트로 직접 전환하면 미저장 확인창도 그대로 존중된다.
+                if (tabsShell) tabsShell.goTab('annex')
+                else window.location.assign(`/customers/${customerId}?tab=annex`)
               }}
               className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium shrink-0">
               <CornerUpLeft className="size-3" /> ⑨ 9호로 돌아가기

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import Link from 'next/link'
 import { X, Eye, FileText, Loader2, Save, ExternalLink } from 'lucide-react'
 import { AnnexMissingList } from '@/components/inspections/annex-missing-list'
 import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction, getAnnexAutoDefaultsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
@@ -216,9 +215,14 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                       <span className="text-[10px] text-ink-faint ml-auto text-right">
                         원본: {r.source}
                         {r.href && (
-                          <Link href={r.href} className="text-brand hover:underline ml-1 inline-flex items-center gap-0.5">
+                          // ⚠ next/link가 아니라 <a>(전체 이동)다 — 소방계획서_34 S6-1.
+                          //   이 패널은 고객 상세(별지서식 탭)에서도 뜨므로 목적지가 **같은 경로**다.
+                          //   같은 경로 soft nav는 서버를 재렌더하지 않아 탭·서식이 그대로 남는다(무반응으로 보인다).
+                          //   게다가 plan-form14-specs는 ?from=report9 컨텍스트를 마운트 시 location.search에서
+                          //   직접 읽으므로, 전체 이동이 아니면 스플릿·첫 빈칸 포커스·복귀 바가 안 켜진다.
+                          <a href={r.href} className="text-brand hover:underline ml-1 inline-flex items-center gap-0.5">
                             수정 <ExternalLink className="size-2.5" />
-                          </Link>
+                          </a>
                         )}
                       </span>
                     </div>

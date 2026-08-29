@@ -28,8 +28,17 @@ export function CommandPalette() {
 
   function openDocs(customerId: string) {
     setOpen(false)
-    // 소방계획서_8 Phase B: 문서 현황 = 고객 소방계획서 트리(별지 서식)가 단일 허브
-    router.push(`/customers/${customerId}?tab=plan&form=annex`)
+    // 소방계획서_8 Phase B: 문서 현황 = 별지서식 탭이 단일 허브 (소방계획서_34로 최상위 탭 승격)
+    const href = `/customers/${customerId}?tab=annex`
+    // ⚠ 팔레트는 전역 헤더라 지금 보고 있는 그 고객을 다시 고를 수 있다 = **같은 경로**.
+    //   같은 pathname으로 ?tab=만 바꾸는 router.push는 URL만 바꾸고 서버를 재렌더하지 않아
+    //   활성 탭이 그대로 남는다(customers/[id]/page.tsx의 헤더 <a> 주석에 실측 근거).
+    //   여기는 CustomerTabs 컨텍스트 밖이라 goTab을 못 쓰므로 전체 이동으로 확정한다.
+    if (typeof window !== 'undefined' && window.location.pathname === `/customers/${customerId}`) {
+      window.location.assign(href)
+      return
+    }
+    router.push(href)
   }
 
   return (

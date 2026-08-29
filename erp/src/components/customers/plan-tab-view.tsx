@@ -76,7 +76,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
-  annex, ledgerAutoNeeded, textDefaultsNeeded,
+  ledgerAutoNeeded, textDefaultsNeeded,
 }: {
   customerId: string
   canManage: boolean
@@ -104,14 +104,15 @@ export function PlanTabView({
   ch2: ReactNode
   ch3: ReactNode
   formCover: ReactNode            // 보고서 커버 — 생성 문서 마지막 페이지 업체명·연도 (2026-08-10, 본문 그룹 마지막 노드)
-  annex?: ReactNode               // 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4, PlanAnnexSection)
+  // annex prop 폐지 — 별지 서식은 고객 상세의 최상위 탭으로 승격됐다 (소방계획서_34 S3).
+  // 여기 남겨두면 두 곳에서 마운트돼 회차 조회 왕복이 이중으로 뜬다. 진입점은 customers/[id]/page.tsx의 annexTab 한 곳.
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
   // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
   // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'cover', 'annex'])
+  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'cover'])
   // 2026-08-08: 지도·사진 노드를 폐지하고 슬롯 UI를 1.3 안으로 옮겼다 — 옛 딥링크(?form=assets)는 1.3으로 보낸다
   const norm = (key: string | undefined) => (key === 'assets' ? '1.3' : key)
   const initialSel = norm(initialForm) && VALID_SEL.has(norm(initialForm)!) ? norm(initialForm)!
@@ -310,7 +311,7 @@ export function PlanTabView({
             ))}
           </span>
         )}
-        {/* 구 보고서 센터 역링크 제거 — 이 트리(별지 서식)가 문서 현황의 단일 허브 (소방계획서_8 Phase B)
+        {/* 구 보고서 센터 역링크 제거 — 문서 현황의 단일 허브는 [별지서식] 탭 (소방계획서_8 Phase B → _34로 탭 승격)
             생성 버튼 제거(R2-11) — 조회는 보관함 [현재 내용], 발행은 보관함 [개정 발행]으로 일원화.
             준비율 게이지·누락 칩은 입력처 점프 기능이라 여기 남긴다 */}
       </div>
@@ -352,8 +353,12 @@ export function PlanTabView({
           }
           return <span className={`ml-auto text-[10px] shrink-0 ${v ? 'text-green-600' : 'text-ink-faint'}`}>{v ? '✓' : '○'}</span>
         }
+        // data-plan-node/aria-current: 어느 노드가 실제로 선택됐는지 보이는 구조적 표식.
+        // 없을 때는 딥링크 검사가 URL 문자열(?form=annex)밖에 볼 수 없어, 링크의 form 값을
+        // 엉뚱하게 바꿔도 초록으로 남았다(소방계획서_32 F-1 변이 검사로 실증).
         const navBtn = (key: string, label: string, indent = false) => (
           <button key={key} onClick={() => select(key)}
+            data-plan-node={key} aria-current={sel === key ? 'true' : undefined}
             className={`w-full flex items-center gap-1.5 h-7 rounded-lg text-[11px] text-left transition-colors ${indent ? 'pl-5 pr-2' : 'px-2 font-medium'} ${
               sel === key ? 'bg-brand text-white [&>span]:!text-white' : 'text-ink-sub hover:bg-brand-tint'
             }`}>
@@ -365,14 +370,14 @@ export function PlanTabView({
           const v = fs[f.key]
           return typeof v === 'object' ? v.done >= v.total : v === true
         }).length
-        {/* 소방계획서_8 D-12 3그룹 재편 → 14.md #16(2026-08-11): 📘 본문(1~3장) / 🗂 보관함·개정이력 / 📑 별지 서식(맨 아래) */}
+        {/* 소방계획서_8 D-12 3그룹 재편 → 14.md #16(2026-08-11) → **소방계획서_34(2026-08-29)로 2그룹**:
+            📘 본문(1~3장) / 🗂 보관함·개정이력. 📑 별지 서식은 최상위 탭으로 나갔다 — 트리 내 순서 결정도 함께 소멸. */}
         const NAV_ALL = [
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
           { key: 'cover', label: '본문 보고서 커버' },
           { key: 'archive', label: '보관함·개정이력' },
-          { key: 'annex', label: '별지 서식 (회차)' },
         ]
         return (
         <div className="flex gap-4 items-start">
@@ -391,14 +396,11 @@ export function PlanTabView({
               {navBtn('cover', '보고서 커버', true)}
             </div>
             {/* 🖼 지도·사진 노드 폐지(2026-08-08 사용자 확정) — 표지·위치도·피난안내도 슬롯은 1.3 안으로 이관 */}
-            {/* 14.md #16 — 별지를 보관·이력 아래(맨 아래)로 이동 (2026-08-11 사용자 재확정, 구 Q-4 순서 유지안 대체) */}
+            {/* 📑 별지 서식 그룹 폐지(2026-08-29 사용자 확정, 소방계획서_34 D34-2) — 최상위 [별지서식] 탭으로 승격.
+                안내 문구도 남기지 않는다. 구 딥링크 ?tab=plan&form=annex는 page.tsx가 서버에서 새 탭으로 해석한다. */}
             <div className="pt-2 mt-1.5 border-t border-brand-tint">
               <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">🗂 보관·이력</p>
               {navBtn('archive', '보관함·개정이력')}
-            </div>
-            <div className="pt-2 mt-1.5 border-t border-brand-tint">
-              <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">📑 별지 서식</p>
-              {navBtn('annex', '회차별 작성·조회', true)}
             </div>
           </aside>
 
@@ -454,8 +456,7 @@ export function PlanTabView({
       {/* ── 보고서 커버 (생성 문서 마지막 페이지 — 업체명·연도) ── */}
       {sel === 'cover' && formCover}
 
-      {/* ── 별지 서식 — 회차 자동 카드 (소방계획서_8 H-4) ── */}
-      {sel === 'annex' && (annex ?? <p className="text-xs text-ink-faint py-4">별지 서식을 불러올 수 없습니다.</p>)}
+      {/* 별지 서식 렌더는 최상위 [별지서식] 탭으로 이관 (소방계획서_34 S3-5) */}
           </div>
         </div>
         )

@@ -1,0 +1,162 @@
+{
+  "doc": "소방계획서_34 — 별지 서식을 최상위 탭으로 승격 ([소방계획서] 옆 [별지서식])",
+  "design": "erp_goal/소방계획서_34.md",
+  "created": "2026-08-29",
+  "updated": "2026-08-29 (설계 확정 · 코드/커밋 전부 미실행 — 사용자 지시로 문서 작성 후 중단)",
+  "related": ["소방계획서_8", "소방계획서_14", "소방계획서_20", "소방계획서_30"],
+  "supersedes": [
+    { "doc": "소방계획서_8", "id": "D-12", "action": "moved", "reason": "3그룹 재편의 '📑 별지 서식' 그룹이 트리에서 최상위 탭으로 이동. 기능은 살아 있고 자리만 바뀐다 — 구현 시 8.json 해당 criteria에 superseded_by를 붙이고 34의 새 파일:라인으로 사슬을 잇는다" },
+    { "doc": "소방계획서_14", "id": "#16", "action": "moved", "reason": "'별지를 보관·이력 아래(맨 아래)로' 순서 결정이 무의미해짐 — 별지가 트리에서 나간다" }
+  ],
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정 · code_present(자기신고) / implemented(독립 검증 + verified) 구분 · 되돌린 결정은 규칙 5 superseded_by",
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "설계 확정(구현 아님)",
+    "proposal": "제안 — 사용자 결정 대기",
+    "deferred": "보류"
+  },
+
+  "key_evidence": "별지 서식(4·9·10·11호 + 표지·공문·위임장)은 고객 상세 소방계획서 탭 안 좌측 트리의 한 노드다(plan-tab-view.tsx:403-406 '📑 별지 서식' 그룹 + navBtn('annex'), 렌더 :462는 sel==='annex'일 때만 마운트하는 지연 로드, 주입처는 page.tsx:761-762 단 한 곳). 그런데 외부 진입 링크가 소스 13곳, E2E·프로브 19종이 전부 '?tab=plan&form=annex'라는 2단 딥링크로 이 노드를 직접 겨눈다 — 13곳이 같은 우회로를 각자 적고 있다는 사실 자체가 별지가 이미 독립 목적지라는 증거다. 성격도 다르다: 본문은 연 1회 작성하는 문서(트리 탐색 동선), 별지는 회차마다 반복하는 점검 산출물(회차 카드 동선). 승격의 최대 함정 둘 — ①CustomerTabs는 패널을 전부 렌더하고 hidden으로만 감춘다(:142-146, :7-8이 명시한 입력 상태 유지 계약). PlanAnnexSection은 마운트 즉시 getCustomerRoundsAction을 왕복하므로(plan-annex-section.tsx:121) 그대로 올리면 기본정보 탭만 열어도 별지 회차 조회가 돈다 ②같은 pathname으로 ?tab=만 바꾸는 Link/router.push는 서버를 재렌더하지 않는다(page.tsx:934-938 실측 주석). 지금은 별지가 탭 안이라 prevFormRef 하나만 걸리면 됐지만, 탭이 갈라지면 prevInitialRef+prevFormRef 둘 다 걸려야 한다.",
+
+  "decisions": [
+    { "id": "D34-1", "title": "이번 세션은 문서만 — 코드 0줄", "status": "confirmed",
+      "desc": "erp_goal/소방계획서_34.md + .json만 작성한다. 구현·커밋·배포는 별도 지시 후. 소방계획서_33과 동일 방식(사용자 확정 2026-08-29)." },
+    { "id": "D34-2", "title": "소방계획서 트리의 '📑 별지 서식' 그룹은 완전 제거", "status": "confirmed",
+      "desc": "안내 문구('위 [별지서식] 탭으로 이동했습니다')도 남기지 않는다. 트리는 📘 소방계획서 본문 / 🗂 보관·이력 2그룹이 된다. 대가: test-plan-tab.mts:105-108의 'text=별지 서식' 단언이 확정 빨강이 되므로 함께 수정해야 한다(S7-1)." },
+    { "id": "D34-3", "title": "새 탭에 뱃지 없음 — 라벨 '별지서식'만", "status": "confirmed",
+      "desc": "회차 수·완료율 표기를 하지 않는다. '완료/전체' 뱃지는 함정이 있다: 별지 화면의 회차는 inspection_plan_items ∪ inspections인데 customers/[id]/page.tsx는 plan_items를 조회하지 않아, 뱃지 1/2를 보고 들어갔는데 카드가 3장 보이는 불일치가 난다. 정확히 하려면 모든 고객 상세에 쿼리를 하나 더 얹어야 하는데 그만한 이득이 없다. 라벨은 '별지서식'으로 확정 — '소방계획서 별지' 류는 Playwright has-text('소방계획서')가 두 탭을 잡으므로 금지." },
+    { "id": "D34-4", "title": "구 딥링크는 서버 정규화 + 링크 교체 둘 다", "status": "confirmed",
+      "desc": "page.tsx에서 tab=plan&form=annex를 annex 탭으로 영구 해석하고(사용자 북마크 + 무수정 통과 프로브 11종이 의존), 소스 13곳도 ?tab=annex 정본으로 교체한다. 정규화만 하면 URL 정본이 두 종류로 남고, 링크 교체만 하면 북마크와 프로브 11종이 조용히 소방계획서 탭으로 떨어진다." }
+  ],
+
+  "sections": [
+    { "id": "S1", "title": "새 탭 삽입 — customers/[id]/page.tsx", "status": "code_present",
+      "note": "plan은 index 3에 그대로 남고 annex가 index 4로 들어간다 — _diag-header-plan-link.mts:35의 [role=tabpanel] nth(3) 무손상.",
+      "criteria": [
+        { "id": "S1-1", "desc": "하위호환 정규화 3줄 신설(:86 아래) — wantAnnex = tab==='annex' || (tab==='plan' && form==='annex'), resolvedTab, planInitialForm(form==='annex'면 undefined). '이 3줄은 영구 존치 — 프로브 11종과 사용자 북마크가 의존' 주석 필수", "status": "code_present" },
+        { "id": "S1-2", "desc": "tabDefs(:416-424) plan(:421) 바로 뒤에 { key:'annex', label:'별지서식' } 삽입. 뱃지·warn 없음(D34-3). :955의 tabDefs.some(t=>t.warn) 안내 문구에 영향 없음", "status": "code_present" },
+        { "id": "S1-3", "desc": "annexTab 신설(:764 뒤) — PlanAnnexSection을 plan-tab-view.tsx:290의 카드 껍데기(bg-surface rounded-xl border border-line shadow-… p-5) 복제로 감쌀 것. 안 감싸면 회차 카드가 배경 위에 테두리 없이 뜬다", "status": "code_present" },
+        { "id": "S1-4", "desc": "planTab 정리 — initialForm={initialForm}(:687)를 planInitialForm으로, annex={<PlanAnnexSection…/>}(:761-762) 삭제", "status": "code_present" },
+        { "id": "S1-5", "desc": "CustomerTabs 호출부(:962-978) — initialTab={resolvedTab}, panels에 annex: annexTab, fullWidthKeys={['plan','annex']}, lazyKeys={['annex']}. fullWidthKeys 누락 시 별지가 max-w-3xl에 갇히고 우측 요약 패널이 붙어 회차 카드·미리보기 모달 레이아웃이 무너진다", "status": "code_present" },
+        { "id": "S1-6", "desc": "헤더 상시 버튼(:939) href를 ?tab=annex로. <a> 유지 필수(:934-938 주석 근거 그대로 유효), data-testid=\"header-plan-link\" 보존", "status": "code_present" }
+      ] },
+
+    { "id": "S2", "title": "지연 마운트 lazyKeys — customer-tabs.tsx (최대 리스크)", "status": "code_present",
+      "note": "CustomerTabs는 :142-146에서 패널을 전부 렌더하고 hidden으로만 감춘다. 이건 버그가 아니라 :7-8이 명시한 '탭 전환에도 입력 상태 유지' 계약이다. 그대로 annex를 최상위 패널로 올리면 기본정보 탭만 열어도 getCustomerRoundsAction이 매번 돈다 — 증상이 '좀 느려졌다'뿐이라 아무도 못 알아챈다.",
+      "criteria": [
+        { "id": "S2-1", "desc": "lazyKeys?: string[] prop 신설 — 처음 활성화될 때까지 해당 패널을 렌더하지 않는다", "status": "code_present" },
+        { "id": "S2-2", "desc": "visited = useRef<Set<string>>(new Set([validInitial])) — 한 번 방문하면 계속 마운트 유지. 안 그러면 :7-8의 입력 상태 유지 계약이 깨진다. active 변경이 이미 렌더를 일으키므로 useRef로 충분(재렌더 트리거 불필요)", "status": "code_present" },
+        { "id": "S2-3", "desc": "S1보다 먼저 넣고 기존 스위트로 무해함 확인 — 다른 변경과 독립이다", "status": "code_present" }
+      ] },
+
+    { "id": "S3", "title": "소방계획서 트리에서 annex 제거 — plan-tab-view.tsx (D34-2)", "status": "code_present",
+      "note": "annex prop을 남기면 ①누군가 트리 노드를 되살릴 여지가 남고 ②두 곳에서 마운트되면 회차 조회 왕복이 이중으로 뜬다. 지우면 타입체커가 유일한 호출부(page.tsx:761)를 정확히 지목한다.",
+      "criteria": [
+        { "id": "S3-1", "desc": ":79 구조분해에서 annex 삭제 · :107 annex?: ReactNode prop 삭제", "status": "code_present" },
+        { "id": "S3-2", "desc": ":114 VALID_SEL에서 'annex' 제거", "status": "code_present" },
+        { "id": "S3-3", "desc": ":373-380 NAV_ALL(모바일 드롭다운)에서 { key:'annex', label:'별지 서식 (회차)' } 제거", "status": "code_present" },
+        { "id": "S3-4", "desc": ":399-406 '📑 별지 서식' <div> 그룹 통째 삭제. 바로 위 '🗂 보관·이력' 그룹(:399-402)은 유지", "status": "code_present" },
+        { "id": "S3-5", "desc": ":462 {sel === 'annex' && (annex ?? …)} 삭제", "status": "code_present" },
+        { "id": "S3-6", "desc": "주석 갱신 — :372(소방계획서_8 D-12 3그룹)·:398(14.md #16 순서)·:313('이 트리가 문서 현황 단일 허브')를 '별지는 최상위 탭으로 승격(소방계획서_34, 2026-08-29)'로", "status": "code_present" }
+      ] },
+
+    { "id": "S4", "title": "구 딥링크 13곳 (D34-4)", "status": "code_present",
+      "note": "11곳은 단순 문자열 교체(?tab=plan&form=annex → ?tab=annex, testid 전부 보존). 나머지 2곳은 같은 경로 soft nav라 문자열만 바꾸면 무반응이다.",
+      "criteria": [
+        { "id": "S4-1", "desc": "타 경로 Link 7곳 — inspection-ledger/ledger-client.tsx:98 · inspections/inspection-calendar-client.tsx:2040 · inspections/inspection-timeline-client.tsx:481 · inspections/inspection-workbench.tsx:424 · reports/submission-board.tsx:188 · customers/recent-customers-strip.tsx:65 · app/(dashboard)/customers/page.tsx:277", "status": "code_present" },
+        { "id": "S4-2", "desc": "서버 redirect 1곳 — app/(dashboard)/reports/page.tsx:13. test-click-budget.mts:61-68과 동시에 고칠 것", "status": "code_present" },
+        { "id": "S4-3", "desc": "문자열 상수 3곳 — customers/[id]/page.tsx:939(S1-6과 동일 건, <a> 유지) · plan-annex-section.tsx:309 entryFrom · :372 AnnexComposePanel from", "status": "code_present" },
+        { "id": "S4-4", "desc": "plan-form14-specs.tsx:800-805 [⑨ 9호로 돌아가기] 히스토리 없을 때 폴백 — 같은 경로 router.push는 서버 재렌더를 못 일으킨다. useCustomerTabs()?.goTab('annex') 우선, 셸 밖이면 window.location.assign 폴백. plan-tab-view.tsx:246이 이미 쓰는 패턴", "status": "code_present" },
+        { "id": "S4-5", "desc": "reports/command-palette.tsx:29-33 — 전역 헤더라 CustomerTabs 컨텍스트 밖이다. 현재 pathname이 그 고객이면 window.location.assign, 아니면 router.push. 전역 이벤트 브리지를 새로 파지 않는다(팔레트는 '처음부터 다시' 동선이고 test-click-budget은 클릭 수만 센다)", "status": "code_present" }
+      ] },
+
+    { "id": "S5", "title": "미저장 가드 — 'annex'를 추가하지 않는다", "status": "code_present",
+      "note": "customer-tabs.tsx:94의 (active === 'plan' && collectPlanSaveHandlers().length > 0) 특례에 'annex'를 넣고 싶은 유혹이 있으나 넣으면 안 된다. 이 판정 자체를 코드 주석으로 남겨야 다음 세션이 '빠뜨렸나?' 하고 되넣지 않는다.",
+      "criteria": [
+        { "id": "S5-1", "desc": "'annex' 특례를 추가하지 않는다 + 근거 주석. ①별지 계열 5개 컴포넌트(plan-annex-section/round-card/sheet-tree/start-modal, annex-compose-panel)에 usePlanSaveHandler 등록자 0건 — 저장은 전부 모달·서버액션 즉시 커밋 ②오히려 거짓 경고: 소방계획서 패널은 annex 탭이 활성이어도 hidden으로 계속 마운트돼 있어(:142-146), 1.1을 미저장으로 둔 채 별지→청구 탭 이동 시 '이 탭에 입력한 내용이…'라는 틀린 문구가 뜬다", "status": "code_present" },
+        { "id": "S5-2", "desc": "active === 'plan' 특례는 그대로 둔다 — 별지를 떼어내도 1.2~3장 서식은 여전히 setTabDirty 배선이 없다(:93 주석 유효)", "status": "code_present" },
+        { "id": "S5-3", "desc": "부수 개선 확인 — 지금은 별지 트리 안 점검일 확정 모달 입력을 plan-tab-view.tsx:411-415의 onInputCapture가 서식 dirty로 오인해 불필요한 확인창을 띄운다. 분리 후 이 오탐이 사라지는지 실측", "status": "code_present" }
+      ] },
+
+    { "id": "S6", "title": "딥링크 왕복 — 탭이 갈라지며 깨지는 지점", "status": "code_present",
+      "criteria": [
+        { "id": "S6-1", "desc": "annex-compose-panel.tsx:219 <Link> → <a>(전체 이동). 출발지 href는 :25의 ?tab=plan&form=1.4&from=report9&insp=이고 이 패널은 plan-annex-section.tsx:368 = 고객 상세 같은 경로에서 뜬다. 탭 분리 후에는 prevInitialRef(customer-tabs.tsx:44)+prevFormRef(plan-tab-view.tsx:123) 둘 다 서버 재렌더에 의존하게 된다. 추가 근거: plan-form14-specs.tsx:287이 from=report9를 마운트 시 window.location.search에서 직접 읽으므로 클라이언트 전환으로는 스플릿 ON·첫 빈칸 포커스·복귀 바가 안 켜진다", "status": "code_present" },
+        { "id": "S6-2", "desc": "1.4 → 별지 복귀(plan-form14-specs.tsx:801-804) — router.back()은 back/forward가 항상 서버 렌더를 다시 태우므로 S6-1을 <a>로 바꾸면 안전(히스토리 엔트리가 확실히 쌓인다). push 폴백은 S4-4", "status": "code_present" },
+        { "id": "S6-3", "desc": "별지 → /inspections/{id}/sheet?from= → 뒤로 왕복 — pathname이 달라 양방향 서버 렌더라 안전. 값만 /customers/{id}?tab=annex로 교체(sheet/page.tsx의 from 검증 '/' 시작·'//' 금지 통과)", "status": "code_present" },
+        { "id": "S6-4", "desc": "annex-missing-list.tsx의 ?from=<entryFrom> 축도 S6-3과 함께 값 반영", "status": "code_present" },
+        { "id": "S6-5", "desc": "영향 없음 확인 완료 — plan-form14.tsx:193 · page.tsx:615의 ?tab=plan&form=1.4, test-sheet-entry-page.mts 픽스처는 별지와 무관", "status": "code_present" }
+      ] },
+
+    { "id": "S7", "title": "회귀 검증", "status": "code_present",
+      "note": "별지 관련 스크립트가 19종이라 표면이 넓다. 그중 8종은 반드시 수정해야 확정 빨강을 면하고, 11종은 S1-1 정규화만 있으면 무수정 통과한다 — 후자가 정규화 영구 존치의 근거다.",
+      "criteria": [
+        { "id": "S7-1", "desc": "필수 수정 8종 — test-plan-tab.mts:105-108(트리 3그룹 'text=별지 서식') · _probe-plan-access-paths.mts:27-29,57-99(selectedNode()=[data-plan-node][aria-current=true]→'annex', href 완전일치) · _judge-s30-s4.mts:70-72,95-96,123-124,163-165(planTabActive+href 3곳) · test-click-budget.mts:61-68(search.includes('form=annex') ×3) · test-annex-sheet-inline.mts:140-141(from= 인코딩 완전일치) · _probe-annex-order.mjs:12,41(트리 노드 클릭) · _probe-s30-sibling-links.mts · _judge-s30-sibling.mts", "status": "code_present" },
+        { "id": "S7-2", "desc": "무수정 통과 11종(page.goto만) 확인 — test-annex-interaction.mts:79 · _diag-header-plan-link.mts:39 · _judge-soban15-annex.mjs:105 · _judge19-annex.mjs:139 · _probe-29-scan-remaining.mts:102 · _probe-annex-latency.mjs:57 · _probe-annex-autosave.mjs:54 · _probe-annex-refresh-round.mjs:34 · _probe-cert-chip.mts:35 · _probe-round-workbook-ui.mts:40 · _probe-sheet-catalog-cache.mjs:57", "status": "code_present" },
+        { "id": "S7-3", "desc": "신규 _probe-annex-tab.mts — ?tab=annex → 활성 탭 텍스트 '별지서식' · 구 ?tab=plan&form=annex → 동일 결과(정규화 가드) · 탭 DOM 순서 '소방계획서' 다음이 '별지서식' · ?tab=plan&form=1.4 → [data-plan-node=\"1.4\"][aria-current=true](변이 검사 축 보존) · 트리에 [data-plan-node=\"annex\"] count===0 · 별지 탭에서 우측 요약 패널 미노출", "status": "code_present" },
+        { "id": "S7-4", "desc": "신규 _probe-annex-samepath-nav.mts — 같은 경로 함정 3동선: ①?tab=info에서 헤더 [data-testid=header-plan-link] ②?tab=plan&form=1.4&from=report9에서 [⑨ 9호로 돌아가기] ③Ctrl+K 팔레트에서 지금 보고 있는 그 고객 선택(기존 스위트에 없는 신설 축)", "status": "code_present" },
+        { "id": "S7-5", "desc": "신규 _probe-annex-lazy-mount.mts — page.on('request')로 서버액션 POST 카운트: ?tab=info 로드 후 getCustomerRoundsAction 0건, 별지 탭 클릭 시 1건. 이게 없으면 S2 배선이 조용히 끊겨도 아무도 모른다", "status": "code_present" },
+        { "id": "S7-6", "desc": "신규 _probe-annex-roundtrip.mts — 별지→9호[작성]→1단[수정]→소방계획서 탭+data-plan-node=1.4+복귀 바+대장 <details> open →[9호로 돌아가기]→별지 탭 복귀. 그리고 별지→점검표 입력→뒤로→별지 탭 복귀", "status": "code_present" },
+        { "id": "S7-7", "desc": "test-all.mts 등재 — test-plan-tab.mts·test-annex-interaction.mts가 미등재라 지금도 조용히 썩고 있다. 이번에 손대는 김에 신규 프로브 4종과 함께 등재", "status": "code_present" },
+        { "id": "S7-8", "desc": "npm run build(annex prop 제거의 호출부 누락을 여기서 잡는다) + npm run test:all + 수동 스위트(test-plan-tab · test-annex-interaction · test-chip-nav · _probe-form14-result-badge)", "status": "code_present" }
+      ] }
+  ],
+
+  "implementation_order": [
+    "1. customer-tabs.tsx lazyKeys (S2) — 독립 변경, 먼저 넣고 무해함 확인",
+    "2. page.tsx 정규화+tabDefs+annexTab+panels+fullWidthKeys+lazyKeys+헤더 링크 (S1)",
+    "3. plan-tab-view.tsx annex 노드·prop 제거 (S3) — 2 이후여야 빌드가 한 번만 깨진다",
+    "4. 링크 11곳 문자열 교체 (S4-1~3)",
+    "5. 같은 경로 2곳 — plan-form14-specs.tsx · command-palette.tsx (S4-4·5)",
+    "6. annex-compose-panel.tsx:219 <Link> → <a> (S6-1)",
+    "7. 기존 E2E 8종 수정 (S7-1)",
+    "8. 신규 프로브 4종 (S7-3~6)",
+    "9. npm run test:all + 수동 스위트 (S7-8)"
+  ],
+
+  "risks": [
+    { "id": "R1", "level": "high", "desc": "annex 패널 상시 마운트 → 모든 고객 상세에 getCustomerRoundsAction 왕복 1회 추가", "mitigation": "S2 lazyKeys + S7-5 프로브" },
+    { "id": "R2", "level": "high", "desc": "S1-1 정규화를 미래에 '이제 링크 다 바꿨으니' 하고 제거 → 프로브 11종 + 사용자 북마크 동시 사망", "mitigation": "코드 주석 명시 + S7-3에 구 딥링크 단언 상시 고정" },
+    { "id": "R3", "level": "high", "desc": "별지 → 1.4 <Link>가 같은 경로 soft nav라 무반응 — 사용자는 화면에 남고 아무 일도 안 일어난 것처럼 보인다", "mitigation": "S6-1 <a> 전체 이동. 부수적으로 router.back()도 확실해진다" },
+    { "id": "R4", "level": "medium", "desc": "fullWidthKeys에 annex 누락 → max-w-3xl + 요약 패널로 레이아웃 붕괴", "mitigation": "S1-5 + S7-3 요약 패널 미노출 단언" },
+    { "id": "R5", "level": "medium", "desc": "카드 래퍼 유실 → 별지가 배경 위에 테두리 없이 맨몸 렌더", "mitigation": "S1-3 래퍼 복제" },
+    { "id": "R6", "level": "medium", "desc": "미저장 가드에 'annex' 특례를 넣어 거짓 확인창", "mitigation": "S5-1 — 넣지 않는다. 근거를 코드 주석에 남긴다" },
+    { "id": "R7", "level": "low", "desc": "라벨 충돌 — Playwright has-text('소방계획서')가 두 탭을 잡음", "mitigation": "라벨 '별지서식' 확정. '소방계획서 별지' 류 금지(D34-3)" },
+    { "id": "R8", "level": "low", "desc": "탭 개수 변경으로 nth 기반 셀렉터 파손", "mitigation": "plan은 index 3 유지(annex를 4에) — _diag-header-plan-link.mts:35 확인 완료" }
+  ],
+
+  "current_state": "구현 완료 · 미커밋 · 독립 검증 전. 전 criteria code_present(구현자 자기 신고) — Json_Rule 규칙 3에 따라 implemented 승격은 별도 판정 세션이 한다. 마이그레이션 없음(DB 무관).",
+
+  "measured": {
+    "date": "2026-08-29",
+    "tsc": "npx tsc --noEmit exit=0 · src/scripts 오류 0건 (2회 실행)",
+    "suites_green": [
+      "_probe-annex-tab.mts 14/0 (신규)",
+      "_probe-annex-samepath-nav.mts 13/0 (신규)",
+      "_probe-plan-access-paths.mts 13/0 (축 전환 후)",
+      "_probe-annex-order.mjs 9/0 (축 전환 후)",
+      "test-plan-tab.mts 98/0",
+      "test-annex-interaction.mts 37/0 (무수정 — 정규화로 통과, 하위호환 실증)",
+      "test-annex-sheet-inline.mts 27/0",
+      "test-click-budget.mts 7/0",
+      "test-cd-ui.mts 7/0",
+      "_probe-s30-sibling-links.mts 10/0 (무수정 — annex 무관 확인)"
+    ],
+    "unverified": [
+      "_judge-s30-s4.mts — 최고 42/1. 유일 실패는 [4] 미저장 보호의 unsaved-nav-cancel 클릭 타임아웃이며, 3회 실행에서 실패 지점이 매번 달랐다([2] ERR_ABORTED → [0] goto 타임아웃 → [4] 클릭 타임아웃 → 로그인 page.fill 타임아웃). 원인은 타 세션이 같은 dev 서버를 21:43에 재기동하고 25분 내 소스 10여 개(proxy.ts·layout.tsx·달력 등, 34와 무관)를 편집 중이라 HMR 리로드가 테스트를 끊은 것. 실패 로그에도 'navigated to ...' 가 찍혔다. 34는 미저장 가드를 **의도적으로 건드리지 않았고**(S5) 4-1 대조군은 통과했다. 그래도 초록을 보지 못했으므로 unverified로 남긴다 — 조용한 환경에서 재실행 필요.",
+      "[⑨ 9호로 돌아가기]의 goTab 폴백 분기(S4-4) — Playwright 새 페이지는 about:blank에서 시작해 goto 한 번에 history.length=2가 되므로 window.history.length<=1 분기를 재현할 수 없다. 실사용의 ctrl-click 새 탭에서만 발생. 프로브는 주 경로(별지→1.4→back)만 단언한다.",
+      "npm run test:all — 미실행. 타 세션이 scripts/test-all.mts를 수정 중이라 회피했다(공유 인덱스·동시 편집 충돌 방지)."
+    ],
+    "not_done": [
+      "S7-7 test-all.mts 등재 — 타 세션이 그 파일을 미커밋 수정 중이라 이번에 손대지 않았다. 신규 프로브 2종과 test-plan-tab·test-annex-interaction 등재는 여전히 잔여.",
+      "커밋 — 사용자 명시 지시 대기(진행 승인 규칙)."
+    ],
+    "scope_additions": [
+      "헤더 상시 버튼 라벨을 '소방계획서' → '별지서식'으로 변경. 설계에는 href·testid만 적혀 있었으나, 목적지가 별지서식 탭이 된 이상 라벨이 거짓이 된다. 프로브 5종이 전부 data-testid로 잡으므로 텍스트 변경은 무해함을 확인했다.",
+      "이웃 링크 6곳의 title/aria-label/문구도 '소방계획서 트리' → '별지서식'으로 함께 정정(ledger-client · calendar · timeline · workbench · recent-strip · customers/page)."
+    ],
+    "probe_self_correction": "_probe-annex-tab의 지연 마운트 검사를 처음에 서버액션 POST 카운트로 짰다가 **멀쩡한 구현을 빨강으로 만들었다**. getCustomerRoundsAction과 소방계획서 탭의 다른 액션이 본문이 똑같이 [\"custId\"]라 구별이 안 된다. _diag-annex-lazy.mts로 DOM을 직접 보고 지연 마운트가 정상임을 확인한 뒤(마커 0개·패널 innerHTML 0자) 판정 축을 DOM 존재로 바꿨다. 탭 셸은 hidden으로만 감추므로 count===0은 '안 보인다'가 아니라 '안 만들어졌다'는 뜻이다."
+  }
+}

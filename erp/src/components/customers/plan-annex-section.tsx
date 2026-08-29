@@ -306,7 +306,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
         key={key} r={r} isOpen={expanded.has(key)}
         inspectionType={data.inspectionType} customerName={data.customerName}
         canRegister={canRegister} isPending={isPending} isStarting={isStarting}
-        entryFrom={`/customers/${customerId}?tab=plan&form=annex`}
+        entryFrom={`/customers/${customerId}?tab=annex`}
         onToggle={() => toggle(key)}
         onFullPreview={() => { prefetchPreviews(r); setFullPreview({ inspectionId: r.docs!.inspectionId, label }) }}
         onPreviewSingle={type => openSingle(r, type)}
@@ -369,7 +369,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
           inspectionId={compose.inspectionId}
           annexNo={compose.annexNo}
           customerId={customerId}
-          from={`/customers/${customerId}?tab=plan&form=annex`}
+          from={`/customers/${customerId}?tab=annex`}
           onClose={() => setCompose(null)}
           onGenerated={() => refreshRound(compose.inspectionId)}
         />

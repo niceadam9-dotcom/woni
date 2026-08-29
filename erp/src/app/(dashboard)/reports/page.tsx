@@ -10,7 +10,7 @@ export default async function ReportsPage({ searchParams }: {
   searchParams: Promise<{ form?: string; cust?: string }>
 }) {
   const { form, cust } = await searchParams
-  if (cust) redirect(`/customers/${cust}?tab=plan&form=annex`)
+  if (cust) redirect(`/customers/${cust}?tab=annex`)
   if (form === 'submissions') redirect('/dashboard#submissions')
   if (form === 'annual' || form === 'fire_plan') redirect('/customers')
   redirect('/dashboard')

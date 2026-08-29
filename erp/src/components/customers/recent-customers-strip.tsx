@@ -62,9 +62,9 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
             {c.name}
           </Link>
           <Link
-            href={`/customers/${c.id}?tab=plan&form=annex`}
-            aria-label={`${c.name} 소방계획서 트리`}
-            title="소방계획서 트리 · 회차별 별지 작성으로 바로가기"
+            href={`/customers/${c.id}?tab=annex`}
+            aria-label={`${c.name} 별지서식`}
+            title="별지서식 탭 · 회차별 별지 작성으로 바로가기"
             data-testid="recent-chip-plan-link"
             className="inline-flex items-center pl-1.5 pr-2 border-l border-brand-line-soft text-ink-faint transition-colors hover:bg-brand-tint hover:text-brand"
           >

@@ -44,7 +44,6 @@ export type CalendarInspection = {
   customer_code: string
   /** 방문 준비 지도용 (S5-7 확산) — 없을 수 있고, 없으면 버튼이 안 그려진다 */
   customer_address?: string | null
-  customer_inactive?: boolean
   inspection_type: InspectionType
   year: number
   sequence_num: 1 | 2
@@ -153,7 +152,6 @@ type CalEventResource = {
   isOverdue: boolean
   isReceiveStep: boolean
   color: string
-  customerInactive?: boolean
 }
 
 type CalEvent = {
@@ -260,17 +258,8 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
       fontWeight: 'normal',
     }
   }
-  // ADD-11: 비활성/삭제 고객 건은 완료처럼 회색 취소선
-  if (r.customerInactive) {
-    return {
-      backgroundColor: 'var(--chip-muted-bg)',
-      color: 'var(--chip-done-fg)',
-      border: 'none',
-      opacity: 0.8,
-      textDecoration: 'line-through',
-      fontWeight: 'normal',
-    }
-  }
+  // ADD-11 폐지(D-7, 2026-08-29): 비활성/삭제 고객 건은 calendar/page.tsx에서 아예 실리지 않으므로
+  // '회색 취소선' 분기는 도달 불가 죽은 코드였다 — 제거. 취소선으로 흐리는 게 아니라 조회 자체가 없다.
   // 단계 칩 — 배경=유형(옅은 색), 좌측 4px 바=긴급도, 완료=흐림, 지연=연빨강 배경 강조
   const isDone = r.stepStatus === 'completed'
   const typeChip = TYPE_CHIP[r.inspectionType] ?? TYPE_CHIP['일반관리']
@@ -508,7 +497,6 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               isOverdue,
               isReceiveStep: false,
               color: barColor,
-              customerInactive: (insp as { customer_inactive?: boolean }).customer_inactive === true,
             } satisfies CalEventResource,
           }]
         })
@@ -2037,8 +2025,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 <ChevronRight className="size-3" />
               </Link>
               <Link
-                href={`/customers/${selectedInspection.customer_id}?tab=plan&form=annex`}
-                title="소방계획서 트리 · 회차별 별지 작성으로 바로가기"
+                href={`/customers/${selectedInspection.customer_id}?tab=annex`}
+                title="별지서식 탭 · 회차별 별지 작성으로 바로가기"
                 data-testid="daypanel-plan-link"
                 className="text-xs text-brand hover:underline flex items-center gap-1"
               >

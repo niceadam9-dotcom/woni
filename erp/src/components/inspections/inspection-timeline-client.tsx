@@ -476,12 +476,12 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         <span className="text-[11px] text-ink-faint">
           {!isSpecialTimeline ? '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)' : '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시 진행'}
         </span>
-        {/* 상호 진입점 역링크 — 소방계획서 트리(별지 서식)로 (소방계획서_8 Phase B) */}
+        {/* 상호 진입점 역링크 — 별지서식 탭으로 (소방계획서_8 Phase B → _34로 탭 승격) */}
         {customerId && (
-          <NextLink href={`/customers/${customerId}?tab=plan&form=annex`}
-            title="이 고객의 회차별 문서·별지 현황을 소방계획서 트리에서 봅니다"
+          <NextLink href={`/customers/${customerId}?tab=annex`}
+            title="이 고객의 회차별 문서·별지 현황을 별지서식 탭에서 봅니다"
             className="ml-auto inline-flex items-center gap-1 text-[11px] text-brand hover:underline shrink-0">
-            소방계획서 트리에서 보기 <ExternalLink className="size-3" />
+            별지서식에서 보기 <ExternalLink className="size-3" />
           </NextLink>
         )}
         {isSpecialTimeline && (

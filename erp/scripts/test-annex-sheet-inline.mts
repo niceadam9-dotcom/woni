@@ -89,7 +89,7 @@ try {
   page.on('pageerror', e => console.log('  [pageerror]', String(e).slice(0, 200)))
   await login(page, EMAIL)
 
-  const ANNEX = `${BASE}/customers/${customerId}?tab=plan&form=annex`
+  const ANNEX = `${BASE}/customers/${customerId}?tab=annex`   // 소방계획서_34 — 별지가 최상위 탭
   await page.goto(ANNEX)
   await page.waitForSelector(`text=${CUR_YEAR}년 1차`)
 
@@ -137,7 +137,7 @@ try {
   check('머리줄 링크 문구', ((await entry.first().textContent()) ?? '').includes('입력 화면 열기'),
     ((await entry.first().textContent()) ?? '').trim())
   // ?from= — 입력 화면의 뒤로가기가 이 별지 화면으로 돌아오게 하는 복귀 경로 (2026-08-28)
-  const FROM_Q = `from=${encodeURIComponent(`/customers/${customerId}?tab=plan&form=annex`)}`
+  const FROM_Q = `from=${encodeURIComponent(`/customers/${customerId}?tab=annex`)}`
   check('머리줄 링크 href = 전용 화면 + 복귀 경로', (await entry.first().getAttribute('href')) === `/inspections/${inspId}/sheet?${FROM_Q}`,
     (await entry.first().getAttribute('href')) ?? '')
 

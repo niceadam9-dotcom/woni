@@ -28,12 +28,17 @@ export function useCustomerTabs() {
   return useContext(CustomerTabsContext)
 }
 
-export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys }: {
+export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys, lazyKeys }: {
   initialTab: string
   tabs: CustomerTabDef[]
   panels: Record<string, ReactNode>
   summary?: ReactNode        // 우측 고객 요약 패널 — fullWidth 탭에서는 접힘(숨김)
   fullWidthKeys?: string[]    // 전체 폭으로 펼칠 탭 키(예: ['plan']) — max-w-3xl 해제 + 요약 패널 접힘
+  /** 처음 활성화될 때까지 패널을 렌더하지 않는다 (소방계획서_34 S2 — 마운트가 비싼 패널용).
+   *  위 §설명대로 이 셸은 패널을 전부 렌더하므로, 마운트 즉시 서버액션을 왕복하는 패널(별지 서식의
+   *  getCustomerRoundsAction)을 그냥 얹으면 **기본정보 탭만 열어도** 그 왕복이 매번 돈다.
+   *  단 한 번 방문한 뒤에는 계속 마운트를 유지한다 — 안 그러면 위 '입력 상태 유지' 계약이 깨진다. */
+  lazyKeys?: string[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -47,6 +52,9 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
     setActive(validInitial)
   }
   const dirtyRef = useRef<Set<string>>(new Set())
+  // lazyKeys 지연 마운트 — 방문한 탭을 누적한다. active 변경이 이미 렌더를 일으키므로 ref로 충분하다.
+  const visitedRef = useRef<Set<string>>(new Set([validInitial]))
+  visitedRef.current.add(active)
 
   // 미저장 이탈 경고 — 페이지 이탈(새로고침·닫기)
   useEffect(() => {
@@ -139,11 +147,15 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys 
               </button>
             ))}
           </div>
-          {tabs.map(t => (
-            <div key={t.key} role="tabpanel" hidden={active !== t.key} className="space-y-6 pt-5">
-              {panels[t.key]}
-            </div>
-          ))}
+          {tabs.map(t => {
+            // 지연 마운트(소방계획서_34 S2) — 아직 한 번도 안 연 lazy 탭은 패널 자체를 만들지 않는다
+            const deferred = (lazyKeys?.includes(t.key) ?? false) && !visitedRef.current.has(t.key)
+            return (
+              <div key={t.key} role="tabpanel" hidden={active !== t.key} className="space-y-6 pt-5">
+                {deferred ? null : panels[t.key]}
+              </div>
+            )
+          })}
         </div>
         {summary && !isFull && summary}
       </div>

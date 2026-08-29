@@ -58,14 +58,15 @@ try {
   await page.waitForSelector(`text=${NAME_A} — 문서 현황 열기`)
   resetClicks()
   await page.click(`button:has-text("${NAME_A} — 문서 현황 열기")`)   // 1클릭
-  await page.waitForURL(u => u.pathname === `/customers/${custA}` && u.search.includes('form=annex'), { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
-  check('예산1 문서 현황 진입 = Ctrl+K+타이핑+1클릭 (소방계획서 트리 도달)', clicks <= 1, `실측 ${clicks}클릭`)
-  check('예산1 URL 동기화(?tab=plan&form=annex)', page.url().includes('tab=plan') && page.url().includes('form=annex'))
+  // 소방계획서_34(2026-08-29): 문서 현황 목적지가 소방계획서 트리 노드 → 최상위 [별지서식] 탭(?tab=annex)
+  await page.waitForURL(u => u.pathname === `/customers/${custA}` && u.search.includes('tab=annex'), { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
+  check('예산1 문서 현황 진입 = Ctrl+K+타이핑+1클릭 (별지서식 탭 도달)', clicks <= 1, `실측 ${clicks}클릭`)
+  check('예산1 URL 동기화(?tab=annex)', page.url().includes('tab=annex'))
 
   // ── 예산 2) 구 보고서 센터 딥링크 보존 — 매핑 리다이렉트 4종 (reports/page.tsx) ──
   await page.goto(`${BASE}/reports?form=docs&cust=${custA}`)
   await page.waitForURL(u => u.pathname === `/customers/${custA}`, { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
-  check('예산2 구 딥링크 ?form=docs&cust= → 고객 소방계획서 탭', page.url().includes('tab=plan') && page.url().includes('form=annex'))
+  check('예산2 구 딥링크 ?form=docs&cust= → 고객 별지서식 탭', page.url().includes('tab=annex'))
   await page.goto(`${BASE}/reports?form=annual`)
   // 배치 발행 폐지(2026-08-19) — 생성 창구가 고객 소방계획서 탭 하나라 고객관리 목록으로 보낸다
   await page.waitForURL(u => u.pathname === '/customers', { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정

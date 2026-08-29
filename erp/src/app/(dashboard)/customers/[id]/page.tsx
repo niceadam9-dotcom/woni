@@ -84,6 +84,17 @@ export default async function CustomerDetailPage({
 }) {
   const { id } = await params
   const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding } = await searchParams
+  // ── 소방계획서_34 S1-1: 구 딥링크 ?tab=plan&form=annex → 새 최상위 탭 annex ──
+  // ⚠ 이 3줄은 **영구 존치**한다. 별지가 소방계획서 탭 안 트리 노드였던 시절의 URL이 사용자 북마크와
+  //   E2E·프로브 11종(test-annex-interaction · _diag-header-plan-link · _judge-soban15-annex ·
+  //   _judge19-annex · _probe-29-scan-remaining · _probe-annex-latency · _probe-annex-autosave ·
+  //   _probe-annex-refresh-round · _probe-cert-chip · _probe-round-workbook-ui · _probe-sheet-catalog-cache)에
+  //   그대로 남아 있다. "이제 링크 다 바꿨으니 지워도 되겠지"로 제거하면 그 전부가 **조용히**
+  //   소방계획서 탭으로 떨어진다(에러 없이 엉뚱한 화면). _probe-annex-tab.mts가 이 동작을 상시 단언한다.
+  const wantAnnex = initialTab === 'annex' || (initialTab === 'plan' && initialForm === 'annex')
+  const resolvedTab = wantAnnex ? 'annex' : (initialTab ?? 'info')
+  // PlanTabView의 VALID_SEL에서 annex를 뺐으므로 form=annex를 그대로 넘기면 소방계획서 탭이 1.1로 떨어진다 — 명시 제거
+  const planInitialForm = initialForm === 'annex' ? undefined : initialForm
   const admin = createAdminClient()
 
   // ── 성능(2026-08-11): 원격 DB 왕복(~240ms)이 순차 10여 회 쌓여 페이지당 ~2.5초를 소모하던 것을
@@ -419,6 +430,11 @@ export default async function CustomerDetailPage({
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !hasRep },
     // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
     { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
+    // 별지 서식 — 소방계획서 트리의 한 노드였던 것을 최상위 탭으로 승격 (소방계획서_34 S1-2).
+    // 뱃지 없음(D34-3): 별지 화면의 '회차'는 inspection_plan_items ∪ inspections인데 이 페이지는
+    // plan_items를 조회하지 않아, 뱃지 n/m과 실제 카드 수가 어긋난다. 라벨은 '별지서식' 고정 —
+    // '소방계획서 별지' 류로 바꾸면 Playwright has-text('소방계획서')가 두 탭을 잡는다.
+    { key: 'annex', label: '별지서식' },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
@@ -684,7 +700,7 @@ export default async function CustomerDetailPage({
       revisionYears={revisionYears}
       importCandidate={importCandidate}
       initialSection={sub}
-      initialForm={initialForm}
+      initialForm={planInitialForm}
       formStatus={formStatus}
       archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
@@ -758,9 +774,17 @@ export default async function CustomerDetailPage({
       formCover={<PlanFormCover customerId={customer.id} canManage={canManage}
         initial={fpSections.reportCover ?? {}}
         defaults={{ company: customer.customer_name, year: String(new Date().getFullYear()) }} />}
-      annex={<PlanAnnexSection customerId={customer.id}
-        canRegister={can(profile.role as UserRole, 'inspection_register')} />}
     />
+  )
+
+  // 별지 서식 탭 (소방계획서_34 S1-3) — 종전에는 PlanTabView의 annex 노드였다.
+  // ⚠ 카드 껍데기는 plan-tab-view.tsx의 최상위 <div>에서 복제해 온 것이다. PlanAnnexSection 자신은
+  //   껍데기가 없어(space-y-3만), 이 래퍼 없이 꺼내면 회차 카드가 배경 위에 테두리 없이 맨몸으로 뜬다.
+  const annexTab = (
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+      <PlanAnnexSection customerId={customer.id}
+        canRegister={can(profile.role as UserRole, 'inspection_register')} />
+    </div>
   )
 
   // 점검 이력 + 변경 이력 통합 타임라인
@@ -931,15 +955,15 @@ export default async function CustomerDetailPage({
           <h1 className="text-xl font-bold text-ink">{customer.customer_name}</h1>
           <CustomerPrevNext prevId={prevId} nextId={nextId} position={navPosition} />
         </div>
-        {/* 소방계획서 상시 버튼(2026-08-28 동선 검토) — 어느 탭에서든 계획서 탭 > 회차별 작성으로.
+        {/* 별지서식 상시 버튼(2026-08-28 동선 검토, 소방계획서_34로 탭 승격 반영) — 어느 탭에서든 별지서식 탭으로.
             ⚠ Link가 아니라 <a>다(전체 이동). 같은 경로에서 ?tab=만 바꾸는 soft navigation은
             URL만 바뀌고 **서버가 재렌더되지 않아** initialTab·initialForm이 옛 값 그대로다 —
             2026-08-28 실측: tab=buildings에서 눌러도 활성 탭이 건물·시설로 남았다(전체 로드는 정상).
             customer-tabs.tsx:42·plan-tab-view.tsx:122의 프롭 동기화는 둘 다 그 재렌더를 전제한다. */}
-        <a href={`/customers/${customer.id}?tab=plan&form=annex`}
+        <a href={`/customers/${customer.id}?tab=annex`}
           data-testid="header-plan-link"
           className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-brand-line text-brand hover:bg-brand-tint shrink-0">
-          <FileText className="size-3.5" /> 소방계획서
+          <FileText className="size-3.5" /> 별지서식
         </a>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
           {inspectionTypeLabel(customer.inspection_type)}
@@ -960,10 +984,13 @@ export default async function CustomerDetailPage({
 
       {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) — 소방계획서 탭은 전체 폭(요약 패널 접힘, 2026-08-05) */}
       <CustomerTabs
-        initialTab={initialTab ?? 'info'}
+        initialTab={resolvedTab}
         tabs={tabDefs}
-        panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, billing: billingTab, history: historyTab }}
-        fullWidthKeys={['plan']}
+        panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, annex: annexTab, billing: billingTab, history: historyTab }}
+        fullWidthKeys={['plan', 'annex']}
+        // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
+        // 이 셸은 패널을 전부 렌더하므로 지연 마운트가 없으면 기본정보 탭만 열어도 그 왕복이 돈다 (소방계획서_34 S2)
+        lazyKeys={['annex']}
         summary={
           <CustomerSummaryPanel
             customerName={customer.customer_name}

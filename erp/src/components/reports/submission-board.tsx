@@ -185,7 +185,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                 return (
                   <tr key={r.inspectionId} className="border-b border-paper hover:bg-brand-tint">
                     <td className={cell}>
-                      <Link href={`/customers/${r.customerId}?tab=plan&form=annex`} className="font-medium text-ink hover:text-brand">{r.customerName}</Link>
+                      <Link href={`/customers/${r.customerId}?tab=annex`} className="font-medium text-ink hover:text-brand">{r.customerName}</Link>
                       <span className="text-ink-faint ml-1">{r.year}-{r.sequenceNum}차</span>
                       {r.status !== 'completed' && <span className="ml-1 text-[10px] text-blue-500">진행중</span>}
                     </td>
