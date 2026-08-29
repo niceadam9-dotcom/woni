@@ -11,6 +11,7 @@ import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets } from '@/lib/xlsx-sheet-surgery'
+import { planDonorInjection, donorInjectSummary } from '@/lib/xlsx-donor-inject'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { evacTypesFromSpecs } from '@/lib/facility-codes'
 import { isMultiUseApplicable } from '@/lib/multi-use'
@@ -181,6 +182,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     DONOR_TOC_BODY_CELLS.map((cell, i) => ({ sheet, cell, value: tocTitles[i] ?? null })))
   targets.push(...tocTargets)
 
+  // 설비별 점검표 「점검결과」 주입(소방계획서_32 D트랙 / 30 S5-3) — 응답은 r9가 **이미 읽은 것**을
+  // 그대로 쓴다(재조회 금지, D-7). 좌표는 빌드가 자산에서 뽑아 둔 매핑에서 온다(런타임 XML 파싱 0).
+  // ⚠ keptSheets를 넘기는 이유: 응답이 있어도 그 설비가 미설치면 시트가 위에서 제거됐다. 그대로
+  //   주입 대상에 넣으면 injectWorkbook이 missed로 잡아 **정상 시나리오가 500이 된다**(서림사는
+  //   응답 243건 / 설치 14종이라 반드시 발생한다). 시트 선별과 주입이 같은 집합을 본다.
+  const donorPlan = planDonorInjection(r9.sheetResponses, keptSheets)
+  targets.push(...donorPlan.targets)
+  if (donorPlan.notLanded.duplicated.length) {
+    console.warn(`[workbook] 코드당 응답 복수로 미반영 ${donorPlan.notLanded.duplicated.length}건: ${donorPlan.notLanded.duplicated.slice(0, 6).join(', ')}`)
+  }
+
   // 안전망(S2-7/D-10) — 주입이 안 닿은 캐시에 표본 고객 흔적이 남았으면 비워서 내보낸다.
   // 지금 템플릿은 잔존 0이 검증돼 있지만(빌드 ⑥), 갱신된 템플릿이 이 부류를 되살릴 수 있다
   const result = await injectWorkbook(template, targets, { forbidden: SCRUB_NEEDLES })
@@ -199,14 +211,27 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
       // 조립 함수가 알린 공란·누락 + 목차 미표기 — 화면이 안내에 쓸 수 있게 헤더로 전달(S4-5).
-      // r9.missing까지 실으면 길어질 수 있어 헤더 한도 보호로 600자에서 자른다
-      'X-Workbook-Missing': encodeURIComponent(
-        [...official.missing, ...delegation.missing, ...r9.missing,
+      // r9.missing까지 실으면 길어질 수 있어 헤더 한도 보호로 600자에서 자른다.
+      //
+      // ⚠ **순서가 곧 생존 순위다.** 점검표 착지 집계를 맨 뒤에 뒀더니 앞선 r9.missing이 600자를
+      //   다 채워 고지가 통째로 잘려 사라졌다(2026-08-29 라이브 실측 — 하필 '조용한 누락 금지'를
+      //   구현하면서 그것을 위반했다). 착지 집계는 **맨 앞**에 둔다: 사용자가 신고한 바로 그 축이고,
+      //   나머지는 개별 항목이라 일부가 잘려도 성격이 남지만 이건 유일한 전체 요약이라 잘리면 0이 된다.
+      //   더해 잘렸다는 사실 자체를 '…(N자 생략)'으로 드러낸다 — 조용한 절단도 조용한 누락이다.
+      'X-Workbook-Missing': encodeURIComponent((() => {
+        const parts = [
+          ...(donorInjectSummary(donorPlan) ? [donorInjectSummary(donorPlan)!] : []),
+          ...official.missing, ...delegation.missing, ...r9.missing,
           ...(r9.data.assistants.length > 7
             ? [`보조 점검인력 ${r9.data.assistants.length}명 중 8번째부터 미표기(허브 7행)`] : []),
           ...tocOverflow.map(t => `목차 미표기: ${t}`),
           ...(donorGaps.length ? [`점검표 서식 미동봉(자산 없음): ${donorGaps.join(', ')}`] : []),
-        ].join(' | ').slice(0, 600)),
+        ]
+        const full = parts.join(' | ')
+        if (full.length <= 600) return full
+        const cut = full.slice(0, 580)
+        return `${cut.slice(0, cut.lastIndexOf(' | ') > 0 ? cut.lastIndexOf(' | ') : 580)} | …외 ${full.length - cut.length}자 생략`
+      })()),
     },
   })
 }

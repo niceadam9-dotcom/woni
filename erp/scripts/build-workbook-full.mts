@@ -20,12 +20,14 @@ import { createHash } from 'node:crypto'
 import { sheetFileMap } from '../src/lib/xlsx-inject.ts'
 import { validateAnchors, SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { DONOR_GROUPS, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS, allDonorSheets } from '../src/lib/xlsx-donors.ts'
+import { extractDonorItemMap } from '../src/lib/xlsx-donor-itemmap-extract.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const DONOR_SRC = 'F:/AI/ERP/erp/전체 보고서.xls'
 const BASE = 'templates/report-workbook.xlsx'
 const OUT = 'templates/report-workbook-full.xlsx'
 const MANIFEST = 'src/lib/xlsx-donor-manifest.json'
+const ITEMMAP = 'src/lib/xlsx-donor-itemmap.json'
 const MARK = /^[○×X\/／]$/
 /** 문장 안 괄호에 기입된 판정 — '( ○ )'. 원문은 공란이라 마크만 공백으로 되돌린다 */
 const PAREN_MARK = /([(（])(\s*)([○×X\/／])(\s*)([)）])/g
@@ -166,6 +168,28 @@ const sstTexts: string[] = []
 }
 const unescXml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
 
+/** 기증 원본 결함 수리표 (소방계획서_32 D트랙) — 좌표·기대값·이웃 가드를 함께 선언한다.
+ *  ⚠ 수기 편집 금지: 이 워크북은 매 빌드마다 원본 .xls에서 새로 만들어지므로 손으로 고치면 사라진다. */
+const DONOR_CELL_FIXES = [
+  // R-1: 기증 원본 오타 — A4와 코드가 같아 한 응답이 사라지고 다른 응답이 옆 행에 찍힌다.
+  //      워크북 전체에서 유일한 중복이며, 정본 코드는 3-A-002다(항목 문구로 확정).
+  { sheet: '스1', cell: 'A5', from: '3-A-001', to: '3-A-002',
+    guardCell: 'B5', guard: '○ 보조수원(옥상)의 유효수량 적정 여부' },
+] as const
+const DONOR_DV_FIXES = [
+  // R-2: 첫 항목 행만 목록 원천이 유실됐다(#REF!). 같은 시트의 나머지 dv와 같은 범위로 복구.
+  //      워크북 전체 dv 중 유일한 #REF!다.
+  { sheet: '소', sqref: 'C4', from: '#REF!', to: '$F$16:$F$18' },
+] as const
+/** D-1(2026-08-29 사용자 확정) — 결과칸 드롭다운의 '불량'을 ERP 어휘 `×`(U+00D7)로 통일.
+ *  기증 원본은 ASCII `X`(U+0058)를 쓰는데 resultMark()·PDF·별지 4호는 전부 `×`다. 이 워크북은
+ *  **손으로 고쳐 쓰는 산출물**이라(route.ts:18-27) 드롭다운이 X를 내면, 주입값 ×와 수기값 X가
+ *  한 열에 섞인다. dv는 showErrorMessage="true" errorStyle="stop"이라 사용자가 ×를 직접 타이핑할
+ *  수도 없다. 그래서 목록 원천인 범례 셀 자체를 고친다.
+ *  ⚠ 좌표를 손으로 적지 않는다 — 아래 범례 탐지(protectedCells)가 이미 찾아낸 3칸의 마지막을 쓴다.
+ *    손목록으로 박으면 자산이 바뀔 때 조용히 어긋난다. */
+const LEGEND_BAD_FROM = 'X', LEGEND_BAD_TO = '×'
+
 // ── ④ 기증 시트 이식 — 스크럽·s재번호·여백복원·인라인 전개 ───────────
 console.log('④ 기증 시트 이식')
 let wbXml = await outZip.file('xl/workbook.xml')!.async('string')
@@ -176,7 +200,9 @@ let maxSheetId = Math.max(...[...wbXml.matchAll(/sheetId="(\d+)"/g)].map(m => Nu
 let scrubTotal = 0
 let parenScrubTotal = 0
 let legacyStripped = 0
+let cellFixed = 0, dvFixed = 0, glyphFixed = 0
 const legendBySheet = new Map<string, string[]>()
+const glyphFixedCells: string[] = []
 
 for (const name of donorNames) {
   let xml = await donorZip.file(donorFiles.get(name)!)!.async('string')
@@ -185,6 +211,38 @@ for (const name of donorNames) {
   xml = xml.replace(/<c([^>]*?) t="s"([^>]*)><v>(\d+)<\/v><\/c>/g, (_m, a: string, b: string, idx: string) =>
     `<c${a}${b} t="inlineStr"><is><t xml:space="preserve">${escCellText(sstTexts[Number(idx)] ?? '')}</t></is></c>`)
   if (/ t="s"/.test(xml)) throw new Error(`${name}: t="s" 잔존 — 인라인 전개 실패`)
+
+  // ── ④b 기증 원본 결함 수리 (소방계획서_32 D트랙 R-1·R-2) ──
+  // 수기 편집은 재빌드 때 되돌아간다 — 수리는 반드시 이 축에서만. `from`이 어긋나면 즉시 세운다
+  // (자산이 갱신됐다는 신호다). 좌표만 믿지 않고 `guard`로 이웃 문구까지 대조한다 — 원본이 한 행
+  // 밀렸을 때 좌표만 보면 **엉뚱한 행을 개명**하게 된다.
+  for (const f of DONOR_CELL_FIXES.filter(f => f.sheet === name)) {
+    const re = new RegExp(`(<c r="${f.cell}"[^>]*><is><t[^>]*>)([\\s\\S]*?)(</t></is></c>)`)
+    const m = re.exec(xml)
+    if (!m) throw new Error(`${name}!${f.cell}: 수리 대상이 인라인 문자열이 아니다`)
+    if (m[2] !== f.from) throw new Error(`${name}!${f.cell}: 수리 전제 불일치 — 기대 '${f.from}' 실제 '${m[2]}'`)
+    const g = new RegExp(`(<c r="${f.guardCell}"[^>]*><is><t[^>]*>)([\\s\\S]*?)(</t></is></c>)`).exec(xml)
+    if (g?.[2] !== f.guard) throw new Error(`${name}!${f.guardCell}: 가드 불일치 — 기대 '${f.guard}' 실제 '${g?.[2]}'`)
+    // ⚠ 치환은 **함수 replacer**로만 — 문자열 replacer는 `$`를 해석한다(아래 dv 주석 참조)
+    xml = xml.replace(re, (_m, a: string, _b: string, c: string) => `${a}${escCellText(f.to)}${c}`)
+    cellFixed++
+  }
+  for (const f of DONOR_DV_FIXES.filter(f => f.sheet === name)) {
+    const re = new RegExp(`(<dataValidation[^>]*sqref="${f.sqref}"[^>]*>[\\s\\S]*?<formula1>)([\\s\\S]*?)(</formula1>)`)
+    const m = re.exec(xml)
+    if (!m) throw new Error(`${name} dv sqref=${f.sqref}: 수리 대상 없음`)
+    if (m[2].trim() !== f.from) throw new Error(`${name} dv ${f.sqref}: 수리 전제 불일치 — 기대 '${f.from}' 실제 '${m[2]}'`)
+    // ⚠ **문자열 replacer 금지.** 엑셀 참조는 `$F$16:$F$18`처럼 `$`를 품는데, 치환 문자열에서
+    //   `$16`은 '그룹 16'으로 해석되고, 그런 그룹이 없으면 V8은 `$1`(=매치 접두사 전체) + '6'으로
+    //   되돌아간다. 2026-08-29 실측: formula1이 <dataValidation …> 통째를 삼킨 괴물이 됐고
+    //   **⑤ 사후검증도 ⑤b 추출기도 전부 초록이었다**(#REF!가 사라졌으니 고쳐진 줄 알았다).
+    //   잡아낸 것은 오직 옛 자산과의 **쪽수 대조군**이었다(72 vs 73).
+    xml = xml.replace(re, (_m, a: string, _b: string, c: string) => `${a}${f.to}${c}`)
+    // 닫힌 덮개 — 쓴 것을 되읽어 확인한다. 위 함정은 '썼다'와 '들어갔다'가 다른 사례였다
+    const back = new RegExp(`<dataValidation[^>]*sqref="${f.sqref}"[^>]*>[\\s\\S]*?<formula1>([\\s\\S]*?)</formula1>`).exec(xml)
+    if (back?.[1] !== f.to) throw new Error(`${name} dv ${f.sqref}: 수리 결과 불일치 — 기대 '${f.to}' 실제 ${JSON.stringify(back?.[1])}`)
+    dvFixed++
+  }
 
   // 셀 스타일 인덱스 재번호(cellXfs 증설 오프셋) — <c>·<row>의 s=, <col>의 style=
   xml = xml.replace(/(<(?:c|row)\b[^>]*?)\ss="(\d+)"/g, (_m, head: string, s: string) => `${head} s="${Number(s) + cellXfOff}"`)
@@ -220,6 +278,19 @@ for (const name of donorNames) {
     }
     if (protectedCells.size > 3) throw new Error(`${name}: 범례 후보 복수(${protectedCells.size / 3}곳) — 규칙 재검토`)
     legendBySheet.set(name, [...protectedCells])
+
+    // ── D-1: 범례의 '불량' 글자를 X → × 로. 탐지 규칙이 세 번째 칸을 X로 못 박고 있으므로
+    //    그 칸이 곧 대상이다(손목록 없음). 스크럽은 protectedCells를 건너뛰므로 값은 살아남는다.
+    if (protectedCells.size === 3) {
+      const badCell = [...protectedCells].find(k => val(XLSX.utils.decode_cell(k).c, XLSX.utils.decode_cell(k).r) === LEGEND_BAD_FROM)
+      if (!badCell) throw new Error(`${name}: 범례 3칸인데 '${LEGEND_BAD_FROM}' 칸이 없다`)
+      const re = new RegExp(`(<c r="${badCell}"[^>]*><is><t[^>]*>)([\\s\\S]*?)(</t></is></c>)`)
+      const m = re.exec(xml)
+      if (!m) throw new Error(`${name}!${badCell}: 범례 칸이 인라인 문자열이 아니다`)
+      if (m[2] !== LEGEND_BAD_FROM) throw new Error(`${name}!${badCell}: 범례 전제 불일치 — 기대 '${LEGEND_BAD_FROM}' 실제 '${m[2]}'`)
+      xml = xml.replace(re, `$1${LEGEND_BAD_TO}$3`)
+      glyphFixed++; glyphFixedCells.push(`${name}!${badCell}`)
+    }
     for (const k of Object.keys(ws).filter(k => !k.startsWith('!'))) {
       const v = String((ws[k] as XLSX.CellObject).v ?? '').trim()
       if (!MARK.test(v) || protectedCells.has(k)) continue
@@ -264,6 +335,9 @@ outZip.file('xl/workbook.xml', wbXml)
 outZip.file('xl/_rels/workbook.xml.rels', relsXml)
 outZip.file('[Content_Types].xml', ctXml)
 console.log(`   ${donorNames.length}시트 이식 · 결과 마크 ${scrubTotal}칸 스크럽 · 괄호 안 판정 ${parenScrubTotal}칸 스크럽 · 범례 ${[...legendBySheet.values()].filter(v => v.length).length}곳 보존 · 메모 앵커 ${legacyStripped}시트 제거`)
+console.log(`   수리(32 D트랙): 셀 ${cellFixed}칸 · dv ${dvFixed}건 · 범례 불량글자 ${glyphFixed}칸 X→×`)
+if (cellFixed !== DONOR_CELL_FIXES.length) throw new Error(`셀 수리 ${cellFixed}/${DONOR_CELL_FIXES.length} — 수리표 항목이 대상 시트에 닿지 않았다`)
+if (dvFixed !== DONOR_DV_FIXES.length) throw new Error(`dv 수리 ${dvFixed}/${DONOR_DV_FIXES.length}`)
 
 let bytes = new Uint8Array(await outZip.generateAsync({ type: 'uint8array' }))
 
@@ -306,6 +380,11 @@ console.log('⑤ 사후 검증')
       // 예외 ②: 괄호 안 판정만 공백으로
       if (before.replace(PAREN_MARK, (_m, o: string, s1: string, _mk: string, s2: string, c: string) =>
         `${o}${s1} ${s2}${c}`) === after) continue
+      // 예외 ③: 수리표에 **등재된 좌표의 등재된 변형만** 인정한다(소방계획서_32 D트랙).
+      //   좌표만 보고 넘기면 그 칸의 다른 변형까지 눈감게 되므로 from→to 쌍으로 대조한다.
+      if (DONOR_CELL_FIXES.some(f => f.sheet === n && f.cell === k && f.from === before && f.to === after)) continue
+      // 예외 ④: 범례 '불량' 글자 X → × (D-1). 대상 좌표는 빌드가 실제로 고친 것만
+      if (before === LEGEND_BAD_FROM && after === LEGEND_BAD_TO && glyphFixedCells.includes(`${n}!${k}`)) continue
       fails.push(`텍스트 변형: ${n}!${k}\n        원본=${JSON.stringify(before).slice(0, 120)}\n        산출=${JSON.stringify(after).slice(0, 120)}`)
     }
   }
@@ -380,6 +459,68 @@ console.log('⑤ 사후 검증')
   console.log(`   시트 ${wb.SheetNames.length} · 갑지 파트 불변 · 마크=범례만 · 앵커 전수 생존`)
 }
 
+// ── ⑤b 도너 항목 좌표 추출 → 교차검증 → 매핑 기록 (소방계획서_32 D트랙 S5-1) ──
+// 런타임은 XML을 파싱하지 않는다 — 여기서 만든 JSON만 읽는다. 실패가 하나라도 있으면
+// **자산을 갱신하지 않고 세운다**(잘못된 좌표로 주입하면 점검항목 문구를 덮어쓴다).
+console.log('⑤b 항목 좌표 추출')
+{
+  /** 2026-08-29 실측 핀 — 자산이 조용히 바뀌면 여기서 먼저 붉어진다.
+   *  바꿀 일이 생기면 **의도적으로** 고칠 것(자동 갱신 금지). */
+  const EXPECT = { codes: 720, sheets: 37, colC: 33, colJ: 4 }
+  const outZ = await JSZip.loadAsync(bytes)
+  const map = await sheetFileMap(outZ)
+  const donorSheets: Array<{ name: string; xml: string }> = []
+  for (const n of donorNames) donorSheets.push({ name: n, xml: await outZ.file(map.get(n)!)!.async('string') })
+
+  const ex = extractDonorItemMap(donorSheets)
+  const fails = [...ex.failures]
+
+  // F-8 핀 대조
+  if (ex.entries.length !== EXPECT.codes) fails.push(`F-8 코드 수 ${ex.entries.length} ≠ 핀 ${EXPECT.codes}`)
+  const nSheets = Object.keys(ex.resultCols).length
+  if (nSheets !== EXPECT.sheets) fails.push(`F-8 코드 보유 시트 ${nSheets} ≠ 핀 ${EXPECT.sheets}`)
+  const nC = Object.values(ex.resultCols).filter(c => c === 'C').length
+  const nJ = Object.values(ex.resultCols).filter(c => c === 'J').length
+  if (nC !== EXPECT.colC || nJ !== EXPECT.colJ) fails.push(`F-8 결과열 분포 C${nC}/J${nJ} ≠ 핀 C${EXPECT.colC}/J${EXPECT.colJ}`)
+  const otherCols = [...new Set(Object.values(ex.resultCols))].filter(c => c !== 'C' && c !== 'J')
+  if (otherCols.length) fails.push(`F-8 예상 밖 결과열: ${otherCols.join(',')}`)
+
+  // F-9 `r=`가 첫 속성인가 — xlsx-inject.ts setCell 정규식의 전제. 깨지면 주입이 조용히 빗나간다
+  for (const { name, xml } of donorSheets) {
+    const bad = [...xml.matchAll(/<c\s([^>]*?)(?:\/>|>)/g)].filter(m => !/^r="/.test(m[1].trim())).length
+    if (bad) fails.push(`F-9 ${name}: r=가 첫 속성이 아닌 셀 ${bad}개 — setCell 전제 붕괴`)
+  }
+  // 도너 dv 온전성 — ①#REF! 잔존 0(R-2 회귀) ②formula1 안에 XML 태그가 섞이지 않았는가.
+  // ②는 '고쳤다'가 '망가뜨렸다'였던 실사고의 회귀 축이다(치환 문자열 `$16` 함정, ④b 주석 참조).
+  // #REF!만 보면 오염된 formula1은 '고쳐진 것'으로 보인다 — 두 축이 다르다.
+  for (const { name, xml } of donorSheets) {
+    for (const m of xml.matchAll(/<formula1>([\s\S]*?)<\/formula1>/g)) {
+      if (m[1].includes('#REF!')) fails.push(`도너 dv #REF! 잔존: ${name} — ${m[1].slice(0, 40)}`)
+      if (/[<>]/.test(m[1])) fails.push(`도너 dv formula1 오염(XML 혼입): ${name} — ${m[1].slice(0, 60)}`)
+      if (m[1].length > 40) fails.push(`도너 dv formula1 비정상 길이 ${m[1].length}: ${name} — ${m[1].slice(0, 60)}`)
+    }
+  }
+
+  if (fails.length) {
+    for (const f of fails) console.error(`   ❌ ${f}`)
+    process.exit(1)
+  }
+
+  const cells: Record<string, [string, string]> = {}
+  const itemText: Record<string, string> = {}
+  for (const e of ex.entries) { cells[e.code] = [e.sheet, e.cell]; itemText[e.code] = e.itemText }
+  writeFileSync(ITEMMAP, JSON.stringify({
+    note: '빌드 생성물 — 손으로 고치지 말 것. scripts/build-workbook-full.mts ⑤b가 자산에서 뽑는다.',
+    builtAt: new Date().toISOString().slice(0, 10),
+    assetSha256: createHash('sha256').update(bytes).digest('hex'),
+    counts: { codes: ex.entries.length, sheets: nSheets, colC: nC, colJ: nJ },
+    resultCols: ex.resultCols,
+    dvOnly: ex.dvOnly,
+    cells, itemText,
+  }, null, 1) + '\n')
+  console.log(`   ${ex.entries.length}코드 · 결과열 C${nC}/J${nJ} · dv만 ${Object.values(ex.dvOnly).reduce((a, b) => a + b, 0)}칸 → ${ITEMMAP}`)
+}
+
 // ── ⑥ LibreOffice 렌더 확인(페이지 수 기록) ──────────────────────────
 console.log('⑥ LibreOffice 렌더')
 let pdfPages = 0
@@ -392,6 +533,12 @@ let pdfPages = 0
   if (!existsSync(pdf)) throw new Error('PDF 변환 실패 — 워크북이 열리지 않는다')
   pdfPages = (readFileSync(pdf).toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
   console.log(`   PDF ${pdfPages}쪽 (갑지 단독 27쪽 + 기증 ${donorNames.length}시트)`)
+  // 쪽수 핀 — 자산 수리가 **레이아웃을 건드리면 여기서만 드러난다**. 2026-08-29 실사고:
+  // dv formula1이 통째로 오염됐는데 ⑤·⑤b가 전부 초록이었고, 옛 자산과의 쪽수 차(72 vs 73)만이
+  // 그것을 잡았다. 서식이 의도적으로 바뀌면 이 상수를 **손으로** 고칠 것(자동 갱신 금지).
+  const EXPECT_PDF_PAGES = 72
+  if (pdfPages !== EXPECT_PDF_PAGES)
+    throw new Error(`PDF ${pdfPages}쪽 ≠ 핀 ${EXPECT_PDF_PAGES}쪽 — 수리가 레이아웃을 바꿨다. 옛 자산을 같은 LibreOffice로 렌더해 대조할 것(scripts/_probe-pagecount.mts)`)
 }
 
 // ── 산출 ─────────────────────────────────────────────────────────────

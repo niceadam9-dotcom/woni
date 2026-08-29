@@ -82,13 +82,18 @@ console.log('[3] 표본 흔적 0(마크·니들·전화/주민 패턴)')
   for (const n of GROUP_SHEETS) {
     const ws = wb.Sheets[n]
     const val = (k: string) => String((ws[k] as XLSX.CellObject | undefined)?.v ?? '').trim()
-    // 범례(세로 ○→/→X 3연속, 시트당 ≤1곳)는 양식의 일부라 보존 대상
+    // 범례(세로 ○→/→× 3연속, 시트당 ≤1곳)는 양식의 일부라 보존 대상.
+    // ⚠ 세 번째 칸은 **`×`(U+00D7)** 다 — 기증 원본의 ASCII `X`를 빌드가 고친다(소방계획서_32 D-1:
+    //   결과칸 드롭다운의 목록 원천이 곧 이 범례라, X로 두면 주입값 ×와 수기 선택값 X가 한 열에 섞인다).
+    //   여기서 ×만 범례로 인정하는 것이 곧 **수리가 37시트 전부에 닿았다는 단언**이다 — 한 시트라도
+    //   X가 남으면 범례로 안 잡히고 MARK_RE에 걸려 아래 leaks로 터진다. 축을 넓히지 말 것
+    //   (빌드와 테스트가 같은 상수를 보면 사각을 공유한다 — 27 Phase 5의 실사고).
     const legend = new Set<string>()
     for (const k of Object.keys(ws).filter(k => !k.startsWith('!'))) {
       const { c, r } = XLSX.utils.decode_cell(k)
       if (val(k) === '○'
         && val(XLSX.utils.encode_cell({ c, r: r + 1 })) === '/'
-        && val(XLSX.utils.encode_cell({ c, r: r + 2 })) === 'X') {
+        && val(XLSX.utils.encode_cell({ c, r: r + 2 })) === '×') {
         for (const dr of [0, 1, 2]) legend.add(XLSX.utils.encode_cell({ c, r: r + dr }))
       }
     }

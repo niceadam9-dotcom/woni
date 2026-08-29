@@ -77,6 +77,11 @@ export async function assembleReport9(
   missing: string[]
   /** 별지 4호 전용 부가 조립분 — 별지 9호 렌더에는 쓰이지 않는다 (A4-2·A4-1 Q-2) */
   annex4: { companyRegNo: string; sheetSections: Report4SheetSection[] }
+  /** 점검표 원본 응답 — 아래에서 이미 읽은 것을 **재조회 없이** 그대로 내보낸다(D-7).
+   *  워크북의 설비별 점검표 시트 주입(소방계획서_32 D트랙 S5-3)의 원천이자, 착지 고지의 **분모**다.
+   *  ⚠ annex4.sheetSections를 대신 쓰면 안 된다 — 거기는 카탈로그 필터·중복 제거·빈 시트 제거를
+   *    거친 부분집합이라 분모가 줄고, 그러면 '몇 건이 빠졌나'를 세는 덮개가 눈이 먼다. */
+  sheetResponses: Array<{ item_code: string; result: 'O' | 'X' | 'N'; month: number }>
 }> {
   const [inspRes, custRes, bldRes, contactsRes, companyRes, partsRes, plansRes, formsRes, defectsRes] = await Promise.all([
     admin.from('inspections')
@@ -153,8 +158,10 @@ export async function assembleReport9(
   }
 
   // 점검표 응답 롤업(§9-3) — 시트별 X 유무 → 3쪽 양호○/불량×, 미설치 설비는 해당없음 /
-  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N' }>((from, to) =>
-    admin.from('inspection_sheet_responses').select('item_code, result').eq('inspection_id', inspectionId).range(from, to))
+  // month를 함께 읽는다(125) — 외관(X%) 항목은 코드당 여러 달 행이 있을 수 있어, 워크북 도너 주입이
+  // 코드당 2행 이상을 만나면 조용히 마지막을 쓰지 않고 표면화해야 한다(소방계획서_32 D트랙 R-10).
+  const responses = await pageAll<{ item_code: string; result: 'O' | 'X' | 'N'; month: number }>((from, to) =>
+    admin.from('inspection_sheet_responses').select('item_code, result, month').eq('inspection_id', inspectionId).range(from, to))
   // 카탈로그는 **항상** 조회한다(22 S3-5·S3-6) — 부속 시트 집합이 응답 역산이 아니라 설치 설비 축이라
   // 응답 0건이어도 시트·항목이 나와야 한다. 종전 `responses.length ? … : []` 최적화는 Q-4 번복으로 제거.
   // 마스터 데이터라 캐시에서 읽는다(sheet-catalog.ts, 2026-08-20) — 종전엔 별지를 조립할 때마다
@@ -559,5 +566,5 @@ export async function assembleReport9(
   if (!data.drillDone && !data.drillNone) {
     missing.push(`전년도(${prevYear}) 소방훈련 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 작성 패널 ③ 보정)`)
   }
-  return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections } }
+  return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections }, sheetResponses: responses }
 }

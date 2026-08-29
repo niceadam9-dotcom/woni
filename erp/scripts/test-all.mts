@@ -16,6 +16,28 @@ const steps: Step[] = [
   //   여기선 파일 축만 본다(sha256·패밀리명·글리프 커버리지) — 환경에 기대지 않아 어디서 돌려도 같은 답.
   //   fontconfig 해석·실제 래스터 구조(두부 판정)는 Alpine 안에서만 의미가 있어 Dockerfile이 검사한다.
   { name: '한글 폰트 자산(파일 축)',    cmd: 'node scripts/assert-korean-glyphs.mjs --files-only' },
+  // 웹 한글폰트(소방계획서_35 S1) — 위 항목과 **다른 폰트, 다른 축**이다.
+  //   위: assets/fonts 나눔고딕 = 서버 PDF·정적지도용. 아래: public/fonts Pretendard = 화면용.
+  //   자산(92조각 sha256)·CSS 배선(음절 전수 커버·스택 **순서**)·서빙(본문 매직·immutable)을 본다.
+  //   서버가 없으면 서빙 축은 스스로 건너뛴다.
+  { name: '웹 한글폰트(자산·배선·서빙)', cmd: 'node scripts/assert-web-korean-font.mjs' },
+  // 한글이 **실제로 Pretendard로 그려졌는가** — 위가 '가능한가'라면 이건 '그렇게 그려졌는가'다.
+  //   3중 폭 대조(화면 ≈ Pretendard AND ≠ 맑은고딕). fonts.check()·computed fontFamily는
+  //   폰트가 404여도 통과하는 항진명제라 쓰지 않는다(스크립트 머리주석 참조).
+  //   변이 검증은 `--mutate`로 따로 돌린다(그 실행은 초록이 정상 — 판별자가 살아있다는 뜻).
+  { name: '한글 렌더 축(E2E)',          cmd: 'npx tsx scripts/test-korean-font-render.mts', needServer: true },
+  // 서식 가독성(소방계획서_35) — 세 축을 따로 돈다. 한 번에 묶으면 무엇이 깨졌는지 안 보인다.
+  //   --identity : 코드모드가 값을 바꾸지 않았음(S2 항등). 기준선은 _fixtures/35-baseline.json 고정.
+  //                기준을 'HEAD:'나 '지금 화면'으로 잡으면 무엇을 해도 통과한다.
+  //   --overflow : 표 넘침·페이지 밀림. **검사한 표 수를 기준선과 대조**해 '안 그려져서 초록'을 막는다
+  //                (실제로 dev 타임아웃으로 10/15 화면만 걷힌 실행을 이 가드가 잡았다).
+  //   --print    : 화면 배율이 인쇄로 새지 않는가 — 사용자 결정 D35-5의 실증. 배율 lg·xl까지 본다.
+  { name: '서식 가독성 항등(E2E)',      cmd: 'npx tsx scripts/test-plan-readability.mts --identity', needServer: true },
+  { name: '서식 표 넘침(E2E)',          cmd: 'npx tsx scripts/test-plan-readability.mts --overflow', needServer: true },
+  { name: '서식 인쇄 격리(E2E)',        cmd: 'npx tsx scripts/test-plan-readability.mts --print',    needServer: true },
+  // 글자 배율 4경로 — 다크 모드(test-theme-settings)와 같은 구조. DB·쿠키·<html data-fs> **3축이
+  // 함께** 맞아야 통과다. 한 축만 보면 '화면은 커졌는데 다른 기기엔 안 따라간다'를 못 잡는다.
+  { name: '글자 배율 4경로(E2E)',       cmd: 'npx tsx scripts/test-font-scale.mts', needServer: true },
   // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
   // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
   { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
@@ -32,6 +54,11 @@ const steps: Step[] = [
   // 설비별 점검표 동봉 자산(Phase 5) — 지문·매핑·표본 흔적 0·제거 수술·선별 규칙.
   // 여기가 붉으면 갑지 또는 전체 보고서가 갱신된 것 — build-workbook-full 재실행(Q-4)
   { name: '갑지 워크북 도너 자산',      cmd: 'npx tsx scripts/test-xlsx-donors.mts' },
+  // 점검표 응답이 엑셀에 **하나도 안 실리는데 위 검사들이 전부 초록**이었다(2026-08-29 신고).
+  // 원인은 축의 부재 — 기존 검사는 '넣은 것이 들어갔나'만 보고 '넣었어야 할 것이 빠졌나'를
+  // 본 적이 없었다. 이 검사가 그 역방향(자산에 줄이 없는 항목 수)을 핀으로 붙든다.
+  // 결과열을 C로 고정하면 넓은 서식 4시트의 점검항목 문구를 덮어쓰므로 J열 시트를 이름으로 단언한다.
+  { name: '갑지 점검표 항목 좌표',      cmd: 'npx tsx scripts/test-xlsx-itemmap.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을
