@@ -67,8 +67,8 @@
           "verified": "annex-filename.ts:44-49 실측 — plan_type의 special_ 접두를 먼저 본다. `annexSubType('작동','special_작동')`='작동', `annexSubType('일반관리','special_작동')`='작동'. 코드 무변경, test-second-round-operational [6]에 2단정 고정." }
       ] },
 
-    { "id": "S4", "title": "화면 병기 (D33-2)", "status": "partial",
-      "note": "설계 범위(S4-1~3)는 전건 완료. S4-4는 이번에 발견한 **선재 공백**을 새로 등재한 것이라 미착수 — 동작이 바뀌는 확장이라 별도 결정이 필요하다.",
+    { "id": "S4", "title": "화면 병기 (D33-2)", "status": "implemented",
+      "note": "설계 범위(S4-1~3) + 이번에 발견한 선재 공백(S4-4) 전건 완료.",
       "criteria": [
         { "id": "S4-1", "desc": "점검 업무 목록 — 코드 변경 불필요임을 확인. inspectionNatureBadge(plan_type 우선) + {sequence_num}차 구조라 '작동(자체) 2차'로 자동 병기", "status": "implemented",
           "verified": "inspection-nature.ts:15-17 실측 — plan_type의 special_ 접두에서 sub를 먼저 뽑고 inspection_type은 폴백. 2차 행이 special_작동이 되면 배지가 '작동(자체)'로 자동 전환되고 옆의 {sequence_num}차가 그대로 붙어 '작동(자체) 2차'가 된다. 코드 무변경." },
@@ -76,8 +76,8 @@
           "verified": "**실결함 2건 발견·수리** — 미리보기가 고객 축을 그대로 찍어 '종합'이라 보여주고 '작동'으로 저장되는 어긋남: ①auto-generate-wizard 초안 표(:287-293) ②smart-suggest-modal 배지(:287-289). 둘 다 rowInspectionType으로 행 축 표시. overdue-resolve-modal 배지도 동일 수리. 그룹 헤더 문구 '종합 2차'→'2차(작동)', '2차 점검'→'2차 점검(작동)'. ⚠**차수/연1회 분기와 seqMax(:126)는 고객 축 그대로 뒀다** — 2차가 존재하는지는 고객이 정한다(이걸 행 축으로 바꾸면 2차 배지가 사라진다)." },
         { "id": "S4-3", "desc": "새 규약과 모순되는 주석 갱신", "status": "implemented",
           "verified": "inspection-plan-generator.ts 헤더(:65) · inspection-plans/page.tsx:142(고객 축이라 술어는 그대로 옳다는 근거 명시) · customers/actions.ts:483-484(행 축/고객 축 구분) · 153 마이그레이션이 새 규약을 서술하고 COMMENT ON FUNCTION으로 DB에도 남김." },
-        { "id": "S4-4", "desc": "선재 공백(미수리) — 초과 판정이 sub_type을 안 봐 일반관리 sub=종합 고객의 2차 초과를 못 잡는다", "status": "pending_order",
-          "note": "inspection-plans/page.tsx:143이 `cust.inspection_type === '종합'`만 본다. 새 트리거 술어(sub_type 우선)로 넓히면 정합하지만 **초과 목록에 행이 늘어나는 동작 변경**이라 이번 범위에서 제외했다. 스테이징 해당 고객 1건. 주석으로 표시해 뒀다." }
+        { "id": "S4-4", "desc": "선재 공백 수리 — 초과 판정이 sub_type을 안 봐 일반관리 sub=종합 고객의 2차 초과를 못 잡던 것", "status": "implemented",
+          "verified": "inspection-plans/page.tsx의 술어를 153 트리거·생성기와 **같은 축**(sub_type 우선, 미보유 레거시만 inspection_type 폴백)으로 통일하고 select에 inspection_sub_type 추가. 생성기는 그 고객에게 2차를 만드는데 초과 감시만 눈을 감고 있던 비대칭이었다. **영향 범위를 먼저 실측했다**(_probe-33-s44.mjs, feedback_guard_blast_radius): 스테이징 대상 고객 86→87(+1 '양평2'), **화면에 실제로 새로 뜨는 초과 행 +0건**(그 고객의 2차월이 다음 해로 감겨 !wraps에 걸린다) / 운영 +0건. **빠지는 고객 0건**(넓히기만 하고 좁히지 않았다는 증거). tsc 0." }
       ] },
 
     { "id": "S5", "title": "검증", "status": "implemented",
@@ -89,6 +89,8 @@
           "verified": "**37/0 통과**. 9묶음: [1]종합 고객 생성 7단정 [2]작동 고객 2차 없음 [3]일반관리 sub=종합 4단정(관리유형 보존) [4]재생성 멱등=원복 방어 [5]가드 3케이스(ⓐ종합 seq2+작동 허용이 축 이동의 직접 증거) [6]인쇄물 라벨 7단정(선재 결함 포함) [7]sheet-scope 분모 5단정 [8]lib/inspection-round 규약 6단정 [9]DB 전체 결과 축. test-all.mts에 등재(dev 서버 불필요). ⚠셋업 함정을 주석으로 못박음 — 기준일은 plan_anchor_date로 줘야 한다(use_approval_date 폴백은 2026-07-14 제거됨). 갑지 A2·승격 축은 별도 단정 대신 S3-3 근거(같은 함수 경유)로 대체." },
         { "id": "S5-3", "desc": "기존 테스트 수리 — 예측 8건을 실행으로 재분류", "status": "implemented",
           "verified": "**내 변경으로 깨져 수리한 4건(전부 재실행 그린)**: ①test-sheet-overview[등재] 34/0 — 비교용 행이 seq2+special_종합이라 새 규약 위반. 설계 권고(픽스처에 sub_type 종합 추가)를 **버렸다**: 그러면 INV-D12a 위반 행을 테스트가 만들게 된다. 차수는 이 테스트의 관심사가 아니었으므로(유니크 회피용) **연도를 갈라 seq1**로 전환 ②test-general-selfinspection[등재] 16/0 — 단정을 1차=종합·2차=작동으로 분리 ③test-timeline 29/0 — 픽스처 고객을 종합 대상으로(2차를 만드는 테스트니 그게 정직하다) + 2차 행을 작동으로 ④_probe-s30-inactive-surfaces 12/0 — 동일. **선재 결함 동반 수리**: test-fire-s1(23/0)의 `plan_type==='special_종합'` 필터가 2차를 아예 못 보게 해 '2차 생성 안 됨' 단정이 **항진명제**였다 → special_* 전체로 넓히고 1차/2차 plan_type 단정 신설. **안 깨진 1건**: test-monthly-confirm(13/0) — seq1 단정이라 무관(첫 실행 실패는 2026-08-28자 잔여 테스트 계정 탓, test:clean 후 그린). **33과 무관한 선재 실패 3건(미수리·보고만)**: test-anchor(‘점검유형 변경’ 라디오 UI가 코드베이스에 0건 — select로 바뀐 뒤 미갱신) · test-fire-s2-s3 / _verify-auto-assign(픽스처가 use_approval_date만 줘 anchorDate=null → 계획 0건 생성. _probe-33-gen으로 실증). 셋 다 test:all 미등재라 게이트에 영향 없음." },
+        { "id": "S5-5", "desc": "실인쇄물 육안 확인 — 스테이징 실데이터로 표지·공문·별지 9호를 실제로 조립·렌더", "status": "implemented",
+          "verified": "_verify-33-print.mts **11/0** + _shot-33-print.mts로 PNG 생성(erp/.test-shots/soban33/). **1차를 대조군으로 나란히 뽑았다** — 대조 없는 초록은 '전부 작동이 됐다'와 구별되지 않기 때문이다(대조군을 못 찾으면 통과가 아니라 실패로 세도록 짰다). 실측 대조: 2차(삼보사법당) 표지 '소방시설 **작동점검** 결과보고서'·별지9호 `[√] 작동점검, 종합점검([ ]최초점검, [ ]그 밖의 종합점검)`·파일명 '2026_소방시설_작동점검 결과보고서_삼보사법당.pdf' / 1차(지평5) 표지 '소방시설 **종합점검** 결과보고서'·별지9호 `[ ] 작동점검, 종합점검([ ]최초점검, [√]그 밖의 종합점검)`. 공문 typeLabel도 '작동점검'. 한글 렌더 정상(두부 0). ⚠렌더는 Playwright Chromium 축이다 — 운영 Gotenberg 픽셀은 별개 축이나, 폰트 체인은 배포 시 이미 검증돼 있다(project_deployment)." },
         { "id": "S5-4", "desc": "게이트 — tsc·프로덕션 빌드", "status": "implemented",
           "verified": "npx tsc --noEmit EXIT=0 · npm run build EXIT=0(Compiled successfully 25.6s, 정적 98/98). PS 5.1이 파이프로 출력을 삼키므로 파일 리다이렉트+종료코드로 판정." }
       ] },

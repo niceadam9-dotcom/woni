@@ -51,7 +51,7 @@ export default async function InspectionPlansPage({
     admin.from('inspection_plans').select('id').eq('year', year).eq('month', month).maybeSingle(),
     admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
     admin.from('customers')
-      .select('id, customer_name, inspection_type, assigned_employee_id, address, plan_anchor_date')
+      .select('id, customer_name, inspection_type, inspection_sub_type, assigned_employee_id, address, plan_anchor_date')
       .eq('is_active', true).order('customer_name'),
     admin.from('inspection_plans').select('id, month').eq('year', year),
     admin.from('holidays').select('date, name')
@@ -117,6 +117,7 @@ export default async function InspectionPlansPage({
   for (const c of (customersRes.data ?? [])) {
     const cust = c as {
       id: string; customer_name: string; inspection_type: string
+      inspection_sub_type: string | null
       assigned_employee_id: string | null
     }
     // 초과 판정: 종합/작동 1·2차 + 일반관리 1차(점검계획일 달) — 일반관리도 event 자동 생성과 일관되게 관리
@@ -139,11 +140,16 @@ export default async function InspectionPlansPage({
       })
     }
 
-    // 2차(+6개월)는 종합 대상만 — 작동은 연 1회(2차 없음), 일반관리는 1회성 event라 2차 판정 제외.
-    // ※ 이 술어는 **고객 축**이라 소방계획서_33(2차 행을 작동으로 저장) 이후에도 그대로 옳다 —
-    //   cust는 customers 행이지 계획 항목이 아니다. 등록되는 2차 항목 자체는 작동으로 저장된다.
-    //   (선재 공백: sub_type을 안 봐 일반관리 sub=종합 고객의 2차 초과는 여기서 안 잡힌다 — 33 S4-4)
-    if (cust.inspection_type === '종합' && !wraps && secondMonth < month && !handledKey.has(`${cust.id}-2-${secondMonth}`)) {
+    // 2차(+6개월)는 종합 대상만 — 작동은 연 1회(2차 없음).
+    // ※ 판정은 **고객 축**이다(cust는 customers 행이지 계획 항목이 아니다). 소방계획서_33으로
+    //   2차 '행'이 작동으로 저장돼도 '2차가 존재해야 하는가'는 여전히 고객이 정한다.
+    // 술어는 153 트리거·생성기와 **같은 축**(sub_type 우선, 미보유 레거시만 inspection_type 폴백)이다.
+    //   종전엔 inspection_type만 봐서 일반관리 sub=종합 고객의 2차를 놓쳤다 — 생성기는 그 고객에게
+    //   2차를 만드는데 초과 감시만 눈을 감고 있었다(소방계획서_33 S4-4).
+    //   영향 실측(2026-08-29): 스테이징 대상 고객 +1(양평2)·실제 초과 행 +0, 운영 +0. 빠지는 고객 0.
+    const isComprehensiveTarget = cust.inspection_sub_type === '종합'
+      || (cust.inspection_sub_type == null && cust.inspection_type === '종합')
+    if (isComprehensiveTarget && !wraps && secondMonth < month && !handledKey.has(`${cust.id}-2-${secondMonth}`)) {
       overdueItems.push({
         customer_id: cust.id, customer_name: cust.customer_name,
         inspection_type: cust.inspection_type,
