@@ -22,7 +22,9 @@ export type DonorInjectPlan = {
   /** 남아 있는 시트에 실제로 착지하는 것만 — injectWorkbook의 missed는 '코드 결함'으로 남겨둔다 */
   targets: InjectTarget[]
   landed: number
-  /** 분모 — DB에 있던 응답 수(카탈로그로 거르기 **전**) */
+  /** 분모 — **고유 item_code 수**(응답 행 수가 아니다). 같은 코드의 여러 행은 아래 duplicated로
+   *  빠지므로 `landed + sheetRemoved + noDonorRow + duplicated === total`이 성립한다.
+   *  ⚠ 행 수로 바꾸지 말 것 — 그 항등식이 깨져 '몇 건이 안 실렸나'가 맞아떨어지지 않는다. */
   total: number
   /** 착지 못 한 응답, 사유별. 조용한 누락 금지(S5-4) */
   notLanded: {
@@ -81,7 +83,9 @@ export function planDonorInjection(responses: Resp[], keptSheets: Set<string>): 
 /** 헤더 한 줄 요약 — 코드를 나열하면 600자에서 잘려 고지가 통째로 사라진다(집계로 낸다) */
 export function donorInjectSummary(p: DonorInjectPlan): string | null {
   if (p.total === 0) return null
-  const parts = [`점검표 응답 ${p.total}건 중 ${p.landed}건 반영`]
+  // '응답'이 아니라 '항목'이다 — total은 고유 코드 수라 외관 월별처럼 한 코드에 여러 행이 오면
+  // 응답 행 수와 갈라진다(2026-08-30 판정 지적). 분모를 코드 수로 두는 편이 옳으므로 말을 맞춘다.
+  const parts = [`점검표 항목 ${p.total}건 중 ${p.landed}건 반영`]
   if (p.notLanded.sheetRemoved.length) parts.push(`시트 미동봉 ${p.notLanded.sheetRemoved.length}건`)
   if (p.notLanded.noDonorRow.length) parts.push(`자산 좌표 없음 ${p.notLanded.noDonorRow.length}건`)
   if (p.notLanded.duplicated.length) parts.push(`⚠중복 응답 미반영 ${p.notLanded.duplicated.length}건`)

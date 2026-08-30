@@ -229,8 +229,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         ]
         const full = parts.join(' | ')
         if (full.length <= 600) return full
+        // ⚠ 생략 글자 수는 **실제로 남긴 것**을 기준으로 센다. 종전에는 `full.length - cut.length`
+        //   즉 항상 `full.length - 580`이라, 구분자까지 되감은 만큼을 놓쳐 **380자 생략이라 적고
+        //   903자를 버렸다**(2026-08-30 독립 판정 실측 — 실제의 42%만 신고). 조용한 절단을
+        //   드러내겠다는 고지가 스스로 조용해지면 없느니만 못하다.
         const cut = full.slice(0, 580)
-        return `${cut.slice(0, cut.lastIndexOf(' | ') > 0 ? cut.lastIndexOf(' | ') : 580)} | …외 ${full.length - cut.length}자 생략`
+        const back = cut.lastIndexOf(' | ')
+        const kept = back > 0 ? cut.slice(0, back) : cut
+        return `${kept} | …외 ${full.length - kept.length}자 생략`
       })()),
     },
   })

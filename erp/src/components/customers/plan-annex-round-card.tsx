@@ -101,8 +101,12 @@ export function PlanAnnexRoundCard({
       a.download = fileNameOf(res) ?? `${customerName}_점검결과보고서_${r.year}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
-      const blanks = decodeURIComponent(res.headers.get('X-Workbook-Missing') ?? '').trim()
-      setXlsx({ busy: false, ok: true, msg: blanks ? `받았습니다 — 공란으로 나간 항목: ${blanks}` : '엑셀을 받았습니다.' })
+      // ⚠ 라벨을 '공란으로 나간 항목'으로 두면 안 된다 — 이 헤더의 **맨 앞은 점검표 착지 집계**라
+      //   («점검표 항목 243건 중 182건 반영 …») 반영에 **성공한** 건수가 '공란'으로 읽힌다
+      //   (2026-08-30 판정 지적). 착지 집계를 맨 앞으로 옮긴 수리의 부작용이었다.
+      //   헤더는 성공·누락이 섞인 요약이므로 중립어로 받는다.
+      const note = decodeURIComponent(res.headers.get('X-Workbook-Missing') ?? '').trim()
+      setXlsx({ busy: false, ok: true, msg: note ? `받았습니다 — ${note}` : '엑셀을 받았습니다.' })
     } catch (e) {
       setXlsx({ busy: false, ok: false, msg: `엑셀을 만들지 못했습니다 — ${(e as Error).message}` })
     }
