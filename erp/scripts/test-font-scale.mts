@@ -208,14 +208,24 @@ try {
         if (!panel) return null;
         const inside = panel.querySelector('.text-form-xs');
         const outside = [...document.querySelectorAll('.text-form-xs')].find(el => !panel.contains(el));
+        const rect = panel.getBoundingClientRect();
         return {
           inside: inside ? parseFloat(getComputedStyle(inside).fontSize) : null,
           outside: outside ? parseFloat(getComputedStyle(outside).fontSize) : null,
-          width: panel.getBoundingClientRect().width, vw: window.innerWidth,
+          width: rect.width, vw: window.innerWidth,
+          // 패널은 **항상 마운트**돼 있고 닫힘은 CSS 슬라이드(translate-x-full)다. 즉 존재만으로는
+          // '열렸다'가 아니다. 닫히면 right-0 기준으로 자기 폭만큼 오른쪽으로 밀려 left === vw가 된다.
+          left: Math.round(rect.left),
+          onScreen: rect.left < window.innerWidth - 10,
         } })()`)
       // 요소를 못 찾으면 SKIP이 아니라 FAIL — '잴 게 없어서 통과'를 막는다
-      check('B-9 패널이 열리고 안·밖 측정 대상이 둘 다 실재한다',
-        !!opened && !!m && Number.isFinite(m?.inside) && Number.isFinite(m?.outside),
+      // ⚠ opened는 '버튼이 있어서 click()을 호출했다'까지만 말한다. 패널이 항상 마운트라 클릭
+      //   핸들러가 죽어도 [data-spec-panel]과 안쪽 노드는 그대로 있고, computed style·rect.width는
+      //   translate와 무관해 B-10·B-11까지 **전부 초록으로 통과한다**(소방계획서_37 R-d).
+      //   그래서 '화면 안에 실제로 들어와 있는가'를 기하로 함께 단언한다 — 클래스 이름이 아니라
+      //   기하라서 토큰 코드모드가 이름을 갈아치워도 썩지 않는다(죽은 hex 사고의 교훈).
+      check('B-9 패널이 열리고(화면 안) 안·밖 측정 대상이 둘 다 실재한다',
+        !!opened && !!m && m?.onScreen === true && Number.isFinite(m?.inside) && Number.isFinite(m?.outside),
         `opened=${opened} ${JSON.stringify(m)}`)
       if (m && Number.isFinite(m.inside) && Number.isFinite(m.outside)) {
         const boostHolds = Math.abs(m.inside - m.outside * 1.15) < 0.6

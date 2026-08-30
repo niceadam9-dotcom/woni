@@ -280,25 +280,45 @@ const scaleGeom: Record<string, any> = {}
 const inputGeom: Record<string, any> = {}
 if (MODE_CLS) {
   const measured: Record<string, any> = {}
+  /** 한 셀을 잰다. 새 컨텍스트여야 캐시가 FOUT을 죽이지 않는다. */
+  const measureCls = async (mode: 'normal' | 'blocked') => {
+    const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
+    ctx.setDefaultTimeout(20000)
+    const p = await ctx.newPage()
+    await p.addInitScript(CLS_INIT)
+    await p.route('**/fonts/pretendard/**', async (r: any) => {
+      if (mode === 'blocked') return r.abort()
+      await new Promise(res => setTimeout(res, 150))   // 느린 회선 흉내 — 캐시 없는 첫 방문
+      return r.continue()
+    })
+    await login(p, email)
+    await p.goto(`${BASE}/customers/${custId}?tab=plan&form=1.4`, { waitUntil: 'load' })
+    await p.evaluate('document.fonts.ready').catch(() => {})
+    await p.waitForTimeout(2500)
+    const m = await p.evaluate(`({ cls: window.__cls, shifts: window.__shifts,
+      loaded: [...document.fonts].filter(f => f.family.includes('Pretendard') && f.status === 'loaded').length })`)
+    await ctx.close()
+    return m as any
+  }
+  let retried = false
   try {
-    for (const mode of ['normal', 'blocked'] as const) {
-      const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
-      ctx.setDefaultTimeout(20000)
-      const p = await ctx.newPage()
-      await p.addInitScript(CLS_INIT)
-      await p.route('**/fonts/pretendard/**', async (r: any) => {
-        if (mode === 'blocked') return r.abort()
-        await new Promise(res => setTimeout(res, 150))   // 느린 회선 흉내 — 캐시 없는 첫 방문
-        return r.continue()
-      })
-      await login(p, email)
-      await p.goto(`${BASE}/customers/${custId}?tab=plan&form=1.4`, { waitUntil: 'load' })
-      await p.evaluate('document.fonts.ready').catch(() => {})
-      await p.waitForTimeout(2500)
-      measured[mode] = await p.evaluate(`({ cls: window.__cls, shifts: window.__shifts,
-        loaded: [...document.fonts].filter(f => f.family.includes('Pretendard') && f.status === 'loaded').length })`)
-      await ctx.close()
+    measured.normal = await measureCls('normal')
+    // ── 퇴화 재측정 (소방계획서_37 R-a) ────────────────────────────────────────
+    //  FOUT은 폰트가 **표가 그려진 뒤** 도착해야 일어난다. 150ms 지연은 그걸 보장하지 못한다 —
+    //  머신이 바쁘면 폰트가 경주에서 이겨 **정상 실행인데 리플로우가 0**이 되고, 그러면 아래
+    //  귀속 단언이 '정상−대조군 ≈ 0'으로 빨개진다. 서식이 나빠져서가 아니라 **못 본 것**이다.
+    //  실측 기전(scripts/_probe37-clsrace.mts, 2×2): 지연을 0으로 만들면 CLS가 0.265 → 0.0003·0.0009,
+    //  이동 1회 → 0회로 무너진다(독립 판정이 야생에서 본 0.00082와 같은 양상).
+    //  ⚠ 여기서 대기 방식을 바꾸지 않는 이유: 페인트 게이트를 걸면 증상은 이기지만 측정값이
+    //    0.117~0.272로 흔들려 **35 소유의 고정 기준선(0.27315)을 다시 떠야 한다**. 그건 이 문서의
+    //    결정이 아니다. 그래서 지표는 그대로 두고 **동전던지기만 걷어낸다**.
+    //  ⚠ 이 재시도는 진짜 회귀를 가리지 않는다 — FOUT이 정말 사라졌다면 두 번 다 0이라 여전히 빨개진다.
+    if ((measured.normal?.shifts?.length ?? 0) === 0 && (measured.normal?.loaded ?? 0) > 0) {
+      retried = true
+      console.log('   ⚠ 정상 실행에 리플로우가 0회 — 폰트가 표 렌더보다 먼저 도착한 것으로 보인다. 1회 재측정한다.')
+      measured.normal = await measureCls('normal')
     }
+    measured.blocked = await measureCls('blocked')
   } catch (e: any) {
     check('S0-6 수집', false, e?.message ?? String(e))
   } finally {
@@ -306,6 +326,7 @@ if (MODE_CLS) {
   }
 
   const norm = measured.normal, blk = measured.blocked
+  if (retried) console.log(`   (재측정본으로 판정한다 — 이동 ${norm?.shifts?.length ?? 0}회)`)
   console.log(`   정상    CLS=${norm?.cls?.toFixed(5)}  Pretendard 로드 ${norm?.loaded}조각  이동 ${norm?.shifts?.length ?? 0}회`)
   for (const s of norm?.shifts?.slice(0, 5) ?? []) console.log(`             +${s.v} @${s.t}ms`)
   console.log(`   대조군  CLS=${blk?.cls?.toFixed(5)}  Pretendard 로드 ${blk?.loaded}조각  (폰트 차단)\n`)
@@ -320,9 +341,17 @@ if (MODE_CLS) {
   } else {
     // 귀속 축 — 정상과 대조군의 **차이**가 폰트 교체 몫이다.
     //   대조군의 절대값을 0으로 요구하면 안 된다(화면 자체의 비동기 이동이 섞인다).
+    // 실패했을 때 **무엇을 의심해야 하는지**까지 적는다. 종전에는 '0.00082 − 0.00000'만 나와
+    // 서식이 나빠진 것처럼 읽혔지만, 이동 0회는 대개 '못 봤다'(폰트가 경주에서 이겼다)이다.
+    const degenerate = (norm?.shifts?.length ?? 0) === 0 && (norm?.loaded ?? 0) > 0
     check('S0-6 귀속 — 레이아웃 이동이 폰트 교체에서 온다 (정상 − 대조군)',
       (norm?.cls ?? 0) - (blk?.cls ?? 0) > 0.05,
-      `정상 ${norm?.cls?.toFixed(5)} − 대조군 ${blk?.cls?.toFixed(5)} = ${((norm?.cls ?? 0) - (blk?.cls ?? 0)).toFixed(5)}`)
+      `정상 ${norm?.cls?.toFixed(5)} − 대조군 ${blk?.cls?.toFixed(5)} = ${((norm?.cls ?? 0) - (blk?.cls ?? 0)).toFixed(5)}`
+      + (degenerate
+        ? ' — ⚠ 재측정 후에도 이동 0회다. 폰트는 로드됐으므로 서식 회귀가 아니라 **폰트가 표 렌더보다'
+          + ' 먼저 도착해 갈아끼움이 안 보인 것**일 수 있다(기전: scripts/_probe37-clsrace.mts).'
+          + ' 머신이 한가할 때 다시 돌려 볼 것 — 두 번 다 이렇다면 그때는 진짜로 FOUT이 사라진 것이다.'
+        : ''))
     check('S0-6 판별자 — 정상 실행에서 Pretendard가 실제로 로드됐다',
       (norm?.loaded ?? 0) > 0, `로드 ${norm?.loaded}조각`)
     if (!existsSync(CLS_FIXTURE)) {
@@ -579,6 +608,12 @@ try {
   //     원인과 수리를 **대조군과 함께** 실증했다.
   await inspectedResp
   await page.waitForTimeout(400)   // 응답 → 리렌더 1프레임
+  // ⚠ 여기까지가 종전이었고, 독립 판정 2인이 같은 자리를 지적했다: "고정 대기를 없앴다"는
+  //   **수집 루프에만** 해당했고 이 분기는 400ms 고정으로 남아 있었다. 평소엔 위 waitForResponse가
+  //   실제 대기를 지탱해 249로 수렴하지만 서버가 느리면 배지 8개가 덜 붙은 채 채집된다 —
+  //   판정자 C의 --identity --mutate 실행이 `12px:-9`로 걸렸다. 변이 모드의 sizeDrift 가드는
+  //   노드 수 안정까지 요구하므로 그 흔들림이 곧 **거짓 빨강**이 된다.
+  await settleTokens(page)
   // ⚠ '패널이 열렸다'만으로는 부족하다 — 열려도 체크된 설비가 없으면 rowtable이 0개다.
   //   실제로 그 위젯이 그려졌는지를 별도 축으로 센다.
   const rowtables = await page.evaluate(`document.querySelectorAll('[data-testid^="rowtable-"]').length`)

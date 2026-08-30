@@ -54,6 +54,12 @@ const steps: Step[] = [
   // 글자 배율 4경로 — 다크 모드(test-theme-settings)와 같은 구조. DB·쿠키·<html data-fs> **3축이
   // 함께** 맞아야 통과다. 한 축만 보면 '화면은 커졌는데 다른 기기엔 안 따라간다'를 못 잡는다.
   { name: '글자 배율 4경로(E2E)',       cmd: 'npx tsx scripts/test-font-scale.mts', needServer: true },
+  // 변이 축(S35B·S4-13) — **검사의 검사**다. 부스트만 죽였을 때 B-10이 실제로 무너지는지 보고,
+  //   무너지지 않으면 "B-10이 항진명제다"라고 빨갛게 만든다. 기대가 **반전**된 실행이라
+  //   위 4경로와 같은 파일이어도 같은 것을 묻지 않는다.
+  //   ⚠ 등재하는 이유: 종전에는 수동으로만 돌렸고, 그러면 판별자가 죽어도 아무도 모른다 —
+  //     초록은 '기능이 산다'가 아니라 '검사가 산다'까지 말해야 한다(소방계획서_37 R-c).
+  { name: '글자 배율 변이축(E2E)',      cmd: 'npx tsx scripts/test-font-scale.mts --mutate', needServer: true },
   // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
   // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
   { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
