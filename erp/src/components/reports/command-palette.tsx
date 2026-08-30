@@ -60,7 +60,8 @@ export function CommandPalette() {
             <div className="rounded-2xl bg-surface shadow-2xl border border-brand-line p-3">
               <DocActionSearch onOpenDocs={openDocs} autoFocus
                 placeholder="고객명을 검색하세요 — 문서 확인·생성·업로드 (초성 ㅅㄹㅅ 가능)" />
-              <p className="mt-2 px-1 text-[10px] text-ink-faint">
+              {/* S7-1 — 이 패널을 어떻게 쓰는지 알려주는 유일한 문장이다. 읽히지 않으면 기능이 없는 것과 같다 */}
+              <p className="mt-2 px-1 text-[10px] text-ink-meta">
                 Esc 닫기 · 결과에서 바로 PDF 보기·HWP 받기·업로드·생성, 고객명 선택 시 소방계획서 트리(별지 서식)로 이동
               </p>
             </div>

@@ -437,7 +437,8 @@ export default async function InspectionDetailPage({
               {customer?.customer_name ?? '—'}
             </h1>
             <span className="text-sm text-ink-sub shrink-0">{inspection.year}년 {inspection.sequence_num}차</span>
-            <span className="text-xs text-ink-faint shrink-0 truncate">
+            {/* S7-1 — 담당자·점검일은 **읽어야 하는 값**이다(누가 언제 갔는가). 장식이 아니다 */}
+            <span className="text-xs text-ink-meta shrink-0 truncate">
               {employee ? `담당 ${employee.name}` : '담당 미배정'} · {inspection.inspection_start_date}
             </span>
           </div>

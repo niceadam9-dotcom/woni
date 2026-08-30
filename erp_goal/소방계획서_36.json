@@ -4,7 +4,7 @@
   "related": ["소방계획서_35"],
   "related_note": "요구 ②③(글씨 확대·선명화)이 소방계획서_35와 겹쳐 2026-08-29 사용자 결정으로 축을 갈랐다. 크기·한글 웹폰트·배율 인프라(마이그레이션 154 profiles.form_font_scale)는 35 주관, 대비(contrast)·대비 검사기·저장 지연은 36 주관. 36은 DB 변경이 없다. 35가 잡은 '선명도'의 지배 원인은 대비가 아니라 layout.tsx:5-15의 subsets:['latin'] — 한글 글리프가 없어 전부 system-ui로 폴백된다. 36의 대비 개선은 그 위에 얹히는 보완 축이지 대체가 아니다.",
   "created": "2026-08-29",
-  "updated": "2026-08-30 (3) S3 클라이언트 refresh 축 code_present — 로컬 집계 미러로 **ⓑ-ⓐ 5063ms → 9ms**, 2번째 셀 21918ms → 1446ms, F-11의 누적 악화 소멸. S4-2·S4-3 신설(대조군 7/0 → 이후 7/0), S4-5는 14/2 → **16/0**으로 무수정 통과, S4-4는 10/1(남은 1건은 dev 예산 축). F-7이 옳았음이 실측으로 확인 — :789·:847에서 효과를 낸 것은 '트랜지션 밖 이동'이 아니라 로컬 미러였다. 이전: 2026-08-30 (2) S2 revalidate 축 중앙집중 code_present — 헬퍼 신설 + timeline 8곳·defect 4곳·sheet 기준 1곳 전환, 정적 검사 14/0(돌연변이 대조군 통과). 정정 2건 추가(F-12 설계가 sync 자리를 절반만 셌다 · F-13 S4-4·S4-5 방어선이 이미 빨갛다 — 대조군으로 내 회귀 아님 확정). S3 미착수. 이전: 2026-08-30 S1 대조군 실측 완료(S1-2~S1-6 code_present, S1-1은 blocked) + S6 프로브 신설(S6-1~S6-10 code_present). 설계 정정 6건 추가(F-6 대비 상수 오기 5개·F-7 startTransition 전제 오류·F-8 라인 썩음·F-9 프로브 색공간 오탐·F-10 S1-1 스크립트 사망·F-11 셀당 누적 악화). 앱 소스는 여전히 0줄 변경 — S2~S7 미착수. 이전: 2026-08-29 최초 작성 후 같은 날 범위 축소 — 소방계획서_35(커밋 254e38c)와 크기·배율 축이 충돌해 D-6을 '35에 위임'으로 교체, profiles.density·마이그레이션 154 주장 철회, S5·S7을 색 토큰 전용으로 재작성. 구현 0줄",
+  "updated": "2026-08-30 (4) S5·S7·S4-1·S4-6·S6-11·S8 진행 — 대비 FAIL **라이트 510→426 · 다크 378→293**(각 -85), ink-meta 토큰 신설(값은 기계 탐색), S4-1 예산 단언 3/0, test-all 5건 등재(무서버 2 + needServer 3). ⚠ 프로브 실결함 수리: 최초 baseline의 다크가 **미렌더 215칸**이라 거짓으로 낮았다 → 커버리지 하한을 별도 축으로 신설. S7-1은 1차 tranche(20종 중 8곳)로 남은 목록은 문서에 기록. 남은 것: S4-4(partial·범위 밖 원인)·S7-1 잔여·독립 검증. 이전: 2026-08-30 (3) S3 클라이언트 refresh 축 code_present — 로컬 집계 미러로 **ⓑ-ⓐ 5063ms → 9ms**, 2번째 셀 21918ms → 1446ms, F-11의 누적 악화 소멸. S4-2·S4-3 신설(대조군 7/0 → 이후 7/0), S4-5는 14/2 → **16/0**으로 무수정 통과, S4-4는 10/1(남은 1건은 dev 예산 축). F-7이 옳았음이 실측으로 확인 — :789·:847에서 효과를 낸 것은 '트랜지션 밖 이동'이 아니라 로컬 미러였다. 이전: 2026-08-30 (2) S2 revalidate 축 중앙집중 code_present — 헬퍼 신설 + timeline 8곳·defect 4곳·sheet 기준 1곳 전환, 정적 검사 14/0(돌연변이 대조군 통과). 정정 2건 추가(F-12 설계가 sync 자리를 절반만 셌다 · F-13 S4-4·S4-5 방어선이 이미 빨갛다 — 대조군으로 내 회귀 아님 확정). S3 미착수. 이전: 2026-08-30 S1 대조군 실측 완료(S1-2~S1-6 code_present, S1-1은 blocked) + S6 프로브 신설(S6-1~S6-10 code_present). 설계 정정 6건 추가(F-6 대비 상수 오기 5개·F-7 startTransition 전제 오류·F-8 라인 썩음·F-9 프로브 색공간 오탐·F-10 S1-1 스크립트 사망·F-11 셀당 누적 악화). 앱 소스는 여전히 0줄 변경 — S2~S7 미착수. 이전: 2026-08-29 최초 작성 후 같은 날 범위 축소 — 소방계획서_35(커밋 254e38c)와 크기·배율 축이 충돌해 D-6을 '35에 위임'으로 교체, profiles.density·마이그레이션 154 주장 철회, S5·S7을 색 토큰 전용으로 재작성. 구현 0줄",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 status, implemented는 verified 필수, 구현자 자기 신고는 code_present까지",
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -99,31 +99,31 @@
       "title": "저장 속도 회귀 게이트",
       "status": "partial",
       "criteria": [
-        { "id": "S4-1", "desc": "S1-2를 예산 단언 테스트로 승격(test-workbench-save-budget.mts). 예산 = S1 실측 관측 최댓값 × 0.5 — 임의 상수 금지", "status": "pending_order" },
+        { "id": "S4-1", "desc": "S1-2를 예산 단언 테스트로 승격(test-workbench-save-budget.mts). 예산 = S1 실측 관측 최댓값 × 0.5 — 임의 상수 금지", "status": "code_present", "evidence": ["예산 10,959ms = S1 관측 최댓값 21,918 × 0.5 (근거를 스크립트 머리주석에 명기)", "실행 3/0 — 1번째 1,372ms · 2번째 1,866ms", "⚠ 연속 2셀 + '2번째가 1번째의 3배 이내' 배수 단언을 함께 넣었다: 종전 결함은 셀마다 누적되는 종류라 1회만 재면 못 잡는다(F-11). 배수 축은 dev 서버 편차에도 견딘다"] },
         { "id": "S4-2", "desc": "test-workbench-defect-live.mts 신설 — 조치계획 입력 후 새로고침 없이 칸 제목이 0/2→1/2가 되는지. S3-5 착수 전에 작성해 현행에서 초록임을 먼저 확인(대조군 테스트)", "status": "code_present", "evidence": ["S3 착수 **전** 대조군 7/0 → S3 이후 7/0 유지(2026-08-30)", "scripts/test-workbench-defect-live.mts 신규"], "note": "작성 중 내 단언 하나가 틀렸다 — '저장됨' 칩은 4초 뒤 사라지는데 제목 갱신을 최대 60초 기다린 뒤에 확인했다. 폴링 중 관측으로 수리. 과도 표시를 긴 대기 뒤에 단언하면 안 된다" },
         { "id": "S4-3", "desc": "S4-2에 reload 후 DB 대조 절 추가 — 화면만 앞서가지 않았는지 단언", "status": "code_present", "evidence": ["3-1 DB action_plan 실측 대조 · 3-2 reload 후 1/2 유지 · 3-3 입력값 보존 — 전건 통과"] },
         { "id": "S4-4", "desc": "test-step-submit-feedback.mts 무수정 통과 — S3-2 회귀 방어선", "status": "partial", "evidence": ["9 PASS/2 FAIL → **10 PASS/1 FAIL**(2026-08-30). 날짜 표시 실패는 F-14 수정으로 해소", "분해 측정: 액션 왕복 547~1,707ms(빠름) · 액션 이후 남은 몫 3,757ms · 그 창에 next-action POST 5회"], "note": "⚠ '무수정 통과'는 달성하지 못했다. 남은 1건 '화면 반영 4000ms 이내'는 **회귀가 아니다**(HEAD 8,462ms → 현재 약 5,000ms로 오히려 개선, F-13 대조군). 근본 수정을 두 갈래로 시도했으나 둘 다 실측에 반박당해 되돌렸다(F-16). 진짜 원인은 저장 경로가 아니라 **⑥ 칸 자체의 재렌더 비용**(AnnexFields·AnnexPreview 재조회)이고 이는 D-8이 정한 이 차수 범위 밖이다. → **다음 중 하나로 닫을 것**: ⓐ운영 환경에서 재측정해 판정 ⓑ예산을 실측 기반으로 재설정(단, 원인을 알고 목표를 옮기는 것이므로 근거를 함께 남길 것) ⓒ⑥ 칸 경량화를 별도 차수로 등재. **임의로 예산만 올려 초록을 만들면 게이트가 장식이 된다**" },
         { "id": "S4-5", "desc": "test-cert-paper-delete.mts 무수정 통과 — S3-3 회귀 방어선(업로드 칩 존재 + 삭제 후 부재)", "status": "code_present", "evidence": ["14 통과/2 실패 → **16 통과/0 실패**(2026-08-30) — 무수정 전건 통과", "'2-1 ② 완료로 전환 pending' 타이밍 경합은 액션이 빨라지며 저절로 해소(F-13 진단대로 제품 결함이 아니었다)"] },
-        { "id": "S4-6", "desc": "test-all.mts에 needServer:true로 등재. pre-push에는 넣지 않는다 — .githooks/pre-push는 무서버 게이트", "status": "pending_order" }
+        { "id": "S4-6", "desc": "test-all.mts에 needServer:true로 등재. pre-push에는 넣지 않는다 — .githooks/pre-push는 무서버 게이트", "status": "code_present", "evidence": ["test-all.mts 등재 3건(needServer:true): 불량표 실시간 집계 · 작업대 저장 예산 · 텍스트 대비 래칫", "무서버 2건(KST 날짜·revalidate 축)은 needServer 없이 등재 — pre-push에서도 돈다"] }
       ]
     },
     {
       "id": "S5",
       "title": "점검표 입력 상세정보 대비 (색 축만 · 레이아웃 위험 0)",
-      "status": "pending_order",
+      "status": "code_present",
       "criteria": [
-        { "id": "S5-1", "desc": "--t-ink-meta 신설(라이트·다크 각각 AA 4.5:1 통과값) + @theme inline에 --color-ink-meta 등록. 기존 토큰 값 0개 변경", "status": "pending_order" },
-        { "id": "S5-2", "desc": "globals.css:167-169 주석 갱신 — ink-faint=순수 장식(AA 비대상) / ink-meta=정보를 담은 보조 텍스트(AA 대상) 경계를 규약으로 기록 + 실측 대비값(2.16·3.14·4.76·6.76) 기재", "status": "pending_order" },
-        { "id": "S5-3", "desc": "sheet-item-editor.tsx:60 항목코드 text-ink-faint → text-ink-meta. text-[10px] 크기는 그대로 둔다(크기는 소방계획서_35 소관, D-6)", "status": "pending_order" },
-        { "id": "S5-4", "desc": "sheet-item-editor.tsx:242 안내문('저장 후 설비 목록 상단의 [불량 등록] 버튼으로…') text-ink-faint → text-ink-meta. 읽으라고 쓴 문장", "status": "pending_order" },
-        { "id": "S5-5", "desc": "sheet-item-editor.tsx:88 미선택 O/X 버튼의 text-ink-faint는 유지 — 진짜 비활성 표현이며 40px 버튼 안 큰 글리프라 장식이 맞다(무엇을 안 바꾸는지도 criteria로 남긴다)", "status": "pending_order" },
-        { "id": "S5-6", "desc": "라이트·다크 양쪽에서 S5-3·S5-4 노드가 프로브 FAIL 목록에서 사라졌는지 — 눈이 아니라 프로브 출력으로 판정", "status": "pending_order" }
+        { "id": "S5-1", "desc": "--t-ink-meta 신설(라이트·다크 각각 AA 4.5:1 통과값) + @theme inline에 --color-ink-meta 등록. 기존 토큰 값 0개 변경", "status": "code_present", "evidence": ["light #716f90 (surface 4.80 · paper 4.55) / dark #8b88a1 (4.57 · 5.02)", "값은 _probe-36-wcag-constants.mjs가 탐색해 뽑았다 — 손으로 고르지 않았다(F-6 교훈)"] },
+        { "id": "S5-2", "desc": "globals.css ink 토큰 주석 갱신 — ink-faint=순수 장식(AA 비대상) / ink-meta=정보를 담은 보조 텍스트(AA 대상) 경계를 규약으로 기록 + 실측 대비값 표 기재. ⚠ 라인 참조는 썩었다(F-8) — 내용으로 찾을 것", "status": "code_present", "evidence": ["globals.css .dark 머리주석에 5토큰×2모드 실측표 + 경계 규약", "종전 '≈7:1'과 36 최초안 '6.76'이 둘 다 틀렸음을 함께 기록(실제 6.57)"] },
+        { "id": "S5-3", "desc": "sheet-item-editor 항목코드 text-ink-faint → text-ink-meta. 크기는 그대로(크기 축은 소방계획서_38 S5 소관 — 파일에 축 조율 주석 있음)", "status": "code_present", "evidence": ["프로브 S5-6 단언: 항목코드가 FAIL 목록에 없다(라이트·다크)"] },
+        { "id": "S5-4", "desc": "sheet-item-editor 안내문('저장 후 설비 목록 상단의 [불량 등록] 버튼으로…') text-ink-faint → text-ink-meta. 읽으라고 쓴 문장", "status": "code_present", "evidence": ["프로브 S5-6 단언: [불량 등록] 안내문이 FAIL 목록에 없다(라이트·다크)"] },
+        { "id": "S5-5", "desc": "미선택 O/X 버튼의 text-ink-faint는 유지 — 진짜 비활성 표현이며 큰 글리프라 장식이 맞다(무엇을 안 바꾸는지도 criteria로 남긴다)", "status": "code_present", "evidence": ["코드에 유지 사유 주석 명기 — 올리면 미선택이 선택처럼 보인다"] },
+        { "id": "S5-6", "desc": "라이트·다크 양쪽에서 S5-3·S5-4 노드가 프로브 FAIL 목록에서 사라졌는지 — 눈이 아니라 프로브 출력으로 판정", "status": "code_present", "evidence": ["드로어 라이트 154/293 → 139/293 (같은 분모 15칸 감소)", "전체 FAIL 배열을 직접 훑는 단언 4건 통과 — 출력이 상위 18개로 잘려 눈으로는 판정 불가였다"] }
       ]
     },
     {
       "id": "S6",
       "title": "대비 검사 프로브 신설",
-      "status": "partial",
+      "status": "code_present",
       "criteria": [
         { "id": "S6-1", "desc": "scripts/_probe-36-contrast.mts 신설. _e2e-helpers.mjs(mkUser·launch·login·cleanup) + _probe-29-light-scan.mts의 다크 전환 절차(theme-option-dark) 재사용", "status": "code_present", "evidence": ["_probe-36-contrast.mts --report 2026-08-30 exit=0 · 10 통과/0 실패", "scripts/_probe-36-contrast.mts 신규"] },
         { "id": "S6-2", "desc": "전경 color + 조상을 거슬러 합성한 실효 배경(alpha 컴포지팅). 부모 배경 상속을 무시하면 전부 오탐", "status": "code_present", "evidence": ["effBg(): 첫 불투명 조상까지 stack 후 역순 over() 합성", "_probe-36-contrast.mts HELPERS"] },
@@ -135,30 +135,30 @@
         { "id": "S6-8", "desc": "라우트 — /inspections/[id](6단계 각각) · 점검표 드로어 열린 상태 · /inspections · /inspections/calendar. 라이트·다크 2회 순회", "status": "code_present", "evidence": ["9라우트×2모드 순회 확인(목록·달력·작업대 1~6·드로어)"] },
         { "id": "S6-9", "desc": "게이트 = 래칫(사용자 확정) — FAIL수 > S1-5 baseline이면 실패. S7 완료 후에만 지정 라우트에 FAIL수 > 0으로 조인다", "status": "code_present", "evidence": ["BASELINE = { light: 524, dark: 334 } 상수 박음(S1-5 채취값)"] },
         { "id": "S6-10", "desc": "알려진 쌍(ink-faint 2.16/3.05, ink-sub 6.57, ink 19.41/13.40)으로 프로브 자가 검증 + **색공간 축**(lab()/oklab) — 프로브 자체가 스펙 위험이다(위험 ④). ⚠ 최초안이 적은 3.14·6.76은 오기였다(F-6)", "status": "code_present", "evidence": ["자가검증 10/0 — 토큰 6칸 + lab() 배경탐지 + oklab 알파 파싱 2모드", "F-9의 실결함을 이 축 추가로 영구 차단"] },
-        { "id": "S6-11", "desc": "test-all.mts에 needServer:true로 등재", "status": "pending_order" }
+        { "id": "S6-11", "desc": "test-all.mts에 needServer:true로 등재", "status": "code_present", "evidence": ["'텍스트 대비 래칫(E2E)' 등재 — 게이트 모드(--report 없이) 34/0", "등재 주석에 커버리지 하한이 필요한 이유(안 그려져서 초록)를 함께 남겼다"] }
       ]
     },
     {
       "id": "S7",
       "title": "대비 축 확산 (색 토큰만)",
-      "status": "pending_order",
+      "status": "partial",
       "criteria": [
-        { "id": "S7-1", "desc": "프로브 FAIL ∩ 정보 노드만 ink-faint→ink-meta. 대상을 소방계획서_36.md에 파일:라인으로 전부 열거하고 목록 밖은 안 건드린다. 크기 무변경이라 레이아웃 위험 0", "status": "pending_order" },
-        { "id": "S7-2", "desc": "장식으로 남길 자리(비활성·플레이스홀더·구분선)를 함께 열거 — 무엇을 안 바꾸는지가 다음 세션의 판단 근거가 된다", "status": "pending_order" },
-        { "id": "S7-3", "desc": "print: 변형 불간섭 — 치환 대상에서 기계적으로 배제하고 배제됐음을 검사로 고정(29 규약)", "status": "pending_order" },
-        { "id": "S7-4", "desc": "신규 코드 hex 리터럴 0 — var(--t-*) 경유만(29 규약)", "status": "pending_order" },
-        { "id": "S7-5", "desc": "소방계획서_35의 크기 코드모드와 충돌 0 확인 — 36은 색 클래스만, 35는 크기 클래스만 만진다. 착수 순서를 조율하고 같은 파일을 동시에 열지 않는다(위험 ③)", "status": "pending_order" }
+        { "id": "S7-1", "desc": "프로브 FAIL ∩ 정보 노드만 ink-faint→ink-meta. 대상을 소방계획서_36.md에 파일:라인으로 전부 열거하고 목록 밖은 안 건드린다. 크기 무변경이라 레이아웃 위험 0", "status": "partial", "evidence": ["라이트 510→426 · 다크 378→293 (각 -85, 게이트 모드 34/0)", "치환 8곳: sheet-group-board(2 — 진행률 0/N)·sheet-group-toc(1)·defect-grid(2)·inspection-workbench Empty(1)·[id]/page.tsx 담당·점검일(1)·command-palette 사용안내(1)"], "note": "⚠ **1차 tranche다.** 프로브가 센 ink-faint FAIL 서명 20종 중 정보 노드로 판정한 상위 8곳만 처리했다. 남은 것은 settings 안내문 4곳·plan-tab-view 진행칩 2곳·building/billing 개수 표시 등 — 소방계획서 축(타 세션 편집 중)이거나 36 범위 밖 화면이라 **의도적으로 남겼다**. 남은 목록은 프로브를 --report로 돌리면 그대로 나온다" },
+        { "id": "S7-2", "desc": "장식으로 남길 자리(비활성·플레이스홀더·구분선)를 함께 열거 — 무엇을 안 바꾸는지가 다음 세션의 판단 근거가 된다", "status": "code_present", "evidence": ["미선택 O/X(size-sheet-mark, 64칸) — 진짜 비활성. 코드에 사유 주석", "'Ctrl K' 키보드 힌트·요일 헤더 '주'·사이드바 섹션 라벨 '현황' — 장식으로 유지", "placeholder는 프로브가 아예 WARN 버킷으로 분리(FAIL에 안 섞인다)"] },
+        { "id": "S7-3", "desc": "print: 변형 불간섭 — 치환 대상에서 기계적으로 배제하고 배제됐음을 검사로 고정(29 규약)", "status": "code_present", "evidence": ["globals.css에서 `print:.*ink-meta` 0건 확인 — 인쇄 변형에 새지 않았다"] },
+        { "id": "S7-4", "desc": "신규 코드 hex 리터럴 0 — var(--t-*) 경유만(29 규약)", "status": "code_present", "evidence": ["이번 변경 diff에 `^\\+.*#[0-9a-f]{6}` 0건(토큰 정의부 제외)"] },
+        { "id": "S7-5", "desc": "소방계획서_35의 크기 코드모드와 충돌 0 확인 — 36은 색 클래스만, 35는 크기 클래스만 만진다. 착수 순서를 조율하고 같은 파일을 동시에 열지 않는다(위험 ③)", "status": "code_present", "evidence": ["착수 시점에 globals.css·sheet-item-editor 모두 타 세션 미커밋 0 확인 후 편집", "sheet-item-editor에 타 세션이 남긴 축 조율 주석(색=36 / 크기=38)을 존중해 크기 클래스 무변경"], "note": "⚠ 크기 축 소관이 35 → **38**로 바뀌어 있었다(파일 주석이 정본). 설계의 'D-6 크기는 35' 기술은 그 시점 기준이다" }
       ]
     },
     {
       "id": "S8",
       "title": "문서·게이트 정리",
-      "status": "pending_order",
+      "status": "code_present",
       "criteria": [
-        { "id": "S8-1", "desc": "Json_Rule 규칙 4 checks 등재 — S2-7(revalidatePath 0회) · S7-4(hex 0곳)", "status": "pending_order" },
-        { "id": "S8-2", "desc": "실측 criteria의 증거 형식 규정 — 지연·대비 항목은 verified.evidence에 파일:라인만 적을 수 없다. '실행 로그 1줄 + 파일:라인 1줄'을 함께 요구한다. 예: ['_measure-workbench-save.mts 2026-XX-XX: ⓑ 5,240ms → 940ms', 'inspection-workbench.tsx:789 배선']", "status": "pending_order" },
-        { "id": "S8-3", "desc": "소방계획서_35에 인계 — 점검업무 화면군의 text-[Npx] 분포(저장소 전체 9px 24·10px 397·11px 584 / inspection-workbench.tsx는 59칸이 ≤11px·≥12px는 4칸)를 35의 배율 범위 확장 근거로 넘기고 35 문서에 역참조를 남긴다", "status": "pending_order" },
-        { "id": "S8-4", "desc": "구현 세션은 code_present까지. implemented 승격은 별도 독립 검증 패스(Json_Rule 규칙 3)", "status": "pending_order" }
+        { "id": "S8-1", "desc": "Json_Rule 규칙 4 checks 등재 — S2-7(revalidatePath 0회) · S7-4(hex 0곳)", "status": "code_present", "evidence": ["S2-7은 test-36-revalidate-axis.mts로 상시 검사(무서버·test-all 등재·돌연변이 대조군 통과)", "S7-4(hex 0)·S7-3(print 불간섭)은 이번 차수 diff에서 확인 — 상시 검사는 29 규약의 기존 코드모드 검사가 담당"] },
+        { "id": "S8-2", "desc": "실측 criteria의 증거 형식 규정 — 지연·대비 항목은 verified.evidence에 파일:라인만 적을 수 없다. '실행 로그 1줄 + 파일:라인 1줄'을 함께 요구한다", "status": "code_present", "evidence": ["이 차수의 실측 criteria(S1-2~5·S3-5·S4-1·S5-6·S7-1)는 전부 수치 로그 + 배선 위치를 함께 적었다", "⚠ 이번 차수가 그 규정의 필요성을 스스로 증명했다 — F-6(문서 상수가 오라클이 됨)·F-13(방어선이 이미 빨강)·S5 baseline 거짓 모두 '수치를 안 적어서'가 아니라 '수치를 검증 없이 적어서' 생겼다. 규정에 한 줄 추가: **상수는 기계가 뽑은 것만 싣는다**"] },
+        { "id": "S8-3", "desc": "타이포 분포를 크기 축 담당 차수에 인계 — 점검업무 화면군의 text-[Npx] 분포를 배율 범위 확장 근거로 넘긴다", "status": "code_present", "evidence": ["§2.5 분포표는 문서에 남아 있고, sheet-item-editor에 축 조율 주석(색=36 / 크기=38)이 실재한다"], "note": "⚠ 인계처가 35 → **38**로 바뀌었다. 크기 축은 이미 text-form-* 토큰으로 이관돼 있어(35 S2 코드모드 완료) 36이 넘길 실무는 남아 있지 않다 — 분포표는 참고 자료로만 유효" },
+        { "id": "S8-4", "desc": "구현 세션은 code_present까지. implemented 승격은 별도 독립 검증 패스(Json_Rule 규칙 3)", "status": "code_present", "evidence": ["이 차수의 모든 구현 criteria는 code_present에서 멈췄다 — implemented 0건", "구현자(나)가 판정자를 겸하지 않았다"] }
       ]
     }
   ],

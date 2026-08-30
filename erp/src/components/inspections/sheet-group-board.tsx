@@ -77,7 +77,9 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
                 {full && <CircleCheck className="size-3.5 shrink-0 text-green-500" data-sheet-done />}
                 <span className="truncate">{s.sheetName}</span>
               </button>
-              <span className={`ml-auto shrink-0 text-[10px] ${full ? 'text-green-600' : s.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}
+              {/* S7-1 — 미입력(0/N)도 **읽어야 하는 숫자**다. 종전 ink-faint는 라이트 2.16:1로
+                  AA 실패라, 정작 '아직 아무것도 안 했다'는 가장 중요한 상태가 가장 안 보였다. */}
+              <span className={`ml-auto shrink-0 text-[10px] ${full ? 'text-green-600' : s.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}
                 data-sheet-count={`${s.responded}/${s.total}`}>
                 {s.responded}/{s.total}{s.counts.X > 0 ? ` ✕${s.counts.X}` : ''}
               </span>
@@ -102,7 +104,8 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
                       {g.groupName !== g.groupCode && (
                         <span className="text-[11px] text-ink truncate flex-1 min-w-0">{g.groupName}</span>
                       )}
-                      <span className={`ml-auto text-[9px] shrink-0 ${gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}>
+                      {/* S7-1 — 중분류 진행 숫자도 같은 축 */}
+                      <span className={`ml-auto text-[9px] shrink-0 ${gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}>
                         {g.responded > 0 || g.total === 0 ? `${g.responded}/${g.total}` : '미입력'}{g.x > 0 ? ` ✕${g.x}` : ''}
                       </span>
                     </span>

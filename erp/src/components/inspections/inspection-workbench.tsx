@@ -983,7 +983,8 @@ function Pane({ title, children, cls, head, fill = false }: {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="px-1 py-2 text-[11px] text-ink-faint">{children}</p>
+  // S7-1 — 빈 상태 문구는 정보다('생성된 문서가 없습니다' 등). 장식이 아니라 읽혀야 한다
+  return <p className="px-1 py-2 text-[11px] text-ink-meta">{children}</p>
 }
 
 function Summary({ rows }: { rows: Array<[string, string]> }) {

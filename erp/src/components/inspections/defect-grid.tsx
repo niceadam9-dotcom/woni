@@ -123,7 +123,8 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   }
 
   if (defects.length === 0) {
-    return <p className="px-1 py-2 text-[11px] text-ink-faint">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
+    // S7-1 — 빈 상태 설명은 '왜 비었는지'를 알려주는 정보다(해당 없음 vs 미입력의 구분)
+    return <p className="px-1 py-2 text-[11px] text-ink-meta">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
   }
 
   // min-w-0 — input[type=date]는 UA 고유 최소폭이 있어 w-full이어도 좁은 칸에서 밖으로 삐져나온다.
@@ -201,7 +202,8 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
           })}
         </tbody>
       </table>
-      <p className="px-1 text-[10px] text-ink-faint">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
+      {/* S7-1 — 저장 규약을 알려주는 사용 안내. 이걸 못 읽으면 저장된 줄 모른다 */}
+      <p className="px-1 text-[10px] text-ink-meta">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
     </div>
   )
 }

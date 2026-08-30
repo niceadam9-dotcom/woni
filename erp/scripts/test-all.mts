@@ -54,6 +54,17 @@ const steps: Step[] = [
   // revalidate 축이 헬퍼 한 곳에 모여 있는가(S2-7). 가드를 9곳에 복붙하면 8곳이 깨지므로(F-1)
   // '가드 생략은 정확히 2곳'을 수로 고정한다 — 늘면 단계 외 서버 prop이 안 갱신된다.
   { name: 'revalidate 축(소방계획서_36)', cmd: 'npx tsx scripts/test-36-revalidate-axis.mts' },
+  // S4-2 — 불량표 입력이 **새로고침 없이** 칸 제목에 반영되는가 + reload 후 DB 대조.
+  // 위험 ①(미리보기만 갱신되고 칸 제목이 굳어 '데이터가 갈라진 것처럼' 보이는 것)의 방어선.
+  // S3 착수 **전에** 7/0을 확인하고 들어갔다 — 그래야 붉어진 것이 S3 탓이라고 말할 수 있다.
+  { name: '불량표 실시간 집계(E2E)',     cmd: 'npx tsx scripts/test-workbench-defect-live.mts', needServer: true },
+  // S4-1 — 저장 속도 회귀 예산. 임의 상수가 아니라 S1 대조군 관측 최댓값(21,918ms)×0.5다.
+  // ⚠ 연속 2셀을 잰다: 종전 결함은 셀마다 **누적**되는 종류라 1회만 재면 못 잡는다(F-11).
+  { name: '작업대 저장 예산(E2E)',       cmd: 'npx tsx scripts/test-workbench-save-budget.mts', needServer: true },
+  // S6 — 텍스트 대비(WCAG 2.1 정식식). 래칫이라 **악화만** 막는다.
+  // ⚠ FAIL 수만 보면 '안 그려져서 초록'을 못 잡으므로 라우트별 검사 대상 수 하한을 함께 단언한다
+  //   (실제로 최초 baseline의 다크 드로어가 215칸만 걷혀 거짓으로 낮았다).
+  { name: '텍스트 대비 래칫(E2E)',       cmd: 'npx tsx scripts/_probe-36-contrast.mts', needServer: true },
   // 갑지 워크북(소방계획서_27) — 템플릿 지문·앵커 라벨·완전 덮어쓰기 불변식(실고객 흔적 0).
   // 여기가 붉으면 갑지 서식이 갱신된 것 — build-workbook-template 재실행 + 앵커 재실측(Q-4)
   { name: '갑지 워크북 앵커·템플릿',    cmd: 'npx tsx scripts/test-xlsx-anchors.mts' },

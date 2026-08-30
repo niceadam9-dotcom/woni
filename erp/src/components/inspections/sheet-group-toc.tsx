@@ -87,7 +87,8 @@ export function SheetGroupToc({ entries, scrollBoxRef, pendingJump, onJumpConsum
               on ? 'border-brand bg-brand-tint' : 'border-brand-line-soft hover:bg-brand-tint'}`}>
             <span className="flex items-center gap-1">
               <span className={`text-form-2xs font-bold ${on ? 'text-brand' : 'text-ink-sub'}`}>{e.code}</span>
-              <span className={`ml-auto text-form-3xs shrink-0 ${full ? 'text-green-600' : e.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}>
+              {/* S7-1 — 목차의 진행 숫자도 같은 축(미입력 0/N이 안 보이면 안 된다) */}
+              <span className={`ml-auto text-form-3xs shrink-0 ${full ? 'text-green-600' : e.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}>
                 {e.responded}/{e.total}{e.x > 0 ? ` ✕${e.x}` : ''}
               </span>
             </span>
