@@ -374,13 +374,31 @@ try {
   //   '김대장김대장장'이 저장돼 :374의 name === '김대장'이 깨지는데, 화면엔 값이 멀쩡히 있으니
   //   앱 결함처럼 보인다(실측: 격리 진단에서 fill 직후 값이 그대로 유지돼 앱은 무죄). fill은 치환이라
   //   몇 번을 돌아도 결과가 같다 — 방어의 목적은 '다시 넣는 것'이지 '이어 붙이는 것'이 아니다.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (await page.locator('input[placeholder="성명"]').first().inputValue() === '김대장') break
-    const t3cls = await page.locator('button:has-text("Type Ⅲ")').getAttribute('class') ?? ''
-    if (!t3cls.includes('border-[#7b68ee]')) await page.click('button:has-text("Type Ⅲ")') // 토글이라 미선택일 때만
-    await page.locator('input[placeholder="성명"]').first().fill('김대장')
-    await page.waitForTimeout(400)
+  // ⚠ 2026-08-30(소방계획서_37 S4-3): 이 루프가 **두 가지로 깨져 있었다**. 증상은 97/1 빨강인데
+  //   증거가 실행마다 뒤바뀌었다 — 어떤 날은 {type:"", rows:[김대장]}, 어떤 날은 {type:"III", rows:[]}.
+  //   둘이 **동시에** 성립한 적이 없다는 게 단서였다.
+  //
+  //   ① 선택 판정이 죽은 hex를 봤다. 이 버튼의 선택 클래스는 `border-brand`인데(plan-ch2.tsx:88)
+  //      검사는 `border-[#7b68ee]`를 찾고 있었다 — **소방계획서_29 토큰 코드모드가 지운 문자열**이다.
+  //      그래서 조건이 **항상 참**이 되어 "미선택일 때만"이라는 가드가 무의미해졌고, 재시도마다
+  //      Type Ⅲ를 다시 눌러 **토글로 껐다**. 이름이 한 번 헛돌면 다음 회차의 클릭이 선택을 해제해
+  //      {type:""}가 저장된다. → 앱 화면을 지우는 코드모드는 **그 화면을 보는 검사도 함께 썩힌다**.
+  //   ② 탈출 조건이 이름만 봤다. 이름이 들어오면 타입이 안 눌린 채로도 루프를 빠져나갔다.
+  //
+  //   수리: 실제 선택 클래스를 보고, **두 조건이 모두 참일 때만** 탈출한다.
+  let typeOk = false, nameOk = false
+  for (let attempt = 0; attempt < 4; attempt++) {
+    nameOk = await page.locator('input[placeholder="성명"]').first().inputValue() === '김대장'
+    typeOk = ((await page.locator('button:has-text("Type Ⅲ")').getAttribute('class')) ?? '').includes('border-brand')
+    if (nameOk && typeOk) break
+    if (!typeOk) await page.click('button:has-text("Type Ⅲ")')       // 토글이라 미선택일 때만
+    if (!nameOk) await page.locator('input[placeholder="성명"]').first().fill('김대장')
+    await page.waitForTimeout(500)
   }
+  // 저장 **전에** 입력 상태를 단언한다. 이걸 안 두면 '입력이 안 된 것'과 '저장이 안 된 것'이
+  // 아래 DB 검사에서 똑같은 모양으로 빨개져, 이번처럼 앱을 의심하며 시간을 쓴다.
+  check('2장 입력이 저장 전에 화면에 실제로 반영됐다 (입력 실패와 저장 실패를 가른다)',
+    typeOk && nameOk, `Type Ⅲ 선택=${typeOk} · 성명 입력=${nameOk}`)
   await page.click('button:has-text("2장 저장")')
   await page.waitForSelector('text=2장 저장됨')
   const { data: f2 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
