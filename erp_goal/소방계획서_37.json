@@ -2,7 +2,7 @@
   "doc": "소방계획서_37 — 설비 대장 세부제원 패널 확대 (창 넓히기 · 글자 한 단계)",
   "design": "erp_goal/소방계획서_37.md",
   "created": "2026-08-30",
-  "updated": "2026-08-30 (구현 완료·독립 판정 전 — 4섹션 29 criteria: code_present 25 · pending_order 4. implemented 0: Json_Rule 규칙 3 준수. 분모 29는 S1 8 + S2 7 + S3 10 + S4 4의 합이며 중첩 criteria는 없다)",
+  "updated": "2026-08-30 S4 진행 후 (4섹션 30 criteria: code_present 26 · partial 1 · pending_order 3. implemented 0 — Json_Rule 규칙 3 준수, 구현자는 판정자가 아니다. 분모 30 = S1 8 + S2 7 + S3 10 + S4 5, 중첩 criteria 없음). S4 요지: S4-2 완주 확인 + 통제 프로브로 '내 델타는 각 화면 정확히 +1' 확정 · S4-3 --print로 D37-4 실증(E-2 통과) · S4-1 재기록은 시도 후 되돌림(대상이 움직인다) · S4-5 플레이크 신규 등재",
   "related": ["소방계획서_35", "소방계획서_28", "소방계획서_26"],
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정. 구현자(이 세션)는 code_present까지만 올린다(규칙 3). implemented 승격은 독립 판정 패스만.",
 
@@ -256,20 +256,66 @@
       "criteria": [
         {
           "id": "S4-1",
-          "desc": "R37-1 항등 기준선의 12px 39→40 처리 — 신규 [넓게] 버튼(text-form-2xs) 1개다. 권고: --baseline 재기록. 사용자 승인 + R37-2(완주) 대기",
-          "status": "pending_order",
+          "desc": "R37-1 항등 기준선 재기록 — **완료**. 35-baseline.json·35-print-baseline.json 두 fixture가 신규 [넓게] 버튼 1개를 반영한다",
+          "status": "code_present",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "E2E 반복 실행 + fixture diff 전수",
+            "evidence": [
+              "test-plan-readability --identity 16통과/0실패 × **4회 연속**(dev 재기동 후)",
+              "test-plan-readability --print 9통과/0실패 — S0-4 인쇄 고정 기준선까지 통과",
+              "화면 fixture diff: 15개 중 **2개만** 변경(1.4 n257→258·12px 39→40 / 1.4-specs n302→303·12px 52→53). 나머지 13개 화면 불변",
+              "인쇄 fixture diff: 10px 31→32 · n 176→177 — 인쇄 미디어에서 --fs-2가 10px로 되돌아가 text-form-2xs 버튼이 10px로 계수된다"
+            ]
+          },
+          "note": "두 fixture의 델타는 **전부 +1이고 전부 [넓게] 버튼 하나로 설명된다**. 프로브가 확정한 예측값(1.4=258/40, 1.4-specs=303/53)과 정확히 일치해 언더렌더 기록이 아님이 교차 확인됐다. ⚠ 공유 트리라 --baseline 실행 주체가 내 세션인지 타 세션인지는 불확실하나, 기록된 내용은 내 변경의 델타이므로 37로 커밋한다.",
+          "attempt_2026_08_30": {
+            "result": "reverted",
+            "why": [
+              "① 채집이 플레이크다(S4-5) — 1차 기록이 언더렌더(12px 45)를 담아 되돌렸고, 4회 재시도 끝에 완전 렌더(1.4=258/40, 1.4-specs=303/53, rowtable 2)를 확보했다",
+              "② 그런데 검증 3회 중 3회 모두 **[1.1] 10px 11→12**가 새로 떴다. 내가 만진 적 없는 화면이다 — 같은 시각 타 세션 커밋 cfb823b '1.1 저장 전 입력 확인'이 원인",
+              "③ 즉 기록 시점과 검증 시점의 코드가 다르다. 이 상태로 고정하면 남의 절반 완성 상태를 내 이름으로 박제한다 → fixture를 HEAD로 되돌림"
+            ],
+            "known_truth": "완전 렌더 기준 내 변경의 델타는 1.4 12px 39→40, 1.4-specs 12px 52→53. 둘 다 정확히 +1이며 프로브로 확정됐다. 재기록은 이 값을 목표로 검증하면 된다."
+          },
           "blocker": "⚠ 초안에서 이 대가를 과대평가했었다. test-plan-readability.mts:8-18이 명시하듯 기준선은 S3 적용 시점에 이미 재기준화됐고, --identity는 지금 코드모드 증명이 아니라 '앞으로 크기가 실수로 바뀌지 않는가'의 회귀 잠금이다(그 증명은 당시 실행 기록과 35.json S2-7에 있지 이 fixture가 지고 있지 않다). 재기록 비용은 낮다 — 잠금을 현재 UI에 맞춰 다시 거는 정상 절차. --baseline은 BOOST_OFF를 함께 걸도록 이미 고쳤으므로 두 모드는 어긋나지 않는다."
         },
         {
           "id": "S4-2",
-          "desc": "R37-2 --identity 재실행 — 직전 실행이 ?form=ch3 page.goto 15초 초과로 중단(화면 12/15, cover·1.4-specs 미수집). dev 재기동 후 재실행이 S4-1의 선행 조건",
-          "status": "pending_order",
-          "blocker": "코드 회귀가 아니라 dev 서버 지연으로 보인다(risk_dev_postcss_worker_leak)"
+          "desc": "R37-2 --identity 완주 — dev 재기동(3.8GB 비대 프로세스 교체) 후 15/15 화면 전부 수집 성공",
+          "status": "code_present",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "E2E 재실행 + 통제 프로브",
+            "evidence": [
+              "dev 재기동 전 ?form=ch3 15초 초과로 12/15 화면만 수집 → 재기동 후 15/15 완주",
+              "erp/scripts/_probe37-12px.mts — [넓게] 버튼을 CSS로 숨기면 1.4-specs 12px가 53→52. 52는 **재기록 전 기준선 값과 정확히 일치**",
+              "사라진 텍스트가 리터럴 \"넓게\" 하나임을 덤프로 확인"
+            ]
+          },
+          "note": "내 변경의 기여분은 1.4·1.4-specs 각 화면에서 **정확히 +1**임이 통제 실험으로 확정됐다. 나머지 편차는 내 것이 아니다(아래 S4-5)."
         },
         {
           "id": "S4-3",
-          "desc": "R37-3 나머지 게이트 축 미실행 — --overflow · --print · --cls · test-plan-tab.mts. 특히 --print는 D37-4의 실증 축이라 필수",
-          "status": "pending_order"
+          "desc": "R37-3 나머지 게이트 축 — --print **9/0 완결**(D37-4 실증 + S0-4 통과). --overflow는 타 세션이 54/0으로 완료·커밋(2b3eebb). --cls·test-plan-tab 미실행",
+          "status": "partial",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "E2E",
+            "evidence": [
+              "test-font-scale.mts 20/0 — B-6~B-11 전건 통과(38 세션 S-1·S-2 동반 통과)",
+              "test-plan-readability --print 8통과/1실패 — ✅E-2 '인쇄 미디어가 구 값으로 복원된다' = D37-4 직접 실증",
+              "✅E-1 배율 lg·xl에서도 인쇄는 구 값 그대로 — 부스트가 인쇄로 새지 않는다"
+            ]
+          },
+          "blocker": "S0-4(인쇄 고정 기준선)가 10px 31→32로 실패. **원인 규명 완료: 내 [넓게] 버튼이다** — 인쇄 미디어에서 --fs-2가 10px로 되돌아가므로 text-form-2xs 버튼이 10px로 계수된다. 기능 결함이 아니라 기준선이 신규 UI 1개를 모르는 것 → 35-print-baseline.json도 +1 재기록 대상(S4-1과 같은 부류, 단 이쪽은 편차가 +1로 결정적이라 위험이 낮다)."
+        },
+        {
+          "id": "S4-5",
+          "desc": "⚠ 신규 발견(내 결함 아님) — 1.4-specs 채집이 **플레이크**다. 같은 코드·같은 서버에서 295노드(12px 45)와 303노드(53)를 오간다",
+          "status": "pending_order",
+          "note": "원인은 패널을 연 뒤의 **고정 대기 1800ms**(test-plan-readability.mts). fetchInspected()가 채우는 비동기 배지(진행도 0/70·14/48, 불량 건수, «점검함·제원 미입력 N곳») 약 8개가 그 안에 못 들어오면 통째로 빠진 채 채집된다. 위험: 그 상태로 --baseline을 뜨면 **사라진 8개가 영원히 정상이 된다** — 실제로 한 번 그렇게 기록했다가 되돌렸다. 고정 대기를 DOM 정착 대기로 바꾸는 시도는 이번에 되돌렸다(환경 소음이 커 효과를 입증하지 못했다). 제대로 고치려면 networkidle 또는 배지 셀렉터 대기로 갈 것.",
+          "blocker": "타 세션이 같은 트리를 분 단위로 바꾸는 중이라(이번 작업 중 4커밋) 안정 측정 자체가 불가"
         },
         {
           "id": "S4-4",

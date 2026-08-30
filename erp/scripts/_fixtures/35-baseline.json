@@ -74,13 +74,13 @@
         "14px": 80,
         "13px": 79,
         "10px": 12,
-        "12px": 39,
+        "12px": 40,
         "11px": 1,
         "20px": 1,
         "15px": 43,
         "17px": 1
       },
-      "counted": 257,
+      "counted": 258,
       "tables": [
         {
           "tag": "table",
@@ -293,13 +293,13 @@
         "14px": 80,
         "13px": 100,
         "10px": 12,
-        "12px": 52,
+        "12px": 53,
         "11px": 12,
         "20px": 1,
         "15px": 43,
         "17px": 1
       },
-      "counted": 302,
+      "counted": 303,
       "tables": [
         {
           "tag": "table",
@@ -310,14 +310,14 @@
         {
           "tag": "div",
           "testid": "",
-          "sw": 526,
-          "cw": 526
+          "sw": 786,
+          "cw": 786
         },
         {
           "tag": "table",
           "testid": "rowtable-s31_extinguisher-dong_rows",
-          "sw": 526,
-          "cw": 526
+          "sw": 786,
+          "cw": 786
         }
       ],
       "skippedNarrow": 4,
