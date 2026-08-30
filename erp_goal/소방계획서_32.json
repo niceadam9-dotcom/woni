@@ -871,7 +871,7 @@
         {
           "id": "F-D10",
           "desc": "🟠[MED] D6 회귀축(formula1 오염·#REF!·PDF 쪽수)이 빌드에만 있고 test:all에는 없다",
-          "status": "pending_order",
+          "status": "implemented",
           "severity": "MED",
           "found_by": "판정자 A",
           "note": "`scripts/test-*.mts` 전수 grep에서 `formula1`·`#REF!`·`dvOnly` 히트 0건. 판정자 A가 실증했듯 **오염된 자산에 추출기를 돌리면 실패 0건**이 나오므로, 커밋된 자산이 어떤 경로로든(부분 빌드·나쁜 병합·수기 편집) 오염되면 test:all 전체가 눈이 먼다. 빌드가 쓰기 **전에** 단언을 세우므로 정상 경로는 막혀 있어 MED.",
