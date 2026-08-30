@@ -13,6 +13,10 @@
 import { readFileSync } from 'node:fs'
 import { raw, BASE, check, summary, launch, login, mkUser, delUser, PW } from './_e2e-helpers.mjs'
 
+/** 변이 모드 — 배율 배선을 죽여 B-4가 정말 빨개지는지 본다(S4-13).
+ *  이 실행의 초록은 '기능이 된다'가 아니라 '검사가 죽지 않았다'는 뜻이다. */
+const MUTATE = process.argv.includes('--mutate')
+
 const stamp = Date.now()
 const emailA = `s35fsA_${stamp}@example.com`
 const emailB = `s35fsB_${stamp}@example.com`
@@ -49,6 +53,23 @@ const cookieOf = async (ctx: any) => (await ctx.cookies()).find((c: any) => c.na
   check('배율 실값이 CSS와 lib에서 일치한다',
     lg === '1.15' && xl === '1.3' && /md:\s*1,\s*lg:\s*1\.15,\s*xl:\s*1\.3/.test(lib),
     `css lg=${lg} xl=${xl}`)
+
+  // ── 세부제원 패널 확대 축 (2026-08-30) ──────────────────────────────────────
+  // --fs-step은 --fs-scale의 사본이다(변수 순환 회피용). 어긋나면 부스트 패널만 다른 배율이
+  // 되는데, 화면을 열어 보지 않으면 아무 데서도 안 터진다 — 그래서 여기서 대조한다.
+  const stepLg = css.match(/html\[data-fs="lg"\][^}]*--fs-step:\s*([\d.]+)/)?.[1]
+  const stepXl = css.match(/html\[data-fs="xl"\][^}]*--fs-step:\s*([\d.]+)/)?.[1]
+  check('B-6 --fs-step 사본이 --fs-scale과 일치한다 (부스트 패널이 딴 배율이 되는 것 방지)',
+    stepLg === lg && stepXl === xl, `step lg=${stepLg} xl=${stepXl} / scale lg=${lg} xl=${xl}`)
+  // D35-5(사용자 결정): 인쇄는 화면 확대를 전부 되돌린다. 부스트도 예외가 아니다 —
+  // --fs-step만 1로 눌러선 ×1.15가 살아남으므로 --fs-scale을 직접 되돌려야 한다.
+  check('B-7 인쇄가 [data-fs-boost]를 1로 되돌린다 (법정 서식 규격 — D35-5)',
+    /@media print\s*\{[\s\S]*?\[data-fs-boost\]\s*\{\s*--fs-scale:\s*1\s*\}[\s\S]*?\n\}/.test(css), '')
+  // 순환 참조 방어 — calc(var(--fs-scale) …)로 자기 자신을 읽으면 guaranteed-invalid가 되어
+  // 패널 글자가 통째로 상속 기본값으로 떨어진다(조용한 전멸). 정적으로 못 박는다.
+  const boost = css.match(/\[data-fs-boost\]\s*\{\s*--fs-scale:\s*([^}]+)\}/)?.[1] ?? ''
+  check('B-8 [data-fs-boost]가 --fs-scale을 자기참조하지 않는다 (CSS 변수 순환)',
+    boost.includes('--fs-step') && !boost.includes('var(--fs-scale)'), `boost = ${boost.trim()}`)
 }
 
 try {
@@ -87,6 +108,10 @@ try {
       const measured: Record<string, number> = {}
       for (const s of ['md', 'lg', 'xl']) {
         await page.goto(`${BASE}/customers/${cust}?tab=plan&form=1.4`, { waitUntil: 'networkidle' })
+        // ⚠ S4-13 변이 — 배율을 1로 강제 고정한다. 판별자가 살아 있다면 아래 비 검사가 무너진다.
+        //   (data-fs는 그대로 두므로 '속성은 바뀌는데 크기는 안 바뀌는' 상태를 정확히 재현한다.
+        //    이게 실제로 일어날 법한 회귀다 — 토큰 배선이 끊기거나 @utility가 사라지는 경우.)
+        if (MUTATE) await page.addStyleTag({ content: ':root, html[data-fs] { --fs-scale: 1 !important }' })
         await page.evaluate(`document.documentElement.setAttribute('data-fs','${s}')`)
         await page.waitForTimeout(400)
         const v = await page.evaluate(`(() => {
@@ -97,11 +122,65 @@ try {
       // ⚠ 요소를 못 찾으면 SKIP이 아니라 FAIL — '검사할 게 없어서 통과'를 막는다
       check('B-4 측정 대상(.text-form-xs)이 실재한다',
         Number.isFinite(measured.md), `md=${measured.md}`)
-      check('B-4 배율 비가 1 : 1.15 : 1.3 (±0.5px)',
-        Math.abs(measured.lg - measured.md * 1.15) < 0.5 && Math.abs(measured.xl - measured.md * 1.3) < 0.5,
-        `md=${measured.md} lg=${measured.lg} xl=${measured.xl}`)
+      const ratioHolds = Math.abs(measured.lg - measured.md * 1.15) < 0.5 && Math.abs(measured.xl - measured.md * 1.3) < 0.5
+      if (MUTATE) {
+        // 변이 모드에서는 **무너져야** 통과다 — 초록은 "본 검사가 빨개질 수 있다"는 뜻이다.
+        check('S4-13 변이 — 배율을 1로 고정하면 비 검사가 무너진다',
+          !ratioHolds,
+          ratioHolds ? '⚠ 배율을 죽였는데도 통과했다 — B-4가 항진명제다'
+                     : `정상: md=${measured.md} lg=${measured.lg} xl=${measured.xl} (전부 같아야 함)`)
+      } else {
+        check('B-4 배율 비가 1 : 1.15 : 1.3 (±0.5px)', ratioHolds,
+          `md=${measured.md} lg=${measured.lg} xl=${measured.xl}`)
+      }
     } else {
       check('B-4 측정용 고객 존재', false, '소방계획서를 가진 고객이 없다')
+    }
+
+    // ── 세부제원 패널 부스트 (2026-08-30) ───────────────────────────────────────
+    //  정적 정규식(B-6~B-8)은 "규칙이 적혔는가"만 본다. 부스트가 엉뚱한 요소에 붙거나
+    //  명시도에 져서 실제로는 안 걸리는 경우를 못 잡으므로 **안팎을 나란히 재는** 축을 둔다.
+    //  절대 px가 아니라 **비**로 본다 — 사용자 배율이 무엇이든 안:밖 = 1.15여야 한다.
+    if (cust) {
+      await page.goto(`${BASE}/customers/${cust}?tab=plan&form=1.4`, { waitUntil: 'networkidle' })
+      await page.evaluate(`document.documentElement.removeAttribute('data-fs')`)
+      // ⚠ 부스트만 죽인다(--fs-step 그대로) — '패널이 밖과 같은 크기'라는 회귀를 정확히 재현한다.
+      if (MUTATE) await page.addStyleTag({ content: '[data-fs-boost] { --fs-scale: var(--fs-step) !important }' })
+      // ⚠ 패널을 여는 것은 **설비명 클릭**이다. '대장' 글자를 가진 버튼을 찾는 휴리스틱은
+      //   아무거나 눌러 놓고 열렸다고 답한 전례가 있다(test-plan-readability:339) — testid로만.
+      const opened = await page.evaluate(`(() => {
+        const els = [...document.querySelectorAll('[data-testid^="form14-ledger-"]')];
+        if (!els.length) return false; els[0].click(); return true })()`)
+      await page.waitForTimeout(1500)
+      const m: any = await page.evaluate(`(() => {
+        const panel = document.querySelector('[data-spec-panel]');
+        if (!panel) return null;
+        const inside = panel.querySelector('.text-form-xs');
+        const outside = [...document.querySelectorAll('.text-form-xs')].find(el => !panel.contains(el));
+        return {
+          inside: inside ? parseFloat(getComputedStyle(inside).fontSize) : null,
+          outside: outside ? parseFloat(getComputedStyle(outside).fontSize) : null,
+          width: panel.getBoundingClientRect().width, vw: window.innerWidth,
+        } })()`)
+      // 요소를 못 찾으면 SKIP이 아니라 FAIL — '잴 게 없어서 통과'를 막는다
+      check('B-9 패널이 열리고 안·밖 측정 대상이 둘 다 실재한다',
+        !!opened && !!m && Number.isFinite(m?.inside) && Number.isFinite(m?.outside),
+        `opened=${opened} ${JSON.stringify(m)}`)
+      if (m && Number.isFinite(m.inside) && Number.isFinite(m.outside)) {
+        const boostHolds = Math.abs(m.inside - m.outside * 1.15) < 0.6
+        if (MUTATE) {
+          check('S35B 변이 — 부스트를 죽이면 B-10이 무너진다', !boostHolds,
+            boostHolds ? '⚠ 부스트를 죽였는데도 통과했다 — B-10이 항진명제다'
+                       : `정상: inside=${m.inside} outside=${m.outside} (같아야 함)`)
+        } else {
+          check('B-10 패널 안 글자가 밖보다 한 단계(×1.15) 크다', boostHolds,
+            `inside=${m.inside} outside=${m.outside} 기대=${(m.outside * 1.15).toFixed(2)}`)
+          // 폭이 글자를 못 따라가면 표가 패널을 넘겨 가로 스크롤이 생긴다(패널 주석의 불변식)
+          const expect = Math.min(m.vw * 0.96, 900 * 1.15)
+          check('B-11 패널 폭도 부스트된 배율을 탄다 (기본 900px × 1.15, 96vw 상한)',
+            Math.abs(m.width - expect) < 2, `width=${m.width} 기대=${expect.toFixed(1)} vw=${m.vw}`)
+        }
+      }
     }
 
     // ── D-3: 쿠키를 지워도 재로그인하면 DB에서 복원 ───────────────────────────

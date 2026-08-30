@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen, Maximize2, Minimize2 } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 // 쓰기 액션은 더 이상 여기서 부르지 않는다 — 입력은 전용 화면 한 곳으로 모았다(소방계획서_28 S4).
@@ -68,6 +68,10 @@ const EVAC_TYPES_PATH = 's36_evac.evac_equipment.types'
 
 const FLOOR_COLS = ['소화기', '차동식', '연기식', '정온식', '유도등', '비상조명']
 
+/** 세부제원 패널 [넓게] 선택 — 기기별 취향이라 DB(profiles)가 아니라 localStorage다.
+ *  글자 배율(form_font_scale)과 달리 다른 기기까지 따라갈 이유가 없다. */
+const SPEC_WIDE_KEY = 'erp-spec-panel-wide'
+
 type Building = {
   id: string; building_name: string; verified_at: string | null
   facilities: Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>
@@ -112,6 +116,20 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
 
   // 2026-08-05 사용자 확정: 토글마다 자동 저장 폐지 — 최종 [저장] 1회 + 이탈 가드. 제원 입력은 우측 슬라이드 패널
   const [specsOpen, setSpecsOpen] = useState(false)
+  // [넓게] — 패널 폭 2단(900px / 1400px, 둘 다 배율을 곱한다). 실값은 globals.css [data-spec-panel].
+  // ⚠ 초기값에서 localStorage를 읽으면 안 된다 — 서버 렌더엔 없어서 하이드레이션이 어긋난다.
+  //   첫 렌더는 항상 false로 두고 마운트 뒤 한 번 교정한다(깜빡임은 폭 전환 한 번뿐).
+  const [specsWide, setSpecsWide] = useState(false)
+  useEffect(() => {
+    try { if (localStorage.getItem(SPEC_WIDE_KEY) === '1') setSpecsWide(true) } catch { /* 프라이빗 모드 */ }
+  }, [])
+  const toggleSpecsWide = useCallback(() => {
+    setSpecsWide(prev => {
+      const next = !prev
+      try { localStorage.setItem(SPEC_WIDE_KEY, next ? '1' : '0') } catch { /* 프라이빗 모드 */ }
+      return next
+    })
+  }, [])
   // 설비 대장(세부 제원)의 미저장 섹션 수 — 자식(PlanForm14Specs)이 통지 (소방계획서_9·12 U1)
   const [specsDirtyCount, setSpecsDirtyCount] = useState(0)
   const specsDirty = specsDirtyCount > 0
@@ -492,8 +510,11 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         <tbody>
           {LAYOUT.map(g => g.rows.map((r, ri) => (
             <tr key={`${g.category}-${ri}`}>
+              {/* 분류 열(‘소 화 설 비’)은 글자와 함께 넓어져야 한다 (소방계획서_35 S2-6).
+                  48px에 11px로도 이미 감겨 있어(52px 필요) 확대하면 더 감긴다 —
+                  auto layout이라 넘치진 않지만 행 높이가 계속 자란다. */}
               {ri === 0 && (
-                <th rowSpan={g.rows.length} className="border border-line bg-brand-tint w-12 px-1 text-form-xs font-semibold text-ink-sub">
+                <th rowSpan={g.rows.length} className="border border-line bg-brand-tint w-[calc(var(--fs-col-cat)*var(--fs-scale))] px-1 text-form-xs font-semibold text-ink-sub">
                   {g.category.replace('설비', '').split('').join(' ')}<br />설 비
                 </th>
               )}
@@ -703,11 +724,24 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       <div className={`fixed inset-0 z-40 ${specsOpen ? '' : 'pointer-events-none'}`}>
         <div className={`absolute inset-0 bg-black/20 dark:bg-black/60 transition-opacity ${specsOpen ? 'opacity-100' : 'opacity-0'}`}
           onClick={() => setSpecsOpen(false)} />
-        <div className={`absolute top-0 right-0 bottom-0 w-[min(92vw,640px)] bg-surface shadow-2xl flex flex-col transition-transform duration-200 ${specsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        {/* ⚠ 패널 폭도 배율을 탄다 (소방계획서_35 S6-7). 폭에서 p-4를 빼면 실가용이 32px 줄어드는데
+            세부제원 표의 숫자열이 배율과 함께 넓어지므로, 폭이 고정이면 xl에서 표가 패널을
+            넘겨 가로 스크롤이 생긴다. 그래서 실값(--fs-panel-w)에 --fs-scale을 곱한다.
+            data-fs-boost가 이 요소의 --fs-scale을 ×1.15 해 두므로 **글자와 폭이 같은 수로 커진다**.
+            2026-08-30: 기본 640→900px + [넓게] 1400px(data-wide). 실값 3개는 전부 globals.css에 있다.
+            96vw 상한은 유지 — 좁은 화면에서 화면을 통째로 덮으면 뒤 본문 맥락이 사라진다. */}
+        <div data-spec-panel data-fs-boost {...(specsWide ? { 'data-wide': '' } : {})}
+          className={`absolute top-0 right-0 bottom-0 w-[min(96vw,calc(var(--fs-panel-w)*var(--fs-scale)))] bg-surface shadow-2xl flex flex-col transition-[transform,width] duration-200 ${specsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-line-soft shrink-0">
-            <p className="text-form-base font-semibold text-ink">설비 대장 — 세부 제원</p>
-            <span className="text-form-2xs text-ink-faint">체크(√)한 설비의 섹션이 자동으로 펼쳐집니다</span>
-            <button onClick={() => setSpecsOpen(false)} className="ml-auto text-ink-faint hover:text-ink-sub" aria-label="닫기">
+            <p className="text-form-base font-semibold text-ink shrink-0">설비 대장 — 세부 제원</p>
+            <span className="text-form-2xs text-ink-faint truncate">체크(√)한 설비의 섹션이 자동으로 펼쳐집니다</span>
+            <button type="button" onClick={toggleSpecsWide} data-testid="specs-wide-toggle" aria-pressed={specsWide}
+              title={specsWide ? '기본 폭으로 — 뒤 본문이 보입니다' : '넓게 — 표가 빽빽할 때. 선택은 이 브라우저에 기억됩니다'}
+              className="ml-auto shrink-0 inline-flex items-center gap-1 h-form-6 px-2 rounded-lg border border-brand-line text-form-2xs font-medium text-ink-sub hover:bg-brand-tint transition-colors">
+              {specsWide ? <Minimize2 className="size-3" /> : <Maximize2 className="size-3" />}
+              {specsWide ? '기본 폭' : '넓게'}
+            </button>
+            <button onClick={() => setSpecsOpen(false)} className="shrink-0 text-ink-faint hover:text-ink-sub" aria-label="닫기">
               <X className="size-4" />
             </button>
           </div>

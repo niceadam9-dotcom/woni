@@ -1,0 +1,303 @@
+{
+  "doc": "소방계획서_37 — 설비 대장 세부제원 패널 확대 (창 넓히기 · 글자 한 단계)",
+  "design": "erp_goal/소방계획서_37.md",
+  "created": "2026-08-30",
+  "updated": "2026-08-30 (구현 완료·독립 판정 전 — 4섹션 29 criteria: code_present 25 · pending_order 4. implemented 0: Json_Rule 규칙 3 준수. 분모 29는 S1 8 + S2 7 + S3 10 + S4 4의 합이며 중첩 criteria는 없다)",
+  "related": ["소방계획서_35", "소방계획서_28", "소방계획서_26"],
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정. 구현자(이 세션)는 code_present까지만 올린다(규칙 3). implemented 승격은 독립 판정 패스만.",
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "설계 확정(구현 아님)",
+    "proposal": "제안 — 사용자 결정 대기",
+    "deferred": "보류"
+  },
+
+  "db_change": "없음 — 마이그레이션 0건. [넓게] 선택은 localStorage(erp-spec-panel-wide), 글자 배율은 35의 기존 profiles.form_font_scale(154)을 그대로 읽는다.",
+
+  "key_evidence": "대상은 plan-form14.tsx의 우측 슬라이드 패널('설비 대장 — 세부 제원', 별지 9호 4~7쪽·4호 3~7쪽 제원의 단일 원본). 변경 전 폭 min(92vw, 640px×--fs-scale) — 1920px 화면·보통 배율에서 640px이고 p-4를 빼면 실가용 608px이다. 그 안에 3-1~3-8 아코디언 8개와 6열 rowtable이 들어가고, [문서 미리보기 나란히]를 켜면 md:w-1/2로 다시 반으로 갈라져 한쪽이 약 300px가 된다. 확대 축을 전역 토큰(--fs-1~6)이 아니라 패널 스코프 배율로 잡은 것이 이 설계의 핵심 — 35가 만든 --fs-scale 인프라를 그대로 재사용하고 되돌리기가 CSS 한 줄이다. 함정 셋: ①calc(var(--fs-scale)*1.15)로 자기참조하면 CSS 변수 순환(guaranteed-invalid)이라 글자가 통째로 죽는다 → --fs-step 사본 도입 ②@media print에서 --fs-step만 1로 눌러선 [data-fs-boost]가 여전히 ×1.15를 곱한다 → --fs-scale을 직접 되돌리고, 명시도가 같으므로 소스 순서가 뒤여야 이긴다 ③글자만 키우고 폭을 고정하면 숫자열(--fs-col-num)이 배율과 함께 넓어져 표가 패널을 넘긴다(35가 세운 불변식) → 폭도 부스트된 --fs-scale을 곱한다.",
+
+  "user_decisions": [
+    {
+      "id": "UD-1",
+      "date": "2026-08-30",
+      "question": "패널 폭을 어떤 방식으로 넓힐까",
+      "answer": "기본 폭 상향 + [넓게] 토글",
+      "rejected": ["기본 폭만 상향", "드래그 리사이즈 핸들 + 폭 기억", "전체화면(inset-4) 모드"]
+    },
+    {
+      "id": "UD-2",
+      "date": "2026-08-30",
+      "question": "글자를 크게 하는 범위",
+      "answer": "이 패널만 한 단계 크게 (×1.15)",
+      "rejected": ["기본 배율을 lg로", "토큰 실값(--fs-1~6) 상향", "창만 넓히고 폰트는 그대로"]
+    }
+  ],
+
+  "decisions": [
+    {
+      "id": "D37-1",
+      "title": "확대는 패널 스코프 — 전역 토큰(--fs-1~6)에 손대지 않는다",
+      "status": "confirmed",
+      "desc": "35가 만든 --fs-1~6은 소방계획서 서식 화면 전체의 실값이고 @media print가 되돌리는 목록과 한 쌍이다. 여기를 올리면 이미 만족스러운 1.1~3장·목차까지 함께 흔들리고 test-plan-readability의 S0 고정 기준선(픽셀 불변 증명)을 통째로 다시 떠야 한다. 대신 배율만 패널 서브트리에서 한 단계 올린다 — 되돌리기는 CSS 한 줄."
+    },
+    {
+      "id": "D37-2",
+      "title": "--fs-step은 --fs-scale의 사본이다 (CSS 변수 순환 회피)",
+      "status": "confirmed",
+      "desc": "[data-fs-boost] { --fs-scale: calc(var(--fs-scale) * 1.15) }는 자기참조라 guaranteed-invalid가 되어 값이 통째로 죽고 글자가 상속 기본값으로 떨어진다(조용한 전멸). 그래서 읽을 이름을 하나 더 둔다. 사본이라 어긋날 수 있으므로 test-font-scale이 두 값을 대조한다(B-6). ⚠ 각 규칙에서 --fs-scale을 먼저 쓸 것 — test-font-scale.mts:50이 `{` 바로 뒤를 정규식으로 읽어서, 순서를 바꾸면 배율 검사가 조용히 undefined를 본다."
+    },
+    {
+      "id": "D37-3",
+      "title": "폭은 글자와 같은 수로 커진다 (35 불변식 승계)",
+      "status": "confirmed",
+      "desc": "숫자열 폭(--fs-col-num)이 배율과 함께 넓어지므로 글자만 키우고 폭을 고정하면 표가 패널을 넘겨 가로 스크롤이 생긴다. 패널 요소가 data-fs-boost를 직접 갖고 있으므로 그 요소 자신의 width 선언에서도 부스트된 값이 풀린다. 실측(1920px·보통 배율): 640 → 1035px. [넓게]는 1400×1.15=1610px. 96vw 상한은 유지 — 좁은 화면에서 화면을 통째로 덮으면 뒤 본문 맥락이 사라진다. 너무 넓으면 --fs-panel-w를 780px로 내리면 보통 배율에서 ~897px(globals.css 한 줄)."
+    },
+    {
+      "id": "D37-4",
+      "title": "인쇄는 부스트도 되돌린다 (D35-5 연장)",
+      "status": "confirmed",
+      "desc": "법정 서식은 규격이라 글자가 커지면 칸을 넘친다. @media print에서 --fs-scale을 직접 되돌려야 한다 — --fs-step: 1만으로는 [data-fs-boost]가 여전히 ×1.15를 곱해 결과가 1.15가 된다. [data-fs-boost]와 명시도가 같으므로 소스 순서가 뒤여야 이긴다(위로 옮기면 조용히 무력해진다). 주석과 검사(B-7)로 함께 못 박았다."
+    },
+    {
+      "id": "D37-5",
+      "title": "[넓게] 선택은 localStorage — DB가 아니다",
+      "status": "confirmed",
+      "desc": "글자 배율(profiles.form_font_scale, 마이그레이션 154)과 달리 기기별 취향이다. 27인치 데스크톱에서 [넓게]를 골랐다고 노트북까지 따라갈 이유가 없다. 마이그레이션 0건. ⚠ 초기값에서 localStorage를 읽으면 서버 렌더에 없어 하이드레이션이 어긋난다 — 첫 렌더는 항상 false, 마운트 뒤 한 번 교정."
+    }
+  ],
+
+  "sections": [
+    {
+      "id": "S1",
+      "title": "패널 폭 — 기본 상향 + [넓게] 토글",
+      "status": "code_present",
+      "criteria": [
+        {
+          "id": "S1-1",
+          "desc": "패널 폭 실값이 globals.css의 --fs-panel-w 한 곳에 있다 (컴포넌트에 px 하드코딩 없음)",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:215-216 [data-spec-panel] 900px / [data-wide] 1400px"]
+        },
+        {
+          "id": "S1-2",
+          "desc": "폭이 부스트된 --fs-scale을 함께 곱한다 (글자만 커지고 폭이 고정되는 회귀 차단)",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:734 w-[min(96vw,calc(var(--fs-panel-w)*var(--fs-scale)))]"]
+        },
+        {
+          "id": "S1-3",
+          "desc": "헤더에 [넓게]/[기본 폭] 토글 버튼 — aria-pressed·title 동반",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:738-743 data-testid=\"specs-wide-toggle\""]
+        },
+        {
+          "id": "S1-4",
+          "desc": "선택이 localStorage(erp-spec-panel-wide)에 남아 새로고침 후에도 유지된다",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:73 SPEC_WIDE_KEY", "erp/src/components/customers/plan-form14.tsx:126-133 toggleSpecsWide"]
+        },
+        {
+          "id": "S1-5",
+          "desc": "초기값이 아니라 useEffect에서 읽는다 (하이드레이션 불일치 차단) + try/catch로 프라이빗 모드 관용",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:122-125"]
+        },
+        {
+          "id": "S1-6",
+          "desc": "96vw 상한이 살아 있다 — 좁은 화면에서 화면을 통째로 덮지 않는다",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:734"]
+        },
+        {
+          "id": "S1-7",
+          "desc": "폭 전환이 애니메이션된다 (transition-[transform,width])",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:734"]
+        },
+        {
+          "id": "S1-8",
+          "desc": "헤더 레이아웃이 안 깨진다 — ml-auto가 [넓게]로 이동하고 제목·안내는 shrink-0/truncate",
+          "status": "code_present",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:736-746"]
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "글자 — 패널 스코프 한 단계 확대",
+      "status": "code_present",
+      "criteria": [
+        {
+          "id": "S2-1",
+          "desc": "[data-fs-boost]가 패널 서브트리의 --fs-scale만 ×1.15 한다 (패널 밖 변화 0)",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:214", "erp/src/components/customers/plan-form14.tsx:733 data-fs-boost 속성"]
+        },
+        {
+          "id": "S2-2",
+          "desc": "--fs-step 사본이 3개 규칙(:root·lg·xl)에 모두 있고 --fs-scale과 값이 같다",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:181", "erp/src/app/globals.css:206-207"]
+        },
+        {
+          "id": "S2-3",
+          "desc": "부스트가 --fs-scale을 자기참조하지 않는다 (guaranteed-invalid 차단)",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:214 calc(var(--fs-step) * 1.15)"]
+        },
+        {
+          "id": "S2-4",
+          "desc": "@media print가 [data-fs-boost]를 --fs-scale:1로 되돌린다 (D37-4)",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:233"]
+        },
+        {
+          "id": "S2-5",
+          "desc": "인쇄 역치환이 [data-fs-boost] 규칙보다 소스 순서상 뒤에 있다 (같은 명시도 — 순서가 승패를 정한다)",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:214 정의 → :233 역치환", "erp/src/app/globals.css:230-232 이동 금지 주석"]
+        },
+        {
+          "id": "S2-6",
+          "desc": "사용자 배율 3단(md/lg/xl)과 곱셈으로 합성된다 — 배율 설정이 패널에서도 계속 동작",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:214 var(--fs-step) 참조"]
+        },
+        {
+          "id": "S2-7",
+          "desc": "전역 토큰 --fs-1~6 실값이 바뀌지 않았다 (D37-1 — 패널 밖 화면 픽셀 불변)",
+          "status": "code_present",
+          "evidence": ["erp/src/app/globals.css:182-197 값 무변경"]
+        }
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "검사 — 부스트 축 신설",
+      "status": "code_present",
+      "criteria": [
+        {
+          "id": "S3-1",
+          "desc": "B-6 --fs-step 사본이 --fs-scale과 일치 (정적)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:62-63"],
+          "measured": "18/0 실행에서 통과 (2026-08-30)"
+        },
+        {
+          "id": "S3-2",
+          "desc": "B-7 인쇄가 [data-fs-boost]를 1로 되돌린다 (정적)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:66-67"],
+          "measured": "18/0 실행에서 통과 (2026-08-30)"
+        },
+        {
+          "id": "S3-3",
+          "desc": "B-8 부스트가 --fs-scale을 자기참조하지 않는다 (정적 — 순환 회귀 차단)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:71-72"],
+          "measured": "18/0 실행에서 통과 (2026-08-30)"
+        },
+        {
+          "id": "S3-4",
+          "desc": "B-9 패널을 실제로 열고 안·밖 측정 대상이 둘 다 실재함을 단언 (항진명제 차단 — 못 찾으면 SKIP이 아니라 FAIL)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:166-168"],
+          "measured": "18/0 실행에서 통과. 패널은 testid(form14-ledger-)로만 연다 — '대장' 문자열 휴리스틱은 아무거나 눌러 놓고 열렸다고 답한 전례가 있다"
+        },
+        {
+          "id": "S3-5",
+          "desc": "B-10 패널 안 글자가 밖보다 정확히 ×1.15 (런타임·절대 px가 아니라 비)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:176-177"],
+          "measured": "18/0 실행에서 통과 (2026-08-30)"
+        },
+        {
+          "id": "S3-6",
+          "desc": "B-11 패널 폭도 부스트된 배율을 탄다 (min(96vw, 900×1.15) = 1035px 실측)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:180-182"],
+          "measured": "18/0 실행에서 통과 (2026-08-30)"
+        },
+        {
+          "id": "S3-7",
+          "desc": "변이 S35B — 부스트만 죽이면 B-10이 무너진다 (B-10이 항진명제가 아님의 증명)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-font-scale.mts:172-175"],
+          "measured": "--mutate 실행 17/0 — 변이 축 통과 (2026-08-30)"
+        },
+        {
+          "id": "S3-8",
+          "desc": "BOOST_OFF가 항등·기준선 두 모드에 함께 걸린다 (한쪽만 걸면 기준선 재기록 순간 항등이 통째로 빨개진다)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-plan-readability.mts:200 BOOST_OFF", "erp/scripts/test-plan-readability.mts:413", "erp/scripts/test-plan-readability.mts:443"]
+        },
+        {
+          "id": "S3-9",
+          "desc": "BOOST_OFF가 --overflow에는 걸리지 않는다 (거기선 실제로 커진 기하를 재야 넘침이 의미가 있다)",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-plan-readability.mts:413 MODE_IDENTITY || MODE_BASELINE 조건"]
+        },
+        {
+          "id": "S3-10",
+          "desc": "OLD_VALUES(인쇄 축의 구 값 재현)에도 BOOST_OFF가 합성된다 — 패널이 붙은 화면에서 screenOld와 print가 어긋나지 않도록",
+          "status": "code_present",
+          "evidence": ["erp/scripts/test-plan-readability.mts:201"]
+        }
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "잔여 — 착수 전 반드시 읽을 것",
+      "status": "pending_order",
+      "criteria": [
+        {
+          "id": "S4-1",
+          "desc": "R37-1 항등 기준선의 12px 39→40 처리 — 신규 [넓게] 버튼(text-form-2xs) 1개다. 권고: --baseline 재기록. 사용자 승인 + R37-2(완주) 대기",
+          "status": "pending_order",
+          "blocker": "⚠ 초안에서 이 대가를 과대평가했었다. test-plan-readability.mts:8-18이 명시하듯 기준선은 S3 적용 시점에 이미 재기준화됐고, --identity는 지금 코드모드 증명이 아니라 '앞으로 크기가 실수로 바뀌지 않는가'의 회귀 잠금이다(그 증명은 당시 실행 기록과 35.json S2-7에 있지 이 fixture가 지고 있지 않다). 재기록 비용은 낮다 — 잠금을 현재 UI에 맞춰 다시 거는 정상 절차. --baseline은 BOOST_OFF를 함께 걸도록 이미 고쳤으므로 두 모드는 어긋나지 않는다."
+        },
+        {
+          "id": "S4-2",
+          "desc": "R37-2 --identity 재실행 — 직전 실행이 ?form=ch3 page.goto 15초 초과로 중단(화면 12/15, cover·1.4-specs 미수집). dev 재기동 후 재실행이 S4-1의 선행 조건",
+          "status": "pending_order",
+          "blocker": "코드 회귀가 아니라 dev 서버 지연으로 보인다(risk_dev_postcss_worker_leak)"
+        },
+        {
+          "id": "S4-3",
+          "desc": "R37-3 나머지 게이트 축 미실행 — --overflow · --print · --cls · test-plan-tab.mts. 특히 --print는 D37-4의 실증 축이라 필수",
+          "status": "pending_order"
+        },
+        {
+          "id": "S4-4",
+          "desc": "R37-4 육안 6항목 (기본 폭 가로 스크롤 · [넓게] 유지 · 나란히 조합 · Ctrl+P 불변 · lg/xl 넘침 · 다크 대비)",
+          "status": "pending_order",
+          "blocker": "사용자만 가능"
+        }
+      ]
+    }
+  ],
+
+  "not_adopted": [
+    { "item": "드래그 리사이즈 핸들 + 폭 기억", "reason": "포인터 이벤트·최소/최대 클램프·터치까지 구현량이 가장 크다. 2단 토글로 실사용 대부분을 덮는다" },
+    { "item": "전체화면(inset-4) 모드", "reason": "뒤 본문이 완전히 가려져 1.4 본표와의 대조가 끊긴다" },
+    { "item": "전역 기본 배율을 lg로", "reason": "이 패널만의 문제를 전 화면 변경으로 푸는 것. 이미 사용자가 3단 조절기를 갖고 있다" },
+    { "item": "토큰 실값(--fs-1~6) 상향", "reason": "모든 배율 단계가 동시에 커지고 S0 기준선을 다시 떠야 한다. 인쇄 목록과도 한 쌍이라 표면이 넓다" }
+  ],
+
+  "optional_followup": [
+    { "id": "F-1", "desc": "나란히 미리보기 켤 때 자동 [넓게] — plan-form14-specs.tsx toggleSplit에서 커스텀 이벤트를 쏘고 부모가 받는다(기존 erp:open-spec-section 버스와 같은 패턴)", "status": "pending_order" },
+    { "id": "F-2", "desc": "미리보기 iframe 높이 h-[640px] → h-[min(78vh,900px)] (plan-form14-specs.tsx:1033)", "status": "pending_order" }
+  ],
+
+  "lessons": [
+    "!important는 그 선언이 이긴 요소에서만 힘을 쓴다. 자식은 값을 상속할 뿐이고, 상속값은 그 자식에 직접 매칭되는 선언에 진다 — 중요도와 무관하게 상속이 먼저 탈락한다. :root{--fs-scale:1!important}로 [data-fs-boost] 자손을 통제하려 했다가 항등 축이 깨졌다(설계 전제 오판 1).",
+    "test-plan-readability의 OLD_VALUES는 --print 축 전용이다. --identity는 라이브 화면을 수집해 커밋된 고정 기준선(scripts/_fixtures/35-baseline.json)과 대조한다. OLD_VALUES만 고쳤을 때 실패 수치가 한 자도 안 변한 것이 오판의 증거였다 — 고쳤는데 수치가 그대로면 '덜 고쳤다'가 아니라 '엉뚱한 데를 고쳤다'를 먼저 의심할 것(설계 전제 오판 2).",
+    "CSS 커스텀 프로퍼티 자기참조는 guaranteed-invalid가 되어 조용히 값이 죽는다. 부스트를 곱하려면 읽을 이름이 하나 더 필요하고, 그 사본은 어긋날 수 있으므로 검사로 대조할 것.",
+    "@media print의 역치환은 원 규칙과 명시도가 같아 소스 순서가 승패를 정한다. 위로 옮기면 조용히 무력해지므로 이동 금지를 주석으로 못 박을 것.",
+    "globals.css를 고치면 dev가 옛 CSS를 서빙할 수 있다(risk_dev_css_cache_stale). 측정 전에 서빙 CSS 청크를 직접 fetch해 grep으로 신선도를 확인했다 — 이 축이 없으면 변이가 안 든 채 초록이 나와 항진명제로 오판한다."
+  ]
+}

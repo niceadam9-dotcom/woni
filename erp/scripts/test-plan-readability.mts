@@ -116,7 +116,12 @@ const COLLECT_TOKENS = `(() => {
 
 /** S3 이전(구 값) 상태를 화면 미디어에서 재현하는 오버라이드.
  *  @media print 블록이 복원해야 하는 값과 **같은 목록**이다. */
-const OLD_VALUES = `:root{--fs-scale:1!important;--fs-1:9px!important;--fs-2:10px!important;--fs-3:11px!important;--fs-4:12px!important;--fs-5:14px!important;--fs-6:16px!important;--fs-h6:24px!important;--fs-h7:28px!important;--fs-h8:32px!important;--fs-col-num:44px!important}`
+/** ⚠ [data-fs-boost](세부제원 패널 확대, 소방계획서_37)를 **따로** 눌러야 한다.
+ *  `:root{--fs-scale:1!important}` 만으로는 패널이 안 돌아온다 — !important는 그 선언이
+ *  이긴 요소(<html>)에서만 힘을 쓰고, 자식은 그 값을 **상속**할 뿐이다. 상속값은 그 자식에
+ *  직접 매칭되는 [data-fs-boost] 선언에 진다(중요도와 무관하게 상속이 먼저 탈락한다). */
+const BOOST_OFF = `[data-fs-boost]{--fs-scale:1!important}`
+const OLD_VALUES = `:root{--fs-scale:1!important;--fs-1:9px!important;--fs-2:10px!important;--fs-3:11px!important;--fs-4:12px!important;--fs-5:14px!important;--fs-6:16px!important;--fs-h6:24px!important;--fs-h7:28px!important;--fs-h8:32px!important;--fs-col-num:44px!important}${BOOST_OFF}`
 
 const email = `s35read_${Date.now()}@example.com`
 const u = await mkUser({ email, name: 'S35 가독성', employeeId: `S35R${Date.now() % 100000}` })
@@ -231,6 +236,13 @@ try {
       ? `${BASE}/customers/${custId}?tab=plan&form=${key}`
       : `${BASE}/customers/${custId}?tab=plan&form=${key}`
     await page.goto(url, { waitUntil: 'networkidle' })
+    // 소방계획서_37 — **항등·기준선 축에서만** 세부제원 패널 부스트를 되돌린다.
+    //   패널은 늘 마운트돼 있어(plan-form14.tsx) 1.4·1.4-specs 히스토그램에 섞인다.
+    //   여기서 누르지 않으면 두 화면이 영원히 빨갛다. 눌러도 어긋난다면 그건 부스트가 아니라
+    //   **다른 것**이 변한 것이고, 그게 이 축이 지켜야 할 바로 그것이다.
+    //   ⚠ 기록(--baseline)과 대조(--identity) 양쪽에 걸어야 한다 — 한쪽만 걸면
+    //     기준선을 다시 뜨는 순간 항등 축이 통째로 빨개진다.
+    if (MODE_IDENTITY || MODE_BASELINE) await page.addStyleTag({ content: BOOST_OFF })
     await page.evaluate('document.fonts.ready')
     await page.waitForTimeout(500)
     collected[key] = await page.evaluate(COLLECT)
@@ -238,6 +250,7 @@ try {
 
   // 1.4 세부제원 패널 — 열어야 rowtable이 생긴다(닫힌 채 재면 0개를 세고 통과한다)
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.4`, { waitUntil: 'networkidle' })
+  if (MODE_IDENTITY || MODE_BASELINE) await page.addStyleTag({ content: BOOST_OFF })   // 위와 같은 이유
   await page.evaluate('document.fonts.ready')
   // ⚠ 패널을 여는 것은 **설비명 클릭**이다(plan-form14.tsx ledgerLabel → data-testid="form14-ledger-…").
   //   '대장'이라는 글자를 가진 버튼을 찾는 휴리스틱은 아무거나 눌러 놓고 panelOpened=true를 돌려줬고,
