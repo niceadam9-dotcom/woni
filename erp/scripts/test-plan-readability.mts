@@ -474,13 +474,34 @@ try {
   // ⚠ 패널을 여는 것은 **설비명 클릭**이다(plan-form14.tsx ledgerLabel → data-testid="form14-ledger-…").
   //   '대장'이라는 글자를 가진 버튼을 찾는 휴리스틱은 아무거나 눌러 놓고 panelOpened=true를 돌려줬고,
   //   rowtable은 0개인 채 기준선이 채취됐다 — 위험 위젯이 통째로 빠진 초록이었다.
+  // ⚠ 서버 액션 응답 대기를 **클릭보다 먼저** 등록한다. 클릭 뒤에 등록하면 이미 끝난 응답을
+  //   놓치고 그대로 흘러간다. (waitForResponse는 등록 이후 도착분만 보므로, 페이지 로드 중
+  //   끝난 POST 4건은 여기 안 걸린다 — 실측 확인.)
+  const inspectedResp = page.waitForResponse(
+    (r: any) => r.request().method() === 'POST' && r.url().includes('/customers/'),
+    { timeout: 30000 }).catch(() => null)
   const opened = await page.evaluate(`(() => {
     const els = [...document.querySelectorAll('[data-testid^="form14-ledger-"]')];
     if (!els.length) return false;
     els[0].click();
     return true;
   })()`)
-  await page.waitForTimeout(1800)
+  // ⚠ 구 코드는 `waitForTimeout(1800)` 고정이었고 **그게 플레이크의 원인이었다**(소방계획서_37 S4-5).
+  //   패널을 열면 fetchInspected()가 서버 액션을 쏘고, 그 응답이 진행도(0/70·14/48)·불량 건수·
+  //   «점검함·제원 미입력 N곳» 배지 ~8개를 그린다. 실측 응답 시각이 **+1603ms·+1688ms** —
+  //   1800ms 문턱에 그야말로 걸쳐 있어, 서버가 조금만 느려지면 그 8개가 통째로 빠진 채 채집됐다
+  //   (1.4-specs가 303노드 ↔ 295노드를 오갔다). 그 상태로 --baseline을 뜨면 **사라진 8개가
+  //   영원히 정상이 된다** — 실제로 한 번 그렇게 기록했다가 되돌렸다.
+  //
+  //   ⚠ networkidle은 답이 **아니다**(반증 완료). page.waitForLoadState('networkidle')은
+  //     마지막 **내비게이션**의 라이프사이클을 반영해서, 이미 로드된 페이지에서는 즉시 반환하고
+  //     이후 서버 액션을 기다리지 않는다.
+  //
+  //   증명(scripts/_probe37-flake.mts — 2×2, 6/0): 서버 액션 응답만 3500ms 늦춘 뒤
+  //     구 대기 → 불량배지 0개(12px 45) · 새 대기 → 2개(53). 지연이 없으면 둘 다 2개(53).
+  //     원인과 수리를 **대조군과 함께** 실증했다.
+  await inspectedResp
+  await page.waitForTimeout(400)   // 응답 → 리렌더 1프레임
   // ⚠ '패널이 열렸다'만으로는 부족하다 — 열려도 체크된 설비가 없으면 rowtable이 0개다.
   //   실제로 그 위젯이 그려졌는지를 별도 축으로 센다.
   const rowtables = await page.evaluate(`document.querySelectorAll('[data-testid^="rowtable-"]').length`)

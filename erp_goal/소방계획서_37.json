@@ -2,7 +2,7 @@
   "doc": "소방계획서_37 — 설비 대장 세부제원 패널 확대 (창 넓히기 · 글자 한 단계)",
   "design": "erp_goal/소방계획서_37.md",
   "created": "2026-08-30",
-  "updated": "2026-08-30 S4 완료 (4섹션 30 criteria: code_present 28 · partial 1 · pending_order 1. implemented 0 — Json_Rule 규칙 3 준수, 구현자는 판정자가 아니다. 분모 30 = S1 8 + S2 7 + S3 10 + S4 5). S4 결과: S4-1 기준선 2종 재기록 완료(--identity 16/0×4 · --print 9/0) · S4-2 완주 + 통제 프로브로 '내 델타는 각 화면 정확히 +1' 확정 · S4-3 게이트 전건 실행(잔여 실패 2건은 둘 다 37 축 아님) · S4-4 육안 6항목을 기계 판정 7/0으로 대체 · S4-5만 미해결(원인은 증명, networkidle은 반증, 수리안 미검증)",
+  "updated": "2026-08-30 S4 전건 완료 (4섹션 30 criteria: code_present 29 · partial 1 · pending_order 0. implemented 0 — Json_Rule 규칙 3 준수, 구현자는 판정자가 아니다. 분모 30 = S1 8 + S2 7 + S3 10 + S4 5). S4 결과: S4-1 기준선 2종 재기록(--identity 16/0 · --print 9/0) · S4-2 통제 프로브로 '내 델타는 각 화면 정확히 +1' 확정 · S4-3 게이트 전건 실행(잔여 실패 2건은 둘 다 37 축 아님) · S4-4 육안 6항목을 기계 판정 7/0으로 대체 · **S4-5 플레이크 수리 완료** — 응답 실측 +1603/+1688ms vs 구 대기 1800ms, 2×2 대조 6/0, 수리 후 303노드 고정. 유일한 partial은 S4-3(남의 축 2건)",
   "related": ["소방계획서_35", "소방계획서_28", "소방계획서_26"],
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정. 구현자(이 세션)는 code_present까지만 올린다(규칙 3). implemented 승격은 독립 판정 패스만.",
 
@@ -316,12 +316,22 @@
         },
         {
           "id": "S4-5",
-          "desc": "⚠ 신규 발견(내 결함 아님) — 1.4-specs 채집이 **플레이크**다. 같은 코드·같은 서버에서 295노드(12px 45)와 303노드(53)를 오간다",
-          "status": "pending_order",
+          "desc": "1.4-specs 채집 플레이크(295노드↔303노드) — **원인 규명·수리·실증 완료**. 고정 대기 1800ms를 서버 액션 응답 대기로 교체",
+          "status": "code_present",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "2×2 대조 실험 + 반복 실행",
+            "evidence": [
+              "erp/scripts/_probe37-timing.mts — 클릭 후 서버 액션 응답 시각 실측 **+1603ms·+1688ms**. 구 대기 1800ms가 문턱에 걸쳐 있었다는 정량적 근거",
+              "erp/scripts/_probe37-flake.mts 2×2 **6/0** — ① 지연없음+구대기 배지2(12px 53) · ② 지연3500+구대기 **배지0(45)** · ③ 지연3500+새대기 **배지2(53)** · ④ 지연없음+새대기 배지2(53)",
+              "수리 후 test-plan-readability --identity **16/0 × 3회 연속, 1.4-specs 303노드 고정**(종전 295↔303 진동)",
+              "타 모드 무회귀 — --print 9/0 · --overflow 54/0 · tsc 0"
+            ]
+          },
+          "note": "판정 지표를 **불량 배지 수**로 바꾼 것이 돌파구였다. 12px 계수로 재던 초기 하니스는 BOOST_OFF 없이는 패널이 13.8px라 **패널 밖 노드만 세고 있었고**, 그래서 네 조건이 전부 같은 값에 붙어 판별력이 없었다. 지표가 틀리면 대조 설계가 아무리 정교해도 무의미하다.",
           "note": "**원인은 증명됐다.** 서버 액션 getInspectedFacilityCodesAction 응답만 3500ms 지연 주입하니 패널이 12px 53개·불량배지 2개 → **45개·0개**로 무너졌다(erp/scripts/_probe37-flake.mts). 야생에서 본 -8과 정확히 같은 폭이다. 즉 고정 대기 1800ms 안에 fetchInspected()가 못 끝나면 그 응답이 그리는 배지가 통째로 빠진 채 채집된다. 위험: 그 상태로 --baseline을 뜨면 **사라진 8개가 영원히 정상이 된다** — 실제로 한 번 그렇게 기록했다가 되돌렸다.",
-          "refuted_fix": "⚠ **networkidle은 답이 아니다(실측 반증).** page.waitForLoadState('networkidle')는 **마지막 내비게이션**의 라이프사이클을 반영해서, 이미 로드된 페이지에서는 즉시 반환하고 이후 서버 액션을 기다리지 않는다. 지연 주입 상태에서 새 대기를 걸어도 45개 그대로였다. 초안이 권고했던 수리안은 이로써 폐기.",
-          "recommended_fix": "클릭 **전에** page.waitForResponse(POST /customers/…)를 등록하고 그것을 await 한 뒤 리렌더 1프레임(~400ms)을 더 준다. 클릭 후 등록하면 이미 끝난 응답을 놓친다. **아직 미검증** — 측정마다 새 컨텍스트를 쓰도록 하니 네 조건이 전부 44로 붙어 판별력을 잃었다(하니스가 대조를 못 만든다). 검증 없이 공유 검사에 넣지 않았다.",
-          "blocker": "수리안 미검증. 하니스를 신뢰 가능하게 만드는 것이 선행 — 그 전에 test-plan-readability.mts를 건드리지 말 것"
+          "refuted_fix": "⚠ **networkidle은 답이 아니다(실측 반증).** page.waitForLoadState('networkidle')는 **마지막 내비게이션**의 라이프사이클을 반영해서, 이미 로드된 페이지에서는 즉시 반환하고 이후 서버 액션을 기다리지 않는다. 지연 주입 상태에서 걸어도 45개 그대로였다. 초안 권고안은 폐기됐다.",
+          "applied_fix": "test-plan-readability.mts — 클릭 **전에** page.waitForResponse(POST /customers/…, 30s, catch→null)를 등록하고 클릭 후 await, 이어서 400ms 리렌더 프레임. 클릭 뒤에 등록하면 이미 끝난 응답을 놓친다(waitForResponse는 등록 이후 도착분만 본다 — 로드 중 끝난 POST 4건은 안 걸린다는 것도 실측 확인). 타임아웃은 catch로 삼켜 어떤 경우에도 실행을 멈추지 않는다."
         },
         {
           "id": "S4-4",
