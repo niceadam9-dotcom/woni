@@ -49,19 +49,35 @@ const SRC_DIR = 'src/components/customers'
 const FORMS = ['1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.10', '1.11', '1.12'] as const
 const SECTIONS = ['ch2', 'ch3', 'cover'] as const
 
-/** 한 화면에서 computed font-size 히스토그램과 표 기하를 걷는다. */
+/** 한 화면에서 글자 기하 히스토그램과 표 기하를 걷는다.
+ *
+ *  ⚠ **모집단은 서식 안(`[data-plan-root]`)이다.** 종전엔 `body *` 전수였고, 그게 독립 판정이
+ *    지적한 결함이었다 — 실측으로 확인했다: [1.1]의 10px 노드 12개 중 **7개가 사이드바·헤더**였고
+ *    (알림 뱃지·문자 뱃지·⌘K), 그중 알림 뱃지 값이 **같은 분 안에 8→9로 바뀌었다**.
+ *    코드모드와 아무 상관 없는 남의 데이터가 항등 축을 무작위로 빨갛게 만들고 있었다.
+ *    모집단을 **코드모드가 만진 16파일의 출력**과 일치시키는 것이 옳다.
+ *
+ *  ⚠ 루트를 못 찾으면 **폴백하지 않는다**. body로 되돌리면 조용히 옛 결함으로 돌아가고,
+ *    빈 집합을 쓰면 "히스토그램이 같다"가 항진명제가 된다. rootFound를 함께 돌려 검사가 FAIL한다.
+ *
+ *  ⚠ 키가 fontSize 하나였던 것도 판정 지적이다 — S2-7은 "픽셀이 하나도 안 변했다"고 주장하면서
+ *    **font-size만** 쟀다. 실제로 letter-spacing은 변했고(body -0.01em → 유틸리티 normal)
+ *    이 검사는 그걸 구조적으로 볼 수 없었다. 인쇄 축은 이미 복합키로 넓혔으므로 화면 축도 맞춘다.
+ *    → 키 = `fontSize|lineHeight|letterSpacing`. 이제 **잰 것과 주장하는 것이 같다**. */
 const COLLECT = `(() => {
+  const root = document.querySelector('[data-plan-root]');
   const hist = {};
   let counted = 0;
-  for (const el of document.querySelectorAll('body *')) {
+  for (const el of (root ? root.querySelectorAll('*') : [])) {
     // 텍스트를 **직접** 가진 노드만 센다 — 래퍼까지 세면 같은 글자가 조상 수만큼 중복된다.
     let hasOwnText = false;
     for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) { hasOwnText = true; break }
     if (!hasOwnText) continue;
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) continue;      // 안 그려진 것 제외
-    const fs = getComputedStyle(el).fontSize;
-    hist[fs] = (hist[fs] ?? 0) + 1;
+    const cs = getComputedStyle(el);
+    const k = cs.fontSize + '|' + cs.lineHeight + '|' + cs.letterSpacing;
+    hist[k] = (hist[k] ?? 0) + 1;
     counted++;
   }
   // 표 기하 — overflow-x-auto 래퍼와 table 양쪽
@@ -74,6 +90,7 @@ const COLLECT = `(() => {
   }
   return {
     hist, counted, tables, skippedNarrow,
+    rootFound: !!root,
     docScrollW: document.documentElement.scrollWidth,
     docClientW: document.documentElement.clientWidth,
   };
@@ -203,6 +220,18 @@ const COLLECT_TOKENS = `(() => {
  *    그 한 개를 되돌리면 옛 픽셀과 완전히 같다". 패널 안 text-form-* 클래스를 실수로 바꾸면
  *    (예: text-form-xs → text-form-sm) 부스트를 눌러도 히스토그램이 어긋나 여전히 잡힌다. */
 const BOOST_OFF = `[data-fs-boost]{--fs-scale:1!important}`
+
+/** 변이 주입물 — **한 곳에 둔다**. 화면 루프와 1.4 세부제원은 goto가 따로라 주입도 두 번인데,
+ *  처음엔 루프에만 넣었다가 1.4-specs 한 화면이 변이 없이 채집돼 "자간을 바꿨는데 통과했다"는
+ *  거짓 항진 경고를 냈다. 사본을 두면 조용히 어긋난다 — 이 파일이 이미 배운 것이다(OLD_VALUES).
+ *
+ *  ⚠ 항등 축의 변이는 **자간만** 건드린다. 이유가 있다: 구 검사는 키가 fontSize 하나여서
+ *    이 변이를 **구조적으로 볼 수 없었다**(독립 판정 지적 — 실제로 letter-spacing이 바뀌었는데
+ *    "픽셀이 하나도 안 변했다"가 초록이었다). 그러니 이 변이에서 빨개지는지가 곧
+ *    '키를 넓힌 것이 실효였는가'의 증명이다. font-size를 건드리면 구 축도 잡으므로 증명이 안 된다. */
+const MUTATION = MODE_IDENTITY
+  ? '[class*="text-form-"] { letter-spacing: 0.05em !important }'
+  : 'table { min-width: 4000px !important }'
 /*  ⚠ 이 상수는 @media print 목록의 **사본**이다. 사본은 조용히 어긋난다 — 실제로 어긋나 있었다:
  *    fbe8e95가 CSS에만 --fs-col-cat을 넣고 여기는 안 고쳤는데, 위 주석은 계속 "같은 목록"이라
  *    단언하고 있었다(판정 DEF-B2). 그래서 아래 assertTokenListsMatch()가 두 목록과 이 상수를
@@ -491,9 +520,13 @@ try {
     //   (그 자체가 S6-1이 초록인 이유의 설명이기도 하다.)
     //
     //   그래서 '넘칠 수밖에 없는 것'을 직접 심어 검출기만 시험한다.
-    if (MUTATE) await page.addStyleTag({ content: 'table { min-width: 4000px !important }' })
+    if (MUTATE) await page.addStyleTag({ content: MUTATION })
     await page.evaluate('document.fonts.ready')
-    await page.waitForTimeout(500)
+    // ⚠ 고정 대기 500ms였다. 인쇄 축은 진동 때문에 이미 settleTokens로 옮겼는데(54840d8)
+    //   **수집 루프만 고정 대기로 남아 있었다** — 독립 판정이 지적한 그대로다(DEF-D1).
+    //   dev가 무거우면 늦게 붙는 노드가 통째로 빠진 채 채집되고, 그 상태로 --baseline을 뜨면
+    //   빠진 것이 영원히 정상이 된다. '안정 + 하한'으로 통일한다.
+    await settleTokens(page)
     collected[key] = await page.evaluate(COLLECT)
 
     // S6-2 — 같은 화면에서 배율만 갈아끼워 페이지 밀림을 잰다(이동 추가 0).
@@ -513,6 +546,7 @@ try {
   // 1.4 세부제원 패널 — 열어야 rowtable이 생긴다(닫힌 채 재면 0개를 세고 통과한다)
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.4`, { waitUntil: 'networkidle' })
   if (MODE_IDENTITY || MODE_BASELINE) await page.addStyleTag({ content: BOOST_OFF })   // 위 루프와 같은 이유
+  if (MUTATE) await page.addStyleTag({ content: MUTATION })                            // 〃 (goto가 따로라 다시 주입)
   await page.evaluate('document.fonts.ready')
   // ⚠ 패널을 여는 것은 **설비명 클릭**이다(plan-form14.tsx ledgerLabel → data-testid="form14-ledger-…").
   //   '대장'이라는 글자를 가진 버튼을 찾는 휴리스틱은 아무거나 눌러 놓고 panelOpened=true를 돌려줬고,
@@ -605,18 +639,42 @@ if (MODE_BASELINE) {
     `실측 ${Object.keys(collected).length} vs 기준 ${Object.keys(base).length}`)
 
   if (MODE_IDENTITY) {
+    // ⚠ 항진 차단 — 서식 루트를 못 찾으면 모집단이 빈 집합이 되고 "히스토그램이 같다"가
+    //   무조건 참이 된다. 화면별 히스토그램 대조보다 **먼저** 세운다.
+    const noRoot = Object.entries(collected).filter(([, c]: any) => !c?.rootFound).map(([k]) => k)
+    check(`모든 화면에서 서식 루트([data-plan-root])를 찾았다 (${Object.keys(collected).length}화면)`,
+      noRoot.length === 0,
+      `${noRoot.join(', ')} — 루트가 없으면 모집단이 비어 무엇이든 통과한다`)
+
     for (const [screen, b] of Object.entries(base) as any) {
       const c = collected[screen]
       if (!c) { check(`[${screen}] 수집됨`, false, '화면이 없다'); continue }
-      const bk = Object.keys(b.hist).sort(), ck = Object.keys(c.hist).sort()
-      const same = bk.length === ck.length && bk.every(k => k === ck[k as any] || b.hist[k] === c.hist[k])
-        && JSON.stringify(bk) === JSON.stringify(ck)
-      const diff = [...new Set([...bk, ...ck])]
+      // 다중집합 동일성 = 양쪽 키 합집합에서 개수 차이가 하나도 없다. (키 개수만 비교하면
+      // 서로 다른 키가 같은 수만큼 생기고 사라진 경우를 놓친다.)
+      const diff = [...new Set([...Object.keys(b.hist), ...Object.keys(c.hist)])].sort()
         .filter(k => (b.hist[k] ?? 0) !== (c.hist[k] ?? 0))
         .map(k => `${k}: ${b.hist[k] ?? 0}→${c.hist[k] ?? 0}`)
-      check(`[${screen}] font-size 다중집합 불변 (노드 ${c.counted})`,
-        same && diff.length === 0,
-        diff.length ? diff.join(' · ') : '')
+      if (MUTATE) {
+        // 변이 모드는 기대가 정반대다 — **빨개져야** 이 축이 살아 있는 것이다.
+        //   그리고 '어떻게' 빨개졌는지까지 본다: font-size는 그대로고 자간만 달라졌어야 한다.
+        //   (font-size까지 변했다면 내 변이가 의도보다 넓게 든 것이고, 그러면 이 증명이 무너진다.)
+        const sizesMoved = [...new Set([...Object.keys(b.hist), ...Object.keys(c.hist)])]
+          .reduce((acc: Record<string, number>, k) => {
+            const size = k.split('|')[0]
+            acc[size] = (acc[size] ?? 0) + ((c.hist[k] ?? 0) - (b.hist[k] ?? 0))
+            return acc
+          }, {})
+        const sizeDrift = Object.entries(sizesMoved).filter(([, v]) => v !== 0)
+        check(`변이 [${screen}] 자간만 바꿔도 잡힌다 — 구 축(fontSize 단독)이 못 보던 것`,
+          diff.length > 0 && sizeDrift.length === 0,
+          diff.length === 0
+            ? '⚠ 자간을 바꿨는데 통과했다 — 키를 넓힌 것이 실효가 없다(항진명제)'
+            : sizeDrift.length ? `⚠ font-size도 함께 움직였다(${sizeDrift.map(([k, v]) => `${k}:${v}`).join(' ')}) — 변이가 너무 넓다`
+            : `정상: 자간만 어긋남 ${diff.length}종`)
+        continue
+      }
+      check(`[${screen}] 글자 기하 다중집합 불변 — size|line-height|tracking (노드 ${c.counted})`,
+        diff.length === 0, diff.join(' · '))
     }
   }
 

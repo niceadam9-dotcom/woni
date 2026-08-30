@@ -289,7 +289,12 @@ export function PlanTabView({
   // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
 
   return (
-    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    // data-plan-root — 서식 화면의 경계. 가독성 검사(소방계획서_35 S2-7)가 크기 히스토그램을
+    //   걷는 **모집단**이 이 안이다. 종전엔 `body *` 전수라 사이드바 알림 뱃지·헤더가 섞였고,
+    //   그 뱃지 값이 실행 사이에 8→9로 바뀌며 항등 축을 무작위로 빨갛게 만들었다(판정 DEF-B 모집단 축).
+    //   코드모드가 만진 16파일의 출력과 모집단을 일치시키기 위한 표식이다 — 스타일 없음.
+    <div data-plan-root
+      className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       {/* 생성 바 — 모든 서브탭 상단 고정 (소방계획서_4.md §2) */}
       <div className="flex items-center gap-3 flex-wrap pb-4 border-b border-brand-line-soft mb-4">
         <div className="flex items-center gap-2 min-w-40">

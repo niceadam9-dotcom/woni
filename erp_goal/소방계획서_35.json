@@ -2,7 +2,7 @@
   "doc": "소방계획서_35 — 소방계획서 화면 가독성(글씨 확대·선명화)",
   "design": "erp_goal/소방계획서_35.md",
   "created": "2026-08-29",
-  "updated": "2026-08-30 판정 지적 수리 반영 — 63 criteria: implemented 53 · code_present 9 · confirmed 1. 수리분(S3-3·S4-12·S0-6·S7-1)은 **구현자가 고쳤으므로 code_present** — 재판정 대기(Json_Rule 규칙 3)",
+  "updated": "2026-08-30 2차 수리 — S2-7(판정자 B FAIL 5건) 해소. 63 criteria: implemented 53 · code_present 9 · confirmed 1(수치 불변 — S2-7은 이미 code_present였다). 수리분(S3-3·S4-12·S0-6·S7-1·**S2-7**)은 **구현자가 고쳤으므로 code_present** — 재판정 대기(Json_Rule 규칙 3). S2-7 재판정자에게: 정적 축(`--verify-bijection`)과 화면 축(`--identity`)은 **서로 다른 것을 증명한다** — 전자는 소스 치환이 전단사였음(과거·불변), 후자는 앞으로 크기가 안 바뀜(회귀 잠금). 하나로 합쳐 읽지 말 것",
   "related": [
     "소방계획서_29",
     "소방계획서_34",
@@ -304,13 +304,17 @@
         },
         {
           "id": "S2-7",
-          "desc": "B-1 항등 수용 — 471곳 치환 후 15화면 2,157노드의 computed font-size 다중집합이 기준선과 **완전 일치**(16통과/0실패). S3 직후 같은 검사가 정확히 빨개져(11px:54→11 · 13px:12→55) 이 초록이 항진명제가 아님을 증명. ⚠ **기준선은 그 뒤 S3 상태로 재기준화했다** — 안 했다면 test:all에 영구 빨강 스위트가 등재됐을 것이다(이 저장소에 test-chip-nav 전례 있음). 그래서 **지금 --identity의 초록은 과거의 항등을 재증명하지 않는다**; 그 증거는 이 기록이고, 지금 모드의 역할은 '앞으로 크기가 실수로 안 바뀌는가'다. 재기준화 전 전 화면 합계: 9px=11 10px=508 11px=660 12px=267 12.5px=15 13px=180 14px=499 16px=1 20px=15 24px=1 → 후: 9px 소멸, 15px·17px 신규",
+          "desc": "B-1 항등 수용. **2026-08-30 재작업 — 판정자 B의 FAIL 근거 5건을 축 자체를 고쳐 닫았다.** 주장을 두 축으로 갈라 각각이 자기 몫만 말하게 했다. ①**소스 축(정적·신설)** — 코드모드가 전단사였다는 것을 커밋 `4ccda41`과 그 부모에서 **언제든 재증명**한다: 구 클래스 다중집합이 신 토큰으로 9종 전건 정확히 옮겨갔고(471곳 — text-[11px]170·text-xs135·text-[10px]53·h-7 52·h-6 26·h-8 25·text-sm7·text-[9px]2·text-base1), 부모에 신 토큰 0·자식에 구 클래스 0, 16파일 중 **13파일은 바이트까지 동일**(나머지 셋 plan-form14·plan-form14-specs·plan-tab-view은 4ccda41이 함께 한 TableWrap·colgroup calc·배율 토글 때문). 역방향(--undo)도 **같은** 13파일을 부모와 바이트 동일로 되돌려 양방향 단사. 서버 불필요이고 sha를 상수로 박아 뒤 커밋이 16파일을 만져도 안 썩는다. ②**화면 축(회귀 잠금)** — --identity는 '앞으로 크기가 실수로 안 바뀌는가'를 지킨다. 15화면·노드 1,347·**17통과/0실패 3회 연속**(종전 15/1 플레이크)",
           "status": "code_present",
           "evidence": [
-            "erp/scripts/test-plan-readability.mts --identity",
-            "erp/scripts/_fixtures/35-baseline.json"
+            "erp/scripts/codemod-35-font-tokens.mjs --verify-bijection (정적 전단사 6/0)",
+            "erp/scripts/test-plan-readability.mts --identity (17/0 ×3)",
+            "erp/scripts/test-plan-readability.mts --identity --mutate (17/0 — 자간 변이 15화면 전건 검출)",
+            "erp/scripts/test-all.mts ('서식 코드모드 전단사(정적)' 등재)",
+            "erp/scripts/_fixtures/35-baseline.json",
+            "erp/src/components/customers/plan-tab-view.tsx (data-plan-root)"
           ],
-          "note": "🔴 **판정자 B FAIL — 승격 불가.** ①판정 시각 --identity가 빨갰다(1.4-specs 12px 53→44/45). ②\"항등 재현 불가\"는 **사실이 아니다**: 4ccda41^ 대조군이 저장소에 있고(text-form- 참조 0건·구 클래스 온전), 구현자 자신의 OLD_VALUES 런타임 덮어쓰기 기법이 재기준화 없이 항등을 다시 재는 도구다. 더구나 항등은 정적으로도 증명 가능(B가 실제로 해냈다). \"증거는 기록뿐\"은 필연이 아니라 선택이었다. ③**\"픽셀이 하나도 안 변했다\"는 잰 것보다 넓은 주장**이다 — COLLECT는 fontSize 하나만 센다. line-height·letter-spacing은 한 번도 측정된 적이 없고 letter-spacing은 실제로 변했다(DEF-B1). ④모집단이 body * 전수라 사이드바·헤더가 섞여 데이터 변화에 흔들린다(판정자 D가 dev 부하에서 3/3 빨강 재현). ⑤인쇄 축은 settleTokens(2500ms)로 진동을 고쳤는데 **항등 축은 여전히 고정 대기 500ms/1800ms**"
+          "note": "✅**2026-08-30 수리(재판정 대기)** — 판정자 B의 5개 근거를 하나씩. ①**빨강 해소**: 1.4-specs는 66bbf9b(37 S4-5)가 이미 고쳐 249/249 초록이었고, 남아 있던 유일한 빨강 `[1.1] 10px 12→11`의 정체가 ④였다. ②**\"항등 재현 불가\"는 철회한다 — 판정자가 옳았다.** 위 정적 축이 그 반박을 실행 가능한 검사로 바꿨다. 변이 5종(매핑 붕괴·매핑 삭제·범위 축소·클래스 경계 훼손·기준 리비전 교체) 전건 검출로 항진명제가 아님도 확인했다. ③**주장을 잰 것과 일치시켰다**: 히스토그램 키를 fontSize 단독에서 **`fontSize|lineHeight|letterSpacing` 복합**으로 넓혔다(인쇄 축이 S3-3에서 간 길과 같다). 실효는 **자간만 바꾸는 변이**로 증명했다 — 구 축이라면 구조적으로 안 보였을 변이가 15화면 전건에서 빨개지고, 동시에 'font-size는 안 움직였다'를 함께 단언해 변이가 그 축에만 들었음을 고정한다. ④**모집단을 서식 안(`[data-plan-root]`)으로 좁혔다.** 실측이 판정자를 뒷받침했다: [1.1]의 10px 노드 12개 중 **7개가 사이드바·헤더**였고 그 알림 뱃지가 **같은 분 안에 8→9로 변했다** — 코드모드와 무관한 남의 데이터가 항등 축을 흔들고 있었다. ⭐**좁히기 전에 통제 프로브로 델타를 먼저 확정했다**: 빠지는 껍데기가 14화면 전부에서 **완전히 동일한 54노드**(히스토그램 1가지)임을 보이고서야 기준선을 다시 떴다. 루트를 못 찾으면 body로 폴백하지 않고 FAIL한다(빈 모집단은 무엇이든 통과시킨다). ⑤**고정 대기 제거**: 수집 루프의 `waitForTimeout(500)`을 인쇄 축과 같은 `settleTokens`(안정 3회 + 하한 2.5s)로 통일했다. ⚠**남는 정직한 한계**: 화면 축의 기준선은 여전히 **S3 적용 상태**라 과거의 항등을 재증명하지 않는다 — 그 역할은 이제 ①이 전담한다. ⚠ 착수 중 내 단언 오류 2건을 스스로 잡았다: 역방향에 16/16을 요구한 것(잔차 3파일은 바이트로 되돌 수 없다 → 정방향과 같은 집합인지로 교정)과, 변이 style을 루프에만 주입해 1.4-specs 한 화면이 변이 없이 채집된 것(거짓 항진 경고 → MUTATION 상수로 단일화)"
         },
         {
           "id": "S2-8",
@@ -685,7 +689,7 @@
           "evidence": [
             "erp/scripts/test-all.mts"
           ],
-          "note": "2026-08-30 — 등재 **7건**으로 늘었다(--cls 추가, S0-6 해소). 잔여는 untracked 2종뿐: `test-print-source-pin.mts`(S0-3, 7/0 통과하는데 커밋도 등재도 안 됨) · `test-font-cls.mts`(**등재 금지** — 위 S0-6 참조, 대조군·지연을 넣기 전에는 넣으면 안 된다). 둘 다 타 세션 소유라 이번 수리 범위 밖"
+          "note": "2026-08-30 — 등재 **8건**으로 늘었다(--cls 추가로 7건, 그 뒤 S2-7 수리로 `codemod-35-font-tokens.mjs --verify-bijection` 추가). 신규 1건은 **무서버 축**이라 dev 없이도 게이트에서 돈다 — 35의 검사 중 서버에 안 기대는 것이 assert-web-korean-font 다음으로 둘째다. 잔여는 untracked 2종뿐: `test-print-source-pin.mts`(S0-3, 7/0 통과하는데 커밋도 등재도 안 됨) · `test-font-cls.mts`(**등재 금지** — 위 S0-6 참조, 대조군·지연을 넣기 전에는 넣으면 안 된다). 둘 다 타 세션 소유라 이번 수리 범위 밖"
         },
         {
           "id": "S7-2",
@@ -906,12 +910,13 @@
       "DEF-B2 OLD_VALUES ↔ @media print 목록 어긋남 → assertTokenListsMatch()로 :root·print·사본 세 집합 정적 대조. 누락 3개(--fs-col-cat·--fs-step·--fs-tracking) 메움.",
       "DEF-C1 S4-12 FontScaleSync 경합 → 되돌림 관측·재시도 + 유지 실패 시 측정값 불사용(FAIL 보고). 26/0 3회 연속.",
       "DEF-C2 W-9 공허 통과 경로 3개 → 전제 단언 2개(상수 매칭 성공 · .select(PROFILE_COLS) 경유) 추가.",
-      "DEF-D2 S0-6 미등재 → 픽스처 채취 + test-all 등재. **test-font-cls.mts는 항진명제라 의도적으로 등재하지 않음.**"
+      "DEF-D2 S0-6 미등재 → 픽스처 채취 + test-all 등재. **test-font-cls.mts는 항진명제라 의도적으로 등재하지 않음.**",
+      "S2-7 판정자 B FAIL 5건 전부(2026-08-30 2차 수리) → ①정적 전단사 축 신설(`--verify-bijection`, sha 4ccda41 고정, 6/0 · 변이 5종 전건 검출)로 \"항등 재현 불가\" 철회 ②히스토그램 키를 fontSize|lineHeight|letterSpacing 복합으로 확장 + **자간 전용 변이**로 실효 증명 ③모집단을 [data-plan-root]로 축소(통제 프로브로 껍데기 54노드가 14화면 동일임을 먼저 확정) ④수집 루프 고정 대기 → settleTokens ⑤--identity 17/0 **3회 연속**(종전 15/1 플레이크).",
+      "DEF-D1 --identity 수집 경로 고정 대기 → 66bbf9b가 1.4-specs의 1800ms를 고친 것은 **실측 확인**(249/249 초록). 남아 있던 루프의 500ms도 이번에 settleTokens로 통일. 더불어 이 결함의 나머지 절반은 대기가 아니라 **모집단**이었다 — 사이드바 알림 뱃지가 실행 사이에 변한다."
     ],
     "still_open": [
       "DEF-B3 text-form-*이 16파일 밖 4파일 35곳 확산 + inspection-sheet-client 혼합 상태 — 38 소유 축이라 미착수.",
       "DEF-C3 운영 PostgREST가 form_font_scale을 보는지 아직 미측정.",
-      "DEF-D1 --identity 수집 경로 고정 대기 — 타 세션이 커밋 66bbf9b(37 S4-5)로 수리했다고 기록. 재확인 필요.",
       "DEF-D3 test-print-source-pin.mts(S0-3) untracked·미등재 — 타 세션 소유.",
       "W-7 CLS 0.27 자체 — 폴백 metric override 도입 여부는 사용자 결정 보류."
     ]

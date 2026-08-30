@@ -3,35 +3,35 @@
   "screens": {
     "1.1": {
       "hist": {
-        "12.5px": 1,
-        "14px": 47,
-        "13px": 56,
-        "10px": 12,
-        "12px": 23,
-        "11px": 11,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 43,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 19,
+        "14px|18.6666px|normal": 12,
+        "11px|16.5px|-0.16px": 10,
+        "14px|14px|-0.16px": 12
       },
-      "counted": 154,
+      "counted": 100,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.2": {
       "hist": {
-        "12.5px": 1,
-        "14px": 26,
-        "13px": 45,
-        "10px": 12,
-        "12px": 21,
-        "11px": 1,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 23,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 17,
+        "14px|18.6666px|normal": 3,
+        "13px|17.3333px|normal": 9
       },
-      "counted": 110,
+      "counted": 56,
       "tables": [
         {
           "tag": "div",
@@ -47,40 +47,42 @@
         }
       ],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.3": {
       "hist": {
-        "12.5px": 1,
-        "14px": 34,
-        "13px": 54,
-        "10px": 13,
-        "12px": 21,
-        "11px": 23,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 41,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 17,
+        "14px|18.6666px|normal": 7,
+        "14px|14px|-0.16px": 4,
+        "11px|16.5px|-0.16px": 22,
+        "10px|15px|-0.16px": 1
       },
-      "counted": 150,
+      "counted": 96,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.4": {
       "hist": {
-        "12.5px": 1,
-        "14px": 80,
-        "13px": 79,
-        "10px": 12,
-        "12px": 40,
-        "11px": 1,
-        "20px": 1,
-        "15px": 43,
-        "17px": 1
+        "15px|21.4286px|normal": 2,
+        "13px|19.5px|normal": 66,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 36,
+        "14px|18.6666px|normal": 57,
+        "15px|15px|normal": 40
       },
-      "counted": 258,
+      "counted": 204,
       "tables": [
         {
           "tag": "table",
@@ -90,58 +92,59 @@
         }
       ],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.5": {
       "hist": {
-        "12.5px": 1,
-        "14px": 30,
-        "13px": 53,
-        "10px": 12,
-        "12px": 25,
-        "11px": 1,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 40,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 21,
+        "14px|18.6666px|normal": 3,
+        "14px|14px|-0.16px": 4
       },
-      "counted": 126,
+      "counted": 72,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.6": {
       "hist": {
-        "12.5px": 1,
-        "14px": 33,
-        "13px": 37,
-        "10px": 12,
-        "12px": 28,
-        "11px": 4,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 24,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 24,
+        "14px|18.6666px|normal": 4,
+        "14px|14px|-0.16px": 6,
+        "11px|16.5px|-0.16px": 3
       },
-      "counted": 119,
+      "counted": 65,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.7": {
       "hist": {
-        "12.5px": 1,
-        "14px": 31,
-        "13px": 39,
-        "10px": 12,
-        "12px": 21,
-        "11px": 1,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 18,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 17,
+        "14px|18.6666px|normal": 8,
+        "13px|17.3333px|normal": 8
       },
-      "counted": 109,
+      "counted": 55,
       "tables": [
         {
           "tag": "div",
@@ -157,149 +160,152 @@
         }
       ],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.8": {
       "hist": {
-        "12.5px": 1,
-        "14px": 34,
-        "13px": 43,
-        "10px": 12,
-        "12px": 21,
-        "11px": 1,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 30,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 17,
+        "14px|18.6666px|normal": 11
       },
-      "counted": 116,
+      "counted": 62,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.10": {
       "hist": {
-        "12.5px": 1,
-        "14px": 29,
-        "13px": 39,
-        "10px": 12,
-        "12px": 21,
-        "11px": 5,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 26,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 17,
+        "11px|16.5px|-0.16px": 4,
+        "14px|18.6666px|normal": 6
       },
-      "counted": 111,
+      "counted": 57,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.11": {
       "hist": {
-        "12.5px": 1,
-        "14px": 35,
-        "13px": 65,
-        "10px": 12,
-        "12px": 24,
-        "11px": 3,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 52,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 20,
+        "14px|18.6666px|normal": 6,
+        "14px|14px|-0.16px": 6,
+        "11px|16.5px|-0.16px": 2
       },
-      "counted": 144,
+      "counted": 90,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.12": {
       "hist": {
-        "12.5px": 1,
-        "14px": 28,
-        "13px": 38,
-        "10px": 12,
-        "12px": 21,
-        "11px": 13,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 25,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 17,
+        "11px|16.5px|-0.16px": 12,
+        "14px|18.6666px|normal": 5
       },
-      "counted": 117,
+      "counted": 63,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "ch2": {
       "hist": {
-        "12.5px": 1,
-        "14px": 32,
-        "13px": 39,
-        "10px": 12,
-        "12px": 24,
-        "11px": 3,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 26,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 20,
+        "14px|18.6666px|normal": 9,
+        "11px|16.5px|-0.16px": 2
       },
-      "counted": 115,
+      "counted": 61,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "ch3": {
       "hist": {
-        "12.5px": 1,
-        "14px": 64,
-        "13px": 57,
-        "10px": 12,
-        "12px": 22,
-        "11px": 12,
-        "20px": 1,
-        "15px": 2,
-        "17px": 1
+        "15px|21.4286px|normal": 1,
+        "13px|19.5px|normal": 44,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 18,
+        "11px|16.5px|-0.16px": 11,
+        "14px|18.6666px|normal": 17,
+        "14px|14px|-0.16px": 24
       },
-      "counted": 172,
+      "counted": 118,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "cover": {
       "hist": {
-        "12.5px": 1,
-        "14px": 25,
-        "13px": 30,
-        "10px": 12,
-        "12px": 24,
-        "11px": 1,
-        "20px": 1,
-        "15px": 3,
-        "17px": 2,
-        "24px": 1
+        "15px|21.4286px|normal": 2,
+        "13px|19.5px|normal": 17,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 20,
+        "14px|18.6666px|normal": 2,
+        "24px|32px|9.6px": 1,
+        "17px|25.5px|normal": 1
       },
-      "counted": 100,
+      "counted": 46,
       "tables": [],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600
     },
     "1.4-specs": {
       "hist": {
-        "12.5px": 1,
-        "14px": 80,
-        "13px": 100,
-        "10px": 12,
-        "12px": 53,
-        "11px": 12,
-        "20px": 1,
-        "15px": 43,
-        "17px": 1
+        "15px|21.4286px|normal": 2,
+        "13px|19.5px|normal": 85,
+        "13px|13px|-0.16px": 1,
+        "15px|15px|-0.16px": 1,
+        "17px|17px|-0.16px": 1,
+        "12px|18px|normal": 49,
+        "14px|18.6666px|normal": 57,
+        "15px|15px|normal": 40,
+        "11px|13.75px|normal": 11,
+        "13px|13px|normal": 2
       },
-      "counted": 303,
+      "counted": 249,
       "tables": [
         {
           "tag": "table",
@@ -321,6 +327,7 @@
         }
       ],
       "skippedNarrow": 4,
+      "rootFound": true,
       "docScrollW": 1600,
       "docClientW": 1600,
       "panelOpened": true,

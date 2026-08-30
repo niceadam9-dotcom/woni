@@ -34,6 +34,13 @@ const steps: Step[] = [
   //   --print    : 화면 배율이 인쇄로 새지 않는가 — 사용자 결정 D35-5의 실증. 배율 lg·xl까지 본다.
   //   --overflow는 배율 축(S6-2·3·4)도 함께 본다 — 화면을 다시 열지 않고 <html data-fs>만
   //   갈아끼워 재므로 이동 횟수는 그대로다.
+  // S2 코드모드가 **전단사였다**는 정적 재증명(소방계획서_35 S2-7). 서버가 필요 없다.
+  //   독립 판정은 구현자의 "항등은 이제 재현 불가"를 반박했고 그 반박이 옳았다 — 코드모드 커밋
+  //   4ccda41과 그 부모가 저장소에 있으므로 언제든 다시 증명된다. 기준 sha를 **상수로 박아**
+  //   뒤 커밋이 16파일을 건드려도 썩지 않게 했다(feedback_probe_baseline_pin).
+  //   줄 단위 diff가 아니라 **클래스 다중집합**을 본다 — 4ccda41은 클래스 말고도 세 가지를
+  //   함께 해서(TableWrap·colgroup calc·배율 토글) 줄 오프셋이 밀리기 때문이다.
+  { name: '서식 코드모드 전단사(정적)',  cmd: 'node scripts/codemod-35-font-tokens.mjs --verify-bijection' },
   { name: '서식 가독성 항등(E2E)',      cmd: 'npx tsx scripts/test-plan-readability.mts --identity', needServer: true },
   { name: '서식 표 넘침·배율(E2E)',     cmd: 'npx tsx scripts/test-plan-readability.mts --overflow', needServer: true },
   { name: '서식 인쇄 격리(E2E)',        cmd: 'npx tsx scripts/test-plan-readability.mts --print',    needServer: true },
@@ -61,6 +68,10 @@ const steps: Step[] = [
   // revalidate 축이 헬퍼 한 곳에 모여 있는가(S2-7). 가드를 9곳에 복붙하면 8곳이 깨지므로(F-1)
   // '가드 생략은 정확히 2곳'을 수로 고정한다 — 늘면 단계 외 서버 prop이 안 갱신된다.
   { name: 'revalidate 축(소방계획서_36)', cmd: 'npx tsx scripts/test-36-revalidate-axis.mts' },
+  // S7-3·S7-4 — 대비 축의 **정적** 규약(print: 불간섭 · 신규 hex 0 · 토큰 두 모드 정의).
+  // 래칫(아래 E2E)은 서버가 있어야 도는데 이 규약들은 소스만 보면 판정되므로 여기서 상시로 건다.
+  // 독립 판정이 "규약은 있는데 고정하는 검사가 없다"고 지적한 자리다.
+  { name: '대비 정적 규약(소방계획서_36)', cmd: 'npx tsx scripts/test-36-contrast-static.mts' },
   // S4-2 — 불량표 입력이 **새로고침 없이** 칸 제목에 반영되는가 + reload 후 DB 대조.
   // 위험 ①(미리보기만 갱신되고 칸 제목이 굳어 '데이터가 갈라진 것처럼' 보이는 것)의 방어선.
   // S3 착수 **전에** 7/0을 확인하고 들어갔다 — 그래야 붉어진 것이 S3 탓이라고 말할 수 있다.
@@ -145,6 +156,11 @@ const steps: Step[] = [
   { name: '별지 상호작용(E2E)',         cmd: 'npx tsx scripts/test-annex-interaction.mts',    needServer: true },
   { name: '별지 탭 승격(프로브)',        cmd: 'npx tsx scripts/_probe-annex-tab.mts',          needServer: true },
   { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },
+  // S4-4 폴백 — [⑨ 9호로 돌아가기]는 history.length<=1이면 back 대신 goTab을 탄다. 그 분기는
+  // 실사용의 ctrl-click 새 탭에서만 열리는데, 오래 '재현 불가'로 미검증이었다(2026-08-30 오판 정정:
+  // window.open으로 연 팝업은 초기 about:blank가 **교체**돼 length===1이다). 여기가 끊기면 새 탭으로
+  // 들어온 사용자만 버튼이 죽는다 — 화면엔 아무 일도 안 일어나고 다수 경로는 멀쩡해 영영 모른다.
+  { name: '별지 복귀 폴백 분기(프로브)',  cmd: 'npx tsx scripts/_probe-annex-back-fallback.mts', needServer: true },
   // 드로어(B) — 사용자 결정으로 현장용 입력구를 유지한다(소방계획서_28 D-5). 유지하는 이상 회귀도 막아야
   // 하는데 이 두 스위트가 **미등록이라 썩어 있었다**: mu-sheet는 `9b43cc0`에서 사라진 [저장] 버튼을
   // 눌러 15초 타임아웃으로 죽었고(3/1), mother-drawer(67단언)는 아무도 안 돌렸다.
