@@ -32,8 +32,10 @@ const steps: Step[] = [
   //   --overflow : 표 넘침·페이지 밀림. **검사한 표 수를 기준선과 대조**해 '안 그려져서 초록'을 막는다
   //                (실제로 dev 타임아웃으로 10/15 화면만 걷힌 실행을 이 가드가 잡았다).
   //   --print    : 화면 배율이 인쇄로 새지 않는가 — 사용자 결정 D35-5의 실증. 배율 lg·xl까지 본다.
+  //   --overflow는 배율 축(S6-2·3·4)도 함께 본다 — 화면을 다시 열지 않고 <html data-fs>만
+  //   갈아끼워 재므로 이동 횟수는 그대로다.
   { name: '서식 가독성 항등(E2E)',      cmd: 'npx tsx scripts/test-plan-readability.mts --identity', needServer: true },
-  { name: '서식 표 넘침(E2E)',          cmd: 'npx tsx scripts/test-plan-readability.mts --overflow', needServer: true },
+  { name: '서식 표 넘침·배율(E2E)',     cmd: 'npx tsx scripts/test-plan-readability.mts --overflow', needServer: true },
   { name: '서식 인쇄 격리(E2E)',        cmd: 'npx tsx scripts/test-plan-readability.mts --print',    needServer: true },
   // 글자 배율 4경로 — 다크 모드(test-theme-settings)와 같은 구조. DB·쿠키·<html data-fs> **3축이
   // 함께** 맞아야 통과다. 한 축만 보면 '화면은 커졌는데 다른 기기엔 안 따라간다'를 못 잡는다.
