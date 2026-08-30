@@ -19,7 +19,11 @@ import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 type Admin = Parameters<typeof syncInspectionSteps>[0]
 
 /** 상세·목록 **두 경로**를 함께 무효화한다.
- *  목록을 빼면 점검 목록의 진행률만 조용히 낡는다(실제로 그런 자리가 있었다 — S2-6). */
+ *  목록을 빼면 점검 목록의 진행률만 조용히 낡는다(실제로 그런 자리가 있었다 — S2-6).
+ *
+ *  ⚠ 2026-08-30 — "현재 보고 있는 상세를 무효화하면 RSC 페이로드가 액션 응답에 실려
+ *  화면 반영이 늦어진다"는 가설로 detail 스킵 옵션을 넣어 봤으나 **실측상 이득 0**이라
+ *  되돌렸다(F-15). ⑥ 제출일 경로의 지연은 여기가 아니라 ⑥ 칸 자체의 재렌더 비용이다. */
 export function revalidateInspection(inspectionId: string): void {
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
