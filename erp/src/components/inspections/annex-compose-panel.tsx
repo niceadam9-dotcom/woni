@@ -212,7 +212,8 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                     <div key={r.label} className="flex items-center gap-2 text-xs">
                       <span className={badgeAuto}>자동</span>
                       <span className="text-ink">{r.label}</span>
-                      <span className="text-[10px] text-ink-faint ml-auto text-right">
+                      {/* S7-1 — '이 값이 어디서 왔는가'는 문서를 검증할 때 읽는 정보다 */}
+                      <span className="text-[10px] text-ink-meta ml-auto text-right">
                         원본: {r.source}
                         {r.href && (
                           // ⚠ next/link가 아니라 <a>(전체 이동)다 — 소방계획서_34 S6-1.

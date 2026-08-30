@@ -48,7 +48,8 @@ export function InspectionParticipantsClient({
       <div className="flex items-center gap-2 mb-3">
         <Users className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">점검 참여자</h2>
-        <span className="text-xs text-ink-faint ml-auto">보고서 개요에 인쇄</span>
+        {/* S7-1 — '여기 넣은 사람이 문서에 인쇄된다'는 결과를 알려주는 문장이다 */}
+        <span className="text-xs text-ink-meta ml-auto">보고서 개요에 인쇄</span>
       </div>
 
       <div className="flex items-center gap-2 py-2 border-b border-brand-line-soft">

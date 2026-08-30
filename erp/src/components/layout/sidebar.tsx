@@ -365,7 +365,8 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                       <div key={item.href}>
                       {showSection && (
                         <div className="flex items-center gap-1.5 pl-2.5 pr-1 pt-2 pb-1 select-none">
-                          <span className="text-[10px] font-semibold tracking-wide text-ink-faint">{item.section}</span>
+                          {/* S7-1 — 구역 이름은 메뉴를 찾는 단서다(장식인 구분선은 옆 span이 맡는다) */}
+                          <span className="text-[10px] font-semibold tracking-wide text-ink-meta">{item.section}</span>
                           <span className="flex-1 h-px bg-brand-line-soft" />
                         </div>
                       )}

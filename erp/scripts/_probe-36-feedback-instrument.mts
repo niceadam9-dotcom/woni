@@ -69,13 +69,24 @@ try {
   // 서버 액션 POST 왕복 단독 — 화면 반영이 이것에 갇혀 있는지 가른다
   const actionMs: number[] = []
   const started = new Map<string, number>()
+  /** 어떤 액션이 몇 번 나가는지 — 서버 액션은 **인자를 본문에 직렬화**하므로 body가 신원을 드러낸다 */
+  const actionLog: string[] = []
+  let clickAt = 0
   page.on('request', r => { if (r.method() === 'POST' && r.headers()['next-action']) started.set(r.url() + r.headers()['next-action'], Date.now()) })
-  page.on('response', r => {
+  page.on('response', async r => {
     const rq = r.request()
     if (rq.method() === 'POST' && rq.headers()['next-action']) {
       const k = rq.url() + rq.headers()['next-action']
       const t = started.get(k)
-      if (t) { actionMs.push(Date.now() - t); started.delete(k) }
+      if (t) {
+        const ms = Date.now() - t
+        actionMs.push(ms)
+        const body = (rq.postData() ?? '').replace(/\s+/g, ' ').slice(0, 110)
+        let size = 0
+        try { size = (await r.body()).length } catch { /* 스트리밍 응답은 못 읽을 수 있다 */ }
+        actionLog.push(`  +${String(t - clickAt).padStart(5)}ms  ${String(ms).padStart(5)}ms  응답 ${String(size).padStart(7)}B  ${rq.headers()['next-action'].slice(0, 10)}  ${body}`)
+        started.delete(k)
+      }
     }
   })
 
@@ -84,7 +95,9 @@ try {
   await container.locator('input').first().fill('2026-08-18')
 
   // ── 한 번의 클릭을 **두 방법으로 동시에** 잰다
+  actionMs.length = 0; actionLog.length = 0
   const t0 = Date.now()
+  clickAt = t0
   // 방법 A: Playwright 대기자 — 테스트가 기다리는 **바로 그 문자열**로
   const waiterA = page.getByText('✓ 기록됨 2026-08-18 — ⑥ 완료').first()
     .waitFor({ state: 'visible' }).then(() => Date.now() - t0)
@@ -114,6 +127,8 @@ try {
   console.log(`\n분해:`)
   console.log(`  서버 액션 POST 왕복 단독      : ${actionMs.join(' / ') || '-'}ms`)
   console.log(`  → 액션 이후 화면까지 남은 몫  : ${actionMs.length ? Math.max(aMs, bMs) - Math.max(...actionMs) : '?'}ms`)
+  console.log(`\n클릭 후 나간 서버 액션 ${actionLog.length}건 (시작offset · 소요 · 응답크기 · id · 인자):`)
+  for (const l of actionLog) console.log(l)
 } catch (e) {
   console.error('ERROR:', (e as Error).message)
 } finally {

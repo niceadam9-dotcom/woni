@@ -110,7 +110,8 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
       <div className="px-5 py-4 border-b border-brand-line-soft flex items-center gap-2">
         <FileText className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">단계별 보고서</h2>
-        <span className="text-xs text-ink-faint ml-auto">{submittedCount}/6 제출</span>
+        {/* S7-1 — 제출 진행 숫자. 진행률과 같은 축이라 읽혀야 한다 */}
+        <span className="text-xs text-ink-meta ml-auto">{submittedCount}/6 제출</span>
       </div>
 
       <div className="divide-y divide-brand-line-soft">
