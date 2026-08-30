@@ -39,13 +39,25 @@ const SEV_CLS: Record<string, string> = {
   경미: 'bg-yellow-100 text-yellow-700', 보통: 'bg-orange-100 text-orange-700', 중대: 'bg-red-100 text-red-700',
 }
 
-export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
+/** 칸 제목·스텝바가 쓰는 집계 (소방계획서_36 S3-5).
+ *  서버가 `[id]/page.tsx`에서 계산하는 것과 **같은 규칙**이어야 한다:
+ *    planned = action_plan 또는 action_start가 있는 건 · done = action_completed_at이 있는 건 */
+export type DefectTally = { planned: number; done: number; total: number }
+
+export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPhotoDone }: {
   defects: GridDefect[]
   inspectionId: string
   canEdit: boolean
   /** plan = ⑤ 이행계획(계획·기간·전 사진) / complete = ⑥ 이행완료(완료 내용·완료일·후 사진) */
   mode: 'plan' | 'complete'
-  onSaved?: () => void
+  /** 저장 직후 **로컬로 다시 센 집계**를 올린다 — 부모가 이 값으로 칸 제목을 즉시 고친다(S3-5).
+   *  종전에는 인자가 없어 부모가 router.refresh()로 상세 전체를 다시 그려야 숫자가 맞았다
+   *  (실측: 셀 하나에 6.6초, 두 번째 셀은 21.9초). */
+  onSaved?: (tally: DefectTally) => void
+  /** 사진 업로드 완료 — **집계와 다른 축**이라 따로 뺐다(S3-8).
+   *  사진은 planned/done을 바꾸지 않고 photoPairs(서버 계산)만 바꾼다. 희소 경로라
+   *  (실측 업로드 8.4초·연 몇 회) 여기서는 서버 갱신을 그대로 두는 편이 옳다. */
+  onPhotoDone?: () => void
 }) {
   /** 편집분만 들고 있고 나머지는 서버 값을 그대로 읽는다 — 사본을 만들면 refresh와 어긋난다 */
   const [edits, setEdits] = useState<Record<string, Partial<Row>>>({})
@@ -56,6 +68,23 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
   const rowOf = (d: GridDefect): Row => ({ ...toRow(d), ...edits[d.id] })
   const set = (id: string, patch: Partial<Row>) =>
     setEdits(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+
+  /** ⚠ 집계는 **최신 edits**로 세야 한다. commit의 .then은 네트워크 왕복 뒤에 도는데
+   *  그 클로저가 잡은 edits는 그 사이 다른 칸이 바뀌었으면 낡는다 — ref로 최신을 본다. */
+  const editsRef = useRef(edits)
+  editsRef.current = edits
+
+  /** 방금 저장한 행은 `edits`에 아직 안 실렸을 수 있다(setDate는 set 직후 commit을 부른다).
+   *  그래서 그 행만 확정된 값으로 덮어써서 센다 — 안 그러면 1건씩 늦게 반영된다. */
+  const tallyWith = (overrideId: string, overrideRow: Row): DefectTally => {
+    let planned = 0, done = 0
+    for (const d of defects) {
+      const r = d.id === overrideId ? overrideRow : { ...toRow(d), ...editsRef.current[d.id] }
+      if (r.actionPlan || r.actionStart) planned++
+      if (r.actionCompletedAt) done++
+    }
+    return { planned, done, total: defects.length }
+  }
 
   /** 날짜는 값 자체가 완결이라 고르는 즉시 저장한다 — 달력 팝업으로 고르면 blur가 오지 않는다.
    *  서술 칸은 반대로 blur까지 기다린다(타이핑 중간 문장이 문서에 실리면 안 된다). */
@@ -87,7 +116,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
       if (res.error) { setErr(res.error); return }
       setJustSaved(prev => ({ ...prev, [d.id]: true }))
       setTimeout(() => setJustSaved(prev => ({ ...prev, [d.id]: false })), 4000)
-      onSaved?.()
+      // S3-5 — 서버 왕복을 기다리지 않고 **방금 확정된 값으로 다시 센 집계**를 올린다.
+      // row는 저장에 실제로 보낸 값이라 낙관적 추정이 아니라 '확정된 값의 선반영'이다.
+      onSaved?.(tallyWith(d.id, row))
     })
   }
 
@@ -161,9 +192,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved }: {
                 {/* 전·후를 한 행에 나란히 — 쌍이 맞는지는 나란히 놓아야 보인다(별지 11호 증빙) */}
                 <td className="flex gap-1 px-1 py-1">
                   <PhotoCell defectId={d.id} inspectionId={inspectionId} canEdit={canEdit}
-                    field="before" url={d.photo_url} onDone={onSaved} />
+                    field="before" url={d.photo_url} onDone={onPhotoDone} />
                   <PhotoCell defectId={d.id} inspectionId={inspectionId} canEdit={canEdit}
-                    field="after" url={d.after_photo_url} onDone={onSaved} />
+                    field="after" url={d.after_photo_url} onDone={onPhotoDone} />
                 </td>
               </tr>
             )

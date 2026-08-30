@@ -101,6 +101,10 @@ export function InspectionWorkbench({
   const [completing, setCompleting] = useState<string | null>(null)
   // 불량을 고치면 ⑤⑥ 미리보기가 따라가야 한다 — 표가 저장할 때마다 토큰을 올린다(R6-4·R6-5)
   const [defectRev, setDefectRev] = useState(0)
+  /** S3-5 — 불량표가 저장 직후 올려주는 **로컬 집계**. 칸 제목 'N/M'·스텝바 ⑤가 이 값을 쓴다.
+   *  종전에는 셀 하나를 고칠 때마다 router.refresh()로 상세 전체를 다시 그려야 숫자가 맞았다
+   *  (실측: 첫 셀 6.6초, 두 번째 셀 21.9초 — 표를 채울수록 누적으로 느려졌다). */
+  const [defectsLocal, setDefectsLocal] = useState<{ planned: number; done: number; total: number } | null>(null)
   // R5-8 기산 근거 인라인 수정 — 기한을 보는 자리에서 바로 고칠 수 있어야 한다
   const [anchorEdit, setAnchorEdit] = useState(false)
   const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
@@ -133,7 +137,19 @@ export function InspectionWorkbench({
   /* ── 판정 — 서버(syncInspectionSteps)와 **같은 함수**를 쓴다 (R4-1).
    *  여기서 규칙을 다시 쓰면 화면 ✓와 DB status가 갈라진다 — 오프라인 보고·사유 완료가
    *  DB에만 반영되던 그 괴리가 되살아난다. data.evidence가 없는 과도기에만 옛 규칙으로 폴백한다. */
-  const hasDefects = data.defects.total > 0
+  /** 서버 집계 위에 로컬 선반영을 덮는다. photoPairs는 서버만 아는 값이라 그대로 둔다.
+   *  ⚠ 서버가 **새 숫자**를 실어 오면 로컬을 버린다(아래 effect) — 안 그러면 다른 사람이
+   *  바꾼 값이 내 화면에서 영원히 가려진다. */
+  const defectStat = defectsLocal ? { ...data.defects, ...defectsLocal } : data.defects
+  const serverTallyKey = `${data.defects.planned}-${data.defects.done}-${data.defects.total}`
+  const prevServerTally = useRef(serverTallyKey)
+  useEffect(() => {
+    if (prevServerTally.current === serverTallyKey) return
+    prevServerTally.current = serverTallyKey
+    setDefectsLocal(null)   // 서버가 갱신된 집계를 줬다 — 선반영은 역할을 다했다
+  }, [serverTallyKey])
+
+  const hasDefects = defectStat.total > 0
   const isSpecial = data.steps.length > 1
   // 방금 기록한 제출일을 화면에 즉시 반영한다 (2026-08-18 실측: router.refresh()가 이 무거운
   // 상세 페이지를 통째로 다시 그리느라 **약 5초** 걸려 "눌러도 반응이 없다"로 보였다).
@@ -141,14 +157,20 @@ export function InspectionWorkbench({
   // 새 데이터가 도착하면(props 갱신) 그 값이 우선이라 어긋난 채 남지 않는다.
   const submit9At = data.submit9.submittedAt ?? justSubmitted.report9
   const submit11At = data.submit11.submittedAt ?? justSubmitted.report11
+  // S3-6 — 불량 집계도 같은 방식으로 선반영한다. 이걸 빼면 칸 제목은 즉시 맞는데
+  // 스텝바 ⑤만 굳어 **같은 화면의 두 숫자가 갈라져** 보인다(위험 ①).
   const doneByNum = data.evidence
-    ? evidenceDone({ ...data.evidence, submit9At, submit11At })
+    ? evidenceDone({
+      ...data.evidence, submit9At, submit11At,
+      // ⑤ 판정은 done/total만 본다(planned는 칸 제목 전용) — StepEvidence에 planned는 없다
+      defectsDone: defectStat.done, defectsTotal: defectStat.total,
+    })
     : ({
       1: data.responded > 0,
       2: !!data.certFile || !!data.certArchived,
       3: !!data.delivery,
       4: !!submit9At,
-      5: hasDefects && data.defects.done >= data.defects.total,
+      5: hasDefects && defectStat.done >= defectStat.total,
       6: !!submit11At,
     } as Record<StepNum, boolean>)
   const done = Object.fromEntries(
@@ -193,6 +215,15 @@ export function InspectionWorkbench({
     return { text: `D-${d}`, cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-ink-faint' }
   }
 
+  /** S3-1 — router.refresh()를 **트랜지션 밖으로** 뺀다(제거가 아니라 이동).
+   *
+   *  종전에는 startTransition(async () => { … router.refresh() }) 꼴이라, RSC 페이로드가
+   *  도착할 때까지 isPending이 참으로 남고 그 값이 버튼 disabled를 잡았다 — "눌러도 반응이
+   *  없다"의 정체가 이것이다(F-3). setTimeout으로 다음 틱에 밀면 진행 중인 트랜지션의
+   *  범위를 벗어나므로, **신선도는 그대로 두고 체감 지연만** 사라진다.
+   *  (async 트랜지션 안에서는 await 뒤에 불러도 여전히 그 트랜지션에 묶인다.) */
+  const deferredRefresh = useCallback(() => { setTimeout(() => router.refresh(), 0) }, [router])
+
   /* ── 서버 동작 — 타임라인과 같은 액션을 그대로 호출 ── */
   useEffect(() => {
     if (!busy) return
@@ -220,7 +251,7 @@ export function InspectionWorkbench({
       const res = await uploadTimelineFileAction(inspectionId, slot, fd)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ ${slot === 'cert' ? '배치확인서' : '계약서'} 업로드됨`)
-      router.refresh()
+      deferredRefresh()
     })
   }
   function uploadSlot(slot: 'cert' | 'contract', e: React.ChangeEvent<HTMLInputElement>) {
@@ -252,7 +283,7 @@ export function InspectionWorkbench({
       if (res.error) { setAnchorMsg(`❌ ${res.error}`); return }
       setAnchorEdit(false)
       setAnchorMsg('✅ 기산일 변경 — 마감일을 다시 계산했습니다.')
-      router.refresh()
+      deferredRefresh()
     })
   }
   function sendOwner() {
@@ -261,7 +292,7 @@ export function InspectionWorkbench({
       const res = await sendOwnerReportAction(inspectionId)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ 관계인 보고 발송됨 → ${res.sentTo} (발송 이력 기록)`)
-      router.refresh()
+      deferredRefresh()
     })
   }
   function submit(kind: 'report9' | 'report11', date: string) {
@@ -272,7 +303,7 @@ export function InspectionWorkbench({
       // 저장이 확인된 값을 먼저 화면에 세운다 — router.refresh()는 상세 전체를 다시 그려 느리다
       setJustSubmitted(prev => ({ ...prev, [kind]: date || null }))
       setMsg(date ? `✅ 제출일 ${date} 기록됨` : '✅ 제출일 지움')
-      router.refresh()
+      deferredRefresh()
     })
   }
   function pkg(kind: 'report9' | 'report11') {
@@ -316,7 +347,7 @@ export function InspectionWorkbench({
       setCompleting(null)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg('✅ 사유와 함께 완료 처리했습니다.')
-      router.refresh()
+      deferredRefresh()
     })
   }
 
@@ -335,7 +366,7 @@ export function InspectionWorkbench({
       setCompleting(null)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg('✅ 사유 완료를 철회했습니다 — 증거 기준으로 다시 판정합니다.')
-      router.refresh()
+      deferredRefresh()
     })
   }
 
@@ -348,7 +379,7 @@ export function InspectionWorkbench({
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setOfflineOpen(false); setOfflineMemo('')
       setMsg('✅ 오프라인 보고를 기록했습니다 — ③이 근거로 완료됩니다.')
-      router.refresh()
+      deferredRefresh()
     })
   }
 
@@ -361,7 +392,7 @@ export function InspectionWorkbench({
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setPaperOpen(false); setPaperMemo('')
       setMsg('✅ 종이 보관으로 기록했습니다 — ②가 근거로 완료됩니다.')
-      router.refresh()
+      deferredRefresh()
     })
   }
 
@@ -373,7 +404,7 @@ export function InspectionWorkbench({
       const res = await deleteTimelineFileAction(inspectionId, slot)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ ${label} 파일을 삭제했습니다 (${res.deleted ?? 0}건).`)
-      router.refresh()
+      deferredRefresh()
     })
   }
 
@@ -507,7 +538,7 @@ export function InspectionWorkbench({
             {!isSpecial && slots?.exterior}
           </Pane>
           {/* R6-3: ①에서 점검표와 불량이 동시에 보인다 — ✕ 태깅하면 오른쪽에서 그 자리에 늘어난다 */}
-          <Pane title={`불량 내역 ${data.defects.total}건`} cls={paneCls} head={paneHead}>
+          <Pane title={`불량 내역 ${defectStat.total}건`} cls={paneCls} head={paneHead}>
             {slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
           <Pane title="점검 인력·생성물" cls={paneCls} head={paneHead}>
@@ -592,7 +623,7 @@ export function InspectionWorkbench({
             <Summary rows={[
               ['점검표 응답', `${data.responded}건`],
               ['배치확인서', data.certFile ? data.certFile.name : data.certArchived ? '종이 보관' : '없음'],
-              ['불량', `${data.defects.total}건`],
+              ['불량', `${defectStat.total}건`],
             ]} />
           </Pane>
         </>)}
@@ -785,17 +816,22 @@ export function InspectionWorkbench({
 
         {sel === 'repair' && (<>
           {/* R6-7: 불량마다 폼을 펼치지 않고 표에서 바로 고친다 */}
-          <Pane title={`이행계획 ${data.defects.planned}/${data.defects.total}`} cls={paneCls} head={paneHead}>
+          <Pane title={`이행계획 ${defectStat.planned}/${defectStat.total}`} cls={paneCls} head={paneHead}>
             {defectRows
               ? <DefectGrid defects={defectRows} inspectionId={inspectionId} canEdit={canManage} mode="plan"
-                  onSaved={() => { setDefectRev(v => v + 1); router.refresh() }} />
+                  /* S3-7 — 셀마다 상세 전체를 다시 그리지 않는다. 표가 올린 집계를 그대로 쓴다(S3-5).
+                     사진은 photoPairs(서버 계산)를 바꾸므로 희소 경로로 분리해 갱신을 유지한다. */
+                  onSaved={t => { setDefectsLocal(t); setDefectRev(v => v + 1) }}
+                  onPhotoDone={() => { setDefectRev(v => v + 1); deferredRefresh() }} />
               : slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
           <Pane title="10호 고유값·증빙" cls={paneCls} head={paneHead}>
             <Summary rows={[
-              ['조치 계획 입력', `${data.defects.planned}/${data.defects.total}`],
-              ['조치 완료', `${data.defects.done}/${data.defects.total}`],
-              ['전·후 사진 쌍', `${data.defects.photoPairs}/${data.defects.total}쌍 완료`],
+              // ⚠ 같은 칸의 제목과 **반드시 같은 원천**을 써야 한다 — 갈리면 제목은 1/2인데
+              // 아래 요약은 0/2인 화면이 된다(위험 ①이 말하는 '데이터가 갈라진 것처럼')
+              ['조치 계획 입력', `${defectStat.planned}/${defectStat.total}`],
+              ['조치 완료', `${defectStat.done}/${defectStat.total}`],
+              ['전·후 사진 쌍', `${defectStat.photoPairs}/${defectStat.total}쌍 완료`],
             ]} />
             {/* 수리 계약서 — 선택 증빙(R10-a). ⑤ 완료 조건은 불량 전건 조치이지 계약서가 아니다 */}
             <div className={`flex flex-wrap items-center gap-1.5 rounded-lg border-t border-brand-line-soft px-1 pt-2${dropCls('contract')}`}
@@ -835,7 +871,7 @@ export function InspectionWorkbench({
           {/* R6-4: 불량을 고치면 10호 미리보기가 갱신된다. Gotenberg 미호출(즉석 HTML) */}
           <Pane title="10호 실시간 미리보기" cls={paneCls} head={paneHead} fill>
             <AnnexPreview inspectionId={inspectionId} reportType="report10" customerId={customerId}
-              watch={`${data.defects.planned}-${data.defects.done}-${data.defects.total}-${defectRev}`} />
+              watch={`${defectStat.planned}-${defectStat.done}-${defectStat.total}-${defectRev}`} />
           </Pane>
         </>)}
 
@@ -843,15 +879,17 @@ export function InspectionWorkbench({
           {/* R6-7: 완료 내용·완료일·후 사진을 같은 표에서.
               ⚠ 제목은 '불량 조치'다 — 이 숫자는 불량별 조치완료일 개수이지 ⑥의 완료 조건(제출일)이
               아니다. 종전 '이행완료 N/M'은 제출일을 넣어도 안 바뀌어 '반응이 없다'로 읽혔다. */}
-          <Pane title={`불량 조치 ${data.defects.done}/${data.defects.total}`} cls={paneCls} head={paneHead}>
+          <Pane title={`불량 조치 ${defectStat.done}/${defectStat.total}`} cls={paneCls} head={paneHead}>
             {defectRows
               ? <DefectGrid defects={defectRows} inspectionId={inspectionId} canEdit={canManage} mode="complete"
-                  onSaved={() => { setDefectRev(v => v + 1); router.refresh() }} />
+                  /* S3-7 — ⑤와 같은 규약. 여기 집계는 스텝바 ⑥ 옆 ⑤ 판정에도 들어간다(S3-6) */
+                  onSaved={t => { setDefectsLocal(t); setDefectRev(v => v + 1) }}
+                  onPhotoDone={() => { setDefectRev(v => v + 1); deferredRefresh() }} />
               : slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
           <Pane title="11호 고유값·제출" cls={paneCls} head={paneHead}>
             <Summary rows={[
-              ['전·후 사진 쌍', `${data.defects.photoPairs}건`],
+              ['전·후 사진 쌍', `${defectStat.photoPairs}건`],
               ['9호 제출', data.submit9.submittedAt ?? '미제출'],
             ]} />
             <div className="border-t border-brand-line-soft pt-2">
@@ -887,7 +925,7 @@ export function InspectionWorkbench({
           {/* R6-5 */}
           <Pane title="11호 실시간 미리보기" cls={paneCls} head={paneHead} fill>
             <AnnexPreview inspectionId={inspectionId} reportType="report11" customerId={customerId}
-              watch={`${data.defects.done}-${data.defects.photoPairs}-${defectRev}`} />
+              watch={`${defectStat.done}-${defectStat.photoPairs}-${defectRev}`} />
           </Pane>
         </>)}
       </div>
