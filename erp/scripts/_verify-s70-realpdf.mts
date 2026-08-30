@@ -87,14 +87,19 @@ for (const [inspectionId, nResp] of ranked) {
   const head = Buffer.from(pdf.slice(0, 5)).toString('latin1')
   const pages = (Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
   check(`[${inspectionId.slice(0, 8)}] 실제 PDF가 나왔다`, head === '%PDF-', `${pdf.length}바이트 head=${head}`)
-  // 별지 9호는 8쪽 서식이다. **두 축을 나눠 본다** — 서식 축(HTML이 8개 쪽을 조립했는가)과
-  // 물리 축(A4로 찍었을 때 실제 몇 장인가). 뭉치면 '넘침'과 '조립 오류'를 구별할 수 없다.
-  const headers = (html.match(/8쪽 중 제/g) ?? []).length
-  check(`[${inspectionId.slice(0, 8)}] 서식 축 — 8쪽 조립`, headers === 8, `헤더 ${headers}개`)
-  // ⚠ 물리 쪽이 더 많으면 어느 쪽이 A4를 넘쳤다는 뜻이다(내용량 의존이라 고객마다 다를 수 있다).
-  //   S7-0(추출 수술)과는 무관한 축이지만, 실PDF를 처음 찍어 본 김에 관측치를 남긴다.
-  check(`[${inspectionId.slice(0, 8)}] 물리 축 — 넘침 없음(관측)`, pages === headers,
-    `물리 ${pages}쪽 vs 서식 ${headers}쪽${pages > headers ? ' ← 넘침' : ''}`)
+  // 두 축을 나눠 본다 — 서식 축(HTML이 몇 쪽을 조립했는가)과 물리 축(A4로 찍어 몇 장인가).
+  // 뭉치면 '넘침'과 '조립 오류'를 구별할 수 없다.
+  // ⚠ **분모를 `8쪽 중 제`로 세면 안 된다.** 별지 9호는 번호 매긴 8쪽 + **「작성방법」(9쪽)**으로
+  //   이뤄져 있고 9쪽의 머리글은 `(9쪽)`이라 그 니들에 안 걸린다(report9.ts:602 page9).
+  //   처음엔 그렇게 세서 '물리 9쪽 vs 서식 8쪽 = 구조적 넘침'이라 오판했다 — 쪽 단위로 갈라
+  //   따로 렌더하니 9조각이 **각각 정확히 1장**이었다(`_diag-r9-overflow.mts`). 넘침은 없었다.
+  //   분모는 조립 단위인 `.page` div 수로 잡는다.
+  const divs = (html.match(/<div class="page">/g) ?? []).length
+  const numbered = (html.match(/8쪽 중 제/g) ?? []).length
+  check(`[${inspectionId.slice(0, 8)}] 서식 축 — 번호 8쪽 + 작성방법 1쪽`, numbered === 8 && divs === 9,
+    `번호쪽 ${numbered} · 조립 ${divs}`)
+  check(`[${inspectionId.slice(0, 8)}] 물리 축 — 넘침 없음`, pages === divs,
+    `물리 ${pages}쪽 vs 조립 ${divs}쪽${pages > divs ? ' ← 넘침' : ''}`)
 
   if (!firstPng) {
     // 한글 글리프 — PDF는 로컬에 pdftoppm이 없어 시각화 불가하므로 **같은 Chromium·같은
