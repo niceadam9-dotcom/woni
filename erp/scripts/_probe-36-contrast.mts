@@ -19,9 +19,10 @@ const REPORT_ONLY = process.argv.includes('--report')
  *  다크 수가 거짓으로 낮았다. 정상 커버리지에서는 그 자리가 293칸이다.
  *  ⚠ ±2~3 편차가 정상이다 — FAIL 수는 화면에 그려진 **행 수**에 비례하는데 목록·달력의 행은
  *  다른 세션이 테스트 데이터를 만들고 지우면서 흔들린다. 그래서 실측에 여유를 둔다.
- *  이력: 524/334(폐기 — 다크 미렌더) → 513/381(S5) → 430/297(S7 1차)
- *        → **400/268(S7 2차, 실측 395/263)**. */
-const BASELINE: { light: number; dark: number } | null = { light: 400, dark: 268 }
+ *  이력: 524/334(폐기 — 다크 미렌더) → 513/381(S5) → 430/297(S7 1차) → 400/268(S7 2차)
+ *        → **675/478(S7 3차)**. ⚠ 3차에서 **수가 커진 것은 악화가 아니라 라우트 추가**다
+ *        (설정·고객 목록·점검확정 3개를 넣었다 — 같은 라우트 집합에서는 760/567 → 670/473). */
+const BASELINE: { light: number; dark: number } | null = { light: 675, dark: 478 }
 
 /** 라우트별 **검사 대상 수 하한**(S6-9 보강, 2026-08-30).
  *
@@ -32,6 +33,7 @@ const BASELINE: { light: number; dark: number } | null = { light: 400, dark: 268
  *  그래서 커버리지를 **별도 축**으로 단언한다(35 세션이 --overflow에서 겪은 것과 같은 함정). */
 const COVERAGE_FLOOR: Record<string, number> = {
   '점검 목록': 200, '점검 달력': 170,
+  '설정': 60, '고객 목록': 60, '점검확정': 60,
   '작업대 1단계': 220, '작업대 2단계': 75, '작업대 3단계': 70,
   '작업대 4단계': 100, '작업대 5단계': 95, '작업대 6단계': 88,
   '점검표 드로어(열림)': 270,
@@ -272,13 +274,16 @@ try {
   const totals: Record<string, number> = {}
 
   for (const mode of ['light', 'dark'] as const) {
-    if (mode === 'dark') {
-      // _probe-29-light-scan.mts의 다크 전환 절차 재사용(S6-1)
-      await page.goto(`${BASE}/settings`)
-      await page.waitForSelector('[data-testid="theme-option-dark"]')
-      await page.click('[data-testid="theme-option-dark"]')
-      await page.waitForSelector('[data-testid="theme-saved"]', { timeout: 15000 })
-    }
+    // ⚠ 라이트도 **명시적으로 고른다**. 종전엔 '새 사용자니 기본이 라이트'라고 가정했는데,
+    //    앞선 실행이 다크 상태에서 죽으면 정리(delUser)가 안 돌아 같은 이메일의 프로필에
+    //    다크가 남고, 다음 실행의 '라이트' 패스가 **다크로 측정**된다(2026-08-30 실제 발생).
+    //    자가검증이 그걸 잡아냈다 — 라이트 기대 2.16인데 다크 값 3.05가 나왔다.
+    //    테마는 가정하지 않고 매번 세운다.
+    await page.goto(`${BASE}/settings`)
+    await page.waitForSelector(`[data-testid="theme-option-${mode}"]`)
+    await page.click(`[data-testid="theme-option-${mode}"]`)
+    await page.waitForSelector('[data-testid="theme-saved"]', { timeout: 20000 }).catch(() => {})
+    await page.waitForTimeout(600)
 
     // ── S6-10 자가검증 먼저 — 프로브가 틀렸으면 아래 수치는 전부 무의미하다
     await page.goto(`${BASE}/inspections`)
@@ -299,6 +304,12 @@ try {
     const routes: Array<[string, string]> = [
       ['/inspections', '점검 목록'],
       ['/inspections/calendar', '점검 달력'],
+      // 점검업무 밖 화면 (S7-1 잔여분 · 2026-08-30 추가). out_of_scope가 '프로브가 서고 나서
+      // 후속'이라 미뤄둔 축인데, 프로브가 섰으므로 **측정 가능하게 만든 뒤** 고친다.
+      // 라우트를 안 넓히고 고치면 래칫이 지켜주지 못해 조용히 되돌아간다.
+      ['/settings', '설정'],
+      ['/customers', '고객 목록'],
+      ['/inspection-plans', '점검확정'],
     ]
     for (let step = 1; step <= 6; step++) routes.push([`/inspections/${insp}?step=${step}`, `작업대 ${step}단계`])
 

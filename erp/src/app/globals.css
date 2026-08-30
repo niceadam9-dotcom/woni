@@ -114,9 +114,13 @@
   /* 소방계획서_36 S5-1 — ink-faint 계열을 유지한 **읽히는 버전**(AA 대상).
      ink-faint는 라이트 2.16:1로 AA 실패라 '정보를 담은 보조 텍스트'에 쓸 수 없다.
      값은 손으로 고르지 않았다 — scripts/_probe-36-wcag-constants.mjs가 ink-faint에서
-     ink 쪽으로 옮기며 surface·paper **양쪽** 4.5:1을 처음 넘는 지점을 찾았다.
-     실측: surface 4.80:1 · paper 4.55:1. ⚠ 기존 토큰 값은 하나도 안 바꿨다(29 D-3). */
-  --t-ink-meta:        #716f90;
+     ink 쪽으로 옮기며 **세 배경 전부** 4.5:1을 처음 넘는 지점을 찾았다.
+     실측: surface 5.03 · paper 4.77 · brand-tint 4.62.
+     ⚠ 처음엔 surface·paper 둘만 보고 #716f90을 골랐는데, 설정 화면의 옵션 카드가
+       **brand-tint 배경 위에 보조 텍스트를 얹어** 다크에서 4.25:1로 미달했다(프로브가 잡았다).
+       배경 후보를 셋으로 늘려 다시 뽑았다 — '어느 배경 위에 오는가'가 숨은 축이었다.
+     ⚠ 기존 토큰 값은 하나도 안 바꿨다(29 D-3). */
+  --t-ink-meta:        #6d6c8c;
   --t-surface:         #ffffff;
   --t-paper:           #f8f9fa;
   --t-line:            #c8c4d0;
@@ -300,7 +304,8 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
    *      ink         19.41    13.40    AAA
    *      ink-strong  13.82    11.03    AAA
    *      ink-sub      7.86     6.57    AA
-   *      ink-meta     4.80     4.57    AA  ← 36에서 신설(정보를 담은 보조 텍스트)
+   *      ink-meta     5.03     4.94    AA  ← 36에서 신설(정보를 담은 보조 텍스트)
+   *                                        brand-tint 위에서도 4.62 / 4.59로 AA
    *      ink-soft     3.90     4.62    라이트는 큰 글자만
    *      ink-faint    2.16     3.05    ❌ **순수 장식 전용 — AA 비대상**
    *
@@ -320,9 +325,9 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
   --t-ink-sub:         #a8a5c0;
   --t-ink-soft:        #8c88a8;
   --t-ink-faint:       #6e6a8a;
-  /* S5-1 다크 짝 — ink-faint에서 흰색 쪽으로 옮겨 surface·paper 양쪽 AA를 처음 넘는 값.
-     실측: surface 4.57:1 · paper 5.02:1 */
-  --t-ink-meta:        #8b88a1;
+  /* S5-1 다크 짝 — ink-faint에서 흰색 쪽으로 옮겨 **세 배경 전부** AA를 처음 넘는 값.
+     실측: surface 4.94 · paper 5.42 · brand-tint 4.59 (라이트 짝의 주석 참조) */
+  --t-ink-meta:        #918ea6;
   --t-surface:         #232327;
   --t-paper:           #1b1b1e;
   --t-line:            #3a3a42;

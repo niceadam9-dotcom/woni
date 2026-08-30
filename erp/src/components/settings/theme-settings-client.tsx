@@ -58,7 +58,8 @@ export function ThemeSettingsClient({ initialTheme }: { initialTheme: 'light' | 
               <Icon className={`size-4 shrink-0 ${active ? 'text-brand' : 'text-ink-sub'}`} />
               <span className="flex-1 min-w-0">
                 <span className={`block text-sm font-medium ${active ? 'text-brand' : 'text-ink'}`}>{label}</span>
-                <span className="block text-[11px] text-ink-faint">{desc}</span>
+                {/* S7-1 — 옵션 설명은 무엇을 고르는지 알려주는 정보다 */}
+                <span className="block text-[11px] text-ink-meta">{desc}</span>
               </span>
               {active && !isPending && <Check className="size-4 text-brand shrink-0" data-testid="theme-active-check" />}
               {active && isPending && <Loader2 className="size-4 text-brand shrink-0 animate-spin" />}

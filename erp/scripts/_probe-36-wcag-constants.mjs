@@ -50,13 +50,18 @@ for (const [label, got, doc] of [
 const hex2 = h => { const m = /^#?(..)(..)(..)$/.exec(h); return [1,2,3].map(i => parseInt(m[i],16)) }
 const toHex = a => '#' + a.map(v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('')
 
+/** ⚠ surface·paper만 보면 부족하다 — 앱은 **brand-tint 배경 위에도** 보조 텍스트를 얹는다
+ *  (설정의 옵션 카드가 그렇다). 실제로 그 자리에서 4.25:1이 나와 미달이 드러났다(2026-08-30).
+ *  배경 후보를 셋으로 늘려 **최악 배경**을 기준으로 고른다. */
+const TINT = { light: '#f5f4ff', dark: '#2a2542' }
+
 function findMeta(mode, fromHex, toward) {
   const from = hex2(fromHex), to = hex2(toward)
-  const worst = h => Math.min(ratio(h, SURFACE[mode]), ratio(h, PAPER[mode]))
+  const worst = h => Math.min(ratio(h, SURFACE[mode]), ratio(h, PAPER[mode]), ratio(h, TINT[mode]))
   // ink-faint에서 목표색(라이트=ink, 다크=흰색) 쪽으로 조금씩 옮기며 처음 AA를 넘는 지점
   for (let t = 0; t <= 1.0001; t += 0.01) {
     const c = toHex(from.map((v, i) => v + (to[i] - v) * t))
-    if (worst(c) >= 4.5) return { hex: c, t: t.toFixed(2), surface: ratio(c, SURFACE[mode]), paper: ratio(c, PAPER[mode]) }
+    if (worst(c) >= 4.5) return { hex: c, t: t.toFixed(2), surface: ratio(c, SURFACE[mode]), paper: ratio(c, PAPER[mode]), tint: ratio(c, TINT[mode]) }
   }
   return null
 }
@@ -68,6 +73,6 @@ for (const [mode, base, toward] of [
 ]) {
   const r = findMeta(mode, base, toward)
   console.log(r
-    ? `   ${mode}: ${base} → **${r.hex}**  (t=${r.t})  surface ${r.surface.toFixed(2)}:1 · paper ${r.paper.toFixed(2)}:1`
+    ? `   ${mode}: ${base} → **${r.hex}**  (t=${r.t})  surface ${r.surface.toFixed(2)} · paper ${r.paper.toFixed(2)} · tint ${r.tint.toFixed(2)}`
     : `   ${mode}: 후보 없음`)
 }

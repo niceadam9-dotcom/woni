@@ -202,7 +202,8 @@ export default async function CustomersPage({
                         {c.address && (
                           <div className="flex items-center gap-1 mt-0.5 max-w-[180px]">
                             <AddressMapButton customerName={c.customer_name} address={c.address} iconOnly />
-                            <p className="text-xs text-ink-faint truncate">{c.address}</p>
+                            {/* S7-1 — 주소는 고객을 식별·방문하는 값이다. 장식이 아니다 */}
+                            <p className="text-xs text-ink-meta truncate">{c.address}</p>
                           </div>
                         )}
                         {bld ? (
@@ -225,7 +226,8 @@ export default async function CustomersPage({
                               {c.inspection_type === '일반관리' ? `일반(${c.inspection_sub_type ?? '작동'})` : c.inspection_type}
                             </span>
                           )}
-                          <span className="text-[10px] text-ink-faint whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
+                          {/* S7-1 — 점검 종류·연 횟수는 계약 내용이다(목록에서 가장 많이 읽히는 값, 100칸) */}
+                          <span className="text-[10px] text-ink-meta whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
                         </div>
                       </td>
                       {fullCols && (

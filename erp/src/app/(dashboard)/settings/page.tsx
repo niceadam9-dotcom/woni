@@ -80,12 +80,12 @@ export default async function SettingsPage() {
         <div className="flex items-center gap-2 px-5 py-4 border-b border-brand-line-soft">
           <User className="size-4 text-brand" />
           <h2 className="text-sm font-semibold text-ink">내 정보</h2>
-          <span className="ml-auto text-[11px] text-ink-faint">정보 수정은 관리자에게 문의하세요</span>
+          <span className="ml-auto text-[11px] text-ink-meta">정보 수정은 관리자에게 문의하세요</span>
         </div>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 px-5 py-4">
           {infoRows.map(([label, value]) => (
             <div key={label}>
-              <dt className="text-[11px] text-ink-faint mb-0.5">{label}</dt>
+              <dt className="text-[11px] text-ink-meta mb-0.5">{label}</dt>
               <dd className="text-sm text-ink font-medium break-all">{value}</dd>
             </div>
           ))}
@@ -109,7 +109,7 @@ export default async function SettingsPage() {
           <div className="flex items-center gap-2 px-5 py-4 border-b border-brand-line-soft">
             <Palette className="size-4 text-brand" />
             <h2 className="text-sm font-semibold text-ink">화면 테마</h2>
-            <span className="ml-auto text-[11px] text-ink-faint">이 계정의 모든 기기에 적용됩니다</span>
+            <span className="ml-auto text-[11px] text-ink-meta">이 계정의 모든 기기에 적용됩니다</span>
           </div>
           <div className="px-5 py-4">
             <ThemeSettingsClient initialTheme={theme} />
@@ -124,7 +124,7 @@ export default async function SettingsPage() {
         <div className="flex items-center gap-2 px-5 py-4 border-b border-brand-line-soft">
           <Type className="size-4 text-brand" />
           <h2 className="text-sm font-semibold text-ink">화면 글자 크기</h2>
-          <span className="ml-auto text-[11px] text-ink-faint">이 계정의 모든 기기에 적용됩니다</span>
+          <span className="ml-auto text-[11px] text-ink-meta">이 계정의 모든 기기에 적용됩니다</span>
         </div>
         <div className="px-5 py-4">
           <FontScaleSettingsClient initialScale={fontScale} />
@@ -136,7 +136,7 @@ export default async function SettingsPage() {
         <div className="flex items-center gap-2 px-5 py-4 border-b border-brand-line-soft">
           <Bell className="size-4 text-brand" />
           <h2 className="text-sm font-semibold text-ink">알림 설정</h2>
-          <span className="ml-auto text-[11px] text-ink-faint">끈 항목은 상단 종 알림이 오지 않습니다</span>
+          <span className="ml-auto text-[11px] text-ink-meta">끈 항목은 상단 종 알림이 오지 않습니다</span>
         </div>
         <div className="px-5 py-2">
           <NotificationSettingsClient initialPrefs={notificationPrefs} />
@@ -175,7 +175,7 @@ export default async function SettingsPage() {
                 <Icon className="size-4 text-brand shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ink">{label}</p>
-                  <p className="text-[11px] text-ink-faint truncate">{desc}</p>
+                  <p className="text-[11px] text-ink-meta truncate">{desc}</p>
                 </div>
                 <ChevronRight className="size-4 text-ink-faint shrink-0" />
               </Link>

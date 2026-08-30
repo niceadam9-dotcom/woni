@@ -1358,7 +1358,8 @@ function OverduePanel({
                       <span className="text-xs text-orange-600 font-medium shrink-0">
                         {item.due_month}월 예정
                       </span>
-                      <span className="text-[11px] text-ink-faint shrink-0">
+                      {/* S7-1 — 점검계획일은 언제 가야 하는지를 정하는 날짜다 */}
+                      <span className="text-[11px] text-ink-meta shrink-0">
                         점검계획일 {(() => { const d = new Date(item.anchor_date); return `${d.getMonth()+1}/${d.getDate()}` })()}
                       </span>
                     </div>

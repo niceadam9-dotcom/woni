@@ -104,7 +104,8 @@ export function FontScaleSettingsClient({
                 style={{ fontSize: SAMPLE_PX[o.value] + 4 }}>{o.sample}</span>
               <span className="flex-1 min-w-0">
                 <span className={`block text-sm font-medium ${active ? 'text-brand' : 'text-ink'}`}>{o.label}</span>
-                <span className="block text-[11px] text-ink-faint">{o.desc}</span>
+                {/* S7-1 — 배율 옵션 설명. 고르는 근거라 읽혀야 한다 */}
+                <span className="block text-[11px] text-ink-meta">{o.desc}</span>
               </span>
               {active && !isPending && <Check className="size-4 text-brand shrink-0" data-testid="fs-active-check" />}
               {active && isPending && <Loader2 className="size-4 text-brand shrink-0 animate-spin" />}
@@ -112,7 +113,8 @@ export function FontScaleSettingsClient({
           )
         })}
       </div>
-      <p className="mt-2 text-[11px] text-ink-faint">
+      {/* S7-1 — '어디에 적용되고 어디엔 안 되는지'를 알려주는 문장(인쇄는 안 바뀐다) */}
+      <p className="mt-2 text-[11px] text-ink-meta">
         소방계획서 서식 화면(1.1~3장·별지 목차)과 점검표 입력 화면에 적용됩니다. 인쇄·PDF는 법정 서식 규격이라 바뀌지 않습니다.
       </p>
       {saved && <p className="mt-1 text-[11px] text-green-600" data-testid="fs-saved">✓ 저장됨 — 다른 기기에도 로그인하면 적용됩니다</p>}
