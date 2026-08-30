@@ -562,7 +562,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
           grouping="outline" scrollBoxRef={scrollBoxRef}
           // 매직넘버 폐기(소방계획서_38 S4-1) — 종전 calc(100dvh-260px)는 '헤더+배너+푸터가
           // 260px'이라는 가정이었고, 글자가 배율을 따르기 시작하면 헤더가 자라 그 가정이 틀린다.
-          // 패널이 inset-4로 높이가 확정되고 조상이 전부 flex column이라(sheet-drawer.tsx:115·117)
+          // 패널이 inset-4로 높이가 확정되고 조상이 전부 flex column이라(sheet-drawer.tsx:123·125)
           // 남는 공간을 그냥 채우면 된다. ⚠ overflow-y-auto는 편집기가 따로 붙인다 —
           // 테스트의 closest('.overflow-y-auto')가 계속 매치돼야 한다.
           maxHeight="flex-1 min-h-0"

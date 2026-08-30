@@ -137,6 +137,11 @@ const steps: Step[] = [
   // lg/xl에서 sticky 2층이 겹쳐 항목 첫 행이 가려져도 전부 초록이다. test-font-scale S-1은 CSS
   // 텍스트에서 '같은 변수를 읽는가'만 보는 정적 검사라 렌더 결과를 모른다 — 이 프로브만 실측한다.
   { name: '드로어 배율 기하(프로브)',    cmd: 'node scripts/_probe-38-drawer-scale.mjs',      needServer: true },
+  // 다크·모바일은 종전에 '육안으로 본다'고 미뤄 두던 축이다 — 그래서 아무도 안 봤다.
+  // 다크에서 sticky 배경이 반투명해지면 스크롤 중 아래 항목 글자가 헤더를 뚫고 비치는데
+  // 라이트에서는 눈에 안 띈다. 모바일 바텀시트는 Tailwind v4의 단축 vs longhand 우선순위에
+  // 기대는 구조라, 클래스 순서를 잘못 쓰면 조용히 데스크톱 모양으로 고착된다.
+  { name: '드로어 다크·모바일(프로브)',  cmd: 'node scripts/_probe-38-dark-mobile.mjs',       needServer: true },
   // 고객명 검색은 목록을 거르는 축이라 조용히 깨지면 '검색해도 안 나온다'로만 드러난다
   { name: '점검 고객명 검색(E2E)',      cmd: 'npx tsx scripts/test-inspection-customer-search.mts', needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
