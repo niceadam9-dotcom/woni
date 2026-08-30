@@ -225,6 +225,12 @@ for (const name of donorNames) {
     if (g?.[2] !== f.guard) throw new Error(`${name}!${f.guardCell}: 가드 불일치 — 기대 '${f.guard}' 실제 '${g?.[2]}'`)
     // ⚠ 치환은 **함수 replacer**로만 — 문자열 replacer는 `$`를 해석한다(아래 dv 주석 참조)
     xml = xml.replace(re, (_m, a: string, _b: string, c: string) => `${a}${escCellText(f.to)}${c}`)
+    // 닫힌 덮개 — dv 수리에만 있던 것을 여기에도 단다(2026-08-30 판정 A 지적).
+    // 지금은 `to`에 `$`가 없어 무해하지만, 수리표에 정규식 특수문자를 품는 값이 추가되면
+    // '썼다'와 '들어갔다'가 갈라진다. 그때 조용히 통과하지 않도록 되읽어 확인한다.
+    const backCell = re.exec(xml)
+    if (backCell?.[2] !== escCellText(f.to))
+      throw new Error(`${name}!${f.cell}: 셀 수리 결과 불일치 — 기대 '${f.to}' 실제 ${JSON.stringify(backCell?.[2])}`)
     cellFixed++
   }
   for (const f of DONOR_DV_FIXES.filter(f => f.sheet === name)) {
@@ -338,6 +344,76 @@ console.log(`   ${donorNames.length}시트 이식 · 결과 마크 ${scrubTotal}
 console.log(`   수리(32 D트랙): 셀 ${cellFixed}칸 · dv ${dvFixed}건 · 범례 불량글자 ${glyphFixed}칸 X→×`)
 if (cellFixed !== DONOR_CELL_FIXES.length) throw new Error(`셀 수리 ${cellFixed}/${DONOR_CELL_FIXES.length} — 수리표 항목이 대상 시트에 닿지 않았다`)
 if (dvFixed !== DONOR_DV_FIXES.length) throw new Error(`dv 수리 ${dvFixed}/${DONOR_DV_FIXES.length}`)
+
+// ── ④c 유효성 목록 어휘 **전수** 점검 (소방계획서_32 D트랙 F-D1) ──────
+// ⚠ 왜 '전수'로 다시 세우는가 — 위 D-1 수리는 **범례 탐지(protectedCells) 위에서만** 돈다.
+//   범례 규칙은 '세로 ○ → / → X 3연속'이라 **범례 셀이 있는 시트만** 볼 수 있고, 목록을
+//   인라인 리터럴로 든 시트는 구조적으로 시야 밖이다. 그 사각에 「현황」이 있었다:
+//   dv가 "○,X,/"(ASCII X U+0058)인데 주입값은 ×(U+00D7)라 **45칸이 자기 셀의 유효성 목록에
+//   없는 값**을 받고 있었고, errorStyle="stop"이라 사용자가 ×를 직접 칠 수도 없었다.
+//   도너 37시트는 설치 설비만 남지만 **현황은 모든 고객 문서에 항상 실린다**(2026-08-30 독립 판정 D).
+//
+//   그때 '범례 37곳 = 시트 37장'이라는 수치가 "37이 전부"라는 착시를 만들었다.
+//   **탐지축이 못 보는 표면은 '없는 것'이 아니라 '안 센 것'이다.**
+//   그래서 축을 '범례가 있는 시트'에서 **'워크북의 모든 dataValidation'**으로 넓힌다.
+//   위 범례 경로(목록 원천이 셀 범위인 도너)와 여기(목록이 인라인인 기반 시트)는 상호 보완이다.
+{
+  const INJECT_MARKS = ['○', '×', '/'] as const   // resultMark()가 낼 수 있는 전부
+  // 파트 → 시트명 (오류 메시지가 좌표를 사람 말로 가리키게)
+  const nameByPart = new Map<string, string>()
+  {
+    const target = new Map<string, string>()
+    for (const m of relsXml.matchAll(/<Relationship Id="([^"]+)"[^>]*Target="([^"]+)"/g)) target.set(m[1], m[2])
+    for (const m of wbXml.matchAll(/<sheet name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
+      const t = target.get(m[2])
+      if (t) nameByPart.set(`xl/${t.replace(/^\/?xl\//, '')}`, m[1])
+    }
+  }
+  const parts = Object.keys(outZip.files).filter(p => /^xl\/worksheets\/[^/]+\.xml$/.test(p))
+  /** 판정 목록인가 — ○ 와 / 를 함께 든 것만. 설치 체크칸 "[  ],[√]" 등은 어휘가 달라 대상이 아니다 */
+  const isVerdictList = (items: string[]) => items.includes('○') && items.includes('/')
+  /** 인라인 목록의 따옴표를 벗긴다. ⚠ XLSX는 `<formula1>&quot;○,X,/&quot;</formula1>`처럼
+   *  **XML 이스케이프된 따옴표**로 적는다 — 리터럴 `"`만 찾으면 하나도 못 잡는다(아래 자책 참조). */
+  const unquote = (inner: string): string[] | null => {
+    const t = inner.trim()
+    for (const q of ['&quot;', '"']) {
+      if (t.startsWith(q) && t.endsWith(q) && t.length > q.length * 2 - 1) return t.slice(q.length, -q.length).split(',')
+    }
+    return null   // 셀 범위 참조($F$16:$F$18) 등 — 인라인 목록이 아니다
+  }
+  const DV_RE_CHECK = /<dataValidation\b([^>]*)>[\s\S]*?<formula1>([\s\S]*?)<\/formula1>/g
+
+  // ⚠ 여기서는 **고치지 않는다 — 검증만 한다.** 갑지 파트는 바이트 불변이 불변식이고(⑤),
+  //   결함의 원천은 기반 템플릿이므로 수리는 build-workbook-template.mts ④i가 한다.
+  //   여기 축은 '원천 수리가 하류까지 살아왔는가' + '도너가 어긋난 목록을 들고 오지 않았는가'다.
+  const fails: string[] = []
+  let dvTotal = 0, dvInline = 0, verdictLists = 0
+  for (const p of parts) {
+    const x = await outZip.file(p)!.async('string')
+    const label = nameByPart.get(p) ?? p
+    for (const m of x.matchAll(DV_RE_CHECK)) {
+      dvTotal++
+      const items = unquote(m[2])
+      if (!items) continue
+      dvInline++
+      if (!isVerdictList(items)) continue
+      verdictLists++
+      const sq = /sqref="([^"]*)"/.exec(m[1])?.[1] ?? '?'
+      const missing = INJECT_MARKS.filter(k => !items.includes(k))
+      if (missing.length) fails.push(`${label} dv(${sq}): 주입 어휘 ${missing.join(' ')} 가 목록에 없다 — ${items.join(',')} · 원천(build-workbook-template ④i)에서 고칠 것`)
+      if (items.includes('X')) fails.push(`${label} dv(${sq}): ASCII X 잔존 — ${items.join(',')} · 원천에서 고칠 것`)
+    }
+  }
+  // ⚠ **눈멂 가드** — 0건을 훑고 '불일치 0'이라 말하면 그게 곧 항진명제다.
+  //   실제로 이 검사의 첫 판이 그랬다: 따옴표를 리터럴 `"`로 찾아 **인라인 목록 0건**을 훑고도
+  //   초록을 냈다(2026-08-30). 내가 고치려던 실패 양상을 검사 자신이 재생산한 것이다.
+  //   그래서 '무엇을 몇 개 보았는가'를 먼저 단언한다.
+  if (dvTotal < 40) throw new Error(`④c 눈멂 — dv를 ${dvTotal}건밖에 못 봤다(실측 60건대). 파서를 먼저 볼 것`)
+  if (dvInline < 2) throw new Error(`④c 눈멂 — 인라인 목록을 ${dvInline}건밖에 못 봤다. 따옴표 형태(&quot; vs ")를 볼 것`)
+  if (verdictLists < 1) throw new Error('④c 눈멂 — 판정 목록을 하나도 못 찾았다(현황이 최소 1건)')
+  if (fails.length) throw new Error(`유효성 목록 어휘 불일치 ${fails.length}건:\n  ${fails.join('\n  ')}`)
+  console.log(`   ④c dv 어휘 전수(검증) — dv ${dvTotal}건 중 인라인 ${dvInline}건 · 판정 목록 ${verdictLists}건 · 불일치 0`)
+}
 
 let bytes = new Uint8Array(await outZip.generateAsync({ type: 'uint8array' }))
 
@@ -459,6 +535,10 @@ console.log('⑤ 사후 검증')
   console.log(`   시트 ${wb.SheetNames.length} · 갑지 파트 불변 · 마크=범례만 · 앵커 전수 생존`)
 }
 
+/** ⑤b가 만든 매핑 JSON — 디스크 기록은 ⑥까지 통과한 뒤 '산출' 절에서 한 번에 한다.
+ *  중간에 쓰면 ⑥ 실패 시 json만 새것인 반쪽 트리가 남는다. */
+let itemmapJson = ''
+
 // ── ⑤b 도너 항목 좌표 추출 → 교차검증 → 매핑 기록 (소방계획서_32 D트랙 S5-1) ──
 // 런타임은 XML을 파싱하지 않는다 — 여기서 만든 JSON만 읽는다. 실패가 하나라도 있으면
 // **자산을 갱신하지 않고 세운다**(잘못된 좌표로 주입하면 점검항목 문구를 덮어쓴다).
@@ -509,7 +589,10 @@ console.log('⑤b 항목 좌표 추출')
   const cells: Record<string, [string, string]> = {}
   const itemText: Record<string, string> = {}
   for (const e of ex.entries) { cells[e.code] = [e.sheet, e.cell]; itemText[e.code] = e.itemText }
-  writeFileSync(ITEMMAP, JSON.stringify({
+  // ⚠ **여기서 디스크에 쓰지 않는다.** 종전에는 ⑤b가 곧바로 ITEMMAP을 썼는데, 그 뒤 ⑥(PDF 쪽수 핀)이
+  //   throw하면 **json은 갱신되고 xlsx는 구본인 작업트리**가 남았다(2026-08-30 판정 A 지적).
+  //   산출은 한 곳에서 원자적으로 — 아래 '산출' 절이 xlsx·매니페스트와 함께 쓴다.
+  itemmapJson = JSON.stringify({
     note: '빌드 생성물 — 손으로 고치지 말 것. scripts/build-workbook-full.mts ⑤b가 자산에서 뽑는다.',
     builtAt: new Date().toISOString().slice(0, 10),
     assetSha256: createHash('sha256').update(bytes).digest('hex'),
@@ -517,8 +600,8 @@ console.log('⑤b 항목 좌표 추출')
     resultCols: ex.resultCols,
     dvOnly: ex.dvOnly,
     cells, itemText,
-  }, null, 1) + '\n')
-  console.log(`   ${ex.entries.length}코드 · 결과열 C${nC}/J${nJ} · dv만 ${Object.values(ex.dvOnly).reduce((a, b) => a + b, 0)}칸 → ${ITEMMAP}`)
+  }, null, 1) + '\n'
+  console.log(`   ${ex.entries.length}코드 · 결과열 C${nC}/J${nJ} · dv만 ${Object.values(ex.dvOnly).reduce((a, b) => a + b, 0)}칸 (산출 절에서 기록)`)
 }
 
 // ── ⑥ LibreOffice 렌더 확인(페이지 수 기록) ──────────────────────────
@@ -542,6 +625,9 @@ let pdfPages = 0
 }
 
 // ── 산출 ─────────────────────────────────────────────────────────────
+// ⑤b·⑥을 모두 통과한 뒤에야 디스크를 건드린다 — 중간 실패로 자산과 매핑이 갈라지지 않게.
+if (!itemmapJson) throw new Error('⑤b 매핑이 비었다 — 산출 순서가 깨졌다')
+writeFileSync(ITEMMAP, itemmapJson)
 writeFileSync(OUT, bytes)
 const manifest = {
   source: '전체 보고서.xls',

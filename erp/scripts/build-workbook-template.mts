@@ -467,6 +467,87 @@ console.log('④d 외부 통합문서 링크 파트 제거')
   bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
 }
 
+// ── ④i 유효성 목록 어휘 통일 (소방계획서_32 D트랙 F-D1) ───────────────
+// 기증 원본은 판정 목록을 ASCII `X`(U+0058)로 적는데 ERP의 resultMark()·PDF·별지 4호는
+// 전부 `×`(U+00D7)다. 이 워크북은 **손으로 고쳐 쓰는 산출물**이라(route.ts 머리주석) 드롭다운이
+// X를 내면 주입값 ×와 수기값 X가 한 열에 섞이고, dv가 errorStyle="stop"이라 사용자가 ×를
+// 직접 칠 수도 없다. 「현황」의 판정 dv 65칸이 그 상태였고 **f4v_ 판정 앵커 45칸과 겹친다**
+// — 도너 시트는 설치 설비만 남지만 현황은 **모든 고객 문서에 항상 실린다**(2026-08-30 독립 판정 D).
+//
+// ⚠ **왜 여기서 고치나**: 전체 워크북 빌드(build-workbook-full)는 '갑지 파트 바이트 불변'을
+//   불변식으로 갖고 있다. 결함의 원천이 이 템플릿이므로 **원천에서** 고치고, 하류는 검증만 한다.
+// ⚠ **왜 '전수'인가**: 종전 D-1 수리는 범례 탐지(세로 ○/／X 3연속) 위에서만 돌아
+//   **범례 셀이 있는 시트만** 볼 수 있었다. 목록을 인라인으로 든 현황은 구조적으로 시야 밖이었고,
+//   '범례 37곳'이라는 수치가 "37이 전부"라는 착시를 만들었다.
+//   **탐지축이 못 보는 표면은 '없는 것'이 아니라 '안 센 것'이다.**
+console.log('④i 유효성 목록 어휘 통일')
+{
+  const INJECT_MARKS = ['○', '×', '/'] as const   // resultMark()가 낼 수 있는 전부
+  const zip = await JSZip.loadAsync(bytes)
+  // ⚠ XLSX는 인라인 목록을 `<formula1>&quot;○,X,/&quot;</formula1>`처럼 **XML 이스케이프된
+  //   따옴표**로 적는다. 리터럴 `"`만 찾으면 하나도 못 잡고, 그런데도 '불일치 0'이라 초록을 낸다
+  //   (2026-08-30 내가 실제로 그렇게 만들었다 — 눈먼 검사가 통과를 보고했다). 아래 눈멂 가드 참조.
+  const unquote = (inner: string): string[] | null => {
+    const t = inner.trim()
+    for (const q of ['&quot;', '"']) {
+      if (t.startsWith(q) && t.endsWith(q) && t.length > q.length * 2 - 1) return t.slice(q.length, -q.length).split(',')
+    }
+    return null   // 셀 범위 참조 등 — 인라인 목록이 아니다
+  }
+  const isVerdictList = (items: string[]) => items.includes('○') && items.includes('/')
+  const parts = Object.keys(zip.files).filter(p => /^xl\/worksheets\/[^/]+\.xml$/.test(p))
+
+  let dvTotal = 0, dvInline = 0, fixed = 0
+  const fixedAt: string[] = []
+  for (const p of parts) {
+    const before = await zip.file(p)!.async('string')
+    let dirty = false
+    // 치환은 **함수 replacer**로만 — 목록에 `$`가 섞이면 문자열 replacer가 그룹으로 해석한다
+    const after = before.replace(/(<dataValidation\b([^>]*)>[\s\S]*?<formula1>)([\s\S]*?)(<\/formula1>)/g,
+      (whole, head: string, attrs: string, inner: string, tail: string) => {
+        dvTotal++
+        const items = unquote(inner)
+        if (!items) return whole
+        dvInline++
+        if (!isVerdictList(items) || items.includes('×')) return whole
+        const i = items.indexOf('X')
+        if (i < 0) return whole
+        items[i] = '×'
+        fixed++; dirty = true
+        fixedAt.push(`${p.split('/').pop()}(${/sqref="([^"]*)"/.exec(attrs)?.[1]?.slice(0, 40) ?? '?'})`)
+        return `${head}&quot;${items.join(',')}&quot;${tail}`
+      })
+    if (dirty) zip.file(p, after)
+  }
+  // ⚠ 눈멂 가드 — 0건을 훑고 '불일치 0'이라 말하면 그게 곧 항진명제다. 무엇을 몇 개 보았는지 먼저 단언한다.
+  if (dvTotal < 1) throw new Error(`④i 눈멂 — dv를 하나도 못 봤다(${dvTotal}). 파서를 먼저 볼 것`)
+  if (dvInline < 1) throw new Error(`④i 눈멂 — 인라인 목록을 하나도 못 봤다. 따옴표 형태(&quot; vs ")를 볼 것`)
+
+  bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+
+  // 닫힌 덮개 — 쓴 것을 되읽어 단언한다('썼다'와 '들어갔다'는 다른 축이다)
+  {
+    const back = await JSZip.loadAsync(bytes)
+    const fails: string[] = []
+    let verdictLists = 0
+    for (const p of parts) {
+      const x = await back.file(p)!.async('string')
+      for (const m of x.matchAll(/<dataValidation\b([^>]*)>[\s\S]*?<formula1>([\s\S]*?)<\/formula1>/g)) {
+        const items = unquote(m[2])
+        if (!items || !isVerdictList(items)) continue
+        verdictLists++
+        const sq = /sqref="([^"]*)"/.exec(m[1])?.[1]?.slice(0, 40) ?? '?'
+        const missing = INJECT_MARKS.filter(k => !items.includes(k))
+        if (missing.length) fails.push(`dv(${sq}): 주입 어휘 ${missing.join(' ')} 가 목록에 없다 — ${items.join(',')}`)
+        if (items.includes('X')) fails.push(`dv(${sq}): ASCII X 잔존 — ${items.join(',')}`)
+      }
+    }
+    if (fails.length) throw new Error(`유효성 목록 어휘 불일치 ${fails.length}건:\n  ${fails.join('\n  ')}`)
+    if (verdictLists < 1) throw new Error('④i 눈멂 — 판정 목록을 하나도 못 찾았다(현황이 최소 1건)')
+    console.log(`   dv ${dvTotal}건 중 인라인 ${dvInline}건 · 판정 목록 ${verdictLists}건 · X→× ${fixed}건 수리${fixedAt.length ? ` [${fixedAt.join(' ')}]` : ''} · 불일치 0`)
+  }
+}
+
 // ── ⑤ fullCalcOnLoad ────────────────────────────────────────────────
 console.log('⑤ fullCalcOnLoad 부여')
 {

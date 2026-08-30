@@ -678,14 +678,33 @@
       "id": "S13",
       "title": "[D트랙] 판정이 잡은 결함 — 수리·미수리",
       "status": "partial",
-      "note": "2026-08-30. **타 세션이 같은 서브시스템(소방계획서_27 PII 스크럽)을 동시 작업 중**이라 자산·xlsx-inject.ts 계열은 손대지 않았다. 그쪽이 만지는 파일: xlsx-inject.ts · report-workbook-full.xlsx · report-workbook.xlsx · xlsx-donor-itemmap.json · xlsx-donor-manifest.json · test-xlsx-inject.mts · _probe-xlsx-gate.mts · build-workbook-template.mts · test-all.mts. 자산 sha256이 판정 도중 `0e38e1db…`→`1a55fe02…`로 바뀌었다(07:28).",
+      "note": "✅**2026-08-30 전건 수리 완료.** 판정 직후에는 타 세션(소방계획서_27 PII 스크럽)이 같은 서브시스템을 작업 중이라 자산 계열을 손대지 못했으나, 그쪽이 `14c7369`·`63dcc92`로 착지한 것을 확인하고 F-D1(HIGH)·F-D10·F-D11을 마저 닫았다. 착수 전 `git status`로 자산 계열 작업트리가 깨끗한지 실측했다.\n\n⚠판정 도중 자산 sha256이 `0e38e1db…`→`1a55fe02…`로 바뀌었던 이력이 있다(07:28) — **판정을 인용할 때는 리비전을 함께 적을 것**.",
       "criteria": [
         {
           "id": "F-D1",
           "desc": "🔴[HIGH] 「현황」 시트 dv가 `\"○,X,/\"`(ASCII X)인데 주입값은 `×`(U+00D7) — 45칸, 모든 고객 문서",
-          "status": "pending_order",
+          "status": "implemented",
           "severity": "HIGH",
           "found_by": "판정자 D",
+          "fix": {
+            "date": "2026-08-30",
+            "desc": "**수리 위치를 원천으로 옮겼다.** 처음엔 전체 워크북 빌드(build-workbook-full ④c)에서 고치려 했으나 ⑤의 '갑지 파트 바이트 불변' 불변식이 막았다 — 그 불변식이 옳다. 결함의 원천은 기반 템플릿이므로 `build-workbook-template.mts` **④i**에서 고치고, 하류 ④c는 **검증 전용**으로 두어 '원천 수리가 하류까지 살아왔는가 + 도너가 어긋난 목록을 들고 오지 않았는가'를 본다.\n\n**탐지축도 함께 넓혔다** — 종전 D-1 수리는 범례 탐지(세로 ○/／X 3연속) 위에서만 돌아 **범례 셀이 있는 시트만** 볼 수 있었고, 목록을 인라인으로 든 현황은 구조적으로 시야 밖이었다. 이제 **워크북의 모든 dataValidation**(60건)을 훑는다.",
+            "files": ["erp/scripts/build-workbook-template.mts (④i)", "erp/scripts/build-workbook-full.mts (④c 검증 전용)", "erp/templates/report-workbook.xlsx", "erp/templates/report-workbook-full.xlsx"]
+          },
+          "verified": {
+            "date": "2026-08-30",
+            "method": "판정자 D의 재현 프로브로 전후 대조 + 전 회귀 + 라이브·렌더",
+            "evidence": [
+              "_judgeD-D-3form4.mts — 수리 전 `목록에 없는 값: \"×\"[U+00D7]` / 수리 후 **`없음`**",
+              "목록이 `\"○,×,/\"`(U+00D7)로 바뀌고 dv셀 65 · f4v(판정) 교집합 45는 그대로",
+              "빌드 ④i — `dv 4건 중 인라인 4건 · 판정 목록 1건 · X→× 1건 수리 [sheet5.xml(S7:S30 …)] · 불일치 0`",
+              "빌드 ④c(검증) — `dv 60건 중 인라인 4건 · 판정 목록 1건 · 불일치 0` · **갑지 파트 불변 유지**",
+              "회귀 — donors 32/0 · anchors 59/0 · inject 93/0 · itemmap 21/0 · tsc 0 · PDF 72쪽 핀 유지",
+              "라이브 6/0 · 렌더 7/0 (불량 3건이 행 결속으로 여전히 산다)"
+            ]
+          },
+          "self_note": "⚠**내가 고치던 실패를 검사 자신이 재생산했다.** ④c 첫 판이 인라인 목록의 따옴표를 리터럴 `\"`로 찾았는데 XLSX는 `&quot;`로 적는다 — **0건을 훑고 '불일치 0'이라 초록**을 냈다. 눈먼 검사가 통과를 보고한 것이다. 그래서 ④i·④c·test-xlsx-itemmap 세 곳 모두에 **눈멂 가드**('dv를 몇 건 실제로 훑었는가')를 먼저 세웠다. **축을 넓히는 것만으로는 부족하다 — 그 축이 실제로 무언가를 보고 있는지를 따로 단언해야 한다.**",
+          "false_alarm": "⚠수리 도중 라이브가 500(`주입 값 누락: defectCode4…10`)을 냈고, 'HEAD 자산은 200'이라는 대조군으로 **내 재빌드를 범인으로 지목했다 — 틀렸다.** 자산을 되돌려 재시험하니 내 자산도 200이었다. 타 세션이 그 시각 `defect-grid.tsx`를 편집 중이었고, **순차 대조군(A→B)이 시간에 오염**된 것이다. 공유 트리에서는 A를 **다시** 재보기 전에 인과를 말하지 말 것(현5 결함칸 바이트 대조가 '동일'이라 어긋난 것이 단서였다).",
           "note": "D-1(× 통일)이 도달하지 못한 표면. 도너 37시트는 설치 설비만 남지만 **현황은 항상 실린다**. sqref는 `S7:S30 AO7 AO9:AO10 AO12:AO29 S31:S34 S37:S44 AO37:AO44`(65칸)이고 `f4v_*` 판정 앵커 45칸과 교집합 45. `showErrorMessage=\"true\" errorStyle=\"stop\"`이라 사용자가 ×를 직접 타이핑할 수도 없다 — D3 note가 D-1의 논거로 든 두 문장이 **그대로 성립하는 표면인데 고쳐지지 않았다**.\n\n**왜 못 봤나**: 탐지축이 '세로 3연속 ○/／/X'인 `protectedCells`(build-workbook-full.mts:284-295)라 **범례 셀이 있는 시트만** 볼 수 있다. 현황의 목록은 **인라인**이라 범례 셀이 없어 구조적으로 시야 밖이다. `LEGEND blocks 37 · sheets with legend 37`이 '37이 전부'라는 착시를 만들었다 — 구현자가 이 축에서 자백한 두 오보와 **같은 부류의 세 번째 사각**이다.\n\n**미수리 사유**: 자산 수정이 필요한데 타 세션이 워크북을 재빌드 중이다. 그쪽 새 자산에도 `\"○,X,/\"` 그대로라 **고쳐지는 중이 아니다** — 타 세션 착지 후 반드시 수리할 것.\n재현: `npx tsx erp/scripts/_judgeD-D-3form4.mts` → `주입 어휘 \"○\" \"×\" \"/\" → 목록에 없는 값: \"×\"[U+00D7]`",
           "files": [
             "erp/templates/report-workbook-full.xlsx (현황 인라인 dv)",
@@ -855,15 +874,27 @@
           "status": "pending_order",
           "severity": "MED",
           "found_by": "판정자 A",
-          "note": "`scripts/test-*.mts` 전수 grep에서 `formula1`·`#REF!`·`dvOnly` 히트 0건. 판정자 A가 실증했듯 **오염된 자산에 추출기를 돌리면 실패 0건**이 나오므로, 커밋된 자산이 어떤 경로로든(부분 빌드·나쁜 병합·수기 편집) 오염되면 test:all 전체가 눈이 먼다. 빌드가 쓰기 **전에** 단언을 세우므로 정상 경로는 막혀 있어 MED.\n**미수리 사유**: 수리처가 `test-xlsx-itemmap.mts`인데 판정 대상 자산을 타 세션이 재빌드 중이라, 지금 술어를 붙이면 그쪽 중간 상태에 빨강이 날 수 있다. 타 세션 착지 후 ⑤b의 3술어를 복제할 것(10줄)."
+          "note": "`scripts/test-*.mts` 전수 grep에서 `formula1`·`#REF!`·`dvOnly` 히트 0건. 판정자 A가 실증했듯 **오염된 자산에 추출기를 돌리면 실패 0건**이 나오므로, 커밋된 자산이 어떤 경로로든(부분 빌드·나쁜 병합·수기 편집) 오염되면 test:all 전체가 눈이 먼다. 빌드가 쓰기 **전에** 단언을 세우므로 정상 경로는 막혀 있어 MED.",
+          "fix": {
+            "date": "2026-08-30",
+            "desc": "`test-xlsx-itemmap.mts`에 **[7] 유효성 목록 어휘 + formula1 건전성**을 신설해 빌드 밖으로 끌어왔다 — dv 어휘(○ × / 전수, ASCII X 0) + formula1 XML 혼입·비정상 길이·`#REF!`. 눈멂 가드('dv 60건을 실제로 훑었다')를 함께 세웠다.\n\n**이빨을 합성 입력으로 먼저 증명한다** — 자산을 건드리지 않고 `&quot;○,X,/&quot;`(불량)와 `&quot;○,×,/&quot;`(정상)를 술어에 넣어 각각 잡히고 통과하는지 대조군으로 보인다. 이게 없으면 '자산이 깨끗해서 초록'과 '술어가 눈이 멀어 초록'을 구별할 수 없다.",
+            "files": ["erp/scripts/test-xlsx-itemmap.mts"]
+          },
+          "verified": { "date": "2026-08-30", "method": "재실행", "evidence": ["test-xlsx-itemmap 21/0 — 대조군 2건 포함", "`dv 60건을 실제로 훑었다` · `인라인 4건·판정 목록 1건`"] }
         },
         {
           "id": "F-D11",
-          "desc": "🟡[LOW] 판정자 A가 남긴 소소한 축 4건 — 미수리(자산·빌드 계열이라 타 세션 충돌)",
-          "status": "pending_order",
+          "desc": "🟡[LOW] 판정자 A가 남긴 소소한 축 4건",
+          "status": "implemented",
           "severity": "LOW",
           "found_by": "판정자 A",
-          "note": "①`DONOR_CELL_FIXES`에는 닫힌 덮개가 없다(dv 쪽만 있다) — 지금은 `to`에 `$`가 없어 무해하나 특수문자를 품는 값이 추가되면 같은 부류가 재발 ②⑤b가 ⑥보다 먼저 json을 디스크에 쓴다(⑥ 실패 시 json 갱신·xlsx 구본인 트리가 남음) ③`dvOnly`(45칸)를 어떤 검사도 핀으로 붙들지 않는다 — 주석이 약속한 '변하면 알게 됨'이 실제로는 없다 ④`_probe-wb-itemmap.mts:8,36` 주석이 아직 '넓은 서식 **5**시트(…간4…)'라 적고 있다(실측 4시트). 전부 `build-workbook-full.mts`·`_probe-wb-itemmap.mts` 계열이라 타 세션 착지 후."
+          "note": "①`DONOR_CELL_FIXES`에는 닫힌 덮개가 없다(dv 쪽만 있다) ②⑤b가 ⑥보다 먼저 json을 디스크에 쓴다(⑥ 실패 시 json 갱신·xlsx 구본인 트리가 남음) ③`dvOnly`(45칸)를 어떤 검사도 핀으로 붙들지 않는다 — 주석이 약속한 '변하면 알게 됨'이 실제로는 없다 ④`_probe-wb-itemmap.mts` 주석이 아직 '넓은 서식 **5**시트(…간4…)'라 적고 있다(실측 4시트).",
+          "fix": {
+            "date": "2026-08-30",
+            "desc": "①셀 수리에도 되읽기 덮개 신설(`build-workbook-full.mts` ④) ②⑤b가 JSON을 **문자열로 버퍼링**하고 디스크 기록은 ⑥까지 통과한 뒤 '산출' 절에서 한 번에 — 중간 실패로 자산과 매핑이 갈라지지 않는다 ③`test-xlsx-itemmap.mts` PIN에 `dvOnly: 45` 신설·단언 ④주석 정정 + **`간4`가 실재한다는 사실과 그럼에도 매핑에서 빠지는 이유**(A열 코드 0행)를 함께 적어 다음 사람이 또 헷갈리지 않게 했다.",
+            "files": ["erp/scripts/build-workbook-full.mts", "erp/scripts/test-xlsx-itemmap.mts", "erp/scripts/_probe-wb-itemmap.mts"]
+          },
+          "verified": { "date": "2026-08-30", "method": "재빌드 + 재실행", "evidence": ["빌드 exit 0 · `dv만 45칸 (산출 절에서 기록)` · PDF 72쪽", "test-xlsx-itemmap 21/0 — `dv만 있고 코드 없는 칸 45 = 핀 45` 포함"] }
         }
       ]
     },
@@ -929,6 +960,7 @@
       "title": "[D트랙] 엑셀↔PDF 갈라짐 — 제품 결정 보류",
       "status": "pending_order",
       "note": "2026-08-30 사용자 결정: **일단 문서화만, 결정은 보류.** 판정자 B·D가 각각 독립으로 찾았고 둘 다 '의도인지 결함인지 사용자만 안다'며 넘겼다. 실제 인쇄물을 보고 판단하는 것이 맞다. ⚠**여기 적힌 두 건은 D트랙의 구현 결함이 아니다** — 선별 축 자체가 D트랙 이전(27 S10-2·26 F-1f) 코드다. 다만 '의도된 동작'이라고 어디에도 적혀 있지 않아 다음 사람이 또 판다.",
+      "evidence_probe": "결정 재료를 실물로 확정해 두었다 — `erp/scripts/_probe-s15-divergence.mts` (고치지 않는다, 재료만 만든다). 서림사 C330 실측: **V-1 27건(할1 18 + 할2 9) 중 PDF에 실리는 것 27건 → 전건 갈라진다** / **V-2 현1~4·세1~5 8시트가 앵커 0**(현5만 14칸)인데 이 고객은 세부현황 **6행**(s31_extinguisher·s33_water_each·s35_alarm·s36_evac·s37_supply·s38_activity)을 실제로 채웠다. 판정자 B·D의 수치와 독립 일치.\n⚠이 프로브를 쓸 때: `sheetResponses`·`annex4`는 조립 함수 **반환 최상위**에 있다(`r9.data` 밑이 아니다 — 첫 판이 그래서 터졌다).",
       "criteria": [
         {
           "id": "V-1",

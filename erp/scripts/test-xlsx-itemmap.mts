@@ -11,7 +11,8 @@
  *   [3] 매핑 좌표 전수가 자산에서 실재·공란 (표본 답이 남아 있으면 남의 점검결과를 인쇄한다)
  *   [4] 🔴 역방향 커버리지 — DB 점검표 항목 중 자산에 줄이 없는 코드 수가 핀과 일치
  *   [5] 항목명 3중 축 — 도너 행 문구 ↔ DB item_name. **정답을 몰라도** 좌표·코드 결속을 검증한다
- *   [6] 규약 — 런타임(src/app)이 추출기를 임포트하지 않는다(런타임 XML 파싱 금지) */
+ *   [6] 규약 — 런타임(src/app)이 추출기를 임포트하지 않는다(런타임 XML 파싱 금지)
+ *   [7] 유효성 목록 어휘 + formula1 건전성 — 빌드에만 있던 회귀축을 test:all로 끌어온다 */
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import JSZip from 'jszip'
@@ -29,6 +30,9 @@ const PIN = {
   uncovered: 428,
   /** 자산에만 있고 카탈로그엔 없는 코드 — 고시 서식이 더 넓은 것은 정상 */
   assetOnly: 213,
+  /** dv는 있는데 A열 코드가 없는 칸(시트별 합계). 추출기 주석이 "무해하지만 변하면 알아야 한다"고
+   *  적어두고도 **아무도 핀으로 붙들지 않아** 실제로는 알 수 없었다(2026-08-30 판정 A 지적). */
+  dvOnly: 45,
 }
 
 let pass = 0, fail = 0
@@ -155,6 +159,77 @@ console.log('[6] 규약 — 런타임이 추출기를 임포트하지 않는다'
   check(`src/app ${files.length}파일을 실제로 훑었다(0이면 검사가 눈이 먼 것)`, files.length > 50, String(files.length))
   const hits = files.filter(f => readFileSync(f, 'utf8').includes('xlsx-donor-itemmap-extract'))
   check('src/app에서 추출기 임포트 0(런타임 XML 파싱 금지)', hits.length === 0, hits.join(', '))
+}
+
+console.log('[7] 유효성 목록 어휘 + formula1 건전성')
+{
+  // 이 축이 왜 여기 있나: 종전에는 formula1 오염·#REF! 잔존 검사가 **빌드 안에만** 있었다.
+  // 그런데 오염된 자산에 추출기를 돌리면 실패 0건이 나오므로(2026-08-30 판정 A 실증),
+  // 커밋된 자산이 어떤 경로로든 오염되면 test:all 전체가 눈이 먼다. 빌드 밖으로 끌어온다.
+  //
+  // ⚠ XLSX는 인라인 목록을 `<formula1>&quot;○,X,/&quot;</formula1>`로 적는다 — 리터럴 `"`만
+  //   찾으면 하나도 못 잡고, 그런데도 '불일치 0'이라 초록을 낸다(2026-08-30 내가 실제로 그랬다).
+  const INJECT_MARKS = ['○', '×', '/']
+  const unquote = (inner: string): string[] | null => {
+    const t = inner.trim()
+    for (const q of ['&quot;', '"']) {
+      if (t.startsWith(q) && t.endsWith(q) && t.length > q.length * 2 - 1) return t.slice(q.length, -q.length).split(',')
+    }
+    return null
+  }
+  const isVerdictList = (items: string[]) => items.includes('○') && items.includes('/')
+  const DV_RE = /<dataValidation\b([^>]*)>[\s\S]*?<formula1>([\s\S]*?)<\/formula1>/g
+
+  // ── 이빨 자가 시험: 합성 입력으로 술어가 정말 잡는지 먼저 보인다(자산을 건드리지 않는다).
+  //    이게 없으면 '자산이 깨끗해서 초록'과 '술어가 눈이 멀어 초록'을 구별할 수 없다.
+  {
+    const BAD = '<dataValidation sqref="A1" type="list"><formula1>&quot;○,X,/&quot;</formula1></dataValidation>'
+    const GOOD = '<dataValidation sqref="A1" type="list"><formula1>&quot;○,×,/&quot;</formula1></dataValidation>'
+    const judge = (xml: string) => {
+      const m = [...xml.matchAll(DV_RE)][0]
+      const items = m ? unquote(m[2]) : null
+      if (!items || !isVerdictList(items)) return 'not-verdict'
+      return items.includes('X') || INJECT_MARKS.some(k => !items.includes(k)) ? 'bad' : 'ok'
+    }
+    check('[대조군] 술어가 ASCII X 목록을 잡는다', judge(BAD) === 'bad', judge(BAD))
+    check('[대조군] 술어가 정상 목록은 통과시킨다', judge(GOOD) === 'ok', judge(GOOD))
+  }
+
+  const parts = Object.keys(zip.files).filter(p => /^xl\/worksheets\/[^/]+\.xml$/.test(p))
+  let dvTotal = 0, dvInline = 0, verdict = 0
+  const bad: string[] = []
+  const f1Bad: string[] = []
+  for (const p of parts) {
+    const x = await zip.file(p)!.async('string')
+    for (const m of x.matchAll(DV_RE)) {
+      dvTotal++
+      const sq = /sqref="([^"]*)"/.exec(m[1])?.[1]?.slice(0, 30) ?? '?'
+      // formula1 건전성 — XML 혼입·비정상 길이·#REF! (2026-08-29 `$16` 실사고의 회귀축)
+      if (/[<>]/.test(m[2])) f1Bad.push(`${p} ${sq}: formula1에 XML 혼입`)
+      if (m[2].length > 60) f1Bad.push(`${p} ${sq}: formula1 비정상 길이 ${m[2].length}`)
+      if (m[2].includes('#REF!')) f1Bad.push(`${p} ${sq}: #REF! 잔존`)
+      const items = unquote(m[2])
+      if (!items) continue
+      dvInline++
+      if (!isVerdictList(items)) continue
+      verdict++
+      const missing = INJECT_MARKS.filter(k => !items.includes(k))
+      if (missing.length) bad.push(`${p} ${sq}: 주입 어휘 ${missing.join(' ')} 없음 — ${items.join(',')}`)
+      if (items.includes('X')) bad.push(`${p} ${sq}: ASCII X 잔존 — ${items.join(',')}`)
+    }
+  }
+  // 눈멂 가드 — '무엇을 몇 개 보았는가'를 먼저 단언한다
+  // dvOnly 핀 — 추출기가 "무해하지만 변하면 알아야 한다"고 적어둔 축. 적어두기만 하고
+  // 아무도 붙들지 않아 실제로는 알 수 없었다(2026-08-30 판정 A). 여기서 붙든다.
+  {
+    const total = Object.values(itemmap.dvOnly as Record<string, number>).reduce((a, b) => a + b, 0)
+    check(`dv만 있고 코드 없는 칸 ${total} = 핀 ${PIN.dvOnly}`, total === PIN.dvOnly,
+      `${total} — 자산 서식이 바뀌었다. 확인 후 핀 갱신(자동 갱신 금지)`)
+  }
+  check(`dv ${dvTotal}건을 실제로 훑었다(0이면 검사가 눈이 먼 것)`, dvTotal >= 40, String(dvTotal))
+  check(`인라인 목록 ${dvInline}건·판정 목록 ${verdict}건을 찾았다`, dvInline >= 2 && verdict >= 1, `inline=${dvInline} verdict=${verdict}`)
+  check('판정 목록이 주입 어휘(○ × /)를 전부 담는다 — ASCII X 0', bad.length === 0, bad.slice(0, 3).join(' | '))
+  check('formula1 건전성 — XML 혼입·비정상 길이·#REF! 0', f1Bad.length === 0, f1Bad.slice(0, 3).join(' | '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
