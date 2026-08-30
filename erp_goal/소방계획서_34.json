@@ -2,7 +2,7 @@
   "doc": "소방계획서_34 — 별지 서식을 최상위 탭으로 승격 ([소방계획서] 옆 [별지서식])",
   "design": "erp_goal/소방계획서_34.md",
   "created": "2026-08-29",
-  "updated": "2026-08-30 (S7-7 test-all.mts 등재로 잔여 해소 — 8/29 '설계 확정 · 코드 미실행' 표기는 그 뒤 구현·판정·커밋 4c38e27로 무효화됐다)",
+  "updated": "2026-08-30 후속 (잔여 2건 전부 해소 — ①test-plan-tab 99/0 완전 초록 ②S4-4 폴백 분기 미검증을 신규 프로브 12/0으로 닫음. '재현 불가'는 오판이었다)",
   "related": ["소방계획서_8", "소방계획서_14", "소방계획서_20", "소방계획서_30"],
   "supersedes": [
     { "doc": "소방계획서_8", "id": "D-12", "action": "moved", "reason": "3그룹 재편의 '📑 별지 서식' 그룹이 트리에서 최상위 탭으로 이동. 기능은 살아 있고 자리만 바뀐다 — 구현 시 8.json 해당 criteria에 superseded_by를 붙이고 34의 새 파일:라인으로 사슬을 잇는다" },
@@ -69,7 +69,9 @@
         { "id": "S4-1", "desc": "타 경로 Link 7곳 — inspection-ledger/ledger-client.tsx:98 · inspections/inspection-calendar-client.tsx:2040 · inspections/inspection-timeline-client.tsx:481 · inspections/inspection-workbench.tsx:424 · reports/submission-board.tsx:188 · customers/recent-customers-strip.tsx:65 · app/(dashboard)/customers/page.tsx:277", "status": "implemented" },
         { "id": "S4-2", "desc": "서버 redirect 1곳 — app/(dashboard)/reports/page.tsx:13. test-click-budget.mts:61-68과 동시에 고칠 것", "status": "implemented" },
         { "id": "S4-3", "desc": "문자열 상수 3곳 — customers/[id]/page.tsx:939(S1-6과 동일 건, <a> 유지) · plan-annex-section.tsx:309 entryFrom · :372 AnnexComposePanel from", "status": "implemented" },
-        { "id": "S4-4", "desc": "plan-form14-specs.tsx:800-805 [⑨ 9호로 돌아가기] 히스토리 없을 때 폴백 — 같은 경로 router.push는 서버 재렌더를 못 일으킨다. useCustomerTabs()?.goTab('annex') 우선, 셸 밖이면 window.location.assign 폴백. plan-tab-view.tsx:246이 이미 쓰는 패턴", "status": "implemented" },
+        { "id": "S4-4", "desc": "src/components/customers/plan-form14-specs.tsx:811-823 [⑨ 9호로 돌아가기] 히스토리 없을 때 폴백 — 같은 경로 router.push는 서버 재렌더를 못 일으킨다. useCustomerTabs()?.goTab('annex') 우선(:818), 셸 밖이면 window.location.assign 폴백(:819). plan-tab-view.tsx:248이 이미 쓰는 패턴", "status": "implemented",
+          "verified": "2026-08-30 — _probe-annex-back-fallback.mts 12/0. 팝업(window.open = 실사용 ctrl-click)에서 history.length===1을 **계측으로 단언**한 뒤 클릭 → 별지서식 탭 활성 + 별지 본체 렌더. length===1 자체가 back 분기를 타지 않았다는 증거다. 폴백 안의 두 갈래도 갈랐다 — 누르기 직전 심은 window 표식이 클릭 후에도 생존 → goTab(soft 전환)이지 location.assign이 아니다. 대조군 ③(length>1)에서 back 분기도 초록이라 '아무 데서나 되는 버튼'과 구별된다.",
+          "correction": "종전 measured.unverified가 '재현 불가'로 남겼던 항목이다. 그 사유('Playwright는 goto 한 번에 length=2가 된다')는 newPage()+goto에만 참이고, window.open으로 연 컨텍스트는 초기 about:blank가 **교체**되어 length===1로 남는다. 도구의 한계가 아니라 여는 방법의 문제였다 — 재현 불가라고 적기 전에 재봤어야 했다." },
         { "id": "S4-5", "desc": "reports/command-palette.tsx:29-33 — 전역 헤더라 CustomerTabs 컨텍스트 밖이다. 현재 pathname이 그 고객이면 window.location.assign, 아니면 router.push. 전역 이벤트 브리지를 새로 파지 않는다(팔레트는 '처음부터 다시' 동선이고 test-click-budget은 클릭 수만 센다)", "status": "implemented" }
       ] },
 
@@ -84,7 +86,7 @@
     { "id": "S6", "title": "딥링크 왕복 — 탭이 갈라지며 깨지는 지점", "status": "implemented",
       "criteria": [
         { "id": "S6-1", "desc": "annex-compose-panel.tsx:219 <Link> → <a>(전체 이동). 출발지 href는 :25의 ?tab=plan&form=1.4&from=report9&insp=이고 이 패널은 plan-annex-section.tsx:368 = 고객 상세 같은 경로에서 뜬다. 탭 분리 후에는 prevInitialRef(customer-tabs.tsx:44)+prevFormRef(plan-tab-view.tsx:123) 둘 다 서버 재렌더에 의존하게 된다. 추가 근거: plan-form14-specs.tsx:287이 from=report9를 마운트 시 window.location.search에서 직접 읽으므로 클라이언트 전환으로는 스플릿 ON·첫 빈칸 포커스·복귀 바가 안 켜진다", "status": "implemented" },
-        { "id": "S6-2", "desc": "1.4 → 별지 복귀(plan-form14-specs.tsx:801-804) — router.back()은 back/forward가 항상 서버 렌더를 다시 태우므로 S6-1을 <a>로 바꾸면 안전(히스토리 엔트리가 확실히 쌓인다). push 폴백은 S4-4", "status": "implemented" },
+        { "id": "S6-2", "desc": "1.4 → 별지 복귀(plan-form14-specs.tsx:811-823) — router.back()은 back/forward가 항상 서버 렌더를 다시 태우므로 S6-1을 <a>로 바꾸면 안전(히스토리 엔트리가 확실히 쌓인다). push 폴백은 S4-4", "status": "implemented" },
         { "id": "S6-3", "desc": "별지 → /inspections/{id}/sheet?from= → 뒤로 왕복 — pathname이 달라 양방향 서버 렌더라 안전. 값만 /customers/{id}?tab=annex로 교체(sheet/page.tsx의 from 검증 '/' 시작·'//' 금지 통과)", "status": "implemented" },
         { "id": "S6-4", "desc": "annex-missing-list.tsx의 ?from=<entryFrom> 축도 S6-3과 함께 값 반영", "status": "implemented" },
         { "id": "S6-5", "desc": "영향 없음 확인 완료 — plan-form14.tsx:193 · page.tsx:615의 ?tab=plan&form=1.4, test-sheet-entry-page.mts 픽스처는 별지와 무관", "status": "implemented" }
@@ -100,7 +102,8 @@
         { "id": "S7-5", "desc": "신규 _probe-annex-lazy-mount.mts — page.on('request')로 서버액션 POST 카운트: ?tab=info 로드 후 getCustomerRoundsAction 0건, 별지 탭 클릭 시 1건. 이게 없으면 S2 배선이 조용히 끊겨도 아무도 모른다", "status": "implemented" },
         { "id": "S7-6", "desc": "신규 _probe-annex-roundtrip.mts — 별지→9호[작성]→1단[수정]→소방계획서 탭+data-plan-node=1.4+복귀 바+대장 <details> open →[9호로 돌아가기]→별지 탭 복귀. 그리고 별지→점검표 입력→뒤로→별지 탭 복귀", "status": "implemented" },
         { "id": "S7-7", "desc": "test-all.mts 등재 — test-plan-tab.mts·test-annex-interaction.mts가 미등재라 지금도 조용히 썩고 있다. 이번에 손대는 김에 신규 프로브 4종과 함께 등재", "status": "implemented",
-          "verified": "2026-08-30 — test-all.mts:108-120에 4종 등재(test-plan-tab · test-annex-interaction · _probe-annex-tab · _probe-annex-samepath-nav). 설계가 이름 붙인 신규 4종 중 실재하는 것은 2종뿐이다: S7-5(지연 마운트)는 probe_self_correction대로 _probe-annex-tab ④로 흡수됐고, S7-6(왕복)은 _probe-annex-samepath-nav ②와 test-annex-interaction '복귀 — 별지 서식 화면으로 돌아감'에 들어 있다 — 별도 _probe-annex-roundtrip.mts는 만들어진 적이 없다(scripts 실측). 등재 직전 4종 재실행: _probe-annex-tab 14/0 · _probe-annex-samepath-nav 13/0 · test-annex-interaction 37/0 · test-plan-tab은 환경 축으로 보류(아래 measured.env_blocked)" },
+          "verified": "2026-08-30 — test-all.mts:108-120에 4종 등재(test-plan-tab · test-annex-interaction · _probe-annex-tab · _probe-annex-samepath-nav). 설계가 이름 붙인 신규 4종 중 실재하는 것은 2종뿐이다: S7-5(지연 마운트)는 probe_self_correction대로 _probe-annex-tab ④로 흡수됐고, S7-6(왕복)은 _probe-annex-samepath-nav ②와 test-annex-interaction '복귀 — 별지 서식 화면으로 돌아감'에 들어 있다 — 별도 _probe-annex-roundtrip.mts는 만들어진 적이 없다(scripts 실측). 등재 직전 4종 재실행: _probe-annex-tab 14/0 · _probe-annex-samepath-nav 13/0 · test-annex-interaction 37/0 · test-plan-tab은 환경 축으로 보류(아래 measured.env_blocked)",
+          "verified2": "2026-08-30 후속 — 등재 **5종**으로 늘었다(test-all.mts에 _probe-annex-back-fallback.mts 추가). 그리고 보류였던 test-plan-tab을 조용한 트리에서 돌려 **99/0 exit=0**으로 닫았다. 5종 전건 초록 수치는 measured.suites_green의 2026-08-30 블록." },
         { "id": "S7-8", "desc": "npm run build(annex prop 제거의 호출부 누락을 여기서 잡는다) + npm run test:all + 수동 스위트(test-plan-tab · test-annex-interaction · test-chip-nav · _probe-form14-result-badge)", "status": "implemented" }
       ] }
   ],
@@ -128,7 +131,7 @@
     { "id": "R8", "level": "low", "desc": "탭 개수 변경으로 nth 기반 셀렉터 파손", "mitigation": "plan은 index 3 유지(annex를 4에) — _diag-header-plan-link.mts:35 확인 완료" }
   ],
 
-  "current_state": "완결 — 구현·독립 판정·커밋·푸시 전부 완료(2026-08-29). 커밋 4c38e27(27파일 +1237/-79), 푸시 완료(게이트 그린·INV 전건 0건). 마이그레이션 없음(DB 무관). 전 36 criteria implemented. **잔여였던 S7-7(test-all.mts 등재)도 2026-08-30 완료 — test-all.mts:108-120에 4종 등재.** 남은 것은 test-plan-tab 초록 재확인 1건뿐이고, 그건 34의 축이 아니라 환경(dev 3.1GB·여유 652MB)과 타 세션 미커밋 35 작업이 겹친 자리다(measured.env_blocked).",
+  "current_state": "완결 — 구현·독립 판정·커밋·푸시 전부 완료(2026-08-29). 커밋 4c38e27(27파일 +1237/-79), 푸시 완료(게이트 그린·INV 전건 0건). 마이그레이션 없음(DB 무관). 전 36 criteria implemented. **잔여였던 S7-7(test-all.mts 등재)도 2026-08-30 완료 — test-all.mts에 5종 등재.** 🟢**2026-08-30 후속으로 잔여 2건 전부 해소 — 남은 것 0.** ①test-plan-tab.mts **99/0 exit=0**(조용한 트리 첫 실행). 6회나 실패했던 진짜 원인은 메모리가 아니라 **`.next` 캐시 손상 4,954MB**였다 — 새 dev가 모든 경로를 404로 응답했고, 지우니 `/login 200`+스위트 초록(measured.env_blocked.resolved_2026_08_30). ②S4-4 goTab 폴백 분기의 '재현 불가'는 **오판**이었다 — window.open 팝업은 history.length===1이라 분기에 닿는다. 신규 `_probe-annex-back-fallback.mts` 12/0으로 계측·단언·갈래판별·대조군까지 닫고 test-all에 등재했다. ⚠미커밋 상태(사용자 승인 대기).",
 
   "verified": {
     "date": "2026-08-29",
@@ -139,7 +142,7 @@
       "customers/[id]/page.tsx:87-97 정규화 3줄(영구 존치 주석 포함) · :427-440 tabDefs annex(plan 바로 뒤·뱃지 없음) · :780-788 annexTab(카드 래퍼 복제) · :986-993 CustomerTabs(resolvedTab·panels.annex·fullWidthKeys·lazyKeys) · :963-967 헤더 <a> ?tab=annex",
       "customer-tabs.tsx:31-41 lazyKeys prop · :56-57 visitedRef · :152 deferred 분기(null)",
       "plan-tab-view.tsx:76-109 annex prop 제거 · :115 VALID_SEL · :375-381 NAV_ALL · :399-404 별지 그룹 삭제·보관이력 유지 · :459 렌더 분기 삭제. 실행 코드에 annex 식별자 0건(주석만)",
-      "링크 13곳 ?tab=annex — ledger-client:98 · inspection-calendar-client · inspection-timeline-client · inspection-workbench:424 · submission-board:188 · recent-customers-strip:65 · customers/page.tsx · reports/page.tsx:13 · plan-annex-section:309,372 · page.tsx:963 · plan-form14-specs:803-810(goTab 폴백) · command-palette:29-41(location.assign)",
+      "링크 13곳 ?tab=annex — ledger-client:98 · inspection-calendar-client · inspection-timeline-client · inspection-workbench:424 · submission-board:188 · recent-customers-strip:65 · customers/page.tsx · reports/page.tsx:13 · plan-annex-section:309,372 · page.tsx:963 · plan-form14-specs:811-823(goTab 폴백) · command-palette:29-41(location.assign)",
       "customer-tabs.tsx:102 미저장 가드에 'annex' 미포함·'plan' 특례 유지",
       "annex-compose-panel.tsx:223 <a> 전체 이동 + next/link import 제거"
     ],
@@ -160,11 +163,17 @@
       "test-annex-sheet-inline.mts 27/0",
       "test-click-budget.mts 7/0",
       "test-cd-ui.mts 7/0",
-      "_probe-s30-sibling-links.mts 10/0 (무수정 — annex 무관 확인)"
+      "_probe-s30-sibling-links.mts 10/0 (무수정 — annex 무관 확인)",
+      "── 2026-08-30 조용한 트리 재실측(dev 단독·타 node 0개·.next 신규) ──",
+      "test-plan-tab.mts **99/0 exit=0** (3분) — 8/30에 6회 시도해도 못 봤던 완전 초록이 첫 실행에 나왔다",
+      "test-annex-interaction.mts 37/0 (1회차는 cold-compile 플레이크 22/1 — 아래 cold_compile_flake)",
+      "_probe-annex-tab.mts 14/0",
+      "_probe-annex-samepath-nav.mts 13/0",
+      "_probe-annex-back-fallback.mts 12/0 (신규 — S4-4 폴백 분기)"
     ],
     "unverified": [
-      "[⑨ 9호로 돌아가기]의 goTab 폴백 분기(S4-4) — Playwright 새 페이지는 about:blank에서 시작해 goto 한 번에 history.length=2가 되므로 window.history.length<=1 분기를 재현할 수 없다. 실사용의 ctrl-click 새 탭에서만 발생. 프로브는 주 경로(별지→1.4→back, 통과)만 단언한다. 코드 자체는 판정자 B가 파일:라인으로 확인했다(plan-form14-specs.tsx:803-810).",
-      "npm run test:all — 미실행. 타 세션이 scripts/test-all.mts를 수정 중이라 회피했다(공유 인덱스·동시 편집 충돌 방지). 다만 pre-push 게이트가 빌드 + INV 전건을 돌려 통과했다."
+      "✅해소(2026-08-30) — [⑨ 9호로 돌아가기]의 goTab 폴백 분기(S4-4). 종전 사유였던 '재현 불가'가 **오판**이었다: newPage()+goto만 length=2가 되고, window.open으로 연 팝업(=실사용 ctrl-click)은 초기 about:blank가 교체돼 length===1로 남는다. _probe-annex-back-fallback.mts 12/0으로 계측+단언+갈래판별(goTab vs location.assign)+대조군까지 닫았다. 상세는 S4-4의 verified·correction 참조.",
+      "npm run test:all — 여전히 미실행. 타 세션 미커밋 8파일(36·37 세션)이 트리에 있어 전체 스위트를 돌리면 실패의 귀속이 흐려진다. 대신 34가 등재한 5종을 개별 실행해 전건 초록으로 확인했다(suites_green 2026-08-30 항목)."
     ],
     "not_done": [
       "해소(2026-08-30) — S7-7 test-all.mts 등재 완료. 8/29에 회피한 사유(타 세션이 그 파일을 미커밋 수정 중)는 `0775700`으로 그쪽이 커밋을 마쳐 사라졌다. ⚠기록 정정: 8/29 시점의 S7-7 status는 `implemented`인데 not_done에는 '미실행'이라 적혀 있었다 — 같은 항목을 두 곳이 반대로 말하는 과대 표기였다(Json_Rule 규칙 2)."
@@ -177,7 +186,14 @@
       "resolved_axis": "2026-08-30 후속 — **앱은 무죄, 테스트가 성급했다.** 같은 2건이 재현되기에 격리 진단(_diag-34-red2.mts, 건물 픽스처 포함)으로 갈랐다: ①1.4 ☑는 클릭 **직후** 곧바로 aria-pressed=true·글리프 ☑ ②2장 성명은 fill 직후 값 '김대장' 유지. 둘 다 대기 없이도 통과한다 — 의심했던 소방계획서_35 미커밋 작업(plan-form14.tsx 분류 열 토큰화)은 **무관**으로 기각한다.",
       "test_fixed": "test-plan-tab.mts 두 자리를 고쳤다(단언 조건은 그대로, 읽는 시점만). ①:359 재입력이 pressSequentially라 **덧붙어서** '김대장김대장장'이 저장돼 :374의 name==='김대장'을 스스로 깼다 → fill(치환)로. 방어의 목적은 '다시 넣기'지 '이어 붙이기'가 아니다 ②:420 클릭 직후 즉시 읽기 → 최대 5초 폴링. 버튼이 보여도 하이드레이션 전이면 클릭이 핸들러에 닿지 않는데 DOM은 이미 있어 Playwright는 성공으로 본다. **재실행에서 두 단언 모두 통과(96/2 → 97/1).**",
       "still_red": "남은 1건은 또 다른 자리다 — 'DB 1.1 신규 필드(buildings)' stairs_count·evac_elevator_count null(:151). 진단 ③으로 격리 재현했더니 **여기도 앱은 무죄**다(fill 값 유지 · 토스트 · DB에 2·1 실림). 세 자리 전부 앱이 아니라 긴 스위트+느린 dev의 타이밍이다. :146-149에 저장 전 입력 확인 루프를 넣었으나 **격리에선 실패가 재현되지 않아 그 가드가 실제로 듣는지는 미검증**이다 — 다만 값이 끝내 안 들어가면 :151에서 종전과 똑같이 실패하므로 단언을 가리지는 않는다.",
-      "cannot_verify": "test-plan-tab 완전 초록은 **끝내 못 봤다**. 이 세션에서 6회 실행했고 그중 3회가 서로 다른 지점에서 환경으로 죽었다(단언 33 click 타임아웃 · 단언 24 goto ERR_ABORTED · 단언 16 저장 토스트 15초 타임아웃). 그동안 타 세션이 dev를 4번 재기동했다(PID 3628→17740→30420→31436→4068). **조용한 트리에서 단독 1회 재실행이 남은 일이다.**",
+      "cannot_verify": "(2026-08-30 해소 — 아래 resolved_2026_08_30 참조) 종전 기록: test-plan-tab 완전 초록은 끝내 못 봤다. 6회 실행 중 3회가 서로 다른 지점에서 환경으로 죽었다(단언 33 click 타임아웃 · 단언 24 goto ERR_ABORTED · 단언 16 저장 토스트 15초 타임아웃).",
+      "resolved_2026_08_30": {
+        "result": "**test-plan-tab.mts 99/0 exit=0** — 조용한 트리에서 첫 실행에 완전 초록. 나머지 34 등재 스위트도 전건 초록(37/0·14/0·13/0) + 신규 폴백 프로브 12/0.",
+        "real_root_cause": "메모리 고갈이 아니라 **`.next` 캐시 손상**이었다. 착수 시 node 프로세스가 0개(=조용한 트리)였는데도 새로 띄운 dev가 `/login`·`/`·`/customers`를 **전부 404**로 응답했다 — 컴파일 에러도 로그도 없이. `.next`가 **4,954MB / 13,948파일**이었다. 지우고 재기동하니 `Ready in 835ms`, `/login 200`, 그리고 스위트가 첫 실행에 초록. ⚠종전 root_cause('dev 3.1GB·여유 652MB = 메모리 고갈의 서명')는 **증상을 원인으로 적은 것**일 수 있다 — 비대한 dev 프로세스와 5GB 캐시는 같은 뿌리의 두 얼굴이다. 앞으로 'E2E가 실행마다 다른 지점에서 죽는다'를 보면 RAM만 보지 말고 **`.next` 크기와 `/login` 상태코드**를 함께 잴 것.",
+        "my_own_misreport": "예열 확인을 `Measure-Command { try { Invoke-WebRequest } catch {} }`로 짜서 404 예외를 catch가 삼켰고, 나는 '/login → 0.2s'를 **성공으로 오보**했다. 실제로는 그때도 404였다. 상태코드를 안 찍고 소요시간만 찍은 게 원인 — 검사는 종료코드·상태코드를 명시적으로 출력할 것(feedback_ps_redirect_swallows의 재발).",
+        "still_unproven": "8/30 선행 세션이 :146-149에 넣은 '저장 전 입력 확인 루프'가 **실제로 듣는지는 여전히 미검증**이다. 스위트가 초록인 것은 그 가드가 작동했다는 증거가 아니다(가드 없이도 통과했을 수 있다). 다만 값이 끝내 안 들어가면 :151에서 종전과 똑같이 실패하므로 단언을 가리지는 않는다 — 무해하나 무증명."
+      },
+      "cold_compile_flake": "`.next`를 지운 직후 1회차 test-annex-interaction이 22/1로 중단됐다(:146 `textarea[aria-label=\"비고·보완 문구\"]` 15초 대기 초과). 앱 무죄 — 그 라벨은 annex-fields.tsx:38에 실재하고, **무수정 재실행에서 37/0**. 원인은 그 라우트의 첫 진입 컴파일이 검사 기본 타임아웃(15s)보다 오래 걸린 것. 캐시를 비운 뒤 첫 회차는 대조군으로 쓰지 말 것.",
       "env_note": "dev 서버는 내가 띄운 게 아니고(내 npm run dev는 포트 충돌로 죽었다) 사용자 결정으로 재기동하지 않았다. 이 세션 동안 타 세션이 두 번 재기동했다(PID 3628→17740→30420→31436). 'E2E가 실행마다 다른 지점에서 죽는다'가 보이면 코드보다 이 축을 먼저 볼 것."
     },
     "review_note": "판정자 A가 지적한 render-phase ref mutation(customer-tabs.tsx:56-57 visitedRef.current.add(active))은 엄격한 React 규칙상 권장되지 않는다. 다만 ①같은 파일이 이미 :45-48에서 렌더 중 setActive를, :66-67에서 linkNavRef 대입을 하고 있어 기존 패턴과 일관되고 ②버려진 렌더가 Set에 키를 넣어도 결과는 '그 탭이 조금 일찍 마운트된다'뿐이라 정합성 결함이 아니다. 수정하지 않되 기록으로 남긴다.",

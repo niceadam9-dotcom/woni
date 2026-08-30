@@ -68,10 +68,11 @@ try {
 
   // ══ ② [⑨ 9호로 돌아가기] — 별지 → 1.4 → 복귀 왕복 ═══════════════════════════
   // ⚠ 이 버튼은 history.length > 1 이면 router.back(), 아니면 goTab('annex') 폴백을 탄다.
-  //   Playwright의 새 페이지는 about:blank에서 시작해 goto 한 번에 length=2가 되므로
-  //   **폴백 분기는 이 도구로 재현할 수 없다**(실사용의 ctrl-click 새 탭은 length=1).
-  //   그래서 여기서는 실제 사용자가 밟는 주 경로(별지 → 1.4 → back)를 단언하고,
-  //   폴백은 미검증으로 남긴다 — '검사했다'고 적지 않는다.
+  //   여기서 단언하는 것은 **back 분기**(주 경로)뿐이다 — newPage()+goto는 length>1이 된다.
+  //   ⚠ 2026-08-30 정정: 종전 이 자리에 "폴백 분기는 이 도구로 재현할 수 없다"고 적어 두고
+  //   S4-4를 미검증으로 남겼었는데, 그건 재보니 **틀렸다**. 실사용의 ctrl-click은 window.open이고
+  //   그렇게 열린 컨텍스트는 초기 about:blank가 **교체**돼 length===1로 남는다 — Playwright도 똑같이 연다.
+  //   폴백 분기는 _probe-annex-back-fallback.mts가 계측(length===1)까지 붙여 단언한다.
   const ctx = await browser!.newContext({
     viewport: { width: 1500, height: 950 },
     storageState: await page.context().storageState(),
