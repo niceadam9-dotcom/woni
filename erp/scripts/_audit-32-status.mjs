@@ -71,6 +71,23 @@ for (const s of doc.sections) {
   }
 }
 
+console.log('\n══ E 동일 작업 짝 — 한쪽만 올라가 있지 않은가 ══')
+// ⚠ A·B 사이로 빠지는 부류가 있다: 근거 블록 없이 note에만 '완료'가 적힌 code_present.
+//   S9-1이 그랬다 — desc가 「S9-1과 동일 작업」이라 선언된 T7-1은 implemented인데 S9-1은 code_present로 남았다.
+//   그래서 '동일 작업' 선언을 축으로 삼는다.
+{
+  const all = doc.sections.flatMap(s => walk(s.criteria).map(c => ({ s, c })))
+  const byId = new Map(all.map(x => [x.c.id, x]))
+  for (const { s, c } of all) {
+    const m = /([A-Z]?\d+(?:-\d+)*)과 동일 작업/.exec(String(c.desc ?? '') + String(c.note ?? ''))
+    if (!m) continue
+    const other = byId.get(m[1])
+    if (!other) continue
+    const a = DONE.has(c.status), b = DONE.has(other.c.status)
+    if (a !== b) flag('E', `${s.id}/${c.id}`, `「${m[1]}과 동일 작업」인데 상태가 갈린다 — ${c.id}=${c.status} vs ${m[1]}=${other.c.status}`)
+  }
+}
+
 console.log('\n══ D 부모-자식 정합 ══')
 for (const s of doc.sections) {
   const kids = walk(s.criteria)

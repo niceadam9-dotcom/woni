@@ -1251,13 +1251,24 @@
     },
     {
       "id": "S9",
-      "title": "후속 반영·승인 게이트",
-      "status": "pending_order",
+      "title": "후속 반영·승인 게이트 — 전건 통과",
+      "status": "implemented",
+      "note": "2026-08-30 전건 완료 — 30.json 반영(S9-1·T7-1) · D-2 사후 승인(S9-2) · 커밋·푸시(S9-3·S9-5) · 운영 152 적용(S9-4). ⚠자식을 하나씩 올리면서 섹션을 안 올려 감사가 마지막에 잡았다 — 이번 문서에서만 **S13·S2·S6·S9 네 번** 되풀이한 실수다(F-D10과 같은 부류).",
       "criteria": [
         {
           "id": "S9-1",
           "desc": "30.json 반영 — S4-1·S4-2·S4-3을 implemented+verified로, S4-4를 partial로, S3/S3-1~3을 실제 판정값(partial·partial·implemented)으로 정정하고 related: 소방계획서_32 부기",
-          "status": "code_present",
+          "status": "implemented",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "T7-1과 **동일 작업**이다(T7-1 desc가 「S9-1과 동일 작업」이라 명시). 30.json을 다시 읽어 반영 결과를 실측했다",
+            "evidence": [
+              "30.json S3-3 implemented+verified · S4-1·S4-2·S4-3·S4-6 implemented+verified · S4-4 partial",
+              "최상위 `related`에 '소방계획서_32' 등재 확인",
+              "S3-1·S3-2는 사유(DEF-1·DEF-2)가 수리·런타임 검증된 2026-08-30에 함께 승격(_d30-promote-s3.mjs)"
+            ]
+          },
+          "audit_gap": "⚠**내 상태 감사(_audit-32-status.mjs)가 이것을 못 봤다.** A축은 '미완인데 fix/verified가 있는 것'을 보는데 S9-1은 근거 블록 없이 note에만 완료가 적혀 있었고, B축은 implemented만 본다. 즉 **'code_present인데 실은 끝난 것'이 두 축 사이로 빠졌다.** 감사 축을 늘렸다 — 다른 criteria와 '동일 작업'이라 선언한 항목은 그쪽 상태를 따라가야 한다.",
           "note": "✅2026-08-29 2차 세션에서 반영 완료(T7-1 참조 — 경위 보존·C트랙 미접촉·JSON 파싱 통과). 조용히 덮지 않기 위해 32.md §6에도 동일 내용을 적어둠. ⚠반영하러 30.json을 열면 이 문서 작성 시점엔 없던 C트랙 S5(갑지 엑셀 점검결과 주입)가 있다 — 타 세션이 2026-08-29 14:30에 신설한 것으로 충돌이 아니며 A·B트랙과 무관하다. S5 구간은 건드리지 말 것."
         },
         {
