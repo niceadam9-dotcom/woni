@@ -371,9 +371,35 @@
   ],
 
   "optional_followup": [
-    { "id": "F-1", "desc": "나란히 미리보기 켤 때 자동 [넓게] — plan-form14-specs.tsx toggleSplit에서 커스텀 이벤트를 쏘고 부모가 받는다(기존 erp:open-spec-section 버스와 같은 패턴)", "status": "pending_order" },
-    { "id": "F-2", "desc": "미리보기 iframe 높이 h-[640px] → h-[min(78vh,900px)] (plan-form14-specs.tsx:1033)", "status": "pending_order" }
+    {
+      "id": "F-1",
+      "desc": "나란히 미리보기를 켜면 패널이 자동으로 [넓게] — openSplit()이 erp:spec-panel-wide를 쏘고 부모가 받는다(기존 erp:open-spec-section 버스와 같은 패턴, 방향만 자식→부모)",
+      "status": "code_present",
+      "verified": {
+        "date": "2026-08-30", "method": "E2E",
+        "evidence": [
+          "erp/src/components/customers/plan-form14-specs.tsx openSplit() — dispatch erp:spec-panel-wide",
+          "erp/src/components/customers/plan-form14.tsx — addEventListener로 setSpecsWide(true)",
+          "_probe37-f12.mts 6/0 — 켜면 폭 확대(aria-pressed=true) · **localStorage 불변(0 유지)** · 새로고침하면 사용자가 고른 기본 폭 복귀"
+        ]
+      },
+      "note": "⚠ 켤 때만 넓히고 **끌 때 되돌리지 않으며 localStorage에도 쓰지 않는다**. 이건 취향 설정이 아니라 세션 편의다 — 저장하면 사용자가 고른 기본 폭을 조용히 덮어쓴다. 그래서 '안 쓴다'를 기능 확인과 같은 무게로 단언한다."
+    },
+    {
+      "id": "F-2",
+      "desc": "미리보기 iframe 높이 h-[640px] → h-[min(78vh,900px)]",
+      "status": "code_present",
+      "verified": {
+        "date": "2026-08-30", "method": "E2E",
+        "evidence": [
+          "_probe37-f12.mts — 실제 iframe 높이가 min(78vh,900px)과 일치(고객 b9613ed3, 시작된 회차가 있는 유일 후보)",
+          "소스 축 — iframe이 새 클래스를 쓰고 구 h-[640px] 잔존 0"
+        ]
+      },
+      "note": "⚠ iframe은 **시작된 자체점검 회차가 있는 고객**에서만 렌더된다(로컬 후보 3명 중 1명뿐). 첫 실행이 '측정 불가'로 끝났는데, 그때는 덮지 않고 **깨질 수 있는 축**(Tailwind가 임의값 h-[min(…)]를 생성하는가)을 별도로 재도록 프로브를 짰다. 이후 후보 순회를 about:blank로 격리하니 실제 iframe 측정에 성공했다 — 종전 실패는 split이 열린 채 이동해 난 net::ERR_ABORTED였다."
+    }
   ],
+  "artifacts_note": "erp/scripts/_probe37-*.mts 6종은 **커밋한다** — 이 문서와 test-plan-readability.mts:543이 증거로 인용하므로 미추적으로 두면 남에겐 없는 파일을 가리킨다. 반면 스크린샷 erp/scripts/_shots37/는 .gitignore가 `erp/scripts/_shots*/`로 제외하므로 커밋하지 않는다 — _probe37-visual.mts를 다시 돌리면 재생성된다.",
 
   "lessons": [
     "!important는 그 선언이 이긴 요소에서만 힘을 쓴다. 자식은 값을 상속할 뿐이고, 상속값은 그 자식에 직접 매칭되는 선언에 진다 — 중요도와 무관하게 상속이 먼저 탈락한다. :root{--fs-scale:1!important}로 [data-fs-boost] 자손을 통제하려 했다가 항등 축이 깨졌다(설계 전제 오판 1).",

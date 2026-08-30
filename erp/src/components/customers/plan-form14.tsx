@@ -123,6 +123,16 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   useEffect(() => {
     try { if (localStorage.getItem(SPEC_WIDE_KEY) === '1') setSpecsWide(true) } catch { /* 프라이빗 모드 */ }
   }, [])
+  // F-1(소방계획서_37) — 자식(세부제원)이 [문서 미리보기 나란히]를 켜면 패널을 자동으로 넓힌다.
+  // 기존 erp:open-spec-section과 같은 이벤트 버스 방식(자식→부모라 방향만 반대).
+  // ⚠ 켤 때만 넓히고 **끌 때 되돌리지 않는다** — 사용자가 그 사이 [기본 폭]을 골랐을 수 있고,
+  //   그걸 뒤집으면 마지막에 누른 사람이 사용자가 아니게 된다. localStorage에도 쓰지 않는다
+  //   (취향 설정이 아니라 세션 편의 — 새로고침하면 사용자가 고른 값으로 돌아간다).
+  useEffect(() => {
+    const onWide = () => setSpecsWide(true)
+    window.addEventListener('erp:spec-panel-wide', onWide)
+    return () => window.removeEventListener('erp:spec-panel-wide', onWide)
+  }, [])
   const toggleSpecsWide = useCallback(() => {
     setSpecsWide(prev => {
       const next = !prev

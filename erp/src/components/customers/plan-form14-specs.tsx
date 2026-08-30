@@ -173,6 +173,12 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
   }
   function openSplit(directInspId?: string | null) {
     setSplitOn(true)
+    // F-1(소방계획서_37) — 나란히 보기를 켜면 패널을 자동으로 [넓게]로.
+    //   기본 폭에서 반으로 가르면 한쪽이 ~500px라 표와 미리보기 둘 다 답답하다(넓게면 각 729px).
+    //   ⚠ **끌 때 되돌리지 않고, localStorage에도 쓰지 않는다.** 이건 사용자의 취향 설정이 아니라
+    //     이번 세션의 편의다 — 저장해 버리면 사용자가 고른 기본 폭을 조용히 덮어쓴다.
+    //     새로고침하면 사용자가 고른 값으로 돌아간다.
+    window.dispatchEvent(new CustomEvent('erp:spec-panel-wide'))
     if (directInspId) { setSplitInspId(directInspId); loadSplit(directInspId); return }
     if (splitInspId) { if (!splitHtml) loadSplit(splitInspId); return }
     setSplitLoading(true)
@@ -1030,7 +1036,9 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
             {splitErr ? (
               <p className="text-form-xs text-amber-600 bg-surface rounded-lg border border-brand-line-soft p-3">{splitErr}</p>
             ) : splitHtml ? (
-              <iframe srcDoc={splitHtml} title="별지 9호 미리보기" className="w-full h-[640px] bg-surface rounded-lg border border-brand-line-soft" />
+              // F-2(소방계획서_37) — 고정 640px은 세로가 남는 화면에서 미리보기를 괜히 좁게 만든다.
+              // vh 기준으로 두되 상한을 둬, 아주 큰 화면에서 한 쪽이 과도하게 길어지지 않게 한다.
+              <iframe srcDoc={splitHtml} title="별지 9호 미리보기" className="w-full h-[min(78vh,900px)] bg-surface rounded-lg border border-brand-line-soft" />
             ) : (
               <div className="h-64 bg-surface rounded-lg border border-brand-line-soft animate-pulse" />
             )}
