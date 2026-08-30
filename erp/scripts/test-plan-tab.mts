@@ -143,8 +143,20 @@ try {
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
   // 건물 축은 여전히 1.1에 있다
-  await page.fill('div:has(> label:text-is("계단")) input', '2')
-  await page.fill('div:has(> label:text-is("피난용승강기")) input', '1')
+  const stairsInput = page.locator('div:has(> label:text-is("계단")) input')
+  const evacInput = page.locator('div:has(> label:text-is("피난용승강기")) input')
+  await stairsInput.fill('2')
+  await evacInput.fill('1')
+  // ⚠ 2026-08-30: 하이드레이션 전 fill은 DOM 값만 바꾸고 **React 상태엔 안 남는다**. 그러면 빈 값이
+  //   저장되는데 저장 자체는 성공해 '저장되었습니다' 토스트가 그대로 뜨고, :151에서야 null로 드러난다 —
+  //   조용히 틀린 값이 들어가는 형태라 화면만 봐선 모른다. 저장을 누르기 전에 **입력이 실제로 먹었는지**
+  //   확인한다. fill은 치환이라 몇 번을 돌아도 결과가 같다.
+  for (let i = 0; i < 8; i++) {
+    if (await stairsInput.inputValue() === '2' && await evacInput.inputValue() === '1') break
+    await stairsInput.fill('2')
+    await evacInput.fill('1')
+    await page.waitForTimeout(250)
+  }
   await page.click('[data-testid="fp-info-save"]')   // [저장 후 다음 탭 →] 폐기(2026-08-08) — 1.1 [저장] 단일
   await page.waitForSelector('text=저장되었습니다')
   const { data: bldNew } = await raw.from('buildings').select('stairs_count, evac_elevator_count').eq('customer_id', customerId).limit(1).single()
