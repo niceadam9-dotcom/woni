@@ -2,9 +2,9 @@
   "doc": "소방계획서_37 — 설비 대장 세부제원 패널 확대 (창 넓히기 · 글자 한 단계)",
   "design": "erp_goal/소방계획서_37.md",
   "created": "2026-08-30",
-  "updated": "2026-08-30 S4 전건 완료 (4섹션 30 criteria: code_present 29 · partial 1 · pending_order 0. implemented 0 — Json_Rule 규칙 3 준수, 구현자는 판정자가 아니다. 분모 30 = S1 8 + S2 7 + S3 10 + S4 5). S4 결과: S4-1 기준선 2종 재기록(--identity 16/0 · --print 9/0) · S4-2 통제 프로브로 '내 델타는 각 화면 정확히 +1' 확정 · S4-3 게이트 전건 실행(잔여 실패 2건은 둘 다 37 축 아님) · S4-4 육안 6항목을 기계 판정 7/0으로 대체 · **S4-5 플레이크 수리 완료** — 응답 실측 +1603/+1688ms vs 구 대기 1800ms, 2×2 대조 6/0, 수리 후 303노드 고정. 유일한 partial은 S4-3(남의 축 2건)",
+  "updated": "2026-08-30 독립 판정 완료 (4섹션 30 criteria: implemented 29 · partial 1 · code_present 0 · pending_order 0. 분모 30 = S1 8 + S2 7 + S3 10 + S4 5. 선택 후속 F-1·F-2도 implemented). 판정은 축을 명시 분할한 독립 판정자 4인이 수행했고 구현자는 참여하지 않았다(규칙 3). 유일한 partial은 S4-3 — 기능 결함이 아니라 **인용 수치가 낡았고 --cls 귀속 검사가 플레이크**다. 판정이 밝힌 것: ①제품 축 결함 0건 ②evidence 파일:라인 22곳이 타 세션 리팩터로 썩어 있었다(전건 정정) ③S4-3의 verified 키·S4-5의 note 키가 **중복이라 앞 블록이 JSON 파서에서 조용히 사라지고 있었다**(병합) ④S2-7의 괄호 근거가 과대였다(정정). 실측 재현: test-font-scale 26/0 · --mutate 25/0 · --identity 17/0 ×3회(노드 고정) · --print 13/0 · --overflow 54/0 · test-plan-tab 99/0 · _probe37-visual 7/0 · _probe37-f12 6/0 · _probe37-flake 6/0 · _probe37-12px 1/0 · _probe37-printattr 3/0",
   "related": ["소방계획서_35", "소방계획서_28", "소방계획서_26"],
-  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정. 구현자(이 세션)는 code_present까지만 올린다(규칙 3). implemented 승격은 독립 판정 패스만.",
+  "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 판정. 구현자는 code_present까지만 올렸고(규칙 3), 아래 implemented는 전부 독립 판정 4인이 승격한 것이다. 각 항목에 verified 증거 동반(규칙 2).",
 
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -15,6 +15,21 @@
     "proposal": "제안 — 사용자 결정 대기",
     "deferred": "보류"
   },
+
+  "verification": {
+    "date": "2026-08-30",
+    "procedure": "Json_Rule 규칙 3 — 구현자와 분리된 판정자 4인이 축을 명시 분할해 동시 수행(중복 판정 방지). 판정자에게는 파일 수정·--baseline 실행·프로세스 kill을 금지했다.",
+    "axes": [
+      { "judge": "A", "scope": "S1 8건 (패널 폭)", "verdict": "8 PASS / 0 FAIL" },
+      { "judge": "B", "scope": "S2 7건 (글자 부스트·인쇄 역치환)", "verdict": "7 PASS / 0 FAIL" },
+      { "judge": "C", "scope": "S3 10건 (검사 축 메타판정 — 항진명제 여부)", "verdict": "10 PASS / 0 FAIL" },
+      { "judge": "D", "scope": "S4 5건 + F-1·F-2 (주장 재현)", "verdict": "6 PASS / 1 PARTIAL(S4-3)" }
+    ],
+    "env": "dev 서버 재기동 후 판정(직전까지 포트 3000에 리스너 없음 = 서버 사망 상태였다). ⚠ localhost를 Invoke-WebRequest로 치면 시스템 프록시가 가짜 404를 준다 — 판정 시작 전 이 오보로 '앱이 죽었다'고 볼 뻔했다. HttpWebRequest에 Proxy=null을 걸어야 실체가 보인다.",
+    "flake_note": "판정자 3인이 각각 1회차 거짓 빨강을 겪었다(dev 콜드 컴파일 15초 타임아웃). 2회차는 전부 초록. 이 저장소에서 E2E 1회 실패는 앱 결함의 증거가 아니다."
+  },
+
+  "evidence_line_note": "⚠ 이 문서의 파일:라인 근거는 **2026-08-30 독립 판정 시점에 전건 재대조해 정정**한 값이다. 정정 전 22곳이 썩어 있었다(globals.css +37줄 = 38 세션 --sheet-* 토큰 블록 삽입 / plan-form14.tsx +10줄 = F-1 이벤트 버스 삽입 / test-font-scale.mts +11줄 / test-plan-readability.mts +22~93줄). 전부 '줄번호만 틀림'이었고 '구현 없음'은 0건이었다. ⚠ test-plan-readability.mts의 줄번호는 **판정 시점 워킹트리 기준**이며 타 세션의 미커밋 변경(+38/−12)이 포함돼 있다 — 그 세션이 커밋하면 맞고, 되돌리면 다시 어긋난다. 내 파일을 남이 만졌으면 줄번호부터 재대조할 것.",
 
   "db_change": "없음 — 마이그레이션 0건. [넓게] 선택은 localStorage(erp-spec-panel-wide), 글자 배율은 35의 기존 profiles.form_font_scale(154)을 그대로 읽는다.",
 
@@ -42,13 +57,14 @@
       "id": "D37-1",
       "title": "확대는 패널 스코프 — 전역 토큰(--fs-1~6)에 손대지 않는다",
       "status": "confirmed",
-      "desc": "35가 만든 --fs-1~6은 소방계획서 서식 화면 전체의 실값이고 @media print가 되돌리는 목록과 한 쌍이다. 여기를 올리면 이미 만족스러운 1.1~3장·목차까지 함께 흔들리고 test-plan-readability의 S0 고정 기준선(픽셀 불변 증명)을 통째로 다시 떠야 한다. 대신 배율만 패널 서브트리에서 한 단계 올린다 — 되돌리기는 CSS 한 줄."
+      "desc": "35가 만든 --fs-1~6은 소방계획서 서식 화면 전체의 실값이고 @media print가 되돌리는 목록과 한 쌍이다. 여기를 올리면 이미 만족스러운 1.1~3장·목차까지 함께 흔들리고 test-plan-readability의 S0 고정 기준선(픽셀 불변 증명)을 통째로 다시 떠야 한다. 대신 배율만 패널 서브트리에서 한 단계 올린다 — 되돌리기는 CSS 한 줄.",
+      "scope_correction": "⚠ 독립 판정(2026-08-30)이 잡아낸 정정 — 이 결정문의 '전역 토큰에 손대지 않는다'는 **--fs-1~6에 한해서만 참**이다. 같은 커밋(fbe8e95)이 새 전역 토큰 --fs-col-cat: 58px를 :root에 추가하고(globals.css:203) plan-form14.tsx:527의 1.4 **본표**(= 패널 **밖**) 분류 열을 w-12(48px) → calc(var(--fs-col-cat)*var(--fs-scale))로 교체했다. 보통 배율에서 패널 밖 열 폭이 48→58px(+10px) 실제로 변했다. 인쇄는 globals.css:265가 48px로 되돌리므로 인쇄 축은 무손상."
     },
     {
       "id": "D37-2",
       "title": "--fs-step은 --fs-scale의 사본이다 (CSS 변수 순환 회피)",
       "status": "confirmed",
-      "desc": "[data-fs-boost] { --fs-scale: calc(var(--fs-scale) * 1.15) }는 자기참조라 guaranteed-invalid가 되어 값이 통째로 죽고 글자가 상속 기본값으로 떨어진다(조용한 전멸). 그래서 읽을 이름을 하나 더 둔다. 사본이라 어긋날 수 있으므로 test-font-scale이 두 값을 대조한다(B-6). ⚠ 각 규칙에서 --fs-scale을 먼저 쓸 것 — test-font-scale.mts:50이 `{` 바로 뒤를 정규식으로 읽어서, 순서를 바꾸면 배율 검사가 조용히 undefined를 본다."
+      "desc": "[data-fs-boost] { --fs-scale: calc(var(--fs-scale) * 1.15) }는 자기참조라 guaranteed-invalid가 되어 값이 통째로 죽고 글자가 상속 기본값으로 떨어진다(조용한 전멸). 그래서 읽을 이름을 하나 더 둔다. 사본이라 어긋날 수 있으므로 test-font-scale이 두 값을 대조한다(B-6). ⚠ 각 규칙에서 --fs-scale을 먼저 쓸 것 — test-font-scale.mts가 `{` 바로 뒤를 정규식으로 읽어서, 순서를 바꾸면 배율 검사가 조용히 undefined를 본다."
     },
     {
       "id": "D37-3",
@@ -74,201 +90,476 @@
     {
       "id": "S1",
       "title": "패널 폭 — 기본 상향 + [넓게] 토글",
-      "status": "code_present",
+      "status": "implemented",
+      "verified": {
+        "date": "2026-08-30",
+        "method": "독립 판정(판정자 A) — 소스 전수 + 런타임 실측 2축",
+        "evidence": [
+          "8 criteria 전건 PASS / FAIL 0",
+          "npx tsx scripts/test-font-scale.mts 26통과/0실패 (B-11 패널 폭 축 포함)",
+          "npx tsx scripts/_probe37-visual.mts 7통과/0실패"
+        ]
+      },
       "criteria": [
         {
           "id": "S1-1",
           "desc": "패널 폭 실값이 globals.css의 --fs-panel-w 한 곳에 있다 (컴포넌트에 px 하드코딩 없음)",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:215-216 [data-spec-panel] 900px / [data-wide] 1400px"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:252-253 [data-spec-panel] 900px / [data-wide] 1400px"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 부재 주장 3축 확인",
+            "evidence": [
+              "globals.css:252-253 실값 두 줄 — 저장소 전역에서 --fs-panel-w 정의는 이 둘뿐",
+              "plan-form14.tsx 전수 grep(w-\\[|width:|max-w-\\[|min-w-\\[|\\d{3}px) — 폭 관련 리터럴 0. 히트는 :527·:744의 변수 참조뿐이고 900px/1400px/640px 문자열은 전부 주석(:119·:741)",
+              "dev가 실제 서빙하는 CSS 청크에도 그 두 규칙만 존재 — 소스가 아니라 서빙본으로 확인",
+              "런타임 1035px = 900×1.15 실측"
+            ]
+          },
+          "note": "⭐ 부재 주장을 grep 한 번으로 닫지 않았다. 세 축(소스 전수·정의 유일성·서빙 CSS) 중 서빙 축이 있어야 '소스엔 있는데 화면엔 없다'를 배제할 수 있다."
         },
         {
           "id": "S1-2",
           "desc": "폭이 부스트된 --fs-scale을 함께 곱한다 (글자만 커지고 폭이 고정되는 회귀 차단)",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:734 w-[min(96vw,calc(var(--fs-panel-w)*var(--fs-scale)))]"]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:743-744 w-[min(96vw,calc(var(--fs-panel-w)*var(--fs-scale)))]"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 소스 + 3점 런타임 실측",
+            "evidence": [
+              "plan-form14.tsx:743이 data-fs-boost를 갖고 :744가 같은 요소의 width라 부스트된 값이 자기 width에서 풀린다",
+              "3점 실측: md 1035 / lg 1190 / xl 1346 = 900×1.15 / 900×1.15×1.15 / 900×1.3×1.15",
+              "글자도 14.95 / 17.19 / 19.44로 같은 비 — 폭과 글자가 함께 움직인다",
+              "test-font-scale B-11(min(96vw,900×1.15) ±2px) 통과"
+            ]
+          }
         },
         {
           "id": "S1-3",
           "desc": "헤더에 [넓게]/[기본 폭] 토글 버튼 — aria-pressed·title 동반",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:738-743 data-testid=\"specs-wide-toggle\""]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:748-753 data-testid=\"specs-wide-toggle\""],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 소스 + 런타임 + 스크린샷",
+            "evidence": [
+              "plan-form14.tsx:748-753 — data-testid·aria-pressed={specsWide}·title(상태별 두 문구) 전부 동반",
+              "런타임 토글 후 aria-pressed=true 실측",
+              "스크린샷에서 헤더 우측 [기본 폭] 버튼 렌더 확인"
+            ]
+          }
         },
         {
           "id": "S1-4",
           "desc": "선택이 localStorage(erp-spec-panel-wide)에 남아 새로고침 후에도 유지된다",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:73 SPEC_WIDE_KEY", "erp/src/components/customers/plan-form14.tsx:126-133 toggleSpecsWide"]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:73 SPEC_WIDE_KEY", "erp/src/components/customers/plan-form14.tsx:136-142 toggleSpecsWide"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 런타임 결정적 실증",
+            "evidence": [
+              "_probe37-visual V-2 — 1035→1536px · localStorage='1' · page.goto 재진입(진짜 새로고침) 후에도 1536px · aria-pressed=true",
+              "7/0 통과"
+            ]
+          }
         },
         {
           "id": "S1-5",
           "desc": "초기값이 아니라 useEffect에서 읽는다 (하이드레이션 불일치 차단) + try/catch로 프라이빗 모드 관용",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:122-125"]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:122-125"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 구조 논증 + 런타임 간접 증거",
+            "evidence": [
+              "plan-form14.tsx:122-125 useState(false) 상수 초기값 + useEffect(try/catch, [])",
+              "쓰기 경로(:139)에도 try/catch",
+              "서버 렌더와 첫 클라 렌더가 둘 다 false라 data-wide 속성이 갈릴 수 없다(구조적 무모순)",
+              "새로고침 후 복원이 실제로 되므로 effect가 돈다"
+            ]
+          },
+          "residual": "⚠ '하이드레이션 경고 0'을 직접 단언하는 검사는 어디에도 없다. 판정자가 스크린샷 좌하단에서 Next dev 오버레이 '1 Issue' 배지를 봤으나 콘솔 캡처 축이 없어 정체(하이드레이션 경고인지 무관한 기존 경고인지)를 규명하지 못했다 — S1-5의 유일한 미확인 구멍."
         },
         {
           "id": "S1-6",
           "desc": "96vw 상한이 살아 있다 — 좁은 화면에서 화면을 통째로 덮지 않는다",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:734"]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:744"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 상한이 실제로 문 것을 수치로 확인",
+            "evidence": [
+              "1600px 뷰포트에서 [넓게]의 무제한 값은 1400×1.15=1610px인데 실측 폭은 1536px = 1600×0.96 — 상한이 실제로 물었다",
+              "⚠ test-font-scale B-11은 상한을 증명하지 못한다(그 뷰포트에선 96vw가 1035보다 커서 Math.min의 다른 가지가 뽑힌다). 상한 증명은 V-2 수치가 유일"
+            ]
+          },
+          "note": "⭐ '선언이 있다'와 '실제로 작동한다'가 다른 전형. 상한은 **걸린 조건에서만** 관측된다."
         },
         {
           "id": "S1-7",
           "desc": "폭 전환이 애니메이션된다 (transition-[transform,width])",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:734"]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:744"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 서빙 CSS에서 임의값 클래스 생성 확인",
+            "evidence": [
+              "plan-form14.tsx:744 transition-[transform,width] duration-200",
+              "dev 서빙 CSS 청크에 .transition-\\[transform\\,width\\] { transition-property: transform, width } 실재 — Tailwind가 그 임의값 클래스를 실제로 생성했다"
+            ]
+          },
+          "residual": "전환 프레임을 시간축으로 재지는 않았다(속성 실재까지가 측정 범위)."
         },
         {
           "id": "S1-8",
           "desc": "헤더 레이아웃이 안 깨진다 — ml-auto가 [넓게]로 이동하고 제목·안내는 shrink-0/truncate",
-          "status": "code_present",
-          "evidence": ["erp/src/components/customers/plan-form14.tsx:736-746"]
+          "status": "implemented",
+          "evidence": ["erp/src/components/customers/plan-form14.tsx:745-754"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 소스 + 시각 축",
+            "evidence": [
+              "헤더 flex items-center gap-2, 제목 p shrink-0(:746), 안내 span truncate(:747), [넓게] 버튼 ml-auto shrink-0(:750), 닫기 shrink-0(:754) — ml-auto가 닫기에 남아 있지 않다",
+              "스크린샷 2종(기본 폭·1600px 넓게) 모두 헤더 한 줄 유지·겹침 0·토글 우측 정렬"
+            ]
+          }
         }
       ]
     },
     {
       "id": "S2",
       "title": "글자 — 패널 스코프 한 단계 확대",
-      "status": "code_present",
+      "status": "implemented",
+      "verified": {
+        "date": "2026-08-30",
+        "method": "독립 판정(판정자 B) — 소스 + 서빙 CSS + 독립 런타임 캐스케이드 3축",
+        "evidence": [
+          "7 criteria 전건 PASS / FAIL 0",
+          "test-font-scale 26/0 · --mutate 25/0(S35B 변이 통과 = B-10 항진명제 아님) · --print 13/0",
+          "서빙 CSS 신선도 축: 부스트·@media print 역치환·:root·lg·xl 규칙이 실제 서빙 청크에 전부 실재 = 소스와 서빙 일치"
+        ]
+      },
       "criteria": [
         {
           "id": "S2-1",
           "desc": "[data-fs-boost]가 패널 서브트리의 --fs-scale만 ×1.15 한다 (패널 밖 변화 0)",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:214", "erp/src/components/customers/plan-form14.tsx:733 data-fs-boost 속성"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:251", "erp/src/components/customers/plan-form14.tsx:743 data-fs-boost 속성"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 부재 주장을 실측으로 닫음",
+            "evidence": [
+              "globals.css:251 [data-fs-boost] { --fs-scale: calc(var(--fs-step) * 1.15) }",
+              "plan-form14.tsx:743 — 저장소 전체에서 data-fs-boost 소비자는 이 1곳뿐(grep 전수)",
+              "안·밖 동시 측정: 밖 13.00px / 안 14.95px, computed --fs-scale 밖='1' 패널='calc(1 * 1.15)'",
+              "test-font-scale B-9(안·밖 대상 실재)·B-10(비 1.15) 통과, 변이 S35B가 부스트만 죽였을 때 B-10이 무너짐"
+            ]
+          }
         },
         {
           "id": "S2-2",
           "desc": "--fs-step 사본이 3개 규칙(:root·lg·xl)에 모두 있고 --fs-scale과 값이 같다",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:181", "erp/src/app/globals.css:206-207"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:192 (:root)", "erp/src/app/globals.css:243-244 (lg·xl)"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 소스 + 서빙 CSS",
+            "evidence": [
+              "globals.css:192 --fs-step: 1 / :243 lg{--fs-scale:1.15; --fs-step:1.15} / :244 xl{--fs-scale:1.3; --fs-step:1.3}",
+              "서빙 CSS에서 3개 규칙 전부 확인 — :root 축은 B-6이 안 보는 사각인데 여기서 직접 확인했다",
+              "B-6 통과"
+            ]
+          }
         },
         {
           "id": "S2-3",
           "desc": "부스트가 --fs-scale을 자기참조하지 않는다 (guaranteed-invalid 차단)",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:214 calc(var(--fs-step) * 1.15)"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:251 calc(var(--fs-step) * 1.15)"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 정적 + 런타임 생존 확인",
+            "evidence": [
+              "globals.css:251 우변이 var(--fs-step)뿐이고 var(--fs-scale) 0건 — B-8 통과",
+              "런타임으로도 죽지 않았음 실증: 패널 computed --fs-scale이 빈 문자열/무효가 아닌 calc(1 * 1.15)이고 자손 글자가 상속 기본값(16px)이 아닌 14.95px로 살아 있다"
+            ]
+          },
+          "note": "⭐ 자기참조는 **조용히** 값을 죽인다(에러가 없다). 정적 축만으로는 '안 죽었다'를 말할 수 없어 런타임 생존 축을 함께 걸었다."
         },
         {
           "id": "S2-4",
           "desc": "@media print가 [data-fs-boost]를 --fs-scale:1로 되돌린다 (D37-4)",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:233"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:271 (print 블록 260-272 안)"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 소스 + 서빙 CSS + emulateMedia 런타임",
+            "evidence": [
+              "globals.css:260 @media print { … :271 [data-fs-boost]{--fs-scale:1} … :272 }",
+              "서빙 CSS에서도 print 블록 안에 실재",
+              "emulateMedia('print') 실측: 패널 --fs-scale='1', 안=밖=11px(= 인쇄 --fs-3)",
+              "B-7 통과"
+            ]
+          }
         },
         {
           "id": "S2-5",
           "desc": "인쇄 역치환이 [data-fs-boost] 규칙보다 소스 순서상 뒤에 있다 (같은 명시도 — 순서가 승패를 정한다)",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:214 정의 → :233 역치환", "erp/src/app/globals.css:230-232 이동 금지 주석"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:251 정의 → :271 역치환", "erp/src/app/globals.css:268-270 이동 금지 주석"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 줄 위치 결정적 비교 + 기능 실증",
+            "evidence": [
+              "부스트 :251, 역치환 :271 — 20줄 뒤. 같은 명시도이므로 뒤가 이긴다",
+              "서빙 CSS에서도 같은 순서",
+              "이동 금지 주석 :268-270 실재",
+              "기능 실증: data-fs='xl' + print 미디어에서 패널 안 글자가 19.435px가 아니라 11px — 역치환이 html[data-fs]와 [data-fs-boost] 둘 다를 이겼다"
+            ]
+          }
         },
         {
           "id": "S2-6",
           "desc": "사용자 배율 3단(md/lg/xl)과 곱셈으로 합성된다 — 배율 설정이 패널에서도 계속 동작",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:214 var(--fs-step) 참조"]
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:251 var(--fs-step) 참조"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 3단 × 2토큰 교차 실측",
+            "evidence": [
+              "text-form-xs(--fs-3=13px): md 밖 13.00/안 14.95 · lg 14.95/17.1925 · xl 16.90/19.435",
+              "세 단 모두 안/밖 = 정확히 1.15, 안 = 13 × {1, 1.15, 1.3} × 1.15 → 덧셈이 아니라 곱셈 합성",
+              "text-form-2xs(--fs-2=12px) 교차 확인: 12/13.8 · 13.8/15.87 · 15.6/17.94"
+            ]
+          }
         },
         {
           "id": "S2-7",
-          "desc": "전역 토큰 --fs-1~6 실값이 바뀌지 않았다 (D37-1 — 패널 밖 화면 픽셀 불변)",
-          "status": "code_present",
-          "evidence": ["erp/src/app/globals.css:182-197 값 무변경"]
+          "desc": "전역 토큰 --fs-1~6 실값이 바뀌지 않았다 (D37-1)",
+          "status": "implemented",
+          "evidence": ["erp/src/app/globals.css:193-198 값 무변경"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — git 이력 대조(37 착수 직전 커밋 vs HEAD)",
+            "evidence": [
+              "0b163b7(=fbe8e95^)과 HEAD의 :root 토큰 비교 — --fs-1:11px --fs-2:12px --fs-3:13px --fs-4:14px --fs-5:15px --fs-6:17px 여섯 값 전부 자 하나 안 바뀜(--fs-h6/h7/h8/col-num도 동일)",
+              "fbe8e95의 globals.css diff 전문에도 --fs-1~6 라인 변경 0"
+            ]
+          },
+          "correction": "⚠ 정정 — 원래 이 criteria의 괄호 근거는 '패널 밖 화면 픽셀 불변'이었으나 **과대**였다. 같은 커밋이 새 전역 토큰 --fs-col-cat: 58px를 :root에 추가하고(globals.css:203) 1.4 **본표**(패널 밖) 분류 열을 w-12(48px) → calc(var(--fs-col-cat)*var(--fs-scale))로 바꿔 보통 배율에서 48→58px(+10px) 실제 변화가 있었다. 주 문장('--fs-1~6 실값 무변경')은 참이므로 판정은 implemented, 괄호 근거만 삭제했다. D37-1 scope_correction 참조."
         }
       ]
     },
     {
       "id": "S3",
       "title": "검사 — 부스트 축 신설",
-      "status": "code_present",
+      "status": "implemented",
+      "verified": {
+        "date": "2026-08-30",
+        "method": "독립 판정(판정자 C) — 메타판정: 검사가 존재하는가 + 실제로 무언가를 잡는가",
+        "evidence": [
+          "10 criteria 전건 PASS / FAIL 0",
+          "test-font-scale 26/0 · --mutate 25/0 · --identity 17/0 · --overflow 54/0",
+          "항진명제 점검: '못 찾으면 통과'로 빠지는 단언 0건. S3 대상 검사에 if(el) check(...) 패턴 0건, 죽은 hex 리터럴 0건"
+        ]
+      },
       "criteria": [
         {
           "id": "S3-1",
           "desc": "B-6 --fs-step 사본이 --fs-scale과 일치 (정적)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:62-63"],
-          "measured": "18/0 실행에서 통과 (2026-08-30)"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:73-74"],
+          "measured": "26/0 실행에서 통과 (2026-08-30 재실측)",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 정규식이 실제로 무엇을 읽는지 추적",
+            "evidence": [
+              "test-font-scale.mts:73-74 — 정규식 html[data-fs=\"lg\"][^}]*--fs-step:([\\d.]+)이 globals.css:243-244를 실제로 읽는다",
+              "26/0에서 통과"
+            ]
+          },
+          "residual": "공허 경로 1건 — lg·xl 규칙을 **통째로** 지우면 undefined===undefined로 참이 된다. 바로 위 :64-66의 배율 실값 검사가 먼저 빨개져 막고 있을 뿐 자기 방어는 없다."
         },
         {
           "id": "S3-2",
           "desc": "B-7 인쇄가 [data-fs-boost]를 1로 되돌린다 (정적)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:66-67"],
-          "measured": "18/0 실행에서 통과 (2026-08-30)"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:77-78"],
+          "measured": "26/0 실행에서 통과 (2026-08-30 재실측)",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 정규식 매칭 대상 확인 + 변이 가능성 검토",
+            "evidence": [
+              "정규식이 globals.css:260-272의 print 블록 안 :271을 매칭",
+              "규칙을 지우거나 --fs-step:1로 바꾸면 미매칭→FAIL이므로 항진명제 아님"
+            ]
+          },
+          "residual": "이 정규식은 @media print **안**에 있는지만 보고 :251 원 규칙과의 소스 순서는 보지 않는다(그 축은 S2-5가 담당)."
         },
         {
           "id": "S3-3",
           "desc": "B-8 부스트가 --fs-scale을 자기참조하지 않는다 (정적 — 순환 회귀 차단)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:71-72"],
-          "measured": "18/0 실행에서 통과 (2026-08-30)"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:82-83"],
+          "measured": "26/0 실행에서 통과 (2026-08-30 재실측)",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 공허 경로 직접 검토",
+            "evidence": [
+              "boost = css.match(...)?.[1] ?? '' 로 실제 calc(var(--fs-step) * 1.15)를 잡는다",
+              "단언 boost.includes('--fs-step') && !boost.includes('var(--fs-scale)')",
+              "⭐ 규칙이 사라지면 ''가 되어 ''.includes('--fs-step')===false → FAIL — '정규식 미매칭이 통과로 새는' 전형적 공허 경로가 여기선 닫혀 있다"
+            ]
+          }
         },
         {
           "id": "S3-4",
           "desc": "B-9 패널을 실제로 열고 안·밖 측정 대상이 둘 다 실재함을 단언 (항진명제 차단 — 못 찾으면 SKIP이 아니라 FAIL)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:166-168"],
-          "measured": "18/0 실행에서 통과. 패널은 testid(form14-ledger-)로만 연다 — '대장' 문자열 휴리스틱은 아무거나 눌러 놓고 열렸다고 답한 전례가 있다"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:217-219"],
+          "measured": "26/0 실행에서 통과. 패널은 testid(form14-ledger-)로만 연다 — '대장' 문자열 휴리스틱은 아무거나 눌러 놓고 열렸다고 답한 전례가 있다",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 구조가 부재를 FAIL로 만드는지 확인",
+            "evidence": [
+              "test-font-scale.mts:217-219 — if(el) check(...)가 아니라 **무조건 실행되는** check(name, !!opened && !!m && isFinite(inside) && isFinite(outside)) 구조",
+              "패널은 [data-testid^=\"form14-ledger-\"]로만 연다(:202-204). 배열이 비면 opened=false→FAIL",
+              "B-10/B-11은 가드 안이지만 그 조건이 거짓이면 B-9가 이미 FAIL이라 스위트가 빨개진다(가드+상세 분리, 정상)"
+            ]
+          },
+          "residual": "⚠ 갭 1건 — plan-form14.tsx:743-744가 **항상 마운트**(닫힘은 CSS 슬라이드 translate-x-full)라 [data-spec-panel]과 내부 노드는 패널이 안 열려도 실재한다. opened는 'ledger 버튼이 있었고 click()을 호출했다'일 뿐 열렸는지는 확인하지 않는다 → 클릭 핸들러가 죽는 회귀는 B-9가 못 잡는다. computed style·getBoundingClientRect는 translate와 무관해 측정 자체는 무해하므로 FAIL로 내리지는 않았다. 같은 약점이 test-plan-readability.mts의 '1.4 세부제원 패널이 실제로 열렸다'에도 있다."
         },
         {
           "id": "S3-5",
           "desc": "B-10 패널 안 글자가 밖보다 정확히 ×1.15 (런타임·절대 px가 아니라 비)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:176-177"],
-          "measured": "18/0 실행에서 통과 (2026-08-30)"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:227-228"],
+          "measured": "26/0 실행에서 통과 (2026-08-30 재실측)",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 판정식이 비인지 절대값인지 + 분해능 확인",
+            "evidence": [
+              "판정식 Math.abs(m.inside - m.outside * 1.15) < 0.6 — **측정된 outside를 곱한다 = 비**이지 절대 px 상수가 아니다",
+              "분해능: outside 13px 기준 허용 [14.35, 15.55] → 배율이 1.1이나 1.2로 바뀌면 FAIL한다"
+            ]
+          }
         },
         {
           "id": "S3-6",
           "desc": "B-11 패널 폭도 부스트된 배율을 탄다 (min(96vw, 900×1.15) = 1035px 실측)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:180-182"],
-          "measured": "18/0 실행에서 통과 (2026-08-30)"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:231-232"],
+          "measured": "26/0 실행에서 통과 (2026-08-30 재실측)",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 기대치가 어느 가지에서 오는지 확인",
+            "evidence": [
+              "expect = Math.min(m.vw * 0.96, 900 * 1.15), 허용 ±2px",
+              "실행 뷰포트는 _e2e-helpers.mjs의 1500×950 → 96vw=1440 > 1035이므로 상한이 안 걸리고 1035px이 실제 기대치. 통과했으므로 실측 width = 1035±2",
+              "900은 globals.css:252 --fs-panel-w의 사본(핀)이라 CSS가 780px로 바뀌면 FAIL — 항진명제 아님"
+            ]
+          },
+          "residual": "잠재 함정 — 누가 뷰포트를 1079px 미만으로 낮추면 96vw 상한이 기대치를 지배해 이 검사가 부스트에 둔감해진다."
         },
         {
           "id": "S3-7",
           "desc": "변이 S35B — 부스트만 죽이면 B-10이 무너진다 (B-10이 항진명제가 아님의 증명)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-font-scale.mts:172-175"],
-          "measured": "--mutate 실행 17/0 — 변이 축 통과 (2026-08-30)"
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-font-scale.mts:223-225"],
+          "measured": "--mutate 실행 25/0 — 변이 축 통과 (2026-08-30 재실측)",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 변이 주입 내용과 기대 반전 확인",
+            "evidence": [
+              "변이 주입 :199 [data-fs-boost]{--fs-scale:var(--fs-step)!important} — 부스트만 죽이고 --fs-step은 보존",
+              "기대가 **반전**된다: check('S35B 변이 …', !boostHolds)",
+              "--mutate 25통과/0실패, 'S35B 변이 — 부스트를 죽이면 B-10이 무너진다' ✅",
+              "변이 실행에서 B-9도 ✅라 inside/outside가 실수임이 보증되어 변이 통과가 공허하지 않다"
+            ]
+          },
+          "residual": "⚠ 이 변이 축은 **게이트 미등재**다(test-all.mts에 --mutate 항목 0건, 주석이 '따로 돌린다'고 명시). 수동 축이라 조용히 썩을 수 있다."
         },
         {
           "id": "S3-8",
           "desc": "BOOST_OFF가 항등·기준선 두 모드에 함께 걸린다 (한쪽만 걸면 기준선 재기록 순간 항등이 통째로 빨개진다)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-plan-readability.mts:200 BOOST_OFF", "erp/scripts/test-plan-readability.mts:413", "erp/scripts/test-plan-readability.mts:443"]
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-plan-readability.mts:222 BOOST_OFF 정의", "erp/scripts/test-plan-readability.mts:502", "erp/scripts/test-plan-readability.mts:536"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 조건식 동일성 + 주입이 no-op이 아님을 fixture로 확인",
+            "evidence": [
+              "적용 2곳(:502 수집 루프 · :536 1.4-specs 패널 열기 직전) **두 곳 모두 동일 조건** if (MODE_IDENTITY || MODE_BASELINE) — 글자 하나까지 같으므로 항등·기준선이 같은 화면을 본다",
+              "--identity 17통과/0실패, 15화면 전건 불변",
+              "⭐ 실질성 확인 — 커밋된 35-baseline.json의 1.4·1.4-specs 히스토그램에 부스트된 크기(14.95/13.8px 등)가 **하나도 없다**(전부 11/12/13/14/15/17px 정수). BOOST_OFF를 빼면 두 화면이 즉시 어긋난다 = 이 스타일 주입은 무의미한 no-op이 아니다"
+            ]
+          }
         },
         {
           "id": "S3-9",
           "desc": "BOOST_OFF가 --overflow에는 걸리지 않는다 (거기선 실제로 커진 기하를 재야 넘침이 의미가 있다)",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-plan-readability.mts:413 MODE_IDENTITY || MODE_BASELINE 조건"]
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-plan-readability.mts:502 MODE_IDENTITY || MODE_BASELINE 조건 (MODE_OVERFLOW 부재)"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 부재 주장을 조건식으로 결정적 판정",
+            "evidence": [
+              "BOOST_OFF 문자열은 파일 전체에 4곳뿐(정의 :222 · OLD_VALUES 합성 :227 · 적용 :502·:536)",
+              ":502·:536의 게이트에 MODE_OVERFLOW가 등장하지 않는다 → --overflow 단독 실행에서 결정적으로 미적용",
+              "--overflow 54통과/0실패, '[1.4-specs] 표 3개 넘침 없음' — 부스트가 살아 있는 확대된 기하로 재고도 넘침 0"
+            ]
+          },
+          "residual": "설계상 열린 구멍 — --overflow --baseline을 함께 주면 BOOST_OFF가 걸린다. 게이트(test-all.mts)는 모드를 각각 단독 호출하므로 실사용에선 발생하지 않는다."
         },
         {
           "id": "S3-10",
           "desc": "OLD_VALUES(인쇄 축의 구 값 재현)에도 BOOST_OFF가 합성된다 — 패널이 붙은 화면에서 screenOld와 print가 어긋나지 않도록",
-          "status": "code_present",
-          "evidence": ["erp/scripts/test-plan-readability.mts:201"]
+          "status": "implemented",
+          "evidence": ["erp/scripts/test-plan-readability.mts:227"],
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정 — 문자열 합성 위치 + 제거 경로 정합성",
+            "evidence": [
+              ":227 OLD_VALUES 템플릿 끝에 ${BOOST_OFF}가 문자열로 합성 — :393 addStyleTag(OLD_VALUES) 때 패널도 함께 1로 눌린다",
+              ":213-217 주석이 이유를 명시(:root의 !important는 상속으로 내려가 [data-fs-boost] 직접 매칭에 진다)",
+              ":400이 --fs-scale:1!important를 포함한 style 태그를 제거하는데 BOOST_OFF가 같은 태그 안이라 함께 제거되므로 E-1 배율 축과 모순 없음"
+            ]
+          },
+          "residual": "판정자 C는 --print를 실행하지 않아 이 항목의 런타임 실증은 소스 논증에만 의존한다. 다만 판정자 D가 같은 날 --print 13/0을 실측했고 그 안에 E-2(인쇄 구 값 복원)가 포함된다."
         }
       ]
     },
     {
       "id": "S4",
       "title": "잔여 — 착수 전 반드시 읽을 것",
-      "status": "pending_order",
+      "status": "partial",
+      "status_reason": "5건 중 4건 implemented, S4-3만 partial. S4-3의 제품 축은 전부 초록이고 원인 규명도 참으로 재현됐으나, 인용 수치 3건이 낡았고 --cls 귀속 검사가 플레이크다.",
+      "verified": {
+        "date": "2026-08-30",
+        "method": "독립 판정(판정자 D) — 주장 재현 + 커밋 diff 대조",
+        "evidence": [
+          "S4-1·S4-2·S4-4·S4-5 PASS / S4-3 PARTIAL",
+          "--identity 17/0 ×3회(1.4-specs 노드 3회 고정) · --print 13/0 · --overflow 54/0 · test-plan-tab 99/0 · test-font-scale 26/0",
+          "_probe37-visual 7/0 · _probe37-12px 1/0 · _probe37-printattr 3/0 · _probe37-flake 6/0 · _probe37-timing 2/0 · _probe37-f12 6/0"
+        ]
+      },
       "criteria": [
         {
           "id": "S4-1",
           "desc": "R37-1 항등 기준선 재기록 — **완료**. 35-baseline.json·35-print-baseline.json 두 fixture가 신규 [넓게] 버튼 1개를 반영한다",
-          "status": "code_present",
+          "status": "implemented",
           "verified": {
             "date": "2026-08-30",
-            "method": "E2E 반복 실행 + fixture diff 전수",
+            "method": "독립 판정 — 커밋 diff 대조(워킹트리가 아니라 커밋으로 확인) + 귀속 프로브 재현",
+            "commit": "e07cf67",
             "evidence": [
-              "test-plan-readability --identity 16통과/0실패 × **4회 연속**(dev 재기동 후)",
-              "test-plan-readability --print 9통과/0실패 — S0-4 인쇄 고정 기준선까지 통과",
-              "화면 fixture diff: 15개 중 **2개만** 변경(1.4 n257→258·12px 39→40 / 1.4-specs n302→303·12px 52→53). 나머지 13개 화면 불변",
-              "인쇄 fixture diff: 10px 31→32 · n 176→177 — 인쇄 미디어에서 --fs-2가 10px로 되돌아가 text-form-2xs 버튼이 10px로 계수된다"
+              "git diff e07cf67^ e07cf67 — 35-baseline.json은 15화면 중 **2화면만** 변경(1.4 counted 257→258·12px 39→40 / 1.4-specs counted 302→303·12px 52→53), 35-print-baseline.json은 10px 31→32·n 176→177. 주장과 자릿수까지 일치",
+              "⭐ 워킹트리가 아니라 **커밋에 들어가 있음**을 확인했다 — 워킹트리에서만 바뀐 상태면 재기록 완료가 아니다",
+              "귀속 재현: _probe37-printattr.mts 3/0 — [넓게] 버튼 보이면 32, 숨기면 31",
+              "correction의 '--baseline이 BOOST_OFF를 함께 건다'도 소스 실재(MODE_IDENTITY || MODE_BASELINE 2곳)"
             ]
           },
-          "note": "두 fixture의 델타는 **전부 +1이고 전부 [넓게] 버튼 하나로 설명된다**. 프로브가 확정한 예측값(1.4=258/40, 1.4-specs=303/53)과 정확히 일치해 언더렌더 기록이 아님이 교차 확인됐다. ⚠ 공유 트리라 --baseline 실행 주체가 내 세션인지 타 세션인지는 불확실하나, 기록된 내용은 내 변경의 델타이므로 37로 커밋한다.",
+          "note": "두 fixture의 델타는 [넓게] 버튼 하나로 설명된다. 프로브가 확정한 예측값(1.4=258/40, 1.4-specs=303/53)과 정확히 일치해 언더렌더 기록이 아님이 교차 확인됐다.",
+          "note_correction": "⚠ 판정자 D 지적 — 원래 note의 '델타는 **전부 +1**'은 문자 그대로는 거짓이다. 같은 커밋에 1.4-specs rowtable의 sw/cw 526→786(폭 변경 = 37의 본 기능)도 함께 들어 있다. 12px 계수 축에 한해 +1이며, 귀속 자체는 옳다.",
           "attempt_2026_08_30": {
             "result": "reverted",
             "why": [
@@ -278,83 +569,91 @@
             ],
             "known_truth": "완전 렌더 기준 내 변경의 델타는 1.4 12px 39→40, 1.4-specs 12px 52→53. 둘 다 정확히 +1이며 프로브로 확정됐다. 재기록은 이 값을 목표로 검증하면 된다."
           },
-          "correction": "⚠ 초안에서 재기록 대가를 **과대평가했었다**. test-plan-readability.mts:8-18이 명시하듯 기준선은 S3 적용 시점에 이미 재기준화됐고, --identity는 코드모드 증명이 아니라 '앞으로 크기가 실수로 바뀌지 않는가'의 **회귀 잠금**이다(그 증명은 당시 실행 기록과 35.json S2-7이 지지 이 fixture가 지고 있지 않다). → 교훈: **검사의 의미는 이름이 아니라 머리주석이 정의한다.** --baseline은 BOOST_OFF를 함께 걸도록 고쳤으므로 두 모드는 어긋나지 않는다."
+          "correction": "⚠ 초안에서 재기록 대가를 **과대평가했었다**. test-plan-readability.mts 머리주석이 명시하듯 기준선은 S3 적용 시점에 이미 재기준화됐고, --identity는 코드모드 증명이 아니라 '앞으로 크기가 실수로 바뀌지 않는가'의 **회귀 잠금**이다. → 교훈: **검사의 의미는 이름이 아니라 머리주석이 정의한다.** --baseline은 BOOST_OFF를 함께 걸도록 고쳤으므로 두 모드는 어긋나지 않는다.",
+          "superseded_note": "⚠ 2026-08-30 21:24 판정 도중 **타 세션이 35-baseline.json을 --baseline으로 덮어썼다**(현재 미커밋 M). 히스토그램 키가 12px → 12px|18px|normal 복합키로, 모집단이 body * → [data-plan-root] *로 바뀌어 1.4-specs counted가 303→249가 됐다. 위 verified는 **커밋 e07cf67 시점의 사실**이며 그 시점 기준으로 참이다. 타 세션의 재기록이 커밋되면 이 evidence의 절대 수치는 역사적 기록으로만 유효해진다(귀속 결론은 무손상)."
         },
         {
           "id": "S4-2",
           "desc": "R37-2 --identity 완주 — dev 재기동(3.8GB 비대 프로세스 교체) 후 15/15 화면 전부 수집 성공",
-          "status": "code_present",
+          "status": "implemented",
           "verified": {
             "date": "2026-08-30",
-            "method": "E2E 재실행 + 통제 프로브",
+            "method": "독립 판정 — 재현 3회 + 통제 프로브 재실행",
             "evidence": [
-              "dev 재기동 전 ?form=ch3 15초 초과로 12/15 화면만 수집 → 재기동 후 15/15 완주",
-              "erp/scripts/_probe37-12px.mts — [넓게] 버튼을 CSS로 숨기면 1.4-specs 12px가 53→52. 52는 **재기록 전 기준선 값과 정확히 일치**",
-              "사라진 텍스트가 리터럴 \"넓게\" 하나임을 덤프로 확인"
+              "--identity 3회 모두 15화면 전부 수집(1.1~1.12·ch2·ch3·cover·1.4-specs), 화면 누락 0",
+              "_probe37-12px.mts 재실행 1통과/0실패 — '[넓게] 버튼의 기여분이 정확히 1이다 (53 → 52)'",
+              "사라진 텍스트 덤프 = [\"넓게\"] 하나. 주장 전문 일치"
             ]
           },
-          "note": "내 변경의 기여분은 1.4·1.4-specs 각 화면에서 **정확히 +1**임이 통제 실험으로 확정됐다. 나머지 편차는 내 것이 아니다(아래 S4-5)."
+          "note": "내 변경의 기여분은 1.4·1.4-specs 각 화면에서 **정확히 +1**임이 통제 실험으로 확정됐다. 나머지 편차는 내 것이 아니다(S4-5).",
+          "residual": "'dev 재기동 전 12/15'는 과거 환경 상태라 원리상 재현 대상이 아니다(판정자 D가 명시적으로 제외)."
         },
         {
           "id": "S4-3",
-          "desc": "R37-3 게이트 축 **전건 실행 + 잔여 2건 수리 완료** — --print 9/0 · --cls **3/0** · test-plan-tab **99/0** · --overflow 54/0(타 세션 2b3eebb)",
-          "status": "code_present",
+          "desc": "R37-3 게이트 축 전건 실행 + 잔여 2건 수리 — --print · --cls · test-plan-tab · --overflow",
+          "status": "partial",
+          "partial_reason": "제품 축은 결함 0이고 원인 규명도 참으로 재현됐다. partial인 이유는 둘 — ①인용 수치 3건이 낡았고(타 세션이 검사를 추가) ②--cls 귀속 검사가 재현 불안정(1회차 2/1 → 2회차 3/0)이며 인용된 CLS 기준값이 현행 pinned와 어긋난다.",
           "verified": {
             "date": "2026-08-30",
-            "method": "E2E 반복 실행 + 원인 규명",
+            "method": "독립 판정 — 4축 재실행 + 원인 규명 소스 대조 (⚠ 이 블록은 종전 중복 verified 키 2개를 병합한 것이다)",
             "evidence": [
-              "--cls 3/0 — 35-cls-baseline.json을 채취해 등재. **한 번도 커밋된 적 없던 파일**이라 축이 영구 빨강이었다(35의 공백). 값은 0.26517이고 단언은 pinned+0.05 허용치라 실측 편차(0.2652~0.2732)를 흡수한다 — 엄격 비교였다면 새 플레이크가 됐을 것이라 먼저 확인했다",
-              "test-plan-tab 99/0 × 3회 연속(종전 97/1). 실패 1건의 **정체는 앱이 아니라 검사였다**",
-              "인쇄 기준선 +1 귀속 재확인 — _probe37-printattr.mts 3/0. [넓게] 버튼을 DOM에서 제거하니 10px 32→31(구 기준선과 일치). S4-1의 귀속 기록이 옳았음을 추론이 아니라 대조로 확정"
+              "--overflow 54/0 (주장 일치)",
+              "test-plan-tab 99/0 (주장 일치)",
+              "--print 13/0 · test-font-scale 26/0 (주장 9/0·20/0 대비 **분모가 낡음**, 축은 초록)",
+              "--cls 1회차 2통과/1실패 → 2회차 3/0 (플레이크)",
+              "원인 규명 **참**: plan-ch2.tsx:88의 선택 클래스가 실제로 border-brand bg-brand-tint이고, test-plan-tab.mts:392가 지금 includes('border-brand')로 판정하며 두 조건(nameOk && typeOk)이 모두 참일 때만 탈출(:393), 저장 전 입력 단언도 :400에 실재",
+              "죽은 hex 전수 주장도 참 — 게이트 등재 검사 중 #7b68ee는 test-plan-tab에 **주석으로만** 남았고, 미등재 프로브 _probe-bulk-confirm.mjs:85·_probe-grade-on-create.mjs:92에 실코드로 잔존(재확인됨)",
+              "인쇄 기준선 +1 귀속 재확인 — _probe37-printattr.mts 3/0"
             ]
           },
           "root_cause_test_plan_tab": "증상은 재현되는 빨강인데 **증거가 실행마다 뒤바뀌었다** — {type:'', rows:[김대장]} ↔ {type:'III', rows:[]}. 둘이 동시에 성립한 적이 없다는 게 단서였다. 원인 둘: ① 선택 판정이 `border-[#7b68ee]`를 찾는데 실제 클래스는 `border-brand`다(plan-ch2.tsx:88) — **소방계획서_29 토큰 코드모드가 지운 문자열**이라 조건이 항상 참이 되고, '미선택일 때만' 가드가 무의미해져 재시도마다 Type Ⅲ를 **토글로 껐다** ② 탈출 조건이 이름만 봐서 타입이 안 눌린 채로도 루프를 빠져나갔다. 수리: 실제 클래스로 판정 + 두 조건 모두 참일 때만 탈출 + **저장 전 입력 상태 단언**(입력 실패와 저장 실패를 가른다).",
           "lesson": "⭐ **앱의 클래스를 갈아치우는 코드모드는 그 클래스를 보는 검사도 함께 썩힌다.** 29의 hex→토큰 치환은 앱 코드만 훑었고, 검사 스크립트에 남은 `border-[#7b68ee]`는 그대로 남아 조용히 항상-참이 됐다. 게이트 등재 검사 중 이 죽은 hex를 가진 것은 test-plan-tab 하나였다(전수 grep 확인). 미등재 프로브 2개(_probe-bulk-confirm·_probe-grade-on-create)에도 남아 있다 — 돌릴 때 같은 함정.",
-          "verified": {
-            "date": "2026-08-30",
-            "method": "E2E",
-            "evidence": [
-              "test-font-scale.mts 20/0 — B-6~B-11 전건 통과(38 세션 S-1·S-2 동반 통과)",
-              "test-plan-readability --print 8통과/1실패 — ✅E-2 '인쇄 미디어가 구 값으로 복원된다' = D37-4 직접 실증",
-              "✅E-1 배율 lg·xl에서도 인쇄는 구 값 그대로 — 부스트가 인쇄로 새지 않는다"
-            ]
-          },
-          "resolved": "종전 blocker(S0-4 인쇄 기준선 10px 31→32 실패)는 **해소됐다** — 35-print-baseline.json을 +1 재기록해 --print 9/0. 귀속도 대조로 확정: [넓게] 버튼을 DOM에서 제거하니 32→31로 구 기준선과 일치(_probe37-printattr.mts 3/0). 인쇄 미디어에서 --fs-2가 10px로 되돌아가 text-form-2xs 버튼이 10px로 계수되는 것이 맞았다."
+          "stale_claims": [
+            "'--print 9/0' → 실측 13/0. 방향은 참, 분모가 낡음(21cbbd5가 인쇄 자간 역치환 가드를 추가)",
+            "'--print 8통과/1실패'(종전 두 번째 verified 블록) → **지금 거짓**. 기준선 재기록 전 스냅샷이 남아 있었다",
+            "'test-font-scale 20/0' → 실측 26/0. 38 세션이 S-1·S-2를 추가",
+            "'--cls 3/0 · 값은 0.26517 · 허용치가 실측 편차 0.2652~0.2732를 흡수한다' → 커밋 29233bd 시점엔 정확했으나 타 세션 21cbbd5가 pinned를 0.27315로 재기록해 **현행과 어긋난다**"
+          ],
+          "open_defect": "⚠ --cls 귀속 검사가 플레이크다. 판정자 D 실측 — 1회차 정상 CLS 0.00082 / 대조군 0.00000이라 **이동이 0회**여서 귀속이 성립 불가(2/1 실패), 2회차는 0.26517로 정상(3/0). ⭐ 내가 종전에 쓴 리스크 분석은 **틀린 축을 봤다** — 깨질 수 있는 건 pinned 비교가 아니라 **귀속 검사(정상−대조군)**이고, 폰트가 캐시에서 즉시 오면 정상 CLS가 0.0008까지 떨어져 어떤 허용치로도 못 막는다. 이건 37이 만든 결함이 아니라 35의 --cls 축이 원래 갖고 있던 것이며, 수리는 이 문서 범위 밖이다.",
+          "resolved": "종전 blocker(S0-4 인쇄 기준선 10px 31→32 실패)는 **해소됐다** — 35-print-baseline.json을 +1 재기록해 --print 통과. 귀속도 대조로 확정: [넓게] 버튼을 DOM에서 제거하니 32→31로 구 기준선과 일치(_probe37-printattr.mts 3/0)."
         },
         {
           "id": "S4-5",
           "desc": "1.4-specs 채집 플레이크(295노드↔303노드) — **원인 규명·수리·실증 완료**. 고정 대기 1800ms를 서버 액션 응답 대기로 교체",
-          "status": "code_present",
+          "status": "implemented",
           "verified": {
             "date": "2026-08-30",
-            "method": "2×2 대조 실험 + 반복 실행",
+            "method": "독립 판정 — 수리의 소스 위치 확인 + 2×2 대조 재현 + 반복 실행 (⚠ 종전 중복 note 키 2개를 아래 note/note_method로 분리 보존)",
+            "commit": "66bbf9b",
             "evidence": [
-              "erp/scripts/_probe37-timing.mts — 클릭 후 서버 액션 응답 시각 실측 **+1603ms·+1688ms**. 구 대기 1800ms가 문턱에 걸쳐 있었다는 정량적 근거",
-              "erp/scripts/_probe37-flake.mts 2×2 **6/0** — ① 지연없음+구대기 배지2(12px 53) · ② 지연3500+구대기 **배지0(45)** · ③ 지연3500+새대기 **배지2(53)** · ④ 지연없음+새대기 배지2(53)",
-              "수리 후 test-plan-readability --identity **16/0 × 3회 연속, 1.4-specs 303노드 고정**(종전 295↔303 진동)",
-              "타 모드 무회귀 — --print 9/0 · --overflow 54/0 · tsc 0"
+              "⭐ 핵심 단언 충족 — test-plan-readability.mts:557 page.waitForResponse(POST /customers/, 30000).catch(()=>null)가 :563 els[0].click() **이전**에 등록됨. 클릭 뒤 등록이면 이미 끝난 응답을 놓친다",
+              "_probe37-flake.mts 재실행 6/0, 값까지 일치(①53/배지2 · ②45/배지0 · ③53/배지2 · ④53/배지2) + 항진 차단 검사(네 조건 모두 패널·rowtable 2)",
+              "_probe37-timing.mts 2/0 — POST 실측 +1640ms(재사용) / +1227·1771·2640·4030ms(새 컨텍스트). JSON의 +1603·+1688과 숫자는 다르지만(타이밍이라 당연) 1800ms 문턱을 넘는다는 결론은 더 강하게 지지",
+              "--identity 3회 연속 통과, 1.4-specs 노드 3회 고정(진동 없음)"
             ]
           },
-          "note": "판정 지표를 **불량 배지 수**로 바꾼 것이 돌파구였다. 12px 계수로 재던 초기 하니스는 BOOST_OFF 없이는 패널이 13.8px라 **패널 밖 노드만 세고 있었고**, 그래서 네 조건이 전부 같은 값에 붙어 판별력이 없었다. 지표가 틀리면 대조 설계가 아무리 정교해도 무의미하다.",
-          "note": "**원인은 증명됐다.** 서버 액션 getInspectedFacilityCodesAction 응답만 3500ms 지연 주입하니 패널이 12px 53개·불량배지 2개 → **45개·0개**로 무너졌다(erp/scripts/_probe37-flake.mts). 야생에서 본 -8과 정확히 같은 폭이다. 즉 고정 대기 1800ms 안에 fetchInspected()가 못 끝나면 그 응답이 그리는 배지가 통째로 빠진 채 채집된다. 위험: 그 상태로 --baseline을 뜨면 **사라진 8개가 영원히 정상이 된다** — 실제로 한 번 그렇게 기록했다가 되돌렸다.",
+          "note_method": "판정 지표를 **불량 배지 수**로 바꾼 것이 돌파구였다. 12px 계수로 재던 초기 하니스는 BOOST_OFF 없이는 패널이 13.8px라 **패널 밖 노드만 세고 있었고**, 그래서 네 조건이 전부 같은 값에 붙어 판별력이 없었다. ⭐ 지표가 틀리면 대조 설계가 아무리 정교해도 무의미하다. (⚠ 이 교훈은 종전 note 키 중복으로 JSON 파서에서 조용히 사라지고 있었다 — 2026-08-30 복원)",
+          "note": "**원인은 증명됐다.** 서버 액션 getInspectedFacilityCodesAction 응답만 3500ms 지연 주입하니 패널이 12px 53개·불량배지 2개 → **45개·0개**로 무너졌다(_probe37-flake.mts). 야생에서 본 -8과 정확히 같은 폭이다. 즉 고정 대기 1800ms 안에 fetchInspected()가 못 끝나면 그 응답이 그리는 배지가 통째로 빠진 채 채집된다. 위험: 그 상태로 --baseline을 뜨면 **사라진 8개가 영원히 정상이 된다** — 실제로 한 번 그렇게 기록했다가 되돌렸다.",
           "refuted_fix": "⚠ **networkidle은 답이 아니다(실측 반증).** page.waitForLoadState('networkidle')는 **마지막 내비게이션**의 라이프사이클을 반영해서, 이미 로드된 페이지에서는 즉시 반환하고 이후 서버 액션을 기다리지 않는다. 지연 주입 상태에서 걸어도 45개 그대로였다. 초안 권고안은 폐기됐다.",
-          "applied_fix": "test-plan-readability.mts — 클릭 **전에** page.waitForResponse(POST /customers/…, 30s, catch→null)를 등록하고 클릭 후 await, 이어서 400ms 리렌더 프레임. 클릭 뒤에 등록하면 이미 끝난 응답을 놓친다(waitForResponse는 등록 이후 도착분만 본다 — 로드 중 끝난 POST 4건은 안 걸린다는 것도 실측 확인). 타임아웃은 catch로 삼켜 어떤 경우에도 실행을 멈추지 않는다."
+          "applied_fix": "test-plan-readability.mts — 클릭 **전에** page.waitForResponse(POST /customers/…, 30s, catch→null)를 등록하고 클릭 후 await, 이어서 400ms 리렌더 프레임. 클릭 뒤에 등록하면 이미 끝난 응답을 놓친다(waitForResponse는 등록 이후 도착분만 본다 — 로드 중 끝난 POST 4건은 안 걸린다는 것도 실측 확인). 타임아웃은 catch로 삼켜 어떤 경우에도 실행을 멈추지 않는다.",
+          "residual": "⚠ 판정자 D 발견 — _probe37-flake.mts **자체**에 약 1/2 확률 크래시가 있다(route.continue: Route is already handled! @:66, 지연 주입 라우트 핸들러 경합). 크래시 회차의 조건 ③은 44/배지0으로 찍혀 **주장과 반대 방향**이었다. 인과 주장은 정상 회차에서 확정됐지만 '6/0'은 결정적이지 않다 — 이 프로브를 다시 인용할 사람은 2회 이상 돌릴 것."
         },
         {
           "id": "S4-4",
           "desc": "R37-4 육안 6항목 — **기계 판정 + 스크린샷으로 전건 확인**(7/0). '보기 좋은가'는 사람 몫이지만 '넘쳤는가·대비가 몇인가'는 기계가 더 잘 본다",
-          "status": "code_present",
+          "status": "implemented",
           "verified": {
             "date": "2026-08-30",
-            "method": "E2E 계측 + 스크린샷 육안",
+            "method": "독립 판정 — 프로브 재실행 후 수치를 JSON 표기와 전건 대조",
             "evidence": [
-              "erp/scripts/_probe37-visual.mts 7통과/0실패 · 스크린샷 erp/scripts/_shots37/",
-              "V-1 기본 폭 1035px(=900×1.15) · 표 2개 · 가로 넘침 0 · 글자 14.95px(=13×1.15)",
-              "V-2 [넓게] 1035→1536px · localStorage='1' · 새로고침 후에도 1536px · aria-pressed=true",
-              "V-3 나란히+넓게에서 좌우 각 729px (종전 640px 패널에선 ~300px) — 실제로 쓸 수 있는 폭",
-              "V-4 인쇄 미디어에서 패널 글자 14.95px → 11px(구 값)로 복귀 — D37-4가 화면 축에서도 실증",
-              "V-5 배율별 넘침 0 · md 1035px/14.95px → lg 1190/17.19 → xl 1346/19.44 (폭과 글자가 함께 커진다)",
-              "V-6 다크 모드 [넓게] 버튼 대비 6.57:1 (WCAG AA 4.5:1 충족)"
+              "_probe37-visual.mts 7통과/0실패 — 수치 전건 일치",
+              "V-1 폭 1035px · 표 2개 · 최악 넘침 0px · 글자 14.95px",
+              "V-2 1035→1536px · localStorage=1 · 새로고침 후 1536px · aria-pressed=true",
+              "V-3 좌우 [729,729]px",
+              "V-4 화면 14.95px → 인쇄 11px",
+              "V-5 md 1035·14.95 → lg 1190·17.1925 → xl 1346·19.435(JSON 17.19·19.44는 반올림 일치) · 넘침 전부 0",
+              "V-6 다크 모드 대비 6.57:1 (WCAG AA 4.5:1 충족)",
+              "스크린샷 erp/scripts/_shots37/ 8개 실재 — .gitignore erp/scripts/_shots*/로 제외(artifacts_note대로)"
             ]
           },
           "note": "⚠ 첫 실행에서 V-5b가 **거짓 실패**했다 — [넓게]를 켠 채로 재니 1400×배율이 96vw 상한(1600px 뷰포트→1536)에 눌려 세 배율이 전부 1536px로 같았다. 폭이 안 커진 게 아니라 화면이 좁은 것이다. **상한에 걸린 조건에서 '함께 커지는가'는 물을 수 없다** → 기본 폭으로 되돌리고 재측정해 통과."
@@ -374,13 +673,16 @@
     {
       "id": "F-1",
       "desc": "나란히 미리보기를 켜면 패널이 자동으로 [넓게] — openSplit()이 erp:spec-panel-wide를 쏘고 부모가 받는다(기존 erp:open-spec-section 버스와 같은 패턴, 방향만 자식→부모)",
-      "status": "code_present",
+      "status": "implemented",
       "verified": {
-        "date": "2026-08-30", "method": "E2E",
+        "date": "2026-08-30",
+        "method": "독립 판정 — 프로브 재실행 + 커밋 상태 확인",
+        "commit": "0bdec06",
         "evidence": [
-          "erp/src/components/customers/plan-form14-specs.tsx openSplit() — dispatch erp:spec-panel-wide",
-          "erp/src/components/customers/plan-form14.tsx — addEventListener로 setSpecsWide(true)",
-          "_probe37-f12.mts 6/0 — 켜면 폭 확대(aria-pressed=true) · **localStorage 불변(0 유지)** · 새로고침하면 사용자가 고른 기본 폭 복귀"
+          "_probe37-f12.mts 6/0 — 핵심 단언 3개 전부 초록: 나란히를 켜면 자동 확대 / **localStorage는 건드리지 않음** / 새로고침하면 사용자 기본 폭 복귀",
+          "erp/src/components/customers/plan-form14-specs.tsx:181 dispatchEvent(new CustomEvent('erp:spec-panel-wide'))",
+          "erp/src/components/customers/plan-form14.tsx:133 addEventListener(... setSpecsWide(true))",
+          "두 파일 워킹트리 clean — 커밋 상태로 실재"
         ]
       },
       "note": "⚠ 켤 때만 넓히고 **끌 때 되돌리지 않으며 localStorage에도 쓰지 않는다**. 이건 취향 설정이 아니라 세션 편의다 — 저장하면 사용자가 고른 기본 폭을 조용히 덮어쓴다. 그래서 '안 쓴다'를 기능 확인과 같은 무게로 단언한다."
@@ -388,24 +690,62 @@
     {
       "id": "F-2",
       "desc": "미리보기 iframe 높이 h-[640px] → h-[min(78vh,900px)]",
-      "status": "code_present",
+      "status": "implemented",
       "verified": {
-        "date": "2026-08-30", "method": "E2E",
+        "date": "2026-08-30",
+        "method": "독립 판정 — 런타임 측정 + 소스 부재 축",
         "evidence": [
-          "_probe37-f12.mts — 실제 iframe 높이가 min(78vh,900px)과 일치(고객 b9613ed3, 시작된 회차가 있는 유일 후보)",
-          "소스 축 — iframe이 새 클래스를 쓰고 구 h-[640px] 잔존 0"
+          "_probe37-f12.mts — 'F-2 미리보기 높이가 고정 640px이 아니라 min(78vh,900px)이다' 통과. 측정 고객 b9613ed3-af94-44fc-b87b-128e2480289c",
+          "소스 축 독립 확인 — erp/src 전수 grep에서 h-[640px] **0건**",
+          "erp/src/components/customers/plan-form14-specs.tsx:1041 iframe이 h-[min(78vh,900px)] 사용"
         ]
       },
       "note": "⚠ iframe은 **시작된 자체점검 회차가 있는 고객**에서만 렌더된다(로컬 후보 3명 중 1명뿐). 첫 실행이 '측정 불가'로 끝났는데, 그때는 덮지 않고 **깨질 수 있는 축**(Tailwind가 임의값 h-[min(…)]를 생성하는가)을 별도로 재도록 프로브를 짰다. 이후 후보 순회를 about:blank로 격리하니 실제 iframe 측정에 성공했다 — 종전 실패는 split이 열린 채 이동해 난 net::ERR_ABORTED였다."
     }
   ],
-  "artifacts_note": "erp/scripts/_probe37-*.mts 6종은 **커밋한다** — 이 문서와 test-plan-readability.mts:543이 증거로 인용하므로 미추적으로 두면 남에겐 없는 파일을 가리킨다. 반면 스크린샷 erp/scripts/_shots37/는 .gitignore가 `erp/scripts/_shots*/`로 제외하므로 커밋하지 않는다 — _probe37-visual.mts를 다시 돌리면 재생성된다.",
+
+  "artifacts_note": "erp/scripts/_probe37-*.mts 6종은 **커밋한다** — 이 문서와 test-plan-readability.mts:577이 증거로 인용하므로 미추적으로 두면 남에겐 없는 파일을 가리킨다. 반면 스크린샷 erp/scripts/_shots37/는 .gitignore가 `erp/scripts/_shots*/`로 제외하므로 커밋하지 않는다 — _probe37-visual.mts를 다시 돌리면 재생성된다.",
+
+  "residual": [
+    {
+      "id": "R-a",
+      "desc": "--cls 귀속 검사 플레이크 — 폰트가 캐시에서 즉시 오면 정상 CLS가 0.0008까지 떨어져 대조군과 차이가 안 나고 귀속이 성립 불가가 된다",
+      "owner": "소방계획서_35 (--cls 축은 35가 만들었다)",
+      "status": "pending_order",
+      "note": "37이 만든 결함이 아니다. S4-3 open_defect 참조."
+    },
+    {
+      "id": "R-b",
+      "desc": "죽은 hex `#7b68ee`가 미등재 프로브 2개에 실코드로 잔존 — _probe-bulk-confirm.mjs:85 · _probe-grade-on-create.mjs:92. 돌리면 조용히 항상-참/항상-거짓이 된다",
+      "owner": "소방계획서_29 (토큰 코드모드가 남긴 것)",
+      "status": "pending_order",
+      "note": "게이트 등재분(test-plan-tab)은 S4-3에서 수리됐다. 이 둘은 게이트 밖이라 아직 살아 있다."
+    },
+    {
+      "id": "R-c",
+      "desc": "--mutate(변이 축)가 test-all.mts에 미등재 — 수동으로만 돌아서 조용히 썩을 수 있다",
+      "owner": "소방계획서_37",
+      "status": "pending_order",
+      "note": "S3-7 residual. 변이 축이 죽으면 B-10이 항진명제가 돼도 아무도 모른다."
+    },
+    {
+      "id": "R-d",
+      "desc": "B-9의 '패널이 열렸다'가 실제로는 '클릭을 호출했다'까지만 단언한다 — 패널이 항상 마운트라 클릭 핸들러가 죽는 회귀를 못 잡는다",
+      "owner": "소방계획서_37",
+      "status": "pending_order",
+      "note": "S3-4 residual. 측정 자체는 무해(computed style·rect는 translate와 무관)해서 FAIL로 내리지 않았다."
+    }
+  ],
 
   "lessons": [
     "!important는 그 선언이 이긴 요소에서만 힘을 쓴다. 자식은 값을 상속할 뿐이고, 상속값은 그 자식에 직접 매칭되는 선언에 진다 — 중요도와 무관하게 상속이 먼저 탈락한다. :root{--fs-scale:1!important}로 [data-fs-boost] 자손을 통제하려 했다가 항등 축이 깨졌다(설계 전제 오판 1).",
     "test-plan-readability의 OLD_VALUES는 --print 축 전용이다. --identity는 라이브 화면을 수집해 커밋된 고정 기준선(scripts/_fixtures/35-baseline.json)과 대조한다. OLD_VALUES만 고쳤을 때 실패 수치가 한 자도 안 변한 것이 오판의 증거였다 — 고쳤는데 수치가 그대로면 '덜 고쳤다'가 아니라 '엉뚱한 데를 고쳤다'를 먼저 의심할 것(설계 전제 오판 2).",
     "CSS 커스텀 프로퍼티 자기참조는 guaranteed-invalid가 되어 조용히 값이 죽는다. 부스트를 곱하려면 읽을 이름이 하나 더 필요하고, 그 사본은 어긋날 수 있으므로 검사로 대조할 것.",
     "@media print의 역치환은 원 규칙과 명시도가 같아 소스 순서가 승패를 정한다. 위로 옮기면 조용히 무력해지므로 이동 금지를 주석으로 못 박을 것.",
-    "globals.css를 고치면 dev가 옛 CSS를 서빙할 수 있다(risk_dev_css_cache_stale). 측정 전에 서빙 CSS 청크를 직접 fetch해 grep으로 신선도를 확인했다 — 이 축이 없으면 변이가 안 든 채 초록이 나와 항진명제로 오판한다."
+    "globals.css를 고치면 dev가 옛 CSS를 서빙할 수 있다(risk_dev_css_cache_stale). 측정 전에 서빙 CSS 청크를 직접 fetch해 grep으로 신선도를 확인했다 — 이 축이 없으면 변이가 안 든 채 초록이 나와 항진명제로 오판한다.",
+    "⭐ **JSON 중복 키는 조용히 앞 블록을 삼킨다.** S4-3의 verified가 둘, S4-5의 note가 둘이었고 파서는 뒤엣것만 남겼다. 하필 S4-3에서 살아남은 쪽이 **낡고 지금은 거짓인** 블록(--print 8/1)이고 사라진 쪽이 **실측으로 재현되는 정확한** 블록(--cls·test-plan-tab 99/0·printattr)이었다 — JSON을 기계로 읽는 모든 집계가 이 항목을 실제보다 나쁘게 보고 있었다. 손으로 쓴 JSON은 파싱 후 키 개수를 되읽어 확인할 것.",
+    "⭐ **완료 문서의 파일:라인은 남이 내 파일을 만지면 조용히 썩는다.** 이번 판정에서 22곳이 어긋나 있었고 전부 '줄번호만 틀림'이었지 '구현 없음'은 0건이었다. 그래도 방치하면 다음 사람이 엉뚱한 줄을 고친다 — 판정 때마다 재대조가 규약이어야 한다.",
+    "⭐ **인용 수치의 분모는 남이 검사를 추가하면 낡는다.** 20/0·18/0·9/0이 전부 26/0·26/0·13/0으로 커져 있었다. 수치가 다르면 '거짓'과 '분모 낡음'을 먼저 가를 것 — 전자는 결함이고 후자는 남의 기여다.",
+    "⭐ **포트에 리스너가 없는데 HTTP 404가 온다.** 시스템 프록시가 localhost 요청을 가로채 404를 돌려줘서 '서버는 떠 있는데 라우트가 다 죽었다'로 오판할 뻔했다. 판정은 Get-NetTCPConnection(리스너 실재)과 Proxy=null 요청 두 축으로."
   ]
 }
