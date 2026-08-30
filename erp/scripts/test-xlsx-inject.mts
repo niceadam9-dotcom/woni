@@ -13,7 +13,7 @@ import JSZip from 'jszip'
 import XLSX from 'xlsx'
 import { injectWorkbook, isoToSerial, sheetFileMap } from '../src/lib/xlsx-inject.ts'
 import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
-import { buildWorkbookValues, toInjectTargets } from '../src/lib/xlsx-workbook.ts'
+import { buildWorkbookValues, toInjectTargets, DEFECT_ROWS_PER_GROUP, defectOverflow } from '../src/lib/xlsx-workbook.ts'
 import type { OfficialData } from '../src/lib/doc-templates/official.ts'
 import type { DelegationData } from '../src/lib/doc-templates/delegation.ts'
 
@@ -413,6 +413,80 @@ console.log('[8] 구조 안전망 — 고아 공유문자열')
     .file('xl/sharedStrings.xml')!.async('string')).matchAll(/<si>/g)].length
   check('소거가 si 개수를 바꾸지 않는다(인덱스 보존)', await nSi(planted) === await nSi(rp.bytes),
     `${await nSi(planted)} → ${await nSi(rp.bytes)}`)
+}
+
+// ── ⑨ 현5 불량 세부 7행 + 계획서 폐포 (S9-1 슬라이스 · Phase 3 선행 조건) ──
+// 계획서!H12~H24{=현5!C4..C10}이라 이 시트가 비면 이행계획서 내용이 통째로 공란으로 인쇄된다.
+// PDF page8()은 그룹당 N행을 rowspan으로 펼치지만 엑셀은 그룹당 1행 고정이라 **접는다**(행 높이
+// 77.25pt ≈ 5줄 실측). B열 점검번호와 C열 불량내용은 **같은 인덱스로** 잘라야 짝이 안 어긋난다.
+console.log('[9] 현5 불량 세부 · 계획서 폐포')
+{
+  const mkValues = (defectRows?: Array<{ group: string; code: string; content: string }>) =>
+    buildWorkbookValues({
+      official, delegation, customerAddress: '경기도 양평군 검증로 1',
+      startISO: '2026-08-20', endISO: '2026-08-21', useApprovalISO: '2011-06-25',
+      installedCodes: ['옥내소화전설비'], evacTypes: [],
+      building: {
+        purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5,
+        floorsBelow: 2, height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',
+      },
+      report9: { ...report9, defectRows },
+    })
+  const cellOf = (bytes: Uint8Array, sheet: string, ref: string) => {
+    const wb = XLSX.read(bytes, { cellFormula: true })
+    return (wb.Sheets[sheet]?.[ref] as XLSX.CellObject | undefined)
+  }
+
+  // 대조군 먼저 — defectRows 없이 주입하면 7행이 비어야 하고, **계획서는 '0'을 인쇄하면 안 된다**
+  // (빈 셀로 두면 복제 수식이 0을 읽는다: 이미 한 번 밟은 함정이라 keepFormulaWhenEmpty로 막았다)
+  // ⚠ 판정은 **원시 XML**로 한다 — SheetJS는 캐시 `<v>`가 없는 수식 셀을 통째로 건너뛰므로
+  //   `=""`만 있는 칸이 '수식 없음'으로 보인다(이 저장소가 이미 실측한 사각: 840→679).
+  //   보는 층과 고치는 층을 맞추지 않으면 멀쩡한 코드가 붉게 나온다.
+  const rawOf = async (bytes: Uint8Array, sheet: string) => {
+    const z = await JSZip.loadAsync(bytes)
+    return await z.file((await sheetFileMap(z)).get(sheet)!)!.async('string')
+  }
+  const cellXml = (xml: string, ref: string) =>
+    new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(xml)?.[0] ?? ''
+
+  const ctl = await injectWorkbook(template, toInjectTargets(mkValues(undefined)).targets)
+  const ctlRaw = await rawOf(ctl.bytes, '현5')
+  check('대조군 — defectRows 없으면 현5!C4는 =""가 살아 있다', /<f[^>]*>""<\/f>/.test(cellXml(ctlRaw, 'C4')),
+    cellXml(ctlRaw, 'C4') || '(셀 없음)')
+  check('대조군 — 계획서!H12가 "0"을 인쇄하지 않는다', String(cellOf(ctl.bytes, '계획서', 'H12')?.v ?? '') !== '0',
+    String(cellOf(ctl.bytes, '계획서', 'H12')?.v ?? '(공란)'))
+
+  // 본검사 — 그룹 2종에 값, 그중 하나는 상한(5) 초과로 접기·자르기를 함께 태운다
+  const many = Array.from({ length: 7 }, (_, i) => ({ group: '소화설비', code: `1-${i + 1}`, content: `불량${i + 1}` }))
+  const rows = [...many, { group: '경보설비', code: '2-1', content: '수신기 표시등 불량' }]
+  const r9 = await injectWorkbook(template, toInjectTargets(mkValues(rows)).targets)
+  const c4 = String(cellOf(r9.bytes, '현5', 'C4')?.v ?? '')
+  const b4 = String(cellOf(r9.bytes, '현5', 'B4')?.v ?? '')
+  check('현5!C4 — 같은 그룹 불량을 줄바꿈으로 접는다', c4.split('\n').length === DEFECT_ROWS_PER_GROUP,
+    JSON.stringify(c4))
+  check('현5!B4·C4 짝 정렬 — 같은 인덱스로 잘렸다',
+    b4.split('\n').length === c4.split('\n').length && b4.split('\n')[0] === '1-1' && c4.split('\n')[0] === '불량1',
+    `B4=${JSON.stringify(b4)}`)
+  check('상한 초과분은 조용히 버리지 않는다(defectOverflow)',
+    defectOverflow(rows).some(o => o.group === '소화설비' && o.dropped === 7 - DEFECT_ROWS_PER_GROUP),
+    JSON.stringify(defectOverflow(rows)))
+  check('현5!C5 — 다른 그룹은 자기 값만 받는다',
+    String(cellOf(r9.bytes, '현5', 'C5')?.v ?? '') === '수신기 표시등 불량',
+    String(cellOf(r9.bytes, '현5', 'C5')?.v ?? ''))
+  const r9Raw = await rawOf(r9.bytes, '현5')
+  check('값이 없는 그룹은 =""가 남는다(계획서 0 인쇄 방지)', /<f[^>]*>""<\/f>/.test(cellXml(r9Raw, 'C6')),
+    cellXml(r9Raw, 'C6') || '(셀 없음)')
+
+  // ★ 폐포 — 계획서!H12{=현5!C4}는 단일 참조라 이행 폐포가 캐시를 옮겨야 한다.
+  //   LibreOffice는 재계산하지 않으므로(D-9) 캐시가 안 오면 **인쇄물이 빈다**.
+  const h12 = cellOf(r9.bytes, '계획서', 'H12')
+  check('계획서!H12 — 폐포가 현5!C4 값을 캐시로 옮겼다', String(h12?.v ?? '') === c4,
+    `v=${JSON.stringify(String(h12?.v ?? ''))}`)
+  check('계획서!H12 — 수식 <f>는 보존됐다', typeof h12?.f === 'string' && h12.f.includes('현5!C4'),
+    `f=${h12?.f ?? '(없음)'}`)
+
+  // 이중 이스케이프 회귀(2026-08-23 결함: 줄바꿈 67칸이 리터럴 '&#10;'로 인쇄됐다)
+  check('원시 XML에 이중 이스케이프(&amp;#10;) 0건', !r9Raw.includes('&amp;#10;'))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

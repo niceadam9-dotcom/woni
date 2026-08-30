@@ -8,6 +8,7 @@
  *  서식이 갱신되면 validateAnchors가 먼저 붉어진다 — 그때 재실측해 재승인한다(Q-4: 재변환). */
 import * as XLSX from 'xlsx'
 import { FORM4_ROWS, FORM4_SHEET, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
+import { DEFECT_GROUPS } from '@/lib/doc-templates/report9'
 
 export type Anchor = {
   field: string
@@ -33,6 +34,15 @@ export type Anchor = {
 }
 
 const HUB = '개요'
+
+/** 현5(별지 9호 8쪽) 불량 세부 7행 — 행 좌표 ↔ 설비 구분.
+ *  ⚠ 목록을 **두 벌로 두지 않는다** — `DEFECT_GROUPS`(doc-templates/report9.ts:47)에서 파생시킨다.
+ *  손으로 베끼면 한쪽만 갱신돼 갈라지고, 그때 값이 조용히 옆 줄에 찍힌다(MULTI_USE_COLS를 export로
+ *  단일 원천화한 것과 같은 이유). 서식 A4~A10의 리터럴이 이 7종·이 순서와 일치함을 실측했다
+ *  (2026-08-30 `_scope29-hyeon5.mts`), 그리고 각 앵커를 자기 설비명 라벨에 묶으므로 서식이 재배열되면
+ *  라벨 대조가 먼저 붉어진다(행 번호만 믿으면 조용히 옆 줄에 찍힌다). */
+export const DEFECT_GROUP_ROWS: ReadonlyArray<{ group: string; row: number }> =
+  DEFECT_GROUPS.map((group, i) => ({ group, row: 4 + i }))
 
 /** Phase 1 — 개요 허브 + 위임장 대리인 + 계약서 대표자.
  *  스포크(공문·위임장·계약서·계획서·완료보고서)의 나머지 칸은 허브 수식이 채운다(117수식 실측). */
@@ -138,6 +148,24 @@ export const ANCHORS: Anchor[] = [
   { field: 'stairsLine',      sheet: '정보', cell: 'B21', labelCell: 'A21', label: '계단' },
   { field: 'elevatorLine',    sheet: '정보', cell: 'B22', labelCell: 'A22', label: '승강기' },
   { field: 'parkingLine',     sheet: '정보', cell: 'B23', labelCell: 'A23', label: '주차장' },
+  // ── 현5(별지 9호 8쪽 '4. 소방시설등 불량 세부 사항') — 점검번호·불량내용 7행 ──
+  // 계획서!C12~C24{=현5!A4..A10}·H12~H24{=현5!C4..C10}가 이 시트를 읽으므로 **Phase 3의 선행 조건**이다
+  // (2026-08-30 실측 `_scope29-hyeon5.mts` — 착수 순서가 설계와 반대였다).
+  // A4~A10은 데이터가 아니라 **서식 라벨 7종 고정 리터럴**이라 배선하지 않는다(이미 옳다).
+  // 값은 report9.ts:47 DEFECT_GROUPS·:560 page8()과 **같은 defectRows**를 쓴다 — PDF 8쪽이 정본(D-7).
+  // ⚠ PDF는 그룹당 N행을 rowspan으로 펼치는데 **엑셀은 그룹당 1행 고정**이라 접기가 불가피하다.
+  //   서식이 접기를 전제한다는 증거: r4~r10이 전부 ht="77.25"(헤더 36.75의 2배)라 한 칸에 5줄 안팎이
+  //   들어간다. 그래서 줄바꿈으로 합치고 넘치면 자르되 missing에 남긴다(S8-2 규약).
+  //   B열(점검번호)과 C열(불량내용)은 **같은 인덱스 순서**로 잘라야 짝이 어긋나지 않는다.
+  // ⚠ C4~C10은 서식에 `=""`가 들어 있다 — 빈 값일 때 **셀을 비우면 계획서!H12가 `0`을 인쇄**하므로
+  //   keepFormulaWhenEmpty로 그 수식을 살린다(이미 한 번 밟은 함정).
+  ...DEFECT_GROUP_ROWS.flatMap<Anchor>(({ group, row }) => [
+    { field: `defectCode${row}`, sheet: '현5', cell: `B${row}`, labelCell: `A${row}`, label: group },
+    {
+      field: `defectContent${row}`, sheet: '현5', cell: `C${row}`, labelCell: `A${row}`, label: group,
+      dropFormula: true, keepFormulaWhenEmpty: true,
+    },
+  ]),
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·

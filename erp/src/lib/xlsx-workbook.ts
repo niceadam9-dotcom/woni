@@ -7,7 +7,7 @@ import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import { MULTI_USE_COLS } from '@/lib/doc-templates/report9'
 import { resultMark } from '@/lib/doc-templates/base'
-import { ANCHORS, type Anchor } from '@/lib/xlsx-anchors'
+import { ANCHORS, DEFECT_GROUP_ROWS, type Anchor } from '@/lib/xlsx-anchors'
 import {
   FORM4_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
 } from '@/lib/xlsx-form4'
@@ -58,6 +58,10 @@ export type WorkbookSource = {
      *  `src.installedCodes`(전 동 합집합)와 **다른 축**이라 섞으면 하위 마크가 옆 줄로 내려간다
      *  (xlsx-form4.form4VerdictMarks 주석). 미공급이면 installedCodes로 폴백한다(픽스처·구 호출부). */
     ledgerCodes?: string[]
+    /** 불량 세부(별지 9호 8쪽 = `현5` 시트) — PDF `page8()`이 인쇄하는 바로 그 배열(D-7).
+     *  옵션인 이유는 구 호출부·픽스처 호환이며, 미공급이면 7행이 전부 명시적 공란이 된다
+     *  (서식의 `=""`가 살아남아 계획서!H12가 `0`을 인쇄하지 않는다 — keepFormulaWhenEmpty). */
+    defectRows?: Array<{ group: string; code: string; content: string }>
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
     // ── 정보 시트 12칸(별지 9호 2쪽) — 필수/옵션 구분은 **Report9Data와 정확히 같게** 둔다.
@@ -289,7 +293,38 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`assist${i + 1}Period`, a ? a.period || null : null],
     )
   }
+  // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
+  // PDF는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 그룹당 1행 고정이라 접기가 불가피하다.
+  // 서식이 접기를 전제한다: r4~r10이 ht="77.25"(헤더의 2배)로 한 칸에 5줄 안팎이 들어간다.
+  // ⚠ B열(점검번호)과 C열(불량내용)을 **같은 인덱스로** 자른다 — 따로 자르면 남의 불량에 남의
+  //   번호가 붙는다(짝이 어긋난 채로도 인쇄는 멀쩡해 보인다).
+  // ⚠ 넘치는 분은 자르되 `defectOverflow`로 남겨 라우트가 missing에 실을 수 있게 한다(S8-2 규약).
+  for (const { group, row } of DEFECT_GROUP_ROWS) {
+    const rows = (p.defectRows ?? []).filter(r => r.group === group)
+    const kept = rows.slice(0, DEFECT_ROWS_PER_GROUP)
+    entries.push(
+      [`defectCode${row}`, kept.length ? kept.map(r => r.code).join('\n') : null],
+      [`defectContent${row}`, kept.length ? kept.map(r => r.content).join('\n') : null],
+    )
+  }
   return new Map<string, CellValue>(entries)
+}
+
+/** 현5 한 칸에 접어 넣는 불량 건수 상한 — 행 높이 77.25pt(≈5줄) 실측 기준.
+ *  넘치면 자르되 조용히 버리지 않는다(`defectOverflow`). */
+export const DEFECT_ROWS_PER_GROUP = 5
+
+/** 접기로 잘려 나간 불량 건수 — 라우트가 missing에 싣는 축(S8-2: '자르되 missing에 남긴다').
+ *  0이면 손실 없음. 이 함수를 따로 둔 이유는 buildWorkbookValues가 값만 돌려주기 때문이다. */
+export function defectOverflow(
+  defectRows?: Array<{ group: string; code: string; content: string }>,
+): Array<{ group: string; dropped: number }> {
+  const out: Array<{ group: string; dropped: number }> = []
+  for (const { group } of DEFECT_GROUP_ROWS) {
+    const n = (defectRows ?? []).filter(r => r.group === group).length
+    if (n > DEFECT_ROWS_PER_GROUP) out.push({ group, dropped: n - DEFECT_ROWS_PER_GROUP })
+  }
+  return out
 }
 
 /** 앵커 × 값 → 주입 대상. 값이 없는 앵커는 **명시적 공란**(null)으로 넣는다 —
