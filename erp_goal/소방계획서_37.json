@@ -29,7 +29,7 @@
     "flake_note": "판정자 3인이 각각 1회차 거짓 빨강을 겪었다(dev 콜드 컴파일 15초 타임아웃). 2회차는 전부 초록. 이 저장소에서 E2E 1회 실패는 앱 결함의 증거가 아니다."
   },
 
-  "evidence_line_note": "⚠ 이 문서의 파일:라인 근거는 **2026-08-30 독립 판정 시점에 전건 재대조해 정정**한 값이다. 정정 전 22곳이 썩어 있었다(globals.css +37줄 = 38 세션 --sheet-* 토큰 블록 삽입 / plan-form14.tsx +10줄 = F-1 이벤트 버스 삽입 / test-font-scale.mts +11줄 / test-plan-readability.mts +22~93줄). 전부 '줄번호만 틀림'이었고 '구현 없음'은 0건이었다. ⚠ test-plan-readability.mts의 줄번호는 **판정 시점 워킹트리 기준**이며 타 세션의 미커밋 변경(+38/−12)이 포함돼 있다 — 그 세션이 커밋하면 맞고, 되돌리면 다시 어긋난다. 내 파일을 남이 만졌으면 줄번호부터 재대조할 것.",
+  "evidence_line_note": "⚠ 이 문서의 파일:라인 근거는 **2026-08-30 독립 판정 시점에 전건 재대조해 정정**한 값이다. 정정 전 22곳이 썩어 있었다(globals.css +37줄 = 38 세션 --sheet-* 토큰 블록 삽입 / plan-form14.tsx +10줄 = F-1 이벤트 버스 삽입 / test-font-scale.mts +11줄 / test-plan-readability.mts +22~93줄). 전부 '줄번호만 틀림'이었고 '구현 없음'은 0건이었다. ⭐ **그리고 같은 날 한 번 더 밀렸다** — 판정자가 본 것은 타 세션의 **미커밋** 워킹트리(+38/−12)였는데, 그 세션이 `eca5152`로 커밋할 때는 **+84줄**이 되어 있었다. 그래서 test-plan-readability.mts의 줄번호를 HEAD 기준으로 2차 재측정했다(OLD_VALUES 227→239 · 주입 502→514, 536→548 · MODE_PRINT 분기 393→405). test-font-scale.mts·globals.css·plan-form14.tsx는 두 커밋이 안 건드려 1차 값이 그대로 유효하다. ⭐ 교훈: **'남의 미커밋을 보고 적은 줄번호'는 그가 커밋하는 순간 한 번 더 틀린다** — 커밋 전 상태를 근거로 삼았으면 그의 커밋 뒤 재대조가 필수다.",
 
   "db_change": "없음 — 마이그레이션 0건. [넓게] 선택은 localStorage(erp-spec-panel-wide), 글자 배율은 35의 기존 profiles.form_font_scale(154)을 그대로 읽는다.",
 
@@ -483,12 +483,12 @@
           "id": "S3-8",
           "desc": "BOOST_OFF가 항등·기준선 두 모드에 함께 걸린다 (한쪽만 걸면 기준선 재기록 순간 항등이 통째로 빨개진다)",
           "status": "implemented",
-          "evidence": ["erp/scripts/test-plan-readability.mts:222 BOOST_OFF 정의", "erp/scripts/test-plan-readability.mts:502", "erp/scripts/test-plan-readability.mts:536"],
+          "evidence": ["erp/scripts/test-plan-readability.mts:222 BOOST_OFF 정의", "erp/scripts/test-plan-readability.mts:514", "erp/scripts/test-plan-readability.mts:548"],
           "verified": {
             "date": "2026-08-30",
             "method": "독립 판정 — 조건식 동일성 + 주입이 no-op이 아님을 fixture로 확인",
             "evidence": [
-              "적용 2곳(:502 수집 루프 · :536 1.4-specs 패널 열기 직전) **두 곳 모두 동일 조건** if (MODE_IDENTITY || MODE_BASELINE) — 글자 하나까지 같으므로 항등·기준선이 같은 화면을 본다",
+              "적용 2곳(:514 수집 루프 · :548 1.4-specs 패널 열기 직전) **두 곳 모두 동일 조건** if (MODE_IDENTITY || MODE_BASELINE) — 글자 하나까지 같으므로 항등·기준선이 같은 화면을 본다",
               "--identity 17통과/0실패, 15화면 전건 불변",
               "⭐ 실질성 확인 — 커밋된 35-baseline.json의 1.4·1.4-specs 히스토그램에 부스트된 크기(14.95/13.8px 등)가 **하나도 없다**(전부 11/12/13/14/15/17px 정수). BOOST_OFF를 빼면 두 화면이 즉시 어긋난다 = 이 스타일 주입은 무의미한 no-op이 아니다"
             ]
@@ -498,13 +498,13 @@
           "id": "S3-9",
           "desc": "BOOST_OFF가 --overflow에는 걸리지 않는다 (거기선 실제로 커진 기하를 재야 넘침이 의미가 있다)",
           "status": "implemented",
-          "evidence": ["erp/scripts/test-plan-readability.mts:502 MODE_IDENTITY || MODE_BASELINE 조건 (MODE_OVERFLOW 부재)"],
+          "evidence": ["erp/scripts/test-plan-readability.mts:514 MODE_IDENTITY || MODE_BASELINE 조건 (MODE_OVERFLOW 부재)"],
           "verified": {
             "date": "2026-08-30",
             "method": "독립 판정 — 부재 주장을 조건식으로 결정적 판정",
             "evidence": [
-              "BOOST_OFF 문자열은 파일 전체에 4곳뿐(정의 :222 · OLD_VALUES 합성 :227 · 적용 :502·:536)",
-              ":502·:536의 게이트에 MODE_OVERFLOW가 등장하지 않는다 → --overflow 단독 실행에서 결정적으로 미적용",
+              "BOOST_OFF 문자열은 파일 전체에 4곳뿐(정의 :222 · OLD_VALUES 합성 :239 · 적용 :514·:548)",
+              ":514·:548의 게이트에 MODE_OVERFLOW가 등장하지 않는다 → --overflow 단독 실행에서 결정적으로 미적용",
               "--overflow 54통과/0실패, '[1.4-specs] 표 3개 넘침 없음' — 부스트가 살아 있는 확대된 기하로 재고도 넘침 0"
             ]
           },
@@ -514,14 +514,15 @@
           "id": "S3-10",
           "desc": "OLD_VALUES(인쇄 축의 구 값 재현)에도 BOOST_OFF가 합성된다 — 패널이 붙은 화면에서 screenOld와 print가 어긋나지 않도록",
           "status": "implemented",
-          "evidence": ["erp/scripts/test-plan-readability.mts:227"],
+          "evidence": ["erp/scripts/test-plan-readability.mts:239"],
           "verified": {
             "date": "2026-08-30",
             "method": "독립 판정 — 문자열 합성 위치 + 제거 경로 정합성",
             "evidence": [
-              ":227 OLD_VALUES 템플릿 끝에 ${BOOST_OFF}가 문자열로 합성 — :393 addStyleTag(OLD_VALUES) 때 패널도 함께 1로 눌린다",
-              ":213-217 주석이 이유를 명시(:root의 !important는 상속으로 내려가 [data-fs-boost] 직접 매칭에 진다)",
-              ":400이 --fs-scale:1!important를 포함한 style 태그를 제거하는데 BOOST_OFF가 같은 태그 안이라 함께 제거되므로 E-1 배율 축과 모순 없음"
+              ":239 OLD_VALUES 템플릿 끝에 ${BOOST_OFF}가 문자열로 합성 — :405 addStyleTag(OLD_VALUES) 때 패널도 함께 1로 눌린다",
+              "주석이 이유를 명시(:root의 !important는 상속으로 내려가 [data-fs-boost] 직접 매칭에 진다)",
+              ":412가 --fs-scale:1!important를 포함한 style 태그를 제거하는데 BOOST_OFF가 같은 태그 안이라 함께 제거되므로 E-1 배율 축과 모순 없음",
+              "부수 확인 — :259에 'OLD_VALUES 사본이 :root 목록과 일치한다'는 가드가 따로 있다(사본은 어긋난다는 이 파일 자신의 교훈)"
             ]
           },
           "residual": "판정자 C는 --print를 실행하지 않아 이 항목의 런타임 실증은 소스 논증에만 의존한다. 다만 판정자 D가 같은 날 --print 13/0을 실측했고 그 안에 E-2(인쇄 구 값 복원)가 포함된다."
@@ -570,7 +571,14 @@
             "known_truth": "완전 렌더 기준 내 변경의 델타는 1.4 12px 39→40, 1.4-specs 12px 52→53. 둘 다 정확히 +1이며 프로브로 확정됐다. 재기록은 이 값을 목표로 검증하면 된다."
           },
           "correction": "⚠ 초안에서 재기록 대가를 **과대평가했었다**. test-plan-readability.mts 머리주석이 명시하듯 기준선은 S3 적용 시점에 이미 재기준화됐고, --identity는 코드모드 증명이 아니라 '앞으로 크기가 실수로 바뀌지 않는가'의 **회귀 잠금**이다. → 교훈: **검사의 의미는 이름이 아니라 머리주석이 정의한다.** --baseline은 BOOST_OFF를 함께 걸도록 고쳤으므로 두 모드는 어긋나지 않는다.",
-          "superseded_note": "⚠ 2026-08-30 21:24 판정 도중 **타 세션이 35-baseline.json을 --baseline으로 덮어썼다**(현재 미커밋 M). 히스토그램 키가 12px → 12px|18px|normal 복합키로, 모집단이 body * → [data-plan-root] *로 바뀌어 1.4-specs counted가 303→249가 됐다. 위 verified는 **커밋 e07cf67 시점의 사실**이며 그 시점 기준으로 참이다. 타 세션의 재기록이 커밋되면 이 evidence의 절대 수치는 역사적 기록으로만 유효해진다(귀속 결론은 무손상)."
+          "superseded_by": {
+            "doc": "소방계획서_35",
+            "id": "S2-7",
+            "commit": "eca5152",
+            "date": "2026-08-30",
+            "action": "replaced",
+            "reason": "35 세션이 항등 축을 재작업하며 35-baseline.json을 --baseline으로 다시 떴다(판정 도중 21:24에 워킹트리에서 관측 → 같은 날 eca5152로 커밋됨). 히스토그램 키가 12px → 12px|18px|normal 복합키로, 모집단이 body * → [data-plan-root] *로 바뀌어 1.4-specs counted가 303→249가 됐다. 즉 **측정 규칙 자체가 교체**됐다. 위 verified의 절대 수치(257→258·302→303·31→32)는 **커밋 e07cf67 시점의 사실**로서 참이며 역사적 기록으로 유효하다 — [넓게] 버튼이 델타의 원인이라는 **귀속 결론은 무손상**이고, 새 기준선에서도 회귀 잠금은 계속 작동한다(--identity 17/0 ×3회 실측)."
+          }
         },
         {
           "id": "S4-2",
@@ -626,7 +634,7 @@
             "method": "독립 판정 — 수리의 소스 위치 확인 + 2×2 대조 재현 + 반복 실행 (⚠ 종전 중복 note 키 2개를 아래 note/note_method로 분리 보존)",
             "commit": "66bbf9b",
             "evidence": [
-              "⭐ 핵심 단언 충족 — test-plan-readability.mts:557 page.waitForResponse(POST /customers/, 30000).catch(()=>null)가 :563 els[0].click() **이전**에 등록됨. 클릭 뒤 등록이면 이미 끝난 응답을 놓친다",
+              "⭐ 핵심 단언 충족 — test-plan-readability.mts:557 page.waitForResponse(POST /customers/, 30000).catch(()=>null)가 :563 els[0].click() **이전**에 등록됨(HEAD 재확인). 클릭 뒤 등록이면 이미 끝난 응답을 놓친다",
               "_probe37-flake.mts 재실행 6/0, 값까지 일치(①53/배지2 · ②45/배지0 · ③53/배지2 · ④53/배지2) + 항진 차단 검사(네 조건 모두 패널·rowtable 2)",
               "_probe37-timing.mts 2/0 — POST 실측 +1640ms(재사용) / +1227·1771·2640·4030ms(새 컨텍스트). JSON의 +1603·+1688과 숫자는 다르지만(타이밍이라 당연) 1800ms 문턱을 넘는다는 결론은 더 강하게 지지",
               "--identity 3회 연속 통과, 1.4-specs 노드 3회 고정(진동 없음)"
