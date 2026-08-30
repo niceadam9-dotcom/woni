@@ -10,7 +10,7 @@
   ],
   "related_note": "38은 무엇도 대체하지 않는다(신규 축) — supersedes 없음. 소방계획서_36.md §0이 2026-08-29 사용자 확정으로 '글자 크기 축은 35 주관'이라 못 박았고 38은 그 결정을 뒤집지 않는다. 38은 35가 만든 --fs-scale 인프라(globals.css, lib/font-scale.ts, 마이그레이션 154 profiles.form_font_scale, 쿠키 erp-fs)의 **신규 소비처**일 뿐이며 --fs-* 실값은 한 줄도 건드리지 않았다. 새로 만든 것은 --sheet-* 네임스페이스의 기하 토큰 3개 + @utility 5개뿐이다. 23은 드로어(S7)와 3층 outline 렌더의 원천, 28은 전용 입력 페이지 /inspections/[id]/sheet(입력 정본)의 원천 — 둘 다 SheetItemEditor를 공유하므로 38의 글자 확대가 함께 걸린다(의도된 것, D-8). 37은 같은 --fs-scale 인프라를 1.4 세부제원 패널에 쓴 **형제 차수**다(F-7 참조).",
   "created": "2026-08-30",
-  "updated": "2026-08-30 S1~S8 구현 완료 — 전 criteria code_present(구현자 자기 신고, 독립 판정 전). 게이트: tsc 0 · next build exit 0 · 산출/서빙 CSS 유틸리티 5종 실재 · E2E 8스위트 그린(mother-drawer 67/0 · font-scale 20/0 신규 S-1·S-2 포함 · font-scale --mutate 19/0 · sheet-entry-page 28/0 · sheet-entry-concurrent 22/0 · annex-sheet-inline 27/0 · mu-sheet 8/0 · readability --overflow 54/0 · click-budget 7/0) · 프로브 2종(master-detail 8/8 · 신설 _probe-38-drawer-scale 24/24). readability --identity 2실패·--print 1실패는 **소방계획서_37 귀속**(F-7). 잔여: 독립 판정 · 다크모드/모바일 육안 · test-exterior-ui.",
+  "updated": "2026-08-30 **2차 독립 판정 완료 — 44 criteria 전건 implemented, 잔여 code_present 0.** 판정자 C(정적 CSS 축)·D(런타임 축)가 S1-2·S2-3·S4-1을 재판정: **코드 결함 0**이고 승격을 막던 것은 표기 결함 4건뿐이었다(F-14) — 전부 정정. 함께 처리: 프로브 단언 강화(개수→정체, 공허 통과 차단 — 27/27) · **다크 xl·모바일 육안 축 종결**(_probe-38-dark-mobile 12/12 + 스크린샷 실제 육안). 잔여는 test:all 전체 1회(타 세션 E2E 실행 중이라 미착수)와 범위 밖 OS-2뿐. ── 이하 1차 기록: S1~S8 구현 완료. 게이트: tsc 0 · next build exit 0 · 산출/서빙 CSS 유틸리티 5종 실재 · E2E 8스위트 그린(mother-drawer 67/0 · font-scale 20/0 신규 S-1·S-2 포함 · font-scale --mutate 19/0 · sheet-entry-page 28/0 · sheet-entry-concurrent 22/0 · annex-sheet-inline 27/0 · mu-sheet 8/0 · readability --overflow 54/0 · click-budget 7/0) · 프로브 2종(master-detail 8/8 · 신설 _probe-38-drawer-scale 24/24). readability --identity 2실패·--print 1실패는 **소방계획서_37 귀속**(F-7). 잔여: 독립 판정 · 다크모드/모바일 육안 · test-exterior-ui.",
   "rule": "erp_goal/Json_Rule.md 준수 — criteria 단위 status, implemented는 verified 필수, 구현자 자기 신고는 code_present까지",
   "status_legend": {
     "pending_order": "미구현·지시 대기",
@@ -70,6 +70,18 @@
     {
       "id": "F-12",
       "desc": "⚠ **D-5의 근거가 거짓이었다(독립 판정 DEF-1).** 'fixed로 바꾸면 포커스 트랩의 offsetParent 필터가 깨진다'고 적었으나, fixed 컨테이너의 자손은 offsetParent가 null이 아니다(fixed 요소 자신이 positioned 조상). null이 되는 fixed 요소 자신은 tabIndex={-1}이라 FOCUSABLE에서 제외된다. **결정(absolute 유지)은 유효하나 이유가 틀렸다** — D-5를 정정했다. 교훈: 그럴듯한 메커니즘 설명을 **실측 없이 confirmed로 굳히지 말 것**. 나는 이 설명을 계획·문서·JSON 세 곳에 옮겨 적었고, 판정자가 브라우저로 재보지 않았다면 그대로 남았을 것이다."
+    },
+    {
+      "id": "F-14",
+      "desc": "⚠ **2차 독립 판정(2026-08-30, 판정자 C·D) — 제품은 옳고 문서가 틀렸다.** 남아 있던 code_present 3건(S1-2·S2-3·S4-1)을 축 분할해 재판정한 결과 **코드 결함 0**이었고, 승격을 막고 있던 것은 전부 **표기 결함**이었다: ①S1-2 desc가 FU-1(`ddf71f5`)로 해소된 DEF-3을 **현재형으로** 서술 ②S2-3 desc에 F-12가 반증한 거짓 근거가 살아남아 **D-5(정정됨)와 같은 JSON 안에서 서로 모순** — F-12 자신이 '세 곳에 옮겨 적었다'고 했는데 정정이 두 곳에서 멈췄다 ③S1-2 evidence의 인용 CSS가 `.h-sheet-hdr{`로 공백 없이 적혀 있어 그대로 믿고 정규식을 짜면 F-10 함정에 재입장 ④D-7의 미시 메커니즘 표현('min-h-0만 남아 무한 확장')이 부정확. **교훈: 결함을 발견해 정정할 때 그 서술이 몇 군데에 복제돼 있는지부터 세라** — 한 곳만 고치면 다음 판정자가 같은 지적을 반복하고, 최악의 경우 정정본과 원본이 공존해 읽는 사람이 뭘 믿을지 고르게 된다."
+    },
+    {
+      "id": "F-15",
+      "desc": "⭐ **판정자 D가 F-12의 반증을 그대로 믿지 않고 브라우저로 재측정했다** — sheet-drawer 구조를 fixed/absolute 두 벌로 복제해 :83 FOCUSABLE + :90 offsetParent 필터를 실제 적용, 두 트랩 목록이 동일함을 실증했다. F-12는 '실측 없이 confirmed로 굳히지 말 것'이라는 교훈을 남긴 항목인데, 그 **반증 자체도 또 하나의 그럴듯한 설명**일 수 있었다. 반증을 재검증하지 않으면 틀린 설명을 다른 틀린 설명으로 바꾸는 것으로 끝날 수 있다."
+    },
+    {
+      "id": "F-16",
+      "desc": "⚠ **F-11 조건이 다시 라이브였다 — 그리고 이번엔 3회 중 2회가 죽었다.** 2차 판정 착수 시 여유 RAM 548MB, dev **단일 프로세스가 1,959MB**. test-sheet-mother-drawer 1·2회차가 분모 67 대비 **단언 1개**에서 죽었고 실패 지점이 서로 달랐다(page.goto 15s vs waitForURL 20s), 3회차에 67/0. **분모를 안 보고 '2/3 실패'라고 셌다면 회귀로 오보했을 것이다.** 같은 날 test-font-scale --mutate도 1회차 12/1(waitForURL 타임아웃) → 2회차 25/0. 대응: 회귀 실행 전 dev 재기동, 결과는 **통과 수가 아니라 분모부터** 볼 것([[risk_dev_postcss_worker_leak]])."
     },
     {
       "id": "F-13",
@@ -136,7 +148,7 @@
       "id": "D-7",
       "title": "maxHeight 매직넘버는 드로어만 없앤다 — 전용 입력 페이지는 그대로",
       "status": "confirmed",
-      "desc": "드로어는 조상이 전부 flex column이라 flex-1 min-h-0으로 260px 가정이 사라진다. 반면 전용 입력 페이지의 우측 패널은 grid item이라 flex 컨테이너가 없다 — flex-1이 무시되고 min-h-0만 남아 박스가 무한 확장, master-detail의 '좌 목록 상시 노출'이 깨진다. 그 화면의 360px은 여전히 옳다(박스 위 크롬은 토큰화 대상이 아니라 높이가 안 변한다)."
+      "desc": "드로어는 조상이 전부 flex column이라 flex-1 min-h-0으로 260px 가정이 사라진다. 반면 전용 입력 페이지의 우측 패널은 grid item이라 flex 컨테이너가 없다 — flex-1이 무시되고 **max-height 제약만 사라져** 박스가 콘텐츠 높이를 그대로 먹어 내부 스크롤이 소멸, master-detail의 '좌 목록 상시 노출'이 깨진다. 그 화면의 360px은 여전히 옳다(박스 위 크롬은 토큰화 대상이 아니라 높이가 안 변한다). ⚠ 2차 판정 정정: 종전 서술은 '**min-h-0만 남아** 박스가 무한 확장'이었으나 부정확하다 — 블록 박스의 min-height는 이미 사실상 0이라 min-h-0은 무동작이고, 자라는 원인은 오직 max-height의 소멸이다. **결론과 방향은 옳다.** D-5 사태가 정확히 '그럴듯한 메커니즘을 실측 없이 굳힌 것'이었으므로 같은 계열의 느슨한 표현을 정정해 둔다."
     },
     {
       "id": "D-8",
@@ -167,7 +179,7 @@
     {
       "id": "S1",
       "title": "globals.css — 점검표 입력 기하 토큰 가산 (화면 무변화)",
-      "status": "partial",
+      "status": "implemented",
       "criteria": [
         {
           "id": "S1-1",
@@ -186,13 +198,21 @@
         },
         {
           "id": "S1-2",
-          "desc": "@utility 5종 추가 — h-sheet-hdr · top-sheet-hdr · h-sheet-chip · w-sheet-toc · size-sheet-mark. 전부 --fs-scale을 곱한다. ⚠ 정정(판정 DEF-3): 'calc(var(--…) * var(--fs-scale))'는 4종에만 해당하고 size-sheet-mark만 calc(40px * var(--fs-scale))로 **리터럴**이다 — S1-1이 세운 --sheet-* 토큰 규약 밖에 40px 매직넘버가 남았다(후속 FU-1)",
-          "status": "code_present",
+          "desc": "@utility 5종 추가 — h-sheet-hdr · top-sheet-hdr · h-sheet-chip · w-sheet-toc · size-sheet-mark. 5종 **전부** `--sheet-* 토큰 × var(--fs-scale)` 형태이며 규약 밖 매직넘버는 0종이다. ⚠ 이력(과거형): 1차 판정 DEF-3이 'size-sheet-mark만 calc(40px * var(--fs-scale)) 리터럴'을 지적했고, FU-1(커밋 `ddf71f5`)이 `--sheet-mark: 40px` 토큰 신설로 **해소했다** — 2차 판정에서 리터럴 잔존 0 실측.",
+          "status": "implemented",
           "evidence": [
-            "globals.css @utility 블록(h-form-8 아래)",
-            "산출 CSS 실측 5/5 생성: .h-sheet-hdr{height:calc(var(--sheet-hdr-h) * var(--fs-scale))} 등",
-            ".lg\\:w-sheet-toc는 @media (min-width:64rem) 안에 정상 배치 확인"
-          ]
+            "globals.css:227-231 토큰 4종(--sheet-hdr-h 26px · --sheet-chip-h 24px · --sheet-toc-w 208px · --sheet-mark 40px) · :295-303 @utility 5종 — 5/5가 var(--fs-scale)을 곱하고 5/5가 --sheet-* 토큰을 읽는다(리터럴 0). :295-296이 --sheet-hdr-h 하나를 공유해 sticky 2층 등식이 소스에서 성립",
+            "dev 서빙 CSS 실측 5/5 — `.size-sheet-mark { width: calc(var(--sheet-mark) * var(--fs-scale)); height: … }`, 블록 내 40px 리터럴 0건. ⚠ dev CSS는 **미압축이라 `.h-sheet-hdr {`처럼 공백이 있다** — 정규식에 \\s*를 넣지 않으면 전부 MISSING으로 오보한다(F-10). 판정 축은 dev 서빙 CSS다(.next 산출물은 타 세션 빌드 잠금·낡음으로 오독 유발)",
+            ".lg\\:w-sheet-toc 직전 미디어 쿼리 = @media (min-width: 64rem) 실측. 프리픽스 없는 .w-sheet-toc는 0건(= lg에서만 소비)",
+            "test-font-scale 26/0 exit=0 · --mutate 25/0 exit=0 — S-1·S-2·S-3 그린",
+            "★ S-3은 항진명제가 아니다 — 판정자 통제 실험 6종: 40px 리터럴 원복 → FAIL(tok=false) · --sheet-mark 28px 인하 → FAIL(val=28). 값 하한과 토큰 참조 두 축이 **각각 독립적으로** 빨개진다(:106이 AND로 묶음)"
+          ],
+          "verified": {
+            "date": "2026-08-30",
+            "commit": "ddf71f5",
+            "judge": "C(2차 — S1-2 정적 CSS 축)",
+            "method": "독립 판정 — 구현자 아닌 별도 세션이 파일:라인 대조 + dev 서빙 CSS 실측 + 스위트 재실행 + S-3 변이 통제 실험 6종"
+          }
         },
         {
           "id": "S1-3",
@@ -245,7 +265,7 @@
     {
       "id": "S2",
       "title": "sheet-drawer.tsx — 거의 전체화면 패널",
-      "status": "partial",
+      "status": "implemented",
       "criteria": [
         {
           "id": "S2-1",
@@ -279,12 +299,20 @@
         },
         {
           "id": "S2-3",
-          "desc": "🔴 absolute 유지 — fixed로 바꾸지 않는다(포커스 트랩의 offsetParent 필터 근거)",
-          "status": "code_present",
+          "desc": "🔴 absolute 유지 — fixed로 바꾸지 않는다. 근거는 D-5: **바꿀 이유가 없고, 바꾸면 P9가 지키는 축을 새로 검증해야 한다.** ⚠ 종전에 여기 적혀 있던 근거 '포커스 트랩의 offsetParent 필터가 깨진다'는 **거짓이다**(F-12·DEF-1) — fixed 컨테이너의 자손은 offsetParent가 null이 아니고, null이 되는 패널 자신은 tabIndex={-1}이라 FOCUSABLE에서 제외된다. 트랩 목록이 absolute와 동일하다.",
+          "status": "implemented",
           "evidence": [
-            "패널 className이 absolute 유지",
-            "test-sheet-mother-drawer P9 'Tab 20회 후에도 포커스가 드로어 안' 그린"
-          ]
+            "sheet-drawer.tsx:106 패널 className `absolute inset-4 …` — fixed는 포털 루트(:98 `fixed inset-0 z-50`)에만",
+            "test-sheet-mother-drawer 67/0 exit=0 — P9 'Tab 20회 후에도 포커스가 드로어 안' 그린(2026-08-30 재실행)",
+            "★ 판정자 실측(F-12를 그대로 믿지 않고 브라우저로 재측정) — sheet-drawer 구조를 fixed/absolute 두 벌로 복제해 :83 FOCUSABLE + :90 `offsetParent !== null` 필터를 실제 적용: fixed 패널 **자신**만 offsetParent=null이고 **자손은 null이 아니다**(패널을 반환). 패널은 tabindex=-1이라 FOCUSABLE 후보가 아님. 두 트랩 목록이 완전히 동일 → **fixed로 바꿔도 트랩은 안 깨진다**"
+          ],
+          "note": "⚠ 이 항목은 코드가 아니라 **desc의 거짓 근거** 때문에 1차 판정에서 승격이 막혔다. F-12가 '계획·문서·JSON 세 곳에 옮겨 적었다'고 했는데 정정이 두 곳에서 멈춰 D-5(정정됨)와 이 desc(미정정)가 같은 JSON 안에서 서로 모순이었다. 2차 판정에서 desc를 정정하고 승격.",
+          "verified": {
+            "date": "2026-08-30",
+            "commit": "1c758f5",
+            "judge": "D(2차 — S2-3·S4-1 런타임 축)",
+            "method": "독립 판정 — 구현자 아닌 별도 세션이 파일:라인 대조 + 스위트 재실행 + offsetParent 거동 브라우저 재측정(반증의 재검증)"
+          }
         },
         {
           "id": "S2-4",
@@ -293,7 +321,7 @@
           "evidence": [
             "sheet-drawer.tsx max-sm 분기"
           ],
-          "note": "⚠ 모바일 뷰포트 육안·자동 검증 미실시 — 독립 판정에서 390×844 확인 필요",
+          "note": "✅ 2026-08-30 해소 — _probe-38-dark-mobile.mjs 12/12로 390×844 실측(풀폭 390/390 · bottom 844/844 · 95dvh=802px · 위 모서리만 둥긂 · 목차 가로 스트립). 스크린샷 _shot-38-mobile.png 육안까지. 종전 '육안 미실시' 상태 해제",
           "verified": {
             "date": "2026-08-30",
             "commit": "1c758f5",
@@ -386,15 +414,26 @@
     {
       "id": "S4",
       "title": "maxHeight 매직넘버 제거 (드로어만)",
-      "status": "partial",
+      "status": "implemented",
       "criteria": [
         {
           "id": "S4-1",
           "desc": "inspection-sheet-client.tsx의 max-h-[calc(100dvh-260px)] → flex-1 min-h-0, 폐기 사유 주석",
-          "status": "code_present",
+          "status": "implemented",
           "evidence": [
-            "inspection-sheet-client.tsx SheetItemEditor maxHeight prop"
-          ]
+            "inspection-sheet-client.tsx:568 maxHeight=\"flex-1 min-h-0\" + :563-567 폐기 사유 주석 5줄(가정의 정체·왜 틀리는지·왜 flex-1이 성립하는지). 주석이 인용한 라인을 판정자가 대조 — sheet-drawer.tsx:123 `flex-1 min-h-0 flex flex-col`, :125 `flex-1 min-w-0 min-h-0 flex flex-col` 정확",
+            "flex 사슬 성립 실측: 편집기가 **Fragment를 반환**하므로(sheet-item-editor.tsx:242-265) 스크롤 박스 :199가 :125 flex 컨테이너의 직계 flex 자식이 된다 — flex-1이 실제로 먹는다",
+            "D-7 근거 참: sheet-entry-client.tsx:360 `grid grid-cols-1 lg:grid-cols-[…]` → :403 block → :423 block — **사슬 어디에도 flex 컨테이너가 없다**. git show 1c758f5로 그 파일 변경이 +9줄 전부 주석임을 확인(무변경 요구 충족)",
+            "_probe-38-drawer-scale 24/24 exit=0 — 배율 3점(md/lg/xl) 전부 '드로어 안 스크롤 요소 1개' · '페이지 세로 초과 0px' · '박스 가로 넘침 0px'. 패널 1468×918 @(16,16)",
+            "test-sheet-mother-drawer 67/0 exit=0 — P3 '2-C가 스크롤 박스 상단(±40px)' · P3 '페이지 스크롤 0 유지'(flex-1 전환의 자동 방어선)",
+            "⚠ grep 오탐 주의 — `calc(100dvh-260px)`는 **sheet-entry-client.tsx:373에 아직 있다**. 그건 좌측 설비 목록 `<ul>`의 클래스로 별개 요소이고 D-7이 의도적으로 안 건드리는 화면이다. 문자열만 세면 '미완'으로 오독한다"
+          ],
+          "verified": {
+            "date": "2026-08-30",
+            "commit": "1c758f5",
+            "judge": "D(2차 — S2-3·S4-1 런타임 축)",
+            "method": "독립 판정 — 구현자 아닌 별도 세션이 flex 사슬을 조상까지 직접 추적 + 스위트 2종 재실행"
+          }
         },
         {
           "id": "S4-2",
@@ -910,12 +949,21 @@
       "node scripts/_probe-sheet-master-detail.mjs — 8/8",
       "node scripts/_probe-38-drawer-scale.mjs — 24/24 (신설, 배율 3점 sticky·탭타깃·문항명·스크롤바)"
     ],
+    "done_2nd_round": [
+      "✅ 2차 독립 판정 완료(2026-08-30, 판정자 C·D 축 분할) — code_present 3건 전부 판정. **코드 결함 0**, 막고 있던 건 표기 결함뿐(F-14). S1-2·S2-3·S4-1 → implemented 승격",
+      "✅ npx tsx scripts/test-font-scale.mts — 26/0 exit=0 (판정자 C 재실행)",
+      "✅ npx tsx scripts/test-font-scale.mts --mutate — 25/0 exit=0 (1회차 12/1은 waitForURL 타임아웃 = 환경 중단, F-16)",
+      "✅ npx tsx scripts/test-sheet-mother-drawer.mts — 67/0 exit=0 (판정자 D, 3회차. 1·2회차는 분모 67 대비 단언 1개에서 조기 중단 = 환경, F-16)",
+      "✅ node scripts/_probe-38-drawer-scale.mjs — **27/27 exit=0** (프로브 강화 후 재실행. 종전 24/24)",
+      "✅ 프로브 단언 강화 — 2차 판정 지적 ②: `scrollers <= 2`(개수)를 **정체 판정**으로 교체. 목차 몫으로 열어 둔 한 칸이 사각지대였고, scrollers=0이면 **공허하게 통과**했다. 이제 '항목 박스가 실제 스크롤러다'(공허 차단) + '예상 밖 스크롤러 0' 두 축. 실측 라벨이 배율 3점 전부 `[box]` — 유일 스크롤러가 항목 박스임이 실증됨",
+      "✅ **다크 모드 xl — 육안 축 종결**. node scripts/_probe-38-dark-mobile.mjs 12/12 exit=0: 중분류 sticky rgb(42,37,66)·소제목 rgb(35,35,39)·패널 rgb(35,35,39) **전부 불투명**, 패널 테두리 1px rgb(58,58,66) 실재, 다크·xl에서도 sticky 겹침 없음(33.8px). 스크린샷 `erp_goal/_shot-38-dark-xl.png`를 **실제 육안으로도 확인**",
+      "✅ **모바일 390×844 — 육안 축 종결**(S2-4). 같은 프로브: 풀폭 x=0 w=390/390 bottom=844/844(inset-4 여백 없음) · 높이 95dvh=802px 기대 일치 · 위 모서리만 둥긂(top 14.4px / bottom 0px) · **목차가 가로 스트립**(같은 행=true, 높이 32px) · 페이지 스크롤 0. 스크린샷 `_shot-38-mobile.png` 육안 확인",
+      "✅ 색 판정기 항진명제 검사 — _probe-38-dark-mobile의 불투명 판정은 정규식이 아니라 **색을 검정 위·흰 위에 각각 칠해 픽셀을 비교**하는 물리 판정이고(36 F-9의 rgb() 정규식 오보를 회피), fillStyle 파싱 실패 sentinel까지 있다. 항진명제 아님",
+      "ℹ dev 오버레이 'Issue' 배지 조사 — 점검 상세에서 수집한 4건은 전부 **전역·기존** 경고다(구식 JSX transform · react-big-calendar preload · 404 · script 태그). 38과 무관. ⚠ 단 드로어를 연 상태의 수집은 아니다(진입점 셀렉터를 못 찾아 **도달 단언이 스스로 '무의미'라고 신고**했다 — 공허 통과를 막았다)"
+    ],
     "remaining": [
-      "독립 판정(구현자 ≠ 판정자) — Json_Rule 규칙 3. code_present → implemented 승격은 이 통과 후에만",
-      "다크 모드 xl 육안 — sticky bg-brand-tint/bg-surface 불투명(항목 안 비침), 패널 테두리 대비",
-      "모바일 390×844 육안 — 바텀시트 95dvh, TOC 가로 스트립 (S2-4)",
-      "npx tsx scripts/test-exterior-ui.mts — 미등재·썩음 상태라 대조군(변경 전) 먼저 볼 것(OS-2)",
-      "npm run test:all 전체 — 실행 전 dev 서버 재기동(RAM 고갈 시 무작위 실패)"
+      "npm run test:all 전체 — **미실행**. 실행 전 dev 서버 재기동 필수(F-16: 여유 RAM 548MB·dev 단일 2.5GB에서 드로어 스위트 3회 중 2회가 조기 중단). ⚠ 2026-08-30 시점 타 세션이 test-plan-readability를 9프로세스로 실행 중이라 착수하지 못했다 — dev 재기동이 그쪽 검증을 죽인다",
+      "npx tsx scripts/test-exterior-ui.mts — 미등재·썩음 상태라 대조군(변경 전) 먼저 볼 것(OS-2). 38 범위 밖"
     ],
     "pre_flight_for_commit": [
       "🔴 globals.css와 test-font-scale.mts는 **공유 파일**이다 — 커밋은 명시 pathspec + 헌크 단위. add -A 금지",

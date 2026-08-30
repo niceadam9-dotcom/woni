@@ -105,8 +105,19 @@ try {
       const name = btn?.closest('.border-b')?.querySelector('span:nth-child(2)')
       const box = d.querySelector('.overflow-y-auto')
       const cs = el => el ? getComputedStyle(el) : null
-      const scrollers = [...d.querySelectorAll('*')]
-        .filter(el => el.scrollHeight - el.clientHeight > 2 && /auto|scroll/.test(getComputedStyle(el).overflowY)).length
+      const scrollerEls = [...d.querySelectorAll('*')]
+        .filter(el => el.scrollHeight - el.clientHeight > 2 && /auto|scroll/.test(getComputedStyle(el).overflowY))
+      const scrollers = scrollerEls.length
+      // ⚠ 개수만 세면 두 가지를 못 잡는다(2026-08-30 2차 독립 판정 지적 ②).
+      //   ① 종전 `scrollers <= 2`는 목차 몫으로 한 칸을 열어 뒀는데 실측상 목차가 스크롤러가 된 적이
+      //      없어 그 여유분이 그대로 **사각지대**였다 — 항목 박스 아닌 것이 하나 더 스크롤돼도 초록이다.
+      //   ② 더 나쁘게, 아무것도 스크롤되지 않으면(scrollers=0) 단언이 **공허하게** 통과한다.
+      //      S4-4가 지키려는 것은 '스크롤러가 적다'가 아니라 '**항목 박스가** 스크롤러다'이다.
+      //   그래서 개수 대신 **정체**를 본다.
+      const scrollerTags = scrollerEls.map(el =>
+        el === box ? 'box'
+          : el.closest('nav') ? 'toc'
+            : `OTHER:${el.tagName.toLowerCase()}.${String(el.className || '').slice(0, 40)}`)
       return {
         hdrH: hdr ? hdr.getBoundingClientRect().height : null,
         subTop: sub ? parseFloat(cs(sub).top) : null,
@@ -117,6 +128,7 @@ try {
         nameFs: name ? parseFloat(cs(name).fontSize) : null,
         boxOverflowX: box ? box.scrollWidth - box.clientWidth : null,
         scrollers,
+        scrollerTags,
         pageOver: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight,
       }
     })
@@ -137,7 +149,12 @@ try {
       near(m.nameFs, 14 * k, 0.3), `실측 ${m.nameFs}px`)
 
     // (c) 스크롤바 — 항목 박스(+lg 목차)만, 페이지는 0
-    check(`[${fs}] 드로어 안 스크롤 요소가 2개 이하 (항목 박스 + 목차)`, m.scrollers <= 2, `${m.scrollers}개`)
+    //     개수가 아니라 **정체**로 본다(위 scrollerTags 주석 참조).
+    const tags = m.scrollerTags || []
+    const detail = `${m.scrollers}개 [${tags.join(', ') || '없음'}]`
+    check(`[${fs}] ★ 항목 박스가 실제 스크롤러다 (공허 통과 차단)`, tags.includes('box'), detail)
+    check(`[${fs}] ★ 예상 밖 스크롤러 0 — 항목 박스와 목차 외에는 스크롤되지 않는다`,
+      tags.filter(t => t.startsWith('OTHER:')).length === 0, detail)
     check(`[${fs}] 페이지 세로 스크롤 0`, m.pageOver <= 2, `초과 ${m.pageOver}px`)
 
     // (b) 가로 넘침 없음
