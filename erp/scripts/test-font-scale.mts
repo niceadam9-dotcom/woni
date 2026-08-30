@@ -85,6 +85,15 @@ const cookieOf = async (ctx: any) => (await ctx.cookies()).find((c: any) => c.na
   check('S-2 점검표 입력 기하 유틸리티 5종이 전부 --fs-scale을 곱한다',
     sheetUtils.length === 5 && sheetUtils.every(u => u.includes('var(--fs-scale)')),
     `${sheetUtils.length}종 / 배율 누락 ${sheetUtils.filter(u => !u.includes('var(--fs-scale)')).length}`)
+  // S-3 — ○/✕ 탭 타깃 하한. 배율은 항상 ×1 이상이므로 --sheet-mark가 곧 하한이고,
+  //   여기를 내리면 **모든 배율에서** 버튼이 함께 작아진다. 현장 근거(28px는 오탭이 잦다,
+  //   sheet-item-editor.tsx)가 주석으로만 있으면 다음 사람이 '여백이 아깝다'며 줄인다.
+  //   리터럴이 아니라 토큰을 읽는지도 함께 본다 — 리터럴로 되돌아가면 이 검사가 눈이 먼다.
+  const markVal = parseFloat(css.match(/--sheet-mark:\s*(\d+(?:\.\d+)?)px/)?.[1] ?? '0')
+  const markUtil = css.match(/@utility size-sheet-mark[^}]*\}/)?.[0] ?? ''
+  check('S-3 ○/✕ 탭 타깃 하한 40px + 토큰 참조 (현장 오탭 근거)',
+    markVal >= 40 && markUtil.includes('var(--sheet-mark)'),
+    `--sheet-mark=${markVal}px · 토큰참조=${markUtil.includes('var(--sheet-mark)')}`)
 }
 
 try {
