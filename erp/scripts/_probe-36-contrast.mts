@@ -14,7 +14,26 @@ const REPORT_ONLY = process.argv.includes('--report')
 
 /** S6-9 래칫 기준선 — S1-5로 채취해 여기 박는다. null이면 게이트가 서지 않는다(보고만).
  *  ⚠ '0으로 조이기'는 S7 완료 후에만. 처음부터 0을 요구하면 아무도 못 켜고 게이트가 꺼진다. */
-const BASELINE: { light: number; dark: number } | null = { light: 524, dark: 334 }
+/** S6-9 래칫 기준선 — S5 반영 후 **커버리지 전건 통과** 상태에서 채취(2026-08-30).
+ *  ⚠ 최초 baseline(라이트 524·다크 334)은 폐기했다: 다크 드로어가 215칸만 걷힌 미렌더 실행이라
+ *  다크 수가 거짓으로 낮았다. 정상 커버리지에서는 그 자리가 293칸이다.
+ *  ⚠ ±2~3 편차가 정상이다 — FAIL 수는 화면에 그려진 **행 수**에 비례하는데 목록·달력의 행은
+ *  다른 세션이 테스트 데이터를 만들고 지우면서 흔들린다. 그래서 실측(510/378)에 여유를 둔다. */
+const BASELINE: { light: number; dark: number } | null = { light: 513, dark: 381 }
+
+/** 라우트별 **검사 대상 수 하한**(S6-9 보강, 2026-08-30).
+ *
+ *  ⚠ FAIL 수만 보는 래칫은 '안 그려져서 초록'을 구조적으로 못 잡는다 — 페이지가 덜 렌더되면
+ *  검사 대상이 줄어 FAIL도 같이 줄고, 그게 **개선으로 보인다**. 실제로 최초 baseline의
+ *  다크 드로어가 215칸만 걷혀 334로 기록됐다(정상 실행은 293칸·112 FAIL). 그 수를 그대로
+ *  래칫에 박았으면 이후 정상 실행이 전부 '악화'로 실패했을 것이다.
+ *  그래서 커버리지를 **별도 축**으로 단언한다(35 세션이 --overflow에서 겪은 것과 같은 함정). */
+const COVERAGE_FLOOR: Record<string, number> = {
+  '점검 목록': 200, '점검 달력': 170,
+  '작업대 1단계': 220, '작업대 2단계': 75, '작업대 3단계': 70,
+  '작업대 4단계': 100, '작업대 5단계': 95, '작업대 6단계': 88,
+  '점검표 드로어(열림)': 270,
+}
 /* S1-5 채취 2026-08-30 (소스 무변경 · dev :3000 · 뷰포트 1600×1000 · 9라우트 × 2모드).
    ⚠ 이 수치는 **파싱 수리 이후** 값이다. 수리 전 첫 측정은 lab()/oklab() 미파싱으로
    흰 글자를 1:1 오탐 처리해 라이트 37/40대의 **낮은** 수를 줬다 — 오탐이 섞인 baseline을
@@ -200,9 +219,18 @@ function group(list: Rec[]) {
   return [...m.values()].sort((a, b) => a.worst - b.worst)
 }
 
+/** 커버리지 미달을 잡는다 — 덜 그려진 화면의 낮은 FAIL 수는 개선이 아니다 */
+function checkCoverage(mode: string, route: string, counted: number) {
+  const floor = COVERAGE_FLOOR[route]
+  if (floor === undefined) return
+  check(`커버리지 [${mode}] ${route} ≥ ${floor}칸`, counted >= floor,
+    `실제 ${counted}칸 — 덜 그려진 화면은 FAIL이 적게 나와 '개선'으로 오독된다`)
+}
+
 function report(label: string, s: ScanOut) {
   console.log(`\n── ${label} — 검사 ${s.counted}개 · FAIL ${s.fail.length} · WARN(placeholder) ${s.warn.length}`)
-  for (const g of group(s.fail).slice(0, 18)) {
+  // 보고 모드에서는 **전량**을 낸다 — S7 확산 대상을 이 목록에서 고르므로 잘리면 안 된다
+  for (const g of group(s.fail).slice(0, REPORT_ONLY ? 9999 : 18)) {
     const r = g.rec
     console.log(`   ${String(g.worst).padStart(5)}:1 (필요 ${r.need})  ×${g.n}  ${r.fs}px/${r.fw}${r.large ? ' 큰글자' : ''}  <${r.tag}> ${r.cls}`)
     console.log(`            색 ${r.color} / 배경 ${r.bg}  "${r.text}"`)
@@ -278,6 +306,7 @@ try {
       await page.waitForTimeout(900)
       const s = JSON.parse(await page.evaluate(SCAN) as string) as ScanOut
       report(`[${mode}] ${label}`, s)
+      checkCoverage(mode, label, s.counted)
       modeFail += s.fail.length
     }
 
@@ -288,9 +317,24 @@ try {
     if (await card.count() > 0) {
       await card.click()
       await page.waitForSelector('[data-testid="sheet-drawer"]', { timeout: 20000 }).catch(() => {})
+      // ⚠ 드로어 **껍데기**가 뜬 것과 항목이 그려진 것은 다르다. 고정 대기만 두면 덜 그려진 채
+      // 재게 되고, 그러면 FAIL이 적게 나와 **개선처럼 보인다**(실제로 baseline 다크가 그렇게
+      // 215칸만 걷혀 334로 기록됐다 — 뒤 실행의 293칸과 비교 불가였다). 항목이 실제로
+      // 붙을 때까지 기다린다.
+      await page.locator('[data-testid="sheet-drawer"] button[aria-label$=" O"]').first()
+        .waitFor({ state: 'visible', timeout: 30000 }).catch(() => {})
       await page.waitForTimeout(900)
       const s = JSON.parse(await page.evaluate(SCAN) as string) as ScanOut
       report(`[${mode}] 점검표 드로어(열림)`, s)
+      checkCoverage(mode, '점검표 드로어(열림)', s.counted)
+      // S5-6 — 눈이 아니라 **전체 FAIL 목록**으로 판정한다(출력은 잘리므로 데이터를 직접 훑는다).
+      // 항목코드(참조 키)와 [불량 등록] 안내문이 목록에서 사라졌는가.
+      const codeLeft = s.fail.filter(f => /w-20/.test(f.cls) && /ink-faint/.test(f.cls))
+      const hintLeft = s.fail.filter(f => f.text.includes('불량 등록'))
+      check(`S5-6 [${mode}] 항목코드가 FAIL에 없다`, codeLeft.length === 0,
+        codeLeft.map(f => `${f.ratio}:1 ${f.cls}`).join(' · '))
+      check(`S5-6 [${mode}] [불량 등록] 안내문이 FAIL에 없다`, hintLeft.length === 0,
+        hintLeft.map(f => `${f.ratio}:1 "${f.text}"`).join(' · '))
       modeFail += s.fail.length
     } else {
       console.log(`\n── [${mode}] 점검표 드로어 — 시트 카드가 없어 건너뜀`)

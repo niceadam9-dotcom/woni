@@ -51,6 +51,7 @@
   --color-ink-sub:         var(--t-ink-sub);
   --color-ink-soft:        var(--t-ink-soft);
   --color-ink-faint:       var(--t-ink-faint);
+  --color-ink-meta:        var(--t-ink-meta);
   --color-surface:         var(--t-surface);
   --color-paper:           var(--t-paper);
   --color-line:            var(--t-line);
@@ -110,6 +111,12 @@
   --t-ink-sub:         #514b81;
   --t-ink-soft:        #847ba8;
   --t-ink-faint:       #b0acd6;
+  /* 소방계획서_36 S5-1 — ink-faint 계열을 유지한 **읽히는 버전**(AA 대상).
+     ink-faint는 라이트 2.16:1로 AA 실패라 '정보를 담은 보조 텍스트'에 쓸 수 없다.
+     값은 손으로 고르지 않았다 — scripts/_probe-36-wcag-constants.mjs가 ink-faint에서
+     ink 쪽으로 옮기며 surface·paper **양쪽** 4.5:1을 처음 넘는 지점을 찾았다.
+     실측: surface 4.80:1 · paper 4.55:1. ⚠ 기존 토큰 값은 하나도 안 바꿨다(29 D-3). */
+  --t-ink-meta:        #716f90;
   --t-surface:         #ffffff;
   --t-paper:           #f8f9fa;
   --t-line:            #c8c4d0;
@@ -280,8 +287,25 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
 
 .dark {
   /* 소방계획서_29 다크 팔레트 — erp_goal/image-18.png 톤(딥 뉴트럴 + 보라 포인트).
-     본문 대비: ink #ededf0/surface #232327 ≈ 12:1 · ink-sub ≈ 7:1 (WCAG AA 4.5:1 충족).
-     ink-faint는 라이트(#b0acd6, ≈2.1:1)와 동급의 장식용 — AA 비대상. */
+   *
+   * ── 대비 규약 (소방계획서_36 S5-2) — surface 기준 **실측값**이다.
+   *    값은 scripts/_probe-36-wcag-constants.mjs가 WCAG 2.1 정식식으로 계산하고,
+   *    _probe-36-contrast.mts가 실제 브라우저에서 같은 수를 재현하는지 자가검증한다.
+   *
+   *      토큰        라이트    다크     판정
+   *      ink         19.41    13.40    AAA
+   *      ink-strong  13.82    11.03    AAA
+   *      ink-sub      7.86     6.57    AA
+   *      ink-meta     4.80     4.57    AA  ← 36에서 신설(정보를 담은 보조 텍스트)
+   *      ink-soft     3.90     4.62    라이트는 큰 글자만
+   *      ink-faint    2.16     3.05    ❌ **순수 장식 전용 — AA 비대상**
+   *
+   * ⚠ 종전 이 주석은 다크를 'ink ≈12:1 · ink-sub ≈7:1'로 적었고 36 최초안은 그것을
+   *    'ink-sub 6.76'으로 고치려 했다 — **둘 다 틀렸다**(실제 6.57). 어림값을 더 틀린
+   *    숫자로 덮어쓸 뻔한 자리다. 이 표는 손계산이 아니라 스크립트 출력만 싣는다(F-6).
+   *
+   * ⚠ **경계**: ink-faint = 순수 장식(비활성·플레이스홀더·구분선) / ink-meta = 읽어야 하는
+   *    보조 텍스트(항목코드·안내문). 읽으라고 쓴 문장에 ink-faint를 쓰면 AA 실패다. */
   --t-brand:           #8f7df2;
   --t-brand-strong:    #7f6cf5;
   --t-brand-tint:      #2a2542;
@@ -292,6 +316,9 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
   --t-ink-sub:         #a8a5c0;
   --t-ink-soft:        #8c88a8;
   --t-ink-faint:       #6e6a8a;
+  /* S5-1 다크 짝 — ink-faint에서 흰색 쪽으로 옮겨 surface·paper 양쪽 AA를 처음 넘는 값.
+     실측: surface 4.57:1 · paper 5.02:1 */
+  --t-ink-meta:        #8b88a1;
   --t-surface:         #232327;
   --t-paper:           #1b1b1e;
   --t-line:            #3a3a42;

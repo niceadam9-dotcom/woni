@@ -61,9 +61,10 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
           --fs-scale은 항상 ≥1이므로 40px 하한은 그대로 지켜진다. */}
       <div className="flex items-center gap-2 py-1.5">
         {/* ⚠ 이 줄은 두 차수가 각각 다른 축을 갖는다 — **서로의 축을 지우지 말 것**.
-            색(text-ink-faint, WCAG AA 실패)은 소방계획서_36 S6 소관,
-            크기(text-form-2xs·w-20)는 소방계획서_38 S5 소관. */}
-        <span className="text-form-2xs text-ink-faint w-20 shrink-0">{it.item_code}</span>
+            색은 소방계획서_36 S5-3에서 해소했다: 항목코드는 점검표의 **참조 키**라
+            읽어야 하는 값인데 ink-faint(라이트 2.16:1)로 찍혀 AA 실패였다 → ink-meta(4.80:1).
+            크기(text-form-2xs·w-20)는 소방계획서_38 S5 소관 — 여기서 건드리지 않는다. */}
+        <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
         <span className="text-form-sm text-ink flex-1 min-w-0">{it.item_name}</span>
         <div className="flex items-center gap-1 shrink-0">
           {/* ／(해당없음)는 그룹 일괄로만 기록된다(Q-19) — 기록된 항목엔 진회색 ／ 표식.
@@ -89,6 +90,9 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
               }}
                 aria-label={`${it.item_code} ${r}`}
                 title={on ? '다시 누르면 미점검(공란)으로' : undefined}
+                /* S5-5 — 미선택 O/X의 ink-faint는 **의도적으로 유지**한다(무엇을 안 바꾸는지도 기록).
+                   이건 '읽어야 하는 정보'가 아니라 진짜 비활성 표현이고, 큰 글리프라
+                   장식 규약에 맞다. 여기까지 ink-meta로 올리면 미선택이 선택처럼 보인다. */
                 className={`size-sheet-mark rounded-lg text-form-base font-bold transition-colors ${on
                   ? activeCls(r)
                   : 'bg-brand-tint text-ink-faint hover:bg-brand-tint'}`}>
@@ -251,8 +255,9 @@ export function SheetItemEditor({
           )}
         </div>
       )}
+      {/* S5-4 — 읽으라고 쓴 안내문이다. 장식이 아니므로 AA 대상(ink-meta) */}
       {showFooterHint && (
-        <p className="text-form-xs text-ink-faint mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
+        <p className="text-form-xs text-ink-meta mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
       )}
     </>
   )

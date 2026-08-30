@@ -28,20 +28,46 @@ for (const [mode, toks] of [['light', LIGHT], ['dark', DARK]]) {
 }
 
 // 문서가 적어둔 값과 대조 — 설계 JSON/MD의 상수가 곧 프로브의 오라클이 된다
-console.log('\n── 소방계획서_36 문서 기재값 대조')
+// 문서(§2.3)에 실린 값과 대조 — **F-6 정정 후 값**이다.
+// 최초안의 3.14·6.76·4.76·9.3·11은 오기였고 여기서 잡혔다. 이 절은 그 회귀를 막는다.
+console.log('\n── 소방계획서_36 문서 기재값 대조 (F-6 정정본)')
 for (const [label, got, doc] of [
   ['ink-faint 라이트', ratio(LIGHT['ink-faint'], SURFACE.light), 2.16],
-  ['ink-faint 다크', ratio(DARK['ink-faint'], SURFACE.dark), 3.14],
-  ['ink-sub 다크', ratio(DARK['ink-sub'], SURFACE.dark), 6.76],
-  ['ink-soft 다크', ratio(DARK['ink-soft'], SURFACE.dark), 4.76],
+  ['ink-faint 다크', ratio(DARK['ink-faint'], SURFACE.dark), 3.05],
+  ['ink-sub 라이트', ratio(LIGHT['ink-sub'], SURFACE.light), 7.86],
+  ['ink-sub 다크', ratio(DARK['ink-sub'], SURFACE.dark), 6.57],
+  ['ink-soft 다크', ratio(DARK['ink-soft'], SURFACE.dark), 4.62],
 ]) {
   const ok = Math.abs(got - doc) < 0.05
   console.log(`   ${ok ? '✅' : '❌'} ${label.padEnd(18)} 계산 ${got.toFixed(3)} vs 문서 ${doc}`)
 }
 
-// --t-ink-meta 후보 — AA 4.5:1을 surface·paper 양쪽에서 넘기는 값을 찾는다(S5-1)
-console.log('\n── --t-ink-meta 후보 (surface·paper 양쪽 ≥4.5:1)')
-for (const [mode, base] of [['light', LIGHT['ink-sub']], ['dark', DARK['ink-sub']]]) {
+// --t-ink-meta 후보 — AA 4.5:1을 surface·paper **양쪽에서** 넘기는 값을 찾는다(S5-1)
+//
+// 설계 의도(D-5): ink-faint = 순수 장식(AA 비대상) / ink-meta = 정보를 담은 보조 텍스트(AA 대상).
+// 그래서 ink-faint의 **색상은 유지하고 명도만** 옮겨 AA를 넘기는 가장 가까운 값을 고른다 —
+// 팔레트에 새 색을 들이지 않고 '같은 계열의 읽히는 버전'이 되게.
+const hex2 = h => { const m = /^#?(..)(..)(..)$/.exec(h); return [1,2,3].map(i => parseInt(m[i],16)) }
+const toHex = a => '#' + a.map(v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('')
+
+function findMeta(mode, fromHex, toward) {
+  const from = hex2(fromHex), to = hex2(toward)
   const worst = h => Math.min(ratio(h, SURFACE[mode]), ratio(h, PAPER[mode]))
-  console.log(`   ${mode} 기준 ink-sub ${base}: 최악 ${worst(base).toFixed(2)}:1`)
+  // ink-faint에서 목표색(라이트=ink, 다크=흰색) 쪽으로 조금씩 옮기며 처음 AA를 넘는 지점
+  for (let t = 0; t <= 1.0001; t += 0.01) {
+    const c = toHex(from.map((v, i) => v + (to[i] - v) * t))
+    if (worst(c) >= 4.5) return { hex: c, t: t.toFixed(2), surface: ratio(c, SURFACE[mode]), paper: ratio(c, PAPER[mode]) }
+  }
+  return null
+}
+
+console.log('\n── --t-ink-meta 후보 (ink-faint 계열 유지 · surface·paper 양쪽 ≥4.5:1)')
+for (const [mode, base, toward] of [
+  ['light', LIGHT['ink-faint'], LIGHT['ink']],
+  ['dark', DARK['ink-faint'], '#ffffff'],
+]) {
+  const r = findMeta(mode, base, toward)
+  console.log(r
+    ? `   ${mode}: ${base} → **${r.hex}**  (t=${r.t})  surface ${r.surface.toFixed(2)}:1 · paper ${r.paper.toFixed(2)}:1`
+    : `   ${mode}: 후보 없음`)
 }
