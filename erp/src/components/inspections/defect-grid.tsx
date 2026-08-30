@@ -80,8 +80,12 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     let planned = 0, done = 0
     for (const d of defects) {
       const r = d.id === overrideId ? overrideRow : { ...toRow(d), ...editsRef.current[d.id] }
-      if (r.actionPlan || r.actionStart) planned++
-      if (r.actionCompletedAt) done++
+      // ⚠ trim은 서버와 맞추기 위한 것이다(독립 판정 지적). 서버는 `actionPlan?.trim() || null`로
+      // 저장하므로(defect-actions.ts) 공백만 친 칸은 서버에서 null이 된다. 여기서 트림 없이 세면
+      // 로컬 planned가 1 더 커지고, **서버 집계 문자열이 안 바뀌니 로컬을 버리는 effect도 안 돈다**
+      // → 오차가 새로고침 때까지 남는다. 규칙이 갈리면 미러가 아니라 거짓말이 된다.
+      if (r.actionPlan.trim() || r.actionStart.trim()) planned++
+      if (r.actionCompletedAt.trim()) done++
     }
     return { planned, done, total: defects.length }
   }

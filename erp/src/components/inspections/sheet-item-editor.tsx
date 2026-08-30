@@ -62,7 +62,7 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
       <div className="flex items-center gap-2 py-1.5">
         {/* ⚠ 이 줄은 두 차수가 각각 다른 축을 갖는다 — **서로의 축을 지우지 말 것**.
             색은 소방계획서_36 S5-3에서 해소했다: 항목코드는 점검표의 **참조 키**라
-            읽어야 하는 값인데 ink-faint(라이트 2.16:1)로 찍혀 AA 실패였다 → ink-meta(4.80:1).
+            읽어야 하는 값인데 ink-faint(라이트 2.16:1)로 찍혀 AA 실패였다 → ink-meta(라이트 5.03:1).
             크기(text-form-2xs·w-20)는 소방계획서_38 S5 소관 — 여기서 건드리지 않는다. */}
         <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
         <span className="text-form-sm text-ink flex-1 min-w-0">{it.item_name}</span>
