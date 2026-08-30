@@ -206,6 +206,14 @@
   --fs-col-num: 52px;  /* 구 44px — 숫자열 colgroup. ⚠ 글자와 **함께** 키워야 한다.
                           44px 열의 실제 입력 폭은 border·padding을 빼면 28px뿐이라
                           글자만 11→13px로 올리면 자릿수가 줄어든다(W-1). */
+  /* 자간. 화면은 normal(한글이 body의 -0.01em에 눌리지 않게), 인쇄는 구 값으로 되돌린다.
+     ⚠ 종전엔 유틸리티가 letter-spacing:normal을 **무조건** 걸어 @media print가 되돌릴
+       방법이 없었다 — 법정 서식 471곳이 구판보다 자간이 넓게 인쇄되고 있었다(판정 DEF-B1).
+       E-2가 못 잡은 이유는 fontSize만 재고 있었기 때문이다(검사도 함께 넓혔다).
+     ⚠ 복원값이 -0.01em(body) 하나인 근거: 서식 16파일의 h1~h6 11개 중 토큰을 쓰는 것이
+       **0건**이라 토큰 요소는 전부 body를 상속한다. 제목(-0.02em)에 토큰을 쓰기 시작하면
+       이 값이 틀리므로, 그 전제 자체를 검사가 고정한다. */
+  --fs-tracking: normal;
 
   /* ── 점검표 입력 기하 (소방계획서_38) — 글자와 **함께** 커져야 하는 치수 ────────
      드로어·전용 입력 화면이 위 --fs-scale을 소비하기 시작하면서, 리터럴로 박혀 있던
@@ -255,6 +263,7 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
     --fs-step: 1;
     --fs-1: 9px;  --fs-2: 10px; --fs-3: 11px; --fs-4: 12px; --fs-5: 14px; --fs-6: 16px;
     --fs-h6: 24px; --fs-h7: 28px; --fs-h8: 32px; --fs-col-num: 44px; --fs-col-cat: 48px;
+    --fs-tracking: -0.01em;   /* 구 값 = body 자간. 화면의 normal을 되돌린다(DEF-B1) */
   }
   /* 세부제원 패널이 열린 채 Ctrl+P해도 서식 규격을 지킨다. --fs-step만 1로 눌러선 안 된다 —
      [data-fs-boost]는 여전히 ×1.15를 곱하므로 결과가 1.15가 된다. --fs-scale을 직접 되돌린다.
@@ -269,12 +278,12 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
 /* letter-spacing: normal — body 전역(-0.01em)은 라틴 디스플레이용 조임인데 한글 자간까지
    좁힌다. body를 고치면 ERP 전 화면 텍스트 폭이 흔들리므로 **이 유틸리티에만** 되돌린다.
    ⚠ 항등이 아니므로 S2(코드모드)가 아니라 S3(상향)에 묶었다. */
-@utility text-form-3xs  { font-size: calc(var(--fs-1) * var(--fs-scale)); letter-spacing: normal; }
-@utility text-form-2xs  { font-size: calc(var(--fs-2) * var(--fs-scale)); letter-spacing: normal; }
-@utility text-form-xs   { font-size: calc(var(--fs-3) * var(--fs-scale)); letter-spacing: normal; }
-@utility text-form-sm   { font-size: calc(var(--fs-4) * var(--fs-scale)); line-height: calc(1 / 0.75);     letter-spacing: normal; }
-@utility text-form-base { font-size: calc(var(--fs-5) * var(--fs-scale)); line-height: calc(1.25 / 0.875); letter-spacing: normal; }
-@utility text-form-lg   { font-size: calc(var(--fs-6) * var(--fs-scale)); line-height: calc(1.5 / 1);      letter-spacing: normal; }
+@utility text-form-3xs  { font-size: calc(var(--fs-1) * var(--fs-scale)); letter-spacing: var(--fs-tracking); }
+@utility text-form-2xs  { font-size: calc(var(--fs-2) * var(--fs-scale)); letter-spacing: var(--fs-tracking); }
+@utility text-form-xs   { font-size: calc(var(--fs-3) * var(--fs-scale)); letter-spacing: var(--fs-tracking); }
+@utility text-form-sm   { font-size: calc(var(--fs-4) * var(--fs-scale)); line-height: calc(1 / 0.75);     letter-spacing: var(--fs-tracking); }
+@utility text-form-base { font-size: calc(var(--fs-5) * var(--fs-scale)); line-height: calc(1.25 / 0.875); letter-spacing: var(--fs-tracking); }
+@utility text-form-lg   { font-size: calc(var(--fs-6) * var(--fs-scale)); line-height: calc(1.5 / 1);      letter-spacing: var(--fs-tracking); }
 @utility h-form-6 { height: calc(var(--fs-h6) * var(--fs-scale)); }
 @utility h-form-7 { height: calc(var(--fs-h7) * var(--fs-scale)); }
 @utility h-form-8 { height: calc(var(--fs-h8) * var(--fs-scale)); }

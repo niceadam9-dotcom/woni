@@ -176,11 +176,16 @@ const CLS_INIT = `
  *  전체 body를 세면 사이드바·헤더가 print:hidden으로 사라져 화면 히스토그램과 애초에
  *  비교가 안 된다. text-form-… 클래스를 가진 요소는 정확히 우리가 건드린 16파일의
  *  텍스트이고 전부 소방계획서 영역 안이라, 두 미디어에서 같은 모집단이 된다. */
+/*  ⚠ **fontSize만 재면 "인쇄가 구 값으로 복원된다"가 좁은 참이 된다.** 실제로 그랬다:
+ *    유틸리티가 letter-spacing:normal을 무조건 걸어 인쇄에서 자간이 안 돌아왔는데,
+ *    이 검사가 fontSize만 봐서 초록이었다(독립 판정 DEF-B1 — 법정 서식 471곳 영향).
+ *    그래서 히스토그램 키를 `fontSize|letterSpacing` 복합으로 넓혔다. */
 const COLLECT_TOKENS = `(() => {
   const hist = {}; let n = 0;
   for (const el of document.querySelectorAll('[class*="text-form-"]')) {
-    const fs = getComputedStyle(el).fontSize;
-    hist[fs] = (hist[fs] ?? 0) + 1; n++;
+    const cs = getComputedStyle(el);
+    const k = cs.fontSize + '|' + cs.letterSpacing;
+    hist[k] = (hist[k] ?? 0) + 1; n++;
   }
   return { hist, n };
 })()`
@@ -198,7 +203,42 @@ const COLLECT_TOKENS = `(() => {
  *    그 한 개를 되돌리면 옛 픽셀과 완전히 같다". 패널 안 text-form-* 클래스를 실수로 바꾸면
  *    (예: text-form-xs → text-form-sm) 부스트를 눌러도 히스토그램이 어긋나 여전히 잡힌다. */
 const BOOST_OFF = `[data-fs-boost]{--fs-scale:1!important}`
-const OLD_VALUES = `:root{--fs-scale:1!important;--fs-1:9px!important;--fs-2:10px!important;--fs-3:11px!important;--fs-4:12px!important;--fs-5:14px!important;--fs-6:16px!important;--fs-h6:24px!important;--fs-h7:28px!important;--fs-h8:32px!important;--fs-col-num:44px!important}${BOOST_OFF}`
+/*  ⚠ 이 상수는 @media print 목록의 **사본**이다. 사본은 조용히 어긋난다 — 실제로 어긋나 있었다:
+ *    fbe8e95가 CSS에만 --fs-col-cat을 넣고 여기는 안 고쳤는데, 위 주석은 계속 "같은 목록"이라
+ *    단언하고 있었다(판정 DEF-B2). 그래서 아래 assertTokenListsMatch()가 두 목록과 이 상수를
+ *    **셋 다** 대조한다 — 주석의 약속을 검사로 바꾼 것이다. */
+const OLD_VALUES = `:root{--fs-scale:1!important;--fs-step:1!important;--fs-1:9px!important;--fs-2:10px!important;--fs-3:11px!important;--fs-4:12px!important;--fs-5:14px!important;--fs-6:16px!important;--fs-h6:24px!important;--fs-h7:28px!important;--fs-h8:32px!important;--fs-col-num:44px!important;--fs-col-cat:48px!important;--fs-tracking:-0.01em!important}${BOOST_OFF}`
+
+/** :root 정의 · @media print 복원 · OLD_VALUES 사본 — 세 목록이 같은가.
+ *  하나라도 빠지면 그 토큰만 인쇄에서 확대된 채 나가는데, 히스토그램 대조로는 안 잡힐 수 있다
+ *  (폭 토큰은 font-size가 아니라서). 그래서 값이 아니라 **이름 집합**을 정적으로 대조한다. */
+function assertTokenListsMatch() {
+  const css = readFileSync('src/app/globals.css', 'utf8')
+  const names = (block: string) => new Set((block.match(/--fs-[a-z0-9-]+(?=\s*:)/g) ?? []))
+  // :root { … } 첫 블록 안의 --fs-*
+  const rootBlock = css.slice(css.indexOf(':root'), css.indexOf('html[data-fs="lg"]'))
+  const printStart = css.indexOf('@media print')
+  const printBlock = css.slice(printStart, css.indexOf('\n}', css.indexOf('[data-fs-boost]', printStart)))
+  const rootSet = names(rootBlock), printSet = names(printBlock), oldSet = names(OLD_VALUES)
+
+  check(`가드: :root 폰트 토큰이 실제로 걷혔다 (${rootSet.size}개)`, rootSet.size >= 10,
+    [...rootSet].join(' '))
+  const missingInPrint = [...rootSet].filter(t => !printSet.has(t))
+  check('가드: @media print가 :root의 --fs-* 토큰을 **전부** 되돌린다',
+    missingInPrint.length === 0, `인쇄에서 누락: ${missingInPrint.join(', ')}`)
+  const missingInOld = [...rootSet].filter(t => !oldSet.has(t))
+  check('가드: OLD_VALUES 사본이 :root 목록과 일치한다 (주석의 "같은 목록"을 검사로)',
+    missingInOld.length === 0, `사본에서 누락: ${missingInOld.join(', ')}`)
+
+  // 자간 복원값이 body 하나인 전제 — 서식 파일이 제목 태그에 토큰을 쓰기 시작하면 틀린다.
+  const headingWithToken = readdirSync(SRC_DIR).filter(f => f.endsWith('.tsx')).flatMap(f => {
+    const s = readFileSync(join(SRC_DIR, f), 'utf8')
+    return (s.match(/<h[1-6]\b[^>]*>/g) ?? []).filter(t => /text-form-|h-form-/.test(t)).map(() => f)
+  })
+  check('가드: 서식 파일의 h1~h6가 토큰을 쓰지 않는다 (--fs-tracking 복원값이 body 하나인 전제)',
+    headingWithToken.length === 0,
+    `${[...new Set(headingWithToken)].join(', ')} — 제목은 -0.02em이라 단일 복원값이 틀리게 된다`)
+}
 
 const email = `s35read_${Date.now()}@example.com`
 const u = await mkUser({ email, name: 'S35 가독성', employeeId: `S35R${Date.now() % 100000}` })
@@ -400,6 +440,9 @@ if (MODE_PRINT) {
       eq(printResult[`print_${fs}`] ?? { hist: {} }, printResult.screenOld ?? { hist: {} }),
       `인쇄(${fs}) ${show(printResult[`print_${fs}`])}`)
   }
+
+  // 목록 동기화 정적 가드 (DEF-B2) — 브라우저와 무관하므로 인쇄 축에 함께 둔다.
+  assertTokenListsMatch()
 
   // E-3 — 서식 16파일에 print: 변형이 0건이라는 **격리 가정의 전제**를 상시 고정한다.
   //   누가 print:text-xs 같은 걸 끼워 넣으면 인쇄가 화면 축에 묶여 위 대조가 무의미해진다.

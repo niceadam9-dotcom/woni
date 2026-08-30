@@ -37,6 +37,13 @@ const steps: Step[] = [
   { name: '서식 가독성 항등(E2E)',      cmd: 'npx tsx scripts/test-plan-readability.mts --identity', needServer: true },
   { name: '서식 표 넘침·배율(E2E)',     cmd: 'npx tsx scripts/test-plan-readability.mts --overflow', needServer: true },
   { name: '서식 인쇄 격리(E2E)',        cmd: 'npx tsx scripts/test-plan-readability.mts --print',    needServer: true },
+  // FOUT 리플로우(S0-6 / W-7) — Pretendard가 늦게 도착하며 표 행이 위로 밀리는 양을 고정한다.
+  //   ⚠ **차단 대조군과의 차이**로 폰트에 귀속시킨다. 대조군 없이 재면 로컬은 폰트가 즉시 와서
+  //     0.008이 나오고 "양호(<0.1)"라는 거짓 초록이 된다 — 실제 값은 0.27이다(33배 차이).
+  //   ⚠ 측정 화면이 1.4인 것도 조건이다. /customers에서 재면 노이즈에 묻혀 0이 나온다 —
+  //     '쟀는데 0'은 문제 없음이 아니라 아픈 데를 안 본 것일 수 있다.
+  //   이 단언은 '좋다'가 아니라 '**나빠지지 않았다**'이다(현재 값 자체가 개선 대상).
+  { name: '서식 FOUT 리플로우(E2E)',    cmd: 'npx tsx scripts/test-plan-readability.mts --cls',      needServer: true },
   // 글자 배율 4경로 — 다크 모드(test-theme-settings)와 같은 구조. DB·쿠키·<html data-fs> **3축이
   // 함께** 맞아야 통과다. 한 축만 보면 '화면은 커졌는데 다른 기기엔 안 따라간다'를 못 잡는다.
   { name: '글자 배율 4경로(E2E)',       cmd: 'npx tsx scripts/test-font-scale.mts', needServer: true },

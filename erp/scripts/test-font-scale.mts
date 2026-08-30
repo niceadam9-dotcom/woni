@@ -42,7 +42,18 @@ const cookieOf = async (ctx: any) => (await ctx.cookies()).find((c: any) => c.na
   check('D-6 readProfileFontScale가 오류를 null로 삼킨다 (컬럼 미적용 DB 관용)',
     /if\s*\(\s*error\s*\)\s*return null/.test(fs), '')
   const auth = readFileSync('src/lib/auth.ts', 'utf8')
-  const cols = auth.match(/PROFILE_COLS\s*=\s*[`'"]([^`'"]+)[`'"]/)?.[1] ?? ''
+  const m = auth.match(/PROFILE_COLS\s*=\s*[`'"]([^`'"]+)[`'"]/)
+  const cols = m?.[1] ?? ''
+  // ⚠ **매칭 성공을 먼저 단언한다.** 종전엔 `?.[1] ?? ''` 뒤에 `!''.includes(...)`라
+  //   **정규식이 못 찾으면 그대로 통과**했다 — 독립 판정 C가 변이로 실증한 공허 경로 3개:
+  //   ①const PROFILE_COLS 삭제 ②배열+join 형태로 리팩터 ③fetchProfile에 select 인라인.
+  //   셋 다 '없는 컬럼 select = 로그인 전멸' 위험을 되살리는데 검사는 초록이었다.
+  check('W-9 전제: PROFILE_COLS 문자열 상수를 실제로 찾았다 (못 찾으면 아래 단언이 공허하다)',
+    m !== null && cols.length > 10,
+    m ? `길이 ${cols.length}` : '⚠ 정규식 미매칭 — 상수 형태가 바뀌었다면 이 검사부터 고칠 것')
+  check('W-9 전제: 프로필 조회가 PROFILE_COLS를 경유한다 (select 인라인이면 상수 검사가 무의미)',
+    /\.select\(\s*PROFILE_COLS\s*\)/.test(auth),
+    'auth.ts에서 .select(PROFILE_COLS) 호출을 못 찾았다 — 인라인 select로 우회됐을 수 있다')
   check('W-9 form_font_scale이 PROFILE_COLS에 없다 (없는 컬럼 select = 로그인 전멸)',
     !cols.includes('form_font_scale'), `PROFILE_COLS = ${cols.slice(0, 90)}…`)
   // CSS 정본과 lib의 비율 사본이 어긋나지 않는지 — 어긋나면 화면과 계산이 다른 말을 한다
@@ -136,8 +147,24 @@ try {
         //   (data-fs는 그대로 두므로 '속성은 바뀌는데 크기는 안 바뀌는' 상태를 정확히 재현한다.
         //    이게 실제로 일어날 법한 회귀다 — 토큰 배선이 끊기거나 @utility가 사라지는 경우.)
         if (MUTATE) await page.addStyleTag({ content: ':root, html[data-fs] { --fs-scale: 1 !important }' })
-        await page.evaluate(`document.documentElement.setAttribute('data-fs','${s}')`)
-        await page.waitForTimeout(400)
+        // ⚠ **하이드레이션과 경합한다.** FontScaleSync(유실보정)의 useEffect가 DB값으로
+        //   data-fs를 되돌리는데, 콜드 컴파일 라우트에서는 그 effect가 아래 setAttribute
+        //   **뒤에** 끝난다 → md를 세워도 lg로 되돌아가 `md=14.95`(=13×1.15=DB의 lg)가 잡혔다.
+        //   독립 판정 C가 2회 중 1회 재현한 거짓 빨강이고, **실패 모양이 진짜 회귀와
+        //   구별되지 않는다**는 게 진짜 위험이었다.
+        //   → 세우고, 한 박자 뒤 **되돌아갔는지 확인해 다시 세운다**. 안정될 때까지 반복.
+        let held = ''
+        for (let t = 0; t < 12; t++) {
+          await page.evaluate(`document.documentElement.setAttribute('data-fs','${s}')`)
+          await page.waitForTimeout(250)
+          held = await page.evaluate(`document.documentElement.getAttribute('data-fs')`) as string
+          if (held === s) { await page.waitForTimeout(150)
+            held = await page.evaluate(`document.documentElement.getAttribute('data-fs')`) as string
+            if (held === s) break }
+        }
+        // 되돌림을 못 이겼으면 **측정값을 쓰지 않는다** — 조용히 틀린 수를 비교하는 것보다 낫다.
+        check(`B-4 전제: 배율 ${s}가 측정 시점까지 유지된다 (FontScaleSync 되돌림 방지)`,
+          held === s, `data-fs=${held} (기대 ${s}) — 하이드레이션 경합`)
         const v = await page.evaluate(`(() => {
           const el = document.querySelector('.text-form-xs');
           return el ? parseFloat(getComputedStyle(el).fontSize) : null })()`)
