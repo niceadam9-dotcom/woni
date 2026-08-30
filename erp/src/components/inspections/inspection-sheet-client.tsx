@@ -392,15 +392,15 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
 
   /** 자동저장 상태 칩 — 이 화면의 유일한 저장 피드백([저장] 버튼 대체, 28 S2-3) */
   const saveChip = autosave.status === 'saving' ? (
-    <span className="text-[10px] text-brand flex items-center gap-1 shrink-0"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
+    <span className="text-form-2xs text-brand flex items-center gap-1 shrink-0"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
   ) : autosave.status === 'error' ? (
-    <button onClick={() => void autosave.retry()} className="text-[10px] font-semibold text-red-600 underline shrink-0">저장 실패 — 다시 시도</button>
+    <button onClick={() => void autosave.retry()} className="text-form-2xs font-semibold text-red-600 underline shrink-0">저장 실패 — 다시 시도</button>
   ) : autosave.status === 'paused' ? (
-    <span className="text-[10px] font-semibold text-amber-600 shrink-0">저장 보류 — 원격 변경 확인 필요</span>
+    <span className="text-form-2xs font-semibold text-amber-600 shrink-0">저장 보류 — 원격 변경 확인 필요</span>
   ) : autosave.status === 'saved' ? (
-    <span className="text-[10px] font-semibold text-green-600 shrink-0">✓ 저장됨</span>
+    <span className="text-form-2xs font-semibold text-green-600 shrink-0">✓ 저장됨</span>
   ) : (
-    <span className="text-[10px] text-ink-faint shrink-0">자동 저장</span>
+    <span className="text-form-2xs text-ink-faint shrink-0">자동 저장</span>
   )
 
   return (
@@ -511,13 +511,13 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         title={sel?.sheet_name ?? ''}
         headerRight={
           <span className="flex items-center gap-2 ml-auto min-w-0">
-            <span className={`text-[10px] shrink-0 ${selCounts.total > 0 && selCounts.responded >= selCounts.total ? 'text-green-600' : 'text-ink-faint'}`}>
+            <span className={`text-form-2xs shrink-0 ${selCounts.total > 0 && selCounts.responded >= selCounts.total ? 'text-green-600' : 'text-ink-faint'}`}>
               {selCounts.responded}/{selCounts.total}{selCounts.x > 0 ? ` ✕${selCounts.x}` : ''}
             </span>
             {canManage && (
               <button onClick={localSheetNA} disabled={isPending} data-testid="drawer-sheet-na"
                 title="이 시트의 미입력 항목을 전부 ／(해당없음)로 — 입력된 ○/✕는 보존 (재클릭 시 ／만 해제)"
-                className="h-6 px-2 rounded text-[10px] font-medium border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40 shrink-0">
+                className="h-sheet-chip px-2 rounded text-form-2xs font-medium border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40 shrink-0">
                 ／ 전체
               </button>
             )}
@@ -532,11 +532,11 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
                 이 동안 자동저장은 pause 상태다(훅 계약 ③) */}
             {stale && (
               <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
-                <span className="text-xs text-amber-700 flex-1">
+                <span className="text-form-sm text-amber-700 flex-1">
                   다른 곳에서 이 점검표가 저장되었습니다 — 입력 중이라 자동 갱신·자동 저장을 멈췄습니다.
                 </span>
                 <button onClick={() => { reinitRef.current = true; setStale(false); router.refresh() }}
-                  className="text-xs text-brand font-medium hover:underline shrink-0">
+                  className="text-form-sm text-brand font-medium hover:underline shrink-0">
                   최신 불러오기
                 </button>
               </div>
@@ -544,11 +544,11 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
             {/* Q-22 ② — 대장 힌트: 판정은 사람(22 Q-8). 대장 하위가 전부 비어 있으면 침묵(P-15) */}
             {ledgerHint && canManage && (
               <div className="flex items-center gap-2 flex-wrap border-b border-brand-line-soft bg-brand-tint px-4 py-2" data-testid="ledger-hint-banner">
-                <span className="text-[11px] text-ink-sub flex-1 min-w-40">
+                <span className="text-form-xs text-ink-sub flex-1 min-w-40">
                   설비 대장 기준 미설치로 보이는 그룹 {ledgerHint.length}개 — {ledgerHint.map(g => `[${g.name}]`).join(' ')}
                 </span>
                 <button onClick={applyLedgerHint} disabled={isPending} data-testid="ledger-hint-apply"
-                  className="h-6 px-2 rounded text-[10px] font-medium bg-brand text-white hover:bg-brand-strong disabled:opacity-40 shrink-0">
+                  className="h-sheet-chip px-2 rounded text-form-2xs font-medium bg-brand text-white hover:bg-brand-strong disabled:opacity-40 shrink-0">
                   해당 그룹 일괄 ／
                 </button>
               </div>
@@ -560,7 +560,12 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         <SheetItemEditor
           items={items} loading={isPending && items.length === 0} value={local}
           grouping="outline" scrollBoxRef={scrollBoxRef}
-          maxHeight="max-h-[calc(100dvh-260px)] max-sm:max-h-[calc(92dvh-250px)]"
+          // 매직넘버 폐기(소방계획서_38 S4-1) — 종전 calc(100dvh-260px)는 '헤더+배너+푸터가
+          // 260px'이라는 가정이었고, 글자가 배율을 따르기 시작하면 헤더가 자라 그 가정이 틀린다.
+          // 패널이 inset-4로 높이가 확정되고 조상이 전부 flex column이라(sheet-drawer.tsx:115·117)
+          // 남는 공간을 그냥 채우면 된다. ⚠ overflow-y-auto는 편집기가 따로 붙인다 —
+          // 테스트의 closest('.overflow-y-auto')가 계속 매치돼야 한다.
+          maxHeight="flex-1 min-h-0"
           // 해제(r=null)도 훅이 delta로 본다 — clearCodes로 DB 행까지 지운다(Q-19)
           onResult={autosave.setResult}
           onRegisterX={registerInlineX}

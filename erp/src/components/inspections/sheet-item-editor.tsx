@@ -55,15 +55,21 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
   return (
     <div className="border-b border-paper">
       {/* S4-8: O/X는 현장에서 장갑 낀 손으로 누르는 버튼이다 — 28px는 오탭이 잦아 40px로 키우고
-          행 간격도 넓혔다. 메모 입력은 좁은 화면에서 넘치지 않게 아래 줄로 흐르게 한다. */}
+          행 간격도 넓혔다. 메모 입력은 좁은 화면에서 넘치지 않게 아래 줄로 흐르게 한다.
+          소방계획서_38 S5-2: 그 40px을 size-sheet-mark로 배율에 연동했다(40/46/52px).
+          배율을 올리는 사용자가 정확히 오탭이 잦은 층이라 글자만 키우면 절반만 푸는 셈이다 —
+          --fs-scale은 항상 ≥1이므로 40px 하한은 그대로 지켜진다. */}
       <div className="flex items-center gap-2 py-1.5">
-        <span className="text-[10px] text-ink-faint w-14 shrink-0">{it.item_code}</span>
-        <span className="text-xs text-ink flex-1 min-w-0">{it.item_name}</span>
+        {/* ⚠ 이 줄은 두 차수가 각각 다른 축을 갖는다 — **서로의 축을 지우지 말 것**.
+            색(text-ink-faint, WCAG AA 실패)은 소방계획서_36 S6 소관,
+            크기(text-form-2xs·w-20)는 소방계획서_38 S5 소관. */}
+        <span className="text-form-2xs text-ink-faint w-20 shrink-0">{it.item_code}</span>
+        <span className="text-form-sm text-ink flex-1 min-w-0">{it.item_name}</span>
         <div className="flex items-center gap-1 shrink-0">
           {/* ／(해당없음)는 그룹 일괄로만 기록된다(Q-19) — 기록된 항목엔 진회색 ／ 표식.
               미선택은 미점검(공란) — 표식 없음(인쇄 시 결과란이 비어 나간다) */}
           {value[it.item_code] === 'N' && (
-            <span className="text-[13px] font-bold text-gray-500 mr-0.5 select-none" data-na-mark
+            <span className="text-form-base font-bold text-gray-500 mr-0.5 select-none" data-na-mark
               title="해당없음(／) — 그룹 일괄 버튼으로 기록됨. 해제도 같은 일괄 버튼을 다시 누르세요">／</span>
           )}
           {RESULTS.map(r => {
@@ -83,7 +89,7 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
               }}
                 aria-label={`${it.item_code} ${r}`}
                 title={on ? '다시 누르면 미점검(공란)으로' : undefined}
-                className={`w-10 h-10 rounded-lg text-sm font-bold transition-colors ${on
+                className={`size-sheet-mark rounded-lg text-form-base font-bold transition-colors ${on
                   ? activeCls(r)
                   : 'bg-brand-tint text-ink-faint hover:bg-brand-tint'}`}>
                 {mark(r)}
@@ -92,18 +98,19 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
           })}
         </div>
       </div>
+      {/* pl-20은 위 항목코드 열(w-20)과 짝이다 — 한쪽만 바꾸면 메모행이 코드열과 어긋난다 */}
       {inlineX === it.item_code && (
-        <div className="flex items-center gap-2 pb-1.5 pl-14 flex-wrap">
+        <div className="flex items-center gap-2 pb-1.5 pl-20 flex-wrap">
           <input value={inlineMemo} onChange={e => setInlineMemo(e.target.value)}
             // ESC 우선순위(23 S7-8) — 드로어보다 인라인 폼이 먼저 소비한다. 안 그러면 메모 입력 중
             // ESC 한 번에 드로어째 닫혀 입력이 날아간다(드로어는 패널 onKeyDown이라 전파 차단이 닿는다)
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setInlineX(null) } }}
-            placeholder="불량 메모 (선택)" className="h-9 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-surface px-2 text-[11px] outline-none focus:border-red-400" />
+            placeholder="불량 메모 (선택)" className="h-form-8 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-surface px-2 text-form-xs outline-none focus:border-red-400" />
           <button onClick={() => { onRegisterX(it.item_code, inlineMemo); setInlineX(null); setInlineMemo('') }} disabled={busy}
-            className="h-9 px-3 rounded bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium disabled:opacity-50">
+            className="h-form-8 px-3 rounded bg-red-500 hover:bg-red-600 text-white text-form-xs font-medium disabled:opacity-50">
             {busy ? <Loader2 className="size-3 animate-spin" /> : '등록'}
           </button>
-          <button onClick={() => setInlineX(null)} className="h-9 px-3 rounded border border-line text-[11px] text-ink-sub">닫기</button>
+          <button onClick={() => setInlineX(null)} className="h-form-8 px-3 rounded border border-line text-form-xs text-ink-sub">닫기</button>
         </div>
       )}
     </div>
@@ -160,28 +167,34 @@ export function SheetItemEditor({
     for (const c of codes) if (value[c] === 'O') onResult(c, null)
   }
 
-  const bulkBtnCls = 'h-6 px-2 rounded text-[10px] font-medium shrink-0 bg-surface/80 border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40'
+  // ⚠ h-6 → h-sheet-chip이다. h-form-6을 쓰면 안 된다 — 소방계획서_35 codemod의 MAP은
+  //   --fs-h6이 24px이던 항등 시점 매핑이고 지금 --fs-h6은 28px라, 칩이 sticky 헤더를 뚫는다.
+  const bulkBtnCls = 'h-sheet-chip px-2 rounded text-form-2xs font-medium shrink-0 bg-surface/80 border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40'
 
   const body = loading && items.length === 0 ? (
-    <div className="py-6 text-center text-ink-sub text-sm flex items-center justify-center gap-2"><Loader2 className="size-4 animate-spin" /> 항목 로드 중…</div>
+    <div className="py-6 text-center text-ink-sub text-form-base flex items-center justify-center gap-2"><Loader2 className="size-4 animate-spin" /> 항목 로드 중…</div>
   ) : grouping === 'flat' ? (
     <div className={`${maxHeight} overflow-y-auto pr-1 space-y-2`}>
       {Object.entries(items.reduce<Record<string, SheetItem[]>>((acc, i) => { (acc[i.group] ??= []).push(i); return acc }, {})).map(([g, its]) => (
         <div key={g}>
-          <p className="text-[11px] font-semibold text-brand sticky top-0 bg-surface py-0.5">{g}</p>
+          <p className="text-form-xs font-semibold text-brand sticky top-0 bg-surface py-0.5">{g}</p>
           {its.map(it => <ItemRow key={it.item_code} it={it} ctx={ctx} />)}
         </div>
       ))}
     </div>
   ) : (
-    // ── outline(3층) — 중분류 sticky 헤더(높이 고정 h-[22px], 폰트 흔들림에 소제목 top이 깨지지 않게)
-    //    + 소제목 run sticky top-[22px] + 항목. run은 연속 구간만(sheet-outline.ts — order_num 보존) ──
+    // ── outline(3층) — 중분류 sticky 헤더(h-sheet-hdr) + 소제목 run sticky(top-sheet-hdr)
+    //    + 항목. run은 연속 구간만(sheet-outline.ts — order_num 보존).
+    //    ⚠ 두 sticky의 높이·offset은 **같은 CSS 변수(--sheet-hdr-h)** 를 읽는다. 종전에는
+    //      h-[22px]/top-[22px] 리터럴 쌍이라 한쪽만 고치면 두 줄이 겹쳐 항목 첫 행을 가렸고,
+    //      글자가 배율을 따르기 시작하면 고정 22px 자체가 틀린다(소방계획서_38 S5-3).
+    //      test-font-scale S-1이 '같은 변수를 읽는가'를 정적으로 대조한다 — 한쪽만 바꾸지 말 것. ──
     <div ref={scrollBoxRef} className={`${maxHeight} overflow-y-auto pr-1`}>
       {buildSheetOutline(items).map(g => (
         <div key={g.code} data-outline-group={g.code}>
-          <div className="sticky top-0 z-[2] h-[22px] flex items-center gap-1.5 bg-brand-tint rounded px-1.5">
-            <span className="text-[11px] font-bold text-brand shrink-0">[{g.code}]</span>
-            {g.name !== g.code && <span className="text-[11px] font-semibold text-ink-sub truncate flex-1 min-w-0">{g.name}</span>}
+          <div className="sticky top-0 z-[2] h-sheet-hdr flex items-center gap-1.5 bg-brand-tint rounded px-1.5">
+            <span className="text-form-xs font-bold text-brand shrink-0">[{g.code}]</span>
+            {g.name !== g.code && <span className="text-form-xs font-semibold text-ink-sub truncate flex-1 min-w-0">{g.name}</span>}
             {/* Q-17 — 일괄 대상은 이 중분류뿐임을 라벨에 명시. 시트 전체 일괄은 드로어 헤더 [／ 전체]가 담당 */}
             {canEdit && (
               <span className="ml-auto flex items-center gap-1">
@@ -197,9 +210,9 @@ export function SheetItemEditor({
           {g.runs.map((run, ri) => (
             <div key={ri}>
               {run.subgroup ? (
-                <div className="sticky top-[22px] z-[1] flex items-center gap-1.5 bg-surface border-l-2 border-brand-line pl-2 py-0.5"
+                <div className="sticky top-sheet-hdr z-[1] flex items-center gap-1.5 bg-surface border-l-2 border-brand-line pl-2 py-0.5"
                   data-subgroup={run.subgroup}>
-                  <span className="text-[11px] font-semibold text-ink-sub">[{run.subgroup}]</span>
+                  <span className="text-form-xs font-semibold text-ink-sub">[{run.subgroup}]</span>
                   {/* Q-19 T-2 — 대괄호 그룹 단위 ／. 1-B 하나가 별지4호 1쪽 체크박스 4개로 쪼개져
                       중분류 단위만으로는 '주거용만 설치'를 표현할 수 없다 */}
                   {canEdit && (
@@ -222,24 +235,24 @@ export function SheetItemEditor({
   return (
     <>
       {body}
-      {notice && <p className="text-xs text-green-600 mt-2">{notice}</p>}
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {notice && <p className="text-form-sm text-green-600 mt-2">{notice}</p>}
+      {error && <p className="text-form-sm text-red-600 mt-2">{error}</p>}
       {/* 둘 다 숨기면 푸터 블록 자체를 렌더하지 않는다 — 전용 입력 페이지(28)는 좌 목록이 상시
           보이는 master-detail이라 '취소/닫기'가 갈 곳이 없고, 자동저장이라 [저장]도 없다. */}
       {canEdit && !(hideSave && hideCancel) && (
         <div className="flex gap-2 mt-3">
           {!hideCancel && (
-            <button onClick={onCancel} disabled={busy} className="flex-1 h-9 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">{cancelLabel}</button>
+            <button onClick={onCancel} disabled={busy} className="flex-1 h-form-8 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper disabled:opacity-50">{cancelLabel}</button>
           )}
           {!hideSave && (
-            <button onClick={onSave} disabled={busy} className="flex-1 h-9 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium flex items-center justify-center disabled:opacity-50">
+            <button onClick={onSave} disabled={busy} className="flex-1 h-form-8 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium flex items-center justify-center disabled:opacity-50">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-3.5 mr-1" /> {saveLabel}</>}
             </button>
           )}
         </div>
       )}
       {showFooterHint && (
-        <p className="text-[11px] text-ink-faint mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
+        <p className="text-form-xs text-ink-faint mt-2">저장 후 설비 목록 상단의 [불량 등록] 버튼으로 X(불량) 항목을 불량내역에 일괄 등록할 수 있습니다.</p>
       )}
     </>
   )

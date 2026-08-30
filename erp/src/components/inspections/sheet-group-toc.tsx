@@ -75,7 +75,7 @@ export function SheetGroupToc({ entries, scrollBoxRef, pendingJump, onJumpConsum
 
   return (
     <nav data-testid="sheet-toc" aria-label="머더 목차"
-      className="flex gap-1 overflow-x-auto lg:overflow-x-visible lg:flex-col lg:w-40 lg:shrink-0 lg:overflow-y-auto pr-1">
+      className="flex gap-1 overflow-x-auto lg:overflow-x-visible lg:flex-col lg:w-sheet-toc lg:shrink-0 lg:overflow-y-auto pr-1">
       {entries.map(e => {
         const on = e.code === active
         const full = e.total > 0 && e.responded >= e.total
@@ -83,16 +83,16 @@ export function SheetGroupToc({ entries, scrollBoxRef, pendingJump, onJumpConsum
           <button key={e.code} onClick={() => jumpTo(e.code)}
             data-toc-group={e.code} data-toc-active={on ? '1' : undefined}
             title={e.name !== e.code ? `${e.code}. ${e.name}` : e.code}
-            className={`shrink-0 lg:shrink lg:w-full text-left rounded-lg border px-2 py-1 transition-colors ${
+            className={`shrink-0 lg:shrink lg:w-full text-left rounded-lg border px-2 py-1.5 transition-colors ${
               on ? 'border-brand bg-brand-tint' : 'border-brand-line-soft hover:bg-brand-tint'}`}>
             <span className="flex items-center gap-1">
-              <span className={`text-[10px] font-bold ${on ? 'text-brand' : 'text-ink-sub'}`}>{e.code}</span>
-              <span className={`ml-auto text-[9px] shrink-0 ${full ? 'text-green-600' : e.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}>
+              <span className={`text-form-2xs font-bold ${on ? 'text-brand' : 'text-ink-sub'}`}>{e.code}</span>
+              <span className={`ml-auto text-form-3xs shrink-0 ${full ? 'text-green-600' : e.responded > 0 ? 'text-amber-600' : 'text-ink-faint'}`}>
                 {e.responded}/{e.total}{e.x > 0 ? ` ✕${e.x}` : ''}
               </span>
             </span>
             {e.name !== e.code && (
-              <span className="hidden lg:block text-[9px] text-ink-faint truncate">{e.name}</span>
+              <span className="hidden lg:block text-form-3xs text-ink-faint truncate">{e.name}</span>
             )}
             <span className="hidden lg:block h-1 mt-0.5 rounded bg-brand-line-soft overflow-hidden">
               <span className={`block h-full ${full ? 'bg-green-400' : 'bg-brand-line'}`}

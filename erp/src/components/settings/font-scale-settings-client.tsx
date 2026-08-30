@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from 'react'
 import { Check, Loader2, Type } from 'lucide-react'
 import { updateFontScaleAction } from '@/app/(dashboard)/settings/actions'
 
-/** 소방계획서 화면 글자 크기 3택 (소방계획서_35 S5) — 클릭 즉시 적용(저장 버튼 없음).
+/** 화면 글자 크기 3택 — 소방계획서 서식 + 점검표 입력 (소방계획서_35 S5, 범위는 _38에서 확대).
+ *  클릭 즉시 적용(저장 버튼 없음).
  *
  *  ⚠ **순환 버튼이 아니라 라디오그룹이다.** 다크 토글은 2상태라 아이콘 하나로 현재 값이
  *  읽히지만, 3상태 순환 버튼은 "지금 어디인지"를 눌러보기 전엔 알 수 없다. 시력이 나빠서
@@ -14,8 +15,9 @@ import { updateFontScaleAction } from '@/app/(dashboard)/settings/actions'
  *
  *  두 자리에서 쓴다(variant):
  *   - 'card'    설정 화면 카드
- *   - 'compact' 소방계획서 탭 상단 — 배율이 **실제로 보이는 유일한 화면**이라 여기 둔다.
- *               전역 헤더에 두면 대부분 화면에서 눌러도 아무 일이 없는 버튼이 된다. */
+ *   - 'compact' 소방계획서 탭 상단 — 배율 효과가 **가장 크게 보이는 화면**이라 여기 둔다.
+ *               전역 헤더에 두면 배율이 안 걸리는 화면에서도 눌리는 버튼이 된다.
+ *               (종전 '유일한 화면'은 _38이 점검표 입력까지 넓히며 거짓이 됐다.) */
 
 type FS = 'md' | 'lg' | 'xl'
 const OPTIONS: Array<{ value: FS; label: string; desc: string; sample: string }> = [
@@ -65,7 +67,7 @@ export function FontScaleSettingsClient({
     return (
       <div className="flex items-center gap-1" data-testid="plan-font-scale">
         <Type className="size-3.5 text-ink-faint shrink-0" aria-hidden />
-        <div className="flex items-center rounded-lg border border-line overflow-hidden" role="radiogroup" aria-label="서식 글자 크기">
+        <div className="flex items-center rounded-lg border border-line overflow-hidden" role="radiogroup" aria-label="화면 글자 크기">
           {OPTIONS.map(o => {
             const active = scale === o.value
             return (
@@ -88,7 +90,7 @@ export function FontScaleSettingsClient({
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="소방계획서 글자 크기">
+      <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="화면 글자 크기">
         {OPTIONS.map(o => {
           const active = scale === o.value
           return (
@@ -111,7 +113,7 @@ export function FontScaleSettingsClient({
         })}
       </div>
       <p className="mt-2 text-[11px] text-ink-faint">
-        소방계획서 서식 화면(1.1~3장·별지 목차)에 적용됩니다. 인쇄·PDF는 법정 서식 규격이라 바뀌지 않습니다.
+        소방계획서 서식 화면(1.1~3장·별지 목차)과 점검표 입력 화면에 적용됩니다. 인쇄·PDF는 법정 서식 규격이라 바뀌지 않습니다.
       </p>
       {saved && <p className="mt-1 text-[11px] text-green-600" data-testid="fs-saved">✓ 저장됨 — 다른 기기에도 로그인하면 적용됩니다</p>}
       {error && <p className="mt-1 text-[11px] text-red-600" data-testid="fs-error">{error}</p>}

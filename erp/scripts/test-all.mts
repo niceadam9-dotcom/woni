@@ -133,6 +133,10 @@ const steps: Step[] = [
   // 등재하지 않으면 A만 초록인 채 B가 조용히 썩는다 — 그게 애초에 A에 보호가 빠졌던 경위다.
   { name: 'MU 시트 드로어(E2E)',        cmd: 'npx tsx scripts/test-mu-sheet.mts',            needServer: true },
   { name: '머더 카드·드로어(E2E)',      cmd: 'npx tsx scripts/test-sheet-mother-drawer.mts', needServer: true },
+  // 드로어 전체화면·배율 연동(소방계획서_38). 위 두 스위트는 **배율 md 한 점에서만** 돌기 때문에
+  // lg/xl에서 sticky 2층이 겹쳐 항목 첫 행이 가려져도 전부 초록이다. test-font-scale S-1은 CSS
+  // 텍스트에서 '같은 변수를 읽는가'만 보는 정적 검사라 렌더 결과를 모른다 — 이 프로브만 실측한다.
+  { name: '드로어 배율 기하(프로브)',    cmd: 'node scripts/_probe-38-drawer-scale.mjs',      needServer: true },
   // 고객명 검색은 목록을 거르는 축이라 조용히 깨지면 '검색해도 안 나온다'로만 드러난다
   { name: '점검 고객명 검색(E2E)',      cmd: 'npx tsx scripts/test-inspection-customer-search.mts', needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다

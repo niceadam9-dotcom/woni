@@ -117,13 +117,13 @@ export default async function SettingsPage() {
         </section>
       )}
 
-      {/* 소방계획서 글자 크기 (소방계획서_35 S5-2)
+      {/* 화면 글자 크기 (소방계획서_35 S5-2 → 소방계획서_38에서 점검표 입력까지 범위 확대)
           ⚠ 테마 카드와 달리 관리자 제한을 두지 않는다 — 이 기능이 필요한 사람이
           바로 현장 실무자(시니어)이고, 숨기면 기능이 없는 것과 같기 때문이다. */}
       <section className={cardCls} data-testid="font-scale-settings-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-brand-line-soft">
           <Type className="size-4 text-brand" />
-          <h2 className="text-sm font-semibold text-ink">소방계획서 글자 크기</h2>
+          <h2 className="text-sm font-semibold text-ink">화면 글자 크기</h2>
           <span className="ml-auto text-[11px] text-ink-faint">이 계정의 모든 기기에 적용됩니다</span>
         </div>
         <div className="px-5 py-4">

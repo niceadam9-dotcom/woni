@@ -96,15 +96,19 @@ export function SheetDrawer({ open, title, headerRight, banner, toc, footer, chi
 
   return createPortal(
     <div className="fixed inset-0 z-50">
-      {/* 백드롭 — dirty면 비활성(오클릭 보호). mousedown 기준: 드래그로 끌려나온 mouseup 오탐 방지 */}
-      <div className="absolute inset-0 bg-black/25 dark:bg-black/60"
+      {/* 백드롭 — dirty면 비활성(오클릭 보호). mousedown 기준: 드래그로 끌려나온 mouseup 오탐 방지.
+          testid는 테스트용이다: 패널이 전체화면(inset-4)이 되며 백드롭이 16px 테두리만 남아
+          좌표 클릭(120,500)이 패널 안으로 들어갔다 — 요소로 집어야 inset 값 변화에 면역이다. */}
+      <div data-testid="sheet-drawer-backdrop" className="absolute inset-0 bg-black/25 dark:bg-black/60"
         onMouseDown={() => { if (dismissOnBackdrop) onRequestClose('backdrop') }} />
       <div ref={panelRef} role="dialog" aria-modal="true" tabIndex={-1} onKeyDown={onKeyDown}
         data-testid="sheet-drawer"
-        className="absolute inset-y-0 right-0 w-[min(920px,94vw)] bg-surface shadow-2xl border-l border-line flex flex-col outline-none
-          max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:h-[92vh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t">
+        className="absolute inset-4 bg-surface shadow-2xl border border-line rounded-2xl flex flex-col outline-none overflow-hidden
+          max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:h-[95dvh] max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0">
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-brand-line-soft shrink-0">
-          <h2 className="text-sm font-semibold text-ink truncate">{title}</h2>
+          {/* 제목만 배율에 연동한다 — 닫기 버튼 size-8(32px)이 py-2.5와 함께 헤더 행 높이를
+              지배하므로, 제목이 xl에서 19.5px(행간 27.9px)까지 커져도 헤더는 흔들리지 않는다. */}
+          <h2 className="text-form-base font-semibold text-ink truncate">{title}</h2>
           {headerRight}
           <button onClick={() => onRequestClose('button')} aria-label="닫기" data-testid="sheet-drawer-close"
             className="ml-1 size-8 shrink-0 rounded-lg flex items-center justify-center text-ink-sub hover:bg-brand-tint">
@@ -112,9 +116,13 @@ export function SheetDrawer({ open, title, headerRight, banner, toc, footer, chi
           </button>
         </div>
         {banner}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 p-3">
+        {/* ⚠ 우측 컬럼의 min-h-0는 장식이 아니다 — 자식(항목 스크롤 박스)이 flex-1로 남는 공간을
+            채우려면 이 칸이 콘텐츠 높이 아래로 줄어들 수 있어야 한다. lg(row)에서는 교차축
+            stretch로 높이가 확정되지만 max-lg(column)에서는 min-height:auto라 줄지 않아,
+            빼면 박스가 무한히 자라 페이지가 통째로 스크롤된다. */}
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 p-4">
           {toc}
-          <div className="flex-1 min-w-0 flex flex-col">{children}</div>
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col">{children}</div>
         </div>
         {footer && <div className="px-4 py-2.5 border-t border-brand-line-soft shrink-0">{footer}</div>}
       </div>

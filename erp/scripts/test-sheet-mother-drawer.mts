@@ -20,6 +20,12 @@ let browser: Awaited<ReturnType<typeof launch>>['browser'] | null = null
 const drawer = '[data-testid="sheet-drawer"]'
 const chip = '[data-testid="drawer-autosave"]'
 
+/** 백드롭 클릭 — 좌표가 아니라 요소로. 드로어가 전체화면(inset-4)이라 백드롭은 16px 테두리뿐이고,
+ *  코너(4,4)는 패널(x≥16) 밖이라 hit-target 검사를 통과한다. 백드롭이 onMouseDown을 듣지만
+ *  .click()은 mousedown+mouseup을 모두 보내므로 동작한다. */
+const clickBackdrop = (page: any) =>
+  page.locator('[data-testid="sheet-drawer-backdrop"]').click({ position: { x: 4, y: 4 } })
+
 try {
   // ── 준비 — 계정 2(관리·조회), 고객 2(설비 없음·설비 있음), 점검 3(자체·자체·외관) ──
   userId = await mkUser({ email: EMAIL, name: '드로어E2E', employeeId: 'E2E-MDR' })
@@ -283,7 +289,10 @@ try {
   check('P8 ESC 닫힘(dirty 아님)', true)
   await page.click('[data-group-key$=":2-C"]')
   await page.waitForSelector(drawer)
-  await page.mouse.click(120, 500)   // 백드롭(보드 위 오버레이 영역)
+  // ⚠ 좌표 클릭 금지 — 드로어가 전체화면(inset-4)이 되며 백드롭은 16px 테두리만 남았다.
+  //   종전 (120,500)은 패널이 x=580~1500이던 시절의 백드롭이고 지금은 **패널 안**이다.
+  //   요소로 집고 코너를 눌러 inset 값 변화에 면역시킨다(소방계획서_38 S3-1).
+  await clickBackdrop(page)
   await page.waitForSelector(drawer, { state: 'detached' })
   check('P8 백드롭 닫힘(dirty 아님)', true)
   await page.click('[data-group-key$=":2-C"]')
@@ -296,7 +305,7 @@ try {
   await page.click('[data-group-key$=":2-C"]')
   await page.waitForSelector(`${drawer} [data-outline-group="2-C"]`)
   await page.click(`${drawer} [aria-label="2-C-002 O"]`)   // 2-C-001은 ●(종합전용)라 작동 건 드로어에 행이 없다
-  await page.mouse.click(120, 500)                          // 디바운스(1초)가 끝나기 전에 백드롭 닫기
+  await clickBackdrop(page)                                 // 디바운스(1초)가 끝나기 전에 백드롭 닫기
   await page.waitForSelector(drawer, { state: 'detached' })
   check('P8 백드롭 닫힘(입력 직후에도 즉시 — 오클릭 보호 폐지)', true)
   const bdSaved = await pollDb(async () => {

@@ -70,6 +70,21 @@ const cookieOf = async (ctx: any) => (await ctx.cookies()).find((c: any) => c.na
   const boost = css.match(/\[data-fs-boost\]\s*\{\s*--fs-scale:\s*([^}]+)\}/)?.[1] ?? ''
   check('B-8 [data-fs-boost]가 --fs-scale을 자기참조하지 않는다 (CSS 변수 순환)',
     boost.includes('--fs-step') && !boost.includes('var(--fs-scale)'), `boost = ${boost.trim()}`)
+
+  // ── 점검표 입력 sticky 2층 (소방계획서_38 S1-3) ─────────────────────────────
+  // 중분류 헤더 높이와 소제목 sticky offset이 어긋나면 두 줄이 겹쳐 항목 첫 행을 가린다.
+  // 종전에는 h-[22px]/top-[22px] 리터럴 쌍이라 한쪽만 고치면 조용히 깨졌다 — 화면을 열어
+  // 봐야만 보이는 결함이다. 값이 아니라 **같은 변수를 읽는가**를 본다: 값 대조는 나중에
+  // 둘 다 30px로 바꾸는 식의 정당한 변경까지 막지만, 이 단언은 갈라지는 것만 막는다.
+  const hdrH = css.match(/@utility h-sheet-hdr[^}]*calc\(var\((--[\w-]+)\)/)?.[1]
+  const subTop = css.match(/@utility top-sheet-hdr[^}]*calc\(var\((--[\w-]+)\)/)?.[1]
+  check('S-1 h-sheet-hdr와 top-sheet-hdr가 같은 변수를 쓴다 (sticky 2층 겹침 방지)',
+    !!hdrH && hdrH === subTop, `hdr=${hdrH} sub=${subTop}`)
+  // 두 유틸리티 다 --fs-scale을 곱해야 배율에서 등식이 유지된다(한쪽만 고정이면 xl에서 겹친다)
+  const sheetUtils = css.match(/@utility (?:h-sheet-hdr|top-sheet-hdr|h-sheet-chip|w-sheet-toc|size-sheet-mark)[^}]*\}/g) ?? []
+  check('S-2 점검표 입력 기하 유틸리티 5종이 전부 --fs-scale을 곱한다',
+    sheetUtils.length === 5 && sheetUtils.every(u => u.includes('var(--fs-scale)')),
+    `${sheetUtils.length}종 / 배율 누락 ${sheetUtils.filter(u => !u.includes('var(--fs-scale)')).length}`)
 }
 
 try {

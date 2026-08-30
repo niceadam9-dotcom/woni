@@ -165,8 +165,8 @@
   --sidebar-border: oklch(0.92 0.005 277);
   --sidebar-ring: oklch(0.58 0.18 277);
 
-  /* ── 소방계획서 서식 글자 크기 (소방계획서_35) ────────────────────────────────
-     실값은 **여기 한 곳**이다. 화면 16파일은 text-form-… · h-form-… 유틸리티만 쓴다.
+  /* ── 화면 글자 크기 — 소방계획서 서식 + 점검표 입력 (소방계획서_35, 범위는 _38에서 확대) ──
+     실값은 **여기 한 곳**이다. 화면들은 text-form-… · h-form-… 유틸리티만 쓴다.
      (주석 안에 `*` 바로 뒤 `/`를 쓰지 말 것 — CSS 주석이 거기서 끊긴다. 실제로 한 번 깨뜨렸다.)
 
      ⚠ S2(코드모드) 시점의 값은 **구 값 그대로**다. 그래야 치환이 항등이 되어
@@ -195,6 +195,20 @@
   --fs-col-num: 52px;  /* 구 44px — 숫자열 colgroup. ⚠ 글자와 **함께** 키워야 한다.
                           44px 열의 실제 입력 폭은 border·padding을 빼면 28px뿐이라
                           글자만 11→13px로 올리면 자릿수가 줄어든다(W-1). */
+
+  /* ── 점검표 입력 기하 (소방계획서_38) — 글자와 **함께** 커져야 하는 치수 ────────
+     드로어·전용 입력 화면이 위 --fs-scale을 소비하기 시작하면서, 리터럴로 박혀 있던
+     높이·폭이 배율을 따라오지 못하게 됐다. 새 배율 축을 만들지 않고 같은 --fs-scale을
+     곱한다 — 축이 둘이 되면 test-font-scale의 CSS↔TS 단일 원천 검사가 못 덮는 사각이 생긴다.
+
+     ⚠ --sheet-hdr-h는 중분류 sticky 높이(h-sheet-hdr)와 소제목 sticky offset
+       (top-sheet-hdr)의 **공통 원천**이다. 둘이 갈라지면 배율 lg/xl에서 두 줄이 겹쳐
+       항목 첫 행을 가린다 — 화면을 열어 봐야만 보이는 결함이라 test-font-scale이
+       '같은 변수를 읽는가'를 정적으로 대조한다(S-1). 한쪽만 고치지 말 것. */
+  --sheet-hdr-h:  26px;  /* 구 22px — h-6(24px) 일괄 칩이 이미 2px 넘치고 있었다 */
+  --sheet-chip-h: 24px;  /* 일괄 버튼([○ 모두]·[／ 전체]) — 구 h-6.
+                            ⚠ h-form-6을 쓰면 안 된다: --fs-h6은 지금 28px라 헤더를 뚫는다 */
+  --sheet-toc-w: 208px;  /* 머더 목차 — 구 lg:w-40(160px). 드로어가 전체화면이라 가로가 남는다 */
 }
 
 /* 배율 단계. 값이 없으면 속성 자체가 없다 = --fs-scale:1 = 손댄 적 없는 사용자의 기본.
@@ -249,6 +263,20 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
 @utility h-form-6 { height: calc(var(--fs-h6) * var(--fs-scale)); }
 @utility h-form-7 { height: calc(var(--fs-h7) * var(--fs-scale)); }
 @utility h-form-8 { height: calc(var(--fs-h8) * var(--fs-scale)); }
+
+/* 점검표 입력 기하 (소방계획서_38) — 위 --sheet-* × --fs-scale.
+   text-form-*과 **같은 소비 방식**이라 @media print의 --fs-scale:1 리셋이 자동으로 여기에도
+   걸린다(별도 인쇄 규칙 불필요). h-sheet-hdr와 top-sheet-hdr가 함께 26px로 돌아가므로
+   '헤더 높이 = 소제목 offset' 등식은 배율·인쇄와 무관하게 항상 성립한다. */
+@utility h-sheet-hdr     { height: calc(var(--sheet-hdr-h)  * var(--fs-scale)); }
+@utility top-sheet-hdr   { top:    calc(var(--sheet-hdr-h)  * var(--fs-scale)); }
+@utility h-sheet-chip    { height: calc(var(--sheet-chip-h) * var(--fs-scale)); }
+@utility w-sheet-toc     { width:  calc(var(--sheet-toc-w)  * var(--fs-scale)); }
+/* ○/✕ 응답 버튼 — 현장에서 장갑 낀 손으로 누른다(sheet-item-editor.tsx:57-58).
+   배율을 올리는 사용자가 정확히 오탭이 잦은 층이라 탭 타깃도 함께 키운다.
+   --fs-scale은 항상 ≥1이므로 40px 아래로는 절대 내려가지 않는다. */
+@utility size-sheet-mark { width:  calc(40px * var(--fs-scale));
+                           height: calc(40px * var(--fs-scale)); }
 
 .dark {
   /* 소방계획서_29 다크 팔레트 — erp_goal/image-18.png 톤(딥 뉴트럴 + 보라 포인트).

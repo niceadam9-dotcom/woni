@@ -1,7 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-/** 개인별 소방계획서 화면 글자 배율 (소방계획서_35 S4)
+/** 개인별 화면 글자 배율 — 소방계획서 서식 + 점검표 입력 (소방계획서_35 S4, 범위는 _38에서 확대)
  *
  *  정본은 profiles.form_font_scale(마이그레이션 154), 쿠키는 첫 페인트용 캐시다.
  *  루트 레이아웃의 인라인 스크립트가 이 쿠키를 읽어 <html data-fs>를 붙이므로

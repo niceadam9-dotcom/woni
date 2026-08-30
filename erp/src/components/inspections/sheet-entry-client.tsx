@@ -416,6 +416,10 @@ export function SheetEntryClient({
                   이 점검표는 {siblings.map(s => `${s.installed ? '☑' : '☐'}${s.name}`).join(' · ')}의 결과에 함께 반영됩니다.
                 </p>
               )}
+              {/* ⚠ 이 div의 ref는 실효가 없다 — 아래 SheetItemEditor에도 같은 ref를 넘기는데
+                  React가 자식 ref를 먼저 붙이므로 최종 current는 **안쪽 스크롤 박스**가 아니라
+                  이 바깥 div가 된다. 이 화면엔 SheetGroupToc(점프·스파이 소비자)이 없어 지금은
+                  무증상이지만, 목차를 붙이는 순간 점프가 죽는다. 소방계획서_38 OS-1(범위 밖). */}
               <div ref={scrollBoxRef}>
                 <SheetItemEditor
                   items={autosave.items}
@@ -427,6 +431,11 @@ export function SheetEntryClient({
                   busy={busy}
                   grouping="outline"
                   scrollBoxRef={scrollBoxRef}
+                  // ⚠ 드로어와 달리 여기는 매직넘버를 유지한다(소방계획서_38 S4-2·D-7).
+                  // 조상이 grid item(:360 lg:grid-cols-[…] → :403 일반 div)이라 flex 사슬이
+                  // 없다 — flex-1이 무시되고 min-h-0만 남아 박스가 무한히 자라고 master-detail의
+                  // '좌 목록 상시 노출'이 깨진다. 360px도 여전히 옳다: 박스 위 크롬(제목·카운트·
+                  // siblings)은 이 파일의 클래스라 배율 토큰화 대상이 아니어서 높이가 안 변한다.
                   maxHeight="max-h-[calc(100dvh-360px)]"
                   hideSave
                   hideCancel
