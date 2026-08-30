@@ -139,11 +139,11 @@
       "criteria": [
         { "id": "S6-0", "desc": "⚠ **실측으로 뒤집힌 예측** — W-1('확대하면 3자리 절단')은 절반만 맞았다. 값을 실제로 타이핑해 재니 **현행(9/10/11px)에서 이미 6칸이 잘리고 있었고**, --fs-col-num을 글자와 함께 키우면 확대해도 6칸으로 **악화되지 않는다**. 즉 확대가 만든 문제가 아니라 기존 결함이다. 값을 안 넣고 잰 첫 측정은 전 안에서 '가로잘림 0'을 줬다 — 빈 칸은 어떤 크기에서도 안 넘친다(설계서 §6 검사3 항진경로 ③을 내가 그대로 밟았다)", "status": "code_present", "evidence": ["erp/scripts/_s35-variants.mts (FILL 후 MEASURE)"] },
         { "id": "S6-1", "desc": "C-1: 기본 배율에서 15화면 표 8개 전부 scrollWidth ≤ clientWidth + 1 (33통과/0실패). lg·xl 배율은 S4 이후", "status": "code_present", "evidence": ["erp/scripts/test-plan-readability.mts --overflow"] },
-        { "id": "S6-2", "desc": "C-2: 배율 xl에서 표 가로 스크롤은 허용하되 document.documentElement.scrollWidth ≤ clientWidth(페이지 전체는 전 배율 금지)", "status": "pending_order" },
-        { "id": "S6-3", "desc": "C-3: 전 배율에서 rowtable 숫자 input에 '12345'를 실제로 타이핑해 넣은 뒤 scrollWidth ≤ clientWidth. ⚠ 빈 칸은 절대 안 넘치므로 입력 없는 검사는 항진명제다", "status": "pending_order" },
-        { "id": "S6-4", "desc": "C-4: 전 배율에서 input clientHeight ≥ lineHeight (xl에서 13×1.3×1.5=25.4px > h-6 24px로 잘리던 것 — W-3)", "status": "pending_order" },
+        { "id": "S6-2", "desc": "C-2: 배율 xl에서 표 가로 스크롤은 허용하되 document.documentElement.scrollWidth ≤ clientWidth(페이지 전체는 전 배율 금지). 2026-08-30 구현 — 14화면 × md/lg/xl 전부 밀림 0, 표 자체 가로 스크롤도 0건. ⚠ 화면을 배율마다 다시 열지 않고 <html data-fs>만 갈아끼워 잰다(이동 45회→15회) — 이동을 3배로 늘리면 dev wedge 확률도 3배다(탐침 단계에서 실제로 걸렸다). 판별자로 '14/14 화면에서 xl 글자가 실제로 커졌다'를 먼저 단언한다", "status": "code_present", "evidence": ["erp/scripts/test-plan-readability.mts --overflow (SCALE_GEOM · scaleGeom)"] },
+        { "id": "S6-3", "desc": "C-3: 전 배율에서 rowtable 숫자 input에 값을 실제로 타이핑해 넣은 뒤 scrollWidth ≤ clientWidth. ⚠ 빈 칸은 절대 안 넘치므로 입력 없는 검사는 항진명제다. 2026-08-30 구현 — 채움을 **실무 3자리·스트레스 5자리 두 수준**으로 나눴다(섞으면 답도 섞인다). ⭐**W-1 예측이 반대 방향으로 뒤집혔다**: 확대는 자릿수를 깎지 않고 오히려 살린다 — 최초 실측 md 8칸 / lg·xl 0칸(패널·숫자열은 배율을 타는데 안쪽 여백 32px은 안 타서 큰 배율일수록 여유가 는다). md의 8칸은 확대가 만든 게 아니라 원래 있던 경계값이고, 그 뒤 타 세션의 data-fs-boost·--fs-panel-w로 md도 0이 됐다. 단언을 절대 0이 아니라 **악화되지 않음**으로 둔 이유가 여기 있다. ⚠ 두 번째 항진 차단: 동기 루프로 한꺼번에 채우면 setCell이 낡은 클로저를 읽어 마지막 칸만 남고 **조용히 되돌아간다**(첫 측정에서 실제로 당해 'lg·xl 잘림 0'을 오독할 뻔했다) → 한 칸씩 채우고 **잰 시점의 nonEmpty를 배율마다 단언**한다", "status": "code_present", "evidence": ["erp/scripts/test-plan-readability.mts --overflow (FILL_LEVELS · MEASURE_INPUTS · inputGeom)"] },
+        { "id": "S6-4", "desc": "C-4: 전 배율에서 input clientHeight ≥ lineHeight (xl에서 13×1.3×1.5=25.4px > h-6 24px로 잘리던 것 — W-3). 2026-08-30 구현 — 두 채움 수준 × md/lg/xl 6조합 전부 잘림 0. h-form-6이 배율을 함께 타므로 성립한다", "status": "code_present", "evidence": ["erp/scripts/test-plan-readability.mts --overflow (MEASURE_INPUTS clipped)"] },
         { "id": "S6-5", "desc": "C-1~C-3 항진 차단 — clientWidth > 50인 표만 계수 + 걸러진 수 리포트 + **검사한 표 수를 기준선과 대조**. ⚠ 처음엔 임계를 손으로 20이라 추측해 박았다가 실측 8에 걸렸다 — 추측 상수 대신 기준선 실측값을 쓰도록 고쳤다. 이 가드가 실제로 일했다: dev 컴파일 타임아웃으로 10/15 화면만 걷힌 실행을 '불완전 측정'으로 잡아냈다(그냥 초록일 뻔했다)", "status": "code_present", "evidence": ["erp/scripts/test-plan-readability.mts (baseTables 대조)"] },
-        { "id": "S6-6", "desc": "C-1의 변이 검증 — --fs-scale: 2 강제 주입 실행에서 FAIL해야 한다", "status": "pending_order" },
+        { "id": "S6-6", "desc": "C-1의 변이 검증 — 넘침 검출기가 정말 작동하는가. 2026-08-30 재실행 확인(3통과/0실패). ⚠ **설계가 지정한 변이축(--fs-scale:2)은 쓸 수 없다** — 그걸로 밀면 넘침이 0인데, 검사가 죽어서가 아니라 숫자열 폭(--fs-col-num)과 패널 폭이 배율과 **함께** 커져 기하가 같이 늘기 때문이다(S6-1이 초록인 이유의 설명이기도 하다). 그래서 'table { min-width: 4000px }'처럼 넘칠 수밖에 없는 것을 직접 심어 검출기만 시험한다", "status": "code_present", "evidence": ["erp/scripts/test-plan-readability.mts --overflow --mutate"] },
         { "id": "S6-7", "desc": "plan-form14.tsx:701 슬라이드 패널 폭 w-[min(92vw,640px)]을 scale 연동 (W-4, 가용 608px 포화)", "status": "pending_order" },
         { "id": "S6-8", "desc": "facility-spec-schema.ts의 short 라벨 축약 재검토 — '확산소화기' 5자가 9px에서도 45px > 40px로 이미 2줄, 11px에서 3줄 위험(W-5)", "status": "pending_order" }
       ]
@@ -152,9 +152,9 @@
       "id": "S4",
       "title": "배율 인프라 — 다크 모드 4경로 복제 + 마이그레이션 154",
       "status": "partial",
-      "note": "2026-08-29 구현. E2E 12통과/0실패. **154 스테이징 적용 완료**(적용 전 컬럼 0개 → 신설, DEFAULT 'md', CHECK 정상, 기존 33행 전부 md로 순서 규약 준수). ⚠ 운영 DB는 미적용 — 배포 시 적용할 것.",
+      "note": "2026-08-29 구현. E2E 12통과/0실패. **154 스테이징 적용 완료**(적용 전 컬럼 0개 → 신설, DEFAULT 'md', CHECK 정상, 기존 33행 전부 md로 순서 규약 준수). ✅**2026-08-30 실측 — 운영 DB도 이미 적용돼 있었다**(이 파일의 종전 '운영 미적용' 기록은 오류였다): 컬럼·NOT NULL·DEFAULT 'md'·CHECK 정의가 스테이징과 **동일**, 기존 8행 전부 md(순서 규약 준수), 실제 SELECT 통과(PostgREST 스키마 캐시도 따라옴). 멱등이지만 재적용은 불필요하므로 --run을 돌리지 않았다. ⚠**다만 코드는 운영에 배포되지 않았다** — 별개 축이다(아래 W-11).",
       "criteria": [
-        { "id": "S4-1", "desc": "154_profile_font_scale.sql — form_font_scale ('md'|'lg'|'xl'), CHECK, 재실행 안전. 스테이징 적용·검증 완료", "status": "code_present", "evidence": ["erp/supabase/migrations/154_profile_font_scale.sql", "erp/scripts/_apply-154-staging.mjs"] },
+        { "id": "S4-1", "desc": "154_profile_font_scale.sql — form_font_scale ('md'|'lg'|'xl'), CHECK, 재실행 안전. **스테이징·운영 양쪽 적용·검증 완료**(운영은 2026-08-30 읽기 전용 실측으로 확인 — 이미 적용돼 있었고 제약 정의가 스테이징과 일치). ⚠ '컬럼이 있다'만으로 적용됐다고 하지 않는다 — DEFAULT·NOT NULL·CHECK·행 분포까지 봐야 반쪽 적용이 아니다", "status": "code_present", "evidence": ["erp/supabase/migrations/154_profile_font_scale.sql", "erp/scripts/_apply-154-staging.mjs", "erp/scripts/_verify-154-prod.mjs"] },
         { "id": "S4-2", "desc": "src/lib/font-scale.ts — FS_COOKIE='erp-fs', 옵션, isFontScale, readProfileFontScale(관용 조회), FS_RATIO", "status": "code_present", "evidence": ["erp/src/lib/font-scale.ts"] },
         { "id": "S4-3", "desc": "form_font_scale을 PROFILE_COLS에 넣지 않음 — 검사로 상시 고정(W-9)", "status": "code_present", "evidence": ["erp/scripts/test-font-scale.mts (PROFILE_COLS 단언)"] },
         { "id": "S4-4", "desc": "layout.tsx 인라인 스크립트 확장 — 같은 <script>에 erp-fs 한 줄. 값 없으면 속성 자체가 없다", "status": "code_present", "evidence": ["erp/src/app/layout.tsx"] },
@@ -215,7 +215,8 @@
     { "id": "W-7", "desc": "FOUT 리플로우(맑은 고딕 → Pretendard)", "evidence": "font-display: swap", "mitigation": "preload 2~3조각(S1-5) + S0-6 CLS 대조" },
     { "id": "W-8", "desc": "별지 미리보기에 배율이 샘", "evidence": "plan-annex-full-preview 미실측", "mitigation": "별지 코드모드 제외 + S0-5 iframe 격리 확인" },
     { "id": "W-9", "desc": "154 미적용 DB 배포", "evidence": "lib/theme.ts:10-12 규약", "mitigation": "S4-3 PROFILE_COLS 금지 + S4-11" },
-    { "id": "W-10", "desc": "text-form-*을 다른 화면이 복사해 씀", "evidence": "—", "mitigation": "S2-8에 '16파일 밖 사용 0건' 포함" }
+    { "id": "W-10", "desc": "text-form-*을 다른 화면이 복사해 씀", "evidence": "—", "mitigation": "S2-8에 '16파일 밖 사용 0건' 포함" },
+    { "id": "W-11", "desc": "⚠ **DB는 적용됐는데 코드가 배포 안 된 반쪽 상태** — 운영이 지금 그렇다. 154 컬럼은 있으나 35 코드(4ccda41)가 안 나가 화면은 여전히 맑은 고딕이고 배율 토글도 없다. 즉 '마이그레이션 적용 완료'는 기능이 산다는 뜻이 아니다", "evidence": "2026-08-30 실측 — 운영 /fonts/pretendard/woff2/…woff2 가 **200 + text/html**(13,953B, 매직 '<!DO'). 로컬 대조군은 200 + font/woff2 + immutable(34,568B, 매직 'wOF2'). ⚠ **상태코드만 보는 검사였다면 초록이었다**(S1-11과 같은 함정 — 리다이렉트를 fetch가 따라간다)", "mitigation": "코드 배포 시 이 프로브를 다시 돌려 매직이 wOF2인지 확인. 배포 전엔 S4·S5(배율 토글)가 운영에서 동작하지 않는 것이 정상" }
   ],
 
   "checks": [
