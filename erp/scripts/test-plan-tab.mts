@@ -357,12 +357,16 @@ try {
   await page.waitForTimeout(300)
   await page.click('button:has-text("Type Ⅲ")')
   await page.locator('input[placeholder="성명"]').first().fill('김대장')
-  // RSC 늦은 커밋이 controlled input을 되돌리는 경합 방어 — 값 검증 + 최대 3회 재입력(타이핑)
+  // RSC 늦은 커밋이 controlled input을 되돌리는 경합 방어 — 값 검증 + 최대 3회 재입력.
+  // ⚠ 2026-08-30: 재입력을 pressSequentially로 하면 **기존 값에 덧붙는다**. 한 번이라도 헛돌면
+  //   '김대장김대장장'이 저장돼 :374의 name === '김대장'이 깨지는데, 화면엔 값이 멀쩡히 있으니
+  //   앱 결함처럼 보인다(실측: 격리 진단에서 fill 직후 값이 그대로 유지돼 앱은 무죄). fill은 치환이라
+  //   몇 번을 돌아도 결과가 같다 — 방어의 목적은 '다시 넣는 것'이지 '이어 붙이는 것'이 아니다.
   for (let attempt = 0; attempt < 3; attempt++) {
     if (await page.locator('input[placeholder="성명"]').first().inputValue() === '김대장') break
     const t3cls = await page.locator('button:has-text("Type Ⅲ")').getAttribute('class') ?? ''
     if (!t3cls.includes('border-[#7b68ee]')) await page.click('button:has-text("Type Ⅲ")') // 토글이라 미선택일 때만
-    await page.locator('input[placeholder="성명"]').first().pressSequentially('김대장', { delay: 40 })
+    await page.locator('input[placeholder="성명"]').first().fill('김대장')
     await page.waitForTimeout(400)
   }
   await page.click('button:has-text("2장 저장")')
@@ -413,8 +417,18 @@ try {
   }
   // 2026-08-26 — 클릭 의미 분리(☑=토글 / 설비명=대장 열기). 종전 `text=소화기구…`(라벨) 클릭은
   // 이제 토글이 아니라 대장 열기라 체크가 안 된다. 토글은 체크박스 표적으로 겨눈다.
-  await page.click('[data-testid="form14-check-소화기구 및 자동소화장치"]')
-  check('☑ 클릭 → 소화기구 체크됨', await page.locator('[data-testid="form14-check-소화기구 및 자동소화장치"]').getAttribute('aria-pressed') === 'true')
+  // ⚠ 2026-08-30: 클릭 직후 **대기 없이** aria-pressed를 읽으면 dev가 느린 날 붉어진다. 버튼이 보여도
+  //   하이드레이션 전이면 클릭이 핸들러에 닿지 않는데, DOM은 이미 있으니 Playwright는 성공으로 본다.
+  //   격리 진단에선 클릭 즉시 true였다(앱 무죄) — 그러니 여기서 필요한 건 '기다림'이지 단언 완화가 아니다.
+  //   끝내 true가 아니면 그대로 실패한다: 조건은 그대로고 읽는 시점만 늦춘다.
+  const fireExtBox = page.locator('[data-testid="form14-check-소화기구 및 자동소화장치"]')
+  await fireExtBox.click()
+  let fireExtPressed = false
+  for (let i = 0; i < 20 && !fireExtPressed; i++) {
+    fireExtPressed = await fireExtBox.getAttribute('aria-pressed') === 'true'
+    if (!fireExtPressed) await page.waitForTimeout(250)
+  }
+  check('☑ 클릭 → 소화기구 체크됨', fireExtPressed)
   await closeSpecPanel()
   await page.click('button:has-text("피난사다리")')
   check('하위 체크 → 피난기구 자동 체크',
