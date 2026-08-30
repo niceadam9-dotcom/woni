@@ -273,6 +273,35 @@ if (MODE_CLS) {
   process.exit(0)
 }
 
+/** 토큰 요소 수가 **안정될 때까지** 기다린다(2회 연속 같은 값).
+ *
+ *  ⚠ 고정 대기 600ms는 결정적이지 않았다. 1.4 화면에는 비동기로 뒤늦게 붙는 10px 안내문
+ *    ("점검결과 입력 불가 — 진행 중인 자체점검 회차가 …")이 있는데, 그게 **정확히 600ms
+ *    경계**에서 들어왔다 나갔다 해 인쇄 축이 10px 31↔32로 진동했다. 실측: 600ms에서 31,
+ *    1400ms 이후로는 항상 32.
+ *
+ *  ⚠ 이 진동은 기준선으로 못 막는다 — 31로 잡으면 32인 실행에서, 32로 잡으면 31인 실행에서
+ *    빨개진다. 실제로 한 실행 안에서 S0-4(고정 기준선 대조)와 E-2(구 값 재현 대조)가 서로
+ *    어긋나기까지 했다. 두 측정 시점이 경계 양쪽에 걸린 것이다.
+ *    **고칠 것은 기준선이 아니라 측정 시점이다.** */
+/*  ⚠⚠ '안정'만으로는 부족하다 — 첫 수리가 여기서 실패했다. 안내문이 도착하기 **전에도**
+ *      개수는 완벽히 안정적이라(아직 아무것도 안 오므로) 2회 연속 같은 값이면 500ms에
+ *      조기 통과해 버렸다. 진동이 그대로 재현됐다(3회 중 31·32·31).
+ *      **오지 않은 것과 오고 나서 멈춘 것은 구별되지 않는다** — 그래서 하한(MIN_MS)을
+ *      함께 둔다. 실측상 안내문은 1400ms까지 도착하므로 2.5s면 충분하다. */
+const settleTokens = async (page: any, tries = 24, gap = 300, minMs = 2500): Promise<number> => {
+  const t0 = Date.now()
+  let last = -1, stable = 0
+  for (let i = 0; i < tries; i++) {
+    const n: number = await page.evaluate(`document.querySelectorAll('[class*="text-form-"]').length`)
+    if (n > 0 && n === last) stable++
+    else { stable = 0; last = n }
+    if (stable >= 3 && Date.now() - t0 >= minMs) return n
+    await page.waitForTimeout(gap)
+  }
+  return last
+}
+
 /** 인쇄 축 (S3-5~7) — 별도 경로. 화면 15개를 돌 필요가 없다(토큰이 붙은 요소만 보므로). */
 if (MODE_PRINT) {
   const printResult: any = {}
@@ -283,7 +312,7 @@ if (MODE_PRINT) {
 
     // ① 지금 화면(S3 적용 상태)
     await page.goto(url, { waitUntil: 'networkidle' })
-    await page.evaluate('document.fonts.ready'); await page.waitForTimeout(600)
+    await page.evaluate('document.fonts.ready'); await settleTokens(page)
     printResult.screenNow = await page.evaluate(COLLECT_TOKENS)
 
     // ⚠ 변이 모드(--mutate): 인쇄 역치환이 **깨진 상태**를 흉내 내 이 검사가 빨개지는지 본다.
@@ -305,7 +334,7 @@ if (MODE_PRINT) {
     // ③ 구 값을 화면에서 재현 — ②의 기대값. 두 상태를 **독립으로 만들어** 대조한다.
     await page.goto(url, { waitUntil: 'networkidle' })
     await page.addStyleTag({ content: OLD_VALUES })
-    await page.evaluate('document.fonts.ready'); await page.waitForTimeout(600)
+    await page.evaluate('document.fonts.ready'); await settleTokens(page)
     printResult.screenOld = await page.evaluate(COLLECT_TOKENS)
 
     // 배율을 켠 상태에서도 인쇄는 불변이어야 한다 (E-1의 핵심 — 배율이 인쇄로 새지 않는다)
