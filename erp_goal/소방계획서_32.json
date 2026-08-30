@@ -101,9 +101,9 @@
     },
     {
       "id": "S2",
-      "title": "S3 판정 결과 — 30.json에 반영 대기",
-      "status": "partial",
-      "note": "30.json의 pending_order 표기는 사실과 다르다. 아래가 실제 판정값이며 반영은 S9-1.",
+      "title": "S3 판정 결과 — 30.json 반영 완료",
+      "status": "implemented",
+      "note": "30.json의 pending_order 표기가 사실과 달랐던 것을 정정했다(S9-1·T7-1). **2026-08-30 반영 실측**: 30.json S3-3·S4-1·S4-2·S4-3·S4-6이 implemented+verified, S4-4가 partial, 최상위 `related`에 소방계획서_32 등재 — 전부 확인. 판정 직후 partial이던 30.json S3-1·S3-2도 그 사유(DEF-1·DEF-2)가 수리·런타임 검증되어 같은 날 함께 승격했다.",
       "criteria": [
         {
           "id": "S2-1",
@@ -338,14 +338,23 @@
     {
       "id": "S6",
       "title": "LOW 결함 — 표기 정합",
-      "status": "code_present",
-      "note": "2026-08-29 2차 세션에서 T7-1·T7-2 반영 완료. 문서 수정이라 런타임 의존은 없으나, 구현자 자기신고이므로 code_present.",
+      "status": "implemented",
+      "note": "2026-08-29 2차 세션에서 T7-1·T7-2 반영. 당시엔 구현자 자기신고라 code_present였으나, **2026-08-30 자식 둘 다 실측 근거로 승격**했다 — T7-1은 30.json을 다시 읽어 반영 결과를 확인했고, T7-2는 판정 스크립트의 FK 그래프 실측 출력과 주석을 글자 그대로 대조했다. ⚠섹션 상태를 자식과 함께 올리지 않아 감사에서 잡혔다(F-D10과 같은 부류).",
       "criteria": [
         {
           "id": "T7-1",
           "desc": "DEF-5 — 30.json S3 상태 정정(S9-1과 동일 작업)",
-          "status": "code_present",
+          "status": "implemented",
           "severity": "LOW",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "30.json을 **다시 읽어** 반영 결과를 실측(자기신고를 그대로 믿지 않는다)",
+            "evidence": [
+              "30.json S3-3 implemented+verified · S4-1·S4-2·S4-3·S4-6 implemented+verified · S4-4 partial",
+              "최상위 `related`에 '소방계획서_32' 등재 확인",
+              "S3-1·S3-2는 판정 당시 partial이었고, 사유(DEF-1·DEF-2)가 수리·런타임 검증된 2026-08-30에 함께 승격"
+            ]
+          },
           "fix": {
             "date": "2026-08-29",
             "by": "구현자 자기신고",
@@ -662,7 +671,7 @@
             "date": "2026-08-30",
             "method": "HEAD·1f19a09 블롭과 바이트 동일성을 git cat-file로 확정한 자산으로만 측정",
             "evidence": [
-              "erp/scripts/_judgeD-D-{1db,2cols,2detail,3merge,3form4,10closure,10merge,hub,headsha,worktreedv}.mts",
+              "프로브 10종: _judgeD-D-1db.mts · _judgeD-D-2cols.mts · _judgeD-D-2detail.mts · _judgeD-D-3form4.mts · _judgeD-D-3merge.mts · _judgeD-D-10closure.mts · _judgeD-D-10merge.mts · _judgeD-D-headsha.mts · _judgeD-D-hub.mts · _judgeD-D-worktreedv.mts",
               "D1 — 수리 전 item_code 참조 0건을 **대조군까지 세워** 확인(같은 pathspec에 resultMark를 넣으면 2건 → pathspec 유효)",
               "F 인계서 반박을 **git으로 확정** — D21 앵커는 `c2d4dc6`, 정보 시트 리터럴은 `d363b31`, 둘 다 2026-08-24 수리",
               "'배선 존재 ≠ 값 도달'을 별도 축으로 검사 — ANCHORS 192칸 중 병합 비앵커 0, 정보!J20이 개요!D21 참조하고 캐시 <v> 없음",
@@ -676,8 +685,8 @@
     },
     {
       "id": "S13",
-      "title": "[D트랙] 판정이 잡은 결함 — 수리·미수리",
-      "status": "partial",
+      "title": "[D트랙] 판정이 잡은 결함 — 전건 수리",
+      "status": "implemented",
       "note": "✅**2026-08-30 전건 수리 완료.** 판정 직후에는 타 세션(소방계획서_27 PII 스크럽)이 같은 서브시스템을 작업 중이라 자산 계열을 손대지 못했으나, 그쪽이 `14c7369`·`63dcc92`로 착지한 것을 확인하고 F-D1(HIGH)·F-D10·F-D11을 마저 닫았다. 착수 전 `git status`로 자산 계열 작업트리가 깨끗한지 실측했다.\n\n⚠판정 도중 자산 sha256이 `0e38e1db…`→`1a55fe02…`로 바뀌었던 이력이 있다(07:28) — **판정을 인용할 때는 리비전을 함께 적을 것**.",
       "criteria": [
         {
@@ -689,7 +698,12 @@
           "fix": {
             "date": "2026-08-30",
             "desc": "**수리 위치를 원천으로 옮겼다.** 처음엔 전체 워크북 빌드(build-workbook-full ④c)에서 고치려 했으나 ⑤의 '갑지 파트 바이트 불변' 불변식이 막았다 — 그 불변식이 옳다. 결함의 원천은 기반 템플릿이므로 `build-workbook-template.mts` **④i**에서 고치고, 하류 ④c는 **검증 전용**으로 두어 '원천 수리가 하류까지 살아왔는가 + 도너가 어긋난 목록을 들고 오지 않았는가'를 본다.\n\n**탐지축도 함께 넓혔다** — 종전 D-1 수리는 범례 탐지(세로 ○/／X 3연속) 위에서만 돌아 **범례 셀이 있는 시트만** 볼 수 있었고, 목록을 인라인으로 든 현황은 구조적으로 시야 밖이었다. 이제 **워크북의 모든 dataValidation**(60건)을 훑는다.",
-            "files": ["erp/scripts/build-workbook-template.mts (④i)", "erp/scripts/build-workbook-full.mts (④c 검증 전용)", "erp/templates/report-workbook.xlsx", "erp/templates/report-workbook-full.xlsx"]
+            "files": [
+              "erp/scripts/build-workbook-template.mts (④i)",
+              "erp/scripts/build-workbook-full.mts (④c 검증 전용)",
+              "erp/templates/report-workbook.xlsx",
+              "erp/templates/report-workbook-full.xlsx"
+            ]
           },
           "verified": {
             "date": "2026-08-30",
@@ -878,9 +892,18 @@
           "fix": {
             "date": "2026-08-30",
             "desc": "`test-xlsx-itemmap.mts`에 **[7] 유효성 목록 어휘 + formula1 건전성**을 신설해 빌드 밖으로 끌어왔다 — dv 어휘(○ × / 전수, ASCII X 0) + formula1 XML 혼입·비정상 길이·`#REF!`. 눈멂 가드('dv 60건을 실제로 훑었다')를 함께 세웠다.\n\n**이빨을 합성 입력으로 먼저 증명한다** — 자산을 건드리지 않고 `&quot;○,X,/&quot;`(불량)와 `&quot;○,×,/&quot;`(정상)를 술어에 넣어 각각 잡히고 통과하는지 대조군으로 보인다. 이게 없으면 '자산이 깨끗해서 초록'과 '술어가 눈이 멀어 초록'을 구별할 수 없다.",
-            "files": ["erp/scripts/test-xlsx-itemmap.mts"]
+            "files": [
+              "erp/scripts/test-xlsx-itemmap.mts"
+            ]
           },
-          "verified": { "date": "2026-08-30", "method": "재실행", "evidence": ["test-xlsx-itemmap 21/0 — 대조군 2건 포함", "`dv 60건을 실제로 훑었다` · `인라인 4건·판정 목록 1건`"] }
+          "verified": {
+            "date": "2026-08-30",
+            "method": "재실행",
+            "evidence": [
+              "test-xlsx-itemmap 21/0 — 대조군 2건 포함",
+              "`dv 60건을 실제로 훑었다` · `인라인 4건·판정 목록 1건`"
+            ]
+          }
         },
         {
           "id": "F-D11",
@@ -892,9 +915,20 @@
           "fix": {
             "date": "2026-08-30",
             "desc": "①셀 수리에도 되읽기 덮개 신설(`build-workbook-full.mts` ④) ②⑤b가 JSON을 **문자열로 버퍼링**하고 디스크 기록은 ⑥까지 통과한 뒤 '산출' 절에서 한 번에 — 중간 실패로 자산과 매핑이 갈라지지 않는다 ③`test-xlsx-itemmap.mts` PIN에 `dvOnly: 45` 신설·단언 ④주석 정정 + **`간4`가 실재한다는 사실과 그럼에도 매핑에서 빠지는 이유**(A열 코드 0행)를 함께 적어 다음 사람이 또 헷갈리지 않게 했다.",
-            "files": ["erp/scripts/build-workbook-full.mts", "erp/scripts/test-xlsx-itemmap.mts", "erp/scripts/_probe-wb-itemmap.mts"]
+            "files": [
+              "erp/scripts/build-workbook-full.mts",
+              "erp/scripts/test-xlsx-itemmap.mts",
+              "erp/scripts/_probe-wb-itemmap.mts"
+            ]
           },
-          "verified": { "date": "2026-08-30", "method": "재빌드 + 재실행", "evidence": ["빌드 exit 0 · `dv만 45칸 (산출 절에서 기록)` · PDF 72쪽", "test-xlsx-itemmap 21/0 — `dv만 있고 코드 없는 칸 45 = 핀 45` 포함"] }
+          "verified": {
+            "date": "2026-08-30",
+            "method": "재빌드 + 재실행",
+            "evidence": [
+              "빌드 exit 0 · `dv만 45칸 (산출 절에서 기록)` · PDF 72쪽",
+              "test-xlsx-itemmap 21/0 — `dv만 있고 코드 없는 칸 45 = 핀 45` 포함"
+            ]
+          }
         }
       ]
     },
@@ -909,49 +943,106 @@
           "desc": "D2의 「`간4`는 존재하지 않는 시트다」 → **거짓. 실재한다**",
           "status": "implemented",
           "found_by": "판정자 B·D (독립 합의)",
-          "note": "워크북 67시트 중 `간4` 실재하고 `allDonorSheets()` 41장에 정식 등재, **서림사 keptSheets 18장에도 포함**된다. `A2=\"(4면)\" · C3=점검항목 · J3=점검결과`이고 본문은 펌프성능시험 표. A열 item_code 0행·dv 0건이라 추출기의 `if (!codes.length) continue`에 걸려 **매핑에서만 빠질 뿐**이다. 즉 설계 에이전트가 「간4는 J열」이라 한 것은 **열에 관해 옳았다**. 구현 결과에는 영향이 없다(주입할 코드가 없다). 매핑 없는 도너 시트는 4장 — `목 차`·`간4`·`CO2-4`·`할3`."
+          "note": "워크북 67시트 중 `간4` 실재하고 `allDonorSheets()` 41장에 정식 등재, **서림사 keptSheets 18장에도 포함**된다. `A2=\"(4면)\" · C3=점검항목 · J3=점검결과`이고 본문은 펌프성능시험 표. A열 item_code 0행·dv 0건이라 추출기의 `if (!codes.length) continue`에 걸려 **매핑에서만 빠질 뿐**이다. 즉 설계 에이전트가 「간4는 J열」이라 한 것은 **열에 관해 옳았다**. 구현 결과에는 영향이 없다(주입할 코드가 없다). 매핑 없는 도너 시트는 4장 — `목 차`·`간4`·`CO2-4`·`할3`.",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 B·D 독립 합의)",
+            "evidence": [
+              "워크북 67시트에 `간4` 실재 · allDonorSheets() 41장에 등재 · 서림사 keptSheets 18장에도 포함",
+              "A열 item_code 0행이라 추출기 `if (!codes.length) continue`에 걸려 매핑에서만 빠진다",
+              "매핑 없는 도너 4장 = 목 차·간4·CO2-4·할3"
+            ]
+          }
         },
         {
           "id": "X-2",
           "desc": "D1의 「정보 시트 12칸」 → 현 HEAD 실측 **14칸**",
           "status": "implemented",
           "found_by": "판정자 D",
-          "note": "12는 F세대(2026-08-23)의 셈이다. 시트별 앵커 실측: 개요 57 · 위임장 4 · 계약서 1 · 대상처 1 · 보고서 8 · **정보 14** · 다수동일때 15 · 현황 92 = **192**."
+          "note": "12는 F세대(2026-08-23)의 셈이다. 시트별 앵커 실측: 개요 57 · 위임장 4 · 계약서 1 · 대상처 1 · 보고서 8 · **정보 14** · 다수동일때 15 · 현황 92 = **192**.",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 D)",
+            "evidence": [
+              "시트별 앵커 실측 — 개요 57·위임장 4·계약서 1·대상처 1·보고서 8·**정보 14**·다수동일때 15·현황 92 = 192"
+            ]
+          }
         },
         {
           "id": "X-3",
           "desc": "D1의 「F 인계서가 지목한 소방계획서 축 3건은 **전부** 배선돼 있었다」 → 참인 것은 D21 하나",
           "status": "implemented",
           "found_by": "판정자 D",
-          "note": "F 인계서가 함께 지목한 4칸 중 `G10`·`I9`·`J9`는 **지금도 미배선**이다. F 문서 스스로 'Phase 3 이행조치 몫'이라 분류했으므로 D트랙 결함은 아니지만, '전부'로 읽으면 틀린다. 다만 **F 인계서가 낡았다는 결론 자체는 참** — D21 앵커는 `c2d4dc6`, 정보 시트 리터럴은 `d363b31`, 둘 다 2026-08-24에 수리됐음을 git으로 확정했다."
+          "note": "F 인계서가 함께 지목한 4칸 중 `G10`·`I9`·`J9`는 **지금도 미배선**이다. F 문서 스스로 'Phase 3 이행조치 몫'이라 분류했으므로 D트랙 결함은 아니지만, '전부'로 읽으면 틀린다. 다만 **F 인계서가 낡았다는 결론 자체는 참** — D21 앵커는 `c2d4dc6`, 정보 시트 리터럴은 `d363b31`, 둘 다 2026-08-24에 수리됐음을 git으로 확정했다.",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 D)",
+            "evidence": [
+              "git으로 확정 — 개요!D21 rampCount 앵커는 `c2d4dc6`, 정보 시트 리터럴은 `d363b31`(둘 다 2026-08-24)",
+              "F 인계서가 함께 지목한 `G10`·`I9`·`J9`는 지금도 미배선(F 문서 스스로 Phase 3 몫이라 분류)"
+            ]
+          }
         },
         {
           "id": "X-4",
           "desc": "D9의 「넓은 서식 시트의 점검항목 문구 원문 보존 — C-1 전용 회귀 축」 → 서림사에서는 **4시트 중 2장만** 살아남는다",
           "status": "implemented",
           "found_by": "판정자 C",
-          "note": "옥외3·다중1은 한 번도 걸린 적이 없다(프로브가 스스로 '넓은 서식 2시트'라 찍는다). **판정자가 직접 닫았다** — `_judgeD-C-allcodes.mts`로 720코드 전수에 합성 응답을 넣고 도너 41시트 전량 왕복: 720/720 착지 · 넓은 서식 **4시트 전부** C열 원문 보존 · 주입 대상 아닌 도너 2,081칸 부수 피해 0. **부족했던 건 증거의 폭이지 코드가 아니다.**"
+          "note": "옥외3·다중1은 한 번도 걸린 적이 없다(프로브가 스스로 '넓은 서식 2시트'라 찍는다). **판정자가 직접 닫았다** — `_judgeD-C-allcodes.mts`로 720코드 전수에 합성 응답을 넣고 도너 41시트 전량 왕복: 720/720 착지 · 넓은 서식 **4시트 전부** C열 원문 보존 · 주입 대상 아닌 도너 2,081칸 부수 피해 0. **부족했던 건 증거의 폭이지 코드가 아니다.**",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 C)",
+            "evidence": [
+              "프로브 출력이 스스로 「넓은 서식 2시트」라 찍는다(서림사 기준 4시트 중 2장만 생존)",
+              "_judgeD-C-allcodes.mts — 720코드 전수 왕복으로 4/4 전부 원문 보존 확인 · 주입 대상 아닌 도너 2,081칸 부수 피해 0"
+            ]
+          }
         },
         {
           "id": "X-5",
           "desc": "D11의 「LO 렌더 후 ×가 실제로 그려짐(옥1!C17·소!C23·소!C4)」 → 그 프로브의 근거로는 성립하지 않았다",
           "status": "implemented",
           "found_by": "판정자 C",
-          "note": "종전 프로브 끝의 '표본 3칸'은 `wb.Sheets[...]` 즉 **SheetJS 셀 값**을 찍는다 — 렌더 결과가 아니다. 좌표를 렌더 산출물에서 찾은 적이 없었다. **주장 자체는 참**임이 판정자의 독립 축(행 결속)으로 확인됐고, 이제 F-D3 수리로 프로브가 그 축을 쓴다."
+          "note": "종전 프로브 끝의 '표본 3칸'은 `wb.Sheets[...]` 즉 **SheetJS 셀 값**을 찍는다 — 렌더 결과가 아니다. 좌표를 렌더 산출물에서 찾은 적이 없었다. **주장 자체는 참**임이 판정자의 독립 축(행 결속)으로 확인됐고, 이제 F-D3 수리로 프로브가 그 축을 쓴다.",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 C)",
+            "evidence": [
+              "종전 프로브의 「표본 3칸」은 `wb.Sheets[...]` 즉 SheetJS 셀 값이다 — 렌더 산출물에서 좌표를 찾은 적이 없다",
+              "_judgeD-C-render-locate.mts로 행 결속 축을 독립으로 세워 불량 3건 확인(렌더 행 1,348개·표본 40건 불일치 0)"
+            ]
+          }
         },
         {
           "id": "X-6",
           "desc": "D8의 「'응답은 있고 시트는 제거됨'은 **정상 시나리오**다」 → 근거 없는 단정",
           "status": "implemented",
           "found_by": "판정자 B·D (독립 합의)",
-          "note": "서림사 `sheetRemoved` 27건의 정체는 **할1 18 + 할2 9**(할로겐화합물)이고, 그 27코드 **전부가** `annex4.sheetSections`에 있어 **별지 4호 PDF에는 인쇄된다**. 즉 '정상'이 아니라 **대장 미등록 + PDF만 구제**라는 데이터 불일치다. 판정자 D의 보강: 대장은 「할론소화설비」인데 응답은 「할로겐화합물 및 불활성기체소화설비」 점검표에 들어 있다(26 F-1f 분리 축) — **입력 표면과 대장 어휘가 갈린 사례**로 D10 결론을 오히려 보강한다. → S15로 이관."
+          "note": "서림사 `sheetRemoved` 27건의 정체는 **할1 18 + 할2 9**(할로겐화합물)이고, 그 27코드 **전부가** `annex4.sheetSections`에 있어 **별지 4호 PDF에는 인쇄된다**. 즉 '정상'이 아니라 **대장 미등록 + PDF만 구제**라는 데이터 불일치다. 판정자 D의 보강: 대장은 「할론소화설비」인데 응답은 「할로겐화합물 및 불활성기체소화설비」 점검표에 들어 있다(26 F-1f 분리 축) — **입력 표면과 대장 어휘가 갈린 사례**로 D10 결론을 오히려 보강한다. → S15로 이관.",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 B·D 독립 합의)",
+            "evidence": [
+              "`sheetRemoved` 27건 = 할1 18 + 할2 9이고 그 27코드 전부가 `annex4.sheetSections`에 있다(_probe-s15-divergence.mts 재현: PDF에 실리는 것 27/27)",
+              "⚠후속 추적에서 이 갈라짐 자체는 **설계된 동작**임이 확인됐다 — V-1 resolution 참조. 다만 「정상 시나리오」라는 원래 단정에 근거가 없었다는 지적은 유효하다"
+            ]
+          }
         },
         {
           "id": "X-7",
           "desc": "D7의 「`sheetSections`를 원천으로 쓰면 분모가 줄어 눈이 먼다」 → 그 고객에서는 성립하지 않는다",
           "status": "implemented",
           "found_by": "판정자 B",
-          "note": "실측 — `annex4.sheetSections` 610코드, 응답 243건 중 sheetSections에 없는 것 **0건**. `report9-assemble.ts:293`이 `sheetMatchesFacilities(...) || respSheetIds.has(s.id)`로 **응답 있는 시트를 구제**하기 때문이다. **결정 자체는 옳으나 사유가 틀렸다** — 실제 사유는 ①sheetSections의 분모는 610(카탈로그 항목)이라 '무응답'과 '미착지'가 섞인다 ②`resByCode`가 **코드 단위 last-wins**라 month 축이 소멸해 `duplicated` 분류 자체가 불가능해진다."
+          "note": "실측 — `annex4.sheetSections` 610코드, 응답 243건 중 sheetSections에 없는 것 **0건**. `report9-assemble.ts:293`이 `sheetMatchesFacilities(...) || respSheetIds.has(s.id)`로 **응답 있는 시트를 구제**하기 때문이다. **결정 자체는 옳으나 사유가 틀렸다** — 실제 사유는 ①sheetSections의 분모는 610(카탈로그 항목)이라 '무응답'과 '미착지'가 섞인다 ②`resByCode`가 **코드 단위 last-wins**라 month 축이 소멸해 `duplicated` 분류 자체가 불가능해진다.",
+          "verified": {
+            "date": "2026-08-30",
+            "method": "독립 판정자 실측 (판정자 B)",
+            "evidence": [
+              "`annex4.sheetSections` 610코드 · 응답 243건 중 sheetSections에 없는 것 **0건**",
+              "`report9-assemble.ts:293`이 `sheetMatchesFacilities(...) || respSheetIds.has(s.id)`로 응답 있는 시트를 구제한다",
+              "실제 사유는 ①분모 610(카탈로그 항목)이라 무응답과 미착지가 섞임 ②`resByCode` last-wins로 month 축 소멸"
+            ]
+          }
         }
       ]
     },
@@ -1134,7 +1225,12 @@
         {
           "id": "D11",
           "desc": "정식 테스트 승격 · 라이브 실주행 · 육안",
-          "status": "partial",
+          "status": "implemented",
+          "promoted": {
+            "date": "2026-08-30",
+            "desc": "판정자 C가 건 승격 조건을 충족해 partial → implemented. 조건 원문: *「`_probe-d11-render.mts`를 **행 결속 축 + 대조군 차분**으로 고치기 전에는 implemented 승격을 권하지 않는다」*.\n수리(F-D3·F-D4·F-D6): 렌더 축을 행 결속으로 교체(항목 문구가 있는 렌더 행에 **셀 전체가 마크**인 칸이 있는가, 항목 문구는 DB에서 가져와 자산과 독립) · '두부 0' 항진명제를 이름부터 사실대로(인코딩 소실) 교체하고 래스터 판정이 미검증임을 명시 · `error` 미확인 2곳 차단.\n**이빨 증명**: `targets.push(...donorPlan.targets)`를 무력화하고 라이브를 재생성하니 [3] 불량 3건·[4] 적합 12건이 **전부 `no-mark`로 빨강**. 옛 검사였다면 초록이었을 바로 그 입력이다. 원복 후 7/0.",
+            "honesty": "⚠**이 승격의 수리·검증은 구현자(나)가 했다 — 독립 재판정이 아니다.** 판정자 C가 명시한 조건을 글자 그대로 충족했고 변이로 이빨까지 보였으나, 다음 판정 세대가 이 축을 다시 겨냥하는 것이 옳다. 특히 **래스터 두부 판정은 여전히 미검증**이다(pdftoppm·pdftotext 부재)."
+          },
           "verified": {
             "date": "2026-08-29",
             "method": "라이브 라우트 + LibreOffice 렌더 + 신규 테스트",
