@@ -62,6 +62,9 @@ export type WorkbookSource = {
      *  옵션인 이유는 구 호출부·픽스처 호환이며, 미공급이면 7행이 전부 명시적 공란이 된다
      *  (서식의 `=""`가 살아남아 계획서!H12가 `0`을 인쇄하지 않는다 — keepFormulaWhenEmpty). */
     defectRows?: Array<{ group: string; code: string; content: string }>
+    /** 이행조치 총 기간(별지 10호 축) — PDF `totalPeriod`·`totalDays`와 **같은 원천**
+     *  (`actionPlanPeriod()`). 개요!G9·I9·J9·G10의 값이자, 계획서·완료보고서가 전부 여기서 온다. */
+    actionPeriod?: { startISO: string; endISO: string; days: number } | null
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
     // ── 정보 시트 12칸(별지 9호 2쪽) — 필수/옵션 구분은 **Report9Data와 정확히 같게** 둔다.
@@ -293,6 +296,19 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`assist${i + 1}Period`, a ? a.period || null : null],
     )
   }
+  // ── 이행조치 기간 4칸(별지 10·11호 축) ──
+  // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
+  // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의
+  // 캐시까지 여기서 계산해 준다. 값은 PDF와 같은 `actionPlanPeriod()` 단일 원천에서 온다(D-7).
+  // ⚠ 서식의 G9는 발신일자를 가리키지만 PDF는 **실제 시작일**을 인쇄한다 — 실제 날짜로 덮는다.
+  //   `I9 = G9 + J9 - 1`이 그대로 성립하므로(days가 양끝 포함) 엑셀에서 재계산해도 어긋나지 않는다.
+  const ap = p.actionPeriod ?? null
+  entries.push(
+    ['actionStartSerial', ap ? isoToSerial(ap.startISO) : null],
+    ['actionEndSerial', ap ? isoToSerial(ap.endISO) : null],
+    ['actionDoneSerial', ap ? isoToSerial(ap.endISO) : null],
+    ['actionDays', ap ? ap.days : null],
+  )
   // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
   // PDF는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 그룹당 1행 고정이라 접기가 불가피하다.
   // 서식이 접기를 전제한다: r4~r10이 ht="77.25"(헤더의 2배)로 한 칸에 5줄 안팎이 들어간다.

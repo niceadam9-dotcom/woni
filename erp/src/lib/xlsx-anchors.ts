@@ -148,6 +148,21 @@ export const ANCHORS: Anchor[] = [
   { field: 'stairsLine',      sheet: '정보', cell: 'B21', labelCell: 'A21', label: '계단' },
   { field: 'elevatorLine',    sheet: '정보', cell: 'B22', labelCell: 'A22', label: '승강기' },
   { field: 'parkingLine',     sheet: '정보', cell: 'B23', labelCell: 'A23', label: '주차장' },
+  // ── 이행조치 기간(별지 10·11호 축) — 계획서·완료보고서가 전부 이 4칸에서 온다 ──
+  // 계획서!B26{=개요!G9} · J26{=개요!I9} · P26{=개요!J9}, 완료보고서!I20{=개요!G10}.
+  // 🚨 **`I9{=G9+J9-1}`은 산술 복합 수식이라 단일 참조 폐포가 못 따라간다.** LibreOffice는 재계산을
+  //   하지 않으므로(D-9) 캐시를 함께 주입하지 않으면 **날짜 칸이 빈 채로 인쇄된다**. 이 칸은
+  //   2026-08-22 판정이 '허브 참조 복합 수식 캐시'로 실결함을 낸 바로 그 자리다(표본 이행조치일
+  //   시리얼 46237이 전 고객 문서에 인쇄될 뻔했다). 그래서 파생 칸까지 전부 앵커로 값을 준다.
+  // ⚠ G9의 서식 수식은 `=B10`(발신일자)인데 **PDF는 실제 이행조치 시작일을 인쇄한다**(totalPeriod).
+  //   그대로 두면 두 문서가 갈라지므로(D-7 위반) 값이 있으면 실제 날짜로 덮고(dropFormula),
+  //   **없으면 `=B10`을 살려 둔다**(keepFormulaWhenEmpty) — 용도가 '손으로 고쳐 쓰기'라
+  //   ERP가 모르는 건 서식의 기본값이 남는 편이 낫다. I9·G10은 수식을 보존한 채 캐시만 준다:
+  //   그래야 사용자가 엑셀에서 일수(J9)를 고치면 종료일·완료일이 따라 움직인다.
+  { field: 'actionStartSerial', sheet: HUB, cell: 'G9',  labelCell: 'E9',  label: '이행조치필요기간', dropFormula: true, keepFormulaWhenEmpty: true },
+  { field: 'actionDays',        sheet: HUB, cell: 'J9',  labelCell: 'E9',  label: '이행조치필요기간' },
+  { field: 'actionEndSerial',   sheet: HUB, cell: 'I9',  labelCell: 'E9',  label: '이행조치필요기간' },
+  { field: 'actionDoneSerial',  sheet: HUB, cell: 'G10', labelCell: 'E10', label: '이행조치일자' },
   // ── 현5(별지 9호 8쪽 '4. 소방시설등 불량 세부 사항') — 점검번호·불량내용 7행 ──
   // 계획서!C12~C24{=현5!A4..A10}·H12~H24{=현5!C4..C10}가 이 시트를 읽으므로 **Phase 3의 선행 조건**이다
   // (2026-08-30 실측 `_scope29-hyeon5.mts` — 착수 순서가 설계와 반대였다).

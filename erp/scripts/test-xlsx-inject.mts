@@ -489,5 +489,61 @@ console.log('[9] 현5 불량 세부 · 계획서 폐포')
   check('원시 XML에 이중 이스케이프(&amp;#10;) 0건', !r9Raw.includes('&amp;#10;'))
 }
 
+// ── ⑩ 이행조치 기간 4칸 — 복합 수식 캐시가 실리는가 (Phase 3 본체) ──
+// 계획서!B26{=개요!G9}·J26{=개요!I9}·P26{=개요!J9}, 완료보고서!I20{=개요!G10}이 전부 이 4칸에서 온다.
+// 🚨 `I9{=G9+J9-1}`은 **산술 복합 수식**이라 단일 참조 폐포가 못 따라간다. LO는 재계산을 안 하므로
+// 캐시를 안 실으면 날짜가 빈 채로 인쇄된다 — 2026-08-22에 같은 부류로 실결함이 났던 자리다.
+console.log('[10] 이행조치 기간 4칸 · 복합 수식 캐시')
+{
+  const mk = (actionPeriod: { startISO: string; endISO: string; days: number } | null) =>
+    buildWorkbookValues({
+      official, delegation, customerAddress: '경기도 양평군 검증로 1',
+      startISO: '2026-08-20', endISO: '2026-08-21', useApprovalISO: '2011-06-25',
+      installedCodes: ['옥내소화전설비'], evacTypes: [],
+      building: {
+        purpose: '근린생활시설', totalArea: 999.99, buildingArea: 300.5, floorsAbove: 5,
+        floorsBelow: 2, height: 21.5, households: 12, buildingCount: 2, permitDateISO: '2009-04-25',
+      },
+      report9: { ...report9, actionPeriod },
+    })
+  const rawOf2 = async (bytes: Uint8Array, sheet: string) => {
+    const z = await JSZip.loadAsync(bytes)
+    return await z.file((await sheetFileMap(z)).get(sheet)!)!.async('string')
+  }
+  const cellXml2 = (xml: string, ref: string) =>
+    new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(xml)?.[0] ?? ''
+  const vOf = (xml: string, ref: string) => /<v>([\s\S]*?)<\/v>/.exec(cellXml2(xml, ref))?.[1] ?? ''
+
+  // 대조군 먼저 — 기간이 없으면 G9는 서식의 `=B10`(발신일자 기본값)이 살아 있어야 한다
+  const ctlRaw = await rawOf2(
+    (await injectWorkbook(template, toInjectTargets(mk(null)).targets)).bytes, '개요')
+  check('대조군 — 기간 미산출이면 개요!G9에 =B10이 살아 있다', /<f[^>]*>B10<\/f>/.test(cellXml2(ctlRaw, 'G9')),
+    cellXml2(ctlRaw, 'G9') || '(셀 없음)')
+
+  // 본검사 — 2026-09-01 ~ 2026-09-10 (양끝 포함 10일)
+  const period = { startISO: '2026-09-01', endISO: '2026-09-10', days: 10 }
+  const r10 = await injectWorkbook(template, toInjectTargets(mk(period)).targets)
+  const hub = await rawOf2(r10.bytes, '개요')
+  const sStart = isoToSerial(period.startISO), sEnd = isoToSerial(period.endISO)
+  check('개요!J9 = 총 일수', vOf(hub, 'J9') === String(period.days), vOf(hub, 'J9'))
+  check('개요!G9 = 실제 시작일 시리얼(발신일자 아님)', vOf(hub, 'G9') === String(sStart),
+    `${vOf(hub, 'G9')} vs ${sStart}`)
+  check('★ 개요!I9 — 복합 수식이지만 캐시가 실렸다', vOf(hub, 'I9') === String(sEnd),
+    `${vOf(hub, 'I9')} vs ${sEnd}`)
+  check('개요!I9 — 수식 <f>는 보존됐다(엑셀에서 일수 고치면 따라온다)',
+    /<f[^>]*>G9\+J9-1<\/f>/.test(cellXml2(hub, 'I9')), cellXml2(hub, 'I9'))
+  check('서식 규약 정합 — G9 + J9 - 1 === I9', sStart + period.days - 1 === sEnd,
+    `${sStart} + ${period.days} - 1 = ${sStart + period.days - 1} vs ${sEnd}`)
+  check('개요!G10 = 이행완료일자(=I9)', vOf(hub, 'G10') === String(sEnd), vOf(hub, 'G10'))
+
+  // ★ 스포크 도달 — 계획서·완료보고서가 실제로 날짜를 받는가(여기가 인쇄되는 자리다)
+  const plan = await rawOf2(r10.bytes, '계획서')
+  check('계획서!B26 — 시작일 도달', vOf(plan, 'B26') === String(sStart), vOf(plan, 'B26'))
+  check('계획서!J26 — 종료일 도달', vOf(plan, 'J26') === String(sEnd), vOf(plan, 'J26'))
+  check('계획서!P26 — 총 일수 도달', vOf(plan, 'P26') === String(period.days), vOf(plan, 'P26'))
+  const done = await rawOf2(r10.bytes, '완료보고서')
+  check('완료보고서!I20 — 이행완료일자 도달', vOf(done, 'I20') === String(sEnd), vOf(done, 'I20'))
+}
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

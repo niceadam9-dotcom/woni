@@ -68,6 +68,27 @@ export function fstr(fields: Record<string, unknown>, key: string): string {
 /** 별지 9호 데이터 조립 — 워커 process_report9(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-5, 파리티 우선).
  *  개선분(별지9호.MD §4 기승인)만 추가: 8쪽 불량 세부 자동, 다중이용업 업종 체크(fire_plan_forms sections.multiUse),
  *  보조 점검인력 5명 초과 허용. ③ 서식 고유 값(annex_inputs — 보고일 수기·비고)은 말미에 오버레이(H-23) */
+/** 이행조치 총 기간 — 별지 10호(이행계획서)의 '총 이행기간'과 갑지 엑셀 `개요!G9·I9·J9`의 **단일 원천**.
+ *
+ *  ⚠ 이 규칙을 두 곳에 적지 않는다. 종전엔 assembleAnnex1011(report9-actions) 안에만 있었고,
+ *  갑지 엑셀이 같은 값을 필요로 하면서 베껴 쓸 뻔했다 — 한쪽만 갱신되면 **PDF와 엑셀이 갈라진다**(D-7).
+ *
+ *  규약(E10-4 감사 결과 그대로 보존): ①계획 건 = `action_plan | action_start | action_end` 중 하나라도
+ *  있는 것(종료일만 입력된 불량도 편입 — 종전 필터는 통째로 탈락시켰다) ②시작·종료는 **서로 다른 건에서
+ *  와도 된다**(가장 이른 시작 ~ 가장 늦은 종료) ③일수는 양끝 포함(diff + 1) ④둘 중 하나라도 없으면 null. */
+export function actionPlanPeriod(
+  defects: ReadonlyArray<{ action_plan?: string | null; action_start?: string | null; action_end?: string | null }>,
+): { startISO: string; endISO: string; days: number } | null {
+  const planned = defects.filter(d => d.action_plan || d.action_start || d.action_end)
+  const starts = planned.map(d => d.action_start).filter(Boolean).sort() as string[]
+  const ends = planned.map(d => d.action_end).filter(Boolean).sort() as string[]
+  if (!starts.length || !ends.length) return null
+  const startISO = starts[0]
+  const endISO = ends[ends.length - 1]
+  const days = Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 86400000) + 1
+  return { startISO, endISO, days }
+}
+
 export async function assembleReport9(
   admin: Admin,
   customerId: string,
@@ -108,7 +129,11 @@ export async function assembleReport9(
       .eq('inspection_id', inspectionId).order('sort_order'),
     admin.from('fire_plans').select('id').eq('customer_id', customerId).limit(1),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
-    admin.from('inspection_defects').select('defect_code, defect_name').eq('inspection_id', inspectionId).order('created_at'),
+    // action_* 3열은 별지 10호(이행계획서)의 총 이행기간 축 — 갑지 엑셀 `개요!G9·I9·J9`가 같은 값을
+    // 받아야 PDF와 갈라지지 않는다(D-7). 계산은 actionPlanPeriod() 단일 원천이 한다
+    admin.from('inspection_defects')
+      .select('defect_code, defect_name, action_plan, action_start, action_end')
+      .eq('inspection_id', inspectionId).order('created_at'),
   ])
   type InspRow = {
     inspection_type: string | null; is_initial: boolean | null
@@ -372,7 +397,11 @@ export async function assembleReport9(
   const rfEtc = !!rf && !rfSlab && !rfTile && !rfSlate
 
   // 8쪽 불량 세부 — 시트 X 응답의 점검번호 + defects 불량명 조인, 설비 구분 그룹핑 (MD §4-2)
-  type DefectDbRow = { defect_code: string | null; defect_name: string }
+  // action_* 3열은 8쪽 렌더에는 안 쓰이고 **별지 10호 총 이행기간**(actionPlanPeriod)에만 쓰인다
+  type DefectDbRow = {
+    defect_code: string | null; defect_name: string
+    action_plan: string | null; action_start: string | null; action_end: string | null
+  }
   const defects = (defectsRes.data ?? []) as DefectDbRow[]
   const defectByCode = new Map(defects.filter(d => d.defect_code).map(d => [d.defect_code as string, d]))
   const groupOfCode = (code: string): string => {
@@ -483,6 +512,8 @@ export async function assembleReport9(
     muResults,
     specs,
     defectRows,
+    // 별지 10호 축 — 별지 9호 렌더는 쓰지 않는다. 갑지 엑셀이 PDF와 같은 기간을 받게 하려고 싣는다(D-7)
+    actionPeriod: actionPlanPeriod(defects),
   }
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 보고일 수기 지정·비고 (작성 패널 저장분)

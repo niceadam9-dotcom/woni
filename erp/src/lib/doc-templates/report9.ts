@@ -144,6 +144,10 @@ export type Report9Data = {
   specs?: SpecMap
   // ── 8쪽 ──
   defectRows: Report9DefectRow[]
+  /** 이행조치 총 기간(별지 10호 축) — 별지 9호 렌더에는 쓰이지 않는다.
+   *  갑지 엑셀 `개요!G9·I9·J9`가 PDF(`totalPeriod`·`totalDays`)와 **같은 값**을 받게 하려고
+   *  같은 조립본에 실어 나른다(D-7). 원천은 `actionPlanPeriod()` 단일 규칙. */
+  actionPeriod?: { startISO: string; endISO: string; days: number } | null
   // ── ③ 서식 고유 값 (annex_inputs, H-23) — 비고·보완 문구: 1쪽 유의사항 위 1줄, 없으면 미출력 ──
   note?: string
 }

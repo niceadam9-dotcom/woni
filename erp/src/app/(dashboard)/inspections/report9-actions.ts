@@ -21,7 +21,7 @@ import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-ma
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 import type { ManagerRow } from '@/components/customers/plan-form17'
-import { assembleReport9, kdate, pageAll, loadAnnexInputs, fstr } from '@/lib/report9-assemble'
+import { assembleReport9, actionPlanPeriod, kdate, pageAll, loadAnnexInputs, fstr } from '@/lib/report9-assemble'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
@@ -94,12 +94,12 @@ async function assembleAnnex1011(
       content: d.action_plan || d.defect_name || '',
       period: `${d.action_start ? kdate(d.action_start) : ''} ~ ${d.action_end ? kdate(d.action_end) : ''}`.replace(/^ ~ $/, ''),
     }))
-    const starts = planned.map(d => d.action_start).filter(Boolean).sort() as string[]
-    const ends = planned.map(d => d.action_end).filter(Boolean).sort() as string[]
-    if (starts.length && ends.length) {
-      const days = Math.round((new Date(ends[ends.length - 1]).getTime() - new Date(starts[0]).getTime()) / 86400000) + 1
-      data.totalPeriod = `${kdate(starts[0])} ~ ${kdate(ends[ends.length - 1])}`
-      data.totalDays = String(days)
+    // ⚠ 기간 산출은 **lib의 actionPlanPeriod 단일 원천**이다 — 갑지 엑셀 `개요!G9·I9·J9`가 같은 값을
+    //   받아야 PDF와 갈라지지 않는다(D-7). 여기에 규칙을 다시 적으면 한쪽만 갱신돼 두 문서가 어긋난다
+    const period = actionPlanPeriod(planned)
+    if (period) {
+      data.totalPeriod = `${kdate(period.startISO)} ~ ${kdate(period.endISO)}`
+      data.totalDays = String(period.days)
     }
     if (planned.length === 0) missing.push('이행조치 계획 미입력')
     // E10-3(B-8 감사): 총 이행기간은 시작·종료가 둘 다 있어야 산출된다 — 공란으로 나가는 걸 표면화
