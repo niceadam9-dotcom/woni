@@ -87,6 +87,10 @@ const steps: Step[] = [
   // 서버 prop이 세션 내내 갱신되지 않아 **방금 저장한 값이 사라졌다**(예고가 아니라 실사고).
   // 새로고침하면 어떤 구현이든 통과하므로 **새로고침 없이** 전환만으로 판정한다(항진명제 회피).
   { name: '불량표 단계전환 보존(E2E)',   cmd: 'npx tsx scripts/test-workbench-defect-pane-switch.mts', needServer: true },
+  // F-24 — 위 검사는 ⑤↔⑥만 오간다(둘은 부모의 미러를 공유하므로 클라이언트 안에서 값이 이어진다).
+  // ① '불량 내역' 칸은 **서버가 그려 준 노드**라 그 미러가 안 닿는다 — 독립 판정이 라이브로
+  // 잡은 회귀다. 지적받은 표면만 고치면 이웃이 남는다([[feedback_fix_the_sibling_too]]).
+  { name: '불량표 → ① 칸 반영(E2E)',     cmd: 'npx tsx scripts/test-workbench-defect-pane1.mts', needServer: true },
   // S4-1 — 저장 속도 회귀 예산. 임의 상수가 아니라 S1 대조군 관측 최댓값(21,918ms)×0.5다.
   // ⚠ 연속 2셀을 잰다: 종전 결함은 셀마다 **누적**되는 종류라 1회만 재면 못 잡는다(F-11).
   { name: '작업대 저장 예산(E2E)',       cmd: 'npx tsx scripts/test-workbench-save-budget.mts', needServer: true },

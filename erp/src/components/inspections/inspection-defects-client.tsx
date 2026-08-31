@@ -631,7 +631,16 @@ export function InspectionDefectsClient({
                 )}
               </div>
 
-              <DefectActionSection defect={defect} inspectionId={inspectionId} canEdit={canEdit} />
+              {/* F-24 — key에 **서버 값**을 실어, 조치 데이터가 바뀌면 이 섹션을 다시 마운트한다.
+                  DefectActionSection은 :124-129에서 prop을 useState로 **초기화만** 하므로 마운트된
+                  채로는 새 서버 값이 도착해도 칸이 낡은 채 남는다 — ⑤ 표에서 저장하고 ①로 넘어오면
+                  방금 넣은 계획이 빈칸으로 보였던 것의 절반이 이것이다(나머지 절반은 갱신 자체의
+                  부재였고 inspection-workbench가 이탈 시 1회로 메운다. 둘 다 있어야 값이 보인다).
+                  key가 **서버 값에만** 반응하므로 타이핑 중에는 remount가 일어나지 않는다. */}
+              <DefectActionSection
+                key={[defect.action_plan, defect.action_start, defect.action_end,
+                      defect.action_taken, defect.action_completed_at].map(v => v ?? '').join('|')}
+                defect={defect} inspectionId={inspectionId} canEdit={canEdit} />
             </div>
           )
         })}

@@ -109,7 +109,10 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                       ? selCount > 0
                         ? 'bg-orange-400 border border-orange-400 text-white cursor-pointer hover:bg-orange-500'
                         : 'bg-orange-100 border border-orange-300 text-orange-500 cursor-pointer hover:bg-orange-200'
-                      : 'bg-paper border border-transparent text-[#d0d0d0] dark:text-ink-meta cursor-default'
+                      // 이 가지는 disabled 버튼이다(위 `disabled={!hasOverdue || done}`) — WCAG 1.4.3의
+                      // inactive component 예외라 대비 대상이 아니고 프로브도 제외한다.
+                      // 36 코드모드가 여기까지 ink-meta로 바꿨던 것을 되돌린다(S7-2: 비활성은 장식으로 남긴다).
+                      : 'bg-paper border border-transparent text-[#d0d0d0] dark:text-ink-faint cursor-default'
                   }`}
                 >
                   <span className="block text-[11px] font-semibold">{label}</span>

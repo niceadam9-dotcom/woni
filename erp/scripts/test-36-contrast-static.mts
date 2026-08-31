@@ -58,13 +58,23 @@ console.log('— 소방계획서_36 대비 정적 규약')
   //    로 **ink-meta를 쓰는 파일 안에서만** hex를 셌다. 그러면 ink-meta를 넓힐수록 **분모가 따라
   //    커져** 새 hex가 한 줄도 안 늘었는데 7→11로 붉어진다. 측정 대상이 측정 행위에 따라
   //    변하는 지표는 래칫이 아니다 — 전체 컴포넌트로 분모를 **고정**한다.
+  //
+  // 🐛 **스코프 버그를 한 번 더 냈다(2026-08-31, 독립 판정 지적).** ①이 ②와 같은 술어
+  //    (`className=[^\n]*#hex`)를 쓰는 바람에 **`className=`이 같은 줄에 있을 때만** 셌다.
+  //    className이 삼항으로 여러 줄에 흐르면 가지 줄에는 `className=`이 없다 —
+  //    그래서 이 커밋이 만든 반례(overdue-resolve-modal.tsx:112,
+  //    `text-[#d0d0d0] dark:text-ink-meta`)를 검사가 **초록으로 통과시켰다**.
+  //    ①의 판정 단위는 줄이 아니라 '클래스 문자열'이므로 className= 요구를 뗀다.
+  //    ②(래칫)는 분모를 바꾸면 기준선을 다시 재야 하므로 술어를 그대로 둔다 —
+  //    두 검사는 목적이 다르다(①=신규 규약 위반 적발 / ②=기존 잔여 동결).
   let legacy = 0
   for (const f of comp) {
     const src = readFileSync(f, 'utf8')
     src.split('\n').forEach((line, i) => {
-      if (!/className=[^\n]*#[0-9a-fA-F]{6}/.test(line)) return
-      legacy++
-      if (line.includes('text-ink-meta')) sameLine.push(`${rel(f)}:${i + 1}`)
+      // ① — className= 유무와 무관하게, ink-meta와 hex가 **한 클래스 문자열**에 같이 있으면 위반
+      if (line.includes('text-ink-meta') && /#[0-9a-fA-F]{6}/.test(line)) sameLine.push(`${rel(f)}:${i + 1}`)
+      // ② — 래칫 분모(범위 고정: className= 리터럴이 같은 줄에 있는 hex)
+      if (/className=[^\n]*#[0-9a-fA-F]{6}/.test(line)) legacy++
     })
   }
   check('S7-4 ink-meta를 넣은 줄에 hex 0건(신규 코드 규약)', sameLine.length === 0, sameLine.join(' · '))

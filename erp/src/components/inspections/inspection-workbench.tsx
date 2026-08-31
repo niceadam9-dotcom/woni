@@ -60,6 +60,9 @@ const STEP_NUM: Record<StepKey, number> = {
 /** 3번째 칸이 A4 서식 실시간 미리보기인 단계 — 이 단계에서만 폭을 미리보기 쪽으로 재배분한다 */
 const PREVIEW_STEPS = new Set<StepKey>(['submit9', 'repair', 'submit11'])
 
+/** 불량표(DefectGrid)가 사는 단계 — 표 **이탈**을 감지하는 원천(F-24) */
+const DEFECT_PANES = new Set<StepKey>(['repair', 'submit11'])
+
 export function InspectionWorkbench({
   inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots, defectRows,
   initialStepNum = null, isAdmin = false,
@@ -233,6 +236,27 @@ export function InspectionWorkbench({
    *  범위를 벗어나므로, **신선도는 그대로 두고 체감 지연만** 사라진다.
    *  (async 트랜지션 안에서는 await 뒤에 불러도 여전히 그 트랜지션에 묶인다.) */
   const deferredRefresh = useCallback(() => { setTimeout(() => router.refresh(), 0) }, [router])
+
+  /** F-24 — 불량표를 **떠날 때** 1회 갱신한다 (S3-7이 명령했으나 빠져 있던 절반).
+   *
+   *  S3-7은 셀당 router.refresh()를 걷어내며 "여기서 바뀌는 서버 prop은 전부 클라이언트가
+   *  책임진다"(defect-actions.ts)고 적었는데, 그 열거는 ⑤·⑥ **두 pane뿐**이었다.
+   *  ① '불량 내역' 칸(slots.defects)은 서버가 그려 준 노드라 defectsLocal·defectEdits
+   *  어느 미러도 닿지 않는다 — ⑤에서 계획을 저장하고 ①로 넘어가면 방금 넣은 값이
+   *  빈칸으로 보였다(독립 판정 라이브 실측: DB는 옳고 화면만 낡음). 종전 셀당 refresh가
+   *  우연히 덮어 주던 자리라, 걷어내는 순간 드러난 **이 차수가 만든 회귀**다.
+   *
+   *  셀당으로 되돌리면 지연(첫 셀 6.6초·둘째 21.9초)이 그대로 살아나므로 **이탈 시 1회**만
+   *  부른다 — desc가 처음부터 명령한 축이 이것이다. 미러가 비어 있으면 부를 것이 없다
+   *  (저장을 한 적이 없거나, 서버 집계가 이미 도착해 폐기 effect가 비운 뒤). */
+  const prevSel = useRef(sel)
+  useEffect(() => {
+    const left = prevSel.current
+    prevSel.current = sel
+    if (left === sel || !DEFECT_PANES.has(left) || DEFECT_PANES.has(sel)) return
+    if (!defectsLocal && Object.keys(defectEdits).length === 0) return
+    deferredRefresh()
+  }, [sel, defectsLocal, defectEdits, deferredRefresh])
 
   /* ── 서버 동작 — 타임라인과 같은 액션을 그대로 호출 ── */
   useEffect(() => {

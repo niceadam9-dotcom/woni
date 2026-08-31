@@ -94,12 +94,28 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   const editsRef = useRef(edits)
   editsRef.current = edits
 
+  /** 서버가 **거절한** 행 — 집계에서 그 행은 편집분이 아니라 서버 값으로 센다.
+   *  (기간 뒤집힘은 아래 tallyWith가 값만 보고 스스로 판정하므로 여기 담지 않는다 —
+   *   그쪽은 pane 전환으로 이 컴포넌트가 언마운트돼도 살아남아야 한다.) */
+  const rejectedRef = useRef<Set<string>>(new Set())
+
   /** 방금 저장한 행은 `edits`에 아직 안 실렸을 수 있다(setDate는 set 직후 commit을 부른다).
-   *  그래서 그 행만 확정된 값으로 덮어써서 센다 — 안 그러면 1건씩 늦게 반영된다. */
+   *  그래서 그 행만 확정된 값으로 덮어써서 센다 — 안 그러면 1건씩 늦게 반영된다.
+   *
+   *  ⚠ **저장되지 않은 편집은 세지 않는다**(독립 판정 지적). `edits`에는 서버에 실리지 못한
+   *  값도 남는다 — 기간 뒤집힘 선차단(commit :return)과 서버 오류(.then :return) 두 갈래다.
+   *  그걸 그대로 세면 나중에 **다른 행**이 성공 저장될 때 그 미저장 값이 집계에 섞여
+   *  화면이 서버보다 앞선다. 그리고 서버 집계 문자열은 안 바뀌므로 부모의 폐기 effect도
+   *  돌지 않아 **새로고침 때까지 어긋난 채 남는다** — 아래 trim 규칙과 같은 계열의 함정이다. */
   const tallyWith = (overrideId: string, overrideRow: Row): DefectTally => {
     let planned = 0, done = 0
     for (const d of defects) {
-      const r = d.id === overrideId ? overrideRow : { ...toRow(d), ...editsRef.current[d.id] }
+      const server = toRow(d)
+      const edited = { ...server, ...editsRef.current[d.id] }
+      // 값만 보고 판정한다 — 서버가 받아 줄 수 없는 조합이면 그 행은 서버 값이 진실이다
+      const usable = !rejectedRef.current.has(d.id)
+        && !dateRangeError(edited.actionStart, edited.actionEnd, '이행 기간')
+      const r = d.id === overrideId ? overrideRow : (usable ? edited : server)
       // ⚠ trim은 서버와 맞추기 위한 것이다(독립 판정 지적). 서버는 `actionPlan?.trim() || null`로
       // 저장하므로(defect-actions.ts) 공백만 친 칸은 서버에서 null이 된다. 여기서 트림 없이 세면
       // 로컬 planned가 1 더 커지고, **서버 집계 문자열이 안 바뀌니 로컬을 버리는 effect도 안 돈다**
@@ -126,6 +142,7 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     // 서버 거절만 믿으면 왕복 뒤에야 알게 된다 — 서버 검사는 그대로 남아 최종 방어선이다.
     const rangeErr = dateRangeError(row.actionStart, row.actionEnd, '이행 기간')
     if (rangeErr) { setErr(rangeErr); return }
+    rejectedRef.current.delete(d.id)
     setSaving(d.id)
     setErr('')
     void updateDefectActionAction({
@@ -137,7 +154,8 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
       actionCompletedAt: row.actionCompletedAt || null,
     }).then(res => {
       setSaving(null)
-      if (res.error) { setErr(res.error); return }
+      // 서버가 거절했다 — 이 행의 편집분은 집계에서 빠진다(다음 성공 저장 때 되돌아온다)
+      if (res.error) { setErr(res.error); rejectedRef.current.add(d.id); return }
       setJustSaved(prev => ({ ...prev, [d.id]: true }))
       setTimeout(() => setJustSaved(prev => ({ ...prev, [d.id]: false })), 4000)
       // S3-5 — 서버 왕복을 기다리지 않고 **방금 확정된 값으로 다시 센 집계**를 올린다.
