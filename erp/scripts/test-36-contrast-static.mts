@@ -8,6 +8,7 @@
 // 실행: npx tsx scripts/test-36-contrast-static.mts
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, detail = '') => {
@@ -22,13 +23,19 @@ const walk = (dir: string): string[] => readdirSync(dir).flatMap(n => {
 })
 const files = walk(SRC)
 const rel = (f: string) => f.replace(process.cwd(), '.')
-/** 컴포넌트(.tsx) className에 남아 있는 hex 리터럴 수의 상한 — **실측 129(2026-08-30)**.
+/** 컴포넌트(.tsx) className에 남아 있는 hex 리터럴 수의 상한 — **clean HEAD 실측 128(2026-08-31)**.
  *
  *  ⚠ 이건 성취가 아니라 **동결**이다. 종전 표기 '≤7'은 범위가 'ink-meta를 쓰는 파일'로
- *  좁혀져 있어 작아 보였을 뿐, 저장소 실제 잔여는 129건이다. 작은 수를 적어 두면
- *  "거의 다 정리됐다"는 **거짓 인상**을 준다 — 29 코드모드의 실제 잔여를 그대로 싣는다.
- *  줄이는 것은 29의 몫이고, 이 검사의 몫은 **늘지 않게** 막는 것뿐이다. */
-const HEX_RATCHET = 129
+ *  좁혀져 있어 작아 보였을 뿐이다. 작은 수를 적어 두면 "거의 다 정리됐다"는 **거짓 인상**을
+ *  준다 — 29 코드모드의 실제 잔여를 그대로 싣는다.
+ *  줄이는 것은 29의 몫이고, 이 검사의 몫은 **늘지 않게** 막는 것뿐이다.
+ *
+ *  ⚠⚠ **기준선은 clean HEAD에서 재야 한다(3차 독립 판정 지적).** 종전 129는 타 세션
+ *  미커밋 파일이 낀 **작업트리**에서 잰 값이라 어떤 커밋에서도 재현되지 않았고, 그 여유
+ *  1칸으로 **새 hex 리터럴 한 줄이 조용히 통과**했다(판정자가 변이 exit=0으로 실증).
+ *  재현: `git archive HEAD erp/src`를 풀어 **그 트리에서** 셀 것 — 실측 128.
+ *  작업트리에 미커밋 hex가 있으면 이 검사가 붉어지는데 그건 **참인 빨강**이다. */
+const HEX_RATCHET = 128
 
 console.log('— 소방계획서_36 대비 정적 규약')
 
@@ -74,7 +81,7 @@ console.log('— 소방계획서_36 대비 정적 규약')
   //
   //    🕳 **알려진 구멍 2개(침묵시키지 않는다)**
   //      ⓐ ①은 줄 단위라 한 클래스 문자열이 여러 줄로 나뉘면 ink-meta+hex 공존을 놓친다.
-  //      ⓑ ②(래칫)는 `className=`이 같은 줄에 있는 hex만 센다 — 넓힌 술어로는 143건이라
+  //      ⓑ ②(래칫)는 `className=`이 같은 줄에 있는 hex만 센다 — 넓힌 술어로는 142건(HEAD 기준)이라
   //         **17건을 못 본다**. 그 17에 이 사달의 원인이 된 형태(overdue-resolve-modal의
   //         다중행 삼항 가지)가 포함된다. 그래서 'ink-meta 없는 다중행 클래스 문자열에
   //         새 hex를 넣는' 경로는 ①②' 어느 쪽도 안 잡는다.
@@ -84,25 +91,63 @@ console.log('— 소방계획서_36 대비 정적 규약')
   //    ⚠ 거짓 양성 면(판정자 변이로 실증): className= 요구를 떼면 **주석**에 ink-meta와 hex를
   //      함께 적기만 해도 붉어진다. 이 파일 자신의 위 주석이 그 패턴의 실물 표본이다.
   //      그래서 주석 줄은 모집단에서 뺀다 — 규약은 코드에 거는 것이지 설명에 거는 게 아니다.
-  const isComment = (l: string) => /^\s*(\/\/|\/\*|\*)/.test(l)
+  /** 그 줄에서 **코드만** 남긴다 — 규약은 코드에 거는 것이지 설명에 거는 게 아니다.
+   *  ⚠ 3차 판정 정정: 종전 `/^\s*(\/\/|\/\*|\*)/`는 **줄 전체가 주석일 때만** 걸러서
+   *  줄끝 주석(`const a = 1 // text-ink-meta #ffffff`)과 `*` 없는 블록 주석 본문을 놓쳤다.
+   *  저장소엔 hex를 담은 줄끝 주석이 이미 여러 줄 실재하므로(달력 계열) 잠재가 아니라
+   *  임박한 거짓 양성이었다. 블록 주석은 상태로 추적하고, 줄끝 주석은 잘라 낸다. */
+  let inBlock = false
+  const codeOf = (l: string) => {
+    let s = l
+    if (inBlock) {
+      const e = s.indexOf('*/')
+      if (e < 0) return ''
+      inBlock = false
+      s = s.slice(e + 2)
+    }
+    s = s.replace(/\/\*[\s\S]*?\*\//g, '')          // 한 줄 안에서 닫히는 블록 주석
+    const open = s.indexOf('/*')
+    if (open >= 0) { inBlock = true; s = s.slice(0, open) }
+    const line = s.indexOf('//')
+    if (line >= 0) s = s.slice(0, line)
+    return s
+  }
+  /** ② 래칫은 **HEAD 기준**으로 센다 — 작업트리에서 세면 타 세션 미커밋분이 섞여
+   *  '어떤 커밋에서도 재현되지 않는 기준선'이 된다(3차 판정이 잡은 그 결함). 공유 트리라
+   *  남의 미커밋 한 줄이 내 기준선을 1 밀어 올렸고, 그 여유로 새 hex가 조용히 통과했다.
+   *  ⚠ 그래서 이 축은 '커밋된 잔여의 동결'이고, **아직 커밋 안 된 신규 hex는 ①이 잡는다**
+   *  (ink-meta와 같은 줄일 때). 둘 다 통과하는 구멍은 위 🕳 ⓐⓑ에 적어 뒀다. */
+  const headLegacy = (): number | null => {
+    for (const bin of ['git', 'F:\\AI\\tools\\MinGit\\cmd\\git.exe']) {
+      try {
+        const out = execFileSync(bin, ['grep', '-h', '-E', 'className=.*#[0-9a-fA-F]{6}', 'HEAD', '--', 'erp/src'],
+          { cwd: join(process.cwd(), '..'), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+        return out.split('\n').filter(l => l.trim() !== '').length
+      } catch { /* 다음 후보 */ }
+    }
+    return null
+  }
   let legacy = 0
   for (const f of comp) {
     const src = readFileSync(f, 'utf8')
+    inBlock = false   // 파일마다 초기화 — 안 하면 앞 파일의 열린 주석이 다음 파일을 삼킨다
     src.split('\n').forEach((line, i) => {
-      // ① — className= 유무와 무관하게, ink-meta와 hex가 같은 줄에 있으면 위반(주석 줄 제외)
-      if (!isComment(line) && line.includes('text-ink-meta') && /#[0-9a-fA-F]{6}/.test(line)) {
+      const code = codeOf(line)   // ⚠ 매 줄 호출해야 블록 주석 상태가 이어진다
+      // ① — className= 유무와 무관하게, ink-meta와 hex가 같은 줄에 있으면 위반(주석 제외)
+      if (code.includes('text-ink-meta') && /#[0-9a-fA-F]{6}/.test(code)) {
         sameLine.push(`${rel(f)}:${i + 1}`)
       }
-      // ② — 래칫 분모(범위 고정: className= 리터럴이 같은 줄에 있는 hex).
-      //     ⚠ 여기엔 주석 제외를 걸지 않는다 — 술어를 바꾸면 분모가 흔들려 기준선 129를
-      //       다시 재야 한다. 두 검사는 목적이 다르므로 술어도 따로 둔다.
-      if (/className=[^\n]*#[0-9a-fA-F]{6}/.test(line)) legacy++
+      void line   // ②는 아래에서 HEAD 기준으로 따로 센다(작업트리 오염 차단)
     })
   }
   check('S7-4 ink-meta를 넣은 줄에 hex 0건(신규 코드 규약)', sameLine.length === 0, sameLine.join(' · '))
   // ⚠ 이 수는 **이미 있던** 리터럴이다 — 36이 만든 것이 아니라 29 코드모드가 남긴 잔여라
   //   여기선 늘지만 않게 막는다. '0건'이라 적으면 또 거짓 근거가 된다(독립 판정이 한 번 잡았다).
-  check(`S7-4 컴포넌트 전체 hex 래칫 ≤ ${HEX_RATCHET}`, legacy <= HEX_RATCHET, `${legacy}건`)
+  legacy = headLegacy() ?? -1
+  // ⚠ git이 없으면 **조용히 통과시키지 않는다** — 못 쟀으면 못 쟀다고 빨갛게 말한다
+  check(`S7-4 컴포넌트 전체 hex 래칫 ≤ ${HEX_RATCHET} (HEAD 기준)`,
+    legacy >= 0 && legacy <= HEX_RATCHET,
+    legacy < 0 ? 'git으로 HEAD를 못 읽었다 — 기준선 측정 불가' : `${legacy}건`)
 }
 
 // ── S5-1: 토큰이 두 모드 다 정의돼 있다(한쪽만 넣으면 그 모드에서 상속돼 조용히 틀린다)

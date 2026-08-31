@@ -155,10 +155,45 @@ export function InspectionWorkbench({
     if (prevServerTally.current === serverTallyKey) return
     prevServerTally.current = serverTallyKey
     setDefectsLocal(null)   // 서버가 갱신된 집계를 줬다 — 선반영은 역할을 다했다
-    // F-21 — 행 편집분도 같은 규약으로 버린다. 남겨두면 `rowOf`에서 edits가 항상 이기므로
-    // **다른 사람이 고친 값이 내 화면에서 영원히 가려진다**(집계만 버리면 숫자와 칸이 갈라진다).
-    setDefectEdits({})
   }, [serverTallyKey])
+
+  /** F-26 — 🔴**편집분 폐기 축은 집계가 아니라 행 내용이다.**
+   *
+   *  종전엔 위 effect가 집계(planned/done/total)가 바뀔 때 `setDefectEdits({})`를 했다.
+   *  그런데 `rowOf`에서 edits는 서버 값을 **항상 이긴다**(defect-grid.tsx). 그래서
+   *  **계획이 이미 있는 불량의 문구만 고치면** 집계가 하나도 안 움직여 방아쇠가 안 당겨졌다.
+   *  결과는 화면 낡음에 그치지 않았다 — 그 칸을 blur로 지나가는 순간 commit이 낡은 값을
+   *  **DB로 되써서 사용자의 저장이 조용히 사라졌다**(3차 독립 판정이 단일변수 대조군으로 실측).
+   *
+   *  그래서 서버 **행 내용**이 움직인 것을 방아쇠로 삼는다. 다만 전부 버리지 않고
+   *  **실제로 움직인 행만** 버린다 — A행을 타이핑하는 중에 B행이 서버에서 바뀌었다고
+   *  A행 입력까지 날리면 F-25에서 고친 그 사고를 다시 내는 것이다.
+   *
+   *  ⚠ 남는 정직한 한계: 내가 타이핑 중인 **그 행**을 서버가 바꾸면 내 편집분은 버려진다.
+   *  이 화면엔 realtime 구독이 없어 그러려면 갱신 왕복이 떠 있어야 하므로 창이 좁고,
+   *  대안(낡은 값 유지)은 방금 실측된 **데이터 소실**이라 이쪽이 낫다. */
+  /** 행 하나의 조치 값 서명. ⚠ 구분자는 **실제 문자**여야 한다 — 빈 문자열로 이으면
+   *  'ab'+'' 와 'a'+'b'가 같아져 서버가 바꾼 행을 못 알아본다(값 경계가 사라진다). */
+  const rowSig = (d: { action_plan?: string | null; action_start?: string | null; action_end?: string | null; action_taken?: string | null; action_completed_at?: string | null }) =>
+    [d.action_plan, d.action_start, d.action_end, d.action_taken, d.action_completed_at].map(v => v ?? '').join('')
+  // 문자열을 다시 쪼개 파싱하지 않는다 — Map으로 들고 있으면 구분자 함정이 아예 없다
+  const serverRowsKey = (defectRows ?? []).map(d => `${d.id}${rowSig(d)}`).join('')
+  const prevRows = useRef(new Map((defectRows ?? []).map(d => [d.id, rowSig(d)] as const)))
+  useEffect(() => {
+    const before = prevRows.current
+    const now = new Map((defectRows ?? []).map(d => [d.id, rowSig(d)] as const))
+    prevRows.current = now
+    const moved: string[] = []
+    for (const [id, sig] of now) if (before.has(id) && before.get(id) !== sig) moved.push(id)
+    if (moved.length === 0) return
+    setDefectEdits(prev => {
+      let hit = false
+      const next = { ...prev }
+      for (const id of moved) if (next[id]) { delete next[id]; hit = true }
+      return hit ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverRowsKey])
 
   const hasDefects = defectStat.total > 0
   const isSpecial = data.steps.length > 1

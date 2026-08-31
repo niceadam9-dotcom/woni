@@ -34,13 +34,20 @@ import { raw, BASE, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer
 const EMAIL = 'wb-pane1@erp-test.com'
 const DA = 'ZZ전환불량A'     // 갱신을 받는 쪽
 const DB_ = 'ZZ전환불량B'    // 경합(타이핑) 쪽
+/** ⑤축 — **계획이 이미 있는** 불량. 문구만 고치면 집계(planned/done/total)가 안 움직여
+ *  편집분 폐기 방아쇠가 안 당겨진다. A·B로는 이 축을 못 밟는다(둘 다 빈 값→값이라
+ *  저장하는 순간 planned가 늘어 방아쇠가 당겨져 버린다) — 3차 판정이 잡은 구멍이다. */
+const DC = 'ZZ전환불량C'
+const SEED_C = 'P1 최초 계획'
+const C_IN_GRID = 'P2 표에서 고침'
+const C_IN_CARD = 'P3 카드에서 고침'
 const PLAN_A = '수신기 기판 교체'
 const PLAN_B = '유도등 램프 교체'
 const TYPED_B = '내가 고치던 계획'
 const CARD_PLAN = '카드에서 고친 계획'
 const CARD_PH = '이행조치 계획 (별지 10호 — 예: 유도등 램프 교체)'
 let userId = '', cust = '', insp = ''
-let idA = '', idB = ''
+let idA = '', idB = '', idC = ''
 let browser: Awaited<ReturnType<typeof launch>>['browser'] | null = null
 
 try {
@@ -59,11 +66,14 @@ try {
     const { data, error } = await raw.from('inspection_defects').insert([
       { inspection_id: insp, defect_code: 'A-01', defect_name: DA, severity: '보통' },
       { inspection_id: insp, defect_code: 'A-02', defect_name: DB_, severity: '보통' },
+      // C만 계획을 **미리** 심는다 — 이래야 이후 수정이 집계를 안 움직인다
+      { inspection_id: insp, defect_code: 'A-03', defect_name: DC, severity: '보통', action_plan: SEED_C },
     ]).select('id, defect_name')
     if (error) throw new Error(`불량 생성 실패: ${error.message}`)
     const rows = data as Array<{ id: string; defect_name: string }>
     idA = rows.find(r => r.defect_name === DA)!.id
     idB = rows.find(r => r.defect_name === DB_)!.id
+    idC = rows.find(r => r.defect_name === DC)!.id
   }
 
   const l = await launch()
@@ -189,6 +199,48 @@ try {
   }
   check('★ 4-2 ⑤를 들렀다 ①로 돌아와도 내가 저장한 값이 남아 있다',
     backVal === CARD_PLAN, `① 카드='${backVal}' / 기대='${CARD_PLAN}'`)
+
+  /* ── ★ 5축 — **집계가 안 움직이는 수정**(문구만 고치기). 3차 판정이 잡은 구멍이다.
+     계획이 이미 있는 불량은 문구를 바꿔도 planned/done/total이 그대로라, 편집분 폐기가
+     집계를 방아쇠로 삼으면 **낡은 편집분이 서버 값을 이긴 채 남는다**. 그 상태에서 칸을
+     blur로 지나가기만 해도 commit이 낡은 값을 DB로 되써서 **저장이 조용히 사라진다**. */
+  await toStep(4).click()
+  const gridC = page.getByLabel(`${DC} 조치 계획`)
+  await gridC.waitFor({ state: 'visible' })
+  check('5-0 [모집단] C는 계획이 미리 있다(집계가 안 움직이는 축)',
+    (await gridC.inputValue()) === SEED_C, `⑤ 표 C='${await gridC.inputValue()}'`)
+
+  await gridC.fill(C_IN_GRID)
+  await gridC.blur()
+  check('5-1 ⑤에서 고친 문구가 DB에 저장됐다', await waitPlan(DC, C_IN_GRID))
+
+  await toStep(0).click()
+  await page.getByTestId('workbench-panes').waitFor({ state: 'visible' })
+  await openCard(idC)
+  await cardBox(idC).waitFor({ state: 'visible' })
+  for (let i = 0; i < 60 && (await cardBox(idC).inputValue()) !== C_IN_GRID; i++) await page.waitForTimeout(500)
+  await cardBox(idC).fill(C_IN_CARD)
+  await card(idC).getByRole('button', { name: /^저장/ }).first().click()
+  check('5-2 ① 카드에서 다시 고친 문구가 DB에 저장됐다', await waitPlan(DC, C_IN_CARD))
+
+  await toStep(4).click()
+  const gridC2 = page.getByLabel(`${DC} 조치 계획`)
+  await gridC2.waitFor({ state: 'visible' })
+  let cVal = ''
+  for (let i = 0; i < 60; i++) {
+    cVal = await gridC2.inputValue()
+    if (cVal === C_IN_CARD) break
+    await page.waitForTimeout(500)
+  }
+  check('★ 5-3 집계가 안 바뀌는 수정도 ⑤ 표에 반영된다(낡은 편집분이 안 이긴다)',
+    cVal === C_IN_CARD, `⑤ 표 C='${cVal}' / 기대='${C_IN_CARD}'(낡은 '${C_IN_GRID}'가 보이면 실패)`)
+
+  // ★ 가장 나쁜 축 — 그 칸을 **지나가기만** 해도 DB가 되돌아가는가
+  await gridC2.focus()
+  await gridC2.blur()
+  await page.waitForTimeout(3000)
+  check('★ 5-4 그 칸을 blur로 지나가도 DB가 되돌아가지 않는다(저장 소실 없음)',
+    (await dbPlan(DC)) === C_IN_CARD, `DB='${await dbPlan(DC)}' / 기대='${C_IN_CARD}'`)
 } catch (e) {
   check(`예외: ${(e as Error).message}`, false)
   console.log((e as Error).stack)
