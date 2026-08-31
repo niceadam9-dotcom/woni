@@ -78,6 +78,13 @@ const steps: Step[] = [
   // 래칫(아래 E2E)은 서버가 있어야 도는데 이 규약들은 소스만 보면 판정되므로 여기서 상시로 건다.
   // 독립 판정이 "규약은 있는데 고정하는 검사가 없다"고 지적한 자리다.
   { name: '대비 정적 규약(소방계획서_36)', cmd: 'npx tsx scripts/test-36-contrast-static.mts' },
+  // 소방계획서_35 DEF-D3 — 인쇄 소스가 **화면 배율 축과 분리돼 있는가**(S0-3). 35가 화면에
+  // --fs-*/text-form-* 토큰을 깔았으므로 인쇄물이 그걸 물면 법정 서식이 사용자 배율에 흔들린다.
+  // ⚠ 기준 sha는 **상수로 박혀 있다** — '지금 값'으로 매번 다시 잡으면 무엇을 해도 통과한다
+  //   ([[feedback_probe_baseline_pin]]). 검사 자체는 7/0이었는데 **untracked라 아무도 안 돌렸다**.
+  // ⚠ Next 런타임 밖이라 --conditions=react-server 필수(server-only 패키지) — 빼면 멀쩡한 검사가
+  //   '깨진 것'으로 보인다([[feedback_test_suite_run_flags]]).
+  { name: '인쇄 소스 배율 비의존(소방계획서_35)', cmd: 'npx tsx --conditions=react-server scripts/test-print-source-pin.mts' },
   // S4-2 — 불량표 입력이 **새로고침 없이** 칸 제목에 반영되는가 + reload 후 DB 대조.
   // 위험 ①(미리보기만 갱신되고 칸 제목이 굳어 '데이터가 갈라진 것처럼' 보이는 것)의 방어선.
   // S3 착수 **전에** 7/0을 확인하고 들어갔다 — 그래야 붉어진 것이 S3 탓이라고 말할 수 있다.
