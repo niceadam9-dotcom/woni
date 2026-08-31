@@ -64,16 +64,38 @@ console.log('— 소방계획서_36 대비 정적 규약')
   //    className이 삼항으로 여러 줄에 흐르면 가지 줄에는 `className=`이 없다 —
   //    그래서 이 커밋이 만든 반례(overdue-resolve-modal.tsx:112,
   //    `text-[#d0d0d0] dark:text-ink-meta`)를 검사가 **초록으로 통과시켰다**.
-  //    ①의 판정 단위는 줄이 아니라 '클래스 문자열'이므로 className= 요구를 뗀다.
-  //    ②(래칫)는 분모를 바꾸면 기준선을 다시 재야 하므로 술어를 그대로 둔다 —
-  //    두 검사는 목적이 다르다(①=신규 규약 위반 적발 / ②=기존 잔여 동결).
+  //    → className= 요구를 뗀다.
+  //
+  //    ⚠ **정정(2026-08-31 재판정)**: 한때 여기에 "①의 판정 단위는 줄이 아니라 '클래스
+  //    문자열'"이라 적었는데 **구현과 다르다**. 판정자가 한 클래스 문자열을 여러 줄로 쪼갠
+  //    변이(`className={['text-ink-meta', 'shadow-[0_0_0_1px_#d0d0d0]'].join(' ')}`)로 반증했다 —
+  //    단위는 여전히 **줄**이고 `className=` 요구만 제거된 것이다. 사각지대가 좁아졌을 뿐
+  //    같은 계열의 구멍이 남아 있다. 주석이 코드보다 큰 약속을 하면 그 주석이 거짓말이 된다.
+  //
+  //    🕳 **알려진 구멍 2개(침묵시키지 않는다)**
+  //      ⓐ ①은 줄 단위라 한 클래스 문자열이 여러 줄로 나뉘면 ink-meta+hex 공존을 놓친다.
+  //      ⓑ ②(래칫)는 `className=`이 같은 줄에 있는 hex만 센다 — 넓힌 술어로는 143건이라
+  //         **17건을 못 본다**. 그 17에 이 사달의 원인이 된 형태(overdue-resolve-modal의
+  //         다중행 삼항 가지)가 포함된다. 그래서 'ink-meta 없는 다중행 클래스 문자열에
+  //         새 hex를 넣는' 경로는 ①②' 어느 쪽도 안 잡는다.
+  //         분모를 넓히면 기준선을 다시 재야 하고 그건 이미 한 번(7→11) 데인 축이라
+  //         **의도적으로 유지**한다 — 다만 구멍으로 기록해 둔다.
+  //
+  //    ⚠ 거짓 양성 면(판정자 변이로 실증): className= 요구를 떼면 **주석**에 ink-meta와 hex를
+  //      함께 적기만 해도 붉어진다. 이 파일 자신의 위 주석이 그 패턴의 실물 표본이다.
+  //      그래서 주석 줄은 모집단에서 뺀다 — 규약은 코드에 거는 것이지 설명에 거는 게 아니다.
+  const isComment = (l: string) => /^\s*(\/\/|\/\*|\*)/.test(l)
   let legacy = 0
   for (const f of comp) {
     const src = readFileSync(f, 'utf8')
     src.split('\n').forEach((line, i) => {
-      // ① — className= 유무와 무관하게, ink-meta와 hex가 **한 클래스 문자열**에 같이 있으면 위반
-      if (line.includes('text-ink-meta') && /#[0-9a-fA-F]{6}/.test(line)) sameLine.push(`${rel(f)}:${i + 1}`)
-      // ② — 래칫 분모(범위 고정: className= 리터럴이 같은 줄에 있는 hex)
+      // ① — className= 유무와 무관하게, ink-meta와 hex가 같은 줄에 있으면 위반(주석 줄 제외)
+      if (!isComment(line) && line.includes('text-ink-meta') && /#[0-9a-fA-F]{6}/.test(line)) {
+        sameLine.push(`${rel(f)}:${i + 1}`)
+      }
+      // ② — 래칫 분모(범위 고정: className= 리터럴이 같은 줄에 있는 hex).
+      //     ⚠ 여기엔 주석 제외를 걸지 않는다 — 술어를 바꾸면 분모가 흔들려 기준선 129를
+      //       다시 재야 한다. 두 검사는 목적이 다르므로 술어도 따로 둔다.
       if (/className=[^\n]*#[0-9a-fA-F]{6}/.test(line)) legacy++
     })
   }

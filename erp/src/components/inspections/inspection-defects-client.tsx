@@ -129,6 +129,50 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
   const [planEnd, setPlanEnd] = useState(defect.action_end ?? '')
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
+  const router = useRouter()
+
+  /** F-24 2차 — 서버 값이 바뀌면 **사용자가 안 건드린 칸만** 따라간다.
+   *
+   *  이 컴포넌트는 위 useState들로 prop을 **초기화만** 한다. 마운트된 채로는 새 서버 값이
+   *  도착해도 칸이 낡은 채 남아, ⑤ 표에서 저장한 값이 ① 카드에 빈칸으로 보였다.
+   *
+   *  1차 수리는 부모가 서버 값으로 `key`를 만들어 통째로 remount시켰는데 **그게 타이핑을
+   *  버렸다**(독립 재판정이 단일 사용자 동선에서 실측). 갱신 왕복이 수 초라 서버 값이
+   *  바뀌는 시점과 타이핑 시점이 정면으로 겹친다 — remount는 그 창에서 입력을 조용히 지운다.
+   *
+   *  그래서 remount가 아니라 **dirty가 아닐 때만** 덮는다. dirty는 플래그가 아니라
+   *  '마지막으로 서버에서 받아 넣은 값과 지금 칸이 다른가'로 **파생**한다 — onChange 6곳에
+   *  플래그를 심으면 한 곳을 빠뜨리는 순간 다시 입력을 버린다([[feedback_fix_the_sibling_too]]).
+   *
+   *  ⚠ dirty는 **칸 단위**다. 카드 단위로 내리면 '조치 내용'을 타이핑하는 순간 '이행계획'
+   *  동기화까지 막혀, ⑤에서 저장한 계획이 ①에 영영 안 들어온다 — 고치려던 결함이 되살아난다. */
+  const sv = () => ({
+    plan: defect.action_plan ?? '', start: defect.action_start ?? '', end: defect.action_end ?? '',
+    taken: defect.action_taken ?? '', date: defect.action_completed_at ?? '',
+  })
+  const serverSig = Object.values(sv()).join('')
+  const localSig = [plan, planStart, planEnd, taken, date].join('')
+  const syncedRef = useRef(sv())
+  useEffect(() => {
+    const s = syncedRef.current
+    const next = sv()
+    /** 칸 하나를 동기화한다 — 서버가 바꿨고 **내가 안 건드렸을 때만**.
+     *  dirty인 칸은 기준선(s[k])도 그대로 둔다. 옮겨 두면 다음 회차에 '깨끗함'으로 오인돼
+     *  사용자가 고치던 값이 조용히 덮인다. */
+    const sync = (k: keyof typeof s, local: string, set: (v: string) => void) => {
+      if (next[k] === s[k] || local !== s[k]) return
+      s[k] = next[k]
+      set(next[k])
+    }
+    sync('plan', plan, setPlan)
+    sync('start', planStart, setPlanStart)
+    sync('end', planEnd, setPlanEnd)
+    sync('taken', taken, setTaken)
+    sync('date', date, setDate)
+    // 서버가 값을 실어 왔으면 접혀 있어도 펼친다 — 안 그러면 '들어왔는데 안 보인다'가 된다
+    if (next.plan || next.taken || next.date) setOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSig, localSig])
 
   // 기간이 뒤집혔는지는 타이핑 중에도 보여준다 — 저장을 눌러야 알게 되면 이미 늦다
   const rangeErr = dateRangeError(planStart, planEnd, '이행 기간')
@@ -138,6 +182,7 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
     // 서버(defect-actions)에도 같은 검사가 있다. 여기서 먼저 막는 건 왕복을 아끼려는 것일 뿐이라
     // 이 줄을 지워도 저장은 되지 않는다.
     if (rangeErr) { setMsg(`❌ ${rangeErr}`); return }
+    const sent = { plan, start: planStart, end: planEnd, taken, date }
     startTransition(async () => {
       const res = await updateDefectActionAction({
         defectId: defect.id, inspectionId,
@@ -145,6 +190,17 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
         actionPlan: plan, actionStart: planStart || null, actionEnd: planEnd || null,
       })
       setMsg(res.error ? `❌ ${res.error}` : '조치 내용을 저장했습니다.')
+      if (res.error) return
+      // 보낸 값을 '서버에서 받은 것'으로 친다 — 안 그러면 이 칸들이 영영 dirty로 남아
+      // 위 동기화가 다시는 안 돈다(그러면 ⑤에서 고친 값이 여기 못 들어온다).
+      syncedRef.current = sent
+      /** F-24 2차 — ① 카드는 **미러가 없다.** ⑤·⑥ 표는 부모가 쥔 defectsLocal·defectEdits로
+       *  자기 화면을 스스로 갱신하지만 이 카드에는 그런 장치가 없어, 여기서 저장한 값이
+       *  ⑤ 표에도 ①로 되돌아온 자신에게도 반영되지 않았다(독립 재판정이 단일변수 대조군으로
+       *  이 차수 귀책을 확정). S2-5가 서버 쪽 alsoChanged를 내린 대신 **부르는 쪽이 책임진다**는
+       *  규약이므로, 그 책임을 지지 않던 4번째 표면이 여기다.
+       *  ⚠ 트랜지션 **밖**에서 부른다(S3-1) — 안에서 부르면 RSC 도착까지 버튼이 잠긴다. */
+      setTimeout(() => router.refresh(), 0)
     })
   }
 
@@ -552,6 +608,9 @@ export function InspectionDefectsClient({
           return (
             <div
               key={defect.id}
+              /* 불량별 카드를 집을 수 있는 고리 — DefectGrid의 data-defect-row와 같은 규약.
+                 이게 없으면 카드가 여럿일 때 검사가 nth()로 순서에 기대게 된다. */
+              data-defect-card={defect.id}
               className={`border rounded-lg p-3 transition-opacity ${isDeleting ? 'opacity-50' : ''}`}
             >
               <div className="flex items-start gap-3">
@@ -631,16 +690,9 @@ export function InspectionDefectsClient({
                 )}
               </div>
 
-              {/* F-24 — key에 **서버 값**을 실어, 조치 데이터가 바뀌면 이 섹션을 다시 마운트한다.
-                  DefectActionSection은 :124-129에서 prop을 useState로 **초기화만** 하므로 마운트된
-                  채로는 새 서버 값이 도착해도 칸이 낡은 채 남는다 — ⑤ 표에서 저장하고 ①로 넘어오면
-                  방금 넣은 계획이 빈칸으로 보였던 것의 절반이 이것이다(나머지 절반은 갱신 자체의
-                  부재였고 inspection-workbench가 이탈 시 1회로 메운다. 둘 다 있어야 값이 보인다).
-                  key가 **서버 값에만** 반응하므로 타이핑 중에는 remount가 일어나지 않는다. */}
-              <DefectActionSection
-                key={[defect.action_plan, defect.action_start, defect.action_end,
-                      defect.action_taken, defect.action_completed_at].map(v => v ?? '').join('|')}
-                defect={defect} inspectionId={inspectionId} canEdit={canEdit} />
+              {/* F-24 2차 — 종전의 `key`로 remount시키던 수리는 **타이핑을 버려서** 철회했다.
+                  프로프 추종은 이제 DefectActionSection 안의 dirty 인지 동기화가 맡는다. */}
+              <DefectActionSection defect={defect} inspectionId={inspectionId} canEdit={canEdit} />
             </div>
           )
         })}
