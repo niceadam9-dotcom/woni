@@ -86,7 +86,7 @@ export function AddressMapModal({ customerName, address, onClose }: {
             loading="lazy"
           />
           {/* 프레임이 막히면 이 문구가 빈 화면 뒤에 남아 다음 행동을 알려준다 */}
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10px] text-ink-faint">
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10px] text-ink-meta">
             지도가 안 보이면 위 [새 창]으로 열어주세요
           </p>
         </div>

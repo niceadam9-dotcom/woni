@@ -11,7 +11,7 @@ import { completeStepAction } from '@/app/(dashboard)/inspections/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { stepInputLink } from '@/lib/inspection-step-links'
-import { kstDate } from '@/lib/kst-date'
+import { kstDate, todayKst } from '@/lib/kst-date'
 
 type StepInfo = {
   id: string; step_num: number; name_ko: string
@@ -52,7 +52,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
   const statusEditable = item.status === 'planned' || item.status === 'confirmed'
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayKst()
   const [scheduledDate,       setScheduledDate]       = useState(item.scheduled_date ?? todayStr)
   const [status,              setStatus]              = useState<PlanItemStatus>(item.status)
   const [notes,               setNotes]               = useState(item.notes ?? '')
@@ -181,7 +181,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
               {/* 고객 단위 필드 — 고객관리 > 점검계획일과 단일 소스 동기화 */}
               <div>
                 <label className="text-xs font-medium text-ink-sub mb-1 block">
-                  점검계획일 <span className="text-[10px] text-ink-faint font-normal">(계획 기산일 · 고객관리와 동기화)</span>
+                  점검계획일 <span className="text-[10px] text-ink-meta font-normal">(계획 기산일 · 고객관리와 동기화)</span>
                 </label>
                 <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper">
                   {canManage ? (
@@ -215,7 +215,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand disabled:bg-paper"
                 />
                 {canEdit && statusEditable && (
-                  <p className="text-[11px] text-ink-faint mt-1">
+                  <p className="text-[11px] text-ink-meta mt-1">
                     점검일 저장 시 자동으로 <b className="text-brand">확정</b>되고 1~6단계 일정이 재계산됩니다
                   </p>
                 )}
@@ -226,9 +226,9 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 <label className="text-xs font-medium text-ink-sub mb-1 block">담당직원</label>
                 <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper flex items-center justify-between">
                   <span className="text-ink">
-                    {(item.profiles as { name: string } | null)?.name ?? <span className="text-ink-faint">미배정</span>}
+                    {(item.profiles as { name: string } | null)?.name ?? <span className="text-ink-meta">미배정</span>}
                   </span>
-                  <span className="text-[10px] text-ink-faint">고객관리에서 변경</span>
+                  <span className="text-[10px] text-ink-meta">고객관리에서 변경</span>
                 </div>
               </div>
 
@@ -250,7 +250,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                       ))}
                     </select>
                     {item.inspection_id ? (
-                      <p className="text-[11px] text-ink-faint mt-1">
+                      <p className="text-[11px] text-ink-meta mt-1">
                         점검이 시작된 항목은 <b>계획</b>으로 되돌릴 수 없습니다
                       </p>
                     ) : item.status === 'confirmed' && status === 'planned' ? (
@@ -259,7 +259,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                         저장 시 확정이 해제되고 1~6단계 일정이 초기화됩니다
                       </p>
                     ) : item.status === 'confirmed' ? (
-                      <p className="text-[11px] text-ink-faint mt-1">
+                      <p className="text-[11px] text-ink-meta mt-1">
                         점검 시작 전에는 <b>계획</b>으로 되돌릴 수 있습니다 (해제 시 1~6단계 일정 초기화)
                       </p>
                     ) : null}
@@ -267,7 +267,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 ) : (
                   <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper flex items-center justify-between">
                     <span className="text-ink">{STATUS_READONLY_LABEL[item.status]}</span>
-                    <span className="text-[10px] text-ink-faint">
+                    <span className="text-[10px] text-ink-meta">
                       {item.status === 'completed' ? '점검 완료 시 자동 전환' : '수동 변경 불가'}
                     </span>
                   </div>
@@ -369,7 +369,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 <div className="space-y-2">
                   {steps.map(step => {
                     const done = step.status === 'completed'
-                    const overdue = !done && step.due_date && step.due_date < new Date().toISOString().split('T')[0]
+                    const overdue = !done && step.due_date && step.due_date < todayKst()
                     // 현재 진행 단계(미완료 중 가장 낮은 step_num)에만 [사유 완료] 표시
                     const isCurrent = !done && steps.every(s => s.step_num >= step.step_num || s.status === 'completed')
                     // [입력]은 모든 미완료 단계에 — 서버는 R4-4에서 순서 강제를 폐지했다(달력 패널과 같은 규칙)

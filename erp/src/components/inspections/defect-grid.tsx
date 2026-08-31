@@ -25,10 +25,12 @@ export type GridDefect = {
   action_completed_at: string | null
 }
 
-type Row = {
+export type Row = {
   actionPlan: string; actionStart: string; actionEnd: string
   actionTaken: string; actionCompletedAt: string
 }
+/** 표의 편집분. **부모가 들고 있어야 한다** — 이유는 DefectGrid의 `edits` 주석 참조(F-21). */
+export type DefectEdits = Record<string, Partial<Row>>
 
 const toRow = (d: GridDefect): Row => ({
   actionPlan: d.action_plan ?? '', actionStart: d.action_start ?? '', actionEnd: d.action_end ?? '',
@@ -44,7 +46,7 @@ const SEV_CLS: Record<string, string> = {
  *    planned = action_plan 또는 action_start가 있는 건 · done = action_completed_at이 있는 건 */
 export type DefectTally = { planned: number; done: number; total: number }
 
-export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPhotoDone }: {
+export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPhotoDone, edits: editsProp, onEditsChange }: {
   defects: GridDefect[]
   inspectionId: string
   canEdit: boolean
@@ -58,9 +60,27 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
    *  사진은 planned/done을 바꾸지 않고 photoPairs(서버 계산)만 바꾼다. 희소 경로라
    *  (실측 업로드 8.4초·연 몇 회) 여기서는 서버 갱신을 그대로 두는 편이 옳다. */
   onPhotoDone?: () => void
+  /** 🔴 F-21 — 편집분을 **부모가** 들고 있게 한다(제어 컴포넌트).
+   *
+   *  왜: ⑤·⑥ pane은 `sel === …` 조건부 렌더라 단계를 바꾸면 이 컴포넌트가 **언마운트**된다.
+   *  edits가 여기 있으면 그 순간 사라지고, 화면에는 서버 prop `defects`만 남는다.
+   *  그런데 S3-7이 셀 저장마다 돌던 `router.refresh()`를 걷어낸 뒤로 그 prop은 **세션 내내
+   *  갱신되지 않는다**(revalidatePath는 캐시를 무효화할 뿐, 이미 마운트된 클라이언트 트리에
+   *  새 props를 밀어 넣지 않는다). 결과: **방금 저장한 조치계획이 단계를 바꾸면 사라진다.**
+   *  ⚠ F-21은 이 위험을 예고하면서 "지금은 alsoChanged:true라 산다"고 적었는데 **그 진단은
+   *  틀렸다** — 대조군 검사(test-workbench-defect-pane-switch.mts)를 현행 코드에 돌리니
+   *  이미 붉었다. 즉 예고된 사고가 아니라 **이미 난 사고**였다.
+   *  주지 않으면 지역 state로 동작한다(다른 호출부가 생겨도 깨지지 않게). */
+  edits?: DefectEdits
+  onEditsChange?: (next: DefectEdits) => void
 }) {
   /** 편집분만 들고 있고 나머지는 서버 값을 그대로 읽는다 — 사본을 만들면 refresh와 어긋난다 */
-  const [edits, setEdits] = useState<Record<string, Partial<Row>>>({})
+  const [ownEdits, setOwnEdits] = useState<DefectEdits>({})
+  const edits = editsProp ?? ownEdits
+  const setEdits = (fn: (prev: DefectEdits) => DefectEdits) => {
+    if (editsProp && onEditsChange) onEditsChange(fn(editsProp))
+    else setOwnEdits(fn)
+  }
   const [saving, setSaving] = useState<string | null>(null)
   const [justSaved, setJustSaved] = useState<Record<string, boolean>>({})
   const [err, setErr] = useState('')
@@ -163,7 +183,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
                 <td className="px-1 py-1">
                   <span className={`mr-1 inline-block rounded px-1 py-px text-[9px] ${SEV_CLS[d.severity] ?? 'bg-paper text-ink-sub'}`}>{d.severity}</span>
                   <span className="text-ink">{d.defect_name}</span>
-                  {d.defect_detail && <span className="block truncate text-[10px] text-ink-faint">{d.defect_detail}</span>}
+                  {/* S7-1 4차 — 불량 상세는 '무엇을 고쳐야 하는지'다. 같은 파일에서 두 곳을 올리며
+                      이것만 빠뜨렸던 자리(독립 판정이 '이웃 누락'으로 지적) */}
+                  {d.defect_detail && <span className="block truncate text-[10px] text-ink-meta">{d.defect_detail}</span>}
                   <span className="inline-flex h-3 items-center gap-1">
                     {saving === d.id && <Loader2 className="size-2.5 animate-spin text-brand" />}
                     {justSaved[d.id] && saving !== d.id && <span className="text-[9px] text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}

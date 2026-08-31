@@ -65,7 +65,7 @@ export function PlanForm16({ customerId, canManage, initial }: {
   const chip = (on: boolean) => `h-form-6 px-2 rounded-full text-form-xs border transition-colors ${
     on ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`
   const field = (label: string, node: React.ReactNode) => (
-    <div><label className="text-form-2xs text-ink-faint block">{label}</label>{node}</div>
+    <div><label className="text-form-2xs text-ink-meta block">{label}</label>{node}</div>
   )
 
   return (

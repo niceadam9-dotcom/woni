@@ -9,6 +9,7 @@ import {
   type QuoteItem,
 } from '@/app/(dashboard)/quotes/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 type Customer = { id: string; customer_name: string; customer_code: string }
 type Quote = {
@@ -119,7 +120,7 @@ function QuoteModal({
   onDone: () => void
 }) {
   const [customerId, setCustomerId] = useState('')
-  const [quoteDate, setQuoteDate]   = useState(new Date().toISOString().split('T')[0])
+  const [quoteDate, setQuoteDate]   = useState(todayKst())
   const [validUntil, setValidUntil] = useState('')
   const [items, setItems] = useState<QuoteItem[]>([
     { description: '', quantity: 1, unit_price: 0, amount: 0 },

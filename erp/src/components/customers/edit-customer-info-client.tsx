@@ -219,10 +219,10 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         {field('점검유형',
           <div className="flex items-center gap-1.5 h-9">
             {typeSlot}
-            {annualLabel && <span className="text-[10px] text-ink-faint">{annualLabel}</span>}
+            {annualLabel && <span className="text-[10px] text-ink-meta">{annualLabel}</span>}
           </div>
         )}
-        {field(<>점검계획일 {req} <span className="text-[10px] text-ink-faint font-normal">(기산일)</span></>,
+        {field(<>점검계획일 {req} <span className="text-[10px] text-ink-meta font-normal">(기산일)</span></>,
           <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis} className={inputCls} />
         )}
         {field(<>고객명 {req}</>,
@@ -237,7 +237,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         {field(<>관할 소방서 {req}</>,
           <input id="cf-station" type="text" value={form.fire_station} onChange={e => set('fire_station', e.target.value)} disabled={dis} placeholder="예: 양평소방서" className={inputCls} />
         )}
-        {field(<>점검료 <span className="text-[10px] text-ink-faint font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,
+        {field(<>점검료 <span className="text-[10px] text-ink-meta font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,
           <input readOnly value={feeStr} className={readonlyCls} title="편집은 청구·수금 화면에서" />
         )}
         {/* 주소 — 검색은 즉시 저장·전파, 도로명은 수기 보정 가능 */}
@@ -283,7 +283,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             </button>
           </>
         ) : (
-          lastChangeText && <span className="text-[11px] text-ink-faint truncate">최근 변경: {lastChangeText}</span>
+          lastChangeText && <span className="text-[11px] text-ink-meta truncate">최근 변경: {lastChangeText}</span>
         )}
       </div>
 

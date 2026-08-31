@@ -20,7 +20,7 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
       // 주소를 읽는 것과 "거기가 어디쯤인가"는 다른 일이다(S5-7 확산)
       value: address ? (
         <span>{address} <AddressMapButton customerName={customerName} address={address} /></span>
-      ) : <span className="text-ink-faint">미입력</span>,
+      ) : <span className="text-ink-meta">미입력</span>,
     },
     {
       icon: <UserCheck className="size-3.5" />, label: '담당',
@@ -43,7 +43,7 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
     },
     {
       icon: <ClipboardList className="size-3.5" />, label: '최근 점검',
-      value: lastInspectionDate ?? <span className="text-ink-faint">없음</span>,
+      value: lastInspectionDate ?? <span className="text-ink-meta">없음</span>,
     },
   ]
   return (
@@ -52,9 +52,9 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
         <p className="text-xs font-semibold text-ink-sub">고객 요약</p>
         {rows.map(r => (
           <div key={r.label} className="flex items-start gap-2">
-            <span className="text-ink-faint mt-0.5 shrink-0">{r.icon}</span>
+            <span className="text-ink-meta mt-0.5 shrink-0">{r.icon}</span>
             <div className="min-w-0">
-              <p className="text-[10px] text-ink-faint">{r.label}</p>
+              <p className="text-[10px] text-ink-meta">{r.label}</p>
               <p className="text-xs text-ink break-words">{r.value}</p>
             </div>
           </div>

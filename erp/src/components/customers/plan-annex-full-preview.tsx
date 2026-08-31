@@ -51,7 +51,7 @@ export function PlanAnnexFullPreview({
             <p className="font-semibold text-sm text-ink">
               {state.label} — {only ? `${only.label} 보기` : '전체 미리보기'}
             </p>
-            <button onClick={close} className="ml-auto text-ink-faint hover:text-ink-sub">✕</button>
+            <button onClick={close} className="ml-auto text-ink-meta hover:text-ink-sub">✕</button>
           </div>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]">
             <button onClick={() => setState(p => p && { ...p, only: undefined })}
@@ -110,7 +110,7 @@ export function PlanAnnexFullPreview({
               <span className="text-green-700 font-medium">✅ 제출 준비 완료 — 빈칸 없음</span>
             )}
             {allLoaded && totalMissing > 0 && (
-              <span className="text-ink-faint">미입력 총 {totalMissing}곳 — 본문 노란 하이라이트 확인</span>
+              <span className="text-ink-meta">미입력 총 {totalMissing}곳 — 본문 노란 하이라이트 확인</span>
             )}
           </div>
         </div>

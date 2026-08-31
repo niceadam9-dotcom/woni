@@ -79,7 +79,7 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
   if (err) return <p className="py-1.5 text-[11px] text-amber-600">{err}</p>
   if (!ov) {
     return (
-      <p className="py-1.5 text-[11px] text-ink-faint inline-flex items-center gap-1">
+      <p className="py-1.5 text-[11px] text-ink-meta inline-flex items-center gap-1">
         {/* 완료 문구('설비별 진행 N/M')와 접두사가 겹치면 상태 구분이 어렵다 — 다른 어휘로 */}
         <Loader2 className="size-3 animate-spin" /> 점검표 설비 목록을 불러오는 중…
       </p>
@@ -116,13 +116,13 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
         {ov.noFacilityInfo && (
           <span className="text-[10px] text-amber-600">설치 시설 정보가 없어 전체 시트를 표시합니다 — 1.4에서 등록하세요</span>
         )}
-        {!editable && <span className="text-[10px] text-ink-faint">보기 전용 — 담당자·팀장만 입력</span>}
+        {!editable && <span className="text-[10px] text-ink-meta">보기 전용 — 담당자·팀장만 입력</span>}
         <button onClick={load} disabled={isLoading} className="ml-auto text-[10px] text-ink-faint hover:text-brand inline-flex items-center gap-0.5 disabled:opacity-50">
           <RefreshCw className={`size-2.5 ${isLoading ? 'animate-spin' : ''}`} /> 갱신
         </button>
       </div>
 
-      {rows.length === 0 && <p className="text-[11px] text-ink-faint py-1">표시할 설비 시트가 없습니다.</p>}
+      {rows.length === 0 && <p className="text-[11px] text-ink-meta py-1">표시할 설비 시트가 없습니다.</p>}
 
       {/* 시트 행이 곧 딥링크 — 클릭하면 전용 화면의 그 설비가 열린다("어디서 채우나"가 한 번에 풀린다) */}
       <div className="space-y-0.5">

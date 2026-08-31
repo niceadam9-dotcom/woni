@@ -219,7 +219,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
 
   if (err) return <p className="py-6 text-sm text-red-600">{err} — 권한이 없거나 일시 오류입니다.</p>
   if (!entries) {
-    return <p className="py-6 text-sm text-ink-faint inline-flex items-center gap-1.5"><Loader2 className="size-4 animate-spin" /> 공통문구를 불러오는 중…</p>
+    return <p className="py-6 text-sm text-ink-meta inline-flex items-center gap-1.5"><Loader2 className="size-4 animate-spin" /> 공통문구를 불러오는 중…</p>
   }
 
   const emptyCount = noDefault.length
@@ -237,9 +237,9 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
               return (
                 <a key={def.key} href={`#sec-${def.key}`}
                   className="flex items-center gap-1.5 h-7 px-2 rounded-lg text-[11px] text-ink-sub hover:bg-brand-tint">
-                  <span className={has ? 'text-amber-500' : 'text-ink-faint'}>{has ? '⭐' : '○'}</span>
+                  <span className={has ? 'text-amber-500' : 'text-ink-meta'}>{has ? '⭐' : '○'}</span>
                   <span className="truncate">{def.label}</span>
-                  <span className="ml-auto text-[10px] text-ink-faint">{n}</span>
+                  <span className="ml-auto text-[10px] text-ink-meta">{n}</span>
                 </a>
               )
             })}
@@ -293,7 +293,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                 <section key={def.key} id={`sec-${def.key}`} className="scroll-mt-4 rounded-xl border border-line bg-surface">
                   {/* 섹션 헤더 — 대안 문구 드롭다운 + ⭐ 승격 (R1-6) */}
                   <div className="flex items-center gap-2 flex-wrap border-b border-brand-tint px-4 py-2.5">
-                    <span className={hasDefault ? 'text-amber-500' : 'text-ink-faint'}>{hasDefault ? '⭐' : '○'}</span>
+                    <span className={hasDefault ? 'text-amber-500' : 'text-ink-meta'}>{hasDefault ? '⭐' : '○'}</span>
                     <h2 className="text-sm font-semibold text-ink">{def.label}</h2>
                     {!hasDefault && <span className="text-[10px] text-amber-600">기본문구 없음 — 자동주입 대상 아님</span>}
 
@@ -359,7 +359,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                           <input value={d?.title ?? ''} disabled={isBusy}
                             onChange={e => setDraftFor(def.key, { title: e.target.value })}
                             className="h-8 flex-1 basis-48 min-w-0 rounded-lg border border-brand-line px-2.5 text-xs outline-none focus:border-brand" />
-                          <span className="text-[10px] text-ink-faint">개정 v{cur.version} · {cur.updatedAt}</span>
+                          <span className="text-[10px] text-ink-meta">개정 v{cur.version} · {cur.updatedAt}</span>
                         </div>
 
                         <PlanTextBodyEditor def={def} value={d?.body} disabled={isBusy}
@@ -385,7 +385,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                         {usage[cur.id] && (
                           <div className="rounded-lg border border-brand-tint bg-brand-tint p-2">
                             {usage[cur.id].length === 0 ? (
-                              <p className="text-[11px] text-ink-faint">아직 가져간 고객이 없습니다.</p>
+                              <p className="text-[11px] text-ink-meta">아직 가져간 고객이 없습니다.</p>
                             ) : (
                               <div className="space-y-1">
                                 {usage[cur.id].map(u => (
@@ -393,14 +393,14 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                                     <Link href={`/customers/${u.customerId}?tab=plan&form=${formAnchor(def.key)}`}
                                       className="text-brand hover:underline truncate max-w-[14rem]">{u.customerName}</Link>
                                     <span className="text-[10px] text-ink-soft">{u.source === 'default' ? '자동주입' : '가져오기'}</span>
-                                    <span className="text-[10px] text-ink-faint">v{u.version} · {u.appliedAt}</span>
+                                    <span className="text-[10px] text-ink-meta">v{u.version} · {u.appliedAt}</span>
                                     {u.stale && (
                                       <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700"
                                         title="가져간 뒤 공통문구가 개정되었습니다 — 반영은 고객 화면에서 개별로">개정됨</span>
                                     )}
                                   </div>
                                 ))}
-                                <p className="pt-1 text-[10px] text-ink-faint">조회 전용 — 일괄 덮어쓰기는 제공하지 않습니다(제출 문서·고객 수정분 보호).</p>
+                                <p className="pt-1 text-[10px] text-ink-meta">조회 전용 — 일괄 덮어쓰기는 제공하지 않습니다(제출 문서·고객 수정분 보호).</p>
                               </div>
                             )}
                           </div>

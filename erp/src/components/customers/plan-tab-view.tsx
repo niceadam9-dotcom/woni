@@ -346,7 +346,7 @@ export function PlanTabView({
                 className="ml-auto inline-flex items-center gap-1 h-form-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium shrink-0 disabled:opacity-50">
                 {isImportPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 가져오기
               </button>
-              <button onClick={() => setImportHidden(true)} className="h-form-7 px-2 rounded-lg text-form-xs text-ink-faint hover:text-ink-sub shrink-0">닫기</button>
+              <button onClick={() => setImportHidden(true)} className="h-form-7 px-2 rounded-lg text-form-xs text-ink-meta hover:text-ink-sub shrink-0">닫기</button>
             </div>
           )}
 
@@ -363,7 +363,7 @@ export function PlanTabView({
             const full = v.done >= v.total
             return <span className={`ml-auto text-form-2xs shrink-0 ${full ? 'text-green-600' : 'text-amber-600'}`}>{full ? '✓' : `${v.done}/${v.total}`}</span>
           }
-          return <span className={`ml-auto text-form-2xs shrink-0 ${v ? 'text-green-600' : 'text-ink-faint'}`}>{v ? '✓' : '○'}</span>
+          return <span className={`ml-auto text-form-2xs shrink-0 ${v ? 'text-green-600' : 'text-ink-meta'}`}>{v ? '✓' : '○'}</span>
         }
         // data-plan-node/aria-current: 어느 노드가 실제로 선택됐는지 보이는 구조적 표식.
         // 없을 때는 딥링크 검사가 URL 문자열(?form=annex)밖에 볼 수 없어, 링크의 form 값을
@@ -399,7 +399,7 @@ export function PlanTabView({
             {/* ⚡ 빠른 입력 노드 폐기(2026-08-06) — 랜딩은 1.1 일반현황, 송달 동의는 1.1 하단으로 이관 */}
             <div>
               <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft flex items-center">📘 소방계획서 본문
-                <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-ink-faint'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
+                <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-ink-meta'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
               </p>
               {CH1_FORMS.map(f => navBtn(f.key, f.label, true))}
               {navBtn('ch2', '2장 자위소방대', true)}

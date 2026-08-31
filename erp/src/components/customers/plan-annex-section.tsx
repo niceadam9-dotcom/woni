@@ -259,7 +259,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     return <p className="text-xs text-red-600 py-4">{loadErr} — 권한이 없거나 일시 오류입니다.</p>
   }
   if (!data) {
-    return <p className="text-xs text-ink-faint py-4 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 회차를 불러오는 중…</p>
+    return <p className="text-xs text-ink-meta py-4 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 회차를 불러오는 중…</p>
   }
 
   // S2: 진행 중·예정만 카드로 펼쳐 두고 완료 회차는 접힘 섹션으로 내린다.
@@ -283,10 +283,10 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
           {loading ? <Loader2 className="size-3.5 text-ink-faint shrink-0 animate-spin" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
           <span className="text-xs font-semibold text-ink">{r.year}년 {r.sequenceNum}차</span>
-          {lite?.endDate && <span className="text-[11px] text-ink-faint">완료 {lite.endDate.slice(5, 10)}</span>}
+          {lite?.endDate && <span className="text-[11px] text-ink-meta">완료 {lite.endDate.slice(5, 10)}</span>}
           <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 bg-green-50 text-green-700">완료</span>
           {lite && (
-            <span className="text-[10px] text-ink-faint shrink-0" title="생성 이력 기준 — 과거본 정리로 파일이 없을 수 있습니다">
+            <span className="text-[10px] text-ink-meta shrink-0" title="생성 이력 기준 — 과거본 정리로 파일이 없을 수 있습니다">
               ④{lite.generated.report4 ? '✓' : '·'} ⑨{lite.generated.report9 ? '✓' : '·'}
               {lite.defectsTotal > 0 && <> ⑩{lite.generated.report10 ? '✓' : '·'} ⑪{lite.generated.report11 ? '✓' : '·'}</>}
               {' '}불량 {lite.defectsTotal}
@@ -321,13 +321,13 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
   return (
     <div className="space-y-3">
       {/* 그룹 머리 안내 (D-18) — 입력은 원천 한 곳 원칙 */}
-      <p className="text-[11px] text-ink-faint">
+      <p className="text-[11px] text-ink-meta">
         별지는 입력한 데이터로 자동 생성됩니다 — 점검표는 이 화면에서 설비별로 바로 입력할 수 있고(저장 위치는 점검 상세와 동일),
         나머지 입력은 설비 대장(1.4)·9호 ③(작성 패널)
       </p>
 
       {rounds.length === 0 && (
-        <p className="text-xs text-ink-faint py-4 text-center">
+        <p className="text-xs text-ink-meta py-4 text-center">
           자체점검 회차가 없습니다 — 연간 계획 생성 후 자동으로 나타납니다 (<Link href="/inspection-plans" className="text-brand hover:underline">점검계획</Link>)
         </p>
       )}
@@ -341,13 +341,13 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
             className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-ink-soft hover:bg-brand-tint rounded-lg">
             {pastOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
             지난 회차 {pastRounds.length}건
-            {!pastOpen && <span className="text-ink-faint font-normal">— 완료된 회차입니다 (펼치면 조회·인쇄 가능)</span>}
+            {!pastOpen && <span className="text-ink-meta font-normal">— 완료된 회차입니다 (펼치면 조회·인쇄 가능)</span>}
           </button>
           {pastOpen && (
             <div className="mt-1.5 space-y-3">
               {pastYears.map(([year, list]) => (
                 <div key={year} className="space-y-1.5">
-                  <p className="px-2 text-[10px] font-semibold text-ink-faint">{year}년 · {list.length}건</p>
+                  <p className="px-2 text-[10px] font-semibold text-ink-meta">{year}년 · {list.length}건</p>
                   {list.map(r => expanded.has(roundKey(r)) || r.docs
                     ? renderCard(r)
                     : renderPastSummary(r))}

@@ -9,6 +9,7 @@ import {
   type VoucherLine,
 } from '@/app/(dashboard)/accounting/vouchers/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 type AccountCode = { id: string; code: string; name: string; account_type: string }
 type VoucherLineRow = {
@@ -120,7 +121,7 @@ function VoucherModal({
   onClose: () => void
   onDone: () => void
 }) {
-  const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0])
+  const [voucherDate, setVoucherDate] = useState(todayKst())
   const [voucherType, setVoucherType] = useState('대체')
   const [description, setDescription] = useState('')
   const [lines, setLines] = useState<VoucherLine[]>([

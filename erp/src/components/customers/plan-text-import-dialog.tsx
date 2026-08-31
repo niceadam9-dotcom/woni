@@ -107,7 +107,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
             <div className="space-y-1.5">
               <p className="text-[11px] text-ink-soft">
                 서술이 있는 섹션 {selectable.length}개 · 선택 {checkedCount}개
-                {rows.length - selectable.length > 0 && <span className="text-ink-faint"> (빈 섹션 {rows.length - selectable.length}개는 가져올 수 없습니다)</span>}
+                {rows.length - selectable.length > 0 && <span className="text-ink-meta"> (빈 섹션 {rows.length - selectable.length}개는 가져올 수 없습니다)</span>}
               </p>
               {rows.map(r => {
                 const st = state[r.sectionKey]
@@ -119,7 +119,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
                         className="size-3.5" />
                       <span className="text-xs font-medium text-ink">{r.label}</span>
                       {r.empty
-                        ? <span className="text-[10px] text-ink-faint">이 고객에 서술 없음</span>
+                        ? <span className="text-[10px] text-ink-meta">이 고객에 서술 없음</span>
                         : <span className="text-[11px] text-ink-soft truncate max-w-[22rem]">{r.preview}</span>}
                     </div>
                     {!r.empty && st?.checked && (
@@ -146,7 +146,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
         </div>
 
         <div className="px-5 py-3 border-t border-brand-line-soft shrink-0 flex items-center gap-2">
-          <p className="text-[10px] text-ink-faint">기존 항목을 덮어쓰지 않고 새 항목으로 등록합니다.</p>
+          <p className="text-[10px] text-ink-meta">기존 항목을 덮어쓰지 않고 새 항목으로 등록합니다.</p>
           <button onClick={onClose} disabled={isBusy}
             className="ml-auto h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">취소</button>
           <button onClick={run} disabled={isBusy || checkedCount === 0}

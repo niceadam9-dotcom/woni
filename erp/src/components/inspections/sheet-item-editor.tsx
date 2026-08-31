@@ -90,12 +90,15 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
               }}
                 aria-label={`${it.item_code} ${r}`}
                 title={on ? '다시 누르면 미점검(공란)으로' : undefined}
-                /* S5-5 — 미선택 O/X의 ink-faint는 **의도적으로 유지**한다(무엇을 안 바꾸는지도 기록).
-                   이건 '읽어야 하는 정보'가 아니라 진짜 비활성 표현이고, 큰 글리프라
-                   장식 규약에 맞다. 여기까지 ink-meta로 올리면 미선택이 선택처럼 보인다. */
+                /* F-22 정정 — 종전 S5-5는 이 자리를 '진짜 비활성이라 AA 비대상'이라며 남겼는데
+                   **그 논거가 틀렸다**(독립 판정 지적): ①`disabled`가 아니라 누르면 값이 기록되는
+                   **활성 컨트롤**이고(WCAG 1.4.3의 예외는 inactive component뿐) ②'큰 글리프'라는
+                   논거도 이 차수 프로브 자신의 큰텍스트 임계(≥24px 또는 ≥18.66px+bold)에 미달한다.
+                   'ink-meta로 올리면 선택처럼 보인다'는 우려도 과했다 — 선택 상태는 **채워진
+                   초록/빨강 배경**(activeCls)으로 구별되지 글자 대비로 구별되는 게 아니다. */
                 className={`size-sheet-mark rounded-lg text-form-base font-bold transition-colors ${on
                   ? activeCls(r)
-                  : 'bg-brand-tint text-ink-faint hover:bg-brand-tint'}`}>
+                  : 'bg-brand-tint text-ink-meta hover:bg-brand-tint'}`}>
                 {mark(r)}
               </button>
             )

@@ -189,7 +189,7 @@ export function CustomerCombobox({
                   )}
                 >
                   <span>{c.customer_name}</span>
-                  <span className={cn('text-xs ml-2 shrink-0', isActive ? 'text-white/70' : 'text-ink-faint')}>
+                  <span className={cn('text-xs ml-2 shrink-0', isActive ? 'text-white/70' : 'text-ink-meta')}>
                     {sub(c)}
                   </span>
                 </li>

@@ -56,6 +56,39 @@ console.log('\n— todayKst: 고정 시각 주입으로 판정')
 eq('주입 22:39Z', todayKst(Date.parse('2026-08-29T22:39:00Z')), '2026-08-30')
 eq('주입 02:00Z', todayKst(Date.parse('2026-08-29T02:00:00Z')), '2026-08-29')
 
+console.log("\n— F-14 잔여 축: 오프셋 형태(todayKst(Date.now() + N))가 기준일과 갈라지지 않는다")
+{
+  // layout.tsx(뱃지 D+3)·inspections/page.tsx(D+7)는 '오늘'과 오프셋 날짜를 **함께** 쓴다.
+  // 한쪽만 KST로 옮기면 두 기준이 갈라져 뱃지가 하루치 어긋난다 — 그 짝을 여기서 고정한다.
+  const base = Date.parse('2026-08-29T22:39:00Z') // = KST 08-30 07:39, 결함이 드러나는 창
+  eq('기준일', todayKst(base), '2026-08-30')
+  eq('D+3', todayKst(base + 3 * 86400000), '2026-09-02')
+  eq('D+7', todayKst(base + 7 * 86400000), '2026-09-06')
+  // 종전 UTC 방식이었다면 셋 다 하루 이르다 — 그 차이를 서명으로 박는다
+  const utc = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+  check('종전 UTC 방식은 짝 전체가 하루 이르다(회귀 서명)',
+    utc(base) === '2026-08-29' && utc(base + 3 * 86400000) === '2026-09-01',
+    `utc=${utc(base)} / ${utc(base + 3 * 86400000)}`)
+  // 월 경계 — 달력 배너가 쓰는 slice(0,7) 축
+  eq('월 축(KST)', todayKst(Date.parse('2026-08-31T22:00:00Z')).slice(0, 7), '2026-09')
+}
+
+console.log('\n— 이미 KST인 관용구를 건드리면 안 된다(9시간 이중 가산 방지)')
+{
+  // 크론 5종·별지 조립 등 12곳은 `new Date(Date.now() + 9*3600_000)`으로 **이미 옳다**.
+  // 최초 코드모드가 이걸 todayKst(Date.now() + 9*3600_000)으로 바꿀 뻔했다 → 18시간이 된다.
+  const t = Date.parse('2026-08-29T22:39:00Z')
+  const already = new Date(t + 9 * 3600_000).toISOString().slice(0, 10)
+  eq('기존 관용구와 todayKst()는 같은 답', already, todayKst(t))
+  // ⚠ 이중 가산이 **실제로 하루를 밀어내는** 시각을 골라야 한다. 처음엔 위 t를 그대로 썼는데
+  //   그 시각에는 9시간을 두 번 더해도 날짜가 안 바뀌어, '위험하다'고 적어놓고 **위험을 보여주지
+  //   못하는** 단언이 됐다(통과하지만 무의미). 밀리는 창은 t+9h가 UTC 15:00~24:00일 때다.
+  const t2 = Date.parse('2026-08-30T08:00:00Z') // = KST 08-30 17:00
+  eq('올바른 답(9시간 한 번)', todayKst(t2), '2026-08-30')
+  eq('이중 가산은 하루 늦다(코드모드가 낼 뻔한 값)',
+    new Date(t2 + 18 * 3600_000).toISOString().slice(0, 10), '2026-08-31')
+}
+
 // ── 정적 가드: 타임스탬프를 문자열로 잘라 날짜로 쓰는 자리가 되살아나지 못하게 한다.
 //    F-10 교훈 — 잡아주는 검사가 없는 규약은 조용히 썩는다.
 console.log('\n— 정적 가드: UTC 타임스탬프를 split으로 자르는 자리 0곳')
@@ -78,6 +111,22 @@ console.log('\n— 정적 가드: UTC 타임스탬프를 split으로 자르는 �
     })
   }
   check('타임스탬프 .split(\'T\') 직접 사용 0곳 — kstDate()를 쓸 것', hits.length === 0, hits.join(' · '))
+
+  // ── F-14 **잔여 축**: '오늘'을 UTC로 구하는 자리(2026-08-30 신설).
+  //    위 가드는 '저장된 타임스탬프를 자르는 것'만 봤고 이 축은 "별개"라며 비워 뒀는데,
+  //    실측해 보니 그 비워 둔 축에 **26곳**이 있었다(폼 기본값·마감 판정·뱃지·달력).
+  //    ⚠ `new Date(Date.now() + 9*3600_000)...`은 **잡지 않는다** — 그건 이미 KST를
+  //      올바르게 구하는 관용구이고(크론 5종·별지 조립 등 12곳), 여기에 걸어 todayKst()로
+  //      바꾸면 9시간이 **두 번** 더해진다. 실제로 최초 코드모드가 그럴 뻔했다.
+  const BARE = /new Date\(\)\.toISOString\(\)\.(?:split\('T'\)\[0\]|slice\(0,\s*(?:10|7)\))/
+  const bare: string[] = []
+  for (const f of walk(join(process.cwd(), 'src'))) {
+    if (f.endsWith(SELF)) continue
+    readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      if (BARE.test(line)) bare.push(`${f.replace(process.cwd(), '.')}:${i + 1}`)
+    })
+  }
+  check("'오늘'을 UTC로 구하는 자리 0곳 — todayKst()를 쓸 것", bare.length === 0, bare.join(' · '))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

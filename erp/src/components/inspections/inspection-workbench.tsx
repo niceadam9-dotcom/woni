@@ -32,7 +32,7 @@ import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
-import { DefectGrid, type GridDefect } from '@/components/inspections/defect-grid'
+import { DefectGrid, type GridDefect, type DefectEdits } from '@/components/inspections/defect-grid'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
@@ -105,6 +105,11 @@ export function InspectionWorkbench({
    *  종전에는 셀 하나를 고칠 때마다 router.refresh()로 상세 전체를 다시 그려야 숫자가 맞았다
    *  (실측: 첫 셀 6.6초, 두 번째 셀 21.9초 — 표를 채울수록 누적으로 느려졌다). */
   const [defectsLocal, setDefectsLocal] = useState<{ planned: number; done: number; total: number } | null>(null)
+  /** F-21 — 불량표의 **편집분**. ⑤·⑥ pane이 조건부 렌더라 DefectGrid가 언마운트되므로
+   *  여기(부모)에 둬야 단계를 오가도 방금 저장한 값이 남는다. 집계(defectsLocal)만 올려두고
+   *  행 내용은 안 올렸던 것이 F-21이 경고한 사고의 실체였다 — 그리고 그건 예고가 아니라
+   *  **이미 나 있던 결함**이다(대조군 test-workbench-defect-pane-switch가 현행에서 붉었다). */
+  const [defectEdits, setDefectEdits] = useState<DefectEdits>({})
   // R5-8 기산 근거 인라인 수정 — 기한을 보는 자리에서 바로 고칠 수 있어야 한다
   const [anchorEdit, setAnchorEdit] = useState(false)
   const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
@@ -147,6 +152,9 @@ export function InspectionWorkbench({
     if (prevServerTally.current === serverTallyKey) return
     prevServerTally.current = serverTallyKey
     setDefectsLocal(null)   // 서버가 갱신된 집계를 줬다 — 선반영은 역할을 다했다
+    // F-21 — 행 편집분도 같은 규약으로 버린다. 남겨두면 `rowOf`에서 edits가 항상 이기므로
+    // **다른 사람이 고친 값이 내 화면에서 영원히 가려진다**(집계만 버리면 숫자와 칸이 갈라진다).
+    setDefectEdits({})
   }, [serverTallyKey])
 
   const hasDefects = defectStat.total > 0
@@ -212,7 +220,9 @@ export function InspectionWorkbench({
     if (!due) return null
     const d = Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000)
     if (d < 0) return { text: `초과 ${-d}일 ⚠`, cls: 'text-red-600 font-semibold' }
-    return { text: `D-${d}`, cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-ink-faint' }
+    // S7-1 4차 — D-day는 '언제까지'를 말하는 값이다. 여유가 있을 때(8일 이상)만 이 가지로 오는데,
+    // 그 경우에도 읽혀야 한다(빨강·앰버 가지는 이미 대비가 충분하다)
+    return { text: `D-${d}`, cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-ink-meta' }
   }
 
   /** S3-1 — router.refresh()를 **트랜지션 밖으로** 뺀다(제거가 아니라 이동).
@@ -439,7 +449,8 @@ export function InspectionWorkbench({
       <div className="flex items-center gap-2 flex-wrap rounded-xl border border-line bg-surface px-4 py-2 shrink-0">
         <FileText className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">점검 작업대</h2>
-        <span className="text-[11px] text-ink-faint">
+        {/* S7-1 4차 — 이 점검에 **보고 의무가 있는지**를 말하는 문장이다(장식이 아니다) */}
+        <span className="text-[11px] text-ink-meta">
           {isSpecial ? '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
         </span>
         {isSpecial && (
@@ -470,6 +481,7 @@ export function InspectionWorkbench({
           return (
             <button key={k} onClick={() => setSel(k)} disabled={na}
               title={TIMELINE_STEP_TOOLTIPS[k]} data-step={k}
+              /* ink-faint:장식 — na 가지는 `disabled={na}`가 실제로 걸린 **진짜 비활성**이다(WCAG 1.4.3 예외) */
               className={`flex min-w-[8.5rem] flex-1 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition-colors
                 ${active ? 'bg-brand text-white' : na ? 'bg-paper text-ink-faint' : 'text-ink-sub hover:bg-brand-tint'}`}>
               {done[k] ? <CheckCircle2 className={`size-4 shrink-0 ${active ? 'text-white' : 'text-green-600'}`} />
@@ -477,7 +489,11 @@ export function InspectionWorkbench({
                   : <AlertTriangle className={`size-4 shrink-0 ${active ? 'text-white' : 'text-amber-500'}`} />}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[11px] font-semibold">{TIMELINE_STEP_LABELS[k]}</span>
-                <span className={`block truncate text-[10px] ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-faint'}`}>
+                {/* S7-1 4차 — na 가지의 ink-faint는 **유지**한다(버튼이 실제로 disabled라 WCAG
+                    1.4.3의 inactive component 예외가 성립하는, 이 파일에서 몇 안 되는 자리다).
+                    반면 마지막 가지는 활성 버튼의 '완료'·'진행 전'·D-day라 정보 노드다. */}
+                {/* ink-faint:장식 — na 가지만 해당(마지막 가지는 활성 버튼의 값이라 ink-meta다) */}
+                <span className={`block truncate text-[10px] ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-meta'}`}>
                   {na ? '해당없음 — 불량 0건' : d?.text ?? (done[k] ? '완료' : '진행 전')}
                 </span>
               </span>
@@ -510,7 +526,7 @@ export function InspectionWorkbench({
                 <RotateCcw className="size-3" /> 초기화
               </button>
             )}
-            <span className="text-[10px] text-ink-faint">{label}</span>
+            <span className="text-[10px] text-ink-meta">{label}</span>
             <button onClick={() => nudgePane(i, -1)} disabled={!nudgePaneW(dw, i, -1)}
               title={`${label}을 좁힙니다`} aria-label={`${label} 좁게`} data-testid={`pane-w-${i}-narrow`}
               className="inline-flex size-5 items-center justify-center rounded text-ink-soft hover:bg-brand-tint hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent">
@@ -579,7 +595,7 @@ export function InspectionWorkbench({
               <div className="flex items-center gap-1.5 flex-wrap">
                 {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
                 <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[10px] text-ink-faint hover:text-brand">협회 <ExternalLink className="size-2.5" /></a>
+                  className="inline-flex items-center gap-0.5 text-[10px] text-ink-meta hover:text-brand">협회 <ExternalLink className="size-2.5" /></a>
                 {data.certFile && <button onClick={() => download(data.certFile!.path)} className={btn}><Download className="size-3" /> 보기</button>}
                 {canManage && (<>
                   <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={uploadCert} />
@@ -612,7 +628,7 @@ export function InspectionWorkbench({
                   <button onClick={savePaper} disabled={isPending} data-testid="cert-paper-save"
                     className="h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">기록</button>
                   <button onClick={() => setPaperOpen(false)} className="h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub">취소</button>
-                  <p className="w-full text-[10px] text-ink-faint">
+                  <p className="w-full text-[10px] text-ink-meta">
                     스캔본이 없어도 종이로 갖고 있으면 이 단계는 완료입니다 — 나중에 업로드하면 파일이 우선 근거가 됩니다.
                   </p>
                 </div>
@@ -655,7 +671,8 @@ export function InspectionWorkbench({
                   <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
                     className="h-7 w-40 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
                   <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
-                  <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-ink-faint">취소</button>
+                  {/* S7-1 4차 — 누르면 동작하는 **활성 컨트롤**이다(F-22와 같은 축) */}
+                  <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-ink-meta">취소</button>
                 </div>
               ) : (
                 <button onClick={() => setOfflineOpen(true)} className={btn}>방문·유선 보고 기록</button>
@@ -686,7 +703,7 @@ export function InspectionWorkbench({
               {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
                   종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
               {data.period && (data.period.end || data.period.start) && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2 text-[10px] text-ink-faint">
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2 text-[10px] text-ink-meta">
                   <span>
                     기산: {data.period.end
                       ? <>종료일 <b className="text-ink-sub">{data.period.end}</b></>
@@ -757,7 +774,7 @@ export function InspectionWorkbench({
                         on ? 'border-brand bg-brand text-white font-medium' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
                       <FileText className="size-3" /> {c.label}
                       {/* 생성 여부 — 칩만 보고도 무엇이 남았는지 안다 */}
-                      <span className={on ? 'text-white/80' : 'text-ink-faint'}>{genKinds.has(c.type) ? '✓' : '·'}</span>
+                      <span className={on ? 'text-white/80' : 'text-ink-meta'}>{genKinds.has(c.type) ? '✓' : '·'}</span>
                     </button>
                   )
                 })}
@@ -774,8 +791,9 @@ export function InspectionWorkbench({
                 {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
                 {submit9At
                   ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
+                  /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나 */
                   : data.submit9.due && (
-                    <span className="text-[10px] text-ink-faint">기한 {data.submit9.due} (점검 종료일 +15일)</span>
+                    <span className="text-[10px] text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
                   )}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
@@ -794,7 +812,8 @@ export function InspectionWorkbench({
                           {STEP_REPORT_TYPES.includes(r.report_type as StepReportType) ? STEP_REPORT_LABELS[r.report_type as StepReportType] : r.report_type}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-ink-sub">{r.file_name}</span>
-                        {r.submitted_at && <span className="shrink-0 text-ink-faint">{kstDate(r.submitted_at)}</span>}
+                        {/* S7-1 4차 — 문서 제출일(F-14로 KST 보정까지 한 값이다) */}
+                        {r.submitted_at && <span className="shrink-0 text-ink-meta">{kstDate(r.submitted_at)}</span>}
                         <button onClick={() => downloadReport(r.id, r.file_name)} disabled={isPending}
                           className="shrink-0 text-brand hover:underline">다운로드</button>
                       </div>
@@ -822,6 +841,8 @@ export function InspectionWorkbench({
                   /* S3-7 — 셀마다 상세 전체를 다시 그리지 않는다. 표가 올린 집계를 그대로 쓴다(S3-5).
                      사진은 photoPairs(서버 계산)를 바꾸므로 희소 경로로 분리해 갱신을 유지한다. */
                   onSaved={t => { setDefectsLocal(t); setDefectRev(v => v + 1) }}
+                  /* F-21 — ⑥과 **같은 편집분**을 본다. pane 전환으로 언마운트돼도 값이 남는다 */
+                  edits={defectEdits} onEditsChange={setDefectEdits}
                   onPhotoDone={() => { setDefectRev(v => v + 1); deferredRefresh() }} />
               : slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
@@ -837,7 +858,8 @@ export function InspectionWorkbench({
             <div className={`flex flex-wrap items-center gap-1.5 rounded-lg border-t border-brand-line-soft px-1 pt-2${dropCls('contract')}`}
               {...dropProps('contract')}
               title={canManage ? '수리 계약서 — 클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
-              <span className="text-[10px] text-ink-faint">
+              {/* S7-1 4차 — 올린 계약서 **파일명**이 여기 뜬다(무엇이 붙었는지 확인하는 값) */}
+              <span className="text-[10px] text-ink-meta">
                 (사진·계약서는 선택){data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
               </span>
               {data.contractFile && (
@@ -864,7 +886,8 @@ export function InspectionWorkbench({
                 <button onClick={() => generate('report10')} disabled={isPending || busy} className={btnPri}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 10호 PDF 생성
                 </button>
-                <span className="text-[10px] text-ink-faint">확정 시 1회 — 생성물은 문서 목록에 쌓입니다</span>
+                {/* S7-1 4차 — 생성 규칙 안내(언제 눌러야 하는지를 알려준다) */}
+                <span className="text-[10px] text-ink-meta">확정 시 1회 — 생성물은 문서 목록에 쌓입니다</span>
               </div>
             )}
           </Pane>
@@ -884,6 +907,8 @@ export function InspectionWorkbench({
               ? <DefectGrid defects={defectRows} inspectionId={inspectionId} canEdit={canManage} mode="complete"
                   /* S3-7 — ⑤와 같은 규약. 여기 집계는 스텝바 ⑥ 옆 ⑤ 판정에도 들어간다(S3-6) */
                   onSaved={t => { setDefectsLocal(t); setDefectRev(v => v + 1) }}
+                  /* F-21 — ⑤와 **같은 편집분**을 공유한다(둘이 갈리면 화면이 서로 다른 값을 보인다) */
+                  edits={defectEdits} onEditsChange={setDefectEdits}
                   onPhotoDone={() => { setDefectRev(v => v + 1); deferredRefresh() }} />
               : slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
@@ -913,7 +938,9 @@ export function InspectionWorkbench({
                 {/* 기록 여부를 그 자리에서 — ⑥ 완료 조건은 이 날짜뿐이다(위 표의 조치 수가 아니라) */}
                 {submit11At
                   ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit11At} — ⑥ 완료</span>
-                  : <span className="text-[10px] text-ink-faint">
+                  /* S7-1 4차 — ④ '기한 …' 자리의 **짝**이다. 3차가 ④만 올리고 여기를 빠뜨렸다
+                     ([[feedback_fix_the_sibling_too]] 재발) — 완료 조건과 법정 기한을 함께 말한다 */
+                  : <span className="text-[10px] text-ink-meta">
                       미기록 — 이 날짜가 ⑥ 완료 조건{data.submit11.due ? ` · 기한 ${data.submit11.due}` : ''}
                     </span>}
               </div>

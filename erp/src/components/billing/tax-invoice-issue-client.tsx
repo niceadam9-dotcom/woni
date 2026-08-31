@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Printer, ExternalLink, ArrowLeft, CheckCircle } from 'lucide-react'
 import { issueTaxInvoiceAction } from '@/app/(dashboard)/tax-invoices/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 type TaxInvoice = {
   id: string
@@ -56,7 +57,7 @@ export function TaxInvoiceIssueClient({
   const company = rawCompany as unknown as CompanyInfo
   const inv = getInv(bill)
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayKst()
   const [issueDate, setIssueDate] = useState(inv?.issue_date ?? today)
   const [approvalNum, setApprovalNum] = useState(inv?.approval_num ?? '')
   const [err, setErr] = useState('')

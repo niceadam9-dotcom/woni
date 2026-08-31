@@ -116,7 +116,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
                     {g.subgroupNames.length > 0 && (
                       <span className="mt-1 flex flex-wrap gap-1">
                         {g.subgroupNames.map(n => (
-                          <span key={n} className="text-[9px] text-ink-faint bg-brand-tint border border-brand-line-soft rounded px-1 truncate max-w-40">[{n}]</span>
+                          <span key={n} className="text-[9px] text-ink-meta bg-brand-tint border border-brand-line-soft rounded px-1 truncate max-w-40">[{n}]</span>
                         ))}
                       </span>
                     )}
@@ -128,7 +128,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
         )
       })}
       {visible.length === 0 && (
-        <p className="text-[11px] text-ink-faint py-4 text-center">표시할 시트가 없습니다 — 검색어나 [설치 설비만] 필터를 확인하세요.</p>
+        <p className="text-[11px] text-ink-meta py-4 text-center">표시할 시트가 없습니다 — 검색어나 [설치 설비만] 필터를 확인하세요.</p>
       )}
     </div>
   )

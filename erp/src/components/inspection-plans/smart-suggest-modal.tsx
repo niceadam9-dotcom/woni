@@ -143,7 +143,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
             <Lightbulb className="size-4 text-brand" />
             <div>
               <p className="text-sm font-semibold text-ink">{year}년 {month}월 — 일정 자동 제안</p>
-              <p className="text-xs text-ink-faint mt-0.5">점검계획일(기준일) 기준 점검 일정 자동 제안</p>
+              <p className="text-xs text-ink-meta mt-0.5">점검계획일(기준일) 기준 점검 일정 자동 제안</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-brand-tint rounded-lg transition-colors">
@@ -160,9 +160,9 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
             </div>
           ) : suggestions.length === 0 ? (
             <div className="text-center py-12 space-y-2">
-              <Lightbulb className="size-8 text-ink-faint mx-auto" />
+              <Lightbulb className="size-8 text-ink-meta mx-auto" />
               <p className="text-sm font-medium text-ink-sub">제안할 고객이 없습니다</p>
-              <p className="text-xs text-ink-faint">
+              <p className="text-xs text-ink-meta">
                 점검계획일(기준일)이 {month}월 또는 {((month - 1 + 6) % 12) + 1}월인 고객 없음
               </p>
             </div>
@@ -174,7 +174,7 @@ export function SmartSuggestModal({ year, month, planId, holidays, onClose, onAd
                   <span>
                     총 <span className="font-semibold text-ink">{suggestions.length}건</span> 제안
                   </span>
-                  <span className="text-ink-faint">|</span>
+                  <span className="text-ink-meta">|</span>
                   <span>
                     이번달 <span className="font-semibold">{suggestions.filter(s => s.sequence_num === 1).length}건</span>
                   </span>
@@ -302,7 +302,7 @@ function SuggestRow({
             </span>
           )}
         </div>
-        <p className="text-[11px] text-ink-faint mt-0.5">{item.reason}</p>
+        <p className="text-[11px] text-ink-meta mt-0.5">{item.reason}</p>
       </div>
     </label>
   )

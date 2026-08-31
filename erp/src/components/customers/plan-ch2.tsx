@@ -97,7 +97,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
       <div id="c-2.2" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
           <p className="text-form-sm font-semibold text-ink-sub">2.2 편성표
-            <span className="font-normal text-ink-faint ml-2">1.1 계획서 정보 패널의 자위소방대와 동일 데이터</span>
+            <span className="font-normal text-ink-meta ml-2">1.1 계획서 정보 패널의 자위소방대와 동일 데이터</span>
           </p>
           {canManage && (
             <div className="ml-auto flex items-center gap-2">
@@ -119,7 +119,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
                 onClick={() => { setRows(prev => [...prev, { team: '반원', name: p.name, duty: '', phone: p.phone }]); setDirty(true) }}
                 className="h-form-6 px-2 rounded-full border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint"
                 title={p.kind}>
-                + {p.name} <span className="text-ink-faint">({p.kind})</span>
+                + {p.name} <span className="text-ink-meta">({p.kind})</span>
               </button>
             ))}
           </div>
@@ -139,7 +139,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
               <PhoneField value={r.phone} disabled={!canManage} placeholder="연락처"
                 onChange={v => { setRows(p => p.map((x, j) => j === i ? { ...x, phone: v } : x)); setDirty(true) }} className={`${inputCls} w-32`} />
               {canManage && (
-                <button onClick={() => { setRows(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => { setRows(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
@@ -152,7 +152,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-form-sm font-semibold text-ink-sub">팀별 임무 (2.5~2.13)
-            <span className="font-normal text-ink-faint ml-2">표준 문구 기본 — 필요 시 수정 (빈 칸이면 표준 문구로 출력)</span>
+            <span className="font-normal text-ink-meta ml-2">표준 문구 기본 — 필요 시 수정 (빈 칸이면 표준 문구로 출력)</span>
           </p>
           {/* 공통 서술 라이브러리 — 7팀 Record 치환, 빈 키의 기존 입력은 유지 (소방계획서_15_별도라이브러리) */}
           {canManage && (
@@ -173,7 +173,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
         ))}
       </div>
 
-      <p className="text-form-xs text-ink-faint">2.14 교육·훈련 실시 결과 기록부는 서식 1.11.4와 공용입니다 — 1장 &gt; 1.11에서 기록하세요.</p>
+      <p className="text-form-xs text-ink-meta">2.14 교육·훈련 실시 결과 기록부는 서식 1.11.4와 공용입니다 — 1장 &gt; 1.11에서 기록하세요.</p>
 
       {canManage && (
         <div className="flex items-center gap-2">

@@ -39,7 +39,7 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <div className="flex items-center gap-3 pb-3">
         <h1 className="text-sm font-semibold text-ink truncate">{title}</h1>
-        <span className="text-xs text-ink-faint truncate">{fileName}</span>
+        <span className="text-xs text-ink-meta truncate">{fileName}</span>
         <div className="ml-auto flex gap-2 shrink-0">
           <button
             onClick={doPrint}

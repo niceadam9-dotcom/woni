@@ -109,8 +109,8 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
               <th className="pb-1 pr-1 w-24 font-medium">구역별(동/층)</th>
               <th className="pb-1 pr-1 font-medium">명칭/용도</th>
               <th className="pb-1 pr-1 w-20 font-medium">(바닥)면적</th>
-              <th className="pb-1 pr-1 w-20 font-medium">평일 인원<br /><span className="font-normal text-ink-faint">주간/야간</span></th>
-              <th className="pb-1 pr-1 w-20 font-medium">휴일 인원<br /><span className="font-normal text-ink-faint">주간/야간</span></th>
+              <th className="pb-1 pr-1 w-20 font-medium">평일 인원<br /><span className="font-normal text-ink-meta">주간/야간</span></th>
+              <th className="pb-1 pr-1 w-20 font-medium">휴일 인원<br /><span className="font-normal text-ink-meta">주간/야간</span></th>
               <th className="pb-1 pr-1 font-medium">관리주체(입주사)</th>
               <th className="pb-1 pr-1 w-32 font-medium">담당자(연락처)</th>
               <th className="pb-1 w-7" />
@@ -130,7 +130,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
                 <td className="py-0.5 pr-1"><input value={z.phone} onChange={e => setZone(i, { phone: e.target.value })} disabled={!canManage} placeholder="예: 홍길동 031-000-0000" className={inputCls} /></td>
                 <td className="py-0.5">
                   {canManage && (
-                    <button onClick={() => { setZones(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
+                    <button onClick={() => { setZones(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
                       <Trash2 className="size-3.5" />
                     </button>
                   )}
@@ -159,7 +159,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
             </button>
           ))}
         </div>
-        {hazards.length === 0 && <p className="text-form-xs text-ink-faint">프리셋 버튼 또는 [행 추가]로 화재취약장소를 등록하세요.</p>}
+        {hazards.length === 0 && <p className="text-form-xs text-ink-meta">프리셋 버튼 또는 [행 추가]로 화재취약장소를 등록하세요.</p>}
         <div className="space-y-1.5">
           {hazards.map((h, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
@@ -176,7 +176,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
                 </button>
               ))}
               {canManage && (
-                <button onClick={() => { setHazards(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => { setHazards(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}

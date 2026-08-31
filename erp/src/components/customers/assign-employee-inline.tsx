@@ -23,7 +23,7 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
     return current ? (
       <p className="text-sm font-semibold text-ink">
         {current.name}
-        {current.position && <span className="text-xs text-ink-faint font-normal ml-1.5">({current.position})</span>}
+        {current.position && <span className="text-xs text-ink-meta font-normal ml-1.5">({current.position})</span>}
       </p>
     ) : (
       <p className="text-sm font-semibold text-red-500">미배정</p>
@@ -54,7 +54,7 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
         ))}
       </select>
       {isPending && <Loader2 className="size-3.5 animate-spin text-brand" />}
-      <span className="text-[10px] text-ink-faint">선택 즉시 저장 · 배정 알림 발송</span>
+      <span className="text-[10px] text-ink-meta">선택 즉시 저장 · 배정 알림 발송</span>
       {err && <span className="text-[11px] text-red-500">{err}</span>}
     </span>
   )

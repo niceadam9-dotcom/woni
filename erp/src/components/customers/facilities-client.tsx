@@ -215,7 +215,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
         /* 읽기 뷰 */
         <div className="space-y-2">
           {installedList.length === 0 ? (
-            <p className="text-sm text-ink-faint py-3 text-center">입력된 소방시설이 없습니다{canManage ? ' — [수정]으로 입력' : ''}</p>
+            <p className="text-sm text-ink-meta py-3 text-center">입력된 소방시설이 없습니다{canManage ? ' — [수정]으로 입력' : ''}</p>
           ) : CATALOG.map(cat => {
             const rows = installedList.filter(f => cat.items.includes(f.facility_code))
             if (!rows.length) return null
@@ -258,7 +258,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                 <Copy className="size-3" /> {bd.building_name}에서 복사
               </button>
             ))}
-            <span className="text-[10px] text-ink-faint">기본 세트는 체크만 추가 — 해제는 직접</span>
+            <span className="text-[10px] text-ink-meta">기본 세트는 체크만 추가 — 해제는 직접</span>
           </div>
           {/* §12-1: 설치 시설 중심 — 검색으로 추가, 26종 스캔 제거 */}
           <div className="space-y-1.5">
@@ -281,7 +281,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               </div>
             </div>
             {installedCodes.length === 0 && (
-              <p className="text-[11px] text-ink-faint">설치 시설 없음 — 검색으로 추가하거나 기본 세트를 적용하세요</p>
+              <p className="text-[11px] text-ink-meta">설치 시설 없음 — 검색으로 추가하거나 기본 세트를 적용하세요</p>
             )}
             {installedCodes.map(code => {
               const presetKinds = DETAIL_TYPE_PRESETS[code]
@@ -324,7 +324,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                           <button onClick={() => updateChips(code, parsed.map((c, j) => j === i ? { ...c, qty: c.qty + 1 } : c))}
                             className="px-0.5 text-brand hover:text-brand-strong">+</button>
                           <button onClick={() => updateChips(code, parsed.filter((_, j) => j !== i))}
-                            className="px-1 text-ink-faint hover:text-red-500">✕</button>
+                            className="px-1 text-ink-meta hover:text-red-500">✕</button>
                         </span>
                       ))}
                       <div className="relative">
@@ -352,7 +352,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                         </span>
                       )}
                       <button onClick={() => toggleRawMode(code)} title="자유 텍스트로 입력"
-                        className="text-[10px] text-ink-faint hover:text-brand">텍스트</button>
+                        className="text-[10px] text-ink-meta hover:text-brand">텍스트</button>
                     </div>
                   ) : (
                     /* 자유 텍스트 폴백 (패턴 불일치 문구·프리셋 없는 시설·수동 전환) */
@@ -364,7 +364,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                       {suggestBtn}
                       {presetKinds && rawModeCodes.has(code) && parseDetailChips(fac[code].detail ?? '') !== null && (
                         <button onClick={() => toggleRawMode(code)} title="종류+수량 칩으로 입력"
-                          className="shrink-0 text-[10px] text-ink-faint hover:text-brand">칩 입력</button>
+                          className="shrink-0 text-[10px] text-ink-meta hover:text-brand">칩 입력</button>
                       )}
                     </div>
                   )}
@@ -380,7 +380,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               if (rest.length === 0) return null
               return (
                 <div key={cat.category} className="pl-2">
-                  <p className="text-[10px] font-semibold text-ink-faint mb-0.5">{cat.category}</p>
+                  <p className="text-[10px] font-semibold text-ink-meta mb-0.5">{cat.category}</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {rest.map(code => (
                       <label key={code} className="flex items-center gap-1.5 cursor-pointer">
@@ -417,7 +417,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                   <Copy className="size-3" /> 첫 행 전층 적용
                 </button>
               )}
-              <span className="text-[10px] text-ink-faint">셀에서 Enter = 아래 층 이동</span>
+              <span className="text-[10px] text-ink-meta">셀에서 Enter = 아래 층 이동</span>
             </div>
             {floors.length > 0 && (
               <div className="overflow-x-auto">

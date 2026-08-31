@@ -25,7 +25,7 @@ export function HeaderTitle() {
     <div className="flex items-center gap-1.5 min-w-0 text-sm">
       {best ? (
         <>
-          <span className="text-ink-faint shrink-0">{best.group}</span>
+          <span className="text-ink-meta shrink-0">{best.group}</span>
           <ChevronRight className="size-3.5 text-ink-faint shrink-0" />
           {Icon && <Icon className="size-4 text-brand shrink-0" />}
           <span className="font-semibold text-ink truncate">{best.label}</span>

@@ -45,7 +45,7 @@ export function AddressDuplicateDialog({ customer, building, address, onClose, o
                 점검유형: {inspectionTypeLabel(customer.inspection_type)} · 담당: {customer.employee_name ?? '미배정'}
               </p>
               {!customer.exact && customer.address && (
-                <p className="text-xs text-ink-faint">등록된 주소: {customer.address}</p>
+                <p className="text-xs text-ink-meta">등록된 주소: {customer.address}</p>
               )}
             </div>
           )}
@@ -56,7 +56,7 @@ export function AddressDuplicateDialog({ customer, building, address, onClose, o
               <p className="font-medium text-ink">{building.building_name || '(건물명 없음)'}</p>
               <p className="text-xs text-ink-sub">고객: {building.customer_name ?? '-'}</p>
               {!building.exact && building.address && (
-                <p className="text-xs text-ink-faint">등록된 주소: {building.address}</p>
+                <p className="text-xs text-ink-meta">등록된 주소: {building.address}</p>
               )}
             </div>
           )}

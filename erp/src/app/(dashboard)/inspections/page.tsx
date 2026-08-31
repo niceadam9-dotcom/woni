@@ -9,6 +9,7 @@ import { RecentCustomersStrip } from '@/components/customers/recent-customers-st
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
+import { todayKst } from '@/lib/kst-date'
 
 const STATUS_LABELS: Record<InspectionStatus, string> = {
   scheduled: '예정',
@@ -43,8 +44,9 @@ export default async function InspectionsPage({
   const pageSize = Math.max(0, parseInt(params.per_page ?? '25', 10))  // 0 = 전체
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
-  const in7Days = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+  // F-14 잔여 축 — 짝을 **함께** 옮긴다(한쪽만 KST면 '오늘'과 'D+7'의 기준이 갈라진다)
+  const today = todayKst()
+  const in7Days = todayKst(Date.now() + 7 * 86400000)
   const currentYear = new Date().getFullYear()
 
   const from = pageSize > 0 ? (page - 1) * pageSize : 0

@@ -315,7 +315,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     <div className="flex-1 w-full space-y-6 min-w-0">
       {/* §10-1: 필수 정보 — 주소 검색·고객명·점검유형·점검계획일·대표 관계인 */}
       <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-ink">필수 정보 <span className="text-xs font-normal text-ink-faint">— 주소 검색 한 번이면 대부분 자동으로 채워집니다</span></h2>
+        <h2 className="text-sm font-semibold text-ink">필수 정보 <span className="text-xs font-normal text-ink-meta">— 주소 검색 한 번이면 대부분 자동으로 채워집니다</span></h2>
 
         {/* ① 주소 검색 섹션 — 최상단 배치 */}
         <div className="space-y-3 pb-4 border-b border-brand-line-soft">
@@ -323,7 +323,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             <label className={`${labelCls} flex items-center gap-1`}>
               <MapPin className="size-3.5 text-brand" />
               주소 검색
-              <span className="text-xs text-ink-faint font-normal ml-1">— 검색 후 건물명 자동입력</span>
+              <span className="text-xs text-ink-meta font-normal ml-1">— 검색 후 건물명 자동입력</span>
             </label>
             <button
               type="button"
@@ -338,11 +338,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
           {/* 우편번호 + 지번주소 */}
           <div className="grid grid-cols-4 gap-2">
             <div className="space-y-1">
-              <p className="text-xs text-ink-faint">우편번호</p>
+              <p className="text-xs text-ink-meta">우편번호</p>
               <input value={form.zipcode} readOnly placeholder="자동입력" className={readonlyCls} />
             </div>
             <div className="col-span-3 space-y-1">
-              <p className="text-xs text-ink-faint">지번주소 (참고)</p>
+              <p className="text-xs text-ink-meta">지번주소 (참고)</p>
               <input value={addrJibun} readOnly placeholder="자동입력" className={readonlyCls} />
             </div>
           </div>
@@ -351,7 +351,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               주소검색 블록 안에 있다 보니 다른 필수 4개와 달리 Field 헬퍼를 안 써서 별표가 빠져 있었다. */}
           <div className="space-y-1">
             <p className={labelCls}>도로명주소 <span className="text-red-500 ml-0.5">*</span>
-              <span className="text-xs text-ink-faint font-normal ml-1">(상세주소 직접 입력 가능)</span></p>
+              <span className="text-xs text-ink-meta font-normal ml-1">(상세주소 직접 입력 가능)</span></p>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input
@@ -381,7 +381,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 <button
                   type="button"
                   onClick={() => { setField('customer_name', ''); customerNameRef.current?.focus() }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink-sub"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-meta hover:text-ink-sub"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -397,7 +397,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={inputCls}
             />
-            <p className="text-[11px] text-ink-faint">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검이 배치됩니다 (통상 사용승인일 또는 첫 점검일)</p>
+            <p className="text-[11px] text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검이 배치됩니다 (통상 사용승인일 또는 첫 점검일)</p>
           </Field>
         </div>
 
@@ -460,7 +460,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 </button>
               ))}
             </div>
-            <span className="text-xs text-ink-faint">
+            <span className="text-xs text-ink-meta">
               모르면 비워두세요 — 관계인 탭 [소방안전관리]에서 나중에 입력·자동 산정할 수 있습니다
             </span>
           </div>
@@ -508,7 +508,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         <button type="button" onClick={() => setShowOptional(v => !v)} className="w-full flex items-center gap-2 px-6 py-4">
           {showOptional ? <ChevronDown className="size-4 text-brand" /> : <ChevronRight className="size-4 text-brand" />}
           <span className="text-sm font-semibold text-ink">선택 항목</span>
-          <span className="text-xs text-ink-faint">담당 배정 · 추가 관계인 · 계약일 · 사용승인일 · 건물 정보 · 비고 — 등록 후 상세에서도 입력 가능</span>
+          <span className="text-xs text-ink-meta">담당 배정 · 추가 관계인 · 계약일 · 사용승인일 · 건물 정보 · 비고 — 등록 후 상세에서도 입력 가능</span>
         </button>
 
         {showOptional && (
@@ -578,7 +578,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               )}
             </div>
             {visibleContactRoles.filter(r => r !== '대표').length === 0 && (
-              <p className="text-[11px] text-ink-faint">추가 관계인 없음 — 필요 시 [관계인 추가]</p>
+              <p className="text-[11px] text-ink-meta">추가 관계인 없음 — 필요 시 [관계인 추가]</p>
             )}
             {visibleContactRoles.filter(r => r !== '대표').map(role => (
               <div key={role} className="grid grid-cols-3 gap-3 items-end">
@@ -616,7 +616,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                       setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
                       setVisibleContactRoles(prev => prev.filter(r => r !== role))
                     }}
-                    className="text-ink-faint hover:text-red-500 transition-colors mt-5"
+                    className="text-ink-meta hover:text-red-500 transition-colors mt-5"
                     title="관계인 제거"
                   >
                     <X className="size-3.5" />
@@ -722,7 +722,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
           어느 칸이 비었는지 알려 주는 기능은 여전히 필요해 칩으로 남긴다. */}
       <div className="flex flex-wrap items-center gap-3 pb-8 pt-1">
         <div className="flex flex-wrap gap-1 items-center min-w-0 flex-1">
-          <span className="text-[10px] text-ink-faint shrink-0">필수</span>
+          <span className="text-[10px] text-ink-meta shrink-0">필수</span>
           {requiredChecks.map(([label, ok]) => (
             <span key={label as string}
               className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>

@@ -130,12 +130,12 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
       {open && (
         <div className="absolute z-30 top-7 left-0 w-80 rounded-lg border border-brand-line bg-surface shadow-lg p-1.5" data-testid={`libtext-list-${def.key}`}>
           {items === null ? (
-            <p className="text-[11px] text-ink-faint px-2 py-1.5">불러오는 중…</p>
+            <p className="text-[11px] text-ink-meta px-2 py-1.5">불러오는 중…</p>
           ) : items.length === 0 ? (
-            <p className="text-[11px] text-ink-faint px-2 py-1.5">{msg || `등록된 ${def.label} 공통 항목이 없습니다 — [공통으로 등록]으로 첫 항목을 만드세요.`}</p>
+            <p className="text-[11px] text-ink-meta px-2 py-1.5">{msg || `등록된 ${def.label} 공통 항목이 없습니다 — [공통으로 등록]으로 첫 항목을 만드세요.`}</p>
           ) : (
             <>
-              <p className="text-[10px] text-ink-faint px-2 pb-1">
+              <p className="text-[10px] text-ink-meta px-2 pb-1">
                 {def.mode === 'append' ? '기존 기록은 그대로 두고 템플릿 행을 추가합니다.' : '선택하면 폼에 채워집니다 — [저장]을 눌러야 반영됩니다.'}
                 {' '}⭐ = 새 고객에 자동으로 채워지는 기본항목
               </p>
@@ -154,7 +154,7 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
                         <span className="flex items-center gap-1 text-xs text-ink">
                           {it.isDefault && <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />}
                           <span className="truncate font-medium">{it.title}</span>
-                          <span className="ml-auto text-[10px] text-ink-faint shrink-0">{it.updatedAt}</span>
+                          <span className="ml-auto text-[10px] text-ink-meta shrink-0">{it.updatedAt}</span>
                         </span>
                         {it.preview && <span className="block text-[10px] text-ink-soft truncate">{it.preview}</span>}
                       </button>
@@ -173,7 +173,7 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
                     <div className="px-2 pb-1.5 flex items-center gap-1.5">
                       <span className="text-[10px] text-amber-700">기존 서술을 덮어씁니다 —</span>
                       <button onClick={() => pick(it)} className="text-[10px] font-medium text-brand underline">적용</button>
-                      <button onClick={() => setConfirmItem(null)} className="text-[10px] text-ink-faint">취소</button>
+                      <button onClick={() => setConfirmItem(null)} className="text-[10px] text-ink-meta">취소</button>
                     </div>
                   )}
                 </div>

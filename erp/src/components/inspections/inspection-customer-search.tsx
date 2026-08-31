@@ -93,7 +93,7 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
           type="button"
           onClick={() => { setValue(''); setSug([]); setOpen(false); apply('') }}
           aria-label="고객명 검색어 지우기"
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-faint hover:text-ink-sub transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-meta hover:text-ink-sub transition-colors"
         >
           <X className="size-3.5" />
         </button>
@@ -101,7 +101,7 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
 
       {open && sug.length > 0 && (
         <div className="absolute top-10 left-0 z-40 w-72 bg-surface rounded-xl border border-brand-line shadow-xl py-2 max-h-80 overflow-y-auto">
-          <p className="px-3 py-1 text-[10px] font-semibold text-ink-faint uppercase flex items-center gap-1">
+          <p className="px-3 py-1 text-[10px] font-semibold text-ink-meta uppercase flex items-center gap-1">
             <Building2 className="size-3" /> 고객 (선택 시 목록 필터)
           </p>
           {sug.map((c, i) => (
@@ -113,7 +113,7 @@ export function InspectionCustomerSearch({ defaultValue }: { defaultValue: strin
               className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-brand-tint' : 'hover:bg-brand-tint'}`}
             >
               <span className="text-sm text-ink truncate">{c.name}</span>
-              <span className="text-[10px] text-ink-faint shrink-0">{c.count}건</span>
+              <span className="text-[10px] text-ink-meta shrink-0">{c.count}건</span>
             </button>
           ))}
         </div>

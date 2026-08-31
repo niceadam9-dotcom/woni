@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { todayKst } from '@/lib/kst-date'
 
 export type FacilityRow = { category: string; facility_code: string; installed: boolean; detail: string | null }
 export type FloorRow = { floor_label: string; sort_order: number; counts: Record<string, number> }
@@ -19,7 +20,7 @@ export async function saveFacilitiesAction(
 ): Promise<{ error?: string; verifiedAt?: string }> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
-  const verifiedAt = new Date().toISOString().slice(0, 10)
+  const verifiedAt = todayKst()
 
   // 설비: installed=true 또는 detail 있는 것만 저장 (나머지는 미설치로 간주)
   const facRows = facilities
@@ -74,7 +75,7 @@ export async function verifyFacilitiesAction(
 ): Promise<{ error?: string; verifiedAt?: string }> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
-  const verifiedAt = new Date().toISOString().slice(0, 10)
+  const verifiedAt = todayKst()
   const { error } = await admin.from('buildings').update({
     facilities_verified_at: verifiedAt,
     facilities_verified_by: profile.id,

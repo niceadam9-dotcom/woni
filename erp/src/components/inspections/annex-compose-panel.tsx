@@ -165,7 +165,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
         <div className="flex items-center justify-between px-5 py-4 border-b border-brand-line-soft shrink-0">
           <div>
             <p className="text-sm font-semibold text-ink">{meta.title} <span className="font-normal text-ink-sub">— {meta.doc}</span></p>
-            <p className="text-[11px] text-ink-faint mt-0.5">자동 채움 검토 → 고유 값 입력 → 미리보기·생성 — 데이터는 입력하고, 문서는 생성합니다</p>
+            <p className="text-[11px] text-ink-meta mt-0.5">자동 채움 검토 → 고유 값 입력 → 미리보기·생성 — 데이터는 입력하고, 문서는 생성합니다</p>
           </div>
           <button onClick={onClose} aria-label="닫기" className="p-1 hover:bg-brand-tint rounded-lg transition-colors">
             <X className="size-4 text-ink-sub" />
@@ -205,7 +205,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                   <span className={stepNo}>1</span>
                   <h3 className="text-xs font-semibold text-ink">자동 채움 검토</h3>
                   <span className={badgeAuto}>자동</span>
-                  <span className="text-[10px] text-ink-faint">여기서는 못 고칩니다 — 원본 화면에서 수정</span>
+                  <span className="text-[10px] text-ink-meta">여기서는 못 고칩니다 — 원본 화면에서 수정</span>
                 </div>
                 <div className="space-y-1.5 pl-7">
                   {autoRows(annexNo, customerId, inspectionId).map(r => (
@@ -238,7 +238,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                   <span className={stepNo}>2</span>
                   <h3 className="text-xs font-semibold text-ink">서식 고유 값 입력</h3>
                   <span className={badgeInput}>입력</span>
-                  <span className="text-[10px] text-ink-faint">이 서식에서만 쓰는 값 — 여기서만 입력</span>
+                  <span className="text-[10px] text-ink-meta">이 서식에서만 쓰는 값 — 여기서만 입력</span>
                   {dirty && <span className="text-[10px] text-amber-600 font-medium ml-auto">미저장</span>}
                 </div>
                 <div className="space-y-3 pl-7">
@@ -260,7 +260,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                             이대로 출력됩니다 — 고치면 고친 값이 나갑니다
                           </p>
                         )}
-                        {d.hint && <p className="text-[10px] text-ink-faint mt-0.5">{d.hint}</p>}
+                        {d.hint && <p className="text-[10px] text-ink-meta mt-0.5">{d.hint}</p>}
                       </div>
                     )
                   })}
@@ -276,7 +276,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                 <div className="flex items-center gap-2 mb-2">
                   <span className={stepNo}>3</span>
                   <h3 className="text-xs font-semibold text-ink">미리보기 · PDF 생성</h3>
-                  <span className="text-[10px] text-ink-faint">미입력 [입력] 항목은 노란 하이라이트 (§4-A-2c)</span>
+                  <span className="text-[10px] text-ink-meta">미입력 [입력] 항목은 노란 하이라이트 (§4-A-2c)</span>
                 </div>
                 <div className="pl-7 space-y-2">
                   <div className="flex items-center gap-2">
@@ -288,7 +288,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                       className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors disabled:opacity-50">
                       {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />} PDF 생성
                     </button>
-                    <span className="text-[10px] text-ink-faint">미저장 입력은 자동 저장 후 반영</span>
+                    <span className="text-[10px] text-ink-meta">미저장 입력은 자동 저장 후 반영</span>
                   </div>
                   {msg && <p className="text-xs text-ink-sub">{msg}</p>}
                   {previewHtml && (

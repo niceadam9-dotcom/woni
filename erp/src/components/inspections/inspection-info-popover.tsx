@@ -53,7 +53,7 @@ export function InspectionInfoPopover({ info }: { info: InspectionInfo }) {
             <div className="grid grid-cols-2 gap-3">
               {rows.map(r => (
                 <div key={r.label} className="flex items-center gap-2 min-w-0">
-                  <span className="text-ink-faint shrink-0">{r.icon}</span>
+                  <span className="text-ink-meta shrink-0">{r.icon}</span>
                   <span className="text-xs text-ink-sub shrink-0">{r.label}</span>
                   <span className="text-sm text-ink truncate">{r.value}</span>
                 </div>

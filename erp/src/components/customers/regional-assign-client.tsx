@@ -225,7 +225,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
           </div>
         ) : (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-ink-sub">담당자 선택 <span className="text-ink-faint font-normal">— 교체·인수인계·퇴사 시 해당 담당 건물을 지역 무관하게 조회</span></label>
+            <label className="text-xs font-medium text-ink-sub">담당자 선택 <span className="text-ink-meta font-normal">— 교체·인수인계·퇴사 시 해당 담당 건물을 지역 무관하게 조회</span></label>
             <select value={filterCurrentEmp}
               onChange={e => { setFilterCurrentEmp(e.target.value); setCheckedIds(new Set()); setMessage(null) }}
               className={inputCls + ' min-w-[280px]'}>
@@ -287,7 +287,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium text-ink truncate">{c.customer_name}</span>
                     <div className="flex items-center gap-3 mt-0.5">
-                      {c.address && <span className="text-xs text-ink-faint truncate max-w-[200px]">{c.address}</span>}
+                      {c.address && <span className="text-xs text-ink-meta truncate max-w-[200px]">{c.address}</span>}
                       <span className="text-xs">
                         {currentEmp ? <span className="text-ink-sub">현 담당: <strong>{currentEmp}</strong></span> : <span className="text-red-500 font-medium">미배정</span>}
                       </span>
@@ -327,7 +327,7 @@ export function RegionalAssignClient({ customers, employees }: Props) {
               {isPending ? <Loader2 className="size-4 animate-spin" /> : <UserCheck className="size-4" />}
               {checkedIds.size}건 배정하기
             </button>
-            <button onClick={() => setCheckedIds(new Set())} className="text-ink-faint hover:text-ink-sub transition-colors" title="선택 해제">
+            <button onClick={() => setCheckedIds(new Set())} className="text-ink-meta hover:text-ink-sub transition-colors" title="선택 해제">
               <Square className="size-4" />
             </button>
           </div>

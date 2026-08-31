@@ -155,12 +155,12 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
         <div className="flex items-end gap-2 flex-wrap">
           <span className="text-form-xs font-medium text-ink-sub w-14 pb-1.5">피난층</span>
           <div>
-            <label className="text-form-2xs text-ink-faint block">위치</label>
+            <label className="text-form-2xs text-ink-meta block">위치</label>
             <input value={ef.evacFloor.location} disabled={!canManage}
               onChange={e => patch({ evacFloor: { ...ef.evacFloor, location: e.target.value } })} className={`${inputCls} w-24`} />
           </div>
           <div>
-            <label className="text-form-2xs text-ink-faint block">출입구 개소</label>
+            <label className="text-form-2xs text-ink-meta block">출입구 개소</label>
             <NumStepper value={ef.evacFloor.exits} disabled={!canManage} label="출입구 개소"
               onChange={v => patch({ evacFloor: { ...ef.evacFloor, exits: v } })}>
               <input value={ef.evacFloor.exits} disabled={!canManage} inputMode="numeric"
@@ -168,7 +168,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
             </NumStepper>
           </div>
           <div>
-            <label className="text-form-2xs text-ink-faint block">개폐 방법</label>
+            <label className="text-form-2xs text-ink-meta block">개폐 방법</label>
             <input value={ef.evacFloor.openMethod} disabled={!canManage} placeholder="예: 자동문, 수동"
               onChange={e => patch({ evacFloor: { ...ef.evacFloor, openMethod: e.target.value } })} className={`${inputCls} w-36`} />
           </div>
@@ -192,7 +192,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
         <div className="flex items-center gap-2">
           <p className="text-form-sm font-semibold text-ink-sub">1.5.2 방화·제연구획 현황도</p>
-          <span className="text-form-2xs text-ink-faint">연면적 1,000㎡ 이상 작성 권장</span>
+          <span className="text-form-2xs text-ink-meta">연면적 1,000㎡ 이상 작성 권장</span>
           {canManage && (
             <button onClick={() => { setMaps(p => [...p, { floor: '', image: null, desc: '' }]); setDirty(true) }}
               className="ml-auto inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
@@ -200,7 +200,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
             </button>
           )}
         </div>
-        {maps.length === 0 && <p className="text-form-xs text-ink-faint">구역(층)별 평면도와 설명을 등록하세요.</p>}
+        {maps.length === 0 && <p className="text-form-xs text-ink-meta">구역(층)별 평면도와 설명을 등록하세요.</p>}
         {maps.map((m, i) => (
           <div key={i} className="rounded-lg border border-brand-line-soft bg-surface p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
                 className={`${inputCls} flex-1`} />
               {canManage && (
                 <button onClick={() => { setMaps(p => p.filter((_, j) => j !== i)); setDirty(true) }}
-                  className="text-ink-faint hover:text-red-500" aria-label="구역 삭제">
+                  className="text-ink-meta hover:text-red-500" aria-label="구역 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}

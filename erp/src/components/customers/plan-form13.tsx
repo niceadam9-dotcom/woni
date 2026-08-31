@@ -62,7 +62,7 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt={label} className="max-h-40 rounded-lg border border-brand-line-soft" />
       ) : (
-        <p className="text-form-xs text-ink-faint">{path ? '미리보기 로딩…' : '이미지 없음'}</p>
+        <p className="text-form-xs text-ink-meta">{path ? '미리보기 로딩…' : '이미지 없음'}</p>
       )}
       {canManage && (
         <div className="flex items-center gap-2 mt-1">
@@ -73,7 +73,7 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
             {busy ? <Loader2 className="size-3 animate-spin" /> : <ImagePlus className="size-3" />} {path ? '교체' : '업로드'}
           </button>
           {path && (
-            <button onClick={remove} disabled={busy} className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line-soft text-form-xs text-ink-faint hover:text-red-500">
+            <button onClick={remove} disabled={busy} className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line-soft text-form-xs text-ink-meta hover:text-red-500">
               <Trash2 className="size-3" /> 삭제
             </button>
           )}
@@ -284,7 +284,7 @@ export function PlanForm13({
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
         <p className="text-form-sm font-semibold text-ink-sub">
           관할 소방서·출동 거리
-          <span className="ml-1.5 font-normal text-ink-faint">소방서를 고르면 거리·도착예상을 자동으로 계산합니다</span>
+          <span className="ml-1.5 font-normal text-ink-meta">소방서를 고르면 거리·도착예상을 자동으로 계산합니다</span>
         </p>
         <div className="flex items-end gap-2 flex-wrap">
           <div>
@@ -336,7 +336,7 @@ export function PlanForm13({
           <p className="text-form-xs text-ink-sub">
             <strong>{route.km}km · {route.min}분</strong>
             {/* stationName = 실제로 좌표를 쓴 출발지(센터 좌표가 있으면 센터명) — '(본서)' 하드코딩 금지 */}
-            <span className="text-ink-faint"> ⓘ {route.stationName || '관할 소방서'}에서 일반 차량 기준</span>
+            <span className="text-ink-meta"> ⓘ {route.stationName || '관할 소방서'}에서 일반 차량 기준</span>
             {route.mainRoad && <span className="text-ink-soft"> · 진입 도로: {route.mainRoad}</span>}
             {route.centerFallback && (
               <span className="text-amber-600"> · 선택한 119안전센터는 좌표가 없어 본서 기준입니다</span>
@@ -402,10 +402,10 @@ export function PlanForm13({
         <div>
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
             <label className="text-form-xs font-medium text-ink-sub">주변 현황</label>
-            <span className="text-form-xs text-ink-faint">소방차 진입·연소 확대 판단 근거</span>
+            <span className="text-form-xs text-ink-meta">소방차 진입·연소 확대 판단 근거</span>
             {canManage && (
               <>
-                <span className="text-form-xs text-ink-faint ml-1">방위</span>
+                <span className="text-form-xs text-ink-meta ml-1">방위</span>
                 {BEARINGS.map(b => (
                   <button key={b} type="button" onClick={() => setBearing(v => (v === b ? '' : b))}
                     className={`h-form-6 px-1.5 rounded-md border text-form-xs ${bearing === b
@@ -454,7 +454,7 @@ export function PlanForm13({
                 </button>
               </>
             ) : (
-              <span className="text-form-xs text-ink-faint">
+              <span className="text-form-xs text-ink-meta">
                 맨 위 <strong>관할 소방서·출동 거리</strong>에서 소방서를 고르면 경로가 조회되고, 여기서 진입경로 서술·경로도 초안을 만들 수 있습니다.
               </span>
             )}
@@ -482,7 +482,7 @@ export function PlanForm13({
 
       {/* ④ 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-3">
-        <p className="text-form-sm font-semibold text-ink-sub">생성 문서 삽입 사진 <span className="font-normal text-ink-faint">(그 밖의 참고 사진 — PDF·HWP 생성 시 본문에 삽입)</span></p>
+        <p className="text-form-sm font-semibold text-ink-sub">생성 문서 삽입 사진 <span className="font-normal text-ink-meta">(그 밖의 참고 사진 — PDF·HWP 생성 시 본문에 삽입)</span></p>
         <p className="text-form-xs text-ink-soft">
           표지 건물 사진·위치도·피난안내도는 여기가 아니라 위 <strong>[지도·사진]</strong> 칸에서 관리합니다 —
           같은 용도는 <strong>1장만 인쇄</strong>되며, 슬롯에 등록돼 있으면 여기 사진은 인쇄되지 않습니다.
@@ -506,7 +506,7 @@ export function PlanForm13({
             {canManage && (
               <button onClick={() => { setPhotos(rows => rows.filter((_, j) => j !== i)); setDirty(true) }}
                 data-testid="form13-photo-remove"
-                className="text-ink-faint hover:text-red-500 text-form-sm px-1 mt-1">✕</button>
+                className="text-ink-meta hover:text-red-500 text-form-sm px-1 mt-1">✕</button>
             )}
             {legacyKind && (
               <p className="w-full text-form-xs text-amber-700">

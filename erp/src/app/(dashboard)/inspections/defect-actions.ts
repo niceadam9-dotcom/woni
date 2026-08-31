@@ -147,9 +147,18 @@ export async function updateDefectActionAction(input: {
   if (error) return { error: '조치 내용 저장에 실패했습니다.' }
   // R4-6: ⑤ 조치완료·해제가 곧 근거 — 완료일을 지우면 ⑤도 되돌아간다(예외 없음)
   // 36 S2-5 — 바뀌는 서버 prop: defects.planned/done/total(칸 제목 'N/M'·10호 미리보기 watch).
-  // ⚠ 현시점 alsoChanged: true 고정. **S3-5(로컬 집계 미러) 완료 후에만** 내릴 수 있다 —
-  // 지금 내리면 칸 제목이 굳어 "데이터가 갈라진 것처럼" 보인다(위험 ①).
-  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
+  //
+  // ✅ **가드로 내렸다(F-21 해소, 2026-08-30).** 이 자리만 alsoChanged를 뺀다 — 셀 blur마다
+  //    도는 **유일한 고빈도 경로**이고, 여기서 바뀌는 서버 prop은 전부 클라이언트가 책임진다:
+  //      · 집계(planned/done/total) → S3-5 로컬 미러(defectsLocal)
+  //      · 행 내용(action_plan 등)  → F-21 부모 편집분(defectEdits) — ⑤·⑥이 공유한다
+  //      · 단계 ⑤/⑥ 완료 전이       → stepsChanged가 참이 되므로 **가드가 통과시킨다**
+  //    즉 건너뛰는 경우는 "단계 상태가 안 바뀐 저장"뿐이고, 그때 달라지는 화면은 위 둘뿐이다.
+  // ⚠ 선행조건을 **검사로** 못박았다: test-workbench-defect-pane-switch.mts(7/0).
+  //    그 검사를 이 스위치를 내리기 **전에** 현행 코드에 돌렸더니 3건이 붉었다 —
+  //    F-21이 '내리면 생길 사고'라 예고한 것은 실은 **이미 나 있던 사고**였다(S3-7이
+  //    router.refresh()를 걷어내며 서버 prop이 세션 내내 갱신되지 않게 됐기 때문).
+  await syncStepsAndRevalidate(admin, input.inspectionId, user.id)
   return {}
 }
 

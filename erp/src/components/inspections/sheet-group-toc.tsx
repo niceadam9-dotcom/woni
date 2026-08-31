@@ -93,7 +93,7 @@ export function SheetGroupToc({ entries, scrollBoxRef, pendingJump, onJumpConsum
               </span>
             </span>
             {e.name !== e.code && (
-              <span className="hidden lg:block text-form-3xs text-ink-faint truncate">{e.name}</span>
+              <span className="hidden lg:block text-form-3xs text-ink-meta truncate">{e.name}</span>
             )}
             <span className="hidden lg:block h-1 mt-0.5 rounded bg-brand-line-soft overflow-hidden">
               <span className={`block h-full ${full ? 'bg-green-400' : 'bg-brand-line'}`}

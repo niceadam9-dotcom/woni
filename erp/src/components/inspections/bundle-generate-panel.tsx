@@ -61,7 +61,7 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
       </button>
       {open && (
         <div className="space-y-2 border-t border-brand-line-soft px-2.5 py-2 text-[11px]">
-          {isPending && !cl && <p className="flex items-center gap-1 text-ink-faint"><Loader2 className="size-3 animate-spin" /> 상태 확인 중…</p>}
+          {isPending && !cl && <p className="flex items-center gap-1 text-ink-meta"><Loader2 className="size-3 animate-spin" /> 상태 확인 중…</p>}
           {cl && (<>
             {/* 구성요소 체크리스트 (S13-4) — [번들 생성]의 대상 미리보기를 겸한다 */}
             <ul className="space-y-0.5" data-testid="bundle-checklist">
@@ -71,7 +71,7 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
                     ? <span className="text-green-600">✓</span>
                     : i.reason === 'stale' ? <span className="text-amber-600">⚠</span> : <span className="text-red-500">✗</span>}
                   <span className="text-ink">{i.label}</span>
-                  <span className="text-ink-faint">
+                  <span className="text-ink-meta">
                     {i.reason === null && `최신 ${fmt(i.generatedAt)}`}
                     {i.reason === 'stale' && `구본 ${fmt(i.generatedAt)} — 데이터 수정 ${fmt(cl.dataMaxAt)} 이후 재생성 필요`}
                     {i.reason === '미생성' && '미생성'}
@@ -112,7 +112,7 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
                 data-testid="workbook-download">
                 <FileSpreadsheet className="size-3" /> 엑셀로 받기
               </a>
-              <button onClick={load} disabled={isPending} className="text-[10px] text-ink-faint underline">새로고침</button>
+              <button onClick={load} disabled={isPending} className="text-[10px] text-ink-meta underline">새로고침</button>
             </div>
             {results && results.some(r => !r.ok) && (
               <ul className="space-y-0.5 text-red-600">

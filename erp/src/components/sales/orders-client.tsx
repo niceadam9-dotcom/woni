@@ -9,6 +9,7 @@ import {
   type OrderItem,
 } from '@/app/(dashboard)/orders/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 type Customer = { id: string; customer_name: string; customer_code: string }
 type QuoteRef  = { id: string; quote_number: string; total_amount: number; customer_id: string }
@@ -91,7 +92,7 @@ function OrderModal({
 }) {
   const [customerId, setCustomerId] = useState('')
   const [quoteId,    setQuoteId]    = useState('')
-  const [orderDate,  setOrderDate]  = useState(new Date().toISOString().split('T')[0])
+  const [orderDate,  setOrderDate]  = useState(todayKst())
   const [deliveryDate, setDeliveryDate] = useState('')
   const [items, setItems] = useState<OrderItem[]>([
     { description: '', quantity: 1, unit_price: 0, amount: 0 },

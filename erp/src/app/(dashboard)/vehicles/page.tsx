@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Car, Plus } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayKst } from '@/lib/kst-date'
 
 export default async function VehiclesPage() {
   const profile = await getProfile()
@@ -20,7 +21,7 @@ export default async function VehiclesPage() {
     gasoline: '휘발유', diesel: '경유', lpg: 'LPG', electric: '전기', hybrid: '하이브리드',
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayKst()
 
   return (
     <div className="space-y-6">

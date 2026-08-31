@@ -49,7 +49,7 @@ export function AutoGenerateModal({ year, month, onClose, onGenerated }: Props) 
                 전월 ({prevYear}년 {prevMonth}월) 기준으로<br />
                 <span className="font-semibold text-brand">{count}건</span>의 점검 항목이 초안으로 생성되었습니다.
               </p>
-              <p className="text-xs text-ink-faint">점검 예정일은 직접 입력해주세요.</p>
+              <p className="text-xs text-ink-meta">점검 예정일은 직접 입력해주세요.</p>
               <button
                 onClick={() => onGenerated('')}
                 className="w-full py-2.5 text-sm bg-brand text-white rounded-lg font-medium hover:bg-brand-strong transition-colors"

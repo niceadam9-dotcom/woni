@@ -423,7 +423,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     }
     const d = Math.round((new Date(st.due_date).getTime() - new Date(today).getTime()) / 86400000)
     if (d < 0) return <span className="text-[10px] font-semibold text-red-600">단계 마감 초과 {-d}일 ⚠</span>
-    return <span className={`text-[10px] font-semibold ${d <= 3 ? 'text-red-600' : d <= 7 ? 'text-amber-600' : 'text-ink-faint'}`}>단계 마감 D-{d}</span>
+    return <span className={`text-[10px] font-semibold ${d <= 3 ? 'text-red-600' : d <= 7 ? 'text-amber-600' : 'text-ink-meta'}`}>단계 마감 D-{d}</span>
   }
 
   // 접힘/펼침 클릭 헤더 (아이콘 + 라벨 + D-day/완료일 + 완료 처리 버튼) — 렌더 함수(컴포넌트 생성 금지)
@@ -475,7 +475,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
       <div className="flex items-center gap-2 mb-1">
         <FileText className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">문서 타임라인</h2>
-        <span className="text-[11px] text-ink-faint">
+        <span className="text-[11px] text-ink-meta">
           {!isSpecialTimeline ? '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)' : '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시 진행'}
         </span>
         {/* 상호 진입점 역링크 — 별지서식 탭으로 (소방계획서_8 Phase B → _34로 탭 승격) */}
@@ -532,7 +532,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                 {done1 ? `응답 ${data.responded}건 입력됨` : '응답 없음 — 위 점검표 입력에서 작성해주세요'}
               </span>
               {data.steps.length === 1 && (
-                <span className="text-[10px] text-ink-faint">완료 조건 = 점검표 작성 (기한·알림 없음)</span>
+                <span className="text-[10px] text-ink-meta">완료 조건 = 점검표 작성 (기한·알림 없음)</span>
               )}
               {/* 별지 4호(소방시설등점검표) 생성 — 자체점검 ① 점검표 행 (소방계획서_7 §4-A-2·H-16 발견 연결) */}
               {isSpecialTimeline && canManage && (
@@ -572,7 +572,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                 <span className="ml-auto flex items-center gap-1.5 shrink-0">
                   {/* R7 배치신고 도우미 — 신고값 협회 순서 텍스트로 복사 */}
                   {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
-                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-ink-faint hover:text-brand inline-flex items-center gap-0.5">
+                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-ink-meta hover:text-brand inline-flex items-center gap-0.5">
                     협회 <ExternalLink className="size-2.5" />
                   </a>
                   {data.certFile && (
@@ -628,7 +628,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
             )}
             {isOpen('ownerReport') && offlineOpen && canManage && (
               <div className="mt-1.5 pl-6 flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] text-ink-faint">보고일</span>
+                <span className="text-[10px] text-ink-meta">보고일</span>
                 <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
                   className="h-7 w-32 rounded-lg border border-brand-line px-2 text-[11px]" />
                 <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
@@ -638,7 +638,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                 <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
                   className="h-7 w-48 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
                 <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
-                <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-ink-faint">취소</button>
+                <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-ink-meta">취소</button>
               </div>
             )}
           </div>
@@ -650,13 +650,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         <div className={row}>
           <div className="flex-1 min-w-0">
             {stepHeader({ k: 'submit9', done: done4, active: done1,
-              extra: hasDefects ? <span className="text-[10px] text-ink-faint">(+별지 10호 — 불량 시)</span> : undefined,
+              extra: hasDefects ? <span className="text-[10px] text-ink-meta">(+별지 10호 — 불량 시)</span> : undefined,
               collapsedSummary: data.submit9.submittedAt ? <span className="text-[10px] text-green-600">제출 {data.submit9.submittedAt}</span> : undefined })}
           {isOpen('submit9') && (
           <div className="flex-1 min-w-0 space-y-1.5 mt-1.5 pl-6">
             <div className="flex items-center gap-2 flex-wrap">
               {dday(data.submit9.dday, data.submit9.submittedAt)}
-              {data.submit9.due && !data.submit9.submittedAt && <span className="text-[10px] text-ink-faint">기한 {data.submit9.due}</span>}
+              {data.submit9.due && !data.submit9.submittedAt && <span className="text-[10px] text-ink-meta">기한 {data.submit9.due}</span>}
               {canManage && (<>
                 <button onClick={() => generate('report9')} disabled={isPending || busy} className={btnPri}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
@@ -688,7 +688,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
             {/* R5-8 기산 근거 — '제출 기한이 왜 이 날짜인지'를 ④에서 바로 보고, 여기서 고칠 수도 있다.
                 종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
             {data.period && (data.period.end || data.period.start) && (
-              <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-ink-faint">
+              <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-ink-meta">
                 <Clock className="size-3 shrink-0" />
                 <span>
                   기산: {data.period.end
@@ -713,7 +713,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
             )}
             {/* 전제 체크 (§9-6⑦ 흡수) */}
             <div className="flex items-center gap-2 flex-wrap text-[10px]">
-              <span className="text-ink-faint">└ 전제:</span>
+              <span className="text-ink-meta">└ 전제:</span>
               {data.prereqs.map(p => (
                 <span key={p.label} title={p.detail} className={`inline-flex items-center gap-0.5 ${p.ok ? 'text-green-600' : 'text-amber-600'}`}>
                   {p.ok ? '✓' : '⚠'} {p.label}
@@ -736,13 +736,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         <div className={`${row} ${dragOver === 'contract' ? 'bg-brand-tint outline outline-1 outline-dashed outline-brand rounded' : ''}`} {...dropProps('contract')}>
           <div className="flex-1 min-w-0">
             {stepHeader({ k: 'repair', done: done5, active: done4,
-              extra: <span className="text-[10px] text-ink-faint">불량 {data.defects.done}/{data.defects.total} 조치 · 전후 {data.defects.photoPairs}/{data.defects.total}쌍</span> })}
+              extra: <span className="text-[10px] text-ink-meta">불량 {data.defects.done}/{data.defects.total} 조치 · 전후 {data.defects.photoPairs}/{data.defects.total}쌍</span> })}
             {isOpen('repair') && (
               <div className="mt-1.5 pl-6 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-xs ${done5 ? 'text-ink-sub' : 'text-amber-600'}`}>
                     불량 {data.defects.total}건 · 계획 {data.defects.planned} · 완료 {data.defects.done}
-                    <span className="text-ink-faint" title="수리 계약서·전/후 사진은 선택 증빙 — ⑤ 완료 조건은 불량 전건 조치 완료"> (사진·계약서는 선택)</span>
+                    <span className="text-ink-meta" title="수리 계약서·전/후 사진은 선택 증빙 — ⑤ 완료 조건은 불량 전건 조치 완료"> (사진·계약서는 선택)</span>
                     {data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
                   </span>
                   <span className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -761,7 +761,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                   <div className={`h-full rounded-full transition-all ${data.defects.photoPairs >= data.defects.total ? 'bg-green-500' : 'bg-brand'}`}
                     style={{ width: `${data.defects.total > 0 ? Math.round((data.defects.photoPairs / data.defects.total) * 100) : 0}%` }} />
                 </div>
-                <p className="text-[10px] text-ink-faint">전/후 사진 {data.defects.photoPairs}/{data.defects.total}쌍 완료</p>
+                <p className="text-[10px] text-ink-meta">전/후 사진 {data.defects.photoPairs}/{data.defects.total}쌍 완료</p>
                 <input ref={afterRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onAfterPicked} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {data.defectRows.map(d => (
@@ -824,7 +824,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
               {isOpen('repair') ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
               <Circle className="size-4 text-[#d0ccf5] shrink-0" />
               <span className="text-xs font-semibold text-ink shrink-0" title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
-              <span className="text-xs text-ink-faint">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+              <span className="text-xs text-ink-meta">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
             </button>
             {isOpen('repair') && slots?.defects && (
               <div className="mt-2 pl-6">{slots.defects}</div>
@@ -842,7 +842,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
             {isOpen('submit11') && (
               <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
                 {dday(data.submit11.dday, data.submit11.submittedAt)}
-                {data.submit11.due && !data.submit11.submittedAt && <span className="text-[10px] text-ink-faint">기한 {data.submit11.due} (이행기간 종료)</span>}
+                {data.submit11.due && !data.submit11.submittedAt && <span className="text-[10px] text-ink-meta">기한 {data.submit11.due} (이행기간 종료)</span>}
                 {canManage && (<>
                   <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>별지 11호 생성</button>
                   <button onClick={() => setCompose('report11')} disabled={isPending || busy} className={btn}
@@ -863,13 +863,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         <div className={`${row} opacity-50`}>
           <Circle className="size-4 text-[#d0ccf5] shrink-0" />
           <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit11}>{TIMELINE_STEP_LABELS.submit11}</span>
-          <span className="text-xs text-ink-faint">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+          <span className="text-xs text-ink-meta">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
         </div>
       ))}
 
       {msg && <p className="text-xs text-ink-sub mt-2">{msg}</p>}
       {busy && (
-        <p className="text-[11px] text-ink-faint mt-2 inline-flex items-center gap-1">
+        <p className="text-[11px] text-ink-meta mt-2 inline-flex items-center gap-1">
           <RefreshCw className="size-3 animate-spin" /> 생성 중 — 서버에서 PDF 변환 중
         </p>
       )}

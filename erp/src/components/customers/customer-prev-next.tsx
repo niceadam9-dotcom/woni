@@ -29,7 +29,7 @@ export function CustomerPrevNext({ prevId, nextId, position }: {
       <button onClick={() => prevId && go(prevId)} disabled={!prevId} className={btnCls(!!prevId)} title="이전 고객">
         <ChevronLeft className="size-4" />
       </button>
-      <span className="text-[10px] text-ink-faint w-12 text-center">{position}</span>
+      <span className="text-[10px] text-ink-meta w-12 text-center">{position}</span>
       <button onClick={() => nextId && go(nextId)} disabled={!nextId} className={btnCls(!!nextId)} title="다음 고객">
         <ChevronRight className="size-4" />
       </button>

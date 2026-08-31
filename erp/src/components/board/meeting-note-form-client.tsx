@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, MapPin, Users } from 'lucide-react'
 import { createMeetingNoteAction, updateMeetingNoteAction } from '@/app/(dashboard)/board/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
@@ -18,7 +19,7 @@ export function MeetingNoteFormClient({ existing }: { existing?: Note }) {
   const [form, setForm] = useState({
     title: existing?.title ?? '',
     content: existing?.content ?? '',
-    meeting_date: existing?.meeting_date ?? new Date().toISOString().slice(0, 10),
+    meeting_date: existing?.meeting_date ?? todayKst(),
     participants: existing?.participants ?? '',
     location: existing?.location ?? '',
   })

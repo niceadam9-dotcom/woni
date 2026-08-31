@@ -142,18 +142,18 @@ export function InspectionReportsClient({ inspectionId, reports, canEdit, canDel
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-ink-sub truncate max-w-[180px]">{existing.file_name}</span>
                         {existing.file_size && (
-                          <span className="text-xs text-ink-faint">({formatBytes(existing.file_size)})</span>
+                          <span className="text-xs text-ink-meta">({formatBytes(existing.file_size)})</span>
                         )}
                       </div>
                       {existing.submitted_at && (
-                        <p className="text-xs text-ink-faint mt-0.5">
+                        <p className="text-xs text-ink-meta mt-0.5">
                           제출: {kstDate(existing.submitted_at)}
                           {existing.submitted_by_name && ` · ${existing.submitted_by_name}`}
                         </p>
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs text-ink-faint mt-0.5">아직 제출된 보고서가 없습니다</p>
+                    <p className="text-xs text-ink-meta mt-0.5">아직 제출된 보고서가 없습니다</p>
                   )}
 
                   {errMsg && <p className="text-xs text-red-500 mt-1">{errMsg}</p>}

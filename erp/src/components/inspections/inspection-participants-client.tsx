@@ -55,14 +55,14 @@ export function InspectionParticipantsClient({
       <div className="flex items-center gap-2 py-2 border-b border-brand-line-soft">
         <span className="text-xs font-semibold text-brand w-14 shrink-0">주된</span>
         <span className="text-sm text-ink">{mainEmployee?.name ?? '미배정'}</span>
-        {mainEmployee?.license_no && <span className="text-xs text-ink-faint">({mainEmployee.license_no})</span>}
+        {mainEmployee?.license_no && <span className="text-xs text-ink-meta">({mainEmployee.license_no})</span>}
       </div>
 
       {aux.map(p => (
         <div key={p.id} className="flex items-center gap-2 py-2 border-b border-paper">
           <span className="text-xs font-medium text-ink-sub w-14 shrink-0">보조</span>
           <span className="text-sm text-ink">{p.name}</span>
-          {p.license_no && <span className="text-xs text-ink-faint">({p.license_no})</span>}
+          {p.license_no && <span className="text-xs text-ink-meta">({p.license_no})</span>}
           {!p.license_no && <span className="text-[11px] text-amber-500">경력수첩번호 없음</span>}
           {canManage && (
             <button onClick={() => remove(p.id)} disabled={isPending}

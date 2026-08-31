@@ -64,7 +64,7 @@ export function ConfirmedDecisionDialog({
           <button
             onClick={onCancel}
             disabled={isPending}
-            className="h-9 rounded-lg text-xs text-ink-faint hover:text-ink-sub transition-colors"
+            className="h-9 rounded-lg text-xs text-ink-meta hover:text-ink-sub transition-colors"
           >
             취소 (변경하지 않음)
           </button>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { createWorkJournalAction } from '@/app/(dashboard)/tasks/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
@@ -25,7 +26,7 @@ export function WorkJournalClient({
   const [error, setError] = useState('')
 
   const [newForm, setNewForm] = useState({
-    work_date: new Date().toISOString().slice(0, 10),
+    work_date: todayKst(),
     title: '', content: '', work_hours: '',
   })
 
@@ -44,7 +45,7 @@ export function WorkJournalClient({
       })
       if (result.error) { setError(result.error); return }
       setShowNew(false)
-      setNewForm({ work_date: new Date().toISOString().slice(0, 10), title: '', content: '', work_hours: '' })
+      setNewForm({ work_date: todayKst(), title: '', content: '', work_hours: '' })
       router.refresh()
     })
   }

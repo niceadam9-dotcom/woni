@@ -3,6 +3,7 @@ import { CheckSquare } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { TodosClient } from '@/components/my/todos-client'
+import { todayKst } from '@/lib/kst-date'
 
 export default async function TodosPage() {
   const profile = await getProfile()
@@ -26,7 +27,7 @@ export default async function TodosPage() {
 
       <TodosClient
         initialTodos={(todos ?? []) as Record<string, unknown>[]}
-        today={new Date().toISOString().split('T')[0]}
+        today={todayKst()}
       />
     </div>
   )

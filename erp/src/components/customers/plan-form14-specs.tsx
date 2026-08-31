@@ -588,7 +588,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                 className={`inline-flex items-center gap-1 text-form-xs ${
                   on ? 'font-bold text-ink' : 'text-ink-sub hover:text-brand'
                 } ${optDerived ? '!text-ink-soft cursor-default' : ''} disabled:opacity-60`}>
-                <span>{on ? '☑' : '☐'}</span>{o}{optDerived && <span className="text-form-3xs text-ink-faint">(대장)</span>}
+                <span>{on ? '☑' : '☐'}</span>{o}{optDerived && <span className="text-form-3xs text-ink-meta">(대장)</span>}
               </button>
             )
           })}
@@ -640,14 +640,14 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                 <tr>
                   {groups.map(g => g.group
                     ? <th key={g.group} colSpan={g.cols.length}
-                        className={`${th} ${g.cols.some(colOn) ? 'text-ink-sub' : 'text-ink-faint'}`}>{g.group}</th>
+                        className={`${th} ${g.cols.some(colOn) ? 'text-ink-sub' : 'text-ink-meta'}`}>{g.group}</th>
                     : <th key={g.cols[0].key} rowSpan={2} className={`${th} text-ink-sub`}>{g.cols[0].short ?? g.cols[0].label}</th>)}
                   {!dis && <th rowSpan={2} className={th} />}
                 </tr>
                 <tr>
                   {groups.filter(g => g.group).flatMap(g => g.cols).map(c => (
                     <th key={c.key} title={colOn(c) ? c.label : `${c.label} — 위 ‘설치 종류’에서 체크해야 입력할 수 있습니다`}
-                      className={`${th} ${colOn(c) ? 'text-ink' : 'text-ink-faint font-normal'}`}>
+                      className={`${th} ${colOn(c) ? 'text-ink' : 'text-ink-meta font-normal'}`}>
                       {colOn(c) ? '☑' : '☐'} {c.short ?? c.label}
                     </th>
                   ))}
@@ -706,7 +706,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                 className="inline-flex items-center gap-1 h-form-6 px-2 rounded-lg border border-brand-line text-form-2xs font-medium text-brand hover:bg-brand-tint transition-colors">
                 + 동 추가{nextDong ? ` (${nextDong})` : ''}
               </button>
-              <span className="text-form-2xs text-ink-faint">
+              <span className="text-form-2xs text-ink-meta">
                 합계는 동별 행의 자동 합산입니다 · 체크한 종류의 칸만 열립니다
               </span>
             </div>
@@ -746,7 +746,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
           <input value={v as string} disabled={dis} aria-label={f.label}
             inputMode={f.type === 'number' ? 'decimal' : undefined}
             onChange={e => setField(secKey, bl.key, f.key, e.target.value)} className={box} />
-          {f.unit && <span className="text-form-2xs text-ink-faint shrink-0">{f.unit}</span>}
+          {f.unit && <span className="text-form-2xs text-ink-meta shrink-0">{f.unit}</span>}
           {isCountField && stepBtn(1)}
         </div>
         {!dis && isDongField && dongChips.length > 0 && (
@@ -778,7 +778,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
       onToggle={e => { if ((e.target as HTMLDetailsElement).open) fetchInspected() }}>
       <summary className="text-form-sm font-semibold text-ink-sub cursor-pointer select-none">
         설비 대장 — 별지 3. 소방시설등의 세부현황
-        <span className="ml-1.5 font-normal text-ink-faint">(섹션 3-1~3-8 = 별지 4호 3~7쪽·9호 4~7쪽과 번호 동일)</span>
+        <span className="ml-1.5 font-normal text-ink-meta">(섹션 3-1~3-8 = 별지 4호 3~7쪽·9호 4~7쪽과 번호 동일)</span>
         {/* D-17 완성도 게이지 클릭 = 빈칸만 보기 토글 */}
         <button type="button"
           onClick={e => { e.preventDefault(); e.stopPropagation(); detailsRef.current?.setAttribute('open', ''); toggleEmptyOnly() }}
@@ -826,7 +826,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
 
         {/* 소방계획서_8 D-13·D-18: 사용처 칩 + 스플릿 토글 — 이 입력이 어느 문서에 쓰이는지 */}
         <div className="flex items-center gap-1.5 flex-wrap text-form-2xs">
-          <span className="text-ink-faint font-medium">사용처:</span>
+          <span className="text-ink-meta font-medium">사용처:</span>
           <span className="px-1.5 py-0.5 rounded-full bg-brand-line-soft text-ink-sub font-medium">④ 별지 4호 3~7쪽</span>
           <span className="px-1.5 py-0.5 rounded-full bg-brand-line-soft text-ink-sub font-medium">⑨ 별지 9호 4~7쪽</span>
           <span className="px-1.5 py-0.5 rounded-full bg-brand-line-soft text-ink-sub font-medium">📘 계획서 1.4</span>
@@ -899,7 +899,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                     )
                     if (badge.mark === 'N') return (
                       <span data-testid={`spec-mark-${sec.key}`} title={`미설치로 해당없음 — ${codes}`}
-                        className="shrink-0 text-form-2xs text-ink-faint">／ 해당없음</span>
+                        className="shrink-0 text-form-2xs text-ink-meta">／ 해당없음</span>
                     )
                     return (
                       <span data-testid={`spec-mark-${sec.key}`} title={`${round}점검표에 이 설비 응답이 없습니다 — ${codes}`}
@@ -936,8 +936,8 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                           className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left">
                           {on
                             ? (blOpen ? <ChevronDown className="size-3 text-ink-faint shrink-0" /> : <ChevronRight className="size-3 text-ink-faint shrink-0" />)
-                            : <span className="inline-flex items-center rounded bg-brand-line-soft px-1.5 py-0.5 text-form-2xs text-ink-faint shrink-0">미설치</span>}
-                          <span className={`text-form-xs ${on ? 'font-medium text-ink' : 'text-ink-faint'}`}>{bl.label}</span>
+                            : <span className="inline-flex items-center rounded bg-brand-line-soft px-1.5 py-0.5 text-form-2xs text-ink-meta shrink-0">미설치</span>}
+                          <span className={`text-form-xs ${on ? 'font-medium text-ink' : 'text-ink-meta'}`}>{bl.label}</span>
                           {/* D-17 교차 검증 칩 — 점검표 응답은 있는데 제원이 전부 빈 블록 */}
                           {warn && (
                             <span className="text-form-2xs text-amber-700 bg-amber-50 border border-amber-300 rounded-full px-1.5 py-px font-medium shrink-0"
@@ -955,7 +955,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                         {blOpen && (
                           <div className="border-t border-brand-line-soft px-2.5 py-2">
                             {receiverLocation && (bl.key === 'fire_detection' || bl.key === 'fire_alert') && (
-                              <p className="mb-1.5 text-form-2xs text-ink-faint">
+                              <p className="mb-1.5 text-form-2xs text-ink-meta">
                                 <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px font-semibold text-ink-sub mr-1">자동</span>
                                 빠른 입력의 수신기 위치: {receiverLocation} — 수정은 계획서 정보(1.1)에서
                               </p>
@@ -983,7 +983,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                       <button key={gid} type="button" disabled={!on}
                                         onClick={() => setOpenGroups(p => ({ ...p, [gid]: true }))}
                                         className="col-span-full mt-1 justify-self-start rounded border border-dashed border-brand-line px-2 py-0.5 text-form-2xs text-brand hover:bg-brand-tint disabled:opacity-50">
-                                        + {run.group} 입력 <span className="text-ink-faint">(동이 둘 이상일 때만)</span>
+                                        + {run.group} 입력 <span className="text-ink-meta">(동이 둘 이상일 때만)</span>
                                       </button>,
                                     ]
                                   }
@@ -1029,7 +1029,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
         {/* D-13 스플릿 우측 — 별지 9호 세부현황 실시간 미리보기 (저장 시 재렌더, 데스크톱 전용) */}
         {splitOn && (
           <div className="hidden md:block md:w-1/2 sticky top-2">
-            <p className="text-form-2xs text-ink-faint mb-1">
+            <p className="text-form-2xs text-ink-meta mb-1">
               ⑨ 별지 9호 미리보기 — 제원 저장 시 즉시 갱신 · 빈칸은 노란 하이라이트
               {splitLoading && <Loader2 className="inline size-3 animate-spin ml-1" />}
             </p>

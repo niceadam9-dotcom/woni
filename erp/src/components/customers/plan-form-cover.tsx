@@ -54,22 +54,22 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
         <div className="flex items-center gap-2">
           <BookMarked className="size-4 text-brand" />
           <p className="text-form-sm font-semibold text-ink-sub">보고서 커버</p>
-          <span className="text-form-xs text-ink-faint ml-auto">생성 문서 마지막 페이지 — 비워 두면 자동값</span>
+          <span className="text-form-xs text-ink-meta ml-auto">생성 문서 마지막 페이지 — 비워 두면 자동값</span>
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           <div>
-            <label className="text-form-2xs text-ink-faint block">업체명 (기본: 고객명)</label>
+            <label className="text-form-2xs text-ink-meta block">업체명 (기본: 고객명)</label>
             <input id="cover-company" value={v.company ?? ''} disabled={!canManage} placeholder={defaults.company}
               onChange={e => patch({ company: e.target.value })} className={`${inputCls} w-64`} />
           </div>
           <div>
-            <label className="text-form-2xs text-ink-faint block">연도 (기본: 생성 연도)</label>
+            <label className="text-form-2xs text-ink-meta block">연도 (기본: 생성 연도)</label>
             <input id="cover-year" value={v.year ?? ''} disabled={!canManage} placeholder={defaults.year}
               inputMode="numeric" onChange={e => patch({ year: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) })}
               className={`${inputCls} w-20`} />
           </div>
           <div className="flex-1 min-w-48">
-            <label className="text-form-2xs text-ink-faint block">부기 문구 (선택 — 비우면 업무대행 회사명)</label>
+            <label className="text-form-2xs text-ink-meta block">부기 문구 (선택 — 비우면 업무대행 회사명)</label>
             <input id="cover-sub" value={v.sub ?? ''} disabled={!canManage} placeholder="예: 소방안전관리 업무대행 ○○소방(주)"
               onChange={e => patch({ sub: e.target.value })} className={`${inputCls} w-full`} />
           </div>

@@ -165,7 +165,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
         <div className="flex items-end gap-2 flex-wrap">
           {([['worker', '근무 인원'], ['resident', '거주 인원'], ['brigade', '자위소방대']] as const).map(([k, label]) => (
             <div key={k}>
-              <label className="text-form-2xs text-ink-faint block">{label}</label>
+              <label className="text-form-2xs text-ink-meta block">{label}</label>
               <NumStepper value={t.headcount[k]} disabled={!canManage} label={label}
                 onChange={v => patch({ headcount: { ...t.headcount, [k]: v } })}>
                 <input value={t.headcount[k]} disabled={!canManage} inputMode="numeric"
@@ -189,7 +189,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
             </button>
           )}
         </div>
-        {t.details.length === 0 && <p className="text-form-xs text-ink-faint">차수별 계획(명칭·일시·장소 등)을 추가하세요.</p>}
+        {t.details.length === 0 && <p className="text-form-xs text-ink-meta">차수별 계획(명칭·일시·장소 등)을 추가하세요.</p>}
         <div className="space-y-1.5">
           {t.details.map((d, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
@@ -220,7 +220,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <input value={d.materials} disabled={!canManage} placeholder="교보재" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, materials: e.target.value } : x) })} className={`${inputCls} w-24`} />
               <input value={d.plan} disabled={!canManage} placeholder="훈련·교육·평가 계획" onChange={e => patch({ details: t.details.map((x, j) => j === i ? { ...x, plan: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               {canManage && (
-                <button onClick={() => patch({ details: t.details.filter((_, j) => j !== i) })} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => patch({ details: t.details.filter((_, j) => j !== i) })} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}
@@ -259,7 +259,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
         <div className="flex items-center gap-2 mb-2">
           <p className="text-form-sm font-semibold text-ink-sub">1.11.4 훈련·교육 실시 결과 기록부
-            <span className="font-normal text-ink-faint ml-2">별지 28호 — 2년 보관 · 별지 9호 실시 판정 소스 · 2장 2.14와 공용</span>
+            <span className="font-normal text-ink-meta ml-2">별지 28호 — 2년 보관 · 별지 9호 실시 판정 소스 · 2장 2.14와 공용</span>
           </p>
           {canManage && (
             <button onClick={() => patch({ records: [...t.records, { at: '', year: RECORD_YEARS[0], kind: '훈련', attendees: '', content: '', evaluation: '' }] })}
@@ -269,7 +269,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
           )}
         </div>
         {prevYearBadge}
-        {t.records.length === 0 && <p className="text-form-xs text-ink-faint">실시 후 결과를 기록하세요.</p>}
+        {t.records.length === 0 && <p className="text-form-xs text-ink-meta">실시 후 결과를 기록하세요.</p>}
         <div className="space-y-1.5">
           {t.records.map((r, i) => {
             // 구 데이터는 year가 없다 — 실시일에서 파생해 보여주고, 목록에 없는 연도면 선택지에 얹는다
@@ -296,7 +296,7 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
               <input value={r.content} disabled={!canManage} placeholder="내용" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, content: e.target.value } : x) })} className={`${inputCls} flex-1 min-w-32`} />
               <input value={r.evaluation} disabled={!canManage} placeholder="평가" onChange={e => patch({ records: t.records.map((x, j) => j === i ? { ...x, evaluation: e.target.value } : x) })} className={`${inputCls} w-32`} />
               {canManage && (
-                <button onClick={() => removeRecord(i)} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => removeRecord(i)} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}

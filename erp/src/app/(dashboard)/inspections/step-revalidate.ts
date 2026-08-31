@@ -14,6 +14,7 @@
  */
 import { revalidatePath } from 'next/cache'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
+import { shouldRevalidate, stepsChangedFrom } from '@/lib/step-revalidate-rule'
 
 /** lib 쪽 Admin 타입을 그대로 따라간다 — 여기서 다시 선언하면 두 정의가 갈라진다 */
 type Admin = Parameters<typeof syncInspectionSteps>[0]
@@ -49,7 +50,9 @@ export async function syncStepsAndRevalidate(
   opts: { alsoChanged?: boolean } = {},
 ): Promise<{ stepsChanged: boolean }> {
   const sync = await syncInspectionSteps(admin, inspectionId, actorId)
-  const stepsChanged = sync.changed > 0 || !!sync.justCompleted
-  if (stepsChanged || opts.alsoChanged) revalidateInspection(inspectionId)
+  // 규칙은 lib/step-revalidate-rule.ts의 순수 술어다 — 이 파일은 next/cache를 끌어들여
+  // Next 밖에서 못 부르므로, 규칙이 여기 있으면 단독 단언이 불가능하다(S2-2 수용 기준 ⓐ)
+  const stepsChanged = stepsChangedFrom(sync)
+  if (shouldRevalidate(stepsChanged, opts.alsoChanged)) revalidateInspection(inspectionId)
   return { stepsChanged }
 }

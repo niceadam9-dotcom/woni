@@ -400,7 +400,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   ) : autosave.status === 'saved' ? (
     <span className="text-form-2xs font-semibold text-green-600 shrink-0">✓ 저장됨</span>
   ) : (
-    <span className="text-form-2xs text-ink-faint shrink-0">자동 저장</span>
+    <span className="text-form-2xs text-ink-meta shrink-0">자동 저장</span>
   )
 
   return (
@@ -412,7 +412,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
             어느 설비가 비었는지 여기 카드에서는 보드를 펼쳐야 보인다. */}
         <a href={`/inspections/${inspectionId}/sheet`} data-testid="sheet-entry-link"
           className="text-[11px] text-brand hover:underline ml-auto">전체 화면으로 입력 →</a>
-        <span className="text-xs text-ink-faint">{scopeLabel(scope)}</span>
+        <span className="text-xs text-ink-meta">{scopeLabel(scope)}</span>
       </div>
 
       {/* EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 같은 점검 건에 달을 나눠 기록한다 */}
@@ -426,7 +426,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
               <option key={m} value={m}>{m}월</option>
             ))}
           </select>
-          <span className="text-[11px] text-ink-faint">
+          <span className="text-[11px] text-ink-meta">
             달을 바꿔 저장하면 그 달의 실적으로 기록됩니다 — 외관점검표는 기록한 달이 한 장에 누적 인쇄됩니다.
           </span>
         </div>
@@ -450,7 +450,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         <div className="mb-3 rounded-lg border border-brand-line-soft bg-brand-tint p-3 space-y-2">
           <p className="text-[11px] font-semibold text-ink-sub flex items-center gap-1">
             <Zap className="size-3 text-brand" /> 빠른 결과 입력
-            <span className="font-normal text-ink-faint">— ① 전체 양호 후 ② 불량 항목만 검색해 태깅</span>
+            <span className="font-normal text-ink-meta">— ① 전체 양호 후 ② 불량 항목만 검색해 태깅</span>
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={bulkGood} disabled={isPending}
@@ -469,16 +469,16 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
               {quickResults.map(r => (
                 <button key={r.item_code} onClick={() => { setPicked(r); setQuickMemo('') }}
                   className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-brand-tint flex items-center gap-2">
-                  <span className="text-[10px] text-ink-faint w-16 shrink-0">{r.item_code}</span>
+                  <span className="text-[10px] text-ink-meta w-16 shrink-0">{r.item_code}</span>
                   <span className="text-ink flex-1 min-w-0 truncate">{r.item_name}</span>
-                  <span className="text-[10px] text-ink-faint shrink-0 max-w-24 truncate">{r.sheet_name}</span>
+                  <span className="text-[10px] text-ink-meta shrink-0 max-w-24 truncate">{r.sheet_name}</span>
                   {r.current && <span className={`text-[10px] font-bold shrink-0 ${r.current === 'X' ? 'text-red-500' : r.current === 'O' ? 'text-green-600' : 'text-gray-400'}`}>{r.current === 'O' ? '○' : r.current === 'X' ? '✕' : '／'}</span>}
                 </button>
               ))}
             </div>
           )}
           {!picked && quickQ.trim().length >= 2 && quickResults.length === 0 && (
-            <p className="text-[11px] text-ink-faint">검색 결과 없음 — 다른 키워드로 시도해보세요 (예: 수신기, 감지기, 유도등)</p>
+            <p className="text-[11px] text-ink-meta">검색 결과 없음 — 다른 키워드로 시도해보세요 (예: 수신기, 감지기, 유도등)</p>
           )}
           {picked && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-1.5">
@@ -498,7 +498,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       )}
 
       {/* 머더 카드 보드 — 상시(Q-2, 접이 없음). 드로어가 떠도 사라지지 않는다(포털 오버레이 — Q-4) */}
-      <p className="text-[11px] text-ink-faint mb-2">
+      <p className="text-[11px] text-ink-meta mb-2">
         머더(중분류) 카드를 누르면 그 시트 전체가 오른쪽에 열리고 해당 위치로 이동합니다 — ○(정상)/✕(불량), ／(해당없음)는 일괄 버튼. 입력은 자동 저장됩니다.
       </p>
       <SheetGroupBoard progress={overlaidProgress} noFacilityInfo={noFacilityInfo}
@@ -511,7 +511,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         title={sel?.sheet_name ?? ''}
         headerRight={
           <span className="flex items-center gap-2 ml-auto min-w-0">
-            <span className={`text-form-2xs shrink-0 ${selCounts.total > 0 && selCounts.responded >= selCounts.total ? 'text-green-600' : 'text-ink-faint'}`}>
+            <span className={`text-form-2xs shrink-0 ${selCounts.total > 0 && selCounts.responded >= selCounts.total ? 'text-green-600' : 'text-ink-meta'}`}>
               {selCounts.responded}/{selCounts.total}{selCounts.x > 0 ? ` ✕${selCounts.x}` : ''}
             </span>
             {canManage && (

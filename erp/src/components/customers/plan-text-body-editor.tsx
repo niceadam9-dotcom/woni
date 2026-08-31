@@ -84,11 +84,11 @@ function Field({ f, value, setAt, disabled }: {
   return (
     <div className="space-y-1.5">
       {list.length === 0 && (
-        <p className="text-[11px] text-ink-faint">등록된 행이 없습니다 — 아래 버튼으로 추가하세요.</p>
+        <p className="text-[11px] text-ink-meta">등록된 행이 없습니다 — 아래 버튼으로 추가하세요.</p>
       )}
       {list.map((r, idx) => (
         <div key={idx} className="flex items-start gap-1.5">
-          <span className="w-5 shrink-0 pt-2 text-[10px] text-ink-faint">{idx + 1}</span>
+          <span className="w-5 shrink-0 pt-2 text-[10px] text-ink-meta">{idx + 1}</span>
           <div className="flex-1 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${f.cols.length}, minmax(0, 1fr))` }}>
             {f.cols.map(c => (
               <div key={c.key} className="space-y-0.5">

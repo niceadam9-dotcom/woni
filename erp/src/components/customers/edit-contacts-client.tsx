@@ -126,7 +126,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
   return (
     <div className="grid grid-cols-1 gap-3">
       {visibleRoles.length === 0 && (
-        <p className="text-xs text-ink-faint">등록된 관계인이 없습니다</p>
+        <p className="text-xs text-ink-meta">등록된 관계인이 없습니다</p>
       )}
       {/* 체크 인원 = 회차당 통수 (소방계획서_24 S5-b) — 문자 비용이 정해지는 지점은 발송 모달이 아니라
           여기다. 정기점검 고객이면 3명 체크 = 연 36통이 되는데 그 사실이 화면에 드러나지 않았다. */}
@@ -177,14 +177,14 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
               {showBook && (
                 <div className="mb-2 rounded-lg border border-brand-line bg-surface shadow-lg max-h-40 overflow-y-auto">
                   {book === null ? (
-                    <p className="px-3 py-2 text-[11px] text-ink-faint">불러오는 중…</p>
+                    <p className="px-3 py-2 text-[11px] text-ink-meta">불러오는 중…</p>
                   ) : book.length === 0 ? (
-                    <p className="px-3 py-2 text-[11px] text-ink-faint">주소록이 비어 있습니다 (마이페이지 &gt; 주소록)</p>
+                    <p className="px-3 py-2 text-[11px] text-ink-meta">주소록이 비어 있습니다 (마이페이지 &gt; 주소록)</p>
                   ) : book.map((e, i) => (
                     <button key={i} onClick={() => applyBookEntry(e)}
                       className="w-full text-left px-3 py-1.5 text-xs hover:bg-brand-tint flex justify-between gap-2">
-                      <span>{e.name}{e.position && <span className="text-ink-faint"> · {e.position}</span>}</span>
-                      <span className="text-ink-faint">{formatTel(e.phone)}</span>
+                      <span>{e.name}{e.position && <span className="text-ink-meta"> · {e.position}</span>}</span>
+                      <span className="text-ink-meta">{formatTel(e.phone)}</span>
                     </button>
                   ))}
                 </div>
@@ -226,7 +226,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                     className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
                   />
                 </div>
-                <p className="text-[11px] text-ink-faint">직위·생년월일은 보고서 공문·위임장에 사용됩니다</p>
+                <p className="text-[11px] text-ink-meta">직위·생년월일은 보고서 공문·위임장에 사용됩니다</p>
                 {error && <p className="text-xs text-red-500">{error}</p>}
               </div>
               <div className="flex gap-2 mt-3">
@@ -279,7 +279,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                     {/* href는 숫자만 — 하이픈이 섞인 tel: URI를 못 다루는 기기가 있다. 보이는 글자만 하이픈 */}
                     <a href={`tel:${contact!.phone.replace(/\D/g, '')}`} className="hover:text-brand hover:underline">{formatTel(contact!.phone)}</a>
                     <button onClick={() => copyPhone(contact!.phone!)} title="복사"
-                      className="p-0.5 text-ink-faint hover:text-brand">
+                      className="p-0.5 text-ink-meta hover:text-brand">
                       <Copy className="size-3" />
                     </button>
                     {copied === contact!.phone && <span className="text-[10px] text-green-600">복사됨</span>}
@@ -308,7 +308,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 data-testid="sms-recipient-toggle"
                 title={contact!.phone ? '사전 안내 문자를 이 사람에게 보냅니다' : '전화번호가 없어 발송되지 않습니다'}
                 className={`flex items-center gap-1 text-[11px] ${canManage ? 'cursor-pointer' : 'opacity-60'} ${
-                  contact!.phone ? 'text-ink-sub' : 'text-ink-faint'}`}
+                  contact!.phone ? 'text-ink-sub' : 'text-ink-meta'}`}
               >
                 <input
                   type="checkbox"

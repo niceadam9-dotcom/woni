@@ -55,7 +55,7 @@ export function DeleteCustomerClient({ customerId, customerName }: {
       <button
         onClick={openModal}
         disabled={isPending}
-        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded text-ink-faint hover:text-red-500 hover:bg-red-50 transition-colors"
+        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded text-ink-meta hover:text-red-500 hover:bg-red-50 transition-colors"
         title={`${customerName} 삭제`}
       >
         <Trash2 className="size-3" />
@@ -94,7 +94,7 @@ export function DeleteCustomerClient({ customerId, customerName }: {
                     <b>되돌릴 수 없습니다.</b>{' '}
                     나중에 다시 거래할 수 있는 고객이라면 [비활성화]를 사용하세요(목록에서 숨고 복원 가능).
                   </p>
-                  <p className="text-[11px] text-ink-faint">
+                  <p className="text-[11px] text-ink-meta">
                     소방계획서·설비 대장·자위소방대·세부현황·청구 설정 등 직접 입력한 값이 하나라도 있으면
                     이 버튼은 나타나지 않습니다.
                   </p>
@@ -110,7 +110,7 @@ export function DeleteCustomerClient({ customerId, customerName }: {
                       <li key={h.label}>{h.label} <b className="text-ink">{h.count}건</b></li>
                     ))}
                   </ul>
-                  <p className="text-[11px] text-ink-faint">
+                  <p className="text-[11px] text-ink-meta">
                     비활성화하면 조회 화면에서 빠지고, 미완료 계획은 자동 취소됩니다(재활성화 시 복원).
                     이력은 점검업무·점검확정의 [취소] 필터에서 볼 수 있습니다.
                   </p>

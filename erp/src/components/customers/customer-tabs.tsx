@@ -141,7 +141,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys,
               >
                 {t.label}
                 {t.badge && (
-                  <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-ink-faint'}`}>{t.badge}</span>
+                  <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-ink-meta'}`}>{t.badge}</span>
                 )}
                 {t.warn && !t.badge && <span className="text-[10px] text-amber-500">⚠</span>}
               </button>

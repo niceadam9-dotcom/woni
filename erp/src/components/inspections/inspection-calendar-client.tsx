@@ -22,7 +22,7 @@ import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/ac
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { hangulMatch } from '@/lib/hangul'
-import { kstDate } from '@/lib/kst-date'
+import { kstDate, todayKst } from '@/lib/kst-date'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -339,7 +339,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   // 기한초과 진입 시 가장 오래된 미완료 초과 마감 — 초기 점프·안내 배너 공용
   const earliestOverdue = useMemo(() => {
     if (initialFilter !== 'overdue') return null
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = todayKst()
     let earliest: string | null = null
     for (const insp of inspections) {
       for (const s of insp.steps) {
@@ -358,7 +358,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     earliestOverdue ? new Date(earliestOverdue + 'T12:00:00') : new Date())
   // 과거 달로 점프했을 때만 안내 배너 — "8월인데 왜 7월?" 혼동 방지 (2026-08-04)
   const [overdueJumpNotice, setOverdueJumpNotice] = useState(() =>
-    !!earliestOverdue && earliestOverdue.slice(0, 7) !== new Date().toISOString().slice(0, 7))
+    // F-14 잔여 축 — **월** 비교도 같은 결함이다. 상대(earliestOverdue)는 due_date(DATE=달력
+    // 날짜)에서 왔으므로 KST 기준 월과 견줘야 한다. 매월 1일 00:00~09:00 KST에만 어긋나
+    // 재현이 더 드물 뿐, 축은 같다 — 그래서 todayKst()에서 잘라 쓴다.
+    !!earliestOverdue && earliestOverdue.slice(0, 7) !== todayKst().slice(0, 7))
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialFilter)
 
   // Filter state
@@ -395,7 +398,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const [completingStepId, setCompletingStepId] = useState<string | null>(null)
   const [stepError, setStepError] = useState<string | null>(null)
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
+  const today = useMemo(() => todayKst(), [])
 
   // 사이드바 직원 목록(활성)에 없는 담당(퇴사자 등) 항목은 필터로 숨기지 않고 항상 표시
   const knownEmployeeIds = useMemo(() => new Set(employees.map(e => e.id)), [employees])
@@ -1059,7 +1062,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         <span className="text-[11px] text-ink-sub hidden sm:flex items-center gap-2">
           이번달 <b className="text-ink">{monthStats.total}건</b>
           <span className="text-green-600">완료 {monthStats.done}</span>
-          <span className={monthStats.overdue > 0 ? 'text-red-600 font-semibold' : 'text-ink-faint'}>지연 {monthStats.overdue}</span>
+          <span className={monthStats.overdue > 0 ? 'text-red-600 font-semibold' : 'text-ink-meta'}>지연 {monthStats.overdue}</span>
         </span>
       </div>
       <div className="flex items-center gap-0.5 bg-surface border border-line rounded-lg px-1 py-1 shadow-sm">
@@ -1176,7 +1179,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           {/* 보기 토글 */}
           <div className="px-4 pt-4 pb-3 border-b border-brand-line-soft">
-            <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">보기</p>
+            <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider mb-2">보기</p>
             <div className="space-y-1">
               {(['employee', 'customer'] as const).map(mode => (
                 <button
@@ -1196,16 +1199,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           {viewMode === 'employee' && (
             <div className="px-4 py-3 border-b border-brand-line-soft">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">직원</p>
+                <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider">직원</p>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => setSelectedEmployeeIds(new Set(employees.map(e => e.id)))}
                     className="text-[10px] text-brand hover:underline"
                   >전체</button>
-                  <span className="text-ink-faint">·</span>
+                  <span className="text-ink-meta">·</span>
                   <button
                     onClick={() => setSelectedEmployeeIds(new Set())}
-                    className="text-[10px] text-ink-faint hover:text-ink-sub"
+                    className="text-[10px] text-ink-meta hover:text-ink-sub"
                   >해제</button>
                 </div>
               </div>
@@ -1222,7 +1225,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       className="size-3 rounded-full shrink-0"
                       style={{ backgroundColor: getColor(emp.id) }}
                     />
-                    <span className={`text-xs flex-1 truncate ${selectedEmployeeIds.has(emp.id) ? 'text-ink' : 'text-ink-faint line-through'}`}>
+                    <span className={`text-xs flex-1 truncate ${selectedEmployeeIds.has(emp.id) ? 'text-ink' : 'text-ink-meta line-through'}`}>
                       {emp.name}
                     </span>
                     {selectedEmployeeIds.has(emp.id)
@@ -1238,16 +1241,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           {viewMode === 'customer' && (
             <div className="px-4 py-3 border-b border-brand-line-soft">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">고객</p>
+                <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider">고객</p>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => setSelectedCustomerIds(new Set(uniqueCustomers.map(c => c.id)))}
                     className="text-[10px] text-brand hover:underline"
                   >전체</button>
-                  <span className="text-ink-faint">·</span>
+                  <span className="text-ink-meta">·</span>
                   <button
                     onClick={() => setSelectedCustomerIds(new Set())}
-                    className="text-[10px] text-ink-faint hover:text-ink-sub"
+                    className="text-[10px] text-ink-meta hover:text-ink-sub"
                   >해제</button>
                 </div>
               </div>
@@ -1270,7 +1273,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       className="size-3 rounded-full shrink-0"
                       style={{ backgroundColor: getColor(cust.id) }}
                     />
-                    <span className={`text-xs flex-1 truncate ${selectedCustomerIds.has(cust.id) ? 'text-ink' : 'text-ink-faint line-through'}`}>
+                    <span className={`text-xs flex-1 truncate ${selectedCustomerIds.has(cust.id) ? 'text-ink' : 'text-ink-meta line-through'}`}>
                       {cust.name}
                     </span>
                     {selectedCustomerIds.has(cust.id)
@@ -1279,7 +1282,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   </label>
                 ))}
                 {filteredCustomerList.length === 0 && (
-                  <p className="text-xs text-ink-faint text-center py-2">결과 없음</p>
+                  <p className="text-xs text-ink-meta text-center py-2">결과 없음</p>
                 )}
               </div>
             </div>
@@ -1288,7 +1291,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           {/* 점검유형 필터 — 전체 탭에서만 (종합/작동/정기/일반 탭은 자체가 유형 필터) */}
           {calMode === 'all' && (
           <div className="px-4 py-3 border-b border-brand-line-soft">
-            <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">점검유형</p>
+            <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider mb-2">점검유형</p>
             <div className="space-y-1">
               {(['종합', '작동', '일반관리'] as InspectionType[]).map(type => (
                 <label key={type} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-paper cursor-pointer">
@@ -1305,7 +1308,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
           {/* 상태 필터 */}
           <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">상태</p>
+            <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider mb-2">상태</p>
             <div className="space-y-1">
               {[
                 { key: 'incomplete', label: '미완료', color: 'text-ink' },
@@ -1337,22 +1340,22 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             </button>
             {legendOpen && (
               <div className="absolute right-0 top-full mt-1 w-60 bg-surface rounded-xl border border-brand-line shadow-[0_8px_24px_rgba(18,43,165,0.14)] z-30 p-3 space-y-1.5 text-[11px] text-ink-sub">
-                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">칩 배경 = 점검유형</p>
+                <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider">칩 배경 = 점검유형</p>
                 {/* 범례 스와치는 실제 칩과 **같은 토큰**을 써야 한다 — 리터럴로 두면 다크에서 안내와 화면이 갈린다 */}
                 <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-compre-bg)' }} />종합</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-oper-bg)' }} />작동</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-gen-bg)' }} />일반관리</p>
-                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider pt-1.5">좌측 바 = 마감 긴급도</p>
+                <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider pt-1.5">좌측 바 = 마감 긴급도</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-green-500" />여유 (3일 이상)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-orange-500" />1~2일</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-red-500" />D-Day</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-[var(--chip-over-solid-bg)]" />지연 (연빨강 배경 + ⚠)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-1 h-3 rounded-sm bg-gray-300" />완료 (흐림 + ✓)</p>
-                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider pt-1.5">계획 일정 (일별 집계)</p>
+                <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider pt-1.5">계획 일정 (일별 집계)</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-500" />정기 N건</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500" />일반 N건</p>
                 <p className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-[var(--chip-over-solid-bg)]" />⚠N = 지연 포함</p>
-                <p className="text-[10px] text-ink-faint pt-1">담당자 뷰에서는 칩 앞 색 도트가 담당 직원(필터의 직원 색과 동일)입니다. 집계 칩·날짜 숫자를 클릭하면 그날 전체 일정이 열립니다.</p>
+                <p className="text-[10px] text-ink-meta pt-1">담당자 뷰에서는 칩 앞 색 도트가 담당 직원(필터의 직원 색과 동일)입니다. 집계 칩·날짜 숫자를 클릭하면 그날 전체 일정이 열립니다.</p>
               </div>
             )}
           </div>
@@ -1468,7 +1471,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         </button>
                         <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
                           {dayEvents.length === 0 ? (
-                            <p className="text-[10px] text-ink-faint text-center pt-6">일정 없음</p>
+                            <p className="text-[10px] text-ink-meta text-center pt-6">일정 없음</p>
                           ) : dayEvents.map(ev => (
                             <button
                               key={ev.id}
@@ -1614,7 +1617,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 {/* 단계 일정 (종합·작동 6단계) */}
                 {panelSteps.length > 0 && (
                   <div className="px-5 py-3 border-b border-brand-line-soft">
-                    <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">단계 일정 (종합·작동)</p>
+                    <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider mb-2">단계 일정 (종합·작동)</p>
                     <div className="space-y-0.5">
                       {panelSteps.map(e => (
                         // 지도 버튼을 행 버튼 **밖**에 둔다 — button 안의 button은 중첩이 안 된다
@@ -1639,7 +1642,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 {/* 계획 일정 (정기·일반) */}
                 {panelPlans.length > 0 && (
                   <div className="px-5 py-3">
-                    <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider mb-2">계획 일정 (정기·일반)</p>
+                    <p className="text-[10px] font-semibold text-ink-meta uppercase tracking-wider mb-2">계획 일정 (정기·일반)</p>
                     <div className="space-y-0.5">
                       {panelPlans.map(p => {
                         const isCompleted = p.status === 'completed'
@@ -1666,7 +1669,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${p.plan_type === 'monthly' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
                                 {p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type)}
                               </span>
-                              <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-ink-faint line-through' : 'text-ink'}`} title={`담당 ${p.assigned_employee_name}`}>
+                              <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-ink-meta line-through' : 'text-ink'}`} title={`담당 ${p.assigned_employee_name}`}>
                                 {p.customer_name}
                               </span>
                               {/* 방문 준비 지도(S5-7 확산) — 이름 span 밖에 둔다. 안에 넣으면
@@ -1707,7 +1710,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 )}
 
                 {panelSteps.length === 0 && panelPlans.length === 0 && (
-                  <p className="text-xs text-ink-faint text-center py-10">
+                  <p className="text-xs text-ink-meta text-center py-10">
                     {daySearchQ ? '검색 결과가 없습니다.' : '이 날짜에 표시할 일정이 없습니다.'}
                   </p>
                 )}
@@ -1784,7 +1787,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                           {c.typeLabel}
                         </span>
                         <span className="text-xs text-ink flex-1 min-w-0 truncate">{c.label}</span>
-                        <span className="text-[10px] text-ink-faint shrink-0" title="점검 시작과 완료 처리를 함께 진행합니다">시작+완료</span>
+                        <span className="text-[10px] text-ink-meta shrink-0" title="점검 시작과 완료 처리를 함께 진행합니다">시작+완료</span>
                       </label>
                     ))}
                     {bulkCandidates.map(c => (
@@ -1846,7 +1849,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               <p className="text-[11px] text-ink-sub mt-1 break-keep">
                 {names.slice(0, 10).join(', ')}{names.length > 10 ? ` 외 ${names.length - 10}건` : ''}
               </p>
-              <p className="text-[11px] text-ink-faint mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
+              <p className="text-[11px] text-ink-meta mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
               {warnings.map(w => (
                 <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
               ))}
@@ -1902,7 +1905,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </div>
               <button
                 onClick={() => setSelectedInspectionId(null)}
-                className="text-ink-faint hover:text-ink-sub transition-colors shrink-0"
+                className="text-ink-meta hover:text-ink-sub transition-colors shrink-0"
               >
                 <X className="size-5" />
               </button>
@@ -1968,7 +1971,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                           마감: {step.due_date}
                         </p>
                       ) : (
-                        <p className="text-xs text-ink-faint mt-0.5">마감일 없음</p>
+                        <p className="text-xs text-ink-meta mt-0.5">마감일 없음</p>
                       )}
                       {/* F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다 */}
                       {step.completed_at && (

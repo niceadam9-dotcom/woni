@@ -173,7 +173,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
             <FileOutput className="size-3.5" /> 개정 발행
           </button>
         )}
-        <span className="text-[11px] text-ink-faint">
+        <span className="text-[11px] text-ink-meta">
           인쇄·PDF는 저장본이 낡았으면 자동으로 갱신됩니다 (차수 불변)
         </span>
       </div>
@@ -222,7 +222,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                   </td>
                   <td className="py-3 pr-4 text-ink whitespace-nowrap max-w-[320px]">
                     <span className="block truncate" title={p.title ?? `${p.year}년 소방계획서`}>{p.title ?? `${p.year}년 소방계획서`}</span>
-                    {p.note && <p className="text-xs text-ink-faint mt-0.5 truncate" title={p.note}>{p.note}</p>}
+                    {p.note && <p className="text-xs text-ink-meta mt-0.5 truncate" title={p.note}>{p.note}</p>}
                   </td>
                   <td className="py-3 pr-4 text-xs text-ink-sub whitespace-nowrap">
                     {p.pdf_status === 'ready' ? 'PDF' : p.pdf_status === 'converting'
@@ -326,7 +326,7 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                                 {canManage && <button onClick={() => removeAttachment(a.id)} className="text-ink-faint hover:text-red-500"><Trash2 className="size-3" /></button>}
                               </div>
                             ))}
-                            {p.attachments.length === 0 && <p className="text-[11px] text-ink-faint">등록된 부속자료 없음</p>}
+                            {p.attachments.length === 0 && <p className="text-[11px] text-ink-meta">등록된 부속자료 없음</p>}
                           </div>
                           {canManage && (
                             <div className="flex gap-3 mt-1.5">
@@ -364,19 +364,19 @@ export function FirePlansClient({ customerId, plans, canManage }: {
                 className="w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm outline-none focus:border-brand" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-ink-sub">제목 <span className="text-[11px] text-ink-faint font-normal">(비우면 자동)</span></label>
+              <label className="text-xs font-medium text-ink-sub">제목 <span className="text-[11px] text-ink-meta font-normal">(비우면 자동)</span></label>
               <input name="title" type="text" placeholder={`${currentYear}년 소방계획서`}
                 className="w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm outline-none focus:border-brand" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-ink-sub">인쇄용 PDF <span className="text-red-500 ml-0.5">*</span> <span className="text-[11px] text-ink-faint font-normal">— 표준양식으로 작성·변환한 파일</span></label>
+              <label className="text-xs font-medium text-ink-sub">인쇄용 PDF <span className="text-red-500 ml-0.5">*</span> <span className="text-[11px] text-ink-meta font-normal">— 표준양식으로 작성·변환한 파일</span></label>
               <input name="pdf" type="file" accept=".pdf,application/pdf" required
                 className="w-full text-xs text-ink-sub file:mr-2 file:h-8 file:px-3 file:rounded-lg file:border-0 file:bg-brand-tint file:text-brand file:text-xs file:font-medium file:cursor-pointer" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-ink-sub">한글 원본 (HWP) <span className="text-[11px] text-ink-faint font-normal">— 선택, 추후 수정용</span></label>
+              <label className="text-xs font-medium text-ink-sub">한글 원본 (HWP) <span className="text-[11px] text-ink-meta font-normal">— 선택, 추후 수정용</span></label>
               <input name="hwp" type="file" accept=".hwp,.hwpx"
                 className="w-full text-xs text-ink-sub file:mr-2 file:h-8 file:px-3 file:rounded-lg file:border-0 file:bg-brand-tint file:text-brand file:text-xs file:font-medium file:cursor-pointer" />
             </div>

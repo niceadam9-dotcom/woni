@@ -119,7 +119,7 @@ export function PlanAnnexRoundCard({
         {isOpen ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
         <span className="text-xs font-semibold text-ink">{label}</span>
-        {r.plannedDate && <span className="text-[11px] text-ink-faint">{r.plannedDate.slice(5, 10)}</span>}
+        {r.plannedDate && <span className="text-[11px] text-ink-meta">{r.plannedDate.slice(5, 10)}</span>}
         {r.docs && isOpen && (
           <span role="button" tabIndex={0}
             onClick={e => { e.stopPropagation(); onFullPreview() }}
@@ -156,7 +156,7 @@ export function PlanAnnexRoundCard({
         )}
         <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
         {r.docs && (
-          <span className="text-[10px] text-ink-faint shrink-0">
+          <span className="text-[10px] text-ink-meta shrink-0">
             ④{r.docs.report4 ? '✓' : '·'} ⑨{r.docs.report9 ? '✓' : '·'}
             {r.docs.defects.total > 0 && <> ⑩{r.docs.report10 ? '✓' : '·'} ⑪{r.docs.report11 ? '✓' : '·'}</>}
             {' '}불량 {r.docs.defects.total}
@@ -174,7 +174,7 @@ export function PlanAnnexRoundCard({
           {r.docs ? (
             <>
               <p className={blockTitleCls}>
-                별지 생성·확인 <span className="font-normal text-ink-faint">— 입력된 점검표에서 자동 생성</span>
+                별지 생성·확인 <span className="font-normal text-ink-meta">— 입력된 점검표에서 자동 생성</span>
                 {/* 미입력 경고 복제 — 트리가 [생성] 아래로 내려갔으므로 생성 전에 걸릴 신호를 여기 둔다 */}
                 {sheetBlanks > 0 && (
                   <span className="ml-2 font-medium text-amber-600">⚠ 설치 설비 중 미입력 {sheetBlanks}개 — 결과칸이 공란으로 인쇄됩니다</span>
@@ -214,7 +214,7 @@ export function PlanAnnexRoundCard({
                 onCompose={onCompose}
                 onPreview={(_id, type) => onPreviewSingle(type)} />
 
-              <p className={`${blockTitleCls} mt-3`}>점검표 진행 <span className="font-normal text-ink-faint">— 현장 결과를 설비별로 입력</span></p>
+              <p className={`${blockTitleCls} mt-3`}>점검표 진행 <span className="font-normal text-ink-meta">— 현장 결과를 설비별로 입력</span></p>
               {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4 → 소방계획서_28 조회 전용) — 머리줄 + 설비별 진행 트리 */}
               <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
                 responded={r.docs.sheetResponses} defects={r.docs.defects.total} from={entryFrom} />

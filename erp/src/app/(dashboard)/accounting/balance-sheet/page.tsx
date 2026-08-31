@@ -4,6 +4,7 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BalanceSheetClient } from '@/components/accounting/balance-sheet-client'
+import { todayKst } from '@/lib/kst-date'
 
 export default async function BalanceSheetPage() {
   const profile = await getProfile()
@@ -11,7 +12,7 @@ export default async function BalanceSheetPage() {
   if (!can(profile.role, 'accounting_view')) redirect('/dashboard')
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayKst()
 
   // 승인된 전표의 자산/부채/자본 계정 명세 (누적)
   // FIX-15(2026-07-08): vouchers embed 없이 vouchers.status를 필터해 PostgREST 400 →

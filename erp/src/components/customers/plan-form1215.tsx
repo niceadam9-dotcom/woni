@@ -125,7 +125,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
             )}
           </div>
           {logs[card.key].length === 0 && (
-            <p className="text-form-xs text-ink-faint">기록이 없습니다 — 발생 시 행을 추가해 기록하세요 (2년 보관 대상).</p>
+            <p className="text-form-xs text-ink-meta">기록이 없습니다 — 발생 시 행을 추가해 기록하세요 (2년 보관 대상).</p>
           )}
           <div className="space-y-1.5">
             {logs[card.key].map((row, i) => (
@@ -138,7 +138,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
                     onChange={e => setCell(card.key, i, col.k, e.target.value)} className={`${inputCls} ${col.w}`} />
                 ))}
                 {canManage && (
-                  <button onClick={() => delRow(card.key, i)} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                  <button onClick={() => delRow(card.key, i)} className="text-ink-meta hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                 )}
               </div>
             ))}
@@ -155,7 +155,7 @@ export function PlanForm1215({ customerId, canManage, initial }: {
           {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
         </div>
       )}
-      <p className="text-form-xs text-ink-faint">※ 기록은 계획서 생성(HWP) 시 해당 서식 표에 병합됩니다 — 1.12는 13행·1.13은 11행·1.14는 2건까지, 1.15는 양식이 단일 사건 서식이라 첫 행(일자·피해 내용·복구 조치)만 반영됩니다.</p>
+      <p className="text-form-xs text-ink-meta">※ 기록은 계획서 생성(HWP) 시 해당 서식 표에 병합됩니다 — 1.12는 13행·1.13은 11행·1.14는 2건까지, 1.15는 양식이 단일 사건 서식이라 첫 행(일자·피해 내용·복구 조치)만 반영됩니다.</p>
     </div>
   )
 }

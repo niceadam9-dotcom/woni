@@ -121,7 +121,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       {/* 1.10.1 연간 점검 계획 */}
       <div id="c-1.10.1" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <p className="text-form-sm font-semibold text-ink-sub">1.10.1 연간 자체점검 계획
-          <span className="font-normal text-ink-faint ml-2">시기는 점검계획일 기준 자동 — 수정 가능</span>
+          <span className="font-normal text-ink-meta ml-2">시기는 점검계획일 기준 자동 — 수정 가능</span>
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-form-xs font-medium text-ink-sub w-16">작동점검</span>
@@ -135,19 +135,19 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <span className="text-form-xs font-medium text-ink-sub w-16">종합점검</span>
               <button disabled={!canManage} className={chip(insp.isInitial)} onClick={() => pi({ isInitial: !insp.isInitial })}>최초점검</button>
               {insp.isInitial && (
-                <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-faint">최초</span>
+                <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-meta">최초</span>
                   <MonthField value={insp.initialMonth} disabled={!canManage} onChange={initialMonth => pi({ initialMonth })} className={`${inputCls} w-36`} /></span>
               )}
-              <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-faint">종합</span>
+              <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-meta">종합</span>
                 <MonthField value={insp.compMonth} disabled={!canManage} onChange={compMonth => pi({ compMonth })} className={`${inputCls} w-36`} /></span>
-              <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-faint">2차(특급)</span>
+              <span className="inline-flex items-center gap-1"><span className="text-form-2xs text-ink-meta">2차(특급)</span>
                 <MonthField value={insp.comp2Month} disabled={!canManage} onChange={comp2Month => pi({ comp2Month })} className={`${inputCls} w-36`} /></span>
               <span className="text-form-xs text-ink-sub">점검자</span>
               {inspectorSeg(insp.compInspector, v => pi({ compInspector: v }))}
             </div>
           </>
         )}
-        <p className="text-form-xs text-ink-faint">사용승인일 {useApprovalDate || '—'} · 제출처 {fireStation ? `${fireStation}장` : '관할 소방서장'} (자동)</p>
+        <p className="text-form-xs text-ink-meta">사용승인일 {useApprovalDate || '—'} · 제출처 {fireStation ? `${fireStation}장` : '관할 소방서장'} (자동)</p>
       </div>
 
       {/* 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리) */}
@@ -161,7 +161,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             </button>
           )}
         </div>
-        {duty.length === 0 && <p className="text-form-xs text-ink-faint">수행 일자·업무 내용·조치사항을 기록하세요 — 업무수행 기록표는 계획서와 별도 보관 서류(2년)라 HWP에는 병합되지 않고 ERP에 기록·보관됩니다.</p>}
+        {duty.length === 0 && <p className="text-form-xs text-ink-meta">수행 일자·업무 내용·조치사항을 기록하세요 — 업무수행 기록표는 계획서와 별도 보관 서류(2년)라 HWP에는 병합되지 않고 ERP에 기록·보관됩니다.</p>}
         <div className="space-y-1.5">
           {duty.map((d, i) => (
             <div key={i} className="flex items-center gap-1.5 flex-wrap">
@@ -174,7 +174,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <input value={d.note} disabled={!canManage} placeholder="비고"
                 onChange={e => { setDuty(p => p.map((x, j) => j === i ? { ...x, note: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-28`} />
               {canManage && (
-                <button onClick={() => { setDuty(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                <button onClick={() => { setDuty(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
               )}
             </div>
           ))}
@@ -229,12 +229,12 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             {/* M-16(소방계획서_15, 2026-08-11 보강): 영업시간 평일/휴일 × 주간/야간 세분 — 자유 텍스트(hours)는 레거시 폴백 */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-form-xs font-medium text-ink-sub">영업시간</span>
-              <span className="text-form-2xs text-ink-faint">평일</span>
+              <span className="text-form-2xs text-ink-meta">평일</span>
               <input value={mu.hoursDetail?.wkDay ?? ''} disabled={!canManage} placeholder="주간 09:00~18:00"
                 onChange={e => pm({ hoursDetail: { wkDay: e.target.value, wkNight: mu.hoursDetail?.wkNight ?? '', holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-36`} />
               <input value={mu.hoursDetail?.wkNight ?? ''} disabled={!canManage} placeholder="야간"
                 onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: e.target.value, holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
-              <span className="text-form-2xs text-ink-faint">휴일</span>
+              <span className="text-form-2xs text-ink-meta">휴일</span>
               <input value={mu.hoursDetail?.holDay ?? ''} disabled={!canManage} placeholder="주간"
                 onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: mu.hoursDetail?.wkNight ?? '', holDay: e.target.value, holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
               <input value={mu.hoursDetail?.holNight ?? ''} disabled={!canManage} placeholder="야간"
@@ -272,7 +272,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
             </button>
           )}
         </div>
-        {hist.length === 0 && <p className="text-form-xs text-ink-faint">발생 이력이 없으면 비워둡니다.</p>}
+        {hist.length === 0 && <p className="text-form-xs text-ink-meta">발생 이력이 없으면 비워둡니다.</p>}
         <div className="space-y-1.5">
           {hist.map((h, i) => {
             const [atDate, atTime] = splitAt(h.at)
@@ -293,7 +293,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
               <input value={h.cause} disabled={!canManage} placeholder="원인" onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, cause: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-28`} />
               <input value={h.action} disabled={!canManage} placeholder="조치사항" onChange={e => { setHist(p => p.map((x, j) => j === i ? { ...x, action: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-28`} />
               {canManage && (
-                <button onClick={() => { setHist(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제">
+                <button onClick={() => { setHist(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
                   <Trash2 className="size-3.5" />
                 </button>
               )}

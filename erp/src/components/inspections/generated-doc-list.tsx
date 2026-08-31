@@ -48,7 +48,7 @@ export function GeneratedDocList({ files, onOpen, inspectionId, disabled }: {
   const row = (g: DocGroup, isLatest: boolean) => (
     <div key={g.key} className="flex items-center gap-2 text-xs py-1">
       <span className="text-ink font-medium truncate" title={g.full}>{g.label}</span>
-      {g.createdAt && <span className="text-[11px] text-ink-faint shrink-0">{fmtTime(g.createdAt)}</span>}
+      {g.createdAt && <span className="text-[11px] text-ink-meta shrink-0">{fmtTime(g.createdAt)}</span>}
       {isLatest && g.kind && (
         <span className="px-1 py-0.5 rounded bg-brand-tint text-brand text-[10px] font-medium shrink-0">최신</span>
       )}
@@ -100,7 +100,7 @@ export function GeneratedDocList({ files, onOpen, inspectionId, disabled }: {
       {old.length > 0 && (
         <div>
           <button onClick={() => setShowOld(v => !v)}
-            className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-brand py-0.5">
+            className="inline-flex items-center gap-1 text-[11px] text-ink-meta hover:text-brand py-0.5">
             {showOld ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
             이전 생성 {old.length}건
           </button>

@@ -350,7 +350,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">건물 목록</h2>
-        <span className="text-xs text-ink-faint ml-auto">{buildings.length}개</span>
+        <span className="text-xs text-ink-meta ml-auto">{buildings.length}개</span>
         {canManage && editing !== 'new' && (
           <button onClick={openNew}
             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-xs text-brand hover:bg-brand-tint transition-colors">
@@ -383,7 +383,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
                     {b.purpose ? (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">{b.purpose}</span>
                     ) : (
-                      <span className="text-xs text-ink-faint">-</span>
+                      <span className="text-xs text-ink-meta">-</span>
                     )}
                   </td>
                   <td className="py-3 pr-4 text-xs text-ink-sub">{b.total_area != null ? `${b.total_area.toLocaleString()}㎡` : '-'}</td>
@@ -461,7 +461,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           <div className="rounded-lg border border-brand-line-soft bg-surface p-3 space-y-2">
             <p className="text-[11px] font-semibold text-ink-sub">
               별지 9호 2쪽 건축물 정보
-              <span className="ml-1 font-normal text-ink-faint">— 주소 검색 시 건축물대장에서 빈 칸만 자동 채움, 대장에 없으면 직접 입력</span>
+              <span className="ml-1 font-normal text-ink-meta">— 주소 검색 시 건축물대장에서 빈 칸만 자동 채움, 대장에 없으면 직접 입력</span>
             </p>
             <div className="flex flex-wrap gap-2 items-end">
               <div className="w-32"><label className={labelCls}>건축허가일</label>

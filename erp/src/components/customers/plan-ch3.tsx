@@ -122,7 +122,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
       {/* 3.1 — 1.5 입력 자동 표시 (수정은 1.5에서, §9-6⑦ 단일 입력처) */}
       <div id="c-3.1" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-1.5">
           <p className="text-form-sm font-semibold text-ink-sub">3.1 피난시설 및 기타시설 일반현황
-            <span className="font-normal text-ink-faint ml-2">서식 1.5 입력값 자동 표시 — 수정은 1장 &gt; 1.5에서</span>
+            <span className="font-normal text-ink-meta ml-2">서식 1.5 입력값 자동 표시 — 수정은 1장 &gt; 1.5에서</span>
           </p>
           {evacFire ? (
             <>
@@ -132,7 +132,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
               <p className="text-form-sm text-ink-sub">방화구획: {evacFire.compartment === 'none' ? '해당없음' : evacFire.compartment === 'area' ? '면적별' : evacFire.compartment === 'floor' ? '층별' : '—'}</p>
             </>
           ) : (
-            <p className="text-form-xs text-ink-faint">1장 &gt; 1.5 피난·방화를 먼저 입력하세요.</p>
+            <p className="text-form-xs text-ink-meta">1장 &gt; 1.5 피난·방화를 먼저 입력하세요.</p>
           )}
       </div>
 
@@ -147,16 +147,16 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 </button>
               )}
             </div>
-            {detail.length === 0 && <p className="text-form-xs text-ink-faint">시설/위치/상태 행을 추가하세요.</p>}
+            {detail.length === 0 && <p className="text-form-xs text-ink-meta">시설/위치/상태 행을 추가하세요.</p>}
             <div className="space-y-1.5">
               {detail.map((r, i) => (
                 <div key={i} className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-form-xs text-ink-faint w-5">{i + 1}</span>
+                  <span className="text-form-xs text-ink-meta w-5">{i + 1}</span>
                   <input value={r.facility} disabled={!canManage} placeholder="시설" onChange={e => { setDetail(p => p.map((x, j) => j === i ? { ...x, facility: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-40`} />
                   <input value={r.location} disabled={!canManage} placeholder="위치" onChange={e => { setDetail(p => p.map((x, j) => j === i ? { ...x, location: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-32`} />
                   <input value={r.status} disabled={!canManage} placeholder="상태" onChange={e => { setDetail(p => p.map((x, j) => j === i ? { ...x, status: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-24`} />
                   {canManage && (
-                    <button onClick={() => { setDetail(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                    <button onClick={() => { setDetail(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                   )}
                 </div>
               ))}
@@ -166,7 +166,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
       {/* 3.3 피난인원 */}
       <div id="c-3.3" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
             <p className="text-form-sm font-semibold text-ink-sub">3.3 피난인원 현황
-              <span className="font-normal text-ink-faint ml-2">인원은 1.1 운영현황 자동 — 수정은 1.1에서</span>
+              <span className="font-normal text-ink-meta ml-2">인원은 1.1 운영현황 자동 — 수정은 1.1에서</span>
             </p>
             <p className="text-form-sm text-ink-sub">근무 {headcount.worker || '—'}명 · 거주 {headcount.resident || '—'}명 · 최대 수용 {headcount.max || '—'}명</p>
             <textarea value={hcNote} disabled={!canManage} rows={2} placeholder="보완 사항 (시간대별 변동, 방문객 등)"
@@ -177,7 +177,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
       {/* 3.4 피난유도 절차·경로 — 생성 문서(3장)에 반영(§7-3) */}
       <div id="c-3.4" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <p className="text-form-sm font-semibold text-ink-sub">3.4 피난유도 절차 및 피난경로 <span className="font-normal text-ink-faint">생성 문서에 반영됨</span></p>
+              <p className="text-form-sm font-semibold text-ink-sub">3.4 피난유도 절차 및 피난경로 <span className="font-normal text-ink-meta">생성 문서에 반영됨</span></p>
               {canManage && (
                 <button onClick={() => { setPlan(p => ({ ...p, procedure: PROCEDURE_PRESET })); setDirty(true) }}
                   className="h-form-6 px-2 rounded-full border border-brand-line text-form-xs text-brand hover:bg-brand-tint">절차 프리셋</button>
@@ -221,13 +221,13 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                 <input value={r.guide} disabled={!canManage} placeholder="유도자" onChange={e => { setPlan(p => ({ ...p, routes: p.routes.map((x, j) => j === i ? { ...x, guide: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-24`} />
                 <input value={r.equip} disabled={!canManage} placeholder="장비" onChange={e => { setPlan(p => ({ ...p, routes: p.routes.map((x, j) => j === i ? { ...x, equip: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-24`} />
                 {canManage && (
-                  <button onClick={() => { setPlan(p => ({ ...p, routes: p.routes.filter((_, j) => j !== i) })); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                  <button onClick={() => { setPlan(p => ({ ...p, routes: p.routes.filter((_, j) => j !== i) })); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                 )}
               </div>
             ))}
             <div className="flex items-end gap-2 flex-wrap">
               <div>
-                <label className="text-form-2xs text-ink-faint block">집결지</label>
+                <label className="text-form-2xs text-ink-meta block">집결지</label>
                 <input value={plan.assembly} disabled={!canManage} placeholder="예: 1층 주차장" onChange={e => { setPlan(p => ({ ...p, assembly: e.target.value })); setDirty(true) }} className={`${inputCls} w-48`} />
               </div>
             </div>
@@ -316,7 +316,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                     <input value={r.equip} disabled={!canManage} placeholder="장비" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, equip: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} w-20`} />
                     <input value={r.method} disabled={!canManage} placeholder="방법" onChange={e => { setVul(p => ({ ...p, plans: p.plans.map((x, j) => j === i ? { ...x, method: e.target.value } : x) })); setDirty(true) }} className={`${inputCls} flex-1 min-w-28`} />
                     {canManage && (
-                      <button onClick={() => { setVul(p => ({ ...p, plans: p.plans.filter((_, j) => j !== i) })); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                      <button onClick={() => { setVul(p => ({ ...p, plans: p.plans.filter((_, j) => j !== i) })); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                     )}
                   </div>
                 ))}
@@ -330,7 +330,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
               {/* ⚠ 3.6은 2장과 달리 빈 유형이 생성 문서에서 행째로 빠진다(fire-plan-template.ts 폴백 없음) —
                   안내 문구를 실제 동작대로 고치고, 공통 기본항목 자동주입이 실값을 채워 해결 (소방계획서_15_별도라이브러리 §2-1) */}
               <p className="text-form-sm font-semibold text-ink-sub">3.6 피난약자 유형별 피난방법
-                <span className="font-normal text-ink-faint ml-2">빈 칸인 유형은 생성 문서에서 제외됩니다 — 인쇄하려면 값을 입력·저장하세요</span>
+                <span className="font-normal text-ink-meta ml-2">빈 칸인 유형은 생성 문서에서 제외됩니다 — 인쇄하려면 값을 입력·저장하세요</span>
               </p>
               {canManage && (
                 <span className="ml-auto">
@@ -359,11 +359,11 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                   className="ml-auto inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint"><Plus className="size-3" /> 행 추가</button>
               )}
             </div>
-            {equip.length === 0 && <p className="text-form-xs text-ink-faint">장비/위치/수량 행을 추가하세요.</p>}
+            {equip.length === 0 && <p className="text-form-xs text-ink-meta">장비/위치/수량 행을 추가하세요.</p>}
             <div className="space-y-1.5">
               {equip.map((r, i) => (
                 <div key={i} className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-form-xs text-ink-faint w-5">{i + 1}</span>
+                  <span className="text-form-xs text-ink-meta w-5">{i + 1}</span>
                   <input value={r.name} disabled={!canManage} placeholder="장비 (예: 완강기)" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-40`} />
                   <input value={r.location} disabled={!canManage} placeholder="위치" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, location: e.target.value } : x)); setDirty(true) }} className={`${inputCls} flex-1 min-w-32`} />
                   <NumStepper value={r.qty} disabled={!canManage} label="장비 수량"
@@ -371,7 +371,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
                     <input value={r.qty} disabled={!canManage} inputMode="numeric" placeholder="수량" onChange={e => { setEquip(p => p.map((x, j) => j === i ? { ...x, qty: e.target.value } : x)); setDirty(true) }} className={`${inputCls} w-16`} />
                   </NumStepper>
                   {canManage && (
-                    <button onClick={() => { setEquip(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-faint hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
+                    <button onClick={() => { setEquip(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제"><Trash2 className="size-3.5" /></button>
                   )}
                 </div>
               ))}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { createPurchaseOrderAction, updatePOStatusAction, receivePurchaseOrderAction, type POStatus } from '@/app/(dashboard)/purchase-orders/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 const inputCls = 'w-full h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition'
 
@@ -37,7 +38,7 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
-  const [form, setForm] = useState({ partner_id: '', order_date: new Date().toISOString().slice(0, 10), expected_date: '', notes: '' })
+  const [form, setForm] = useState({ partner_id: '', order_date: todayKst(), expected_date: '', notes: '' })
   const [lines, setLines] = useState<LineInput[]>([{ item_id: '', quantity: '1', unit_price: '' }])
 
   const rows = (orders as PO[]).filter(o => !statusFilter || o.status === statusFilter)
@@ -72,7 +73,7 @@ export function PurchaseOrdersClient({ orders, items, partners }: {
       if (result.error) { setError(result.error); return }
       setShowNew(false)
       setLines([{ item_id: '', quantity: '1', unit_price: '' }])
-      setForm({ partner_id: '', order_date: new Date().toISOString().slice(0, 10), expected_date: '', notes: '' })
+      setForm({ partner_id: '', order_date: todayKst(), expected_date: '', notes: '' })
       router.refresh()
     })
   }

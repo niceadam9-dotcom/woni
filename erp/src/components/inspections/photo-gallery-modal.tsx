@@ -106,7 +106,7 @@ export function PhotoGalleryModal({ inspectionId, defects, canEdit, onClose, onC
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
         {defects.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-ink-faint">불량내역이 없습니다 — 사진은 불량 등록 후 첨부합니다</p>
+          <p className="px-5 py-10 text-center text-sm text-ink-meta">불량내역이 없습니다 — 사진은 불량 등록 후 첨부합니다</p>
         ) : (
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {defects.map(d => {

@@ -50,13 +50,13 @@ export function PlacementReportHelper({ inspectionId }: { inspectionId: string }
           </div>
           {err && <p className="text-[11px] text-red-600 mb-1.5">{err}</p>}
           {!fields ? (
-            <p className="text-[11px] text-ink-faint py-3 text-center">불러오는 중…</p>
+            <p className="text-[11px] text-ink-meta py-3 text-center">불러오는 중…</p>
           ) : (
             <>
               <div className="space-y-1 mb-2">
                 {fields.map(f => (
                   <div key={f.label} className="flex items-start gap-1.5 text-[11px]">
-                    <span className="text-ink-faint w-14 shrink-0">{f.label}</span>
+                    <span className="text-ink-meta w-14 shrink-0">{f.label}</span>
                     {f.missing ? (
                       <span className="flex items-center gap-1 text-amber-600 flex-1">
                         <AlertTriangle className="size-3 shrink-0" /> 미입력

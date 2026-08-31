@@ -84,7 +84,7 @@ export function CustomerFilterSearch({
           onClick={() => { onChange(''); setOpen(false); setActive(-1); inputRef.current?.focus() }}
           aria-label="고객명 검색어 지우기"
           data-testid={testId ? `${testId}-clear` : undefined}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-faint hover:text-ink-sub transition-colors"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-meta hover:text-ink-sub transition-colors"
         >
           <X className="size-3.5" />
         </button>
@@ -107,7 +107,7 @@ export function CustomerFilterSearch({
               className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-brand-tint' : 'hover:bg-brand-tint'}`}
             >
               <span className="text-xs text-ink truncate">{c.name}</span>
-              {c.sub && <span className="text-[10px] text-ink-faint shrink-0">{c.sub}</span>}
+              {c.sub && <span className="text-[10px] text-ink-meta shrink-0">{c.sub}</span>}
             </button>
           ))}
         </div>

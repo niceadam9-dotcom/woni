@@ -130,7 +130,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
       <div className={cardCls}>
         <div className="flex items-center gap-2 mb-3">
           <Users className="size-4 text-brand" />
-          <h2 className="text-sm font-semibold text-ink">소유자 그룹 <span className="text-xs font-normal text-ink-faint">통합청구·입금배분</span></h2>
+          <h2 className="text-sm font-semibold text-ink">소유자 그룹 <span className="text-xs font-normal text-ink-meta">통합청구·입금배분</span></h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select disabled={!canManage || isPending} value={curOwner} onChange={e => assignOwner(e.target.value)}
@@ -156,7 +156,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
       <div className={cardCls}>
         <div className="flex items-center gap-2 mb-4">
           <Receipt className="size-4 text-brand" />
-          <h2 className="text-sm font-semibold text-ink">사업자정보 <span className="text-xs font-normal text-ink-faint">세금계산서</span></h2>
+          <h2 className="text-sm font-semibold text-ink">사업자정보 <span className="text-xs font-normal text-ink-meta">세금계산서</span></h2>
           {canManage && (customerName || repName || customerAddress) && (
             <button type="button"
               onClick={() => setBp(p => ({
@@ -211,7 +211,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
           </div>
           <div><span className={label}>예금주</span><input disabled={!canManage} value={ap.account_holder} onChange={e => setAp({ ...ap, account_holder: e.target.value })} className={field} /></div>
           <div className="col-span-2">
-            <span className={label}>계좌번호 {autopay?.account_no_last4 && !revealed && <span className="text-ink-faint">(등록됨 ****{autopay.account_no_last4})</span>}</span>
+            <span className={label}>계좌번호 {autopay?.account_no_last4 && !revealed && <span className="text-ink-meta">(등록됨 ****{autopay.account_no_last4})</span>}</span>
             <div className="flex gap-2">
               <input disabled={!canManage} value={ap.account_no} onChange={e => setAp({ ...ap, account_no: e.target.value })}
                 placeholder={autopay?.account_no_last4 ? '변경 시에만 입력' : '숫자만 입력'} className={field} />

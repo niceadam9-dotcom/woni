@@ -150,7 +150,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           {/* 목록 */}
           <div className="max-h-72 overflow-y-auto divide-y divide-brand-line-soft">
             {displayed.length === 0 ? (
-              <p className="py-8 text-center text-sm text-ink-faint">
+              <p className="py-8 text-center text-sm text-ink-meta">
                 {tab === 'unread' ? '읽지않은 알림이 없습니다' : '알림이 없습니다'}
               </p>
             ) : (
@@ -169,7 +169,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                     <div className={cn('min-w-0', !n.is_read ? '' : 'pl-3.5')}>
                       <p className="text-sm font-medium text-ink truncate">{n.title}</p>
                       <p className="text-xs text-ink-sub mt-0.5 line-clamp-2">{n.message}</p>
-                      <p className="text-[11px] text-ink-faint mt-1">
+                      <p className="text-[11px] text-ink-meta mt-1">
                         {new Date(n.created_at).toLocaleString('ko-KR', {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}

@@ -79,7 +79,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
             <AlertTriangle className="size-4 text-orange-500" />
             <div>
               <p className="text-sm font-semibold text-ink">{year}년 미점검 초과 자동 해결</p>
-              <p className="text-xs text-ink-faint mt-0.5">
+              <p className="text-xs text-ink-meta mt-0.5">
                 점검계획일(기준일) 기준 누락 항목을 해당 월 계획에 자동 추가합니다
               </p>
             </div>
@@ -109,7 +109,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                       ? selCount > 0
                         ? 'bg-orange-400 border border-orange-400 text-white cursor-pointer hover:bg-orange-500'
                         : 'bg-orange-100 border border-orange-300 text-orange-500 cursor-pointer hover:bg-orange-200'
-                      : 'bg-paper border border-transparent text-[#d0d0d0] dark:text-ink-faint cursor-default'
+                      : 'bg-paper border border-transparent text-[#d0d0d0] dark:text-ink-meta cursor-default'
                   }`}
                 >
                   <span className="block text-[11px] font-semibold">{label}</span>
@@ -122,7 +122,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
               )
             })}
           </div>
-          <p className="text-[10px] text-ink-faint mt-2">주황색 월을 클릭하면 해당 월 전체 선택/해제</p>
+          <p className="text-[10px] text-ink-meta mt-2">주황색 월을 클릭하면 해당 월 전체 선택/해제</p>
         </div>
 
         {/* 본문 */}
@@ -215,7 +215,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                                   {item.sequence_num}차
                                 </span>
                               </div>
-                              <p className="text-[11px] text-ink-faint mt-0.5">
+                              <p className="text-[11px] text-ink-meta mt-0.5">
                                 담당: <span className="font-medium text-ink-sub">{item.assigned_employee_name ?? '미배정'}</span>
                                 {' · '}
                                 점검계획일 {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,'0')}.{String(d.getDate()).padStart(2,'0')}

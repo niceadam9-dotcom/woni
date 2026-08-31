@@ -24,6 +24,7 @@ import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddPlanItemModal } from './add-plan-item-modal'
 import { OverdueResolveModal } from './overdue-resolve-modal'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
+import { todayKst } from '@/lib/kst-date'
 
 type CustomerOption = {
   id: string; customer_name: string; inspection_type: InspectionType
@@ -307,7 +308,7 @@ export function InspectionPlansClient({
     return () => document.removeEventListener('mousedown', onDown)
   }, [showMonthPicker])
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayKst()
 
   return (
     <div className="space-y-5">
@@ -726,7 +727,7 @@ function CalendarView({
               <p className="text-xs font-semibold text-ink-sub">
                 {moreDay.slice(5, 7).replace(/^0/, '')}월 {moreDay.slice(8, 10).replace(/^0/, '')}일 전체 일정 ({(itemsByDate[moreDay] ?? []).length}건)
               </p>
-              <button onClick={() => setMoreDay(null)} className="text-ink-faint hover:text-ink-sub text-sm leading-none">✕</button>
+              <button onClick={() => setMoreDay(null)} className="text-ink-meta hover:text-ink-sub text-sm leading-none">✕</button>
             </div>
             <div className="p-3 space-y-1">
               {(itemsByDate[moreDay] ?? []).map(item => {
@@ -767,7 +768,7 @@ function CalendarView({
               <p className="text-xs text-ink-sub">
                 {custName} · {moveConfirm.from || '미정'} → <span className="font-semibold text-brand">{moveConfirm.to}</span>
               </p>
-              <p className="text-[11px] text-ink-faint mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
+              <p className="text-[11px] text-ink-meta mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
               {warnings.map(w => (
                 <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
               ))}
@@ -798,7 +799,7 @@ function CalendarView({
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-ok-bg)' }} />완료</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-over-solid-bg)' }} />지연</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300" />취소</span>
-        {canManage && <span className="ml-auto text-ink-faint">빈 날짜 클릭 = 항목 추가 · 정기 칩 드래그 = 일자 이동(확정)</span>}
+        {canManage && <span className="ml-auto text-ink-meta">빈 날짜 클릭 = 항목 추가 · 정기 칩 드래그 = 일자 이동(확정)</span>}
       </div>
     </div>
   )
@@ -811,7 +812,7 @@ function InlineDateCell({
   itemId: string; value: string | null; canManage: boolean; status: string; onSaved: () => void
   planYear: number; planMonth: number; holidays: string[]
 }) {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayKst()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 })
@@ -905,7 +906,7 @@ function InlineDateCell({
         ) : value ? (
           <span>{value}</span>
         ) : (
-          <span className="text-ink-faint italic text-xs">점검일 확정</span>
+          <span className="text-ink-meta italic text-xs">점검일 확정</span>
         )}
         {canManage && (
           <Pencil className="size-3 text-ink-faint opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -939,7 +940,7 @@ function InlineDateCell({
               </button>
             </div>
             {value && (
-              <button onClick={handleClear} className="text-[10px] text-ink-faint hover:text-red-500 transition-colors">
+              <button onClick={handleClear} className="text-[10px] text-ink-meta hover:text-red-500 transition-colors">
                 지우기
               </button>
             )}
@@ -947,7 +948,7 @@ function InlineDateCell({
           <div className="grid grid-cols-7 mb-1">
             {WEEKDAYS.map((d, i) => (
               <div key={d} className={`text-center text-[10px] font-medium py-0.5 ${
-                i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-ink-faint'
+                i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-ink-meta'
               }`}>{d}</div>
             ))}
           </div>
@@ -1179,7 +1180,7 @@ function ListView({
                       ? planAnchorRaw
                       : isKnownCustomer
                         ? <span className="text-red-500 font-medium">미입력</span>
-                        : <span className="text-ink-faint">—</span>}
+                        : <span className="text-ink-meta">—</span>}
                 </td>
                 <td className="px-3 py-2.5">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -1199,7 +1200,7 @@ function ListView({
                     const isOrphan = !!assigneeId && !employees.some(e2 => e2.id === assigneeId)
                     return assigneeName
                       ? <>{assigneeName}{isOrphan && <span className="ml-1 text-[10px] text-red-500" title="퇴사한 직원 담당 — 고객관리에서 재배정이 필요합니다">(퇴사)</span>}</>
-                      : <span className="text-ink-faint">미배정</span>
+                      : <span className="text-ink-meta">미배정</span>
                   })()}
                 </td>
                 <td className="px-3 py-2.5">
@@ -1242,7 +1243,7 @@ function ListView({
             <span className="text-sm text-ink-sub">
               <span className="font-semibold text-brand">{selectedIds.size}건</span> 선택됨
               {confirmableSelected.length > 0 && (
-                <span className="text-xs text-ink-faint ml-2">
+                <span className="text-xs text-ink-meta ml-2">
                   확정 가능 {confirmableSelected.length}건
                   {confirmableSelected.some(i => !i.scheduled_date) && (
                     <> · 점검일 없는 {confirmableSelected.filter(i => !i.scheduled_date).length}건은 오늘({todayStr})로 확정</>

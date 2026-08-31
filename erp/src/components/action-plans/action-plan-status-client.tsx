@@ -5,6 +5,7 @@ import { Search, X, ChevronDown, ChevronRight, Printer } from 'lucide-react'
 import { updateActionPlanAction, updateCompleteReportAction, upsertActionPlanStatusAction } from '@/app/(dashboard)/action-plans/status/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { inspectionTypeLabel } from '@/types'
+import { todayKst } from '@/lib/kst-date'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmt(d: string | null | undefined) {
@@ -76,7 +77,7 @@ function CertificateModal({
   const aps    = row.action_plan_status
   const completedAt = row.inspections?.inspection_report_status?.inspection_completed_at
   const deadline    = completedAt ? addDays(completedAt, 30) : null
-  const today  = new Date().toISOString().slice(0, 10)
+  const today  = todayKst()
 
   function handlePrint() {
     window.print()

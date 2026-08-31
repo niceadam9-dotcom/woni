@@ -31,7 +31,7 @@ import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
  */
 
 const numCls = (r: number, t: number) =>
-  t === 0 ? 'text-ink-faint' : r === 0 ? 'text-amber-600 font-semibold' : r < t ? 'text-ink-sub' : 'text-green-600 font-medium'
+  t === 0 ? 'text-ink-meta' : r === 0 ? 'text-amber-600 font-semibold' : r < t ? 'text-ink-sub' : 'text-green-600 font-medium'
 
 export function SheetEntryClient({
   inspectionId, customerName, roundLabel, overview,
@@ -302,7 +302,7 @@ export function SheetEntryClient({
       case 'saved': return <span className="text-[11px] text-green-600" data-testid="sheet-autosave">✓ 저장됨</span>
       case 'error': return <button onClick={() => void autosave.retry()} className="text-[11px] text-red-600 underline">저장 실패 — 다시 시도</button>
       case 'paused': return <span className="text-[11px] text-amber-600">저장 보류 — 원격 변경 확인 필요</span>
-      default: return <span className="text-[11px] text-ink-faint" data-testid="sheet-autosave-idle">자동 저장</span>
+      default: return <span className="text-[11px] text-ink-meta" data-testid="sheet-autosave-idle">자동 저장</span>
     }
   })()
 
@@ -339,7 +339,7 @@ export function SheetEntryClient({
           </button>
         </div>
       )}
-      {!canEdit && <p className="text-xs text-ink-faint mb-3">보기 전용 — 이 점검 건의 담당자·팀장·관리자만 입력할 수 있습니다.</p>}
+      {!canEdit && <p className="text-xs text-ink-meta mb-3">보기 전용 — 이 점검 건의 담당자·팀장·관리자만 입력할 수 있습니다.</p>}
       {/* 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 선택은 사용자가 한다(드로어와 같은 문구·같은 규약).
           이 동안 자동저장은 pause다(훅 계약 ③) — 아래 칩이 '저장 보류'로 바뀐다 */}
       {stale && (
@@ -386,14 +386,14 @@ export function SheetEntryClient({
                 </button>
               </li>
             ))}
-            {visible.length === 0 && <li className="text-xs text-ink-faint px-2 py-3">조건에 맞는 설비가 없습니다.</li>}
+            {visible.length === 0 && <li className="text-xs text-ink-meta px-2 py-3">조건에 맞는 설비가 없습니다.</li>}
           </ul>
 
           {uncovered.length > 0 && (
             <div className="mt-3 pt-3 border-t border-brand-line-soft">
-              <p className="text-[11px] text-ink-faint mb-1">덮는 점검표 없음 — 별지 결과칸은 공란으로 남습니다</p>
+              <p className="text-[11px] text-ink-meta mb-1">덮는 점검표 없음 — 별지 결과칸은 공란으로 남습니다</p>
               <ul className="space-y-0.5">
-                {uncovered.map(c => <li key={c} className="text-[11px] text-ink-faint px-2.5 py-1">{c}</li>)}
+                {uncovered.map(c => <li key={c} className="text-[11px] text-ink-meta px-2.5 py-1">{c}</li>)}
               </ul>
             </div>
           )}
@@ -402,7 +402,7 @@ export function SheetEntryClient({
         {/* ── 우: 항목 입력 ── */}
         <div className="rounded-xl border border-brand-line-soft bg-surface p-4 min-h-[320px]">
           {!openSheet ? (
-            <p className="text-sm text-ink-faint">왼쪽에서 설비를 선택하세요.
+            <p className="text-sm text-ink-meta">왼쪽에서 설비를 선택하세요.
               {blankCount > 0 && <> 미입력 {blankCount}개가 <span className="text-amber-600">⚠</span>로 표시돼 있습니다.</>}
             </p>
           ) : (

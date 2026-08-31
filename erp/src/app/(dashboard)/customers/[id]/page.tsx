@@ -39,6 +39,7 @@ import { RecommendAssignClient } from '@/components/customers/recommend-assign-c
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { listCustomerAssetEntries } from '@/lib/customer-assets'
 import { listBuildingPurposes } from '@/lib/building-purposes'
+import { todayKst } from '@/lib/kst-date'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
@@ -459,7 +460,7 @@ export default async function CustomerDetailPage({
   const inspFiltered = inspections.filter(i => (histYear === null || i.year === histYear) && hk !== 'log')
   const logsFiltered = essentialLogs.filter(x =>
     (histYear === null || new Date(x.log.created_at).getFullYear() === histYear) && hk !== 'insp')
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = todayKst()
   const nextInspection = inspections
     .filter(i => i.status === 'scheduled' && i.inspection_start_date && i.inspection_start_date >= todayStr)
     .sort((a, b) => (a.inspection_start_date ?? '').localeCompare(b.inspection_start_date ?? ''))[0] ?? null

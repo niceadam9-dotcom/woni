@@ -10,12 +10,15 @@ import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { readProfileTheme } from '@/lib/theme'
 import { readProfileFontScale } from '@/lib/font-scale'
 import type { UserRole } from '@/types'
+import { todayKst } from '@/lib/kst-date'
 
 // 사이드바 뱃지: 미완료 6단계 중 지연/D-Day(빨강), D-1~3(주황) 건수 (Victory10 §6)
 async function getStepBadgeCounts(profileId: string, role: string) {
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
-  const d3 = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]
+  // F-14 잔여 축 — 둘 다 KST로 **함께** 옮긴다. 한쪽만 바꾸면 '오늘'과 'D+3'의 기준이
+  // 갈라져 뱃지가 하루치 어긋난다(비교 상대인 due_date는 DATE=달력 날짜라 KST가 맞다).
+  const today = todayKst()
+  const d3 = todayKst(Date.now() + 3 * 86400000)
 
   function base() {
     // 삭제(비활성) 고객의 잔존 단계 제외(소방계획서_30 S2-1) — FK 힌트(customer_id)는 PGRST201 방지

@@ -6,6 +6,7 @@ import type { InspectionType } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 import { addPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
 import { DateInput } from '@/components/ui/date-input'
+import { todayKst } from '@/lib/kst-date'
 
 type Employee = { id: string; name: string; position: string | null }
 type CustomerOption = {
@@ -53,7 +54,7 @@ function suggestScheduledDate(useApprovalDate: string, planYear: number, holiday
 }
 
 export function AddPlanItemModal({ planId, planYear, defaultDate, employees, customers, holidays, onClose, onSaved }: Props) {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayKst()
   const [isPending, startTransition] = useTransition()
   const [customerId, setCustomerId] = useState('')
   const [sequenceNum, setSequenceNum] = useState<1 | 2>(1)
@@ -158,7 +159,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
                   className="w-full text-sm border border-line rounded-lg pl-9 pr-8 py-2 focus:outline-none focus:ring-1 focus:ring-brand"
                 />
                 <ChevronDown
-                  className={`absolute right-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint transition-transform cursor-pointer ${open ? 'rotate-180' : ''}`}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-meta transition-transform cursor-pointer ${open ? 'rotate-180' : ''}`}
                   onClick={() => setOpen(v => !v)}
                 />
               </div>
@@ -166,7 +167,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
               {open && (
                 <div className="absolute z-10 mt-1 w-full bg-surface rounded-xl border border-line shadow-lg max-h-52 overflow-y-auto">
                   {filtered.length === 0 ? (
-                    <p className="text-xs text-ink-faint px-3 py-3 text-center">일치하는 고객 없음</p>
+                    <p className="text-xs text-ink-meta px-3 py-3 text-center">일치하는 고객 없음</p>
                   ) : (
                     filtered.map(c => (
                       <button
@@ -179,7 +180,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
                       >
                         <p className="text-sm font-medium text-ink truncate">{c.customer_name}</p>
                         {c.address && (
-                          <p className="text-[11px] text-ink-faint truncate mt-0.5">{c.address}</p>
+                          <p className="text-[11px] text-ink-meta truncate mt-0.5">{c.address}</p>
                         )}
                       </button>
                     ))
@@ -188,7 +189,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
               )}
             </div>
             {!open && filtered.length > 0 && !customerId && query && (
-              <p className="text-[11px] text-ink-faint mt-1">↑ 목록에서 선택해주세요</p>
+              <p className="text-[11px] text-ink-meta mt-1">↑ 목록에서 선택해주세요</p>
             )}
           </div>
 
@@ -198,8 +199,8 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
               <span className="font-medium text-brand">{inspectionTypeLabel(selectedCustomer.inspection_type)}</span>
               {selectedCustomer.address && (
                 <>
-                  <span className="text-ink-faint">|</span>
-                  <span className="text-ink-faint truncate">{selectedCustomer.address}</span>
+                  <span className="text-ink-meta">|</span>
+                  <span className="text-ink-meta truncate">{selectedCustomer.address}</span>
                 </>
               )}
             </div>

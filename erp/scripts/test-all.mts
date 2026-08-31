@@ -82,6 +82,11 @@ const steps: Step[] = [
   // 위험 ①(미리보기만 갱신되고 칸 제목이 굳어 '데이터가 갈라진 것처럼' 보이는 것)의 방어선.
   // S3 착수 **전에** 7/0을 확인하고 들어갔다 — 그래야 붉어진 것이 S3 탓이라고 말할 수 있다.
   { name: '불량표 실시간 집계(E2E)',     cmd: 'npx tsx scripts/test-workbench-defect-live.mts', needServer: true },
+  // F-21 — 불량표 입력이 **단계(pane) 전환을 살아남는가**. ⑤·⑥은 조건부 렌더라 전환하면
+  // DefectGrid가 언마운트되는데, S3-7이 셀 저장마다 돌던 router.refresh()를 걷어낸 뒤로
+  // 서버 prop이 세션 내내 갱신되지 않아 **방금 저장한 값이 사라졌다**(예고가 아니라 실사고).
+  // 새로고침하면 어떤 구현이든 통과하므로 **새로고침 없이** 전환만으로 판정한다(항진명제 회피).
+  { name: '불량표 단계전환 보존(E2E)',   cmd: 'npx tsx scripts/test-workbench-defect-pane-switch.mts', needServer: true },
   // S4-1 — 저장 속도 회귀 예산. 임의 상수가 아니라 S1 대조군 관측 최댓값(21,918ms)×0.5다.
   // ⚠ 연속 2셀을 잰다: 종전 결함은 셀마다 **누적**되는 종류라 1회만 재면 못 잡는다(F-11).
   { name: '작업대 저장 예산(E2E)',       cmd: 'npx tsx scripts/test-workbench-save-budget.mts', needServer: true },

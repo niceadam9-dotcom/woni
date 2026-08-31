@@ -46,7 +46,7 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
   // 고객명은 아래 표에도 링크로 나온다 — 스트립 범위를 특정할 수 있게 표식을 남긴다(E2E 셀렉터)
   return (
     <div data-recent-strip className="flex items-center gap-2 flex-wrap">
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-faint shrink-0">
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-meta shrink-0">
         <Clock className="size-3" /> 최근 본 고객
       </span>
       {items.map(c => (
@@ -66,7 +66,7 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
             aria-label={`${c.name} 별지서식`}
             title="별지서식 탭 · 회차별 별지 작성으로 바로가기"
             data-testid="recent-chip-plan-link"
-            className="inline-flex items-center pl-1.5 pr-2 border-l border-brand-line-soft text-ink-faint transition-colors hover:bg-brand-tint hover:text-brand"
+            className="inline-flex items-center pl-1.5 pr-2 border-l border-brand-line-soft text-ink-meta transition-colors hover:bg-brand-tint hover:text-brand"
           >
             <FileText className="size-3" />
           </Link>
@@ -79,7 +79,7 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
           setItems([])
         }}
         aria-label="최근 본 고객 지우기"
-        className="p-1 rounded text-ink-faint hover:text-ink-sub transition-colors shrink-0"
+        className="p-1 rounded text-ink-meta hover:text-ink-sub transition-colors shrink-0"
       >
         <X className="size-3" />
       </button>

@@ -32,7 +32,7 @@ export function InspectionMultidayClient({ inspectionId, startDate, endDate, day
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
       <div className="flex items-center gap-2 mb-2">
         <CalendarRange className="size-4 text-brand" />
-        <h3 className="text-sm font-semibold text-ink">점검 기간 <span className="text-xs font-normal text-ink-faint">다일 점검 시 종료일</span></h3>
+        <h3 className="text-sm font-semibold text-ink">점검 기간 <span className="text-xs font-normal text-ink-meta">다일 점검 시 종료일</span></h3>
         <span className="ml-auto text-xs text-ink-sub">시작 {startDate}{end ? ` ~ 종료 ${end}` : ''}</span>
       </div>
       <div className="flex items-center gap-2 flex-wrap">

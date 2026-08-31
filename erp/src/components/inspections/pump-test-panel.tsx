@@ -110,7 +110,7 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
     <section className="rounded-lg border border-brand-line-soft bg-surface" data-testid="pump-test-panel">
       <div className="flex items-center gap-1.5 border-b border-brand-tint bg-brand-tint px-2.5 py-1.5">
         <p className="text-[11px] font-semibold text-ink-sub">※ 펌프성능시험</p>
-        <span className="text-[10px] text-ink-faint">별지 4호서식 표 — 펌프 명판 및 설계치 참조</span>
+        <span className="text-[10px] text-ink-meta">별지 4호서식 표 — 펌프 명판 및 설계치 참조</span>
       </div>
 
       {/* 설비가 여러 개면 탭 — 서식도 설비마다 표가 따로 붙는다 */}
@@ -147,7 +147,7 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
                     <tr key={`${label}-${k}`} className="border-t border-brand-line-soft">
                       <td className="px-1 py-0.5 text-ink-sub">
                         {ki === 0 && <span className="mr-1">{label}</span>}
-                        <span className="text-ink-faint">{k}</span>
+                        <span className="text-ink-meta">{k}</span>
                       </td>
                       <td className="px-1 py-0.5"><input aria-label={`${PUMP_SHEET_LABELS[s]} ${k}펌프 ${label} 체절운전`} {...onNum(s, k, f1)} /></td>
                       <td className="px-1 py-0.5"><input aria-label={`${PUMP_SHEET_LABELS[s]} ${k}펌프 ${label} 정격운전`} {...onNum(s, k, f2)} /></td>
@@ -223,7 +223,7 @@ function JudgeBlock({ row, other, canEdit, onPick }: {
           {!j.auto[i] && j.reasons[i] && <span className="w-full text-[9px] text-amber-600">⚠ {j.reasons[i]}</span>}
         </div>
       ))}
-      <p className="text-[9px] text-ink-faint">
+      <p className="text-[9px] text-ink-meta">
         ①③은 정격토출압 대비 비율이라 실측치만으로 계산됩니다. ②의 &lsquo;규정치&rsquo;는 펌프 명판·설계치라
         시스템에 없어 자동 판정하지 않습니다 — 직접 눌러 주세요.
       </p>

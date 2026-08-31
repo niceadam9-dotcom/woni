@@ -91,7 +91,7 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       <div className="flex items-center gap-1.5">
         <ShieldCheck className="size-3.5 text-brand" />
         <p className="text-xs font-semibold text-ink">소방안전관리</p>
-        <span className="text-[10px] text-ink-faint">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
+        <span className="text-[10px] text-ink-meta">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
         {dirty && <span className="ml-auto text-[10px] text-amber-600 font-medium">미저장</span>}
       </div>
 
@@ -115,7 +115,7 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
                 : <span className="text-amber-600">전화 없음 — 위 관계인 카드에서 번호를 채우면 문서에 실립니다</span>}
             </span>
           ) : (
-            <span className="text-[11px] text-ink-faint">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
+            <span className="text-[11px] text-ink-meta">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
           )}
         </div>
       </div>
@@ -123,7 +123,7 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       <div className="flex flex-wrap gap-3 items-end">
         {/* ② 대상물 등급 — 사람이 아니라 건물 속성이라는 걸 라벨에 못박는다 */}
         <div>
-          <label className={labelCls}>소방안전관리등급 <span className="text-ink-faint">(대상물 급수 · 별표4)</span></label>
+          <label className={labelCls}>소방안전관리등급 <span className="text-ink-meta">(대상물 급수 · 별표4)</span></label>
           <div className="flex items-center gap-1.5 mt-0.5">
             <div className="flex rounded-lg border border-brand-line overflow-hidden">
               {GRADES.map(g => (
@@ -143,7 +143,7 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
 
         {/* ③ 사람의 자격구분 — 위 등급과 다른 축임을 표시 */}
         <div>
-          <label className={labelCls}>관리자 자격구분 <span className="text-ink-faint">(사람 · 등급과 별개)</span></label>
+          <label className={labelCls}>관리자 자격구분 <span className="text-ink-meta">(사람 · 등급과 별개)</span></label>
           <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
             {GRADES.map(g => (
               <button key={g} disabled={!canManage} onClick={() => toggle('managerLicenseGrade', g)}

@@ -10,6 +10,7 @@ import { previewInspectionSteps, stepBaseDate } from '@/lib/step-dates'
 import { rowInspectionType } from '@/lib/inspection-round'
 import { formatTel } from '@/lib/format-contact'
 import type { InspectionType } from '@/types'
+import { todayKst } from '@/lib/kst-date'
 
 const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 const labelCls = 'text-xs font-medium text-ink-sub'
@@ -68,7 +69,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
   const anchorDate = startDate && isCompleteDate(startDate)
     ? stepBaseDate(startDate, selectedCustomer?.use_approval_date) : ''
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayKst()
 
   function handleSubmit() {
     setError('')
@@ -198,7 +199,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
       {startDate && stepPreview.length > 0 && (
         <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
           <h2 className="text-sm font-semibold text-ink mb-1">6단계 예상 일정</h2>
-          <p className="text-xs text-ink-faint mb-4">
+          <p className="text-xs text-ink-meta mb-4">
             공휴일·주말 제외 작업일 기준으로 자동 계산됩니다 (⑤ 소방보수 완료만 달력일)
             {anchorDate && anchorDate !== startDate && (
               <><br />기준일 {anchorDate} — 이 고객은 사용승인일 응당일이 기준입니다 (점검일 아님)</>
@@ -215,7 +216,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
                 )}
                 <span className="text-xs text-ink flex-1">{step.name_ko}</span>
                 <span className="text-xs font-medium text-ink-sub ml-auto">
-                  {step.due_date ?? <span className="text-ink-faint">마감일 없음</span>}
+                  {step.due_date ?? <span className="text-ink-meta">마감일 없음</span>}
                 </span>
               </div>
             ))}

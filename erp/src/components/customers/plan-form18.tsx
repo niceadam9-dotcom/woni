@@ -17,7 +17,7 @@ export function PlanForm18({ data }: { data: Form18Data }) {
   const row = (label: string, value: string | null | undefined) => (
     <div className="flex items-baseline gap-2 py-1 border-b border-brand-line-soft last:border-0">
       <span className="w-32 shrink-0 text-form-xs text-ink-soft">{label}</span>
-      <span className="text-form-sm text-ink">{value?.trim() ? value : <span className="text-ink-faint">미입력</span>}</span>
+      <span className="text-form-sm text-ink">{value?.trim() ? value : <span className="text-ink-meta">미입력</span>}</span>
     </div>
   )
   return (
@@ -26,7 +26,7 @@ export function PlanForm18({ data }: { data: Form18Data }) {
         <div className="flex items-center gap-2 mb-2">
           <Building2 className="size-4 text-brand" />
           <p className="text-form-sm font-semibold text-ink-sub">1.8 소방안전관리 업무대행 현황</p>
-          <span className="text-form-xs text-ink-faint ml-auto">자동 표시 — 수정은 회사 정보·고객 기본정보에서</span>
+          <span className="text-form-xs text-ink-meta ml-auto">자동 표시 — 수정은 회사 정보·고객 기본정보에서</span>
         </div>
         <p className="text-form-xs font-medium text-brand mb-1">대행업체 (회사 정보)</p>
         {row('업체명', data.company?.name)}
@@ -41,7 +41,7 @@ export function PlanForm18({ data }: { data: Form18Data }) {
         {row('소방안전관리자(관계인)', data.managerName)}
         {row('선임일', data.managerSelectedAt)}
       </div>
-      <p className="text-form-xs text-ink-faint">※ 업무대행 범위·기간 등 상세 계약 조건은 계약 문서를 따릅니다 — 본 서식은 현황 표시용.</p>
+      <p className="text-form-xs text-ink-meta">※ 업무대행 범위·기간 등 상세 계약 조건은 계약 문서를 따릅니다 — 본 서식은 현황 표시용.</p>
     </div>
   )
 }

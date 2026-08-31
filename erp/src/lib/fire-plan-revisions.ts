@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { todayKst } from '@/lib/kst-date'
 
 /** 개정이력 자동 기록 (마이그레이션 120 — 소방계획서_17 §2-2)
  *
@@ -33,7 +34,7 @@ export async function appendGeneratedRevision(admin: Admin, opts: {
       customer_id: opts.customerId,
       year: opts.year,
       seq,
-      revised_on: new Date().toISOString().slice(0, 10),
+      revised_on: todayKst(),
       content: opts.content.slice(0, MAX_CONTENT),
       author_name: (opts.authorName ?? '').trim() || null,
       source: opts.source,

@@ -282,7 +282,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             <div><label className={labelCls}>피난용승강기</label><br /><NumField value={d.evacElevatorCount} onChange={v => set('evacElevatorCount', v)} unit="대" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <p className="text-form-2xs text-ink-faint">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
+            <p className="text-form-2xs text-ink-meta">구조·지붕·높이는 건축물대장에서 자동 입력됩니다 (고객 등록 시 주소 검색) — 빈 값만 직접 입력</p>
             <button onClick={refetchLedger} disabled={!initial.hasBuilding || isLedgerPending}
               className="text-form-2xs text-brand hover:underline disabled:opacity-50 inline-flex items-center gap-0.5 shrink-0">
               {isLedgerPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
@@ -341,7 +341,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
                 <input value={m.name} onChange={e => setBrigade(i, 'name', e.target.value)} placeholder="성명" className={`${inputCls} w-24`} />
                 <input value={m.duty} onChange={e => setBrigade(i, 'duty', e.target.value)} placeholder="개별임무 (자동)" className={`${inputCls} flex-1 min-w-40`} />
                 <PhoneField value={m.phone} onChange={v => setBrigade(i, 'phone', v)} placeholder="연락처" className={`${inputCls} w-32`} />
-                <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-ink-faint hover:text-red-500 text-form-sm px-1">✕</button>
+                <button onClick={() => set('brigade', d.brigade.filter((_, j) => j !== i))} className="text-ink-meta hover:text-red-500 text-form-sm px-1">✕</button>
               </div>
             ))}
             <div className="flex gap-2 relative">
@@ -355,12 +355,12 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               </button>
               {showPicker && (
                 <div className="absolute z-10 top-6 left-0 bg-surface border border-brand-line rounded-lg shadow-lg max-h-56 overflow-y-auto min-w-64">
-                  {people.length === 0 && <p className="text-form-xs text-ink-faint px-3 py-2">후보 없음</p>}
+                  {people.length === 0 && <p className="text-form-xs text-ink-meta px-3 py-2">후보 없음</p>}
                   {people.map((p, i) => (
                     <button key={i} onClick={() => addFromPerson(p)}
                       className="w-full text-left px-3 py-1.5 text-form-sm hover:bg-brand-tint flex justify-between gap-3">
-                      <span>{p.name} <span className="text-ink-faint">({p.kind})</span></span>
-                      <span className="text-ink-faint">{formatTel(p.phone)}</span>
+                      <span>{p.name} <span className="text-ink-meta">({p.kind})</span></span>
+                      <span className="text-ink-meta">{formatTel(p.phone)}</span>
                     </button>
                   ))}
                 </div>
@@ -426,7 +426,7 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         <section id="consent-section" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-surface p-3">
           <p className="text-form-xs font-bold text-brand mb-1.5 flex items-center gap-1">
             <Mail className="size-3" /> ④ 자체점검 보고서 전자우편 송달 동의
-            <span className="font-normal text-ink-faint">(별지 9호 1쪽 — 관계인 이메일 발송 조건)</span>
+            <span className="font-normal text-ink-meta">(별지 9호 1쪽 — 관계인 이메일 발송 조건)</span>
           </p>
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>동의 여부</label><br />

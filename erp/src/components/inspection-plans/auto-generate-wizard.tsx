@@ -196,7 +196,7 @@ export function AutoGenerateWizard({
           <div key={idx} className="flex items-center">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
               step === idx ? 'bg-brand text-white font-medium' :
-              step > idx  ? 'text-green-600' : 'text-ink-faint'
+              step > idx  ? 'text-green-600' : 'text-ink-meta'
             }`}>
               {step > idx ? <Check className="size-3.5" /> : <span className="text-xs font-bold">{idx + 1}</span>}
               {label}
@@ -251,7 +251,7 @@ export function AutoGenerateWizard({
                 </label>
               ))}
             </div>
-            <p className="text-xs text-ink-faint mt-1">선택: {selectedCustomers.length}개 / 전체: {customers.length}개</p>
+            <p className="text-xs text-ink-meta mt-1">선택: {selectedCustomers.length}개 / 전체: {customers.length}개</p>
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}

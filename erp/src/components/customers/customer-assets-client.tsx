@@ -223,7 +223,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
         ? 'rounded-lg border border-brand-tint bg-surface p-2.5'
         : 'rounded-xl border border-brand-line-soft bg-brand-tint p-4'}>
       <p className={`font-semibold text-ink-sub ${embedded ? 'text-[11px] mb-1.5' : 'text-xs mb-2'}`}>
-        지도·사진 <span className="font-normal text-ink-faint">(소방계획서 재료 — 미등록이어도 생성은 가능하며 자리표시로 대체됩니다)</span>
+        지도·사진 <span className="font-normal text-ink-meta">(소방계획서 재료 — 미등록이어도 생성은 가능하며 자리표시로 대체됩니다)</span>
       </p>
       {embedded && (
         <p className="text-[11px] text-ink-soft mb-2">
@@ -237,7 +237,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
           return (
             <div key={slot} {...dropProps(slot)}
               className={`rounded-lg border bg-surface p-3 space-y-2 ${dragOver === slot ? 'border-dashed border-brand bg-brand-tint' : 'border-brand-line-soft'}`}>
-              <p className="text-[11px] font-medium text-ink-sub">{label} <span className="font-normal text-ink-faint">— {hint}</span></p>
+              <p className="text-[11px] font-medium text-ink-sub">{label} <span className="font-normal text-ink-meta">— {hint}</span></p>
               {asset ? (
                 <button type="button" onClick={() => setPreview({ url: asset.url, label })}
                   title="클릭하면 크게 봅니다" className="block w-full">
@@ -245,7 +245,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
                     className="h-28 w-full rounded-lg border border-brand-tint object-cover cursor-zoom-in hover:opacity-90 transition-opacity" />
                 </button>
               ) : (
-                <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-faint">
+                <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-meta">
                   <ImageIcon className="size-5" />
                   <span className="text-[10px]">미등록 — 끌어다 놓기·캡처 후 붙여넣기(Ctrl+V) 가능</span>
                 </div>
@@ -294,9 +294,9 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
         {/* 복수 슬롯: 피난안내도·평면도 (evac_1..n 추가형) */}
         <div {...dropProps('evac')}
           className={`rounded-lg border bg-surface p-3 space-y-2 ${dragOver === 'evac' ? 'border-dashed border-brand bg-brand-tint' : 'border-brand-line-soft'}`}>
-          <p className="text-[11px] font-medium text-ink-sub">피난안내도·평면도 <span className="font-normal text-ink-faint">— 피난 관련 장에 들어갑니다 (층별 복수)</span></p>
+          <p className="text-[11px] font-medium text-ink-sub">피난안내도·평면도 <span className="font-normal text-ink-meta">— 피난 관련 장에 들어갑니다 (층별 복수)</span></p>
           {evacAssets.length === 0 && !canManage && (
-            <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-faint">
+            <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-meta">
               <ImageIcon className="size-5" />
               <span className="text-[10px]">미등록</span>
             </div>

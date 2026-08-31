@@ -128,7 +128,7 @@ export function InlineCustomerFieldClient({
     if (value == null) {
       return emptyLabel
         ? <span className="text-xs text-red-500 font-medium">{emptyLabel}</span>
-        : <span className="text-ink-faint italic text-xs">—</span>
+        : <span className="text-ink-meta italic text-xs">—</span>
     }
     if (displayVariant === 'name') {
       return <span className="font-medium text-ink">{value}</span>
@@ -149,7 +149,7 @@ export function InlineCustomerFieldClient({
         <button
           onClick={handleEdit}
           title="수정"
-          className="p-0.5 text-ink-faint opacity-0 group-hover:opacity-100 hover:text-brand transition-opacity shrink-0"
+          className="p-0.5 text-ink-meta opacity-0 group-hover:opacity-100 hover:text-brand transition-opacity shrink-0"
         >
           <Pencil className="size-3" />
         </button>
@@ -237,7 +237,7 @@ export function InlineCustomerFieldClient({
       </button>
       <button
         onMouseDown={e => { e.preventDefault(); handleCancel(e) }}
-        className="p-0.5 text-ink-faint hover:text-red-500"
+        className="p-0.5 text-ink-meta hover:text-red-500"
       >
         <X className="size-3.5" />
       </button>
