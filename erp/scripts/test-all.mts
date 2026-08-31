@@ -85,6 +85,10 @@ const steps: Step[] = [
   // ⚠ Next 런타임 밖이라 --conditions=react-server 필수(server-only 패키지) — 빼면 멀쩡한 검사가
   //   '깨진 것'으로 보인다([[feedback_test_suite_run_flags]]).
   { name: '인쇄 소스 배율 비의존(소방계획서_35)', cmd: 'npx tsx --conditions=react-server scripts/test-print-source-pin.mts' },
+  // 소방계획서_35 DEF-B3 — 한 화면이 두 축으로 갈라지지 않는가. text-form-*을 쓰는 파일에
+  // 하드코딩 크기가 섞이면 사용자가 배율을 올렸을 때 **화면의 절반만 커진다**.
+  // 범위를 파일 목록으로 박지 않고 '토큰을 쓰는가'로 자기정의해 확산을 자동으로 따라간다.
+  { name: '배율 축 정합(소방계획서_35)',  cmd: 'npx tsx scripts/test-35-scale-axis.mts' },
   // S4-2 — 불량표 입력이 **새로고침 없이** 칸 제목에 반영되는가 + reload 후 DB 대조.
   // 위험 ①(미리보기만 갱신되고 칸 제목이 굳어 '데이터가 갈라진 것처럼' 보이는 것)의 방어선.
   // S3 착수 **전에** 7/0을 확인하고 들어갔다 — 그래야 붉어진 것이 S3 탓이라고 말할 수 있다.

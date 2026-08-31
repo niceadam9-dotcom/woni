@@ -407,26 +407,26 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-3">
         <ClipboardCheck className="size-4 text-brand" />
-        <h2 className="text-sm font-semibold text-ink">점검표 입력</h2>
+        <h2 className="text-form-base font-semibold text-ink">점검표 입력</h2>
         {/* 전용 화면(소방계획서_28) — 설치 설비와 진행률을 한 화면에서 보고 채운다.
             어느 설비가 비었는지 여기 카드에서는 보드를 펼쳐야 보인다. */}
         <a href={`/inspections/${inspectionId}/sheet`} data-testid="sheet-entry-link"
-          className="text-[11px] text-brand hover:underline ml-auto">전체 화면으로 입력 →</a>
-        <span className="text-xs text-ink-meta">{scopeLabel(scope)}</span>
+          className="text-form-xs text-brand hover:underline ml-auto">전체 화면으로 입력 →</a>
+        <span className="text-form-sm text-ink-meta">{scopeLabel(scope)}</span>
       </div>
 
       {/* EX-4(소방계획서_19, 125): 외관점검표는 12개월 연간 서식 — 같은 점검 건에 달을 나눠 기록한다 */}
       {isExterior && canManage && (
         <div className="mb-3 flex items-center gap-2 flex-wrap rounded-lg border border-brand-line-soft bg-brand-tint px-3 py-2">
-          <span className="text-[11px] font-semibold text-ink-sub">점검 월</span>
+          <span className="text-form-xs font-semibold text-ink-sub">점검 월</span>
           <select value={month} onChange={e => void changeMonth(Number(e.target.value))} disabled={isPending}
-            className="h-7 rounded border border-brand-line bg-surface px-1.5 text-xs outline-none focus:border-brand">
+            className="h-7 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand">
             <option value={0}>점검일 기준(기본)</option>
             {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
               <option key={m} value={m}>{m}월</option>
             ))}
           </select>
-          <span className="text-[11px] text-ink-meta">
+          <span className="text-form-xs text-ink-meta">
             달을 바꿔 저장하면 그 달의 실적으로 기록됩니다 — 외관점검표는 기록한 달이 한 장에 누적 인쇄됩니다.
           </span>
         </div>
@@ -435,62 +435,62 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       {canManage && xCount > 0 && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
           <AlertTriangle className="size-3.5 text-red-500 shrink-0" />
-          <span className="text-xs text-red-700">불량(X) {xCount}건 — 표준 문구로 불량내역에 등록</span>
+          <span className="text-form-sm text-red-700">불량(X) {xCount}건 — 표준 문구로 불량내역에 등록</span>
           <button onClick={registerDefects} disabled={isPending}
-            className="ml-auto h-7 px-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium disabled:opacity-50">
+            className="ml-auto h-7 px-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-form-sm font-medium disabled:opacity-50">
             불량 등록
           </button>
         </div>
       )}
-      {notice && <p className="text-xs text-green-600 mb-2">{notice}</p>}
-      {error && !sel && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {notice && <p className="text-form-sm text-green-600 mb-2">{notice}</p>}
+      {error && !sel && <p className="text-form-sm text-red-600 mb-2">{error}</p>}
 
       {/* §9-4 A안: 빠른 결과 입력 — 대부분 양호·불량 소수 패턴 (모바일 현장 입력 대응) */}
       {canManage && (
         <div className="mb-3 rounded-lg border border-brand-line-soft bg-brand-tint p-3 space-y-2">
-          <p className="text-[11px] font-semibold text-ink-sub flex items-center gap-1">
+          <p className="text-form-xs font-semibold text-ink-sub flex items-center gap-1">
             <Zap className="size-3 text-brand" /> 빠른 결과 입력
             <span className="font-normal text-ink-meta">— ① 전체 양호 후 ② 불량 항목만 검색해 태깅</span>
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={bulkGood} disabled={isPending}
-              className="h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium disabled:opacity-50">
+              className="h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium disabled:opacity-50">
               설치 설비 전체 양호 ○
             </button>
             <div className="relative flex-1 min-w-52">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input value={quickQ} onChange={e => { setQuickQ(e.target.value); setPicked(null) }}
                 placeholder="불량 항목 검색 (명칭·코드 2자 이상)"
-                className="h-8 w-full rounded-lg border border-brand-line bg-surface pl-7 pr-2 text-xs outline-none focus:border-brand" />
+                className="h-8 w-full rounded-lg border border-brand-line bg-surface pl-7 pr-2 text-form-sm outline-none focus:border-brand" />
             </div>
           </div>
           {!picked && quickResults.length > 0 && (
             <div className="max-h-44 overflow-y-auto rounded-lg border border-brand-line-soft bg-surface divide-y divide-brand-line-soft">
               {quickResults.map(r => (
                 <button key={r.item_code} onClick={() => { setPicked(r); setQuickMemo('') }}
-                  className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-brand-tint flex items-center gap-2">
-                  <span className="text-[10px] text-ink-meta w-16 shrink-0">{r.item_code}</span>
+                  className="w-full text-left px-2.5 py-1.5 text-form-sm hover:bg-brand-tint flex items-center gap-2">
+                  <span className="text-form-2xs text-ink-meta w-16 shrink-0">{r.item_code}</span>
                   <span className="text-ink flex-1 min-w-0 truncate">{r.item_name}</span>
-                  <span className="text-[10px] text-ink-meta shrink-0 max-w-24 truncate">{r.sheet_name}</span>
-                  {r.current && <span className={`text-[10px] font-bold shrink-0 ${r.current === 'X' ? 'text-red-500' : r.current === 'O' ? 'text-green-600' : 'text-gray-400'}`}>{r.current === 'O' ? '○' : r.current === 'X' ? '✕' : '／'}</span>}
+                  <span className="text-form-2xs text-ink-meta shrink-0 max-w-24 truncate">{r.sheet_name}</span>
+                  {r.current && <span className={`text-form-2xs font-bold shrink-0 ${r.current === 'X' ? 'text-red-500' : r.current === 'O' ? 'text-green-600' : 'text-gray-400'}`}>{r.current === 'O' ? '○' : r.current === 'X' ? '✕' : '／'}</span>}
                 </button>
               ))}
             </div>
           )}
           {!picked && quickQ.trim().length >= 2 && quickResults.length === 0 && (
-            <p className="text-[11px] text-ink-meta">검색 결과 없음 — 다른 키워드로 시도해보세요 (예: 수신기, 감지기, 유도등)</p>
+            <p className="text-form-xs text-ink-meta">검색 결과 없음 — 다른 키워드로 시도해보세요 (예: 수신기, 감지기, 유도등)</p>
           )}
           {picked && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-1.5">
-              <p className="text-xs text-red-700"><span className="font-semibold">{picked.item_code}</span> {picked.item_name} <span className="text-[10px] text-red-400">({picked.sheet_name})</span></p>
+              <p className="text-form-sm text-red-700"><span className="font-semibold">{picked.item_code}</span> {picked.item_name} <span className="text-form-2xs text-red-400">({picked.sheet_name})</span></p>
               <div className="flex items-center gap-2 flex-wrap">
                 <input value={quickMemo} onChange={e => setQuickMemo(e.target.value)} placeholder="불량 메모 (선택 — 불량내역 상세로 들어감)"
-                  className="h-8 flex-1 min-w-48 rounded-lg border border-red-200 bg-surface px-2 text-xs outline-none focus:border-red-400" />
+                  className="h-8 flex-1 min-w-48 rounded-lg border border-red-200 bg-surface px-2 text-form-sm outline-none focus:border-red-400" />
                 <button onClick={saveQuickDefect} disabled={isPending}
-                  className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium disabled:opacity-50">
+                  className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white text-form-sm font-medium disabled:opacity-50">
                   {isPending ? <Loader2 className="size-3.5 animate-spin" /> : '✕ 불량 저장 (자동 등록)'}
                 </button>
-                <button onClick={() => setPicked(null)} className="h-8 px-2 rounded-lg border border-line text-xs text-ink-sub">취소</button>
+                <button onClick={() => setPicked(null)} className="h-8 px-2 rounded-lg border border-line text-form-sm text-ink-sub">취소</button>
               </div>
             </div>
           )}
@@ -498,7 +498,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       )}
 
       {/* 머더 카드 보드 — 상시(Q-2, 접이 없음). 드로어가 떠도 사라지지 않는다(포털 오버레이 — Q-4) */}
-      <p className="text-[11px] text-ink-meta mb-2">
+      <p className="text-form-xs text-ink-meta mb-2">
         머더(중분류) 카드를 누르면 그 시트 전체가 오른쪽에 열리고 해당 위치로 이동합니다 — ○(정상)/✕(불량), ／(해당없음)는 일괄 버튼. 입력은 자동 저장됩니다.
       </p>
       <SheetGroupBoard progress={overlaidProgress} noFacilityInfo={noFacilityInfo}
