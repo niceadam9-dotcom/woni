@@ -183,12 +183,31 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
     // 이 줄을 지워도 저장은 되지 않는다.
     if (rangeErr) { setMsg(`❌ ${rangeErr}`); return }
     const sent = { plan, start: planStart, end: planEnd, taken, date }
+
+    /** F-27 — **내가 실제로 바꾼 칸만 보낸다.**
+     *
+     *  종전엔 다섯 칸 전부를 자기 state에서 송신했다. 그런데 ⑤에서 저장하고 ①로 넘어오면
+     *  갱신 왕복이 수 초라 이 카드는 **저장 전 값으로 마운트돼 있다**. 그 창에서
+     *  **아무것도 안 치고 [저장]만 눌러도** 빈 값이 다섯 칸에 실려 ⑤에서 저장한 값을 지웠다
+     *  (독립 판정 실측). 위 dirty 동기화(:156)는 '내가 안 건드린 칸은 **덮지 않는다**'는
+     *  **수신** 규약이라 이 **송신** 경로를 막지 못했다 — 같은 술어를 보내는 쪽에도 건다.
+     *
+     *  기준선은 `syncedRef`(마지막으로 서버에서 받았거나 내가 보낸 값)다. 그것과 같은 칸은
+     *  내가 손대지 않았다는 뜻이므로 보내지 않는다. 서버는 안 온 칸을 건드리지 않는다(F-27). */
+    const s = syncedRef.current
+    const payload: Record<string, string | null> = {}
+    if (plan !== s.plan) payload.actionPlan = plan
+    if (planStart !== s.start) payload.actionStart = planStart || null
+    if (planEnd !== s.end) payload.actionEnd = planEnd || null
+    if (taken !== s.taken) payload.actionTaken = taken
+    if (date !== s.date) payload.actionCompletedAt = date || null
+    if (Object.keys(payload).length === 0) {
+      setMsg('바뀐 내용이 없습니다.')
+      return
+    }
+
     startTransition(async () => {
-      const res = await updateDefectActionAction({
-        defectId: defect.id, inspectionId,
-        actionTaken: taken, actionCompletedAt: date || null,
-        actionPlan: plan, actionStart: planStart || null, actionEnd: planEnd || null,
-      })
+      const res = await updateDefectActionAction({ defectId: defect.id, inspectionId, ...payload })
       setMsg(res.error ? `❌ ${res.error}` : '조치 내용을 저장했습니다.')
       if (res.error) return
       // 보낸 값을 '서버에서 받은 것'으로 친다 — 안 그러면 이 칸들이 영영 dirty로 남아

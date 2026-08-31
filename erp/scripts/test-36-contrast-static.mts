@@ -81,10 +81,17 @@ console.log('— 소방계획서_36 대비 정적 규약')
   //
   //    🕳 **알려진 구멍 2개(침묵시키지 않는다)**
   //      ⓐ ①은 줄 단위라 한 클래스 문자열이 여러 줄로 나뉘면 ink-meta+hex 공존을 놓친다.
-  //      ⓑ ②(래칫)는 `className=`이 같은 줄에 있는 hex만 센다 — 넓힌 술어로는 142건(HEAD 기준)이라
-  //         **17건을 못 본다**. 그 17에 이 사달의 원인이 된 형태(overdue-resolve-modal의
-  //         다중행 삼항 가지)가 포함된다. 그래서 'ink-meta 없는 다중행 클래스 문자열에
-  //         새 hex를 넣는' 경로는 ①②' 어느 쪽도 안 잡는다.
+  //      ⓑ ②(래칫)는 `className=`이 같은 줄에 있는 hex만 센다 — **17건을 못 본다**.
+  //         ⚠ 두 술어는 **포함관계가 아니라 교집합**이다(4차 판정자가 142−128=14로 어긋난다며
+  //           자기모순이라 했는데, 그건 포함을 가정한 오독이다). clean HEAD `.tsx` 실측 분해:
+  //             래칫 술어(`className=…#hex`)          128
+  //             대괄호 술어(`[#hex]`)                 142
+  //             대괄호에만 잡히는 줄                    17   ← ②의 사각지대
+  //             (따라서 교집합 125 · 래칫에만 3 · 합집합 145)
+  //           재현: `git archive HEAD erp/src` 를 풀어 `.tsx`만 **줄 수**로 셀 것(매치 수 아님).
+  //         그 17에 이 사달의 원인이 된 형태(overdue-resolve-modal의 다중행 삼항 가지)가
+  //         포함된다. 그래서 'ink-meta 없는 다중행 클래스 문자열에 새 hex를 넣는' 경로는
+  //         ①②' 어느 쪽도 안 잡는다.
   //         분모를 넓히면 기준선을 다시 재야 하고 그건 이미 한 번(7→11) 데인 축이라
   //         **의도적으로 유지**한다 — 다만 구멍으로 기록해 둔다.
   //
@@ -96,21 +103,61 @@ console.log('— 소방계획서_36 대비 정적 규약')
    *  줄끝 주석(`const a = 1 // text-ink-meta #ffffff`)과 `*` 없는 블록 주석 본문을 놓쳤다.
    *  저장소엔 hex를 담은 줄끝 주석이 이미 여러 줄 실재하므로(달력 계열) 잠재가 아니라
    *  임박한 거짓 양성이었다. 블록 주석은 상태로 추적하고, 줄끝 주석은 잘라 낸다. */
+  /** ⚠⚠ **4차 판정이 순서 버그를 잡았다.** 종전 구현은 `/*`를 `//` 절단보다 **먼저** 찾아,
+   *  문자열 안의 `accept="image/*"` 같은 **가짜 블록 오프너**가 `inBlock`을 켜고 그 파일
+   *  나머지를 통째로 검사에서 뺐다 — 가설이 아니라 HEAD 실재였다(6개 실파일, `defect-grid.tsx`는
+   *  EOF까지 안 닫혀 말미가 영구 실명). 대조군: 실파일의 `accept="image/*"` **다음 줄**에
+   *  진짜 위반을 심으면 초록, **같은 위반을 파일 맨 위**에 심으면 빨강이었다.
+   *  URL(`https://`)도 같은 계열로 줄을 잘라 같은 줄의 위반을 놓쳤다(41줄).
+   *
+   *  그래서 **한 글자씩 훑으며 문자열·템플릿·정규식 안을 인식**한다. 정규식은 완전 판별이
+   *  불가능하지만(나눗셈과 모호), 이 검사가 보는 것은 className 문자열이라
+   *  '따옴표 안이면 주석 기호를 무시한다'만으로 위 두 계열이 닫힌다. */
   let inBlock = false
   const codeOf = (l: string) => {
-    let s = l
-    if (inBlock) {
-      const e = s.indexOf('*/')
-      if (e < 0) return ''
-      inBlock = false
-      s = s.slice(e + 2)
+    let out = ''
+    let i = 0
+    let quote: string | null = null
+    while (i < l.length) {
+      const c = l[i]
+      const two = l.slice(i, i + 2)
+      if (inBlock) {
+        if (two === '*/') { inBlock = false; i += 2 } else i++
+        continue
+      }
+      if (quote) {
+        out += c
+        if (c === '\\') { out += l[i + 1] ?? ''; i += 2; continue }
+        if (c === quote) quote = null
+        i++
+        continue
+      }
+      if (c === '"' || c === "'" || c === '`') { quote = c; out += c; i++; continue }
+      // ⚠ 주석 판정이 **먼저**다 — 뒤에 두면 줄 시작의 `//`를 정규식으로 먹는다
+      if (two === '//') break                      // 줄끝 주석 — 여기서 끝
+      if (two === '/*') { inBlock = true; i += 2; continue }
+      /** 정규식 리터럴 — `/`가 나눗셈인지 정규식인지는 **완전 판별이 불가능**하다(문법 모호).
+       *  통용 휴리스틱을 쓴다: 앞의 의미 있는 글자가 피연산자를 끝내지 않으면 정규식이다.
+       *  ⚠ 이걸 안 하면 정규식 안의 `/*`가 `inBlock`을 켜고 **파일 끝까지** 삼킨다 —
+       *  틀렸을 때의 피해가 '한 줄을 잘못 읽음'보다 훨씬 크다. 그래서 이 방향으로 기운다. */
+      if (c === '/') {
+        const prev = out.replace(/\s+$/, '').slice(-1)
+        const isRegex = prev === '' || '=(,:[!&|?{;+-*%~^<>'.includes(prev)
+        if (isRegex) {
+          i++
+          while (i < l.length) {
+            if (l[i] === '\\') { i += 2; continue }
+            if (l[i] === '[') { while (i < l.length && l[i] !== ']') i++ }
+            if (l[i] === '/') { i++; break }
+            i++
+          }
+          continue
+        }
+      }
+      out += c
+      i++
     }
-    s = s.replace(/\/\*[\s\S]*?\*\//g, '')          // 한 줄 안에서 닫히는 블록 주석
-    const open = s.indexOf('/*')
-    if (open >= 0) { inBlock = true; s = s.slice(0, open) }
-    const line = s.indexOf('//')
-    if (line >= 0) s = s.slice(0, line)
-    return s
+    return out
   }
   /** ② 래칫은 **HEAD 기준**으로 센다 — 작업트리에서 세면 타 세션 미커밋분이 섞여
    *  '어떤 커밋에서도 재현되지 않는 기준선'이 된다(3차 판정이 잡은 그 결함). 공유 트리라

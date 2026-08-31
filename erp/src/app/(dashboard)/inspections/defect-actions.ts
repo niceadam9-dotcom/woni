@@ -127,19 +127,43 @@ export async function updateDefectActionAction(input: {
   // 작업대 ⑤⑥ 불량 표(defect-grid)가 칸마다 이 액션을 부른다 — 인증만으로는 부족하다 (R4 독립 검증 지적)
   const user = await requirePermission('inspection_register')
 
-  // 이행 기간 뒤집힘 차단(2026-08-19) — 종전엔 2026-08-20 ~ 2026-08-18도 조용히 저장됐다.
-  // 화면 두 곳(불량 카드·작업대 표)이 각각 부르는 자리라, 막는 것은 여기 한 곳이어야 새는 경로가 없다.
-  const rangeErr = dateRangeError(input.actionStart, input.actionEnd, '이행 기간')
-  if (rangeErr) return { error: rangeErr }
-
   const admin = createAdminClient()
-  const patch: Record<string, unknown> = {
-    action_taken: input.actionTaken?.trim() || null,
-    action_completed_at: input.actionCompletedAt || null,
-  }
+
+  /** F-27 — **보낸 칸만 고친다(부분 업데이트).**
+   *
+   *  종전엔 `action_taken`·`action_completed_at`을 **항상** 덮어썼다. 그래서 호출부가 낡은
+   *  값을 들고 있으면 그게 그대로 DB에 실렸다 — 독립 판정이 실측한 데이터 소실의 기전이다:
+   *  ⑤에서 계획을 저장하고 ①로 넘어가면 갱신 왕복이 수 초인데, 그 창에서 ① 카드의 [저장]을
+   *  누르면(아무것도 안 치고 눌러도) 카드가 들고 있던 **빈 값**이 다섯 칸에 실렸다.
+   *  화면엔 초록색 '저장했습니다'가 뜨고 뒤이은 갱신이 그 빈 값을 실어 와 조용히 일치시켜,
+   *  **오류 신호가 어디에도 없었다.**
+   *
+   *  이 차수는 같은 계열의 결함을 **네 번** 국소 수리했다(F-24·25·26 그리고 이 F-27).
+   *  매번 '낡지 않게 만드는 법'을 고쳤고 매번 안 막은 경로가 남았다. 막을 자리는 여기다 —
+   *  **낡은 값이 있어도 보내지 않으면 실리지 않는다.** */
+  const patch: Record<string, unknown> = {}
+  if (input.actionTaken !== undefined) patch.action_taken = input.actionTaken?.trim() || null
+  if (input.actionCompletedAt !== undefined) patch.action_completed_at = input.actionCompletedAt || null
   if (input.actionPlan !== undefined) patch.action_plan = input.actionPlan?.trim() || null
   if (input.actionStart !== undefined) patch.action_start = input.actionStart || null
   if (input.actionEnd !== undefined) patch.action_end = input.actionEnd || null
+  if (Object.keys(patch).length === 0) return {}   // 보낼 것이 없으면 왕복도 없다
+
+  /** 이행 기간 뒤집힘 차단(2026-08-19) — 화면 두 곳이 각각 부르는 자리라 여기 한 곳에서 막는다.
+   *  ⚠ 부분 업데이트가 되면서 **입력만 봐서는 판정할 수 없게 됐다** — 시작일만 보내면 종료일은
+   *  DB에 있다. 그래서 한쪽만 와도 **저장 후의 조합**을 만들어 검사한다. 안 그러면
+   *  '시작일만 고쳐 기간을 뒤집는' 경로가 열린다. */
+  if (input.actionStart !== undefined || input.actionEnd !== undefined) {
+    const { data: cur, error: curErr } = await admin
+      .from('inspection_defects').select('action_start, action_end').eq('id', input.defectId).single()
+    if (curErr) return { error: '조치 내용 저장에 실패했습니다.' }
+    const row = cur as { action_start: string | null; action_end: string | null } | null
+    const start = input.actionStart !== undefined ? input.actionStart : row?.action_start ?? null
+    const end = input.actionEnd !== undefined ? input.actionEnd : row?.action_end ?? null
+    const rangeErr = dateRangeError(start, end, '이행 기간')
+    if (rangeErr) return { error: rangeErr }
+  }
+
   const { error } = await admin
     .from('inspection_defects')
     .update(patch)

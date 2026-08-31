@@ -134,24 +134,41 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     if (v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v)) commit(d, patch)
   }
 
+  /** F-27 — 이 표가 **소유한 칸**. ⑤는 계획·기간, ⑥은 조치내용·완료일만 그린다(:212-236).
+   *
+   *  ⚠ 종전엔 commit이 **다섯 칸 전부**를 조립해 보냈다. F-21이 `edits`를 부모로 올려
+   *  ⑤·⑥이 **공유**하게 된 뒤로, ⑤에서 친 뒤집힌 이행 기간이 편집분에 남아
+   *  **⑥의 저장을 통째로 막았다** — ⑥엔 그 칸이 없는데 그 칸의 오류가 떴다(독립 판정 실측:
+   *  완료일·조치내용이 `null`로 남고 화면엔 '이행 기간' 오류). 안 그리는 칸은 안 보낸다. */
+  const OWNED: Record<'plan' | 'complete', Array<keyof Row>> = {
+    plan: ['actionPlan', 'actionStart', 'actionEnd'],
+    complete: ['actionTaken', 'actionCompletedAt'],
+  }
+  const FIELD_KEY: Record<keyof Row, 'actionPlan' | 'actionStart' | 'actionEnd' | 'actionTaken' | 'actionCompletedAt'> = {
+    actionPlan: 'actionPlan', actionStart: 'actionStart', actionEnd: 'actionEnd',
+    actionTaken: 'actionTaken', actionCompletedAt: 'actionCompletedAt',
+  }
+
   function commit(d: GridDefect, patch?: Partial<Row>) {
     const base = toRow(d)
     const row: Row = { ...base, ...edits[d.id], ...patch }
-    if ((Object.keys(base) as Array<keyof Row>).every(k => row[k] === base[k])) return
+    // 내가 소유한 칸 중 **서버 값과 실제로 달라진 것만** 보낸다(부분 업데이트)
+    const changed = OWNED[mode].filter(k => row[k] !== base[k])
+    if (changed.length === 0) return
     // 기간 뒤집힘은 보내지 않는다(2026-08-19). 이 표는 날짜를 고르는 즉시 저장하므로
     // 서버 거절만 믿으면 왕복 뒤에야 알게 된다 — 서버 검사는 그대로 남아 최종 방어선이다.
-    const rangeErr = dateRangeError(row.actionStart, row.actionEnd, '이행 기간')
-    if (rangeErr) { setErr(rangeErr); return }
+    // ⚠ 기간은 ⑤의 칸이다 — ⑥에서는 검사하지 않는다(안 보내므로 판정할 것도 없다).
+    if (mode === 'plan') {
+      const rangeErr = dateRangeError(row.actionStart, row.actionEnd, '이행 기간')
+      if (rangeErr) { setErr(rangeErr); return }
+    }
     rejectedRef.current.delete(d.id)
     setSaving(d.id)
     setErr('')
+    const payload: Record<string, string | null> = {}
+    for (const k of changed) payload[FIELD_KEY[k]] = row[k] || null
     void updateDefectActionAction({
-      defectId: d.id, inspectionId,
-      actionPlan: row.actionPlan || null,
-      actionStart: row.actionStart || null,
-      actionEnd: row.actionEnd || null,
-      actionTaken: row.actionTaken || null,
-      actionCompletedAt: row.actionCompletedAt || null,
+      defectId: d.id, inspectionId, ...payload,
     }).then(res => {
       setSaving(null)
       // 서버가 거절했다 — 이 행의 편집분은 집계에서 빠진다(다음 성공 저장 때 되돌아온다)
