@@ -99,6 +99,18 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
    *   그쪽은 pane 전환으로 이 컴포넌트가 언마운트돼도 살아남아야 한다.) */
   const rejectedRef = useRef<Set<string>>(new Set())
 
+  /** F-28 — 행별 '서버가 갖고 있다고 아는 값'. 델타 기준선이다(commit 주석 참조).
+   *  서버 prop이 그 행을 바꾸면 그 값으로 맞춘다 — 안 그러면 남이 고친 값을 기준으로 못 잡는다. */
+  const knownRef = useRef<Record<string, Row>>({})
+  const lastServerRef = useRef<Record<string, string>>({})
+  for (const d of defects) {
+    const sig = JSON.stringify(toRow(d))
+    if (lastServerRef.current[d.id] !== sig) {
+      lastServerRef.current[d.id] = sig
+      knownRef.current[d.id] = toRow(d)
+    }
+  }
+
   /** 방금 저장한 행은 `edits`에 아직 안 실렸을 수 있다(setDate는 set 직후 commit을 부른다).
    *  그래서 그 행만 확정된 값으로 덮어써서 센다 — 안 그러면 1건씩 늦게 반영된다.
    *
@@ -115,7 +127,19 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
       // 값만 보고 판정한다 — 서버가 받아 줄 수 없는 조합이면 그 행은 서버 값이 진실이다
       const usable = !rejectedRef.current.has(d.id)
         && !dateRangeError(edited.actionStart, edited.actionEnd, '이행 기간')
-      const r = d.id === overrideId ? overrideRow : (usable ? edited : server)
+      /** ⚠ **override 행도 `usable`을 건너뛰면 안 된다**(5차 판정 실측).
+       *
+       *  F-27 이전에는 commit이 **다섯 칸 전부**를 보냈으므로 "row = 실제로 보낸 값"이 참이었고,
+       *  그래서 override는 검사 없이 그대로 세도 옳았다. F-27이 **바뀐 칸만** 보내도록 좁히면서
+       *  그 전제가 깨졌다 — 호출부가 넘기는 row에는 **보낸 적 없는 칸**(차단된 기간·계획)이
+       *  섞여 있어, ⑥에서 조치 내용을 저장하면 ⑤ 칸 제목이 DB보다 크게 떴다(판정자 P-2 실측:
+       *  제목 2/2 vs 서버 planned=1). 서버 집계 문자열이 안 바뀌니 폐기 effect도 안 돌아
+       *  **새로고침 때까지 남는다** — 아래 trim 규칙과 정확히 같은 계열의 함정이다.
+       *  호출부가 이제 `base + 보낸 칸`만 넘기지만, 여기서도 값으로 한 번 더 판정한다. */
+      const overrideUsable = !dateRangeError(overrideRow.actionStart, overrideRow.actionEnd, '이행 기간')
+      const r = d.id === overrideId
+        ? (overrideUsable ? overrideRow : server)
+        : (usable ? edited : server)
       // ⚠ trim은 서버와 맞추기 위한 것이다(독립 판정 지적). 서버는 `actionPlan?.trim() || null`로
       // 저장하므로(defect-actions.ts) 공백만 친 칸은 서버에서 null이 된다. 여기서 트림 없이 세면
       // 로컬 planned가 1 더 커지고, **서버 집계 문자열이 안 바뀌니 로컬을 버리는 effect도 안 돈다**
@@ -150,9 +174,18 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   }
 
   function commit(d: GridDefect, patch?: Partial<Row>) {
-    const base = toRow(d)
-    const row: Row = { ...base, ...edits[d.id], ...patch }
-    // 내가 소유한 칸 중 **서버 값과 실제로 달라진 것만** 보낸다(부분 업데이트)
+    const serverRow = toRow(d)
+    /** F-28 — 델타의 기준은 **서버가 갖고 있다고 우리가 아는 값**이지 prop이 아니다.
+     *
+     *  prop은 갱신이 오기 전까지 낡아 있다. 그걸 기준으로 삼으면 **값을 원래대로 되돌리는
+     *  수정이 '안 바뀜'으로 판정돼 전송되지 않고**, DB에 중간값이 남는다 — 종료일을 넣었다
+     *  지우면 화면은 비었는데 DB는 그대로였다(내 9-3 단언이 잡았다).
+     *  그래서 저장에 성공할 때마다 '아는 값'을 갱신하고, 서버가 그 행을 바꾸면 거기에 맞춘다
+     *  (① 카드의 `syncedRef`와 같은 규약 — 두 표면이 같은 규칙을 쓰게 한다). */
+    const known = knownRef.current[d.id] ?? serverRow
+    const base = known
+    const row: Row = { ...serverRow, ...edits[d.id], ...patch }
+    // 내가 소유한 칸 중 **아는 값과 실제로 달라진 것만** 보낸다(부분 업데이트)
     const changed = OWNED[mode].filter(k => row[k] !== base[k])
     if (changed.length === 0) return
     // 기간 뒤집힘은 보내지 않는다(2026-08-19). 이 표는 날짜를 고르는 즉시 저장하므로
@@ -166,18 +199,28 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     setSaving(d.id)
     setErr('')
     const payload: Record<string, string | null> = {}
-    for (const k of changed) payload[FIELD_KEY[k]] = row[k] || null
+    /** 저장 뒤 집계에 쓸 행 — **서버가 갖게 될 값**이다.
+     *  ⚠ `row`가 아니다. `row`에는 이번에 **보내지 않는 칸**(다른 mode의 칸, 차단돼 남은 편집분)이
+     *  섞여 있어 그대로 세면 화면이 DB보다 커진다(5차 판정 P-2 실측). base에 보낸 칸만 얹는다. */
+    const savedRow: Row = { ...base }
+    for (const k of changed) {
+      payload[FIELD_KEY[k]] = row[k] || null
+      savedRow[k] = row[k]
+    }
     void updateDefectActionAction({
       defectId: d.id, inspectionId, ...payload,
     }).then(res => {
       setSaving(null)
       // 서버가 거절했다 — 이 행의 편집분은 집계에서 빠진다(다음 성공 저장 때 되돌아온다)
       if (res.error) { setErr(res.error); rejectedRef.current.add(d.id); return }
+      // F-28 — 방금 보낸 값이 이제 '서버가 갖고 있다고 아는 값'이다(다음 델타의 기준선)
+      knownRef.current[d.id] = savedRow
       setJustSaved(prev => ({ ...prev, [d.id]: true }))
       setTimeout(() => setJustSaved(prev => ({ ...prev, [d.id]: false })), 4000)
       // S3-5 — 서버 왕복을 기다리지 않고 **방금 확정된 값으로 다시 센 집계**를 올린다.
-      // row는 저장에 실제로 보낸 값이라 낙관적 추정이 아니라 '확정된 값의 선반영'이다.
-      onSaved?.(tallyWith(d.id, row))
+      // ⚠ 정정(5차 판정): 한때 "row는 저장에 실제로 보낸 값"이라 적었는데 **F-27로 거짓이 됐다** —
+      //    이제 보내는 것은 `changed` 칸뿐이다. 그래서 base에 보낸 칸만 얹은 savedRow를 넘긴다.
+      onSaved?.(tallyWith(d.id, savedRow))
     })
   }
 

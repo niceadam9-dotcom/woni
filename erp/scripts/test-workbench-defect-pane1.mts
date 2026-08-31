@@ -9,7 +9,16 @@
 //
 // ⚠ 고정 대기를 쓰지 않는다 — 이 상세 페이지의 서버 재렌더는 실측 6.8~7.6초까지 나온다.
 //
-// 축 4개(둘은 2026-08-31 독립 재판정이 추가시켰다):
+// ⚠ **이 목록은 파일 구조를 다 서술하지 않았다(5차 판정 지적).** 아래 ①~④는 1~4축이고,
+//   5~9축은 그 뒤 판정들이 추가시킨 것이라 여기 안 적혀 있었다 — 파일이 자기 구조를 절반만
+//   설명하면 다음 사람이 빈 칸을 못 본다. 전 축은 다음과 같다:
+//     ①정방향 ②역방향 ③경합 ④곁가지 정정
+//     ⑤집계 불변 수정(F-26) ⑥action_taken(집계 무관 칸) ⑦결함 A·B(F-27)
+//     ⑧서버 계층(부분 업데이트) ⑨날짜 즉시저장·지우기
+//   ⚠ 5칸 전부를 지키는 것은 ⑥⑧⑨가 붙고 나서다 — 4차 시점엔 `action_plan` 한 칸,
+//     5차 시점엔 3칸만 지키고 있었고 그 사실은 **절제로만** 드러났다.
+//
+// 축 ①~④ (둘은 2026-08-31 독립 재판정이 추가시켰다):
 //   ①→ 정방향: ⑤에서 저장 → ① 카드에 보이는가
 //   ②→ 역방향: ① 카드에서 저장 → ⑤ 표와 ① 자신에게 남는가
 //        ⚠ 이 자리에 한때 "역방향은 **선재 결함**이라 단언하면 영구히 붉다"고 적었는데
@@ -73,7 +82,7 @@ let idA = '', idB = '', idC = '', idD = '', idE = '', idF = ''
  *  말해 그 사실이 안 남는다 — 실제로 기준선 실행 1회가 17 중 8만 돌고도 그렇게 보고됐다
  *  (4차 판정 H-5). 마지막에 총수를 못박아 조용한 축소를 붉게 만든다. */
 let ran = 0
-const EXPECTED = 32
+const EXPECTED = 39
 // @ts-expect-error mjs 헬퍼 시그니처
 const ck = (name: string, ok: boolean, detail = '') => { ran++; check(name, ok, detail) }
 let browser: Awaited<ReturnType<typeof launch>>['browser'] | null = null
@@ -146,6 +155,15 @@ try {
     return false
   }
   const waitPlan = (name: string, want: string) => waitCol(name, want, 'action_plan')
+  /** 지우기 전용 — DB는 빈 문자열이 아니라 **null**로 저장한다(`row[k] || null`).
+   *  `waitCol(…, '')`로 기다리면 영원히 안 맞는다. */
+  const waitNull = async (name: string, col: Col) => {
+    for (let i = 0; i < 90; i++) {
+      if ((await dbCol(name, col)) === null) return true
+      await page.waitForTimeout(500)
+    }
+    return false
+  }
   /** ⚠ **고정 대기로 '안 바뀌었다'를 판정하지 않는다**(4차 판정 지적). 되쓰기가 늦게 도착하면
    *  조용히 초록이 된다 — 파일 스스로 적은 재렌더 실측(6.8~7.6초)보다 짧은 대기였다.
    *  대신 **바뀌면 즉시 실패**하도록 관측하고, 창을 그 실측보다 넉넉히 잡는다. */
@@ -349,6 +367,14 @@ try {
   await eStart.fill('2026-09-20')
   await eEnd.fill('2026-09-10')   // 뒤집힌 기간 — 저장은 차단되고 편집분만 남는다
   await eEnd.blur()
+  /** ⚠ **모집단 단언**(5차 판정 지적) — 종전엔 "⑤에서 차단됐고 그 값이 공유 버퍼에 남았다"를
+   *  아무도 확인하지 않아, ⑤ 차단이 구조적으로 사라진 절제에서도 7-1이 초록이었다.
+   *  ⓐ DB에 안 실렸고 ⓑ 화면엔 그 값이 남아 있다 — 둘 다 봐야 '버퍼에 남았다'가 성립한다. */
+  await page.waitForTimeout(2000)
+  ck('7-0a [모집단] 뒤집힌 기간은 DB에 안 실렸다',
+    (await dbCol(DE, 'action_end')) === null, `end='${await dbCol(DE, 'action_end')}'`)
+  ck('7-0b [모집단] 그런데 화면(편집분)에는 남아 있다',
+    (await eEnd.inputValue()) === '2026-09-10', `⑤ 종료일='${await eEnd.inputValue()}'`)
 
   await toStep(5).click()
   const eTaken = page.getByLabel(`${DE} 조치 내용`)
@@ -382,6 +408,33 @@ try {
   ck('★ 7-5 낡은 ① 카드의 [저장]이 ⑤에서 저장한 계획을 지우지 않는다',
     await staysFor(DF, 'F 계획 표에서 저장', 'action_plan', 9000),
     `DB='${await dbPlan(DF)}' / 기대='F 계획 표에서 저장'`)
+
+  /* ── ★ 9축 — **날짜 즉시저장**과 **지우기**. 5차 판정이 절제로 실증한 공백이다:
+     `OWNED.plan`을 `['actionPlan']`로 줄여 **⑤의 계획 기간 저장을 통째로 죽여도 32/0 초록**이었다.
+     32단언이 5칸 중 3칸만 지키고 `action_start`/`action_end`의 **저장 경로는 한 칸도** 안 봤다.
+     날짜는 텍스트와 경로가 다르다 — `setDate`가 blur가 아니라 **고르는 즉시** commit한다.
+     '값→빈(지우기)'도 5칸×3표면이 전부 비어 있었다(`row[k] || null`이 유일한 지우기 경로). */
+  await toStep(4).click()
+  const hStart = page.getByLabel(`${DF} 계획 시작일`)
+  const hEnd = page.getByLabel(`${DF} 계획 종료일`)
+  await hStart.waitFor({ state: 'visible' })
+  ck('9-0 [모집단] F의 계획 기간은 비어 있다', (await hStart.inputValue()) === '' && (await hEnd.inputValue()) === '')
+
+  await hStart.fill('2026-10-01')
+  await hEnd.fill('2026-10-31')
+  await hEnd.blur()
+  ck('★ 9-1 날짜 즉시저장 — 계획 시작일이 DB에 실린다',
+    await waitCol(DF, '2026-10-01', 'action_start'), `start='${await dbCol(DF, 'action_start')}'`)
+  ck('★ 9-2 날짜 즉시저장 — 계획 종료일이 DB에 실린다',
+    await waitCol(DF, '2026-10-31', 'action_end'), `end='${await dbCol(DF, 'action_end')}'`)
+
+  // ★ 지우기 — 값이 있던 칸을 비우면 DB도 비어야 한다(`|| null` 경로)
+  await hEnd.fill('')
+  await hEnd.blur()
+  ck('★ 9-3 값→빈(지우기)이 DB에 반영된다',
+    await waitNull(DF, 'action_end'), `end='${await dbCol(DF, 'action_end')}' (null이어야 한다)`)
+  ck('9-4 지우기가 이웃 칸을 건드리지 않았다',
+    (await dbCol(DF, 'action_start')) === '2026-10-01', `start='${await dbCol(DF, 'action_start')}'`)
 
   /* ── ★ 8축 — **서버 계층**. 클라이언트를 부분 전송으로 고친 것만으로는 서버의
      '항상 덮어쓰기'가 드러나지 않는다(안 보낸 칸이 없으니 덮을 일이 없다). ⑤에서 계획만
