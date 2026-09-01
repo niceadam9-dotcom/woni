@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { generateRollingPlanItems } from '@/lib/inspection-plan-generator'
-import { rowInspectionType, rowSubType, isInitialByLaw } from '@/lib/inspection-round'
+import { rowInspectionType, rowSubType, isInitialByLaw, planTypeSub } from '@/lib/inspection-round'
 import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
 import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
@@ -190,6 +190,50 @@ export async function updateInspectionMultidayAction(
   }
   revalidatePath(`/inspections/${inspectionId}`)
   return {}
+}
+
+/** 최초점검 수동 재지정 — 별지 9호 3분기의 `[√]최초점검` 칸을 사람이 고친다.
+ *
+ *  자동판정은 법령 축(사용승인일 + 60일)이지만 사용승인일이 불분명하거나 증축·용도변경처럼
+ *  예외가 있을 수 있다. 사람이 고친 값을 자동이 덮으면 안 되므로 출처를 `manual`로 새긴다.
+ *
+ *  ⚠ **관용 쓰기**: `is_initial_source`는 마이그레이션 155가 적용돼야 존재한다. 없는 컬럼을
+ *  update에 넣으면 통째로 실패하므로, 먼저 출처와 함께 시도하고 실패하면 값만 저장한다.
+ *  즉 155 적용 전에도 재지정 자체는 동작하고(출처만 못 남긴다), 적용 후엔 저절로 완전해진다
+ *  — 151·154가 세운 배포 순서 자유 규약과 같은 방식이다.
+ *
+ *  ⚠ 작동점검에는 최초점검이 성립하지 않는다(종합점검의 하위 구분이다). 화면이 막지만
+ *  서버에서도 거절한다 — 화면만 믿으면 액션이 곧 공개 엔드포인트가 된다. */
+export async function updateInspectionInitialAction(
+  inspectionId: string,
+  isInitial: boolean,
+): Promise<{ error?: string; sourceRecorded?: boolean }> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { data: insp } = await admin.from('inspections')
+    .select('inspection_type, plan_type').eq('id', inspectionId).single()
+  if (!insp) return { error: '점검을 찾을 수 없습니다.' }
+
+  const row = insp as { inspection_type: string | null; plan_type: string | null }
+  const sub = planTypeSub(row.plan_type) ?? (row.inspection_type === '종합' ? '종합' : null)
+  if (isInitial && sub !== '종합') {
+    return { error: '작동점검은 최초점검이 될 수 없습니다 — 최초점검은 종합점검의 하위 구분입니다.' }
+  }
+
+  const withSource = await admin.from('inspections')
+    .update({ is_initial: isInitial, is_initial_source: 'manual' } as Record<string, unknown>)
+    .eq('id', inspectionId)
+  let sourceRecorded = true
+  if (withSource.error) {
+    sourceRecorded = false                       // 컬럼 미적용(155 전) — 값만이라도 저장한다
+    const { error } = await admin.from('inspections')
+      .update({ is_initial: isInitial } as Record<string, unknown>)
+      .eq('id', inspectionId)
+    if (error) return { error: `저장 실패: ${error.message}` }
+  }
+
+  revalidatePath(`/inspections/${inspectionId}`)
+  return { sourceRecorded }
 }
 
 /** 단계 수동 완료 — **사유 필수** (소방계획서_21 R4-3·R4-9 / D34-2)

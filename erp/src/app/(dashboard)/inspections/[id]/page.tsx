@@ -45,9 +45,10 @@ import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/repo
 import { computeQuickReadiness } from '@/lib/doc-requirements'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
-// ⚠ 위 `inspectionTypeLabel`(types)은 **용어 축**이다('일반관리'→'일반'). 아래는 **점검종류 판정 축**으로
-// 별지 9호 머리와 같은 값을 낸다 — 같은 이름의 다른 함수가 lib/inspection-round에 또 있다(주의).
-import { inspectionCheckboxes } from '@/lib/inspection-round'
+// ⚠ 위 `inspectionTypeLabel`(types)은 **용어 축**이다('일반관리'→'일반'). 아래 컴포넌트가 그리는
+// 3분기는 **점검종류 판정 축**으로 별지 9호 머리와 같은 값을 낸다
+// — 같은 이름의 다른 함수가 lib/inspection-round에 또 있으니 주의.
+import { InspectionLegalTypeClient } from '@/components/inspections/inspection-legal-type-client'
 import type { ReportType } from '@/app/(dashboard)/inspections/report-constants'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
@@ -468,19 +469,15 @@ export default async function InspectionDetailPage({
           종전에는 이 값을 인쇄물을 뽑아 봐야만 알 수 있었고, 그래서 별지 9호가 세 칸 모두 빈칸으로
           나가던 것을 아무도 못 봤다(F-3). 여기 보이는 것과 서식에 찍히는 것은 같은 함수가 정한다.
           자체점검(special_*)만 별지 9호 대상이라 그때만 띄운다(INV-D1과 같은 축). */}
-      {isSpecial && (() => {
-        const ck = inspectionCheckboxes(
-          inspection.inspection_type,
-          !!(inspection as unknown as Record<string, unknown>).is_initial,
-          inspPlanType,
-        )
-        const box = (on: boolean) => (on ? '[√]' : '[  ]')
-        return (
-          <p className="text-xs text-ink-meta font-mono whitespace-pre" data-testid="inspection-legal-type">
-            {`${box(ck.ckOp)} 작동점검,  종합점검(${box(ck.ckInitial)}최초점검,  ${box(ck.ckCompEtc)}그 밖의 종합점검)`}
-          </p>
-        )
-      })()}
+      {isSpecial && (
+        <InspectionLegalTypeClient
+          inspectionId={id}
+          inspectionType={inspection.inspection_type}
+          planType={inspPlanType}
+          isInitial={!!(inspection as unknown as Record<string, unknown>).is_initial}
+          canManage={canEdit}
+        />
+      )}
 
       {/* C1(소방계획서_21 R5): 13블록 → 헤더 + 타임라인 하나.
           제거: 전체 진행률 카드(R5-1, 타임라인 헤더가 대체) · 6단계 2열 체크리스트(R5-2, 타임라인이 흡수)
