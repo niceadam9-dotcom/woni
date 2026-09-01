@@ -1,7 +1,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
 import { rowInspectionType, rowPlanType, rowSubType } from '@/lib/inspection-round'
-import { resolveAnchor, type AnchorSource } from '@/lib/plan-anchor'
+import { resolveAnchor, plannedDateFor, type AnchorSource } from '@/lib/plan-anchor'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -207,18 +207,9 @@ export async function generateYearlyPlanItems(
   function toStr(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   }
-  function calcPlanned(year: number, month: number): string {
-    const daysInMo = new Date(year, month, 0).getDate()
-    const base = new Date(year, month - 1, Math.min(approvalDay, daysInMo))
-    const d = base.getDay()
-    if (d === 0 || d === 6 || hdSet.has(toStr(base))) {
-      const next = new Date(base)
-      next.setDate(next.getDate() + 1)
-      while (next.getDay() === 0 || next.getDay() === 6 || hdSet.has(toStr(next))) next.setDate(next.getDate() + 1)
-      return toStr(next)
-    }
-    return toStr(base)
-  }
+  // 날짜 규칙은 lib/plan-anchor의 단일 원천을 쓴다 — 자리 재배치(reconcileSpecialSlots)가 같은
+  // 날짜를 내야 하는데, 여기 사본을 두면 한쪽만 고쳐져 경로에 따라 다른 날이 잡힌다.
+  const calcPlanned = (year: number, month: number) => plannedDateFor(year, month, approvalDay, hdSet)
 
   // 행 단위 유형 — 고객 단위 값을 전 행에 그대로 주입하면 2차가 종합으로 저장된다.
   // **2차는 법적으로 작동점검**이므로 행마다 실제 유형을 실어 보낸다 (소방계획서_33 D33-1, lib/inspection-round).

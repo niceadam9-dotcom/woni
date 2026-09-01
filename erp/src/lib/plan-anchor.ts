@@ -88,6 +88,29 @@ export function anchorChanged(before: AnchorInput, after: AnchorInput): boolean 
   return resolveAnchor(before).date !== resolveAnchor(after).date
 }
 
+/** 기산일의 '일'을 그 달에 놓고 **다음 영업일로 밀어낸** 예정일 — 'YYYY-MM-DD'.
+ *
+ *  ⚠ 생성기(`generateYearlyPlanItems`)와 자리 재배치(`reconcileSpecialSlots`)가 **같은 날짜**를
+ *  내야 한다. 사본을 두면 한쪽만 고쳐져 같은 항목이 경로에 따라 다른 날에 잡힌다 —
+ *  그래서 여기 하나만 둔다(순수 함수라 검사도 쉽다).
+ *
+ *  · 그 달에 없는 일자는 말일로 당긴다(2월 31일 → 2월 28/29일)
+ *  · 토·일·공휴일이면 **다음** 영업일로 민다(앞으로 당기지 않는다) */
+export function plannedDateFor(
+  year: number, month: number, anchorDay: number, holidays: ReadonlySet<string>,
+): string {
+  const toStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const daysInMo = new Date(year, month, 0).getDate()
+  const base = new Date(year, month - 1, Math.min(anchorDay, daysInMo))
+  const dow = base.getDay()
+  if (dow !== 0 && dow !== 6 && !holidays.has(toStr(base))) return toStr(base)
+  const next = new Date(base)
+  do { next.setDate(next.getDate() + 1) }
+  while (next.getDay() === 0 || next.getDay() === 6 || holidays.has(toStr(next)))
+  return toStr(next)
+}
+
 /** 화면 표기용 짧은 라벨 — 기산점이 어디서 왔는지 사람이 알 수 있게 한다. */
 export function anchorSourceLabel(source: AnchorSource): string {
   return source === 'approval' ? '사용승인일'

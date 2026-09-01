@@ -13,7 +13,7 @@
  *
  *  ①이 깨지면 코드를 배포하는 순간 전 고객의 연간 일정이 재배치된다 — 이 파일에서 가장 중요한 축이다.
  */
-import { resolveAnchor, anchorChanged, anchorSourceLabel, type AnchorInput } from '../src/lib/plan-anchor.ts'
+import { resolveAnchor, anchorChanged, anchorSourceLabel, plannedDateFor, type AnchorInput } from '../src/lib/plan-anchor.ts'
 
 let pass = 0, fail = 0
 function check(name: string, cond: boolean, detail = '') {
@@ -137,6 +137,32 @@ check(`변이 '점검계획일만 비교(수리 전)'를 사례표가 잡는다 
 // 대칭성 — 되돌리면 똑같이 '움직였다'로 나와야 한다(한 방향만 보면 정정이 절반만 반영된다)
 const asym = CH.filter(([, b, a, want]) => anchorChanged(a, b) !== want).length
 check('변경 판정이 방향에 무관하다(되돌림도 변경이다)', asym === 0, `${asym}건 비대칭`)
+
+console.log('\n— 예정일 규칙 (생성기에서 추출 — 동작 보존이 핵심)')
+{
+  const none = new Set<string>()
+  // 2026-09-23은 수요일 — 평일이므로 그대로
+  check('평일이면 그대로', plannedDateFor(2026, 9, 23, none) === '2026-09-23', plannedDateFor(2026, 9, 23, none))
+  // 2026-09-26 토요일 → 28 월요일
+  check('토요일 → 다음 월요일', plannedDateFor(2026, 9, 26, none) === '2026-09-28', plannedDateFor(2026, 9, 26, none))
+  // 2026-09-27 일요일 → 28 월요일
+  check('일요일 → 다음 월요일', plannedDateFor(2026, 9, 27, none) === '2026-09-28', plannedDateFor(2026, 9, 27, none))
+  check('공휴일 → 다음 영업일',
+    plannedDateFor(2026, 9, 23, new Set(['2026-09-23'])) === '2026-09-24',
+    plannedDateFor(2026, 9, 23, new Set(['2026-09-23'])))
+  check('공휴일이 연달아도 계속 민다',
+    plannedDateFor(2026, 9, 23, new Set(['2026-09-23', '2026-09-24'])) === '2026-09-25')
+  // 그 달에 없는 일자는 말일로 당긴다 — 31일 기산일 + 2월 → 2027-02-28
+  check('31일 기산 + 2월 → 말일(28)로 당김', plannedDateFor(2027, 2, 31, new Set(['2027-03-01'])) !== '2027-02-31')
+  // ⚠⚠ **말일로 당긴 뒤 영업일로 밀면 다음 달로 넘어간다.** 2027-02-28은 일요일이라 03-01이 된다.
+  //    종합점검은 "사용승인일이 속하는 달에 실시"이므로 이건 **법정 달을 벗어난다**.
+  //    선재 동작이라 여기서 고치지 않고, 값을 못박아 **눈에 보이게** 둔다 — 조용히 넘어가면 안 된다.
+  check('⚠ 말일이 휴일이면 다음 달로 넘어간다(법정 달 이탈 — 선재 동작, 값 고정)',
+    plannedDateFor(2027, 2, 31, none) === '2027-03-01', plannedDateFor(2027, 2, 31, none))
+  // ⚠ 앞으로 당기지 않는다 — 뒤로만 민다(법정 시기를 앞당기면 미이행이 된다)
+  const pushed = plannedDateFor(2026, 9, 26, none)
+  check('절대 앞으로 당기지 않는다', pushed > '2026-09-26', pushed)
+}
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail === 0 ? 0 : 1)

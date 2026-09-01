@@ -9,6 +9,7 @@ import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from 
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
+import { reconcileSpecialSlots } from '@/lib/reconcile-special-slots'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
@@ -720,6 +721,18 @@ export async function updateCustomerAction(
   const subChanged  = updateFields.inspection_sub_type !== undefined && prev && updateFields.inspection_sub_type !== prev.inspection_sub_type
   if ((typeChanged || subChanged) && effType) {
     await _syncInspectionTypeToPlanItems(admin, customerId, effType, effSub, profile.id)
+    revalidatePath('/inspections/calendar')
+  }
+
+  // **변동 = 재계산**(사용자 결정 2026-09-01) — 기산점이나 점검종류가 바뀌면 특별점검이
+  // 법정 달에 앉도록 자리를 다시 맞춘다. 위 두 블록만으로는 **달이 안 옮겨진다**:
+  // 재계산은 plan_id를 안 건드리고(일자만), 생성기는 정기가 seq=1로 자리를 점유하면
+  // UNIQUE 충돌로 조용히 건너뛴다. 그 구멍을 여기서 닫는다.
+  // ⚠ 유형 동기화 **뒤에** 둔다 — 그쪽이 종류를 바꾼 결과 위에서 자리를 잡아야 한다.
+  if (anchorChanged || typeChanged || subChanged) {
+    const y = new Date().getFullYear()
+    await reconcileSpecialSlots(admin, customerId, [y, y + 1])
+    revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }
 
@@ -1784,6 +1797,15 @@ export async function patchCustomerFieldAction(
   // ⚠ anchorMoved와 **다른 조건**이다 — manual=true 고객은 기산점이 안 움직여도 최초점검은 바뀐다.
   if (field === 'use_approval_date' && (value || null) !== oldValue) {
     await recalcIsInitialForCustomer(admin, customerId)
+  }
+
+  // **변동 = 재계산** — 인라인 경로도 같은 규칙을 탄다(전체 수정 폼과 갈라지면 어느 화면으로
+  // 고쳤느냐에 따라 일정이 달라진다). 유형 인라인 변경은 위 _syncInspectionTypeToPlanItems 뒤다.
+  if (anchorMoved || (field === 'inspection_type' && value && value !== oldValue)) {
+    const y = new Date().getFullYear()
+    await reconcileSpecialSlots(admin, customerId, [y, y + 1])
+    revalidatePath('/inspection-plans')
+    revalidatePath('/inspections/calendar')
   }
 
   // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
