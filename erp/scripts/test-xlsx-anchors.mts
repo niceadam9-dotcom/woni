@@ -14,6 +14,7 @@ import JSZip from 'jszip'
 import XLSX from 'xlsx'
 import { ANCHORS, HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, MARK_CHECKED_RE, VERDICT_MARKS, SAMPLE_OPINION_NEEDLES, validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { allDonorSheets } from '../src/lib/xlsx-donors.ts'
+import { HYEON5_WRAP_XFS } from '../src/lib/xlsx-wrap-fix.ts'
 import { sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
 import {
@@ -81,6 +82,21 @@ const wb = XLSX.read(bytes, { cellStyles: true })
 check('시트 수', wb.SheetNames.length === manifest.sheetCount, `${wb.SheetNames.length}`)
 const merges = wb.SheetNames.reduce((n, s) => n + ((wb.Sheets[s]['!merges'] ?? []).length), 0)
 check('병합 총수', merges === manifest.mergeTotal, `${merges}`)
+
+// ── 현5 불량 세부 wrapText (2026-09-01) ──────────────────────────────
+// 여러 불량을 줄바꿈으로 접어 넣는 14칸인데 wrapText가 없어 Excel이 개행을 **네모(두부)로**
+// 그렸다: `01■1-B-011■2-`. 값은 옳았고 깨진 건 **자산의 정렬 속성**이라 코드 검사로는 안 잡혔다.
+// LibreOffice PDF에서도 안 보였다(사용자 도구가 Excel이라 드러난 축) — 여기서 출하물을 지킨다.
+// ⚠ 두 자산을 모두 본다. base만 고치고 full을 놓치면 **사용자가 받는 쪽**이 그대로 깨진다.
+for (const [label, path] of [['갑지', 'templates/report-workbook.xlsx'],
+                             ['full', 'templates/report-workbook-full.xlsx']] as const) {
+  const z = await JSZip.loadAsync(new Uint8Array(readFileSync(path)))
+  const block = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(await z.file('xl/styles.xml')!.async('string'))![1]
+  const xfs = [...block.matchAll(/<xf\s[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g)].map(x => x[0])
+  const bad = HYEON5_WRAP_XFS.filter(i => !/<alignment[^>]*\swrapText="(?:true|1)"/.test(xfs[i] ?? ''))
+  check(`현5 불량 세부 14칸 wrapText — ${label}`, bad.length === 0,
+    bad.length ? `xf ${bad.join(',')} 누락(두부 렌더 재발)` : `xf ${HYEON5_WRAP_XFS.join(',')} 전부 true`)
+}
 
 // ── ② 앵커 라벨 ─────────────────────────────────────────────────────
 console.log('[2] 앵커 전수 라벨 검증')

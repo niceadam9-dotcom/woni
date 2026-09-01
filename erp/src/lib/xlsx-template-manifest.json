@@ -1,8 +1,20 @@
 {
   "source": "보고서 갑지.xls",
   "builtAt": "2026-08-30",
-  "sha256": "970e7a8278608a3b71f64b1c396790f1a382db7c6558624b8d20da1814a2bbc3",
+  "sha256": "0cd4eca7b0489df5a094a196edd0fd9d14a245532d701f683a21a88ded72031c",
   "sheetCount": 26,
   "mergeTotal": 1586,
-  "note": "갑지 서식 갱신 시 npx tsx scripts/build-workbook-template.mts 재실행(Q-4) — 지문이 바뀌면 test-xlsx-anchors가 먼저 붉어진다"
+  "note": "갑지 서식 갱신 시 npx tsx scripts/build-workbook-template.mts 재실행(Q-4) — 지문이 바뀌면 test-xlsx-anchors가 먼저 붉어진다",
+  "wrapFix": {
+    "date": "2026-09-01",
+    "xfs": [
+      336,
+      337,
+      339,
+      340,
+      342,
+      343
+    ],
+    "reason": "현5 불량 세부 줄바꿈이 두부로 렌더되던 것"
+  }
 }

@@ -28,6 +28,7 @@ import { createHash } from 'node:crypto'
 import { injectWorkbook, sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { HUB_INPUT_CELLS, HUB_LABEL_CELLS, SCRUB_NEEDLES, ANCHORS, MARK_CHECKED_RE, VERDICT_MARKS, SAMPLE_OPINION_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { FORM4_ROWS, FORM4_UNWIRED, FORM4_SHEET, FORM4_CODES_WITHOUT_ROW, form4CodeErrors } from '../src/lib/xlsx-form4.ts'
+import { forceWrapText, HYEON5_WRAP_XFS } from '../src/lib/xlsx-wrap-fix.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const SRC = 'F:/AI/ERP/erp/보고서 갑지.xls'
@@ -560,6 +561,34 @@ console.log('⑤ fullCalcOnLoad 부여')
     zip.file('xl/workbook.xml', wbXml)
   }
   bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+}
+
+// ── ④j 현5 불량 세부 14칸 wrapText 강제 (2026-09-01) ──────────────────
+// 현5는 그룹당 1행 고정이라 ERP가 여러 불량을 **줄바꿈으로 접어** 넣는데, 그 칸들의 xf가
+// wrapText="false"여서 Excel이 0x0A를 **네모(두부)로 그렸다**. 서식 자신은 접기를 전제하고
+// 있었다 — 행 높이 ht="77.25"(헤더 36.75의 2배)이고 옆 라벨칸(A열)은 이미 true다.
+// 위 ⑤의 fullCalcOnLoad와 함께 보면 축이 분명하다: 이 파일은 Excel에서 다시 계산·재배치된다.
+// ⚠ 런타임이 아니라 여기서 고치는 이유 — 주입 시 styles.xml을 건드리면 test-xlsx-inject의
+//   '주입 전후 styles.xml 바이트 동일' 불변식이 깨진다. 그 축을 이 수리로 약화시키지 않는다.
+console.log('④j 현5 불량 세부 wrapText 강제')
+{
+  const zip = await JSZip.loadAsync(bytes)
+  const { xml, changed } = forceWrapText(await zip.file('xl/styles.xml')!.async('string'), HYEON5_WRAP_XFS)
+  console.log(`   wrapText ${changed}칸 (대상 xf ${HYEON5_WRAP_XFS.join(',')})`)
+  if (changed > 0) {
+    zip.file('xl/styles.xml', xml)
+    bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+  }
+  // 닫힌 덮개 — 0건은 '이미 옳다'일 수도 있지만 **서식이 갱신돼 인덱스가 밀린 것**일 수도 있다.
+  // 후자를 조용히 넘기면 두부가 되살아난다. 되읽어 실제 상태로 판정한다('썼다'≠'들어갔다').
+  const back = await JSZip.loadAsync(bytes)
+  const block = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(await back.file('xl/styles.xml')!.async('string'))![1]
+  const xfs = [...block.matchAll(/<xf\s[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g)].map(x => x[0])
+  const bad = HYEON5_WRAP_XFS.filter(i => !/<alignment[^>]*\swrapText="(?:true|1)"/.test(xfs[i] ?? ''))
+  if (bad.length) {
+    throw new Error(`④j 실패 — xf ${bad.join(',')}에 wrapText가 없다. 서식 갱신으로 인덱스가 밀렸을 수 있다: `
+      + 'scripts/_p4-hyeon5-wrap.mts로 현5 B4:C10의 s= 를 재실측하고 HYEON5_WRAP_XFS를 갱신할 것')
+  }
 }
 
 // ── 사후 검증 — 쓰기 전에 스스로 확인한다 ────────────────────────────

@@ -1,10 +1,22 @@
 {
   "source": "전체 보고서.xls",
   "builtAt": "2026-08-30",
-  "sha256": "9561413e68635544f8341b128acef407e619223a5e16fdb3c5b444b080071e04",
-  "baseSha256": "970e7a8278608a3b71f64b1c396790f1a382db7c6558624b8d20da1814a2bbc3",
+  "sha256": "bb465a2688d8fe8320e22a4428f0f48b60c2a8b4e798773844bb2394efeea475",
+  "baseSha256": "0cd4eca7b0489df5a094a196edd0fd9d14a245532d701f683a21a88ded72031c",
   "sheetCount": 67,
   "donorSheetCount": 41,
   "pdfPages": 72,
-  "note": "갑지 템플릿(report-workbook.xlsx) 재빌드 시 build-workbook-full.mts도 재실행(baseSha256 짝) — 어긋나면 test-xlsx-donors가 먼저 붉어진다"
+  "note": "갑지 템플릿(report-workbook.xlsx) 재빌드 시 build-workbook-full.mts도 재실행(baseSha256 짝) — 어긋나면 test-xlsx-donors가 먼저 붉어진다",
+  "wrapFix": {
+    "date": "2026-09-01",
+    "xfs": [
+      336,
+      337,
+      339,
+      340,
+      342,
+      343
+    ],
+    "reason": "현5 불량 세부 줄바꿈이 두부로 렌더되던 것"
+  }
 }
