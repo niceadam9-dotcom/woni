@@ -26,7 +26,12 @@ for (const t of TARGETS) {
   console.log(`${t.xlsx}: wrapText 변경 ${changed}칸 (대상 xf ${HYEON5_WRAP_XFS.join(',')})`)
   if (changed > 0 && !CHECK) {
     zip.file(stylesPath, xml)
-    // ⚠ 압축 옵션을 원본과 맞춘다 — 안 맞추면 무관한 파트까지 바이트가 흔들린다
+    // ⚠ 원본은 STORE(무압축)다 — 빌드가 `generateAsync({type})`만 주고 JSZip 기본값이 STORE라서다.
+    //   여기서 DEFLATE를 주면 **자산이 86% 줄어든다**(4.32MB→0.58MB, 2.09MB→0.26MB).
+    //   내용·동작은 동등함을 확인했다: anchors/inject/donors/itemmap 전 그린 + LibreOffice 개방
+    //   PDF 72쪽(donor manifest 기록과 일치). 저장소 용량이 줄어 그대로 둔다.
+    //   ⚠ 단, 빌드로 재생성하면 STORE로 돌아가 크기·지문이 다시 바뀐다 — 빌드가 매니페스트를
+    //     스스로 다시 쓰므로 검사는 자가 치유되지만, '자산이 갑자기 커졌다'를 결함으로 오인 말 것.
     const out = new Uint8Array(await zip.generateAsync({
       type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 },
     }))
