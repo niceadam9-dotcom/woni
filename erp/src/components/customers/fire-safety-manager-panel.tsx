@@ -163,6 +163,11 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32 mt-0.5`} />
         </div>
         <div>
+          {/* 라벨을 바꾸지 말 것 — '대표자'는 별지 9호 2쪽의 서식 원문 항목명이다
+              (_form/별지9호-placeholder.hwpx: "대표자 │ [ ]소유자, [ ]관리자, [ ]점유자 / 성명:, 전화번호:").
+              값은 report9.ts:278·xlsx-workbook.ts:226으로 서식에 그대로 인쇄되므로,
+              다른 말로 고치면 사용자가 서식의 어느 칸을 채우는 중인지 알 수 없게 된다.
+              관계인 카드·선택 목록의 role 표기 '대표'를 걷어낼 때(bb03d14·9614dc2)도 여기만 남겼다. */}
           <label className={labelCls}>대표자 구분</label>
           <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
             {REP_ROLES.map(r => (
