@@ -250,14 +250,14 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         if (!b) {
           b = {
             groupKey: `${p.sheetId}:${code}`, groupCode: code, groupName: it.group_name ?? code,
-            groupOrder: buckets.size + 1, total: 0, responded: 0, x: 0, subgroupNames: [],
+            groupOrder: buckets.size + 1, total: 0, responded: 0, x: 0, o: 0, subgroupNames: [],
           }
           buckets.set(code, b)
         }
         b.total++
         if (it.subgroup_name && !b.subgroupNames.includes(it.subgroup_name)) b.subgroupNames.push(it.subgroup_name)
         const r = local[it.item_code]
-        if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++ }
+        if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }
       }
       return { ...p, total: items.length || p.total, responded, counts, groups: [...buckets.values()] }
     })

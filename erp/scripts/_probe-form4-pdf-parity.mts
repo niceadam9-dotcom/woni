@@ -13,7 +13,7 @@
 import JSZip from 'jszip'
 import { readFileSync } from 'node:fs'
 import { facilityResultSection, muResultSection, FORM3_ITEMS } from '../src/lib/doc-templates/report9.ts'
-import { rollUpForm3Results, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
+import { rollUpForm3Results, legacySheetOnlyStats, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
 import { FORM4_ROWS, FORM4_UNWIRED, FORM4_SHEET } from '../src/lib/xlsx-form4.ts'
 import { buildWorkbookValues, toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook, sheetFileMap } from '../src/lib/xlsx-inject.ts'
@@ -57,7 +57,7 @@ const sheetStat = new Map<string, SheetStat>()
 for (const [name, results] of SHEETS) {
   for (const r of results) sheetStat.set(name, foldSheetResult(sheetStat.get(name), r))
 }
-const { facilityChecks, resultMarks } = rollUpForm3Results(sheetStat, FORM3_ITEMS, LEDGER)
+const { facilityChecks, resultMarks } = rollUpForm3Results(legacySheetOnlyStats(sheetStat), FORM3_ITEMS, LEDGER)
 const etcMarks = { door: 'O' as const, exit: 'X' as const, flame: 'N' as const }
 const muResults: Record<string, 'O' | 'X' | 'N'> = Object.fromEntries(
   Array.from({ length: 16 }, (_, i) => [`MU-${String(i + 1).padStart(3, '0')}`, (['O', 'X', 'N'] as const)[i % 3]]))

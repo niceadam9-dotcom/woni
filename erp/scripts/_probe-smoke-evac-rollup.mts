@@ -2,7 +2,7 @@
  *  actually fill the 별지 3쪽 결과칸 for 거실제연설비 / 피난기구(→공기안전매트 행)?
  *  Pure-function simulation against the real shipped code. No DB. */
 import {
-  rollUpForm3Results, sheetMatchesFacilities, distributeSubMarks, form3ItemsForSheet,
+  rollUpForm3Results, legacySheetOnlyStats, sheetMatchesFacilities, distributeSubMarks, form3ItemsForSheet,
   type SheetStat,
 } from '../src/lib/sheet-facility-map'
 import { FORM3_ITEMS } from '../src/lib/doc-templates/report9'
@@ -28,7 +28,7 @@ check('STD-20 피난기구 및 인명구조기구 matches installed',
 console.log('\n=== C. no responses at all (current staging state) ===')
 {
   const stat = new Map<string, SheetStat>()
-  const { facilityChecks, resultMarks } = rollUpForm3Results(stat, FORM3_ITEMS, installed)
+  const { facilityChecks, resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), FORM3_ITEMS, installed)
   check('거실제연설비 is checked (installed)', facilityChecks.includes('거실제연설비'))
   check('거실제연설비 result is BLANK', resultMarks['거실제연설비'] === undefined,
     `mark=${resultMarks['거실제연설비']}`)
@@ -46,7 +46,7 @@ console.log('\n=== D. after entering ONE 양호(O) into each sheet ===')
     ['제연설비', { any: true, x: false, o: true }],
     ['피난기구 및 인명구조기구', { any: true, x: false, o: true }],
   ])
-  const { resultMarks } = rollUpForm3Results(stat, FORM3_ITEMS, installed)
+  const { resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), FORM3_ITEMS, installed)
   check('거실제연설비 -> O', resultMarks['거실제연설비'] === 'O', `mark=${resultMarks['거실제연설비']}`)
   check('피난기구 -> O', resultMarks['피난기구'] === 'O', `mark=${resultMarks['피난기구']}`)
   const dist = distributeSubMarks(resultMarks['피난기구'], [true, false, false])
@@ -60,7 +60,7 @@ console.log('\n=== E. after entering one 불량(X) ===')
     ['제연설비', { any: true, x: true, o: true }],
     ['피난기구 및 인명구조기구', { any: true, x: true, o: false }],
   ])
-  const { resultMarks } = rollUpForm3Results(stat, FORM3_ITEMS, installed)
+  const { resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), FORM3_ITEMS, installed)
   check('거실제연설비 -> X', resultMarks['거실제연설비'] === 'X', `mark=${resultMarks['거실제연설비']}`)
   check('피난기구 -> X', resultMarks['피난기구'] === 'X', `mark=${resultMarks['피난기구']}`)
 }
@@ -68,7 +68,7 @@ console.log('\n=== E. after entering one 불량(X) ===')
 console.log('\n=== F. all responses are ／(N) ===')
 {
   const stat = new Map<string, SheetStat>([['제연설비', { any: true, x: false, o: false }]])
-  const { resultMarks } = rollUpForm3Results(stat, FORM3_ITEMS, installed)
+  const { resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), FORM3_ITEMS, installed)
   check('거실제연설비 -> N (not O)', resultMarks['거실제연설비'] === 'N', `mark=${resultMarks['거실제연설비']}`)
 }
 

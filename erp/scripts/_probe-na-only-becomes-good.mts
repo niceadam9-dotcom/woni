@@ -4,7 +4,7 @@
  *  회귀 고정으로 승격. 종전엔 SheetStat이 {any,x} 두 축이라 N만 있어도 any=true·x=false → 'O'였고,
  *  [／ 전체] 버튼(inspection-sheet-client.tsx · sheet-group-board.tsx) 하나로 그 상태를 만들 수 있었다.
  *  실행: npx tsx scripts/_probe-na-only-becomes-good.mts */
-import { rollUpForm3Results, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
+import { rollUpForm3Results, legacySheetOnlyStats, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
 
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, extra = '') => {
@@ -26,7 +26,7 @@ console.log('── 시트 응답이 전부 ／(N)인데 설비는 설치(√)')
   const stat = buildStat([
     { sheet: SHEET, result: 'N' }, { sheet: SHEET, result: 'N' }, { sheet: SHEET, result: 'N' },
   ])
-  const { facilityChecks, resultMarks } = rollUpForm3Results(stat, ITEMS, ['유도등'])
+  const { facilityChecks, resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), ITEMS, ['유도등'])
   console.log(`     설치=${facilityChecks.includes('유도등')} · 유도등 결과=${JSON.stringify(resultMarks['유도등'])}`)
   check('해당없음만 입력하면 ／로 찍힌다 (○ 둔갑 금지)', resultMarks['유도등'] === 'N',
     `→ 실제 '${resultMarks['유도등']}'`)
@@ -35,14 +35,14 @@ console.log('── 시트 응답이 전부 ／(N)인데 설비는 설치(√)')
 console.log('\n── 대조군: 한 항목이라도 ○이면 ○가 맞다')
 {
   const stat = buildStat([{ sheet: SHEET, result: 'N' }, { sheet: SHEET, result: 'O' }])
-  const { resultMarks } = rollUpForm3Results(stat, ITEMS, ['유도등'])
+  const { resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), ITEMS, ['유도등'])
   check('○ 섞이면 ○', resultMarks['유도등'] === 'O', `실제 ${resultMarks['유도등']}`)
 }
 
 console.log('\n── 대조군: ✕가 있으면 ×가 맞다')
 {
   const stat = buildStat([{ sheet: SHEET, result: 'N' }, { sheet: SHEET, result: 'X' }])
-  const { resultMarks } = rollUpForm3Results(stat, ITEMS, ['유도등'])
+  const { resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), ITEMS, ['유도등'])
   check('✕ 섞이면 ×', resultMarks['유도등'] === 'X', `실제 ${resultMarks['유도등']}`)
 }
 

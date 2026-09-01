@@ -13,7 +13,7 @@
  *  실행: npx tsx scripts/_probe-form3-axis-mismatch.mts */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { rollUpForm3Results, form3ItemsForSheet, form3ItemMatchesFacility } from '../src/lib/sheet-facility-map.ts'
+import { rollUpForm3Results, legacySheetOnlyStats, form3ItemsForSheet, form3ItemMatchesFacility } from '../src/lib/sheet-facility-map.ts'
 import r9mod from '../src/lib/doc-templates/report9.ts'
 
 const { FORM3_ITEMS } = r9mod as unknown as typeof import('../src/lib/doc-templates/report9.ts')
@@ -104,7 +104,7 @@ for (const i of rows) {
 
   const pairs = [...stat] as Array<[string, { any: boolean; x: boolean }]>
   const before = rollUpLegacy(pairs, FORM3_ITEMS, installed)
-  const { facilityChecks, resultMarks, axisWarnings } = rollUpForm3Results(stat, FORM3_ITEMS, installed)
+  const { facilityChecks, resultMarks, axisWarnings } = rollUpForm3Results(legacySheetOnlyStats(stat), FORM3_ITEMS, installed)
 
   const checkedBlank = FORM3_ITEMS.filter(it => facilityChecks.includes(it) && !resultMarks[it])
   const wasMarked = FORM3_ITEMS.filter(it => !facilityChecks.includes(it)

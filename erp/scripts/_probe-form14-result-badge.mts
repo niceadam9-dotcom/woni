@@ -233,7 +233,7 @@ try {
   //    (foldSheetResult·rollUpForm3Results — 문서·배지가 쓰는 그 함수)로 굴려 단언하고,
   //    UI는 '입력 배지 없음 + 사유 안내'라는 설계 사실을 단언한다.
   {
-    const { foldSheetResult, rollUpForm3Results } = await import('../src/lib/sheet-facility-map.ts')
+    const { foldSheetResult, rollUpForm3Results, legacySheetOnlyStats } = await import('../src/lib/sheet-facility-map.ts')
     const { ALL_STANDARD_CODES } = await import('../src/lib/facility-codes.ts')
     const { data: sr } = await raw.from('customers').select('id').eq('customer_name', '서림사')
     const srId = ((sr ?? []) as Array<{ id: string }>)[0]?.id
@@ -258,7 +258,7 @@ try {
     const { data: srFac } = await raw.from('fire_facilities').select('facility_code')
       .in('building_id', ((srBld ?? []) as Array<{ id: string }>).map(b => b.id)).eq('installed', true)
     const installedSr = ((srFac ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
-    const { resultMarks } = rollUpForm3Results(stats, ALL_STANDARD_CODES, installedSr)
+    const { resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stats), ALL_STANDARD_CODES, installedSr)
     // 서림사 할로겐 시트 27건은 실측 **전부 N(해당없음)** — 분리 전에도 이 칸은 ／였다.
     // 퇴행의 방향은 '공란'(레거시 간선이 끊겨 귀속 자체가 사라짐 — 설치+무응답)이다.
     // 그래서 단언은 'N 유지'(키 존재 = 귀속 유지)이지 ○가 아니다 — ○ 가정은 데이터 미확인 오검이었다.

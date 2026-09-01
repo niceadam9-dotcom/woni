@@ -40,8 +40,12 @@ async function stampSheetProtocol(admin: ReturnType<typeof createAdminClient>, i
 }
 
 /** 회차별 작성·조회 트리의 설비별 요약 행 — 회차(들)의 시트별 진행률 일괄 조회.
- *  집계는 sheet-overview.ts 단일 소스(점검 상세 배지와 같은 값). 남용 방지로 한 번에 8회차까지. */
-export async function getInspectionSheetOverviewAction(inspectionIds: string[]): Promise<{
+ *  집계는 sheet-overview.ts 단일 소스(점검 상세 배지와 같은 값). 남용 방지로 한 번에 8회차까지.
+ *
+ *  `withGroups`는 기본 false다(트리 8회차 payload 비대화 방지 — 23 S5-7). 켜는 곳은 1.4 대장의
+ *  설비별 결과 배지 하나뿐인데, 그 배지는 중분류 단위 롤업이 있어야 문서와 같은 마크가 나온다
+ *  (2026-09-01 유도등 사고 — 시트 단위로 접으면 형제 설비 칸까지 같은 마크가 칠해진다). */
+export async function getInspectionSheetOverviewAction(inspectionIds: string[], opts?: { withGroups?: boolean }): Promise<{
   error?: string
   overviews?: Record<string, SheetOverview>
 }> {
@@ -49,7 +53,8 @@ export async function getInspectionSheetOverviewAction(inspectionIds: string[]):
   if (inspectionIds.length === 0) return { overviews: {} }
   if (inspectionIds.length > 8) return { error: '한 번에 조회할 수 있는 회차는 8건까지입니다.' }
   const { overviews, error } = await buildSheetOverviews(
-    createAdminClient(), inspectionIds, { id: profile.id, role: profile.role as UserRole })
+    createAdminClient(), inspectionIds, { id: profile.id, role: profile.role as UserRole },
+    { withGroups: opts?.withGroups ?? false })
   if (error) return { error }
   return { overviews }
 }

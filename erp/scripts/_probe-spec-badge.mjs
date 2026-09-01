@@ -4,7 +4,7 @@
 // (동적 import — src/lib가 확장자 없는 상대 import를 쓰므로 node 네이티브 스트리핑으로는 해석되지 않는다)
 const { FACILITY_SPEC_SECTIONS } = await import('../src/lib/facility-spec-schema.ts')
 const { ALL_STANDARD_CODES } = await import('../src/lib/facility-codes.ts')
-const { rollUpForm3Results, form3ItemsForSheet } = await import('../src/lib/sheet-facility-map.ts')
+const { rollUpForm3Results, legacySheetOnlyStats, form3ItemsForSheet } = await import('../src/lib/sheet-facility-map.ts')
 
 let pass = 0, fail = 0
 const check = (name, ok, extra = '') => {
@@ -18,7 +18,7 @@ function sectionBadge(sec, sheetStats, defectsBySheet, installedCodes) {
   if (sheetStats.length === 0) return null
   const codes = [...new Set(sec.blocks.flatMap(hintCodes))]
   if (codes.length === 0) return null
-  const marks0 = rollUpForm3Results(sheetStats, ALL_STANDARD_CODES, installedCodes).resultMarks
+  const marks0 = rollUpForm3Results(legacySheetOnlyStats(sheetStats), ALL_STANDARD_CODES, installedCodes).resultMarks
   const defByCode = {}
   for (const [sheet, n] of Object.entries(defectsBySheet)) {
     for (const c of form3ItemsForSheet(sheet, ALL_STANDARD_CODES)) defByCode[c] = (defByCode[c] ?? 0) + n
@@ -75,7 +75,7 @@ console.log('\n── 3) 화면 설치 상태가 판정에 반영되는가 (미�
 console.log('\n── 4) 문서와 같은 판정인가 (T-2a-1 공용 함수) ──')
 {
   const stats = [['소화용수설비', { any: true, x: false, o: true }]]
-  const marks = rollUpForm3Results(stats, ALL_STANDARD_CODES, []).resultMarks
+  const marks = rollUpForm3Results(legacySheetOnlyStats(stats), ALL_STANDARD_CODES, []).resultMarks
   check('시트 1개 → 설비 2종 전개가 배지 경로에서도 동일(상수도·소화수조 모두 ○)',
     marks['상수도소화용수설비'] === 'O' && marks['소화수조 및 저수조'] === 'O',
     JSON.stringify({ 상수도: marks['상수도소화용수설비'], 소화수조: marks['소화수조 및 저수조'] }))

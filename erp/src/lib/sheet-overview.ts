@@ -32,6 +32,9 @@ export type SheetGroupProgress = {
   total: number
   responded: number
   x: number
+  /** ○(양호) 응답 수 — 롤업 3축(any/x/o)의 o. 2026-09-01 신설.
+   *  ⚠ 없으면 '응답은 있는데 전부 ／'를 표현할 수 없어 **해당없음이 양호로 둔갑**한다(소방계획서_26 S1과 같은 함정). */
+  o: number
   /** 대괄호 소제목(3층) 이름들 — 카드 부제 칩. 등장 순서 유지 */
   subgroupNames: string[]
 }
@@ -211,13 +214,13 @@ export async function buildSheetOverviews(
               groupKey: `${sheet.id}:${ref.code}`, groupCode: ref.code, groupName: ref.name,
               // 134 미적용 폴백은 order가 없다 — 등장 순서(정렬 후)로 대체
               groupOrder: ref.order ?? buckets.size + 1,
-              total: 0, responded: 0, x: 0, subgroupNames: [],
+              total: 0, responded: 0, x: 0, o: 0, subgroupNames: [],
             }
             buckets.set(ref.code, b)
           }
           b.total++
           const r = responses.get(it.item_code)
-          if (r) { b.responded++; if (r === 'X') b.x++ }   // N 포함 — Q-19('다 봤다' 표현)
+          if (r) { b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }   // N 포함 — Q-19('다 봤다' 표현)
           if (ref.subgroup && !b.subgroupNames.includes(ref.subgroup)) b.subgroupNames.push(ref.subgroup)
         }
       }

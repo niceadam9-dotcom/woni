@@ -99,8 +99,39 @@ export const LEGACY_ROLLUP_MAP: Record<string, string[]> = {
   '할로겐화합물 및 불활성기체소화설비': ['할론소화설비'],
 }
 
+/** 시트 하나가 FORM3 항목 **여럿**을 덮을 때, 그 응답이 어느 항목의 것인지 가르는 축
+ *  (2026-09-01 — 실사고: 서림사 작동 회차에서 유도등·유도표지를 전부 ／로 입력했는데 갑지 「현황」과
+ *  별지 9호 3쪽에 **○**가 찍혔다. 같은 시트의 피난유도선 5문항이 ○였고, 롤업이 시트 단위라
+ *  그 ○가 형제 항목 칸까지 칠한 것이다 — 사람이 입력한 값과 **반대 방향**의 판정이 법정 문서에 나갔다).
+ *
+ *  값은 지어낸 게 아니라 DB에 이미 있는 중분류(마이그레이션 134 `group_code`/`group_name`)다.
+ *  아래 6시트는 중분류 이름이 FORM3 항목과 **자구까지 1:1**임을 실측으로 확인했다
+ *  (`scripts/_probe-multiitem-sheets.mjs`, 2026-09-01 스테이징):
+ *    21-A "유도등" · 21-B "유도표지" · 21-C "피난유도선" / 22-A "비상조명등" · 22-B "휴대용비상조명등" …
+ *  코드(21-A)를 키로 삼는다 — 이름은 서식 개정으로 흔들리지만 코드는 item_code 접두라 파생이 결정적이다.
+ *
+ *  ⚠ STD-15(자동화재탐지설비 및 시각경보장치)는 **일부러 뺐다**. 이 시트의 중분류는 설비축이 아니라
+ *    구성요소축(수신기·감지기·배선…)이고, 함께 덮는 '화재알림설비'에는 대응하는 중분류가 아예 없다.
+ *    억지로 이으면 감지기 응답이 화재알림설비로 가는, 지금보다 나쁜 거짓이 된다(추측 금지).
+ *  ⚠ EXT 시트도 뺐다 — 중분류가 facility_type이라 어휘 축이 다르고, 인쇄 경로에 닿지 않는다.
+ *
+ *  등재하지 않은 시트는 종전대로 **시트 단위 전개**다(form3ItemsForSheetGroup 폴백). */
+export const SHEET_GROUP_FORM3_MAP: Record<string, Record<string, string>> = {
+  '비상경보설비 및 단독경보형감지기': { '14-A': '비상경보설비', '14-B': '단독경보형감지기' },
+  '자동화재속보설비 및 통합감시시설': { '17-A': '자동화재속보설비', '17-B': '통합감시시설' },
+  // 20-A~D는 전부 피난기구(공통사항·매트/사다리·다수인·승강식) — 인명구조기구만 20-E로 갈린다
+  '피난기구 및 인명구조기구': {
+    '20-A': '피난기구', '20-B': '피난기구', '20-C': '피난기구', '20-D': '피난기구',
+    '20-E': '인명구조기구',
+  },
+  '유도등 및 유도표지': { '21-A': '유도등', '21-B': '유도표지', '21-C': '피난유도선' },
+  '비상조명등 및 휴대용비상조명등': { '22-A': '비상조명등', '22-B': '휴대용비상조명등' },
+  '소화용수설비': { '23-A': '소화수조 및 저수조', '23-B': '상수도소화용수설비' },
+}
+
 const norm = (s: string) => s.replace(/\s+/g, '')
 const MAP_BY_NORM = new Map(Object.entries(SHEET_FACILITY_MAP).map(([k, v]) => [norm(k), v.map(norm)]))
+const GROUP_BY_NORM = new Map(Object.entries(SHEET_GROUP_FORM3_MAP).map(([k, v]) => [norm(k), v]))
 const LEGACY_BY_NORM = new Map(Object.entries(LEGACY_ROLLUP_MAP).map(([k, v]) => [norm(k), v.map(norm)]))
 /** 정규화 시트명 → 매핑 + 레거시 간선 합산(귀속·고지용). 레거시 키는 전부 본 매핑에 있는 시트다. */
 const withLegacy = (sn: string, mapped: string[]): string[] => {
@@ -146,6 +177,46 @@ export function form3ItemsForSheet(sheetName: string, form3Items: string[]): str
   return form3Items.filter(i => { const inm = norm(i); return inm.includes(sn) || sn.includes(inm) })
 }
 
+/** 시트 + **중분류**(group_code) → FORM3 항목 — 롤업이 실제로 쓰는 축(2026-09-01).
+ *
+ *  `form3ItemsForSheet`가 시트가 덮는 항목 **전부**를 주는 것과 다르다. 한 시트가 항목 여럿을 덮을 때
+ *  그 응답은 셋 다의 것이 아니라 **중분류 하나의 것**이고, 그 사실을 버리면 ／로 입력한 칸에 ○가 찍힌다.
+ *
+ *  폴백은 종전 동작(시트 전개)이다 — 다음 중 하나라도 해당하면:
+ *    · 중분류를 모르는 호출부(group=null)      · 시트가 덮는 항목이 애초에 1개
+ *    · 등재되지 않은 시트·중분류(STD-15·EXT)   · 매핑된 항목이 이 시트의 커버 목록에 없음(어휘 어긋남)
+ *  즉 **모르면 종전대로**다. 좁히는 건 실측으로 확인한 자리에서만. */
+export function form3ItemsForSheetGroup(
+  sheetName: string,
+  group: string | null,
+  form3Items: string[],
+): string[] {
+  const all = form3ItemsForSheet(sheetName, form3Items)
+  if (!group || all.length < 2) return all
+  const target = GROUP_BY_NORM.get(norm(sheetName))?.[group]
+  if (!target) return all
+  const hit = all.filter(i => norm(i) === norm(target))
+  return hit.length > 0 ? hit : all
+}
+
+/** SHEET_GROUP_FORM3_MAP 자기 검사 — 오타 하나가 '그 중분류는 영원히 폴백'으로 조용히 묻힌다.
+ *  폴백이 종전 동작이라 **아무도 모른 채** 실사고가 되살아나는 부류다(test-form3-axis가 단언). */
+export function sheetGroupMapErrors(form3Items: string[]): string[] {
+  const out: string[] = []
+  for (const [sheet, groups] of Object.entries(SHEET_GROUP_FORM3_MAP)) {
+    const covered = form3ItemsForSheet(sheet, form3Items)
+    if (!MAP_BY_NORM.has(norm(sheet))) out.push(`'${sheet}' → SHEET_FACILITY_MAP에 없는 시트`)
+    if (covered.length < 2) out.push(`'${sheet}' → FORM3 항목을 ${covered.length}개만 덮는다(좁힐 게 없다)`)
+    const seen = new Set<string>()
+    for (const [code, item] of Object.entries(groups)) {
+      if (!covered.some(c => norm(c) === norm(item))) out.push(`'${sheet}' ${code} → '${item}'은 이 시트가 덮는 항목이 아니다`)
+      seen.add(norm(item))
+    }
+    for (const c of covered) if (!seen.has(norm(c))) out.push(`'${sheet}' → '${c}'를 가리키는 중분류가 없다(그 칸은 늘 폴백)`)
+  }
+  return out
+}
+
 /** 설치 설비 코드 ↔ FORM3 항목 — 정규화 정확 매칭.
  *  퍼지였을 때 '스프링클러설비' 설치가 '간이스프링클러설비'·'화재조기진압용스프링클러설비'까지,
  *  '비상조명등'이 '휴대용비상조명등'까지 켜던 오검을 없앤다(표준 40종 중 5종에서 판정이 달라진다). */
@@ -178,6 +249,45 @@ export function foldSheetResult(cur: SheetStat | undefined, result: string): She
   }
 }
 
+/** 롤업 입력 1건 — **(시트, 중분류)** 단위 통계. 종전엔 시트 단위 `[시트명, SheetStat]` 튜플이었다.
+ *
+ *  타입을 바꾼 것이 요점이다(2026-09-01). 중분류를 **선택 인자**로 얹었으면 안 넘기는 호출부가
+ *  조용히 옛 동작으로 남았을 것이다 — 이 저장소에서 이미 두 번 당한 부류라(부분 업데이트 F-27),
+ *  컴파일러가 전 호출부를 세우도록 필수 필드로 만든다.
+ *  중분류를 모르는 호출부는 `group: null`을 **명시**한다 — 모른다는 사실이 코드에 남는다. */
+export type SheetGroupStat = { sheet: string; group: string | null; stat: SheetStat }
+
+/** 응답 목록 → 롤업 입력 — 접기를 한 곳에 둔다(구성 지점이 별지 조립·1.4 배지·대장 배지 셋이라
+ *  한 곳만 놓치면 문서와 화면이 갈린다. o 축 누락이 정확히 그렇게 났다 — 소방계획서_26 S1). */
+export function foldSheetGroupStats(
+  rows: Array<{ sheet: string; group: string | null; result: string }>,
+): SheetGroupStat[] {
+  // 키는 **중첩 Map**이다 — 두 값을 문자열로 이어 붙이지 않는다. 구분자를 쓰면 시트명에 그 글자가
+  // 섞였을 때 조용히 뭉개지고, 안전해 보이는 제어문자(\0)를 쓰면 이 파일이 **바이너리로 분류돼
+  // Grep이 통째로 못 읽는다**(실측 2026-09-01 — 도구가 침묵하면 다음 세션이 코드를 못 찾는다).
+  const acc = new Map<string, Map<string, SheetGroupStat>>()
+  for (const r of rows) {
+    if (!r.sheet) continue
+    let byGroup = acc.get(r.sheet)
+    if (!byGroup) { byGroup = new Map(); acc.set(r.sheet, byGroup) }
+    const gk = r.group ?? ''
+    byGroup.set(gk, { sheet: r.sheet, group: r.group, stat: foldSheetResult(byGroup.get(gk)?.stat, r.result) })
+  }
+  return [...acc.values()].flatMap(m => [...m.values()])
+}
+
+/** 시트 단위 통계를 롤업 입력으로 — **검사·프로브 전용**(2026-09-01).
+ *
+ *  🚫 제품 코드에서 쓰지 말 것. 중분류를 잃으므로 한 점검표가 설비 여럿을 덮을 때 형제 칸까지
+ *     같은 마크가 칠해진다(유도등 사고 그 자체). 제품 경로는 `foldSheetGroupStats`로 중분류까지 접는다.
+ *  검사 쪽에는 남겨 둔다 — '시트 단위로 접으면 어떻게 되는가'가 그 사고의 **대조군**이라
+ *  표현할 수단이 있어야 한다. `scripts/test-form3-axis.mts`가 src/ 유입을 감시한다. */
+export function legacySheetOnlyStats(
+  sheetStat: Map<string, SheetStat> | Array<[string, SheetStat]>,
+): SheetGroupStat[] {
+  return [...sheetStat].map(([sheet, stat]) => ({ sheet, group: null, stat }))
+}
+
 /** 두 축(설치 √ / 점검결과 ○×) 어긋남 — 인쇄 전 경고(missing)용. 어느 쪽도 조용히 넘기지 않는다. */
 export type Form3AxisWarnings = {
   /** 설치된 형제 항목이 있는 시트의 응답이 **미설치 항목까지 번지던** 것 — 이제 ／로 인쇄된다.
@@ -187,7 +297,13 @@ export type Form3AxisWarnings = {
   respondedNotInstalled: string[]
 }
 
-/** 별지9호 3쪽 롤업 — 시트 통계 + 설치 설비 → FORM3 항목별 설치 체크·점검결과 마크.
+/** 별지9호 3쪽 롤업 — (시트, 중분류) 통계 + 설치 설비 → FORM3 항목별 설치 체크·점검결과 마크.
+ *
+ *  ── 귀속의 축(2026-09-01 — 시트에서 중분류로) ────────────────────────────────
+ *  종전엔 통계가 **시트 단위**라, 한 시트가 FORM3 항목 2~3개를 덮으면 그 시트의 ○/×가 형제 칸까지
+ *  똑같이 칠해졌다. 서림사 실사고: 유도등(21-A 4문항)·유도표지(21-B 4문항)를 전부 ／로 입력했는데
+ *  피난유도선(21-C)의 ○ 때문에 세 칸 모두 ○로 인쇄됐다 — **사람이 넣은 값의 반대**가 법정 문서에 나갔다.
+ *  이제 SHEET_GROUP_FORM3_MAP에 등재된 6시트는 중분류로 갈라 귀속한다(그 밖은 종전 그대로).
  *
  *  assembleReport9(서버 액션 파일이라 외부에서 호출 불가)에서 순수 로직만 뽑아낸 것.
  *  T-3 프로브가 DB 없이 실제 코드를 검증할 수 있고, T-2a(세부제원 패널 점검 결과 배지)가
@@ -211,7 +327,7 @@ export type Form3AxisWarnings = {
  *      **결과를 지우지 않고** 종전대로 ○/×를 두되 경고로 표면화한다(대장을 고치는 건 사람 몫)
  *  판정은 항목별이 아니라 시트별로 한 번 하고, 그 결과를 항목에 나눠 준다. */
 export function rollUpForm3Results(
-  sheetStat: Map<string, SheetStat> | Array<[string, SheetStat]>,
+  entries: SheetGroupStat[],
   form3Items: string[],
   installedCodes: string[],
 ): { facilityChecks: string[]; resultMarks: Record<string, 'O' | 'X' | 'N'>; axisWarnings: Form3AxisWarnings } {
@@ -219,9 +335,11 @@ export function rollUpForm3Results(
   const installed = new Set(facilityChecks)
   const statByItem = new Map<string, SheetStat>()
   const touched = new Set<string>()      // 응답 있는 시트가 덮는 항목 전체(종전 규칙이 마크를 찍던 범위)
-  for (const [sheetName, st] of sheetStat) {
+  for (const { sheet: sheetName, group, stat: st } of entries) {
     if (!st.any) continue
-    const items = form3ItemsForSheet(sheetName, form3Items)
+    // ⭐ 축이 한 칸 내려왔다(2026-09-01) — 시트가 아니라 **중분류**가 덮는 항목만.
+    //    등재 밖이면 종전대로 시트 전개다(form3ItemsForSheetGroup 폴백).
+    const items = form3ItemsForSheetGroup(sheetName, group, form3Items)
     for (const it of items) touched.add(it)
     const installedHere = items.filter(it => installed.has(it))
     // 설치된 형제가 있으면 응답은 그쪽 것 — 나머지로 번지지 않는다. 전부 미설치면 종전대로 전개.

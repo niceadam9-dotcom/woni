@@ -9,7 +9,7 @@ import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/fa
 // 남은 것은 배지를 그리기 위한 진행률 조회뿐이다.
 import { getInspectionSheetOverviewAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
-import { rollUpForm3Results, sheetMatchesFacilities, type SheetStat } from '@/lib/sheet-facility-map'
+import { rollUpForm3Results, sheetMatchesFacilities, type SheetGroupStat } from '@/lib/sheet-facility-map'
 import type { SheetOverview } from '@/lib/sheet-overview'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
 import { NumField, TableWrap } from '@/components/ui/fields'
@@ -167,7 +167,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       .then(async ctx => {
         setResultCtx(ctx)
         if (!ctx.inspection) return
-        const ov = await getInspectionSheetOverviewAction([ctx.inspection.id])
+        const ov = await getInspectionSheetOverviewAction([ctx.inspection.id], { withGroups: true })
         const o = ov.overviews?.[ctx.inspection.id]
         if (o) setOverview(o)
       })
@@ -178,9 +178,17 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   // 현재 체크 상태를 넘긴다(방금 켠 미저장 설비가 ／로 보이면 거짓말 — plan-form14-specs와 같은 이유).
   const resultMarks = useMemo(() => {
     if (!overview) return {} as Record<string, 'O' | 'X' | 'N'>
-    const stats: Array<[string, SheetStat]> = overview.sheets
+    // 중분류(groups)가 오면 그 단위로 접는다 — 한 점검표가 설비 여럿을 덮을 때 시트 단위로 접으면
+    // 형제 설비 배지까지 같은 마크가 칠해져 **문서와 갈라진다**(2026-09-01 유도등 사고).
+    // groups는 withGroups=true에서만 온다. 안 오면 종전대로 시트 단위(group: null) — 폴백은 옛 동작.
+    const stats: SheetGroupStat[] = overview.sheets
       .filter(s => s.responded > 0)
-      .map(s => [s.sheetName, { any: true, x: s.counts.X > 0, o: s.counts.O > 0 }])
+      .flatMap<SheetGroupStat>(s => s.groups
+        ? s.groups.filter(g => g.responded > 0).map(g => ({
+          sheet: s.sheetName, group: g.groupCode,
+          stat: { any: true, x: g.x > 0, o: g.o > 0 },
+        }))
+        : [{ sheet: s.sheetName, group: null, stat: { any: true, x: s.counts.X > 0, o: s.counts.O > 0 } }])
     const installedNow = ALL_STANDARD_CODES.filter(c => fac[c]?.installed)
     return rollUpForm3Results(stats, ALL_STANDARD_CODES, installedNow).resultMarks
   }, [overview, fac])
@@ -190,7 +198,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   async function refreshResults(reloadItems: boolean) {
     const inspId = resultCtx?.inspection?.id
     if (!inspId) return
-    const ov = await getInspectionSheetOverviewAction([inspId])
+    const ov = await getInspectionSheetOverviewAction([inspId], { withGroups: true })
     const o = ov.overviews?.[inspId]
     if (o) setOverview(o)
   }

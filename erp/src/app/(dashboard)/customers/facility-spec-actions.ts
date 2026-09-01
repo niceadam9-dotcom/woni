@@ -10,7 +10,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { FACILITY_SPEC_SECTIONS } from '@/lib/facility-spec-schema'
 import { FACILITY_STANDARD } from '@/lib/facility-codes'
-import { facilitiesForSheet, foldSheetResult, type SheetStat } from '@/lib/sheet-facility-map'
+import { facilitiesForSheet, foldSheetGroupStats, type SheetGroupStat } from '@/lib/sheet-facility-map'
+import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 import { combinedRangeError } from '@/lib/date-range'
 import { assembleOfficial } from '@/lib/annex-cover-official'
@@ -142,8 +143,10 @@ export async function getInspectedFacilityCodesAction(
 ): Promise<{
   codes: string[]
   roundLabel: string | null
-  /** 시트명 → { any, x, o } — rollUpForm3Results 입력 (o 축은 소방계획서_26 S1 — '전부 ／' 표현용) */
-  sheetStats: Array<[string, SheetStat]>
+  /** (시트, 중분류) → { any, x, o } — rollUpForm3Results 입력.
+   *  o 축은 소방계획서_26 S1('전부 ／' 표현용), 중분류 축은 2026-09-01(유도등 ／→○ 사고).
+   *  ⚠ 시트 단위로 되돌리지 말 것 — 한 점검표가 FORM3 항목 여럿을 덮으면 형제 칸까지 같은 마크가 칠해진다. */
+  sheetStats: SheetGroupStat[]
   /** 시트명 → 불량(X) 응답 수 — 배지의 "불량 n건" */
   defectsBySheet: Record<string, number>
   error?: string
@@ -168,7 +171,9 @@ export async function getInspectedFacilityCodesAction(
     if (rows.length < 1000) break
   }
 
-  // item_code → 시트 (카탈로그 고정 데이터 전량 순회)
+  // item_code → 시트·중분류 (카탈로그 고정 데이터 전량 순회).
+  // 중분류는 item_code 접두에서 파생한다(sheetItemGroupRef의 STD 폴백과 같은 규칙) — 컬럼을 읽지 않으므로
+  // 134 미적용 DB에서도 42703이 날 수 없다. 별지 조립은 카탈로그 캐시가 있어 group_code를 직접 쓴다.
   const sheetIdByItem = new Map<string, string>()
   for (let from = 0; ; from += 1000) {
     const { data } = await admin.from('inspection_sheet_items')
@@ -185,23 +190,26 @@ export async function getInspectedFacilityCodesAction(
   const nameById = new Map(((sheetRaw ?? []) as Array<{ id: string; sheet_name: string }>)
     .map(s => [s.id, s.sheet_name]))
 
-  // 구성은 foldSheetResult 한 곳으로(소방계획서_26 S1) — 별지 조립(report9-actions)과 같은 함수를 써야
+  // 구성은 foldSheetGroupStats 한 곳으로(소방계획서_26 S1) — 별지 조립(report9-assemble)과 같은 함수를 써야
   // '전부 ／' 시트가 화면 배지에선 ／, 문서에선 ○로 갈라지는 일이 없다.
-  const stat = new Map<string, SheetStat>()
   const defectsBySheet: Record<string, number> = {}
+  const folded: Array<{ sheet: string; group: string | null; result: string }> = []
   for (const [itemCode, result] of resultByItem) {
     const name = nameById.get(sheetIdByItem.get(itemCode) ?? '')
     if (!name) continue
-    stat.set(name, foldSheetResult(stat.get(name), result))
+    folded.push({ sheet: name, group: sheetItemGroupRef({ item_code: itemCode }).code, result })
     if (result === 'X') defectsBySheet[name] = (defectsBySheet[name] ?? 0) + 1
   }
+  const stat = foldSheetGroupStats(folded)
 
   const allFacilities = FACILITY_STANDARD.flatMap(g => g.items)
   const codes = new Set<string>()
-  for (const name of stat.keys()) {
-    for (const c of facilitiesForSheet(name, allFacilities)) codes.add(c)
+  // '점검은 했는데 제원 미입력' 칩의 축은 종전대로 **시트**다(중분류로 좁히지 않는다) —
+  // 이 칩은 "이 설비를 건드린 회차가 있다"는 넓은 신호라, 좁히면 형제 설비의 칩이 사라진다.
+  for (const { sheet } of stat) {
+    for (const c of facilitiesForSheet(sheet, allFacilities)) codes.add(c)
   }
-  return { codes: [...codes], roundLabel, sheetStats: [...stat], defectsBySheet }
+  return { codes: [...codes], roundLabel, sheetStats: stat, defectsBySheet }
 }
 
 /** 1.4 설비별 결과 입력의 회차 축 (소방계획서_26 S2) — **진행 중(미완료)** 최신 자체점검 회차.

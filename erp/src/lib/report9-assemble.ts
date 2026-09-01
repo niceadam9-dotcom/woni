@@ -13,7 +13,8 @@ import {
   FORM3_ITEMS, form3Group, parseParkingSummary,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
-import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetResult, type SheetStat } from '@/lib/sheet-facility-map'
+import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats } from '@/lib/sheet-facility-map'
+import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import type { Report4SheetSection } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
@@ -201,14 +202,16 @@ export async function assembleReport9(
   const sheetNameById = new Map(sheets.map(s => [s.id, s.sheet_name]))
   const sheetByItem = new Map(items.map(i => [i.item_code, sheetNameById.get(i.sheet_id) ?? '']))
   const itemNameByCode = new Map(items.map(i => [i.item_code, i.item_name]))
-  // ⚠ 구성은 foldSheetResult 한 곳으로(소방계획서_26 S1) — 종전 {any,x} 수기 구성은 o를 표현할 수 없어
+  // 중분류(134 group_code) — 한 점검표가 FORM3 항목 여럿을 덮을 때 **어느 항목의 응답인지** 가르는 축.
+  // 134 미적용 DB에서도 안전하다: sheetItemGroupRef가 item_code 접두(21-A-001 → 21-A)로 폴백한다.
+  const groupByItem = new Map(items.map(i => [i.item_code, sheetItemGroupRef(i).code]))
+  // ⚠ 구성은 foldSheetGroupStats 한 곳으로(소방계획서_26 S1) — 종전 {any,x} 수기 구성은 o를 표현할 수 없어
   // **전부 ／인 시트가 ○로 인쇄**됐다. 같은 통계를 만드는 1.4 배지(facility-spec-actions.ts)와 함께 통일.
-  const sheetStat = new Map<string, SheetStat>()
-  for (const r of responses) {
-    const name = sheetByItem.get(r.item_code)
-    if (!name) continue
-    sheetStat.set(name, foldSheetResult(sheetStat.get(name), r.result))
-  }
+  const sheetStat = foldSheetGroupStats(responses.map(r => ({
+    sheet: sheetByItem.get(r.item_code) ?? '',
+    group: groupByItem.get(r.item_code) ?? null,
+    result: r.result,
+  })))
 
   const codes = b
     ? (((await admin.from('fire_facilities').select('facility_code').eq('building_id', b.id).eq('installed', true))

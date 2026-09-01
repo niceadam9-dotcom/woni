@@ -1,7 +1,7 @@
 // T-3 스냅샷 비교 — 별지9호 3쪽/8쪽 매칭을 퍼지(nameMatch) vs 명시(FORM3_SHEET_MAP)로 대조 (소방계획서_14_점검업무 §5)
 // 서버·DB 불필요(순수 함수 대조). 실행: npx tsx scripts/_probe-form3-map.mjs
 const { FORM3_ITEMS } = await import('../src/lib/doc-templates/report9.ts')
-const { SHEET_FACILITY_MAP, form3ItemsForSheet, rollUpForm3Results } = await import('../src/lib/sheet-facility-map.ts')
+const { SHEET_FACILITY_MAP, form3ItemsForSheet, rollUpForm3Results, legacySheetOnlyStats } = await import('../src/lib/sheet-facility-map.ts')
 const { ALL_STANDARD_CODES } = await import('../src/lib/facility-codes.ts')
 
 let pass = 0, fail = 0
@@ -96,7 +96,7 @@ console.log('\n── 6) 실제 롤업 함수(rollUpForm3Results) — assembleRe
     ['소화용수설비', { any: true, x: false, o: true }],            // 항목 2개로 전개 → 둘 다 ○
   ])
   const installed = ['옥내소화전설비', '소화기구 및 자동소화장치', '스프링클러설비']
-  const { facilityChecks, resultMarks } = rollUpForm3Results(stat, FORM3_ITEMS, installed)
+  const { facilityChecks, resultMarks } = rollUpForm3Results(legacySheetOnlyStats(stat), FORM3_ITEMS, installed)
 
   check('6) 응답 양호 → ○', resultMarks['옥내소화전설비'] === 'O', JSON.stringify(resultMarks['옥내소화전설비']))
   check('6) 응답 불량 → ×', resultMarks['소화기구 및 자동소화장치'] === 'X')
@@ -131,7 +131,7 @@ console.log('\n── 6) 실제 롤업 함수(rollUpForm3Results) — assembleRe
 
   // ① 무퇴행 — 서림사 실측 시나리오: 할론 단독 설치, 응답은 옛 묶음 시트(할로겐)에만
   const seorimsa = rollUpForm3Results(
-    new Map([['할로겐화합물 및 불활성기체소화설비', { any: true, x: false, o: true }]]),
+    legacySheetOnlyStats(new Map([['할로겐화합물 및 불활성기체소화설비', { any: true, x: false, o: true }]])),
     FORM3_ITEMS, ['할론소화설비'])
   check('7) 서림사 무퇴행 — 묶음 시트 응답이 할론 결과칸에 계속 귀속(○)',
     seorimsa.resultMarks[f3key('할론소화설비')] === 'O', JSON.stringify(seorimsa.resultMarks[f3key('할론소화설비')]))
@@ -143,7 +143,7 @@ console.log('\n── 6) 실제 롤업 함수(rollUpForm3Results) — assembleRe
 
   // ① 조기진압 방향 — 스프링클러 시트 과거 응답이 조기진압 단독 설치에 귀속
   const early = rollUpForm3Results(
-    new Map([['스프링클러설비', { any: true, x: true, o: false }]]),
+    legacySheetOnlyStats(new Map([['스프링클러설비', { any: true, x: true, o: false }]])),
     FORM3_ITEMS, ['화재조기진압용 스프링클러설비'])
   check('7) 조기진압 무퇴행 — 스프링클러 시트 과거 불량이 조기진압 ×로 귀속',
     early.resultMarks[f3key('화재조기진압용 스프링클러설비')] === 'X',
@@ -158,7 +158,7 @@ console.log('\n── 6) 실제 롤업 함수(rollUpForm3Results) — assembleRe
     sheetMatchesFacilities('할론소화설비', ['할론소화설비'])
     && sheetMatchesFacilities('화재조기진압용 스프링클러설비', ['화재조기진압용 스프링클러설비']))
   check('7) 전용 시트 롤업 — 할론 시트 응답 → 할론 ○',
-    rollUpForm3Results(new Map([['할론소화설비', { any: true, x: false, o: true }]]),
+    rollUpForm3Results(legacySheetOnlyStats(new Map([['할론소화설비', { any: true, x: false, o: true }]])),
       FORM3_ITEMS, ['할론소화설비']).resultMarks[f3key('할론소화설비')] === 'O')
 
   // ③ 형제 고지는 간선을 숨기지 않는다(D-5) — 묶음 시트에 쓰면 할론 배지도 바뀐다는 사실

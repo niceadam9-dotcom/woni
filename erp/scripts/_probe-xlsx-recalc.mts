@@ -21,7 +21,7 @@ import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { buildWorkbookValues, toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { FORM4_ROWS, FORM4_UNWIRED, isForm4Installed } from '../src/lib/xlsx-form4.ts'
 import { facilityResultSection, FORM3_ITEMS } from '../src/lib/doc-templates/report9.ts'
-import { rollUpForm3Results, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
+import { rollUpForm3Results, legacySheetOnlyStats, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
 import type { OfficialData } from '../src/lib/doc-templates/official.ts'
 import type { DelegationData } from '../src/lib/doc-templates/delegation.ts'
 
@@ -73,7 +73,7 @@ const SHEET_RESULTS: Array<[string, Array<'O' | 'X' | 'N'>]> = [
 ]
 const sheetStat = new Map<string, SheetStat>()
 for (const [name, rs] of SHEET_RESULTS) for (const r of rs) sheetStat.set(name, foldSheetResult(sheetStat.get(name), r))
-const { facilityChecks, resultMarks } = rollUpForm3Results(sheetStat, FORM3_ITEMS, INSTALLED)
+const { facilityChecks, resultMarks } = rollUpForm3Results(legacySheetOnlyStats(sheetStat), FORM3_ITEMS, INSTALLED)
 /** 설치인데 응답이 없어 **공란이 정답**인 행 — 이 픽스처에서는 유도등 하나다(AO13).
  *  '무응답 → 양호'가 되살아나면 여기가 먼저 붉어진다. */
 const UNANSWERED_INSTALLED = ['유도등']

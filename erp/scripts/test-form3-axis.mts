@@ -1,4 +1,4 @@
-/** 별지 4호 1쪽 · 9호 3쪽 1절 — 설치(√) 축과 점검결과(○/×) 축의 귀속 규칙 회귀 고정.
+﻿/** 별지 4호 1쪽 · 9호 3쪽 1절 — 설치(√) 축과 점검결과(○/×) 축의 귀속 규칙 회귀 고정.
  *  DB·서버 불필요, 결정적. 실행: npx tsx scripts/test-form3-axis.mts
  *
  *  이 파일이 지키는 것(2026-08-21):
@@ -10,8 +10,13 @@
  *
  *  어휘는 리터럴로 쓴다 — FORM3_ITEMS(report9.ts)를 끌어오면 서식 템플릿 편집이 이 검사를 흔든다.
  *  대신 그 어휘가 표준 42종에 실재하는지를 마지막에 대조해, 오타로 검사가 헛도는 걸 막는다. */
-import { rollUpForm3Results, foldSheetResult, SHEET_FACILITY_MAP } from '../src/lib/sheet-facility-map.ts'
+import {
+  rollUpForm3Results, foldSheetResult, foldSheetGroupStats, sheetGroupMapErrors,
+  SHEET_FACILITY_MAP, SHEET_GROUP_FORM3_MAP, type SheetGroupStat,
+} from '../src/lib/sheet-facility-map.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
+import { readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, extra = '') => {
@@ -19,6 +24,8 @@ const check = (name: string, ok: boolean, extra = '') => {
   ok ? pass++ : fail++
 }
 type Stat = { any: boolean; x: boolean; o: boolean }
+/** 롤업 입력 1건. group을 생략하면 **중분류 미상**(시트 단위) — 종전 동작의 대조군이다 */
+const S = (sheet: string, stat: Stat, group: string | null = null): SheetGroupStat => ({ sheet, group, stat })
 const ok1: Stat = { any: true, x: false, o: true }    // ○ 응답 있음
 const bad: Stat = { any: true, x: true, o: false }    // ✕ 응답 있음
 const naOnly: Stat = { any: true, x: false, o: false } // 응답은 있는데 전부 ／ (소방계획서_26 S1)
@@ -36,9 +43,9 @@ const ITEMS = [자탐, 화재알림, 상수도, 소화수조, 소화기구, 스�
 
 console.log('── 1) 종전 동작 보존 — 설치 항목의 마크는 달라지지 않는다')
 {
-  const r = rollUpForm3Results([['옥내소화전설비', ok1]], ITEMS, [옥내])
+  const r = rollUpForm3Results([S('옥내소화전설비', ok1)], ITEMS, [옥내])
   check('설치 + 응답 양호 → ○', r.resultMarks[옥내] === 'O', JSON.stringify(r.resultMarks[옥내]))
-  const rx = rollUpForm3Results([['옥내소화전설비', bad]], ITEMS, [옥내])
+  const rx = rollUpForm3Results([S('옥내소화전설비', bad)], ITEMS, [옥내])
   check('설치 + 불량 → ×', rx.resultMarks[옥내] === 'X')
   const r0 = rollUpForm3Results([], ITEMS, [옥내])
   check('설치 + 무응답 → 공란(키 없음)', r0.resultMarks[옥내] === undefined, JSON.stringify(r0.resultMarks[옥내]))
@@ -49,7 +56,7 @@ console.log('\n── 2) 번짐 차단 — 응답은 설치된 형제의 것 (�
 {
   // '자동화재탐지설비 및 시각경보장치' 시트 하나가 자탐·화재알림 두 항목을 덮는다.
   // 자탐만 설치된 건에서 시트에 응답하면 종전엔 화재알림설비까지 ○였다(서림사 실측).
-  const r = rollUpForm3Results([['자동화재탐지설비 및 시각경보장치', ok1]], ITEMS, [자탐])
+  const r = rollUpForm3Results([S('자동화재탐지설비 및 시각경보장치', ok1)], ITEMS, [자탐])
   check('설치된 자탐은 ○', r.resultMarks[자탐] === 'O')
   check('미설치 화재알림설비는 ／ (○로 번지지 않는다)', r.resultMarks[화재알림] === 'N',
     `실제: ${r.resultMarks[화재알림]}`)
@@ -58,7 +65,7 @@ console.log('\n── 2) 번짐 차단 — 응답은 설치된 형제의 것 (�
   check('차단된 항목은 대장 누락 경고에 들어가지 않는다',
     !r.axisWarnings.respondedNotInstalled.includes(화재알림))
 
-  const rx = rollUpForm3Results([['스프링클러설비', bad]], ITEMS, [스프링클러])
+  const rx = rollUpForm3Results([S('스프링클러설비', bad)], ITEMS, [스프링클러])
   check('불량도 형제로 번지지 않는다 (조기진압 ／)',
     rx.resultMarks[스프링클러] === 'X' && rx.resultMarks[조기진압] === 'N',
     JSON.stringify({ 스프링클러: rx.resultMarks[스프링클러], 조기진압: rx.resultMarks[조기진압] }))
@@ -67,7 +74,7 @@ console.log('\n── 2) 번짐 차단 — 응답은 설치된 형제의 것 (�
 console.log('\n── 3) 대장 누락 보존 — 형제가 전부 미설치면 결과를 지우지 않는다')
 {
   // 전용 시트(1항목)에 응답이 있는데 대장에 없다 = 실제로 점검했을 가능성이 크다(지평9 실측).
-  const r = rollUpForm3Results([['소화기구 및 자동소화장치', ok1]], ITEMS, [])
+  const r = rollUpForm3Results([S('소화기구 및 자동소화장치', ok1)], ITEMS, [])
   check('미설치여도 ○를 유지한다 (실점검을 지우지 않는다)', r.resultMarks[소화기구] === 'O',
     `실제: ${r.resultMarks[소화기구]}`)
   check('대장 누락 경고로 표면화된다', r.axisWarnings.respondedNotInstalled.includes(소화기구),
@@ -75,7 +82,7 @@ console.log('\n── 3) 대장 누락 보존 — 형제가 전부 미설치면 
 
   // 다항목 시트인데 형제가 전부 미설치인 경우도 같다 — 종전 전개를 유지한다.
   // (_probe-spec-badge의 '시트 1개 → 설비 2종 전개' 단언이 기대는 동작이다)
-  const r2 = rollUpForm3Results([['소화용수설비', ok1]], ITEMS, [])
+  const r2 = rollUpForm3Results([S('소화용수설비', ok1)], ITEMS, [])
   check('형제 전부 미설치 → 두 항목 모두 ○ 유지',
     r2.resultMarks[상수도] === 'O' && r2.resultMarks[소화수조] === 'O',
     JSON.stringify({ 상수도: r2.resultMarks[상수도], 소화수조: r2.resultMarks[소화수조] }))
@@ -85,13 +92,13 @@ console.log('\n── 3) 대장 누락 보존 — 형제가 전부 미설치면 
 
 console.log('\n── 4) 경계 — 한쪽만 설치면 그쪽만 산다')
 {
-  const r = rollUpForm3Results([['소화용수설비', ok1]], ITEMS, [상수도])
+  const r = rollUpForm3Results([S('소화용수설비', ok1)], ITEMS, [상수도])
   check('설치된 상수도 ○ · 미설치 소화수조 ／',
     r.resultMarks[상수도] === 'O' && r.resultMarks[소화수조] === 'N',
     JSON.stringify({ 상수도: r.resultMarks[상수도], 소화수조: r.resultMarks[소화수조] }))
   // 같은 항목을 여러 시트가 덮을 때, 한 시트에서 차단돼도 다른 시트가 정당하게 마크하면 살아난다
   const r2 = rollUpForm3Results(
-    [['자동화재탐지설비 및 시각경보장치', ok1], ['화재알림설비', ok1]], ITEMS, [자탐, 화재알림])
+    [S('자동화재탐지설비 및 시각경보장치', ok1), S('화재알림설비', ok1)], ITEMS, [자탐, 화재알림])
   check('둘 다 설치면 둘 다 ○', r2.resultMarks[자탐] === 'O' && r2.resultMarks[화재알림] === 'O')
   check('두 경고 모두 비어 있다',
     r2.axisWarnings.spillSuppressed.length === 0 && r2.axisWarnings.respondedNotInstalled.length === 0)
@@ -100,7 +107,7 @@ console.log('\n── 4) 경계 — 한쪽만 설치면 그쪽만 산다')
 console.log('\n── 5) 두 경고는 서로 배타 — 같은 항목이 양쪽에 들어가지 않는다')
 {
   const r = rollUpForm3Results(
-    [['자동화재탐지설비 및 시각경보장치', ok1], ['소화기구 및 자동소화장치', ok1]], ITEMS, [자탐])
+    [S('자동화재탐지설비 및 시각경보장치', ok1), S('소화기구 및 자동소화장치', ok1)], ITEMS, [자탐])
   const both = r.axisWarnings.spillSuppressed.filter(i => r.axisWarnings.respondedNotInstalled.includes(i))
   check('교집합 없음', both.length === 0, JSON.stringify(r.axisWarnings))
   check('한 건에서 두 갈래가 함께 잡힌다 (번짐 1 · 누락 1)',
@@ -112,15 +119,15 @@ console.log('\n── 5b) 전부 ／ 시트 — 해당없음이 양호로 둔갑
 {
   // 종전 {any,x} 두 축은 '전부 ／'를 표현할 수 없어 any=true·x=false = ○로 인쇄됐다.
   // [／ 전체] 버튼 하나로 만들 수 있는 상태였다 — 이 검사가 그 결함의 재발을 막는다.
-  const r = rollUpForm3Results([['옥내소화전설비', naOnly]], ITEMS, [옥내])
+  const r = rollUpForm3Results([S('옥내소화전설비', naOnly)], ITEMS, [옥내])
   check('설치 + 전부 ／ → ／ (○가 아니다)', r.resultMarks[옥내] === 'N', `실제: ${r.resultMarks[옥내]}`)
   // 같은 시트에 ／와 ○가 섞이면 ○ — foldSheetResult가 접은 {any,x:false,o:true}로 표현된다
-  const mixed = rollUpForm3Results([['옥내소화전설비', { any: true, x: false, o: true }]], ITEMS, [옥내])
+  const mixed = rollUpForm3Results([S('옥내소화전설비', { any: true, x: false, o: true })], ITEMS, [옥내])
   check('／+○ 혼합 → ○', mixed.resultMarks[옥내] === 'O')
-  const mixedX = rollUpForm3Results([['옥내소화전설비', { any: true, x: true, o: true }]], ITEMS, [옥내])
+  const mixedX = rollUpForm3Results([S('옥내소화전설비', { any: true, x: true, o: true })], ITEMS, [옥내])
   check('／+○+✕ 혼합 → ×', mixedX.resultMarks[옥내] === 'X')
   // 미설치 설비의 전용 시트가 전부 ／ — '해당 없다'는 진술이지 점검 흔적이 아니므로 대장 누락 경고 제외
-  const rn = rollUpForm3Results([['소화기구 및 자동소화장치', naOnly]], ITEMS, [])
+  const rn = rollUpForm3Results([S('소화기구 및 자동소화장치', naOnly)], ITEMS, [])
   check('미설치 + 전부 ／ → ／ 유지', rn.resultMarks[소화기구] === 'N', `실제: ${rn.resultMarks[소화기구]}`)
   check('전부 ／ 시트는 대장 누락 경고에 들어가지 않는다',
     !rn.axisWarnings.respondedNotInstalled.includes(소화기구), JSON.stringify(rn.axisWarnings))
@@ -131,6 +138,92 @@ console.log('\n── 5b) 전부 ／ 시트 — 해당없음이 양호로 둔갑
   const f2 = foldSheetResult(f1, 'X')
   check('fold: N → {any,!x,!o} / +O → o / +X → x',
     f0.any && !f0.x && !f0.o && f1.o && !f1.x && f2.x && f2.o, JSON.stringify({ f0, f1, f2 }))
+}
+
+console.log('\n── 7) 중분류 축 — 한 점검표가 설비 여럿을 덮을 때 (2026-09-01 유도등 실사고)')
+{
+  // 서림사 작동 회차 실데이터 재현: 유도등(21-A) 4문항 전부 ／ · 유도표지(21-B) 4문항 전부 ／ ·
+  // 피난유도선(21-C) 5문항 ○. 셋 다 대장 설치. 갑지 「현황」에 세 칸 모두 ○가 찍혀 있었다.
+  const G = ['유도등', '유도표지', '피난유도선']
+  const GI = [...G, '비상조명등', '휴대용비상조명등']
+  const 유도시트 = '유도등 및 유도표지'
+  const 실데이터: SheetGroupStat[] = [
+    S(유도시트, naOnly, '21-A'), S(유도시트, naOnly, '21-B'), S(유도시트, ok1, '21-C'),
+  ]
+
+  // ⭐ 대조군 먼저 — 같은 응답을 **시트 단위로 접으면** 옛 결함이 그대로 재현된다.
+  //    이게 없으면 아래 초록이 '고쳐서 초록'인지 '원래 초록'인지 구별할 수 없다.
+  const 옛방식 = rollUpForm3Results([S(유도시트, ok1)], GI, GI)
+  check('[대조군] 시트 단위로 접으면 ／로 입력한 유도등·유도표지까지 ○ (옛 결함)',
+    옛방식.resultMarks['유도등'] === 'O' && 옛방식.resultMarks['유도표지'] === 'O',
+    JSON.stringify(옛방식.resultMarks))
+
+  // 설치는 5종 전부 — 서림사 대장 그대로다(비상조명등·휴대용도 [√]). 그래야 '설치인데 무응답=공란'이 검사된다
+  const r = rollUpForm3Results(실데이터, GI, GI)
+  check('／로 입력한 유도등은 ／', r.resultMarks['유도등'] === 'N', `실제: ${r.resultMarks['유도등']}`)
+  check('／로 입력한 유도표지는 ／', r.resultMarks['유도표지'] === 'N', `실제: ${r.resultMarks['유도표지']}`)
+  check('○로 입력한 피난유도선만 ○', r.resultMarks['피난유도선'] === 'O', `실제: ${r.resultMarks['피난유도선']}`)
+  check('입력하지 않은 비상조명등은 공란(설치+무응답) — ○로 지어내지 않는다',
+    r.resultMarks['비상조명등'] === undefined, `실제: ${r.resultMarks['비상조명등']}`)
+
+  // 불량도 같은 축으로 갈린다 — ×가 형제 칸으로 새면 없는 불량이 인쇄된다
+  const rx = rollUpForm3Results([S(유도시트, bad, '21-A'), S(유도시트, ok1, '21-C')], GI, G)
+  check('×는 그 중분류에만 (유도등 × · 피난유도선 ○)',
+    rx.resultMarks['유도등'] === 'X' && rx.resultMarks['피난유도선'] === 'O',
+    JSON.stringify(rx.resultMarks))
+  check('응답 없는 중분류는 공란 유지 (유도표지)', rx.resultMarks['유도표지'] === undefined)
+
+  // 비상조명등 시트(22-A/22-B)도 같은 규칙
+  const 조명 = '비상조명등 및 휴대용비상조명등'
+  const r2 = rollUpForm3Results([S(조명, ok1, '22-A'), S(조명, bad, '22-B')], GI,
+    ['비상조명등', '휴대용비상조명등'])
+  check('비상조명등 ○ · 휴대용 ×', r2.resultMarks['비상조명등'] === 'O' && r2.resultMarks['휴대용비상조명등'] === 'X',
+    JSON.stringify(r2.resultMarks))
+
+  // 등재 밖은 폴백 — STD-15는 중분류가 구성요소축이라 일부러 안 이었다(감지기 응답이 화재알림설비로 가면 안 된다)
+  const r3 = rollUpForm3Results([S('자동화재탐지설비 및 시각경보장치', ok1, '15-D')], ITEMS, [자탐, 화재알림])
+  check('미등재 시트의 중분류는 종전대로 시트 전개(폴백)',
+    r3.resultMarks[자탐] === 'O' && r3.resultMarks[화재알림] === 'O', JSON.stringify(r3.resultMarks))
+  const r4 = rollUpForm3Results([S(유도시트, ok1, '21-Z')], GI, G)
+  check('없는 중분류 코드도 폴백(마크를 잃지 않는다)', r4.resultMarks['유도등'] === 'O')
+
+  // 접기 — 같은 중분류의 여러 응답은 합쳐지고, 다른 중분류로는 섞이지 않는다
+  const folded = foldSheetGroupStats([
+    { sheet: 유도시트, group: '21-A', result: 'N' },
+    { sheet: 유도시트, group: '21-A', result: 'N' },
+    { sheet: 유도시트, group: '21-C', result: 'O' },
+  ])
+  check('fold: (시트,중분류) 3응답 → 2엔트리', folded.length === 2, JSON.stringify(folded))
+  check('fold: 21-A는 전부 ／로 남는다(○가 새지 않는다)',
+    folded.find(f => f.group === '21-A')?.stat.o === false, JSON.stringify(folded))
+
+  // legacySheetOnlyStats(중분류를 버리는 대조군 도구)가 **제품 코드로 새지 않았는지** —
+  // 검사가 목록을 들고 있으면 파일이 늘 때 썩는다. '토큰을 쓰는가'로 자기정의하는 스캔이라 늘 최신이다.
+  const srcDir = path.join(import.meta.dirname, '..', 'src')
+  const leaked: string[] = []
+  let scanned = 0, positive = 0
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name)
+      if (e.isDirectory()) { walk(p); continue }
+      if (!/\.(ts|tsx)$/.test(e.name)) continue
+      scanned++
+      const src = readFileSync(p, 'utf8')
+      if (src.includes('rollUpForm3Results')) positive++        // 양성 대조 — 스캐너가 실제로 읽고 있다
+      if (src.includes('legacySheetOnlyStats') && !p.endsWith(path.join('lib', 'sheet-facility-map.ts'))) leaked.push(p)
+    }
+  }
+  walk(srcDir)
+  // 분모를 먼저 단언한다 — 0개를 훑고 '유출 없음'이라 말하면 공허 통과다(측정 없는 초록)
+  check(`유출 스캐너가 실제로 훑는다 (${scanned}파일 · 양성대조 ${positive}건)`, scanned > 100 && positive >= 3,
+    `scanned=${scanned} positive=${positive}`)
+  check('legacySheetOnlyStats가 제품 코드(src/)에 없다', leaked.length === 0, leaked.join(' / '))
+
+  // 매핑표 자기 검사 — 오타는 조용한 폴백이 되어 사고가 되살아난다
+  const errs = sheetGroupMapErrors(ALL_STANDARD_CODES)
+  check('SHEET_GROUP_FORM3_MAP 자기 검사 0건', errs.length === 0, errs.join(' / '))
+  check('등재 시트 6종', Object.keys(SHEET_GROUP_FORM3_MAP).length === 6,
+    `실제: ${Object.keys(SHEET_GROUP_FORM3_MAP).length}`)
 }
 
 console.log('\n── 6) 어휘 실재 확인 — 오타로 검사가 헛돌지 않게')
