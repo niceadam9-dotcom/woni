@@ -106,6 +106,7 @@ if (VERIFY) {
 
   const S = BIJECTION.sha
   const pOld = {}, cNew = {}
+  const perFile = []          // 파일별 내역 — 전역 합계만 보면 상쇄가 숨는다(판정 DEF-A1)
   let staleNew = 0, staleOld = 0, byteSame = 0, undoSame = 0
   const notIdentical = [], notUndone = []
   try {
@@ -118,12 +119,15 @@ if (VERIFY) {
       for (const [o, n] of MAP) rev = rev.replace(boundary(n), (_m, b) => `${b}${o}`)
       if (fwd === child) byteSame++; else notIdentical.push(name)
       if (rev === parent) undoSame++; else notUndone.push(name)
+      const fo = {}, fn = {}
       for (const [o, n] of MAP) {
-        pOld[o] = (pOld[o] ?? 0) + count(parent, o)
-        cNew[n] = (cNew[n] ?? 0) + count(child, n)
+        fo[o] = count(parent, o); fn[n] = count(child, n)
+        pOld[o] = (pOld[o] ?? 0) + fo[o]
+        cNew[n] = (cNew[n] ?? 0) + fn[n]
         staleNew += count(parent, n)   // 부모에 신 토큰이 미리 있으면 '치환'이 아니다
         staleOld += count(child, o)    // 자식에 구 클래스가 남으면 완전 치환이 아니다
       }
+      perFile.push({ name, fo, fn })
     }
   } catch (e) {
     fail(`${S} 또는 그 부모를 읽지 못했다 — 히스토리가 없으면 이 축은 성립하지 않는다`, e.message)
@@ -136,12 +140,28 @@ if (VERIFY) {
     ? ok(`치환 규모가 고정 기대값과 같다 (${total}곳 @ ${S})`)
     : fail(`치환 규모 ${total} ≠ 기대 ${BIJECTION.total}`, '리비전 고정 값이라 달라질 수 없다 — MAP이나 FILES가 바뀌었다')
 
-  // 본 축 — 구 클래스 다중집합이 신 토큰 다중집합으로 **정확히** 옮겨갔는가
-  const mismatch = MAP.filter(([o, n]) => (pOld[o] ?? 0) !== (cNew[n] ?? 0))
-    .map(([o, n]) => `${o} ${pOld[o]} → ${n} ${cNew[n]}`)
+  // 매핑별 내역을 **고정 기대값**과 대조 — 합계만 맞고 내역이 어긋나는 경우를 막는다.
+  //  ⚠ 이 상수는 한때 정의만 되고 **한 번도 읽히지 않았다**(판정 DEF-A2). 판정자가
+  //    `'text-xs': 135`를 999로 위조해도 전건 초록임을 실증했다. 주석이 약속한 가드가
+  //    코드에 없으면 그 주석은 문서가 아니라 거짓말이다.
+  const tokenMismatch = MAP.filter(([o]) => (pOld[o] ?? 0) !== BIJECTION.perToken[o])
+    .map(([o]) => `${o} 실측 ${pOld[o] ?? 0} ≠ 기대 ${BIJECTION.perToken[o]}`)
+  tokenMismatch.length === 0
+    ? ok(`매핑별 곳수가 고정 기대값과 전건 일치 (${MAP.map(([o, n]) => `${o}→${n}:${pOld[o]}`).join(' · ')})`)
+    : fail('매핑별 내역이 기대와 어긋난다', tokenMismatch.join(' / '))
+
+  // 본 축 — 구 클래스 다중집합이 신 토큰 다중집합으로 **정확히** 옮겨갔는가.
+  //  ⚠⚠ **파일별로 본다.** 전역 합계만 보면 두 오치환이 서로를 상쇄해 통과한다 —
+  //     판정자 A가 실증했다(DEF-A1): 잔차 3파일에서 한 곳을 text-form-xs→text-form-sm으로,
+  //     다른 곳을 text-form-sm→text-form-xs로 바꾸면 합계가 그대로라 6/6 전건 초록인데
+  //     **화면의 두 칸은 실제로 크기가 다르게 렌더된다**(--fs-3 vs --fs-4).
+  //     그 구멍이 컸던 이유는 바이트 동일 단언이 13파일만 덮고, 나머지 3파일에 사는
+  //     120곳(471의 25.5%)이 오직 전역 합계로만 검증됐기 때문이다.
+  const mismatch = perFile.flatMap(p =>
+    MAP.filter(([o, n]) => p.fo[o] !== p.fn[n]).map(([o, n]) => `${p.name}: ${o} ${p.fo[o]} → ${n} ${p.fn[n]}`))
   mismatch.length === 0
-    ? ok(`폰트 클래스 다중집합이 매핑 9종 전건 일치 — 치환은 전단사였다 (${MAP.map(([o, n]) => `${o}→${n}:${pOld[o]}`).join(' · ')})`)
-    : fail('다중집합이 어긋난다 — 치환 중 크기가 바뀐 곳이 있다', mismatch.join(' / '))
+    ? ok(`폰트 클래스 다중집합이 **파일별로** 매핑 9종 전건 일치 (16파일 × 9매핑 = 144쌍) — 치환은 전단사였다`)
+    : fail('파일별 다중집합이 어긋난다 — 그 파일 안에서 크기가 바뀐 곳이 있다', mismatch.join(' / '))
 
   staleNew === 0 ? ok('부모에 신 토큰이 0건 (치환 전 상태가 맞다)')
                  : fail(`부모에 신 토큰 ${staleNew}건 — 부모가 이미 치환된 상태다(대조군이 아니다)`)
@@ -166,8 +186,35 @@ if (VERIFY) {
     : fail(`바이트 동일 ${byteSame} (기대 ${BIJECTION.byteIdentical}) · 잔차 [${notIdentical.join(', ')}] (기대 [${BIJECTION.residual.join(', ')}])`,
         '역시 리비전 고정 값이다 — 달라졌다면 이 검사 쪽이 틀린 것이다')
 
+  // CSS 축 — 9개 신 토큰이 **서로 다른** CSS 변수에 묶였는가.
+  //  소스 축만으로는 "두 구 클래스가 다른 이름의 토큰으로 갔다"까지만 말한다. 그 두 토큰이
+  //  같은 변수를 가리키면 이름만 다르고 크기는 합쳐진 것이다 — 소스 축이 구조적으로 못 보는 구멍.
+  //  여기서 값(9px 등)을 단언하지는 않는다. 4ccda41 시점엔 이미 S3 신 값이라 구 값이 없기 때문이고,
+  //  그 사실을 숨기지 않는다. 이 축이 닫는 것은 **단사성**이지 값 보존이 아니다.
+  try {
+    const css = show(S, 'src/app/globals.css')
+    const bind = {}
+    for (const [, n] of MAP) {
+      const m = css.match(new RegExp(`@utility\\s+${n}\\s*\\{[^}]*?var\\((--fs-[a-z0-9-]+)\\)`))
+      if (m) bind[n] = m[1]
+    }
+    const found = Object.keys(bind).length
+    const distinct = new Set(Object.values(bind)).size
+    found === MAP.length && distinct === MAP.length
+      ? ok(`CSS 축: 신 토큰 9종이 서로 다른 변수 9개에 묶였다 (${MAP.map(([, n]) => `${n}=${bind[n]}`).join(' · ')})`)
+      : fail(`CSS 축: 바인딩 ${found}/${MAP.length} · 서로 다른 변수 ${distinct}/${MAP.length}`,
+          '두 토큰이 같은 변수를 가리키면 이름만 다르고 크기는 합쳐진 것이다')
+  } catch (e) {
+    fail(`${S}의 globals.css를 읽지 못했다 — CSS 축을 건너뛰지 않는다`, e.message)
+  }
+
   console.log(`\n${bad === 0
-    ? `S2-7 정적 항등 ✅ — "471곳 치환은 크기를 하나도 안 바꿨다"가 ${S}에서 재증명된다.\n   ⚠ 이 축이 증명하는 것은 **소스 치환이 전단사**라는 것까지다. 화면 픽셀 축은\n     test-plan-readability --identity(회귀 잠금) + --print(구 값 복원)가 따로 잰다.`
+    ? `S2-7 정적 전단사 ✅ — 471곳 치환이 **소스 축에서 전단사**였음이 ${S}에서 재증명된다.\n`
+      + `   ⚠ 이것은 "크기가 하나도 안 바뀌었다"와 **다른(더 좁은) 명제다**. 이 검사는 각 토큰이\n`
+      + `     어떤 값에 묶였는지를 재지 않는다 — 단사성(서로 다른 변수)까지만 본다.\n`
+      + `     크기 보존 축은 test-plan-readability --identity(회귀 잠금)와 --print(구 값 복원)가 잰다.\n`
+      + `   ⚠ 헤드라인이 한때 "크기를 하나도 안 바꿨다가 재증명된다"였고 그것은 과장이었다\n`
+      + `     (판정 DEF-A3). 검사가 증명하지 않는 것을 검사가 선언하면 안 된다.`
     : `❌ ${bad}건 실패`}`)
   process.exit(bad === 0 ? 0 : 1)
 }
