@@ -72,6 +72,22 @@ export function resolveAnchor(c: AnchorInput): AnchorResolution {
   return { date: null, source: null, divergent }
 }
 
+/** 기산점이 **실제로 바뀌었는가** — 계획 재계산·확정 일정 팝업의 방아쇠.
+ *
+ *  ⚠ 필드 하나를 보고 판정하면 안 된다. 종전 코드는 `plan_anchor_date`만 비교했는데,
+ *  기산점이 사용승인일 축으로 옮겨간 뒤로 그 판정은 **사용승인일 변경을 통째로 놓친다**:
+ *   · 기존 계획의 월이 안 고쳐지고
+ *   · 확정 일정 보호 팝업이 안 뜨며
+ *   · `plan_id`가 (연,월) 단위라 다음 생성 때 **새 월에 회차가 하나 더** 생긴다
+ *     (충돌 키가 `plan_id,customer_id,sequence_num`이라 다른 달은 충돌로 안 걸린다)
+ *
+ *  반대로 **바뀌지 않은 것도 정확히 알아야** 한다 — `manual=true`인 고객의 사용승인일을 고치면
+ *  기산점은 그대로이므로 재계산도 팝업도 띄우면 안 된다(쓸데없이 일정을 흔든다).
+ *  그래서 필드 비교가 아니라 **해석 결과**를 비교한다. */
+export function anchorChanged(before: AnchorInput, after: AnchorInput): boolean {
+  return resolveAnchor(before).date !== resolveAnchor(after).date
+}
+
 /** 화면 표기용 짧은 라벨 — 기산점이 어디서 왔는지 사람이 알 수 있게 한다. */
 export function anchorSourceLabel(source: AnchorSource): string {
   return source === 'approval' ? '사용승인일'

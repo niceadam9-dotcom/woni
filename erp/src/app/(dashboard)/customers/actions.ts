@@ -5,7 +5,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress, extractRoadName, addressDupKey } from '@/lib/address-parser'
 import { resolveFireStation } from '@/lib/fire-station'
-import { generateRollingPlanItems, loadAnchorDates } from '@/lib/inspection-plan-generator'
+import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from '@/lib/inspection-plan-generator'
+// `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
+import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
+import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
@@ -641,9 +644,25 @@ export async function updateCustomerAction(
     return { error: '관할 소방서는 필수값입니다 — 주소 검색으로 자동 입력하거나 직접 입력해주세요.' }
   }
 
-  // 기준일(점검계획일) 변경 판정 — 사용승인일은 기준일이 아니므로 계획 재계산과 무관 (2026-07-14 폴백 제거)
-  const newAnchorDate = input.plan_anchor_date !== undefined ? input.plan_anchor_date : prevAnchorDate
-  const anchorChanged = newAnchorDate !== prevAnchorDate
+  // 기산점 변경 판정 — **해석 결과**를 비교한다(필드 하나가 아니라).
+  //
+  // ⚠ 종전엔 `plan_anchor_date`만 봤고 주석도 '사용승인일은 기준일이 아니다'라 적혀 있었다.
+  //   기산점이 사용승인일 축으로 옮겨간 뒤 그 판정은 **사용승인일 변경을 통째로 놓쳤다** —
+  //   기존 월이 안 고쳐지고, 확정 일정 보호 팝업이 안 뜨고, `plan_id`가 (연,월) 단위라
+  //   다음 생성 때 새 월에 회차가 하나 더 생긴다. 반대로 manual=true 고객의 사용승인일 변경은
+  //   기산점을 안 움직이므로 **재계산도 팝업도 뜨면 안 된다**. 둘 다 anchorChanged가 가른다.
+  const anchorManual = await loadAnchorManualFlag(admin, customerId)
+  const nextUseApproval = input.use_approval_date !== undefined
+    ? (input.use_approval_date || null) : (prev?.use_approval_date ?? null)
+  const nextPlanAnchor = input.plan_anchor_date !== undefined ? input.plan_anchor_date : prevAnchorDate
+  const anchorChanged = anchorChangedFn(
+    { use_approval_date: prev?.use_approval_date ?? null, plan_anchor_date: prevAnchorDate, plan_anchor_manual: anchorManual },
+    { use_approval_date: nextUseApproval, plan_anchor_date: nextPlanAnchor, plan_anchor_manual: anchorManual },
+  )
+  // 사용승인일이 실제로 바뀌었는가 — 최초점검(사용승인일+60일) 재판정의 방아쇠.
+  // 기산점 변경과 **별개 축**이다: manual=true 고객은 기산점이 안 움직여도 최초점검 판정은 바뀐다.
+  const approvalChanged = nextUseApproval !== (prev?.use_approval_date ?? null)
+  const newAnchorDate = nextPlanAnchor
 
   // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 아무것도 저장하지 않고 목록 반환
   let confirmedItems: ConfirmedPlanItemInfo[] = []
@@ -684,6 +703,13 @@ export async function updateCustomerAction(
     }
     // 일반관리 포함 전 유형 동일 재계산 (소방계획서_6 — event 특례 제거)
     await _resetPlanItemsForCustomer(admin, customerId, { plan_anchor_date: newAnchorDate })
+  }
+
+  // 사용승인일이 바뀌면 최초점검(사용승인일+60일)을 다시 판정한다 — 생성 시점에 굳은 값이
+  // 날짜 정정을 안 따라오면 별지 9호의 [√]최초점검이 사실과 어긋난 채 인쇄된다.
+  // 수동 지정분은 보존하고, 출처 컬럼이 없으면 아예 건너뛴다(구별 못 하면 덮지 않는다).
+  if (approvalChanged) {
+    await recalcIsInitialForCustomer(admin, customerId)
   }
 
   // 점검유형·종류 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
@@ -1696,11 +1722,27 @@ export async function patchCustomerFieldAction(
   const prevRow = prevData as Record<string, string | null> | null
   const oldValue = prevRow?.[field] ?? null
 
-  // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 저장하지 않고 목록 반환
-  // 사용승인일은 기준일이 아니므로 재계산 트리거 아님 (2026-07-14 폴백 제거)
-  const isAnchorField = field === 'plan_anchor_date'
+  // 기산점 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 저장하지 않고 목록 반환
+  //
+  // ⚠ 종전엔 `plan_anchor_date`만 기산점 필드로 봤다. 사용승인일이 기산점 축이 된 뒤로는
+  //   그 판정이 사용승인일 인라인 수정을 놓쳐 확정 일정이 말없이 어긋난다(위 updateCustomerAction과 같은 결함).
+  //   두 필드 모두 후보로 두고, **실제로 기산점이 움직였는지**는 해석기가 가른다.
+  const isAnchorField = field === 'plan_anchor_date' || field === 'use_approval_date'
+  const anchorManual = isAnchorField ? await loadAnchorManualFlag(admin, customerId) : undefined
+  const anchorMoved = isAnchorField && anchorChangedFn(
+    {
+      use_approval_date: prevRow?.use_approval_date ?? null,
+      plan_anchor_date: prevRow?.plan_anchor_date ?? null,
+      plan_anchor_manual: anchorManual,
+    },
+    {
+      use_approval_date: field === 'use_approval_date' ? (value || null) : (prevRow?.use_approval_date ?? null),
+      plan_anchor_date: field === 'plan_anchor_date' ? (value || null) : (prevRow?.plan_anchor_date ?? null),
+      plan_anchor_manual: anchorManual,
+    },
+  )
   let confirmedItems: ConfirmedPlanItemInfo[] = []
-  if (isAnchorField && (value || null) !== oldValue) {
+  if (anchorMoved) {
     confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
     if (confirmedItems.length > 0 && !opts?.confirmedDecision) {
       return { requiresConfirmedDecision: true, confirmedItems }
@@ -1722,18 +1764,26 @@ export async function patchCustomerFieldAction(
 
   if (error) return { error: '수정에 실패했습니다.' }
 
-  // 기준일 관련 필드 변경 시 미확정(planned) 항목 재계산 — 변경 안 된 쪽은 기존 값 유지.
+  // 기산점이 **실제로 움직였을 때만** 미확정(planned) 항목 재계산 — 위 팝업과 같은 조건이어야 한다.
   // 확정(confirmed)은 기본 유지 — '확정해지 후 재계산' 선택 시만 planned 복귀 후 포함
-  if (isAnchorField && (value || null) !== oldValue) {
+  if (anchorMoved) {
     if (opts?.confirmedDecision === 'unconfirm' && confirmedItems.length > 0) {
       await admin.from('inspection_plan_items')
         .update({ status: 'planned' } as Record<string, unknown>)
         .in('id', confirmedItems.map(i => i.id))
     }
-    // 일반관리 포함 전 유형 동일 재계산 (소방계획서_6 — event 특례 제거)
+    // 일반관리 포함 전 유형 동일 재계산 (소방계획서_6 — event 특례 제거).
+    // plan_anchor_date만 넘긴다 — 사용승인일·manual 플래그는 loadAnchorDates가 DB에서 보강한다
+    // (여기서 갱신된 값이 이미 저장돼 있다).
     await _resetPlanItemsForCustomer(admin, customerId, {
       plan_anchor_date: field === 'plan_anchor_date' ? (value || null) : (prevRow?.plan_anchor_date ?? null),
     })
+  }
+
+  // 사용승인일 인라인 수정 → 최초점검(사용승인일+60일) 재판정.
+  // ⚠ anchorMoved와 **다른 조건**이다 — manual=true 고객은 기산점이 안 움직여도 최초점검은 바뀐다.
+  if (field === 'use_approval_date' && (value || null) !== oldValue) {
+    await recalcIsInitialForCustomer(admin, customerId)
   }
 
   // 점검유형 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)

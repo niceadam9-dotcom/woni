@@ -72,6 +72,19 @@ async function fillAnchorFields<T extends {
   return out
 }
 
+/** 한 고객의 `plan_anchor_manual` **관용 조회** — 컬럼이 없으면 `undefined`(레거시).
+ *  기산점 변경 판정(`anchorChanged`)이 해석기와 **같은 입력**을 보게 하려고 공개한다.
+ *  다른 값으로 해석하면 재계산이 돌지 말아야 할 때 돌거나, 돌아야 할 때 안 돈다. */
+export async function loadAnchorManualFlag(admin: Admin, customerId: string): Promise<boolean | undefined> {
+  if (hasAnchorManualCol === false) return undefined
+  const { data, error } = await admin.from('customers')
+    .select('plan_anchor_manual').eq('id', customerId).maybeSingle()
+  if (error) { hasAnchorManualCol = false; return undefined }
+  hasAnchorManualCol = true
+  const v = (data as { plan_anchor_manual?: unknown } | null)?.plan_anchor_manual
+  return typeof v === 'boolean' ? v : undefined
+}
+
 /** 계획 기산점(기준일) 일괄 결정 — 우선순위는 `lib/plan-anchor.ts`가 단일 원천으로 정한다.
  *
  *  법령은 종합점검 시기를 **사용승인일이 속하는 달**로 정하는데(시행규칙 [별표 3]) 이 앱은

@@ -13,7 +13,7 @@
  *
  *  ①이 깨지면 코드를 배포하는 순간 전 고객의 연간 일정이 재배치된다 — 이 파일에서 가장 중요한 축이다.
  */
-import { resolveAnchor, anchorSourceLabel, type AnchorInput } from '../src/lib/plan-anchor.ts'
+import { resolveAnchor, anchorChanged, anchorSourceLabel, type AnchorInput } from '../src/lib/plan-anchor.ts'
 
 let pass = 0, fail = 0
 function check(name: string, cond: boolean, detail = '') {
@@ -90,6 +90,53 @@ const flipped2 = [
   [{ use_approval_date: APPROVAL, plan_anchor_date: MANUAL, plan_anchor_manual: true }, MANUAL] as const,
 ].filter(([input, want]) => mutantIgnoreManual(input) !== want).length
 check(`변이 'manual 축 무시'를 사례표가 잡는다 (${flipped2}건)`, flipped2 > 0)
+
+console.log('\n— 기산점 변경 판정 (재계산·확정 일정 팝업의 방아쇠)')
+
+/** [설명, before, after, 기대] */
+type ChCase = [string, AnchorInput, AnchorInput, boolean]
+const CH: ChCase[] = [
+  ['점검계획일 변경(레거시) → 움직인다',
+    { plan_anchor_date: '2026-08-27' }, { plan_anchor_date: '2026-02-13' }, true],
+  // ⭐ 이 건이 수리 대상이었다 — 종전 판정은 plan_anchor_date만 봐서 이걸 통째로 놓쳤다
+  ['manual=false 고객의 사용승인일 변경 → 움직인다',
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: false },
+    { use_approval_date: '2010-05-01', plan_anchor_date: '2026-08-27', plan_anchor_manual: false }, true],
+  ['사용승인일 나중 입력(빈칸 → 값), manual=false → 움직인다',
+    { use_approval_date: null, plan_anchor_date: '2026-08-27', plan_anchor_manual: false },
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: false }, true],
+  // ⭐ 반대 방향도 정확해야 한다 — 예외 고객의 일정을 쓸데없이 흔들면 안 된다
+  ['manual=true 고객의 사용승인일 변경 → 안 움직인다',
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: true },
+    { use_approval_date: '2010-05-01', plan_anchor_date: '2026-08-27', plan_anchor_manual: true }, false],
+  ['컬럼 미적용(레거시)에서 사용승인일 변경 → 안 움직인다 (기산점이 아니다)',
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27' },
+    { use_approval_date: '2010-05-01', plan_anchor_date: '2026-08-27' }, false],
+  ['아무것도 안 바뀌면 → 안 움직인다',
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: false },
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: false }, false],
+  ['manual=true 고객의 점검계획일 변경 → 움직인다',
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: true },
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-09-01', plan_anchor_manual: true }, true],
+  ['manual=false 고객의 점검계획일 변경 → 안 움직인다 (사용승인일이 이긴다)',
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-08-27', plan_anchor_manual: false },
+    { use_approval_date: '2009-02-13', plan_anchor_date: '2026-09-01', plan_anchor_manual: false }, false],
+]
+for (const [why, before, after, want] of CH) {
+  check(`${why}`, anchorChanged(before, after) === want, `got=${anchorChanged(before, after)}`)
+}
+
+// 돌연변이 — 수리 **전**의 판정(plan_anchor_date만 비교)이 사례표에 걸리는가.
+// 걸리지 않으면 이 사례표는 그 결함을 못 잡는다는 뜻이라 회귀 방어선이 못 된다.
+const oldPredicate = (b: AnchorInput, a: AnchorInput) =>
+  (a.plan_anchor_date ?? null) !== (b.plan_anchor_date ?? null)
+const caught = CH.filter(([, b, a, want]) => oldPredicate(b, a) !== want).length
+check(`변이 '점검계획일만 비교(수리 전)'를 사례표가 잡는다 (${caught}건)`, caught > 0,
+  '이 변이를 아무 사례도 못 가른다 — 사용승인일 축이 검사되지 않고 있다')
+
+// 대칭성 — 되돌리면 똑같이 '움직였다'로 나와야 한다(한 방향만 보면 정정이 절반만 반영된다)
+const asym = CH.filter(([, b, a, want]) => anchorChanged(a, b) !== want).length
+check('변경 판정이 방향에 무관하다(되돌림도 변경이다)', asym === 0, `${asym}건 비대칭`)
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail === 0 ? 0 : 1)
