@@ -222,7 +222,10 @@ export async function fetchCustomerList(
     })
     // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 준비율·미완료 판정 전 유형 동일
     const incompleteAreas: string[] = []
-    if (!r.plan_anchor_date || !r.assigned_employee_id) incompleteAreas.push('기본정보')
+    // 사용승인일은 2026-09-01부터 신규 등록 필수다(법정 점검 시기·최초점검 판정의 기산점).
+    // 기존 고객은 DB 제약을 걸지 않고 여기서 '기본정보 미완료'로 드러내 사람이 채우게 유도한다
+    // — 값이 없는 고객이 스테이징 실측 55/301이라, 막으면 그만큼이 즉시 멈춘다.
+    if (!r.plan_anchor_date || !r.use_approval_date || !r.assigned_employee_id) incompleteAreas.push('기본정보')
     if (!(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null))) incompleteAreas.push('건물')
     if (!repIds.has(r.id as string)) incompleteAreas.push('관계인')
     if (readiness.done < readiness.total) incompleteAreas.push('계획서')

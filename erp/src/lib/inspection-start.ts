@@ -1,6 +1,7 @@
 import { revalidatePath } from 'next/cache'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
+import { planTypeSub, isInitialByLaw } from '@/lib/inspection-round'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -88,6 +89,19 @@ export async function startInspectionCore(
   const autoAssigned = !item.assigned_employee_id
   const assigneeId = item.assigned_employee_id ?? actorId
 
+  // 최초점검 자동판정 — 법령 축(사용승인일 + 60일). **이 경로가 값을 아예 안 넣고 있었다**(F-2):
+  // is_initial이 DB DEFAULT false로 새어, 수동 등록(inspections/actions.ts)과 [시작] 버튼이
+  // **같은 고객에 대해 서로 다른 서식**을 만들었다. 두 경로가 같은 순수 함수를 부르게 한다.
+  // 고객 행은 임베드가 아니라 별도 조회로 얻는다 — 임베드는 FK가 하나 더 생기는 순간 PGRST201로
+  // 조용히 죽는 축이라(145 사고) 이 경로에 그 위험을 들이지 않는다.
+  const { data: custRaw } = await admin
+    .from('customers').select('use_approval_date').eq('id', item.customer_id).single()
+  const rowSub = planTypeSub(item.plan_type)
+  const isInitial = rowSub
+    ? isInitialByLaw((custRaw as { use_approval_date: string | null } | null)?.use_approval_date,
+        item.scheduled_date, rowSub)
+    : false
+
   // inspections 레코드 생성 — DB 트리거가 체크리스트 자동 생성
   // (자체점검 special_*·null = 6단계 / 정기·레거시 event = 1단계 — plan_type으로 분기, migration 111)
   const { data: inspRaw, error: inspErr } = await admin
@@ -99,9 +113,12 @@ export async function startInspectionCore(
       inspection_type:      item.inspection_type,
       sequence_num:         item.sequence_num,
       inspection_start_date: item.scheduled_date,
+      is_initial:           isInitial,
       status:               'in_progress',
       created_by:           actorId,
       plan_type:            item.plan_type ?? null,
+      // is_initial_source는 **넣지 않는다** — 마이그레이션 155 적용 전에는 없는 컬럼이라
+      // INSERT가 통째로 실패한다. 적용 후에는 DB DEFAULT 'auto'가 같은 값을 준다.
     } as Record<string, unknown>)
     .select('id')
     .single()

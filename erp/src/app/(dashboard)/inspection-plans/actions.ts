@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
-import { loadAnchorDates } from '@/lib/inspection-plan-generator'
+import { loadAnchorDates, loadAnchorResolutions } from '@/lib/inspection-plan-generator'
+import { anchorSourceLabel } from '@/lib/plan-anchor'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
@@ -538,11 +539,12 @@ export async function autoGeneratePlanAction(input: {
     )
 
     if (refItems && refItems.length > 0) {
-      // 고객 기준일 조회 (점검계획일 → 최초 점검시작일)
+      // 고객 기준일 조회 (resolveAnchor: 사용승인일/점검계획일 축 → 최초 점검시작일)
       const customerIds = [...new Set(refItems.map(i => (i as Record<string, unknown>).customer_id as string))]
       const { data: custData } = await admin
-        .from('customers').select('id, plan_anchor_date').in('id', customerIds)
-      const anchorMap = await loadAnchorDates(admin, (custData ?? []) as Array<{ id: string; plan_anchor_date: string | null }>)
+        .from('customers').select('id, plan_anchor_date, use_approval_date').in('id', customerIds)
+      const anchorMap = await loadAnchorDates(admin,
+        (custData ?? []) as Array<{ id: string; plan_anchor_date: string | null; use_approval_date: string | null }>)
 
       // 해당 월 공휴일 조회
       const monthStr = String(input.month).padStart(2, '0')
@@ -645,13 +647,14 @@ export async function getSuggestedItemsAction(
   // 일반관리도 자체점검 제안 대상 (소방계획서_6 W-10 — 종류는 sub_type으로 판정)
   const { data: customers } = await admin
     .from('customers')
-    .select('id, customer_name, customer_code, inspection_type, inspection_sub_type, plan_anchor_date, assigned_employee_id')
+    .select('id, customer_name, customer_code, inspection_type, inspection_sub_type, plan_anchor_date, use_approval_date, assigned_employee_id')
     .eq('is_active', true)
     .order('customer_name')
 
   if (!customers) return { suggestions: [] }
 
-  const anchorMap = await loadAnchorDates(admin, customers as Array<{ id: string; plan_anchor_date: string | null }>)
+  const anchorMap = await loadAnchorResolutions(admin,
+    customers as Array<{ id: string; plan_anchor_date: string | null; use_approval_date: string | null }>)
 
   const suggestions: Array<{
     id: string; customer_name: string; customer_code: string
@@ -660,11 +663,15 @@ export async function getSuggestedItemsAction(
   }> = []
 
   for (const c of customers) {
-    const anchor = anchorMap.get(c.id as string)
-    if (!anchor) continue
+    const res = anchorMap.get(c.id as string)
+    if (!res) continue
+    const anchor = res.date
     // 종합 여부 = 소방안전관리는 inspection_type, 일반관리는 sub_type (W-10)
     const isComp = c.inspection_type === '종합' || (c as Record<string, unknown>).inspection_sub_type === '종합'
-    const anchorLabel = anchor === (c as Record<string, unknown>).plan_anchor_date ? '점검계획일' : '점검시작일'
+    // 기산점 출처는 3갈래(사용승인일/점검계획일/최초 점검일)다 — 종전엔 `anchor === plan_anchor_date`
+    // 2분법으로 추정해, 사용승인일이 기산점이 되는 순간 '점검시작일'이라 거짓 표기한다.
+    // 추정하지 않고 해석기가 돌려준 출처를 그대로 쓴다.
+    const anchorLabel = anchorSourceLabel(res.source)
     const approvalDate = new Date(anchor)
     const approvalMonth = approvalDate.getMonth() + 1
     const dateLabel = `${approvalDate.getFullYear()}년 ${approvalMonth}월 ${approvalDate.getDate()}일`

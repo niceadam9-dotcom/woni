@@ -20,6 +20,7 @@ import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatTel } from '@/lib/format-contact'
+import { inspectionCheckboxes } from '@/lib/inspection-round'
 import { trainingDoneIn, type TrainingRecordLike } from '@/lib/training-records'
 import { deriveMuFromStd32, fillNonApplicableMu } from '@/lib/mu-std32-map'
 import type { ManagerRow } from '@/components/customers/plan-form17'
@@ -106,7 +107,10 @@ export async function assembleReport9(
 }> {
   const [inspRes, custRes, bldRes, contactsRes, companyRes, partsRes, plansRes, formsRes, defectsRes] = await Promise.all([
     admin.from('inspections')
-      .select('inspection_type, is_initial, inspection_start_date, inspection_end_date, inspection_days, year, assigned_employee_id')
+      // plan_type은 점검종류 판정의 **정본**이다(inspection-round S3-2). 종전엔 이걸 안 실어와
+      // 아래 3분기 체크가 inspection_type만 봤고, 그래서 일반관리 고객의 별지 9호는 세 칸이
+      // 모두 빈칸으로 나갔다 — 같은 묶음의 표지는 plan_type을 봐서 정확했다(F-3).
+      .select('inspection_type, plan_type, is_initial, inspection_start_date, inspection_end_date, inspection_days, year, assigned_employee_id')
       .eq('id', inspectionId).single(),
     admin.from('customers')
       .select('customer_name, address, use_approval_date, fire_station, building_grade,'
@@ -136,7 +140,7 @@ export async function assembleReport9(
       .eq('inspection_id', inspectionId).order('created_at'),
   ])
   type InspRow = {
-    inspection_type: string | null; is_initial: boolean | null
+    inspection_type: string | null; plan_type: string | null; is_initial: boolean | null
     inspection_start_date: string | null; inspection_end_date: string | null
     inspection_days: number | null; year: number; assigned_employee_id: string | null
   }
@@ -377,11 +381,12 @@ export async function assembleReport9(
   const mains = parts.filter(p => p.role === '주된')
   const assists = parts.filter(p => p.role === '보조')
 
-  // 점검 구분 — 작동/종합(최초·그 밖의) (워커 동일)
-  const itype = insp.inspection_type ?? ''
-  const ckOp = itype === '작동'
-  const ckInitial = itype === '최초' || (itype === '종합' && !!insp.is_initial)
-  const ckCompEtc = itype === '종합' && !ckInitial
+  // 점검 구분 — 작동/종합(최초·그 밖의).
+  // ⚠ 여기서 직접 파생하지 않는다 — 표지·공문·위임장이 쓰는 `inspectionTypeLabel`과 **같은 유도식**을
+  // 쓰는 단일 원천을 부른다. 종전엔 이 자리가 `inspection_type`만 봐서 라벨 축과 갈라져 있었고,
+  // 그 결과 일반관리 고객(운영 C003이 그렇다)의 별지 9호는 세 칸이 모두 빈칸으로 인쇄됐다(F-3).
+  const { ckOp, ckInitial, ckCompEtc } =
+    inspectionCheckboxes(insp.inspection_type, !!insp.is_initial, insp.plan_type)
 
   const ms = b?.main_structure ?? ''
   const rf = b?.roof_structure ?? ''

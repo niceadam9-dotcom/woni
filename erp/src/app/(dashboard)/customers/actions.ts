@@ -98,6 +98,12 @@ export async function createCustomerAction(
   // 점검계획일 필수 — 연간 점검계획의 기산점 (수동 최우선)
   if (!input.plan_anchor_date) return { error: '점검계획일을 입력해주세요.' }
 
+  // 사용승인일 필수 — **신규 등록만**. 법정 점검 시기(종합=사용승인월, 작동=+6개월)와
+  // 최초점검(사용승인일+60일) 판정이 전부 이 값에서 나온다.
+  // ⚠ `updateCustomerAction`에는 일부러 걸지 않는다 — 값이 비어 있는 기존 고객
+  //   (스테이징 실측 55/301)이 수정 자체를 못 하게 되면 업무가 멈춘다. 그쪽은 경고 배지로 유도한다.
+  if (!input.use_approval_date) return { error: '사용승인일을 입력해주세요.' }
+
   // 일반관리도 종합/작동 필수 (소방계획서_6 W-2 — sub_type null 매핑 제거)
   if (input.inspection_type === '일반관리' && !input.inspection_sub_type) {
     return { error: '일반관리 고객도 점검 종류(종합/작동)를 선택해주세요.' }

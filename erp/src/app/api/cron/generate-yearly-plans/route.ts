@@ -53,10 +53,12 @@ export async function GET(req: NextRequest) {
   }
 
   // 활성 고객 전 유형 — 일반관리도 자체점검(special_*) 자동 생성 대상 (소방계획서_6 W-8)
-  // 기준일은 생성기가 결정(점검계획일 → 최초 점검시작일) — 모두 없으면 0건
+  // 기준일은 생성기가 결정(resolveAnchor: 사용승인일/점검계획일 축 → 최초 점검시작일) — 모두 없으면 0건.
+  // use_approval_date를 여기서 함께 실어야 고객 수만큼 보강 조회가 붙지 않는다
+  // (loadAnchorDates가 빠진 필드를 스스로 메우긴 하므로 빠뜨려도 결과는 같다)
   const { data: customers, error: custErr } = await admin
     .from('customers')
-    .select('id, customer_name, inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, assigned_employee_id')
+    .select('id, customer_name, inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, use_approval_date, assigned_employee_id')
     .eq('is_active', true)
     .in('inspection_type', ['종합', '작동', '일반관리'])
 
@@ -67,7 +69,8 @@ export async function GET(req: NextRequest) {
   type CustRow = {
     id: string; customer_name: string; inspection_type: InspectionType
     inspection_category: string | null; inspection_sub_type: string | null
-    plan_anchor_date: string | null; assigned_employee_id: string | null
+    plan_anchor_date: string | null; use_approval_date: string | null
+    assigned_employee_id: string | null
   }
   const custList = (customers ?? []) as unknown as CustRow[]
 

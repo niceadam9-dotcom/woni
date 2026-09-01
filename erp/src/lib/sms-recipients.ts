@@ -285,11 +285,10 @@ export function dDayLabel(leadDays: number): string {
 }
 
 /** KST 기준 두 날짜의 일수 차 (visitDate - baseDate) */
-export function daysBetween(baseDate: string, visitDate: string): number {
-  const a = Date.UTC(+baseDate.slice(0, 4), +baseDate.slice(5, 7) - 1, +baseDate.slice(8, 10))
-  const b = Date.UTC(+visitDate.slice(0, 4), +visitDate.slice(5, 7) - 1, +visitDate.slice(8, 10))
-  return Math.round((b - a) / 86_400_000)
-}
+// 구현은 `lib/kst-date.ts`로 옮겼다 — 최초점검 60일 판정(inspection-round)이 같은 산술을 쓰는데
+// 사본을 하나 더 만들면 조용히 어긋난다. 여기서는 **공개 API를 그대로 유지**하려고 재수출만 한다
+// (이 이름을 쓰는 호출부와 test-sms-pure는 무변경).
+export { daysBetween } from './kst-date'
 
 /** KST 오늘 (YYYY-MM-DD) — 서버 시간대가 무엇이든 한국 날짜로 판정한다 */
 export function todayKst(now: number = Date.now()): string {

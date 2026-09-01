@@ -1,8 +1,19 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
 import { rowInspectionType, rowPlanType, rowSubType } from '@/lib/inspection-round'
+import { resolveAnchor, type AnchorSource } from '@/lib/plan-anchor'
 
 type Admin = ReturnType<typeof createAdminClient>
+
+/** 계획 생성기가 고객에게서 필요로 하는 필드 — 롤링·연간 두 진입점이 **같은 타입**을 쓴다.
+ *  사본을 두면 한쪽에만 기산점 필드를 더하고 다른 쪽을 잊는다(호출부는 타입으로만 걸린다). */
+export type PlanCustomer = {
+  id: string; inspection_type: InspectionType
+  inspection_category?: string | null; inspection_sub_type?: string | null
+  plan_anchor_date?: string | null; assigned_employee_id: string | null
+  /** 기산점 축 — 없으면(select 미포함/마이그레이션 전) 종전 동작으로 떨어진다 */
+  use_approval_date?: string | null; plan_anchor_manual?: boolean | null
+}
 
 /** 예정일 영업일 계산용 공휴일 셋 로드 (targetYear~익년) */
 export async function loadHolidaySet(admin: Admin, year: number): Promise<Set<string>> {
@@ -11,19 +22,100 @@ export async function loadHolidaySet(admin: Admin, year: number): Promise<Set<st
   return new Set((data ?? []).map(h => (h as Record<string, unknown>).date as string))
 }
 
-/** 계획 기산점(기준일) 일괄 결정: 점검계획일(수동) → 최초 점검시작일
- *  점검계획일(plan_anchor_date)이 입력된 고객은 무조건 그 날짜를 기준으로 하고,
- *  없으면 실제 점검 이력의 최초 시작일로 계산.
- *  사용승인일은 기준일로 쓰지 않는다(2026-07-14 폴백 제거). 둘 다 없는 고객은 맵에서 제외(계획 생성 없음) */
+/** `plan_anchor_manual` 컬럼 존재 여부 — 프로세스당 한 번만 확인한다.
+ *  마이그레이션 155 적용 전에는 첫 조회가 실패하고, 이후로는 아예 묻지 않는다. */
+let hasAnchorManualCol: boolean | null = null
+
+/** 호출부가 select에 안 실어준 기산점 필드를 **스스로 보강**한다.
+ *
+ *  소비처가 6곳이라 한 곳만 빠뜨려도 그 경로가 조용히 옛 축으로 되돌아간다 — 타입은
+ *  optional이라 컴파일러가 못 잡는다. 그래서 여기서 메운다(이미 실려 있으면 조회하지 않는다).
+ *
+ *  ⚠ `plan_anchor_manual`은 **없는 컬럼일 수 있다**. select에 넣으면 PostgREST가 42703을 주고,
+ *  error를 안 보면 그게 조용한 0행이 된다([[feedback_supabase_check_error]]). 그래서 별도·관용
+ *  조회로 떼어 두고 실패하면 이후 재시도하지 않는다(154 `readProfileFontScale`과 같은 구조). */
+async function fillAnchorFields<T extends {
+  id: string; use_approval_date?: string | null; plan_anchor_manual?: boolean | null
+}>(admin: Admin, customers: T[]): Promise<T[]> {
+  if (customers.length === 0) return customers
+  const out = customers.map(c => ({ ...c }))
+
+  const needApproval = out.filter(c => c.use_approval_date === undefined).map(c => c.id)
+  if (needApproval.length > 0) {
+    const { data, error } = await admin.from('customers')
+      .select('id, use_approval_date').in('id', needApproval)
+    if (!error) {
+      const m = new Map((data ?? []).map(r => {
+        const row = r as { id: string; use_approval_date: string | null }
+        return [row.id, row.use_approval_date]
+      }))
+      for (const c of out) if (c.use_approval_date === undefined && m.has(c.id)) c.use_approval_date = m.get(c.id)!
+    }
+  }
+
+  if (hasAnchorManualCol !== false) {
+    const ids = out.filter(c => c.plan_anchor_manual === undefined).map(c => c.id)
+    if (ids.length > 0) {
+      const { data, error } = await admin.from('customers')
+        .select('id, plan_anchor_manual').in('id', ids)
+      if (error) hasAnchorManualCol = false          // 컬럼 미적용 — 레거시 동작으로 간다
+      else {
+        hasAnchorManualCol = true
+        const m = new Map((data ?? []).map(r => {
+          const row = r as { id: string; plan_anchor_manual: boolean | null }
+          return [row.id, row.plan_anchor_manual]
+        }))
+        for (const c of out) if (c.plan_anchor_manual === undefined && m.has(c.id)) c.plan_anchor_manual = m.get(c.id)!
+      }
+    }
+  }
+  return out
+}
+
+/** 계획 기산점(기준일) 일괄 결정 — 우선순위는 `lib/plan-anchor.ts`가 단일 원천으로 정한다.
+ *
+ *  법령은 종합점검 시기를 **사용승인일이 속하는 달**로 정하는데(시행규칙 [별표 3]) 이 앱은
+ *  2026-07-14 이후 점검계획일만 봤다. 축을 사용승인일로 되돌리되, 고객별 예외
+ *  (`plan_anchor_manual`)를 둬서 **이미 잡혀 있는 방문 일정이 흔들리지 않게** 한다 —
+ *  스테이징 실측에서 두 날짜의 (월)이 다른 고객이 88/246(35.8%)이고, 그 불일치는 데이터 썩음이
+ *  아니라 방문을 열두 달로 분산한 운영 결정이었다.
+ *
+ *  ⚠ `plan_anchor_manual`은 마이그레이션 155 컬럼이라 **적용 전에는 undefined**로 들어오고,
+ *  그때 resolveAnchor는 종전 동작(점검계획일 최우선)을 그대로 재현한다. 즉 코드만 배포해도
+ *  기산점은 한 칸도 안 움직인다. 호출부가 이 컬럼을 select에 넣지 않아도 같은 뜻이 된다.
+ *
+ *  기산점이 없는 고객은 맵에서 제외한다(계획 생성 없음). */
 export async function loadAnchorDates(
   admin: Admin,
-  customers: Array<{ id: string; plan_anchor_date?: string | null }>,
+  customers: AnchorCustomer[],
 ): Promise<Map<string, string>> {
-  const map = new Map<string, string>()
-  for (const c of customers) {
-    if (c.plan_anchor_date) map.set(c.id, c.plan_anchor_date)
+  const res = await loadAnchorResolutions(admin, customers)
+  return new Map([...res].map(([id, r]) => [id, r.date]))
+}
+
+type AnchorCustomer = {
+  id: string; plan_anchor_date?: string | null
+  use_approval_date?: string | null; plan_anchor_manual?: boolean | null
+}
+
+/** 기산점 + **어디서 왔는지**. 화면이 '사용승인일 기준'인지 '점검계획일 기준'인지 말하려면
+ *  날짜만으로는 부족하다 — 두 값이 같은 날일 수도 있고, 폴백으로 들어온 최초 점검일일 수도 있다.
+ *  종전 호출부는 `anchor === c.plan_anchor_date`로 2분법 추정을 했는데, 축이 셋이 된 지금은 거짓말이 된다. */
+export async function loadAnchorResolutions(
+  admin: Admin,
+  customers: AnchorCustomer[],
+): Promise<Map<string, { date: string; source: AnchorSource; divergent: boolean }>> {
+  const filled = await fillAnchorFields(admin, customers)
+  const map = new Map<string, { date: string; source: AnchorSource; divergent: boolean }>()
+  const needFirst: AnchorCustomer[] = []
+  const divergentOf = new Map<string, boolean>()
+  for (const c of filled) {
+    const r = resolveAnchor(c)
+    divergentOf.set(c.id, r.divergent)
+    if (r.date) map.set(c.id, { date: r.date, source: r.source, divergent: r.divergent })
+    else needFirst.push(c)
   }
-  const ids = customers.filter(c => !map.has(c.id)).map(c => c.id)
+  const ids = needFirst.map(c => c.id)
   if (ids.length > 0) {
     const { data } = await admin
       .from('inspections')
@@ -31,7 +123,11 @@ export async function loadAnchorDates(
       .in('customer_id', ids)
       .order('inspection_start_date', { ascending: true })
     for (const r of (data ?? []) as Array<{ customer_id: string; inspection_start_date: string | null }>) {
-      if (r.inspection_start_date && !map.has(r.customer_id)) map.set(r.customer_id, r.inspection_start_date)
+      if (r.inspection_start_date && !map.has(r.customer_id)) {
+        map.set(r.customer_id, {
+          date: r.inspection_start_date, source: 'first', divergent: divergentOf.get(r.customer_id) ?? false,
+        })
+      }
     }
   }
   return map
@@ -44,11 +140,7 @@ export async function loadAnchorDates(
  *  한 번만 로드해 두 해에 공용한다. */
 export async function generateRollingPlanItems(
   admin: Admin,
-  customer: {
-    id: string; inspection_type: InspectionType
-    inspection_category?: string | null; inspection_sub_type?: string | null
-    plan_anchor_date?: string | null; assigned_employee_id: string | null
-  },
+  customer: PlanCustomer,
   baseYear: number,
   createdBy: string,
 ): Promise<number> {
@@ -61,7 +153,8 @@ export async function generateRollingPlanItems(
 }
 
 /** 고객의 연간 점검계획 항목 생성 — 소방안전관리 연 12건 / 일반관리 연 1~2건 (자체점검만, 정기 없음)
- *  - 기준일: 점검계획일(수동) → 최초 점검시작일(loadAnchorDates) — 모두 없으면 생성 없음
+ *  - 기준일: loadAnchorDates(사용승인일/점검계획일 축은 resolveAnchor가 정한다) → 최초 점검시작일
+ *    — 모두 없으면 생성 없음
  *  - 기준월: 1차 특별점검(special_종합/special_작동)
  *  - 종합 대상: +6개월 2차 특별점검 (연도를 넘겨도 targetYear 월로 배치).
  *    2차 행은 **작동**으로 저장한다(special_작동) — 종합 대상의 2차는 법적으로 작동점검이다.
@@ -75,11 +168,7 @@ export async function generateRollingPlanItems(
  *  @returns 새로 생성된 항목 수 */
 export async function generateYearlyPlanItems(
   admin: Admin,
-  customer: {
-    id: string; inspection_type: InspectionType
-    inspection_category?: string | null; inspection_sub_type?: string | null
-    plan_anchor_date?: string | null; assigned_employee_id: string | null
-  },
+  customer: PlanCustomer,
   targetYear: number,
   createdBy: string,
   hdSet: Set<string>,

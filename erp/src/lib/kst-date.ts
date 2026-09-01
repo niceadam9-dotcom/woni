@@ -28,3 +28,17 @@ export function kstDate(ts: string | null | undefined): string {
 export function todayKst(now: number = Date.now()): string {
   return new Date(now + KST_OFFSET_MS).toISOString().slice(0, 10)
 }
+
+/** 두 **달력 날짜**('YYYY-MM-DD') 사이의 일수 — `b - a`. 음수면 b가 앞선다.
+ *
+ *  ⚠ 위 `kstDate`와 달리 여기엔 타임존이 없다. `use_approval_date`·`inspection_start_date`처럼
+ *  DATE 컬럼끼리 재는 축이라 `Date.UTC`로 두 날을 같은 기준에 놓고 뺀다 — 로컬 TZ가 끼면
+ *  서버·브라우저에서 답이 갈린다(같은 이유로 `new Date('YYYY-MM-DD')`를 쓰지 않는다).
+ *
+ *  ⚠ 이 구현은 `sms-recipients.ts`가 쓰던 것을 **옮겨온 것**이다(그쪽은 이제 여기서 재수출한다).
+ *  날짜 산술 사본이 둘이면 조용히 어긋난다 — 같은 실수가 `fetchAllRows`에서 3벌까지 갔다(16 K-9). */
+export function daysBetween(baseDate: string, targetDate: string): number {
+  const a = Date.UTC(+baseDate.slice(0, 4), +baseDate.slice(5, 7) - 1, +baseDate.slice(8, 10))
+  const b = Date.UTC(+targetDate.slice(0, 4), +targetDate.slice(5, 7) - 1, +targetDate.slice(8, 10))
+  return Math.round((b - a) / 86_400_000)
+}

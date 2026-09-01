@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { generateRollingPlanItems } from '@/lib/inspection-plan-generator'
-import { rowInspectionType } from '@/lib/inspection-round'
+import { rowInspectionType, rowSubType, isInitialByLaw } from '@/lib/inspection-round'
 import { startInspectionCore } from '@/lib/inspection-start'
 import { notifyIfEnabled } from '@/lib/notify'
 import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
@@ -71,12 +71,13 @@ export async function createInspectionAction(
   // 아래 연간 계획 자동 생성(:135 부근)도 같은 고객 행을 읽고 있었다 — 한 번만 읽어 함께 쓴다.
   const { data: custRaw } = await admin
     .from('customers')
-    .select('inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, assigned_employee_id, is_active')
+    .select('inspection_type, inspection_category, inspection_sub_type, plan_anchor_date, use_approval_date, assigned_employee_id, is_active')
     .eq('id', input.customer_id)
     .single()
   const cust = custRaw as {
     inspection_type: InspectionType; inspection_category: string | null; inspection_sub_type: string | null
-    plan_anchor_date: string | null; assigned_employee_id: string | null; is_active: boolean
+    plan_anchor_date: string | null; use_approval_date: string | null
+    assigned_employee_id: string | null; is_active: boolean
   } | null
   const custSubType: '종합' | '작동' =
     cust?.inspection_sub_type === '종합' ? '종합'
@@ -84,19 +85,17 @@ export async function createInspectionAction(
     : cust?.inspection_type === '종합' ? '종합' : '작동'
   const rowType = rowInspectionType(input.inspection_type, custSubType, input.sequence_num)
 
-  // 최초점검 자동판정 (P32-8): 종합 유형이고 이전 종합점검 이력이 전무하면 최초점검.
-  // 판정 축을 rowType으로 바꿔 2차 등록이 최초점검 후보에 들지 않게 한다 —
-  // 2차는 작동이므로 애초에 최초 종합점검일 수 없다.
-  // 카운트 술어 `inspection_type='종합'`은 백필 이후 **정확히 '지난 종합점검'만** 세게 됐다
-  // (종전에는 2차 행까지 종합으로 세고 있었다).
-  let isInitial = false
-  if (rowType === '종합') {
-    const { count } = await admin.from('inspections')
-      .select('id', { count: 'exact', head: true })
-      .eq('customer_id', input.customer_id)
-      .eq('inspection_type', '종합')
-    isInitial = (count ?? 0) === 0
-  }
+  // 최초점검 자동판정 — **법령 축**(시행규칙 [별표 3]): 사용승인일부터 60일 이내의 종합점검.
+  //
+  // ⚠ 종전엔 "이 고객의 종합점검 이력이 DB에 0건이면 최초"였다. 그건 *우리 DB에 언제 등록했는가*를
+  //   잰 것이라, 2009년 사용승인 건물을 새로 등록하면 별지 9호에 `[√]최초점검`이 찍혔다 —
+  //   법정 서식 허위 기재다. 판정을 사용승인일 축으로 옮긴다(F-1).
+  //
+  // ⚠ 판정 축이 `rowType`이 아니라 `rowSubType`이다. rowType은 일반관리 고객에서 관리유형을
+  //   나르므로('일반관리') 그걸 보면 **일반관리 + 종합 대상 고객은 최초점검이 될 수 없었다**.
+  //   점검 종류 축은 rowSubType이 정본이다.
+  const rowSub = rowSubType(custSubType, input.sequence_num)
+  const isInitial = isInitialByLaw(cust?.use_approval_date, input.inspection_start_date, rowSub)
 
   const { data: raw, error } = await admin
     .from('inspections')

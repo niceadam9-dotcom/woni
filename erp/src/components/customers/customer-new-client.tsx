@@ -297,6 +297,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     ['고객명', !!form.customer_name.trim()],
     ['점검유형', !!form.inspection_type],
     ['점검계획일', isCompleteDate(form.plan_anchor_date)],
+    // 사용승인일은 법정 점검 시기의 기산점이다 — 종합점검은 사용승인일이 속하는 달,
+    // 작동점검은 그로부터 6개월(시행규칙 [별표 3]). 비어 있으면 그 달을 계산할 수 없고
+    // 최초점검(사용승인일+60일) 판정도 불가능해 별지 9호 3분기를 정할 수 없다.
+    // 대부분 건축물대장 자동 조회로 저절로 채워진다(아래 [적용] 버튼).
+    ['사용승인일', isCompleteDate(form.use_approval_date)],
     ['대표 관계인', !!contacts['대표'].name.trim()],
   ]
   const allFieldsOk = requiredChecks.every(c => c[1])
@@ -536,7 +541,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 className={inputCls}
               />
             </Field>
-            <Field label="사용승인일">
+            <Field label="사용승인일" required>
               <DateInput
                 value={form.use_approval_date}
                 onChange={e => setField('use_approval_date', e.target.value)}
