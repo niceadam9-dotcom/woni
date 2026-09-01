@@ -152,16 +152,52 @@ console.log('\n— 예정일 규칙 (생성기에서 추출 — 동작 보존이
     plannedDateFor(2026, 9, 23, new Set(['2026-09-23'])))
   check('공휴일이 연달아도 계속 민다',
     plannedDateFor(2026, 9, 23, new Set(['2026-09-23', '2026-09-24'])) === '2026-09-25')
-  // 그 달에 없는 일자는 말일로 당긴다 — 31일 기산일 + 2월 → 2027-02-28
-  check('31일 기산 + 2월 → 말일(28)로 당김', plannedDateFor(2027, 2, 31, new Set(['2027-03-01'])) !== '2027-02-31')
-  // ⚠⚠ **말일로 당긴 뒤 영업일로 밀면 다음 달로 넘어간다.** 2027-02-28은 일요일이라 03-01이 된다.
-  //    종합점검은 "사용승인일이 속하는 달에 실시"이므로 이건 **법정 달을 벗어난다**.
-  //    선재 동작이라 여기서 고치지 않고, 값을 못박아 **눈에 보이게** 둔다 — 조용히 넘어가면 안 된다.
-  check('⚠ 말일이 휴일이면 다음 달로 넘어간다(법정 달 이탈 — 선재 동작, 값 고정)',
-    plannedDateFor(2027, 2, 31, none) === '2027-03-01', plannedDateFor(2027, 2, 31, none))
-  // ⚠ 앞으로 당기지 않는다 — 뒤로만 민다(법정 시기를 앞당기면 미이행이 된다)
+  // ⭐ 법정 달 이탈 방지 — 미는 결과가 그 달을 벗어나면 **앞 영업일로 당긴다**.
+  //    2027-02-28은 일요일이라 밀면 03-01이 된다 → 26일(금)로 당겨야 2월을 지킨다.
+  check('31일 기산 + 2027년 2월 → 2월 안에 머문다(2027-02-26 금)',
+    plannedDateFor(2027, 2, 31, none) === '2027-02-26', plannedDateFor(2027, 2, 31, none))
+  check('결과가 항상 목표 달 안에 있다',
+    plannedDateFor(2027, 2, 31, none).slice(0, 7) === '2027-02')
+  // 당기기는 **벗어날 때만** — 달 안에서 밀 수 있으면 종전대로 민다(기존 예정일을 흔들지 않는다)
+  check('달 안에서 밀 수 있으면 그대로 민다(당기지 않는다)',
+    plannedDateFor(2026, 9, 26, none) === '2026-09-28', plannedDateFor(2026, 9, 26, none))
+  // 말일 직전이 연달아 휴일이어도 그 달 안에서 찾는다
+  check('말일 부근이 연달아 휴일이면 더 당겨서라도 그 달 안에서 찾는다',
+    plannedDateFor(2027, 2, 31, new Set(['2027-02-26'])) === '2027-02-25',
+    plannedDateFor(2027, 2, 31, new Set(['2027-02-26'])))
+  // 12월 말일 이탈은 **연도까지** 넘긴다 — 그 경로도 막혔는지
+  {
+    const dec = plannedDateFor(2027, 12, 31, new Set(['2027-12-31']))
+    check('12월 말일이 휴일이어도 해를 넘기지 않는다', dec.startsWith('2027-12'), dec)
+  }
+  // ⚠ 이 문장은 한때 '절대 앞으로 당기지 않는다'였는데 **수리로 거짓이 됐다**(이탈 시엔 당긴다).
+  //    이름을 실제 규칙으로 정정한다 — 검사 이름이 거짓이면 다음 사람이 그걸 규칙으로 믿는다.
   const pushed = plannedDateFor(2026, 9, 26, none)
-  check('절대 앞으로 당기지 않는다', pushed > '2026-09-26', pushed)
+  check('달 안에 여지가 있으면 뒤로만 민다', pushed > '2026-09-26', pushed)
+
+  // ⭐ **변경이 외과적인가** — 옛 규칙(무조건 밀기)과 전수 대조해, 달을 벗어나던 경우에만
+  //    달라졌는지 본다. 그 밖에서 하나라도 다르면 기존 예정일이 대량으로 움직인다는 뜻이다.
+  const oldRule = (y: number, m: number, day: number, hs: Set<string>) => {
+    const toStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const dim = new Date(y, m, 0).getDate()
+    const b = new Date(y, m - 1, Math.min(day, dim))
+    const wd = (d: Date) => d.getDay() !== 0 && d.getDay() !== 6 && !hs.has(toStr(d))
+    if (wd(b)) return toStr(b)
+    const n = new Date(b)
+    do { n.setDate(n.getDate() + 1) } while (!wd(n))
+    return toStr(n)
+  }
+  let same = 0, changedSpill = 0, changedOther: string[] = []
+  for (let y = 2026; y <= 2028; y++) for (let m = 1; m <= 12; m++) for (let d = 1; d <= 31; d++) {
+    const o = oldRule(y, m, d, none), n2 = plannedDateFor(y, m, d, none)
+    if (o === n2) { same++; continue }
+    // 달라졌다면 옛 규칙이 그 달을 벗어난 경우여야만 한다
+    if (o.slice(0, 7) !== `${y}-${String(m).padStart(2, '0')}`) changedSpill++
+    else changedOther.push(`${y}-${m}-${d}: ${o} → ${n2}`)
+  }
+  check(`옛 규칙과 일치 ${same}건 · 이탈 교정 ${changedSpill}건 · 그 밖의 변경 ${changedOther.length}건`,
+    changedOther.length === 0, changedOther.slice(0, 5).join(' / '))
+  check('이탈 교정이 실제로 일어났다(공허 통과 아님)', changedSpill > 0, String(changedSpill))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

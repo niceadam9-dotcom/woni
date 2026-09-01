@@ -88,27 +88,45 @@ export function anchorChanged(before: AnchorInput, after: AnchorInput): boolean 
   return resolveAnchor(before).date !== resolveAnchor(after).date
 }
 
-/** 기산일의 '일'을 그 달에 놓고 **다음 영업일로 밀어낸** 예정일 — 'YYYY-MM-DD'.
+/** 기산일의 '일'을 그 달에 놓고 영업일로 맞춘 예정일 — 'YYYY-MM-DD'. **그 달을 벗어나지 않는다.**
  *
  *  ⚠ 생성기(`generateYearlyPlanItems`)와 자리 재배치(`reconcileSpecialSlots`)가 **같은 날짜**를
  *  내야 한다. 사본을 두면 한쪽만 고쳐져 같은 항목이 경로에 따라 다른 날에 잡힌다 —
  *  그래서 여기 하나만 둔다(순수 함수라 검사도 쉽다).
  *
- *  · 그 달에 없는 일자는 말일로 당긴다(2월 31일 → 2월 28/29일)
- *  · 토·일·공휴일이면 **다음** 영업일로 민다(앞으로 당기지 않는다) */
+ *  규칙:
+ *   · 그 달에 없는 일자는 말일로 당긴다(2월 31일 → 2월 28/29일)
+ *   · 토·일·공휴일이면 **다음** 영업일로 민다 — 이게 기본이고 대부분 여기서 끝난다
+ *   · ⭐ **다만 미는 결과가 그 달을 벗어나면 앞 영업일로 당긴다.** 종합점검은 「사용승인일이
+ *     속하는 달에 실시」라(시행규칙 [별표 3]) 다음 달로 넘어가면 **법정 시기를 벗어난다**.
+ *     실제로 `기산일 31일 + 2027년 2월`이 말일 28일(일요일)을 거쳐 **2027-03-01**이 됐다.
+ *     계획 항목은 (연,월) 단위 plan에 속하는데 예정일만 다음 달인 모순도 함께 생겼다.
+ *
+ *  ⚠ 되돌림(당기기)은 **벗어날 때만** 한다 — 항상 당기면 기존 예정일이 대량으로 움직인다.
+ *    그 달에 영업일이 하나도 없으면(현실엔 없다) 조용히 틀리지 않도록 기준일을 그대로 준다. */
 export function plannedDateFor(
   year: number, month: number, anchorDay: number, holidays: ReadonlySet<string>,
 ): string {
   const toStr = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const isWorkday = (d: Date) => d.getDay() !== 0 && d.getDay() !== 6 && !holidays.has(toStr(d))
+  const inMonth = (d: Date) => d.getFullYear() === year && d.getMonth() === month - 1
+
   const daysInMo = new Date(year, month, 0).getDate()
   const base = new Date(year, month - 1, Math.min(anchorDay, daysInMo))
-  const dow = base.getDay()
-  if (dow !== 0 && dow !== 6 && !holidays.has(toStr(base))) return toStr(base)
-  const next = new Date(base)
-  do { next.setDate(next.getDate() + 1) }
-  while (next.getDay() === 0 || next.getDay() === 6 || holidays.has(toStr(next)))
-  return toStr(next)
+  if (isWorkday(base)) return toStr(base)
+
+  const fwd = new Date(base)
+  do { fwd.setDate(fwd.getDate() + 1) } while (!isWorkday(fwd))
+  if (inMonth(fwd)) return toStr(fwd)
+
+  // 다음 달로 넘어갔다 — 같은 달 안에서 뒤로 걸어 마지막 영업일을 찾는다
+  const back = new Date(base)
+  for (;;) {
+    back.setDate(back.getDate() - 1)
+    if (!inMonth(back)) return toStr(base)
+    if (isWorkday(back)) return toStr(back)
+  }
 }
 
 /** 화면 표기용 짧은 라벨 — 기산점이 어디서 왔는지 사람이 알 수 있게 한다. */
