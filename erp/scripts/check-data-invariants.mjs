@@ -16,6 +16,8 @@
 // INV-D11: 소방계획서_25 — 대체공휴일이 토·일에 앉아 있지 않음 (「관공서의 공휴일에 관한 규정」제3조③)
 // INV-D12: 소방계획서_33 — 종합 대상의 2차는 작동점검 (153) ⓐ seq2 special_* 는 전부 special_작동
 //          ⓑ 종합 대상이 아닌 고객의 seq2 점검 0건 (트리거 축 이동 후 가드 생존을 결과로 감시)
+// INV-D13: 종합 대상은 각 연도에 2차(special_작동 seq=2)가 정확히 1건 — 2차가 사라지는 경로가
+//          여럿이라(재계산이 만들지 않고 강등만 함) **결과 축에서** 감시. 기산일이 속한 해는 제외
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -248,6 +250,65 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
   const b = (insRows ?? []).filter(r => !compIds.has(r.customer_id))
   report('INV-D12b 종합 대상이 아닌 고객의 2차 점검', b,
     r => `insp=${r.id} customer=${r.customer_id} plan_type=${r.plan_type}`)
+}
+
+// ── INV-D13: 종합 대상 고객은 각 연도에 2차(special_작동, seq=2)가 정확히 1건 ──
+// 왜 결과 축인가: 2차가 사라지는 경로가 여럿이었다 — 재계산이 자리 교체만 하고 생성은 안 했고
+// (요청서를 발행하고 아무도 안 읽음), 옛 달의 2차는 강등으로 치워지기까지 했다. 코드가 어떻게
+// 바뀌든 어느 경로로 깨지든 **결과에서** 잡는다. 법정으로는 종합 대상의 2차가 연 1회 의무다.
+//
+// ⚠ **기산일이 속한 해는 제외한다.** 생성기는 `planned < anchorDate`면 만들지 않는다(기준일
+//   이전엔 이행 의무가 없다). 기산월이 연중·연말이면 첫 해의 2차는 **정당하게** 없다.
+//   이 예외 없이 켰을 때 실측 위반 7건이 **전부 첫 해 오탐**이었다 — 좁히니 3건(진짜)만 남았다.
+{
+  const JONGHAP = String.fromCodePoint(0xC885, 0xD569)
+  const JAKDONG = String.fromCodePoint(0xC791, 0xB3D9)
+  const SPECIAL_OP = `special_${JAKDONG}`
+
+  const { data: cRows } = await admin.from('customers')
+    .select('id, customer_code, customer_name, is_active, inspection_type, inspection_sub_type, use_approval_date, plan_anchor_date')
+  // plan_anchor_manual은 155 미적용 DB엔 없다 — 별도·관용 조회(없으면 레거시로 본다)
+  const manualOf = new Map()
+  {
+    const { data, error } = await admin.from('customers').select('id, plan_anchor_manual')
+    if (!error) for (const r of data ?? []) manualOf.set(r.id, r.plan_anchor_manual)
+  }
+  const comp = (cRows ?? []).filter(c => c.is_active !== false
+    && (c.inspection_sub_type === JONGHAP || (c.inspection_sub_type == null && c.inspection_type === JONGHAP)))
+
+  // ⚠ **페이지 순회 필수.** PostgREST는 요청당 1,000행에서 **조용히 자른다**. 전량 조회를
+  //   한 번에 던졌더니 뒤쪽 고객이 통째로 '2차 없음'이 되어 위반이 2건 → **57건으로 부풀었다**
+  //   (실측). 잘린 줄 모르고 그 수를 믿으면 멀쩡한 데이터를 고치러 간다.
+  const piAll = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from('inspection_plan_items')
+      .select('customer_id, sequence_num, plan_type, plan:inspection_plans(year)')
+      .range(from, from + 999)
+    if (error) break
+    piAll.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
+  const years = new Map(), seq2 = new Map()
+  for (const it of piAll ?? []) {
+    if (!it.plan) continue
+    const ys = years.get(it.customer_id) ?? new Set(); ys.add(it.plan.year); years.set(it.customer_id, ys)
+    if (it.sequence_num === 2 && it.plan_type === SPECIAL_OP) {
+      const k = `${it.customer_id}|${it.plan.year}`
+      seq2.set(k, (seq2.get(k) ?? 0) + 1)
+    }
+  }
+  const bad = []
+  for (const c of comp) {
+    const anc = manualOf.get(c.id) ? c.plan_anchor_date : (c.use_approval_date ?? c.plan_anchor_date)
+    const anchorYear = anc ? Number(String(anc).slice(0, 4)) : null
+    for (const y of (years.get(c.id) ?? new Set())) {
+      if (anchorYear === y) continue            // 기산일이 속한 해 — 기준일 이전이라 정당하게 없을 수 있다
+      const n = seq2.get(`${c.id}|${y}`) ?? 0
+      if (n !== 1) bad.push({ c, y, n })
+    }
+  }
+  report('INV-D13 종합 대상의 연도별 2차(작동) 정확히 1건', bad,
+    r => `${r.c.customer_code} ${r.c.customer_name} ${r.y}년: ${r.n}건`)
 }
 
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)

@@ -111,50 +111,67 @@ export async function reconcileSpecialSlots(
     return holidays
   }
 
+  /** switch가 모아 둔 생성 요청 — 생성기는 연 단위 일괄이라 루프 밖에서 한 번에 돈다 */
+  const pendingCreate: Array<{ year: number; month: number; sequence_num: number; planType: string }> = []
+
   for (const year of years) {
     const plan = planSpecialSlots(year, desired, rows)
     out.keptStarted += plan.keptStarted.length
     out.needCreate += plan.needCreate.length
     out.notes.push(...plan.notes)
 
-    // planSpecialSlots는 승격만 낸다 — 그래도 유니온을 좁혀 두면 나중에 강등 op가 섞여도
-    // 조용히 잘못 처리되지 않고 타입이 막는다.
-    for (const op of plan.ops.filter(o => o.kind === 'toSpecial')) {
-      const s = op.planType.slice('special_'.length) as '종합' | '작동'
-      const { error } = await admin.from('inspection_plan_items').update({
-        plan_type: op.planType,
-        inspection_sub_type: s,
-        inspection_type: rowInspectionType(c.inspection_type, sub, s === '작동' && sub === '종합' ? 2 : 1),
-        status: 'planned',
-        scheduled_date: null,
-      } as Record<string, unknown>).eq('id', op.id)
-      if (!error) out.promoted++
-    }
+    // ⚠ 일반관리도 **치우기는 한다** — 방법만 다르다(강등 대신 삭제). 종전엔 통째로 건너뛰어
+    //   옛 달의 특별이 남았고, 그래서 운영 C003에 2026-02·2026-08 종합이 **둘** 생겼다.
+    //   '하면 안 되는 것'과 '안 해도 되는 것'은 다르다.
+    const claimed = new Set(plan.ops.flatMap(o => (o.kind === 'create' ? [] : [o.id])))
+    const demotes = planDemoteStraySpecials(year, desired, rows, claimed, !isGeneral)
 
-    // 정기 체계가 없는 일반관리는 강등할 곳이 없다 — 엉뚱한 달의 특별을 정기로 바꾸면
-    // 있어서는 안 될 정기가 생긴다(D-1: 일반관리는 정기 미생성).
-    if (isGeneral) continue
-    const claimed = new Set(plan.ops.map(o => o.id))
-    const demotes = planDemoteStraySpecials(year, desired, rows, claimed)
-    for (const op of demotes) {
-      // 무엇을 지우고 무엇을 내릴지는 **순수 계층이 정한다**(planDemoteStraySpecials).
-      // 실행부에서 판단하면 그 규칙을 검사할 수 없다. 2차 잔재는 정기로 내리면
-      // seq=2 정기가 되어 같은 달에 정기가 둘로 뜬다(실측 2027-05).
-      if (op.kind === 'remove') {
-        const { error } = await admin.from('inspection_plan_items').delete().eq('id', op.id)
-        if (!error) { out.removed++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')} seq=2: 옛 2차 잔재 삭제`) }
-        continue
+    // ⭐ **op을 switch로 소진한다.** 종전엔 `filter(kind === 'toSpecial')`로 골라 쓰고
+    //   `create`는 별도 배열에 남아 **아무도 안 읽어도 컴파일이 통과**했다 — 그게 결함의
+    //   근본 원인이었다. 아래 `never` 가드가 새 op 종류를 빠뜨리는 순간 빌드를 깨뜨린다.
+    //   무엇을 지우고 무엇을 내릴지의 **판단은 순수 계층**이 하고, 여기선 집행만 한다.
+    for (const op of [...plan.ops, ...demotes]) {
+      switch (op.kind) {
+        case 'toSpecial': {
+          const s = op.planType.slice('special_'.length) as '종합' | '작동'
+          const { error } = await admin.from('inspection_plan_items').update({
+            plan_type: op.planType,
+            inspection_sub_type: s,
+            inspection_type: rowInspectionType(c.inspection_type, sub, s === '작동' && sub === '종합' ? 2 : 1),
+            status: 'planned',
+            scheduled_date: null,
+          } as Record<string, unknown>).eq('id', op.id)
+          if (!error) out.promoted++
+          break
+        }
+        case 'toMonthly': {
+          const hd = await loadHolidays()
+          const { error } = await admin.from('inspection_plan_items').update({
+            plan_type: 'monthly',
+            inspection_type: c.inspection_type,
+            inspection_sub_type: sub,
+            // 정기는 자동 확정이 규약이다(2026-07-14 결정) — 기산일 규칙으로 날짜가 이미 정해진다
+            status: 'confirmed',
+            scheduled_date: plannedDateFor(op.year, op.month, anchorDay, hd),
+          } as Record<string, unknown>).eq('id', op.id)
+          if (!error) { out.demoted++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')}: ${op.from} → monthly(강등)`) }
+          break
+        }
+        case 'remove': {
+          const { error } = await admin.from('inspection_plan_items').delete().eq('id', op.id)
+          if (!error) { out.removed++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')}: 잔재 삭제(${op.from})`) }
+          break
+        }
+        case 'create':
+          // 행 단위 update가 아니라 **생성기 일괄 호출**이라 여기서 모아 두고 아래에서 한 번에 돈다
+          pendingCreate.push(op)
+          break
+        default: {
+          // 새 op 종류를 추가하고 여기에 case를 안 넣으면 **컴파일 오류**가 난다
+          const _never: never = op
+          void _never
+        }
       }
-      const hd = await loadHolidays()
-      const { error } = await admin.from('inspection_plan_items').update({
-        plan_type: 'monthly',
-        inspection_type: c.inspection_type,
-        inspection_sub_type: sub,
-        // 정기는 자동 확정이 규약이다(2026-07-14 결정) — 기산일 규칙으로 날짜가 이미 정해진다
-        status: 'confirmed',
-        scheduled_date: plannedDateFor(op.year, op.month, anchorDay, hd),
-      } as Record<string, unknown>).eq('id', op.id)
-      if (!error) { out.demoted++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')}: ${op.from} → monthly(강등)`) }
     }
   }
 
@@ -165,7 +182,7 @@ export async function reconcileSpecialSlots(
   //
   //   생성기는 이미 seq=2를 그 달에 넣을 수 있다 — UNIQUE가 (plan_id, customer_id, sequence_num)이라
   //   같은 달 정기(seq=1)와 충돌하지 않는다. 이미 있는 항목은 충돌 무시로 건너뛴다(멱등).
-  if (out.needCreate > 0) {
+  if (pendingCreate.length > 0) {
     const hd = await loadHolidaySet(admin, Math.min(...years))
     for (const y of years) {
       out.created += await generateYearlyPlanItems(
@@ -180,6 +197,15 @@ export async function reconcileSpecialSlots(
       )
     }
     out.notes.push(`생성 필요 ${out.needCreate}건 → 생성기가 ${out.created}건 생성`)
+  }
+
+  // ⭐ **값들 사이의 관계를 본다** — needCreate와 created를 둘 다 세면서 그 둘이 모순인지는
+  //   아무도 안 봤다. 이번 결함(요청서를 발행하고 아무도 안 읽음)은 이 한 줄이면 첫 실행에서
+  //   드러났다. 집행부가 조용히 요청을 버리는 것을 스스로 말하게 한다.
+  //   ⚠ 생성기가 정당하게 0건을 낼 수도 있다(기준일 이전은 생성 안 함 — 첫 해의 2차가 그렇다).
+  //     그래서 예외가 아니라 **기록**으로 남긴다. 조용한 것보다 시끄러운 편이 낫다.
+  if (out.needCreate > 0 && out.created === 0) {
+    out.notes.push(`⚠ 생성 필요 ${out.needCreate}건인데 0건 생성 — 요청서가 버려졌거나 기준일 이전이다`)
   }
 
   // 있어서는 안 되는 정기 잔재 정리 — **생성 뒤**에 한다. 특별이 자리를 잡아야

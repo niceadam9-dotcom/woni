@@ -5,6 +5,7 @@
  *  생성기는 insert 전용인데 정기(monthly)도 seq=1이라 그 자리를 점유하면 UNIQUE 충돌로
  *  **조용히 건너뛴다**. 실측(서림사): 기산월 11인데 2026-11이 '특별 0건 · 정기 1건'이었다.
  */
+import { readFileSync } from 'node:fs'
 import { planSpecialSlots, planDemoteStraySpecials, type SlotRow } from '../src/lib/plan-special-slot.ts'
 
 let pass = 0, fail = 0
@@ -77,8 +78,13 @@ console.log('\n— 2차(seq=2) 잔재는 강등이 아니라 삭제')
   check('옛 2차(5월 seq=2)는 삭제한다', rm.length === 1 && rm[0].id === 'may2', JSON.stringify(dem))
   check('옛 1차(7월 seq=1)는 정기로 강등한다', dn.length === 1 && dn[0].id === 'jul1', JSON.stringify(dn))
   // ⭐ 이 결함의 핵심 — 2차가 앉을 12월에는 정기(seq=1)뿐이라 '막는 행'이 없다.
-  //    그래서 교체 대상이 아니라 **생성 대상**이고, 생성기를 안 부르면 법정 2차가 영영 안 생긴다.
-  check('12월 2차는 needCreate로 나온다(교체로는 못 만든다)',
+  //    그래서 교체 대상이 아니라 **생성 대상**으로 넘어간다.
+  //
+  //    ⚠⚠ 이 단언의 **한때 이름이 '교체로는 못 만든다'였고, 그게 결함을 사양으로 승격시켰다**.
+  //    한계를 초록으로 박아두면 그게 *중간 상태*인지 *최종 상태*인지 검사가 말하지 않는다.
+  //    규칙: **부정형·한계를 단언하는 검사에는 "그럼 누가 하는가"를 단언하는 짝을 반드시 붙인다.**
+  //    짝이 없으면 그 초록은 결함의 알리바이가 된다. 아래 짝 단언이 그것이다.
+  check('12월 2차는 생성 대상으로 넘어간다(교체가 아니라)',
     p.needCreate.some(n => n.month === 12 && n.sequence_num === 2), JSON.stringify(p.needCreate))
   check('12월 정기(seq=1)는 건드리지 않는다 — seq가 달라 공존한다',
     !p.ops.some(o => o.id === 'dec1') && !dem.some(o => o.id === 'dec1'))
@@ -143,6 +149,22 @@ console.log('\n— 다른 해는 건드리지 않는다')
   ]
   const p = planSpecialSlots(2026, [{ sequence_num: 1, month: 11, planType: 'special_종합' }], rows)
   check('2026만 대상', p.ops.length === 1 && p.ops[0].id === 'n26', JSON.stringify(p.ops))
+}
+
+console.log('\n— 짝 단언: "그럼 누가 만드는가" (⑤ 규칙)')
+{
+  // 위 '생성 대상으로 넘어간다'는 **중간 상태**를 말할 뿐이다. 그 요청서를 실제로 집행하는
+  // 코드가 있는지까지 물어야 그 초록이 알리바이가 되지 않는다. 순수 검사라 DB를 못 쓰므로
+  // **집행부 소스에 그 배선이 실재하는지**를 정적으로 단언한다.
+  const src = readFileSync(new URL('../src/lib/reconcile-special-slots.ts', import.meta.url), 'utf8')
+  check('집행부가 needCreate를 생성기로 넘긴다', /needCreate\s*>\s*0/.test(src) && /generateYearlyPlanItems\(/.test(src),
+    '생성 분기가 없다 — needCreate가 다시 버려진다')
+  check('집행부가 생성 결과를 센다(created)', /out\.created\s*\+=/.test(src))
+  check('집행부가 needCreate>0 · created==0 모순을 스스로 말한다',
+    /needCreate\s*>\s*0\s*&&\s*out\.created\s*===\s*0/.test(src),
+    '값만 세고 값들 사이의 관계를 안 보면 요청서가 조용히 버려진다')
+  // 음성 대조군 — 이 정적 단언이 아무 문자열이나 통과시키는 것이 아님을 보인다
+  check('[대조군] 없는 배선은 잡아낸다', !/zzzNoSuchWiring\(/.test(src))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

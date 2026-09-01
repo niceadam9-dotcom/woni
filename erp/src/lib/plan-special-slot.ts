@@ -38,12 +38,19 @@ export type SlotOp =
    *  정기는 언제나 `sequence_num=1`로 만들어지므로 seq=2 정기는 데이터 이상이고,
    *  같은 달에 정기가 **두 건** 뜬다(실측: 2027-05에 seq=1·seq=2 정기가 나란히 찍혔다). */
   | { kind: 'remove'; id: string; year: number; month: number; from: string | null }
+  /** 자리가 아예 비어 **새로 만들어야** 하는 것 — 교체할 행이 없다(2차가 늘 이 경우다).
+   *
+   *  ⚠ 이걸 **별도 배열로 빼 뒀던 것이 결함의 근본 원인**이었다. 이름은 "만들어 달라"는
+   *  요청인데 타입은 그냥 배열이라 **집행부가 무시해도 컴파일이 통과**했고, 실제로 무시됐다.
+   *  op 유니온에 넣어 집행부가 `switch`로 **소진**하게 하면 빠뜨리는 순간 빌드가 깨진다. */
+  | { kind: 'create'; year: number; month: number; sequence_num: number; planType: string }
 
 export type SlotPlan = {
   ops: SlotOp[]
   /** 시작돼서 손대지 않은 특별 행 — 사람이 알아야 한다 */
   keptStarted: Array<{ id: string; year: number; month: number; plan_type: string | null }>
-  /** 자리가 비어 있어 교체가 아니라 **생성**이 필요한 (연,월,seq) — 생성기가 만든다 */
+  /** 자리가 비어 **생성**이 필요한 것 — `ops`의 `create` op와 **같은 것**을 보기 좋게 추린 사본이다.
+   *  집행은 반드시 `ops`를 소진해서 한다(여기만 보면 다시 요청서를 버리는 구조가 된다). */
   needCreate: Array<{ year: number; month: number; sequence_num: number; planType: string }>
   notes: string[]
 }
@@ -90,6 +97,8 @@ export function planSpecialSlots(
     } else if (atTarget.some(r => r.started)) {
       notes.push(`⚠ ${year}-${pad(d.month)} seq=${d.sequence_num}: 그 자리 항목이 이미 시작됨 — 건드리지 않는다`)
     } else {
+      // 요청서를 **op로 발행한다** — 집행부가 switch로 소진하므로 빠뜨리면 컴파일이 깨진다
+      ops.push({ kind: 'create', year, month: d.month, sequence_num: d.sequence_num, planType: d.planType })
       needCreate.push({ year, month: d.month, sequence_num: d.sequence_num, planType: d.planType })
       notes.push(`${year}-${pad(d.month)} seq=${d.sequence_num}: 자리가 비어 있다 → 생성 필요(교체 아님)`)
     }
@@ -101,21 +110,30 @@ export function planSpecialSlots(
   return { ops, keptStarted, needCreate, notes }
 }
 
-/** 법정 달 밖의 **미시작** 특별을 치우는 op — 정기 체계가 있는 고객(소방안전관리)만 부른다.
+/** 법정 달 밖의 **미시작** 특별을 치운다. **어느 고객이든 반드시 치운다** — 안 치우면 옛 달의
+ *  특별이 남아 한 해에 1차가 둘이 된다(실측: 운영 C003이 2026-02·2026-08에 종합 2건).
  *
- *  1차(seq=1)는 **정기로 강등**한다(그 달엔 원래 정기가 있어야 한다).
- *  2차(seq=2)는 **삭제**한다 — 정기는 늘 seq=1이라 seq=2 정기를 만들면 같은 달에 정기가 둘이 된다. */
+ *  치우는 **방법**만 갈린다:
+ *   · 정기 체계가 있는 고객(소방안전관리) + 1차(seq=1) → **정기로 강등**(그 달엔 원래 정기가 있어야 한다)
+ *   · 그 밖(2차이거나, 정기 체계가 없는 일반관리) → **삭제**
+ *     2차를 정기로 내리면 seq=2 정기가 되어 같은 달에 정기가 둘로 뜬다. 일반관리는 정기 자체가
+ *     없으므로(D-1) 강등하면 **있어서는 안 될 정기**를 만든다.
+ *
+ *  ⚠ 종전엔 일반관리를 통째로 건너뛰었다 — "강등하면 안 된다"가 "아무것도 하지 않는다"로
+ *    번져 옛 특별이 그대로 남았다. **하면 안 되는 것과 안 해도 되는 것은 다르다.** */
 export function planDemoteStraySpecials(
   year: number,
   desired: Array<{ sequence_num: number; month: number }>,
   rows: SlotRow[],
   alreadyClaimed: Set<string> = new Set(),
-): SlotOp[] {
+  /** 이 고객에게 정기(monthly) 체계가 있는가 — 없으면 강등 대신 삭제한다 */
+  hasMonthly = true,
+): Array<Extract<SlotOp, { kind: 'toMonthly' | 'remove' }>> {
   const want = new Set(desired.map(d => `${d.month}-${d.sequence_num}`))
   return rows
     .filter(r => r.year === year && isSpecial(r.plan_type) && !r.started && !alreadyClaimed.has(r.id))
     .filter(r => !want.has(`${r.month}-${r.sequence_num}`))
-    .map(r => r.sequence_num === 2
+    .map(r => (r.sequence_num === 2 || !hasMonthly)
       ? { kind: 'remove' as const, id: r.id, year, month: r.month, from: r.plan_type }
       : { kind: 'toMonthly' as const, id: r.id, year, month: r.month, from: r.plan_type })
 }
@@ -133,7 +151,7 @@ export function planStrayMonthly(
   year: number,
   desired: Array<{ sequence_num: number; month: number }>,
   rows: SlotRow[],
-): SlotOp[] {
+): Array<Extract<SlotOp, { kind: 'remove' }>> {
   const specialMonths = new Set(desired.map(d => d.month))
   return rows
     .filter(r => r.year === year && !isSpecial(r.plan_type) && r.plan_type === 'monthly' && !r.started)
