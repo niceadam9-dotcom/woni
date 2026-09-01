@@ -6,7 +6,7 @@ import {
   MessageSquare, Loader2, SlidersHorizontal, AlertTriangle, CalendarDays,
   ChevronRight, RefreshCw, Send, MapPin,
 } from 'lucide-react'
-import { listSmsStatusAction, bulkMovePlanDatesAction, listSmsCustomerOptionsAction } from '@/app/(dashboard)/inspections/sms-actions'
+import { listSmsStatusAction, bulkMovePlanDatesAction, listSmsCustomerOptionsAction, bulkCancelPlanItemsAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
@@ -194,6 +194,9 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   const [adhocOpen, setAdhocOpen] = useState(false)
   const [adhocQuery, setAdhocQuery] = useState('')
   const [adhocOptions, setAdhocOptions] = useState<Array<{ id: string; name: string; sub?: string }>>([])
+  // 방문 취소는 계획을 바꾼다 — 한 번 더 확인받는다(발송 중복 확인과 같은 2단 방식)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelMsg, setCancelMsg] = useState<string | null>(null)
 
   function openAdhoc() {
     setAdhocOpen(true)
@@ -344,6 +347,10 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
   // 정작 이 기능이 필요한 경우를 못 고른다. 목록은 [임의 발송]을 열 때 한 번만 가져온다.
   const adhocPick = adhocOptions.find(c => c.name === adhocQuery) ?? null
 
+  // 선택이 바뀌면 '한 번 더 누르면 취소' 상태를 푼다 — 동의한 건수와 실제 취소 건수가
+  // 어긋나는 유일한 경로다(bulkCancel 주석)
+  useEffect(() => { setConfirmCancel(false) }, [checked])
+
   function toggle(k: string) {
     setChecked(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
   }
@@ -353,6 +360,28 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
       const all = g.groups.every(r => n.has(r.key))
       for (const r of g.groups) all ? n.delete(r.key) : n.add(r.key)
       return n
+    })
+  }
+
+  /** 방문 취소 — 목록에서 빼는 유일한 수단. **삭제가 아니다**(서버 액션 주석 참조).
+   *
+   *  ⚠ 확인 상태는 선택이 바뀌면 반드시 풀려야 한다(아래 useEffect). 안 풀면 5건을 고르고
+   *  한 번 누른 뒤 200건을 더 골라 두 번째로 누르는 순간 205건이 통째로 취소된다 —
+   *  사용자는 5건에만 동의했다. */
+  function bulkCancel() {
+    if (checkedPlanItems.length === 0) return
+    if (!confirmCancel) { setConfirmCancel(true); return }
+    setCancelMsg(null); setConfirmCancel(false)
+    startTransition(async () => {
+      const res = await bulkCancelPlanItemsAction(checkedPlanItems)
+      // 건별 실패를 삼키지 않는다 — 점검이 진행된 건·자료가 든 건은 가드에 막힌다.
+      // 경고(취소는 됐지만 점검 정리 실패)도 함께 드러낸다 — 삼키면 고아 점검이 조용히 쌓인다.
+      const base = res.failed.length === 0
+        ? `${res.cancelled}건을 취소했습니다 — 계획 화면의 [취소] 탭에서 볼 수 있습니다.`
+        : `${res.cancelled}건 취소 · ${res.failed.length}건 실패 — ${res.failed.map(f => `${f.name}(${f.reason})`).join(' / ')}`
+      setCancelMsg(res.warnings.length > 0 ? `${base} ⚠ ${res.warnings.join(' / ')}` : base)
+      setChecked(new Set())
+      reload()
     })
   }
 
@@ -804,8 +833,23 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
               점검일 일괄 변경
             </button>
           </span>
+          {/* 방문 취소 — 목록에서 빼달라는 요구의 정답. 삭제 버튼을 두지 않는 이유는
+              서버 액션 주석에 있다(청구·점검 기록이 CASCADE로 딸려간다).
+              색을 낮춰 둔다: 주 동선은 발송이고, 이건 계획을 바꾸는 일이다. */}
+          <button data-testid="sms-cancel-visit"
+            className={confirmCancel
+              ? 'h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors disabled:opacity-40'
+              : btn}
+            onClick={bulkCancel}
+            disabled={checkedPlanItems.length === 0 || isPending}
+            title="선택한 방문을 취소해 목록에서 뺍니다 — 삭제가 아니라 계획 화면의 [취소] 탭에 남습니다">
+            {confirmCancel ? `정말 ${checkedRows.length}건을 취소할까요?` : '방문 취소'}
+          </button>
           <button className={btn} onClick={() => setChecked(new Set())}>선택 해제</button>
         </div>
+      )}
+      {cancelMsg && (
+        <p data-testid="sms-cancel-msg" className="text-xs text-[#514b81] px-1">{cancelMsg}</p>
       )}
 
       {modal && (

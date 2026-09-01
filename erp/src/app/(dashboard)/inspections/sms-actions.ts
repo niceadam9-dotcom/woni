@@ -15,6 +15,7 @@ import {
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { isStepOneCompleted } from '@/lib/inspection-start'
 
 /** 사전 안내 SMS 서버 액션 (소방계획서_24 S4)
  *
@@ -561,6 +562,154 @@ export async function saveSmsSettingsAction(rulesInput: unknown) {
   revalidatePath('/inspections/sms')
   revalidatePath('/settings/message-templates')
   return { rules }
+}
+
+/** 점검 껍데기에 **사람이 넣은 자료**가 있는지 본다 — 있으면 방문 취소를 거부할 근거다.
+ *
+ *  확정하면 점검이 조건 없이 자동 생성된다(inspection-plans/actions.ts:375-378). 그 껍데기는
+ *  아무도 요청하지 않은 부산물이라 방문이 취소되면 함께 사라지는 게 맞다. 하지만 `inspections`를
+ *  지우면 점검표 응답·지적사항·조치계획·펌프시험이 **전부 CASCADE로 딸려간다**(069:6, 008:9·29,
+ *  131:20 …). 그래서 CASCADE에 기대지 않고 여기서 직접 센다.
+ *
+ *  ⚠ **조회 실패를 '비었다'로 읽지 않는다.** 그렇게 하면 조회 한 번 실패가 곧 사용자 자료
+ *  삭제가 된다 — 이 함수에서 가장 위험한 침묵이다. 실패는 곧 거부다. */
+const INSPECTION_WORK_TABLES: Array<{ table: string; label: string }> = [
+  { table: 'inspection_sheet_responses', label: '점검표 응답' },
+  { table: 'annex_inputs',               label: '별지 입력' },
+  { table: 'inspection_defects',         label: '지적사항' },
+  { table: 'action_plans',               label: '조치계획' },
+  { table: 'inspection_pump_tests',      label: '펌프 성능시험' },
+  { table: 'generated_reports',          label: '생성된 보고서' },
+  { table: 'report_deliveries',          label: '보고서 전달 이력' },
+  { table: 'inspection_participants',    label: '점검 참여자' },
+  { table: 'fire_plan_gen_jobs',         label: '서식 생성 작업' },
+  // inspection_reports는 FK가 RESTRICT라 DB가 삭제를 막지만(002:219), 여기서 먼저 보면
+  // "삭제 실패" 대신 **왜 안 되는지**를 사용자에게 돌려줄 수 있다.
+  { table: 'inspection_reports',         label: '보고서' },
+]
+
+async function findInspectionWork(
+  admin: ReturnType<typeof createAdminClient>,
+  inspectionId: string,
+): Promise<string | null> {
+  // 단계가 하나라도 완료됐으면 사람이 손댄 점검이다
+  const { data: steps, error: stepErr } = await admin.from('inspection_steps')
+    .select('step_num').eq('inspection_id', inspectionId).eq('status', 'completed').limit(1)
+  if (stepErr) return `점검 단계 확인 실패(${stepErr.message})`
+  if ((steps ?? []).length > 0) return '진행된 점검 단계'
+
+  for (const t of INSPECTION_WORK_TABLES) {
+    const { data, error } = await admin.from(t.table)
+      .select('id').eq('inspection_id', inspectionId).limit(1)
+    if (error) return `${t.label} 확인 실패(${error.message})`
+    if ((data ?? []).length > 0) return t.label
+  }
+  return null
+}
+
+// ── 방문 취소 (선택 건을 목록에서 뺀다) ───────────────────────
+/** "이 방문은 없어졌으니 목록에서 빼달라"는 실무. **삭제가 아니라 상태 전환**이다.
+ *
+ *  삭제로 하면 `inspection_status_log`·`inspection_report_status`가 CASCADE로 함께 사라지고
+ *  (006:8, 007:8), `bills.inspection_plan_item_id`는 SET NULL이 되어 **무엇에 대한 청구인지
+ *  모르는 청구서**가 남는다(009:10). `sms_send_log.plan_item_ids`는 UUID[]라 FK가 아니라서
+ *  DB가 막지도 고치지도 않는다(140:23) — 깨진 ID가 발송 이력에 영구히 남는다.
+ *  취소는 그 전부를 보존한다.
+ *
+ *  취소하면 목록에서 자동으로 빠진다 — 이미 전 화면이 cancelled를 거르고 있기 때문이다:
+ *  문자 대상(sms.ts:135) · 점검 달력(inspections/calendar/page.tsx:56) ·
+ *  보고서 대상(reports/docs-actions.ts:260). 계획 화면의 [취소] 탭에는 남아 되돌릴 수 있다.
+ *
+ *  원상태는 notes 마커로 보존한다. 마커를 `⟦자동취소:⟧`(고객 비활성 전환)와 **일부러 다르게**
+ *  둔다 — 같으면 고객을 재활성화하는 순간 `_restorePlansForCustomer`가 사람이 손으로 취소한
+ *  방문까지 되살린다(customers/actions.ts:1075-1081). */
+export async function bulkCancelPlanItemsAction(planItemIds: string[]) {
+  // 날짜 이동과 같은 권한 — 둘 다 계획 항목의 상태를 바꾼다
+  const g = await guard('inspection_plan_manage')
+  if (g.error) return { cancelled: 0, failed: [{ name: '', reason: g.error }], warnings: [] }
+  if (!Array.isArray(planItemIds) || planItemIds.length === 0) return { cancelled: 0, failed: [], warnings: [] }
+  if (planItemIds.length > 200) {
+    return { cancelled: 0, failed: [{ name: '', reason: '한 번에 200건까지 취소할 수 있습니다.' }], warnings: [] }
+  }
+
+  const admin = createAdminClient()
+  const { data } = await admin.from('inspection_plan_items')
+    .select('id, status, notes, customer_id, inspection_id, customers:customer_id ( customer_name )')
+    .in('id', planItemIds)
+  const rows = (data ?? []) as unknown as Array<{
+    id: string; status: string; notes: string | null; customer_id: string
+    inspection_id: string | null; customers: { customer_name: string } | null
+  }>
+  const byId = new Map(rows.map(r => [r.id, r]))
+
+  let cancelled = 0
+  const failed: Array<{ name: string; reason: string }> = []
+  /** 취소는 됐지만 뒷정리가 남은 건 — 삼키면 '고아 점검'이 조용히 쌓인다 */
+  const warnings: string[] = []
+  for (const id of planItemIds) {
+    const cur = byId.get(id)
+    if (!cur) { failed.push({ name: '(고객 미상)', reason: '계획 항목을 찾을 수 없습니다.' }); continue }
+    const name = cur.customers?.customer_name ?? '(고객 미상)'
+
+    if (cur.status === 'cancelled') { failed.push({ name, reason: '이미 취소된 항목입니다.' }); continue }
+    if (cur.status === 'completed') {
+      failed.push({ name, reason: '점검이 진행된 항목입니다 — 점검 상세에서 처리해주세요.' })
+      continue
+    }
+    // 실제로 점검이 시작된 건은 **사실 기록**이라 계획에서 되돌리지 않는다.
+    // 판정 기준을 `inspection_id` 유무가 아니라 1단계 완료로 두는 이유:
+    // 확정하면 점검 껍데기가 자동 생성돼(actions.ts:375-378) inspection_id가 채워지므로,
+    // 그것만 보면 앞으로 확정되는 건이 전부 막힌다. updatePlanItemAction:173-179와 같은 기준이다.
+    if (cur.inspection_id && await isStepOneCompleted(admin, cur.inspection_id)) {
+      failed.push({ name, reason: '이미 점검일(1단계)이 완료된 점검입니다.' })
+      continue
+    }
+    // 자료가 들어간 점검은 껍데기가 아니다 — 취소 자체를 막는다.
+    // (막지 않고 점검만 남기면 "방문은 취소인데 점검은 예정"인 모순이 쌓인다)
+    const work = cur.inspection_id ? await findInspectionWork(admin, cur.inspection_id) : null
+    if (work) {
+      failed.push({ name, reason: `점검에 ${work}이(가) 있습니다 — 점검 상세에서 처리해주세요.` })
+      continue
+    }
+
+    const { error } = await admin.from('inspection_plan_items')
+      .update({
+        status: 'cancelled',
+        notes: `${cur.notes ?? ''}⟦방문취소:${cur.status}⟧`,
+      } as Record<string, unknown>)
+      .eq('id', id)
+    if (error) { failed.push({ name, reason: '취소에 실패했습니다.' }); continue }
+
+    // ── 빈 점검 껍데기 정리 (A안)
+    //
+    //  순서가 중요하다: **계획을 먼저 취소하고 점검을 지운다.** 반대로 하면 점검 삭제 후
+    //  계획 갱신이 실패했을 때 "점검은 사라졌는데 계획은 살아있는" 새 모순이 생긴다.
+    //  이 순서라면 최악이 '취소됐지만 점검이 남음' — 지금까지의 상태와 같고, 아래서 알린다.
+    //  plan_items.inspection_id는 FK가 ON DELETE SET NULL이라(005:46) 저절로 비워진다.
+    if (cur.inspection_id) {
+      const { error: delErr } = await admin.from('inspections').delete().eq('id', cur.inspection_id)
+      if (delErr) warnings.push(`${name}: 방문은 취소했지만 점검 건 정리에 실패했습니다(${delErr.message}) — 점검 목록에 남아 있습니다.`)
+    }
+
+    await admin.from('activity_logs').insert({
+      actor_id: g.profile!.id,
+      action: 'plan_item_updated',
+      entity_type: 'inspection_plan_item',
+      entity_id: id,
+      metadata: {
+        customer_id: cur.customer_id,
+        changes: [{ field: 'status', old_value: cur.status, new_value: 'cancelled' }],
+        source: 'sms_bulk_cancel',
+      },
+    } as Record<string, unknown>)
+    cancelled++
+  }
+
+  revalidatePath('/inspections/sms')
+  revalidatePath('/inspection-plans')
+  revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  return { cancelled, failed, warnings }
 }
 
 // ── 지역 묶음 일괄 날짜 이동 (S12② / Q-16) ────────────────────
