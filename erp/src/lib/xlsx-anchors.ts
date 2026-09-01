@@ -186,6 +186,24 @@ export const ANCHORS: Anchor[] = [
       dropFormula: true, keepFormulaWhenEmpty: true,
     },
   ]),
+  // ── 현1(별지 9호 4쪽) 3-1 소화기구·자동소화장치 체크 7칸 — Phase 4 / S9-1 착수분 ──
+  //
+  // 현1~현4는 여태 통째로 미배선이었다(통문자열 156칸 — 현1 33·현2 38·현3 42·현4 43, 2026-09-01
+  // 재실측이 2026-08-30 기록과 셀 단위로 일치). 그중 **자구 모호성이 없는 3-1 7칸만** 먼저 연다.
+  // 값은 PDF `renderS31`과 같은 `s31_extinguisher.summary.types` 6종 — D-7(같은 원천·같은 해석).
+  //
+  // ⚠ 라벨칸 고르기가 이 블록의 핵심이다. 3행의 이웃 라벨은 자동확산소화기·자동소화장치가 **둘 다
+  //   '자동'**이라(P3·S3) 서식이 밀려도 구별되지 않는다. 그래서 두 번째 낱말이 있는 **4행**을
+  //   라벨칸으로 잡는다(N4='확산소화기' · Q4='소화장치') — 좌표만 믿지 않는다는 규약의 적용.
+  // ⚠ 상위 '소화기'(C3)는 앵커를 달지 않는다 — 이미 `=현황!D7` 수식이고, 그 축(설비 대장 설치
+  //   여부)과 여기 축(세부제원에 적은 종류)은 다르다. 덮으면 두 축이 뒤섞인다.
+  { field: 's31SimpleAny',   sheet: '현1', cell: 'J3', labelCell: 'K3', label: '간이소화용구' },
+  { field: 's31AutoDiffuse', sheet: '현1', cell: 'O3', labelCell: 'N4', label: '확산소화기' },
+  { field: 's31AutoDevice',  sheet: '현1', cell: 'R3', labelCell: 'Q4', label: '소화장치' },
+  { field: 's31ExtPowder',   sheet: '현1', cell: 'B4', labelCell: 'C4', label: '분말' },
+  { field: 's31ExtOther',    sheet: '현1', cell: 'G4', labelCell: 'H4', label: '기타' },
+  { field: 's31SimpleThrow', sheet: '현1', cell: 'I4', labelCell: 'J4', label: '투척용' },
+  { field: 's31SimpleOther', sheet: '현1', cell: 'L4', labelCell: 'M4', label: '기타' },
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·

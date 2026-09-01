@@ -272,6 +272,49 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
   }
 }
 
+// ── ④b 현1 3-1 소화기구 체크 7칸 (Phase 4 / S9-1 착수분) ─────────────
+// 현1~현4는 여태 통째로 미배선이라 PDF는 제원을 인쇄하는데 엑셀만 빈칸이었다(D-7 파손).
+// **대조군을 먼저 보인다** — specs가 없으면 7칸이 전부 `[  ]`여야 한다(값을 지어내지 않는다).
+console.log('[4b] 현1 3-1 소화기구 체크')
+{
+  const CELLS = { J3: '간이소화용구', O3: '자동확산소화기', R3: '자동소화장치',
+                  B4: '소화기(분말)', G4: '소화기(기타)', I4: '투척용', L4: '간이(기타)' } as const
+  const mk = async (specs: Record<string, unknown> | null) => {
+    const v = buildWorkbookValues({
+      official, delegation, customerAddress: '', startISO: null, endISO: null,
+      useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+      report9: { ...report9, specs },
+    })
+    const r = await injectWorkbook(template, toInjectTargets(v).targets)
+    const z = await JSZip.loadAsync(r.bytes)
+    const xml = await z.file((await sheetFileMap(z)).get('현1')!)!.async('string')
+    return (ref: string) => {
+      const c = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`).exec(xml)?.[0] ?? ''
+      return /<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? /<v>([\s\S]*?)<\/v>/.exec(c)?.[1] ?? ''
+    }
+  }
+  // 대조군 — 세부제원이 없으면 전부 빈 마크
+  const ctl = await mk(null)
+  for (const ref of Object.keys(CELLS)) {
+    check(`대조군 — specs 없으면 현1!${ref}는 빈 마크`, ctl(ref) === '[  ]', JSON.stringify(ctl(ref)))
+  }
+  // 실값 — 분말·투척용·자동소화장치만 켠다. 상위 '간이소화용구'는 하위 합집합이라 함께 켜지고,
+  // 자동확산소화기는 꺼진 채여야 한다(켜지면 '설치하지도 않은 설비'가 법정 서식에 찍힌다).
+  const got = await mk({ s31_extinguisher: { summary: {
+    types: ['소화기(분말)', '간이소화용구(투척용)', '자동소화장치'],
+  } } })
+  const ON = '[√]', OFF = '[  ]'
+  const EXPECT: Record<string, string> = {
+    B4: ON, I4: ON, R3: ON,   // 직접 켠 3종
+    J3: ON,                   // 상위 = 하위 합집합(투척용이 켜졌으므로)
+    G4: OFF, L4: OFF, O3: OFF, // 안 켠 것은 꺼진 채
+  }
+  for (const [ref, want] of Object.entries(EXPECT)) {
+    check(`현1!${ref} ${CELLS[ref as keyof typeof CELLS]} = ${want === ON ? '√' : '빈칸'}`,
+      got(ref) === want, JSON.stringify(got(ref)))
+  }
+}
+
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
 console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 {

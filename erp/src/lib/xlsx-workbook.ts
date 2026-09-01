@@ -49,6 +49,10 @@ export type WorkbookSource = {
      *  '경사로 0 개소'가 인쇄됐다(2026-08-23 F세대 판정). PDF(report9.ts:329)는 실값을 찍고
      *  있었으므로 **D-7('PDF와 엑셀이 갈라지지 않는다')이 깨진 유일한 칸**이었다 */
     rampCount: string
+    /** 세부제원(customer_facility_specs) — 별지 9호 4~7쪽 세부현황의 원천. PDF는
+     *  `renderSpecSections()`로 이미 인쇄하는데 엑셀 현1~현4는 통째로 비어 있었다(D-7 파손).
+     *  라우트가 `evacTypes`를 뽑을 때 이미 손에 쥐고 있던 값이라 전달 경로 추가는 없다. */
+    specs?: Record<string, unknown> | null
     /** ⭐ 점검표 응답 롤업 — **별지 9호 3쪽 / 별지 4호 1쪽 PDF가 인쇄하는 바로 그 맵**(D-7).
      *  키는 FORM3_ITEMS(별지 9호 표기 = 저장 어휘). 여기서 다시 판정하지 않는다 —
      *  라우트가 넘기는 r9.data의 것을 그대로 받아 `현황` 시트 결과칸에 놓기만 한다.
@@ -299,6 +303,33 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`assist${i + 1}Period`, a ? a.period || null : ' '],
     )
   }
+  // ── 현1 3-1 소화기구·자동소화장치 체크 7칸 (소방계획서_27 Phase 4 / S9-1) ──
+  //
+  // 여태 현1~현4는 통째로 미배선이라 **PDF는 그 고객 제원을 인쇄하는데 엑셀만 빈칸**이었다(D-7 파손).
+  // 여기서 여는 것은 3-1의 √ 7칸뿐이다 — 셀 내용이 마크 하나(`[  ]`)라 자구 재조립이 필요 없고
+  // PDF `renderS31`(spec-sections.ts:174-186)과 **완전히 같은 6종 어휘**를 쓴다.
+  //
+  // ⚠ 소화기·간이소화용구 두 상위 칸은 서식이 하위 2종의 **합집합**으로 정의한다
+  //   (renderS31의 `tAny` — 분말·기타 중 하나라도 있으면 '소화기'가 켜진다). 여기서 다시
+  //   판정하지 않고 같은 식을 쓴다. 상위 '소화기'(C3)는 이미 `=현황!D7` 수식이라 건드리지 않는다.
+  // ⚠ 값을 지어내지 않는다 — types가 없으면 전부 `[  ]`다(미설치 단정이 아니라 '모른다'의 표현).
+  {
+    const s31 = ((p.specs?.['s31_extinguisher'] ?? null) as Record<string, unknown> | null)
+    const summary = ((s31?.['summary'] ?? null) as Record<string, unknown> | null)
+    const raw = summary?.['types']
+    const types = new Set(Array.isArray(raw) ? raw.map(String) : [])
+    const on = (...opts: string[]) => opts.some(o => types.has(o))
+    entries.push(
+      ['s31SimpleAny',   ck(on('간이소화용구(투척용)', '간이소화용구(기타)'))],
+      ['s31AutoDiffuse', ck(on('자동확산소화기'))],
+      ['s31AutoDevice',  ck(on('자동소화장치'))],
+      ['s31ExtPowder',   ck(on('소화기(분말)'))],
+      ['s31ExtOther',    ck(on('소화기(기타)'))],
+      ['s31SimpleThrow', ck(on('간이소화용구(투척용)'))],
+      ['s31SimpleOther', ck(on('간이소화용구(기타)'))],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의
