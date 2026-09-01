@@ -330,6 +330,79 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     )
   }
 
+  // ── 현1 3-2 수계소화설비(공통사항) 25칸 (Phase 4 / S9-1) ──────────────
+  //
+  // 서식 원문과 **자구 동일**하게 재조립한다(정보 12칸·다수동일때 15칸과 같은 부류) —
+  // 공백 런까지 `_p4-hyeon1-literals.mts` 실측값이다(동명 12·층 3·값 9·불연성가스 18·줄머리 15).
+  // 값은 PDF `renderS32`(spec-sections.ts:230-266)와 **같은 블록·같은 필드**를 읽는다(D-7).
+  //
+  // ⚠ `G25`만 서식 원문을 **따르지 않는다**. 갑지 자산이 구판이라 `◦ 유효수량: (   )㎥`인데,
+  //   별지 4호 현행판 원문과 별지 9호 hwpx는 `◦ 유효낙차: (   )m`다(2026-09-01 대조,
+  //   scripts/_p4-form-source-check.mts). 고가수조는 낙차가 맞고 PDF도 그렇게 인쇄한다.
+  //   앵커가 이 칸을 통째로 덮으므로 **자산을 건드리지 않고** 여기서 현행판으로 바로잡는다.
+  {
+    const s32 = ((p.specs?.['s32_water_common'] ?? null) as Record<string, unknown> | null)
+    const blk = (k: string) => ((s32?.[k] ?? null) as Record<string, unknown> | null)
+    const mw = blk('main_water'), aw = blk('aux_water')
+    const el = blk('pump_elevated'), pr = blk('pump_pressure'), pz = blk('pump_pressurized')
+
+    const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
+    /** write-in 슬롯 — 값이 있으면 앞뒤 한 칸씩, 없으면 서식 원문의 공백 런 그대로 */
+    const w = (b: Record<string, unknown> | null, k: string, n: number) => {
+      const s = str(b, k)
+      return s ? ` ${s} ` : ' '.repeat(n)
+    }
+    const isSel = (b: Record<string, unknown> | null, k: string, opt: string) => str(b, k) === opt
+    const hasSys = (b: Record<string, unknown> | null, o: string) => {
+      const v = b?.['systems']
+      return Array.isArray(v) && v.map(String).includes(o)
+    }
+    /** 블록이 '쓰임'인가 — PDF `cb(has(used) || blockHas(b))`와 같은 축.
+     *  값이 하나라도 적혀 있으면 켠다(체크만 빼먹은 입력을 서식에서 되살린다). */
+    const used = (b: Record<string, unknown> | null) => {
+      if (b?.['used'] === true) return true
+      return Object.entries(b ?? {}).some(([k, v]) =>
+        k !== 'used' && (Array.isArray(v) ? v.length > 0 : !!String(v ?? '').trim()))
+    }
+    // 배치는 원문 그대로 3·2·3행 — renderS32의 sysLine과 같은 분할이다
+    const SYS = ['옥내소화전설비', '옥외소화전설비', '스프링클러설비', '간이스프링클러설비',
+      '화재조기진압용스프링클러설비', '물분무소화설비', '미분무소화설비', '포소화설비']
+    const seg = (b: Record<string, unknown> | null, from: number, to: number) =>
+      SYS.slice(from, to).map(o => `${ck(hasSys(b, o))}${o}`).join(' ')
+    const sys1 = (b: Record<string, unknown> | null) => `◦ 설비의 종류: ${seg(b, 0, 3)}`
+    const sys2 = (b: Record<string, unknown> | null) => `${' '.repeat(15)}${seg(b, 3, 5)} `
+    const sys3 = (b: Record<string, unknown> | null) => `${' '.repeat(15)}${seg(b, 5, 8)}`
+    /** 설치장소 — 동명/지상·지하/층/실명 (PDF locLine과 같은 필드·같은 폭) */
+    const loc = (b: Record<string, unknown> | null) =>
+      `◦ 설치장소: 동명(${w(b, 'dong', 12)}) ${ck(isSel(b, 'ground', '지상'))}지상/${ck(isSel(b, 'ground', '지하'))}지하 (${w(b, 'floor', 3)})층, 실명(${w(b, 'room', 12)})`
+    /** 수조용량·가압압력 한 줄 — 압력수조·가압수조가 같은 자구를 쓴다 */
+    const tank = (b: Record<string, unknown> | null) =>
+      `◦ 수조용량: (${w(b, 'tank_volume', 9)})ℓ, 수조가압압력:(${w(b, 'tank_pressure', 9)})Mpa`
+
+    entries.push(
+      // 주된수원
+      ['s32MwSys1', sys1(mw)], ['s32MwSys2', sys2(mw)], ['s32MwSys3', sys3(mw)],
+      ['s32MwLoc', loc(mw)],
+      ['s32MwIntake', `◦ 흡입방식: ${ck(isSel(mw, 'intake', '정압'))}정압 ${ck(isSel(mw, 'intake', '부압'))}부압,   ◦ 유효수량: (${w(mw, 'capacity', 9)})㎥`],
+      // 보조수원 — 지상/지하·층이 없는 짧은 설치장소다(원문 그대로)
+      ['s32AwLoc', `◦ 설치장소: 동명(${w(aw, 'dong', 12)}) 실명(${w(aw, 'room', 12)}), ◦ 유효수량: (${w(aw, 'capacity', 9)})㎥`],
+      // 고가수조 — 마지막 칸이 유효'낙차'(m)다. 위 ⚠ 참조
+      ['s32ElMark', `${ck(used(el))}고가수조`],
+      ['s32ElSys1', sys1(el)], ['s32ElSys2', sys2(el)], ['s32ElSys3', sys3(el)],
+      ['s32ElLoc', `◦ 설치장소: 동명(${w(el, 'dong', 12)}) 실명(${w(el, 'room', 12)}), ◦ 유효낙차: (${w(el, 'head_drop', 9)})m`],
+      // 압력수조
+      ['s32PrMark', `${ck(used(pr))}압력수조`],
+      ['s32PrSys1', sys1(pr)], ['s32PrSys2', sys2(pr)], ['s32PrSys3', sys3(pr)],
+      ['s32PrLoc', loc(pr)], ['s32PrTank', tank(pr)],
+      ['s32PrComp', `◦ 자동식공기압축기 용량:(${w(pr, 'compressor_capacity', 9)})㎥/min, 동 력:(${w(pr, 'compressor_power', 9)})Kw`],
+      // 가압수조
+      ['s32PzMark', `${ck(used(pz))}가압수조`],
+      ['s32PzSys1', sys1(pz)], ['s32PzSys2', sys2(pz)], ['s32PzSys3', sys3(pz)],
+      ['s32PzLoc', loc(pz)], ['s32PzTank', tank(pz)],
+      ['s32PzGas', `◦ 가압가스의 종류: ${ck(isSel(pz, 'gas_type', '공기'))}공기 ${ck(isSel(pz, 'gas_type', '불연성가스'))}불연성가스(${w(pz, 'gas_etc', 18)})`],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의

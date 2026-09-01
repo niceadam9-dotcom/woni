@@ -204,6 +204,30 @@ export const ANCHORS: Anchor[] = [
   { field: 's31ExtOther',    sheet: '현1', cell: 'G4', labelCell: 'H4', label: '기타' },
   { field: 's31SimpleThrow', sheet: '현1', cell: 'I4', labelCell: 'J4', label: '투척용' },
   { field: 's31SimpleOther', sheet: '현1', cell: 'L4', labelCell: 'M4', label: '기타' },
+  // ── 현1 3-2 수계소화설비(공통사항) 25칸 — Phase 4 / S9-1 ────────────────────
+  //
+  // 라벨칸은 각 블록의 구분 칸이다(B16 주된수원 · B21 보조수원 · B22/B26/B32 각 수조).
+  // 수조 3칸은 자기 라벨을 겸한다 — 서식에 `[  ]고가수조`처럼 마크와 이름이 한 칸에 있다.
+  // 검증은 주입 **전** 템플릿을 읽으므로(route.ts:124) 이 칸을 덮어도 라벨 대조는 안정적이다.
+  //
+  // ⚠ A22('가압\n송수\n장치')를 라벨로 쓰지 않는다 — 세 수조가 공유해 서로 구별되지 않는다.
+  ...[
+    ['s32MwSys1', 'G16'], ['s32MwSys2', 'G17'], ['s32MwSys3', 'G18'],
+    ['s32MwLoc', 'G19'], ['s32MwIntake', 'G20'],
+  ].map<Anchor>(([field, cell]) => ({ field, sheet: '현1', cell, labelCell: 'B16', label: '주된수원' })),
+  { field: 's32AwLoc', sheet: '현1', cell: 'G21', labelCell: 'B21', label: '보조수원' },
+  ...[
+    ['s32ElMark', 'B22'], ['s32ElSys1', 'G22'], ['s32ElSys2', 'G23'],
+    ['s32ElSys3', 'G24'], ['s32ElLoc', 'G25'],
+  ].map<Anchor>(([field, cell]) => ({ field, sheet: '현1', cell, labelCell: 'B22', label: '[  ]고가수조' })),
+  ...[
+    ['s32PrMark', 'B26'], ['s32PrSys1', 'G26'], ['s32PrSys2', 'G27'], ['s32PrSys3', 'G28'],
+    ['s32PrLoc', 'G29'], ['s32PrTank', 'G30'], ['s32PrComp', 'G31'],
+  ].map<Anchor>(([field, cell]) => ({ field, sheet: '현1', cell, labelCell: 'B26', label: '[  ]압력수조' })),
+  ...[
+    ['s32PzMark', 'B32'], ['s32PzSys1', 'G32'], ['s32PzSys2', 'G33'], ['s32PzSys3', 'G34'],
+    ['s32PzLoc', 'G35'], ['s32PzTank', 'G36'], ['s32PzGas', 'G37'],
+  ].map<Anchor>(([field, cell]) => ({ field, sheet: '현1', cell, labelCell: 'B32', label: '[  ]가압수조' })),
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·

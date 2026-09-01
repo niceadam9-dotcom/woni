@@ -315,6 +315,85 @@ console.log('[4b] 현1 3-1 소화기구 체크')
   }
 }
 
+// ── ④c 현1 3-2 수계소화설비 25칸 (Phase 4 / S9-1) ────────────────────
+// **자구 왕복이 이 블록의 본체다.** 통문자열을 손으로 재조립하므로 공백 런이 한 칸만 어긋나도
+// 서식이 밀린다 — 그런데 인쇄물은 멀쩡해 보인다. 그래서 '빈 값 조립 = 서식 원문'을 단언한다.
+// ⚠ G25는 **일부러 다르다** — 갑지가 구판(`유효수량 …㎥`)이고 현행판 원문은 `유효낙차 …m`다.
+//   그 한 칸만 달라야 하고, 나머지 24칸은 원문과 동일해야 한다.
+console.log('[4c] 현1 3-2 자구 왕복·값 착지')
+{
+  const CELLS = ['G16', 'G17', 'G18', 'G19', 'G20', 'G21', 'B22', 'G22', 'G23', 'G24', 'G25',
+    'B26', 'G26', 'G27', 'G28', 'G29', 'G30', 'G31',
+    'B32', 'G32', 'G33', 'G34', 'G35', 'G36', 'G37']
+  const textOf = (xml: string, ref: string) => {
+    const c = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`).exec(xml)?.[0] ?? ''
+    const raw = /<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? ''
+    return raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
+  }
+  const sheetXml = async (bytes: Uint8Array) => {
+    const z = await JSZip.loadAsync(bytes)
+    return await z.file((await sheetFileMap(z)).get('현1')!)!.async('string')
+  }
+  const mk = async (specs: Record<string, unknown> | null) => sheetXml(
+    (await injectWorkbook(template, toInjectTargets(buildWorkbookValues({
+      official, delegation, customerAddress: '', startISO: null, endISO: null,
+      useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+      report9: { ...report9, specs },
+    })).targets)).bytes)
+
+  // 원본(주입 전) — 공유문자열도 풀어야 해서 시트 XML만으론 부족하다. 라벨 프로브와 같은 축으로
+  // 템플릿을 직접 읽어 비교 대상을 만든다.
+  const tplZip = await JSZip.loadAsync(template)
+  const sst = await tplZip.file('xl/sharedStrings.xml')!.async('string')
+  const shared = [...sst.matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join(''))
+  const tplXml = await sheetXml(template)
+  const tplText = (ref: string) => {
+    const c = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`).exec(tplXml)?.[0] ?? ''
+    const t = /t="([^"]+)"/.exec(c)?.[1]
+    const raw = t === 's'
+      ? (shared[+(/<v>(\d+)<\/v>/.exec(c)?.[1] ?? -1)] ?? '')
+      : (/<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? '')
+    return raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
+  }
+
+  const blank = await mk(null)
+  let same = 0
+  for (const ref of CELLS) {
+    if (ref === 'G25') continue
+    const a = tplText(ref), b = textOf(blank, ref)
+    if (a === b) { same++; continue }
+    check(`자구 왕복 현1!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
+  }
+  check(`자구 왕복 — 빈 값 조립이 서식 원문과 동일(G25 제외 24칸)`, same === CELLS.length - 1, `${same}/${CELLS.length - 1}`)
+  // G25만 현행판으로 정정된다 — 구판을 그대로 두면 틀린 법정 서식 문구가 인쇄된다
+  check('현1!G25는 구판(유효수량 ㎥)이 아니라 현행판(유효낙차 m)',
+    /유효낙차/.test(textOf(blank, 'G25')) && /\)m$/.test(textOf(blank, 'G25')),
+    JSON.stringify(textOf(blank, 'G25')))
+  check('대조군 — 갑지 자산의 G25는 아직 구판이다(우리가 덮는 것이 맞다)',
+    /유효수량/.test(tplText('G25')), JSON.stringify(tplText('G25')))
+
+  // 값 착지 — 압력수조에 값을 넣고 마크·슬롯·수조용량이 함께 사는지
+  const gotXml = await mk({ s32_water_common: {
+    main_water: { systems: ['옥내소화전설비', '포소화설비'], dong: '본관', ground: '지하', floor: '2', room: '기계실', intake: '부압', capacity: '12.5' },
+    pump_pressure: { systems: ['스프링클러설비'], tank_volume: '300', tank_pressure: '0.7' },
+  } })
+  const got = (ref: string) => textOf(gotXml, ref)
+  check('현1!G16 — 켠 설비만 √(옥내 O, 옥외 X)',
+    got('G16').includes('[√]옥내소화전설비') && got('G16').includes('[  ]옥외소화전설비'), JSON.stringify(got('G16')))
+  check('현1!G18 — 3행째의 포소화설비도 √', got('G18').includes('[√]포소화설비'), JSON.stringify(got('G18')))
+  check('현1!G19 — 동명·지하·층·실명이 한 줄에',
+    got('G19').includes('본관') && got('G19').includes('[√]지하') && got('G19').includes('[  ]지상')
+      && got('G19').includes('기계실'), JSON.stringify(got('G19')))
+  check('현1!G20 — 부압 √ + 유효수량', got('G20').includes('[√]부압') && got('G20').includes('12.5'), JSON.stringify(got('G20')))
+  check('현1!B26 — 값만 있고 used 없어도 압력수조가 켜진다',
+    got('B26') === '[√]압력수조', JSON.stringify(got('B26')))
+  check('현1!B22 — 값이 없는 고가수조는 꺼진 채', got('B22') === '[  ]고가수조', JSON.stringify(got('B22')))
+  check('현1!G30 — 수조용량·가압압력', got('G30').includes('300') && got('G30').includes('0.7'), JSON.stringify(got('G30')))
+}
+
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
 console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 {
