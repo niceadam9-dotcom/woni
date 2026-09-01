@@ -168,7 +168,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 <div className="size-8 rounded-lg bg-brand flex items-center justify-center shrink-0">
                   <User className="size-4 text-white" />
                 </div>
-                <span className="text-xs font-semibold text-brand">{role === '대표' ? '대표' : '추가 관계인'}</span>
+                <span className="text-xs font-semibold text-brand">관계인</span>
                 <button onClick={openBook}
                   className="ml-auto inline-flex items-center gap-1 text-[11px] text-brand hover:underline">
                   <BookUser className="size-3" /> 주소록에서 가져오기
@@ -258,7 +258,6 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-ink-sub">{contact!.role === '대표' ? '대표' : '추가 관계인'}</span>
                 <span className="text-sm font-medium text-ink">{contact!.name}</span>
                 {contact!.position && (
                   <span className="flex items-center gap-1 text-xs text-brand">
