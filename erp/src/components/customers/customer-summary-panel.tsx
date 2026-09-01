@@ -31,7 +31,7 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
       value: planDate ?? <span className="text-amber-600">미입력</span>,
     },
     {
-      icon: <Phone className="size-3.5" />, label: '대표',
+      icon: <Phone className="size-3.5" />, label: '연락처',
       value: repName ? (
         <span>
           {repName}

@@ -177,7 +177,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
               <option value="">관계인 선택 (선택사항)</option>
               {filteredContacts.map(c => (
                 <option key={c.id} value={c.id}>
-                  [{c.role}] {c.name}{c.phone ? ` — ${formatTel(c.phone)}` : ''}
+                  {c.name}{c.phone ? ` — ${formatTel(c.phone)}` : ''}
                 </option>
               ))}
             </select>

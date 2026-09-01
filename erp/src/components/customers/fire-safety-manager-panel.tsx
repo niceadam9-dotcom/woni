@@ -102,9 +102,9 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
           <select value={d.managerContactId} disabled={!canManage}
             onChange={e => set('managerContactId', e.target.value)}
             className={`${inputCls} min-w-44`}>
-            <option value="">지정 안 함 (계획서 1.7 선임현황 → 대표 순으로 폴백)</option>
+            <option value="">지정 안 함 (계획서 1.7 선임현황 → 첫 관계인 순으로 폴백)</option>
             {contacts.map(c => (
-              <option key={c.id} value={c.id}>{c.role} · {c.name}{c.position ? ` (${c.position})` : ''}</option>
+              <option key={c.id} value={c.id}>{c.name}{c.position ? ` (${c.position})` : ''}</option>
             ))}
           </select>
           {picked ? (
