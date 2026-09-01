@@ -35,7 +35,13 @@
     { "id": "K-8", "desc": "test-voice-sheet.mts 기존 실패 — AI 구조화 후 제안 목록이 뜨지 않고 120초 타임아웃. voice-sheet-actions.ts를 HEAD로 되돌려 같은 시드로 재실행해도 동일 실패(인과 확정) → 이번 작업과 무관한 선행 결함", "evidence": ["HEAD 버전 실행 결과 1 통과/1 실패 — waitForSelector('확정 저장') 타임아웃", "ANTHROPIC_API_KEY는 .env.local에 존재(108자)"], "severity": "medium", "status": "resolved", "note": "claude-opus-4-8 + thinking:{type:'adaptive'} 호출부 의심이었으나 — 음성 입력 기능 전체 제거(5a1b6a8, 2026-08-18)로 test-voice-sheet 자체가 삭제돼 소멸 종결" },
     { "id": "K-10", "desc": "인라인 불량 등록(R13-d) 무피드백 — 알림줄이 `!sel` 조건이라 시트를 연 상태에서 [등록]을 눌러도 아무 표시가 없었다. 저장은 되지만 사용자는 알 수 없음", "evidence": ["inspection-sheet-client.tsx:147 `{!sel && notice && ...}`"], "severity": "low", "status": "confirmed", "note": "S3-5에서 공용 편집기 안 알림으로 해소. E2E가 알림을 기다리다 타임아웃 나서 발견" },
     { "id": "K-11", "desc": "작업 절차 결함 — PowerShell 5.1의 Get-Content/Set-Content로 UTF-8 한글 JSON을 재작성해 파일 전체가 깨졌다(ANSI로 읽고 BOM 붙여 씀). git checkout으로 복구 후 Edit 도구로 재작업", "evidence": ["2026-08-10 소방계획서_16.json 손상·복구"], "severity": "low", "status": "confirmed", "note": "한글 포함 파일은 PowerShell 리다이렉트·Set-Content 금지 — Edit/Write 도구만 사용" },
-    { "id": "K-9", "desc": "fetchAllRows 중복 — inspection-plans/page.tsx:12에 같은 목적의 로컬 헬퍼가 이미 존재. 신규 lib/supabase/fetch-all.ts와 2벌", "evidence": ["inspection-plans/page.tsx:12-", "lib/supabase/fetch-all.ts:6"], "severity": "low", "status": "pending_order", "note": "통합은 후속 — 지금 건드리면 S1 검증 범위가 넓어짐" }
+    { "id": "K-9", "desc": "fetchAllRows 중복 — inspection-plans/page.tsx:12에 같은 목적의 로컬 헬퍼가 이미 존재. 신규 lib/supabase/fetch-all.ts와 2벌", "evidence": ["inspection-plans/page.tsx:12-", "lib/supabase/fetch-all.ts:6"], "severity": "low", "status": "code_present", "note": "통합은 후속 — 지금 건드리면 S1 검증 범위가 넓어짐",
+      "resolution": { "date": "2026-08-21", "commit": "9d03d46", "method": "코드 대조 + 프로브 실행",
+        "correction": "실측은 2벌이 아니라 3벌이었다 — lib/supabase/paginate.ts(호출부 7곳)·lib/supabase/fetch-all.ts(3곳)·inspection-plans/page.tsx 로컬(2곳). 기준의 '2벌'은 paginate.ts를 세지 않았다",
+        "action": "가장 완전한 paginate.ts({rows,error,truncated} + maxRows 가드)로 단일화. fetch-all.ts 삭제, sheet-catalog·sheet-overview import 교체, sheet-actions.ts의 미사용 import 제거, 페이지 로컬 헬퍼 제거",
+        "defect_found": "로컬 헬퍼는 build()의 error를 읽지 않아 조회 실패 시 부분 결과를 전량인 척 반환했다. 2026-07-14 '승인 무한 반복'(잘린 계획 항목이 미처리로 재등장)이 났던 바로 그 자리라 error·truncated를 로그로 드러내게 했다",
+        "evidence": ["tsc --noEmit 종료코드 0", "test-plans-customer-search.mts 25/25(수정한 페이지)", "test-inspection-steps-sync.mts 58/58", "test-sms-pure.mts 88/88"],
+        "pending": "독립 판정 미실시 — 구현자=기록자라 implemented로 올리지 않는다(Json_Rule 규칙 3)" } }
   ],
 
   "items": [
@@ -125,6 +131,8 @@
       ] },
 
     { "id": "S4", "title": "회차별 작성·조회 트리에 점검표 노드 (D-1·D-5)", "status": "implemented",
+      "superseded_by": { "doc": "소방계획서_28", "id": "S4-1", "date": "2026-08-24", "action": "removed",
+        "reason": "트리의 **인라인 입력만** 제거(plan-annex-sheet-tree.tsx 495→135줄 전면 재작성) — 같은 데이터(inspection_sheet_responses)를 입력하는 화면이 4개가 되며 저장 규칙이 셋으로 갈렸고(드로어=[저장] 버튼 / 트리=자동저장 / 1.4=즉시기록), 정작 '어디서 채우나'는 어느 화면도 말하지 않았다(승리주유소 별지 4호 물분무 결과칸 공란 사고 — 원인은 STD-06 응답 0건). 사라진 것: 에디터·자동저장·빠른입력·stale 배너·dirty 경합 처리(S4-2·S4-4·S4-8). **남은 것: 설비별 요약 행·진행률·✕ 집계·⚠ 미입력 N(S4-1)·[설치 설비만 보기](S4-3)·canRegister 보기전용(S4-5)·미시작 회차 CTA(S4-6)·'점검표 입력' 문자열 회피(S4-7, K-7 함정 그대로 유효)** — 조회는 남기고 입력만 걷어낸다(28#D-3). 시트 행은 Link ?sheet={code} 딥링크가 됐고 미입력 개수 고지가 추가됐다. 빠른입력·지난회차복사는 폐지가 아니라 이관(28#S3-1·S3-2). 아래 criteria의 status·verified는 당시 판정이라 그대로 둔다(Json_Rule 규칙 5)." },
       "note": "독립 검증 패스(2026-08-10, 구현자≠판정자) — 전 8 criteria 승격. 최초 요구('트리로 조회·입력') 충족. 커밋 fe89322",
       "verified": { "date": "2026-08-10", "judge": "독립 세션(구현 커밋 이력 없음)", "commit": "fe89322", "evidence": ["판정자 재실행: test-annex-sheet-inline 20/20 — 요약 상시·설치 필터·lazy 확장·저장 부분 갱신·X 인라인 등록·분모 정합·권한(비담당 4체크)·미시작 회차 전부 브라우저 주행 통과", "판정자 재실행: test-annex-interaction 35/35 — K-7 문자열 카운트 함정 무사", "plan-annex-sheet-tree.tsx editable:64·filterOn:125·registerX:99·'설비별 진행':133·'보기 전용':145 실존 대조", "npm run build 통과"] },
       "criteria": [
