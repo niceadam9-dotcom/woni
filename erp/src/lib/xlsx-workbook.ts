@@ -293,7 +293,10 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`assist${i + 1}Name`, a?.name || null],
       [`assist${i + 1}Grade`, a?.grade || null],
       [`assist${i + 1}LicenseNo`, a?.licenseNo || null],
-      [`assist${i + 1}Period`, a ? a.period || null : null],
+      // 사람이 없는 행은 **공백 1칸** — `null`(빈 셀)이면 이 칸을 단일 참조하는 보고서!F18~F24가
+      // 재계산으로 `0`을 인쇄한다(빈 셀·빈 inlineStr·빈 <v> 전부 0, 살아남는 건 공백 1칸과 `=""`
+      // — `_probe-empty-repr.mts` 5종 왕복 실측). 앵커의 dropFormula가 `=E1` 사슬을 함께 끊는다.
+      [`assist${i + 1}Period`, a ? a.period || null : ' '],
     )
   }
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──

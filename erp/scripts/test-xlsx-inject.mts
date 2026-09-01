@@ -250,6 +250,26 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
   const wb2 = XLSX.read(r2.bytes)
   const n6 = (wb2.Sheets['위임장']?.['N6'] as XLSX.CellObject | undefined)?.v
   check('위임장!N6 공란(잔재 없음)', n6 === undefined || String(n6).trim() === '', JSON.stringify(n6))
+
+  // ── 보조 점검인력이 없는 행의 점검기간 (2026-09-01 사용자 신고) ──────────────
+  // 개요 E2~E8은 `=E1`→`=E2`→… **수식 사슬**이라, 캐시만 비우면 Excel이 열면서 재계산해
+  // **사람 없는 행에 점검기간을 되살린다**. LibreOffice는 재계산을 안 해(D-9) PDF에선 안 보였고,
+  // 기존 104단정이 전부 초록인 채 이 결함이 나갔다 — 사용자의 도구가 Excel이라 드러난 축이다.
+  // ⚠ 판정은 원시 XML로 — SheetJS는 캐시 없는 수식 셀을 건너뛴다(840→679 실측).
+  {
+    const zr2 = await JSZip.loadAsync(r2.bytes)
+    const hubXml = await zr2.file((await sheetFileMap(zr2)).get('개요')!)!.async('string')
+    const cx = (ref: string) =>
+      new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(hubXml)?.[0] ?? ''
+    for (const ref of ['E2', 'E5', 'E8']) {
+      check(`보조 없음 — 개요!${ref}에 =E 사슬이 남지 않는다(Excel 재계산 부활 차단)`,
+        !/<f[^>]*>/.test(cx(ref)), cx(ref) || '(셀 없음)')
+      // 빈 셀이 아니라 **공백 1칸**이어야 한다 — 보고서!F18~F24가 단일 참조하므로
+      // 빈 셀이면 거울이 `0`을 인쇄한다(_probe-empty-repr 5종 왕복: 살아남는 건 공백 1칸과 `=""`)
+      check(`보조 없음 — 개요!${ref}는 공백 1칸(빈 셀이면 거울이 0을 찍는다)`,
+        /<t[^>]*> <\/t>/.test(cx(ref)), cx(ref) || '(셀 없음)')
+    }
+  }
 }
 
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────

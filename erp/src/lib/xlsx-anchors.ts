@@ -115,7 +115,12 @@ export const ANCHORS: Anchor[] = [
     { field: `assist${n - 1}Name`,      sheet: HUB, cell: `B${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
     { field: `assist${n - 1}Grade`,     sheet: HUB, cell: `C${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
     { field: `assist${n - 1}LicenseNo`, sheet: HUB, cell: `D${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
-    { field: `assist${n - 1}Period`,    sheet: HUB, cell: `E${n}`, labelCell: `A${n}`, label: '보조 점검인력' },
+    // ⚠ E열만 `dropFormula` — E2~E8은 `=E1`→`=E2`→… **수식 사슬**이라(실측) 캐시만 비우면
+    // Excel이 열면서 재계산해 **사람 없는 행에도 점검기간을 되살린다**(2026-09-01 사용자 신고).
+    // LibreOffice는 재계산을 안 해(D-9) PDF에선 안 보였다 — 사용자의 도구가 Excel이라 드러난 축.
+    // 값 없을 때 `null`(빈 셀)이 아니라 **공백 1칸**을 넣는 이유는 위 keepFormulaWhenEmpty 주석과
+    // 같다: 보고서!F18~F24가 이 칸들을 단일 참조하므로 빈 셀이면 거울이 `0`을 인쇄한다.
+    { field: `assist${n - 1}Period`,    sheet: HUB, cell: `E${n}`, labelCell: `A${n}`, label: '보조 점검인력', dropFormula: true },
   ]),
   // ── S7-1·S7-2: 보고서 1·2쪽 — 점검 구분·점검자·전자우편 동의·대표자 구분 ──
   // 전부 √ 위치가 든 **통문자열**(수식 아님)이라 buildWorkbookValues가 서식 원문
