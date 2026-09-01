@@ -1,7 +1,8 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { resolveAnchor, plannedDateFor } from '@/lib/plan-anchor'
-import { planSpecialSlots, planDemoteStraySpecials, type SlotRow } from '@/lib/plan-special-slot'
+import { planSpecialSlots, planDemoteStraySpecials, planStrayMonthly, type SlotRow } from '@/lib/plan-special-slot'
 import { rowInspectionType } from '@/lib/inspection-round'
+import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
 import type { InspectionType } from '@/types'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -9,9 +10,13 @@ type Admin = ReturnType<typeof createAdminClient>
 export type ReconcileResult = {
   promoted: number
   demoted: number
+  /** 지운 잔재 수 — 엉뚱한 달의 2차, 그리고 있어서는 안 되는 정기 */
+  removed: number
+  /** 자리가 비어 **생성기가 새로 만든** 항목 수 */
+  created: number
   /** 시작된 점검이라 손대지 않은 특별 — 사람이 알아야 한다 */
   keptStarted: number
-  /** 자리가 비어 교체로는 못 만든 것 — 생성기가 만들어야 한다 */
+  /** 자리가 비어 교체로는 못 만든 것(생성기에 넘긴 수) */
   needCreate: number
   notes: string[]
 }
@@ -40,8 +45,10 @@ export async function reconcileSpecialSlots(
   admin: Admin,
   customerId: string,
   years: number[],
+  /** 생성기가 만든 행의 created_by — **필수**다. 없으면 2차를 못 만들고 조용히 빠진다 */
+  createdBy: string,
 ): Promise<ReconcileResult> {
-  const out: ReconcileResult = { promoted: 0, demoted: 0, keptStarted: 0, needCreate: 0, notes: [] }
+  const out: ReconcileResult = { promoted: 0, demoted: 0, removed: 0, created: 0, keptStarted: 0, needCreate: 0, notes: [] }
 
   const { data: cRaw } = await admin.from('customers')
     .select('id, use_approval_date, plan_anchor_date, inspection_type, inspection_category, inspection_sub_type')
@@ -130,6 +137,14 @@ export async function reconcileSpecialSlots(
     const claimed = new Set(plan.ops.map(o => o.id))
     const demotes = planDemoteStraySpecials(year, desired, rows, claimed)
     for (const op of demotes) {
+      // 무엇을 지우고 무엇을 내릴지는 **순수 계층이 정한다**(planDemoteStraySpecials).
+      // 실행부에서 판단하면 그 규칙을 검사할 수 없다. 2차 잔재는 정기로 내리면
+      // seq=2 정기가 되어 같은 달에 정기가 둘로 뜬다(실측 2027-05).
+      if (op.kind === 'remove') {
+        const { error } = await admin.from('inspection_plan_items').delete().eq('id', op.id)
+        if (!error) { out.removed++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')} seq=2: 옛 2차 잔재 삭제`) }
+        continue
+      }
       const hd = await loadHolidays()
       const { error } = await admin.from('inspection_plan_items').update({
         plan_type: 'monthly',
@@ -140,6 +155,48 @@ export async function reconcileSpecialSlots(
         scheduled_date: plannedDateFor(op.year, op.month, anchorDay, hd),
       } as Record<string, unknown>).eq('id', op.id)
       if (!error) { out.demoted++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')}: ${op.from} → monthly(강등)`) }
+    }
+  }
+
+  // ⭐ **자리가 비면 만든다.** 여기가 없어서 종합 대상의 2차(작동)가 구조적으로 안 생겼다 —
+  //   2차는 seq=2를 요구하는데 그 달엔 정기(seq=1)뿐이라 '막는 행'이 없고, 그래서 교체 대상이
+  //   아니라 **생성 대상**으로 분류돼 세기만 하고 끝났다. 반면 옛 달의 2차는 위에서 치우므로
+  //   **치우기만 하고 못 만드는 비대칭**이 되어 법정 2차가 계획에서 사라졌다.
+  //
+  //   생성기는 이미 seq=2를 그 달에 넣을 수 있다 — UNIQUE가 (plan_id, customer_id, sequence_num)이라
+  //   같은 달 정기(seq=1)와 충돌하지 않는다. 이미 있는 항목은 충돌 무시로 건너뛴다(멱등).
+  if (out.needCreate > 0) {
+    const hd = await loadHolidaySet(admin, Math.min(...years))
+    for (const y of years) {
+      out.created += await generateYearlyPlanItems(
+        admin,
+        {
+          id: customerId, inspection_type: c.inspection_type,
+          inspection_category: c.inspection_category, inspection_sub_type: c.inspection_sub_type,
+          plan_anchor_date: c.plan_anchor_date, use_approval_date: c.use_approval_date,
+          plan_anchor_manual: manual, assigned_employee_id: null,
+        },
+        y, createdBy, hd,
+      )
+    }
+    out.notes.push(`생성 필요 ${out.needCreate}건 → 생성기가 ${out.created}건 생성`)
+  }
+
+  // 있어서는 안 되는 정기 잔재 정리 — **생성 뒤**에 한다. 특별이 자리를 잡아야
+  // '그 달이 특별월인가'를 정확히 판정할 수 있다. 일반관리는 정기 자체가 없다.
+  if (!isGeneral) {
+    const { data: cur } = await admin.from('inspection_plan_items')
+      .select('id, sequence_num, plan_type, status, inspection_id, plan:inspection_plans(year, month)')
+      .eq('customer_id', customerId)
+    const now: SlotRow[] = ((cur ?? []) as unknown as Raw[]).filter(r => r.plan).map(r => ({
+      id: r.id, year: r.plan!.year, month: r.plan!.month, sequence_num: r.sequence_num,
+      plan_type: r.plan_type, status: r.status, started: !!r.inspection_id,
+    }))
+    for (const y of years) {
+      for (const op of planStrayMonthly(y, desired, now)) {
+        const { error } = await admin.from('inspection_plan_items').delete().eq('id', op.id)
+        if (!error) { out.removed++; out.notes.push(`${op.year}-${String(op.month).padStart(2, '0')}: 정기 잔재 삭제(${op.from})`) }
+      }
     }
   }
   return out

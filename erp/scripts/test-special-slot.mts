@@ -58,6 +58,32 @@ console.log('\n— 미시작 특별이 엉뚱한 달에 있을 때 (강등 대�
     p.ops.filter(o => o.kind === 'toSpecial').length === 1 && dem.length === 1)
 }
 
+console.log('\n— 2차(seq=2) 잔재는 강등이 아니라 삭제')
+{
+  // 기산월이 11 → 6으로 바뀐 상황: 옛 2차(5월)가 남고, 새 2차는 12월이어야 한다.
+  const rows: SlotRow[] = [
+    row({ id: 'may2', month: 5, sequence_num: 2, plan_type: 'special_작동', status: 'planned' }),
+    row({ id: 'jul1', month: 7, sequence_num: 1, plan_type: 'special_종합', status: 'planned' }),
+    row({ id: 'dec1', month: 12, sequence_num: 1, plan_type: 'monthly' }),
+  ]
+  const desired = [
+    { sequence_num: 1, month: 6, planType: 'special_종합' },
+    { sequence_num: 2, month: 12, planType: 'special_작동' },
+  ]
+  const p = planSpecialSlots(2026, desired, rows)
+  const dem = planDemoteStraySpecials(2026, desired, rows, new Set(p.ops.map(o => o.id)))
+  const rm = dem.filter(o => o.kind === 'remove')
+  const dn = dem.filter(o => o.kind === 'toMonthly')
+  check('옛 2차(5월 seq=2)는 삭제한다', rm.length === 1 && rm[0].id === 'may2', JSON.stringify(dem))
+  check('옛 1차(7월 seq=1)는 정기로 강등한다', dn.length === 1 && dn[0].id === 'jul1', JSON.stringify(dn))
+  // ⭐ 이 결함의 핵심 — 2차가 앉을 12월에는 정기(seq=1)뿐이라 '막는 행'이 없다.
+  //    그래서 교체 대상이 아니라 **생성 대상**이고, 생성기를 안 부르면 법정 2차가 영영 안 생긴다.
+  check('12월 2차는 needCreate로 나온다(교체로는 못 만든다)',
+    p.needCreate.some(n => n.month === 12 && n.sequence_num === 2), JSON.stringify(p.needCreate))
+  check('12월 정기(seq=1)는 건드리지 않는다 — seq가 달라 공존한다',
+    !p.ops.some(o => o.id === 'dec1') && !dem.some(o => o.id === 'dec1'))
+}
+
 console.log('\n— 자리가 비어 있으면 교체가 아니라 생성 (일반관리처럼 정기가 없는 경우)')
 {
   const rows: SlotRow[] = [row({ id: 'jul', month: 7, plan_type: 'special_작동', status: 'planned' })]

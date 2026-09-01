@@ -731,7 +731,7 @@ export async function updateCustomerAction(
   // ⚠ 유형 동기화 **뒤에** 둔다 — 그쪽이 종류를 바꾼 결과 위에서 자리를 잡아야 한다.
   if (anchorChanged || typeChanged || subChanged) {
     const y = new Date().getFullYear()
-    await reconcileSpecialSlots(admin, customerId, [y, y + 1])
+    await reconcileSpecialSlots(admin, customerId, [y, y + 1], profile.id)
     revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }
@@ -1803,7 +1803,7 @@ export async function patchCustomerFieldAction(
   // 고쳤느냐에 따라 일정이 달라진다). 유형 인라인 변경은 위 _syncInspectionTypeToPlanItems 뒤다.
   if (anchorMoved || (field === 'inspection_type' && value && value !== oldValue)) {
     const y = new Date().getFullYear()
-    await reconcileSpecialSlots(admin, customerId, [y, y + 1])
+    await reconcileSpecialSlots(admin, customerId, [y, y + 1], profile.id)
     revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }

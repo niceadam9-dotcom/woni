@@ -32,8 +32,12 @@ export type SlotRow = {
 export type SlotOp =
   /** 정기 행을 특별점검으로 승격 — 법정 달의 자리를 비워 받는다 */
   | { kind: 'toSpecial'; id: string; year: number; month: number; planType: string; from: string | null }
-  /** 엉뚱한 달의 미시작 특별을 정기로 강등 — 비운 자리를 정기가 메운다 */
+  /** 엉뚱한 달의 미시작 특별(1차)을 정기로 강등 — 비운 자리를 정기가 메운다 */
   | { kind: 'toMonthly'; id: string; year: number; month: number; from: string | null }
+  /** 엉뚱한 달의 미시작 **2차** 잔재를 삭제 — 정기로 내리면 안 된다.
+   *  정기는 언제나 `sequence_num=1`로 만들어지므로 seq=2 정기는 데이터 이상이고,
+   *  같은 달에 정기가 **두 건** 뜬다(실측: 2027-05에 seq=1·seq=2 정기가 나란히 찍혔다). */
+  | { kind: 'remove'; id: string; year: number; month: number; from: string | null }
 
 export type SlotPlan = {
   ops: SlotOp[]
@@ -97,7 +101,10 @@ export function planSpecialSlots(
   return { ops, keptStarted, needCreate, notes }
 }
 
-/** 법정 달 밖의 **미시작** 특별을 정기로 강등하는 op — 정기 체계가 있는 고객(소방안전관리)만 부른다. */
+/** 법정 달 밖의 **미시작** 특별을 치우는 op — 정기 체계가 있는 고객(소방안전관리)만 부른다.
+ *
+ *  1차(seq=1)는 **정기로 강등**한다(그 달엔 원래 정기가 있어야 한다).
+ *  2차(seq=2)는 **삭제**한다 — 정기는 늘 seq=1이라 seq=2 정기를 만들면 같은 달에 정기가 둘이 된다. */
 export function planDemoteStraySpecials(
   year: number,
   desired: Array<{ sequence_num: number; month: number }>,
@@ -108,7 +115,30 @@ export function planDemoteStraySpecials(
   return rows
     .filter(r => r.year === year && isSpecial(r.plan_type) && !r.started && !alreadyClaimed.has(r.id))
     .filter(r => !want.has(`${r.month}-${r.sequence_num}`))
-    .map(r => ({ kind: 'toMonthly' as const, id: r.id, year, month: r.month, from: r.plan_type }))
+    .map(r => r.sequence_num === 2
+      ? { kind: 'remove' as const, id: r.id, year, month: r.month, from: r.plan_type }
+      : { kind: 'toMonthly' as const, id: r.id, year, month: r.month, from: r.plan_type })
+}
+
+/** 있어서는 안 되는 **정기(monthly) 잔재**를 지우는 op — 기산월이 바뀐 뒤 남는 것들.
+ *
+ *  둘을 지운다(둘 다 **미시작**만):
+ *   ① `sequence_num=2`인 정기 — 정기는 언제나 seq=1로 만들어진다. seq=2 정기는 옛 2차를
+ *      강등했던 잔재이고, 같은 달에 정기가 **두 건** 뜬다(실측 2027-05).
+ *   ② **특별점검 달에 있는 정기** — 생성기는 특별월을 정기에서 제외한다(`specialKey`).
+ *      기산월이 바뀌어 그 달이 새로 특별이 되면 옛 정기가 남아 한 달에 방문이 둘로 보인다(실측 2026-12).
+ *
+ *  ⚠ 특별점검 자체는 건드리지 않는다 — 그건 `planSpecialSlots`·`planDemoteStraySpecials`의 몫이다. */
+export function planStrayMonthly(
+  year: number,
+  desired: Array<{ sequence_num: number; month: number }>,
+  rows: SlotRow[],
+): SlotOp[] {
+  const specialMonths = new Set(desired.map(d => d.month))
+  return rows
+    .filter(r => r.year === year && !isSpecial(r.plan_type) && r.plan_type === 'monthly' && !r.started)
+    .filter(r => r.sequence_num === 2 || specialMonths.has(r.month))
+    .map(r => ({ kind: 'remove' as const, id: r.id, year, month: r.month, from: r.plan_type }))
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
