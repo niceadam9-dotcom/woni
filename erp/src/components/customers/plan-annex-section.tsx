@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import {
   getCustomerRoundsAction, getRoundDocsAction, getDocUrlAction,
   type CustomerRounds, type CustomerRound,
@@ -12,12 +12,8 @@ import { requestReport9Action, getAnnexPreviewHtmlAction } from '@/app/(dashboar
 import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspection-plans/actions'
 import dynamic from 'next/dynamic'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
-import { inspectionNatureBadge } from '@/lib/inspection-nature'
-import type { InspectionType, PlanType } from '@/types'
-import { isCompleteDate } from '@/components/ui/date-input'
 import { PlanAnnexRoundCard } from '@/components/customers/plan-annex-round-card'
 import type { PreviewDoc, FullPreviewState } from '@/components/customers/plan-annex-full-preview'
-import { PlanAnnexStartModal } from '@/components/customers/plan-annex-start-modal'
 
 // 조건부로만 뜨는 무거운 모달 2종은 지연 로드 — 탭에 들어오기만 한 사용자는 내려받지 않는다.
 // 회차 카드(PlanAnnexRoundCard)·점검표 트리는 **의도적으로 정적**이다: 최신 회차가 자동으로
@@ -28,50 +24,47 @@ const AnnexComposePanel = dynamic(
 const PlanAnnexFullPreview = dynamic(
   () => import('@/components/customers/plan-annex-full-preview').then(m => m.PlanAnnexFullPreview))
 
-/** 별지 서식 섹션 (소방계획서_8 H-2·H-3·H-5) — 소방계획서 트리의 회차 자동 카드.
- *  최신 회차 즉시 펼침 + 과거 아코디언(D-4), 회차=plan_items∪inspections 자동(D-2),
- *  미시작 회차는 점검일 확정 모달 → 자동 시작(D-3, confirmPlanItemStageOneAction 재사용).
- *  문서 행은 보고서 센터의 InspectionDocRows·AnnexComposePanel 재사용 — 저장 경로 동일(annex_inputs=inspection_id). */
+/** 별지 서식 섹션 (소방계획서_8 H-2·H-3·H-5 → 2026-09-02 회차 자동화 재편).
+ *  회차는 사용자가 관리하지 않는다 — ERP가 자동 판정한 **현재 회차 1건**의 문서·점검표만 보인다
+ *  (연도·차수·종합/작동은 롤링 생성기의 사용승인일 법정 축, 최초점검은 60일 규칙 자동).
+ *  예정·지난 회차 목록/아코디언/점검일 모달 전부 폐지 — 일정 관리는 점검 달력·점검계획이 담당.
+ *  미시작이면 [작성 시작] 한 번으로 오늘이 점검 시작일로 기록되며 열린다(H-3 규칙 재사용).
+ *  문서 행은 InspectionDocRows·AnnexComposePanel 재사용 — 저장 경로 동일(annex_inputs=inspection_id). */
 
 const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
 
 function roundKey(r: CustomerRound) { return `${r.year}-${r.sequenceNum}` }
 
-/** 현재/예정 회차 분리 (2026-09-02 사용자 확정 — "현재 데이터만").
+/** 현재 회차 자동 판정 (2026-09-02 사용자 확정 — "회차는 ERP가 알아서").
  *
- *  롤링 생성(올해+내년)이 미시작 회차를 3~4건씩 상시 만들면서, 가장 먼 미래(내년 2차)가
- *  내림차순 정렬로 맨 위에 펼쳐지고 실제 작업 중인 회차는 아래로 밀렸다. 그래서:
- *   · 현재 = 시작된 회차 전부(통상 1건) + 예정일이 이미 지난 미시작(방치 — 눈에 띄어야 한다).
- *     하나도 없으면 가장 가까운 미시작 1건을 현재로 승격한다.
- *   · 예정 = 그 밖의 미래 미시작 — "예정 회차 N건" 접힘(가까운 순). 조기 착수는 펼쳐서 [이 회차 시작].
- *  종합 고객의 최초/작동/종합 교대는 여기서 자동이다 — 시기가 오면 그 회차가 '현재'로 올라온다.
- *  auto-expand(reload)와 렌더가 같은 판정을 봐야 하므로 순수 함수로 뺐다. */
-function splitRounds(rounds: CustomerRound[]) {
+ *  사용자는 회차를 고르지도 관리하지도 않는다 — 이 화면은 **지금 데이터가 귀속될 회차 1건**만
+ *  자동으로 정해 그 문서·점검표를 보여준다. 판정 규칙:
+ *   · 시작된 회차(진행 중)가 있으면 그것 — 입력 중인 점검이 곧 현재다.
+ *   · 없으면 예정일이 가장 가까운 미시작 회차(지난 예정 포함) — 시기가 오면 자동 교대된다.
+ *  회차의 연도·차수·종합/작동은 롤링 생성기가 사용승인일 법정 축으로 이미 계산해 둔 값이고,
+ *  최초점검 여부는 시작 시 60일 규칙으로 자동 기입된다 — 문서에는 전부 자동으로 찍힌다.
+ *  예정·지난 회차 목록 UI는 폐지 — 일정 관리는 점검 달력·점검계획 화면이 담당한다. */
+function currentRoundOf(rounds: CustomerRound[]): CustomerRound | null {
   const active = rounds.filter(r => r.state !== 'completed')
-  const today = todayStr()
   const dateKey = (r: CustomerRound) => r.plannedDate ?? `${r.year}-${String(r.sequenceNum * 6).padStart(2, '0')}`
-  const startedOrDue = active
-    .filter(r => r.state !== 'planned' || dateKey(r) <= today)
-    .sort((a, b) => {
-      const sa = a.state !== 'planned' ? 0 : 1
-      const sb = b.state !== 'planned' ? 0 : 1
-      return sa !== sb ? sa - sb : dateKey(a).localeCompare(dateKey(b))
-    })
-  const future = active.filter(r => !startedOrDue.includes(r))
+  const started = active.filter(r => r.state !== 'planned')
     .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
-  const current = startedOrDue.length > 0 ? startedOrDue : future.slice(0, 1)
-  const upcoming = startedOrDue.length > 0 ? future : future.slice(1)
-  return { current, upcoming }
+  if (started.length > 0) return started[0]
+  const planned = active.filter(r => r.state === 'planned')
+    .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
+  return planned[0] ?? null
 }
 
-export function PlanAnnexSection({ customerId, canRegister = false }: {
+export function PlanAnnexSection({ customerId, canRegister = false, initialData = null }: {
   customerId: string
   /** 역할 축 권한 — 점검표 인라인 입력 노출 게이트(점검 건 축은 액션이 반환) */
   canRegister?: boolean
+  /** 서버 프리페치 (2026-09-02 성능) — ?tab=annex 진입 시 page.tsx가 실어 보낸다.
+   *  있으면 첫 클라이언트 왕복("회차를 불러오는 중…" 스피너)이 통째로 사라진다. */
+  initialData?: CustomerRounds | null
 }) {
-  const [data, setData] = useState<CustomerRounds | null>(null)
+  const [data, setData] = useState<CustomerRounds | null>(initialData)
   const [loadErr, setLoadErr] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [compose, setCompose] = useState<{ inspectionId: string; annexNo: ComposeAnnexNo } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState<{ key: string; text: string; ok: boolean } | null>(null)
@@ -81,17 +74,8 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
   const [fullPreview, setFullPreview] = useState<FullPreviewState | null>(null)
   // D-7 호버 퀵뷰 폐지(S3, 2026-08-12) — 프리페치를 지연화하면 호버 시점엔 캐시가 비어 '준비 중' 빈 팝업만
   // 뜨는 경우가 대부분이라 가치가 사라졌다. 같은 일을 [보기](단일 문서 모달)가 확실하게 한다.
-  // 델리게이션 앵커였던 data-hover-doc 속성도 함께 제거했다(독립 검증 지적 — 남겨두면 기능이 있는 줄 오인).
-  // S2(소방계획서_20): 완료 회차는 "지난 회차 N건" 접힘 섹션 — 기본 닫힘, 상세는 클릭 시 지연 로드
-  const [pastOpen, setPastOpen] = useState(false)
-  // 미래 미시작 회차도 접힘 (2026-09-02) — 현재 회차 1건만 즉시 보인다
-  const [upcomingOpen, setUpcomingOpen] = useState(false)
-  const [loadingRound, setLoadingRound] = useState<string | null>(null)
-  // H-3: 미시작 회차 점검일 확정 모달
-  const [startModal, setStartModal] = useState<{ planItemId: string; label: string } | null>(null)
-  const [startDate, setStartDate] = useState('')
+  // 예정·지난 회차 접힘 섹션 폐지(2026-09-02) — 회차는 자동 판정 1건만. 시작도 모달 없이 즉시(오늘).
   const [isStarting, startStarting] = useTransition()
-  const [startErr, setStartErr] = useState<string | null>(null)
 
   /** 점검표 인라인 저장 후 회차 머리줄의 응답 수만 갱신 — reload()는 미리보기 캐시를 통째로 버려
    *  펼친 회차의 iframe이 전부 다시 렌더된다(68행). 부분 패치로 그 비용을 피한다. */
@@ -132,49 +116,14 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
       setData(res.data)
       // 독립 검증 지적(2026-08-04): 재생성·저장 후 미리보기 캐시가 낡음 — reload마다 무효화(재열람 시 재렌더)
       if (!first) setPreviewCache({})
-      if (first) {
-        // 현재 회차 자동 펼침 (D-4 → 2026-09-02 개정). 종전 '첫 번째 비완료'는 내림차순이라
-        // 가장 먼 미래(내년 2차)를 펼쳤다 — splitRounds가 정한 '현재'를 펼친다.
-        const firstActive = splitRounds(res.data.rounds).current[0]
-        if (firstActive) {
-          setExpanded(new Set([roundKey(firstActive)]))
-          // 유휴 예열 폐지(2026-08-20). S3가 마운트 직후 렌더를 2.5초 뒤로 미뤄 뒀지만, **누르지도 않은**
-          // 별지 4종을 백그라운드에서 조립하는 일 자체가 남아 있었다(각각 카탈로그 조회 + 8쪽 HTML 렌더).
-          // 화면이 무겁다는 지적의 실체가 여기다. 이제 [보기]·[전체 미리보기]를 누른 시점에만 렌더한다 —
-          // 그 클릭 경로는 카탈로그 캐시(sheet-catalog.ts)로 이미 가벼워졌다.
-        }
-      }
+      // 유휴 예열 폐지(2026-08-20) — [보기]·[전체 미리보기]를 누른 시점에만 별지를 렌더한다.
     })
   }
+  // 서버 프리페치가 실려 오면 첫 왕복을 건너뛴다 (2026-09-02 — "불러오는 중" 스피너 소멸)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { reload(true) }, [customerId])
+  useEffect(() => { if (!initialData) reload(true) }, [customerId])
 
   const rounds = useMemo(() => data?.rounds ?? [], [data])
-
-  function toggle(key: string) {
-    setExpanded(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
-  }
-
-  /** 지난(완료) 회차 열기 (S2) — 요약(docsLite)만 실려 있으므로 이 시점에 상세를 지연 로드한다.
-   *  한 번 받은 회차는 docs가 채워져 다시 열 때 왕복이 없다. */
-  function openPastRound(r: CustomerRound) {
-    const key = roundKey(r)
-    if (expanded.has(key)) { toggle(key); return }
-    if (r.docs || !r.docsLite) { toggle(key); return }
-    const inspectionId = r.docsLite.inspectionId
-    setLoadingRound(key)
-    startTransition(async () => {
-      const res = await getRoundDocsAction(customerId, inspectionId)
-      setLoadingRound(null)
-      if (res.error || !res.docs) { setMsg({ key, text: `❌ ${res.error ?? '회차를 불러오지 못했습니다'}`, ok: false }); return }
-      const docs = res.docs
-      setData(prev => prev && ({
-        ...prev,
-        rounds: prev.rounds.map(x => x.docsLite?.inspectionId === inspectionId ? { ...x, docs } : x),
-      }))
-      toggle(key)
-    })
-  }
 
   /** 회차의 미리보기 문서 목록(순서 = 인쇄 순서). 불량이 없으면 ⑩⑪은 대상이 아니다. */
   function previewTypesOf(r: CustomerRound): PreviewDoc[] {
@@ -260,26 +209,17 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     <p className={`w-full text-[11px] ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
   )
 
-  /* ── H-3: 미시작 회차 시작 (확정=자동 시작, 기존 규칙 재사용) ── */
-  function openStart(r: CustomerRound) {
+  /* ── 작성 시작 — 모달 없이 즉시 (2026-09-02 사용자 확정: 회차는 ERP가 알아서).
+   *  점검일 = 오늘 자동 기록(실제 작성 행위가 곧 기록). 확정=자동 시작 규칙(H-3)은 재사용. */
+  function startNow(r: CustomerRound) {
     if (!r.planItemId) return
-    const base = r.plannedDate && r.plannedDate >= todayStr() ? r.plannedDate : todayStr()
-    setStartDate(base)
-    setStartErr(null)
-    setStartModal({ planItemId: r.planItemId, label: `${r.year}년 ${r.sequenceNum}차` })
-  }
-  function runStart() {
-    if (!startModal) return
-    if (!isCompleteDate(startDate)) { setStartErr('점검일을 입력해주세요.'); return }
     startStarting(async () => {
       try {
-        const res = await confirmPlanItemStageOneAction(startModal.planItemId, startDate)
-        if (res.error) { setStartErr(res.error); return }
-        setStartModal(null)
+        const res = await confirmPlanItemStageOneAction(r.planItemId!, todayStr())
+        if (res.error) { setMsg({ key: roundKey(r), text: `❌ ${res.error}`, ok: false }); return }
         reload()
       } catch {
-        // 권한 없음(requirePermission 리다이렉트) 등 — 모달이 잠긴 채 남지 않게
-        setStartErr('처리하지 못했습니다 — 권한이 없으면 점검계획에서 확정해주세요.')
+        setMsg({ key: roundKey(r), text: '❌ 처리하지 못했습니다 — 권한이 없으면 점검계획에서 확정해주세요.', ok: false })
       }
     })
   }
@@ -291,120 +231,43 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     return <p className="text-xs text-ink-meta py-4 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 회차를 불러오는 중…</p>
   }
 
-  // 현재 회차만 카드로 펼치고, 미래 미시작은 "예정 회차" 접힘, 완료는 "지난 회차" 접힘 (S2 + 2026-09-02).
-  // 방치된 예정(예정일이 지난 planned)은 완료가 아니므로 현재에 남는다 — 눈에 띄어야 한다.
-  const { current: currentRounds, upcoming: upcomingRounds } = splitRounds(rounds)
-  const pastRounds = rounds.filter(r => r.state === 'completed')
-  const pastYears = [...new Map(pastRounds.map(r => [r.year, [] as CustomerRound[]])).entries()]
-    .map(([y]) => [y, pastRounds.filter(r => r.year === y)] as const)
+  // 자동 판정된 현재 회차 1건만 — 회차 목록·접힘 UI 폐지 (2026-09-02 사용자 확정)
+  const current = currentRoundOf(rounds)
 
-  /** 지난 회차 요약 행 (S2) — 상세를 받기 전 상태. ✓는 '생성 이력'(gen_jobs)이지 파일 존재가 아니다 */
-  const renderPastSummary = (r: CustomerRound) => {
-    const key = roundKey(r)
-    const lite = r.docsLite
-    const nb = inspectionNatureBadge(data.inspectionType as InspectionType, r.planType as PlanType | null)
-    const loading = loadingRound === key
-    return (
-      <div key={key}>
-        <button onClick={() => openPastRound(r)} disabled={loading}
-          title="펼치면 실제 파일·점검표를 불러옵니다 (요약의 ✓는 생성 이력)"
-          className="w-full flex items-center gap-2 px-3 py-2 text-left rounded-xl border border-brand-line-soft bg-paper hover:bg-brand-tint disabled:opacity-60">
-          {loading ? <Loader2 className="size-3.5 text-ink-faint shrink-0 animate-spin" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
-          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
-          <span className="text-xs font-semibold text-ink">{r.year}년 {r.sequenceNum}차</span>
-          {lite?.endDate && <span className="text-[11px] text-ink-meta">완료 {lite.endDate.slice(5, 10)}</span>}
-          <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 bg-green-50 text-green-700">완료</span>
-          {lite && (
-            <span className="text-[10px] text-ink-meta shrink-0" title="생성 이력 기준 — 과거본 정리로 파일이 없을 수 있습니다">
-              ④{lite.generated.report4 ? '✓' : '·'} ⑨{lite.generated.report9 ? '✓' : '·'}
-              {lite.defectsTotal > 0 && <> ⑩{lite.generated.report10 ? '✓' : '·'} ⑪{lite.generated.report11 ? '✓' : '·'}</>}
-              {' '}불량 {lite.defectsTotal}
-            </span>
-          )}
-        </button>
-        {feedback(key)}
-      </div>
-    )
-  }
-
-  // 현재 회차(alwaysOpen)는 접을 수 없다 — 항상 펼침 (2026-09-02 사용자 확정)
-  const renderCard = (r: CustomerRound, alwaysOpen = false) => {
-    const key = roundKey(r)
+  const renderCard = (r: CustomerRound) => {
     const label = `${r.year}년 ${r.sequenceNum}차`
     return (
       <PlanAnnexRoundCard
-        key={key} r={r} isOpen={alwaysOpen || expanded.has(key)} alwaysOpen={alwaysOpen}
+        key={roundKey(r)} r={r} isOpen alwaysOpen
         inspectionType={data.inspectionType} customerName={data.customerName}
         canRegister={canRegister} isPending={isPending} isStarting={isStarting}
         entryFrom={`/customers/${customerId}?tab=annex`}
-        onToggle={() => toggle(key)}
+        onToggle={() => {}}
         onFullPreview={() => { prefetchPreviews(r); setFullPreview({ inspectionId: r.docs!.inspectionId, label }) }}
         onPreviewSingle={type => openSingle(r, type)}
         onOpenFile={open} onGenerate={generate} onUpload={upload}
         onCompose={(inspectionId, annexNo) => setCompose({ inspectionId, annexNo })}
         onSheetSaved={responded => patchSheetResponses(r.docs!.inspectionId, responded)}
-        onStart={() => openStart(r)}
+        onStart={() => startNow(r)}
         feedback={feedback} />
     )
   }
 
   return (
     <div className="space-y-3">
-      {/* 그룹 머리 안내 (D-18) — 입력은 원천 한 곳 원칙 */}
+      {/* 머리 안내 — 회차·종류·연도는 전부 자동 (사용승인일 법정 축) */}
       <p className="text-[11px] text-ink-meta">
-        별지는 입력한 데이터로 자동 생성됩니다 — 점검표는 이 화면에서 설비별로 바로 입력할 수 있고(저장 위치는 점검 상세와 동일),
-        나머지 입력은 설비 대장(1.4)·9호 ③(작성 패널)
+        연도·차수·종합/작동/최초는 사용승인일 기준으로 ERP가 자동 판정해 문서에 기입합니다 —
+        점검표는 여기서 바로 입력하고, 별지는 누를 때 현재 데이터로 생성됩니다
       </p>
 
       {rounds.length === 0 && (
         <p className="text-xs text-ink-meta py-4 text-center">
-          자체점검 회차가 없습니다 — 연간 계획 생성 후 자동으로 나타납니다 (<Link href="/inspection-plans" className="text-brand hover:underline">점검계획</Link>)
+          자체점검 일정이 없습니다 — 연간 계획 생성 후 자동으로 나타납니다 (<Link href="/inspection-plans" className="text-brand hover:underline">점검계획</Link>)
         </p>
       )}
 
-      {currentRounds.map(r => renderCard(r, true))}
-
-      {/* 예정(미래 미시작) 회차 — 기본 접힘 (2026-09-02). 펼치면 기존 카드 그대로라 [이 회차 시작]으로
-          조기 착수도 가능하다. 회차 데이터 자체는 법정 자체점검 단위라 그대로다 — 화면만 접는다. */}
-      {upcomingRounds.length > 0 && (
-        <div className="pt-1">
-          <button onClick={() => setUpcomingOpen(v => !v)}
-            className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-ink-soft hover:bg-brand-tint rounded-lg">
-            {upcomingOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-            예정 회차 {upcomingRounds.length}건
-            {!upcomingOpen && <span className="text-ink-meta font-normal">— 아직 시기가 아닙니다 (시기가 오면 위로 올라옵니다)</span>}
-          </button>
-          {upcomingOpen && (
-            <div className="mt-1.5 space-y-3">
-              {upcomingRounds.map(r => renderCard(r))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* S2: 지난(완료) 회차 — 기본 접힘. 요약만 싣고 상세는 열 때 지연 로드해 마운트 왕복을 줄인다 */}
-      {pastRounds.length > 0 && (
-        <div className="pt-1">
-          <button onClick={() => setPastOpen(v => !v)}
-            className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-ink-soft hover:bg-brand-tint rounded-lg">
-            {pastOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-            지난 회차 {pastRounds.length}건
-            {!pastOpen && <span className="text-ink-meta font-normal">— 완료된 회차입니다 (펼치면 조회·인쇄 가능)</span>}
-          </button>
-          {pastOpen && (
-            <div className="mt-1.5 space-y-3">
-              {pastYears.map(([year, list]) => (
-                <div key={year} className="space-y-1.5">
-                  <p className="px-2 text-[10px] font-semibold text-ink-meta">{year}년 · {list.length}건</p>
-                  {list.map(r => expanded.has(roundKey(r)) || r.docs
-                    ? renderCard(r)
-                    : renderPastSummary(r))}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {current && renderCard(current)}
 
       <button onClick={() => reload()} disabled={isPending}
         className="text-[11px] text-ink-faint hover:text-brand inline-flex items-center gap-1 disabled:opacity-50">
@@ -433,13 +296,7 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
           open={open} upload={upload} feedback={feedback} />
       )}
 
-      {/* H-3 점검일 확정 모달 — 확정=자동 시작 (S3에서 컴포넌트 분리) */}
-      {startModal && (
-        <PlanAnnexStartModal
-          label={startModal.label} date={startDate} onDateChange={setStartDate}
-          error={startErr} isPending={isStarting}
-          onCancel={() => setStartModal(null)} onConfirm={runStart} />
-      )}
+      {/* 점검일 확정 모달 폐지(2026-09-02) — 작성 시작 클릭 = 오늘이 점검 시작일로 자동 기록 */}
     </div>
   )
 }

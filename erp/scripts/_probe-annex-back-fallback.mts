@@ -38,7 +38,7 @@ async function activeTab(page: Pg): Promise<string> {
     .then((v: string) => v.replace(/\s+/g, '')).catch(() => '(없음)')
 }
 async function annexBodyVisible(page: Pg): Promise<boolean> {
-  return page.locator('text=별지는 입력한 데이터로 자동 생성됩니다').first()
+  return page.locator('text=사용승인일 기준으로 ERP가 자동 판정').first()
     .waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false)
 }
 async function histLen(page: Pg): Promise<number> {

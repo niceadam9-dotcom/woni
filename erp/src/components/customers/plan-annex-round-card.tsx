@@ -226,12 +226,13 @@ export function PlanAnnexRoundCard({
                 onSaved={onSheetSaved} onBlankCount={setSheetBlanks} from={entryFrom} />
             </>
           ) : (
-            /* 미시작(계획) 회차 (H-3) */
+            /* 미시작 — [작성 시작] 한 번으로 오늘이 점검 시작일로 자동 기록되고 점검표·별지가 열린다
+               (H-3 → 2026-09-02: 점검일 모달·회차 선택 폐지 — 회차는 ERP가 알아서) */
             <div className="flex items-center gap-2 py-2 text-xs">
-              <span className="text-ink-sub">아직 점검 미시작 — 시작하면 점검표·별지 작성이 열립니다</span>
+              <span className="text-ink-sub">점검표·별지를 작성하려면 시작하세요 — 오늘이 점검 시작일로 자동 기록됩니다</span>
               <button onClick={onStart} disabled={isStarting}
                 className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
-                <PlayCircle className="size-3.5" /> 이 회차 시작
+                <PlayCircle className="size-3.5" /> 작성 시작
               </button>
             </div>
           )}

@@ -68,20 +68,20 @@ try {
   await page.waitForSelector('h1', { timeout: 30000 })
   await page.waitForLoadState('networkidle').catch(() => {})
   await page.waitForTimeout(1500)
-  const idleMarker = await page.locator('text=별지는 입력한 데이터로 자동 생성됩니다').count()
+  const idleMarker = await page.locator('text=사용승인일 기준으로 ERP가 자동 판정').count()
   const idlePanel = (await page.locator('[role=tabpanel]').nth(iAnnex).innerHTML().catch(() => '')).length
   check('④ 기본정보 탭에서 별지 패널이 DOM에 없다 (지연 마운트)', idleMarker === 0 && idlePanel === 0,
     `마커=${idleMarker} 패널길이=${idlePanel}`)
   await page.locator('[role=tab]').filter({ hasText: '별지서식' }).first().click()
-  await page.waitForSelector('text=별지는 입력한 데이터로 자동 생성됩니다', { timeout: 25000 })
-  const afterMarker = await page.locator('text=별지는 입력한 데이터로 자동 생성됩니다').count()
+  await page.waitForSelector('text=사용승인일 기준으로 ERP가 자동 판정', { timeout: 25000 })
+  const afterMarker = await page.locator('text=사용승인일 기준으로 ERP가 자동 판정').count()
   check('④ (대조군) 탭을 누르면 패널이 생긴다 — 위 검사가 항진명제가 아님', afterMarker > 0, `마커=${afterMarker}`)
   check('④ 탭 클릭 → [별지서식] 활성', (await activeTab(page)).includes('별지서식'), await activeTab(page))
   // 한 번 방문한 뒤에는 마운트를 유지한다(입력 상태 유지 계약) — 다른 탭으로 옮겨도 DOM에 남아야 한다
   await page.locator('[role=tab]').filter({ hasText: '기본정보' }).first().click()
   await page.waitForTimeout(600)
   check('④ 방문 후에는 다른 탭으로 옮겨도 패널이 유지된다 (unmount 아님)',
-    (await page.locator('text=별지는 입력한 데이터로 자동 생성됩니다').count()) > 0)
+    (await page.locator('text=사용승인일 기준으로 ERP가 자동 판정').count()) > 0)
 
   // ══ fullWidth — 별지 탭에서 우측 요약 패널이 접히는가 ══════════════════════
   // 빠지면 별지가 max-w-3xl에 갇히고 회차 카드·미리보기 레이아웃이 무너진다
@@ -95,7 +95,7 @@ try {
   check('② 구 딥링크 ?tab=plan&form=annex → [별지서식] 탭',
     (await activeTab(page)).includes('별지서식'), await activeTab(page))
   check('② 그 화면에 별지 본체가 실제로 떠 있다',
-    await page.locator('text=별지는 입력한 데이터로 자동 생성됩니다').first()
+    await page.locator('text=사용승인일 기준으로 ERP가 자동 판정').first()
       .waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false))
 
   // ══ ③ 소방계획서 트리에 별지 노드 부재 + 트리 축 보존 ═══════════════════════

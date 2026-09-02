@@ -1,4 +1,5 @@
-// 소방계획서_8 H-7 별지 서식 상호작용 E2E — 회차 카드·작성·이어받기·전체 미리보기 실주행
+// 소방계획서_8 H-7 별지 서식 상호작용 E2E — 현재 회차 자동 카드·작성·이어받기·전체 미리보기 실주행
+// (2026-09-02 재편: 회차 목록·지난/예정 접힘 폐지 — 자동 판정 현재 1건만)
 // + H-5e(D-17) 9호發 진입 컨텍스트·빈칸만 보기·교차 검증 칩
 // 실행: npx tsx scripts/test-annex-interaction.mts  (로컬 dev 서버 + 스테이징 DB, 112 적용 필요 — PDF 생성은 test-annex-compose가 커버)
 // @ts-expect-error mjs 헬퍼
@@ -75,26 +76,18 @@ try {
   const page = l.page
   await login(page, EMAIL)
 
-  // ── 1) 회차 카드 — 최신 즉시 펼침(D-4)·과거 아코디언·성격 배지 ──
+  // ── 1) 현재 회차 자동 판정 1건 (2026-09-02 재편 — 회차 목록·지난/예정 접힘 폐지) ──
+  // 진행 중 회차가 현재로 자동 선택돼 항상 펼쳐진다. 과거 회차는 화면에 없다(데이터는 유지 —
+  // 이어받기 배너가 아래 3절에서 그 데이터를 읽는 것으로 생존을 증명한다).
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=annex`)
   await page.waitForSelector(`text=${CUR_YEAR}년 1차`)
-  // 소방계획서_20 S2: 완료 회차는 "지난 회차 N건" 접힘 섹션으로 내려가 처음엔 라벨이 보이지 않는다
-  check('회차 카드 — 현 회차 + 지난 회차 섹션', await page.isVisible('text=지난 회차 1건'))
-  check('회차 카드 — 최신 회차 자동 펼침(점검표 행)', await page.isVisible('text=점검표 입력'))
-  check('회차 카드 — 성격 배지 작동(자체)', await page.isVisible('text=작동(자체)'))
-  check('회차 카드 — 과거 회차는 접힘(문서 행 1세트)', (await page.locator('text=점검표 입력').count()) === 1)
-  check('회차 카드 — 별지 4호 [자동] 행', await page.isVisible('text=별지 4호 점검표'))
-
-  // 과거 회차 — 섹션 펼침 → 요약 행 클릭 시 상세 지연 로드(S2) → 문서 행 2세트
-  await page.click('button:has-text("지난 회차 1건")')
-  await page.waitForSelector(`text=${PREV_YEAR}년 1차`)
-  check('지난 회차 섹션 — 연도 그룹·요약 행', await page.isVisible(`text=${PREV_YEAR}년 · 1건`))
-  await page.click(`button:has-text("${PREV_YEAR}년 1차")`)
-  await page.waitForFunction(() =>
-    document.querySelectorAll('*').length > 0 &&
-    [...document.querySelectorAll('*')].filter(e => e.childElementCount === 0 && e.textContent?.includes('점검표 입력')).length >= 2,
-    undefined, { timeout: 30000 })
-  check('과거 회차 지연 로드 — 문서 행 2세트', (await page.locator('text=점검표 입력').count()) === 2)
+  check('현재 회차 — 자동 판정 캡션', await page.isVisible('text=자동 판정'))
+  check('현재 회차 — 항상 펼침(점검표 행)', await page.isVisible('text=점검표 입력'))
+  check('현재 회차 — 성격 배지 작동(자체)', await page.isVisible('text=작동(자체)'))
+  check('현재 회차 — 별지 4호 [자동] 행', await page.isVisible('text=별지 4호 점검표'))
+  check('폐지 — 지난 회차 섹션 없음', !(await page.isVisible('text=지난 회차')))
+  check('폐지 — 과거 회차 카드 미노출', !(await page.isVisible(`text=${PREV_YEAR}년 1차`)))
+  check('현재 회차 — 문서 행 1세트뿐', (await page.locator('text=점검표 입력').count()) === 1)
 
   // D-7 호버 퀵뷰는 소방계획서_20 S3에서 폐지 — 프리페치 지연화로 캐시가 비어 빈 팝업만 뜨던 기능.
   // 같은 일을 행 [보기](단일 문서 모달)가 하며, 아래 2-c에서 검증한다.

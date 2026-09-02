@@ -30,7 +30,7 @@ async function activeTab(page: Pg): Promise<string> {
 }
 /** 별지 본체가 실제로 떴는가 — 탭 aria만 보면 '탭은 바뀌었는데 패널이 비었다'를 놓친다 */
 async function annexBodyVisible(page: Pg): Promise<boolean> {
-  return page.locator('text=별지는 입력한 데이터로 자동 생성됩니다').first()
+  return page.locator('text=사용승인일 기준으로 ERP가 자동 판정').first()
     .waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false)
 }
 

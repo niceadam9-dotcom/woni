@@ -93,12 +93,11 @@ try {
   await page.goto(ANNEX)
   await page.waitForSelector(`text=${CUR_YEAR}년 1차`)
 
-  // ── 1) 미시작 회차 — 자동 펼침되는 최신(2차, 계획만)에는 점검표 노드가 없고 시작 CTA만 ──
-  check('미시작 회차 — 시작 CTA 표시', await page.isVisible('text=아직 점검 미시작'))
-  check('미시작 회차 — 점검표 노드 없음', (await page.locator('text=설비별 진행').count()) === 0)
-
-  // 시작된 1차 카드를 펼친다 (2차가 최신이라 자동 펼침 대상이 아님)
-  await page.click(`button:has-text("${CUR_YEAR}년 1차")`)
+  // ── 1) 현재 회차 자동 판정 (2026-09-02 재편) — 진행 중 1차가 현재로 선택돼 항상 펼쳐진다.
+  //  미시작 2차는 화면에 없다(회차 목록 폐지 — 미시작 CTA 검증은 _probe-archive-retire가 담당) ──
+  check('현재 회차 — 진행 중 1차 자동 선택·펼침', await page.isVisible(`text=${CUR_YEAR}년 1차`))
+  check('미시작 2차 — 화면 미노출', !(await page.isVisible(`text=${CUR_YEAR}년 2차`)))
+  check('폐지 — 옛 미시작 CTA 없음', !(await page.isVisible('text=아직 점검 미시작')))
 
   // ── 2) 설비별 요약 행 상시 표시 + 분모 정합성 ──
   await page.waitForSelector('text=설비별 진행', { timeout: 20000 })
@@ -179,8 +178,7 @@ try {
   await page.context().clearCookies()
   await login(page, EMAIL2)
   await page.goto(ANNEX)
-  await page.waitForSelector(`text=${CUR_YEAR}년 1차`)
-  await page.click(`button:has-text("${CUR_YEAR}년 1차")`)   // 자동 펼침은 최신(2차)이라 직접 펼친다
+  await page.waitForSelector(`text=${CUR_YEAR}년 1차`)   // 진행 중 1차 = 자동 현재·항상 펼침 (2026-09-02)
   // '설비별 진행'은 로딩 문구에도 들어 있어 즉시 매칭된다 — 실제 시트 행이 뜰 때까지 기다린다
   const otherRow = page.locator(`[data-testid="annex-sheet-link-${SHEET_CODE}"]`)
   await otherRow.waitFor({ timeout: 40000 })

@@ -137,7 +137,7 @@ export type CustomerRound = {
   /** 미시작 회차의 확정·자동 시작용 (H-3) */
   planItemId: string | null
   plannedDate: string | null
-  /** 시작된 회차만 — 문서·불량 상태. 완료 회차는 null이고 docsLite만 온다(소방계획서_20 S2) */
+  /** 활성(비완료) 회차만 — 문서·불량 상태. 완료·미시작 회차는 null */
   docs: InspectionDocs | null
   /** 완료 회차 요약 (S2) — 펼치기 전까지 storage.list를 돌리지 않으려는 경량 대체본.
    *  ⚠ generated는 '생성 이력'(fire_plan_gen_jobs)이지 파일 존재가 아니다 — 과거본 정리(18)로
@@ -145,13 +145,13 @@ export type CustomerRound = {
   docsLite: RoundDocsLite | null
 }
 
+/** 2026-09-02 회차 자동화 이후 항상 null — '지난 회차' 접힘(유일 소비자) 폐지로 은퇴한 요약 축.
+ *  필드는 타입 호환을 위해 남긴다(과대 조회 방지의 근거는 getCustomerRoundsAction 주석). */
 export type RoundDocsLite = {
   inspectionId: string
   endDate: string | null
-  /** 생성 이력 유무 (파일 존재 아님 — 위 주석 참조) */
   generated: { report4: boolean; report9: boolean; report10: boolean; report11: boolean; exterior: boolean }
   defectsTotal: number
-  /** 배치확인서 종이 보관 정리 마커 (소방계획서_18 D-7) */
   certArchived: boolean
 }
 
@@ -210,57 +210,30 @@ export async function getCustomerRoundsAction(customerId: string): Promise<{ dat
   const items = (itemRes.data ?? []) as unknown as ItemRow[]
 
   // 시작된 점검 = 회차의 정본.
-  // S2(소방계획서_20): 회차마다 buildInspectionDocs(=storage.list+불량+응답 3왕복)를 돌리면 왕복이 3+3N으로
-  // 회차 수에 비례해 늘었다(회차 8건이면 마운트 5초+). 화면에서 카드로 펼치는 건 진행 중·예정 회차뿐이므로
-  // 완료 회차는 집계 2쿼리로 만든 요약(docsLite)만 싣고, 상세는 펼칠 때 getRoundDocsAction으로 지연 로드한다.
+  // S2(소방계획서_20) → 2026-09-02 회차 자동화: 화면이 현재 회차 1건만 그리므로
+  // 활성 회차만 상세 조립한다. 완료 회차 요약(docsLite — gen_jobs·defects 집계 2쿼리)은
+  // 소비자였던 '지난 회차' 접힘이 폐지되어 함께 은퇴(null 고정) — 마운트 왕복이 그만큼 준다.
   const activeRows = inspRows.filter(i => i.status !== 'completed')
-  const doneRows = inspRows.filter(i => i.status === 'completed')
-  const doneIds = doneRows.map(i => i.id)
 
-  const [archivedCerts, docsList, genRes, defRes] = await Promise.all([
-    findArchivedCertInspections(admin, inspRows.map(i => i.id)),
+  const [archivedCerts, docsList] = await Promise.all([
+    findArchivedCertInspections(admin, activeRows.map(i => i.id)),
     // 활성 회차만 상세 조립 (통상 1~2건)
     Promise.all(activeRows.map(i => buildInspectionDocs(admin, customerId, i))),
-    doneIds.length
-      ? admin.from('fire_plan_gen_jobs').select('inspection_id, report_type').eq('status', 'done').in('inspection_id', doneIds)
-      : Promise.resolve({ data: [] as Array<{ inspection_id: string; report_type: string | null }> }),
-    doneIds.length
-      ? admin.from('inspection_defects').select('inspection_id').in('inspection_id', doneIds)
-      : Promise.resolve({ data: [] as Array<{ inspection_id: string }> }),
   ])
   // archivedCerts는 활성 회차 상세에도 필요하다 — buildInspectionDocs를 병렬로 돌린 뒤 여기서 채운다
   for (const d of docsList) d.certArchived = !d.cert && archivedCerts.has(d.inspectionId)
-
-  const genBy = new Map<string, RoundDocsLite['generated']>()
-  for (const j of (genRes.data ?? []) as Array<{ inspection_id: string; report_type: string | null }>) {
-    const g = genBy.get(j.inspection_id)
-      ?? { report4: false, report9: false, report10: false, report11: false, exterior: false }
-    if (j.report_type && j.report_type in g) g[j.report_type as keyof typeof g] = true
-    genBy.set(j.inspection_id, g)
-  }
-  const defBy = new Map<string, number>()
-  for (const d of (defRes.data ?? []) as Array<{ inspection_id: string }>) {
-    defBy.set(d.inspection_id, (defBy.get(d.inspection_id) ?? 0) + 1)
-  }
 
   const docsByInsp = new Map(docsList.map(d => [d.inspectionId, d]))
   const rounds = new Map<string, CustomerRound>()
   inspRows.forEach(i => {
     const key = `${i.year}-${i.sequence_num}`
     if (rounds.has(key)) return
-    const docs = docsByInsp.get(i.id) ?? null
     rounds.set(key, {
       year: i.year, sequenceNum: i.sequence_num, planType: i.plan_type,
       state: (i.status as CustomerRound['state']) ?? 'in_progress',
       planItemId: null, plannedDate: i.inspection_start_date,
-      docs,
-      docsLite: docs ? null : {
-        inspectionId: i.id,
-        endDate: i.inspection_end_date,
-        generated: genBy.get(i.id) ?? { report4: false, report9: false, report10: false, report11: false, exterior: false },
-        defectsTotal: defBy.get(i.id) ?? 0,
-        certArchived: archivedCerts.has(i.id),
-      },
+      docs: docsByInsp.get(i.id) ?? null,
+      docsLite: null,
     })
   })
 

@@ -43,6 +43,7 @@ import { todayKst } from '@/lib/kst-date'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
+import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -770,9 +771,14 @@ export default async function CustomerDetailPage({
   // 별지 서식 탭 (소방계획서_34 S1-3) — 종전에는 PlanTabView의 annex 노드였다.
   // ⚠ 카드 껍데기는 plan-tab-view.tsx의 최상위 <div>에서 복제해 온 것이다. PlanAnnexSection 자신은
   //   껍데기가 없어(space-y-3만), 이 래퍼 없이 꺼내면 회차 카드가 배경 위에 테두리 없이 맨몸으로 뜬다.
+  // 서버 프리페치(2026-09-02 성능): ?tab=annex로 진입할 때만 회차를 서버에서 미리 실어
+  // "회차를 불러오는 중…" 클라이언트 왕복을 없앤다. 다른 탭 진입 시엔 비용 0(종전과 동일).
+  const annexInitial = initialTab === 'annex' && can(profile.role as UserRole, 'inspection_register')
+    ? await getCustomerRoundsAction(customer.id).then(r => r.data ?? null).catch(() => null)
+    : null
   const annexTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-      <PlanAnnexSection customerId={customer.id}
+      <PlanAnnexSection customerId={customer.id} initialData={annexInitial}
         canRegister={can(profile.role as UserRole, 'inspection_register')} />
     </div>
   )
