@@ -225,6 +225,12 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     // 점검자 3행은 상수(우리는 항상 소방시설관리업자 — renderReport9:204와 같은 축)지만,
     // 갑지 표본이 √ 위치를 바꿔 오면 자기 라벨 검증이 막는다
     ['reportTypeHeader', `${ck(p.ckOp)} 작동점검, 종합점검(${fk(p.ckInitial)}최초점검, ${fk(p.ckCompEtc)}그 밖의 종합점검) \n               소방시설등 자체점검 실시결과 보고서`],
+    // ── 대상물(별지 4호 1쪽 표지) 점검구분 3칸 — PDF report4.ts page1과 같은 축(D-7).
+    // 종전 미배선이라 항상 [  ]로 나갔다(2026-09-02 커버리지 실측 — PDF는 체크해 인쇄).
+    // 마크가 라벨과 딴 칸(G2·G3·L3)이라 통문자열 재조립 없이 마크만 놓는다
+    ['form4CkOp', ck(p.ckOp)],
+    ['form4CkInitial', ck(p.ckInitial)],
+    ['form4CkEtc', ck(p.ckCompEtc)],
     ['inspectorOwnerRow', '[  ]관계인            (성명:'],
     ['inspectorManagerRow', '[  ]소방안전관리자    (성명:                  '],
     ['inspectorCompanyRow', '[√]소방시설관리업자  (업체명:             '],

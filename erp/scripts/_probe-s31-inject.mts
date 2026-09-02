@@ -102,5 +102,38 @@ check('체크 — 분말 [√]', txt('B4').includes('√'), JSON.stringify(txt('
 check('체크 — 자동확산 [√]', txt('O3').includes('√'), JSON.stringify(txt('O3')))
 check('체크 — 자동소화장치 [  ]', !txt('R3').includes('√'), JSON.stringify(txt('R3')))
 
+// ── 세1(별지 4호 3쪽) — 현1의 전면 수식 거울. 폐포 전파가 값·공란을 함께 실어야
+//    별지 4호 쪽이 안 갈라진다(LO는 재계산을 안 하므로 캐시가 곧 인쇄물, D-9) ──
+const xml2 = await zip.file(sheets.find(s => s.name === '세1')!.path)!.async('string')
+const cells2 = new Map<string, Cell>()
+for (const m of xml2.matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+  const attrs = m[1], body = m[2] ?? ''
+  const ref = /r="([A-Z]+\d+)"/.exec(attrs)?.[1] ?? '?'
+  cells2.set(ref, {
+    t: /t="([^"]+)"/.exec(attrs)?.[1] ?? 'n',
+    v: /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? null,
+    f: /<f[^>]*>([\s\S]*?)<\/f>/.exec(body)?.[1] ?? null,
+    inline: [...body.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('') || null,
+  })
+}
+console.log('[세1 거울 전파 단언]')
+check('세1 A8(=현1!A7) 캐시 = A동', (cells2.get('A8')?.v ?? cells2.get('A8')?.inline) === 'A동', JSON.stringify(cells2.get('A8')))
+check('세1 B8(=현1!B7) 캐시 = 12', cells2.get('B8')?.v === '12', JSON.stringify(cells2.get('B8')))
+check('세1 B6(=현1!B5 합계) 캐시 = 13', cells2.get('B6')?.v === '13', JSON.stringify(cells2.get('B6')))
+check('세1 A10(=현1!A9 빈 행) 캐시 제거 — 잔재 3 소멸',
+  (cells2.get('A10')?.v ?? null) === null && !(cells2.get('A10')?.inline), JSON.stringify(cells2.get('A10')))
+check('세1 N8(=현1!N7 확산) 캐시 = 6', cells2.get('N8')?.v === '6', JSON.stringify(cells2.get('N8')))
+
+// ── 대상물(별지 4호 1쪽 표지) 점검구분 — 픽스처 ckOp=true → 작동점검만 [√] ──
+const xml3 = await zip.file(sheets.find(s => s.name === '대상물')!.path)!.async('string')
+const inline3 = (ref: string) => {
+  const m = new RegExp(`<c r="${ref}"[^>]*>([\\s\\S]*?)</c>`).exec(xml3)
+  return m ? [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('') : ''
+}
+console.log('[대상물 점검구분 단언]')
+check('대상물 G2(작동점검) = [√]', inline3('G2').includes('√'), JSON.stringify(inline3('G2')))
+check('대상물 G3(최초점검) = [  ]', !inline3('G3').includes('√'), JSON.stringify(inline3('G3')))
+check('대상물 L3(그 밖의) = [  ]', !inline3('L3').includes('√'), JSON.stringify(inline3('L3')))
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

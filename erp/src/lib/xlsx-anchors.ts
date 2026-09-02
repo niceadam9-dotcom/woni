@@ -380,6 +380,12 @@ export const ANCHORS: Anchor[] = [
     .map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B41', label: '무선통신\n보조' })),
   ...([['s38FsTarget', 'E44'], ['s38FsZone', 'E45']] as const)
     .map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B44', label: '연소방지' })),
+  // ── 대상물(별지 4호 1쪽 표지) 점검구분 3칸 — PDF report4 page1과 같은 축(D-7) ──
+  // 시트의 나머지는 전부 현황·개요 거울 수식(157칸)이라 전파로 채워지는데, 이 3칸만
+  // 리터럴 마크라 미배선이면 항상 [  ]로 나간다(2026-09-02 커버리지 실측).
+  { field: 'form4CkOp',      sheet: '대상물', cell: 'G2', labelCell: 'E2', label: '작동점검' },
+  { field: 'form4CkInitial', sheet: '대상물', cell: 'G3', labelCell: 'E3', label: '종합점검(최초점검)' },
+  { field: 'form4CkEtc',     sheet: '대상물', cell: 'L3', labelCell: 'H3', label: '그 밖의 점검' },
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·
