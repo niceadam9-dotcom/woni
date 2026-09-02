@@ -18,7 +18,7 @@ import { HYEON5_WRAP_XFS } from '../src/lib/xlsx-wrap-fix.ts'
 import { sheetFileMap, buildFullRefGraph, transitiveClosure } from '../src/lib/xlsx-inject.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
 import {
-  FORM4_ROWS, FORM4_UNWIRED, FORM4_SHEET, FORM4_CODES_WITHOUT_ROW,
+  FORM4_ROWS, FORM4_ETC_ROWS, FORM4_UNWIRED, FORM4_SHEET, FORM4_CODES_WITHOUT_ROW,
   form4CodeErrors, form4InstallField, form4VerdictField,
 } from '../src/lib/xlsx-form4.ts'
 import { EVAC_FORM3_GROUPS } from '../src/lib/facility-codes.ts'
@@ -572,6 +572,7 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
   }
   const absent = [
     ...FORM4_ROWS.flatMap(r => [r.cell, r.labelCell, ...(r.verdictCell ? [r.verdictCell] : [])]),
+    ...FORM4_ETC_ROWS.flatMap(r => [r.cell, r.labelCell, r.verdictCell]),
     ...FORM4_UNWIRED.flatMap(u => [u.cell, u.verdictCell]),
   ].filter(c => cellBody(c) === null)
   check(`표의 좌표 전부 ${FORM4_SHEET}에 실재`, absent.length === 0, absent.join(', '))
@@ -591,6 +592,7 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
 
   const allVerdicts = [
     ...FORM4_ROWS.map(r => r.verdictCell).filter(Boolean) as string[],
+    ...FORM4_ETC_ROWS.map(r => r.verdictCell),
     ...FORM4_UNWIRED.map(u => u.verdictCell),
   ]
   const notEmptyFormula = allVerdicts.filter(c => !/<f[^>]*>""<\/f>/.test(cellBody(c) ?? ''))
@@ -605,7 +607,7 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
     const inSheet = [...hyunXml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)]
       .filter(m => /<f[^>]*>""<\/f>/.test(m[2] ?? '')).map(m => m[1])
     const unlisted = inSheet.filter(c => !allVerdicts.includes(c))
-    check(`${FORM4_SHEET}의 판정 칸 ${inSheet.length}개가 전부 표에 분류됨(배선 ${FORM4_ROWS.filter(r => r.verdictCell).length} + 미배선 ${FORM4_UNWIRED.length})`,
+    check(`${FORM4_SHEET}의 판정 칸 ${inSheet.length}개가 전부 표에 분류됨(배선 ${FORM4_ROWS.filter(r => r.verdictCell).length}+기타 ${FORM4_ETC_ROWS.length} + 미배선 ${FORM4_UNWIRED.length})`,
       unlisted.length === 0 && inSheet.length === allVerdicts.length,
       unlisted.length ? `미분류 ${unlisted.join(', ')}` : `${inSheet.length} vs ${allVerdicts.length}`)
   }
@@ -644,9 +646,10 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
     const ON = ['옥내소화전설비', '소화기(소화기·자동확산·간이)']
     const v = vals(ON, ['완강기'])
     const expectOn = FORM4_ROWS.filter(r => ['C12', 'D7', 'Z7'].includes(r.cell))
+    // 2026-09-02 사용자 결정(image-43) — 설치(√)+무응답은 공란이 아니라 기본 ○다
     const wrongOn = expectOn.filter(r =>
-      v.get(form4InstallField(r)) !== '[√]' || (r.verdictCell && v.get(form4VerdictField(r)) !== null))
-    check('설치 3행 — 체크 [√] · 점검결과 공란(자동 ○ 없음)', wrongOn.length === 0,
+      v.get(form4InstallField(r)) !== '[√]' || (r.verdictCell && v.get(form4VerdictField(r)) !== '○'))
+    check('설치 3행 — 체크 [√] · 점검결과 기본 ○(2026-09-02 사용자 결정)', wrongOn.length === 0,
       expectOn.map(r => `${r.cell}=${JSON.stringify(v.get(form4InstallField(r)))}/${JSON.stringify(v.get(form4VerdictField(r)))}`).join(' '))
 
     const off = FORM4_ROWS.filter(r => !expectOn.includes(r))
@@ -681,8 +684,8 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
     const at = (cell: string) => v.get(`f4v_${cell}`)
     check('응답 ×가 실제로 ×로 실린다(S12)', at('S12') === '×', JSON.stringify(at('S12')))
     check('응답 ○가 실제로 ○로 실린다(S13)', at('S13') === '○', JSON.stringify(at('S13')))
-    check('설치인데 무응답이면 공란(S: 유도등 AO13) — 무응답 → 양호 금지',
-      at('AO13') === null, JSON.stringify(at('AO13')))
+    check('설치인데 무응답이면 기본 ○(S: 유도등 AO13) — 2026-09-02 사용자 결정으로 종전 공란 규칙 번복',
+      at('AO13') === '○', JSON.stringify(at('AO13')))
     check("미설치는 종전대로 '/'(S14 간이스프링클러)", at('S14') === '/', JSON.stringify(at('S14')))
     // 소화기구 하위 — 부모 롤업이 **첫 설치 행 하나에만** 내려간다(distributeSubMarks 공용 규칙)
     const sub = vals(['소화기구 및 자동소화장치', '주거용주방자동소화장치', '캐비닛형자동소화장치'], [], {
@@ -692,12 +695,13 @@ console.log('[8] 별지 4호 1쪽 — 설치 체크 배선 · 점검결과 자�
     const sat = (cell: string) => sub.get(`f4v_${cell}`)
     check('소화기구 하위 — 미설치 D7은 /', sat('S7') === '/', JSON.stringify(sat('S7')))
     check('소화기구 하위 — 첫 설치 행(D8)에 롤업 ×', sat('S8') === '×', JSON.stringify(sat('S8')))
-    check('소화기구 하위 — 둘째 설치 행(D10)은 공란(같은 값을 두 번 찍지 않는다)',
-      sat('S10') === null, JSON.stringify(sat('S10')))
-    // 민감도 — resultMarks를 비우면 위 칸들이 전부 공란/`/`로 돌아간다(상수 통과 아님)
+    check('소화기구 하위 — 둘째 설치 행(D10)은 기본 ○(롤업 ×는 첫 행에만, 나머지 설치 행은 양호)',
+      sat('S10') === '○', JSON.stringify(sat('S10')))
+    // 민감도 — resultMarks를 비우면 ×가 사라지고 설치 행이 기본 ○로 돌아간다(상수 통과 아님 —
+    // ×의 출처가 정말 resultMarks라는 증명. 종전 '공란 복귀' 단언은 2026-09-02 결정으로 대체)
     const none = vals(ON, [], { ledgerCodes: ON })
-    check('resultMarks가 비면 ○·×가 0칸(값의 출처가 정말 resultMarks다)',
-      none.get('f4v_S12') === null && none.get('f4v_S13') === null,
+    check('resultMarks가 비면 ×가 사라지고 기본 ○(값의 출처가 정말 resultMarks다)',
+      none.get('f4v_S12') === '○' && none.get('f4v_S13') === '○',
       `${JSON.stringify(none.get('f4v_S12'))}/${JSON.stringify(none.get('f4v_S13'))}`)
   }
 

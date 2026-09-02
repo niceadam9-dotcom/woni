@@ -14,7 +14,7 @@ import JSZip from 'jszip'
 import { readFileSync } from 'node:fs'
 import { facilityResultSection, muResultSection, FORM3_ITEMS } from '../src/lib/doc-templates/report9.ts'
 import { rollUpForm3Results, legacySheetOnlyStats, foldSheetResult, type SheetStat } from '../src/lib/sheet-facility-map.ts'
-import { FORM4_ROWS, FORM4_UNWIRED, FORM4_SHEET } from '../src/lib/xlsx-form4.ts'
+import { FORM4_ROWS, FORM4_ETC_ROWS, FORM4_UNWIRED, FORM4_SHEET } from '../src/lib/xlsx-form4.ts'
 import { buildWorkbookValues, toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook, sheetFileMap } from '../src/lib/xlsx-inject.ts'
 import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
@@ -118,8 +118,8 @@ const values = buildWorkbookValues({
     rfSlab: true, rfTile: false, rfSlate: false, rfEtc: false,
     stairsCount: '3', elvR: '2', elvE: '', elvV: '',
     pkIn: false, pkMech: false, pkRoof: false, pkOut: true,
-    // ⭐ 이 세 축이 D-7의 핵심 — PDF가 쓰는 것을 **그대로** 넘긴다
-    resultMarks, ledgerCodes: LEDGER,
+    // ⭐ 이 축들이 D-7의 핵심 — PDF가 쓰는 것을 **그대로** 넘긴다(etcMarks는 2026-09-02 승격분)
+    resultMarks, ledgerCodes: LEDGER, etcMarks,
   },
 })
 const template = new Uint8Array(readFileSync(TPL))
@@ -153,6 +153,7 @@ const SEQ2 = ['C37', 'C38', 'C39', 'C40', 'C41', 'C42', 'C43', 'C44',
   'Y37', 'Y38', 'Y39', 'Y40', 'Y41', 'Y42', 'Y43', 'Y44', '(비고)']
 
 const rowByCell = new Map(FORM4_ROWS.map(r => [r.cell, r]))
+const etcByCell = new Map(FORM4_ETC_ROWS.map(r => [r.cell, r]))   // 기타 3행 — 2026-09-02 배선 승격
 const unwiredByCell = new Map(FORM4_UNWIRED.map(u => [u.cell, u]))
 
 console.log('[1] 축 — PDF 행 수 = 엑셀 좌표 수, 그리고 표의 전 칸이 배치에 실린다')
@@ -162,7 +163,8 @@ console.log('[1] 축 — PDF 행 수 = 엑셀 좌표 수, 그리고 표의 전 �
   const placed = new Set([...SEQ1, ...SEQ2])
   const missing = [...FORM4_ROWS.map(r => r.cell), ...FORM4_UNWIRED.map(u => u.cell)].filter(c => !placed.has(c))
   check('FORM4 표의 전 칸이 PDF 배치에 실린다(손목록 위의 전수 방지)', missing.length === 0, missing.join(', '))
-  const stray = [...SEQ1, ...SEQ2].filter(c => c !== '(비고)' && !rowByCell.has(c) && !unwiredByCell.has(c))
+  const stray = [...SEQ1, ...SEQ2].filter(c =>
+    c !== '(비고)' && !rowByCell.has(c) && !etcByCell.has(c) && !unwiredByCell.has(c))
   check('배치에 표 밖 좌표 0', stray.length === 0, stray.join(', '))
 }
 
@@ -179,7 +181,7 @@ console.log('[2] 라벨 — 같은 줄을 보고 있는가(순서가 밀리면 �
   const zip1 = SEQ1.map((c, i) => [c, rows1[i]] as const)
   for (const [c, row] of zip1) {
     if (c === '(비고)' || !row) continue
-    const excel = rowByCell.get(c)?.label ?? unwiredByCell.get(c)?.label ?? ''
+    const excel = rowByCell.get(c)?.label ?? etcByCell.get(c)?.label ?? unwiredByCell.get(c)?.label ?? ''
     const drift = KNOWN_DRIFT[c]
     const ok = drift ? nz(row.label) === nz(drift)
       : nz(row.label).startsWith(nz(excel)) || nz(excel).startsWith(nz(row.label))
@@ -189,19 +191,19 @@ console.log('[2] 라벨 — 같은 줄을 보고 있는가(순서가 밀리면 �
     bad.length === 0, bad.slice(0, 6).join(' | '))
 }
 
-console.log('[3] ⭐ 판정 값 — 배선 45칸이 PDF와 글자까지 같은가')
+console.log('[3] ⭐ 판정 값 — 배선 45+기타 3칸이 PDF와 글자까지 같은가')
 {
   const mismatch: string[] = []
   let compared = 0
   SEQ1.forEach((c, i) => {
-    const row = rowByCell.get(c)
+    const row = rowByCell.get(c) ?? etcByCell.get(c)
     if (!row?.verdictCell) return
     compared++
     const got = cell(row.verdictCell)
     const want = rows1[i]?.mark ?? ''
     if (got !== want) mismatch.push(`${row.verdictCell}(${row.label}) 엑셀='${got}' PDF='${want}'`)
   })
-  check(`1쪽 배선 ${compared}칸 전부 PDF와 일치`, mismatch.length === 0 && compared === 45,
+  check(`1쪽 배선 ${compared}칸 전부 PDF와 일치`, mismatch.length === 0 && compared === 48,
     mismatch.length ? mismatch.slice(0, 10).join(' | ') : `대조 ${compared}칸`)
   // 민감도 — 대조가 '둘 다 공란'으로 공허하게 통과하지 않는다는 증명
   const nonEmpty = SEQ1.filter((c, i) => rowByCell.get(c)?.verdictCell && (rows1[i]?.mark ?? '') !== '').length

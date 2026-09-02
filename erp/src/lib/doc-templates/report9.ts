@@ -402,9 +402,13 @@ export function facilityResultSection(
   opts: { form?: AnnexForm } = {},
 ): string {
   const form = opts.form ?? 'annex9'
+  // 설치(√)인데 무응답이면 ○ — **2026-09-02 사용자 결정(image-43)**: 체크된 설비의 점검결과는
+  // 반드시 ○/×여야 한다(불량 기록이 없으면 양호). 종전 '무응답 → 공란'(A9-6 축)을 지시로 번복.
+  // ⚠ 롤업(rollUpForm3Results)은 안 바꾼다 — 무응답=키 없음의 정직함은 유지하고, 기본 ○는
+  //   인쇄 표면에서만 얹는다. 갑지 엑셀 `현황`(xlsx-workbook)이 같은 규칙을 탄다(D-7).
   const f3 = (item: string): P3Item => ({
     html: ` ${ck(d.facilityChecks.includes(item))}${esc(annexLabel(form, item))}`,
-    mark: resultMark(d.resultMarks[item]),
+    mark: resultMark(d.resultMarks[item] ?? (d.facilityChecks.includes(item) ? 'O' : undefined)),
   })
   /** 그 서식 원문에 행이 있는 항목만 — 별지4호엔 화재알림설비 행이 아예 없다 */
   const f3s = (from: number, to: number): P3Item[] =>
@@ -444,7 +448,10 @@ export function facilityResultSection(
     }]
     subs.forEach((s, i) => rows.push({
       html: `   ${ck(s.installed)}${s.label}`,
-      mark: resultMark(dist.subs[i]),
+      // 설치(√) 하위의 무응답도 ○(2026-09-02 사용자 결정 — 위 f3와 같은 축). 부모 롤업 ×는
+      // 여전히 첫 설치 행에만 내려가고(distributeSubMarks 공용 규칙), 나머지 설치 행이 ○가 된다.
+      // 미설치 하위는 dist가 이미 'N'(／)을 준다. 부모 행은 그대로 — 하위가 결과를 대신한다.
+      mark: resultMark(dist.subs[i] ?? (s.installed ? 'O' : undefined)),
     }))
     return rows
   }

@@ -30,7 +30,10 @@
  *  이제 `form4VerdictMarks`가 **PDF와 같은 해석기**를 쓴다: 값은 새로 계산하지 않고
  *  `resultMarks`(rollUpForm3Results 산출)를 그대로 조회하고, 부모·하위 배분만
  *  `sheet-facility-map.distributeSubMarks`(PDF의 subRows와 **같은 함수**)에 맡긴다.
- *  → 무응답은 여전히 **공란**이다('무응답 → 양호'는 없다). 미설치는 종전대로 ／다.
+ *  → 미설치는 종전대로 ／다.
+ *  ⚠ 2026-09-02 사용자 결정(image-43)으로 '설치+무응답 → 공란'은 번복됐다 — 체크(√)된 행의
+ *    점검결과는 반드시 ○/×. 기본 ○는 이 맵이 아니라 **인쇄 표면**(xlsx-workbook 값 조립 ·
+ *    PDF report9 f3/subRows)에서 얹는다 — 롤업·이 맵의 undefined(무응답)는 정직하게 유지.
  *
  *  ── 배선하지 않은 칸(추측 금지) ────────────────────────────────────────────
  *  FORM4_UNWIRED 참조. ERP에 '설치 여부' 축이 없는 칸들이라 `[  ]`·공란으로 남긴다 —
@@ -216,14 +219,23 @@ export function form4VerdictMarks(
  *  근거가 없으면 **비운다**. 빌드가 이 칸들의 수식도 함께 제거하므로 LibreOffice 재계산으로
  *  `／`가 되살아나지 않는다(그전에는 전 고객 문서에 '방화문 해당없음'이 찍히고 있었다).
  *
- *  ① 기타 3칸 — 설치 대장의 항목이 아니다. 별지 9호 3쪽 PDF는 **점검 응답 롤업**(etcMarks)으로
- *     채우는데, 그건 설치 여부가 아니라 점검 결과 축이라 이 작업의 범위 밖이다.
- *  ② 다중이용업소 16칸 — 안전시설등(MU-001~016)은 fire_facilities에 설치 행이 없다.
- *     별지 9호 3쪽 2절 PDF는 muResults(점검 응답 롤업)로 채운다. 같은 이유로 범위 밖. */
+ *  다중이용업소 16칸 — 안전시설등(MU-001~016)은 fire_facilities에 설치 행이 없다.
+ *  별지 9호 3쪽 2절 PDF는 muResults(점검 응답 롤업)로 채우는데 엑셀은 아직 미배선(D-7 잔여).
+ *  (기타 3칸은 2026-09-02 etcMarks 축으로 배선 승격 — FORM4_ETC_ROWS 참조) */
+/** '기타' 3행 — 설치 대장 축이 없어 미배선이었으나 **etcMarks(31번 기타사항 점검표 롤업)로 배선**
+ *  (2026-09-02, image-43 후속). PDF etcItem(report9.ts)과 같은 규칙: ○/×면 체크+마크,
+ *  무응답('N' 폴백)이면 빈 체크+／ — 2026-08-20 사용자 확정('무응답도 ／') 그대로다.
+ *  key는 Report9Data.etcMarks의 키. 라벨 칸은 실측(AA27~AA29). */
+export const FORM4_ETC_ROWS: Array<{
+  key: 'door' | 'exit' | 'flame'; cell: string; verdictCell: string; labelCell: string; label: string
+}> = [
+  { key: 'door',  cell: 'Y27', verdictCell: 'AO27', labelCell: 'AA27', label: '방화문, 방화셔터' },
+  { key: 'exit',  cell: 'Y28', verdictCell: 'AO28', labelCell: 'AA28', label: '비상구, 피난통로' },
+  { key: 'flame', cell: 'Y29', verdictCell: 'AO29', labelCell: 'AA29', label: '방  염' },
+]
+
 export const FORM4_UNWIRED: Array<{ cell: string; verdictCell: string; label: string; why: string }> = [
-  { cell: 'Y27', verdictCell: 'AO27', label: '방화문, 방화셔터', why: '기타 — 설치 대장 축 없음(별지9호 etcMarks는 점검 응답 축)' },
-  { cell: 'Y28', verdictCell: 'AO28', label: '비상구, 피난통로', why: '기타 — 설치 대장 축 없음' },
-  { cell: 'Y29', verdictCell: 'AO29', label: '방  염',           why: '기타 — 설치 대장 축 없음' },
+  // 기타 3행은 FORM4_ETC_ROWS로 승격(2026-09-02) — 여기 남은 것은 다중이용업소 16칸뿐.
   ...([
     ['C37', 'S37', '소화기 또는 자동확산소화기'], ['Y37', 'AO37', '방화문'],
     ['C38', 'S38', '간이스프링클러설비'], ['Y38', 'AO38', '비상구(비상탈출구)'],

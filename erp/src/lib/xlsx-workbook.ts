@@ -11,7 +11,7 @@ import { ANCHORS, DEFECT_GROUP_ROWS, PLAN_DATE_ROWS, S31_QTY_COLS, S31_DETAIL_RO
 import { s31DongRows } from '@/lib/doc-templates/spec-sections'
 import { columnTotal } from '@/lib/facility-spec-schema'
 import {
-  FORM4_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
+  FORM4_ROWS, FORM4_ETC_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
 } from '@/lib/xlsx-form4'
 import { isoToSerial, type InjectTarget, type CellValue } from '@/lib/xlsx-inject'
 
@@ -60,6 +60,10 @@ export type WorkbookSource = {
      *  라우트가 넘기는 r9.data의 것을 그대로 받아 `현황` 시트 결과칸에 놓기만 한다.
      *  ⚠ 없는 키 = **무응답 = 공란**이다. 'O'로 메우지 않는다(점검 사실 위조). */
     resultMarks: Record<string, 'O' | 'X' | 'N'>
+    /** '기타' 3항목(방화문·비상구·방염) — 31번 기타사항 점검표 롤업(Report9Data.etcMarks와 동일).
+     *  별지 9호 3쪽 PDF가 인쇄하는 바로 그 값(D-7) — 현황 Y27~29·AO27~29에 놓는다. 미공급이면
+     *  전 칸 무응답('N' 폴백 = 빈 체크+／). */
+    etcMarks?: { door?: 'O' | 'X' | 'N'; exit?: 'O' | 'X' | 'N'; flame?: 'O' | 'X' | 'N' }
     /** 설비 대장 코드(**대표 1동** — assembleReport9가 본 축). 소화기구 하위 5종의 설치 판정에 쓴다.
      *  `src.installedCodes`(전 동 합집합)와 **다른 축**이라 섞으면 하위 마크가 옆 줄로 내려간다
      *  (xlsx-form4.form4VerdictMarks 주석). 미공급이면 installedCodes로 폴백한다(픽스처·구 호출부). */
@@ -280,22 +284,28 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   //
   // ⚠ 설치=`[√]`에서 `○`(양호)를 만들어내지 않는다. 그건 서식 수식이 하던 일이고,
   //   **점검을 했는지조차 모르는 채 양호를 인쇄**하는 것이었다(법정 서식에서 가장 위험한 방향).
-  //   설치인데 응답이 없으면 지금도 **공란**이다 — '무응답 → 양호'는 없다.
-  // ⚠ 폴백(`on ? null : '/'`)은 resultMarks가 아예 없을 때의 **종전 동작**이다. 운영 경로에서는
-  //   rollUpForm3Results가 미설치 항목에 'N'을 반드시 채우므로 이 가지가 결과를 바꾸지 않는다
-  //   (그래도 남긴다 — 조립이 실패해 빈 맵이 와도 서식이 ○로 번지지 않게).
+  //   **설치(√)+무응답 → ○** — 2026-09-02 사용자 결정(image-43): 체크된 행의 점검결과는
+  //   반드시 ○/×(불량 기록이 없으면 양호). 종전 '무응답 → 공란'(A9-6 축)을 지시로 번복 —
+  //   PDF(report9 f3/subRows)가 같은 표면 규칙을 탄다(D-7). 롤업·form4VerdictMarks의
+  //   undefined(무응답)는 정직하게 유지하고, 기본 ○는 여기(인쇄 표면)에서만 얹는다.
   // ⚠ `／`(전각)가 아니라 `/`(반각)를 쓴다 — 서식 자신의 어휘다(현황!A3 범례 '해당없는 항목은 /표시',
   //   제거된 수식의 리터럴도 "/"였다). resultMark('N')이 같은 반각 '/'를 돌려준다(base.ts).
   const verdicts = form4VerdictMarks(p.resultMarks ?? {}, p.ledgerCodes ?? src.installedCodes, src.evacTypes)
   for (const r of FORM4_ROWS) {
     const on = isForm4Installed(r, src.installedCodes, src.evacTypes)
     entries.push([form4InstallField(r), ck(on)])
-    // ⚠ 빈 칸은 **셀을 비우는 게 아니라** 서식의 `=""`를 살려 두는 것이다
-    //   (앵커가 keepFormulaWhenEmpty). 빈 셀로 두면 `대상물`의 복제칸이 `0`을 인쇄한다
+    // 이제 판정칸 값이 항상 있으므로(설치 ○/× · 미설치 /) keepFormulaWhenEmpty는 형식상 안전망이다
     if (r.verdictCell) {
       const m = verdicts.get(r.verdictCell)
-      entries.push([form4VerdictField(r), m ? resultMark(m) : (on ? null : '/')])
+      entries.push([form4VerdictField(r), m ? resultMark(m) : (on ? resultMark('O') : '/')])
     }
+  }
+  // 현황 '기타' 3행(방화문·비상구·방염) — etcMarks(31번 기타사항 롤업) 배선(2026-09-02).
+  // PDF etcItem(report9.ts)과 같은 규칙: ○/×면 체크+마크, 무응답은 'N' 폴백(빈 체크+／ —
+  // 2026-08-20 사용자 확정 그대로). PDF만 찍고 엑셀은 비어 있던 D-7 갈라짐을 닫는다.
+  for (const r of FORM4_ETC_ROWS) {
+    const mk = p.etcMarks?.[r.key] ?? 'N'
+    entries.push([`f4i_${r.cell}`, ck(mk === 'O' || mk === 'X')], [`f4v_${r.verdictCell}`, resultMark(mk)])
   }
   // 보조 점검인력 7행(S3-5 2차) — 허브 B·C·D·E 열. 없는 행은 명시적 공란(S3-4).
   // 8명 이상은 허브 서식상 실을 수 없다 — 라우트가 missing 헤더로 알린다(S8-2 규약과 같은 축)

@@ -7,7 +7,7 @@
  *  전 좌표는 2026-08-21 실측(scripts/_probe-hub-layout.mjs · _probe-delegation-layout.mjs).
  *  서식이 갱신되면 validateAnchors가 먼저 붉어진다 — 그때 재실측해 재승인한다(Q-4: 재변환). */
 import * as XLSX from 'xlsx'
-import { FORM4_ROWS, FORM4_SHEET, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
+import { FORM4_ROWS, FORM4_ETC_ROWS, FORM4_SHEET, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
 import { DEFECT_GROUPS } from '@/lib/doc-templates/report9'
 import { S31_COLUMNS } from '@/lib/facility-spec-schema'
 
@@ -443,6 +443,16 @@ export const ANCHORS: Anchor[] = [
           labelCell: r.labelCell, label: r.label, dropFormula: true, keepFormulaWhenEmpty: true,
         }]
       : []),
+  ]),
+  // ── 현황 '기타' 3행(방화문·비상구·방염) — etcMarks(31번 기타사항 롤업) 배선(2026-09-02) ──
+  // PDF etcItem(report9.ts)이 이미 인쇄하던 값이라 이 배선으로 D-7 갈라짐이 닫힌다.
+  // 체크·결과 둘 다 값이 항상 있으므로(무응답 폴백 ／) keepFormulaWhenEmpty는 형식상이다.
+  ...FORM4_ETC_ROWS.flatMap<Anchor>(r => [
+    { field: `f4i_${r.cell}`, sheet: FORM4_SHEET, cell: r.cell, labelCell: r.labelCell, label: r.label },
+    {
+      field: `f4v_${r.verdictCell}`, sheet: FORM4_SHEET, cell: r.verdictCell,
+      labelCell: r.labelCell, label: r.label, dropFormula: true, keepFormulaWhenEmpty: true,
+    },
   ]),
 ]
 
