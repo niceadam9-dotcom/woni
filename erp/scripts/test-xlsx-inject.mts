@@ -618,6 +618,77 @@ console.log('[4e] 현3 3-5 경보설비 자구 왕복·값 착지')
     r3('C43') === textIn(cellOfXml(tplH3, 'C43'), sharedT), JSON.stringify(r3('C43')))
 }
 
+// ── ④f 현4 3-8 제연설비 24칸 ─────────────────────────────────────────
+// ⚠ 송풍기 줄은 필드명을 추측하면 값이 조용히 안 실리는데 **자구 왕복은 통과한다**
+//   (빈 서식이 원문과 같으니까). 그래서 값 착지를 따로 단언한다 — 소리 없는 실패 차단.
+console.log('[4f] 현4 3-8 제연설비 자구 왕복·값 착지')
+{
+  const CELLS = [...Array(14)].map((_, i) => `E${3 + i}`)
+    .concat([...Array(10)].map((_, i) => `E${18 + i}`))
+  const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
+  const cx = (xml: string, ref: string) =>
+    new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(xml)?.[0] ?? ''
+  const tx = (c: string, shared: string[]) => {
+    const t = /t="([^"]+)"/.exec(c)?.[1]
+    if (t === 's') return unesc(shared[+(/<v>(\d+)<\/v>/.exec(c)?.[1] ?? -1)] ?? '')
+    return unesc(/<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? /<v>([\s\S]*?)<\/v>/.exec(c)?.[1] ?? '')
+  }
+  const h4Of = async (bytes: Uint8Array) => {
+    const z = await JSZip.loadAsync(bytes)
+    return await z.file((await sheetFileMap(z)).get('현4')!)!.async('string')
+  }
+  const zT4 = await JSZip.loadAsync(template)
+  const sst4 = await zT4.file('xl/sharedStrings.xml')!.async('string')
+  const shared4 = [...sst4.matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join(''))
+  const tplH4 = await h4Of(template)
+  const mk4 = async (specs: Record<string, unknown> | null) => h4Of(
+    (await injectWorkbook(template, toInjectTargets(buildWorkbookValues({
+      official, delegation, customerAddress: '', startISO: null, endISO: null,
+      useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+      report9: { ...report9, specs },
+    })).targets)).bytes)
+
+  const blank4 = await mk4(null)
+  let same4 = 0
+  for (const ref of CELLS) {
+    const a = tx(cx(tplH4, ref), shared4), b = tx(cx(blank4, ref), [])
+    if (a === b) { same4++; continue }
+    check(`자구 왕복 현4!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
+  }
+  check('자구 왕복 — 현4 3-8 빈 값 조립이 서식 원문과 동일(24칸)', same4 === CELLS.length, `${same4}/${CELLS.length}`)
+
+  const got4 = await mk4({ s38_activity: {
+    smoke_room: { method: '공동', starter: ['수동', '원격'], zone_area: '400',
+      supply_fan_dong: '본관', supply_fan_ground: '지하', supply_fan_floor: '1', supply_fan_room: '기계실',
+      supply_fan_motor: '15', supply_fan_airflow: '300', supply_fan_pressure: '50',
+      exhaust_duct: '불연', exhaust_damper: '유', air_exhaust: ['기계배출'] },
+    smoke_lobby: { stair_count: '2', elevator_count: '1', method: '계단실', overpressure: '플랩댐퍼' },
+  } })
+  const v4 = (ref: string) => tx(cx(got4, ref), [])
+  check('현4!E4 거실제연 방식 — 공동만 √',
+    v4('E4').includes('[√]공동') && v4('E4').includes('[  ]단독'), JSON.stringify(v4('E4')))
+  check('현4!E5 기동장치 다중선택 — 수동·원격',
+    v4('E5').includes('[√]수동') && v4('E5').includes('[√]원격')
+      && v4('E5').includes('[  ]자동(감지기 연동)'), JSON.stringify(v4('E5')))
+  check('★현4!E8·E9 급기용송풍기 — 설치장소와 제원이 **둘 다** 실린다(필드명 확인 축)',
+    v4('E8').includes('본관') && v4('E8').includes('[√]지하') && v4('E8').includes('기계실')
+      && v4('E9').includes('( 15 )') && v4('E9').includes('( 300 )') && v4('E9').includes('( 50 )'),
+    `${JSON.stringify(v4('E8'))} / ${JSON.stringify(v4('E9'))}`)
+  check('현4!E13 배출 풍도구조·구획댐퍼',
+    v4('E13').includes('[√]불연') && v4('E13').includes('[√]유'), JSON.stringify(v4('E13')))
+  check('현4!E16 급기 풍도구조는 **자기 필드**를 본다(배출 것이 새지 않는다)',
+    v4('E16').includes('[  ]불연') && v4('E16').includes('[  ]내화'), JSON.stringify(v4('E16')))
+  check('현4!E18·E19 부속실제연 개소·방식',
+    v4('E18').includes('( 2 )개소') && v4('E18').includes('( 1 )대')
+      && v4('E19').includes('[√] 계단실'), JSON.stringify(v4('E18')))
+  check('현4!E27 과압방지장치 — 플랩댐퍼만 √',
+    v4('E27').includes('[√]플랩댐퍼') && v4('E27').includes('[  ]해당없음'), JSON.stringify(v4('E27')))
+  check('현4!E23 값 없는 배출용송풍기는 빈 서식 그대로',
+    v4('E23') === tx(cx(tplH4, 'E23'), shared4), JSON.stringify(v4('E23')))
+}
+
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
 console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 {

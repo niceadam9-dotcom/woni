@@ -311,6 +311,23 @@ export const ANCHORS: Anchor[] = [
     ['s37WtPriming', 'C44', 'B42', '소화수조'], ['s37WtSwitch', 'C45', 'B42', '소화수조'],
     ['s37WtIntake', 'C46', 'B42', '소화수조'],
   ] as const).map<Anchor>(([field, cell, labelCell, label]) => ({ field, sheet: '현3', cell, labelCell, label })),
+  // ── 현4 3-8 제연설비 24칸 (Phase 4 / S9-1) ─────────────────────────────────
+  // 설비 마크는 `현황!Y20`(C3)·`Y21`(C17) 수식이라 배선하지 않는다.
+  // 라벨은 B3 하나뿐이라(세로 병합) 24칸이 같은 라벨을 공유한다 — 이 시트의 구조상 불가피하다.
+  ...([
+    's38RmLoc', 's38RmMethod', 's38RmStarter', 's38RmZone', 's38RmDoor',
+    's38RmSupplyLoc', 's38RmSupplySpec', 's38RmExhaustLoc', 's38RmExhaustSpec',
+    's38RmOutlet', 's38RmExhaustDuct', 's38RmAirExhaust', 's38RmInlet', 's38RmInletDuct',
+  ] as const).map<Anchor>((field, i) => ({
+    field, sheet: '현4', cell: `E${3 + i}`, labelCell: 'B3', label: '제\n연\n설\n비',
+  })),
+  ...([
+    's38LbCount', 's38LbMethod', 's38LbStart',
+    's38LbSupplyLoc', 's38LbSupplySpec', 's38LbExhaustLoc', 's38LbExhaustSpec',
+    's38LbDoor', 's38LbAirExhaust', 's38LbOverpressure',
+  ] as const).map<Anchor>((field, i) => ({
+    field, sheet: '현4', cell: `E${18 + i}`, labelCell: 'B3', label: '제\n연\n설\n비',
+  })),
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·

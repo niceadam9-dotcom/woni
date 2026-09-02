@@ -645,6 +645,75 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     )
   }
 
+  // ── 현4 3-8 제연설비 24칸 — 거실제연 E3~E16 · 부속실제연 E18~E27 ────────────
+  //
+  // 설비 마크는 `현황!Y20`(C3)·`Y21`(C17) 수식이라 배선하지 않는다. A3은 수식이 아닌 리터럴
+  // 마크지만 템플릿에서 이미 비어 있어(표본 답 없음) 손대지 않는다 — 실제 마크는 C3·C17이 나른다.
+  //
+  // ⚠ 이 시트엔 부속실제연의 **'◦ 설치대상: 동명(…)' 줄이 없다**(PDF lobbyLines[0]).
+  //   E17은 통문자열도 수식도 아니다 — 칸이 없으므로 실을 곳이 없다.
+  // ⚠ 송풍기 줄은 `fanLines`와 같은 필드다(`{prefix}_dong/_ground/_floor/_room/_motor/
+  //   _airflow/_pressure`). 이름을 추측하면 값이 조용히 안 실리고 **자구 왕복은 통과**한다
+  //   (빈 서식이 원문과 같으니까) — 소리 없는 실패라 원본을 열어 확인했다.
+  {
+    const s38 = ((p.specs?.['s38_activity'] ?? null) as Record<string, unknown> | null)
+    const rm = ((s38?.['smoke_room'] ?? null) as Record<string, unknown> | null)
+    const lb = ((s38?.['smoke_lobby'] ?? null) as Record<string, unknown> | null)
+    const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
+    const w = (b: Record<string, unknown> | null, k: string, n: number) => {
+      const s = str(b, k)
+      return s ? ` ${s} ` : ' '.repeat(n)
+    }
+    const isSel = (b: Record<string, unknown> | null, k: string, o: string) => str(b, k) === o
+    const inArr = (b: Record<string, unknown> | null, k: string, o: string) => {
+      const v = b?.[k]
+      return Array.isArray(v) && v.map(String).includes(o)
+    }
+    const range = (b: Record<string, unknown> | null) =>
+      `동명(${w(b, 'dong', 3)}) ${ck(isSel(b, 'coverage', '전체층'))}전체층/${ck(isSel(b, 'coverage', '일부층'))}일부층 `
+      + `${ck(isSel(b, 'from_ground', '지상'))}지상/${ck(isSel(b, 'from_ground', '지하'))}지하(${w(b, 'from_floor', 2)})층 ~ `
+      + `${ck(isSel(b, 'to_ground', '지상'))}지상/${ck(isSel(b, 'to_ground', '지하'))}지하(${w(b, 'to_floor', 2)})층`
+    /** 송풍기 2줄 — PDF fanLines와 같은 필드·같은 순서 */
+    const fanLoc = (b: Record<string, unknown> | null, pre: string, label: string) =>
+      `◦ ${label} 설치장소: 동명(${w(b, `${pre}_dong`, 10)}) ${ck(isSel(b, `${pre}_ground`, '지상'))}지상/${ck(isSel(b, `${pre}_ground`, '지하'))}지하 (${w(b, `${pre}_floor`, 3)})층, 실명(${w(b, `${pre}_room`, 12)})`
+    const fanSpec = (b: Record<string, unknown> | null, pre: string) =>
+      `  전동기 (${w(b, `${pre}_motor`, 6)})㎾, 풍량 (${w(b, `${pre}_airflow`, 6)})㎥/min, 정압 (${w(b, `${pre}_pressure`, 6)})㎜Aq`
+    /** 풍도구조 한 줄 — 거실제연의 배출(E13)·급기(E16)가 같은 자구를 쓴다 */
+    const ductLine = (kind: string, damper: string) =>
+      `  풍도구조 ${ck(isSel(rm, kind, '내화'))}내화 ${ck(isSel(rm, kind, '불연'))}불연 ${ck(isSel(rm, kind, '그 밖의 것'))}그 밖의 것(${w(rm, `${kind}_etc`, 10)}) / 구획댐퍼 ${ck(isSel(rm, damper, '유'))}유 ${ck(isSel(rm, damper, '무'))}무`
+    const airExhaust = (b: Record<string, unknown> | null) =>
+      `◦ 유입공기배출 ${ck(inArr(b, 'air_exhaust', '자연배출'))}자연배출 ${ck(inArr(b, 'air_exhaust', '기계배출'))}기계배출 ${ck(inArr(b, 'air_exhaust', '배출구'))}배출구 ${ck(inArr(b, 'air_exhaust', '제연설비'))}제연설비`
+
+    entries.push(
+      // 거실제연 (E3~E16)
+      ['s38RmLoc', `◦ 설치장소: ${range(rm)}`],
+      ['s38RmMethod', `◦ 방식 ${ck(isSel(rm, 'method', '단독'))}단독 ${ck(isSel(rm, 'method', '공동'))}공동 ${ck(isSel(rm, 'method', '상호'))}상호 ${ck(isSel(rm, 'method', '기타'))}기타(${w(rm, 'method_etc', 18)})`],
+      ['s38RmStarter', `◦ 기동장치 ${ck(inArr(rm, 'starter', '자동(감지기 연동)'))}자동(감지기 연동) ${ck(inArr(rm, 'starter', '수동'))}수동 ${ck(inArr(rm, 'starter', '원격'))}원격`],
+      ['s38RmZone', `◦ 제연구획면적 최대: (${w(rm, 'zone_area', 9)})㎡ / 구조 ${ck(isSel(rm, 'zone_structure', '내화'))}내화 ${ck(isSel(rm, 'zone_structure', '불연'))}불연 ${ck(isSel(rm, 'zone_structure', '그 밖의 것'))}그 밖의 것:(${w(rm, 'zone_structure_etc', 10)})`],
+      ['s38RmDoor', `◦ 제연구역 출입문 ${ck(isSel(rm, 'door', '상시폐쇄(자동폐쇄장치)'))}상시폐쇄(자동폐쇄장치) ${ck(isSel(rm, 'door', '상시개방(감지기에 의한 닫힘)'))}상시개방(감지기에 의한 닫힘)`],
+      ['s38RmSupplyLoc', fanLoc(rm, 'supply_fan', '급기용송풍기')],
+      ['s38RmSupplySpec', fanSpec(rm, 'supply_fan')],
+      ['s38RmExhaustLoc', fanLoc(rm, 'exhaust_fan', '배출용송풍기')],
+      ['s38RmExhaustSpec', fanSpec(rm, 'exhaust_fan')],
+      ['s38RmOutlet', `◦ 배출구 ${ck(isSel(rm, 'outlet_pos', '천장면'))}천장면 ${ck(isSel(rm, 'outlet_pos', '천장직하'))}천장직하 ${ck(isSel(rm, 'outlet_pos', '기타'))}기타(${w(rm, 'outlet_pos_etc', 6)}) / 옥외배출구 ${ck(isSel(rm, 'outdoor_outlet', '옥상'))}옥상 ${ck(isSel(rm, 'outdoor_outlet', '기타'))}기타(${w(rm, 'outdoor_outlet_etc', 6)})`],
+      ['s38RmExhaustDuct', ductLine('exhaust_duct', 'exhaust_damper')],
+      ['s38RmAirExhaust', airExhaust(rm)],
+      ['s38RmInlet', `◦ 급기구 ${ck(inArr(rm, 'inlet_mode', '강제유입'))}강제유입 ${ck(inArr(rm, 'inlet_mode', '자연유입'))}자연유입 ${ck(inArr(rm, 'inlet_mode', '인접구역유입'))}인접구역유입`],
+      ['s38RmInletDuct', ductLine('inlet_duct', 'inlet_damper')],
+      // 부속실제연 (E18~E27) — 이 시트엔 '설치대상' 줄이 없어 개소/대수부터 시작한다
+      ['s38LbCount', `  특별피난계단 (${w(lb, 'stair_count', 6)})개소, 비상용승강기 (${w(lb, 'elevator_count', 6)})대`],
+      ['s38LbMethod', `◦ 방식 ${ck(isSel(lb, 'method', '부속실'))}부속실 ${ck(isSel(lb, 'method', '계단실 및 부속실'))}계단실 및 부속실 ${ck(isSel(lb, 'method', '계단실'))} 계단실 ${ck(isSel(lb, 'method', '비상용승강기승강장'))} 비상용승강기승강장`],
+      ['s38LbStart', `◦ 기동방식 ${ck(isSel(lb, 'start_mode', '전층'))}전층 ${ck(isSel(lb, 'start_mode', '부분층'))}부분층(${w(lb, 'partial_floors', 8)}개층) / 댐퍼개방감지기 ${ck(isSel(lb, 'damper_detector', '전용'))}전용 ${ck(isSel(lb, 'damper_detector', '겸용'))}겸용`],
+      ['s38LbSupplyLoc', fanLoc(lb, 'supply_fan', '급기용송풍기')],
+      ['s38LbSupplySpec', fanSpec(lb, 'supply_fan')],
+      ['s38LbExhaustLoc', fanLoc(lb, 'exhaust_fan', '배출용송풍기')],
+      ['s38LbExhaustSpec', fanSpec(lb, 'exhaust_fan')],
+      ['s38LbDoor', `◦ 제연구역 출입문 ${ck(isSel(lb, 'door', '상시폐쇄(자동폐쇄장치)'))}상시폐쇄(자동폐쇄장치) ${ck(isSel(lb, 'door', '상시개방(연기감지기에 의한 닫힘)'))}상시개방(연기감지기에 의한 닫힘)`],
+      ['s38LbAirExhaust', airExhaust(lb)],
+      ['s38LbOverpressure', `◦ 과압방지장치 ${ck(isSel(lb, 'overpressure', '플랩댐퍼'))}플랩댐퍼 ${ck(isSel(lb, 'overpressure', '자동차압(과압조절형)댐퍼'))}자동차압(과압조절형)댐퍼 ${ck(isSel(lb, 'overpressure', '그 밖의 것'))}그 밖의 것 ${ck(isSel(lb, 'overpressure', '해당없음'))}해당없음`],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의
