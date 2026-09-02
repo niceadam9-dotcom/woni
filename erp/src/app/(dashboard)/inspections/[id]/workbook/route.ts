@@ -221,6 +221,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       'X-Workbook-Missing': encodeURIComponent((() => {
         const parts = [
           ...(donorInjectSummary(donorPlan) ? [donorInjectSummary(donorPlan)!] : []),
+          // 설치(√)인데 점검표 무응답 — 기본 ○(양호)로 인쇄된 항목(2026-09-02 정책). 발행 가드
+          // 팝업(round-card)이 놓친 경로(트리 로드 전·타 진입점)도 받은 직후 이 고지로 알게 된다.
+          // 착지 집계 바로 다음 = 생존 순위 2위 — 사용자가 요구한 바로 그 축이라 잘리면 안 된다.
+          ...(() => {
+            const un = r9.data.facilityChecks.filter(i => !r9.data.resultMarks[i])
+            return un.length ? [`점검표 미입력 ${un.length}종 → 기본 ○ 인쇄: ${un.join('·')}`] : []
+          })(),
           ...official.missing, ...delegation.missing, ...r9.missing,
           ...(r9.data.assistants.length > 7
             ? [`보조 점검인력 ${r9.data.assistants.length}명 중 8번째부터 미표기(허브 7행)`] : []),

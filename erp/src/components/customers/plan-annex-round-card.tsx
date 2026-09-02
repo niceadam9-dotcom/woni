@@ -83,6 +83,25 @@ export function PlanAnnexRoundCard({
   // 설치 설비 중 응답 0건 수 — 아래 점검표 트리가 조회한 값을 위 별지 블록 제목에 복제한다
   const [sheetBlanks, setSheetBlanks] = useState(0)
 
+  /** 발행 가드(2026-09-02 사용자 결정 — image-43 후속) — 설치(√) 설비에 미입력이 있으면
+   *  산출물(엑셀·전체 인쇄)을 만들기 전에 팝업으로 입력을 유도한다. 미입력분은 같은 날 정책으로
+   *  **기본 ○(양호)로 인쇄**되므로, 모르고 발행하는 일이 없어야 한다.
+   *  [확인] = 점검표 입력 화면으로 이동 · [취소] = 그대로 발행(유도이지 차단이 아니다 —
+   *  급한 발행을 막으면 사용자는 가드를 우회할 다른 길을 찾는다).
+   *  ⚠ sheetBlanks는 아래 점검표 트리가 로드한 값이라 트리 로드 전(0)에는 가드가 조용히 통과한다 —
+   *    그 구간도 서버 고지 헤더(X-Workbook-Missing '점검표 미입력 N종')가 받은 뒤에 알린다.
+   *  이동은 전체 이동(location.assign) — 같은 경로 ?tab= Link가 서버를 안 깨우는 함정과 무관하게 확실한 축. */
+  function blanksGuardThenGo(inspectionId: string): boolean {
+    if (sheetBlanks <= 0) return true
+    const go = window.confirm(
+      `설치 설비 중 ${sheetBlanks}개의 점검표가 미입력입니다.\n`
+      + `미입력 설비의 점검결과는 기본 ○(양호)로 인쇄됩니다.\n\n`
+      + `[확인] 점검표 입력 화면으로 이동\n[취소] 그대로 진행(기본 ○로 발행)`)
+    if (!go) return true
+    window.location.assign(`/inspections/${inspectionId}/sheet${entryFrom ? `?from=${encodeURIComponent(entryFrom)}` : ''}`)
+    return false
+  }
+
   /** 엑셀(갑지 워크북) 즉석 생성 — 저장하지 않으므로 받는 순간이 곧 생성이다.
    *
    *  `location.assign`으로 바로 열지 않는 이유: 이 라우트는 실패를 **JSON 안내문**으로 돌려준다
@@ -91,6 +110,7 @@ export function PlanAnnexRoundCard({
    *  (print-pdf-client.tsx:18과 같은 규약 — 서버가 담아 보낸 안내를 버리지 않는다).
    *  성공 응답의 `X-Workbook-Missing`은 조립 함수가 알린 공란 목록이다(S4-5). */
   async function downloadWorkbook(inspectionId: string) {
+    if (!blanksGuardThenGo(inspectionId)) return   // 미입력 가드 — 확인 시 입력 화면으로 이동
     setXlsx({ busy: true, msg: '', ok: true })
     try {
       const res = await fetch(`/inspections/${inspectionId}/workbook`)
@@ -136,8 +156,8 @@ export function PlanAnnexRoundCard({
         {r.docs && isOpen && hasBundlePdf(r.docs) && (
           <span role="button" tabIndex={0}
             title="이 회차의 생성된 별지 PDF를 한 번에 인쇄 — 종이 보관용 (소방계획서_18 S1)"
-            onClick={e => { e.stopPropagation(); window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') }}
-            onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') } }}
+            onClick={e => { e.stopPropagation(); if (blanksGuardThenGo(r.docs!.inspectionId)) window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); if (blanksGuardThenGo(r.docs!.inspectionId)) window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') } }}
             className={chipCls}>
             🖨 전체 인쇄
           </span>
@@ -181,7 +201,7 @@ export function PlanAnnexRoundCard({
                 별지 생성·확인 <span className="font-normal text-ink-meta">— 입력된 점검표에서 자동 생성</span>
                 {/* 미입력 경고 복제 — 트리가 [생성] 아래로 내려갔으므로 생성 전에 걸릴 신호를 여기 둔다 */}
                 {sheetBlanks > 0 && (
-                  <span className="ml-2 font-medium text-amber-600">⚠ 설치 설비 중 미입력 {sheetBlanks}개 — 결과칸이 공란으로 인쇄됩니다</span>
+                  <span className="ml-2 font-medium text-amber-600">⚠ 설치 설비 중 미입력 {sheetBlanks}개 — 점검결과가 기본 ○(양호)로 인쇄됩니다</span>
                 )}
               </p>
               {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}

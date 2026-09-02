@@ -35,8 +35,8 @@ type Props = {
   from?: string
 }
 
-/** 설치인데 응답 0건 — 별지 결과칸이 공란으로 인쇄될 설비 수.
- *  요약줄과 onBlankCount가 같은 정의를 쓰도록 한 곳에 둔다. */
+/** 설치인데 응답 0건 — 별지 결과칸이 **기본 ○(양호)**로 인쇄될 설비 수(2026-09-02 정책, 종전 공란).
+ *  요약줄·onBlankCount(발행 가드 팝업의 분모)가 같은 정의를 쓰도록 한 곳에 둔다. */
 const countBlanks = (sheets: SheetProgress[]) => sheets.filter(s => s.installed && s.responded === 0).length
 
 const numCls = (p: SheetProgress) =>
@@ -102,10 +102,11 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
           설비별 진행 {ov.totals.responded}/{ov.totals.total}
           {ov.totals.x > 0 && <span className="text-red-500 ml-1">✕{ov.totals.x}</span>}
         </span>
-        {/* 설치인데 응답 0건인 설비가 몇 개인지 — 별지 결과칸이 공란으로 인쇄될 개수다.
-            이 숫자를 안 보여줬던 것이 물분무 사고의 직접 원인이라 여기에도 띄운다. */}
+        {/* 설치인데 응답 0건인 설비가 몇 개인지 — 별지 결과칸이 **기본 ○(양호)**로 인쇄될 개수다
+            (2026-09-02 정책 — 종전 공란). 이 숫자를 안 보여줬던 것이 물분무 사고의 직접 원인이라
+            여기에도 띄우고, 발행 칩(엑셀·전체 인쇄)은 같은 수로 확인 팝업을 띄운다(round-card). */}
         {blankCount > 0 && (
-          <span className="text-[10px] text-amber-600 font-medium">⚠ 설치 설비 중 미입력 {blankCount}개</span>
+          <span className="text-[10px] text-amber-600 font-medium">⚠ 설치 설비 중 미입력 {blankCount}개 — 기본 ○로 인쇄</span>
         )}
         {!ov.noFacilityInfo && (
           <label className="inline-flex items-center gap-1 text-[10px] text-ink-soft cursor-pointer">
