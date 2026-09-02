@@ -45,6 +45,10 @@ const HUB = '개요'
 export const DEFECT_GROUP_ROWS: ReadonlyArray<{ group: string; row: number }> =
   DEFECT_GROUPS.map((group, i) => ({ group, row: 4 + i }))
 
+/** 계획서(별지 10호) 그룹행 — C12{=현5!A4}부터 2행 간격(실측). DEFECT_GROUPS 순서 파생(단일 원천). */
+export const PLAN_DATE_ROWS: ReadonlyArray<{ group: string; row: number }> =
+  DEFECT_GROUPS.map((group, i) => ({ group, row: 12 + 2 * i }))
+
 /** 현1 3-1 수량 열 ↔ 엑셀 열머리 — 키 목록은 손으로 베끼지 않고 **S31_COLUMNS(total 열)에서
  *  파생**시킨다(DEFECT_GROUP_ROWS와 같은 이유). 열 문자만 이쪽 실측이다
  *  (병합 열머리 B:F·G:H·I:K·L:M·N:P·Q:S — scripts/_p4-hyeon1-31table.mts).
@@ -186,6 +190,18 @@ export const ANCHORS: Anchor[] = [
   { field: 'actionDays',        sheet: HUB, cell: 'J9',  labelCell: 'E9',  label: '이행조치필요기간' },
   { field: 'actionEndSerial',   sheet: HUB, cell: 'I9',  labelCell: 'E9',  label: '이행조치필요기간' },
   { field: 'actionDoneSerial',  sheet: HUB, cell: 'G10', labelCell: 'E10', label: '이행조치일자' },
+  // ── 계획서(별지 10호) 행별 이행조치 일자 21칸 (2026-09-02 사용자 지적) ──
+  // 서식이 K{r}{=B26}·P{r}{=J26}·O{r+1}{=P26} 수식으로 **총 기간을 전 행에 복제**해,
+  // 조치 사항이 없는 설비 행에도 일자가 찍혔다. PDF 10호(rowsTable)는 행별 period·빈 행
+  // 자리표 규약이라 D-7이 깨져 있던 자리다. 그룹에 불량이 있을 때만 값, 없으면 공백 —
+  // 수식은 끊는다(dropFormula): 캐시만 비우면 Excel이 열면서 재계산해 전 행 복제를 되살린다
+  // (assist E열 사슬과 같은 축). 행 대응은 계획서 C{r}{=현5!A4..A10} 실측 — DEFECT_GROUPS
+  // 순서 그대로 12행부터 2행 간격이다(단일 원천 파생, 손으로 베끼지 않는다).
+  ...PLAN_DATE_ROWS.flatMap<Anchor>(({ row }) => [
+    { field: `planStart${row}`, sheet: '계획서', cell: `K${row}`,     labelCell: 'K11', label: '이행조치일자', dropFormula: true },
+    { field: `planEnd${row}`,   sheet: '계획서', cell: `P${row}`,     labelCell: 'K11', label: '이행조치일자', dropFormula: true },
+    { field: `planDays${row}`,  sheet: '계획서', cell: `O${row + 1}`, labelCell: 'K11', label: '이행조치일자', dropFormula: true },
+  ]),
   // ── 현5(별지 9호 8쪽 '4. 소방시설등 불량 세부 사항') — 점검번호·불량내용 7행 ──
   // 계획서!C12~C24{=현5!A4..A10}·H12~H24{=현5!C4..C10}가 이 시트를 읽으므로 **Phase 3의 선행 조건**이다
   // (2026-08-30 실측 `_scope29-hyeon5.mts` — 착수 순서가 설계와 반대였다).

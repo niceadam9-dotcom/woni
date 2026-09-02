@@ -7,7 +7,7 @@ import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import { MULTI_USE_COLS } from '@/lib/doc-templates/report9'
 import { resultMark } from '@/lib/doc-templates/base'
-import { ANCHORS, DEFECT_GROUP_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
+import { ANCHORS, DEFECT_GROUP_ROWS, PLAN_DATE_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
 import { s31DongRows } from '@/lib/doc-templates/spec-sections'
 import { columnTotal } from '@/lib/facility-spec-schema'
 import {
@@ -813,6 +813,18 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     ['actionDoneSerial', ap ? isoToSerial(ap.endISO) : null],
     ['actionDays', ap ? ap.days : null],
   )
+  // ── 계획서(별지 10호) 행별 이행조치 일자 — 그 그룹에 불량이 있을 때만 (2026-09-02) ──
+  // 서식 수식이 총 기간을 전 행에 복제하던 것을 끊고, PDF 10호 규약(행별 period·빈 행은 날짜 없음)에
+  // 맞춘다. 값은 같은 총 기간(actionPlanPeriod 단일 원천 — 그룹별 기간 축은 데이터에 없다).
+  // 빈 행은 공백 1칸 — 빈 셀·null은 수식 제거 후에도 표시 서식에 따라 0으로 읽힐 수 있다(assist E열 규약).
+  for (const { group, row } of PLAN_DATE_ROWS) {
+    const has = (p.defectRows ?? []).some(r => r.group === group)
+    entries.push(
+      [`planStart${row}`, has && ap ? isoToSerial(ap.startISO) : ' '],
+      [`planEnd${row}`, has && ap ? isoToSerial(ap.endISO) : ' '],
+      [`planDays${row}`, has && ap ? ap.days : ' '],
+    )
+  }
   // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
   // PDF는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 그룹당 1행 고정이라 접기가 불가피하다.
   // 서식이 접기를 전제한다: r4~r10이 ht="77.25"(헤더의 2배)로 한 칸에 5줄 안팎이 들어간다.
