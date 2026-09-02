@@ -196,6 +196,15 @@ export async function assembleOfficial(
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
   }
   if (!data.recipient) missing.push('수신(고객명) 없음')
+  // 수동 저장된 수신이 현재 고객명과 다르면 알린다 — 고객명 변경 전에 저장된 동결값이
+  // 갑지 명칭(상호)·공문 수신에 옛 이름을 계속 찍는 사고(서림사 "SFD", 2026-09-02)의 가시화 축.
+  // 저장 쪽(facility-spec-actions saveAnnexInputsAction)은 고객명과 같은 값을 아예 안 남기므로,
+  // 여기 걸리는 건 의도적 덮어쓰기 또는 그 사고 이전의 잔존 동결값 둘 중 하나다.
+  {
+    const liveName = (insp.customer?.customer_name ?? '').trim()
+    if (data.recipient && liveName && data.recipient !== liveName)
+      missing.push(`수신 수동 저장값(${data.recipient})이 현재 고객명(${liveName})과 다름 — 의도한 덮어쓰기가 아니면 [입력]에서 수신 칸을 비우세요`)
+  }
   if (!company?.fax) missing.push('회사 팩스 미등록 — 레터헤드에서 생략 (본사 정보에서 입력)')
   // 대표자가 없으면 명의가 상호 한 줄로만 나간다 — 조용히 반쪽으로 찍히지 않게 알린다
   if (!data.senderSign.rep) missing.push('대표자 미등록 — 공문 발신 명의가 상호 한 줄로만 인쇄됨 (본사 정보에서 입력)')

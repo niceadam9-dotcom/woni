@@ -345,6 +345,22 @@ export async function saveAnnexInputsAction(
 
   const admin = createAdminClient()
 
+  // 공문 '수신'이 현재 고객명과 같으면 키 자체를 저장하지 않는다 — 자동 폴백(고객명 실시간 조회,
+  // annex-cover-official.ts assembleOfficial)과 같은 값을 동결하면 이후 고객명이 바뀌어도
+  // 갑지 명칭(상호)·공문 수신이 옛 이름을 계속 찍는다(서림사 "SFD" 실사고, 2026-09-02).
+  // 고객명과 **다른** 값은 의도적 덮어쓰기로 보고 그대로 저장한다. 빈 값도 키를 남기지 않는다.
+  if (annexNo === 'official' && 'recipient' in fields) {
+    const v = typeof fields.recipient === 'string' ? fields.recipient.trim() : ''
+    const { data: insp } = await admin.from('inspections')
+      .select('customer:customers(customer_name)').eq('id', inspectionId).maybeSingle()
+    const liveName = ((insp as unknown as { customer: { customer_name: string } | null } | null)
+      ?.customer?.customer_name ?? '').trim()
+    if (!v || v === liveName) {
+      fields = { ...fields }
+      delete fields.recipient
+    }
+  }
+
   const { error } = await admin.from('annex_inputs')
     .upsert(
       { inspection_id: inspectionId, annex_no: annexNo, fields, updated_at: new Date().toISOString() } as Record<string, unknown>,
