@@ -7,7 +7,9 @@ import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import { MULTI_USE_COLS } from '@/lib/doc-templates/report9'
 import { resultMark } from '@/lib/doc-templates/base'
-import { ANCHORS, DEFECT_GROUP_ROWS, type Anchor } from '@/lib/xlsx-anchors'
+import { ANCHORS, DEFECT_GROUP_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
+import { s31DongRows } from '@/lib/doc-templates/spec-sections'
+import { columnTotal } from '@/lib/facility-spec-schema'
 import {
   FORM4_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
 } from '@/lib/xlsx-form4'
@@ -328,6 +330,24 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       ['s31SimpleThrow', ck(on('간이소화용구(투척용)'))],
       ['s31SimpleOther', ck(on('간이소화용구(기타)'))],
     )
+
+    // ── 3-1 동별 수량 8행 + 합계 6칸 (2026-09-02 — √만 있고 수량 표가 비던 것) ──
+    // 행 계산은 PDF renderS31과 **같은 함수**(s31DongRows) · 합계도 같은 columnTotal(D-7).
+    // ⚠ 수량은 숫자로 넣는다(n타입) — inlineStr 문자열이면 서식의 합계 SUM이 Excel 재계산 때
+    //   0이 되어 우리가 넣은 캐시와 갈라진다. 숫자가 아닌 입력('10여'류)은 문자열 그대로 두고
+    //   합계에서 뺀다 — columnTotal이 무시하는 것과 같은 축(두 문서 같은 값).
+    // ⚠ 데이터 없는 행은 명시적 공란(S3-4) — 자산 잔재 '1'~'8'도 지운다(PDF 빈 행과 같은 모습).
+    const rows = s31DongRows((p.specs?.['s31_extinguisher'] ?? {}) as Record<string, unknown>)
+    for (const [key] of S31_QTY_COLS) entries.push([`s31Sum_${key}`, columnTotal(rows, key)])
+    S31_DETAIL_ROWS.forEach((_, i) => {
+      const r = rows[i]
+      entries.push([`s31Row${i}_dong`, r?.['dong'] ?? null], [`s31Row${i}_note`, r?.['note'] ?? null])
+      for (const [key] of S31_QTY_COLS) {
+        const s = (r?.[key] ?? '').trim()
+        const n = Number(s)
+        entries.push([`s31Row${i}_${key}`, !s ? null : Number.isFinite(n) ? n : s])
+      }
+    })
   }
 
   // ── 현1 3-2 수계소화설비(공통사항) 25칸 (Phase 4 / S9-1) ──────────────
@@ -819,6 +839,13 @@ export function defectOverflow(
     if (n > DEFECT_ROWS_PER_GROUP) out.push({ group, dropped: n - DEFECT_ROWS_PER_GROUP })
   }
   return out
+}
+
+/** 3-1 동별 행 넘침 — 서식 8행 상한을 넘는 동 수(잘린 채로도 인쇄물은 멀쩡해 보인다).
+ *  0이면 손실 없음. 라우트가 missing 헤더에 싣는다(defectOverflow와 같은 S8-2 축). */
+export function s31RowOverflow(specs?: Record<string, unknown> | null): number {
+  const rows = s31DongRows((specs?.['s31_extinguisher'] ?? {}) as Record<string, unknown>)
+  return Math.max(0, rows.length - S31_DETAIL_ROWS.length)
 }
 
 /** 앵커 × 값 → 주입 대상. 값이 없는 앵커는 **명시적 공란**(null)으로 넣는다 —

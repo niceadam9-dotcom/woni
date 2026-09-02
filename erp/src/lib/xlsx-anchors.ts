@@ -9,6 +9,7 @@
 import * as XLSX from 'xlsx'
 import { FORM4_ROWS, FORM4_SHEET, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
 import { DEFECT_GROUPS } from '@/lib/doc-templates/report9'
+import { S31_COLUMNS } from '@/lib/facility-spec-schema'
 
 export type Anchor = {
   field: string
@@ -43,6 +44,23 @@ const HUB = '개요'
  *  라벨 대조가 먼저 붉어진다(행 번호만 믿으면 조용히 옆 줄에 찍힌다). */
 export const DEFECT_GROUP_ROWS: ReadonlyArray<{ group: string; row: number }> =
   DEFECT_GROUPS.map((group, i) => ({ group, row: 4 + i }))
+
+/** 현1 3-1 수량 열 ↔ 엑셀 열머리 — 키 목록은 손으로 베끼지 않고 **S31_COLUMNS(total 열)에서
+ *  파생**시킨다(DEFECT_GROUP_ROWS와 같은 이유). 열 문자만 이쪽 실측이다
+ *  (병합 열머리 B:F·G:H·I:K·L:M·N:P·Q:S — scripts/_p4-hyeon1-31table.mts).
+ *  스키마 키가 바뀌면 아래 조회가 undefined를 만나 **모듈 로드에서 던진다**(조용한 빈 열 금지). */
+const S31_COL_LETTER: Record<string, string> = {
+  qty_ext_powder: 'B', qty_ext_other: 'G', qty_simple_throw: 'I',
+  qty_simple_other: 'L', qty_auto_diffuse: 'N', qty_auto_device: 'Q',
+}
+export const S31_QTY_COLS: ReadonlyArray<readonly [key: string, col: string]> =
+  S31_COLUMNS.filter(c => c.total).map(c => {
+    const col = S31_COL_LETTER[c.key]
+    if (!col) throw new Error(`S31 수량 열 매핑 누락: ${c.key} — S31_COL_LETTER에 열 문자를 추가하라`)
+    return [c.key, col] as const
+  })
+/** 현1 3-1 동별 행(엑셀 행 번호) — 서식 고정 8행(7~14행, 실측) */
+export const S31_DETAIL_ROWS: ReadonlyArray<number> = [7, 8, 9, 10, 11, 12, 13, 14]
 
 /** Phase 1 — 개요 허브 + 위임장 대리인 + 계약서 대표자.
  *  스포크(공문·위임장·계약서·계획서·완료보고서)의 나머지 칸은 허브 수식이 채운다(117수식 실측). */
@@ -204,6 +222,26 @@ export const ANCHORS: Anchor[] = [
   { field: 's31ExtOther',    sheet: '현1', cell: 'G4', labelCell: 'H4', label: '기타' },
   { field: 's31SimpleThrow', sheet: '현1', cell: 'I4', labelCell: 'J4', label: '투척용' },
   { field: 's31SimpleOther', sheet: '현1', cell: 'L4', labelCell: 'M4', label: '기타' },
+  // ── 현1 3-1 동별 수량 8행 + 합계 6칸 — Phase 4 후속(2026-09-02 사용자 신고: √만 있고 수량 표가 빈다) ──
+  //
+  // 표 구조(실측 scripts/_p4-hyeon1-31table.mts): 5행 합계(B/G/I/L/N/Q = SUM(7~14행) 수식) ·
+  // 6행 '동명' 라벨 · 7~14행 동별 8행. 행당 병합 열머리는 S31_QTY_COLS 참조, A 동명 · T 비고.
+  // 값은 PDF renderS31과 같은 행 계산(spec-sections s31DongRows)·같은 세로 합(columnTotal) — D-7.
+  //
+  // ⚠ A7~A14의 자산 잔재 '1'~'8'(표시서식이 'N 층'으로 보여준다)은 데이터가 아니라 표본 성격 —
+  //   완전 덮어쓰기 불변식(S3-4)대로 데이터 없는 행은 명시적 공란(PDF의 빈 행과 같은 모습).
+  // ⚠ 합계 6칸은 SUM 수식을 **살린 채 캐시만 준다**(이행조치 I9와 같은 축): 범위 수식이라 폐포
+  //   전파가 못 따라가고(단일 참조만), LO는 재계산을 안 하므로(D-9) 캐시가 곧 인쇄물이다.
+  //   Excel 재계산과의 수렴은 xlsx-workbook이 수량을 **n타입 숫자**로 넣는 것으로 보장한다
+  //   (inlineStr 문자열이면 SUM이 0으로 계산해 우리가 준 캐시를 지운다).
+  ...S31_QTY_COLS.map<Anchor>(([key, col]) => (
+    { field: `s31Sum_${key}`, sheet: '현1', cell: `${col}5`, labelCell: 'A5', label: '합계' })),
+  ...S31_DETAIL_ROWS.flatMap<Anchor>((r, i) => [
+    { field: `s31Row${i}_dong`, sheet: '현1', cell: `A${r}`, labelCell: 'A6', label: '동명' },
+    ...S31_QTY_COLS.map<Anchor>(([key, col]) => (
+      { field: `s31Row${i}_${key}`, sheet: '현1', cell: `${col}${r}`, labelCell: 'A6', label: '동명' })),
+    { field: `s31Row${i}_note`, sheet: '현1', cell: `T${r}`, labelCell: 'T3', label: '비 고' },
+  ]),
   // ── 현1 3-2 수계소화설비(공통사항) 25칸 — Phase 4 / S9-1 ────────────────────
   //
   // 라벨칸은 각 블록의 구분 칸이다(B16 주된수원 · B21 보조수원 · B22/B26/B32 각 수조).

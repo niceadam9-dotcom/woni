@@ -8,7 +8,7 @@ import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official
 import { assembleReport9 } from '@/lib/report9-assemble'
 import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
-import { buildWorkbookValues, toInjectTargets, defectOverflow } from '@/lib/xlsx-workbook'
+import { buildWorkbookValues, toInjectTargets, defectOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets } from '@/lib/xlsx-sheet-surgery'
 import { planDonorInjection, donorInjectSummary } from '@/lib/xlsx-donor-inject'
@@ -229,6 +229,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           // 1행 고정**이라 접는다. 상한(행 높이 77.25pt ≈ 5줄)을 넘으면 자르되 **조용히 버리지
           // 않는다**(S8-2 규약과 같은 축) — 잘린 채로도 인쇄물은 멀쩡해 보이기 때문이다.
           ...defectOverflow(r9.data.defectRows).map(o => `불량 세부 ${o.group} ${o.dropped}건 미표기(엑셀 1행 상한)`),
+          // 3-1 동별 수량 — 서식 8행 상한을 넘는 동은 잘리므로 알린다(위와 같은 S8-2 축)
+          ...(s31RowOverflow(r9.data.specs) ? [`3-1 동별 수량 ${s31RowOverflow(r9.data.specs)}개 동 미표기(현1 8행 상한)`] : []),
           ...(donorGaps.length ? [`점검표 서식 미동봉(자산 없음): ${donorGaps.join(', ')}`] : []),
         ]
         const full = parts.join(' | ')

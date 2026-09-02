@@ -136,6 +136,18 @@ function specRow(label: string, lines: string[]): string {
 }
 
 // ── 3-1. 소화기구, 자동소화장치 ─────────────────────────────────────────────
+
+/** 3-1 동별 행 계산 — **PDF(renderS31)와 엑셀(xlsx-workbook)이 공유하는 단일 원천**(D-7).
+ *  저장분(summary.dong_rows) 우선, 없으면 구 합계 수량(summary.qty_*)을 한 행으로 올려 읽는다
+ *  (s31LegacyRow — 화면 초기화와 같은 함수라 저장 전에도 화면·문서가 갈리지 않는다).
+ *  sec = customer_facility_specs의 s31_extinguisher 섹션 루트. */
+export function s31DongRows(sec: Record<string, unknown>): ReturnType<typeof normalizeRows> {
+  const s = blk(sec, 'summary')
+  const stored = normalizeRows(s['dong_rows'])
+  const legacy = rowsHaveValue(stored) ? null : s31LegacyRow(sec)
+  return rowsHaveValue(stored) ? stored.filter(r => !rowIsEmpty(r)) : legacy ? [legacy] : []
+}
+
 function renderS31(sec: Vals, h: boolean): string {
   const s = blk(sec, 'summary')
   const t = (opt: string) => mc(s['types'], opt)
@@ -147,11 +159,8 @@ function renderS31(sec: Vals, h: boolean): string {
     `<tr><td class="center">${label}</td>${'<td>&nbsp;</td>'.repeat(7)}</tr>`
 
   // 2026-08-20 개편 — 동별 행(summary.dong_rows)이 유일한 입력이고 합계는 그 세로 합이다.
-  // 아직 새 구조로 다시 저장하지 않은 대상물은 구 합계 수량(summary.qty_*)을 한 행으로 올려 읽는다
-  // (s31LegacyRow — 화면 초기화와 **같은 함수**라 저장 전에도 화면과 문서가 갈리지 않는다).
-  const stored = normalizeRows(s['dong_rows'])
-  const legacy = rowsHaveValue(stored) ? null : s31LegacyRow(sec as Record<string, unknown>)
-  const rows = rowsHaveValue(stored) ? stored.filter(r => !rowIsEmpty(r)) : legacy ? [legacy] : []
+  // 행 계산은 s31DongRows(위) — 엑셀 갑지(xlsx-workbook)와 같은 함수를 타야 두 문서가 안 갈린다(D-7)
+  const rows = s31DongRows(sec as Record<string, unknown>)
 
   const qtyKeys = S31_COLUMNS.filter(c => c.total).map(c => c.key)
   // 합계 행 — 수량 6칸(세로 합). 비고는 동별 행이 각자 갖는다(여기서 이어 붙이면 같은 말이 두 번 인쇄된다)
