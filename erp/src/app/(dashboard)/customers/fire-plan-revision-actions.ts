@@ -8,9 +8,11 @@ import { requirePermission } from '@/lib/auth'
  *
  *  종전에는 개정 사유가 fire_plan_forms.sections.revision 단일 슬롯이라 저장할 때마다 덮어써졌다.
  *  여기서는 (고객, 연도, 순번) 단위 행으로 남겨 과거 이력이 보존된다.
- *  자동 행(생성·업로드 실적)과 수동 행을 source로 구분하고, 편집 권한이 다르다:
- *    - manual    : 전 필드 수정·삭제 가능
- *    - generated/uploaded : 서술·작성자·검토·승인만 수정, 일자·출처는 잠금·삭제 불가 (Q-3) */
+ *
+ *  2026-09-02 보관함 폐지: 자동 기록(생성·업로드 실적)이 중단되고 개정이력은 **수동 기록의
+ *  단일 창구**가 됐다 — ERP는 최신 데이터만 유지하고, 정보 변경의 역사는 여기 남긴다.
+ *  종전 Q-3 잠금(자동 행의 일자·삭제 금지)은 근거였던 '보관함 파일과 1:1' 관계가 사라져 함께
+ *  해제 — 기존 generated/uploaded 행도 전 필드 수정·삭제 가능하다(source 배지는 표기용으로 유지). */
 
 export type RevisionSource = 'generated' | 'uploaded' | 'manual'
 
@@ -131,8 +133,7 @@ export async function addRevisionAction(
   return { error: '동시에 다른 개정이 추가되었습니다 — 잠시 후 다시 시도해주세요.' }
 }
 
-/** 행 수정 — 자동 행(generated·uploaded)은 일자·출처를 바꿀 수 없다 (Q-3).
- *  생성 실적의 일자를 사람이 고치면 보관함 파일과 이력이 어긋난다. */
+/** 행 수정 — 전 필드·전 행 (2026-09-02 Q-3 잠금 해제: 보관함 파일과의 1:1 근거 소멸) */
 export async function updateRevisionAction(
   customerId: string, id: string, input: RevisionInput,
 ): Promise<{ error?: string }> {
@@ -141,7 +142,7 @@ export async function updateRevisionAction(
   if (invalid) return { error: invalid }
   const admin = createAdminClient()
   const { data: cur, error: findErr } = await admin.from('fire_plan_revisions')
-    .select('id, source').eq('id', id).eq('customer_id', customerId).maybeSingle()
+    .select('id').eq('id', id).eq('customer_id', customerId).maybeSingle()
   if (findErr) return { error: `조회 실패: ${findErr.message}` }
   if (!cur) return { error: '개정 항목을 찾을 수 없습니다.' }
 
@@ -150,35 +151,26 @@ export async function updateRevisionAction(
   if (input.authorName !== undefined) patch.author_name = s(input.authorName) || null
   if (input.reviewerName !== undefined) patch.reviewer_name = s(input.reviewerName) || null
   if (input.approverName !== undefined) patch.approver_name = s(input.approverName) || null
-  if (input.revisedOn !== undefined) {
-    if ((cur as { source: RevisionSource }).source !== 'manual') {
-      return { error: '생성·업로드 이력의 일자는 바꿀 수 없습니다 — 서술·작성자·검토·승인만 수정할 수 있습니다.' }
-    }
-    patch.revised_on = s(input.revisedOn) || null
-  }
+  if (input.revisedOn !== undefined) patch.revised_on = s(input.revisedOn) || null
   const { error } = await admin.from('fire_plan_revisions').update(patch).eq('id', id).eq('customer_id', customerId)
   if (error) return { error: `저장 실패: ${error.message}` }
   revalidatePath(`/customers/${customerId}`)
   return {}
 }
 
-/** 삭제는 수동 행만 — 생성·업로드 실적은 보관함 파일과 1:1이라 지우면 이력이 사실과 어긋난다 */
+/** 행 삭제 — 전 행 (2026-09-02 잠금 해제). 이력은 사용자가 직접 관리하는 수동 기록이다 */
 export async function deleteRevisionAction(customerId: string, id: string): Promise<{ error?: string }> {
   await requirePermission('customer_manage')
   const admin = createAdminClient()
   const { data: cur, error: findErr } = await admin.from('fire_plan_revisions')
-    .select('id, source').eq('id', id).eq('customer_id', customerId).maybeSingle()
+    .select('id').eq('id', id).eq('customer_id', customerId).maybeSingle()
   if (findErr) return { error: `조회 실패: ${findErr.message}` }
   if (!cur) return { error: '개정 항목을 찾을 수 없습니다.' }
-  if ((cur as { source: RevisionSource }).source !== 'manual') {
-    return { error: '생성·업로드 이력은 삭제할 수 없습니다 (보관함 파일과 연결된 기록입니다).' }
-  }
   const { error } = await admin.from('fire_plan_revisions').delete().eq('id', id).eq('customer_id', customerId)
   if (error) return { error: `삭제 실패: ${error.message}` }
   revalidatePath(`/customers/${customerId}`)
   return {}
 }
 
-/* 생성·업로드 파이프라인의 자동 기록은 여기 두지 않는다 —
- * 'use server' 파일의 export는 전부 공개 엔드포인트가 되므로 권한 검사 없는 액션은 위험하다.
- * 서버 내부 호출용 헬퍼는 lib/fire-plan-revisions.ts(appendGeneratedRevision) 참조. */
+/* 자동 기록(appendGeneratedRevision)은 보관함 폐지(2026-09-02)로 발행 경로와 함께 삭제됐다 —
+ * 개정이력은 이 파일의 수동 액션만 쓴다. */

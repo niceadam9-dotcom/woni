@@ -106,7 +106,7 @@ export async function assembleReport9(
    *    거친 부분집합이라 분모가 줄고, 그러면 '몇 건이 빠졌나'를 세는 덮개가 눈이 먼다. */
   sheetResponses: Array<{ item_code: string; result: 'O' | 'X' | 'N'; month: number }>
 }> {
-  const [inspRes, custRes, bldRes, contactsRes, companyRes, partsRes, plansRes, formsRes, defectsRes] = await Promise.all([
+  const [inspRes, custRes, bldRes, contactsRes, companyRes, partsRes, formsRes, defectsRes] = await Promise.all([
     admin.from('inspections')
       // plan_type은 점검종류 판정의 **정본**이다(inspection-round S3-2). 종전엔 이걸 안 실어와
       // 아래 3분기 체크가 inspection_type만 봤고, 그래서 일반관리 고객의 별지 9호는 세 칸이
@@ -132,7 +132,8 @@ export async function assembleReport9(
     admin.from('company_profile').select('company_name, phone, management_reg_no').limit(1),
     admin.from('inspection_participants').select('employee_id, role, sort_order')
       .eq('inspection_id', inspectionId).order('sort_order'),
-    admin.from('fire_plans').select('id').eq('customer_id', customerId).limit(1),
+    // 「소방계획서 작성」 판정 원천 = 서식 입력(fire_plan_forms) — 보관함 폐지(2026-09-02)로
+    // fire_plans 파일 행은 더 안 만들어지므로 그 축으로 재면 신규 고객이 전부 '미작성'이 된다
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
     // action_* 3열은 별지 10호(이행계획서)의 총 이행기간 축 — 갑지 엑셀 `개요!G9·I9·J9`가 같은 값을
     // 받아야 PDF와 갈라지지 않는다(D-7). 계산은 actionPlanPeriod() 단일 원천이 한다
@@ -262,7 +263,10 @@ export async function assembleReport9(
   }
 
   // 2쪽 자동 판정(§9-6③) — 데이터가 있을 때만 체크 (없으면 공란 유지, 단정 금지 — 워커 동일)
-  const hasPlan = (plansRes.data ?? []).length > 0
+  // 작성 여부 = 서식 입력 존재(빈 껍데기 {} 제외) — fire_plans 파일 축은 보관함 폐지로 은퇴
+  const hasPlan = Object.keys(
+    ((formsRes.data?.[0] ?? null) as { sections?: Record<string, unknown> } | null)?.sections ?? {},
+  ).length > 0
   const { data: prevRows } = await admin.from('inspections')
     .select('inspection_type').eq('customer_id', customerId).eq('year', insp.year - 1).eq('status', 'completed')
   const prevList = (prevRows ?? []) as Array<{ inspection_type: string }>
@@ -594,7 +598,7 @@ export async function assembleReport9(
   // 확정하면(A) 사라진다 — 즉 "확정되지 않은 칸"만 남는다.
   const prevYear = insp.year - 1
   if (!data.hasFirePlan && !data.firePlanNone) {
-    missing.push('소방계획서 보관함(고객 > 소방계획서)에 등록분 없음 — 2쪽 작성·보관 칸 공란')
+    missing.push('소방계획서 서식 입력 없음(고객 > 소방계획서 탭) — 2쪽 작성·보관 칸 공란')
   }
   if (!data.prevOpDone && !data.prevCompDone && !data.prevOpNone && !data.prevCompNone) {
     missing.push(`전년도(${prevYear}) 완료된 자체점검 이력 없음 — 2쪽 자체점검 칸 공란(작성 패널 ③에서 실시·미실시 확정 가능)`)

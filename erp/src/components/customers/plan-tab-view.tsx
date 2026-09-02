@@ -383,13 +383,13 @@ export function PlanTabView({
           return typeof v === 'object' ? v.done >= v.total : v === true
         }).length
         {/* 소방계획서_8 D-12 3그룹 재편 → 14.md #16(2026-08-11) → **소방계획서_34(2026-08-29)로 2그룹**:
-            📘 본문(1~3장) / 🗂 보관함·개정이력. 📑 별지 서식은 최상위 탭으로 나갔다 — 트리 내 순서 결정도 함께 소멸. */}
+            📘 본문(1~3장) / 🗂 조회·개정이력(구 보관함 — 2026-09-02 파일 저장 폐지). 📑 별지 서식은 최상위 탭으로 나갔다. */}
         const NAV_ALL = [
           ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
           { key: 'ch2', label: '본문 2장 자위소방대' },
           { key: 'ch3', label: '본문 3장 피난계획' },
           { key: 'cover', label: '본문 보고서 커버' },
-          { key: 'archive', label: '보관함·개정이력' },
+          { key: 'archive', label: '조회·개정이력' },
         ]
         return (
         <div className="flex gap-4 items-start">
@@ -410,9 +410,10 @@ export function PlanTabView({
             {/* 🖼 지도·사진 노드 폐지(2026-08-08 사용자 확정) — 표지·위치도·피난안내도 슬롯은 1.3 안으로 이관 */}
             {/* 📑 별지 서식 그룹 폐지(2026-08-29 사용자 확정, 소방계획서_34 D34-2) — 최상위 [별지서식] 탭으로 승격.
                 안내 문구도 남기지 않는다. 구 딥링크 ?tab=plan&form=annex는 page.tsx가 서버에서 새 탭으로 해석한다. */}
+            {/* 보관함 폐지(2026-09-02 사용자 확정) — 파일 저장 없이 즉석 조회·인쇄 + 개정이력(수동 기록) */}
             <div className="pt-2 mt-1.5 border-t border-brand-tint">
-              <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft">🗂 보관·이력</p>
-              {navBtn('archive', '보관함·개정이력')}
+              <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft">🗂 조회·이력</p>
+              {navBtn('archive', '조회·개정이력')}
             </div>
           </aside>
 

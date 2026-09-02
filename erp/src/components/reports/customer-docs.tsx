@@ -1,21 +1,19 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Loader2, Pencil, Eye } from 'lucide-react'
-import { getDocUrlAction, type CustomerDocs, type DocGroupRef, type InspectionDocs } from '@/app/(dashboard)/reports/docs-actions'
-import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
-import { requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
-import { getFirePlanFileUrlAction } from '@/app/(dashboard)/customers/fire-plan-actions'
+import { type DocGroupRef, type InspectionDocs } from '@/app/(dashboard)/reports/docs-actions'
 import { DOC_TERMS } from '@/lib/doc-requirements'
 import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
-import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
+import { type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
-/** 별지 작성 진입 버튼 (H-24 문서 작업대 §4-B) — 문서 현황에서 이동 없이 작성 패널 오픈 */
+/** 별지 작성 진입 버튼 (H-24 문서 작업대 §4-B) — 이동 없이 작성 패널 오픈 */
 const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50'
 
-/** ① 고객 문서 현황 (소방계획서_5 R2) — 생성+업로드 통합 조회.
- *  행 정렬 고정: 소방계획서 → 점검 건(최신 차수 먼저) → 9호→배치확인서→계약서→사진→10·11호.
+/** 점검 건 문서 행 (소방계획서_5 R2 → 8 H-2 재사용) — 지금 이 파일의 소비자는 회차 카드
+ *  (plan-annex-round-card)뿐이다. 고객 문서 현황 화면(CustomerDocsView)은 보고서 센터 해체 후
+ *  렌더되는 곳이 없어 보관함 폐지(2026-09-02)와 함께 걷어냈다.
  *  색 규약(R0-1): ✅초록 보유 / ⚠앰버 필요한데 없음 / 회색 흐림 해당없음. 업로드는 그 자리 실행+드롭존(R0-6). */
 
 const rowCls = 'flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft last:border-0 flex-wrap'
@@ -32,127 +30,9 @@ function StatusIcon({ state }: { state: 'have' | 'warn' | 'na' }) {
   return <Circle className="size-3.5 text-[#d0ccf5] shrink-0" />
 }
 
-export function CustomerDocsView({ docs, onChanged }: { docs: CustomerDocs; onChanged: () => void }) {
-  const [isPending, startTransition] = useTransition()
-  const [msg, setMsg] = useState<{ key: string; text: string; ok: boolean } | null>(null)
-  // H-24 문서 작업대 — 별지 작성 패널(이동 0회). 생성 완료 시 문서 현황 갱신
-  const [compose, setCompose] = useState<{ inspectionId: string; annexNo: ComposeAnnexNo } | null>(null)
-
-  function open(path: string | null | undefined, saveName?: string) {
-    if (!path) return
-    startTransition(async () => {
-      const res = await getDocUrlAction(path, saveName)
-      if (res.url) window.open(res.url, '_blank')
-    })
-  }
-
-  function openPlanFile(kind: 'pdf' | 'hwp') {
-    if (!docs.firePlan) return
-    startTransition(async () => {
-      const res = await getFirePlanFileUrlAction(docs.firePlan!.id, kind)
-      if (res.error || !res.url) { setMsg({ key: 'plan', text: `❌ ${res.error ?? '다운로드 실패'}`, ok: false }); return }
-      window.open(res.url, '_blank')
-    })
-  }
-
-  function generate(inspectionId: string, kind: 'report9' | 'report10' | 'report11' | 'exterior', rowKey: string) {
-    startTransition(async () => {
-      const res = await requestReport9Action(inspectionId, kind)
-      if (res.error) { setMsg({ key: rowKey, text: `❌ ${res.error}`, ok: false }); return }
-      setMsg({ key: rowKey, text: '✅ 생성 완료 — 이 행에 [PDF] 링크가 표시됩니다', ok: true })
-      onChanged()
-    })
-  }
-
-  function upload(inspectionId: string, slot: 'cert' | 'contract', file: File, rowKey: string) {
-    const fd = new FormData()
-    fd.append('file', file)
-    startTransition(async () => {
-      const res = await uploadTimelineFileAction(inspectionId, slot, fd)
-      if (res.error) { setMsg({ key: rowKey, text: `❌ ${res.error}`, ok: false }); return }
-      setMsg({ key: rowKey, text: '✅ 업로드됨 — 타임라인과 자동 동기됩니다', ok: true })
-      onChanged()
-    })
-  }
-
-  const feedback = (key: string) => msg?.key === key && (
-    <p className={`w-full text-[11px] ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
-  )
-
-  return (
-    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-      {/* 상단 요약 게이지 (R2-c) */}
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <h2 className="text-sm font-semibold text-ink">{docs.customerName}</h2>
-        <span className="text-[11px] text-ink-sub">· {docs.inspectionType}</span>
-        <span className="text-[11px] font-medium text-brand">
-          필요 문서 {docs.summary.need}종 중 {docs.summary.have}종 보유
-        </span>
-        {docs.summary.warns > 0 && (
-          <span className="text-[11px] text-amber-600 font-medium">⚠ {docs.summary.warns}건 처리 필요</span>
-        )}
-        <Link href={`/customers/${docs.customerId}?tab=plan`} className="ml-auto text-[11px] text-brand hover:underline">
-          고객 소방계획서 탭 →
-        </Link>
-      </div>
-
-      {/* 소방계획서 행 — 일반관리 특례 없음 (소방계획서_6 W-16) */}
-      <div className={rowCls}>
-        {docs.firePlan ? (<>
-          <StatusIcon state="have" />
-          <span className="font-medium text-ink w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
-          <span className="text-ink-sub">
-            ✓ {docs.firePlan.year}{docs.firePlan.revision ? ` (개정${docs.firePlan.revision})` : ''} {fmtD(docs.firePlan.updatedAt)}
-          </span>
-          <span className="ml-auto flex items-center gap-1">
-            {docs.firePlan.hwpPath && (
-              <button onClick={() => openPlanFile('hwp')} disabled={isPending} title="한글 편집용 원본 내려받기" className={hwpBtn}>
-                <FileText className="size-3" /> HWP
-              </button>
-            )}
-            {docs.firePlan.pdfPath && (
-              <button onClick={() => openPlanFile('pdf')} disabled={isPending} title="바로 보기·인쇄" className={pdfBtn}>
-                <FileType2 className="size-3" /> PDF
-              </button>
-            )}
-          </span>
-        </>) : (<>
-          <StatusIcon state="warn" />
-          <span className="font-medium text-ink w-44" title={DOC_TERMS.firePlan}>소방계획서</span>
-          {/* 배치 발행 폐지(2026-08-19) — 생성 창구가 고객 소방계획서 탭 하나로 좁아졌다.
-              종전엔 전 고객 일괄 생성 화면으로 보냈는데, 그 화면은 이 고객을 다시 찾게 만들었다 */}
-          <span className="text-amber-600">미생성 — 소방계획서 탭에서 생성</span>
-          <Link href={`/customers/${docs.customerId}?tab=plan`} className={`ml-auto ${priBtn}`}>바로 생성 →</Link>
-        </>)}
-        {feedback('plan')}
-      </div>
-
-      {docs.inspections.length === 0 && (
-        <p className="text-xs text-ink-faint py-4 text-center">
-          자체점검 건이 없습니다 — 점검 일정은 점검계획에서 확정하세요
-        </p>
-      )}
-
-      {/* 점검 건별 (최신 차수 먼저) — 전부 자체점검 행 (레거시 event 건은 목록 대상 아님, W-16) */}
-      {docs.inspections.map(i => (
-        <InspectionDocRows key={i.inspectionId} i={i} customerName={docs.customerName}
-          isPending={isPending} open={open} generate={generate} upload={upload} feedback={feedback}
-          onCompose={(inspectionId, annexNo) => setCompose({ inspectionId, annexNo })} />
-      ))}
-
-      {/* H-24 문서 작업대 — 별지 작성 슬라이드 패널 (§4-B, 화면 이동 0회) */}
-      {compose && (
-        <AnnexComposePanel
-          inspectionId={compose.inspectionId}
-          annexNo={compose.annexNo}
-          customerId={docs.customerId}
-          onClose={() => setCompose(null)}
-          onGenerated={onChanged}
-        />
-      )}
-    </div>
-  )
-}
+/* CustomerDocsView 삭제(2026-09-02) — 시작은 보고서 센터 ① 고객 문서 현황이었으나 센터 해체
+ * (소방계획서_8 Phase B → 34 탭 승격) 후 어디서도 렌더되지 않는 죽은 화면이었고, 소방계획서
+ * 파일 행이 보관함 폐지로 성립하지 않게 되어 함께 정리했다. getCustomerDocsAction도 동반 은퇴. */
 
 export function InspectionDocRows({ i, customerName, isPending, open, generate, upload, feedback, onCompose, onPreview }: {
   i: InspectionDocs

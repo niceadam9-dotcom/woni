@@ -42,7 +42,7 @@ try {
   // 결과가 그 자리에 바로 보인다. 종전 라벨 '계획서 생성 (HWP+PDF)'는 사실과도 달랐다:
   // 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤 hwp_path에 null을 넣으므로 HWP는 만들어지지 않는다.
   // (이 단언은 이관 이후 계속 실패하고 있었다 — 사라진 버튼을 찾고 있었다. 2026-08-19 정정)
-  check('생성 바 — [계획서 생성] 버튼 폐지(보관함 [개정 발행]으로 이관)',
+  check('생성 바 — [계획서 생성] 버튼 폐지(조회는 즉석 렌더로 일원화)',
     !(await page.isVisible('button:has-text("계획서 생성")')))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
   // 2026-08-10: 생성 바 연도 입력칸 폐지(올해 자동) — 연도 표기는 '보고서 커버' 서식으로 이동.
@@ -50,10 +50,15 @@ try {
   check('생성 바 — 연도 입력칸 폐지',
     (await page.locator('div:has(> p:has-text("누락:")) input[type="number"]').count()) === 0)
 
-  // 이관처 확인 — 보관함 가지에 [개정 발행]이 있다(생성 창구가 사라지지 않았음을 함께 고정)
+  // 보관함 폐지(2026-09-02) — 조회·개정이력 노드에 즉석 조회 3버튼([현재 내용]·[인쇄]·[PDF 받기])만
+  // 있고, 파일을 만들던 [개정 발행]·업로드·연차·제출 추적은 전부 사라졌다
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=archive`)
-  await page.waitForLoadState('networkidle')
-  check('보관함 — [개정 발행]이 생성 창구', await page.isVisible('button:has-text("개정 발행")'))
+  await page.waitForSelector('button:has-text("현재 내용")')
+  check('조회 — [현재 내용]·[인쇄]·[PDF 받기] 즉석 3버튼',
+    await page.isVisible('button:has-text("인쇄")') && await page.isVisible('button:has-text("PDF 받기")'))
+  check('폐지 — [개정 발행] 없음', !(await page.isVisible('button:has-text("개정 발행")')))
+  check('폐지 — [연차] 없음', !(await page.isVisible('button:has-text("연차")')))
+  check('폐지 — 제출 추적 없음', !(await page.isVisible('text=제출 추적')))
   await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
   await page.waitForSelector('text=① 시설현황')
 
@@ -84,10 +89,10 @@ try {
     .select('email_delivery_consent, report_email').eq('id', customerId).single()
   check('DB 송달 동의 저장 (통합 저장 경로)', cRow?.email_delivery_consent === true && cRow?.report_email === 'owner@example.com', JSON.stringify(cRow))
 
-  // ── 4) 트리 — 보관함·개정이력 노드 진입 ──
-  await page.click('button:has-text("보관함·개정이력")')
+  // ── 4) 트리 — 조회·개정이력 노드 진입 (구 보관함·개정이력, 2026-09-02 개칭) ──
+  await page.click('button:has-text("조회·개정이력")')
   await page.waitForSelector('text=개정이력')
-  check('트리 — 보관함·개정이력 노드 진입', await page.isVisible('text=개정이력'))
+  check('트리 — 조회·개정이력 노드 진입', await page.isVisible('text=개정이력'))
   check('트리 — 4개 장 전부 활성', await page.isVisible('button:has-text("3장 피난계획")') && !(await page.isVisible('text=준비 중')))
 
   // 개정이력 저장 → fire_plan_revisions(120, 연도별 행 — 소방계획서_17).
@@ -104,9 +109,9 @@ try {
   // ── P6 §1: 목차 트리 + form= 딥링크 + URL 동기화 ──
   // 소방계획서_8 D-12는 3그룹이었으나 _34(2026-08-29)가 📑 별지 서식을 최상위 [별지서식] 탭으로
   // 승격하며 **2그룹**이 됐다. 별지 노드가 트리에 없다는 것까지 함께 단언한다(되살아나면 이중 마운트).
-  check('목차 트리 — 2그룹(본문·보관함)',
+  check('목차 트리 — 2그룹(본문·조회이력)',
     await page.isVisible('text=소방계획서 본문')
-    && await page.isVisible('text=보관함·개정이력'))
+    && await page.isVisible('text=조회·개정이력'))
   check('목차 트리 — 별지 노드는 탭으로 나가서 없다',
     (await page.locator('[data-plan-node="annex"]').count()) === 0)
   await page.click('button:has-text("1.1 일반현황")')

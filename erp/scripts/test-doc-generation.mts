@@ -224,28 +224,25 @@ try {
   check('B: 외관점검표 섹션 렌더', true)
   await clickAndWait(page, '외관점검표', '외관점검표 생성', inspBid, 'exterior', prefB, /^exterior_\d+\.pdf$/)
 
-  // ── 3) 소방계획서 — 고객 A 소방계획서 탭 [개정 발행] ──
-  //  종전엔 /reports?form=fire_plan → 배치 발행의 '소방계획서 일괄 생성' 폼을 몰았다.
-  //  배치 발행 폐지(2026-08-19)로 생성 창구가 **고객 상세 소방계획서 탭 하나**로 좁아졌으므로
-  //  살아 있는 경로로 옮긴다. 확인하려는 것은 '계획서 PDF가 실제로 만들어지는가'이지 어느 화면이냐가 아니다.
-  //  탭만 열면 트리 첫 노드(본문 1.1)가 뜬다 — [개정 발행]은 '보관함·개정이력' 가지에 있으므로 form=archive로 바로 간다
+  // ── 3) 소방계획서 — 즉석 PDF 라우트 (2026-09-02 보관함 폐지) ──
+  //  종전 [개정 발행](fire_plans 행 + generated_web_*.pdf 업로드)은 폐지됐다 — ERP는 계획서
+  //  파일을 저장하지 않는다. 확인하려는 것은 두 가지: ① 라우트가 현재 데이터로 진짜 PDF를
+  //  즉석 생성하는가(%PDF 매직), ② 그 과정에서 아무것도 **저장되지 않는가**(행 0 유지).
   await page.goto(`${BASE}/customers/${custA}?tab=plan&form=archive`)
-  const genBtn = page.locator('button:has-text("개정 발행")').first()
-  const genVisible = await genBtn.waitFor({ state: 'visible', timeout: 30_000 }).then(() => true).catch(() => false)
-  check('계획서: 소방계획서 탭 [개정 발행] 노출', genVisible)
-  if (!genVisible) await page.screenshot({ path: 'scripts/_docgen-fireplan-debug.png', fullPage: true })
-  // 확인창(confirm) + 완료 알림(alert) 자동 수락 — 이 테스트는 생성 결과만 본다
-  page.on('dialog', d => { void d.accept() })
-  await genBtn.click()
-  // 계획서 = fire_plans ready 행 + {cust}/{year}/generated_web_*.pdf
-  const planOk = await pollUntil(async () => {
-    const { data } = await raw.from('fire_plans')
-      .select('id, pdf_status, pdf_path').eq('customer_id', custA).eq('year', YEAR)
-      .order('created_at', { ascending: false }).limit(1)
-    return (data?.[0] as { pdf_status?: string } | undefined)?.pdf_status === 'ready'
-  }, 90_000)
-  check('계획서: fire_plans ready 행 존재', planOk)
-  await verifyPdf('계획서', `${custA}/${YEAR}`, /^generated_web_\d+\.pdf$/)
+  const viewBtn = page.locator('button:has-text("현재 내용")').first()
+  const viewVisible = await viewBtn.waitFor({ state: 'visible', timeout: 30_000 }).then(() => true).catch(() => false)
+  check('계획서: 조회·개정이력에 [현재 내용] 노출', viewVisible)
+  if (!viewVisible) await page.screenshot({ path: 'scripts/_docgen-fireplan-debug.png', fullPage: true })
+  check('계획서: [개정 발행] 폐지 확인', !(await page.isVisible('button:has-text("개정 발행")')))
+  // 즉석 PDF — 페이지 세션 쿠키를 공유하는 request 컨텍스트로 라우트를 직접 친다
+  const pdfRes = await page.request.get(`${BASE}/customers/${custA}/fire-plan/pdf`, { timeout: 130_000 })
+  const pdfBody = pdfRes.ok() ? await pdfRes.body() : Buffer.alloc(0)
+  check('계획서: 즉석 PDF 라우트 200 + %PDF 매직',
+    pdfRes.ok() && pdfBody.subarray(0, 4).toString('latin1') === '%PDF',
+    `status=${pdfRes.status()} bytes=${pdfBody.length}`)
+  // 저장 없음 — fire_plans 행이 생기지 않았고 storage에도 generated_web_*이 새로 없다
+  const { data: planRows } = await raw.from('fire_plans').select('id').eq('customer_id', custA)
+  check('계획서: 저장 없음(fire_plans 0행 유지)', (planRows ?? []).length === 0, `rows=${(planRows ?? []).length}`)
 
   await browser.close(); browser = null
 } catch (e) {

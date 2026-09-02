@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { Search, FileText, FileType2, Upload, Loader2, FolderOpen, Send } from 'lucide-react'
+import { Search, FileText, FileType2, Upload, Loader2, FolderOpen } from 'lucide-react'
 import {
   searchDocCommandsAction, getDocUrlAction, type DocCommand,
 } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
-import { requestFirePlanHwpAction } from '@/app/(dashboard)/fire-plans/generate/actions'
 import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 
 /** 행동 자동완성 검색 (소방계획서_5 R0-3·4-0-13-(1)) — 검색 결과가 곧 실행 버튼.
@@ -79,12 +78,8 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
     })
   }
 
-  function generatePlan(c: DocCommand) {
-    startTransition(async () => {
-      const res = await requestFirePlanHwpAction([c.customerId], new Date().getFullYear())
-      setMsg(res.error ? `❌ ${res.error}` : `✅ ${c.customerName} 소방계획서 생성 요청됨 — 완료되면 보관함·문서 현황에 등록됩니다`)
-    })
-  }
+  // '소방계획서 생성 요청' 명령 폐지(2026-09-02 보관함 폐지) — 계획서는 파일로 만들지 않고
+  // 고객 소방계획서 탭 [조회·개정이력]에서 즉석 조회·인쇄한다
 
   return (
     <div ref={boxRef} className="relative">
@@ -123,7 +118,7 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
                   </button>
                 )}
                 {c.hwpPath && (
-                  <button onClick={() => (c.inspectionId ? openAnnexHwp(c.inspectionId, c.hwpPath!) : openFile(c.hwpPath, c.saveBase ? `${c.saveBase}.hwp` : undefined))} disabled={isPending} title="한글 편집용 원본 내려받기"
+                  <button onClick={() => (c.inspectionId ? openAnnexHwp(c.inspectionId, c.hwpPath!) : openFile(c.hwpPath))} disabled={isPending} title="한글 편집용 원본 내려받기"
                     className="inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-[11px] text-blue-600 hover:bg-blue-50">
                     <FileText className="size-3" /> HWP 받기
                   </button>
@@ -134,13 +129,6 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
                 <button onClick={() => pickUpload(c)} disabled={isPending}
                   className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
                   <Upload className="size-3" /> 업로드
-                </button>
-              </>)}
-              {c.kind === 'generate-plan' && (<>
-                <span className="text-ink flex-1 truncate">{c.label}</span>
-                <button onClick={() => generatePlan(c)} disabled={isPending}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
-                  <Send className="size-3" /> 생성 요청
                 </button>
               </>)}
             </div>

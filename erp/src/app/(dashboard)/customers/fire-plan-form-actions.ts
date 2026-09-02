@@ -4,8 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { buildFirePlanHtml, type FirePlanGenData } from '@/lib/fire-plan-template'
-import { assembleFirePlan, firePlanSourceHash, generateFirePlanNow } from '@/lib/fire-plan-generate'
-import { requestFirePlanHwpAction } from '@/app/(dashboard)/fire-plans/generate/actions'
+import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { extractRoadName, type RoadTier } from '@/lib/address-parser'
 import { buildSurroundingsDraft } from '@/lib/fire-plan-suggest'
 
@@ -290,15 +289,10 @@ export async function importLegacyFormAction(customerId: string): Promise<{ impo
   return { imported: Object.keys(sections) }
 }
 
-// 소방계획서_7 H-13(2026-08-04): 생성 경로 서버 동기 전환 — 워커·SDK 미경유.
-// requestFirePlanHwpAction이 서버에서 즉시 생성(HTML 템플릿 → Gotenberg PDF → 보관함 등록)한다.
-
-/** 계획서 생성 (생성 바 직결 — 서버 동기 생성, 완료 시 보관함 즉시 등록) */
-export async function requestFirePlanHwpFromTabAction(
-  customerId: string, year: number,
-): Promise<{ requested?: number; error?: string }> {
-  return requestFirePlanHwpAction([customerId], year)
-}
+// 보관함 폐지(2026-09-02 사용자 확정): 발행 계열 액션(requestFirePlanHwpFromTabAction·
+// ensureLatestFirePlanPdfAction)을 걷어냈다 — ERP는 계획서 파일을 저장하지 않는다.
+// 조회는 아래 previewFirePlanHtmlAction(즉석 HTML), 인쇄·PDF는 /customers/[id]/fire-plan/pdf
+// (즉석 Gotenberg, 저장 없음)가 담당한다. 변경 이력은 개정이력(수동 기록)이 단일 창구.
 
 // ── 소방계획서_21 R2 (#2) — 조회를 파일에서 떼어낸다 ─────────────────────────
 // 종전에는 "보려면 파일이 있어야 하고, 파일을 만들면 개정차수가 올랐다". 그래서 사용자가
@@ -325,46 +319,6 @@ export async function previewFirePlanHtmlAction(
   }
 }
 
-/** [인쇄]·[PDF 받기]가 부른다 — 저장본이 낡았으면 **같은 행의 파일만 말없이 교체**하고 최신 경로를 준다.
- *  차수·개정이력은 변하지 않는다(#2 D-4).
- *  **제출 기록이 있는 행은 갱신하지 않는다**(#2 D-6) — 소방서에 낸 PDF를 다시 인쇄할 때 내용이 바뀌면 안 된다. */
-export async function ensureLatestFirePlanPdfAction(
-  planId: string,
-): Promise<{ pdfPath?: string; refreshed?: boolean; frozen?: boolean; error?: string }> {
-  const profile = await requirePermission('customer_manage')
-  const admin = createAdminClient()
-
-  const { data: row } = await admin.from('fire_plans')
-    .select('id, customer_id, year, pdf_path, source_hash, submitted_at, note')
-    .eq('id', planId).single()
-  if (!row) return { error: '계획서를 찾을 수 없습니다.' }
-  const plan = row as {
-    id: string; customer_id: string; year: number
-    pdf_path: string | null; source_hash: string | null; submitted_at: string | null; note: string | null
-  }
-
-  // 제출본 동결 — 갱신 없이 저장본 그대로
-  if (plan.submitted_at) return { pdfPath: plan.pdf_path ?? undefined, refreshed: false, frozen: true }
-  if (!plan.pdf_path) return { error: '저장된 PDF가 없습니다 — [개정 발행]으로 먼저 생성해주세요.' }
-
-  // 업로드분은 우리가 조립한 문서가 아니다 — 해시로 판정할 수 없으므로 손대지 않는다
-  if (!/^자동 생성/.test(plan.note ?? '')) return { pdfPath: plan.pdf_path, refreshed: false }
-
-  try {
-    const { data, images, assets } = await assembleFirePlan(admin, plan.customer_id, plan.year)
-    const hash = firePlanSourceHash({ data, images, assets })
-    if (plan.source_hash && plan.source_hash === hash) {
-      return { pdfPath: plan.pdf_path, refreshed: false }   // 최신 — Gotenberg 미호출
-    }
-    const res = await generateFirePlanNow(admin, {
-      customerId: plan.customer_id, year: plan.year,
-      requestedBy: profile.id, mode: 'reissue', targetPlanId: plan.id,
-    })
-    if (res.error) return { error: res.error }
-    const { data: fresh } = await admin.from('fire_plans').select('pdf_path').eq('id', plan.id).single()
-    revalidatePath(`/customers/${plan.customer_id}`)
-    return { pdfPath: (fresh as { pdf_path: string | null } | null)?.pdf_path ?? undefined, refreshed: true }
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) }
-  }
-}
+// ensureLatestFirePlanPdfAction 삭제(2026-09-02) — 저장본 자체가 없어졌으므로 '낡은 저장본 갱신'
+// 개념이 소멸했다. 인쇄·PDF는 라우트가 매번 즉석 생성한다(항상 최신). firePlanSourceHash·
+// generateFirePlanNow(lib/fire-plan-generate)도 이 액션과 함께 은퇴했다.

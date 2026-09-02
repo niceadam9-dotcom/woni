@@ -1,24 +1,22 @@
 import 'server-only'
 
-/** 소방계획서 서버 동기 생성 (소방계획서_7 H-12·H-13)
+/** 소방계획서 조립 (소방계획서_7 H-12·H-13 → 2026-09-02 보관함 폐지)
  *
- *  기존 워커(scripts/fireplan-worker.py process — SDK HWP 병합)의 데이터 조립을 TS로 완결 이식:
- *  고객·건물·시설·관계인·자위소방대·fire_plan_forms.sections를 모아
- *  buildFirePlanHtml(웹 템플릿 v2) → Gotenberg PDF → fire-plans 버킷 업로드 → fire_plans 등록.
- *  §6: hwp_path는 신규 기록하지 않고 pdf_status는 즉시 'ready' (2단계 변환 없음). */
+ *  고객·건물·시설·관계인·자위소방대·fire_plan_forms.sections를 모아 렌더 재료를 만든다.
+ *  종전의 저장 경로(generateFirePlanNow: Gotenberg PDF → 버킷 업로드 → fire_plans 등록 →
+ *  개정이력 자동 기록)는 보관함 폐지로 전부 은퇴 — 소비처는 즉석 미리보기
+ *  (previewFirePlanHtmlAction)와 즉석 PDF 라우트(/customers/[id]/fire-plan/pdf)뿐이고
+ *  둘 다 파일을 만들지 않는다. 개정이력은 수동 기록(fire_plan_revisions)이 단일 창구다. */
 
-import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { appendGeneratedRevision } from '@/lib/fire-plan-revisions'
 import {
-  buildFirePlanHtml, FACILITY_FORM,
+  FACILITY_FORM,
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
 } from '@/lib/fire-plan-template'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
-import { convertHtmlToPdf } from '@/lib/pdf'
 import { listCustomerAssets, ASSET_BUCKET } from '@/lib/customer-assets'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -84,7 +82,7 @@ export async function assembleFirePlan(
   customerId: string,
   year: number,
 ): Promise<AssembledFirePlan> {
-  const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, plansRes, revRowsRes] = await Promise.all([
+  const [custRes, contactRes, bldRes, companyRes, formRes, brigadeRes, revRowsRes] = await Promise.all([
     admin.from('customers')
       .select('customer_name, address, use_approval_date, fire_station, inspection_type, plan_anchor_date, contract_date, '
         + 'building_grade, manager_selected_at, insurance_joined, insurance_company, insurance_period, '
@@ -107,7 +105,6 @@ export async function assembleFirePlan(
     admin.from('company_profile').select('company_name, address, phone, representative, business_number').limit(1).maybeSingle(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
     admin.from('fire_brigade_members').select('team, name, duty, phone').eq('customer_id', customerId).order('sort_order'),
-    admin.from('fire_plans').select('year, revision, note, created_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
     // 개정이력(120) — 인쇄는 전 연도 시계열 오름차순
     admin.from('fire_plan_revisions')
       .select('revised_on, content, author_name, reviewer_name, approver_name')
@@ -177,27 +174,19 @@ export async function assembleFirePlan(
     ...assistantRows,
   ]
 
-  // 개정이력 — 마이그레이션 120 fire_plan_revisions가 단일 원천 (소방계획서_17 §2-4).
-  // 행이 하나도 없으면(백필 전·조회 실패) 종전 경로(fire_plans 파생)로 폴백해 표가 비지 않게 한다.
-  // B-5b(소방계획서_19 M-13): 폴백 행 작성자도 공란 대신 소방안전관리자(선임자→대표) — 120 경로의
-  // appendGeneratedRevision authorName 규약과 동일. 검토·승인은 수기 서명 운용이라 빈칸 유지.
-  const revisions = revRowsRes.data && revRowsRes.data.length > 0
-    ? (revRowsRes.data as Array<{
-        revised_on: string | null; content: string | null
-        author_name: string | null; reviewer_name: string | null; approver_name: string | null
-      }>).map(r => ({
-        date: (r.revised_on ?? '').slice(0, 10),
-        note: r.content ?? '',
-        author: r.author_name ?? '',
-        reviewer: r.reviewer_name ?? '',
-        approver: r.approver_name ?? '',
-      }))
-    : ((plansRes.data ?? []) as Array<{ year: number; revision: number; note: string | null; created_at: string }>)
-      .map(p => ({
-        date: p.created_at.slice(0, 10),
-        note: p.note ?? `${p.year}년 소방계획서${p.revision > 1 ? ` (개정${p.revision})` : ' 작성'}`,
-        author: managerName, reviewer: '', approver: '',
-      }))
+  // 개정이력 — fire_plan_revisions(120, 수동 기록)가 단일 원천 (소방계획서_17 §2-4 → 2026-09-02).
+  // 종전의 fire_plans 파생 폴백은 보관함 폐지로 제거 — 파일 행은 더 늘지 않는 낡은 축이라,
+  // 이력이 없는 고객에게 옛 파일 등록 기록을 이력인 양 인쇄하는 것이 빈 표보다 나쁘다.
+  const revisions = ((revRowsRes.data ?? []) as Array<{
+    revised_on: string | null; content: string | null
+    author_name: string | null; reviewer_name: string | null; approver_name: string | null
+  }>).map(r => ({
+    date: (r.revised_on ?? '').slice(0, 10),
+    note: r.content ?? '',
+    author: r.author_name ?? '',
+    reviewer: r.reviewer_name ?? '',
+    approver: r.approver_name ?? '',
+  }))
   const brigadeRows = (brigadeRes.data ?? []) as Array<{ team: string; name: string; duty: string | null; phone: string | null }>
 
   // 설치 시설 → 서식 1.4 항목 — 표준 코드(100) 정확 일치, 레거시 잔존분은 toStandardCodes로 정규화
@@ -429,139 +418,8 @@ export async function assembleFirePlan(
   return { data, images, assets, missing }
 }
 
-/** 안정 직렬화 — 키 정렬 후 JSON. 같은 내용이면 항상 같은 문자열이 나와야 해시가 흔들리지 않는다
- *  (plan-text-sections.ts planTextBodyEquals의 키 정렬 비교가 선례) */
-function stableStringify(v: unknown): string {
-  if (v === null || v === undefined || typeof v !== 'object') return JSON.stringify(v ?? null) ?? 'null'
-  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`
-  const o = v as Record<string, unknown>
-  return `{${Object.keys(o).sort().map(k => `${JSON.stringify(k)}:${stableStringify(o[k])}`).join(',')}}`
-}
-
-/** 조립 결과 해시 (소방계획서_21 R2 / #2 D-7) — 저장된 PDF가 최신인지 판정하는 단일 근거.
- *  fire_plan_forms.updated_at만 보면 고객·건물·설비 대장·자위소방대 변경을 놓치는데
- *  계획서 내용의 상당 부분이 거기서 온다. 인쇄 시 어차피 조립하므로 추가 비용이 거의 없다.
- *  사진(assets)은 **바이트까지** 넣는다 — 같은 파일명으로 교체해도 잡아야 하기 때문이다. */
-export function firePlanSourceHash(a: {
-  data: FirePlanGenData
-  images: FirePlanImageRef[]
-  assets: FirePlanAsset[]
-}): string {
-  const h = createHash('sha1')
-  h.update(stableStringify(a.data))
-  h.update(stableStringify(a.images))
-  // presetPairs 축 제거(2026-08-19 프리셋 폐지) — 해시 입력이 바뀌므로 기존 fire_plans.source_hash는
-  // 한 번 불일치로 판정된다. [인쇄]·[PDF]가 그때 한 번 다시 만들고 이후로는 안정된다(내용은 동일).
-  for (const asset of [...a.assets].sort((x, y) => x.name.localeCompare(y.name))) {
-    h.update(asset.name)
-    h.update(asset.data)
-  }
-  return h.digest('hex')
-}
-
-export type FirePlanGenResult = { planId?: string; missing?: string[]; error?: string; sourceHash?: string }
-
-/** 소방계획서 1건 서버 동기 생성 — HTML 렌더 → Gotenberg PDF → 업로드 → fire_plans 등록 (H-13)
- *  §6: hwp 신규 기록 없음, pdf_status 즉시 'ready'. 잡 행 기록은 호출자(액션)가 담당.
- *
- *  mode (소방계획서_21 R2 / #2 D-4·D-5):
- *   - 'revise'(기본)  = 개정 발행. 새 행 + revision +1 + 개정이력 1행 — 사람이 "이 내용으로 확정"할 때만.
- *   - 'reissue'       = **같은 행의 파일만 교체.** 차수·개정이력 불변. [인쇄]가 낡은 PDF를 말없이 갱신하는 경로다.
- *                       targetPlanId 필수. 옛 파일은 교체 성공 후 정리한다. */
-export async function generateFirePlanNow(
-  admin: Admin,
-  opts: {
-    customerId: string; year: number; requestedBy?: string | null
-    mode?: 'revise' | 'reissue'
-    /** mode='reissue'일 때 파일을 갈아끼울 대상 행 */
-    targetPlanId?: string
-  },
-): Promise<FirePlanGenResult> {
-  const { customerId, year } = opts
-  const mode = opts.mode ?? 'revise'
-  if (mode === 'reissue' && !opts.targetPlanId) return { error: '갱신 대상이 지정되지 않았습니다.' }
-  try {
-    const { data, images, assets, missing } = await assembleFirePlan(admin, customerId, year)
-    const sourceHash = firePlanSourceHash({ data, images, assets })
-    const html = buildFirePlanHtml(data, images)
-
-    // P-3 생성 품질 게이트(워커 verify_merge 계열) — 값이 있는데 생성물에 없으면 병합 확인 실패
-    const text = html.replace(/<[^>]+>/g, ' ')
-    for (const [label, value] of [['고객명', data.buildingName], ['주소', data.address]] as Array<[string, string]>) {
-      if (value.trim() && !text.includes(value.trim())) missing.push(`병합 확인 실패: ${label}`)
-    }
-
-    const pdf = await convertHtmlToPdf(html, assets, { marginMode: 'none', timeoutMs: 120_000 })
-
-    const stamp = Date.now()
-    const base = `${customerId}/${year}/generated_web_${stamp}`
-    const upHtml = await admin.storage.from(BUCKET)
-      .upload(`${base}.html`, new TextEncoder().encode(html), { contentType: 'text/html; charset=utf-8' })
-    if (upHtml.error) return { error: `HTML 업로드 실패: ${upHtml.error.message}` }
-    const upPdf = await admin.storage.from(BUCKET)
-      .upload(`${base}.pdf`, pdf, { contentType: 'application/pdf' })
-    if (upPdf.error) {
-      await admin.storage.from(BUCKET).remove([`${base}.html`])
-      return { error: `PDF 업로드 실패: ${upPdf.error.message}` }
-    }
-
-    // ── mode='reissue' — 대상 행의 파일만 교체. 차수·개정이력은 손대지 않는다 (#2 D-4) ──
-    if (mode === 'reissue') {
-      const { data: target } = await admin.from('fire_plans')
-        .select('id, pdf_path, html_path').eq('id', opts.targetPlanId!).single()
-      if (!target) {
-        await admin.storage.from(BUCKET).remove([`${base}.pdf`, `${base}.html`])
-        return { error: '갱신 대상을 찾을 수 없습니다.' }
-      }
-      const old = target as { id: string; pdf_path: string | null; html_path: string | null }
-      const { error: updErr } = await admin.from('fire_plans').update({
-        pdf_path: `${base}.pdf`, html_path: `${base}.html`, pdf_status: 'ready', source_hash: sourceHash,
-      } as Record<string, unknown>).eq('id', old.id)
-      if (updErr) {
-        await admin.storage.from(BUCKET).remove([`${base}.pdf`, `${base}.html`])
-        return { error: `보관함 갱신 실패: ${updErr.message}` }
-      }
-      // 교체가 확정된 뒤에만 옛 파일을 지운다 — 먼저 지우면 update 실패 시 복구 불가
-      const stale = [old.pdf_path, old.html_path].filter((p): p is string => !!p && p !== `${base}.pdf` && p !== `${base}.html`)
-      if (stale.length > 0) await admin.storage.from(BUCKET).remove(stale)
-      return { planId: old.id, missing, sourceHash }
-    }
-
-    // 보관함 등록 — 개정 차수 = 같은 연도 기존 행 수 + 1 (워커와 동일 규약)
-    const { data: existing } = await admin.from('fire_plans')
-      .select('id').eq('customer_id', customerId).eq('year', year)
-    const revisionNo = (existing?.length ?? 0) + 1
-    const { data: inserted, error: insErr } = await admin.from('fire_plans').insert({
-      customer_id: customerId,
-      year,
-      title: `${year}년 소방계획서`,
-      pdf_name: `${year}년 소방계획서.pdf`,
-      pdf_path: `${base}.pdf`,
-      pdf_status: 'ready',
-      html_path: `${base}.html`,
-      hwp_name: null,
-      hwp_path: null,
-      revision: revisionNo,
-      source_hash: sourceHash,
-      note: '자동 생성 (표준양식 웹 템플릿)',
-      uploaded_by: opts.requestedBy ?? null,
-    } as Record<string, unknown>).select('id').single()
-    if (insErr) {
-      await admin.storage.from(BUCKET).remove([`${base}.pdf`, `${base}.html`])
-      return { error: `보관함 등록 실패: ${insErr.message}` }
-    }
-    const planId = (inserted as { id: string }).id
-    // 개정이력 1행 자동 기록 (120 — 소방계획서_17 §2-2). best-effort:
-    // 이력 기록에 실패해도 생성 자체는 되돌리지 않는다(파일은 남는 편이 낫다).
-    await appendGeneratedRevision(admin, {
-      customerId, year, firePlanId: planId,
-      content: `${year}년 소방계획서${revisionNo > 1 ? ` (개정${revisionNo})` : ' 작성'}`,
-      source: 'generated',
-      authorName: data.managerName,
-      createdBy: opts.requestedBy ?? null,
-    }).catch(() => {})
-    return { planId, missing, sourceHash }
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) }
-  }
-}
+// firePlanSourceHash·generateFirePlanNow 삭제(2026-09-02 보관함 폐지) —
+// '저장본이 최신인가' 판정과 파일 등록(버킷 업로드 → fire_plans insert/reissue →
+// appendGeneratedRevision 자동 이력)은 저장본 자체가 사라지며 성립하지 않는다.
+// 즉석 PDF 라우트가 매번 assembleFirePlan → buildFirePlanHtml → Gotenberg로 만든다(항상 최신).
+// lib/fire-plan-revisions.ts(자동 이력 헬퍼)도 함께 삭제 — 개정이력은 수동 기록만 남는다.

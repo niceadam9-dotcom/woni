@@ -58,18 +58,9 @@ export type InspectionDocs = {
   certArchived: boolean
 }
 
-export type CustomerDocs = {
-  customerId: string
-  customerName: string
-  inspectionType: string
-  firePlan: {
-    id: string; year: number; title: string | null; revision: number | null
-    pdfPath: string | null; pdfName: string | null; hwpPath: string | null; hwpName: string | null
-    updatedAt: string | null
-  } | null
-  inspections: InspectionDocs[]
-  summary: { need: number; have: number; warns: number }
-}
+// CustomerDocs·getCustomerDocsAction 삭제(2026-09-02 보관함 폐지) — 유일한 소비자였던
+// CustomerDocsView(보고서 센터 해체 후 이미 렌더되지 않던 죽은 화면)와 함께 걷어냈다.
+// 점검 건 단위 문서 상태(InspectionDocs)는 회차 로더가 계속 쓴다.
 
 function latestGroup(objects: Array<{ name: string; created_at?: string | null }>, kind: string, prefix: string): DocGroupRef | null {
   const re = new RegExp(`^${kind}_(\\d+)\\.(hwpx?|pdf|html?)$`, 'i')
@@ -131,66 +122,6 @@ async function buildInspectionDocs(
     cert: cert ? { path: `${prefix}/${cert.name}`, at: cert.created_at ?? null } : null,
     contract: contract ? { path: `${prefix}/${contract.name}`, at: contract.created_at ?? null } : null,
     certArchived: !cert && !!archivedCerts?.has(i.id),
-  }
-}
-
-export async function getCustomerDocsAction(customerId: string): Promise<{ docs?: CustomerDocs; error?: string }> {
-  await requirePermission('inspection_register')
-  const admin = createAdminClient()
-  const { data: cust } = await admin.from('customers')
-    .select('id, customer_name, inspection_type').eq('id', customerId).single()
-  if (!cust) return { error: '고객을 찾을 수 없습니다.' }
-  const c = cust as { id: string; customer_name: string; inspection_type: string }
-
-  const [planRes, inspRes] = await Promise.all([
-    admin.from('fire_plans')
-      .select('id, year, title, revision, pdf_path, pdf_name, hwp_path, hwp_name, created_at')
-      .eq('customer_id', customerId)
-      .order('year', { ascending: false }).order('revision', { ascending: false }).limit(1),
-    admin.from('inspections')
-      .select('id, year, sequence_num, inspection_type, status, plan_type, inspection_start_date, inspection_end_date')
-      .eq('customer_id', customerId)
-      .order('inspection_start_date', { ascending: false, nullsFirst: false })
-      .limit(6),
-  ])
-  const plan = (planRes.data?.[0] ?? null) as {
-    id: string; year: number; title: string | null; revision: number | null
-    pdf_path: string | null; pdf_name: string | null; hwp_path: string | null; hwp_name: string | null; created_at: string | null
-  } | null
-
-  // 자체점검(special_*·null)만 문서 절차 대상 — 정기(monthly)·레거시 event는 행에서 제외.
-  // 관리유형 무관 (소방계획서_6 W-16) — 일반관리 자체점검도 동일 행 구성
-  const inspRows = ((inspRes.data ?? []) as InspRow[]).filter(i =>
-    !i.plan_type || i.plan_type.startsWith('special'))
-
-  // 종이 보관 후 정리된 회차(D-7 ⚠) — 파일이 없어도 '미업로드'로 표시하지 않는다
-  const archivedCerts = await findArchivedCertInspections(admin, inspRows.map(i => i.id))
-  const inspections: InspectionDocs[] = await Promise.all(
-    inspRows.map(i => buildInspectionDocs(admin, customerId, i, archivedCerts)))
-
-  // 요약 게이지 (R2-c): 필요 문서 n종 중 m종 보유 — 소방계획서 + 점검 건별 (9호·배치확인서 필수 / 10·11호는 불량 시 / 사진·계약서는 선택이라 제외)
-  // 일반관리 특례 없음 (소방계획서_6 W-16) — 전 유형 동일 판정
-  let need = 0, have = 0, warns = 0
-  const tally = (n: boolean, h: boolean) => { if (!n) return; need += 1; if (h) have += 1; else warns += 1 }
-  tally(true, !!plan)
-  for (const i of inspections) {
-    tally(true, !!i.report9)
-    tally(true, !!i.cert || i.certArchived)   // 종이 보관 정리분은 누락이 아니다(D-7 ⚠)
-    tally(i.defects.total > 0, !!i.report10)
-    tally(i.defects.total > 0, !!i.report11)
-  }
-
-  return {
-    docs: {
-      customerId, customerName: c.customer_name, inspectionType: c.inspection_type,
-      firePlan: plan ? {
-        id: plan.id, year: plan.year, title: plan.title, revision: plan.revision,
-        pdfPath: plan.pdf_path, pdfName: plan.pdf_name, hwpPath: plan.hwp_path, hwpName: plan.hwp_name,
-        updatedAt: plan.created_at,
-      } : null,
-      inspections,
-      summary: { need, have, warns },
-    },
   }
 }
 
@@ -356,11 +287,11 @@ export async function getCustomerRoundsAction(customerId: string): Promise<{ dat
 
 export type DocCommand =
   | { kind: 'open-docs'; customerId: string; customerName: string; label: string }
-  /** 별지 산출물이면 inspectionId를 싣는다 — 저장명은 `/inspections/{id}/doc` 라우트가 붙는다.
-   *  saveBase는 그 규약 밖인 소방계획서 파일에만 쓴다(둘 중 하나만 채워진다). */
-  | { kind: 'open-file'; customerId: string; customerName: string; label: string; pdfPath?: string; hwpPath?: string; saveBase?: string; inspectionId?: string }
+  /** 별지 산출물 — 저장명은 `/inspections/{id}/doc` 라우트가 붙는다.
+   *  소방계획서 파일 명령·생성 요청 명령은 보관함 폐지(2026-09-02)로 소멸 — 계획서는
+   *  고객 소방계획서 탭에서 즉석 조회·인쇄한다. */
+  | { kind: 'open-file'; customerId: string; customerName: string; label: string; pdfPath?: string; hwpPath?: string; inspectionId?: string }
   | { kind: 'upload-cert'; customerId: string; customerName: string; label: string; inspectionId: string }
-  | { kind: 'generate-plan'; customerId: string; customerName: string; label: string }
 
 export async function searchDocCommandsAction(q: string): Promise<{
   customers: Array<{ id: string; name: string; type: string }>
@@ -381,32 +312,19 @@ export async function searchDocCommandsAction(q: string): Promise<{
   const customers = matched.map(c => ({ id: c.id, name: c.customer_name, type: c.inspection_type }))
   if (matched.length === 0) return { customers, commands: [] }
 
-  // 최상위 매칭 고객의 문서·행동 후보 (4-0-13-(1)) — 최신 계획서·최신 9호·배치확인서 업로드·생성.
+  // 최상위 매칭 고객의 문서·행동 후보 (4-0-13-(1)) — 최신 9호·배치확인서 업로드.
+  // 소방계획서 파일 명령은 보관함 폐지(2026-09-02)로 제거 — 파일이 더는 만들어지지 않는다.
   // 일반관리 특례 없음 (소방계획서_6 W-16) — 전 유형 동일 후보
   const top = matched[0]
   const commands: DocCommand[] = [
     { kind: 'open-docs', customerId: top.id, customerName: top.customer_name, label: `${top.customer_name} — 문서 현황 열기` },
   ]
-  const [planRes, inspRes] = await Promise.all([
-    admin.from('fire_plans')
-      .select('year, revision, pdf_path, hwp_path')
-      .eq('customer_id', top.id).order('year', { ascending: false }).order('revision', { ascending: false }).limit(1),
-    admin.from('inspections')
-      .select('id, year, sequence_num, inspection_type, plan_type, inspection_start_date')
-      .eq('customer_id', top.id)
-      .or('plan_type.is.null,plan_type.like.special_*')
-      .order('inspection_start_date', { ascending: false, nullsFirst: false }).limit(1),
-  ])
-  const plan = (planRes.data?.[0] ?? null) as { year: number; revision: number | null; pdf_path: string | null; hwp_path: string | null } | null
-  if (plan && (plan.pdf_path || plan.hwp_path)) {
-    commands.push({
-      kind: 'open-file', customerId: top.id, customerName: top.customer_name,
-      label: `${top.customer_name} · ${plan.year} 소방계획서${plan.revision ? ` (개정${plan.revision})` : ''}`,
-      pdfPath: plan.pdf_path ?? undefined, hwpPath: plan.hwp_path ?? undefined,
-      saveBase: `${top.customer_name}_소방계획서_${plan.year}`,
-    })
-  }
-  const insp = (inspRes.data?.[0] ?? null) as { id: string; year: number; sequence_num: number } | null
+  const { data: inspData } = await admin.from('inspections')
+    .select('id, year, sequence_num, inspection_type, plan_type, inspection_start_date')
+    .eq('customer_id', top.id)
+    .or('plan_type.is.null,plan_type.like.special_*')
+    .order('inspection_start_date', { ascending: false, nullsFirst: false }).limit(1)
+  const insp = (inspData?.[0] ?? null) as { id: string; year: number; sequence_num: number } | null
   if (insp) {
     const prefix = `${top.id}/inspections/${insp.id}`
     const { data: objects } = await admin.storage.from(BUCKET).list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } })
@@ -430,7 +348,6 @@ export async function searchDocCommandsAction(q: string): Promise<{
       })
     }
   }
-  commands.push({ kind: 'generate-plan', customerId: top.id, customerName: top.customer_name, label: `${top.customer_name} · 소방계획서 생성 요청` })
   return { customers, commands }
 }
 

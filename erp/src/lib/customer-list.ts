@@ -153,7 +153,9 @@ export async function fetchCustomerList(
   // ── 문서 상태 스트립 (§4-B-2) — 당해 연도 기준, DB 배치 판정(storage 미조회, 목록 성능) ──
   const curYear = new Date(Date.now() + 9 * 3600_000).getFullYear()
   const [planRes, inspRes] = await Promise.all([
-    admin.from('fire_plans').select('customer_id').in('customer_id', ids).eq('year', curYear),
+    // 계 셀 = 서식 입력 존재 (2026-09-02 보관함 폐지 — 파일 행(fire_plans)은 더 안 만들어져
+    // 그 축으로 재면 전 고객이 영원히 '없음'이 된다). 빈 껍데기 행({})은 입력이 아니다.
+    admin.from('fire_plan_forms').select('customer_id').in('customer_id', ids).neq('sections', '{}'),
     // 당해 연도 자체점검(special_*·null) — 고객별 최신 1건 판정용
     admin.from('inspections').select('id, customer_id, inspection_start_date')
       .in('customer_id', ids).eq('year', curYear).or('plan_type.is.null,plan_type.like.special_*'),

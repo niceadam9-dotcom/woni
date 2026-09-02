@@ -48,11 +48,14 @@ export function statePill(r: CustomerRound): { label: string; cls: string } {
 }
 
 export function PlanAnnexRoundCard({
-  r, isOpen, inspectionType, customerName, canRegister, isPending, isStarting, entryFrom,
+  r, isOpen, alwaysOpen = false, inspectionType, customerName, canRegister, isPending, isStarting, entryFrom,
   onToggle, onFullPreview, onPreviewSingle, onOpenFile, onGenerate, onUpload, onCompose, onSheetSaved, onStart, feedback,
 }: {
   r: CustomerRound
   isOpen: boolean
+  /** 현재 회차는 접을 수 없다 (2026-09-02 사용자 확정 — 접으면 '지금 할 일'이 숨는다).
+   *  토글·셰브론을 감추고 항상 펼친다. 예정·지난 접힘 섹션 안의 카드만 토글을 유지한다. */
+  alwaysOpen?: boolean
   inspectionType: string
   customerName: string
   canRegister: boolean
@@ -115,8 +118,9 @@ export function PlanAnnexRoundCard({
   return (
     <div className={`rounded-xl border ${isOpen ? 'border-brand-line' : 'border-brand-line-soft'} ${done ? 'bg-paper' : 'bg-surface'}`}>
       {/* 회차 헤더 — S3: 펼침만으로 미리보기를 렌더하지 않는다([보기]·[전체 미리보기]에서 로드) */}
-      <button onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
-        {isOpen ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
+      <button onClick={alwaysOpen ? undefined : onToggle}
+        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left ${alwaysOpen ? 'cursor-default' : ''}`}>
+        {!alwaysOpen && (isOpen ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />)}
         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
         <span className="text-xs font-semibold text-ink">{label}</span>
         {r.plannedDate && <span className="text-[11px] text-ink-meta">{r.plannedDate.slice(5, 10)}</span>}

@@ -37,6 +37,33 @@ const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0
 
 function roundKey(r: CustomerRound) { return `${r.year}-${r.sequenceNum}` }
 
+/** 현재/예정 회차 분리 (2026-09-02 사용자 확정 — "현재 데이터만").
+ *
+ *  롤링 생성(올해+내년)이 미시작 회차를 3~4건씩 상시 만들면서, 가장 먼 미래(내년 2차)가
+ *  내림차순 정렬로 맨 위에 펼쳐지고 실제 작업 중인 회차는 아래로 밀렸다. 그래서:
+ *   · 현재 = 시작된 회차 전부(통상 1건) + 예정일이 이미 지난 미시작(방치 — 눈에 띄어야 한다).
+ *     하나도 없으면 가장 가까운 미시작 1건을 현재로 승격한다.
+ *   · 예정 = 그 밖의 미래 미시작 — "예정 회차 N건" 접힘(가까운 순). 조기 착수는 펼쳐서 [이 회차 시작].
+ *  종합 고객의 최초/작동/종합 교대는 여기서 자동이다 — 시기가 오면 그 회차가 '현재'로 올라온다.
+ *  auto-expand(reload)와 렌더가 같은 판정을 봐야 하므로 순수 함수로 뺐다. */
+function splitRounds(rounds: CustomerRound[]) {
+  const active = rounds.filter(r => r.state !== 'completed')
+  const today = todayStr()
+  const dateKey = (r: CustomerRound) => r.plannedDate ?? `${r.year}-${String(r.sequenceNum * 6).padStart(2, '0')}`
+  const startedOrDue = active
+    .filter(r => r.state !== 'planned' || dateKey(r) <= today)
+    .sort((a, b) => {
+      const sa = a.state !== 'planned' ? 0 : 1
+      const sb = b.state !== 'planned' ? 0 : 1
+      return sa !== sb ? sa - sb : dateKey(a).localeCompare(dateKey(b))
+    })
+  const future = active.filter(r => !startedOrDue.includes(r))
+    .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
+  const current = startedOrDue.length > 0 ? startedOrDue : future.slice(0, 1)
+  const upcoming = startedOrDue.length > 0 ? future : future.slice(1)
+  return { current, upcoming }
+}
+
 export function PlanAnnexSection({ customerId, canRegister = false }: {
   customerId: string
   /** 역할 축 권한 — 점검표 인라인 입력 노출 게이트(점검 건 축은 액션이 반환) */
@@ -57,6 +84,8 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
   // 델리게이션 앵커였던 data-hover-doc 속성도 함께 제거했다(독립 검증 지적 — 남겨두면 기능이 있는 줄 오인).
   // S2(소방계획서_20): 완료 회차는 "지난 회차 N건" 접힘 섹션 — 기본 닫힘, 상세는 클릭 시 지연 로드
   const [pastOpen, setPastOpen] = useState(false)
+  // 미래 미시작 회차도 접힘 (2026-09-02) — 현재 회차 1건만 즉시 보인다
+  const [upcomingOpen, setUpcomingOpen] = useState(false)
   const [loadingRound, setLoadingRound] = useState<string | null>(null)
   // H-3: 미시작 회차 점검일 확정 모달
   const [startModal, setStartModal] = useState<{ planItemId: string; label: string } | null>(null)
@@ -104,9 +133,9 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
       // 독립 검증 지적(2026-08-04): 재생성·저장 후 미리보기 캐시가 낡음 — reload마다 무효화(재열람 시 재렌더)
       if (!first) setPreviewCache({})
       if (first) {
-        // 최신 회차 자동 펼침 (D-4). S2 이후 완료 회차는 접힘 섹션 안이라 자동 펼침 대상에서 뺀다 —
-        // 열어도 보이지 않고, 상세를 지연 로드하려는 취지와도 어긋난다.
-        const firstActive = res.data.rounds.find(r => r.state !== 'completed')
+        // 현재 회차 자동 펼침 (D-4 → 2026-09-02 개정). 종전 '첫 번째 비완료'는 내림차순이라
+        // 가장 먼 미래(내년 2차)를 펼쳤다 — splitRounds가 정한 '현재'를 펼친다.
+        const firstActive = splitRounds(res.data.rounds).current[0]
         if (firstActive) {
           setExpanded(new Set([roundKey(firstActive)]))
           // 유휴 예열 폐지(2026-08-20). S3가 마운트 직후 렌더를 2.5초 뒤로 미뤄 뒀지만, **누르지도 않은**
@@ -262,9 +291,9 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     return <p className="text-xs text-ink-meta py-4 inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 회차를 불러오는 중…</p>
   }
 
-  // S2: 진행 중·예정만 카드로 펼쳐 두고 완료 회차는 접힘 섹션으로 내린다.
-  // 방치된 예정(과거 연도 planned)은 완료가 아니므로 접힘에 숨기지 않는다 — 눈에 띄어야 한다.
-  const activeRounds = rounds.filter(r => r.state !== 'completed')
+  // 현재 회차만 카드로 펼치고, 미래 미시작은 "예정 회차" 접힘, 완료는 "지난 회차" 접힘 (S2 + 2026-09-02).
+  // 방치된 예정(예정일이 지난 planned)은 완료가 아니므로 현재에 남는다 — 눈에 띄어야 한다.
+  const { current: currentRounds, upcoming: upcomingRounds } = splitRounds(rounds)
   const pastRounds = rounds.filter(r => r.state === 'completed')
   const pastYears = [...new Map(pastRounds.map(r => [r.year, [] as CustomerRound[]])).entries()]
     .map(([y]) => [y, pastRounds.filter(r => r.year === y)] as const)
@@ -298,12 +327,13 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
     )
   }
 
-  const renderCard = (r: CustomerRound) => {
+  // 현재 회차(alwaysOpen)는 접을 수 없다 — 항상 펼침 (2026-09-02 사용자 확정)
+  const renderCard = (r: CustomerRound, alwaysOpen = false) => {
     const key = roundKey(r)
     const label = `${r.year}년 ${r.sequenceNum}차`
     return (
       <PlanAnnexRoundCard
-        key={key} r={r} isOpen={expanded.has(key)}
+        key={key} r={r} isOpen={alwaysOpen || expanded.has(key)} alwaysOpen={alwaysOpen}
         inspectionType={data.inspectionType} customerName={data.customerName}
         canRegister={canRegister} isPending={isPending} isStarting={isStarting}
         entryFrom={`/customers/${customerId}?tab=annex`}
@@ -332,7 +362,25 @@ export function PlanAnnexSection({ customerId, canRegister = false }: {
         </p>
       )}
 
-      {activeRounds.map(r => renderCard(r))}
+      {currentRounds.map(r => renderCard(r, true))}
+
+      {/* 예정(미래 미시작) 회차 — 기본 접힘 (2026-09-02). 펼치면 기존 카드 그대로라 [이 회차 시작]으로
+          조기 착수도 가능하다. 회차 데이터 자체는 법정 자체점검 단위라 그대로다 — 화면만 접는다. */}
+      {upcomingRounds.length > 0 && (
+        <div className="pt-1">
+          <button onClick={() => setUpcomingOpen(v => !v)}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-ink-soft hover:bg-brand-tint rounded-lg">
+            {upcomingOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            예정 회차 {upcomingRounds.length}건
+            {!upcomingOpen && <span className="text-ink-meta font-normal">— 아직 시기가 아닙니다 (시기가 오면 위로 올라옵니다)</span>}
+          </button>
+          {upcomingOpen && (
+            <div className="mt-1.5 space-y-3">
+              {upcomingRounds.map(r => renderCard(r))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* S2: 지난(완료) 회차 — 기본 접힘. 요약만 싣고 상세는 열 때 지연 로드해 마운트 왕복을 줄인다 */}
       {pastRounds.length > 0 && (

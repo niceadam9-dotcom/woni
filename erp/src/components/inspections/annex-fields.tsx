@@ -71,7 +71,7 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
       hint: '2쪽 자체점검 칸 — ERP 도입 전 이력(종이·타사)은 자동 판정에 안 잡힌다' },
     { key: 'firePlanWritten', label: '소방계획서 작성 여부', type: 'select',
       options: [
-        { value: '', label: '자동 판정 (소방계획서 보관함 등록분)' },
+        { value: '', label: '자동 판정 (소방계획서 서식 입력 존재)' },
         { value: '작성', label: '작성으로 기재 (수동 확정)' },
         { value: '미작성', label: '미작성으로 기재 (수동 확정)' },
       ],

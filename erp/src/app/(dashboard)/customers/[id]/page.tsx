@@ -10,7 +10,7 @@ import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { FireSafetyManagerPanel } from '@/components/customers/fire-safety-manager-panel'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
-import { FirePlansClient, type FirePlanRow } from '@/components/customers/fire-plans-client'
+import { FirePlanViewClient } from '@/components/customers/fire-plan-view'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
@@ -142,11 +142,11 @@ export default async function CustomerDetailPage({
       .eq('entity_id', id)
       .order('created_at', { ascending: false })
       .limit(50),
+    // 보관함 폐지(2026-09-02) — fire_plans는 §7-3b 레거시 임포트 후보 판정(pdf_path)에만 읽는다.
+    // 새 행은 더 이상 만들어지지 않는다(조회·인쇄는 즉석 생성).
     admin.from('fire_plans')
-      .select('id, year, title, pdf_name, pdf_path, pdf_status, html_path, hwp_name, hwp_path, note, revision, submitted_at, fire_station, created_at, uploaded_by, fire_plan_attachments(id, kind, file_name)')
-      .eq('customer_id', id)
-      .order('year', { ascending: false })
-      .order('created_at', { ascending: false }),
+      .select('pdf_path')
+      .eq('customer_id', id),
     admin.from('billing_profiles')
       .select('business_no, company_name, rep_name, address, business_type, business_item, tax_email, note')
       .eq('customer_id', id).maybeSingle(),
@@ -285,21 +285,7 @@ export default async function CustomerDetailPage({
     if (r.status === 'completed') stepCounts[r.inspection_id].completed++
   }
 
-  const firePlans: FirePlanRow[] = ((firePlansRes.data ?? []) as Array<{
-    id: string; year: number; title: string | null; pdf_name: string | null; pdf_path: string | null
-    pdf_status: string; html_path: string | null
-    hwp_name: string | null; hwp_path: string | null; note: string | null; revision: number | null
-    submitted_at: string | null; fire_station: string | null; created_at: string; uploaded_by: string | null
-    fire_plan_attachments: Array<{ id: string; kind: string; file_name: string }> | null
-  }>).map(p => ({
-    id: p.id, year: p.year, title: p.title, pdf_name: p.pdf_name,
-    pdf_status: p.pdf_status, has_html: !!p.html_path,
-    hwp_name: p.hwp_name, note: p.note, created_at: p.created_at,
-    revision: p.revision ?? 1, submitted_at: p.submitted_at, fire_station: p.fire_station,
-    attachments: p.fire_plan_attachments ?? [],
-    uploader_name: p.uploaded_by ? (profileNameMap.get(p.uploaded_by) ?? null) : null,
-    generated: (p.pdf_path ?? p.hwp_path ?? '').includes('generated_'),
-  }))
+  // firePlans 매핑 폐지(2026-09-02 보관함 폐지) — firePlansRes는 아래 importCandidate 판정에만 쓴다
 
   const assignedEmployee = customer.assigned_employee_id
     ? employees.find(e => e.id === customer.assigned_employee_id)
@@ -706,7 +692,7 @@ export default async function CustomerDetailPage({
       initialSection={sub}
       initialForm={planInitialForm}
       formStatus={formStatus}
-      archive={<FirePlansClient customerId={customer.id} plans={firePlans} canManage={canManage} />}
+      archive={<FirePlanViewClient customerId={customer.id} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}

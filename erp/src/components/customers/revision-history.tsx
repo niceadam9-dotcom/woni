@@ -11,11 +11,11 @@ import { DateInput } from '@/components/ui/date-input'
 import { useUnsavedWarning } from '@/components/ui/fields'
 import { todayKst } from '@/lib/kst-date'
 
-/** 보관함 개정이력 — 연도별 히스토리 (소방계획서_17.md §2-5)
+/** 개정이력 — 연도별 히스토리 (소방계획서_17.md §2-5 → 2026-09-02 보관함 폐지로 수동 기록 단일 창구)
  *
  *  화면은 연도로 묶고(최신 연도만 펼침), 인쇄는 전 연도 시계열 통합이다 —
  *  법정 서식의 개정이력은 그 문서 전체의 이력이라 연도로 쪼개지 않는다.
- *  자동 행(생성·업로드 실적)은 일자·출처가 잠기고 서술·작성자·검토·승인만 고칠 수 있다. */
+ *  자동 기록 중단·잠금 해제 — 과거 자동 행(생성·업로드 배지)도 전 필드 수정·삭제 가능. */
 
 type Draft = { revisedOn: string; content: string; authorName: string; reviewerName: string; approverName: string }
 const EMPTY_DRAFT: Draft = { revisedOn: '', content: '', authorName: '', reviewerName: '', approverName: '' }
@@ -84,9 +84,8 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
           if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
           setOpenYears(p => new Set(p).add(addYear))
         } else if (editId && editingRow) {
-          // 자동 행은 일자를 서버가 거부하므로 아예 보내지 않는다
-          const patch = editingRow.source === 'manual' ? draft : { ...draft, revisedOn: undefined }
-          const res = await updateRevisionAction(customerId, editId, patch)
+          // 잠금 해제(2026-09-02 보관함 폐지) — 자동 행도 일자 포함 전 필드 수정 가능
+          const res = await updateRevisionAction(customerId, editId, draft)
           if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         } else { resolve(true); return }
         cancel()
@@ -166,7 +165,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
       )}
 
       {years.length === 0 && !addOpen && (
-        <p className="text-[11px] text-ink-meta mb-2">개정이력이 없습니다 — 첫 생성 시 1행이 자동 기록되고, [개정 추가]로 직접 남길 수도 있습니다.</p>
+        <p className="text-[11px] text-ink-meta mb-2">개정이력이 없습니다 — [개정 추가]로 정보 변경 이력을 직접 남기세요.</p>
       )}
 
       <div className="space-y-1.5">
@@ -185,7 +184,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
                 <div className="px-2 pb-1.5 border-t border-brand-line-soft">
                   {g.rows.map(r => (
                     <div key={r.id} data-testid={`rev-row-${r.year}-${r.seq}`} className="border-b border-brand-line-soft last:border-0">
-                      {editId === r.id ? draftFields(r.source === 'manual') : (
+                      {editId === r.id ? draftFields(true) : (
                         <div className="group flex items-start gap-1.5 py-1.5 text-xs">
                           <span className="w-6 shrink-0 text-ink-meta">{r.seq}</span>
                           <span className="w-24 shrink-0 text-ink">{r.revisedOn || '—'}</span>
@@ -204,11 +203,9 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
                               <button onClick={() => startEdit(r)} title="수정" className="p-0.5 text-ink-meta hover:text-ink-sub">
                                 <Pencil className="size-3" />
                               </button>
-                              {r.source === 'manual' && (
-                                <button onClick={() => remove(r)} title="삭제" className="p-0.5 text-ink-meta hover:text-red-500">
-                                  <Trash2 className="size-3" />
-                                </button>
-                              )}
+                              <button onClick={() => remove(r)} title="삭제" className="p-0.5 text-ink-meta hover:text-red-500">
+                                <Trash2 className="size-3" />
+                              </button>
                             </span>
                           )}
                         </div>
@@ -224,7 +221,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
 
       {msg && <p className="text-[11px] text-ink-sub mt-2">{msg}</p>}
       <p className="text-[10px] text-ink-meta mt-2">
-        생성(HWP·PDF) 시 이 이력이 문서의 개정이력 표에 전 연도 시계열로 인쇄됩니다 · 생성·업로드 이력은 일자·삭제가 잠깁니다.
+        인쇄·PDF 시 이 이력이 문서의 개정이력 표에 전 연도 시계열로 인쇄됩니다 · 전 행 수정·삭제 가능 (수동 기록이 단일 창구).
       </p>
     </div>
   )
