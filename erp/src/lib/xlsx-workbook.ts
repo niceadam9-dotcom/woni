@@ -577,6 +577,74 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     )
   }
 
+  // ── 현3 3-6 피난구조설비 15칸 · 3-7 소화용수설비 6칸 (Phase 4 / S9-1) ────────
+  //
+  // 설비 설치 마크 7칸(A25·A29·A34·A36·A38·A41·A42)은 `현황!Y6~Y19` 수식이라 배선하지 않는다.
+  //
+  // ⚠ **엑셀이 PDF보다 줄이 많은 구간이다.** 3-7의 C42(전용/겸용·흡수식…)·C43(가압송수장치
+  //   전양정·토출량)·C45(기동스위치)·C46(채수구 구경)은 세부제원에 대응 필드가 없다
+  //   (PDF renderS37은 `가압송수장치 {pump}` 자유 텍스트 한 칸뿐이다). 값을 지어내지 않고
+  //   서식 원문의 빈 서식을 준다 — 3-3 미분무·3-5 화재알림과 같은 처리의 반대 방향이다.
+  // ⚠ 3-6의 '하향식피난구용내림식사다리'는 PDF에는 셋째 줄로 있으나 **이 시트엔 칸이 없다**.
+  //   C26은 5종에서 끝난다 — 없는 칸을 만들지 않는다.
+  // ⚠ C39·C43의 대괄호는 폭 1(`[ ]`)이다 — 3-4 단위 칸, 3-5 차단기구에 이어 세 번째 사례다.
+  {
+    const s36 = ((p.specs?.['s36_evac'] ?? null) as Record<string, unknown> | null)
+    const s37 = ((p.specs?.['s37_supply'] ?? null) as Record<string, unknown> | null)
+    const b6 = (k: string) => ((s36?.[k] ?? null) as Record<string, unknown> | null)
+    const b7 = (k: string) => ((s37?.[k] ?? null) as Record<string, unknown> | null)
+    const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
+    const w = (b: Record<string, unknown> | null, k: string, n: number) => {
+      const s = str(b, k)
+      return s ? ` ${s} ` : ' '.repeat(n)
+    }
+    const isSel = (b: Record<string, unknown> | null, k: string, o: string) => str(b, k) === o
+    const inArr = (b: Record<string, unknown> | null, k: string, o: string) => {
+      const v = b?.[k]
+      return Array.isArray(v) && v.map(String).includes(o)
+    }
+    const range = (b: Record<string, unknown> | null, sfx = '') =>
+      `동명(${w(b, `dong${sfx}`, 3)}) ${ck(isSel(b, `coverage${sfx}`, '전체층'))}전체층/${ck(isSel(b, `coverage${sfx}`, '일부층'))}일부층 `
+      + `${ck(isSel(b, `from_ground${sfx}`, '지상'))}지상/${ck(isSel(b, `from_ground${sfx}`, '지하'))}지하(${w(b, `from_floor${sfx}`, 2)})층 ~ `
+      + `${ck(isSel(b, `to_ground${sfx}`, '지상'))}지상/${ck(isSel(b, `to_ground${sfx}`, '지하'))}지하(${w(b, `to_floor${sfx}`, 2)})층`
+
+    const ev = b6('evac_equipment'), re = b6('rescue_equipment'), gl = b6('guide_light')
+    const el6 = b6('emergency_light'), pl = b6('portable_light')
+    const ww = b7('waterworks'), wt = b7('water_tank')
+    const evT = (o: string) => `${ck(inArr(ev, 'types', o))}${o}`
+    const glT = (o: string) => `${ck(inArr(gl, 'types', o))}${o}`
+    /** 대상물의 용도 — 체크 판정은 **저장 어휘**(9호 표기)로 하고 인쇄는 이 시트 표기로 한다.
+     *  키까지 시트 표기로 바꾸면 체크가 조용히 풀린다(PDF :394와 같은 규약). */
+    const useMark = (key: string) => ck(inArr(re, 'target_usage', key))
+
+    entries.push(
+      // 3-6
+      ['s36EvTypes1', `◦ 종류: ${evT('피난사다리')} ${evT('완강기')} ${evT('다수인피난장비')} ${evT('승강식피난기')} ${evT('미끄럼대')}`],
+      ['s36EvTypes2', `${' '.repeat(8)}${evT('피난교')} ${evT('피난용트랩')} ${evT('구조대')} ${evT('간이완강기')} ${evT('공기안전매트')}`],
+      ['s36EvLoc', `◦ 설치장소: ${range(ev)}`],
+      ['s36EvLoc2', `${' '.repeat(12)}${range(ev, '2')}`],
+      ['s36ReTypes', `◦ 종류: ${ck(inArr(re, 'types', '방열복/방화복'))}방열복/ 방화복 ${ck(inArr(re, 'types', '공기호흡기'))}공기호흡기 ${ck(inArr(re, 'types', '인공소생기'))}인공소생기`],
+      ['s36ReLoc', `◦ 설치장소: ${range(re)}`],
+      ['s36ReLoc2', `${' '.repeat(12)}${range(re, '2')}`],
+      ['s36ReUse1', `◦ 대상물의 용도: ${useMark('5층이상 병원')} 5층이상 병원  ${useMark('7층이상 관광호텔')} 7층이상 관광호텔 ${useMark('이산화탄소소화설비 설치')} 이산화탄소소화설비 설치`],
+      ['s36ReUse2', `${' '.repeat(17)}${useMark('지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관')} 지하역사·백화점·대형점포·쇼핑센타·지하상가·영화상영관`],
+      ['s36GlTypes', `◦ 종류: ${glT('피난구')} ${glT('통로')} ${glT('객석유도등')} ${glT('유도표지')} ${glT('피난유도선')}`],
+      ['s36GlLoc', `◦ 설치장소: ${range(gl)}`],
+      ['s36ElLoc', `◦ 설치장소: ${range(el6)}`],
+      ['s36ElPower', `◦ 비상전원 ${ck(inArr(el6, 'power', '자가발전설비'))}자가발전설비 ${ck(inArr(el6, 'power', '축전지설비'))}축전지설비 ${ck(inArr(el6, 'power', '내장형'))}내장형`],
+      ['s36PlLoc', `◦ 설치장소: ${range(pl)}`],
+      // 폭 1 대괄호
+      ['s36PlPower', `◦ 전원 ${isSel(pl, 'power', '건전지식') ? '[√]' : '[ ]'}건전지식 ${isSel(pl, 'power', '충전식 배터리식') ? '[√]' : '[ ]'}충전식 배터리식`],
+      // 3-7 — 대응 필드가 있는 것은 C41·C44뿐이다
+      ['s37WwPlace', `◦ 설치장소:(${w(ww, 'place', 18)}), 소화전 호칭지름: (${w(ww, 'diameter', 9)})㎜`],
+      ['s37WtKind', `${ck(false)}전용 ${ck(false)}겸용/${ck(false)}흡수식 ${ck(false)}가압식/${ck(false)}일반수조 ${ck(false)}그 밖의 것/유효수량:(${' '.repeat(6)})㎥`],
+      ['s37WtPump', `◦ 가압송수장치  전양정:(${' '.repeat(3)})m, 토출량:(${' '.repeat(3)})ℓ/min, [ ]전동기/[ ]내연기관(연료:[ ]경유 [ ]기타)`],
+      ['s37WtPriming', `◦ ${ck(!!str(wt, 'priming') || !!str(wt, 'priming_capacity') || !!str(wt, 'priming_pipe'))}물올림장치 유효수량: (${w(wt, 'priming_capacity', 9)})ℓ, 급수배관: (${w(wt, 'priming_pipe', 9)})㎜`],
+      ['s37WtSwitch', `◦ 기동스위치 설치장소: ${ck(false)}채수구 부근 ${ck(false)}방재실 ${ck(false)}기타(${' '.repeat(18)})`],
+      ['s37WtIntake', `◦ 채수구 구경: (${' '.repeat(4)})㎜, 흡수관 투입구: 가로 (${' '.repeat(4)})㎝ 세로 (${' '.repeat(4)})㎝/직경 (${' '.repeat(4)})㎝`],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의

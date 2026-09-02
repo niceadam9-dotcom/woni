@@ -523,7 +523,10 @@ console.log('[4d] 현2 3-2 후반 자구 왕복·수식 절단')
 console.log('[4e] 현3 3-5 경보설비 자구 왕복·값 착지')
 {
   const CELLS = ['C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12',
-    'C13', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23']
+    'C13', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23',
+    // 3-6 피난구조설비 · 3-7 소화용수설비
+    'C25', 'C26', 'C27', 'C28', 'C29', 'C30', 'C31', 'C32', 'C33', 'C34', 'C35',
+    'C36', 'C37', 'C38', 'C39', 'C41', 'C42', 'C43', 'C44', 'C45', 'C46']
   const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
     .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
   const cellOfXml = (xml: string, ref: string) =>
@@ -557,7 +560,7 @@ console.log('[4e] 현3 3-5 경보설비 자구 왕복·값 착지')
     if (a === b) { same++; continue }
     check(`자구 왕복 현3!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
   }
-  check('자구 왕복 — 현3 3-5 빈 값 조립이 서식 원문과 동일(21칸)', same === CELLS.length, `${same}/${CELLS.length}`)
+  check('자구 왕복 — 현3 빈 값 조립이 서식 원문과 동일(42칸)', same === CELLS.length, `${same}/${CELLS.length}`)
 
   const gotH3 = await mk3({ s35_alarm: {
     fire_detection: { receiver_dong: '가', receiver_ground: '지상', receiver_floor: '1', receiver_room: '방재실',
@@ -582,6 +585,37 @@ console.log('[4e] 현3 3-5 경보설비 자구 왕복·값 착지')
     q3('C21').includes('[√]분리형') && q3('C21').includes('[√]LNG') && q3('C21').includes('( 3 )개'), JSON.stringify(q3('C21')))
   check('현3!C15 값 없는 속보설비는 빈 서식 그대로',
     q3('C15') === textIn(cellOfXml(tplH3, 'C15'), sharedT), JSON.stringify(q3('C15')))
+
+  // ── 3-6·3-7 값 착지 ──
+  const h36 = await mk3({
+    s36_evac: {
+      evac_equipment: { types: ['완강기', '공기안전매트'] },
+      rescue_equipment: { types: ['공기호흡기'], target_usage: ['5층이상 병원', '지하역사ㆍ백화점ㆍ대형점포ㆍ쇼핑센타ㆍ지하상가ㆍ영화상영관'] },
+      guide_light: { types: ['피난구', '통로'] },
+      emergency_light: { power: ['내장형'] },
+      portable_light: { power: '충전식 배터리식' },
+    },
+    s37_supply: { waterworks: { place: '정문앞', diameter: '100' },
+      water_tank: { priming_capacity: '80', priming_pipe: '25' } },
+  })
+  const r3 = (ref: string) => textIn(cellOfXml(h36, ref), [])
+  check('현3!C25·C26 피난기구 — 두 줄에 걸친 종류가 각자 √',
+    r3('C25').includes('[√]완강기') && r3('C25').includes('[  ]피난사다리')
+      && r3('C26').includes('[√]공기안전매트'), `${JSON.stringify(r3('C25'))} / ${JSON.stringify(r3('C26'))}`)
+  check('★현3!C33 대상물 용도 — 체크 키는 저장 어휘(ㆍ), 인쇄는 시트 표기(·)',
+    r3('C33').includes('[√] 지하역사·백화점'), JSON.stringify(r3('C33')))
+  check('현3!C32 5층이상 병원만 √',
+    r3('C32').includes('[√] 5층이상 병원') && r3('C32').includes('[  ] 7층이상 관광호텔'), JSON.stringify(r3('C32')))
+  check('현3!C34 유도등 종류 다중선택',
+    r3('C34').includes('[√]피난구') && r3('C34').includes('[√]통로') && r3('C34').includes('[  ]유도표지'), JSON.stringify(r3('C34')))
+  check('★현3!C39 휴대용 비상조명등 전원 — 폭 1 대괄호(`[ ]`)',
+    r3('C39') === '◦ 전원 [ ]건전지식 [√]충전식 배터리식', JSON.stringify(r3('C39')))
+  check('현3!C41 상수도 소화용수 설치장소·호칭지름',
+    r3('C41').includes('정문앞') && r3('C41').includes('( 100 )'), JSON.stringify(r3('C41')))
+  check('현3!C44 물올림장치 — 값이 있으면 마크도 켜진다',
+    r3('C44').includes('[√]물올림장치') && r3('C44').includes('( 80 )') && r3('C44').includes('( 25 )'), JSON.stringify(r3('C44')))
+  check('현3!C43 대응 필드 없는 가압송수장치 줄은 빈 서식 그대로',
+    r3('C43') === textIn(cellOfXml(tplH3, 'C43'), sharedT), JSON.stringify(r3('C43')))
 }
 
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
