@@ -61,14 +61,11 @@ MAILTO=""
 # 주간 문서 브리핑 — 매주 월 00:50 (소방계획서_5 P-2)
 50 0 * * 1 root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/weekly-doc-briefing >> /var/log/sjfire-cron.log 2>&1
 
-# 소방계획서 PDF 변환 안전망 — 매시 40분 (2026-08-20 신규)
-#   ★ 라우트는 "워커 실패 시 즉시 호출 + 주기 크론(안전망)"을 전제하는데 그 주기 크론이
-#     등록된 적이 없었다 — 안전망이 존재한 적 없다는 뜻이다. 워커가 변환 전에 죽으면
-#     그 계획서는 pdf_status='converting'에 영원히 머문다(화면엔 '변환 중'으로 보인다).
-#   1회 최대 5건만 처리한다(Gotenberg 타임아웃 여유) — 밀린 게 많으면 여러 번에 걸쳐 빠진다.
-#   :40인 이유는 자정 무렵 잡들이 05·10·15·20·25·35·45·50분을 이미 쓰고 있어서다.
-#   ⚠ Gotenberg 컨테이너가 떠 있어야 의미가 있다. 내려가 있으면 매시간 실패 로그만 쌓인다.
-40 * * * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/convert-fireplan-pdf >> /var/log/sjfire-cron.log 2>&1
+# 🚫 convert-fireplan-pdf(소방계획서 PDF 변환 안전망, 매시 40분) — 2026-09-02 보관함 폐지
+#    (커밋 e66b8ed)로 라우트째 삭제. 계획서는 파일로 저장하지 않고 즉석 생성하므로
+#    'converting에 머무는 행' 자체가 더는 생기지 않는다. 재등록하면 매시간 404만 때린다.
+#    ⚠ VPS에 설치된 사본에는 이 줄이 남아 있을 수 있다 — e66b8ed 이후 배포 시 이 정본으로
+#    재설치할 것(§10 설치 명령). 재설치 전까지는 매시 404 로그 소음만 나고 무해하다.
 
 # 활동로그 정리 — 매월 1일 03:00
 0 3 1 * * root curl -s -m 300 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/purge-activity-logs >> /var/log/sjfire-cron.log 2>&1
