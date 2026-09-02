@@ -394,6 +394,86 @@ console.log('[4c] 현1 3-2 자구 왕복·값 착지')
   check('현1!G30 — 수조용량·가압압력', got('G30').includes('300') && got('G30').includes('0.7'), JSON.stringify(got('G30')))
 }
 
+// ── ④d 현2 3-2 후반(펌프방식·송수구·비상전원) 22칸 ───────────────────
+// 현1과 같은 축 — 빈 값 조립이 서식 원문과 한 글자도 다르지 않아야 한다.
+// ⚠ D2~D5·C16~C18은 서식이 **수식**이라 캐시값이 원문이다. 여기에 dropFormula로 자기 값을
+//   넣으므로, 조립이 원문과 같은지와 **수식이 실제로 끊겼는지**를 함께 본다 — 안 끊으면
+//   Excel이 재계산해 남의 블록 값(주된수원·펌프방식)을 되살린다(fullCalcOnLoad="1").
+console.log('[4d] 현2 3-2 후반 자구 왕복·수식 절단')
+{
+  const CELLS = ['C2', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10',
+    'D11', 'D12', 'D13', 'D14', 'D15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22']
+  const FORMULA_CELLS = ['D2', 'D3', 'D4', 'D5', 'C16', 'C17', 'C18']
+  const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
+  const zTpl = await JSZip.loadAsync(template)
+  const sstTpl = await zTpl.file('xl/sharedStrings.xml')!.async('string')
+  const sharedTpl = [...sstTpl.matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join(''))
+  const h2Tpl = await zTpl.file((await sheetFileMap(zTpl)).get('현2')!)!.async('string')
+  const cellOfXml = (xml: string, ref: string) =>
+    new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(xml)?.[0] ?? ''
+  const textIn = (c: string, shared: string[]) => {
+    const t = /t="([^"]+)"/.exec(c)?.[1]
+    if (t === 's') return unesc(shared[+(/<v>(\d+)<\/v>/.exec(c)?.[1] ?? -1)] ?? '')
+    return unesc(/<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? /<v>([\s\S]*?)<\/v>/.exec(c)?.[1] ?? '')
+  }
+  const blankBytes = (await injectWorkbook(template, toInjectTargets(buildWorkbookValues({
+    official, delegation, customerAddress: '', startISO: null, endISO: null,
+    useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+    report9: { ...report9, specs: null },
+  })).targets)).bytes
+  const zB = await JSZip.loadAsync(blankBytes)
+  const h2B = await zB.file((await sheetFileMap(zB)).get('현2')!)!.async('string')
+
+  let same = 0
+  for (const ref of CELLS) {
+    const a = textIn(cellOfXml(h2Tpl, ref), sharedTpl)
+    const b = textIn(cellOfXml(h2B, ref), [])
+    if (a === b) { same++; continue }
+    check(`자구 왕복 현2!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
+  }
+  check('자구 왕복 — 현2 빈 값 조립이 서식 원문과 동일(22칸)', same === CELLS.length, `${same}/${CELLS.length}`)
+
+  // 수식 절단 — 안 끊으면 Excel 재계산이 남의 블록 값을 되살린다
+  const stillFormula = FORMULA_CELLS.filter(r => /<f[^>]*>/.test(cellOfXml(h2B, r)))
+  check('현2 D2~D5·C16~C18의 복사 수식이 끊겼다', stillFormula.length === 0,
+    stillFormula.length ? `남은 수식: ${stillFormula.join(',')}` : '7칸 전부 절단')
+  // 대조군 — 템플릿에는 그 수식이 실재한다(끊을 것이 정말 있었다)
+  const tplHadFormula = FORMULA_CELLS.filter(r => /<f[^>]*>/.test(cellOfXml(h2Tpl, r)))
+  check('대조군 — 템플릿의 그 7칸은 원래 수식이었다', tplHadFormula.length === FORMULA_CELLS.length,
+    `${tplHadFormula.length}/${FORMULA_CELLS.length}`)
+
+  // 값 착지 — 펌프방식·송수구·비상전원이 **각자** 블록을 읽는지(수식 복사가 아니라)
+  const gotBytes = (await injectWorkbook(template, toInjectTargets(buildWorkbookValues({
+    official, delegation, customerAddress: '', startISO: null, endISO: null,
+    useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+    report9: { ...report9, specs: { s32_water_common: {
+      main_water: { systems: ['옥내소화전설비'] },
+      pump_type: { systems: ['포소화설비'], main_head: '55', main_flow: '900', starter: ['ON/OFF 방식'] },
+      inlet: { systems: ['스프링클러설비'], place: '정문', twin_count: '2' },
+      emergency_power: { types: ['축전지설비'], gen_type: '소방전용' },
+    } } },
+  })).targets)).bytes
+  const zG = await JSZip.loadAsync(gotBytes)
+  const h2G = await zG.file((await sheetFileMap(zG)).get('현2')!)!.async('string')
+  const g = (ref: string) => textIn(cellOfXml(h2G, ref), [])
+  check('★현2!D4 펌프방식은 **자기** systems를 쓴다(주된수원 복사 아님)',
+    g('D4').includes('[√]포소화설비'), JSON.stringify(g('D4')))
+  check('★현2!D2 주된수원의 옥내소화전이 새어 들어오지 않는다',
+    g('D2').includes('[  ]옥내소화전설비'), JSON.stringify(g('D2')))
+  check('★현2!C16 송수구도 **자기** systems',
+    g('C16').includes('[√]스프링클러설비') && g('C16').includes('[  ]옥내소화전설비'), JSON.stringify(g('C16')))
+  check('현2!D6 주펌프 전양정·토출량', g('D6').includes('55') && g('D6').includes('900'), JSON.stringify(g('D6')))
+  check('현2!D12 기동장치 ON/OFF만 √',
+    g('D12').includes('[  ]기동용수압개폐장치') && g('D12').includes('[√]ON/OFF 방식'), JSON.stringify(g('D12')))
+  check('현2!C19 송수구 설치장소·쌍구형', g('C19').includes('정문') && g('C19').includes('[√]쌍구형'), JSON.stringify(g('C19')))
+  check('현2!C21 축전지설비만 √',
+    g('C21').includes('[√]축전지설비') && g('C21').includes('[  ]전기저장장치'), JSON.stringify(g('C21')))
+  check('현2!D7 대응 필드 없는 전동기 줄은 빈 서식 그대로',
+    g('D7') === `  [  ]전동기 [  ]내연기관(연료:[  ]경유 [  ]기타`, JSON.stringify(g('D7')))
+}
+
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
 console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 {

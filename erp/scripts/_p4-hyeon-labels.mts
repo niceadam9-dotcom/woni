@@ -36,6 +36,9 @@ for (const m of xml.matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
   const col = colNum(ref[1]), row = +ref[2]
   if (row < +R1 || row > +R2 || col < lo || col > hi) continue
   const body = m[2] ?? ''
+  // 수식은 **원문을 그대로** 찍는다. 캐시값만 보면 '무엇을 참조하는가'를 알 수 없고,
+  // 그걸 모르면 이미 배선된 칸을 중복 배선하게 된다.
+  const f = /<f[^>]*>([\s\S]*?)<\/f>/.exec(body)?.[1]
   const isF = /<f[ >]/.test(body)
   const t = /t="([^"]+)"/.exec(m[1])?.[1] ?? 'n'
   let text = ''
@@ -43,7 +46,7 @@ for (const m of xml.matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
   else if (t === 'inlineStr') text = [...body.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')
   else text = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? ''
   text = dec(text)
-  if (!text.trim()) continue
-  out.push(`${ref[0]}${isF ? ' (수식)' : ''}  ${JSON.stringify(text)}`)
+  if (!text.trim() && !isF) continue
+  out.push(`${ref[0]}${isF ? ` {=${f ?? '?'}}` : ''}  ${JSON.stringify(text)}`)
 }
 console.log(out.join('\n'))

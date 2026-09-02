@@ -345,6 +345,8 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     const blk = (k: string) => ((s32?.[k] ?? null) as Record<string, unknown> | null)
     const mw = blk('main_water'), aw = blk('aux_water')
     const el = blk('pump_elevated'), pr = blk('pump_pressure'), pz = blk('pump_pressurized')
+    // 현2로 이어지는 3-2 후반 — 펌프방식·송수구·비상전원도 같은 섹션이다
+    const pm = blk('pump_type'), inlet = blk('inlet'), ep = blk('emergency_power')
 
     const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
     /** write-in 슬롯 — 값이 있으면 앞뒤 한 칸씩, 없으면 서식 원문의 공백 런 그대로 */
@@ -353,10 +355,12 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       return s ? ` ${s} ` : ' '.repeat(n)
     }
     const isSel = (b: Record<string, unknown> | null, k: string, opt: string) => str(b, k) === opt
-    const hasSys = (b: Record<string, unknown> | null, o: string) => {
-      const v = b?.['systems']
+    /** 배열 필드(다중선택)에 그 값이 들어 있는가 */
+    const inArr = (b: Record<string, unknown> | null, key: string, o: string) => {
+      const v = b?.[key]
       return Array.isArray(v) && v.map(String).includes(o)
     }
+    const hasSys = (b: Record<string, unknown> | null, o: string) => inArr(b, 'systems', o)
     /** 블록이 '쓰임'인가 — PDF `cb(has(used) || blockHas(b))`와 같은 축.
      *  값이 하나라도 적혀 있으면 켠다(체크만 빼먹은 입력을 서식에서 되살린다). */
     const used = (b: Record<string, unknown> | null) => {
@@ -400,6 +404,44 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       ['s32PzSys1', sys1(pz)], ['s32PzSys2', sys2(pz)], ['s32PzSys3', sys3(pz)],
       ['s32PzLoc', loc(pz)], ['s32PzTank', tank(pz)],
       ['s32PzGas', `◦ 가압가스의 종류: ${ck(isSel(pz, 'gas_type', '공기'))}공기 ${ck(isSel(pz, 'gas_type', '불연성가스'))}불연성가스(${w(pz, 'gas_etc', 18)})`],
+    )
+
+    // ── 현2로 이어지는 3-2 후반 — 펌프방식·송수구·비상전원 ────────────────────
+    //
+    // 🔴 D2~D5·C16~C18은 서식이 **수식**으로 남의 값을 복사한다(D2=현1!G16 … C16=D2).
+    //    그런데 PDF renderS32는 `sysLine(pm)`·`inletSys()`로 **각자 블록의 systems**를 인쇄한다.
+    //    두 블록 값이 다르면 PDF와 엑셀이 갈라진다(D-7 위반). 앵커 쪽 dropFormula로 사슬을
+    //    끊고 여기서 자기 값을 준다. ⚠ 현1!G16을 배선한 순간 전이 폐포가 주된수원 값을 D2로
+    //    밀어 넣으므로, 이 갈라짐은 **이번 작업이 활성화시킨 것**이다 — 함께 닫아야 한다.
+    //
+    // ⚠ D7·D9(전동기/내연기관)는 **세부제원에 대응 필드가 없다**(PDF pumpLines에도 없다).
+    //    값을 지어내지 않고 서식 원문의 빈 서식을 그대로 준다 — 다수동일때와 같은 처리.
+    // ⚠ D13은 '압력챔버'다. PDF는 annexLabel로 '압력체임버'를 쓸 수 있으나 **시트별 자구를
+    //    섞지 않는다**(다수동일때 주석과 같은 규약) — 이 시트의 어휘를 따른다.
+    const pumpRow = (label: string, head: string, flow: string) =>
+      `◦ ${label}  전양정:(${w(pm, head, 9)})m, 토출량:(${w(pm, flow, 9)})ℓ/min`
+    const engineBlank = `  ${ck(false)}전동기 ${ck(false)}내연기관(연료:${ck(false)}경유 ${ck(false)}기타`
+    entries.push(
+      ['s32PmMark', `${ck(used(pm))}펌프방식`],
+      ['s32PmSys1', sys1(pm)], ['s32PmSys2', sys2(pm)], ['s32PmSys3', sys3(pm)],
+      ['s32PmLoc', loc(pm)],
+      ['s32PmMain', pumpRow('주펌프', 'main_head', 'main_flow')],
+      ['s32PmMainEngine', engineBlank],
+      ['s32PmReserve', pumpRow('예비펌프', 'reserve_head', 'reserve_flow')],
+      ['s32PmReserveEngine', engineBlank],
+      ['s32PmJockey', pumpRow('충압펌프', 'jockey_head', 'jockey_flow')],
+      ['s32PmPriming', `◦ ${ck(!!str(pm, 'priming') || !!str(pm, 'priming_capacity') || !!str(pm, 'priming_pipe'))}물올림장치(유효수량: (${w(pm, 'priming_capacity', 9)})ℓ, 급수배관: (${w(pm, 'priming_pipe', 9)})㎜`],
+      ['s32PmStarter', `◦ 기동장치: ${ck(inArr(pm, 'starter', '기동용수압개폐장치'))}기동용수압개폐장치, ${ck(inArr(pm, 'starter', 'ON/OFF 방식'))}ON/OFF 방식`],
+      ['s32PmChamber', `  ${ck(!!str(pm, 'chamber') || !!str(pm, 'chamber_capacity') || !!str(pm, 'chamber_pressure'))}압력챔버(용량:(${w(pm, 'chamber_capacity', 9)})ℓ, 사용압력:(${w(pm, 'chamber_pressure', 9)})MPa)`],
+      ['s32PmSwitch', `  ${ck(!!str(pm, 'pressure_switch'))}기동용압력스위치(${ck(isSel(pm, 'pressure_switch', '부르동관식'))}부르동관식 ${ck(isSel(pm, 'pressure_switch', '전자식'))}전자식 ${ck(isSel(pm, 'pressure_switch', '그 밖의 것'))}그 밖의 것)`],
+      ['s32PmDecomp', `◦ ${ck(!!str(pm, 'decompress') || !!str(pm, 'decompress_place'))}감압장치 ${ck(isSel(pm, 'decompress_ground', '지상'))}지상/${ck(isSel(pm, 'decompress_ground', '지하'))}지하 (${w(pm, 'decompress_floor', 3)})층, 설치장소:(${w(pm, 'decompress_place', 18)})`],
+      // 송수구 — 자기 systems를 쓴다(수식이 복사하던 펌프방식 것이 아니다)
+      ['s32InSys1', sys1(inlet)], ['s32InSys2', sys2(inlet)], ['s32InSys3', sys3(inlet)],
+      ['s32InPlace', `◦ 설치장소:(${w(inlet, 'place', 17)}), ${ck(!!str(inlet, 'twin_count'))}쌍구형 (${w(inlet, 'twin_count', 3)})개/${ck(!!str(inlet, 'single_count'))}단구형 (${w(inlet, 'single_count', 3)})개`],
+      // 비상전원 — 줄머리 공백 1칸이 서식 원문이다(지우면 자구 왕복이 붉어진다)
+      ['s32EpGen', ` ${ck(inArr(ep, 'types', '자가발전설비'))}자가발전설비(${ck(isSel(ep, 'gen_type', '소방전용'))}소방전용 ${ck(isSel(ep, 'gen_type', '소방부하겸용'))}소방부하겸용 ${ck(isSel(ep, 'gen_type', '소방전원보존형'))}소방전원보존형 ${ck(isSel(ep, 'gen_type', '기타'))}기타(${w(ep, 'gen_etc', 10)}))`],
+      ['s32EpEtc', ` ${ck(inArr(ep, 'types', '비상전원수전설비'))}비상전원수전설비 ${ck(inArr(ep, 'types', '축전지설비'))}축전지설비 ${ck(inArr(ep, 'types', '전기저장장치'))}전기저장장치`],
+      ['s32EpLoc', loc(ep)],
     )
   }
 

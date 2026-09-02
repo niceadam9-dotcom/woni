@@ -228,6 +228,32 @@ export const ANCHORS: Anchor[] = [
     ['s32PzMark', 'B32'], ['s32PzSys1', 'G32'], ['s32PzSys2', 'G33'], ['s32PzSys3', 'G34'],
     ['s32PzLoc', 'G35'], ['s32PzTank', 'G36'], ['s32PzGas', 'G37'],
   ].map<Anchor>(([field, cell]) => ({ field, sheet: '현1', cell, labelCell: 'B32', label: '[  ]가압수조' })),
+  // ── 현2 3-2 후반 — 펌프방식·송수구·비상전원 22칸 (Phase 4 / S9-1) ───────────
+  //
+  // 🔴 D2~D5·C16~C18은 서식이 **수식으로 남의 값을 복사**한다(D2=현1!G16 · C16=D2, 실측).
+  //    PDF는 각자 블록의 systems를 인쇄하므로 그대로 두면 D-7이 깨진다 — dropFormula로 끊는다.
+  //    ⚠ 현1!G16을 배선한 순간 전이 폐포가 주된수원 값을 D2로 밀어 넣는다. 즉 이 갈라짐은
+  //      **현1 배선이 활성화시킨 것**이라 같은 슬라이스에서 함께 닫아야 한다.
+  ...[
+    ['s32PmSys1', 'D2'], ['s32PmSys2', 'D3'], ['s32PmSys3', 'D4'], ['s32PmLoc', 'D5'],
+  ].map<Anchor>(([field, cell]) => ({
+    field, sheet: '현2', cell, labelCell: 'C2', label: '[  ]펌프방식', dropFormula: true,
+  })),
+  ...[
+    ['s32PmMark', 'C2'], ['s32PmMain', 'D6'], ['s32PmMainEngine', 'D7'],
+    ['s32PmReserve', 'D8'], ['s32PmReserveEngine', 'D9'], ['s32PmJockey', 'D10'],
+    ['s32PmPriming', 'D11'], ['s32PmStarter', 'D12'], ['s32PmChamber', 'D13'],
+    ['s32PmSwitch', 'D14'], ['s32PmDecomp', 'D15'],
+  ].map<Anchor>(([field, cell]) => ({ field, sheet: '현2', cell, labelCell: 'C2', label: '[  ]펌프방식' })),
+  ...[
+    ['s32InSys1', 'C16'], ['s32InSys2', 'C17'], ['s32InSys3', 'C18'],
+  ].map<Anchor>(([field, cell]) => ({
+    field, sheet: '현2', cell, labelCell: 'A16', label: '송수구', dropFormula: true,
+  })),
+  { field: 's32InPlace', sheet: '현2', cell: 'C19', labelCell: 'A16', label: '송수구' },
+  ...[
+    ['s32EpGen', 'C20'], ['s32EpEtc', 'C21'], ['s32EpLoc', 'C22'],
+  ].map<Anchor>(([field, cell]) => ({ field, sheet: '현2', cell, labelCell: 'A20', label: '비상전원' })),
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·
