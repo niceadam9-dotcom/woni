@@ -15,6 +15,8 @@ import { planDonorInjection, donorInjectSummary } from '@/lib/xlsx-donor-inject'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { evacTypesFromSpecs } from '@/lib/facility-codes'
 import { isMultiUseApplicable } from '@/lib/multi-use'
+import { sheetScope } from '@/lib/sheet-scope'
+import { getAllSheetItems } from '@/lib/sheet-catalog'
 
 /** 갑지 통합 워크북(엑셀) 즉석 생성 (소방계획서_27 S4 — Phase 1: 개요 허브 + 공문·위임장·계약서)
  *
@@ -43,12 +45,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections')
-    .select('id, customer_id, year, inspection_start_date, inspection_end_date')
+    .select('id, customer_id, year, inspection_start_date, inspection_end_date, plan_type, inspection_type')
     .eq('id', id).maybeSingle()
   if (!insp) return NextResponse.json({ error: '점검 건을 찾을 수 없습니다.' }, { status: 404 })
   const row = insp as {
     customer_id: string; year: number
     inspection_start_date: string | null; inspection_end_date: string | null
+    plan_type: string | null; inspection_type: string | null
   }
   // 소재지·사용승인일은 조립 데이터에 없어 라우트가 직접 보탠다. 건축물 현황(S3-5 1차 확장)은
   // buildings 활성·최고참 1동 — report9-actions:225와 같은 축이라 별지 9호 PDF와 같은 동을 본다.
@@ -187,7 +190,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // ⚠ keptSheets를 넘기는 이유: 응답이 있어도 그 설비가 미설치면 시트가 위에서 제거됐다. 그대로
   //   주입 대상에 넣으면 injectWorkbook이 missed로 잡아 **정상 시나리오가 500이 된다**(서림사는
   //   응답 243건 / 설치 14종이라 반드시 발생한다). 시트 선별과 주입이 같은 집합을 본다.
-  const donorPlan = planDonorInjection(r9.sheetResponses, keptSheets)
+  // 작동 회차 ● 자동 ／(2026-09-02 사용자 확정) — 서식 각주 「●는 종합점검의 경우에만 해당한다」.
+  // PDF 조립(report9-assemble annexScope 오버라이드)과 같은 축: 종합 전용 항목은 응답과 무관하게
+  // ／로 치환·합성한다(종합→작동 전환 잔재 응답도 작동 문서에선 해당없음이 옳다 — D-7 자구 일치).
+  const wbScope = sheetScope(row.plan_type, row.inspection_type)
+  let donorResponses = r9.sheetResponses
+  if (wbScope.isOperational) {
+    const compCodes = new Set((await getAllSheetItems()).filter(i => i.comprehensive_only).map(i => i.item_code))
+    donorResponses = [
+      ...r9.sheetResponses.filter(r => !compCodes.has(r.item_code)),
+      ...[...compCodes].map(code => ({ item_code: code, result: 'N' as const, month: 0 })),
+    ]
+  }
+  const donorPlan = planDonorInjection(donorResponses, keptSheets)
   targets.push(...donorPlan.targets)
   if (donorPlan.notLanded.duplicated.length) {
     console.warn(`[workbook] 코드당 응답 복수로 미반영 ${donorPlan.notLanded.duplicated.length}건: ${donorPlan.notLanded.duplicated.slice(0, 6).join(', ')}`)

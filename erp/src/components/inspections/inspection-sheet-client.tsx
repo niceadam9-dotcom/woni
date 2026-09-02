@@ -214,10 +214,13 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     return it.group_code ?? (/^[A-Z]/.test(it.item_code) ? (it.group ?? '') : it.item_code.replace(/-\d+$/, ''))
   }
 
+  // 입력·집계 축 = 범위 안 항목만 (작동 회차의 종합 전용 ●는 표시 전용 — 2026-09-02)
+  const inputItems = useMemo(() => items.filter(i => !i.outOfScope), [items])
+
   // ── 파생 — 드로어 목차 엔트리·시트 카운트 (로컬 값 기준 = 라이브) ──
   const groupEntries: TocEntry[] = useMemo(() => {
     const map = new Map<string, TocEntry>()
-    for (const it of items) {
+    for (const it of inputItems) {
       const code = groupCodeOf(it)
       let e = map.get(code)
       if (!e) { e = { code, name: it.group_name ?? code, total: 0, responded: 0, x: 0 }; map.set(code, e) }
@@ -227,12 +230,12 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     }
     return [...map.values()]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, local])
+  }, [inputItems, local])
   const selCounts = useMemo(() => {
     let responded = 0, x = 0, n = 0
-    for (const it of items) { const r = local[it.item_code]; if (r) { responded++; if (r === 'X') x++; if (r === 'N') n++ } }
-    return { responded, x, n, total: items.length }
-  }, [items, local])
+    for (const it of inputItems) { const r = local[it.item_code]; if (r) { responded++; if (r === 'X') x++; if (r === 'N') n++ } }
+    return { responded, x, n, total: inputItems.length }
+  }, [inputItems, local])
 
   /** G-9 — 보드 진행률 오버레이: 열린 시트만 로컬 값으로 재집계해 서버 progress를 대체.
    *  저장·일괄 직후 카드 n/m·섹션 합계가 새로고침 없이 즉시 맞는다(프로브 21) */
@@ -244,7 +247,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       const buckets = new Map<string, SheetGroupProgress>()
       const counts = { O: 0, X: 0, N: 0 }
       let responded = 0
-      for (const it of items) {
+      for (const it of inputItems) {
         const code = groupCodeOf(it)
         let b = buckets.get(code)
         if (!b) {
@@ -259,22 +262,22 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         const r = local[it.item_code]
         if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }
       }
-      return { ...p, total: items.length || p.total, responded, counts, groups: [...buckets.values()] }
+      return { ...p, total: inputItems.length || p.total, responded, counts, groups: [...buckets.values()] }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheets, progress, sel, items, local])
+  }, [sheets, progress, sel, inputItems, local])
   const noFacilityInfo = overlaidProgress.length > 0 && overlaidProgress.every(p => !p.installed)
 
   // ── Q-20 — 시트 단위 ／ 일괄 (빈 칸만·토글, Q-21) ──
   // patchDraft = draft 통째 교체 + schedule() — 자동저장 예약까지가 한 호출이다(28 S1)
   function localSheetNA() {
-    const empty = items.filter(i => !local[i.item_code]).map(i => i.item_code)
+    const empty = inputItems.filter(i => !local[i.item_code]).map(i => i.item_code)
     if (empty.length > 0) {
       if (!window.confirm(`이 시트의 미입력 ${empty.length}개 항목을 ／(해당없음)로 표시합니다.\n이미 입력한 ○/✕/／ ${selCounts.responded}건은 그대로 유지됩니다. 진행할까요?`)) return
       autosave.patchDraft(s => { const n = { ...s }; for (const c of empty) n[c] = 'N'; return n })
       return
     }
-    const ns = items.filter(i => local[i.item_code] === 'N').map(i => i.item_code)
+    const ns = inputItems.filter(i => local[i.item_code] === 'N').map(i => i.item_code)
     if (ns.length === 0) return
     if (!window.confirm(`미입력 항목이 없습니다. 이 시트의 ／(해당없음) ${ns.length}건을 해제할까요? (○/✕는 유지)`)) return
     autosave.patchDraft(s => { const n = { ...s }; for (const c of ns) delete n[c]; return n })

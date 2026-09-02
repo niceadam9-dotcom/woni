@@ -71,6 +71,8 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
   items?: Array<{
     item_code: string; item_name: string; comprehensive_only: boolean; group: string
     group_code?: string | null; group_name?: string | null; subgroup_name?: string | null
+    /** 작동 회차의 종합 전용(●) — 표시만 하고 입력·집계에서 제외, 문서엔 ／ 자동 (2026-09-02) */
+    outOfScope?: boolean
   }>
   responses?: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>
   canEdit?: boolean
@@ -85,12 +87,15 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
+  // 범위 밖(작동 회차의 종합 전용 ●) 항목도 **보이되 입력 불가**로 싣는다 (2026-09-02 사용자 확정
+  // — "ERP 화면에서도 반영"). 문서에는 ／로 자동 인쇄되므로 화면도 같은 사실을 보여야 한다.
+  // 입력·집계 축은 outOfScope=false만 쓴다(호출부 분모·／일괄·저장 가드가 같은 축).
   const items = catalog
-    .filter(i => isItemInScope(i, insp.scope))
     .map(i => ({
       item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
       group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
       group_code: i.group_code, group_name: i.group_name, subgroup_name: i.subgroup_name,
+      outOfScope: !isItemInScope(i, insp.scope),
     }))
 
   const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
@@ -318,6 +323,16 @@ export async function saveSheetResponsesAction(
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
+
+  // 범위 가드(2026-09-02) — 작동 회차의 종합 전용(●) 항목은 저장을 거른다. 화면은 비활성이지만
+  // 'use server' 액션은 공개 엔드포인트라 서버에서도 같은 축으로 막아야 한다(문서엔 ／ 자동).
+  {
+    const insp = await loadScope(admin, inspectionId)
+    if (insp?.scope.isOperational && rows.length > 0) {
+      const comp = new Set((await getAllSheetItems()).filter(i => i.comprehensive_only).map(i => i.item_code))
+      rows = rows.filter(r => !comp.has(r.item_code))
+    }
+  }
 
   // 저장속도 개선(2026-08-15) — 실측: 저장 1회 완전 종료 5.8초. 지배 요인은 DB가 아니라
   // revalidatePath가 액션 응답에 실어 보내는 상세 페이지 RSC 재렌더(+클라이언트의 중복 refresh)였다.

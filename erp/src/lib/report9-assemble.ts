@@ -14,6 +14,7 @@ import {
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
 import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats } from '@/lib/sheet-facility-map'
+import { sheetScope } from '@/lib/sheet-scope'
 import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import type { Report4SheetSection } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
@@ -340,6 +341,10 @@ export async function assembleReport9(
     else itemsBySheetId.set(it.sheet_id, [it])
   }
   const seenCodes = new Set<string>()   // 시드에 같은 코드가 2행 있어도 1건(전 경로 공통 중복 방어)
+  // 작동점검 ● 자동 ／ (2026-09-02 사용자 확정) — 서식 각주 「●는 종합점검의 경우에만 해당한다」가
+  // 법정 근거라 값을 지어내는 게 아니다: 작동 회차에서 종합 전용 항목은 정의상 해당없음이다.
+  // 응답이 남아 있어도(종합→작동 전환 잔재) 작동 문서에는 ／가 옳다 — 입력 화면도 같은 축으로 숨긴다(isItemInScope).
+  const annexScope = sheetScope(insp.plan_type, insp.inspection_type)
   const sheetSections: Report4SheetSection[] = includedSheets
     .map(s => {
       const rows = (itemsBySheetId.get(s.id) ?? [])
@@ -355,7 +360,9 @@ export async function assembleReport9(
           const prefix = it.item_code.replace(/-\d+$/, '')
           return {
             code: it.item_code, name: it.item_name,
-            mark: res === 'O' || res === 'X' || res === 'N' ? res : null,   // 무응답 = 공란(Q-5)
+            // 작동 회차의 ●는 무조건 ／, 그 외 무응답 = 공란(Q-5)
+            mark: annexScope.isOperational && it.comprehensive_only ? 'N' as const
+              : res === 'O' || res === 'X' || res === 'N' ? res : null,
             comprehensive: !!it.comprehensive_only,
             group: it.group_name != null ? `${prefix}. ${it.group_name}` : undefined,
             subgroup: it.subgroup_name,

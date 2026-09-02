@@ -23,6 +23,8 @@ export type SheetItem = {
   group_code?: string | null
   group_name?: string | null
   subgroup_name?: string | null
+  /** 작동 회차의 종합 전용(●) — 표시만, 입력 불가·문서엔 ／ 자동 (2026-09-02 사용자 확정) */
+  outOfScope?: boolean
 }
 
 /** 고를 수 있는 값은 **○·✕ 둘뿐**이다 (2026-08-13 확정 유지 — 개별 ／ 버튼 없음, 23 Q-19).
@@ -52,6 +54,20 @@ type RowCtx = {
 /** 항목 1행 — flat·outline 공용(S7-1 ItemRow). 마크업은 종전 flat 렌더와 동일해야 한다 */
 function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
   const { value, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX } = ctx
+  // 작동 회차의 종합 전용(●) — 서식 각주 「●는 종합점검의 경우에만 해당한다」. 입력 버튼 없이
+  // 고정 ／만 보여 문서 인쇄 결과(엑셀·별지 4호 자동 ／)와 화면이 같은 말을 하게 한다 (2026-09-02).
+  if (it.outOfScope) {
+    return (
+      <div className="border-b border-paper">
+        <div className="flex items-center gap-2 py-1.5 opacity-60"
+          title="종합점검 전용(●) 항목 — 작동점검에서는 해당없음(／)으로 자동 인쇄됩니다 (입력 불가)">
+          <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
+          <span className="text-form-sm text-ink-sub flex-1 min-w-0">● {it.item_name}</span>
+          <span className="text-form-sm text-ink-meta shrink-0 select-none" data-oos-mark>／ 자동</span>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="border-b border-paper">
       {/* S4-8: O/X는 현장에서 장갑 낀 손으로 누르는 버튼이다 — 28px는 오탭이 잦아 40px로 키우고
