@@ -625,6 +625,9 @@ console.log('[4f] 현4 3-8 제연설비 자구 왕복·값 착지')
 {
   const CELLS = [...Array(14)].map((_, i) => `E${3 + i}`)
     .concat([...Array(10)].map((_, i) => `E${18 + i}`))
+    // 연결송수관 이하 5설비 — E36·E44 사이의 빈 행은 건너뛴다
+    .concat(['E28', 'E29', 'E30', 'E31', 'E32', 'E33', 'E34', 'E35',
+      'E37', 'E38', 'E39', 'E40', 'E41', 'E42', 'E43', 'E44', 'E45'])
   const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
     .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
   const cx = (xml: string, ref: string) =>
@@ -657,7 +660,7 @@ console.log('[4f] 현4 3-8 제연설비 자구 왕복·값 착지')
     if (a === b) { same4++; continue }
     check(`자구 왕복 현4!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
   }
-  check('자구 왕복 — 현4 3-8 빈 값 조립이 서식 원문과 동일(24칸)', same4 === CELLS.length, `${same4}/${CELLS.length}`)
+  check('자구 왕복 — 현4 3-8 빈 값 조립이 서식 원문과 동일(41칸)', same4 === CELLS.length, `${same4}/${CELLS.length}`)
 
   const got4 = await mk4({ s38_activity: {
     smoke_room: { method: '공동', starter: ['수동', '원격'], zone_area: '400',
@@ -687,6 +690,36 @@ console.log('[4f] 현4 3-8 제연설비 자구 왕복·값 착지')
     v4('E27').includes('[√]플랩댐퍼') && v4('E27').includes('[  ]해당없음'), JSON.stringify(v4('E27')))
   check('현4!E23 값 없는 배출용송풍기는 빈 서식 그대로',
     v4('E23') === tx(cx(tplH4, 'E23'), shared4), JSON.stringify(v4('E23')))
+
+  // ── 연결송수관 이하 5설비 값 착지 ──
+  const got4b = await mk4({ s38_activity: {
+    riser: { usage: '겸용', shared_with: ['스프링클러설비'], pump_dong: '본', pump_ground: '지상',
+      pump_floor: '3', pump_room: '펌프실', pump_head: '60', pump_flow: '800', start_switch: ['방재실'] },
+    sprinkler_connect: { method: '건식', target_type: ['지하층'] },
+    emergency_outlet: { power: ['단상 220V'], plug: ['접지형 2극 플러그접속기'] },
+    wireless: { usage: '공용', method: '안테나', terminals: '1층로비' },
+    fire_spread: { target: ['통신사업용'], partition: '일부 있다' },
+  } })
+  const x4 = (ref: string) => tx(cx(got4b, ref), [])
+  check('현4!E28 연결송수관 겸용 + 공용설비 다중선택',
+    x4('E28').includes('[√]겸용') && x4('E28').includes('[√]스프링클러설비')
+      && x4('E28').includes('[  ]옥내소화전설비'), JSON.stringify(x4('E28')))
+  check('현4!E32·E33 가압송수장치 설치장소·제원',
+    x4('E32').includes('( 본 )') && x4('E32').includes('( 펌프실 )')
+      && x4('E33').includes('( 60 )') && x4('E33').includes('( 800 )'),
+    `${JSON.stringify(x4('E32'))} / ${JSON.stringify(x4('E33'))}`)
+  check('★현4!E37 연결살수 — 줄 전체가 폭 1 대괄호(`[ ]`)',
+    x4('E37').includes('[ ]습식 [√]건식') && x4('E37').includes('[√]지하층'), JSON.stringify(x4('E37')))
+  check('★현4!E40 비상콘센트 — 한 줄에 `[  ]`와 `[ ]`가 섞인다',
+    x4('E40').includes('[  ]3상 380V') && x4('E40').includes('[√]단상 220V')
+      && x4('E40').includes('[√]접지형 2극'), JSON.stringify(x4('E40')))
+  check('현4!E42·E43 무선통신보조 방식·접속단자',
+    x4('E42').includes('[√]공용') && x4('E42').includes('[√]안테나')
+      && x4('E43').includes('1층로비'), `${JSON.stringify(x4('E42'))} / ${JSON.stringify(x4('E43'))}`)
+  check('현4!E45 연소방지 구역간 구획 — 「일부 있다」만 √',
+    x4('E45').includes('[√]일부 있다') && x4('E45').includes('[  ]있다 '), JSON.stringify(x4('E45')))
+  check('현4!E30 대응 필드 없는 방수구 위치는 빈 서식 그대로',
+    x4('E30') === tx(cx(tplH4, 'E30'), shared4), JSON.stringify(x4('E30')))
 }
 
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────

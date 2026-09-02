@@ -714,6 +714,66 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     )
   }
 
+  // ── 현4 3-8 나머지 19칸 — 연결송수관·연결살수·비상콘센트·무선통신보조·연소방지 ──
+  //
+  // 설비 마크 A28·A36·A39·A44는 `현황!Y22~Y26` 수식이라 배선하지 않는다.
+  // ⚠ A41(무선통신보조)만 **수식이 없는 리터럴**이다(Y25가 건너뛰어져 있다). 템플릿에서 이미
+  //   비어 있어 표본 답 유출은 없으나, 그 설비의 설치 여부는 엑셀에 찍히지 않는다 — 서식·현황
+  //   매핑의 공백이라 여기서 지어내지 않는다(A3도 같은 부류).
+  // ⚠ 폭 1 대괄호가 E37 전줄과 E40의 '단상 220V' 한 칸에 있다. E40은 한 줄 안에서 `[  ]`와
+  //   `[ ]`가 **섞인다** — 통일하면 자구 왕복이 붉어진다.
+  // ⚠ E30(방수구 위치)·E34(전동기/내연기관)는 PDF riserLines에도 세부제원에도 없다 — 빈 서식.
+  {
+    const s38b = ((p.specs?.['s38_activity'] ?? null) as Record<string, unknown> | null)
+    const bk = (k: string) => ((s38b?.[k] ?? null) as Record<string, unknown> | null)
+    const ri = bk('riser'), sc = bk('sprinkler_connect'), eo = bk('emergency_outlet')
+    const wl = bk('wireless'), fs = bk('fire_spread')
+    const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
+    const w = (b: Record<string, unknown> | null, k: string, n: number) => {
+      const s = str(b, k)
+      return s ? ` ${s} ` : ' '.repeat(n)
+    }
+    const isSel = (b: Record<string, unknown> | null, k: string, o: string) => str(b, k) === o
+    const inArr = (b: Record<string, unknown> | null, k: string, o: string) => {
+      const v = b?.[k]
+      return Array.isArray(v) && v.map(String).includes(o)
+    }
+    const ck1 = (on: boolean) => (on ? '[√]' : '[ ]')
+    const rangeCov = (b: Record<string, unknown> | null) =>
+      `동명(${w(b, 'dong', 3)}) ${ck(isSel(b, 'coverage', '전체층'))}전체층/${ck(isSel(b, 'coverage', '일부층'))}일부층 `
+      + `${ck(isSel(b, 'from_ground', '지상'))}지상/${ck(isSel(b, 'from_ground', '지하'))}지하(${w(b, 'from_floor', 2)})층 ~ `
+      + `${ck(isSel(b, 'to_ground', '지상'))}지상/${ck(isSel(b, 'to_ground', '지하'))}지하(${w(b, 'to_floor', 2)})층`
+    /** 층 범위 — 전체층/일부층 축이 없는 형(비상콘센트·무선통신보조) */
+    const rangeNoCov = (b: Record<string, unknown> | null) =>
+      `동명(${w(b, 'dong', 3)}) ${ck(isSel(b, 'from_ground', '지상'))}지상/${ck(isSel(b, 'from_ground', '지하'))}지하(${w(b, 'from_floor', 2)})층 ~ `
+      + `${ck(isSel(b, 'to_ground', '지상'))}지상/${ck(isSel(b, 'to_ground', '지하'))}지하(${w(b, 'to_floor', 2)})층`
+
+    entries.push(
+      // 연결송수관
+      ['s38RiUsage', `${ck(isSel(ri, 'usage', '전용'))}전용 ${ck(isSel(ri, 'usage', '겸용'))}겸용(${ck(inArr(ri, 'shared_with', '옥내소화전설비'))}옥내소화전설비 ${ck(inArr(ri, 'shared_with', '스프링클러설비'))}스프링클러설비 ${ck(inArr(ri, 'shared_with', '기타'))}기타:${w(ri, 'shared_etc', 13)})`],
+      ['s38RiLoc', `◦ 설치장소: ${rangeCov(ri)}`],
+      ['s38RiOutletPos', `◦ 방수구 위치 ${ck(false)}복도·통로 ${ck(false)}계단실 ${ck(false)} 계단등의 부근`],
+      ['s38RiInlet', `◦ 송수구 설치장소:(${w(ri, 'inlet_place', 18)}), 중간수조용량: (${w(ri, 'mid_tank', 9)})㎥`],
+      ['s38RiPumpLoc', `◦ 가압송수장치 설치장소: 동명(${w(ri, 'pump_dong', 11)}) ${ck(isSel(ri, 'pump_ground', '지상'))}지상/${ck(isSel(ri, 'pump_ground', '지하'))}지하 (${w(ri, 'pump_floor', 3)})층, 실명(${w(ri, 'pump_room', 11)})`],
+      ['s38RiPumpSpec', `  전양정:(${w(ri, 'pump_head', 9)})m, 토출량:(${w(ri, 'pump_flow', 9)})ℓ/min`],
+      ['s38RiEngine', `  ${ck(false)}전동기 ${ck(false)}내연기관(연료:${ck(false)}경유 ${ck(false)}기타)`],
+      ['s38RiSwitch', `◦ 기동스위치 설치장소 ${ck(inArr(ri, 'start_switch', '송수구'))}송수구 ${ck(inArr(ri, 'start_switch', '방재실'))}방재실 ${ck(inArr(ri, 'start_switch', '기타'))}기타(${w(ri, 'start_switch_etc', 13)})`],
+      // 연결살수 — 이 줄 전체가 폭 1 대괄호다
+      ['s38ScMethod', `◦ 방식 ${ck1(isSel(sc, 'method', '습식'))}습식 ${ck1(isSel(sc, 'method', '건식'))}건식 / ${ck1(inArr(sc, 'target_type', '지하층'))}지하층 ${ck1(inArr(sc, 'target_type', '판매시설'))}판매시설 ${ck1(inArr(sc, 'target_type', '가스시설'))}가스시설 ${ck1(inArr(sc, 'target_type', '부속된 연결통로'))}부속된 연결통로`],
+      ['s38ScInlet', `◦ 송수구 설치장소:(${w(sc, 'inlet_place', 18)}), 송수구역수: (${w(sc, 'zone_count', 9)})구역`],
+      // 비상콘센트 — E40은 한 줄 안에서 `[  ]`와 `[ ]`가 섞인다
+      ['s38EoLoc', `◦ 설치장소: ${rangeNoCov(eo)}`],
+      ['s38EoPower', `${ck(inArr(eo, 'power', '3상 380V'))}3상 380V  ${ck1(inArr(eo, 'power', '단상 220V'))}단상 220V / ${ck(inArr(eo, 'plug', '접지형 2극 플러그접속기'))}접지형 2극 플러그접속기 ${ck(inArr(eo, 'plug', '접지형 3극 플러그접속기'))}접지형 3극 플러그접속기`],
+      // 무선통신보조
+      ['s38WlLoc', `◦ 설치장소: ${rangeNoCov(wl)}`],
+      ['s38WlMethod', `${ck(isSel(wl, 'usage', '전용'))}전용 ${ck(isSel(wl, 'usage', '공용'))}공용 / 방식: ${ck(isSel(wl, 'method', '누설동축케이블'))}누설동축케이블 ${ck(isSel(wl, 'method', '누설동축케이블과 안테나'))}누설동축케이블과 안테나 ${ck(isSel(wl, 'method', '안테나'))}안테나`],
+      ['s38WlTerminals', `◦ 접속단자 설치장소(${w(wl, 'terminals', 14)}), (${w(wl, 'terminals2', 14)})`],
+      // 연소방지
+      ['s38FsTarget', `◦ 방호대상물 ${ck(inArr(fs, 'target', '전력사업용'))}전력사업용 ${ck(inArr(fs, 'target', '통신사업용'))}통신사업용 ${ck(inArr(fs, 'target', '그 밖의 것'))}그 밖의 것(${w(fs, 'target_etc', 18)})`],
+      ['s38FsZone', `◦ 송수구역수: (${w(fs, 'zone_count', 9)})구역 / 구역간의 구획 ${ck(isSel(fs, 'partition', '있다'))}있다 ${ck(isSel(fs, 'partition', '일부 있다'))}일부 있다 ${ck(isSel(fs, 'partition', '없다'))}없다`],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의

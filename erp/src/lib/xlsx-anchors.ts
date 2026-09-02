@@ -328,6 +328,20 @@ export const ANCHORS: Anchor[] = [
   ] as const).map<Anchor>((field, i) => ({
     field, sheet: '현4', cell: `E${18 + i}`, labelCell: 'B3', label: '제\n연\n설\n비',
   })),
+  // ── 현4 3-8 나머지 19칸 — 연결송수관 이하 5설비 (Phase 4 / S9-1 완결) ────────
+  // 설비 마크 A28·A36·A39·A44는 `현황!Y22~Y26` 수식이라 배선하지 않는다(A41은 대응 수식이 없다).
+  ...([
+    ['s38RiUsage', 'E28'], ['s38RiLoc', 'E29'], ['s38RiOutletPos', 'E30'], ['s38RiInlet', 'E31'],
+    ['s38RiPumpLoc', 'E32'], ['s38RiPumpSpec', 'E33'], ['s38RiEngine', 'E34'], ['s38RiSwitch', 'E35'],
+  ] as const).map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B28', label: '연결송수관' })),
+  ...([['s38ScMethod', 'E37'], ['s38ScInlet', 'E38']] as const)
+    .map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B36', label: '연결살수' })),
+  ...([['s38EoLoc', 'E39'], ['s38EoPower', 'E40']] as const)
+    .map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B39', label: '비상콘센트' })),
+  ...([['s38WlLoc', 'E41'], ['s38WlMethod', 'E42'], ['s38WlTerminals', 'E43']] as const)
+    .map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B41', label: '무선통신\n보조' })),
+  ...([['s38FsTarget', 'E44'], ['s38FsZone', 'E45']] as const)
+    .map<Anchor>(([field, cell]) => ({ field, sheet: '현4', cell, labelCell: 'B44', label: '연소방지' })),
   // ── 다수동일때 시트(2·3·4동 건축물 정보 3블록) — **빈 서식으로 상시 덮는다** ──
   // 이 시트는 코드가 한 번도 언급하지 않아(grep 0) 손 안 댄 채 전 고객에게 나갔고, 숫자 칸은
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·
