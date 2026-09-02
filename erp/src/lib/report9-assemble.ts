@@ -385,8 +385,12 @@ export async function assembleReport9(
     const pr = profMap.get(employeeId)
     return { name: pr?.name ?? '', grade: pr?.license_grade ?? '', licenseNo: pr?.license_no ?? '', period }
   }
-  const mains = parts.filter(p => p.role === '주된')
-  const assists = parts.filter(p => p.role === '보조')
+  // 유령 참여 행 배제(2026-09-02 서림사 실사고 — 사용자 확정: "보조 인력이 있으면 참여일, 없으면 빈칸").
+  // employee_id가 null이거나 직원으로 해석되지 않는 행은 사람이 없는 것이다 — 세우면
+  // 이름·자격 없는 보조 행에 **참여일만** 찍힌다(갑지 개요·별지 9호 2쪽 공용 축).
+  const real = parts.filter(p => p.employee_id && profMap.get(p.employee_id)?.name)
+  const mains = real.filter(p => p.role === '주된')
+  const assists = real.filter(p => p.role === '보조')
 
   // 점검 구분 — 작동/종합(최초·그 밖의).
   // ⚠ 여기서 직접 파생하지 않는다 — 표지·공문·위임장이 쓰는 `inspectionTypeLabel`과 **같은 유도식**을
@@ -570,7 +574,7 @@ export async function assembleReport9(
   if (!mains.length) missing.push('주된 점검인력')
   if (!responses.length) missing.push('점검표 응답')
   if (cust.email_delivery_consent === null) missing.push('송달 동의')
-  if (!(parts.length && parts.every(p => profMap.get(p.employee_id)?.license_no))) missing.push('자격정보')
+  if (!(real.length && real.every(p => profMap.get(p.employee_id)?.license_no))) missing.push('자격정보')
   if (!cust.address) missing.push('주소')
   if (!cust.use_approval_date) missing.push('사용승인일')
   if (!b?.permit_date) missing.push('건축허가일')

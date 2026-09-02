@@ -17,6 +17,9 @@ export async function addAuxParticipantAction(
   inspectionId: string, employeeId: string
 ): Promise<{ error?: string }> {
   await requirePermission('inspection_register')
+  // 유령 행 차단(2026-09-02): employee_id 없는 참여 행은 사람 없이 문서에 참여일만 찍는다
+  // (서림사 실사고 — null 보조 2행). 조립(report9-assemble)도 배제하지만 입구에서 먼저 막는다.
+  if (!employeeId) return { error: '직원을 선택해주세요.' }
   const admin = createAdminClient()
   const { error } = await admin.from('inspection_participants').insert({
     inspection_id: inspectionId, employee_id: employeeId, role: '보조',
