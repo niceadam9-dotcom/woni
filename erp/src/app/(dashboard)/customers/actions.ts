@@ -9,6 +9,7 @@ import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from 
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
+import { syncStartedRowSubTypes } from '@/lib/inspection-row-sync'
 import { reconcileSpecialSlots, planReconcile } from '@/lib/reconcile-special-slots'
 import { anchorSourceLabel } from '@/lib/plan-anchor'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
@@ -712,6 +713,9 @@ export async function updateCustomerAction(
   // 수동 지정분은 보존하고, 출처 컬럼이 없으면 아예 건너뛴다(구별 못 하면 덮지 않는다).
   if (approvalChanged) {
     await recalcIsInitialForCustomer(admin, customerId)
+    // 시작·완료된 올해 이후 행의 종합/작동 축도 현재 고객 축으로 동기화 (2026-09-02 —
+    // 미시작만 재배치하면 이미 시작된 행이 옛 종류로 남아 엑셀·별지가 낡은 값을 인쇄한다)
+    await syncStartedRowSubTypes(admin, customerId)
   }
 
   // 점검유형·종류 변경 → 미확정(planned) 계획 항목 유형 동기화 (변경전파맵 1-11)
@@ -722,6 +726,7 @@ export async function updateCustomerAction(
   const subChanged  = updateFields.inspection_sub_type !== undefined && prev && updateFields.inspection_sub_type !== prev.inspection_sub_type
   if ((typeChanged || subChanged) && effType) {
     await _syncInspectionTypeToPlanItems(admin, customerId, effType, effSub, profile.id)
+    await syncStartedRowSubTypes(admin, customerId)   // 시작된 행도 (2026-09-02)
     revalidatePath('/inspections/calendar')
   }
 
@@ -1852,6 +1857,7 @@ export async function patchCustomerFieldAction(
   // ⚠ anchorMoved와 **다른 조건**이다 — manual=true 고객은 기산점이 안 움직여도 최초점검은 바뀐다.
   if (field === 'use_approval_date' && (value || null) !== oldValue) {
     await recalcIsInitialForCustomer(admin, customerId)
+    await syncStartedRowSubTypes(admin, customerId)   // 시작된 행 종류도 (2026-09-02, 전체 폼과 동일 규칙)
   }
 
   // **변동 = 재계산** — 인라인 경로도 같은 규칙을 탄다(전체 수정 폼과 갈라지면 어느 화면으로
@@ -1867,6 +1873,7 @@ export async function patchCustomerFieldAction(
   if (field === 'inspection_type' && value && value !== oldValue) {
     const patchedSub = patchFields.inspection_sub_type === '종합' ? '종합' : '작동'
     await _syncInspectionTypeToPlanItems(admin, customerId, value as InspectionType, patchedSub, profile.id)
+    await syncStartedRowSubTypes(admin, customerId)   // 시작된 행 종류도 (2026-09-02)
     revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }
