@@ -237,11 +237,19 @@ export async function reconcileSpecialSlots(
       switch (op.kind) {
         case 'toSpecial': {
           const s = op.planType.slice('special_'.length) as '종합' | '작동'
+          // 예정일도 생성기와 **같은 규칙**으로 다시 계산한다 — 강등(toMonthly)은 처음부터
+          // plannedDateFor를 썼는데 승격만 안 써서, 리셋 없이 이 함수를 직접 부르면 승격된 행이
+          // 옛 기산일의 '일'을 지닌 채 남았다(쌍둥이 실측: 소방안전관리 2027-07-13 vs 일반관리
+          // 2027-07-20 — 정기 행이 있는 소방안전관리에서만 나는 비대칭이다). 실경로 2곳은
+          // _resetPlanItemsForCustomer가 먼저 고쳐 줘 같은 값을 다시 쓰는 멱등이지만,
+          // 이 함수가 리셋에 기대는 암묵 전제는 여기서 끊는다.
+          const hd = await loadHolidays()
           const { error } = await admin.from('inspection_plan_items').update({
             plan_type: op.planType,
             inspection_sub_type: s,
             inspection_type: rowInspectionType(c.inspection_type, sub, s === '작동' && sub === '종합' ? 2 : 1),
             status: 'planned',
+            planned_date: plannedDateFor(op.year, op.month, anchorDay, hd),
             scheduled_date: null,
           } as Record<string, unknown>).eq('id', op.id)
           if (!error) out.promoted++
