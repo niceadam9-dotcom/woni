@@ -2,9 +2,10 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
-import { patchCustomerFieldAction, updateCustomerAction, type ConfirmedPlanItemInfo } from '@/app/(dashboard)/customers/actions'
+import { patchCustomerFieldAction, updateCustomerAction, previewAnchorChangeAction, type ConfirmedPlanItemInfo, type AnchorPreview } from '@/app/(dashboard)/customers/actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
+import { AnchorChangePreview } from './anchor-change-preview'
 import type { InspectionType } from '@/types'
 
 type Field = 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id'
@@ -48,6 +49,11 @@ export function InlineCustomerFieldClient({
   // 기준일 변경 시 확정 일정 처리 선택 팝업(B안) — 저장 보류된 값과 확정 항목 목록
   const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
   const pendingValueRef = useRef<string | null>(null)
+  /** 기산점·점검종류 변경 미리보기 — 전체 폼과 **같은 팝업**을 쓴다(화면마다 다르면 사용자가 혼란한다).
+   *  `run`은 사용자가 확인했을 때 실제로 저장하는 절차다 — 무엇을 저장할지는 여는 쪽이 정한다. */
+  const [preview, setPreview] = useState<
+    { before: AnchorPreview; after: AnchorPreview; confirmedItems: ConfirmedPlanItemInfo[]; run: (d?: 'unconfirm' | 'keep') => void } | null
+  >(null)
 
   useEffect(() => {
     if (editing) {
@@ -70,34 +76,57 @@ export function InlineCustomerFieldClient({
   function handleSaveType() {
     const combo = TYPE_COMBOS.find(c => c.value === draft)
     if (!combo || combo.value === typeComboValue) { setEditing(false); return }
-    startTransition(async () => {
+    const nextSub = combo.sub ?? (combo.type === '종합' ? '종합' : '작동')
+    const doIt = () => startTransition(async () => {
       const res = await updateCustomerAction(customerId, {
         inspection_type: combo.type,
         ...(combo.sub ? { inspection_sub_type: combo.sub } : {}),
       })
       if (res.error) alert(res.error)
-      setEditing(false)
+      setPreview(null); setEditing(false)
+    })
+    // 종류가 바뀌면 2차 유무·법정 달이 함께 바뀐다 — 저장 전에 보여준다
+    startTransition(async () => {
+      const p = await previewAnchorChangeAction(customerId, { inspection_sub_type: nextSub }).catch(() => null)
+      if (!p?.before || !p.after) { doIt(); return }   // 미리보기 실패가 저장을 막지 않는다
+      setPreview({ before: p.before, after: p.after, confirmedItems: p.confirmedItems ?? [], run: () => doIt() })
     })
   }
 
   function handleSave(e?: React.MouseEvent) {
     e?.stopPropagation()
+    // 미리보기가 떠 있으면 포커스가 팝업으로 옮겨가며 입력칸 onBlur가 다시 이 함수를 부른다.
+    // 막지 않으면 팝업이 뜬 채로 두 번째 저장이 시작된다.
+    if (preview) return
     if (field === 'inspection_type') { handleSaveType(); return }
     const trimmed = draft.trim() || null
     if (trimmed === (value ?? null)) { setEditing(false); return }
     // 부분 입력된 날짜("2026-07")는 저장하지 않고 편집 종료 (원래 값 유지)
     if (isDateField && trimmed && !isCompleteDate(trimmed)) { setEditing(false); return }
-    startTransition(async () => {
-      const res = await patchCustomerFieldAction(customerId, field, trimmed)
-      // 확정 일정 보유 고객의 기준일 변경 — 아직 저장 안 됨, 사용자 선택 팝업 표시
+
+    const doPatch = (decision?: 'unconfirm' | 'keep') => startTransition(async () => {
+      const res = await patchCustomerFieldAction(customerId, field, trimmed, decision ? { confirmedDecision: decision } : undefined)
+      // 미리보기를 거치지 않은 경로에서 서버가 확정 선택을 요구하면 기존 팝업으로 폴백
       if (res.requiresConfirmedDecision && res.confirmedItems) {
         pendingValueRef.current = trimmed
         setConfirmedDlg(res.confirmedItems)
         return
       }
       if (res.error) alert(res.error)
-      setEditing(false)
+      setPreview(null); setEditing(false)
     })
+
+    // 기산점 축(사용승인일·점검계획일)은 저장 전에 무엇이 되는지 보여준다 —
+    // 전체 폼과 **같은 팝업**이라 어느 화면으로 고쳐도 같은 경험이 된다.
+    if (field === 'use_approval_date' || field === 'plan_anchor_date') {
+      startTransition(async () => {
+        const p = await previewAnchorChangeAction(customerId, { [field]: trimmed }).catch(() => null)
+        if (!p?.before || !p.after) { doPatch(); return }   // 미리보기 실패가 저장을 막지 않는다
+        setPreview({ before: p.before, after: p.after, confirmedItems: p.confirmedItems ?? [], run: d => doPatch(d) })
+      })
+      return
+    }
+    doPatch()
   }
 
   function handleConfirmedDecision(decision: 'unconfirm' | 'keep') {
@@ -157,6 +186,7 @@ export function InlineCustomerFieldClient({
     }
     return (
       <div
+        data-testid={`inline-${field}`}
         className="flex items-center gap-1 group cursor-pointer"
         onClick={handleEdit}
         title="클릭하여 수정"
@@ -176,9 +206,38 @@ export function InlineCustomerFieldClient({
     }
   }
 
+  /* 편집 분기가 셋(종류 select · 담당자 select · 텍스트/날짜)이라 팝업을 한 분기에만 두면
+     나머지에선 setPreview가 되고도 **그릴 자리가 없어** 조용히 아무 일도 안 일어난다.
+     실제로 종류 변경이 그렇게 막혀 있었다 — 그래서 자리를 한 군데로 모아 셋 다 붙인다. */
+  const dialogs = (
+    <>
+      {/* 기산점·종류 변경 미리보기 — 전체 폼과 같은 팝업. 확정 일정 선택까지 여기서 함께 한다 */}
+      {preview && (
+        <AnchorChangePreview
+          before={preview.before}
+          after={preview.after}
+          confirmedItems={preview.confirmedItems}
+          isPending={isPending}
+          onConfirm={d => preview.run(d)}
+          onCancel={() => { setPreview(null); setEditing(false) }}
+        />
+      )}
+      {/* 미리보기를 못 띄운 경로의 폴백 */}
+      {confirmedDlg && (
+        <ConfirmedDecisionDialog
+          items={confirmedDlg}
+          isPending={isPending}
+          onDecide={handleConfirmedDecision}
+          onCancel={() => { setConfirmedDlg(null); setEditing(false) }}
+        />
+      )}
+    </>
+  )
+
   if (field === 'inspection_type') {
     return (
-      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+      <div data-testid="inline-inspection_type-edit" className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        {dialogs}
         <select
           ref={inputRef as React.RefObject<HTMLSelectElement>}
           value={draft}
@@ -197,6 +256,7 @@ export function InlineCustomerFieldClient({
   if (field === 'assigned_employee_id') {
     return (
       <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        {dialogs}
         <select
           ref={inputRef as React.RefObject<HTMLSelectElement>}
           value={draft}
@@ -217,7 +277,7 @@ export function InlineCustomerFieldClient({
   const InputComp = isDateField ? DateInput : 'input'
 
   return (
-    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+    <div data-testid={`inline-${field}-edit`} className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
       <InputComp
         ref={inputRef as React.RefObject<HTMLInputElement>}
         {...(isDateField ? {} : { type: 'text' })}
@@ -229,6 +289,8 @@ export function InlineCustomerFieldClient({
         className="h-7 px-1.5 text-xs border border-brand rounded outline-none bg-surface min-w-0 w-32"
       />
       <button
+        data-testid="inline-save"
+        title="저장"
         onMouseDown={e => { e.preventDefault(); handleSave(e) }}
         disabled={isPending}
         className="p-0.5 text-green-600 hover:text-green-700 disabled:opacity-40"
@@ -236,19 +298,14 @@ export function InlineCustomerFieldClient({
         <Check className="size-3.5" />
       </button>
       <button
+        data-testid="inline-cancel"
+        title="취소"
         onMouseDown={e => { e.preventDefault(); handleCancel(e) }}
         className="p-0.5 text-ink-meta hover:text-red-500"
       >
         <X className="size-3.5" />
       </button>
-      {confirmedDlg && (
-        <ConfirmedDecisionDialog
-          items={confirmedDlg}
-          isPending={isPending}
-          onDecide={handleConfirmedDecision}
-          onCancel={() => { setConfirmedDlg(null); setEditing(false) }}
-        />
-      )}
+      {dialogs}
     </div>
   )
 }
