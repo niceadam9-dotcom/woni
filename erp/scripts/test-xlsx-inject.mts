@@ -402,7 +402,11 @@ console.log('[4c] 현1 3-2 자구 왕복·값 착지')
 console.log('[4d] 현2 3-2 후반 자구 왕복·수식 절단')
 {
   const CELLS = ['C2', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10',
-    'D11', 'D12', 'D13', 'D14', 'D15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22']
+    'D11', 'D12', 'D13', 'D14', 'D15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22',
+    // 3-3 수계 개별사항 · 3-4 가스계 — 층 범위(rangeLine)가 반복되는 구간이라
+    // 자구 드리프트가 나면 여러 칸에서 한꺼번에 터진다(그래서 전수로 본다)
+    'C24', 'C25', 'C26', 'C27', 'C28', 'C29', 'C30', 'C31', 'C32', 'C33', 'C34', 'C35',
+    'C36', 'C37', 'C38', 'C40', 'C41', 'C42', 'C43', 'C44', 'C45', 'C46', 'C47']
   const FORMULA_CELLS = ['D2', 'D3', 'D4', 'D5', 'C16', 'C17', 'C18']
   const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
     .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
@@ -433,7 +437,7 @@ console.log('[4d] 현2 3-2 후반 자구 왕복·수식 절단')
     if (a === b) { same++; continue }
     check(`자구 왕복 현2!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
   }
-  check('자구 왕복 — 현2 빈 값 조립이 서식 원문과 동일(22칸)', same === CELLS.length, `${same}/${CELLS.length}`)
+  check('자구 왕복 — 현2 빈 값 조립이 서식 원문과 동일(45칸)', same === CELLS.length, `${same}/${CELLS.length}`)
 
   // 수식 절단 — 안 끊으면 Excel 재계산이 남의 블록 값을 되살린다
   const stillFormula = FORMULA_CELLS.filter(r => /<f[^>]*>/.test(cellOfXml(h2B, r)))
@@ -472,6 +476,45 @@ console.log('[4d] 현2 3-2 후반 자구 왕복·수식 절단')
     g('C21').includes('[√]축전지설비') && g('C21').includes('[  ]전기저장장치'), JSON.stringify(g('C21')))
   check('현2!D7 대응 필드 없는 전동기 줄은 빈 서식 그대로',
     g('D7') === `  [  ]전동기 [  ]내연기관(연료:[  ]경유 [  ]기타`, JSON.stringify(g('D7')))
+
+  // ── 3-3·3-4 값 착지 ──
+  const bytes34 = (await injectWorkbook(template, toInjectTargets(buildWorkbookValues({
+    official, delegation, customerAddress: '', startISO: null, endISO: null,
+    useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+    report9: { ...report9, specs: {
+      s33_water_each: {
+        indoor_hydrant: { dong: '본', coverage: '일부층', from_ground: '지하', from_floor: '2', to_ground: '지상', to_floor: '5', max_count: '7' },
+        sprinkler: { type: '준비작동식' },
+        foam: { system: ['포헤드설비'], agent: ['수성막포'] },
+      },
+      s34_gas: { gas_system: {
+        discharge: ['전역방출'], pressure_class: '고압식', charge_type: '가압식',
+        storage_ground: '지하', storage_floor: '1', storage_room: '전용실',
+        qty_amount: '45', qty_unit: '㎏', agent: ['할론1301', 'IG-541'],
+      } },
+    } },
+  })).targets)).bytes
+  const z34 = await JSZip.loadAsync(bytes34)
+  const h34 = await z34.file((await sheetFileMap(z34)).get('현2')!)!.async('string')
+  const q = (ref: string) => textIn(cellOfXml(h34, ref), [])
+  check('현2!C24 옥내소화전 층 범위 — 지하2 ~ 지상5, 일부층',
+    q('C24').includes('[√]일부층') && q('C24').includes('[  ]전체층')
+      && q('C24').includes(' 2 )층 ~ ') && q('C24').includes(' 5 )층'), JSON.stringify(q('C24')))
+  check('현2!C26 설치개수 최다층', q('C26').includes('( 7 )개'), JSON.stringify(q('C26')))
+  check('현2!C28 스프링클러 종류 — 준비작동식만 √',
+    q('C28').includes('[√]준비작동식') && q('C28').includes('[  ]습식'), JSON.stringify(q('C28')))
+  check('현2!C37 포 소화약제 — 수성막포만 √',
+    q('C37').includes('[√]수성막포') && q('C37').includes('[  ]단백포'), JSON.stringify(q('C37')))
+  check('현2!C40 가스계 방출·압력·가압 방식',
+    q('C40').includes('[√]전역방출') && q('C40').includes('[√]고압식') && q('C40').includes('[√]가압식')
+      && q('C40').includes('[  ]축압식'), JSON.stringify(q('C40')))
+  check('★현2!C43 단위 대괄호는 폭 1(`[ ]`)이고 ㎏만 √',
+    q('C43').includes('[√]㎏,[ ]㎥') && q('C43').includes('( 45 )'), JSON.stringify(q('C43')))
+  check('현2!C44·C46 약제는 여러 줄에 걸쳐 각자 √',
+    q('C44').includes('[√]할론1301') && q('C46').includes('[√]IG-541')
+      && q('C44').includes('[  ]이산화탄소'), `${JSON.stringify(q('C44'))} / ${JSON.stringify(q('C46'))}`)
+  check('현2!C27 값 없는 옥외소화전은 빈 서식 그대로',
+    q('C27') === '◦ 설치개수: (   )개', JSON.stringify(q('C27')))
 }
 
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────

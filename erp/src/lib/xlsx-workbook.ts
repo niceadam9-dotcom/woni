@@ -445,6 +445,72 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     )
   }
 
+  // ── 현2 3-3 수계소화설비(개별사항)·3-4 가스계소화설비 23칸 (Phase 4 / S9-1) ──
+  //
+  // 설비 설치 마크(A24·A27·A28·A30·A32·A34·A36·A40~A46)는 **배선하지 않는다** —
+  // `현황!C12~C25` 수식이라 이미 흐른다(실측 _p4-hyeon-labels). 여기서 덮으면 두 축이 겹친다.
+  //
+  // ⚠ 층 범위 줄(rangeLine)의 **둘째 줄 자구가 PDF와 다르다**: PDF rangeLines2는 `: `를 앞에
+  //   붙이는데(spec-sections:116) 이 시트는 공백 12칸이다. 시트별 자구를 섞지 않는다.
+  // ⚠ 엑셀 3-3에는 **미분무소화설비 행이 없다**(PDF에는 있다 — `현황!C17`도 건너뛴다).
+  //   서식에 칸이 없으므로 실을 곳이 없다. 없는 칸을 만들지 않는다.
+  // ⚠ C43의 단위 대괄호는 `[ ]`(공백 1칸)로 다른 칸(`[  ]`)과 **폭이 다르다** — 원문 그대로다.
+  {
+    const s33 = ((p.specs?.['s33_water_each'] ?? null) as Record<string, unknown> | null)
+    const s34 = ((p.specs?.['s34_gas'] ?? null) as Record<string, unknown> | null)
+    const b3 = (k: string) => ((s33?.[k] ?? null) as Record<string, unknown> | null)
+    const gas = ((s34?.['gas_system'] ?? null) as Record<string, unknown> | null)
+
+    const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
+    const w = (b: Record<string, unknown> | null, k: string, n: number) => {
+      const s = str(b, k)
+      return s ? ` ${s} ` : ' '.repeat(n)
+    }
+    const isSel = (b: Record<string, unknown> | null, k: string, o: string) => str(b, k) === o
+    const inArr = (b: Record<string, unknown> | null, k: string, o: string) => {
+      const v = b?.[k]
+      return Array.isArray(v) && v.map(String).includes(o)
+    }
+    /** 단위 칸만 쓰는 폭 1 대괄호 — 서식 원문이 여기만 `[ ]`다 */
+    const ck1 = (on: boolean) => (on ? '[√]' : '[ ]')
+    /** 층 범위 — 동명 3 · 층 2. 접미사 '2'면 둘째 줄 필드를 읽는다(PDF rangeLine과 같은 키) */
+    const range = (b: Record<string, unknown> | null, sfx = '') =>
+      `동명(${w(b, `dong${sfx}`, 3)}) ${ck(isSel(b, `coverage${sfx}`, '전체층'))}전체층/${ck(isSel(b, `coverage${sfx}`, '일부층'))}일부층 `
+      + `${ck(isSel(b, `from_ground${sfx}`, '지상'))}지상/${ck(isSel(b, `from_ground${sfx}`, '지하'))}지하(${w(b, `from_floor${sfx}`, 2)})층 ~ `
+      + `${ck(isSel(b, `to_ground${sfx}`, '지상'))}지상/${ck(isSel(b, `to_ground${sfx}`, '지하'))}지하(${w(b, `to_floor${sfx}`, 2)})층`
+    const locRange = (b: Record<string, unknown> | null) => `◦ 설치장소: ${range(b)}`
+    const locRange2 = (b: Record<string, unknown> | null) => `${' '.repeat(12)}${range(b, '2')}`
+
+    const ih = b3('indoor_hydrant'), oh = b3('outdoor_hydrant')
+    const sp = b3('sprinkler'), ss = b3('simple_sprinkler')
+    const es = b3('early_suppression'), ws = b3('water_spray'), fo = b3('foam')
+
+    entries.push(
+      // 3-3
+      ['s33IhLoc', locRange(ih)], ['s33IhLoc2', locRange2(ih)],
+      ['s33IhMax', `◦ 설치개수가 가장 많은 층의 설치개수: (${w(ih, 'max_count', 3)})개`],
+      ['s33OhCount', `◦ 설치개수: (${w(oh, 'count', 3)})개`],
+      ['s33SpType', `◦ 종류: ${ck(isSel(sp, 'type', '습식'))}습식 ${ck(isSel(sp, 'type', '부압식'))}부압식 ${ck(isSel(sp, 'type', '준비작동식'))}준비작동식 ${ck(isSel(sp, 'type', '건식'))}건식 ${ck(isSel(sp, 'type', '일제살수식'))}일제살수식`],
+      ['s33SpLoc', locRange(sp)],
+      ['s33SsType', `◦ 종류: ${ck(isSel(ss, 'type', '펌프'))}펌프 ${ck(isSel(ss, 'type', '캐비닛'))}캐비닛 ${ck(isSel(ss, 'type', '상수도'))}상수도`],
+      ['s33SsLoc', locRange(ss)],
+      ['s33EsLoc', locRange(es)], ['s33EsLoc2', locRange2(es)],
+      ['s33WsLoc', locRange(ws)], ['s33WsLoc2', locRange2(ws)],
+      ['s33FoSystem', `${ck(inArr(fo, 'system', '포워터스프링클러설비'))}포워터스프링클러설비 ${ck(inArr(fo, 'system', '포헤드설비'))}포헤드설비 ${ck(inArr(fo, 'system', '고정포방출설비'))}고정포방출설비 ${ck(inArr(fo, 'system', '기타'))}기타(${w(fo, 'system_etc', 15)})`],
+      ['s33FoAgent', `◦ 소화약제 ${ck(inArr(fo, 'agent', '단백포'))}단백포 ${ck(inArr(fo, 'agent', '합성계면활성제포'))}합성계면활성제포 ${ck(inArr(fo, 'agent', '수성막포'))}수성막포 ${ck(inArr(fo, 'agent', '내알코올포'))}내알코올포`],
+      ['s33FoLoc', locRange(fo)],
+      // 3-4 — 전부 gas_system 한 블록이다
+      ['s34Discharge', `${ck(inArr(gas, 'discharge', '전역방출'))}전역방출 ${ck(inArr(gas, 'discharge', '국소방출'))}국소방출 ${ck(inArr(gas, 'discharge', '호스릴'))}호스릴 / ${ck(isSel(gas, 'pressure_class', '고압식'))}고압식 ${ck(isSel(gas, 'pressure_class', '저압식'))}저압식 / ${ck(isSel(gas, 'charge_type', '축압식'))}축압식 ${ck(isSel(gas, 'charge_type', '가압식'))}가압식`],
+      ['s34Loc', locRange(gas)],
+      ['s34Storage', `◦ 저장용기 설치장소: ${ck(isSel(gas, 'storage_ground', '지상'))}지상/${ck(isSel(gas, 'storage_ground', '지하'))}지하 (${w(gas, 'storage_floor', 3)})층, ${ck(isSel(gas, 'storage_room', '전용실'))}전용실 ${ck(isSel(gas, 'storage_room', '기타'))}기타(${w(gas, 'storage_room_etc', 15)})`],
+      ['s34Qty', `  수량: (${w(gas, 'qty_amount', 9)})${ck1(isSel(gas, 'qty_unit', '㎏'))}㎏,${ck1(isSel(gas, 'qty_unit', '㎥'))}㎥ (${w(gas, 'qty_liter', 9)})ℓ (${w(gas, 'qty_count', 9)})개`],
+      ['s34Agent1', `◦ 소화약제 ${ck(inArr(gas, 'agent', '이산화탄소'))}이산화탄소 ${ck(inArr(gas, 'agent', '할론1301'))}할론1301 ${ck(inArr(gas, 'agent', '할론2402'))}할론2402 ${ck(inArr(gas, 'agent', '할론1211'))}할론1211 ${ck(inArr(gas, 'agent', '할론104'))} 할론104`],
+      ['s34Agent2', `  ${ck(inArr(gas, 'agent', 'FC-3-1-10'))}FC-3-1-10 ${ck(inArr(gas, 'agent', 'HCFC BLEND A'))}HCFC BLEND A ${ck(inArr(gas, 'agent', 'HCFC-124'))}HCFC-124 ${ck(inArr(gas, 'agent', 'HFC-125'))}HFC-125 ${ck(inArr(gas, 'agent', 'HFC-227ea'))}HFC-227ea`],
+      ['s34Agent3', `  ${ck(inArr(gas, 'agent', 'HFC-23'))}HFC-23 ${ck(inArr(gas, 'agent', 'IG-541'))}IG-541 ${ck(inArr(gas, 'agent', 'IG-100'))}IG-100 ${ck(inArr(gas, 'agent', '기타'))} 기타(${w(gas, 'agent_etc', 11)})`],
+      ['s34Agent4', `  ${ck(inArr(gas, 'agent', '제1종분말'))}제1종분말 ${ck(inArr(gas, 'agent', '제2종분말'))}제2종분말 ${ck(inArr(gas, 'agent', '제3종분말'))}제3종분말 ${ck(inArr(gas, 'agent', '제4종분말'))}제4종분말`],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의
