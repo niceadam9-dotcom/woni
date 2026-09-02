@@ -511,6 +511,72 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     )
   }
 
+  // ── 현3 3-5 경보설비 21칸 (Phase 4 / S9-1) ────────────────────────────────
+  //
+  // 설비 설치 마크 8칸(A3·A5·A8·A13·A15·A16·A19·A21)은 `현황!C26~C33` 수식이라 배선하지 않는다.
+  //
+  // ⚠ **빈칸 폭이 칸마다 다르다** — 수신기 위치는 동명 3/층 3/실명 5인데, 증폭기·속보기·
+  //   주수신기 줄은 12/4/13이고 그 줄만 실명 앞에 쉼표가 붙는다. 하나로 통일하면 자구 왕복이
+  //   붉어진다. loc3/loc12 두 벌을 두는 이유다.
+  // ⚠ 이 시트에는 **화재알림설비 행이 없다**(PDF는 annexHasItem으로 9호에만 낸다).
+  //   서식에 칸이 없으므로 실을 곳이 없다 — 3-3의 미분무와 같은 처리.
+  {
+    const s35 = ((p.specs?.['s35_alarm'] ?? null) as Record<string, unknown> | null)
+    const b5 = (k: string) => ((s35?.[k] ?? null) as Record<string, unknown> | null)
+    const str = (b: Record<string, unknown> | null, k: string) => String(b?.[k] ?? '').trim()
+    const w = (b: Record<string, unknown> | null, k: string, n: number) => {
+      const s = str(b, k)
+      return s ? ` ${s} ` : ' '.repeat(n)
+    }
+    const isSel = (b: Record<string, unknown> | null, k: string, o: string) => str(b, k) === o
+    const inArr = (b: Record<string, unknown> | null, k: string, o: string) => {
+      const v = b?.[k]
+      return Array.isArray(v) && v.map(String).includes(o)
+    }
+    const range = (b: Record<string, unknown> | null, sfx = '') =>
+      `동명(${w(b, `dong${sfx}`, 3)}) ${ck(isSel(b, `coverage${sfx}`, '전체층'))}전체층/${ck(isSel(b, `coverage${sfx}`, '일부층'))}일부층 `
+      + `${ck(isSel(b, `from_ground${sfx}`, '지상'))}지상/${ck(isSel(b, `from_ground${sfx}`, '지하'))}지하(${w(b, `from_floor${sfx}`, 2)})층 ~ `
+      + `${ck(isSel(b, `to_ground${sfx}`, '지상'))}지상/${ck(isSel(b, `to_ground${sfx}`, '지하'))}지하(${w(b, `to_floor${sfx}`, 2)})층`
+    /** 접두 붙은 설치장소 — PDF locLine(b, prefix)와 같은 키. 폭·구두점은 칸마다 실측값을 준다 */
+    const locP = (b: Record<string, unknown> | null, pre: string, dw: number, fw: number, rw: number, comma: boolean) =>
+      `동명(${w(b, `${pre}_dong`, dw)}) ${ck(isSel(b, `${pre}_ground`, '지상'))}지상/${ck(isSel(b, `${pre}_ground`, '지하'))}지하 (${w(b, `${pre}_floor`, fw)})층${comma ? ',' : ''} 실명(${w(b, `${pre}_room`, rw)})`
+    const breaker = (b: Record<string, unknown> | null) =>
+      `${ck(isSel(b, 'breaker', '무'))}무 ${ck(isSel(b, 'breaker', '유'))}유(설치장소:${w(b, 'breaker_place', 20)})`
+
+    const sd = b5('standalone_detector'), eb = b5('emergency_bell'), fd = b5('fire_detection')
+    const bc = b5('broadcast'), ar = b5('auto_report'), im = b5('integrated_monitor')
+    const la = b5('leakage_alarm'), ga = b5('gas_leak_alarm')
+    const det = fd?.['detector']
+    const detEtc = ['불꽃', '아날로그식', '복합형'].some(o => Array.isArray(det) && det.map(String).includes(o))
+
+    entries.push(
+      ['s35SdLoc', `◦ 설치장소: ${range(sd)}`],
+      ['s35SdPower', `◦ 주전원 ${ck(isSel(sd, 'power', '상용전원'))}상용전원 ${ck(isSel(sd, 'power', '건전지'))}건전지`],
+      ['s35EbType', `${ck(inArr(eb, 'type', '비상벨설비'))}비상벨설비 ${ck(inArr(eb, 'type', '자동식사이렌설비'))}자동식사이렌설비`],
+      ['s35EbLoc', `◦ 설치장소: ${range(eb)}`],
+      ['s35EbPanel', `◦ 조작장치 설치장소: ${locP(eb, 'panel', 12, 3, 14, false)}`],
+      // 자동화재탐지설비 — PDF detectionLines(second=true)와 같은 5줄 구성
+      ['s35FdReceiver', `◦ 수신기 위치: ${locP(fd, 'receiver', 3, 3, 5, false)}`],
+      ['s35FdMode', `◦ 경보방식 ${ck(isSel(fd, 'alarm_mode', '전층경보'))}전층경보 ${ck(isSel(fd, 'alarm_mode', '우선경보'))}우선경보, 시각경보기 ${ck(isSel(fd, 'visual_alarm', '유'))}유 ${ck(isSel(fd, 'visual_alarm', '무'))}무`],
+      ['s35FdLoc', `◦ 설치장소: ${range(fd)}`],
+      ['s35FdLoc2', `${' '.repeat(12)}${range(fd, '2')}`],
+      ['s35FdDet', `◦ 감지기종류 ${ck(inArr(fd, 'detector', '열'))}열 ${ck(inArr(fd, 'detector', '연기'))}연기 ${ck(detEtc)}그 밖의 것(${ck(inArr(fd, 'detector', '불꽃'))}불꽃 ${ck(inArr(fd, 'detector', '아날로그식'))}아날로그식 ${ck(inArr(fd, 'detector', '복합형'))}복합형)`],
+      ['s35BcUsage', `${ck(isSel(bc, 'usage', '전용'))}전용 ${ck(isSel(bc, 'usage', '겸용'))}겸용 / ${ck(isSel(bc, 'alarm_mode', '전층경보'))}전층경보 ${ck(isSel(bc, 'alarm_mode', '우선경보'))}우선경보`],
+      ['s35BcAmp', `◦ 증폭기 설치장소: ${locP(bc, 'amp', 12, 4, 13, true)}`],
+      ['s35ArLoc', `◦ 속보기 설치장소: ${locP(ar, 'reporter', 12, 4, 13, true)}`],
+      ['s35ImMain', `◦ 주수신기 설치장소: ${locP(im, 'main', 12, 4, 13, true)}`],
+      ['s35ImSub', `◦ 부수신기 설치장소: ${locP(im, 'sub', 12, 4, 13, true)}`],
+      ['s35ImNet', `◦ 정보통신망 ${ck(isSel(im, 'network', '광케이블'))}광케이블 ${ck(isSel(im, 'network', '기타'))}기타(${w(im, 'network_etc', 12)}) / 예비선로 ${ck(isSel(im, 'spare_line', '유'))}유 ${ck(isSel(im, 'spare_line', '무'))}무`],
+      // 누전경보기 — 서식 라벨이 '주수신기'다(PDF는 '수신기'). 시트 자구를 따른다.
+      // ⚠ 차단기구 '무'만 폭 1 대괄호(`[ ]`)다 — 원문 그대로.
+      ['s35LaLoc', `◦ 주수신기 설치장소: ${locP(la, 'receiver', 12, 4, 13, true)}`],
+      ['s35LaGrade', `◦ 수신기 형식 ${ck(isSel(la, 'grade', '1급'))}1급 ${ck(isSel(la, 'grade', '2급'))}2급, 차단기구 ${isSel(la, 'breaker', '무') ? '[√]' : '[ ]'}무 ${ck(isSel(la, 'breaker', '유'))}유(설치장소:${w(la, 'breaker_place', 20)})`],
+      ['s35GaForm', `◦ ${ck(isSel(ga, 'form', '단독형'))}단독형 ${ck(isSel(ga, 'form', '분리형'))}분리형, 사용가스종류 ${ck(isSel(ga, 'gas', 'LNG'))}LNG ${ck(isSel(ga, 'gas', 'LPG'))}LPG, 경계구역 수: (${w(ga, 'zone_count', 5)})개`],
+      ['s35GaLoc', `◦ 수신기 설치장소: ${locP(ga, 'receiver', 12, 4, 13, true)}`],
+      ['s35GaBreaker', `◦ 차단기구 ${breaker(ga)}`],
+    )
+  }
+
   // ── 이행조치 기간 4칸(별지 10·11호 축) ──
   // 서식은 J9(총 일수)만 실입력이고 G9{=B10}·I9{=G9+J9-1}·G10{=I9}은 수식이다. 그런데 I9가
   // **산술 복합 수식**이라 단일 참조 폐포가 못 따라가고 LO는 재계산을 안 하므로(D-9), 파생 칸의

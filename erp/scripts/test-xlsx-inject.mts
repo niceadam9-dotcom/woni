@@ -517,6 +517,73 @@ console.log('[4d] 현2 3-2 후반 자구 왕복·수식 절단')
     q('C27') === '◦ 설치개수: (   )개', JSON.stringify(q('C27')))
 }
 
+// ── ④e 현3 3-5 경보설비 21칸 ─────────────────────────────────────────
+// 이 시트는 **빈칸 폭이 칸마다 다르다**(수신기 위치 3/3/5 vs 증폭기 12/4/13, 쉼표 유무도).
+// 하나로 통일하고 싶어지는 자리라 자구 왕복이 특히 중요하다.
+console.log('[4e] 현3 3-5 경보설비 자구 왕복·값 착지')
+{
+  const CELLS = ['C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12',
+    'C13', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23']
+  const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(+d)).replace(/&amp;/g, '&')
+  const cellOfXml = (xml: string, ref: string) =>
+    new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(xml)?.[0] ?? ''
+  const textIn = (c: string, shared: string[]) => {
+    const t = /t="([^"]+)"/.exec(c)?.[1]
+    if (t === 's') return unesc(shared[+(/<v>(\d+)<\/v>/.exec(c)?.[1] ?? -1)] ?? '')
+    return unesc(/<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? /<v>([\s\S]*?)<\/v>/.exec(c)?.[1] ?? '')
+  }
+  const h3Of = async (bytes: Uint8Array) => {
+    const z = await JSZip.loadAsync(bytes)
+    return await z.file((await sheetFileMap(z)).get('현3')!)!.async('string')
+  }
+  const zT = await JSZip.loadAsync(template)
+  const sstT = await zT.file('xl/sharedStrings.xml')!.async('string')
+  const sharedT = [...sstT.matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join(''))
+  const tplH3 = await h3Of(template)
+  const mk3 = async (specs: Record<string, unknown> | null) => h3Of(
+    (await injectWorkbook(template, toInjectTargets(buildWorkbookValues({
+      official, delegation, customerAddress: '', startISO: null, endISO: null,
+      useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+      report9: { ...report9, specs },
+    })).targets)).bytes)
+
+  const blankH3 = await mk3(null)
+  let same = 0
+  for (const ref of CELLS) {
+    const a = textIn(cellOfXml(tplH3, ref), sharedT)
+    const b = textIn(cellOfXml(blankH3, ref), [])
+    if (a === b) { same++; continue }
+    check(`자구 왕복 현3!${ref}`, false, `원문 ${JSON.stringify(a)} vs 조립 ${JSON.stringify(b)}`)
+  }
+  check('자구 왕복 — 현3 3-5 빈 값 조립이 서식 원문과 동일(21칸)', same === CELLS.length, `${same}/${CELLS.length}`)
+
+  const gotH3 = await mk3({ s35_alarm: {
+    fire_detection: { receiver_dong: '가', receiver_ground: '지상', receiver_floor: '1', receiver_room: '방재실',
+      alarm_mode: '우선경보', visual_alarm: '유', detector: ['연기', '아날로그식'] },
+    broadcast: { usage: '겸용', alarm_mode: '전층경보' },
+    leakage_alarm: { grade: '2급', breaker: '무' },
+    gas_leak_alarm: { form: '분리형', gas: 'LNG', zone_count: '3' },
+  } })
+  const q3 = (ref: string) => textIn(cellOfXml(gotH3, ref), [])
+  check('현3!C8 수신기 위치 — 좁은 폭(3/3/5)에 값이 들어간다',
+    q3('C8').includes('( 가 )') && q3('C8').includes('[√]지상') && q3('C8').includes('( 방재실 )'), JSON.stringify(q3('C8')))
+  check('현3!C9 경보방식·시각경보기',
+    q3('C9').includes('[√]우선경보') && q3('C9').includes('[  ]전층경보') && q3('C9').includes('[√]유'), JSON.stringify(q3('C9')))
+  check('★현3!C12 감지기 — 연기 √ + 하위가 켜지면 「그 밖의 것」도 함께 √',
+    q3('C12').includes('[√]연기') && q3('C12').includes('[  ]열')
+      && q3('C12').includes('[√]그 밖의 것') && q3('C12').includes('[√]아날로그식'), JSON.stringify(q3('C12')))
+  check('현3!C13 비상방송 겸용·전층경보',
+    q3('C13').includes('[√]겸용') && q3('C13').includes('[√]전층경보'), JSON.stringify(q3('C13')))
+  check('★현3!C20 차단기구 「무」만 폭 1 대괄호(`[ ]`)',
+    q3('C20').includes('[√]2급') && q3('C20').includes('차단기구 [√]무'), JSON.stringify(q3('C20')))
+  check('현3!C21 가스누설 분리형·LNG·경계구역',
+    q3('C21').includes('[√]분리형') && q3('C21').includes('[√]LNG') && q3('C21').includes('( 3 )개'), JSON.stringify(q3('C21')))
+  check('현3!C15 값 없는 속보설비는 빈 서식 그대로',
+    q3('C15') === textIn(cellOfXml(tplH3, 'C15'), sharedT), JSON.stringify(q3('C15')))
+}
+
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
 console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 {
