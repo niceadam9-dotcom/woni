@@ -49,13 +49,14 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
   return (
     <aside className="hidden xl:block w-60 shrink-0 sticky top-6">
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4 space-y-3">
-        <p className="text-xs font-semibold text-ink-sub">고객 요약</p>
+        <p className="text-form-sm font-semibold text-ink-sub">고객 요약</p>
         {rows.map(r => (
           <div key={r.label} className="flex items-start gap-2">
             <span className="text-ink-meta mt-0.5 shrink-0">{r.icon}</span>
             <div className="min-w-0">
-              <p className="text-[10px] text-ink-meta">{r.label}</p>
-              <p className="text-xs text-ink break-words">{r.value}</p>
+              {/* 12px 계층은 ink-meta(5.03:1)를 쓰지 않는다 — 크기가 작을수록 대비가 필요하다 */}
+              <p className="text-form-2xs text-ink-sub">{r.label}</p>
+              <p className="text-form-sm text-ink break-words">{r.value}</p>
             </div>
           </div>
         ))}

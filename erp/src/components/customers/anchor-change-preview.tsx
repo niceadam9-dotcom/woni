@@ -37,19 +37,19 @@ export function AnchorChangePreview({
     <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <h2 className="text-base font-semibold text-ink">저장하면 이렇게 바뀝니다</h2>
+          <h2 className="text-form-lg-title font-semibold text-ink">저장하면 이렇게 바뀝니다</h2>
           <button onClick={onCancel} className="text-ink-sub hover:text-ink"><X className="size-5" /></button>
         </div>
 
         <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* 법정 시기 — 가장 먼저 봐야 하는 것 */}
           <div>
-            <p className="text-[11px] text-ink-meta mb-1">법정 점검 시기</p>
-            <div className="flex items-center gap-2 text-sm">
+            <p className="text-form-xs text-ink-meta mb-1">법정 점검 시기</p>
+            <div className="flex items-center gap-2 text-form-base">
               <span className={changed ? 'text-ink-sub line-through' : 'text-ink font-medium'}>{monthsOf(before)}</span>
               {changed && <><ArrowRight className="size-3.5 text-ink-faint" /><span className="text-ink font-semibold">{monthsOf(after)}</span></>}
             </div>
-            <p className="text-[11px] text-ink-meta mt-1">
+            <p className="text-form-xs text-ink-meta mt-1">
               기산점 {after.anchorSource} {after.anchorDate ?? '(없음)'}
               {after.divergent && <span className="text-orange-600"> · ⚠ 점검계획일과 달이 다릅니다</span>}
             </p>
@@ -58,7 +58,7 @@ export function AnchorChangePreview({
           {/* 최초점검 — 놓치면 과태료라 눈에 띄게 */}
           {after.initialWindow && (
             <div className="rounded-lg bg-orange-50 dark:bg-orange-950/30 px-3 py-2">
-              <p className="text-xs text-orange-700 dark:text-orange-400 flex items-center gap-1.5">
+              <p className="text-form-sm text-orange-700 dark:text-orange-400 flex items-center gap-1.5">
                 <AlertTriangle className="size-3.5 shrink-0" />
                 <span><b>최초점검</b> 기한 <b>{after.initialWindow.to}</b> — 사용승인일부터 60일 이내에 종합점검을 실시해야 합니다</span>
               </p>
@@ -67,11 +67,11 @@ export function AnchorChangePreview({
 
           {/* 계획 변화 — op 종류별 */}
           <div>
-            <p className="text-[11px] text-ink-meta mb-1.5">계획 변화</p>
+            <p className="text-form-xs text-ink-meta mb-1.5">계획 변화</p>
             {nothing ? (
-              <p className="text-xs text-ink-sub">바뀌는 계획 항목이 없습니다.</p>
+              <p className="text-form-sm text-ink-sub">바뀌는 계획 항목이 없습니다.</p>
             ) : (
-              <ul className="rounded-lg bg-brand-tint divide-y divide-brand-line-soft text-xs">
+              <ul className="rounded-lg bg-brand-tint divide-y divide-brand-line-soft text-form-sm">
                 {after.creates.map((o, i) => (
                   <li key={`c${i}`} className="px-3 py-1.5 text-emerald-700 dark:text-emerald-400">
                     + {o.year}-{String(o.month).padStart(2, '0')} {kind(o.planType)} <span className="text-ink-meta">(신규)</span>
@@ -98,7 +98,7 @@ export function AnchorChangePreview({
 
           {/* 불가침 — 이미 수행한 점검은 안 건드린다는 걸 명시한다 */}
           {after.keptStarted.length > 0 && (
-            <p className="text-[11px] text-ink-meta">
+            <p className="text-form-xs text-ink-meta">
               이미 시작·완료된 점검 {after.keptStarted.length}건은 <b>그대로 둡니다</b>
               {' '}({after.keptStarted.map(k => `${k.year}-${String(k.month).padStart(2, '0')} ${kind(k.planType)}`).join(', ')}) —
               수행한 점검의 종류를 나중에 바꾸면 법정 서식이 사실과 달라집니다.
@@ -109,27 +109,27 @@ export function AnchorChangePreview({
         <div className="flex flex-col gap-2 px-6 py-4 border-t border-line">
           {confirmedItems.length > 0 ? (
             <>
-              <p className="text-[11px] text-ink-sub mb-1">
+              <p className="text-form-xs text-ink-sub mb-1">
                 ⚠ <b>이미 확정된 일정 {confirmedItems.length}건</b>은 기준일을 바꿔도 자동으로 안 옮겨집니다
                 {' '}({confirmedItems.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`).join(', ')}).
               </p>
               <button onClick={() => onConfirm('unconfirm')} disabled={isPending}
-                className="h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium flex items-center justify-center disabled:opacity-50">
+                className="h-form-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium flex items-center justify-center disabled:opacity-50">
                 {isPending ? <Loader2 className="size-4 animate-spin" /> : `확정해지 후 저장 (${confirmedItems.length}건 포함)`}
               </button>
               <button onClick={() => onConfirm('keep')} disabled={isPending}
-                className="h-10 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper disabled:opacity-50">
+                className="h-form-10 rounded-lg border border-line text-form-base text-ink-sub hover:bg-paper disabled:opacity-50">
                 확정 유지하고 저장 — 미확정만 재계산
               </button>
             </>
           ) : (
             <button onClick={() => onConfirm()} disabled={isPending}
-              className="h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium flex items-center justify-center disabled:opacity-50">
+              className="h-form-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium flex items-center justify-center disabled:opacity-50">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : '이대로 저장'}
             </button>
           )}
           <button onClick={onCancel} disabled={isPending}
-            className="h-9 rounded-lg text-xs text-ink-meta hover:text-ink-sub disabled:opacity-50">
+            className="h-form-9 rounded-lg text-form-sm text-ink-meta hover:text-ink-sub disabled:opacity-50">
             취소 (변경하지 않음)
           </button>
         </div>
@@ -150,7 +150,7 @@ export function LegalScheduleBadge({ months, anchorSource, anchorDate, divergent
 }) {
   if (!anchorDate) return null
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" data-testid="legal-schedule-badge">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-form-xs" data-testid="legal-schedule-badge">
       <span className="text-ink-sub">
         법정 시기{' '}
         <b className="text-ink">

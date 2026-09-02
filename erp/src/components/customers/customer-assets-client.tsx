@@ -211,7 +211,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
   } : {}
 
   const feedback = (slot: AssetSlot) => msg?.key === slot && (
-    <p className={`text-[11px] ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
+    <p className={`text-form-xs ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
   )
   const spinning = (slot: AssetSlot) => busy === slot && isPending
 
@@ -222,11 +222,11 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
       className={embedded
         ? 'rounded-lg border border-brand-tint bg-surface p-2.5'
         : 'rounded-xl border border-brand-line-soft bg-brand-tint p-4'}>
-      <p className={`font-semibold text-ink-sub ${embedded ? 'text-[11px] mb-1.5' : 'text-xs mb-2'}`}>
+      <p className={`font-semibold text-ink-sub ${embedded ? 'text-form-xs mb-1.5' : 'text-form-sm mb-2'}`}>
         지도·사진 <span className="font-normal text-ink-meta">(소방계획서 재료 — 미등록이어도 생성은 가능하며 자리표시로 대체됩니다)</span>
       </p>
       {embedded && (
-        <p className="text-[11px] text-ink-soft mb-2">
+        <p className="text-form-xs text-ink-soft mb-2">
           여기서 등록·교체·삭제한 이미지는 <strong>즉시 저장</strong>됩니다 — [서식 1.3 저장]을 누르지 않아도 됩니다.
         </p>
       )}
@@ -237,7 +237,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
           return (
             <div key={slot} {...dropProps(slot)}
               className={`rounded-lg border bg-surface p-3 space-y-2 ${dragOver === slot ? 'border-dashed border-brand bg-brand-tint' : 'border-brand-line-soft'}`}>
-              <p className="text-[11px] font-medium text-ink-sub">{label} <span className="font-normal text-ink-meta">— {hint}</span></p>
+              <p className="text-form-xs font-medium text-ink-sub">{label} <span className="font-normal text-ink-meta">— {hint}</span></p>
               {asset ? (
                 <button type="button" onClick={() => setPreview({ url: asset.url, label })}
                   title="클릭하면 크게 봅니다" className="block w-full">
@@ -247,7 +247,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
               ) : (
                 <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-meta">
                   <ImageIcon className="size-5" />
-                  <span className="text-[10px]">미등록 — 끌어다 놓기·캡처 후 붙여넣기(Ctrl+V) 가능</span>
+                  <span className="text-form-2xs">미등록 — 끌어다 놓기·캡처 후 붙여넣기(Ctrl+V) 가능</span>
                 </div>
               )}
               {canManage && (
@@ -256,31 +256,31 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
                     data-testid={`asset-input-${slot}`}
                     onChange={e => { const f = e.target.files?.[0]; if (f) upload(slot, f); e.target.value = '' }} />
                   <button onClick={() => inputRef(slot).current?.click()} disabled={isPending}
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
+                    className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                     {spinning(slot) ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />} {asset ? '교체' : '업로드'}
                   </button>
                   <button onClick={() => pasteTo(slot)} disabled={isPending} data-testid={`asset-paste-${slot}`}
                     title="지도·화면을 캡처(Win+Shift+S)한 뒤 클릭하면 클립보드 이미지가 등록됩니다"
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
+                    className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                     <ClipboardPaste className="size-3" /> 붙여넣기
                   </button>
                   {slot === 'map_location' && (
                     <button onClick={() => generateMap('map_location')} disabled={isPending} data-testid="asset-generate-map"
                       title="고객 주소로 네이버 지도에서 위치도를 자동 생성합니다"
-                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
+                      className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                       <MapPin className="size-3" /> 자동 생성
                     </button>
                   )}
                   {slot === 'cover' && (
                     <button onClick={() => generateMap('cover')} disabled={isPending} data-testid="asset-generate-cover"
                       title="고객 주소의 위성 항공사진을 자동 생성합니다 (거리 정면 사진은 API 미제공 — 현장 촬영본으로 교체 가능)"
-                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
+                      className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                       <MapPin className="size-3" /> 위성사진
                     </button>
                   )}
                   {asset && (
                     <button onClick={() => remove(slot, asset.path)} disabled={isPending} data-testid={`asset-delete-${slot}`}
-                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-red-200 text-[11px] text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+                      className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-red-200 text-form-xs text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
                       <Trash2 className="size-3" /> 삭제
                     </button>
                   )}
@@ -294,11 +294,11 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
         {/* 복수 슬롯: 피난안내도·평면도 (evac_1..n 추가형) */}
         <div {...dropProps('evac')}
           className={`rounded-lg border bg-surface p-3 space-y-2 ${dragOver === 'evac' ? 'border-dashed border-brand bg-brand-tint' : 'border-brand-line-soft'}`}>
-          <p className="text-[11px] font-medium text-ink-sub">피난안내도·평면도 <span className="font-normal text-ink-meta">— 피난 관련 장에 들어갑니다 (층별 복수)</span></p>
+          <p className="text-form-xs font-medium text-ink-sub">피난안내도·평면도 <span className="font-normal text-ink-meta">— 피난 관련 장에 들어갑니다 (층별 복수)</span></p>
           {evacAssets.length === 0 && !canManage && (
             <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-meta">
               <ImageIcon className="size-5" />
-              <span className="text-[10px]">미등록</span>
+              <span className="text-form-2xs">미등록</span>
             </div>
           )}
           <div className="grid grid-cols-2 gap-1.5">
@@ -320,7 +320,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
               <button onClick={() => evacRef.current?.click()} disabled={isPending}
                 className="flex h-[54px] w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-brand-line text-ink-faint hover:border-brand hover:text-brand transition-colors disabled:opacity-50">
                 {spinning('evac') ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-                <span className="text-[10px]">{evacAssets.length === 0 ? '미등록 — 추가' : '추가'}</span>
+                <span className="text-form-2xs">{evacAssets.length === 0 ? '미등록 — 추가' : '추가'}</span>
               </button>
             )}
           </div>
@@ -331,12 +331,12 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
                 onChange={e => { const f = e.target.files?.[0]; if (f) upload('evac', f); e.target.value = '' }} />
               <button onClick={() => pasteTo('evac')} disabled={isPending} data-testid="asset-paste-evac"
                 title="지도·화면을 캡처(Win+Shift+S)한 뒤 클릭하면 클립보드 이미지가 추가됩니다"
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                 <ClipboardPaste className="size-3" /> 붙여넣기
               </button>
               <button onClick={() => setBuilderOpen(true)} disabled={isPending} data-testid="asset-builder-evac"
                 title="표준 아이콘으로 개략 피난안내도를 직접 그려 등록합니다"
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50">
                 <PencilRuler className="size-3" /> 안내도 그리기
               </button>
             </>
@@ -350,7 +350,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
         <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-black/80 p-4"
           onClick={() => setPreview(null)} role="dialog" aria-modal="true" aria-label={`${preview.label} 미리보기`}>
           <div className="flex w-full max-w-4xl items-center justify-between px-1 pb-2">
-            <span className="text-sm font-medium text-white">{preview.label}</span>
+            <span className="text-form-base font-medium text-white">{preview.label}</span>
             <button onClick={() => setPreview(null)} aria-label="닫기"
               className="inline-flex size-8 items-center justify-center rounded-lg text-white/80 hover:bg-surface/10 hover:text-white">
               <X className="size-5" />
@@ -358,7 +358,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
           </div>
           <img src={preview.url} alt={preview.label} onClick={e => e.stopPropagation()}
             className="max-h-[85vh] max-w-4xl rounded-lg object-contain shadow-2xl" />
-          <p className="mt-2 text-[11px] text-white/60">빈 곳·✕·Esc 로 닫기</p>
+          <p className="mt-2 text-form-xs text-white/60">빈 곳·✕·Esc 로 닫기</p>
         </div>
       )}
 

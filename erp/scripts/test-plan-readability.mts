@@ -236,7 +236,7 @@ const MUTATION = MODE_IDENTITY
  *    fbe8e95가 CSS에만 --fs-col-cat을 넣고 여기는 안 고쳤는데, 위 주석은 계속 "같은 목록"이라
  *    단언하고 있었다(판정 DEF-B2). 그래서 아래 assertTokenListsMatch()가 두 목록과 이 상수를
  *    **셋 다** 대조한다 — 주석의 약속을 검사로 바꾼 것이다. */
-const OLD_VALUES = `:root{--fs-scale:1!important;--fs-step:1!important;--fs-1:9px!important;--fs-2:10px!important;--fs-3:11px!important;--fs-4:12px!important;--fs-5:14px!important;--fs-6:16px!important;--fs-h6:24px!important;--fs-h7:28px!important;--fs-h8:32px!important;--fs-col-num:44px!important;--fs-col-cat:48px!important;--fs-tracking:-0.01em!important}${BOOST_OFF}`
+const OLD_VALUES = `:root{--fs-scale:1!important;--fs-step:1!important;--fs-1:9px!important;--fs-2:10px!important;--fs-3:11px!important;--fs-4:12px!important;--fs-5:14px!important;--fs-6:16px!important;--fs-7:20px!important;--fs-h6:24px!important;--fs-h7:28px!important;--fs-h8:32px!important;--fs-h9:36px!important;--fs-h10:40px!important;--fs-col-num:44px!important;--fs-col-cat:48px!important;--fs-tracking:-0.01em!important}${BOOST_OFF}`
 
 /** :root 정의 · @media print 복원 · OLD_VALUES 사본 — 세 목록이 같은가.
  *  하나라도 빠지면 그 토큰만 인쇄에서 확대된 채 나가는데, 히스토그램 대조로는 안 잡힐 수 있다
@@ -259,14 +259,33 @@ function assertTokenListsMatch() {
   check('가드: OLD_VALUES 사본이 :root 목록과 일치한다 (주석의 "같은 목록"을 검사로)',
     missingInOld.length === 0, `사본에서 누락: ${missingInOld.join(', ')}`)
 
-  // 자간 복원값이 body 하나인 전제 — 서식 파일이 제목 태그에 토큰을 쓰기 시작하면 틀린다.
+  /** 자간 복원값이 body 하나인 전제 — 제목 태그가 **자간을 거는 토큰**을 쓰면 틀린다.
+   *
+   *  ⚠ 종전 판정은 '제목에 text-form-·h-form-이 있으면 위반'이었다. 그건 이 전제보다
+   *    넓다 — 높이 토큰은 자간과 무관하고, 크기만 배율에 태우고 자간은 상속에 맡기는
+   *    `-title` 변형도 이 전제를 깨지 않는다. 고객 상세 화면(서식 아님·인쇄 안 함)의 제목
+   *    3곳을 배율 축에 태우면서, **금지 대상을 이름이 아니라 성질로** 다시 정의했다:
+   *    "그 유틸리티가 letter-spacing을 선언하는가"를 globals.css에서 직접 읽는다.
+   *  ⚠ 유틸리티를 못 찾으면 **위반으로 친다** — 못 읽었을 때 조용히 통과하면 항진명제가 된다. */
+  const declaresTracking = (cls: string) => {
+    const m = css.match(new RegExp(`@utility\\s+${cls}\\s*\\{([^}]*)\\}`))
+    return m ? /letter-spacing/.test(m[1]) : true
+  }
   const headingWithToken = readdirSync(SRC_DIR).filter(f => f.endsWith('.tsx')).flatMap(f => {
     const s = readFileSync(join(SRC_DIR, f), 'utf8')
-    return (s.match(/<h[1-6]\b[^>]*>/g) ?? []).filter(t => /text-form-|h-form-/.test(t)).map(() => f)
+    return (s.match(/<h[1-6]\b[^>]*>/g) ?? [])
+      .filter(t => (t.match(/(?:text|h)-form-[a-z0-9-]+/g) ?? []).some(declaresTracking))
+      .map(() => f)
   })
-  check('가드: 서식 파일의 h1~h6가 토큰을 쓰지 않는다 (--fs-tracking 복원값이 body 하나인 전제)',
+  check('가드: h1~h6가 **자간을 거는** 토큰을 쓰지 않는다 (--fs-tracking 복원값이 body 하나인 전제)',
     headingWithToken.length === 0,
     `${[...new Set(headingWithToken)].join(', ')} — 제목은 -0.02em이라 단일 복원값이 틀리게 된다`)
+  // ⚠ 양성 대조군 — 위 술어가 실제로 무언가를 잡는가. 이게 없으면 '위반 0'과
+  //   '정규식이 아무것도 못 읽는다'(예: globals.css 구조가 바뀌어 @utility를 못 찾음)가
+  //   구별되지 않는다. 자간을 거는 토큰과 안 거는 토큰이 **둘 다** 실재해야 한다.
+  check('가드[대조군]: text-form-lg는 자간을 걸고 text-form-lg-title은 안 건다',
+    declaresTracking('text-form-lg') && !declaresTracking('text-form-lg-title'),
+    `lg=${declaresTracking('text-form-lg')} lg-title=${declaresTracking('text-form-lg-title')}`)
 }
 
 const email = `s35read_${Date.now()}@example.com`

@@ -475,7 +475,7 @@ export default async function CustomerDetailPage({
     const active = (current ?? '') === value
     return (
       <Link key={`${key}-${value || 'all'}`} href={`/customers/${id}?${sp.toString()}`} scroll={false}
-        className={`h-6 px-2.5 rounded-full text-[11px] inline-flex items-center border transition-colors ${
+        className={`h-6 px-2.5 rounded-full text-form-xs inline-flex items-center border transition-colors ${
           active ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
         {label}
       </Link>
@@ -505,7 +505,7 @@ export default async function CustomerDetailPage({
           <UserCheck className={`size-4 ${customer.assigned_employee_id ? 'text-brand' : 'text-red-400'}`} />
         </div>
         <div>
-          <p className="text-xs text-ink-sub font-medium mb-0.5">담당직원</p>
+          <p className="text-form-sm text-ink-sub font-medium mb-0.5">담당직원</p>
           <AssignEmployeeInline
             customerId={customer.id}
             currentEmployeeId={customer.assigned_employee_id}
@@ -533,7 +533,7 @@ export default async function CustomerDetailPage({
         annualLabel={customer.inspection_type === '종합' ? '연 2회 (1차·2차)' : customer.inspection_type === '작동' ? '연 1회' : '1회 (점검계획일)'}
         typeSlot={
           <span className="flex items-center">
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
+            <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
               {inspectionTypeLabel(customer.inspection_type)}
               {/* 일반관리도 자체점검 종류 표기 (소방계획서_6 W-1) — 예: 일반 › 작동 */}
               {customer.inspection_type === '일반관리' ? ` › ${docProfile.inspection_sub_type === '종합' ? '종합' : '작동'}` : ''}
@@ -555,7 +555,7 @@ export default async function CustomerDetailPage({
   // 관계인 정보 (수정 가능)
   const contactsTab = (
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <h2 className="text-sm font-semibold text-ink mb-4">관계인 정보</h2>
+        <h2 className="text-form-base font-semibold text-ink mb-4">관계인 정보</h2>
         <EditContactsClient
           customerId={customer.id}
           customerName={customer.customer_name}
@@ -630,7 +630,7 @@ export default async function CustomerDetailPage({
       />
 
       {/* 소방시설 현황 패널은 소방계획서 탭 > 1장 > 1.4로 이동 (소방계획서_4.md §4 — 건물목록은 잔류) */}
-      <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-3 text-xs text-ink-sub">
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-3 text-form-sm text-ink-sub">
         {/* D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않아 탭이 안 바뀐다 — <a> 전체 이동 */}
         소방시설 현황 입력은 <a href={`/customers/${customer.id}?tab=plan&form=1.4`} className="text-brand hover:underline">소방계획서 탭 &gt; 1.4 소방시설</a>로 이동했습니다.
       </div>
@@ -796,13 +796,13 @@ export default async function CustomerDetailPage({
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
         <div className="flex items-center gap-2 mb-3">
           <ClipboardList className="size-4 text-brand" />
-          <h2 className="text-sm font-semibold text-ink">점검 이력</h2>
-          <span className="text-xs text-ink-faint ml-auto">{inspections.length}건 점검 · {essentialLogs.length}건 변경</span>
+          <h2 className="text-form-base font-semibold text-ink">점검 이력</h2>
+          <span className="text-form-sm text-ink-faint ml-auto">{inspections.length}건 점검 · {essentialLogs.length}건 변경</span>
         </div>
 
         {/* §6-E: 다음 점검 예정 + 기간·종류 필터 칩 + 딥링크 */}
         <div className="mb-3 space-y-2">
-          <p className="text-xs">
+          <p className="text-form-sm">
             <span className="text-ink-sub">다음 점검: </span>
             {nextInspection ? (
               <Link href={`/inspections/${nextInspection.id}`} className="font-medium text-brand hover:underline">
@@ -821,28 +821,28 @@ export default async function CustomerDetailPage({
             {histChip('점검만', 'hk', 'insp', hk)}
             {histChip('변경만', 'hk', 'log', hk)}
             <span className="ml-auto flex items-center gap-3">
-              <Link href="/inspection-reports/status" className="text-[11px] text-brand hover:underline">보고서 제출현황 →</Link>
-              <Link href="/action-plans/status" className="text-[11px] text-brand hover:underline">이행계획 제출현황 →</Link>
+              <Link href="/inspection-reports/status" className="text-form-xs text-brand hover:underline">보고서 제출현황 →</Link>
+              <Link href="/action-plans/status" className="text-form-xs text-brand hover:underline">이행계획 제출현황 →</Link>
             </span>
           </div>
         </div>
 
         {inspFiltered.length === 0 && logsFiltered.length === 0 ? (
-          <p className="text-sm text-ink-sub py-6 text-center">조건에 맞는 이력이 없습니다</p>
+          <p className="text-form-base text-ink-sub py-6 text-center">조건에 맞는 이력이 없습니다</p>
         ) : (
           <div className="space-y-1">
             {/* 점검 이력 테이블 */}
             {inspFiltered.length > 0 && (
               <div className="overflow-x-auto mb-4">
-                <table className="w-full text-sm">
+                <table className="w-full text-form-base">
                   <thead>
                     <tr className="border-b border-brand-line-soft">
-                      <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4">연도/차수</th>
-                      <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4">유형</th>
-                      <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4">시작일</th>
-                      <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4">담당자</th>
-                      <th className="text-left text-xs font-medium text-ink-sub pb-2 pr-4">진행</th>
-                      <th className="text-left text-xs font-medium text-ink-sub pb-2">상태</th>
+                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">연도/차수</th>
+                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">유형</th>
+                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">시작일</th>
+                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">담당자</th>
+                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">진행</th>
+                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2">상태</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -859,7 +859,7 @@ export default async function CustomerDetailPage({
                           <td className="py-3 pr-4">
                             {(() => {
                               const nb = inspectionNatureBadge(insp.inspection_type, insp.plan_type)
-                              return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${nb.className}`}>{nb.label}</span>
+                              return <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${nb.className}`}>{nb.label}</span>
                             })()}
                           </td>
                           <td className="py-3 pr-4 text-ink-sub">{insp.inspection_start_date}</td>
@@ -875,14 +875,14 @@ export default async function CustomerDetailPage({
                                     style={{ width: `${(steps.completed / steps.total) * 100}%` }}
                                   />
                                 </div>
-                                <span className="text-xs text-ink-sub">{steps.completed}/{steps.total}</span>
+                                <span className="text-form-sm text-ink-sub">{steps.completed}/{steps.total}</span>
                               </div>
                             ) : (
-                              <span className="text-xs text-ink-faint">—</span>
+                              <span className="text-form-sm text-ink-faint">—</span>
                             )}
                           </td>
                           <td className="py-3">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[insp.status as InspectionStatus]}`}>
+                            <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[insp.status as InspectionStatus]}`}>
                               {STATUS_LABELS[insp.status as InspectionStatus]}
                             </span>
                           </td>
@@ -899,7 +899,7 @@ export default async function CustomerDetailPage({
               <div>
                 <div className="flex items-center gap-2 mb-3 pt-2 border-t border-brand-line-soft">
                   <History className="size-3.5 text-ink-faint" />
-                  <span className="text-xs font-medium text-ink-sub">변경 이력</span>
+                  <span className="text-form-sm font-medium text-ink-sub">변경 이력</span>
                 </div>
                 <div className="space-y-2">
                   {logsFiltered.map(({ log, actionLabel, changes }) => {
@@ -915,14 +915,14 @@ export default async function CustomerDetailPage({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-medium text-ink">
+                            <span className="text-form-sm font-medium text-ink">
                               {actor?.name ?? '시스템'}
                             </span>
-                            <span className="text-xs text-ink-faint">{dateStr}</span>
+                            <span className="text-form-sm text-ink-faint">{dateStr}</span>
                           </div>
                           <div className="space-y-0.5">
                             {changes.map((c, i) => (
-                              <div key={i} className="text-xs text-ink-sub">
+                              <div key={i} className="text-form-sm text-ink-sub">
                                 <span className="font-medium text-ink">{c.field_label}</span>
                                 {' '}
                                 <span className="text-ink-faint line-through">{displayChangeValue(c.field, c.old_value) ?? '없음'}</span>
@@ -931,7 +931,7 @@ export default async function CustomerDetailPage({
                               </div>
                             ))}
                             {changes.length === 0 && actionLabel && (
-                              <span className="text-xs text-brand font-medium">{actionLabel}</span>
+                              <span className="text-form-sm text-brand font-medium">{actionLabel}</span>
                             )}
                           </div>
                         </div>
@@ -956,7 +956,7 @@ export default async function CustomerDetailPage({
           <ChevronLeft className="size-5" />
         </Link>
         <div className="flex-1 flex items-center gap-3">
-          <h1 className="text-xl font-bold text-ink">{customer.customer_name}</h1>
+          <h1 className="text-form-xl-title font-bold text-ink">{customer.customer_name}</h1>
           <CustomerPrevNext prevId={prevId} nextId={nextId} position={navPosition} />
         </div>
         {/* 별지서식 상시 버튼(2026-08-28 동선 검토, 소방계획서_34로 탭 승격 반영) — 어느 탭에서든 별지서식 탭으로.
@@ -966,20 +966,20 @@ export default async function CustomerDetailPage({
             customer-tabs.tsx:42·plan-tab-view.tsx:122의 프롭 동기화는 둘 다 그 재렌더를 전제한다. */}
         <a href={`/customers/${customer.id}?tab=annex`}
           data-testid="header-plan-link"
-          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-brand-line text-brand hover:bg-brand-tint shrink-0">
+          className="inline-flex items-center gap-1 text-form-sm font-medium px-2.5 py-1 rounded-lg border border-brand-line text-brand hover:bg-brand-tint shrink-0">
           <FileText className="size-3.5" /> 별지서식
         </a>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
+        <span className={`text-form-sm font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
           {inspectionTypeLabel(customer.inspection_type)}
         </span>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+        <span className={`text-form-sm font-medium px-2.5 py-1 rounded-full ${customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
           {customer.is_active ? '활성' : '비활성'}
         </span>
       </div>
 
       {/* §10-3: 등록 직후 보완 안내 1줄 */}
       {created === '1' && (
-        <div className="max-w-3xl rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-xs text-green-800">
+        <div className="max-w-3xl rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-form-sm text-green-800">
           고객 등록 완료 — {tabDefs.some(t => t.warn)
             ? `보완할 항목: ${tabDefs.filter(t => t.warn).map(t => t.label).join(' · ')} (탭의 ⚠를 따라 입력하세요)`
             : '필수 정보가 모두 입력됐습니다.'}

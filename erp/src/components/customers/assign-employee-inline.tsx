@@ -21,12 +21,12 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
 
   if (!canAssign) {
     return current ? (
-      <p className="text-sm font-semibold text-ink">
+      <p className="text-form-base font-semibold text-ink">
         {current.name}
-        {current.position && <span className="text-xs text-ink-meta font-normal ml-1.5">({current.position})</span>}
+        {current.position && <span className="text-form-sm text-ink-meta font-normal ml-1.5">({current.position})</span>}
       </p>
     ) : (
-      <p className="text-sm font-semibold text-red-500">미배정</p>
+      <p className="text-form-base font-semibold text-red-500">미배정</p>
     )
   }
 
@@ -45,7 +45,7 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
         value={currentEmployeeId ?? ''}
         onChange={e => change(e.target.value)}
         disabled={isPending}
-        className={`h-8 rounded-lg border bg-surface px-2 text-sm outline-none focus:border-brand min-w-[150px] ${
+        className={`h-form-8 rounded-lg border bg-surface px-2 text-form-base outline-none focus:border-brand min-w-[150px] ${
           unassigned ? 'border-red-300 text-red-500 font-medium' : 'border-brand-line text-ink'}`}
       >
         <option value="">미배정</option>
@@ -54,8 +54,9 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, employees,
         ))}
       </select>
       {isPending && <Loader2 className="size-3.5 animate-spin text-brand" />}
-      <span className="text-[10px] text-ink-meta">선택 즉시 저장 · 배정 알림 발송</span>
-      {err && <span className="text-[11px] text-red-500">{err}</span>}
+      {/* 12px 계층은 ink-meta(5.03:1)를 쓰지 않는다 — 크기가 작을수록 대비가 필요하다 */}
+      <span className="text-form-2xs text-ink-sub">선택 즉시 저장 · 배정 알림 발송</span>
+      {err && <span className="text-form-xs text-red-500">{err}</span>}
     </span>
   )
 }

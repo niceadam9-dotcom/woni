@@ -22,9 +22,9 @@ const GRADES = ['특급', '1급', '2급', '3급']
 const REP_ROLES = ['소유자', '관리자', '점유자']
 const APPOINT_TYPES = ['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타']
 
-const labelCls = 'text-[11px] font-medium text-ink-sub'
-const inputCls = 'h-8 rounded-lg border border-brand-line bg-surface px-2 text-xs outline-none focus:border-brand'
-const segBtn = (on: boolean) => `px-2.5 h-8 text-xs ${on ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`
+const labelCls = 'text-form-xs font-medium text-ink-sub'
+const inputCls = 'h-form-8 rounded-lg border border-brand-line bg-surface px-2 text-form-sm outline-none focus:border-brand'
+const segBtn = (on: boolean) => `px-2.5 h-form-8 text-form-sm ${on ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`
 
 export type FireSafetyManagerInitial = FireSafetyManagerInput
 
@@ -90,9 +90,9 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
     <div id="c-fire-safety-manager" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-3.5 space-y-3">
       <div className="flex items-center gap-1.5">
         <ShieldCheck className="size-3.5 text-brand" />
-        <p className="text-xs font-semibold text-ink">소방안전관리</p>
-        <span className="text-[10px] text-ink-meta">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
-        {dirty && <span className="ml-auto text-[10px] text-amber-600 font-medium">미저장</span>}
+        <p className="text-form-sm font-semibold text-ink">소방안전관리</p>
+        <span className="text-form-2xs text-ink-sub">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
+        {dirty && <span className="ml-auto text-form-2xs text-amber-600 font-medium">미저장</span>}
       </div>
 
       {/* ① 소방안전관리자 지목 — 성명·전화가 관계인에서 따라온다 */}
@@ -108,14 +108,14 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             ))}
           </select>
           {picked ? (
-            <span className="inline-flex items-center gap-1 text-[11px] text-ink-sub">
+            <span className="inline-flex items-center gap-1 text-form-xs text-ink-sub">
               <Phone className="size-3 text-ink-faint" />
               {picked.phone
                 ? formatTel(picked.phone)
                 : <span className="text-amber-600">전화 없음 — 위 관계인 카드에서 번호를 채우면 문서에 실립니다</span>}
             </span>
           ) : (
-            <span className="text-[11px] text-ink-meta">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
+            <span className="text-form-xs text-ink-meta">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
           )}
         </div>
       </div>
@@ -133,12 +133,12 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             </div>
             {canManage && (
               <button onClick={applySuggest} title="연면적·층수·높이·설비로 별표4 등급을 계산합니다 (제안 — 저장은 직접)"
-                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+                className="inline-flex items-center gap-1 h-form-8 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
                 <Sparkles className="size-3" /> 자동 산정
               </button>
             )}
           </div>
-          {gradeReason && <p className="text-[10px] text-brand mt-0.5">근거: {gradeReason}</p>}
+          {gradeReason && <p className="text-form-2xs text-brand mt-0.5">근거: {gradeReason}</p>}
         </div>
 
         {/* ③ 사람의 자격구분 — 위 등급과 다른 축임을 표시 */}
@@ -193,17 +193,17 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다. */}
         {canManage && (
           <button onClick={save} disabled={isPending || !dirty} data-testid="fsm-save"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
           </button>
         )}
         {/* 보조자는 여기 없다 — 어디로 가야 하는지 말해준다 (1.7은 보조자 전용).
             D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않는다 — <a> 전체 이동, 미저장은 beforeunload */}
         <a href={`/customers/${customerId}?tab=plan&form=1.7`} data-testid="fsm-assistant-link"
-          className="text-[11px] text-brand hover:underline inline-flex items-center gap-0.5">
+          className="text-form-xs text-brand hover:underline inline-flex items-center gap-0.5">
           보조자 선임현황 <ExternalLink className="size-2.5" />
         </a>
-        {msg && <span className={`text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}`}>{msg}</span>}
+        {msg && <span className={`text-form-xs ${msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}`}>{msg}</span>}
       </div>
     </div>
   )

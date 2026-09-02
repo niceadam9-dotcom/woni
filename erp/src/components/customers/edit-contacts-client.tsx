@@ -126,13 +126,13 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
   return (
     <div className="grid grid-cols-1 gap-3">
       {visibleRoles.length === 0 && (
-        <p className="text-xs text-ink-meta">등록된 관계인이 없습니다</p>
+        <p className="text-form-sm text-ink-meta">등록된 관계인이 없습니다</p>
       )}
       {/* 체크 인원 = 회차당 통수 (소방계획서_24 S5-b) — 문자 비용이 정해지는 지점은 발송 모달이 아니라
           여기다. 정기점검 고객이면 3명 체크 = 연 36통이 되는데 그 사실이 화면에 드러나지 않았다. */}
       {visibleRoles.length > 0 && (
         <div data-testid="sms-recipient-summary"
-          className="flex items-center gap-1.5 text-[11px] text-ink-sub bg-brand-tint border border-brand-line-soft rounded-lg px-3 py-1.5">
+          className="flex items-center gap-1.5 text-form-xs text-ink-sub bg-brand-tint border border-brand-line-soft rounded-lg px-3 py-1.5">
           <MessageSquare className="size-3 text-brand" />
           {pickedCount > 0 ? (
             <>사전 안내 문자 <b className="text-ink">{pickedCount}명</b> 지정 — <b>점검 1회당 {pickedCount}통</b>이 나갑니다.</>
@@ -144,7 +144,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
               data-testid="customer-adhoc-sms"
               onClick={() => setSmsOpen(true)}
               title="계획에 없는 방문(재방문·불량 보수·AS 등)을 안내합니다 — 점검 회차로 잡히지 않습니다"
-              className="ml-auto h-6 px-2 rounded-lg border border-brand-line text-[10px] text-brand hover:bg-surface transition-colors"
+              className="ml-auto h-6 px-2 rounded-lg border border-brand-line text-form-2xs text-brand hover:bg-surface transition-colors"
             >
               문자 보내기
             </button>
@@ -168,21 +168,21 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 <div className="size-8 rounded-lg bg-brand flex items-center justify-center shrink-0">
                   <User className="size-4 text-white" />
                 </div>
-                <span className="text-xs font-semibold text-brand">관계인</span>
+                <span className="text-form-sm font-semibold text-brand">관계인</span>
                 <button onClick={openBook}
-                  className="ml-auto inline-flex items-center gap-1 text-[11px] text-brand hover:underline">
+                  className="ml-auto inline-flex items-center gap-1 text-form-xs text-brand hover:underline">
                   <BookUser className="size-3" /> 주소록에서 가져오기
                 </button>
               </div>
               {showBook && (
                 <div className="mb-2 rounded-lg border border-brand-line bg-surface shadow-lg max-h-40 overflow-y-auto">
                   {book === null ? (
-                    <p className="px-3 py-2 text-[11px] text-ink-meta">불러오는 중…</p>
+                    <p className="px-3 py-2 text-form-xs text-ink-meta">불러오는 중…</p>
                   ) : book.length === 0 ? (
-                    <p className="px-3 py-2 text-[11px] text-ink-meta">주소록이 비어 있습니다 (마이페이지 &gt; 주소록)</p>
+                    <p className="px-3 py-2 text-form-xs text-ink-meta">주소록이 비어 있습니다 (마이페이지 &gt; 주소록)</p>
                   ) : book.map((e, i) => (
                     <button key={i} onClick={() => applyBookEntry(e)}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-brand-tint flex justify-between gap-2">
+                      className="w-full text-left px-3 py-1.5 text-form-sm hover:bg-brand-tint flex justify-between gap-2">
                       <span>{e.name}{e.position && <span className="text-ink-meta"> · {e.position}</span>}</span>
                       <span className="text-ink-meta">{formatTel(e.phone)}</span>
                     </button>
@@ -195,21 +195,21 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                   placeholder="이름 *"
                   value={form.name}
                   onChange={e => setForm(s => ({ ...s, name: e.target.value }))}
-                  className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
+                  className="w-full text-form-base px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
                 />
                 <input
                   type="tel"
                   placeholder="연락처"
                   value={form.phone}
                   onChange={e => setForm(s => ({ ...s, phone: formatPhoneKR(e.target.value) }))}
-                  className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
+                  className="w-full text-form-base px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
                 />
                 <input
                   type="email"
                   placeholder="이메일"
                   value={form.email}
                   onChange={e => setForm(s => ({ ...s, email: e.target.value }))}
-                  className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
+                  className="w-full text-form-base px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -217,23 +217,23 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                     placeholder="직위 (예: 소방안전관리자)"
                     value={form.position}
                     onChange={e => setForm(s => ({ ...s, position: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
+                    className="w-full text-form-base px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
                   />
                   <DateInput
                     placeholder="생년월일"
                     value={form.birth_date}
                     onChange={e => setForm(s => ({ ...s, birth_date: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
+                    className="w-full text-form-base px-3 py-2 border border-line rounded-lg bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
                   />
                 </div>
-                <p className="text-[11px] text-ink-meta">직위·생년월일은 보고서 공문·위임장에 사용됩니다</p>
-                {error && <p className="text-xs text-red-500">{error}</p>}
+                <p className="text-form-xs text-ink-meta">직위·생년월일은 보고서 공문·위임장에 사용됩니다</p>
+                {error && <p className="text-form-sm text-red-500">{error}</p>}
               </div>
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => handleSave(role)}
                   disabled={isPending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-brand-strong disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white text-form-sm font-medium rounded-lg hover:bg-brand-strong disabled:opacity-50 transition-colors"
                 >
                   <Check className="size-3" />
                   저장
@@ -241,7 +241,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 <button
                   onClick={cancelEdit}
                   disabled={isPending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line text-ink-sub text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line text-ink-sub text-form-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
                   <X className="size-3" />
                   취소
@@ -258,14 +258,14 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-ink">{contact!.name}</span>
+                <span className="text-form-base font-medium text-ink">{contact!.name}</span>
                 {contact!.position && (
-                  <span className="flex items-center gap-1 text-xs text-brand">
+                  <span className="flex items-center gap-1 text-form-sm text-brand">
                     <Briefcase className="size-3" />{contact!.position}
                   </span>
                 )}
                 {brigadeByName[contact!.name] && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600"
+                  <span className="inline-flex items-center gap-0.5 text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600"
                     title="자위소방대 편성됨 (소방계획서 탭)">
                     <Flame className="size-2.5" /> {brigadeByName[contact!.name]}
                   </span>
@@ -273,7 +273,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                 {contact!.phone && (
-                  <span className="flex items-center gap-1 text-xs text-ink-sub">
+                  <span className="flex items-center gap-1 text-form-sm text-ink-sub">
                     <Phone className="size-3 text-ink-faint" />
                     {/* href는 숫자만 — 하이픈이 섞인 tel: URI를 못 다루는 기기가 있다. 보이는 글자만 하이픈 */}
                     <a href={`tel:${contact!.phone.replace(/\D/g, '')}`} className="hover:text-brand hover:underline">{formatTel(contact!.phone)}</a>
@@ -281,11 +281,11 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                       className="p-0.5 text-ink-meta hover:text-brand">
                       <Copy className="size-3" />
                     </button>
-                    {copied === contact!.phone && <span className="text-[10px] text-green-600">복사됨</span>}
+                    {copied === contact!.phone && <span className="text-form-2xs text-green-600">복사됨</span>}
                   </span>
                 )}
                 {contact!.email && (
-                  <span className="flex items-center gap-1 text-xs text-ink-sub">
+                  <span className="flex items-center gap-1 text-form-sm text-ink-sub">
                     <Mail className="size-3 text-ink-faint" />
                     {contact!.email}
                   </span>
@@ -296,7 +296,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
               {canManage && (
                 <button
                   onClick={() => startEdit(role)}
-                  className="flex items-center gap-1 text-xs text-ink-sub hover:text-brand transition-colors"
+                  className="flex items-center gap-1 text-form-sm text-ink-sub hover:text-brand transition-colors"
                 >
                   <Pencil className="size-3" />
                   수정
@@ -306,7 +306,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
               <label
                 data-testid="sms-recipient-toggle"
                 title={contact!.phone ? '사전 안내 문자를 이 사람에게 보냅니다' : '전화번호가 없어 발송되지 않습니다'}
-                className={`flex items-center gap-1 text-[11px] ${canManage ? 'cursor-pointer' : 'opacity-60'} ${
+                className={`flex items-center gap-1 text-form-xs ${canManage ? 'cursor-pointer' : 'opacity-60'} ${
                   contact!.phone ? 'text-ink-sub' : 'text-ink-meta'}`}
               >
                 <input
@@ -319,7 +319,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 <MessageSquare className="size-3" /> 문자 받음
               </label>
               {smsPick[contact!.id] && !contact!.phone && (
-                <span className="text-[10px] text-red-500">번호가 없어 발송되지 않습니다</span>
+                <span className="text-form-2xs text-red-500">번호가 없어 발송되지 않습니다</span>
               )}
             </div>
           </div>
@@ -328,7 +328,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
       {canManage && firstEmptyRole && editingRole === null && (
         <button
           onClick={() => startEdit(firstEmptyRole)}
-          className="flex items-center justify-center gap-1 text-xs font-medium text-brand hover:bg-brand-tint border border-dashed border-brand-line rounded-lg py-2.5 transition-colors"
+          className="flex items-center justify-center gap-1 text-form-sm font-medium text-brand hover:bg-brand-tint border border-dashed border-brand-line rounded-lg py-2.5 transition-colors"
         >
           <Plus className="size-3" />
           관계인 추가

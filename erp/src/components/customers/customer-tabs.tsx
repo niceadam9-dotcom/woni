@@ -133,7 +133,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys,
                 role="tab"
                 aria-selected={active === t.key}
                 onClick={() => switchTab(t.key)}
-                className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3.5 h-form-9 text-form-base rounded-t-lg border-b-2 -mb-px transition-colors ${
                   active === t.key
                     ? 'border-brand text-brand font-semibold bg-brand-tint'
                     : 'border-transparent text-ink-sub hover:text-ink hover:bg-paper'
@@ -141,9 +141,9 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys,
               >
                 {t.label}
                 {t.badge && (
-                  <span className={`text-[10px] font-medium ${t.warn ? 'text-amber-600' : 'text-ink-meta'}`}>{t.badge}</span>
+                  <span className={`text-form-2xs font-medium ${t.warn ? 'text-amber-600' : 'text-ink-sub'}`}>{t.badge}</span>
                 )}
-                {t.warn && !t.badge && <span className="text-[10px] text-amber-500">⚠</span>}
+                {t.warn && !t.badge && <span className="text-form-2xs text-amber-500">⚠</span>}
               </button>
             ))}
           </div>

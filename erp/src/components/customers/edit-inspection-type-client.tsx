@@ -71,7 +71,7 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
     <>
       <button
         onClick={() => setOpen(true)}
-        className="ml-2 inline-flex items-center gap-1 text-xs text-ink-sub hover:text-brand transition-colors"
+        className="ml-2 inline-flex items-center gap-1 text-form-sm text-ink-sub hover:text-brand transition-colors"
       >
         <Pencil className="size-3" />
         수정
@@ -81,7 +81,7 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
         <div className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-              <h2 className="text-base font-semibold text-ink">점검유형 변경</h2>
+              <h2 className="text-form-lg-title font-semibold text-ink">점검유형 변경</h2>
               <button onClick={() => setOpen(false)} className="text-ink-sub hover:text-ink">
                 <X className="size-5" />
               </button>
@@ -89,8 +89,8 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
 
             <div className="px-6 py-5 space-y-4">
               <div className="flex items-center gap-2 bg-brand-tint rounded-lg px-3 py-2.5">
-                <span className="text-xs text-ink-sub">현재 유형:</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[current.category]}`}>
+                <span className="text-form-sm text-ink-sub">현재 유형:</span>
+                <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[current.category]}`}>
                   {current.category} › {current.sub}
                 </span>
               </div>
@@ -114,33 +114,33 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
                       onChange={() => setSelected(combo.key)}
                       className="accent-brand"
                     />
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[combo.category]}`}>
+                    <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[combo.category]}`}>
                       {combo.category}
                     </span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${SUB_COLORS[combo.sub]}`}>
+                    <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${SUB_COLORS[combo.sub]}`}>
                       {combo.sub}
                     </span>
-                    <span className="text-[11px] text-ink-sub ml-auto text-right">{combo.cycle}</span>
+                    <span className="text-form-xs text-ink-sub ml-auto text-right">{combo.cycle}</span>
                   </label>
                 ))}
               </div>
 
               {error && (
-                <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
               )}
             </div>
 
             <div className="flex gap-3 px-6 py-4 border-t border-line">
               <button
                 onClick={() => { setOpen(false); setSelected(current.key) }}
-                className="flex-1 h-10 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors"
+                className="flex-1 h-form-10 rounded-lg border border-line text-form-base text-ink-sub hover:bg-paper transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleSave}
                 disabled={isPending || selected === current.key}
-                className="flex-1 h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50"
+                className="flex-1 h-form-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium transition-colors flex items-center justify-center disabled:opacity-50"
               >
                 {isPending ? <Loader2 className="size-4 animate-spin" /> : '저장'}
               </button>

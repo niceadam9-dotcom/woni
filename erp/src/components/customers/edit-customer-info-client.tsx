@@ -27,9 +27,9 @@ type Props = {
 }
 
 // §11(2026-08-05): 요약/편집 모드 통합 — 모든 필드를 항상 편집 가능한 촘촘한 그리드로 표시([편집] 버튼 폐기)
-const inputCls = 'h-9 w-full rounded-lg border border-brand-line bg-surface px-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
-const readonlyCls = 'h-9 w-full rounded-lg border border-brand-line bg-paper px-2.5 text-sm text-ink-sub outline-none cursor-default'
-const labelCls = 'text-[11px] font-medium text-ink-sub'
+const inputCls = 'h-form-9 w-full rounded-lg border border-brand-line bg-surface px-2.5 text-form-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const readonlyCls = 'h-form-9 w-full rounded-lg border border-brand-line bg-paper px-2.5 text-form-base text-ink-sub outline-none cursor-default'
+const labelCls = 'text-form-xs font-medium text-ink-sub'
 
 function makeInitial(c: Props['customer']) {
   return {
@@ -247,12 +247,13 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (!isPending && isDirty) handleSave() }}>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
         {field('점검유형',
-          <div className="flex items-center gap-1.5 h-9">
+          <div className="flex items-center gap-1.5 h-form-9">
             {typeSlot}
-            {annualLabel && <span className="text-[10px] text-ink-meta">{annualLabel}</span>}
+            {/* 12px 계층은 ink-meta(5.03:1)를 쓰지 않는다 — 크기가 작을수록 대비가 필요하다 */}
+            {annualLabel && <span className="text-form-2xs text-ink-sub">{annualLabel}</span>}
           </div>
         )}
-        {field(<>점검계획일 {req} <span className="text-[10px] text-ink-meta font-normal">(기산일)</span></>,
+        {field(<>점검계획일 {req} <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>,
           <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis} className={inputCls} />
         )}
         {field(<>고객명 {req}</>,
@@ -267,7 +268,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         {field(<>관할 소방서 {req}</>,
           <input id="cf-station" type="text" value={form.fire_station} onChange={e => set('fire_station', e.target.value)} disabled={dis} placeholder="예: 양평소방서" className={inputCls} />
         )}
-        {field(<>점검료 <span className="text-[10px] text-ink-meta font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,
+        {field(<>점검료 <span className="text-form-2xs text-ink-sub font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,
           <input readOnly value={feeStr} className={readonlyCls} title="편집은 청구·수금 화면에서" />
         )}
         {/* 주소 — 검색은 즉시 저장·전파, 도로명은 수기 보정 가능 */}
@@ -276,7 +277,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             <label className={labelCls}>주소</label>
             {canManage && (
               <button type="button" onClick={handleAddressSearch} disabled={isPending}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-xs font-medium transition-colors border border-brand-line disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-form-sm font-medium transition-colors border border-brand-line disabled:opacity-50">
                 <Search className="size-3" /> 주소 검색
               </button>
             )}
@@ -290,13 +291,13 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         {field('비고',
           <textarea id="cf-notes" value={form.notes} onChange={e => set('notes', e.target.value)} disabled={dis}
             placeholder="특이사항 메모" rows={2}
-            className="w-full rounded-lg border border-brand-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none" />,
+            className="w-full rounded-lg border border-brand-line bg-surface px-2.5 py-1.5 text-form-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none" />,
           { wide: true }
         )}
       </div>
 
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+        <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
       )}
 
       {/* 변경 시에만 저장/취소 노출 */}
@@ -304,16 +305,16 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         {isDirty && canManage ? (
           <>
             <button type="submit" disabled={isPending}
-              className="h-8 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
+              className="h-form-8 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
               {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
             </button>
             <button type="button" onClick={handleReset} disabled={isPending}
-              className="h-8 px-3 rounded-lg border border-line text-xs text-ink-sub hover:bg-paper transition-colors">
+              className="h-form-8 px-3 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors">
               취소
             </button>
           </>
         ) : (
-          lastChangeText && <span className="text-[11px] text-ink-meta truncate">최근 변경: {lastChangeText}</span>
+          lastChangeText && <span className="text-form-xs text-ink-meta truncate">최근 변경: {lastChangeText}</span>
         )}
       </div>
 
