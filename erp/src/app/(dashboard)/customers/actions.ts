@@ -882,13 +882,17 @@ export async function previewAnchorChangeAction(
   error?: string
   before?: AnchorPreview
   after?: AnchorPreview
+  /** 기준일이 바뀌어도 자동으로 안 바뀌는 확정 일정 — 미리보기와 **한 화면**에서 함께 묻는다.
+   *  종전엔 저장 → 확정팝업으로 **두 번 멈췄다**. 사용자는 한 번만 결정하면 된다. */
+  confirmedItems?: ConfirmedPlanItemInfo[]
 }> {
   await requirePermission('customer_manage')
   const admin = createAdminClient()
   const y = new Date().getFullYear()
-  const [b, a] = await Promise.all([
+  const [b, a, confirmedItems] = await Promise.all([
     planReconcile(admin, customerId, [y, y + 1]),
     planReconcile(admin, customerId, [y, y + 1], proposed),
+    _getUnconfirmablePlanItems(admin, customerId),
   ])
   if (!b || !a) return { error: '고객을 찾을 수 없습니다.' }
   const shape = (p: NonNullable<typeof b>): AnchorPreview => ({
@@ -904,7 +908,7 @@ export async function previewAnchorChangeAction(
     removes: p.ops.flatMap(o => o.kind === 'remove' ? [{ year: o.year, month: o.month, from: o.from }] : []),
     keptStarted: p.keptStarted.map(k => ({ year: k.year, month: k.month, planType: k.plan_type })),
   })
-  return { before: shape(b), after: shape(a) }
+  return { before: shape(b), after: shape(a), confirmedItems }
 }
 
 export type AnchorPreview = {

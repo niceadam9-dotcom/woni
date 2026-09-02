@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search } from 'lucide-react'
-import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, type ConfirmedPlanItemInfo, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
+import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, previewAnchorChangeAction, type ConfirmedPlanItemInfo, type AnchorPreview, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
+import { AnchorChangePreview, LegalScheduleBadge } from './anchor-change-preview'
+import { resolveAnchor, anchorSourceLabel } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
 import type { Customer } from '@/types'
 
@@ -14,6 +16,11 @@ type Props = {
   customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed'>
   /** §11: 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
   typeSlot?: ReactNode
+  /** 점검 종류(종합/작동) — 법정 시기 배지가 2차 유무를 판정하는 데 쓴다 */
+  inspectionSubType?: '종합' | '작동' | null
+  /** 기산점 예외 플래그(마이그레이션 155). **undefined면 레거시**로 해석한다 —
+   *  그게 코드가 실제로 하는 일이므로 배지도 같은 답을 내야 한다 */
+  planAnchorManual?: boolean | null
   annualLabel?: string
   lastChangeText?: string | null
   canManage?: boolean
@@ -40,7 +47,7 @@ function makeInitial(c: Props['customer']) {
   }
 }
 
-export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true }: Props) {
+export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true, inspectionSubType, planAnchorManual }: Props) {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
   const [form, setForm] = useState(() => makeInitial(customer))
@@ -48,6 +55,9 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   const [isPending, startTransition] = useTransition()
   // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
   const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
+  /** 기산점 변경 미리보기 — 저장 전에 한 번만 띄운다 */
+  const [preview, setPreview] = useState<{ before: AnchorPreview; after: AnchorPreview; confirmedItems: ConfirmedPlanItemInfo[] } | null>(null)
+  const previewAckRef = useRef(false)
   // 주소 중복 안내 팝업 — 자기 자신은 제외하고 '다른 고객'과 겹칠 때만
   const [dupInfo, setDupInfo] = useState<{
     customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding; address: string
@@ -169,11 +179,31 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           return
         }
         dupAckRef.current = addr
-        doSave(confirmedDecision)
+        gateThenSave(confirmedDecision)
       })
       return
     }
-    doSave(confirmedDecision)
+    gateThenSave(confirmedDecision)
+  }
+
+  /** 기산점이 바뀌면 **저장 전에** 무엇이 되는지 보여준다.
+   *  종전엔 저장하고 나서야 알 수 있었고, 확정 일정이 있으면 그때 **또 한 번** 멈췄다 —
+   *  이제 미리보기 한 화면에서 확정 처리까지 함께 고른다. */
+  function gateThenSave(confirmedDecision?: 'unconfirm' | 'keep') {
+    const anchorish =
+      (form.use_approval_date || null) !== (customer.use_approval_date ?? null)
+      || (form.plan_anchor_date || null) !== (customer.plan_anchor_date ?? null)
+    // 미리보기에서 결정하고 돌아온 호출이면 그대로 저장한다(무한 반복 방지)
+    if (!anchorish || confirmedDecision !== undefined || previewAckRef.current) { doSave(confirmedDecision); return }
+    startTransition(async () => {
+      const res = await previewAnchorChangeAction(customer.id, {
+        use_approval_date: form.use_approval_date || null,
+        plan_anchor_date: form.plan_anchor_date || null,
+      }).catch(() => null)
+      // ⚠ 미리보기를 못 받아도 저장을 막지 않는다 — 안내는 부가 기능이지 관문이 아니다
+      if (!res?.before || !res.after) { doSave(confirmedDecision); return }
+      setPreview({ before: res.before, after: res.after, confirmedItems: res.confirmedItems ?? [] })
+    })
   }
 
   function doSave(confirmedDecision?: 'unconfirm' | 'keep') {
@@ -287,6 +317,50 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         )}
       </div>
 
+      {/* 법정 시기 상시 배지 — **입력하는 즉시** 바뀐다(순수 계산이라 서버 왕복 0).
+          별지 9호 표기와 같은 성격이다: 늘 보이니 잘못을 눈치챈다.
+          ⚠ planAnchorManual이 undefined면 레거시로 해석한다 — 코드가 실제로 하는 그대로여야
+            배지가 거짓말을 하지 않는다. */}
+      {(() => {
+        const r = resolveAnchor({
+          use_approval_date: form.use_approval_date || null,
+          plan_anchor_date: form.plan_anchor_date || null,
+          plan_anchor_manual: planAnchorManual,
+        })
+        if (!r.date) return null
+        const m = Number(r.date.slice(5, 7))
+        const isComp = inspectionSubType === '종합'
+        const months = [{ seq: 1, month: m, planType: `special_${isComp ? '종합' : '작동'}` }]
+        if (isComp) months.push({ seq: 2, month: ((m - 1 + 6) % 12) + 1, planType: 'special_작동' })
+        // 최초점검 기한 — 종합 대상이고 사용승인일 기준일 때만, 그리고 **아직 안 지났을 때만** 띄운다
+        const due = (isComp && form.use_approval_date && isCompleteDate(form.use_approval_date))
+          ? new Date(Date.UTC(+form.use_approval_date.slice(0, 4), +form.use_approval_date.slice(5, 7) - 1, +form.use_approval_date.slice(8, 10)) + 60 * 86_400_000).toISOString().slice(0, 10)
+          : null
+        const stillOpen = due && due >= new Date().toISOString().slice(0, 10)
+        return (
+          <div className="mt-2">
+            <LegalScheduleBadge
+              months={months} anchorSource={anchorSourceLabel(r.source)} anchorDate={r.date}
+              divergent={r.divergent} initialDueDate={stillOpen ? due : null}
+            />
+          </div>
+        )
+      })()}
+
+      {/* 기산점 변경 미리보기 — 저장 **전**에 무엇이 될지 보여주고, 확정 일정 처리까지 한 화면에서 고른다.
+          종전엔 저장 → 확정팝업으로 두 번 멈췄다. */}
+      {preview && (
+        <AnchorChangePreview
+          before={preview.before}
+          after={preview.after}
+          confirmedItems={preview.confirmedItems}
+          isPending={isPending}
+          onConfirm={d => { previewAckRef.current = true; setPreview(null); doSave(d) }}
+          onCancel={() => setPreview(null)}
+        />
+      )}
+
+      {/* 미리보기를 못 띄운 경로(기산점 무관 변경 등)에서 서버가 확정 선택을 요구할 때의 폴백 */}
       {confirmedDlg && (
         <ConfirmedDecisionDialog
           items={confirmedDlg}
