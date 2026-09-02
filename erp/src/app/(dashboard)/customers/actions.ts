@@ -9,7 +9,8 @@ import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from 
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
-import { reconcileSpecialSlots } from '@/lib/reconcile-special-slots'
+import { reconcileSpecialSlots, planReconcile } from '@/lib/reconcile-special-slots'
+import { anchorSourceLabel } from '@/lib/plan-anchor'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
@@ -867,6 +868,56 @@ async function _resetPlanItemsForCustomer(
       .update({ ...patch, planned_date: newPlannedDate } as Record<string, unknown>)
       .eq('id', (item as Record<string, unknown>).id as string)
   }
+}
+
+/** 저장 **전** 미리보기 — 사용승인일·점검계획일·점검종류를 바꾸면 계획이 어떻게 되는지.
+ *
+ *  ⚠ **실행과 같은 함수를 쓴다**(`planReconcile`). 미리보기를 따로 짜면 "보여준 것과 다른 일이
+ *  벌어지는" 최악이 된다 — 이 저장소가 PDF와 엑셀을 같은 조립에 묶어 둔 이유와 같다(D-7).
+ *  아무것도 쓰지 않는다(읽기 전용). */
+export async function previewAnchorChangeAction(
+  customerId: string,
+  proposed: { use_approval_date?: string | null; plan_anchor_date?: string | null; inspection_sub_type?: string | null },
+): Promise<{
+  error?: string
+  before?: AnchorPreview
+  after?: AnchorPreview
+}> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const y = new Date().getFullYear()
+  const [b, a] = await Promise.all([
+    planReconcile(admin, customerId, [y, y + 1]),
+    planReconcile(admin, customerId, [y, y + 1], proposed),
+  ])
+  if (!b || !a) return { error: '고객을 찾을 수 없습니다.' }
+  const shape = (p: NonNullable<typeof b>): AnchorPreview => ({
+    anchorDate: p.anchor.date,
+    anchorSource: anchorSourceLabel(p.anchor.source),
+    divergent: p.anchor.divergent,
+    months: p.desired.map(d => ({ seq: d.sequence_num, month: d.month, planType: d.planType })),
+    initialWindow: p.initialWindow,
+    // 화면은 op 종류별로 나눠 보여준다 — '무엇이 생기고 사라지고 옮겨지는가'
+    creates: p.ops.flatMap(o => o.kind === 'create' ? [{ year: o.year, month: o.month, seq: o.sequence_num, planType: o.planType }] : []),
+    promotes: p.ops.flatMap(o => o.kind === 'toSpecial' ? [{ year: o.year, month: o.month, from: o.from, planType: o.planType }] : []),
+    demotes: p.ops.flatMap(o => o.kind === 'toMonthly' ? [{ year: o.year, month: o.month, from: o.from }] : []),
+    removes: p.ops.flatMap(o => o.kind === 'remove' ? [{ year: o.year, month: o.month, from: o.from }] : []),
+    keptStarted: p.keptStarted.map(k => ({ year: k.year, month: k.month, planType: k.plan_type })),
+  })
+  return { before: shape(b), after: shape(a) }
+}
+
+export type AnchorPreview = {
+  anchorDate: string | null
+  anchorSource: string
+  divergent: boolean
+  months: Array<{ seq: number; month: number; planType: string }>
+  initialWindow: { from: string; to: string } | null
+  creates: Array<{ year: number; month: number; seq: number; planType: string }>
+  promotes: Array<{ year: number; month: number; from: string | null; planType: string }>
+  demotes: Array<{ year: number; month: number; from: string | null }>
+  removes: Array<{ year: number; month: number; from: string | null }>
+  keptStarted: Array<{ year: number; month: number; planType: string | null }>
 }
 
 export async function upsertContactAction(
