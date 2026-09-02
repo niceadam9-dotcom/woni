@@ -427,17 +427,25 @@ export async function assembleReport9(
     return '기타'
   }
   const xCodes = responses.filter(r => r.result === 'X').map(r => r.item_code).sort()
+  // ⚠ 자리표시자 치유(2026-09-02 서림사 실사고): X 자동 등록(createDefectsFromXAction)이
+  // defect_catalog에 없는 코드를 **이름=코드**로 넣던 시절의 행이 남아 있다 — 그 이름을 그대로
+  // 인쇄하면 「불량내용」 칸에 점검번호가 한 번 더 찍힐 뿐이다. 이름이 코드와 같으면(정보량 0)
+  // 점검표 항목명으로 내려간다. 사람이 실제로 적은 이름은 코드와 다르므로 그대로 산다.
+  const defectName = (code: string): string | undefined => {
+    const nm = defectByCode.get(code)?.defect_name
+    return nm && nm !== code ? nm : undefined
+  }
   const defectRows: Report9DefectRow[] = xCodes.map(code => ({
     group: groupOfCode(code),
     code,
-    content: defectByCode.get(code)?.defect_name ?? itemNameByCode.get(code) ?? '',
+    content: defectName(code) ?? itemNameByCode.get(code) ?? '',
   }))
   for (const d of defects) {
     if (d.defect_code && xCodes.includes(d.defect_code)) continue // X 응답과 조인된 건은 위에서 렌더
     defectRows.push({
       group: d.defect_code ? groupOfCode(d.defect_code) : '기타',
       code: d.defect_code ?? '',
-      content: d.defect_name,
+      content: (d.defect_code ? (defectName(d.defect_code) ?? itemNameByCode.get(d.defect_code)) : undefined) ?? d.defect_name,
     })
   }
 

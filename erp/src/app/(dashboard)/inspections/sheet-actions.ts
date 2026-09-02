@@ -553,19 +553,23 @@ export async function createDefectsFromXAction(
   if (xRows.length === 0) return { added: 0 }
 
   const codes = xRows.map(r => r.item_code)
-  const [{ data: cat }, { data: existing }] = await Promise.all([
+  const [{ data: cat }, { data: existing }, allItems] = await Promise.all([
     admin.from('defect_catalog').select('code, equipment, description').in('code', codes),
     admin.from('inspection_defects').select('defect_code').eq('inspection_id', inspectionId),
+    getAllSheetItems(),
   ])
   const catMap = new Map(((cat ?? []) as Array<{ code: string; equipment: string; description: string }>).map(c => [c.code, c]))
   const have = new Set(((existing ?? []) as Array<{ defect_code: string | null }>).map(e => e.defect_code).filter(Boolean))
+  // 폴백 사슬(2026-09-02): 카탈로그 문구 → **점검표 항목명** → 코드. 종전엔 카탈로그에 없는 코드가
+  // 이름=코드로 등록돼 별지 8쪽·갑지 현5의 「불량내용」에 점검번호가 두 번 찍혔다(서림사 실사고).
+  const itemName = new Map(allItems.map(i => [i.item_code, i.item_name]))
 
   const toInsert = xRows.filter(r => !have.has(r.item_code)).map(r => {
     const c = catMap.get(r.item_code)
     return {
       inspection_id: inspectionId,
       defect_code: r.item_code,
-      defect_name: c?.description ?? r.item_code,
+      defect_name: c?.description ?? itemName.get(r.item_code) ?? r.item_code,
       defect_detail: r.memo ?? null,
       severity: '보통',
     }
