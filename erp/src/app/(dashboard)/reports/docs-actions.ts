@@ -214,11 +214,19 @@ export async function getCustomerRoundsAction(customerId: string): Promise<{ dat
   // 활성 회차만 상세 조립한다. 완료 회차 요약(docsLite — gen_jobs·defects 집계 2쿼리)은
   // 소비자였던 '지난 회차' 접힘이 폐지되어 함께 은퇴(null 고정) — 마운트 왕복이 그만큼 준다.
   const activeRows = inspRows.filter(i => i.status !== 'completed')
+  // ⚠ 진행 중이 하나도 없으면 **최신 완료 1건**도 상세 조립한다 — 다음 회차를 시작하기 전까지는
+  // 직전 완료 회차의 산출물(엑셀·별지)이 '현재 문서'다. 이게 빠지면 점검을 끝낸 직후
+  // 방금 입력한 회차의 엑셀 버튼이 통째로 사라진다(2026-09-02 서림사 실사고 — 1차 완료·2차 미시작).
+  // inspRows는 (연,차) 내림차순이라 완료 중 첫 행이 최신이다.
+  const latestDone = activeRows.length === 0
+    ? inspRows.filter(i => i.status === 'completed').slice(0, 1)
+    : []
+  const detailRows = [...activeRows, ...latestDone]
 
   const [archivedCerts, docsList] = await Promise.all([
-    findArchivedCertInspections(admin, activeRows.map(i => i.id)),
-    // 활성 회차만 상세 조립 (통상 1~2건)
-    Promise.all(activeRows.map(i => buildInspectionDocs(admin, customerId, i))),
+    findArchivedCertInspections(admin, detailRows.map(i => i.id)),
+    // 통상 1~2건만 상세 조립
+    Promise.all(detailRows.map(i => buildInspectionDocs(admin, customerId, i))),
   ])
   // archivedCerts는 활성 회차 상세에도 필요하다 — buildInspectionDocs를 병렬로 돌린 뒤 여기서 채운다
   for (const d of docsList) d.certArchived = !d.cert && archivedCerts.has(d.inspectionId)

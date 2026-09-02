@@ -37,22 +37,28 @@ function roundKey(r: CustomerRound) { return `${r.year}-${r.sequenceNum}` }
 
 /** 현재 회차 자동 판정 (2026-09-02 사용자 확정 — "회차는 ERP가 알아서").
  *
- *  사용자는 회차를 고르지도 관리하지도 않는다 — 이 화면은 **지금 데이터가 귀속될 회차 1건**만
- *  자동으로 정해 그 문서·점검표를 보여준다. 판정 규칙:
- *   · 시작된 회차(진행 중)가 있으면 그것 — 입력 중인 점검이 곧 현재다.
- *   · 없으면 예정일이 가장 가까운 미시작 회차(지난 예정 포함) — 시기가 오면 자동 교대된다.
- *  회차의 연도·차수·종합/작동은 롤링 생성기가 사용승인일 법정 축으로 이미 계산해 둔 값이고,
- *  최초점검 여부는 시작 시 60일 규칙으로 자동 기입된다 — 문서에는 전부 자동으로 찍힌다.
+ *  사용자는 회차를 고르지도 관리하지도 않는다 — 이 화면은 **지금 문서 작업의 대상인 회차 1건**만
+ *  자동으로 정해 그 문서·점검표를 보여준다. 판정 순서:
+ *   ① 진행 중 — 입력 중인 점검이 곧 현재.
+ *   ② 시기가 도래한 미시작(예정일 ≤ 오늘) — [작성 시작]으로 열린다.
+ *   ③ **최근 완료** — 다음 회차 시기 전까지는 방금 끝낸 회차의 산출물(엑셀·별지)이 현재 문서다.
+ *     (이게 빠지면 점검 완료 직후 엑셀 버튼이 사라진다 — 서림사 실사고. 서버가 이 1건의 docs를 함께 싣는다)
+ *   ④ 미래 미시작 중 최근접 — 아직 아무 이력이 없는 신규 고객의 [작성 시작] 진입점.
+ *  연도·차수·종합/작동은 롤링 생성기의 사용승인일 법정 축, 최초점검은 60일 규칙 — 문서에 자동 기입.
  *  예정·지난 회차 목록 UI는 폐지 — 일정 관리는 점검 달력·점검계획 화면이 담당한다. */
 function currentRoundOf(rounds: CustomerRound[]): CustomerRound | null {
-  const active = rounds.filter(r => r.state !== 'completed')
+  const today = todayStr()
   const dateKey = (r: CustomerRound) => r.plannedDate ?? `${r.year}-${String(r.sequenceNum * 6).padStart(2, '0')}`
+  const active = rounds.filter(r => r.state !== 'completed')
   const started = active.filter(r => r.state !== 'planned')
     .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
   if (started.length > 0) return started[0]
   const planned = active.filter(r => r.state === 'planned')
     .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
-  return planned[0] ?? null
+  if (planned[0] && dateKey(planned[0]) <= today) return planned[0]
+  // rounds는 (연,차) 내림차순 — 완료 중 첫 건이 최신. docs는 서버가 이 경우에만 실어 보낸다.
+  const latestDone = rounds.find(r => r.state === 'completed' && r.docs)
+  return latestDone ?? planned[0] ?? null
 }
 
 export function PlanAnnexSection({ customerId, canRegister = false, initialData = null }: {
