@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Mail, ShieldCheck, ExternalLink } from 'lucide-react'
@@ -10,6 +10,7 @@ import { isEndBeforeStart, DATE_RANGE_ERROR } from '@/lib/date-range'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { computeFirePlanReadiness, READINESS_TARGET_IDS } from '@/lib/fire-plan-readiness'
 import { suggestGrade, suggestOpHours, RECEIVER_LOCATION_PRESETS } from '@/lib/fire-plan-suggest'
+import { GRADE_BASIS } from '@/lib/legal-basis'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { CardAnchorBar, NumField, PhoneField } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
@@ -206,6 +207,35 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     setMsg(`✅ ${rows.length}명 자동 편성 (관계인 → 직원 순) — 확인 후 저장하세요`)
   }
 
+  /** ⭐ 급수 추천을 **상시** 보여준다 (2026-09-02).
+   *
+   *  종전엔 [추천값 채우기]를 눌러야만, 그것도 `title` 속성(마우스를 올려야 뜨는 툴팁)으로만 보였다.
+   *  즉 근거가 있는데 평소엔 아무도 못 봤다.
+   *
+   *  그런데 실측(스테이징 활성 292동)에서 판정 재료가 거의 비어 있었다 —
+   *  높이 98%·층수 96%·용도 96% 공란이라 **95%가 판정 불가**다. 그래서 이 자리는 판정 결과만
+   *  말하면 대부분 빈칸이 된다. **무엇이 없어서 판정을 못 하는지**까지 말해야 사용자가 할 일을 안다
+   *  (그 값들은 [건축물대장에서 다시 가져오기] 한 번으로 같이 채워진다 — 위 ① 건물현황 카드).
+   *
+   *  ⚠ 문구는 '추천'이다. 판정 규칙(fire-plan-suggest)이 **아직 법령 원문과 대조되지 않았기 때문**이다
+   *    ([[lib/legal-basis.ts]] 참조). 확정은 사람이 하고, 화면은 원문 링크로 확인 경로를 준다. */
+  const gradeHint = useMemo(() => {
+    const h = parseFloat(initial.height) || null
+    const g = suggestGrade({
+      purpose: initial.purpose, totalArea: initial.totalArea,
+      floorsAbove: initial.floorsAbove, floorsBelow: initial.floorsBelow,
+      height: h, facilityCodes: initial.facilityCodes,
+    })
+    // 없는 값을 이름으로 말한다 — '판정 불가'만 띄우면 무엇을 채워야 하는지 알 수 없다
+    const lack = ([
+      [!initial.purpose, '용도'],
+      [initial.floorsAbove == null, '층수'],
+      [h == null, '높이'],
+      [initial.totalArea == null, '연면적'],
+    ] as Array<[boolean, string]>).filter(([bad]) => bad).map(([, name]) => name)
+    return { g, lack }
+  }, [initial])
+
   // 추천값 하이라이트 (앰버) — title에 근거 표시
   const sgCls = (k: string) => (suggested[k] ? ' !border-amber-400 !bg-amber-50' : '')
   const sgTitle = (k: string) => suggested[k]
@@ -318,6 +348,30 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               </Link>
             </div>
           </div>
+          {/* 급수 근거 줄 — 판정이 되면 근거를, 안 되면 **없는 값의 이름**을 말한다. 확정은 사용자다(추천 표기).
+              ⚠ 위 flex 행 **밖**에 둔다: `items-end` 행 안에 넣으면 두 줄로 접힐 때 형제 칸(소방안전관리자
+                 정보 버튼)의 세로 정렬을 밀어 올린다(2026-09-02 스크린샷으로 확인하고 옮겼다). */}
+          <p id="fp-grade-basis" className="-mt-1.5 text-form-2xs leading-tight text-ink-sub">
+            {gradeHint.g ? (
+              <>
+                급수 추천 <b className="text-brand">{gradeHint.g.grade}</b> — {gradeHint.g.reason}
+                {d.grade && d.grade !== gradeHint.g.grade && (
+                  <span className="text-amber-600"> · 선택값({d.grade})과 다릅니다</span>
+                )}
+              </>
+            ) : (
+              <span className="text-ink-meta">
+                급수 추천 불가{gradeHint.lack.length > 0 && ` — ${gradeHint.lack.join('·')} 없음`}
+                {' · '}① 건물현황에서 대장 가져오기
+              </span>
+            )}
+            {' '}
+            <a href={GRADE_BASIS.url} target="_blank" rel="noreferrer"
+              title={`${GRADE_BASIS.title} — ${GRADE_BASIS.asOf} 확인`}
+              className="text-brand hover:underline whitespace-nowrap">
+              {GRADE_BASIS.label} ↗
+            </a>
+          </p>
           <div className="flex flex-wrap gap-2 items-end">
             <div><label className={labelCls}>평일</label><br />
               <input id="fp-ophours" value={d.opHoursWeekday} onChange={e => set('opHoursWeekday', e.target.value)} list="fp-ophours-list" placeholder="선택/입력" className={`${inputCls} w-28${sgCls('opHoursWeekday')}`} title={sgTitle('opHoursWeekday')} />
