@@ -222,7 +222,7 @@ export default async function InspectionDetailPage({
   // R4-7 누락 방어(소방계획서_21 B-4) — 증거 동기화 호출 지점이 한 곳만 빠져도 두 갈래가 되살아난다(R-2).
   // 상세 진입 시 계산 증거와 저장 status를 맞춘다. **불일치일 때만 쓰기**(syncInspectionSteps 내부에서
   // 바뀐 행만 갱신)라 조회 부하가 늘지 않고, 과거 데이터도 열람하는 순간 스스로 정합해진다.
-  const { changed: stepsChanged } = await syncInspectionSteps(admin, id, profile.id)
+  const { changed: stepsChanged, completionHeld } = await syncInspectionSteps(admin, id, profile.id)
   if (stepsChanged > 0) {
     // 위 Promise.all에서 이미 읽은 steps가 낡았다 — 바뀐 경우에만 다시 읽는다(평시 왕복 0회)
     const { data: fresh } = await admin.from('inspection_steps')
@@ -477,6 +477,22 @@ export default async function InspectionDetailPage({
           isInitial={!!(inspection as unknown as Record<string, unknown>).is_initial}
           canManage={canEdit}
         />
+      )}
+
+      {/* 39 S3-2 — 완료 보류 배너: 단계는 전부 ✓인데 status가 진행중인 '모순 상태'의 이유와 출구.
+          자동저장 경로(점검표 저장)로 보류가 걸리면 alert가 없으므로 상세 진입 시 여기서 말한다.
+          syncInspectionSteps(위 :225 R4-7 보정)가 보류를 판정한 바로 그 반환값이라 화면과 DB가 갈라질 수 없다 */}
+      {completionHeld && (
+        <div className="mb-3 flex items-center gap-2 flex-wrap rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5" data-testid="completion-held-banner">
+          <span className="text-xs text-amber-700 flex-1 min-w-60">
+            모든 단계가 완료됐지만 <b>필수 미입력 항목 {completionHeld.required}건</b>
+            {completionHeld.comp > 0 ? ` (종합 필수 ● ${completionHeld.comp}건 포함)` : ''}이 남아
+            점검 완료 전환이 보류 중입니다 — 설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다.
+          </span>
+          <a href={`/inspections/${id}/sheet`} className="text-xs font-medium text-brand hover:underline shrink-0">
+            점검표 입력 →
+          </a>
+        </div>
       )}
 
       {/* C1(소방계획서_21 R5): 13블록 → 헤더 + 타임라인 하나.

@@ -181,9 +181,18 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     // 🔴 flush가 **먼저** — 훅의 items/baseline이 갈아끼워진 뒤에는 옛 시트의 delta를 계산할 수 없다
     void (async () => { await autosaveRef.current.flush(); doOpen(sheet, groupCode) })()
   }
-  /** 닫기 3경로(ESC·백드롭·✕) 공통 — 이유를 가리지 않는다. 자동저장이라 확인창이 없고,
-   *  대신 flush로 대기 중인 입력을 반드시 흘려보낸 뒤 닫는다 */
+  /** 닫기 3경로(ESC·백드롭·✕) 공통 — 이유를 가리지 않는다. 자동저장이라 미저장 확인창은 없고,
+   *  대신 flush로 대기 중인 입력을 반드시 흘려보낸 뒤 닫는다.
+   *  39 S2-2 — 필수 미입력 이탈 확인(소프트): 설치 시트에 무응답이 남았으면 한 번 묻는다.
+   *  OK=닫기 진행(비차단 — Playwright auto-accept가 종전 동작과 같아 기존 E2E가 안 깨진다).
+   *  게이트: 자체점검 회차(작동·종합, §0 확대) && 편집 가능 && **설치 시트**만 — 미설치 시트는 필수 아님. */
   function requestClose() {
+    const blank = selCounts.total - selCounts.responded
+    if (scope.isSpecial && canManage && sel && blank > 0 && (progress[sel.id]?.installed ?? false)
+      && !window.confirm(
+        `이 시트에 미입력 항목 ${blank}건이 남아 있습니다`
+        + `${selCounts.compBlank > 0 ? ` (종합 필수 ● ${selCounts.compBlank}건 포함)` : ''}.\n`
+        + `설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다.\n\n그대로 닫을까요?`)) return
     void (async () => { await autosaveRef.current.flush(); doClose() })()
   }
   /** EX-4: 월 전환 — 🔴 flush가 **반드시 먼저**. 훅의 month는 ref 캡처라 flush가 옛 달로 끝나야 한다.
@@ -232,9 +241,14 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputItems, local])
   const selCounts = useMemo(() => {
-    let responded = 0, x = 0, n = 0
-    for (const it of inputItems) { const r = local[it.item_code]; if (r) { responded++; if (r === 'X') x++; if (r === 'N') n++ } }
-    return { responded, x, n, total: inputItems.length }
+    // compBlank(39 S1-2) — 종합 회차에서 살아남은 ● 무응답. 작동 회차는 inputItems가 ●를 이미 제외(outOfScope)
+    let responded = 0, x = 0, n = 0, compBlank = 0
+    for (const it of inputItems) {
+      const r = local[it.item_code]
+      if (r) { responded++; if (r === 'X') x++; if (r === 'N') n++ }
+      else if (it.comprehensive_only) compBlank++
+    }
+    return { responded, x, n, total: inputItems.length, compBlank }
   }, [inputItems, local])
 
   /** G-9 — 보드 진행률 오버레이: 열린 시트만 로컬 값으로 재집계해 서버 progress를 대체.
@@ -246,7 +260,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       if (p.sheetId !== sel.id) return p
       const buckets = new Map<string, SheetGroupProgress>()
       const counts = { O: 0, X: 0, N: 0 }
-      let responded = 0
+      let responded = 0, compBlank = 0
       for (const it of inputItems) {
         const code = groupCodeOf(it)
         let b = buckets.get(code)
@@ -261,8 +275,10 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         if (it.subgroup_name && !b.subgroupNames.includes(it.subgroup_name)) b.subgroupNames.push(it.subgroup_name)
         const r = local[it.item_code]
         if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }
+        else if (it.comprehensive_only) compBlank++
       }
-      return { ...p, total: inputItems.length || p.total, responded, counts, groups: [...buckets.values()] }
+      // compBlank도 로컬로 재계산(39 S1-2) — 스프레드만 하면 저장 직후 서버 값이 낡은 채 남는다
+      return { ...p, total: inputItems.length || p.total, responded, counts, compBlank, groups: [...buckets.values()] }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheets, progress, sel, inputItems, local])
@@ -517,6 +533,14 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
             <span className={`text-form-2xs shrink-0 ${selCounts.total > 0 && selCounts.responded >= selCounts.total ? 'text-green-600' : 'text-ink-meta'}`}>
               {selCounts.responded}/{selCounts.total}{selCounts.x > 0 ? ` ✕${selCounts.x}` : ''}
             </span>
+            {/* 39 S1-2 — 필수 미입력 카운터(설치 설비 점검표는 전 항목 ○/✕/／ 기재, §0 확대).
+                ⚠ span으로 둔다 — '저장' 문자열 버튼을 만들면 test-sheet-mother-drawer P19·P11이 깨진다 */}
+            {selCounts.responded < selCounts.total && (
+              <span className="text-form-2xs text-amber-600 font-medium shrink-0" data-testid="drawer-required-blank"
+                title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — ●는 종합점검 필수(고시 별지4호)">
+                미입력 {selCounts.total - selCounts.responded}{selCounts.compBlank > 0 ? ` (● ${selCounts.compBlank})` : ''}
+              </span>
+            )}
             {canManage && (
               <button onClick={localSheetNA} disabled={isPending} data-testid="drawer-sheet-na"
                 title="이 시트의 미입력 항목을 전부 ／(해당없음)로 — 입력된 ○/✕는 보존 (재클릭 시 ／만 해제)"

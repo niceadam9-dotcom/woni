@@ -82,6 +82,8 @@ export function PlanAnnexRoundCard({
   const [xlsx, setXlsx] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
   // 설치 설비 중 응답 0건 수 — 아래 점검표 트리가 조회한 값을 위 별지 블록 제목에 복제한다
   const [sheetBlanks, setSheetBlanks] = useState(0)
+  // 39 §0 — 필수 미입력 항목(설치 시트·범위 내 무응답 전부)과 그중 ●(종합 필수). 트리가 함께 통지한다
+  const [reqBlanks, setReqBlanks] = useState({ items: 0, comp: 0 })
 
   /** 발행 가드(2026-09-02 사용자 결정 — image-43 후속) — 설치(√) 설비에 미입력이 있으면
    *  산출물(엑셀·전체 인쇄)을 만들기 전에 팝업으로 입력을 유도한다. 미입력분은 같은 날 정책으로
@@ -92,11 +94,17 @@ export function PlanAnnexRoundCard({
    *    그 구간도 서버 고지 헤더(X-Workbook-Missing '점검표 미입력 N종')가 받은 뒤에 알린다.
    *  이동은 전체 이동(location.assign) — 같은 경로 ?tab= Link가 서버를 안 깨우는 함정과 무관하게 확실한 축. */
   function blanksGuardThenGo(inspectionId: string): boolean {
-    if (sheetBlanks <= 0) return true
+    if (sheetBlanks <= 0 && reqBlanks.items <= 0) return true
+    // 39 §0·S2-3/4 — 두 층을 함께 말한다: 설비 단위(응답 0 → 요약칸 기본 ○)와 항목 단위(필수 미입력
+    // → 점검표 칸이 빈칸으로 인쇄). 해소 양갈래(입력 or 1.4 대장 체크 해제)도 여기서 알린다
+    const lines = [
+      ...(sheetBlanks > 0 ? [`· 설치 설비 중 점검표 미입력 ${sheetBlanks}개 — 요약칸이 기본 ○(양호)로 인쇄됩니다`] : []),
+      ...(reqBlanks.items > 0 ? [`· 필수 미입력 항목 ${reqBlanks.items}건${reqBlanks.comp > 0 ? ` (종합 필수 ● ${reqBlanks.comp}건 포함)` : ''} — 점검표 칸이 빈칸으로 인쇄됩니다`] : []),
+    ]
     const go = window.confirm(
-      `설치 설비 중 ${sheetBlanks}개의 점검표가 미입력입니다.\n`
-      + `미입력 설비의 점검결과는 기본 ○(양호)로 인쇄됩니다.\n\n`
-      + `[확인] 점검표 입력 화면으로 이동\n[취소] 그대로 진행(기본 ○로 발행)`)
+      `${lines.join('\n')}\n\n`
+      + `점검표를 입력하거나, 실제 설치되지 않은 설비라면 1.4 설비 대장에서 체크를 해제하세요.\n\n`
+      + `[확인] 점검표 입력 화면으로 이동\n[취소] 그대로 발행`)
     if (!go) return true
     window.location.assign(`/inspections/${inspectionId}/sheet${entryFrom ? `?from=${encodeURIComponent(entryFrom)}` : ''}`)
     return false
@@ -203,6 +211,10 @@ export function PlanAnnexRoundCard({
                 {sheetBlanks > 0 && (
                   <span className="ml-2 font-medium text-amber-600">⚠ 설치 설비 중 미입력 {sheetBlanks}개 — 점검결과가 기본 ○(양호)로 인쇄됩니다</span>
                 )}
+                {/* 39 §0 — 항목 층: 설치 시트의 범위 내 무응답(빈칸으로 인쇄될 칸). ●는 종합 법정 필수 */}
+                {reqBlanks.items > 0 && (
+                  <span className="ml-2 font-medium text-amber-700">· 필수 미입력 {reqBlanks.items}건{reqBlanks.comp > 0 ? ` (● ${reqBlanks.comp})` : ''}</span>
+                )}
               </p>
               {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
               <div className="flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft flex-wrap">
@@ -243,7 +255,9 @@ export function PlanAnnexRoundCard({
               <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
                 responded={r.docs.sheetResponses} defects={r.docs.defects.total} from={entryFrom} />
               <PlanAnnexSheetTree inspectionId={r.docs.inspectionId} canRegister={canRegister}
-                onSaved={onSheetSaved} onBlankCount={setSheetBlanks} from={entryFrom} />
+                onSaved={onSheetSaved}
+                onBlankCount={(n, req, comp) => { setSheetBlanks(n); setReqBlanks({ items: req ?? 0, comp: comp ?? 0 }) }}
+                from={entryFrom} />
             </>
           ) : (
             /* 미시작 — [작성 시작] 한 번으로 오늘이 점검 시작일로 자동 기록되고 점검표·별지가 열린다

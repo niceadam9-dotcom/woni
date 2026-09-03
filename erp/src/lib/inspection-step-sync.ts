@@ -18,6 +18,7 @@ import { dismissInspectionDeadlineNotifications } from '@/lib/inspection-notify-
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { isCertFileName, findArchivedCertInspections } from '@/lib/doc-status'
+import { countInstalledRequiredBlanks } from '@/lib/sheet-overview'
 import {
   evidenceDone, activeStepNums, isSelfInspection, resolveForcedSteps,
   OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
@@ -87,13 +88,24 @@ export async function applyStepSideEffects(
     /** 이번에 새로 완료된 단계 번호 — 계획 동기화(inspection_status_log) 대상 */
     newlyCompleted: number[]
     completedAtIso: string
+    /** 39 S3-1 완료 보류 — 설치 시트의 범위 내 무응답 항목이 남았으면 completed 전환을 미룬다
+     *  (작동·종합 공통, §0). 판정은 호출자가 임박 시에만 계산해 넘긴다(allActiveDone과 같은 계약).
+     *  null/미공급 = 보류 없음(구 호출부 호환). */
+    holdCompletion?: { required: number; comp: number } | null
   },
-): Promise<{ justCompleted: boolean }> {
-  const { inspectionId, actorId, prevStatus, allActiveDone, newlyCompleted, completedAtIso } = opts
+): Promise<{ justCompleted: boolean; completionHeld?: { required: number; comp: number } }> {
+  const { inspectionId, actorId, prevStatus, allActiveDone, newlyCompleted, completedAtIso, holdCompletion } = opts
 
-  const justCompleted = allActiveDone && prevStatus !== 'completed'
+  const hold = !!holdCompletion && holdCompletion.required > 0
+  const justCompleted = allActiveDone && !hold && prevStatus !== 'completed'
   if (allActiveDone) {
-    if (prevStatus !== 'completed') {
+    if (hold) {
+      // 39 S3-1 — 보류: completed로 올리지 않는다. **이미 completed면 소급하지 않는다**(내리지 않음).
+      // scheduled였다면 단계가 다 찼어도 '진행중'으로만 — 화면이 보류 사유(배너·alert)를 말한다.
+      if (prevStatus === 'scheduled') {
+        await admin.from('inspections').update({ status: 'in_progress' } as Record<string, unknown>).eq('id', inspectionId)
+      }
+    } else if (prevStatus !== 'completed') {
       await admin.from('inspections').update({ status: 'completed' } as Record<string, unknown>).eq('id', inspectionId)
     }
   } else if (prevStatus === 'completed' || prevStatus === 'scheduled') {
@@ -119,7 +131,7 @@ export async function applyStepSideEffects(
         .update({ status: 'confirmed' } as Record<string, unknown>).eq('id', pi.id)
     }
   }
-  return { justCompleted }
+  return { justCompleted, ...(hold ? { completionHeld: holdCompletion! } : {}) }
 }
 
 /** 화면이 서버와 **같은 증거**로 판정하도록 증거 묶음을 그대로 내준다 (독립 검증 D3).
@@ -152,7 +164,11 @@ export async function recalcStepDueDates(
  *  상태가 실제로 바뀐 행만 갱신한다(무의미한 쓰기·revalidate 폭풍 방지). */
 export async function syncInspectionSteps(
   admin: Admin, inspectionId: string, actorId: string | null,
-): Promise<{ changed: number; justCompleted?: boolean; error?: string }> {
+): Promise<{
+  changed: number; justCompleted?: boolean; error?: string
+  /** 39 S3 — 완료 보류 사유(필수 미입력 항목 수·그중 ●). 있으면 status가 completed로 안 올라갔다 */
+  completionHeld?: { required: number; comp: number }
+}> {
   // 점검 행과 단계 행은 서로 독립 — 병렬 조회로 왕복 1회 절약(저장 경로 최적화, 2026-08-15)
   const [{ data: inspRaw }, { data: stepRaw }] = await Promise.all([
     admin.from('inspections')
@@ -215,10 +231,16 @@ export async function syncInspectionSteps(
   }
 
   const allActiveDone = active.every(n => done[n])
-  const { justCompleted } = await applyStepSideEffects(admin, {
+  // 39 S3-1 — 완료 전환이 **임박했을 때만** 필수 미입력을 센다(비용 게이트: 매 저장마다 돌지 않는다).
+  // 자체점검(작동·종합)만 — 외관 등은 점검표 필수 축이 없다. 판정식은 UI 카운터와 같은
+  // countInstalledRequiredBlanks(sheet-overview) — 축이 갈라지면 카운터 N>0인데 완료되는 모순이 생긴다.
+  const holdCompletion = (allActiveDone && insp.status !== 'completed' && isSpecial)
+    ? await countInstalledRequiredBlanks(admin, inspectionId)
+    : null
+  const { justCompleted, completionHeld } = await applyStepSideEffects(admin, {
     inspectionId, actorId: actorId ?? '', prevStatus: insp.status,
-    allActiveDone, newlyCompleted, completedAtIso: now,
+    allActiveDone, newlyCompleted, completedAtIso: now, holdCompletion,
   })
 
-  return { changed, justCompleted }
+  return { changed, justCompleted, completionHeld }
 }

@@ -1,0 +1,77 @@
+{
+  "doc": "소방계획서_39",
+  "title": "설치 설비 점검표 필수 입력 강제(작동·종합 공통) + ● 종합 필수 축 + 미입력 설비 해소 유도",
+  "created": "2026-09-02",
+  "scope_change": "착수 시점 '종합 ● 한정' → 2026-09-02 사용자 확대: 작동·종합 공통, 설치 시트의 범위 내 전 항목 필수(○/×/／, 빈칸 금지). ●는 법정 근거 명시된 부분집합으로 배지·고지 병행 (md §0)",
+  "source_md": "erp_goal/소방계획서_39.md",
+  "related": [
+    { "doc": "커밋 5389f6d", "why": "작동 회차 ● 자동 ／ — 이 문서의 대칭 반대편(소비만)" },
+    { "doc": "커밋 0aceb39", "why": "설치+무응답 → 현황 요약 기본 ○ — 39는 항목 층(기본값 금지·입력 강제)" },
+    { "doc": "커밋 efc3c66", "why": "발행 가드 팝업 — S2가 분모 확장" },
+    { "doc": "소방계획서_38", "why": "sheet-item-editor 크기 축 소유. 39는 내용 축만" },
+    { "doc": "소방계획서_36", "why": "sheet-item-editor 색 축 소유. 39는 내용 축만" }
+  ],
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반"
+  },
+  "legal_basis": {
+    "note": "요약 금지 — 원문 위치만 (feedback_legal_form_source)",
+    "sources": [
+      "소방시설 설치 및 관리에 관한 법률 제22조 (자체점검 의무·벌칙)",
+      "같은 법 시행규칙 별표 3 (종합점검 = 작동점검 포함, 고시 종합점검표에 따라)",
+      "고시 별지 4호 각주 — _form/_별지4호_현행판_추출.txt:508 (●는 종합점검의 경우에만 해당)",
+      "고시 별지 4호 1쪽 범례 (양호○ 불량X 해당없음/)"
+    ],
+    "nuance": "강제 대상은 ○/×/／ 중 하나 — ／도 법정 표기, 빈칸만 금지. 확인일 2026-09-02"
+  },
+  "sections": [
+    {
+      "id": "S1", "title": "1층 표시 — ● 배지·미입력 강조·카운터", "status": "code_present",
+      "criteria": [
+        { "id": "S1-1", "desc": "sheet-item-editor ItemRow: comprehensive_only && !outOfScope이면 ● 표시 + 미입력 amber 강조 + 법 근거 title (두 표면 공용 1곳)", "status": "code_present", "note": "sheet-item-editor.tsx ItemRow 이름 span — 내용 축 주석으로 36(색)·38(크기)과 구분" },
+        { "id": "S1-2", "desc": "드로어 헤더 미입력 카운터(전 항목+● 병기, selCounts compBlank) + overlaidProgress 오버레이 재계산", "status": "code_present", "note": "inspection-sheet-client.tsx selCounts·headerRight data-testid=drawer-required-blank·overlaidProgress compBlank" },
+        { "id": "S1-3", "desc": "전용 페이지 헤더 '필수 미입력 M건(● k)' 병기(기존 '미입력 N개' 문구 보존) + patchLocal 재계산", "status": "code_present", "note": "sheet-entry-client.tsx requiredBlank/compBlankTotal·data-testid=sheet-entry-required-blank·patchLocal compBlank" }
+      ]
+    },
+    {
+      "id": "S2", "title": "2층 소프트 가드 + 설비 해소 유도", "status": "code_present",
+      "criteria": [
+        { "id": "S2-1", "desc": "전용 페이지 backHref 이탈 시 confirm(설치 시트 필수 미입력>0 — 작동·종합 공통, OK=이탈 진행)", "status": "code_present", "note": "sheet-entry-client.tsx backHref Link onClick — Playwright auto-accept=진행이라 기존 E2E 무영향(28/0 실측)" },
+        { "id": "S2-2", "desc": "드로어 requestClose 선두 confirm — ESC·백드롭·✕·[닫기] 4경로 공통점. 게이트: isSpecial·canManage·설치 시트", "status": "code_present", "note": "inspection-sheet-client.tsx requestClose — mother-drawer 67/0 실측(전 스위트 accept 핸들러와 양립)" },
+        { "id": "S2-3", "desc": "발행 가드(blanksGuardThenGo) 분모 확장 — 설비 단위 + 필수 미입력 항목(● 수 병기)", "status": "code_present", "note": "plan-annex-round-card.tsx reqBlanks state + 팝업 2줄 문구" },
+        { "id": "S2-4", "desc": "설비 해소 양갈래 안내 — '점검표 입력 또는 1.4 대장에서 체크 해제' (팝업+트리, 1.4 링크는 전체 이동 <a>)", "status": "code_present", "note": "round-card 팝업 문구 + sheet-tree ledgerHref(from에서 파생, <a> 전체 이동)" },
+        { "id": "S2-5", "desc": "트리 요약줄 필수 미입력 카운터(amber) + onBlankCount(설비, 항목, ●) 시그니처 확장", "status": "code_present", "note": "plan-annex-sheet-tree.tsx data-testid=tree-required-blank · countBlanks는 lib/sheet-blanks로 이동(단일 원천)" }
+      ]
+    },
+    {
+      "id": "S3", "title": "3층 완료 보류 (하드)", "status": "code_present",
+      "criteria": [
+        { "id": "S3-1", "desc": "inspection-step-sync: 설치 시트의 범위 내 무응답 항목>0(작동·종합 공통)이면 completed 전환 보류(in_progress 유지). 판정은 호출부 임박 게이트(countInstalledRequiredBlanks). 기존 completed 소급 없음", "status": "code_present", "note": "_probe-39-hold.mts 11/0 — hold/해소 양방향·scheduled 강등·completed 소급 없음·UI 축 일치까지 실측" },
+        { "id": "S3-2", "desc": "보류 고지 — completeStep 경로 alert(달력·슬라이드패널) + 점검 상세 completion-held-banner(입력 딥링크)", "status": "code_present", "note": "completionHeld 채널 신설(syncInspectionSteps→completeStepAction→클라이언트 2곳) + [id]/page.tsx 배너" },
+        { "id": "S3-3", "desc": "blast-radius 실측 — 켜기 전 진행중 자체점검의 필수 미입력 보유 건수 스테이징 실측·보고", "status": "implemented", "verified": { "date": "2026-09-02", "evidence": ["scripts/_probe-39-hold-blast.mts 실행 — 진행중·예정 86건 중 자체점검 24건, 보류에 걸릴 건수 0/24, 완료 소급 대상 0건"], "method": "스테이징 실측(읽기 전용)" } }
+      ]
+    },
+    {
+      "id": "S4", "title": "문서(PDF·엑셀) 반영", "status": "code_present",
+      "criteria": [
+        { "id": "S4-1", "desc": "report9-assemble missing에 '점검표 항목 미입력 N건(설치 설비[, ● M건 포함])' — 작동·종합 공통·설치 매칭 시트(STD-32 multiUse 예외 포함) 한정. 9호·4호 PDF·미리보기·워크북 헤더 자동 전파", "status": "code_present", "note": "report9-assemble.ts missing 블록 — 작동 ●는 조립이 이미 ／를 박아 null로 안 잡힘(이중 계상 없음)" },
+        { "id": "S4-2", "desc": "워크북 헤더 절단 대비 — r9.missing에만 실음(중복 고지 금지), 절단은 기존 '…외 N자 생략' 마커로 드러남", "status": "code_present", "note": "승격하지 않기로 결정 — 어제 추가된 설비 단위 '점검표 미입력 N종'이 이미 생존 순위 상위에 있어 축이 겹치지 않음" }
+      ]
+    }
+  ],
+  "verification_runs": {
+    "date": "2026-09-02",
+    "tsc": 0,
+    "suites": {
+      "test-sheet-overview": "36/0 (39 compBlank 단언 2건 추가)",
+      "test-second-round-operational": "37/0 (무수정)",
+      "test-sheet-entry-page(E2E)": "28/0 (무수정)",
+      "test-sheet-mother-drawer(E2E)": "67/0 (무수정)",
+      "_probe-39-hold": "11/0 (신규 — 보류 왕복·UI 축 일치)",
+      "_probe-39-hold-blast": "보류 대상 0/24 (스테이징)"
+    }
+  }
+}

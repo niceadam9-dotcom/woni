@@ -85,6 +85,14 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
     setCompleteErr('')
     const res = await completeStepAction(stepId, item.inspection_id, reason)
     if (res.error) { setCompleteErr(res.error); return }
+    // 39 S3-2 — 필수 미입력으로 점검 완료 전환이 보류된 경우 지금 알린다(달력과 같은 채널·같은 문구 축)
+    if (res.completionHeld) {
+      window.alert(
+        `단계는 완료됐지만 점검 완료 전환은 보류되었습니다.\n\n`
+        + `필수 미입력 항목 ${res.completionHeld.required}건`
+        + `${res.completionHeld.comp > 0 ? ` (종합 필수 ● ${res.completionHeld.comp}건 포함)` : ''}이 남아 있습니다.\n`
+        + `설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — 점검표 입력 화면에서 채우면 자동으로 완료됩니다.`)
+    }
     // 단계 목록 새로고침
     const r = await getInspectionStepsForItemAction(item.inspection_id)
     setSteps(r.steps)

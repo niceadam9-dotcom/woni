@@ -248,7 +248,11 @@ export async function completeStepAction(
   stepId: string,
   inspectionId: string,
   reason: string,
-): Promise<{ error?: string; justCompleted?: boolean; report9Eligible?: boolean }> {
+): Promise<{
+  error?: string; justCompleted?: boolean; report9Eligible?: boolean
+  /** 39 S3-2 — 단계는 완료됐지만 필수 미입력으로 점검 완료 전환이 보류됐다(화면이 alert로 알린다) */
+  completionHeld?: { required: number; comp: number }
+}> {
   const user = await getSessionUser()
   if (!user) return { error: '인증이 필요합니다.' }
   const admin = createAdminClient()
@@ -281,7 +285,10 @@ async function completeStepCore(
   stepId: string,
   inspectionId: string,
   reason: string,
-): Promise<{ error?: string; justCompleted?: boolean; report9Eligible?: boolean }> {
+): Promise<{
+  error?: string; justCompleted?: boolean; report9Eligible?: boolean
+  completionHeld?: { required: number; comp: number }
+}> {
   const trimmedReason = (reason ?? '').trim()
   if (trimmedReason.length < 5) {
     return { error: '완료 사유를 5자 이상 입력해주세요 — 증거가 없는 완료는 사유가 곧 증빙입니다.' }
@@ -321,7 +328,7 @@ async function completeStepCore(
 
   // 마커를 남겼으니 나머지는 단일 기록자에게 맡긴다 — status 쓰기·recalc·점검 상태 전이·계획 동기화가
   // 전부 syncInspectionSteps 안에서 일어난다(R4-4·R4-5, 복제 금지).
-  const { justCompleted, error: syncErr } = await syncInspectionSteps(admin, inspectionId, userId)
+  const { justCompleted, completionHeld, error: syncErr } = await syncInspectionSteps(admin, inspectionId, userId)
   if (syncErr) return { error: syncErr }
 
   // 별지 9호 제출 대상 = 자체점검(special_*·null) — 정기(monthly)·레거시 event는 외관점검표만이라 제외.
@@ -329,7 +336,9 @@ async function completeStepCore(
   const _insp = insp as { inspection_type: string; plan_type: string | null }
   const report9Eligible = isSelfInspection(_insp.plan_type)
 
-  return { justCompleted, report9Eligible }
+  // 39 S3-2 — 완료 보류 사유를 화면까지 실어 나른다: 사용자가 [완료]를 누른 직후가 "왜 완료가
+  // 안 되지?"의 유일한 순간이다(justCompleted를 쓰는 클라이언트가 종전 0곳이라 채널을 새로 만들었다)
+  return { justCompleted, report9Eligible, completionHeld }
 }
 
 /** 점검달력 데이 패널 — 같은 날 미완료 단계 일괄 완료 (2026-08-04, 성능 개선판).

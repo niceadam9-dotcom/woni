@@ -48,6 +48,10 @@ export type SheetProgress = {
   /** 분자 = 그중 응답이 있는 항목 수 */
   responded: number
   counts: { O: number; X: number; N: number }
+  /** ●(comprehensive_only) 무응답 수 — 종합 회차 필수 입력 축(소방계획서_39 S1).
+   *  작동 회차는 isItemInScope가 ●를 분모에서 이미 걸러 **자동 0**(별도 분기 없음).
+   *  법: 고시 별지4호 각주 「●는 종합점검의 경우에만 해당」 — ○/×/／ 중 하나 필수, 빈칸 금지. */
+  compBlank: number
   /** 이 고객에 설치된 설비와 매칭되는 시트인지 — 정렬·[설치 설비만 보기] 필터용 */
   installed: boolean
   /** 머더 버킷 — withGroups=true(점검 상세)에서만 채워진다. 트리(최대 8회차)는 payload 비대화 방지로 생략 */
@@ -203,9 +207,13 @@ export async function buildSheetOverviews(
       const codes = new Set<string>()
       // 머더 버킷(23 S5-6) — isItemInScope가 이미 적용된 자리라 작동점검 종합전용(●) 제외가 분모에도 자동 반영
       const buckets = opts.withGroups ? new Map<string, SheetGroupProgress>() : null
+      // ● 무응답(39 S1) — in-scope로 살아남은 comprehensive_only 중 응답 없는 것. 시트 단위 카운트
+      // (회차 합계 dedup 축과 다르다 — 요구 축이 '설치된 설비 **시트**'라 시트마다 따로 센다)
+      let compBlank = 0
       for (const it of itemsBySheet.get(sheet.id) ?? []) {
         if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
         codes.add(it.item_code)
+        if (it.comprehensive_only && !responses.get(it.item_code)) compBlank++
         if (buckets) {
           const ref = sheetItemGroupRef(it)
           let b = buckets.get(ref.code)
@@ -245,7 +253,7 @@ export async function buildSheetOverviews(
 
       progress.push({
         sheetId: sheet.id, sheetCode: sheet.sheet_code, sheetName: sheet.sheet_name,
-        total: codes.size, responded, counts,
+        total: codes.size, responded, counts, compBlank,
         // S7-27 노출 예외 — STD-32는 설비 맵 미등재라 multiUse 판별로 installed 취급(필터·정렬 동일 취급)
         installed: sheetMatchesFacilities(sheet.sheet_name, facilityCodes)
           || (sheet.sheet_code === 'STD-32' && multiUse),
@@ -282,4 +290,82 @@ export async function buildSheetOverviews(
   }
 
   return { overviews }
+}
+
+/** 3층 완료 보류(소방계획서_39 S3)의 판정 축 — 이 점검의 **설치 매칭 시트**에 남은
+ *  범위 내 무응답 항목 수(§0: 작동·종합 공통). `comp`는 그중 ●(종합 필수) 수 — 고지 병기용.
+ *
+ *  buildSheetOverviews의 per-sheet total/responded/compBlank·installed와 **같은 판정식**을 써야
+ *  한다(sheetMatchesFacilities + isItemInScope + STD-32 multiUse 예외) — 축이 갈라지면 화면
+ *  카운터는 N>0인데 완료는 통과하는 모순이 생긴다. 전량 빌드(6쿼리·전 시트 그룹 집계)를 피해
+ *  단건 경량 경로로 다시 세는 것뿐, 판정 재료는 동일하다.
+ *
+ *  호출부(inspection-step-sync)가 **완료 전환이 임박했을 때만** 부른다 — 매 저장마다 돌지 않는다.
+ *  자체점검이 아닌 회차(정기 등)는 시트 축 자체가 없다 — 호출부가 isSpecial로 게이트한다. */
+export async function countInstalledRequiredBlanks(
+  admin: Admin, inspectionId: string,
+): Promise<{ required: number; comp: number }> {
+  const NONE = { required: 0, comp: 0 }
+  const { data: inspRaw } = await admin.from('inspections')
+    .select('id, customer_id, plan_type, customer:customers(inspection_type)')
+    .eq('id', inspectionId).maybeSingle()
+  const insp = inspRaw as unknown as {
+    id: string; customer_id: string; plan_type: string | null
+    customer: { inspection_type: string } | null
+  } | null
+  if (!insp) return NONE
+  const scope = sheetScope(insp.plan_type, insp.customer?.inspection_type ?? null)
+  if (!scope.isSpecial) return NONE   // 자체점검 회차만 점검표 축이 있다
+
+  let sheets: SheetRow[]
+  let allItems: SheetCatalogItem[]
+  try {
+    [sheets, allItems] = await Promise.all([getSheets(), getAllSheetItems()])
+  } catch {
+    // 카탈로그 실패로 완료를 영구 보류시키지 않는다 — 보수적으로 0(통과). 카탈로그 장애는
+    // 다른 화면이 먼저 붉어지는 축이라 여기서 이중 경보하지 않는다.
+    return NONE
+  }
+  sheets = sheets.filter(s => s.version === scope.version)
+
+  const [{ rows: resps }, { data: bldRaw }, { data: formRaw }] = await Promise.all([
+    fetchAllRows<{ item_code: string }>(
+      (from, to) => admin.from('inspection_sheet_responses')
+        .select('item_code').eq('inspection_id', inspectionId).range(from, to)),
+    admin.from('buildings').select('id').eq('customer_id', insp.customer_id).eq('is_active', true),
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
+  ])
+  const responded = new Set(resps.map(r => r.item_code))
+  const bldIds = ((bldRaw ?? []) as Array<{ id: string }>).map(b => b.id)
+  const { data: facRaw } = bldIds.length > 0
+    ? await admin.from('fire_facilities').select('facility_code')
+        .in('building_id', bldIds).eq('installed', true)
+    : { data: [] }
+  const facilityCodes = ((facRaw ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
+  const mu = (((formRaw as { sections: Record<string, unknown> | null } | null)?.sections)?.['multiUse'] ?? null) as
+    { applicable?: boolean; categories?: Record<string, string> } | null
+  const multiUse = !!mu && isMultiUseApplicable(mu) && Object.values(mu.categories ?? {}).some(c => String(c ?? '').trim())
+
+  const itemsBySheet = new Map<string, SheetCatalogItem[]>()
+  for (const it of allItems) {
+    const arr = itemsBySheet.get(it.sheet_id)
+    if (arr) arr.push(it)
+    else itemsBySheet.set(it.sheet_id, [it])
+  }
+  let required = 0, comp = 0
+  for (const sheet of sheets) {
+    const installed = sheetMatchesFacilities(sheet.sheet_name, facilityCodes)
+      || (sheet.sheet_code === 'STD-32' && multiUse)
+    if (!installed) continue
+    const codes = new Set<string>()
+    for (const it of itemsBySheet.get(sheet.id) ?? []) {
+      if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
+      codes.add(it.item_code)
+      if (!responded.has(it.item_code)) {
+        required++
+        if (it.comprehensive_only) comp++
+      }
+    }
+  }
+  return { required, comp }
 }

@@ -109,6 +109,12 @@ try {
   const pc = ovC[compInspId].sheets.find((s: { sheetCode: string }) => s.sheetCode === 'STD-01')
   check('종합점검 분모 = 전체 항목 수', pc.total === allCodes.size, `comp=${pc?.total} all=${allCodes.size}`)
   check('작동/종합 분모가 서로 다름', pc.total !== p1!.total, `comp=${pc?.total} op=${p1?.total}`)
+  // 3c) 39 S1 — compBlank(● 무응답): 종합 회차 응답 0건이면 ● 전부, 작동 회차는 범위 필터로 **항상 0**.
+  //   ● 개수는 전체−작동 분모(allCodes − s1Codes)로 독립 재계산 — 구현과 같은 식을 베끼지 않는다.
+  const compOnlyCount = allCodes.size - s1Codes.length
+  check('39 종합 compBlank = ● 항목 수(응답 0건 픽스처)', pc.compBlank === compOnlyCount,
+    `compBlank=${pc?.compBlank} expected=${compOnlyCount}`)
+  check('39 작동 compBlank = 0(범위 필터 — ●가 분모에 없다)', p1!.compBlank === 0, `op compBlank=${p1?.compBlank}`)
 
   // 4) 미설치 시트는 installed=false, 응답 0
   const other = ov.sheets.find(s => s.sheetCode !== 'STD-01' && s.sheetCode.startsWith('STD-'))

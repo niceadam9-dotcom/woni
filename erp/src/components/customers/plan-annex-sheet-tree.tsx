@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ChevronRight, ClipboardList, Loader2, RefreshCw } from 'lucide-react'
 import { getInspectionSheetOverviewAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
+import { countBlanks, countRequiredItemBlanks, countCompBlanks } from '@/lib/sheet-blanks'
 import { sheetShownWhenInstalledOnly } from '@/lib/sheet-facility-map'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 
@@ -28,16 +29,16 @@ type Props = {
   canRegister: boolean
   /** 원격 저장이 반영되면 상위 회차 카드의 응답 수 표시를 갱신 */
   onSaved?: (respondedTotal: number, defectDelta: number) => void
-  /** 미입력(설치·응답 0) 설비 수 통지 — 회차 카드가 별지 블록 제목에 경고를 복제한다
-   *  (2026-08-28 블록 순서 반전으로 이 트리가 [생성] 버튼 아래로 내려간 것의 보완) */
-  onBlankCount?: (n: number) => void
+  /** 미입력(설치·응답 0) 설비 수 통지 — 회차 카드가 별지 블록 제목에 경고를 복제하고
+   *  발행 가드 팝업(blanksGuardThenGo)의 분모로 쓴다.
+   *  39 §0 확장: requiredItems = 설치 시트의 범위 내 무응답 **항목** 합(작동·종합 공통),
+   *  compItems = 그중 ●(종합 필수). 자체점검이 아니면 0. */
+  onBlankCount?: (n: number, requiredItems?: number, compItems?: number) => void
   /** 입력 화면 뒤로가기 복귀 경로(?from=) — 미지정이면 종전대로 점검 상세로 돌아간다 */
   from?: string
 }
 
-/** 설치인데 응답 0건 — 별지 결과칸이 **기본 ○(양호)**로 인쇄될 설비 수(2026-09-02 정책, 종전 공란).
- *  요약줄·onBlankCount(발행 가드 팝업의 분모)가 같은 정의를 쓰도록 한 곳에 둔다. */
-const countBlanks = (sheets: SheetProgress[]) => sheets.filter(s => s.installed && s.responded === 0).length
+// countBlanks는 lib/sheet-blanks로 이동(39) — 전용 페이지·발행 가드와 같은 정의를 한 곳에서 쓴다
 
 const numCls = (p: SheetProgress) =>
   p.responded === 0 ? 'text-amber-600' : p.responded >= p.total ? 'text-green-600' : 'text-amber-600'
@@ -58,7 +59,10 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
         setOv(next)
         if (next) {
           onSaved?.(next.totals.responded, 0)
-          onBlankCount?.(countBlanks(next.sheets))
+          onBlankCount?.(
+            countBlanks(next.sheets),
+            next.scope.isSpecial ? countRequiredItemBlanks(next.sheets) : 0,
+            next.scope.isSpecial ? countCompBlanks(next.sheets) : 0)
         }
       } catch {
         // requirePermission 리다이렉트 등 — 카드 전체가 죽지 않게 (plan-annex-section의 기존 패턴)
@@ -92,8 +96,14 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
   const rows = filterOn ? ov.sheets.filter(sheetShownWhenInstalledOnly) : ov.sheets
   const hiddenCount = ov.sheets.length - rows.length
   const blankCount = countBlanks(ov.sheets)
+  // 39 §0 — 필수 미입력 항목(설치 시트·범위 내)과 그중 ●. 자체점검 회차만 필수 축이 있다
+  const requiredBlank = ov.scope.isSpecial ? countRequiredItemBlanks(ov.sheets) : 0
+  const compBlankTotal = ov.scope.isSpecial ? countCompBlanks(ov.sheets) : 0
   const entryHref = `/inspections/${inspectionId}/sheet`
   const fromQ = from ? `&from=${encodeURIComponent(from)}` : ''
+  // 39 S2-4 — 미입력 설비 해소 양갈래 중 '1.4 대장 체크 해제' 링크. from(고객 상세 딥링크)에서
+  // 파생한다 — 같은 경로 ?tab= Link는 서버를 안 깨우므로(risk_same_path_tab_link) 전체 이동 <a>로 쓴다
+  const ledgerHref = from ? `${from.split('?')[0]}?tab=plan&form=1.4` : null
 
   return (
     <div className="pl-5 pb-1">
@@ -104,9 +114,22 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
         </span>
         {/* 설치인데 응답 0건인 설비가 몇 개인지 — 별지 결과칸이 **기본 ○(양호)**로 인쇄될 개수다
             (2026-09-02 정책 — 종전 공란). 이 숫자를 안 보여줬던 것이 물분무 사고의 직접 원인이라
-            여기에도 띄우고, 발행 칩(엑셀·전체 인쇄)은 같은 수로 확인 팝업을 띄운다(round-card). */}
+            여기에도 띄우고, 발행 칩(엑셀·전체 인쇄)은 같은 수로 확인 팝업을 띄운다(round-card).
+            39 S2-4 — 해소는 양갈래: 점검표 입력, 또는 실제 미설치면 1.4 대장에서 체크 해제. */}
         {blankCount > 0 && (
-          <span className="text-[10px] text-amber-600 font-medium">⚠ 설치 설비 중 미입력 {blankCount}개 — 기본 ○로 인쇄</span>
+          <span className="text-[10px] text-amber-600 font-medium">
+            ⚠ 설치 설비 중 미입력 {blankCount}개 — 기본 ○로 인쇄.{' '}
+            {ledgerHref
+              ? <>점검표를 입력하거나, 실제 미설치면 <a href={ledgerHref} className="underline hover:text-amber-700">1.4 대장에서 체크 해제</a></>
+              : '점검표를 입력하거나, 실제 미설치면 1.4 설비 대장에서 체크를 해제하세요'}
+          </span>
+        )}
+        {/* 39 S1 — 필수 미입력 항목 카운터(설치 시트의 범위 내 전 항목 ○/✕/／ 필수, ●는 종합 법정 필수) */}
+        {requiredBlank > 0 && (
+          <span className="text-[10px] text-amber-700 font-medium" data-testid="tree-required-blank"
+            title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — ●는 종합점검 필수(고시 별지4호)">
+            필수 미입력 {requiredBlank}건{compBlankTotal > 0 ? ` (● ${compBlankTotal})` : ''}
+          </span>
         )}
         {!ov.noFacilityInfo && (
           <label className="inline-flex items-center gap-1 text-[10px] text-ink-soft cursor-pointer">

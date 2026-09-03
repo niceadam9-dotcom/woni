@@ -12,6 +12,7 @@ import {
 } from '@/app/(dashboard)/inspections/sheet-actions'
 import { sheetShownWhenInstalledOnly, facilitiesForSheet } from '@/lib/sheet-facility-map'
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
+import { countRequiredItemBlanks, countCompBlanks } from '@/lib/sheet-blanks'
 import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
 
 /** 점검표 입력 전용 화면 (소방계획서_28) — 좌 설비 목록 / 우 항목 입력.
@@ -74,7 +75,10 @@ export function SheetEntryClient({
 
   /** 저장 직후 좌 목록을 서버 재조회 없이 옮긴다 — 열린 시트만 draft로 다시 세고 합계를 그만큼 이동.
    *  시트 간 중복 코드 dedup까지는 반영 못 하는 근사치라, 시트를 바꾸거나 [갱신]하면 서버 값으로 수렴한다. */
-  const patchLocal = useCallback((draft: Record<string, 'O' | 'X' | 'N'>, items: Array<{ item_code: string }>) => {
+  const patchLocal = useCallback((
+    draft: Record<string, 'O' | 'X' | 'N'>,
+    items: Array<{ item_code: string; comprehensive_only?: boolean; outOfScope?: boolean }>,
+  ) => {
     const sheetId = openIdRef.current
     if (!sheetId) return
     setOv(prev => {
@@ -86,9 +90,12 @@ export function SheetEntryClient({
         X: counted.filter(i => draft[i.item_code] === 'X').length,
         N: counted.filter(i => draft[i.item_code] === 'N').length,
       }
+      // compBlank도 로컬 재계산(39 S1-3) — 스프레드만 하면 저장 직후 ● 카운터가 낡는다.
+      // outOfScope(작동 회차 ●)는 입력 대상이 아니므로 제외 — 서버 집계(isItemInScope)와 같은 축
+      const compBlank = items.filter(i => !i.outOfScope && i.comprehensive_only && !draft[i.item_code]).length
       return {
         ...prev,
-        sheets: prev.sheets.map(s => s.sheetId === sheetId ? { ...s, responded: counted.length, counts } : s),
+        sheets: prev.sheets.map(s => s.sheetId === sheetId ? { ...s, responded: counted.length, counts, compBlank } : s),
         totals: {
           ...prev.totals,
           responded: prev.totals.responded + (counted.length - before.responded),
@@ -285,6 +292,10 @@ export function SheetEntryClient({
   }, [ov.sheets, ov.noFacilityInfo, installedOnly, blankOnly])
 
   const blankCount = ov.sheets.filter(s => s.installed && s.responded === 0).length
+  // 39 §0 — 필수 미입력 항목(설치 시트의 범위 내 무응답 전부, 작동·종합 공통)과 그중 ●(종합 필수).
+  // 자체점검 회차만 필수 축이 있다 — 외관(v2022)은 현행 유지
+  const requiredBlank = ov.scope.isSpecial ? countRequiredItemBlanks(ov.sheets) : 0
+  const compBlankTotal = ov.scope.isSpecial ? countCompBlanks(ov.sheets) : 0
   const uncovered = ov.uncoveredFacilityCodes ?? []
 
   // 형제 설비 고지 — 한 시트가 여러 설비를 덮는다는 사실을 숨기지 않는다(1.4에서 이관)
@@ -310,13 +321,29 @@ export function SheetEntryClient({
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 mb-4">
         <Link href={backHref ?? `/inspections/${inspectionId}`} data-testid="sheet-entry-back"
-          className="p-1.5 rounded-lg hover:bg-paper text-ink-sub" aria-label={backHref ? '이전 화면으로' : '점검 상세로'}>
+          className="p-1.5 rounded-lg hover:bg-paper text-ink-sub" aria-label={backHref ? '이전 화면으로' : '점검 상세로'}
+          // 39 S2-1 — 필수 미입력 이탈 확인(소프트): OK=이탈 진행(Playwright auto-accept=종전 동작).
+          // 자동저장이라 값 유실 확인이 아니라 **법정 기재 누락** 확인이다 — 문구가 그 축을 말해야 한다
+          onClick={e => {
+            if (canEdit && requiredBlank > 0 && !window.confirm(
+              `필수 미입력 항목 ${requiredBlank}건이 남아 있습니다`
+              + `${compBlankTotal > 0 ? ` (종합 필수 ● ${compBlankTotal}건 포함)` : ''}.\n`
+              + `설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다.\n\n그대로 나갈까요?`)) e.preventDefault()
+          }}>
           <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0">
           <h1 className="text-lg font-semibold text-ink truncate">점검표 입력 — {customerName}</h1>
           <p className="text-xs text-ink-sub">{roundLabel} · 전체 {ov.totals.responded}/{ov.totals.total}
             {blankCount > 0 && <span className="text-amber-600 font-medium"> · ⚠ 설치 설비 중 미입력 {blankCount}개</span>}
+            {/* 39 S1-3 — 필수 미입력 항목 카운터(§0: 설치 시트 전 항목 ○/✕/／ 필수). 기존 문구는
+                test-sheet-entry-page 정규식(미입력 N개)이 보므로 보존하고 병기한다 */}
+            {requiredBlank > 0 && (
+              <span className="text-amber-700 font-medium" data-testid="sheet-entry-required-blank"
+                title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — ●는 종합점검 필수(고시 별지4호)">
+                {' '}· 필수 미입력 {requiredBlank}건{compBlankTotal > 0 ? ` (● ${compBlankTotal})` : ''}
+              </span>
+            )}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2" data-testid="sheet-entry-autosave" data-status={autosave.status}>{saveChip}</div>

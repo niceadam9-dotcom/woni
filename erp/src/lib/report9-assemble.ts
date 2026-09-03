@@ -589,6 +589,27 @@ export async function assembleReport9(
   // 하므로, 공란이 남는 원인을 missing으로 표면화한다.
   const unanswered = facilityChecks.filter(item => !resultMarks[item]).length
   if (unanswered > 0) missing.push(`설치 설비 중 점검표 무응답 ${unanswered}건 — 3쪽 결과칸 공란`)
+  // 39 §0·S4-1 — **항목 층**: 설치 매칭 시트의 결과칸 중 빈칸으로 인쇄될 항목 수(작동·종합 공통).
+  // 작동 회차의 ●는 위 sheetSections 조립이 이미 'N'(／)을 박아 null로 안 잡힌다 — 남는 null이
+  // 곧 법정 기재 누락이다(범례: ○/×/／ 외 빈칸은 서식에 없는 상태). ●(종합 필수)는 고시 각주에
+  // 명시된 부분집합이라 병기한다. 이 한 줄이 별지 9호·4호 PDF 생성 missing·미리보기·워크북
+  // X-Workbook-Missing까지 자동 전파된다(호출부들이 r9.missing을 그대로 싣는다).
+  // 설치 축은 UI 카운터(sheet-overview compBlank·installed)와 같은 판정식 — STD-32는 multiUse 예외.
+  {
+    const muOn = isMultiUseApplicable(muSection)
+      && Object.values(muSection?.categories ?? {}).some(c => String(c ?? '').trim())
+    let reqBlank = 0, compBlank = 0
+    for (const sec of sheetSections) {
+      if (!sheetMatchesFacilities(sec.name, codes) && !(sec.no === 32 && muOn)) continue
+      for (const it of sec.items) {
+        if (it.mark !== null) continue
+        reqBlank++
+        if (it.comprehensive) compBlank++
+      }
+    }
+    if (reqBlank > 0) missing.push(
+      `점검표 항목 미입력 ${reqBlank}건(설치 설비${compBlank > 0 ? ` · 종합 필수 ● ${compBlank}건 포함` : ''}) — 부속 점검표 결과칸 빈칸`)
+  }
   // 반대 방향(2026-08-21) — 설치 축 밖인데 결과가 찍히던 두 갈래. ①만 세면 절반만 보인다.
   //  ②b는 결과를 지우지 않으므로(실점검일 수 있다) **여기서 말하지 않으면 아무도 모른다** — 서식상
   //  성립하지 않는 칸이 그대로 인쇄된다. 고칠 곳은 문서가 아니라 1.4 대장이다.

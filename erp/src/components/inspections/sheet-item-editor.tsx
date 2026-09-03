@@ -81,7 +81,14 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
             읽어야 하는 값인데 ink-faint(라이트 2.16:1)로 찍혀 AA 실패였다 → ink-meta(라이트 5.03:1).
             크기(text-form-2xs·w-20)는 소방계획서_38 S5 소관 — 여기서 건드리지 않는다. */}
         <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
-        <span className="text-form-sm text-ink flex-1 min-w-0">{it.item_name}</span>
+        {/* ● 필수 배지(소방계획서_39 S1-1 — 내용 축, 색 36·크기 38과 별개): 종합 회차에서 살아남은
+            comprehensive_only는 법정 필수 항목이다(고시 별지4호 각주 「●는 종합점검의 경우에만 해당」).
+            미입력이면 amber — 범례상 ○/×/／ 중 하나를 반드시 기재해야 하고 빈칸은 서식에 없는 상태다.
+            작동 회차의 ●는 위 outOfScope 분기가 먼저 받아 여기 오지 않는다(5389f6d와 대칭). */}
+        <span className={`text-form-sm flex-1 min-w-0 ${it.comprehensive_only && !value[it.item_code] ? 'text-amber-700 font-medium' : 'text-ink'}`}
+          title={it.comprehensive_only ? '종합점검 필수(●) 항목 — ○/×/／ 중 하나를 반드시 기재합니다 (고시 별지4호 각주)' : undefined}>
+          {it.comprehensive_only ? '● ' : ''}{it.item_name}
+        </span>
         <div className="flex items-center gap-1 shrink-0">
           {/* ／(해당없음)는 그룹 일괄로만 기록된다(Q-19) — 기록된 항목엔 진회색 ／ 표식.
               미선택은 미점검(공란) — 표식 없음(인쇄 시 결과란이 비어 나간다) */}
