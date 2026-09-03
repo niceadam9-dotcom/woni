@@ -1,8 +1,8 @@
 ﻿'use client'
 
 import { useState, useTransition } from 'react'
-import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame, MessageSquare } from 'lucide-react'
-import { upsertContactAction, getMyAddressContactsAction, setContactSmsRecipientAction } from '@/app/(dashboard)/customers/actions'
+import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame, MessageSquare, Crown } from 'lucide-react'
+import { upsertContactAction, getMyAddressContactsAction, setContactSmsRecipientAction, setRepRoleAction, setPrimaryContactAction } from '@/app/(dashboard)/customers/actions'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { formatPhoneKR } from '@/components/ui/fields'
@@ -23,6 +23,8 @@ interface Props {
   canManage: boolean
   /** §6-E: 자위소방대 편성 교차 표시 — 이름 → 구분(자위소방대장 등) */
   brigadeByName?: Record<string, string>
+  /** 대표자 구분(customers.rep_role) — 대표 카드의 소유자/관리자/점유자 세그먼트 초기값 */
+  repRole?: string
 }
 
 interface FormState {
@@ -33,7 +35,7 @@ interface FormState {
   birth_date: string
 }
 
-export function EditContactsClient({ customerId, customerName = '', canSendSms = false, contacts, canManage, brigadeByName = {} }: Props) {
+export function EditContactsClient({ customerId, customerName = '', canSendSms = false, contacts, canManage, brigadeByName = {}, repRole = '' }: Props) {
   // 임의 발송(Q-17) — 재방문·불량 보수·AS 판단은 그 고객을 보면서 한다. 가장 자연스러운 자리다.
   const [smsOpen, setSmsOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<ContactRole | null>(null)
@@ -47,6 +49,9 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
   // 문자 수신 지정(Q-10) — 서버 왕복을 기다리지 않고 화면을 먼저 반영한다(체크 반응이 느리면 두 번 누른다)
   const [smsPick, setSmsPick] = useState<Record<string, boolean>>(
     Object.fromEntries(contacts.map(c => [c.id, c.sms_recipient === true])))
+  // 대표자 구분(A안 2026-09-03) — [소방안전관리] 구역과 같은 컬럼(rep_role), 여기는 **클릭 즉시 저장**.
+  // [저장] 버튼 의존이 '골랐는데 문서엔 소유자'(강순건물) 사고를 냈다 — 문자 받음 토글과 같은 패턴으로 간다.
+  const [rep, setRep] = useState(repRole)
 
   const pickedCount = Object.values(smsPick).filter(Boolean).length
 
@@ -56,6 +61,24 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
     startTransition(async () => {
       const res = await setContactSmsRecipientAction(customerId, contactId, next)
       if (res.error) { setError(res.error); setSmsPick(s => ({ ...s, [contactId]: !next })) }
+    })
+  }
+
+  function pickRepRole(value: string) {
+    const prev = rep
+    const next = rep === value ? '' : value  // 같은 값 재클릭 = 해제(문서는 '소유자' 폴백)
+    setRep(next)
+    startTransition(async () => {
+      const res = await setRepRoleAction(customerId, next)
+      if (res.error) { setError(res.error); setRep(prev) }
+    })
+  }
+
+  function promoteToPrimary(contactId: string, name: string) {
+    if (!window.confirm(`${name} 님을 대표 관계인으로 지정할까요?\n기존 대표와 역할이 서로 바뀝니다 (문자 수신·소방안전관리자 지정은 사람을 따라갑니다).`)) return
+    startTransition(async () => {
+      const res = await setPrimaryContactAction(customerId, contactId)
+      if (res.error) setError(res.error)
     })
   }
 
@@ -259,6 +282,11 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-form-base font-medium text-ink">{contact!.name}</span>
+                {role === '대표' && (
+                  <span className="inline-flex items-center gap-0.5 text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-brand-tint text-brand">
+                    <Crown className="size-2.5" /> 대표
+                  </span>
+                )}
                 {contact!.position && (
                   <span className="flex items-center gap-1 text-form-sm text-brand">
                     <Briefcase className="size-3" />{contact!.position}
@@ -291,6 +319,26 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                   </span>
                 )}
               </div>
+              {/* 대표자 구분 — 클릭 즉시 저장(별지 서식 «대표자» √에 그대로 실린다). 대표 카드에만 */}
+              {role === '대표' && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-form-xs text-ink-sub">구분</span>
+                  <div className="flex rounded-lg border border-brand-line overflow-hidden">
+                    {(['소유자', '관리자', '점유자'] as const).map(r => (
+                      <button key={r} type="button"
+                        disabled={!canManage || isPending}
+                        onClick={() => pickRepRole(r)}
+                        title="별지 서식 «대표자» 구분 — 누르면 바로 저장됩니다"
+                        className={`px-2.5 h-form-7 text-form-xs transition-colors ${
+                          rep === r ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'
+                        } ${!canManage ? 'opacity-60' : ''}`}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  {!rep && <span className="text-form-2xs text-ink-meta">미선택 — 문서에는 소유자로 표기됩니다</span>}
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               {canManage && (
@@ -300,6 +348,17 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                 >
                   <Pencil className="size-3" />
                   수정
+                </button>
+              )}
+              {/* [대표로 지정] — 역할 교대(157 set_primary_contact). 문자 수신·관리자 지목은 사람을 따라간다 */}
+              {canManage && role !== '대표' && (
+                <button
+                  onClick={() => promoteToPrimary(contact!.id, contact!.name)}
+                  disabled={isPending}
+                  className="flex items-center gap-1 text-form-xs text-ink-sub hover:text-brand transition-colors disabled:opacity-50"
+                >
+                  <Crown className="size-3" />
+                  대표로 지정
                 </button>
               )}
               {/* 문자 받음 (소방계획서_24 Q-10) — 번호가 없으면 체크해도 못 보내므로 그 사실을 말한다 */}

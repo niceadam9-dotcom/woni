@@ -550,6 +550,7 @@ export default async function CustomerDetailPage({
           contacts={contacts}
           canManage={canManage}
           brigadeByName={Object.fromEntries(planInfoInitial.brigade.map(m => [m.name, m.team]))}
+          repRole={planInfoInitial.repRole}
         />
         {/* 소방안전관리 (2026-08-20) — 별지 9호 2쪽 «소방안전정보» 한 블록을 여기서 다 채운다.
             종전엔 이 블록이 관계인 탭·계획서 1.1 ②·계획서 1.7 세 곳에 흩어져 320곳 중 1곳만 완성돼 있었다. */}

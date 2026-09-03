@@ -1053,6 +1053,47 @@ export async function setContactSmsRecipientAction(
   return {}
 }
 
+/** 대표자 구분(소유자/관리자/점유자) — 관계인 카드 세그먼트의 클릭 즉시 저장 창구 (2026-09-03 A안).
+ *  [소방안전관리] 구역(saveFireSafetyManagerAction)과 **같은 컬럼**(customers.rep_role, 104)을 쓴다 —
+ *  창구가 둘, 저장소는 하나. 거기는 [저장]을 눌러야 해서 선택만 하고 이탈하면 조용히 유실됐다
+ *  (강순건물 사고 — 관리자를 골랐는데 문서엔 소유자 √). 여기는 클릭이 곧 저장이다. */
+export async function setRepRoleAction(
+  customerId: string,
+  repRole: string,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  // 빈 문자열 = 해제(null) — 문서는 종전 폴백(대표 존재 시 '소유자', report9-assemble:479)으로 돌아간다
+  if (repRole && !['소유자', '관리자', '점유자'].includes(repRole)) {
+    return { error: '대표자 구분 값을 확인해주세요.' }
+  }
+  const admin = createAdminClient()
+  const { error } = await admin.from('customers')
+    .update({ rep_role: repRole || null } as Record<string, unknown>)
+    .eq('id', customerId)
+  if (error) return { error: `저장 실패: ${error.message}` }
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
+/** [대표로 지정] — 그 관계인이 role='대표'가 되고 기존 대표는 그 사람의 이전 슬롯을 물려받는다(교대).
+ *  UNIQUE(customer_id, role)가 세 슬롯 만석에서 순차 UPDATE를 거부하므로 DB 함수(157,
+ *  DEFERRABLE + set_primary_contact)가 트랜잭션 하나로 교대한다 — 앱에서 두 번 쓰면 중간에 깨진다.
+ *  문자 수신(sms_recipient)·소방안전관리자 지목(manager_contact_id)은 **사람(id)에 붙어** 그대로 따라간다. */
+export async function setPrimaryContactAction(
+  customerId: string,
+  contactId: string,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { error } = await admin.rpc('set_primary_contact', {
+    p_customer_id: customerId,
+    p_contact_id: contactId,
+  })
+  if (error) return { error: `대표 지정 실패: ${error.message}` }
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
 export async function bulkAssignEmployeeAction(
   customerIds: string[],
   employeeId: string | null
