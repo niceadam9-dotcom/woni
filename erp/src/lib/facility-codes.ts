@@ -28,6 +28,34 @@ export const FACILITY_STANDARD: Array<{ category: string; items: string[] }> = [
 
 export const ALL_STANDARD_CODES: string[] = FACILITY_STANDARD.flatMap(g => g.items)
 
+/** 서식 1.4 「기타」 — **소방시설이 아닌** 점검 대상. 법이 범주를 달리 둔다:
+ *  피난·방화시설(방화문·비상구)과 방염은 소방시설 42종이 아니고, 위험물·화기·가스·전기는
+ *  설비가 아니라 대상물이 가진 시설이다. 고시 별지 4호도 이것들을 「기타」로 따로 뒀다.
+ *  → **FACILITY_STANDARD·ALL_STANDARD_CODES에 절대 섞지 않는다.** 별지 9호 3쪽·4호 1쪽의
+ *     42칸 배선(FORM3_ITEMS·rollUpForm3Results)이 그 42종 축이고, 여기 코드는 그 축과 무관하다
+ *     (form3ItemMatchesFacility는 정규화 완전일치라 새 코드가 42칸에 새지 않는다 — 실측 고정).
+ *
+ *  왜 대장에 두는가: 이 항목들을 덮는 점검표는 있는데(STD-31·EXT-10~14) **설비 축이 없어
+ *  installed가 영원히 false**였다. 그래서 인쇄는 늘 되면서 소방계획서_39의 필수 입력 강제
+ *  (● 배지·미입력 카운터·이탈 확인창·완료 보류·문서 미비 고지)를 통째로 비켜갔고, 무응답이
+ *  조용히 ／로 찍혀 **안 채워도 완성돼 보였다**(실측 2026-09-03: 31-* 응답 스테이징 1행·운영 0행).
+ *  여기 체크가 `sheet-facility-map`을 통해 그 점검표의 installed가 되므로, 체크하는 순간
+ *  39의 강제가 **그대로** 붙는다. 미체크 대상물은 종전과 완전히 같다(점진 적용).
+ *
+ *  체크의 뜻은 '이 대상물에 해당한다'이고, 점검 **결과**(○/×/／)는 점검표에서 받는다 — 두 축이다. */
+export const ETC_ITEMS: Array<{ code: string; sheetName: string; note: string }> = [
+  { code: '방화문 및 방화셔터', sheetName: '기타사항', note: '자체점검 「기타사항」 / 외관점검 「기타사항 점검표」' },
+  { code: '비상구 및 피난통로', sheetName: '기타사항', note: '자체점검 「기타사항」 / 외관점검 「기타사항 점검표」' },
+  { code: '방염', sheetName: '기타사항', note: '자체점검 「기타사항」 / 외관점검 「기타사항 점검표」' },
+  { code: '위험물 저장·취급시설', sheetName: '위험물 저장·취급시설', note: '외관점검 「위험물 저장·취급시설」' },
+  { code: '화기시설', sheetName: '화기시설', note: '외관점검 「화기시설」' },
+  { code: '가연성 가스시설', sheetName: '가연성 가스시설', note: '외관점검 「가연성 가스시설」' },
+  { code: '전기시설', sheetName: '전기시설', note: '외관점검 「전기시설」' },
+]
+
+export const ETC_CATEGORY = '기타'
+export const ETC_CODES: string[] = ETC_ITEMS.map(i => i.code)
+
 /** 피난기구 종류 — **통합 어휘 11종** (2026-08-08 단일화).
  *
  *  종전에는 같은 정보를 두 곳에서 서로 다른 어휘로 받았다:

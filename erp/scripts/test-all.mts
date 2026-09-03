@@ -174,6 +174,13 @@ const steps: Step[] = [
   // 결과의 단일 원천은 점검표 응답인데 입력 자리가 둘이 됐다. 배선이 끊기면 화면은 멀쩡한데
   // 기록이 안 남거나(배지 그대로) 엉뚱한 회차에 쓰인다 — 둘 다 인쇄물을 봐야 알게 된다.
   { name: '1.4 설비별 결과 입력(E2E)',   cmd: 'npx tsx scripts/_probe-form14-result-badge.mts', needServer: true },
+  // 1.4 「기타」 축(2026-09-03) — 방화문·비상구·방염·위험물·화기·가스·전기. 이 7종은 소방시설 42종이
+  // 아니라 법정 범주가 다르고, 체크가 STD-31·EXT-10~14의 **설치 축**이 된다(체크하면 39 강제가 붙는다).
+  // ⚠ 위험은 퍼지 폴백이다 — '방염' 같은 짧은 어휘가 미등재 시트명에 우연히 걸리면 필수 강제가
+  //   엉뚱한 시트에 붙는다. 축 프로브가 **적대적 이름으로 델타를 고정**하고(무DB, 싸다),
+  //   E2E가 체크→저장→딥링크 왕복을 본다.
+  { name: '1.4 기타 축(무DB)',          cmd: 'npx tsx --conditions=react-server scripts/_probe-etc-axis.mts' },
+  { name: '1.4 기타 체크·딥링크(E2E)',   cmd: 'npx tsx scripts/_probe-form14-etc.mts', needServer: true },
   // 점검표 입력 전용 페이지(소방계획서_28) — 입력의 정본. ★ 설치인데 응답 0건인 설비가
   // 화면에 ⚠로 드러나는지가 핵심(2026-08-24 물분무 공란 사고의 회귀 방어).
   { name: '점검표 입력 전용 페이지(E2E)', cmd: 'npx tsx scripts/test-sheet-entry-page.mts', needServer: true },

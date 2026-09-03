@@ -1,3 +1,5 @@
+import { ETC_CODES } from '@/lib/facility-codes'
+
 /** 점검표 시트 ↔ 설치 시설(fire_facilities.facility_code) 매칭 (§9-4 빠른 입력 · 별지 9호 조립 공용)
  *  ※ 종전 V-1 음성 점검표 누락 감지도 이 함수를 썼으나 소방계획서_21 R3에서 음성 경로를 제거했다.
  *
@@ -72,16 +74,19 @@ export const SHEET_FACILITY_MAP: Record<string, string[]> = {
   '제연설비, 특별피난계단의 계단실 및 부속실 제연설비': ['거실제연설비', '부속실 등 제연설비'],
   '연결송수관설비, 연결살수설비': ['연결송수관설비', '연결살수설비'],
   '비상콘센트설비, 무선통신보조설비, 지하구': ['비상콘센트설비', '무선통신보조설비'],
-  // EXT-10~14는 **설비 대장 축이 아니다**(기타사항·위험물·화기·가스·전기 시설) — 덮는 설비가 없다는
-  // 사실 자체를 빈 배열로 못박는다. 퍼지에 남겨두면 나중에 설비 어휘가 늘 때 우연히 걸릴 수 있다.
-  // 결과는 종전과 동일(0개)이라 화면·인쇄 어디도 변하지 않는다.
-  // ※ STD-31(기타사항)은 ALWAYS_SHOWN_SHEET_CODES로 상시 노출된다 — EXT-10을 같이 넣을지는
-  //   업무 판단이라 손대지 않았다(넣으면 외관 회차에 기타사항 시트가 상시 뜬다).
-  '기타사항 점검표': [],
-  '위험물 저장·취급시설': [],
-  '화기시설': [],
-  '가연성 가스시설': [],
-  '전기시설': [],
+  // ── 1.4 「기타」 축 (2026-09-03 사용자 지시) ────────────────────────────────
+  // 종전엔 이 6시트가 **덮는 설비가 없다**는 사실을 빈 배열로 못박고 있었다. 그래서 installed가
+  // 영원히 false였고, 인쇄는 늘 되면서(exterior는 14절 무조건, report9는 무응답을 ／로 채움)
+  // 소방계획서_39의 필수 입력 강제를 통째로 비켜갔다 — 안 채워도 완성돼 보이는 상태.
+  // 이제 1.4 하단 「기타」 체크(ETC_ITEMS, 42종과 분리된 별도 축)가 이 시트들의 설치 축이다.
+  // 체크한 대상물만 필수가 되므로 기존 데이터의 판정은 종전과 동일하다(점진 적용).
+  // ⚠ 값은 ETC_CODES와 **문자 그대로 같아야** 한다 — 한쪽만 고치면 체크가 시트에 안 닿는다.
+  '기타사항': ['방화문 및 방화셔터', '비상구 및 피난통로', '방염'],          // STD-31 (자체점검 v2025)
+  '기타사항 점검표': ['방화문 및 방화셔터', '비상구 및 피난통로', '방염'],   // EXT-10 (외관점검 v2022, 같은 4항목)
+  '위험물 저장·취급시설': ['위험물 저장·취급시설'],                          // EXT-11
+  '화기시설': ['화기시설'],                                                  // EXT-12
+  '가연성 가스시설': ['가연성 가스시설'],                                    // EXT-13
+  '전기시설': ['전기시설'],                                                  // EXT-14
 }
 
 /** F-1f 이중 귀속(2026-08-22, 마이그레이션 150과 짝) — 과거 회차가 묶음 시트에 남긴 응답의
@@ -130,6 +135,13 @@ export const SHEET_GROUP_FORM3_MAP: Record<string, Record<string, string>> = {
 }
 
 const norm = (s: string) => s.replace(/\s+/g, '')
+/** 「기타」 코드는 **명시 매핑으로만** 닿는다 — 미등재 시트의 퍼지 폴백에서 제외한다.
+ *  '방염' 같은 짧은 어휘는 양방향 includes에 너무 쉽게 걸린다(실측: 가상의 시트 '방염 처리물품'·
+ *  '비상구'가 그대로 매칭됐다). 이 축을 열어 두면 39의 필수 입력 강제가 엉뚱한 시트에 붙는다 —
+ *  종전에 이 6시트를 빈 배열 `[]`로 못박아 둔 이유가 정확히 "설비 어휘가 늘 때 우연히 걸린다"였고,
+ *  코드를 실제로 늘린 지금 그 안전성을 폴백 쪽에서 지킨다. `_probe-etc-axis.mts`가 델타로 고정. */
+const ETC_NORM = new Set(ETC_CODES.map(norm))
+const fuzzyCodes = (codes: string[]) => codes.filter(c => !ETC_NORM.has(c))
 const MAP_BY_NORM = new Map(Object.entries(SHEET_FACILITY_MAP).map(([k, v]) => [norm(k), v.map(norm)]))
 const GROUP_BY_NORM = new Map(Object.entries(SHEET_GROUP_FORM3_MAP).map(([k, v]) => [norm(k), v]))
 const LEGACY_BY_NORM = new Map(Object.entries(LEGACY_ROLLUP_MAP).map(([k, v]) => [norm(k), v.map(norm)]))
@@ -147,7 +159,7 @@ export function sheetMatchesFacilities(sheetName: string, facilityCodes: string[
   const codes = facilityCodes.map(norm)
   const mapped = MAP_BY_NORM.get(sn)
   if (mapped) return mapped.some(f => codes.includes(f))
-  return codes.some(c => c.includes(sn) || sn.includes(c))
+  return fuzzyCodes(codes).some(c => c.includes(sn) || sn.includes(c))
 }
 
 /** 시트명 → 커버하는 설비 코드 목록 (역방향, 소방계획서_8 H-5e·D-17 교차 검증 칩 · S4-5 형제 고지) —
@@ -157,7 +169,8 @@ export function facilitiesForSheet(sheetName: string, candidates: string[]): str
   const sn = norm(sheetName)
   const mapped = MAP_BY_NORM.get(sn)
   if (mapped) { const all = withLegacy(sn, mapped); return candidates.filter(c => all.includes(norm(c))) }
-  return candidates.filter(c => { const cn = norm(c); return cn.includes(sn) || sn.includes(cn) })
+  // 퍼지 폴백에서 「기타」 코드 제외 — sheetMatchesFacilities와 같은 규칙이어야 한다(위 ETC_NORM 주석)
+  return candidates.filter(c => { const cn = norm(c); return !ETC_NORM.has(cn) && (cn.includes(sn) || sn.includes(cn)) })
 }
 
 /** 시트명 → 별지9호 3쪽 FORM3 항목명 목록 (소방계획서_14_점검업무 T-3).
@@ -405,6 +418,11 @@ export function distributeSubMarks(
 /** 설비 축에 매이지 않는 상시 시트 — 설비가 아니라 모든 대상물 공통이라 설치 여부로 거르면 안 된다.
  *  STD-32(다중이용업소)는 여기 넣지 않는다: 그쪽은 sheet-overview가 multiUse일 때만 installed로 쳐서
  *  '해당 대상물만' 노출한다(비대상에까지 띄우면 안 되는 시트다). */
+// 2026-09-03: 이 6시트에 **1.4 「기타」 체크라는 설비 축이 생겼다**(ETC_ITEMS). 그래도 이 상시 노출은
+// 유지한다 — 체크하지 않은 대상물에서도 인쇄는 되므로(exterior 14절 무조건 · report9 무응답 ／),
+// 숨기면 다시 '인쇄는 되는데 채울 화면이 없는' 상태로 돌아간다. 체크는 **필수 강제**의 축이고
+// 이 목록은 **노출**의 축이다 — 둘을 같은 것으로 합치지 말 것.
+//
 // EXT-10~14(기타사항·위험물·화기·가스·전기)도 같은 부류다 — 설비 대장 축이 없어 installed가 늘
 // false라 [설치 설비만 보기]에서 숨는데, `renderExterior`는 EXTERIOR_SECTIONS 14개를 **조건 없이
 // 전부** 인쇄한다(exterior.ts:313-320, "원본 서식과 동일한 16쪽"). 그래서 STD-31과 똑같이

@@ -8,7 +8,7 @@ import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/fa
 // 쓰기 액션은 더 이상 여기서 부르지 않는다 — 입력은 전용 화면 한 곳으로 모았다(소방계획서_28 S4).
 // 남은 것은 배지를 그리기 위한 진행률 조회뿐이다.
 import { getInspectionSheetOverviewAction } from '@/app/(dashboard)/inspections/sheet-actions'
-import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS } from '@/lib/facility-codes'
+import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS, ETC_ITEMS, ETC_CODES } from '@/lib/facility-codes'
 import { rollUpForm3Results, sheetMatchesFacilities, type SheetGroupStat } from '@/lib/sheet-facility-map'
 import type { SheetOverview } from '@/lib/sheet-overview'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
@@ -93,7 +93,10 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
   // 피난기구 하위는 더 이상 fire_facilities 코드가 아니다 — 세부제원 types가 단일 저장소(2026-08-08)
-  const allCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...FIRE_SUB_ITEMS]
+  const stdCodes = [...FACILITY_STANDARD.flatMap(g => g.items), ...FIRE_SUB_ITEMS]
+  // 「기타」(ETC_CODES)는 같은 fire_facilities 행에 담기되 **소방시설 수에는 안 센다** —
+  // 표 위 '설치 N종'은 42종 축의 수이고, 여기 7종은 법정 범주가 다르다(facility-codes.ts 주석)
+  const allCodes = [...stdCodes, ...ETC_CODES]
   const initFac = (bld?: Building): FacState => {
     const map: FacState = {}
     for (const code of allCodes) {
@@ -194,6 +197,16 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   }, [overview, fac])
 
   const canInputResult = canRegister && !!resultCtx?.inspection && (overview?.canEdit ?? false)
+
+  /** 「기타」 항목의 진행 상태 — 42칸 축(resultMarks)이 **아니라** 그 점검표 시트의 진행률이다.
+   *  한 시트(STD-31·EXT-10)가 방화문·비상구·방염 3항목을 함께 덮으므로 항목별 ○/×를 여기서
+   *  만들 수 없다. 억지로 만들면 서식(report9-assemble의 ETC_ITEM_MAP은 **항목 단위** 롤업)과
+   *  갈라진다 — 화면과 인쇄가 다른 말을 하는 그 부류다. 그래서 시트 단위로만 말한다. */
+  const etcSheetProgress = useMemo(() => {
+    const m: Record<string, { total: number; responded: number }> = {}
+    for (const s of overview?.sheets ?? []) m[s.sheetName] = { total: s.total, responded: s.responded }
+    return m
+  }, [overview])
 
   async function refreshResults(reloadItems: boolean) {
     const inspId = resultCtx?.inspection?.id
@@ -355,7 +368,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     })
     markDirty()
     // 체크(√) 순간 우측 설비 대장 패널 오픈 + 해당 섹션 펼침 (2026-08-05: 본문 스크롤 대신 옆 패널 — 화면이 밀리지 않음)
-    if (turningOn) openLedger(code)
+    // 단 「기타」(방화문·비상구·방염·위험물·화기·가스·전기)는 **세부제원 섹션이 없다** — 열어도 빈 패널이고,
+    // 그 패널이 전면 오버레이라 [저장] 버튼을 가려 저장 자체를 막는다(실측). 열지 않는다.
+    if (turningOn && !ETC_CODES.includes(code)) openLedger(code)
   }
   /** 설비 대장 패널 열기 + 해당 섹션 펼침 — **설치 체크는 건드리지 않는다**.
    *
@@ -448,7 +463,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     return <p className="text-form-base text-ink-sub py-6 text-center">등록된 활성 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.</p>
   }
 
-  const installedCount = allCodes.filter(c => fac[c].installed).length
+  const installedCount = stdCodes.filter(c => fac[c].installed).length
   const evacOn = fac['피난기구'].installed
   // S1-3 — 저장 응답의 확인일이 있으면 우선, 없으면 서버 초기값
   const shownVerifiedAt = verifiedAt ?? b.verified_at
@@ -600,6 +615,56 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         </tbody>
       </table>
       <p className="text-form-2xs text-ink-meta">※ 비고 1. 설치장소·규격 등은 자체점검표 참조 2. 건물군은 대상명을 바꿔 대상물별로 작성</p>
+
+      {/* ── 1.4 「기타」 (2026-09-03 사용자 지시) ───────────────────────────────────
+          위 42종은 법정 **소방시설**이고, 여기 7종은 범주가 다르다: 피난·방화시설(방화문·비상구)과
+          방염, 그리고 대상물이 가진 위험물·화기·가스·전기 시설. 고시 별지 4호도 「기타」로 따로 뒀다.
+          그래서 42칸 표 안이 아니라 **표 밖 아래**에 둔다(표에 끼우면 42칸 배선이 흔들린다).
+
+          왜 지금 만드나: 이것들을 덮는 점검표는 있는데(STD-31·EXT-10~14) 설비 축이 없어
+          installed가 영원히 false였다 — 인쇄는 늘 되면서 소방계획서_39의 필수 입력 강제를 통째로
+          비켜갔고 무응답이 조용히 ／로 찍혔다. 여기 체크가 그 시트의 설치 축이 된다.
+          체크의 뜻은 '해당한다'이고 결과(○/×/／)는 점검표에서 받는다 — 두 축을 섞지 않는다. */}
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2.5 space-y-1.5" data-testid="form14-etc">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-form-sm font-semibold text-ink">기타</span>
+          <span className="text-form-xs text-ink-meta">
+            ※ 소방시설(위 42종)이 아니라 피난·방화시설·방염과 위험물·화기·가스·전기 시설입니다 —
+            해당하면 ☑, <span className="font-semibold text-ink-sub">점검 결과(○·×·／)는 점검표에서</span> 입력합니다
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-0.5">
+          {ETC_ITEMS.map(it => {
+            const on = fac[it.code]?.installed ?? false
+            const prog = etcSheetProgress[it.sheetName]
+            const blank = prog ? prog.total - prog.responded : null
+            const from = encodeURIComponent(`/customers/${customerId}?tab=plan&form=1.4`)
+            return (
+              <div key={it.code} className="flex items-center gap-1 min-h-7 select-none">
+                {checkBox(it.code)}
+                <span className={`min-w-0 truncate text-form-sm ${on ? 'font-bold text-ink' : 'text-ink-sub'}`}
+                  title={`${it.code} — 점검 결과는 ${it.note}에서 입력합니다`}>
+                  {it.code}
+                </span>
+                {/* 체크한 것만 입력 링크를 준다 — 해당하지도 않는 시트로 보내면 ／만 늘린다.
+                    ?facility= 로 보내고 설비→시트 해석은 전용 페이지가 서버에서 한 번만 한다
+                    (resultBadge와 같은 규약 — 링크 생성부에서 매핑을 다시 하면 규칙이 두 벌이 된다). */}
+                {on && canInputResult && (
+                  <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(it.code)}&from=${from}`}
+                    data-testid={`form14-etc-link-${it.code}`}
+                    title={`${it.note} — 클릭하면 점검표 입력 화면이 열립니다`}
+                    className={`ml-auto shrink-0 h-5 px-1.5 rounded-full border text-form-2xs font-bold inline-flex items-center justify-center ${
+                      blank === null ? 'text-ink-soft border-brand-line bg-paper'
+                        : blank > 0 ? 'text-amber-700 border-amber-300 bg-amber-50'
+                          : 'text-green-600 border-green-300 bg-green-50'}`}>
+                    {blank === null ? '점검표' : blank > 0 ? `미입력 ${blank}` : '입력 완료'}
+                  </Link>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* 소방계획서_28 S4 — 결과 입력 패널은 전용 화면(/inspections/{id}/sheet)으로 옮겼다.
           여기서 직접 입력하던 종전 구조(26 S4)는 "즉시 기록 — 아래 [저장]과 무관"이라는 안내문으로
