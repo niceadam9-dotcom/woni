@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
 import { extractRegionFromAddress, extractRoadName, addressDupKey } from '@/lib/address-parser'
+import { customerNameDupKey } from '@/lib/customer-dup'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { resolveFireStation } from '@/lib/fire-station'
 import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from '@/lib/inspection-plan-generator'
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
@@ -93,7 +95,13 @@ function validateBuildingNumbers(
 
 export async function createCustomerAction(
   input: CreateCustomerInput
-): Promise<{ error?: string; customerId?: string }> {
+): Promise<{
+  error?: string
+  customerId?: string
+  /** 중복으로 막혔을 때의 기존 고객 — 화면이 [기존 고객 보기]로 안내한다 */
+  duplicateCustomer?: NameDuplicateCustomer
+  duplicateCustomerId?: string
+}> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
 
@@ -131,12 +139,35 @@ export async function createCustomerAction(
   }, nowYear)
   if (numErr) return { error: numErr }
 
+  // 고객코드 충돌 — 등록 버튼 연타의 두 번째 제출이 여기서 막힌다(코드는 폼이 미리 받아 둔 값이라 같다).
+  // 종전 메시지는 코드만 알려 줘서 **무엇이 이미 등록됐는지** 알 수 없었다. 이름을 함께 싣는다.
   const { data: existing } = await admin
     .from('customers')
-    .select('id')
+    .select('id, customer_name')
     .eq('customer_code', input.customer_code)
     .single()
-  if (existing) return { error: `고객코드 "${input.customer_code}" 는 이미 사용 중입니다.` }
+  if (existing) {
+    const e = existing as { id: string; customer_name: string }
+    return {
+      error: `고객코드 "${input.customer_code}"는 이미 「${e.customer_name}」에 사용 중입니다. 방금 등록이 완료된 건일 수 있으니 고객 목록에서 확인해주세요.`,
+      duplicateCustomerId: e.id,
+    }
+  }
+
+  // 고객명 중복 — 차단. 같은 이름이 이미 있으면 새로 만들지 않고 기존 고객으로 안내한다.
+  // ⚠ 조회 실패(`failed`)는 '중복 없음'이 아니다. 다만 인프라 일시 오류로 **등록 자체를 막지는
+  //   않는다** — 이 가드는 안전 불변식이 아니라 실수 방지 장치이고, DB에 유니크 제약도 없다.
+  //   대신 로그를 남겨 조용히 꺼진 것을 나중에 알아볼 수 있게 한다.
+  const nameDup = await findCustomerByName(input.customer_name.trim())
+  if (nameDup.failed) {
+    console.error(`[customer-dup] 중복 판정 없이 등록 진행: ${input.customer_name}`)
+  } else if (nameDup.dup) {
+    return {
+      error: `「${nameDup.dup.customer_name}」은(는) 이미 등록된 고객입니다. (고객코드 ${nameDup.dup.customer_code}) 새로 등록하지 말고 기존 고객을 확인해주세요.`,
+      duplicateCustomer: nameDup.dup,
+      duplicateCustomerId: nameDup.dup.id,
+    }
+  }
 
   const baseFields = {
     customer_code: input.customer_code,
@@ -588,6 +619,22 @@ export async function updateCustomerAction(
     use_approval_date: string | null; plan_anchor_date: string | null; address: string | null; fire_station: string | null
   } | null
   const prevAnchorDate = prev?.plan_anchor_date ?? null
+
+  // 고객명 중복 — 등록만 막으면 **이름을 고쳐서** 같은 이름을 만들 수 있다(인라인 필드 편집 포함).
+  // 값이 실제로 바뀔 때만 검사한다 — 다른 필드만 고치는 호출에서 매번 전량 조회를 돌 이유가 없고,
+  // 자기 이름을 그대로 다시 저장하는 것도 막히면 안 된다.
+  if (input.customer_name !== undefined
+      && input.customer_name.trim()
+      && customerNameDupKey(input.customer_name) !== customerNameDupKey(prev?.customer_name ?? '')) {
+    const nameDup = await findCustomerByName(input.customer_name.trim(), customerId)
+    if (nameDup.failed) {
+      console.error(`[customer-dup] 중복 판정 없이 수정 진행: ${input.customer_name}`)
+    } else if (nameDup.dup) {
+      return {
+        error: `「${nameDup.dup.customer_name}」은(는) 이미 등록된 고객입니다. (고객코드 ${nameDup.dup.customer_code}) 다른 이름을 쓰거나 기존 고객을 확인해주세요.`,
+      }
+    }
+  }
 
   // 보내진 필드만 갱신 — 안 보낸 필드(undefined)를 null로 쓰면 부분 호출(예: 점검유형 변경 모달)에서
   // 날짜·주소가 통째로 지워진다 (2026-07-14 수정). 비우기는 명시적 null/빈 문자열로만.
@@ -1435,6 +1482,78 @@ export async function hardDeleteCustomerAction(customerId: string): Promise<{ er
   return purge.error
     ? { warning: `고객은 삭제됐으나 첨부 파일 정리에 실패했습니다 — 관리자에게 알려주세요. (${purge.error})` }
     : {}
+}
+
+export type NameDuplicateCustomer = {
+  id: string
+  customer_name: string
+  customer_code: string
+  address: string | null
+  inspection_type: string
+  employee_name: string | null
+}
+
+type NameDupRow = {
+  id: string; customer_name: string; customer_code: string
+  address: string | null; inspection_type: string
+  profiles: { name: string } | null
+}
+
+/** 고객명 중복 조회 — 활성 고객만, 공백·대소문자 무시(`customerNameDupKey`). 자기 자신은 제외.
+ *
+ *  정규화 키는 DB 인덱스로 표현돼 있지 않다. `ilike` 패턴으로 흉내 내면 **공백 위치가 다른 이름을
+ *  놓친다**(`강순기 건물` vs `강순기건물`) — 그래서 활성 고객명을 전량 읽어 같은 키로 비교한다.
+ *  select가 좁아 왕복 한 번으로 끝난다.
+ *
+ *  ⚠ `.limit()` 없는 조회는 1000행에서 **조용히 잘린다**. 잘린 채로 비교하면 중복을 '없음'으로
+ *    오판해 가드가 꺼진 것과 같아지므로 반드시 `fetchAllRows`로 전량을 읽는다.
+ *
+ *  `failed`는 '판정 못 함'이다 — 호출부가 이것을 '중복 없음'과 섞으면 조회 실패가 곧 가드 해제가 된다. */
+async function findCustomerByName(
+  name: string,
+  excludeCustomerId?: string,
+): Promise<{ dup: NameDuplicateCustomer | null; failed: boolean }> {
+  const key = customerNameDupKey(name)
+  if (!key) return { dup: null, failed: false }
+  const admin = createAdminClient()
+
+  const { rows, error, truncated } = await fetchAllRows<NameDupRow>((from, to) =>
+    admin.from('customers')
+      .select('id, customer_name, customer_code, address, inspection_type, profiles:assigned_employee_id(name)')
+      .eq('is_active', true)
+      .range(from, to) as unknown as Promise<{ data: NameDupRow[] | null; error: { message: string } | null }>)
+
+  if (error) {
+    console.error(`[customer-dup] 고객명 중복 조회 실패: ${error}`)
+    return { dup: null, failed: true }
+  }
+  if (truncated) console.error('[customer-dup] 고객명 조회가 상한에서 잘렸다 — 중복 판정이 불완전하다')
+
+  const hit = rows.find(r =>
+    r.id !== excludeCustomerId && customerNameDupKey(r.customer_name ?? '') === key)
+  if (!hit) return { dup: null, failed: false }
+
+  return {
+    dup: {
+      id: hit.id,
+      customer_name: hit.customer_name,
+      customer_code: hit.customer_code,
+      address: hit.address,
+      inspection_type: hit.inspection_type,
+      employee_name: hit.profiles?.name ?? null,
+    },
+    failed: false,
+  }
+}
+
+/** 등록 폼에서 저장 전에 미리 묻는 창구 — 서버의 차단(`createCustomerAction`)과 **같은 함수**를 쓴다.
+ *  화면 경고와 실제 차단이 다른 규칙을 쓰면 "경고는 안 떴는데 저장이 막히는" 상태가 생긴다. */
+export async function checkCustomerNameAction(name: string, opts?: {
+  excludeCustomerId?: string
+}): Promise<{ duplicate?: NameDuplicateCustomer }> {
+  await requirePermission('customer_manage')
+  const { dup } = await findCustomerByName(name.trim(), opts?.excludeCustomerId)
+  return dup ? { duplicate: dup } : {}
 }
 
 export type AddressDuplicateCustomer = {

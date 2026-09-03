@@ -2,9 +2,11 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Loader2, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
+import { NameDuplicateDialog } from '@/components/customers/name-duplicate-dialog'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
@@ -48,6 +50,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const [dupInfo, setDupInfo] = useState<{ customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding } | null>(null)
   const dupAckRef = useRef('')            // '계속 등록'으로 확인 완료된 주소
   const pendingSubmitRef = useRef(false)  // 저장 시점 중복 확인 후 이어서 제출할지
+  // 고객명 중복 — 주소와 달리 **차단**이라 확인(ack) 개념이 없다. 입력 중 경고 + 저장 시 팝업.
+  const [nameDup, setNameDup] = useState<NameDuplicateCustomer | null>(null)
+  const [nameWarn, setNameWarn] = useState<NameDuplicateCustomer | null>(null)
+  const nameCheckSeq = useRef(0)          // 늦게 도착한 옛 응답이 최신 경고를 덮지 않게 한다
   // 건축물대장 소방안전 자료 (높이/주구조/승강기/세대수) — buildings 저장용
   const ledgerRef = useRef<BuildingLedgerInfo | null>(null)
   const bcodeRef = useRef<{ bcode: string; jibun: string } | null>(null)  // 092: 건물에 저장 → 대장 재조회 원클릭화
@@ -127,6 +133,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       const building = extractBuildingName(data.roadAddress)
       if (building) {
         setForm(prev => ({ ...prev, customer_name: building }))
+        // 자동입력된 이름도 중복일 수 있다 — 손으로 안 쳤으니 blur가 안 나서 여기서 직접 검사한다
+        checkNameNow(building)
         setTimeout(() => {
           customerNameRef.current?.select()  // 전체 선택 → 바로 덮어쓰기 가능
         }, 50)
@@ -202,22 +210,42 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     }
     if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
 
-    // 저장 시점 중복 재검증 (주소 수동 입력 대비) — 이미 확인한 주소는 통과
+    // 고객명 중복은 **차단**이라 주소(경고)보다 먼저 본다 — 어차피 막힐 건이면 주소 경고 팝업을
+    // 거쳐 두 번 묻게 할 이유가 없다. 여기서 통과해도 서버가 같은 검사를 다시 하므로 안전망은 남는다
+    // (조회가 실패하면 통과시킨다 — 인프라 오류로 등록 자체를 막지는 않는다).
+    startTransition(async () => {
+      const res = await checkCustomerNameAction(form.customer_name.trim())
+        .catch(() => ({} as { duplicate?: NameDuplicateCustomer }))
+      if (res.duplicate) { setNameDup(res.duplicate); return }
+      await submitAfterAddressCheck()
+    })
+  }
+
+  /** 주소 중복 재검증(경고) 뒤 제출 — 이미 [계속 등록]으로 확인한 주소는 그대로 통과.
+   *  주소 검색을 안 쓰고 손으로 친 주소는 여기서 처음 걸린다. */
+  async function submitAfterAddressCheck() {
     const addr = form.address.trim()
     if (addr && dupAckRef.current !== addr) {
-      startTransition(async () => {
-        const res = await checkAddressAction(addr)
-        if (res.duplicate || res.duplicateBuilding) {
-          pendingSubmitRef.current = true
-          setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
-          return
-        }
-        dupAckRef.current = addr
-        doSubmit()
-      })
-      return
+      const res = await checkAddressAction(addr).catch(() => ({} as Awaited<ReturnType<typeof checkAddressAction>>))
+      if (res.duplicate || res.duplicateBuilding) {
+        pendingSubmitRef.current = true
+        setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
+        return
+      }
+      dupAckRef.current = addr
     }
     doSubmit()
+  }
+
+  /** 고객명 입력을 마쳤을 때의 사전 경고 — 저장까지 가지 않고 그 자리에서 알려 준다.
+   *  응답이 순서를 바꿔 도착하면 옛 결과가 최신 경고를 덮으므로 시퀀스로 막는다. */
+  function checkNameNow(value: string) {
+    const name = value.trim()
+    if (!name) { setNameWarn(null); return }
+    const seq = ++nameCheckSeq.current
+    checkCustomerNameAction(name)
+      .then(res => { if (seq === nameCheckSeq.current) setNameWarn(res.duplicate ?? null) })
+      .catch(() => null)
   }
 
   function doSubmit() {
@@ -378,20 +406,28 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               <input
                 ref={customerNameRef}
                 value={form.customer_name}
-                onChange={e => setField('customer_name', e.target.value)}
+                // 타이핑 중에는 경고를 지운다 — 고치는 중에 옛 경고가 남아 있으면 이미 해결한 걸로 착각한다
+                onChange={e => { setField('customer_name', e.target.value); setNameWarn(null) }}
+                onBlur={e => checkNameNow(e.target.value)}
                 placeholder="주소 검색 시 자동입력 또는 직접 입력"
-                className={inputCls}
+                className={`${inputCls} ${nameWarn ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
               />
               {form.customer_name && (
                 <button
                   type="button"
-                  onClick={() => { setField('customer_name', ''); customerNameRef.current?.focus() }}
+                  onClick={() => { setField('customer_name', ''); setNameWarn(null); customerNameRef.current?.focus() }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-meta hover:text-ink-sub"
                 >
                   <X className="size-3.5" />
                 </button>
               )}
             </div>
+            {nameWarn && (
+              <p className="text-[11px] text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
+                「{nameWarn.customer_name}」(고객코드 {nameWarn.customer_code})으로 이미 등록돼 있습니다 — 이 이름으로는 등록할 수 없습니다.{' '}
+                <Link href={`/customers/${nameWarn.id}`} className="underline font-medium">기존 고객 보기</Link>
+              </p>
+            )}
           </Field>
         </div>
 
@@ -753,6 +789,18 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             : '필수 항목을 채워주세요'}
         </button>
       </div>
+
+      {/* 고객명 중복 — 차단 팝업 ([계속 등록] 없음). 주소 축과 정책이 다르다 */}
+      {nameDup && (
+        <NameDuplicateDialog
+          customer={nameDup}
+          onClose={() => {
+            setNameWarn(nameDup)      // 팝업을 닫아도 칸 아래 경고는 남긴다
+            setNameDup(null)
+            customerNameRef.current?.select()
+          }}
+        />
+      )}
 
       {/* ADD-2: 주소 중복 등록 안내 팝업 — 확인 후 등록 진행 가능 */}
       {dupInfo && (
