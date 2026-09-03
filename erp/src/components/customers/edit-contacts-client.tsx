@@ -282,11 +282,6 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-form-base font-medium text-ink">{contact!.name}</span>
-                {role === '대표' && (
-                  <span className="inline-flex items-center gap-0.5 text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-brand-tint text-brand">
-                    <Crown className="size-2.5" /> 대표
-                  </span>
-                )}
                 {contact!.position && (
                   <span className="flex items-center gap-1 text-form-sm text-brand">
                     <Briefcase className="size-3" />{contact!.position}
