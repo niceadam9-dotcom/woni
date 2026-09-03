@@ -61,10 +61,6 @@ export type CreateCustomerInput = {
   /** 소방안전관리등급 = customers.building_grade (별표4 **대상물** 급수).
    *  선택 입력 — 2·3급은 설비 설치 여부로 갈리는데 등록 시점엔 설비 대장이 없다(2026-08-20 확정). */
   building_grade?: string
-  /** 대표자 구분 = customers.rep_role (104 — 별지 9호 2쪽 «대표자» √).
-   *  종전엔 관계인 탭 [소방안전관리]에서만 입력 가능해, 미입력이면 문서가 '소유자'로 폴백해
-   *  실제와 다르게 찍혔다(2026-09-03 강순건물 — 관리자인데 소유자 √). 등록 때 같이 받는다. */
-  rep_role?: string
   // 092: 법정동코드·지번주소 (건축물대장 재조회 원클릭화 — 탭개편 설계 §5-A-5)
   building_bcode?: string
   building_address_jibun?: string
@@ -133,11 +129,6 @@ export async function createCustomerAction(
     return { error: '소방안전관리등급 값을 확인해주세요.' }
   }
 
-  // 대표자 구분 — DB CHECK(104)와 같은 화이트리스트. 규약 밖 값은 insert 자체가 실패하므로 먼저 거른다.
-  if (input.rep_role && !['소유자', '관리자', '점유자'].includes(input.rep_role)) {
-    return { error: '대표자 구분 값을 확인해주세요. (소유자/관리자/점유자)' }
-  }
-
   // 건물 숫자 필드 검증 (IMP-10) — 음수/비상식 값 차단
   const nowYear = new Date().getFullYear()
   const numErr = validateBuildingNumbers({
@@ -198,8 +189,6 @@ export async function createCustomerAction(
     assigned_employee_id: input.assigned_employee_id || null,
     // 소방안전관리등급(별표4 대상물 급수) — 선택 입력이라 미선택은 null (등록을 막지 않는다)
     building_grade: input.building_grade || null,
-    // 대표자 구분 — 미선택은 null(문서는 종전대로 '소유자' 폴백, report9-assemble:479)
-    rep_role: input.rep_role || null,
     created_by: profile.id,
   }
 
