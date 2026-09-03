@@ -8,11 +8,10 @@ import {
   type CustomerDeleteCheck,
 } from '@/app/(dashboard)/customers/actions'
 
-/** 고객 삭제 — 조건부 hard delete (소방계획서_30 S3, D-2)
+/** 고객 삭제 — 무조건 hard delete (소방계획서_30 S3 조건부 → 마이그레이션 156에서 전환, 2026-09-03 사용자 결정)
  *
- *  업무 실이력이 **0건이면 물리 삭제**(관계인·건물 등 기본정보 연쇄, DB 함수 한 트랜잭션),
- *  이력이 있으면 차단하고 **비활성화(soft delete)로 유도**한다. 종전 '삭제' 버튼은 이름과 달리
- *  비활성화만 했는데, 잘못 등록한 고객(오타 등)이 영구히 남는 문제가 있었다.
+ *  업무 이력이 있어도 **전부 함께 물리 삭제**한다(DB 함수 한 트랜잭션). 이력 카운트는 차단이
+ *  아니라 「함께 삭제됩니다」 고지로만 쓴다. 이력을 남기고 싶으면 [비활성화]가 대안이다.
  *
  *  모달은 body 포털 — 이 버튼은 ClickableRow(행 전체 클릭) 안에 있어서, 행 안에 그리면
  *  배경 클릭이 행까지 올라가 닫자마자 상세로 튕긴다(address-map-modal과 같은 이유). */
@@ -82,10 +81,10 @@ export function DeleteCustomerClient({ customerId, customerName }: {
                 </p>
               ) : check.error ? (
                 <p className="text-red-600 text-xs">{check.error}</p>
-              ) : check.deletable ? (
+              ) : check.history.length === 0 ? (
                 <>
                   <p className="text-ink">
-                    업무 이력이 없어 <b className="text-red-600">완전 삭제</b>할 수 있습니다.
+                    업무 이력이 없습니다 — <b className="text-red-600">완전 삭제</b>할 수 있습니다.
                   </p>
                   {/* 무엇이 함께 사라지는지 빠짐없이 적는다 — 종전 문구는 '기본정보'까지만 적어
                       건물 CASCADE로 딸려가는 것들이 고지 밖이었다(소방계획서_32 DEF-3). */}
@@ -94,25 +93,25 @@ export function DeleteCustomerClient({ customerId, customerName }: {
                     <b>되돌릴 수 없습니다.</b>{' '}
                     나중에 다시 거래할 수 있는 고객이라면 [비활성화]를 사용하세요(목록에서 숨고 복원 가능).
                   </p>
-                  <p className="text-[11px] text-ink-meta">
-                    소방계획서·설비 대장·자위소방대·세부현황·청구 설정 등 직접 입력한 값이 하나라도 있으면
-                    이 버튼은 나타나지 않습니다.
-                  </p>
                 </>
               ) : (
                 <>
                   <p className="flex items-start gap-1.5 text-ink">
                     <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
-                    <span>업무 이력이 있어 완전 삭제할 수 없습니다 — <b>비활성화</b>로 목록에서 숨길 수 있습니다.</span>
+                    <span>아래 업무 이력이 <b className="text-red-600">모두 함께 삭제</b>됩니다.</span>
                   </p>
                   <ul className="text-xs text-ink-sub bg-paper rounded-lg px-3 py-2 space-y-0.5" data-testid="delete-history-list">
                     {check.history.map(h => (
                       <li key={h.label}>{h.label} <b className="text-ink">{h.count}건</b></li>
                     ))}
                   </ul>
+                  <p className="text-xs text-ink-sub">
+                    점검·소방계획서·청구 등 위 데이터와 관계인·건물·업로드 파일까지 전부 사라지며,{' '}
+                    <b>되돌릴 수 없습니다.</b>
+                  </p>
                   <p className="text-[11px] text-ink-meta">
-                    비활성화하면 조회 화면에서 빠지고, 미완료 계획은 자동 취소됩니다(재활성화 시 복원).
-                    이력은 점검업무·점검확정의 [취소] 필터에서 볼 수 있습니다.
+                    이력을 남기려면 [비활성화]를 사용하세요 — 조회 화면에서 빠지고 미완료 계획은
+                    자동 취소되며, 재활성화하면 복원됩니다.
                   </p>
                 </>
               )}
@@ -129,7 +128,7 @@ export function DeleteCustomerClient({ customerId, customerName }: {
                   {isPending ? <Loader2 className="size-3 animate-spin" /> : <Archive className="size-3" />} 비활성화
                 </button>
               )}
-              {check && !check.error && check.deletable && (
+              {check && !check.error && (
                 <button onClick={runHardDelete} disabled={isPending} data-testid="hard-delete-btn"
                   className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors">
                   {isPending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />} 완전 삭제
