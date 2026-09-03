@@ -374,7 +374,8 @@ export function buildFirePlanHtml(
 <style>
   @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 10.5px; color: #111; margin: 0; }
+  /* background 명시 — 없으면 iframe 미리보기가 투명해져 다크 모드에서 어두워진다(base.ts와 같은 축) */
+  body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 10.5px; color: #111; margin: 0; background: #fff; }
   .page { page-break-after: always; }
   .page:last-child { page-break-after: auto; }
   h1 { font-size: 30px; text-align: center; margin: 36px 0 8px; letter-spacing: 6px; }

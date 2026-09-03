@@ -15,6 +15,9 @@ export const BASE_CSS = `
   body {
     font-family: "Noto Serif CJK KR", "KoPub Batang", "Nanum Myeongjo", "Batang", serif;
     font-size: 10pt; line-height: 1.45; color: #000;
+    /* 종이는 문서가 스스로 흰색을 선언한다 — 배경이 없으면 iframe이 투명해져 미리보기가
+       부모의 bg-surface를 비추고, 다크 모드에서 검은 글자가 어두운 배경 위에 얹힌다(판독 불가). */
+    background: #fff;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .page { page-break-after: always; }
