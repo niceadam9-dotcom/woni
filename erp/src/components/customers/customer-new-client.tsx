@@ -89,6 +89,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     building_year_built: '',
     // 소방안전관리등급 = customers.building_grade (별표4 대상물 급수) — 선택 입력
     building_grade: '',
+    // 대표자 구분 = customers.rep_role (별지 9호 2쪽 «대표자» √) — 미선택 시 문서는 '소유자' 폴백.
+    // 폴백과 같은 값이라도 명시 선택이 낫다(관리자/점유자인 걸 나중에야 아는 사고 방지) — 기본 '소유자'
+    rep_role: '소유자',
   }))
   const [addrJibun, setAddrJibun] = useState('')
 
@@ -284,6 +287,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         building_year_built:   form.building_year_built   ? parseInt(form.building_year_built)    : undefined,
         // 소방안전관리등급(별표4 대상물 급수) — 미선택이면 보내지 않는다(선택 입력)
         building_grade:        form.building_grade || undefined,
+        // 대표자 구분 — 별지 9호 2쪽 «대표자» √ (기본 '소유자')
+        rep_role:              form.rep_role || undefined,
         // 건축물대장 소방안전 자료 (migration 037/038)
         building_bcode:           bcodeRef.current?.bcode ?? undefined,
         building_address_jibun:   bcodeRef.current?.jibun ?? undefined,
@@ -510,6 +515,20 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         {/* §10-1: 대표 관계인 — 필수 */}
         <div className="space-y-1.5">
           <label htmlFor="contact-대표-name" className={labelCls}>대표 관계인 <span className="text-red-500 ml-0.5">*</span></label>
+          {/* 대표자 구분 (소유자/관리자/점유자) — 별지 9호 2쪽 «대표자» √에 그대로 실린다.
+              종전엔 등록 후 관계인 탭 [소방안전관리]에서만 고를 수 있어 놓치면 '소유자'로 인쇄됐다 */}
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-line overflow-hidden">
+              {(['소유자', '관리자', '점유자'] as const).map(r => (
+                <button key={r} type="button"
+                  onClick={() => setField('rep_role', r)}
+                  className={`px-3 h-8 text-xs ${form.rep_role === r ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-ink-meta">별지 서식 «대표자» 구분 — 등록 후 관계인 탭에서 변경 가능</span>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <input
               id="contact-대표-name"
