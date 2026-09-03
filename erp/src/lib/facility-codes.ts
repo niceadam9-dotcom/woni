@@ -115,6 +115,11 @@ export const FIRE_SUB_ITEMS: string[] = [
   '캐비닛형자동소화장치', '가스·분말·고체자동소화장치',
 ]
 
+/** 하위 행을 거느린 부모 항목 2종 — 서식의 점검결과는 **하위 행 축**이라 부모 결과칸은 항상 공란이고
+ *  (distributeSubMarks parent=undefined), 화면(1.4 배지)도 결과·입력구를 그리지 않는다
+ *  (2026-09-03 사용자 결정, image-51). 어휘는 FORM3_ITEMS·ALL_STANDARD_CODES의 그 항목명이다. */
+export const SUB_ROW_PARENT_ITEMS: string[] = ['소화기구 및 자동소화장치', '피난기구']
+
 /** 점검표 대괄호 소제목(별지 4호 원문 축자, 134 subgroup_name) ↔ 대장 하위 코드(FIRE_SUB_ITEMS).
  *  두 어휘가 다르다 — 공백 유무만이 아니라 '가스·분말·고체에어로졸'(원문) vs '가스·분말·고체'(대장)처럼
  *  낱말 자체가 달라 정규화 매칭이 안 된다. 명시 매핑만 쓴다(소방계획서_23 S7-26 대장 힌트 배너).

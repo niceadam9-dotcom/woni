@@ -1,20 +1,21 @@
 ﻿/** 별지 4호 1쪽 · 9호 3쪽 1절 — 설치(√) 축과 점검결과(○/×) 축의 귀속 규칙 회귀 고정.
  *  DB·서버 불필요, 결정적. 실행: npx tsx scripts/test-form3-axis.mts
  *
- *  이 파일이 지키는 것(2026-08-21):
+ *  이 파일이 지키는 것:
  *    ①  한 시트가 여러 FORM3 항목을 덮을 때, 응답은 **설치된 형제**의 것이지 미설치 항목으로 번지지 않는다
- *    ②  형제가 전부 미설치면 귀속시킬 데가 없다 — 대장 누락일 수 있으므로 **결과를 지우지 않는다**
+ *    ②  **미설치(대장 미체크)는 응답이 있어도 ／로 인쇄한다** — 대장이 정본이다
+ *        (2026-09-03 사용자 결정, image-51 강순건물. 종전 '결과를 지우지 않는다'(2026-08-21)를 번복).
+ *        응답 데이터는 남고 respondedNotInstalled 경고로 표면화된다 — 대장에 체크하면 되살아난다.
  *    ③  설치 항목의 마크는 이 규칙과 무관하게 종전과 같다(실점검이 지워지면 안 된다)
- *  ①만 하고 ②를 빠뜨리면 '미설치면 무조건 ／'가 되어, 대장에 체크를 빠뜨린 실점검이 해당없음으로
- *  덮인다. 반대로 ②만 하면 종전 상태다. 두 가지를 함께 단언해야 규칙이 고정된다.
+ *    ④  하위 행을 거느린 부모(소화기구·피난기구)의 결과칸은 **항상 공란**이다(distributeSubMarks)
  *
  *  어휘는 리터럴로 쓴다 — FORM3_ITEMS(report9.ts)를 끌어오면 서식 템플릿 편집이 이 검사를 흔든다.
  *  대신 그 어휘가 표준 42종에 실재하는지를 마지막에 대조해, 오타로 검사가 헛도는 걸 막는다. */
 import {
-  rollUpForm3Results, foldSheetResult, foldSheetGroupStats, sheetGroupMapErrors,
+  rollUpForm3Results, foldSheetResult, foldSheetGroupStats, sheetGroupMapErrors, distributeSubMarks,
   SHEET_FACILITY_MAP, SHEET_GROUP_FORM3_MAP, type SheetGroupStat,
 } from '../src/lib/sheet-facility-map.ts'
-import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
+import { ALL_STANDARD_CODES, SUB_ROW_PARENT_ITEMS } from '../src/lib/facility-codes.ts'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -71,23 +72,31 @@ console.log('\n── 2) 번짐 차단 — 응답은 설치된 형제의 것 (�
     JSON.stringify({ 스프링클러: rx.resultMarks[스프링클러], 조기진압: rx.resultMarks[조기진압] }))
 }
 
-console.log('\n── 3) 대장 누락 보존 — 형제가 전부 미설치면 결과를 지우지 않는다')
+console.log('\n── 3) 대장이 정본 — 미체크는 응답이 있어도 ／, 경고로 표면화 (2026-09-03 image-51)')
 {
-  // 전용 시트(1항목)에 응답이 있는데 대장에 없다 = 실제로 점검했을 가능성이 크다(지평9 실측).
+  // 전용 시트(1항목)에 응답이 있는데 대장에 없다 → 종전(2026-08-21)엔 ○를 유지했으나
+  // 사용자 결정으로 번복: [ ] 체크 없는 행에 ○가 찍히는 모순을 인쇄에서 막는다.
+  // 응답 자체는 지우지 않으므로 경고를 보고 대장에 체크하면 ○가 그대로 되살아난다(아래 대조).
   const r = rollUpForm3Results([S('소화기구 및 자동소화장치', ok1)], ITEMS, [])
-  check('미설치여도 ○를 유지한다 (실점검을 지우지 않는다)', r.resultMarks[소화기구] === 'O',
+  check('미설치 + ○ 응답 → ／로 눌린다 (대장이 정본)', r.resultMarks[소화기구] === 'N',
     `실제: ${r.resultMarks[소화기구]}`)
   check('대장 누락 경고로 표면화된다', r.axisWarnings.respondedNotInstalled.includes(소화기구),
     JSON.stringify(r.axisWarnings))
+  // 되살아남 대조 — 같은 응답, 대장에 체크만 하면 ○ (데이터가 지워지지 않았다는 증거)
+  const rBack = rollUpForm3Results([S('소화기구 및 자동소화장치', ok1)], ITEMS, [소화기구])
+  check('대장에 체크하는 순간 같은 응답이 ○로 되살아난다', rBack.resultMarks[소화기구] === 'O')
 
-  // 다항목 시트인데 형제가 전부 미설치인 경우도 같다 — 종전 전개를 유지한다.
-  // (_probe-spec-badge의 '시트 1개 → 설비 2종 전개' 단언이 기대는 동작이다)
+  // 다항목 시트인데 형제가 전부 미설치인 경우 — 마크는 둘 다 ／, 경고는 둘 다.
   const r2 = rollUpForm3Results([S('소화용수설비', ok1)], ITEMS, [])
-  check('형제 전부 미설치 → 두 항목 모두 ○ 유지',
-    r2.resultMarks[상수도] === 'O' && r2.resultMarks[소화수조] === 'O',
+  check('형제 전부 미설치 → 두 항목 모두 ／',
+    r2.resultMarks[상수도] === 'N' && r2.resultMarks[소화수조] === 'N',
     JSON.stringify({ 상수도: r2.resultMarks[상수도], 소화수조: r2.resultMarks[소화수조] }))
   check('둘 다 대장 누락 경고', r2.axisWarnings.respondedNotInstalled.length === 2)
   check('이 경우 번짐 차단은 없다', r2.axisWarnings.spillSuppressed.length === 0)
+  // 불량(×)도 같은 축 — 미체크면 ／로 눌리고 경고로만 남는다
+  const rx = rollUpForm3Results([S('소화기구 및 자동소화장치', bad)], ITEMS, [])
+  check('미설치 + × 응답도 ／', rx.resultMarks[소화기구] === 'N',
+    `실제: ${rx.resultMarks[소화기구]}`)
 }
 
 console.log('\n── 4) 경계 — 한쪽만 설치면 그쪽만 산다')
@@ -224,6 +233,43 @@ console.log('\n── 7) 중분류 축 — 한 점검표가 설비 여럿을 덮
   check('SHEET_GROUP_FORM3_MAP 자기 검사 0건', errs.length === 0, errs.join(' / '))
   check('등재 시트 6종', Object.keys(SHEET_GROUP_FORM3_MAP).length === 6,
     `실제: ${Object.keys(SHEET_GROUP_FORM3_MAP).length}`)
+}
+
+console.log('\n── 8) image-51 강순건물 — 미체크 유도표지·피난유도선에 ○가 찍히지 않는다 (2026-09-03)')
+{
+  const G = ['유도등', '유도표지', '피난유도선']
+  const 유도시트 = '유도등 및 유도표지'
+  // 실사고 재현: 대장은 유도등만 체크. 점검표엔 세 중분류 모두 ○ 응답(일괄 입력 흔적) —
+  // 종전엔 미체크 유도표지·피난유도선에 [ ]+○가 인쇄됐다(image-51 상단 경고 2건의 그 상태).
+  const r = rollUpForm3Results(
+    [S(유도시트, ok1, '21-A'), S(유도시트, ok1, '21-B'), S(유도시트, ok1, '21-C')], G, ['유도등'])
+  check('체크된 유도등만 ○', r.resultMarks['유도등'] === 'O', `실제: ${r.resultMarks['유도등']}`)
+  check('미체크 유도표지 → ／', r.resultMarks['유도표지'] === 'N', `실제: ${r.resultMarks['유도표지']}`)
+  check('미체크 피난유도선 → ／', r.resultMarks['피난유도선'] === 'N', `실제: ${r.resultMarks['피난유도선']}`)
+  check('두 항목 모두 대장 누락 경고 (응답은 지워지지 않았다)',
+    r.axisWarnings.respondedNotInstalled.includes('유도표지')
+    && r.axisWarnings.respondedNotInstalled.includes('피난유도선'), JSON.stringify(r.axisWarnings))
+}
+
+console.log('\n── 9) 부모 결과칸은 항상 공란 — 소화기구·피난기구 (2026-09-03 image-51 ④)')
+{
+  // 설치된 하위가 있으면: 종전과 같이 첫 설치 행에 롤업, 부모 공란
+  const d1 = distributeSubMarks('O', [false, true, false])
+  check('설치 하위 있음 → 부모 공란·첫 설치 행 ○·미설치 하위 ／',
+    d1.parent === undefined && d1.subs[0] === 'N' && d1.subs[1] === 'O' && d1.subs[2] === 'N',
+    JSON.stringify(d1))
+  // 설치된 하위가 없어도: 종전엔 롤업이 부모 행으로 갔으나(image-51 소화기구 ○의 정체) 이제 공란
+  const d0 = distributeSubMarks('O', [false, false])
+  check('설치 하위 없음 → 부모도 공란 (종전 부모 ○ 번복)', d0.parent === undefined, JSON.stringify(d0))
+  check('미설치 하위는 ／ 유지', d0.subs.every(s => s === 'N'), JSON.stringify(d0))
+  const dx = distributeSubMarks('X', [true, false])
+  check('×도 부모엔 안 가고 첫 설치 행으로', dx.parent === undefined && dx.subs[0] === 'X' && dx.subs[1] === 'N',
+    JSON.stringify(dx))
+  // 화면(1.4 배지)이 같은 두 항목을 숨기는 축 — 상수가 표준 어휘에 실재해야 배선이 성립한다
+  check('SUB_ROW_PARENT_ITEMS = 소화기구·피난기구 (표준 42종에 실재)',
+    SUB_ROW_PARENT_ITEMS.length === 2
+    && SUB_ROW_PARENT_ITEMS.every(p => ALL_STANDARD_CODES.includes(p)),
+    JSON.stringify(SUB_ROW_PARENT_ITEMS))
 }
 
 console.log('\n── 6) 어휘 실재 확인 — 오타로 검사가 헛돌지 않게')

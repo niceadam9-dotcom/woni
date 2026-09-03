@@ -8,7 +8,7 @@ import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/fa
 // 쓰기 액션은 더 이상 여기서 부르지 않는다 — 입력은 전용 화면 한 곳으로 모았다(소방계획서_28 S4).
 // 남은 것은 배지를 그리기 위한 진행률 조회뿐이다.
 import { getInspectionSheetOverviewAction } from '@/app/(dashboard)/inspections/sheet-actions'
-import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS, ETC_ITEMS, ETC_CODES } from '@/lib/facility-codes'
+import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS, ETC_ITEMS, ETC_CODES, SUB_ROW_PARENT_ITEMS } from '@/lib/facility-codes'
 import { rollUpForm3Results, sheetMatchesFacilities, type SheetGroupStat } from '@/lib/sheet-facility-map'
 import type { SheetOverview } from '@/lib/sheet-overview'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
@@ -232,7 +232,18 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  `?from=` — 입력 화면의 뒤로가기가 이 서식(1.4)으로 돌아오게 한다. 현재 URL 캡처가 아니라
    *     정적 딥링크다: 배지는 항상 ?tab=plan&form=1.4 화면에만 그려지므로 목적지가 결정적이다. */
   const resultBadge = (code: string) => {
-    if (!fac[code]?.installed || !canInputResult) return null
+    // 부모 2행(소화기구·피난기구)의 점검결과는 **하위 행 축**이다 — 결과칸은 항상 공란이고 입력구도
+    // 그리지 않는다(2026-09-03 사용자 결정, image-51. 인쇄는 distributeSubMarks parent=undefined가 짝).
+    if (SUB_ROW_PARENT_ITEMS.includes(code)) return null
+    if (!canInputResult) return null
+    // 미체크 = 자동 ／ (2026-09-03) — 대장이 정본이라 입력할 것이 없다. 링크 없는 정적 표식만 둔다.
+    if (!fac[code]?.installed) return (
+      <span data-testid={`form14-result-auto-na-${code}`}
+        title="설치 체크가 없어 해당없음(／)으로 자동 인쇄됩니다 — 설치한 설비라면 체크하세요"
+        className="ml-auto shrink-0 h-5 min-w-7 px-1.5 rounded-full border text-form-2xs font-bold inline-flex items-center justify-center text-ink-meta border-brand-line-soft bg-paper">
+        ／
+      </span>
+    )
     const mk = resultMarks[code]
     const lbl = mk === 'O' ? '○' : mk === 'X' ? '×' : mk === 'N' ? '／' : '미입력'
     const cls = mk === 'O' ? 'text-green-600 border-green-300 bg-green-50'
@@ -244,7 +255,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(code)}&from=${from}`}
         onClick={e => e.stopPropagation()}
         data-testid={`form14-result-link-${code}`}
-        title={`점검결과 — ${resultCtx?.inspection?.label} (클릭하면 점검표 입력 화면이 열립니다)`}
+        title={`점검결과 — ${resultCtx?.inspection?.label} (클릭하면 점검표 입력 화면이 열립니다 · ○/×로 기록)`}
         className={`ml-auto shrink-0 h-5 min-w-7 px-1.5 rounded-full border text-form-2xs font-bold inline-flex items-center justify-center ${cls}`}>
         {lbl}
       </Link>

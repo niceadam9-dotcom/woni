@@ -611,11 +611,11 @@ export async function assembleReport9(
       `점검표 항목 미입력 ${reqBlank}건(설치 설비${compBlank > 0 ? ` · 종합 필수 ● ${compBlank}건 포함` : ''}) — 부속 점검표 결과칸 빈칸`)
   }
   // 반대 방향(2026-08-21) — 설치 축 밖인데 결과가 찍히던 두 갈래. ①만 세면 절반만 보인다.
-  //  ②b는 결과를 지우지 않으므로(실점검일 수 있다) **여기서 말하지 않으면 아무도 모른다** — 서식상
-  //  성립하지 않는 칸이 그대로 인쇄된다. 고칠 곳은 문서가 아니라 1.4 대장이다.
+  //  ②b는 인쇄가 ／로 눌린다(2026-09-03 — 대장이 정본). 응답 데이터는 남아 있으므로 실점검이었다면
+  //  고칠 곳은 문서가 아니라 1.4 대장이다 — 체크하는 순간 ○/×가 되살아난다.
   if (axisWarnings.respondedNotInstalled.length > 0) {
     missing.push(`대장 미체크인데 점검표 응답 있음 ${axisWarnings.respondedNotInstalled.length}건`
-      + `(${axisWarnings.respondedNotInstalled.join('·')}) — 3쪽에 [ ]+○로 인쇄됨, 1.4 설비 대장 확인 필요`)
+      + `(${axisWarnings.respondedNotInstalled.join('·')}) — 3쪽에 ／로 인쇄됨, 실제 설치·점검한 설비라면 1.4 대장에 체크하세요`)
   }
   //  ②a는 자동 정정된 쪽이라 인쇄물은 옳지만, '점검한 줄 알았는데 ／'로 읽힐 수 있어 사실을 남긴다.
   if (axisWarnings.spillSuppressed.length > 0) {

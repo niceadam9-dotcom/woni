@@ -433,8 +433,8 @@ export function facilityResultSection(
    *  하위마다 자기 행과 자기 결과칸을 갖고, 부모 결과칸은 비어 있다.
    *
    *  결과칸 규칙(값을 지어내지 않는다 — 22 Q-8 '자동 기록 금지'를 지킨다)은
-   *  **sheet-facility-map.distributeSubMarks 단일 원천**이다(미설치 하위 → ／ · 설치된 하위는
-   *  부모 롤업을 첫 설치 행 하나에만 · 설치 하위가 없으면 부모 행에 그대로).
+   *  **sheet-facility-map.distributeSubMarks 단일 원천**이다(부모 행은 항상 공란(2026-09-03) ·
+   *  미설치 하위 → ／ · 설치된 하위는 부모 롤업을 첫 설치 행 하나에만).
    *  갑지 엑셀 `현황`(xlsx-form4.form4VerdictMarks)이 **같은 함수**를 쓴다 — 여기 인라인으로
    *  되돌리면 같은 점검 건의 PDF와 엑셀이 조용히 갈라진다(D-7).
    *

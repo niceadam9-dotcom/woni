@@ -73,11 +73,16 @@ try {
   await label.waitFor({ timeout: 15_000 })
   check('회차 라벨 안내 노출', await label.isVisible(), await label.textContent() ?? '')
 
-  // 설치 행 배지 — 별그리다 8종 설치·응답 있는 시트 다수. 배지가 하나 이상 그려져야 한다
+  // 설치 행 배지 — 별그리다 8종 설치·응답 있는 시트 다수. 배지가 하나 이상 그려져야 한다.
+  // 2026-09-03(image-51)부터 부모 2행(소화기구·피난기구)은 배지를 그리지 않는다(결과는 하위 행 축) —
+  // 종전 문턱 8은 부모 배지 1개를 포함한 수였다. 부모 미렌더는 아래에서 직접 단언한다.
   const badges = page.locator('a[title*="점검결과 — "]')
   await badges.first().waitFor({ timeout: 15_000 })
   const n = await badges.count()
-  check(`설치 행 결과 배지 ≥ 8 (실제 ${n})`, n >= 8)
+  check(`설치 행 결과 배지 ≥ 7 (실제 ${n})`, n >= 7)
+  check('부모 행(소화기구·피난기구)엔 결과 배지·링크가 없다',
+    (await page.locator('[data-testid="form14-result-link-소화기구 및 자동소화장치"]').count()) === 0
+    && (await page.locator('[data-testid="form14-result-link-피난기구"]').count()) === 0)
   const texts = await badges.allTextContents()
   const dist = { o: 0, x: 0, na: 0, blank: 0 }
   for (const t of texts) { if (t === '○') dist.o++; else if (t === '×') dist.x++; else if (t === '／') dist.na++; else dist.blank++ }
