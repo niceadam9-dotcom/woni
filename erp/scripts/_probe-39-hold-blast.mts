@@ -1,17 +1,33 @@
 /** 39 S3-3 — 완료 보류 blast-radius 실측 (가드 영향 범위 규칙: 켠 직후 막히는 건수를 세라).
  *  진행중·예정 자체점검 회차 중 '설치 시트에 범위 내 무응답 항목'이 남은 건수 = 보류에 걸릴 건수.
  *  이미 completed인 건은 소급하지 않으므로(설계) 제외 — 참고로 따로 센다.
- *  실행: npx tsx --conditions=react-server scripts/_probe-39-hold-blast.mts */
+ *
+ *  ⚠ 이 프로브는 한 번 **거짓 0을 보고했다**(2026-09-02). .env.local을 지역 객체로만 읽고
+ *  process.env에 넣지 않아, countInstalledRequiredBlanks 안의 getSheets()→createAdminClient()가
+ *  `supabaseUrl is required`로 죽고 그 예외를 sheet-overview의 catch가 삼켜 전 건이 0이 됐다.
+ *  → ① `_env.mjs`가 process.env를 채운다 ② **카탈로그 생존을 선행 단언**한다(공허 0 차단).
+ *  테스트는 환경의 결핍에 기대면 안 된다(feedback_test_hermetic_env).
+ *
+ *  실행: npx tsx --conditions=react-server scripts/_probe-39-hold-blast.mts
+ *  운영 측정: 셸에 NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY를 넣으면 _env.mjs가
+ *  덮지 않으므로(:17) 그 대상 DB를 잰다. */
+import './_env.mjs'
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync } from 'node:fs'
 import { countInstalledRequiredBlanks } from '../src/lib/sheet-overview.ts'
+import { getSheets, getAllSheetItems } from '../src/lib/sheet-catalog.ts'
 
-const env: Record<string, string> = {}
-for (const line of readFileSync('.env.local', 'utf8').split(/\r?\n/)) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/)
-  if (m) env[m[1]] = m[2]
+const admin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!) as never
+
+// ── 선행 단언: 카탈로그가 살아 있어야 '0건'이 의미를 갖는다 ──────────────────
+const [sheets, items] = await Promise.all([getSheets(), getAllSheetItems()])
+if (sheets.length === 0 || items.length === 0) {
+  console.error(`!! 점검표 카탈로그가 비었다 (시트 ${sheets.length} / 항목 ${items.length})`
+    + ' — 이 상태의 측정치는 전부 0이다. 측정 중단.')
+  process.exit(1)
 }
-const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!) as never
+console.log(`카탈로그 생존 확인 — 시트 ${sheets.length}종 / 항목 ${items.length}행`)
+console.log(`대상 DB: ${process.env.NEXT_PUBLIC_SUPABASE_URL}\n`)
 
 const { data } = await (admin as ReturnType<typeof createClient>)
   .from('inspections')

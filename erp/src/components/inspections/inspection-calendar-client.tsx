@@ -793,6 +793,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     startBulk(async () => {
       let done = 0
       const failed: Array<{ label: string; error: string }> = []
+      // 39 S3-2 — 단계는 완료됐으나 점검 완료 전환이 보류된 건. 실패가 아니라 '남은 일'이라
+      // 따로 세서 모달에 남긴다(전건 성공처럼 모달을 닫아 버리면 보류를 아무도 못 본다)
+      const heldRows: Array<{ label: string; required: number; comp: number }> = []
       if (planSel.length > 0) {
         const res = await bulkStartCompletePlanItemsAction(planSel, reason)
         if (res.error) { setBulkResult(`❌ ${res.error}`); return }
@@ -804,12 +807,19 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         if (res.error) { setBulkResult(`❌ ${res.error}`); return }
         done += res.done
         failed.push(...res.failed)
+        heldRows.push(...res.held)
       }
       // 전건 성공이면 모달을 바로 닫는다 — 결과 확인용으로 남겨두면 완료 후에도 팝업이 계속 떠 있음 (2026-08-05)
-      if (failed.length === 0) {
+      if (failed.length === 0 && heldRows.length === 0) {
         setBulkOpen(false)
       } else {
-        setBulkResult(`✅ ${done}건 완료 처리 · 실패 ${failed.length}건 — ${failed.map(f => `${f.label}(${f.error})`).join(' / ')}`)
+        const heldMsg = heldRows.length === 0 ? '' :
+          ` · ⏸ 점검 완료 보류 ${heldRows.length}건(설치 설비 점검표 미입력) — `
+          + heldRows.map(h => `${h.label}(${h.required}건${h.comp > 0 ? `, ● ${h.comp}` : ''})`).join(' / ')
+        setBulkResult(
+          `✅ ${done}건 완료 처리`
+          + (failed.length > 0 ? ` · 실패 ${failed.length}건 — ${failed.map(f => `${f.label}(${f.error})`).join(' / ')}` : '')
+          + heldMsg)
       }
       router.refresh()
     })

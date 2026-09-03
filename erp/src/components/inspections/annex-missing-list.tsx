@@ -39,6 +39,9 @@ const FIX_LINKS: FixRule[] = [
   //    report9-assemble.ts:513  `점검표 응답`                                       (응답이 아예 0건)
   //    report9-actions.ts:380   `외관점검 시트 응답 없음 — 결과란 공란`             (assembleExterior)
   { match: '설치 설비 중 점검표 무응답', axis: 'inspection', url: sheetEntry },
+  // report9-assemble.ts:611 `점검표 항목 미입력 N건(설치 설비 · 종합 필수 ● M건 포함) — …` (39 S4-1)
+  // 형제(위 줄)에는 딥링크가 있는데 이 항목만 없으면 '고치러 가기'가 항목마다 갈린다
+  { match: '점검표 항목 미입력', axis: 'inspection', url: sheetEntry },
   { match: '외관점검 시트 응답 없음', axis: 'inspection', url: sheetEntry },
   { match: '점검표 응답', exact: true, axis: 'inspection', url: sheetEntry },
   // ── 고객 축

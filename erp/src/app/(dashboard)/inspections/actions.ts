@@ -351,13 +351,19 @@ async function completeStepCore(
 export async function bulkCompleteStepsAction(
   items: Array<{ stepId: string; inspectionId: string; label: string }>,
   reason: string,
-): Promise<{ done: number; failed: Array<{ label: string; error: string }>; error?: string }> {
+): Promise<{
+  done: number; failed: Array<{ label: string; error: string }>; error?: string
+  /** 39 S3-2 — 단계는 완료됐으나 필수 미입력으로 **점검 완료 전환이 보류**된 건.
+   *  실패가 아니므로 failed에 넣지 않는다. 여기서 버리면 100건 일괄 완료 시 보류가
+   *  아무 말도 없이 묻히고, 사용자는 상세에 들어가 배너를 볼 때까지 모른다. */
+  held: Array<{ label: string; required: number; comp: number }>
+}> {
   const user = await getSessionUser()
-  if (!user) return { done: 0, failed: [], error: '인증이 필요합니다.' }
-  if (items.length === 0) return { done: 0, failed: [] }
-  if (items.length > 100) return { done: 0, failed: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
+  if (!user) return { done: 0, failed: [], held: [], error: '인증이 필요합니다.' }
+  if (items.length === 0) return { done: 0, failed: [], held: [] }
+  if (items.length > 100) return { done: 0, failed: [], held: [], error: '한 번에 100건까지만 처리할 수 있습니다.' }
   if ((reason ?? '').trim().length < 5) {
-    return { done: 0, failed: [], error: '완료 사유를 5자 이상 입력해주세요 — 사유가 곧 증빙입니다.' }
+    return { done: 0, failed: [], held: [], error: '완료 사유를 5자 이상 입력해주세요 — 사유가 곧 증빙입니다.' }
   }
 
   const admin = createAdminClient()
@@ -374,6 +380,7 @@ export async function bulkCompleteStepsAction(
 
   let done = 0
   const failed: Array<{ label: string; error: string }> = []
+  const held: Array<{ label: string; required: number; comp: number }> = []
   const groupArr = [...groups.values()]
   const CONC = 6
   for (let i = 0; i < groupArr.length; i += CONC) {
@@ -382,7 +389,11 @@ export async function bulkCompleteStepsAction(
         try {
           const res = await completeStepCore(admin, user.id, role, it.stepId, it.inspectionId, reason)
           if (res.error) failed.push({ label: it.label, error: res.error })
-          else done += 1
+          else {
+            done += 1
+            // 단계는 올라갔다(done). 다만 점검 자체는 in_progress로 남았다 — 그 사실만 따로 싣는다
+            if (res.completionHeld) held.push({ label: it.label, ...res.completionHeld })
+          }
         } catch {
           failed.push({ label: it.label, error: '처리 실패' })
         }
@@ -395,7 +406,7 @@ export async function bulkCompleteStepsAction(
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspections/sms')
   revalidatePath('/inspection-plans')
-  return { done, failed }
+  return { done, failed, held }
 }
 
 /** 점검달력 데이 패널 — 미시작 정기·일반(1단계형) 계획 항목 일괄 완료 (2026-08-05).

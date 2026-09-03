@@ -328,13 +328,22 @@ export async function countInstalledRequiredBlanks(
   }
   sheets = sheets.filter(s => s.version === scope.version)
 
-  const [{ rows: resps }, { data: bldRaw }, { data: formRaw }] = await Promise.all([
+  const [{ rows: resps, error: respErr, truncated }, { data: bldRaw }, { data: formRaw }] = await Promise.all([
     fetchAllRows<{ item_code: string }>(
       (from, to) => admin.from('inspection_sheet_responses')
         .select('item_code').eq('inspection_id', inspectionId).range(from, to)),
     admin.from('buildings').select('id').eq('customer_id', insp.customer_id).eq('is_active', true),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
   ])
+  // 응답 조회가 실패하면 **응답 0건**으로 보여 전 항목이 무응답이 된다 — 카탈로그 실패(위 catch)와
+  // 반대 방향으로 떨어져 일시적 DB 오류가 완료를 전건 차단한다. 조회 실패는 '미입력 있음'의 증거가
+  // 아니므로 같은 보수적 폴백(통과)으로 맞춘다. 설비 조회 실패는 이미 required=0으로 떨어진다.
+  if (respErr || truncated) {
+    // 조용히 해제되면 아무도 모른다 — 폴백은 반드시 흔적을 남긴다
+    console.warn(`[39 S3] 완료 보류 판정 생략(응답 조회 실패) insp=${inspectionId}`
+      + ` err=${respErr ?? 'none'} truncated=${truncated}`)
+    return NONE
+  }
   const responded = new Set(resps.map(r => r.item_code))
   const bldIds = ((bldRaw ?? []) as Array<{ id: string }>).map(b => b.id)
   const { data: facRaw } = bldIds.length > 0

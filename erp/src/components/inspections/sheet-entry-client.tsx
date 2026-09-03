@@ -84,7 +84,10 @@ export function SheetEntryClient({
     setOv(prev => {
       const before = prev.sheets.find(s => s.sheetId === sheetId)
       if (!before) return prev
-      const counted = items.filter(i => draft[i.item_code])
+      // 분모·분자 모두 범위 내만 — 서버 집계(sheet-overview는 isItemInScope로 걸러진 codes만 센다)와
+      // 같은 축이어야 한다. 레거시로 범위 밖(작동 회차 ●) 응답이 실려 오면 responded가 부풀어
+      // 필수 미입력이 과소·음수가 되고, 그러면 S2 이탈 확인창이 조용히 안 뜬다.
+      const counted = items.filter(i => !i.outOfScope && draft[i.item_code])
       const counts = {
         O: counted.filter(i => draft[i.item_code] === 'O').length,
         X: counted.filter(i => draft[i.item_code] === 'X').length,

@@ -534,8 +534,11 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
               {selCounts.responded}/{selCounts.total}{selCounts.x > 0 ? ` ✕${selCounts.x}` : ''}
             </span>
             {/* 39 S1-2 — 필수 미입력 카운터(설치 설비 점검표는 전 항목 ○/✕/／ 기재, §0 확대).
+                게이트는 requestClose(:191)의 **필수 축**(isSpecial·installed)과 같아야 한다 —
+                권한 축(canManage)만 다르다(조회 전용도 무엇이 비었는지는 본다). 외관 회차·미설치 시트에서
+                "반드시 기재" 경고만 뜨고 닫을 땐 안 묻던 표기↔가드 불일치를 없앤다.
                 ⚠ span으로 둔다 — '저장' 문자열 버튼을 만들면 test-sheet-mother-drawer P19·P11이 깨진다 */}
-            {selCounts.responded < selCounts.total && (
+            {scope.isSpecial && (progress[sel?.id ?? '']?.installed ?? false) && selCounts.responded < selCounts.total && (
               <span className="text-form-2xs text-amber-600 font-medium shrink-0" data-testid="drawer-required-blank"
                 title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — ●는 종합점검 필수(고시 별지4호)">
                 미입력 {selCounts.total - selCounts.responded}{selCounts.compBlank > 0 ? ` (● ${selCounts.compBlank})` : ''}

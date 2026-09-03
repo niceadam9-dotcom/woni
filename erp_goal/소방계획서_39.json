@@ -15,8 +15,16 @@
     "pending_order": "미구현·지시 대기",
     "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
     "partial": "부분 구현 — criteria 참조",
+    "confirmed": "결정 확정 — 코드 변경이 필요 없다는 판단(미완이 아니다)",
     "implemented": "독립 검증 통과 + verified 증거 동반"
   },
+  "judgments": [
+    { "date": "2026-09-03", "axis": "S1 표시", "verdict": "3 implemented / 0 결함", "method": "코드 대조 + 읽기전용 Playwright 대조군(종합 vs 작동) + 실데이터 축 재계산" },
+    { "date": "2026-09-03", "axis": "S2 소프트 가드", "verdict": "5 implemented / 0 결함", "method": "4경로 단일점 실측(setSel(null) 1곳·doClose 호출 1곳) + 순수함수 프로브 52/0 + next/link preventDefault 실물 확인" },
+    { "date": "2026-09-03", "axis": "S3 완료 보류", "verdict": "1 implemented / 1 partial / 1 defect", "method": "실패 방향 주입 + 실데이터 전수 축 대조 + _probe-39-hold 재실행" },
+    { "date": "2026-09-03", "axis": "S4 문서 + 표기 감사", "verdict": "1 implemented / 1 defect(표기) / 표기 결함 7건", "method": "호출 사슬 전수 + 라이브 3회차 문서-UI 수치 대조 + JSON 토크나이저 중복키 검사" },
+    { "date": "2026-09-03", "axis": "후속 수리 R-1~R-6 재판정", "verdict": "5 ok / 1 우려 / 0 결함", "method": "수리 전 코드(git show HEAD:)를 같은 주입 하네스에 태운 대조군 실측" }
+  ],
   "legal_basis": {
     "note": "요약 금지 — 원문 위치만 (feedback_legal_form_source)",
     "sources": [
@@ -29,49 +37,135 @@
   },
   "sections": [
     {
-      "id": "S1", "title": "1층 표시 — ● 배지·미입력 강조·카운터", "status": "code_present",
+      "id": "S1", "title": "1층 표시 — ● 배지·미입력 강조·카운터", "status": "implemented",
       "criteria": [
-        { "id": "S1-1", "desc": "sheet-item-editor ItemRow: comprehensive_only && !outOfScope이면 ● 표시 + 미입력 amber 강조 + 법 근거 title (두 표면 공용 1곳)", "status": "code_present", "note": "sheet-item-editor.tsx ItemRow 이름 span — 내용 축 주석으로 36(색)·38(크기)과 구분" },
-        { "id": "S1-2", "desc": "드로어 헤더 미입력 카운터(전 항목+● 병기, selCounts compBlank) + overlaidProgress 오버레이 재계산", "status": "code_present", "note": "inspection-sheet-client.tsx selCounts·headerRight data-testid=drawer-required-blank·overlaidProgress compBlank" },
-        { "id": "S1-3", "desc": "전용 페이지 헤더 '필수 미입력 M건(● k)' 병기(기존 '미입력 N개' 문구 보존) + patchLocal 재계산", "status": "code_present", "note": "sheet-entry-client.tsx requiredBlank/compBlankTotal·data-testid=sheet-entry-required-blank·patchLocal compBlank" }
+        { "id": "S1-1", "desc": "sheet-item-editor ItemRow: comprehensive_only && !outOfScope이면 ● 표시 + 미입력 amber 강조 + 법 근거 title (두 표면 공용 1곳)", "status": "implemented",
+          "note": "실효 조건이 desc와 같다 — sheet-item-editor.tsx:59의 `if (it.outOfScope) return`이 먼저 받으므로 :88이 comprehensive_only만 봐도 된다(판정자 오탐 방지 기록)",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["sheet-item-editor.tsx:59-70 outOfScope 조기 분기(작동 ● = ／ 자동)", "sheet-item-editor.tsx:88-91 amber + ● 접두 + 법 근거 title", "sheet-actions.ts:98 outOfScope 원천 = !isItemInScope(서버 집계와 동일 축)", "SheetItemEditor import 2곳뿐(전용 페이지·드로어) — 제3 렌더러 없음"],
+            "method": "독립 판정 — 코드 대조 + 읽기전용 Playwright 대조군(종합: ● 2·amber 2 / 작동: ● 2·amber 0·outOfScope 2)" } },
+        { "id": "S1-2", "desc": "드로어 헤더 미입력 카운터(전 항목+● 병기, selCounts compBlank) + overlaidProgress 오버레이 재계산", "status": "implemented",
+          "note": "카운터 게이트는 후속 수리 R-3에서 requestClose와 같은 필수 축(isSpecial·installed)으로 맞췄다 — 종전엔 외관 회차·미설치 시트에서 경고만 뜨고 닫을 땐 안 물었다",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["inspection-sheet-client.tsx:244-251 selCounts compBlank(inputItems = !outOfScope)", "inspection-sheet-client.tsx:542-544 data-testid=drawer-required-blank 전 항목+● 병기", "inspection-sheet-client.tsx:263-281 overlaidProgress compBlank 로컬 재계산"],
+            "method": "독립 판정 — 코드 대조 + 읽기전용 Playwright(헤더 '0/25' 옆 '미입력 25 (● 2)' 실측)" } },
+        { "id": "S1-3", "desc": "전용 페이지 헤더 '필수 미입력 M건(● k)' 병기(기존 '미입력 N개' 문구 보존) + patchLocal 재계산", "status": "implemented",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["sheet-entry-client.tsx:300-301 requiredBlank/compBlankTotal(isSpecial 게이트)", "sheet-entry-client.tsx:345-347 data-testid=sheet-entry-required-blank 병기", "sheet-entry-client.tsx:90-101 patchLocal compBlank 재계산", "test-sheet-entry-page.mts:87 정규식 /미입력\\s*\\d+개/ 계속 매치(문구 보존)"],
+            "method": "독립 판정 — 실화면 헤더 원문 대조('전체 0/1164 · ⚠ 설치 설비 중 미입력 5개 · 필수 미입력 315건 (● 163)') + buildSheetOverviews 독립 재계산 25건 전수 일치" } }
       ]
     },
     {
-      "id": "S2", "title": "2층 소프트 가드 + 설비 해소 유도", "status": "code_present",
+      "id": "S2", "title": "2층 소프트 가드 + 설비 해소 유도", "status": "implemented",
       "criteria": [
-        { "id": "S2-1", "desc": "전용 페이지 backHref 이탈 시 confirm(설치 시트 필수 미입력>0 — 작동·종합 공통, OK=이탈 진행)", "status": "code_present", "note": "sheet-entry-client.tsx backHref Link onClick — Playwright auto-accept=진행이라 기존 E2E 무영향(28/0 실측)" },
-        { "id": "S2-2", "desc": "드로어 requestClose 선두 confirm — ESC·백드롭·✕·[닫기] 4경로 공통점. 게이트: isSpecial·canManage·설치 시트", "status": "code_present", "note": "inspection-sheet-client.tsx requestClose — mother-drawer 67/0 실측(전 스위트 accept 핸들러와 양립)" },
-        { "id": "S2-3", "desc": "발행 가드(blanksGuardThenGo) 분모 확장 — 설비 단위 + 필수 미입력 항목(● 수 병기)", "status": "code_present", "note": "plan-annex-round-card.tsx reqBlanks state + 팝업 2줄 문구" },
-        { "id": "S2-4", "desc": "설비 해소 양갈래 안내 — '점검표 입력 또는 1.4 대장에서 체크 해제' (팝업+트리, 1.4 링크는 전체 이동 <a>)", "status": "code_present", "note": "round-card 팝업 문구 + sheet-tree ledgerHref(from에서 파생, <a> 전체 이동)" },
-        { "id": "S2-5", "desc": "트리 요약줄 필수 미입력 카운터(amber) + onBlankCount(설비, 항목, ●) 시그니처 확장", "status": "code_present", "note": "plan-annex-sheet-tree.tsx data-testid=tree-required-blank · countBlanks는 lib/sheet-blanks로 이동(단일 원천)" }
+        { "id": "S2-1", "desc": "전용 페이지 backHref 이탈 시 confirm(설치 시트 필수 미입력>0 — 작동·종합 공통, OK=이탈 진행)", "status": "implemented",
+          "note": "⚠ 종전 note의 'Playwright auto-accept'는 틀린 말이다 — Playwright 기본은 dismiss이고, 기존 두 스위트가 `page.on('dialog', d => d.accept())`를 이미 등록해서(test-sheet-entry-page.mts:64 · test-sheet-mother-drawer.mts:82) 종전 동작이 유지된 것이다. 핸들러 없는 새 스위트를 짜면 confirm이 false를 돌려 이탈이 막힌다",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["sheet-entry-client.tsx:326-335 Link onClick + preventDefault", "node_modules/next/dist/client/link.js:373 `if (e.defaultPrevented) return` — 실제로 내비게이션을 막는다", "sheet-entry-client.tsx:300-301 분모(isSpecial 게이트, 작동·종합 공통)", "이 페이지의 <Link>는 1개뿐이고 router.push/back/replace 0건(우회 탈출구 부재)"],
+            "method": "독립 판정 — 코드 대조 + Next 실물 확인 + 프로브 52/0" } },
+        { "id": "S2-2", "desc": "드로어 requestClose 선두 confirm — ESC·백드롭·✕·[닫기] 4경로 공통점. 게이트: isSpecial·canManage·설치 시트", "status": "implemented",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["inspection-sheet-client.tsx:189-196 requestClose 선두 confirm(flush·doClose보다 앞)", "sheet-drawer.tsx:46-56·86 ESC 2경로 · :102-103 백드롭 · :113 ✕", "inspection-sheet-client.tsx:600-601 onCancel={requestClose} [닫기]", "우회 부재 실측 — setSel(null) 1곳(doClose 내부) · doClose() 호출 1곳(requestClose 내부)"],
+            "method": "독립 판정 — 4경로 단일점 실측 + ESC 이중 발화 상호배타 확인" } },
+        { "id": "S2-3", "desc": "발행 가드(blanksGuardThenGo) 분모 확장 — 설비 단위 + 필수 미입력 항목(● 수 병기)", "status": "implemented",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["plan-annex-round-card.tsx:96-97 두 축 모두 0일 때만 통과", "plan-annex-round-card.tsx:59-62 팝업 2줄(설비 단위 + 항목 단위 ● 병기)", "plan-annex-round-card.tsx:121·167 호출부 2곳(엑셀·전체 인쇄) 모두 가드 뒤"],
+            "method": "독립 판정 — 코드 대조 + 폴라리티(취소=그대로 발행) 확인" } },
+        { "id": "S2-4", "desc": "설비 해소 양갈래 안내 — '점검표 입력 또는 1.4 대장에서 체크 해제' (팝업+트리, 1.4 링크는 전체 이동 <a>)", "status": "implemented",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["plan-annex-round-card.tsx:68 팝업 문구", "plan-annex-sheet-tree.tsx:121-124 트리 안내 + raw <a href={ledgerHref}>(next/link 아님 — 전체 이동)", "plan-annex-sheet-tree.tsx:106 ledgerHref = from 경로 + '?tab=plan&form=1.4'", "plan-tab-view.tsx:64·116·119 VALID_SEL에 1.4 존재 — customers/[id]/page.tsx:622의 정본 URL과 문자열 동일"],
+            "method": "독립 판정 — 링크 목적지까지 추적(문자열만 보고 넘기지 않음)" } },
+        { "id": "S2-5", "desc": "트리 요약줄 필수 미입력 카운터(amber) + onBlankCount(설비, 항목, ●) 시그니처 확장", "status": "implemented",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426",
+            "evidence": ["plan-annex-sheet-tree.tsx:35 시그니처 · :62-65 통지(isSpecial 게이트) · :129-131 data-testid=tree-required-blank", "lib/sheet-blanks.ts:11 countBlanks 정의 — 전 코드베이스에 이 하나뿐(트리의 옛 지역 정의 삭제 확인)"],
+            "method": "독립 판정 — 단일 원천 grep 전수 + 순수함수 계약 프로브 7/7(미설치 시트 20건·● 9건이 세 함수 어디로도 새지 않음)" } }
       ]
     },
     {
-      "id": "S3", "title": "3층 완료 보류 (하드)", "status": "code_present",
+      "id": "S3", "title": "3층 완료 보류 (하드)", "status": "implemented",
       "criteria": [
-        { "id": "S3-1", "desc": "inspection-step-sync: 설치 시트의 범위 내 무응답 항목>0(작동·종합 공통)이면 completed 전환 보류(in_progress 유지). 판정은 호출부 임박 게이트(countInstalledRequiredBlanks). 기존 completed 소급 없음", "status": "code_present", "note": "_probe-39-hold.mts 11/0 — hold/해소 양방향·scheduled 강등·completed 소급 없음·UI 축 일치까지 실측" },
-        { "id": "S3-2", "desc": "보류 고지 — completeStep 경로 alert(달력·슬라이드패널) + 점검 상세 completion-held-banner(입력 딥링크)", "status": "code_present", "note": "completionHeld 채널 신설(syncInspectionSteps→completeStepAction→클라이언트 2곳) + [id]/page.tsx 배너" },
-        { "id": "S3-3", "desc": "blast-radius 실측 — 켜기 전 진행중 자체점검의 필수 미입력 보유 건수 스테이징 실측·보고", "status": "implemented", "verified": { "date": "2026-09-02", "evidence": ["scripts/_probe-39-hold-blast.mts 실행 — 진행중·예정 86건 중 자체점검 24건, 보류에 걸릴 건수 0/24, 완료 소급 대상 0건"], "method": "스테이징 실측(읽기 전용)" } }
+        { "id": "S3-1", "desc": "inspection-step-sync: 설치 시트의 범위 내 무응답 항목>0(작동·종합 공통)이면 completed 전환 보류(in_progress 유지). 판정은 호출부 임박 게이트(countInstalledRequiredBlanks). 기존 completed 소급 없음", "status": "implemented",
+          "note": "판정자가 실패 방향 결함 1건 적발 → R-1로 수리. 종전엔 응답 조회 실패가 '전 항목 무응답'으로 보여 required 57→195(과잉 차단)",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426 + 후속 수리",
+            "evidence": ["inspection-step-sync.ts:236-238 임박 게이트(allActiveDone && status!=='completed' && isSpecial일 때만 호출)", "inspection-step-sync.ts:99-110·134 보류 시 completed로 올리지 않고 scheduled만 in_progress로 강등", "sheet-overview.ts:341-346 실패 방향 수리(R-1) + 폴백 경고 로그", "sheet-overview.ts:356-370 분모 = sheetMatchesFacilities + isItemInScope + STD-32 multiUse(화면 카운터와 동일 식)"],
+            "method": "독립 판정 — 실데이터 전수 축 대조(자체점검 25건 불일치 0) + 주입 실패 대조군(수리 전 195 / 수리 후 0) + _probe-39-hold 11/0" } },
+        { "id": "S3-2", "desc": "보류 고지 — completeStep 경로 alert(달력·슬라이드패널) + 점검 상세 completion-held-banner(입력 딥링크)", "status": "implemented",
+          "note": "판정자가 일괄 완료 경로의 고지 누락을 적발 → R-5로 수리(최대 100건 일괄 시 보류가 침묵했다)",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426 + 후속 수리",
+            "evidence": ["inspection-step-sync.ts:170·245 completionHeld 발원", "inspections/actions.ts:331·341 completeStepCore 통과 · :251-254·269 completeStepAction", "inspection-calendar-client.tsx:940-946 alert · plan-item-slide-panel.tsx:89-101 alert", "inspections/[id]/page.tsx:486-496 data-testid=completion-held-banner + 딥링크 /inspections/{id}/sheet"],
+            "method": "독립 판정 — 서버→클라이언트 채널 전 구간 코드 대조(자기 신고 아님)" } },
+        { "id": "S3-3", "desc": "blast-radius 실측 — 켜기 전 진행중 자체점검의 필수 미입력 보유 건수 스테이징 실측·보고", "status": "implemented",
+          "note": "🔴 2026-09-02 최초 기록 '0/24'는 **거짓 0이었다** — 프로브가 .env.local을 process.env에 넣지 않아 카탈로그가 throw하고 sheet-overview의 catch가 삼켜 전 건이 0으로 보고됐다(환경 결핍에 기댄 공허 통과, feedback_test_hermetic_env). 판정자 3인이 독립으로 같은 결론. R-6에서 프로브 수리 + 카탈로그 생존 선행 단언",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426 + 후속 수리",
+            "evidence": ["scripts/_probe-39-hold-blast.mts 재실행(수리판) — 카탈로그 생존 확인 시트 47/항목 1288, 진행중·예정 86건 중 자체점검 24건, 보류에 걸릴 건수 3/24(별그리다 57 · 하수시설 315(●163) · 송학떡집 270)", "완료된 자체점검 1건 중 미입력 잔존 1건 — 소급하지 않음(설계)", "판정자 실측: 3건 모두 allActiveDone=false라 '당장' 막히는 건 0건 — 단계가 다 차는 순간 막힌다"],
+            "method": "스테이징 실측(읽기 전용) + 독립 판정 3인 교차 확인" } }
       ]
     },
     {
-      "id": "S4", "title": "문서(PDF·엑셀) 반영", "status": "code_present",
+      "id": "S4", "title": "문서(PDF·엑셀) 반영", "status": "partial",
+      "note": "S4-1 implemented · S4-2는 코드 변경이 불필요하다는 결정(confirmed)이라 미완이 아니다 — 규칙 1 기계 적용상 섹션은 partial로 둔다",
       "criteria": [
-        { "id": "S4-1", "desc": "report9-assemble missing에 '점검표 항목 미입력 N건(설치 설비[, ● M건 포함])' — 작동·종합 공통·설치 매칭 시트(STD-32 multiUse 예외 포함) 한정. 9호·4호 PDF·미리보기·워크북 헤더 자동 전파", "status": "code_present", "note": "report9-assemble.ts missing 블록 — 작동 ●는 조립이 이미 ／를 박아 null로 안 잡힘(이중 계상 없음)" },
-        { "id": "S4-2", "desc": "워크북 헤더 절단 대비 — r9.missing에만 실음(중복 고지 금지), 절단은 기존 '…외 N자 생략' 마커로 드러남", "status": "code_present", "note": "승격하지 않기로 결정 — 어제 추가된 설비 단위 '점검표 미입력 N종'이 이미 생존 순위 상위에 있어 축이 겹치지 않음" }
+        { "id": "S4-1", "desc": "report9-assemble missing에 '점검표 항목 미입력 N건(설치 설비 · 종합 필수 ● M건 포함) — 부속 점검표 결과칸 빈칸' — 작동·종합 공통·설치 매칭 시트(STD-32 multiUse 예외 포함) 한정. 9호·4호 PDF·미리보기·워크북 헤더 자동 전파", "status": "implemented",
+          "note": "종전 desc의 문구는 실제와 달랐다(구분자 ',' 가 아니라 ' · ', 꼬리 '— 부속 점검표 결과칸 빈칸' 누락). 실문구로 정정. [고치기] 딥링크 누락은 R-4로 수리",
+          "verified": { "date": "2026-09-03", "commit": "c3d2426 + 후속 수리",
+            "evidence": ["report9-assemble.ts:598-612 조립(설치 매칭 + STD-32 muOn 한정)", "report9-assemble.ts:364 작동 ●는 mark='N'이라 :605 `mark !== null`에서 탈락 — 이중 계상 없음", "전파 4경로: report9-actions.ts:469-471·520(9호) · :161-167·473-475(4호, 필터는 완전일치 3건뿐이라 생존) · :562-567(미리보기) · workbook/route.ts:143·246(X-Workbook-Missing 무조건 spread)", "annex-missing-list.tsx:44 [고치기] 딥링크 규칙(R-4)"],
+            "method": "독립 판정 — 호출 사슬 전수 + 라이브 3회차 대조(종합 315/●163 · 작동 270 ● 병기 없음 · 작동 57)로 문서 줄과 UI 카운터 수치 일치 확인" } },
+        { "id": "S4-2", "desc": "워크북 헤더 절단 대비 — r9.missing에만 실음(중복 고지 금지), 절단은 기존 '…외 N자 생략' 마커로 드러남", "status": "confirmed",
+          "confirmed_reason": "코드 변경 불요로 결정(2026-09-02). 판정자 실측으로 근거 확인 — ①절단 마커 실재(workbook/route.ts:264-267) ②39가 더한 줄은 설비 단위 고지와 축이 달라 중복 아님(종 vs 건) ③헤더 예산 실측 r9.missing 400/288/472자에 39 델타 +59/+41/+40자, 39 줄은 3번째라 절단 대상이 아니다",
+          "note": "⚠ 종전 status 'code_present'는 거짓이었다 — c3d2426은 workbook/route.ts를 한 줄도 건드리지 않았다(18파일 stat에 부재). md §4의 '생존 순위 조정'이라는 지시 문언도 실행하지 않기로 한 결정과 모순이라 md를 함께 정정했다" }
+      ]
+    },
+    {
+      "id": "S5", "title": "독립 판정 후속 수리 (2026-09-03)", "status": "implemented",
+      "note": "판정 4인이 잡아낸 실결함·누락의 수리. 재판정(5번째 판정자)에서 5 ok / 1 우려 / 0 결함",
+      "criteria": [
+        { "id": "R-1", "desc": "보류 판정의 실패 방향 — 응답 조회 실패·truncated를 무시하던 것을 보수적 통과(NONE)로 + 폴백 경고 로그. 조회 실패는 '미입력 있음'의 증거가 아니다", "status": "implemented",
+          "verified": { "date": "2026-09-03",
+            "evidence": ["sheet-overview.ts:331 fetchAllRows error·truncated 수신", "sheet-overview.ts:341-346 NONE 폴백 + console.warn", "대조군 실측: 수리 전 INJECT resp-fail = required 195 / 수리 후 0(정상 경로는 25건 전수 델타 0, sum 1029 동일)", "truncated 도달 불가 확인: maxRows 20,000 vs 실측 최대 243행, UNIQUE(inspection_id,item_code,month)·자체점검 month=0 고정으로 실질 상한 1,288"],
+            "method": "독립 재판정 — git show HEAD: 로 수리 전 코드를 뽑아 같은 주입 하네스에 태운 대조" } },
+        { "id": "R-2", "desc": "전용 페이지 patchLocal의 responded 분자에 !outOfScope 추가 — 서버 집계(isItemInScope로 거른 codes만 센다)와 축 일치. 종전엔 레거시 범위 밖 응답이 있으면 responded가 부풀어 필수 미입력이 과소·음수가 되고 S2-1 confirm이 조용히 안 떴다", "status": "implemented",
+          "verified": { "date": "2026-09-03",
+            "evidence": ["sheet-entry-client.tsx:90 counted 필터(:98 compBlank와 같은 축)", "정상 데이터 무변화 실측: 시트 내 코드 중복 0종, 작동 자체점검 20건 중 범위 밖 응답 보유 0건(응답 보유 작동 회차 3건 = 138·77·25행이라 표본 부재 탓이 아님)", "같은 결함의 이웃 없음 — 드로어는 inputItems(inspection-sheet-client.tsx:227)가 이미 제외, 트리는 서버값만 사용"],
+            "method": "독립 재판정 — 실데이터 표본 확보 후 대조" } },
+        { "id": "R-3", "desc": "드로어 헤더 카운터 게이트를 requestClose의 필수 축(isSpecial·installed)과 일치 — 외관 회차·미설치 시트에서 '반드시 기재' 경고만 뜨고 닫을 땐 안 묻던 표기↔가드 불일치 제거", "status": "implemented",
+          "verified": { "date": "2026-09-03",
+            "evidence": ["inspection-sheet-client.tsx:541 게이트 추가", "progress 키가 sheetId임을 inspections/[id]/page.tsx:162-163에서 확인 — sel null이면 progress[''] → undefined ?? false로 안전", "세 표면(requestClose:191 · sheet-entry-client.tsx:300-301 · plan-annex-sheet-tree.tsx:100-101)이 이미 같은 게이트였고 이 카운터만 예외였다", "drawer-required-blank를 단언하는 상시 스위트 없음 · 수리 후 mother-drawer E2E 67/0"],
+            "method": "독립 재판정 — 인덱싱 안전성 + 사라지는 경고의 정당성 + 검사 영향" } },
+        { "id": "R-4", "desc": "미비 항목 [고치기] 딥링크 — FIX_LINKS에 '점검표 항목 미입력' 규칙 추가. 형제(설치 설비 중 점검표 무응답)에는 있는데 이 항목만 없어 딥링크가 항목마다 갈렸다", "status": "implemented",
+          "verified": { "date": "2026-09-03",
+            "evidence": ["annex-missing-list.tsx:42-44 규칙 + 근거 주석", "전수 대조: report9-assemble.ts·report9-actions.ts의 missing.push 37건을 실제 annexFixHref에 태워 링크 10건 · 무링크 27건, 신규 규칙이 정확히 1건만 새로 잡음", "파일 :22-24 경고 비저촉 — 1.4 대장 축 두 문구(:617·:627)는 여전히 무링크", "FIX_LINKS.find 첫 매치 규칙에도 기존 항목(:380·:582) 가림 없음"],
+            "method": "독립 재판정 — 두 파일 missing.push 전수 추출 후 실함수 통과" } },
+        { "id": "R-5", "desc": "일괄 완료(달력 데이 패널)가 completionHeld를 버리던 것 → held[]로 실어 모달에 '⏸ 점검 완료 보류 N건' 표기. 최대 100건 일괄 시 보류가 아무 말 없이 묻혔다", "status": "implemented",
+          "verified": { "date": "2026-09-03",
+            "evidence": ["inspections/actions.ts:351-364 반환 타입 · :383 held 선언 · :395 수집 · :409 반환", "inspection-calendar-client.tsx:798-825 heldRows 수집·표기 + 자동 닫기 조건(:813)에 포함", "다른 호출부 없음(정의부 + inspection-calendar-client.tsx:806 하나) · tsc 0", "bulkStartCompletePlanItemsAction은 자체점검 제외(actions.ts:415)라 held가 생길 수 없음", "이 모달을 검사하는 스위트 없음 — 토큰 축(bulkResult·bulk-complete·data-testid) 0건 + 문구 축 교차 확인"],
+            "method": "독립 재판정 — 호출부 전수 + E2E 영향 2축 확인" } },
+        { "id": "R-6", "desc": "blast 프로브 수리(_env.mjs로 process.env 주입 + 카탈로그 생존 선행 단언) + 신규 회귀 가드 _probe-39-guards.mts + test-all.mts 등재 2줄", "status": "implemented",
+          "note": "⚠ 우려 1건(재판정): [A]·[B]가 스테이징 상주 데이터에 의존한다 — 표본이 없으면 [A]는 실패로 드러나고 [B]는 분모 단언으로 막았으나, 업무데이터가 다시 비면 코드 이유 없이 붉어진다. 자체 픽스처 폴백은 후속 과제(R-a)",
+          "verified": { "date": "2026-09-03",
+            "evidence": ["scripts/_probe-39-hold-blast.mts:14 import './_env.mjs' · :22-27 카탈로그 생존 단언(0이면 exit 1)", "scripts/_probe-39-guards.mts 9/0 — [0]카탈로그 [B]축 일치(자체점검 25건 불일치 0) [A]주입 실패 방향 [C]문구↔딥링크 접두", "항진명제 아님 — 수리 전 코드에서 [A]는 injected=195로 ❌(재판정 대조군)", "test-all.mts:70·72 두 줄 등재(--conditions=react-server 필수 — 빼면 server-only throw로 exit 1)"],
+            "method": "독립 재판정 — 대조군 실측 + 등재 명령 축 검증" } }
       ]
     }
   ],
   "verification_runs": {
-    "date": "2026-09-02",
+    "date": "2026-09-03",
+    "note": "수리 후 재실행 수치. tsc는 `npx tsc --noEmit` 파일 리다이렉트 + 종료코드로 판정(PS 5.1의 2>&1 | 는 출력을 삼킨다)",
     "tsc": 0,
     "suites": {
-      "test-sheet-overview": "36/0 (39 compBlank 단언 2건 추가)",
-      "test-second-round-operational": "37/0 (무수정)",
-      "test-sheet-entry-page(E2E)": "28/0 (무수정)",
-      "test-sheet-mother-drawer(E2E)": "67/0 (무수정)",
-      "_probe-39-hold": "11/0 (신규 — 보류 왕복·UI 축 일치)",
-      "_probe-39-hold-blast": "보류 대상 0/24 (스테이징)"
+      "test-sheet-overview": "36/0 (39 compBlank 단언 2건 포함 — test-sheet-overview.mts:115·117)",
+      "test-second-round-operational": "37/0",
+      "test-sheet-entry-page(E2E)": "28/0",
+      "test-sheet-mother-drawer(E2E)": "67/0",
+      "_probe-39-hold": "11/0 (보류 왕복·scheduled 강등·소급 없음·UI 축 일치)",
+      "_probe-39-guards": "9/0 (신규 — 실패 방향 주입·축 일치 전수·문구↔딥링크)",
+      "_probe-39-hold-blast": "보류 대상 3/24 (스테이징, 카탈로그 생존 확인 후)"
     }
-  }
+  },
+  "residual": [
+    { "id": "R-a", "desc": "_probe-39-guards의 [A]·[B]가 스테이징 상주 데이터 의존 — 자체 픽스처 폴백으로 밀폐화", "priority": "중" },
+    { "id": "R-b", "desc": "S2 가드 5건의 실동작 E2E 없음 — 기존 스위트는 dialog를 전부 accept해 '떴다/안 떴다'를 구별하지 못한다(dismiss 후 URL 불변 단언 필요, 픽스처 생성 요함)", "priority": "중" },
+    { "id": "R-c", "desc": "S4 문서 축을 덮는 상시 단언 0건 — 조립 missing 문구의 회귀 방어가 [C]의 접두 검사뿐", "priority": "하" },
+    { "id": "R-d", "desc": "sheet-entry-client.tsx:298이 countBlanks와 같은 식을 인라인으로 갖고 있다(lib 3함수 중 2개만 import) — 값은 같으나 S2-5 단일 원천 규약의 미완 지점", "priority": "하" },
+    { "id": "R-e", "desc": "plan-annex-round-card.tsx:93-94 주석이 '트리 로드 전에는 가드가 조용히 통과' 구간을 옛 축(sheetBlanks)만 말한다 — reqBlanks에도 그대로 적용됨", "priority": "하" }
+  ]
 }

@@ -63,6 +63,13 @@ const steps: Step[] = [
   // 점검표 진행률 집계 — 분모(시트 항목 수)·O/X/N·범위 판정을 독립 재계산과 대조한다.
   // 서버는 필요 없지만 Next 런타임 밖이라 --conditions=react-server가 필수다(server-only 패키지).
   { name: '점검표 진행률 집계',        cmd: 'npx tsx --conditions=react-server scripts/test-sheet-overview.mts' },
+  // 소방계획서_39 — 완료 보류(3층 하드)의 **실패 방향**. 이 가드는 틀려도 화면이 붉어지지 않는다:
+  // 응답 조회가 실패하면 전 항목이 무응답으로 보여 완료가 조용히 전건 차단되고(판정자 실측 57→195),
+  // 카탈로그가 죽으면 반대로 가드가 조용히 해제된다. 주입 실패로만 잡히므로 등재한다.
+  // 보류 판정 축 == 화면 카운터 축(실데이터 전수)과 미비 문구 ↔ [고치기] 딥링크 접두도 같이 고정.
+  { name: '완료 보류 가드 실패방향(39)', cmd: 'npx tsx --conditions=react-server scripts/_probe-39-guards.mts' },
+  // 39 S3 보류 왕복(hold→해소→completed·scheduled 강등·completed 소급 없음) — 픽스처 자체 생성·정리.
+  { name: '완료 보류 왕복(39)',        cmd: 'npx tsx --conditions=react-server scripts/_probe-39-hold.mts' },
   // 소방계획서_33 — 종합 대상의 2차는 작동점검. 생성 3축·가드 3케이스(축은 옮기되 없애지 않는다)·
   // 인쇄물 라벨·점검표 범위·재생성 멱등을 한 번에 고정한다. 2차를 종합으로 되돌리는 경로가
   // 5개(생성기·수동추가·초과해결·고객동기화·수동등록)라 결과 축에서 감시하는 편이 싸다.
