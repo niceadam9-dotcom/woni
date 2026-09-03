@@ -94,19 +94,25 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-1.5 mt-1.5">
               {s.groups.map(g => {
                 const gFull = g.total > 0 && g.responded >= g.total
+                // 미설치 중분류(2026-09-03, 비활성 = 회색) — 설치 시트 안에서만 좁힌다(시트째 미설치는
+                // 종전 시트 축 그대로). 카드는 남긴다(열면 회색 행이 이유를 말한다) — 진행 숫자 대신
+                // '／ 자동'을 보여 '아직 안 채운 칸'으로 읽히지 않게 한다.
+                const gInactive = s.installed && g.installed === false && g.responded === 0
                 return (
                   <button key={g.groupKey} onClick={() => onOpen(s.sheetId, g.groupCode)}
                     data-group-key={g.groupKey} data-installed={s.installed ? '1' : '0'} data-responded={g.responded}
+                    data-group-inactive={gInactive ? '1' : undefined}
+                    title={gInactive ? '1.4 시설설비 대장 미체크 설비 — 문서에는 ／로 자동 인쇄됩니다. 설치돼 있다면 1.4에서 체크하면 입력이 열립니다' : undefined}
                     className={`rounded-lg border border-brand-line-soft px-2.5 py-1.5 text-left hover:bg-brand-tint hover:border-brand-line transition-colors ${
-                      s.installed ? '' : 'opacity-45'}`}>
+                      s.installed && !gInactive ? '' : 'opacity-45'}`}>
                     <span className="flex items-center gap-1.5 min-w-0">
                       <span className="text-[10px] font-bold text-brand shrink-0">[{g.groupCode}]</span>
                       {g.groupName !== g.groupCode && (
                         <span className="text-[11px] text-ink truncate flex-1 min-w-0">{g.groupName}</span>
                       )}
                       {/* S7-1 — 중분류 진행 숫자도 같은 축 */}
-                      <span className={`ml-auto text-[9px] shrink-0 ${gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}>
-                        {g.responded > 0 || g.total === 0 ? `${g.responded}/${g.total}` : '미입력'}{g.x > 0 ? ` ✕${g.x}` : ''}
+                      <span className={`ml-auto text-[9px] shrink-0 ${gInactive ? 'text-ink-meta' : gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}>
+                        {gInactive ? '／ 자동' : `${g.responded > 0 || g.total === 0 ? `${g.responded}/${g.total}` : '미입력'}${g.x > 0 ? ` ✕${g.x}` : ''}`}
                       </span>
                     </span>
                     <span className="block h-1 mt-1 rounded bg-brand-line-soft overflow-hidden">

@@ -77,25 +77,25 @@ export function SheetEntryClient({
    *  시트 간 중복 코드 dedup까지는 반영 못 하는 근사치라, 시트를 바꾸거나 [갱신]하면 서버 값으로 수렴한다. */
   const patchLocal = useCallback((
     draft: Record<string, 'O' | 'X' | 'N'>,
-    items: Array<{ item_code: string; comprehensive_only?: boolean; outOfScope?: boolean }>,
+    items: Array<{ item_code: string; comprehensive_only?: boolean; outOfScope?: boolean; notInstalled?: boolean }>,
   ) => {
     const sheetId = openIdRef.current
     if (!sheetId) return
     setOv(prev => {
       const before = prev.sheets.find(s => s.sheetId === sheetId)
       if (!before) return prev
-      // 분모·분자 모두 범위 내만 — 서버 집계(sheet-overview는 isItemInScope로 걸러진 codes만 센다)와
-      // 같은 축이어야 한다. 레거시로 범위 밖(작동 회차 ●) 응답이 실려 오면 responded가 부풀어
-      // 필수 미입력이 과소·음수가 되고, 그러면 S2 이탈 확인창이 조용히 안 뜬다.
-      const counted = items.filter(i => !i.outOfScope && draft[i.item_code])
+      // 분모·분자 모두 범위 내 + 활성만 — 서버 집계(sheet-overview는 isItemInScope·회색 그룹 제외로
+      // 걸러진 codes만 센다)와 같은 축이어야 한다. 레거시로 범위 밖(작동 회차 ●) 응답이 실려 오면
+      // responded가 부풀어 필수 미입력이 과소·음수가 되고, 그러면 S2 이탈 확인창이 조용히 안 뜬다.
+      const counted = items.filter(i => !i.outOfScope && !i.notInstalled && draft[i.item_code])
       const counts = {
         O: counted.filter(i => draft[i.item_code] === 'O').length,
         X: counted.filter(i => draft[i.item_code] === 'X').length,
         N: counted.filter(i => draft[i.item_code] === 'N').length,
       }
       // compBlank도 로컬 재계산(39 S1-3) — 스프레드만 하면 저장 직후 ● 카운터가 낡는다.
-      // outOfScope(작동 회차 ●)는 입력 대상이 아니므로 제외 — 서버 집계(isItemInScope)와 같은 축
-      const compBlank = items.filter(i => !i.outOfScope && i.comprehensive_only && !draft[i.item_code]).length
+      // outOfScope(작동 회차 ●)·notInstalled(회색 중분류)는 입력 대상이 아니므로 제외 — 서버 집계와 같은 축
+      const compBlank = items.filter(i => !i.outOfScope && !i.notInstalled && i.comprehensive_only && !draft[i.item_code]).length
       return {
         ...prev,
         sheets: prev.sheets.map(s => s.sheetId === sheetId ? { ...s, responded: counted.length, counts, compBlank } : s),
@@ -310,6 +310,18 @@ export function SheetEntryClient({
     return all.map(name => ({ name, installed: inst.has(name) }))
   }, [openSheet, ov.installedFacilityCodes])
 
+  /** 40 S5-1 — 소방시설(1.4) 대장 직행. ?from=은 **클릭 시점** URL(replaceState가 sheet·month를
+   *  항상 최신으로 유지)이라 저장 후 돌아오면 보던 시트·월이 그대로 재현된다.
+   *  ?sheet=시트명 → 관련 설비 포커스, ?fac=코드들 → 지정 설비 포커스(해석은 받는 쪽 한 번만).
+   *  이동 전 flush — 디바운스 300ms 안의 마지막 입력이 전체 이동으로 유실되면 안 된다. */
+  const goFacilities = async (focus?: { sheetName?: string; facCodes?: string[] }) => {
+    await autosaveRef.current.flush()
+    const qs = new URLSearchParams({ from: window.location.pathname + window.location.search })
+    if (focus?.facCodes?.length) qs.set('fac', focus.facCodes.join(','))
+    else if (focus?.sheetName) qs.set('sheet', focus.sheetName)
+    window.location.assign(`/inspections/${inspectionId}/facilities?${qs.toString()}`)
+  }
+
   const saveChip = (() => {
     switch (autosave.status) {
       case 'saving': return <span className="text-[11px] text-brand flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
@@ -399,6 +411,14 @@ export function SheetEntryClient({
               <input type="checkbox" checked={blankOnly} onChange={e => setBlankOnly(e.target.checked)} data-testid="sheet-entry-blank-only" />
               미입력만
             </label>
+            {/* 40 S5-1 — 설치 축의 정본(1.4 대장)으로 직행. 권한 게이트 없음(수정 가능 여부는 그 화면이
+                canManage로 판정) — 점검 건 편집권 없는 직원도 대장 정정 경로는 열려야 한다 */}
+            <button onClick={() => void goFacilities({ sheetName: openSheet?.sheetName })}
+              data-testid="sheet-entry-facilities-link"
+              title="1.4 소방시설 대장을 열어 설치 체크를 수정합니다 — 저장 후 돌아오면 보던 시트가 그대로 열립니다"
+              className="ml-auto text-brand hover:underline">
+              설비 현황(1.4) 수정
+            </button>
           </div>
           <ul className="space-y-0.5 max-h-[calc(100dvh-260px)] overflow-y-auto">
             {visible.map(s => (
@@ -425,6 +445,14 @@ export function SheetEntryClient({
               <ul className="space-y-0.5">
                 {uncovered.map(c => <li key={c} className="text-[11px] text-ink-meta px-2.5 py-1">{c}</li>)}
               </ul>
+              {/* 40 S5-1 — 경고만 하고 보내주지 않던 자리. 실제 미설치라면 대장에서 체크를 해제해
+                  해소한다(39 S2-4의 양갈래와 같은 방향). 해당 설비들이 포커스된 채 열린다 */}
+              <button onClick={() => void goFacilities({ facCodes: uncovered })}
+                data-testid="sheet-entry-uncovered-link"
+                title="1.4 소방시설 대장에서 이 설비들의 설치 체크를 확인·수정합니다"
+                className="mt-1 px-2.5 text-[11px] text-brand hover:underline">
+                설비 현황(1.4)에서 확인 →
+              </button>
             </div>
           )}
         </div>

@@ -3,7 +3,7 @@ import 'server-only'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { UserRole } from '@/types'
 import { sheetScope, isItemInScope, sheetItemGroupRef, type SheetScope } from '@/lib/sheet-scope'
-import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
+import { sheetMatchesFacilities, groupInstalledInSheet, groupActiveInSheet } from '@/lib/sheet-facility-map'
 import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { isMultiUseApplicable } from '@/lib/multi-use'
@@ -37,6 +37,9 @@ export type SheetGroupProgress = {
   o: number
   /** 대괄호 소제목(3층) 이름들 — 카드 부제 칩. 등장 순서 유지 */
   subgroupNames: string[]
+  /** 중분류 단위 설치 판정(groupInstalledInSheet, 2026-09-03) — null = 축 없음(미등재 시트·중분류).
+   *  설치 시트 안에서 false && responded 0이면 회색(자동 ／) — 분모·필수·회차 합계에서 빠진다 */
+  installed: boolean | null
 }
 
 export type SheetProgress = {
@@ -203,34 +206,42 @@ export async function buildSheetOverviews(
 
     for (const sheet of sheets) {
       if (sheet.version !== scope.version) continue
+      // S7-27 노출 예외 — STD-32는 설비 맵 미등재라 multiUse 판별로 installed 취급(필터·정렬 동일 취급)
+      const sheetInstalled = sheetMatchesFacilities(sheet.sheet_name, facilityCodes)
+        || (sheet.sheet_code === 'STD-32' && multiUse)
       // 분모는 item_code Set 크기 — 시드에 같은 코드가 2행 있어도 1건 (bulkAllGoodAction의 중복 방어와 동일 이유)
       const codes = new Set<string>()
-      // 머더 버킷(23 S5-6) — isItemInScope가 이미 적용된 자리라 작동점검 종합전용(●) 제외가 분모에도 자동 반영
-      const buckets = opts.withGroups ? new Map<string, SheetGroupProgress>() : null
-      // ● 무응답(39 S1) — in-scope로 살아남은 comprehensive_only 중 응답 없는 것. 시트 단위 카운트
-      // (회차 합계 dedup 축과 다르다 — 요구 축이 '설치된 설비 **시트**'라 시트마다 따로 센다)
-      let compBlank = 0
+      // 머더 버킷(23 S5-6) — isItemInScope가 이미 적용된 자리라 작동점검 종합전용(●) 제외가 분모에도 자동 반영.
+      // 2026-09-03부터 withGroups와 무관하게 **항상** 만든다 — 설치 시트 안의 미설치 중분류(회색·자동 ／)를
+      // 분모에서 빼는 판정에 쓴다. payload(groups)는 종전대로 withGroups에서만 싣는다(트리 8회차 비대화 방지).
+      const buckets = new Map<string, SheetGroupProgress>()
+      // 그룹별 코드·● 무응답(39 S1) — 활성 판정이 그룹 응답 수에 걸려 있어 항목 패스가 끝난 뒤에야
+      // 시트 합계로 접을 수 있다(그래서 시트 단위 즉시 합산이던 종전 구조를 두 단계로 갈랐다)
+      const groupAux = new Map<string, { codes: string[]; compBlank: number }>()
       for (const it of itemsBySheet.get(sheet.id) ?? []) {
         if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
         codes.add(it.item_code)
-        if (it.comprehensive_only && !responses.get(it.item_code)) compBlank++
-        if (buckets) {
-          const ref = sheetItemGroupRef(it)
-          let b = buckets.get(ref.code)
-          if (!b) {
-            b = {
-              groupKey: `${sheet.id}:${ref.code}`, groupCode: ref.code, groupName: ref.name,
-              // 134 미적용 폴백은 order가 없다 — 등장 순서(정렬 후)로 대체
-              groupOrder: ref.order ?? buckets.size + 1,
-              total: 0, responded: 0, x: 0, o: 0, subgroupNames: [],
-            }
-            buckets.set(ref.code, b)
+        const ref = sheetItemGroupRef(it)
+        let b = buckets.get(ref.code)
+        let aux = groupAux.get(ref.code)
+        if (!b || !aux) {
+          b = {
+            groupKey: `${sheet.id}:${ref.code}`, groupCode: ref.code, groupName: ref.name,
+            // 134 미적용 폴백은 order가 없다 — 등장 순서(정렬 후)로 대체
+            groupOrder: ref.order ?? buckets.size + 1,
+            total: 0, responded: 0, x: 0, o: 0, subgroupNames: [],
+            installed: groupInstalledInSheet(sheet.sheet_name, ref.code, facilityCodes),
           }
-          b.total++
-          const r = responses.get(it.item_code)
-          if (r) { b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }   // N 포함 — Q-19('다 봤다' 표현)
-          if (ref.subgroup && !b.subgroupNames.includes(ref.subgroup)) b.subgroupNames.push(ref.subgroup)
+          buckets.set(ref.code, b)
+          aux = { codes: [], compBlank: 0 }
+          groupAux.set(ref.code, aux)
         }
+        b.total++
+        aux.codes.push(it.item_code)
+        const r = responses.get(it.item_code)
+        if (r) { b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }   // N 포함 — Q-19('다 봤다' 표현)
+        if (it.comprehensive_only && !r) aux.compBlank++
+        if (ref.subgroup && !b.subgroupNames.includes(ref.subgroup)) b.subgroupNames.push(ref.subgroup)
       }
       if (codes.size === 0) continue
       // S7-27 — 다중이용 입력 단일화: multiUse 고객은 STD-32(안전시설등 세부)로만 입력하고
@@ -238,26 +249,32 @@ export async function buildSheetOverviews(
       // 레거시로 MU 직접 응답이 이미 있는 건은 보존 — 숨기면 기존 입력이 유령이 된다.
       if (multiUse && sheet.sheet_code === 'MU-01' && ![...codes].some(c => responses.has(c))) continue
 
+      // 활성 그룹만 분모·분자·필수·회차 합계에 넣는다(2026-09-03 — 입력해야 할 것만 활성).
+      // 회색 판정은 **설치 시트 안에서만**(groupActiveInSheet 전제) — 시트째 미설치면 종전 그대로.
       const counts = { O: 0, X: 0, N: 0 }
-      let responded = 0
-      for (const code of codes) {
-        const r = responses.get(code)
-        if (r) { responded++; counts[r]++ }
-        // 회차 합계는 코드 단위 dedup (한 코드가 두 시트에 있어도 1건)
-        if (!seenCodes.has(code)) {
-          seenCodes.add(code)
-          tTotal++
-          if (r) { tResponded++; if (r === 'X') tX++ }
+      let total = 0, responded = 0, compBlank = 0
+      for (const [code, b] of buckets) {
+        if (sheetInstalled && !groupActiveInSheet(b.installed, b.responded)) continue
+        const aux = groupAux.get(code)!
+        total += b.total
+        compBlank += aux.compBlank
+        for (const c of aux.codes) {
+          const r = responses.get(c)
+          if (r) { responded++; counts[r]++ }
+          // 회차 합계는 코드 단위 dedup (한 코드가 두 시트에 있어도 1건)
+          if (!seenCodes.has(c)) {
+            seenCodes.add(c)
+            tTotal++
+            if (r) { tResponded++; if (r === 'X') tX++ }
+          }
         }
       }
 
       progress.push({
         sheetId: sheet.id, sheetCode: sheet.sheet_code, sheetName: sheet.sheet_name,
-        total: codes.size, responded, counts, compBlank,
-        // S7-27 노출 예외 — STD-32는 설비 맵 미등재라 multiUse 판별로 installed 취급(필터·정렬 동일 취급)
-        installed: sheetMatchesFacilities(sheet.sheet_name, facilityCodes)
-          || (sheet.sheet_code === 'STD-32' && multiUse),
-        groups: buckets
+        total, responded, counts, compBlank,
+        installed: sheetInstalled,
+        groups: opts.withGroups
           ? [...buckets.values()].sort((a, b) => (a.groupOrder - b.groupOrder) || a.groupCode.localeCompare(b.groupCode))
           : undefined,
       })
@@ -366,14 +383,30 @@ export async function countInstalledRequiredBlanks(
     const installed = sheetMatchesFacilities(sheet.sheet_name, facilityCodes)
       || (sheet.sheet_code === 'STD-32' && multiUse)
     if (!installed) continue
+    // 중분류 단위 활성 축(2026-09-03) — buildSheetOverviews의 분모와 **같은 판정식**이어야 한다
+    // (:298 주석 그대로 — 갈라지면 화면 카운터는 0인데 완료가 막히는 모순이 생긴다).
+    // 회색 그룹(미설치 중분류·응답 0)의 항목은 필수가 아니다 — 문서는 자동 ／로 눌린다.
     const codes = new Set<string>()
+    const byGroup = new Map<string, { installed: boolean | null; responded: number; blanks: number; compBlanks: number }>()
     for (const it of itemsBySheet.get(sheet.id) ?? []) {
       if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
       codes.add(it.item_code)
-      if (!responded.has(it.item_code)) {
-        required++
-        if (it.comprehensive_only) comp++
+      const ref = sheetItemGroupRef(it)
+      let g = byGroup.get(ref.code)
+      if (!g) {
+        g = { installed: groupInstalledInSheet(sheet.sheet_name, ref.code, facilityCodes), responded: 0, blanks: 0, compBlanks: 0 }
+        byGroup.set(ref.code, g)
       }
+      if (responded.has(it.item_code)) g.responded++
+      else {
+        g.blanks++
+        if (it.comprehensive_only) g.compBlanks++
+      }
+    }
+    for (const g of byGroup.values()) {
+      if (!groupActiveInSheet(g.installed, g.responded)) continue
+      required += g.blanks
+      comp += g.compBlanks
     }
   }
   return { required, comp }

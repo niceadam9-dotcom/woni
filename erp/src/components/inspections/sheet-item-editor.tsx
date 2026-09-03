@@ -25,6 +25,9 @@ export type SheetItem = {
   subgroup_name?: string | null
   /** 작동 회차의 종합 전용(●) — 표시만, 입력 불가·문서엔 ／ 자동 (2026-09-02 사용자 확정) */
   outOfScope?: boolean
+  /** 설치 시트 안의 미설치 중분류(응답 0) — 회색·입력 불가, 문서엔 ／ 자동 (2026-09-03 사용자 확정).
+   *  1.4 시설설비 대장에서 그 설비를 체크하면 다음 로드부터 입력이 열린다 */
+  notInstalled?: boolean
 }
 
 /** 고를 수 있는 값은 **○·✕ 둘뿐**이다 (2026-08-13 확정 유지 — 개별 ／ 버튼 없음, 23 Q-19).
@@ -64,6 +67,21 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
           <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
           <span className="text-form-sm text-ink-sub flex-1 min-w-0">● {it.item_name}</span>
           <span className="text-form-sm text-ink-meta shrink-0 select-none" data-oos-mark>／ 자동</span>
+        </div>
+      </div>
+    )
+  }
+  // 미설치 중분류(2026-09-03, 비활성 = 회색) — 1.4 대장 미체크 설비의 항목은 문서에 ／로 자동
+  // 인쇄되므로(rollUpForm3Results '대장이 정본') 화면도 같은 사실을 회색+／로 보인다. 저장은 없다 —
+  // ／를 저장해 두면 나중에 대장 체크 시 '응답 있음'으로 살아나 필수 강제를 통과시킨다(39).
+  if (it.notInstalled) {
+    return (
+      <div className="border-b border-paper">
+        <div className="flex items-center gap-2 py-1.5 opacity-45"
+          title="1.4 시설설비 대장에 설치로 등록되지 않은 설비 — 해당없음(／)으로 자동 인쇄됩니다. 실제로 설치돼 있다면 고객 상세 › 소방계획서 탭 › 1.4 소방시설에서 체크하면 입력이 열립니다">
+          <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
+          <span className="text-form-sm text-ink-meta flex-1 min-w-0">{it.item_name}</span>
+          <span className="text-form-sm text-ink-meta shrink-0 select-none" data-ni-mark>／ 자동</span>
         </div>
       </div>
     )
@@ -220,18 +238,29 @@ export function SheetItemEditor({
     //      글자가 배율을 따르기 시작하면 고정 22px 자체가 틀린다(소방계획서_38 S5-3).
     //      test-font-scale S-1이 '같은 변수를 읽는가'를 정적으로 대조한다 — 한쪽만 바꾸지 말 것. ──
     <div ref={scrollBoxRef} className={`${maxHeight} overflow-y-auto pr-1`}>
-      {buildSheetOutline(items).map(g => (
+      {buildSheetOutline(items).map(g => {
+        // 미설치 중분류(2026-09-03) — 일괄 버튼은 활성 항목만 겨눈다(자동 ／는 저장하지 않는다).
+        // 그룹 전체가 회색이면 버튼 대신 [／ 자동] 칩 — 눌러도 할 일이 없는 버튼을 남기지 않는다
+        const activeCodes = g.items.filter(i => !i.notInstalled).map(i => i.item_code)
+        const allInactive = activeCodes.length === 0 && g.items.length > 0
+        return (
         <div key={g.code} data-outline-group={g.code}>
-          <div className="sticky top-0 z-[2] h-sheet-hdr flex items-center gap-1.5 bg-brand-tint rounded px-1.5">
+          <div className={`sticky top-0 z-[2] h-sheet-hdr flex items-center gap-1.5 bg-brand-tint rounded px-1.5 ${allInactive ? 'opacity-45' : ''}`}>
             <span className="text-form-xs font-bold text-brand shrink-0">[{g.code}]</span>
             {g.name !== g.code && <span className="text-form-xs font-semibold text-ink-sub truncate flex-1 min-w-0">{g.name}</span>}
+            {allInactive && (
+              <span className="ml-auto text-form-2xs text-ink-meta shrink-0 select-none" data-group-ni={g.code}
+                title="1.4 시설설비 대장 미체크 설비 — 문서에는 ／로 자동 인쇄됩니다. 설치돼 있다면 1.4에서 체크하면 입력이 열립니다">
+                대장 미체크 — ／ 자동
+              </span>
+            )}
             {/* Q-17 — 일괄 대상은 이 중분류뿐임을 라벨에 명시. 시트 전체 일괄은 드로어 헤더 [／ 전체]가 담당 */}
-            {canEdit && (
+            {canEdit && !allInactive && (
               <span className="ml-auto flex items-center gap-1">
-                <button onClick={() => bulkO(g.items.map(i => i.item_code))} data-bulk-o={g.code}
+                <button onClick={() => bulkO(activeCodes)} data-bulk-o={g.code}
                   title="이 중분류의 미입력 항목만 ○로 채움 — 입력된 값은 보존(재클릭 시 ○만 해제)"
                   className={bulkBtnCls} disabled={busy}>○ 모두 · {g.code}</button>
-                <button onClick={() => bulkNA(g.items.map(i => i.item_code))} data-bulk-na={g.code}
+                <button onClick={() => bulkNA(activeCodes)} data-bulk-na={g.code}
                   title="이 중분류의 미입력 항목만 ／(해당없음)로 채움 — 입력된 값은 보존(재클릭 시 ／만 해제)"
                   className={bulkBtnCls} disabled={busy}>／ 모두 · {g.code}</button>
               </span>
@@ -246,7 +275,7 @@ export function SheetItemEditor({
                   {/* Q-19 T-2 — 대괄호 그룹 단위 ／. 1-B 하나가 별지4호 1쪽 체크박스 4개로 쪼개져
                       중분류 단위만으로는 '주거용만 설치'를 표현할 수 없다 */}
                   {canEdit && (
-                    <button onClick={() => bulkNA(run.items.map(i => i.item_code))} data-bulk-na-sub={run.subgroup}
+                    <button onClick={() => bulkNA(run.items.filter(i => !i.notInstalled).map(i => i.item_code))} data-bulk-na-sub={run.subgroup}
                       title="이 소제목 그룹의 미입력 항목만 ／(해당없음)로 채움 — 재클릭 시 ／만 해제"
                       className={`${bulkBtnCls} ml-auto`} disabled={busy}>／ 이 그룹</button>
                   )}
@@ -258,7 +287,8 @@ export function SheetItemEditor({
             </div>
           ))}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 

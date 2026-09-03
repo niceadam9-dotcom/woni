@@ -180,6 +180,51 @@ try {
     await raw.from('inspection_sheet_responses').delete().eq('inspection_id', inspId).eq('item_code', 'MU-001')
     await raw.from('fire_plan_forms').delete().eq('customer_id', custId)
   }
+
+  // 12) 중분류 회색 축(2026-09-03, image-55 강순건물 재현) — 유도등만 설치하면 STD-21은 시트로는
+  //     설치 매칭이지만 21-B(유도표지)·21-C(피난유도선)는 미설치 중분류다: 분모에서 빠지고
+  //     buckets에는 installed=false로 실린다(회색·자동 ／). 응답이 생기면 분모로 복귀한다(유령 방지).
+  {
+    await raw.from('fire_facilities').insert([
+      { building_id: bld!.id, facility_code: '유도등', category: '피난구조설비', installed: true },
+    ])
+    const { data: s21 } = await raw.from('inspection_sheets')
+      .select('id').eq('version', 'v2025').eq('sheet_code', 'STD-21').single()
+    const { data: s21raw } = await raw.from('inspection_sheet_items')
+      .select('item_code, comprehensive_only, group_code').eq('sheet_id', s21!.id)
+    const rows21 = (s21raw ?? []) as Array<{ item_code: string; comprehensive_only: boolean; group_code: string | null }>
+    // 독립 재계산 — 작동 범위(● 제외)를 중분류 코드로 가른다(134 미적용 폴백은 item_code 접두)
+    const codeOf = (r: { item_code: string; group_code: string | null }) => r.group_code ?? r.item_code.replace(/-\d+$/, '')
+    const opRows = rows21.filter(r => !r.comprehensive_only)
+    const aCodes = [...new Set(opRows.filter(r => codeOf(r) === '21-A').map(r => r.item_code))]
+    const bCodes = [...new Set(opRows.filter(r => codeOf(r) === '21-B').map(r => r.item_code))]
+    const restCount = [...new Set(opRows.filter(r => codeOf(r) !== '21-A').map(r => r.item_code))].length
+    check('회색 셋업: 21-A·형제 중분류 항목 존재', aCodes.length > 0 && restCount > 0, `A=${aCodes.length} rest=${restCount}`)
+
+    const { overviews: ovU } = await buildSheetOverviews(raw as never, [inspId], { id: userId, role: 'admin' }, { withGroups: true })
+    const pu = ovU[inspId].sheets.find(s => s.sheetCode === 'STD-21')
+    check('회색 — STD-21 installed=true(유도등 매칭)', pu?.installed === true)
+    check('회색 — 분모 = 21-A만(미설치 형제 제외)', pu?.total === aCodes.length,
+      `engine=${pu?.total} expect=${aCodes.length} (시트 전개면 ${aCodes.length + restCount})`)
+    const gA = pu?.groups?.find(g => g.groupCode === '21-A')
+    const gB = pu?.groups?.find(g => g.groupCode === '21-B')
+    check('회색 — 21-A 버킷 installed=true', gA?.installed === true, JSON.stringify(gA && { i: gA.installed }))
+    check('회색 — 형제 버킷은 남되 installed=false(카드가 사라지면 안 된다)',
+      gB?.installed === false && (gB?.total ?? 0) > 0, JSON.stringify(gB && { i: gB.installed, t: gB.total }))
+
+    // 응답 있는 미설치 중분류는 활성 복귀 — 잠그면 수정 불가한 유령 입력이 된다
+    if (bCodes.length > 0) {
+      await raw.from('inspection_sheet_responses').insert({
+        inspection_id: inspId, item_code: bCodes[0], result: 'N', updated_by: userId,
+      })
+      const { overviews: ovU2 } = await buildSheetOverviews(raw as never, [inspId], { id: userId, role: 'admin' }, { withGroups: true })
+      const pu2 = ovU2[inspId].sheets.find(s => s.sheetCode === 'STD-21')
+      check('회색 — 응답 있는 미설치 중분류는 분모 복귀', pu2?.total === aCodes.length + bCodes.length,
+        `engine=${pu2?.total} expect=${aCodes.length + bCodes.length}`)
+      await raw.from('inspection_sheet_responses').delete().eq('inspection_id', inspId).eq('item_code', bCodes[0])
+    }
+    await raw.from('fire_facilities').delete().eq('building_id', bld!.id)
+  }
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

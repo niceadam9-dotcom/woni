@@ -3,13 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
-import { sheetScope, isItemInScope, sheetItemGroup } from '@/lib/sheet-scope'
+import { sheetMatchesFacilities, groupInstalledInSheet, groupActiveInSheet } from '@/lib/sheet-facility-map'
+import { sheetScope, isItemInScope, sheetItemGroup, sheetItemGroupRef, type SheetScope } from '@/lib/sheet-scope'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { syncStepsAndRevalidate } from './step-revalidate'
 import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
-import { getAllSheetItems, getSheetItems, getSheets } from '@/lib/sheet-catalog'
+import { getAllSheetItems, getSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import type { UserRole } from '@/types'
 
 /** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
@@ -27,6 +27,54 @@ async function loadScope(admin: ReturnType<typeof createAdminClient>, inspection
     assignedEmployeeId: row.assigned_employee_id,
     scope: sheetScope(row.plan_type, row.customer?.inspection_type ?? null),
   }
+}
+
+/** 이 고객의 설치 설비 코드(fire_facilities, installed=true) — 중분류 회색 축(2026-09-03) 판정 재료.
+ *  bulkAllGoodAction이 인라인으로 갖고 있던 조회를 한 곳으로 — 판정이 늘면서 호출부가 4곳이 됐다. */
+async function loadFacilityCodes(admin: ReturnType<typeof createAdminClient>, customerId: string): Promise<string[]> {
+  const { data: blds } = await admin.from('buildings').select('id')
+    .eq('customer_id', customerId).eq('is_active', true)
+  const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
+  const { data: facs } = bldIds.length > 0
+    ? await admin.from('fire_facilities').select('facility_code').in('building_id', bldIds).eq('installed', true)
+    : { data: [] }
+  return ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
+}
+
+/** 설치 시트 안에서 회색(미설치 중분류 · 응답 0)에 속하는 **항목 코드** 집합 (2026-09-03).
+ *
+ *  입력 화면 회색·분모 제외(sheet-overview buildSheetOverviews)와 같은 판정식이다 — 여기서 갈라지면
+ *  화면은 회색인데 일괄 버튼이 그 칸에 ／를 저장하는 모순이 생긴다. 자동 ／는 표시만 하고 저장하지
+ *  않는다(groupActiveInSheet 주석 — 저장해 두면 1.4 체크 시 '응답 있음'으로 살아나 39 필수를 통과시킨다).
+ *  시트째 미설치면 빈 집합(종전 동작) — 중분류 축은 설치 시트 안에서만 좁힌다. */
+function inactiveItemCodes(
+  sheetName: string,
+  catalog: SheetCatalogItem[],
+  scope: SheetScope,
+  facilityCodes: string[],
+  respondedCodes: Set<string>,
+): Set<string> {
+  const out = new Set<string>()
+  if (!sheetName || !sheetMatchesFacilities(sheetName, facilityCodes)) return out
+  const seen = new Set<string>()
+  const byGroup = new Map<string, { installed: boolean | null; responded: number; codes: string[] }>()
+  for (const it of catalog) {
+    if (!isItemInScope(it, scope) || seen.has(it.item_code)) continue
+    seen.add(it.item_code)
+    const ref = sheetItemGroupRef(it)
+    let g = byGroup.get(ref.code)
+    if (!g) {
+      g = { installed: groupInstalledInSheet(sheetName, ref.code, facilityCodes), responded: 0, codes: [] }
+      byGroup.set(ref.code, g)
+    }
+    g.codes.push(it.item_code)
+    if (respondedCodes.has(it.item_code)) g.responded++
+  }
+  for (const g of byGroup.values()) {
+    if (groupActiveInSheet(g.installed, g.responded)) continue
+    for (const c of g.codes) out.add(c)
+  }
+  return out
 }
 
 /** S9-1(2026-08-21) — 첫 점검표 입력이 규약을 확정한다. 규약 미상(NULL, 149 도입 전 생성) 회차에
@@ -73,6 +121,9 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
     group_code?: string | null; group_name?: string | null; subgroup_name?: string | null
     /** 작동 회차의 종합 전용(●) — 표시만 하고 입력·집계에서 제외, 문서엔 ／ 자동 (2026-09-02) */
     outOfScope?: boolean
+    /** 설치 시트 안의 미설치 중분류(응답 0) — 회색 표시·입력 불가, 문서엔 ／ 자동 (2026-09-03).
+     *  1.4 대장에서 그 설비를 체크하면 다음 로드부터 열린다 */
+    notInstalled?: boolean
   }>
   responses?: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>
   canEdit?: boolean
@@ -81,34 +132,44 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
   if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
   const admin = createAdminClient()
 
-  const [insp, catalog] = await Promise.all([
+  const [insp, catalog, allSheets] = await Promise.all([
     loadScope(admin, inspectionId),
     getSheetItems(sheetId),
+    getSheets(),
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
+  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
+  // 회색 축(2026-09-03)의 그룹 응답 판정은 **월 무관**이다 — sheet-overview의 responded 축과 동일
+  const respondedAny = new Set<string>()
+  if (catalog.length > 0) {
+    const { data: respRaw } = await admin.from('inspection_sheet_responses')
+      .select('item_code, result, memo, month')
+      .eq('inspection_id', inspectionId).in('item_code', catalog.map(i => i.item_code))
+    for (const r of (respRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null; month: number | null }>) {
+      respondedAny.add(r.item_code)
+      // 외관(X…)만 월 축 — 저장 규칙(saveSheetResponsesAction)과 같은 판정이어야 다른 달 값이 새지 않는다
+      const want = r.item_code.startsWith('X') ? month : 0
+      if ((r.month ?? 0) === want) responses[r.item_code] = { result: r.result, memo: r.memo }
+    }
+  }
+
+  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  const sheetName = allSheets.find(s => s.id === sheetId)?.sheet_name ?? ''
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, respondedAny)
+
   // 범위 밖(작동 회차의 종합 전용 ●) 항목도 **보이되 입력 불가**로 싣는다 (2026-09-02 사용자 확정
   // — "ERP 화면에서도 반영"). 문서에는 ／로 자동 인쇄되므로 화면도 같은 사실을 보여야 한다.
-  // 입력·집계 축은 outOfScope=false만 쓴다(호출부 분모·／일괄·저장 가드가 같은 축).
+  // 입력·집계 축은 outOfScope·notInstalled 아닌 항목만 쓴다(호출부 분모·／일괄·저장 가드가 같은 축).
   const items = catalog
     .map(i => ({
       item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
       group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
       group_code: i.group_code, group_name: i.group_name, subgroup_name: i.subgroup_name,
       outOfScope: !isItemInScope(i, insp.scope),
+      notInstalled: inactive.has(i.item_code) || undefined,
     }))
 
-  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
-  if (items.length > 0) {
-    const { data: respRaw } = await admin.from('inspection_sheet_responses')
-      .select('item_code, result, memo, month')
-      .eq('inspection_id', inspectionId).in('item_code', items.map(i => i.item_code))
-    for (const r of (respRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null; month: number | null }>) {
-      // 외관(X…)만 월 축 — 저장 규칙(saveSheetResponsesAction)과 같은 판정이어야 다른 달 값이 새지 않는다
-      const want = r.item_code.startsWith('X') ? month : 0
-      if ((r.month ?? 0) === want) responses[r.item_code] = { result: r.result, memo: r.memo }
-    }
-  }
   const canEdit = canEditInspection(insp.assignedEmployeeId, { id: profile.id, role: profile.role as UserRole })
   return { items, responses, canEdit }
 }
@@ -168,10 +229,15 @@ export async function bulkSheetNAAction(
   // apply — 이미 응답이 있는 항목(그 달 축)은 건드리지 않는다 (bulkAllGoodAction과 동일 판정)
   const { data: resp } = await admin.from('inspection_sheet_responses')
     .select('item_code, month').eq('inspection_id', inspectionId).in('item_code', codes)
-  const have = new Set(((resp ?? []) as Array<{ item_code: string; month: number | null }>)
-    .map(r => `${r.item_code}@${r.month ?? 0}`))
+  const respRows = (resp ?? []) as Array<{ item_code: string; month: number | null }>
+  const have = new Set(respRows.map(r => `${r.item_code}@${r.month ?? 0}`))
+  // 회색(미설치 중분류·응답 0) 항목은 대상 밖(2026-09-03) — 자동 ／는 표시만, 저장하지 않는다
+  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  const sheetName = (await getSheets()).find(s => s.id === sheetId)?.sheet_name ?? ''
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes,
+    new Set(respRows.map(r => r.item_code)))
   const payload = codes
-    .filter(c => !have.has(`${c}@${monthOf(c)}`))
+    .filter(c => !have.has(`${c}@${monthOf(c)}`) && !inactive.has(c))
     .map(c => ({
       inspection_id: inspectionId, item_code: c, result: 'N', month: monthOf(c),
       updated_by: profile.id, updated_at: new Date().toISOString(),
@@ -214,10 +280,15 @@ export async function bulkSheetGoodAction(
 
   const { data: resp } = await admin.from('inspection_sheet_responses')
     .select('item_code, month').eq('inspection_id', inspectionId).in('item_code', codes)
-  const have = new Set(((resp ?? []) as Array<{ item_code: string; month: number | null }>)
-    .map(r => `${r.item_code}@${r.month ?? 0}`))
+  const respRows = (resp ?? []) as Array<{ item_code: string; month: number | null }>
+  const have = new Set(respRows.map(r => `${r.item_code}@${r.month ?? 0}`))
+  // 회색(미설치 중분류·응답 0) 항목은 대상 밖(2026-09-03) — bulkSheetNAAction apply와 같은 축
+  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  const sheetName = (await getSheets()).find(s => s.id === sheetId)?.sheet_name ?? ''
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes,
+    new Set(respRows.map(r => r.item_code)))
   const payload = codes
-    .filter(c => !have.has(`${c}@${monthOf(c)}`))
+    .filter(c => !have.has(`${c}@${monthOf(c)}`) && !inactive.has(c))
     .map(c => ({
       inspection_id: inspectionId, item_code: c, result: 'O', month: monthOf(c),
       updated_by: profile.id, updated_at: new Date().toISOString(),
@@ -237,18 +308,37 @@ export async function bulkSheetGoodAction(
  *  loadSheetItemsAction과 달리 이 점검 건의 범위(작동=종합전용 제외)를 서버에서 적용해 내려준다. */
 export async function loadSheetEditorAction(inspectionId: string, sheetId: string): Promise<{
   error?: string
-  items?: Array<{ item_code: string; item_name: string; comprehensive_only: boolean; group: string }>
+  items?: Array<{
+    item_code: string; item_name: string; comprehensive_only: boolean; group: string
+    /** 설치 시트 안의 미설치 중분류(응답 0) — 회색·입력 불가, 문서엔 ／ 자동 (2026-09-03) */
+    notInstalled?: boolean
+  }>
   responses?: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>
   canEdit?: boolean
 }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
 
-  const [insp, catalog] = await Promise.all([
+  const [insp, catalog, allSheets] = await Promise.all([
     loadScope(admin, inspectionId),
     getSheetItems(sheetId),
+    getSheets(),
   ])
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
+
+  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
+  if (catalog.length > 0) {
+    const { data: respRaw } = await admin.from('inspection_sheet_responses')
+      .select('item_code, result, memo').eq('inspection_id', inspectionId).in('item_code', catalog.map(i => i.item_code))
+    for (const r of (respRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>) {
+      responses[r.item_code] = { result: r.result, memo: r.memo }
+    }
+  }
+
+  // 회색 축(2026-09-03) — 전용 페이지·드로어(loadSheetSnapshotAction)와 같은 판정을 트리에도
+  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  const sheetName = allSheets.find(s => s.id === sheetId)?.sheet_name ?? ''
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, new Set(Object.keys(responses)))
 
   // group_name(134)이 있으면 헤더가 '2-H' → '2-H. 제어반'으로 자동 개선된다(23 Q-9 — 트리는 배선 무변경)
   const items = catalog
@@ -256,16 +346,9 @@ export async function loadSheetEditorAction(inspectionId: string, sheetId: strin
     .map(i => ({
       item_code: i.item_code, item_name: i.item_name, comprehensive_only: i.comprehensive_only,
       group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
+      notInstalled: inactive.has(i.item_code) || undefined,
     }))
 
-  const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
-  if (items.length > 0) {
-    const { data: respRaw } = await admin.from('inspection_sheet_responses')
-      .select('item_code, result, memo').eq('inspection_id', inspectionId).in('item_code', items.map(i => i.item_code))
-    for (const r of (respRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>) {
-      responses[r.item_code] = { result: r.result, memo: r.memo }
-    }
-  }
   const canEdit = canEditInspection(insp.assignedEmployeeId, { id: profile.id, role: profile.role as UserRole })
   return { items, responses, canEdit }
 }
@@ -391,13 +474,7 @@ export async function bulkAllGoodAction(inspectionId: string, month = 0): Promis
   const { scope } = insp
 
   // 설치 시설 코드 → 시트 매칭 (명시 매핑 — sheet-facility-map.ts, 실전 검증에서 퍼지 매칭 결함 확인)
-  const { data: blds } = await admin.from('buildings').select('id')
-    .eq('customer_id', insp.customerId).eq('is_active', true)
-  const bldIds = ((blds ?? []) as Array<{ id: string }>).map(b => b.id)
-  const { data: facs } = bldIds.length > 0
-    ? await admin.from('fire_facilities').select('facility_code').in('building_id', bldIds).eq('installed', true)
-    : { data: [] }
-  const codes = ((facs ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
+  const codes = await loadFacilityCodes(admin, insp.customerId)
   if (codes.length === 0) return { error: '설치 시설 정보가 없습니다 — 소방계획서 탭 > 1.4 소방시설에서 설치 시설을 먼저 등록해주세요.' }
 
   const sheets = (await getSheets(scope.version))
@@ -417,8 +494,25 @@ export async function bulkAllGoodAction(inspectionId: string, month = 0): Promis
   const monthOf = (code: string) => (code.startsWith('X') ? month : 0)
   const have = new Set(respRows.map(r => `${r.item_code}@${r.month}`))
   const filled = (code: string) => have.has(`${code}@${monthOf(code)}`)
+  // 회색(미설치 중분류·응답 0) 항목은 ○ 일괄 대상 밖(2026-09-03) — 설치 형제만 채운다.
+  // 종전엔 유도등만 설치해도 유도표지·피난유도선까지 ○가 찍혔다(인쇄는 ／로 눌리지만
+  // respondedNotInstalled 경고가 뜨고, 화면 회색 축과도 어긋난다).
+  const respondedAny = new Set(respRows.map(r => r.item_code))
+  const itemsBySheetId = new Map<string, SheetCatalogItem[]>()
+  for (const it of items) {
+    const arr = itemsBySheetId.get(it.sheet_id)
+    if (arr) arr.push(it)
+    else itemsBySheetId.set(it.sheet_id, [it])
+  }
+  const inactive = new Set<string>()
+  for (const s of sheets) {
+    for (const c of inactiveItemCodes(s.sheet_name, itemsBySheetId.get(s.id) ?? [], scope, codes, respondedAny)) {
+      inactive.add(c)
+    }
+  }
   const seen = new Set<string>() // 시드 중복 방어 — 같은 코드 2행이면 1건만
-  const payload = items.filter(i => !filled(i.item_code) && !seen.has(i.item_code) && (seen.add(i.item_code), true)).map(i => ({
+  const payload = items.filter(i => !filled(i.item_code) && !inactive.has(i.item_code)
+    && !seen.has(i.item_code) && (seen.add(i.item_code), true)).map(i => ({
     inspection_id: inspectionId, item_code: i.item_code, result: 'O',
     month: monthOf(i.item_code),
     updated_by: profile.id, updated_at: new Date().toISOString(),

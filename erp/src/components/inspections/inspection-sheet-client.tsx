@@ -223,8 +223,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     return it.group_code ?? (/^[A-Z]/.test(it.item_code) ? (it.group ?? '') : it.item_code.replace(/-\d+$/, ''))
   }
 
-  // 입력·집계 축 = 범위 안 항목만 (작동 회차의 종합 전용 ●는 표시 전용 — 2026-09-02)
-  const inputItems = useMemo(() => items.filter(i => !i.outOfScope), [items])
+  // 입력·집계 축 = 범위 안 + 활성 항목만 (작동 회차의 종합 전용 ●는 표시 전용 — 2026-09-02,
+  // 미설치 중분류 회색은 2026-09-03 — 둘 다 문서엔 ／ 자동이라 분모에서 빠진다)
+  const inputItems = useMemo(() => items.filter(i => !i.outOfScope && !i.notInstalled), [items])
 
   // ── 파생 — 드로어 목차 엔트리·시트 카운트 (로컬 값 기준 = 라이브) ──
   const groupEntries: TocEntry[] = useMemo(() => {
@@ -261,18 +262,24 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       const buckets = new Map<string, SheetGroupProgress>()
       const counts = { O: 0, X: 0, N: 0 }
       let responded = 0, compBlank = 0
-      for (const it of inputItems) {
+      // 버킷은 회색(미설치 중분류) 항목까지 그린다 — 시트를 여는 동안 보드에서 카드가 사라지면 안 된다.
+      // 분모·분자는 활성 항목만(inputItems 축) — 서버 집계(sheet-overview)와 같은 판정이다.
+      for (const it of items) {
+        if (it.outOfScope) continue
         const code = groupCodeOf(it)
         let b = buckets.get(code)
         if (!b) {
           b = {
             groupKey: `${p.sheetId}:${code}`, groupCode: code, groupName: it.group_name ?? code,
             groupOrder: buckets.size + 1, total: 0, responded: 0, x: 0, o: 0, subgroupNames: [],
+            // 회색 판정은 항목 플래그에서 복원 — 서버가 그룹 단위로 찍어 내려온 값이라 그룹 안에서 균일하다
+            installed: it.notInstalled ? false : null,
           }
           buckets.set(code, b)
         }
         b.total++
         if (it.subgroup_name && !b.subgroupNames.includes(it.subgroup_name)) b.subgroupNames.push(it.subgroup_name)
+        if (it.notInstalled) continue   // 회색 — 시트 분모·분자·필수에서 제외(자동 ／ 표시 전용)
         const r = local[it.item_code]
         if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }
         else if (it.comprehensive_only) compBlank++

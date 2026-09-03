@@ -237,6 +237,34 @@ export function form3ItemMatchesFacility(form3Item: string, facilityCode: string
   return norm(form3Item) === norm(facilityCode)
 }
 
+/** 중분류(머더) 단위 설치 판정 (2026-09-03 사용자 결정 — 입력 화면 회색 축).
+ *
+ *  SHEET_GROUP_FORM3_MAP에 등재된 6시트만 가른다 — 인쇄 롤업(rollUpForm3Results)이 응답을
+ *  중분류로 귀속하는 그 맵을 그대로 쓰므로, 화면의 활성/회색과 문서의 ○×／가 같은 원천에서 갈린다.
+ *  반환 null = 이 축이 없다(미등재 시트·중분류 — STD-15·EXT 포함) → 호출부는 시트 단위 판정 유지.
+ *  모르면 활성이다 — 좁히는 건 실측으로 확인된 자리에서만(form3ItemsForSheetGroup과 같은 규약). */
+export function groupInstalledInSheet(
+  sheetName: string, groupCode: string | null, facilityCodes: string[],
+): boolean | null {
+  if (!groupCode) return null
+  const target = GROUP_BY_NORM.get(norm(sheetName))?.[groupCode]
+  if (!target) return null
+  const t = norm(target)
+  return facilityCodes.some(c => norm(c) === t)
+}
+
+/** 중분류가 입력 대상(활성)인가 — 회색 처리·분모 제외·필수 면제·일괄 제외가 전부 이 판정 하나다.
+ *  ⚠ 호출부 공통 전제: **설치 매칭된 시트 안에서만** 묻는다. 시트 자체가 미설치면 종전 시트 축이
+ *  이미 다루는 상태라(전체 보기에서 입력 가능·문서는 ／) 중분류 축을 겹치지 않는다.
+ *
+ *  미설치(false)여도 응답이 이미 있으면 활성 — 잠그면 수정 불가한 유령 입력이 된다
+ *  (sheetShownWhenInstalledOnly의 '입력 있는 시트는 절대 숨기지 않는다'와 같은 원칙의 중분류판).
+ *  자동 ／는 **표시만** 한다(저장 금지) — ／를 저장해 두면 나중에 1.4에 체크했을 때 그 ／가
+ *  '응답 있음'으로 살아나 39 필수 강제를 통과시킨다(설치 설비가 통째로 해당없음으로 인쇄되는 사고 경로). */
+export function groupActiveInSheet(installed: boolean | null, responded: number): boolean {
+  return installed !== false || responded > 0
+}
+
 /** 시트별 점검 응답 통계 — 시트명 → 그 시트에 무엇이 들어왔는가.
  *
  *  ⚠ `o`는 선택 필드가 아니다(소방계획서_26 S1). 종전 `{any, x}` 두 축으로는 '응답은 있는데 전부 ／'를

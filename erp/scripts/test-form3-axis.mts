@@ -13,6 +13,7 @@
  *  대신 그 어휘가 표준 42종에 실재하는지를 마지막에 대조해, 오타로 검사가 헛도는 걸 막는다. */
 import {
   rollUpForm3Results, foldSheetResult, foldSheetGroupStats, sheetGroupMapErrors, distributeSubMarks,
+  groupInstalledInSheet, groupActiveInSheet,
   SHEET_FACILITY_MAP, SHEET_GROUP_FORM3_MAP, type SheetGroupStat,
 } from '../src/lib/sheet-facility-map.ts'
 import { ALL_STANDARD_CODES, SUB_ROW_PARENT_ITEMS } from '../src/lib/facility-codes.ts'
@@ -270,6 +271,37 @@ console.log('\n── 9) 부모 결과칸은 항상 공란 — 소화기구·피
     SUB_ROW_PARENT_ITEMS.length === 2
     && SUB_ROW_PARENT_ITEMS.every(p => ALL_STANDARD_CODES.includes(p)),
     JSON.stringify(SUB_ROW_PARENT_ITEMS))
+}
+
+console.log('\n── 10) 중분류 활성 축(2026-09-03, image-55) — 입력 화면 회색과 인쇄 ／가 같은 원천인가')
+{
+  // 유도등만 설치(강순건물) — 21-A만 설치, 21-B·21-C는 미설치 중분류
+  check('유도등만 설치 → 21-A true', groupInstalledInSheet('유도등 및 유도표지', '21-A', ['유도등']) === true)
+  check('유도등만 설치 → 21-B false', groupInstalledInSheet('유도등 및 유도표지', '21-B', ['유도등']) === false)
+  check('유도등만 설치 → 21-C false', groupInstalledInSheet('유도등 및 유도표지', '21-C', ['유도등']) === false)
+  // 등재 밖은 null — 모르면 활성(시트 단위 유지). STD-15는 중분류가 구성요소축이라 일부러 뺐다
+  check('미등재 시트 → null', groupInstalledInSheet('자동화재탐지설비 및 시각경보장치', '15-A', [자탐]) === null)
+  check('미등재 중분류 → null', groupInstalledInSheet('유도등 및 유도표지', '21-Z', ['유도등']) === null)
+  check('group 미상 → null', groupInstalledInSheet('유도등 및 유도표지', null, ['유도등']) === null)
+  // 20-A~D는 전부 피난기구 — 인명구조기구만 설치해도 20-A는 미설치다
+  check('인명구조기구만 → 20-A false·20-E true',
+    groupInstalledInSheet('피난기구 및 인명구조기구', '20-A', ['인명구조기구']) === false
+    && groupInstalledInSheet('피난기구 및 인명구조기구', '20-E', ['인명구조기구']) === true)
+
+  // 활성 규칙 — false여도 응답이 있으면 활성(유령 입력 방지), null은 항상 활성
+  check('활성: false·응답0 → 비활성(회색)', groupActiveInSheet(false, 0) === false)
+  check('활성: false·응답1 → 활성(유령 방지)', groupActiveInSheet(false, 1) === true)
+  check('활성: null → 활성(모르면 종전대로)', groupActiveInSheet(null, 0) === true)
+  check('활성: true → 활성', groupActiveInSheet(true, 0) === true)
+
+  // 인쇄와의 정합 — 회색(비활성) 중분류는 rollUpForm3Results에서도 ／다(같은 대장 축).
+  // 화면이 회색으로 보인 칸에 문서가 ○를 찍으면 이 축 전체가 거짓말이 된다.
+  const r = rollUpForm3Results(
+    [S('유도등 및 유도표지', ok1, '21-A')],
+    [...ITEMS, '유도등', '유도표지', '피난유도선'], ['유도등'])
+  check('정합: 활성 21-A ○ · 회색 21-B/C ／',
+    r.resultMarks['유도등'] === 'O' && r.resultMarks['유도표지'] === 'N' && r.resultMarks['피난유도선'] === 'N',
+    JSON.stringify({ a: r.resultMarks['유도등'], b: r.resultMarks['유도표지'], c: r.resultMarks['피난유도선'] }))
 }
 
 console.log('\n── 6) 어휘 실재 확인 — 오타로 검사가 헛돌지 않게')
