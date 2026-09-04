@@ -1,0 +1,135 @@
+{
+  "doc": "소방계획서_40",
+  "title": "소방시설(1.4) ↔ 점검표 양방향 왕래 통합",
+  "created": "2026-09-03",
+  "source_md": "erp_goal/소방계획서_40.md",
+  "principle": "새 입력 로직을 만들지 않는다 — 기존 PlanForm14 컴포넌트·saveFacilitiesAction을 /inspections/[id]/facilities에서 재서빙하고 ?from= 딥링크로 왕래를 잇는다 (md §2, 방향 C 채택·A 보류·B 기각)",
+  "related": [
+    { "doc": "소방계획서_28", "why": "점검표 입력구 단일화 원칙 — 40은 점검표 표면을 늘리지 않고 설비(1.4) 입력의 진입 URL만 추가" },
+    { "doc": "소방계획서_39", "why": "설치 시트 필수 입력 강제 — '1.4 대장 체크 해제' 유도 동선이 40의 직행 링크로 짧아진다(소비만)" },
+    { "doc": "소방계획서_26 / project_form3_axis", "why": "sheet-facility-map 설치 축·미설치 ／ 인쇄·respondedNotInstalled 산출 — 40은 소비만, 롤업·인쇄 규칙 무변경" },
+    { "doc": "facilities-actions.ts K-5 주석", "why": "1.4 last-write-wins(delete→insert 비트랜잭션) — 40은 수리하지 않음, 근본 수리(RPC 트랜잭션)는 별도 과제" }
+  ],
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "confirmed": "결정 확정 — 코드 변경이 필요 없다는 판단(미완이 아니다)",
+    "implemented": "독립 검증 통과 + verified 증거 동반"
+  },
+  "verification": {
+    "date": "2026-09-04",
+    "commit": "940a840",
+    "method": "구현자 ≠ 판정자(Json_Rule 규칙 3) — 구현은 선행 세션, 판정은 이번 세션의 독립 검증 3인(축 분할: S1·S2 / S3·S4 / S5·S6) + 신규 E2E 실측",
+    "suites": [
+      "test-facility-roundtrip 36/0 (신규, 2회 연속 동일 — 플레이크 아님)",
+      "tsc --noEmit 0 (rc=0·0줄)",
+      "회귀 test-sheet-entry-page 28/0 · test-plan-tab 102/0 · test-sheet-group-gray 13/0"
+    ],
+    "note": "코드 존재(grep)만으로는 S4-2(왕복 후 설치 축 갱신)를 증명할 수 없어 E2E를 승격의 선행 조건으로 삼았다. E2E가 낸 실패 5건은 **전부 검사 쪽 오류**였고 제품 결함은 0이다 — ①다건물은 building_name 순이라 별관이 먼저 열린다(본관을 넘겨짚으면 엉뚱한 건물에 체크하고 DB는 그대로인데 화면만 맞아 보인다) ②maybeSingle은 행이 2개면 data=null이라 중복이 '저장 안 됨'으로 둔갑한다 ③미설치의 DB 표현은 false가 아니라 **행 부재**다(facilities-actions.ts:30) ④체크 직후 설비 대장 패널이 본문 [저장]을 덮는다(기존 설계, 패널 [저장]이 대신)."
+  },
+  "sections": [
+    {
+      "id": "S1", "title": "데이터 조립 헬퍼 추출 (로드 규칙 단일화)", "status": "implemented",
+      "criteria": [
+        { "id": "S1-1", "desc": "src/lib/facility-form-data.ts 신설(server-only) — customers/[id]/page.tsx:202-252의 3쿼리+매핑(fire_facilities·fire_facility_floors·customer_facility_specs → facilityBuildings·specsByBuilding, receiver_location·emergency_elevator_count 포함)을 loadFacilityFormData(admin, customerId)로 추출", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조",
+            "evidence": ["facility-form-data.ts:26-30 loadFacilityFormData(admin, customerId, prefetchedBuildings?)", "facility-form-data.ts:37-42 3쿼리 Promise.all", "facility-form-data.ts:61 receiverLocation · :63 emergencyElevatorCount", "facility-form-data.ts:66-72 specsByBuilding('' = building_id NULL 폴백)"] } },
+        { "id": "S1-2", "desc": "고객 상세 페이지를 이 헬퍼 호출로 교체(기계적 리팩터링, Promise.all 유지) — 두 화면이 다른 초기값을 보는 사고 원천 차단", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E",
+            "evidence": ["customers/[id]/page.tsx:7 import · :205 loadFacilityFormData(admin, id, buildings) · :221 구조분해", "인라인 3쿼리 전멸(fire_facilities·fire_facility_floors·customer_facility_specs 직접 조회 0건)", "양쪽 buildings 정렬이 .order('building_name')으로 같다(facility-form-data.ts:32 · customers/[id]/page.tsx:140)", "test-facility-roundtrip ★'고객 상세와 점검 귀속 화면이 같은 건물을 연다'"] } }
+      ]
+    },
+    {
+      "id": "S2", "title": "PlanForm14 옵션 props (1.4 기본 동작 무변경)", "status": "implemented",
+      "criteria": [
+        { "id": "S2-1", "desc": "inspectionCtx?: {id, label} | null — 있으면 회차 자체 페치(getActiveSpecialInspectionAction) 생략, 새 페이지가 URL의 inspection으로 결정적 주입. 미지정 시 종전 동작 그대로", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E(대조군)",
+            "evidence": ["plan-form14.tsx:174-176 resultCtx useState 초기값이 inspectionCtx에서 선다(첫 렌더부터 배지 컨텍스트)", "plan-form14.tsx:184-191 inspectionCtx !== undefined면 overview만 페치하고 return", "plan-form14.tsx:192-200 미지정 경로는 종전 getActiveSpecialInspectionAction 그대로", "대조군 test-plan-tab 102/0(1.4 기본 동작 무변경)"] } },
+        { "id": "S2-2", "desc": "linkFrom?: string — resultBadge·「기타」 링크의 ?from= 하드코딩(/customers/{id}?tab=plan&form=1.4)을 대체 가능하게. 새 페이지는 /inspections/{id}/facilities?from=…을 넘겨 배지→점검표→뒤로가기가 새 페이지로 복귀", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E",
+            "evidence": ["plan-form14.tsx:229 fromParam = linkFrom ?? `/customers/${customerId}?tab=plan&form=1.4`(미지정 시 종전 값 폴백)", "plan-form14.tsx:294 resultBadge · :735 「기타」 링크가 같은 fromParam 사용", "test-facility-roundtrip 'S5-3 — 배지의 ?from=이 1.4가 아니라 이 화면(linkFrom)'"] } }
+      ]
+    },
+    {
+      "id": "S3", "title": "전용 페이지 신설 /inspections/[id]/facilities", "status": "implemented",
+      "criteria": [
+        { "id": "S3-1", "desc": "page.tsx 신규(RSC) — sheet/page.tsx 골격: 로그인 게이트 → inspection 조회 → loadFacilityFormData → PlanForm14 마운트", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E",
+            "evidence": ["inspections/[id]/facilities/page.tsx:37-38 로그인 게이트 · :43-46 inspection 조회 · :52 loadFacilityFormData · :86-95 PlanForm14 마운트", "test-facility-roundtrip 36/0 전 시나리오가 이 페이지 위에서 돈다"],
+            "note": "select에 plan_type은 없다 — 이 화면이 쓰지 않는다(설계 문장이 sheet/page.tsx 골격을 그대로 옮겨 적은 것). 기능 결손 아님" } },
+        { "id": "S3-2", "desc": "권한은 1.4와 같은 축 — customer_manage=canManage, inspection_register=canRegister. 점검 건 편집권(담당자 축)과 무관하게 비담당 직원도 설비 정정 가능(의도된 설계 — 설비 대장은 고객 자산)", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E(권한 실계정)",
+            "evidence": ["facilities/page.tsx:39-40 can(role,'customer_manage')·can(role,'inspection_register') — 담당자 축 게이트 없음", "permissions.ts:40·46 둘 다 ['employee','manager','admin']", "test-facility-roundtrip ★'비담당 직원도 설비 대장은 정정할 수 있다'(같은 계정이 점검표에서는 '보기 전용')"] } },
+        { "id": "S3-3", "desc": "?from= 내부 경로 검증(sheet/page.tsx와 같은 규칙) + 헤더 뒤로가기(기본 /inspections/{id}/sheet) + inspectionCtx label='{year}년 {sequence_num}차'", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E(주입)",
+            "evidence": ["facilities/page.tsx:54-55 '/' 시작·'//' 금지 검증 · 기본값 /inspections/{id}/sheet", "facilities/page.tsx:92 label `${insp.year}년 ${insp.sequence_num}차`", "facilities/page.tsx:60-62 ?fac=(어휘 밖 코드 탈락) > ?sheet=(facilitiesForSheet 해석) 우선순위", "test-facility-roundtrip 외부 ?from= 거부 2건(https://evil…·//evil…)·어휘 밖 ?fac= 포커스 0건"] } },
+        { "id": "S3-4", "desc": "다건물 고객은 PlanForm14 내장 건물 셀렉터·전환 가드가 그대로 처리 — 신규 코드 없음(위반 시 결함)", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E",
+            "evidence": ["facilities/page.tsx에 건물 셀렉터 코드 0줄(PlanForm14에 buildings만 넘긴다)", "plan-form14.tsx:589-595 내장 select + :369-391 미저장 전환 가드", "test-facility-roundtrip '건물 select 1개'·★'별관 설비도 점검표 설치 축에 합류(union)'"] } }
+      ]
+    },
+    {
+      "id": "S4", "title": "저장 후 점검표 설치 축 갱신", "status": "implemented",
+      "criteria": [
+        { "id": "S4-1", "desc": "saveFacilitiesAction에 opts?: {alsoRevalidate?: string[]} 추가(분기 없는 revalidate 추가 — 저장규칙 단일 유지). 새 페이지는 /inspections/{id}/sheet·/inspections/{id}/facilities를 넘김", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조",
+            "evidence": ["facilities-actions.ts:22 opts?: { alsoRevalidate?: string[] }", "facilities-actions.ts:71-75 고객 경로는 무조건, 추가 경로는 내부 경로만('use server' 공개 엔드포인트라 인자를 신뢰하지 않는다)", "plan-form14.tsx:462-464 점검 귀속 마운트일 때만 두 경로 전달 — 저장 경로 자체는 분기 없음"] } },
+        { "id": "S4-2", "desc": "복귀 ?from= 링크 → 시트 페이지 RSC 재실행 → buildSheetOverviews가 fire_facilities 재조회로 installed·uncoveredFacilityCodes 자동 갱신(고객 활성 건물 union)", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "E2E(왕복 실측)",
+            "evidence": ["test-facility-roundtrip ★'복귀한 점검표에 그 설비가 설치로 서 있다(⚠ 미입력)' — 저장 전 행 부재 → 저장·복귀 후 ⚠ 행", "test-facility-roundtrip ★'필수 미입력 카운터가 함께 커진다'(39 카운터가 40의 갱신을 증언)", "revalidatePath로 충분했다 — 설계가 대비책으로 적어 둔 router.push+router.refresh는 불필요(예측 반증)"] } }
+      ]
+    },
+    {
+      "id": "S5", "title": "왕래 링크 (양방향)", "status": "implemented",
+      "criteria": [
+        { "id": "S5-1", "desc": "점검표→소방시설: sheet-entry-client.tsx 좌측 목록 상단·uncovered 경고 블록에 「설비 현황(1.4) 수정」 링크. ?from=에 클릭 시점 현재 URL(sheet·month 포함 — replaceState로 항상 최신)을 실어 복귀 시 시트·월 재현", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "22f91d9", "method": "코드 대조 + E2E",
+            "evidence": ["sheet-entry-client.tsx:313-323 goFacilities(이동 전 autosave flush)", "sheet-entry-client.tsx:416-421 좌 목록 상단 · :450-455 uncovered 경고 블록", "test-facility-roundtrip '클릭 시점 URL이 ?from=으로 실린다'·'보던 시트가 ?sheet=으로 실린다'·'복귀 후 보던 시트가 그대로 열려 있다'"],
+            "note": "이 파일의 40 코드는 선행 세션이 39와 함께 22f91d9로 이미 커밋했다 — 940a840에는 들어 있지 않다" } },
+        { "id": "S5-2", "desc": "링크 노출은 권한 게이트 없이 항상(새 페이지가 canManage로 게이트) — 점검 건 편집권 없는 사용자도 설비 정정 경로는 열림(S3-2와 한 몸)", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "22f91d9", "method": "코드 대조 + E2E(권한 실계정)",
+            "evidence": ["sheet-entry-client.tsx:416 canEdit 조건 없이 렌더(:367 canEdit 게이트 밖에 있다)", "test-facility-roundtrip 'S5-2 — 그래도 대장 링크는 열려 있다'(보기 전용 사용자 화면에서)"] } },
+        { "id": "S5-3", "desc": "소방시설→점검표: 기존 resultBadge 직행이 새 페이지에서도 동작(linkFrom으로 복귀 경로만 교정). 배지 게이트는 canInputResult의 기존 AND 그대로 — 신규 코드 없음", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E",
+            "evidence": ["plan-form14.tsx:225 canInputResult = canRegister && resultCtx.inspection && overview.canEdit(기존 AND 무변경)", "test-facility-roundtrip '배지가 이 점검 건의 점검표로 간다'·'편집권 없는 사람에겐 결과 배지가 없다'"],
+            "correction": { "date": "2026-09-04", "was": "회차 종료 건은 overview.canEdit=false가 최종 심판", "why": "실측 반증 — canEdit는 회차 상태가 아니라 **사람 축**이다(sheet-overview.ts:91-93 canEditInspection = 담당자 본인 또는 팀장·관리자). 회차가 끝나도 canEdit는 true 그대로다. 종전 1.4 표면에서 종료 회차의 배지가 사라지던 것은 canEdit가 아니라 getActiveSpecialInspectionAction의 requireActive(facility-spec-actions.ts:226) 때문이었고, 새 페이지는 회차를 URL로 주입하므로 그 게이트를 지나지 않는다. 다만 배지의 목적지(점검표 입력 화면)도 같은 사람 축으로만 게이트되므로(sheet/page.tsx:86) 새로 열린 구멍은 아니다 — 회차 상태로 입력을 막을지는 40 범위 밖의 별도 결정" } } },
+        { "id": "S5-4", "desc": "드로어(inspection-sheet-client.tsx)에도 같은 직행 링크를 둘지 구현 중 실측 후 결정 — 현장용이라 이탈 링크가 방해일 수 있음(보류 시 사유 기록)", "status": "confirmed",
+          "decision": { "date": "2026-09-04", "outcome": "두지 않는다(보류)", "reason": "드로어는 현장 입력용이라 이탈 링크가 방해다(md:96-97). 대장 수정 경로는 전용 페이지(S5-1) 한 곳으로 충분하고, 드로어에도 두면 같은 동선이 두 벌이 된다 — 28의 입력구 단일화와 같은 방향",
+            "evidence": ["inspection-sheet-client.tsx에 /facilities 링크 0건(실측)"] } }
+      ]
+    },
+    {
+      "id": "S6", "title": "respondedNotInstalled 원클릭 수리", "status": "implemented",
+      "criteria": [
+        { "id": "S6-1", "desc": "PlanForm14 resultMarks memo가 이미 부르는 rollUpForm3Results의 axisWarnings(종전엔 버려짐)를 보존 — 경고 있으면 표 위 amber 배너 「대장 미체크인데 점검표 응답 있음 N건(설비명…) — [모두 설치로 체크]」", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E(모순 상태 심기)",
+            "evidence": ["plan-form14.tsx:205-223 axisWarnings.respondedNotInstalled 보존", "plan-form14.tsx:600-620 amber 배너(건수 + 설비명 나열)", "test-facility-roundtrip 'S6-1 — 배너가 그 설비를 이름으로 지목'·★'해소 후 경고가 사라진다(overview는 실려 있다)'"],
+            "note": "'경고 소멸' 단언은 배지 존재를 먼저 기다린 뒤에만 센다 — overview 미로딩이면 배너도 0개라 공허 통과가 된다" } },
+        { "id": "S6-2", "desc": "버튼은 해당 코드 installed=true + markDirty()만 — 저장은 기존 [저장] 버튼(저장규칙 단일 유지). 어휘는 report9-assemble.ts:616-618 경고와 통일. 1.4·새 페이지 양쪽에서 동작", "status": "implemented",
+          "verified": { "date": "2026-09-04", "commit": "940a840", "method": "코드 대조 + E2E(DB 실측)",
+            "evidence": ["plan-form14.tsx:607-618 setFac(installed=true) + markDirty()만 — 저장 액션 호출 0건", "test-facility-roundtrip ★'누른 것만으로 DB가 바뀌지 않는다' → 'S6-2 — [저장] 후 DB 반영'", "어휘 '대장 미체크인데 점검표 응답 있음'이 report9-assemble.ts:616-618과 같은 축"] } }
+      ]
+    }
+  ],
+  "invariants_to_keep": [
+    "설치 해제 시 응답 삭제 금지·인쇄만 ／ (sheet-facility-map.ts:261-266) — 40은 손대지 않는다",
+    "점검표 저장 규칙(useSheetAutosave·Realtime 보호)은 범위 밖 — 설비 입력과 섞이지 않는다",
+    "1.4 기본 동작 무변경 — 옵션 props 미지정 경로가 대조군(test-plan-tab 102/0)"
+  ],
+  "verification_plan": [
+    "tsc 0 + 기존 스위트(sheet 계열·form14 계열) 그린 + 1.4 무변경 대조 — ✅ 완료",
+    "E2E: 점검표→[설비 현황 수정]→설치 체크→저장→복귀→installed 축·필수 카운터 갱신 — ✅ 완료",
+    "E2E: 다건물 고객 저장→union 축 반영 — ✅ 완료",
+    "E2E: respondedNotInstalled 배너→[모두 설치로 체크]→저장→경고 소멸 — ✅ 완료",
+    "E2E: 비담당 직원(점검 편집권 없음)도 설비 정정 가능 — ✅ 완료",
+    "E2E: 회차 종료 건에서 배지→canEdit=false 입력 불가 유지 — ⛔ 전제가 틀렸다(S5-3 correction 참조). 대신 '편집권 없는 사람에겐 배지가 없다'는 사람 축으로 고정했다",
+    "E2E: ?from= 외부 URL 주입→내부 경로 검증 거부 — ✅ 완료"
+  ],
+  "risks": [
+    "타 세션 동시 편집(2026-09-03 실측) — 해소됨. sheet-entry-client.tsx의 40 코드는 22f91d9로 선행 커밋됐고, 940a840은 작업트리 재실측 후 8파일만 지정 커밋했다(스테이징 목록 확인)",
+    "1.4 K-5(delete→insert 비트랜잭션) 존치 — 두 표면 동시 [저장] 시 나중 것이 이김. 새 표면이 리스크를 늘리지는 않지만 없애지도 않는다(E2E가 확인한 것은 단일 표면 저장에서 행 중복 0뿐이다)",
+    "Next 16 라우터 캐시 우려는 반증됨 — revalidatePath로 왕복 갱신이 실측 통과",
+    "왕복 동선의 마찰(미결정): 설비를 체크하면 설비 대장 패널이 자동으로 열려(plan-form14.tsx:421-424) 본문 [저장]과 뒤로가기를 덮는다. 저장은 패널 [저장]이 대신하지만 돌아가려면 패널을 먼저 닫아야 한다. 40의 왕복 동선에서는 자동 오픈이 오히려 방해일 수 있다 — 점검 귀속 마운트에서만 끄는 안은 사용자 결정 대기"
+  ]
+}
