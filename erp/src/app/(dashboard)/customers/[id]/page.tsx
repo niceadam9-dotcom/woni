@@ -4,6 +4,7 @@ import { ChevronLeft, FileText, UserCheck, ClipboardList, History } from 'lucide
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listFireStationCandidates } from '@/lib/fire-station'
+import { loadFacilityFormData, type FacilityBuildingRow } from '@/lib/facility-form-data'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
@@ -198,15 +199,10 @@ export default async function CustomerDetailPage({
   const regionMyeon = (customer as unknown as Record<string, unknown>).region_myeon as string | null
 
   // ── 물결 B: 물결 A 결과(건물·점검·지역)에 의존하는 조회 — 한 번에 병렬 ──
-  const buildingIds = buildings.map(b => b.id)
-  const [facFloorSpec, stepsRes, regionRowsRes, stationCandidates] = await Promise.all([
-    // 소방시설 현황 (건물별) — P33
-    buildingIds.length > 0 ? Promise.all([
-      admin.from('fire_facilities').select('building_id, facility_code, installed, detail').in('building_id', buildingIds),
-      admin.from('fire_facility_floors').select('building_id, floor_label, counts').in('building_id', buildingIds).order('sort_order'),
-      // H-19 설비 대장 — 세부 제원 초기값 (112 customer_facility_specs, building_id NULL = 대표/공통)
-      admin.from('customer_facility_specs').select('building_id, section_key, spec').eq('customer_id', id),
-    ]) : Promise.resolve(null),
+  const [facilityFormData, stepsRes, regionRowsRes, stationCandidates] = await Promise.all([
+    // 소방시설 현황(건물별)+층별 수량+세부제원 — 조립은 loadFacilityFormData 단일 원천(소방계획서_40 S1,
+    // /inspections/[id]/facilities와 공유). buildings는 물결 A에서 이미 조회했으므로 재사용
+    loadFacilityFormData(admin, id, buildings as unknown as FacilityBuildingRow[]),
     // 점검별 단계 진행 카운트
     inspections.length > 0
       ? admin.from('inspection_steps').select('inspection_id, status').in('inspection_id', inspections.map(i => i.id))
@@ -222,34 +218,7 @@ export default async function CustomerDetailPage({
     // 1.3 관할 소방서 드롭다운 후보 — 행정구역 매핑 기반 (관할은 좌표 근접이 아니라 행정 관할)
     listFireStationCandidates(admin, { regionSi, regionMyeon, address: customer.address }),
   ])
-  const [facRes, floorRes, specRes] = facFloorSpec ?? [{ data: [] }, { data: [] }, { data: [] }]
-  const facByBuilding = new Map<string, Array<{ facility_code: string; installed: boolean; detail: { note?: string } | null }>>()
-  for (const f of (facRes.data ?? []) as Array<{ building_id: string; facility_code: string; installed: boolean; detail: { note?: string } | null }>) {
-    if (!facByBuilding.has(f.building_id)) facByBuilding.set(f.building_id, [])
-    facByBuilding.get(f.building_id)!.push({ facility_code: f.facility_code, installed: f.installed, detail: f.detail })
-  }
-  const floorByBuilding = new Map<string, Array<{ floor_label: string; counts: Record<string, number> }>>()
-  for (const fl of (floorRes.data ?? []) as Array<{ building_id: string; floor_label: string; counts: Record<string, number> }>) {
-    if (!floorByBuilding.has(fl.building_id)) floorByBuilding.set(fl.building_id, [])
-    floorByBuilding.get(fl.building_id)!.push({ floor_label: fl.floor_label, counts: fl.counts ?? {} })
-  }
-  const facilityBuildings = buildings.filter(b => b.is_active).map(b => ({
-    id: b.id, building_name: b.building_name, verified_at: b.facilities_verified_at,
-    facilities: facByBuilding.get(b.id) ?? [], floors: floorByBuilding.get(b.id) ?? [],
-    // §6-E: 층 자동 생성·기본 세트용
-    purpose: b.purpose, floorsAbove: b.floors_above, floorsBelow: b.floors_below,
-    // H-19: 기존 필드 자동 연결(§4-A-1) — 수신기 위치 회색 표시용
-    receiverLocation: ((b as unknown as Record<string, unknown>).receiver_location as string | null) ?? null,
-    // 세부제원의 건물 파생 필드(3-8 비상용승강기) 원천 — 건물·시설 탭에서 이미 받은 값을 다시 묻지 않는다
-    emergencyElevatorCount: ((b as unknown as Record<string, unknown>).emergency_elevator_count as number | null) ?? null,
-  }))
-  // H-19 설비 대장 — 건물별 세부 제원 초기값 ('' = 대표/공통 building_id NULL 폴백)
-  const specsByBuilding: Record<string, Record<string, Record<string, unknown>>> = {}
-  for (const r of ((specRes.data ?? []) as Array<{ building_id: string | null; section_key: string; spec: Record<string, unknown> | null }>)) {
-    const k = r.building_id ?? ''
-    if (!specsByBuilding[k]) specsByBuilding[k] = {}
-    specsByBuilding[k][r.section_key] = (r.spec ?? {}) as Record<string, unknown>
-  }
+  const { facilityBuildings, specsByBuilding } = facilityFormData
   const activityLogs = (activityLogsRes.data ?? []) as ActivityLog[]
   const profileNameMap = new Map(
     ((allProfilesRes.data ?? []) as Array<{ id: string; name: string }>).map(p => [p.id, p.name])
@@ -337,7 +306,7 @@ export default async function CustomerDetailPage({
     floorsAbove: (firstBld?.floors_above as number | null) ?? null,
     floorsBelow: (firstBld?.floors_below as number | null) ?? null,
     facilityCodes: firstBld
-      ? (facByBuilding.get(firstBld.id as string) ?? []).filter(f => f.installed).map(f => f.facility_code)
+      ? (facilityBuildings.find(fb => fb.id === firstBld.id)?.facilities ?? []).filter(f => f.installed).map(f => f.facility_code)
       : [],
   }
   const planPeople = [
@@ -676,7 +645,7 @@ export default async function CustomerDetailPage({
   // ── H-25 온보딩 진행 배너 (§4-D 국면 1) — ?onboarding=1일 때만 구성, 이미 조회한 데이터만 사용 ──
   // ① 기본정보=빠른 입력 준비율 ② 관계인=대표 有無 ③ 설비 대장=설치 √ 개수·제원 입력 여부 ④ 지도·사진=자산 개수
   const installedFacCount = new Set(
-    Array.from(facByBuilding.values()).flat().filter(f => f.installed).map(f => f.facility_code)
+    facilityBuildings.flatMap(fb => fb.facilities).filter(f => f.installed).map(f => f.facility_code)
   ).size
   const specSectionCount = Object.values(specsByBuilding)
     .reduce((n, sections) => n + Object.values(sections).filter(sp => sp && Object.keys(sp).length > 0).length, 0)

@@ -17,6 +17,9 @@ export async function saveFacilitiesAction(
   customerId: string,
   facilities: FacilityRow[],
   floors: FloorRow[],
+  /** 소방계획서_40 S4 — 점검 귀속 화면(/inspections/[id]/facilities)에서 저장하면 점검표 화면의
+   *  설치 축도 함께 갱신돼야 한다. 저장 규칙은 그대로고 revalidate 대상만 늘린다(분기 없음). */
+  opts?: { alsoRevalidate?: string[] },
 ): Promise<{ error?: string; verifiedAt?: string }> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
@@ -66,6 +69,10 @@ export async function saveFacilitiesAction(
   if (firstErr) return { error: firstErr }
 
   revalidatePath(`/customers/${customerId}`)
+  // 'use server' 공개 엔드포인트라 인자를 신뢰하지 않는다 — 내부 경로만 (sheet/page.tsx from 검증과 같은 규칙)
+  for (const p of opts?.alsoRevalidate ?? []) {
+    if (typeof p === 'string' && p.startsWith('/') && !p.startsWith('//')) revalidatePath(p)
+  }
   return { verifiedAt }
 }
 

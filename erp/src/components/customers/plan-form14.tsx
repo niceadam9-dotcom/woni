@@ -82,13 +82,23 @@ type Building = {
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
-export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {} }: {
+export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes }: {
   customerId: string; buildings: Building[]; canManage: boolean
   /** 소방계획서_26 S4 — 설비별 점검결과 입력 권한. 1.4의 canManage(customer_manage)와 축이 다르다:
    *  결과 쓰기 액션은 전부 inspection_register라 이 값이 없으면 배지·패널을 아예 그리지 않는다. */
   canRegister?: boolean
   /** H-19 설비 대장 — 건물별 세부 제원 초기값 (customer_facility_specs, '' = 대표/공통 폴백) */
   specsByBuilding?: Record<string, Record<string, Record<string, unknown>>>
+  /** 소방계획서_40 S2 — 점검 귀속 화면(/inspections/[id]/facilities)이 회차를 URL에서 결정적으로
+   *  주입한다. 있으면 getActiveSpecialInspectionAction 자체 페치를 생략(같은 고객이라도 URL의
+   *  점검 건이 정본). 미지정이면 종전 동작 그대로 — 1.4 무변경 대조군. */
+  inspectionCtx?: { id: string; label: string } | null
+  /** 소방계획서_40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 이 폼이 1.4 밖에 마운트되면
+   *  하드코딩된 ?tab=plan&form=1.4가 거짓 복귀가 되므로 마운트한 쪽이 자기 URL을 넘긴다. */
+  linkFrom?: string
+  /** 소방계획서_40 S5-1b — 점검표에서 넘어올 때 관련 설비 행으로 스크롤·강조할 코드들.
+   *  미지정이면 아무 동작 없음. */
+  focusCodes?: string[]
 }) {
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
@@ -116,6 +126,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   // 층별 수량 — 행 확장 편집(소방계획서_9 S4-3). 표는 6열 밀집이라 셀마다 ± 버튼을 넣으면 폭이 깨지므로,
   // 행을 펼쳐 넉넉한 [−][값][+] 스테퍼로 입력한다(표 직접 타이핑도 그대로 병행).
   const [openFloor, setOpenFloor] = useState<number | null>(null)
+  // 층별 수량 섹션 펼침(소방계획서_40) — 입력된 층이 있는 건물은 자동 펼침, 빈 건물만 접어 시작.
+  // 설비 표 아래 접힌 <details>는 "층·수량 입력이 없다"로 읽혔다(2026-09-03 사용자 보고).
+  const [floorsOpen, setFloorsOpen] = useState(() => (b?.floors?.length ?? 0) > 0)
 
   // 2026-08-05 사용자 확정: 토글마다 자동 저장 폐지 — 최종 [저장] 1회 + 이탈 가드. 제원 입력은 우측 슬라이드 패널
   const [specsOpen, setSpecsOpen] = useState(false)
@@ -158,7 +171,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   // ── 소방계획서_26 S4 — 설비별 점검결과(○×／) 입력 ──────────────────────────
   // 결과의 단일 원천은 점검표 응답(회차 단위)이다. 여기는 그 시트의 항목들을 쓰는 **단축 입력기**로,
   // 별도 저장소를 만들지 않는다(3쪽 ×인데 불량내역 0건 같은 모순 문서 방지 — 26.md Q-1·C안 기각).
-  const [resultCtx, setResultCtx] = useState<{ inspection: { id: string; label: string } | null; reason?: string } | null>(null)
+  const [resultCtx, setResultCtx] = useState<{ inspection: { id: string; label: string } | null; reason?: string } | null>(
+    // 40 S2 — 점검 귀속 화면은 회차가 URL로 결정적이라 첫 렌더부터 배지 컨텍스트가 선다
+    inspectionCtx !== undefined ? { inspection: inspectionCtx } : null)
   const [overview, setOverview] = useState<SheetOverview | null>(null)
   const resultFetched = useRef(false)
 
@@ -166,6 +181,14 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     if (!canRegister || resultFetched.current) return
     resultFetched.current = true
     // 실패(권한·네트워크)는 조용히 생략 — 배지는 보조 정보고 1.4 본연의 입력은 그대로 동작해야 한다
+    if (inspectionCtx !== undefined) {
+      // 40 S2 — 회차 페치 생략, overview만 그 점검 건으로
+      if (!inspectionCtx) return
+      getInspectionSheetOverviewAction([inspectionCtx.id], { withGroups: true })
+        .then(ov => { const o = ov.overviews?.[inspectionCtx.id]; if (o) setOverview(o) })
+        .catch(() => {})
+      return
+    }
     getActiveSpecialInspectionAction(customerId)
       .then(async ctx => {
         setResultCtx(ctx)
@@ -175,12 +198,12 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         if (o) setOverview(o)
       })
       .catch(() => {})
-  }, [canRegister, customerId])
+  }, [canRegister, customerId, inspectionCtx])
 
   // 마크 판정 — 별지 3쪽·세부제원 배지와 **같은 함수**(rollUpForm3Results). 설치 여부는 화면의
   // 현재 체크 상태를 넘긴다(방금 켠 미저장 설비가 ／로 보이면 거짓말 — plan-form14-specs와 같은 이유).
-  const resultMarks = useMemo(() => {
-    if (!overview) return {} as Record<string, 'O' | 'X' | 'N'>
+  const { resultMarks, respondedNotInstalled } = useMemo(() => {
+    if (!overview) return { resultMarks: {} as Record<string, 'O' | 'X' | 'N'>, respondedNotInstalled: [] as string[] }
     // 중분류(groups)가 오면 그 단위로 접는다 — 한 점검표가 설비 여럿을 덮을 때 시트 단위로 접으면
     // 형제 설비 배지까지 같은 마크가 칠해져 **문서와 갈라진다**(2026-09-01 유도등 사고).
     // groups는 withGroups=true에서만 온다. 안 오면 종전대로 시트 단위(group: null) — 폴백은 옛 동작.
@@ -193,10 +216,27 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         }))
         : [{ sheet: s.sheetName, group: null, stat: { any: true, x: s.counts.X > 0, o: s.counts.O > 0 } }])
     const installedNow = ALL_STANDARD_CODES.filter(c => fac[c]?.installed)
-    return rollUpForm3Results(stats, ALL_STANDARD_CODES, installedNow).resultMarks
+    // 40 S6 — axisWarnings를 버리지 않는다. respondedNotInstalled는 별지 생성 경고(report9-assemble)에서만
+    // 보이던 것을 입력 화면에서 원클릭으로 해소하게 한다(경고 어휘도 그쪽과 통일).
+    const r = rollUpForm3Results(stats, ALL_STANDARD_CODES, installedNow)
+    return { resultMarks: r.resultMarks, respondedNotInstalled: r.axisWarnings.respondedNotInstalled }
   }, [overview, fac])
 
   const canInputResult = canRegister && !!resultCtx?.inspection && (overview?.canEdit ?? false)
+
+  // 40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 기본은 1.4 정적 딥링크(배지는 그 화면에서만
+  // 그려졌으므로 목적지가 결정적이었다). 다른 마운트(점검 귀속 화면)는 linkFrom으로 자기 URL을 준다.
+  const fromParam = encodeURIComponent(linkFrom ?? `/customers/${customerId}?tab=plan&form=1.4`)
+
+  // 40 S5-1b — 점검표에서 넘어온 관련 설비 강조. 첫 매칭 행으로 1회만 스크롤(건물 전환 시 재스크롤 없음).
+  const focusSet = useMemo(() => new Set(focusCodes ?? []), [focusCodes])
+  const focusScrolled = useRef(false)
+  useEffect(() => {
+    if (focusScrolled.current || !focusCodes?.length) return
+    focusScrolled.current = true
+    const el = document.querySelector(`[data-fac="${CSS.escape(focusCodes[0])}"]`)
+    el?.scrollIntoView({ block: 'center' })
+  }, [focusCodes])
 
   /** 「기타」 항목의 진행 상태 — 42칸 축(resultMarks)이 **아니라** 그 점검표 시트의 진행률이다.
    *  한 시트(STD-31·EXT-10)가 방화문·비상구·방염 3항목을 함께 덮으므로 항목별 ○/×를 여기서
@@ -250,9 +290,8 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       : mk === 'X' ? 'text-red-600 border-red-300 bg-red-50'
       : mk === 'N' ? 'text-ink-soft border-brand-line bg-brand-tint'
       : 'text-amber-700 border-amber-300 bg-amber-50'
-    const from = encodeURIComponent(`/customers/${customerId}?tab=plan&form=1.4`)
     return (
-      <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(code)}&from=${from}`}
+      <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(code)}&from=${fromParam}`}
         onClick={e => e.stopPropagation()}
         data-testid={`form14-result-link-${code}`}
         title={`점검결과 — ${resultCtx?.inspection?.label} (클릭하면 점검표 입력 화면이 열립니다 · ○/×로 기록)`}
@@ -343,6 +382,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     setMirror(initMirror(buildings[i]?.id))   // 피난기구 종류도 건물 축 — 이전 건물 값이 남으면 안 된다
     setFloors((buildings[i]?.floors ?? []).map((f, j) => ({ floor_label: f.floor_label, sort_order: j, counts: { ...f.counts } })))
     setOpenFloor(null)   // 행 목록이 통째로 교체됨 — 인덱스 기준 펼침 상태는 초기화
+    setFloorsOpen((buildings[i]?.floors?.length ?? 0) > 0)   // 새 건물 기준으로 자동 펼침 재판정
     clearDirty()
     setSpecsDirtyCount(0)
     setVerifiedAt(null)  // S1-4 — 이전 건물의 확인일이 새 건물 푸터에 잔류하면 안 됨
@@ -418,7 +458,10 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         installed: fac[code].installed, detail: fac[code].note || null,
       }))
       const [mainRes, specsRes] = await Promise.all([
-        dirty ? saveFacilitiesAction(b.id, customerId, rows, floors) : Promise.resolve(null),
+        // 40 S4 — 점검 귀속 마운트에서는 점검표·이 화면의 RSC도 함께 갱신(복귀 시 설치 축이 신선해야 한다)
+        dirty ? saveFacilitiesAction(b.id, customerId, rows, floors, inspectionCtx
+          ? { alsoRevalidate: [`/inspections/${inspectionCtx.id}/sheet`, `/inspections/${inspectionCtx.id}/facilities`] }
+          : undefined) : Promise.resolve(null),
         specsDirty && specsSaveRef.current ? specsSaveRef.current() : Promise.resolve(null),
       ])
       const parts: string[] = []
@@ -515,8 +558,11 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     if (!code) return <td className="border border-line" />
     const st = fac[code]
     const disabled = !!(opts?.sub && !evacOn && !st.installed)
+    // 40 S5-1b — 점검표에서 넘어온 관련 설비는 amber로 남겨 둔다(깜빡임 타이머 없음 — 어느 행을
+    // 고치러 왔는지가 저장 전까지 계속 보여야 한다)
+    const focused = focusSet.has(code)
     return (
-      <td className={`border border-line p-0 ${disabled ? 'bg-paper' : ''}`}>
+      <td data-fac={code} className={`border border-line p-0 ${focused ? 'bg-amber-50' : disabled ? 'bg-paper' : ''}`}>
         <div className="flex items-center gap-1 pl-0.5 pr-2 py-1 min-h-7 select-none">
           {checkBox(code, disabled)}
           {ledgerLabel(code, disabled)}
@@ -549,6 +595,30 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         {buildings.length === 1 && <span className="ml-auto text-form-sm text-ink-sub">대상명: {b.building_name}</span>}
       </div>
 
+      {/* 40 S6 — 대장 미체크 + 점검표 실응답(○·×) 경고. 별지 생성 경고(report9-assemble)에서만 보이던
+          것을 입력 자리에서 원클릭 해소. 버튼은 체크만 바꾼다 — 저장은 아래 [저장](저장규칙 단일). */}
+      {canManage && respondedNotInstalled.length > 0 && (
+        <div data-testid="form14-responded-not-installed"
+          className="flex items-center gap-2 flex-wrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <span className="text-form-xs text-amber-700 flex-1 min-w-48">
+            대장 미체크인데 점검표 응답 있음 {respondedNotInstalled.length}건({respondedNotInstalled.join('·')})
+            — 문서에 ／로 인쇄됩니다. 실제 설치·점검한 설비라면 체크하세요
+          </span>
+          <button type="button" data-testid="form14-check-responded"
+            onClick={() => {
+              setFac(p => {
+                const next = { ...p }
+                for (const c of respondedNotInstalled) if (next[c]) next[c] = { ...next[c], installed: true }
+                return next
+              })
+              markDirty()
+            }}
+            className="shrink-0 h-form-7 px-2.5 rounded-lg border border-amber-300 bg-surface text-form-xs text-amber-700 hover:bg-amber-100">
+            모두 설치로 체크
+          </button>
+        </div>
+      )}
+
       {/* 양식 재현 표 — 좌측 분류 세로 병합 */}
       <table className="w-full border-collapse">
         <tbody>
@@ -568,7 +638,8 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                 <td colSpan={2} className="border border-line p-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
                     {/* 부모 행도 셀과 같은 규약 — ☑는 토글, 이름은 대장 열기 (한 곳만 고치면 이웃에서 같은 사고가 난다) */}
-                    <div className="flex items-center gap-1 select-none">
+                    <div data-fac="소화기구 및 자동소화장치"
+                      className={`flex items-center gap-1 select-none ${focusSet.has('소화기구 및 자동소화장치') ? 'bg-amber-50 rounded' : ''}`}>
                       {checkBox('소화기구 및 자동소화장치')}
                       {ledgerLabel('소화기구 및 자동소화장치')}
                       {resultBadge('소화기구 및 자동소화장치')}
@@ -594,7 +665,8 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2 py-1">
                     {/* 피난기구는 해제가 세부제원 종류까지 지운다(toggle 참조) — 이름 클릭이 해제로
                         해석되던 종전 구조에서 특히 위험했다. 여기서도 ☑만 토글한다. */}
-                    <div className="flex items-center gap-1 select-none">
+                    <div data-fac="피난기구"
+                      className={`flex items-center gap-1 select-none ${focusSet.has('피난기구') ? 'bg-amber-50 rounded' : ''}`}>
                       {checkBox('피난기구')}
                       {ledgerLabel('피난기구')}
                       {resultBadge('피난기구')}
@@ -649,7 +721,6 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
             const on = fac[it.code]?.installed ?? false
             const prog = etcSheetProgress[it.sheetName]
             const blank = prog ? prog.total - prog.responded : null
-            const from = encodeURIComponent(`/customers/${customerId}?tab=plan&form=1.4`)
             return (
               <div key={it.code} className="flex items-center gap-1 min-h-7 select-none">
                 {checkBox(it.code)}
@@ -661,7 +732,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                     ?facility= 로 보내고 설비→시트 해석은 전용 페이지가 서버에서 한 번만 한다
                     (resultBadge와 같은 규약 — 링크 생성부에서 매핑을 다시 하면 규칙이 두 벌이 된다). */}
                 {on && canInputResult && (
-                  <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(it.code)}&from=${from}`}
+                  <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(it.code)}&from=${fromParam}`}
                     data-testid={`form14-etc-link-${it.code}`}
                     title={`${it.note} — 클릭하면 점검표 입력 화면이 열립니다`}
                     className={`ml-auto shrink-0 h-5 px-1.5 rounded-full border text-form-2xs font-bold inline-flex items-center justify-center ${
@@ -682,9 +753,14 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           저장 규칙 차이를 메워야 했고, 정작 어느 화면에서 채우는지는 알려주지 못했다.
           배지는 결과를 보여주고 그 자리로 보내는 일만 한다(resultBadge). */}
 
-      {/* 층별 수량 접기 (fire_facility_floors) */}
-      <details className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2">
-        <summary className="text-form-sm font-semibold text-ink-sub cursor-pointer">층별 수량 입력 (소화기·감지기·유도등 등)</summary>
+      {/* 층별 수량 접기 (fire_facility_floors) — 입력된 층이 있으면 자동 펼침(소방계획서_40, floorsOpen).
+          onToggle로 되동기해야 사용자가 손으로 접은 상태가 다음 리렌더에 강제로 다시 펼쳐지지 않는다. */}
+      <details open={floorsOpen} onToggle={e => setFloorsOpen(e.currentTarget.open)}
+        className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2">
+        <summary className="text-form-sm font-semibold text-ink-sub cursor-pointer">
+          층별 수량 입력 (소화기·감지기·유도등 등)
+          {floors.length > 0 && <span className="ml-2 font-normal text-brand">— {floors.length}층 입력됨</span>}
+        </summary>
         <div className="mt-2">
           {canManage && (
             <div className="flex items-center gap-2 mb-2">
