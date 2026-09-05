@@ -87,8 +87,14 @@ export async function buildRefGraph(zip: JSZip, files: Map<string, string>): Pro
     //   다음 짝셀의 </c>까지 내용으로 먹어, 수식이 **엉뚱한 좌표로 귀속**된다(2026-08-21 실측:
     //   계약서!A3의 수식이 앞 빈 셀에 붙어 폐포에서 빠졌다)
     for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const f = /<f[^>]*>([^<]*)<\/f>/.exec(m[2] ?? '')?.[1]
+      let f = /<f[^>]*>([^<]*)<\/f>/.exec(m[2] ?? '')?.[1]
       if (!f) continue
+      // 자기 교차 수식(`개요!B13 개요!B13` — 정보!J17 세대수·I16 사용승인일, 원본 갑지 실측) —
+      // 교차 연산이지만 두 참조가 같으면 값이 그 셀 그대로라 단일 참조와 등가다. 접지 않으면
+      // 폐포 밖이라 캐시가 빈 채 나가, 재계산 없는 뷰어(LibreOffice, D-9)에서 값이 있어도
+      // 공란으로 보였다(2026-09-05 — Excel은 열면서 재계산해 이 갈라짐이 안 보인다).
+      const selfX = /^(\S+)\s+\1$/.exec(f)
+      if (selfX) f = selfX[1]
       const cross = /^'?([^'!]+)'?!(\$?[A-Z]+\$?\d+)$/.exec(f)
       const local = /^(\$?[A-Z]+\$?\d+)$/.exec(f)
       if (!cross && !local) continue

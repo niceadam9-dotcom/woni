@@ -75,6 +75,12 @@ export type CreateCustomerInput = {
   building_ho_count?: number
   building_attached_count?: number
   building_seismic_design?: string
+  // 098 확장 — 건축허가일·건축면적·건물동수·주차장. 대장이 준 값을 등록 단계가 버려
+  // 갑지 엑셀·별지 9호 2쪽이 공란으로 나가던 것 보완(2026-09-05)
+  building_permit_date?: string
+  building_area?: number          // 건축면적(㎡) — building_total_area(연면적)와 다른 축
+  building_count?: number         // 건물동수
+  building_parking_summary?: string
 }
 
 /** 건물 숫자 필드 유효성 (IMP-10) — 음수·비상식 값 차단. 문제 시 에러 문구, 정상 시 null */
@@ -291,6 +297,11 @@ export async function createCustomerAction(
     if (input.building_ho_count != null)       ledgerFields.ho_count = input.building_ho_count
     if (input.building_attached_count != null) ledgerFields.attached_building_count = input.building_attached_count
     if (input.building_seismic_design)         ledgerFields.seismic_design = input.building_seismic_design
+    // 098 확장 — refreshLedgerAction(:207-210)과 같은 4종. 42703 폴백은 아래 attempts가 담당
+    if (input.building_permit_date)            ledgerFields.permit_date = input.building_permit_date
+    if (input.building_area != null)           ledgerFields.building_area = input.building_area
+    if (input.building_count != null)          ledgerFields.building_count = input.building_count
+    if (input.building_parking_summary)        ledgerFields.parking_summary = input.building_parking_summary
     if (Object.keys(ledgerFields).length > 0)  ledgerFields.ledger_synced_at = new Date().toISOString()
 
     // 092: bcode·지번주소 (있을 때만)

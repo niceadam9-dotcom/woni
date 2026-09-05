@@ -297,6 +297,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         building_ho_count:        ledgerRef.current?.ho_count ?? undefined,
         building_attached_count:  ledgerRef.current?.attached_building_count ?? undefined,
         building_seismic_design:  ledgerRef.current?.seismic_design ?? undefined,
+        // 098 확장 — 대장이 줬는데 버려지던 4종(건축허가일·건축면적·건물동수·주차장)
+        building_permit_date:     ledgerRef.current?.permit_date ?? undefined,
+        building_area:            ledgerRef.current?.building_area ?? undefined,
+        building_count:           ledgerRef.current?.building_count ?? undefined,
+        building_parking_summary: ledgerRef.current?.parking_summary ?? undefined,
       })
       if (result.error) { setError(result.error); return }
       // 다음 등록을 위한 최근 읍/면 기억
