@@ -53,6 +53,10 @@ MAILTO=""
 # 불량 이행기한 임박 알림 — 매일 00:35 (별지 9호 15일 기한 포함)
 35 0 * * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/defect-action-notify >> /var/log/sjfire-cron.log 2>&1
 
+# 소방안전관리자 실무교육 주기 알림 — 매일 00:40 (교육이수일+2년, D-30/D-7/당일/경과 · 158)
+#   ⚠ 라우트는 fcde697에 들어갔다 — 그 이후 커밋이 배포되기 전까지는 404 로그만 남고 무해하다.
+40 0 * * * root curl -s -m 120 -H "Authorization: Bearer __CRON_SECRET__" https://sjfire.co.kr/api/cron/manager-edu-notify >> /var/log/sjfire-cron.log 2>&1
+
 # 법제처 서식 개정 감지 — 매주 월 00:45
 #   ⚠ LAW_OC 계정에 서버 IP가 등록돼 있어야 한다. 외부 fetch에 타임아웃이 없어
 #     응답이 늦으면 오래 매달린다(로컬 dev에서 6분 걸린 실측이 있다) — -m 300으로 끊는다.
