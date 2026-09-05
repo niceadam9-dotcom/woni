@@ -71,13 +71,15 @@ try {
   check('목록 0건이면 저장된다는 안내가 뜬다', emptyMsg.includes('입력한 그대로'), emptyMsg.slice(0, 60))
 
   // ── 5. 건물·시설 탭에도 같은 콤보 + 저장까지 살아남는가 ───────────────────
-  //  저장 검증은 고객 등록 폼(필수 4칸)이 아니라 건물 패널(건물명만 필수, 그나마 자동 채움)로 한다 —
-  //  확인하려는 것은 '목록 밖 값이 DB까지 가는가'이지 등록 폼의 필수 검증이 아니다.
+  //  저장 검증은 고객 등록 폼(필수 4칸)이 아니라 건물 패널(건물명·건축허가일 필수, 그나마 자동 채움)로
+  //  한다 — 확인하려는 것은 '목록 밖 값이 DB까지 가는가'이지 등록 폼의 필수 검증이 아니다.
   console.log('— 5. 건물·시설 탭 + 저장 후 DB 확인')
   custId = await mkCustomer({ customer_name: `ZZ콤보탭${Math.random().toString(36).slice(2, 6)}`, created_by: userId })
   await page.goto(`${BASE}/customers/${custId}?tab=buildings`)
   await page.waitForLoadState('networkidle')
-  await page.getByRole('button', { name: /건물 등록/ }).first().click()
+  // '건물 등록' 폼은 항상 열림(2026-09-05) — 버튼은 기존 건물 수정 중일 때만 나타난다
+  const newBtn = page.getByRole('button', { name: /건물 등록/ })
+  if (await newBtn.count() > 0) await newBtn.first().click()
   await page.waitForTimeout(1500)
 
   const combo2 = page.locator('#bf-purpose')
@@ -92,6 +94,8 @@ try {
 
   await combo2.fill(NOVEL)
   await page.waitForTimeout(400)
+  // 건축허가일 필수(2026-09-05) — 안 채우면 저장이 가드에 막혀 이 검사가 용도 축과 무관하게 빨개진다
+  await page.locator('#bf-permit-date').fill('2000-01-01')
   await page.getByRole('button', { name: '저장', exact: true }).first().click()
   await page.waitForTimeout(3000)
 

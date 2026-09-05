@@ -587,6 +587,12 @@ export default async function CustomerDetailPage({
       households: (r.households as number | null) ?? null,
       elevator_count: (r.elevator_count as number | null) ?? null,
       emergency_elevator_count: (r.emergency_elevator_count as number | null) ?? null,
+      // 별지 9호 2쪽 잔여 항목(2026-09-05) — 구조·지붕·계단·경사로·피난용승강기도 건물 폼에서 입력
+      main_structure: (r.main_structure as string | null) ?? null,
+      roof_structure: (r.roof_structure as string | null) ?? null,
+      stairs_count: (r.stairs_count as number | null) ?? null,
+      ramp_count: (r.ramp_count as number | null) ?? null,
+      evac_elevator_count: (r.evac_elevator_count as number | null) ?? null,
     }
   })
 
@@ -602,6 +608,7 @@ export default async function CustomerDetailPage({
         initialOpenId={initialBuildingId}
         initialNew={initialNewBuilding === '1'}
         purposes={buildingPurposes}
+        useApprovalDate={customer.use_approval_date ?? null}
       />
 
       {/* 소방시설 현황 패널은 소방계획서 탭 > 1장 > 1.4로 이동 (소방계획서_4.md §4 — 건물목록은 잔류) */}

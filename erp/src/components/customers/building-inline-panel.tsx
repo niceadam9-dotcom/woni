@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
-import { DateInput } from '@/components/ui/date-input'
+import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction } from '@/app/(dashboard)/buildings/actions'
 import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
+import { parseParkingSummary } from '@/lib/doc-templates/report9'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
@@ -38,6 +39,12 @@ export type BuildingPanelRow = {
   households: number | null
   elevator_count: number | null
   emergency_elevator_count: number | null
+  /** 별지 9호 2쪽 잔여 항목(2026-09-05) — 소방계획서 1.1 일반현황 패널과 같은 컬럼을 이 폼에서도 입력 */
+  main_structure: string | null
+  roof_structure: string | null
+  stairs_count: number | null
+  ramp_count: number | null
+  evac_elevator_count: number | null
 }
 
 type FormState = {
@@ -62,6 +69,11 @@ type FormState = {
   households: string
   elevator_count: string
   emergency_elevator_count: string
+  main_structure: string
+  roof_structure: string
+  stairs_count: string
+  ramp_count: string
+  evac_elevator_count: string
 }
 
 const EMPTY: FormState = {
@@ -69,19 +81,38 @@ const EMPTY: FormState = {
   purpose: '', total_area: '', floors_above: '', floors_below: '', year_built: '', notes: '', is_active: true,
   permit_date: '', building_area: '', building_count: '', parking_summary: '',
   height: '', households: '', elevator_count: '', emergency_elevator_count: '',
+  main_structure: '', roof_structure: '', stairs_count: '', ramp_count: '', evac_elevator_count: '',
 }
+
+/** 구조·지붕 제안 목록 — 소방계획서 1.1 패널(fire-plan-info-panel)과 같은 어휘. 서식 체크 판정은
+ *  report9-assemble 키워드(콘크리트/철골/조적/목 · 슬래브|슬라브/기와/슬레이트, 그 외 = 기타)라
+ *  목록 밖 자유 입력도 '기타' 체크로 안전하게 인쇄된다 */
+const STRUCTURE_OPTIONS = ['철근콘크리트구조', '철골구조', '조적조', '목구조', '샌드위치판넬']
+const ROOF_OPTIONS = ['슬래브', '기와', '슬레이트', '판넬', '징크']
+
+/** 주차장 토글 칩 — 요약 텍스트의 단어 포함 여부가 곧 별지 9호 체크(parseParkingSummary 단일 원천, 사본 금지) */
+const PARKING_CHIPS: Array<{ flag: keyof ReturnType<typeof parseParkingSummary>; word: string; label: string }> = [
+  { flag: 'pkIn', word: '옥내', label: '옥내' },
+  { flag: 'pkInUg', word: '지하', label: '옥내·지하' },
+  { flag: 'pkInGround', word: '지상', label: '옥내·지상' },
+  { flag: 'pkInPiloti', word: '필로티', label: '옥내·필로티' },
+  { flag: 'pkMech', word: '기계식', label: '기계식' },
+  { flag: 'pkRoof', word: '옥상', label: '옥상' },
+  { flag: 'pkOut', word: '옥외', label: '옥외' },
+]
 
 /** 누락 칩(소방계획서 빠른 입력) → 이 폼 입력칸 id — erp:focus-missing 이벤트로 열고 포커스 */
 export const BUILDING_FIELD_IDS: Record<string, string> = {
   '건축허가일': 'bf-permit-date', '건축면적': 'bf-building-area', '건물동수': 'bf-building-count',
   '주차장': 'bf-parking', '높이': 'bf-height', '세대수': 'bf-households', '승강기': 'bf-elevator',
   '건물 용도': 'bf-purpose', '연면적': 'bf-total-area', '층수': 'bf-floors-above',
+  '건축물구조': 'bf-structure', '지붕구조': 'bf-roof', '계단': 'bf-stairs', '경사로': 'bf-ramp',
 }
 
 const inputCls = 'h-form-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-form-sm outline-none focus:border-brand'
 const labelCls = 'text-form-xs font-medium text-ink-sub'
 
-export function BuildingListPanel({ customerId, customerName, customerAddress, buildings, canManage, initialOpenId, initialNew, purposes = [] }: {
+export function BuildingListPanel({ customerId, customerName, customerAddress, buildings, canManage, initialOpenId, initialNew, purposes = [], useApprovalDate = null }: {
   customerId: string
   customerName: string
   customerAddress: string | null
@@ -91,6 +122,8 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   initialNew?: boolean
   /** 049 building_purposes — 관리자 > 건물 용도 관리 목록. datalist 제안(대장 자동값·신규 용도도 허용) */
   purposes?: string[]
+  /** customers.use_approval_date — 별지 9호 2쪽 「사용승인일」의 원천. 점검 기산점 축이라 여기선 조회만(수정은 고객 정보) */
+  useApprovalDate?: string | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -99,11 +132,14 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   // 주소 상속용: bcode가 저장된 첫 활성 건물 (§5-A-2)
   const inheritSrc = buildings.find(b => b.is_active && b.bcode) ?? null
 
-  const [editing, setEditing] = useState<string | null>(
-    initialNew ? 'new' : (initialOpenId && buildings.some(b => b.id === initialOpenId) ? initialOpenId : null))
+  // 건물 등록 폼은 항상 열림 — 기존 건물 수정 중이 아니면 기본이 '건물 등록' 패널 (조회 전용은 제외)
+  const initialEditing = initialNew
+    ? 'new'
+    : (initialOpenId && buildings.some(b => b.id === initialOpenId) ? initialOpenId : (canManage ? 'new' : null))
+  const [editing, setEditing] = useState<string | null>(initialEditing)
   const [form, setForm] = useState<FormState>(() =>
-    initialOpenId ? toForm(buildings.find(b => b.id === initialOpenId)) : newForm())
-  const [sameAsCustomer, setSameAsCustomer] = useState(initialNew && !!customerAddress)
+    initialEditing && initialEditing !== 'new' ? toForm(buildings.find(b => b.id === initialEditing)) : newForm())
+  const [sameAsCustomer, setSameAsCustomer] = useState(initialEditing === 'new' && !!customerAddress)
   const [ledgerNote, setLedgerNote] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -111,6 +147,12 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const [dupInfo, setDupInfo] = useState<{ customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding } | null>(null)
   const dupAckRef = useRef('')            // '계속 등록'으로 확인 완료된 주소
   const pendingSaveRef = useRef(false)    // 저장 시점 중복 확인 후 이어서 저장할지
+  // 폼을 연 시점의 bcode — 저장 후 대장 '전 필드' 반영은 **주소가 이 편집에서 새로 확정된 경우에만**.
+  // 종전엔 bcode만 있으면 항상 mode:'all'이라, 방금 저장한 수기 값(주차장·구조 등)이 대장 값으로 되돌아갔다.
+  const openBcodeRef = useRef(
+    initialEditing && initialEditing !== 'new'
+      ? (buildings.find(b => b.id === initialEditing)?.bcode ?? '')
+      : (inheritSrc?.bcode ?? ''))
 
   function toForm(b?: BuildingPanelRow): FormState {
     if (!b) return { ...EMPTY }
@@ -130,6 +172,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       households: b.households != null ? String(b.households) : '',
       elevator_count: b.elevator_count != null ? String(b.elevator_count) : '',
       emergency_elevator_count: b.emergency_elevator_count != null ? String(b.emergency_elevator_count) : '',
+      main_structure: b.main_structure ?? '',
+      roof_structure: b.roof_structure ?? '',
+      stairs_count: b.stairs_count != null ? String(b.stairs_count) : '',
+      ramp_count: b.ramp_count != null ? String(b.ramp_count) : '',
+      evac_elevator_count: b.evac_elevator_count != null ? String(b.evac_elevator_count) : '',
     }
   }
 
@@ -153,11 +200,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     function onFocusMissing(e: Event) {
       const id = (e as CustomEvent).detail?.id as string | undefined
       if (!id || !id.startsWith('bf-')) return
-      if (!editingRef.current) {
+      // 기본 열림이 '건물 등록' 폼이 된 뒤에도 누락 칩은 기존 건물 수정 폼을 겨냥해야 한다
+      if (!editingRef.current || editingRef.current === 'new') {
         const target = buildings.find(b => b.is_active) ?? buildings[0]
         if (!target) return
-        setForm(toForm(target)); setEditing(target.id); setSameAsCustomer(false)
-        setLedgerNote(''); setError(''); syncUrl(target.id)
+        openEdit(target)
       }
       // 폼이 이제 막 마운트되는 경우가 있어 폴링 (최대 8회 × 150ms)
       let tries = 0
@@ -186,17 +233,30 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   }
 
   function openEdit(b: BuildingPanelRow) {
-    setForm(toForm(b)); setEditing(b.id); setSameAsCustomer(false)
+    const f = toForm(b)
+    setForm(f); setEditing(b.id); setSameAsCustomer(false)
+    openBcodeRef.current = b.bcode ?? ''
     setLedgerNote(''); setError(''); syncUrl(b.id)
+    // 건축허가일이 필수가 되면서(2026-09-05) 기존 건물 대다수가 공란 — 대장에서 빈 칸만 자동 보충해
+    // 저장 차단에 걸리기 전에 채워준다(등록 폼 openNew와 같은 동작, 수기 값은 덮지 않음)
+    if (canManage && !f.permit_date && b.bcode && b.address_jibun) fetchLedger(b.bcode, b.address_jibun, f)
   }
   function openNew() {
     const f = newForm()
     setForm(f); setEditing('new'); setSameAsCustomer(!!customerAddress)
+    openBcodeRef.current = f.bcode
     setLedgerNote(''); setError(''); syncUrl('new')
     if (f.bcode && f.address_jibun) fetchLedger(f.bcode, f.address_jibun, f)
   }
+  // 닫기 = 열린 '건물 등록' 폼으로 복귀 (등록 폼 항상 오픈 — 조회 전용만 완전 닫힘)
   function close() {
-    setEditing(null); setLedgerNote(''); setError('')
+    if (canManage) {
+      setForm(newForm()); setEditing('new'); setSameAsCustomer(!!customerAddress)
+      openBcodeRef.current = inheritSrc?.bcode ?? ''
+    } else {
+      setEditing(null)
+    }
+    setLedgerNote(''); setError('')
     tabs?.setTabDirty('buildings', false)
     syncUrl(null)
   }
@@ -233,6 +293,8 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           households: p.households || numStr(L.households),
           elevator_count: p.elevator_count || numStr(L.elevator_count),
           emergency_elevator_count: p.emergency_elevator_count || numStr(L.emergency_elevator_count),
+          main_structure: p.main_structure || (L.main_structure ?? ''),
+          roof_structure: p.roof_structure || (L.roof_structure ?? ''),
         }
       })
       const got = [L.purpose && `용도 ${L.purpose}`, L.total_area != null && `연면적 ${L.total_area}㎡`,
@@ -276,8 +338,38 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const num = (s: string) => { const n = parseFloat(s); return isNaN(n) ? undefined : n }
   const int = (s: string) => { const n = parseInt(s, 10); return isNaN(n) ? undefined : n }
 
+  // 주차장 칩 토글 — 요약 텍스트에 단어를 넣고 빼는 것뿐(단어 포함 = 서식 체크, parseParkingSummary 축).
+  // 대수 등 상세("자주식 12대")는 텍스트에 그대로 남는다.
+  function toggleParkingWord(word: string) {
+    const cur = form.parking_summary
+    if (cur.includes(word)) {
+      const next = cur.split(word).join('')
+        .replace(/\s{2,}/g, ' ').replace(/\s*,\s*/g, ', ').replace(/(?:, )+/g, ', ')
+        .replace(/^[,\s]+|[,\s]+$/g, '')
+      setField('parking_summary', next)
+    } else {
+      // '지상'은 옥내 문맥에서만 옥내·지상으로 인정(parseParkingSummary) — 옥내가 없으면 함께 넣는다
+      const add = word === '지상' && !cur.includes('옥내') ? '옥내 지상' : word
+      setField('parking_summary', cur ? `${cur}, ${add}` : add)
+    }
+  }
+
   function save() {
     if (!form.building_name.trim()) { setError('건물명을 입력해주세요.'); return }
+    // 건축허가일 필수(2026-09-05) — 없으면 갑지 엑셀·별지 9호 2쪽이 공란으로 인쇄된다
+    if (!isCompleteDate(form.permit_date)) {
+      setError(form.permit_date
+        ? '건축허가일이 완성되지 않았습니다 — YYYY-MM-DD 형식으로 입력해주세요.'
+        : '건축허가일을 입력해주세요 — 주소 검색을 실행하면 건축물대장에서 자동으로 채워집니다.')
+      const el = document.getElementById('bf-permit-date')
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.focus({ preventScroll: true })
+        el.classList.add('ring-2', 'ring-red-400')
+        setTimeout(() => el.classList.remove('ring-2', 'ring-red-400'), 2500)
+      }
+      return
+    }
     setError('')
     // 저장 시점 중복 재검증 (주소 수기 보정 대비) — 이미 확인한 주소는 통과
     const addr = form.address.trim()
@@ -320,17 +412,25 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         households: int(form.households),
         elevator_count: int(form.elevator_count),
         emergency_elevator_count: int(form.emergency_elevator_count),
+        // 별지 9호 2쪽 잔여 항목(2026-09-05) — 구조·지붕·계단·경사로·피난용승강기
+        main_structure: form.main_structure || null,
+        roof_structure: form.roof_structure || null,
+        stairs_count: int(form.stairs_count),
+        ramp_count: int(form.ramp_count),
+        evac_elevator_count: int(form.evac_elevator_count),
       }
       const res = editing === 'new'
         ? await createBuildingAction({ customer_id: customerId, ...common })
         : await updateBuildingAction({ id: editing!, is_active: form.is_active, ...common })
       if (res.error) { setError(res.error); return }
-      // 주소(bcode) 확정 시 소방계획서용 대장 확장 필드를 '전 필드' 1회 반영 — 소방계획서 탭 버튼 클릭 불필요.
-      // 주소가 새로 확정된 시점이라 이전 값은 다른 건물 데이터 → 대장이 정답 (2026-08-06 사용자 확정).
-      // 탭 진입 자동은 mode 기본값('빈 칸만')이라 기존 고객의 수기 값은 보존된다.
-      if (form.bcode) { try { await autoApplyLedgerEmptyAction(customerId, { mode: 'all' }) } catch { /* best-effort */ } }
-      tabs?.setTabDirty('buildings', false)
-      setEditing(null); syncUrl(null)
+      // 주소(bcode) 확정 시 소방계획서용 대장 확장 필드 반영 — 소방계획서 탭 버튼 클릭 불필요.
+      // '전 필드'(대장이 정답, 2026-08-06 사용자 확정)는 **이 편집에서 주소가 새로 확정된 경우에만** —
+      // 같은 주소 재저장까지 'all'로 돌리면 방금 저장한 수기 구조·주차장 값이 대장 값으로 되돌아간다(2026-09-05).
+      if (form.bcode) {
+        const mode = form.bcode !== openBcodeRef.current ? 'all' as const : 'empty' as const
+        try { await autoApplyLedgerEmptyAction(customerId, { mode }) } catch { /* best-effort */ }
+      }
+      close()
       router.refresh()
     })
   }
@@ -463,9 +563,14 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
               별지 9호 2쪽 건축물 정보
               <span className="ml-1 font-normal text-ink-meta">— 주소 검색 시 건축물대장에서 빈 칸만 자동 채움, 대장에 없으면 직접 입력</span>
             </p>
+            {/* ① 허가·승인·면적·규모 — 연면적·층수는 위 기본 정보 행에서 입력 */}
             <div className="flex flex-wrap gap-2 items-end">
-              <div className="w-32"><label className={labelCls}>건축허가일</label>
+              <div className="w-32"><label className={labelCls}>건축허가일 *</label>
                 <DateInput id="bf-permit-date" value={form.permit_date} onChange={e => setField('permit_date', e.target.value)} disabled={!canManage} className={inputCls} /></div>
+              <div className="w-32"><label className={labelCls}>사용승인일</label>
+                <input value={useApprovalDate ?? ''} readOnly placeholder="고객 정보에서 입력"
+                  title="사용승인일은 고객 기본 정보의 값입니다 — 점검 기산점 축이라 고객 정보에서 수정합니다"
+                  className={`${inputCls} bg-paper`} /></div>
               <div className="w-28"><label className={labelCls}>건축면적(㎡)</label>
                 <input id="bf-building-area" type="number" value={form.building_area} onChange={e => setField('building_area', e.target.value)} disabled={!canManage} className={inputCls} /></div>
               <div className="w-20"><label className={labelCls}>높이(m)</label>
@@ -474,13 +579,47 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
                 <input id="bf-households" type="number" value={form.households} onChange={e => setField('households', e.target.value)} disabled={!canManage} className={inputCls} /></div>
               <div className="w-20"><label className={labelCls}>동수</label>
                 <input id="bf-building-count" type="number" value={form.building_count} onChange={e => setField('building_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-24"><label className={labelCls}>승용승강기</label>
+            </div>
+            {/* ② 구조 — 자유 입력 허용(목록 밖 값은 서식에서 '기타' 체크로 인쇄) */}
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="w-40"><label className={labelCls}>건축물구조</label>
+                <ComboInput id="bf-structure" value={form.main_structure} onChange={v => setField('main_structure', v)} disabled={!canManage}
+                  options={STRUCTURE_OPTIONS} ariaLabel="건축물구조" placeholder="선택/직접 입력" className={inputCls} /></div>
+              <div className="w-36"><label className={labelCls}>지붕구조</label>
+                <ComboInput id="bf-roof" value={form.roof_structure} onChange={v => setField('roof_structure', v)} disabled={!canManage}
+                  options={ROOF_OPTIONS} ariaLabel="지붕구조" placeholder="선택/직접 입력" className={inputCls} /></div>
+              <div className="w-24"><label className={labelCls}>경사로(개소)</label>
+                <input id="bf-ramp" type="number" value={form.ramp_count} onChange={e => setField('ramp_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
+            </div>
+            {/* ③ 계단·승강기 — 특별피난계단 개소는 세부제원 3-8(전실 제연)이 유일 원천(A9-3)이라 여기 없음 */}
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="w-32"><label className={labelCls}>직통·피난계단(개소)</label>
+                <input id="bf-stairs" type="number" value={form.stairs_count} onChange={e => setField('stairs_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
+              <div className="w-28"><label className={labelCls}>승용승강기(대)</label>
                 <input id="bf-elevator" type="number" value={form.elevator_count} onChange={e => setField('elevator_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-24"><label className={labelCls}>비상용승강기</label>
+              <div className="w-28"><label className={labelCls}>비상용승강기(대)</label>
                 <input type="number" value={form.emergency_elevator_count} onChange={e => setField('emergency_elevator_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="flex-1 min-w-48"><label className={labelCls}>주차장</label>
-                <input id="bf-parking" value={form.parking_summary} onChange={e => setField('parking_summary', e.target.value)} disabled={!canManage}
-                  placeholder="예: 옥내 자주식 12대, 옥외 자주식 6대" className={inputCls} /></div>
+              <div className="w-28"><label className={labelCls}>피난용승강기(대)</label>
+                <input type="number" value={form.evac_elevator_count} onChange={e => setField('evac_elevator_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
+              <p className="text-form-xs text-ink-meta pb-1.5">특별피난계단 개소는 세부제원 3-8(전실 제연)에서 자동 반영</p>
+            </div>
+            {/* ④ 주차장 — 텍스트가 원천, 칩은 단어를 넣고 빼는 지름길 + 서식 체크 미리보기 */}
+            <div>
+              <label className={labelCls}>주차장</label>
+              <input id="bf-parking" value={form.parking_summary} onChange={e => setField('parking_summary', e.target.value)} disabled={!canManage}
+                placeholder="예: 옥내 자주식 12대, 옥외 자주식 6대" className={inputCls} />
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                {(() => { const pk = parseParkingSummary(form.parking_summary); return PARKING_CHIPS.map(c => (
+                  <button key={c.word} type="button" disabled={!canManage} onClick={() => toggleParkingWord(c.word)}
+                    title={pk[c.flag] ? `'${c.word}' 단어를 텍스트에서 제거` : `'${c.word}' 단어를 텍스트에 추가`}
+                    className={`h-6 px-2 rounded-full border text-form-xs transition-colors ${pk[c.flag]
+                      ? 'bg-brand text-white border-brand'
+                      : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
+                    {pk[c.flag] ? '✓ ' : ''}{c.label}
+                  </button>
+                )) })()}
+                <span className="text-form-xs text-ink-meta ml-1">색칠된 칩 = 별지 9호에 √로 인쇄 (단어 포함 기준)</span>
+              </div>
             </div>
           </div>
 

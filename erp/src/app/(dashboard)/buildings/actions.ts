@@ -16,6 +16,12 @@ export type LedgerEditableInput = {
   households?: number                  // 세대수
   elevator_count?: number              // 승용 승강기(대)
   emergency_elevator_count?: number    // 비상용 승강기(대)
+  // 별지 9호 2쪽 잔여 항목(2026-09-05) — 소방계획서 1.1 일반현황 패널과 같은 컬럼(fire-plan-info-actions)
+  main_structure?: string | null       // 건축물구조 — 체크 판정은 report9-assemble 키워드(콘크리트/철골/조적/목)
+  roof_structure?: string | null       // 지붕구조 — 슬래브(슬라브)/기와/슬레이트/기타
+  stairs_count?: number                // 직통(또는 피난)계단 개소
+  ramp_count?: number                  // 경사로 개소
+  evac_elevator_count?: number         // 피난용 승강기(대)
 }
 
 /** 대장 항목을 update/insert 페이로드로 — undefined(폼 미전송)는 건드리지 않고, 빈 값은 null로 지운다 */
@@ -29,6 +35,11 @@ function ledgerFields(b: LedgerEditableInput): Record<string, unknown> {
   if (b.households !== undefined) out.households = b.households ?? null
   if (b.elevator_count !== undefined) out.elevator_count = b.elevator_count ?? null
   if (b.emergency_elevator_count !== undefined) out.emergency_elevator_count = b.emergency_elevator_count ?? null
+  if (b.main_structure !== undefined) out.main_structure = b.main_structure || null
+  if (b.roof_structure !== undefined) out.roof_structure = b.roof_structure || null
+  if (b.stairs_count !== undefined) out.stairs_count = b.stairs_count ?? null
+  if (b.ramp_count !== undefined) out.ramp_count = b.ramp_count ?? null
+  if (b.evac_elevator_count !== undefined) out.evac_elevator_count = b.evac_elevator_count ?? null
   return out
 }
 
@@ -51,6 +62,7 @@ function validateBuildingNumbers(
   const nonNeg: Array<[number | undefined, string]> = [
     [b.building_area, '건축면적'], [b.building_count, '건물 동수'], [b.height, '높이'],
     [b.households, '세대수'], [b.elevator_count, '승용 승강기'], [b.emergency_elevator_count, '비상용 승강기'],
+    [b.stairs_count, '계단'], [b.ramp_count, '경사로'], [b.evac_elevator_count, '피난용 승강기'],
   ]
   for (const [v, label] of nonNeg) {
     if (v != null && (isNaN(v) || v < 0)) return `${label}은(는) 0 이상의 숫자여야 합니다.`
@@ -83,6 +95,9 @@ export async function createBuildingAction(
 
   const vErr = validateBuildingNumbers(input)
   if (vErr) return { error: vErr }
+  // 건축허가일 필수(2026-09-05) — 공란이면 갑지 엑셀·별지 9호 2쪽이 공란으로 인쇄된다.
+  // 이 액션의 호출부는 건물 폼뿐이라 고객 등록 시 자동 생성(customers/actions.ts 직접 insert)은 막지 않는다.
+  if (!input.permit_date) return { error: '건축허가일을 입력해주세요.' }
 
   const baseFields = {
     customer_id: input.customer_id,
