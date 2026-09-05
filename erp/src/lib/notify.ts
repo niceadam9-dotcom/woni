@@ -11,7 +11,7 @@ export const NOTIFY_CATEGORY_LABEL: Record<NotifyCategory, string> = {
   approval_result: '결재 결과 (승인·반려)',
   leave_result: '휴가 결과 (승인·반려)',
   assignment: '담당 배정 (고객·점검·인수인계)',
-  deadline: '기한 임박 (점검 마감·화재보험 만기)',
+  deadline: '기한 임박 (점검 마감·화재보험 만기·실무교육 주기)',
 }
 
 type NotificationRow = {

@@ -145,8 +145,9 @@ try {
   const f9 = await page.evaluate(() => {
     const box = document.querySelector('[data-annex-fields="report9"]') as HTMLElement | null
     if (!box) return null
-    // DateInput은 달력 팝업용 히든 <input type="date">를 하나 더 그린다(aria-hidden) — 사람이 쓰는 칸만 센다
-    const ctrls = [...box.querySelectorAll<HTMLElement>('input, select, textarea')]
+    // DateInput은 달력 팝업용 히든 <input type="date">를 하나 더 그린다(aria-hidden) — 사람이 쓰는 칸만 센다.
+    // mark2 체크쌍(실시/미실시)은 role=group 하나가 한 칸이다(annex-fields.tsx)
+    const ctrls = [...box.querySelectorAll<HTMLElement>('input, select, textarea, [role="group"]')]
       .filter(c => c.getAttribute('aria-hidden') !== 'true')
     let worstOvf = 0
     for (const el of box.querySelectorAll<HTMLElement>('*')) worstOvf = Math.max(worstOvf, el.scrollWidth - el.clientWidth)
@@ -161,7 +162,7 @@ try {
   })
   check('④ 고유값 칸을 측정할 수 있다', !!f9)
   if (f9) {
-    // annex-fields.tsx FIELD_DEFS.report9 = 8칸 (보고일·비고 + select 6)
+    // annex-fields.tsx FIELD_DEFS.report9 = 8칸 (보고일·비고 + mark2 체크쌍 4 + select 2)
     check(`④ 9호 고유값 8칸이 전부 살아 있다 (실측 ${f9.n}칸)`, f9.n === 8, f9.labels.join('/'))
     check(`④ 고유값 칸이 숨겨져 높이를 번 것이 아니다 (숨김 ${f9.hidden}칸)`, f9.hidden === 0, `${f9.hidden}칸`)
     check(`④ 고유값 칸이 미리보기를 밀어내지 않는다 (실측 ${f9.boxH}px ≤ 200)`, f9.boxH <= 200, `${f9.boxH}px`)

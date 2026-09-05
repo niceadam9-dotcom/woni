@@ -6,12 +6,10 @@ export type DocumentStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 're
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'sick' | 'special'
 export type LeaveStatus = 'pending' | 'manager_approved' | 'approved' | 'rejected'
-export type NotificationType =
-  | 'approval_request' | 'approved' | 'rejected' | 'recalled'
-  | 'leave_request' | 'leave_approved' | 'leave_rejected'
-  | 'inspection_assigned' | 'inspection_step_due'
-  | 'inspection_step_overdue' | 'inspection_completed'
-  | 'insurance_expiry_due' | 'insurance_expiry_overdue'
+// 정본은 lib/notification-types.ts (DB CHECK의 사본) — 여기 사본이 낡아 defect_action_* 등
+// 실재 타입 6종이 빠져 있었다(2026-09-05 통일). 값 추가는 그쪽 목록에만 한다.
+import type { NotificationType } from '@/lib/notification-types'
+export type { NotificationType }
 
 // Fire Safety Inspection types
 export type InspectionType     = '종합' | '작동' | '일반관리'

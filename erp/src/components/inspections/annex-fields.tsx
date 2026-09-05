@@ -12,10 +12,11 @@ export type ComposeAnnexNo = 'report9' | 'report10' | 'report11' | 'exterior' | 
 export type FieldDef = {
   key: string
   label: string
-  type: 'date' | 'daterange' | 'text' | 'textarea' | 'select'
+  /** mark2: 갑지 「정보」 시트의 (√실시 / 미실시) 칸과 같은 체크쌍 — 둘 다 해제하면 자동 판정 */
+  type: 'date' | 'daterange' | 'text' | 'textarea' | 'select' | 'mark2'
   placeholder?: string
   hint?: string
-  /** type='select' 전용 — 첫 항목이 기본(빈 값=자동 판정) */
+  /** type='select'·'mark2' 전용 — 첫 항목이 기본(빈 값=자동 판정) */
   options?: Array<{ value: string; label: string }>
 }
 
@@ -41,28 +42,28 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     // A(2026-08-20): '미실시'도 고를 수 있다. 부정 칸(미실시·미작성·미보관)이 종전엔 ck(false)
     // 하드코딩이라 실제로 미실시인 대상물조차 √를 못 찍고 양쪽 공란으로 나갔다. **자동 판정은
     // 여전히 부정을 단정하지 않는다** — 사람이 여기서 고를 때만 부정 칸에 √가 찍힌다(A9-6 유지).
-    { key: 'eduDone', label: '소방안전교육 (전년도)', type: 'select',
+    { key: 'eduDone', label: '소방안전교육 (전년도)', type: 'mark2',
       options: [
         { value: '', label: '자동 판정 (1.11.4 전년도 실적)' },
         { value: '실시', label: '실시로 기재 (수동 확정)' },
         { value: '미실시', label: '미실시로 기재 (수동 확정)' },
       ],
       hint: '2쪽 교육훈련 칸 — 자동 판정은 실시만 찍는다. 미실시 √는 여기서 확정해야 나간다' },
-    { key: 'drillDone', label: '소방훈련 (전년도)', type: 'select',
+    { key: 'drillDone', label: '소방훈련 (전년도)', type: 'mark2',
       options: [
         { value: '', label: '자동 판정 (1.11.4 전년도 실적)' },
         { value: '실시', label: '실시로 기재 (수동 확정)' },
         { value: '미실시', label: '미실시로 기재 (수동 확정)' },
       ],
       hint: '2쪽 교육훈련 칸 — 자동 판정은 실시만 찍는다. 미실시 √는 여기서 확정해야 나간다' },
-    { key: 'prevOpDone', label: '자체점검(전년도) 작동점검', type: 'select',
+    { key: 'prevOpDone', label: '자체점검(전년도) 작동점검', type: 'mark2',
       options: [
         { value: '', label: '자동 판정 (전년도 완료 점검 이력)' },
         { value: '실시', label: '실시로 기재 (수동 확정)' },
         { value: '미실시', label: '미실시로 기재 (수동 확정)' },
       ],
       hint: '2쪽 자체점검 칸 — ERP 도입 전 이력(종이·타사)은 자동 판정에 안 잡힌다' },
-    { key: 'prevCompDone', label: '자체점검(전년도) 종합점검', type: 'select',
+    { key: 'prevCompDone', label: '자체점검(전년도) 종합점검', type: 'mark2',
       options: [
         { value: '', label: '자동 판정 (전년도 완료 점검 이력)' },
         { value: '실시', label: '실시로 기재 (수동 확정)' },
@@ -158,6 +159,29 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
         <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)}
           aria-invalid={bad} className={`${inputBase} w-36 min-w-0 max-w-full${bad ? ' !border-red-400' : ''}`} />
         {bad && <span className="w-full text-[10px] text-red-600" data-testid="annex-range-error">❌ {DATE_RANGE_ERROR}</span>}
+      </span>
+    )
+  }
+  if (def.type === 'mark2') {
+    // 갑지 「정보」 시트의 「(√실시 / 미실시)」 칸과 같은 모양 — 체크 하나가 하나의 확정값이고,
+    // 켜진 것을 다시 누르면 해제되어 자동 판정('')으로 돌아간다(select 시절의 3상태 유지).
+    const marks = (def.options ?? []).filter(o => o.value)
+    const autoLabel = (def.options ?? []).find(o => !o.value)?.label ?? '자동 판정'
+    return (
+      <span role="group" aria-label={def.label} className="inline-flex flex-wrap items-center gap-1.5">
+        {marks.map(o => {
+          const on = value === o.value
+          return (
+            <button key={o.value} type="button" aria-pressed={on}
+              onClick={() => onChange(on ? '' : o.value)}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors ${on
+                ? 'border-brand bg-brand-tint font-semibold text-brand'
+                : 'border-line text-ink-sub hover:bg-brand-tint'}`}>
+              <span className="font-mono text-[11px]">{on ? '[√]' : '[  ]'}</span>{o.value}
+            </button>
+          )
+        })}
+        <span className="text-[10px] text-ink-soft whitespace-nowrap">{value ? '수동 확정' : autoLabel}</span>
       </span>
     )
   }

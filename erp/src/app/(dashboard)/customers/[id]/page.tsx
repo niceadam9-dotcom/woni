@@ -508,10 +508,28 @@ export default async function CustomerDetailPage({
     </div>
   )
 
+  // 소방안전관리 미입력 요약 (2026-09-05) — 아래 패널 값이 비면 별지 9호 2쪽·갑지 「정보」 시트가
+  // 공란으로 나간다. 패널이 탭 맨 아래라 눈에 안 띄어, 상단 배지로 알리고 누르면 내려가게 한다.
+  const fsmMissing = [
+    !s(cRec.manager_contact_id) && '소방안전관리자 지목',
+    !planInfoInitial.managerAppointType && '선임 형태',
+    !planInfoInitial.managerEduDate && '최근 교육이수일',
+    !planInfoInitial.repRole && '대표자 구분',
+    !planInfoInitial.grade && '급수',
+  ].filter(Boolean) as string[]
+
   // 관계인 정보 (수정 가능)
   const contactsTab = (
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <h2 className="text-form-base font-semibold text-ink mb-4">관계인 정보</h2>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <h2 className="text-form-base font-semibold text-ink">관계인 정보</h2>
+          {fsmMissing.length > 0 && (
+            <a href="#fire-safety-manager" data-testid="fsm-missing-badge"
+              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition-colors">
+              ⚠ 소방안전관리 미입력: {fsmMissing.join(' · ')}
+            </a>
+          )}
+        </div>
         <EditContactsClient
           customerId={customer.id}
           customerName={customer.customer_name}
@@ -523,7 +541,7 @@ export default async function CustomerDetailPage({
         />
         {/* 소방안전관리 (2026-08-20) — 별지 9호 2쪽 «소방안전정보» 한 블록을 여기서 다 채운다.
             종전엔 이 블록이 관계인 탭·계획서 1.1 ②·계획서 1.7 세 곳에 흩어져 320곳 중 1곳만 완성돼 있었다. */}
-        <div className="mt-4 pt-4 border-t border-brand-line-soft">
+        <div id="fire-safety-manager" className="mt-4 pt-4 border-t border-brand-line-soft scroll-mt-24">
           <FireSafetyManagerPanel
             customerId={customer.id}
             contacts={contacts}
