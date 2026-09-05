@@ -229,8 +229,12 @@ export const ANCHORS: Anchor[] = [
   // ⚠ 라벨칸 고르기가 이 블록의 핵심이다. 3행의 이웃 라벨은 자동확산소화기·자동소화장치가 **둘 다
   //   '자동'**이라(P3·S3) 서식이 밀려도 구별되지 않는다. 그래서 두 번째 낱말이 있는 **4행**을
   //   라벨칸으로 잡는다(N4='확산소화기' · Q4='소화장치') — 좌표만 믿지 않는다는 규약의 적용.
-  // ⚠ 상위 '소화기'(C3)는 앵커를 달지 않는다 — 이미 `=현황!D7` 수식이고, 그 축(설비 대장 설치
-  //   여부)과 여기 축(세부제원에 적은 종류)은 다르다. 덮으면 두 축이 뒤섞인다.
+  // ⚠ 상위 '소화기'(C3)는 원래 `=현황!D7` 수식(대장 축)뿐이라, 세부제원에 분말·기타를 적어도
+  //   대장에 소화기 행이 없으면 빈 체크로 나갔다 — 2026-09-05 사용자 지시(image-59·60)로
+  //   '하위가 체크되면 상위는 반드시 체크'를 보장한다. 값은 하위 합집합 OR 대장 축(수식이 보던
+  //   바로 그 판정 — xlsx-workbook s31ExtAny 주석)이라 종전에 체크되던 경우는 전부 유지된다.
+  //   dropFormula: 수식을 살려 두면 Excel이 열면서 재계산해 대장-only 값으로 되돌린다.
+  { field: 's31ExtAny',      sheet: '현1', cell: 'C3', labelCell: 'D3', label: '소화기', dropFormula: true },
   { field: 's31SimpleAny',   sheet: '현1', cell: 'J3', labelCell: 'K3', label: '간이소화용구' },
   { field: 's31AutoDiffuse', sheet: '현1', cell: 'O3', labelCell: 'N4', label: '확산소화기' },
   { field: 's31AutoDevice',  sheet: '현1', cell: 'R3', labelCell: 'Q4', label: '소화장치' },

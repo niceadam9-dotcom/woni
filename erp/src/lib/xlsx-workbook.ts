@@ -13,6 +13,7 @@ import { columnTotal } from '@/lib/facility-spec-schema'
 import {
   FORM4_ROWS, FORM4_ETC_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
 } from '@/lib/xlsx-form4'
+import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { isoToSerial, type InjectTarget, type CellValue } from '@/lib/xlsx-inject'
 
 export type WorkbookSource = {
@@ -337,7 +338,15 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     const raw = summary?.['types']
     const types = new Set(Array.isArray(raw) ? raw.map(String) : [])
     const on = (...opts: string[]) => opts.some(o => types.has(o))
+    // 상위 '소화기'(C3) — 종전엔 서식 수식 `=현황!D7`(대장 축)에만 맡겨, 세부제원에 분말·기타를
+    // 적어도 대장에 소화기 행이 없으면 빈 체크로 나갔다(2026-09-05 사용자 지시 image-59·60:
+    // 하위가 체크되면 상위는 반드시 체크). PDF(renderS31 tAny)의 하위 합집합에 그 수식이 보던
+    // 대장 축을 OR로 합친다 — D7 칸과 같은 판정 함수(isForm4Installed)라 수식을 끊어도
+    // 대장-only 경우의 값이 갈라지지 않고, 종전에 체크되던 어떤 경우도 빠지지 않는다.
+    const extRow = FORM4_ROWS.find(r => (r.codes ?? []).includes(FIRE_SUB_ITEMS[0]))
+    const extLedgerOn = !!extRow && isForm4Installed(extRow, src.installedCodes, src.evacTypes)
     entries.push(
+      ['s31ExtAny',      ck(on('소화기(분말)', '소화기(기타)') || extLedgerOn)],
       ['s31SimpleAny',   ck(on('간이소화용구(투척용)', '간이소화용구(기타)'))],
       ['s31AutoDiffuse', ck(on('자동확산소화기'))],
       ['s31AutoDevice',  ck(on('자동소화장치'))],

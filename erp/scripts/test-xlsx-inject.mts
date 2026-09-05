@@ -14,6 +14,7 @@ import XLSX from 'xlsx'
 import { injectWorkbook, isoToSerial, sheetFileMap } from '../src/lib/xlsx-inject.ts'
 import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { buildWorkbookValues, toInjectTargets, DEFECT_ROWS_PER_GROUP, defectOverflow } from '../src/lib/xlsx-workbook.ts'
+import { FIRE_SUB_ITEMS } from '../src/lib/facility-codes.ts'
 import type { OfficialData } from '../src/lib/doc-templates/official.ts'
 import type { DelegationData } from '../src/lib/doc-templates/delegation.ts'
 
@@ -277,12 +278,12 @@ console.log('[4] 값 없는 앵커 = 명시적 공란')
 // **대조군을 먼저 보인다** — specs가 없으면 7칸이 전부 `[  ]`여야 한다(값을 지어내지 않는다).
 console.log('[4b] 현1 3-1 소화기구 체크')
 {
-  const CELLS = { J3: '간이소화용구', O3: '자동확산소화기', R3: '자동소화장치',
+  const CELLS = { C3: '소화기(상위)', J3: '간이소화용구', O3: '자동확산소화기', R3: '자동소화장치',
                   B4: '소화기(분말)', G4: '소화기(기타)', I4: '투척용', L4: '간이(기타)' } as const
-  const mk = async (specs: Record<string, unknown> | null) => {
+  const mk = async (specs: Record<string, unknown> | null, installedCodes: string[] = []) => {
     const v = buildWorkbookValues({
       official, delegation, customerAddress: '', startISO: null, endISO: null,
-      useApprovalISO: null, installedCodes: [], evacTypes: [], building: null,
+      useApprovalISO: null, installedCodes, evacTypes: [], building: null,
       report9: { ...report9, specs },
     })
     const r = await injectWorkbook(template, toInjectTargets(v).targets)
@@ -290,6 +291,7 @@ console.log('[4b] 현1 3-1 소화기구 체크')
     const xml = await z.file((await sheetFileMap(z)).get('현1')!)!.async('string')
     return (ref: string) => {
       const c = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`).exec(xml)?.[0] ?? ''
+      if (ref === 'C3' && /<f[^>]*>/.test(c)) return '(수식 잔존)'
       return /<t[^>]*>([\s\S]*?)<\/t>/.exec(c)?.[1] ?? /<v>([\s\S]*?)<\/v>/.exec(c)?.[1] ?? ''
     }
   }
@@ -306,6 +308,7 @@ console.log('[4b] 현1 3-1 소화기구 체크')
   const ON = '[√]', OFF = '[  ]'
   const EXPECT: Record<string, string> = {
     B4: ON, I4: ON, R3: ON,   // 직접 켠 3종
+    C3: ON,                   // 상위 = 하위 합집합(분말이 켜졌으므로 — 2026-09-05 image-59·60)
     J3: ON,                   // 상위 = 하위 합집합(투척용이 켜졌으므로)
     G4: OFF, L4: OFF, O3: OFF, // 안 켠 것은 꺼진 채
   }
@@ -313,6 +316,13 @@ console.log('[4b] 현1 3-1 소화기구 체크')
     check(`현1!${ref} ${CELLS[ref as keyof typeof CELLS]} = ${want === ON ? '√' : '빈칸'}`,
       got(ref) === want, JSON.stringify(got(ref)))
   }
+  // 상위 '소화기'의 대장 축 보존 — 세부제원이 비어도 대장에 소화기 행이 있으면 종전 수식
+  // (=현황!D7)이 체크하던 그대로 체크된다(수식을 리터럴로 바꿔도 값이 갈라지면 안 된다)
+  const led = await mk(null, [FIRE_SUB_ITEMS[0]])
+  check(`현1!C3 소화기(상위) — 세부제원 없이 대장 축만으로도 √(종전 =현황!D7 유지)`,
+    led('C3') === ON, JSON.stringify(led('C3')))
+  check(`현1!B4 분말 — 대장 축만으로는 하위가 켜지지 않는다(하위는 세부제원 축)`,
+    led('B4') === OFF, JSON.stringify(led('B4')))
 }
 
 // ── ④c 현1 3-2 수계소화설비 25칸 (Phase 4 / S9-1) ────────────────────
