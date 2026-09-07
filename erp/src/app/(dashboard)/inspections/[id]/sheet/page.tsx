@@ -6,6 +6,7 @@ import { buildSheetOverviews } from '@/lib/sheet-overview'
 import { pickAutoOpenSheet } from '@/lib/inspection-step-links'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { SheetEntryClient } from '@/components/inspections/sheet-entry-client'
+import { findPrevRoundSource } from '@/lib/prev-round-source'
 
 /** 점검표 입력 전용 화면 (소방계획서_28) — **입력의 정본**.
  *
@@ -77,6 +78,18 @@ export default async function SheetEntryPage({
   const fromRaw = sp.from?.trim() ?? ''
   const backHref = fromRaw.startsWith('/') && !fromRaw.startsWith('//') ? fromRaw : null
 
+  /** 지난 회차 불러오기 제안(2026-09-07) — 새 회차는 항상 빈 상태로 시작한다(자동 승계 없음:
+   *  점검 없이 작성된 값이 기본값이 되면 허위 기재를 조장한다, 소방계획서_20 §6-6). 그래서
+   *  반복 입력을 줄이는 길이 [지난 회차 결과 불러오기]인데 **버튼을 모르면 605항목을 처음부터 찍는다**.
+   *  아직 한 칸도 안 채운 회차에서만 출처를 조회해 배너로 알린다 —
+   *  · 조회 조건을 responded===0으로 묶어 입력 중 회차는 왕복 0회(비용이 붙지 않는다)
+   *  · 판정은 복사 액션과 같은 findPrevRoundSource — 권해놓고 실패하는 배너가 될 수 없다
+   *  · responseCount 0(회차는 있으나 응답이 없는 껍데기)이면 배너 없음 */
+  const prevSrc = overview.canEdit && overview.totals.responded === 0
+    ? await findPrevRoundSource(admin, id)
+    : null
+  const prevRoundLabel = prevSrc && prevSrc.responseCount > 0 ? prevSrc.label : null
+
   return (
     <SheetEntryClient
       inspectionId={id}
@@ -88,6 +101,7 @@ export default async function SheetEntryPage({
       initialGroupCode={sp.group?.trim() || null}
       initialMonth={initialMonth}
       backHref={backHref}
+      prevRoundLabel={prevRoundLabel}
       loadError={error ?? null}
     />
   )

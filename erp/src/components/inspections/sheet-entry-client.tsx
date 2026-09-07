@@ -36,7 +36,7 @@ const numCls = (r: number, t: number) =>
 
 export function SheetEntryClient({
   inspectionId, customerName, roundLabel, overview,
-  canEdit, initialSheetId, initialGroupCode, initialMonth, backHref, loadError,
+  canEdit, initialSheetId, initialGroupCode, initialMonth, backHref, prevRoundLabel, loadError,
 }: {
   inspectionId: string
   customerName: string
@@ -48,6 +48,9 @@ export function SheetEntryClient({
   initialMonth: number | null
   /** ?from= 복귀 경로(page.tsx가 검증) — 없으면 점검 상세. 진입점이 여럿이라 고정 목적지는 틀린다 */
   backHref: string | null
+  /** 빈 회차에서만 채워지는 복사 출처 라벨('2025년 2차') — 제안 배너용. page.tsx가 판정한다
+   *  (복사 액션과 같은 findPrevRoundSource라 배너와 버튼 결과가 갈릴 수 없다) */
+  prevRoundLabel: string | null
   loadError: string | null
 }) {
   const [ov, setOv] = useState<SheetOverview>(overview)
@@ -62,6 +65,9 @@ export function SheetEntryClient({
    *  자동저장 draft(○/✕/／)와 분리된 표시 전용 상태다 — draft에 섞으면 delta·동시편집 보호를 재검증해야 한다 */
   const [memos, setMemos] = useState<Record<string, string | null>>({})
   const [installedOnly, setInstalledOnly] = useState(!overview.noFacilityInfo)
+  /** 지난 회차 제안 배너 닫음(2026-09-07) — 복사를 실행했거나 사용자가 [닫기]를 누르면 사라진다.
+   *  세션 저장은 하지 않는다: 회차마다 한 번 보이는 안내라 '영구 숨김'이면 다음 회차에서 또 모르게 된다 */
+  const [prevHintOff, setPrevHintOff] = useState(false)
   // 외관(자체점검이 아닌 건)만 월 축 — 없으면 month=0으로만 써서 다른 달 실적으로 오귀속된다(EX-4)
   const isExterior = !ov.scope.isSpecial
   const [month, setMonth] = useState(initialMonth ?? new Date().getMonth() + 1)
@@ -279,13 +285,21 @@ export function SheetEntryClient({
     startBusy(async () => {
       const res = await copyPreviousRoundResponsesAction(inspectionId)
       if (res.error) { setErr(res.error); return }
+      // 제안은 1회용 — **성공한 복사** 자체가 소멸 신호다(2026-09-07). 아래 setOv의 responded로
+      // 판정하면 복사 결과가 범위 밖 시트에만 실린 경우 배너가 남아 같은 복사를 다시 권한다.
+      // 실패 시에는 남는다(위 early return) — 못 한 일을 없던 일로 만들지 않는다
+      setPrevHintOff(true)
       lastSaveAtRef.current = Date.now()
       const fresh = await getInspectionSheetOverviewAction([inspectionId])
       const next = fresh.overviews?.[inspectionId] ?? null
       if (next) setOv(next)
       // 검토 유도 — 복사만 하고 덮어두면 확인 없이 그대로 생성될 수 있다. 불량이 실린 시트를 먼저 연다.
       const target = next?.sheets.find(s => s.counts.X > 0) ?? next?.sheets.find(s => s.responded > 0)
-      if (target) void openRow(target.sheetId)
+      // 🔴 반드시 **await** 후에 setNotice — openRow는 첫 await 뒤에 setNotice('')로 안내를 지운다(:202,
+      //    시트 전환 시엔 옳은 동작). void로 띄우면 그 초기화가 아래 안내보다 늦게 도착해
+      //    "N개 불러옴 · 불량 N건은 확인 후 [등록] 필요"가 **한 번도 안 보였다**(2026-09-07 실측).
+      //    복사 결과와 다음 할 일을 알리는 유일한 문구라 조용히 사라지면 안 된다
+      if (target) await openRow(target.sheetId)
       setNotice(
         `✅ ${res.sourceLabel}에서 ${res.filled}개 항목을 불러왔습니다`
         + `${res.skipped ? ` (이번 회차 입력 ${res.skipped}건은 유지)` : ''}`
@@ -391,6 +405,26 @@ export function SheetEntryClient({
         </div>
       )}
       {!canEdit && <p className="text-xs text-ink-meta mb-3">보기 전용 — 이 점검 건의 담당자·팀장·관리자만 입력할 수 있습니다.</p>}
+      {/* 지난 회차 제안(2026-09-07) — 아직 한 칸도 없는 회차에서만. 버튼은 종전부터 있었지만
+          **모르면 605항목을 처음부터 찍는다**. 시작점을 한 번에 채우는 길이 있다는 사실만 알린다.
+          누르면 기존 copyPrevious 그대로(확인 다이얼로그·미입력만·불량 자동등록 없음·감사 로그 유지) —
+          배너는 진입점일 뿐 안전장치를 우회하지 않는다. 입력이 시작되면(responded>0) 스스로 사라진다 */}
+      {canEdit && prevRoundLabel && !prevHintOff && ov.totals.responded === 0 && (
+        <div className="mb-2 flex items-start gap-2 rounded-lg border border-brand-line-soft bg-brand-tint px-3 py-2"
+          data-testid="sheet-entry-prev-hint">
+          <span className="text-xs text-ink-sub flex-1">
+            💡 <b className="text-ink">{prevRoundLabel}</b> 완료 기록이 있습니다 —
+            [지난 회차 결과 불러오기]로 시작하면 처음부터 입력하지 않고 <b className="text-ink">달라진 항목만</b> 고치면 됩니다.
+            <span className="text-ink-meta"> (실제 점검을 대체하지 않습니다 — 불러온 뒤 현장 확인 결과로 수정하세요)</span>
+          </span>
+          <button onClick={copyPrevious} disabled={busy} data-testid="sheet-entry-prev-hint-copy"
+            className="text-xs text-brand font-medium hover:underline shrink-0 disabled:opacity-50">
+            불러오기
+          </button>
+          <button onClick={() => setPrevHintOff(true)} aria-label="제안 닫기"
+            className="text-xs text-ink-meta hover:text-ink-sub shrink-0">✕</button>
+        </div>
+      )}
       {/* 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 선택은 사용자가 한다(드로어와 같은 문구·같은 규약).
           이 동안 자동저장은 pause다(훅 계약 ③) — 아래 칩이 '저장 보류'로 바뀐다 */}
       {stale && (

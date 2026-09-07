@@ -10,6 +10,7 @@ import { syncStepsAndRevalidate } from './step-revalidate'
 import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
 import { getAllSheetItems, getSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
+import { findPrevRoundSource } from '@/lib/prev-round-source'
 import type { UserRole } from '@/types'
 
 /** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
@@ -547,19 +548,9 @@ export async function copyPreviousRoundResponsesAction(inspectionId: string): Pr
   const insp = await loadScope(admin, inspectionId)
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
 
-  // 직전 완료 회차 — 같은 고객, 이 건보다 앞선 회차 중 가장 최근
-  const { data: cur } = await admin.from('inspections')
-    .select('year, sequence_num').eq('id', inspectionId).maybeSingle()
-  if (!cur) return { error: '점검 건을 찾을 수 없습니다.' }
-  const c = cur as { year: number; sequence_num: number }
-
-  const { data: prevRaw } = await admin.from('inspections')
-    .select('id, year, sequence_num')
-    .eq('customer_id', insp.customerId).eq('status', 'completed').neq('id', inspectionId)
-    .order('year', { ascending: false }).order('sequence_num', { ascending: false })
-    .limit(24)
-  const prev = ((prevRaw ?? []) as Array<{ id: string; year: number; sequence_num: number }>)
-    .find(p => p.year < c.year || (p.year === c.year && p.sequence_num < c.sequence_num))
+  // 직전 완료 회차 — 판정은 findPrevRoundSource 한 곳(제안 배너와 공유, 2026-09-07).
+  // 권하는 쪽과 실행하는 쪽이 갈리면 "배너는 권했는데 눌러보니 없다"가 난다
+  const prev = await findPrevRoundSource(admin, inspectionId)
   if (!prev) return { error: '불러올 지난 완료 회차가 없습니다.' }
 
   const [{ data: srcRaw }, { data: haveRaw }] = await Promise.all([
@@ -569,7 +560,7 @@ export async function copyPreviousRoundResponsesAction(inspectionId: string): Pr
       .select('item_code').eq('inspection_id', inspectionId),
   ])
   const src = (srcRaw ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null; month: number | null }>
-  if (src.length === 0) return { error: `${prev.year}년 ${prev.sequence_num}차에 저장된 점검표 응답이 없습니다.` }
+  if (src.length === 0) return { error: `${prev.label}에 저장된 점검표 응답이 없습니다.` }
   const have = new Set(((haveRaw ?? []) as Array<{ item_code: string }>).map(r => r.item_code))
 
   // ① 미입력 항목만 — 이번 회차 입력값 보존
@@ -590,7 +581,7 @@ export async function copyPreviousRoundResponsesAction(inspectionId: string): Pr
   await admin.from('activity_logs').insert({
     action: 'sheet_copy_previous', entity_type: 'inspection', entity_id: inspectionId, actor_id: profile.id,
     metadata: {
-      source_inspection_id: prev.id, source_label: `${prev.year}년 ${prev.sequence_num}차`,
+      source_inspection_id: prev.id, source_label: prev.label,
       filled: payload.length, skipped: src.length - target.length, copied_x: copiedX,
     },
   } as Record<string, unknown>)
@@ -605,7 +596,7 @@ export async function copyPreviousRoundResponsesAction(inspectionId: string): Pr
   revalidatePath(`/inspections/${inspectionId}`)
   return {
     filled: payload.length, skipped: src.length - target.length, copiedX,
-    sourceLabel: `${prev.year}년 ${prev.sequence_num}차`,
+    sourceLabel: prev.label,
   }
 }
 

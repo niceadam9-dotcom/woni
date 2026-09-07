@@ -200,6 +200,11 @@ const steps: Step[] = [
   // 드로어와 같은 규약(Realtime + 훅 계약 ③ pause/resume)으로 막았다. 코드 존재로는 증명되지 않는
   // 축이라(이식 전 대조군에서 '차단' 검사가 itemC=O로 붉었다) 브라우저 + DB 실측으로 고정한다
   { name: '점검표 동시 편집 보호(E2E)',   cmd: 'npx tsx scripts/test-sheet-entry-concurrent.mts', needServer: true },
+  // 지난 회차 제안 배너(2026-09-07) — 새 회차는 항상 빈 상태로 시작한다(자동 승계는 §6-6 때문에
+  // 일부러 안 만들었다). 그래서 [지난 회차 결과 불러오기]를 모르면 605항목을 처음부터 찍는다.
+  // ★ '배너가 뜬다'가 아니라 **권한 회차 = 복사가 집는 회차**임을 감사 로그로 대조하는 것이 핵심 —
+  // 갈리면 권해놓고 실패하는 버튼이 된다. 복사 결과 안내의 조용한 소멸도 여기서 고정한다.
+  { name: '지난 회차 제안 배너(E2E)',     cmd: 'npx tsx scripts/test-prev-round-hint.mts', needServer: true },
   // S9-1 재생성 차단 — 규약 버전 축(149). 날짜 상수(CUTOFF)의 부활, 스탬프 배선 유실,
   // 미상+응답 차단 규칙의 완화를 전부 여기서 잡는다 — 종전 날짜 축은 기입 즉시 전건 차단 사고를 냈다.
   { name: 'S9-1 재생성 규약 축',         cmd: 'npx tsx scripts/test-regen-protocol.mts' },
