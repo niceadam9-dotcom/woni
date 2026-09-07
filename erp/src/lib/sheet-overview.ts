@@ -8,6 +8,7 @@ import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { isMultiUseApplicable } from '@/lib/multi-use'
 import { getAllSheetItems, getSheets, type SheetCatalogItem, type SheetRow } from '@/lib/sheet-catalog'
+import { specNaCodes, type SpecRow } from '@/lib/sheet-spec-na'
 
 /** 점검표 진행률 집계 — 회차별 작성·조회 트리의 설비별 요약 행과 점검 상세 배지의 공용 소스.
  *
@@ -179,6 +180,17 @@ export async function buildSheetOverviews(
     else facByCustomer.set(cid, [f.facility_code])
   }
 
+  // ⑦-a 세부제원 조건부 자동 ／(2026-09-07) — 조건이 이름에 박힌 항목을 분모에서 뺀다.
+  //     입력 화면(sheet-actions inactiveItemCodes)·완료 게이트·인쇄와 **같은 함수**를 쓴다.
+  const { data: specRaw } = await admin.from('customer_facility_specs')
+    .select('customer_id, section_key, spec').in('customer_id', customerIds)
+  const specRowsByCustomer = new Map<string, SpecRow[]>()
+  for (const r of (specRaw ?? []) as Array<SpecRow & { customer_id: string }>) {
+    const arr = specRowsByCustomer.get(r.customer_id)
+    if (arr) arr.push(r)
+    else specRowsByCustomer.set(r.customer_id, [r])
+  }
+
   // ⑦ 다중이용업소 판별 (S7-27 — 22 Q-10·S14-4/5 위임) — 인쇄 조립·번들 공란 리포트와 같은 축
   //   (서식 1.10.3 sections.multiUse 업종 ≥1, bundle-actions.ts:94-96과 동일식).
   //   STD-32는 SHEET_FACILITY_MAP 미등재라 installed 축에 안 잡힌다 — multiUse면 노출 예외.
@@ -199,6 +211,8 @@ export async function buildSheetOverviews(
     const responses = respByInsp.get(insp.id) ?? new Map<string, SheetResult>()
     const facilityCodes = facByCustomer.get(insp.customer_id) ?? []
     const multiUse = multiUseByCustomer.get(insp.customer_id) ?? false
+    // 세부제원 조건 불성립 항목 — 이미 응답이 있으면 분모에 남긴다(유령 입력 금지, 회색 규약과 동일)
+    const specNa = specNaCodes(specRowsByCustomer.get(insp.customer_id) ?? [])
 
     const progress: SheetProgress[] = []
     const seenCodes = new Set<string>()   // 회차 합계용 — 시트 간 중복 코드 이중 계상 방지
@@ -220,6 +234,9 @@ export async function buildSheetOverviews(
       const groupAux = new Map<string, { codes: string[]; compBlank: number }>()
       for (const it of itemsBySheet.get(sheet.id) ?? []) {
         if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
+        // 세부제원 조건 불성립(2026-09-07) — 분모·필수에서 빠진다. 문서엔 ／ 자동.
+        // 응답이 이미 있으면 남긴다 — 화면에서 지우면 그 입력을 고칠 길이 없다(유령 입력).
+        if (specNa.has(it.item_code) && !responses.has(it.item_code)) continue
         codes.add(it.item_code)
         const ref = sheetItemGroupRef(it)
         let b = buckets.get(ref.code)
@@ -345,12 +362,14 @@ export async function countInstalledRequiredBlanks(
   }
   sheets = sheets.filter(s => s.version === scope.version)
 
-  const [{ rows: resps, error: respErr, truncated }, { data: bldRaw }, { data: formRaw }] = await Promise.all([
+  const [{ rows: resps, error: respErr, truncated }, { data: bldRaw }, { data: formRaw }, { data: specRaw }] = await Promise.all([
     fetchAllRows<{ item_code: string }>(
       (from, to) => admin.from('inspection_sheet_responses')
         .select('item_code').eq('inspection_id', inspectionId).range(from, to)),
     admin.from('buildings').select('id').eq('customer_id', insp.customer_id).eq('is_active', true),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
+    // 세부제원 조건부 자동 ／(2026-09-07) — buildSheetOverviews 분모와 같은 판정식이어야 한다
+    admin.from('customer_facility_specs').select('section_key, spec').eq('customer_id', insp.customer_id),
   ])
   // 응답 조회가 실패하면 **응답 0건**으로 보여 전 항목이 무응답이 된다 — 카탈로그 실패(위 catch)와
   // 반대 방향으로 떨어져 일시적 DB 오류가 완료를 전건 차단한다. 조회 실패는 '미입력 있음'의 증거가
@@ -362,6 +381,7 @@ export async function countInstalledRequiredBlanks(
     return NONE
   }
   const responded = new Set(resps.map(r => r.item_code))
+  const specNa = specNaCodes((specRaw ?? []) as SpecRow[])
   const bldIds = ((bldRaw ?? []) as Array<{ id: string }>).map(b => b.id)
   const { data: facRaw } = bldIds.length > 0
     ? await admin.from('fire_facilities').select('facility_code')
@@ -390,6 +410,8 @@ export async function countInstalledRequiredBlanks(
     const byGroup = new Map<string, { installed: boolean | null; responded: number; blanks: number; compBlanks: number }>()
     for (const it of itemsBySheet.get(sheet.id) ?? []) {
       if (!isItemInScope(it, scope) || codes.has(it.item_code)) continue
+      // 세부제원 조건 불성립은 필수가 아니다 — buildSheetOverviews 분모와 같은 판정(:225)
+      if (specNa.has(it.item_code) && !responded.has(it.item_code)) continue
       codes.add(it.item_code)
       const ref = sheetItemGroupRef(it)
       let g = byGroup.get(ref.code)

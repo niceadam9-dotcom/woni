@@ -62,6 +62,15 @@ export type SpecField = {
   /** **화면 전용** — 그룹 전체가 비어 있으면 접어두고 버튼으로만 보여준다(동이 하나면 안 쓰는 칸).
    *  값이 하나라도 있으면 항상 펼친다. 인쇄는 종전대로 빈 칸을 서식 빈 줄로 찍는다. */
   collapsedWhenEmpty?: boolean
+  /** **점검표 자동 판정 전용**(2026-09-07) — 법정 서식에 없는 칸이라 **인쇄되지 않는다**.
+   *
+   *  조건이 이름에 박힌 점검 항목(「폐쇄형 헤드의 경우」 등)을 자동 ／로 눌러 주려면 그 조건의
+   *  답을 어딘가에서 받아야 하는데, 서식 원문에는 그 칸이 없다. 세부제원에 받되 인쇄 레이아웃
+   *  (doc-templates/spec-sections.ts)에는 **넣지 않는다** — 거긴 손으로 쓴 서식 원문 재현이라
+   *  스키마에 필드를 더해도 저절로 찍히지 않는다(그게 이 축이 안전한 이유다).
+   *  판정 규칙은 lib/sheet-spec-na.ts 단일 원천 — 여기 필드를 지우면 그쪽 규칙이 ③(판정 불가)로
+   *  떨어져 종전처럼 필수가 될 뿐, 잘못된 ／가 찍히지는 않는다. */
+  judgeOnly?: boolean
 }
 
 export type SpecBlock = {
@@ -435,6 +444,10 @@ const S34: SpecSection = {
         { key: 'discharge', label: '방출 방식', type: 'multicheck', options: ['전역방출', '국소방출', '호스릴'] },
         { key: 'pressure_class', label: '고압/저압', type: 'select', options: ['고압식', '저압식'] },
         { key: 'charge_type', label: '축압/가압', type: 'select', options: ['축압식', '가압식'] },
+        // 판정 전용(2026-09-07) — 서식엔 없는 칸. 세 방식은 배타라 하나를 고르면 나머지 방식
+        // 전용 점검항목(*-C-022~025)이 정의상 해당없음이 된다(sheet-spec-na.ts).
+        { key: 'starter_type', label: '기동장치 방식', type: 'select',
+          options: ['전기식', '가스압력식', '기계식'], judgeOnly: true },
         ...rangeLocFields(),
         { key: 'storage_ground', label: '저장용기 지상/지하', type: 'select', options: GROUND },
         { key: 'storage_floor', label: '저장용기 층', type: 'text' },
@@ -690,6 +703,10 @@ const S38: SpecSection = {
       fields: [
         { key: 'targets', label: '설치대상 동명(복수 자유 기입)', type: 'text' },
         { key: 'method', label: '방식', type: 'select', options: ['습식', '건식'] },
+        // 판정 전용(2026-09-07) — 서식엔 없는 칸. 27-A-003·011(개방형 전용)과 27-C-003·004
+        // (폐쇄형 전용)이 서로 배타라, 이 한 칸이 네 항목의 해당 여부를 결정한다(sheet-spec-na.ts).
+        { key: 'head_type', label: '헤드 형식', type: 'select',
+          options: ['개방형', '폐쇄형'], judgeOnly: true },
         { key: 'target_type', label: '설치 부분', type: 'multicheck',
           options: ['지하층', '판매시설', '가스시설', '부속된 연결통로'] },
         { key: 'inlet_place', label: '송수구 설치장소', type: 'text' },

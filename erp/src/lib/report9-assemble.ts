@@ -16,6 +16,7 @@ import {
 import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats } from '@/lib/sheet-facility-map'
 import { sheetScope } from '@/lib/sheet-scope'
 import { sheetItemGroupRef } from '@/lib/sheet-scope'
+import { specNaCodes, type SpecRow as NaSpecRow } from '@/lib/sheet-spec-na'
 import type { Report4SheetSection } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
@@ -230,6 +231,13 @@ export async function assembleReport9(
   for (const r of specRows.filter(r => r.building_id === null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
   for (const r of specRows.filter(r => r.building_id !== null)) specs[r.section_key] = (r.spec ?? {}) as Record<string, unknown>
 
+  // 조건부 항목 자동 ／(2026-09-07) — **전 건물** 행으로 판정한다. 위 specs는 4~7쪽 인쇄용이라
+  // 대표 건물로 좁혀져 있는데, 그 좁은 집합으로 판정하면 화면(전 건물 축)과 문서가 갈린다.
+  // 판정 규칙은 sheet-spec-na.ts 단일 원천 — 값이 동마다 갈리면 판정하지 않는다(③).
+  const allSpecRows = ((await admin.from('customer_facility_specs')
+    .select('section_key, spec').eq('customer_id', customerId)).data ?? []) as NaSpecRow[]
+  const specNa = specNaCodes(allSpecRows)
+
   // T-3(소방계획서_14_점검업무) — 시트·설비 ↔ FORM3 연결에서 퍼지 매칭 제거.
   // 종전 nameMatch(공백 제거 양방향 includes)는 sheet-facility-map 상단 주석의 두 결함을 문서 생성 경로에 남겨뒀다:
   //   오검 — 설치 '스프링클러설비'가 '간이·화재조기진압용' 항목까지 켬 / '비상조명등'이 '휴대용비상조명등'까지 켬
@@ -360,9 +368,13 @@ export async function assembleReport9(
           const prefix = it.item_code.replace(/-\d+$/, '')
           return {
             code: it.item_code, name: it.item_name,
-            // 작동 회차의 ●는 무조건 ／, 그 외 무응답 = 공란(Q-5)
+            // 작동 회차의 ●는 무조건 ／, 그 외 무응답 = 공란(Q-5).
+            // 2026-09-07 — 세부제원이 조건과 어긋나는 항목도 ／다(입력 화면이 회색으로 잠근 그 항목).
+            // 응답이 있으면 그 값이 이긴다: 사람이 넣은 값을 문서에서 지우지 않는다(순서가 규약이다).
             mark: annexScope.isOperational && it.comprehensive_only ? 'N' as const
-              : res === 'O' || res === 'X' || res === 'N' ? res : null,
+              : res === 'O' || res === 'X' || res === 'N' ? res
+                : specNa.has(it.item_code) ? 'N' as const
+                  : null,
             comprehensive: !!it.comprehensive_only,
             group: it.group_name != null ? `${prefix}. ${it.group_name}` : undefined,
             subgroup: it.subgroup_name,

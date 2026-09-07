@@ -192,6 +192,19 @@ const steps: Step[] = [
   // 분모·필수에서 빠지고, 서버 일괄(○/／)이 거기에 **저장하지 않으며**, 1.4 대장 체크로 되살아난다.
   // 판정 축이 셋(화면 회색·집계 분모·일괄 쓰기)이라 하나만 풀려도 화면과 문서가 갈라진다.
   { name: '점검표 중분류 회색 축(E2E)',   cmd: 'npx tsx scripts/test-sheet-group-gray.mts', needServer: true },
+  // 세부제원 조건부 자동 ／(2026-09-07) — 「(폐쇄형 헤드의 경우)」류 항목을 1.4 세부제원으로 판정.
+  // 규칙 표는 **코드가 실재해야** 발화한다(오타 하나면 조용히 무발화) → 카탈로그·스키마·선택지 3중 대조.
+  // ⚠ 이 프로브 자신이 첫 실행에서 1000행 상한에 잘려 멀쩡한 규칙 6건을 '없는 코드'로 오보했다.
+  { name: '세부제원 자동 ／ 규칙(무DB+카탈로그)', cmd: 'npx tsx scripts/_probe-spec-na-unit.mts' },
+  // 판정 전용 칸이 **법정 서식에 새지 않는가** — 지금은 인쇄가 손으로 쓴 원문 재현이라 안전하지만,
+  // 그 안전성은 주석이 아니라 검사로 지킨다(카탈로그 순회로 리팩터하면 조용히 새어 나간다).
+  { name: '판정 전용 칸 인쇄 누출 없음', cmd: 'npx tsx --conditions=react-server scripts/_probe-judge-only-not-printed.mts' },
+  // 인쇄 축 — 화면이 ／인데 문서가 빈칸이면 실패다. 대조군→개방형→폐쇄형 3상태 델타 + 응답 우선순위.
+  { name: '세부제원 자동 ／ 인쇄', cmd: 'npx tsx --conditions=react-server scripts/_probe-spec-na-print.mts' },
+  // 화면·저장 왕복 — 잠긴 칸에 일괄 ○가 저장되지 않고, 이미 응답이 있으면 잠기지 않는다(유령 입력 금지)
+  { name: '세부제원 자동 ／ 화면(E2E)', cmd: 'npx tsx scripts/_probe-spec-na-e2e.mts', needServer: true },
+  // 미입력 행 강조·카운터 점프(2026-09-07) — 개수만 알려주고 위치는 안 알려주던 자리
+  { name: '미입력 강조·점프(E2E)', cmd: 'npx tsx scripts/_probe-blank-jump.mts', needServer: true },
   // 소방시설(1.4) ↔ 점검표 왕래(소방계획서_40) — ★ 고치고 **돌아왔을 때 설치 축이 갱신되는가**가 핵심.
   // 링크 존재는 grep으로도 보이지만, revalidate가 안 뚫리면 사용자는 고쳤는데도 안 고쳐진 화면을 본다.
   // 다건물 union·비담당 직원의 두 권한 축(대장은 되고 결과 배지는 안 됨)도 여기서만 갈린다.

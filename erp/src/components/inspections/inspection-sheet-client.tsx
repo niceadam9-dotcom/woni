@@ -233,8 +233,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   }
 
   // 입력·집계 축 = 범위 안 + 활성 항목만 (작동 회차의 종합 전용 ●는 표시 전용 — 2026-09-02,
-  // 미설치 중분류 회색은 2026-09-03 — 둘 다 문서엔 ／ 자동이라 분모에서 빠진다)
-  const inputItems = useMemo(() => items.filter(i => !i.outOfScope && !i.notInstalled), [items])
+  // 미설치 중분류 회색은 2026-09-03, 세부제원 조건 불성립은 2026-09-07 — 셋 다 문서엔 ／ 자동이라
+  // 분모에서 빠진다. 서버 집계(sheet-overview)·인쇄(report9-assemble)와 같은 축이어야 한다)
+  const inputItems = useMemo(() => items.filter(i => !i.outOfScope && !i.notInstalled && !i.specNaWhy), [items])
 
   // ── 파생 — 드로어 목차 엔트리·시트 카운트 (로컬 값 기준 = 라이브) ──
   const groupEntries: TocEntry[] = useMemo(() => {
@@ -288,7 +289,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         }
         b.total++
         if (it.subgroup_name && !b.subgroupNames.includes(it.subgroup_name)) b.subgroupNames.push(it.subgroup_name)
-        if (it.notInstalled) continue   // 회색 — 시트 분모·분자·필수에서 제외(자동 ／ 표시 전용)
+        if (it.notInstalled || it.specNaWhy) continue   // 회색 2축 — 분모·분자·필수에서 제외(자동 ／ 표시 전용)
         const r = local[it.item_code]
         if (r) { responded++; counts[r]++; b.responded++; if (r === 'X') b.x++; if (r === 'O') b.o++ }
         else if (it.comprehensive_only) compBlank++
@@ -557,12 +558,16 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
                 게이트는 requestClose(:191)의 **필수 축**(isSpecial·installed)과 같아야 한다 —
                 권한 축(canManage)만 다르다(조회 전용도 무엇이 비었는지는 본다). 외관 회차·미설치 시트에서
                 "반드시 기재" 경고만 뜨고 닫을 땐 안 묻던 표기↔가드 불일치를 없앤다.
-                ⚠ span으로 둔다 — '저장' 문자열 버튼을 만들면 test-sheet-mother-drawer P19·P11이 깨진다 */}
+                2026-09-07 — 버튼 승격: 누르면 첫 미입력 행(data-blank-item)으로 스크롤.
+                ⚠ '저장' 문자열이 들어가면 안 된다 — test-sheet-mother-drawer P19·P11이
+                button:has-text("저장") 부재를 단언한다(이 라벨엔 없으므로 버튼화 무방) */}
             {scope.isSpecial && (progress[sel?.id ?? '']?.installed ?? false) && selCounts.responded < selCounts.total && (
-              <span className="text-form-2xs text-amber-600 font-medium shrink-0" data-testid="drawer-required-blank"
-                title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — ●는 종합점검 필수(고시 별지4호)">
+              <button type="button" data-testid="drawer-required-blank"
+                onClick={() => scrollBoxRef.current?.querySelector('[data-blank-item]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                className="text-form-2xs text-amber-600 font-medium shrink-0 hover:underline"
+                title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — 누르면 첫 미입력 항목으로 이동합니다 (●는 종합점검 필수, 고시 별지4호)">
                 미입력 {selCounts.total - selCounts.responded}{selCounts.compBlank > 0 ? ` (● ${selCounts.compBlank})` : ''}
-              </span>
+              </button>
             )}
             {canManage && (
               <button onClick={localSheetNA} disabled={isPending} data-testid="drawer-sheet-na"
@@ -609,6 +614,8 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
           pendingJump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />}>
         <SheetItemEditor
           items={items} loading={isPending && items.length === 0} value={local} memos={memos}
+          // 미입력 행 강조 — 카운터(위 drawer-required-blank)와 같은 필수 축. 외관·미설치 시트는 종전 렌더
+          highlightBlanks={scope.isSpecial && (progress[sel?.id ?? '']?.installed ?? false)}
           grouping="outline" scrollBoxRef={scrollBoxRef}
           // 매직넘버 폐기(소방계획서_38 S4-1) — 종전 calc(100dvh-260px)는 '헤더+배너+푸터가
           // 260px'이라는 가정이었고, 글자가 배율을 따르기 시작하면 헤더가 자라 그 가정이 틀린다.

@@ -9,6 +9,7 @@ import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { syncStepsAndRevalidate } from './step-revalidate'
 import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
 import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/lib/sheet-overview'
+import { specNaReasons, type SpecRow } from '@/lib/sheet-spec-na'
 import { getAllSheetItems, getSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { findPrevRoundSource } from '@/lib/prev-round-source'
 import type { UserRole } from '@/types'
@@ -32,6 +33,16 @@ async function loadScope(admin: ReturnType<typeof createAdminClient>, inspection
 
 /** 이 고객의 설치 설비 코드(fire_facilities, installed=true) — 중분류 회색 축(2026-09-03) 판정 재료.
  *  bulkAllGoodAction이 인라인으로 갖고 있던 조회를 한 곳으로 — 판정이 늘면서 호출부가 4곳이 됐다. */
+/** 세부제원 전 행(건물 무관) — 조건부 항목 자동 ／(2026-09-07)의 판정 재료.
+ *  건물별로 행이 갈라져 있어도 그대로 넘긴다 — 값이 갈리면 판정하지 않는 것이 규약이다(sheet-spec-na ③). */
+async function loadSpecRows(
+  admin: ReturnType<typeof createAdminClient>, customerId: string,
+): Promise<SpecRow[]> {
+  const { data } = await admin.from('customer_facility_specs')
+    .select('section_key, spec').eq('customer_id', customerId)
+  return (data ?? []) as SpecRow[]
+}
+
 async function loadFacilityCodes(admin: ReturnType<typeof createAdminClient>, customerId: string): Promise<string[]> {
   const { data: blds } = await admin.from('buildings').select('id')
     .eq('customer_id', customerId).eq('is_active', true)
@@ -54,8 +65,13 @@ function inactiveItemCodes(
   scope: SheetScope,
   facilityCodes: string[],
   respondedCodes: Set<string>,
+  /** 세부제원 조건 불성립 항목(2026-09-07) — 중분류 축과 **다른 축**이라 시트 설치 여부와 무관하게
+   *  합류한다(설치된 시트 안의 특정 항목만 겨눈다). 이미 응답이 있으면 잠그지 않는다 —
+   *  회색 규약의 '유령 입력 금지'와 같다(사람이 넣은 값을 화면에서 지우면 고칠 길이 없다). */
+  specNa?: Set<string>,
 ): Set<string> {
   const out = new Set<string>()
+  if (specNa) for (const c of specNa) if (!respondedCodes.has(c)) out.add(c)
   if (!sheetName || !sheetMatchesFacilities(sheetName, facilityCodes)) return out
   const seen = new Set<string>()
   const byGroup = new Map<string, { installed: boolean | null; responded: number; codes: string[] }>()
@@ -125,6 +141,9 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
     /** 설치 시트 안의 미설치 중분류(응답 0) — 회색 표시·입력 불가, 문서엔 ／ 자동 (2026-09-03).
      *  1.4 대장에서 그 설비를 체크하면 다음 로드부터 열린다 */
     notInstalled?: boolean
+    /** 세부제원이 조건과 어긋나는 조건부 항목 — 회색·입력 불가, 문서엔 ／ 자동 (2026-09-07).
+     *  값은 판정 근거 문구(툴팁) — 왜 잠겼는지 화면에서 읽을 수 있어야 사람이 반박할 수 있다 */
+    specNaWhy?: string
   }>
   responses?: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }>
   canEdit?: boolean
@@ -155,9 +174,15 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
     }
   }
 
-  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  const [facilityCodes, specRows] = await Promise.all([
+    loadFacilityCodes(admin, insp.customerId),
+    loadSpecRows(admin, insp.customerId),
+  ])
   const sheetName = allSheets.find(s => s.id === sheetId)?.sheet_name ?? ''
-  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, respondedAny)
+  // 세부제원 조건 축(2026-09-07) — 이미 응답이 있는 항목은 잠그지 않는다(유령 입력 금지)
+  const specWhy = specNaReasons(specRows)
+  const specNa = new Set(Object.keys(specWhy).filter(c => !respondedAny.has(c)))
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, respondedAny, specNa)
 
   // 범위 밖(작동 회차의 종합 전용 ●) 항목도 **보이되 입력 불가**로 싣는다 (2026-09-02 사용자 확정
   // — "ERP 화면에서도 반영"). 문서에는 ／로 자동 인쇄되므로 화면도 같은 사실을 보여야 한다.
@@ -168,7 +193,10 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
       group: sheetItemGroup(i.item_code, i.facility_type, i.group_name),
       group_code: i.group_code, group_name: i.group_name, subgroup_name: i.subgroup_name,
       outOfScope: !isItemInScope(i, insp.scope),
-      notInstalled: inactive.has(i.item_code) || undefined,
+      // 두 축을 나눠 싣는다 — 화면이 "대장에서 체크하세요"와 "세부제원을 고치세요"라는
+      // **서로 다른 해소 경로**를 안내해야 하기 때문이다(합치면 엉뚱한 화면으로 보낸다)
+      notInstalled: (inactive.has(i.item_code) && !specNa.has(i.item_code)) || undefined,
+      specNaWhy: specNa.has(i.item_code) ? specWhy[i.item_code] : undefined,
     }))
 
   const canEdit = canEditInspection(insp.assignedEmployeeId, { id: profile.id, role: profile.role as UserRole })
@@ -232,11 +260,14 @@ export async function bulkSheetNAAction(
     .select('item_code, month').eq('inspection_id', inspectionId).in('item_code', codes)
   const respRows = (resp ?? []) as Array<{ item_code: string; month: number | null }>
   const have = new Set(respRows.map(r => `${r.item_code}@${r.month ?? 0}`))
-  // 회색(미설치 중분류·응답 0) 항목은 대상 밖(2026-09-03) — 자동 ／는 표시만, 저장하지 않는다
-  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  // 회색(미설치 중분류·응답 0 / 세부제원 조건 불성립) 항목은 대상 밖 — 자동 ／는 표시만, 저장하지 않는다
+  const [facilityCodes, specRows] = await Promise.all([
+    loadFacilityCodes(admin, insp.customerId), loadSpecRows(admin, insp.customerId),
+  ])
   const sheetName = (await getSheets()).find(s => s.id === sheetId)?.sheet_name ?? ''
-  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes,
-    new Set(respRows.map(r => r.item_code)))
+  const respondedNow = new Set(respRows.map(r => r.item_code))
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, respondedNow,
+    new Set(Object.keys(specNaReasons(specRows)).filter(c => !respondedNow.has(c))))
   const payload = codes
     .filter(c => !have.has(`${c}@${monthOf(c)}`) && !inactive.has(c))
     .map(c => ({
@@ -283,11 +314,14 @@ export async function bulkSheetGoodAction(
     .select('item_code, month').eq('inspection_id', inspectionId).in('item_code', codes)
   const respRows = (resp ?? []) as Array<{ item_code: string; month: number | null }>
   const have = new Set(respRows.map(r => `${r.item_code}@${r.month ?? 0}`))
-  // 회색(미설치 중분류·응답 0) 항목은 대상 밖(2026-09-03) — bulkSheetNAAction apply와 같은 축
-  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  // 회색(미설치 중분류·응답 0 / 세부제원 조건 불성립) 항목은 대상 밖 — bulkSheetNAAction apply와 같은 축
+  const [facilityCodes, specRows] = await Promise.all([
+    loadFacilityCodes(admin, insp.customerId), loadSpecRows(admin, insp.customerId),
+  ])
   const sheetName = (await getSheets()).find(s => s.id === sheetId)?.sheet_name ?? ''
-  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes,
-    new Set(respRows.map(r => r.item_code)))
+  const respondedNow = new Set(respRows.map(r => r.item_code))
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, respondedNow,
+    new Set(Object.keys(specNaReasons(specRows)).filter(c => !respondedNow.has(c))))
   const payload = codes
     .filter(c => !have.has(`${c}@${monthOf(c)}`) && !inactive.has(c))
     .map(c => ({
@@ -336,10 +370,15 @@ export async function loadSheetEditorAction(inspectionId: string, sheetId: strin
     }
   }
 
-  // 회색 축(2026-09-03) — 전용 페이지·드로어(loadSheetSnapshotAction)와 같은 판정을 트리에도
-  const facilityCodes = await loadFacilityCodes(admin, insp.customerId)
+  // 회색 축 — 전용 페이지·드로어(loadSheetSnapshotAction)와 같은 판정을 트리에도.
+  // 세부제원 조건(2026-09-07)도 같이 태운다 — 트리만 빠지면 같은 항목이 화면마다 다르게 보인다
+  const [facilityCodes, specRows] = await Promise.all([
+    loadFacilityCodes(admin, insp.customerId), loadSpecRows(admin, insp.customerId),
+  ])
   const sheetName = allSheets.find(s => s.id === sheetId)?.sheet_name ?? ''
-  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, new Set(Object.keys(responses)))
+  const respondedNow = new Set(Object.keys(responses))
+  const inactive = inactiveItemCodes(sheetName, catalog, insp.scope, facilityCodes, respondedNow,
+    new Set(Object.keys(specNaReasons(specRows)).filter(c => !respondedNow.has(c))))
 
   // group_name(134)이 있으면 헤더가 '2-H' → '2-H. 제어반'으로 자동 개선된다(23 Q-9 — 트리는 배선 무변경)
   const items = catalog
@@ -505,9 +544,13 @@ export async function bulkAllGoodAction(inspectionId: string, month = 0): Promis
     if (arr) arr.push(it)
     else itemsBySheetId.set(it.sheet_id, [it])
   }
+  // 세부제원 조건 불성립 항목(2026-09-07)도 ○ 일괄 대상 밖 — 조건상 해당없는 칸에 양호를 찍지 않는다
+  const specNaAll = new Set(Object.keys(specNaReasons(await loadSpecRows(admin, insp.customerId)))
+    .filter(c => !respondedAny.has(c)))
   const inactive = new Set<string>()
   for (const s of sheets) {
-    for (const c of inactiveItemCodes(s.sheet_name, itemsBySheetId.get(s.id) ?? [], scope, codes, respondedAny)) {
+    for (const c of inactiveItemCodes(s.sheet_name, itemsBySheetId.get(s.id) ?? [], scope, codes,
+      respondedAny, specNaAll)) {
       inactive.add(c)
     }
   }

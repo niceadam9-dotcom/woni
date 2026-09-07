@@ -86,7 +86,10 @@ export function SheetEntryClient({
    *  시트 간 중복 코드 dedup까지는 반영 못 하는 근사치라, 시트를 바꾸거나 [갱신]하면 서버 값으로 수렴한다. */
   const patchLocal = useCallback((
     draft: Record<string, 'O' | 'X' | 'N'>,
-    items: Array<{ item_code: string; comprehensive_only?: boolean; outOfScope?: boolean; notInstalled?: boolean }>,
+    items: Array<{
+      item_code: string; comprehensive_only?: boolean
+      outOfScope?: boolean; notInstalled?: boolean; specNaWhy?: string
+    }>,
   ) => {
     const sheetId = openIdRef.current
     if (!sheetId) return
@@ -96,15 +99,15 @@ export function SheetEntryClient({
       // 분모·분자 모두 범위 내 + 활성만 — 서버 집계(sheet-overview는 isItemInScope·회색 그룹 제외로
       // 걸러진 codes만 센다)와 같은 축이어야 한다. 레거시로 범위 밖(작동 회차 ●) 응답이 실려 오면
       // responded가 부풀어 필수 미입력이 과소·음수가 되고, 그러면 S2 이탈 확인창이 조용히 안 뜬다.
-      const counted = items.filter(i => !i.outOfScope && !i.notInstalled && draft[i.item_code])
+      const counted = items.filter(i => !i.outOfScope && !i.notInstalled && !i.specNaWhy && draft[i.item_code])
       const counts = {
         O: counted.filter(i => draft[i.item_code] === 'O').length,
         X: counted.filter(i => draft[i.item_code] === 'X').length,
         N: counted.filter(i => draft[i.item_code] === 'N').length,
       }
       // compBlank도 로컬 재계산(39 S1-3) — 스프레드만 하면 저장 직후 ● 카운터가 낡는다.
-      // outOfScope(작동 회차 ●)·notInstalled(회색 중분류)는 입력 대상이 아니므로 제외 — 서버 집계와 같은 축
-      const compBlank = items.filter(i => !i.outOfScope && !i.notInstalled && i.comprehensive_only && !draft[i.item_code]).length
+      // outOfScope(작동 ●)·notInstalled(회색 중분류)·specNaWhy(세부제원 조건)는 입력 대상이 아니므로 제외 — 서버 집계와 같은 축
+      const compBlank = items.filter(i => !i.outOfScope && !i.notInstalled && !i.specNaWhy && i.comprehensive_only && !draft[i.item_code]).length
       return {
         ...prev,
         sheets: prev.sheets.map(s => s.sheetId === sheetId ? { ...s, responded: counted.length, counts, compBlank } : s),
@@ -313,9 +316,11 @@ export function SheetEntryClient({
   const visible = useMemo(() => {
     let list = ov.sheets
     if (installedOnly && !ov.noFacilityInfo) list = list.filter(sheetShownWhenInstalledOnly)
-    if (blankOnly) list = list.filter(s => s.responded === 0)
+    // 미입력만(2026-09-07 확장) — 종전 '응답 0 시트'만이라 14/15처럼 한 칸 남은 시트는 안 걸렸다.
+    // 필수 축(39 §0: 자체점검 × 설치 시트 전 항목 기재)과 같은 분모로 부분 미입력도 잡는다. 외관은 종전 유지
+    if (blankOnly) list = list.filter(s => s.responded === 0 || (ov.scope.isSpecial && s.installed && s.responded < s.total))
     return list
-  }, [ov.sheets, ov.noFacilityInfo, installedOnly, blankOnly])
+  }, [ov.sheets, ov.noFacilityInfo, ov.scope.isSpecial, installedOnly, blankOnly])
 
   const blankCount = ov.sheets.filter(s => s.installed && s.responded === 0).length
   // 39 §0 — 필수 미입력 항목(설치 시트의 범위 내 무응답 전부, 작동·종합 공통)과 그중 ●(종합 필수).
@@ -343,6 +348,27 @@ export function SheetEntryClient({
     if (focus?.facCodes?.length) qs.set('fac', focus.facCodes.join(','))
     else if (focus?.sheetName) qs.set('sheet', focus.sheetName)
     window.location.assign(`/inspections/${inspectionId}/facilities?${qs.toString()}`)
+  }
+
+  /** 첫 미입력 항목으로 스크롤(2026-09-07) — 목표물은 편집기의 data-blank-item(필수 축에서만 렌더).
+   *  openRow 직후에는 행이 아직 안 그려져 있어 짧게 재시도한다(상태 반영 → 커밋까지 한두 프레임).
+   *  scrollBoxRef.current는 바깥 div지만(:486 주석) querySelector는 자손을 보므로 무방하다 */
+  const scrollToBlank = useCallback((attempt = 0) => {
+    const el = scrollBoxRef.current?.querySelector('[data-blank-item]')
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+    if (attempt < 20) setTimeout(() => scrollToBlank(attempt + 1), 50)
+  }, [])
+  /** 헤더 [필수 미입력 N건] 클릭 — 열린 시트에 공란이 남았으면 그 자리로, 아니면
+   *  미입력이 남은 첫 시트(목록 순서 = 원본 순서 규약)를 열어서 그 자리로 */
+  async function jumpToBlank() {
+    const a = autosaveRef.current
+    const openHasBlank = (openSheet?.installed ?? false)
+      && a.items.some(i => !i.outOfScope && !i.notInstalled && !i.specNaWhy && !a.draft[i.item_code])
+    if (openIdRef.current && openHasBlank) { scrollToBlank(); return }
+    const target = ov.sheets.find(s => s.installed && s.responded < s.total)
+    if (!target) return
+    await openRow(target.sheetId)
+    scrollToBlank()
   }
 
   const saveChip = (() => {
@@ -375,12 +401,15 @@ export function SheetEntryClient({
           <p className="text-xs text-ink-sub">{roundLabel} · 전체 {ov.totals.responded}/{ov.totals.total}
             {blankCount > 0 && <span className="text-amber-600 font-medium"> · ⚠ 설치 설비 중 미입력 {blankCount}개</span>}
             {/* 39 S1-3 — 필수 미입력 항목 카운터(§0: 설치 시트 전 항목 ○/✕/／ 필수). 기존 문구는
-                test-sheet-entry-page 정규식(미입력 N개)이 보므로 보존하고 병기한다 */}
+                test-sheet-entry-page 정규식(미입력 N개)이 보므로 보존하고 병기한다.
+                2026-09-07 — 버튼으로 승격: 누르면 첫 미입력 항목으로 이동(개수만 알려주고 위치는
+                안 알려주던 자리). 텍스트·testid는 그대로라 39·40 스위트의 정규식 판정 무변경 */}
             {requiredBlank > 0 && (
-              <span className="text-amber-700 font-medium" data-testid="sheet-entry-required-blank"
-                title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — ●는 종합점검 필수(고시 별지4호)">
+              <button type="button" onClick={() => void jumpToBlank()}
+                className="text-amber-700 font-medium hover:underline" data-testid="sheet-entry-required-blank"
+                title="설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — 누르면 첫 미입력 항목으로 이동합니다 (●는 종합점검 필수, 고시 별지4호)">
                 {' '}· 필수 미입력 {requiredBlank}건{compBlankTotal > 0 ? ` (● ${compBlankTotal})` : ''}
-              </span>
+              </button>
             )}
           </p>
         </div>
@@ -474,7 +503,10 @@ export function SheetEntryClient({
                         : 'hover:bg-paper'}`}>
                   <span className="flex-1 truncate">{s.sheetName}</span>
                   {s.counts.X > 0 && <span className="text-red-600">✕{s.counts.X}</span>}
-                  <span className={numCls(s.responded, s.total)}>{s.responded}/{s.total}</span>
+                  {/* 부분 미입력도 amber(2026-09-07) — 종전 numCls는 0/N만 amber라 14/15가 회색으로
+                      묻혀 "어느 시트에 빈칸이 남았는지"를 훑어서 못 찾았다. 축은 필수 축(39)과 동일 */}
+                  <span className={ov.scope.isSpecial && s.installed && s.responded < s.total
+                    ? 'text-amber-600 font-semibold' : numCls(s.responded, s.total)}>{s.responded}/{s.total}</span>
                   {s.installed && s.responded === 0 && <span className="text-amber-600">⚠</span>}
                 </button>
               </li>
@@ -527,6 +559,8 @@ export function SheetEntryClient({
                   loading={loading}
                   value={autosave.draft}
                   memos={memos}
+                  // 미입력 행 강조 — 필수 축(39: 자체점검 × 설치 시트)에서만. 외관·미설치 시트는 종전 렌더
+                  highlightBlanks={ov.scope.isSpecial && openSheet.installed}
                   onResult={autosave.setResult}
                   onRegisterX={registerX}
                   canEdit={canEdit}

@@ -28,6 +28,10 @@ export type SheetItem = {
   /** 설치 시트 안의 미설치 중분류(응답 0) — 회색·입력 불가, 문서엔 ／ 자동 (2026-09-03 사용자 확정).
    *  1.4 시설설비 대장에서 그 설비를 체크하면 다음 로드부터 입력이 열린다 */
   notInstalled?: boolean
+  /** 세부제원이 조건과 어긋나는 조건부 항목 — 회색·입력 불가, 문서엔 ／ 자동 (2026-09-07 사용자 확정).
+   *  값은 판정 근거 문구다(왜 잠겼는지 화면에서 읽히지 않으면 사람이 반박할 수 없다).
+   *  해소 경로가 notInstalled와 **다르다** — 저쪽은 1.4 대장 체크, 이쪽은 1.4 세부제원 수정 */
+  specNaWhy?: string
 }
 
 /** 고를 수 있는 값은 **○·✕ 둘뿐**이다 (2026-08-13 확정 유지 — 개별 ／ 버튼 없음, 23 Q-19).
@@ -47,6 +51,11 @@ type RowCtx = {
   /** ✕ 항목의 등록된 불량 메모(불량내용) — 행 아래 상시 표시 + [수정] 재진입의 원천 (2026-09-07).
    *  없으면(호출부 미배선) 표시만 생략된다 — 입력·등록 동작은 종전과 같다 */
   memos?: Record<string, string | null>
+  /** 미입력(공란) 행 배경 강조 + data-blank-item 마커 (2026-09-07 — 39 필수 축의 행 단위 표면).
+   *  종전엔 ● 항목만 amber 텍스트라 일반 항목의 공란은 채워진 행과 구별이 어려웠다.
+   *  ⚠ 축 판정(자체점검 회차 × 설치 시트)은 **호출부**가 한다 — 편집기는 scope를 모르고,
+   *  여기서 따로 판정하면 39 카운터·이탈 가드와 분모가 갈라진다. 외관 회차·조회 표면은 기본 false */
+  highlightBlanks?: boolean
   canEdit: boolean
   busy: boolean
   inlineX: string | null
@@ -59,8 +68,9 @@ type RowCtx = {
 
 /** 항목 1행 — flat·outline 공용(S7-1 ItemRow). 마크업은 종전 flat 렌더와 동일해야 한다 */
 function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
-  const { value, memos, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX } = ctx
+  const { value, memos, highlightBlanks, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX } = ctx
   const savedMemo = memos?.[it.item_code]?.trim() || null
+  const blank = !value[it.item_code]
   // 작동 회차의 종합 전용(●) — 서식 각주 「●는 종합점검의 경우에만 해당한다」. 입력 버튼 없이
   // 고정 ／만 보여 문서 인쇄 결과(엑셀·별지 4호 자동 ／)와 화면이 같은 말을 하게 한다 (2026-09-02).
   if (it.outOfScope) {
@@ -90,6 +100,21 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
       </div>
     )
   }
+  // 세부제원 조건 불성립(2026-09-07) — 「(폐쇄형 헤드의 경우)」류 조건부 항목이 이 대상물의 제원과
+  // 어긋난다. 위 두 축과 같은 회색·／지만 **근거 문구를 함께 보인다** — 미설치는 대장 한 칸으로
+  // 자명한데 이 축은 "왜 내가 못 넣지"가 안 보이면 사람이 반박할 수 없기 때문이다.
+  if (it.specNaWhy) {
+    return (
+      <div className="border-b border-paper">
+        <div className="flex items-center gap-2 py-1.5 opacity-45"
+          title={`${it.specNaWhy} — 조건이 맞지 않아 해당없음(／)으로 자동 인쇄됩니다. 제원이 잘못됐다면 고객 상세 › 소방계획서 탭 › 1.4 소방시설의 세부제원에서 고치면 입력이 열립니다`}>
+          <span className="text-form-2xs text-ink-meta w-20 shrink-0">{it.item_code}</span>
+          <span className="text-form-sm text-ink-meta flex-1 min-w-0">{it.item_name}</span>
+          <span className="text-form-2xs text-ink-meta shrink-0 select-none" data-spec-na={it.item_code}>／ 자동 · 제원</span>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="border-b border-paper">
       {/* S4-8: O/X는 현장에서 장갑 낀 손으로 누르는 버튼이다 — 28px는 오탭이 잦아 40px로 키우고
@@ -97,7 +122,11 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
           소방계획서_38 S5-2: 그 40px을 size-sheet-mark로 배율에 연동했다(40/46/52px).
           배율을 올리는 사용자가 정확히 오탭이 잦은 층이라 글자만 키우면 절반만 푸는 셈이다 —
           --fs-scale은 항상 ≥1이므로 40px 하한은 그대로 지켜진다. */}
-      <div className="flex items-center gap-2 py-1.5">
+      {/* 미입력 행 amber 배경(2026-09-07) — 필수 축(39)에서 공란은 서식에 없는 상태인데 행 모양이
+          채워진 행과 같아 "어디가 비었는지"를 스크롤로 못 찾았다. data-blank-item은 카운터 클릭
+          점프의 목표물 겸 E2E 마커 — highlightBlanks가 꺼진 표면(외관·조회)엔 배경도 마커도 없다 */}
+      <div className={`flex items-center gap-2 py-1.5 ${highlightBlanks && blank ? 'bg-amber-50 dark:bg-amber-400/10 rounded' : ''}`}
+        data-blank-item={highlightBlanks && blank ? it.item_code : undefined}>
         {/* ⚠ 이 줄은 두 차수가 각각 다른 축을 갖는다 — **서로의 축을 지우지 말 것**.
             색은 소방계획서_36 S5-3에서 해소했다: 항목코드는 점검표의 **참조 키**라
             읽어야 하는 값인데 ink-faint(라이트 2.16:1)로 찍혀 AA 실패였다 → ink-meta(라이트 5.03:1).
@@ -107,7 +136,7 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
             comprehensive_only는 법정 필수 항목이다(고시 별지4호 각주 「●는 종합점검의 경우에만 해당」).
             미입력이면 amber — 범례상 ○/×/／ 중 하나를 반드시 기재해야 하고 빈칸은 서식에 없는 상태다.
             작동 회차의 ●는 위 outOfScope 분기가 먼저 받아 여기 오지 않는다(5389f6d와 대칭). */}
-        <span className={`text-form-sm flex-1 min-w-0 ${it.comprehensive_only && !value[it.item_code] ? 'text-amber-700 font-medium' : 'text-ink'}`}
+        <span className={`text-form-sm flex-1 min-w-0 ${it.comprehensive_only && blank ? 'text-amber-700 font-medium' : 'text-ink'}`}
           title={it.comprehensive_only ? '종합점검 필수(●) 항목 — ○/×/／ 중 하나를 반드시 기재합니다 (고시 별지4호 각주)' : undefined}>
           {it.comprehensive_only ? '● ' : ''}{it.item_name}
         </span>
@@ -196,7 +225,7 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
 }
 
 export function SheetItemEditor({
-  items, loading, value, memos, onResult, onRegisterX, canEdit, busy, error, notice,
+  items, loading, value, memos, highlightBlanks = false, onResult, onRegisterX, canEdit, busy, error, notice,
   onSave, onCancel, maxHeight = 'max-h-[420px]', showFooterHint = true, saveLabel = '저장',
   hideSave = false, hideCancel = false, cancelLabel = '취소', grouping = 'flat', scrollBoxRef,
 }: {
@@ -205,6 +234,8 @@ export function SheetItemEditor({
   value: Record<string, SheetResult>
   /** ✕ 항목별 등록된 불량내용 — 행 아래 상시 표시·[수정] 재진입 (없으면 표시 생략, 2026-09-07) */
   memos?: Record<string, string | null>
+  /** 미입력 행 amber 배경 + data-blank-item — 필수 축(자체점검×설치 시트)일 때만 호출부가 켠다 (RowCtx 주석 참조) */
+  highlightBlanks?: boolean
   /** result=null = 선택 해제 → 미점검(공란)으로 되돌림 (Q-19) */
   onResult: (itemCode: string, result: SheetResult | null) => void
   onRegisterX: (itemCode: string, memo: string) => void
@@ -231,7 +262,7 @@ export function SheetItemEditor({
   // R13-d: X 선택 시 그 자리에서 메모+[등록] — 상단 [불량 등록] 왕복 없이
   const [inlineX, setInlineX] = useState<string | null>(null)
   const [inlineMemo, setInlineMemo] = useState('')
-  const ctx: RowCtx = { value, memos, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX }
+  const ctx: RowCtx = { value, memos, highlightBlanks, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX }
 
   /** 일괄 채움 정책(23 Q-21) — 빈 칸만 채우고 ○/✕ 절대 보존. 재클릭은 그 범위의 값만 해제하는 토글 */
   function bulkNA(codes: string[]) {
@@ -273,7 +304,9 @@ export function SheetItemEditor({
       {buildSheetOutline(items).map(g => {
         // 미설치 중분류(2026-09-03) — 일괄 버튼은 활성 항목만 겨눈다(자동 ／는 저장하지 않는다).
         // 그룹 전체가 회색이면 버튼 대신 [／ 자동] 칩 — 눌러도 할 일이 없는 버튼을 남기지 않는다
-        const activeCodes = g.items.filter(i => !i.notInstalled).map(i => i.item_code)
+        // 자동 ／ 두 축(대장 미설치·세부제원 조건)은 모두 일괄 대상 밖 — 서버 가드(sheet-actions
+        // inactiveItemCodes)와 같은 축이어야 한다. 갈라지면 화면은 회색인데 버튼이 ／를 저장한다.
+        const activeCodes = g.items.filter(i => !i.notInstalled && !i.specNaWhy).map(i => i.item_code)
         const allInactive = activeCodes.length === 0 && g.items.length > 0
         return (
         <div key={g.code} data-outline-group={g.code}>
@@ -307,7 +340,7 @@ export function SheetItemEditor({
                   {/* Q-19 T-2 — 대괄호 그룹 단위 ／. 1-B 하나가 별지4호 1쪽 체크박스 4개로 쪼개져
                       중분류 단위만으로는 '주거용만 설치'를 표현할 수 없다 */}
                   {canEdit && (
-                    <button onClick={() => bulkNA(run.items.filter(i => !i.notInstalled).map(i => i.item_code))} data-bulk-na-sub={run.subgroup}
+                    <button onClick={() => bulkNA(run.items.filter(i => !i.notInstalled && !i.specNaWhy).map(i => i.item_code))} data-bulk-na-sub={run.subgroup}
                       title="이 소제목 그룹의 미입력 항목만 ／(해당없음)로 채움 — 재클릭 시 ／만 해제"
                       className={`${bulkBtnCls} ml-auto`} disabled={busy}>／ 이 그룹</button>
                   )}
