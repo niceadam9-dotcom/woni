@@ -1005,7 +1005,7 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
                                               숨기지 않는다. 채우면 그 조건의 점검 항목이 자동 ／로 눌린다 */}
                                           {f.judgeOnly && (
                                             <span data-judge-only={f.key}
-                                              className="ml-1 rounded bg-brand-tint px-1 text-[10px] font-medium text-brand align-middle"
+                                              className="ml-1 rounded bg-brand-tint px-1 text-form-2xs font-medium text-brand align-middle"
                                               title="점검표 자동 판정용 — 채우면 그 조건의 점검 항목이 자동으로 ／(해당없음) 처리됩니다. 법정 서식에는 인쇄되지 않습니다">
                                               판정용
                                             </span>

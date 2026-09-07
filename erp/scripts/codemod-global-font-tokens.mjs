@@ -27,17 +27,15 @@ const MAP = [
   ['text-[11px]', 'text-form-xs'],    // 11 → 13
 ]
 
-/** 타 세션 미커밋 파일 (2026-09-07 git status 실측). 커밋되면 이 목록을 비우고 재실행할 것. */
+/** 타 세션 미커밋 파일. 커밋되면 그 줄을 지우고 재실행할 것 — 목록이 비면 전수가 된다.
+ *  2차 실행(2026-09-07 오후): 저쪽이 4커밋을 올려 점검표 6파일이 풀렸다. 남은 것만 남긴다. */
 const SKIP = new Set([
-  'src/app/(dashboard)/inspections/[id]/sheet/page.tsx',
+  'src/app/(dashboard)/inspections/[id]/page.tsx',
   'src/app/(dashboard)/inspections/[id]/workbook/route.ts',
-  'src/app/(dashboard)/inspections/sheet-actions.ts',
+  'src/app/(dashboard)/inspections/timeline-actions.ts',
   'src/components/customers/customer-assets-client.tsx',
-  'src/components/customers/plan-form14-specs.tsx',
   'src/components/inspections/inspection-defects-client.tsx',
-  'src/components/inspections/inspection-sheet-client.tsx',
-  'src/components/inspections/sheet-entry-client.tsx',
-  'src/components/inspections/sheet-item-editor.tsx',
+  'src/components/inspections/inspection-timeline-client.tsx',
 ])
 
 if (process.argv.includes('--undo')) {

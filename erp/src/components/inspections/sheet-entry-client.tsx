@@ -373,11 +373,11 @@ export function SheetEntryClient({
 
   const saveChip = (() => {
     switch (autosave.status) {
-      case 'saving': return <span className="text-[11px] text-brand flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
-      case 'saved': return <span className="text-[11px] text-green-600" data-testid="sheet-autosave">✓ 저장됨</span>
-      case 'error': return <button onClick={() => void autosave.retry()} className="text-[11px] text-red-600 underline">저장 실패 — 다시 시도</button>
-      case 'paused': return <span className="text-[11px] text-amber-600">저장 보류 — 원격 변경 확인 필요</span>
-      default: return <span className="text-[11px] text-ink-meta" data-testid="sheet-autosave-idle">자동 저장</span>
+      case 'saving': return <span className="text-form-xs text-brand flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 저장 중</span>
+      case 'saved': return <span className="text-form-xs text-green-600" data-testid="sheet-autosave">✓ 저장됨</span>
+      case 'error': return <button onClick={() => void autosave.retry()} className="text-form-xs text-red-600 underline">저장 실패 — 다시 시도</button>
+      case 'paused': return <span className="text-form-xs text-amber-600">저장 보류 — 원격 변경 확인 필요</span>
+      default: return <span className="text-form-xs text-ink-meta" data-testid="sheet-autosave-idle">자동 저장</span>
     }
   })()
 
@@ -474,7 +474,7 @@ export function SheetEntryClient({
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,360px)_1fr] gap-4">
         {/* ── 좌: 설비 목록 ── */}
         <div className="rounded-xl border border-brand-line-soft bg-surface p-3">
-          <div className="flex items-center gap-3 mb-2 text-[11px]">
+          <div className="flex items-center gap-3 mb-2 text-form-xs">
             <label className="flex items-center gap-1 text-ink-sub">
               <input type="checkbox" checked={installedOnly} onChange={e => setInstalledOnly(e.target.checked)} disabled={ov.noFacilityInfo} />
               설치 설비만
@@ -516,16 +516,16 @@ export function SheetEntryClient({
 
           {uncovered.length > 0 && (
             <div className="mt-3 pt-3 border-t border-brand-line-soft">
-              <p className="text-[11px] text-ink-meta mb-1">덮는 점검표 없음 — 별지 결과칸은 공란으로 남습니다</p>
+              <p className="text-form-xs text-ink-meta mb-1">덮는 점검표 없음 — 별지 결과칸은 공란으로 남습니다</p>
               <ul className="space-y-0.5">
-                {uncovered.map(c => <li key={c} className="text-[11px] text-ink-meta px-2.5 py-1">{c}</li>)}
+                {uncovered.map(c => <li key={c} className="text-form-xs text-ink-meta px-2.5 py-1">{c}</li>)}
               </ul>
               {/* 40 S5-1 — 경고만 하고 보내주지 않던 자리. 실제 미설치라면 대장에서 체크를 해제해
                   해소한다(39 S2-4의 양갈래와 같은 방향). 해당 설비들이 포커스된 채 열린다 */}
               <button onClick={() => void goFacilities({ facCodes: uncovered })}
                 data-testid="sheet-entry-uncovered-link"
                 title="1.4 소방시설 대장에서 이 설비들의 설치 체크를 확인·수정합니다"
-                className="mt-1 px-2.5 text-[11px] text-brand hover:underline">
+                className="mt-1 px-2.5 text-form-xs text-brand hover:underline">
                 설비 현황(1.4)에서 확인 →
               </button>
             </div>
@@ -545,7 +545,7 @@ export function SheetEntryClient({
                 <span className={`text-xs ${numCls(openSheet.responded, openSheet.total)}`}>{openSheet.responded}/{openSheet.total}</span>
               </div>
               {siblings.length > 0 && (
-                <p className="text-[11px] text-ink-sub mb-2">
+                <p className="text-form-xs text-ink-sub mb-2">
                   이 점검표는 {siblings.map(s => `${s.installed ? '☑' : '☐'}${s.name}`).join(' · ')}의 결과에 함께 반영됩니다.
                 </p>
               )}
