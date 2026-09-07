@@ -75,6 +75,20 @@ export const base1011 = {
   companyPhone: '031-000-0000', companyAddress: '경기도 양평군',
 }
 
+/** 별지 10호 「이행조치 계획사항」 7행 — **실제 산출물이 쓰는 모양**(2026-09-07).
+ *  ⚠ base1011.rows만 두면 10호는 구 호출부용 폴백 렌더로 찍힌다 — 육안 검사가 인쇄되지도 않는
+ *  경로를 보게 되므로 픽스처를 실물에 맞춘다(11호는 종전대로 rows를 쓴다).
+ *  fold 4상태를 한 장에 다 담는다: 사용자 입력 / 결과참조 / 이상없음 / 해당없음. */
+export const plan1011Rows = [
+  { group: '소화설비', content: '거주자 등이 손 쉽게 사용할 수 있는 장소에 설치\n소화기 지시압력계 정상범위 이탈', period: '2026년 8월 18일 ~ 2026년 8월 20일', days: '3' },
+  { group: '경보설비', content: '결과참조', period: '2026년 9월 1일 ~ 2026년 9월 5일', days: '5' },
+  { group: '피난구조설비', content: '이상없음', period: '', days: '' },
+  { group: '소화용수설비', content: '해당없음', period: '', days: '' },
+  { group: '소화활동설비', content: '이상없음', period: '', days: '' },
+  { group: '기타', content: '해당없음', period: '', days: '' },
+  { group: '안전시설등', content: '해당없음', period: '', days: '' },
+]
+
 export const baseExterior = {
   customerName: '테스트빌딩', purpose: '근린생활시설', address: '경기도 양평군 양평읍 1',
   mgrTitle: '', mgrName: '이관리', mgrPhone: '010-3333-4444', year: '2026',
@@ -131,7 +145,7 @@ export const DOCS: DocFixture[] = [
   { key: 'report4', label: '별지 4호(점검표)', hasHighlight: true,
     render: h => renderReport4(cast<Parameters<typeof renderReport4>[0]>(report4Data()), { highlight: h }) },
   { key: 'report10', label: '별지 10호(이행계획서)', hasHighlight: true,
-    render: h => renderReport10(cast<Parameters<typeof renderReport10>[0]>(base1011), { highlight: h }) },
+    render: h => renderReport10(cast<Parameters<typeof renderReport10>[0]>({ ...base1011, rows: [], planRows: plan1011Rows }), { highlight: h }) },
   { key: 'report11', label: '별지 11호(이행완료보고서)', hasHighlight: true,
     render: h => renderReport11(cast<Parameters<typeof renderReport11>[0]>({ ...base1011, note: '완료 보고합니다' }), { highlight: h }) },
   { key: 'exterior', label: '외관점검표', hasHighlight: true,

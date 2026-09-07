@@ -41,8 +41,8 @@ const planRows: AnnexPlanRow[] = DEFECT_GROUPS.map(g => {
 
 console.log('── A. 7행 구조 ──')
 const html = renderReport10({ ...base, planRows, totalPeriod: '2026년 8월 18일 ~ 2026년 9월 2일', totalDays: '16' })
-for (const g of DEFECT_GROUPS) ok(html.includes(`>${g}</span>`), `구분 행 인쇄: ${g}`)
-const order = DEFECT_GROUPS.map(g => html.indexOf(`>${g}</span>`))
+for (const g of DEFECT_GROUPS) ok(html.includes(`>${g}</td>`), `구분 행 인쇄: ${g}`)
+const order = DEFECT_GROUPS.map(g => html.indexOf(`>${g}</td>`))
 ok(order.every((v, i) => i === 0 || v > order[i - 1]), '서식 원문 순서(DEFECT_GROUPS) 보존')
 
 console.log('── B. fold 문구 ──')
@@ -61,6 +61,34 @@ ok(html.includes('이행조치 필요기간') && html.includes('(총 16일)'), '
 const emptyMarks = (html.match(/\(총&nbsp;&nbsp;&nbsp;&nbsp;일\)/g) ?? []).length
 ok(emptyMarks === 5, `계획 없는 5개 구분은 자리표만 (실측 ${emptyMarks})`)
 
+console.log('── C-2. 운영 Gotenberg 육안에서 잡힌 3건(2026-09-07) ──')
+// ①② 라벨과 내용은 **각자 셀**이다. 한 셀 안 inline-block 두 개로는 두 번 실패했다 —
+//    min-width는 6글자 라벨에서 넘쳐 콜론을 두 열로 갈랐고, calc() 폭은 내용을 다음 줄로 내렸다.
+ok(/<td class="grp-label">[^<]+<\/td>\s*<td class="grp-body">/.test(html), '구분 라벨·내용이 각자 셀')
+ok(/\.grp-label\s*\{[^}]*\bwidth:\s*\d+mm/.test(html) && !/\.grp-label\s*\{[^}]*min-width/.test(html),
+  '라벨 셀은 고정 폭(글자 수에 따라 늘지 않는다)')
+// 콜론은 **내용 셀의 첫 글자** — 라벨 폭이 어떻든 한 열에 선다
+ok((html.match(/<td class="grp-body">:\s/g) ?? []).length === DEFECT_GROUPS.length,
+  `콜론이 전 행에서 내용 셀 첫 글자 (${DEFECT_GROUPS.length}행)`)
+// 헤더·요약 줄이 늘어난 열 수를 따라가는가 — 안 맞으면 표가 어긋난다
+ok(html.includes('<td class="rows-th row-content" colspan="2">이행조치 사항'), '헤더가 라벨+내용 2열을 덮는다')
+// 총합 행도 같은 열 수를 따라야 한다 — 안 그러면 그 행만 셀이 모자라 표 오른쪽이 잘린다(실제 발생)
+ok(html.includes('<td class="rows-th" colspan="2">이행조치 필요기간'), '총합 행 라벨도 2열을 덮는다')
+// 전 행의 셀 수가 같은가 — 어긋나면 인쇄물에서만 드러난다
+const bodyRowCells = (html.match(/<tr>\s*<td class="grp-label"[\s\S]*?<\/tr>/g) ?? [])
+  .map(r => (r.match(/<td/g) ?? []).length)
+ok(bodyRowCells.length === DEFECT_GROUPS.length && bodyRowCells.every(n => n === 3),
+  `본문 7행은 전부 3셀 (실측 ${bodyRowCells.join(',')})`)
+// 구 렌더(2열)는 colspan을 붙이면 안 된다 — 같은 totalRow를 두 표가 공유한다
+ok(!renderReport10({ ...base, rows: [{ content: 'x', period: 'y' }], totalDays: '3' }).includes('rows-th" colspan'),
+  '구 렌더의 총합 행에는 colspan이 붙지 않는다')
+// ③ 「총 20일일」 — 총 일수는 자유 텍스트 수동 보정 칸이라 사람이 「일」을 붙이면 서식과 겹쳤다
+const dup = renderReport10({ ...base, planRows, totalPeriod: '2026년 8월 1일 ~ 2026년 8월 20일', totalDays: '20일' })
+ok(dup.includes('(총 20일)') && !dup.includes('20일일'), '총 일수에 「일」을 적어도 중복 인쇄 안 함')
+ok(renderReport10({ ...base, planRows, totalDays: '20' }).includes('총 20일'), '「일」 없는 값은 그대로')
+// 지어내지 않는다 — 끝의 '일'만 벗기고 숫자로 만들지 않는다
+ok(renderReport10({ ...base, planRows, totalDays: '미정' }).includes('총 미정일'), '숫자가 아닌 값은 원문 보존')
+
 console.log('── D. 하위 호환(planRows 미공급) ──')
 const legacy = renderReport10({ ...base, rows: [{ content: '유도등 교체', period: '2026년 8월 1일 ~ 2026년 8월 5일' }] })
 // ⚠ 'grp-label'만 세면 항진명제다 — CSS 블록에 늘 들어 있다. **본문 클래스 속성**으로 판정한다
@@ -70,7 +98,7 @@ ok(html.includes('class="grp-label"'), '(대조군) 신 렌더에는 본문 구�
 console.log('── E. 계획 요약(③ 고유값)은 7행 위 한 줄 ──')
 const withSummary = renderReport10({ ...base, planRows, rows: [{ content: '전관 유도등 정비', period: '', isSummary: true }] })
 ok(withSummary.includes('계획 요약') && withSummary.includes('전관 유도등 정비'), '요약 줄 인쇄')
-ok(withSummary.indexOf('전관 유도등 정비') < withSummary.indexOf('>소화설비</span>'), '요약은 7행보다 위')
+ok(withSummary.indexOf('전관 유도등 정비') < withSummary.indexOf('>소화설비</td>'), '요약은 7행보다 위')
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

@@ -56,8 +56,15 @@ const CSS = `
   .row-period { width: 30%; text-align: center; }
   .row-summary { background: #fafafa; }
   .row-tag { font-size: 8.5pt; border: 1px solid #999; border-radius: 2px; padding: 0 3px; margin-right: 3px; }
-  /* 설비 구분 라벨 — 서식 원문이 자간을 벌려 세로로 맞춘 칸(image-77) */
-  .grp-label { display: inline-block; min-width: 26mm; letter-spacing: 0.25em; font-weight: bold; }
+  /* 설비 구분 라벨·내용 — **각자 셀**이다(2026-09-07 운영 Gotenberg 육안 2건의 처방).
+     ⚠ 한 셀 안에서 inline-block 두 개로 나눴더니 두 번 실패했다: ① min-width는 6글자 라벨
+     (피난구조설비)에서 넘쳐 **콜론이 두 열로 갈렸고** ② width: calc(100% - Nmm)는 라벨과 한 줄에
+     안 들어가 **내용이 통째로 다음 줄로 내려갔다**. 셀로 나누면 폭 계산이 표에 맡겨져 둘 다 사라진다.
+     (이 주석은 CSS 템플릿 리터럴 안이다 — 백틱을 쓰면 문자열이 닫힌다.)
+     콜론은 **내용 셀의 첫 글자**다 — 라벨 폭이 어떻든 한 열에 선다(image-77의 배치).
+     letter-spacing은 서식 원문의 벌어진 자간 재현이고, 이제 폭에 영향을 주지 않는다. */
+  .grp-label { width: 30mm; font-weight: bold; letter-spacing: 0.15em; white-space: nowrap; }
+  .grp-body { vertical-align: top; }
   .row-days { display: block; }
   .law { margin: 10px 2px 6px; text-indent: 0.5em; }
   .sign { text-align: center; margin: 14px 0 4px; }
@@ -104,6 +111,14 @@ function rowsTable(title: string, colTitle: string, rows: AnnexRow[], extraRow?:
 </table>`
 }
 
+/** 총 일수 표기 정규화 — 서식이 `(총 N 일)`처럼 「일」을 이미 찍으므로 값에 든 「일」을 벗긴다.
+ *  총 일수는 **자유 텍스트 수동 보정 칸**이라(annex-fields report10 `totalDays`, placeholder 「예: 20」)
+ *  사람이 「20일」로 적으면 「총 20일일」이 인쇄됐다(2026-09-07 운영 Gotenberg 육안에서 발견).
+ *  ⚠ 끝의 「일」만 벗긴다 — 값을 숫자로 만들지 않는다(「20일간」·「미정」 같은 입력을 지어내지 않기 위해). */
+function daysText(v: string | undefined): string {
+  return (v ?? '').replace(/\s*일\s*$/, '').trim()
+}
+
 /** 별지 10호 「이행조치 계획사항」 — 설비 구분 7행 고정 표(서식 원문 구조).
  *  summary(계획 내용 요약, ③ 고유값)는 있을 때만 7행 **위에** 한 줄 얹는다 — 개별 이행조치가
  *  아니므로 종전과 같이 태그로 구분하고 일자 칸은 '—'로 둔다(E10-5). */
@@ -111,22 +126,23 @@ function planTable(rows: AnnexPlanRow[], summary: AnnexRow | undefined, extraRow
   const body: string[] = []
   if (summary) {
     body.push(`<tr>
-    <td class="row-content row-summary"><span class="row-tag">계획 요약</span> ${esc(summary.content)}&nbsp;</td>
+    <td class="row-content row-summary" colspan="2"><span class="row-tag">계획 요약</span> ${esc(summary.content)}&nbsp;</td>
     <td class="row-period row-summary">—</td>
   </tr>`)
   }
   for (const r of rows) {
     body.push(`<tr>
-    <td class="row-content"><span class="grp-label">${esc(r.group)}</span> : ${esc(r.content).replace(/\n/g, '<br>')}&nbsp;</td>
+    <td class="grp-label">${esc(r.group)}</td>
+    <td class="grp-body">: ${esc(r.content).replace(/\n/g, '<br>')}&nbsp;</td>
     <td class="row-period">${r.period
-      ? `${esc(r.period)}<span class="row-days">(총 ${esc(r.days)} 일)</span>`
+      ? `${esc(r.period)}<span class="row-days">(총 ${esc(daysText(r.days))} 일)</span>`
       : '~<span class="row-days">(총&nbsp;&nbsp;&nbsp;&nbsp;일)</span>'}</td>
   </tr>`)
   }
   return `<table class="form" style="margin-top:6px">
   <tr>
     <th rowspan="${body.length + 2}" style="width:22mm">이행조치<br>계획사항</th>
-    <td class="rows-th row-content">이행조치 사항</td>
+    <td class="rows-th row-content" colspan="2">이행조치 사항</td>
     <td class="rows-th row-period">이행조치 일자</td>
   </tr>
   ${body.join('\n')}
@@ -154,22 +170,25 @@ function signBlock(lawText: string, d: Annex1011Data): string {
 /** 별지 10호 — 소방시설등의 자체점검 결과 이행계획서 */
 export function renderReport10(d: Annex1011Data, opts: RenderOpts = {}): string {
   const h = !!opts.highlight
-  const totalRow = `<tr>
-    <td class="rows-th">이행조치 필요기간</td>
-    <td class="row-period">${
-      // 기간이 없는데 총일수만 있으면 '(총 n일)'만 남아 괄호가 허공에 뜬다(E10-8) —
-      // 그때는 총일수를 값 자체로 인쇄한다
-      d.totalPeriod
-        ? `${val(d.totalPeriod, { highlight: h })}${d.totalDays ? ` (총 ${esc(d.totalDays)}일)` : ''}`
-        : d.totalDays ? `총 ${esc(d.totalDays)}일` : val(d.totalPeriod, { highlight: h })}</td>
+  // 기간이 없는데 총일수만 있으면 '(총 n일)'만 남아 괄호가 허공에 뜬다(E10-8) —
+  // 그때는 총일수를 값 자체로 인쇄한다
+  const totalCell = d.totalPeriod
+    ? `${val(d.totalPeriod, { highlight: h })}${d.totalDays ? ` (총 ${esc(daysText(d.totalDays))}일)` : ''}`
+    : d.totalDays ? `총 ${esc(daysText(d.totalDays))}일` : val(d.totalPeriod, { highlight: h })
+  // ⚠ 라벨 칸의 colspan은 **그 표의 열 수**를 따른다 — 7행 표는 라벨·내용 2열이라 2, 구 렌더는 1.
+  //   틀리면 이 행만 셀이 모자라 표 오른쪽이 잘리고 일자 칸이 빈 채로 인쇄된다
+  //   (2026-09-07 운영 Gotenberg 육안에서 실제로 그렇게 나왔다).
+  const totalRow = (span: number) => `<tr>
+    <td class="rows-th"${span > 1 ? ` colspan="${span}"` : ''}>이행조치 필요기간</td>
+    <td class="row-period">${totalCell}</td>
   </tr>`
   const page = `
 ${pageHeader('소방시설 설치 및 관리에 관한 법률 시행규칙 [별지 제10호서식]', '')}
 <h1 class="doc-title">소방시설등의 자체점검 결과 이행계획서</h1>
 ${headTable(d, h, false)}
 ${d.planRows
-  ? planTable(d.planRows, d.rows.find(r => r.isSummary), totalRow)
-  : rowsTable('이행조치 계획사항', '이행조치 사항', d.rows, totalRow)}
+  ? planTable(d.planRows, d.rows.find(r => r.isSummary), totalRow(2))
+  : rowsTable('이행조치 계획사항', '이행조치 사항', d.rows, totalRow(1))}
 ${signBlock('「소방시설 설치 및 안전관리에 관한 법률」 제23조제3항 및 같은 법 시행규칙 제23조제2항에 따라 위와 같이 소방시설등의 수리ㆍ교체ㆍ정비에 대한 이행계획서를 제출합니다.', d)}
 ${noticeBox([['유의 사항', CAUTION]])}
 ${pageFooter()}`
