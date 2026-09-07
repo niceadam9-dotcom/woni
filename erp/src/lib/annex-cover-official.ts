@@ -19,6 +19,8 @@ import type { CoverData } from '@/lib/doc-templates/cover'
 import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
+// 날짜 한글 표기의 단일 원천 — 별지 9·10·11호와 갑지가 같은 함수를 써야 형식이 갈리지 않는다(2026-09-07)
+import { kdate } from '@/lib/report9-assemble'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -213,6 +215,8 @@ export async function assembleOfficial(
 
 // ── 위임장 (S8) ──────────────────────────────────────────────────────────────
 
+/** 생년월일 전용 점 표기('YYYY.MM.DD') — 위임장 서식의 생년월일 칸 관행이다.
+ *  기간 표기는 여기 쓰지 않는다(kdate가 단일 원천, 2026-09-07). */
 function ymdDots(iso: string | null): string {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
@@ -291,9 +295,13 @@ export async function assembleDelegation(
   if (!agent.name) missing.push('대리인(주된 점검인력) 없음 — 점검 참여자 지정 또는 [입력]에서 기재')
   if (!agent.birth) missing.push('대리인 생년월일 미입력 — 공란 인쇄 (관리자 > 직원 관리 또는 [입력]에서 기재)')
 
-  // 점검일자 — 시작~종료(같으면 1일). 표기는 샘플 축('YYYY.MM.DD 부터 ~ 까지 (N일)')
+  // 점검일자 — 시작~종료(같으면 1일).
+  // 표기는 **kdate 단일 원천**('YYYY년 M월 D일 ~ YYYY년 M월 D일', 2026-09-07 사용자 확정).
+  // 종전엔 여기만 ymdDots + '부터/까지'라, 같은 갑지 안에서 주된 점검인력 칸(E1 = 이 값)과
+  // 보조 점검인력 칸(E2~E8 = assembleReport9의 kdate)이 **서로 다른 형식으로 나란히 인쇄**됐다.
+  // 점검기간(일자) 칸도 이 값을 따라가므로 세 자리가 한 번에 갈렸다(D-7 — 같은 사실은 한 형식으로).
   const s = insp.inspection_start_date, e = insp.inspection_end_date ?? insp.inspection_start_date
-  const periodLabel = s ? `${ymdDots(s)} 부터 ~ ${ymdDots(e)} 까지` : ''
+  const periodLabel = s ? `${kdate(s)} ~ ${kdate(e ?? s)}` : ''
   let daysLabel = ''
   if (s && e) {
     const days = Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86_400_000) + 1

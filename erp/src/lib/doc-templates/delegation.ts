@@ -17,7 +17,7 @@ export type DelegationData = {
   owner: { name: string; position: string; phone: string; birth: string }
   /** 소방시설관리업체(대리인) */
   agent: { name: string; position: string; phone: string; birth: string }
-  /** 점검일자 — '2026.12.20 부터 ~ 2026.12.20 까지' */
+  /** 점검일자 — '2026년 12월 20일 ~ 2026년 12월 20일' (kdate 단일 원천, 2026-09-07) */
   periodLabel: string
   /** 점검 일수 — '1일' (산출 불가 시 공란) */
   daysLabel: string
