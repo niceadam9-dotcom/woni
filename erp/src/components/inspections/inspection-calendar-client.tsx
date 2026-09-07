@@ -547,7 +547,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         const eventDate = new Date(p.scheduled_date + 'T12:00:00')
         return {
           id: `planitem-${p.id}`,
-          title: `[${eventPlanLabel(p.sub_type)}] ${p.customer_name}${suffix}`,
+          // 담당 미배정은 칩에서 바로 보이게(2026-09-07 미배정 표면화 — 자동 배정 없이 알 수 있게만)
+          title: `[${eventPlanLabel(p.sub_type)}${p.assigned_employee_id ? '' : '·미배정'}] ${p.customer_name}${suffix}`,
           start: eventDate,
           end: eventDate,
           allDay: true as const,
@@ -1695,6 +1696,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                   이름이 길 때 truncate에 아이콘까지 잘려 나간다.
                                   시작·완료된 건에도 남는다: 순회 준비는 그때도 필요하다 */}
                               <AddressMapButton customerName={p.customer_name} address={p.customer_address} iconOnly />
+                              {/* 담당 미배정 표면화(2026-09-07) — 완료 건은 이력이라 제외 */}
+                              {!p.assigned_employee_id && !isCompleted && <span className="text-form-2xs text-red-500 font-semibold shrink-0">미배정</span>}
                               {isOverdue && <span className="text-[10px] text-red-600 font-semibold shrink-0">지연⚠</span>}
                               {isCompleted && <Check className="size-3.5 text-green-600 shrink-0" />}
                               {p.inspection_id ? (

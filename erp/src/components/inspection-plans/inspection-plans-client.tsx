@@ -73,6 +73,16 @@ function effectivePlanType(item: Pick<ItemView, 'plan_type' | 'inspection_type' 
   if (item.inspection_type === '일반관리') return item.inspection_sub_type === '종합' ? 'special_종합' : 'special_작동'
   return 'monthly'
 }
+/** 미배정 요약의 유형 라벨 — 일반관리 자체점검은 「일반(종합)」「일반(작동)」로 구분(2026-09-07 사용자
+ *  확정 표기). 소방안전관리는 기존 어휘(종합/작동) 그대로. 「일반(…)」 형식은 달력 eventPlanLabel과
+ *  같은 표기다(함수를 끌어오면 달력 클라이언트 모듈이 통째로 이 번들에 실리므로 형식만 공유). */
+function unassignedTypeLabel(item: ItemView): string {
+  const pt = effectivePlanType(item)
+  if (pt === 'monthly') return '정기'
+  if (pt === 'event') return '일반'
+  const sub = pt === 'special_종합' ? '종합' : '작동'
+  return item.inspection_type === '일반관리' ? `일반(${sub})` : sub
+}
 /** 달력 드래그 이동 가능 여부 — 정기(monthly)·미시작·계획/확정 상태·활성 고객만 (2026-07-13) */
 function canDragItem(item: ItemView, canManage: boolean): boolean {
   return canManage
@@ -214,8 +224,22 @@ export function InspectionPlansClient({
   // 종전에는 matchStatus가 걸러 목록에선 빠졌는데 카운트는 baseItems.length라 숫자만 남았다.
   const visibleItems = items.filter(item => item.customers?.is_active !== false)
 
+  // 담당자 필터 — 'unassigned'는 담당 없음(null) 전용 버킷(2026-09-07 미배정 표면화)
+  const matchEmployee = (item: ItemView) =>
+    filterEmployee === 'all' ? true
+      : filterEmployee === 'unassigned' ? !item.assigned_employee_id
+        : item.assigned_employee_id === filterEmployee
+
+  // 미배정 경고 — 조치 가능 상태(계획·확정)만 센다. 필터 적용 전 전 표시 항목 기준 —
+  // 필터에 따라 배지가 줄면 '미배정 없음'으로 오독한다(카운트 축과 목록 축은 다르다).
+  const unassignedItems = visibleItems.filter(i =>
+    !i.assigned_employee_id && (i.status === 'planned' || i.status === 'confirmed'))
+  const unassignedByLabel = unassignedItems.reduce<Record<string, number>>((acc, i) => {
+    const l = unassignedTypeLabel(i); acc[l] = (acc[l] ?? 0) + 1; return acc
+  }, {})
+
   const baseItems = visibleItems.filter(item => {
-    if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
+    if (!matchEmployee(item)) return false
     if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
     if (!matchCustomer(item)) return false
     return true
@@ -234,7 +258,7 @@ export function InspectionPlansClient({
 
   // 달력 뷰 필터 (담당자 + 점검유형 + 고객명 적용, 상태 필터만 무시 — 달력은 전체 일정을 보여줌)
   const calendarItems = visibleItems.filter(item => {
-    if (filterEmployee !== 'all' && item.assigned_employee_id !== filterEmployee) return false
+    if (!matchEmployee(item)) return false
     if (filterPlanType !== 'all' && effectivePlanType(item) !== filterPlanType) return false
     if (!matchCustomer(item)) return false
     return true
@@ -449,6 +473,30 @@ export function InspectionPlansClient({
           })}
         </div>
 
+        {/* 담당 미배정 경고 — 유형 라벨(일반(종합)·일반(작동) 식)별 건수, 조치 가능 상태만.
+            사용자 결정(2026-09-07): 자동 배정 없이 사용자들이 알 수 있게만 한다 */}
+        {unassignedItems.length > 0 && (
+          <div data-testid="unassigned-plan-banner"
+            className="flex items-center gap-2 px-4 py-2 border-b border-[#eeecfa] dark:border-line flex-wrap bg-red-50/70 dark:bg-red-500/10">
+            <AlertTriangle className="size-3.5 text-red-500 shrink-0" />
+            <span className="text-xs font-semibold text-red-600">담당 미배정 {unassignedItems.length}건</span>
+            <span className="text-xs text-red-500">
+              {Object.entries(unassignedByLabel).sort((a, b) => b[1] - a[1])
+                .map(([l, n]) => `${l} ${n}건`).join(' · ')}
+            </span>
+            <button
+              onClick={() => setFilterEmployee(filterEmployee === 'unassigned' ? 'all' : 'unassigned')}
+              className={`ml-auto text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                filterEmployee === 'unassigned'
+                  ? 'bg-red-500 text-white border-red-500'
+                  : 'border-red-200 text-red-600 hover:bg-red-100'
+              }`}
+            >
+              {filterEmployee === 'unassigned' ? '전체 보기' : '미배정만 보기'}
+            </button>
+          </div>
+        )}
+
         {/* 고객명 검색 + 담당자 + 점검유형 필터 */}
         <div className="flex items-center gap-2 px-4 py-2 flex-wrap">
           {/* 고객명 검색 — 목록·달력 양쪽에 적용. 활성 고객을 이미 통째로 받아뒀으므로 서버 왕복이 없다 */}
@@ -467,6 +515,7 @@ export function InspectionPlansClient({
             className="text-xs border border-line rounded-lg px-2.5 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-brand text-ink-sub"
           >
             <option value="all">담당자 전체</option>
+            <option value="unassigned">미배정{unassignedItems.length > 0 ? ` (${unassignedItems.length})` : ''}</option>
             {employees.map(e => (
               <option key={e.id} value={e.id}>{e.name}</option>
             ))}
@@ -1200,7 +1249,7 @@ function ListView({
                     const isOrphan = !!assigneeId && !employees.some(e2 => e2.id === assigneeId)
                     return assigneeName
                       ? <>{assigneeName}{isOrphan && <span className="ml-1 text-[10px] text-red-500" title="퇴사한 직원 담당 — 고객관리에서 재배정이 필요합니다">(퇴사)</span>}</>
-                      : <span className="text-ink-meta">미배정</span>
+                      : <span className="text-red-500 font-medium">미배정</span>
                   })()}
                 </td>
                 <td className="px-3 py-2.5">
