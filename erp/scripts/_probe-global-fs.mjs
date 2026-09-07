@@ -123,6 +123,16 @@ const run = async () => {
     check(`P-3b xl 배율 1.3 — text-xs 12→15.6 · text-sm 14→18.2 (실측 ${xl.xs}/${xl.sm})`,
       near(xl.xs, 15.6) && near(xl.sm, 18.2))
 
+    // ⚠ xxl은 **DB까지 가야** 판정된다(마이그레이션 159). CHECK가 3값이면 서버 액션이
+    //   23514로 거절하고 화면은 낙관 적용을 되돌린다 — 즉 아래 두 단언은 DB 미적용을
+    //   그대로 빨갛게 만든다. 화면 축만 재면 쿠키·속성만 보고 통과해 버린다.
+    const attrXxl = await setScale(page, 'xxl')
+    check(`P-3c '최대'가 DB까지 저장된다 — html[data-fs]=xxl (실측 ${attrXxl})`, attrXxl === 'xxl')
+    const xxl = await synth(page)
+    check(`P-3d xxl 배율 1.45 — text-xs 12→17.4 · text-sm 14→20.3 (실측 ${xxl.xs}/${xxl.sm})`,
+      near(xxl.xs, 17.4) && near(xxl.sm, 20.3))
+    await setScale(page, 'xl')   // 아래 실화면 대조는 xl 기준이라 되돌린다
+
     // ── P-4. 실화면 축 — 화면마다 몇 %가 커졌나 ────────────────────────────────
     console.log('\n  ── 화면별 배율 적용률 (md → xl) ──')
     let anyScreen = false
