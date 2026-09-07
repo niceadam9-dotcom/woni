@@ -54,13 +54,13 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
 
   return (
     <div className="rounded-lg border border-brand-tint">
-      <button onClick={toggle} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-ink-sub hover:text-brand"
+      <button onClick={toggle} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-form-xs font-medium text-ink-sub hover:text-brand"
         data-testid="bundle-panel-toggle">
         <Package className="size-3.5" /> 번들 생성 (공문→표지→본문 일괄)
         <ChevronDown className={`ml-auto size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="space-y-2 border-t border-brand-line-soft px-2.5 py-2 text-[11px]">
+        <div className="space-y-2 border-t border-brand-line-soft px-2.5 py-2 text-form-xs">
           {isPending && !cl && <p className="flex items-center gap-1 text-ink-meta"><Loader2 className="size-3 animate-spin" /> 상태 확인 중…</p>}
           {cl && (<>
             {/* 구성요소 체크리스트 (S13-4) — [번들 생성]의 대상 미리보기를 겸한다 */}
@@ -86,7 +86,7 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
                 {cl.blanks.map(b => (
                   <p key={b.sheetName}>· {b.sheetName} — 공란 {b.blank}/{b.total}</p>
                 ))}
-                <p className="mt-0.5 text-[10px]">점검표에서 마저 입력하거나, 이대로 진행할 수 있습니다.</p>
+                <p className="mt-0.5 text-form-2xs">점검표에서 마저 입력하거나, 이대로 진행할 수 있습니다.</p>
               </div>
             )}
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -112,7 +112,7 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
                 data-testid="workbook-download">
                 <FileSpreadsheet className="size-3" /> 엑셀로 받기
               </a>
-              <button onClick={load} disabled={isPending} className="text-[10px] text-ink-meta underline">새로고침</button>
+              <button onClick={load} disabled={isPending} className="text-form-2xs text-ink-meta underline">새로고침</button>
             </div>
             {results && results.some(r => !r.ok) && (
               <ul className="space-y-0.5 text-red-600">

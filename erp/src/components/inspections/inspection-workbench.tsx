@@ -16,7 +16,7 @@ import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
   forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction,
-  deleteTimelineFileAction, recordCertPaperAction,
+  deleteTimelineFileAction, markCertReportedAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
@@ -30,7 +30,6 @@ import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-pa
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
-import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect, type DefectEdits } from '@/components/inspections/defect-grid'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
@@ -122,16 +121,13 @@ export function InspectionWorkbench({
   const [offlineDate, setOfflineDate] = useState(today)
   const [offlineMethod, setOfflineMethod] = useState('방문 설명')
   const [offlineMemo, setOfflineMemo] = useState('')
-  // 제안1: ② 배치확인서 종이 보관 기록 입력 (③ 오프라인 보고와 같은 구조)
-  const [paperOpen, setPaperOpen] = useState(false)
+  // ② 협회 배치신고 신고일 (2026-09-07) — 기본 오늘, 지난 날짜로 신고했으면 이 칸만 고친다.
+  // 이미 완료된 회차는 기록된 신고일을 보여준다(값이 화면에서 사라지면 언제 신고했는지 알 길이 없다)
+  const [reportedDate, setReportedDate] = useState(data.certReported?.date || today)
   // 재방문 안내 (소방계획서_24 Q-17) — 계획에 없는 방문을 담는 그릇이 시스템에 없어서(P-20)
   // 지금까지는 "가야 하는데 문자를 못 보내는" 상태였다
   const [adhocSms, setAdhocSms] = useState(false)
-  const [paperDate, setPaperDate] = useState(today)
-  const [paperLocation, setPaperLocation] = useState('')
-  const [paperMemo, setPaperMemo] = useState('')
   const [dragOver, setDragOver] = useState<'cert' | 'contract' | null>(null)
-  const certRef = useRef<HTMLInputElement>(null)
   const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
   // S9-1(2026-08-21) — 재생성 차단은 규약 버전 축. 서버(requestReport9Action)와 같은 순수 함수로
@@ -328,7 +324,8 @@ export function InspectionWorkbench({
     e.target.value = ''
     if (file) doUpload(slot, file)
   }
-  const uploadCert = (e: React.ChangeEvent<HTMLInputElement>) => uploadSlot('cert', e)
+  // ② 배치확인서 업로드는 2026-09-07에 폐지됐다(대표 직접 신고) — 남은 슬롯은 ⑤ 계약서뿐.
+  // uploadSlot·doUpload·드롭존은 그대로 두되 'cert' 진입점만 없앤다(계약서가 같은 코드를 쓴다).
   const uploadContract = (e: React.ChangeEvent<HTMLInputElement>) => uploadSlot('contract', e)
   /** 업로드 슬롯 = 드롭존 (R0-6, 문서 현황·타임라인과 같은 패턴) */
   const dropProps = (slot: 'cert' | 'contract') => canManage ? {
@@ -452,15 +449,14 @@ export function InspectionWorkbench({
     })
   }
 
-  /** 제안1: ② 배치확인서를 종이로만 받은 경우 — 예외가 아니라 증거로 기록한다 */
-  function savePaper() {
+  /** ② 협회 배치신고 완료 표시 (2026-09-07 — 업로드·종이보관 폼을 대체한 유일한 완료 경로).
+   *  대표가 협회에서 직접 신고하므로 ERP가 받을 것은 파일이 아니라 **신고했다는 사실과 날짜**뿐이다. */
+  function toggleReported(undo: boolean) {
+    if (undo && !window.confirm('배치신고 완료 표시를 해제합니다.\n② 단계가 다시 미완료로 돌아갑니다. 계속할까요?')) return
     startTransition(async () => {
-      const res = await recordCertPaperAction(inspectionId, {
-        date: paperDate, location: paperLocation, memo: paperMemo,
-      })
+      const res = await markCertReportedAction(inspectionId, undo ? { undo: true } : { date: reportedDate })
       if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setPaperOpen(false); setPaperMemo('')
-      setMsg('✅ 종이 보관으로 기록했습니다 — ②가 근거로 완료됩니다.')
+      setMsg(undo ? '✅ 배치신고 완료 표시를 해제했습니다.' : '✅ 배치신고 완료로 기록했습니다 — ②가 완료됩니다.')
       deferredRefresh()
     })
   }
@@ -477,8 +473,8 @@ export function InspectionWorkbench({
     })
   }
 
-  const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50'
-  const btnPri = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50'
+  const btn = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50'
+  const btnPri = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-50'
 
   /* ── 3칸 구성 — 단계마다 역할이 바뀐다 (R6-2) ──
    *  ① 설비목록·점검표 / 불량 / (참여·기간)   ② 참여인력 / 업로드 / 배치요약
@@ -500,7 +496,7 @@ export function InspectionWorkbench({
   } as React.CSSProperties
 
   const paneCls = 'min-h-0 overflow-y-auto rounded-xl border border-brand-line-soft bg-surface'
-  const paneHead = 'sticky top-0 z-10 flex items-center gap-1.5 border-b border-brand-tint bg-brand-tint px-3 py-1.5 text-[11px] font-semibold text-ink-sub'
+  const paneHead = 'sticky top-0 z-10 flex items-center gap-1.5 border-b border-brand-tint bg-brand-tint px-3 py-1.5 text-form-xs font-semibold text-ink-sub'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 lg:overflow-hidden">
@@ -509,12 +505,12 @@ export function InspectionWorkbench({
         <FileText className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">점검 작업대</h2>
         {/* S7-1 4차 — 이 점검에 **보고 의무가 있는지**를 말하는 문장이다(장식이 아니다) */}
-        <span className="text-[11px] text-ink-meta">
+        <span className="text-form-xs text-ink-meta">
           {isSpecial ? '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
         </span>
         {isSpecial && (
           <>
-            <span className="ml-auto text-[11px] font-semibold text-brand" title="해당없음 단계는 분모에서 제외">
+            <span className="ml-auto text-form-xs font-semibold text-brand" title="해당없음 단계는 분모에서 제외">
               {doneCount}/{activeSteps.length} 단계 완료
             </span>
             <div className="h-1 w-24 overflow-hidden rounded-full bg-brand-line-soft">
@@ -525,7 +521,7 @@ export function InspectionWorkbench({
         )}
         {customerId && (
           <NextLink href={`/customers/${customerId}?tab=annex`}
-            className={`${isSpecial ? '' : 'ml-auto'} inline-flex items-center gap-1 text-[11px] text-brand hover:underline shrink-0`}>
+            className={`${isSpecial ? '' : 'ml-auto'} inline-flex items-center gap-1 text-form-xs text-brand hover:underline shrink-0`}>
             별지서식 <ExternalLink className="size-3" />
           </NextLink>
         )}
@@ -547,12 +543,12 @@ export function InspectionWorkbench({
                 : na ? <Circle className="size-4 shrink-0 text-[#e0ddf5]" />
                   : <AlertTriangle className={`size-4 shrink-0 ${active ? 'text-white' : 'text-amber-500'}`} />}
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[11px] font-semibold">{TIMELINE_STEP_LABELS[k]}</span>
+                <span className="block truncate text-form-xs font-semibold">{TIMELINE_STEP_LABELS[k]}</span>
                 {/* S7-1 4차 — na 가지의 ink-faint는 **유지**한다(버튼이 실제로 disabled라 WCAG
                     1.4.3의 inactive component 예외가 성립하는, 이 파일에서 몇 안 되는 자리다).
                     반면 마지막 가지는 활성 버튼의 '완료'·'진행 전'·D-day라 정보 노드다. */}
                 {/* ink-faint:장식 — na 가지만 해당(마지막 가지는 활성 버튼의 값이라 ink-meta다) */}
-                <span className={`block truncate text-[10px] ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-meta'}`}>
+                <span className={`block truncate text-form-2xs ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-meta'}`}>
                   {na ? '해당없음 — 불량 0건' : d?.text ?? (done[k] ? '완료' : '진행 전')}
                 </span>
               </span>
@@ -561,7 +557,7 @@ export function InspectionWorkbench({
         })}
       </div>
 
-      {msg && <p className={`shrink-0 text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
+      {msg && <p className={`shrink-0 text-form-xs ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
 
       {/* 3칸 — 데스크톱 전용. 좁은 화면은 세로 스택 폴백(R6-10, 현장은 폰이다).
           점검표 드로어는 createPortal 오버레이(소방계획서_23 Q-4·Q-15)라 이 grid 밖에 뜬다 — 3칸 비율은 개폐와 무관하게 고정.
@@ -581,11 +577,11 @@ export function InspectionWorkbench({
             {i === 2 && paneAdjusted && (
               <button onClick={() => writePaneW(PANE_W_DEFAULT)} title="칸 폭을 기본값으로 되돌립니다"
                 aria-label="칸 폭 초기화" data-testid="pane-w-reset"
-                className="mr-1 inline-flex items-center gap-1 rounded px-1 text-[10px] text-brand hover:bg-brand-tint">
+                className="mr-1 inline-flex items-center gap-1 rounded px-1 text-form-2xs text-brand hover:bg-brand-tint">
                 <RotateCcw className="size-3" /> 초기화
               </button>
             )}
-            <span className="text-[10px] text-ink-meta">{label}</span>
+            <span className="text-form-2xs text-ink-meta">{label}</span>
             <button onClick={() => nudgePane(i, -1)} disabled={!nudgePaneW(dw, i, -1)}
               title={`${label}을 좁힙니다`} aria-label={`${label} 좁게`} data-testid={`pane-w-${i}-narrow`}
               className="inline-flex size-5 items-center justify-center rounded text-ink-soft hover:bg-brand-tint hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent">
@@ -641,63 +637,65 @@ export function InspectionWorkbench({
 
         {sel === 'cert' && (<>
           <Pane title="참여 인력" cls={paneCls} head={paneHead}>{slots?.participants}</Pane>
-          <Pane title="배치확인서 업로드" cls={paneCls} head={paneHead}>
-            <div className={`space-y-2 rounded-lg px-3 py-2${dropCls('cert')}`} {...dropProps('cert')}
-              title={canManage ? '클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
-              <p className={`text-xs ${done.cert ? 'text-ink-sub' : 'text-amber-600'}`}>
-                {data.certFile ? `업로드됨: ${data.certFile.name}`
-                  : data.certPaper
-                    ? `종이 보관 중 — ${data.certPaper.date} 수령 · ${data.certPaper.location}`
-                    : data.certArchived ? '종이 보관됨 — 과거본 정리로 ERP 사본은 삭제되었습니다'
-                      : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
-              </p>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
-                <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[10px] text-ink-meta hover:text-brand">협회 <ExternalLink className="size-2.5" /></a>
-                {data.certFile && <button onClick={() => download(data.certFile!.path)} className={btn}><Download className="size-3" /> 보기</button>}
-                {canManage && (<>
-                  <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={uploadCert} />
-                  <button onClick={() => certRef.current?.click()} disabled={isPending} className={btn}><Upload className="size-3" /> 업로드</button>
-                  {/* 제안2: 잘못 올린 파일을 되돌린다 — ②는 파일이 곧 완료 근거라 지우면 다시 미완료가 된다 */}
-                  {data.certFile && (
-                    <button onClick={() => removeFile('cert')} disabled={isPending} data-testid="cert-delete"
-                      className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[10px] text-red-600 hover:bg-red-50 disabled:opacity-50">
-                      <Trash2 className="size-3" /> 삭제
-                    </button>
-                  )}
-                  {/* 제안1: 종이로만 받은 경우 — 예외([사유 완료])가 아니라 증거로 기록한다 */}
-                  {!data.certFile && !paperOpen && (
-                    <button onClick={() => setPaperOpen(true)} disabled={isPending} data-testid="cert-paper-open"
-                      className={btn}><FileText className="size-3" /> 종이 보관 기록</button>
-                  )}
-                </>)}
+          {/* ② 점검인력 배치신고 (2026-09-07 사용자 확정 — 업로드 표면 폐지).
+              대표가 협회에서 **직접** 신고하고 확인서도 직접 보관하므로 ERP가 파일을 가질 이유가 없다.
+              종전의 [신고 정보 복사]·[보기]·[업로드]·[삭제]·[종이 보관 기록]을 전부 걷어내고
+              **체크 한 번 + 신고일**로 줄였다. 협회 안내 링크만 남긴다(사용자 유지 결정).
+              ⚠ 과거 회차의 완료 근거(파일·종이 보관 마커)는 그대로 인정한다 — 아래 표시 분기 참조. */}
+          <Pane title="점검인력 배치신고" cls={paneCls} head={paneHead}>
+            <div className="space-y-2 px-3 py-2">
+              {canManage ? (
+                <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="cert-reported-toggle">
+                  <input type="checkbox" checked={!!data.certReported} disabled={isPending}
+                    onChange={e => toggleReported(!e.target.checked)}
+                    className="size-4 accent-[#5b46d9]" />
+                  <span className={`text-sm font-medium ${data.certReported ? 'text-ink' : 'text-amber-600'}`}>
+                    협회 배치신고 완료
+                  </span>
+                </label>
+              ) : (
+                <p className={`text-sm font-medium ${data.certReported ? 'text-ink' : 'text-amber-600'}`}>
+                  {data.certReported ? '✓ 협회 배치신고 완료' : '협회 배치신고 미완료'}
+                </p>
+              )}
+
+              {/* 신고일 — 완료 전엔 입력칸(기본 오늘), 완료 후엔 기록된 날짜를 그대로 보인다.
+                  완료 후 날짜를 고치려면 해제하고 다시 체크한다(마커가 append-only라 그게 단일 경로다) */}
+              <div className="flex items-center gap-2 pl-6">
+                <span className="text-form-xs text-ink-meta shrink-0">신고일</span>
+                {data.certReported ? (
+                  <span className="text-form-xs text-ink" data-testid="cert-reported-date">{data.certReported.date}</span>
+                ) : canManage ? (
+                  <DateInput value={reportedDate} onChange={e => setReportedDate(e.target.value)}
+                    data-testid="cert-reported-date-input"
+                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
+                ) : <span className="text-form-xs text-ink-meta">—</span>}
               </div>
 
-              {canManage && paperOpen && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2">
-                  <DateInput value={paperDate} onChange={e => setPaperDate(e.target.value)}
-                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-[11px]" />
-                  <input value={paperLocation} onChange={e => setPaperLocation(e.target.value)}
-                    placeholder="보관 위치 (예: 사무실 캐비닛 A)" data-testid="cert-paper-location"
-                    className="h-7 w-52 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
-                  <input value={paperMemo} onChange={e => setPaperMemo(e.target.value)}
-                    placeholder="메모 (선택)"
-                    className="h-7 w-40 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
-                  <button onClick={savePaper} disabled={isPending} data-testid="cert-paper-save"
-                    className="h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">기록</button>
-                  <button onClick={() => setPaperOpen(false)} className="h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub">취소</button>
-                  <p className="w-full text-[10px] text-ink-meta">
-                    스캔본이 없어도 종이로 갖고 있으면 이 단계는 완료입니다 — 나중에 업로드하면 파일이 우선 근거가 됩니다.
-                  </p>
-                </div>
+              {/* 과거 회차 호환 — 파일·종이 보관으로 이미 완료된 건은 그 사실을 계속 보여준다.
+                  업로드 창구는 없앴지만 **판정은 그대로**라 완료가 미완료로 퇴행하지 않는다 */}
+              {!data.certReported && (data.certFile || data.certPaper || data.certArchived) && (
+                <p className="pl-6 text-form-2xs text-ink-meta" data-testid="cert-legacy-note">
+                  {data.certFile ? `과거 업로드본 보관 중: ${data.certFile.name}`
+                    : data.certPaper ? `종이 보관 기록 있음 — ${data.certPaper.date} 수령 · ${data.certPaper.location}`
+                      : '종이 보관됨 — 과거본 정리로 ERP 사본은 삭제되었습니다'}
+                  {' '}(이 근거로 ②는 완료 상태입니다)
+                </p>
               )}
+
+              <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 pl-6 text-form-xs text-brand hover:underline">
+                협회 신고 사이트 <ExternalLink className="size-3" />
+              </a>
             </div>
           </Pane>
           <Pane title="배치 요약" cls={paneCls} head={paneHead}>
             <Summary rows={[
               ['점검표 응답', `${data.responded}건`],
-              ['배치확인서', data.certFile ? data.certFile.name : data.certArchived ? '종이 보관' : '없음'],
+              // 신고 완료가 기본 축(2026-09-07) — 파일·종이는 과거 회차 폴백
+              ['배치신고', data.certReported ? `완료 ${data.certReported.date}`
+                : data.certFile ? data.certFile.name
+                  : data.certArchived ? '종이 보관' : '미완료'],
               ['불량', `${defectStat.total}건`],
             ]} />
           </Pane>
@@ -722,16 +720,16 @@ export function InspectionWorkbench({
               {canManage && (offlineOpen ? (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
-                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-[11px]" />
+                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
                   <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
-                    className="h-7 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand">
+                    className="h-7 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand">
                     <option>방문 설명</option><option>유선 통보</option><option>대면 전달</option><option>기타</option>
                   </select>
                   <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
-                    className="h-7 w-40 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
+                    className="h-7 w-40 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand" />
                   <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
                   {/* S7-1 4차 — 누르면 동작하는 **활성 컨트롤**이다(F-22와 같은 축) */}
-                  <button onClick={() => setOfflineOpen(false)} className="text-[10px] underline text-ink-meta">취소</button>
+                  <button onClick={() => setOfflineOpen(false)} className="text-form-2xs underline text-ink-meta">취소</button>
                 </div>
               ) : (
                 <button onClick={() => setOfflineOpen(true)} className={btn}>방문·유선 보고 기록</button>
@@ -755,14 +753,14 @@ export function InspectionWorkbench({
             <div className="px-3 py-2 space-y-1">
               {data.prereqs.length === 0 && <Empty>전제 항목이 없습니다.</Empty>}
               {data.prereqs.map((p, i) => (
-                <p key={i} className={`text-[11px] ${p.ok ? 'text-ink-sub' : 'text-amber-600'}`}>
+                <p key={i} className={`text-form-xs ${p.ok ? 'text-ink-sub' : 'text-amber-600'}`}>
                   {p.ok ? '✓' : '⚠'} {p.label}
                 </p>
               ))}
               {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
                   종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
               {data.period && (data.period.end || data.period.start) && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2 text-[10px] text-ink-meta">
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2 text-form-2xs text-ink-meta">
                   <span>
                     기산: {data.period.end
                       ? <>종료일 <b className="text-ink-sub">{data.period.end}</b></>
@@ -776,7 +774,7 @@ export function InspectionWorkbench({
                   {canManage && anchorEdit && (
                     <span className="inline-flex items-center gap-1">
                       <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
-                        className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-[10px]" />
+                        className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-form-2xs" />
                       <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
                       <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
                     </span>
@@ -791,7 +789,7 @@ export function InspectionWorkbench({
               {/* S9-1 — 구규약(legacy_na)·규약 미상+응답 있음은 재생성 차단(서버 가드와 같은 판정 함수).
                   미상 회차는 사실을 아는 관리자가 [신규약 확정]으로 해제한다 — 자동 추정은 쓰지 않는다. */}
               {regenBlocked && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-form-xs text-amber-800">
                   {data.sheetProtocol === 'legacy_na'
                     ? '구 규약(무응답=해당없음)으로 작성된 점검 — 재생성하면 결과 표기가 달라져 생성이 차단됩니다. 보관함 원본을 사용하세요.'
                     : '규약 미상 회차(무응답 표기 규약 전환 전 생성) — 재생성하면 결과 표기가 달라질 수 있어 차단됩니다. 보관함 원본을 사용하세요.'}
@@ -809,7 +807,7 @@ export function InspectionWorkbench({
                         })
                       }}
                       disabled={isPending}
-                      className="ml-2 h-6 px-2 rounded border border-amber-400 bg-surface text-[11px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+                      className="ml-2 h-6 px-2 rounded border border-amber-400 bg-surface text-form-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
                       신규약으로 입력된 회차 — 확정
                     </button>
                   )}
@@ -829,7 +827,7 @@ export function InspectionWorkbench({
                     <button key={c.type} onClick={() => setDocSel(c.type)} data-doc-chip={c.type}
                       aria-pressed={on}
                       title={`${c.label} — 3칸에서 내용을 확인하고 생성합니다`}
-                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] transition-colors ${
+                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-form-xs transition-colors ${
                         on ? 'border-brand bg-brand text-white font-medium' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
                       <FileText className="size-3" /> {c.label}
                       {/* 생성 여부 — 칩만 보고도 무엇이 남았는지 안다 */}
@@ -844,15 +842,15 @@ export function InspectionWorkbench({
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
-                <span className="text-[11px] text-ink-sub">소방서 제출일</span>
+                <span className="text-form-xs text-ink-sub">소방서 제출일</span>
                 <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
-                  className="h-7 rounded-lg border border-brand-line px-2 text-[11px]" />
+                  className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
                 {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
                 {submit9At
-                  ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
+                  ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
                   /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나 */
                   : data.submit9.due && (
-                    <span className="text-[10px] text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
+                    <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
                   )}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
@@ -861,12 +859,12 @@ export function InspectionWorkbench({
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
                 <details className="border-t border-brand-line-soft pt-2">
-                  <summary className="cursor-pointer text-[11px] font-medium text-ink-sub hover:text-brand">
+                  <summary className="cursor-pointer text-form-xs font-medium text-ink-sub hover:text-brand">
                     제출 보고서 파일 ({data.reports.length}건)
                   </summary>
                   <div className="mt-1.5 space-y-1">
                     {data.reports.map(r => (
-                      <div key={r.id} className="flex items-center gap-1.5 rounded-lg border border-brand-tint px-2 py-1 text-[10px]">
+                      <div key={r.id} className="flex items-center gap-1.5 rounded-lg border border-brand-tint px-2 py-1 text-form-2xs">
                         <span className="shrink-0 font-medium text-ink">
                           {STEP_REPORT_TYPES.includes(r.report_type as StepReportType) ? STEP_REPORT_LABELS[r.report_type as StepReportType] : r.report_type}
                         </span>
@@ -918,7 +916,7 @@ export function InspectionWorkbench({
               {...dropProps('contract')}
               title={canManage ? '수리 계약서 — 클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
               {/* S7-1 4차 — 올린 계약서 **파일명**이 여기 뜬다(무엇이 붙었는지 확인하는 값) */}
-              <span className="text-[10px] text-ink-meta">
+              <span className="text-form-2xs text-ink-meta">
                 (사진·계약서는 선택){data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
               </span>
               {data.contractFile && (
@@ -930,7 +928,7 @@ export function InspectionWorkbench({
                   title="수리 계약서 (선택 증빙)"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
                 {data.contractFile && (
                   <button onClick={() => removeFile('contract')} disabled={isPending} data-testid="contract-delete"
-                    className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50">
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-red-200 text-form-xs text-red-600 hover:bg-red-50 disabled:opacity-50">
                     <Trash2 className="size-3" /> 삭제
                   </button>
                 )}
@@ -946,7 +944,7 @@ export function InspectionWorkbench({
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 10호 PDF 생성
                 </button>
                 {/* S7-1 4차 — 생성 규칙 안내(언제 눌러야 하는지를 알려준다) */}
-                <span className="text-[10px] text-ink-meta">확정 시 1회 — 생성물은 문서 목록에 쌓입니다</span>
+                <span className="text-form-2xs text-ink-meta">확정 시 1회 — 생성물은 문서 목록에 쌓입니다</span>
               </div>
             )}
           </Pane>
@@ -990,16 +988,16 @@ export function InspectionWorkbench({
                 </>)}
               </div>
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
-                <span className="text-[11px] text-ink-sub">이행완료 제출일</span>
+                <span className="text-form-xs text-ink-sub">이행완료 제출일</span>
                 <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)}
-                  className="h-7 rounded-lg border border-brand-line px-2 text-[11px]" />
+                  className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
                 {canManage && <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btn}>기록</button>}
                 {/* 기록 여부를 그 자리에서 — ⑥ 완료 조건은 이 날짜뿐이다(위 표의 조치 수가 아니라) */}
                 {submit11At
-                  ? <span className="text-[10px] text-green-600">✓ 기록됨 {submit11At} — ⑥ 완료</span>
+                  ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit11At} — ⑥ 완료</span>
                   /* S7-1 4차 — ④ '기한 …' 자리의 **짝**이다. 3차가 ④만 올리고 여기를 빠뜨렸다
                      ([[feedback_fix_the_sibling_too]] 재발) — 완료 조건과 법정 기한을 함께 말한다 */
-                  : <span className="text-[10px] text-ink-meta">
+                  : <span className="text-form-2xs text-ink-meta">
                       미기록 — 이 날짜가 ⑥ 완료 조건{data.submit11.due ? ` · 기한 ${data.submit11.due}` : ''}
                     </span>}
               </div>
@@ -1021,9 +1019,9 @@ export function InspectionWorkbench({
           마커를 찍으므로 월간·일반 건에도 사유 완료가 생긴다 — 찍히는데 되돌릴 수 없으면 안 된다 */}
       {canComplete && stepOf(sel) && forcedNums.has(stepOf(sel)!.step_num) && (
         <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-1.5">
-          <span className="text-[10px] text-amber-700">사유로 완료한 단계입니다 — 철회하면 증거만으로 다시 판정합니다.</span>
+          <span className="text-form-2xs text-amber-700">사유로 완료한 단계입니다 — 철회하면 증거만으로 다시 판정합니다.</span>
           <button onClick={() => undoForce(sel)} disabled={completing === stepOf(sel)!.id}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-surface text-[11px] text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-surface text-form-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50">
             {completing === stepOf(sel)!.id ? <Loader2 className="size-3 animate-spin" /> : null} 사유 완료 철회
           </button>
         </div>
@@ -1032,9 +1030,9 @@ export function InspectionWorkbench({
       {/* 예외 완료 — 증거가 생기면 자동 완료되므로 여기는 예외 경로다 */}
       {isSpecial && canComplete && !done[sel] && stepOf(sel) && stepOf(sel)!.status !== 'completed' && (
         <div className="flex items-center gap-2 shrink-0 rounded-lg border border-brand-line-soft bg-brand-tint px-3 py-1.5">
-          <span className="text-[10px] text-ink-soft">증거가 생기면 이 단계는 자동 완료됩니다 — 예외 상황에서만 사유를 남기고 완료하세요.</span>
+          <span className="text-form-2xs text-ink-soft">증거가 생기면 이 단계는 자동 완료됩니다 — 예외 상황에서만 사유를 남기고 완료하세요.</span>
           <button onClick={() => forceComplete(sel)} disabled={completing === stepOf(sel)!.id}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line bg-surface text-[11px] text-ink-soft hover:bg-brand-tint disabled:opacity-50">
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line bg-surface text-form-xs text-ink-soft hover:bg-brand-tint disabled:opacity-50">
             {completing === stepOf(sel)!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 사유 완료
           </button>
         </div>
@@ -1070,14 +1068,14 @@ function Pane({ title, children, cls, head, fill = false }: {
 
 function Empty({ children }: { children: React.ReactNode }) {
   // S7-1 — 빈 상태 문구는 정보다('생성된 문서가 없습니다' 등). 장식이 아니라 읽혀야 한다
-  return <p className="px-1 py-2 text-[11px] text-ink-meta">{children}</p>
+  return <p className="px-1 py-2 text-form-xs text-ink-meta">{children}</p>
 }
 
 function Summary({ rows }: { rows: Array<[string, string]> }) {
   return (
     <dl className="px-3 py-2 space-y-1">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex items-start gap-2 text-[11px]">
+        <div key={k} className="flex items-start gap-2 text-form-xs">
           <dt className="w-28 shrink-0 text-ink-soft">{k}</dt>
           <dd className="min-w-0 flex-1 text-ink">{v}</dd>
         </div>
@@ -1148,13 +1146,13 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
     })
   }
 
-  if (loading) return <p className="px-1 py-1 text-[10px] text-ink-soft">고유값 불러오는 중…</p>
+  if (loading) return <p className="px-1 py-1 text-form-2xs text-ink-soft">고유값 불러오는 중…</p>
 
   return (
     <div className={compact ? 'flex max-h-48 flex-col gap-1.5 overflow-hidden px-1' : 'space-y-1.5 px-1'}
       data-annex-fields={annexNo} onBlur={commit}>
-      <p className="flex shrink-0 items-center gap-1.5 text-[10px] text-ink-soft">
-        <span className="inline-flex items-center rounded bg-brand px-1.5 py-0.5 text-[9px] font-medium text-white">입력</span>
+      <p className="flex shrink-0 items-center gap-1.5 text-form-2xs text-ink-soft">
+        <span className="inline-flex items-center rounded bg-brand px-1.5 py-0.5 text-form-3xs font-medium text-white">입력</span>
         이 서식에서만 쓰는 값 — 비우면 자동 계산값으로 출력
         {state === 'saving' && <Loader2 className="size-3 animate-spin text-brand" />}
         {state === 'saved' && <span className="text-green-600">저장됨</span>}
@@ -1173,12 +1171,12 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
         const shown = a ? { ...d, placeholder: a } : d
         return (
           <label key={d.key} className="block">
-            <span className="block text-[10px] font-medium text-ink-sub">{d.label}</span>
+            <span className="block text-form-2xs font-medium text-ink-sub">{d.label}</span>
             <AnnexFieldInput def={shown} value={fields[d.key] ?? ''} rows={1}
               onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))} />
             {a && !(fields[d.key] ?? '').trim() && (
-              <span className="mt-0.5 flex items-center gap-1 text-[10px] text-ink-soft">
-                <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-[9px] font-medium text-ink-sub">자동</span>
+              <span className="mt-0.5 flex items-center gap-1 text-form-2xs text-ink-soft">
+                <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-form-3xs font-medium text-ink-sub">자동</span>
                 이대로 출력됩니다 — 고치면 고친 값이 나갑니다
               </span>
             )}
@@ -1293,7 +1291,7 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
     <div className="flex h-full min-h-[16rem] flex-col gap-1">
       {/* 머리줄 — relative는 미입력 목록 팝오버(AnnexMissingChip)의 기준이다 */}
       <div className="relative flex items-center gap-1.5 px-1">
-        {loading && <span className="inline-flex items-center gap-1 text-[10px] text-ink-soft"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
+        {loading && <span className="inline-flex items-center gap-1 text-form-2xs text-ink-soft"><Loader2 className="size-3 animate-spin" /> 렌더 중…</span>}
         {/* 종전엔 개수만 띄웠다 — 무엇이 왜 비었는지 볼 방법이 없어 조립 쪽에 항목을 더해도 숫자만 올랐다 */}
         {!loading && !(err && missing.length === 0) && <AnnexMissingChip missing={missing} customerId={customerId} inspectionId={inspectionId} />}
         <span className="ml-auto flex items-center gap-2">
@@ -1303,7 +1301,7 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
           {onGenerate && (
             <button onClick={onGenerate} disabled={generating || genBlocked} data-testid="annex-generate"
               title={generated ? '이미 생성됨 — 다시 만들면 최신본이 됩니다' : '이 미리보기 내용 그대로 PDF를 만듭니다'}
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-brand hover:underline disabled:opacity-50">
+              className="inline-flex items-center gap-1 text-form-2xs font-bold text-brand hover:underline disabled:opacity-50">
               {generating ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />}
               {generated ? '재생성' : 'PDF 생성'}
             </button>
@@ -1311,14 +1309,14 @@ function AnnexPreview({ inspectionId, reportType, watch, customerId, onGenerate,
           {html && (
             <button onClick={() => setZoom(true)} data-testid="preview-zoom"
               title="화면 전체로 크게 보기 — 스크롤 없이 한 장을 봅니다 (ESC로 닫기)"
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-brand hover:underline">
+              className="inline-flex items-center gap-1 text-form-2xs font-medium text-brand hover:underline">
               <Maximize2 className="size-3" /> 크게 보기
             </button>
           )}
-          <button onClick={load} className="text-[10px] text-brand hover:underline">새로고침</button>
+          <button onClick={load} className="text-form-2xs text-brand hover:underline">새로고침</button>
         </span>
       </div>
-      {err ? <p className="px-1 text-[11px] text-red-600">{err}</p>
+      {err ? <p className="px-1 text-form-xs text-red-600">{err}</p>
         : html ? frame('min-h-[14rem] flex-1 rounded-lg border border-brand-line-soft bg-surface')
           : !loading ? <Empty>미리보기를 만들 수 없습니다.</Empty> : null}
 

@@ -117,7 +117,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         <DateInput value={draft.revisedOn} title="개정일"
           onChange={e => setDraft(p => ({ ...p, revisedOn: e.target.value }))} className={`${inputCls} w-32`} />
       ) : (
-        <span className="text-[10px] text-ink-meta w-32 shrink-0">일자 고정 (생성 실적)</span>
+        <span className="text-form-2xs text-ink-meta w-32 shrink-0">일자 고정 (생성 실적)</span>
       )}
       <input value={draft.content} placeholder="주요 개정내용" autoFocus
         onChange={e => setDraft(p => ({ ...p, content: e.target.value }))} className={`${inputCls} flex-1 min-w-40`} />
@@ -129,7 +129,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         onChange={e => setDraft(p => ({ ...p, approverName: e.target.value }))} className={`${inputCls} w-16`} />
       {/* 같은 화면에 '저장' 버튼이 여럿이라 텍스트로는 못 겨눈다(소방안전관리자 패널의 비활성 저장이 먼저 잡힌다) */}
       <button onClick={() => { void commit() }} disabled={isPending} data-testid="revision-save"
-        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-brand text-white text-[11px] font-medium disabled:opacity-50">
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-brand text-white text-form-xs font-medium disabled:opacity-50">
         {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
       </button>
       <button onClick={cancel} disabled={isPending} className="p-1 text-ink-meta hover:text-ink-sub" title="취소">
@@ -146,7 +146,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         </p>
         {canManage && (
           <button onClick={startAdd} disabled={isPending}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
             <Plus className="size-3" /> 개정 추가
           </button>
         )}
@@ -155,17 +155,17 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
       {addOpen && (
         <div className="rounded-lg border border-brand-line bg-surface px-2 mb-2">
           <div className="flex items-center gap-1.5 pt-2">
-            <label className="text-[11px] font-medium text-ink-sub">연도</label>
+            <label className="text-form-xs font-medium text-ink-sub">연도</label>
             <input type="number" value={addYear} inputMode="numeric"
               onChange={e => setAddYear(Number(e.target.value) || currentYear)} className={`${inputCls} w-20`} />
-            <span className="text-[10px] text-ink-meta">문서 생성 없이 일어난 변경도 이력으로 남길 수 있습니다</span>
+            <span className="text-form-2xs text-ink-meta">문서 생성 없이 일어난 변경도 이력으로 남길 수 있습니다</span>
           </div>
           {draftFields(true)}
         </div>
       )}
 
       {years.length === 0 && !addOpen && (
-        <p className="text-[11px] text-ink-meta mb-2">개정이력이 없습니다 — [개정 추가]로 정보 변경 이력을 직접 남기세요.</p>
+        <p className="text-form-xs text-ink-meta mb-2">개정이력이 없습니다 — [개정 추가]로 정보 변경 이력을 직접 남기세요.</p>
       )}
 
       <div className="space-y-1.5">
@@ -178,7 +178,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
               })} className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left hover:bg-brand-tint rounded-lg">
                 {open ? <ChevronDown className="size-3.5 text-brand" /> : <ChevronRight className="size-3.5 text-ink-faint" />}
                 <span className="text-xs font-semibold text-ink">{g.year}년</span>
-                <span className="text-[10px] text-ink-meta">· {g.rows.length}건</span>
+                <span className="text-form-2xs text-ink-meta">· {g.rows.length}건</span>
               </button>
               {open && (
                 <div className="px-2 pb-1.5 border-t border-brand-line-soft">
@@ -194,7 +194,7 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
                           <span className="w-16 shrink-0 text-ink-sub truncate" title="작성자">{r.authorName || '—'}</span>
                           <span className="w-12 shrink-0 text-ink-sub truncate" title="검토">{r.reviewerName || '—'}</span>
                           <span className="w-12 shrink-0 text-ink-sub truncate" title="승인">{r.approverName || '—'}</span>
-                          <span className={`shrink-0 h-5 px-1.5 rounded-full text-[10px] leading-5 ${
+                          <span className={`shrink-0 h-5 px-1.5 rounded-full text-form-2xs leading-5 ${
                             r.source === 'manual' ? 'bg-brand-tint text-brand' : 'bg-paper text-ink-soft'}`}>
                             {SOURCE_LABEL[r.source]}
                           </span>
@@ -219,8 +219,8 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         })}
       </div>
 
-      {msg && <p className="text-[11px] text-ink-sub mt-2">{msg}</p>}
-      <p className="text-[10px] text-ink-meta mt-2">
+      {msg && <p className="text-form-xs text-ink-sub mt-2">{msg}</p>}
+      <p className="text-form-2xs text-ink-meta mt-2">
         인쇄·PDF 시 이 이력이 문서의 개정이력 표에 전 연도 시계열로 인쇄됩니다 · 전 행 수정·삭제 가능 (수동 기록이 단일 창구).
       </p>
     </div>

@@ -79,13 +79,13 @@ export function InspectionReport9Client({
         <h2 className="text-sm font-semibold text-ink" title={variant === 'exterior' ? DOC_TERMS.checklistExterior : DOC_TERMS.report9Full}>
           {variant === 'exterior' ? '외관점검표 (일반용)' : '실시결과 보고서 (별지 9호)'}
         </h2>
-        <span className="text-[11px] text-ink-meta">
+        <span className="text-form-xs text-ink-meta">
           {variant === 'exterior' ? '해당 월 결과 자동 병합 · 작성 후 2년 보관 (보고 없음)' : '1~3·8쪽 자동 병합 · 4~7쪽 세부현황(설비 대장) 주입'}
         </span>
       </div>
       {/* D-6 (a)안: 정기·일반관리는 보고 단계가 없음 — 이유 안내 1줄 */}
       {variant === 'exterior' && (
-        <p className="text-[11px] text-ink-meta -mt-1 mb-3">
+        <p className="text-form-xs text-ink-meta -mt-1 mb-3">
           정기·일반관리는 소방서 보고 단계(②~⑥)가 없습니다 — 외관점검표 작성·2년 보관만 진행합니다
         </p>
       )}
@@ -132,7 +132,7 @@ export function InspectionReport9Client({
             </button>
           )}
           {checks.some(c => !c.ok) && (
-            <span className="text-[11px] text-amber-600">미비 항목은 빈 칸으로 출력됩니다 (fail-soft)</span>
+            <span className="text-form-xs text-amber-600">미비 항목은 빈 칸으로 출력됩니다 (fail-soft)</span>
           )}
         </div>
       )}
@@ -151,11 +151,11 @@ export function InspectionReport9Client({
             <span className="ml-auto inline-flex items-center gap-1.5">
               <button onClick={() => setCompose('report10')} disabled={isPending || busy}
                 title="자동 채움 검토 → 고유 값 입력(제출일·기간 보정·요약) → 미리보기·생성 (H-23 작성 패널)"
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
                 <PenLine className="size-3" /> 10호 작성
               </button>
               <button onClick={() => generate('report10')} disabled={isPending || busy}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
                 별지 10호 생성
               </button>
             </span>
@@ -171,16 +171,16 @@ export function InspectionReport9Client({
             <span className="ml-auto inline-flex items-center gap-1.5">
               <button onClick={() => setCompose('report11')} disabled={isPending || busy}
                 title="자동 채움 검토 → 고유 값 입력(제출일·완료 보고 문구) → 미리보기·생성 (H-23 작성 패널)"
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
                 <PenLine className="size-3" /> 11호 작성
               </button>
               <button onClick={() => generate('report11')} disabled={isPending || busy}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
                 별지 11호 생성
               </button>
             </span>
           </div>
-          <p className="text-[10px] text-ink-meta">계획·완료 입력은 아래 불량내역의 [이행계획·조치 완료]에서 — 10호는 9호의 법정 첨부, 11호 첨부(전후 사진·계약서)는 불량내역 사진 슬롯 활용</p>
+          <p className="text-form-2xs text-ink-meta">계획·완료 입력은 아래 불량내역의 [이행계획·조치 완료]에서 — 10호는 9호의 법정 첨부, 11호 첨부(전후 사진·계약서)는 불량내역 사진 슬롯 활용</p>
         </div>
       )}
       {msg && <p className="text-xs text-ink-sub mt-2">{msg}</p>}
@@ -188,7 +188,7 @@ export function InspectionReport9Client({
         <p className="text-xs text-red-600 mt-2">❌ 생성 실패: {job.error ?? '알 수 없는 오류'}</p>
       )}
       {job?.status === 'done' && job.missing && job.missing.length > 0 && (
-        <p className="text-[11px] text-amber-600 mt-2">누락: {job.missing.join(' · ')}</p>
+        <p className="text-form-xs text-amber-600 mt-2">누락: {job.missing.join(' · ')}</p>
       )}
 
       {/* 생성물 목록 — 문서 단위 1행 그룹핑 (⑩ R11 공용 컴포넌트) */}
@@ -198,7 +198,7 @@ export function InspectionReport9Client({
         </div>
       )}
       {busy && (
-        <p className="text-[11px] text-ink-meta mt-2 inline-flex items-center gap-1">
+        <p className="text-form-xs text-ink-meta mt-2 inline-flex items-center gap-1">
           <RefreshCw className="size-3 animate-spin" /> 자동 새로고침 중 — 서버가 생성하고 있습니다
         </p>
       )}

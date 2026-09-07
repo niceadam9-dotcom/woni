@@ -58,13 +58,13 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
           <ClipboardList className="size-4 text-brand" />
           <h2 className="text-sm font-semibold text-ink">문서 할 일</h2>
           {total > 0 && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">{total}건</span>
+            <span className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">{total}건</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {/* P-4: '내 담당만' 개인화 필터 — 직원 기본 ON */}
           <button onClick={() => setMine(v => !v)} title="내가 배정된 점검 건만 봅니다"
-            className={`inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-[11px] font-medium ${
+            className={`inline-flex items-center gap-1 h-6 px-2 rounded-lg border text-form-xs font-medium ${
               mine ? 'border-brand bg-brand-tint text-brand' : 'border-brand-line text-ink-sub hover:border-brand'}`}>
             <User className="size-3" /> 내 담당만
           </button>
@@ -87,7 +87,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
         </div>
       ) : (
         <div className="divide-y divide-paper">
-          {msg && <p className={`px-5 py-1.5 text-[11px] ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
+          {msg && <p className={`px-5 py-1.5 text-form-xs ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
           {/* 제출 기한 임박 별지 9호 (D-7 이내·초과) */}
           {visibleDue.map(r => (
             <div key={`due-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
@@ -97,7 +97,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
               <span className={`font-semibold ${r.dday < 0 ? 'text-red-600' : 'text-amber-700'}`}>
                 {r.dday < 0 ? `기한 초과 ${-r.dday}일` : `D-${r.dday}`}
               </span>
-              <Link href={`/inspections/${r.inspectionId}`} className="ml-auto text-[11px] text-brand hover:underline shrink-0">
+              <Link href={`/inspections/${r.inspectionId}`} className="ml-auto text-form-xs text-brand hover:underline shrink-0">
                 타임라인에서 →
               </Link>
             </div>
@@ -110,7 +110,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
               <span className="text-ink-sub">{r.year}년 {r.sequenceNum}차 · 배치확인서 미업로드</span>
               {r.daysSince !== null && <span className="text-amber-700">완료 후 {r.daysSince}일 경과</span>}
               <button onClick={() => pick(r)} disabled={isPending}
-                className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 text-[11px] text-amber-800 hover:bg-amber-100 disabled:opacity-50 shrink-0">
+                className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 text-form-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50 shrink-0">
                 <Upload className="size-3" /> 업로드
               </button>
             </div>
@@ -121,7 +121,7 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
               <PencilLine className="size-3.5 text-brand shrink-0" />
               <span className="font-medium text-ink">{r.name}</span>
               <span className="text-ink-sub">입력 미완료 · {r.areas.join('·')}</span>
-              <Link href={`/customers/${r.id}?tab=plan`} className="ml-auto text-[11px] text-brand hover:underline shrink-0">
+              <Link href={`/customers/${r.id}?tab=plan`} className="ml-auto text-form-xs text-brand hover:underline shrink-0">
                 입력하러 →
               </Link>
             </div>

@@ -95,7 +95,7 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
                   <td className="px-2 py-2">
                     <Link href={`/customers/${r.id}`} className="font-medium text-ink hover:text-brand">{r.name}</Link>
                     {/* R15-c: 문서 현황 딥링크 → 별지서식 탭(소방계획서_8 Phase B → _34로 탭 승격) */}
-                    <Link href={`/customers/${r.id}?tab=annex`} title="별지서식 탭 · 회차별 문서 현황" className="block text-[10px] text-brand hover:underline mt-0.5 whitespace-nowrap">문서 현황 →</Link>
+                    <Link href={`/customers/${r.id}?tab=annex`} title="별지서식 탭 · 회차별 문서 현황" className="block text-form-2xs text-brand hover:underline mt-0.5 whitespace-nowrap">문서 현황 →</Link>
                   </td>
                   <td className="px-2 py-2"><span className={`text-xs font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap ${TYPE_STYLE[r.type] ?? ''}`}>{r.type}</span></td>
                   <td className="px-2 py-2 text-xs text-ink-strong whitespace-nowrap">{mmdd(r.planDate)}</td>
@@ -103,10 +103,10 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
                   <td className="px-2 py-2 text-xs text-ink-sub whitespace-nowrap">{r.area != null ? `${r.area.toLocaleString()}㎡` : '-'}</td>
                   <td className="px-2 py-2 text-xs text-ink-sub whitespace-nowrap">{r.useApproval ?? '-'}</td>
                   <td className="px-2 py-2 text-xs text-ink-strong">{r.contact || '-'}</td>
-                  <td className="px-2 py-2 text-[11px] tracking-tight text-ink-sub whitespace-nowrap">{formatTel(r.phone) || '-'}</td>
+                  <td className="px-2 py-2 text-form-xs tracking-tight text-ink-sub whitespace-nowrap">{formatTel(r.phone) || '-'}</td>
                   <td className="px-2 py-2 text-xs text-ink-sub">{r.fireStation || '-'}</td>
                   {canViewFee && (
-                    <td className="px-2 py-2 text-xs text-ink-strong whitespace-nowrap">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-[10px] text-ink-faint ml-1">{r.feeKind}</span></td>
+                    <td className="px-2 py-2 text-xs text-ink-strong whitespace-nowrap">{r.fee != null ? `${r.fee.toLocaleString()}` : '-'}<span className="text-form-2xs text-ink-faint ml-1">{r.feeKind}</span></td>
                   )}
                 </tr>
               ))}

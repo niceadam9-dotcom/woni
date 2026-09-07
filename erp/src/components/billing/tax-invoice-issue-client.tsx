@@ -177,7 +177,7 @@ export function TaxInvoiceIssueClient({
                 </tr>
                 <tr className="border-b border-gray-300">
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">사업장주소</td>
-                  <td className="px-2 py-1.5 text-[11px]">{company.address ?? '미입력'}</td>
+                  <td className="px-2 py-1.5 text-form-xs">{company.address ?? '미입력'}</td>
                 </tr>
                 <tr>
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">전화번호</td>
@@ -206,7 +206,7 @@ export function TaxInvoiceIssueClient({
                 </tr>
                 <tr className="border-b border-gray-300">
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">사업장주소</td>
-                  <td className="px-2 py-1.5 text-[11px]">{bill.customers?.address ?? '—'}</td>
+                  <td className="px-2 py-1.5 text-form-xs">{bill.customers?.address ?? '—'}</td>
                 </tr>
               </tbody>
             </table>
@@ -295,7 +295,7 @@ export function TaxInvoiceIssueClient({
         </div>
 
         {/* 이 계산서는 전자발행됩니다 안내 */}
-        <div className="px-4 py-3 text-[11px] text-gray-500 bg-gray-50">
+        <div className="px-4 py-3 text-form-xs text-gray-500 bg-gray-50">
           본 세금계산서는 공급자가 국세청 전자세금계산서 발행 시스템(홈택스)을 통해 발행합니다.
           발행 후 공급받는자에게 이메일로 자동 전송됩니다.
         </div>

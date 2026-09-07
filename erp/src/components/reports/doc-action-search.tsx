@@ -96,7 +96,7 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
         {(loading || isPending) && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 size-4 animate-spin text-ink-faint" />}
       </div>
       <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={onFilePicked} />
-      {msg && <p className={`text-[11px] mt-1 ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
+      {msg && <p className={`text-form-xs mt-1 ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
 
       {open && (customers.length > 0 || commands.length > 0) && (
         <div className="absolute z-30 mt-1 w-full rounded-xl border border-brand-line bg-surface shadow-lg py-1 max-h-80 overflow-y-auto">
@@ -113,13 +113,13 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
                 <span className="text-ink flex-1 truncate">{c.label}</span>
                 {c.pdfPath && (
                   <button onClick={() => (c.inspectionId ? openAnnexPdf(c.inspectionId, c.pdfPath!) : openFile(c.pdfPath))} disabled={isPending} title="바로 보기·인쇄"
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50">
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-form-xs text-red-600 hover:bg-red-50">
                     <FileType2 className="size-3" /> PDF 보기
                   </button>
                 )}
                 {c.hwpPath && (
                   <button onClick={() => (c.inspectionId ? openAnnexHwp(c.inspectionId, c.hwpPath!) : openFile(c.hwpPath))} disabled={isPending} title="한글 편집용 원본 내려받기"
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-[11px] text-blue-600 hover:bg-blue-50">
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-form-xs text-blue-600 hover:bg-blue-50">
                     <FileText className="size-3" /> HWP 받기
                   </button>
                 )}
@@ -127,7 +127,7 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
               {c.kind === 'upload-cert' && (<>
                 <span className="text-amber-600 flex-1 truncate">{c.label}</span>
                 <button onClick={() => pickUpload(c)} disabled={isPending}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
                   <Upload className="size-3" /> 업로드
                 </button>
               </>)}

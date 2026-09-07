@@ -212,7 +212,7 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
     })
   }
   const feedback = (key: string) => msg?.key === key && (
-    <p className={`w-full text-[11px] ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
+    <p className={`w-full text-form-xs ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
   )
 
   /* ── 작성 시작 — 모달 없이 즉시 (2026-09-02 사용자 확정: 회차는 ERP가 알아서).
@@ -262,7 +262,7 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
   return (
     <div className="space-y-3">
       {/* 머리 안내 — 회차·종류·연도는 전부 자동 (사용승인일 법정 축) */}
-      <p className="text-[11px] text-ink-meta">
+      <p className="text-form-xs text-ink-meta">
         연도·차수·종합/작동/최초는 사용승인일 기준으로 ERP가 자동 판정해 문서에 기입합니다 —
         점검표는 여기서 바로 입력하고, 별지는 누를 때 현재 데이터로 생성됩니다
       </p>
@@ -276,7 +276,7 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
       {current && renderCard(current)}
 
       <button onClick={() => reload()} disabled={isPending}
-        className="text-[11px] text-ink-faint hover:text-brand inline-flex items-center gap-1 disabled:opacity-50">
+        className="text-form-xs text-ink-faint hover:text-brand inline-flex items-center gap-1 disabled:opacity-50">
         <RefreshCw className={`size-3 ${isPending ? 'animate-spin' : ''}`} /> 새로고침
       </button>
 

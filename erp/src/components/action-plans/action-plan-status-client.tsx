@@ -294,12 +294,12 @@ function ActionPlanModal({
 // ── 상태 배지 ──────────────────────────────────────────────────────────────
 function PlanStatusBadge({ row }: { row: ActionPlanRow }) {
   if (row.submitted_at) {
-    return <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 font-medium">제출완료</span>
+    return <span className="px-1.5 py-0.5 rounded text-form-2xs bg-green-100 text-green-700 font-medium">제출완료</span>
   }
   if (row.id) {
-    return <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-100 text-orange-700 font-medium">제출대기</span>
+    return <span className="px-1.5 py-0.5 rounded text-form-2xs bg-orange-100 text-orange-700 font-medium">제출대기</span>
   }
-  return <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-100 text-yellow-700 font-medium">작성대기</span>
+  return <span className="px-1.5 py-0.5 rounded text-form-2xs bg-yellow-100 text-yellow-700 font-medium">작성대기</span>
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
@@ -480,7 +480,7 @@ export function ActionPlanStatusClient({
                     {!row.submitted_at && (
                       <button
                         onClick={() => setCertRow(row)}
-                        className="text-rose-600 hover:underline text-[11px] font-medium whitespace-nowrap"
+                        className="text-rose-600 hover:underline text-form-xs font-medium whitespace-nowrap"
                       >
                         [시간내용증명]
                       </button>
@@ -490,7 +490,7 @@ export function ActionPlanStatusClient({
                     {canManage && (
                       <button
                         onClick={() => setModalRow(row)}
-                        className="text-brand hover:underline text-[11px] font-medium"
+                        className="text-brand hover:underline text-form-xs font-medium"
                       >
                         [입력]
                       </button>

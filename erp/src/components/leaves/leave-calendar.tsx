@@ -66,7 +66,7 @@ export function LeaveCalendar({ leaves, holidays = [] }: LeaveCalendarProps) {
     const color = holiday || dow === 0 ? 'var(--color-red-600)' : dow === 6 ? 'var(--color-blue-600)' : undefined
     return (
       <div className="flex items-center justify-between gap-1 min-w-0" title={holiday ? `${holiday} (공휴일)` : undefined}>
-        {holiday ? <span className="text-[10px] text-red-500 truncate leading-tight">{holiday}</span> : <span />}
+        {holiday ? <span className="text-form-2xs text-red-500 truncate leading-tight">{holiday}</span> : <span />}
         <button type="button" onClick={onDrillDown} className="rbc-button-link" style={{ color }}>
           {label}
         </button>

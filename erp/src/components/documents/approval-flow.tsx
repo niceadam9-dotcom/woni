@@ -30,7 +30,7 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
           <div key={a.id} className="flex items-start gap-3">
             <div className="flex flex-col items-center pt-1">
               <div
-                className={`size-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                className={`size-7 rounded-full flex items-center justify-center text-form-xs font-bold shrink-0 ${
                   a.status === 'approved'
                     ? 'bg-green-100 text-green-700'
                     : a.status === 'rejected'
@@ -69,7 +69,7 @@ export function ApprovalFlow({ approvers }: ApprovalFlowProps) {
               )}
 
               {a.processed_at && (
-                <p className="text-[11px] text-ink-faint mt-1">
+                <p className="text-form-xs text-ink-faint mt-1">
                   {new Date(a.processed_at).toLocaleString('ko-KR', {
                     month: '2-digit', day: '2-digit',
                     hour: '2-digit', minute: '2-digit',

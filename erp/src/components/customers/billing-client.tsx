@@ -130,7 +130,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
       <div className={cardCls}>
         <div className="flex items-center gap-2 mb-3">
           <Users className="size-4 text-brand" />
-          <h2 className="text-form-base font-semibold text-ink">소유자 그룹 <span className="text-form-sm font-normal text-ink-meta">통합청구·입금배분</span></h2>
+          <h2 className="text-form-base-title font-semibold text-ink">소유자 그룹 <span className="text-form-sm font-normal text-ink-meta">통합청구·입금배분</span></h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select disabled={!canManage || isPending} value={curOwner} onChange={e => assignOwner(e.target.value)}
@@ -156,7 +156,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
       <div className={cardCls}>
         <div className="flex items-center gap-2 mb-4">
           <Receipt className="size-4 text-brand" />
-          <h2 className="text-form-base font-semibold text-ink">사업자정보 <span className="text-form-sm font-normal text-ink-meta">세금계산서</span></h2>
+          <h2 className="text-form-base-title font-semibold text-ink">사업자정보 <span className="text-form-sm font-normal text-ink-meta">세금계산서</span></h2>
           {canManage && (customerName || repName || customerAddress) && (
             <button type="button"
               onClick={() => setBp(p => ({
@@ -199,7 +199,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
       <div className={cardCls}>
         <div className="flex items-center gap-2 mb-4">
           <Landmark className="size-4 text-brand" />
-          <h2 className="text-form-base font-semibold text-ink">자동이체</h2>
+          <h2 className="text-form-base-title font-semibold text-ink">자동이체</h2>
           <span className="ml-auto inline-flex items-center gap-1 text-form-xs text-green-600"><ShieldCheck className="size-3.5" /> AES-256 암호화</span>
         </div>
         <div className="grid grid-cols-2 gap-3">

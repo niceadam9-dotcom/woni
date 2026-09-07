@@ -180,7 +180,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
                       >
                         <p className="text-sm font-medium text-ink truncate">{c.customer_name}</p>
                         {c.address && (
-                          <p className="text-[11px] text-ink-meta truncate mt-0.5">{c.address}</p>
+                          <p className="text-form-xs text-ink-meta truncate mt-0.5">{c.address}</p>
                         )}
                       </button>
                     ))
@@ -189,7 +189,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
               )}
             </div>
             {!open && filtered.length > 0 && !customerId && query && (
-              <p className="text-[11px] text-ink-meta mt-1">↑ 목록에서 선택해주세요</p>
+              <p className="text-form-xs text-ink-meta mt-1">↑ 목록에서 선택해주세요</p>
             )}
           </div>
 
@@ -229,7 +229,7 @@ export function AddPlanItemModal({ planId, planYear, defaultDate, employees, cus
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-medium text-ink-sub">점검 예정일</label>
               {autoFilled && (
-                <span className="text-[10px] text-brand bg-brand-tint px-1.5 py-0.5 rounded-full font-medium">
+                <span className="text-form-2xs text-brand bg-brand-tint px-1.5 py-0.5 rounded-full font-medium">
                   {customerId ? '자동 — 점검계획일 다음 영업일' : '자동 — 오늘 날짜'}
                 </span>
               )}

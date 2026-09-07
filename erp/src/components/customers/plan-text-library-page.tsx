@@ -230,16 +230,16 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
       <aside className="hidden lg:block w-56 shrink-0 sticky top-2 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-2">
         {PLAN_TEXT_CHAPTERS.map(g => (
           <div key={g.chapter}>
-            <p className="px-2 py-1 text-[10px] font-bold text-ink-soft">{g.chapter}</p>
+            <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft">{g.chapter}</p>
             {g.sections.map(def => {
               const has = !noDefault.includes(def.key)
               const n = (bySection[def.key] ?? []).length
               return (
                 <a key={def.key} href={`#sec-${def.key}`}
-                  className="flex items-center gap-1.5 h-7 px-2 rounded-lg text-[11px] text-ink-sub hover:bg-brand-tint">
+                  className="flex items-center gap-1.5 h-7 px-2 rounded-lg text-form-xs text-ink-sub hover:bg-brand-tint">
                   <span className={has ? 'text-amber-500' : 'text-ink-meta'}>{has ? '⭐' : '○'}</span>
                   <span className="truncate">{def.label}</span>
-                  <span className="ml-auto text-[10px] text-ink-meta">{n}</span>
+                  <span className="ml-auto text-form-2xs text-ink-meta">{n}</span>
                 </a>
               )
             })}
@@ -255,18 +255,18 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
           <div className="flex items-center gap-2">
             {/* 도입 동선 두 갈래를 나란히 — 가져와서 시작 / 빈 문서로 시작. 둘 다 여러 섹션을 한 번에 다룬다 */}
             <button onClick={() => setImportOpen(true)} disabled={isBusy}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium whitespace-nowrap disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium whitespace-nowrap disabled:opacity-50">
               <Download className="size-3.5" /> 고객에서 불러오기
             </button>
             <button onClick={createAll} disabled={isBusy || emptySections.length === 0}
               title={emptySections.length === 0
                 ? '모든 섹션에 문구가 있습니다 — 하나 더 추가하려면 섹션의 [새로 만들기]를 쓰세요'
                 : `문구가 없는 ${emptySections.length}개 섹션에 빈 문서를 한 번에 만듭니다`}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-[11px] font-medium text-ink-sub hover:bg-brand-tint whitespace-nowrap disabled:opacity-40">
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-brand-line text-form-xs font-medium text-ink-sub hover:bg-brand-tint whitespace-nowrap disabled:opacity-40">
               <Plus className="size-3.5" /> 새로 만들기{emptySections.length > 0 ? ` (${emptySections.length})` : ''}
             </button>
             <button onClick={() => load()} disabled={isLoading}
-              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint whitespace-nowrap disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint whitespace-nowrap disabled:opacity-50">
               <RefreshCw className={`size-3 ${isLoading ? 'animate-spin' : ''}`} /> 새로고침
             </button>
           </div>
@@ -282,7 +282,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
 
         {PLAN_TEXT_CHAPTERS.map(g => (
           <div key={g.chapter} className="space-y-4">
-            <p className="text-[11px] font-bold text-ink-soft pt-1">{g.chapter}</p>
+            <p className="text-form-xs font-bold text-ink-soft pt-1">{g.chapter}</p>
             {g.sections.map(def => {
               const list = bySection[def.key] ?? []
               const cur = currentEntry(def.key)
@@ -295,13 +295,13 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                   <div className="flex items-center gap-2 flex-wrap border-b border-brand-tint px-4 py-2.5">
                     <span className={hasDefault ? 'text-amber-500' : 'text-ink-meta'}>{hasDefault ? '⭐' : '○'}</span>
                     <h2 className="text-sm font-semibold text-ink">{def.label}</h2>
-                    {!hasDefault && <span className="text-[10px] text-amber-600">기본문구 없음 — 자동주입 대상 아님</span>}
+                    {!hasDefault && <span className="text-form-2xs text-amber-600">기본문구 없음 — 자동주입 대상 아님</span>}
 
                     {list.length > 0 && (
                       <div className="relative ml-2">
                         <select value={selected[def.key] ?? ''}
                           onChange={e => { setSelected(s => ({ ...s, [def.key]: e.target.value })); setDraft(x => { const n = { ...x }; delete n[def.key]; return n }) }}
-                          className="h-7 appearance-none rounded-lg border border-brand-line bg-surface pl-2 pr-6 text-[11px] text-ink-sub outline-none focus:border-brand">
+                          className="h-7 appearance-none rounded-lg border border-brand-line bg-surface pl-2 pr-6 text-form-xs text-ink-sub outline-none focus:border-brand">
                           {list.map(e => (
                             <option key={e.id} value={e.id}>{e.isDefault ? '⭐ ' : ''}{e.title} (v{e.version})</option>
                           ))}
@@ -314,7 +314,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                     {list.length > 0 && (
                       <button onClick={() => create(def)} disabled={isBusy}
                         title="이 섹션에 대안 문구를 하나 더 만듭니다 (빈 문서로 시작)"
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50">
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
                         <Plus className="size-3" /> 새로 만들기
                       </button>
                     )}
@@ -322,7 +322,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                     {cur && !cur.isDefault && (
                       <button onClick={() => makeDefault(def.key, cur.id)} disabled={isBusy}
                         title="이 문구를 신규 고객 자동주입 대상으로 지정합니다 (섹션당 1개)"
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-amber-300 bg-amber-50 text-[11px] text-amber-700 hover:bg-amber-100 disabled:opacity-50">
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-amber-300 bg-amber-50 text-form-xs text-amber-700 hover:bg-amber-100 disabled:opacity-50">
                         <Star className="size-3" /> 기본으로
                       </button>
                     )}
@@ -330,11 +330,11 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                       <>
                         <button onClick={() => duplicate(def.key)} disabled={isBusy}
                           title="현재 본문을 새 이름으로 복제 — 원본 개정은 올라가지 않습니다"
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50">
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
                           <Copy className="size-3" /> 복제
                         </button>
                         <button onClick={() => remove(def.key, cur)} disabled={isBusy}
-                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
                           <Trash2 className="size-3" /> 삭제
                         </button>
                       </>
@@ -345,7 +345,7 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                     {/* 알림은 cur 바깥에 — 섹션의 마지막 항목을 지우면 cur이 사라져 '삭제되었습니다'가
                         같이 증발한다(E2E에서 발견). 결과 메시지는 항목 유무와 무관해야 한다 */}
                     {msg?.key === def.key && (
-                      <p className={`text-[11px] ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
+                      <p className={`text-form-xs ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
                     )}
                     {!cur ? (
                       <p className="text-xs text-ink-soft">
@@ -355,28 +355,28 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                     ) : (
                       <>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <label className="text-[11px] font-medium text-ink-sub">항목 이름</label>
+                          <label className="text-form-xs font-medium text-ink-sub">항목 이름</label>
                           <input value={d?.title ?? ''} disabled={isBusy}
                             onChange={e => setDraftFor(def.key, { title: e.target.value })}
                             className="h-8 flex-1 basis-48 min-w-0 rounded-lg border border-brand-line px-2.5 text-xs outline-none focus:border-brand" />
-                          <span className="text-[10px] text-ink-meta">개정 v{cur.version} · {cur.updatedAt}</span>
+                          <span className="text-form-2xs text-ink-meta">개정 v{cur.version} · {cur.updatedAt}</span>
                         </div>
 
                         <PlanTextBodyEditor def={def} value={d?.body} disabled={isBusy}
                           onChange={next => setDraftFor(def.key, { body: next })} />
 
                         {d && planTextBodyIsEmpty(def.key, d.body) && (
-                          <p className="text-[11px] text-amber-600">⚠ 내용이 비어 있습니다 — 이대로 저장하면 자동주입이 아무 값도 채우지 않습니다.</p>
+                          <p className="text-form-xs text-amber-600">⚠ 내용이 비어 있습니다 — 이대로 저장하면 자동주입이 아무 값도 채우지 않습니다.</p>
                         )}
 
                         <div className="flex items-center gap-2 flex-wrap">
                           <button onClick={() => save(def.key)} disabled={isBusy || !dirty}
-                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-40">
+                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-40">
                             {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />} 이 섹션 저장
                           </button>
-                          {dirty && <span className="text-[11px] text-amber-600">저장하지 않은 변경이 있습니다</span>}
+                          {dirty && <span className="text-form-xs text-amber-600">저장하지 않은 변경이 있습니다</span>}
                           <button onClick={() => toggleUsage(cur.id)} disabled={isBusy}
-                            className="ml-auto text-[11px] text-brand hover:underline disabled:opacity-50">
+                            className="ml-auto text-form-xs text-brand hover:underline disabled:opacity-50">
                             사용처 {cur.usageCount}곳{cur.staleCount > 0 ? ` · 개정됨 ${cur.staleCount}` : ''} {usage[cur.id] ? '접기' : '보기'}
                           </button>
                         </div>
@@ -385,22 +385,22 @@ export function PlanTextLibraryPage({ initialSection }: { initialSection?: strin
                         {usage[cur.id] && (
                           <div className="rounded-lg border border-brand-tint bg-brand-tint p-2">
                             {usage[cur.id].length === 0 ? (
-                              <p className="text-[11px] text-ink-meta">아직 가져간 고객이 없습니다.</p>
+                              <p className="text-form-xs text-ink-meta">아직 가져간 고객이 없습니다.</p>
                             ) : (
                               <div className="space-y-1">
                                 {usage[cur.id].map(u => (
-                                  <div key={`${u.customerId}-${u.appliedAt}`} className="flex items-center gap-2 text-[11px]">
+                                  <div key={`${u.customerId}-${u.appliedAt}`} className="flex items-center gap-2 text-form-xs">
                                     <Link href={`/customers/${u.customerId}?tab=plan&form=${formAnchor(def.key)}`}
                                       className="text-brand hover:underline truncate max-w-[14rem]">{u.customerName}</Link>
-                                    <span className="text-[10px] text-ink-soft">{u.source === 'default' ? '자동주입' : '가져오기'}</span>
-                                    <span className="text-[10px] text-ink-meta">v{u.version} · {u.appliedAt}</span>
+                                    <span className="text-form-2xs text-ink-soft">{u.source === 'default' ? '자동주입' : '가져오기'}</span>
+                                    <span className="text-form-2xs text-ink-meta">v{u.version} · {u.appliedAt}</span>
                                     {u.stale && (
-                                      <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700"
+                                      <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-form-2xs text-amber-700"
                                         title="가져간 뒤 공통문구가 개정되었습니다 — 반영은 고객 화면에서 개별로">개정됨</span>
                                     )}
                                   </div>
                                 ))}
-                                <p className="pt-1 text-[10px] text-ink-meta">조회 전용 — 일괄 덮어쓰기는 제공하지 않습니다(제출 문서·고객 수정분 보호).</p>
+                                <p className="pt-1 text-form-2xs text-ink-meta">조회 전용 — 일괄 덮어쓰기는 제공하지 않습니다(제출 문서·고객 수정분 보호).</p>
                               </div>
                             )}
                           </div>

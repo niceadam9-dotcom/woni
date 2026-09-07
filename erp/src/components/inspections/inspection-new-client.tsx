@@ -209,7 +209,7 @@ export function InspectionNewClient({ customers, contacts, employees, holidayDat
             {stepPreview.map((step, idx) => (
               <div key={step.step_num} className="flex items-center gap-3">
                 <div className="size-6 rounded-full bg-brand-tint flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-bold text-brand">{step.step_num}</span>
+                  <span className="text-form-2xs font-bold text-brand">{step.step_num}</span>
                 </div>
                 {idx < stepPreview.length - 1 && (
                   <ChevronRight className="size-3 text-ink-faint shrink-0 -mx-1.5" />

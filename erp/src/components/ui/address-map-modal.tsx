@@ -63,12 +63,12 @@ export function AddressMapModal({ customerName, address, onClose }: {
           <h2 className="text-sm font-semibold text-ink truncate">{customerName}</h2>
           <button onClick={copyAddress}
             title="주소 복사 — 내비에 붙여 넣기"
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint transition-colors shrink-0">
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint transition-colors shrink-0">
             {copied ? <><Check className="size-3 text-emerald-600" /> 복사됨</> : <><Copy className="size-3" /> 주소 복사</>}
           </button>
           <a href={openUrl} target="_blank" rel="noopener noreferrer"
             title="카카오맵에서 열기 — 길찾기는 여기서"
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint transition-colors shrink-0">
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors shrink-0">
             <ExternalLink className="size-3" /> 새 창
           </a>
           <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-brand-tint text-ink-soft shrink-0">
@@ -76,7 +76,7 @@ export function AddressMapModal({ customerName, address, onClose }: {
           </button>
         </div>
 
-        <p className="px-5 py-2 text-[11px] text-ink-sub border-b border-brand-tint break-all">{address}</p>
+        <p className="px-5 py-2 text-form-xs text-ink-sub border-b border-brand-tint break-all">{address}</p>
 
         <div className="relative h-[460px]">
           <iframe
@@ -86,7 +86,7 @@ export function AddressMapModal({ customerName, address, onClose }: {
             loading="lazy"
           />
           {/* 프레임이 막히면 이 문구가 빈 화면 뒤에 남아 다음 행동을 알려준다 */}
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10px] text-ink-meta">
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-form-2xs text-ink-meta">
             지도가 안 보이면 위 [새 창]으로 열어주세요
           </p>
         </div>

@@ -191,12 +191,12 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         </div>
         {/* 비워도 되는 칸이라는 걸 미리보기로 말한다 — 폴백 규약을 글로만 적으면 안 읽는다 */}
         <div className="rounded-lg border border-brand-line-soft bg-brand-tint px-4 py-3">
-          <p className="text-[11px] font-medium text-ink-sub">공문에 이렇게 찍힙니다</p>
+          <p className="text-form-xs font-medium text-ink-sub">공문에 이렇게 찍힙니다</p>
           <p className="mt-1.5 text-center text-sm font-bold leading-relaxed text-ink">
             {form.official_sender_name.trim() || form.company_name.trim() || '회사명'}<br />
             {(form.official_rep_title.trim() || '대표이사')} {form.representative.trim() || '대표자'}(직인생략)
           </p>
-          <p className="mt-1.5 text-[11px] text-ink-faint">
+          <p className="mt-1.5 text-form-xs text-ink-faint">
             비워두면 상호는 [회사명], 직함은 &lsquo;대표이사&rsquo;로 나갑니다 · 대표자 이름은 위 [대표자] 칸을 씁니다
           </p>
         </div>

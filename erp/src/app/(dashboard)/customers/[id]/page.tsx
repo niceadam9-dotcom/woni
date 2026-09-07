@@ -525,7 +525,7 @@ export default async function CustomerDetailPage({
           <h2 className="text-form-base font-semibold text-ink">관계인 정보</h2>
           {fsmMissing.length > 0 && (
             <a href="#fire-safety-manager" data-testid="fsm-missing-badge"
-              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition-colors">
+              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-form-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
               ⚠ 소방안전관리 미입력: {fsmMissing.join(' · ')}
             </a>
           )}

@@ -366,7 +366,7 @@ export function ReportStatusClient({
                     {row.inspection_plans ? `${row.inspection_plans.year}.${String(row.inspection_plans.month).padStart(2, '0')}` : ''}
                   </td>
                   <td className="border px-2 py-1.5 text-center">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium
+                    <span className={`px-1.5 py-0.5 rounded text-form-2xs font-medium
                       ${row.inspection_type === '종합' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                       {inspectionTypeLabel(row.inspection_type)}
                     </span>
@@ -422,7 +422,7 @@ export function ReportStatusClient({
                   <td className="border px-2 py-1.5 text-center">
                     <button
                       onClick={() => setModalItem(row)}
-                      className="text-brand hover:underline text-[11px] font-medium"
+                      className="text-brand hover:underline text-form-xs font-medium"
                     >
                       [입력]
                     </button>

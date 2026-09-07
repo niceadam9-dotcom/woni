@@ -31,10 +31,10 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
             {/* 사유를 그대로 보여준다 — 이 문구들은 "무엇이 잘못됐는지"를 담아 쓴 것이다.
                 감추면 사용자가 '할 일 없음'으로 오해한다. */}
             <p className="mt-1 text-xs text-red-700 break-words">{error.message || '알 수 없는 오류'}</p>
-            <p className="mt-2 text-[11px] text-red-600">
+            <p className="mt-2 text-form-xs text-red-600">
               <b>데이터가 없다는 뜻이 아닙니다.</b> 잠시 후 다시 시도하고, 계속되면 이 문구를 그대로 알려주세요.
             </p>
-            {error.digest && <p className="mt-1 text-[10px] text-red-400">추적번호 {error.digest}</p>}
+            {error.digest && <p className="mt-1 text-form-2xs text-red-400">추적번호 {error.digest}</p>}
             <div className="mt-3 flex items-center gap-2">
               <button onClick={reset}
                 className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700">

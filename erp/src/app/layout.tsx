@@ -43,7 +43,9 @@ export default function RootLayout({
             값이 없으면 data-fs 속성 자체가 없다 = --fs-scale:1 = 손댄 적 없는 사용자의 기본. */}
         <script dangerouslySetInnerHTML={{ __html:
           "try{if(document.cookie.split('; ').includes('erp-theme=dark'))document.documentElement.classList.add('dark');" +
-          "var m=/(?:^|; )erp-fs=(md|lg|xl)/.exec(document.cookie);if(m)document.documentElement.setAttribute('data-fs',m[1])}catch(e){}",
+          // ⚠ 교대(alternation)는 **긴 것부터** — /(md|lg|xl|xxl)/는 'xxl' 쿠키에서 우연히
+          //   살지만(xl은 'xx'에 안 맞는다) 그건 운이다. 규칙으로 xxl을 앞에 둔다.
+          "var m=/(?:^|; )erp-fs=(xxl|md|lg|xl)/.exec(document.cookie);if(m)document.documentElement.setAttribute('data-fs',m[1])}catch(e){}",
         }} />
         {/* 한글 웹폰트 선행 로드 (소방계획서_35 S1-5) — 실측 상위 3조각.
             next/font가 아니라 raw @font-face를 쓰는 이유는 pretendard.css 머리주석 참조

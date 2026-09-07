@@ -29,7 +29,7 @@ export function NameDuplicateDialog({ customer, onClose }: {
         </div>
 
         <div className="rounded-lg bg-paper border border-brand-line-soft p-3 space-y-1 text-sm">
-          <p className="text-[11px] font-medium text-brand">기존 고객</p>
+          <p className="text-form-xs font-medium text-brand">기존 고객</p>
           <p className="font-medium text-ink">{customer.customer_name}</p>
           <p className="text-xs text-ink-sub">
             고객코드 {customer.customer_code} · 점검유형 {inspectionTypeLabel(customer.inspection_type)} · 담당 {customer.employee_name ?? '미배정'}

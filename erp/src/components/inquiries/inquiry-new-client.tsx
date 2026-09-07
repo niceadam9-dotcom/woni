@@ -216,7 +216,7 @@ export function InquiryNewClient({
                   const extracted = extractRegionFromAddress(form.address)
                   if (extracted.region_si) setForm(prev => ({ ...prev, ...extracted }))
                 }}
-                className="inline-flex items-center gap-1 h-6 px-2 rounded bg-brand-tint hover:bg-brand-tint text-brand text-[11px] font-medium transition-colors border border-brand-line"
+                className="inline-flex items-center gap-1 h-6 px-2 rounded bg-brand-tint hover:bg-brand-tint text-brand text-form-xs font-medium transition-colors border border-brand-line"
               >
                 <Wand2 className="size-3" />
                 주소에서 추출

@@ -97,6 +97,34 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── 전역 글자 배율 — 개인설정 [화면 글자 크기]가 **앱 전 화면**에 걸린다 ────────
+     Tailwind 기본 text-xs~text-3xl에 --fs-scale(아래 :root)을 곱한다. 이 한 블록으로
+     저장소 전역의 text-xs·text-sm…이 배율을 탄다 — 화면마다 코드모드를 돌릴 필요가 없다.
+     (px 리터럴 `text-[11px]` 계열은 여기 안 걸린다. 그건 화면별 토큰화 몫이다.)
+
+     ⚠ **항등이다.** 기본 배율(md=1)에서 calc(0.75rem * 1) = 0.75rem으로 종전과 픽셀이
+       같다. 확대는 사용자가 개인설정에서 켤 때만 일어난다 — 기존 기준선
+       (test-plan-readability --identity / --print)이 그대로 초록인 이유가 이것이다.
+       값을 여기서 올리지 말 것: 올리는 순간 '치환'과 '확대'가 섞여 회귀 원인을 못 가른다.
+
+     ⚠ **@theme inline이라야 한다.** inline은 값을 유틸리티에 그대로 박아 넣으므로
+       var(--fs-scale)이 **그 클래스를 쓰는 요소에서** 풀린다. 일반 @theme이면
+       `font-size: var(--text-xs)`가 되어 :root에서 한 번 풀리고, [data-fs-boost] 같은
+       하위 스코프 배율이 죽는다. 이 블록을 @theme inline 밖으로 옮기지 말 것.
+
+     ⚠ line-height 짝은 Tailwind 기본값 **축자 복사**다(무단위 비율이라 글자와 함께 자란다).
+       크기만 덮고 짝을 빼면 v4가 기본 짝을 그대로 쓰지만, 그러면 '어떤 값인지'가
+       이 파일에 안 남는다. 값을 바꾸지 말 것 — 바꾸는 순간 항등이 깨진다.
+
+     인쇄는 아래 @media print의 --fs-scale:1이 자동으로 되돌린다(별도 규칙 불필요). */
+  --text-xs:   calc(0.75rem  * var(--fs-scale));  --text-xs--line-height:   calc(1 / 0.75);
+  --text-sm:   calc(0.875rem * var(--fs-scale));  --text-sm--line-height:   calc(1.25 / 0.875);
+  --text-base: calc(1rem     * var(--fs-scale));  --text-base--line-height: calc(1.5 / 1);
+  --text-lg:   calc(1.125rem * var(--fs-scale));  --text-lg--line-height:   calc(1.75 / 1.125);
+  --text-xl:   calc(1.25rem  * var(--fs-scale));  --text-xl--line-height:   calc(1.75 / 1.25);
+  --text-2xl:  calc(1.5rem   * var(--fs-scale));  --text-2xl--line-height:  calc(2 / 1.5);
+  --text-3xl:  calc(1.875rem * var(--fs-scale));  --text-3xl--line-height:  calc(2.25 / 1.875);
 }
 
 :root {
@@ -244,8 +272,11 @@
      되고(guaranteed-invalid) 글자가 상속 기본값으로 떨어진다. 그래서 읽을 이름이 하나 더 필요하다.
      두 값이 어긋나면 부스트 패널만 다른 배율이 되므로 test-font-scale이 대조한다.
      ⚠ 각 규칙에서 --fs-scale을 **먼저** 쓸 것 — test-font-scale이 `{` 바로 뒤를 정규식으로 읽는다. */
-html[data-fs="lg"] { --fs-scale: 1.15; --fs-step: 1.15 }
-html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
+html[data-fs="lg"]  { --fs-scale: 1.15; --fs-step: 1.15 }
+html[data-fs="xl"]  { --fs-scale: 1.3;  --fs-step: 1.3 }
+/* 4단계 '최대' (2026-09-07, 마이그레이션 159) — xl에서도 작다는 실사용자 지적.
+   눈금은 계속 1.15 등차다(1 · 1.15 · 1.3 · 1.45). */
+html[data-fs="xxl"] { --fs-scale: 1.45; --fs-step: 1.45 }
 
 /* 1.4 세부제원 패널 전용 한 단계 확대 (2026-08-30 사용자 요청 — image-22.png).
    이 패널만 좁은 칸에 6열 rowtable이 들어가 유독 읽기 어렵다. 패널 밖(1.1~3장·별지 목차)은
@@ -299,6 +330,10 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
    그래서 화면 제목은 **크기만** 배율에 태우고 자간은 상속에 맡긴다.
    ⚠ 이 두 유틸리티에 letter-spacing을 추가하지 말 것 — test-plan-readability의
      제목 가드가 '-title 변형은 자간을 안 건다'를 정적으로 단언한다. */
+/* base-title — 2026-09-07 추가. 고객 상세의 h2 4곳이 `text-form-base`를 그대로 쓰고 있어
+   인쇄 자간 복원 전제(body 하나)를 깨고 있었다(가드가 HEAD에서 이미 빨간 상태였다).
+   위 두 -title과 같은 규약: 크기만 배율에 태우고 자간은 제목 상속(-0.02em)에 맡긴다. */
+@utility text-form-base-title { font-size: calc(var(--fs-5) * var(--fs-scale)); line-height: calc(1.25 / 0.875); }
 @utility text-form-lg-title { font-size: calc(var(--fs-6) * var(--fs-scale)); line-height: calc(1.5 / 1); }
 @utility text-form-xl-title { font-size: calc(var(--fs-7) * var(--fs-scale)); line-height: calc(1.75 / 1.25); }
 @utility h-form-6 { height: calc(var(--fs-h6) * var(--fs-scale)); }
@@ -484,6 +519,15 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
        맨 앞에 두면 ERP 전 화면의 영문·숫자 폭이 동시에 바뀐다(회귀 표면 몇 배). */
     font-family: var(--font-plus-jakarta-sans), var(--font-inter), 'Pretendard Variable', ui-sans-serif, system-ui, sans-serif;
     letter-spacing: -0.01em;
+    /* 전역 배율의 **세 번째 구멍** (2026-09-07). 앞의 둘은 @theme inline(text-xs 계열)과
+       px 리터럴이었고, 이건 **아무 크기 클래스도 안 붙은 텍스트**다 — 브라우저 기본 16px을
+       상속하던 터라 배율을 하나도 안 탔다. 고객 목록 실측에서 안 커진 365개의 정체가 이것.
+       ⚠ html이 아니라 **body**에 건다. html{font-size}를 건드리면 rem이 통째로 움직여
+         text-xs(=calc(0.75rem * --fs-scale))가 배율을 **두 번** 먹는다(×scale²).
+         body의 font-size는 상속에만 쓰이고 rem 기준은 html이라, 여기가 정확히 한 번이다.
+       ⚠ 항등: md에서 calc(1rem * 1) = 16px = 종전 브라우저 기본값 그대로.
+       인쇄는 @media print의 --fs-scale:1이 자동으로 되돌린다. */
+    font-size: calc(1rem * var(--fs-scale));
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-plus-jakarta-sans), 'Pretendard Variable', ui-sans-serif, system-ui, sans-serif;
@@ -527,9 +571,14 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
    종전 `<style>` 태그는 DOM 렌더 시점 주입이라 우연히 이기고 있었을 뿐이다.
    클래스 중복은 명시도만 (0,2,0)으로 올리고 대상은 그대로라, 주입 순서에 의존하지 않는다. */
 .rbc-calendar.rbc-calendar { font-family: inherit; }
+/* ⚠ 글자 크기는 전부 --fs-scale을 곱한다 (2026-09-07 — 개인설정 [화면 글자 크기]).
+   이 스킨의 px는 라이브러리 기본값을 덮어쓴 것이라 Tailwind 클래스 축(@theme inline) 밖이다.
+   여기를 빼먹으면 달력만 배율을 안 타서, 사용자가 '크게'를 골라도 요일 머리·날짜·일정 칩이
+   그대로 남는다 — 실측으로 달력 적용률이 20%였던 이유의 절반이 이 블록이었다.
+   인쇄는 @media print의 --fs-scale:1이 자동으로 되돌린다. */
 .rbc-header.rbc-header {
   background: var(--t-paper); border-color: var(--t-line);
-  padding: 8px 4px; font-size: 12px; font-weight: 600; color: var(--t-ink-sub);
+  padding: 8px 4px; font-size: calc(12px * var(--fs-scale)); font-weight: 600; color: var(--t-ink-sub);
 }
 .rbc-header.rbc-header:nth-child(1) { color: var(--color-red-600); }   /* 일 — 일요일 시작 */
 .rbc-header.rbc-header:nth-child(7) { color: var(--color-blue-600); }  /* 토 */
@@ -542,31 +591,31 @@ html[data-fs="xl"] { --fs-scale: 1.3;  --fs-step: 1.3 }
 .rbc-today.rbc-today { background: var(--t-brand-tint); }
 .rbc-off-range-bg.rbc-off-range-bg { background: var(--t-paper); }
 .rbc-off-range.rbc-off-range { color: var(--t-ink-faint); }
-.rbc-event.rbc-event { border-radius: 6px; border: none; padding: 2px 6px; font-size: 11px; }
+.rbc-event.rbc-event { border-radius: 6px; border: none; padding: 2px 6px; font-size: calc(11px * var(--fs-scale)); }
 .rbc-event.rbc-event:focus { outline: none; }
-.rbc-show-more.rbc-show-more { color: var(--t-brand); font-size: 11px; background: transparent; }
+.rbc-show-more.rbc-show-more { color: var(--t-brand); font-size: calc(11px * var(--fs-scale)); background: transparent; }
 .rbc-overlay.rbc-overlay {
   background: var(--t-surface); border: 1px solid var(--t-brand-line);
   border-radius: 12px; box-shadow: var(--shadow-subtle-2); padding: 8px;
 }
 .rbc-overlay-header.rbc-overlay-header {
-  border-bottom: 1px solid var(--t-brand-line-soft); font-size: 12px; font-weight: 600;
+  border-bottom: 1px solid var(--t-brand-line-soft); font-size: calc(12px * var(--fs-scale)); font-weight: 600;
   color: var(--t-ink-sub); padding: 4px 6px 8px; margin: -2px -2px 6px;
 }
-.rbc-overlay .rbc-event.rbc-event { font-size: 11px; border-radius: 5px; padding: 2px 6px; margin-bottom: 3px; }
+.rbc-overlay .rbc-event.rbc-event { font-size: calc(11px * var(--fs-scale)); border-radius: 5px; padding: 2px 6px; margin-bottom: 3px; }
 .rbc-toolbar.rbc-toolbar { color: var(--t-ink); }
 .rbc-toolbar button.rbc-toolbar-button, .rbc-toolbar.rbc-toolbar button {
-  color: var(--t-ink-sub); border-color: var(--t-line); border-radius: 8px; font-size: 13px; background: transparent;
+  color: var(--t-ink-sub); border-color: var(--t-line); border-radius: 8px; font-size: calc(13px * var(--fs-scale)); background: transparent;
 }
 .rbc-toolbar.rbc-toolbar button:hover { background: var(--t-brand-tint); color: var(--t-brand); }
 .rbc-toolbar.rbc-toolbar button.rbc-active { background: var(--t-brand); color: #fff; border-color: var(--t-brand); }
 .rbc-toolbar.rbc-toolbar button.rbc-active:hover { background: var(--t-brand-strong); color: #fff; }
-.rbc-date-cell.rbc-date-cell { padding: 4px 6px; font-size: 12px; color: var(--t-ink-strong); }
+.rbc-date-cell.rbc-date-cell { padding: 4px 6px; font-size: calc(12px * var(--fs-scale)); color: var(--t-ink-strong); }
 .rbc-date-cell.rbc-now.rbc-now { font-weight: 700; color: var(--t-brand); }
 .rbc-button-link.rbc-button-link { color: inherit; }
 .rbc-agenda-date-cell.rbc-agenda-date-cell, .rbc-agenda-time-cell.rbc-agenda-time-cell,
 .rbc-agenda-event-cell.rbc-agenda-event-cell {
-  font-size: 12px; padding: 6px 8px; border-color: var(--t-brand-line-soft); color: var(--t-ink);
+  font-size: calc(12px * var(--fs-scale)); padding: 6px 8px; border-color: var(--t-brand-line-soft); color: var(--t-ink);
 }
 .rbc-agenda-table.rbc-agenda-table, .rbc-agenda-content.rbc-agenda-content { border-color: var(--t-line); }
 .rbc-agenda-empty.rbc-agenda-empty { color: var(--t-ink-faint); }

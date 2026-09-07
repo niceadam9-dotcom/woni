@@ -29,10 +29,10 @@ type PlanRow = {
 
 function PlanStatusChip({ plan }: { plan: PlanRow }) {
   if (plan.action_complete_reports?.submitted_at)
-    return <span className="px-2 py-0.5 rounded text-[10px] bg-green-100 text-green-700 font-medium">이행완료</span>
+    return <span className="px-2 py-0.5 rounded text-form-2xs bg-green-100 text-green-700 font-medium">이행완료</span>
   if (plan.submitted_at)
-    return <span className="px-2 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium">이행계획제출</span>
-  return <span className="px-2 py-0.5 rounded text-[10px] bg-orange-100 text-orange-700 font-medium">제출대기</span>
+    return <span className="px-2 py-0.5 rounded text-form-2xs bg-blue-100 text-blue-700 font-medium">이행계획제출</span>
+  return <span className="px-2 py-0.5 rounded text-form-2xs bg-orange-100 text-orange-700 font-medium">제출대기</span>
 }
 
 export function ActionPlansListClient({ plans }: { plans: Record<string, unknown>[] }) {

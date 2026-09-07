@@ -32,7 +32,7 @@ export function Header({ profile }: HeaderProps) {
           </div>
           <div className="leading-none">
             <p className="text-sm font-medium text-ink">{profile.name}</p>
-            <p className="text-[11px] text-ink-sub">
+            <p className="text-form-xs text-ink-sub">
               {profile.role === 'admin' ? '관리자' : profile.role === 'manager' ? '팀장' : '일반직원'}
             </p>
           </div>

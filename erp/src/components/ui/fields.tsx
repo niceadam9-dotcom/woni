@@ -56,7 +56,7 @@ export function NumField({ value, onChange, unit, disabled, decimal = false, cla
           onChange(decimal ? v.replace(/(\..*)\./g, '$1') : v)
         }}
         className={`${inputCls} ${className}`} />
-      {unit && <span className="text-[11px] text-ink-soft shrink-0">{unit}</span>}
+      {unit && <span className="text-form-xs text-ink-soft shrink-0">{unit}</span>}
     </span>
   )
   if (!stepper) return field
@@ -167,7 +167,7 @@ export function CardAnchorBar({ items }: { items: Array<{ id: string; label: str
             url.hash = it.id
             window.history.replaceState(null, '', url.toString())
           }}
-          className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border bg-brand-tint text-brand border-brand-line hover:bg-brand-tint transition-colors">
+          className="inline-flex items-center h-7 px-2.5 rounded-full text-form-xs font-medium border bg-brand-tint text-brand border-brand-line hover:bg-brand-tint transition-colors">
           {it.label}
         </button>
       ))}

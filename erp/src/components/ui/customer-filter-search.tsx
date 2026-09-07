@@ -107,7 +107,7 @@ export function CustomerFilterSearch({
               className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${i === active ? 'bg-brand-tint' : 'hover:bg-brand-tint'}`}
             >
               <span className="text-xs text-ink truncate">{c.name}</span>
-              {c.sub && <span className="text-[10px] text-ink-meta shrink-0">{c.sub}</span>}
+              {c.sub && <span className="text-form-2xs text-ink-meta shrink-0">{c.sub}</span>}
             </button>
           ))}
         </div>

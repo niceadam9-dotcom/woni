@@ -83,7 +83,7 @@ export function PhotoGalleryModal({ inspectionId, defects, canEdit, onClose, onC
         <button onClick={() => setLightbox(idx)} className="relative group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt={label} className="w-full aspect-square object-cover rounded-lg border border-brand-tint" />
-          <span className="absolute bottom-1 left-1 text-[9px] px-1 py-0.5 rounded bg-black/50 text-white">{label}</span>
+          <span className="absolute bottom-1 left-1 text-form-3xs px-1 py-0.5 rounded bg-black/50 text-white">{label}</span>
         </button>
       )
     }
@@ -91,10 +91,10 @@ export function PhotoGalleryModal({ inspectionId, defects, canEdit, onClose, onC
       <button onClick={() => pickUpload(d.id, field)} disabled={pending}
         className="w-full aspect-square rounded-lg border-2 border-dashed border-amber-300 hover:border-amber-500 flex flex-col items-center justify-center gap-1 text-amber-500 disabled:opacity-50">
         {busy === key ? <Upload size={16} className="animate-pulse" /> : <Camera size={16} />}
-        <span className="text-[10px]">{label} 추가</span>
+        <span className="text-form-2xs">{label} 추가</span>
       </button>
     ) : (
-      <div className="w-full aspect-square rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-[10px] text-gray-300">{label} 없음</div>
+      <div className="w-full aspect-square rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-form-2xs text-gray-300">{label} 없음</div>
     )
   }
 
@@ -116,9 +116,9 @@ export function PhotoGalleryModal({ inspectionId, defects, canEdit, onClose, onC
                 <div key={d.id} className="rounded-xl border border-brand-tint p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-medium text-ink truncate">{d.defect_name}</span>
-                    {done ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700">조치완료</span>
-                      : planned ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">계획</span>
-                      : <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미조치</span>}
+                    {done ? <span className="text-form-2xs px-1.5 py-0.5 rounded bg-green-50 text-green-700">조치완료</span>
+                      : planned ? <span className="text-form-2xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">계획</span>
+                      : <span className="text-form-2xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미조치</span>}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Slot d={d} field="before" />

@@ -280,18 +280,18 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           {prep?.credentialsMissing && (
             <div data-testid="sms-cred-warn" className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
               <AlertTriangle className="size-3.5 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-[11px] leading-snug text-red-700">
+              <p className="text-form-xs leading-snug text-red-700">
                 발송 설정(API 키·발신번호)이 없어 <b>실제로 문자가 나가지 않습니다.</b> 눌러도 전부 실패로 기록됩니다.
               </p>
             </div>
           )}
           {prep?.dryRun && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-form-xs text-amber-800">
               <b>리허설 모드(SMS_DRY_RUN)</b> — 실제 발송도, 이력 기록도 하지 않습니다.
             </div>
           )}
           {prep?.allowlistOn && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-form-xs text-amber-800">
               <b>허용 번호 목록이 켜져 있습니다</b> — 목록 밖 번호는 발송되지 않습니다.
             </div>
           )}
@@ -299,7 +299,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           {/* adhoc — 방문일부터 묻는다(고객은 이미 정해져 있다) */}
           {source.kind === 'adhoc' && (
             <div className="flex items-end gap-2 rounded-xl border border-brand-line-soft p-3">
-              <label className="text-[11px] text-ink-sub">
+              <label className="text-form-xs text-ink-sub">
                 방문일<span className="text-red-500">*</span>
                 <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)}
                   data-testid="adhoc-date"
@@ -307,7 +307,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
               </label>
               <button className={btn} disabled={!visitDate || isPending}
                 onClick={() => { setLoaded(false); load(body ?? undefined, visitDate) }}>대상 확인</button>
-              <p className="text-[10px] text-ink-soft pb-1.5">재방문·불량 보수·AS 등 계획에 없는 방문. <b>점검 회차로 잡히지 않습니다.</b></p>
+              <p className="text-form-2xs text-ink-soft pb-1.5">재방문·불량 보수·AS 등 계획에 없는 방문. <b>점검 회차로 잡히지 않습니다.</b></p>
             </div>
           )}
 
@@ -316,26 +316,26 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
               <Loader2 className="size-4 animate-spin" /> 대상을 계산하는 중…
             </div>
           )}
-          {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">{err}</div>}
+          {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-form-xs text-red-700">{err}</div>}
 
           {/* 결과 — 발송 후에도 닫지 않는다 */}
           {result && (
             <div data-testid="sms-result" className="rounded-xl border border-brand-line-soft overflow-hidden">
               {/* 리허설은 **'발송됨'이라는 말을 쓰지 않는다** — 한 통도 안 나갔는데 성공으로 읽힌다 */}
               {result.dryRunPlanned != null ? (
-                <div data-testid="sms-result-dryrun" className="px-3 py-2 bg-amber-50 text-[11px] font-semibold text-amber-800">
+                <div data-testid="sms-result-dryrun" className="px-3 py-2 bg-amber-50 text-form-xs font-semibold text-amber-800">
                   리허설 — 실제 발송 0통 (보내면 {result.dryRunPlanned}통)
                 </div>
               ) : (
-                <div className="px-3 py-2 bg-brand-tint text-[11px] font-semibold text-ink">
+                <div className="px-3 py-2 bg-brand-tint text-form-xs font-semibold text-ink">
                   발송됨 {result.sent} · 실패 {result.failed} · 확인불가 {result.unverified} · 번호없음 {result.noPhone}
                   {result.skipped > 0 && ` · 제외 ${result.skipped}`}
                 </div>
               )}
-              {result.error && <div className="px-3 py-2 text-[11px] text-red-600 border-t border-brand-line-soft">{result.error}</div>}
+              {result.error && <div className="px-3 py-2 text-form-xs text-red-600 border-t border-brand-line-soft">{result.error}</div>}
               <ul className="max-h-40 overflow-y-auto divide-y divide-[#f2f0fb] dark:divide-line">
                 {result.rows.map((r, i) => (
-                  <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
+                  <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-form-xs">
                     <span className={r.status === 'sent' ? 'text-emerald-600' : r.status === 'failed' ? 'text-red-500' : 'text-amber-600'}>
                       {r.status === 'sent' ? '발송' : r.status === 'failed' ? '실패' : r.status === 'dry_run' ? '리허설' : '확인불가'}
                     </span>
@@ -349,7 +349,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                   링크가 없으면 달력에서 보낸 사용자의 확인 동선이 끊긴다 (S8-10) */}
               <Link href="/inspections/sms"
                 data-testid="sms-result-link"
-                className={`flex items-center justify-center gap-1 px-3 py-2 border-t border-brand-line-soft text-[11px] ${
+                className={`flex items-center justify-center gap-1 px-3 py-2 border-t border-brand-line-soft text-form-xs ${
                   result.failed > 0 ? 'bg-red-50 text-red-700 font-semibold' : 'text-brand hover:bg-brand-tint'}`}>
                 {result.failed > 0 ? '실패한 건을 확인하고 재발송하기' : '발송 결과 전체 보기'} <ExternalLink className="size-3" />
               </Link>
@@ -363,16 +363,16 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           {/* 목록 헤더 — 전체 선택·유형 요약·공통 방문일을 한 줄에 모은다 */}
           {!result && groups.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap rounded-lg bg-brand-tint border border-brand-line-soft px-3 py-2">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink cursor-pointer">
+              <label className="flex items-center gap-1.5 text-form-xs font-semibold text-ink cursor-pointer">
                 <input type="checkbox" data-testid="sms-select-all"
                   checked={all.all} ref={triRef(all.some, all.all)}
                   onChange={() => toggleMany(groups)} className="accent-brand" />
                 전체 선택
               </label>
-              {singleDate && <span className="text-[11px] text-ink-sub">{singleDate} 방문</span>}
-              {natureSummary && <span className="text-[10px] text-ink-soft">{natureSummary}</span>}
+              {singleDate && <span className="text-form-xs text-ink-sub">{singleDate} 방문</span>}
+              {natureSummary && <span className="text-form-2xs text-ink-soft">{natureSummary}</span>}
               {dupCount > 0 && (
-                <button onClick={dropAlreadySent} className="ml-auto text-[10px] text-amber-700 hover:underline">
+                <button onClick={dropAlreadySent} className="ml-auto text-form-2xs text-amber-700 hover:underline">
                   이미 보낸 {dupCount}곳 빼기
                 </button>
               )}
@@ -392,8 +392,8 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                   <input type="checkbox" checked={ssel.all} ref={triRef(ssel.some, ssel.all)}
                     disabled={ssel.total === 0}
                     onChange={() => toggleMany(section.list)} className="accent-brand" />
-                  <span className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider">{section.label}</span>
-                  <span className="ml-auto text-[10px] text-ink-soft">{section.list.length}곳</span>
+                  <span className="text-form-2xs font-semibold text-ink-faint uppercase tracking-wider">{section.label}</span>
+                  <span className="ml-auto text-form-2xs text-ink-soft">{section.list.length}곳</span>
                 </div>
                 <div className="divide-y divide-brand-tint">
                   {section.list.map(g => {
@@ -409,20 +409,20 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                             onChange={() => toggleGroup(g)} className="accent-brand shrink-0" />
                           {badgesOf(g).map(b => (
                             <span key={b.label}
-                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${b.className}`}>{b.label}</span>
+                              className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${b.className}`}>{b.label}</span>
                           ))}
                           <span className={`text-xs flex-1 min-w-0 truncate ${g.sendable ? 'text-ink' : 'text-ink-faint'}`}>
                             {g.customerName}
                           </span>
-                          {!singleDate && <span className="text-[10px] text-ink-sub shrink-0">{shortDate(g.visitDate)}</span>}
+                          {!singleDate && <span className="text-form-2xs text-ink-sub shrink-0">{shortDate(g.visitDate)}</span>}
                           {g.planItemIds.length > 1 && (
-                            <span className="text-[10px] text-ink-soft shrink-0">계획 {g.planItemIds.length}건 · 1통</span>
+                            <span className="text-form-2xs text-ink-soft shrink-0">계획 {g.planItemIds.length}건 · 1통</span>
                           )}
                           {g.alreadySent && (
-                            <span data-testid="badge-already-sent" className="px-1.5 py-0.5 rounded-full bg-amber-50 text-[10px] text-amber-700 border border-amber-200 shrink-0">이미 발송됨</span>
+                            <span data-testid="badge-already-sent" className="px-1.5 py-0.5 rounded-full bg-amber-50 text-form-2xs text-amber-700 border border-amber-200 shrink-0">이미 발송됨</span>
                           )}
                           {inlineOne && (
-                            <span className="flex items-center gap-1.5 text-[10px] shrink-0">
+                            <span className="flex items-center gap-1.5 text-form-2xs shrink-0">
                               <span className="text-ink-soft">대표</span>
                               <span className="text-ink">{g.recipients[0].name}</span>
                               <span className="text-ink-soft">{g.recipients[0].phoneMasked}</span>
@@ -432,7 +432,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
                         {/* 미확정 건 — 목록에서 빼지 않는다. 조용히 빼면 '달력엔 있는데 여긴 없다'가 된다 (S8-11) */}
                         {!g.sendable && (
-                          <div data-testid="sms-unsendable" className="mt-0.5 flex items-center gap-1.5 pl-6 text-[10px] text-ink-soft">
+                          <div data-testid="sms-unsendable" className="mt-0.5 flex items-center gap-1.5 pl-6 text-form-2xs text-ink-soft">
                             <Ban className="size-3 shrink-0" /> {g.unsendableReason ?? '발송할 수 없습니다'}
                             <Link href="/inspection-plans" className="text-brand hover:underline shrink-0">점검확정으로 이동 →</Link>
                           </div>
@@ -442,7 +442,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                         {g.sendable && !inlineOne && (
                           <div className="mt-0.5 pl-6 space-y-0.5">
                             {rep && !rep.isRecipient && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-ink-faint">
+                              <div className="flex items-center gap-1.5 text-form-2xs text-ink-faint">
                                 <span className="w-7 shrink-0">대표</span>
                                 <span>{rep.name}</span>
                                 <span>{rep.phoneMasked}</span>
@@ -450,7 +450,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                               </div>
                             )}
                             {g.recipients.map(r => (
-                              <label key={r.phone ?? r.name} className="flex items-center gap-1.5 text-[10px] cursor-pointer">
+                              <label key={r.phone ?? r.name} className="flex items-center gap-1.5 text-form-2xs cursor-pointer">
                                 <input type="checkbox" checked={sel.includes(r.phone ?? '')}
                                   onChange={() => toggleRecipient(g, r.phone ?? '')} className="accent-brand" />
                                 <span className="w-7 shrink-0 text-ink-soft">{rep?.isRecipient && r.phoneMasked === rep.phoneMasked ? '대표' : '수신'}</span>
@@ -459,7 +459,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                               </label>
                             ))}
                             {g.recipients.length === 0 && (
-                              <p className="text-[10px] text-red-500">발송 가능한 번호가 없습니다 — &lsquo;번호없음&rsquo;으로 기록됩니다.</p>
+                              <p className="text-form-2xs text-red-500">발송 가능한 번호가 없습니다 — &lsquo;번호없음&rsquo;으로 기록됩니다.</p>
                             )}
                           </div>
                         )}
@@ -473,9 +473,9 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
 
           {!result && (prep?.noPhone.length ?? 0) > 0 && (
             <div data-testid="sms-nophone" className="rounded-xl border border-red-200 bg-red-50 p-3">
-              <p className="text-[11px] font-semibold text-red-700">전화번호 없음 {prep!.noPhone.length}곳</p>
-              <p className="text-[10px] text-red-600 mt-0.5">발송되지 않지만 &lsquo;번호없음&rsquo;으로 기록에 남습니다 — 나중에 연락처를 채우면 보낼 수 있습니다.</p>
-              <ul className="mt-1 text-[11px] text-red-700">
+              <p className="text-form-xs font-semibold text-red-700">전화번호 없음 {prep!.noPhone.length}곳</p>
+              <p className="text-form-2xs text-red-600 mt-0.5">발송되지 않지만 &lsquo;번호없음&rsquo;으로 기록에 남습니다 — 나중에 연락처를 채우면 보낼 수 있습니다.</p>
+              <ul className="mt-1 text-form-xs text-red-700">
                 {/* 날짜는 빼둔다 — 목록 헤더에 공통 방문일이 이미 있고, 반복하면 이름을 읽기 어렵다 */}
                 {prep!.noPhone.map(n => <li key={n.customerId + n.visitDate}>· {n.customerName}</li>)}
               </ul>
@@ -486,9 +486,9 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
           {!result && prep && groups.length > 0 && (
             <div className="rounded-xl border border-brand-line-soft p-3">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-semibold text-ink">문구</span>
+                <span className="text-form-xs font-semibold text-ink">문구</span>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] ${smsKind(body ?? prep.body) === 'LMS' ? 'text-amber-600 font-semibold' : 'text-ink-faint'}`}>
+                  <span className={`text-form-2xs ${smsKind(body ?? prep.body) === 'LMS' ? 'text-amber-600 font-semibold' : 'text-ink-faint'}`}>
                     {smsByteLength(body ?? prep.body)}바이트 · {smsKind(body ?? prep.body)}
                     {smsKind(body ?? prep.body) === 'LMS' && ' (요금 2~3배)'}
                   </span>
@@ -504,7 +504,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
               />
               {unresolvedInSelection.length > 0 && (
                 <p data-testid="sms-unresolved-warn"
-                  className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-2 text-[11px] text-red-700">
+                  className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-2 text-form-xs text-red-700">
                   <AlertTriangle className="size-3.5 shrink-0 mt-px" />
                   <span>
                     치환되지 않은 변수: <b>{unresolvedInSelection.map(v => `{${v}}`).join(', ')}</b> — 이대로 고객에게 <b>글자 그대로</b> 나갑니다.
@@ -514,7 +514,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
               )}
               {emptyVars.length > 0 && (
                 <p data-testid="sms-emptyvar-warn"
-                  className={`mt-1.5 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] ${
+                  className={`mt-1.5 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-form-xs ${
                     emptyVarsAll ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                   <AlertTriangle className="size-3.5 shrink-0 mt-px" />
                   <span>
@@ -525,11 +525,11 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                   </span>
                 </p>
               )}
-              <p className="mt-1 text-[10px] text-ink-soft">
+              <p className="mt-1 text-form-2xs text-ink-soft">
                 여기서 고친 문구는 <b>이번 발송에만</b> 적용됩니다. 기본 문구를 바꾸려면 [문구 편집].
               </p>
               {body !== null && (
-                <button className="mt-1 text-[10px] text-brand hover:underline"
+                <button className="mt-1 text-form-2xs text-brand hover:underline"
                   onClick={() => { setBody(null); setLoaded(false); load() }}>기본 문구로 되돌리기</button>
               )}
             </div>
@@ -539,13 +539,13 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
         {/* 하단 — 비용이 눌리기 전에 보인다 */}
         {!result && (
           <div className="px-5 py-3 border-t border-brand-line-soft flex items-center gap-3">
-            <div className="text-[11px] text-ink-sub">
+            <div className="text-form-xs text-ink-sub">
               <b className="text-ink">{selectedCount}곳</b> 선택 · 예상 <b className="text-ink">{messageCount}통</b>
               {blockedCount > 0 && <span className="text-ink-soft"> · 발송 불가 {blockedCount}곳</span>}
             </div>
             <div className="ml-auto flex items-center gap-2">
               {confirmDup && (
-                <span data-testid="sms-dup-warn" className="flex items-center gap-1 text-[11px] text-amber-700">
+                <span data-testid="sms-dup-warn" className="flex items-center gap-1 text-form-xs text-amber-700">
                   <AlertTriangle className="size-3.5" /> 이미 보낸 건이 있습니다. 다시 보내려면 한 번 더 누르세요.
                 </span>
               )}
@@ -563,7 +563,7 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
         )}
         {result && (
           <div className="px-5 py-3 border-t border-brand-line-soft flex items-center justify-end gap-2">
-            <span className="mr-auto flex items-center gap-1 text-[11px] text-emerald-600">
+            <span className="mr-auto flex items-center gap-1 text-form-xs text-emerald-600">
               <CheckCircle2 className="size-3.5" /> 발송 처리를 마쳤습니다.
             </span>
             <button onClick={onClose} className={btnPri}>닫기</button>

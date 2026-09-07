@@ -62,13 +62,13 @@ export function AnnexPrintButton({ inspectionId, type, label, hasPdf, className 
         onClick={() => (hasPdf ? printFinal() : void printDraft())}
         disabled={busy}
         title={hasPdf ? `${label} 인쇄 — 생성된 PDF(제출용)` : `${label} 초안 인쇄 — 생성 전이라 제출용이 아닙니다`}
-        className={className ?? `inline-flex items-center gap-1 h-6 px-2 rounded border text-[11px] transition-colors disabled:opacity-50 ${
+        className={className ?? `inline-flex items-center gap-1 h-6 px-2 rounded border text-form-xs transition-colors disabled:opacity-50 ${
           hasPdf ? 'border-brand-line text-brand hover:bg-brand-tint' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}`}
       >
         {busy ? <Loader2 className="size-3 animate-spin" /> : <Printer className="size-3" />}
         {hasPdf ? '인쇄' : '초안 인쇄'}
       </button>
-      {err && <span className="text-[11px] text-red-600">{err}</span>}
+      {err && <span className="text-form-xs text-red-600">{err}</span>}
     </>
   )
 }

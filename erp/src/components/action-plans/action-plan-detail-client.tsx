@@ -116,7 +116,7 @@ export function ActionPlanDetailClient({
             {defectList.map((d, idx) => (
               <div key={d.id} className="flex items-start gap-3 text-xs">
                 <span className="text-gray-400 w-5 shrink-0">{idx + 1}.</span>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${SEV_CLS[d.severity] ?? 'bg-gray-100 text-gray-600'}`}>
+                <span className={`px-1.5 py-0.5 rounded text-form-2xs shrink-0 ${SEV_CLS[d.severity] ?? 'bg-gray-100 text-gray-600'}`}>
                   {d.severity}
                 </span>
                 <div>

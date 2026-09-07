@@ -428,7 +428,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               )}
             </div>
             {nameWarn && (
-              <p className="text-[11px] text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
+              <p className="text-form-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
                 「{nameWarn.customer_name}」(고객코드 {nameWarn.customer_code})으로 이미 등록돼 있습니다 — 이 이름으로는 등록할 수 없습니다.{' '}
                 <Link href={`/customers/${nameWarn.id}`} className="underline font-medium">기존 고객 보기</Link>
               </p>
@@ -443,7 +443,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={inputCls}
             />
-            <p className="text-[11px] text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검이 배치됩니다 (통상 사용승인일 또는 첫 점검일)</p>
+            <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검이 배치됩니다 (통상 사용승인일 또는 첫 점검일)</p>
           </Field>
         </div>
 
@@ -592,7 +592,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 <button
                   type="button"
                   onClick={() => setField('use_approval_date', ledgerRef.current!.use_approval_date!)}
-                  className="mt-1 text-[11px] text-brand hover:underline"
+                  className="mt-1 text-form-xs text-brand hover:underline"
                 >
                   건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
                 </button>
@@ -624,7 +624,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               )}
             </div>
             {visibleContactRoles.filter(r => r !== '대표').length === 0 && (
-              <p className="text-[11px] text-ink-meta">추가 관계인 없음 — 필요 시 [관계인 추가]</p>
+              <p className="text-form-xs text-ink-meta">추가 관계인 없음 — 필요 시 [관계인 추가]</p>
             )}
             {visibleContactRoles.filter(r => r !== '대표').map(role => (
               <div key={role} className="grid grid-cols-3 gap-3 items-end">
@@ -678,7 +678,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               <Building2 className="size-4 text-brand" />
               <span className="text-xs font-semibold text-ink-sub">건물 기본정보</span>
               {ledgerNote && (
-                <span className={`text-[11px] ml-auto ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
+                <span className={`text-form-xs ml-auto ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
                   {ledgerNote}
                 </span>
               )}
@@ -768,10 +768,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
           어느 칸이 비었는지 알려 주는 기능은 여전히 필요해 칩으로 남긴다. */}
       <div className="flex flex-wrap items-center gap-3 pb-8 pt-1">
         <div className="flex flex-wrap gap-1 items-center min-w-0 flex-1">
-          <span className="text-[10px] text-ink-meta shrink-0">필수</span>
+          <span className="text-form-2xs text-ink-meta shrink-0">필수</span>
           {requiredChecks.map(([label, ok]) => (
             <span key={label as string}
-              className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+              className={`inline-flex items-center gap-0.5 text-form-2xs px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
               {ok && <Check className="size-2.5" />}{label}
             </span>
           ))}

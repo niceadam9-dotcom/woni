@@ -112,7 +112,7 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
     })
   }
 
-  const chipCls = 'inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] border border-brand-line text-brand hover:bg-brand-tint transition-colors disabled:opacity-50'
+  const chipCls = 'inline-flex items-center gap-1 h-6 px-2 rounded-full text-form-xs border border-brand-line text-brand hover:bg-brand-tint transition-colors disabled:opacity-50'
   return (
     <div className="relative inline-flex items-center gap-1" ref={boxRef}>
       <button onClick={toggleOpen} disabled={disabled} type="button" data-testid={`libtext-open-${def.key}`}
@@ -125,17 +125,17 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
         className={chipCls}>
         <Upload className="size-3" /> 공통으로 등록
       </button>
-      {msg && !open && <span className="text-[11px] text-ink-sub">{msg}</span>}
+      {msg && !open && <span className="text-form-xs text-ink-sub">{msg}</span>}
 
       {open && (
         <div className="absolute z-30 top-7 left-0 w-80 rounded-lg border border-brand-line bg-surface shadow-lg p-1.5" data-testid={`libtext-list-${def.key}`}>
           {items === null ? (
-            <p className="text-[11px] text-ink-meta px-2 py-1.5">불러오는 중…</p>
+            <p className="text-form-xs text-ink-meta px-2 py-1.5">불러오는 중…</p>
           ) : items.length === 0 ? (
-            <p className="text-[11px] text-ink-meta px-2 py-1.5">{msg || `등록된 ${def.label} 공통 항목이 없습니다 — [공통으로 등록]으로 첫 항목을 만드세요.`}</p>
+            <p className="text-form-xs text-ink-meta px-2 py-1.5">{msg || `등록된 ${def.label} 공통 항목이 없습니다 — [공통으로 등록]으로 첫 항목을 만드세요.`}</p>
           ) : (
             <>
-              <p className="text-[10px] text-ink-meta px-2 pb-1">
+              <p className="text-form-2xs text-ink-meta px-2 pb-1">
                 {def.mode === 'append' ? '기존 기록은 그대로 두고 템플릿 행을 추가합니다.' : '선택하면 폼에 채워집니다 — [저장]을 눌러야 반영됩니다.'}
                 {' '}⭐ = 새 고객에 자동으로 채워지는 기본항목
               </p>
@@ -146,7 +146,7 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
                       <input value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
                         onKeyDown={e => { if (e.key === 'Enter') commitRename(it.id); if (e.key === 'Escape') setRenameId(null) }}
                         className="h-6 flex-1 rounded border border-brand-line px-1.5 text-xs outline-none focus:border-brand" />
-                      <button onClick={() => commitRename(it.id)} className="text-[11px] text-brand shrink-0">확인</button>
+                      <button onClick={() => commitRename(it.id)} className="text-form-xs text-brand shrink-0">확인</button>
                     </div>
                   ) : (
                     <div className="flex items-start gap-1 px-2 py-1.5">
@@ -154,9 +154,9 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
                         <span className="flex items-center gap-1 text-xs text-ink">
                           {it.isDefault && <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />}
                           <span className="truncate font-medium">{it.title}</span>
-                          <span className="ml-auto text-[10px] text-ink-meta shrink-0">{it.updatedAt}</span>
+                          <span className="ml-auto text-form-2xs text-ink-meta shrink-0">{it.updatedAt}</span>
                         </span>
-                        {it.preview && <span className="block text-[10px] text-ink-soft truncate">{it.preview}</span>}
+                        {it.preview && <span className="block text-form-2xs text-ink-soft truncate">{it.preview}</span>}
                       </button>
                       {/* 항목 관리 — 팝오버 안에서 전부 처리 (관리 화면 0개, §4-2) */}
                       <span className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -171,20 +171,20 @@ export function LibraryTextButton({ def, extract, onApply, disabled }: {
                   )}
                   {confirmItem?.id === it.id && (
                     <div className="px-2 pb-1.5 flex items-center gap-1.5">
-                      <span className="text-[10px] text-amber-700">기존 서술을 덮어씁니다 —</span>
-                      <button onClick={() => pick(it)} className="text-[10px] font-medium text-brand underline">적용</button>
-                      <button onClick={() => setConfirmItem(null)} className="text-[10px] text-ink-meta">취소</button>
+                      <span className="text-form-2xs text-amber-700">기존 서술을 덮어씁니다 —</span>
+                      <button onClick={() => pick(it)} className="text-form-2xs font-medium text-brand underline">적용</button>
+                      <button onClick={() => setConfirmItem(null)} className="text-form-2xs text-ink-meta">취소</button>
                     </div>
                   )}
                 </div>
               ))}
-              {msg && <p className="text-[11px] text-red-600 px-2 py-1">{msg}</p>}
+              {msg && <p className="text-form-xs text-red-600 px-2 py-1">{msg}</p>}
             </>
           )}
           {/* 소방계획서_21 R1-10 ② — 전역 관리 화면으로. 새 탭인 이유: 같은 탭 이동은 서식의
               미저장 이동 확인창과 부딪혀, 가져오기를 보러 갔다가 입력을 잃을 수 있다 */}
           <a href={`/fire-plans/library?section=${def.key}`} target="_blank" rel="noopener noreferrer"
-            className="mt-1 flex items-center gap-1 border-t border-brand-line-soft px-2 pt-1.5 pb-0.5 text-[10px] text-brand hover:underline">
+            className="mt-1 flex items-center gap-1 border-t border-brand-line-soft px-2 pt-1.5 pb-0.5 text-form-2xs text-brand hover:underline">
             전체 관리 <ExternalLink className="size-2.5" />
           </a>
         </div>

@@ -150,7 +150,7 @@ function CreateBillModal({
           <div className="flex items-center gap-3 text-sm text-gray-500">
             <span className="w-24 text-xs shrink-0">부가세액</span>
             <span className="flex-1 text-right pr-2">{fmtNum(taxV)}</span>
-            <span className="text-[10px] text-gray-400">(자동)</span>
+            <span className="text-form-2xs text-gray-400">(자동)</span>
           </div>
           <div className="flex items-center gap-3 text-sm font-medium">
             <span className="w-24 text-xs shrink-0">청구금액</span>
@@ -400,7 +400,7 @@ function DepositMatchModal({ onClose }: { onClose: () => void }) {
                   <div className="text-sm font-medium text-ink truncate">{m.customerName}</div>
                   <div className="text-xs text-gray-400">{m.billingMonth} · 미납 {fmtNum(m.unpaid)}원 / 청구 {fmtNum(m.total)}원</div>
                 </div>
-                {m.score >= 4 && <span className="text-[10px] text-green-600 shrink-0">유력</span>}
+                {m.score >= 4 && <span className="text-form-2xs text-green-600 shrink-0">유력</span>}
                 <button onClick={() => confirm(m)} disabled={pending}
                   className="shrink-0 h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium disabled:opacity-50">입금 확정</button>
               </div>

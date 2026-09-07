@@ -40,7 +40,7 @@ export function InspectionInfoPopover({ info }: { info: InspectionInfo }) {
       <button
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors"
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors"
         title="고객·담당자·관계인·주소 등 기본정보"
       >
         기본정보

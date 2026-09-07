@@ -244,7 +244,7 @@ export function MessagesClient({
               <Mail size={14} />
               받은 쪽지함
               {unreadCount > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                <span className="bg-red-500 text-white text-form-2xs font-bold px-1.5 py-0.5 rounded-full">
                   {unreadCount}
                 </span>
               )}
@@ -307,7 +307,7 @@ export function MessagesClient({
                           <p className="text-xs text-gray-400 truncate">{msg.body.slice(0, 30)}</p>
                         </div>
                       </div>
-                      <span className="text-[10px] text-gray-400 shrink-0 mt-0.5">{fmt(msg.created_at)}</span>
+                      <span className="text-form-2xs text-gray-400 shrink-0 mt-0.5">{fmt(msg.created_at)}</span>
                     </div>
                   </button>
                 )

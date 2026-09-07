@@ -31,9 +31,9 @@ export function SubmissionWidget({ myId, defaultMine }: { myId: string; defaultM
         {open ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
         <TableProperties className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">제출 현황</h2>
-        <span className="text-[10px] text-ink-faint">최근 90일 · 9호·배치확인서·10·11호</span>
+        <span className="text-form-2xs text-ink-faint">최근 90일 · 9호·배치확인서·10·11호</span>
         {/* 요약 스트립 — 펼치지 않아도 위험 신호가 보이게 */}
-        <span className="ml-auto flex items-center gap-1.5 text-[11px] shrink-0">
+        <span className="ml-auto flex items-center gap-1.5 text-form-xs shrink-0">
           {!board && !err && <Loader2 className="size-3.5 animate-spin text-ink-faint" />}
           {err && <span className="text-red-600">{err}</span>}
           {s && (

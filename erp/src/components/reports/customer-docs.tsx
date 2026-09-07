@@ -9,7 +9,7 @@ import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 import { type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
 /** 별지 작성 진입 버튼 (H-24 문서 작업대 §4-B) — 이동 없이 작성 패널 오픈 */
-const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint disabled:opacity-50'
+const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint disabled:opacity-50'
 
 /** 점검 건 문서 행 (소방계획서_5 R2 → 8 H-2 재사용) — 지금 이 파일의 소비자는 회차 카드
  *  (plan-annex-round-card)뿐이다. 고객 문서 현황 화면(CustomerDocsView)은 보고서 센터 해체 후
@@ -17,10 +17,10 @@ const composeBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border borde
  *  색 규약(R0-1): ✅초록 보유 / ⚠앰버 필요한데 없음 / 회색 흐림 해당없음. 업로드는 그 자리 실행+드롭존(R0-6). */
 
 const rowCls = 'flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft last:border-0 flex-wrap'
-const hwpBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-[11px] text-blue-600 hover:bg-blue-50 disabled:opacity-50'
-const pdfBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50'
-const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50'
-const priBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50'
+const hwpBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-blue-200 text-form-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50'
+const pdfBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-form-xs text-red-600 hover:bg-red-50 disabled:opacity-50'
+const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50'
+const priBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-50'
 
 const fmtD = (iso: string | null | undefined) => (iso ? iso.slice(5, 10) : '')
 
@@ -76,7 +76,7 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
       <div className="flex items-center gap-2 text-xs py-1">
         <span className="font-semibold text-ink">점검 {i.year}-{i.sequenceNum}차</span>
         <span className="text-ink-faint">{date ? `(${fmtD(date)} ${statusLabel})` : `(${statusLabel})`}</span>
-        <Link href={`/inspections/${i.inspectionId}`} className="ml-auto text-[11px] text-brand hover:underline">
+        <Link href={`/inspections/${i.inspectionId}`} className="ml-auto text-form-xs text-brand hover:underline">
           타임라인에서 →
         </Link>
       </div>

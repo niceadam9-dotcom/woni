@@ -45,7 +45,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
   return (
     <div data-testid="sheet-group-board">
       <div className="mb-2 flex items-center gap-2 flex-wrap">
-        <label className="flex items-center gap-1 text-[11px] text-ink-sub select-none">
+        <label className="flex items-center gap-1 text-form-xs text-ink-sub select-none">
           <input type="checkbox" checked={installedOnly} onChange={e => setInstalledOnly(e.target.checked)}
             disabled={noFacilityInfo} className="accent-brand" />
           설치 설비만
@@ -58,7 +58,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
         </div>
       </div>
       {noFacilityInfo && (
-        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-xs text-amber-700">
           설치 시설 정보가 없어 전체 시트를 표시합니다 — 고객 상세 › 소방계획서 탭 › 1.4 소방시설에서
           설치 시설을 등록하면 해당 설비만 추려 보입니다.
         </div>
@@ -79,14 +79,14 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
               </button>
               {/* S7-1 — 미입력(0/N)도 **읽어야 하는 숫자**다. 종전 ink-faint는 라이트 2.16:1로
                   AA 실패라, 정작 '아직 아무것도 안 했다'는 가장 중요한 상태가 가장 안 보였다. */}
-              <span className={`ml-auto shrink-0 text-[10px] ${full ? 'text-green-600' : s.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}
+              <span className={`ml-auto shrink-0 text-form-2xs ${full ? 'text-green-600' : s.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}
                 data-sheet-count={`${s.responded}/${s.total}`}>
                 {s.responded}/{s.total}{s.counts.X > 0 ? ` ✕${s.counts.X}` : ''}
               </span>
               {canEdit && (
                 <button onClick={() => onSheetNA(s.sheetId)} disabled={busy} data-sheet-na={s.sheetId}
                   title="이 시트의 미입력 항목을 전부 ／(해당없음)로 — 입력된 ○/✕는 보존 (재실행 시 ／만 해제)"
-                  className="shrink-0 h-6 px-2 rounded text-[10px] font-medium border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40">
+                  className="shrink-0 h-6 px-2 rounded text-form-2xs font-medium border border-brand-line text-ink-sub hover:bg-brand-tint disabled:opacity-40">
                   ／ 전체
                 </button>
               )}
@@ -106,12 +106,12 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
                     className={`rounded-lg border border-brand-line-soft px-2.5 py-1.5 text-left hover:bg-brand-tint hover:border-brand-line transition-colors ${
                       s.installed && !gInactive ? '' : 'opacity-45'}`}>
                     <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] font-bold text-brand shrink-0">[{g.groupCode}]</span>
+                      <span className="text-form-2xs font-bold text-brand shrink-0">[{g.groupCode}]</span>
                       {g.groupName !== g.groupCode && (
-                        <span className="text-[11px] text-ink truncate flex-1 min-w-0">{g.groupName}</span>
+                        <span className="text-form-xs text-ink truncate flex-1 min-w-0">{g.groupName}</span>
                       )}
                       {/* S7-1 — 중분류 진행 숫자도 같은 축 */}
-                      <span className={`ml-auto text-[9px] shrink-0 ${gInactive ? 'text-ink-meta' : gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}>
+                      <span className={`ml-auto text-form-3xs shrink-0 ${gInactive ? 'text-ink-meta' : gFull ? 'text-green-600' : g.responded > 0 ? 'text-amber-600' : 'text-ink-meta'}`}>
                         {gInactive ? '／ 자동' : `${g.responded > 0 || g.total === 0 ? `${g.responded}/${g.total}` : '미입력'}${g.x > 0 ? ` ✕${g.x}` : ''}`}
                       </span>
                     </span>
@@ -122,7 +122,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
                     {g.subgroupNames.length > 0 && (
                       <span className="mt-1 flex flex-wrap gap-1">
                         {g.subgroupNames.map(n => (
-                          <span key={n} className="text-[9px] text-ink-meta bg-brand-tint border border-brand-line-soft rounded px-1 truncate max-w-40">[{n}]</span>
+                          <span key={n} className="text-form-3xs text-ink-meta bg-brand-tint border border-brand-line-soft rounded px-1 truncate max-w-40">[{n}]</span>
                         ))}
                       </span>
                     )}
@@ -134,7 +134,7 @@ export function SheetGroupBoard({ progress, noFacilityInfo, canEdit, busy, onOpe
         )
       })}
       {visible.length === 0 && (
-        <p className="text-[11px] text-ink-meta py-4 text-center">표시할 시트가 없습니다 — 검색어나 [설치 설비만] 필터를 확인하세요.</p>
+        <p className="text-form-xs text-ink-meta py-4 text-center">표시할 시트가 없습니다 — 검색어나 [설치 설비만] 필터를 확인하세요.</p>
       )}
     </div>
   )

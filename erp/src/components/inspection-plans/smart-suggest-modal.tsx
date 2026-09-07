@@ -289,20 +289,20 @@ function SuggestRow({
           <span className="text-sm font-medium text-ink truncate">{item.customer_name}</span>
           {/* 배지는 저장될 종류(행 축) — 종합 대상의 2차는 작동으로 저장된다 (소방계획서_33 D33-1).
               아래 차수/연1회 분기는 **고객 축** 그대로다: 2차가 있는지는 고객이 정한다. */}
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${TYPE_STYLE[rowType]}`}>
+          <span className={`text-form-2xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${TYPE_STYLE[rowType]}`}>
             {inspectionTypeLabel(rowType)}
           </span>
           {item.inspection_type === '종합' ? (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium shrink-0">
+            <span className="text-form-2xs px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium shrink-0">
               {item.sequence_num}차
             </span>
           ) : (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium shrink-0">
+            <span className="text-form-2xs px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium shrink-0">
               연1회
             </span>
           )}
         </div>
-        <p className="text-[11px] text-ink-meta mt-0.5">{item.reason}</p>
+        <p className="text-form-xs text-ink-meta mt-0.5">{item.reason}</p>
       </div>
     </label>
   )

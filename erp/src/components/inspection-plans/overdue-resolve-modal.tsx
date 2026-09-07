@@ -91,7 +91,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
 
         {/* 연간 달력 */}
         <div className="px-6 py-4 border-b border-brand-line-soft shrink-0">
-          <p className="text-[11px] font-medium text-ink-sub mb-2">{year}년 점검계획일 기준 점검 현황</p>
+          <p className="text-form-xs font-medium text-ink-sub mb-2">{year}년 점검계획일 기준 점검 현황</p>
           <div className="grid grid-cols-6 gap-1.5">
             {MONTH_NAMES.map((label, i) => {
               const m = i + 1
@@ -115,9 +115,9 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                       : 'bg-paper border border-transparent text-[#d0d0d0] dark:text-ink-faint cursor-default'
                   }`}
                 >
-                  <span className="block text-[11px] font-semibold">{label}</span>
+                  <span className="block text-form-xs font-semibold">{label}</span>
                   {hasOverdue && (
-                    <span className="block text-[9px] mt-0.5 font-medium opacity-90">
+                    <span className="block text-form-3xs mt-0.5 font-medium opacity-90">
                       {selCount}/{monthItems.length}건
                     </span>
                   )}
@@ -125,7 +125,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
               )
             })}
           </div>
-          <p className="text-[10px] text-ink-meta mt-2">주황색 월을 클릭하면 해당 월 전체 선택/해제</p>
+          <p className="text-form-2xs text-ink-meta mt-2">주황색 월을 클릭하면 해당 월 전체 선택/해제</p>
         </div>
 
         {/* 본문 */}
@@ -170,7 +170,7 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                       <span className="text-xs font-semibold text-orange-700">
                         {year}년 {month}월
                       </span>
-                      <span className="text-[10px] text-orange-400 font-medium">
+                      <span className="text-form-2xs text-orange-400 font-medium">
                         {monthItems.filter(i => selected.has(itemKey(i))).length}/{monthItems.length}건 선택
                       </span>
                     </label>
@@ -207,18 +207,18 @@ export function OverdueResolveModal({ year, items, onClose, onResolved }: Props)
                                     item.inspection_type === '종합' ? '종합' : '작동',
                                     item.sequence_num)
                                   return (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
+                                    <span className={`text-form-2xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
                                       rowType === '종합' ? 'bg-brand-tint text-brand' :
                                       rowType === '작동' ? 'bg-blue-50 text-blue-600' :
                                       'bg-gray-100 text-gray-600'
                                     }`}>{inspectionTypeLabel(rowType)}</span>
                                   )
                                 })()}
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
+                                <span className="text-form-2xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
                                   {item.sequence_num}차
                                 </span>
                               </div>
-                              <p className="text-[11px] text-ink-meta mt-0.5">
+                              <p className="text-form-xs text-ink-meta mt-0.5">
                                 담당: <span className="font-medium text-ink-sub">{item.assigned_employee_name ?? '미배정'}</span>
                                 {' · '}
                                 점검계획일 {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,'0')}.{String(d.getDate()).padStart(2,'0')}

@@ -171,7 +171,7 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
   }
 
   const toolBtn = (active: boolean) =>
-    `inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] transition-colors ${
+    `inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-form-xs transition-colors ${
       active ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'
     }`
 
@@ -179,14 +179,14 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
     <div className="fixed inset-0 bg-black/30 dark:bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-4xl p-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-sm font-semibold text-ink">피난안내도 생성 <span className="text-[11px] font-normal text-ink-meta">— 표준 아이콘 개략도 (실측 도면 아님)</span></p>
+          <p className="text-sm font-semibold text-ink">피난안내도 생성 <span className="text-form-xs font-normal text-ink-meta">— 표준 아이콘 개략도 (실측 도면 아님)</span></p>
           <button onClick={onClose} className="ml-auto text-ink-faint hover:text-ink-sub"><X className="size-4" /></button>
         </div>
 
         {/* 팔레트·도구 */}
         <div className="flex items-center gap-1.5 flex-wrap mb-2">
           <input value={floor} onChange={e => setFloor(e.target.value)} placeholder="층 표기 (예: 1층)"
-            className="h-7 w-24 rounded-lg border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
+            className="h-7 w-24 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand" />
           <button onClick={() => setMode('move')} className={toolBtn(mode === 'move')} title="배치된 항목 드래그 이동 · 화살표 더블클릭 = 45° 회전">
             <MousePointer2 className="size-3" /> 이동
           </button>
@@ -254,7 +254,7 @@ export function EvacMapBuilder({ customerId, onClose, onSave, saving }: {
         </svg>
 
         <div className="flex items-center gap-2 mt-3">
-          <p className="text-[10px] text-ink-meta">
+          <p className="text-form-2xs text-ink-meta">
             팔레트 선택 후 도면을 클릭해 배치 · [이동]에서 드래그, 화살표 더블클릭 = 회전 · [구획선]은 두 점 클릭 · 그리던 내용은 자동 저장됩니다
           </p>
           <button onClick={onClose} disabled={saving}

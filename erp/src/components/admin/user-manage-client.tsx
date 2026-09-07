@@ -325,7 +325,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               />
             </Field>
           </div>
-          <p className="-mt-2 text-[11px] text-ink-faint">
+          <p className="-mt-2 text-form-xs text-ink-faint">
             직책·연락처·생년월일은 <b>점검결과 보고서 제출용 위임장</b>의 대리인 칸에 자동으로 들어갑니다.
           </p>
 
@@ -350,7 +350,7 @@ function UserModal({ mode, user, depts, successors = [], onClose }: UserModalPro
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-red-700">계정 삭제</p>
-                  <p className="text-[11px] text-ink-sub mt-0.5">
+                  <p className="text-form-xs text-ink-sub mt-0.5">
                     {eligibility.deletable
                       ? '업무 이력이 없는 계정입니다. 잘못 등록된 계정만 삭제하세요 — 퇴사는 비활성 처리를 사용합니다.'
                       : `업무 이력이 있어 삭제할 수 없습니다 (${eligibility.reasons.join(', ')}). 퇴사(비활성) 처리를 사용하세요.`}
@@ -623,7 +623,7 @@ export function UserManageClient({
                         <p className="font-medium text-ink flex items-center gap-1.5">
                           {u.name}
                           {u.is_system && (
-                            <span title="업무 화면(달력·담당자 선택·통계)에는 표시되지 않는 계정입니다" className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            <span title="업무 화면(달력·담당자 선택·통계)에는 표시되지 않는 계정입니다" className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
                               시스템
                             </span>
                           )}

@@ -51,8 +51,8 @@ export async function updateThemeAction(theme: string): Promise<{ error?: string
   return {}
 }
 
-/** 소방계획서 화면 글자 배율 저장 (소방계획서_35 S4-5) — updateThemeAction과 같은 구조.
- *  DB(정본) + 쿠키(첫 페인트 캐시) 두 곳을 함께 세운다. */
+/** 화면 글자 배율 저장 (소방계획서_35 S4-5, 2026-09-07 전역·4단계) — updateThemeAction과
+ *  같은 구조. DB(정본) + 쿠키(첫 페인트 캐시) 두 곳을 함께 세운다. */
 export async function updateFontScaleAction(scale: string): Promise<{ error?: string }> {
   if (!isFontScale(scale)) return { error: '허용되지 않는 글자 크기 값입니다.' }
   const user = await getSessionUser()
@@ -65,7 +65,9 @@ export async function updateFontScaleAction(scale: string): Promise<{ error?: st
     .eq('id', user.id)
   // 154 미적용 DB에서도 화면은 동작해야 한다(쿠키만으로도 배율은 걸린다).
   // 다만 저장이 안 됐다는 사실은 숨기지 않는다 — 다른 기기에 안 따라가기 때문이다.
-  if (error) return { error: '글자 크기 저장에 실패했습니다(관리자에게 문의 — 마이그레이션 154).' }
+  // ⚠ '최대'(xxl)만 실패한다면 159 미적용이다 — CHECK가 아직 3값이라 23514로 거절된다.
+  //   그래서 실패 메시지에 어느 값을 보냈는지 남긴다(154만 적힌 종전 문구로는 못 가른다).
+  if (error) return { error: `글자 크기 저장에 실패했습니다(관리자에게 문의 — '${scale}' 저장 불가. 마이그레이션 154·159 확인).` }
 
   const jar = await cookies()
   jar.set(FS_COOKIE, scale, FS_COOKIE_OPTIONS)

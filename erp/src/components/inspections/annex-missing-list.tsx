@@ -68,13 +68,13 @@ export function AnnexMissingList({ missing, customerId, inspectionId, from }: {
 }) {
   if (missing.length === 0) {
     return (
-      <p className="text-[11px] text-green-600 flex items-center gap-1 pt-1">
+      <p className="text-form-xs text-green-600 flex items-center gap-1 pt-1">
         <CheckCircle2 className="size-3.5 shrink-0" /> 자동 채움 항목에 누락이 없습니다
       </p>
     )
   }
   return (
-    <div className="text-[11px] text-amber-600 flex items-start gap-1 pt-1">
+    <div className="text-form-xs text-amber-600 flex items-start gap-1 pt-1">
       <AlertTriangle className="size-3.5 shrink-0 mt-px" />
       <div>
         <span>미비 항목: 빈 칸으로 출력됩니다 (생성은 막지 않음)</span>
@@ -102,17 +102,17 @@ export function AnnexMissingChip({ missing, customerId, inspectionId }: {
   missing: string[]; customerId?: string; inspectionId?: string
 }) {
   const [open, setOpen] = useState(false)
-  if (missing.length === 0) return <span className="text-[10px] text-green-600">✓ 빈칸 없음</span>
+  if (missing.length === 0) return <span className="text-form-2xs text-green-600">✓ 빈칸 없음</span>
   return (
     <>
       <button onClick={() => setOpen(v => !v)} data-testid="annex-missing-chip"
         title="무엇이 비었는지 보기 — 빈 칸으로 출력됩니다 (생성은 막지 않음)"
-        className="inline-flex items-center gap-0.5 text-[10px] text-amber-600 hover:underline">
+        className="inline-flex items-center gap-0.5 text-form-2xs text-amber-600 hover:underline">
         {open ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
         ⚠ 미입력 {missing.length}곳
       </button>
       {open && (
-        <ul className="absolute left-1 right-1 top-6 z-10 rounded-lg border border-amber-200 bg-surface p-2 shadow-lg space-y-0.5 text-[10px] text-amber-700">
+        <ul className="absolute left-1 right-1 top-6 z-10 rounded-lg border border-amber-200 bg-surface p-2 shadow-lg space-y-0.5 text-form-2xs text-amber-700">
           {missing.map(m => {
             const href = annexFixHref(m, customerId, inspectionId)
             return (

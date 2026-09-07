@@ -189,7 +189,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
               {/* 고객 단위 필드 — 고객관리 > 점검계획일과 단일 소스 동기화 */}
               <div>
                 <label className="text-xs font-medium text-ink-sub mb-1 block">
-                  점검계획일 <span className="text-[10px] text-ink-meta font-normal">(계획 기산일 · 고객관리와 동기화)</span>
+                  점검계획일 <span className="text-form-2xs text-ink-meta font-normal">(계획 기산일 · 고객관리와 동기화)</span>
                 </label>
                 <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper">
                   {canManage ? (
@@ -211,7 +211,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-ink-sub">점검일</label>
                   {!item.scheduled_date && canEdit && (
-                    <span className="text-[10px] text-brand bg-brand-tint px-1.5 py-0.5 rounded-full font-medium">
+                    <span className="text-form-2xs text-brand bg-brand-tint px-1.5 py-0.5 rounded-full font-medium">
                       자동 — 오늘 날짜
                     </span>
                   )}
@@ -223,7 +223,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand disabled:bg-paper"
                 />
                 {canEdit && statusEditable && (
-                  <p className="text-[11px] text-ink-meta mt-1">
+                  <p className="text-form-xs text-ink-meta mt-1">
                     점검일 저장 시 자동으로 <b className="text-brand">확정</b>되고 1~6단계 일정이 재계산됩니다
                   </p>
                 )}
@@ -236,7 +236,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   <span className="text-ink">
                     {(item.profiles as { name: string } | null)?.name ?? <span className="text-ink-meta">미배정</span>}
                   </span>
-                  <span className="text-[10px] text-ink-meta">고객관리에서 변경</span>
+                  <span className="text-form-2xs text-ink-meta">고객관리에서 변경</span>
                 </div>
               </div>
 
@@ -258,16 +258,16 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                       ))}
                     </select>
                     {item.inspection_id ? (
-                      <p className="text-[11px] text-ink-meta mt-1">
+                      <p className="text-form-xs text-ink-meta mt-1">
                         점검이 시작된 항목은 <b>계획</b>으로 되돌릴 수 없습니다
                       </p>
                     ) : item.status === 'confirmed' && status === 'planned' ? (
-                      <p className="text-[11px] text-orange-500 mt-1 flex items-center gap-1">
+                      <p className="text-form-xs text-orange-500 mt-1 flex items-center gap-1">
                         <AlertCircle className="size-3 shrink-0" />
                         저장 시 확정이 해제되고 1~6단계 일정이 초기화됩니다
                       </p>
                     ) : item.status === 'confirmed' ? (
-                      <p className="text-[11px] text-ink-meta mt-1">
+                      <p className="text-form-xs text-ink-meta mt-1">
                         점검 시작 전에는 <b>계획</b>으로 되돌릴 수 있습니다 (해제 시 1~6단계 일정 초기화)
                       </p>
                     ) : null}
@@ -275,7 +275,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 ) : (
                   <div className="w-full text-sm border border-line rounded-lg px-3 py-2 bg-paper flex items-center justify-between">
                     <span className="text-ink">{STATUS_READONLY_LABEL[item.status]}</span>
-                    <span className="text-[10px] text-ink-meta">
+                    <span className="text-form-2xs text-ink-meta">
                       {item.status === 'completed' ? '점검 완료 시 자동 전환' : '수동 변경 불가'}
                     </span>
                   </div>
@@ -321,14 +321,14 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                   </button>
                   {!canStart && (
                     <div className="space-y-1 pt-0.5">
-                      <div className={`flex items-center gap-1.5 text-[11px] ${item.assigned_employee_id ? 'text-green-600' : 'text-orange-500'}`}>
+                      <div className={`flex items-center gap-1.5 text-form-xs ${item.assigned_employee_id ? 'text-green-600' : 'text-orange-500'}`}>
                         {item.assigned_employee_id
                           ? <CheckCircle2 className="size-3 shrink-0" />
                           : <AlertCircle className="size-3 shrink-0" />
                         }
                         담당직원 {item.assigned_employee_id ? '배정됨' : '배정 필요'}
                       </div>
-                      <div className={`flex items-center gap-1.5 text-[11px] ${item.scheduled_date ? 'text-green-600' : 'text-orange-500'}`}>
+                      <div className={`flex items-center gap-1.5 text-form-xs ${item.scheduled_date ? 'text-green-600' : 'text-orange-500'}`}>
                         {item.scheduled_date
                           ? <CheckCircle2 className="size-3 shrink-0" />
                           : <AlertCircle className="size-3 shrink-0" />
@@ -362,7 +362,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                 <p className="text-xs font-semibold text-ink">6단계 업무체크리스트</p>
                 <Link
                   href={`/inspections/${item.inspection_id}`}
-                  className="flex items-center gap-1 text-[11px] text-brand hover:underline"
+                  className="flex items-center gap-1 text-form-xs text-brand hover:underline"
                 >
                   <ExternalLink className="size-3" />
                   상세보기
@@ -396,7 +396,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                         }`}
                       >
                         <div className="flex items-start gap-2">
-                          <span className={`mt-0.5 size-4 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                          <span className={`mt-0.5 size-4 shrink-0 rounded-full flex items-center justify-center text-form-2xs font-bold ${
                             done ? 'bg-green-500 text-white' : overdue ? 'bg-red-400 text-white' : 'bg-brand-line-soft text-brand'
                           }`}>
                             {step.step_num}
@@ -406,7 +406,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                               {step.name_ko}
                             </p>
                             {step.due_date && (
-                              <p className={`text-[10px] mt-0.5 ${done ? 'text-green-500' : overdue ? 'text-red-500' : 'text-ink-sub'}`}>
+                              <p className={`text-form-2xs mt-0.5 ${done ? 'text-green-500' : overdue ? 'text-red-500' : 'text-ink-sub'}`}>
                                 {/* F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다 */}
                                 {done ? `완료: ${kstDate(step.completed_at) || '—'}` : `마감: ${step.due_date}`}
                               </p>
@@ -419,7 +419,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                                 <Link
                                   href={inputLink.href}
                                   title={inputLink.title}
-                                  className="text-[10px] px-2 py-1 rounded-md bg-brand text-white hover:bg-brand-strong transition-colors text-center whitespace-nowrap"
+                                  className="text-form-2xs px-2 py-1 rounded-md bg-brand text-white hover:bg-brand-strong transition-colors text-center whitespace-nowrap"
                                 >
                                   {inputLink.label}
                                 </Link>
@@ -428,7 +428,7 @@ export function PlanItemSlidePanel({ item, canManage, canEditOwnItem = false, pl
                                 <button
                                   onClick={() => handleCompleteStep(step.id)}
                                   title="증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
-                                  className="text-[10px] px-2 py-1 rounded-md border border-line text-ink-soft hover:bg-brand-tint hover:text-ink-sub transition-colors whitespace-nowrap"
+                                  className="text-form-2xs px-2 py-1 rounded-md border border-line text-ink-soft hover:bg-brand-tint hover:text-ink-sub transition-colors whitespace-nowrap"
                                 >
                                   사유 완료
                                 </button>

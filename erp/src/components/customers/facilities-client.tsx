@@ -192,7 +192,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
 
       <div className="flex items-center gap-2 mb-3 text-xs">
         {/* §6-E: 요약 뱃지 — 열지 않고 상태 파악 */}
-        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">
+        <span className="text-form-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-brand">
           설치 {installedList.length}종 · 층별 {b.floors.length}층
         </span>
         <span className="text-ink-sub">최종 확인:</span>
@@ -240,7 +240,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
           {/* §12-4: 빠른 시작 — 시설·층이 모두 비어 있을 때 원클릭 */}
           {installedCodes.length === 0 && floors.length === 0 && (
             <button onClick={() => { applyPresetSet(); autoFloors() }}
-              className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] text-amber-800 hover:bg-amber-100">
+              className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-form-xs text-amber-800 hover:bg-amber-100">
               ⚡ 빠른 시작: 기본 세트{b.purpose ? `(${suggestFacilitySet(b.purpose)?.label ?? ''})` : ''} 적용 + 층 자동 생성
               {(b.floorsAbove || b.floorsBelow) ? ` (지하${b.floorsBelow ?? 0}~지상${b.floorsAbove ?? 0})` : ''} — 클릭 한 번으로 초안을 만들고 조정만 하세요
             </button>
@@ -249,16 +249,16 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
           {/* §6-E: 기본 세트·복사 도구 */}
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={applyPresetSet}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
               <Sparkles className="size-3" /> 기본 세트 적용{b.purpose ? ` (${suggestFacilitySet(b.purpose)?.label ?? ''})` : ''}
             </button>
             {buildings.length > 1 && buildings.map((bd, i) => i !== bidx && (
               <button key={bd.id} onClick={() => copyFromBuilding(i)}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
                 <Copy className="size-3" /> {bd.building_name}에서 복사
               </button>
             ))}
-            <span className="text-[10px] text-ink-meta">기본 세트는 체크만 추가 — 해제는 직접</span>
+            <span className="text-form-2xs text-ink-meta">기본 세트는 체크만 추가 — 해제는 직접</span>
           </div>
           {/* §12-1: 설치 시설 중심 — 검색으로 추가, 26종 스캔 제거 */}
           <div className="space-y-1.5">
@@ -281,7 +281,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               </div>
             </div>
             {installedCodes.length === 0 && (
-              <p className="text-[11px] text-ink-meta">설치 시설 없음 — 검색으로 추가하거나 기본 세트를 적용하세요</p>
+              <p className="text-form-xs text-ink-meta">설치 시설 없음 — 검색으로 추가하거나 기본 세트를 적용하세요</p>
             )}
             {installedCodes.map(code => {
               const presetKinds = DETAIL_TYPE_PRESETS[code]
@@ -297,7 +297,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               const mismatch = parsed !== null && suggest && sum > 0 && chipTotal > 0 && chipTotal !== sum
               const suggestBtn = suggest && sum > 0 && !(fac[code].detail ?? '').trim() && (
                 <button onClick={() => setDetail(code, `${suggest.kind} ${sum}`)}
-                  className="shrink-0 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 hover:bg-amber-100">
+                  className="shrink-0 text-form-2xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 hover:bg-amber-100">
                   층별 합계 {sum} 적용
                 </button>
               )
@@ -314,7 +314,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                     /* §12-A: 종류+수량 칩 편집기 */
                     <div className="flex-1 flex items-center gap-1.5 flex-wrap min-w-0">
                       {parsed.map((ch, i) => (
-                        <span key={i} className="inline-flex items-center gap-0.5 rounded-full border border-brand-line bg-brand-tint pl-2 pr-0.5 h-6 text-[11px] text-ink">
+                        <span key={i} className="inline-flex items-center gap-0.5 rounded-full border border-brand-line bg-brand-tint pl-2 pr-0.5 h-6 text-form-xs text-ink">
                           {ch.kind}
                           <button onClick={() => updateChips(code, parsed.map((c, j) => j === i ? { ...c, qty: Math.max(1, c.qty - 1) } : c))}
                             className="px-0.5 text-brand hover:text-brand-strong">−</button>
@@ -329,7 +329,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                       ))}
                       <div className="relative">
                         <button onClick={() => setAddKindOpen(addKindOpen === code ? null : code)}
-                          className="h-6 px-2 rounded-full border border-dashed border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+                          className="h-6 px-2 rounded-full border border-dashed border-brand-line text-form-xs text-brand hover:bg-brand-tint">
                           + 종류
                         </button>
                         {addKindOpen === code && (
@@ -347,12 +347,12 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                       </div>
                       {suggestBtn}
                       {mismatch && (
-                        <span className="text-[10px] text-amber-600" title="칩 수량과 층별 수량 표의 합계가 다릅니다 — 확인해주세요">
+                        <span className="text-form-2xs text-amber-600" title="칩 수량과 층별 수량 표의 합계가 다릅니다 — 확인해주세요">
                           ⚠ 층별 합계({sum})와 불일치
                         </span>
                       )}
                       <button onClick={() => toggleRawMode(code)} title="자유 텍스트로 입력"
-                        className="text-[10px] text-ink-meta hover:text-brand">텍스트</button>
+                        className="text-form-2xs text-ink-meta hover:text-brand">텍스트</button>
                     </div>
                   ) : (
                     /* 자유 텍스트 폴백 (패턴 불일치 문구·프리셋 없는 시설·수동 전환) */
@@ -364,7 +364,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                       {suggestBtn}
                       {presetKinds && rawModeCodes.has(code) && parseDetailChips(fac[code].detail ?? '') !== null && (
                         <button onClick={() => toggleRawMode(code)} title="종류+수량 칩으로 입력"
-                          className="shrink-0 text-[10px] text-ink-meta hover:text-brand">칩 입력</button>
+                          className="shrink-0 text-form-2xs text-ink-meta hover:text-brand">칩 입력</button>
                       )}
                     </div>
                   )}
@@ -372,7 +372,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               )
             })}
             <button onClick={() => setShowAllFac(v => !v)}
-              className="text-[11px] text-ink-sub hover:text-brand">
+              className="text-form-xs text-ink-sub hover:text-brand">
               {showAllFac ? '▾' : '▸'} 미설치 시설 전체 보기
             </button>
             {showAllFac && CATALOG.map(cat => {
@@ -380,7 +380,7 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
               if (rest.length === 0) return null
               return (
                 <div key={cat.category} className="pl-2">
-                  <p className="text-[10px] font-semibold text-ink-meta mb-0.5">{cat.category}</p>
+                  <p className="text-form-2xs font-semibold text-ink-meta mb-0.5">{cat.category}</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {rest.map(code => (
                       <label key={code} className="flex items-center gap-1.5 cursor-pointer">
@@ -401,23 +401,23 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs font-semibold text-brand">층별 수량</p>
               <button onClick={() => setFloors(f => [...f, { floor_label: '', sort_order: f.length, counts: {} }])}
-                className="inline-flex items-center gap-0.5 text-[11px] text-brand hover:underline">
+                className="inline-flex items-center gap-0.5 text-form-xs text-brand hover:underline">
                 <Plus className="size-3" /> 층 추가
               </button>
               {/* §6-E: 지상/지하 층수 기반 일괄 생성 */}
               <button onClick={autoFloors}
-                className="inline-flex items-center gap-0.5 text-[11px] text-brand hover:underline">
+                className="inline-flex items-center gap-0.5 text-form-xs text-brand hover:underline">
                 <Layers className="size-3" /> 층 자동 생성
                 {(b.floorsAbove || b.floorsBelow) ? ` (지하${b.floorsBelow ?? 0}~지상${b.floorsAbove ?? 0})` : ''}
               </button>
               {/* §12-2: 대표 층 하나 입력 → 나머지 복사 */}
               {floors.length > 1 && (
                 <button onClick={applyFirstRowToAll}
-                  className="inline-flex items-center gap-0.5 text-[11px] text-brand hover:underline">
+                  className="inline-flex items-center gap-0.5 text-form-xs text-brand hover:underline">
                   <Copy className="size-3" /> 첫 행 전층 적용
                 </button>
               )}
-              <span className="text-[10px] text-ink-meta">셀에서 Enter = 아래 층 이동</span>
+              <span className="text-form-2xs text-ink-meta">셀에서 Enter = 아래 층 이동</span>
             </div>
             {floors.length > 0 && (
               <div className="overflow-x-auto">
@@ -432,12 +432,12 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
                   <tbody>
                     {/* §12-2: 열 단위 일괄 입력 — 값 하나로 전 층 채움 */}
                     <tr className="bg-amber-50">
-                      <td className="px-1 py-0.5 text-[10px] text-amber-600">일괄→</td>
+                      <td className="px-1 py-0.5 text-form-2xs text-amber-600">일괄→</td>
                       {FLOOR_COLS.map(c => (
                         <td key={c} className="px-1 py-0.5">
                           <input type="number" min={0} value={bulk[c] ?? ''} onChange={e => applyBulkCol(c, e.target.value)}
                             placeholder="전층" title="입력하면 전 층에 같은 값이 채워집니다"
-                            className="w-11 h-6 rounded border border-amber-200 bg-amber-50 px-1 text-center outline-none focus:border-amber-400 placeholder:text-[9px]" />
+                            className="w-11 h-6 rounded border border-amber-200 bg-amber-50 px-1 text-center outline-none focus:border-amber-400 placeholder:text-form-3xs" />
                         </td>
                       ))}
                       <td />

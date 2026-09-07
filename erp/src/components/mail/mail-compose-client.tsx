@@ -83,7 +83,7 @@ export function MailComposeClient({ candidates, initial }: {
         ))}
         <input ref={fileRef} type="file" multiple className="hidden" onChange={addFiles} />
         <button onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint">
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
           <Paperclip className="size-3" /> 파일 첨부 <span className="text-ink-faint">(합계 20MB, 현재 {(totalSize / 1024 / 1024).toFixed(1)}MB)</span>
         </button>
       </div>
@@ -99,7 +99,7 @@ export function MailComposeClient({ candidates, initial }: {
           buttonClass="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-brand-line text-sm text-brand hover:bg-brand-tint" />
         {msg && <span className="text-sm text-ink-sub">{msg}</span>}
       </div>
-      <p className="text-[11px] text-ink-faint">발신 주소는 회사 공용 계정(sjfirekorea@gmail.com)이며, 발송 이력에 작성 직원이 기록됩니다. 서명은 발송 시 자동으로 붙습니다.</p>
+      <p className="text-form-xs text-ink-faint">발신 주소는 회사 공용 계정(sjfirekorea@gmail.com)이며, 발송 이력에 작성 직원이 기록됩니다. 서명은 발송 시 자동으로 붙습니다.</p>
     </div>
   )
 }

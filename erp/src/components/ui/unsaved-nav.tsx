@@ -99,7 +99,7 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
         </div>
         <div className="px-6 py-4">
           <p className="text-xs text-ink-sub leading-relaxed">{message}</p>
-          {error && <p className="mt-2 text-[11px] text-red-600 leading-relaxed">{error}</p>}
+          {error && <p className="mt-2 text-form-xs text-red-600 leading-relaxed">{error}</p>}
         </div>
         <div className="flex flex-col gap-2 px-6 py-4 border-t border-line">
           {canSave && (

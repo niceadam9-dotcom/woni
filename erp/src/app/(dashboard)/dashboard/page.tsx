@@ -445,7 +445,7 @@ export default async function DashboardPage() {
               <p className="text-xs text-ink-sub mb-2">{label}</p>
               <p className={`text-3xl font-bold ${color}`}>{value}</p>
               {isAlert && value > 0 && (
-                <span className="text-[10px] text-red-500 mt-1 font-medium flex items-center gap-0.5">
+                <span className="text-form-2xs text-red-500 mt-1 font-medium flex items-center gap-0.5">
                   <AlertTriangle className="size-2.5" />즉시 확인
                 </span>
               )}
@@ -463,7 +463,7 @@ export default async function DashboardPage() {
               <div className="flex items-center gap-2">
                 <FileCheck2 className="size-4 text-blue-500" />
                 <h2 className="text-sm font-semibold text-ink">점검보고서 제출대기</h2>
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                <span className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">
                   {pendingReports.length}건
                 </span>
               </div>
@@ -491,7 +491,7 @@ export default async function DashboardPage() {
                           {r.notification_due_date ? `신고예정: ${r.notification_due_date}` : '—'}
                         </p>
                         {isOverdue && (
-                          <span className="text-[10px] text-red-400 flex items-center justify-end gap-0.5 mt-0.5">
+                          <span className="text-form-2xs text-red-400 flex items-center justify-end gap-0.5 mt-0.5">
                             <AlertTriangle className="size-2.5" /> 기한초과
                           </span>
                         )}
@@ -509,7 +509,7 @@ export default async function DashboardPage() {
               <div className="flex items-center gap-2">
                 <ClipboardCheck className="size-4 text-amber-500" />
                 <h2 className="text-sm font-semibold text-ink">이행계획 제출대기</h2>
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                <span className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
                   {pendingActions.length}건
                 </span>
               </div>
@@ -540,7 +540,7 @@ export default async function DashboardPage() {
                           {a.completion_target_date ? `완료목표: ${a.completion_target_date}` : '기한 미지정'}
                         </p>
                         {isOverdue && (
-                          <span className="text-[10px] text-red-400 flex items-center justify-end gap-0.5 mt-0.5">
+                          <span className="text-form-2xs text-red-400 flex items-center justify-end gap-0.5 mt-0.5">
                             <AlertTriangle className="size-2.5" /> 기한초과
                           </span>
                         )}
@@ -561,7 +561,7 @@ export default async function DashboardPage() {
             <div className="flex items-center gap-2">
               <Clock className="size-4 text-amber-500" />
               <h2 className="text-sm font-semibold text-ink">마감 임박</h2>
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">D-7 이내</span>
+              <span className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">D-7 이내</span>
             </div>
             <Link href="/inspections/calendar?filter=week" className="text-xs text-brand hover:underline flex items-center gap-1">
               달력 <ArrowRight className="size-3" />
@@ -591,7 +591,7 @@ export default async function DashboardPage() {
                     className="flex items-center gap-3 px-5 py-3 hover:bg-paper transition-colors"
                   >
                     <div className="size-6 rounded-full bg-brand-tint flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-brand">{item.stepNum}</span>
+                      <span className="text-form-2xs font-bold text-brand">{item.stepNum}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ink truncate">{item.stepName}</p>
@@ -602,10 +602,10 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${urgentCls}`}>
+                      <span className={`text-form-2xs font-bold px-2 py-0.5 rounded-full ${urgentCls}`}>
                         {dLabel}
                       </span>
-                      <span className="text-[10px] text-ink-faint">{item.dueDate}</span>
+                      <span className="text-form-2xs text-ink-faint">{item.dueDate}</span>
                     </div>
                   </Link>
                 )
@@ -753,7 +753,7 @@ export default async function DashboardPage() {
             <Megaphone className="size-4 text-brand" />
             <h2 className="text-sm font-semibold text-ink">공지사항</h2>
             {boardNotices.length > 0 && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-tint text-brand">
+              <span className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-brand-tint text-brand">
                 {boardNotices.length}건
               </span>
             )}

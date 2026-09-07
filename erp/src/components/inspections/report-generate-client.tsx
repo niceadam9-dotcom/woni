@@ -36,7 +36,7 @@ export function ReportGenerateClient({ history }: {
       <div className="mb-2 flex items-center gap-2">
         <FileSpreadsheet className="size-4 text-ink-faint" />
         <h2 className="text-sm font-semibold text-ink-sub">소방시설등점검표 (엑셀) — 과거 생성물</h2>
-        <span className="text-[10px] text-ink-meta">엑셀 생성은 폐지됐습니다 — 별지 4호 PDF로 대체</span>
+        <span className="text-form-2xs text-ink-meta">엑셀 생성은 폐지됐습니다 — 별지 4호 PDF로 대체</span>
       </div>
 
       {error && <p className="mb-2 text-xs text-red-600">{error}</p>}

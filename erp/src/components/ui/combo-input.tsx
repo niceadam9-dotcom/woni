@@ -119,7 +119,7 @@ export function ComboInput({
           className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-brand-line bg-surface py-1 shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-2.5 py-1.5 text-[11px] text-ink-meta">
+            <li className="px-2.5 py-1.5 text-form-xs text-ink-meta">
               {emptyHint ?? '목록에 없는 값입니다 — 입력한 그대로 저장됩니다.'}
             </li>
           ) : filtered.map((o, i) => (

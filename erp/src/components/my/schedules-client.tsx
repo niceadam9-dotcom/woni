@@ -368,21 +368,21 @@ export function SchedulesClient({
                       ${isToday ? 'bg-brand text-white' : holiday || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700'}`}>
                       {d}
                     </div>
-                    {holiday && <span className="text-[9px] text-red-500 truncate">{holiday}</span>}
+                    {holiday && <span className="text-form-3xs text-red-500 truncate">{holiday}</span>}
                   </div>
                   <div className="space-y-0.5">
                     {showDl.map(dl => (
-                      <div key={dl.stepId} className={`text-[10px] px-1 py-0.5 rounded truncate border ${deadlineUrgencyCls(dl.dDays)}`}>
+                      <div key={dl.stepId} className={`text-form-2xs px-1 py-0.5 rounded truncate border ${deadlineUrgencyCls(dl.dDays)}`}>
                         <Flame className="inline size-2.5 mr-0.5 -mt-px" />{dl.stepNum}단계 {dl.customerName}
                       </div>
                     ))}
                     {showSch.map(s => (
-                      <div key={s.id} className={`text-[10px] px-1 py-0.5 rounded truncate border ${TYPE_COLORS[s.schedule_type] ?? TYPE_COLORS['기타']}`}>
+                      <div key={s.id} className={`text-form-2xs px-1 py-0.5 rounded truncate border ${TYPE_COLORS[s.schedule_type] ?? TYPE_COLORS['기타']}`}>
                         {s.title}
                       </div>
                     ))}
                     {hiddenCount > 0 && (
-                      <div className="text-[10px] text-gray-400 px-1">+{hiddenCount}</div>
+                      <div className="text-form-2xs text-gray-400 px-1">+{hiddenCount}</div>
                     )}
                   </div>
                 </div>
@@ -393,17 +393,17 @@ export function SchedulesClient({
           {/* 범례 */}
           <div className="flex flex-wrap gap-2 mt-3">
             {TYPES.map(t => (
-              <span key={t} className={`text-[10px] px-2 py-0.5 rounded-full border ${TYPE_COLORS[t]}`}>{t}</span>
+              <span key={t} className={`text-form-2xs px-2 py-0.5 rounded-full border ${TYPE_COLORS[t]}`}>{t}</span>
             ))}
             {inspectionDeadlines.length > 0 && (
               <>
-                <span className="text-[10px] px-2 py-0.5 rounded-full border border-green-200 bg-green-100 text-green-700 flex items-center gap-0.5">
+                <span className="text-form-2xs px-2 py-0.5 rounded-full border border-green-200 bg-green-100 text-green-700 flex items-center gap-0.5">
                   <Flame className="size-2.5" />점검(7일+)
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full border border-yellow-200 bg-yellow-100 text-yellow-700 flex items-center gap-0.5">
+                <span className="text-form-2xs px-2 py-0.5 rounded-full border border-yellow-200 bg-yellow-100 text-yellow-700 flex items-center gap-0.5">
                   <Flame className="size-2.5" />점검(임박)
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full border border-red-200 bg-red-100 text-red-700 flex items-center gap-0.5">
+                <span className="text-form-2xs px-2 py-0.5 rounded-full border border-red-200 bg-red-100 text-red-700 flex items-center gap-0.5">
                   <Flame className="size-2.5" />점검(D-Day)
                 </span>
               </>
@@ -430,7 +430,7 @@ export function SchedulesClient({
               {/* 점검 마감 오버레이 */}
               {selectedDeadlines.length > 0 && (
                 <div className="mb-3">
-                  <p className="text-[10px] font-medium text-gray-400 mb-1.5 flex items-center gap-1">
+                  <p className="text-form-2xs font-medium text-gray-400 mb-1.5 flex items-center gap-1">
                     <Flame className="size-3 text-orange-400" />점검 마감
                   </p>
                   <div className="space-y-1.5">
@@ -442,9 +442,9 @@ export function SchedulesClient({
                       >
                         <div className="flex items-center justify-between">
                           <p className="font-medium text-xs truncate">{dl.customerName}</p>
-                          <span className="text-[10px] font-bold shrink-0 ml-1">{deadlineDLabel(dl.dDays)}</span>
+                          <span className="text-form-2xs font-bold shrink-0 ml-1">{deadlineDLabel(dl.dDays)}</span>
                         </div>
-                        <p className="text-[10px] mt-0.5 opacity-80">{dl.stepNum}단계 · {dl.stepName}</p>
+                        <p className="text-form-2xs mt-0.5 opacity-80">{dl.stepNum}단계 · {dl.stepName}</p>
                       </Link>
                     ))}
                   </div>
@@ -455,7 +455,7 @@ export function SchedulesClient({
               {selectedSchedules.length > 0 && (
                 <div>
                   {selectedDeadlines.length > 0 && (
-                    <p className="text-[10px] font-medium text-gray-400 mb-1.5">개인 일정</p>
+                    <p className="text-form-2xs font-medium text-gray-400 mb-1.5">개인 일정</p>
                   )}
                   <div className="space-y-2">
                     {selectedSchedules.map(s => (

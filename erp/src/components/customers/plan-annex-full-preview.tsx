@@ -53,7 +53,7 @@ export function PlanAnnexFullPreview({
             </p>
             <button onClick={close} className="ml-auto text-ink-meta hover:text-ink-sub">✕</button>
           </div>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]">
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap text-form-xs">
             <button onClick={() => setState(p => p && { ...p, only: undefined })}
               title="전 별지를 세로로 이어 봅니다"
               className={`px-2 py-0.5 rounded-full border ${!state.only ? 'border-brand bg-brand-tint text-brand font-medium' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>

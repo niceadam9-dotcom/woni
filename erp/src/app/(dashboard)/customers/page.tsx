@@ -207,13 +207,13 @@ export default async function CustomersPage({
                           </div>
                         )}
                         {bld ? (
-                          <p className="text-[10px] text-brand mt-0.5 truncate max-w-[180px]">
+                          <p className="text-form-2xs text-brand mt-0.5 truncate max-w-[180px]">
                             🏢 {[bld.purpose, bld.total_area != null && `${bld.total_area}㎡`,
                               bld.floors_above != null && `지상${bld.floors_above}층`,
                             ].filter(Boolean).join(' · ') || bld.building_name}
                           </p>
                         ) : c.address ? (
-                          <p className="text-[10px] text-amber-500 mt-0.5">건물 정보 없음</p>
+                          <p className="text-form-2xs text-amber-500 mt-0.5">건물 정보 없음</p>
                         ) : null}
                       </td>
                       <td className="px-4 py-3">
@@ -227,7 +227,7 @@ export default async function CustomersPage({
                             </span>
                           )}
                           {/* S7-1 — 점검 종류·연 횟수는 계약 내용이다(목록에서 가장 많이 읽히는 값, 100칸) */}
-                          <span className="text-[10px] text-ink-meta whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
+                          <span className="text-form-2xs text-ink-meta whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
                         </div>
                       </td>
                       {fullCols && (
@@ -285,7 +285,7 @@ export default async function CustomersPage({
                             { lbl: '⑪', st: c.docStrip.a11 },
                           ].map(({ lbl, st }) => (
                             <span key={lbl} title={st === 'have' ? '보유' : st === 'warn' ? '필요·미생성' : '해당없음'}
-                              className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-medium border ${
+                              className={`inline-flex items-center justify-center w-5 h-5 rounded text-form-2xs font-medium border ${
                                 st === 'have' ? 'bg-green-50 text-green-700 border-green-200'
                                   : st === 'warn' ? 'bg-amber-50 text-amber-700 border-amber-200'
                                     : 'bg-gray-50 text-gray-300 border-gray-100'}`}>{lbl}</span>

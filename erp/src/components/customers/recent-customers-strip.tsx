@@ -46,7 +46,7 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
   // 고객명은 아래 표에도 링크로 나온다 — 스트립 범위를 특정할 수 있게 표식을 남긴다(E2E 셀렉터)
   return (
     <div data-recent-strip className="flex items-center gap-2 flex-wrap">
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-meta shrink-0">
+      <span className="inline-flex items-center gap-1 text-form-xs font-semibold text-ink-meta shrink-0">
         <Clock className="size-3" /> 최근 본 고객
       </span>
       {items.map(c => (

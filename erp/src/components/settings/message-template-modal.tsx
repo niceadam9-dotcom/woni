@@ -63,7 +63,7 @@ export function MessageTemplateModal({ templateKey, label, sampleVars, buttonCla
     <>
       <button onClick={openModal}
         title="이 메일의 제목·본문 문구를 고칩니다 (매니저 이상)"
-        className={buttonClass ?? 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] text-brand hover:bg-brand-tint'}>
+        className={buttonClass ?? 'inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint'}>
         <PenLine className="size-3" /> 문구 편집
       </button>
 
@@ -80,20 +80,20 @@ export function MessageTemplateModal({ templateKey, label, sampleVars, buttonCla
               {isPending && !data && <p className="text-xs text-ink-sub flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> 불러오는 중…</p>}
 
               {data && !data.storageReady && (
-                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                <p className="flex items-start gap-1.5 text-form-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
                   <AlertTriangle className="size-3.5 shrink-0 mt-px" />
                   문구 저장소가 아직 준비되지 않았습니다 (마이그레이션 130 미적용) — 지금은 <b>코드 기본 문구</b>로 발송되며 편집 내용은 저장되지 않습니다.
                 </p>
               )}
               {data && !data.canEdit && (
-                <p className="text-[11px] text-ink-sub bg-paper border border-brand-line-soft rounded-lg px-2.5 py-2">
+                <p className="text-form-xs text-ink-sub bg-paper border border-brand-line-soft rounded-lg px-2.5 py-2">
                   보기 전용입니다 — 문구 수정은 매니저 이상만 할 수 있습니다.
                 </p>
               )}
 
               {data && (
                 <>
-                  <p className="text-[11px] text-ink-faint">
+                  <p className="text-form-xs text-ink-faint">
                     쓸 수 있는 변수: {data.vars.map(v => <code key={v} className="mx-0.5 px-1 rounded bg-brand-tint text-brand">{`{${v}}`}</code>)}
                   </p>
 
@@ -102,19 +102,19 @@ export function MessageTemplateModal({ templateKey, label, sampleVars, buttonCla
                     <div className="space-y-2">
                       {data.template.subject !== null && (
                         <label className="block">
-                          <span className="text-[11px] text-ink-sub">제목</span>
+                          <span className="text-form-xs text-ink-sub">제목</span>
                           <input value={subject} onChange={e => setSubject(e.target.value)} disabled={!data.canEdit}
                             className="mt-0.5 w-full h-8 rounded-lg border border-brand-line px-2 text-xs outline-none focus:border-brand disabled:bg-paper" />
                         </label>
                       )}
                       <label className="block">
-                        <span className="text-[11px] text-ink-sub">본문</span>
+                        <span className="text-form-xs text-ink-sub">본문</span>
                         <textarea value={body} onChange={e => setBody(e.target.value)} disabled={!data.canEdit} rows={12}
                           className="mt-0.5 w-full rounded-lg border border-brand-line px-2 py-1.5 text-xs outline-none focus:border-brand disabled:bg-paper font-mono" />
                       </label>
                       {data.template.attachmentName !== null && (
                         <label className="block">
-                          <span className="text-[11px] text-ink-sub">첨부 파일명 (확장자 제외)</span>
+                          <span className="text-form-xs text-ink-sub">첨부 파일명 (확장자 제외)</span>
                           <input value={attach} onChange={e => setAttach(e.target.value)} disabled={!data.canEdit}
                             className="mt-0.5 w-full h-8 rounded-lg border border-brand-line px-2 text-xs outline-none focus:border-brand disabled:bg-paper" />
                         </label>
@@ -123,9 +123,9 @@ export function MessageTemplateModal({ templateKey, label, sampleVars, buttonCla
 
                     {/* 미리보기 — 실제 값이 채워진 결과 */}
                     <div className="space-y-2">
-                      <span className="text-[11px] text-ink-sub">미리보기 (실제 값 적용)</span>
+                      <span className="text-form-xs text-ink-sub">미리보기 (실제 값 적용)</span>
                       {data.preview.unresolved.length > 0 && (
-                        <p className="flex items-start gap-1.5 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+                        <p className="flex items-start gap-1.5 text-form-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
                           <AlertTriangle className="size-3.5 shrink-0 mt-px" />
                           치환되지 않은 변수: {data.preview.unresolved.map(v => `{${v}}`).join(', ')} — 이대로 고객에게 나갑니다.
                         </p>
@@ -134,9 +134,9 @@ export function MessageTemplateModal({ templateKey, label, sampleVars, buttonCla
                         {data.template.subject !== null && (
                           <p className="text-xs font-semibold text-ink break-words">{data.preview.subject || <span className="text-ink-faint">(제목 없음)</span>}</p>
                         )}
-                        <pre className="text-[11px] text-ink-strong whitespace-pre-wrap break-words font-sans">{data.preview.body}</pre>
+                        <pre className="text-form-xs text-ink-strong whitespace-pre-wrap break-words font-sans">{data.preview.body}</pre>
                         {data.template.attachmentName !== null && (
-                          <p className="text-[10px] text-ink-faint">첨부: {data.preview.attachmentName}.pdf</p>
+                          <p className="text-form-2xs text-ink-faint">첨부: {data.preview.attachmentName}.pdf</p>
                         )}
                       </div>
                     </div>

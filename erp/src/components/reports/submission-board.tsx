@@ -45,13 +45,13 @@ function CertCell({ inspectionId, uploaded, archived, warn }: { inspectionId: st
       {!uploaded && (
         <>
           <button onClick={() => inputRef.current?.click()} disabled={pending} title="배치확인서 업로드"
-            className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded border border-amber-300 text-[10px] text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+            className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded border border-amber-300 text-form-2xs text-amber-700 hover:bg-amber-50 disabled:opacity-50">
             {pending ? <Loader2 className="size-2.5 animate-spin" /> : <UploadCloud className="size-2.5" />} 업로드
           </button>
           <input ref={inputRef} type="file" accept="application/pdf,image/*" hidden onChange={onPick} />
         </>
       )}
-      {err && <span className="text-[10px] text-red-600">{err}</span>}
+      {err && <span className="text-form-2xs text-red-600">{err}</span>}
     </div>
   )
 }
@@ -124,24 +124,24 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-1">
         <h2 className="text-sm font-semibold text-ink">제출 현황</h2>
-        <span className="text-[11px] text-ink-faint">타임라인에서 일하면 저절로 채워집니다 · 최근 90일</span>
+        <span className="text-form-xs text-ink-faint">타임라인에서 일하면 저절로 채워집니다 · 최근 90일</span>
         <div className="ml-auto flex items-center gap-2">
           {/* P-4: '내 담당만' 개인화 필터 — 직원 기본 ON */}
           <button onClick={() => setMine(v => !v)} title="내가 배정된 점검 건만 봅니다"
-            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-[11px] font-medium ${
+            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-form-xs font-medium ${
               mine ? 'border-brand bg-brand-tint text-brand' : 'border-brand-line text-ink-sub hover:border-brand'}`}>
             <User className="size-3" /> 내 담당만
           </button>
           {/* P-5·R14-f: 엑셀 내보내기 — 현재 화면(필터 반영) 기준 */}
           <button onClick={() => startExport(() => { void exportRows(filtered) })} disabled={exporting || filtered.length === 0}
             title="현재 표시 중인 목록을 엑셀로 내보냅니다"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-[11px] font-medium text-ink-sub hover:border-brand hover:text-brand disabled:opacity-50">
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line text-form-xs font-medium text-ink-sub hover:border-brand hover:text-brand disabled:opacity-50">
             {exporting ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 엑셀
           </button>
         </div>
       </div>
       {mine && !hasAssignments && (
-        <p className="text-[11px] text-amber-600 mb-1">내게 배정된 최근 90일 자체점검 건이 없습니다 — 전체를 보려면 &lsquo;내 담당만&rsquo;을 끄세요</p>
+        <p className="text-form-xs text-amber-600 mb-1">내게 배정된 최근 90일 자체점검 건이 없습니다 — 전체를 보려면 &lsquo;내 담당만&rsquo;을 끄세요</p>
       )}
 
       {/* 숫자 요약 스트립 — 각 숫자 클릭 = 그 조건으로 필터 (R14-b) */}
@@ -152,12 +152,12 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
             <button key={idx} onClick={() => setFilter(f => (f === s.key ? 'all' : s.key))}
               className={`px-3 py-1.5 rounded-lg border text-left ${active ? 'border-brand bg-brand-tint' : 'border-brand-line-soft hover:border-brand'}`}>
               <span className={`text-lg font-bold ${s.tone}`}>{s.value}</span>
-              <span className="text-[10px] text-ink-sub ml-1.5">{s.label}</span>
+              <span className="text-form-2xs text-ink-sub ml-1.5">{s.label}</span>
             </button>
           )
         })}
         {filter !== 'all' && (
-          <button onClick={() => setFilter('all')} className="text-[11px] text-brand hover:underline self-center">전체 보기</button>
+          <button onClick={() => setFilter('all')} className="text-form-xs text-brand hover:underline self-center">전체 보기</button>
         )}
       </div>
 
@@ -167,7 +167,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px]">
             <thead>
-              <tr className="text-[10px] text-ink-faint border-b border-brand-tint">
+              <tr className="text-form-2xs text-ink-faint border-b border-brand-tint">
                 <th className={`${cell} text-left`}>고객 · 차수</th>
                 <th className={`${cell} text-left`}>담당자</th>
                 <th className={`${cell} text-left`}>9호 생성</th>
@@ -187,7 +187,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                     <td className={cell}>
                       <Link href={`/customers/${r.customerId}?tab=annex`} className="font-medium text-ink hover:text-brand">{r.customerName}</Link>
                       <span className="text-ink-faint ml-1">{r.year}-{r.sequenceNum}차</span>
-                      {r.status !== 'completed' && <span className="ml-1 text-[10px] text-blue-500">진행중</span>}
+                      {r.status !== 'completed' && <span className="ml-1 text-form-2xs text-blue-500">진행중</span>}
                     </td>
                     <td className={cell}>
                       {r.assigneeName

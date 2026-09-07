@@ -1,7 +1,8 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-/** 개인별 화면 글자 배율 — 소방계획서 서식 + 점검표 입력 (소방계획서_35 S4, 범위는 _38에서 확대)
+/** 개인별 화면 글자 배율 — **앱 전 화면** (소방계획서_35 S4에서 서식만으로 시작,
+ *  _38이 점검표 입력까지, 2026-09-07에 전역으로. 실적용 지점은 globals.css의 @theme inline)
  *
  *  정본은 profiles.form_font_scale(마이그레이션 154), 쿠키는 첫 페인트용 캐시다.
  *  루트 레이아웃의 인라인 스크립트가 이 쿠키를 읽어 <html data-fs>를 붙이므로
@@ -13,7 +14,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
  *  lib/theme.ts와 같은 구조다. */
 
 export const FS_COOKIE = 'erp-fs'
-export type FontScale = 'md' | 'lg' | 'xl'
+export type FontScale = 'md' | 'lg' | 'xl' | 'xxl'
 
 export const FS_COOKIE_OPTIONS = {
   path: '/',
@@ -24,10 +25,10 @@ export const FS_COOKIE_OPTIONS = {
 
 /** 배율 실값 — globals.css의 html[data-fs="…"] 규칙과 **같은 값이어야 한다**.
  *  (CSS가 정본이고 이건 표시·검사용 사본이다. 어긋나면 test-font-scale이 잡는다) */
-export const FS_RATIO: Record<FontScale, number> = { md: 1, lg: 1.15, xl: 1.3 }
+export const FS_RATIO: Record<FontScale, number> = { md: 1, lg: 1.15, xl: 1.3, xxl: 1.45 }
 
 export function isFontScale(v: unknown): v is FontScale {
-  return v === 'md' || v === 'lg' || v === 'xl'
+  return v === 'md' || v === 'lg' || v === 'xl' || v === 'xxl'
 }
 
 /** profiles.form_font_scale 관용 조회 — 컬럼 미적용(154 전)·행 없음·오류 전부 null.

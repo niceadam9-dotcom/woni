@@ -12,7 +12,7 @@ import { useEffect } from 'react'
  *  ⚠ ThemeSync에 합치지 않고 형제로 둔 것은 의도다 — 테마 경로는 이미 운영에 나가
  *  검증된 코드이고, 여기서 손대 회귀를 만들 이유가 없다. 마운트 하나가 더 붙는 비용은
  *  useEffect 한 번뿐이다. */
-export function FontScaleSync({ dbScale }: { dbScale: 'md' | 'lg' | 'xl' | null }) {
+export function FontScaleSync({ dbScale }: { dbScale: 'md' | 'lg' | 'xl' | 'xxl' | null }) {
   useEffect(() => {
     if (!dbScale) return
     const root = document.documentElement

@@ -63,7 +63,7 @@ export function InspectionParticipantsClient({
           <span className="text-xs font-medium text-ink-sub w-14 shrink-0">보조</span>
           <span className="text-sm text-ink">{p.name}</span>
           {p.license_no && <span className="text-xs text-ink-meta">({p.license_no})</span>}
-          {!p.license_no && <span className="text-[11px] text-amber-500">경력수첩번호 없음</span>}
+          {!p.license_no && <span className="text-form-xs text-amber-500">경력수첩번호 없음</span>}
           {canManage && (
             <button onClick={() => remove(p.id)} disabled={isPending}
               className="ml-auto p-1 text-ink-faint hover:text-red-500 transition-colors disabled:opacity-40">

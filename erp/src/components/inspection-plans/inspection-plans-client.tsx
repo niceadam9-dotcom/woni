@@ -465,7 +465,7 @@ export function InspectionPlansClient({
                 }`}
               >
                 {label}
-                <span className={`text-[11px] font-bold px-1.5 py-px rounded-full min-w-[20px] text-center ${
+                <span className={`text-form-xs font-bold px-1.5 py-px rounded-full min-w-[20px] text-center ${
                   active ? 'bg-surface/25 text-white' : 'bg-brand-tint text-brand'
                 }`}>{statusCounts[val]}</span>
               </button>
@@ -718,7 +718,7 @@ function CalendarView({
             >
               <div className="flex items-center justify-between gap-1 min-w-0 mb-1">
                 {holiday
-                  ? <span className="text-[10px] text-red-500 truncate leading-tight">{holiday}</span>
+                  ? <span className="text-form-2xs text-red-500 truncate leading-tight">{holiday}</span>
                   : <span />}
                 <span className={`text-xs shrink-0 ${
                   isToday ? 'bg-brand text-white font-bold rounded-full w-5 h-5 flex items-center justify-center' :
@@ -744,7 +744,7 @@ function CalendarView({
                       onDragEnd={() => { setDragItem(null); setDragOverDay(null) }}
                       title={`${custName} · ${PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}${draggable ? ' — 드래그로 일자 이동' : ''}`}
                       style={chipStyle(item, itemOverdue)}
-                      className={`text-[11px] leading-[1.2] px-1.5 py-[2px] rounded-[5px] hover:opacity-85 truncate ${
+                      className={`text-form-xs leading-[1.2] px-1.5 py-[2px] rounded-[5px] hover:opacity-85 truncate ${
                         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
                       } ${dragItem?.id === item.id ? 'opacity-40' : ''}`}
                     >
@@ -755,7 +755,7 @@ function CalendarView({
                 {dayItems.length > 3 && (
                   <button
                     onClick={e => { e.stopPropagation(); setMoreDay(dateStr) }}
-                    className="text-[11px] text-brand pl-1 hover:underline cursor-pointer"
+                    className="text-form-xs text-brand pl-1 hover:underline cursor-pointer"
                   >
                     +{dayItems.length - 3}개 더 보기
                   </button>
@@ -788,7 +788,7 @@ function CalendarView({
                     onClick={() => { setMoreDay(null); onItemClick(item) }}
                     title={`${custName} · ${PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''} · ${STATUS_LABEL[item.status]}${itemOverdue ? ' (지연)' : ''}`}
                     style={chipStyle(item, itemOverdue)}
-                    className="text-[11px] leading-[1.3] px-2 py-1 rounded-[5px] cursor-pointer hover:opacity-85 truncate"
+                    className="text-form-xs leading-[1.3] px-2 py-1 rounded-[5px] cursor-pointer hover:opacity-85 truncate"
                   >
                     {itemOverdue && '⚠ '}{custName} · {PLAN_TYPE_LABEL[effectivePlanType(item)] ?? ''}
                   </div>
@@ -817,9 +817,9 @@ function CalendarView({
               <p className="text-xs text-ink-sub">
                 {custName} · {moveConfirm.from || '미정'} → <span className="font-semibold text-brand">{moveConfirm.to}</span>
               </p>
-              <p className="text-[11px] text-ink-meta mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
+              <p className="text-form-xs text-ink-meta mt-1">이동하면 해당 날짜로 즉시 확정되고 1~6단계 마감일이 재계산됩니다.</p>
               {warnings.map(w => (
-                <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
+                <p key={w} className="text-form-xs text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="size-3 shrink-0" />{w}</p>
               ))}
               <div className="flex gap-2 mt-3">
                 <button
@@ -841,7 +841,7 @@ function CalendarView({
       })()}
 
       {/* 범례 — 점검달력과 동일한 톤 */}
-      <div className="flex items-center gap-3 px-4 py-2 border-t border-brand-line-soft text-[10px] text-ink-sub">
+      <div className="flex items-center gap-3 px-4 py-2 border-t border-brand-line-soft text-form-2xs text-ink-sub">
         {/* 스와치는 실제 칩과 같은 토큰 — 리터럴로 두면 다크에서 안내와 화면이 갈린다 */}
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--chip-plan-bg)' }} />계획</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand" />확정</span>
@@ -989,14 +989,14 @@ function InlineDateCell({
               </button>
             </div>
             {value && (
-              <button onClick={handleClear} className="text-[10px] text-ink-meta hover:text-red-500 transition-colors">
+              <button onClick={handleClear} className="text-form-2xs text-ink-meta hover:text-red-500 transition-colors">
                 지우기
               </button>
             )}
           </div>
           <div className="grid grid-cols-7 mb-1">
             {WEEKDAYS.map((d, i) => (
-              <div key={d} className={`text-center text-[10px] font-medium py-0.5 ${
+              <div key={d} className={`text-center text-form-2xs font-medium py-0.5 ${
                 i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-ink-meta'
               }`}>{d}</div>
             ))}
@@ -1014,7 +1014,7 @@ function InlineDateCell({
                   key={day}
                   onClick={() => handleSelectDay(day)}
                   disabled={isPending}
-                  className={`h-6 w-6 mx-auto text-[11px] rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${
+                  className={`h-6 w-6 mx-auto text-form-xs rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${
                     isSel    ? 'bg-brand text-white font-semibold' :
                     isToday  ? 'ring-1 ring-brand text-brand font-semibold' :
                     isHoliday || dow === 0 ? 'text-red-400 hover:bg-red-50' :
@@ -1030,7 +1030,7 @@ function InlineDateCell({
           {isPending && (
             <div className="flex items-center justify-center gap-1.5 mt-2">
               <div className="animate-spin rounded-full h-3 w-3 border border-brand border-t-transparent" />
-              <span className="text-[10px] text-ink-sub">저장 중…</span>
+              <span className="text-form-2xs text-ink-sub">저장 중…</span>
             </div>
           )}
           {err && !isPending && (
@@ -1039,7 +1039,7 @@ function InlineDateCell({
               className="mt-2 flex items-start gap-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1.5"
             >
               <AlertCircle className="size-3 text-red-500 shrink-0 mt-px" />
-              <span className="text-[10px] leading-snug text-red-600">{err}</span>
+              <span className="text-form-2xs leading-snug text-red-600">{err}</span>
             </div>
           )}
         </div>
@@ -1248,7 +1248,7 @@ function ListView({
                     const assigneeName = (item.profiles as { name: string } | null)?.name ?? null
                     const isOrphan = !!assigneeId && !employees.some(e2 => e2.id === assigneeId)
                     return assigneeName
-                      ? <>{assigneeName}{isOrphan && <span className="ml-1 text-[10px] text-red-500" title="퇴사한 직원 담당 — 고객관리에서 재배정이 필요합니다">(퇴사)</span>}</>
+                      ? <>{assigneeName}{isOrphan && <span className="ml-1 text-form-2xs text-red-500" title="퇴사한 직원 담당 — 고객관리에서 재배정이 필요합니다">(퇴사)</span>}</>
                       : <span className="text-red-500 font-medium">미배정</span>
                   })()}
                 </td>
@@ -1397,19 +1397,19 @@ function OverduePanel({
                       <span className="text-sm font-medium text-ink flex-1 truncate min-w-0">
                         {item.customer_name}
                       </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
+                      <span className={`text-form-2xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
                         item.inspection_type === '종합' ? 'bg-brand-tint text-brand' :
                         item.inspection_type === '작동' ? 'bg-blue-50 text-blue-600' :
                         'bg-gray-100 text-gray-600'
                       }`}>{inspectionTypeLabel(item.inspection_type)}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
+                      <span className="text-form-2xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium shrink-0">
                         {item.sequence_num}차
                       </span>
                       <span className="text-xs text-orange-600 font-medium shrink-0">
                         {item.due_month}월 예정
                       </span>
                       {/* S7-1 — 점검계획일은 언제 가야 하는지를 정하는 날짜다 */}
-                      <span className="text-[11px] text-ink-meta shrink-0">
+                      <span className="text-form-xs text-ink-meta shrink-0">
                         점검계획일 {(() => { const d = new Date(item.anchor_date); return `${d.getMonth()+1}/${d.getDate()}` })()}
                       </span>
                     </div>

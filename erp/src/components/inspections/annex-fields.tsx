@@ -158,7 +158,7 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
         <span className="text-xs text-ink-soft shrink-0">~</span>
         <DateInput value={pe} aria-label={`${def.label} 종료일`} onChange={e => join(ps, e.target.value)}
           aria-invalid={bad} className={`${inputBase} w-36 min-w-0 max-w-full${bad ? ' !border-red-400' : ''}`} />
-        {bad && <span className="w-full text-[10px] text-red-600" data-testid="annex-range-error">❌ {DATE_RANGE_ERROR}</span>}
+        {bad && <span className="w-full text-form-2xs text-red-600" data-testid="annex-range-error">❌ {DATE_RANGE_ERROR}</span>}
       </span>
     )
   }
@@ -177,11 +177,11 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2 }: {
               className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors ${on
                 ? 'border-brand bg-brand-tint font-semibold text-brand'
                 : 'border-line text-ink-sub hover:bg-brand-tint'}`}>
-              <span className="font-mono text-[11px]">{on ? '[√]' : '[  ]'}</span>{o.value}
+              <span className="font-mono text-form-xs">{on ? '[√]' : '[  ]'}</span>{o.value}
             </button>
           )
         })}
-        <span className="text-[10px] text-ink-soft whitespace-nowrap">{value ? '수동 확정' : autoLabel}</span>
+        <span className="text-form-2xs text-ink-soft whitespace-nowrap">{value ? '수동 확정' : autoLabel}</span>
       </span>
     )
   }

@@ -47,7 +47,7 @@ function Field({ f, value, setAt, disabled }: {
     const v = str(dict(value)[f.key])
     return (
       <div className="space-y-1">
-        <label className="text-[11px] font-medium text-ink-sub">{f.label}</label>
+        <label className="text-form-xs font-medium text-ink-sub">{f.label}</label>
         {f.multiline ? (
           <textarea value={v} disabled={disabled} placeholder={f.placeholder} rows={5}
             onChange={e => setAt(f.key, e.target.value)}
@@ -66,7 +66,7 @@ function Field({ f, value, setAt, disabled }: {
       <div className="space-y-2">
         {f.entries.map(e => (
           <div key={e.key} className="space-y-1">
-            <label className="text-[11px] font-medium text-ink-sub">{e.label}</label>
+            <label className="text-form-xs font-medium text-ink-sub">{e.label}</label>
             <textarea value={str(d[e.key])} disabled={disabled} rows={2}
               onChange={ev => setAt(undefined, { ...d, [e.key]: ev.target.value })}
               className={`${inputCls} resize-y leading-relaxed`} />
@@ -84,15 +84,15 @@ function Field({ f, value, setAt, disabled }: {
   return (
     <div className="space-y-1.5">
       {list.length === 0 && (
-        <p className="text-[11px] text-ink-meta">등록된 행이 없습니다 — 아래 버튼으로 추가하세요.</p>
+        <p className="text-form-xs text-ink-meta">등록된 행이 없습니다 — 아래 버튼으로 추가하세요.</p>
       )}
       {list.map((r, idx) => (
         <div key={idx} className="flex items-start gap-1.5">
-          <span className="w-5 shrink-0 pt-2 text-[10px] text-ink-meta">{idx + 1}</span>
+          <span className="w-5 shrink-0 pt-2 text-form-2xs text-ink-meta">{idx + 1}</span>
           <div className="flex-1 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${f.cols.length}, minmax(0, 1fr))` }}>
             {f.cols.map(c => (
               <div key={c.key} className="space-y-0.5">
-                {idx === 0 && <label className="block text-[10px] text-ink-soft">{c.label}</label>}
+                {idx === 0 && <label className="block text-form-2xs text-ink-soft">{c.label}</label>}
                 <input value={str(r[c.key])} disabled={disabled} placeholder={c.label}
                   onChange={e => write(list.map((x, j) => (j === idx ? { ...x, [c.key]: e.target.value } : x)))}
                   className={inputCls} />
@@ -107,7 +107,7 @@ function Field({ f, value, setAt, disabled }: {
         </div>
       ))}
       <button type="button" disabled={disabled} onClick={() => write([...list, blank])}
-        className="inline-flex items-center gap-1 rounded-lg border border-dashed border-brand-line px-2.5 py-1 text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+        className="inline-flex items-center gap-1 rounded-lg border border-dashed border-brand-line px-2.5 py-1 text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
         <Plus className="size-3" /> {f.addLabel ?? '행 추가'}
       </button>
     </div>

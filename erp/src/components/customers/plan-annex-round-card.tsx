@@ -20,8 +20,8 @@ import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
  *     test-annex-interaction.mts가 그 문자열 개수로 회차 펼침 상태를 판정한다(PlanAnnexSheetHeader가 유일 출처). */
 
 const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
-const blockTitleCls = 'text-[11px] font-semibold text-ink-sub pt-1 pb-0.5'
-const chipCls = 'text-[11px] text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint shrink-0 cursor-pointer'
+const blockTitleCls = 'text-form-xs font-semibold text-ink-sub pt-1 pb-0.5'
+const chipCls = 'text-form-xs text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint shrink-0 cursor-pointer'
 
 /** 회차 묶음 인쇄(소방계획서_18 S1) 가능 여부 — 병합 대상은 PDF뿐이라 HWP·HTML만 있으면 열지 않는다.
  *  bundle 라우트의 TYPE_ORDER와 같은 축. */
@@ -149,9 +149,9 @@ export function PlanAnnexRoundCard({
       <button onClick={alwaysOpen ? undefined : onToggle}
         className={`w-full flex items-center gap-2 px-3 py-2.5 text-left ${alwaysOpen ? 'cursor-default' : ''}`}>
         {!alwaysOpen && (isOpen ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />)}
-        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
+        <span className={`text-form-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${nb.className}`}>{nb.label}</span>
         <span className="text-xs font-semibold text-ink">{label}</span>
-        {r.plannedDate && <span className="text-[11px] text-ink-meta">{r.plannedDate.slice(5, 10)}</span>}
+        {r.plannedDate && <span className="text-form-xs text-ink-meta">{r.plannedDate.slice(5, 10)}</span>}
         {r.docs && isOpen && (
           <span role="button" tabIndex={0}
             onClick={e => { e.stopPropagation(); onFullPreview() }}
@@ -186,9 +186,9 @@ export function PlanAnnexRoundCard({
             엑셀
           </span>
         )}
-        <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
+        <span className={`ml-auto text-form-2xs font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
         {r.docs && (
-          <span className="text-[10px] text-ink-meta shrink-0">
+          <span className="text-form-2xs text-ink-meta shrink-0">
             ④{r.docs.report4 ? '✓' : '·'} ⑨{r.docs.report9 ? '✓' : '·'}
             {r.docs.defects.total > 0 && <> ⑩{r.docs.report10 ? '✓' : '·'} ⑪{r.docs.report11 ? '✓' : '·'}</>}
             {' '}불량 {r.docs.defects.total}
@@ -200,7 +200,7 @@ export function PlanAnnexRoundCard({
         <div className="px-4 pb-3">
           {/* 엑셀 내려받기 결과 — 헤더는 <button>이라 그 안에 안내를 키울 수 없어 본문 머리에 둔다 */}
           {xlsx.msg && (
-            <p className={`mb-1 rounded-lg px-2 py-1 text-[11px] ${xlsx.ok ? 'bg-brand-tint text-ink-sub' : 'bg-red-50 text-red-600'}`}
+            <p className={`mb-1 rounded-lg px-2 py-1 text-form-xs ${xlsx.ok ? 'bg-brand-tint text-ink-sub' : 'bg-red-50 text-red-600'}`}
               data-testid="round-workbook-msg">{xlsx.msg}</p>
           )}
           {r.docs ? (
@@ -219,7 +219,7 @@ export function PlanAnnexRoundCard({
               {/* ④ 별지 4호 행 — [자동] 점검표+설비 대장에서 생성 (D-18: 입력 없음) */}
               <div className="flex items-center gap-2 py-1.5 text-xs border-b border-brand-line-soft flex-wrap">
                 <span className="font-medium text-ink w-44 pl-5">별지 4호 점검표</span>
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">자동</span>
+                <span className="text-form-2xs font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">자동</span>
                 {r.docs.report4 ? (
                   <span className="text-ink-sub">✓ {(r.docs.report4.at ?? '').slice(5, 10)}</span>
                 ) : (
@@ -228,15 +228,15 @@ export function PlanAnnexRoundCard({
                 <span className="ml-auto flex items-center gap-1">
                   <button onClick={() => onPreviewSingle('report4')}
                     title="이 문서만 크게 보기 — 생성 전에도 확인 가능"
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:bg-brand-tint">
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-ink-sub hover:bg-brand-tint">
                     <Eye className="size-3" /> 보기
                   </button>
                   {r.docs.report4?.pdf && (
                     <button onClick={() => openAnnexPdf(r.docs!.inspectionId, r.docs!.report4!.pdf!.path)} disabled={isPending}
-                      className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50">PDF</button>
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-form-xs text-red-600 hover:bg-red-50 disabled:opacity-50">PDF</button>
                   )}
                   <button onClick={() => onGenerate(r.docs!.inspectionId, 'report4', `${r.docs!.inspectionId}:r4`)} disabled={isPending}
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[11px] text-brand hover:bg-brand-tint disabled:opacity-50">
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
                     {r.docs.report4 ? '재생성' : '생성'}
                   </button>
                 </span>
@@ -265,7 +265,7 @@ export function PlanAnnexRoundCard({
             <div className="flex items-center gap-2 py-2 text-xs">
               <span className="text-ink-sub">점검표·별지를 작성하려면 시작하세요 — 오늘이 점검 시작일로 자동 기록됩니다</span>
               <button onClick={onStart} disabled={isStarting}
-                className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-[11px] font-medium disabled:opacity-50">
+                className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-50">
                 <PlayCircle className="size-3.5" /> 작성 시작
               </button>
             </div>

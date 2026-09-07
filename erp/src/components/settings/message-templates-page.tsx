@@ -63,14 +63,14 @@ export function MessageTemplatesPage() {
       {!storageReady && (
         <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
           <AlertTriangle className="size-3.5 text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-800">문구 저장소가 준비되지 않았습니다(마이그레이션 130 미적용) — 편집해도 저장되지 않습니다.</p>
+          <p className="text-form-xs text-amber-800">문구 저장소가 준비되지 않았습니다(마이그레이션 130 미적용) — 편집해도 저장되지 않습니다.</p>
         </div>
       )}
 
       {/* ① 사전 안내 시점 (Q-13) */}
       <section className="rounded-2xl border border-brand-line-soft bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">사전 안내 시점</h2>
-        <p className="mt-0.5 text-[11px] text-ink-soft">
+        <p className="mt-0.5 text-form-xs text-ink-soft">
           방문 <b>며칠 전</b>에 &lsquo;보낼 안내&rsquo; 배너를 띄울지 정합니다. 실제 발송은 배너에서 승인해야 나갑니다.
           문구는 시점을 몇 개 만들든 <b>한 장</b>입니다 — <code className="px-1 bg-brand-tint rounded">{'{디데이}'}</code>가 자동으로 바뀝니다.
         </p>
@@ -103,19 +103,19 @@ export function MessageTemplatesPage() {
               onClick={() => addRule(Number(draft))}>
               <Plus className="size-3 inline" /> 추가
             </button>
-            <span className="text-[10px] text-ink-faint ml-1">빠른 추가</span>
+            <span className="text-form-2xs text-ink-faint ml-1">빠른 추가</span>
             {QUICK.filter(n => !rules.includes(n)).map(n => (
               <button key={n} className={btn} disabled={isPending} onClick={() => addRule(n)}>{dDayLabel(n)}</button>
             ))}
           </div>
         )}
-        {msg && <p className="mt-2 text-[11px] text-ink-sub">{msg}</p>}
+        {msg && <p className="mt-2 text-form-xs text-ink-sub">{msg}</p>}
       </section>
 
       {/* ② 발송 문구 3종 */}
       <section className="rounded-2xl border border-brand-line-soft bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">발송 문구</h2>
-        <p className="mt-0.5 text-[11px] text-ink-soft">고객·관계인에게 나가는 문구입니다. 여기서 고치면 다음 발송부터 적용됩니다.</p>
+        <p className="mt-0.5 text-form-xs text-ink-soft">고객·관계인에게 나가는 문구입니다. 여기서 고치면 다음 발송부터 적용됩니다.</p>
         <div className="mt-3 space-y-2">
           {items.map(t => (
             <div key={t.key} data-testid="template-card"
@@ -125,7 +125,7 @@ export function MessageTemplatesPage() {
                 <span className="text-xs font-semibold text-ink">{t.label}</span>
                 {t.isSms && (
                   <span data-testid="template-bytes"
-                    className={`text-[10px] ${t.msgType === 'LMS' ? 'text-amber-600 font-semibold' : 'text-ink-faint'}`}>
+                    className={`text-form-2xs ${t.msgType === 'LMS' ? 'text-amber-600 font-semibold' : 'text-ink-faint'}`}>
                     {t.byteLen}바이트 · {t.msgType}{t.msgType === 'LMS' && ' — 요금 2~3배'}
                   </span>
                 )}
@@ -133,8 +133,8 @@ export function MessageTemplatesPage() {
                   <MessageTemplateModal templateKey={t.key} label={t.label} />
                 </div>
               </div>
-              {t.subject && <p className="mt-1.5 text-[11px] text-ink-sub">제목: {t.subject}</p>}
-              <pre className="mt-1 whitespace-pre-wrap text-[11px] leading-snug text-ink-soft font-sans">{t.body}</pre>
+              {t.subject && <p className="mt-1.5 text-form-xs text-ink-sub">제목: {t.subject}</p>}
+              <pre className="mt-1 whitespace-pre-wrap text-form-xs leading-snug text-ink-soft font-sans">{t.body}</pre>
             </div>
           ))}
           {items.length === 0 && isPending && (

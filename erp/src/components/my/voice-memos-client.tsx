@@ -252,7 +252,7 @@ export function VoiceMemosClient({ userId }: { userId: string }) {
         {/* 실시간 텍스트 변환 */}
         {(recording || transcript) && (
           <div className="border border-line rounded-lg p-3 bg-paper min-h-[60px] text-sm text-ink">
-            <p className="text-[10px] text-ink-faint mb-1 font-medium uppercase tracking-wide">
+            <p className="text-form-2xs text-ink-faint mb-1 font-medium uppercase tracking-wide">
               <MicOff size={10} className="inline mr-1" />실시간 텍스트 변환
             </p>
             <span>{transcript}</span>

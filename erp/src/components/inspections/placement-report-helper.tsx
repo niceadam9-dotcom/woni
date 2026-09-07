@@ -38,7 +38,7 @@ export function PlacementReportHelper({ inspectionId }: { inspectionId: string }
   return (
     <span className="relative inline-block">
       <button onClick={openPreview} disabled={pending}
-        className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-[10px] text-brand hover:bg-brand-tint disabled:opacity-50">
+        className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-2xs text-brand hover:bg-brand-tint disabled:opacity-50">
         {pending ? <Loader2 className="size-3 animate-spin" /> : <ClipboardCopy className="size-3" />} 신고 정보 복사
       </button>
 
@@ -48,14 +48,14 @@ export function PlacementReportHelper({ inspectionId }: { inspectionId: string }
             <span className="text-xs font-semibold text-ink">협회 배치신고 정보</span>
             <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-700"><X className="size-3.5" /></button>
           </div>
-          {err && <p className="text-[11px] text-red-600 mb-1.5">{err}</p>}
+          {err && <p className="text-form-xs text-red-600 mb-1.5">{err}</p>}
           {!fields ? (
-            <p className="text-[11px] text-ink-meta py-3 text-center">불러오는 중…</p>
+            <p className="text-form-xs text-ink-meta py-3 text-center">불러오는 중…</p>
           ) : (
             <>
               <div className="space-y-1 mb-2">
                 {fields.map(f => (
-                  <div key={f.label} className="flex items-start gap-1.5 text-[11px]">
+                  <div key={f.label} className="flex items-start gap-1.5 text-form-xs">
                     <span className="text-ink-meta w-14 shrink-0">{f.label}</span>
                     {f.missing ? (
                       <span className="flex items-center gap-1 text-amber-600 flex-1">
@@ -70,11 +70,11 @@ export function PlacementReportHelper({ inspectionId }: { inspectionId: string }
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={copy}
-                  className={`inline-flex items-center gap-1 h-7 px-2.5 rounded text-[11px] font-medium ${copied ? 'bg-green-500 text-white' : 'bg-brand hover:bg-brand-strong text-white'}`}>
+                  className={`inline-flex items-center gap-1 h-7 px-2.5 rounded text-form-xs font-medium ${copied ? 'bg-green-500 text-white' : 'bg-brand hover:bg-brand-strong text-white'}`}>
                   {copied ? <><Check className="size-3" /> 복사됨</> : <><ClipboardCopy className="size-3" /> 복사</>}
                 </button>
                 <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1 h-7 px-2 rounded border border-brand-line text-[11px] text-ink-sub hover:text-brand hover:border-brand">
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded border border-brand-line text-form-xs text-ink-sub hover:text-brand hover:border-brand">
                   협회 신고 <ExternalLink className="size-3" />
                 </a>
               </div>

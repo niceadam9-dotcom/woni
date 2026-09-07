@@ -55,14 +55,14 @@ export function InspectionLegalTypeClient({ inspectionId, inspectionType, planTy
         <button
           type="button" onClick={toggle} disabled={isPending}
           data-testid="toggle-initial"
-          className="h-6 px-2 rounded-md border border-brand-line text-[11px] text-ink-sub hover:bg-paper disabled:opacity-50 inline-flex items-center gap-1"
+          className="h-6 px-2 rounded-md border border-brand-line text-form-xs text-ink-sub hover:bg-paper disabled:opacity-50 inline-flex items-center gap-1"
         >
           {isPending && <Loader2 className="size-3 animate-spin" />}
           {init ? '최초점검 해제' : '최초점검으로 지정'}
         </button>
       )}
-      {msg && <span className="text-[11px] text-green-600">{msg}</span>}
-      {err && <span className="text-[11px] text-red-600">{err}</span>}
+      {msg && <span className="text-form-xs text-green-600">{msg}</span>}
+      {err && <span className="text-form-xs text-red-600">{err}</span>}
     </div>
   )
 }

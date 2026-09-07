@@ -312,7 +312,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
             <path d="M20.4 5.2c-1.1 1.3-1.6 2.1-1.6 3a1.6 1.6 0 0 0 3.2 0c0-.9-.5-1.7-1.6-3z" fill="url(#sj-logo-fire)" />
           </svg>
         )}
-        <span className="font-bold text-ink text-[14px] tracking-tight truncate">{companyName}</span>
+        <span className="font-bold text-ink text-form-sm tracking-tight truncate">{companyName}</span>
       </div>
 
       {/* 네비게이션 */}
@@ -366,14 +366,14 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                       {showSection && (
                         <div className="flex items-center gap-1.5 pl-2.5 pr-1 pt-2 pb-1 select-none">
                           {/* S7-1 — 구역 이름은 메뉴를 찾는 단서다(장식인 구분선은 옆 span이 맡는다) */}
-                          <span className="text-[10px] font-semibold tracking-wide text-ink-meta">{item.section}</span>
+                          <span className="text-form-2xs font-semibold tracking-wide text-ink-meta">{item.section}</span>
                           <span className="flex-1 h-px bg-brand-line-soft" />
                         </div>
                       )}
                       <Link
                         href={item.href}
                         className={cn(
-                          'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors',
+                          'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-form-xs font-medium transition-colors',
                           isActive
                             ? 'bg-brand/10 text-brand'
                             : 'text-ink-sub hover:bg-brand-tint hover:text-brand'
@@ -382,12 +382,12 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                         <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-brand' : 'text-ink-soft')} />
                         <span className="flex-1">{item.label}</span>
                         {BADGE_HREFS[item.href] === 'red' && redCount > 0 && (
-                          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                          <span className="shrink-0 min-w-[calc(18px*var(--fs-scale))] h-[calc(18px*var(--fs-scale))] px-1 rounded-full bg-red-500 text-white text-form-2xs font-bold flex items-center justify-center">
                             {redCount > 99 ? '99+' : redCount}
                           </span>
                         )}
                         {BADGE_HREFS[item.href] === 'orange' && orangeCount > 0 && (
-                          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-400 text-white text-[10px] font-bold flex items-center justify-center">
+                          <span className="shrink-0 min-w-[calc(18px*var(--fs-scale))] h-[calc(18px*var(--fs-scale))] px-1 rounded-full bg-orange-400 text-white text-form-2xs font-bold flex items-center justify-center">
                             {orangeCount > 99 ? '99+' : orangeCount}
                           </span>
                         )}
@@ -399,7 +399,7 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                               ? '사전 안내 건수를 불러오지 못했습니다 — 화면을 열어 확인해주세요'
                               /* 단위는 배너·위젯과 같은 **건**(고객+방문일) */
                               : `손봐야 할 사전 안내 ${smsCount}건`}
-                            className={`shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${
+                            className={`shrink-0 min-w-[calc(18px*var(--fs-scale))] h-[calc(18px*var(--fs-scale))] px-1 rounded-full text-white text-form-2xs font-bold flex items-center justify-center ${
                               smsCount < 0 ? 'bg-[#b0acd6]' : 'bg-brand'}`}>
                             {smsCount < 0 ? '?' : smsCount > 99 ? '99+' : smsCount}
                           </span>

@@ -68,7 +68,7 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
         <div className="absolute top-10 left-0 z-40 w-80 bg-surface rounded-xl border border-brand-line shadow-xl py-2 max-h-80 overflow-y-auto">
           {sug!.customers.length > 0 && (
             <div>
-              <p className="px-3 py-1 text-[10px] font-semibold text-ink-meta uppercase flex items-center gap-1">
+              <p className="px-3 py-1 text-form-2xs font-semibold text-ink-meta uppercase flex items-center gap-1">
                 <Building2 className="size-3" /> 고객 (선택 시 상세로 이동)
               </p>
               {sug!.customers.map(c => (
@@ -79,14 +79,14 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
                   className="w-full text-left px-3 py-1.5 text-sm text-ink hover:bg-brand-tint transition-colors truncate flex items-center justify-between gap-2"
                 >
                   <span className="truncate">{c.name}</span>
-                  <span className="text-[10px] text-brand shrink-0">상세 →</span>
+                  <span className="text-form-2xs text-brand shrink-0">상세 →</span>
                 </button>
               ))}
             </div>
           )}
           {sug!.addresses.length > 0 && (
             <div>
-              <p className="px-3 py-1 mt-1 text-[10px] font-semibold text-ink-meta uppercase flex items-center gap-1">
+              <p className="px-3 py-1 mt-1 text-form-2xs font-semibold text-ink-meta uppercase flex items-center gap-1">
                 <MapPin className="size-3" /> 주소
               </p>
               {sug!.addresses.map(a => (
@@ -103,7 +103,7 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
           )}
           {sug!.employees.length > 0 && (
             <div>
-              <p className="px-3 py-1 mt-1 text-[10px] font-semibold text-ink-meta uppercase flex items-center gap-1">
+              <p className="px-3 py-1 mt-1 text-form-2xs font-semibold text-ink-meta uppercase flex items-center gap-1">
                 <User className="size-3" /> 담당자
               </p>
               {sug!.employees.map(e => (
@@ -114,7 +114,7 @@ export function CustomerSearchBox({ defaultValue }: { defaultValue: string }) {
                   className="w-full text-left px-3 py-1.5 text-sm text-ink hover:bg-brand-tint transition-colors flex items-center justify-between"
                 >
                   <span>{e.name}</span>
-                  <span className="text-[10px] text-ink-meta">{e.count}건</span>
+                  <span className="text-form-2xs text-ink-meta">{e.count}건</span>
                 </button>
               ))}
             </div>

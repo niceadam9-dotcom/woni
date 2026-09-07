@@ -47,8 +47,8 @@ export function InspectionMultidayClient({ inspectionId, startDate, endDate, day
           </button>
         )}
       </div>
-      {msg && <p className="text-[11px] text-green-600 mt-1.5">{msg}</p>}
-      {err && <p className="text-[11px] text-red-600 mt-1.5">{err}</p>}
+      {msg && <p className="text-form-xs text-green-600 mt-1.5">{msg}</p>}
+      {err && <p className="text-form-xs text-red-600 mt-1.5">{err}</p>}
     </div>
   )
 }

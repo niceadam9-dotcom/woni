@@ -59,7 +59,7 @@ export function ThemeSettingsClient({ initialTheme }: { initialTheme: 'light' | 
               <span className="flex-1 min-w-0">
                 <span className={`block text-sm font-medium ${active ? 'text-brand' : 'text-ink'}`}>{label}</span>
                 {/* S7-1 — 옵션 설명은 무엇을 고르는지 알려주는 정보다 */}
-                <span className="block text-[11px] text-ink-meta">{desc}</span>
+                <span className="block text-form-xs text-ink-meta">{desc}</span>
               </span>
               {active && !isPending && <Check className="size-4 text-brand shrink-0" data-testid="theme-active-check" />}
               {active && isPending && <Loader2 className="size-4 text-brand shrink-0 animate-spin" />}
@@ -67,8 +67,8 @@ export function ThemeSettingsClient({ initialTheme }: { initialTheme: 'light' | 
           )
         })}
       </div>
-      {saved && <p className="mt-2 text-[11px] text-green-600" data-testid="theme-saved">✓ 저장됨 — 다른 기기에도 로그인하면 적용됩니다</p>}
-      {error && <p className="mt-2 text-[11px] text-red-600" data-testid="theme-error">{error}</p>}
+      {saved && <p className="mt-2 text-form-xs text-green-600" data-testid="theme-saved">✓ 저장됨 — 다른 기기에도 로그인하면 적용됩니다</p>}
+      {error && <p className="mt-2 text-form-xs text-red-600" data-testid="theme-error">{error}</p>}
     </div>
   )
 }

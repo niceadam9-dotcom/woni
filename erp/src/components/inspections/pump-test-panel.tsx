@@ -86,7 +86,7 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
 
   if (sheetNos.length === 0) return null
 
-  const numCell = 'w-full rounded border border-brand-line-soft px-1 py-0.5 text-right text-[11px] focus:outline-none focus:border-brand disabled:bg-paper'
+  const numCell = 'w-full rounded border border-brand-line-soft px-1 py-0.5 text-right text-form-xs focus:outline-none focus:border-brand disabled:bg-paper'
   const numVal = (v: number | null) => (v == null ? '' : String(v))
   const onNum = (s: number, k: PumpKind, f: Field) => ({
     value: numVal(rows[key(s, k)][f]),
@@ -109,8 +109,8 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
   return (
     <section className="rounded-lg border border-brand-line-soft bg-surface" data-testid="pump-test-panel">
       <div className="flex items-center gap-1.5 border-b border-brand-tint bg-brand-tint px-2.5 py-1.5">
-        <p className="text-[11px] font-semibold text-ink-sub">※ 펌프성능시험</p>
-        <span className="text-[10px] text-ink-meta">별지 4호서식 표 — 펌프 명판 및 설계치 참조</span>
+        <p className="text-form-xs font-semibold text-ink-sub">※ 펌프성능시험</p>
+        <span className="text-form-2xs text-ink-meta">별지 4호서식 표 — 펌프 명판 및 설계치 참조</span>
       </div>
 
       {/* 설비가 여러 개면 탭 — 서식도 설비마다 표가 따로 붙는다 */}
@@ -118,22 +118,22 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
         <div className="flex flex-wrap gap-1 border-b border-brand-line-soft px-2 py-1.5">
           {sheetNos.map(s => (
             <button key={s} onClick={() => setOpenSheet(s)}
-              className={`rounded px-2 py-0.5 text-[10px] ${openSheet === s ? 'bg-brand text-white' : 'text-ink-sub hover:bg-brand-tint'}`}>
+              className={`rounded px-2 py-0.5 text-form-2xs ${openSheet === s ? 'bg-brand text-white' : 'text-ink-sub hover:bg-brand-tint'}`}>
               {PUMP_SHEET_LABELS[s] ?? `설비 ${s}`}
             </button>
           ))}
         </div>
       )}
 
-      {err && <p className="px-2.5 pt-1.5 text-[11px] text-red-600">❌ {err}</p>}
+      {err && <p className="px-2.5 pt-1.5 text-form-xs text-red-600">❌ {err}</p>}
 
       {sheetNos.filter(s => sheetNos.length === 1 || s === openSheet).map(s => {
         const main = rows[key(s, '주')], sub = rows[key(s, '예비')]
         return (
           <div key={s} className="space-y-2 p-2" data-pump-sheet={s}>
-            <table className="w-full table-fixed border-collapse text-[11px]">
+            <table className="w-full table-fixed border-collapse text-form-xs">
               <thead>
-                <tr className="text-[10px] text-ink-soft">
+                <tr className="text-form-2xs text-ink-soft">
                   <th className="w-[22%] px-1 pb-1 text-left font-medium">구분</th>
                   <th className="px-1 pb-1 font-medium">체절운전</th>
                   <th className="px-1 pb-1 font-medium">정격운전(100%)</th>
@@ -158,7 +158,7 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
             </table>
 
             {/* ㅇ설정압력 — 서식 좌측 블록 */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-brand-line-soft pt-1.5 text-[10px] text-ink-sub">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-brand-line-soft pt-1.5 text-form-2xs text-ink-sub">
               <span className="text-ink-soft">ㅇ설정압력</span>
               {PUMP_KINDS.map(k => (
                 <span key={k} className="inline-flex items-center gap-1">
@@ -202,9 +202,9 @@ function JudgeBlock({ row, other, canEdit, onPick }: {
   void other
   return (
     <div className="space-y-1 border-t border-brand-line-soft pt-1.5">
-      <p className="text-[10px] font-medium text-ink-soft">적정 여부</p>
+      <p className="text-form-2xs font-medium text-ink-soft">적정 여부</p>
       {PUMP_JUDGE_LABELS.map((label, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-1.5 text-[10px]">
+        <div key={i} className="flex flex-wrap items-center gap-1.5 text-form-2xs">
           <span className="min-w-0 flex-1 text-ink-sub">{label}</span>
           {j.auto[i] && !manual[i] && (
             <span className={`rounded px-1 ${j.auto[i] === 'O' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
@@ -215,15 +215,15 @@ function JudgeBlock({ row, other, canEdit, onPick }: {
             <button key={v} disabled={!canEdit}
               aria-label={`${label} ${v}`}
               onClick={() => onPick(i, manual[i] === v ? null : v)}
-              className={`h-5 w-6 rounded border text-[10px] disabled:opacity-50
+              className={`h-5 w-6 rounded border text-form-2xs disabled:opacity-50
                 ${manual[i] === v ? 'border-brand bg-brand text-white' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
               {v}
             </button>
           ))}
-          {!j.auto[i] && j.reasons[i] && <span className="w-full text-[9px] text-amber-600">⚠ {j.reasons[i]}</span>}
+          {!j.auto[i] && j.reasons[i] && <span className="w-full text-form-3xs text-amber-600">⚠ {j.reasons[i]}</span>}
         </div>
       ))}
-      <p className="text-[9px] text-ink-meta">
+      <p className="text-form-3xs text-ink-meta">
         ①③은 정격토출압 대비 비율이라 실측치만으로 계산됩니다. ②의 &lsquo;규정치&rsquo;는 펌프 명판·설계치라
         시스템에 없어 자동 판정하지 않습니다 — 직접 눌러 주세요.
       </p>

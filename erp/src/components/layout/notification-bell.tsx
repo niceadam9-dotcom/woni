@@ -93,7 +93,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       >
         <Bell className="size-5" />
         {unread > 0 && (
-          <span className="absolute top-1.5 right-1.5 size-4 flex items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white leading-none">
+          <span className="absolute top-1.5 right-1.5 size-4 flex items-center justify-center rounded-full bg-brand text-form-2xs font-bold text-white leading-none">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -139,7 +139,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
               >
                 읽지않은 알림
                 {unread > 0 && (
-                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-brand text-[10px] font-bold text-white leading-none">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-brand text-form-2xs font-bold text-white leading-none">
                     {unread > 9 ? '9+' : unread}
                   </span>
                 )}
@@ -169,7 +169,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                     <div className={cn('min-w-0', !n.is_read ? '' : 'pl-3.5')}>
                       <p className="text-sm font-medium text-ink truncate">{n.title}</p>
                       <p className="text-xs text-ink-sub mt-0.5 line-clamp-2">{n.message}</p>
-                      <p className="text-[11px] text-ink-meta mt-1">
+                      <p className="text-form-xs text-ink-meta mt-1">
                         {new Date(n.created_at).toLocaleString('ko-KR', {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}

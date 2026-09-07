@@ -50,9 +50,9 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
           <div key={label} className={rowCls}>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-ink font-medium">{label}</p>
-              <p className="text-[11px] text-ink-faint">{desc}</p>
+              <p className="text-form-xs text-ink-faint">{desc}</p>
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] text-ink-soft bg-brand-tint px-2 py-1 rounded-full shrink-0">
+            <span className="inline-flex items-center gap-1 text-form-xs text-ink-soft bg-brand-tint px-2 py-1 rounded-full shrink-0">
               <Lock className="size-3" /> 항상 수신
             </span>
           </div>
@@ -61,7 +61,7 @@ export function NotificationSettingsClient({ initialPrefs }: { initialPrefs: Rec
           <div key={key} className={rowCls}>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-ink font-medium">{label}</p>
-              <p className="text-[11px] text-ink-faint">{desc}</p>
+              <p className="text-form-xs text-ink-faint">{desc}</p>
             </div>
             <button
               type="button"

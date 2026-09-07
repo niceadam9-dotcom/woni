@@ -171,17 +171,17 @@ function TodoItem({
           <p className="text-xs text-gray-400 mt-0.5 truncate">{todo.description}</p>
         )}
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${PRIORITY_STYLE[todo.priority]}`}>
+          <span className={`text-form-2xs px-1.5 py-0.5 rounded-full border ${PRIORITY_STYLE[todo.priority]}`}>
             {todo.priority}
           </span>
           {todo.due_date && (
-            <span className={`text-[10px] flex items-center gap-0.5 ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+            <span className={`text-form-2xs flex items-center gap-0.5 ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
               {isOverdue && <AlertTriangle size={10} />}
               {todo.due_date}
             </span>
           )}
           {todo.completed && todo.completed_at && (
-            <span className="text-[10px] text-emerald-500">
+            <span className="text-form-2xs text-emerald-500">
               완료: {todo.completed_at.slice(0, 10)}
             </span>
           )}

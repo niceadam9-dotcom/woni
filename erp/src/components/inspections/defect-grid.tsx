@@ -226,19 +226,19 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
 
   if (defects.length === 0) {
     // S7-1 — 빈 상태 설명은 '왜 비었는지'를 알려주는 정보다(해당 없음 vs 미입력의 구분)
-    return <p className="px-1 py-2 text-[11px] text-ink-meta">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
+    return <p className="px-1 py-2 text-form-xs text-ink-meta">불량이 없습니다 — 이 단계는 해당 없음입니다.</p>
   }
 
   // min-w-0 — input[type=date]는 UA 고유 최소폭이 있어 w-full이어도 좁은 칸에서 밖으로 삐져나온다.
   // 이게 작업대 3칸 폭 재배분의 남은 병목이었다(실측 2026-08-18: 계획 기간 칸에서 +27px).
-  const cell = 'w-full min-w-0 rounded border border-brand-line-soft px-1.5 py-1 text-[11px] focus:outline-none focus:border-brand disabled:bg-paper'
+  const cell = 'w-full min-w-0 rounded border border-brand-line-soft px-1.5 py-1 text-form-xs focus:outline-none focus:border-brand disabled:bg-paper'
 
   return (
     <div className="space-y-1">
-      {err && <p className="px-1 text-[11px] text-red-600">❌ {err}</p>}
-      <table className="w-full table-fixed border-collapse text-[11px]" data-testid="defect-grid">
+      {err && <p className="px-1 text-form-xs text-red-600">❌ {err}</p>}
+      <table className="w-full table-fixed border-collapse text-form-xs" data-testid="defect-grid">
         <thead>
-          <tr className="text-left text-[10px] text-ink-soft">
+          <tr className="text-left text-form-2xs text-ink-soft">
             {/* 날짜 열은 'YYYY-MM-DD'(약 78px) + 달력 버튼(28px)이 들어가야 글자가 안 잘린다.
                 종전 26%로는 칸이 좁아지면 날짜가 잘렸다 — 작업대 3칸 폭 재배분의 병목(실측 2026-08-18).
                 불량명은 잘려도 줄바꿈으로 읽히므로 여기서 폭을 내준다. */}
@@ -259,14 +259,14 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
             return (
               <tr key={d.id} className="align-top border-t border-brand-line-soft" data-defect-row={d.id}>
                 <td className="px-1 py-1">
-                  <span className={`mr-1 inline-block rounded px-1 py-px text-[9px] ${SEV_CLS[d.severity] ?? 'bg-paper text-ink-sub'}`}>{d.severity}</span>
+                  <span className={`mr-1 inline-block rounded px-1 py-px text-form-3xs ${SEV_CLS[d.severity] ?? 'bg-paper text-ink-sub'}`}>{d.severity}</span>
                   <span className="text-ink">{d.defect_name}</span>
                   {/* S7-1 4차 — 불량 상세는 '무엇을 고쳐야 하는지'다. 같은 파일에서 두 곳을 올리며
                       이것만 빠뜨렸던 자리(독립 판정이 '이웃 누락'으로 지적) */}
-                  {d.defect_detail && <span className="block truncate text-[10px] text-ink-meta">{d.defect_detail}</span>}
+                  {d.defect_detail && <span className="block truncate text-form-2xs text-ink-meta">{d.defect_detail}</span>}
                   <span className="inline-flex h-3 items-center gap-1">
                     {saving === d.id && <Loader2 className="size-2.5 animate-spin text-brand" />}
-                    {justSaved[d.id] && saving !== d.id && <span className="text-[9px] text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}
+                    {justSaved[d.id] && saving !== d.id && <span className="text-form-3xs text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}
                   </span>
                 </td>
                 {mode === 'plan' ? (<>
@@ -307,7 +307,7 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
         </tbody>
       </table>
       {/* S7-1 — 저장 규약을 알려주는 사용 안내. 이걸 못 읽으면 저장된 줄 모른다 */}
-      <p className="px-1 text-[10px] text-ink-meta">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
+      <p className="px-1 text-form-2xs text-ink-meta">칸을 벗어나면 저장됩니다 — 사진은 탭하면 카메라가 열립니다.</p>
     </div>
   )
 }

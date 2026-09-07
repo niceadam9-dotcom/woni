@@ -478,7 +478,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     <div id="buildings-panel" className="scroll-mt-4 bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="size-4 text-brand" />
-        <h2 className="text-form-base font-semibold text-ink">건물 목록</h2>
+        <h2 className="text-form-base-title font-semibold text-ink">건물 목록</h2>
         <span className="text-form-sm text-ink-meta ml-auto">{buildings.length}개</span>
         {canManage && editing !== 'new' && (
           <button onClick={openNew}

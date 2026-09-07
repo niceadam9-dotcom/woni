@@ -98,7 +98,7 @@ export function AnnualCollectionClient({ year, rows, stations }: {
         <td className="px-2 py-1.5 sticky left-0 bg-surface">
           <Link href={`/customers/${r.id}`} className="font-medium text-ink hover:text-brand">{r.name}</Link>
         </td>
-        <td className="px-1.5 py-1.5 text-center"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${r.feeKind === '정액' ? 'bg-brand-tint text-brand' : 'bg-gray-100 text-gray-600'}`}>{r.feeKind}</span></td>
+        <td className="px-1.5 py-1.5 text-center"><span className={`text-form-2xs px-1.5 py-0.5 rounded-full ${r.feeKind === '정액' ? 'bg-brand-tint text-brand' : 'bg-gray-100 text-gray-600'}`}>{r.feeKind}</span></td>
         {MONTHS.map(m => {
           const b = r.billed[m - 1], p = r.paid[m - 1]
           return (
@@ -180,7 +180,7 @@ export function AnnualCollectionClient({ year, rows, stations }: {
                 {byOwner
                   ? ownerGroups.flatMap(g => [
                       <tr key={`h-${g.key}`} className="bg-brand-tint">
-                        <td className="px-2 py-1.5 sticky left-0 bg-brand-tint font-semibold text-brand">▸ {g.name} <span className="text-[10px] text-ink-faint">{g.count}곳</span></td>
+                        <td className="px-2 py-1.5 sticky left-0 bg-brand-tint font-semibold text-brand">▸ {g.name} <span className="text-form-2xs text-ink-faint">{g.count}곳</span></td>
                         <td colSpan={13}></td>
                         <td className={`px-2 py-1.5 text-right font-bold ${g.unpaid > 0 ? 'text-red-500' : 'text-ink-faint'}`}>{g.unpaid > 0 ? `통합 ${won(g.unpaid)}` : '-'}</td>
                       </tr>,

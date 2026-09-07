@@ -109,7 +109,7 @@ export function DeleteCustomerClient({ customerId, customerName }: {
                     점검·소방계획서·청구 등 위 데이터와 관계인·건물·업로드 파일까지 전부 사라지며,{' '}
                     <b>되돌릴 수 없습니다.</b>
                   </p>
-                  <p className="text-[11px] text-ink-meta">
+                  <p className="text-form-xs text-ink-meta">
                     이력을 남기려면 [비활성화]를 사용하세요 — 조회 화면에서 빠지고 미완료 계획은
                     자동 취소되며, 재활성화하면 복원됩니다.
                   </p>

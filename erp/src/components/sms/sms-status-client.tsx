@@ -101,7 +101,7 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
       </td>
       <td className="py-1.5 text-[#090c1d] truncate" title={r.address ? `${r.customerName} · ${r.address}` : r.customerName}>
         {r.customerName}
-        {r.isAdhoc && <span data-testid="badge-adhoc" className="ml-1 px-1 py-0.5 rounded bg-[#f5f4ff] text-[10px] text-[#7b68ee] border border-[#d0ccf5]">임의</span>}
+        {r.isAdhoc && <span data-testid="badge-adhoc" className="ml-1 px-1 py-0.5 rounded bg-[#f5f4ff] text-form-2xs text-[#7b68ee] border border-[#d0ccf5]">임의</span>}
         {/* 방문 준비 — 지역 3단은 묶음용이라 "이 고객이 어디쯤인가"는 답해주지 못한다(S5-7).
             공용 버튼을 쓴다: 종전엔 이 화면만 자체 조건(`r.address &&`)을 두 번 복제했고 trim이
             없어 **공백뿐인 주소('   ')에서 빈 지도가 열렸다**(독립 판정 지적, 2026-08-19).
@@ -115,7 +115,7 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
         {r.movedFrom && (
           <span data-testid="badge-moved"
             title={`${r.movedFrom}로 이미 안내했습니다 — 날짜가 바뀌었으니 다시 알릴지 확인해주세요`}
-            className="ml-1 px-1 py-0.5 rounded bg-amber-50 text-[9px] text-amber-700 border border-amber-200 whitespace-nowrap">
+            className="ml-1 px-1 py-0.5 rounded bg-amber-50 text-form-3xs text-amber-700 border border-amber-200 whitespace-nowrap">
             일정변경 {r.movedFrom.slice(5)} 안내함
           </span>
         )}
@@ -127,16 +127,16 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
       </td>
       <td className="py-1.5" data-testid="row-status" data-status={r.status}>
         {isDefault
-          ? <span className="text-[10px] text-[#b0acd6]">미발송</span>
+          ? <span className="text-form-2xs text-[#b0acd6]">미발송</span>
           : <span
               /* '발송됨'에는 접수 확인이 안 된 건(unverified)이 섞여 있을 수 있다 —
                  실패로 두면 이미 나간 문자를 재발송하므로 발송됨으로 묶되, 툴팁으로 알린다(S5-0c) */
               title={STATUS_TOOLTIP[r.status]}
-              className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${STATUS_CLASS[r.status]}`}>
+              className={`inline-block px-1.5 py-0.5 rounded border text-form-2xs ${STATUS_CLASS[r.status]}`}>
               {STATUS_LABEL[r.status]}
             </span>}
       </td>
-      <td className="py-1.5 pr-2 text-[10px] text-[#8b87b8] truncate"
+      <td className="py-1.5 pr-2 text-form-2xs text-[#8b87b8] truncate"
         title={[r.reason, !r.sendable ? r.unsendableReason : null].filter(Boolean).join(' · ')}>
         {r.sentAt ? new Date(r.sentAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
         {r.reason ? ` ${r.reason}` : ''}
@@ -148,7 +148,7 @@ function SmsRow({ r, checked, onToggle, showAssignee, canSend, onResend }: {
           <button data-testid="row-resend"
             onClick={() => onResend(r)}
             title="이 고객에게 이 날짜로 다시 보냅니다"
-            className="h-6 px-2 rounded-lg border border-[#d0ccf5] text-[10px] text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors whitespace-nowrap">
+            className="h-6 px-2 rounded-lg border border-[#d0ccf5] text-form-2xs text-[#7b68ee] hover:bg-[#f5f4ff] transition-colors whitespace-nowrap">
             다시 보내기
           </button>
         )}
@@ -426,14 +426,14 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
         {/* 고객 검색 — 열었을 때만. 초성 검색은 공용 컴포넌트가 담당한다 */}
         {adhocOpen && (
           <div data-testid="sms-adhoc-picker" className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f5f4ff]">
-            <span className="text-[11px] text-[#514b81] shrink-0">고객</span>
+            <span className="text-form-xs text-[#514b81] shrink-0">고객</span>
             <CustomerFilterSearch
               customers={adhocOptions}
               value={adhocQuery}
               onChange={setAdhocQuery}
               testId="sms-adhoc-customer"
             />
-            <span className="text-[10px] text-[#8b87b8]">
+            <span className="text-form-2xs text-[#8b87b8]">
               {adhocPick ? `${adhocPick.name} 선택됨`
                 : adhocOptions.length === 0 ? '고객 목록을 불러오는 중…'
                 : `전체 고객 ${adhocOptions.length}곳에서 고릅니다 (초성 가능)`}
@@ -568,7 +568,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           <ul data-testid="sms-overdue-list"
             className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-amber-200 bg-amber-50/50 divide-y divide-amber-100">
             {data!.overdue.items.map((i, n) => (
-              <li key={`${i.customerName}-${i.visitDate}-${n}`} className="flex items-center gap-2 px-3 py-1 text-[11px] text-amber-800">
+              <li key={`${i.customerName}-${i.visitDate}-${n}`} className="flex items-center gap-2 px-3 py-1 text-form-xs text-amber-800">
                 <span className="tabular-nums text-amber-600">{i.visitDate}</span>
                 <span className="text-[#090c1d]">{i.customerName}</span>
               </li>
@@ -605,14 +605,14 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           {filterOn && (
             <button data-testid="sms-filter-clear"
               onClick={clearFilters}   /* 값이 바뀌면 위 effect가 알아서 조회한다 */
-              className="mr-3 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-[11px] text-[#514b81] hover:bg-[#f5f4ff] transition-colors shrink-0">
+              className="mr-3 h-7 px-2.5 rounded-lg border border-[#d0ccf5] text-form-xs text-[#514b81] hover:bg-[#f5f4ff] transition-colors shrink-0">
               필터 해제
             </button>
           )}
         </div>
         {showFilter && (
           <div className="px-4 pb-3 flex flex-wrap items-end gap-2 border-t border-[#f5f4ff] pt-3">
-            <label className="text-[11px] text-[#514b81]">기간
+            <label className="text-form-xs text-[#514b81]">기간
               <span className="flex items-center gap-1 mt-1">
                 <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={sel} />
                 <input type="date" value={to} onChange={e => setTo(e.target.value)} className={sel} />
@@ -631,7 +631,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 onClick={() => { setFrom(today); setTo(addDays(today, 365)) }}
                 title="1년치까지 봅니다 — 건수가 많아 화면이 무거워질 수 있습니다">전체</button>
             </span>
-            <label className="text-[11px] text-[#514b81]">지역
+            <label className="text-form-xs text-[#514b81]">지역
               <span className="flex items-center gap-1 mt-1">
                 <select className={sel} value={regionSi} onChange={e => { setRegionSi(e.target.value); setRegionMyeon(''); setRegionRi('') }}>
                   <option value="">시/군 전체</option>
@@ -647,7 +647,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 </select>
                 {/* 제안일 뿐 — 누르기 전에는 아무것도 걸려 있지 않다 */}
                 {!regionSi && lastRegion?.si && (
-                  <span data-testid="last-region" className="flex items-center gap-1 text-[11px] text-[#7b68ee]">
+                  <span data-testid="last-region" className="flex items-center gap-1 text-form-xs text-[#7b68ee]">
                     <button className={`${btn} border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]`}
                       data-testid="last-region-apply"
                       title="지난번에 보던 지역으로 좁힙니다"
@@ -666,7 +666,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 )}
               </span>
             </label>
-            <label className="text-[11px] text-[#514b81]">상태
+            <label className="text-form-xs text-[#514b81]">상태
               <select data-testid="filter-status" className={`${sel} block mt-1`} value={status} onChange={e => setStatus(e.target.value as typeof status)}>
                 {/* 기본 — 아직 처리할 것만. 발송됨을 빼면 '남은 일'이 그대로 목록이 된다 */}
                 <option value="not_sent">발송 제외</option>
@@ -678,7 +678,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                 <option value="stuck">확인필요</option>
               </select>
             </label>
-            <label className="text-[11px] text-[#514b81]">담당
+            <label className="text-form-xs text-[#514b81]">담당
               <select className={`${sel} block mt-1`} value={assignee} onChange={e => setAssignee(e.target.value)}>
                 <option value="">전체</option>
                 {(data?.assignees ?? []).map(a => <option key={a} value={a}>{optLabel(a)}</option>)}
@@ -703,19 +703,19 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           지역 헤더는 별도 <table>이 아니라 colSpan 행으로 끼워 넣는다. */}
       <div className="rounded-2xl border border-[#eceaf8] bg-white overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[#eceaf8]">
-          <span className="text-[11px] text-[#8b87b8]">{rows.length}건</span>
+          <span className="text-form-xs text-[#8b87b8]">{rows.length}건</span>
           {/* 지역순은 하루 동선용, 날짜순은 "언제 가나"용 — 지역순에서는 날짜가 오르내려 안 보인다 */}
           <span className="ml-auto flex items-center gap-1">
-            <span className="text-[10px] text-[#b0acd6]">정렬</span>
+            <span className="text-form-2xs text-[#b0acd6]">정렬</span>
             <button data-testid="sort-region"
               onClick={() => setSortBy('region')}
-              className={`h-7 px-2 rounded-lg border text-[11px] transition-colors ${
+              className={`h-7 px-2 rounded-lg border text-form-xs transition-colors ${
                 sortBy === 'region' ? 'border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
               지역순
             </button>
             <button data-testid="sort-date"
               onClick={() => setSortBy('date')}
-              className={`h-7 px-2 rounded-lg border text-[11px] transition-colors ${
+              className={`h-7 px-2 rounded-lg border text-form-xs transition-colors ${
                 sortBy === 'date' ? 'border-[#c3bdf5] bg-[#f5f4ff] text-[#7b68ee]' : 'border-[#d0ccf5] text-[#514b81] hover:bg-[#f5f4ff]'}`}>
               날짜순
             </button>
@@ -724,7 +724,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
 
         {pastRequested && (
           <p data-testid="sms-past-clamped"
-            className="mx-4 mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-[11px] text-amber-800">
+            className="mx-4 mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-form-xs text-amber-800">
             <AlertTriangle className="size-3.5 shrink-0 mt-px" />
             <span>
               시작일을 <b>{from}</b>로 지정했지만 목록은 <b>오늘({today})부터</b> 보여줍니다 —
@@ -743,7 +743,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             숫자를 지우지는 않되(깜빡임), 지금 보이는 것이 옛 조건임을 분명히 한다. */}
         {isPending && rows.length > 0 && (
           <div data-testid="sms-list-stale"
-            className="flex items-center justify-center gap-1.5 py-1.5 bg-[#faf9ff] border-y border-[#eceaf8] text-[11px] text-[#7b68ee]">
+            className="flex items-center justify-center gap-1.5 py-1.5 bg-[#faf9ff] border-y border-[#eceaf8] text-form-xs text-[#7b68ee]">
             <Loader2 className="size-3 animate-spin" /> 새 조건으로 불러오는 중 — 아래는 <b>이전 조건</b>의 결과입니다
           </div>
         )}
@@ -769,7 +769,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
             </colgroup>
             {/* 머리글이 없어 "2026-08-24 · 종합 · - · 수신1명"이 무슨 열인지 알 수 없었다 */}
             <thead>
-              <tr className="text-[10px] text-[#b0acd6] bg-[#faf9ff]">
+              <tr className="text-form-2xs text-[#b0acd6] bg-[#faf9ff]">
                 <th className="pl-4 py-1.5" />
                 <th className="py-1.5 text-left font-medium">고객</th>
                 <th className="py-1.5 text-left font-medium">점검일</th>
@@ -793,8 +793,8 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
                       <td colSpan={showAssignee ? 8 : 7} className="py-1.5">
                         <span className="inline-flex items-center gap-1.5">
                           <MapPin className="size-3 text-[#b0acd6]" />
-                          <span data-testid="sms-region-group" className="text-[11px] font-semibold text-[#090c1d]">{g.label}</span>
-                          <span className="text-[11px] text-[#8b87b8]">({g.groups.length}건)</span>
+                          <span data-testid="sms-region-group" className="text-form-xs font-semibold text-[#090c1d]">{g.label}</span>
+                          <span className="text-form-xs text-[#8b87b8]">({g.groups.length}건)</span>
                         </span>
                       </td>
                     </tr>,
@@ -825,7 +825,7 @@ export function SmsStatusClient({ canSend }: { canSend: boolean }) {
           {/* 지역 순회 일정 조정 (S12② / Q-16) — 날짜 변경은 본래 계획 업무지만
               지역 축이 이 화면에만 있어 여기 둔다. 라벨로 이유를 드러낸다 */}
           <span className="flex items-center gap-1.5 ml-auto">
-            <span className="text-[10px] text-[#8b87b8]">지역 순회 일정 조정</span>
+            <span className="text-form-2xs text-[#8b87b8]">지역 순회 일정 조정</span>
             <input type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)}
               data-testid="sms-move-date" className={sel} />
             <button data-testid="sms-move-btn" className={btn} onClick={bulkMove}

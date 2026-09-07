@@ -78,7 +78,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
             <p className="font-semibold text-sm text-ink">고객에서 불러오기</p>
             <button onClick={onClose} disabled={isBusy} className="ml-auto text-ink-faint hover:text-ink-sub disabled:opacity-50">✕</button>
           </div>
-          <p className="mt-1 text-[11px] text-ink-soft">
+          <p className="mt-1 text-form-xs text-ink-soft">
             잘 작성된 고객의 서술 8섹션을 공통문구로 승격합니다. 일시·장소·인원 같은 고객 고유 값은 자동으로 제외됩니다.
           </p>
         </div>
@@ -105,7 +105,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
 
           {rows && (
             <div className="space-y-1.5">
-              <p className="text-[11px] text-ink-soft">
+              <p className="text-form-xs text-ink-soft">
                 서술이 있는 섹션 {selectable.length}개 · 선택 {checkedCount}개
                 {rows.length - selectable.length > 0 && <span className="text-ink-meta"> (빈 섹션 {rows.length - selectable.length}개는 가져올 수 없습니다)</span>}
               </p>
@@ -119,16 +119,16 @@ export function PlanTextImportDialog({ onClose, onDone }: {
                         className="size-3.5" />
                       <span className="text-xs font-medium text-ink">{r.label}</span>
                       {r.empty
-                        ? <span className="text-[10px] text-ink-meta">이 고객에 서술 없음</span>
-                        : <span className="text-[11px] text-ink-soft truncate max-w-[22rem]">{r.preview}</span>}
+                        ? <span className="text-form-2xs text-ink-meta">이 고객에 서술 없음</span>
+                        : <span className="text-form-xs text-ink-soft truncate max-w-[22rem]">{r.preview}</span>}
                     </div>
                     {!r.empty && st?.checked && (
                       <div className="mt-1.5 flex items-center gap-2 flex-wrap pl-6">
                         <input value={st.title} disabled={isBusy}
                           onChange={e => setState(s => ({ ...s, [r.sectionKey]: { ...s[r.sectionKey], title: e.target.value } }))}
                           placeholder="항목 이름"
-                          className="h-7 flex-1 basis-52 min-w-0 rounded border border-brand-line px-2 text-[11px] outline-none focus:border-brand" />
-                        <label className="inline-flex items-center gap-1 text-[10px] text-ink-soft cursor-pointer">
+                          className="h-7 flex-1 basis-52 min-w-0 rounded border border-brand-line px-2 text-form-xs outline-none focus:border-brand" />
+                        <label className="inline-flex items-center gap-1 text-form-2xs text-ink-soft cursor-pointer">
                           <input type="checkbox" disabled={isBusy} checked={st.makeDefault}
                             onChange={e => setState(s => ({ ...s, [r.sectionKey]: { ...s[r.sectionKey], makeDefault: e.target.checked } }))}
                             className="size-3" />
@@ -146,7 +146,7 @@ export function PlanTextImportDialog({ onClose, onDone }: {
         </div>
 
         <div className="px-5 py-3 border-t border-brand-line-soft shrink-0 flex items-center gap-2">
-          <p className="text-[10px] text-ink-meta">기존 항목을 덮어쓰지 않고 새 항목으로 등록합니다.</p>
+          <p className="text-form-2xs text-ink-meta">기존 항목을 덮어쓰지 않고 새 항목으로 등록합니다.</p>
           <button onClick={onClose} disabled={isBusy}
             className="ml-auto h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-paper disabled:opacity-50">취소</button>
           <button onClick={run} disabled={isBusy || checkedCount === 0}
