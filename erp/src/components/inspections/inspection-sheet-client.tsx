@@ -55,6 +55,9 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [stale, setStale] = useState(false)   // S5-5: 편집 중 원격 저장 감지 배너
+  /** ✕ 항목별 등록된 불량내용 — 행 아래 상시 표시(2026-09-07). 전용 페이지(sheet-entry-client)와
+   *  같은 규약: draft와 분리된 표시 전용 상태(동시편집 보호 로직 무접촉) */
+  const [memos, setMemos] = useState<Record<string, string | null>>({})
   // §9-4 A안: 빠른 결과 입력 — 전체 양호 + 불량 검색 태깅
   const [quickQ, setQuickQ] = useState('')
   const [quickResults, setQuickResults] = useState<Array<{ item_code: string; item_name: string; sheet_name: string; current: Result | null }>>([])
@@ -132,13 +135,17 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         if (seq !== loadSeq.current || snap.error) return
         const visible = snap.items ?? []
         const init: Record<string, Result> = {}
-        for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) init[it.item_code] = r.result }
+        const memoMap: Record<string, string | null> = {}
+        for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) { init[it.item_code] = r.result; memoMap[it.item_code] = r.memo } }
+        setMemos(memoMap)
         autosaveRef.current.resetSheet(visible, init)
       })()
       return
     }
     const init: Record<string, Result> = {}
-    for (const it of autosaveRef.current.items) { const r = responses[it.item_code]; if (r) init[it.item_code] = r.result }
+    const memoMap: Record<string, string | null> = {}
+    for (const it of autosaveRef.current.items) { const r = responses[it.item_code]; if (r) { init[it.item_code] = r.result; memoMap[it.item_code] = r.memo } }
+    setMemos(memoMap)
     autosaveRef.current.resetSheet(autosaveRef.current.items, init)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [responses])
@@ -155,14 +162,16 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       if (snap.error) { setError(snap.error); return }
       const visible = snap.items ?? []
       const init: Record<string, Result> = {}
-      for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) init[it.item_code] = r.result }
+      const memoMap: Record<string, string | null> = {}
+      for (const it of visible) { const r = (snap.responses ?? {})[it.item_code]; if (r) { init[it.item_code] = r.result; memoMap[it.item_code] = r.memo } }
+      setMemos(memoMap)
       // baseline도 함께 갈아끼운다 — 안 그러면 옛 시트의 delta가 새 시트로 새어 엉뚱한 코드가 저장된다
       autosaveRef.current.resetSheet(visible, init)
       setPendingJump(groupCode ?? (visible[0] ? groupCodeOf(visible[0]) : null))
     })
   }
   function doClose() {
-    setSel(null); setPendingJump(null)
+    setSel(null); setPendingJump(null); setMemos({})
     autosaveRef.current.resetSheet([], {})
     // 편집 중 미뤄둔 원격 변경, 또는 이번 세션의 자동저장분을 나가면서 한 번에 반영
     if (stale || savedSinceRefreshRef.current) {
@@ -378,8 +387,10 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
     startTransition(async () => {
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: picked.item_code, result: 'X', memo: quickMemo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
-      const reg = await createDefectsFromXAction(inspectionId)
+      // syncCodes — 이미 불량행이 있어도 방금 적은 문구로 「불량내용」을 갱신한다
+      const reg = await createDefectsFromXAction(inspectionId, [picked.item_code])
       lastSaveAtRef.current = Date.now()
+      setMemos(prev => ({ ...prev, [picked.item_code]: quickMemo.trim() || null }))
       setNotice(`✅ ${picked.item_code} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
       setPicked(null); setQuickMemo(''); setQuickQ(''); setQuickResults([])
       router.refresh()
@@ -406,13 +417,15 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
       await autosaveRef.current.flush()
       const res = await saveSheetResponsesAction(inspectionId, [{ item_code: itemCode, result: 'X', memo }], isExterior ? month : 0)
       if (res.error) { setError(res.error); return }
-      const reg = await createDefectsFromXAction(inspectionId)
+      // syncCodes=[이 항목] — 이미 등록된 불량행이라도 방금 적은 문구로 불량내용을 갱신한다([수정] 경로)
+      const reg = await createDefectsFromXAction(inspectionId, [itemCode])
       lastSaveAtRef.current = Date.now()
       // 이 경로가 ✕의 유일한 저장이다(훅 계약 ① — schedule 대상 아님). 저장된 값을 기준값으로
       // 승격하지 않으면 dirty가 남아 원격 감지(stale)가 내 쓰기에 반응한다
       autosaveRef.current.setBaseline(prev => ({ ...prev, [itemCode]: 'X' }))
+      setMemos(prev => ({ ...prev, [itemCode]: memo.trim() || null }))
       savedSinceRefreshRef.current = true
-      setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
+      setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : reg.error ? '' : ' — 불량내용 갱신'}`)
     })
   }
 
@@ -510,7 +523,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
             <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-1.5">
               <p className="text-form-sm text-red-700"><span className="font-semibold">{picked.item_code}</span> {picked.item_name} <span className="text-form-2xs text-red-400">({picked.sheet_name})</span></p>
               <div className="flex items-center gap-2 flex-wrap">
-                <input value={quickMemo} onChange={e => setQuickMemo(e.target.value)} placeholder="불량 메모 (선택 — 불량내역 상세로 들어감)"
+                <input value={quickMemo} onChange={e => setQuickMemo(e.target.value)} placeholder="불량내용 (선택 — 불량내역에 표시)"
                   className="h-8 flex-1 min-w-48 rounded-lg border border-red-200 bg-surface px-2 text-form-sm outline-none focus:border-red-400" />
                 <button onClick={saveQuickDefect} disabled={isPending}
                   className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white text-form-sm font-medium disabled:opacity-50">
@@ -595,7 +608,7 @@ export function InspectionSheetClient({ inspectionId, inspectionType, planType, 
         toc={<SheetGroupToc entries={groupEntries} scrollBoxRef={scrollBoxRef}
           pendingJump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />}>
         <SheetItemEditor
-          items={items} loading={isPending && items.length === 0} value={local}
+          items={items} loading={isPending && items.length === 0} value={local} memos={memos}
           grouping="outline" scrollBoxRef={scrollBoxRef}
           // 매직넘버 폐기(소방계획서_38 S4-1) — 종전 calc(100dvh-260px)는 '헤더+배너+푸터가
           // 260px'이라는 가정이었고, 글자가 배율을 따르기 시작하면 헤더가 자라 그 가정이 틀린다.

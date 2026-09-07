@@ -71,7 +71,7 @@ try {
   const firstRow = page.locator(`${drawer} div.border-b:has(span:text-matches("^MU-"))`).first()
   const inlineCode = ((await firstRow.locator('span').first().textContent()) ?? '').trim()
   await firstRow.locator('button:has-text("✕")').click()
-  const memoInput = page.locator(`${drawer} input[placeholder="불량 메모 (선택)"]`)
+  const memoInput = page.locator(`${drawer} input[placeholder="불량내용 (선택 — 불량내역에 표시)"]`)
   await memoInput.waitFor()
   check('✕ 클릭 → 인라인 메모칸 노출', true)
   await memoInput.fill('인라인 등록 검증')

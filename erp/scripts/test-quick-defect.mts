@@ -44,15 +44,16 @@ try {
   const first = page.locator('div.divide-y > button').first()
   const pickedCode = ((await first.locator('span').first().textContent()) ?? '').trim()
   await first.click()
-  await page.fill('input[placeholder*="불량 메모"]', '압력 미달 — 교체 필요')
+  await page.fill('input[placeholder*="불량내용"]', '압력 미달 — 교체 필요')
   await page.click('button:has-text("불량 저장")')
   await page.waitForSelector('text=불량(✕) 저장')
   const { data: xResp } = await raw.from('inspection_sheet_responses')
     .select('result, memo').eq('inspection_id', inspId).eq('item_code', pickedCode).single()
   check('불량 응답 저장(X+메모)', xResp?.result === 'X' && xResp?.memo === '압력 미달 — 교체 필요', JSON.stringify(xResp))
+  // 2026-09-07 규약 전환: 사람이 적은 메모가 「불량내용」(defect_name) 자체다 — detail이 아니라 name을 본다
   const { data: defects } = await raw.from('inspection_defects')
-    .select('defect_code, defect_detail').eq('inspection_id', inspId)
-  check('불량내역 자동 등록', (defects ?? []).some(d => d.defect_code === pickedCode && d.defect_detail === '압력 미달 — 교체 필요'), JSON.stringify(defects))
+    .select('defect_code, defect_name').eq('inspection_id', inspId)
+  check('불량내역 자동 등록(메모=불량내용)', (defects ?? []).some(d => d.defect_code === pickedCode && d.defect_name === '압력 미달 — 교체 필요'), JSON.stringify(defects))
 
   // ② 설치 설비 전체 양호 — 미입력만 채움, 기존 X 보존
   await page.click('button:has-text("설치 설비 전체 양호 ○")')

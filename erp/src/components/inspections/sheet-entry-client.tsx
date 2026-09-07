@@ -58,6 +58,9 @@ export function SheetEntryClient({
   const [notice, setNotice] = useState('')
   const [blankOnly, setBlankOnly] = useState(false)
   const [stale, setStale] = useState(false)   // 편집 중 원격 저장 감지 배너 (16 S5-5와 같은 규약)
+  /** ✕ 항목별 등록된 불량내용 — 서버 스냅샷의 memo를 행 아래 상시 표시(2026-09-07).
+   *  자동저장 draft(○/✕/／)와 분리된 표시 전용 상태다 — draft에 섞으면 delta·동시편집 보호를 재검증해야 한다 */
+  const [memos, setMemos] = useState<Record<string, string | null>>({})
   const [installedOnly, setInstalledOnly] = useState(!overview.noFacilityInfo)
   // 외관(자체점검이 아닌 건)만 월 축 — 없으면 month=0으로만 써서 다른 달 실적으로 오귀속된다(EX-4)
   const isExterior = !ov.scope.isSpecial
@@ -139,7 +142,9 @@ export function SheetEntryClient({
     setLoading(false)
     if (res.error) { setErr(res.error); return }
     const responses: Record<string, 'O' | 'X' | 'N'> = {}
-    for (const [code, v] of Object.entries(res.responses ?? {})) responses[code] = v.result
+    const memoMap: Record<string, string | null> = {}
+    for (const [code, v] of Object.entries(res.responses ?? {})) { responses[code] = v.result; memoMap[code] = v.memo }
+    setMemos(memoMap)
     autosaveRef.current.resetSheet(res.items ?? [], responses)
   }, [inspectionId, isExterior])
 
@@ -197,7 +202,9 @@ export function SheetEntryClient({
     setLoading(false)
     if (res.error) { setErr(res.error); return }
     const responses: Record<string, 'O' | 'X' | 'N'> = {}
-    for (const [code, v] of Object.entries(res.responses ?? {})) responses[code] = v.result
+    const memoMap: Record<string, string | null> = {}
+    for (const [code, v] of Object.entries(res.responses ?? {})) { responses[code] = v.result; memoMap[code] = v.memo }
+    setMemos(memoMap)
     autosaveRef.current.resetSheet(res.items ?? [], responses)
     // URL 동기화는 replaceState — router.push는 클릭마다 RSC 왕복이 돈다.
     // sheet·facility·month만 만진다 — ?from= 복귀 경로는 시트를 갈아타도 살아남아야 한다
@@ -238,8 +245,10 @@ export function SheetEntryClient({
       // 등록분을 기준값으로 승격 — 안 하면 dirty가 남아 다음 저장이 이 X를 memo 없이 재전송한다
       // (승격을 빼면 원격 감지(stale)가 **내 쓰기**에 반응해 배너가 뜬다)
       autosaveRef.current.setBaseline(prev => ({ ...prev, [itemCode]: 'X' }))
-      const reg = await createDefectsFromXAction(inspectionId)
-      setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : ''}`)
+      setMemos(prev => ({ ...prev, [itemCode]: memo.trim() || null }))
+      // syncCodes=[이 항목] — 이미 등록된 불량행이라도 방금 적은 문구로 불량내용을 갱신한다([수정] 경로)
+      const reg = await createDefectsFromXAction(inspectionId, [itemCode])
+      setNotice(`✅ ${itemCode} 불량(✕) 저장${reg.added ? ` + 불량내역 ${reg.added}건 자동 등록` : reg.error ? '' : ' — 불량내용 갱신'}`)
       if (openIdRef.current) void openRow(openIdRef.current)
       refreshOverview()
     })
@@ -483,6 +492,7 @@ export function SheetEntryClient({
                   items={autosave.items}
                   loading={loading}
                   value={autosave.draft}
+                  memos={memos}
                   onResult={autosave.setResult}
                   onRegisterX={registerX}
                   canEdit={canEdit}

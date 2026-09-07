@@ -649,9 +649,19 @@ export async function searchQuickItemsAction(inspectionId: string, q: string): P
   }
 }
 
-/** X(불량) 응답 → 불량내역 자동 등록 (P34-3) — defect_catalog 표준 문구, 중복 코드 제외 */
+/** X(불량) 응답 → 불량내역 자동 등록 (P34-3) — 중복 코드 제외.
+ *
+ *  「불량내용」(defect_name)은 **사람이 적은 메모가 최우선**이다(2026-09-07 사용자 확정 —
+ *  종전엔 카탈로그/항목명이 이름을 차지하고 메모는 defect_detail로 밀려나, 목록·별지 8쪽에
+ *  "수신기 도통시험 회로 정상 여부" 같은 **질문문**이 불량내용으로 찍혔다).
+ *  메모가 없을 때만 카탈로그 문구 → 항목명 → 코드로 폴백한다(2026-09-02 사슬 유지).
+ *
+ *  syncCodes: 이미 등록된 코드라도 **이 코드들만은** 현재 메모로 이름을 다시 쓴다 —
+ *  인라인 [등록/수정]이 그 항목을 지금 고쳐 쓰겠다는 명시적 의사이기 때문이다.
+ *  일괄 [불량 등록]은 넘기지 않아 기존 행을 건드리지 않는다(종전 동작 보존). */
 export async function createDefectsFromXAction(
-  inspectionId: string
+  inspectionId: string,
+  syncCodes?: string[],
 ): Promise<{ error?: string; added?: number }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -673,16 +683,38 @@ export async function createDefectsFromXAction(
   // 이름=코드로 등록돼 별지 8쪽·갑지 현5의 「불량내용」에 점검번호가 두 번 찍혔다(서림사 실사고).
   const itemName = new Map(allItems.map(i => [i.item_code, i.item_name]))
 
-  const toInsert = xRows.filter(r => !have.has(r.item_code)).map(r => {
+  // 메모가 이름으로 승격되면 detail은 비운다 — 목록(이름 굵게 + detail 회색)에 같은 문장이 두 번 찍힌다
+  const nameOf = (r: { item_code: string; memo: string | null }) => {
+    const memo = r.memo?.trim() || null
     const c = catMap.get(r.item_code)
+    return { name: memo ?? c?.description ?? itemName.get(r.item_code) ?? r.item_code, detail: null as string | null }
+  }
+
+  const toInsert = xRows.filter(r => !have.has(r.item_code)).map(r => {
+    const { name, detail } = nameOf(r)
     return {
       inspection_id: inspectionId,
       defect_code: r.item_code,
-      defect_name: c?.description ?? itemName.get(r.item_code) ?? r.item_code,
-      defect_detail: r.memo ?? null,
+      defect_name: name,
+      defect_detail: detail,
       severity: '보통',
     }
   })
+
+  // 재등록 동기화 — 메모를 고쳐 쓴 항목의 기존 불량행이 낡은 이름(항목명 폴백 등)으로 남지 않게
+  const toSync = (syncCodes ?? []).length > 0
+    ? xRows.filter(r => have.has(r.item_code) && (syncCodes ?? []).includes(r.item_code))
+    : []
+  for (const r of toSync) {
+    const { name, detail } = nameOf(r)
+    await admin.from('inspection_defects')
+      .update({ defect_name: name, defect_detail: detail })
+      .eq('inspection_id', inspectionId).eq('defect_code', r.item_code)
+  }
+  if (toSync.length > 0) {
+    revalidatePath(`/inspections/${inspectionId}`)
+  }
+
   if (toInsert.length === 0) return { added: 0 }
   const { error } = await admin.from('inspection_defects').insert(toInsert as Record<string, unknown>[])
   if (error) return { error: `불량 등록 실패: ${error.message}` }

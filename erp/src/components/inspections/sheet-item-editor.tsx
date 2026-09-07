@@ -44,6 +44,9 @@ const activeCls = (r: SheetResult) =>
 
 type RowCtx = {
   value: Record<string, SheetResult>
+  /** ✕ 항목의 등록된 불량 메모(불량내용) — 행 아래 상시 표시 + [수정] 재진입의 원천 (2026-09-07).
+   *  없으면(호출부 미배선) 표시만 생략된다 — 입력·등록 동작은 종전과 같다 */
+  memos?: Record<string, string | null>
   canEdit: boolean
   busy: boolean
   inlineX: string | null
@@ -56,7 +59,8 @@ type RowCtx = {
 
 /** 항목 1행 — flat·outline 공용(S7-1 ItemRow). 마크업은 종전 flat 렌더와 동일해야 한다 */
 function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
-  const { value, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX } = ctx
+  const { value, memos, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX } = ctx
+  const savedMemo = memos?.[it.item_code]?.trim() || null
   // 작동 회차의 종합 전용(●) — 서식 각주 「●는 종합점검의 경우에만 해당한다」. 입력 버튼 없이
   // 고정 ／만 보여 문서 인쇄 결과(엑셀·별지 4호 자동 ／)와 화면이 같은 말을 하게 한다 (2026-09-02).
   if (it.outOfScope) {
@@ -126,7 +130,8 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
                   return
                 }
                 onResult(it.item_code, r)
-                if (r === 'X') { setInlineX(it.item_code); setInlineMemo('') }
+                // 이미 등록해 둔 불량내용이 있으면 채워서 연다 — 빈 칸으로 열면 [등록]이 기존 문구를 지운다
+                if (r === 'X') { setInlineX(it.item_code); setInlineMemo(savedMemo ?? '') }
                 else if (inlineX === it.item_code) setInlineX(null)
               }}
                 aria-label={`${it.item_code} ${r}`}
@@ -153,12 +158,37 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
             // ESC 우선순위(23 S7-8) — 드로어보다 인라인 폼이 먼저 소비한다. 안 그러면 메모 입력 중
             // ESC 한 번에 드로어째 닫혀 입력이 날아간다(드로어는 패널 onKeyDown이라 전파 차단이 닿는다)
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setInlineX(null) } }}
-            placeholder="불량 메모 (선택)" className="h-form-8 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-surface px-2 text-form-xs outline-none focus:border-red-400" />
+            placeholder="불량내용 (선택 — 불량내역에 표시)" className="h-form-8 flex-1 basis-40 min-w-0 rounded border border-red-200 bg-surface px-2 text-form-xs outline-none focus:border-red-400" />
           <button onClick={() => { onRegisterX(it.item_code, inlineMemo); setInlineX(null); setInlineMemo('') }} disabled={busy}
             className="h-form-8 px-3 rounded bg-red-500 hover:bg-red-600 text-white text-form-xs font-medium disabled:opacity-50">
-            {busy ? <Loader2 className="size-3 animate-spin" /> : '등록'}
+            {busy ? <Loader2 className="size-3 animate-spin" /> : savedMemo ? '수정' : '등록'}
           </button>
           <button onClick={() => setInlineX(null)} className="h-form-8 px-3 rounded border border-line text-form-xs text-ink-sub">닫기</button>
+        </div>
+      )}
+      {/* 등록된 불량내용 상시 표시(2026-09-07) — 종전엔 [등록]과 함께 문구가 화면에서 사라져
+          "다시 조회"할 길이 없었다(✕ 재클릭은 조회가 아니라 **해제**라 오히려 입력을 지운다).
+          memos가 안 온 호출부(미배선)는 이 블록 자체가 없다 — 종전 렌더와 동일. */}
+      {inlineX !== it.item_code && value[it.item_code] === 'X' && memos && (savedMemo || canEdit) && (
+        <div className="pb-1.5 pl-20">
+          {savedMemo ? (
+            canEdit ? (
+              <button onClick={() => { setInlineX(it.item_code); setInlineMemo(savedMemo) }}
+                data-x-memo={it.item_code}
+                className="text-left text-form-xs text-red-600 hover:underline"
+                title="등록된 불량내용 — 누르면 수정할 수 있습니다">
+                불량: {savedMemo} ✎
+              </button>
+            ) : (
+              <p data-x-memo={it.item_code} className="text-form-xs text-red-600">불량: {savedMemo}</p>
+            )
+          ) : (
+            <button onClick={() => { setInlineX(it.item_code); setInlineMemo('') }}
+              data-x-memo-add={it.item_code}
+              className="text-form-2xs text-ink-meta hover:text-red-600 hover:underline">
+              불량내용 추가
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -166,13 +196,15 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
 }
 
 export function SheetItemEditor({
-  items, loading, value, onResult, onRegisterX, canEdit, busy, error, notice,
+  items, loading, value, memos, onResult, onRegisterX, canEdit, busy, error, notice,
   onSave, onCancel, maxHeight = 'max-h-[420px]', showFooterHint = true, saveLabel = '저장',
   hideSave = false, hideCancel = false, cancelLabel = '취소', grouping = 'flat', scrollBoxRef,
 }: {
   items: SheetItem[]                                   // 범위 필터(작동=종합전용 제외)가 이미 적용된 표시 대상
   loading: boolean
   value: Record<string, SheetResult>
+  /** ✕ 항목별 등록된 불량내용 — 행 아래 상시 표시·[수정] 재진입 (없으면 표시 생략, 2026-09-07) */
+  memos?: Record<string, string | null>
   /** result=null = 선택 해제 → 미점검(공란)으로 되돌림 (Q-19) */
   onResult: (itemCode: string, result: SheetResult | null) => void
   onRegisterX: (itemCode: string, memo: string) => void
@@ -199,7 +231,7 @@ export function SheetItemEditor({
   // R13-d: X 선택 시 그 자리에서 메모+[등록] — 상단 [불량 등록] 왕복 없이
   const [inlineX, setInlineX] = useState<string | null>(null)
   const [inlineMemo, setInlineMemo] = useState('')
-  const ctx: RowCtx = { value, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX }
+  const ctx: RowCtx = { value, memos, canEdit, busy, inlineX, inlineMemo, setInlineX, setInlineMemo, onResult, onRegisterX }
 
   /** 일괄 채움 정책(23 Q-21) — 빈 칸만 채우고 ○/✕ 절대 보존. 재클릭은 그 범위의 값만 해제하는 토글 */
   function bulkNA(codes: string[]) {

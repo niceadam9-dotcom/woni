@@ -179,7 +179,7 @@ try {
   // ── P11 — ✕ 인라인 메모: ESC는 폼만 닫는다(드로어 유지) + [등록] → X·불량 1건 ──
   await page.click('[data-toc-group="2-A"]')
   await page.click(`${drawer} [aria-label="2-A-001 X"]`)
-  const memoInput = page.locator(`${drawer} input[placeholder="불량 메모 (선택)"]`)
+  const memoInput = page.locator(`${drawer} input[placeholder="불량내용 (선택 — 불량내역에 표시)"]`)
   await memoInput.waitFor()
   await memoInput.press('Escape')
   check('P11 인라인 폼 ESC → 폼만 닫힘', await memoInput.count() === 0)
@@ -188,7 +188,8 @@ try {
   await page.click(`${drawer} [aria-label="2-A-002 X"]`)
   await memoInput.fill('드로어 인라인 등록 검증')
   await page.click(`${drawer} button:has-text("등록")`)
-  await page.waitForSelector(`${drawer} >> text=불량(✕) 저장`)
+  // 등록은 flush→저장→불량 등록→revalidatePath 사슬이라 dev 재컴파일과 겹치면 15초를 넘긴다(P14 40s와 같은 이유)
+  await page.waitForSelector(`${drawer} >> text=불량(✕) 저장`, { timeout: 40000 })
   const { data: xr } = await raw.from('inspection_sheet_responses')
     .select('result, memo').eq('inspection_id', inspA).eq('item_code', '2-A-002').single()
   check('P11 X·메모 저장', xr?.result === 'X' && xr?.memo === '드로어 인라인 등록 검증', JSON.stringify(xr))
@@ -198,6 +199,25 @@ try {
   // ⚠ ✕는 훅 계약 ①로 자동저장 예약 대상이 아니다 — [등록]이 유일한 저장 경로이고, 호출부가
   //    그 값을 기준값(baseline)으로 승격해야 dirty가 남지 않는다. 남으면 아래 P14가 내 쓰기에 오작동한다
   check('P11 [등록] 후 저장 버튼 잔존 없음', await page.locator(`${drawer} button:has-text("저장")`).count() === 0)
+
+  // ── P11b — 등록 후 재조회·수정(2026-09-07): 문구가 행 아래 남고, 눌러 고치면 불량내역 「불량내용」도 갱신 ──
+  //    종전엔 [등록]과 함께 문구가 화면에서 사라져 재조회 불가였다(✕ 재클릭은 해제라 오히려 지운다).
+  const memoLine = page.locator(`${drawer} [data-x-memo="2-A-002"]`)
+  await memoLine.waitFor()
+  check('P11b 등록 문구 행 아래 상시 표시', ((await memoLine.textContent()) ?? '').includes('드로어 인라인 등록 검증'))
+  await memoLine.click()
+  await memoInput.waitFor()
+  check('P11b 수정 모드 — 기존 문구 프리필', await memoInput.inputValue() === '드로어 인라인 등록 검증')
+  await memoInput.fill('드로어 인라인 수정 검증')
+  await page.click(`${drawer} button:has-text("수정")`)
+  await page.waitForSelector(`${drawer} >> text=불량내용 갱신`, { timeout: 40000 })
+  const { data: xr2 } = await raw.from('inspection_sheet_responses')
+    .select('memo').eq('inspection_id', inspA).eq('item_code', '2-A-002').single()
+  check('P11b 수정 — 응답 memo 갱신', xr2?.memo === '드로어 인라인 수정 검증', JSON.stringify(xr2))
+  // 메모가 곧 「불량내용」(defect_name)이다 — 재등록 sync가 기존 불량행을 새 문구로 덮는지까지 본다
+  const { data: df2 } = await raw.from('inspection_defects')
+    .select('defect_name').eq('inspection_id', inspA).eq('defect_code', '2-A-002')
+  check('P11b 수정 — 불량내역 「불량내용」 동기화', (df2 ?? []).length === 1 && df2?.[0]?.defect_name === '드로어 인라인 수정 검증', JSON.stringify(df2))
 
   // ── P12 — 작동 건: 종합전용(●)이 분모·행에서 빠짐 (S5·S6-3) ──
   const rows2D = await page.locator(`${drawer} [data-outline-group="2-D"] [aria-label$=" O"]`).count()
@@ -249,7 +269,7 @@ try {
   // ⚠ 자동저장 전환 후 '편집 중'을 만드는 결정적 수단은 **✕**다 — 훅 계약 ①로 schedule 대상이 아니라
   //    디바운스(1초)와 경합하지 않는다. ○를 쓰면 1초 뒤 저장이 끝나 dirty가 사라지고 배너가 랜덤하게 안 뜬다.
   await page.click(`${drawer} [aria-label="${dirtyCode} X"]`)
-  const memoX = page.locator(`${drawer} input[placeholder="불량 메모 (선택)"]`)
+  const memoX = page.locator(`${drawer} input[placeholder="불량내용 (선택 — 불량내역에 표시)"]`)
   await memoX.waitFor()
   await memoX.press('Escape')   // 폼만 닫는다(P11) — ✕ 초안은 남아 '편집 중' 유지
   await raw.from('inspection_sheet_responses').insert({
