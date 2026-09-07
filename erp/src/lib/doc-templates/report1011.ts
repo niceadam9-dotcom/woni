@@ -11,6 +11,14 @@ import { renderDocument, pageHeader, pageFooter, esc, val } from './base'
  *  계획 항목처럼 읽히지 않도록 표에서 구분해 인쇄한다(E10-5) */
 export type AnnexRow = { content: string; period: string; isSummary?: boolean }
 
+/** 별지 10호 「이행조치 계획사항」 — 서식 원문은 **설비 구분 7행 고정**이다(소화설비·경보설비·
+ *  피난구조설비·소화용수설비·소화활동설비·기타·안전시설등, DEFECT_GROUPS 순서).
+ *  종전 렌더는 불량 1건 = 1행이라 갑지 엑셀 `계획서` 시트와 구조가 갈라져 있었다
+ *  (2026-09-07 사용자 지적 image-77). 이제 두 산출물이 같은 7행·같은 문구·같은 일자를 쓴다(D-7).
+ *  - content: 8쪽 불량내용과 같은 fold(사용자 입력 행 / 결과참조 / 이상없음 / 해당없음)
+ *  - period·days: 그 구분의 불량만으로 산출한 이행기간(없으면 빈 칸 — 자리표만 인쇄) */
+export type AnnexPlanRow = { group: string; content: string; period: string; days: string }
+
 export type Annex1011Data = {
   customerName: string
   purpose: string
@@ -19,7 +27,10 @@ export type Annex1011Data = {
   ownerPhone: string
   mgrName: string
   mgrPhone: string
-  rows: AnnexRow[]          // 10호=계획(내용·기간) / 11호=완료(내용·완료일)
+  rows: AnnexRow[]          // 10호=계획 요약 줄(있을 때만) / 11호=완료(내용·완료일)
+  /** 10호 전용 — 설비 구분 7행. 공급되면 이 표로 인쇄하고, 미공급(구 호출부·픽스처)이면
+   *  종전 불량별 행 렌더 그대로 (하위 호환·대조군 보호) */
+  planRows?: AnnexPlanRow[]
   reportDate: string        // 예: 2026년 8월 3일
   submitTo: string          // 예: ○○소방서장
   // 10호 전용
@@ -45,6 +56,9 @@ const CSS = `
   .row-period { width: 30%; text-align: center; }
   .row-summary { background: #fafafa; }
   .row-tag { font-size: 8.5pt; border: 1px solid #999; border-radius: 2px; padding: 0 3px; margin-right: 3px; }
+  /* 설비 구분 라벨 — 서식 원문이 자간을 벌려 세로로 맞춘 칸(image-77) */
+  .grp-label { display: inline-block; min-width: 26mm; letter-spacing: 0.25em; font-weight: bold; }
+  .row-days { display: block; }
   .law { margin: 10px 2px 6px; text-indent: 0.5em; }
   .sign { text-align: center; margin: 14px 0 4px; }
   .signer { text-align: right; margin: 6px 8px; }
@@ -90,6 +104,36 @@ function rowsTable(title: string, colTitle: string, rows: AnnexRow[], extraRow?:
 </table>`
 }
 
+/** 별지 10호 「이행조치 계획사항」 — 설비 구분 7행 고정 표(서식 원문 구조).
+ *  summary(계획 내용 요약, ③ 고유값)는 있을 때만 7행 **위에** 한 줄 얹는다 — 개별 이행조치가
+ *  아니므로 종전과 같이 태그로 구분하고 일자 칸은 '—'로 둔다(E10-5). */
+function planTable(rows: AnnexPlanRow[], summary: AnnexRow | undefined, extraRow: string): string {
+  const body: string[] = []
+  if (summary) {
+    body.push(`<tr>
+    <td class="row-content row-summary"><span class="row-tag">계획 요약</span> ${esc(summary.content)}&nbsp;</td>
+    <td class="row-period row-summary">—</td>
+  </tr>`)
+  }
+  for (const r of rows) {
+    body.push(`<tr>
+    <td class="row-content"><span class="grp-label">${esc(r.group)}</span> : ${esc(r.content).replace(/\n/g, '<br>')}&nbsp;</td>
+    <td class="row-period">${r.period
+      ? `${esc(r.period)}<span class="row-days">(총 ${esc(r.days)} 일)</span>`
+      : '~<span class="row-days">(총&nbsp;&nbsp;&nbsp;&nbsp;일)</span>'}</td>
+  </tr>`)
+  }
+  return `<table class="form" style="margin-top:6px">
+  <tr>
+    <th rowspan="${body.length + 2}" style="width:22mm">이행조치<br>계획사항</th>
+    <td class="rows-th row-content">이행조치 사항</td>
+    <td class="rows-th row-period">이행조치 일자</td>
+  </tr>
+  ${body.join('\n')}
+  ${extraRow}
+</table>`
+}
+
 function noticeBox(rows: string[][]): string {
   return `<table class="form notice" style="margin-top:8px">
   ${rows.map(([label, body]) => `<tr><th style="width:22mm">${esc(label)}</th><td>${body}</td></tr>`).join('\n')}
@@ -123,7 +167,9 @@ export function renderReport10(d: Annex1011Data, opts: RenderOpts = {}): string 
 ${pageHeader('소방시설 설치 및 관리에 관한 법률 시행규칙 [별지 제10호서식]', '')}
 <h1 class="doc-title">소방시설등의 자체점검 결과 이행계획서</h1>
 ${headTable(d, h, false)}
-${rowsTable('이행조치 계획사항', '이행조치 사항', d.rows, totalRow)}
+${d.planRows
+  ? planTable(d.planRows, d.rows.find(r => r.isSummary), totalRow)
+  : rowsTable('이행조치 계획사항', '이행조치 사항', d.rows, totalRow)}
 ${signBlock('「소방시설 설치 및 안전관리에 관한 법률」 제23조제3항 및 같은 법 시행규칙 제23조제2항에 따라 위와 같이 소방시설등의 수리ㆍ교체ㆍ정비에 대한 이행계획서를 제출합니다.', d)}
 ${noticeBox([['유의 사항', CAUTION]])}
 ${pageFooter()}`

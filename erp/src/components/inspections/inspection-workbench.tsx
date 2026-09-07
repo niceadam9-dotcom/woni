@@ -30,7 +30,7 @@ import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-pa
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
-import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
+import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect, type DefectEdits } from '@/components/inspections/defect-grid'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
@@ -541,6 +541,10 @@ export function InspectionWorkbench({
           const active = sel === k
           return (
             <button key={k} onClick={() => setSel(k)} disabled={na}
+              /* aria-current — 지금 열린 차수를 **색 말고도** 알린다(스크린리더·검사 양쪽).
+                 종전엔 활성 표시가 bg-brand뿐이라, 하이드레이션 전 클릭이 조용히 무시돼도
+                 E2E가 '전환됐다'고 믿고 다음 칸을 기다리다 타임아웃났다(2026-09-07). */
+              aria-current={active ? 'step' : undefined}
               title={TIMELINE_STEP_TOOLTIPS[k]} data-step={k}
               /* ink-faint:장식 — na 가지는 `disabled={na}`가 실제로 걸린 **진짜 비활성**이다(WCAG 1.4.3 예외) */
               className={`flex min-w-[8.5rem] flex-1 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition-colors
@@ -859,6 +863,14 @@ export function InspectionWorkbench({
                     <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
                   )}
               </div>
+              {/* 별지 10호 문서 축 — 2026-09-07 사용자 지시로 ⑤에서 여기로 옮겼다.
+                  제출일·총 이행기간·총 일수는 **제출하는 문서의 값**이라 제출을 다루는 이 차수가 자리다.
+                  ⑤에는 실제 보수 작업 축(계획 요약·업체·예산)만 남는다. 저장처는 종전과 같은
+                  annex_inputs report10 — 두 자리가 같은 행을 나눠 쓰므로 AnnexFields가 병합 저장한다. */}
+              <div className="border-t border-brand-line-soft pt-2">
+                <AnnexFields inspectionId={inspectionId} annexNo="report10" canEdit={canManage} compact
+                  title="별지 10호 —" only={['reportDate', 'totalPeriod', 'totalDays']} />
+              </div>
               <div className="border-t border-brand-line-soft pt-2">
                 <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
               </div>
@@ -941,7 +953,9 @@ export function InspectionWorkbench({
               </>)}
             </div>
             <div className="border-t border-brand-line-soft pt-2">
+              {/* 제출일·총 이행기간·총 일수는 ④ 소방서 제출로 옮겼다(2026-09-07) — 여기는 작업 축만 */}
               <AnnexFields inspectionId={inspectionId} annexNo="report10" canEdit={canManage}
+                only={['summary', 'contractor', 'budget']}
                 onSaved={() => setDefectRev(v => v + 1)} />
             </div>
             {canManage && (
@@ -1103,10 +1117,17 @@ function DocPane({ files, inspectionId, onOpen }: {
 /** 서식 고유값 인라인 (R6-6) — 3단 슬라이드 패널 대신 미리보기 옆 몇 칸.
  *  정의는 annex-fields.tsx 하나, 저장 액션도 패널과 같은 saveAnnexInputsAction이다.
  *  칸을 벗어나면 저장한다 — 값이 비어 있으면 문서는 자동 계산값을 쓴다(오버레이 규칙 유지). */
-function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
+function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, title }: {
   inspectionId: string
   annexNo: ComposeAnnexNo
   canEdit: boolean
+  /** 이 서식의 칸 중 **여기서 받을 것만** 고른다(순서도 이 배열을 따른다).
+   *  10호는 문서 축(제출일·총 이행기간·총 일수)이 ④ 소방서 제출로, 작업 축(요약·업체·예산)이
+   *  ⑤에 남는다 — 2026-09-07 사용자 지시. 한 서식이 두 자리로 나뉘므로 저장은 **덮어쓰기가
+   *  아니라 병합**이어야 한다(아래 allRef): 종전 upsert는 fields JSONB를 통째로 바꾼다. */
+  only?: string[]
+  /** 칸 묶음 위에 붙일 소제목 — 한 화면에 여러 서식의 칸이 놓일 때만 */
+  title?: string
   /** 저장되면 미리보기가 따라가야 한다 — 고친 값이 문서에 어떻게 나오는지가 이 칸의 존재 이유다 */
   onSaved?: () => void
   /** ④처럼 **미리보기와 세로를 나눠 쓰는** 자리 전용 — 2열로 접고 높이 상한(12rem) 안에서 스크롤한다.
@@ -1114,13 +1135,20 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
    *  ⑤⑥의 고유값 칸은 미리보기가 **다른 칸**이라 세로 경쟁이 없다 — 거기는 종전 1열 그대로. */
   compact?: boolean
 }) {
-  const defs = FIELD_DEFS[annexNo]
+  const all = FIELD_DEFS[annexNo]
+  const defs = useMemo(
+    () => (only ? only.map(k => all.find(d => d.key === k)).filter((d): d is FieldDef => !!d) : all),
+    [all, only],
+  )
   const [fields, setFields] = useState<Record<string, string>>({})
   // 자동 계산값 — 보여주기만 한다(저장 금지). 저장하면 원천이 바뀌어도 옛 값이 굳는다
   const [auto, setAuto] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const savedRef = useRef<Record<string, string>>({})
+  /** 이 칸이 **안 그리는** 키까지 포함한 저장본 — only로 쪼갠 뒤 저장이 남의 칸을 지우지 않게 한다.
+   *  (saveAnnexInputsAction의 upsert는 fields를 통째로 교체한다) */
+  const allRef = useRef<Record<string, unknown>>({})
 
   useEffect(() => {
     let alive = true
@@ -1132,6 +1160,7 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
       if (!alive) return
       const f: Record<string, string> = {}
       for (const d of defs) { const v = inp.fields[d.key]; if (typeof v === 'string') f[d.key] = v }
+      allRef.current = inp.fields ?? {}
       setFields(f)
       setAuto(def.defaults ?? {})
       savedRef.current = { ...f }
@@ -1144,8 +1173,11 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
     if (!canEdit) return
     if (defs.every(d => (fields[d.key] ?? '') === (savedRef.current[d.key] ?? ''))) return
     setState('saving')
-    saveAnnexInputsAction(inspectionId, annexNo, fields).then(res => {
+    // 이 칸이 그리는 키만 덮고 나머지는 불러온 그대로 되돌려 보낸다 — 서버 upsert는 통째 교체다
+    const merged = { ...allRef.current, ...fields }
+    saveAnnexInputsAction(inspectionId, annexNo, merged).then(res => {
       if (res.error) { setState('error'); return }
+      allRef.current = merged
       savedRef.current = { ...fields }
       setState('saved')
       onSaved?.()
@@ -1159,6 +1191,7 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact }: {
       data-annex-fields={annexNo} onBlur={commit}>
       <p className="flex shrink-0 items-center gap-1.5 text-form-2xs text-ink-soft">
         <span className="inline-flex items-center rounded bg-brand px-1.5 py-0.5 text-form-3xs font-medium text-white">입력</span>
+        {title ? <b className="text-ink-sub">{title}</b> : null}
         이 서식에서만 쓰는 값 — 비우면 자동 계산값으로 출력
         {state === 'saving' && <Loader2 className="size-3 animate-spin text-brand" />}
         {state === 'saved' && <span className="text-green-600">저장됨</span>}

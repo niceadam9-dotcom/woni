@@ -10,9 +10,10 @@
  *  공용 헬퍼라 함께 왔다(액션 파일이 import — 값 import는 공개 엔드포인트를 만들지 않는다). */
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  FORM3_ITEMS, form3Group, parseParkingSummary,
+  DEFECT_GROUPS, DEFECT_FOLD_TEXT, FORM3_ITEMS, foldDefectGroups, form3Group, parseParkingSummary,
   type Report9Data, type Report9DefectRow, type Report9Person,
 } from '@/lib/doc-templates/report9'
+import type { AnnexPlanRow } from '@/lib/doc-templates/report1011'
 import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats } from '@/lib/sheet-facility-map'
 import { sheetScope } from '@/lib/sheet-scope'
 import { sheetItemGroupRef } from '@/lib/sheet-scope'
@@ -91,6 +92,25 @@ export function actionPlanPeriod(
   const endISO = ends[ends.length - 1]
   const days = Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 86400000) + 1
   return { startISO, endISO, days }
+}
+
+/** 별지 10호 「이행조치 계획사항」 7행 — 별지 9호 조립본 하나에서 파생시킨다.
+ *
+ *  ⚠ 문구도 일자도 **여기서 새로 만들지 않는다**: 문구는 8쪽·갑지 현5와 같은 `foldDefectGroups`,
+ *  일자는 갑지 `계획서!K·P·O`와 같은 `actionGroupPeriods`다. 규칙을 다시 적으면 PDF와 엑셀이
+ *  조용히 갈라진다(D-7 — 이 파일이 존재하는 이유). */
+export function annexPlanRows(d: Report9Data): AnnexPlanRow[] {
+  const folds = foldDefectGroups(d.defectRows, d.applicableGroups ?? [])
+  return DEFECT_GROUPS.map(group => {
+    const f = folds.get(group)
+    const gp = d.actionGroupPeriods?.[group] ?? null
+    return {
+      group,
+      content: !f ? '' : f.kind === 'rows' ? f.rows.map(r => r.content).join('\n') : DEFECT_FOLD_TEXT[f.kind],
+      period: gp ? `${kdate(gp.startISO)} ~ ${kdate(gp.endISO)}` : '',
+      days: gp ? String(gp.days) : '',
+    }
+  })
 }
 
 export async function assembleReport9(
@@ -458,10 +478,13 @@ export async function assembleReport9(
     const nm = defectByCode.get(code)?.defect_name
     return nm && nm !== code ? nm : undefined
   }
+  // 41: userEntered — 이름≠코드(defectName 적중)만 사람 입력. 항목명 폴백 content는 화면
+  // 소비처 보호를 위해 그대로 두고, 인쇄는 foldDefectGroups가 이 축으로 접는다(폴백 행 개별 미인쇄).
   const defectRows: Report9DefectRow[] = xCodes.map(code => ({
     group: groupOfCode(code),
     code,
     content: defectName(code) ?? itemNameByCode.get(code) ?? '',
+    userEntered: defectName(code) !== undefined,
   }))
   for (const d of defects) {
     if (d.defect_code && xCodes.includes(d.defect_code)) continue // X 응답과 조인된 건은 위에서 렌더
@@ -469,8 +492,16 @@ export async function assembleReport9(
       group: d.defect_code ? groupOfCode(d.defect_code) : '기타',
       code: d.defect_code ?? '',
       content: (d.defect_code ? (defectName(d.defect_code) ?? itemNameByCode.get(d.defect_code)) : undefined) ?? d.defect_name,
+      // 코드 없는 수기 불량행의 이름은 그 자체가 사람 입력이다(등록 폼 필수값)
+      userEntered: d.defect_code ? defectName(d.defect_code) !== undefined : d.defect_name !== '',
     })
   }
+  // 41 §3: 그룹 해당 집합 — 설치 축은 3쪽과 같은 원천(facilityChecks→form3Group), 안전시설등은
+  // 2쪽 다중이용업 축. 기타는 설치 축이 없다 — 불량 없으면 「해당없음」(Q-1 확정, 2026-09-06).
+  const applicableGroups = DEFECT_GROUPS.filter(g =>
+    g === '안전시설등' ? hasMultiUse
+      : g === '기타' ? false
+        : facilityChecks.some(it => form3Group(it) === g))
 
   const data: Report9Data = {
     ckOp, ckInitial, ckCompEtc,
@@ -555,8 +586,16 @@ export async function assembleReport9(
     muResults,
     specs,
     defectRows,
+    applicableGroups,
     // 별지 10호 축 — 별지 9호 렌더는 쓰지 않는다. 갑지 엑셀이 PDF와 같은 기간을 받게 하려고 싣는다(D-7)
     actionPeriod: actionPlanPeriod(defects),
+    // 그룹별 기간 — 같은 `actionPlanPeriod` 규칙을 **그 그룹의 불량에만** 적용한다.
+    // 그룹 판정은 8쪽과 같은 `groupOfCode`(코드 없는 수기 불량은 '기타') — 두 표가 갈라질 수 없다.
+    actionGroupPeriods: Object.fromEntries(
+      DEFECT_GROUPS.map(g => [g, actionPlanPeriod(
+        defects.filter(d => (d.defect_code ? groupOfCode(d.defect_code) : '기타') === g),
+      )]).filter(([, p]) => p !== null) as Array<[string, { startISO: string; endISO: string; days: number }]>,
+    ),
   }
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 보고일 수기 지정·비고 (작성 패널 저장분)

@@ -46,6 +46,36 @@ export function form3Group(item: string): string {
 /** 8쪽 불량 세부 사항 구분 행 — 서식 원문 순서 고정(빈 구분도 행 유지) */
 export const DEFECT_GROUPS = ['소화설비', '경보설비', '피난구조설비', '소화용수설비', '소화활동설비', '기타', '안전시설등'] as const
 
+// ── 8쪽 불량내용 자동 문구(소방계획서_41) — 그룹당 4상태 인쇄 접기 ─────────────
+// ① 사용자 입력 행 있음 → 그 행들만 인쇄(자동 등록분은 개별 인쇄하지 않는다 — 점검번호
+//    전체는 첨부 점검표가 원천) ② 불량은 있는데 입력 전무 → 「결과참조」 1행(번호 공란)
+// ③ 불량 없음 + 그룹 해당 → 「이상없음」 ④ 불량 없음 + 미해당 → 「해당없음」
+// PDF page8()과 갑지 엑셀 현5가 **이 함수 하나**를 부른다 — 두 벌이면 한쪽만 갱신돼
+// 조용히 갈라진다(D-7). defectRows 데이터 자체는 불변 — 이행일자(PLAN_DATE_ROWS)·
+// actionPlanPeriod가 그 배열을 읽으므로 바뀌는 것은 인쇄 접기뿐이다.
+export type DefectFold =
+  | { kind: 'rows'; rows: Report9DefectRow[] }
+  | { kind: 'refer' | 'ok' | 'na' }
+/** 문구는 서식 기본 스타일(검정·보통)로 찍는다 — 목업의 빨강·자간은 후속(Q-2 확정) */
+export const DEFECT_FOLD_TEXT = { refer: '결과참조', ok: '이상없음', na: '해당없음' } as const
+
+export function foldDefectGroups(
+  defectRows: Report9DefectRow[], applicableGroups: string[],
+): Map<string, DefectFold> {
+  const applicable = new Set(applicableGroups)
+  const out = new Map<string, DefectFold>()
+  for (const g of DEFECT_GROUPS) {
+    const rows = defectRows.filter(r => r.group === g)
+    if (rows.length === 0) {
+      out.set(g, { kind: applicable.has(g) ? 'ok' : 'na' })
+      continue
+    }
+    const user = rows.filter(r => r.userEntered)
+    out.set(g, user.length ? { kind: 'rows', rows: user } : { kind: 'refer' })
+  }
+  return out
+}
+
 /** 2쪽 다중이용업소현황 업종 배열 — 서식 원문 3열 배치(doc-requirements MULTI_USE_CATEGORIES와 명칭 일치) */
 /** 다중이용업 업종 — 3열 배치 순서까지 서식 그대로. 엑셀 갑지(정보!B14·E14·I14)도 같은 목록·같은
  *  순서를 쓰므로 export한다(어휘가 두 벌이면 한쪽만 갱신돼 조용히 갈라진다 — D-7) */
@@ -56,7 +86,10 @@ export const MULTI_USE_COLS: string[][] = [
 ]
 
 export type Report9Person = { name: string; grade: string; licenseNo: string; period: string }
-export type Report9DefectRow = { group: string; code: string; content: string }
+/** userEntered — 불량내용이 **사람 입력**인가(이름≠코드). 조립(report9-assemble)이 새긴다 —
+ *  content에 점검표 항목명 폴백이 섞인 뒤에는 구분할 수 없으므로 조립 단계가 유일한 자리다.
+ *  폴백 content는 화면 등 다른 소비처 보호를 위해 그대로 두고, 인쇄만 fold가 접는다. */
+export type Report9DefectRow = { group: string; code: string; content: string; userEntered?: boolean }
 
 export type Report9Data = {
   // ── 1쪽 표지 ──
@@ -144,10 +177,19 @@ export type Report9Data = {
   specs?: SpecMap
   // ── 8쪽 ──
   defectRows: Report9DefectRow[]
+  /** 불량 세부 그룹 해당 집합(소방계획서_41 §3) — 설치 설비(facilityChecks→form3Group)·다중이용업
+   *  축에서 조립이 산출한다. **공급되면 8쪽이 4상태 fold로 인쇄**되고(빈 그룹도 이상없음/해당없음),
+   *  미공급(구 호출부·픽스처)이면 종전 그대로 빈 그룹 공란 — 대조군·하위 호환 보호. */
+  applicableGroups?: string[]
   /** 이행조치 총 기간(별지 10호 축) — 별지 9호 렌더에는 쓰이지 않는다.
    *  갑지 엑셀 `개요!G9·I9·J9`가 PDF(`totalPeriod`·`totalDays`)와 **같은 값**을 받게 하려고
    *  같은 조립본에 실어 나른다(D-7). 원천은 `actionPlanPeriod()` 단일 규칙. */
   actionPeriod?: { startISO: string; endISO: string; days: number } | null
+  /** 설비 구분별 이행조치 기간 — 별지 10호 「이행조치 계획사항」 7행의 일자 칸과 갑지 엑셀
+   *  `계획서!K·P·O` 21칸이 **같은 값**을 받게 하는 단일 원천(D-7). 키는 DEFECT_GROUPS,
+   *  그 그룹에 계획 건이 없으면 키 자체가 없다(= 일자 칸 공란).
+   *  종전엔 그룹 축이 없어 **총 기간을 불량 있는 전 행에 복제**했다(2026-09-07 사용자 지적 image-77). */
+  actionGroupPeriods?: Record<string, { startISO: string; endISO: string; days: number }>
   // ── ③ 서식 고유 값 (annex_inputs, H-23) — 비고·보완 문구: 1쪽 유의사항 위 1줄, 없으면 미출력 ──
   note?: string
 }
@@ -570,11 +612,15 @@ ${no === 4 ? specNoteTable() : ''}
 
 // ── 8쪽 — 4. 소방시설등 불량 세부 사항 (자동 — defects + 시트 X 항목 점검번호) ──
 function page8(d: Report9Data): string {
+  // 41: applicableGroups가 오면 4상태 fold(결과참조/이상없음/해당없음), 미공급이면 종전 렌더
+  const folds = d.applicableGroups ? foldDefectGroups(d.defectRows, d.applicableGroups) : null
   const body = DEFECT_GROUPS.map(g => {
-    const rows = d.defectRows.filter(r => r.group === g)
+    const f = folds?.get(g)
+    const rows = f ? (f.kind === 'rows' ? f.rows : []) : d.defectRows.filter(r => r.group === g)
     if (rows.length === 0) {
-      // 빈 구분도 행 유지 — 서식 원문 동일
-      return `<tr><td class="center">${g}</td><td>&nbsp;</td><td></td></tr>`
+      const text = f && f.kind !== 'rows' ? DEFECT_FOLD_TEXT[f.kind] : ''
+      // 빈 구분도 행 유지 — 서식 원문 동일. 문구 없으면(구 호출) 종전 공란
+      return `<tr><td class="center">${g}</td><td>&nbsp;</td><td class="center">${text}</td></tr>`
     }
     return rows.map((r, i) => `<tr>${
       i === 0 ? `<td class="center" rowspan="${rows.length}">${g}</td>` : ''

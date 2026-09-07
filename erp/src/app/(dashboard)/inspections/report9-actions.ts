@@ -21,7 +21,7 @@ import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-ma
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 import type { ManagerRow } from '@/components/customers/plan-form17'
-import { assembleReport9, actionPlanPeriod, kdate, pageAll, loadAnnexInputs, fstr } from '@/lib/report9-assemble'
+import { assembleReport9, annexPlanRows, actionPlanPeriod, kdate, pageAll, loadAnnexInputs, fstr } from '@/lib/report9-assemble'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
@@ -89,11 +89,20 @@ async function assembleAnnex1011(
   if (kind === 'report10') {
     // E10-4(B-8 감사): 종료일만 입력된 불량도 계획 건으로 편입 — 종전 필터는 표·총기간에서 통째 탈락시켰다
     const planned = defects.filter(d => d.action_plan || d.action_start || d.action_end)
-    // E10-1(소방계획서_19 B-8 감사): 표 행 기간도 총 이행기간·보고일과 같은 한국어 날짜로 통일
-    data.rows = planned.map(d => ({
-      content: d.action_plan || d.defect_name || '',
-      period: `${d.action_start ? kdate(d.action_start) : ''} ~ ${d.action_end ? kdate(d.action_end) : ''}`.replace(/^ ~ $/, ''),
-    }))
+    // 「이행조치 계획사항」은 **설비 구분 7행 고정**이다(서식 원문·갑지 계획서 시트와 같은 구조,
+    // 2026-09-07 image-77). 문구(fold)·그룹별 일자는 별지 9호 조립본이 유일한 원천이라 그대로
+    // 파생시킨다 — 여기서 그룹 판정을 다시 적으면 8쪽·엑셀과 갈라진다(D-7).
+    // ⚠ 조립 실패로 10호가 통째로 막히면 안 된다 — 실패 시 종전 불량별 행 렌더로 내려간다.
+    try {
+      const { data: d9 } = await assembleReport9(admin, customerId, inspectionId)
+      data.planRows = annexPlanRows(d9)
+    } catch {
+      // E10-1(소방계획서_19 B-8 감사): 폴백 경로 — 표 행 기간도 총 이행기간·보고일과 같은 한국어 날짜로 통일
+      data.rows = planned.map(d => ({
+        content: d.action_plan || d.defect_name || '',
+        period: `${d.action_start ? kdate(d.action_start) : ''} ~ ${d.action_end ? kdate(d.action_end) : ''}`.replace(/^ ~ $/, ''),
+      }))
+    }
     // ⚠ 기간 산출은 **lib의 actionPlanPeriod 단일 원천**이다 — 갑지 엑셀 `개요!G9·I9·J9`가 같은 값을
     //   받아야 PDF와 갈라지지 않는다(D-7). 여기에 규칙을 다시 적으면 한쪽만 갱신돼 두 문서가 어긋난다
     const period = actionPlanPeriod(planned)

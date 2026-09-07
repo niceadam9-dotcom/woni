@@ -250,7 +250,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           // 현5 불량 세부 — PDF(page8)는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 **그룹당
           // 1행 고정**이라 접는다. 상한(행 높이 77.25pt ≈ 5줄)을 넘으면 자르되 **조용히 버리지
           // 않는다**(S8-2 규약과 같은 축) — 잘린 채로도 인쇄물은 멀쩡해 보이기 때문이다.
-          ...defectOverflow(r9.data.defectRows).map(o => `불량 세부 ${o.group} ${o.dropped}건 미표기(엑셀 1행 상한)`),
+          // 41: 분모는 buildWorkbookValues와 같은 fold(인쇄 대상 행) — applicableGroups를 함께 넘긴다
+          ...defectOverflow(r9.data.defectRows, r9.data.applicableGroups).map(o => `불량 세부 ${o.group} ${o.dropped}건 미표기(엑셀 1행 상한)`),
           // 3-1 동별 수량 — 서식 8행 상한을 넘는 동은 잘리므로 알린다(위와 같은 S8-2 축)
           ...(s31RowOverflow(r9.data.specs) ? [`3-1 동별 수량 ${s31RowOverflow(r9.data.specs)}개 동 미표기(현1 8행 상한)`] : []),
           ...(donorGaps.length ? [`점검표 서식 미동봉(자산 없음): ${donorGaps.join(', ')}`] : []),

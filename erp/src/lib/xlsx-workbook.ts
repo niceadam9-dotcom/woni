@@ -5,7 +5,7 @@
  *  PDF와 엑셀이 같은 값을 쓴다는 것이 구조적으로 보장된다. */
 import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
-import { MULTI_USE_COLS } from '@/lib/doc-templates/report9'
+import { DEFECT_FOLD_TEXT, MULTI_USE_COLS, foldDefectGroups } from '@/lib/doc-templates/report9'
 import { resultMark } from '@/lib/doc-templates/base'
 import { ANCHORS, DEFECT_GROUP_ROWS, PLAN_DATE_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
 import { s31DongRows } from '@/lib/doc-templates/spec-sections'
@@ -72,10 +72,17 @@ export type WorkbookSource = {
     /** 불량 세부(별지 9호 8쪽 = `현5` 시트) — PDF `page8()`이 인쇄하는 바로 그 배열(D-7).
      *  옵션인 이유는 구 호출부·픽스처 호환이며, 미공급이면 7행이 전부 명시적 공란이 된다
      *  (서식의 `=""`가 살아남아 계획서!H12가 `0`을 인쇄하지 않는다 — keepFormulaWhenEmpty). */
-    defectRows?: Array<{ group: string; code: string; content: string }>
+    defectRows?: Array<{ group: string; code: string; content: string; userEntered?: boolean }>
+    /** 불량 세부 그룹 해당 집합(소방계획서_41) — 공급되면 현5 7행이 PDF 8쪽과 **같은 fold**
+     *  (foldDefectGroups)로 접힌다: 사용자 입력 행만 인쇄, 나머지는 결과참조/이상없음/해당없음 문구.
+     *  미공급(구 호출부·픽스처)이면 종전 그대로 — 빈 그룹은 `=""` 존치(계획서!H의 0 인쇄 방지). */
+    applicableGroups?: string[]
     /** 이행조치 총 기간(별지 10호 축) — PDF `totalPeriod`·`totalDays`와 **같은 원천**
      *  (`actionPlanPeriod()`). 개요!G9·I9·J9·G10의 값이자, 계획서·완료보고서가 전부 여기서 온다. */
     actionPeriod?: { startISO: string; endISO: string; days: number } | null
+    /** 설비 구분별 이행조치 기간 — `계획서!K·P·O` 21칸의 원천이자 PDF 10호 7행과 **같은 값**(D-7).
+     *  키가 없는 구분 = 계획 건 없음 = 일자 칸 공란. 미공급이면 종전 동작(총 기간 복제)으로 폴백. */
+    actionGroupPeriods?: Record<string, { startISO: string; endISO: string; days: number }>
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
     // ── 정보 시트 12칸(별지 9호 2쪽) — 필수/옵션 구분은 **Report9Data와 정확히 같게** 둔다.
@@ -834,14 +841,20 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   )
   // ── 계획서(별지 10호) 행별 이행조치 일자 — 그 그룹에 불량이 있을 때만 (2026-09-02) ──
   // 서식 수식이 총 기간을 전 행에 복제하던 것을 끊고, PDF 10호 규약(행별 period·빈 행은 날짜 없음)에
-  // 맞춘다. 값은 같은 총 기간(actionPlanPeriod 단일 원천 — 그룹별 기간 축은 데이터에 없다).
+  // 맞춘다. 값은 **그룹별 기간**(actionGroupPeriods — 같은 actionPlanPeriod 규칙을 그 구분의
+  // 불량에만 적용한 것)이고, PDF 10호 7행이 같은 값을 쓴다(D-7).
+  // 2026-09-07까지는 그룹 축이 없어 **총 기간을 불량 있는 전 행에 복제**했다 — 3개 구분에 불량이
+  // 흩어져 있으면 세 행이 전부 같은 최장 기간으로 찍혔다(사용자 지적 image-77). 미공급(구 호출부·
+  // 픽스처)이면 종전 동작 그대로 — 대조군 보호.
   // 빈 행은 공백 1칸 — 빈 셀·null은 수식 제거 후에도 표시 서식에 따라 0으로 읽힐 수 있다(assist E열 규약).
   for (const { group, row } of PLAN_DATE_ROWS) {
-    const has = (p.defectRows ?? []).some(r => r.group === group)
+    const gp = p.actionGroupPeriods
+      ? (p.actionGroupPeriods[group] ?? null)
+      : ((p.defectRows ?? []).some(r => r.group === group) ? ap : null)
     entries.push(
-      [`planStart${row}`, has && ap ? isoToSerial(ap.startISO) : ' '],
-      [`planEnd${row}`, has && ap ? isoToSerial(ap.endISO) : ' '],
-      [`planDays${row}`, has && ap ? ap.days : ' '],
+      [`planStart${row}`, gp ? isoToSerial(gp.startISO) : ' '],
+      [`planEnd${row}`, gp ? isoToSerial(gp.endISO) : ' '],
+      [`planDays${row}`, gp ? gp.days : ' '],
     )
   }
   // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
@@ -850,8 +863,18 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   // ⚠ B열(점검번호)과 C열(불량내용)을 **같은 인덱스로** 자른다 — 따로 자르면 남의 불량에 남의
   //   번호가 붙는다(짝이 어긋난 채로도 인쇄는 멀쩡해 보인다).
   // ⚠ 넘치는 분은 자르되 `defectOverflow`로 남겨 라우트가 missing에 실을 수 있게 한다(S8-2 규약).
+  // 41: applicableGroups가 오면 PDF 8쪽과 같은 fold — 사용자 입력 행만 접어 넣고, 빈 그룹은
+  // 결과참조/이상없음/해당없음 문구(번호 칸 공란). 계획서!H12~H24{=현5!C4..C10} 수식으로 이행조치
+  // 사항 칸에도 같은 문구가 전파된다(Q-3 허용 확정, 2026-09-06 — 구조 변경 0이 이 축의 선택 이유).
+  const defectFolds = p.applicableGroups
+    ? foldDefectGroups(p.defectRows ?? [], p.applicableGroups) : null
   for (const { group, row } of DEFECT_GROUP_ROWS) {
-    const rows = (p.defectRows ?? []).filter(r => r.group === group)
+    const f = defectFolds?.get(group)
+    if (f && f.kind !== 'rows') {
+      entries.push([`defectCode${row}`, null], [`defectContent${row}`, DEFECT_FOLD_TEXT[f.kind]])
+      continue
+    }
+    const rows = f ? f.rows : (p.defectRows ?? []).filter(r => r.group === group)
     const kept = rows.slice(0, DEFECT_ROWS_PER_GROUP)
     entries.push(
       [`defectCode${row}`, kept.length ? kept.map(r => r.code).join('\n') : null],
@@ -866,13 +889,19 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
 export const DEFECT_ROWS_PER_GROUP = 5
 
 /** 접기로 잘려 나간 불량 건수 — 라우트가 missing에 싣는 축(S8-2: '자르되 missing에 남긴다').
- *  0이면 손실 없음. 이 함수를 따로 둔 이유는 buildWorkbookValues가 값만 돌려주기 때문이다. */
+ *  0이면 손실 없음. 이 함수를 따로 둔 이유는 buildWorkbookValues가 값만 돌려주기 때문이다.
+ *  ⚠ 41: applicableGroups가 오면 분모가 **인쇄 대상 행**(fold의 사용자 입력 행)으로 바뀐다 —
+ *  buildWorkbookValues와 같은 fold를 타야 '미표기 N건'이 실제 잘린 수와 일치한다(거짓 경보 방지). */
 export function defectOverflow(
-  defectRows?: Array<{ group: string; code: string; content: string }>,
+  defectRows?: Array<{ group: string; code: string; content: string; userEntered?: boolean }>,
+  applicableGroups?: string[],
 ): Array<{ group: string; dropped: number }> {
+  const folds = applicableGroups ? foldDefectGroups(defectRows ?? [], applicableGroups) : null
   const out: Array<{ group: string; dropped: number }> = []
   for (const { group } of DEFECT_GROUP_ROWS) {
-    const n = (defectRows ?? []).filter(r => r.group === group).length
+    const f = folds?.get(group)
+    if (f && f.kind !== 'rows') continue // 문구 1행 — 잘리는 것이 없다
+    const n = (f ? f.rows : (defectRows ?? []).filter(r => r.group === group)).length
     if (n > DEFECT_ROWS_PER_GROUP) out.push({ group, dropped: n - DEFECT_ROWS_PER_GROUP })
   }
   return out
